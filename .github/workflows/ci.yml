@@ -1,0 +1,21 @@
+name: ci
+on: { push: { branches: [main] }, pull_request: {} }
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    env: { LLM_PROVIDER: mock }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 24, cache: pnpm }
+      - uses: astral-sh/setup-uv@v6
+      - run: pnpm install --frozen-lockfile
+      - run: uv sync --all-packages --all-groups
+      - run: pnpm lint
+      - run: uv run pytest -q
+      - run: pnpm -r --if-present typecheck
+      - run: pnpm -r --if-present test
+      - name: OpenAPI drift
+        run: pnpm gen && git diff --exit-code packages/api-client
+      - run: pnpm golden

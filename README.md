@@ -25,3 +25,8 @@ Site: **whole City of Elmina** in 3D, with deep verified detail at **Elmina Urba
 | [`docs/`](docs/README.md) | **Knowledge base: start here.** Brief, research, product spec, architecture, team plan, pitch |
 | [`reference/`](reference/README.md) | Papers (PDF), cloned reference repos (gitignored, use `reference/clone-repos.sh`), source notes |
 | `apps/`, `packages/`, `config/`, `data/`, `evals/` | Code (to be scaffolded, see [docs/05-team/dev-setup.md](docs/05-team/dev-setup.md)) |
+
+## Quick start
+1. `cp .env.example .env` (optional: add keys; everything works without them)
+2. `pnpm install && uv sync --all-packages`
+3. `pnpm dev` → web http://localhost:5173 · API http://localhost:8000/docs
