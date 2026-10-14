@@ -61,3 +61,32 @@ def test_validator_requires_caveat_for_partly_unverified():
 def test_validator_rejects_unknown_route_id():
     a = FinalAnswer(answer_status="answered", summary="x", route_id="rt-nope")
     assert validate_answer(a, rec())
+
+
+import pytest  # noqa: E402
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "The path is 30cm deep",
+        "Air 30 cm dalam di lorong",
+        "路上有30cm深的水",
+        "水深30厘米深",
+        "depth of 1.2 m",
+        "a 2 m depth here",
+        "it is knee-deep",
+        "30 cm of water",
+    ],
+)
+def test_validator_rejects_depth_phrases(text):
+    a = FinalAnswer(answer_status="answered", summary=text, scenario_id="stage_p3m")
+    assert any("depth" in e for e in validate_answer(a, rec(scenarios_used={"stage_p3m"}))), text
+
+
+@pytest.mark.parametrize(
+    "text", ["A 1.5 m wide path", "Safety first", "This is unsafe", "safe-house"]
+)
+def test_validator_no_false_positives(text):
+    a = FinalAnswer(answer_status="answered", summary=text, scenario_id="stage_p3m")
+    assert validate_answer(a, rec(scenarios_used={"stage_p3m"})) == [], text

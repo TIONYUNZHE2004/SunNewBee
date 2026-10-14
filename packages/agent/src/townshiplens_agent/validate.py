@@ -3,8 +3,12 @@ import re
 from .answer import FinalAnswer
 from .record import TurnRecord
 
-FORBIDDEN = re.compile(r"\bsafe(ly)?\b|\bselamat\b|安全", re.IGNORECASE)
-DEPTH = re.compile(r"\b\d+(\.\d+)?\s?(cm|m)\b\s*(deep|of water|dalam|深)", re.IGNORECASE)
+FORBIDDEN = re.compile(r"(?<![\w-])safe(?:ly)?(?![\w-])|\bselamat\b|安全", re.IGNORECASE)
+DEPTH = re.compile(
+    r"\d+(?:\.\d+)?\s?(?:cm|m|厘米|米)\s*(?:deep|of water|dalam|深)"
+    r"|depth\s+of\s+\d|\d+(?:\.\d+)?\s?(?:cm|m)\s+depth|(?:knee|waist|ankle)-deep",
+    re.IGNORECASE,
+)
 
 
 def validate_answer(ans: FinalAnswer, rec: TurnRecord) -> list[str]:

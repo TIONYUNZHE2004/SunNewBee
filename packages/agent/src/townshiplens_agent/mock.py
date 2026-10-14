@@ -3,7 +3,7 @@
 import json
 import re
 
-from pydantic_ai import ModelMessage, ModelResponse, TextPart, ToolCallPart  # noqa: F401
+from pydantic_ai import ModelMessage, ModelResponse, ToolCallPart
 from pydantic_ai.messages import ModelRequest, ToolReturnPart, UserPromptPart
 from pydantic_ai.models.function import AgentInfo, FunctionModel
 
@@ -48,7 +48,31 @@ def _final(**ans) -> ModelResponse:
     return ModelResponse(parts=[ToolCallPart(tool_name="final_answer", args=ans)])
 
 
+def _data(ret: dict):
+    """Tool payload data, or None when the tool failed or returned nothing."""
+    return ret.get("data") if ret.get("ok", True) else None
+
+
+def _cannot(msg: str = "I couldn't get verified information for that yet.") -> ModelResponse:
+    return _final(answer_status="cannot_answer", summary=msg)
+
+
+def _unknown_caveats(routes: list) -> list[str]:
+    return [
+        f"Not checked yet: {u.get('attribute')} on {u.get('element_id')}"
+        for r in routes
+        for u in (r.get("unknowns") or [])
+    ]
+
+
 def _script(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
+    try:
+        return _script_inner(messages)
+    except (KeyError, IndexError, TypeError, AttributeError):
+        return _cannot()
+
+
+def _script_inner(messages: list[ModelMessage]) -> ModelResponse:
     q = _prompt(messages).lower()
     rets = _returns(messages)
     n = len(rets)
@@ -58,21 +82,19 @@ def _script(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
             return _call("list_flood_scenarios")
         if n == 1:
             return _call("affected_places", scenario_id="stage_p3m", kind="all", profile="default")
-        a = rets[-1][1]["data"]
+        a = _data(rets[-1][1])
+        ev = _ev_ids(rets)
+        if not isinstance(a, dict) or not ev:
+            return _cannot()
         return _final(
             answer_status="answered",
             summary=(
-                f"In the River +3 m indicative scenario, {len(a['likely'])} places/paths "
-                "are likely cut off "
-                f"and {len(a['possible'])} possibly. This is not a forecast; "
-                "follow official MBSA / JPS / NADMA guidance."
+                f"In the River +3 m indicative scenario, {len(a.get('likely') or [])} "
+                f"places/paths are likely cut off and {len(a.get('possible') or [])} possibly. "
+                "This is not a forecast; follow official MBSA / JPS / NADMA guidance."
             ),
             claims=[
-                {
-                    "text": "Scenario River +3 m",
-                    "status": "indicative",
-                    "evidence_ids": [_ev_ids(rets)[0]],
-                }
+                {"text": "Scenario River +3 m", "status": "indicative", "evidence_ids": [ev[0]]}
             ],
             scenario_id="stage_p3m",
             scene_intents=[{"kind": "flood.set_level", "scenario_id": "stage_p3m"}],
@@ -80,37 +102,44 @@ def _script(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
     if is_flood:  # resident: where can I go
         if n == 0:
             return _call("find_place", query="lakeside mall")
-        origin = rets[0][1]["data"][0]["id"] if rets[0][1]["data"] else None
+        found = _data(rets[0][1]) or []
+        origin = found[0]["id"] if found else None
         if n == 1:
+            if not origin:
+                return _cannot("I couldn't find where you are in the township model yet.")
             return _call(
                 "list_evacuation_centres",
                 scenario_id="stage_p3m",
                 profile="wheelchair",
                 near_place=origin,
             )
-        centres = [c for c in rets[1][1]["data"] if c["reachable"]]
-        if n == 2 and centres:
-            target = centres[0]["centre"]["place_id"] or f"__centre__{centres[0]['centre']['id']}"
+        centres = [c for c in (_data(rets[1][1]) or []) if c.get("reachable")]
+        if n == 2:
+            if not centres:
+                return _cannot("No reachable centre found in this indicative scenario.")
+            ctr = centres[0]["centre"]
             return _call(
                 "plan_route",
                 from_id=origin,
-                to_id=target,
+                to_id=ctr.get("place_id") or f"__centre__{ctr['id']}",
                 profile="wheelchair",
                 scenario_id="stage_p3m",
             )
-        route = (
-            rets[-1][1]["data"]["routes"][0] if n >= 3 and rets[-1][1]["data"]["routes"] else None
-        )
-        c0 = centres[0]["centre"] if centres else None
+        if not centres:
+            return _cannot("No reachable centre found in this indicative scenario.")
+        c0 = centres[0]["centre"]
+        routes = (_data(rets[-1][1]) or {}).get("routes") or []
+        route = routes[0] if routes else None
+        caveats = _unknown_caveats(routes[:1])
+        if route and route.get("status") != "confirmed" and not caveats:
+            caveats = [f"Route status: {route.get('status')}; not all segments are verified."]
         return _final(
-            answer_status="answered" if route and route["status"] == "confirmed" else "partial",
+            answer_status="answered" if route and route.get("status") == "confirmed" else "partial",
             summary=(
                 "In the River +3 m indicative scenario, the nearest reachable centre is "
-                f"{c0['name']} ({_src(c0)})."
-                if c0
-                else "No reachable centre found in this indicative scenario."
-            )
-            + " This is not a forecast; follow official MBSA / JPS / NADMA guidance.",
+                f"{c0['name']} ({_src(c0)}). "
+                "This is not a forecast; follow official MBSA / JPS / NADMA guidance."
+            ),
             claims=[
                 {
                     "text": "Centre source and reachability",
@@ -122,10 +151,7 @@ def _script(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
             ],
             route_id=route["id"] if route else None,
             scenario_id="stage_p3m",
-            caveats=[
-                f"Not checked yet: {u['attribute']} on {u['element_id']}"
-                for u in (route or {}).get("unknowns", [])
-            ],
+            caveats=caveats,
             scene_intents=[{"kind": "flood.set_level", "scenario_id": "stage_p3m"}]
             + ([{"kind": "route.highlight", "route_id": route["id"]}] if route else []),
         )
@@ -135,32 +161,28 @@ def _script(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
         if n == 1:
             return _call("find_place", query="playground")
         if n == 2:
-            a, b = rets[0][1]["data"], rets[1][1]["data"]
+            a, b = _data(rets[0][1]), _data(rets[1][1])
             if not a or not b:
-                return _final(
-                    answer_status="cannot_answer",
-                    summary="I couldn't find one of those places yet.",
-                )
+                return _cannot("I couldn't find one of those places yet.")
             return _call("plan_route", from_id=a[0]["id"], to_id=b[0]["id"], profile="stroller")
-        rr = rets[-1][1]["data"]
-        r0 = rr["routes"][0] if rr["routes"] else None
-        ev = [i for i in _ev_ids(rets) if i.startswith("ev-seg") or i.startswith("ev-")]
-        caveats = [
-            f"Not checked yet: {u['attribute']} on {u['element_id']}"
-            for r in rr["routes"]
-            for u in r["unknowns"]
-        ]
+        rr = _data(rets[-1][1])
+        if not isinstance(rr, dict):
+            return _cannot()
+        routes = rr.get("routes") or []
+        r0 = routes[0] if routes else None
+        status = rr.get("status") or "no_data"
+        ev = [i for i in _ev_ids(rets) if i.startswith("ev-")]
+        caveats = _unknown_caveats(routes)
+        if status != "confirmed" and not caveats:
+            caveats = [f"Route status: {status}; not all segments are verified."]
+        dist = r0.get("distance_m") if r0 else None
         return _final(
-            answer_status="answered" if rr["status"] == "confirmed" else "partial",
-            summary=(
-                f"Route status: {rr['status']}, {r0['distance_m']} m."
-                if r0
-                else f"Route status: {rr['status']}."
-            ),
+            answer_status="answered" if status == "confirmed" else "partial",
+            summary=f"Route status: {status}" + (f", {dist} m." if dist is not None else "."),
             claims=[
                 {
                     "text": "Segments on this route",
-                    "status": "verified" if rr["status"] == "confirmed" else "unverified",
+                    "status": "verified" if status == "confirmed" else "unverified",
                     "evidence_ids": ev[:4],
                 }
             ],
@@ -171,7 +193,7 @@ def _script(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
     # unknown: try to resolve, else cannot answer + missing_place VR
     if n == 0:
         return _call("find_place", query=q[:80])
-    if n == 1 and not rets[0][1]["data"]:
+    if n == 1 and not _data(rets[0][1]):
         return _call(
             "create_verification_request",
             target_id=q[:60] or "unknown",

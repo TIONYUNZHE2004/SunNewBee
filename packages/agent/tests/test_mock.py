@@ -1,5 +1,6 @@
 """Self-contained: runs the mock through a throwaway Agent with stub tools (no spatial package)."""
 
+import pytest
 from pydantic_ai import Agent
 from pydantic_ai.output import ToolOutput
 from townshiplens_agent.answer import FinalAnswer
@@ -77,4 +78,43 @@ def test_mock_unknown_place_cannot_answer():
 
     res = agent.run_sync("take me to the moon")
     assert calls == ["find_place", "create_verification_request"]
+    assert res.output.answer_status == "cannot_answer"
+
+
+FAIL = {"ok": False, "data": None, "evidence": [], "warnings": ["x"]}
+
+
+def _failing_agent() -> Agent:
+    agent = Agent(mock_model(), output_type=ToolOutput(FinalAnswer, name="final_answer"))
+    for name in [
+        "find_place",
+        "plan_route",
+        "list_flood_scenarios",
+        "affected_places",
+        "list_evacuation_centres",
+        "create_verification_request",
+    ]:
+
+        def make(n):
+            def f(**kw) -> dict:
+                return FAIL
+
+            f.__name__ = n
+            return f
+
+        agent.tool_plain(make(name))
+    return agent
+
+
+@pytest.mark.parametrize(
+    "q",
+    [
+        "Can I get from Car Park B to the playground with a stroller?",
+        "If the river rises 3 m, which places are cut off?",
+        "The river rises, where can I go?",
+        "take me to the moon",
+    ],
+)
+def test_mock_survives_failed_tools(q):
+    res = _failing_agent().run_sync(q)
     assert res.output.answer_status == "cannot_answer"
