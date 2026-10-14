@@ -95,7 +95,13 @@ def _endpoint_flood(route_data) -> tuple[list[str], list[str], bool]:
 
 
 # Pinned prompt words -> find_place queries. First match in the prompt wins.
-DESTINATIONS = ["playground", "kiosk", "toilet"]  # access hero; default "playground"
+DESTINATIONS = [
+    "lakeside mall",
+    "mall",
+    "playground",
+    "kiosk",
+    "toilet",
+]  # access hero; default "playground"
 ORIGINS = ["lakeside mall", "playground", "car park b", "kiosk"]  # flood resident; default mall
 _PROFILE_WORDS = [
     ("wheelchair", r"wheelchair|kerusi roda"),
@@ -124,7 +130,9 @@ def _script(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
     rets = _returns(messages)
     n = len(rets)
     is_flood = bool(re.search(r"flood|river|banjir|sungai|rises|naik|水", q))
-    if is_flood and re.search(r"cut off|affected|briefing|terjejas", q):  # management
+    if is_flood and re.search(
+        r"cut off|affected|briefing|terjejas|island|isolated", q
+    ):  # management
         if n == 0:
             return _call("list_flood_scenarios")
         if n == 1:
@@ -221,6 +229,58 @@ def _script(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
             caveats=caveats,
             scene_intents=[{"kind": "flood.set_level", "scenario_id": "stage_p3m"}]
             + ([{"kind": "route.highlight", "route_id": route["id"]}] if route else []),
+        )
+    if re.search(r"recycl|e-?waste|waste|rubbish|sampah|batter|\bbins?\b", q):  # waste points
+        wtype = (
+            "e_waste_drop_off"
+            if re.search(r"e-?waste|batter|phone", q)
+            else "recycling_drop_off"
+            if re.search(r"recycl", q)
+            else None
+        )
+        label = {"e_waste_drop_off": "e-waste drop-off", "recycling_drop_off": "recycling drop-off"}
+        if n == 0:
+            return _call("find_waste_points", type=wtype, near_place="lakeside-mall")
+        pts = _data(rets[-1][1])
+        if not pts and wtype and n == 1:  # nothing of that kind mapped: list what is nearest
+            return _call("find_waste_points", near_place="lakeside-mall")
+        if not pts:
+            return _cannot("I don't have any waste points in the township model yet.")
+        seen = set(_ev_ids(rets))
+        pts = [p for p in pts if f"ev-{p['id']}.status" in seen][:3]
+        if not pts:
+            return _cannot()
+        gap = bool(wtype) and n > 1  # the typed search was empty; these are other kinds
+        names = list(dict.fromkeys(p["name"] for p in pts))
+        unconfirmed = list(dict.fromkeys(p["name"] for p in pts if p.get("status") != "verified"))
+        caveats = (
+            [f"Not confirmed yet: {', '.join(unconfirmed)}; check before you go."]
+            if unconfirmed
+            else []
+        )
+        if gap:
+            summary = (
+                f"No {label[wtype]} is mapped yet. Nearest waste points, all unconfirmed: "
+                f"{', '.join(names)}."
+            )
+            caveats.append(
+                "Check with MBSA (Majlis Bandaraya Subang Jaya) for official "
+                f"{label[wtype]} locations."
+            )
+        else:
+            summary = f"Waste points found: {', '.join(names)}."
+        return _final(
+            answer_status="partial" if unconfirmed or gap else "answered",
+            summary=summary,
+            claims=[
+                {
+                    "text": f"{p['name']} ({p['type'].replace('_', ' ')}) status: {p['status']}",
+                    "status": "verified" if p["status"] == "verified" else "unknown",
+                    "evidence_ids": [f"ev-{p['id']}.status"],
+                }
+                for p in pts
+            ],
+            caveats=caveats,
         )
     if re.search(r"stroller|pram|stairs|tangga|wheelchair|kerusi roda|step", q):  # access hero
         if n == 0:

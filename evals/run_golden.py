@@ -21,7 +21,14 @@ from townshiplens_spatial.world import load_world
 
 GOLDEN = Path(__file__).parent / "golden" / "hero.yaml"
 TINY = ROOT / "packages/spatial/tests/fixtures/tiny"
-KNOWN = {"tools_include", "events_include", "done_status_in", "text_includes", "text_excludes"}
+KNOWN = {
+    "tools_include",
+    "events_include",
+    "done_status_in",
+    "text_includes",
+    "text_excludes",
+    "first_line",
+}
 
 
 def check(expect: dict, evs: list) -> list[str]:
@@ -41,7 +48,23 @@ def check(expect: dict, evs: list) -> list[str]:
         fails.append(f"done status {done and done.answer_status} not in {allowed}")
     fails += [f"text lacks {s!r}" for s in expect.get("text_includes", []) if s.lower() not in text]
     fails += [f"text contains {s!r}" for s in expect.get("text_excludes", []) if s.lower() in text]
+    first = text.split("\n", 1)[0]
+    if "first_line" in expect and not first.startswith(expect["first_line"].lower()):
+        fails.append(f"first line {first!r} does not start with {expect['first_line']!r}")
     return fails
+
+
+def answered_without_citations(evs: list) -> int:
+    """1 when an answered/partial turn emitted no citation event at all, else 0.
+
+    Turn-level, not claim-level: it cannot see claims (the validator rejects empty-evidence
+    claims per claim). It fails the mock run only; a live model may legitimately answer without
+    citations, so real mode just prints it.
+    """
+    done = evs[-1] if evs and evs[-1].type == "done" else None
+    if done is None or done.answer_status == "cannot_answer":
+        return 0
+    return 0 if any(e.type == "citation" for e in evs) else 1
 
 
 async def main() -> int:
@@ -54,7 +77,7 @@ async def main() -> int:
     )
     cases = yaml.safe_load(GOLDEN.read_text(encoding="utf-8"))
     world = load_world(TINY)
-    rows, failed = [], 0
+    rows, failed, uncited = [], 0, 0
     with tempfile.TemporaryDirectory() as tmp:
         for i, case in enumerate(cases):
             ctx = tools.Ctx(world=world, vrs=VerificationStore(str(Path(tmp) / f"vr-{i}.db")))
@@ -66,6 +89,7 @@ async def main() -> int:
             evs = [e async for e in run_turn(ctx, req, settings)]
             fails = check(case.get("expect", {}), evs)
             failed += bool(fails)
+            uncited += answered_without_citations(evs)
             done = evs[-1] if evs and evs[-1].type == "done" else None
             rows.append(
                 (
@@ -81,8 +105,9 @@ async def main() -> int:
     widths = [max(len(str(r[c])) for r in [head, *rows]) for c in range(len(head))]
     for r in [head, *rows]:
         print("  ".join(str(v).ljust(w) for v, w in zip(r, widths, strict=True)).rstrip())
-    print(f"\ngolden: {len(rows) - failed}/{len(rows)} passed ({'openrouter' if real else 'mock'})")
-    return 1 if failed else 0
+    print(f"\nanswered_without_citations: {uncited}")
+    print(f"golden: {len(rows) - failed}/{len(rows)} passed ({'openrouter' if real else 'mock'})")
+    return 1 if failed or (uncited and not real) else 0
 
 
 if __name__ == "__main__":

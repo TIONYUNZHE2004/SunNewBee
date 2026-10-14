@@ -16,6 +16,33 @@ VERIFIED_WORD = re.compile(r"\bverified\b", re.IGNORECASE)  # not "unverified"/"
 NEGATED_VERIFIED = re.compile(r"\bnot (?:yet )?$", re.IGNORECASE)
 
 
+_ST = r"(confirmed|partly_unverified|blocked|no_data)"
+STATUS_LABEL = re.compile(rf"\broute status\s*[:=]?\s*{_ST}\b")
+STATUS_IS = re.compile(
+    rf"\broute (?:is|was) {_ST}\b(?!\s+(?:by|at|near|because|due|on|from|where)\b)"
+)
+OTHER_ROUTE = {"alternative", "alternate", "other", "another", "second", "different"}
+
+
+def _norm_status_text(text: str) -> str:
+    text = text.lower().replace("partly unverified", "partly_unverified")
+    return text.replace("no data", "no_data")
+
+
+def _named_statuses(summary: str, steps: list[str]) -> set[str]:
+    """Statuses the answer names for *the* route: "Route status: X" anywhere in the summary or
+    steps, and "the route is X" in the summary's first sentence. Segment/element-level mentions,
+    ids and other routes are ignored."""
+    text = _norm_status_text(" ".join([summary, *steps]))
+    out = {m.group(1) for m in STATUS_LABEL.finditer(text)}
+    first = re.split(r"(?<=[.!?])\s|\n", _norm_status_text(summary), maxsplit=1)[0]
+    for m in STATUS_IS.finditer(first):
+        prev = first[: m.start()].split()[-1:] or [""]
+        if prev[0] not in OTHER_ROUTE:
+            out.add(m.group(1))
+    return out
+
+
 def _claims_verified(text: str) -> bool:
     """True when the text uses "verified" affirmatively ("not (yet) verified" is allowed)."""
     return any(not NEGATED_VERIFIED.search(text[: m.start()]) for m in VERIFIED_WORD.finditer(text))
@@ -31,11 +58,21 @@ def _strip_names(text: str, names: set[str]) -> str:
 def validate_answer(ans: FinalAnswer, rec: TurnRecord) -> list[str]:
     errs: list[str] = []
     for c in ans.claims:
+        if ans.answer_status != "cannot_answer" and not c.evidence_ids:
+            errs.append(
+                f"Claim {c.text!r} cites no evidence: every claim needs at least one "
+                "evidence id returned by tools in this turn. Put gaps in caveats, not claims, "
+                "or answer cannot_answer."
+            )
         bad = [i for i in c.evidence_ids if i not in rec.evidence]
         if bad:
             errs.append(
                 f"Unknown evidence ids {bad}. Cite only ids returned by tools in this turn."
             )
+    if ans.answer_status != "cannot_answer" and not rec.tool_calls:
+        errs.append(
+            "No tool was called this turn: answer only from tool results, or answer cannot_answer."
+        )
     if ans.route_id and ans.route_id not in rec.routes:
         errs.append(f"route_id {ans.route_id} was not returned by plan_route in this turn.")
     status = rec.route_status.get(ans.route_id) if ans.route_id else None
@@ -44,6 +81,15 @@ def validate_answer(ans: FinalAnswer, rec: TurnRecord) -> list[str]:
             f"The route is {status}: answer_status cannot be 'answered'; "
             "use 'partial' or 'cannot_answer'."
         )
+    if status is None and len(rec.route_status) == 1:
+        status = next(iter(rec.route_status.values()))  # unambiguous even without route_id
+    if status:
+        named = _named_statuses(ans.summary, ans.steps) - {status}
+        if named:
+            errs.append(
+                f"Route status contradiction: the route is {status} but the summary/steps name "
+                f"{sorted(named)}. Use the status the tool returned."
+            )
     partly = status == "partly_unverified" or (
         ans.answer_status == "answered" and "partly_unverified" in rec.route_status.values()
     )
@@ -65,25 +111,34 @@ def validate_answer(ans: FinalAnswer, rec: TurnRecord) -> list[str]:
                     "scenario: add a caveat naming it."
                 )
     cited = {i for c in ans.claims for i in c.evidence_ids}
-    if any(getattr(rec.evidence.get(i), "source_type", None) == PLACEHOLDER_SOURCE for i in cited):
-        all_text = " ".join([ans.summary, *ans.steps, *ans.caveats, *(c.text for c in ans.claims)])
-        if PLACEHOLDER_CAVEAT not in all_text.lower():
-            errs.append(
-                "Some cited evidence is placeholder data (source_type team_survey_placeholder): "
-                f"add a caveat containing the exact phrase '{PLACEHOLDER_CAVEAT}'."
-            )
+    all_text = " ".join([ans.summary, *ans.steps, *ans.caveats, *(c.text for c in ans.claims)])
+    placeholder_ids = {
+        i for i, e in rec.evidence.items() if getattr(e, "source_type", None) == PLACEHOLDER_SOURCE
+    }
+    if placeholder_ids:
+        # Any placeholder evidence returned this turn (cited or not) forbids "verified" wording.
         if BANNED_PLACEHOLDER.search(all_text) or _claims_verified(all_text):
             errs.append(
                 "Placeholder evidence is not verified: remove the word 'verified' "
                 "(only 'unverified' or 'not yet verified' are allowed) and 'surveyed on' / "
                 f"'staff checked'; say the values are '{PLACEHOLDER_CAVEAT}'."
             )
-    if rec.scenarios_used:
-        if not ans.scenario_id:
-            errs.append("A flood scenario tool was used: set scenario_id.")
-        text = " ".join([ans.summary, *ans.steps, *ans.caveats, *(c.text for c in ans.claims)])
-        if FORBIDDEN.search(_strip_names(text, rec.place_names)):
-            errs.append("Never describe a place or route as safe/selamat/安全 in flood answers.")
-        if DEPTH.search(text):
-            errs.append("Do not state water depths on paths; scenarios are indicative.")
+        # The caveat is required when the answer's route/attribute claims rest on it: a route
+        # was planned this turn, or a placeholder id is cited.
+        rests_on = (ans.answer_status != "cannot_answer" and bool(rec.routes)) or bool(
+            cited & placeholder_ids
+        )
+        if rests_on and PLACEHOLDER_CAVEAT not in all_text.lower():
+            errs.append(
+                "Some evidence returned this turn is placeholder data (source_type "
+                f"team_survey_placeholder): add a caveat containing the exact phrase "
+                f"'{PLACEHOLDER_CAVEAT}'."
+            )
+    if rec.scenarios_used and not ans.scenario_id:
+        errs.append("A flood scenario tool was used: set scenario_id.")
+    # Honesty rules apply to every answer, whether or not a tool ran.
+    if FORBIDDEN.search(_strip_names(all_text, rec.place_names)):
+        errs.append("Never describe a place or route as safe/selamat/安全.")
+    if DEPTH.search(all_text):
+        errs.append("Do not state water depths on paths; scenarios are indicative.")
     return errs

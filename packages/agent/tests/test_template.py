@@ -5,13 +5,13 @@ from townshiplens_spatial.models import Evidence
 
 
 def test_template_always_validates():
-    r = TurnRecord()
+    r = TurnRecord(tool_calls=["find_place"])
     a = template_answer(r, "anything")
     assert a.answer_status == "cannot_answer" and validate_answer(a, r) == []
 
 
 def test_template_partly_unverified_route_validates():
-    r = TurnRecord()
+    r = TurnRecord(tool_calls=["find_place"])
     r.evidence["ev-seg-ab.step_count"] = Evidence(
         id="ev-seg-ab.step_count",
         element_id="seg-ab",
@@ -31,7 +31,7 @@ def test_template_partly_unverified_route_validates():
 
 
 def test_template_scenario_validates():
-    r = TurnRecord()
+    r = TurnRecord(tool_calls=["find_place"])
     r.scenarios_used.add("stage_p3m")
     a = template_answer(r, "x")
     assert a.scenario_id == "stage_p3m" and validate_answer(a, r) == []
@@ -53,7 +53,7 @@ import pytest  # noqa: E402
     ),
 )
 def test_template_every_status_validates(status, unknowns, scn):
-    r = TurnRecord()
+    r = TurnRecord(tool_calls=["find_place"])
     r.evidence["ev-x"] = Evidence(
         id="ev-x", element_id="seg-a", attribute="note", value="safe 30 cm deep", status="verified"
     )
@@ -71,7 +71,7 @@ def test_template_every_status_validates(status, unknowns, scn):
 
 
 def test_template_missing_status_and_distance():
-    r = TurnRecord()
+    r = TurnRecord(tool_calls=["find_place"])
     r.routes["rt-1"] = {}
     a = template_answer(r, "q")
     assert validate_answer(a, r) == []
@@ -80,7 +80,7 @@ def test_template_missing_status_and_distance():
 
 @pytest.mark.parametrize("cls", ["likely_flooded", "possible"])
 def test_template_flooded_endpoint_caveat(cls):
-    r = TurnRecord()
+    r = TurnRecord(tool_calls=["find_place"])
     r.routes["rt-1"] = {"distance_m": 50, "unknowns": []}
     r.route_status["rt-1"] = "confirmed"
     r.scenarios_used.add("stage_p3m")
@@ -97,7 +97,7 @@ def test_template_flooded_endpoint_caveat(cls):
 
 
 def test_template_placeholder_evidence_validates():
-    r = TurnRecord()
+    r = TurnRecord(tool_calls=["find_place"])
     r.evidence["ev-ph"] = Evidence(
         id="ev-ph",
         element_id="seg-ab",
@@ -110,4 +110,30 @@ def test_template_placeholder_evidence_validates():
     r.route_status["rt-1"] = "confirmed"
     a = template_answer(r, "route?")
     assert any("demo values, not yet surveyed" in c for c in a.caveats)
+    assert validate_answer(a, r) == []
+
+
+def test_cannot_answer_names_unresolved_query():
+    a = template_answer(TurnRecord(tool_calls=["find_place"]), "Where is the town hall annex?")
+    assert a.answer_status == "cannot_answer" and "town hall annex" in a.summary.lower()
+
+
+def test_cannot_answer_names_missing_attribute():
+    r = TurnRecord(tool_calls=["find_place"])
+    r.evidence["ev-wp-ewaste.status"] = Evidence(
+        id="ev-wp-ewaste.status",
+        element_id="wp-ewaste",
+        attribute="status",
+        value="unknown",
+        status="unknown",
+    )
+    a = template_answer(r, "x")
+    assert "status" in a.summary and "wp-ewaste" in a.summary
+    assert validate_answer(a, r) == []
+
+
+def test_cannot_answer_does_not_echo_forbidden_words_in_flood_turn():
+    r = TurnRecord(tool_calls=["find_place"])
+    r.scenarios_used.add("stage_p3m")
+    a = template_answer(r, "Is the playground safe in a flood?")
     assert validate_answer(a, r) == []

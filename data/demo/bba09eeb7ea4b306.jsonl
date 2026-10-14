@@ -1,38 +1,54 @@
-{"meta": {"message": "Can I get to the lakeside mall with a stroller?", "profile": "stroller", "scenario_id": null, "world": "elmina", "model": "mock-scripted", "recorded_at": "2026-10-14T19:18:13+00:00"}}
+{"meta": {"message": "Can I get to the lakeside mall with a stroller?", "profile": "stroller", "scenario_id": null, "world": "elmina", "model": "mock-scripted", "recorded_at": "2026-10-14T19:30:43+00:00"}}
 {"type": "tool.call", "id": "find_place-0", "name": "find_place", "args": {"query": "car park b", "types": null, "limit": 5}}
 {"type": "tool.result", "id": "find_place-0", "name": "find_place", "summary": "5 result(s)"}
-{"type": "tool.call", "id": "find_place-1", "name": "find_place", "args": {"query": "playground", "types": null, "limit": 5}}
-{"type": "tool.result", "id": "find_place-1", "name": "find_place", "summary": "5 result(s)"}
-{"type": "tool.call", "id": "plan_route-2", "name": "plan_route", "args": {"from_id": "park-b", "to_id": "playground", "profile": "stroller", "scenario_id": null}}
-{"type": "tool.result", "id": "plan_route-2", "name": "plan_route", "summary": "route confirmed"}
-{"type": "text.delta", "delta": "⚠ Segment facts are demo values, not yet"}
-{"type": "text.delta", "delta": " surveyed.\nLakeside Mall Car Park B to U"}
-{"type": "text.delta", "delta": "rban Park playground: route confirmed, 4"}
-{"type": "text.delta", "delta": "40.6 m."}
-{"type": "scene.intent", "intent": {"kind": "route.highlight", "place_id": null, "route_id": "rt-76a05e57", "scenario_id": null, "center": null, "range_m": null, "lens": null, "visible": null, "geojson": {"type": "LineString", "coordinates": [[101.508757, 3.18131], [101.50861, 3.181204], [101.508479, 3.181108], [101.508337, 3.181005], [101.508237, 3.18094], [101.508415, 3.180676], [101.508383, 3.180668], [101.508356, 3.180651], [101.508334, 3.180624], [101.508321, 3.180592], [101.508319, 3.180558], [101.508327, 3.180525], [101.508347, 3.180496], [101.508374, 3.180475], [101.508406, 3.180464], [101.508441, 3.180463], [101.508473, 3.180473], [101.508501, 3.180493], [101.508769, 3.180147], [101.508911, 3.179959], [101.50941, 3.180232], [101.509854, 3.180547], [101.509999, 3.180661], [101.510071, 3.180734], [101.510279, 3.180944], [101.510249, 3.180715]]}}}
+{"type": "tool.call", "id": "find_place-1", "name": "find_place", "args": {"query": "lakeside mall", "types": null, "limit": 5}}
+{"type": "tool.result", "id": "find_place-1", "name": "find_place", "summary": "2 result(s)"}
+{"type": "tool.call", "id": "plan_route-2", "name": "plan_route", "args": {"from_id": "park-b", "to_id": "lakeside-mall", "profile": "stroller", "scenario_id": null}}
+{"type": "verification.requested", "request_id": "vr-0012", "element_id": "seg-1306543755-2", "attribute": "incline_pct", "created": true, "demand": 1}
+{"type": "verification.requested", "request_id": "vr-0013", "element_id": "seg-1450679024-0", "attribute": "step_count", "created": true, "demand": 1}
+{"type": "verification.requested", "request_id": "vr-0014", "element_id": "seg-1450679024-0", "attribute": "incline_pct", "created": true, "demand": 1}
+{"type": "verification.requested", "request_id": "vr-0015", "element_id": "seg-1450679024-0", "attribute": "width_m", "created": true, "demand": 1}
+{"type": "verification.requested", "request_id": "vr-0016", "element_id": "seg-1346154591-1", "attribute": "step_count", "created": true, "demand": 1}
+{"type": "verification.requested", "request_id": "vr-0017", "element_id": "seg-1346154591-1", "attribute": "incline_pct", "created": true, "demand": 1}
+{"type": "verification.requested", "request_id": "vr-0018", "element_id": "seg-1346154591-1", "attribute": "width_m", "created": true, "demand": 1}
+{"type": "tool.result", "id": "plan_route-2", "name": "plan_route", "summary": "route partly_unverified"}
+{"type": "text.delta", "delta": "Route status: partly_unverified\n⚠ Not ch"}
+{"type": "text.delta", "delta": "ecked yet: incline_pct on seg-1306543755"}
+{"type": "text.delta", "delta": "-2 Not checked yet: step_count on seg-14"}
+{"type": "text.delta", "delta": "50679024-0 Not checked yet: incline_pct "}
+{"type": "text.delta", "delta": "on seg-1450679024-0 Not checked yet: wid"}
+{"type": "text.delta", "delta": "th_m on seg-1450679024-0 Not checked yet"}
+{"type": "text.delta", "delta": ": step_count on seg-1346154591-1 Not che"}
+{"type": "text.delta", "delta": "cked yet: incline_pct on seg-1346154591-"}
+{"type": "text.delta", "delta": "1 Not checked yet: width_m on seg-134615"}
+{"type": "text.delta", "delta": "4591-1 Segment facts are demo values, no"}
+{"type": "text.delta", "delta": "t yet surveyed.\nLakeside Mall Car Park B"}
+{"type": "text.delta", "delta": " to Elmina Lakeside Mall: route partly_u"}
+{"type": "text.delta", "delta": "nverified, 445.9 m."}
+{"type": "scene.intent", "intent": {"kind": "route.highlight", "place_id": null, "route_id": "rt-13fc0a57", "scenario_id": null, "center": null, "range_m": null, "lens": null, "visible": null, "geojson": {"type": "LineString", "coordinates": [[101.508757, 3.18131], [101.50861, 3.181204], [101.508479, 3.181108], [101.508671, 3.180834], [101.508715, 3.180769], [101.508515, 3.180628], [101.508527, 3.180603], [101.508533, 3.180575], [101.50853, 3.180546], [101.508521, 3.180519], [101.508501, 3.180493], [101.508769, 3.180147], [101.508911, 3.179959], [101.50941, 3.180232], [101.509854, 3.180547], [101.509999, 3.180661], [101.510071, 3.180734], [101.50979, 3.181102], [101.510045, 3.18131]]}}}
 {"type": "citation", "ref": 1, "evidence_id": "ev-place-park-b", "element_id": "park-b", "attribute": "name", "status": "reported", "verified_at": null, "source_type": "world_model"}
-{"type": "citation", "ref": 2, "evidence_id": "ev-place-playground", "element_id": "playground", "attribute": "name", "status": "reported", "verified_at": null, "source_type": "world_model"}
+{"type": "citation", "ref": 2, "evidence_id": "ev-place-lakeside-mall", "element_id": "lakeside-mall", "attribute": "name", "status": "reported", "verified_at": null, "source_type": "world_model"}
 {"type": "citation", "ref": 3, "evidence_id": "ev-seg-1306543769-3.step_count", "element_id": "seg-1306543769-3", "attribute": "step_count", "status": "verified", "verified_at": "2026-10-15", "source_type": "team_survey_placeholder"}
 {"type": "citation", "ref": 4, "evidence_id": "ev-seg-1306543769-3.incline_pct", "element_id": "seg-1306543769-3", "attribute": "incline_pct", "status": "verified", "verified_at": "2026-10-15", "source_type": "team_survey_placeholder"}
 {"type": "citation", "ref": 5, "evidence_id": "ev-seg-1306543769-3.width_m", "element_id": "seg-1306543769-3", "attribute": "width_m", "status": "verified", "verified_at": "2026-10-15", "source_type": "team_survey_placeholder"}
 {"type": "citation", "ref": 6, "evidence_id": "ev-seg-1306543769-2.step_count", "element_id": "seg-1306543769-2", "attribute": "step_count", "status": "verified", "verified_at": "2026-10-15", "source_type": "team_survey_placeholder"}
 {"type": "citation", "ref": 7, "evidence_id": "ev-seg-1306543769-2.incline_pct", "element_id": "seg-1306543769-2", "attribute": "incline_pct", "status": "verified", "verified_at": "2026-10-15", "source_type": "team_survey_placeholder"}
 {"type": "citation", "ref": 8, "evidence_id": "ev-seg-1306543769-2.width_m", "element_id": "seg-1306543769-2", "attribute": "width_m", "status": "verified", "verified_at": "2026-10-15", "source_type": "team_survey_placeholder"}
-{"type": "citation", "ref": 9, "evidence_id": "ev-seg-1306543769-1.step_count", "element_id": "seg-1306543769-1", "attribute": "step_count", "status": "verified", "verified_at": "2026-10-15", "source_type": "team_survey_placeholder"}
-{"type": "citation", "ref": 10, "evidence_id": "ev-seg-1306543769-1.incline_pct", "element_id": "seg-1306543769-1", "attribute": "incline_pct", "status": "verified", "verified_at": "2026-10-15", "source_type": "team_survey_placeholder"}
-{"type": "citation", "ref": 11, "evidence_id": "ev-seg-1306543769-1.width_m", "element_id": "seg-1306543769-1", "attribute": "width_m", "status": "verified", "verified_at": "2026-10-15", "source_type": "team_survey_placeholder"}
-{"type": "citation", "ref": 12, "evidence_id": "ev-seg-1306543769-0.step_count", "element_id": "seg-1306543769-0", "attribute": "step_count", "status": "verified", "verified_at": "2026-10-15", "source_type": "team_survey_placeholder"}
-{"type": "citation", "ref": 13, "evidence_id": "ev-seg-1306543769-0.incline_pct", "element_id": "seg-1306543769-0", "attribute": "incline_pct", "status": "verified", "verified_at": "2026-10-15", "source_type": "team_survey_placeholder"}
-{"type": "citation", "ref": 14, "evidence_id": "ev-seg-1306543769-0.width_m", "element_id": "seg-1306543769-0", "attribute": "width_m", "status": "verified", "verified_at": "2026-10-15", "source_type": "team_survey_placeholder"}
-{"type": "citation", "ref": 15, "evidence_id": "ev-seg-1306543758-0.step_count", "element_id": "seg-1306543758-0", "attribute": "step_count", "status": "verified", "verified_at": "2026-10-15", "source_type": "team_survey_placeholder"}
-{"type": "citation", "ref": 16, "evidence_id": "ev-seg-1306543758-0.incline_pct", "element_id": "seg-1306543758-0", "attribute": "incline_pct", "status": "verified", "verified_at": "2026-10-15", "source_type": "team_survey_placeholder"}
-{"type": "citation", "ref": 17, "evidence_id": "ev-seg-1306543758-0.width_m", "element_id": "seg-1306543758-0", "attribute": "width_m", "status": "verified", "verified_at": "2026-10-15", "source_type": "team_survey_placeholder"}
-{"type": "citation", "ref": 18, "evidence_id": "ev-seg-1306543755-4.step_count", "element_id": "seg-1306543755-4", "attribute": "step_count", "status": "verified", "verified_at": "2026-10-15", "source_type": "team_survey_placeholder"}
-{"type": "citation", "ref": 19, "evidence_id": "ev-seg-1306543755-4.incline_pct", "element_id": "seg-1306543755-4", "attribute": "incline_pct", "status": "verified", "verified_at": "2026-10-15", "source_type": "team_survey_placeholder"}
-{"type": "citation", "ref": 20, "evidence_id": "ev-seg-1306543755-4.width_m", "element_id": "seg-1306543755-4", "attribute": "width_m", "status": "verified", "verified_at": "2026-10-15", "source_type": "team_survey_placeholder"}
-{"type": "citation", "ref": 21, "evidence_id": "ev-seg-1306543755-3.step_count", "element_id": "seg-1306543755-3", "attribute": "step_count", "status": "verified", "verified_at": "2026-10-15", "source_type": "team_survey_placeholder"}
-{"type": "citation", "ref": 22, "evidence_id": "ev-seg-1306543755-3.incline_pct", "element_id": "seg-1306543755-3", "attribute": "incline_pct", "status": "verified", "verified_at": "2026-10-15", "source_type": "team_survey_placeholder"}
-{"type": "citation", "ref": 23, "evidence_id": "ev-seg-1306543755-3.width_m", "element_id": "seg-1306543755-3", "attribute": "width_m", "status": "verified", "verified_at": "2026-10-15", "source_type": "team_survey_placeholder"}
+{"type": "citation", "ref": 9, "evidence_id": "ev-seg-1306543775-0.step_count", "element_id": "seg-1306543775-0", "attribute": "step_count", "status": "verified", "verified_at": "2026-10-15", "source_type": "team_survey_placeholder"}
+{"type": "citation", "ref": 10, "evidence_id": "ev-seg-1306543775-0.incline_pct", "element_id": "seg-1306543775-0", "attribute": "incline_pct", "status": "verified", "verified_at": "2026-10-15", "source_type": "team_survey_placeholder"}
+{"type": "citation", "ref": 11, "evidence_id": "ev-seg-1306543775-0.width_m", "element_id": "seg-1306543775-0", "attribute": "width_m", "status": "verified", "verified_at": "2026-10-15", "source_type": "team_survey_placeholder"}
+{"type": "citation", "ref": 12, "evidence_id": "ev-seg-1306543775-1.step_count", "element_id": "seg-1306543775-1", "attribute": "step_count", "status": "verified", "verified_at": "2026-10-15", "source_type": "team_survey_placeholder"}
+{"type": "citation", "ref": 13, "evidence_id": "ev-seg-1306543775-1.incline_pct", "element_id": "seg-1306543775-1", "attribute": "incline_pct", "status": "verified", "verified_at": "2026-10-15", "source_type": "team_survey_placeholder"}
+{"type": "citation", "ref": 14, "evidence_id": "ev-seg-1306543775-1.width_m", "element_id": "seg-1306543775-1", "attribute": "width_m", "status": "verified", "verified_at": "2026-10-15", "source_type": "team_survey_placeholder"}
+{"type": "citation", "ref": 15, "evidence_id": "ev-seg-1306543754-8.step_count", "element_id": "seg-1306543754-8", "attribute": "step_count", "status": "verified", "verified_at": "2026-10-15", "source_type": "team_survey_placeholder"}
+{"type": "citation", "ref": 16, "evidence_id": "ev-seg-1306543754-8.incline_pct", "element_id": "seg-1306543754-8", "attribute": "incline_pct", "status": "verified", "verified_at": "2026-10-15", "source_type": "team_survey_placeholder"}
+{"type": "citation", "ref": 17, "evidence_id": "ev-seg-1306543754-8.width_m", "element_id": "seg-1306543754-8", "attribute": "width_m", "status": "verified", "verified_at": "2026-10-15", "source_type": "team_survey_placeholder"}
+{"type": "citation", "ref": 18, "evidence_id": "ev-seg-1306543755-1.step_count", "element_id": "seg-1306543755-1", "attribute": "step_count", "status": "verified", "verified_at": "2026-10-15", "source_type": "team_survey_placeholder"}
+{"type": "citation", "ref": 19, "evidence_id": "ev-seg-1306543755-1.incline_pct", "element_id": "seg-1306543755-1", "attribute": "incline_pct", "status": "verified", "verified_at": "2026-10-15", "source_type": "team_survey_placeholder"}
+{"type": "citation", "ref": 20, "evidence_id": "ev-seg-1306543755-1.width_m", "element_id": "seg-1306543755-1", "attribute": "width_m", "status": "verified", "verified_at": "2026-10-15", "source_type": "team_survey_placeholder"}
+{"type": "citation", "ref": 21, "evidence_id": "ev-seg-1306543755-2.step_count", "element_id": "seg-1306543755-2", "attribute": "step_count", "status": "verified", "verified_at": "2026-10-15", "source_type": "team_survey_placeholder"}
+{"type": "citation", "ref": 22, "evidence_id": "ev-seg-1306543755-2.width_m", "element_id": "seg-1306543755-2", "attribute": "width_m", "status": "verified", "verified_at": "2026-10-15", "source_type": "team_survey_placeholder"}
+{"type": "citation", "ref": 23, "evidence_id": "ev-seg-1306543755-2.incline_pct", "element_id": "seg-1306543755-2", "attribute": "incline_pct", "status": "unknown", "verified_at": null, "source_type": "team_survey_placeholder"}
 {"type": "citation", "ref": 24, "evidence_id": "ev-seg-1346147882-0.step_count", "element_id": "seg-1346147882-0", "attribute": "step_count", "status": "verified", "verified_at": "2026-10-15", "source_type": "team_survey_placeholder"}
 {"type": "citation", "ref": 25, "evidence_id": "ev-seg-1346147882-0.incline_pct", "element_id": "seg-1346147882-0", "attribute": "incline_pct", "status": "verified", "verified_at": "2026-10-15", "source_type": "team_survey_placeholder"}
 {"type": "citation", "ref": 26, "evidence_id": "ev-seg-1346147882-0.width_m", "element_id": "seg-1346147882-0", "attribute": "width_m", "status": "verified", "verified_at": "2026-10-15", "source_type": "team_survey_placeholder"}
@@ -45,11 +61,5 @@
 {"type": "citation", "ref": 33, "evidence_id": "ev-seg-1318133037-2.step_count", "element_id": "seg-1318133037-2", "attribute": "step_count", "status": "verified", "verified_at": "2026-10-15", "source_type": "team_survey_placeholder"}
 {"type": "citation", "ref": 34, "evidence_id": "ev-seg-1318133037-2.incline_pct", "element_id": "seg-1318133037-2", "attribute": "incline_pct", "status": "verified", "verified_at": "2026-10-15", "source_type": "team_survey_placeholder"}
 {"type": "citation", "ref": 35, "evidence_id": "ev-seg-1318133037-2.width_m", "element_id": "seg-1318133037-2", "attribute": "width_m", "status": "verified", "verified_at": "2026-10-15", "source_type": "team_survey_placeholder"}
-{"type": "citation", "ref": 36, "evidence_id": "ev-seg-1318133037-3.step_count", "element_id": "seg-1318133037-3", "attribute": "step_count", "status": "verified", "verified_at": "2026-10-15", "source_type": "team_survey_placeholder"}
-{"type": "citation", "ref": 37, "evidence_id": "ev-seg-1318133037-3.incline_pct", "element_id": "seg-1318133037-3", "attribute": "incline_pct", "status": "verified", "verified_at": "2026-10-15", "source_type": "team_survey_placeholder"}
-{"type": "citation", "ref": 38, "evidence_id": "ev-seg-1318133037-3.width_m", "element_id": "seg-1318133037-3", "attribute": "width_m", "status": "verified", "verified_at": "2026-10-15", "source_type": "team_survey_placeholder"}
-{"type": "citation", "ref": 39, "evidence_id": "ev-seg-1318133035-2.step_count", "element_id": "seg-1318133035-2", "attribute": "step_count", "status": "verified", "verified_at": "2026-10-15", "source_type": "team_survey_placeholder"}
-{"type": "citation", "ref": 40, "evidence_id": "ev-seg-1318133035-2.incline_pct", "element_id": "seg-1318133035-2", "attribute": "incline_pct", "status": "verified", "verified_at": "2026-10-15", "source_type": "team_survey_placeholder"}
-{"type": "citation", "ref": 41, "evidence_id": "ev-seg-1318133035-2.width_m", "element_id": "seg-1318133035-2", "attribute": "width_m", "status": "verified", "verified_at": "2026-10-15", "source_type": "team_survey_placeholder"}
-{"type": "uncertainty", "level": "none", "items": []}
-{"type": "done", "message_id": "demo", "answer_status": "answered", "model": "mock-scripted"}
+{"type": "uncertainty", "level": "partial", "items": [{"element_id": "seg-1306543755-2", "attribute": "incline_pct", "note": "stroller needs incline_pct ≤ 8.3; not verified"}, {"element_id": "seg-1450679024-0", "attribute": "step_count", "note": "stroller needs step_count ≤ 0.0; not verified"}, {"element_id": "seg-1450679024-0", "attribute": "incline_pct", "note": "stroller needs incline_pct ≤ 8.3; not verified"}, {"element_id": "seg-1450679024-0", "attribute": "width_m", "note": "stroller needs width_m ≥ 0.8; not verified"}, {"element_id": "seg-1346154591-1", "attribute": "step_count", "note": "stroller needs step_count ≤ 0.0; not verified"}, {"element_id": "seg-1346154591-1", "attribute": "incline_pct", "note": "stroller needs incline_pct ≤ 8.3; not verified"}, {"element_id": "seg-1346154591-1", "attribute": "width_m", "note": "stroller needs width_m ≥ 0.8; not verified"}]}
+{"type": "done", "message_id": "demo", "answer_status": "partial", "model": "mock-scripted"}

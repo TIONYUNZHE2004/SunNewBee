@@ -5,7 +5,7 @@ from townshiplens_spatial.models import Evidence
 
 
 def rec(**kw):
-    r = TurnRecord()
+    r = TurnRecord(tool_calls=["plan_route"])
     r.evidence["ev-seg-ab.step_count"] = Evidence(
         id="ev-seg-ab.step_count",
         element_id="seg-ab",
@@ -244,3 +244,162 @@ def test_placeholder_rejects_affirmative_verified(txt):
 def test_placeholder_allows_negated_verified(txt):
     a = _ph_answer(txt, ["demo values, not yet surveyed"])
     assert validate_answer(a, _ph_rec()) == []
+
+
+# --- Task 28: answer-contract hardening -------------------------------------------------
+
+
+def test_validator_rejects_claim_without_evidence():
+    a = FinalAnswer(
+        answer_status="answered",
+        summary="x",
+        claims=[Claim(text="No steps", status="verified", evidence_ids=[])],
+    )
+    assert any("evidence" in e.lower() for e in validate_answer(a, rec()))
+
+
+def test_validator_cannot_answer_exempt_from_claim_evidence():
+    a = FinalAnswer(
+        answer_status="cannot_answer",
+        summary="I don't know.",
+        claims=[Claim(text="gap", status="unknown", evidence_ids=[])],
+    )
+    assert validate_answer(a, rec()) == []
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "Route status: confirmed, 120 m.",
+        "The route is confirmed.",
+        "The route is blocked.",
+        "Route status: no_data",
+    ],
+)
+def test_validator_rejects_contradicting_route_status(text):
+    r = rec(routes={"rt-1": {}}, route_status={"rt-1": "partly_unverified"})
+    a = FinalAnswer(
+        answer_status="partial", summary=text, route_id="rt-1", caveats=["Not checked yet: x"]
+    )
+    assert any("route status" in e.lower() for e in validate_answer(a, r)), text
+    if not text.startswith("Route status"):
+        return  # "the route is X" is only checked in the summary's first sentence
+    b = FinalAnswer(
+        answer_status="partial",
+        summary="ok",
+        steps=[text],
+        route_id="rt-1",
+        caveats=["Not checked yet: x"],
+    )
+    assert any("route status" in e.lower() for e in validate_answer(b, r)), text
+
+
+def test_validator_accepts_matching_route_status_and_unrelated_confirmed():
+    r = rec(routes={"rt-1": {}}, route_status={"rt-1": "partly_unverified"})
+    a = FinalAnswer(
+        answer_status="partial",
+        summary="Route status: partly_unverified. The centre is not confirmed as a PPS.",
+        route_id="rt-1",
+        caveats=["Not checked yet: x"],
+    )
+    assert validate_answer(a, r) == []
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "The segment seg-cf is partly_unverified.",
+        "no_data for slope on seg-1.",
+        "An alternative route confirmed by staff.",
+        "The route is blocked by the flooded playground.",
+        "Go ahead. The route is blocked later on.",  # not the first sentence
+    ],
+)
+def test_status_check_ignores_element_level_mentions(text):
+    r = rec(routes={"rt-1": {}}, route_status={"rt-1": "confirmed"})
+    a = FinalAnswer(answer_status="answered", summary=text, route_id="rt-1")
+    assert validate_answer(a, r) == [], text
+
+
+def test_status_check_catches_space_variant_and_no_route_id():
+    r = rec(routes={"rt-1": {}}, route_status={"rt-1": "confirmed"})
+    a = FinalAnswer(answer_status="answered", summary="Route status: partly unverified")
+    assert any("route status" in e.lower() for e in validate_answer(a, r))
+
+
+# --- fix round 1: honesty rules hold whether or not a tool ran ---------------------------
+
+
+def _no_tool_rec():
+    return TurnRecord()
+
+
+def test_no_tool_safe_and_depth_answer_rejected():
+    a = FinalAnswer(
+        answer_status="answered",
+        summary="Yes, Taman Elmina is safe if the river rises 3 m; water there is only 30 cm deep.",
+    )
+    errs = validate_answer(a, _no_tool_rec())
+    assert any("safe" in e for e in errs) and any("depth" in e for e in errs)
+    assert any("No tool" in e for e in errs)
+
+
+def test_no_tool_answer_rejected_but_cannot_answer_ok():
+    r = _no_tool_rec()
+    assert validate_answer(FinalAnswer(answer_status="partial", summary="Maybe."), r)
+    assert validate_answer(FinalAnswer(answer_status="cannot_answer", summary="I can't."), r) == []
+
+
+def test_forbidden_words_checked_without_scenario():
+    a = FinalAnswer(answer_status="answered", summary="This path is safe.")
+    assert any("safe" in e for e in validate_answer(a, rec()))
+
+
+# --- fix round 1: placeholder evidence anywhere in the turn --------------------------------
+
+
+def _ph_turn():
+    r = rec(routes={"rt-1": {}}, route_status={"rt-1": "confirmed"})
+    r.evidence["ev-ph"] = Evidence(
+        id="ev-ph",
+        element_id="seg-ab",
+        attribute="width_m",
+        value=1.2,
+        status="verified",
+        source_type="team_survey_placeholder",
+    )
+    return r
+
+
+def test_placeholder_uncited_still_blocks_verified_claim():
+    a = FinalAnswer(
+        answer_status="answered",
+        summary="Staff verified every segment; the route is step-free.",
+        route_id="rt-1",
+        caveats=["demo values, not yet surveyed"],
+        claims=[Claim(text="start", status="verified", evidence_ids=["ev-seg-ab.step_count"])],
+    )
+    assert validate_answer(a, _ph_turn())
+
+
+def test_placeholder_uncited_route_answer_needs_caveat():
+    a = FinalAnswer(
+        answer_status="answered",
+        summary="Route is step-free.",
+        route_id="rt-1",
+        claims=[Claim(text="start", status="verified", evidence_ids=["ev-seg-ab.step_count"])],
+    )
+    assert any("demo values" in e for e in validate_answer(a, _ph_turn()))
+    ok = a.model_copy(update={"caveats": ["Segment facts are demo values, not yet surveyed."]})
+    assert validate_answer(ok, _ph_turn()) == []
+
+
+def test_placeholder_uncited_no_route_no_caveat_needed():
+    r = rec()
+    r.evidence["ev-ph"] = _ph_turn().evidence["ev-ph"]
+    a = FinalAnswer(
+        answer_status="answered",
+        summary="The place exists.",
+        claims=[Claim(text="place", status="verified", evidence_ids=["ev-seg-ab.step_count"])],
+    )
+    assert validate_answer(a, r) == []
