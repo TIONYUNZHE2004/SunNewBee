@@ -1,6 +1,7 @@
 from .answer import Claim, FinalAnswer
 from .events import SceneIntent
 from .record import TurnRecord
+from .validate import PLACEHOLDER_CAVEAT, PLACEHOLDER_SOURCE
 
 
 def template_answer(rec: TurnRecord, question: str) -> FinalAnswer:
@@ -26,7 +27,8 @@ def template_answer(rec: TurnRecord, question: str) -> FinalAnswer:
     # Claim text omits raw values: they may contain wording forbidden in flood answers.
     claims = [
         Claim(
-            text=f"{e.attribute} on {e.element_id}: {e.status}",
+            text=f"{e.attribute} on {e.element_id}: "
+            + ("demo value" if e.source_type == PLACEHOLDER_SOURCE else e.status),
             status={"verified": "verified", "stale": "stale", "indicative": "indicative"}.get(
                 e.status, "unverified"
             ),
@@ -39,7 +41,13 @@ def template_answer(rec: TurnRecord, question: str) -> FinalAnswer:
     if unknowns:
         caveats.append(f"Not checked yet: {', '.join(unknowns)}.")
     if status != "confirmed":
-        caveats.append(f"Route status: {status}; not all segments are verified.")
+        caveats.append(f"Route status: {status}; some segments are still unverified.")
+    if any(
+        getattr(rec.evidence.get(i), "source_type", None) == PLACEHOLDER_SOURCE
+        for c in claims
+        for i in c.evidence_ids
+    ):
+        caveats.append(f"Some segment facts are {PLACEHOLDER_CAVEAT}.")
     dist = route.get("distance_m")
     summary = f"Route status: {status}" + (f", {dist} m." if dist is not None else ".")
     return FinalAnswer(

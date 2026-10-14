@@ -9,6 +9,16 @@ DEPTH = re.compile(
     r"|depth\s+of\s+\d|\d+(?:\.\d+)?\s?(?:cm|m)\s+depth|(?:knee|waist|ankle)-deep",
     re.IGNORECASE,
 )
+PLACEHOLDER_SOURCE = "team_survey_placeholder"
+PLACEHOLDER_CAVEAT = "demo values, not yet surveyed"
+BANNED_PLACEHOLDER = re.compile(r"\bsurveyed on\b|staff (?:have |has )?checked", re.IGNORECASE)
+VERIFIED_WORD = re.compile(r"\bverified\b", re.IGNORECASE)  # not "unverified"/"partly_unverified"
+NEGATED_VERIFIED = re.compile(r"\bnot (?:yet )?$", re.IGNORECASE)
+
+
+def _claims_verified(text: str) -> bool:
+    """True when the text uses "verified" affirmatively ("not (yet) verified" is allowed)."""
+    return any(not NEGATED_VERIFIED.search(text[: m.start()]) for m in VERIFIED_WORD.finditer(text))
 
 
 def _strip_names(text: str, names: set[str]) -> str:
@@ -54,6 +64,20 @@ def validate_answer(ans: FinalAnswer, rec: TurnRecord) -> list[str]:
                     f"{info.get('name', pid)} ({pid}) is {phrase} in this indicative "
                     "scenario: add a caveat naming it."
                 )
+    cited = {i for c in ans.claims for i in c.evidence_ids}
+    if any(getattr(rec.evidence.get(i), "source_type", None) == PLACEHOLDER_SOURCE for i in cited):
+        all_text = " ".join([ans.summary, *ans.steps, *ans.caveats, *(c.text for c in ans.claims)])
+        if PLACEHOLDER_CAVEAT not in all_text.lower():
+            errs.append(
+                "Some cited evidence is placeholder data (source_type team_survey_placeholder): "
+                f"add a caveat containing the exact phrase '{PLACEHOLDER_CAVEAT}'."
+            )
+        if BANNED_PLACEHOLDER.search(all_text) or _claims_verified(all_text):
+            errs.append(
+                "Placeholder evidence is not verified: remove the word 'verified' "
+                "(only 'unverified' or 'not yet verified' are allowed) and 'surveyed on' / "
+                f"'staff checked'; say the values are '{PLACEHOLDER_CAVEAT}'."
+            )
     if rec.scenarios_used:
         if not ans.scenario_id:
             errs.append("A flood scenario tool was used: set scenario_id.")

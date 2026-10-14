@@ -134,3 +134,24 @@ def test_stale_status_claim_files_stale_vr(ctx):
     ctx.world.edges["seg-cf"].claims["incline_pct"] = Claim(value=2, status="stale")
     vr = tools.plan_route(ctx, "park-b", "kiosk", "stroller").data["verification_requests"][0]
     assert vr["reason"] == "stale"
+
+
+def test_plan_route_caps_auto_filed_vrs(ctx, monkeypatch):
+    real = tools.routing.plan_route(ctx.world, "park-b", "playground", "stroller")
+    real.routes[0].unknowns = [
+        {"element_id": f"seg-{i}", "attribute": "width" if i % 2 else "step_count"}
+        for i in range(20)
+    ]
+    monkeypatch.setattr(tools.routing, "plan_route", lambda *a, **k: real)
+    r = tools.plan_route(ctx, "park-b", "playground", "stroller")
+    assert len(r.data["verification_requests"]) == tools.MAX_ROUTE_VRS == 10
+    assert r.data["verification_requests_truncated"] == 10
+    assert len(r.data["routes"][0]["unknowns"]) == 20  # uncertainty items still all reported
+    assert [v["element_id"] for v in r.data["verification_requests"]] == [
+        f"seg-{i}" for i in range(10)
+    ]
+
+
+def test_plan_route_not_truncated_reports_zero(ctx):
+    r = tools.plan_route(ctx, "park-b", "kiosk", "stroller")
+    assert r.data["verification_requests_truncated"] == 0
