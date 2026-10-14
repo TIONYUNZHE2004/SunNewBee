@@ -108,6 +108,7 @@ export type ResolveBody = {
   action: "verify" | "correct" | "reject";
   value?: string | number | boolean;
   note: string;
+  evidence_id?: string;
 };
 
 export async function resolveVR(id: string, body: ResolveBody, token: string): Promise<void> {
@@ -117,6 +118,21 @@ export async function resolveVR(id: string, body: ResolveBody, token: string): P
     body: JSON.stringify(body),
   });
   if (!r.ok) throw new ApiError(r.status, await readDetail(r));
+}
+
+export type EvidenceUploaded = Schemas["EvidenceUploaded"];
+
+/** Multipart upload; the browser sets the boundary, so no Content-Type here. */
+export async function uploadEvidence(file: File, token: string): Promise<EvidenceUploaded> {
+  const form = new FormData();
+  form.append("file", file);
+  const r = await fetch("/api/evidence", {
+    method: "POST",
+    headers: { Accept: "application/json", "X-Staff-Token": token },
+    body: form,
+  });
+  if (!r.ok) throw new ApiError(r.status, await readDetail(r));
+  return (await r.json()) as EvidenceUploaded;
 }
 
 export type SimReport = Schemas["SimReport"];

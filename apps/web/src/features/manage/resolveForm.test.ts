@@ -6,6 +6,9 @@ import {
   formReducer,
   initialForm,
   initialFormFor,
+  PHOTO_PRIVACY_NOTE,
+  photoAfterAction,
+  photoAllowed,
   validateForm,
 } from "./resolveForm";
 
@@ -67,5 +70,24 @@ describe("resolve form", () => {
     expect(currentValueText(null)).toBe("no value recorded");
     expect(currentValueText(4.5)).toBe("4.5");
     expect(currentValueText(true)).toBe("Yes");
+  });
+});
+
+describe("photo field copy", () => {
+  it("tells staff metadata is removed", () =>
+    expect(PHOTO_PRIVACY_NOTE).toBe(
+      "Location and camera details are removed from the photo before it is stored.",
+    ));
+});
+
+describe("photo and reject", () => {
+  const f = { type: "image/png", size: 5 } as File;
+  it("keeps the file for verify and correct", () => {
+    expect(photoAfterAction("verify", f)).toBe(f);
+    expect(photoAfterAction("correct", f)).toBe(f);
+  });
+  it("switching to reject clears the file", () => {
+    expect(photoAllowed("reject")).toBe(false);
+    expect(photoAfterAction("reject", f)).toBeNull();
   });
 });

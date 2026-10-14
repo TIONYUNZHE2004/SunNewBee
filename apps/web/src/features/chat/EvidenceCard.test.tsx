@@ -61,3 +61,40 @@ describe("CitationList", () => {
     expect(html).toContain('aria-expanded="true"');
   });
 });
+
+describe("EvidenceCard photo", () => {
+  it("shows a thumbnail with alt text and a full-image link when there is a photo", () => {
+    const html = renderToStaticMarkup(
+      <EvidenceCard
+        element_id="pl-1"
+        title="Mall"
+        citations={[{ ...base, source_type: "site_visit", photo_url: "/evidence/ab12" }]}
+      />,
+    );
+    expect(html).toContain('src="/api/evidence/ab12"');
+    expect(html).toContain('alt="Photo evidence for Mall · Step count"');
+    expect(html).toContain('href="/api/evidence/ab12"');
+    expect(html).toContain('target="_blank"');
+    expect(html).toContain("site_visit");
+    expect(html).toContain("checked 2026-01-02");
+  });
+  it("renders as before without a photo", () => {
+    const html = renderToStaticMarkup(
+      <EvidenceCard element_id="pl-1" title="Mall" citations={[base]} />,
+    );
+    expect(html).not.toContain("<img");
+  });
+  it("keeps the demo label on placeholder evidence, even with a photo", () => {
+    const html = renderToStaticMarkup(
+      <EvidenceCard
+        element_id="pl-1"
+        title="Mall"
+        citations={[
+          { ...base, source_type: "team_survey_placeholder", photo_url: "/evidence/ab12" },
+        ]}
+      />,
+    );
+    expect(html).toContain("Demo value · not surveyed");
+    expect(html).not.toContain("checked 2026");
+  });
+});

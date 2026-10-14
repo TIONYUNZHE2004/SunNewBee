@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { usePlace } from "../../lib/api";
+import { EvidencePhoto } from "../../lib/EvidencePhoto";
 import { placeReach } from "../../lib/placeQuery";
 import { useChatDraft } from "../chat/chatDraftStore";
 import { AttributeEditor } from "../manage/AttributeEditor";
@@ -12,6 +13,7 @@ import { SourceBanner } from "./SourceBanner";
 function Row({
   r,
   elementId,
+  placeName,
   token,
   editing,
   saved,
@@ -21,6 +23,7 @@ function Row({
 }: {
   r: ClaimRow;
   elementId: string;
+  placeName: string;
   token: string;
   editing: boolean;
   saved: boolean;
@@ -48,6 +51,13 @@ function Row({
         {r.source && <span className="text-ink-soft">Source: {r.source}</span>}
         {r.verifiedAt && <span className="text-ink-soft">checked {r.verifiedAt}</span>}
       </p>
+      <EvidencePhoto
+        photoUrl={r.photoUrl}
+        element={placeName}
+        attributeLabel={r.label}
+        source={r.source}
+        checked={r.verifiedAt}
+      />
       {token && !editing && (
         <button
           type="button"
@@ -189,6 +199,7 @@ function PlaceCardInner({ id }: { id: string }) {
                 key={r.attr}
                 r={r}
                 elementId={view.id}
+                placeName={view.name}
                 token={view.kind === "place" ? token : ""}
                 editing={editing === r.attr}
                 saved={saved === r.attr}
