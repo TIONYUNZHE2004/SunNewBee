@@ -2,7 +2,15 @@
 name = "townshiplens-api"
 version = "0.1.0"
 requires-python = ">=3.13"
-dependencies = ["townshiplens-spatial", "townshiplens-agent", "fastapi==0.143.1", "uvicorn==0.54.0", "sse-starlette==3.5.0", "pydantic-settings==2.16.0"]
+dependencies = [
+    "townshiplens-spatial",
+    "townshiplens-agent",
+    "fastapi==0.143.1",
+    "uvicorn==0.54.0",
+    "sse-starlette==3.5.0",
+    "pydantic-settings==2.16.0",
+    "python-multipart==0.0.32",
+]
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"

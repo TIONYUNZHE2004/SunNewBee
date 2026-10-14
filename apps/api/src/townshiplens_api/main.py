@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 
-from .routes import chat, core, flood, manage, sim
+from .routes import chat, core, evidence, flood, manage, sim
 from .settings import ApiSettings
 
 app = FastAPI(title="TownshipLens API", version="0.2.0")
@@ -13,5 +13,5 @@ app.add_middleware(
     allow_headers=["*"],
 )
 app.add_middleware(GZipMiddleware, minimum_size=1024)
-for r in (core.router, flood.router, manage.router, chat.router, sim.router):
+for r in (core.router, flood.router, manage.router, evidence.router, chat.router, sim.router):
     app.include_router(r)

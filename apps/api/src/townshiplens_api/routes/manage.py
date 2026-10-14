@@ -8,7 +8,7 @@ from townshiplens_agent.agent import safe_vr_args
 from townshiplens_spatial.attributes import ATTRIBUTE_TYPES, validate_value
 from townshiplens_spatial.models import Claim, VerificationRequest
 
-from .. import state
+from .. import evidence, state
 from ..auth import StaffOnly
 from ..store import AuditStore, SimStore
 
@@ -57,6 +57,7 @@ class ResolveBody(BaseModel):
     action: Literal["verify", "correct", "reject"]
     value: Any = None
     note: str = ""
+    evidence_id: str | None = None  # an uploaded photo (POST /evidence) to attach to the claim
 
 
 class VRRow(VerificationRequest):
@@ -153,6 +154,8 @@ def _type_ok(new: Any, old: Any) -> bool:
 )
 def resolve(vr_id: str, body: ResolveBody) -> VerificationRequest:
     ctx = state.get_ctx()
+    if body.evidence_id is not None and evidence.path_for(body.evidence_id) is None:
+        raise HTTPException(422, "unknown evidence_id")
     # One lock across read, status check, claim commit, audit row and VR update: the loser of
     # two concurrent resolves gets 409 and changes nothing. world_lock is an RLock, so the
     # nested commit_claim is fine.
@@ -180,11 +183,19 @@ def resolve(vr_id: str, body: ResolveBody) -> VerificationRequest:
             # Claim + audit first: if the VR resolve below fails, the VR stays open and a retry
             # is idempotent. A missing_place VR has no element, so it has no value to verify
             # (422 above); KeyError below only covers an element removed since the VR was filed.
+            tgt = ctx.world.edges.get(existing.element_id) or ctx.world.places.get(
+                existing.element_id
+            )
+            prior = tgt.claims.get(existing.attribute) if tgt else None
+            ev_ids = list(prior.evidence_ids) if prior else []
+            if body.evidence_id and body.evidence_id not in ev_ids:
+                ev_ids.append(body.evidence_id)
             try:
                 commit_claim(
                     existing.element_id,
                     existing.attribute,
                     Claim(
+                        evidence_ids=ev_ids,
                         value=value,
                         status="verified",
                         verified_at=date.today().isoformat(),

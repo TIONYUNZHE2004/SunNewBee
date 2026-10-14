@@ -27,6 +27,11 @@ class Claim(BaseModel):
     notes: str | None = None
 
 
+def photo_url(claim: Claim) -> str | None:
+    """Public URL of the newest uploaded photo attached to a claim (GET /evidence/{id})."""
+    return f"/evidence/{claim.evidence_ids[-1]}" if claim.evidence_ids else None
+
+
 class Evidence(BaseModel):
     id: str  # "ev-<element_id>.<attribute>" or "ev-scn-<scenario_id>" or "ev-place-<place_id>"
     element_id: str
@@ -36,6 +41,7 @@ class Evidence(BaseModel):
     verified_at: str | None = None
     source_type: str | None = None
     source_url: str | None = None
+    photo_url: str | None = None
 
 
 class Edge(BaseModel):
