@@ -13,10 +13,12 @@ export default defineConfig({
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
   webServer: {
     // Delete the e2e DB first so each run starts with an empty verification queue.
-    command: "rm -f .data/e2e.db && pnpm dev",
+    command: "rm -f .data/e2e.db* && pnpm dev",
     cwd: "../..",
     url: "http://localhost:5173",
-    reuseExistingServer: false,
+    // Locally, an already-running server on :5173 is reused (it must use the e2e env, see below);
+    // CI always starts a fresh one.
+    reuseExistingServer: !process.env.CI,
     timeout: 120_000,
     env: {
       LLM_PROVIDER: "mock",

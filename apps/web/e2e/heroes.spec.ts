@@ -20,6 +20,8 @@ test("flood hero shows the disclaimer and never says 'safe'", async ({ page }) =
   );
   const log = page.getByRole("log");
   await expect(log.getByText(/not a forecast/i).first()).toBeVisible();
+  // Wait for the stream to finish (the button reads "Sending…" while streaming).
+  await expect(page.getByRole("button", { name: "Send", exact: true })).toBeVisible();
   await expect(log).not.toContainText(/\bsafe\b/i);
 });
 

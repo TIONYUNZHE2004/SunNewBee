@@ -22,7 +22,7 @@ def chat_event_schema() -> ChatEventDoc:
 async def chat(req: ChatRequest):
     async def gen():
         try:
-            from townshiplens_agent.run import run_turn  # Task 9; may not exist yet
+            from townshiplens_agent.run import run_turn
         except ImportError:
             for ev in (
                 ErrorEvent(code="agent_unavailable", message="agent not installed"),
