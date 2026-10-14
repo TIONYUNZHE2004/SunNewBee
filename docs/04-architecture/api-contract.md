@@ -13,7 +13,7 @@ The same names are used for the LLM tools, the MCP server, the simulator and the
 | `find_place` | Resolve fuzzy text ("car park B", "dewan", "hall toilet") → candidate places | `GET /places?q=` |
 | `get_place_details` | All attributes + provenance + evidence for one place/entrance | `GET /places/{id}` |
 | `plan_route` | Route between two places for a profile, with a status classification | `POST /routes` |
-| `find_nearby` | Amenities of a given type near a place or route | `GET /places/{id}/nearby?type=` |
+| `nearby_amenities` | Amenities of a given type near a place or route | `GET /places/{id}/nearby?type=` |
 | `get_closures` | Active and upcoming closures for a place, an edge or the whole site | `GET /closures?active_at=` |
 | `create_verification_request` | Record a knowledge gap (deduplicated + upvoted) | `POST /verification-requests` |
 

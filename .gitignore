@@ -6,3 +6,13 @@ node_modules/
 __pycache__/
 .venv/
 .env
+
+# Paper PDFs over 10 MB stay local (re-download with reference/download-papers.sh)
+reference/papers/3d/2308.04079_3D-Gaussian-Splatting.pdf
+reference/papers/3d/2403.17898_Octree-GS.pdf
+reference/papers/3d/2406.12080_Hierarchical-3DGS-very-large-datasets.pdf
+reference/papers/3d/2509.13414_MapAnything.pdf
+reference/papers/access/2304.03442_Generative-Agents.pdf
+reference/papers/access/2506.23306_GATSim.pdf
+reference/papers/ai/2307.12981_3D-LLM.pdf
+reference/papers/ai/2311.12871_LEO-embodied-generalist.pdf
