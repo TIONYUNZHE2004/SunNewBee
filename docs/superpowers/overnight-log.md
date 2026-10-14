@@ -131,3 +131,14 @@
 - **CI:** run for `8fa36e8` **PASS** (first CI run including Playwright).
 - **Walking-skeleton status:** Tasks 1, 2, 4–9, 11–13 and 14A are done and reviewed. **Remaining:** Task 3 (OSM import; Overpass mirrors keep timing out, implementer still iterating) → Task 10 vector stage (flood REM rework in progress) → Task 14B (real-data verification).
 - **External usage:** OpenRouter about 16 req / US$0.0062 · Google tiles about 12/30.
+
+### 02:40 (+1:15)
+- **Integrated (increment 1, plan `plans/2026-10-15-mvp-p0-increment-1.md`):**
+  - Task 17: place cards (P-04) (`a179bc9`; web 54, e2e 7/7).
+  - Task 16: DEMO_MODE cache (C-10) (merge `75c6ba2`; replay keeps the VR queue consistent; world-tagged mock recordings; the `--record` guard refuses live models unless `--allow-live` is passed).
+- **Task 3 (OSM import): done** after a roughly 66-minute run against the overloaded Overpass mirrors. It made about 53 requests against my ~40 cap (retries on 504s/timeouts; logged as an overrun). It produced 15,252 segments, 227 places and 204 hydrology features.
+  - **Coordinator integration check:** the seed loads with the real world loader (0.2 s), and the stroller route park-b → playground is confirmed (440.6 m).
+  - **Found:** `find_place("playground")` resolves to unnamed OSM playgrounds instead of the demo place. This is in review.
+- **Task 15 (sim runner):** the Opus review found the I7 filter hiding real rest-gap violations. Ruling: I7 applies to every offered route. A fix round is in progress (perf pruning, storage slimming).
+- **Task 10 (flood REM rework):** in progress.
+- **External usage:** OpenRouter about 16 req / US$0.0062 · Google tiles about 12/30 · **Overpass about 55 (cap ~40 exceeded by the data lane's retries)**.
