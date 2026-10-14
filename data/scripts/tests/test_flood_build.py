@@ -222,6 +222,9 @@ def test_vector_stage_on_synthetic_data(tmp_path):
     hall = next(c for c in centres if c.place_id == "osm-node-1")
     assert hall.node_id == "n-d" and "Dewan MBSA Matahari" in (hall.notes or "")
     assert "unverified" in hall.notes
+    # an unverified (fuzzy) match never carries evidence_url; the article URL stays in the note
+    assert hall.evidence_url is None and "https://berita.rtm.gov.my/" in hall.notes
+    assert out["uncovered_edges"] == ["seg-out"] and out["uncovered_places"] == ["osm-node-7"]
     assert next(c for c in centres if c.place_id == "osm-node-2").notes is None
 
 
@@ -317,9 +320,9 @@ def test_rem_is_height_above_nearest_channel():
     rem = relative_elevation(dem, drain)
     assert np.all(rem[drain] == 0.0)
     expected = 2.0 * np.abs(np.arange(11) - 5)
-    # valley floor = min DEM within 2 cells along the 0.05 m/row slope -> REM + 0.1 m
-    assert np.allclose(rem[2:-2], expected + 0.1 * (expected > 0), atol=1e-9)
-    assert np.allclose(rem, expected, atol=0.21)  # end rows: windows are truncated
+    # valley floor = min DEM within 1 cell (3x3) along the 0.05 m/row slope -> REM + 0.05 m
+    assert np.allclose(rem[2:-2], expected + 0.05 * (expected > 0), atol=1e-9)
+    assert np.allclose(rem, expected, atol=0.11)  # end rows: windows are truncated
 
 
 def test_rem_hill_cells_stay_dry_at_small_stage():
@@ -339,7 +342,7 @@ def test_rem_hollow_not_connected_to_drainage_stays_dry():
     for s in STAGES:
         assert not connected_mask(rem, s, drain)[5, 9]
     eff = effective_hand(rem, drain)
-    assert eff[5, 9] == pytest.approx(6.1)  # joins only once the ~6 m barrier (col 8) is topped
+    assert eff[5, 9] == pytest.approx(6.05)  # joins only once the ~6 m barrier (col 8) is topped
     for s in (0.5, 1, 2.5, 4, 6.5, 9):
         assert np.array_equal(connected_mask(rem, s, drain), eff < s)
 
@@ -349,7 +352,7 @@ def test_rem_channel_spike_is_smoothed():
     dem[6, 5] += 8.0  # a bridge deck in the surface model
     rem = relative_elevation(dem, drain)
     assert rem[6, 5] == 0.0
-    assert rem[6, 3] == pytest.approx(4.1, abs=0.06)  # neighbours unaffected by the spike
+    assert rem[6, 3] == pytest.approx(4.05, abs=0.06)  # neighbours unaffected by the spike
 
 
 def test_rem_without_drainage_is_nan():
@@ -417,3 +420,62 @@ def test_load_osm_water_reads_overpass_and_geojson(tmp_path):
     )
     lines, polys = osm_drainage_geoms(load_osm_water([a, a, b]))
     assert len(lines) == 1 and len(polys) == 1
+
+
+def test_duplicate_halls_are_deduped_within_100_m(tmp_path):
+    from data.scripts.build_flood import evac_centres
+
+    a = _place("osm-way-2", "community_centre", "Dewan Refelsia", [101.5100, 3.1800], None)
+    b = _place("osm-node-9", "community_centre", "Dewan  refelsia", [101.5105, 3.1803], "n-x")
+    far = _place("osm-node-3", "community_centre", "Dewan Refelsia", [101.5200, 3.1800], None)
+    other = _place("osm-node-4", "school", "SK Elmina", [101.5101, 3.1801], None)
+    dropped: list = []
+    ids = {f["properties"]["id"] for f in evac_centres([a, b, far, other], dropped=dropped)}
+    # the copy snapped to a walk node wins; the one 1.1 km away is a different hall
+    assert ids == {"evc-osm-node-9", "evc-osm-node-3", "evc-osm-node-4"}
+    assert dropped == [("osm-way-2", "osm-node-9")]
+
+
+def _sloping_river():
+    """A river down column 30 dropping 0.2 m per row over 0.06 deg (several 0.01 deg tiles)."""
+    rows, cols = np.mgrid[0:60, 0:40]
+    dem = 20.0 + 0.2 * (59 - rows) + 0.8 * np.abs(cols - 30)
+    drain = np.zeros(dem.shape, dtype=bool)
+    drain[:, 30] = True
+    return dem, drain
+
+
+def test_surface_height_rises_with_stage_at_every_point():
+    from shapely.geometry import Point, shape
+
+    dem, drain = _sloping_river()
+    rem = relative_elevation(dem, drain)
+    water = water_features(rem, dem, T, STAGES, tile_deg=0.01, drain=drain)
+    probes = [
+        Point(101.50 + (c + 0.5) * 0.001, 3.20 - (r + 0.5) * 0.001)
+        for r in range(2, 60, 7)
+        for c in (28, 30, 31)
+    ]
+    for pt in probes:
+        heights = []
+        for s in STAGES:
+            hs = [
+                f["properties"]["surface_height_m"]
+                for f in water[f"stage_p{s}m"]
+                if shape(f["geometry"]).contains(pt)
+            ]
+            heights.append(max(hs) if hs else None)
+        seen = [h for h in heights if h is not None]
+        assert seen, pt
+        assert all(b - a == pytest.approx(1.0) for a, b in zip(seen, seen[1:], strict=False))
+
+
+def test_ground_above_drawn_surface_share_is_small():
+    from data.scripts.build_flood import ground_above_surface_share
+
+    dem, drain = _sloping_river()
+    rem = relative_elevation(dem, drain)
+    share = ground_above_surface_share(rem, dem, T, 1, drain, STAGES, tile_deg=0.01)
+    # 0.01 deg tile = 10 rows = 2 m of river fall: the upstream half of a tile sits above +1 m
+    assert 0.0 < share < 0.6
+    assert ground_above_surface_share(rem, dem, T, 5, drain, STAGES, tile_deg=0.01) < share

@@ -21,7 +21,10 @@ MAX_POINTS = 10
 OSM_TYPES = {"recycling": "recycling_drop_off", "waste_basket": "bin"}
 # (display name, exact OSM names that locate it); skipped when no OSM name matches.
 PROGRAMME_SITES = [
-    ("Central Park community garden (programme site)", ["Elmina Central Park", "Central Park"]),
+    (
+        "Central Park community garden (programme site)",
+        ["Elmina Valley Central Park", "Elmina Central Park", "Central Park"],
+    ),
     ("Elmina Rainforest Knowledge Centre (programme site)", ["Elmina Rainforest Knowledge Centre"]),
 ]
 

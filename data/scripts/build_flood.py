@@ -65,13 +65,17 @@ COPERNICUS_CREDIT = (
     "Copernicus DEM GLO-30 © DLR/Airbus, provided under COPERNICUS by the EU and ESA"
 )
 ATTRIBUTIONS = {
-    "rem": [COPERNICUS_CREDIT, "© OpenStreetMap contributors (ODbL)"],
+    "rem": [
+        COPERNICUS_CREDIT,
+        "Flood scenarios: relative elevation above mapped OSM drainage (indicative)",
+        "© OpenStreetMap contributors (ODbL)",
+    ],
     "hand": [COPERNICUS_CREDIT, "HAND: ASF (CC0)"],
 }
 ATTRIBUTION = ATTRIBUTIONS["rem"]
 
 REM_SMOOTH_CELLS = 5  # median window (cells) along the channel for drainage elevations
-REM_FLOOR_CELLS = 5  # valley-floor window (cells): min DEM around each drainage cell
+REM_FLOOR_CELLS = 3  # valley-floor window (cells): OSM lines sit <= 1 cell off the DEM valley
 OSM_WATER_QL = """[out:json][timeout:180];
 (
   way["waterway"~"^(river|stream|canal)$"]({s},{w},{n},{e});
@@ -107,6 +111,7 @@ OFFICIAL_PPS_REPORTS = [
     ),
 ]
 FUZZY_MIN = 0.6
+DEDUPE_RADIUS_M = 100.0
 SITE_CENTRE = (101.5099, 3.1813)  # lon, lat (site.json center / Lakeside Mall)
 _RANK = {"unlikely": 0, "possible": 1, "likely_flooded": 2}
 _CLASS = {v: k for k, v in _RANK.items()}
@@ -318,6 +323,41 @@ def _area_km2(geom) -> float:
     return geom.area * mx * my / 1e6
 
 
+def _cell_tiles(shape, transform, tile_deg: float) -> tuple[np.ndarray, np.ndarray]:
+    """Tile indices (i, j) = floor(centre / tile_deg) of every cell centre."""
+    rows, cols = np.indices(shape)
+    xs = transform.c + (cols + 0.5) * transform.a + rows * transform.b
+    ys = transform.f + (rows + 0.5) * transform.e + cols * transform.d
+    return np.floor(xs / tile_deg).astype(int), np.floor(ys / tile_deg).astype(int)
+
+
+def tile_references(rel, dem, transform, top_mask, tile_deg=TILE_DEG) -> dict[tuple, float]:
+    """Stage-independent water reference per tile: the median channel elevation (DEM - REM, or
+    DEM - HAND = drainage elevation) over the tile's cells that are wet at the top stage.
+    The drawn water surface of every stage in the tile is reference + stage (1 m per stage)."""
+    ti, tj = _cell_tiles(dem.shape, transform, tile_deg)
+    base = np.asarray(dem, dtype=float) - np.asarray(rel, dtype=float)
+    sel = np.asarray(top_mask, dtype=bool) & ~np.isnan(base)
+    refs: dict[tuple, float] = {}
+    for i, j in set(zip(ti[sel].tolist(), tj[sel].tolist(), strict=True)):
+        refs[(i, j)] = float(np.median(base[sel & (ti == i) & (tj == j)]))
+    return refs
+
+
+def ground_above_surface_share(
+    rel, dem, transform, stage, drain=None, stages=STAGES, tile_deg=TILE_DEG
+) -> float:
+    """Share of the cells wet at `stage` whose ground (DEM) is above the drawn water surface
+    (tile reference + stage): water that the 3D view would hide under the terrain."""
+    refs = tile_references(rel, dem, transform, connected_mask(rel, max(stages), drain), tile_deg)
+    wet = connected_mask(rel, stage, drain)
+    if not wet.any():
+        return 0.0
+    ti, tj = _cell_tiles(dem.shape, transform, tile_deg)
+    surf = np.array([refs.get((i, j), np.nan) for i, j in zip(ti[wet], tj[wet], strict=True)])
+    return float(np.mean(dem[wet] > surf + stage))
+
+
 def water_features(
     hand,
     dem,
@@ -333,13 +373,16 @@ def water_features(
     Pieces smaller than half a raster cell (tile-cut slivers) are dropped; a dropped piece's
     region is either dropped at every lower stage too or covered by a kept piece, so nesting holds
     exactly before the output coordinates are rounded to WATER_DP decimals (~1 m).
+    `surface_height_m` = the tile's stage-independent reference (see tile_references) + stage, so
+    at any point the drawn surface rises exactly 1 m per stage.
     """
-    from rasterio.features import geometry_mask, shapes
+    from rasterio.features import shapes
     from shapely.geometry import box, mapping, shape
     from shapely.ops import unary_union
 
     out: dict[str, list[dict]] = {"baseline": []}  # normal river level: no scenario water
     min_piece = 0.5 * abs(transform.a * transform.e)
+    refs = tile_references(hand, dem, transform, connected_mask(hand, max(stages), drain), tile_deg)
     prev = None
     for s in stages:
         sid = f"stage_p{s}m"
@@ -357,40 +400,30 @@ def water_features(
         prev = geom
         if area is not None:
             geom = geom.intersection(box(*area))
-        pieces = []
+        feats = []
         if not geom.is_empty:
             w, so, e, n = geom.bounds
             for i in range(math.floor(w / tile_deg), math.ceil(e / tile_deg)):
                 for j in range(math.floor(so / tile_deg), math.ceil(n / tile_deg)):
+                    ref = refs.get((i, j))
+                    if ref is None:  # no top-stage cell centre here (boundary slivers only)
+                        if not refs:
+                            continue
+                        ref = refs[min(refs, key=lambda k: max(abs(k[0] - i), abs(k[1] - j)))]
                     cell = box(i * tile_deg, j * tile_deg, (i + 1) * tile_deg, (j + 1) * tile_deg)
                     part = geom.intersection(cell)
-                    pieces += [
-                        p
+                    feats += [
+                        {
+                            "type": "Feature",
+                            "geometry": _round(mapping(p), WATER_DP),
+                            "properties": {
+                                "scenario_id": sid,
+                                "surface_height_m": round(ref + s, 2),
+                            },
+                        }
                         for p in getattr(part, "geoms", [part])
                         if p.geom_type == "Polygon" and p.area >= min_piece
                     ]
-        feats = []
-        for p in pieces:
-            inside = ~geometry_mask([p], out_shape=mask.shape, transform=transform)
-            sel = inside & mask
-            if not sel.any():
-                sel = ~geometry_mask(
-                    [p], out_shape=mask.shape, transform=transform, all_touched=True
-                )
-            vals = dem[sel]
-            vals = vals[~np.isnan(vals)]
-            if not vals.size:
-                continue
-            feats.append(
-                {
-                    "type": "Feature",
-                    "geometry": _round(mapping(p), WATER_DP),
-                    "properties": {
-                        "scenario_id": sid,
-                        "surface_height_m": round(float(np.percentile(vals, 5)) + s, 2),
-                    },
-                }
-            )
         out[sid] = feats
     return out
 
@@ -545,7 +578,43 @@ def _in_area(coord, area=AREA) -> bool:
     return w <= coord[0] <= e and s <= coord[1] <= n
 
 
-def evac_centres(places: list[dict], area=AREA) -> list[dict]:
+def _norm_name(s: str) -> str:
+    return " ".join(s.split()).casefold()
+
+
+def dedupe_places(cands: list[dict], radius_m: float = DEDUPE_RADIUS_M):
+    """Drop repeats of the same hall: same normalised name within `radius_m` (OSM often maps a
+    building as a node and a way). Keeps the one snapped to a walk node, then the lowest id.
+    Returns (kept, [(dropped_id, kept_id)])."""
+    order = sorted(
+        cands, key=lambda f: (f["properties"].get("node_id") is None, f["properties"]["id"])
+    )
+    kept: list[dict] = []
+    dropped: list[tuple[str, str]] = []
+    for f in order:
+        x, y = f["geometry"]["coordinates"][:2]
+        mx, my = _m_per_deg(y)
+        twin = next(
+            (
+                k
+                for k in kept
+                if _norm_name(k["properties"]["name"]) == _norm_name(f["properties"]["name"])
+                and math.hypot(
+                    (k["geometry"]["coordinates"][0] - x) * mx,
+                    (k["geometry"]["coordinates"][1] - y) * my,
+                )
+                <= radius_m
+            ),
+            None,
+        )
+        if twin is None:
+            kept.append(f)
+        else:
+            dropped.append((f["properties"]["id"], twin["properties"]["id"]))
+    return kept, dropped
+
+
+def evac_centres(places: list[dict], area=AREA, dropped: list | None = None) -> list[dict]:
     from townshiplens_spatial.models import EvacCentre
 
     cands = [
@@ -555,6 +624,9 @@ def evac_centres(places: list[dict], area=AREA) -> list[dict]:
         and f["properties"].get("kind", "place") == "place"
         and _in_area(f["geometry"]["coordinates"], area)
     ]
+    cands, dups = dedupe_places(cands)
+    if dropped is not None:
+        dropped.extend(dups)
     centres: dict[str, EvacCentre] = {}
     for f in cands:
         p = f["properties"]
@@ -567,9 +639,7 @@ def evac_centres(places: list[dict], area=AREA) -> list[dict]:
             source="osm_candidate",
         )
 
-    def norm(s: str) -> str:
-        return " ".join(s.split()).casefold()
-
+    norm = _norm_name
     for name, url, day in OFFICIAL_PPS_REPORTS:
         exact = [pid for pid, c in centres.items() if norm(c.name) == norm(name)]
         if exact:
@@ -596,10 +666,9 @@ def evac_centres(places: list[dict], area=AREA) -> list[dict]:
             pid = scored[0][1]
             d = date.fromisoformat(day)
             centres[pid] = centres[pid].model_copy(
-                update={
-                    "notes": f"news reports a PPS named '{name}' on {d.day} {d:%b %Y}; "
+                update={  # unverified: the article URL stays in the note, never in evidence_url
+                    "notes": f"news reports a PPS named '{name}' on {d.day} {d:%b %Y} ({url}); "
                     "match to this hall unverified",
-                    "evidence_url": url,
                 }
             )
     return [
@@ -621,28 +690,50 @@ def vector_stage(data_dir: Path, eff_hand: np.ndarray, transform, stages=STAGES,
         )
         return None
     walk, places = _features(walk_p), _features(places_p)
+    # the access overlay replaces / adds edges and places in load_world(): classify those too
+    overlay = _features(data_dir / "access/overlay.geojson")
+    edges = {f["properties"]["id"]: f for f in walk}
+    edges.update(
+        {f["properties"]["id"]: f for f in overlay if f["geometry"]["type"] == "LineString"}
+    )
+    pts = {f["properties"]["id"]: f for f in places}
+    pts.update({f["properties"]["id"]: f for f in overlay if f["geometry"]["type"] == "Point"})
     edge_h: dict[str, float] = {}
-    for f in walk:
-        if f["geometry"]["type"] == "LineString":
-            vals = sample_raster(eff_hand, transform, sample_line(f["geometry"]["coordinates"]))
-            edge_h[f["properties"]["id"]] = _nanmin(vals)
+    uncovered, partial = [], []
+    for eid, f in edges.items():
+        if f["geometry"]["type"] != "LineString":
+            continue
+        vals = sample_raster(eff_hand, transform, sample_line(f["geometry"]["coordinates"]))
+        edge_h[eid] = _nanmin(vals)
+        if np.isnan(vals).all():
+            uncovered.append(eid)
+        elif np.isnan(vals).any():
+            partial.append(eid)
     place_h = {
-        f["properties"]["id"]: _nanmin(
-            sample_raster(eff_hand, transform, [tuple(f["geometry"]["coordinates"][:2])])
-        )
-        for f in places
+        pid: _nanmin(sample_raster(eff_hand, transform, [tuple(f["geometry"]["coordinates"][:2])]))
+        for pid, f in pts.items()
         if f["geometry"]["type"] == "Point"
     }
-    no_cov = sum(1 for v in edge_h.values() if math.isnan(v))
+    dropped: list[tuple[str, str]] = []
+    centres = evac_centres(places, dropped=dropped)
     edge_classes = {"baseline": {}, **stage_classes(edge_h, stages, margin)}
     place_classes = {"baseline": {}, **stage_classes(place_h, stages, margin)}
     return {
         "edge_classes": edge_classes,
         "place_classes": place_classes,
-        "centres": evac_centres(places),
+        "centres": centres,
         "edge_hand_min": edge_h,
         "place_hand_min": place_h,
-        "stats": {"edges": len(edge_h), "edges_no_coverage": no_cov, "places": len(place_h)},
+        "uncovered_edges": sorted(uncovered),
+        "partial_edges": sorted(partial),
+        "uncovered_places": sorted(k for k, v in place_h.items() if math.isnan(v)),
+        "dropped_duplicate_centres": dropped,
+        "stats": {
+            "edges": len(edge_h),
+            "edges_no_coverage": len(uncovered),
+            "edges_partial_coverage": len(partial),
+            "places": len(place_h),
+        },
     }
 
 
@@ -750,6 +841,16 @@ def write_outputs(
     )
     if vec:
         _write_fc(flood_dir / "evac_centres.geojson", vec["centres"])
+        coverage = {
+            "note": "Walk edges / places outside the flood raster window get no flood class "
+            "(they read as 'unlikely'); partial edges are classified on their covered samples.",
+            "area_wsen": list(AREA),
+            "uncovered_edges": vec["uncovered_edges"],
+            "partial_edges": vec["partial_edges"],
+            "uncovered_places": vec["uncovered_places"],
+            "dropped_duplicate_centres": [list(p) for p in vec["dropped_duplicate_centres"]],
+        }
+        (flood_dir / "coverage.json").write_text(json.dumps(coverage, indent=1) + "\n")
     update_site(data_dir, datum_offset_m, ATTRIBUTIONS[method])
 
 
@@ -837,6 +938,11 @@ def main(argv=None) -> int:
     )
     ap.add_argument("--refresh", action="store_true", help="re-download the raster windows")
     ap.add_argument(
+        "--datum-offset",
+        type=float,
+        help="set scene.datum_offset_m to this EGM2008 geoid height (skips the network lookup)",
+    )
+    ap.add_argument(
         "--no-datum",
         action="store_true",
         help="skip the EGM2008 geoid lookup (leaves scene.datum_offset_m unchanged)",
@@ -873,15 +979,25 @@ def main(argv=None) -> int:
         vec = vector_stage(data_dir, eff, t)
     if water is None:  # vector-only run: reuse the committed water polygons
         water = {sid: _features(data_dir / f"flood/{sid}.geojson") for sid in scenario_ids()}
-    datum = None if args.no_datum else geoid_undulation(*SITE_CENTRE)
+    if args.datum_offset is not None:
+        datum = args.datum_offset
+    else:
+        datum = None if args.no_datum else geoid_undulation(*SITE_CENTRE)
     print(f"[datum] EGM2008 geoid height N at {SITE_CENTRE} = {datum} m (datum_offset_m)")
     write_outputs(data_dir, water, vec, datum_offset_m=datum, method=args.method)
     print(summary(water, vec))
+    shares = ", ".join(
+        f"+{s} m {ground_above_surface_share(rel, dem, t, s, drain):.1%}" for s in STAGES
+    )
+    print(f"[surface] wet cells whose ground is above the drawn surface: {shares}")
     if vec:
         print(sanity_report(data_dir, eff, t, vec))
+        st = vec["stats"]
         print(
-            f"[vector] edges={vec['stats']['edges']} (no coverage: "
-            f"{vec['stats']['edges_no_coverage']}), centres={len(vec['centres'])}"
+            f"[vector] edges={st['edges']} (no coverage: {st['edges_no_coverage']}, partial: "
+            f"{st['edges_partial_coverage']}), places={st['places']} (no coverage: "
+            f"{len(vec['uncovered_places'])}), centres={len(vec['centres'])} "
+            f"(duplicates dropped: {vec['dropped_duplicate_centres']})"
         )
     return 0
 

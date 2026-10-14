@@ -1,0 +1,131 @@
+{
+ "type": "FeatureCollection",
+ "features": [
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     101.51425,
+     3.179013
+    ]
+   },
+   "properties": {
+    "id": "wp-prog-osm-way-866543394",
+    "name": "Central Park community garden (programme site)",
+    "type": "programme_site",
+    "accepted_items": [],
+    "status": "unknown",
+    "source_url": "https://www.openstreetmap.org/way/866543394"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     101.500647,
+     3.171146
+    ]
+   },
+   "properties": {
+    "id": "wp-prog-osm-way-910312454",
+    "name": "Elmina Rainforest Knowledge Centre (programme site)",
+    "type": "programme_site",
+    "accepted_items": [],
+    "status": "unknown",
+    "source_url": "https://www.openstreetmap.org/way/910312454"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     101.517034,
+     3.179552
+    ]
+   },
+   "properties": {
+    "id": "wp-osm-node-12001705555",
+    "name": "Waste Basket (unnamed, OSM)",
+    "type": "bin",
+    "accepted_items": [],
+    "status": "unknown",
+    "source_url": "https://www.openstreetmap.org/node/12001705555"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     101.517515,
+     3.179366
+    ]
+   },
+   "properties": {
+    "id": "wp-osm-node-12001746252",
+    "name": "Waste Basket (unnamed, OSM)",
+    "type": "bin",
+    "accepted_items": [],
+    "status": "unknown",
+    "source_url": "https://www.openstreetmap.org/node/12001746252"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     101.51281,
+     3.178895
+    ]
+   },
+   "properties": {
+    "id": "wp-osm-node-12001752608",
+    "name": "Waste Basket (unnamed, OSM)",
+    "type": "bin",
+    "accepted_items": [],
+    "status": "unknown",
+    "source_url": "https://www.openstreetmap.org/node/12001752608"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     101.516259,
+     3.17968
+    ]
+   },
+   "properties": {
+    "id": "wp-osm-node-12001761367",
+    "name": "Waste Basket (unnamed, OSM)",
+    "type": "bin",
+    "accepted_items": [],
+    "status": "unknown",
+    "source_url": "https://www.openstreetmap.org/node/12001761367"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     101.516695,
+     3.179552
+    ]
+   },
+   "properties": {
+    "id": "wp-osm-node-12001767621",
+    "name": "Waste Basket (unnamed, OSM)",
+    "type": "bin",
+    "accepted_items": [],
+    "status": "unknown",
+    "source_url": "https://www.openstreetmap.org/node/12001767621"
+   }
+  }
+ ]
+}

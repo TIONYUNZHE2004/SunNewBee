@@ -1,54 +1,56 @@
 {
-  "id": "elmina",
-  "name": "City of Elmina",
-  "township": "City of Elmina",
-  "center": [
-    101.5099,
-    3.1813
-  ],
-  "bbox": [
-    101.46,
-    3.15,
-    101.53,
-    3.24
-  ],
-  "deep_spots": [
-    {
-      "id": "urban-park",
-      "lens": "access",
-      "name": "Elmina Urban Park + Lakeside Mall frontage",
-      "bbox": [
-        101.5055,
-        3.1775,
-        101.5135,
-        3.1835
-      ]
-    },
-    {
-      "id": "subang-corridor",
-      "lens": "flood",
-      "name": "Sungai Subang corridor + downstream neighbours",
-      "bbox": [
-        101.495,
-        3.15,
-        101.56,
-        3.23
-      ]
-    }
-  ],
-  "scene": {
-    "hero": "cesium_google_photoreal",
-    "fallback": "cesium_osm_buildings",
-    "lite": "mapbox_standard",
-    "datum_offset_m": 0.0,
-    "home": {
-      "lon": 101.5099,
-      "lat": 3.1813,
-      "range_m": 6000
-    }
+ "id": "elmina",
+ "name": "City of Elmina",
+ "township": "City of Elmina",
+ "center": [
+  101.5099,
+  3.1813
+ ],
+ "bbox": [
+  101.46,
+  3.15,
+  101.53,
+  3.24
+ ],
+ "deep_spots": [
+  {
+   "id": "urban-park",
+   "lens": "access",
+   "name": "Elmina Urban Park + Lakeside Mall frontage",
+   "bbox": [
+    101.5055,
+    3.1775,
+    101.5135,
+    3.1835
+   ]
   },
-  "attribution": [
-    "© OpenStreetMap contributors (ODbL)"
-  ],
-  "data_as_of": "2026-10-15"
+  {
+   "id": "subang-corridor",
+   "lens": "flood",
+   "name": "Sungai Subang corridor + downstream neighbours",
+   "bbox": [
+    101.495,
+    3.15,
+    101.56,
+    3.23
+   ]
+  }
+ ],
+ "scene": {
+  "hero": "cesium_google_photoreal",
+  "fallback": "cesium_osm_buildings",
+  "lite": "mapbox_standard",
+  "datum_offset_m": -3.74,
+  "home": {
+   "lon": 101.5099,
+   "lat": 3.1813,
+   "range_m": 6000
+  }
+ },
+ "attribution": [
+  "© OpenStreetMap contributors (ODbL)",
+  "Copernicus DEM GLO-30 © DLR/Airbus, provided under COPERNICUS by the EU and ESA",
+  "Flood scenarios: relative elevation above mapped OSM drainage (indicative)"
+ ],
+ "data_as_of": "2026-10-15"
 }
