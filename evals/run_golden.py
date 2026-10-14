@@ -54,9 +54,13 @@ def check(expect: dict, evs: list) -> list[str]:
     return fails
 
 
-def unsupported_claims(evs: list) -> int:
-    """1 when a non-cannot_answer turn cites no evidence at all, else 0 (the validator already
-    rejects claims with empty evidence_ids; this catches a turn whose answer cites nothing)."""
+def answered_without_citations(evs: list) -> int:
+    """1 when an answered/partial turn emitted no citation event at all, else 0.
+
+    Turn-level, not claim-level: it cannot see claims (the validator rejects empty-evidence
+    claims per claim). It fails the mock run only; a live model may legitimately answer without
+    citations, so real mode just prints it.
+    """
     done = evs[-1] if evs and evs[-1].type == "done" else None
     if done is None or done.answer_status == "cannot_answer":
         return 0
@@ -73,7 +77,7 @@ async def main() -> int:
     )
     cases = yaml.safe_load(GOLDEN.read_text(encoding="utf-8"))
     world = load_world(TINY)
-    rows, failed, unsupported = [], 0, 0
+    rows, failed, uncited = [], 0, 0
     with tempfile.TemporaryDirectory() as tmp:
         for i, case in enumerate(cases):
             ctx = tools.Ctx(world=world, vrs=VerificationStore(str(Path(tmp) / f"vr-{i}.db")))
@@ -85,7 +89,7 @@ async def main() -> int:
             evs = [e async for e in run_turn(ctx, req, settings)]
             fails = check(case.get("expect", {}), evs)
             failed += bool(fails)
-            unsupported += unsupported_claims(evs)
+            uncited += answered_without_citations(evs)
             done = evs[-1] if evs and evs[-1].type == "done" else None
             rows.append(
                 (
@@ -101,9 +105,9 @@ async def main() -> int:
     widths = [max(len(str(r[c])) for r in [head, *rows]) for c in range(len(head))]
     for r in [head, *rows]:
         print("  ".join(str(v).ljust(w) for v, w in zip(r, widths, strict=True)).rstrip())
-    print(f"\nunsupported_claims: {unsupported}")
+    print(f"\nanswered_without_citations: {uncited}")
     print(f"golden: {len(rows) - failed}/{len(rows)} passed ({'openrouter' if real else 'mock'})")
-    return 1 if failed or unsupported else 0
+    return 1 if failed or (uncited and not real) else 0
 
 
 if __name__ == "__main__":

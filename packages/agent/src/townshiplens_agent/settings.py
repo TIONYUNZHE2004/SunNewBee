@@ -1,6 +1,7 @@
 from pathlib import Path
 from typing import Literal
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 ROOT = Path(__file__).resolve().parents[4]
@@ -16,6 +17,12 @@ class AgentSettings(BaseSettings):
     turn_timeout_s: float = 60.0
     demo_mode: bool = False
     demo_dir: Path = ROOT / "data/demo"
+
+    @field_validator("llm_provider", mode="before")
+    @classmethod
+    def _empty_provider_is_default(cls, v):
+        """`LLM_PROVIDER=` (as in .env.example) means unset: mock without a key, else openrouter."""
+        return None if isinstance(v, str) and not v.strip() else v
 
     @property
     def provider(self) -> str:

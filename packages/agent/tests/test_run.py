@@ -708,3 +708,36 @@ async def test_mock_waste_verified_and_unknown(ctx):
     assert "Recycling bins at Car Park B" in _text(evs)
     evs = await collect(ctx, "Where can I drop off e-waste batteries?", profile="default")
     assert "reported" in _text(evs).lower() and evs[-1].answer_status == "partial"
+
+
+# --- fix round 1: Elmina seed (the demo data) ---------------------------------------------
+
+
+@pytest.fixture
+def elmina(tmp_path):
+    from townshiplens_agent.settings import ROOT
+
+    return tools.Ctx(
+        world=load_world(ROOT / "data/seed/elmina"),
+        vrs=VerificationStore(str(tmp_path / "vr-elmina.db")),
+    )
+
+
+async def test_elmina_stroller_to_lakeside_mall_routes_to_the_mall(elmina):
+    evs = await collect(elmina, "Can I get to the lakeside mall with a stroller?")
+    calls = [e.args for e in evs if e.type == "tool.call" and e.name == "plan_route"]
+    assert calls and calls[0]["to_id"] == "lakeside-mall"
+    assert "Elmina Lakeside Mall" in _text(evs)
+    assert "playground" not in _text(evs).lower()
+    assert evs[-1].model == "mock-scripted"
+
+
+async def test_elmina_recycling_says_none_mapped_lists_unverified_points(elmina):
+    evs = await collect(elmina, "Where can I drop off recycling nearby?", profile="default")
+    text = _text(evs)
+    assert evs[-1].model == "mock-scripted" and evs[-1].answer_status == "partial"
+    assert "No recycling drop-off is mapped yet" in text and "MBSA" in text
+    assert "Waste Basket" in text and "unconfirmed" in text
+    assert any(e.type == "citation" for e in evs)
+    assert not any(e.type == "verification.requested" for e in evs)
+    assert not elmina.vrs.list()  # no bogus missing_place VR

@@ -10,7 +10,7 @@ def _cannot_summary(rec: TurnRecord, question: str) -> str:
     The question is only echoed outside flood turns and when it passes the flood-wording and
     depth rules (it is the user's own text; never let it smuggle forbidden wording in).
     """
-    tail = " I've noted the gap for the township team."
+    tail = " I've noted the gap for the township team." if rec.vrs else ""
     for e in rec.evidence.values():
         if str(e.status) == "unknown":
             return f"I don't have a verified {e.attribute} for {e.element_id} yet.{tail}"
@@ -57,11 +57,7 @@ def template_answer(rec: TurnRecord, question: str) -> FinalAnswer:
         caveats.append(f"Not checked yet: {', '.join(unknowns)}.")
     if status != "confirmed":
         caveats.append("Some segments are still unverified.")
-    if any(
-        getattr(rec.evidence.get(i), "source_type", None) == PLACEHOLDER_SOURCE
-        for c in claims
-        for i in c.evidence_ids
-    ):
+    if any(getattr(e, "source_type", None) == PLACEHOLDER_SOURCE for e in rec.evidence.values()):
         caveats.append(f"Some segment facts are {PLACEHOLDER_CAVEAT}.")
     dist = route.get("distance_m")
     summary = f"Route of {dist} m." if dist is not None else "Route found."
