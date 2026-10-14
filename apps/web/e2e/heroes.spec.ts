@@ -6,11 +6,12 @@ async function ask(page: Page, question: string) {
   await page.getByRole("button", { name: "Send" }).click();
 }
 
-test("access hero in list view shows a route status and verified evidence", async ({ page }) => {
+test("access hero in list view shows a route status and honest demo evidence", async ({ page }) => {
   await ask(page, "Can I push a stroller from Car Park B to the playground without stairs?");
   const log = page.getByRole("log");
   await expect(log).toContainText(/route confirmed/);
-  await expect(log).toContainText(/verified/);
+  await expect(log).toContainText(/Demo value · not surveyed/);
+  await expect(log).not.toContainText(/verified/);
 });
 
 test("flood hero shows the disclaimer and never says 'safe'", async ({ page }) => {

@@ -1,10 +1,11 @@
 import { type FormEvent, useEffect, useRef } from "react";
 import { DisclaimerBanner } from "../flood/DisclaimerBanner";
+import { CitationList } from "./CitationList";
 import { useChatDraft } from "./chatDraftStore";
 import type { AssistantMessage } from "./chatReducer";
-import { EvidenceCard } from "./EvidenceCard";
 import { UncertaintyBanner } from "./UncertaintyBanner";
 import { useChatStream } from "./useChatStream";
+import { useElementNames } from "./useElementNames";
 
 const SUGGESTIONS = [
   "Can I get to the lakeside mall with a stroller?",
@@ -13,6 +14,7 @@ const SUGGESTIONS = [
 ];
 
 function AssistantBubble({ m, onRetry }: { m: AssistantMessage; onRetry: () => void }) {
+  const names = useElementNames();
   const waiting = !m.done && !m.text && !m.error;
   return (
     <div className="space-y-2 rounded-lg border border-line bg-card p-3">
@@ -41,13 +43,7 @@ function AssistantBubble({ m, onRetry }: { m: AssistantMessage; onRetry: () => v
       {m.text && <p className="whitespace-pre-wrap">{m.text}</p>}
       {m.uncertainty && <UncertaintyBanner u={m.uncertainty} />}
       {m.disclaimer && <DisclaimerBanner text={m.disclaimer.text} links={m.disclaimer.links} />}
-      {m.citations.length > 0 && (
-        <ul className="space-y-1.5" aria-label="Evidence">
-          {m.citations.map((c) => (
-            <EvidenceCard key={`${c.ref}-${c.evidence_id}`} c={c} />
-          ))}
-        </ul>
-      )}
+      {m.citations.length > 0 && <CitationList citations={m.citations} names={names} />}
       {m.vrs.length > 0 && (
         <p className="text-sm text-ink-soft">
           {m.vrs.length === 1 ? "A check has" : `${m.vrs.length} checks have`} been requested from
