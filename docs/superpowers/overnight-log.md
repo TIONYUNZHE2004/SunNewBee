@@ -366,3 +366,31 @@
 - **Task 31:** still BLOCKED on the north strip (3.2175–3.24 N, 101.495–101.53 E). Overpass 504s; 16 requests used. Estimate with 4 of 5 tiles: components 199 → 84; largest share 32% → 87%; centres from the mall 23 → 56 connected (all partly_unverified); journey no_data 99% → 46%.
   - **Ruling R24:** one last try via a public mirror (≤ 3 requests). Either way, build the seed from the tiles available and document any missing strip honestly.
 - **Dispatched:** Task 36 (F-08 "why this path" provenance popover, F-09 baseline vs scenario briefing, F-16 thresholds shown as engineering defaults).
+
+## 04:19 — Usage limit reached: early stop (deadline was 09:25)
+- **Merged and pushed since the last entry:**
+  - Task 36 (`ddf6bf7`): "Why this path?" provenance popover, baseline vs scenario flood briefing, profile thresholds labelled as engineering defaults.
+  - List-view polish (`f421243`).
+- **Browser check:** a real click on a flooded path in the Google 3D view opens the popover (PASS; `screenshots/2026-10-15-0420-real-seed-why-this-path-3d-click.jpg`). It was verified with a temporary debug hook, which is reverted and was never committed.
+- **Checklist on `f421243`:**
+  - pytest 440: PASS
+  - golden 12/12 (mock): PASS
+  - vitest 223: PASS
+  - lint: PASS
+  - gen: PASS
+  - typecheck: PASS
+  - build: PASS
+  - e2e 10/10: PASS
+- **NOT DONE / still open:**
+  - Task 31 (major roads, lane/data): the agent was still running when the run stopped. Its code commits `a154542` and `b85455a` are on lane/data and **not merged**. The seed rebuild under R24 may or may not have landed on lane/data. To resume:
+    1. Review lane/data.
+    2. Run the full checklist.
+    3. Merge.
+    4. Re-record the 4 Elmina demo entries with the mock.
+  - No final whole-branch review of Tasks 31–36.
+  - Minors are parked in the ledger.
+  - Local `.data/elmina.db` holds 174 stale VRs; delete it before a demo.
+- **External usage:**
+  - OpenRouter daily counter US$0.1407 (live calls stopped at R19).
+  - Google tiles about 26/30.
+  - Overpass about 55 (Task 3) + 16 to 19 (Task 31).
