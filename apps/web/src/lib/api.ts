@@ -56,11 +56,28 @@ export const useEvacCentres = (
       ),
   });
 
-export const usePlace = (id: string | null) =>
+/** Centres also take a scenario/profile so the card can show reachability from the demo start. */
+export const usePlace = (
+  id: string | null,
+  reach?: { scenarioId: string; profile: Profile; near?: string },
+) =>
   useQuery({
-    queryKey: ["place", id],
+    queryKey: ["place", id, reach?.scenarioId ?? null, reach?.profile ?? null],
     enabled: !!id,
     retry: false,
     queryFn: async () =>
-      unwrap(await api.GET("/places/{place_id}", { params: { path: { place_id: id as string } } })),
+      unwrap(
+        await api.GET("/places/{place_id}", {
+          params: {
+            path: { place_id: id as string },
+            query: reach
+              ? {
+                  scenario_id: reach.scenarioId,
+                  profile: reach.profile,
+                  near: reach.near ?? "lakeside-mall",
+                }
+              : {},
+          },
+        }),
+      ),
   });

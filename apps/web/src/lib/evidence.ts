@@ -14,3 +14,16 @@ export function claimBadge(
     ? { label: DEMO_LABEL, icon: "", verifiedAt: null, demo: true }
     : { ...status, verifiedAt, demo: false };
 }
+
+/** Where to ask the council. Used wherever we say "ask MBSA". */
+export const MBSA_CONTACT_URL = "https://www.mbsa.gov.my";
+export const COLLECTION_DAY_UNKNOWN = "Collection day: unknown, ask MBSA";
+
+export const CENTRE_SOURCE_LABEL: Record<string, string> = {
+  official_pps: "Official PPS",
+  osm_candidate: "Candidate (OSM), not an official relief centre",
+};
+
+/** Source label for an evacuation centre. An unrecognised source is never promoted to official. */
+export const centreSourceLabel = (source: unknown): string =>
+  CENTRE_SOURCE_LABEL[String(source)] ?? CENTRE_SOURCE_LABEL.osm_candidate ?? "";

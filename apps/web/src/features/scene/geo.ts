@@ -94,3 +94,14 @@ export function groupByStatus(lines: LineFeature[]): Map<EdgeStatus, LonLat[][]>
   }
   return m;
 }
+
+/** First clicked map feature on one of `layerIds` that carries a place id. */
+export function clickedPlaceId(
+  features:
+    | { layer?: { id?: string } | null; properties?: Record<string, unknown> | null }[]
+    | undefined,
+  layerIds: string[],
+): string | null {
+  const f = features?.find((x) => x.layer?.id && layerIds.includes(x.layer.id) && x.properties?.id);
+  return f ? String(f.properties?.id) : null;
+}
