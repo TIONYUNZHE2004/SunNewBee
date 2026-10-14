@@ -12,6 +12,15 @@ UNKNOWN_WEIGHT = 5.0
 WALK_M_PER_MIN = 70.0
 
 
+def _pace_m_per_min(profile) -> float:
+    return profile.speed_kmh * 1000 / 60 if profile.speed_kmh else WALK_M_PER_MIN
+
+
+def _caveat(profile, status):
+    """A profile with a standing warning (drive) can never be 'confirmed'."""
+    return "partly_unverified" if profile.standing_warning and status == "confirmed" else status
+
+
 def _targets(world: World, place_id: str) -> list[str]:
     p = world.places.get(place_id)
     if p is None and place_id.startswith(CENTRE_PREFIX):
@@ -100,7 +109,7 @@ def _route_from_nodes(world, nodes, keys, from_id, to_id, profile, scenario_id, 
         dist += e.length_m
         if res == "UNKNOWN":
             unknowns.extend(why)
-    status = "confirmed" if not unknowns else "partly_unverified"
+    status = _caveat(profile, "confirmed" if not unknowns else "partly_unverified")
     rid = (
         "rt-"
         + hashlib.sha1(
@@ -122,7 +131,7 @@ def _route_from_nodes(world, nodes, keys, from_id, to_id, profile, scenario_id, 
         profile=profile.id,
         scenario_id=scenario_id,
         distance_m=round(dist, 1),
-        est_minutes=round(dist / WALK_M_PER_MIN, 1),
+        est_minutes=round(dist / _pace_m_per_min(profile), 1),
         segments=segs,
         unknowns=unknowns,
         rest_points=rest,
@@ -178,10 +187,13 @@ def plan_route(
     profile = world.profiles.get(profile_id)
     if profile is None:
         return RouteResult(status="no_data", routes=[], warnings=[f"unknown profile {profile_id}"])
-    if profile.stub:
-        return RouteResult(
-            status="no_data", routes=[], warnings=["drive network not built yet (skeleton stub)"]
-        )
+    result = _plan(world, from_id, to_id, profile, scenario_id)
+    if profile.standing_warning and result.status != "no_data":
+        result.warnings.append(profile.standing_warning)
+    return result
+
+
+def _plan(world, from_id, to_id, profile, scenario_id) -> RouteResult:
     sources, targets = _targets(world, from_id), _targets(world, to_id)
     if not sources or not targets:
         warnings = []

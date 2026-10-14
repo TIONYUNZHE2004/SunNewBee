@@ -261,7 +261,7 @@ def affected_places(
     if prof is None:
         return ToolResult(ok=False, warnings=[f"unknown profile {profile}"])
     if prof.stub:
-        return ToolResult(ok=False, warnings=["drive network not built yet (skeleton stub)"])
+        return ToolResult(ok=False, warnings=[f"{profile} profile is not available yet"])
     a = _flood.affected(ctx.world, scenario_id, profile, kind)
     ev = [
         Evidence(
@@ -302,7 +302,9 @@ def list_evacuation_centres(
     if prof is None:
         warnings.append(f"unknown profile {profile}")
     elif prof.stub:
-        warnings.append("drive network not built yet (skeleton stub)")
+        warnings.append(f"{profile} profile is not available yet")
+    elif prof.standing_warning:
+        warnings.append(prof.standing_warning)
     if near_place and not routing._targets(ctx.world, near_place):
         warnings.append(f"place not mapped: {near_place}")
     ev = [

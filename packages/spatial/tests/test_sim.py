@@ -32,7 +32,7 @@ def test_run_suite_outcomes_and_gap(world):
     assert world.edges["seg-cf"].claims["incline_pct"].status == "unknown"  # world untouched
 
 
-def test_stub_profile_no_data(world):
+def test_drive_profile_without_roads_is_not_no_data(world):
     r = sim.run_suite(
         world,
         [
@@ -45,7 +45,7 @@ def test_stub_profile_no_data(world):
             }
         ],
     )
-    assert r["results"][0]["outcome"] == "no_data"
+    assert r["results"][0]["outcome"] != "no_data"  # drive is a real profile now (blocked here)
 
 
 def test_scenario_counts(world):

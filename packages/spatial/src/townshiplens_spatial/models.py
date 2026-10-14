@@ -233,3 +233,9 @@ class Profile(BaseModel):
     flood: dict[str, str] = Field(default_factory=dict)
     note: str | None = None
     stub: bool = False
+    # Vehicle profiles: only these edge types are usable (None = every type), and the route's
+    # est_minutes uses speed_kmh instead of walking pace.
+    allowed_types: list[str] | None = None
+    speed_kmh: float | None = None
+    # Shown on every route/answer for this profile; the route is never "confirmed".
+    standing_warning: str | None = None

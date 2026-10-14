@@ -32,9 +32,59 @@ def test_scenario_reroutes(world):
     assert all(s.edge_id != "seg-cd" for r in rr.routes for s in r.segments)
 
 
-def test_drive_is_stubbed(world):
+def _add_roads(world):
+    """Road spur n-a -street- n-x -track- n-y with a second car park at n-y. The footway trap
+    n-a -> n-y is much shorter, so a drive route that takes it would be cheaper (and wrong)."""
+    from townshiplens_spatial.models import Edge, Place
+
+    for nid in ("n-x", "n-y"):
+        world.graph.add_node(nid)
+    spec = [
+        ("rd-1", "street", "n-a", "n-x", 400.0),
+        ("rd-2", "track", "n-x", "n-y", 400.0),
+        ("fw-trap", "footway", "n-a", "n-y", 50.0),
+        ("st-trap", "steps", "n-a", "n-y", 40.0),
+    ]
+    for eid, typ, a, b, ln in spec:
+        e = Edge(
+            id=eid,
+            type=typ,
+            from_node=a,
+            to_node=b,
+            coords=[[0.0, 0.0], [0.001, 0.0]],
+            length_m=ln,
+        )
+        world.edges[eid] = e
+        world.graph.add_edge(a, b, key=eid, edge_id=eid)
+    world.places["park-c"] = Place(
+        id="park-c", type="parking", name="Car Park C", coord=[0.002, 0.0], node_id="n-y"
+    )
+
+
+def test_drive_routes_on_roads_only(world):
+    _add_roads(world)
+    rr = plan_route(world, "park-b", "park-c", "drive")
+    assert rr.routes, rr
+    r = rr.routes[0]
+    ids = [s.edge_id for s in r.segments]
+    assert ids == ["rd-1", "rd-2"]
+    assert not {world.edges[i].type for i in ids} & {"footway", "steps", "path", "ramp"}
+    # never confirmed: one-way and turn restrictions are not modelled
+    assert r.status == "partly_unverified" and rr.status == "partly_unverified"
+    assert any("one-way" in w for w in rr.warnings)
+    # 800 m at the drive speed, not at walking speed
+    assert r.est_minutes == round(800 / (world.profiles["drive"].speed_kmh * 1000 / 60), 1)
+    assert r.est_minutes < 800 / 70
+
+
+def test_drive_has_no_route_over_footways_only(world):
     rr = plan_route(world, "park-b", "playground", "drive")
-    assert rr.status == "no_data" and "drive" in rr.warnings[0]
+    assert rr.status == "blocked" and not rr.routes
+
+
+def test_walking_unaffected_by_drive_standing_warning(world):
+    rr = plan_route(world, "park-b", "playground", "stroller")
+    assert rr.status == "confirmed" and not rr.warnings
 
 
 def test_route_geometry_is_linestring(world):

@@ -22,6 +22,15 @@ def evaluate_edge(
 ) -> tuple[EvalResult, list[dict]]:
     today = today or date.today()
     why: list[dict] = []
+    if profile.allowed_types is not None and edge.type not in profile.allowed_types:
+        return "FAIL", [
+            {
+                "element_id": edge.id,
+                "attribute": "type",
+                "reason": "unknown",
+                "why": f"{edge.type} edges are not usable for {profile.id}",
+            }
+        ]
     if flood_class == "likely_flooded":
         return "FAIL", [
             {
@@ -31,8 +40,16 @@ def evaluate_edge(
                 "why": "likely flooded in this scenario",
             }
         ]
-    # TODO(deferred): map profile.flood (possible_is/likely_is) instead of hardcoding it, and
-    # enforce profile.max_rest_free_run_m; neither is used in the walking skeleton.
+    if flood_class == "possible" and profile.flood.get("possible_is") == "FAIL":
+        return "FAIL", [
+            {
+                "element_id": edge.id,
+                "attribute": "flood",
+                "reason": "unknown",
+                "why": f"possibly flooded; not passable for {profile.id}",
+            }
+        ]
+    # TODO(deferred): enforce profile.max_rest_free_run_m; not used in the walking skeleton.
     result: EvalResult = "PASS"
     for key, limit in profile.hard.items():
         attr, violates = _CHECKS[key]
