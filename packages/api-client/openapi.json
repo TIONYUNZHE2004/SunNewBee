@@ -1,0 +1,2081 @@
+{
+  "components": {
+    "schemas": {
+      "AffectedResult": {
+        "properties": {
+          "disclaimer": {
+            "title": "Disclaimer",
+            "type": "string"
+          },
+          "isolated_components": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Isolated Components",
+            "type": "array"
+          },
+          "likely": {
+            "items": {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            "title": "Likely",
+            "type": "array"
+          },
+          "possible": {
+            "items": {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            "title": "Possible",
+            "type": "array"
+          },
+          "scenario_id": {
+            "title": "Scenario Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "scenario_id",
+          "likely",
+          "possible",
+          "isolated_components",
+          "disclaimer"
+        ],
+        "title": "AffectedResult",
+        "type": "object"
+      },
+      "CentreReachability": {
+        "properties": {
+          "centre": {
+            "$ref": "#/components/schemas/EvacCentre"
+          },
+          "distance_m": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Distance M"
+          },
+          "reachable": {
+            "title": "Reachable",
+            "type": "boolean"
+          },
+          "route_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Route Id"
+          },
+          "route_status": {
+            "enum": [
+              "confirmed",
+              "partly_unverified",
+              "blocked",
+              "no_data"
+            ],
+            "title": "Route Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "centre",
+          "reachable",
+          "route_status"
+        ],
+        "title": "CentreReachability",
+        "type": "object"
+      },
+      "ChatEventDoc": {
+        "description": "Wrapper used only so that OpenAPI exports the ChatEvent union for the TS client.",
+        "properties": {
+          "event": {
+            "discriminator": {
+              "mapping": {
+                "citation": "#/components/schemas/Citation",
+                "disclaimer": "#/components/schemas/Disclaimer",
+                "done": "#/components/schemas/Done",
+                "error": "#/components/schemas/ErrorEvent",
+                "scene.intent": "#/components/schemas/SceneIntentEvent",
+                "text.delta": "#/components/schemas/TextDelta",
+                "tool.call": "#/components/schemas/ToolCall",
+                "tool.result": "#/components/schemas/ToolResultEvent",
+                "uncertainty": "#/components/schemas/Uncertainty",
+                "verification.requested": "#/components/schemas/VerificationRequested"
+              },
+              "propertyName": "type"
+            },
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/TextDelta"
+              },
+              {
+                "$ref": "#/components/schemas/ToolCall"
+              },
+              {
+                "$ref": "#/components/schemas/ToolResultEvent"
+              },
+              {
+                "$ref": "#/components/schemas/SceneIntentEvent"
+              },
+              {
+                "$ref": "#/components/schemas/Citation"
+              },
+              {
+                "$ref": "#/components/schemas/Uncertainty"
+              },
+              {
+                "$ref": "#/components/schemas/Disclaimer"
+              },
+              {
+                "$ref": "#/components/schemas/VerificationRequested"
+              },
+              {
+                "$ref": "#/components/schemas/ErrorEvent"
+              },
+              {
+                "$ref": "#/components/schemas/Done"
+              }
+            ],
+            "title": "Event"
+          }
+        },
+        "required": [
+          "event"
+        ],
+        "title": "ChatEventDoc",
+        "type": "object"
+      },
+      "ChatRequest": {
+        "properties": {
+          "message": {
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Message",
+            "type": "string"
+          },
+          "profile": {
+            "default": "default",
+            "enum": [
+              "default",
+              "stroller",
+              "wheelchair",
+              "older_adult_rest",
+              "drive"
+            ],
+            "title": "Profile",
+            "type": "string"
+          },
+          "scenario_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scenario Id"
+          },
+          "session_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Session Id"
+          }
+        },
+        "required": [
+          "message"
+        ],
+        "title": "ChatRequest",
+        "type": "object"
+      },
+      "Citation": {
+        "properties": {
+          "attribute": {
+            "title": "Attribute",
+            "type": "string"
+          },
+          "element_id": {
+            "title": "Element Id",
+            "type": "string"
+          },
+          "evidence_id": {
+            "title": "Evidence Id",
+            "type": "string"
+          },
+          "ref": {
+            "title": "Ref",
+            "type": "integer"
+          },
+          "source_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Type"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "type": {
+            "const": "citation",
+            "default": "citation",
+            "title": "Type",
+            "type": "string"
+          },
+          "verified_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Verified At"
+          }
+        },
+        "required": [
+          "ref",
+          "evidence_id",
+          "element_id",
+          "attribute",
+          "status"
+        ],
+        "title": "Citation",
+        "type": "object"
+      },
+      "DeepSpot": {
+        "properties": {
+          "bbox": {
+            "items": {
+              "type": "number"
+            },
+            "title": "Bbox",
+            "type": "array"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "lens": {
+            "enum": [
+              "access",
+              "flood",
+              "waste"
+            ],
+            "title": "Lens",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "lens",
+          "name",
+          "bbox"
+        ],
+        "title": "DeepSpot",
+        "type": "object"
+      },
+      "Disclaimer": {
+        "properties": {
+          "lens": {
+            "const": "flood",
+            "default": "flood",
+            "title": "Lens",
+            "type": "string"
+          },
+          "links": {
+            "items": {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            "title": "Links",
+            "type": "array"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          },
+          "type": {
+            "const": "disclaimer",
+            "default": "disclaimer",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "text"
+        ],
+        "title": "Disclaimer",
+        "type": "object"
+      },
+      "Done": {
+        "properties": {
+          "answer_status": {
+            "title": "Answer Status",
+            "type": "string"
+          },
+          "message_id": {
+            "title": "Message Id",
+            "type": "string"
+          },
+          "model": {
+            "title": "Model",
+            "type": "string"
+          },
+          "type": {
+            "const": "done",
+            "default": "done",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "message_id",
+          "answer_status",
+          "model"
+        ],
+        "title": "Done",
+        "type": "object"
+      },
+      "ErrorEvent": {
+        "properties": {
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          },
+          "type": {
+            "const": "error",
+            "default": "error",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "message"
+        ],
+        "title": "ErrorEvent",
+        "type": "object"
+      },
+      "EvacCentre": {
+        "properties": {
+          "capacity": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Capacity"
+          },
+          "coord": {
+            "items": {
+              "type": "number"
+            },
+            "title": "Coord",
+            "type": "array"
+          },
+          "evidence_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Evidence Url"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "node_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Node Id"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          },
+          "place_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Place Id"
+          },
+          "source": {
+            "enum": [
+              "official_pps",
+              "osm_candidate"
+            ],
+            "title": "Source",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "coord",
+          "source"
+        ],
+        "title": "EvacCentre",
+        "type": "object"
+      },
+      "Evidence": {
+        "properties": {
+          "attribute": {
+            "title": "Attribute",
+            "type": "string"
+          },
+          "element_id": {
+            "title": "Element Id",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "source_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Type"
+          },
+          "source_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Url"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "enum": [
+                  "unknown",
+                  "reported",
+                  "verified",
+                  "stale",
+                  "contested"
+                ],
+                "type": "string"
+              },
+              {
+                "enum": [
+                  "likely_flooded",
+                  "possible",
+                  "unlikely"
+                ],
+                "type": "string"
+              },
+              {
+                "const": "indicative",
+                "type": "string"
+              }
+            ],
+            "title": "Status"
+          },
+          "value": {
+            "title": "Value"
+          },
+          "verified_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Verified At"
+          }
+        },
+        "required": [
+          "id",
+          "element_id",
+          "attribute",
+          "status"
+        ],
+        "title": "Evidence",
+        "type": "object"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "title": "Detail",
+            "type": "array"
+          }
+        },
+        "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "Route": {
+        "properties": {
+          "distance_m": {
+            "title": "Distance M",
+            "type": "number"
+          },
+          "est_minutes": {
+            "title": "Est Minutes",
+            "type": "number"
+          },
+          "evidence_ids": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Evidence Ids",
+            "type": "array"
+          },
+          "from_place": {
+            "title": "From Place",
+            "type": "string"
+          },
+          "geometry": {
+            "additionalProperties": true,
+            "title": "Geometry",
+            "type": "object"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "max_gap_between_rest_m": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Gap Between Rest M"
+          },
+          "profile": {
+            "enum": [
+              "default",
+              "stroller",
+              "wheelchair",
+              "older_adult_rest",
+              "drive"
+            ],
+            "title": "Profile",
+            "type": "string"
+          },
+          "rest_points": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Rest Points",
+            "type": "array"
+          },
+          "scenario_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scenario Id"
+          },
+          "segments": {
+            "items": {
+              "$ref": "#/components/schemas/RouteSegment"
+            },
+            "title": "Segments",
+            "type": "array"
+          },
+          "status": {
+            "enum": [
+              "confirmed",
+              "partly_unverified",
+              "blocked",
+              "no_data"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "target_node": {
+            "title": "Target Node",
+            "type": "string"
+          },
+          "to_place": {
+            "title": "To Place",
+            "type": "string"
+          },
+          "unknowns": {
+            "items": {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            "title": "Unknowns",
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "status",
+          "from_place",
+          "to_place",
+          "target_node",
+          "profile",
+          "distance_m",
+          "est_minutes",
+          "segments",
+          "geometry"
+        ],
+        "title": "Route",
+        "type": "object"
+      },
+      "RouteResult": {
+        "properties": {
+          "blocked_reasons": {
+            "items": {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            "title": "Blocked Reasons",
+            "type": "array"
+          },
+          "routes": {
+            "items": {
+              "$ref": "#/components/schemas/Route"
+            },
+            "title": "Routes",
+            "type": "array"
+          },
+          "status": {
+            "enum": [
+              "confirmed",
+              "partly_unverified",
+              "blocked",
+              "no_data"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Warnings",
+            "type": "array"
+          }
+        },
+        "required": [
+          "status",
+          "routes"
+        ],
+        "title": "RouteResult",
+        "type": "object"
+      },
+      "RouteSegment": {
+        "properties": {
+          "edge_id": {
+            "title": "Edge Id",
+            "type": "string"
+          },
+          "eval": {
+            "enum": [
+              "PASS",
+              "FAIL",
+              "UNKNOWN"
+            ],
+            "title": "Eval",
+            "type": "string"
+          },
+          "flood_class": {
+            "anyOf": [
+              {
+                "enum": [
+                  "likely_flooded",
+                  "possible",
+                  "unlikely"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Flood Class"
+          }
+        },
+        "required": [
+          "edge_id",
+          "eval"
+        ],
+        "title": "RouteSegment",
+        "type": "object"
+      },
+      "Scenario": {
+        "properties": {
+          "created": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created"
+          },
+          "dem": {
+            "default": "Copernicus GLO-30",
+            "title": "Dem",
+            "type": "string"
+          },
+          "disclaimer": {
+            "title": "Disclaimer",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "links": {
+            "items": {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            "title": "Links",
+            "type": "array"
+          },
+          "margin_m": {
+            "default": 0.5,
+            "title": "Margin M",
+            "type": "number"
+          },
+          "method": {
+            "default": "HAND",
+            "title": "Method",
+            "type": "string"
+          },
+          "stage_m": {
+            "title": "Stage M",
+            "type": "number"
+          }
+        },
+        "required": [
+          "id",
+          "label",
+          "stage_m",
+          "disclaimer"
+        ],
+        "title": "Scenario",
+        "type": "object"
+      },
+      "SceneConfig": {
+        "properties": {
+          "datum_offset_m": {
+            "default": 0.0,
+            "title": "Datum Offset M",
+            "type": "number"
+          },
+          "fallback": {
+            "default": "cesium_osm_buildings",
+            "title": "Fallback",
+            "type": "string"
+          },
+          "hero": {
+            "default": "cesium_google_photoreal",
+            "title": "Hero",
+            "type": "string"
+          },
+          "home": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "title": "Home",
+            "type": "object"
+          },
+          "lite": {
+            "default": "mapbox_standard",
+            "title": "Lite",
+            "type": "string"
+          }
+        },
+        "title": "SceneConfig",
+        "type": "object"
+      },
+      "SceneIntent": {
+        "properties": {
+          "center": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "number"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Center"
+          },
+          "geojson": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Geojson"
+          },
+          "kind": {
+            "enum": [
+              "camera.fly_to",
+              "place.focus",
+              "route.highlight",
+              "flood.set_level",
+              "layer.toggle"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "lens": {
+            "anyOf": [
+              {
+                "enum": [
+                  "access",
+                  "flood",
+                  "waste"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lens"
+          },
+          "place_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Place Id"
+          },
+          "range_m": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Range M"
+          },
+          "route_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Route Id"
+          },
+          "scenario_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scenario Id"
+          },
+          "visible": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Visible"
+          }
+        },
+        "required": [
+          "kind"
+        ],
+        "title": "SceneIntent",
+        "type": "object"
+      },
+      "SceneIntentEvent": {
+        "properties": {
+          "intent": {
+            "$ref": "#/components/schemas/SceneIntent"
+          },
+          "type": {
+            "const": "scene.intent",
+            "default": "scene.intent",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "intent"
+        ],
+        "title": "SceneIntentEvent",
+        "type": "object"
+      },
+      "Site": {
+        "properties": {
+          "attribution": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Attribution",
+            "type": "array"
+          },
+          "bbox": {
+            "items": {
+              "type": "number"
+            },
+            "title": "Bbox",
+            "type": "array"
+          },
+          "center": {
+            "items": {
+              "type": "number"
+            },
+            "title": "Center",
+            "type": "array"
+          },
+          "data_as_of": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Data As Of"
+          },
+          "deep_spots": {
+            "items": {
+              "$ref": "#/components/schemas/DeepSpot"
+            },
+            "title": "Deep Spots",
+            "type": "array"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "lenses": {
+            "items": {
+              "enum": [
+                "access",
+                "flood",
+                "waste"
+              ],
+              "type": "string"
+            },
+            "title": "Lenses",
+            "type": "array"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "profiles": {
+            "items": {
+              "enum": [
+                "default",
+                "stroller",
+                "wheelchair",
+                "older_adult_rest",
+                "drive"
+              ],
+              "type": "string"
+            },
+            "title": "Profiles",
+            "type": "array"
+          },
+          "scene": {
+            "$ref": "#/components/schemas/SceneConfig"
+          },
+          "township": {
+            "title": "Township",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "township",
+          "center",
+          "bbox"
+        ],
+        "title": "Site",
+        "type": "object"
+      },
+      "TextDelta": {
+        "properties": {
+          "delta": {
+            "title": "Delta",
+            "type": "string"
+          },
+          "type": {
+            "const": "text.delta",
+            "default": "text.delta",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "delta"
+        ],
+        "title": "TextDelta",
+        "type": "object"
+      },
+      "ToolCall": {
+        "properties": {
+          "args": {
+            "additionalProperties": true,
+            "title": "Args",
+            "type": "object"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "type": {
+            "const": "tool.call",
+            "default": "tool.call",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "args"
+        ],
+        "title": "ToolCall",
+        "type": "object"
+      },
+      "ToolResult": {
+        "properties": {
+          "data": {
+            "title": "Data"
+          },
+          "evidence": {
+            "items": {
+              "$ref": "#/components/schemas/Evidence"
+            },
+            "title": "Evidence",
+            "type": "array"
+          },
+          "ok": {
+            "title": "Ok",
+            "type": "boolean"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Warnings",
+            "type": "array"
+          }
+        },
+        "required": [
+          "ok"
+        ],
+        "title": "ToolResult",
+        "type": "object"
+      },
+      "ToolResultEvent": {
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "summary": {
+            "title": "Summary",
+            "type": "string"
+          },
+          "type": {
+            "const": "tool.result",
+            "default": "tool.result",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "summary"
+        ],
+        "title": "ToolResultEvent",
+        "type": "object"
+      },
+      "Uncertainty": {
+        "properties": {
+          "items": {
+            "items": {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "level": {
+            "enum": [
+              "none",
+              "partial",
+              "high"
+            ],
+            "title": "Level",
+            "type": "string"
+          },
+          "type": {
+            "const": "uncertainty",
+            "default": "uncertainty",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "level"
+        ],
+        "title": "Uncertainty",
+        "type": "object"
+      },
+      "ValidationError": {
+        "properties": {
+          "ctx": {
+            "title": "Context",
+            "type": "object"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "title": "Location",
+            "type": "array"
+          },
+          "msg": {
+            "title": "Message",
+            "type": "string"
+          },
+          "type": {
+            "title": "Error Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError",
+        "type": "object"
+      },
+      "VerificationRequest": {
+        "properties": {
+          "attribute": {
+            "title": "Attribute",
+            "type": "string"
+          },
+          "created_at": {
+            "title": "Created At",
+            "type": "string"
+          },
+          "demand": {
+            "default": 1,
+            "title": "Demand",
+            "type": "integer"
+          },
+          "element_id": {
+            "title": "Element Id",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "question_summary": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Question Summary"
+          },
+          "reason": {
+            "enum": [
+              "unknown",
+              "stale",
+              "contradicted",
+              "no_route_unverified_segment",
+              "missing_place",
+              "user_report"
+            ],
+            "title": "Reason",
+            "type": "string"
+          },
+          "resolution": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resolution"
+          },
+          "resolved_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resolved At"
+          },
+          "status": {
+            "default": "open",
+            "enum": [
+              "open",
+              "in_progress",
+              "resolved",
+              "rejected"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "element_id",
+          "attribute",
+          "reason",
+          "created_at"
+        ],
+        "title": "VerificationRequest",
+        "type": "object"
+      },
+      "VerificationRequested": {
+        "properties": {
+          "attribute": {
+            "title": "Attribute",
+            "type": "string"
+          },
+          "created": {
+            "title": "Created",
+            "type": "boolean"
+          },
+          "demand": {
+            "title": "Demand",
+            "type": "integer"
+          },
+          "element_id": {
+            "title": "Element Id",
+            "type": "string"
+          },
+          "request_id": {
+            "title": "Request Id",
+            "type": "string"
+          },
+          "type": {
+            "const": "verification.requested",
+            "default": "verification.requested",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "request_id",
+          "element_id",
+          "attribute",
+          "created",
+          "demand"
+        ],
+        "title": "VerificationRequested",
+        "type": "object"
+      },
+      "WastePoint": {
+        "properties": {
+          "accepted_items": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Accepted Items",
+            "type": "array"
+          },
+          "coord": {
+            "items": {
+              "type": "number"
+            },
+            "title": "Coord",
+            "type": "array"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "source_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Url"
+          },
+          "status": {
+            "default": "unknown",
+            "enum": [
+              "unknown",
+              "reported",
+              "verified",
+              "stale",
+              "contested"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "type": {
+            "enum": [
+              "bin",
+              "recycling_drop_off",
+              "e_waste_drop_off",
+              "composting_site",
+              "programme_site"
+            ],
+            "title": "Type",
+            "type": "string"
+          },
+          "verified_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Verified At"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "type",
+          "coord"
+        ],
+        "title": "WastePoint",
+        "type": "object"
+      }
+    }
+  },
+  "info": {
+    "title": "TownshipLens API",
+    "version": "0.2.0"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/chat": {
+      "post": {
+        "operationId": "chat_chat_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChatRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Chat"
+      }
+    },
+    "/evacuation-centres": {
+      "get": {
+        "operationId": "evac_evacuation_centres_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "scenario_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Scenario Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "profile",
+            "required": false,
+            "schema": {
+              "default": "default",
+              "title": "Profile",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "near",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Near"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/CentreReachability"
+                  },
+                  "title": "Response Evac Evacuation Centres Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Evac"
+      }
+    },
+    "/healthz": {
+      "get": {
+        "operationId": "healthz_healthz_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "title": "Response Healthz Healthz Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Healthz"
+      }
+    },
+    "/layers/{lens}": {
+      "get": {
+        "operationId": "layers_layers__lens__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "lens",
+            "required": true,
+            "schema": {
+              "title": "Lens",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "profile",
+            "required": false,
+            "schema": {
+              "default": "default",
+              "title": "Profile",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "scenario_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Scenario Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Layers Layers  Lens  Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Layers"
+      }
+    },
+    "/places": {
+      "get": {
+        "operationId": "places_places_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "default": "",
+              "maxLength": 200,
+              "title": "Q",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ToolResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Places"
+      }
+    },
+    "/places/{place_id}": {
+      "get": {
+        "operationId": "place_places__place_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "place_id",
+            "required": true,
+            "schema": {
+              "title": "Place Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ToolResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Place"
+      }
+    },
+    "/routes": {
+      "post": {
+        "operationId": "routes_routes_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "title": "Body",
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RouteResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Routes"
+      }
+    },
+    "/scenarios": {
+      "get": {
+        "operationId": "scenarios_scenarios_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/Scenario"
+                  },
+                  "title": "Response Scenarios Scenarios Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Scenarios"
+      }
+    },
+    "/scenarios/{scenario_id}": {
+      "get": {
+        "operationId": "scenario_scenarios__scenario_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "scenario_id",
+            "required": true,
+            "schema": {
+              "title": "Scenario Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Scenario Scenarios  Scenario Id  Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Scenario"
+      }
+    },
+    "/scenarios/{scenario_id}/affected": {
+      "get": {
+        "operationId": "affected_scenarios__scenario_id__affected_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "scenario_id",
+            "required": true,
+            "schema": {
+              "title": "Scenario Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "profile",
+            "required": false,
+            "schema": {
+              "default": "default",
+              "title": "Profile",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AffectedResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Affected"
+      }
+    },
+    "/schema/chat-event": {
+      "get": {
+        "description": "Documentation-only endpoint so OpenAPI exports the ChatEvent union.",
+        "operationId": "chat_event_schema_schema_chat_event_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChatEventDoc"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Chat Event Schema"
+      }
+    },
+    "/site": {
+      "get": {
+        "operationId": "site_site_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Site"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Site"
+      }
+    },
+    "/verification-requests": {
+      "get": {
+        "operationId": "vrs_verification_requests_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "default": "open",
+              "title": "Status",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/VerificationRequest"
+                  },
+                  "title": "Response Vrs Verification Requests Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Vrs"
+      }
+    },
+    "/waste-points": {
+      "get": {
+        "operationId": "waste_waste_points_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "type",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Type"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/WastePoint"
+                  },
+                  "title": "Response Waste Waste Points Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Waste"
+      }
+    }
+  }
+}

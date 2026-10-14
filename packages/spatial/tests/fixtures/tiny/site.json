@@ -1,0 +1,39 @@
+{
+ "id": "tiny",
+ "name": "Tiny test site",
+ "township": "Test",
+ "center": [
+  101.51,
+  3.181
+ ],
+ "bbox": [
+  101.509,
+  3.18,
+  101.512,
+  3.1825
+ ],
+ "deep_spots": [
+  {
+   "id": "urban-park",
+   "lens": "access",
+   "name": "Tiny deep spot",
+   "bbox": [
+    101.509,
+    3.18,
+    101.512,
+    3.1825
+   ]
+  }
+ ],
+ "scene": {
+  "datum_offset_m": 0.0,
+  "home": {
+   "lon": 101.51,
+   "lat": 3.181,
+   "range_m": 800
+  }
+ },
+ "attribution": [
+  "Test fixture"
+ ]
+}

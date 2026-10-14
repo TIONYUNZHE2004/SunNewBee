@@ -1,0 +1,62 @@
+{
+ "scenarios": [
+  {
+   "id": "baseline",
+   "label": "Normal river level",
+   "stage_m": 0,
+   "disclaimer": "Indicative scenario, not a forecast. Follow official MBSA / JPS / NADMA guidance.",
+   "links": [
+    {
+     "label": "Public InfoBanjir",
+     "url": "https://publicinfobanjir.water.gov.my"
+    }
+   ]
+  },
+  {
+   "id": "stage_p1m",
+   "label": "River +1 m (indicative)",
+   "stage_m": 1,
+   "disclaimer": "Indicative scenario, not a forecast. Follow official MBSA / JPS / NADMA guidance.",
+   "links": []
+  },
+  {
+   "id": "stage_p3m",
+   "label": "River +3 m (indicative)",
+   "stage_m": 3,
+   "disclaimer": "Indicative scenario, not a forecast. Follow official MBSA / JPS / NADMA guidance.",
+   "links": []
+  },
+  {
+   "id": "stage_p5m",
+   "label": "River +5 m (indicative)",
+   "stage_m": 5,
+   "disclaimer": "Indicative scenario, not a forecast. Follow official MBSA / JPS / NADMA guidance.",
+   "links": []
+  }
+ ],
+ "edge_classes": {
+  "baseline": {},
+  "stage_p1m": {
+   "seg-cd": "possible"
+  },
+  "stage_p3m": {
+   "seg-cd": "likely_flooded",
+   "seg-bc": "possible"
+  },
+  "stage_p5m": {
+   "seg-cd": "likely_flooded",
+   "seg-bc": "likely_flooded",
+   "seg-ab": "possible"
+  }
+ },
+ "place_classes": {
+  "baseline": {},
+  "stage_p1m": {},
+  "stage_p3m": {
+   "playground": "likely_flooded"
+  },
+  "stage_p5m": {
+   "playground": "likely_flooded"
+  }
+ }
+}

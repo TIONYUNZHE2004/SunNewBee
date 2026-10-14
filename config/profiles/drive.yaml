@@ -1,0 +1,7 @@
+id: drive
+label: "Driving (road graph not built in the skeleton)"
+hard: {}
+soft: {}
+max_rest_free_run_m: null
+flood: { possible_is: UNKNOWN, likely_is: FAIL }
+stub: true

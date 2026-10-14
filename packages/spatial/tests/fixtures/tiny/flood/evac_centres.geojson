@@ -1,0 +1,38 @@
+{
+ "type": "FeatureCollection",
+ "features": [
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     101.51,
+     3.181
+    ]
+   },
+   "properties": {
+    "id": "evc-hall",
+    "name": "Community hall (candidate)",
+    "node_id": "n-c",
+    "source": "osm_candidate"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     101.512,
+     3.182
+    ]
+   },
+   "properties": {
+    "id": "evc-school",
+    "name": "School (official PPS)",
+    "node_id": "n-h",
+    "source": "official_pps",
+    "evidence_url": "https://example.org/news/pps"
+   }
+  }
+ ]
+}

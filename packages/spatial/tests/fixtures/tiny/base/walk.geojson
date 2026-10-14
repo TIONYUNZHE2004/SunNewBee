@@ -1,0 +1,321 @@
+{
+ "type": "FeatureCollection",
+ "features": [
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      101.509,
+      3.181
+     ],
+     [
+      101.5095,
+      3.181
+     ]
+    ]
+   },
+   "properties": {
+    "id": "seg-ab",
+    "kind": "segment",
+    "type": "footway",
+    "from": "n-a",
+    "to": "n-b",
+    "length_m": 55.6,
+    "claims": {
+     "step_count": {
+      "value": 0,
+      "status": "verified",
+      "verified_at": "2026-10-18",
+      "evidence_type": "team_survey_placeholder"
+     },
+     "incline_pct": {
+      "value": 2,
+      "status": "verified",
+      "verified_at": "2026-10-18",
+      "evidence_type": "team_survey_placeholder"
+     },
+     "width_m": {
+      "value": 1.5,
+      "status": "verified",
+      "verified_at": "2026-10-18",
+      "evidence_type": "team_survey_placeholder"
+     }
+    }
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      101.5095,
+      3.181
+     ],
+     [
+      101.51,
+      3.181
+     ]
+    ]
+   },
+   "properties": {
+    "id": "seg-bc",
+    "kind": "segment",
+    "type": "footway",
+    "from": "n-b",
+    "to": "n-c",
+    "length_m": 55.6,
+    "claims": {
+     "step_count": {
+      "value": 0,
+      "status": "verified",
+      "verified_at": "2026-10-18",
+      "evidence_type": "team_survey_placeholder"
+     },
+     "incline_pct": {
+      "value": 2,
+      "status": "verified",
+      "verified_at": "2026-10-18",
+      "evidence_type": "team_survey_placeholder"
+     },
+     "width_m": {
+      "value": 1.5,
+      "status": "verified",
+      "verified_at": "2026-10-18",
+      "evidence_type": "team_survey_placeholder"
+     }
+    }
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      101.51,
+      3.181
+     ],
+     [
+      101.511,
+      3.181
+     ]
+    ]
+   },
+   "properties": {
+    "id": "seg-cd",
+    "kind": "segment",
+    "type": "footway",
+    "from": "n-c",
+    "to": "n-d",
+    "length_m": 111.2,
+    "claims": {
+     "step_count": {
+      "value": 0,
+      "status": "verified",
+      "verified_at": "2026-10-18",
+      "evidence_type": "team_survey_placeholder"
+     },
+     "incline_pct": {
+      "value": 2,
+      "status": "verified",
+      "verified_at": "2026-10-18",
+      "evidence_type": "team_survey_placeholder"
+     },
+     "width_m": {
+      "value": 1.5,
+      "status": "verified",
+      "verified_at": "2026-10-18",
+      "evidence_type": "team_survey_placeholder"
+     }
+    }
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      101.5095,
+      3.181
+     ],
+     [
+      101.5095,
+      3.1805
+     ]
+    ]
+   },
+   "properties": {
+    "id": "seg-be",
+    "kind": "segment",
+    "type": "steps",
+    "from": "n-b",
+    "to": "n-e",
+    "length_m": 55.6,
+    "claims": {
+     "step_count": {
+      "value": 3,
+      "status": "reported",
+      "evidence_type": "osm_import"
+     }
+    }
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      101.51,
+      3.181
+     ],
+     [
+      101.51,
+      3.1805
+     ]
+    ]
+   },
+   "properties": {
+    "id": "seg-cf",
+    "kind": "segment",
+    "type": "ramp",
+    "from": "n-c",
+    "to": "n-f",
+    "length_m": 55.6,
+    "claims": {
+     "step_count": {
+      "value": 0,
+      "status": "verified",
+      "verified_at": "2026-10-18",
+      "evidence_type": "team_survey_placeholder"
+     },
+     "incline_pct": {
+      "value": null,
+      "status": "unknown"
+     },
+     "width_m": {
+      "value": 1.4,
+      "status": "verified",
+      "verified_at": "2026-10-18",
+      "evidence_type": "team_survey_placeholder"
+     }
+    }
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      101.5095,
+      3.1805
+     ],
+     [
+      101.51,
+      3.1805
+     ]
+    ]
+   },
+   "properties": {
+    "id": "seg-ef",
+    "kind": "segment",
+    "type": "footway",
+    "from": "n-e",
+    "to": "n-f",
+    "length_m": 55.6,
+    "claims": {
+     "step_count": {
+      "value": 0,
+      "status": "verified",
+      "verified_at": "2026-10-18",
+      "evidence_type": "team_survey_placeholder"
+     },
+     "incline_pct": {
+      "value": 2,
+      "status": "verified",
+      "verified_at": "2026-10-18",
+      "evidence_type": "team_survey_placeholder"
+     },
+     "width_m": {
+      "value": 1.5,
+      "status": "verified",
+      "verified_at": "2026-10-18",
+      "evidence_type": "team_survey_placeholder"
+     }
+    }
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      101.51,
+      3.1805
+     ],
+     [
+      101.511,
+      3.181
+     ]
+    ]
+   },
+   "properties": {
+    "id": "seg-fd",
+    "kind": "segment",
+    "type": "footway",
+    "from": "n-f",
+    "to": "n-d",
+    "length_m": 124.3,
+    "claims": {
+     "step_count": {
+      "value": 0,
+      "status": "verified",
+      "verified_at": "2026-10-18",
+      "evidence_type": "team_survey_placeholder"
+     },
+     "incline_pct": {
+      "value": 2,
+      "status": "verified",
+      "verified_at": "2026-10-18",
+      "evidence_type": "team_survey_placeholder"
+     },
+     "width_m": {
+      "value": null,
+      "status": "unknown"
+     }
+    }
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      101.5115,
+      3.182
+     ],
+     [
+      101.512,
+      3.182
+     ]
+    ]
+   },
+   "properties": {
+    "id": "seg-gh",
+    "kind": "segment",
+    "type": "path",
+    "from": "n-g",
+    "to": "n-h",
+    "length_m": 55.6,
+    "claims": {}
+   }
+  }
+ ]
+}

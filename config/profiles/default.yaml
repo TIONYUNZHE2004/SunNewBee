@@ -1,0 +1,6 @@
+id: default
+label: "Default walking"
+hard: {}
+soft: { covered_multiplier: 0.86, steps_multiplier: 1.2 }
+max_rest_free_run_m: null
+flood: { possible_is: UNKNOWN, likely_is: FAIL }

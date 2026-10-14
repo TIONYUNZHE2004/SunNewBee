@@ -1,0 +1,39 @@
+{
+ "type": "FeatureCollection",
+ "features": [
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       101.5102,
+       3.1806
+      ],
+      [
+       101.5114,
+       3.1806
+      ],
+      [
+       101.5114,
+       3.1814
+      ],
+      [
+       101.5102,
+       3.1814
+      ],
+      [
+       101.5102,
+       3.1806
+      ]
+     ]
+    ]
+   },
+   "properties": {
+    "scenario_id": "stage_p5m",
+    "surface_height_m": 33.0
+   }
+  }
+ ]
+}

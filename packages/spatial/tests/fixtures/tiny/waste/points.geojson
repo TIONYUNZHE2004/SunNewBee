@@ -1,0 +1,47 @@
+{
+ "type": "FeatureCollection",
+ "features": [
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     101.5091,
+     3.1811
+    ]
+   },
+   "properties": {
+    "id": "wp-park-recycle",
+    "name": "Recycling bins at Car Park B",
+    "type": "recycling_drop_off",
+    "accepted_items": [
+     "paper",
+     "plastic",
+     "cans"
+    ],
+    "status": "verified",
+    "verified_at": "2026-10-18"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     101.5111,
+     3.1811
+    ]
+   },
+   "properties": {
+    "id": "wp-ewaste",
+    "name": "E-waste box (reported)",
+    "type": "e_waste_drop_off",
+    "accepted_items": [
+     "batteries",
+     "phones"
+    ],
+    "status": "unknown"
+   }
+  }
+ ]
+}

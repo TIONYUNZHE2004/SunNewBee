@@ -1,0 +1,177 @@
+{
+ "type": "FeatureCollection",
+ "features": [
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     101.509,
+     3.181
+    ]
+   },
+   "properties": {
+    "id": "park-b",
+    "kind": "place",
+    "type": "parking",
+    "name": "Car Park B",
+    "aliases": [
+     "parking b",
+     "tempat letak kereta B"
+    ],
+    "node_id": "n-a"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     101.511,
+     3.181
+    ]
+   },
+   "properties": {
+    "id": "playground",
+    "kind": "place",
+    "type": "playground",
+    "name": "Urban Park playground",
+    "aliases": [
+     "taman permainan",
+     "游乐场"
+    ],
+    "node_id": "n-d"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     101.51,
+     3.1805
+    ]
+   },
+   "properties": {
+    "id": "kiosk",
+    "kind": "place",
+    "type": "facility",
+    "name": "Park kiosk",
+    "aliases": [],
+    "node_id": "n-f"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     101.5095,
+     3.1811
+    ]
+   },
+   "properties": {
+    "id": "lakeside-mall",
+    "kind": "place",
+    "type": "facility",
+    "name": "Elmina Lakeside Mall",
+    "aliases": [
+     "mall",
+     "lakeside"
+    ],
+    "node_id": "n-b"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     101.5101,
+     3.1811
+    ]
+   },
+   "properties": {
+    "id": "bench-1",
+    "kind": "amenity",
+    "type": "seating",
+    "name": "Bench by the path",
+    "aliases": [
+     "bench"
+    ],
+    "node_id": "n-c",
+    "claims": {
+     "seating": {
+      "value": true,
+      "status": "verified",
+      "verified_at": "2026-10-18",
+      "evidence_type": "team_survey_placeholder"
+     }
+    }
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     101.5096,
+     3.1806
+    ]
+   },
+   "properties": {
+    "id": "toilet-1",
+    "kind": "amenity",
+    "type": "toilet",
+    "name": "Park toilet",
+    "aliases": [
+     "tandas",
+     "厕所"
+    ],
+    "node_id": "n-e",
+    "claims": {
+     "wheelchair": {
+      "value": null,
+      "status": "unknown"
+     }
+    }
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     101.512,
+     3.182
+    ]
+   },
+   "properties": {
+    "id": "island-hut",
+    "kind": "place",
+    "type": "facility",
+    "name": "Island hut",
+    "aliases": [],
+    "node_id": "n-h"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     101.6,
+     3.3
+    ]
+   },
+   "properties": {
+    "id": "moon-base",
+    "kind": "place",
+    "type": "facility",
+    "name": "Unmapped place",
+    "aliases": [],
+    "node_id": null
+   }
+  }
+ ]
+}

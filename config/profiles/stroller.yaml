@@ -1,0 +1,7 @@
+id: stroller
+label: "Parent with a stroller"
+hard: { max_step_count: 0, max_incline_pct: 8.3, min_width_m: 0.8 }
+soft: { covered_multiplier: 0.86, steps_multiplier: 1.0 }
+max_rest_free_run_m: null
+flood: { possible_is: UNKNOWN, likely_is: FAIL }
+note: "Thresholds are engineering defaults, not MS 1184 values."
