@@ -1,4 +1,4 @@
-"""DEMO_MODE cache: record a turn once, replay it offline. Never fabricates: a miss runs normally."""
+"""DEMO_MODE cache: record a turn once, replay it offline. A miss runs normally."""
 
 import asyncio
 import hashlib
