@@ -96,13 +96,16 @@ class VerificationStore:
                 "SELECT created_at, resolved_at FROM vr WHERE status='resolved' "
                 "AND resolved_at IS NOT NULL"
             ).fetchall()
-        hours = sorted(
-            (
-                datetime.fromisoformat(r["resolved_at"]) - datetime.fromisoformat(r["created_at"])
-            ).total_seconds()
-            / 3600
-            for r in rows
-        )
+        hours: list[float] = []
+        for r in rows:
+            try:
+                delta = datetime.fromisoformat(r["resolved_at"]) - datetime.fromisoformat(
+                    r["created_at"]
+                )
+            except (TypeError, ValueError):
+                continue  # malformed timestamp: skip rather than 500
+            hours.append(max(0.0, delta.total_seconds() / 3600))
+        hours.sort()
         if not hours:
             return n_open, None
         mid = len(hours) // 2

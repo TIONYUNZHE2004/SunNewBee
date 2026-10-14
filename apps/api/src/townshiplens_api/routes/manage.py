@@ -3,8 +3,8 @@ from datetime import date
 from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, HTTPException, Path
-from pydantic import BaseModel
-from townshiplens_agent.agent import _safe_vr_args
+from pydantic import BaseModel, Field
+from townshiplens_agent.agent import safe_vr_args
 from townshiplens_spatial.attributes import ATTRIBUTE_TYPES, validate_value
 from townshiplens_spatial.models import Claim, VerificationRequest
 
@@ -71,16 +71,16 @@ def vrs(
 
 
 class CreateVRBody(BaseModel):
-    target_id: str
-    attribute: str
-    reason: str = "unknown"
+    target_id: str = Field(max_length=120)
+    attribute: str = Field(max_length=60)
+    reason: str = Field(default="unknown", max_length=40)
 
 
 @router.post("/verification-requests", response_model=VerificationRequest, dependencies=[StaffOnly])
 def create_vr(body: CreateVRBody) -> VerificationRequest:
     """Staff-filed VR; deduped against the open one (demand + 1). Same PDPA sanitising as chat."""
     ctx = state.get_ctx()
-    safe = _safe_vr_args(ctx.world, body.model_dump())
+    safe = safe_vr_args(ctx.world, body.model_dump(), source="staff")
     try:
         vr, _ = ctx.vrs.request(
             safe["target_id"], safe["attribute"], safe["reason"], safe["question_summary"]

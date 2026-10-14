@@ -451,15 +451,18 @@
       "CreateVRBody": {
         "properties": {
           "attribute": {
+            "maxLength": 60,
             "title": "Attribute",
             "type": "string"
           },
           "reason": {
             "default": "unknown",
+            "maxLength": 40,
             "title": "Reason",
             "type": "string"
           },
           "target_id": {
+            "maxLength": 120,
             "title": "Target Id",
             "type": "string"
           }
@@ -2539,10 +2542,17 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Layers Layers  Lens  Get",
+                  "type": "object"
+                }
               }
             },
             "description": "Successful Response"
+          },
+          "304": {
+            "description": "Not modified"
           },
           "422": {
             "content": {

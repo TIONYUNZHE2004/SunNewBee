@@ -106,3 +106,12 @@ def test_layer_etag_304_and_changes_after_resolve():
     )
     r3 = c.get(url, params=p, headers={"If-None-Match": etag})
     assert r3.status_code == 200 and r3.headers["etag"] != etag
+
+
+def test_layer_etag_changes_with_boot_nonce(monkeypatch):
+    from townshiplens_api.routes import core
+
+    a = c.get("/layers/access").headers["etag"]
+    monkeypatch.setattr(core, "_BOOT", "other-boot")
+    r = c.get("/layers/access", headers={"If-None-Match": a})
+    assert r.status_code == 200 and r.headers["etag"] != a

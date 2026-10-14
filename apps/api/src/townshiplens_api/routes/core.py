@@ -1,5 +1,7 @@
 import copy
 import hashlib
+import secrets
+from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query, Request, Response
 from pydantic import BaseModel, ConfigDict, Field
@@ -29,13 +31,15 @@ def site() -> Site:
     return state.get_ctx().world.site
 
 
+# world.version restarts at 0 on every boot, so scope validators to this process.
+_BOOT = secrets.token_hex(4)
 CACHE_CONTROL = "private, max-age=0, must-revalidate"
 
 
 def _etag(world, lens: str, profile: str, scenario_id: str | None) -> str:
     """Cheap validator: layer content is a pure function of these inputs (claims only change
     through refresh_claim, which bumps world.version), so never serialise the layer."""
-    key = f"{world.site.id}|{world.version}|{lens}|{profile}|{scenario_id or ''}"
+    key = f"{_BOOT}|{world.site.id}|{world.version}|{lens}|{profile}|{scenario_id or ''}"
     return f'"{hashlib.sha1(key.encode()).hexdigest()[:20]}"'
 
 
@@ -46,7 +50,11 @@ def _matches(header: str | None, etag: str) -> bool:
     return "*" in cands or etag in cands
 
 
-@router.get("/layers/{lens}")
+@router.get(
+    "/layers/{lens}",
+    response_model=dict[str, Any],
+    responses={304: {"description": "Not modified"}},
+)
 def layers(
     lens: str,
     request: Request,
