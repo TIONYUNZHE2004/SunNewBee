@@ -148,3 +148,45 @@ def test_affected_groups_and_caps(world):
 def test_affected_unknown_profile_warns(world):
     a = flood.affected(world, "stage_p3m", "bogus")
     assert any("bogus" in w for w in a.warnings)
+
+
+def test_drive_flood_fail_for_possible(world):
+    from townshiplens_spatial.evaluate import evaluate_edge
+    from townshiplens_spatial.models import Edge
+
+    road = Edge(
+        id="rd",
+        type="street",
+        from_node="n-a",
+        to_node="n-b",
+        coords=[[0.0, 0.0], [0.001, 0.0]],
+        length_m=100.0,
+    )
+    assert evaluate_edge(road, world.profiles["drive"], None)[0] == "PASS"
+    assert evaluate_edge(road, world.profiles["drive"], "possible")[0] == "FAIL"
+    assert evaluate_edge(road, world.profiles["drive"], "likely_flooded")[0] == "FAIL"
+    # a possibly flooded path is still only UNKNOWN for a stroller
+    fw = world.edges["seg-ab"]
+    assert evaluate_edge(fw, world.profiles["stroller"], "possible")[0] == "UNKNOWN"
+
+
+def test_drive_fails_non_road_edge_types(world):
+    from townshiplens_spatial.evaluate import evaluate_edge
+
+    for eid in ("seg-ab", "seg-be", "seg-cf", "seg-gh"):  # footway, steps, ramp, path
+        assert evaluate_edge(world.edges[eid], world.profiles["drive"])[0] == "FAIL"
+
+
+def test_islands_exclude_baseline_disconnected_components(world):
+    from townshiplens_spatial.models import Place
+
+    # a place on its own mapped component, with no centre: disconnected at baseline = data gap
+    world.node_coords["n-q"] = [101.5085, 3.181]
+    world.graph.add_node("n-q")
+    world.places["lone"] = Place(
+        id="lone", type="facility", name="Lone", coord=[101.5085, 3.181], node_id="n-q"
+    )
+    world._place_by_node.setdefault("n-q", []).append("lone")
+    for scen in ("baseline", "stage_p3m"):
+        a = flood.affected(world, scen, "stroller")
+        assert all("lone" not in c["sample_place_ids"] for c in a.isolated_components)

@@ -3,6 +3,7 @@ import hashlib
 import networkx as nx
 
 from .evaluate import evaluate_edge
+from .geo import haversine_m
 from .models import Evidence, Route, RouteResult, RouteSegment
 from .scenario_meta import scenario_source
 from .world import World
@@ -12,20 +13,109 @@ UNKNOWN_WEIGHT = 5.0
 WALK_M_PER_MIN = 70.0
 
 
-def _targets(world: World, place_id: str) -> list[str]:
+def _pace_m_per_min(profile) -> float:
+    return profile.speed_kmh * 1000 / 60 if profile.speed_kmh else WALK_M_PER_MIN
+
+
+def _caveat(profile, status):
+    """A profile with a standing warning (drive) can never be 'confirmed'."""
+    return "partly_unverified" if profile.standing_warning and status == "confirmed" else status
+
+
+SNAP_CAP_M = 150.0
+
+
+def _target_pts(world: World, place_id: str) -> list[tuple[str, list[float]]]:
+    """(graph node, coordinate) for each mapped way into a place or transient centre target."""
     p = world.places.get(place_id)
     if p is None and place_id.startswith(CENTRE_PREFIX):
         # Transient evacuation-centre target: resolved from world.centres, never stored in places.
         c = world.centres.get(place_id[len(CENTRE_PREFIX) :])
-        return [c.node_id] if c and c.node_id and c.node_id in world.graph else []
+        return [(c.node_id, c.coord)] if c and c.node_id and c.node_id in world.graph else []
     if p is None:
         return []
     ents = [
-        world.places[e].node_id
+        (world.places[e].node_id, world.places[e].coord)
         for e in p.entrance_ids
         if e in world.places and world.places[e].node_id
     ]
-    return ents or ([p.node_id] if p.node_id and p.node_id in world.graph else [])
+    return ents or ([(p.node_id, p.coord)] if p.node_id and p.node_id in world.graph else [])
+
+
+def _road_nodes(world: World, profile) -> set[str]:
+    allowed = set(profile.allowed_types or [])
+    return {n for e in world.edges.values() if e.type in allowed for n in (e.from_node, e.to_node)}
+
+
+def _snap_to_road(world: World, roads: set[str], node: str, coord) -> str | None:
+    """Own node if it touches a road, else the nearest road node within SNAP_CAP_M (ties by id)."""
+    if node in roads:
+        return node
+    best: tuple[float, str] | None = None
+    for n in sorted(roads):
+        xy = world.node_coords.get(n)
+        if xy is None:
+            continue
+        d = haversine_m(coord, xy)
+        if d <= SNAP_CAP_M and (best is None or d < best[0]):
+            best = (d, n)
+    return best[1] if best else None
+
+
+def _components(world: World) -> dict[str, int]:
+    """Component id per node of the unfiltered mapped graph (no profile rules, no flood)."""
+    g = world.graph
+    key = (g.number_of_nodes(), g.number_of_edges())
+    cached = g.graph.get("_components")
+    if cached is None or cached[0] != key:
+        comps = {n: i for i, c in enumerate(nx.connected_components(g)) for n in c}
+        g.graph["_components"] = cached = (key, comps)
+    return cached[1]
+
+
+def _disconnected(world: World, profile, sources, targets) -> bool:
+    """True when the mapped data has no path at all between the endpoints (for a vehicle
+    profile: no road path). That is a data gap (no_data), never a known barrier (blocked)."""
+    comps = _components(world)
+    if not {comps.get(s) for s in sources} & {comps.get(t) for t in targets}:
+        return True
+    return profile.allowed_types is not None and _road_disconnected(
+        _road_components(world, profile), sources, targets
+    )
+
+
+def _road_components(world: World, profile) -> dict[str, int]:
+    """Component id per node of the static road graph (allowed edge types only, no flood)."""
+    g = nx.Graph()
+    allowed = set(profile.allowed_types or [])
+    g.add_edges_from((e.from_node, e.to_node) for e in world.edges.values() if e.type in allowed)
+    return {n: i for i, comp in enumerate(nx.connected_components(g)) for n in comp}
+
+
+def _road_disconnected(comps: dict[str, int], sources, targets) -> bool:
+    """True when no source shares a mapped-road component with any target."""
+    return not {comps.get(s) for s in sources} & {comps.get(t) for t in targets}
+
+
+def _targets(world: World, place_id: str, profile=None) -> list[str]:
+    pts = _target_pts(world, place_id)
+    if profile is None or profile.allowed_types is None:
+        return [n for n, _ in pts]
+    roads = _road_nodes(world, profile)
+    snapped = (_snap_to_road(world, roads, n, xy) for n, xy in pts)
+    return sorted({n for n in snapped if n})
+
+
+def _no_road_warning(world: World, place_id: str, profile) -> str | None:
+    """Set when a vehicle profile could not snap a mapped place/centre to a road."""
+    if (
+        profile.allowed_types is not None
+        and _target_pts(world, place_id)
+        and not _targets(world, place_id, profile)
+    ):
+        name = place_id.removeprefix(CENTRE_PREFIX)
+        return f"no mapped road within {SNAP_CAP_M:.0f} m of {name}"
+    return None
 
 
 def _flood_class(world: World, scenario_id: str | None, edge_id: str):
@@ -100,7 +190,7 @@ def _route_from_nodes(world, nodes, keys, from_id, to_id, profile, scenario_id, 
         dist += e.length_m
         if res == "UNKNOWN":
             unknowns.extend(why)
-    status = "confirmed" if not unknowns else "partly_unverified"
+    status = _caveat(profile, "confirmed" if not unknowns else "partly_unverified")
     rid = (
         "rt-"
         + hashlib.sha1(
@@ -122,7 +212,7 @@ def _route_from_nodes(world, nodes, keys, from_id, to_id, profile, scenario_id, 
         profile=profile.id,
         scenario_id=scenario_id,
         distance_m=round(dist, 1),
-        est_minutes=round(dist / WALK_M_PER_MIN, 1),
+        est_minutes=round(dist / _pace_m_per_min(profile), 1),
         segments=segs,
         unknowns=unknowns,
         rest_points=rest,
@@ -178,17 +268,25 @@ def plan_route(
     profile = world.profiles.get(profile_id)
     if profile is None:
         return RouteResult(status="no_data", routes=[], warnings=[f"unknown profile {profile_id}"])
-    if profile.stub:
-        return RouteResult(
-            status="no_data", routes=[], warnings=["drive network not built yet (skeleton stub)"]
-        )
-    sources, targets = _targets(world, from_id), _targets(world, to_id)
+    result = _plan(world, from_id, to_id, profile, scenario_id)
+    if profile.standing_warning and result.status != "no_data":
+        result.warnings.append(profile.standing_warning)
+    return result
+
+
+def _plan(world, from_id, to_id, profile, scenario_id) -> RouteResult:
+    sources, targets = _targets(world, from_id, profile), _targets(world, to_id, profile)
     if not sources or not targets:
         warnings = []
         for pid, found in ((from_id, sources), (to_id, targets)):
             if not found:
                 warnings.append(
-                    f"place not mapped: {pid}" if pid in world.places else f"no such place: {pid}"
+                    _no_road_warning(world, pid, profile)
+                    or (
+                        f"place not mapped: {pid}"
+                        if pid in world.places
+                        else f"no such place: {pid}"
+                    )
                 )
         return RouteResult(status="no_data", routes=[], warnings=warnings)
     strict, skeys, ev1 = _search(world, sources, targets, profile, scenario_id, allow_unknown=False)
@@ -209,5 +307,17 @@ def plan_route(
     if lenient:
         r = _route_from_nodes(world, lenient, lkeys, from_id, to_id, profile, scenario_id, evals)
         return RouteResult(status=r.status, routes=[r])
+    if _disconnected(world, profile, sources, targets):
+        # Not "blocked": the mapped data does not join these two places, so no known barrier
+        # or flood class is responsible.
+        what = "roads" if profile.allowed_types is not None else "paths"
+        return RouteResult(
+            status="no_data",
+            routes=[],
+            warnings=[
+                f"mapped {what} do not connect {from_id} and {to_id}; "
+                f"the {what[:-1]} data may be incomplete here"
+            ],
+        )
     blocked = [w for res, why in evals.values() if res == "FAIL" for w in why][:5]
     return RouteResult(status="blocked", routes=[], blocked_reasons=blocked)

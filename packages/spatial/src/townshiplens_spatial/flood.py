@@ -16,7 +16,14 @@ import networkx as nx
 
 from .evaluate import evaluate_edge
 from .models import AffectedResult, CentreReachability, Scenario
-from .routing import CENTRE_PREFIX, _targets, make_weight, plan_route
+from .routing import (
+    CENTRE_PREFIX,
+    _caveat,
+    _disconnected,
+    _targets,
+    make_weight,
+    plan_route,
+)
 from .world import World
 
 TOP_ROUTES = 3
@@ -134,7 +141,7 @@ def centres_reachability(
     """One strict and one lenient multi-source Dijkstra from the origin, costed by the same
     edge rules as routing. Full Route objects are built only for the nearest TOP_ROUTES centres."""
     profile = world.profiles.get(profile_id)
-    sources = _targets(world, near_place) if near_place and profile and not profile.stub else []
+    sources = _targets(world, near_place, profile) if near_place and profile else []
     no_data = [
         CentreReachability(centre=c, reachable=False, route_status="no_data")
         for c in world.centres.values()
@@ -149,8 +156,12 @@ def centres_reachability(
     )
     rows = []
     for c in world.centres.values():
-        n = c.node_id
-        if n is None or n not in world.graph:
+        ts = _targets(world, f"{CENTRE_PREFIX}{c.id}", profile)
+        inf = float("inf")
+        n = min(
+            ts, key=lambda t: (t not in strict, strict.get(t, lenient.get(t, inf)), t), default=None
+        )
+        if n is None:
             rows.append(
                 (2, 0.0, CentreReachability(centre=c, reachable=False, route_status="no_data"))
             )
@@ -159,7 +170,9 @@ def centres_reachability(
                 (
                     0,
                     strict[n],
-                    CentreReachability(centre=c, reachable=True, route_status="confirmed"),
+                    CentreReachability(
+                        centre=c, reachable=True, route_status=_caveat(profile, "confirmed")
+                    ),
                 )
             )
         elif n in lenient:
@@ -169,6 +182,10 @@ def centres_reachability(
                     lenient[n],
                     CentreReachability(centre=c, reachable=True, route_status="partly_unverified"),
                 )
+            )
+        elif _disconnected(world, profile, sources, ts):
+            rows.append(
+                (2, 0.0, CentreReachability(centre=c, reachable=False, route_status="no_data"))
             )
         else:
             rows.append(
