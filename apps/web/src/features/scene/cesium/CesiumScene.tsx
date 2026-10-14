@@ -2,11 +2,12 @@ import "cesium/Build/Cesium/Widgets/widgets.css";
 import * as Cesium from "cesium";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { type CesiumComponentRef, useCesium, Viewer } from "resium";
-import { useLayer } from "../../../lib/api";
+import { useLayer, useSite } from "../../../lib/api";
 import { ENV } from "../../../lib/env";
 import { pointFeatures } from "../geo";
 import { useScene } from "../sceneStore";
 import { useCameraIntents } from "./camera";
+import { homeView } from "./home";
 import { AccessLayer, FloodLayer, WasteLayer } from "./layers";
 
 /** Child of <Viewer>: mounts only after resium has created the viewer. */
@@ -67,10 +68,6 @@ function SceneSetup({
         if (!cancelled) onTilesFailed();
       }
       if (cancelled || viewer.isDestroyed()) return;
-      viewer.camera.setView({
-        destination: Cesium.Cartesian3.fromDegrees(101.5099, 3.1813, 4500),
-        orientation: { heading: 0, pitch: Cesium.Math.toRadians(-45), roll: 0 },
-      });
       viewer.scene.requestRender();
     })();
     return () => {
@@ -83,6 +80,22 @@ function SceneSetup({
       }
     };
   }, [viewer, onNoDraping, onTilesFailed]);
+
+  // Frame the site home once per viewer (separate from the tiles effect: no tileset reload).
+  const site = useSite();
+  const siteData = site.data;
+  const framedRef = useRef<Cesium.Viewer | null>(null);
+  useEffect(() => {
+    if (!viewer || viewer.isDestroyed() || !siteData || framedRef.current === viewer) return;
+    framedRef.current = viewer;
+    const { lon, lat, range_m } = homeView(siteData);
+    viewer.camera.lookAt(
+      Cesium.Cartesian3.fromDegrees(lon, lat, 0),
+      new Cesium.HeadingPitchRange(0, Cesium.Math.toRadians(-45), range_m),
+    );
+    viewer.camera.lookAtTransform(Cesium.Matrix4.IDENTITY);
+    viewer.scene.requestRender();
+  }, [viewer, siteData]);
 
   // Click a place marker (entity id = place id) to open its card.
   useEffect(() => {

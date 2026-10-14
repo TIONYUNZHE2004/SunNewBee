@@ -1,0 +1,23 @@
+import { describe, expect, it } from "vitest";
+import { homeView } from "./home";
+
+const base = { center: [101.5, 3.2], scene: {} } as Parameters<typeof homeView>[0];
+
+describe("homeView", () => {
+  it("uses scene.home", () => {
+    const site = { center: [1, 2], scene: { home: { lon: 101.6, lat: 3.3, range_m: 2500 } } };
+    expect(homeView(site as never)).toEqual({ lon: 101.6, lat: 3.3, range_m: 2500 });
+  });
+  it("defaults range when home lacks it", () => {
+    const site = { center: [1, 2], scene: { home: { lon: 101.6, lat: 3.3 } } };
+    expect(homeView(site as never)).toEqual({ lon: 101.6, lat: 3.3, range_m: 6000 });
+  });
+  it("falls back to center with 6000 m", () => {
+    expect(homeView(base)).toEqual({ lon: 101.5, lat: 3.2, range_m: 6000 });
+  });
+  it("falls back to constants when site is missing or center unusable", () => {
+    const c = { lon: 101.5099, lat: 3.1813, range_m: 6000 };
+    expect(homeView(undefined)).toEqual(c);
+    expect(homeView({ center: [], scene: {} } as never)).toEqual(c);
+  });
+});
