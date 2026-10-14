@@ -527,3 +527,109 @@ async def test_place_names_recorded_for_validator(ctx):
         deps, "list_evacuation_centres", scenario_id="stage_p3m", near_place="lakeside-mall"
     )
     assert {"Park kiosk", "Community hall (candidate)"} <= deps.rec.place_names
+
+
+# --- round 2: create_verification_request never persists model-written free text ----------
+
+
+def _vr_model(args: dict):
+    from pydantic_ai import ModelResponse, ToolCallPart
+    from pydantic_ai.models.function import FunctionModel
+
+    def fn(messages, info):
+        if len(messages) == 1:
+            return ModelResponse(
+                parts=[ToolCallPart(tool_name="create_verification_request", args=args)]
+            )
+        return ModelResponse(
+            parts=[
+                ToolCallPart(
+                    tool_name="final_answer",
+                    args={"answer_status": "cannot_answer", "summary": "Noted for the team."},
+                )
+            ]
+        )
+
+    return FunctionModel(fn)
+
+
+async def test_model_vr_free_text_not_persisted(ctx, monkeypatch):
+    from townshiplens_agent import agent as agent_mod
+
+    args = {
+        "target_id": "Ahmad bin Ali 012-345 6789",
+        "attribute": "Phone: 012-3456789",
+        "reason": "missing_place",
+        "question_summary": "Ahmad (012-3456789) asked how to reach his house",
+    }
+    monkeypatch.setattr(agent_mod, "model_for", lambda s, escalate=False: _vr_model(args))
+    evs = await collect(ctx, "anything")
+    assert evs[-1].type == "done" and not any(e.type == "error" for e in evs)
+    rows = ctx.vrs.list()
+    assert len(rows) == 1
+    blob = rows[0].model_dump_json().lower()
+    for frag in ["ahmad", "012", "6789", "phone", "house"]:
+        assert frag not in blob, frag
+    vr = rows[0]
+    assert vr.element_id == "unknown_place" and vr.attribute == "unknown"
+    assert vr.reason == "missing_place" and len(vr.question_summary) <= 120
+    call = next(e for e in evs if e.type == "tool.call")
+    assert "ahmad" not in call.model_dump_json().lower()  # streamed args are the sanitised ones
+
+
+@pytest.mark.parametrize(
+    "args,expect",
+    [
+        # existing edge id + valid attribute are kept
+        (
+            {"target_id": "seg-cf", "attribute": "incline_pct", "reason": "user_report"},
+            ("seg-cf", "incline_pct", "user_report"),
+        ),
+        # existing place / centre / waste ids are kept
+        (
+            {"target_id": "kiosk", "attribute": "opening_hours", "reason": "stale"},
+            ("kiosk", "opening_hours", "stale"),
+        ),
+        (
+            {"target_id": "evc-hall", "attribute": "capacity", "reason": "unknown"},
+            ("evc-hall", "capacity", "unknown"),
+        ),
+        # missing_place always uses unknown_place, even for a known id
+        (
+            {"target_id": "kiosk", "attribute": "existence", "reason": "missing_place"},
+            ("unknown_place", "existence", "missing_place"),
+        ),
+        # unknown target -> unknown_place; bad reason -> unknown
+        (
+            {"target_id": "Jalan Mawar 12", "attribute": "existence", "reason": "pls check!!"},
+            ("unknown_place", "existence", "unknown"),
+        ),
+    ],
+)
+async def test_vr_wrapper_sanitises_fields(ctx, args, expect):
+    from townshiplens_agent.agent import call_tool
+
+    deps = _deps(ctx)
+    await call_tool(
+        deps, "create_verification_request", question_summary="free text from the model", **args
+    )
+    vr = ctx.vrs.list()[0]
+    assert (vr.element_id, vr.attribute, vr.reason) == expect
+    assert "free text" not in (vr.question_summary or "")
+    assert len(vr.question_summary) <= 120
+
+
+async def test_vr_wrapper_accepts_waste_point_id(ctx):
+    from townshiplens_agent.agent import call_tool
+
+    wid = next(iter(ctx.world.waste))
+    deps = _deps(ctx)
+    await call_tool(
+        deps,
+        "create_verification_request",
+        target_id=wid,
+        attribute="status",
+        reason="stale",
+        question_summary="x",
+    )
+    assert ctx.vrs.list()[0].element_id == wid

@@ -6,6 +6,7 @@ and push ToolCall / ToolResultEvent / VerificationRequested onto the record's qu
 """
 
 import asyncio
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -106,6 +107,32 @@ def _flag_flooded_endpoints(deps: Deps, sid: str, place_ids: list[str], res: sp.
         deps.rec.scenarios_used.add(sid)
 
 
+VR_REASONS = {"unknown", "stale", "contradicted", "missing_place", "user_report"}
+_ATTRIBUTE = re.compile(r"^[a-z_]{1,40}$")
+
+
+def _safe_vr_args(world, kwargs: dict) -> dict:
+    """PDPA: a VR is shown to staff and stored, so never persist model-written free text.
+    Only known element ids, a constrained attribute and reason, and a fixed summary."""
+    reason = kwargs.get("reason")
+    reason = reason if reason in VR_REASONS else "unknown"
+    attribute = kwargs.get("attribute")
+    attribute = (
+        attribute if isinstance(attribute, str) and _ATTRIBUTE.match(attribute) else "unknown"
+    )
+    target = kwargs.get("target_id")
+    known = any(target in d for d in (world.edges, world.places, world.centres, world.waste))
+    if reason == "missing_place" or not known:
+        target = "unknown_place"
+    summary = f"chat: {reason} {attribute} on {target}"[:120]
+    return {
+        "target_id": target,
+        "attribute": attribute,
+        "reason": reason,
+        "question_summary": summary,
+    }
+
+
 SCENARIO_TOOLS = ("plan_route", "list_evacuation_centres", "affected_places")
 
 
@@ -135,6 +162,8 @@ async def call_tool(deps: Deps, name: str, **kwargs: Any) -> dict:
     rec = deps.rec
     call_id = f"{name}-{len(rec.tool_calls)}"
     rec.tool_calls.append(name)
+    if name == "create_verification_request":
+        kwargs = _safe_vr_args(deps.ctx.world, kwargs)
     if name in SCENARIO_TOOLS and not kwargs.get("scenario_id") and ui_scenario(deps):
         # The scenario on screen applies to routing even if the model forgot to pass it.
         kwargs["scenario_id"] = ui_scenario(deps)
@@ -248,7 +277,8 @@ def build_agent(model: Model) -> Agent[Deps, FinalAnswer]:
         ctx: RunContext[Deps], target_id: str, attribute: str, reason: str, question_summary: str
     ) -> dict:
         """Log a gap for staff (reason: unknown|stale|contradicted|missing_place|user_report).
-        No personal data in question_summary."""
+        target_id must be an id returned by a tool (for a missing place, any value: it is stored
+        as "unknown_place"); attribute is snake_case. question_summary is not stored."""
         return await call_tool(
             ctx.deps,
             "create_verification_request",

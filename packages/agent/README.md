@@ -72,6 +72,11 @@ flows:
   VR with `target_id="unknown_place"` and a generic summary (never the user's words), and
   answers `cannot_answer`.
 
+Verification requests never store model-written text: `call_tool` keeps `target_id` only if it
+is an existing edge/place/centre/waste id (and never for `missing_place`, which becomes
+`unknown_place`), constrains `attribute` to `^[a-z_]{1,40}$` and `reason` to the known set, and
+replaces `question_summary` with a fixed `"chat: <reason> <attribute> on <target>"` (max 120).
+
 The active UI scenario (`ChatRequest.scenario_id`, constrained to `baseline|stage_p1m…p5m` and
 only used when it exists in the world) is injected into `plan_route`, `list_evacuation_centres`
 and `affected_places` when the model omits it, so routes avoid flooded paths and the disclaimer
