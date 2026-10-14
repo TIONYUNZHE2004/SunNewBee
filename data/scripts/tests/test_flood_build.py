@@ -12,7 +12,10 @@ from data.scripts.build_flood import (
     STAGES,
     classify,
     connected_mask,
+    drainage_mask,
     effective_hand,
+    osm_drainage_geoms,
+    relative_elevation,
     scenario_ids,
     stage_classes,
     vector_stage,
@@ -254,7 +257,9 @@ def test_outputs_load_with_load_world(tmp_path):
     assert len(w.centres) == 2
     site = json.loads((tmp_path / "site.json").read_text())
     assert any("Copernicus DEM GLO-30" in a for a in site["attribution"])
-    assert "HAND: ASF (CC0)" in site["attribution"]
+    assert site["attribution"].count("© OpenStreetMap contributors (ODbL)") == 1  # REM uses OSM
+    assert "HAND: ASF (CC0)" not in site["attribution"]  # HAND is only the comparison method
+    assert {s.method for s in w.flood.scenarios} == {"REM"}
     FloodBundle.model_validate_json((tmp_path / "flood/scenarios.json").read_text())
     # waste: recycling + bin from OSM, plus the programme site only because the OSM name exists
     types = sorted(p.type for p in w.waste.values())
@@ -288,5 +293,127 @@ def test_sanity_report_lists_nearest_edges(tmp_path, monkeypatch):
     vec = vector_stage(tmp_path, eff, T, STAGES, MARGIN)
     monkeypatch.setattr(bf, "SANITY_POINTS", {"river": (101.5105, 3.1945)})
     rep = bf.sanity_report(tmp_path, eff, T, vec)
-    assert "connected HAND at point = 0.00 m (likely_flooded at stage_p3m)" in rep
+    assert (
+        "connected relative height at point = 0.00 m "
+        "(stage_p1m=likely_flooded, stage_p3m=likely_flooded)" in rep
+    )
     assert "seg-river" in rep.splitlines()[1] and "stage_p3m=likely_flooded" in rep
+
+
+# --- REM (relative elevation above OSM drainage) ----------------------------------------------
+
+
+def _valley():
+    """A channel down column 5 (sloping 0.05 m per row) between two hills rising 2 m per cell."""
+    rows, cols = np.mgrid[0:12, 0:11]
+    dem = 10.0 + 0.05 * rows + 2.0 * np.abs(cols - 5)
+    drain = np.zeros(dem.shape, dtype=bool)
+    drain[:, 5] = True
+    return dem, drain
+
+
+def test_rem_is_height_above_nearest_channel():
+    dem, drain = _valley()
+    rem = relative_elevation(dem, drain)
+    assert np.all(rem[drain] == 0.0)
+    expected = 2.0 * np.abs(np.arange(11) - 5)
+    # valley floor = min DEM within 2 cells along the 0.05 m/row slope -> REM + 0.1 m
+    assert np.allclose(rem[2:-2], expected + 0.1 * (expected > 0), atol=1e-9)
+    assert np.allclose(rem, expected, atol=0.21)  # end rows: windows are truncated
+
+
+def test_rem_hill_cells_stay_dry_at_small_stage():
+    dem, drain = _valley()
+    rem = relative_elevation(dem, drain)
+    m1, m3 = connected_mask(rem, 1, drain), connected_mask(rem, 3, drain)
+    assert m1[:, 5].all() and not m1[:, [4, 6]].any()  # only the channel at +1 m
+    assert m3[:, 4:7].all() and not m3[:, :4].any() and not m3[:, 7:].any()  # REM 2 m wet at +3
+    assert not connected_mask(rem, 5, drain)[:, [0, 10]].any()  # hill tops (REM 10 m) dry
+
+
+def test_rem_hollow_not_connected_to_drainage_stays_dry():
+    dem, drain = _valley()
+    dem[5, 9] = 5.0  # a hollow below the channel, behind the hill (REM about -5 m)
+    rem = relative_elevation(dem, drain)
+    assert rem[5, 9] < 0
+    for s in STAGES:
+        assert not connected_mask(rem, s, drain)[5, 9]
+    eff = effective_hand(rem, drain)
+    assert eff[5, 9] == pytest.approx(6.1)  # joins only once the ~6 m barrier (col 8) is topped
+    for s in (0.5, 1, 2.5, 4, 6.5, 9):
+        assert np.array_equal(connected_mask(rem, s, drain), eff < s)
+
+
+def test_rem_channel_spike_is_smoothed():
+    dem, drain = _valley()
+    dem[6, 5] += 8.0  # a bridge deck in the surface model
+    rem = relative_elevation(dem, drain)
+    assert rem[6, 5] == 0.0
+    assert rem[6, 3] == pytest.approx(4.1, abs=0.06)  # neighbours unaffected by the spike
+
+
+def test_rem_without_drainage_is_nan():
+    dem, _ = _valley()
+    assert np.isnan(relative_elevation(dem, np.zeros(dem.shape, dtype=bool))).all()
+
+
+def _way(tags, pts):
+    return {"type": "way", "tags": tags, "geometry": [{"lon": x, "lat": y} for x, y in pts]}
+
+
+def test_osm_drainage_geoms_and_mask():
+    x = lambda col: 101.50 + (col + 0.5) * 0.001  # noqa: E731
+    y = lambda row: 3.20 - (row + 0.5) * 0.001  # noqa: E731
+    pond = [(x(12), y(12)), (x(16), y(12)), (x(16), y(16)), (x(12), y(16)), (x(12), y(12))]
+    # the stream (col 2, rows 0-14) runs into the lake; the pond is off-line
+    lake_outer = [(x(1), y(14)), (x(5), y(14)), (x(5), y(18)), (x(1), y(18)), (x(1), y(14))]
+    els = [
+        _way({"waterway": "stream"}, [(x(2), y(0)), (x(2), y(14))]),
+        _way({"waterway": "stream", "tunnel": "culvert"}, [(x(8), y(0)), (x(8), y(10))]),
+        _way({"waterway": "drain"}, [(x(18), y(0)), (x(18), y(10))]),
+        _way({"natural": "water", "water": "pond"}, pond),
+        {
+            "type": "relation",
+            "tags": {"type": "multipolygon", "natural": "water"},
+            "members": [
+                {"type": "way", "role": "outer", "geometry": _way({}, lake_outer)["geometry"]}
+            ],
+        },
+    ]
+    lines, polys = osm_drainage_geoms(els)
+    assert len(lines) == 1 and len(polys) == 2
+    m = drainage_mask(lines, polys, (20, 20), T)
+    assert m[0:14, 2].all() and not m[:, 8].any() and not m[:, 18].any()
+    assert m[16, 3] and not m[14, 14] and not m[10, 10]  # on-line lake in, off-line pond out
+    assert drainage_mask(lines, polys, (20, 20), T, connected_only=False)[14, 14]
+
+
+def test_load_osm_water_reads_overpass_and_geojson(tmp_path):
+    from data.scripts.build_flood import load_osm_water
+
+    a = tmp_path / "a.json"
+    a.write_text(
+        json.dumps({"elements": [{"id": 1, **_way({"waterway": "river"}, [(0, 0), (1, 1)])}]})
+    )
+    b = tmp_path / "b.geojson"
+    sq = [[0, 0], [1, 0], [1, 1], [0, 1], [0, 0]]
+    b.write_text(
+        json.dumps(
+            _fc(
+                [
+                    {
+                        "type": "Feature",
+                        "geometry": {"type": "Polygon", "coordinates": [sq]},
+                        "properties": {"tags": {"natural": "water"}},
+                    },
+                    {
+                        "type": "Feature",
+                        "geometry": {"type": "LineString", "coordinates": [[0, 0], [2, 2]]},
+                        "properties": {"waterway": "stream", "tunnel": "culvert"},
+                    },
+                ]
+            )
+        )
+    )
+    lines, polys = osm_drainage_geoms(load_osm_water([a, a, b]))
+    assert len(lines) == 1 and len(polys) == 1
