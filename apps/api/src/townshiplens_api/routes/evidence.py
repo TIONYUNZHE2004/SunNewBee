@@ -2,6 +2,7 @@ import re
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request
+from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from python_multipart.exceptions import MultipartParseError
@@ -38,7 +39,7 @@ async def _read_file_part(request: Request) -> bytes | None:
         raise HTTPException(413, "file too large")
 
     buf = bytearray()
-    st: dict[str, Any] = {"field": b"", "name": None, "in_file": False, "done": False}
+    st: dict[str, Any] = {"field": b"", "value": b"", "name": None, "in_file": False, "done": False}
 
     def on_part_begin() -> None:
         st["name"] = None
@@ -47,13 +48,13 @@ async def _read_file_part(request: Request) -> bytes | None:
         st["field"] += data[start:end]
 
     def on_header_value(data: bytes, start: int, end: int) -> None:
-        if st["field"].lower() == b"content-disposition":
-            m = _NAME.search(data[start:end])
-            if m:
-                st["name"] = m.group(1)
+        st["value"] += data[start:end]  # a chunk boundary can split the value
 
     def on_header_end() -> None:
-        st["field"] = b""
+        if st["field"].lower() == b"content-disposition":
+            m = _NAME.search(st["value"])
+            st["name"] = m.group(1) if m else None
+        st["field"] = st["value"] = b""
 
     def on_headers_finished() -> None:
         st["in_file"] = st["name"] == b"file"
@@ -71,20 +72,20 @@ async def _read_file_part(request: Request) -> bytes | None:
             st["done"] = True
         st["in_file"] = False
 
-    parser = MultipartParser(
-        boundary,
-        callbacks={
-            "on_part_begin": on_part_begin,
-            "on_header_field": on_header_field,
-            "on_header_value": on_header_value,
-            "on_header_end": on_header_end,
-            "on_headers_finished": on_headers_finished,
-            "on_part_data": on_part_data,
-            "on_part_end": on_part_end,
-        },
-    )
     total = 0
     try:
+        parser = MultipartParser(
+            boundary,
+            callbacks={
+                "on_part_begin": on_part_begin,
+                "on_header_field": on_header_field,
+                "on_header_value": on_header_value,
+                "on_header_end": on_header_end,
+                "on_headers_finished": on_headers_finished,
+                "on_part_data": on_part_data,
+                "on_part_end": on_part_end,
+            },
+        )
         async for chunk in request.stream():
             total += len(chunk)
             if total > evidence.MAX_BYTES + _OVERHEAD:
@@ -129,10 +130,10 @@ async def upload_evidence(request: Request) -> EvidenceUploaded:
     if kind is None:
         raise HTTPException(415, "only JPEG or PNG images are accepted")
     try:
-        clean = strip_jpeg(data) if kind == "jpeg" else strip_png(data)
+        clean = await run_in_threadpool(strip_jpeg if kind == "jpeg" else strip_png, data)
     except ImageError:
         raise HTTPException(400, "malformed image") from None
-    eid = evidence.save(kind, clean)
+    eid = await run_in_threadpool(evidence.save, kind, clean)
     return EvidenceUploaded(evidence_id=eid, photo_url=evidence.photo_url(eid))
 
 

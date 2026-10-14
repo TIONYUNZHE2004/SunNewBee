@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from typing import Any, Literal
 
 from pydantic import BaseModel, Field
@@ -29,7 +30,8 @@ class Claim(BaseModel):
 
 def photo_url(claim: Claim) -> str | None:
     """Public URL of the newest uploaded photo attached to a claim (GET /evidence/{id})."""
-    return f"/evidence/{claim.evidence_ids[-1]}" if claim.evidence_ids else None
+    last = claim.evidence_ids[-1] if claim.evidence_ids else ""
+    return f"/evidence/{last}" if re.fullmatch(r"[0-9a-f]{32}", last) else None
 
 
 class Evidence(BaseModel):

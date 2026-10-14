@@ -10,8 +10,10 @@ import zlib
 from typing import Literal
 
 PNG_SIG = b"\x89PNG\r\n\x1a\n"
-_PNG_KEEP = {b"tRNS", b"PLTE"}
 _SOF = {m for m in range(0xC0, 0xD0) if m not in (0xC4, 0xC8, 0xCC)}
+# Everything else (DHT, DAC, DQT, DNL, DRI, EXP, SOS) is image data; any other marker is refused.
+_JPEG_DATA = _SOF | {0xC4, 0xCC, 0xDA, 0xDB, 0xDC, 0xDD, 0xDF}
+_PNG_KEEP = {b"IHDR", b"PLTE", b"IDAT", b"IEND", b"tRNS"}
 
 
 class ImageError(ValueError):
@@ -33,7 +35,7 @@ def strip_jpeg(data: bytes) -> bytes:
         raise ImageError("not a JPEG")
     out = bytearray(b"\xff\xd8")
     i = 2
-    seen_sof = seen_sos = False
+    seen_sof = seen_sos = seen_jfif = False
     while True:
         if i + 2 > n or data[i] != 0xFF:
             raise ImageError("malformed JPEG")
@@ -57,15 +59,19 @@ def strip_jpeg(data: bytes) -> bytes:
         if length < 2 or end > n:
             raise ImageError("bad segment length")
         payload = data[i + 2 : end]
-        keep = True
-        if 0xE0 <= m <= 0xEF:
-            keep = m == 0xE0 and payload[:5] == b"JFIF\x00"
-        elif m == 0xFE:
-            keep = False
-        elif m in _SOF:
-            seen_sof = True
-        if keep:
+        if m == 0xE0 and payload[:5] == b"JFIF\x00" and len(payload) >= 14 and not seen_jfif:
+            # Canonical header only: version/units/density kept, any thumbnail or trailing bytes
+            # dropped, so the segment cannot carry a payload.
+            seen_jfif = True
+            out += b"\xff\xe0\x00\x10" + payload[:12] + b"\x00\x00"
+        elif 0xE0 <= m <= 0xEF or m == 0xFE:
+            pass  # APPn and COM
+        elif m in _JPEG_DATA:
+            if m in _SOF:
+                seen_sof = True
             out += b"\xff" + bytes([m]) + data[i:end]
+        else:
+            raise ImageError("unexpected marker")
         i = end
         if m == 0xDA:
             if not seen_sof:
@@ -122,6 +128,8 @@ def strip_png(data: bytes) -> bytes:
                 raise ImageError("bad IEND or no image data")
             out += data[i:end]
             return bytes(out)
-        if not ctype[0] & 0x20 or ctype in _PNG_KEEP:  # critical, or tRNS/PLTE
+        if ctype in _PNG_KEEP:
             out += data[i:end]
+        elif not ctype[0] & 0x20:
+            raise ImageError("unknown critical chunk")
         i = end

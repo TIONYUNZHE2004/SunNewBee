@@ -90,11 +90,14 @@ def test_malformed_images_are_400():
 
 def test_oversize_413_and_empty_rejected():
     assert up(JPEG[:-2] + b"\x00" * (5 * 1024 * 1024)).status_code == 413
-    assert up(b"").status_code in (400, 415)
+    assert up(b"").status_code == 415
 
 
 def test_auth_401_503_and_missing_file_field(monkeypatch):
     assert c.post("/evidence", files={"file": ("a.jpg", JPEG)}).status_code == 401
+    monkeypatch.setenv("STAFF_TOKEN", "change-me")
+    assert up(JPEG, headers={"X-Staff-Token": "change-me"}).status_code == 503
+    monkeypatch.setenv("STAFF_TOKEN", "test-token")
     assert up(JPEG, headers={"X-Staff-Token": "wrong"}).status_code == 401
     assert c.post("/evidence", files={"other": ("a.jpg", JPEG)}, headers=OK).status_code == 422
     assert c.post("/evidence", json={"a": 1}, headers=OK).status_code == 415
@@ -161,3 +164,106 @@ def test_resolve_with_evidence_id_attaches_and_exposes_photo_url():
     ev = [e for e in d["evidence"] if e["attribute"] == "wheelchair"][0]
     assert ev["photo_url"] == f"/evidence/{eid}"
     assert d["data"]["claims"]["wheelchair"]["evidence_ids"] == [eid]
+
+
+def _body(name: bytes = b"file", data: bytes = JPEG, boundary: bytes = b"BND") -> bytes:
+    return (
+        b"--" + boundary + b"\r\nContent-Disposition: form-data; name=\"" + name
+        + b"\"; filename=\"a.jpg\"\r\nContent-Type: image/jpeg\r\n\r\n" + data
+        + b"\r\n--" + boundary + b"--\r\n"
+    )  # fmt: skip
+
+
+def _req(chunks, boundary: bytes = b"BND", content_length: int | None = None):
+    from starlette.requests import Request
+
+    headers = [(b"content-type", b"multipart/form-data; boundary=" + boundary)]
+    if content_length is not None:
+        headers.append((b"content-length", str(content_length).encode()))
+    it = iter(chunks)
+
+    async def receive_end():
+        ch = next(it, None)
+        if ch is None:
+            return {"type": "http.request", "body": b"", "more_body": False}
+        return {"type": "http.request", "body": ch, "more_body": True}
+
+    return Request({"type": "http", "headers": headers, "method": "POST"}, receive_end)
+
+
+def _run(req):
+    import asyncio
+
+    from townshiplens_api.routes.evidence import _read_file_part
+
+    return asyncio.run(_read_file_part(req))
+
+
+def test_header_split_across_chunks_still_finds_file_part():
+    body = _body()
+    assert _run(_req([body])) == JPEG
+    assert _run(_req([body[i : i + 1] for i in range(len(body))])) == JPEG
+    cut = body.index(b'name="fi') + len(b'name="fi')
+    assert _run(_req([body[:cut], body[cut:]])) == JPEG
+    # A differently named part is still ignored when split.
+    other = _body(name=b"other")
+    assert _run(_req([other[i : i + 1] for i in range(len(other))])) is None
+
+
+def test_streaming_cap_without_content_length():
+    from fastapi import HTTPException
+
+    big = _body(data=b"\xff\xd8\xff" + b"\x00" * (6 * 1024 * 1024))
+    chunks = [big[i : i + 65536] for i in range(0, len(big), 65536)]
+    with pytest.raises(HTTPException) as e:
+        _run(_req(chunks))
+    assert e.value.status_code == 413
+    # Flood in a non-file part is capped by the total-body limit.
+    flood = _body(name=b"junk", data=b"x" * (6 * 1024 * 1024))
+    with pytest.raises(HTTPException) as e2:
+        _run(_req([flood[i : i + 65536] for i in range(0, len(flood), 65536)]))
+    assert e2.value.status_code == 413
+
+
+def test_oversized_boundary_is_400_not_500():
+    r = c.post(
+        "/evidence",
+        content=b"x",
+        headers={**OK, "content-type": "multipart/form-data; boundary=" + "a" * 5000},
+    )
+    assert r.status_code == 400
+
+
+def test_correct_replaces_photo_and_reject_with_evidence_is_422():
+    from townshiplens_api import state
+
+    a = up(JPEG).json()["evidence_id"]
+    b = up(JPEG).json()["evidence_id"]
+
+    def vr(attr="wheelchair"):
+        return c.post(
+            "/verification-requests", json={"target_id": "toilet-1", "attribute": attr}, headers=OK
+        ).json()["id"]
+
+    def res(vid, **body):
+        return c.post(f"/verification-requests/{vid}/resolve", json=body, headers=OK)
+
+    def photo():
+        d = c.get("/places/toilet-1").json()
+        return [e for e in d["evidence"] if e["attribute"] == "wheelchair"][0]["photo_url"]
+
+    claim = lambda: state.get_ctx().world.places["toilet-1"].claims["wheelchair"]  # noqa: E731
+    assert res(vr(), action="verify", value="yes", evidence_id=a).status_code == 200
+    assert photo() == f"/evidence/{a}"
+    # Re-verify the same value with no value given: the photo stays.
+    assert res(vr(), action="verify").status_code == 200
+    assert claim().evidence_ids == [a]
+    # Correct with no photo: the old photo must not back the new value.
+    assert res(vr(), action="correct", value="no").status_code == 200
+    assert claim().evidence_ids == [] and photo() is None
+    assert res(vr(), action="correct", value="limited", evidence_id=b).status_code == 200
+    assert claim().evidence_ids == [b] and photo() == f"/evidence/{b}"
+    # Reject leaves the claim untouched and refuses an attached photo.
+    assert res(vr(), action="reject", evidence_id=a).status_code == 422
+    assert res(vr(), action="reject").status_code == 200
+    assert claim().value == "limited" and claim().evidence_ids == [b]

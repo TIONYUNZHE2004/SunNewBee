@@ -146,3 +146,23 @@ def test_sniff_by_magic_bytes():
     assert sniff(SIG + b"rest") == "png"
     assert sniff(b"GIF89a") is None
     assert sniff(b"") is None
+
+
+def test_jpeg_jfif_canonicalised_and_duplicates_dropped():
+    fat = seg(0xE0, b"JFIF\x00\x01\x01\x00\x00\x01\x00\x01\x01\x01SECRETPAYLOAD")
+    out = strip_jpeg(jpeg(fat, fat))
+    assert b"SECRET" not in out and out.count(b"JFIF") == 1
+    assert out == jpeg(JFIF)
+
+
+@pytest.mark.parametrize("m", [0x02, 0x50, 0xC8, 0xF7, 0xFD])
+def test_jpeg_unknown_markers_rejected(m):
+    with pytest.raises(ImageError):
+        strip_jpeg(jpeg(seg(m, b"hidden")))
+
+
+def test_png_unknown_critical_chunk_rejected():
+    with pytest.raises(ImageError):
+        strip_png(png(chunk(b"EXIF", b"SECRET GPS")))
+    with pytest.raises(ImageError):
+        strip_png(png(chunk(b"MEtA", b"SECRET GPS")))

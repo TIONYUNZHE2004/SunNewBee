@@ -154,8 +154,11 @@ def _type_ok(new: Any, old: Any) -> bool:
 )
 def resolve(vr_id: str, body: ResolveBody) -> VerificationRequest:
     ctx = state.get_ctx()
-    if body.evidence_id is not None and evidence.path_for(body.evidence_id) is None:
-        raise HTTPException(422, "unknown evidence_id")
+    if body.evidence_id is not None:
+        if body.action == "reject":
+            raise HTTPException(422, "evidence_id cannot be attached to a reject")
+        if evidence.path_for(body.evidence_id) is None:
+            raise HTTPException(422, "unknown evidence_id")
     # One lock across read, status check, claim commit, audit row and VR update: the loser of
     # two concurrent resolves gets 409 and changes nothing. world_lock is an RLock, so the
     # nested commit_claim is fine.
@@ -170,12 +173,12 @@ def resolve(vr_id: str, body: ResolveBody) -> VerificationRequest:
             raise HTTPException(409, f"{vr_id} is already {existing.status}")
         verifying = body.action in ("verify", "correct")
         value = body.value
+        target = ctx.world.edges.get(existing.element_id) or ctx.world.places.get(
+            existing.element_id
+        )
+        current = target.claims.get(existing.attribute) if target else None
         if verifying and value is None and body.action == "verify":
             # Verify with no value confirms the claim's current value.
-            target = ctx.world.edges.get(existing.element_id) or ctx.world.places.get(
-                existing.element_id
-            )
-            current = target.claims.get(existing.attribute) if target else None
             value = current.value if current else None
         if verifying and value is None:
             raise HTTPException(422, "value is required for verify/correct")
@@ -183,11 +186,11 @@ def resolve(vr_id: str, body: ResolveBody) -> VerificationRequest:
             # Claim + audit first: if the VR resolve below fails, the VR stays open and a retry
             # is idempotent. A missing_place VR has no element, so it has no value to verify
             # (422 above); KeyError below only covers an element removed since the VR was filed.
-            tgt = ctx.world.edges.get(existing.element_id) or ctx.world.places.get(
-                existing.element_id
-            )
-            prior = tgt.claims.get(existing.attribute) if tgt else None
-            ev_ids = list(prior.evidence_ids) if prior else []
+            # Earlier photos stay only when this re-confirms the same value; a correction (or a
+            # verify that changes the value) replaces the evidence so an old photo never backs
+            # a new fact.
+            same = body.action == "verify" and current is not None and current.value == value
+            ev_ids = list(current.evidence_ids) if same and current else []
             if body.evidence_id and body.evidence_id not in ev_ids:
                 ev_ids.append(body.evidence_id)
             try:
