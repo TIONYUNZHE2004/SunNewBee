@@ -228,6 +228,41 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/simulations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Simulations */
+        get: operations["list_simulations_simulations_get"];
+        put?: never;
+        /** Run Simulation */
+        post: operations["run_simulation_simulations_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/simulations/{run_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Simulation */
+        get: operations["get_simulation_simulations__run_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/site": {
         parameters: {
             query?: never;
@@ -707,6 +742,90 @@ export interface components {
              * @enum {string}
              */
             type: "scene.intent";
+        };
+        /** SimGap */
+        SimGap: {
+            /** Affected Profiles */
+            affected_profiles: string[];
+            /** Attribute */
+            attribute: string;
+            /** Element Id */
+            element_id: string;
+            /** Example Task Ids */
+            example_task_ids: string[];
+            /** Impact */
+            impact: number;
+        };
+        /** SimReport */
+        SimReport: {
+            /** Counts */
+            counts: {
+                [key: string]: {
+                    [key: string]: number;
+                };
+            };
+            /** Created At */
+            created_at: string;
+            /** Gaps */
+            gaps: components["schemas"]["SimGap"][];
+            /** Invariant Violations */
+            invariant_violations: components["schemas"]["SimViolation"][];
+            /** Results */
+            results: components["schemas"]["SimResult"][];
+            /** Run Id */
+            run_id: string;
+            /** Scenario Id */
+            scenario_id?: string | null;
+        };
+        /** SimRequest */
+        SimRequest: {
+            /** Profiles */
+            profiles?: ("default" | "stroller" | "wheelchair" | "older_adult_rest" | "drive")[] | null;
+            /** Scenario Id */
+            scenario_id?: string | null;
+        };
+        /** SimResult */
+        SimResult: {
+            /** Outcome */
+            outcome: string;
+            /** Route Id */
+            route_id?: string | null;
+            /** Task Id */
+            task_id: string;
+            /** Unknowns */
+            unknowns?: {
+                [key: string]: string;
+            }[];
+        };
+        /** SimSummary */
+        SimSummary: {
+            /** Counts */
+            counts: {
+                [key: string]: {
+                    [key: string]: number;
+                };
+            };
+            /** Created At */
+            created_at: string;
+            /** Gap Count */
+            gap_count: number;
+            /** Run Id */
+            run_id: string;
+            /** Scenario Id */
+            scenario_id?: string | null;
+            /** Task Count */
+            task_count: number;
+            /** Violation Count */
+            violation_count: number;
+        };
+        /** SimViolation */
+        SimViolation: {
+            /** Detail */
+            detail: string;
+            /** Invariant */
+            invariant: string;
+            /** Task Id */
+            task_id: string;
         };
         /** Site */
         Site: {
@@ -1290,6 +1409,103 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ChatEventDoc"];
+                };
+            };
+        };
+    };
+    list_simulations_simulations_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SimSummary"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    run_simulation_simulations_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-staff-token"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SimRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SimReport"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_simulation_simulations__run_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SimReport"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
