@@ -229,3 +229,31 @@
   - Task 28 (answer contract: citations required, route-status first line, abstain names the gap, waste mock and goldens; lane/ai)
   - Task 29 (management API: VR filters, staff create-VR, KPIs, layer ETag; lane/be)
 - The final whole-branch review (Opus) is still running.
+
+## 03:29 — Wave merges + final whole-branch review → fix wave
+- **Merged and pushed (`23a6755`):**
+  - Task 27 (deep-spot shortcuts, per-lens chips that switch to their persona profile, "Where can I go?")
+  - Task 29 (VR filters, staff create-VR, public KPIs, layer ETag with boot nonce, typed `/layers` response)
+- **Checklist on `23a6755`:**
+  - pytest 315: PASS
+  - golden 6/6 (mock): PASS
+  - vitest 111: PASS
+  - lint: PASS
+  - gen drift: PASS
+  - typecheck: PASS
+  - build: PASS
+  - e2e 9/9: PASS
+- **Final whole-branch review** (Opus; `.superpowers/…/final-review.md`) found 3 Critical, 5 Important and 11 Minor. Every Critical and Important was reproduced. Secrets check PASS: no `sk-or-` in `dist`, and only public keys in the bundle.
+  - **C1:** staff Verify/Correct are broken from the UI (422).
+  - **C2:** the honesty rules are only enforced when a tool ran.
+  - **C3:** disconnected OSM components (199) are reported as "blocked"; 46 of 72 centres show "not reachable" at baseline.
+  - **I1:** the placeholder rule can be dodged by not citing.
+  - **I2:** the legend says "Checked" for unchecked OSM paths.
+  - **I3:** a resolve race.
+  - **I4:** an empty `LLM_PROVIDER` breaks chat.
+  - **I5:** the mock answers two of the chip questions badly.
+- **Fix wave, one dispatch per lane:**
+  - lane/ai (Task 28 round 1): C2, I1, I4, I5, plus Task 28's own review findings (status-regex false positives, metric renamed `answered_without_citations`).
+  - lane/data (Task 26 round 2): C3, ruled as `no_data` with a "mapped paths do not connect" warning when endpoints are in different components; `blocked` only when a known FAIL cuts every path; islands exclude components already disconnected at baseline.
+  - lane/be (Task 30): C1, I3, I2 (the label becomes "No known barrier"), and FE labels `no_data` as "No mapped connection (data gap)".
+- **Task 26 round 1** (drive): endpoints snap to roads within 150 m. On the seed's 66 parking pairs: 6 partly_unverified, 60 no_data, 0 blocked. The roads split into 201 components, so they need a road-aware import later.

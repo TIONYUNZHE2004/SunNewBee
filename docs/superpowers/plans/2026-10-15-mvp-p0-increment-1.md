@@ -342,3 +342,24 @@ From the MVP status audit (03:25, `.superpowers/sdd/2026-10-15-mvp-p0-increment-
 - Lane: BE.
 - Coordinator notes: do NOT touch `packages/spatial` files other than `vr_store.py` (another lane edits evaluate/routing/flood/tools/models). Staff auth uses the existing dependency in `apps/api/src/townshiplens_api/auth.py`. The ETag must change after any claim commit (world.version) and for different query params. Run `pnpm gen` and commit the regenerated client.
 - Verify: run the relevant unit tests, `pnpm lint`, typecheck/gen drift as applicable; commit on your lane branch. Mock LLM only.
+
+### Task 30: Final-review fix wave, BE+FE: staff resolve, resolve race, honest legend, no-data labels
+
+From the final whole-branch review (`.superpowers/sdd/2026-10-15-mvp-p0-increment-1/final-review.md`: C1, I2, I3). Coordinator rulings are inline.
+
+- [ ] **C1: staff Verify/Correct work end to end.**
+  - Verify with no value keeps the claim's current value and marks it verified. The API accepts a missing value for `verify` and uses the current value; it is an error only if there is no current value.
+  - Correct sends a value typed by the attribute catalogue (`features/manage/attributeCatalogue.ts` + `attributeForm.ts`):
+    - number → number
+    - boolean → boolean
+    - enum/text → string
+  - The server keeps validating with `validate_value`.
+  - Tests:
+    - (API) verify without value → 200, value unchanged, status verified;
+    - (API) correct with a numeric string for a number attribute → 422 stays, while a number succeeds;
+    - (web) `resolveForm` builds a numeric value for `incline_pct`;
+    - (e2e) extend the existing staff journey to Verify a VR and see it leave the open queue. The coordinator runs e2e; the implementer writes the spec.
+- [ ] **I3: the resolve race.** Hold `world_lock` across the whole resolve: read the VR, check its status, commit the claim, write the audit row and update the VR. The loser of two concurrent resolves gets 409 and changes nothing (no claim change, no audit row). Test with two threads.
+- [ ] **I2: an honest "ok" label.** Rename the `ok` status label from "Checked" to "No known barrier" everywhere it is shown: legend, list-view steps, place card and route text in the web app. Use "Verified" only where the underlying claims are verified, which needs per-edge evidence status. Out of scope tonight, so no "Verified" label anywhere. Update tests and e2e selectors.
+- [ ] **No-data labels (prepares for the C3 routing fix in Task 26 round 2).** Wherever the web shows route or reachability status (list view, flood briefing, evacuation centre rows, journey tests), `no_data` reads "No mapped connection (data gap)", never "Not reachable"/"Blocked". `blocked` keeps "Not passable".
+- [ ] **Verify:** pytest, `pnpm lint`, `pnpm gen` (no drift, or commit the regenerated client), typecheck, `pnpm --filter @tl/web test`, build. Do not run e2e or servers. Commit on the lane branch.
