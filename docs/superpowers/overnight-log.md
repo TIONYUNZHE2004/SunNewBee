@@ -79,3 +79,4 @@
   - Small final fix diffs (2–17 lines) were verified directly by the coordinator.
 - **External usage:** OpenRouter 0 · Google tiles 0 · Overpass about 7–14 requests.
 - **Next:** finish the Task 7 review → integrate → Task 9 (agent + SSE) on the AI lane → Task 3/10 data → Task 14 integration + browser verification.
+- **CI FAIL (root cause):** run 38610599711 failed at the OpenAPI drift step. Task 6 extended `AffectedResult` (`isolated_total`, `*_ids`, `*_total`) without running `pnpm gen`, and my integration checklist didn't include the drift check. **Fix:** Task 7 (in review) regenerates the client; it merges next. **Process change:** every integration now runs `pnpm gen && git diff --exit-code packages/api-client` before pushing.
