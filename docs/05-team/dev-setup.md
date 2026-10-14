@@ -1,6 +1,6 @@
 # Dev setup and team workflow
 
-Companion to [stack-decision.md](../04-architecture/stack-decision.md). Versions there are authoritative; this file is the how-to. Written 2026-10-14, **updated 2026-10-15** for the Township World Model platform (Cesium hero, PydanticAI over OpenRouter, SQLite + files, flood pipeline). Canonical names: [../04-architecture/README.md](../04-architecture/README.md).
+Companion to [stack-decision.md](../04-architecture/stack-decision.md). Versions there are authoritative; this file is the how-to. Written 2026-10-14, **updated 2026-10-15; commands in sections 2, 5, 6 and 7 are the ones that exist in the repo after the walking skeleton** (anything marked *planned* is not built yet) for the Township World Model platform (Cesium hero, PydanticAI over OpenRouter, SQLite + files, flood pipeline). Canonical names: [../04-architecture/README.md](../04-architecture/README.md).
 
 ## 1. Monorepo layout
 
@@ -59,31 +59,33 @@ Ownership: `apps/web` frontend; `apps/api`, `packages/spatial`, `data/scripts`, 
 
 | Purpose | Tool | Notes |
 |---|---|---|
-| Node | Node LTS via `.nvmrc` (22 or 24; check `node -v`) | |
-| JS packages | pnpm 12.x workspaces | `corepack enable` then `pnpm i` |
-| Python packages | uv 0.12.x, Python 3.13 | `uv sync` creates `.venv`; pipeline deps (rasterio, pysheds, osmnx) are a `pipelines` group: `uv sync --group pipelines` |
+| Node | Node 24 (`engines`) | |
+| JS packages | pnpm 11 workspaces (`packageManager` in `package.json`) | `corepack enable` then `pnpm install` |
+| Python packages | uv 0.12.x, Python 3.13 | `uv sync --all-packages --all-groups` creates `.venv` |
 | JS lint/format | Biome 2.5 | one config, no ESLint/Prettier |
 | Py lint/format | ruff 0.17 | `ruff check` + `ruff format` |
 | Types | `tsc --noEmit`, `pyright` or `mypy` (optional) | Pydantic gives most Python safety |
 | Unit tests | vitest 5 (+ Testing Library), pytest 9 (+ Hypothesis for flood monotonicity) | |
-| E2E / a11y | Playwright 1.64 + `@axe-core/playwright` | smoke: load, ask question, route shown, flood slider, staff edit |
-| Hooks | pre-commit (or lefthook) | biome, ruff, gitleaks, trailing whitespace, large-file check (reject >5 MB, so 3D assets are not committed by accident) |
-| Contract | `@hey-api/openapi-ts` | `pnpm gen:api` |
+| E2E / a11y | Playwright 1.64 (list view, mock LLM, tiny fixture) | hero smoke plus an accessible-name check. `@axe-core/playwright` is *planned*, not installed |
+| Hooks | pre-commit (*planned*; not configured yet) | biome, ruff, gitleaks, large-file check (reject >5 MB) |
+| Contract | `openapi-typescript` + `openapi-fetch` (instead of hey-api) | `pnpm gen` |
 
-Root scripts (`package.json` or `justfile`):
+Root scripts (`package.json`; there is no `justfile` and no worktree setup is needed):
 
 ```
-dev:web      pnpm --filter web dev
-dev:api      uv run --package townshiplens-api fastapi dev apps/api/src/townshiplens_api/main.py
-openapi      uv run python -m townshiplens_api.export_openapi > apps/api/openapi.json
-gen:api      pnpm openapi && pnpm --filter api-client generate
-seed         uv run python -m townshiplens_api.seed data/seed        # loads seed + overlays into SQLite
-data:base    uv run python data/scripts/import_osm.py && uv run python data/scripts/import_overture.py && uv run python data/scripts/build_roads.py
-data:flood   uv run python data/scripts/build_hand.py && uv run python data/scripts/build_scenarios.py
-test         pnpm -r test && uv run pytest
-lint         pnpm biome check . && uv run ruff check . && uv run ruff format --check .
-sim          uv run python -m evals.run --personas all --scenarios all --out evals/reports/latest
+pnpm dev           # API (uvicorn --reload, :8000) + web (vite, :5173, /api proxied) via concurrently
+pnpm dev:api       # API only
+pnpm test          # uv run pytest && pnpm -r --if-present test (vitest)
+pnpm lint          # ruff check + ruff format --check + biome check
+pnpm gen           # export OpenAPI -> packages/api-client/openapi.json -> schema.d.ts (commit the result; CI fails on drift)
+pnpm golden        # evals/run_golden.py: golden questions against the tiny fixture with the mock LLM
+pnpm data:build    # import_osm.py, build_overlay.py, build_flood.py, build_waste.py under data/scripts
+                   # (the pipeline scripts arrive with the data and flood lanes; check `ls data/scripts`)
+pnpm --filter @tl/web e2e   # Playwright hero smoke (needs `playwright install chromium` once)
+uv run python -m townshiplens_agent.cli "Can I push a stroller from Car Park B to the kiosk?"
 ```
+
+*Planned, not built:* `sim` (resident-agent runner), `data:roads` (OSMnx drive graph), deploy workflows, `config/profiles` YAML.
 
 ## 3. Conventions
 
@@ -110,122 +112,90 @@ Trunk-based:
 
 ## 5. Environment variables and key safety
 
-`.env.example` (committed, no real values):
+`.env.example` (committed, no real values; copy to `.env` at the **repo root**):
 
 ```
-# apps/api + packages/agent
-DATABASE_URL=sqlite:///./data/townshiplens.db   # MVP: SQLite + files. Postgres (e.g. Supabase) only as a later option
-OPENROUTER_API_KEY=                        # empty + LLM_PROVIDER=mock = deterministic mock agent (CI, offline dev)
-LLM_PROVIDER=openrouter                    # openrouter | mock
-LLM_MODEL_DEFAULT=                         # OpenRouter model ID, set per environment, never hard-coded
-LLM_MODEL_ESCALATE=                        # used only when the output validator retries
-LLM_OUTPUT_RETRIES=2                       # validator retries before the template fallback
-STAFF_TOKEN=change-me                      # MVP staff auth: shared token in the Authorization header (named accounts later)
-CORS_ORIGINS=http://localhost:5173
-RATE_LIMIT_CHAT=20/minute
-
-# apps/web (public: everything here ships to the browser)
-VITE_API_BASE_URL=http://localhost:8000
-VITE_GOOGLE_MAPS_API_KEY=                  # Map Tiles API for Photorealistic 3D Tiles; referrer-restricted
-VITE_CESIUM_ION_TOKEN=                     # Cesium ion Community plan (OSM Buildings / World Terrain fallback)
-VITE_MAPBOX_TOKEN=                         # Mapbox lite view; URL-restricted public token
-VITE_FEATURE_3D=true
+# Server only (apps/api + packages/agent)
+OPENROUTER_API_KEY=
+LLM_PROVIDER=            # openrouter | mock (mock when the key is empty)
+LLM_MODEL_DEFAULT=anthropic/claude-haiku-5.5
+LLM_MODEL_ESCALATE=anthropic/claude-sonnet-5.5
+LLM_OUTPUT_RETRIES=2
+STAFF_TOKEN=change-me    # the API refuses to resolve verification requests until this is changed
+DATABASE_URL=sqlite:///./.data/townshiplens.db
+OPENCELLID_TOKEN=        # reserved
+# Optional server overrides: TL_DATA_DIR (default data/seed/elmina, else the tiny fixture), TURN_TIMEOUT_S
+# Browser (public; restrict by referrer). vite.config.ts maps ONLY these three.
+GOOGLE_MAPS_API_KEY=
+CESIUM_ION_ACCESS_TOKEN=
+MAPBOX_ACCESS_TOKEN=     # public pk. token
 ```
 
 Rules:
-- Only `VITE_*` values reach the browser; assume they are public. Restrict the Google key by HTTP referrer and to the Map Tiles API, the Mapbox token by URL, and set quota caps and budget alerts (Google: 1,000 free events/month then USD 6 per 1,000; Mapbox: 50,000 free loads/month).
+- Only the three browser keys above reach the browser (explicit `define` mapping in `apps/web/vite.config.ts`, no `VITE_*` prefix); assume they are public. Restrict the Google key by HTTP referrer and to the Map Tiles API, the Mapbox token by URL, and set quota caps and budget alerts (Google: 1,000 free events/month then USD 6 per 1,000; Mapbox: 50,000 free loads/month).
 - `OPENROUTER_API_KEY` exists only in the API environment (Cloud Run env / Secret Manager, GitHub Actions secrets). Each dev uses a personal key with a spend cap; do not share keys in chat. Choose models in env only (`LLM_MODEL_DEFAULT`, `LLM_MODEL_ESCALATE`).
-- `STAFF_TOKEN` is an MVP shortcut: rotate it before any public demo and never commit a real value.
+- `STAFF_TOKEN` is an MVP shortcut (a shared token in the `X-Staff-Token` header): rotate it before any public demo and never commit a real value.
 - `.env` is gitignored; gitleaks runs in pre-commit and CI. If a key leaks, rotate immediately; removing it from git history is not enough.
 - Never log prompts that contain staff or personal data; the chat log stores sessions without IP addresses.
 
 ## 6. CI (GitHub Actions)
 
-`ci.yml` on every PR and push to `main`:
+`ci.yml` (single `check` job, `LLM_PROVIDER=mock`) on every PR and push to `main`:
 
-1. `pnpm i --frozen-lockfile`, `uv sync --frozen`, with caching (setup-node/pnpm cache, `astral-sh/setup-uv`).
-2. Lint: biome, ruff check, ruff format check, gitleaks.
-3. Types: `tsc --noEmit`.
-4. Unit: vitest, pytest.
-5. Contract: export OpenAPI, regenerate client, `git diff --exit-code`.
-6. E2E (on `main` and PRs touching `apps/`): Playwright against the dev server with the stub/LLM-mock (`LLM_PROVIDER=mock`; no real keys in PR CI), including axe checks.
-7. Sim smoke: run `evals` on 3 profiles with the deterministic engine only (no LLM), including `baseline` and `stage_p3m`; fail if a previously passing journey regresses or a flood invariant breaks (monotonicity, no route through `likely_flooded`).
+1. `pnpm install --frozen-lockfile`, `uv sync --all-packages --all-groups`.
+2. `pnpm lint` (ruff, ruff format, biome).
+3. `uv run pytest -q`.
+4. `pnpm -r --if-present typecheck` and `pnpm -r --if-present test` (vitest).
+5. OpenAPI drift: `pnpm gen && git diff --exit-code packages/api-client`.
+6. `pnpm golden` (golden questions, mock LLM).
+7. Playwright hero smoke: `playwright install --with-deps chromium`, then `pnpm --filter @tl/web e2e`; the HTML report is uploaded on failure.
 
-`deploy-web.yml`: on `main`, build `apps/web`, deploy to Cloudflare Pages (`wrangler pages deploy` or Pages Git integration). `deploy-api.yml`: on `main`, build the Docker image (with the committed `data/seed/elmina` files and a freshly seeded SQLite), push, `gcloud run deploy --region asia-southeast1` (Workload Identity Federation preferred over JSON keys). There is no keep-alive workflow while we use SQLite + files; add one only if we later move to a hosted Postgres that pauses when idle. Cloud Run disk is ephemeral: staff edits made on the deployed demo are lost on a new revision unless exported back to `data/seed` (or the DB moves to Postgres).
+*Planned:* gitleaks, axe checks, the evals simulation smoke.
 
-## 7. Day-1 setup per role
+*Planned (not built):* `deploy-web.yml`: on `main`, build `apps/web`, deploy to Cloudflare Pages (`wrangler pages deploy` or Pages Git integration). `deploy-api.yml`: on `main`, build the Docker image (with the committed `data/seed/elmina` files and a freshly seeded SQLite), push, `gcloud run deploy --region asia-southeast1` (Workload Identity Federation preferred over JSON keys). There is no keep-alive workflow while we use SQLite + files; add one only if we later move to a hosted Postgres that pauses when idle. Cloud Run disk is ephemeral: staff edits made on the deployed demo are lost on a new revision unless exported back to `data/seed` (or the DB moves to Postgres).
 
-### Everyone (first 30 minutes)
+## 7. Setup per role
+
+### Everyone
 
 ```bash
 git clone <repo> && cd SunNiuBi
-brew install node pnpm uv just gitleaks pre-commit   # or your OS equivalents
-corepack enable
-cp .env.example .env
-pre-commit install
-pnpm i && uv sync
-# agree on: Node/Python versions, PR template, Conventional Commits, CI green on empty repo
-# agree on: the Elmina envelope bbox (S,W,N,E) 3.150,101.460,3.240,101.530 and the flood analysis bbox (fixed in week 1)
+corepack enable                     # pnpm; Node 24 and uv (https://docs.astral.sh/uv/) installed
+cp .env.example .env                # keys optional; set STAFF_TOKEN to use the /manage resolve form
+pnpm install && uv sync --all-packages --all-groups
+pnpm dev                            # http://localhost:5173 (web), http://localhost:8000/docs (API)
 ```
 
-### Frontend
+Without `data/seed/elmina` the API serves the tiny fixture world (`packages/spatial/tests/fixtures/tiny`). Everything works with no keys: list view plus the mock assistant.
+
+### Frontend (`apps/web`, see [its README](../../apps/web/README.md))
 
 ```bash
-pnpm create vite@latest apps/web --template react-ts
-cd apps/web
-pnpm add react@19 react-dom@19 cesium@1.146.0 resium@1.27.0 mapbox-gl@3.33.0 react-map-gl \
-  zustand @tanstack/react-query react-router
-pnpm add -D tailwindcss @tailwindcss/vite vitest @testing-library/react @playwright/test \
-  @axe-core/playwright @hey-api/openapi-ts
-pnpm dlx shadcn@latest init
-pnpm dev
-# milestone 1 (Day-1 spike, answers "do Google tiles look good over Elmina?"): Resium <Viewer> + createGooglePhotorealistic3DTileset,
-#   credits visible, camera on Elmina, Cesium static assets served (CESIUM_BASE_URL). Test on a mid-range Android phone.
-#   If tiles look poor or billing is blocked: switch to Cesium OSM Buildings + World Terrain (VITE_CESIUM_ION_TOKEN).
-# milestone 2: water polygon at height h (translucent, depth-tested) + slider; datum offset against the Elmina lake.
-# milestone 3: scene-intent adapter for Cesium (camera.fly_to, route.highlight, flood.set_level, layer.toggle) driven by fixtures
-#   from packages/fixtures; then the Mapbox lite and list adapters on the same intents.
+pnpm --filter @tl/web dev | test | typecheck | build | e2e
+pnpm gen                            # after any API change; commit packages/api-client
 ```
 
-Lazy-load the Cesium chunk and use `requestRenderMode`. Run `npx ctx7@latest docs /reearth/resium "<question>"` and `npx ctx7@latest library Cesium "<question>"` for current APIs (older Resium examples still use the removed `createWorldTerrain()`; use `createWorldTerrainAsync`).
+Keys for 3D: `GOOGLE_MAPS_API_KEY` (photoreal tiles) or `CESIUM_ION_ACCESS_TOKEN` (OSM Buildings); `MAPBOX_ACCESS_TOKEN` for the lite map. Lazy-load Cesium; use `requestRenderMode`. For current library APIs run `npx ctx7@latest library Cesium "<question>"`.
 
-### Backend
+### Backend (`apps/api`, `packages/spatial`, `data/`)
 
 ```bash
-uv init --package apps/api && cd apps/api
-uv add fastapi "uvicorn[standard]" pydantic pydantic-settings sqlalchemy alembic \
-  networkx shapely pyproj sse-starlette slowapi httpx
-uv add --dev pytest pytest-asyncio hypothesis ruff
-uv sync --group pipelines   # rasterio, pysheds, osmnx, geopandas, pyarrow, overturemaps (pipeline scripts only)
-uv run fastapi dev src/townshiplens_api/main.py     # http://localhost:8000/docs
-# milestone 1 (by end of day 2): /healthz, GET /places, GET /route?from&to&profile returning FIXTURE data,
-#   GET /scenarios, openapi.json exported, committed, client generated. Unblocks both other roles.
-# milestone 2 (week 1): data/scripts/import_osm.py for the Elmina envelope, build_roads.py (OSMnx walk + drive graphs),
-#   fetch Copernicus GLO-30 tile N03 E101 and the ASF HAND raster, clip, stage_p3m GeoJSON, edge flood_class.
-# then: SQLite schema + seed, packages/spatial routing (profiles from config/profiles), scenario-aware plan_route,
-#   evacuation reachability/islands/isochrones, VR workflow, STAFF_TOKEN auth.
-# deploy skeleton to Cloud Run (asia-southeast1) in week 1, not week 4.
+uv run pytest apps/api packages/spatial -q
+uv run uvicorn townshiplens_api.main:app --reload --port 8000 --app-dir apps/api/src
+pnpm data:build                     # rebuild seed data (see section 2 for script status)
 ```
 
-Create `packages/spatial` as a separate uv workspace member (`uv init --lib packages/spatial`) and depend on it from `apps/api` and `packages/agent`. Data sources and licences (Copernicus attribution, ODbL for OSM/Overture) are listed in [../02-research/flood-disaster-lens.md](../02-research/flood-disaster-lens.md) and [../02-research/township-3d-engine-and-data.md](../02-research/township-3d-engine-and-data.md); put them in `data/README.md` as you go.
+`packages/spatial` is a uv workspace member used by `apps/api` and `packages/agent`. The 10 tools live only in `packages/spatial/src/townshiplens_spatial/tools.py`. Data sources and licences: [../02-research/flood-disaster-lens.md](../02-research/flood-disaster-lens.md), [../02-research/township-3d-engine-and-data.md](../02-research/township-3d-engine-and-data.md).
 
-### AI
+### AI (`packages/agent`, `evals/`, see [its README](../../packages/agent/README.md))
 
 ```bash
-uv init --lib packages/agent && cd packages/agent
-uv add "pydantic-ai-slim[openrouter]==2.56.0" pydantic
-uv add --dev pytest
-# milestone 1: LLM_PROVIDER=mock works first (FunctionModel/TestModel via agent.override), then OpenRouter with
-#   LLM_MODEL_DEFAULT from env. Agent with output_type=FinalAnswer, @agent.output_validator -> ModelRetry,
-#   retries={'output': LLM_OUTPUT_RETRIES}, UnexpectedModelBehavior -> template fallback.
-# milestone 2: thin tool wrappers over packages/spatial/tools.py (start: find_place, plan_route; then all 10), plus
-#   run_turn(question, context) -> AsyncIterator[Event] matching the SSE schema in api-contract.md; hand to backend to mount at POST /chat.
-# milestone 3: flood guardrails (disclaimer from tool result, no "safe", official links) and golden questions for access + flood;
-#   evals/: profile configs + deterministic journey runner (incl. scenarios) -> report (JSON + Markdown).
-npx ctx7@latest library PydanticAI "output validator ModelRetry run_stream_events OpenRouter"   # confirm current API
+uv run pytest packages/agent
+LLM_PROVIDER=mock uv run python -m townshiplens_agent.cli "Where can I drop off recycling nearby?"
+pnpm golden                         # mock, CI; GOLDEN_REAL=1 pnpm golden uses OpenRouter (costs money)
 ```
 
-Pin `pydantic-ai-slim` exactly and read the changelog before bumping ([ADR 0008](../00-overview/decisions/0008-agent-harness-pydantic-ai.md)). MCP (`fastmcp`) is a stretch goal, not a Day-1 dependency.
+Pin `pydantic-ai-slim` exactly and read the changelog before bumping ([ADR 0008](../00-overview/decisions/0008-agent-harness-pydantic-ai.md)). MCP is a stretch goal.
 
 ## 8. Definition of done for a PR
 

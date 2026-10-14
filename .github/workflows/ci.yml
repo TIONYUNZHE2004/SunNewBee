@@ -19,3 +19,9 @@ jobs:
       - name: OpenAPI drift
         run: pnpm gen && git diff --exit-code packages/api-client
       - run: pnpm golden
+      - name: Playwright hero smoke (list view, mock LLM, tiny fixture)
+        run: pnpm --filter @tl/web exec playwright install --with-deps chromium && pnpm --filter @tl/web e2e
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with: { name: playwright-report, path: apps/web/playwright-report, if-no-files-found: ignore }

@@ -13,6 +13,9 @@ Status: proposed 2026-10-14, **partly superseded 2026-10-15 (see the box below)*
 > | **Database** | Postgres on Supabase Singapore (deployed), SQLite for dev | **SQLite + versioned GeoJSON/GeoParquet files** (base twin + lens overlays). **No Postgres/Supabase/PostGIS for the MVP**; hosted Postgres is a later option if staff edits must persist across deploys. The Supabase keep-alive cron is dropped | [township-3d-engine-and-data § 4](../02-research/township-3d-engine-and-data.md) |
 > | **Scope** | One facility, accessibility only | Whole-Elmina base twin, lenses `access` (deep), `flood` (deep), `waste` (thin); flood scenarios precomputed from a DEM by HAND | [ADR 0010](../00-overview/decisions/0010-flood-lens-hand-scenarios.md) |
 > | **Deployment** | Cloudflare Pages (web) + Cloud Run asia-southeast1 (API) | **Unchanged** | |
+> | **API client** | `@hey-api/openapi-ts` | **`openapi-typescript` + `openapi-fetch`** (`@tl/api-client`, `pnpm gen`; committed, CI fails on drift). Mentions of hey-api below are out of date | implemented in the walking skeleton |
+>
+> As implemented (walking skeleton): PydanticAI 2.56.0 over OpenRouter with a scripted mock; CesiumJS 1.146 + Resium 1.27 (Google photoreal tiles or Cesium OSM Buildings) with Mapbox GL 3.33 lite and list views; see the [walking-skeleton spec, Deviations (implemented)](../superpowers/specs/2026-10-15-platform-walking-skeleton-design.md#10-deviations-implemented).
 >
 > Unchanged: Vite + React 19 SPA, FastAPI + Pydantic + NetworkX, uv/pnpm monorepo, OpenAPI-generated client, custom typed SSE (event names are now in [README](README.md#canonical-names-cheat-sheet)), accessibility rules in 1.5. Current layout and env vars: [dev-setup](../05-team/dev-setup.md).
 

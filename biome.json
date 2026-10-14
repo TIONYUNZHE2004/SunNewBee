@@ -6,6 +6,8 @@
       "!**/node_modules",
       "!**/.venv",
       "!**/dist",
+      "!**/test-results",
+      "!**/playwright-report",
       "!reference",
       "!packages/api-client/src/schema.d.ts",
       "!data/seed",

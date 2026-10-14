@@ -1,6 +1,6 @@
 # Platform Walking Skeleton: Scaffold Design (v2)
 
-- Status: **approved** (15 Oct 2026, after the alignment Q&A)
+- Status: **implemented (walking skeleton, tiny-fixture verified; real-data verification pending)**. Approved 15 Oct 2026 after the alignment Q&A. Hero flows pass with the mock LLM on the tiny fixture (pytest, vitest, golden, Playwright). Real Elmina seed data, 3D with live keys and a live OpenRouter model are still to be verified.
 - Date: 2026-10-15
 - Replaces: [2026-10-14 walking-skeleton (v1)](2026-10-14-walking-skeleton-design.md), superseded by the platform pivot.
 - Decisions it builds on: ADR [0007 Cesium](../../00-overview/decisions/0007-3d-engine-cesium.md) · [0008 PydanticAI/OpenRouter](../../00-overview/decisions/0008-agent-harness-pydantic-ai.md) · [0009 platform + lenses](../../00-overview/decisions/0009-township-world-model-platform.md) · [0010 flood HAND scenarios](../../00-overview/decisions/0010-flood-lens-hand-scenarios.md) · [architecture README (canonical names)](../../04-architecture/README.md) · [api-contract](../../04-architecture/api-contract.md) · [world-model-schema § 10](../../04-architecture/world-model-schema.md) · [3d-pipeline](../../04-architecture/3d-pipeline.md).
@@ -114,3 +114,18 @@ The OSMnx drive graph and `drive` routing · resource-constrained rest-point sea
 3. `pnpm data:build` from a clean checkout reproduces the seed files (allowing for OSM drift).
 4. Browser pane: list view with no tokens; Cesium OSM fallback with an ion token if available; the three heroes work; the manage page shows the VR (demand increments) and the flood briefing.
 5. Commit and push after each verified step.
+
+## 10. Deviations (implemented)
+
+Where the build differs from the text above (the text is kept as the original intent):
+
+1. **API client:** `openapi-typescript` + `openapi-fetch` (`@tl/api-client`, `pnpm gen`) instead of `@hey-api/openapi-ts`. Smaller, no runtime codegen config; the drift check in CI is unchanged.
+2. **Agent events (section 6):** `tool.call`, `tool.result` and `verification.requested` are emitted from the tool wrappers (`agent.call_tool` records into a `TurnRecord` and pushes to a queue that `run_turn` drains) rather than by mapping `run_stream_events()`. This keeps the validator's ground truth and the stream identical. `text.delta`, `scene.intent`, `citation`, `uncertainty`, `disclaimer` and `done` come from the validated `FinalAnswer`.
+3. **Flood method:** ADR 0010 was amended. The default scenario method is a Relative Elevation Model (REM: height above the nearest *mapped* OSM drainage) instead of dense ASF HAND; HAND stays as `--method hand` for comparison.
+4. **`status_for_profile`:** the canonical per-edge values are `ok | unknown | blocked | flooded_likely | flooded_possible`, set by the API on `/layers/{lens}` LineStrings and used by the frontend status styles.
+5. **Static assets:** `vite-plugin-static-copy` v4 keeps the source path, so `rename: { stripBase: 4 }` is used to land Cesium files at `/cesium/<Dir>/...`; a build-time script checks them.
+6. **`STAFF_TOKEN`:** the default `change-me` is refused (503 on resolve) so a deployment can never run with the placeholder; staff set a real value in `.env`. Wrong token is 401.
+7. **`scenario_id`:** `ChatRequest.scenario_id` is constrained to the pattern `baseline|stage_p1m..stage_p5m` and only used if the scenario exists in the loaded world; the agent injects it into `plan_route`, `list_evacuation_centres` and `affected_places` when the model omits it.
+8. **Verification requests never store model-written text:** `question_summary` is a fixed `"chat: <reason> <attribute> on <target>"` and `target_id` must be an existing id (else `unknown_place`).
+9. **Playwright (section 7):** the smoke runs on the tiny fixture with the mock and no map keys (list view); the accessibility check asserts accessible names because `@axe-core/playwright` is not installed.
+10. **Data pipelines:** `pnpm data:build` is defined, but the pipeline scripts and the real `data/seed/elmina` seed arrive with the data and flood lanes; until then the API serves the tiny fixture.

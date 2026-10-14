@@ -24,9 +24,45 @@ Site: **whole City of Elmina** in 3D, with deep verified detail at **Elmina Urba
 |---|---|
 | [`docs/`](docs/README.md) | **Knowledge base: start here.** Brief, research, product spec, architecture, team plan, pitch |
 | [`reference/`](reference/README.md) | Papers (PDF), cloned reference repos (gitignored, use `reference/clone-repos.sh`), source notes |
-| `apps/`, `packages/`, `config/`, `data/`, `evals/` | Code (to be scaffolded, see [docs/05-team/dev-setup.md](docs/05-team/dev-setup.md)) |
+| [`apps/web`](apps/web/README.md) | Vite + React SPA: resident page (3D / lite map / list + chat) and `/manage` |
+| [`apps/api`](apps/api/README.md) | FastAPI: world-model endpoints, SSE `/chat`, verification requests |
+| [`packages/spatial`](packages/spatial/README.md) | World model, routing, flood analytics, the 10 tools |
+| [`packages/agent`](packages/agent/README.md) | PydanticAI assistant, answer validator, mock LLM |
+| [`packages/api-client`](packages/api-client) | Generated TypeScript client (`pnpm gen`; CI fails on drift) |
+| `data/`, `evals/` | Data pipelines (`pnpm data:build`) and the golden questions (`pnpm golden`) |
 
 ## Quick start
-1. `cp .env.example .env` (optional: add keys; everything works without them)
-2. `pnpm install && uv sync --all-packages`
-3. `pnpm dev` → web http://localhost:5173 · API http://localhost:8000/docs
+
+```bash
+cp .env.example .env          # keys are optional; everything works without them
+pnpm install && uv sync --all-packages --all-groups
+pnpm dev                      # web http://localhost:5173 · API http://localhost:8000/docs
+```
+
+With no keys you get the list view and a deterministic mock assistant. To resolve verification
+requests on `/manage`, set `STAFF_TOKEN` in `.env` to something other than `change-me` (the API
+refuses the default with a 503) and paste the same value into the "Staff token" field.
+
+Other commands: `pnpm test` (pytest + vitest), `pnpm lint`, `pnpm gen` (OpenAPI to TS client),
+`pnpm golden` (golden questions, mock LLM), `pnpm data:build` (rebuild seed data),
+`pnpm --filter @tl/web e2e` (Playwright; first run `pnpm --filter @tl/web exec playwright install chromium`).
+More in [docs/05-team/dev-setup.md](docs/05-team/dev-setup.md).
+
+## The three hero questions
+
+1. **Access:** "Can I push a stroller from Car Park B to the playground without stairs?" A streamed, cited answer; the route is highlighted; unchecked segments are amber and become verification requests for the township team.
+2. **Flood (resident):** "Priya uses a wheelchair at Lakeside Mall. If the river rises 3 m, where can she go?" Evacuation centres with their source, honest unknowns, and an "indicative, not a forecast" disclaimer. The assistant never calls anywhere "safe".
+3. **Flood (manager):** open **Management > Flood briefing**, pick **River +3 m (indicative)**: places likely or possibly cut off, isolated areas, reachable centres, and a draft resident advisory.
+
+## Keys (names only; never commit `.env`)
+
+| Variable | Where it is used | Without it |
+|---|---|---|
+| `OPENROUTER_API_KEY`, `LLM_PROVIDER`, `LLM_MODEL_DEFAULT`, `LLM_MODEL_ESCALATE` | API / agent (server only) | mock assistant |
+| `STAFF_TOKEN` | API (server only); resolving verification requests | resolve returns 503 until changed from `change-me` |
+| `DATABASE_URL`, `TL_DATA_DIR` | API (server only) | local SQLite; seed data, else the tiny fixture |
+| `GOOGLE_MAPS_API_KEY` | browser (public, referrer-restricted): photoreal 3D tiles | 3D uses Cesium OSM, or falls back |
+| `CESIUM_ION_ACCESS_TOKEN` | browser (public, referrer-restricted): OSM Buildings, terrain | as above |
+| `MAPBOX_ACCESS_TOKEN` | browser (public `pk.` token, URL-restricted): lite map | list view |
+
+See [`.env.example`](.env.example) and [apps/web/README.md](apps/web/README.md#environment-keys).
