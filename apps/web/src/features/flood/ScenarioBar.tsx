@@ -1,4 +1,6 @@
 import { useScenarios } from "../../lib/api";
+import { useChatDraft } from "../chat/chatDraftStore";
+import { WHERE_CAN_I_GO } from "../chat/suggestions";
 import { useScene } from "../scene/sceneStore";
 
 const cls = (active: boolean) =>
@@ -51,7 +53,29 @@ export function ScenarioButtons({
   );
 }
 
+/** Asks the assistant for options in the active scenario. The profile and scenario travel in the
+ * request body, never in the message text. Absent when no scenario is active. */
+export function WhereCanIGo({
+  scenarioId,
+  onAsk,
+}: {
+  scenarioId: string | null;
+  onAsk: (text: string) => void;
+}) {
+  if (!scenarioId) return null;
+  return (
+    <button
+      type="button"
+      onClick={() => onAsk(WHERE_CAN_I_GO)}
+      className="mt-2 min-h-11 rounded-lg border border-line bg-card px-3 text-sm font-medium text-brand hover:bg-brand-tint"
+    >
+      {WHERE_CAN_I_GO}
+    </button>
+  );
+}
+
 export function ScenarioBar() {
+  const ask = useChatDraft((s) => s.ask);
   const { scenarioId, setScenario } = useScene();
   const q = useScenarios();
   const scenarios = q.data ?? [];
@@ -79,6 +103,7 @@ export function ScenarioBar() {
           onSelect={setScenario}
         />
       )}
+      <WhereCanIGo scenarioId={scenarioId} onAsk={ask} />
     </fieldset>
   );
 }
