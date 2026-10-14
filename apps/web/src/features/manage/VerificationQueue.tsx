@@ -17,6 +17,7 @@ import {
   buildResolveBody,
   currentValueText,
   errorMessage,
+  type FormState,
   formReducer,
   hasCurrentValue,
   initialFormFor,
@@ -54,7 +55,8 @@ export function ResolveForm({ vr, token, onDone }: { vr: VR; token: string; onDo
 
   async function submit(e: FormEvent) {
     e.preventDefault();
-    const invalid = validateForm(s, vr.attribute) ?? validatePhoto(photoAfterAction(s.action, photo));
+    const invalid =
+      validateForm(s, vr.attribute) ?? validatePhoto(photoAfterAction(s.action, photo));
     if (invalid) return dispatch({ type: "fail", message: invalid });
     dispatch({ type: "submit" });
     try {
