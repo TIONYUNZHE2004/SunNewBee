@@ -295,3 +295,31 @@
   - Task 32: tappable centre and waste markers, list sections, "Collection day: unknown, ask MBSA".
   - Task 33: management KPI tiles, queue filters and tabs, Create VR on journey gaps.
   - Task 34: evidence photo upload with stdlib JPEG/PNG metadata stripping (no Pillow, per R21); the new dependency is python-multipart (Apache-2.0).
+
+## 03:51 — Wave 3 merges + browser check
+- **Merged and pushed:**
+  - Task 33 (`bda5218`): KPI tiles, queue filters and tabs, Create VR on journey gaps; staff token in one shared store.
+  - Task 32 (`8d3be9e`):
+    - tappable centre and waste markers in Cesium and Mapbox, plus list sections;
+    - cards say "Candidate (OSM), not an official relief centre" and "Route from Elmina Lakeside Mall (demo start point, not your location)";
+    - reach labels per status;
+    - waste cards say "Collection day: unknown, ask MBSA".
+  - Coordinator fix (`0162637`): centre and waste labels show only within 1.5 km of the camera or when focused. 72 labels had formed an unreadable block.
+- **Checklist on `0162637`:**
+  - pytest 369: PASS
+  - golden 12/12 (mock): PASS
+  - vitest 177: PASS
+  - lint: PASS
+  - gen drift: PASS
+  - typecheck: PASS
+  - build: PASS
+  - e2e 10/10: PASS
+- **Browser, real seed (DEMO_MODE, mock-backed):**
+  - Deep spot "Sungai Subang corridor": PASS. It turns the flood lens on, selects +3 m, swaps in the flood chips, shows "Where can I go?" and the assessed-area disclaimer (`screenshots/2026-10-15-0352-real-seed-subang-deep-spot-p3m.jpg`).
+  - `/manage`: KPI tiles, filters and the Current value column render: PASS.
+  - Local dev DB note: `.data/elmina.db` holds 174 VRs filed at 03:06, before the Task 24 cap. Delete it before a demo.
+  - Polish: VR summaries show raw ids such as `__centre__evc-…`.
+- **In flight:**
+  - Task 31 (major roads; Opus).
+  - Task 34 fix round. The security review found 2 Important issues: the multipart header split across chunks, and a Correct keeping stale photo evidence.
+- **External usage:** Google tiles about 23/30 · OpenRouter unchanged at US$0.1407 (live calls stopped, R19).
