@@ -22,7 +22,6 @@ const FLOODED: EdgeStatus[] = ["flooded_likely", "flooded_possible"];
 /** requestRenderMode: request a frame whenever `deps` change. */
 function useRenderOn(...deps: unknown[]) {
   const { viewer } = useCesium();
-  // biome-ignore lint/correctness/useExhaustiveDependencies: deps are caller-provided triggers
   useEffect(() => {
     if (viewer && !viewer.isDestroyed()) viewer.scene.requestRender();
   }, [viewer, ...deps]);
