@@ -863,6 +863,87 @@
         "title": "Kpis",
         "type": "object"
       },
+      "ProfileInfo": {
+        "description": "Read-only profile parameters, for the 'Assumptions' section. No secrets, no per-user data.",
+        "properties": {
+          "allowed_types": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Allowed Types"
+          },
+          "hard": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "title": "Hard",
+            "type": "object"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "max_rest_free_run_m": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Rest Free Run M"
+          },
+          "soft": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "title": "Soft",
+            "type": "object"
+          },
+          "speed_kmh": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Speed Kmh"
+          },
+          "stub": {
+            "default": false,
+            "title": "Stub",
+            "type": "boolean"
+          },
+          "threshold_basis": {
+            "default": "our engineering default (no published source)",
+            "title": "Threshold Basis",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "label",
+          "hard",
+          "soft"
+        ],
+        "title": "ProfileInfo",
+        "type": "object"
+      },
       "ResolveBody": {
         "properties": {
           "action": {
@@ -2936,6 +3017,28 @@
           }
         },
         "summary": "Place"
+      }
+    },
+    "/profiles": {
+      "get": {
+        "operationId": "profiles_profiles_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ProfileInfo"
+                  },
+                  "title": "Response Profiles Profiles Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Profiles"
       }
     },
     "/routes": {

@@ -56,3 +56,39 @@ def test_place_endpoint_resolves_centre_and_waste_ids():
     assert "route_status" in d["reachability"]
     w = c.get("/places/wp-park-recycle")
     assert w.status_code == 200 and w.json()["data"]["source_label"].startswith("Waste point")
+
+
+def test_flood_layer_edges_carry_class_and_scenario():
+    fc = c.get("/layers/flood", params={"scenario_id": "stage_p3m"}).json()
+    lines = [f for f in fc["features"] if f["geometry"]["type"] == "LineString"]
+    assert lines
+    for f in lines:
+        p = f["properties"]
+        assert p["scenario_id"] == "stage_p3m"
+        assert p["flood_class"] in {"likely_flooded", "possible"}
+        assert not any("depth" in k for k in p)
+    seg = next(f for f in lines if f["properties"]["id"] == "seg-cd")
+    assert seg["properties"]["flood_class"] == "likely_flooded"
+
+
+def test_access_layer_flags_flooded_edges_only():
+    fc = c.get("/layers/access", params={"scenario_id": "stage_p3m"}).json()
+    lines = [f["properties"] for f in fc["features"] if f["geometry"]["type"] == "LineString"]
+    assert any(p.get("flood_class") for p in lines)
+    assert all("flood_class" not in p for p in lines if p["status_for_profile"] == "ok")
+
+
+def test_briefing_baseline_has_edge_ids():
+    b = c.get("/briefings/flood", params={"scenario_id": "baseline"}).json()
+    assert b["affected"]["likely_edge_ids"] == []
+
+
+def test_profiles_endpoint_lists_thresholds():
+    r = c.get("/profiles")
+    assert r.status_code == 200
+    by_id = {p["id"]: p for p in r.json()}
+    w = by_id["wheelchair"]
+    assert w["hard"]["max_incline_pct"] == 8.3
+    assert w["hard"]["min_width_m"] == 0.9
+    assert w["hard"]["max_step_count"] == 0
+    assert "no published source" in w["threshold_basis"]

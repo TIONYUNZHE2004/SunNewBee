@@ -229,6 +229,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/profiles": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Profiles */
+        get: operations["profiles_profiles_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/routes": {
         parameters: {
             query?: never;
@@ -713,6 +730,40 @@ export interface components {
             median_hours_to_resolve?: number | null;
             /** Open Vrs */
             open_vrs: number;
+        };
+        /**
+         * ProfileInfo
+         * @description Read-only profile parameters, for the 'Assumptions' section. No secrets, no per-user data.
+         */
+        ProfileInfo: {
+            /** Allowed Types */
+            allowed_types?: string[] | null;
+            /** Hard */
+            hard: {
+                [key: string]: number;
+            };
+            /** Id */
+            id: string;
+            /** Label */
+            label: string;
+            /** Max Rest Free Run M */
+            max_rest_free_run_m?: number | null;
+            /** Soft */
+            soft: {
+                [key: string]: number;
+            };
+            /** Speed Kmh */
+            speed_kmh?: number | null;
+            /**
+             * Stub
+             * @default false
+             */
+            stub: boolean;
+            /**
+             * Threshold Basis
+             * @default our engineering default (no published source)
+             */
+            threshold_basis: string;
         };
         /** ResolveBody */
         ResolveBody: {
@@ -1666,6 +1717,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    profiles_profiles_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProfileInfo"][];
                 };
             };
         };
