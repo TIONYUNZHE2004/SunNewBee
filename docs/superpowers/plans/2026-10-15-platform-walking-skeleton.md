@@ -92,7 +92,7 @@ Node IDs (`n-…`) are implicit: an edge's `from`/`to` plus the first/last coord
 ### Task 1: Monorepo foundation
 
 **Files:**
-- Create: `package.json`, `pnpm-workspace.yaml`, `biome.json`, `tsconfig.base.json`, `.nvmrc`, `pyproject.toml`, `.python-version`, `ruff.toml`, `.env.example`, `.pre-commit-config.yaml`, `.github/workflows/ci.yml`
+- Create: `package.json`, `pnpm-workspace.yaml`, `biome.json`, `tsconfig.base.json`, `.nvmrc`, `pyproject.toml`, `.python-version`, `ruff.toml`, `.env.example`, `.pre-commit-config.yaml`, `.github/workflows/ci.yml`, `apps/web/package.json` (deps only, ruling R2), `packages/{spatial,agent}/pyproject.toml`, `apps/api/pyproject.toml`, `data/__init__.py`, `data/scripts/__init__.py`, `pnpm-lock.yaml`, `uv.lock`
 - Modify: `.gitignore`, `README.md`
 
 **Interfaces:**
@@ -173,7 +173,7 @@ dev = ["pytest==9.1.1", "pytest-asyncio>=1.0", "hypothesis==6.169.1", "ruff==0.1
 data = ["rasterio==1.5.2", "scipy==1.18.1", "requests==2.34.2", "numpy>=2"]
 
 [tool.pytest.ini_options]
-testpaths = ["packages/spatial/tests", "packages/agent/tests", "apps/api/tests"]
+testpaths = ["packages/spatial/tests", "packages/agent/tests", "apps/api/tests", "data/scripts/tests"]
 asyncio_mode = "auto"
 ```
 `ruff.toml`
@@ -242,7 +242,7 @@ jobs:
         with: { node-version: 24, cache: pnpm }
       - uses: astral-sh/setup-uv@v6
       - run: pnpm install --frozen-lockfile
-      - run: uv sync --all-packages
+      - run: uv sync --all-packages --all-groups
       - run: pnpm lint
       - run: uv run pytest -q
       - run: pnpm -r --if-present typecheck
@@ -290,14 +290,18 @@ packages = ["src/townshiplens_agent"]
 name = "townshiplens-api"
 version = "0.1.0"
 requires-python = ">=3.13"
-dependencies = ["townshiplens-spatial", "townshiplens-agent", "fastapi==0.143.1", "uvicorn==0.54.0", "sse-starlette==3.5.0"]
+dependencies = ["townshiplens-spatial", "townshiplens-agent", "fastapi==0.143.1", "uvicorn==0.54.0", "sse-starlette==3.5.0", "pydantic-settings==2.16.0"]
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 [tool.hatch.build.targets.wheel]
 packages = ["src/townshiplens_api"]
 ```
-Create an empty `src/<pkg>/__init__.py` in each. Re-run: `uv sync --all-packages` → Expected: resolves and installs.
+Create an empty `src/<pkg>/__init__.py` in each. Also create empty `data/__init__.py`, `data/scripts/__init__.py` and `data/scripts/tests/__init__.py`-free test dir `data/scripts/tests/` (with a `.gitkeep`).
+
+**Ruling R2 (lockfiles are serialized in Task 1):** also create `apps/web/package.json` now, with the exact content given in Task 11 Step 1, and `pnpm-workspace.yaml` already lists `apps/web`. Then run `pnpm install` so `pnpm-lock.yaml` contains every web dependency. Lane tasks must not add dependencies; if one is unavoidable the coordinator adds it in a separate serialized commit.
+
+Re-run: `uv sync --all-packages --all-groups` → Expected: resolves and installs, `uv.lock` written.
 
 - [ ] **Step 6: Update the root README quick start, commit, push**
 
@@ -638,7 +642,7 @@ Run: `uv run pytest packages/spatial/tests/test_models.py -q` → Expected: 4 pa
                 n-e ──────seg-ef────── n-f ──seg-fd── n-d
  (n-g ──seg-gh── n-h : isolated island)   centre evc-hall at n-c; evc-school at n-h
 ```
-- Verified (`team_survey_placeholder`, step_count 0, incline 2, width 1.5): `seg-ab`, `seg-bc`, `seg-cd`, `seg-ef`, `seg-fd`.
+- Verified (`team_survey_placeholder`, step_count 0, incline 2, width 1.5): `seg-ab`, `seg-bc`, `seg-cd`, `seg-ef`. `seg-fd` is verified except `width_m` **unknown** (ruling R11: keeps park-b → kiosk strictly unroutable for the stroller).
 - `seg-be`: `type: steps`, `step_count` reported 3.
 - `seg-cf`: `type: ramp`, `incline_pct` unknown, others verified.
 - `seg-gh`: no claims.
@@ -692,7 +696,7 @@ Write the files exactly as follows:
   "properties":{"id":"seg-fd","kind":"segment","type":"footway","from":"n-f","to":"n-d","length_m":124.3,
    "claims":{"step_count":{"value":0,"status":"verified","verified_at":"2026-10-18","evidence_type":"team_survey_placeholder"},
              "incline_pct":{"value":2,"status":"verified","verified_at":"2026-10-18","evidence_type":"team_survey_placeholder"},
-             "width_m":{"value":1.5,"status":"verified","verified_at":"2026-10-18","evidence_type":"team_survey_placeholder"}}}},
+             "width_m":{"value":null,"status":"unknown"}}}},
  {"type":"Feature","geometry":{"type":"LineString","coordinates":[[101.5115,3.1820],[101.5120,3.1820]]},
   "properties":{"id":"seg-gh","kind":"segment","type":"path","from":"n-g","to":"n-h","length_m":55.6,"claims":{}}}
 ]}
@@ -1061,7 +1065,7 @@ def test_split_at_shared_nodes():
     assert steps["type"] == "steps" and steps["claims"]["step_count"]["value"] == 4
     assert steps["claims"]["step_count"]["status"] == "reported"
 ```
-Add `data/__init__.py` and `data/scripts/__init__.py` (empty) and `"data/scripts/tests"` to `testpaths` in the root `pyproject.toml`. Run: `uv run pytest data/scripts/tests -q` → FAIL (no module).
+(`data/__init__.py`, `data/scripts/__init__.py` and the `data/scripts/tests` testpath already exist from Task 1, ruling R1.) Run: `uv run pytest data/scripts/tests -q` → FAIL (no module).
 
 - [ ] **Step 2: Implement the Overpass client with tiling and retries**
 
@@ -1937,8 +1941,11 @@ def test_centres_reachability(world):
     assert by_id["evc-school"].centre.source == "official_pps"
 
 def test_islands_reported(world):
-    a = flood.affected(world, "stage_p3m", "stroller")
-    assert any("n-h" in c["sample_node_ids"] for c in a.isolated_components)
+    # island = connected component of the passable (non-FAIL) graph containing no evacuation centre (ruling R5)
+    a = flood.affected(world, "stage_p5m", "stroller")
+    centre_nodes = {c.node_id for c in world.centres.values()}
+    assert any("n-a" in c["sample_node_ids"] for c in a.isolated_components)
+    assert all(not (set(c["sample_node_ids"]) & centre_nodes) for c in a.isolated_components)
 ```
 Note: the `world` fixture is function-scoped, which Hypothesis warns about; add `suppress_health_check=[HealthCheck.function_scoped_fixture]` to `@settings`.
 
@@ -3251,7 +3258,7 @@ git add data && git commit -m "feat(data): HAND flood scenarios (stage +1..+5 m)
 
 - [ ] **Step 1: Create the package and Vite config (explicit env mapping, Cesium assets)**
 
-`apps/web/package.json`
+`apps/web/package.json` (**already created in Task 1, ruling R2: verify it matches; do not change dependencies**)
 ```json
 {
   "name": "@tl/web",
