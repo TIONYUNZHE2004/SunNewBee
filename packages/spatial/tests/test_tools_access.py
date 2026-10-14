@@ -48,3 +48,54 @@ def test_missing_place_vr(ctx):
         ctx, "moon", "existence", "missing_place", "asked for moon"
     )
     assert r.ok and r.data["created"] is True
+
+
+def test_find_place_prefers_playground_over_substring_alias(ctx):
+    r = tools.find_place(ctx, "small playground")
+    assert r.data[0]["id"] == "playground"
+    assert "lakeside-mall" not in [d["id"] for d in r.data]
+
+
+def test_find_place_short_query_matches_nothing(ctx):
+    assert tools.find_place(ctx, "a").data == []
+    assert tools.find_place(ctx, "mall").data[0]["id"] == "lakeside-mall"
+
+
+def test_find_place_exact_name_beats_alias(ctx):
+    assert tools.find_place(ctx, "Park toilet").data[0]["id"] == "toilet-1"
+
+
+def test_nearby_wheelchair_avoids_steps(ctx):
+    n = tools.nearby_amenities(ctx, "park-b", "toilet", max_walk_m=300, profile="wheelchair")
+    assert n.ok and n.data[0]["id"] == "toilet-1"
+    assert n.data[0]["walk_m"] == 222.4  # a-b-c-f-e, not a-b-e (steps)
+    assert n.data[0]["via_unverified"] is True
+
+
+def test_nearby_default_warns_and_uses_steps(ctx):
+    n = tools.nearby_amenities(ctx, "park-b", "toilet", max_walk_m=300)
+    assert n.data[0]["walk_m"] == 111.2 and n.data[0]["via_unverified"] is False
+    assert n.warnings
+
+
+def test_nearby_wheelchair_respects_cutoff_when_only_detour(ctx):
+    assert tools.nearby_amenities(ctx, "park-b", "toilet", 150, "wheelchair").data == []
+
+
+def test_missing_place_vr_only_for_mapped_place_without_node(ctx):
+    r = tools.plan_route(ctx, "park-b", "moon-base", "stroller")
+    assert [v["element_id"] for v in r.data["verification_requests"]] == ["moon-base"]
+    r2 = tools.plan_route(ctx, "park-b", "no-such-id", "stroller")
+    assert r2.data["verification_requests"] == []
+    assert any("no such place" in w for w in r2.warnings)
+
+
+def test_stale_unknown_files_stale_vr(ctx):
+    from townshiplens_spatial.models import Claim
+
+    ctx.world.edges["seg-cf"].claims["incline_pct"] = Claim(
+        value=2, status="verified", verified_at="2020-01-01"
+    )
+    r = tools.plan_route(ctx, "park-b", "kiosk", "stroller")
+    vr = r.data["verification_requests"][0]
+    assert vr["element_id"] == "seg-cf" and vr["reason"] == "stale"

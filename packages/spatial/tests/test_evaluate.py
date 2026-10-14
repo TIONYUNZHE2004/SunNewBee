@@ -42,3 +42,33 @@ def test_stale_verified_is_unknown(world):
     e = world.edges["seg-ab"].model_copy(deep=True)
     e.claims["step_count"].ttl_days = 1
     assert evaluate_edge(e, world.profiles["stroller"], today=date(2027, 1, 1))[0] == "UNKNOWN"
+
+
+def test_steps_edge_with_unknown_step_claim_fails(world):
+    from townshiplens_spatial.models import Claim
+
+    e = world.edges["seg-be"].model_copy(deep=True)
+    e.claims["step_count"] = Claim()
+    r, why = evaluate_edge(e, world.profiles["stroller"])
+    assert r == "FAIL" and why[0]["attribute"] == "step_count"
+
+
+def test_stale_claim_carries_stale_reason(world):
+    from datetime import date
+
+    e = world.edges["seg-ab"].model_copy(deep=True)
+    e.claims["step_count"].ttl_days = 1
+    r, why = evaluate_edge(e, world.profiles["stroller"], today=date(2027, 1, 1))
+    assert r == "UNKNOWN" and why[0]["reason"] == "stale"
+    assert (
+        evaluate_edge(world.edges["seg-cf"], world.profiles["stroller"])[1][0]["reason"]
+        == "unknown"
+    )
+
+
+def test_zero_ttl_is_honoured(world):
+    from datetime import date
+
+    e = world.edges["seg-ab"].model_copy(deep=True)
+    e.claims["step_count"].ttl_days = 0
+    assert evaluate_edge(e, world.profiles["stroller"], today=date(2026, 10, 19))[0] == "UNKNOWN"

@@ -28,6 +28,7 @@ def _flood_class(world: World, scenario_id: str | None, edge_id: str):
 
 def _search(world, sources, targets, profile, scenario_id, allow_unknown):
     evals: dict[str, tuple] = {}
+    chosen: dict[frozenset, str] = {}  # node pair -> edge key the search actually costed
 
     def weight(u, v, data):
         best = None
@@ -40,7 +41,9 @@ def _search(world, sources, targets, profile, scenario_id, allow_unknown):
             w = e.length_m * (UNKNOWN_WEIGHT if res == "UNKNOWN" else 1.0)
             if e.type == "steps":
                 w *= profile.soft.get("steps_multiplier", 1.0)
-            best = w if best is None else min(best, w)
+            if best is None or w < best:
+                best = w
+                chosen[frozenset((u, v))] = key
         return best  # None hides the edge
 
     g = world.graph
@@ -59,15 +62,15 @@ def _search(world, sources, targets, profile, scenario_id, allow_unknown):
     try:
         path = nx.dijkstra_path(h, tmp_s, tmp_t, weight=w2)
     except nx.NetworkXNoPath:
-        return None, evals
-    return path[1:-1], evals
+        return None, [], evals
+    nodes = path[1:-1]
+    keys = [chosen[frozenset((u, v))] for u, v in zip(nodes, nodes[1:], strict=False)]
+    return nodes, keys, evals
 
 
-def _route_from_nodes(world, nodes, from_id, to_id, profile, scenario_id, evals) -> Route:
+def _route_from_nodes(world, nodes, keys, from_id, to_id, profile, scenario_id, evals) -> Route:
     segs, coords, unknowns, dist = [], [], [], 0.0
-    for u, v in zip(nodes, nodes[1:], strict=False):
-        cands = [k for k in world.graph[u][v] if evals.get(k, ("FAIL",))[0] != "FAIL"]
-        k = min(cands, key=lambda k: world.edges[k].length_m)
+    for u, k in zip(nodes, keys, strict=False):
         e = world.edges[k]
         res, why = evals[k]
         segs.append(
@@ -82,7 +85,7 @@ def _route_from_nodes(world, nodes, from_id, to_id, profile, scenario_id, evals)
     rid = (
         "rt-"
         + hashlib.sha1(
-            f"{from_id}|{to_id}|{profile.id}|{scenario_id}|{nodes}".encode()
+            f"{from_id}|{to_id}|{profile.id}|{scenario_id}|{nodes}|{keys}".encode()
         ).hexdigest()[:8]
     )
     rest = [
@@ -106,15 +109,15 @@ def _route_from_nodes(world, nodes, from_id, to_id, profile, scenario_id, evals)
         rest_points=rest,
         geometry={"type": "LineString", "coordinates": coords},
     )
-    route.max_gap_between_rest_m = _max_rest_gap(world, nodes, {r["node_id"] for r in rest})
+    route.max_gap_between_rest_m = _max_rest_gap(world, nodes, keys, {r["node_id"] for r in rest})
     route.evidence_ids = [ev.id for ev in evidence_for_route(world, route)]
     return route
 
 
-def _max_rest_gap(world, nodes, rest_nodes) -> float:
+def _max_rest_gap(world, nodes, keys, rest_nodes) -> float:
     gap = best = 0.0
-    for u, v in zip(nodes, nodes[1:], strict=False):
-        gap += min(world.edges[k].length_m for k in world.graph[u][v])
+    for v, k in zip(nodes[1:], keys, strict=True):
+        gap += world.edges[k].length_m
         if v in rest_nodes:
             best, gap = max(best, gap), 0.0
     return round(max(best, gap), 1)
@@ -162,21 +165,30 @@ def plan_route(
         )
     sources, targets = _targets(world, from_id), _targets(world, to_id)
     if not sources or not targets:
-        missing = from_id if not sources else to_id
-        return RouteResult(status="no_data", routes=[], warnings=[f"place not mapped: {missing}"])
-    strict, ev1 = _search(world, sources, targets, profile, scenario_id, allow_unknown=False)
-    lenient, ev2 = _search(world, sources, targets, profile, scenario_id, allow_unknown=True)
+        warnings = []
+        for pid, found in ((from_id, sources), (to_id, targets)):
+            if not found:
+                warnings.append(
+                    f"place not mapped: {pid}" if pid in world.places else f"no such place: {pid}"
+                )
+        return RouteResult(status="no_data", routes=[], warnings=warnings)
+    strict, skeys, ev1 = _search(world, sources, targets, profile, scenario_id, allow_unknown=False)
+    lenient, lkeys, ev2 = _search(world, sources, targets, profile, scenario_id, allow_unknown=True)
     evals = {**ev2, **ev1}
     routes: list[Route] = []
     if strict:
-        routes.append(_route_from_nodes(world, strict, from_id, to_id, profile, scenario_id, evals))
-        if lenient and lenient != strict:
-            alt = _route_from_nodes(world, lenient, from_id, to_id, profile, scenario_id, evals)
+        routes.append(
+            _route_from_nodes(world, strict, skeys, from_id, to_id, profile, scenario_id, evals)
+        )
+        if lenient and lkeys != skeys:
+            alt = _route_from_nodes(
+                world, lenient, lkeys, from_id, to_id, profile, scenario_id, evals
+            )
             if alt.distance_m < 0.8 * routes[0].distance_m:
                 routes.append(alt)
-        return RouteResult(status="confirmed", routes=routes)
+        return RouteResult(status=routes[0].status, routes=routes)
     if lenient:
-        r = _route_from_nodes(world, lenient, from_id, to_id, profile, scenario_id, evals)
-        return RouteResult(status="partly_unverified", routes=[r])
+        r = _route_from_nodes(world, lenient, lkeys, from_id, to_id, profile, scenario_id, evals)
+        return RouteResult(status=r.status, routes=[r])
     blocked = [w for res, why in evals.values() if res == "FAIL" for w in why][:5]
     return RouteResult(status="blocked", routes=[], blocked_reasons=blocked)

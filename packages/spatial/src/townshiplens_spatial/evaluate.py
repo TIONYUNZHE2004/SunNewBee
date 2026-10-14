@@ -13,7 +13,7 @@ _CHECKS = {  # hard key -> (attribute, violates(value, limit))
 def _is_stale(c: Claim, attr: str, today: date) -> bool:
     if c.status != "verified" or not c.verified_at:
         return False
-    ttl = c.ttl_days or DEFAULT_TTL.get(attr, 365)
+    ttl = c.ttl_days if c.ttl_days is not None else DEFAULT_TTL.get(attr, 365)
     return (today - date.fromisoformat(c.verified_at[:10])).days > ttl
 
 
@@ -24,13 +24,20 @@ def evaluate_edge(
     why: list[dict] = []
     if flood_class == "likely_flooded":
         return "FAIL", [
-            {"element_id": edge.id, "attribute": "flood", "why": "likely flooded in this scenario"}
+            {
+                "element_id": edge.id,
+                "attribute": "flood",
+                "reason": "unknown",
+                "why": "likely flooded in this scenario",
+            }
         ]
+    # TODO(deferred): map profile.flood (possible_is/likely_is) instead of hardcoding it, and
+    # enforce profile.max_rest_free_run_m; neither is used in the walking skeleton.
     result: EvalResult = "PASS"
     for key, limit in profile.hard.items():
         attr, violates = _CHECKS[key]
         c = edge.claims.get(attr)
-        if c is None and attr == "step_count" and edge.type == "steps":
+        if (c is None or c.value is None) and attr == "step_count" and edge.type == "steps":
             c = Claim(value=1, status="reported", evidence_type="edge_type")
         if c is not None and c.status in ("verified", "reported") and violates(c.value, limit):
             return "FAIL", [
@@ -42,11 +49,13 @@ def evaluate_edge(
             ]
         if c is None or c.status != "verified" or c.value is None or _is_stale(c, attr, today):
             result = "UNKNOWN"
+            stale = c is not None and c.status == "verified" and c.value is not None
             op = "≤" if key.startswith("max") else "≥"
             why.append(
                 {
                     "element_id": edge.id,
                     "attribute": attr,
+                    "reason": "stale" if stale else "unknown",
                     "why": f"{profile.id} needs {attr} {op} {limit}; not verified",
                 }
             )
