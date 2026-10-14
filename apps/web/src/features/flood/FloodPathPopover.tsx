@@ -60,7 +60,8 @@ export function FloodPathCard({
         {v.method && row("Method", v.method)}
         {v.dem && row("Elevation data", v.dem)}
         {v.margin && row("Margin", v.margin)}
-        {row("Data version", v.dataVersion)}
+        {row("Data", v.generated)}
+        <p className="text-xs text-ink-soft">{v.datesNote}</p>
       </dl>
       <p className="mt-3 text-sm">
         <strong>Indicative only. </strong>

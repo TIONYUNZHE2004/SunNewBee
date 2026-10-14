@@ -66,6 +66,27 @@ describe("ComparisonTable", () => {
     expect(h).toContain("Places affected");
     expect(h).toContain('scope="col"');
   });
+  it("labels the origin from the API's near_place, not a hard-coded mall", () => {
+    const h = renderToStaticMarkup(
+      <ComparisonTable
+        baseline={base}
+        scenario={scen}
+        scenarioLabel="x"
+        origin={{ id: "clinic-1", name: "Klinik Elmina" }}
+      />,
+    );
+    expect(h).toContain("from Klinik Elmina, demo start point");
+    expect(h).not.toContain("Lakeside Mall");
+    const byId = renderToStaticMarkup(
+      <ComparisonTable
+        baseline={base}
+        scenario={scen}
+        scenarioLabel="x"
+        origin={{ id: "clinic-1" }}
+      />,
+    );
+    expect(byId).toContain("from clinic-1, demo start point");
+  });
   it("says so when the baseline is unavailable", () => {
     const h = renderToStaticMarkup(
       <ComparisonTable baseline={undefined} scenario={scen} scenarioLabel="x" />,

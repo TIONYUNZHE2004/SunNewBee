@@ -1261,9 +1261,15 @@
             "type": "array"
           },
           "margin_m": {
-            "default": 0.5,
-            "title": "Margin M",
-            "type": "number"
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Margin M"
           },
           "method": {
             "default": "HAND",

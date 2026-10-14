@@ -40,7 +40,8 @@ export interface FloodPathView {
   method: string | null;
   dem: string | null;
   margin: string | null;
-  dataVersion: string;
+  generated: string;
+  datesNote: string;
   disclaimer: string;
 }
 
@@ -55,7 +56,8 @@ export function floodPathView(edge: FloodEdge, s: FloodScenario | undefined): Fl
     method: s?.method ? methodLabel(s.method) : null,
     dem: s?.dem ? demLabel(s.dem) : null,
     margin,
-    dataVersion: s?.created ?? "not stated",
+    generated: s?.created ? `Scenario generated ${s.created}` : "Generation date not recorded",
+    datesNote: "Source data dates are not recorded.",
     disclaimer: s?.disclaimer || FALLBACK_DISCLAIMER,
   };
 }

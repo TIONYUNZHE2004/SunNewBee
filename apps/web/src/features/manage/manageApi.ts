@@ -46,6 +46,8 @@ export type Briefing = {
   };
   centres: CentreReach[];
   disclaimer: string;
+  near_place?: string | null;
+  near_place_name?: string | null;
 };
 
 export class ApiError extends Error {

@@ -83,6 +83,33 @@ def test_briefing_baseline_has_edge_ids():
     assert b["affected"]["likely_edge_ids"] == []
 
 
+def test_scenario_margin_is_optional_and_not_defaulted():
+    from townshiplens_spatial.models import Scenario
+
+    s = Scenario(id="x", label="x", stage_m=1, disclaimer="d")
+    assert s.margin_m is None
+    assert Scenario(id="x", label="x", stage_m=1, disclaimer="d", margin_m=0.5).margin_m == 0.5
+    # The test fixture world does not state a margin: the API reports none, not a default.
+    fx = [s for s in c.get("/scenarios").json() if s["id"] == "stage_p3m"][0]
+    assert fx["margin_m"] is None
+
+
+def test_seed_scenarios_state_their_margin():
+    import json
+    from pathlib import Path
+
+    from townshiplens_spatial.models import Scenario
+
+    raw = json.loads(Path("data/seed/elmina/flood/scenarios.json").read_text())
+    items = raw if isinstance(raw, list) else raw["scenarios"]
+    assert items and all(Scenario.model_validate(i).margin_m is not None for i in items)
+
+
+def test_briefing_names_the_origin():
+    b = c.get("/briefings/flood", params={"scenario_id": "stage_p3m"}).json()
+    assert b["near_place"] and b["near_place_name"]
+
+
 def test_profiles_endpoint_lists_thresholds():
     r = c.get("/profiles")
     assert r.status_code == 200

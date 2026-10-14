@@ -9,7 +9,7 @@ const scenario = {
   stage_m: 3,
   method: "REM",
   dem: "Copernicus GLO-30",
-  margin_m: 0.5,
+  margin_m: 0.5 as number | null | undefined,
   created: "2026-09-30",
   disclaimer: "Indicative scenario, not a forecast.",
   links: [],
@@ -32,8 +32,13 @@ describe("floodPathView", () => {
     const v = floodPathView(edge, scenario);
     expect(v.scenario).toBe("River +3 m (indicative)");
     expect(v.margin).toBe("within 0.5 m of the modelled water surface");
-    expect(v.dataVersion).toBe("2026-09-30");
-    expect(floodPathView(edge, { ...scenario, margin_m: undefined as never }).margin).toBeNull();
+    expect(v.generated).toBe("Scenario generated 2026-09-30");
+    expect(v.datesNote).toBe("Source data dates are not recorded.");
+    expect(floodPathView(edge, { ...scenario, created: null }).generated).toBe(
+      "Generation date not recorded",
+    );
+    expect(floodPathView(edge, { ...scenario, margin_m: null }).margin).toBeNull();
+    expect(floodPathView(edge, { ...scenario, margin_m: undefined }).margin).toBeNull();
   });
   it("adds 'indicative' to a label that lacks it", () => {
     expect(floodPathView(edge, { ...scenario, label: "River +3 m" }).scenario).toBe(
@@ -58,7 +63,8 @@ describe("FloodPathCard", () => {
       expect(h).toContain("Relative elevation above mapped OSM drainage (REM)");
       expect(h).toContain("Copernicus GLO-30 (30 m)");
       expect(h).toContain("within 0.5 m of the modelled water surface");
-      expect(h).toContain("2026-09-30");
+      expect(h).toContain("Scenario generated 2026-09-30");
+      expect(h).toContain("Source data dates are not recorded.");
       expect(h).toContain("Indicative scenario, not a forecast.");
       expect(h).toContain('role="dialog"');
       expect(h).toContain("aria-labelledby");

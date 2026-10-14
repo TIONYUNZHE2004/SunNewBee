@@ -10,6 +10,8 @@ import { useCameraIntents } from "./camera";
 import { type HomeView, homeView, shouldReframe } from "./home";
 import { AccessLayer, FloodLayer, WasteLayer } from "./layers";
 
+const PICK_PX = 8;
+
 function frameHome(viewer: Cesium.Viewer, { lon, lat, range_m }: HomeView) {
   viewer.camera.lookAt(
     Cesium.Cartesian3.fromDegrees(lon, lat, 0),
@@ -127,15 +129,23 @@ function SceneSetup({
     if (!viewer || viewer.isDestroyed()) return;
     const handler = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas);
     handler.setInputAction((e: { position: Cesium.Cartesian2 }) => {
-      const picked = viewer.scene.pick(e.position);
-      const id = picked?.id;
-      const key = id instanceof Cesium.Entity ? id.properties?.placeId?.getValue() : undefined;
-      if (typeof key === "string") {
-        useScene.getState().selectPlace(key);
-        return;
+      // Thin ground polylines: pick a small window (8 px) so near misses still hit.
+      const hits: { id?: unknown }[] = viewer.scene.drillPick(e.position, 5, PICK_PX, PICK_PX);
+      for (const h of hits) {
+        const key =
+          h.id instanceof Cesium.Entity ? h.id.properties?.placeId?.getValue() : undefined;
+        if (typeof key === "string") {
+          useScene.getState().selectPlace(key); // place markers keep priority
+          return;
+        }
       }
-      const edgeId = pickedFloodEdgeId(picked);
-      if (edgeId) useScene.getState().selectFloodEdge(edgeId);
+      for (const h of hits) {
+        const edgeId = pickedFloodEdgeId(h);
+        if (edgeId) {
+          useScene.getState().selectFloodEdge(edgeId);
+          return;
+        }
+      }
     }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
     return () => handler.destroy();
   }, [viewer]);

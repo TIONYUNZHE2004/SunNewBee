@@ -888,11 +888,8 @@ export interface components {
             links?: {
                 [key: string]: string;
             }[];
-            /**
-             * Margin M
-             * @default 0.5
-             */
-            margin_m: number;
+            /** Margin M */
+            margin_m?: number | null;
             /**
              * Method
              * @default HAND

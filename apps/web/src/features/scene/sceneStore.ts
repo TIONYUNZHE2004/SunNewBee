@@ -71,8 +71,17 @@ export const useScene = create<SceneState>((set) => ({
       }
       return next;
     }),
-  selectPlace: (selectedPlaceId) => set({ selectedPlaceId }),
-  selectFloodEdge: (selectedFloodEdgeId) => set({ selectedFloodEdgeId }),
+  // One detail panel at a time: opening either closes the other.
+  selectPlace: (selectedPlaceId) =>
+    set((s) => ({
+      selectedPlaceId,
+      selectedFloodEdgeId: selectedPlaceId ? null : s.selectedFloodEdgeId,
+    })),
+  selectFloodEdge: (selectedFloodEdgeId) =>
+    set((s) => ({
+      selectedFloodEdgeId,
+      selectedPlaceId: selectedFloodEdgeId ? null : s.selectedPlaceId,
+    })),
   setView: (view) => set({ view }),
   setProfile: (profile) => {
     saveProfile(profile);

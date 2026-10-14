@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useId, useState } from "react";
 import { useScenarios } from "../../lib/api";
-import { DEMO_ORIGIN_NAME } from "../../lib/placeQuery";
+import { originName } from "../../lib/placeQuery";
 import { centreReachLabel, routeStatusLabel } from "../../lib/routeStatus";
 import { DisclaimerBanner } from "../flood/DisclaimerBanner";
 import type { Profile } from "../scene/sceneStore";
@@ -42,11 +42,15 @@ export function ComparisonTable({
   baseline,
   scenario,
   scenarioLabel,
+  origin,
 }: {
   baseline: Briefing | undefined;
   scenario: Briefing;
   scenarioLabel: string;
+  /** Place the centre rows were measured from (the API's near_place). */
+  origin?: { id?: string | null; name?: string | null };
 }) {
+  const from = origin?.name || originName(origin?.id);
   if (!baseline)
     return (
       <p role="status" className="text-sm text-ink-soft">
@@ -60,7 +64,7 @@ export function ComparisonTable({
         <caption className="p-3 text-left font-medium">
           Normal river level compared with the scenario (indicative)
           <span className="block text-xs font-normal text-ink-soft">
-            Centre rows are from {DEMO_ORIGIN_NAME}, demo start point.
+            Centre rows are from {from}, demo start point.
           </span>
         </caption>
         <thead className="bg-brand-tint">
@@ -83,7 +87,7 @@ export function ComparisonTable({
                 {r.label}
                 {r.key === "reachable" && (
                   <span className="block text-xs font-normal text-ink-soft">
-                    from {DEMO_ORIGIN_NAME}, demo start point
+                    from {from}, demo start point
                   </span>
                 )}
               </th>
@@ -268,7 +272,12 @@ export function FloodBriefing() {
       ) : (
         <>
           <DisclaimerBanner text={b.disclaimer} />
-          <ComparisonTable baseline={base.data} scenario={b} scenarioLabel={b.scenario.label} />
+          <ComparisonTable
+            baseline={base.data}
+            scenario={b}
+            scenarioLabel={b.scenario.label}
+            origin={{ id: b.near_place, name: b.near_place_name }}
+          />
           <Assumptions selected={profile} />
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
             <Tile label="Likely cut off" value={s.likely} />
