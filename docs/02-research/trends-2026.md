@@ -1,6 +1,6 @@
 # 2026 Trends: What's New and What It Means for TownshipLens
 
-> A synthesis of the detailed research docs in this folder, as of **14 Oct 2026**. Use it to answer "is this current?" questions from judges, and to pick pitch lines. Every claim here is sourced in the linked detail doc. If you quote a number in the pitch, cite it from **there**.
+> A synthesis of the detailed research docs in this folder, as of **15 Oct 2026** (updated after the pivot to a Township World Model platform). Use it to answer "is this current?" questions from judges, and to pick pitch lines. Every claim here is sourced in the linked detail doc. If you quote a number in the pitch, cite it from **there**.
 
 | Detail doc | Covers |
 |---|---|
@@ -9,7 +9,10 @@
 | [accessibility-and-routing.md](accessibility-and-routing.md) | OpenSidewalks, OSM tags, routing engines, unknown handling, Malaysian stats |
 | [resident-agent-simulation.md](resident-agent-simulation.md) | Generative agents, synthetic users and their limits, persona testing |
 | [competitors.md](competitors.md) | Malaysian township apps, global wayfinding/accessibility products |
-| [site-selection.md](site-selection.md) | Which SDP township and facility to use |
+| [site-selection.md](site-selection.md) | Which SDP township and facility to use (now the accessibility deep spot inside whole-Elmina coverage) |
+| [flood-disaster-lens.md](flood-disaster-lens.md) | **New.** Lens 2: HAND flood scenarios, DEM options, depth thresholds, evacuation routing, Malaysian disaster context, related flood products |
+| [township-3d-engine-and-data.md](township-3d-engine-and-data.md) | **New.** CesiumJS + Resium decision, whole-Elmina data coverage, thin recycling lens, base twin + overlay data architecture |
+| [agent-harness-2026.md](agent-harness-2026.md) | **New.** Agent harness comparison; PydanticAI over OpenRouter chosen (ADR 0008) |
 
 ---
 
@@ -27,9 +30,9 @@
 - **For us:** our "world model" is a **verified, structured** representation. **Say this explicitly** in the pitch. It shows judges we know the field, and it's the reason our answers can be trusted.
 
 ## Trend 4: Tool-using LLM agents are mature; hand-rolled loops are fine
-- Every major provider has stable tool use and structured outputs. MCP (spec 2026-07-28) is the standard way to expose tools to agents. The frameworks (PydanticAI, Vercel AI SDK 6, OpenAI Agents SDK, LangGraph) are plentiful.
+- Every major provider has stable tool use and structured outputs. MCP (spec 2026-07-28) is the standard way to expose tools to agents. The frameworks (PydanticAI, Vercel AI SDK 6, OpenAI Agents SDK, LangGraph) are plentiful: see Trend 11.
 - Small, fast models (Claude Haiku 5.5, Gemini Flash-Lite) make a pilot cost about USD 1 per 1,000 questions, so **cost is not a barrier to deployment**.
-- **For us:** a ~100-line Python loop, six tools, server-side validation. MCP as a stretch goal ("any AI agent, e.g. SDP's own, can use the township's verified knowledge").
+- **For us:** a Python agent (now PydanticAI, Trend 11), ten tools, server-side validation. MCP as a stretch goal ("any AI agent, e.g. SDP's own, can use the township's verified knowledge").
 
 ## Trend 5: The evidence keeps piling up that LLMs can't do spatial reasoning alone
 - MapEval, TurnBack, GraphArena, FloorplanQA and *Lost in Aggregation* (2026) all show confident errors in routing, direction and distance aggregation. Delegating execution to deterministic engines recovers most of the accuracy.
@@ -53,13 +56,25 @@
 - **For us:** a verified-accessibility data product fits policy momentum, and our privacy-by-design approach (no accounts, redaction, no tracking) fits PDPA.
 - ⚠️ Avoid the outdated line "Malaysia becomes an aged nation by 2030". Newer projections differ, so use the cited figures in [accessibility-and-routing § 2](accessibility-and-routing.md).
 
+## Trend 10: Township and flood digital twins are becoming product-grade (and we do the honest version)
+- **What happened:** photoreal city meshes (Google Photorealistic 3D Tiles) and open engines (CesiumJS 1.146, Resium 1.27) make a browser 3D model of a whole township a few weeks of work, not a procurement. Global open terrain and flood layers (Copernicus GLO-30, the ASF global HAND raster under CC0, OSM, Overture) cover Malaysia. Google Flood Hub already forecasts river floods in about 150 countries including Malaysia; Singapore's PUB maps flood-prone areas at about 10 cm height accuracy from laser scanning. Details and sources: [flood-disaster-lens § 7](flood-disaster-lens.md), [township-3d-engine-and-data](township-3d-engine-and-data.md).
+- **The gap we found:** nobody connects the flood footprint to **who can still get where**, per mobility profile, with honest unknowns, at township scale. Forecast apps (Flood Hub, InfoBanjir, MyCuaca) have no what-if or routing; commercial depth products (ICEYE, Fathom, FloodMapp) are expensive and were not found covering Malaysian township routing (coverage unverified).
+- **What it means for us:** the 3D twin is the stage, the verified world model is the product. The flood lens is a precomputed HAND river-stage scenario with a connected-inundation rule ([ADR 0010](../00-overview/decisions/0010-flood-lens-hand-scenarios.md)): cheap, deterministic, tool-callable, and explicit that a 30 m surface DEM (vertical error under 4 m) cannot give per-footpath depths.
+- **Watch-outs:** Elmina's built-up core is **not low-lying**; the documented recent floods (Apr 2024, 4 Oct 2024, Apr 2025) are downstream in Kampung Kubu Gajah / Paya Jaras. A dramatic "Elmina goes under" demo would be dishonest. Google tiles may not be used to derive heights. FABDEM is non-commercial, so GLO-30 is the product DEM.
+
+## Trend 11: The agent-harness landscape settled around typed, validator-friendly frameworks
+- **What happened:** by Oct 2026 the realistic Python choices are PydanticAI (2.x, released 2026-06-23), OpenAI Agents SDK (still 0.x), LangGraph, a hand-written loop, and coding-agent runtimes (Claude Agent SDK, Pi) that are not designed as product loops. OpenRouter is now a first-class provider in PydanticAI, so the model can be a config value. Full scoring: [agent-harness-2026.md](agent-harness-2026.md).
+- **For us:** PydanticAI over OpenRouter ([ADR 0008](../00-overview/decisions/0008-agent-harness-pydantic-ai.md)). It maps 1:1 onto our design: forced structured `final_answer`, an output validator with `ModelRetry` for the citation check, stream events for SSE, and `FunctionModel`/`TestModel` as the key-less mock for CI. Pi is fine as the team's coding agent, not as the product runtime.
+- **Watch-outs:** framework churn (pin exactly, read the changelog); keep `validate.py` framework-independent so a hand-written loop remains a 1–2 day fallback.
+
 ---
 
 ## What we deliberately do *not* chase (and how to say it)
 
 | Hype | Our line |
 |---|---|
-| Full city digital twin | "We start with one facility and make it *correct*, then scale facility by facility." |
+| Full city digital twin | "We model the whole township in 3D from open data, but only *verified* facts count: deep, checked detail at a few spots, and honest unknowns everywhere else. Scale is township by township." |
+| Flood forecasting / hydrodynamic modelling | "Indicative what-if scenarios from open terrain data, never a forecast. Official warnings (JPS, MET, NADMA) stay the authority; SDP's LiDAR and drainage data would unlock proper 2D modelling in a pilot." |
 | Generative world models | "Our world model is verified data, because residents need facts, not plausible pictures." |
 | LLM agents that 'simulate residents' | "Our agents test the map, not people's feelings. Real residents are consulted in person." |
 | Live sensors / crowd detection | "Out of MVP scope. Closures come from staff today, and sensor feeds can plug in later." |

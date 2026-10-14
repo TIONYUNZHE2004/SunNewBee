@@ -36,7 +36,7 @@ sequenceDiagram
   L->>V: final_answer (structured)
   V-->>L: reject if uncited claim or unseen evidence id (max 2 retries)
   V-->>API: validated answer
-  API-->>U: text.delta… scene.highlight, citation, uncertainty, done
+  API-->>U: text.delta… scene.intent, citation, uncertainty, disclaimer, done
 ```
 
 | Component | File (planned) | Notes |

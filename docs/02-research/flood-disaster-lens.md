@@ -1,6 +1,7 @@
 # Lens 2: Flood / Disaster "What-If" (research)
 
 > Researched 14-15 Oct 2026. Claims cite [F#] (see Sources). "Ran" = executed by us against live public APIs on 14-15 Oct 2026. Anything not verified is marked "(unverified)". Companion file: `reference/notes/flood-sources.md`.
+> **Canonical names (added 15 Oct):** this research uses some draft names. In code and docs use the [architecture README](../04-architecture/README.md) names: scenarios `stage_p1m…stage_p5m`; tools `list_flood_scenarios` (not `get_flood_scenarios`/`simulate_flood`), `affected_places`, `list_evacuation_centres`, `plan_route(scenario_id)`; profiles in `config/profiles/`; storage = files + SQLite; hero renderer = CesiumJS (ADR 0007), not R3F/MapLibre.
 > Context: TownshipLens is becoming a Township World Model of City of Elmina with lenses. Lens 1 = accessibility ([world-model-schema](../04-architecture/world-model-schema.md)). This doc scopes **Lens 2: flood what-if for township management and residents**.
 
 ## TL;DR for TownshipLens

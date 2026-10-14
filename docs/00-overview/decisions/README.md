@@ -33,8 +33,9 @@ What gets easier, what gets harder, what we must watch.
 | [0002](0002-use-existing-3d-data.md) | Use existing 3D data instead of our own capture for the MVP | accepted |
 | [0003](0003-structured-world-model-is-source-of-truth.md) | The structured world model, not the 3D scene or the LLM, is the source of truth | accepted |
 | [0004](0004-tri-state-accessibility-attributes.md) | Accessibility attributes are tri-state (yes / no / unknown) with provenance | accepted |
-| [0005](0005-tech-stack.md) | Tech stack: Vite/React/R3F + FastAPI/NetworkX + Claude tool loop | proposed |
+| [0005](0005-tech-stack.md) | Tech stack (3D engine superseded by 0007; AI loop by 0008) | partly superseded |
 | [0006](0006-mvp-site.md) | MVP site: Elmina Urban Park + Lakeside Mall frontage (now the accessibility deep spot inside whole-Elmina coverage, per 0009) | proposed |
-| 0007 | 3D engine for the township twin (research pending) | to write |
-| 0008 | Agent harness: PydanticAI over OpenRouter ([research](../../02-research/agent-harness-2026.md)) | to write with scaffold spec |
+| [0007](0007-3d-engine-cesium.md) | 3D engine: CesiumJS + Resium + Google photoreal tiles; Mapbox lite; list view | accepted (confirm in Day-1 spike) |
+| [0008](0008-agent-harness-pydantic-ai.md) | Agent harness: PydanticAI over OpenRouter (model from env) | accepted |
 | [0009](0009-township-world-model-platform.md) | **Township World Model platform: whole-Elmina 3D, 2 deep lenses (accessibility, flood), People track** | accepted |
+| [0010](0010-flood-lens-hand-scenarios.md) | Flood lens: precomputed HAND river-stage scenarios, indicative, Elmina + downstream corridor | accepted |

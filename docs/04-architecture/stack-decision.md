@@ -1,16 +1,30 @@
 # Stack Decision: TownshipLens engineering stack
 
-Status: proposed, 2026-10-14. Scope: frontend, backend, AI integration, deployment, repo layout. Versions were checked with `npm view` / `pip index versions` on 2026-10-14. Free-tier numbers come from third-party summaries unless noted and are marked "(unverified)"; re-check vendor pages before relying on them.
+Status: proposed 2026-10-14, **partly superseded 2026-10-15 (see the box below)**. Scope: frontend, backend, AI integration, deployment, repo layout. Versions were checked with `npm view` / `pip index versions` on 2026-10-14. Free-tier numbers come from third-party summaries unless noted and are marked "(unverified)"; re-check vendor pages before relying on them.
+
+> ## ⚠️ Superseded / updated 2026-10-15
+>
+> After the pivot to a Township World Model platform ([ADR 0009](../00-overview/decisions/0009-township-world-model-platform.md)) these parts of this document are **replaced**. Where a section below disagrees, **this box and the decision table in section 7 win**.
+>
+> | Area | Was (14 Oct) | Now | Decision |
+> |---|---|---|---|
+> | **3D engine** | React Three Fiber + `3d-tiles-renderer`; MapLibre 2D fallback | **CesiumJS 1.146 + Resium 1.27** with Google Photorealistic 3D Tiles as the hero; **Mapbox GL JS 3.33 Standard** as the lite 2.5D view; list view always on. Scene intents with one adapter per renderer. Sections 1.2, 1.5 (3D bullets) and the architecture diagram's 3D boxes are out of date | [ADR 0007](../00-overview/decisions/0007-3d-engine-cesium.md) |
+> | **AI loop** | Hand-written Python tool loop on provider SDKs (anthropic / openai / google-genai), `LLM_MODEL` | **PydanticAI** (`pydantic-ai-slim[openrouter]`, exact pin 2.56.0) over **OpenRouter**; model IDs only from env (`LLM_MODEL_DEFAULT`, `LLM_MODEL_ESCALATE`); `LLM_PROVIDER=mock` for CI. Provider SDKs are no longer dependencies; MCP is a stretch goal. Section 3 is out of date | [ADR 0008](../00-overview/decisions/0008-agent-harness-pydantic-ai.md) |
+> | **Database** | Postgres on Supabase Singapore (deployed), SQLite for dev | **SQLite + versioned GeoJSON/GeoParquet files** (base twin + lens overlays). **No Postgres/Supabase/PostGIS for the MVP**; hosted Postgres is a later option if staff edits must persist across deploys. The Supabase keep-alive cron is dropped | [township-3d-engine-and-data § 4](../02-research/township-3d-engine-and-data.md) |
+> | **Scope** | One facility, accessibility only | Whole-Elmina base twin, lenses `access` (deep), `flood` (deep), `waste` (thin); flood scenarios precomputed from a DEM by HAND | [ADR 0010](../00-overview/decisions/0010-flood-lens-hand-scenarios.md) |
+> | **Deployment** | Cloudflare Pages (web) + Cloud Run asia-southeast1 (API) | **Unchanged** | |
+>
+> Unchanged: Vite + React 19 SPA, FastAPI + Pydantic + NetworkX, uv/pnpm monorepo, OpenAPI-generated client, custom typed SSE (event names are now in [README](README.md#canonical-names-cheat-sheet)), accessibility rules in 1.5. Current layout and env vars: [dev-setup](../05-team/dev-setup.md).
 
 ## TL;DR
 
-- **Frontend:** Vite 8 + React 19.3 single-page app (no SSR needed), React Three Fiber 9.8 + drei 10.7 + `3d-tiles-renderer` 0.5 for the 3D scene, MapLibre GL + react-map-gl 8 for the 2D fallback, Tailwind v4 + shadcn/ui, Zustand + TanStack Query. Chat is a thin custom SSE hook with a typed event vocabulary (text, tool, highlight, citation) rather than a generic chat kit.
-- **Backend:** FastAPI 0.143 + Pydantic 2.14, managed with uv. NetworkX 3.7 for the graph (500 edges; speed is irrelevant). SQLAlchemy 2 + Alembic; SQLite locally, Postgres (Supabase, Singapore) when deployed. No PostGIS: shapely 2 + pyproj in Python, GeoJSON as interchange.
-- **AI:** The tool-use loop runs in Python inside the API. The tools are plain Python functions in one shared package, exposed three ways: native tool schemas for the chat loop, an MCP server (FastMCP) for external agents, and direct calls from the simulation runner. One definition, three consumers.
+- **Frontend:** Vite 8 + React 19.3 single-page app (no SSR needed), ~~React Three Fiber + `3d-tiles-renderer`~~ **CesiumJS 1.146 + Resium 1.27 for the 3D hero (ADR 0007)**, ~~MapLibre~~ **Mapbox GL JS 3.33 (lite view)**, Tailwind v4 + shadcn/ui, Zustand + TanStack Query. Chat is a thin custom SSE hook with a typed event vocabulary (text, tool, highlight, citation) rather than a generic chat kit.
+- **Backend:** FastAPI 0.143 + Pydantic 2.14, managed with uv. NetworkX 3.7 for the graph (500 edges; speed is irrelevant). SQLAlchemy 2 + Alembic; **SQLite + files (Postgres/Supabase deferred, see box)**. No PostGIS: shapely 2 + pyproj in Python, GeoJSON as interchange.
+- **AI:** (**now PydanticAI over OpenRouter, ADR 0008**) The tool-use loop runs in Python inside the API. The tools are plain Python functions in one shared package, exposed three ways: native tool schemas for the chat loop, an MCP server (FastMCP) for external agents, and direct calls from the simulation runner. One definition, three consumers.
 - **Contract:** OpenAPI from FastAPI is the source of truth. The generated TS client (`@hey-api/openapi-ts`) is committed. The chat SSE event schema is published as a Pydantic model and appears in OpenAPI as a documented component.
-- **Hosting:** Frontend on Cloudflare Pages. API on Google Cloud Run in `asia-southeast1` (scale to zero). DB on Supabase Singapore free tier with a keep-alive ping. Render free is the fallback for the API.
+- **Hosting:** Frontend on Cloudflare Pages. API on Google Cloud Run in `asia-southeast1` (scale to zero). DB: SQLite + files (Supabase deferred). Render free is the fallback for the API.
 - **Repo:** pnpm + uv monorepo (`apps/web`, `apps/api`, `packages/*`, `data/`, `evals/`), trunk-based with short PRs, Biome + ruff, vitest + pytest + Playwright, GitHub Actions.
-- **Biggest risks:** Google Photorealistic 3D Tiles terms and quota (see Risks), Supabase free pause, and cold starts on a scale-to-zero API during the demo.
+- **Biggest risks:** Google Photorealistic 3D Tiles terms and quota (see Risks), Cesium bundle weight on mobile, and cold starts on a scale-to-zero API during the demo.
 
 ## 1. Frontend
 
@@ -61,7 +75,7 @@ If the 3D data is not Google tiles (for example a custom glTF or an OSM extrusio
 event: text.delta        data: {"id","delta"}
 event: tool.call         data: {"id","name","args"}      // shown as "Checking route..." chips
 event: tool.result       data: {"id","summary"}
-event: scene.highlight   data: {"route_id"|"place_ids","geojson"}
+event: scene.intent      data: {"kind": "route.highlight|place.focus|camera.fly_to|flood.set_level|layer.toggle", ...}   // renamed 15 Oct, see api-contract
 event: citation          data: {"place_id","attribute","status","verified_at","source"}
 event: verification.requested data: {"request_id","reason"}
 event: done              data: {"message_id"}
@@ -232,15 +246,17 @@ flowchart LR
 
 Role boundaries: **Frontend** owns `apps/web` and consumes only the OpenAPI client plus the SSE event schema. **Backend** owns `apps/api`, DB, migrations, `packages/spatial` (graph and tools implementation), auth, deployment. **AI** owns `packages/agent`, prompts, personas, `evals/`, and the MCP adapter; touches tool *descriptions* and schemas via PR reviewed by backend.
 
-## 7. Decision table (versions as of 2026-10-14)
+## 7. Decision table (versions as of 2026-10-14; Cesium, Resium, Mapbox, pydantic-ai-slim, pysheds, osmnx re-checked 2026-10-15)
 
 | Area | Choice | Version |
 |---|---|---|
 | Node / pnpm | Node 22 or 24 LTS (verify), pnpm | 12.11.2 |
 | Bundler | Vite | 8.3.4 |
 | UI | React, TypeScript | 19.3.0, 7.0.2 (fallback 5.9) |
-| 3D | three, R3F, drei, 3d-tiles-renderer | 0.186.1, 9.8.1, 10.7.9, 0.5.3 |
-| 2D map | maplibre-gl, react-map-gl | 6.14.0, 8.1.3 |
+| 3D hero | **cesium, resium** (ADR 0007; checked `npm view` 2026-10-15) | **1.146.0, 1.27.0** |
+| 3D (not used now) | three, R3F, drei, 3d-tiles-renderer | 0.186.1, 9.8.1, 10.7.9, 0.5.3 (spike/fallback only) |
+| Lite 2.5D map | **mapbox-gl**, react-map-gl (`react-map-gl/mapbox`) | **3.33.0**, 8.1.3 |
+| 2D map (superseded) | maplibre-gl | 6.14.0 |
 | Styling | Tailwind, shadcn CLI | 4.3.3, 4.21.5 |
 | State/data | zustand, @tanstack/react-query | 5.0.15, 5.104.2 |
 | API client | @hey-api/openapi-ts | 0.99.0 |
@@ -248,19 +264,22 @@ Role boundaries: **Frontend** owns `apps/web` and consumes only the OpenAPI clie
 | Python | uv, Python 3.13 (3.14 if all wheels exist; verify) | 0.12.5 |
 | API | FastAPI, Pydantic, uvicorn | 0.143.1, 2.14.1, 0.54.0 |
 | Graph/geo | networkx, shapely, pyproj | 3.7, 2.2.0, 3.8.0 |
-| DB | SQLAlchemy, Alembic, psycopg | 2.1.4, 1.20.0, 3.3.6 |
-| AI SDKs | anthropic, openai, google-genai | 1.13.0, 3.31.0, 2.30.1 |
-| MCP | fastmcp (official `mcp` 2.3.0 as alternative) | 4.1.0 |
+| DB | SQLite + files; SQLAlchemy, Alembic (psycopg only if Postgres is adopted later) | 2.1.4, 1.20.0, 3.3.6 |
+| AI agent | **pydantic-ai-slim[openrouter]** (ADR 0008; checked `pip index versions` 2026-10-15), OpenRouter for model access | **2.56.0** (pin exactly) |
+| AI SDKs (superseded) | anthropic, openai, google-genai | 1.13.0, 3.31.0, 2.30.1 (not dependencies now) |
+| MCP (stretch) | fastmcp (official `mcp` 2.3.0 as alternative) | 4.1.0 |
+| Flood pipeline (offline, `pipelines` group) | pysheds, osmnx, rasterio; GLO-30 DEM, ASF HAND | pysheds 0.5, osmnx 2.1.1 (`pip index versions`, 2026-10-15); rasterio unpinned until Day 1 |
 | Python quality | ruff, pytest | 0.17.0, 9.1.1 |
 
 ## 8. Risks and mitigations
 
 1. **3D data terms/quota** (above): prepare the OSM/glTF fallback in week 2; cap quota and budget.
-2. **Supabase pause / free changes**: daily keep-alive cron; nightly `pg_dump` to GitHub Actions artifact; SQLite seed can rebuild the whole DB from `data/` in one command.
+2. **Supabase pause / free changes** (n/a while we use SQLite + files): the seed rebuilds the whole DB from `data/` in one command; revisit if we adopt hosted Postgres.
 3. **Cold starts in the live demo**: warm the API 10 minutes before; `min-instances=1` on demo day; frontend shows a "waking up" skeleton.
 4. **Fast-moving 0.x/major libs** (3d-tiles-renderer, hey-api, fastmcp, TS 7): pin exact versions in lockfiles, upgrade only deliberately.
 5. **LLM cost/abuse**: rate limit, provider budget cap, cheap model for simulation, response caching of identical simulation prompts.
 6. **Three-person integration drift**: contract-first, stub endpoints and fixtures by day 2, CI-checked OpenAPI diff.
+7. **Cesium bundle and Google tile quota on mobile** (added 2026-10-15): lazy-load Cesium, `requestRenderMode`, Lite view button; cap quota and set budget alerts.
 
 ## Sources
 

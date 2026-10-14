@@ -95,8 +95,22 @@ Other opportunities: internships with SDP, development with SDP's industry exper
 
 ## Open questions to ask organisers / mentors
 
-- [ ] Can we get access to SDP site data (master plans, facility lists, BIM/CAD, photos) for one facility, and under what terms?
-- [ ] May we survey and photograph Elmina Urban Park and the Lakeside Mall frontage (our pick, see [site-selection](../02-research/site-selection.md)), and publish accessibility attributes about the mall-frontage entrances?
-- [ ] What format and page limit does the 23 Oct proposal have? (Check the registration portal.)
+Updated 15 Oct 2026 for the whole-Elmina platform with an accessibility lens and a flood what-if lens. Ask the organisers the rules questions now; ask mentors and SDP the data questions on **28 Oct** (Top 10) or earlier through the organisers. Nothing in the MVP depends on the answers (we fall back to open data and label it), but each one upgrades the demo.
+
+**Rules and submission (organisers)**
+- [ ] What format and page limit does the 23 Oct proposal have, and may it include a screenshot or short video of a working prototype? (Check the registration portal.)
 - [ ] Do the judges expect a deployed URL, or is a video demo enough, for the 11 Nov final submission?
-- [ ] Who owns the IP in submitted work? (Check the Terms & Conditions.)
+- [ ] **IP:** who owns the IP in submitted work, and what happens to it if we are not selected? (Check the Terms & Conditions.)
+- [ ] **Permission to publish:** may we publish a public demo and accessibility attributes about named SDP facilities (the mall frontage) and **flood what-if scenarios** for Elmina? Is there required wording from SDP communications? (Flood scenarios are labelled indicative, never a forecast.)
+
+**Elmina data (SDP / mentors)**
+- [ ] **Elmina boundary polygon** (and the township's own place list) so we can clip the whole-township model exactly. Today we use an envelope `3.150,101.460,3.240,101.530`.
+- [ ] **PPS list:** the official *Pusat Pemindahan Sementara* (evacuation centres) for Elmina / Subang Bestari / Shah Alam. Is "Dewan Bunga Matahari" the same as "Dewan MBSA Matahari"? Until we get a list, OSM halls, schools and mosques are labelled `osm_candidate`, never "official".
+- [ ] **LiDAR, drainage and flood study:** survey or LiDAR data, drainage GIS, the stormwater masterplan (pond volumes, design storms, hand-over status SDP vs MBSA), and any flood marks or photos from Oct 2024 / Apr 2025 to sanity-check our scenario footprints. Also JPS gauge thresholds and permission to read InfoBanjir data (no documented API; we do not scrape).
+- [ ] Access to site data for the deep spot (master plans, facility lists, BIM/CAD, photos), and under what terms. May we survey and photograph Elmina Urban Park and the Lakeside Mall frontage (see [site-selection](../02-research/site-selection.md))?
+
+**Waste lens**
+- [ ] **MBSA / SWCorp waste contact:** collection schedules for Elmina, recycling and e-waste points, and whether SDP operates composting or recycling sites we can list. We found no OSM recycling points and no open MBSA dataset covering Elmina, so the `waste` lens is hand-curated and thin.
+
+**Judging and roadmap**
+- [ ] Is a roadmap lens (planning / data-centre site screening tied to SHIFT32) welcome as a pitch slide, or would it distract from the People track?

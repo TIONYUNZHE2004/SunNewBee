@@ -2,7 +2,7 @@
 # Shallow-clone the reference repos into reference/repos/<category>/<name>.
 # reference/repos/ is gitignored: re-run this script on any machine to recreate it.
 # Usage: bash reference/clone-repos.sh            (all)
-#        bash reference/clone-repos.sh 3d ai      (only some categories)
+#        bash reference/clone-repos.sh 3d ai      (only some categories: 3d access ai flood stack)
 set -u
 cd "$(dirname "$0")/repos"
 
@@ -19,6 +19,10 @@ REPOS=(
   "3d|https://github.com/ThatOpen/engine_components"
   "3d|https://github.com/ThatOpen/engine_web-ifc"
   "3d|https://github.com/sparkjsdev/spark"
+  # --- 3D / map additions after the township pivot (CesiumGS/cesium (~1.2 GB) and mapbox/mapbox-gl-js (~670 MB shallow) are too big to clone: read their APIs via npm/ctx7)
+  "3d|https://github.com/visgl/react-google-maps"
+  "3d|https://github.com/protomaps/PMTiles"
+  "3d|https://github.com/opengeospatial/geoparquet"
   "access|https://github.com/OpenSidewalks/OpenSidewalks-Schema"
   "access|https://github.com/nbolten/unweaver"
   "access|https://github.com/networkx/networkx"
@@ -32,6 +36,11 @@ REPOS=(
   "ai|https://github.com/jlowin/fastmcp"
   "ai|https://github.com/UKGovernmentBEIS/inspect_ai"
   "ai|https://github.com/aisingapore/sealion"
+  # --- Flood / disaster lens (flood-sources.md, priority 1-2). SFINCS/hydromt_sfincs/pyflwdir are priority 3 (pilot path): not cloned.
+  "flood|https://github.com/mdbartos/pysheds"
+  "flood|https://github.com/gboeing/osmnx"
+  "flood|https://github.com/jblindsay/whitebox-tools"
+  "flood|https://github.com/rasterio/rasterio"
   "stack|https://github.com/fastapi/full-stack-fastapi-template"
   "stack|https://github.com/assistant-ui/assistant-ui"
   "stack|https://github.com/hey-api/openapi-ts"

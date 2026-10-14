@@ -80,7 +80,7 @@ All of it works **with zero API keys** (mock LLM, list view), and uses the real 
 | (hand) `waste/points.geojson` | 10 placeholder points marked `unknown` until surveyed | points | none |
 | (hand) `flood/evac_centres.geojson` | OSM candidates (auto) + `official_pps` entries backed by news evidence (e.g. Dewan MBSA Matahari, 4 Oct 2024) | centres | none |
 
-`pnpm data:build` runs them in order. Attribution: OSM (ODbL), ASF HAND (CC0), Copernicus GLO-30 (Copernicus licence) in the UI credits and `data/README.md`.
+`pnpm data:build` runs them in order. **Lane follow-ups (not in the skeleton):** `import_overture.py` (Overture buildings/places) and `build_roads.py` (OSMnx drive graph), as listed in [dev-setup](../../05-team/dev-setup.md). Attribution: OSM (ODbL), ASF HAND (CC0), Copernicus GLO-30 (Copernicus licence) in the UI credits and `data/README.md`.
 
 ## 4. Backend slice
 - `packages/spatial`: models per schema §2–3 and §10; loads walk graph + places + scenario overlays into memory (NetworkX + Shapely STRtree); `evaluate(…, scenario)`; `plan_route` strict → lenient with `scenario_id`; flood analytics (reachability, islands); **10 tools** with Pydantic I/O returning `{ok, data, evidence[], warnings[]}`. The `drive` profile is defined but only *stubbed* (road graph = BE lane, week 1–2).

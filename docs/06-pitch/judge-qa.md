@@ -1,11 +1,12 @@
 # Judge Q&A Prep
 
+> Updated 15 Oct 2026 for the Township World Model platform (lenses `access`, `flood`, `waste`). Flood answers must always say "indicative scenario, not a forecast" and never "safe". Numbers come only from [key-numbers](key-numbers.md).
 > Likely questions, grouped by judging criterion, with **short** answers (aim for 20–30 seconds each). The owner is who answers on stage. Practise them out loud. Each answer should end with a fact or a demo pointer, not an adjective.
 
 ## Strategic fit (15%)
 
-**Q: Why is this a People-track solution and not just a map feature?**
-A (Mechanism lead): It's about *who* gets excluded today: parents with strollers, older residents, wheelchair users, first-time visitors. A pin on a map tells them where a building is, not how to get in without stairs. We make township knowledge usable for every resident, which is the People question word for word.
+**Q: Why is this a People-track solution and not just a map feature (or a Planet/climate one)?**
+A (Mechanism lead): It's about *who* gets excluded today: parents with strollers, older residents, wheelchair users, first-time visitors. A pin on a map tells them where a building is, not how to get in without stairs. We make township knowledge usable for every resident, which is the People question word for word. The flood lens is the same idea: it asks "can every resident, including a wheelchair user, still get to a place of shelter?", so it is resident safety and getting around, not climate modelling.
 
 **Q: How does it fit SDP's priorities?**
 A: SDP builds integrated townships with shared community facilities. Their value depends on residents actually using them. TownshipLens makes those facilities discoverable and inclusive, and gives the township team data on what residents ask and where information is missing. (Cite specifics from [sdp-context.md](../01-hackathon/sdp-context.md).)
@@ -30,7 +31,7 @@ A: Three things Google doesn't do at township level: (1) **entrance- and path-se
 A: No. The AI doesn't answer from documents. It calls a deterministic routing engine over a verified spatial graph, and a validator rejects any claim it can't cite. Recent benchmarks (MapEval, *Lost in Aggregation*, 2026) show LLMs fail at routing on their own. We designed around that.
 
 **Q: What's a "world model" here? Isn't that a generative AI thing?**
-A: Good question, and we're deliberate about it. Generative world models create plausible scenes. Ours is a *verified, structured* model of the real place. Residents need facts, not plausible pictures.
+A: Good question, and we're deliberate about it. Generative world models create plausible scenes. Ours is a *verified, structured* model of the real place: buildings, terrain, paths, facilities, waterways, each fact with a source and a date. The 3D view is presentation; the data is the truth. Residents and managers need facts, not plausible pictures.
 
 **Q: Your "resident agents": are you simulating people?**
 A: No, and on purpose. Research shows LLM personas of disabled people are stereotyped and idealised. Our agents are constraint profiles (step-free, rest every 100 m) that test the *map* on every journey. Real residents are consulted in person, as we did in our user test.
@@ -38,7 +39,7 @@ A: No, and on purpose. Research shows LLM personas of disabled people are stereo
 ## Feasibility (20%)
 
 **Q: Can SDP actually deploy this?**
-A: Yes. It runs in a browser with no app install and no resident accounts. It uses existing 3D data and an open schema (OpenSidewalks), and it's hosted for near-zero cost. Onboarding a facility is a one-day survey plus data entry. We did it for Elmina Urban Park in <N> hours.
+A: Yes. It runs in a browser with no app install and no resident accounts. It builds on open data for the whole of Elmina (OSM, Overture, Copernicus elevation), an open schema (OpenSidewalks), and it's hosted for near-zero cost. Adding a *deep* verified spot is a one-day survey plus data entry; we did Elmina Urban Park in <N> hours. SDP data (LiDAR, drainage GIS) would sharpen the flood lens.
 
 **Q: What does it cost to run?**
 A: The LLM is about USD 1 per 1,000 questions on a small model. Hosting is on free or low tiers at pilot scale. The main cost is staff time for verification, which the system minimises by ranking. Details: [business-case.md](business-case.md).
@@ -73,12 +74,46 @@ A: Keeping facts fresh at scale without burdening staff. Our ranking helps, but 
 
 ---
 
+## Platform, breadth and flood (new after the pivot)
+
+**Q: Isn't this too broad for 4 weeks and 3 students?**
+A (Pitch lead + BE): It's one world model with **two deep lenses and one thin one**. The flood lens reuses the routing engine and the verified-claims model, and its method is precomputed scenarios on an open elevation model, so it doesn't need a hydraulic simulator. Waste is 20–40 hand-curated points. Everything else (including data-centre siting) is labelled roadmap. Breadth is the platform claim; depth is where we demo.
+
+**Q: Is Elmina even flood-prone? Why a flood lens here?**
+A (AI/BE): Honest answer: Elmina's built-up core is **not** low-lying. Our elevation sampling gives a median of about 38 m, and Lakeside Mall sits around 45 m ([flood-disaster-lens](../02-research/flood-disaster-lens.md)). The documented floods are in the downstream neighbours, Kampung Kubu Gajah and Paya Jaras (April 2024, 4 October 2024 when relief centres opened, April 2025). Elmina residents are affected through **cut roads and links**, and that is exactly what a routing lens answers. We don't claim "Elmina goes under"; we show how a river rise affects residents' routes, their neighbours and the evacuation centres.
+
+**Q: Can you predict floods?**
+A: No, and we say so on screen. These are **indicative scenarios** ("river +3 m"), not forecasts. We never say "safe". For warnings people should follow JPS, MET Malaysia, NADMA and MBSA, and the app links to them. A live heavy-rain banner from MET Malaysia's open API is an optional extra.
+
+**Q: Why should SDP trust a 30 m elevation model?**
+A (BE): They shouldn't trust it as survey data, and neither do we. Copernicus GLO-30 has a vertical error under about 4 m, which is bigger than the water depths that matter for a wheelchair. So we classify paths into three bands (`likely_flooded`, `possible`, `unlikely`), treat `possible` as *not passable*, never print per-path depths, and show the margin. A scenario can only add "blocked" or "unknown", never turn an unknown into a pass. It is a planning aid for the questions "what might be cut off and who needs a plan?". The upgrade path is SDP's LiDAR and drainage data with a hydraulic model (SFINCS) behind the same interface.
+
+**Q: What about the data centre?**
+A (Pitch lead): It's a **roadmap lens, not something we built**. SDP's SHIFT32 strategy includes data centres (DC1 at Elmina Business Park was completed in March 2026; see [sdp-context](../01-hackathon/sdp-context.md)). Because our model already holds terrain, hydrology, roads and buildings, a site-screening lens would be another overlay on the same model. It would need its own data (power, fibre, planning rules) and an ADR, so we show it only as a commercial slide.
+
+**Q: Which model is the "AI" and what happens if it's wrong?**
+A (AI): The model is configurable (PydanticAI over OpenRouter, set in an environment variable), so we can swap it. It only calls ten deterministic tools, and a validator rejects uncited claims. For flood answers the server attaches the disclaimer and the scenario provenance; if validation fails, a template answer built from the data is used.
+
+**Q: Who is the management user and did you talk to one?**
+A: A township safety/ops lead (a persona we are validating, see [personas-and-journeys](../03-product/personas-and-journeys.md)) who wants to know what a river rise would cut off before it happens. We ran a feedback session with <n> township/ops person(s) ([evaluation-plan § 4.1](../03-product/evaluation-plan.md)): <findings>. We say honestly that n is tiny.
+
+**Q: Can't the advisory draft cause panic or false reassurance?**
+A: The draft is hedged ("likely cut off in this scenario"), links to official sources, is clearly marked a draft, and is **never sent by the app**. A person edits and sends it. We test that every scenario answer carries the disclaimer (100% target) and never says "safe".
+
+**Q: How is this different from Google Flood Hub or JPS InfoBanjir?**
+A: Those are live and authoritative at river-point or area level. We are not a warning system. We answer a different question: *"if the river rises by N metres, which streets, facilities and residents of this township get cut off, and where can each kind of resident go?"*, route-aware and uncertainty-honest ([competitors](../02-research/competitors.md), [flood-disaster-lens § 7](../02-research/flood-disaster-lens.md)).
+
+---
+
 ## Tough or curveball questions
 
 | Question | Answer direction |
 |---|---|
-| "Why 3D at all?" | Recognition: people find entrances faster when they *see* the façade. But 2D/text is always available, and 3D is optional. |
-| "Isn't your data too small to matter?" | It's deliberately one facility done *right*. Correctness is the product, and scale is a repeatable process. |
+| "Why 3D at all?" | Recognition: people find entrances faster when they *see* the façade, and managers grasp "what a river rise cuts off" at a glance. But the list view and a lite 2.5D map are always available; 3D is a layer, not a dependency. |
+| "Isn't your verified data too small to matter?" | The model covers the whole of Elmina from open data, and the *verified* depth is at deliberately chosen deep spots. Correctness is the product, and adding spots is a repeatable process. |
 | "What stops someone submitting false reports?" | Resident reports never auto-apply; only staff verify. A reported barrier makes us *cautious*, never *confident*. |
+| "Where did the flood water in your 3D come from? From the Google mesh?" | No. Heights and water extents come from the open elevation model only; Google's terms forbid deriving heights from the tiles. The tiles are just the backdrop. |
+| "Will you tell residents their home is safe?" | Never. We say "not in the modelled flood extent" and point to official sources. |
+| "Is a hand-curated waste layer worth it?" | It's deliberately thin (20–40 points) to show a third lens costs days, not weeks, on the same model; OSM has zero recycling points in Elmina. |
 | "Does it meet MS 1184?" | We don't certify compliance. We record verified measurements, which an auditor could use. |
 | "Why not just put up better signs?" | Do both. Signs help on site; we help *before* the trip and in any language. And our gap data tells SDP where signs are needed. |

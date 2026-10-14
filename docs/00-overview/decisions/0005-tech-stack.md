@@ -1,6 +1,6 @@
 # 0005. Tech stack
 
-- Status: **proposed** (confirm at the kick-off sync)
+- Status: **partly superseded**: the 3D layer by [0007](0007-3d-engine-cesium.md) (CesiumJS hero, Mapbox lite), the AI loop by [0008](0008-agent-harness-pydantic-ai.md) (PydanticAI over OpenRouter), and the DB by [world-model-schema § 10.5](../../04-architecture/world-model-schema.md) (files + SQLite, no Supabase/Postgres for the MVP). The rest (Vite/React, FastAPI, NetworkX, OpenAPI client, tooling, hosting) stands.
 - Date: 2026-10-14
 - Deciders: whole team
 

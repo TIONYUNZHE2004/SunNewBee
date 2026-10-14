@@ -46,6 +46,15 @@ PAPERS=(
   "3d|2509.13414_MapAnything.pdf|https://arxiv.org/pdf/2509.13414"
   "3d|2312.14132_DUSt3R.pdf|https://arxiv.org/pdf/2312.14132"
   "3d|2309.16650_ConceptGraphs.pdf|https://arxiv.org/pdf/2309.16650"
+  # --- Flood / disaster lens (priority 1-2 in reference/notes/flood-sources.md; each URL checked with curl -sIL on 2026-10-15)
+  "flood|2109.11712_Flood-mapping-traffic-signs-route-optimisation.pdf|https://arxiv.org/pdf/2109.11712"
+  "flood|2609.16963_Transport-resilience-heavy-rainfall.pdf|https://arxiv.org/pdf/2609.16963"
+  "flood|Hawker2022_FABDEM-ERL.pdf|https://iopscience.iop.org/article/10.1088/1748-9326/ac4d4f/pdf"
+  "flood|Pregnolato2017_depth-disruption-road-transport.pdf|https://research-information.bris.ac.uk/ws/files/191868409/Full_text_PDF_final_published_version_.pdf"
+  "flood|ISPRS2023_Bonn-interactive-evacuation-tool-dxv.pdf|https://repos.hcu-hamburg.de/bitstream/hcu/965/1/isprs-archives-XLVIII-1-W2-2023-437-2023.pdf"
+  "flood|ISPRS2019_3D-buildings-flood-simulation-Cesium.pdf|https://isprs-archives.copernicus.org/articles/XLII-2-W11/669/2019/isprs-archives-XLII-2-W11-669-2019.pdf"
+  "flood|DefraEA_FD2320-flood-hazard-ratings-note.pdf|https://n-somerset.gov.uk/sites/default/files/2024-08/CD%20K10%20Supplementary%20Note%20on%20Flood%20Hazard%20Ratings.pdf"
+  "flood|CIDB2023_draft-CIS-flood-risk-assessment-Malaysia.pdf|https://www.cidb.gov.my/wp-content/uploads/2023/10/DRAFT-CIS-FOR-FLOOD-RISK-ASSESSMENT-IN-MALAYSIA.pdf"
   # --- SDP and Malaysia context (reports, policy). Large reports are gitignored.
   "context|SDP_Integrated-Annual-Report-2025.pdf|https://www.simedarbyproperty.com/sites/default/files/2026-04/SDP%20IAR2025%20%28Website%29.pdf"
   "context|SDP_Sustainability-Report-2025.pdf|https://www.simedarbyproperty.com/sites/default/files/2026-04/SDP%20SR2025%20%28Website%29.pdf"
