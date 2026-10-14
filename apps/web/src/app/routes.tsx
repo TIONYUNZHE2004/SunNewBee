@@ -1,17 +1,7 @@
 import { createBrowserRouter, NavLink, Outlet } from "react-router";
+import { ManagePage } from "../features/manage/ManagePage";
 import { useSite } from "../lib/api";
 import { ResidentPage } from "./ResidentPage";
-
-function ManagePage() {
-  return (
-    <section aria-labelledby="manage-h">
-      <h1 id="manage-h" className="text-2xl font-semibold">
-        Management
-      </h1>
-      <p className="mt-2 text-ink-soft">Coming soon: verification requests and demand.</p>
-    </section>
-  );
-}
 
 const navCls = ({ isActive }: { isActive: boolean }) =>
   `rounded-md px-3 py-2 text-sm font-medium ${isActive ? "bg-brand text-white" : "text-brand hover:bg-brand-tint"}`;
