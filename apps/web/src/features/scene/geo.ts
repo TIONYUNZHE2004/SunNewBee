@@ -95,6 +95,27 @@ export function groupByStatus(lines: LineFeature[]): Map<EdgeStatus, LonLat[][]>
   return m;
 }
 
+/** Same grouping, keeping each edge's id so a picked primitive instance maps back to its path. */
+export function groupEdgesByStatus(
+  lines: LineFeature[],
+): Map<EdgeStatus, { id: string; coords: LonLat[] }[]> {
+  const m = new Map<EdgeStatus, { id: string; coords: LonLat[] }[]>();
+  for (const l of lines) {
+    if (l.coords.length < 2) continue;
+    const arr = m.get(l.status);
+    if (arr) arr.push({ id: l.id, coords: l.coords });
+    else m.set(l.status, [{ id: l.id, coords: l.coords }]);
+  }
+  return m;
+}
+
+/** Instance id used on flood GeometryInstances, and its inverse for scene.pick results. */
+export const floodEdgePickId = (edgeId: string) => ({ floodEdgeId: edgeId });
+export function pickedFloodEdgeId(picked: unknown): string | null {
+  const id = (picked as { id?: { floodEdgeId?: unknown } } | undefined)?.id;
+  return typeof id?.floodEdgeId === "string" ? id.floodEdgeId : null;
+}
+
 /** First clicked map feature on one of `layerIds` that carries a place id. */
 export function clickedPlaceId(
   features:

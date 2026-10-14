@@ -13,11 +13,13 @@ interface SceneState {
   scenarioId: string | null;
   focusPlaceId: string | null;
   selectedPlaceId: string | null;
+  selectedFloodEdgeId: string | null;
   route: { id: string; geojson: GeoJSON.LineString } | null;
   camera: { center: [number, number]; rangeM: number } | null;
   intents: SceneIntent[];
   applyIntent: (i: SceneIntent) => void;
   selectPlace: (id: string | null) => void;
+  selectFloodEdge: (id: string | null) => void;
   setView: (v: View) => void;
   setProfile: (p: Profile) => void;
   setScenario: (s: string | null) => void;
@@ -32,6 +34,7 @@ const initial = {
   scenarioId: null as string | null,
   focusPlaceId: null as string | null,
   selectedPlaceId: null as string | null,
+  selectedFloodEdgeId: null as string | null,
   route: null as SceneState["route"],
   camera: null as SceneState["camera"],
   intents: [] as SceneIntent[],
@@ -69,6 +72,7 @@ export const useScene = create<SceneState>((set) => ({
       return next;
     }),
   selectPlace: (selectedPlaceId) => set({ selectedPlaceId }),
+  selectFloodEdge: (selectedFloodEdgeId) => set({ selectedFloodEdgeId }),
   setView: (view) => set({ view }),
   setProfile: (profile) => {
     saveProfile(profile);
@@ -77,6 +81,7 @@ export const useScene = create<SceneState>((set) => ({
   setScenario: (scenarioId) =>
     set((s) => ({
       scenarioId,
+      selectedFloodEdgeId: null,
       lensVisible: { ...s.lensVisible, flood: !!scenarioId || s.lensVisible.flood },
     })),
   toggleLens: (l) => set((s) => ({ lensVisible: { ...s.lensVisible, [l]: !s.lensVisible[l] } })),

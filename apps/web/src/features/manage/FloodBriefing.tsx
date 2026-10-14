@@ -1,10 +1,13 @@
 import { useQuery } from "@tanstack/react-query";
 import { useId, useState } from "react";
 import { useScenarios } from "../../lib/api";
+import { DEMO_ORIGIN_NAME } from "../../lib/placeQuery";
 import { centreReachLabel, routeStatusLabel } from "../../lib/routeStatus";
 import { DisclaimerBanner } from "../flood/DisclaimerBanner";
 import type { Profile } from "../scene/sceneStore";
+import { Assumptions } from "./Assumptions";
 import { buildAdvisory, LANGS, type Lang } from "./advisory";
+import { comparisonRows } from "./comparison";
 import { type Briefing, fetchBriefing } from "./manageApi";
 
 export function summariseBriefing(b: Briefing) {
@@ -30,6 +33,66 @@ function Tile({ label, value }: { label: string; value: number }) {
     <div className="rounded-lg border border-line bg-card p-3">
       <p className="text-2xl font-semibold">{value}</p>
       <p className="text-sm text-ink-soft">{label}</p>
+    </div>
+  );
+}
+
+/** Two columns: normal river level vs the chosen scenario. Counts only, never a depth. */
+export function ComparisonTable({
+  baseline,
+  scenario,
+  scenarioLabel,
+}: {
+  baseline: Briefing | undefined;
+  scenario: Briefing;
+  scenarioLabel: string;
+}) {
+  if (!baseline)
+    return (
+      <p role="status" className="text-sm text-ink-soft">
+        Normal river level unavailable, so no comparison is shown.
+      </p>
+    );
+  const rows = comparisonRows(baseline, scenario);
+  return (
+    <div className="overflow-x-auto rounded-lg border border-line bg-card">
+      <table className="w-full text-left text-sm">
+        <caption className="p-3 text-left font-medium">
+          Normal river level compared with the scenario (indicative)
+          <span className="block text-xs font-normal text-ink-soft">
+            Centre rows are from {DEMO_ORIGIN_NAME}, demo start point.
+          </span>
+        </caption>
+        <thead className="bg-brand-tint">
+          <tr>
+            <th scope="col" className="px-3 py-2 font-medium">
+              Measure
+            </th>
+            <th scope="col" className="px-3 py-2 font-medium">
+              Normal river level
+            </th>
+            <th scope="col" className="px-3 py-2 font-medium">
+              {scenarioLabel}
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r) => (
+            <tr key={r.key} className="border-t border-line">
+              <th scope="row" className="px-3 py-2 font-medium">
+                {r.label}
+                {r.key === "reachable" && (
+                  <span className="block text-xs font-normal text-ink-soft">
+                    from {DEMO_ORIGIN_NAME}, demo start point
+                  </span>
+                )}
+              </th>
+              <td className="px-3 py-2">{r.baseline}</td>
+              <td className="px-3 py-2">{r.scenario}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }
@@ -137,6 +200,11 @@ export function FloodBriefing() {
     queryFn: () => fetchBriefing(scenarioId, profile),
     retry: false,
   });
+  const base = useQuery({
+    queryKey: ["manage", "briefing", "baseline", profile],
+    queryFn: () => fetchBriefing("baseline", profile),
+    retry: false,
+  });
   const options = (scenarios.data ?? []).filter((s) => s.id !== "baseline");
   const b = q.data;
   const s = b ? summariseBriefing(b) : null;
@@ -200,6 +268,8 @@ export function FloodBriefing() {
       ) : (
         <>
           <DisclaimerBanner text={b.disclaimer} />
+          <ComparisonTable baseline={base.data} scenario={b} scenarioLabel={b.scenario.label} />
+          <Assumptions selected={profile} />
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
             <Tile label="Likely cut off" value={s.likely} />
             <Tile label="Possibly cut off" value={s.possible} />

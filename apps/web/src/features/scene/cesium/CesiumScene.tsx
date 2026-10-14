@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { type CesiumComponentRef, useCesium, Viewer } from "resium";
 import { useLayer, useSite } from "../../../lib/api";
 import { ENV } from "../../../lib/env";
-import { pointFeatures } from "../geo";
+import { pickedFloodEdgeId, pointFeatures } from "../geo";
 import { useScene } from "../sceneStore";
 import { useCameraIntents } from "./camera";
 import { type HomeView, homeView, shouldReframe } from "./home";
@@ -122,7 +122,7 @@ function SceneSetup({
     frameHome(viewer, homeView(siteData));
   }, [viewer, siteData]);
 
-  // Click a place marker (entity id = place id) to open its card.
+  // Click a place marker (entity id = place id) to open its card, or a flood path (instance id) for "Why this path?".
   useEffect(() => {
     if (!viewer || viewer.isDestroyed()) return;
     const handler = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas);
@@ -130,7 +130,12 @@ function SceneSetup({
       const picked = viewer.scene.pick(e.position);
       const id = picked?.id;
       const key = id instanceof Cesium.Entity ? id.properties?.placeId?.getValue() : undefined;
-      if (typeof key === "string") useScene.getState().selectPlace(key);
+      if (typeof key === "string") {
+        useScene.getState().selectPlace(key);
+        return;
+      }
+      const edgeId = pickedFloodEdgeId(picked);
+      if (edgeId) useScene.getState().selectFloodEdge(edgeId);
     }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
     return () => handler.destroy();
   }, [viewer]);

@@ -11,7 +11,14 @@ import {
 import { useEvacCentres, useLayer, useScenarioWater } from "../../../lib/api";
 import { ENV } from "../../../lib/env";
 import { centreMapMarker } from "../../../lib/routeStatus";
-import { groupByStatus, type LonLat, lineFeatures, pointFeatures, waterPolygons } from "../geo";
+import {
+  floodEdgePickId,
+  groupEdgesByStatus,
+  type LonLat,
+  lineFeatures,
+  pointFeatures,
+  waterPolygons,
+} from "../geo";
 import { useScene } from "../sceneStore";
 import { CESIUM_DASH, type EdgeStatus, ROUTE_STYLE, statusStyle, WATER_COLOR } from "../styles";
 
@@ -19,6 +26,7 @@ const heightRef = () =>
   ENV.googleKey ? Cesium.HeightReference.CLAMP_TO_3D_TILE : Cesium.HeightReference.CLAMP_TO_GROUND;
 const flat = (coords: number[][]) => coords.flatMap((c) => [c[0] as number, c[1] as number]);
 const FLOODED: EdgeStatus[] = ["flooded_likely", "flooded_possible"];
+type EdgeGroup = { id: string; coords: LonLat[] };
 
 /** requestRenderMode: request a frame whenever `deps` change. */
 function useRenderOn(...deps: unknown[]) {
@@ -47,7 +55,7 @@ function StatusLines({
   groups,
   extraWidth = 0,
 }: {
-  groups: Map<EdgeStatus, LonLat[][]>;
+  groups: Map<EdgeStatus, EdgeGroup[]>;
   extraWidth?: number;
 }) {
   const { viewer } = useCesium();
@@ -59,9 +67,9 @@ function StatusLines({
       const collection = new Cesium.PolylineCollection();
       for (const [status, lines] of groups) {
         const width = statusStyle(status).width + extraWidth;
-        for (const c of lines)
+        for (const { coords } of lines)
           collection.add({
-            positions: Cesium.Cartesian3.fromDegreesArray(flat(c)),
+            positions: Cesium.Cartesian3.fromDegreesArray(flat(coords)),
             width,
             material: material(status),
           });
@@ -77,12 +85,15 @@ function StatusLines({
     const prims: Cesium.GroundPolylinePrimitive[] = [];
     for (const [status, lines] of groups) {
       const width = statusStyle(status).width + extraWidth;
+      const pickable = FLOODED.includes(status);
       const prim = new Cesium.GroundPolylinePrimitive({
+        // Flood edges carry a per-instance id so scene.pick maps a click back to its path.
         geometryInstances: lines.map(
-          (c) =>
+          ({ id, coords }) =>
             new Cesium.GeometryInstance({
+              id: pickable ? floodEdgePickId(id) : undefined,
               geometry: new Cesium.GroundPolylineGeometry({
-                positions: Cesium.Cartesian3.fromDegreesArray(flat(c)),
+                positions: Cesium.Cartesian3.fromDegreesArray(flat(coords)),
                 width,
               }),
             }),
@@ -110,7 +121,7 @@ export function AccessLayer() {
   const focusPlaceId = useScene((s) => s.focusPlaceId);
   const q = useLayer("access", profile, scenarioId);
   const groups = useMemo(
-    () => (visible ? groupByStatus(lineFeatures(q.data)) : new Map()),
+    () => (visible ? groupEdgesByStatus(lineFeatures(q.data)) : new Map()),
     [q.data, visible],
   );
   const points = useMemo(() => pointFeatures(q.data), [q.data]);
@@ -202,7 +213,9 @@ export function FloodLayer() {
     [water.data],
   );
   const groups = useMemo(() => {
-    const all = on ? groupByStatus(lineFeatures(flood.data)) : new Map<EdgeStatus, LonLat[][]>();
+    const all = on
+      ? groupEdgesByStatus(lineFeatures(flood.data))
+      : new Map<EdgeStatus, EdgeGroup[]>();
     return new Map([...all].filter(([s]) => FLOODED.includes(s)));
   }, [flood.data, on]);
   const waterColor = useMemo(
