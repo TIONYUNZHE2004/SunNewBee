@@ -15,6 +15,8 @@ class SimStore:
         Path(db_path).parent.mkdir(parents=True, exist_ok=True)
         self.db = sqlite3.connect(db_path, check_same_thread=False)
         self.db.row_factory = sqlite3.Row
+        self.db.execute("PRAGMA journal_mode=WAL")
+        self.db.execute("PRAGMA busy_timeout=5000")
         cols = {r["name"] for r in self.db.execute("PRAGMA table_info(sim_runs)")}
         if cols and "counts" not in cols:  # pre-summary-column dev table; runs are disposable
             self.db.execute("DROP TABLE sim_runs")
@@ -84,6 +86,8 @@ class AuditStore:
         Path(db_path).parent.mkdir(parents=True, exist_ok=True)
         self.db = sqlite3.connect(db_path, check_same_thread=False)
         self.db.row_factory = sqlite3.Row
+        self.db.execute("PRAGMA journal_mode=WAL")
+        self.db.execute("PRAGMA busy_timeout=5000")
         self.db.execute(AUDIT_SCHEMA)
         self._lock = threading.RLock()
 

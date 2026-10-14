@@ -26,13 +26,16 @@ def commit_claim(
     element_id: str, attribute: str, new: Claim, reason: str, note: str | None
 ) -> None:
     """Audit row first, then copy-on-write claim refresh, atomically under world_lock.
-    Raises KeyError for an unknown element, sqlite3.Error if the audit write fails."""
+    Re-validates the type against the current claim inside the lock. Raises KeyError for an
+    unknown element, ValueError on type mismatch, sqlite3.Error if the audit write fails."""
     ctx = state.get_ctx()
     with state.world_lock:
         target = ctx.world.edges.get(element_id) or ctx.world.places.get(element_id)
         if target is None:
             raise KeyError(element_id)
         old = target.claims.get(attribute)
+        if new.value is not None and old is not None and not _type_ok(new.value, old.value):
+            raise ValueError(f"value type does not match existing {attribute}")
         _audit().append(
             element_id=element_id,
             attribute=attribute,
@@ -85,25 +88,12 @@ def resolve(vr_id: str, body: ResolveBody) -> VerificationRequest:
     if verifying and body.value is None:
         raise HTTPException(422, "value is required for verify/correct")
     if verifying:
-        target = ctx.world.edges.get(existing.element_id) or ctx.world.places.get(
-            existing.element_id
-        )
-        old = target.claims.get(existing.attribute) if target else None
-        if old is not None and not _type_ok(body.value, old.value):
-            raise HTTPException(422, f"value type does not match existing {existing.attribute}")
-    try:
-        done = ctx.vrs.resolve(vr_id, body.action, body.value, body.note)
-    except KeyError:
-        raise HTTPException(404, f"unknown verification request {vr_id}") from None
-    except ValueError as e:
-        raise HTTPException(409, str(e)) from None
-    except sqlite3.Error:
-        raise HTTPException(503, "verification store unavailable") from None
-    if verifying:
+        # Claim + audit first: if the VR resolve below fails, the VR stays open and a retry
+        # is idempotent. A missing_place VR has no element, so no claim change and no audit row.
         try:
             commit_claim(
-                done.element_id,
-                done.attribute,
+                existing.element_id,
+                existing.attribute,
                 Claim(
                     value=body.value,
                     status="verified",
@@ -115,11 +105,20 @@ def resolve(vr_id: str, body: ResolveBody) -> VerificationRequest:
                 f"resolve:{vr_id}",
                 body.note or None,
             )
-        except KeyError:  # element gone (missing_place VR)
+        except KeyError:
             pass
+        except ValueError as e:
+            raise HTTPException(422, str(e)) from None
         except sqlite3.Error:
             raise HTTPException(503, "audit store unavailable") from None
-    return done
+    try:
+        return ctx.vrs.resolve(vr_id, body.action, body.value, body.note)
+    except KeyError:
+        raise HTTPException(404, f"unknown verification request {vr_id}") from None
+    except ValueError as e:
+        raise HTTPException(409, str(e)) from None
+    except sqlite3.Error:
+        raise HTTPException(503, "verification store unavailable") from None
 
 
 class AttributeBody(BaseModel):
@@ -139,10 +138,9 @@ def edit_attribute(
     target = ctx.world.edges.get(element_id) or ctx.world.places.get(element_id)
     if target is None:
         raise HTTPException(404, f"unknown element {element_id}")
+    if body.status != "unknown" and body.value is None:
+        raise HTTPException(422, "value is required unless status is unknown")
     value = None if body.status == "unknown" else body.value
-    old = target.claims.get(key)
-    if value is not None and old is not None and not _type_ok(value, old.value):
-        raise HTTPException(422, f"value type does not match existing {key}")
     new = Claim(
         value=value,
         status=body.status,
@@ -155,12 +153,14 @@ def edit_attribute(
         commit_claim(element_id, key, new, "edit", body.note)
     except KeyError:
         raise HTTPException(404, f"unknown element {element_id}") from None
+    except ValueError as e:
+        raise HTTPException(422, str(e)) from None
     except sqlite3.Error:
         raise HTTPException(503, "audit store unavailable") from None
     return new
 
 
-@router.get("/audit")
+@router.get("/audit", dependencies=[StaffOnly])
 def audit(element_id: str | None = None, limit: int = 200) -> list[dict[str, Any]]:
     try:
         return _audit().list(element_id, max(1, min(limit, 1000)))

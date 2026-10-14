@@ -1111,7 +1111,9 @@ export interface operations {
                 element_id?: string | null;
                 limit?: number;
             };
-            header?: never;
+            header?: {
+                "x-staff-token"?: string | null;
+            };
             path?: never;
             cookie?: never;
         };
