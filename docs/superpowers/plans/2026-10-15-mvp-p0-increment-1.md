@@ -147,3 +147,31 @@ T15 and T18 touch `apps/api`, so they run in **one BE worktree, sequentially** (
 **Tests:** `simModel` unit tests (percentages sum to 100 within rounding; empty report → zeros; unknown invariant → generic label). Add one Playwright e2e: on `/manage` → Journey tests, enter the staff token (`e2e-token` from the Playwright config), run → the outcome matrix shows the stroller row.
 
 - [ ] Tests first → components → web test / typecheck / build / lint / e2e → commit.
+
+### Task 20 (FE): Staff attribute editor + audit history (M-03 UI)
+
+**Files:** Create `apps/web/src/features/manage/{AttributeEditor.tsx,attributeForm.ts,attributeForm.test.ts,AuditHistory.tsx}`. Modify `apps/web/src/features/places/PlaceCard.tsx` (a staff "Edit facts" action when a staff token is present) and `ManagePage.tsx` if needed.
+
+**Interfaces (consumes, Task 18 API on main):**
+- `PATCH /api/elements/{element_id}/attributes/{key}` with body `{value, status: "verified"|"reported"|"unknown", source_type, note?}` and the `X-Staff-Token` header. Responses:
+  - 200: the updated claim
+  - 401 / 503: token missing or not configured
+  - 404: unknown element
+  - 422: bad key, type mismatch, or a null value with a non-unknown status
+- `GET /api/audit?element_id=` (staff) → rows `{id, at, actor, element_id, attribute, old, new, reason, note}`, newest first.
+
+**Behaviour:**
+- In the place card, staff mode shows an "Edit" button per fact.
+- **Inline editor:**
+  - Value input: number for numeric claims, a yes/no/unknown select for booleans, text otherwise.
+  - Status select: Verified / Reported / Unknown. Choosing Unknown clears and disables the value.
+  - A required source type select (`staff_site_visit`, `staff_photo`, `sdp_document`, `resident_report`) and an optional note.
+  - "Save" is disabled while invalid or saving. On success it shows a confirmation, refetches the place, and invalidates the layer queries so the map recolours.
+  - Errors map to plain messages (422 shows the server's detail text).
+- **History:** a "History" disclosure lists the audit rows for the element, newest first, as old → new value/status, with date, reason and note.
+- `attributeForm.ts` (pure, unit-tested): `parseValue(kind, raw)`, `validate(form)` (Unknown ⇒ value null; Verified/Reported need a value), `toPayload(form)`.
+- **Accessibility:** labels on every control; errors use `role=alert`; focus returns to the Edit button after save or cancel.
+
+**Tests:** `attributeForm` unit tests. One e2e: with the staff token set (`e2e-token`), open the Car Park B card, edit a fact to Unknown, save, and see it shown as unknown, with a history row.
+
+- [ ] Tests first → components → web test / typecheck / build / lint / e2e → commit.
