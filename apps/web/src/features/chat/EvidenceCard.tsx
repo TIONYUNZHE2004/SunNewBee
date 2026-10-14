@@ -1,3 +1,4 @@
+import { optionLabel } from "../manage/attributeCatalogue";
 import type { Citation } from "./chatReducer";
 
 const STATUS_ICON: Record<string, string> = {
@@ -8,29 +9,55 @@ const STATUS_ICON: Record<string, string> = {
   unknown: "?",
 };
 
-export function EvidenceCard({ c }: { c: Citation }) {
+function AttributeLine({ c }: { c: Citation }) {
   const placeholder = c.source_type === "team_survey_placeholder";
   return (
-    <li className="rounded-md border border-line bg-card px-3 py-2 text-sm">
+    <li className="mt-1">
       <p className="font-medium">
         <span className="mr-1 text-ink-soft">[{c.ref}]</span>
-        {c.element_id} · {c.attribute}
+        {optionLabel(c.attribute)}
       </p>
-      <p className="mt-1 flex flex-wrap items-center gap-2">
-        <span className="rounded border border-line px-1.5 py-0.5">
-          <span aria-hidden="true">{STATUS_ICON[c.status] ?? "?"} </span>
-          {c.status}
-        </span>
-        {placeholder && (
+      <p className="flex flex-wrap items-center gap-2">
+        {placeholder ? (
           <span className="rounded border border-[#B7791F] bg-warn-tint px-1.5 py-0.5">
-            placeholder
+            Demo value · not surveyed
           </span>
-        )}
-        {c.source_type && !placeholder && <span className="text-ink-soft">{c.source_type}</span>}
-        {c.verified_at && (
-          <span className="text-ink-soft">checked {c.verified_at.slice(0, 10)}</span>
+        ) : (
+          <>
+            <span className="rounded border border-line px-1.5 py-0.5">
+              <span aria-hidden="true">{STATUS_ICON[c.status] ?? "?"} </span>
+              {c.status}
+            </span>
+            {c.source_type && <span className="text-ink-soft">{c.source_type}</span>}
+            {c.verified_at && (
+              <span className="text-ink-soft">checked {c.verified_at.slice(0, 10)}</span>
+            )}
+          </>
         )}
       </p>
+    </li>
+  );
+}
+
+export function EvidenceCard({
+  element_id,
+  title,
+  citations,
+}: {
+  element_id: string;
+  title: string;
+  citations: Citation[];
+}) {
+  return (
+    <li className="evidence-card rounded-md border border-line bg-card px-3 py-2 text-sm">
+      <p className="font-semibold" title={element_id}>
+        {title}
+      </p>
+      <ul>
+        {citations.map((c) => (
+          <AttributeLine key={`${c.ref}-${c.evidence_id}`} c={c} />
+        ))}
+      </ul>
     </li>
   );
 }

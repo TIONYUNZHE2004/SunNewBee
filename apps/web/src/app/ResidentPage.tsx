@@ -4,7 +4,7 @@ import { ScenarioBar } from "../features/flood/ScenarioBar";
 import { PlaceCard } from "../features/places/PlaceCard";
 import { SceneHost } from "../features/scene/SceneHost";
 import { type Lens, useScene } from "../features/scene/sceneStore";
-import { useScenarios, useSite } from "../lib/api";
+import { useScenarios } from "../lib/api";
 
 const LENSES: [Lens, string][] = [
   ["access", "Access"],
@@ -15,9 +15,7 @@ const LENSES: [Lens, string][] = [
 export function ResidentPage() {
   const { lensVisible, toggleLens, scenarioId } = useScene();
   const scenarios = useScenarios();
-  const site = useSite();
   const scenario = scenarios.data?.find((s) => s.id === scenarioId);
-  const attribution = site.data?.attribution ?? [];
 
   return (
     <div className="space-y-4">
@@ -58,7 +56,6 @@ export function ResidentPage() {
         <ChatPanel />
       </div>
       <PlaceCard />
-      {attribution.length > 0 && <p className="text-xs text-ink-soft">{attribution.join(" · ")}</p>}
     </div>
   );
 }
