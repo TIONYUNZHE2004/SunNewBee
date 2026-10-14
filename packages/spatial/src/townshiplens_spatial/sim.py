@@ -7,12 +7,14 @@ from __future__ import annotations
 
 import copy
 import dataclasses
+import time
 import uuid
 from datetime import UTC, date, datetime
 from typing import Any
 
+from .evaluate import _CHECKS, evaluate_edge
 from .models import Claim
-from .routing import plan_route
+from .routing import _flood_class, plan_route
 from .world import World
 
 SIM_PROFILES = ("stroller", "wheelchair", "older_adult_rest")
@@ -20,19 +22,21 @@ ORIGIN_TYPES = {"parking", "drop_off", "bus_stop"}
 DEST_TYPES = {"facility", "toilet"}
 MAX_TASKS = 300
 MAX_GAPS = 20
+MAX_RERUNS = 2000
+MAX_SECONDS = 60.0
 OUTCOME = {
     "confirmed": "success",
     "partly_unverified": "success_with_unknowns",
     "blocked": "blocked",
     "no_data": "no_data",
 }
-# Verified passing value used when flipping a gap (passes every profile limit).
-PASS_VALUE = {"step_count": 0, "incline_pct": 0.0, "width_m": 2.0}
+GAP_ATTRS = {attr for attr, _ in _CHECKS.values()}  # same keys the evaluator checks
 
 
-def default_tasks(world: World) -> list[dict[str, Any]]:
+def default_tasks(world: World, profiles: list[str] | None = None) -> list[dict[str, Any]]:
     origins = sorted(p.id for p in world.places.values() if p.type in ORIGIN_TYPES)
     dests = sorted(p.id for p in world.places.values() if p.type in DEST_TYPES)
+    profs = [p for p in SIM_PROFILES if profiles is None or p in profiles]  # filter before the cap
     tasks = [
         {
             "id": f"{prof}:{o}>{d}",
@@ -44,20 +48,27 @@ def default_tasks(world: World) -> list[dict[str, Any]]:
         for o in origins
         for d in dests
         if o != d
-        for prof in SIM_PROFILES
+        for prof in profs
     ]
     return tasks[:MAX_TASKS]
 
 
-def _flipped(world: World, element_id: str, attribute: str) -> World | None:
+def _pass_value(world: World, profile_id: str, attribute: str) -> float:
+    hard = world.profiles[profile_id].hard
+    if attribute == "width_m":
+        return round(hard.get("min_width_m", 0.0) + 0.1, 3)
+    return 0 if attribute == "step_count" else 0.0
+
+
+def _flipped(world: World, element_id: str, attribute: str, profile_id: str) -> World | None:
     edge = world.edges.get(element_id)
-    if edge is None or attribute not in PASS_VALUE:
+    if edge is None or attribute not in GAP_ATTRS or profile_id not in world.profiles:
         return None
     e2 = copy.deepcopy(edge)
     e2.claims = {
         **e2.claims,
         attribute: Claim(
-            value=PASS_VALUE[attribute],
+            value=_pass_value(world, profile_id, attribute),
             status="verified",
             verified_at=date.today().isoformat(),
             evidence_type="sim_hypothetical",
@@ -82,7 +93,6 @@ def _check(world: World, task: dict, route, violations: list[dict]) -> None:
     limit = prof.max_rest_free_run_m if prof else None
     if (
         task["profile"] == "older_adult_rest"
-        and route.status == "confirmed"  # only a confirmed route promises the rest interval
         and limit is not None
         and route.max_gap_between_rest_m is not None
         and route.max_gap_between_rest_m > limit
@@ -109,7 +119,9 @@ def run_suite(world: World, tasks: list[dict], scenario_id: str | None = None) -
         if rr.routes:
             r0 = rr.routes[0]
             res["route_id"] = r0.id
-            res["unknowns"] = r0.unknowns
+            res["unknowns"] = [
+                {"element_id": u["element_id"], "attribute": u["attribute"]} for u in r0.unknowns
+            ]
             for r in rr.routes:
                 _check(world, t, r, violations)
             for key in {(u["element_id"], u["attribute"]) for u in r0.unknowns}:
@@ -118,16 +130,30 @@ def run_suite(world: World, tasks: list[dict], scenario_id: str | None = None) -
         counts[t["profile"]][outcome] += 1
         results.append(res)
     gaps = []
-    for (eid, attr), ts in gap_tasks.items():
-        w2 = _flipped(world, eid, attr)
-        if w2 is None:
-            continue
-        improved = [
-            t
-            for t in ts
-            if plan_route(w2, t["from_id"], t["to_id"], t["profile"], t["scenario_id"]).status
-            == "confirmed"
-        ]
+    reruns, started, truncated = 0, time.monotonic(), False
+    for (eid, attr), ts in sorted(gap_tasks.items()):
+        improved: list[dict] = []
+        flipped: dict[str, World | None] = {}
+        for t in ts:
+            if reruns >= MAX_RERUNS or time.monotonic() - started > MAX_SECONDS:
+                truncated = True
+                break
+            prof = t["profile"]
+            if prof not in flipped:
+                flipped[prof] = _flipped(world, eid, attr, prof)
+            w2 = flipped[prof]
+            if w2 is None:
+                continue
+            # Cheap pre-check: the flip must make this edge PASS for the profile/scenario.
+            res, _ = evaluate_edge(
+                w2.edges[eid], w2.profiles[prof], _flood_class(w2, t["scenario_id"], eid)
+            )
+            if res != "PASS":
+                continue
+            reruns += 1
+            rr = plan_route(w2, t["from_id"], t["to_id"], prof, t["scenario_id"])
+            if rr.status == "confirmed":
+                improved.append(t)
         if improved:
             gaps.append(
                 {
@@ -138,13 +164,17 @@ def run_suite(world: World, tasks: list[dict], scenario_id: str | None = None) -
                     "example_task_ids": [t["id"] for t in improved[:3]],
                 }
             )
+        if truncated:
+            break
     gaps.sort(key=lambda g: (-g["impact"], g["element_id"], g["attribute"]))
     return {
-        "run_id": "sim-" + uuid.uuid4().hex[:8],
+        "run_id": "sim-" + uuid.uuid4().hex,
+        "world_version": world.version,
         "created_at": datetime.now(UTC).isoformat(),
         "scenario_id": scenario_id,
         "counts": counts,
         "results": results,
         "gaps": gaps[:MAX_GAPS],
+        "gaps_truncated": truncated,
         "invariant_violations": violations,
     }

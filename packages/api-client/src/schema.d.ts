@@ -768,6 +768,11 @@ export interface components {
             created_at: string;
             /** Gaps */
             gaps: components["schemas"]["SimGap"][];
+            /**
+             * Gaps Truncated
+             * @default false
+             */
+            gaps_truncated: boolean;
             /** Invariant Violations */
             invariant_violations: components["schemas"]["SimViolation"][];
             /** Results */
@@ -776,6 +781,11 @@ export interface components {
             run_id: string;
             /** Scenario Id */
             scenario_id?: string | null;
+            /**
+             * World Version
+             * @default 0
+             */
+            world_version: number;
         };
         /** SimRequest */
         SimRequest: {
@@ -817,6 +827,8 @@ export interface components {
             task_count: number;
             /** Violation Count */
             violation_count: number;
+            /** World Version */
+            world_version: number;
         };
         /** SimViolation */
         SimViolation: {

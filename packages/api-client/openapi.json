@@ -1190,6 +1190,11 @@
             "title": "Gaps",
             "type": "array"
           },
+          "gaps_truncated": {
+            "default": false,
+            "title": "Gaps Truncated",
+            "type": "boolean"
+          },
           "invariant_violations": {
             "items": {
               "$ref": "#/components/schemas/SimViolation"
@@ -1218,6 +1223,11 @@
               }
             ],
             "title": "Scenario Id"
+          },
+          "world_version": {
+            "default": 0,
+            "title": "World Version",
+            "type": "integer"
           }
         },
         "required": [
@@ -1350,6 +1360,10 @@
           "violation_count": {
             "title": "Violation Count",
             "type": "integer"
+          },
+          "world_version": {
+            "title": "World Version",
+            "type": "integer"
           }
         },
         "required": [
@@ -1358,7 +1372,8 @@
           "counts",
           "task_count",
           "gap_count",
-          "violation_count"
+          "violation_count",
+          "world_version"
         ],
         "title": "SimSummary",
         "type": "object"

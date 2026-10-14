@@ -36,3 +36,18 @@ def test_unknown_run_404():
 def test_unknown_scenario_422():
     r = c.post("/simulations", json={"scenario_id": "nope"}, headers=OK)
     assert r.status_code == 422
+
+
+def test_keeps_last_20_runs():
+    for _ in range(22):
+        assert (
+            c.post("/simulations", json={"profiles": ["stroller"]}, headers=OK).status_code == 200
+        )
+    lst = c.get("/simulations", params={"limit": 50}).json()
+    assert len(lst) == 20 and "world_version" in lst[0]
+
+
+def test_report_fields():
+    rep = c.post("/simulations", json={"profiles": ["wheelchair"]}, headers=OK).json()
+    assert rep["gaps_truncated"] is False and len(rep["run_id"]) == 36
+    assert all(set(u) == {"element_id", "attribute"} for x in rep["results"] for u in x["unknowns"])

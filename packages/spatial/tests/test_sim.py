@@ -50,5 +50,41 @@ def test_stub_profile_no_data(world):
 
 def test_scenario_counts(world):
     r = sim.run_suite(world, sim.default_tasks(world), scenario_id="stage_p3m")
-    assert r["scenario_id"] == "stage_p3m" and not r["invariant_violations"]
+    assert r["scenario_id"] == "stage_p3m"
+    assert not [v for v in r["invariant_violations"] if v["invariant"] in ("I1", "I2")]
     assert sum(sum(v.values()) for v in r["counts"].values()) == len(r["results"])
+
+
+def test_i7_fires_on_baseline_older_adult(world):
+    # honest: the router does not enforce max_rest_free_run_m yet
+    r = sim.run_suite(
+        world,
+        [
+            {
+                "id": "o",
+                "profile": "older_adult_rest",
+                "from_id": "park-b",
+                "to_id": "kiosk",
+                "scenario_id": None,
+            }
+        ],
+    )
+    assert [v["invariant"] for v in r["invariant_violations"]] == ["I7"]
+    assert "rest_gap_exceeds_limit" in r["invariant_violations"][0]["detail"]
+
+
+def test_profiles_filter_before_cap(world):
+    ts = sim.default_tasks(world, ["wheelchair"])
+    assert ts and {t["profile"] for t in ts} == {"wheelchair"}
+
+
+def test_gap_budget_truncates(world, monkeypatch):
+    monkeypatch.setattr(sim, "MAX_RERUNS", 0)
+    r = sim.run_suite(world, sim.default_tasks(world), scenario_id="stage_p3m")
+    assert r["gaps_truncated"] is True
+    assert sim.run_suite(world, [])["gaps_truncated"] is False
+
+
+def test_report_shape(world):
+    r = sim.run_suite(world, [])
+    assert r["world_version"] == world.version and len(r["run_id"]) == 4 + 32
