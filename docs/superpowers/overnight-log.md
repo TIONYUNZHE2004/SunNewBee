@@ -350,3 +350,19 @@
   - None of the 788 major-road segments has a usable OSM sidewalk tag. They are UNKNOWN, so routes over them are partly_unverified, never confirmed. Field-survey gap.
   - **Ruling R23:** up to 4 more Overpass requests (task total 16), only for the failed tile, split in two.
 - **Dispatched:** Task 35 (photo evidence in the UI).
+
+## 04:10 — Tasks 35 merged; Task 31 R24; Task 36 dispatched
+- **Merged and pushed:**
+  - Task 35 (`7793b86`): photo field in the resolve form (upload then resolve; hidden on Reject; metadata note); thumbnails on evidence and place cards; same-origin `/evidence/<hex>` only.
+  - `e97e644`: citations carry `photo_url`.
+- **Checklist on `7793b86`:**
+  - pytest 433: PASS
+  - vitest 202: PASS
+  - lint: PASS
+  - gen: PASS
+  - typecheck: PASS
+  - build: PASS
+  - e2e 10/10: PASS
+- **Task 31:** still BLOCKED on the north strip (3.2175–3.24 N, 101.495–101.53 E). Overpass 504s; 16 requests used. Estimate with 4 of 5 tiles: components 199 → 84; largest share 32% → 87%; centres from the mall 23 → 56 connected (all partly_unverified); journey no_data 99% → 46%.
+  - **Ruling R24:** one last try via a public mirror (≤ 3 requests). Either way, build the seed from the tiles available and document any missing strip honestly.
+- **Dispatched:** Task 36 (F-08 "why this path" provenance popover, F-09 baseline vs scenario briefing, F-16 thresholds shown as engineering defaults).

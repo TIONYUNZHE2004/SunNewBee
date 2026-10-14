@@ -477,3 +477,32 @@ Uses the Task 34 API, which is merged: staff `POST /evidence` (multipart, JPEG/P
   - upload-then-resolve ordering, and no resolve after an upload failure (use the existing testable side-effect pattern from `createVr.ts`);
   - EvidenceCard with and without a photo.
 - **Out of scope:** do NOT touch `apps/api`, `data/`, `attributeCatalogue.ts` or `features/scene/*`.
+
+### Task 36: Flood provenance popover and baseline comparison (FE + small BE)
+
+From the audit: F-08 (MISSING), F-09/M-05 (PARTIAL: no baseline comparison), F-16 (thresholds not shown).
+
+- **"Why this path?" (F-08).** Clicking a flood-coloured path in Cesium (likely or possible) opens a small accessible popover or side panel. Also reachable from the list view's affected-path rows. It shows:
+  - scenario label, e.g. "River +3 m (indicative)";
+  - class ("Likely flooded" / "Possibly flooded");
+  - method: "Relative elevation above mapped OSM drainage (REM)" or the HAND label, taken from the scenario's `method`;
+  - DEM: "Copernicus GLO-30 (30 m)";
+  - margin, as a band, e.g. "within 0.5 m of the modelled water surface"; read it from scenario meta if present, otherwise omit it;
+  - the data version / `data_as_of`;
+  - the disclaimer line.
+
+  Never show a water depth or any number with two decimals for depth.
+
+  Backend: if the flood layer features don't carry the class and scenario id per edge, add them (properties only). For per-scenario provenance, extend `GET /scenarios/{id}` only if needed. Regenerate the client.
+- **Baseline vs scenario (F-09).** The flood briefing shows two columns per row: "Normal river level" vs the selected scenario. Rows:
+  - likely-flooded paths;
+  - possibly-flooded paths;
+  - places affected;
+  - centres reachable, partly unverified, no mapped connection (data gap) and not passable, per profile.
+
+  The origin is labelled ("from Elmina Lakeside Mall, demo start point"), using the `DEMO_ORIGIN_ID`/`DEMO_ORIGIN_NAME` constants in `lib/placeQuery.ts`.
+- **Thresholds shown (F-16).** In the briefing, a collapsible "Assumptions" section lists the profile thresholds from the versioned profile YAML (e.g. wheelchair max incline, step count, min width), labelled "our engineering default (no published source)". If they are not already exposed, add a read-only `GET /profiles` endpoint returning the profile parameters and regenerate the client.
+- **Tests.**
+  - pytest: the flood layer properties; `/profiles` if added.
+  - vitest: popover content per class with no depth numbers; briefing two-column rendering; assumptions labels.
+- **Out of scope:** do NOT touch `data/`, `import_osm.py`, `attributes.py`, `evaluate.py`, `sim.py` or `features/chat/*`.
