@@ -2,7 +2,9 @@
   "name": "townshiplens",
   "private": true,
   "packageManager": "pnpm@11.25.0",
-  "engines": { "node": ">=24" },
+  "engines": {
+    "node": ">=24"
+  },
   "scripts": {
     "dev": "concurrently -n api,web -c blue,green \"pnpm dev:api\" \"pnpm --filter @tl/web dev\"",
     "dev:api": "uv run uvicorn townshiplens_api.main:app --reload --port 8000 --app-dir apps/api/src",

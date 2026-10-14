@@ -1,5 +1,5 @@
 line-length = 100
 target-version = "py313"
-extend-exclude = ["reference"]
+extend-exclude = ["reference", "docs"]
 [lint]
 select = ["E", "F", "I", "UP", "B", "SIM"]
