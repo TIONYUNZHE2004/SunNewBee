@@ -141,49 +141,61 @@ def _type_ok(new: Any, old: Any) -> bool:
 )
 def resolve(vr_id: str, body: ResolveBody) -> VerificationRequest:
     ctx = state.get_ctx()
-    try:
-        existing = ctx.vrs.get(vr_id)
-    except sqlite3.Error:
-        raise HTTPException(503, "verification store unavailable") from None
-    if existing is None:
-        raise HTTPException(404, f"unknown verification request {vr_id}")
-    if existing.status not in ("open", "in_progress"):
-        raise HTTPException(409, f"{vr_id} is already {existing.status}")
-    verifying = body.action in ("verify", "correct")
-    if verifying and body.value is None:
-        raise HTTPException(422, "value is required for verify/correct")
-    if verifying:
-        # Claim + audit first: if the VR resolve below fails, the VR stays open and a retry
-        # is idempotent. A missing_place VR has no element, so no claim change and no audit row.
+    # One lock across read, status check, claim commit, audit row and VR update: the loser of
+    # two concurrent resolves gets 409 and changes nothing. world_lock is an RLock, so the
+    # nested commit_claim is fine.
+    with state.world_lock:
         try:
-            commit_claim(
-                existing.element_id,
-                existing.attribute,
-                Claim(
-                    value=body.value,
-                    status="verified",
-                    verified_at=date.today().isoformat(),
-                    evidence_type="staff_resolution",
-                    verified_by="staff",
-                    notes=body.note or None,
-                ),
-                f"resolve:{vr_id}",
-                body.note or None,
-            )
-        except KeyError:
-            pass
-        except ValueError as e:
-            raise HTTPException(422, str(e)) from None
+            existing = ctx.vrs.get(vr_id)
         except sqlite3.Error:
-            raise HTTPException(503, "audit store unavailable") from None
-    try:
-        return ctx.vrs.resolve(vr_id, body.action, body.value, body.note)
-    except KeyError:
-        raise HTTPException(404, f"unknown verification request {vr_id}") from None
-    except ValueError as e:
-        raise HTTPException(409, str(e)) from None
-    except sqlite3.Error:
-        raise HTTPException(503, "verification store unavailable") from None
+            raise HTTPException(503, "verification store unavailable") from None
+        if existing is None:
+            raise HTTPException(404, f"unknown verification request {vr_id}")
+        if existing.status not in ("open", "in_progress"):
+            raise HTTPException(409, f"{vr_id} is already {existing.status}")
+        verifying = body.action in ("verify", "correct")
+        value = body.value
+        if verifying and value is None and body.action == "verify":
+            # Verify with no value confirms the claim's current value.
+            target = ctx.world.edges.get(existing.element_id) or ctx.world.places.get(
+                existing.element_id
+            )
+            current = target.claims.get(existing.attribute) if target else None
+            value = current.value if current else None
+        if verifying and value is None:
+            raise HTTPException(422, "value is required for verify/correct")
+        if verifying:
+            # Claim + audit first: if the VR resolve below fails, the VR stays open and a retry
+            # is idempotent. A missing_place VR has no element, so no claim change and no audit row.
+            try:
+                commit_claim(
+                    existing.element_id,
+                    existing.attribute,
+                    Claim(
+                        value=value,
+                        status="verified",
+                        verified_at=date.today().isoformat(),
+                        evidence_type="staff_resolution",
+                        verified_by="staff",
+                        notes=body.note or None,
+                    ),
+                    f"resolve:{vr_id}",
+                    body.note or None,
+                )
+            except KeyError:
+                pass
+            except ValueError as e:
+                raise HTTPException(422, str(e)) from None
+            except sqlite3.Error:
+                raise HTTPException(503, "audit store unavailable") from None
+        try:
+            return ctx.vrs.resolve(vr_id, body.action, value, body.note)
+        except KeyError:
+            raise HTTPException(404, f"unknown verification request {vr_id}") from None
+        except ValueError as e:
+            raise HTTPException(409, str(e)) from None
+        except sqlite3.Error:
+            raise HTTPException(503, "verification store unavailable") from None
 
 
 class AttributeBody(BaseModel):
