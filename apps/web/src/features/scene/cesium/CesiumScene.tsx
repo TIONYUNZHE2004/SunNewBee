@@ -10,7 +10,13 @@ import { useCameraIntents } from "./camera";
 import { AccessLayer, FloodLayer, WasteLayer } from "./layers";
 
 /** Child of <Viewer>: mounts only after resium has created the viewer. */
-function SceneSetup({ onNoDraping }: { onNoDraping: () => void }) {
+function SceneSetup({
+  onNoDraping,
+  onTilesFailed,
+}: {
+  onNoDraping: () => void;
+  onTilesFailed: () => void;
+}) {
   const { viewer } = useCesium();
   const profile = useScene((s) => s.profile);
   const scenarioId = useScene((s) => s.scenarioId);
@@ -24,12 +30,16 @@ function SceneSetup({ onNoDraping }: { onNoDraping: () => void }) {
     if (!Cesium.GroundPolylinePrimitive.isSupported(viewer.scene)) onNoDraping();
     let cancelled = false;
     let tiles: Cesium.Cesium3DTileset | undefined;
+    const removers: (() => void)[] = [];
     (async () => {
       try {
         if (ENV.cesiumToken) Cesium.Ion.defaultAccessToken = ENV.cesiumToken;
         if (ENV.googleKey) {
           // Display-only: no height sampling, tracing or caching of Google tiles.
-          tiles = await Cesium.createGooglePhotorealistic3DTileset({ key: ENV.googleKey });
+          tiles = await Cesium.createGooglePhotorealistic3DTileset({
+            key: ENV.googleKey,
+            onlyUsingWithGoogleGeocoder: true,
+          });
         } else if (ENV.cesiumToken) {
           viewer.scene.setTerrain(Cesium.Terrain.fromWorldTerrain());
           tiles = await Cesium.createOsmBuildingsAsync();
@@ -40,11 +50,21 @@ function SceneSetup({ onNoDraping }: { onNoDraping: () => void }) {
             tiles = undefined;
           } else {
             viewer.scene.primitives.add(tiles);
+            // requestRenderMode does not render on tile loads: request frames as tiles stream in.
+            const render = () => {
+              if (!viewer.isDestroyed()) viewer.scene.requestRender();
+            };
+            removers.push(
+              tiles.loadProgress.addEventListener(render),
+              tiles.allTilesLoaded.addEventListener(render),
+            );
             if (ENV.googleKey) viewer.scene.globe.show = false;
           }
         }
-      } catch {
-        // Tileset failed (bad key/quota/offline): keep the base globe and overlays.
+      } catch (err) {
+        // Tileset failed (bad key/quota/offline): keep the base globe and overlays. Never log the key.
+        console.warn("3D tiles unavailable:", err instanceof Error ? err.message : "unknown error");
+        if (!cancelled) onTilesFailed();
       }
       if (cancelled || viewer.isDestroyed()) return;
       viewer.camera.setView({
@@ -55,13 +75,27 @@ function SceneSetup({ onNoDraping }: { onNoDraping: () => void }) {
     })();
     return () => {
       cancelled = true;
+      for (const r of removers) r();
       if (tiles && !viewer.isDestroyed()) {
         viewer.scene.primitives.remove(tiles); // removes and destroys
         if (ENV.googleKey) viewer.scene.globe.show = true;
         viewer.scene.requestRender();
       }
     };
-  }, [viewer, onNoDraping]);
+  }, [viewer, onNoDraping, onTilesFailed]);
+
+  // Click a place marker (entity id = place id) to open its card.
+  useEffect(() => {
+    if (!viewer || viewer.isDestroyed()) return;
+    const handler = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas);
+    handler.setInputAction((e: { position: Cesium.Cartesian2 }) => {
+      const picked = viewer.scene.pick(e.position);
+      const id = picked?.id;
+      const key = id instanceof Cesium.Entity ? id.properties?.placeId?.getValue() : undefined;
+      if (typeof key === "string") useScene.getState().selectPlace(key);
+    }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
+    return () => handler.destroy();
+  }, [viewer]);
 
   useCameraIntents(focusPoint);
   return null;
@@ -70,9 +104,19 @@ function SceneSetup({ onNoDraping }: { onNoDraping: () => void }) {
 export default function CesiumScene() {
   const ref = useRef<CesiumComponentRef<Cesium.Viewer>>(null);
   const [noDraping, setNoDraping] = useState(false);
+  const [tilesFailed, setTilesFailed] = useState(false);
+  const onTilesFailed = useCallback(() => setTilesFailed(true), []);
   const onNoDraping = useCallback(() => setNoDraping(true), []);
   return (
     <section className="relative h-full w-full" aria-label="3D map of Elmina">
+      {tilesFailed && (
+        <p
+          role="status"
+          className="absolute right-2 top-2 z-10 rounded-md border border-line bg-white/95 px-2 py-1 text-xs"
+        >
+          Photoreal tiles unavailable — showing basic globe
+        </p>
+      )}
       {noDraping && (
         <p
           role="note"
@@ -86,7 +130,10 @@ export default function CesiumScene() {
         full={false}
         style={{ width: "100%", height: "100%" }}
         requestRenderMode
-        onUpdate={() => ref.current?.cesiumElement?.scene.requestRender()}
+        onUpdate={() => {
+          const v = ref.current?.cesiumElement;
+          if (v && !v.isDestroyed()) v.scene.requestRender();
+        }}
         baseLayerPicker={false}
         timeline={false}
         animation={false}
@@ -98,7 +145,7 @@ export default function CesiumScene() {
         selectionIndicator={false}
         fullscreenButton={false}
       >
-        <SceneSetup onNoDraping={onNoDraping} />
+        <SceneSetup onNoDraping={onNoDraping} onTilesFailed={onTilesFailed} />
         <AccessLayer />
         <FloodLayer />
         <WasteLayer />

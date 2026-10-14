@@ -80,3 +80,73 @@
 - **External usage:** OpenRouter 0 · Google tiles 0 · Overpass about 7–14 requests.
 - **Next:** finish the Task 7 review → integrate → Task 9 (agent + SSE) on the AI lane → Task 3/10 data → Task 14 integration + browser verification.
 - **CI FAIL (root cause):** run 38610599711 failed at the OpenAPI drift step. Task 6 extended `AffectedResult` (`isolated_total`, `*_ids`, `*_total`) without running `pnpm gen`, and my integration checklist didn't include the drift check. **Fix:** Task 7 (in review) regenerates the client; it merges next. **Process change:** every integration now runs `pnpm gen && git diff --exit-code packages/api-client` before pushing.
+
+### 02:05 (+0:40)
+- **Integrated:** Task 7, the real API (merge `cb64083`; review fixes: VR-store locking, robust ids, copy-on-write claims, constant-time staff token with default-token refusal, layer cache, chat error fallback, CORS from settings). The backend lane (Tasks 4–7) is done.
+- **Verified (main, full checklist):** pytest PASS (150) · web vitest PASS (49) · lint PASS · `pnpm gen` no drift PASS · typecheck PASS · web build PASS. Pushed.
+- **Browser verification (main, real keys, Google tiles load 1/30):** the page shell, layer toggles, legend, chat suggestions and attribution render, and API calls return 200. **FAIL: the 3D scene is blank.** Root cause: vite-plugin-static-copy v4 preserves the source directory structure, so Cesium's Workers and Assets are served as HTML (SPA fallback). Evidence: console JSON parse and MIME errors; `fetch('/cesium/Assets/approximateTerrainHeights.json')` returns `text/html`; `dist/cesium/node_modules/cesium/Build/Cesium/...`. Fix round 4 was dispatched to the Task 12 implementer (`stripBase` plus a post-build asset check).
+- **In flight:** Task 9 (agent + SSE, Opus implementer) · Task 10 (flood raster pipeline, Opus implementer) · Task 3 (Overpass 504s, retrying with backoff) · Task 12 round 4.
+- **External usage:** OpenRouter 0 · Google tiles 1/30 · Overpass ~14 requests.
+
+### 02:12 (+0:47)
+- **Integrated:**
+  - Task 12 round 4: the Cesium asset paths, with a build-time asset check (`32b7d6c`).
+  - Task 12 round 5: render on tile load, a destroyed-viewer guard and a visible tile-failure notice (`ea43ae0`).
+- **Browser verification (real keys, main, mock LLM):**
+  - **PASS:** Google Photorealistic 3D of the Elmina area renders with our markers, and the initial view is sharp without interaction after round 5. Screenshots: `docs/superpowers/screenshots/2026-10-15-0206-cesium-google-photoreal-elmina.jpg` and `…0208-cesium-initial-view-sharp.jpg`.
+  - **Debugging evidence (systematic):** tileset creation succeeded in the page (`root.json`), the instrumented effect ran and added tiles, and the Google credits appeared, which proved tiles were streaming. The root cause was frames not being requested on tile load in requestRenderMode. The temporary instrumentation was reverted (never committed).
+  - **Minor (to Task 14):** the initial camera looks past the site; frame the site bbox instead.
+- **Task 9 (agent + SSE):** implemented on `lane/ai`, with `main` merged in (186 tests, golden 6/6 mock). It closed the flooded-endpoint gap: a route endpoint that is likely flooded produces evidence plus a caveat, and the validator enforces it. Opus review in progress.
+- **Task 10 (flood pipeline):** Opus implementer running. **Task 3:** Overpass tiles cached (9); the implementer is fixing a parsing error.
+- **External usage:** OpenRouter 0/30 · Google tiles ≈8/30 · Overpass ≈18.
+
+### 02:23 (+0:58): the walking-skeleton hero flows are verified end to end
+- **Integrated:** Task 9, the PydanticAI agent + `run_turn` SSE + CLI + golden runner (merge `fcb50d3`). Review fixes:
+  - the UI scenario is now applied to routing (Critical);
+  - caveats are required for flooded route endpoints;
+  - `scenario_id` is constrained (blocks prompt injection);
+  - VRs filed by the model are sanitised and never store model-written text (PDPA);
+  - turn timeout, rendering guard, and tools offloaded to threads.
+- **Full checklist (main):** pytest PASS (212) · golden PASS 6/6 (mock) · web vitest PASS (49) · lint PASS · `pnpm gen` no drift PASS · typecheck PASS · web build PASS (Cesium asset check OK). Pushed.
+- **Browser E2E (mock LLM, tiny fixture world, real map keys):**
+  - **Access hero: PASS.** Tool chips, a partly-unverified route, the unknown incline caveat first, citations with placeholder badges, a VR filed, and the route drawn on Google photoreal 3D. (`screenshots/2026-10-15-0222-access-hero-mock-tiny-fixture.jpg`)
+  - **Flood hero: PASS.** The scenario bar shows +3 m. Water renders over the photoreal tiles, with red likely-flooded and orange dashed possibly-flooded segments and "Community hall (candidate): Reachable". The disclaimer shows in both the banner and the chat, with source-labelled citations. (`…0223-flood-hero-mock-tiny-fixture.jpg`)
+  - **Management: PASS.** The VR queue shows the gap with its demand. The flood briefing shows counts, centres with a source column, and the advisory draft with no send button.
+  - **Resolve:** not exercised. The root `.env` has no `STAFF_TOKEN`, so the API refuses with 503 by design. The team lead needs to add `STAFF_TOKEN` to use it.
+- **Live LLM smoke (OpenRouter `anthropic/claude-haiku-5.5`, tiny fixture world):**
+  - **Access: PASS.** Correct tools, a VR, partial status and validated citations.
+  - **Flood-resident: PASS.** Indicative wording, honest partly-unverified and blocked results, no "safe", disclaimer present.
+  - **Management briefing: PASS.** Honest about missing reachability data.
+  - **Usage:** about 16 model requests, **US$0.0062** (OpenRouter daily counter 0.0000 → 0.0062). Limits: ≤ 30 requests / US$3. These results are for the **tiny fixture world**; live on the real Elmina seed is NOT RUN until Task 3 merges.
+- **Task 10 (flood):** ruling made: switch to REM (height above mapped OSM drainage), because ASF HAND's dense drainage flooded 39% of segments at +1 m, contradicting the verified local facts. ADR 0010 amended (`main`). Rework in progress.
+- **External usage:** OpenRouter about 16 req / US$0.0062 · Google tiles about 12/30 · Overpass about 18.
+
+### 02:34 (+1:09)
+- **Integrated:** Task 14A (`8fa36e8`):
+  - Playwright hero smoke tests (6: access, flood with no "safe" after the stream completes, manage VR, flood briefing sources, accessible names on `/` and `/manage`).
+  - A CI Playwright step with artifacts.
+  - READMEs (root and web refreshed; api, spatial and agent checked).
+  - Docs synced (dev-setup commands, stack-decision deviations, the spec's "Deviations (implemented)" section; spec status "implemented, walking skeleton, tiny-fixture verified; real-data verification pending").
+- **Full checklist (main):** pytest PASS (212) · golden 6/6 PASS (mock) · web vitest PASS (49) · e2e 6/6 PASS (implementer evidence, mock + tiny fixture) · lint PASS · gen no drift PASS · typecheck PASS.
+- **CI:** run for `8fa36e8` **PASS** (first CI run including Playwright).
+- **Walking-skeleton status:** Tasks 1, 2, 4–9, 11–13 and 14A are done and reviewed. **Remaining:** Task 3 (OSM import; Overpass mirrors keep timing out, implementer still iterating) → Task 10 vector stage (flood REM rework in progress) → Task 14B (real-data verification).
+- **External usage:** OpenRouter about 16 req / US$0.0062 · Google tiles about 12/30.
+
+### 02:40 (+1:15)
+- **Integrated (increment 1, plan `plans/2026-10-15-mvp-p0-increment-1.md`):**
+  - Task 17: place cards (P-04) (`a179bc9`; web 54, e2e 7/7).
+  - Task 16: DEMO_MODE cache (C-10) (merge `75c6ba2`; replay keeps the VR queue consistent; world-tagged mock recordings; the `--record` guard refuses live models unless `--allow-live` is passed).
+- **Task 3 (OSM import): done** after a roughly 66-minute run against the overloaded Overpass mirrors. It made about 53 requests against my ~40 cap (retries on 504s/timeouts; logged as an overrun). It produced 15,252 segments, 227 places and 204 hydrology features.
+  - **Coordinator integration check:** the seed loads with the real world loader (0.2 s), and the stroller route park-b → playground is confirmed (440.6 m).
+  - **Found:** `find_place("playground")` resolves to unnamed OSM playgrounds instead of the demo place. This is in review.
+- **Task 15 (sim runner):** the Opus review found the I7 filter hiding real rest-gap violations. Ruling: I7 applies to every offered route. A fix round is in progress (perf pruning, storage slimming).
+- **Task 10 (flood REM rework):** in progress.
+- **External usage:** OpenRouter about 16 req / US$0.0062 · Google tiles about 12/30 · **Overpass about 55 (cap ~40 exceeded by the data lane's retries)**.
+
+### 02:44
+- **Integrated:**
+  - Task 15: resident-agent batch runner + gap ranking + `/simulations` (merge `1233e9c`; Opus review → I7 ruling, perf budget, storage slimming).
+  - **Task 3: Elmina OSM seed** (merge `1a498b3`). The review fixes removed duplicate hero places, gave unnamed OSM places non-generic names, dropped the invented `seat_count`, made the steps-default provenance honest, and merge claims instead of overwriting them. Coordinator check: "playground", "car park b" and "lakeside mall" each resolve to the hero place first; stroller park-b → playground is confirmed at 440.6 m. One `biome.json` merge conflict was resolved (union of ignore lists).
+- **Verified (main):** pytest PASS (240) · golden 6/6 PASS (mock) · web vitest PASS (54) · e2e 7/7 PASS · lint PASS · gen no drift PASS · typecheck PASS. Pushed.
+- **The API now defaults to the real Elmina seed.** No flood data on main yet; Task 10 is in review, then a rebase onto the seed and the vector-stage run.
+- **In flight:** Task 18 (attribute editor + audit, in review) · Task 19 (journey-tests UI) · Task 10 review (Opus).

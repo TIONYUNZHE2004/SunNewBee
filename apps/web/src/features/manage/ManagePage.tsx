@@ -1,11 +1,13 @@
 import { useState } from "react";
 import { Link } from "react-router";
 import { FloodBriefing } from "./FloodBriefing";
+import { JourneyTests } from "./JourneyTests";
 import { VerificationQueue } from "./VerificationQueue";
 
 const TABS = [
   { id: "queue", label: "Verification queue" },
   { id: "flood", label: "Flood briefing" },
+  { id: "journeys", label: "Journey tests" },
 ] as const;
 
 export function ManagePage() {
@@ -52,7 +54,13 @@ export function ManagePage() {
         ))}
       </div>
       <div id={`mpanel-${tab}`} role="tabpanel" aria-labelledby={`mtab-${tab}`}>
-        {tab === "queue" ? <VerificationQueue /> : <FloodBriefing />}
+        {tab === "queue" ? (
+          <VerificationQueue />
+        ) : tab === "flood" ? (
+          <FloodBriefing />
+        ) : (
+          <JourneyTests />
+        )}
       </div>
     </div>
   );

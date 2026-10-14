@@ -22,6 +22,9 @@ export default defineConfig(({ mode }) => {
         targets: ["Workers", "ThirdParty", "Assets", "Widgets"].map((d) => ({
           src: `${CESIUM}/${d}`,
           dest: "cesium",
+          // static-copy v4 keeps the source path; strip node_modules/cesium/Build/Cesium so
+          // files land at /cesium/<Dir>/... (matching CESIUM_BASE_URL).
+          rename: { stripBase: 4 },
         })),
       }),
     ],
@@ -40,6 +43,6 @@ export default defineConfig(({ mode }) => {
         },
       },
     },
-    test: { environment: "node" },
+    test: { environment: "node", exclude: ["e2e/**", "node_modules/**"] },
   };
 });

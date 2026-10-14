@@ -28,3 +28,10 @@ Lens 2 must show "what if the river rises?" in 3D for management and residents, 
 - Data pipeline work for BE (DEM, HAND, scenarios, OSMnx road graph) in week 1–2.
 - The FE draws water as extruded polygons at absolute height (ADR [0007](0007-3d-engine-cesium.md)), so a datum calibration is needed.
 - Ask SDP/JPS/MBSA for LiDAR, drainage GIS, the PPS list and flood photos (Oct 2024 / Apr 2025) for sanity checks.
+
+## Amendment (2026-10-15, overnight build)
+**Observed:** the ASF global HAND raster uses a very dense drainage network (minor channels, and bridges counted as drainage). In the walking-skeleton build, +1 m classified about 39% of all Elmina walk/road segments as `likely_flooded`, including high ground near Lakeside Mall. That contradicts the verified local facts (core about 38–45 m; documented floods are downstream on the Sungai Subang corridor), so presenting it would be dishonest.
+
+**Decision:** the default scenario method becomes a **Relative Elevation Model (REM)**: the height of each Copernicus GLO-30 cell above the nearest *mapped* drainage cell. Mapped drainage means OSM `waterway=river|stream|canal` plus water polygons. The connected-inundation rule, the margin and monotonicity are unchanged. ASF HAND stays available as a comparison (`build_flood.py --method hand`).
+
+**Consequence:** accuracy now depends on OSM waterway completeness (drains are under-mapped), and this is stated in `data/FLOOD.md` and the UI disclaimer. Upgrade path unchanged: SDP LiDAR and drainage GIS, then SFINCS.

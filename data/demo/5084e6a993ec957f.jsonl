@@ -1,0 +1,14 @@
+{"meta": {"message": "Which places are cut off if the river rises 3 m? Give me a briefing.", "profile": "default", "scenario_id": "stage_p3m", "world": "tiny", "model": "mock-scripted", "recorded_at": "2026-10-14T18:38:36+00:00"}}
+{"type": "tool.call", "id": "list_flood_scenarios-0", "name": "list_flood_scenarios", "args": {}}
+{"type": "tool.result", "id": "list_flood_scenarios-0", "name": "list_flood_scenarios", "summary": "4 result(s)"}
+{"type": "tool.call", "id": "affected_places-1", "name": "affected_places", "args": {"scenario_id": "stage_p3m", "kind": "all", "profile": "default"}}
+{"type": "tool.result", "id": "affected_places-1", "name": "affected_places", "summary": "2 likely, 1 possible"}
+{"type": "text.delta", "delta": "In the River +3 m indicative scenario, 2"}
+{"type": "text.delta", "delta": " places/paths are likely cut off and 1 p"}
+{"type": "text.delta", "delta": "ossibly. This is not a forecast; follow "}
+{"type": "text.delta", "delta": "official MBSA / JPS / NADMA guidance."}
+{"type": "scene.intent", "intent": {"kind": "flood.set_level", "place_id": null, "route_id": null, "scenario_id": "stage_p3m", "center": null, "range_m": null, "lens": null, "visible": null, "geojson": null}}
+{"type": "citation", "ref": 1, "evidence_id": "ev-scn-stage_p3m", "element_id": "stage_p3m", "attribute": "scenario", "status": "indicative", "verified_at": null, "source_type": "HAND scenario"}
+{"type": "uncertainty", "level": "none", "items": []}
+{"type": "disclaimer", "lens": "flood", "text": "Indicative scenario, not a forecast. Follow official MBSA / JPS / NADMA guidance.", "links": []}
+{"type": "done", "message_id": "demo", "answer_status": "answered", "model": "mock-scripted"}

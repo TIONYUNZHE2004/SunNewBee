@@ -1,15 +1,14 @@
 import contextlib
-import hmac
 import sqlite3
 from datetime import date
-from typing import Annotated, Any, Literal
+from typing import Any, Literal
 
-from fastapi import APIRouter, Header, HTTPException
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from townshiplens_spatial.models import Claim, VerificationRequest
 
 from .. import state
-from ..settings import DEFAULT_STAFF_TOKEN, ApiSettings
+from ..auth import StaffOnly
 
 router = APIRouter()
 
@@ -36,19 +35,12 @@ def _type_ok(new: Any, old: Any) -> bool:
     return isinstance(new, type(old))
 
 
-@router.post("/verification-requests/{vr_id}/resolve", response_model=VerificationRequest)
-def resolve(
-    vr_id: str,
-    body: ResolveBody,
-    x_staff_token: Annotated[str | None, Header()] = None,
-) -> VerificationRequest:
-    configured = ApiSettings().staff_token
-    if not configured or configured == DEFAULT_STAFF_TOKEN:
-        raise HTTPException(503, "staff token not configured")
-    if x_staff_token is None or not hmac.compare_digest(
-        x_staff_token.encode(), configured.encode()
-    ):
-        raise HTTPException(401, "staff token required")
+@router.post(
+    "/verification-requests/{vr_id}/resolve",
+    response_model=VerificationRequest,
+    dependencies=[StaffOnly],
+)
+def resolve(vr_id: str, body: ResolveBody) -> VerificationRequest:
     ctx = state.get_ctx()
     try:
         existing = ctx.vrs.get(vr_id)

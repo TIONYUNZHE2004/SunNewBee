@@ -26,7 +26,7 @@ function StatusBadge({ status }: { status: Parameters<typeof statusStyle>[0] }) 
 }
 
 export function ListView() {
-  const { profile, scenarioId, route, focusPlaceId, lensVisible } = useScene();
+  const { profile, scenarioId, route, focusPlaceId, lensVisible, selectPlace } = useScene();
   const layer = useLayer("access", profile, scenarioId);
   const scenarios = useScenarios();
   const parsed = useMemo(() => parseLayer(layer.data), [layer.data]);
@@ -138,15 +138,18 @@ export function ListView() {
               </h3>
               <ul className="mt-2 grid gap-2 sm:grid-cols-2">
                 {items.map((p) => (
-                  <li
-                    key={p.id}
-                    aria-current={p.id === focusPlaceId ? "true" : undefined}
-                    className={`rounded-lg border px-4 py-3 ${p.id === focusPlaceId ? "border-brand bg-brand-tint" : "border-line bg-card"}`}
-                  >
-                    {p.name}
-                    {p.id === focusPlaceId && (
-                      <span className="ml-2 text-sm font-medium text-brand">(selected)</span>
-                    )}
+                  <li key={p.id} aria-current={p.id === focusPlaceId ? "true" : undefined}>
+                    <button
+                      type="button"
+                      aria-haspopup="dialog"
+                      onClick={() => selectPlace(p.id)}
+                      className={`min-h-11 w-full rounded-lg border px-4 py-3 text-left hover:bg-brand-tint ${p.id === focusPlaceId ? "border-brand bg-brand-tint" : "border-line bg-card"}`}
+                    >
+                      {p.name}
+                      {p.id === focusPlaceId && (
+                        <span className="ml-2 text-sm font-medium text-brand">(selected)</span>
+                      )}
+                    </button>
                   </li>
                 ))}
               </ul>

@@ -55,3 +55,12 @@ export const useEvacCentres = (
         }),
       ),
   });
+
+export const usePlace = (id: string | null) =>
+  useQuery({
+    queryKey: ["place", id],
+    enabled: !!id,
+    retry: false,
+    queryFn: async () =>
+      unwrap(await api.GET("/places/{place_id}", { params: { path: { place_id: id as string } } })),
+  });

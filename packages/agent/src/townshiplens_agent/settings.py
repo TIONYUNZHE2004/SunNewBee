@@ -13,6 +13,9 @@ class AgentSettings(BaseSettings):
     llm_model_default: str = "anthropic/claude-haiku-5.5"
     llm_model_escalate: str = "anthropic/claude-sonnet-5.5"
     llm_output_retries: int = 2
+    turn_timeout_s: float = 60.0
+    demo_mode: bool = False
+    demo_dir: Path = ROOT / "data/demo"
 
     @property
     def provider(self) -> str:

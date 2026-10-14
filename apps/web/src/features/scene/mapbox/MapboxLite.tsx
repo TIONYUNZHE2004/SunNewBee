@@ -1,6 +1,6 @@
 import "mapbox-gl/dist/mapbox-gl.css";
 import { useCallback, useEffect, useMemo, useRef } from "react";
-import MapGL, { Layer, type MapRef, Source } from "react-map-gl/mapbox";
+import MapGL, { Layer, type MapMouseEvent, type MapRef, Source } from "react-map-gl/mapbox";
 import { useLayer, useScenarioWater } from "../../../lib/api";
 import { ENV } from "../../../lib/env";
 import { normalizeLayer, pointFeatures } from "../geo";
@@ -123,6 +123,7 @@ export default function MapboxLite() {
   const route = useScene((s) => s.route);
   const focusPlaceId = useScene((s) => s.focusPlaceId);
   const camera = useScene((s) => s.camera);
+  const selectPlace = useScene((s) => s.selectPlace);
   const access = useLayer("access", profile, scenarioId);
   const water = useScenarioWater(scenarioId);
   const flood = useLayer("flood", profile, scenarioId);
@@ -173,6 +174,12 @@ export default function MapboxLite() {
         initialViewState={{ longitude: 101.5099, latitude: 3.1813, zoom: 15, pitch: 55 }}
         style={{ width: "100%", height: "100%" }}
         reuseMaps
+        interactiveLayerIds={showAccess ? ["access-places"] : []}
+        cursor="auto"
+        onClick={(e: MapMouseEvent) => {
+          const id = e.features?.find((f) => f.layer?.id === "access-places")?.properties?.id;
+          if (id) selectPlace(String(id));
+        }}
       >
         {showWater && (
           <Source id="water" type="geojson" data={water.data as never}>

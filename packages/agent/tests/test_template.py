@@ -76,3 +76,21 @@ def test_template_missing_status_and_distance():
     a = template_answer(r, "q")
     assert validate_answer(a, r) == []
     assert "None" not in a.summary and a.answer_status == "partial"
+
+
+@pytest.mark.parametrize("cls", ["likely_flooded", "possible"])
+def test_template_flooded_endpoint_caveat(cls):
+    r = TurnRecord()
+    r.routes["rt-1"] = {"distance_m": 50, "unknowns": []}
+    r.route_status["rt-1"] = "confirmed"
+    r.scenarios_used.add("stage_p3m")
+    r.flooded_endpoints["playground"] = {
+        "flood_class": cls,
+        "name": "Urban Park playground",
+        "scenario_id": "stage_p3m",
+    }
+    a = template_answer(r, "q")
+    assert validate_answer(a, r) == []
+    assert "Urban Park playground" in a.caveats[0]
+    if cls == "likely_flooded":
+        assert a.answer_status == "partial" and "likely flooded" in a.caveats[0]

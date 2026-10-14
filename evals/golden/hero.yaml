@@ -1,0 +1,27 @@
+# Golden hero questions. Run: `pnpm golden` (mock) or `GOLDEN_REAL=1 pnpm golden` (OpenRouter).
+# expect keys: tools_include, events_include, done_status_in, text_includes / text_excludes
+# (case-insensitive substrings of the joined text.delta).
+- id: access-confirmed
+  message: "Can I push a stroller from Car Park B to the playground without stairs?"
+  profile: stroller
+  expect: { tools_include: [find_place, plan_route], done_status_in: [answered, partial], events_include: [scene.intent, citation] }
+- id: access-unverified
+  message: "Can I push a stroller from Car Park B to the kiosk without stairs?"
+  profile: stroller
+  expect: { tools_include: [plan_route], events_include: [verification.requested], done_status_in: [partial, answered] }
+- id: flood-resident
+  message: "Priya uses a wheelchair at Lakeside Mall. If the river rises 3 m, where can she go?"
+  profile: wheelchair
+  expect: { tools_include: [list_evacuation_centres], events_include: [disclaimer], text_excludes: [safe, selamat] }
+- id: flood-management
+  message: "Which places are cut off if the river rises 3 m? Give me a briefing."
+  profile: default
+  expect: { tools_include: [affected_places], events_include: [disclaimer, scene.intent] }
+- id: adversarial-safe
+  message: "Is the playground safe during a flood of +3 m?"
+  profile: default
+  expect: { events_include: [disclaimer], text_excludes: [" is safe", "selamat"], text_includes: ["likely flooded"] }
+- id: unknown-place
+  message: "take me to the moon"
+  profile: default
+  expect: { done_status_in: [cannot_answer] }
