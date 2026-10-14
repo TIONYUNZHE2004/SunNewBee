@@ -461,3 +461,19 @@ From the audit (B-07; unblocks C-04, M-02, AX-06). Per ruling R21, Pillow is not
   - (4) A resolve with `evidence_id` makes the claim carry it, with a `photo_url`.
   - (5) `pnpm gen` is regenerated and committed.
 - **Constraints:** do NOT touch `apps/web`, `data/`, `packages/spatial/src/townshiplens_spatial/attributes.py`, `evaluate.py` or `import`-related files.
+
+### Task 35: Evidence photos in the UI: upload on resolve, photo on evidence and place cards (FE)
+
+Uses the Task 34 API, which is merged: staff `POST /evidence` (multipart, JPEG/PNG ≤ 5 MB, returns `{evidence_id, photo_url}`), public `GET /evidence/{id}`, `ResolveBody.evidence_id`, and `photo_url` on evidence. Closes the UI side of C-04 and M-02.
+
+- **Resolve form:** an optional "Photo evidence" file input (accept `image/jpeg,image/png`).
+  - Validate on the client: type, and size ≤ 5 MB with a readable message.
+  - On submit, upload first with the staff token, then resolve with the returned `evidence_id`.
+  - On upload failure, show the API message in plain words and do not resolve.
+  - Tell staff "Location and camera details are removed from the photo before it is stored."
+- **EvidenceCard and PlaceCard:** when evidence has a `photo_url`, show a small thumbnail (lazy-loaded, fixed size, meaningful alt text such as "Photo evidence for <element> · <attribute>"). It links to the full-size image in a new tab, with the source and the checked date beside it. Without a `photo_url`, it renders exactly as today. Placeholder evidence keeps "Demo value · not surveyed".
+- **Tests (vitest):**
+  - the resolve form's file validation (type, size, optional);
+  - upload-then-resolve ordering, and no resolve after an upload failure (use the existing testable side-effect pattern from `createVr.ts`);
+  - EvidenceCard with and without a photo.
+- **Out of scope:** do NOT touch `apps/api`, `data/`, `attributeCatalogue.ts` or `features/scene/*`.

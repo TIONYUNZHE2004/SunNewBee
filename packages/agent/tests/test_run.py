@@ -752,3 +752,27 @@ def test_route_summary_uses_names_not_ids():
     s = route_summary(w, "wheelchair", pid, f"__centre__{cid}")
     assert s == f"wheelchair route {w.places[pid].name} -> {w.centres[cid].name}"
     assert route_summary(w, "default", "nope", "__centre__nope") == "default route nope -> nope"
+
+
+def test_citation_carries_photo_url():
+    from townshiplens_agent.answer import Claim, FinalAnswer
+    from townshiplens_agent.events import Citation
+    from townshiplens_agent.record import TurnRecord
+    from townshiplens_spatial.models import Evidence
+
+    rec = TurnRecord()
+    rec.evidence["ev-1"] = Evidence(
+        id="ev-1",
+        element_id="toilet-1",
+        attribute="wheelchair",
+        status="verified",
+        photo_url="/api/evidence/" + "a" * 32,
+    )
+    ans = FinalAnswer(
+        answer_status="answered",
+        summary="ok",
+        claims=[Claim(text="Toilet is step-free.", status="verified", evidence_ids=["ev-1"])],
+    )
+    ctx = tools.Ctx(world=load_world(TINY), vrs=None)
+    cites = [e for e in run_mod._answer_events(ans, rec, ctx) if isinstance(e, Citation)]
+    assert cites and cites[0].photo_url == "/api/evidence/" + "a" * 32
