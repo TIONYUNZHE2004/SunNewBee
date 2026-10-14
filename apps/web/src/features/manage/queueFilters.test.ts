@@ -21,6 +21,9 @@ describe("buildVrQuery", () => {
       "?status=open",
     );
   });
+  it("trims the attribute too", () => {
+    expect(buildVrQuery({ ...DEFAULT_FILTERS, attribute: " x " })).toBe("?status=open&attribute=x");
+  });
   it("query key changes with filters", () => {
     expect(vrQueryKey(DEFAULT_FILTERS)).not.toEqual(vrQueryKey({ ...DEFAULT_FILTERS, tab: "all" }));
     expect(vrQueryKey(DEFAULT_FILTERS).slice(0, 2)).toEqual(["manage", "vrs"]);

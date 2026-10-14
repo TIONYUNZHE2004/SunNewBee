@@ -7,6 +7,7 @@ type Props = {
   state: "loading" | "error" | "ready";
   kpis?: Kpis;
   noDataPct?: number | null;
+  gapError?: boolean;
 };
 
 function Tile({ label, value, note }: { label: string; value: string; note?: string | null }) {
@@ -38,7 +39,11 @@ export function KpiTilesView(p: Props) {
     <dl aria-label="Key figures" className="grid gap-3 sm:grid-cols-3">
       <Tile label="Open verification requests" value={t.open} />
       <Tile label="Median hours to resolve" value={t.median} />
-      <Tile label="Journeys confirmed (latest run)" value={t.journeys} note={t.dataGap} />
+      <Tile
+        label="Journeys confirmed (latest run)"
+        value={t.journeys}
+        note={p.gapError ? "Data-gap share unavailable" : t.dataGap}
+      />
     </dl>
   );
 }
@@ -55,5 +60,5 @@ export function KpiTiles() {
   if (k.isError) return <KpiTilesView state="error" />;
   const latest = runs.data?.[0];
   const noDataPct = latest ? summariseCounts(latest).overall.noDataPct : null;
-  return <KpiTilesView state="ready" kpis={k.data} noDataPct={noDataPct} />;
+  return <KpiTilesView state="ready" kpis={k.data} noDataPct={noDataPct} gapError={runs.isError} />;
 }

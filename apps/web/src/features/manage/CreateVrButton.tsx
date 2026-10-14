@@ -1,5 +1,6 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { createVrError, createVrMessage } from "./createVr";
+import { useId } from "react";
+import { createVrError, createVrMessage, onCreated } from "./createVr";
 import { createVR } from "./manageApi";
 import { useStaffToken } from "./useStaffToken";
 
@@ -18,7 +19,7 @@ export function CreateVrButtonView({
   noToken?: boolean;
   onClick: () => void;
 }) {
-  const hintId = `cvr-${label.replace(/\W+/g, "-")}`;
+  const hintId = useId();
   return (
     <div className="space-y-1">
       <button
@@ -55,10 +56,7 @@ export function CreateVrButton({ elementId, attribute }: { elementId: string; at
   const qc = useQueryClient();
   const m = useMutation({
     mutationFn: () => createVR({ target_id: elementId, attribute, reason: "unknown" }, token),
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ["manage", "vrs"] });
-      void qc.invalidateQueries({ queryKey: ["manage", "kpis"] });
-    },
+    onSuccess: () => onCreated(qc),
   });
   const status: CreateVrStatus = m.isPending
     ? "pending"

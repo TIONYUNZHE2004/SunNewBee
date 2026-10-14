@@ -17,7 +17,7 @@ export function kpiTexts(k: Kpis, noDataPct: number | null): KpiTexts {
     journeys:
       k.journeys_confirmed_pct == null ? "No run yet" : `${Math.round(k.journeys_confirmed_pct)}%`,
     dataGap:
-      noDataPct && noDataPct > 0
+      noDataPct != null && noDataPct > 0
         ? `${noDataPct}% of journeys have no mapped connection (data gap)`
         : null,
   };

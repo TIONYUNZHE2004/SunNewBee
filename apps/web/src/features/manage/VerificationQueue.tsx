@@ -1,6 +1,7 @@
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import { type FormEvent, useReducer, useState } from "react";
 import { optionLabel, specFor } from "./attributeCatalogue";
+import { onResolved } from "./createVr";
 import { ApiError, fetchVRs, resolveVR, type VR } from "./manageApi";
 import {
   buildVrQuery,
@@ -51,8 +52,7 @@ export function ResolveForm({ vr, token, onDone }: { vr: VR; token: string; onDo
     dispatch({ type: "submit" });
     try {
       await resolveVR(vr.id, buildResolveBody(s, vr.attribute), token);
-      await qc.invalidateQueries({ queryKey: ["manage", "vrs"] });
-      await qc.invalidateQueries({ queryKey: ["manage", "kpis"] });
+      await onResolved(qc);
       onDone();
     } catch (err) {
       // 409: someone else resolved it first, so drop the stale row.
@@ -167,6 +167,7 @@ export function VerificationQueue() {
     queryKey: vrQueryKey(filters),
     queryFn: () => fetchVRs(buildVrQuery(filters)),
     retry: false,
+    placeholderData: keepPreviousData,
   });
   const set = (patch: Partial<VrFilters>) => setFilters({ ...filters, ...patch });
   const tabs = Object.keys(TAB_LABELS) as QueueTab[];

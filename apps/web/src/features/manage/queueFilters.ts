@@ -22,7 +22,8 @@ export const REASONS = [
 export function buildVrQuery(f: VrFilters): string {
   const p = new URLSearchParams({ status: f.tab });
   if (f.reason) p.set("reason", f.reason);
-  if (f.attribute) p.set("attribute", f.attribute);
+  const attr = f.attribute.trim();
+  if (attr) p.set("attribute", attr);
   const el = f.elementId.trim();
   if (el) p.set("element_id", el);
   return `?${p.toString()}`;
@@ -30,4 +31,4 @@ export function buildVrQuery(f: VrFilters): string {
 
 /** Prefixed with ["manage","vrs"] so one invalidation refreshes every filter view. */
 export const vrQueryKey = (f: VrFilters) =>
-  ["manage", "vrs", f.tab, f.reason, f.attribute, f.elementId.trim()] as const;
+  ["manage", "vrs", f.tab, f.reason, f.attribute.trim(), f.elementId.trim()] as const;

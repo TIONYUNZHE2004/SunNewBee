@@ -42,6 +42,13 @@ describe("KpiTilesView", () => {
     expect(h).toContain("40%");
     expect(h).toContain("12% of journeys have no mapped connection (data gap)");
   });
+  it("says so when the data-gap share could not be loaded", () => {
+    const h = renderToStaticMarkup(
+      <KpiTilesView state="ready" kpis={k} noDataPct={null} gapError />,
+    );
+    expect(h).toContain("Data-gap share unavailable");
+    expect(h).toContain("40%");
+  });
   it("renders loading and error states", () => {
     expect(renderToStaticMarkup(<KpiTilesView state="loading" />)).toContain("Loading");
     expect(renderToStaticMarkup(<KpiTilesView state="error" />)).toContain("unavailable");
