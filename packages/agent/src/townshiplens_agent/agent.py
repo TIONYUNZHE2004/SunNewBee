@@ -112,7 +112,7 @@ VR_REASONS = {"unknown", "stale", "contradicted", "missing_place", "user_report"
 _ATTRIBUTE = re.compile(r"^[a-z_]{1,40}$")
 
 
-def _safe_vr_args(world, kwargs: dict) -> dict:
+def safe_vr_args(world, kwargs: dict, source: str = "chat") -> dict:
     """PDPA: a VR is shown to staff and stored, so never persist model-written free text.
     Only known element ids, a constrained attribute and reason, and a fixed summary."""
     reason = kwargs.get("reason")
@@ -125,13 +125,16 @@ def _safe_vr_args(world, kwargs: dict) -> dict:
     known = any(target in d for d in (world.edges, world.places, world.centres, world.waste))
     if reason == "missing_place" or not known:
         target = "unknown_place"
-    summary = f"chat: {reason} {attribute} on {target}"[:120]
+    summary = f"{source}: {reason} {attribute} on {target}"[:120]
     return {
         "target_id": target,
         "attribute": attribute,
         "reason": reason,
         "question_summary": summary,
     }
+
+
+_safe_vr_args = safe_vr_args  # backwards-compatible alias
 
 
 SCENARIO_TOOLS = ("plan_route", "list_evacuation_centres", "affected_places")

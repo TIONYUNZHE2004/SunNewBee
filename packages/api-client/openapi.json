@@ -448,6 +448,32 @@
         "title": "Claim",
         "type": "object"
       },
+      "CreateVRBody": {
+        "properties": {
+          "attribute": {
+            "maxLength": 60,
+            "title": "Attribute",
+            "type": "string"
+          },
+          "reason": {
+            "default": "unknown",
+            "maxLength": 40,
+            "title": "Reason",
+            "type": "string"
+          },
+          "target_id": {
+            "maxLength": 120,
+            "title": "Target Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "target_id",
+          "attribute"
+        ],
+        "title": "CreateVRBody",
+        "type": "object"
+      },
       "DeepSpot": {
         "properties": {
           "bbox": {
@@ -760,6 +786,41 @@
           }
         },
         "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "Kpis": {
+        "properties": {
+          "journeys_confirmed_pct": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Journeys Confirmed Pct"
+          },
+          "median_hours_to_resolve": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Median Hours To Resolve"
+          },
+          "open_vrs": {
+            "title": "Open Vrs",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "open_vrs"
+        ],
+        "title": "Kpis",
         "type": "object"
       },
       "ResolveBody": {
@@ -2419,6 +2480,24 @@
         "summary": "Healthz"
       }
     },
+    "/kpis": {
+      "get": {
+        "operationId": "kpis_kpis_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Kpis"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Kpis"
+      }
+    },
     "/layers/{lens}": {
       "get": {
         "operationId": "layers_layers__lens__get",
@@ -2471,6 +2550,9 @@
               }
             },
             "description": "Successful Response"
+          },
+          "304": {
+            "description": "Not modified"
           },
           "422": {
             "content": {
@@ -2894,6 +2976,7 @@
     },
     "/verification-requests": {
       "get": {
+        "description": "status=all returns every status.",
         "operationId": "vrs_verification_requests_get",
         "parameters": [
           {
@@ -2904,6 +2987,54 @@
               "default": "open",
               "title": "Status",
               "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "reason",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Reason"
+            }
+          },
+          {
+            "in": "query",
+            "name": "element_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Element Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "attribute",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Attribute"
             }
           }
         ],
@@ -2934,6 +3065,61 @@
           }
         },
         "summary": "Vrs"
+      },
+      "post": {
+        "description": "Staff-filed VR; deduped against the open one (demand + 1). Same PDPA sanitising as chat.",
+        "operationId": "create_vr_verification_requests_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-staff-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Staff-Token"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateVRBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VerificationRequest"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Vr"
       }
     },
     "/verification-requests/{vr_id}/resolve": {

@@ -192,3 +192,40 @@
 - **Note:** the OpenRouter daily counter showed US$0.0063 above my logged smoke total before this run. It is unattributed (possibly a subagent turn or other account use) and counted against this session at most.
 - **Dispatched:** Task 22 (BE seed hygiene, done, `d495b0a`, in review), Task 23 (FE evidence/citation polish), Task 24 (agent placeholder honesty + VR cap).
 - **External usage:** OpenRouter about 31–37 req / daily counter US$0.0198 · Google tiles about 15/30.
+
+## 03:17 — Tasks 22–25 merged; live honesty re-check
+- **Merged and pushed:**
+  - Task 22 (`7a12555`): per-world DB `.data/<site id>.db`; assessed-area disclaimer clause; dedupe guard.
+  - Task 23 (`4f0cbbb`): "Demo value · not surveyed" instead of ✓ verified; friendly citation labels; citations grouped per element with "Show N more sources"; single attribution line.
+  - Task 25 (merge before `74336c5`): 3D frames `site.scene.home` immediately with a constants fallback; compact "+N m" scenario labels on phones.
+  - Task 24 (`74336c5`): the validator rejects any affirmative "verified" when placeholder evidence is cited, and requires "demo values, not yet surveyed"; `plan_route` files at most 10 VRs per call and reports `verification_requests_truncated`.
+  - Coordinator fixes: e2e dedicated ports 5273/8100 (`ac0e7fb`), so a running dev server is never reused; lighter translucent "Checked" network so the photoreal city shows (`74336c5^`).
+- **Checklist on `74336c5`:**
+  - pytest 306: PASS
+  - golden 6/6 (mock): PASS
+  - vitest 99: PASS
+  - lint: PASS
+  - gen drift: PASS
+  - typecheck: PASS
+  - build: PASS
+  - e2e 9/9: PASS on rerun. The first run after a merge failed once, a suspected Vite dependency re-optimisation on cold start; CI uses retries=1. A known flake, not fixed.
+- **Process slip:** `7a12555` was pushed while a local e2e run reported failure (a `| tail` pipe masked the exit code). Cause: Playwright had reused my real-seed dev server. Re-run on the same commit with the server stopped: 9/9 PASS. Fixed by `ac0e7fb`, and I now use `set -o pipefail`.
+- **Browser, real seed:** 3D framing now centred on Elmina: PASS. Lighter network: PASS (screenshot captured).
+- **Live re-check, access turn on the real seed** (`anthropic/claude-haiku-5.5`): **PASS.** The answer opens "Route segment values are demo values, not yet surveyed" and never claims verification. 6 citations, no VR flood.
+- **Spend anomaly:** the OpenRouter daily counter went US$0.0198 → 0.1378 around that single turn, then +0.003 in 90 s with no local live process (the API is `LLM_PROVIDER=mock`). Either OpenRouter's delayed accounting of validator retries or other use of the same key. **Ruling R19:** no further live LLM calls tonight. Worst case attributable to this session: about US$0.141 of the US$3 cap.
+- **External usage:** OpenRouter daily counter US$0.1407 (live calls stopped) · Google tiles about 18/30.
+
+## 03:24 — MVP status audit → wave of 4 lanes
+- **Audit** (`.superpowers/…/mvp-status-audit.md`, 68 P0/P1 rows): 18 DONE, 32 PARTIAL, 17 MISSING, 1 needs fieldwork (AX-05 site survey).
+  - P0 MISSING: B-04 drive graph, B-07 evidence upload.
+  - P0 PARTIAL rows include C-02/C-03/C-05 answer contract, P-03 per-lens chips, P-04 tappable markers and F-04 drive.
+- **Demo cache:** the three suggested questions plus the stroller variant were recorded on the Elmina seed with the mock (`916b61d`). DEMO_MODE replay verified in the browser (`screenshots/2026-10-15-0320-real-seed-demo-replay-honest-evidence.jpg`, mock-backed).
+- **Rulings:**
+  - **R20:** drive profile (T3) runs, but derived only from street/track edges already in the seed. No new Overpass calls (that cap is already exceeded). Drive routes are never `confirmed`, because one-way and turn rules are not modelled.
+  - **R21:** evidence photo upload (B-07) is deferred to a second wave and must strip metadata with the stdlib. Pillow's HPND licence is not on the permitted MIT/Apache/BSD list.
+- **Dispatched in parallel** (separate worktrees, disjoint files):
+  - Task 26 (drive, lane/data)
+  - Task 27 (resident shortcuts: deep spots, per-lens chips, "Where can I go?", lane/fe)
+  - Task 28 (answer contract: citations required, route-status first line, abstain names the gap, waste mock and goldens; lane/ai)
+  - Task 29 (management API: VR filters, staff create-VR, KPIs, layer ETag; lane/be)
+- The final whole-branch review (Opus) is still running.

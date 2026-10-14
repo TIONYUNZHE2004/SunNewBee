@@ -299,3 +299,46 @@ Found in Task 14B:
 - [ ] **Step 3: Verify.**
   - Commands: `pnpm --filter @tl/web test`, `pnpm lint`, `pnpm -r --if-present typecheck`, `pnpm --filter @tl/web build`, `pnpm --filter @tl/web e2e`.
   - Commit on the lane branch.
+
+
+### Task 26: BE: `drive` profile and drivable graph (closes B-04, P-05, F-04; P0 MISSING/PARTIAL; visible honesty gap today)
+
+From the MVP status audit (03:25, `.superpowers/sdd/2026-10-15-mvp-p0-increment-1/mvp-status-audit.md`).
+
+- Files: `config/profiles/drive.yaml` (`stub: false`, `allowed_types`, speed), `packages/spatial/src/townshiplens_spatial/models.py` (`Profile.allowed_types`, `speed_kmh`), `evaluate.py` (non-road edge types FAIL for drive; `possible` flood FAIL for drive; likely FAIL), `routing.py` (drive `est_minutes` from speed), `tools.py` and `flood.py` (remove the stub warnings), `API/geojson.py` (no change expected).
+- Scope note: derive roads from existing `street`/`track` edges in the walk extract. Add a standing warning "one-way and turn restrictions not modelled" and set road edges' routing status to partly_unverified (never `confirmed`) until an oneway-aware import exists. Do not run Overpass.
+- Acceptance test: `packages/spatial/tests/test_routing.py::test_drive_routes_on_roads_only` (replaces `test_drive_is_stubbed`: a drive route between two parking places uses no `footway`/`steps` edge); `test_flood.py::test_drive_flood_fail_for_possible` (a possibly flooded road is FAIL for drive but UNKNOWN for stroller); `test_tools_flood.py` for `list_evacuation_centres(profile="drive")` returns reachable/not reachable rather than a stub warning.
+- Lane: BE.
+- Coordinator notes: work in `packages/spatial` and `config/profiles` only; do NOT touch `vr_store.py`, `routes/manage.py`, `routes/core.py` (another lane). Check which edge `type` values exist in `data/seed/elmina/base/walk.geojson` first and list them in the report; if no road-like types exist, report BLOCKED rather than inventing roads. The drive route answer must never be `confirmed` (standing warning). Update `pnpm golden` expectations only if a golden question asserts the stub.
+- Verify: run the relevant unit tests, `pnpm lint`, typecheck/gen drift as applicable; commit on your lane branch. Mock LLM only.
+
+### Task 27: FE: resident shortcuts: deep spots, per-lens chips, "Where can I go?" (closes P-09, C-07, P-03 chips, F-12; People-track demo value)
+
+From the MVP status audit (03:25, `.superpowers/sdd/2026-10-15-mvp-p0-increment-1/mvp-status-audit.md`).
+
+- Files: `apps/web/src/app/ResidentPage.tsx`, `apps/web/src/features/chat/ChatPanel.tsx`, new `apps/web/src/features/chat/suggestions.ts`, new `apps/web/src/features/scene/DeepSpots.tsx`, `apps/web/src/features/flood/ScenarioBar.tsx`, `apps/web/src/lib/api.ts` (`useSite` already exists).
+- Behaviour: deep-spot buttons built from `site.deep_spots`; each applies `camera.fly_to` (bbox centre, range from bbox size) and turns on the right lens (flood spot also selects `stage_p3m`). Chips depend on the active lens: 4 access (one per persona), 3 flood, 1 waste. "Where can I go?" button appears in the scenario bar when a scenario is active and sends a message using the current profile and scenario.
+- Acceptance test: vitest `suggestions.test.ts` (chip counts 4/3/1 per lens); `deepSpots.test.ts` (clicking `subang-corridor` calls `applyIntent` with a `camera.fly_to` and enables the flood lens); `ScenarioBar.test.tsx` (button absent without a scenario, present with one, sends a message containing no profile text injection). Keep e2e 9/9 green (run by the coordinator, not the subagent).
+- Lane: FE.
+- Coordinator notes: `site.deep_spots` is in `data/seed/elmina/site.json` (inspect its shape; the tiny fixture may lack it, so the component renders nothing without it). Scene intents are applied through the existing scene store / intent adapter (find `applyIntent` or equivalent; do not invent a parallel path). Do not edit `features/chat/EvidenceCard.tsx`, `CitationList.tsx` or `citationLabel.ts`. Chip texts must be plain questions the mock can answer (access: stroller/wheelchair/older adult/default persona; flood: 3; waste: 1).
+- Verify: run the relevant unit tests, `pnpm lint`, typecheck/gen drift as applicable; commit on your lane branch. Mock LLM only.
+
+### Task 28: AI: answer-contract hardening, status label, abstain detail, waste goldens (closes C-02, C-03, C-05 P0 PARTIALs; W-04 P1)
+
+From the MVP status audit (03:25, `.superpowers/sdd/2026-10-15-mvp-p0-increment-1/mvp-status-audit.md`).
+
+- Files: `packages/agent/src/townshiplens_agent/validate.py` (claim must cite at least one evidence id unless `cannot_answer`; reject steps/summary naming a route status that contradicts `rec.route_status`), `run.py` (`_answer_events`: first text line always `Route status: <status>` when a route exists; uncertainty `note` uses the edge name via `ctx.world.edges[id].name`), `template.py` (cannot_answer text names the unresolved query or missing attribute), `mock.py` (add a waste route: `find_waste_points`), `evals/golden/hero.yaml` and `evals/run_golden.py` (add 5-6 questions: waste battery, waste unknown, flood islands, status-label present, `unsupported_claims == 0` metric printed).
+- Acceptance test: `packages/agent/tests/test_validate.py` (empty-evidence claim rejected; `cannot_answer` exempt); `test_run.py::test_route_status_label_always_first_line` for confirmed, partly_unverified, blocked; `pnpm golden` (mock) passes all questions and prints `unsupported_claims: 0`. Do not call a live LLM.
+- Lane: AI.
+- Coordinator notes: `find_waste_points` already exists in `packages/spatial/src/townshiplens_spatial/tools.py` (around line 342); the mock currently routes recycling questions to `find_place` and answers "I don't have that place" on the Elmina seed, so add the mock waste route. Keep the placeholder-evidence rule from Task 24 intact. Also do the cheap fix: `run.py` emits the flood disclaimer whenever `ChatRequest.scenario_id` is set even if no scenario tool ran. Golden stays mock-only.
+- Verify: run the relevant unit tests, `pnpm lint`, typecheck/gen drift as applicable; commit on your lane branch. Mock LLM only.
+
+### Task 29: BE: management API: VR filters, staff create-VR, KPI endpoint, layer ETag (enables M-01, M-07, G-04 UI; closes B-09)
+
+From the MVP status audit (03:25, `.superpowers/sdd/2026-10-15-mvp-p0-increment-1/mvp-status-audit.md`).
+
+- Files: `packages/spatial/src/townshiplens_spatial/vr_store.py` (`list(status, reason, element_id, attribute)`, `status="all"`; `resolved_at` already stored), `apps/api/src/townshiplens_api/routes/manage.py` (query params; staff `POST /verification-requests` with the same sanitising as `_safe_vr_args`; `GET /kpis` returning open VR count, median hours to resolve from resolved VRs, and % journeys confirmed from the latest sim run), `apps/api/src/townshiplens_api/routes/core.py` (`ETag` from world.version + lens + profile + scenario, 304 on `If-None-Match`, `Cache-Control: private, max-age=0, must-revalidate`), `packages/api-client` regen.
+- Acceptance test: `apps/api/tests/test_manage.py` (filters by reason/element/status; create-VR dedupes and increments demand; staff-only 401), `apps/api/tests/test_kpis.py` (median time-to-resolve after resolving two VRs; after a resolve the open count drops), `apps/api/tests/test_core.py::test_layer_etag_304_and_changes_after_resolve` (same ETag twice -> 304; changes after `commit_claim`).
+- Lane: BE.
+- Coordinator notes: do NOT touch `packages/spatial` files other than `vr_store.py` (another lane edits evaluate/routing/flood/tools/models). Staff auth uses the existing dependency in `apps/api/src/townshiplens_api/auth.py`. The ETag must change after any claim commit (world.version) and for different query params. Run `pnpm gen` and commit the regenerated client.
+- Verify: run the relevant unit tests, `pnpm lint`, typecheck/gen drift as applicable; commit on your lane branch. Mock LLM only.
