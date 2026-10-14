@@ -70,3 +70,81 @@ def test_islands_reported(world):
 def test_affected_unknown_profile_falls_back(world):
     a = flood.affected(world, "stage_p3m", "bogus")
     assert a.scenario_id == "stage_p3m"
+
+
+def test_centres_reachability_does_not_mutate_places(world):
+    before = set(world.places)
+    flood.centres_reachability(world, "stage_p3m", "stroller", "park-b")
+    assert set(world.places) == before
+
+
+def test_at_most_three_route_ids(world):
+    from townshiplens_spatial.models import EvacCentre
+
+    for i in range(5):
+        world.centres[f"extra-{i}"] = EvacCentre(
+            id=f"extra-{i}",
+            name=f"Extra {i}",
+            coord=[101.51, 3.181],
+            node_id="n-c",
+            source="osm_candidate",
+        )
+    res = flood.centres_reachability(world, "stage_p3m", "stroller", "park-b")
+    assert len(res) == 7
+    assert 1 <= sum(1 for r in res if r.route_id) <= 3
+    assert all(r.route_id for r in res[:3] if r.reachable)
+
+
+def test_islands_only_flood_induced(world):
+    assert flood.affected(world, "baseline", "stroller").isolated_components == []
+    assert flood.affected(world, "stage_p3m", "stroller").isolated_components == []
+    a = flood.affected(world, "stage_p5m", "stroller")
+    assert a.isolated_total == len(a.isolated_components) >= 1
+    assert all(c["sample_place_ids"] for c in a.isolated_components)
+
+
+def test_islands_ignore_never_connected_components(world):
+    from townshiplens_spatial.models import Edge
+
+    world.edges["seg-far"] = Edge(
+        id="seg-far",
+        type="footway",
+        from_node="n-x",
+        to_node="n-y",
+        coords=[[101.6, 3.2], [101.6001, 3.2]],
+        length_m=10,
+    )
+    world.graph.add_edge("n-x", "n-y", key="seg-far", edge_id="seg-far")
+    a = flood.affected(world, "stage_p5m", "stroller")
+    assert not any("n-x" in c["sample_node_ids"] for c in a.isolated_components)
+
+
+def _add_unnamed_edges(world, n):
+    from townshiplens_spatial.models import Edge
+
+    for i in range(n):
+        eid = f"seg-u{i}"
+        world.edges[eid] = Edge(
+            id=eid,
+            type="footway",
+            from_node="n-a",
+            to_node="n-b",
+            coords=[[101.5, 3.18], [101.5001, 3.18]],
+            length_m=1,
+        )
+        world.flood.edge_classes["stage_p3m"][eid] = "likely_flooded"
+
+
+def test_affected_groups_and_caps(world):
+    _add_unnamed_edges(world, 30)
+    a = flood.affected(world, "stage_p3m")
+    unnamed = [x for x in a.likely if x["kind"] == "path" and x["name"] == "Unnamed paths"]
+    assert len(unnamed) == 1 and unnamed[0]["count"] >= 30
+    assert len(a.likely) <= 20
+    assert a.likely_total >= 31
+    assert "seg-u0" in a.likely_edge_ids and "playground" in a.likely_place_ids
+
+
+def test_affected_unknown_profile_warns(world):
+    a = flood.affected(world, "stage_p3m", "bogus")
+    assert any("bogus" in w for w in a.warnings)

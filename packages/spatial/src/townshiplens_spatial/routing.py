@@ -6,12 +6,17 @@ from .evaluate import evaluate_edge
 from .models import Evidence, Route, RouteResult, RouteSegment
 from .world import World
 
+CENTRE_PREFIX = "__centre__"
 UNKNOWN_WEIGHT = 5.0
 WALK_M_PER_MIN = 70.0
 
 
 def _targets(world: World, place_id: str) -> list[str]:
     p = world.places.get(place_id)
+    if p is None and place_id.startswith(CENTRE_PREFIX):
+        # Transient evacuation-centre target: resolved from world.centres, never stored in places.
+        c = world.centres.get(place_id[len(CENTRE_PREFIX) :])
+        return [c.node_id] if c and c.node_id and c.node_id in world.graph else []
     if p is None:
         return []
     ents = [
@@ -26,16 +31,20 @@ def _flood_class(world: World, scenario_id: str | None, edge_id: str):
     return world.flood.edge_classes.get(scenario_id or "", {}).get(edge_id) if scenario_id else None
 
 
-def _search(world, sources, targets, profile, scenario_id, allow_unknown):
-    evals: dict[str, tuple] = {}
-    chosen: dict[frozenset, str] = {}  # node pair -> edge key the search actually costed
+def make_weight(world, profile, scenario_id, allow_unknown, evals=None, chosen=None):
+    """Edge-cost function shared by route search and flood reachability (single rule set).
+
+    `evals` / `chosen`, when given, record each edge evaluation and the edge key costed per node
+    pair. Returns None for edges the profile cannot use (hidden from the search).
+    """
 
     def weight(u, v, data):
         best = None
         for key in data:  # MultiGraph: data = {edge_id: attrs}
             e = world.edges[key]
             res, why = evaluate_edge(e, profile, _flood_class(world, scenario_id, key))
-            evals[key] = (res, why)
+            if evals is not None:
+                evals[key] = (res, why)
             if res == "FAIL" or (res == "UNKNOWN" and not allow_unknown):
                 continue
             w = e.length_m * (UNKNOWN_WEIGHT if res == "UNKNOWN" else 1.0)
@@ -43,8 +52,17 @@ def _search(world, sources, targets, profile, scenario_id, allow_unknown):
                 w *= profile.soft.get("steps_multiplier", 1.0)
             if best is None or w < best:
                 best = w
-                chosen[frozenset((u, v))] = key
-        return best  # None hides the edge
+                if chosen is not None:
+                    chosen[frozenset((u, v))] = key
+        return best
+
+    return weight
+
+
+def _search(world, sources, targets, profile, scenario_id, allow_unknown):
+    evals: dict[str, tuple] = {}
+    chosen: dict[frozenset, str] = {}  # node pair -> edge key the search actually costed
+    weight = make_weight(world, profile, scenario_id, allow_unknown, evals, chosen)
 
     g = world.graph
     tmp_s, tmp_t = "__S__", "__T__"

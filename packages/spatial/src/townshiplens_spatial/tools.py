@@ -244,13 +244,14 @@ def affected_places(
 ) -> ToolResult:
     if _flood.scenario(ctx.world, scenario_id) is None:
         return ToolResult(ok=False, warnings=[f"unknown scenario {scenario_id}"])
-    if profile not in ctx.world.profiles:
+    if kind not in _flood._KIND:
+        return ToolResult(ok=False, warnings=[f"unknown kind {kind}"])
+    prof = ctx.world.profiles.get(profile)
+    if prof is None:
         return ToolResult(ok=False, warnings=[f"unknown profile {profile}"])
-    a = _flood.affected(ctx.world, scenario_id, profile)
-    if kind != "all":
-        want = {"facility": "place", "path": "path", "road": "path"}.get(kind, kind)
-        a.likely = [x for x in a.likely if x["kind"] == want]
-        a.possible = [x for x in a.possible if x["kind"] == want]
+    if prof.stub:
+        return ToolResult(ok=False, warnings=["drive network not built yet (skeleton stub)"])
+    a = _flood.affected(ctx.world, scenario_id, profile, kind)
     ev = [
         Evidence(
             id=f"ev-scn-{scenario_id}",
@@ -262,17 +263,20 @@ def affected_places(
     ]
     ev += [
         Evidence(
-            id=f"ev-scn-{scenario_id}.{x['id']}",
-            element_id=x["id"],
+            id=f"ev-scn-{scenario_id}.{eid}",
+            element_id=eid,
             attribute="flood",
             value=cls,
             status="indicative",
             source_type="HAND scenario",
         )
-        for cls, xs in (("likely_flooded", a.likely), ("possible", a.possible))
-        for x in xs
+        for cls, xs in (
+            ("likely_flooded", a.likely_place_ids + a.likely_edge_ids),
+            ("possible", a.possible_place_ids + a.possible_edge_ids),
+        )
+        for eid in xs
     ]
-    return ToolResult(ok=True, data=a.model_dump(mode="json"), evidence=ev)
+    return ToolResult(ok=True, data=a.model_dump(mode="json"), evidence=ev, warnings=a.warnings)
 
 
 def list_evacuation_centres(
@@ -282,13 +286,21 @@ def list_evacuation_centres(
     near_place: str | None = None,
 ) -> ToolResult:
     res = _flood.centres_reachability(ctx.world, scenario_id, profile, near_place)
+    warnings = []
+    prof = ctx.world.profiles.get(profile)
+    if prof is None:
+        warnings.append(f"unknown profile {profile}")
+    elif prof.stub:
+        warnings.append("drive network not built yet (skeleton stub)")
+    if near_place and not routing._targets(ctx.world, near_place):
+        warnings.append(f"place not mapped: {near_place}")
     ev = [
         Evidence(
             id=f"ev-centre-{r.centre.id}",
             element_id=r.centre.id,
             attribute="source",
             value=r.centre.source,
-            status="reported",
+            status="reported" if r.centre.source == "official_pps" else "unknown",
             source_type="official PPS report"
             if r.centre.source == "official_pps"
             else "OSM candidate",
@@ -296,6 +308,8 @@ def list_evacuation_centres(
         )
         for r in res
     ]
+    data = [r.model_dump(mode="json") for r in res]
+    sc = _flood.scenario(ctx.world, scenario_id) if scenario_id else None
     if scenario_id:
         ev.append(
             Evidence(
@@ -306,18 +320,28 @@ def list_evacuation_centres(
                 source_type="HAND scenario",
             )
         )
-    return ToolResult(ok=True, data=[r.model_dump(mode="json") for r in res], evidence=ev)
+        if sc:
+            for d in data:
+                d["disclaimer"] = sc.disclaimer
+        else:
+            warnings.append(f"unknown scenario {scenario_id}")
+    return ToolResult(ok=True, data=data, evidence=ev, warnings=warnings)
 
 
 def find_waste_points(
     ctx: Ctx, type: str | None = None, near_place: str | None = None
 ) -> ToolResult:
     pts = [p for p in ctx.world.waste.values() if type is None or p.type == type]
-    if near_place and (pl := ctx.world.places.get(near_place)):
-        pts.sort(key=lambda p: haversine_m(p.coord, pl.coord))
+    warnings = []
+    if near_place:
+        if pl := ctx.world.places.get(near_place):
+            pts.sort(key=lambda p: haversine_m(p.coord, pl.coord))
+        else:
+            warnings.append(f"no such place: {near_place}")
     return ToolResult(
         ok=True,
         data=[p.model_dump(mode="json") for p in pts],
+        warnings=warnings,
         evidence=[
             Evidence(
                 id=f"ev-{p.id}.status",

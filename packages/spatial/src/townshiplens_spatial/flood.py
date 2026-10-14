@@ -14,11 +14,11 @@ from __future__ import annotations
 import networkx as nx
 
 from .evaluate import evaluate_edge
-from .models import AffectedResult, CentreReachability, Place, Scenario
-from .routing import plan_route
+from .models import AffectedResult, CentreReachability, Scenario
+from .routing import CENTRE_PREFIX, _targets, make_weight, plan_route
 from .world import World
 
-TRANSIENT_PREFIX = "__centre__"
+TOP_ROUTES = 3
 
 
 def scenario(world: World, scenario_id: str) -> Scenario | None:
@@ -37,76 +37,148 @@ def _passable_graph(world: World, scenario_id: str, profile_id: str) -> nx.Graph
     return g
 
 
-def affected(world: World, scenario_id: str, profile_id: str = "default") -> AffectedResult:
+LIST_CAP = 20
+ISLAND_CAP = 10
+_KIND = {"all": None, "facility": "place", "place": "place", "path": "path", "road": "path"}
+
+
+def _items(world, ids_places, ids_edges, kind):
+    """Briefing list: places individually, paths grouped by name (unnamed -> one item)."""
+    out: list[dict] = []
+    if kind in (None, "place"):
+        out += [{"id": p, "name": world.places[p].name, "kind": "place"} for p in ids_places]
+    if kind in (None, "path"):
+        groups: dict[str | None, int] = {}
+        for eid in ids_edges:
+            groups[world.edges[eid].name or None] = groups.get(world.edges[eid].name or None, 0) + 1
+        named = sorted((n, c) for n, c in groups.items() if n)
+        out += [{"kind": "path", "name": n, "count": c} for n, c in named]
+        if None in groups:
+            out.append({"kind": "path", "name": "Unnamed paths", "count": groups[None]})
+    return out[:LIST_CAP]
+
+
+def _centre_connected(g: nx.Graph, centre_nodes: set[str]) -> set[str]:
+    out: set[str] = set()
+    for comp in nx.connected_components(g):
+        if comp & centre_nodes:
+            out |= comp
+    return out
+
+
+def affected(
+    world: World, scenario_id: str, profile_id: str = "default", kind: str = "all"
+) -> AffectedResult:
     s = scenario(world, scenario_id)
     disclaimer = s.disclaimer if s else "Unknown scenario."
+    warnings: list[str] = []
+    if profile_id not in world.profiles:
+        warnings.append(f"unknown profile {profile_id}; used default")
+        profile_id = "default"
+    want = _KIND.get(kind)
     pc = world.flood.place_classes.get(scenario_id, {})
     ec = world.flood.edge_classes.get(scenario_id, {})
 
-    def items(cls: str) -> list[dict[str, str]]:
-        out = [
-            {"id": pid, "name": world.places[pid].name, "kind": "place"}
-            for pid, c in pc.items()
-            if c == cls and pid in world.places
-        ]
-        out += [
-            {"id": eid, "name": world.edges[eid].name or eid, "kind": "path"}
-            for eid, c in ec.items()
-            if c == cls and eid in world.edges
-        ]
-        return out
+    def ids(cls: str) -> tuple[list[str], list[str]]:
+        pl = sorted(p for p, c in pc.items() if c == cls and p in world.places)
+        ed = sorted(e for e, c in ec.items() if c == cls and e in world.edges)
+        return (pl if want in (None, "place") else []), (ed if want in (None, "path") else [])
 
-    g = _passable_graph(world, scenario_id, profile_id)
+    lp, le = ids("likely_flooded")
+    pp, pe = ids("possible")
+
     centre_nodes = {c.node_id for c in world.centres.values() if c.node_id}
-    islands = []
-    comps = sorted((sorted(c) for c in nx.connected_components(g)), key=lambda c: c[0] if c else "")
-    for i, comp in enumerate(comps):
-        cs = set(comp)
-        if cs & centre_nodes:
-            continue
-        place_ids = [p.id for n in comp for p in world.places_at(n) if not p.id.startswith("__")]
-        if len(comp) > 1 or place_ids:
-            islands.append(
-                {
-                    "id": f"island-{i}",
-                    "node_count": len(comp),
-                    "sample_node_ids": comp[:5],
-                    "sample_place_ids": place_ids[:5],
-                }
-            )
+    g = _passable_graph(world, scenario_id, profile_id)
+    base_ok = _centre_connected(_passable_graph(world, "", profile_id), centre_nodes)
+    cands = []
+    for comp in nx.connected_components(g):
+        if comp & centre_nodes or not (comp & base_ok):
+            continue  # holds a centre, or never had centre access: not a flood island
+        place_ids = sorted(
+            p.id for n in comp for p in world.places_at(n) if not p.id.startswith("__")
+        )
+        if place_ids:
+            cands.append((len(place_ids), len(comp), sorted(comp), place_ids))
+    cands.sort(key=lambda t: (-t[0], -t[1], t[2][0]))
+    islands = [
+        {
+            "id": f"island-{i}",
+            "node_count": n,
+            "place_count": np_,
+            "sample_node_ids": nodes[:5],
+            "sample_place_ids": pids[:5],
+        }
+        for i, (np_, n, nodes, pids) in enumerate(cands[:ISLAND_CAP])
+    ]
     return AffectedResult(
         scenario_id=scenario_id,
-        likely=items("likely_flooded"),
-        possible=items("possible"),
+        likely=_items(world, lp, le, want),
+        possible=_items(world, pp, pe, want),
         isolated_components=islands,
+        isolated_total=len(cands),
         disclaimer=disclaimer,
+        likely_total=len(lp) + len(le),
+        possible_total=len(pp) + len(pe),
+        likely_place_ids=lp,
+        possible_place_ids=pp,
+        likely_edge_ids=le,
+        possible_edge_ids=pe,
+        warnings=warnings,
     )
 
 
 def centres_reachability(
     world: World, scenario_id: str | None, profile_id: str, near_place: str | None
 ) -> list[CentreReachability]:
-    out = []
+    """One strict and one lenient multi-source Dijkstra from the origin, costed by the same
+    edge rules as routing. Full Route objects are built only for the nearest TOP_ROUTES centres."""
+    profile = world.profiles.get(profile_id)
+    sources = _targets(world, near_place) if near_place and profile and not profile.stub else []
+    no_data = [
+        CentreReachability(centre=c, reachable=False, route_status="no_data")
+        for c in world.centres.values()
+    ]
+    if not sources:
+        return no_data
+    strict = nx.multi_source_dijkstra_path_length(
+        world.graph, sources, weight=make_weight(world, profile, scenario_id, False)
+    )
+    lenient = nx.multi_source_dijkstra_path_length(
+        world.graph, sources, weight=make_weight(world, profile, scenario_id, True)
+    )
+    rows = []
     for c in world.centres.values():
-        if near_place is None or (c.place_id is None and c.node_id is None):
-            out.append(CentreReachability(centre=c, reachable=False, route_status="no_data"))
-            continue
-        target = c.place_id or f"{TRANSIENT_PREFIX}{c.id}"
-        if c.place_id is None and target not in world.places:
-            # Ruling R12: transient place so plan_route can target the centre node; find_place
-            # skips ids starting with "__".
-            world.places[target] = Place(
-                id=target, type="evacuation_centre", name=c.name, coord=c.coord, node_id=c.node_id
+        n = c.node_id
+        if n is None or n not in world.graph:
+            rows.append(
+                (2, 0.0, CentreReachability(centre=c, reachable=False, route_status="no_data"))
             )
-        rr = plan_route(world, near_place, target, profile_id, scenario_id)
-        best = rr.routes[0] if rr.routes else None
-        out.append(
-            CentreReachability(
-                centre=c,
-                reachable=rr.status in ("confirmed", "partly_unverified"),
-                route_status=rr.status,
-                route_id=best.id if best else None,
-                distance_m=best.distance_m if best else None,
+        elif n in strict:
+            rows.append(
+                (
+                    0,
+                    strict[n],
+                    CentreReachability(centre=c, reachable=True, route_status="confirmed"),
+                )
             )
-        )
-    return sorted(out, key=lambda r: (not r.reachable, r.distance_m or 1e9, r.centre.id))
+        elif n in lenient:
+            rows.append(
+                (
+                    0,
+                    lenient[n],
+                    CentreReachability(centre=c, reachable=True, route_status="partly_unverified"),
+                )
+            )
+        else:
+            rows.append(
+                (1, 0.0, CentreReachability(centre=c, reachable=False, route_status="blocked"))
+            )
+    rows.sort(key=lambda t: (t[0], t[1], t[2].centre.id))
+    out = [r for _, _, r in rows]
+    for r in [r for r in out if r.reachable][:TOP_ROUTES]:
+        rr = plan_route(world, near_place, f"{CENTRE_PREFIX}{r.centre.id}", profile_id, scenario_id)
+        if rr.routes:
+            r.route_id = rr.routes[0].id
+            r.distance_m = rr.routes[0].distance_m
+            r.route_status = rr.routes[0].status
+    return out

@@ -201,10 +201,19 @@ class VerificationRequest(BaseModel):
 
 class AffectedResult(BaseModel):
     scenario_id: str
-    likely: list[dict[str, str]]  # {id, name, kind}
-    possible: list[dict[str, str]]
-    isolated_components: list[dict[str, Any]]  # {id, node_count, sample_place_ids}
+    # Briefing items, capped: places {id, name, kind}; paths grouped by name {name, kind, count}
+    likely: list[dict[str, Any]]
+    possible: list[dict[str, Any]]
+    isolated_components: list[dict[str, Any]]  # {id, node_count, place_count, sample_*}
     disclaimer: str
+    likely_total: int = 0  # underlying elements (places + path edges), before grouping/capping
+    possible_total: int = 0
+    isolated_total: int = 0
+    likely_place_ids: list[str] = Field(default_factory=list)  # full id lists for evidence / map
+    possible_place_ids: list[str] = Field(default_factory=list)
+    likely_edge_ids: list[str] = Field(default_factory=list)
+    possible_edge_ids: list[str] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
 
 
 class CentreReachability(BaseModel):

@@ -55,8 +55,15 @@ def test_affected_places_unknown_profile(ctx):
 
 
 def test_transient_centre_places_never_surface_in_search(ctx):
-    tools.list_evacuation_centres(ctx, "stage_p3m", "stroller", "park-b")
-    assert any(pid.startswith("__centre__") for pid in ctx.world.places)
+    from townshiplens_spatial.models import Place
+
+    ctx.world.places["__centre__evc-school"] = Place(
+        id="__centre__evc-school",
+        type="evacuation_centre",
+        name="School (official PPS)",
+        coord=[101.512, 3.182],
+        node_id="n-h",
+    )
     for q in ("School (official PPS)", "Community hall", "centre", "evc-school"):
         assert not any(d["id"].startswith("__") for d in tools.find_place(ctx, q).data)
     assert tools.find_place(ctx, "School (official PPS)").data == []
@@ -66,3 +73,34 @@ def test_evacuation_tool_repeat_idempotent(ctx):
     a = tools.list_evacuation_centres(ctx, "stage_p3m", "stroller", "park-b")
     b = tools.list_evacuation_centres(ctx, "stage_p3m", "stroller", "park-b")
     assert a.data == b.data
+
+
+def test_evacuation_does_not_leak_transient_places(ctx):
+    before = set(ctx.world.places)
+    tools.list_evacuation_centres(ctx, "stage_p3m", "stroller", "park-b")
+    assert set(ctx.world.places) == before
+    r = tools.nearby_amenities(ctx, "park-b", "evacuation_centre", 2000)
+    assert r.data == []
+    assert not tools.get_place_details(ctx, "__centre__evc-school").ok
+
+
+def test_affected_places_validation(ctx):
+    assert not tools.affected_places(ctx, "stage_p3m", kind="bogus").ok
+    assert not tools.affected_places(ctx, "stage_p3m", profile="drive").ok
+
+
+def test_evac_evidence_status_and_disclaimer(ctx):
+    r = tools.list_evacuation_centres(ctx, "stage_p3m", "stroller", "park-b")
+    st = {e.element_id: e.status for e in r.evidence if e.id.startswith("ev-centre-")}
+    assert st == {"evc-school": "reported", "evc-hall": "unknown"}
+    assert all("not a forecast" in c["disclaimer"] for c in r.data)
+
+
+def test_evac_stub_profile_warns(ctx):
+    r = tools.list_evacuation_centres(ctx, None, "drive", "park-b")
+    assert r.warnings and not any(c["reachable"] for c in r.data)
+
+
+def test_waste_unknown_near_place_warns(ctx):
+    r = tools.find_waste_points(ctx, near_place="nowhere")
+    assert any("nowhere" in w for w in r.warnings)
