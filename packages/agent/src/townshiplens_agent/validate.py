@@ -21,11 +21,16 @@ def validate_answer(ans: FinalAnswer, rec: TurnRecord) -> list[str]:
             )
     if ans.route_id and ans.route_id not in rec.routes:
         errs.append(f"route_id {ans.route_id} was not returned by plan_route in this turn.")
-    if (
-        ans.route_id
-        and rec.route_status.get(ans.route_id) == "partly_unverified"
-        and not ans.caveats
-    ):
+    status = rec.route_status.get(ans.route_id) if ans.route_id else None
+    if status in ("blocked", "no_data") and ans.answer_status == "answered":
+        errs.append(
+            f"The route is {status}: answer_status cannot be 'answered'; "
+            "use 'partial' or 'cannot_answer'."
+        )
+    partly = status == "partly_unverified" or (
+        ans.answer_status == "answered" and "partly_unverified" in rec.route_status.values()
+    )
+    if partly and not ans.caveats:
         errs.append(
             "The route is partly_unverified: add a caveat naming the unverified segment(s) first."
         )

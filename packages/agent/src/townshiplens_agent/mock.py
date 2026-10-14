@@ -66,13 +66,6 @@ def _unknown_caveats(routes: list) -> list[str]:
 
 
 def _script(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
-    try:
-        return _script_inner(messages)
-    except (KeyError, IndexError, TypeError, AttributeError):
-        return _cannot()
-
-
-def _script_inner(messages: list[ModelMessage]) -> ModelResponse:
     q = _prompt(messages).lower()
     rets = _returns(messages)
     n = len(rets)

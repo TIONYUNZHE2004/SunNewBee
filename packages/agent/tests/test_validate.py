@@ -90,3 +90,25 @@ def test_validator_rejects_depth_phrases(text):
 def test_validator_no_false_positives(text):
     a = FinalAnswer(answer_status="answered", summary=text, scenario_id="stage_p3m")
     assert validate_answer(a, rec(scenarios_used={"stage_p3m"})) == [], text
+
+
+@pytest.mark.parametrize("status", ["blocked", "no_data"])
+def test_validator_rejects_answered_for_blocked_or_nodata_route(status):
+    r = rec(routes={"rt-1": {}}, route_status={"rt-1": status})
+    a = FinalAnswer(
+        answer_status="answered",
+        summary="Go.",
+        route_id="rt-1",
+        caveats=["Route status: " + status],
+    )
+    assert any("answered" in e for e in validate_answer(a, r))
+    ok = a.model_copy(update={"answer_status": "partial"})
+    assert validate_answer(ok, r) == []
+
+
+def test_validator_any_partly_unverified_route_needs_caveat_even_without_route_id():
+    r = rec(routes={"rt-1": {}}, route_status={"rt-1": "partly_unverified"})
+    a = FinalAnswer(answer_status="answered", summary="Done.")
+    assert validate_answer(a, r)
+    b = a.model_copy(update={"caveats": ["Segment seg-bc not checked yet."]})
+    assert validate_answer(b, r) == []

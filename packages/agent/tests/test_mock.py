@@ -118,3 +118,18 @@ def _failing_agent() -> Agent:
 def test_mock_survives_failed_tools(q):
     res = _failing_agent().run_sync(q)
     assert res.output.answer_status == "cannot_answer"
+
+
+def test_mock_malformed_ok_payload_raises_not_swallowed():
+    agent = Agent(mock_model(), output_type=ToolOutput(FinalAnswer, name="final_answer"))
+
+    @agent.tool_plain
+    def list_flood_scenarios() -> dict:
+        return {"ok": True, "data": [], "evidence": [{"id": "ev-scn-1"}], "warnings": []}
+
+    @agent.tool_plain
+    def affected_places(**kw) -> dict:
+        return {"ok": True, "data": {"likely": 5, "possible": []}, "evidence": [], "warnings": []}
+
+    with pytest.raises(TypeError):
+        agent.run_sync("If the river rises 3 m, which places are cut off?")
