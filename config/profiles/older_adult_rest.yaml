@@ -5,3 +5,4 @@ soft: { covered_multiplier: 0.86, steps_multiplier: 1.0 }
 max_rest_free_run_m: 100
 flood: { possible_is: UNKNOWN, likely_is: FAIL }
 note: "Rest interval per Active Travel England / UN Enable ranges; engineering default."
+no_sidewalk_is: FAIL  # major_road with sidewalk=none (Task 31)

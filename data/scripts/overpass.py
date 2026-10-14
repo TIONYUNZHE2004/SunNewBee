@@ -16,6 +16,12 @@ CACHE = Path(__file__).resolve().parents[1] / "cache"
 
 # Counts real (non-cached) HTTP requests made by this process, for etiquette accounting.
 REQUESTS_MADE = 0
+# Optional hard cap on REQUESTS_MADE (retries included); None = no cap. Cache hits are free.
+MAX_REQUESTS: int | None = None
+
+
+class BudgetExceeded(RuntimeError):
+    """Raised instead of making an HTTP request that would exceed MAX_REQUESTS."""
 
 
 def query(ql: str, retries: int = 6) -> dict:
@@ -25,6 +31,8 @@ def query(ql: str, retries: int = 6) -> dict:
     if key.exists():
         return json.loads(key.read_text())
     for attempt in range(retries):
+        if MAX_REQUESTS is not None and REQUESTS_MADE >= MAX_REQUESTS:
+            raise BudgetExceeded(f"Overpass request budget of {MAX_REQUESTS} used up")
         url = MIRRORS[attempt % len(MIRRORS)]
         REQUESTS_MADE += 1
         try:

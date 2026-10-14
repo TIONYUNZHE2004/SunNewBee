@@ -5,3 +5,4 @@ soft: { covered_multiplier: 0.86, steps_multiplier: 1.0 }
 max_rest_free_run_m: null
 flood: { possible_is: UNKNOWN, likely_is: FAIL }
 note: "Thresholds are engineering defaults, not MS 1184 values."
+no_sidewalk_is: FAIL  # major_road with sidewalk=none (Task 31)

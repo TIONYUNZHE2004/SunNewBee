@@ -19,16 +19,27 @@ from data.scripts import overpass  # noqa: E402
 ENVELOPE = (3.150, 101.460, 3.240, 101.530)  # s, w, n, e
 OUT = ROOT / "data" / "seed" / "elmina"
 
+# Kept byte-identical: it is part of the cached Overpass query key (data/cache/<sha1>.json).
+# secondary_link is fetched here too but typed major_road (see MAJOR_HIGHWAYS).
 WALK_HIGHWAYS = (
     "footway|path|pedestrian|steps|crossing|living_street|residential|service|unclassified|"
     "tertiary|secondary_link|tertiary_link|track"
+)
+# Task 31 / ruling R22: the roads that join Elmina's neighbourhoods. Pedestrians use their
+# sidewalks or verges, so they are walk edges of type `major_road`; motorways stay excluded.
+MAJOR_HIGHWAYS = (
+    "primary",
+    "secondary",
+    "trunk",
+    "primary_link",
+    "secondary_link",
+    "trunk_link",
 )
 STREET_TYPES = {
     "residential",
     "service",
     "unclassified",
     "tertiary",
-    "secondary_link",
     "tertiary_link",
     "living_street",
 }
@@ -55,8 +66,60 @@ def _parse_float(text: str) -> float | None:
     return float(m.group(1).replace(",", ".")) if m else None
 
 
+_SIDE_VALUES = {"yes": "yes", "no": "no", "none": "no", "separate": "separate"}
+_SIDEWALK_SIDES = {
+    "both": ("yes", "yes"),
+    "left": ("yes", "no"),
+    "right": ("no", "yes"),
+    "no": ("no", "no"),
+    "none": ("no", "no"),
+    "separate": ("separate", "separate"),
+}
+SIDEWALK_KEYS = ("sidewalk", "sidewalk:both", "sidewalk:left", "sidewalk:right")
+
+
+def sidewalk_value(tags: dict) -> str | None:
+    """OSM sidewalk tags -> both|one_side|none|separate, or None when the tags do not say.
+
+    Side-specific tags refine the general ones. `sidewalk=yes` only says "at least one side",
+    so it gives a value only when the other side is known to have none. Never guesses a side.
+    """
+    general = tags.get("sidewalk")
+    left, right = _SIDEWALK_SIDES.get(general, (None, None))
+    at_least_one = general == "yes"
+    both = _SIDE_VALUES.get(tags.get("sidewalk:both", ""))
+    if both:
+        left = right = both
+    left = _SIDE_VALUES.get(tags.get("sidewalk:left", ""), left)
+    right = _SIDE_VALUES.get(tags.get("sidewalk:right", ""), right)
+    if at_least_one and (left, right).count(None) == 1 and "no" in (left, right):
+        left, right = (left or "yes"), (right or "yes")
+    if left is None or right is None:
+        return None
+    sides = (left, right)
+    if sides == ("yes", "yes"):
+        return "both"
+    if "yes" in sides:
+        return "one_side"
+    if "separate" in sides:
+        return "separate"
+    return "none"
+
+
+def _sidewalk_claim(tags: dict) -> dict | None:
+    value = sidewalk_value(tags)
+    if value is None:
+        return None
+    raw = "; ".join(f"{k}={tags[k]}" for k in SIDEWALK_KEYS if k in tags)
+    return {**_claim(value), "notes": f"OSM {raw}"}
+
+
 def _claims(tags: dict, seg_type: str) -> dict:
     claims: dict = {}
+    if seg_type == "major_road":
+        sidewalk = _sidewalk_claim(tags)
+        if sidewalk:
+            claims["sidewalk"] = sidewalk
     if "step_count" in tags:
         with contextlib.suppress(ValueError):
             claims["step_count"] = _claim(int(float(tags["step_count"])))
@@ -67,11 +130,13 @@ def _claims(tags: dict, seg_type: str) -> dict:
         v = _parse_float(inc)
         if v is not None:
             claims["incline_pct"] = _claim(abs(v))
-    if "width" in tags:
+    # On a major road, `width` and `surface` describe the carriageway, not where people walk.
+    carriageway = seg_type == "major_road"
+    if "width" in tags and not carriageway:
         v = _parse_float(tags["width"])
         if v is not None:
             claims["width_m"] = _claim(v)
-    if "surface" in tags:
+    if "surface" in tags and not carriageway:
         claims["surface"] = _claim(tags["surface"])
     if tags.get("wheelchair") in ("yes", "no", "limited"):
         claims["wheelchair"] = _claim(tags["wheelchair"])
@@ -90,6 +155,8 @@ def _seg_type(tags: dict) -> str:
         return "crossing"
     if hw == "crossing":
         return "crossing"
+    if hw in MAJOR_HIGHWAYS:
+        return "major_road"
     if hw in STREET_TYPES:
         return "street"
     return hw
@@ -153,6 +220,32 @@ def _fetch_ways() -> list[dict]:
             if el["type"] == "way" and "geometry" in el:
                 seen[el["id"]] = el
     return list(seen.values())
+
+
+def _fetch_major_ways() -> list[dict]:
+    """Ruling R22: one sequential pass over the 2 x 2 envelope tiles (4 queries, cached)."""
+    seen: dict[int, dict] = {}
+    hw = "|".join(MAJOR_HIGHWAYS)
+    for s, w, n, e in overpass.tiles(ENVELOPE, 2):
+        ql = f'[out:json][timeout:180];way[highway~"^({hw})$"]({s},{w},{n},{e});out geom tags;'
+        for el in overpass.query(ql).get("elements", []):
+            if el["type"] == "way" and "geometry" in el:
+                seen[el["id"]] = el
+    return list(seen.values())
+
+
+def merge_ways(walk: list[dict], major: list[dict]) -> tuple[list[dict], int]:
+    """Union by way id; major-road ways tagged foot=no are dropped. Returns (ways, skipped)."""
+    seen = {w["id"]: w for w in [*walk, *major]}
+    keep = [
+        w
+        for w in seen.values()
+        if not (
+            w.get("tags", {}).get("highway") in MAJOR_HIGHWAYS
+            and w.get("tags", {}).get("foot") == "no"
+        )
+    ]
+    return keep, len(seen) - len(keep)
 
 
 def _fetch_places() -> list[dict]:
@@ -343,12 +436,32 @@ def site_json(today: str) -> dict:
     }
 
 
-def main() -> None:
-    ways = _fetch_ways()
+def main(argv: list[str] | None = None) -> None:
+    import argparse
+
+    ap = argparse.ArgumentParser(description=__doc__)
+    ap.add_argument(
+        "--max-requests",
+        type=int,
+        default=None,
+        help="hard cap on real Overpass HTTP requests this run, retries included (cache hits are free)",
+    )
+    args = ap.parse_args(argv)
+    overpass.MAX_REQUESTS = args.max_requests
+    try:  # every fetch before any write, so a budget stop leaves the seed untouched
+        walk_ways = _fetch_ways()
+        major_ways = _fetch_major_ways()
+        place_els = _fetch_places()
+        hydro_els = _fetch_hydrology()
+    except overpass.BudgetExceeded as exc:
+        print(f"BLOCKED: {exc}; overpass HTTP requests this run: {overpass.REQUESTS_MADE}")
+        raise SystemExit(2) from None
+    ways, foot_no = merge_ways(walk_ways, major_ways)
+    print(f"major-road ways fetched: {len(major_ways)}; skipped (foot=no): {foot_no}")
     segs = split_ways(ways)
-    places = build_places(_fetch_places())
+    places = build_places(place_els)
     assign_nodes(places, segs)
-    hydro = hydrology_features(_fetch_hydrology())
+    hydro = hydrology_features(hydro_els)
     write_geojson(OUT / "base" / "walk.geojson", [seg_feature(s) for s in segs])
     write_geojson(OUT / "base" / "places.geojson", [place_feature(p) for p in places])
     write_geojson(OUT / "base" / "hydrology.geojson", hydro)

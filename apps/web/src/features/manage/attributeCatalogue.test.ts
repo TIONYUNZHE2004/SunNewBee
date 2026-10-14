@@ -19,6 +19,7 @@ describe("specFor", () => {
     });
     expect(specFor("wheelchair", true).kind).toBe("enum");
     expect(specFor("handrail", null).options).toEqual(["both", "one_side", "none"]);
+    expect(specFor("sidewalk", null).options).toEqual(["both", "one_side", "none", "separate"]);
     expect(specFor("surface", null).options).toHaveLength(10);
     expect(specFor("surface_condition", null).options).toEqual(["good", "uneven", "obstructed"]);
     expect(specFor("kerb", null).options).toEqual(["flush", "lowered", "raised", "rolled"]);

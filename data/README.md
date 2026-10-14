@@ -42,6 +42,28 @@ Envelope bbox (s,w,n,e) = 3.150, 101.460, 3.240, 101.530.
 - overlay: 18 edges + 7 places (`park-b`, `lakeside-mall`, `playground`, `toilet-urban-park`, `bench-urban-1..3`)
 - P1 416 m (via unknown ramp) vs verified detour P2 441 m
 
+## Major roads (Task 31): code ready, seed NOT yet rebuilt
+
+`import_osm.py` now also fetches `highway=primary|secondary|trunk` and their `_link`s (motorways stay excluded) in the 2 × 2 `ENVELOPE` tiles (4 cached Overpass queries; ruling R22). Ways tagged `foot=no` are skipped. They become walk edges of type **`major_road`**, split at shared nodes like every other way. `secondary_link`, which used to come in as `street`, is now `major_road` too (51 ways).
+
+- **`sidewalk` claim** (`osm_import`, `reported`, raw tags in `notes`): `sidewalk`, `sidewalk:both`, `sidewalk:left`, `sidewalk:right` are normalised to `both | one_side | none | separate`. Tags that do not fix both sides (`sidewalk=yes` on its own, or one side only) give **no claim**. Nothing is guessed. Carriageway `width` and `surface` are not imported as claims on major roads.
+- **Evaluation** (walking profiles): a trusted `both | one_side | separate` claim → the normal rules apply. `none` → FAIL for stroller, wheelchair and older_adult_rest (`no_sidewalk_is: FAIL` in their profile yaml), UNKNOWN for default. No trusted claim → UNKNOWN for every walking profile. So a route over a major road is never `confirmed` without sidewalk data. `drive` allows `major_road`.
+- **Rate limit:** `import_osm.py --max-requests N` hard-caps real Overpass HTTP requests (retries included; cache hits are free) and prints `BLOCKED` with the count when the cap is reached, before writing anything.
+
+**Status (15 Oct 2026): the network budget ran out.** 3 of the 4 major-road tiles are cached in `data/cache/`. The NE tile `(3.195, 101.495, 3.24, 101.53)` timed out (12/12 requests used, all 504s or timeouts). The committed seed therefore still has **no** `major_road` edges. To finish: re-run `pnpm data:build` with `--max-requests` (one more tile request at minimum), then `build_flood.py --datum-offset -3.74 --osm-water data/cache/2f7c0c51d14428009f2172835c2108ed9966ae2d.json`.
+
+| Measure (stroller unless noted) | Seed today | Estimate, 3 of 4 tiles (not committed) |
+|---|---|---|
+| Walk graph components | 199 | 103 |
+| Largest component share of nodes | 32.0% (3,653 of 11,418) | 85% (9,954 of 11,710) |
+| Lakeside Mall → 72 evacuation centres, baseline | 23 partly_unverified / 49 no_data | 53 partly_unverified / 19 no_data |
+| Lakeside Mall → 72 centres, stage_p3m | 3 partly_unverified / 20 blocked / 49 no_data | not measured (new edges have no flood class yet) |
+| Journey tests (300 tasks: 100 per profile) | 99 no_data + 1 success_with_unknowns per profile | 46 no_data + 54 success_with_unknowns per profile |
+| Hero `park-b → playground` | confirmed, 440.6 m | confirmed, 440.6 m |
+| `major_road` sidewalk claims | – | 0 of 788 segments (OSM has 3 one-side `separate` tags, which leave the other side unknown) |
+
+The estimate adds the new edges in memory to today's seed and keeps the overlay. Flood stage stats are unchanged, because the seed was not rebuilt.
+
 ## Flood lens (Task 10: `data/scripts/build_flood.py`)
 
 **Indicative scenarios from a 30 m elevation model, not a forecast.** The app never gives a water depth on a path. Every scenario carries its disclaimer and the official links (JPS Public InfoBanjir, MET Malaysia). See [ADR 0010](../docs/00-overview/decisions/0010-flood-lens-hand-scenarios.md); the method changed from HAND to REM as described below.

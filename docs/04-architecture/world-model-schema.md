@@ -43,7 +43,7 @@ erDiagram
 | Field | Type | Notes |
 |---|---|---|
 | `id` | str | `seg-0001` |
-| `type` | enum | `footway`, `sidewalk`, `crossing`, `steps`, `ramp`, `corridor`, `lift_ride`, `indoor_link`, `driveway_crossing` |
+| `type` | enum | `footway`, `sidewalk`, `crossing`, `steps`, `ramp`, `corridor`, `lift_ride`, `indoor_link`, `driveway_crossing`; the OSM import also emits `street`, `track`, `path`, `pedestrian` and `major_road` (OSM primary/secondary/trunk + links: walking profiles need a trusted `sidewalk` claim, else UNKNOWN; `sidewalk=none` FAILs stroller/wheelchair/older_adult_rest) |
 | `from`, `to` | node ids | edges are **bidirectional** unless `oneway=yes`; `incline_pct` is signed in the from→to direction |
 | `geometry` | LineString | |
 | `length_m` | float | computed from geometry (geodesic) and not editable |
@@ -71,6 +71,7 @@ erDiagram
 | `kerb` | node (crossing ends) | enum: flush, lowered, raised, rolled | `kerb` |
 | `ramp` | edge, entrance | bool | `ramp` |
 | `handrail` | edge | enum: both, one_side, none | `handrail` |
+| `sidewalk` | edge (`major_road`) | enum: both, one_side, none, separate | `sidewalk`, `sidewalk:both/left/right` (normalised; no tag = no claim) |
 | `tactile_paving` | edge, node | bool | `tactile_paving` |
 | `shelter` | edge, place | enum: covered, partial, none | ours (`covered=*` in OSM) |
 | `lit` | edge | bool | `lit` |
@@ -105,7 +106,7 @@ One row per `(entity_id, attribute)` *current* claim; superseded claims are kept
 - After `now > verified_at + ttl_days` the claim is read as `stale` (computed on read, not by a cron job).
 - An open `resident_report` that contradicts a verified value marks it `contested` until resolved.
 
-**Default TTLs** (team assumptions, revisit with SDP ops): closures 7 d · opening hours 90 d · seating/shelter 180 d · steps/ramps/kerbs/width/surface 365 d.
+**Default TTLs** (team assumptions, revisit with SDP ops): closures 7 d · opening hours 90 d · seating/shelter 180 d · steps/ramps/kerbs/width/surface/sidewalk 365 d.
 
 **Trust score** (display only, never used for routing): weight by `evidence_type` (site visit 1.0 · staff photo 0.8 · SDP document 0.5 · import 0.3 · resident report 0.2 · LLM 0.0) × linear freshness decay over the TTL.
 

@@ -29,6 +29,7 @@ ATTRIBUTE_TYPES: dict[str, tuple[str, frozenset[str] | None]] = {
     "surface_condition": _enum("good", "uneven", "obstructed"),
     "kerb": _enum("flush", "lowered", "raised", "rolled"),
     "handrail": _enum("both", "one_side", "none"),
+    "sidewalk": _enum("both", "one_side", "none", "separate"),  # major_road edges (Task 31)
     "shelter": _enum("covered", "partial", "none"),
     "door_type": _enum("automatic", "push", "pull", "sliding", "revolving", "none"),
     "wheelchair": _enum("yes", "limited", "no"),

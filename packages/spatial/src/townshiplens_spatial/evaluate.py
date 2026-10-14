@@ -17,6 +17,40 @@ def _is_stale(c: Claim, attr: str, today: date) -> bool:
     return (today - date.fromisoformat(c.verified_at[:10])).days > ttl
 
 
+# Edge types people can only walk along on a sidewalk or verge (Task 31).
+SIDEWALK_TYPES = {"major_road"}
+SIDEWALK_PRESENT = {"both", "one_side", "separate"}
+
+
+def _sidewalk_check(edge: Edge, profile: Profile, today: date) -> tuple[EvalResult, dict] | None:
+    """Walking profiles on a major road: None when mapped sidewalk data supports it, else
+    FAIL/UNKNOWN with the reason. Vehicle profiles (allowed_types set) are not affected."""
+    if edge.type not in SIDEWALK_TYPES or profile.allowed_types is not None:
+        return None
+    c = edge.claims.get("sidewalk")
+    stale = c is not None and c.value is not None and _is_stale(c, "sidewalk", today)
+    trusted = c is not None and c.status in ("verified", "reported") and not stale
+    if trusted and c.value in SIDEWALK_PRESENT:
+        return None
+    if trusted and c.value == "none":
+        res: EvalResult = "FAIL" if profile.no_sidewalk_is == "FAIL" else "UNKNOWN"
+        why = f"major road with no sidewalk mapped; not usable for {profile.id}"
+        if res == "UNKNOWN":
+            why = "major road with no sidewalk mapped; walking means the carriageway or verge"
+        return res, {
+            "element_id": edge.id,
+            "attribute": "sidewalk",
+            "reason": "unknown",
+            "why": why,
+        }
+    return "UNKNOWN", {
+        "element_id": edge.id,
+        "attribute": "sidewalk",
+        "reason": "stale" if stale or (c is not None and c.status == "stale") else "unknown",
+        "why": "major road; sidewalk not verified",
+    }
+
+
 def evaluate_edge(
     edge: Edge, profile: Profile, flood_class: FloodClass | None = None, today: date | None = None
 ) -> tuple[EvalResult, list[dict]]:
@@ -51,6 +85,12 @@ def evaluate_edge(
         ]
     # TODO(deferred): enforce profile.max_rest_free_run_m; not used in the walking skeleton.
     result: EvalResult = "PASS"
+    side = _sidewalk_check(edge, profile, today)
+    if side is not None:
+        if side[0] == "FAIL":
+            return "FAIL", [side[1]]
+        result = "UNKNOWN"
+        why.append(side[1])
     for key, limit in profile.hard.items():
         attr, violates = _CHECKS[key]
         c = edge.claims.get(attr)
