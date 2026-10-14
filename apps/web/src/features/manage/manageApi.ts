@@ -1,4 +1,5 @@
 import type { Schemas } from "@tl/api-client";
+import type { AttrPayload } from "./attributeForm";
 
 // Plain fetch with local types: briefings/resolve are not in the generated schema yet.
 export type VR = {
@@ -42,7 +43,10 @@ export type Briefing = {
 };
 
 export class ApiError extends Error {
-  constructor(public status: number) {
+  constructor(
+    public status: number,
+    public detail?: string,
+  ) {
     super(`HTTP ${status}`);
   }
 }
@@ -114,4 +118,61 @@ export async function runSimulation(
   });
   if (!r.ok) throw new ApiError(r.status);
   return (await r.json()) as SimReport;
+}
+
+export type AuditClaim = {
+  value?: unknown;
+  status?: string;
+  evidence_type?: string | null;
+} | null;
+export type AuditRow = {
+  id: number;
+  at: string;
+  actor: string;
+  element_id: string;
+  attribute: string;
+  old: AuditClaim;
+  new: AuditClaim;
+  reason: string;
+  note: string | null;
+};
+
+/** FastAPI `detail` is a string, or a list of {msg} for validation errors. */
+async function readDetail(r: Response): Promise<string | undefined> {
+  try {
+    const j = (await r.json()) as { detail?: unknown };
+    if (typeof j.detail === "string") return j.detail;
+    if (Array.isArray(j.detail)) {
+      const m = j.detail.map((d) => (d as { msg?: string }).msg).filter(Boolean);
+      return m.length ? m.join("; ") : undefined;
+    }
+  } catch {
+    /* no body */
+  }
+  return undefined;
+}
+
+export async function saveAttribute(
+  elementId: string,
+  key: string,
+  body: AttrPayload,
+  token: string,
+): Promise<void> {
+  const r = await fetch(
+    `/api/elements/${encodeURIComponent(elementId)}/attributes/${encodeURIComponent(key)}`,
+    {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", "X-Staff-Token": token },
+      body: JSON.stringify(body),
+    },
+  );
+  if (!r.ok) throw new ApiError(r.status, await readDetail(r));
+}
+
+export async function fetchAudit(elementId: string, token: string): Promise<AuditRow[]> {
+  const r = await fetch(`/api/audit?element_id=${encodeURIComponent(elementId)}`, {
+    headers: { Accept: "application/json", "X-Staff-Token": token },
+  });
+  if (!r.ok) throw new ApiError(r.status, await readDetail(r));
+  return (await r.json()) as AuditRow[];
 }

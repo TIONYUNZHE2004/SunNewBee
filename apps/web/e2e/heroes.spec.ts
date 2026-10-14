@@ -85,3 +85,25 @@ test("journey tests: staff runs the batch and sees the stroller row", async ({ p
   await expect(matrix.getByRole("rowheader", { name: "Stroller" })).toBeVisible();
   await expect(page.getByRole("status").filter({ hasText: "finished" })).toBeVisible();
 });
+
+test("staff edits a fact to Unknown and sees it in history", async ({ page }) => {
+  await page.addInitScript(() => sessionStorage.setItem("tl.staffToken", "e2e-token"));
+  await page.goto("/");
+  await page.getByRole("button", { name: "Bench by the path" }).click();
+  const card = page.getByRole("dialog", { name: "Bench by the path" });
+  await expect(card.getByRole("list", { name: "Facts" })).toContainText("Yes");
+  const edit = card.getByRole("button", { name: "Edit Seating" });
+  await edit.click();
+  await card.getByLabel("Status").selectOption("unknown");
+  await expect(card.getByLabel("Value")).toBeDisabled();
+  await card.getByLabel("Source type").selectOption("staff_site_visit");
+  await card.getByLabel("Note (optional)").fill("bench removed");
+  await card.getByRole("button", { name: /^Save/ }).click();
+  await expect(card.getByRole("status").filter({ hasText: "Saved" })).toBeVisible();
+  await expect(card.getByRole("list", { name: "Facts" })).toContainText("unknown");
+  await expect(edit).toBeFocused();
+  await card.getByRole("button", { name: "History" }).click();
+  const history = card.getByRole("list", { name: /Edit history/ });
+  await expect(history.getByRole("listitem")).toHaveCount(1);
+  await expect(history).toContainText("bench removed");
+});

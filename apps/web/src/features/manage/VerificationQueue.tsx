@@ -89,7 +89,7 @@ function ResolveForm({ vr, token, onDone }: { vr: VR; token: string; onDone: () 
         </div>
       </div>
       {s.error && (
-        <p role="alert" className="text-sm font-medium text-[#9b1c1c]">
+        <p role="alert" className="text-sm font-medium text-danger">
           {s.error}
         </p>
       )}

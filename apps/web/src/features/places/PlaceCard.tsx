@@ -1,10 +1,31 @@
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { usePlace } from "../../lib/api";
 import { useChatDraft } from "../chat/chatDraftStore";
+import { AttributeEditor } from "../manage/AttributeEditor";
+import { AuditHistory } from "../manage/AuditHistory";
+import { loadToken } from "../manage/manageApi";
 import { useScene } from "../scene/sceneStore";
 import { type ClaimRow, toPlaceView } from "./placeModel";
 
-function Row({ r }: { r: ClaimRow }) {
+function Row({
+  r,
+  elementId,
+  token,
+  editing,
+  saved,
+  onEdit,
+  onClose,
+  onSaved,
+}: {
+  r: ClaimRow;
+  elementId: string;
+  token: string;
+  editing: boolean;
+  saved: boolean;
+  onEdit: (el: HTMLButtonElement) => void;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
   return (
     <li className="rounded-md border border-line bg-card px-3 py-2 text-sm">
       <p className="flex flex-wrap items-baseline justify-between gap-2">
@@ -24,6 +45,30 @@ function Row({ r }: { r: ClaimRow }) {
         {r.source && <span className="text-ink-soft">Source: {r.source}</span>}
         {r.verifiedAt && <span className="text-ink-soft">checked {r.verifiedAt}</span>}
       </p>
+      {token && !editing && (
+        <button
+          type="button"
+          data-edit={r.attr}
+          onClick={(e) => onEdit(e.currentTarget)}
+          className="mt-2 min-h-11 rounded-md border border-brand px-3 text-sm font-medium text-brand hover:bg-brand-tint focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
+        >
+          Edit<span className="sr-only"> {r.label}</span>
+        </button>
+      )}
+      {saved && (
+        <p role="status" className="mt-2 text-sm font-medium text-ink">
+          Saved. {r.label} updated.
+        </p>
+      )}
+      {editing && (
+        <AttributeEditor
+          elementId={elementId}
+          row={r}
+          token={token}
+          onClose={onClose}
+          onSaved={onSaved}
+        />
+      )}
     </li>
   );
 }
@@ -43,6 +88,23 @@ function PlaceCardInner({ id }: { id: string }) {
   const ref = useRef<HTMLDivElement>(null);
   const trigger = useRef<HTMLElement | null>(null);
   const asking = useRef(false);
+  // Re-read on every render so a token entered on /manage after the card opened is picked up.
+  const token = loadToken();
+  const [editing, setEditing] = useState<string | null>(null);
+  const [saved, setSaved] = useState<string | null>(null);
+
+  // Return focus to the row's Edit button after save or cancel, once it has re-rendered.
+  const [focusAttr, setFocusAttr] = useState<string | null>(null);
+  const closeEditor = (attr: string, didSave: boolean) => {
+    setEditing(null);
+    setSaved(didSave ? attr : null);
+    setFocusAttr(attr);
+  };
+  useEffect(() => {
+    if (!focusAttr || editing) return;
+    ref.current?.querySelector<HTMLElement>(`[data-edit="${focusAttr}"]`)?.focus();
+    setFocusAttr(null);
+  }, [focusAttr, editing]);
 
   useEffect(() => {
     trigger.current = document.activeElement as HTMLElement | null;
@@ -116,11 +178,26 @@ function PlaceCardInner({ id }: { id: string }) {
         ) : (
           <ul className="space-y-2" aria-label="Facts">
             {view.rows.map((r) => (
-              <Row key={r.attr} r={r} />
+              <Row
+                key={r.attr}
+                r={r}
+                elementId={view.id}
+                token={token}
+                editing={editing === r.attr}
+                saved={saved === r.attr}
+                onEdit={() => {
+                  setSaved(null);
+                  setEditing(r.attr);
+                }}
+                onClose={() => closeEditor(r.attr, false)}
+                onSaved={() => closeEditor(r.attr, true)}
+              />
             ))}
           </ul>
         )}
       </div>
+
+      {view && token && <AuditHistory elementId={view.id} token={token} />}
 
       {view && (
         <button

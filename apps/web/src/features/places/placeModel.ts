@@ -14,6 +14,8 @@ export interface ClaimRow {
   attr: string;
   label: string;
   value: string;
+  /** Raw claim value, used to prefill the staff editor. */
+  raw: unknown;
   isUnknown: boolean;
   status: ClaimStatus;
   statusLabel: string;
@@ -67,6 +69,7 @@ export function toPlaceView(result: unknown): PlaceView | null {
         attr,
         label: label(attr),
         value: v.text,
+        raw: c.value ?? null,
         isUnknown: v.isUnknown,
         status,
         statusLabel: CLAIM_STATUS[status].label,
