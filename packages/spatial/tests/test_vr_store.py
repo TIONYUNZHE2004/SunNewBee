@@ -15,3 +15,21 @@ def test_resolve(tmp_path):
     done = s.resolve(vr.id, "verify", value=4.5, note="inclinometer")
     assert done.status == "resolved" and done.resolution["value"] == 4.5
     assert s.list("open") == []
+
+
+def test_resolve_unknown_raises_keyerror(tmp_path):
+    import pytest
+
+    s = VerificationStore(str(tmp_path / "vr.db"))
+    with pytest.raises(KeyError):
+        s.resolve("vr-9999", "verify")
+
+
+def test_resolve_only_open(tmp_path):
+    import pytest
+
+    s = VerificationStore(str(tmp_path / "vr.db"))
+    vr, _ = s.request("seg-cf", "incline_pct", "unknown")
+    s.resolve(vr.id, "reject")
+    with pytest.raises(ValueError):
+        s.resolve(vr.id, "verify", value=1)

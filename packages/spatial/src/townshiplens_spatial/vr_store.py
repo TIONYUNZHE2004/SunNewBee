@@ -65,6 +65,11 @@ class VerificationStore:
     def resolve(self, vr_id: str, action: str, value=None, note: str = "") -> VerificationRequest:
         status = "rejected" if action == "reject" else "resolved"
         with self.db:
+            cur = self.db.execute("SELECT status FROM vr WHERE id=?", (vr_id,)).fetchone()
+            if cur is None:
+                raise KeyError(vr_id)
+            if cur["status"] not in ("open", "in_progress"):
+                raise ValueError(f"{vr_id} is already {cur['status']}")
             self.db.execute(
                 "UPDATE vr SET status=?, resolved_at=?, resolution=? WHERE id=?",
                 (

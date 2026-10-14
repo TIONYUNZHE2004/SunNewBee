@@ -4,6 +4,23 @@
  */
 
 export interface paths {
+    "/briefings/flood": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Briefing */
+        get: operations["briefing_briefings_flood_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/chat": {
         parameters: {
             query?: never;
@@ -30,6 +47,23 @@ export interface paths {
         };
         /** Evac */
         get: operations["evac_evacuation_centres_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/graph": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Graph */
+        get: operations["graph_graph_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -147,8 +181,8 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Scenario */
-        get: operations["scenario_scenarios__scenario_id__get"];
+        /** Scenario Water */
+        get: operations["scenario_water_scenarios__scenario_id__get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -228,6 +262,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/verification-requests/{vr_id}/resolve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Resolve */
+        post: operations["resolve_verification_requests__vr_id__resolve_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/waste-points": {
         parameters: {
             query?: never;
@@ -257,16 +308,41 @@ export interface components {
             isolated_components: {
                 [key: string]: unknown;
             }[];
+            /**
+             * Isolated Total
+             * @default 0
+             */
+            isolated_total: number;
             /** Likely */
             likely: {
-                [key: string]: string;
+                [key: string]: unknown;
             }[];
+            /** Likely Edge Ids */
+            likely_edge_ids?: string[];
+            /** Likely Place Ids */
+            likely_place_ids?: string[];
+            /**
+             * Likely Total
+             * @default 0
+             */
+            likely_total: number;
             /** Possible */
             possible: {
-                [key: string]: string;
+                [key: string]: unknown;
             }[];
+            /** Possible Edge Ids */
+            possible_edge_ids?: string[];
+            /** Possible Place Ids */
+            possible_place_ids?: string[];
+            /**
+             * Possible Total
+             * @default 0
+             */
+            possible_total: number;
             /** Scenario Id */
             scenario_id: string;
+            /** Warnings */
+            warnings?: string[];
         };
         /** CentreReachability */
         CentreReachability: {
@@ -436,6 +512,21 @@ export interface components {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
         };
+        /** ResolveBody */
+        ResolveBody: {
+            /**
+             * Action
+             * @enum {string}
+             */
+            action: "verify" | "correct" | "reject";
+            /**
+             * Note
+             * @default
+             */
+            note: string;
+            /** Value */
+            value?: unknown;
+        };
         /** Route */
         Route: {
             /** Distance M */
@@ -480,6 +571,20 @@ export interface components {
             unknowns?: {
                 [key: string]: string;
             }[];
+        };
+        /** RouteRequest */
+        RouteRequest: {
+            /** From */
+            from: string;
+            /**
+             * Profile
+             * @default default
+             */
+            profile: string;
+            /** Scenario Id */
+            scenario_id?: string | null;
+            /** To */
+            to: string;
         };
         /** RouteResult */
         RouteResult: {
@@ -796,6 +901,40 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    briefing_briefings_flood_get: {
+        parameters: {
+            query: {
+                scenario_id: string;
+                profile?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     chat_chat_post: {
         parameters: {
             query?: never;
@@ -849,6 +988,40 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CentreReachability"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    graph_graph_get: {
+        parameters: {
+            query?: {
+                profile?: string;
+                scenario_id?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
                 };
             };
             /** @description Validation Error */
@@ -991,9 +1164,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": {
-                    [key: string]: unknown;
-                };
+                "application/json": components["schemas"]["RouteRequest"];
             };
         };
         responses: {
@@ -1037,7 +1208,7 @@ export interface operations {
             };
         };
     };
-    scenario_scenarios__scenario_id__get: {
+    scenario_water_scenarios__scenario_id__get: {
         parameters: {
             query?: never;
             header?: never;
@@ -1174,10 +1345,48 @@ export interface operations {
             };
         };
     };
+    resolve_verification_requests__vr_id__resolve_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-staff-token"?: string | null;
+            };
+            path: {
+                vr_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ResolveBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VerificationRequest"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     waste_waste_points_get: {
         parameters: {
             query?: {
                 type?: string | null;
+                near?: string | null;
             };
             header?: never;
             path?: never;
