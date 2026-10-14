@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { centreReachLabel, NO_DATA_LABEL, routeStatusLabel } from "./routeStatus";
+import { centreMapMarker, centreReachLabel, NO_DATA_LABEL, routeStatusLabel } from "./routeStatus";
 
 describe("route status labels", () => {
   it("no_data is a data gap, never 'not reachable' or blocked", () => {
@@ -18,5 +18,12 @@ describe("route status labels", () => {
     expect(centreReachLabel({ reachable: true, route_status: "confirmed" })).toBe("Reachable");
     expect(centreReachLabel({ reachable: false, route_status: "no_data" })).toBe(NO_DATA_LABEL);
     expect(centreReachLabel({ reachable: false, route_status: "blocked" })).toBe("Not passable");
+  });
+  it("map marker: no_data is neutral, blocked stays red", () => {
+    const nd = centreMapMarker({ reachable: false, route_status: "no_data" });
+    expect(nd).toEqual({ text: "No mapped connection", color: "#6B7280" });
+    const bl = centreMapMarker({ reachable: false, route_status: "blocked" });
+    expect(bl).toEqual({ text: "Not reachable", color: "#C53030" });
+    expect(centreMapMarker({ reachable: true, route_status: "confirmed" }).text).toBe("Reachable");
   });
 });

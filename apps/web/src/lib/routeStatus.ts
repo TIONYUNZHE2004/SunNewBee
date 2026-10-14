@@ -13,3 +13,14 @@ export function centreReachLabel(c: { reachable: boolean; route_status: string }
     return routeStatusLabel(c.route_status);
   return c.reachable ? "Reachable" : "Not reachable";
 }
+
+/** Map marker text and colour for an evacuation centre. no_data is neutral grey; only
+ * blocked (or an unreachable centre with a known status) is red. */
+export function centreMapMarker(c: { reachable: boolean; route_status: string }): {
+  text: string;
+  color: string;
+} {
+  if (c.route_status === "no_data") return { text: "No mapped connection", color: "#6B7280" };
+  if (c.reachable) return { text: "Reachable", color: "#1B873F" };
+  return { text: "Not reachable", color: "#C53030" };
+}
