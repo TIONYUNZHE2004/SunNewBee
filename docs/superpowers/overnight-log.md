@@ -99,3 +99,24 @@
 - **Task 9 (agent + SSE):** implemented on `lane/ai`, with `main` merged in (186 tests, golden 6/6 mock). It closed the flooded-endpoint gap: a route endpoint that is likely flooded produces evidence plus a caveat, and the validator enforces it. Opus review in progress.
 - **Task 10 (flood pipeline):** Opus implementer running. **Task 3:** Overpass tiles cached (9); the implementer is fixing a parsing error.
 - **External usage:** OpenRouter 0/30 · Google tiles ≈8/30 · Overpass ≈18.
+
+### 02:27 (+1:02): the walking-skeleton hero flows are verified end to end
+- **Integrated:** Task 9, the PydanticAI agent + `run_turn` SSE + CLI + golden runner (merge `fcb50d3`). Review fixes:
+  - the UI scenario is now applied to routing (Critical);
+  - caveats are required for flooded route endpoints;
+  - `scenario_id` is constrained (blocks prompt injection);
+  - VRs filed by the model are sanitised and never store model-written text (PDPA);
+  - turn timeout, rendering guard, and tools offloaded to threads.
+- **Full checklist (main):** pytest PASS (212) · golden PASS 6/6 (mock) · web vitest PASS (49) · lint PASS · `pnpm gen` no drift PASS · typecheck PASS · web build PASS (Cesium asset check OK). Pushed.
+- **Browser E2E (mock LLM, tiny fixture world, real map keys):**
+  - **Access hero: PASS.** Tool chips, a partly-unverified route, the unknown incline caveat first, citations with placeholder badges, a VR filed, and the route drawn on Google photoreal 3D. (`screenshots/2026-10-15-0222-access-hero-mock-tiny-fixture.jpg`)
+  - **Flood hero: PASS.** The scenario bar shows +3 m. Water renders over the photoreal tiles, with red likely-flooded and orange dashed possibly-flooded segments and "Community hall (candidate): Reachable". The disclaimer shows in both the banner and the chat, with source-labelled citations. (`…0223-flood-hero-mock-tiny-fixture.jpg`)
+  - **Management: PASS.** The VR queue shows the gap with its demand. The flood briefing shows counts, centres with a source column, and the advisory draft with no send button.
+  - **Resolve:** not exercised. The root `.env` has no `STAFF_TOKEN`, so the API refuses with 503 by design. The team lead needs to add `STAFF_TOKEN` to use it.
+- **Live LLM smoke (OpenRouter `anthropic/claude-haiku-5.5`, tiny fixture world):**
+  - **Access: PASS.** Correct tools, a VR, partial status and validated citations.
+  - **Flood-resident: PASS.** Indicative wording, honest partly-unverified and blocked results, no "safe", disclaimer present.
+  - **Management briefing: PASS.** Honest about missing reachability data.
+  - **Usage:** about 16 model requests, **US$0.0062** (OpenRouter daily counter 0.0000 → 0.0062). Limits: ≤ 30 requests / US$3. These results are for the **tiny fixture world**; live on the real Elmina seed is NOT RUN until Task 3 merges.
+- **Task 10 (flood):** ruling made: switch to REM (height above mapped OSM drainage), because ASF HAND's dense drainage flooded 39% of segments at +1 m, contradicting the verified local facts. ADR 0010 amended (`main`). Rework in progress.
+- **External usage:** OpenRouter about 16 req / US$0.0062 · Google tiles about 12/30 · Overpass about 18.
