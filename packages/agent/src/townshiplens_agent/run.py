@@ -107,9 +107,9 @@ async def run_turn(
 ) -> AsyncIterator[ChatEvent]:
     settings = settings or AgentSettings()
     if settings.demo_mode:
-        cached = demo.load(demo.key(req), settings.demo_dir)
+        cached = demo.load(demo.key(req), settings.demo_dir, ctx.world.site.id)
         if cached:
-            async for ev in demo.replay(cached):
+            async for ev in demo.replay(cached, ctx.vrs):
                 yield ev
             return
     rec = TurnRecord(queue=asyncio.Queue())
