@@ -1,6 +1,6 @@
 # Walking Skeleton: Scaffold Design
 
-- Status: **draft for review**
+- Status: **superseded, being rewritten** after the pivot to a Township World Model platform (ADR [0009](../../00-overview/decisions/0009-township-world-model-platform.md)). Kept for history; do not build from this version.
 - Date: 2026-10-14
 - Scope: scaffold the TownshipLens monorepo with a thin, running, end-to-end slice that each lane (BE / FE / AI) then deepens.
 - Builds on: [stack-decision](../../04-architecture/stack-decision.md), [api-contract](../../04-architecture/api-contract.md), [world-model-schema](../../04-architecture/world-model-schema.md), [ai-assistant-design](../../04-architecture/ai-assistant-design.md), [dev-setup](../../05-team/dev-setup.md).

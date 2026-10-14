@@ -34,5 +34,7 @@ What gets easier, what gets harder, what we must watch.
 | [0003](0003-structured-world-model-is-source-of-truth.md) | The structured world model, not the 3D scene or the LLM, is the source of truth | accepted |
 | [0004](0004-tri-state-accessibility-attributes.md) | Accessibility attributes are tri-state (yes / no / unknown) with provenance | accepted |
 | [0005](0005-tech-stack.md) | Tech stack: Vite/React/R3F + FastAPI/NetworkX + Claude tool loop | proposed |
-| [0006](0006-mvp-site.md) | MVP site: Elmina Urban Park + Lakeside Mall frontage | proposed |
-| 0007 | 3D renderer after the Day-1 spike (R3F + 3d-tiles-renderer vs CesiumJS) | to write |
+| [0006](0006-mvp-site.md) | MVP site: Elmina Urban Park + Lakeside Mall frontage (now the accessibility deep spot inside whole-Elmina coverage, per 0009) | proposed |
+| 0007 | 3D engine for the township twin (research pending) | to write |
+| 0008 | Agent harness: PydanticAI over OpenRouter ([research](../../02-research/agent-harness-2026.md)) | to write with scaffold spec |
+| [0009](0009-township-world-model-platform.md) | **Township World Model platform: whole-Elmina 3D, 2 deep lenses (accessibility, flood), People track** | accepted |
