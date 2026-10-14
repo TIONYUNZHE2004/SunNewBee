@@ -133,3 +133,26 @@ def test_mock_malformed_ok_payload_raises_not_swallowed():
 
     with pytest.raises(TypeError):
         agent.run_sync("If the river rises 3 m, which places are cut off?")
+
+
+@pytest.mark.parametrize(
+    "q,dest",
+    [
+        ("Can I push a stroller from Car Park B to the kiosk without stairs?", "kiosk"),
+        ("Stroller from Car Park B to the toilet, no stairs?", "toilet"),
+        ("Can I push a stroller from Car Park B to the playground?", "playground"),
+        ("Can I push a stroller from Car Park B without stairs?", "playground"),
+    ],
+)
+def test_mock_access_destination_from_prompt(q, dest):
+    queries: list[str] = []
+    agent = Agent(mock_model(), output_type=ToolOutput(FinalAnswer, name="final_answer"))
+
+    @agent.tool_plain
+    def find_place(query: str) -> dict:
+        queries.append(query)
+        return {"ok": True, "data": [], "evidence": [], "warnings": []}
+
+    res = agent.run_sync(q)
+    assert queries == ["car park b", dest]
+    assert res.output.answer_status == "cannot_answer"
