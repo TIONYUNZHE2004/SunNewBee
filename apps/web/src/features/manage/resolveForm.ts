@@ -1,4 +1,4 @@
-import { specFor } from "./attributeCatalogue";
+import { optionLabel as optionLabelOf, specFor } from "./attributeCatalogue";
 import { parseValue } from "./attributeForm";
 import type { ResolveBody } from "./manageApi";
 
@@ -21,6 +21,23 @@ export const initialForm: FormState = {
   status: "idle",
   error: null,
 };
+
+export const VERIFY_DISABLED_TEXT = "Nothing to verify yet: enter the observed value with Correct";
+
+export const hasCurrentValue = (v: unknown): boolean => v !== null && v !== undefined && v !== "";
+
+/** Default action follows the claim: Verify confirms an existing value, so with none the form
+ * starts on Correct. */
+export function initialFormFor(currentValue: unknown): FormState {
+  return hasCurrentValue(currentValue) ? initialForm : { ...initialForm, action: "correct" };
+}
+
+export function currentValueText(v: unknown): string {
+  if (!hasCurrentValue(v)) return "no value recorded";
+  if (v === true) return "Yes";
+  if (v === false) return "No";
+  return String(v);
+}
 
 export function formReducer(s: FormState, a: FormAction): FormState {
   switch (a.type) {
@@ -65,6 +82,13 @@ export function errorMessage(status: number | undefined, detail?: string): strin
   if (status === 401) return "Staff token required or invalid";
   if (status === 404) return "Request not found (it may already be resolved).";
   if (status === 409) return "This request was already resolved. Refresh the queue.";
-  if (status === 422) return detail || "The server rejected this value.";
+  if (status === 422) {
+    if (!detail) return "The server rejected this value.";
+    if (/value is required/i.test(detail))
+      return "There is no current value to verify. Choose Correct and enter the observed value.";
+    const m = /^(\w+) must be (a number|a boolean|one of.*)$/i.exec(detail);
+    if (m) return `${optionLabelOf(m[1] ?? "")} must be ${m[2]}.`;
+    return `The server rejected this value: ${detail}`;
+  }
   return "Could not save. Please try again.";
 }

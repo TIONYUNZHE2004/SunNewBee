@@ -13,6 +13,8 @@ export type VR = {
   created_at: string;
   resolved_at?: string | null;
   resolution?: Record<string, unknown> | null;
+  /** The claim's current value (null when none), so staff see what Verify confirms. */
+  current_value?: unknown;
 };
 
 export type PlaceRef = { id: string; name: string; kind: string };

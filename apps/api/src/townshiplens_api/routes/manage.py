@@ -59,15 +59,27 @@ class ResolveBody(BaseModel):
     note: str = ""
 
 
-@router.get("/verification-requests", response_model=list[VerificationRequest])
+class VRRow(VerificationRequest):
+    """A VR plus the claim's current value, so staff see what Verify would confirm."""
+
+    current_value: Any = None
+
+
+@router.get("/verification-requests", response_model=list[VRRow])
 def vrs(
     status: str = "open",
     reason: str | None = None,
     element_id: str | None = None,
     attribute: str | None = None,
-) -> list[VerificationRequest]:
+) -> list[VRRow]:
     """status=all returns every status."""
-    return state.get_ctx().vrs.list(status, reason, element_id, attribute)
+    ctx = state.get_ctx()
+    rows = []
+    for vr in ctx.vrs.list(status, reason, element_id, attribute):
+        target = ctx.world.edges.get(vr.element_id) or ctx.world.places.get(vr.element_id)
+        claim = target.claims.get(vr.attribute) if target else None
+        rows.append(VRRow(**vr.model_dump(), current_value=claim.value if claim else None))
+    return rows
 
 
 class CreateVRBody(BaseModel):
@@ -166,7 +178,8 @@ def resolve(vr_id: str, body: ResolveBody) -> VerificationRequest:
             raise HTTPException(422, "value is required for verify/correct")
         if verifying:
             # Claim + audit first: if the VR resolve below fails, the VR stays open and a retry
-            # is idempotent. A missing_place VR has no element, so no claim change and no audit row.
+            # is idempotent. A missing_place VR has no element, so it has no value to verify
+            # (422 above); KeyError below only covers an element removed since the VR was filed.
             try:
                 commit_claim(
                     existing.element_id,

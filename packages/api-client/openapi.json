@@ -1828,6 +1828,101 @@
         "title": "Uncertainty",
         "type": "object"
       },
+      "VRRow": {
+        "description": "A VR plus the claim's current value, so staff see what Verify would confirm.",
+        "properties": {
+          "attribute": {
+            "title": "Attribute",
+            "type": "string"
+          },
+          "created_at": {
+            "title": "Created At",
+            "type": "string"
+          },
+          "current_value": {
+            "title": "Current Value"
+          },
+          "demand": {
+            "default": 1,
+            "title": "Demand",
+            "type": "integer"
+          },
+          "element_id": {
+            "title": "Element Id",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "question_summary": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Question Summary"
+          },
+          "reason": {
+            "enum": [
+              "unknown",
+              "stale",
+              "contradicted",
+              "no_route_unverified_segment",
+              "missing_place",
+              "user_report"
+            ],
+            "title": "Reason",
+            "type": "string"
+          },
+          "resolution": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resolution"
+          },
+          "resolved_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resolved At"
+          },
+          "status": {
+            "default": "open",
+            "enum": [
+              "open",
+              "in_progress",
+              "resolved",
+              "rejected"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "element_id",
+          "attribute",
+          "reason",
+          "created_at"
+        ],
+        "title": "VRRow",
+        "type": "object"
+      },
       "ValidationError": {
         "properties": {
           "ctx": {
@@ -3044,7 +3139,7 @@
               "application/json": {
                 "schema": {
                   "items": {
-                    "$ref": "#/components/schemas/VerificationRequest"
+                    "$ref": "#/components/schemas/VRRow"
                   },
                   "title": "Response Vrs Verification Requests Get",
                   "type": "array"

@@ -1,3 +1,4 @@
+import { claimBadge, PLACEHOLDER_SOURCE } from "../../lib/evidence";
 import { humanType } from "../scene/list/listModel";
 
 export type ClaimStatus = "unknown" | "reported" | "verified" | "stale" | "contested";
@@ -33,8 +34,6 @@ export interface PlaceView {
   rows: ClaimRow[];
 }
 
-const PLACEHOLDER = "team_survey_placeholder";
-
 const label = (attr: string) => {
   const s = attr.replace(/_/g, " ").trim();
   return s.charAt(0).toUpperCase() + s.slice(1);
@@ -65,6 +64,11 @@ export function toPlaceView(result: unknown): PlaceView | null {
           : "unknown";
       const v = formatValue(c.value);
       const src = typeof c.evidence_type === "string" && c.evidence_type ? c.evidence_type : null;
+      const badge = claimBadge(
+        src,
+        CLAIM_STATUS[status],
+        typeof c.verified_at === "string" && c.verified_at ? c.verified_at.slice(0, 10) : null,
+      );
       return {
         attr,
         label: label(attr),
@@ -72,12 +76,11 @@ export function toPlaceView(result: unknown): PlaceView | null {
         raw: c.value ?? null,
         isUnknown: v.isUnknown,
         status,
-        statusLabel: CLAIM_STATUS[status].label,
-        icon: CLAIM_STATUS[status].icon,
-        verifiedAt:
-          typeof c.verified_at === "string" && c.verified_at ? c.verified_at.slice(0, 10) : null,
-        source: src && src !== PLACEHOLDER ? src : null,
-        placeholder: src === PLACEHOLDER,
+        statusLabel: badge.label,
+        icon: badge.icon,
+        verifiedAt: badge.verifiedAt,
+        source: src && src !== PLACEHOLDER_SOURCE ? src : null,
+        placeholder: badge.demo,
       };
     });
   const type = String(d.type ?? "other");

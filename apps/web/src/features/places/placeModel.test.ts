@@ -76,6 +76,7 @@ describe("toPlaceView", () => {
     );
     expect(v?.rows.map((r) => r.attr)).toEqual(["a_width", "b_flag"]);
     expect(v?.rows[1]).toMatchObject({ value: "No", placeholder: true, source: null });
+    expect(v?.rows[1]).toMatchObject({ statusLabel: "Demo value · not surveyed", icon: "" });
     expect(v?.rows[0]?.value).toBe("1.2");
   });
 });

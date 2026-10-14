@@ -1049,6 +1049,46 @@ export interface components {
              */
             type: "uncertainty";
         };
+        /**
+         * VRRow
+         * @description A VR plus the claim's current value, so staff see what Verify would confirm.
+         */
+        VRRow: {
+            /** Attribute */
+            attribute: string;
+            /** Created At */
+            created_at: string;
+            /** Current Value */
+            current_value?: unknown;
+            /**
+             * Demand
+             * @default 1
+             */
+            demand: number;
+            /** Element Id */
+            element_id: string;
+            /** Id */
+            id: string;
+            /** Question Summary */
+            question_summary?: string | null;
+            /**
+             * Reason
+             * @enum {string}
+             */
+            reason: "unknown" | "stale" | "contradicted" | "no_route_unverified_segment" | "missing_place" | "user_report";
+            /** Resolution */
+            resolution?: {
+                [key: string]: unknown;
+            } | null;
+            /** Resolved At */
+            resolved_at?: string | null;
+            /**
+             * Status
+             * @default open
+             * @enum {string}
+             */
+            status: "open" | "in_progress" | "resolved" | "rejected";
+        };
         /** ValidationError */
         ValidationError: {
             /** Context */
@@ -1781,7 +1821,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["VerificationRequest"][];
+                    "application/json": components["schemas"]["VRRow"][];
                 };
             };
             /** @description Validation Error */

@@ -1,3 +1,4 @@
+import { DEMO_LABEL, isPlaceholderSource } from "../../lib/evidence";
 import { optionLabel } from "../manage/attributeCatalogue";
 import type { Citation } from "./chatReducer";
 
@@ -10,7 +11,7 @@ const STATUS_ICON: Record<string, string> = {
 };
 
 function AttributeLine({ c }: { c: Citation }) {
-  const placeholder = c.source_type === "team_survey_placeholder";
+  const placeholder = isPlaceholderSource(c.source_type);
   return (
     <li className="mt-1">
       <p className="font-medium">
@@ -20,7 +21,7 @@ function AttributeLine({ c }: { c: Citation }) {
       <p className="flex flex-wrap items-center gap-2">
         {placeholder ? (
           <span className="rounded border border-[#B7791F] bg-warn-tint px-1.5 py-0.5">
-            Demo value · not surveyed
+            {DEMO_LABEL}
           </span>
         ) : (
           <>

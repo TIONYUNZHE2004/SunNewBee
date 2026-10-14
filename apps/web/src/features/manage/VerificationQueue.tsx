@@ -4,10 +4,13 @@ import { optionLabel, specFor } from "./attributeCatalogue";
 import { ApiError, fetchOpenVRs, resolveVR, type VR } from "./manageApi";
 import {
   buildResolveBody,
+  currentValueText,
   errorMessage,
   formReducer,
-  initialForm,
+  hasCurrentValue,
+  initialFormFor,
   needsValue,
+  VERIFY_DISABLED_TEXT,
   validateForm,
 } from "./resolveForm";
 import { useStaffToken } from "./useStaffToken";
@@ -16,10 +19,11 @@ const inputCls = "min-h-11 w-full rounded-md border border-line bg-card px-3 tex
 const btnCls =
   "min-h-11 rounded-md bg-brand px-4 text-sm font-medium text-white hover:bg-brand-dark disabled:cursor-not-allowed disabled:opacity-50";
 
-function ResolveForm({ vr, token, onDone }: { vr: VR; token: string; onDone: () => void }) {
-  const [s, dispatch] = useReducer(formReducer, initialForm);
+export function ResolveForm({ vr, token, onDone }: { vr: VR; token: string; onDone: () => void }) {
+  const [s, dispatch] = useReducer(formReducer, vr.current_value, initialFormFor);
   const qc = useQueryClient();
   const id = `rf-${vr.id}`;
+  const canVerify = hasCurrentValue(vr.current_value);
   const spec = specFor(vr.attribute, null);
   const choices: [string, string][] | null =
     spec.kind === "boolean"
@@ -41,6 +45,9 @@ function ResolveForm({ vr, token, onDone }: { vr: VR; token: string; onDone: () 
       await qc.invalidateQueries({ queryKey: ["manage", "vrs"] });
       onDone();
     } catch (err) {
+      // 409: someone else resolved it first, so drop the stale row.
+      if (err instanceof ApiError && err.status === 409)
+        await qc.invalidateQueries({ queryKey: ["manage", "vrs"] });
       dispatch({
         type: "fail",
         message: errorMessage(
@@ -69,10 +76,13 @@ function ResolveForm({ vr, token, onDone }: { vr: VR; token: string; onDone: () 
             disabled={s.status === "submitting"}
             onChange={(e) => dispatch({ type: "set", field: "action", v: e.target.value })}
           >
-            <option value="verify">Verify (data is correct)</option>
+            <option value="verify" disabled={!canVerify}>
+              Verify (data is correct)
+            </option>
             <option value="correct">Correct (set new value)</option>
             <option value="reject">Reject (not an issue)</option>
           </select>
+          {!canVerify && <p className="mt-1 text-xs text-ink-soft">{VERIFY_DISABLED_TEXT}</p>}
         </div>
         {needsValue(s.action) && (
           <div>
@@ -195,7 +205,15 @@ export function VerificationQueue() {
             <caption className="sr-only">Open verification requests, highest demand first</caption>
             <thead className="bg-brand-tint">
               <tr>
-                {["Demand", "Element", "Attribute", "Reason", "Created", "Action"].map((h) => (
+                {[
+                  "Demand",
+                  "Element",
+                  "Attribute",
+                  "Current value",
+                  "Reason",
+                  "Created",
+                  "Action",
+                ].map((h) => (
                   <th key={h} scope="col" className="px-3 py-2 font-medium">
                     {h}
                   </th>
@@ -244,6 +262,7 @@ function RowGroup({
           )}
         </td>
         <td className="px-3 py-2">{vr.attribute}</td>
+        <td className="px-3 py-2">{currentValueText(vr.current_value)}</td>
         <td className="px-3 py-2">{vr.reason.replaceAll("_", " ")}</td>
         <td className="px-3 py-2">{new Date(vr.created_at).toLocaleString()}</td>
         <td className="px-3 py-2">
@@ -263,7 +282,7 @@ function RowGroup({
       </tr>
       {open && (
         <tr>
-          <td colSpan={6} className="px-3 pb-3">
+          <td colSpan={7} className="px-3 pb-3">
             <ResolveForm vr={vr} token={token} onDone={onToggle} />
           </td>
         </tr>

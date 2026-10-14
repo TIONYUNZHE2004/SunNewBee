@@ -191,3 +191,15 @@ def test_concurrent_resolves_loser_changes_nothing(monkeypatch):
     assert state.get_ctx().world.edges["seg-cf"].claims["incline_pct"].value == winner
     done = c.get("/verification-requests", params={"status": "all"}).json()
     assert [x["resolution"]["value"] for x in done if x["id"] == vid] == [winner]
+
+
+def test_vr_list_carries_current_value():
+    from townshiplens_api import state
+    from townshiplens_spatial.models import Claim
+
+    vid = _file_vr()
+    row = next(v for v in c.get("/verification-requests").json() if v["id"] == vid)
+    assert row["current_value"] is None
+    state.get_ctx().world.refresh_claim("seg-cf", "incline_pct", Claim(value=3.0, status="stale"))
+    row = next(v for v in c.get("/verification-requests").json() if v["id"] == vid)
+    assert row["current_value"] == 3.0

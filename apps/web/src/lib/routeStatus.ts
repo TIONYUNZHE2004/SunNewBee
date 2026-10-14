@@ -11,7 +11,7 @@ export function routeStatusLabel(status: string): string {
 export function centreReachLabel(c: { reachable: boolean; route_status: string }): string {
   if (c.route_status === "no_data" || c.route_status === "blocked")
     return routeStatusLabel(c.route_status);
-  return c.reachable ? "Reachable" : "Not reachable";
+  return c.reachable ? "Reachable" : routeStatusLabel(c.route_status);
 }
 
 /** Map marker text and colour for an evacuation centre. no_data is neutral grey; only
