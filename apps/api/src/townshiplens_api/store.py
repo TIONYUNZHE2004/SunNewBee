@@ -15,6 +15,8 @@ class SimStore:
         Path(db_path).parent.mkdir(parents=True, exist_ok=True)
         self.db = sqlite3.connect(db_path, check_same_thread=False)
         self.db.row_factory = sqlite3.Row
+        self.db.execute("PRAGMA journal_mode=WAL")
+        self.db.execute("PRAGMA busy_timeout=5000")
         cols = {r["name"] for r in self.db.execute("PRAGMA table_info(sim_runs)")}
         if cols and "counts" not in cols:  # pre-summary-column dev table; runs are disposable
             self.db.execute("DROP TABLE sim_runs")
@@ -66,6 +68,76 @@ class SimStore:
                 "gap_count": r["n_gaps"],
                 "violation_count": r["n_violations"],
                 "world_version": r["world_version"],
+            }
+            for r in rows
+        ]
+
+
+AUDIT_SCHEMA = """CREATE TABLE IF NOT EXISTS audit_log (
+  id INTEGER PRIMARY KEY AUTOINCREMENT, at TEXT NOT NULL, actor TEXT NOT NULL,
+  element_id TEXT NOT NULL, attribute TEXT NOT NULL, old TEXT, new TEXT NOT NULL,
+  reason TEXT NOT NULL, note TEXT)"""
+
+
+class AuditStore:
+    """Append-only: no update or delete is exposed."""
+
+    def __init__(self, db_path: str):
+        Path(db_path).parent.mkdir(parents=True, exist_ok=True)
+        self.db = sqlite3.connect(db_path, check_same_thread=False)
+        self.db.row_factory = sqlite3.Row
+        self.db.execute("PRAGMA journal_mode=WAL")
+        self.db.execute("PRAGMA busy_timeout=5000")
+        self.db.execute(AUDIT_SCHEMA)
+        self._lock = threading.RLock()
+
+    def append(
+        self,
+        *,
+        element_id: str,
+        attribute: str,
+        old: dict[str, Any] | None,
+        new: dict[str, Any],
+        reason: str,
+        note: str | None,
+        actor: str = "staff",
+    ) -> None:
+        with self._lock, self.db:
+            self.db.execute(
+                "INSERT INTO audit_log (at, actor, element_id, attribute, old, new, reason, note) "
+                "VALUES (strftime('%Y-%m-%dT%H:%M:%fZ','now'),?,?,?,?,?,?,?)",
+                (
+                    actor,
+                    element_id,
+                    attribute,
+                    json.dumps(old) if old is not None else None,
+                    json.dumps(new),
+                    reason,
+                    note,
+                ),
+            )
+
+    def list(self, element_id: str | None, limit: int = 200) -> list[dict[str, Any]]:
+        sql = "SELECT * FROM audit_log"
+        args: list[Any] = []
+        if element_id:
+            sql += " WHERE element_id=?"
+            args.append(element_id)
+        sql += " ORDER BY id DESC LIMIT ?"
+        args.append(limit)
+        with self._lock:
+            rows = self.db.execute(sql, args).fetchall()
+        return [
+            {
+                "id": r["id"],
+                "at": r["at"],
+                "actor": r["actor"],
+                "element_id": r["element_id"],
+                "attribute": r["attribute"],
+                "old": json.loads(r["old"]) if r["old"] else None,
+                "new": json.loads(r["new"]),
+                "reason": r["reason"],
+                "note": r["note"],
             }
             for r in rows
         ]
