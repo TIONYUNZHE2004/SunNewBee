@@ -76,7 +76,28 @@ async function getJson<T>(path: string): Promise<T> {
   return (await r.json()) as T;
 }
 
-export const fetchOpenVRs = () => getJson<VR[]>("/verification-requests?status=open");
+export type Kpis = Schemas["Kpis"];
+export type VrCreated = Schemas["VerificationRequested"];
+
+export const fetchKpis = () => getJson<Kpis>("/kpis");
+export const fetchVRs = (query: string) => getJson<VR[]>(`/verification-requests${query}`);
+
+export async function createVR(
+  body: { target_id: string; attribute: string; reason?: string },
+  token: string,
+): Promise<VrCreated> {
+  const r = await fetch("/api/verification-requests", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "application/json",
+      "X-Staff-Token": token,
+    },
+    body: JSON.stringify(body),
+  });
+  if (!r.ok) throw new ApiError(r.status, await readDetail(r));
+  return (await r.json()) as VrCreated;
+}
 
 export const fetchBriefing = (scenarioId: string, profile: string) =>
   getJson<Briefing>(

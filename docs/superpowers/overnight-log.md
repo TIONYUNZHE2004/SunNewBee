@@ -257,3 +257,41 @@
   - lane/data (Task 26 round 2): C3, ruled as `no_data` with a "mapped paths do not connect" warning when endpoints are in different components; `blocked` only when a known FAIL cuts every path; islands exclude components already disconnected at baseline.
   - lane/be (Task 30): C1, I3, I2 (the label becomes "No known barrier"), and FE labels `no_data` as "No mapped connection (data gap)".
 - **Task 26 round 1** (drive): endpoints snap to roads within 150 m. On the seed's 66 parking pairs: 6 partly_unverified, 60 no_data, 0 blocked. The roads split into 201 components, so they need a road-aware import later.
+
+## 03:41 — Final-review fix wave merged; connectivity + wave 3 dispatched
+- **Merged and pushed:**
+  - Task 28 (`f577516`):
+    - honesty rules (no "safe", no depths, tool required) hold even when no tool ran;
+    - placeholder rule keyed on returned evidence;
+    - empty `LLM_PROVIDER` resolves to mock;
+    - Elmina mock answers fixed: mall chip routes to Lakeside Mall; recycling says none mapped and files no bogus VR;
+    - metric renamed `answered_without_citations`;
+    - greeting prompt rule;
+    - 4 Elmina demo entries re-recorded with the mock.
+  - e2e readiness fix (`aefcd8e`): Playwright waits for `/api/site` through the proxy. Probable cause of the first-run flake; 3 of 3 runs passed since.
+  - Task 30 (`ae8fd44`):
+    - staff Verify/Correct work (typed values; Verify disabled when nothing is recorded; current value shown);
+    - resolve holds `world_lock` end to end;
+    - "Checked" becomes "No known barrier";
+    - `no_data` reads "No mapped connection (data gap)";
+    - demo facts in the place card show "Demo value · not surveyed".
+  - Task 26 (`64dd224`):
+    - drive profile on street/track edges, snapped within 150 m, never `confirmed`;
+    - `blocked` only when a known FAIL cuts every path in a connected network, otherwise `no_data`.
+- **Checklist on `64dd224`:**
+  - pytest 365: PASS
+  - golden 12/12 (mock): PASS
+  - vitest 127: PASS
+  - lint: PASS
+  - gen drift: PASS
+  - typecheck: PASS
+  - build: PASS
+  - e2e 10/10 on the first run (includes the new staff correct-and-reroute journey): PASS
+- **Fragmentation measured:** 199 components; the largest holds only 32% of 11,418 nodes. Root cause: the import excludes `primary|secondary|trunk`, the roads that join Elmina's neighbourhoods.
+  - **Ruling R22:** one polite tiled Overpass fetch of major roads, ≤ 12 requests.
+  - Major roads are imported with an honest `sidewalk` claim. A missing claim means UNKNOWN, so such routes can never be `confirmed`.
+  - Dispatched as Task 31 (Opus).
+- **Wave 3 dispatched in parallel:**
+  - Task 32: tappable centre and waste markers, list sections, "Collection day: unknown, ask MBSA".
+  - Task 33: management KPI tiles, queue filters and tabs, Create VR on journey gaps.
+  - Task 34: evidence photo upload with stdlib JPEG/PNG metadata stripping (no Pillow, per R21); the new dependency is python-multipart (Apache-2.0).
