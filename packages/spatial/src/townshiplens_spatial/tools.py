@@ -6,8 +6,10 @@ from dataclasses import dataclass
 
 import networkx as nx
 
+from . import flood as _flood
 from . import routing
 from .evaluate import evaluate_edge
+from .geo import haversine_m
 from .models import Evidence, ToolResult
 from .vr_store import VerificationStore
 from .world import World
@@ -71,6 +73,8 @@ def find_place(ctx: Ctx, query: str, types: list[str] | None = None, limit: int 
         return ToolResult(ok=True, data=[], warnings=["empty query"])
     scored = []
     for p in ctx.world.places.values():
+        if p.id.startswith("__"):
+            continue  # transient places (R12) never surface in search
         if types and p.type not in types:
             continue
         score = max(_score_name(q, n.lower()) for n in [p.name, *p.aliases])
@@ -215,3 +219,132 @@ def create_verification_request(
 ) -> ToolResult:
     vr, created = ctx.vrs.request(target_id, attribute, reason, question_summary)
     return ToolResult(ok=True, data=vr.model_dump(mode="json") | {"created": created})
+
+
+def list_flood_scenarios(ctx: Ctx) -> ToolResult:
+    sc = ctx.world.flood.scenarios
+    return ToolResult(
+        ok=True,
+        data=[s.model_dump(mode="json") for s in sc],
+        evidence=[
+            Evidence(
+                id=f"ev-scn-{s.id}",
+                element_id=s.id,
+                attribute="scenario",
+                status="indicative",
+                source_type=f"{s.method} / {s.dem}",
+            )
+            for s in sc
+        ],
+    )
+
+
+def affected_places(
+    ctx: Ctx, scenario_id: str, kind: str = "all", profile: str = "default"
+) -> ToolResult:
+    if _flood.scenario(ctx.world, scenario_id) is None:
+        return ToolResult(ok=False, warnings=[f"unknown scenario {scenario_id}"])
+    if profile not in ctx.world.profiles:
+        return ToolResult(ok=False, warnings=[f"unknown profile {profile}"])
+    a = _flood.affected(ctx.world, scenario_id, profile)
+    if kind != "all":
+        want = {"facility": "place", "path": "path", "road": "path"}.get(kind, kind)
+        a.likely = [x for x in a.likely if x["kind"] == want]
+        a.possible = [x for x in a.possible if x["kind"] == want]
+    ev = [
+        Evidence(
+            id=f"ev-scn-{scenario_id}",
+            element_id=scenario_id,
+            attribute="scenario",
+            status="indicative",
+            source_type="HAND scenario",
+        )
+    ]
+    ev += [
+        Evidence(
+            id=f"ev-scn-{scenario_id}.{x['id']}",
+            element_id=x["id"],
+            attribute="flood",
+            value=cls,
+            status="indicative",
+            source_type="HAND scenario",
+        )
+        for cls, xs in (("likely_flooded", a.likely), ("possible", a.possible))
+        for x in xs
+    ]
+    return ToolResult(ok=True, data=a.model_dump(mode="json"), evidence=ev)
+
+
+def list_evacuation_centres(
+    ctx: Ctx,
+    scenario_id: str | None = None,
+    profile: str = "default",
+    near_place: str | None = None,
+) -> ToolResult:
+    res = _flood.centres_reachability(ctx.world, scenario_id, profile, near_place)
+    ev = [
+        Evidence(
+            id=f"ev-centre-{r.centre.id}",
+            element_id=r.centre.id,
+            attribute="source",
+            value=r.centre.source,
+            status="reported",
+            source_type="official PPS report"
+            if r.centre.source == "official_pps"
+            else "OSM candidate",
+            source_url=r.centre.evidence_url,
+        )
+        for r in res
+    ]
+    if scenario_id:
+        ev.append(
+            Evidence(
+                id=f"ev-scn-{scenario_id}",
+                element_id=scenario_id,
+                attribute="scenario",
+                status="indicative",
+                source_type="HAND scenario",
+            )
+        )
+    return ToolResult(ok=True, data=[r.model_dump(mode="json") for r in res], evidence=ev)
+
+
+def find_waste_points(
+    ctx: Ctx, type: str | None = None, near_place: str | None = None
+) -> ToolResult:
+    pts = [p for p in ctx.world.waste.values() if type is None or p.type == type]
+    if near_place and (pl := ctx.world.places.get(near_place)):
+        pts.sort(key=lambda p: haversine_m(p.coord, pl.coord))
+    return ToolResult(
+        ok=True,
+        data=[p.model_dump(mode="json") for p in pts],
+        evidence=[
+            Evidence(
+                id=f"ev-{p.id}.status",
+                element_id=p.id,
+                attribute="status",
+                value=p.status,
+                status=p.status,
+                verified_at=p.verified_at,
+                source_url=p.source_url,
+            )
+            for p in pts
+        ],
+    )
+
+
+TOOLS = {
+    f.__name__: f
+    for f in (
+        find_place,
+        get_place_details,
+        plan_route,
+        nearby_amenities,
+        get_closures,
+        create_verification_request,
+        list_flood_scenarios,
+        affected_places,
+        list_evacuation_centres,
+        find_waste_points,
+    )
+}
