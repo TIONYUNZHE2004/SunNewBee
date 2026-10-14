@@ -150,3 +150,14 @@
 - **Verified (main):** pytest PASS (240) · golden 6/6 PASS (mock) · web vitest PASS (54) · e2e 7/7 PASS · lint PASS · gen no drift PASS · typecheck PASS. Pushed.
 - **The API now defaults to the real Elmina seed.** No flood data on main yet; Task 10 is in review, then a rebase onto the seed and the vector-stage run.
 - **In flight:** Task 18 (attribute editor + audit, in review) · Task 19 (journey-tests UI) · Task 10 review (Opus).
+
+### 02:48
+- **Integrated:**
+  - Task 19: journey-tests UI (merge `a092508`; web 60, e2e 8/8).
+  - Task 18: attribute editor API + audit log (merge `0c5a8ec`; staff-only audit; resolve ordered claim+audit before VR to avoid lost verifications; WAL + busy_timeout).
+  - Copy fix: scenario provenance labels come from the scenario's method instead of hard-coded "HAND"; the footer attribution comes from `site.json` (merge `69db0ae`).
+- **Verified (main):** pytest PASS (250) · golden 6/6 PASS (mock) · web vitest PASS (60) · lint PASS · gen no drift PASS · typecheck PASS. Pushed.
+- **In flight:**
+  - Task 20 (attribute editor UI).
+  - Task 10 fix round: stage-independent water reference heights, REM floor 3×3 (ruling), exact-match-only PPS evidence, plus the merge with the real seed and the vector-stage run.
+- **Deferred to Task 14B:** re-record the demo cache on the real seed (current entries are tiny-fixture and carry the old "HAND scenario" label).
