@@ -80,3 +80,10 @@
 - **External usage:** OpenRouter 0 · Google tiles 0 · Overpass about 7–14 requests.
 - **Next:** finish the Task 7 review → integrate → Task 9 (agent + SSE) on the AI lane → Task 3/10 data → Task 14 integration + browser verification.
 - **CI FAIL (root cause):** run 38610599711 failed at the OpenAPI drift step. Task 6 extended `AffectedResult` (`isolated_total`, `*_ids`, `*_total`) without running `pnpm gen`, and my integration checklist didn't include the drift check. **Fix:** Task 7 (in review) regenerates the client; it merges next. **Process change:** every integration now runs `pnpm gen && git diff --exit-code packages/api-client` before pushing.
+
+### 02:05 (+0:40)
+- **Integrated:** Task 7, the real API (merge `cb64083`; review fixes: VR-store locking, robust ids, copy-on-write claims, constant-time staff token with default-token refusal, layer cache, chat error fallback, CORS from settings). The backend lane (Tasks 4–7) is done.
+- **Verified (main, full checklist):** pytest PASS (150) · web vitest PASS (49) · lint PASS · `pnpm gen` no drift PASS · typecheck PASS · web build PASS. Pushed.
+- **Browser verification (main, real keys, Google tiles load 1/30):** the page shell, layer toggles, legend, chat suggestions and attribution render, and API calls return 200. **FAIL: the 3D scene is blank.** Root cause: vite-plugin-static-copy v4 preserves the source directory structure, so Cesium's Workers and Assets are served as HTML (SPA fallback). Evidence: console JSON parse and MIME errors; `fetch('/cesium/Assets/approximateTerrainHeights.json')` returns `text/html`; `dist/cesium/node_modules/cesium/Build/Cesium/...`. Fix round 4 was dispatched to the Task 12 implementer (`stripBase` plus a post-build asset check).
+- **In flight:** Task 9 (agent + SSE, Opus implementer) · Task 10 (flood raster pipeline, Opus implementer) · Task 3 (Overpass 504s, retrying with backoff) · Task 12 round 4.
+- **External usage:** OpenRouter 0 · Google tiles 1/30 · Overpass ~14 requests.
