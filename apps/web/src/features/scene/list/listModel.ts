@@ -20,14 +20,17 @@ type Feature = {
 const STATUSES: EdgeStatus[] = ["ok", "unknown", "blocked", "flooded_likely", "flooded_possible"];
 
 function edgeStatus(p: Record<string, unknown>): EdgeStatus {
-  const s = p.status;
-  if (STATUSES.includes(s as EdgeStatus)) return s as EdgeStatus;
+  // Backend contract: properties.status_for_profile. Fallbacks below are tolerant extras.
+  for (const s of [p.status_for_profile, p.status]) {
+    if (STATUSES.includes(s as EdgeStatus)) return s as EdgeStatus;
+  }
   if (p.flood_class === "likely_flooded") return "flooded_likely";
   if (p.flood_class === "possible") return "flooded_possible";
   const claims = p.claims as Record<string, { status?: string }> | undefined;
   if (claims && Object.values(claims).some((c) => c?.status && c.status !== "verified"))
     return "unknown";
-  return "ok";
+  // Never present unverified data as "Checked".
+  return "unknown";
 }
 
 /** Tolerant parser: the layer payload is a loosely typed FeatureCollection. */

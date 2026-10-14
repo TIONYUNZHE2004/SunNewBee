@@ -53,4 +53,51 @@ describe("listModel", () => {
     );
     expect(steps.map((s) => s.id)).toEqual(["e1", "e2"]);
   });
+
+  it("reads status_for_profile first, for all five values", () => {
+    for (const v of ["ok", "unknown", "blocked", "flooded_likely", "flooded_possible"]) {
+      const { edges } = parseLayer({
+        features: [
+          {
+            geometry: {
+              type: "LineString",
+              coordinates: [
+                [0, 0],
+                [1, 1],
+              ],
+            },
+            properties: { id: "x", status_for_profile: v, status: "ok", flood_class: "possible" },
+          },
+        ],
+      });
+      expect(edges[0]?.status).toBe(v);
+    }
+  });
+  it("ignores invalid status_for_profile and falls back to unknown when nothing is known", () => {
+    const { edges } = parseLayer({
+      features: [
+        {
+          geometry: {
+            type: "LineString",
+            coordinates: [
+              [0, 0],
+              [1, 1],
+            ],
+          },
+          properties: { id: "a", status_for_profile: "bogus" },
+        },
+        {
+          geometry: {
+            type: "LineString",
+            coordinates: [
+              [0, 0],
+              [1, 1],
+            ],
+          },
+          properties: { id: "b" },
+        },
+      ],
+    });
+    expect(edges.map((e) => e.status)).toEqual(["unknown", "unknown"]);
+  });
 });

@@ -51,7 +51,7 @@ function Shell() {
           </nav>
         </div>
       </header>
-      <main id="main" className="mx-auto w-full max-w-5xl flex-1 px-4 py-6">
+      <main id="main" tabIndex={-1} className="mx-auto w-full max-w-5xl flex-1 px-4 py-6">
         <Outlet />
       </main>
       <footer className="border-t border-line bg-card px-4 py-3 text-xs text-ink-soft">

@@ -63,10 +63,15 @@ export function ListView() {
 
   return (
     <div className="space-y-8">
-      <section aria-labelledby="route-h" aria-live="polite">
+      <section aria-labelledby="route-h">
         <h2 id="route-h" className="text-xl font-semibold">
           Route
         </h2>
+        <p role="status" aria-live="polite" className="sr-only">
+          {route
+            ? `Route updated: ${steps.length || route.geojson.coordinates.length} ${steps.length ? "steps" : "points"}.`
+            : ""}
+        </p>
         {!route ? (
           <p className="mt-2 text-ink-soft">
             No route yet. Ask the assistant for directions to see the steps here.

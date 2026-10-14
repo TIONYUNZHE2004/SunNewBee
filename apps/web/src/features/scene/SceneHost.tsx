@@ -19,12 +19,19 @@ const VIEW_LABELS: [View, string][] = [
   ["list", "List"],
 ];
 
+// Task 12 flips this once CesiumScene / MapboxLite exist.
+const RENDERERS_READY = false;
+let autoSelected = false;
+
 export function SceneHost() {
   const { view, setView, profile, setProfile } = useScene();
   const webglOk = useMemo(webglSupported, []);
   const available = useMemo(() => availableViews(ENV, webglOk), [webglOk]);
 
+  // Auto-select once per page load; never overwrite a view the user chose before a remount.
   useEffect(() => {
+    if (!RENDERERS_READY || autoSelected) return;
+    autoSelected = true;
     setView(selectView(ENV, webglOk));
   }, [webglOk, setView]);
 
@@ -37,7 +44,7 @@ export function SceneHost() {
         <fieldset className="m-0 inline-flex overflow-hidden rounded-lg border border-line bg-card p-0">
           <legend className="sr-only">View</legend>
           {VIEW_LABELS.map(([v, label]) => {
-            const enabled = available.includes(v);
+            const enabled = RENDERERS_READY ? available.includes(v) : v === "list";
             const active = view === v;
             return (
               <button
@@ -74,6 +81,11 @@ export function SceneHost() {
         </div>
       </div>
 
+      {!RENDERERS_READY && (
+        <p role="note" className="rounded-lg border border-line bg-brand-tint px-4 py-3 text-sm">
+          3D view arrives in the next build.
+        </p>
+      )}
       {available.length === 1 && (
         <p role="note" className="rounded-lg border border-line bg-brand-tint px-4 py-3 text-sm">
           Add keys in .env to enable 3D. The list view works without them.

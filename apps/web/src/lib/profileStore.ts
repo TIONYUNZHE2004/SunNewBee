@@ -3,18 +3,27 @@ import type { Profile } from "../features/scene/sceneStore";
 const KEY = "tl.profile";
 const PROFILES: Profile[] = ["default", "stroller", "wheelchair", "older_adult_rest", "drive"];
 
-export function loadProfile(): Profile {
+type Store = Pick<Storage, "getItem" | "setItem">;
+const browserStore = (): Store | undefined => {
   try {
-    const v = localStorage.getItem(KEY);
+    return typeof localStorage === "undefined" ? undefined : localStorage;
+  } catch {
+    return undefined;
+  }
+};
+
+export function loadProfile(store: Store | undefined = browserStore()): Profile {
+  try {
+    const v = store?.getItem(KEY);
     return PROFILES.includes(v as Profile) ? (v as Profile) : "default";
   } catch {
     return "default";
   }
 }
 
-export function saveProfile(p: Profile): void {
+export function saveProfile(p: Profile, store: Store | undefined = browserStore()): void {
   try {
-    localStorage.setItem(KEY, p);
+    store?.setItem(KEY, p);
   } catch {
     /* storage unavailable: ignore */
   }

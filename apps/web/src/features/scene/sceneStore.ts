@@ -1,5 +1,6 @@
 import type { SceneIntent } from "@tl/api-client";
 import { create } from "zustand";
+import { loadProfile, saveProfile } from "../../lib/profileStore";
 import type { View } from "./selectView";
 
 export type Profile = "default" | "stroller" | "wheelchair" | "older_adult_rest" | "drive";
@@ -25,7 +26,7 @@ interface SceneState {
 const initial = {
   view: "list" as View,
   lensVisible: { access: true, flood: false, waste: false } as Record<Lens, boolean>,
-  profile: "default" as Profile,
+  profile: loadProfile(),
   scenarioId: null as string | null,
   focusPlaceId: null as string | null,
   route: null as SceneState["route"],
@@ -65,7 +66,10 @@ export const useScene = create<SceneState>((set) => ({
       return next;
     }),
   setView: (view) => set({ view }),
-  setProfile: (profile) => set({ profile }),
+  setProfile: (profile) => {
+    saveProfile(profile);
+    set({ profile });
+  },
   setScenario: (scenarioId) =>
     set((s) => ({
       scenarioId,

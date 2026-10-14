@@ -13,6 +13,8 @@ export default defineConfig(({ mode }) => {
   const mapbox = env.MAPBOX_ACCESS_TOKEN ?? "";
   return {
     envDir: ROOT,
+    // Only the explicit `define` mapping below may reach the client; no VITE_* var leaks.
+    envPrefix: "TL_PUBLIC_",
     plugins: [
       react(),
       tailwindcss(),
