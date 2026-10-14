@@ -13,7 +13,8 @@
       "!data/seed",
       "!**/*.geojson",
       "!packages/api-client/openapi.json",
-      "!packages/spatial/tests/fixtures"
+      "!packages/spatial/tests/fixtures",
+      "!data/cache"
     ]
   },
   "css": { "parser": { "tailwindDirectives": true } },
