@@ -28,6 +28,9 @@ function useRenderOn(...deps: unknown[]) {
   }, [viewer, ...deps]);
 }
 
+/** Labels of many markers overlap at city zoom: show them only near the camera (or when focused). */
+const NEAR_LABEL = new Cesium.DistanceDisplayCondition(0, 1500);
+
 function material(status: EdgeStatus) {
   const { color: css, alpha = 1 } = statusStyle(status);
   const color = Cesium.Color.fromCssColorString(css).withAlpha(alpha);
@@ -183,6 +186,7 @@ export function FloodLayer() {
   const water = useScenarioWater(scenarioId);
   const flood = useLayer("flood", profile, scenarioId);
   const evac = useEvacCentres(scenarioId, profile);
+  const focusPlaceId = useScene((s) => s.focusPlaceId);
   const polys = useMemo(
     () =>
       waterPolygons(water.data).map((p) => ({
@@ -241,6 +245,7 @@ export function FloodLayer() {
           />
           <LabelGraphics
             text={`${r.centre.name}: ${centreMapMarker(r).text}`}
+            distanceDisplayCondition={r.centre.id === focusPlaceId ? undefined : NEAR_LABEL}
             font="600 14px sans-serif"
             showBackground
             backgroundColor={Cesium.Color.WHITE.withAlpha(0.9)}
@@ -260,6 +265,7 @@ export function WasteLayer() {
   const scenarioId = useScene((s) => s.scenarioId);
   const visible = useScene((s) => s.lensVisible.waste);
   const q = useLayer("waste", profile, scenarioId);
+  const focusPlaceId = useScene((s) => s.focusPlaceId);
   const points = useMemo(() => pointFeatures(q.data), [q.data]);
   useRenderOn(points, visible);
   if (!visible) return null;
@@ -282,6 +288,7 @@ export function WasteLayer() {
           />
           <LabelGraphics
             text={`Waste point: ${p.name}`}
+            distanceDisplayCondition={p.id === focusPlaceId ? undefined : NEAR_LABEL}
             font="13px sans-serif"
             showBackground
             backgroundColor={Cesium.Color.WHITE.withAlpha(0.9)}
