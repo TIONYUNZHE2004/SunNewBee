@@ -22,8 +22,8 @@ export async function onCreated(qc: QueryClient): Promise<void> {
 export const onResolved = onCreated;
 
 export class PhotoUploadError extends Error {
-  constructor(public cause: unknown) {
-    super("photo upload failed");
+  constructor(cause: unknown) {
+    super("photo upload failed", { cause });
   }
 }
 
@@ -36,7 +36,8 @@ export async function submitResolution(
   photo: File | null,
   body: ResolveBody,
 ): Promise<void> {
-  if (!photo) return deps.resolve(body);
+  // A photo is only attached to Verify or Correct; the API refuses it on a reject.
+  if (!photo || body.action === "reject") return deps.resolve(body);
   let up: EvidenceUploaded;
   try {
     up = await deps.upload(photo);

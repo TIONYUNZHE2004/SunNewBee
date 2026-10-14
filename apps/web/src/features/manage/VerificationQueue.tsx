@@ -22,6 +22,9 @@ import {
   initialFormFor,
   needsValue,
   PHOTO_PRIVACY_NOTE,
+  PHOTO_REJECT_TEXT,
+  photoAfterAction,
+  photoAllowed,
   VERIFY_DISABLED_TEXT,
   validateForm,
 } from "./resolveForm";
@@ -35,6 +38,7 @@ export function ResolveForm({ vr, token, onDone }: { vr: VR; token: string; onDo
   const [s, dispatch] = useReducer(formReducer, vr.current_value, initialFormFor);
   const qc = useQueryClient();
   const [photo, setPhoto] = useState<File | null>(null);
+  const [photoKey, setPhotoKey] = useState(0);
   const id = `rf-${vr.id}`;
   const canVerify = hasCurrentValue(vr.current_value);
   const spec = specFor(vr.attribute, null);
@@ -50,7 +54,7 @@ export function ResolveForm({ vr, token, onDone }: { vr: VR; token: string; onDo
 
   async function submit(e: FormEvent) {
     e.preventDefault();
-    const invalid = validateForm(s, vr.attribute) ?? validatePhoto(photo);
+    const invalid = validateForm(s, vr.attribute) ?? validatePhoto(photoAfterAction(s.action, photo));
     if (invalid) return dispatch({ type: "fail", message: invalid });
     dispatch({ type: "submit" });
     try {
@@ -59,7 +63,7 @@ export function ResolveForm({ vr, token, onDone }: { vr: VR; token: string; onDo
           upload: (f) => uploadEvidence(f, token),
           resolve: (b) => resolveVR(vr.id, b, token),
         },
-        photo,
+        photoAfterAction(s.action, photo),
         buildResolveBody(s, vr.attribute),
       );
       await onResolved(qc);
@@ -96,7 +100,11 @@ export function ResolveForm({ vr, token, onDone }: { vr: VR; token: string; onDo
             className={inputCls}
             value={s.action}
             disabled={s.status === "submitting"}
-            onChange={(e) => dispatch({ type: "set", field: "action", v: e.target.value })}
+            onChange={(e) => {
+              dispatch({ type: "set", field: "action", v: e.target.value });
+              setPhoto((p) => photoAfterAction(e.target.value as FormState["action"], p));
+              setPhotoKey((k) => k + 1);
+            }}
           >
             <option value="verify" disabled={!canVerify}>
               Verify (data is correct)
@@ -151,23 +159,28 @@ export function ResolveForm({ vr, token, onDone }: { vr: VR; token: string; onDo
           />
         </div>
       </div>
-      <div>
-        <label htmlFor={`${id}-p`} className="mb-1 block text-sm font-medium">
-          Photo evidence (optional)
-        </label>
-        <input
-          id={`${id}-p`}
-          type="file"
-          accept={PHOTO_ACCEPT}
-          className="block w-full text-sm"
-          aria-describedby={`${id}-p-help`}
-          disabled={s.status === "submitting"}
-          onChange={(e) => setPhoto(e.target.files?.[0] ?? null)}
-        />
-        <p id={`${id}-p-help`} className="mt-1 text-xs text-ink-soft">
-          JPEG or PNG, up to 5 MB. {PHOTO_PRIVACY_NOTE}
-        </p>
-      </div>
+      {photoAllowed(s.action) ? (
+        <div>
+          <label htmlFor={`${id}-p`} className="mb-1 block text-sm font-medium">
+            Photo evidence (optional)
+          </label>
+          <input
+            key={photoKey}
+            id={`${id}-p`}
+            type="file"
+            accept={PHOTO_ACCEPT}
+            className="block w-full text-sm"
+            aria-describedby={`${id}-p-help`}
+            disabled={s.status === "submitting"}
+            onChange={(e) => setPhoto(e.target.files?.[0] ?? null)}
+          />
+          <p id={`${id}-p-help`} className="mt-1 text-xs text-ink-soft">
+            JPEG or PNG, up to 5 MB. {PHOTO_PRIVACY_NOTE}
+          </p>
+        </div>
+      ) : (
+        <p className="text-xs text-ink-soft">{PHOTO_REJECT_TEXT}</p>
+      )}
       {s.error && (
         <p role="alert" className="text-sm font-medium text-danger">
           {s.error}

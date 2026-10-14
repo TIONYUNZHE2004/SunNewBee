@@ -90,6 +90,14 @@ describe("submitResolution", () => {
     expect(upload).not.toHaveBeenCalled();
     expect(resolve).toHaveBeenCalledWith(body);
   });
+  it("never uploads for a reject, even with a file", async () => {
+    const resolve = vi.fn(async () => {});
+    const upload = vi.fn();
+    const rej = { action: "reject" as const, note: "n" };
+    await submitResolution({ upload, resolve }, jpg, rej);
+    expect(upload).not.toHaveBeenCalled();
+    expect(resolve).toHaveBeenCalledWith(rej);
+  });
   it("does not resolve when the upload fails", async () => {
     const resolve = vi.fn(async () => {});
     const err = new ApiError(422, "Not a JPEG or PNG image");

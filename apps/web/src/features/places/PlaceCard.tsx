@@ -54,7 +54,7 @@ function Row({
       <EvidencePhoto
         photoUrl={r.photoUrl}
         element={placeName}
-        attribute={r.attr}
+        attributeLabel={r.label}
         source={r.source}
         checked={r.verifiedAt}
       />

@@ -51,10 +51,6 @@ export function photoSrc(url: unknown): string | null {
   return typeof url === "string" && /^\/evidence\/[A-Za-z0-9_-]+$/.test(url) ? `/api${url}` : null;
 }
 
-const attrLabel = (a: string) => {
-  const s = a.replace(/_/g, " ").trim();
-  return s.charAt(0).toUpperCase() + s.slice(1);
-};
-
-export const photoAlt = (element: string, attribute: string): string =>
-  `Photo evidence for ${element} · ${attrLabel(attribute)}`;
+/** `attributeLabel` is the catalogue label shown beside the photo (optionLabel). */
+export const photoAlt = (element: string, attributeLabel: string): string =>
+  `Photo evidence for ${element} · ${attributeLabel}`;

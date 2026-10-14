@@ -40,7 +40,7 @@ function AttributeLine({ c, title }: { c: Citation; title: string }) {
       <EvidencePhoto
         photoUrl={c.photo_url}
         element={title}
-        attribute={c.attribute}
+        attributeLabel={optionLabel(c.attribute)}
         source={placeholder ? null : c.source_type}
         checked={placeholder ? null : c.verified_at?.slice(0, 10)}
       />

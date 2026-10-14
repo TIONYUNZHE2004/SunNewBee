@@ -31,11 +31,11 @@ describe("photoSrc", () => {
 
 describe("photoAlt", () => {
   it("names element and attribute", () =>
-    expect(photoAlt("Mall", "step_count")).toBe("Photo evidence for Mall · Step count"));
+    expect(photoAlt("Mall", "Step count")).toBe("Photo evidence for Mall · Step count"));
 });
 
 describe("EvidencePhoto", () => {
-  const props = { photoUrl: "/evidence/ab12", element: "Mall", attribute: "step_count" };
+  const props = { photoUrl: "/evidence/ab12", element: "Mall", attributeLabel: "Step count" };
   it("renders a lazy thumbnail linking to the full image in a new tab", () => {
     const h = renderToStaticMarkup(
       <EvidencePhoto {...props} source="site_visit" checked="2026-01-02" />,
@@ -45,7 +45,7 @@ describe("EvidencePhoto", () => {
     expect(h).toContain('loading="lazy"');
     expect(h).toContain('target="_blank"');
     expect(h).toContain('rel="noopener noreferrer"');
-    expect(h).toContain("opens the full image in a new tab");
+    expect(h.match(/full image in a new tab/gi)).toHaveLength(1);
     expect(h).toContain("site_visit");
     expect(h).toContain("checked 2026-01-02");
     expect(h).not.toContain("token");

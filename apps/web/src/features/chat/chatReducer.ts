@@ -1,7 +1,6 @@
 import type { ChatEvent, components } from "@tl/api-client";
 
-/** `photo_url` is optional: present once the evidence behind the citation has a stored photo. */
-export type Citation = components["schemas"]["Citation"] & { photo_url?: string | null };
+export type Citation = components["schemas"]["Citation"];
 export type Uncertainty = components["schemas"]["Uncertainty"];
 export type Disclaimer = components["schemas"]["Disclaimer"];
 export type VerificationRequested = components["schemas"]["VerificationRequested"];

@@ -5,19 +5,19 @@ import { photoAlt, photoSrc } from "./evidence";
 export function EvidencePhoto({
   photoUrl,
   element,
-  attribute,
+  attributeLabel,
   source,
   checked,
 }: {
   photoUrl: string | null | undefined;
   element: string;
-  attribute: string;
+  attributeLabel: string;
   source?: string | null;
   checked?: string | null;
 }) {
   const src = photoSrc(photoUrl);
   if (!src) return null;
-  const alt = photoAlt(element, attribute);
+  const alt = photoAlt(element, attributeLabel);
   return (
     <p className="mt-2 flex flex-wrap items-center gap-2">
       <a
@@ -34,7 +34,6 @@ export function EvidencePhoto({
           height={64}
           className="h-16 w-16 rounded border border-line object-cover"
         />
-        <span className="sr-only"> (opens the full image in a new tab)</span>
       </a>
       <span className="text-xs text-ink-soft">
         {source && <span>{source}</span>}
