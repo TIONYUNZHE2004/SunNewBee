@@ -1128,6 +1128,279 @@
         "title": "SceneIntentEvent",
         "type": "object"
       },
+      "SimGap": {
+        "properties": {
+          "affected_profiles": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Affected Profiles",
+            "type": "array"
+          },
+          "attribute": {
+            "title": "Attribute",
+            "type": "string"
+          },
+          "element_id": {
+            "title": "Element Id",
+            "type": "string"
+          },
+          "example_task_ids": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Example Task Ids",
+            "type": "array"
+          },
+          "impact": {
+            "title": "Impact",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "element_id",
+          "attribute",
+          "impact",
+          "affected_profiles",
+          "example_task_ids"
+        ],
+        "title": "SimGap",
+        "type": "object"
+      },
+      "SimReport": {
+        "properties": {
+          "counts": {
+            "additionalProperties": {
+              "additionalProperties": {
+                "type": "integer"
+              },
+              "type": "object"
+            },
+            "title": "Counts",
+            "type": "object"
+          },
+          "created_at": {
+            "title": "Created At",
+            "type": "string"
+          },
+          "gaps": {
+            "items": {
+              "$ref": "#/components/schemas/SimGap"
+            },
+            "title": "Gaps",
+            "type": "array"
+          },
+          "gaps_truncated": {
+            "default": false,
+            "title": "Gaps Truncated",
+            "type": "boolean"
+          },
+          "invariant_violations": {
+            "items": {
+              "$ref": "#/components/schemas/SimViolation"
+            },
+            "title": "Invariant Violations",
+            "type": "array"
+          },
+          "results": {
+            "items": {
+              "$ref": "#/components/schemas/SimResult"
+            },
+            "title": "Results",
+            "type": "array"
+          },
+          "run_id": {
+            "title": "Run Id",
+            "type": "string"
+          },
+          "scenario_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scenario Id"
+          },
+          "world_version": {
+            "default": 0,
+            "title": "World Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "run_id",
+          "created_at",
+          "counts",
+          "results",
+          "gaps",
+          "invariant_violations"
+        ],
+        "title": "SimReport",
+        "type": "object"
+      },
+      "SimRequest": {
+        "properties": {
+          "profiles": {
+            "anyOf": [
+              {
+                "items": {
+                  "enum": [
+                    "default",
+                    "stroller",
+                    "wheelchair",
+                    "older_adult_rest",
+                    "drive"
+                  ],
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Profiles"
+          },
+          "scenario_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scenario Id"
+          }
+        },
+        "title": "SimRequest",
+        "type": "object"
+      },
+      "SimResult": {
+        "properties": {
+          "outcome": {
+            "title": "Outcome",
+            "type": "string"
+          },
+          "route_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Route Id"
+          },
+          "task_id": {
+            "title": "Task Id",
+            "type": "string"
+          },
+          "unknowns": {
+            "items": {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            "title": "Unknowns",
+            "type": "array"
+          }
+        },
+        "required": [
+          "task_id",
+          "outcome"
+        ],
+        "title": "SimResult",
+        "type": "object"
+      },
+      "SimSummary": {
+        "properties": {
+          "counts": {
+            "additionalProperties": {
+              "additionalProperties": {
+                "type": "integer"
+              },
+              "type": "object"
+            },
+            "title": "Counts",
+            "type": "object"
+          },
+          "created_at": {
+            "title": "Created At",
+            "type": "string"
+          },
+          "gap_count": {
+            "title": "Gap Count",
+            "type": "integer"
+          },
+          "run_id": {
+            "title": "Run Id",
+            "type": "string"
+          },
+          "scenario_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scenario Id"
+          },
+          "task_count": {
+            "title": "Task Count",
+            "type": "integer"
+          },
+          "violation_count": {
+            "title": "Violation Count",
+            "type": "integer"
+          },
+          "world_version": {
+            "title": "World Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "run_id",
+          "created_at",
+          "counts",
+          "task_count",
+          "gap_count",
+          "violation_count",
+          "world_version"
+        ],
+        "title": "SimSummary",
+        "type": "object"
+      },
+      "SimViolation": {
+        "properties": {
+          "detail": {
+            "title": "Detail",
+            "type": "string"
+          },
+          "invariant": {
+            "title": "Invariant",
+            "type": "string"
+          },
+          "task_id": {
+            "title": "Task Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "invariant",
+          "task_id",
+          "detail"
+        ],
+        "title": "SimViolation",
+        "type": "object"
+      },
       "Site": {
         "properties": {
           "attribution": {
@@ -2177,6 +2450,145 @@
           }
         },
         "summary": "Chat Event Schema"
+      }
+    },
+    "/simulations": {
+      "get": {
+        "operationId": "list_simulations_simulations_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 5,
+              "maximum": 50,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/SimSummary"
+                  },
+                  "title": "Response List Simulations Simulations Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Simulations"
+      },
+      "post": {
+        "operationId": "run_simulation_simulations_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-staff-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Staff-Token"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SimRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SimReport"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Run Simulation"
+      }
+    },
+    "/simulations/{run_id}": {
+      "get": {
+        "operationId": "get_simulation_simulations__run_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "title": "Run Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SimReport"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Simulation"
       }
     },
     "/site": {
