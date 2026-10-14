@@ -11,10 +11,10 @@
       "!reference",
       "!packages/api-client/src/schema.d.ts",
       "!data/seed",
+      "!data/cache",
       "!**/*.geojson",
       "!packages/api-client/openapi.json",
-      "!packages/spatial/tests/fixtures",
-      "!data/cache"
+      "!packages/spatial/tests/fixtures"
     ]
   },
   "css": { "parser": { "tailwindDirectives": true } },

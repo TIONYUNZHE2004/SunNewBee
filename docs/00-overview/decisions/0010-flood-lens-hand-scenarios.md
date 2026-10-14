@@ -34,4 +34,4 @@ Lens 2 must show "what if the river rises?" in 3D for management and residents, 
 
 **Decision:** the default scenario method becomes a **Relative Elevation Model (REM)**: the height of each Copernicus GLO-30 cell above the nearest *mapped* drainage cell. Mapped drainage means OSM `waterway=river|stream|canal` plus water polygons. The connected-inundation rule, the margin and monotonicity are unchanged. ASF HAND stays available as a comparison (`build_flood.py --method hand`).
 
-**Consequence:** accuracy now depends on OSM waterway completeness (drains are under-mapped), and this is stated in `data/FLOOD.md` and the UI disclaimer. Upgrade path unchanged: SDP LiDAR and drainage GIS, then SFINCS.
+**Consequence:** accuracy now depends on OSM waterway completeness (drains are under-mapped), and this is stated in `data/README.md` (Flood lens) and the UI disclaimer. Upgrade path unchanged: SDP LiDAR and drainage GIS, then SFINCS.
