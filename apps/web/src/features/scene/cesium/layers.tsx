@@ -28,7 +28,8 @@ function useRenderOn(...deps: unknown[]) {
 }
 
 function material(status: EdgeStatus) {
-  const color = Cesium.Color.fromCssColorString(statusStyle(status).color);
+  const { color: css, alpha = 1 } = statusStyle(status);
+  const color = Cesium.Color.fromCssColorString(css).withAlpha(alpha);
   const dash = CESIUM_DASH[status];
   if (dash) return Cesium.Material.fromType("PolylineDash", { color, ...dash });
   return Cesium.Material.fromType("Color", { color });

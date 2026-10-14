@@ -13,6 +13,17 @@ describe("statusStyle", () => {
   });
 });
 
+describe("visual weight", () => {
+  it("draws the checked network lighter than anything that needs attention", () => {
+    const ok = statusStyle("ok");
+    expect(ok.alpha).toBeLessThan(1);
+    for (const s of ["unknown", "blocked", "flooded_likely", "flooded_possible"] as const) {
+      expect(statusStyle(s).width).toBeGreaterThan(ok.width);
+      expect(statusStyle(s).alpha ?? 1).toBe(1);
+    }
+  });
+});
+
 describe("CESIUM_DASH", () => {
   it("covers every patterned status with a distinct pattern", () => {
     for (const s of ["blocked", "unknown", "flooded_possible"] as const)
