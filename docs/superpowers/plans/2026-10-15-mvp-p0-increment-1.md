@@ -124,3 +124,26 @@ API tests: POST without a token → 401/503 (the default token behaves as in res
 
 ### Integration order
 T15 and T18 touch `apps/api`, so they run in **one BE worktree, sequentially** (T15 then T18). T16 (AI) and T17 (FE) are independent worktrees. Integrate in this order: T16, T17, T15, T18. Each one is reviewed (spec + quality) before it merges.
+
+### Task 19 (FE): Journey-tests report in the management console (G-03/G-04 UI)
+
+**Files:** Create `apps/web/src/features/manage/{JourneyTests.tsx,simModel.ts,simModel.test.ts}` and modify `ManagePage.tsx` (add a third tab, "Journey tests").
+
+**Interfaces (consumes, Task 15 API on main):**
+- `POST /api/simulations {scenario_id?, profiles?}` with the `X-Staff-Token` header (staff token from `sessionStorage` `tl.staffToken`, same as the VR queue) → `SimReport {run_id, created_at, scenario_id, world_version, counts: {profile: {outcome: n}}, results[], gaps: [{element_id, attribute, impact, affected_profiles, example_task_ids}], gaps_truncated, invariant_violations: [{invariant, task_id, detail}]}`.
+- `GET /api/simulations?limit=5` → summaries.
+- `GET /api/simulations/{run_id}` → the report.
+- Use the generated client types where available.
+
+**Behaviour:**
+- **Run controls:** a scenario select (baseline + stages from `/scenarios`), profile checkboxes (stroller, wheelchair, older_adult_rest) and a "Run journey tests" button. The button is disabled while running and shows a progress label. Errors: 401/503 → "Staff token required or not configured"; others → a generic message with retry.
+- **Outcome matrix:** a table with profiles as rows and outcomes as columns (`success`, `success_with_unknowns`, `blocked`, `no_data`), using text labels: "Confirmed", "Possible (unverified)", "Blocked", "No data".
+- **Top gaps:** element, attribute, impact ("unblocks N journeys") and profiles. Show a "Results truncated by time budget" note when `gaps_truncated`.
+- **Invariant violations:** a list with plain-language labels: I1 "Route used a non-passable segment" (critical), I2 "Unverified segment not disclosed" (critical), I7 "Rest stops too far apart for older residents".
+- **Recent runs:** a list; clicking one loads its report.
+- **`simModel.ts`** (pure, unit-tested): `summariseCounts(report) -> {confirmedPct, possiblePct, blockedPct, noDataPct}` per profile and overall; `violationLabel(invariant)`; `outcomeLabel(outcome)`.
+- **Accessibility:** the table has a caption and `th` scope; the button has a label; errors use `role=alert`; the result summary sits in a live region; mobile-first stacked layout.
+
+**Tests:** `simModel` unit tests (percentages sum to 100 within rounding; empty report → zeros; unknown invariant → generic label). Add one Playwright e2e: on `/manage` → Journey tests, enter the staff token (`e2e-token` from the Playwright config), run → the outcome matrix shows the stroller row.
+
+- [ ] Tests first → components → web test / typecheck / build / lint / e2e → commit.
