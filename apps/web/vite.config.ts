@@ -35,10 +35,11 @@ export default defineConfig(({ mode }) => {
       __MAPBOX_ACCESS_TOKEN__: JSON.stringify(mapbox.startsWith("pk.") ? mapbox : ""),
     },
     server: {
-      port: 5173,
+      port: Number(env.WEB_PORT || 5173),
+      strictPort: true,
       proxy: {
         "/api": {
-          target: "http://localhost:8000",
+          target: `http://localhost:${env.API_PORT || 8000}`,
           rewrite: (p: string) => p.replace(/^\/api/, ""),
         },
       },

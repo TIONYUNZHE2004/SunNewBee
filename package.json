@@ -7,7 +7,7 @@
   },
   "scripts": {
     "dev": "concurrently -n api,web -c blue,green \"pnpm dev:api\" \"pnpm --filter @tl/web dev\"",
-    "dev:api": "uv run uvicorn townshiplens_api.main:app --reload --port 8000 --app-dir apps/api/src",
+    "dev:api": "uv run uvicorn townshiplens_api.main:app --reload --port ${API_PORT:-8000} --app-dir apps/api/src",
     "test": "uv run pytest && pnpm -r --if-present test",
     "lint": "uv run ruff check . && uv run ruff format --check . && biome check .",
     "gen": "uv run python -m townshiplens_api.export_openapi packages/api-client/openapi.json && pnpm --filter @tl/api-client gen",
