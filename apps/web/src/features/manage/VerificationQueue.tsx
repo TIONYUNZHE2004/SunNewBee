@@ -1,7 +1,15 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { type FormEvent, useReducer, useState } from "react";
+import { optionLabel, specFor } from "./attributeCatalogue";
 import { ApiError, fetchOpenVRs, resolveVR, type VR } from "./manageApi";
-import { errorMessage, formReducer, initialForm, needsValue, validateForm } from "./resolveForm";
+import {
+  buildResolveBody,
+  errorMessage,
+  formReducer,
+  initialForm,
+  needsValue,
+  validateForm,
+} from "./resolveForm";
 import { useStaffToken } from "./useStaffToken";
 
 const inputCls = "min-h-11 w-full rounded-md border border-line bg-card px-3 text-sm";
@@ -12,28 +20,33 @@ function ResolveForm({ vr, token, onDone }: { vr: VR; token: string; onDone: () 
   const [s, dispatch] = useReducer(formReducer, initialForm);
   const qc = useQueryClient();
   const id = `rf-${vr.id}`;
+  const spec = specFor(vr.attribute, null);
+  const choices: [string, string][] | null =
+    spec.kind === "boolean"
+      ? [
+          ["yes", "Yes"],
+          ["no", "No"],
+        ]
+      : spec.kind === "enum"
+        ? spec.options.map((o): [string, string] => [o, optionLabel(o)])
+        : null;
 
   async function submit(e: FormEvent) {
     e.preventDefault();
-    const invalid = validateForm(s);
+    const invalid = validateForm(s, vr.attribute);
     if (invalid) return dispatch({ type: "fail", message: invalid });
     dispatch({ type: "submit" });
     try {
-      await resolveVR(
-        vr.id,
-        {
-          action: s.action,
-          ...(needsValue(s.action) ? { value: s.value.trim() } : {}),
-          note: s.note.trim(),
-        },
-        token,
-      );
+      await resolveVR(vr.id, buildResolveBody(s, vr.attribute), token);
       await qc.invalidateQueries({ queryKey: ["manage", "vrs"] });
       onDone();
     } catch (err) {
       dispatch({
         type: "fail",
-        message: errorMessage(err instanceof ApiError ? err.status : undefined),
+        message: errorMessage(
+          err instanceof ApiError ? err.status : undefined,
+          err instanceof ApiError ? err.detail : undefined,
+        ),
       });
     }
   }
@@ -66,13 +79,31 @@ function ResolveForm({ vr, token, onDone }: { vr: VR; token: string; onDone: () 
             <label htmlFor={`${id}-v`} className="mb-1 block text-sm font-medium">
               Corrected value
             </label>
-            <input
-              id={`${id}-v`}
-              className={inputCls}
-              value={s.value}
-              disabled={s.status === "submitting"}
-              onChange={(e) => dispatch({ type: "set", field: "value", v: e.target.value })}
-            />
+            {choices ? (
+              <select
+                id={`${id}-v`}
+                className={inputCls}
+                value={s.value}
+                disabled={s.status === "submitting"}
+                onChange={(e) => dispatch({ type: "set", field: "value", v: e.target.value })}
+              >
+                <option value="">Choose…</option>
+                {choices.map(([v, label]) => (
+                  <option key={v} value={v}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <input
+                id={`${id}-v`}
+                className={inputCls}
+                inputMode={spec.kind === "number" ? "decimal" : undefined}
+                value={s.value}
+                disabled={s.status === "submitting"}
+                onChange={(e) => dispatch({ type: "set", field: "value", v: e.target.value })}
+              />
+            )}
           </div>
         )}
         <div className={needsValue(s.action) ? "" : "sm:col-span-2"}>

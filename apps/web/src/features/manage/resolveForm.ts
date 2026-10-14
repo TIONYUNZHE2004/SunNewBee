@@ -1,3 +1,5 @@
+import { specFor } from "./attributeCatalogue";
+import { parseValue } from "./attributeForm";
 import type { ResolveBody } from "./manageApi";
 
 export type FormState = {
@@ -33,14 +35,36 @@ export function formReducer(s: FormState, a: FormAction): FormState {
 
 export const needsValue = (a: FormState["action"]) => a === "correct";
 
-export function validateForm(s: FormState): string | null {
+export function validateForm(s: FormState, attribute?: string): string | null {
   if (!s.note.trim()) return "A note is required.";
-  if (needsValue(s.action) && !s.value.trim()) return "A corrected value is required.";
+  if (needsValue(s.action)) {
+    if (!s.value.trim()) return "A corrected value is required.";
+    const spec = specFor(attribute, null);
+    if (spec.kind === "enum" && !spec.options.includes(s.value.trim()))
+      return "Choose one of the listed options.";
+    if (parseValue(spec.kind, s.value) === null)
+      return spec.kind === "number"
+        ? "Enter the corrected value as a number."
+        : spec.kind === "boolean"
+          ? "Choose yes or no."
+          : "A corrected value is required.";
+  }
   return null;
 }
 
-export function errorMessage(status: number | undefined): string {
+/** Corrected value typed by the attribute catalogue (number, boolean or string), as the server
+ * validates it. Verify sends no value: the server keeps the claim's current one. */
+export function buildResolveBody(s: FormState, attribute?: string): ResolveBody {
+  const note = s.note.trim();
+  if (!needsValue(s.action)) return { action: s.action, note };
+  const value = parseValue(specFor(attribute, null).kind, s.value);
+  return value === null ? { action: s.action, note } : { action: s.action, value, note };
+}
+
+export function errorMessage(status: number | undefined, detail?: string): string {
   if (status === 401) return "Staff token required or invalid";
   if (status === 404) return "Request not found (it may already be resolved).";
+  if (status === 409) return "This request was already resolved. Refresh the queue.";
+  if (status === 422) return detail || "The server rejected this value.";
   return "Could not save. Please try again.";
 }

@@ -4,8 +4,8 @@ export type Outcome = (typeof OUTCOMES)[number];
 const OUTCOME_LABELS: Record<Outcome, string> = {
   success: "Confirmed",
   success_with_unknowns: "Possible (unverified)",
-  blocked: "Blocked",
-  no_data: "No data",
+  blocked: "Not passable",
+  no_data: "No mapped connection (data gap)",
 };
 export const outcomeLabel = (o: string): string => OUTCOME_LABELS[o as Outcome] ?? o;
 

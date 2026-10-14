@@ -81,7 +81,11 @@ export const fetchBriefing = (scenarioId: string, profile: string) =>
     `/briefings/flood?scenario_id=${encodeURIComponent(scenarioId)}&profile=${encodeURIComponent(profile)}`,
   );
 
-export type ResolveBody = { action: "verify" | "correct" | "reject"; value?: string; note: string };
+export type ResolveBody = {
+  action: "verify" | "correct" | "reject";
+  value?: string | number | boolean;
+  note: string;
+};
 
 export async function resolveVR(id: string, body: ResolveBody, token: string): Promise<void> {
   const r = await fetch(`/api/verification-requests/${encodeURIComponent(id)}/resolve`, {
@@ -89,7 +93,7 @@ export async function resolveVR(id: string, body: ResolveBody, token: string): P
     headers: { "Content-Type": "application/json", "X-Staff-Token": token },
     body: JSON.stringify(body),
   });
-  if (!r.ok) throw new ApiError(r.status);
+  if (!r.ok) throw new ApiError(r.status, await readDetail(r));
 }
 
 export type SimReport = Schemas["SimReport"];

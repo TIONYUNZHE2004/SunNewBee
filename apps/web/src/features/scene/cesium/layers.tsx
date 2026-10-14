@@ -10,6 +10,7 @@ import {
 } from "resium";
 import { useEvacCentres, useLayer, useScenarioWater } from "../../../lib/api";
 import { ENV } from "../../../lib/env";
+import { centreReachLabel } from "../../../lib/routeStatus";
 import { groupByStatus, type LonLat, lineFeatures, pointFeatures, waterPolygons } from "../geo";
 import { useScene } from "../sceneStore";
 import { CESIUM_DASH, type EdgeStatus, ROUTE_STYLE, statusStyle, WATER_COLOR } from "../styles";
@@ -231,14 +232,16 @@ export function FloodLayer() {
         >
           <PointGraphics
             pixelSize={12}
-            color={Cesium.Color.fromCssColorString(r.reachable ? "#1B873F" : "#C53030")}
+            color={Cesium.Color.fromCssColorString(
+              r.reachable ? "#1B873F" : r.route_status === "no_data" ? "#B7791F" : "#C53030",
+            )}
             outlineColor={Cesium.Color.WHITE}
             outlineWidth={2}
             heightReference={heightRef()}
             disableDepthTestDistance={Number.POSITIVE_INFINITY}
           />
           <LabelGraphics
-            text={`${r.centre.name}: ${r.reachable ? "Reachable" : "Not reachable"}`}
+            text={`${r.centre.name}: ${centreReachLabel(r)}`}
             font="600 14px sans-serif"
             showBackground
             backgroundColor={Cesium.Color.WHITE.withAlpha(0.9)}

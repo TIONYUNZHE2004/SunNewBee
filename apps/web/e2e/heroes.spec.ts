@@ -35,6 +35,27 @@ test("manage page lists the verification request after the kiosk question", asyn
   await expect(page.getByText("seg-cf").first()).toBeVisible();
 });
 
+test("staff corrects a numeric fact from the queue and the request leaves it", async ({ page }) => {
+  await page.addInitScript(() => sessionStorage.setItem("tl.staffToken", "e2e-token"));
+  await ask(page, "Can I push a stroller from Car Park B to the kiosk without stairs?");
+  await expect(page.getByRole("log")).toContainText(/route partly_unverified/);
+  await page.goto("/manage");
+  const row = page
+    .getByRole("row")
+    .filter({ hasText: "seg-cf" })
+    .filter({ hasText: "incline_pct" });
+  await row.getByRole("button", { name: /Resolve/ }).click();
+  const form = page.getByRole("form", { name: "Resolve seg-cf" });
+  await form.getByLabel("Action").selectOption("correct");
+  await form.getByLabel("Corrected value").fill("4");
+  await form.getByLabel("Note").fill("measured on site");
+  await form.getByRole("button", { name: "Submit resolution" }).click();
+  await expect(form).toBeHidden();
+  await expect(
+    page.getByRole("row").filter({ hasText: "seg-cf" }).filter({ hasText: "incline_pct" }),
+  ).toHaveCount(0);
+});
+
 test("flood briefing labels official and candidate evacuation centres", async ({ page }) => {
   await page.goto("/manage");
   await page.getByRole("tab", { name: "Flood briefing" }).click();

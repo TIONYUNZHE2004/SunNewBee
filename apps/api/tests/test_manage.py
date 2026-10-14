@@ -153,9 +153,7 @@ def test_verify_without_value_keeps_current_value():
 def test_correct_number_attribute_needs_a_number():
     vid = _file_vr()
     url = f"/verification-requests/{vid}/resolve"
-    assert (
-        c.post(url, json={"action": "correct", "value": "4"}, headers=OK).status_code == 422
-    )
+    assert c.post(url, json={"action": "correct", "value": "4"}, headers=OK).status_code == 422
     assert c.post(url, json={"action": "correct", "value": 4}, headers=OK).status_code == 200
 
 

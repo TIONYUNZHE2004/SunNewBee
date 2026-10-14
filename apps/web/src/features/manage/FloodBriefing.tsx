@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useId, useState } from "react";
 import { useScenarios } from "../../lib/api";
+import { centreReachLabel, routeStatusLabel } from "../../lib/routeStatus";
 import { DisclaimerBanner } from "../flood/DisclaimerBanner";
 import type { Profile } from "../scene/sceneStore";
 import { buildAdvisory, LANGS, type Lang } from "./advisory";
@@ -254,8 +255,8 @@ export function FloodBriefing() {
                     <td className="px-3 py-2">
                       {c.centre.source === "official_pps" ? "Official PPS" : "Candidate"}
                     </td>
-                    <td className="px-3 py-2">{c.reachable ? "Yes" : "No"}</td>
-                    <td className="px-3 py-2">{c.route_status.replaceAll("_", " ")}</td>
+                    <td className="px-3 py-2">{centreReachLabel(c)}</td>
+                    <td className="px-3 py-2">{routeStatusLabel(c.route_status)}</td>
                     <td className="px-3 py-2">
                       {c.distance_m != null ? `${Math.round(c.distance_m)} m` : "–"}
                     </td>
