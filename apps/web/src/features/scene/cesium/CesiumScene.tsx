@@ -1,6 +1,6 @@
 import "cesium/Build/Cesium/Widgets/widgets.css";
 import * as Cesium from "cesium";
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { type CesiumComponentRef, useCesium, Viewer } from "resium";
 import { useLayer } from "../../../lib/api";
 import { ENV } from "../../../lib/env";
@@ -10,7 +10,7 @@ import { useCameraIntents } from "./camera";
 import { AccessLayer, FloodLayer, WasteLayer } from "./layers";
 
 /** Child of <Viewer>: mounts only after resium has created the viewer. */
-function SceneSetup() {
+function SceneSetup({ onNoDraping }: { onNoDraping: () => void }) {
   const { viewer } = useCesium();
   const profile = useScene((s) => s.profile);
   const scenarioId = useScene((s) => s.scenarioId);
@@ -21,6 +21,7 @@ function SceneSetup() {
 
   useEffect(() => {
     if (!viewer || viewer.isDestroyed()) return;
+    if (!Cesium.GroundPolylinePrimitive.isSupported(viewer.scene)) onNoDraping();
     let cancelled = false;
     let tiles: Cesium.Cesium3DTileset | undefined;
     (async () => {
@@ -60,7 +61,7 @@ function SceneSetup() {
         viewer.scene.requestRender();
       }
     };
-  }, [viewer]);
+  }, [viewer, onNoDraping]);
 
   useCameraIntents(focusPoint);
   return null;
@@ -68,8 +69,18 @@ function SceneSetup() {
 
 export default function CesiumScene() {
   const ref = useRef<CesiumComponentRef<Cesium.Viewer>>(null);
+  const [noDraping, setNoDraping] = useState(false);
+  const onNoDraping = useCallback(() => setNoDraping(true), []);
   return (
-    <section className="h-full w-full" aria-label="3D map of Elmina">
+    <section className="relative h-full w-full" aria-label="3D map of Elmina">
+      {noDraping && (
+        <p
+          role="note"
+          className="absolute bottom-8 left-2 z-10 rounded-md border border-line bg-white/95 px-2 py-1 text-xs"
+        >
+          Paths shown without terrain draping
+        </p>
+      )}
       <Viewer
         ref={ref}
         full={false}
@@ -87,7 +98,7 @@ export default function CesiumScene() {
         selectionIndicator={false}
         fullscreenButton={false}
       >
-        <SceneSetup />
+        <SceneSetup onNoDraping={onNoDraping} />
         <AccessLayer />
         <FloodLayer />
         <WasteLayer />

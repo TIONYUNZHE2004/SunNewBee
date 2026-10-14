@@ -179,7 +179,7 @@ export default function MapboxLite() {
             <Layer
               id="water"
               type="fill"
-              slot="middle"
+              slot="bottom"
               paint={{ "fill-color": WATER_COLOR, "fill-opacity": 0.45 }}
             />
           </Source>
