@@ -22,6 +22,9 @@ export const initialForm: FormState = {
   error: null,
 };
 
+export const PHOTO_PRIVACY_NOTE =
+  "Location and camera details are removed from the photo before it is stored.";
+
 export const VERIFY_DISABLED_TEXT = "Nothing to verify yet: enter the observed value with Correct";
 
 export const hasCurrentValue = (v: unknown): boolean => v !== null && v !== undefined && v !== "";

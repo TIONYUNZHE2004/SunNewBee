@@ -80,3 +80,31 @@ describe("toPlaceView", () => {
     expect(v?.rows[0]?.value).toBe("1.2");
   });
 });
+
+describe("toPlaceView photos", () => {
+  const claims = {
+    step_count: { status: "verified", value: 3, evidence_type: "site_visit" },
+    kerb: {},
+  };
+  it("attaches a claim's photo from the evidence list", () => {
+    const v = toPlaceView({
+      ok: true,
+      data: { id: "p", name: "Mall", claims },
+      evidence: [
+        {
+          id: "e1",
+          element_id: "p",
+          attribute: "step_count",
+          status: "verified",
+          photo_url: "/evidence/ab12",
+        },
+      ],
+    });
+    expect(v?.rows.find((r) => r.attr === "step_count")?.photoUrl).toBe("/evidence/ab12");
+    expect(v?.rows.find((r) => r.attr === "kerb")?.photoUrl).toBeNull();
+  });
+  it("has no photo when evidence is missing", () => {
+    const v = toPlaceView({ ok: true, data: { id: "p", name: "Mall", claims } });
+    expect(v?.rows.every((r) => r.photoUrl === null)).toBe(true);
+  });
+});

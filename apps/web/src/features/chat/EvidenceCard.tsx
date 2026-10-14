@@ -1,3 +1,4 @@
+import { EvidencePhoto } from "../../lib/EvidencePhoto";
 import { DEMO_LABEL, isPlaceholderSource } from "../../lib/evidence";
 import { optionLabel } from "../manage/attributeCatalogue";
 import type { Citation } from "./chatReducer";
@@ -10,7 +11,7 @@ const STATUS_ICON: Record<string, string> = {
   unknown: "?",
 };
 
-function AttributeLine({ c }: { c: Citation }) {
+function AttributeLine({ c, title }: { c: Citation; title: string }) {
   const placeholder = isPlaceholderSource(c.source_type);
   return (
     <li className="mt-1">
@@ -36,6 +37,13 @@ function AttributeLine({ c }: { c: Citation }) {
           </>
         )}
       </p>
+      <EvidencePhoto
+        photoUrl={c.photo_url}
+        element={title}
+        attribute={c.attribute}
+        source={placeholder ? null : c.source_type}
+        checked={placeholder ? null : c.verified_at?.slice(0, 10)}
+      />
     </li>
   );
 }
@@ -56,7 +64,7 @@ export function EvidenceCard({
       </p>
       <ul>
         {citations.map((c) => (
-          <AttributeLine key={`${c.ref}-${c.evidence_id}`} c={c} />
+          <AttributeLine key={`${c.ref}-${c.evidence_id}`} c={c} title={title} />
         ))}
       </ul>
     </li>

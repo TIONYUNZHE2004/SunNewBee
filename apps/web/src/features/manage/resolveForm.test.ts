@@ -6,6 +6,7 @@ import {
   formReducer,
   initialForm,
   initialFormFor,
+  PHOTO_PRIVACY_NOTE,
   validateForm,
 } from "./resolveForm";
 
@@ -68,4 +69,11 @@ describe("resolve form", () => {
     expect(currentValueText(4.5)).toBe("4.5");
     expect(currentValueText(true)).toBe("Yes");
   });
+});
+
+describe("photo field copy", () => {
+  it("tells staff metadata is removed", () =>
+    expect(PHOTO_PRIVACY_NOTE).toBe(
+      "Location and camera details are removed from the photo before it is stored.",
+    ));
 });

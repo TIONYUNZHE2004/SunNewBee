@@ -31,6 +31,8 @@ export interface ClaimRow {
   verifiedAt: string | null;
   source: string | null;
   placeholder: boolean;
+  /** Stored photo for this claim (API path), when its evidence has one. */
+  photoUrl: string | null;
 }
 
 export type PlaceKind = "place" | "evac_centre" | "waste_point";
@@ -71,6 +73,13 @@ export function toPlaceView(result: unknown): PlaceView | null {
   if (!d.id || !d.name) return null;
   const kind: PlaceKind = d.kind === "evac_centre" || d.kind === "waste_point" ? d.kind : "place";
   const claims = (d.claims ?? {}) as Record<string, Record<string, unknown> | null>;
+  const photos = new Map<string, string>();
+  for (const e of Array.isArray((r as { evidence?: unknown }).evidence)
+    ? ((r as { evidence: unknown[] }).evidence as Record<string, unknown>[])
+    : []) {
+    if (e && typeof e.attribute === "string" && typeof e.photo_url === "string" && e.photo_url)
+      photos.set(e.attribute, e.photo_url);
+  }
   const rows = Object.keys(claims)
     .filter((attr) => !(kind === "evac_centre" && attr === "source"))
     .sort()
@@ -99,6 +108,7 @@ export function toPlaceView(result: unknown): PlaceView | null {
         verifiedAt: badge.verifiedAt,
         source: src && src !== PLACEHOLDER_SOURCE ? src : null,
         placeholder: badge.demo,
+        photoUrl: badge.demo ? null : (photos.get(attr) ?? null),
       };
     });
   const type = String(d.type ?? "other");
