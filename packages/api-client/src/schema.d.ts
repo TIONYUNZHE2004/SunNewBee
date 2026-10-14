@@ -1516,7 +1516,11 @@ export interface operations {
     };
     place_places__place_id__get: {
         parameters: {
-            query?: never;
+            query?: {
+                scenario_id?: string | null;
+                profile?: string;
+                near?: string | null;
+            };
             header?: never;
             path: {
                 place_id: string;

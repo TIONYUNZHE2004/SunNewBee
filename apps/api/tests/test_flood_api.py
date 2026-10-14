@@ -46,3 +46,13 @@ def test_briefing():
     assert "affected" in b and "centres" in b and "not a forecast" in b["disclaimer"]
     assert b["scenario"]["id"] == "stage_p3m"
     assert c.get("/briefings/flood", params={"scenario_id": "nope"}).status_code == 404
+
+
+def test_place_endpoint_resolves_centre_and_waste_ids():
+    r = c.get("/places/evc-hall", params={"scenario_id": "stage_p3m", "near": "park-b"})
+    assert r.status_code == 200
+    d = r.json()["data"]
+    assert d["source_label"] == "Candidate (OSM), not an official relief centre"
+    assert "route_status" in d["reachability"]
+    w = c.get("/places/wp-park-recycle")
+    assert w.status_code == 200 and w.json()["data"]["source_label"].startswith("Waste point")

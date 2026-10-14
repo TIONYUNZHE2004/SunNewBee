@@ -225,6 +225,7 @@ export function FloodLayer() {
         <Entity
           key={r.centre.id}
           name={r.centre.name}
+          properties={new Cesium.PropertyBag({ placeId: r.centre.id })}
           position={Cesium.Cartesian3.fromDegrees(
             r.centre.coord[0] as number,
             r.centre.coord[1] as number,
@@ -268,6 +269,7 @@ export function WasteLayer() {
         <Entity
           key={p.id}
           name={p.name}
+          properties={new Cesium.PropertyBag({ placeId: p.id })}
           position={Cesium.Cartesian3.fromDegrees(p.coord[0], p.coord[1])}
         >
           <PointGraphics

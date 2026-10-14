@@ -1,4 +1,11 @@
-import { claimBadge, PLACEHOLDER_SOURCE } from "../../lib/evidence";
+import {
+  COLLECTION_DAY_UNKNOWN,
+  centreSourceLabel,
+  claimBadge,
+  PLACEHOLDER_SOURCE,
+} from "../../lib/evidence";
+import { originName } from "../../lib/placeQuery";
+import { centreReachLabel } from "../../lib/routeStatus";
 import { humanType } from "../scene/list/listModel";
 
 export type ClaimStatus = "unknown" | "reported" | "verified" | "stale" | "contested";
@@ -26,7 +33,16 @@ export interface ClaimRow {
   placeholder: boolean;
 }
 
+export type PlaceKind = "place" | "evac_centre" | "waste_point";
+
 export interface PlaceView {
+  kind: PlaceKind;
+  /** Prominent source label for centres and waste points; null for access places. */
+  sourceLabel: string | null;
+  sourceTone: "official" | "candidate" | "waste" | null;
+  reachability: { label: string; origin: string; disclaimer: string | null } | null;
+  /** Waste points only. We never invent a schedule. */
+  collectionDay: string | null;
   id: string;
   name: string;
   type: string;
@@ -53,8 +69,10 @@ export function toPlaceView(result: unknown): PlaceView | null {
   if (!r?.ok || !r.data || typeof r.data !== "object") return null;
   const d = r.data;
   if (!d.id || !d.name) return null;
+  const kind: PlaceKind = d.kind === "evac_centre" || d.kind === "waste_point" ? d.kind : "place";
   const claims = (d.claims ?? {}) as Record<string, Record<string, unknown> | null>;
   const rows = Object.keys(claims)
+    .filter((attr) => !(kind === "evac_centre" && attr === "source"))
     .sort()
     .map((attr): ClaimRow => {
       const c = claims[attr] ?? {};
@@ -84,5 +102,40 @@ export function toPlaceView(result: unknown): PlaceView | null {
       };
     });
   const type = String(d.type ?? "other");
-  return { id: String(d.id), name: String(d.name), type, typeLabel: humanType(type), rows };
+  const reach = d.reachability as Record<string, unknown> | null | undefined;
+  const official = kind === "evac_centre" && d.source === "official_pps";
+  return {
+    kind,
+    sourceLabel:
+      kind === "evac_centre"
+        ? centreSourceLabel(d.source)
+        : kind === "waste_point"
+          ? String(d.source_label ?? `Waste point: ${String(d.status ?? "unknown")}`)
+          : null,
+    sourceTone:
+      kind === "evac_centre"
+        ? official
+          ? "official"
+          : "candidate"
+        : kind === "waste_point"
+          ? "waste"
+          : null,
+    reachability:
+      kind === "evac_centre" && reach
+        ? {
+            label: centreReachLabel({
+              reachable: reach.reachable === true,
+              route_status: String(reach.route_status ?? "no_data"),
+            }),
+            origin: originName(typeof reach.from === "string" ? reach.from : null),
+            disclaimer: typeof reach.disclaimer === "string" ? reach.disclaimer : null,
+          }
+        : null,
+    collectionDay: kind === "waste_point" ? COLLECTION_DAY_UNKNOWN : null,
+    id: String(d.id),
+    name: String(d.name),
+    type,
+    typeLabel: kind === "evac_centre" ? "Evacuation centre" : humanType(type),
+    rows,
+  };
 }

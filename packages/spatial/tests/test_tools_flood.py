@@ -138,3 +138,34 @@ def test_centre_in_other_component_is_no_data_not_unreachable(ctx):
 def test_waste_unknown_near_place_warns(ctx):
     r = tools.find_waste_points(ctx, near_place="nowhere")
     assert any("nowhere" in w for w in r.warnings)
+
+
+def test_place_details_resolves_centres_with_source_label(ctx):
+    pps = tools.get_place_details(ctx, "evc-school")
+    assert pps.ok and pps.data["kind"] == "evac_centre"
+    assert pps.data["source"] == "official_pps" and pps.data["source_label"] == "Official PPS"
+    cand = tools.get_place_details(ctx, "evc-hall")
+    assert cand.data["source_label"] == "Candidate (OSM), not an official relief centre"
+    assert cand.data["claims"]["source"]["status"] == "unknown"
+    assert any(e.element_id == "evc-hall" for e in cand.evidence)
+    assert "reachability" not in cand.data  # only when a query supplies the origin
+
+
+def test_place_details_centre_reachability_when_origin_given(ctx):
+    r = tools.get_place_details(
+        ctx, "evc-school", scenario_id="stage_p3m", profile="stroller", near="park-b"
+    )
+    reach = r.data["reachability"]
+    assert reach["route_status"] in {"confirmed", "partly_unverified", "blocked", "no_data"}
+    assert reach["scenario_id"] == "stage_p3m" and reach["profile"] == "stroller"
+    assert "not a forecast" in reach["disclaimer"]
+
+
+def test_place_details_resolves_waste_without_inventing_a_schedule(ctx):
+    r = tools.get_place_details(ctx, "wp-park-recycle")
+    assert r.ok and r.data["kind"] == "waste_point"
+    assert r.data["source_label"] == "Waste point: verified"
+    assert r.data["collection_day"] is None
+    assert r.data["claims"]["status"]["status"] == "verified"
+    e = tools.get_place_details(ctx, "wp-ewaste")
+    assert e.ok and e.data["source_label"].startswith("Waste point:")
