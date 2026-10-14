@@ -31,25 +31,38 @@ def _place_ev(p) -> Evidence:
 
 
 _STOPWORDS = {"take", "from", "with", "near", "where", "that", "this", "your", "have"}
+_CJK = re.compile(r"[\u3400-\u9fff\u3040-\u30ff\uac00-\ud7af]")
 
 
-def _score_name(q: str, name: str, is_alias: bool) -> float:
-    """Exact name > exact alias > substring (by length ratio) > shared tokens > fuzzy."""
+def _phrase_score(shorter: int, longer: int) -> float:
+    return 0.9 + 0.09 * min(1.0, shorter / longer)
+
+
+def _score_name(q: str, name: str) -> float:
+    """Exact (1.0) > full-phrase containment (0.9-0.99) > token overlap (<=0.85) > fuzzy (<0.85)."""
     if q == name:
-        return 0.95 if is_alias else 1.0
-    if len(q) < 3:
+        return 1.0
+    if _CJK.search(q) or _CJK.search(name):
+        # No word boundaries in CJK: plain containment, both directions, min 2 chars.
+        if len(name) >= 2 and name in q:
+            return _phrase_score(len(name), len(q))
+        if len(q) >= 2 and q in name:
+            return _phrase_score(len(q), len(name))
         return 0.0
-    best = 0.0
+    if len(q) < 3 and " " not in q:
+        return 0.0  # short single tokens ("a", "wc") only match exactly
     if re.search(rf"\b{re.escape(q)}\b", name):
-        best = 0.6 + 0.3 * len(q) / len(name)
-    elif len(name) >= 3 and re.search(rf"\b{re.escape(name)}\b", q):
-        best = 0.6 + 0.3 * len(name) / len(q)
+        return _phrase_score(len(q), len(name))
+    if (len(name) >= 3 or " " in name) and re.search(rf"\b{re.escape(name)}\b", q):
+        return _phrase_score(len(name), len(q))
+    best = 0.0
     qt = {t for t in re.findall(r"\w+", q) if len(t) >= 4 and t not in _STOPWORDS}
     nt = {t for t in re.findall(r"\w+", name) if len(t) >= 4 and t not in _STOPWORDS}
     if qt and qt & nt:
-        best = max(best, 0.55 + 0.35 * len(qt & nt) / len(qt))
-    best = max(best, difflib.SequenceMatcher(None, q, name).ratio())
-    return min(best, 0.94)
+        best = 0.5 + 0.35 * len(qt & nt) / len(qt)
+    if len(q) >= 3:
+        best = max(best, min(0.84, difflib.SequenceMatcher(None, q, name).ratio()))
+    return best
 
 
 def find_place(ctx: Ctx, query: str, types: list[str] | None = None, limit: int = 5) -> ToolResult:
@@ -60,13 +73,10 @@ def find_place(ctx: Ctx, query: str, types: list[str] | None = None, limit: int 
     for p in ctx.world.places.values():
         if types and p.type not in types:
             continue
-        score = max(
-            [_score_name(q, p.name.lower(), False)]
-            + [_score_name(q, a.lower(), True) for a in p.aliases]
-        )
+        score = max(_score_name(q, n.lower()) for n in [p.name, *p.aliases])
         if score >= 0.6:
             scored.append((score, p))
-    scored.sort(key=lambda t: -t[0])
+    scored.sort(key=lambda t: (-t[0], len(t[1].name), t[1].id))
     top = [p for _, p in scored[:limit]]
     return ToolResult(
         ok=True,

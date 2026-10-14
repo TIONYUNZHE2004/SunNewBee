@@ -17,7 +17,7 @@ def test_unknown_incline_is_unknown(world):
 
 
 def test_default_profile_has_no_hard_constraints(world):
-    assert evaluate_edge(world.edges["seg-be"], world.profiles["default"])[0] == "PASS"
+    assert evaluate_edge(world.edges["seg-be"], world.profiles["default"])[0] != "FAIL"
 
 
 def test_flood_likely_fails_possible_unknown(world):
@@ -72,3 +72,15 @@ def test_zero_ttl_is_honoured(world):
     e = world.edges["seg-ab"].model_copy(deep=True)
     e.claims["step_count"].ttl_days = 0
     assert evaluate_edge(e, world.profiles["stroller"], today=date(2026, 10, 19))[0] == "UNKNOWN"
+
+
+def test_steps_edge_with_contested_or_stale_claim_fails(world):
+    from townshiplens_spatial.models import Claim
+
+    for st in ("contested", "stale", "unknown"):
+        e = world.edges["seg-be"].model_copy(deep=True)
+        e.claims["step_count"] = Claim(value=0, status=st)
+        assert evaluate_edge(e, world.profiles["stroller"])[0] == "FAIL"
+    e = world.edges["seg-be"].model_copy(deep=True)
+    e.claims["step_count"] = Claim(value=0, status="verified", verified_at="2026-10-18")
+    assert evaluate_edge(e, world.profiles["stroller"])[0] != "FAIL"

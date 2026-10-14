@@ -99,3 +99,38 @@ def test_stale_unknown_files_stale_vr(ctx):
     r = tools.plan_route(ctx, "park-b", "kiosk", "stroller")
     vr = r.data["verification_requests"][0]
     assert vr["element_id"] == "seg-cf" and vr["reason"] == "stale"
+
+
+def test_find_place_cjk_substring(ctx):
+    assert tools.find_place(ctx, "附近的厕所在哪里").data[0]["id"] == "toilet-1"
+    assert tools.find_place(ctx, "带我去游乐场").data[0]["id"] == "playground"
+    assert tools.find_place(ctx, "厕所").data[0]["id"] == "toilet-1"
+
+
+def test_find_place_phrase_beats_token_and_order_is_deterministic(ctx):
+    assert tools.find_place(ctx, "park b").data[0]["id"] == "park-b"
+    assert tools.find_place(ctx, "car park b").data[0]["id"] == "park-b"
+    assert tools.find_place(ctx, "wc").data == []
+    assert tools.find_place(ctx, "a").data == []
+    assert tools.find_place(ctx, "take me to the moon").data == []
+    assert tools.find_place(ctx, "small playground").data[0]["id"] == "playground"
+
+
+def test_find_place_the_park_ranks_literal_park_first(ctx):
+    from townshiplens_spatial.models import Place
+
+    ctx.world.places["park"] = Place(
+        id="park", type="park", name="Park", coord=[101.51, 3.18], node_id="n-a"
+    )
+    ids = [d["id"] for d in tools.find_place(ctx, "the park").data]
+    assert ids[0] == "park"
+    assert ids == [d["id"] for d in tools.find_place(ctx, "the park").data]
+    assert ids[1:] == sorted(ids[1:], key=lambda i: (len(ctx.world.places[i].name), i))
+
+
+def test_stale_status_claim_files_stale_vr(ctx):
+    from townshiplens_spatial.models import Claim
+
+    ctx.world.edges["seg-cf"].claims["incline_pct"] = Claim(value=2, status="stale")
+    vr = tools.plan_route(ctx, "park-b", "kiosk", "stroller").data["verification_requests"][0]
+    assert vr["reason"] == "stale"

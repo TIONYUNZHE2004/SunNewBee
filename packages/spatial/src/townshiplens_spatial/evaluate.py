@@ -37,8 +37,14 @@ def evaluate_edge(
     for key, limit in profile.hard.items():
         attr, violates = _CHECKS[key]
         c = edge.claims.get(attr)
-        if (c is None or c.value is None) and attr == "step_count" and edge.type == "steps":
-            c = Claim(value=1, status="reported", evidence_type="edge_type")
+        # A steps edge is a barrier unless a verified/reported claim says otherwise.
+        implied = attr == "step_count" and edge.type == "steps"
+        if implied and (c is None or c.value is None or c.status not in ("verified", "reported")):
+            c = Claim(
+                value=max(c.value or 0, 1) if c else 1,
+                status="reported",
+                evidence_type="edge_type",
+            )
         if c is not None and c.status in ("verified", "reported") and violates(c.value, limit):
             return "FAIL", [
                 {
@@ -49,7 +55,7 @@ def evaluate_edge(
             ]
         if c is None or c.status != "verified" or c.value is None or _is_stale(c, attr, today):
             result = "UNKNOWN"
-            stale = c is not None and c.status == "verified" and c.value is not None
+            stale = c is not None and c.value is not None and c.status in ("verified", "stale")
             op = "≤" if key.startswith("max") else "≥"
             why.append(
                 {
