@@ -2,6 +2,7 @@ import { ChatPanel } from "../features/chat/ChatPanel";
 import { DisclaimerBanner } from "../features/flood/DisclaimerBanner";
 import { ScenarioBar } from "../features/flood/ScenarioBar";
 import { PlaceCard } from "../features/places/PlaceCard";
+import { DeepSpots } from "../features/scene/DeepSpots";
 import { SceneHost } from "../features/scene/SceneHost";
 import { type Lens, useScene } from "../features/scene/sceneStore";
 import { useScenarios } from "../lib/api";
@@ -39,6 +40,7 @@ export function ResidentPage() {
           </div>
         </fieldset>
         <ScenarioBar />
+        <DeepSpots />
       </div>
       {scenarioId && (
         <DisclaimerBanner

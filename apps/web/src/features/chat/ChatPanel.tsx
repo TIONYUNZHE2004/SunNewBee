@@ -1,17 +1,13 @@
 import { type FormEvent, useEffect, useRef } from "react";
 import { DisclaimerBanner } from "../flood/DisclaimerBanner";
+import { useScene } from "../scene/sceneStore";
 import { CitationList } from "./CitationList";
 import { useChatDraft } from "./chatDraftStore";
 import type { AssistantMessage } from "./chatReducer";
+import { activeLens, suggestionsFor } from "./suggestions";
 import { UncertaintyBanner } from "./UncertaintyBanner";
 import { useChatStream } from "./useChatStream";
 import { useElementNames } from "./useElementNames";
-
-const SUGGESTIONS = [
-  "Can I get to the lakeside mall with a stroller?",
-  "Where is the nearest evacuation centre if the water rises 3 m?",
-  "Where can I drop off recycling nearby?",
-];
 
 function AssistantBubble({ m, onRetry }: { m: AssistantMessage; onRetry: () => void }) {
   const names = useElementNames();
@@ -67,6 +63,16 @@ export function ChatPanel() {
   const text = useChatDraft((s) => s.draft);
   const setText = useChatDraft((s) => s.setDraft);
   const endRef = useRef<HTMLDivElement>(null);
+  const lensVisible = useScene((s) => s.lensVisible);
+  const suggestions = suggestionsFor(activeLens(lensVisible));
+  const pendingAsk = useChatDraft((s) => s.pendingAsk);
+  const clearAsk = useChatDraft((s) => s.clearAsk);
+
+  useEffect(() => {
+    if (!pendingAsk || streaming) return;
+    void send(pendingAsk.text);
+    clearAsk();
+  }, [pendingAsk, streaming, send, clearAsk]);
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: scroll on any message change
   useEffect(() => {
@@ -98,7 +104,7 @@ export function ChatPanel() {
           <div>
             <p className="mb-2 text-sm text-ink-soft">Try a question:</p>
             <ul className="flex flex-col gap-2">
-              {SUGGESTIONS.map((s) => (
+              {suggestions.map((s) => (
                 <li key={s}>
                   <button
                     type="button"
