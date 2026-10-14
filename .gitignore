@@ -1,0 +1,8 @@
+# Shallow-cloned reference repos (re-create with reference/clone-repos.sh)
+reference/repos/*
+!reference/repos/.gitkeep
+.DS_Store
+node_modules/
+__pycache__/
+.venv/
+.env
