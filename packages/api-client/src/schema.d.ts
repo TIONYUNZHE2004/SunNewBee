@@ -4,6 +4,23 @@
  */
 
 export interface paths {
+    "/audit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Audit */
+        get: operations["audit_audit_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/briefings/flood": {
         parameters: {
             query?: never;
@@ -36,6 +53,23 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/elements/{element_id}/attributes/{key}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Edit Attribute */
+        patch: operations["edit_attribute_elements__element_id__attributes__key__patch"];
         trace?: never;
     };
     "/evacuation-centres": {
@@ -379,6 +413,20 @@ export interface components {
             /** Warnings */
             warnings?: string[];
         };
+        /** AttributeBody */
+        AttributeBody: {
+            /** Note */
+            note?: string | null;
+            /** Source Type */
+            source_type: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "verified" | "unknown" | "reported";
+            /** Value */
+            value?: unknown;
+        };
         /** CentreReachability */
         CentreReachability: {
             centre: components["schemas"]["EvacCentre"];
@@ -438,6 +486,31 @@ export interface components {
             type: "citation";
             /** Verified At */
             verified_at?: string | null;
+        };
+        /** Claim */
+        Claim: {
+            /** Evidence Ids */
+            evidence_ids?: string[];
+            /** Evidence Type */
+            evidence_type?: string | null;
+            /** Method */
+            method?: string | null;
+            /** Notes */
+            notes?: string | null;
+            /**
+             * Status
+             * @default unknown
+             * @enum {string}
+             */
+            status: "unknown" | "reported" | "verified" | "stale" | "contested";
+            /** Ttl Days */
+            ttl_days?: number | null;
+            /** Value */
+            value?: unknown;
+            /** Verified At */
+            verified_at?: string | null;
+            /** Verified By */
+            verified_by?: string | null;
         };
         /** DeepSpot */
         DeepSpot: {
@@ -1032,6 +1105,40 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    audit_audit_get: {
+        parameters: {
+            query?: {
+                element_id?: string | null;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    }[];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     briefing_briefings_flood_get: {
         parameters: {
             query: {
@@ -1086,6 +1193,44 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    edit_attribute_elements__element_id__attributes__key__patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-staff-token"?: string | null;
+            };
+            path: {
+                element_id: string;
+                key: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AttributeBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Claim"];
                 };
             };
             /** @description Validation Error */
