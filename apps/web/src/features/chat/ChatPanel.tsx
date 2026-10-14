@@ -1,5 +1,6 @@
-import { type FormEvent, useEffect, useRef, useState } from "react";
+import { type FormEvent, useEffect, useRef } from "react";
 import { DisclaimerBanner } from "../flood/DisclaimerBanner";
+import { useChatDraft } from "./chatDraftStore";
 import type { AssistantMessage } from "./chatReducer";
 import { EvidenceCard } from "./EvidenceCard";
 import { UncertaintyBanner } from "./UncertaintyBanner";
@@ -67,7 +68,8 @@ function AssistantBubble({ m, onRetry }: { m: AssistantMessage; onRetry: () => v
 
 export function ChatPanel() {
   const { messages, send, retry, streaming } = useChatStream();
-  const [text, setText] = useState("");
+  const text = useChatDraft((s) => s.draft);
+  const setText = useChatDraft((s) => s.setDraft);
   const endRef = useRef<HTMLDivElement>(null);
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: scroll on any message change

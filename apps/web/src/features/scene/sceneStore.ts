@@ -12,10 +12,12 @@ interface SceneState {
   profile: Profile;
   scenarioId: string | null;
   focusPlaceId: string | null;
+  selectedPlaceId: string | null;
   route: { id: string; geojson: GeoJSON.LineString } | null;
   camera: { center: [number, number]; rangeM: number } | null;
   intents: SceneIntent[];
   applyIntent: (i: SceneIntent) => void;
+  selectPlace: (id: string | null) => void;
   setView: (v: View) => void;
   setProfile: (p: Profile) => void;
   setScenario: (s: string | null) => void;
@@ -29,6 +31,7 @@ const initial = {
   profile: loadProfile(),
   scenarioId: null as string | null,
   focusPlaceId: null as string | null,
+  selectedPlaceId: null as string | null,
   route: null as SceneState["route"],
   camera: null as SceneState["camera"],
   intents: [] as SceneIntent[],
@@ -65,6 +68,7 @@ export const useScene = create<SceneState>((set) => ({
       }
       return next;
     }),
+  selectPlace: (selectedPlaceId) => set({ selectedPlaceId }),
   setView: (view) => set({ view }),
   setProfile: (profile) => {
     saveProfile(profile);

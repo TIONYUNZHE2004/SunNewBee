@@ -1,6 +1,7 @@
 import { ChatPanel } from "../features/chat/ChatPanel";
 import { DisclaimerBanner } from "../features/flood/DisclaimerBanner";
 import { ScenarioBar } from "../features/flood/ScenarioBar";
+import { PlaceCard } from "../features/places/PlaceCard";
 import { SceneHost } from "../features/scene/SceneHost";
 import { type Lens, useScene } from "../features/scene/sceneStore";
 import { useScenarios, useSite } from "../lib/api";
@@ -56,6 +57,7 @@ export function ResidentPage() {
         </div>
         <ChatPanel />
       </div>
+      <PlaceCard />
       {attribution.length > 0 && <p className="text-xs text-ink-soft">{attribution.join(" · ")}</p>}
     </div>
   );

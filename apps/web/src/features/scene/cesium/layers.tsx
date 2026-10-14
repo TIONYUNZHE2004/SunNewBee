@@ -118,6 +118,7 @@ export function AccessLayer() {
           <Entity
             key={p.id}
             name={p.name}
+            properties={new Cesium.PropertyBag({ placeId: p.id })}
             position={Cesium.Cartesian3.fromDegrees(p.coord[0], p.coord[1])}
           >
             <PointGraphics

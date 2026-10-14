@@ -84,6 +84,19 @@ function SceneSetup({
     };
   }, [viewer, onNoDraping, onTilesFailed]);
 
+  // Click a place marker (entity id = place id) to open its card.
+  useEffect(() => {
+    if (!viewer || viewer.isDestroyed()) return;
+    const handler = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas);
+    handler.setInputAction((e: { position: Cesium.Cartesian2 }) => {
+      const picked = viewer.scene.pick(e.position);
+      const id = picked?.id;
+      const key = id instanceof Cesium.Entity ? id.properties?.placeId?.getValue() : undefined;
+      if (typeof key === "string") useScene.getState().selectPlace(key);
+    }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
+    return () => handler.destroy();
+  }, [viewer]);
+
   useCameraIntents(focusPoint);
   return null;
 }

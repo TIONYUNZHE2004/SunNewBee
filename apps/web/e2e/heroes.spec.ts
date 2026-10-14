@@ -62,3 +62,16 @@ for (const path of ["/", "/manage"]) {
     }
   });
 }
+
+test("list view: clicking a place opens its card; Esc closes and returns focus", async ({
+  page,
+}) => {
+  await page.goto("/");
+  const btn = page.getByRole("button", { name: "Car Park B" });
+  await btn.click();
+  const card = page.getByRole("dialog", { name: "Car Park B" });
+  await expect(card).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(card).toBeHidden();
+  await expect(btn).toBeFocused();
+});
