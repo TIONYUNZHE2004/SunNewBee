@@ -4,8 +4,10 @@ Recorded assistant turns replayed offline when `DEMO_MODE=true`. One file per qu
 `demo.key()` (sha256 of the lower-cased, whitespace-collapsed message + profile + scenario_id, 16 hex).
 Line 1 is `{"meta": {...}}`; the rest are one ChatEvent per line.
 
-The committed entries were recorded with `LLM_PROVIDER=mock` on the tiny test fixture (see
-`meta.model`); they are not live-model answers. Replay ends with `done` whose model is suffixed
+The committed entries were recorded with `LLM_PROVIDER=mock` (see `meta.model`), on the tiny test
+fixture or on the Elmina seed (`meta.world`); they are not live-model answers. Replay only uses an
+entry whose `meta.world` matches the loaded world. The Elmina entries cover the three suggested
+questions (walking, no scenario) and the stroller variant of the first. Replay ends with `done` whose model is suffixed
 `+demo-cache`. A cache miss or corrupt file runs the turn normally.
 
 Re-record (mock only unless you mean it):
