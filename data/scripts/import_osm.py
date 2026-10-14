@@ -223,23 +223,33 @@ def _fetch_ways() -> list[dict]:
 
 
 def major_tiles() -> list[tuple[float, float, float, float]]:
-    """The 2 x 2 envelope tiles (ruling R22), with the NE tile split into south/north halves
-    (ruling R23: the full NE query kept timing out). Bboxes are cache keys: keep them stable."""
+    """The 2 x 2 envelope tiles (ruling R22), with the NE tile split into its south half (R23)
+    and the north half's west and east quarters (R24): the bigger NE queries kept timing out.
+    Bboxes are cache keys: keep them stable."""
     *rest, (s, w, n, e) = overpass.tiles(ENVELOPE, 2)
-    mid = (s + n) / 2
-    return [*rest, (s, w, mid, e), (mid, w, n, e)]
+    mid, mid_lon = (s + n) / 2, (w + e) / 2
+    return [*rest, (s, w, mid, e), (mid, w, n, mid_lon), (mid, mid_lon, n, e)]
 
 
-def _fetch_major_ways() -> list[dict]:
-    """One sequential pass over major_tiles() (5 queries, cached)."""
+def _fetch_major_ways(allow_missing: bool = False) -> tuple[list[dict], list[tuple]]:
+    """One sequential pass over major_tiles(). With allow_missing, a tile that cannot be fetched
+    (request budget or Overpass failure) is skipped and returned in the missing list."""
     seen: dict[int, dict] = {}
+    missing: list[tuple] = []
     hw = "|".join(MAJOR_HIGHWAYS)
     for s, w, n, e in major_tiles():
         ql = f'[out:json][timeout:180];way[highway~"^({hw})$"]({s},{w},{n},{e});out geom tags;'
-        for el in overpass.query(ql).get("elements", []):
+        try:
+            elements = overpass.query(ql).get("elements", [])
+        except (overpass.BudgetExceeded, RuntimeError):
+            if not allow_missing:
+                raise
+            missing.append((s, w, n, e))
+            continue
+        for el in elements:
             if el["type"] == "way" and "geometry" in el:
                 seen[el["id"]] = el
-    return list(seen.values())
+    return list(seen.values()), missing
 
 
 def merge_ways(walk: list[dict], major: list[dict]) -> tuple[list[dict], int]:
@@ -411,8 +421,8 @@ def hydrology_features(elements: list[dict]) -> list[dict]:
     return feats
 
 
-def site_json(today: str) -> dict:
-    return {
+def site_json(today: str, major_missing: list[tuple] | None = None) -> dict:
+    site = {
         "id": "elmina",
         "name": "City of Elmina",
         "township": "City of Elmina",
@@ -442,6 +452,10 @@ def site_json(today: str) -> dict:
         "attribution": ["© OpenStreetMap contributors (ODbL)"],
         "data_as_of": today,
     }
+    if major_missing:
+        # Coverage note: major roads (Task 31) not imported here; [w, s, e, n] like `bbox`.
+        site["major_roads_missing_bbox"] = [[w, s, e, n] for s, w, n, e in major_missing]
+    return site
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -454,11 +468,24 @@ def main(argv: list[str] | None = None) -> None:
         default=None,
         help="hard cap on real Overpass HTTP requests this run, retries included (cache hits are free)",
     )
+    ap.add_argument(
+        "--endpoint",
+        action="append",
+        help="Overpass endpoint(s) to use instead of the default mirror rotation; the next one "
+        "is tried only after a connection-level failure (repeatable)",
+    )
+    ap.add_argument(
+        "--allow-missing-major-tiles",
+        action="store_true",
+        help="build without major-road tiles that cannot be fetched; their bboxes go to "
+        "site.json major_roads_missing_bbox",
+    )
     args = ap.parse_args(argv)
     overpass.MAX_REQUESTS = args.max_requests
+    overpass.ENDPOINTS = args.endpoint or None
     try:  # every fetch before any write, so a budget stop leaves the seed untouched
         walk_ways = _fetch_ways()
-        major_ways = _fetch_major_ways()
+        major_ways, major_missing = _fetch_major_ways(args.allow_missing_major_tiles)
         place_els = _fetch_places()
         hydro_els = _fetch_hydrology()
     except overpass.BudgetExceeded as exc:
@@ -466,6 +493,8 @@ def main(argv: list[str] | None = None) -> None:
         raise SystemExit(2) from None
     ways, foot_no = merge_ways(walk_ways, major_ways)
     print(f"major-road ways fetched: {len(major_ways)}; skipped (foot=no): {foot_no}")
+    for s, w, n, e in major_missing:
+        print(f"WARNING: major roads NOT imported for tile s,w,n,e = {s}, {w}, {n}, {e}")
     segs = split_ways(ways)
     places = build_places(place_els)
     assign_nodes(places, segs)
@@ -474,7 +503,8 @@ def main(argv: list[str] | None = None) -> None:
     write_geojson(OUT / "base" / "places.geojson", [place_feature(p) for p in places])
     write_geojson(OUT / "base" / "hydrology.geojson", hydro)
     (OUT / "site.json").write_text(
-        json.dumps(site_json(date.today().isoformat()), ensure_ascii=False, indent=2) + "\n",
+        json.dumps(site_json(date.today().isoformat(), major_missing), ensure_ascii=False, indent=2)
+        + "\n",
         encoding="utf-8",
     )
     print(

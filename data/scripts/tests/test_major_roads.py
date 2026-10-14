@@ -169,7 +169,7 @@ def test_overpass_cache_hit_costs_nothing(monkeypatch, tmp_path):
     assert overpass.REQUESTS_MADE == 0
 
 
-def test_major_tiles_split_only_the_ne_tile_into_north_south_halves():
+def test_major_tiles_split_the_ne_tile_south_then_north_west_east():
     from data.scripts.import_osm import ENVELOPE, major_tiles
 
     base = list(overpass.tiles(ENVELOPE, 2))
@@ -177,5 +177,73 @@ def test_major_tiles_split_only_the_ne_tile_into_north_south_halves():
     # The three tiles cached under R22 keep their exact query bboxes (cache keys).
     assert tiles[:3] == base[:3]
     s, w, n, e = base[3]
-    mid = (s + n) / 2
-    assert tiles[3:] == [(s, w, mid, e), (mid, w, n, e)]
+    mid, mid_lon = (s + n) / 2, (w + e) / 2
+    # R23: south half (cached); R24: north half split into west and east.
+    assert tiles[3:] == [(s, w, mid, e), (mid, w, n, mid_lon), (mid, mid_lon, n, e)]
+
+
+def test_fetch_major_ways_can_skip_unfetchable_tiles(monkeypatch):
+    from data.scripts import import_osm
+
+    calls = []
+
+    def fake_query(ql):
+        calls.append(ql)
+        if len(calls) == 5:
+            raise overpass.BudgetExceeded("cap")
+        return {"elements": [{"type": "way", "id": len(calls), "geometry": [], "tags": {}}]}
+
+    monkeypatch.setattr(overpass, "query", fake_query)
+    ways, missing = import_osm._fetch_major_ways(allow_missing=True)
+    assert sorted(w["id"] for w in ways) == [1, 2, 3, 4, 6]
+    assert missing == [import_osm.major_tiles()[4]]
+    calls.clear()
+    with pytest.raises(overpass.BudgetExceeded):
+        import_osm._fetch_major_ways(allow_missing=False)
+
+
+def test_site_json_records_missing_major_road_bboxes_as_wsen():
+    from data.scripts.import_osm import site_json
+
+    assert "major_roads_missing_bbox" not in site_json("2026-10-15")
+    site = site_json("2026-10-15", [(3.2175, 101.495, 3.24, 101.5125)])
+    assert site["major_roads_missing_bbox"] == [[101.495, 3.2175, 101.5125, 3.24]]
+
+
+def test_overpass_endpoints_override_moves_on_only_after_connection_errors(monkeypatch, tmp_path):
+    import json
+
+    monkeypatch.setattr(overpass, "CACHE", tmp_path)
+    monkeypatch.setattr(overpass, "REQUESTS_MADE", 0)
+    monkeypatch.setattr(overpass, "MAX_REQUESTS", None)
+    monkeypatch.setattr(overpass, "ENDPOINTS", ["https://a/api", "https://b/api"])
+    monkeypatch.setattr(overpass.time, "sleep", lambda s: None)
+    urls = []
+
+    class R:
+        def __init__(self, code):
+            self.status_code, self.text = code, '{"elements":[]}'
+
+        def json(self):
+            return json.loads(self.text)
+
+    script = ["504", "conn", "200"]
+
+    def post(url, **kw):
+        urls.append(url)
+        step = script[len(urls) - 1]
+        if step == "conn":
+            raise overpass.requests.ConnectionError("refused")
+        return R(int(step))
+
+    monkeypatch.setattr(overpass.requests, "post", post)
+    ql = "[out:json];way(1,2,3,4);out;"
+    assert overpass.query(ql) == {"elements": []}
+    assert urls == ["https://a/api", "https://a/api", "https://b/api"]
+    meta = json.loads(next(tmp_path.glob("*.meta.json")).read_text())
+    assert meta["endpoint"] == "https://b/api" and "fetched_at" in meta
+
+
+def test_overpass_default_mirrors_unchanged():
+    assert overpass.ENDPOINTS is None
+    assert overpass.MIRRORS[0] == "https://overpass-api.de/api/interpreter"
