@@ -83,3 +83,35 @@ def test_all_three_stores_share_one_path_per_world(monkeypatch, tmp_path):
     manage._audit()
     sim._store()
     assert path in manage._audits and path in sim._stores
+
+
+def test_layer_etag_304_and_changes_after_resolve():
+    from townshiplens_api.routes.manage import commit_claim
+    from townshiplens_spatial.models import Claim
+
+    url, p = "/layers/access", {"profile": "stroller"}
+    r1 = c.get(url, params=p)
+    etag = r1.headers["etag"]
+    assert r1.headers["cache-control"] == "private, max-age=0, must-revalidate"
+    r2 = c.get(url, params=p, headers={"If-None-Match": etag})
+    assert r2.status_code == 304 and r2.headers["etag"] == etag and not r2.content
+    assert c.get(url, params={"profile": "default"}).headers["etag"] != etag
+    assert c.get("/layers/flood", params=p).headers["etag"] != etag
+    commit_claim(
+        "seg-cf",
+        "incline_pct",
+        Claim(value=4.0, status="verified", verified_at="2026-10-15"),
+        "edit",
+        None,
+    )
+    r3 = c.get(url, params=p, headers={"If-None-Match": etag})
+    assert r3.status_code == 200 and r3.headers["etag"] != etag
+
+
+def test_layer_etag_changes_with_boot_nonce(monkeypatch):
+    from townshiplens_api.routes import core
+
+    a = c.get("/layers/access").headers["etag"]
+    monkeypatch.setattr(core, "_BOOT", "other-boot")
+    r = c.get("/layers/access", headers={"If-None-Match": a})
+    assert r.status_code == 200 and r.headers["etag"] != a

@@ -65,12 +65,52 @@ class VerificationStore:
                 self.db.execute("SELECT * FROM vr WHERE id=?", (vr_id,)).fetchone()
             ), True
 
-    def list(self, status: str = "open") -> list[VerificationRequest]:
+    def list(
+        self,
+        status: str = "open",
+        reason: str | None = None,
+        element_id: str | None = None,
+        attribute: str | None = None,
+    ) -> list[VerificationRequest]:
+        """status="all" disables the status filter; other filters are exact matches."""
+        where, args = [], []
+        for col, val in (
+            ("status", None if status == "all" else status),
+            ("reason", reason),
+            ("element_id", element_id),
+            ("attribute", attribute),
+        ):
+            if val is not None:
+                where.append(f"{col}=?")
+                args.append(val)
+        sql = "SELECT * FROM vr" + (" WHERE " + " AND ".join(where) if where else "")
         with self._lock:
-            rows = self.db.execute(
-                "SELECT * FROM vr WHERE status=? ORDER BY demand DESC, created_at ASC", (status,)
-            ).fetchall()
+            rows = self.db.execute(sql + " ORDER BY demand DESC, created_at ASC", args).fetchall()
             return [self._row(r) for r in rows]
+
+    def kpis(self) -> tuple[int, float | None]:
+        """(open VR count, median hours from created to resolved over resolved VRs)."""
+        with self._lock:
+            n_open = self.db.execute("SELECT COUNT(*) FROM vr WHERE status='open'").fetchone()[0]
+            rows = self.db.execute(
+                "SELECT created_at, resolved_at FROM vr WHERE status='resolved' "
+                "AND resolved_at IS NOT NULL"
+            ).fetchall()
+        hours: list[float] = []
+        for r in rows:
+            try:
+                delta = datetime.fromisoformat(r["resolved_at"]) - datetime.fromisoformat(
+                    r["created_at"]
+                )
+            except (TypeError, ValueError):
+                continue  # malformed timestamp: skip rather than 500
+            hours.append(max(0.0, delta.total_seconds() / 3600))
+        hours.sort()
+        if not hours:
+            return n_open, None
+        mid = len(hours) // 2
+        median = hours[mid] if len(hours) % 2 else (hours[mid - 1] + hours[mid]) / 2
+        return n_open, median
 
     def get(self, vr_id: str) -> VerificationRequest | None:
         with self._lock:

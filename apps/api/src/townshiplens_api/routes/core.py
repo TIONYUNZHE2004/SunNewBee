@@ -1,6 +1,9 @@
 import copy
+import hashlib
+import secrets
+from typing import Any
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Request, Response
 from pydantic import BaseModel, ConfigDict, Field
 from townshiplens_spatial import tools
 from townshiplens_spatial.models import RouteResult, Site, ToolResult
@@ -28,11 +31,46 @@ def site() -> Site:
     return state.get_ctx().world.site
 
 
-@router.get("/layers/{lens}")
-def layers(lens: str, profile: str = "default", scenario_id: str | None = None) -> dict:
+# world.version restarts at 0 on every boot, so scope validators to this process.
+_BOOT = secrets.token_hex(4)
+CACHE_CONTROL = "private, max-age=0, must-revalidate"
+
+
+def _etag(world, lens: str, profile: str, scenario_id: str | None) -> str:
+    """Cheap validator: layer content is a pure function of these inputs (claims only change
+    through refresh_claim, which bumps world.version), so never serialise the layer."""
+    key = f"{_BOOT}|{world.site.id}|{world.version}|{lens}|{profile}|{scenario_id or ''}"
+    return f'"{hashlib.sha1(key.encode()).hexdigest()[:20]}"'
+
+
+def _matches(header: str | None, etag: str) -> bool:
+    if not header:
+        return False
+    cands = [t.strip().removeprefix("W/") for t in header.split(",")]
+    return "*" in cands or etag in cands
+
+
+@router.get(
+    "/layers/{lens}",
+    response_model=dict[str, Any],
+    responses={304: {"description": "Not modified"}},
+)
+def layers(
+    lens: str,
+    request: Request,
+    response: Response,
+    profile: str = "default",
+    scenario_id: str | None = None,
+):
     if lens not in geojson.LENSES:
         raise HTTPException(404, f"unknown lens {lens}")
-    return geojson.layer(state.get_ctx().world, lens, profile, scenario_id)
+    world = state.get_ctx().world
+    etag = _etag(world, lens, profile, scenario_id)
+    headers = {"ETag": etag, "Cache-Control": CACHE_CONTROL}
+    if _matches(request.headers.get("if-none-match"), etag):
+        return Response(status_code=304, headers=headers)
+    response.headers.update(headers)
+    return geojson.layer(world, lens, profile, scenario_id)
 
 
 @router.get("/graph")
