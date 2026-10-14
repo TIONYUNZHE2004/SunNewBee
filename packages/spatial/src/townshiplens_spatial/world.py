@@ -33,7 +33,7 @@ class World:
         target = self.edges.get(element_id) or self.places.get(element_id)
         if target is None:
             raise KeyError(element_id)
-        target.claims[attribute] = claim
+        target.claims = {**target.claims, attribute: claim}  # copy-on-write for readers
         self.version += 1
 
     def places_at(self, node_id: str) -> list[Place]:

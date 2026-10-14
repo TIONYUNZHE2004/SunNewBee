@@ -15,29 +15,75 @@
             "title": "Isolated Components",
             "type": "array"
           },
+          "isolated_total": {
+            "default": 0,
+            "title": "Isolated Total",
+            "type": "integer"
+          },
           "likely": {
             "items": {
-              "additionalProperties": {
-                "type": "string"
-              },
+              "additionalProperties": true,
               "type": "object"
             },
             "title": "Likely",
             "type": "array"
           },
+          "likely_edge_ids": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Likely Edge Ids",
+            "type": "array"
+          },
+          "likely_place_ids": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Likely Place Ids",
+            "type": "array"
+          },
+          "likely_total": {
+            "default": 0,
+            "title": "Likely Total",
+            "type": "integer"
+          },
           "possible": {
             "items": {
-              "additionalProperties": {
-                "type": "string"
-              },
+              "additionalProperties": true,
               "type": "object"
             },
             "title": "Possible",
             "type": "array"
           },
+          "possible_edge_ids": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Possible Edge Ids",
+            "type": "array"
+          },
+          "possible_place_ids": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Possible Place Ids",
+            "type": "array"
+          },
+          "possible_total": {
+            "default": 0,
+            "title": "Possible Total",
+            "type": "integer"
+          },
           "scenario_id": {
             "title": "Scenario Id",
             "type": "string"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Warnings",
+            "type": "array"
           }
         },
         "required": [
@@ -584,6 +630,32 @@
         "title": "HTTPValidationError",
         "type": "object"
       },
+      "ResolveBody": {
+        "properties": {
+          "action": {
+            "enum": [
+              "verify",
+              "correct",
+              "reject"
+            ],
+            "title": "Action",
+            "type": "string"
+          },
+          "note": {
+            "default": "",
+            "title": "Note",
+            "type": "string"
+          },
+          "value": {
+            "title": "Value"
+          }
+        },
+        "required": [
+          "action"
+        ],
+        "title": "ResolveBody",
+        "type": "object"
+      },
       "Route": {
         "properties": {
           "distance_m": {
@@ -704,6 +776,40 @@
           "geometry"
         ],
         "title": "Route",
+        "type": "object"
+      },
+      "RouteRequest": {
+        "properties": {
+          "from": {
+            "title": "From",
+            "type": "string"
+          },
+          "profile": {
+            "default": "default",
+            "title": "Profile",
+            "type": "string"
+          },
+          "scenario_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scenario Id"
+          },
+          "to": {
+            "title": "To",
+            "type": "string"
+          }
+        },
+        "required": [
+          "from",
+          "to"
+        ],
+        "title": "RouteRequest",
         "type": "object"
       },
       "RouteResult": {
@@ -1513,6 +1619,57 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/briefings/flood": {
+      "get": {
+        "operationId": "briefing_briefings_flood_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "scenario_id",
+            "required": true,
+            "schema": {
+              "title": "Scenario Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "profile",
+            "required": false,
+            "schema": {
+              "default": "default",
+              "title": "Profile",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Briefing Briefings Flood Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Briefing"
+      }
+    },
     "/chat": {
       "post": {
         "operationId": "chat_chat_post",
@@ -1623,6 +1780,64 @@
           }
         },
         "summary": "Evac"
+      }
+    },
+    "/graph": {
+      "get": {
+        "operationId": "graph_graph_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "profile",
+            "required": false,
+            "schema": {
+              "default": "default",
+              "title": "Profile",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "scenario_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Scenario Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Graph Graph Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Graph"
       }
     },
     "/healthz": {
@@ -1801,9 +2016,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "additionalProperties": true,
-                "title": "Body",
-                "type": "object"
+                "$ref": "#/components/schemas/RouteRequest"
               }
             }
           },
@@ -1858,7 +2071,7 @@
     },
     "/scenarios/{scenario_id}": {
       "get": {
-        "operationId": "scenario_scenarios__scenario_id__get",
+        "operationId": "scenario_water_scenarios__scenario_id__get",
         "parameters": [
           {
             "in": "path",
@@ -1876,7 +2089,7 @@
               "application/json": {
                 "schema": {
                   "additionalProperties": true,
-                  "title": "Response Scenario Scenarios  Scenario Id  Get",
+                  "title": "Response Scenario Water Scenarios  Scenario Id  Get",
                   "type": "object"
                 }
               }
@@ -1894,7 +2107,7 @@
             "description": "Validation Error"
           }
         },
-        "summary": "Scenario"
+        "summary": "Scenario Water"
       }
     },
     "/scenarios/{scenario_id}/affected": {
@@ -2027,6 +2240,71 @@
         "summary": "Vrs"
       }
     },
+    "/verification-requests/{vr_id}/resolve": {
+      "post": {
+        "operationId": "resolve_verification_requests__vr_id__resolve_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "vr_id",
+            "required": true,
+            "schema": {
+              "title": "Vr Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-staff-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Staff-Token"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResolveBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VerificationRequest"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Resolve"
+      }
+    },
     "/waste-points": {
       "get": {
         "operationId": "waste_waste_points_get",
@@ -2045,6 +2323,22 @@
                 }
               ],
               "title": "Type"
+            }
+          },
+          {
+            "in": "query",
+            "name": "near",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Near"
             }
           }
         ],
