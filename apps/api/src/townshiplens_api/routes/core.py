@@ -84,8 +84,13 @@ def places(q: str = Query("", max_length=200)) -> ToolResult:
 
 
 @router.get("/places/{place_id}", response_model=ToolResult)
-def place(place_id: str) -> ToolResult:
-    r = tools.get_place_details(state.get_ctx(), place_id)
+def place(
+    place_id: str,
+    scenario_id: str | None = None,
+    profile: str = "default",
+    near: str | None = None,
+) -> ToolResult:
+    r = tools.get_place_details(state.get_ctx(), place_id, scenario_id, profile, near)
     if not r.ok:
         raise HTTPException(404, f"unknown place {place_id}")
     return r

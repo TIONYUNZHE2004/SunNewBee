@@ -3,12 +3,15 @@ import { useCallback, useEffect, useMemo, useRef } from "react";
 import MapGL, { Layer, type MapMouseEvent, type MapRef, Source } from "react-map-gl/mapbox";
 import { useLayer, useScenarioWater } from "../../../lib/api";
 import { ENV } from "../../../lib/env";
-import { normalizeLayer, pointFeatures } from "../geo";
+import { clickedPlaceId, normalizeLayer, pointFeatures } from "../geo";
 import { useScene } from "../sceneStore";
 import { ROUTE_STYLE, statusStyle, WATER_COLOR } from "../styles";
 
 const prefersReducedMotion = () =>
   typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+const CENTRE_LAYER = "evac-centres";
+const WASTE_LAYER = "waste-points";
 
 const COLOR = [
   "match",
@@ -127,9 +130,11 @@ export default function MapboxLite() {
   const access = useLayer("access", profile, scenarioId);
   const water = useScenarioWater(scenarioId);
   const flood = useLayer("flood", profile, scenarioId);
+  const waste = useLayer("waste", profile, scenarioId, lensVisible.waste);
   const accessData = useMemo(() => normalizeLayer(access.data), [access.data]);
   const floodData = useMemo(() => normalizeLayer(flood.data), [flood.data]);
   const places = useMemo(() => pointFeatures(access.data), [access.data]);
+  const wasteData = useMemo(() => normalizeLayer(waste.data), [waste.data]);
 
   const fly = useCallback((center: [number, number], zoom?: number) => {
     const map = mapRef.current;
@@ -164,6 +169,13 @@ export default function MapboxLite() {
 
   const showAccess = lensVisible.access && access.data;
   const showWater = !!scenarioId && lensVisible.flood && water.data;
+  const showCentres = !!scenarioId && lensVisible.flood && flood.data;
+  const showWaste = lensVisible.waste && waste.data;
+  const clickable = [
+    ...(showAccess ? ["access-places"] : []),
+    ...(showCentres ? [CENTRE_LAYER] : []),
+    ...(showWaste ? [WASTE_LAYER] : []),
+  ];
 
   return (
     <section className="h-full w-full" aria-label="Lite map of Elmina">
@@ -174,11 +186,11 @@ export default function MapboxLite() {
         initialViewState={{ longitude: 101.5099, latitude: 3.1813, zoom: 15, pitch: 55 }}
         style={{ width: "100%", height: "100%" }}
         reuseMaps
-        interactiveLayerIds={showAccess ? ["access-places"] : []}
+        interactiveLayerIds={clickable}
         cursor="auto"
         onClick={(e: MapMouseEvent) => {
-          const id = e.features?.find((f) => f.layer?.id === "access-places")?.properties?.id;
-          if (id) selectPlace(String(id));
+          const id = clickedPlaceId(e.features, clickable);
+          if (id) selectPlace(id);
         }}
       >
         {showWater && (
@@ -199,6 +211,37 @@ export default function MapboxLite() {
             only={["flooded_likely", "flooded_possible"]}
             extraWidth={2}
           />
+        )}
+        {showCentres && (
+          <Source id="centres" type="geojson" data={floodData}>
+            <Layer
+              id={CENTRE_LAYER}
+              type="circle"
+              slot="top"
+              filter={["==", ["get", "kind"], "evac_centre"]}
+              paint={{
+                "circle-radius": 8,
+                "circle-color": "#B7791F",
+                "circle-stroke-color": "#fff",
+                "circle-stroke-width": 2,
+              }}
+            />
+          </Source>
+        )}
+        {showWaste && (
+          <Source id="waste" type="geojson" data={wasteData}>
+            <Layer
+              id={WASTE_LAYER}
+              type="circle"
+              slot="top"
+              paint={{
+                "circle-radius": 7,
+                "circle-color": "#6B46C1",
+                "circle-stroke-color": "#fff",
+                "circle-stroke-width": 2,
+              }}
+            />
+          </Source>
         )}
         {route && (
           <Source id="route" type="geojson" data={route.geojson as never}>

@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { usePlace } from "../../lib/api";
+import { placeReach } from "../../lib/placeQuery";
 import { useChatDraft } from "../chat/chatDraftStore";
 import { AttributeEditor } from "../manage/AttributeEditor";
 import { AuditHistory } from "../manage/AuditHistory";
 import { loadToken } from "../manage/manageApi";
 import { useScene } from "../scene/sceneStore";
 import { type ClaimRow, toPlaceView } from "./placeModel";
+import { SourceBanner } from "./SourceBanner";
 
 function Row({
   r,
@@ -84,7 +86,9 @@ export function PlaceCard() {
 function PlaceCardInner({ id }: { id: string }) {
   const selectPlace = useScene((s) => s.selectPlace);
   const setDraft = useChatDraft((s) => s.setDraft);
-  const q = usePlace(id);
+  const scenarioId = useScene((s) => s.scenarioId);
+  const profile = useScene((s) => s.profile);
+  const q = usePlace(id, placeReach(id, scenarioId, profile));
   const view = useMemo(() => toPlaceView(q.data), [q.data]);
   const ref = useRef<HTMLDivElement>(null);
   const trigger = useRef<HTMLElement | null>(null);
@@ -157,6 +161,8 @@ function PlaceCardInner({ id }: { id: string }) {
         </button>
       </div>
 
+      <SourceBanner view={view} />
+
       <div className="mt-3">
         {q.isPending ? (
           <p role="status" className="text-ink-soft">
@@ -183,7 +189,7 @@ function PlaceCardInner({ id }: { id: string }) {
                 key={r.attr}
                 r={r}
                 elementId={view.id}
-                token={token}
+                token={view.kind === "place" ? token : ""}
                 editing={editing === r.attr}
                 saved={saved === r.attr}
                 onEdit={() => {
@@ -198,7 +204,7 @@ function PlaceCardInner({ id }: { id: string }) {
         )}
       </div>
 
-      {view && token && <AuditHistory elementId={view.id} token={token} />}
+      {view && view.kind === "place" && token && <AuditHistory elementId={view.id} token={token} />}
 
       {view && (
         <button

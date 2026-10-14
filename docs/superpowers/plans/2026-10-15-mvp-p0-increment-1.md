@@ -363,3 +363,101 @@ From the final whole-branch review (`.superpowers/sdd/2026-10-15-mvp-p0-incremen
 - [ ] **I2: an honest "ok" label.** Rename the `ok` status label from "Checked" to "No known barrier" everywhere it is shown: legend, list-view steps, place card and route text in the web app. Use "Verified" only where the underlying claims are verified, which needs per-edge evidence status. Out of scope tonight, so no "Verified" label anywhere. Update tests and e2e selectors.
 - [ ] **No-data labels (prepares for the C3 routing fix in Task 26 round 2).** Wherever the web shows route or reachability status (list view, flood briefing, evacuation centre rows, journey tests), `no_data` reads "No mapped connection (data gap)", never "Not reachable"/"Blocked". `blocked` keeps "Not passable".
 - [ ] **Verify:** pytest, `pnpm lint`, `pnpm gen` (no drift, or commit the regenerated client), typecheck, `pnpm --filter @tl/web test`, build. Do not run e2e or servers. Commit on the lane branch.
+
+### Task 31: Connect the walk network: import major roads with honest sidewalk status (data)
+
+**Measured on the seed (03:30):** the walk graph has 199 components, and the largest holds only 32% of the 11,418 nodes (piece sizes 3653 / 2337 / 1455 / 1165 …). Effects:
+- 49 of 72 evacuation centres have no mapped connection from Lakeside Mall;
+- journey tests give 194 of 200 trips `no_data`.
+
+**Root cause:** `data/scripts/import_osm.py` `WALK_HIGHWAYS` excludes `primary|secondary|trunk` (and their links). In Elmina those are the roads that join the neighbourhoods. Pedestrians walk along them on sidewalks or verges.
+
+**Ruling R22:** one polite, sequential, tiled Overpass fetch of the major roads.
+- ≤ 12 HTTP requests including retries.
+- Use the existing `overpass.py` cache and backoff, and print `overpass.REQUESTS_MADE`.
+- Motorways stay excluded.
+
+- [ ] **Step 1, import.**
+  - Fetch `highway~^(primary|secondary|trunk|primary_link|secondary_link|trunk_link)$` in the existing `ENVELOPE` tiles. Skip ways with `foot=no`.
+  - New segment type `major_road`. It is split at shared nodes exactly like other ways, so it joins the existing network.
+  - Claim `sidewalk` comes from OSM tags `sidewalk`, `sidewalk:both`, `sidewalk:left` and `sidewalk:right`. Normalise to `both|one_side|none|separate`. When there is no tag, add no claim (so it is unknown).
+  - The evidence type is `osm_import`, as for other OSM claims.
+- [ ] **Step 2, catalogue + evaluation.**
+  - Add `sidewalk` (enum `both|one_side|none|separate`) to the attribute catalogue: `packages/spatial/src/townshiplens_spatial/attributes.py` and the FE mirror `apps/web/src/features/manage/attributeCatalogue.ts`.
+  - Evaluation for `major_road` on walking profiles (default, stroller, wheelchair, older_adult_rest):
+    - sidewalk `both|one_side|separate` → normal rules for the other attributes;
+    - `none` → FAIL for stroller/wheelchair/older_adult_rest, UNKNOWN for default;
+    - missing → UNKNOWN for every walking profile.
+  - So a route over a major road can never be `confirmed` without sidewalk data.
+  - `drive` allows `major_road`.
+  - Tests cover each case.
+- [ ] **Step 3, rebuild the seed** in this order (see `data/README.md` → Rebuild): `import_osm.py` → `build_overlay.py` → `build_flood.py` → `build_waste.py`.
+  - Copy the cached DEM files from `/Users/user/Workspace/Projects/simedarby/SunNiuBi-wt/flood/data/cache/` (`glo30_dem_*`, `asf_hand_*`, .npy + .json) into this worktree's `data/cache/` first, so build_flood downloads nothing. If build_flood still needs a network fetch other than Overpass drainage (counted in the cap), stop and report BLOCKED.
+  - Every new edge must get flood classes and coverage like the others.
+  - The hero overlay must survive. Check that stroller `park-b` → `playground` still routes `confirmed` at about 440 m, or report the new result honestly.
+- [ ] **Step 4, measure before vs after:**
+  - component count and largest share;
+  - stroller lakeside-mall → 72 centres status counts at baseline and stage_p3m;
+  - journey-test summary per profile;
+  - flood stage stats (likely/possible edges, water km²) at +1/+3/+5 m.
+  
+  Put the table in `data/README.md` and the report.
+- [ ] **Step 5, verify.**
+  - Commands: `uv run pytest -q`, `pnpm golden` (mock), `pnpm lint`, `pnpm gen` (commit the client if the catalogue enum appears in the schema), `pnpm --filter @tl/web test`.
+  - Commit on lane/data, with data files in a separate commit from code.
+
+### Task 32: Tappable evacuation and waste markers + list-view sections (FE, small BE shim)
+
+From the audit (P-04, P-06, P-07, W-02).
+- **Problem:** only access places open a card. Evacuation centre and waste markers are not tappable, and the list view has no evacuation or waste sections.
+- **BE shim:** `get_place_details` and the REST place endpoint (`GET /places/{id}`) resolve evacuation-centre ids (`evc-…`) and waste ids (`wp-…` or the seed's ids) as well as access places. They return:
+  - the name, type, source label (`osm_candidate`/`official_pps`, or waste status) and claims with evidence;
+  - for a centre, the reachability status for the current profile/scenario when a query param supplies it.
+  - **Test:** a known centre id and a known waste id both return 200 with a source label.
+- **FE:** clicking a centre or waste marker opens the existing PlaceCard, in both Cesium (entity `placeId`, as for access places) and Mapbox lite.
+  - The card shows the source label prominently: "Candidate (OSM), not an official relief centre" or "Official PPS".
+  - Waste cards show the status, and "Collection day: unknown, ask MBSA" with the council contact link already used elsewhere in the app (W-03). Never invent a schedule.
+- **List view:** add an "Evacuation centres" section when the flood lens is on, and a "Waste points" section when the waste lens is on. Each item is a button opening the card. Text-only, screen-reader friendly.
+- **Tests:** vitest for the card's source label and the list sections; pytest for the endpoint.
+- **Out of scope:** do NOT touch `features/manage/*`, `apps/api/routes/manage.py`, `attributeCatalogue.ts` or `data/`.
+
+### Task 33: Management UI: KPI tiles, queue filters + resolved tab, "Create VR" on journey gaps (FE)
+
+From the audit (M-01, M-07, G-04 UI). It uses the Task 29 API (merged):
+- `GET /kpis`;
+- `GET /verification-requests` with `status`, `reason`, `element_id` and `attribute` filters, `status=all`;
+- staff `POST /verification-requests`.
+
+- **KPI tiles** at the top of `/manage`:
+  - open VRs;
+  - median hours to resolve, or "not enough data";
+  - % journeys confirmed from the latest run, or "no run yet". It also shows the run's no-data % (data gap) in plain words when present.
+  - Tiles refresh after a resolve via query invalidation.
+- **Queue:** add filter controls (reason, attribute, free-text element id) and tabs "Open" / "Resolved" / "All". Filter state builds the query params. Keyboard accessible; visible labels.
+- **Journey tests:** each gap row gets a "Create verification request" button. It is staff-only and uses the staff token already kept in the session. On success it shows "Request filed (demand N)". On a duplicate it shows "Already requested; demand is now N".
+- **Tests:** vitest for the query building, tiles rendering and updating, and the create-VR button states.
+- **Constraints:** do NOT touch `features/chat/*`, `features/scene/*`, `attributeCatalogue.ts`, `apps/api` or `data/`.
+
+### Task 34: Evidence photo upload with stdlib metadata stripping (BE)
+
+From the audit (B-07; unblocks C-04, M-02, AX-06). Per ruling R21, Pillow is not allowed: its HPND licence is not on the permitted list.
+- **`POST /evidence`**, staff-only, multipart:
+  - JPEG or PNG only, by magic bytes, not the filename;
+  - capped at 5 MB.
+  - **Strip metadata with the stdlib:**
+    - JPEG: drop all APPn segments except APP0/JFIF, and drop COM segments. Keep SOI…EOI image data. Reject a malformed stream.
+    - PNG: keep only critical chunks plus `tRNS`/`PLTE`. Drop `eXIf`, `tEXt`, `iTXt`, `zTXt`, `tIME` and the rest. Recompute nothing: chunk CRCs stay valid because whole chunks are kept or dropped.
+  - Store the result under `.data/evidence/<random hex>.<ext>`, gitignored, keeping no original filename.
+  - Return `{evidence_id, photo_url}`.
+- **`GET /evidence/{id}`** is public:
+  - it serves the stripped file with the correct content-type and `Cache-Control: private, max-age=3600`;
+  - the id is validated (hex only, so no path traversal).
+- **Resolve:** `ResolveBody.evidence_id` is optional. When given, it must exist; it is appended to the claim's `evidence_ids` and exposed as `photo_url` on that evidence in tool results and `GET /places/{id}`.
+- **Dependency:** if `python-multipart` is not already in `uv.lock`, add it to `apps/api/pyproject.toml` (Apache-2.0) and record its licence in the report.
+- **Tests:**
+  - (1) A JPEG with an APP1 Exif GPS block is uploaded; the downloaded bytes contain no `Exif` APP1 and are still a valid JPEG (SOI…EOI).
+  - (2) A PNG with `tEXt` and `eXIf` loses both.
+  - (3) Wrong type → 415, oversize → 413, no token → 401, bad id → 404.
+  - (4) A resolve with `evidence_id` makes the claim carry it, with a `photo_url`.
+  - (5) `pnpm gen` is regenerated and committed.
+- **Constraints:** do NOT touch `apps/web`, `data/`, `packages/spatial/src/townshiplens_spatial/attributes.py`, `evaluate.py` or `import`-related files.

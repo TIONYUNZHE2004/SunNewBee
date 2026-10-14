@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { groupByStatus, lineFeatures, normalizeLayer, pointFeatures, waterPolygons } from "./geo";
+import {
+  clickedPlaceId,
+  groupByStatus,
+  lineFeatures,
+  normalizeLayer,
+  pointFeatures,
+  waterPolygons,
+} from "./geo";
 
 describe("geo", () => {
   it("defaults a missing status to unknown, never ok", () => {
@@ -122,5 +129,25 @@ describe("geo", () => {
     ]);
     expect(g.get("ok")).toHaveLength(2);
     expect(g.has("blocked")).toBe(false);
+  });
+});
+
+describe("clickedPlaceId", () => {
+  const f = (layer: string, id?: string) => ({
+    layer: { id: layer },
+    properties: id ? { id } : {},
+  });
+  it("picks the first feature on an interactive layer", () => {
+    expect(
+      clickedPlaceId(
+        [f("other", "x"), f("evac-centres", "evc-1")],
+        ["access-places", "evac-centres"],
+      ),
+    ).toBe("evc-1");
+    expect(clickedPlaceId([f("waste-points", "wp-1")], ["waste-points"])).toBe("wp-1");
+  });
+  it("returns null when nothing matches", () => {
+    expect(clickedPlaceId([f("evac-centres")], ["evac-centres"])).toBeNull();
+    expect(clickedPlaceId(undefined, ["a"])).toBeNull();
   });
 });
