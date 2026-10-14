@@ -161,3 +161,34 @@
   - Task 20 (attribute editor UI).
   - Task 10 fix round: stage-independent water reference heights, REM floor 3×3 (ruling), exact-match-only PPS evidence, plus the merge with the real seed and the vector-stage run.
 - **Deferred to Task 14B:** re-record the demo cache on the real seed (current entries are tiny-fixture and carry the old "HAND scenario" label).
+
+## 02:56 — Task 20 + Task 10 merged
+- Task 20 round 2 (`722f2f2`): the FE attribute editor now uses the server catalogue enums. Merged as `5da5005`.
+- Task 10 REM fix round (`e1eb1a7`): re-review found all Important items addressed, Minors parked. Merged as `72a45c5`. The real Elmina seed now ships flood stages +1..+5 m, 72 evacuation candidates and waste points.
+- Checklist on `72a45c5`:
+  - pytest 277: PASS
+  - golden 6/6 (mock-backed): PASS
+  - web vitest 85: PASS
+  - lint: PASS
+  - gen drift: PASS
+  - typecheck: PASS
+  - build + Cesium asset check: PASS
+  - e2e 9/9 (mock-backed, tiny fixture): PASS
+  - Pushed to main.
+
+## 03:04 — Task 14B real-data verification (Elmina seed)
+- **CI** on `72a45c5`: PASS (GitHub Actions run 38619389745).
+- **Browser, real seed, mock LLM (mock-backed):**
+  - **Stroller hero: PASS.** Route confirmed, 440.6 m, drawn on Google photoreal 3D (`screenshots/2026-10-15-0257-real-seed-stroller-route-mock.jpg`).
+  - **Flood +3 m hero: PASS.** The scenario switches, flooded paths turn red, and the nearest reachable candidate is named with its source label and the disclaimer (`…0258-real-seed-flood-p3m-mock.jpg`).
+  - **Management queue: FAIL → fixed in Task 22.** A stale tiny-fixture VR (`seg-cf`) showed in the Elmina queue, because all worlds shared one SQLite file.
+- **Mobile 375 px: PASS** (no horizontal scroll). Polish: the six-row scenario picker pushes the map below the fold.
+- **Console on a fresh load: PASS** (no errors). Earlier Cesium `onUpdate` TypeErrors and a `PlaceList` key warning came from a Vite HMR session after the merge, and did not reproduce on reload.
+- **Live OpenRouter smoke, real seed** (`anthropic/claude-haiku-5.5`, 3 CLI turns, about 15 requests, about US$0.0073):
+  - **Access: PASS with a defect.** Correct tools and route. Defect: it said "staff verified the segment data", but those facts are demo placeholders. Task 24.
+  - **Flood, wheelchair, +3 m: PASS with a defect.** Partly-unverified route to the OSM candidate, disclaimer present, no "safe". Defect: **174 VRs** filed in one turn. Task 24.
+  - **Management +3 m: PASS.** 1,247 likely / 361 possible, 15 isolated pockets; candidates labelled as OSM, not PPS; honest about `no_data` reachability without an origin.
+- **Ruling R18:** raised my own OpenRouter request cap from 30 to 50, because the seed smoke needed about 15 more requests. Cost stays far under the US$3 cap.
+- **Note:** the OpenRouter daily counter showed US$0.0063 above my logged smoke total before this run. It is unattributed (possibly a subagent turn or other account use) and counted against this session at most.
+- **Dispatched:** Task 22 (BE seed hygiene, done, `d495b0a`, in review), Task 23 (FE evidence/citation polish), Task 24 (agent placeholder honesty + VR cap).
+- **External usage:** OpenRouter about 31–37 req / daily counter US$0.0198 · Google tiles about 15/30.

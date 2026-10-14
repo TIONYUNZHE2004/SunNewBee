@@ -175,3 +175,127 @@ T15 and T18 touch `apps/api`, so they run in **one BE worktree, sequentially** (
 **Tests:** `attributeForm` unit tests. One e2e: with the staff token set (`e2e-token`), open the Car Park B card, edit a fact to Unknown, save, and see it shown as unknown, with a history row.
 
 - [ ] Tests first → components → web test / typecheck / build / lint / e2e → commit.
+
+### Task 22: Real-seed hygiene (BE/data): per-world local DB, assessed-area disclaimer, dedupe guard
+
+Found in real-data browser verification (Task 14B, 02:58): a tiny-fixture verification request (`seg-cf`, "stroller route park-b -> kiosk") shows in the Elmina management queue, because every world shares `.data/townshiplens.db`.
+
+**Files:**
+- Modify: `apps/api/src/townshiplens_api/settings.py`, `state.py`, `routes/sim.py`, `routes/manage.py` (one helper, three call sites)
+- Modify: `data/scripts/build_flood.py` (`DISCLAIMERS["rem"]`, `dedupe_places`)
+- Modify: `data/seed/elmina/flood/scenarios.json` (disclaimer text only), `data/README.md`
+- Test: `apps/api/tests/…`, `data/tests/test_flood_build.py`
+
+- [ ] **Step 1: Per-world DB path.**
+  - `database_url` default becomes `None`.
+  - Add `ApiSettings.db_path(site_id: str) -> str`. It returns the explicit `DATABASE_URL` path (minus `sqlite:///`) when set; otherwise `ROOT/.data/<site_id>.db`. `site_id` is the loaded world's `Site.id`, or `"tiny"` for the tiny fixture. Use the existing id field.
+  - All three call sites (VR store in `state.py`, sim store, audit store) must use the loaded world's id, so the stores of one process always agree.
+  - Tests:
+    - (a) Two worlds with different ids and no `DATABASE_URL` get different files.
+    - (b) An explicit `DATABASE_URL` is honoured unchanged.
+    - (c) The VR, sim and audit stores resolve to the same path for one world.
+  - Update `.env.example` to `DATABASE_URL=  # optional; default .data/<site id>.db per world`.
+- [ ] **Step 2: Assessed-area clause.** Append one sentence to `DISCLAIMERS["rem"]`, using the actual `AREA` bounds from `build_flood.py` (2 decimals): "Only the area <W>–<E> E, <S>–<N> N is assessed; paths outside it are not." Then:
+  - Rewrite the `disclaimer` field of every REM scenario in `data/seed/elmina/flood/scenarios.json` to the new string. Use a small function in `build_flood.py` (e.g. `--rewrite-disclaimers`) that edits only that field and preserves the file's existing formatting, so no DEM rebuild is needed.
+  - Also restore `data/seed/elmina/site.json` to 2-space indentation if `update_site` wrote 1-space, and make `update_site` write `indent=2`.
+  - Test: the disclaimer in `scenarios.json` equals `DISCLAIMERS["rem"]`.
+- [ ] **Step 3: +1 m under-show line.** In `data/README.md`, add one plain sentence near the 33.9% figure: "At +1 m about a third of the wet area is hidden under the 3D surface; the list view and 2D layers are authoritative."
+- [ ] **Step 4: Dedupe guard.** In `dedupe_places`, never merge two candidates whose name contains `(unnamed, OSM)`. Test with two unnamed halls 50 m apart: both are kept.
+- [ ] **Step 5: Verify.**
+  - Commands: `uv run pytest -q`, `pnpm lint`, `pnpm gen && git diff --exit-code packages/api-client`.
+  - Start the API with no `DATABASE_URL` on the Elmina seed and confirm `GET /api/manage/verification-requests` (with a staff token from the test env) contains no `seg-cf` row.
+  - Commit on `lane/be`.
+
+### Task 23: Real-seed chat and evidence polish (FE)
+
+Found in Task 14B browser verification on the real Elmina seed (mock LLM):
+- The stroller answer lists 41 citations: 3 attributes × 13 segments, plus 2 places. They are labelled by raw ids such as `seg-1306543769-3 · step_count` and `evc-osm-way-1063471271 · source`.
+- Placeholder demo facts show `✓ verified` next to a `placeholder` chip. `data/README.md` says these must not be presented as verified in the real world.
+- The attribution line renders twice: `ResidentPage.tsx:61` and the footer in `routes.tsx:42`.
+
+**Files:**
+- Modify: `apps/web/src/features/chat/EvidenceCard.tsx`, `ChatPanel.tsx` (citation list), `apps/web/src/app/ResidentPage.tsx`
+- Create: `apps/web/src/features/chat/citationLabel.ts` (+ test)
+- Test: vitest beside each file; update `e2e/heroes.spec.ts` only if a selector changes.
+
+- [ ] **Step 1: Placeholder honesty.** When `source_type === "team_survey_placeholder"`:
+  - Show the status chip as `Demo value · not surveyed`, with the amber placeholder styling and no ✓ icon, instead of `✓ verified`. The `checked <date>` text is hidden for these.
+  - Every other status renders unchanged.
+  - Test both cases.
+- [ ] **Step 2: Friendly labels.** `citationLabel(c, names: Map<string,string>)` returns `"<element name> · <attribute label>"`:
+  - The element name comes from the `names` map. Build the map from data the client already has: the access layer's place features and the flood layer's evacuation features (id → name).
+  - Fallbacks by id prefix:
+    - `seg-` → `Path segment`
+    - `evc-` → `Evacuation candidate`
+    - `pl-` / other → the raw id
+  - The attribute label is the catalogue key humanised with the existing `optionLabel` from `features/manage/attributeCatalogue.ts` (`step_count` → `Step count`).
+  - The raw `element_id` stays available as the `title` attribute.
+  - Tests cover each fallback.
+- [ ] **Step 3: Collapse long citation lists.**
+  - Group citations by `element_id`, keeping first-appearance order. Render one card per element, listing its attributes with each status.
+  - Show the first 4 element cards, then a button `Show N more sources` (N = remaining elements) that expands in place. The button is keyboard accessible with `aria-expanded`.
+  - The `[ref]` numbers stay visible on each attribute line so answer text can still refer to them.
+  - Test: 41 citations over 15 elements render 4 cards plus `Show 11 more sources`, and clicking reveals all 15.
+- [ ] **Step 4: Single attribution.** Remove the duplicate attribution `<p>` from `ResidentPage.tsx`; the footer one stays. Adjust any test that relied on it.
+- [ ] **Step 5: Verify.**
+  - Commands: `pnpm --filter @tl/web test`, `pnpm lint`, `pnpm -r --if-present typecheck`, `pnpm --filter @tl/web build`, `pnpm --filter @tl/web e2e`.
+  - Commit on `lane/fe`.
+
+### Task 24: Agent honesty on the real seed: placeholder facts and VR flood (AI)
+
+Found in the live OpenRouter smoke on the real Elmina seed (Task 14B, 03:00, `anthropic/claude-haiku-5.5`):
+- (a) The stroller answer said "Each route segment passed the stroller check, and staff verified the segment data on 2026-10-15". Every cited segment fact carries `source_type: "team_survey_placeholder"` (demo values, see `data/README.md` "Placeholder facts"). The model presented placeholders as staff-verified.
+- (b) One wheelchair flood turn (`plan_route` lakeside-mall → evacuation candidate, `stage_p3m`) emitted **174** `verification.requested` events: 58 segments × 3 attributes. The queue is flooded by a single question.
+
+**Files:**
+- Modify: `packages/agent/src/townshiplens_agent/` (validator / prompt / template fallback, wherever the existing partly_unverified caveat rule lives)
+- Modify: `packages/spatial/src/townshiplens_spatial/tools.py` (`plan_route` VR filing)
+- Test: `packages/agent/tests/…`, `packages/spatial/tests/…`; keep `pnpm golden` 6/6
+
+- [ ] **Step 1: Placeholder caveat rule.** The rule follows the existing caveat-rule pattern in the output validator, with no new SSE event type and no OpenAPI change. When any evidence cited in the final answer has `source_type == "team_survey_placeholder"`:
+  - The answer must contain the caveat phrase "demo values, not yet surveyed". Match case-insensitively, the way existing caveats are matched.
+  - The answer must NOT match `(staff|team)[- ]verified|verified by (staff|the team)|\bsurveyed on\b|staff (have |has )?checked`. Otherwise `ModelRetry`, with a message that tells the model exactly what to change.
+  - Add one line to the system prompt explaining placeholder evidence.
+  - The template fallback answer must satisfy the rule, and so must the mock FunctionModel scripted answers that cite placeholders (so golden stays green).
+  - Tests:
+    - (i) A placeholder-citing answer without the caveat is rejected.
+    - (ii) An answer with "staff verified" plus placeholder citations is rejected.
+    - (iii) An answer with no placeholder citations is unaffected.
+    - (iv) The template fallback with placeholder evidence passes the validator.
+- [ ] **Step 2: Cap auto-filed VRs per route.** `plan_route` files at most `MAX_ROUTE_VRS = 10` verification requests per call:
+  - Go in route order, one per (element, attribute), until the cap is reached.
+  - Add `verification_requests_truncated: <int remaining>` to the tool result data, 0 when not truncated.
+  - Missing-place VRs are not counted against the cap.
+  - Existing dedupe/demand behaviour is unchanged for filed VRs.
+  - Test: a route with 20 unknown (element, attribute) pairs files exactly 10 and reports 10 truncated. The agent's uncertainty items are unchanged; still report all of them.
+- [ ] **Step 3: Verify.**
+  - Commands: `uv run pytest -q`, `pnpm golden`, `pnpm lint`, `pnpm gen && git diff --exit-code packages/api-client`.
+  - Run the mock CLI on the seed: `LLM_PROVIDER=mock uv run python -m townshiplens_agent.cli --profile wheelchair --scenario stage_p3m "Where is the nearest evacuation centre from Lakeside Mall if the river rises 3 m? I use a wheelchair."` and confirm ≤ 10 `verification.requested` events.
+  - Commit on `lane/ai`.
+
+### Task 25: Initial 3D framing and mobile scenario picker (FE)
+
+Found in Task 14B:
+- (a) `CesiumScene.tsx` hard-codes `setView` at (101.5099, 3.1813, 4500 m) with pitch −45°. That places the *camera* over the site, so the view centres about 4.5 km north of it. `site.json` already provides `scene.home: {lon, lat, range_m}`.
+- (b) At 375 px the six full-length scenario buttons ("River +1 m (indicative)" …) wrap to six rows and push the map below the fold.
+
+**Files:**
+- Modify: `apps/web/src/features/scene/cesium/CesiumScene.tsx`, `apps/web/src/features/flood/ScenarioBar.tsx`
+- Create: `apps/web/src/features/scene/cesium/home.ts` (+ `home.test.ts`)
+- Test: vitest; e2e must stay green
+
+- [ ] **Step 1: Home view.** `homeView(site)` returns `{lon, lat, range_m}`:
+  - It reads `site.scene.home`.
+  - It falls back to `site.center` with `range_m: 6000`, then to the current constants (101.5099, 3.1813, 6000).
+  - In `SceneSetup`, replace the `setView` call with a camera that *looks at* the home point: `camera.lookAt(Cartesian3.fromDegrees(lon, lat, 0), new HeadingPitchRange(0, toRadians(-45), range_m))`, then `camera.lookAtTransform(Matrix4.IDENTITY)` so the user can navigate freely. Keep the `requestRender` call.
+  - Read the site through the existing site query hook (the one `ResidentPage` uses). Do not refetch.
+  - Do not re-run the camera move when the site query refetches. Move it once per viewer.
+  - Tests for `homeView` cover each fallback.
+- [ ] **Step 2: Compact scenario labels on narrow screens.**
+  - Below the `sm` breakpoint, each scenario button shows a short label: `Normal`, `+1 m`, … `+5 m`. From `sm` up, it shows the existing full label.
+  - Use Tailwind responsive classes with two spans, and keep the full label as the button's accessible name (`aria-label`). The group heading already says "(indicative)".
+  - Target: all six buttons fit in at most 2 rows at 375 px.
+  - Test the accessible names are unchanged.
+- [ ] **Step 3: Verify.**
+  - Commands: `pnpm --filter @tl/web test`, `pnpm lint`, `pnpm -r --if-present typecheck`, `pnpm --filter @tl/web build`, `pnpm --filter @tl/web e2e`.
+  - Commit on the lane branch.
