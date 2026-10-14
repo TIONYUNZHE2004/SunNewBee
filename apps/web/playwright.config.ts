@@ -19,7 +19,8 @@ export default defineConfig({
     // Delete the e2e DB first so each run starts with an empty verification queue.
     command: "rm -f .data/e2e.db* && pnpm dev",
     cwd: "../..",
-    url: `http://localhost:${WEB_PORT}`,
+    // Wait for the API through the Vite proxy, so both servers are up before the first test.
+    url: `http://localhost:${WEB_PORT}/api/site`,
     // Locally, an e2e server still running on WEB_PORT is reused; CI always starts a fresh one.
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
