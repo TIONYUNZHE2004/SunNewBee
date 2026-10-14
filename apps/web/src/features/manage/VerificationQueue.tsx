@@ -1,7 +1,8 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { type FormEvent, useReducer, useState } from "react";
-import { ApiError, fetchOpenVRs, loadToken, resolveVR, saveToken, type VR } from "./manageApi";
+import { ApiError, fetchOpenVRs, resolveVR, type VR } from "./manageApi";
 import { errorMessage, formReducer, initialForm, needsValue, validateForm } from "./resolveForm";
+import { useStaffToken } from "./useStaffToken";
 
 const inputCls = "min-h-11 w-full rounded-md border border-line bg-card px-3 text-sm";
 const btnCls =
@@ -111,7 +112,7 @@ function ResolveForm({ vr, token, onDone }: { vr: VR; token: string; onDone: () 
 
 export function VerificationQueue() {
   const q = useQuery({ queryKey: ["manage", "vrs"], queryFn: fetchOpenVRs, retry: false });
-  const [token, setToken] = useState(loadToken);
+  const [token, setToken] = useStaffToken();
   const [open, setOpen] = useState<string | null>(null);
   const rows = q.data ?? [];
 
@@ -137,7 +138,6 @@ export function VerificationQueue() {
           value={token}
           onChange={(e) => {
             setToken(e.target.value);
-            saveToken(e.target.value);
           }}
         />
         <p className="mt-1 text-xs text-ink-soft">Kept for this browser session only.</p>
