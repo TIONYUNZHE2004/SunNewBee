@@ -117,5 +117,6 @@ class ChatEventDoc(BaseModel):
 class ChatRequest(BaseModel):
     message: str = Field(min_length=1, max_length=2000)
     profile: Literal["default", "stroller", "wheelchair", "older_adult_rest", "drive"] = "default"
-    scenario_id: str | None = None
+    # Constrained: it is interpolated into the agent's instructions (prompt-injection guard).
+    scenario_id: str | None = Field(default=None, pattern=r"^(baseline|stage_p[1-5]m)$")
     session_id: str | None = None

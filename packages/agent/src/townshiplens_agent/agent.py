@@ -5,6 +5,7 @@ and push ToolCall / ToolResultEvent / VerificationRequested onto the record's qu
 `run.run_turn` streams to the client while the agent is still running.
 """
 
+import asyncio
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -99,9 +100,34 @@ def _flag_flooded_endpoints(deps: Deps, sid: str, place_ids: list[str], res: sp.
         )
         res.warnings.append(f"{name} ({pid}) is {FLOOD_PHRASE[cls]} in scenario {sid}")
         deps.rec.flooded_endpoints[pid] = {"flood_class": cls, "name": name, "scenario_id": sid}
+        deps.rec.place_names.add(name)
     if flagged:
         res.data["endpoint_flood"] = flagged
         deps.rec.scenarios_used.add(sid)
+
+
+SCENARIO_TOOLS = ("plan_route", "list_evacuation_centres", "affected_places")
+
+
+def ui_scenario(deps: Deps) -> str | None:
+    """The UI's active scenario, only if it exists in the loaded world."""
+    sid = deps.request.scenario_id
+    return sid if sid and any(s.id == sid for s in deps.ctx.world.flood.scenarios) else None
+
+
+def _place_names(name: str, data: Any) -> set[str]:
+    """Names of places/centres in a tool payload (for the validator's wording check)."""
+    out: set[str] = set()
+    items = data if isinstance(data, list) else [data] if isinstance(data, dict) else []
+    if name == "affected_places" and isinstance(data, dict):
+        items = [*(data.get("likely") or []), *(data.get("possible") or [])]
+    for it in items:
+        if not isinstance(it, dict):
+            continue
+        for d in (it, it.get("centre")):
+            if isinstance(d, dict) and isinstance(d.get("name"), str):
+                out.add(d["name"])
+    return out
 
 
 async def call_tool(deps: Deps, name: str, **kwargs: Any) -> dict:
@@ -109,17 +135,21 @@ async def call_tool(deps: Deps, name: str, **kwargs: Any) -> dict:
     rec = deps.rec
     call_id = f"{name}-{len(rec.tool_calls)}"
     rec.tool_calls.append(name)
+    if name in SCENARIO_TOOLS and not kwargs.get("scenario_id") and ui_scenario(deps):
+        # The scenario on screen applies to routing even if the model forgot to pass it.
+        kwargs["scenario_id"] = ui_scenario(deps)
     await _emit(deps, ToolCall(id=call_id, name=name, args=dict(kwargs)))
     if name == "plan_route":
         # Shown to staff on the VR: describe the request, never copy the user's words (PII).
         kwargs["question_summary"] = (
             f"{kwargs.get('profile')} route {kwargs.get('from_id')} -> {kwargs.get('to_id')}"
         )
-    res: sp.ToolResult = sp.TOOLS[name](deps.ctx, **kwargs)
-    if name == "plan_route" and isinstance(res.data, dict):
-        active = kwargs.get("scenario_id") or deps.request.scenario_id
-        if active:
-            _flag_flooded_endpoints(deps, active, [kwargs["from_id"], kwargs["to_id"]], res)
+    # Spatial tools are sync (graph search, SQLite): keep the event loop free.
+    res: sp.ToolResult = await asyncio.to_thread(sp.TOOLS[name], deps.ctx, **kwargs)
+    rec.place_names |= _place_names(name, res.data)
+    if name == "plan_route" and isinstance(res.data, dict) and kwargs.get("scenario_id"):
+        sid = kwargs["scenario_id"]
+        _flag_flooded_endpoints(deps, sid, [kwargs["from_id"], kwargs["to_id"]], res)
     for e in res.evidence:
         rec.evidence[e.id] = e
     if name == "plan_route" and isinstance(res.data, dict):
@@ -135,8 +165,8 @@ async def call_tool(deps: Deps, name: str, **kwargs: Any) -> dict:
     sid = kwargs.get("scenario_id")
     if sid:  # plan_route / affected_places / list_evacuation_centres with a scenario
         rec.scenarios_used.add(sid)
-    elif name == "list_flood_scenarios" and deps.request.scenario_id:
-        rec.scenarios_used.add(deps.request.scenario_id)
+    elif name == "list_flood_scenarios" and ui_scenario(deps):
+        rec.scenarios_used.add(ui_scenario(deps))
     await _emit(deps, ToolResultEvent(id=call_id, name=name, summary=_summarise(name, res)))
     return res.model_dump(mode="json")
 
@@ -152,7 +182,10 @@ def build_agent(model: Model) -> Agent[Deps, FinalAnswer]:
     @agent.instructions
     def ui_context(ctx: RunContext[Deps]) -> str:
         r = ctx.deps.request
-        return f"UI context: profile={r.profile}; active_scenario={r.scenario_id or 'none'}."
+        # Only ids that exist in the world are interpolated (never free text from the request).
+        return (
+            f"UI context: profile={r.profile}; active_scenario={ui_scenario(ctx.deps) or 'none'}."
+        )
 
     @agent.tool
     async def find_place(

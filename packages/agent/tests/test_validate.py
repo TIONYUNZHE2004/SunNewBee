@@ -148,8 +148,24 @@ def test_validator_flooded_endpoint_cannot_answer_needs_no_caveat():
     assert validate_answer(a, _flooded()) == []
 
 
-def test_validator_possible_endpoint_no_caveat_required():
+def test_validator_possible_endpoint_requires_caveat_too():
     a = FinalAnswer(
         answer_status="answered", summary="Go.", route_id="rt-1", scenario_id="stage_p3m"
     )
-    assert validate_answer(a, _flooded("possible")) == []
+    assert any("possibly flooded" in e for e in validate_answer(a, _flooded("possible")))
+    ok = a.model_copy(update={"caveats": ["Urban Park playground may be flooded."]})
+    assert validate_answer(ok, _flooded("possible")) == []
+
+
+@pytest.mark.parametrize("name", ["Taman Selamat", "Safe Haven Hall", "安全公园"])
+def test_validator_place_names_do_not_trip_forbidden_words(name):
+    r = rec(scenarios_used={"stage_p3m"}, place_names={name})
+    a = FinalAnswer(
+        answer_status="partial",
+        summary=f"{name} is likely flooded.",
+        scenario_id="stage_p3m",
+        caveats=[f"{name} is likely flooded."],
+    )
+    assert validate_answer(a, r) == []
+    bad = a.model_copy(update={"summary": f"{name} is safe. Selamat."})
+    assert any("safe" in e for e in validate_answer(bad, r))

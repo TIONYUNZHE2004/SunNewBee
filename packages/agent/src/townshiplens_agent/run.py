@@ -119,9 +119,14 @@ async def run_turn(
     except Exception as exc:  # misconfiguration (e.g. no key): still answer from the template
         failure = exc
     else:
-        task = asyncio.create_task(
-            agent.run(req.message, deps=deps, retries={"output": settings.llm_output_retries})
-        )
+
+        async def bounded_run():
+            async with asyncio.timeout(settings.turn_timeout_s):
+                return await agent.run(
+                    req.message, deps=deps, retries={"output": settings.llm_output_retries}
+                )
+
+        task = asyncio.create_task(bounded_run())
         getter: asyncio.Future | None = None
         try:
             # Stream tool events from the queue while the agent runs.
@@ -150,12 +155,26 @@ async def run_turn(
             failure = exc
 
     used = model_name
-    if failure is not None:
+    if isinstance(failure, TimeoutError):
+        log.warning("agent turn timed out after %ss", settings.turn_timeout_s)
+        yield ErrorEvent(
+            code="agent_timeout", message=f"turn timed out after {settings.turn_timeout_s}s"
+        )
+    elif failure is not None:
         log.warning("agent turn failed: %s", type(failure).__name__)
         yield ErrorEvent(code="agent_error", message=_scrub(str(failure), settings))
-    if ans is None:
-        ans = template_answer(rec, req.message)
-        used = model_name + "+template"
-    for ev in _answer_events(ans, rec, ctx):
+    try:
+        if ans is None:
+            used = model_name + "+template"
+            ans = template_answer(rec, req.message)
+        events = _answer_events(ans, rec, ctx)
+    except Exception as exc:  # last resort: never leave the client without done
+        log.warning("answer rendering failed: %s", type(exc).__name__)
+        if rec.scenarios_used:
+            yield Disclaimer(text=DEFAULT_DISCLAIMER)
+        yield ErrorEvent(code="internal", message="could not build the answer")
+        yield Done(message_id=msg_id, answer_status="cannot_answer", model=used)
+        return
+    for ev in events:
         yield ev
     yield Done(message_id=msg_id, answer_status=ans.answer_status, model=used)

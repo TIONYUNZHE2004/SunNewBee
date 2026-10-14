@@ -50,6 +50,7 @@ The API (`apps/api`) imports `townshiplens_agent.run.run_turn` lazily and sends 
 | `LLM_MODEL_DEFAULT` | `anthropic/claude-haiku-5.5` | OpenRouter model id |
 | `LLM_MODEL_ESCALATE` | `anthropic/claude-sonnet-5.5` | Used by `model_for(..., escalate=True)` |
 | `LLM_OUTPUT_RETRIES` | `2` | Validator retries before the template fallback |
+| `TURN_TIMEOUT_S` | `60` | Whole-turn budget; on expiry: `error` (`agent_timeout`), template answer, `done` |
 
 **Switching models is a `.env` change only.** No model names live in code.
 
@@ -68,7 +69,13 @@ flows:
 - **Flood management** ("cut off", "affected", "briefing"): `list_flood_scenarios`,
   `affected_places(stage_p3m)`, a count summary and `flood.set_level`.
 - **Anything else**: `find_place(<prompt>)`. If nothing matches, it files a `missing_place`
-  VR and answers `cannot_answer`.
+  VR with `target_id="unknown_place"` and a generic summary (never the user's words), and
+  answers `cannot_answer`.
+
+The active UI scenario (`ChatRequest.scenario_id`, constrained to `baseline|stage_p1m…p5m` and
+only used when it exists in the world) is injected into `plan_route`, `list_evacuation_centres`
+and `affected_places` when the model omits it, so routes avoid flooded paths and the disclaimer
+follows.
 
 The profile comes from the prompt ("wheelchair", "stroller") or else from the UI profile in the
 dynamic instructions.

@@ -11,6 +11,13 @@ DEPTH = re.compile(
 )
 
 
+def _strip_names(text: str, names: set[str]) -> str:
+    """Remove place names returned by tools ("Taman Selamat", "Safe Haven Hall")."""
+    for n in sorted((n for n in names if n), key=len, reverse=True):
+        text = re.sub(re.escape(n), " ", text, flags=re.IGNORECASE)
+    return text
+
+
 def validate_answer(ans: FinalAnswer, rec: TurnRecord) -> list[str]:
     errs: list[str] = []
     for c in ans.claims:
@@ -36,19 +43,22 @@ def validate_answer(ans: FinalAnswer, rec: TurnRecord) -> list[str]:
         )
     if ans.answer_status != "cannot_answer":
         for pid, info in rec.flooded_endpoints.items():
-            if info.get("flood_class") != "likely_flooded":
-                continue
             names = {pid.lower(), str(info.get("name", pid)).lower()}
             if not any(n in c.lower() for c in ans.caveats for n in names):
+                phrase = (
+                    "likely flooded"
+                    if info.get("flood_class") == "likely_flooded"
+                    else "possibly flooded"
+                )
                 errs.append(
-                    f"{info.get('name', pid)} ({pid}) is likely flooded in this indicative "
+                    f"{info.get('name', pid)} ({pid}) is {phrase} in this indicative "
                     "scenario: add a caveat naming it."
                 )
     if rec.scenarios_used:
         if not ans.scenario_id:
             errs.append("A flood scenario tool was used: set scenario_id.")
         text = " ".join([ans.summary, *ans.steps, *ans.caveats, *(c.text for c in ans.claims)])
-        if FORBIDDEN.search(text):
+        if FORBIDDEN.search(_strip_names(text, rec.place_names)):
             errs.append("Never describe a place or route as safe/selamat/安全 in flood answers.")
         if DEPTH.search(text):
             errs.append("Do not state water depths on paths; scenarios are indicative.")

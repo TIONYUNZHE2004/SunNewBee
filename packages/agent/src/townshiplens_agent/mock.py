@@ -245,9 +245,11 @@ def _script(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
         caveats = flood_cav + caveats
         dist = r0.get("distance_m") if r0 else None
         flagged = rr.get("endpoint_flood") or []
+        m = re.search(r"active_scenario=(\w+)", info.instructions or "")
+        ui_sid = m.group(1) if m and m.group(1) != "none" else None
         return _final(
             answer_status="answered" if status == "confirmed" and not likely else "partial",
-            scenario_id=flagged[0]["scenario_id"] if flagged else None,
+            scenario_id=flagged[0]["scenario_id"] if flagged else ui_sid,
             summary=f"{a.get('name', a['id'])} to {b.get('name', b['id'])}: route {status}"
             + (f", {dist} m." if dist is not None else "."),
             claims=[
@@ -265,12 +267,13 @@ def _script(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
     if n == 0:
         return _call("find_place", query=q[:80])
     if n == 1 and not _data(rets[0][1]):
+        # PDPA: never store the user's words on a staff-visible VR.
         return _call(
             "create_verification_request",
-            target_id=q[:60] or "unknown",
+            target_id="unknown_place",
             attribute="existence",
             reason="missing_place",
-            question_summary="place not found",
+            question_summary="place asked about in chat was not found in the township model",
         )
     return _final(
         answer_status="cannot_answer",
