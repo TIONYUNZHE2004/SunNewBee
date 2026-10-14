@@ -535,6 +535,8 @@ export interface components {
             element_id: string;
             /** Evidence Id */
             evidence_id: string;
+            /** Photo Url */
+            photo_url?: string | null;
             /** Ref */
             ref: number;
             /** Source Type */

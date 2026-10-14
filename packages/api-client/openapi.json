@@ -307,6 +307,17 @@
             "title": "Evidence Id",
             "type": "string"
           },
+          "photo_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Photo Url"
+          },
           "ref": {
             "title": "Ref",
             "type": "integer"
