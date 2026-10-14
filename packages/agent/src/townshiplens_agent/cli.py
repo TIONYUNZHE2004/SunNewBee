@@ -6,30 +6,54 @@ Uses the seed data when it has been built, else the tiny test fixture. The model
 `.env` (mock when there is no key); `LLM_PROVIDER=mock` forces the mock.
 """
 
+import argparse
 import asyncio
-import sys
 
 import pydantic_ai
 from townshiplens_spatial import tools
 from townshiplens_spatial.vr_store import VerificationStore
 from townshiplens_spatial.world import load_world
 
-from .events import ChatRequest
+from . import demo
+from .events import ChatRequest, Done
 from .run import run_turn
-from .settings import ROOT
+from .settings import ROOT, AgentSettings
 
 DEFAULT_Q = "Can I push a stroller from Car Park B to the playground without stairs?"
 
 
-async def main(q: str, profile: str = "stroller") -> None:
+async def main(
+    q: str,
+    profile: str = "stroller",
+    scenario: str | None = None,
+    record: bool = False,
+    settings: AgentSettings | None = None,
+) -> None:
     pydantic_ai.BANNER_ENABLED = False  # this program owns stdout
+    settings = settings or AgentSettings()
     data = ROOT / "data/seed/elmina"
     if not (data / "site.json").exists():
         data = ROOT / "packages/spatial/tests/fixtures/tiny"
     ctx = tools.Ctx(world=load_world(data), vrs=VerificationStore(str(ROOT / ".data/cli.db")))
-    async for ev in run_turn(ctx, ChatRequest(message=q, profile=profile)):
+    req = ChatRequest(message=q, profile=profile, scenario_id=scenario)
+    events = []
+    async for ev in run_turn(ctx, req, settings):
+        events.append(ev)
         print(ev.type, ev.model_dump_json(exclude={"type"})[:160])
+    if record:
+        # Fixed id so a re-recording with the mock is byte-stable (replay mints a fresh one).
+        events[-1] = events[-1].model_copy(update={"message_id": "demo"})
+        path = demo.save(demo.key(req), events, demo.make_meta(req, events), settings.demo_dir)
+        model = events[-1].model if isinstance(events[-1], Done) else "?"
+        print(f"recorded {path} (model {model})")
 
 
 if __name__ == "__main__":
-    asyncio.run(main(" ".join(sys.argv[1:]) or DEFAULT_Q))
+    ap = argparse.ArgumentParser()
+    ap.add_argument("question", nargs="*")
+    ap.add_argument("--record", metavar="QUESTION", help="run the turn and save a demo cache entry")
+    ap.add_argument("--profile", default="stroller")
+    ap.add_argument("--scenario", default=None)
+    a = ap.parse_args()
+    question = a.record or " ".join(a.question) or DEFAULT_Q
+    asyncio.run(main(question, a.profile, a.scenario, record=bool(a.record)))

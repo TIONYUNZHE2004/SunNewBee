@@ -1,0 +1,25 @@
+{"meta": {"message": "Can I push a stroller from Car Park B to the kiosk without stairs?", "profile": "stroller", "scenario_id": null, "model": "mock-scripted", "recorded_at": "2026-10-14T18:36:41+00:00"}}
+{"type": "tool.call", "id": "find_place-0", "name": "find_place", "args": {"query": "car park b", "types": null, "limit": 5}}
+{"type": "tool.result", "id": "find_place-0", "name": "find_place", "summary": "4 result(s)"}
+{"type": "tool.call", "id": "find_place-1", "name": "find_place", "args": {"query": "kiosk", "types": null, "limit": 5}}
+{"type": "tool.result", "id": "find_place-1", "name": "find_place", "summary": "1 result(s)"}
+{"type": "tool.call", "id": "plan_route-2", "name": "plan_route", "args": {"from_id": "park-b", "to_id": "kiosk", "profile": "stroller", "scenario_id": null}}
+{"type": "verification.requested", "request_id": "vr-0001", "element_id": "seg-cf", "attribute": "incline_pct", "created": false, "demand": 4}
+{"type": "tool.result", "id": "plan_route-2", "name": "plan_route", "summary": "route partly_unverified"}
+{"type": "text.delta", "delta": "⚠ Not checked yet: incline_pct on seg-cf"}
+{"type": "text.delta", "delta": "\nCar Park B to Park kiosk: route partly_"}
+{"type": "text.delta", "delta": "unverified, 166.8 m."}
+{"type": "scene.intent", "intent": {"kind": "route.highlight", "place_id": null, "route_id": "rt-d46b5311", "scenario_id": null, "center": null, "range_m": null, "lens": null, "visible": null, "geojson": {"type": "LineString", "coordinates": [[101.509, 3.181], [101.5095, 3.181], [101.51, 3.181], [101.51, 3.1805]]}}}
+{"type": "citation", "ref": 1, "evidence_id": "ev-place-park-b", "element_id": "park-b", "attribute": "name", "status": "reported", "verified_at": null, "source_type": "world_model"}
+{"type": "citation", "ref": 2, "evidence_id": "ev-place-kiosk", "element_id": "kiosk", "attribute": "name", "status": "reported", "verified_at": null, "source_type": "world_model"}
+{"type": "citation", "ref": 3, "evidence_id": "ev-seg-ab.step_count", "element_id": "seg-ab", "attribute": "step_count", "status": "verified", "verified_at": "2026-10-18", "source_type": "team_survey_placeholder"}
+{"type": "citation", "ref": 4, "evidence_id": "ev-seg-ab.incline_pct", "element_id": "seg-ab", "attribute": "incline_pct", "status": "verified", "verified_at": "2026-10-18", "source_type": "team_survey_placeholder"}
+{"type": "citation", "ref": 5, "evidence_id": "ev-seg-ab.width_m", "element_id": "seg-ab", "attribute": "width_m", "status": "verified", "verified_at": "2026-10-18", "source_type": "team_survey_placeholder"}
+{"type": "citation", "ref": 6, "evidence_id": "ev-seg-bc.step_count", "element_id": "seg-bc", "attribute": "step_count", "status": "verified", "verified_at": "2026-10-18", "source_type": "team_survey_placeholder"}
+{"type": "citation", "ref": 7, "evidence_id": "ev-seg-bc.incline_pct", "element_id": "seg-bc", "attribute": "incline_pct", "status": "verified", "verified_at": "2026-10-18", "source_type": "team_survey_placeholder"}
+{"type": "citation", "ref": 8, "evidence_id": "ev-seg-bc.width_m", "element_id": "seg-bc", "attribute": "width_m", "status": "verified", "verified_at": "2026-10-18", "source_type": "team_survey_placeholder"}
+{"type": "citation", "ref": 9, "evidence_id": "ev-seg-cf.step_count", "element_id": "seg-cf", "attribute": "step_count", "status": "verified", "verified_at": "2026-10-18", "source_type": "team_survey_placeholder"}
+{"type": "citation", "ref": 10, "evidence_id": "ev-seg-cf.incline_pct", "element_id": "seg-cf", "attribute": "incline_pct", "status": "unknown", "verified_at": null, "source_type": null}
+{"type": "citation", "ref": 11, "evidence_id": "ev-seg-cf.width_m", "element_id": "seg-cf", "attribute": "width_m", "status": "verified", "verified_at": "2026-10-18", "source_type": "team_survey_placeholder"}
+{"type": "uncertainty", "level": "partial", "items": [{"element_id": "seg-cf", "attribute": "incline_pct", "note": "stroller needs incline_pct ≤ 8.3; not verified"}]}
+{"type": "done", "message_id": "demo", "answer_status": "partial", "model": "mock-scripted"}

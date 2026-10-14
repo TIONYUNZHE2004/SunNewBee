@@ -9,6 +9,7 @@ from pydantic_ai.exceptions import UnexpectedModelBehavior
 from townshiplens_spatial import tools as sp
 
 from . import agent as agent_mod
+from . import demo
 from .answer import FinalAnswer
 from .events import (
     ChatEvent,
@@ -105,6 +106,12 @@ async def run_turn(
     ctx: sp.Ctx, req: ChatRequest, settings: AgentSettings | None = None
 ) -> AsyncIterator[ChatEvent]:
     settings = settings or AgentSettings()
+    if settings.demo_mode:
+        cached = demo.load(demo.key(req), settings.demo_dir)
+        if cached:
+            async for ev in demo.replay(cached):
+                yield ev
+            return
     rec = TurnRecord(queue=asyncio.Queue())
     deps = agent_mod.Deps(ctx=ctx, rec=rec, request=req)
     msg_id = uuid.uuid4().hex[:12]
