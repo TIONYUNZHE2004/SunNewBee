@@ -12,7 +12,7 @@ import { useEvacCentres, useLayer, useScenarioWater } from "../../../lib/api";
 import { ENV } from "../../../lib/env";
 import { groupByStatus, type LonLat, lineFeatures, pointFeatures, waterPolygons } from "../geo";
 import { useScene } from "../sceneStore";
-import { type EdgeStatus, ROUTE_STYLE, statusStyle, WATER_COLOR } from "../styles";
+import { CESIUM_DASH, type EdgeStatus, ROUTE_STYLE, statusStyle, WATER_COLOR } from "../styles";
 
 const heightRef = () =>
   ENV.googleKey ? Cesium.HeightReference.CLAMP_TO_3D_TILE : Cesium.HeightReference.CLAMP_TO_GROUND;
@@ -28,11 +28,9 @@ function useRenderOn(...deps: unknown[]) {
 }
 
 function material(status: EdgeStatus) {
-  const st = statusStyle(status);
-  const color = Cesium.Color.fromCssColorString(st.color);
-  if (st.dotted)
-    return Cesium.Material.fromType("PolylineDash", { color, dashLength: 10, dashPattern: 0xaaaa });
-  if (st.dashed) return Cesium.Material.fromType("PolylineDash", { color, dashLength: 18 });
+  const color = Cesium.Color.fromCssColorString(statusStyle(status).color);
+  const dash = CESIUM_DASH[status];
+  if (dash) return Cesium.Material.fromType("PolylineDash", { color, ...dash });
   return Cesium.Material.fromType("Color", { color });
 }
 
@@ -51,7 +49,26 @@ function StatusLines({
   useEffect(() => {
     if (!viewer || viewer.isDestroyed()) return;
     const scene = viewer.scene;
-    if (!Cesium.GroundPolylinePrimitive.isSupported(scene)) return;
+    if (!Cesium.GroundPolylinePrimitive.isSupported(scene)) {
+      // Fallback: ordinary (non-draped) polylines so status is still visible.
+      const collection = new Cesium.PolylineCollection();
+      for (const [status, lines] of groups) {
+        const width = statusStyle(status).width + extraWidth;
+        for (const c of lines)
+          collection.add({
+            positions: Cesium.Cartesian3.fromDegreesArray(flat(c)),
+            width,
+            material: material(status),
+          });
+      }
+      scene.primitives.add(collection);
+      scene.requestRender();
+      return () => {
+        if (scene.isDestroyed()) return;
+        scene.primitives.remove(collection);
+        scene.requestRender();
+      };
+    }
     const prims: Cesium.GroundPolylinePrimitive[] = [];
     for (const [status, lines] of groups) {
       const width = statusStyle(status).width + extraWidth;

@@ -26,6 +26,23 @@ const COLOR = [
   statusStyle("unknown").color,
 ] as never;
 
+const WIDTH = (extra: number) =>
+  [
+    "match",
+    ["get", "status_for_profile"],
+    "ok",
+    statusStyle("ok").width + extra,
+    "unknown",
+    statusStyle("unknown").width + extra,
+    "blocked",
+    statusStyle("blocked").width + extra,
+    "flooded_likely",
+    statusStyle("flooded_likely").width + extra,
+    "flooded_possible",
+    statusStyle("flooded_possible").width + extra,
+    statusStyle("unknown").width + extra,
+  ] as never;
+
 // Pattern carries status so it is never colour alone: solid / dashed / dotted.
 const PATTERNS: {
   id: string;
@@ -62,7 +79,6 @@ function StatusLines({
       {PATTERNS.map((pt) => {
         const statuses = only ? pt.statuses.filter((x) => only.includes(x)) : pt.statuses;
         if (statuses.length === 0) return null;
-        const w = pt.id === "solid" ? 4 : pt.id === "dotted" ? 5 : 4;
         return (
           <Layer
             key={pt.id}
@@ -77,7 +93,7 @@ function StatusLines({
               ] as never
             }
             layout={pt.layout as never}
-            paint={{ "line-color": COLOR, "line-width": w + extraWidth, ...pt.paint } as never}
+            paint={{ "line-color": COLOR, "line-width": WIDTH(extraWidth), ...pt.paint } as never}
           />
         );
       })}
@@ -158,15 +174,6 @@ export default function MapboxLite() {
         style={{ width: "100%", height: "100%" }}
         reuseMaps
       >
-        {showAccess && <StatusLines id="access" data={accessData} withPlaces />}
-        {showWater && flood.data && (
-          <StatusLines
-            id="flood-lines"
-            data={floodData}
-            only={["flooded_likely", "flooded_possible"]}
-            extraWidth={2}
-          />
-        )}
         {showWater && (
           <Source id="water" type="geojson" data={water.data as never}>
             <Layer
@@ -176,6 +183,15 @@ export default function MapboxLite() {
               paint={{ "fill-color": WATER_COLOR, "fill-opacity": 0.45 }}
             />
           </Source>
+        )}
+        {showAccess && <StatusLines id="access" data={accessData} withPlaces />}
+        {showWater && flood.data && (
+          <StatusLines
+            id="flood-lines"
+            data={floodData}
+            only={["flooded_likely", "flooded_possible"]}
+            extraWidth={2}
+          />
         )}
         {route && (
           <Source id="route" type="geojson" data={route.geojson as never}>
