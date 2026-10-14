@@ -1,3 +1,4 @@
+import type { QueryClient } from "@tanstack/react-query";
 import { ApiError, type VrCreated } from "./manageApi";
 
 export const createVrMessage = (r: VrCreated): string =>
