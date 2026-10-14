@@ -143,9 +143,7 @@ def test_resolve_vr_failure_after_commit_keeps_claim_and_audit(monkeypatch):
 
 
 def _patch(key, value):
-    return c.patch(
-        f"/elements/seg-cf/attributes/{key}", json=_body(value=value), headers=OK
-    )
+    return c.patch(f"/elements/seg-cf/attributes/{key}", json=_body(value=value), headers=OK)
 
 
 def test_catalogue_types_enforced_with_null_existing():
