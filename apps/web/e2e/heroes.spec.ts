@@ -75,3 +75,13 @@ test("list view: clicking a place opens its card; Esc closes and returns focus",
   await expect(card).toBeHidden();
   await expect(btn).toBeFocused();
 });
+
+test("journey tests: staff runs the batch and sees the stroller row", async ({ page }) => {
+  await page.goto("/manage");
+  await page.getByRole("tab", { name: "Journey tests" }).click();
+  await page.getByLabel("Staff token").fill("e2e-token");
+  await page.getByRole("button", { name: "Run journey tests" }).click();
+  const matrix = page.getByRole("table", { name: /Journey outcomes by mobility profile/ });
+  await expect(matrix.getByRole("rowheader", { name: "Stroller" })).toBeVisible();
+  await expect(page.getByRole("status").filter({ hasText: "finished" })).toBeVisible();
+});

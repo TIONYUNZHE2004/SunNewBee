@@ -1,3 +1,5 @@
+import type { Schemas } from "@tl/api-client";
+
 // Plain fetch with local types: briefings/resolve are not in the generated schema yet.
 export type VR = {
   id: string;
@@ -84,4 +86,32 @@ export async function resolveVR(id: string, body: ResolveBody, token: string): P
     body: JSON.stringify(body),
   });
   if (!r.ok) throw new ApiError(r.status);
+}
+
+export type SimReport = Schemas["SimReport"];
+export type SimSummary = Schemas["SimSummary"];
+export type SimGap = Schemas["SimGap"];
+
+export const fetchSimRuns = (limit = 5) => getJson<SimSummary[]>(`/simulations?limit=${limit}`);
+export const fetchSimReport = (runId: string) =>
+  getJson<SimReport>(`/simulations/${encodeURIComponent(runId)}`);
+
+export async function runSimulation(
+  body: { scenario_id: string | null; profiles: string[] },
+  token: string,
+): Promise<SimReport> {
+  const r = await fetch("/api/simulations", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "application/json",
+      "X-Staff-Token": token,
+    },
+    body: JSON.stringify({
+      ...(body.scenario_id ? { scenario_id: body.scenario_id } : {}),
+      profiles: body.profiles,
+    }),
+  });
+  if (!r.ok) throw new ApiError(r.status);
+  return (await r.json()) as SimReport;
 }
