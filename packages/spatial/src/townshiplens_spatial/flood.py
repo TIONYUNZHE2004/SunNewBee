@@ -1,4 +1,5 @@
-"""Flood analytics over the world model (indicative HAND scenarios, never forecasts).
+"""Flood analytics over the world model (indicative river-stage scenarios (REM by default;
+see ADR 0010), never forecasts).
 
 Definitions:
 - passable graph: the walk graph for a profile + scenario keeping every edge whose evaluation is

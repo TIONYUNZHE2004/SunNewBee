@@ -4,6 +4,7 @@ import networkx as nx
 
 from .evaluate import evaluate_edge
 from .models import Evidence, Route, RouteResult, RouteSegment
+from .scenario_meta import scenario_source
 from .world import World
 
 CENTRE_PREFIX = "__centre__"
@@ -165,7 +166,7 @@ def evidence_for_route(world: World, route: Route) -> list[Evidence]:
                     attribute="flood",
                     value=s.flood_class,
                     status="indicative",
-                    source_type="HAND scenario",
+                    source_type=scenario_source(world, route.scenario_id),
                 )
             )
     return out
