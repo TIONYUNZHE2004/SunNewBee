@@ -35,7 +35,7 @@ With no seed data present the API falls back to the tiny test fixture.
 
 ## Environment (repo-root `.env`)
 
-`TL_DATA_DIR` (default `data/seed/elmina`, falls back to the tiny fixture), `DATABASE_URL` (sqlite, default `.data/townshiplens.db`), `STAFF_TOKEN` (default `change-me`, which the resolve endpoint refuses with 503; set it), `LLM_PROVIDER`, `OPENROUTER_API_KEY` and model settings (used by the agent).
+`TL_DATA_DIR` (default `data/seed/elmina`, falls back to the tiny fixture), `DATABASE_URL` (sqlite; default `.data/<site id>.db`, one file per world), `STAFF_TOKEN` (default `change-me`, which the resolve endpoint refuses with 503; set it), `LLM_PROVIDER`, `OPENROUTER_API_KEY` and model settings (used by the agent).
 
 ## Build next
 

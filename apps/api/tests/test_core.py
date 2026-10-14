@@ -53,3 +53,33 @@ def test_chat_agent_unavailable_emits_error_and_done():
         return  # Task 9 landed; covered by its own tests
     body = c.post("/chat", json={"message": "hi"}).text
     assert "event: error" in body and "event: done" in body
+
+
+def test_db_path_is_per_world_without_database_url(monkeypatch):
+    from townshiplens_api.settings import ROOT, ApiSettings
+
+    monkeypatch.delenv("DATABASE_URL", raising=False)
+    s = ApiSettings(_env_file=None)
+    assert s.db_path("elmina") == str(ROOT / ".data/elmina.db")
+    assert s.db_path("tiny") != s.db_path("elmina")
+
+
+def test_explicit_database_url_is_honoured(tmp_path):
+    from townshiplens_api.settings import ApiSettings
+
+    s = ApiSettings(database_url=f"sqlite:///{tmp_path}/x.db")
+    assert s.db_path("elmina") == f"{tmp_path}/x.db"
+
+
+def test_all_three_stores_share_one_path_per_world(monkeypatch, tmp_path):
+    from townshiplens_api import state
+    from townshiplens_api.routes import manage, sim
+
+    monkeypatch.delenv("DATABASE_URL", raising=False)
+    monkeypatch.setattr("townshiplens_api.settings.ROOT", tmp_path)
+    state.reset()
+    path = state.db_path()
+    assert path.endswith(f"/{state.get_ctx().world.site.id}.db")
+    manage._audit()
+    sim._store()
+    assert path in manage._audits and path in sim._stores

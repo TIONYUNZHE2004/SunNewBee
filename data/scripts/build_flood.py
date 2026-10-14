@@ -29,6 +29,7 @@ import difflib
 import heapq
 import json
 import math
+import re
 import sys
 from datetime import date
 from pathlib import Path
@@ -49,7 +50,9 @@ MARGIN = 0.5
 DISCLAIMERS = {
     "rem": (
         "Indicative scenario from a 30 m elevation model (Copernicus GLO-30, height above mapped "
-        "rivers and lakes), not a forecast. Follow official MBSA / JPS / NADMA guidance."
+        "rivers and lakes), not a forecast. Follow official MBSA / JPS / NADMA guidance. "
+        f"Only the area {AREA[0]:.2f}\u2013{AREA[2]:.2f} E, {AREA[1]:.2f}\u2013{AREA[3]:.2f} N "
+        "is assessed; paths outside it are not."
     ),
     "hand": (
         "Indicative scenario from a 30 m elevation model (Copernicus GLO-30, HAND), not a "
@@ -578,6 +581,9 @@ def _in_area(coord, area=AREA) -> bool:
     return w <= coord[0] <= e and s <= coord[1] <= n
 
 
+UNNAMED_MARK = "(unnamed, OSM)"
+
+
 def _norm_name(s: str) -> str:
     return " ".join(s.split()).casefold()
 
@@ -592,13 +598,17 @@ def dedupe_places(cands: list[dict], radius_m: float = DEDUPE_RADIUS_M):
     kept: list[dict] = []
     dropped: list[tuple[str, str]] = []
     for f in order:
+        if UNNAMED_MARK in f["properties"]["name"]:  # placeholders are not the same hall
+            kept.append(f)
+            continue
         x, y = f["geometry"]["coordinates"][:2]
         mx, my = _m_per_deg(y)
         twin = next(
             (
                 k
                 for k in kept
-                if _norm_name(k["properties"]["name"]) == _norm_name(f["properties"]["name"])
+                if UNNAMED_MARK not in k["properties"]["name"]
+                and _norm_name(k["properties"]["name"]) == _norm_name(f["properties"]["name"])
                 and math.hypot(
                     (k["geometry"]["coordinates"][0] - x) * mx,
                     (k["geometry"]["coordinates"][1] - y) * my,
@@ -812,8 +822,31 @@ def update_site(
     if datum_offset_m is not None:
         site.setdefault("scene", {})["datum_offset_m"] = datum_offset_m
     if json.dumps(site, sort_keys=True) != before:
-        site_p.write_text(json.dumps(site, ensure_ascii=False, indent=1) + "\n")
+        site_p.write_text(json.dumps(site, ensure_ascii=False, indent=2) + "\n")
     return True
+
+
+def rewrite_disclaimers(data_dir: Path) -> int:
+    """Set every REM scenario's `disclaimer` in flood/scenarios.json to DISCLAIMERS["rem"],
+    editing only those string values in place (no DEM rebuild, formatting untouched).
+    Returns the number of scenarios rewritten."""
+    p = data_dir / "flood" / "scenarios.json"
+    text = p.read_text()
+    methods = [s["method"] for s in json.loads(text)["scenarios"]]
+    new = json.dumps(DISCLAIMERS["rem"], ensure_ascii=False)
+    pat = re.compile(r'("disclaimer": )"(?:[^"\\]|\\.)*"')
+    it = iter(methods)
+    count = 0
+
+    def sub(m):
+        nonlocal count
+        if next(it).lower() != "rem":
+            return m.group(0)
+        count += 1
+        return m.group(1) + new
+
+    p.write_text(pat.sub(sub, text))
+    return count
 
 
 def write_outputs(
@@ -938,6 +971,11 @@ def main(argv=None) -> int:
     )
     ap.add_argument("--refresh", action="store_true", help="re-download the raster windows")
     ap.add_argument(
+        "--rewrite-disclaimers",
+        action="store_true",
+        help="only rewrite the REM disclaimer text in flood/scenarios.json, then exit",
+    )
+    ap.add_argument(
         "--datum-offset",
         type=float,
         help="set scene.datum_offset_m to this EGM2008 geoid height (skips the network lookup)",
@@ -949,6 +987,9 @@ def main(argv=None) -> int:
     )
     args = ap.parse_args(argv)
     data_dir = args.data_dir.resolve()
+    if args.rewrite_disclaimers:
+        print(f"[disclaimers] rewrote {rewrite_disclaimers(data_dir)} REM scenarios")
+        return 0
 
     dem, t = read_window(DEM_URL, AREA, "glo30_dem", args.refresh)
     if args.method == "hand":

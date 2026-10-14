@@ -9,7 +9,6 @@ from townshiplens_spatial.models import Claim, VerificationRequest
 
 from .. import state
 from ..auth import StaffOnly
-from ..settings import ApiSettings
 from ..store import AuditStore
 
 router = APIRouter()
@@ -17,7 +16,7 @@ _audits: dict[str, AuditStore] = {}
 
 
 def _audit() -> AuditStore:
-    path = ApiSettings().database_url.removeprefix("sqlite:///")
+    path = state.db_path()
     if path not in _audits:
         _audits[path] = AuditStore(path)
     return _audits[path]
