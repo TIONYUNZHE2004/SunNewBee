@@ -37,3 +37,29 @@
 
 ## Cycle log
 <!-- append entries below: timestamp · elapsed · researched · built · reviewed · verified (cmd → PASS/FAIL/BLOCKED/NOT RUN) · blocked · decisions · commits/push/CI · external usage · next -->
+
+### 01:33 (+0:08)
+- **Built:** Task 1 (monorepo foundation): commits `d1b9433`, `1d8fa1f` on `wt/foundation`. Review: spec ✅, quality approved (minors deferred).
+- **Verified:** `pnpm install` PASS · `uv sync --all-packages --all-groups` PASS · `pnpm lint` PASS (implementer evidence).
+- **Decisions:** Task 1 ruling: CI stays green until later tasks via an api-client tsconfig override, a stub web tsconfig and a guarded golden step (the guard is removed in Task 14).
+- **In flight:** Task 2 (contracts, foundation worktree) · Task 3 (OSM import, `lane/data` worktree, parallel).
+- **External usage:** OpenRouter 0/30 · Google tiles 0/30 · Overpass: Task 3 capped at ~40 requests.
+- **Next:** review Task 2 → merge the foundation to `main` → push → open the BE/AI/FE lanes.
+
+### 01:37 (+0:12)
+- **Built and integrated:** Task 2 (shared contracts, fixtures, API stubs, TS client). Review: spec ✅, quality approved. The foundation was fast-forwarded to `main` at `16ca31b` and pushed.
+- **Verified (main, local):** `uv run pytest` PASS (5) · `pnpm lint` PASS · `pnpm -r typecheck` PASS · `pnpm gen` then `git diff` shows no drift: PASS.
+- **CI:** run 38607947602 **FAIL** at `pnpm -r test`: vitest exits 1 when there are no test files in `apps/web` (only the stub exists). Root cause confirmed from the log. Task 11 (in flight) adds the web tests, so this resolves when the FE lane merges. No config change was made.
+- **In flight:** Task 3 (data), Task 4 (BE), Task 8 (AI), Task 11 (FE), each in its own worktree.
+- **External usage:** OpenRouter 0 · Google tiles 0.
+
+### 01:43 (+0:18)  (timestamps are now taken from `date`; the two entries above were corrected)
+- **Integrated to main and pushed:**
+  - Task 4: world loader and VR store (`cb3d388`, review clean).
+  - Task 11: web scaffold (merge `8e084ec`; fix round 1 resolved a Critical status-contract miss, the profile persistence gap, view-gating, a11y fixes and `envPrefix` hardening).
+  - Task 8: agent core (merge `7800a3a`; 2 fix rounds fixed template validity, mock crash-safety without swallowing bugs, the ZH depth regex and the validator backstop).
+- **Verified (main):** `uv run pytest` PASS (60) · web vitest PASS (17) · lint PASS · typecheck PASS · web build PASS.
+- **CI:** run 38608890630 (Task 11 merge) **PASS**. The earlier two failures were the known "no web tests" transient, now resolved. Run 38609075301 (Task 8 merge) is queued.
+- **In review/fix:** Task 5 (routing): an Opus review found a Critical parallel-edge selection bug plus 4 Important issues; the fix is done and in scoped re-review. Task 12 (Cesium/Mapbox/chat) is implementing. Task 3 (OSM import) is still fetching Overpass tiles (4 cached).
+- **Rulings:** Task 8 validator backstop added (answered on blocked/no_data rejected).
+- **External usage:** OpenRouter 0 · Google tiles 0 · Overpass about 4–8 requests.
