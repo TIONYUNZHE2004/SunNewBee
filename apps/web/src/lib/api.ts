@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { makeClient } from "@tl/api-client";
 import type { Lens, Profile } from "../features/scene/sceneStore";
+import { DEMO_ORIGIN_ID, type PlaceReach, placeQueryParams } from "./placeQuery";
 
 export const api = makeClient("/api");
 
@@ -12,8 +13,9 @@ function unwrap<T>(r: { data?: T; error?: unknown }): T {
 export const useSite = () =>
   useQuery({ queryKey: ["site"], queryFn: async () => unwrap(await api.GET("/site")) });
 
-export const useLayer = (lens: Lens, profile: Profile, scenarioId: string | null) =>
+export const useLayer = (lens: Lens, profile: Profile, scenarioId: string | null, enabled = true) =>
   useQuery({
+    enabled,
     queryKey: ["layer", lens, profile, scenarioId],
     queryFn: async () =>
       unwrap(
@@ -42,7 +44,7 @@ export const useScenarioWater = (id: string | null) =>
 export const useEvacCentres = (
   scenarioId: string | null,
   profile: Profile,
-  near = "lakeside-mall",
+  near = DEMO_ORIGIN_ID,
 ) =>
   useQuery({
     queryKey: ["evac", scenarioId, profile, near],
@@ -57,10 +59,7 @@ export const useEvacCentres = (
   });
 
 /** Centres also take a scenario/profile so the card can show reachability from the demo start. */
-export const usePlace = (
-  id: string | null,
-  reach?: { scenarioId: string; profile: Profile; near?: string },
-) =>
+export const usePlace = (id: string | null, reach?: PlaceReach) =>
   useQuery({
     queryKey: ["place", id, reach?.scenarioId ?? null, reach?.profile ?? null],
     enabled: !!id,
@@ -68,16 +67,7 @@ export const usePlace = (
     queryFn: async () =>
       unwrap(
         await api.GET("/places/{place_id}", {
-          params: {
-            path: { place_id: id as string },
-            query: reach
-              ? {
-                  scenario_id: reach.scenarioId,
-                  profile: reach.profile,
-                  near: reach.near ?? "lakeside-mall",
-                }
-              : {},
-          },
+          params: { path: { place_id: id as string }, query: placeQueryParams(reach) },
         }),
       ),
   });

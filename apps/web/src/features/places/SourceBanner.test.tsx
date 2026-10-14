@@ -40,4 +40,28 @@ describe("SourceBanner", () => {
     expect(html).toMatch(/<a [^>]*href="https:\/\/www\.mbsa\.gov\.my"/);
     expect(html).toContain("MBSA");
   });
+
+  const reach = (route_status: string, reachable: boolean, from?: string) =>
+    renderToStaticMarkup(
+      <SourceBanner
+        view={view({
+          kind: "evac_centre",
+          source: "official_pps",
+          reachability: { reachable, route_status, from },
+        })}
+      />,
+    );
+
+  it("names the origin as a demo start, not the user's location", () => {
+    const html = reach("confirmed", true, "lakeside-mall");
+    expect(html).toContain("Route from Elmina Lakeside Mall (demo start point, not your location)");
+  });
+
+  it("reads each reachability status correctly", () => {
+    expect(reach("confirmed", true)).toContain("Reachable");
+    expect(reach("confirmed", true)).not.toContain("not yet checked");
+    expect(reach("partly_unverified", true)).toContain("Reachable, some paths not yet checked");
+    expect(reach("blocked", false)).toContain("Not passable");
+    expect(reach("no_data", false)).toContain("No mapped connection (data gap)");
+  });
 });

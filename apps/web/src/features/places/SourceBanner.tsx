@@ -15,7 +15,9 @@ export function SourceBanner({ view }: { view: PlaceView | null }) {
       </p>
       {view.reachability && (
         <p className="mt-1">
-          <span className="font-medium">Route from the demo start point: </span>
+          <span className="font-medium">
+            Route from {view.reachability.origin} (demo start point, not your location):{" "}
+          </span>
           {view.reachability.label}
           {view.reachability.disclaimer && (
             <span className="block text-ink-soft">{view.reachability.disclaimer}</span>

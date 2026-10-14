@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { usePlace } from "../../lib/api";
+import { placeReach } from "../../lib/placeQuery";
 import { useChatDraft } from "../chat/chatDraftStore";
 import { AttributeEditor } from "../manage/AttributeEditor";
 import { AuditHistory } from "../manage/AuditHistory";
@@ -87,7 +88,7 @@ function PlaceCardInner({ id }: { id: string }) {
   const setDraft = useChatDraft((s) => s.setDraft);
   const scenarioId = useScene((s) => s.scenarioId);
   const profile = useScene((s) => s.profile);
-  const q = usePlace(id, id.startsWith("evc-") && scenarioId ? { scenarioId, profile } : undefined);
+  const q = usePlace(id, placeReach(id, scenarioId, profile));
   const view = useMemo(() => toPlaceView(q.data), [q.data]);
   const ref = useRef<HTMLDivElement>(null);
   const trigger = useRef<HTMLElement | null>(null);

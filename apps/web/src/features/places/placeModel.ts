@@ -4,6 +4,7 @@ import {
   claimBadge,
   PLACEHOLDER_SOURCE,
 } from "../../lib/evidence";
+import { originName } from "../../lib/placeQuery";
 import { centreReachLabel } from "../../lib/routeStatus";
 import { humanType } from "../scene/list/listModel";
 
@@ -39,7 +40,7 @@ export interface PlaceView {
   /** Prominent source label for centres and waste points; null for access places. */
   sourceLabel: string | null;
   sourceTone: "official" | "candidate" | "waste" | null;
-  reachability: { label: string; disclaimer: string | null } | null;
+  reachability: { label: string; origin: string; disclaimer: string | null } | null;
   /** Waste points only. We never invent a schedule. */
   collectionDay: string | null;
   id: string;
@@ -126,6 +127,7 @@ export function toPlaceView(result: unknown): PlaceView | null {
               reachable: reach.reachable === true,
               route_status: String(reach.route_status ?? "no_data"),
             }),
+            origin: originName(typeof reach.from === "string" ? reach.from : null),
             disclaimer: typeof reach.disclaimer === "string" ? reach.disclaimer : null,
           }
         : null,

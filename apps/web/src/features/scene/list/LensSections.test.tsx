@@ -1,6 +1,12 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { EvacuationSection, WasteSection } from "./LensSections";
+import {
+  EvacuationLensSection,
+  EvacuationSection,
+  ListLensSections,
+  WasteLensSection,
+  WasteSection,
+} from "./LensSections";
 
 describe("list lens sections", () => {
   it("lists evacuation centres as buttons with source labels", () => {
@@ -45,5 +51,18 @@ describe("list lens sections", () => {
     expect(html).toContain("Bins");
     expect(html).toContain("Status: unknown");
     expect(html).not.toMatch(/Monday|Tuesday|every week/i);
+  });
+});
+
+describe("lens gating", () => {
+  const mounted = (flood: boolean, waste: boolean) => {
+    const el = ListLensSections({ flood, waste }) as { props: { children: unknown[] } };
+    return el.props.children.filter(Boolean).map((c) => (c as { type: unknown }).type);
+  };
+  it("mounts each section only with its lens", () => {
+    expect(mounted(false, false)).toEqual([]);
+    expect(mounted(true, false)).toEqual([EvacuationLensSection]);
+    expect(mounted(false, true)).toEqual([WasteLensSection]);
+    expect(mounted(true, true)).toEqual([EvacuationLensSection, WasteLensSection]);
   });
 });

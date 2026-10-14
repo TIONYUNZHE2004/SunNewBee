@@ -130,7 +130,7 @@ export default function MapboxLite() {
   const access = useLayer("access", profile, scenarioId);
   const water = useScenarioWater(scenarioId);
   const flood = useLayer("flood", profile, scenarioId);
-  const waste = useLayer("waste", profile, scenarioId);
+  const waste = useLayer("waste", profile, scenarioId, lensVisible.waste);
   const accessData = useMemo(() => normalizeLayer(access.data), [access.data]);
   const floodData = useMemo(() => normalizeLayer(flood.data), [flood.data]);
   const places = useMemo(() => pointFeatures(access.data), [access.data]);

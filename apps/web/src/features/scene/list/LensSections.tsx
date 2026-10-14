@@ -96,3 +96,13 @@ export function WasteLensSection() {
   const items = useMemo(() => parseWaste(q.data), [q.data]);
   return <WasteSection items={items} onSelect={selectPlace} />;
 }
+
+/** Each section mounts only with its lens, so a hidden lens fetches nothing. */
+export function ListLensSections({ flood, waste }: { flood: boolean; waste: boolean }) {
+  return (
+    <>
+      {flood && <EvacuationLensSection />}
+      {waste && <WasteLensSection />}
+    </>
+  );
+}

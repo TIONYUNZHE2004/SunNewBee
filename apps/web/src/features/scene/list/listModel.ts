@@ -89,7 +89,8 @@ const pointProps = (data: unknown, kind: string) =>
     .filter((f) => f?.geometry?.type === "Point" && f.properties?.kind === kind && f.properties.id)
     .map((f) => f.properties as Record<string, unknown>);
 
-/** Evacuation centres from the flood layer, each with its source label. */
+/** Evacuation centres from the flood layer, each with its source label. The layer puts the
+ * centre's source (official_pps | osm_candidate) in the feature's `type`. */
 export function parseCentres(data: unknown): CentreItem[] {
   return pointProps(data, "evac_centre").map((p) => ({
     id: String(p.id),

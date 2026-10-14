@@ -15,7 +15,9 @@ export function claimBadge(
     : { ...status, verifiedAt, demo: false };
 }
 
-/** Where to ask the council. Used wherever we say "ask MBSA". */
+/** Where to ask the council. Used wherever we say "ask MBSA". mbsa.gov.my is the council's
+ * official domain (confirmed by the coordinator); the project docs link an mbsa.gov.my
+ * collection page as the source. */
 export const MBSA_CONTACT_URL = "https://www.mbsa.gov.my";
 export const COLLECTION_DAY_UNKNOWN = "Collection day: unknown, ask MBSA";
 

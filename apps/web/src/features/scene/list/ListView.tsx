@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import { useLayer, useScenarios } from "../../../lib/api";
 import { useScene } from "../sceneStore";
 import { statusStyle } from "../styles";
-import { EvacuationLensSection, WasteLensSection } from "./LensSections";
+import { ListLensSections } from "./LensSections";
 import { groupByType, humanType, parseLayer, routeSteps } from "./listModel";
 
 function StatusBadge({ status }: { status: Parameters<typeof statusStyle>[0] }) {
@@ -159,8 +159,7 @@ export function ListView() {
         )}
       </section>
 
-      {lensVisible.flood && <EvacuationLensSection />}
-      {lensVisible.waste && <WasteLensSection />}
+      <ListLensSections flood={lensVisible.flood} waste={lensVisible.waste} />
     </div>
   );
 }
