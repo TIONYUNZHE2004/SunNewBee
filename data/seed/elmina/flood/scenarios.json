@@ -1,0 +1,126 @@
+{
+ "scenarios": [
+  {
+   "id": "baseline",
+   "label": "Normal river level",
+   "stage_m": 0,
+   "method": "HAND",
+   "dem": "Copernicus GLO-30",
+   "margin_m": 0.5,
+   "created": "2026-10-15",
+   "disclaimer": "Indicative scenario from a 30 m elevation model (Copernicus GLO-30, HAND), not a forecast. Follow official MBSA / JPS / NADMA guidance.",
+   "links": [
+    {
+     "label": "Public InfoBanjir (JPS)",
+     "url": "https://publicinfobanjir.water.gov.my"
+    },
+    {
+     "label": "MET Malaysia warnings",
+     "url": "https://www.met.gov.my"
+    }
+   ]
+  },
+  {
+   "id": "stage_p1m",
+   "label": "River +1 m (indicative)",
+   "stage_m": 1,
+   "method": "HAND",
+   "dem": "Copernicus GLO-30",
+   "margin_m": 0.5,
+   "created": "2026-10-15",
+   "disclaimer": "Indicative scenario from a 30 m elevation model (Copernicus GLO-30, HAND), not a forecast. Follow official MBSA / JPS / NADMA guidance.",
+   "links": [
+    {
+     "label": "Public InfoBanjir (JPS)",
+     "url": "https://publicinfobanjir.water.gov.my"
+    },
+    {
+     "label": "MET Malaysia warnings",
+     "url": "https://www.met.gov.my"
+    }
+   ]
+  },
+  {
+   "id": "stage_p2m",
+   "label": "River +2 m (indicative)",
+   "stage_m": 2,
+   "method": "HAND",
+   "dem": "Copernicus GLO-30",
+   "margin_m": 0.5,
+   "created": "2026-10-15",
+   "disclaimer": "Indicative scenario from a 30 m elevation model (Copernicus GLO-30, HAND), not a forecast. Follow official MBSA / JPS / NADMA guidance.",
+   "links": [
+    {
+     "label": "Public InfoBanjir (JPS)",
+     "url": "https://publicinfobanjir.water.gov.my"
+    },
+    {
+     "label": "MET Malaysia warnings",
+     "url": "https://www.met.gov.my"
+    }
+   ]
+  },
+  {
+   "id": "stage_p3m",
+   "label": "River +3 m (indicative)",
+   "stage_m": 3,
+   "method": "HAND",
+   "dem": "Copernicus GLO-30",
+   "margin_m": 0.5,
+   "created": "2026-10-15",
+   "disclaimer": "Indicative scenario from a 30 m elevation model (Copernicus GLO-30, HAND), not a forecast. Follow official MBSA / JPS / NADMA guidance.",
+   "links": [
+    {
+     "label": "Public InfoBanjir (JPS)",
+     "url": "https://publicinfobanjir.water.gov.my"
+    },
+    {
+     "label": "MET Malaysia warnings",
+     "url": "https://www.met.gov.my"
+    }
+   ]
+  },
+  {
+   "id": "stage_p4m",
+   "label": "River +4 m (indicative)",
+   "stage_m": 4,
+   "method": "HAND",
+   "dem": "Copernicus GLO-30",
+   "margin_m": 0.5,
+   "created": "2026-10-15",
+   "disclaimer": "Indicative scenario from a 30 m elevation model (Copernicus GLO-30, HAND), not a forecast. Follow official MBSA / JPS / NADMA guidance.",
+   "links": [
+    {
+     "label": "Public InfoBanjir (JPS)",
+     "url": "https://publicinfobanjir.water.gov.my"
+    },
+    {
+     "label": "MET Malaysia warnings",
+     "url": "https://www.met.gov.my"
+    }
+   ]
+  },
+  {
+   "id": "stage_p5m",
+   "label": "River +5 m (indicative)",
+   "stage_m": 5,
+   "method": "HAND",
+   "dem": "Copernicus GLO-30",
+   "margin_m": 0.5,
+   "created": "2026-10-15",
+   "disclaimer": "Indicative scenario from a 30 m elevation model (Copernicus GLO-30, HAND), not a forecast. Follow official MBSA / JPS / NADMA guidance.",
+   "links": [
+    {
+     "label": "Public InfoBanjir (JPS)",
+     "url": "https://publicinfobanjir.water.gov.my"
+    },
+    {
+     "label": "MET Malaysia warnings",
+     "url": "https://www.met.gov.my"
+    }
+   ]
+  }
+ ],
+ "edge_classes": {},
+ "place_classes": {}
+}
