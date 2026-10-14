@@ -33,15 +33,16 @@ function Row({
         <span className={r.isUnknown ? "italic text-ink-soft" : ""}>{r.value}</span>
       </p>
       <p className="mt-1 flex flex-wrap items-center gap-2">
-        <span className="rounded border border-line px-1.5 py-0.5">
-          <span aria-hidden="true">{r.icon} </span>
+        <span
+          className={
+            r.placeholder
+              ? "rounded border border-[#B7791F] bg-warn-tint px-1.5 py-0.5"
+              : "rounded border border-line px-1.5 py-0.5"
+          }
+        >
+          {r.icon && <span aria-hidden="true">{r.icon} </span>}
           {r.statusLabel}
         </span>
-        {r.placeholder && (
-          <span className="rounded border border-[#B7791F] bg-warn-tint px-1.5 py-0.5">
-            placeholder
-          </span>
-        )}
         {r.source && <span className="text-ink-soft">Source: {r.source}</span>}
         {r.verifiedAt && <span className="text-ink-soft">checked {r.verifiedAt}</span>}
       </p>

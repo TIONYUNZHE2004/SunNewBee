@@ -181,9 +181,9 @@ export function JourneyTests() {
         {!run.isPending && !load.isPending && report && summary && (
           <span className="font-medium">
             Run {report.run_id.slice(0, 8)} finished: {summary.overall.total} journeys,{" "}
-            {summary.overall.confirmedPct}% confirmed, {summary.overall.blockedPct}% blocked,{" "}
-            {report.gaps.length} top gaps, {report.invariant_violations.length} invariant
-            violations.
+            {summary.overall.confirmedPct}% confirmed, {summary.overall.blockedPct}% not passable,{" "}
+            {summary.overall.noDataPct}% no mapped connection (data gap), {report.gaps.length} top
+            gaps, {report.invariant_violations.length} invariant violations.
           </span>
         )}
       </div>

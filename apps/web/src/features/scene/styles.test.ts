@@ -14,7 +14,7 @@ describe("statusStyle", () => {
 });
 
 describe("visual weight", () => {
-  it("draws the checked network lighter than anything that needs attention", () => {
+  it("draws the no-known-barrier network lighter than anything that needs attention", () => {
     const ok = statusStyle("ok");
     expect(ok.alpha).toBeLessThan(1);
     for (const s of ["unknown", "blocked", "flooded_likely", "flooded_possible"] as const) {
@@ -38,5 +38,9 @@ describe("CESIUM_DASH", () => {
     expect(on(CESIUM_DASH.blocked?.dashPattern ?? 0)).toBeLessThan(
       on(CESIUM_DASH.flooded_possible?.dashPattern ?? 0),
     );
+  });
+  it("labels ok as 'No known barrier', never 'Checked' or 'Verified'", () => {
+    expect(statusStyle("ok").label).toBe("No known barrier");
+    expect(statusStyle("blocked").label).toBe("Not passable");
   });
 });

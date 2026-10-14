@@ -131,3 +131,75 @@ def test_staff_create_vr_dedupes_and_sanitises():
     r = c.post("/verification-requests", json=evil, headers=OK).json()
     assert r["element_id"] == "unknown_place" and r["attribute"] == "unknown"
     assert r["reason"] == "unknown" and "Meng" not in str(r)
+
+
+def test_verify_without_value_keeps_current_value():
+    from townshiplens_api import state
+    from townshiplens_spatial.models import Claim
+
+    vid = _file_vr()
+    world = state.get_ctx().world
+    world.refresh_claim("seg-cf", "incline_pct", Claim(value=3.0, status="stale"))
+    r = c.post(
+        f"/verification-requests/{vid}/resolve",
+        json={"action": "verify", "note": "looks right"},
+        headers=OK,
+    )
+    assert r.status_code == 200 and r.json()["status"] == "resolved"
+    claim = world.edges["seg-cf"].claims["incline_pct"]
+    assert claim.value == 3.0 and claim.status == "verified"
+
+
+def test_correct_number_attribute_needs_a_number():
+    vid = _file_vr()
+    url = f"/verification-requests/{vid}/resolve"
+    assert c.post(url, json={"action": "correct", "value": "4"}, headers=OK).status_code == 422
+    assert c.post(url, json={"action": "correct", "value": 4}, headers=OK).status_code == 200
+
+
+def test_concurrent_resolves_loser_changes_nothing(monkeypatch):
+    import threading
+    import time
+    from concurrent.futures import ThreadPoolExecutor
+
+    from townshiplens_api import state
+    from townshiplens_api.routes import manage
+
+    vid = _file_vr()
+    store = manage._audit()
+    real = store.append
+    rows = []
+
+    def slow(**kw):
+        time.sleep(0.3)
+        rows.append(kw)
+        return real(**kw)
+
+    monkeypatch.setattr(store, "append", slow)
+    url = f"/verification-requests/{vid}/resolve"
+    barrier = threading.Barrier(2)
+
+    def go(v):
+        barrier.wait()
+        return v, c.post(url, json={"action": "correct", "value": v}, headers=OK).status_code
+
+    with ThreadPoolExecutor(2) as ex:
+        results = dict(ex.map(go, [4.0, 6.0]))
+    assert sorted(results.values()) == [200, 409]
+    winner = next(v for v, s in results.items() if s == 200)
+    assert len(rows) == 1
+    assert state.get_ctx().world.edges["seg-cf"].claims["incline_pct"].value == winner
+    done = c.get("/verification-requests", params={"status": "all"}).json()
+    assert [x["resolution"]["value"] for x in done if x["id"] == vid] == [winner]
+
+
+def test_vr_list_carries_current_value():
+    from townshiplens_api import state
+    from townshiplens_spatial.models import Claim
+
+    vid = _file_vr()
+    row = next(v for v in c.get("/verification-requests").json() if v["id"] == vid)
+    assert row["current_value"] is None
+    state.get_ctx().world.refresh_claim("seg-cf", "incline_pct", Claim(value=3.0, status="stale"))
+    row = next(v for v in c.get("/verification-requests").json() if v["id"] == vid)
+    assert row["current_value"] == 3.0

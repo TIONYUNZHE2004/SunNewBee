@@ -40,8 +40,8 @@ describe("labels", () => {
   it("outcomeLabel", () => {
     expect(outcomeLabel("success")).toBe("Confirmed");
     expect(outcomeLabel("success_with_unknowns")).toBe("Possible (unverified)");
-    expect(outcomeLabel("blocked")).toBe("Blocked");
-    expect(outcomeLabel("no_data")).toBe("No data");
+    expect(outcomeLabel("blocked")).toBe("Not passable");
+    expect(outcomeLabel("no_data")).toBe("No mapped connection (data gap)");
     expect(outcomeLabel("weird")).toBe("weird");
   });
   it("violationLabel", () => {

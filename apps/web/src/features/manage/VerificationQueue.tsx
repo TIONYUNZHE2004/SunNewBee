@@ -1,39 +1,59 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { type FormEvent, useReducer, useState } from "react";
+import { optionLabel, specFor } from "./attributeCatalogue";
 import { ApiError, fetchOpenVRs, resolveVR, type VR } from "./manageApi";
-import { errorMessage, formReducer, initialForm, needsValue, validateForm } from "./resolveForm";
+import {
+  buildResolveBody,
+  currentValueText,
+  errorMessage,
+  formReducer,
+  hasCurrentValue,
+  initialFormFor,
+  needsValue,
+  VERIFY_DISABLED_TEXT,
+  validateForm,
+} from "./resolveForm";
 import { useStaffToken } from "./useStaffToken";
 
 const inputCls = "min-h-11 w-full rounded-md border border-line bg-card px-3 text-sm";
 const btnCls =
   "min-h-11 rounded-md bg-brand px-4 text-sm font-medium text-white hover:bg-brand-dark disabled:cursor-not-allowed disabled:opacity-50";
 
-function ResolveForm({ vr, token, onDone }: { vr: VR; token: string; onDone: () => void }) {
-  const [s, dispatch] = useReducer(formReducer, initialForm);
+export function ResolveForm({ vr, token, onDone }: { vr: VR; token: string; onDone: () => void }) {
+  const [s, dispatch] = useReducer(formReducer, vr.current_value, initialFormFor);
   const qc = useQueryClient();
   const id = `rf-${vr.id}`;
+  const canVerify = hasCurrentValue(vr.current_value);
+  const spec = specFor(vr.attribute, null);
+  const choices: [string, string][] | null =
+    spec.kind === "boolean"
+      ? [
+          ["yes", "Yes"],
+          ["no", "No"],
+        ]
+      : spec.kind === "enum"
+        ? spec.options.map((o): [string, string] => [o, optionLabel(o)])
+        : null;
 
   async function submit(e: FormEvent) {
     e.preventDefault();
-    const invalid = validateForm(s);
+    const invalid = validateForm(s, vr.attribute);
     if (invalid) return dispatch({ type: "fail", message: invalid });
     dispatch({ type: "submit" });
     try {
-      await resolveVR(
-        vr.id,
-        {
-          action: s.action,
-          ...(needsValue(s.action) ? { value: s.value.trim() } : {}),
-          note: s.note.trim(),
-        },
-        token,
-      );
+      await resolveVR(vr.id, buildResolveBody(s, vr.attribute), token);
       await qc.invalidateQueries({ queryKey: ["manage", "vrs"] });
       onDone();
     } catch (err) {
+      // 409: someone else resolved it first, so drop the stale row.
+      if (err instanceof ApiError && err.status === 409)
+        await qc.invalidateQueries({ queryKey: ["manage", "vrs"] });
       dispatch({
         type: "fail",
-        message: errorMessage(err instanceof ApiError ? err.status : undefined),
+        message: errorMessage(
+          err instanceof ApiError ? err.status : undefined,
+          err instanceof ApiError ? err.detail : undefined,
+        ),
       });
     }
   }
@@ -56,23 +76,44 @@ function ResolveForm({ vr, token, onDone }: { vr: VR; token: string; onDone: () 
             disabled={s.status === "submitting"}
             onChange={(e) => dispatch({ type: "set", field: "action", v: e.target.value })}
           >
-            <option value="verify">Verify (data is correct)</option>
+            <option value="verify" disabled={!canVerify}>
+              Verify (data is correct)
+            </option>
             <option value="correct">Correct (set new value)</option>
             <option value="reject">Reject (not an issue)</option>
           </select>
+          {!canVerify && <p className="mt-1 text-xs text-ink-soft">{VERIFY_DISABLED_TEXT}</p>}
         </div>
         {needsValue(s.action) && (
           <div>
             <label htmlFor={`${id}-v`} className="mb-1 block text-sm font-medium">
               Corrected value
             </label>
-            <input
-              id={`${id}-v`}
-              className={inputCls}
-              value={s.value}
-              disabled={s.status === "submitting"}
-              onChange={(e) => dispatch({ type: "set", field: "value", v: e.target.value })}
-            />
+            {choices ? (
+              <select
+                id={`${id}-v`}
+                className={inputCls}
+                value={s.value}
+                disabled={s.status === "submitting"}
+                onChange={(e) => dispatch({ type: "set", field: "value", v: e.target.value })}
+              >
+                <option value="">Choose…</option>
+                {choices.map(([v, label]) => (
+                  <option key={v} value={v}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <input
+                id={`${id}-v`}
+                className={inputCls}
+                inputMode={spec.kind === "number" ? "decimal" : undefined}
+                value={s.value}
+                disabled={s.status === "submitting"}
+                onChange={(e) => dispatch({ type: "set", field: "value", v: e.target.value })}
+              />
+            )}
           </div>
         )}
         <div className={needsValue(s.action) ? "" : "sm:col-span-2"}>
@@ -164,7 +205,15 @@ export function VerificationQueue() {
             <caption className="sr-only">Open verification requests, highest demand first</caption>
             <thead className="bg-brand-tint">
               <tr>
-                {["Demand", "Element", "Attribute", "Reason", "Created", "Action"].map((h) => (
+                {[
+                  "Demand",
+                  "Element",
+                  "Attribute",
+                  "Current value",
+                  "Reason",
+                  "Created",
+                  "Action",
+                ].map((h) => (
                   <th key={h} scope="col" className="px-3 py-2 font-medium">
                     {h}
                   </th>
@@ -213,6 +262,7 @@ function RowGroup({
           )}
         </td>
         <td className="px-3 py-2">{vr.attribute}</td>
+        <td className="px-3 py-2">{currentValueText(vr.current_value)}</td>
         <td className="px-3 py-2">{vr.reason.replaceAll("_", " ")}</td>
         <td className="px-3 py-2">{new Date(vr.created_at).toLocaleString()}</td>
         <td className="px-3 py-2">
@@ -232,7 +282,7 @@ function RowGroup({
       </tr>
       {open && (
         <tr>
-          <td colSpan={6} className="px-3 pb-3">
+          <td colSpan={7} className="px-3 pb-3">
             <ResolveForm vr={vr} token={token} onDone={onToggle} />
           </td>
         </tr>
