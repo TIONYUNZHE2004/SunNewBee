@@ -1,6 +1,6 @@
 # Platform Walking Skeleton: Scaffold Design (v2)
 
-- Status: **draft for review**
+- Status: **approved** (15 Oct 2026, after the alignment Q&A)
 - Date: 2026-10-15
 - Replaces: [2026-10-14 walking-skeleton (v1)](2026-10-14-walking-skeleton-design.md), superseded by the platform pivot.
 - Decisions it builds on: ADR [0007 Cesium](../../00-overview/decisions/0007-3d-engine-cesium.md) · [0008 PydanticAI/OpenRouter](../../00-overview/decisions/0008-agent-harness-pydantic-ai.md) · [0009 platform + lenses](../../00-overview/decisions/0009-township-world-model-platform.md) · [0010 flood HAND scenarios](../../00-overview/decisions/0010-flood-lens-hand-scenarios.md) · [architecture README (canonical names)](../../04-architecture/README.md) · [api-contract](../../04-architecture/api-contract.md) · [world-model-schema § 10](../../04-architecture/world-model-schema.md) · [3d-pipeline](../../04-architecture/3d-pipeline.md).
@@ -101,10 +101,12 @@ All of it works **with zero API keys** (mock LLM, list view), and uses the real 
 - CLI `uv run python -m townshiplens_agent.cli "…"`; golden runner with 6 questions (2 per hero + 2 adversarial: "is it safe?", unknown place).
 
 ## 7. Tooling and CI
-Root scripts: `pnpm dev` (web + api), `pnpm test`, `pnpm lint`, `pnpm gen` (OpenAPI → TS), `pnpm data:build`, `pnpm golden`. CI: pnpm + uv install → lint → typecheck → pytest → vitest → OpenAPI drift → golden (mock) → Playwright (list view). pre-commit: ruff, biome, gitleaks. `.env.example` documents every variable: `OPENROUTER_API_KEY`, `LLM_PROVIDER`, `LLM_MODEL_DEFAULT`, `LLM_MODEL_ESCALATE`, `LLM_OUTPUT_RETRIES`, `VITE_GOOGLE_MAPS_API_KEY`, `VITE_CESIUM_ION_TOKEN`, `VITE_MAPBOX_TOKEN`, `STAFF_TOKEN`, `DATABASE_URL`.
+Root scripts: `pnpm dev` (web + api), `pnpm test`, `pnpm lint`, `pnpm gen` (OpenAPI → TS), `pnpm data:build`, `pnpm golden`. CI: pnpm + uv install → lint → typecheck → pytest → vitest → OpenAPI drift → golden (mock) → Playwright (list view). pre-commit: ruff, biome, gitleaks. `.env` lives at the **repo root** (the team lead already has one). `.env.example` documents every variable:
+- **Server only:** `OPENROUTER_API_KEY`, `LLM_PROVIDER` (`openrouter|mock`; default `mock` when there's no key), `LLM_MODEL_DEFAULT` (default `anthropic/claude-haiku-5.5`), `LLM_MODEL_ESCALATE` (default `anthropic/claude-sonnet-5.5`), `LLM_OUTPUT_RETRIES=2`, `STAFF_TOKEN`, `DATABASE_URL`, `OPENCELLID_TOKEN` (reserved for the later connectivity layer).
+- **Browser (public, restrict by referrer):** `GOOGLE_MAPS_API_KEY`, `CESIUM_ION_ACCESS_TOKEN`, `MAPBOX_ACCESS_TOKEN` (must be a `pk.` token). `vite.config.ts` uses `envDir` = repo root and **explicitly maps only these three** into `import.meta.env`; no other variable reaches the browser.
 
 ## 8. Out of scope for the skeleton (stubs, owned by lanes later)
-The OSMnx drive graph and `drive` routing · resource-constrained rest-point search (the gap is flagged only) · real staff auth · evidence upload · closures UI · water rise *animation* (levels switch; a tween is a stretch) · datum calibration UI (the constant lives in `site.json`) · the full resident-agent runner (deterministic invariants only) · Promptfoo · deploy workflows · multilingual aliases beyond seeds · MET warning banner · MCP server.
+The OSMnx drive graph and `drive` routing · resource-constrained rest-point search (the gap is flagged only) · real staff auth · evidence upload · closures UI · water rise *animation* (levels switch; a tween is a stretch) · datum calibration UI (the constant lives in `site.json`) · the full resident-agent runner (deterministic invariants only) · Promptfoo · deploy workflows · multilingual aliases beyond seeds · MET warning banner · MCP server · **OpenCellID connectivity layer** (flood lens: mobile coverage near evacuation centres and cut-off areas; `OPENCELLID_TOKEN` server-side, labelled indicative).
 
 ## 9. Verification plan
 1. `uv run pytest` and `pnpm -r test` green; `pnpm golden` (mock) 6/6.
