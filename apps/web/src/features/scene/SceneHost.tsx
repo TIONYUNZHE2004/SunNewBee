@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from "react";
+import { Component, lazy, type ReactNode, Suspense, useEffect, useMemo } from "react";
 import { ENV } from "../../lib/env";
 import { PROFILE_IDS, PROFILE_LABELS } from "../../lib/profileStore";
 import { ListView } from "./list/ListView";
@@ -19,9 +19,27 @@ const VIEW_LABELS: [View, string][] = [
   ["list", "List"],
 ];
 
-// Task 12 flips this once CesiumScene / MapboxLite exist.
-const RENDERERS_READY = false;
+const CesiumScene = lazy(() => import("./cesium/CesiumScene"));
+const MapboxLite = lazy(() => import("./mapbox/MapboxLite"));
+
+const RENDERERS_READY = true;
 let autoSelected = false;
+
+/** A renderer that fails to load or crashes (WebGL, chunk, bad key) falls back to the list. */
+class RendererBoundary extends Component<
+  { fallback: ReactNode; children: ReactNode },
+  { failed: boolean }
+> {
+  state = { failed: false };
+  static getDerivedStateFromError() {
+    return { failed: true };
+  }
+  render() {
+    return this.state.failed ? this.props.fallback : this.props.children;
+  }
+}
+
+const noKeys = !ENV.googleKey && !ENV.cesiumToken && !ENV.mapboxToken;
 
 export function SceneHost() {
   const { view, setView, profile, setProfile } = useScene();
@@ -35,11 +53,18 @@ export function SceneHost() {
     setView(selectView(ENV, webglOk));
   }, [webglOk, setView]);
 
-  // Task 12 lazy-loads CesiumScene / MapboxLite here; until then every view renders the list.
-  const effective: View = "list";
+  const effective: View = available.includes(view) ? view : "list";
+  const listFallback = (
+    <div className="space-y-3">
+      <p role="alert" className="rounded-lg border border-line bg-danger-tint px-4 py-3 text-sm">
+        The map could not be shown on this device. Showing the list instead.
+      </p>
+      <ListView />
+    </div>
+  );
 
   return (
-    <div className="space-y-6">
+    <div className="min-w-0 space-y-4">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <fieldset className="m-0 inline-flex overflow-hidden rounded-lg border border-line bg-card p-0">
           <legend className="sr-only">View</legend>
@@ -81,18 +106,29 @@ export function SceneHost() {
         </div>
       </div>
 
-      {!RENDERERS_READY && (
-        <p role="note" className="rounded-lg border border-line bg-brand-tint px-4 py-3 text-sm">
-          3D view arrives in the next build.
-        </p>
-      )}
-      {available.length === 1 && (
+      {noKeys && (
         <p role="note" className="rounded-lg border border-line bg-brand-tint px-4 py-3 text-sm">
           Add keys in .env to enable 3D. The list view works without them.
         </p>
       )}
 
-      {effective === "list" && <ListView />}
+      {effective === "list" ? (
+        <ListView />
+      ) : (
+        <div className="h-[55vh] min-h-72 overflow-hidden rounded-lg border border-line bg-brand-tint lg:h-[68vh]">
+          <RendererBoundary key={effective} fallback={listFallback}>
+            <Suspense
+              fallback={
+                <p role="status" className="p-4 text-ink-soft">
+                  Loading map…
+                </p>
+              }
+            >
+              {effective === "cesium" ? <CesiumScene /> : <MapboxLite />}
+            </Suspense>
+          </RendererBoundary>
+        </div>
+      )}
     </div>
   );
 }

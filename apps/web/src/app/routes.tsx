@@ -1,15 +1,6 @@
 import { createBrowserRouter, NavLink, Outlet } from "react-router";
-import { SceneHost } from "../features/scene/SceneHost";
 import { useSite } from "../lib/api";
-
-function ResidentPage() {
-  return (
-    <>
-      <h1 className="sr-only">Resident view</h1>
-      <SceneHost />
-    </>
-  );
-}
+import { ResidentPage } from "./ResidentPage";
 
 function ManagePage() {
   return (
@@ -36,7 +27,7 @@ function Shell() {
         Skip to content
       </a>
       <header className="border-b border-line bg-card">
-        <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-2 px-4 py-3">
+        <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-2 px-4 py-3">
           <div>
             <p className="text-lg font-semibold text-brand">TownshipLens</p>
             {site.data && <p className="text-sm text-ink-soft">{site.data.name}</p>}
@@ -51,11 +42,11 @@ function Shell() {
           </nav>
         </div>
       </header>
-      <main id="main" tabIndex={-1} className="mx-auto w-full max-w-5xl flex-1 px-4 py-6">
+      <main id="main" tabIndex={-1} className="mx-auto w-full max-w-7xl flex-1 px-4 py-6">
         <Outlet />
       </main>
       <footer className="border-t border-line bg-card px-4 py-3 text-xs text-ink-soft">
-        <p className="mx-auto max-w-5xl">
+        <p className="mx-auto max-w-7xl">
           © OpenStreetMap contributors (ODbL). Copernicus DEM GLO-30 © DLR/Airbus, provided under
           COPERNICUS by the EU and ESA. HAND: ASF (CC0).
         </p>
