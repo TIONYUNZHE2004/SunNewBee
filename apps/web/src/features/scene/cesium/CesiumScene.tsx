@@ -1,7 +1,7 @@
 import "cesium/Build/Cesium/Widgets/widgets.css";
 import * as Cesium from "cesium";
 import { useCallback, useEffect, useRef } from "react";
-import { type CesiumComponentRef, Viewer } from "resium";
+import { type CesiumComponentRef, useCesium, Viewer } from "resium";
 import { useLayer } from "../../../lib/api";
 import { ENV } from "../../../lib/env";
 import { pointFeatures } from "../geo";
@@ -9,32 +9,38 @@ import { useScene } from "../sceneStore";
 import { useCameraIntents } from "./camera";
 import { AccessLayer, FloodLayer, WasteLayer } from "./layers";
 
-export default function CesiumScene() {
-  const ref = useRef<CesiumComponentRef<Cesium.Viewer>>(null);
-  const { profile, scenarioId } = useScene();
+/** Child of <Viewer>: mounts only after resium has created the viewer. */
+function SceneSetup() {
+  const { viewer } = useCesium();
+  const profile = useScene((s) => s.profile);
+  const scenarioId = useScene((s) => s.scenarioId);
   const access = useLayer("access", profile, scenarioId);
   const placesRef = useRef(new Map<string, [number, number]>());
   placesRef.current = new Map(pointFeatures(access.data).map((p) => [p.id, p.coord]));
   const focusPoint = useCallback((id: string) => placesRef.current.get(id) ?? null, []);
 
   useEffect(() => {
-    const viewer = ref.current?.cesiumElement;
-    if (!viewer) return;
+    if (!viewer || viewer.isDestroyed()) return;
     let cancelled = false;
+    let tiles: Cesium.Cesium3DTileset | undefined;
     (async () => {
       try {
         if (ENV.cesiumToken) Cesium.Ion.defaultAccessToken = ENV.cesiumToken;
         if (ENV.googleKey) {
           // Display-only: no height sampling, tracing or caching of Google tiles.
-          const tiles = await Cesium.createGooglePhotorealistic3DTileset({ key: ENV.googleKey });
-          if (cancelled || viewer.isDestroyed()) return;
-          viewer.scene.primitives.add(tiles);
-          viewer.scene.globe.show = false;
+          tiles = await Cesium.createGooglePhotorealistic3DTileset({ key: ENV.googleKey });
         } else if (ENV.cesiumToken) {
           viewer.scene.setTerrain(Cesium.Terrain.fromWorldTerrain());
-          const osm = await Cesium.createOsmBuildingsAsync();
-          if (cancelled || viewer.isDestroyed()) return;
-          viewer.scene.primitives.add(osm);
+          tiles = await Cesium.createOsmBuildingsAsync();
+        }
+        if (tiles) {
+          if (cancelled || viewer.isDestroyed()) {
+            tiles.destroy();
+            tiles = undefined;
+          } else {
+            viewer.scene.primitives.add(tiles);
+            if (ENV.googleKey) viewer.scene.globe.show = false;
+          }
         }
       } catch {
         // Tileset failed (bad key/quota/offline): keep the base globe and overlays.
@@ -48,11 +54,20 @@ export default function CesiumScene() {
     })();
     return () => {
       cancelled = true;
+      if (tiles && !viewer.isDestroyed()) {
+        viewer.scene.primitives.remove(tiles); // removes and destroys
+        if (ENV.googleKey) viewer.scene.globe.show = true;
+        viewer.scene.requestRender();
+      }
     };
-  }, []);
+  }, [viewer]);
 
-  useCameraIntents(ref, focusPoint);
+  useCameraIntents(focusPoint);
+  return null;
+}
 
+export default function CesiumScene() {
+  const ref = useRef<CesiumComponentRef<Cesium.Viewer>>(null);
   return (
     <section className="h-full w-full" aria-label="3D map of Elmina">
       <Viewer
@@ -60,6 +75,7 @@ export default function CesiumScene() {
         full={false}
         style={{ width: "100%", height: "100%" }}
         requestRenderMode
+        onUpdate={() => ref.current?.cesiumElement?.scene.requestRender()}
         baseLayerPicker={false}
         timeline={false}
         animation={false}
@@ -71,6 +87,7 @@ export default function CesiumScene() {
         selectionIndicator={false}
         fullscreenButton={false}
       >
+        <SceneSetup />
         <AccessLayer />
         <FloodLayer />
         <WasteLayer />

@@ -27,7 +27,7 @@ function AssistantBubble({ m, onRetry }: { m: AssistantMessage; onRetry: () => v
               ) : (
                 <span
                   aria-hidden="true"
-                  className="inline-block size-3 animate-spin rounded-full border-2 border-brand border-t-transparent"
+                  className="inline-block size-3 motion-safe:animate-spin rounded-full border-2 border-brand border-t-transparent"
                 />
               )}
               {t.name.replace(/_/g, " ")}

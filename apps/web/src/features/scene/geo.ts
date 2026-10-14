@@ -1,3 +1,4 @@
+import { mapStatus } from "./status";
 import type { EdgeStatus } from "./styles";
 
 export type LonLat = [number, number];
@@ -19,7 +20,6 @@ export interface PointFeature {
   coord: LonLat;
 }
 
-const STATUSES: EdgeStatus[] = ["ok", "unknown", "blocked", "flooded_likely", "flooded_possible"];
 const features = (d: unknown): Feature[] =>
   ((d as { features?: Feature[] } | null)?.features ?? []).filter(Boolean);
 
@@ -28,11 +28,9 @@ export function lineFeatures(d: unknown): LineFeature[] {
   for (const f of features(d)) {
     if (f.geometry?.type !== "LineString") continue;
     const p = f.properties ?? {};
-    const s = [p.status_for_profile, p.status].find((v) => STATUSES.includes(v as EdgeStatus));
     out.push({
       id: String(p.id ?? out.length),
-      // Never present unverified data as checked.
-      status: (s as EdgeStatus | undefined) ?? "unknown",
+      status: mapStatus(p),
       coords: (f.geometry.coordinates as LonLat[]) ?? [],
     });
   }
@@ -70,4 +68,29 @@ export function waterPolygons(d: unknown): { key: string; rings: LonLat[][]; hei
         out.push({ key: `p${out.length}`, rings: poly, height });
   }
   return out;
+}
+
+/** FeatureCollection whose line features carry a normalised `status_for_profile` (for Mapbox expressions). */
+export function normalizeLayer(d: unknown): GeoJSON.FeatureCollection {
+  const fs = features(d).map((f) =>
+    f.geometry?.type === "LineString"
+      ? {
+          ...f,
+          properties: { ...(f.properties ?? {}), status_for_profile: mapStatus(f.properties) },
+        }
+      : f,
+  );
+  return { type: "FeatureCollection", features: fs as GeoJSON.Feature[] };
+}
+
+/** Group line features by status so each group renders as one batched primitive. */
+export function groupByStatus(lines: LineFeature[]): Map<EdgeStatus, LonLat[][]> {
+  const m = new Map<EdgeStatus, LonLat[][]>();
+  for (const l of lines) {
+    if (l.coords.length < 2) continue;
+    const arr = m.get(l.status);
+    if (arr) arr.push(l.coords);
+    else m.set(l.status, [l.coords]);
+  }
+  return m;
 }

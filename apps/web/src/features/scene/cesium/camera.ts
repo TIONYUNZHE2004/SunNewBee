@@ -1,8 +1,7 @@
 import * as Cesium from "cesium";
-import { type RefObject, useEffect } from "react";
+import { useEffect } from "react";
+import { useCesium } from "resium";
 import { useScene } from "../sceneStore";
-
-type ViewerRef = RefObject<{ cesiumElement?: Cesium.Viewer } | null>;
 
 export const prefersReducedMotion = () =>
   typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -20,13 +19,11 @@ function go(viewer: Cesium.Viewer, sphere: Cesium.BoundingSphere, rangeM?: numbe
 }
 
 /** Subscribes to scene-intent state and moves the camera. Reduced motion: no animation. */
-export function useCameraIntents(
-  ref: ViewerRef,
-  focusPoint: (id: string) => [number, number] | null,
-) {
+export function useCameraIntents(focusPoint: (id: string) => [number, number] | null) {
+  const { viewer } = useCesium();
   useEffect(() => {
     const move = (fn: (v: Cesium.Viewer) => void) => {
-      const v = ref.current?.cesiumElement;
+      const v = viewer;
       if (v && !v.isDestroyed()) fn(v);
     };
     return useScene.subscribe((s, prev) => {
@@ -55,5 +52,5 @@ export function useCameraIntents(
         );
       }
     });
-  }, [ref, focusPoint]);
+  }, [viewer, focusPoint]);
 }

@@ -1,5 +1,5 @@
 import type { ChatEvent } from "@tl/api-client";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useScene } from "../scene/sceneStore";
 import {
   type AssistantMessage,
@@ -49,12 +49,7 @@ export function useChatStream() {
         const reader = res.body.getReader();
         const decoder = new TextDecoder();
         let buf = "";
-        for (;;) {
-          const { value, done } = await reader.read();
-          if (done) break;
-          buf += decoder.decode(value, { stream: true });
-          const { events, rest } = parseSse(buf);
-          buf = rest;
+        const handle = (events: { data: string }[]) => {
           for (const e of events) {
             let ev: ChatEvent;
             try {
@@ -65,10 +60,24 @@ export function useChatStream() {
             if (ev.type === "scene.intent") useScene.getState().applyIntent(ev.intent);
             patch(aid, (m) => reduceChatEvent(m, ev));
           }
+        };
+        for (;;) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          buf += decoder.decode(value, { stream: true });
+          const { events, rest } = parseSse(buf);
+          buf = rest;
+          handle(events);
         }
+        // Flush the decoder and parse any trailing event that lacked a final blank line.
+        buf += decoder.decode();
+        if (buf.trim()) handle(parseSse(`${buf}\n\n`).events);
         patch(aid, (m) => ({ ...m, done: true }));
       } catch (err) {
-        if ((err as { name?: string }).name === "AbortError") return;
+        if ((err as { name?: string }).name === "AbortError") {
+          patch(aid, (m) => ({ ...m, done: true }));
+          return;
+        }
         patch(aid, (m) => ({
           ...m,
           done: true,
@@ -80,6 +89,8 @@ export function useChatStream() {
     },
     [patch],
   );
+
+  useEffect(() => () => abortRef.current?.abort(), []);
 
   const retry = useCallback(() => {
     if (lastRef.current) void send(lastRef.current);

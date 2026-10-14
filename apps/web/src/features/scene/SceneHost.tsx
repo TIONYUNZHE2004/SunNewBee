@@ -2,6 +2,7 @@ import { Component, lazy, type ReactNode, Suspense, useEffect, useMemo } from "r
 import { ENV } from "../../lib/env";
 import { PROFILE_IDS, PROFILE_LABELS } from "../../lib/profileStore";
 import { ListView } from "./list/ListView";
+import { StatusLegend } from "./StatusLegend";
 import { type Profile, useScene } from "./sceneStore";
 import { availableViews, selectView, type View } from "./selectView";
 
@@ -115,7 +116,7 @@ export function SceneHost() {
       {effective === "list" ? (
         <ListView />
       ) : (
-        <div className="h-[55vh] min-h-72 overflow-hidden rounded-lg border border-line bg-brand-tint lg:h-[68vh]">
+        <div className="relative h-[55vh] min-h-72 overflow-hidden rounded-lg border border-line bg-brand-tint lg:h-[68vh]">
           <RendererBoundary key={effective} fallback={listFallback}>
             <Suspense
               fallback={
@@ -127,6 +128,7 @@ export function SceneHost() {
               {effective === "cesium" ? <CesiumScene /> : <MapboxLite />}
             </Suspense>
           </RendererBoundary>
+          <StatusLegend className="pointer-events-none absolute left-2 top-2 z-10 max-w-[70%]" />
         </div>
       )}
     </div>
