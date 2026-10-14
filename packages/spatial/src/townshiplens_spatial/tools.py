@@ -192,24 +192,30 @@ def nearby_amenities(
     prof = w.profiles.get(profile)
     if prof is None or prof.stub:
         return ToolResult(ok=True, data=[], warnings=[f"unsupported profile {profile}"])
-    src = routing._targets(w, origin_id)
+    src = routing._targets(w, origin_id, prof)
     if not src:
         why = "place not mapped" if origin_id in w.places else "no such place"
-        return ToolResult(ok=True, data=[], warnings=[f"{why}: {origin_id}"])
+        warn = routing._no_road_warning(w, origin_id, prof) or f"{why}: {origin_id}"
+        return ToolResult(ok=True, data=[], warnings=[warn])
     strict = _reach(w, src, prof, max_walk_m, allow_unknown=False)
     lenient = _reach(w, src, prof, max_walk_m, allow_unknown=True)
     hits = []
     for p in w.places.values():
         if p.type != amenity or not p.node_id:
             continue
-        if p.node_id in strict:
-            hits.append((strict[p.node_id], p, False))
-        elif p.node_id in lenient:
-            hits.append((lenient[p.node_id], p, True))
+        nodes = [p.node_id] if prof.allowed_types is None else routing._targets(w, p.id, prof)
+        s_d = [strict[n] for n in nodes if n in strict]
+        l_d = [lenient[n] for n in nodes if n in lenient]
+        if s_d:
+            hits.append((min(s_d), p, False))
+        elif l_d:
+            hits.append((min(l_d), p, True))
     hits.sort(key=lambda t: t[0])
     warnings = []
     if profile == "default":
         warnings.append("default profile applies no accessibility constraints")
+    if prof.standing_warning:
+        warnings.append(prof.standing_warning)
     return ToolResult(
         ok=True,
         data=[
@@ -305,8 +311,11 @@ def list_evacuation_centres(
         warnings.append(f"{profile} profile is not available yet")
     elif prof.standing_warning:
         warnings.append(prof.standing_warning)
-    if near_place and not routing._targets(ctx.world, near_place):
-        warnings.append(f"place not mapped: {near_place}")
+    if near_place and prof is not None and not routing._targets(ctx.world, near_place, prof):
+        warnings.append(
+            routing._no_road_warning(ctx.world, near_place, prof)
+            or f"place not mapped: {near_place}"
+        )
     ev = [
         Evidence(
             id=f"ev-centre-{r.centre.id}",

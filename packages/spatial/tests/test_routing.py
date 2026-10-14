@@ -1,3 +1,4 @@
+from tests_support import add_roads
 from townshiplens_spatial.routing import plan_route
 
 
@@ -32,37 +33,8 @@ def test_scenario_reroutes(world):
     assert all(s.edge_id != "seg-cd" for r in rr.routes for s in r.segments)
 
 
-def _add_roads(world):
-    """Road spur n-a -street- n-x -track- n-y with a second car park at n-y. The footway trap
-    n-a -> n-y is much shorter, so a drive route that takes it would be cheaper (and wrong)."""
-    from townshiplens_spatial.models import Edge, Place
-
-    for nid in ("n-x", "n-y"):
-        world.graph.add_node(nid)
-    spec = [
-        ("rd-1", "street", "n-a", "n-x", 400.0),
-        ("rd-2", "track", "n-x", "n-y", 400.0),
-        ("fw-trap", "footway", "n-a", "n-y", 50.0),
-        ("st-trap", "steps", "n-a", "n-y", 40.0),
-    ]
-    for eid, typ, a, b, ln in spec:
-        e = Edge(
-            id=eid,
-            type=typ,
-            from_node=a,
-            to_node=b,
-            coords=[[0.0, 0.0], [0.001, 0.0]],
-            length_m=ln,
-        )
-        world.edges[eid] = e
-        world.graph.add_edge(a, b, key=eid, edge_id=eid)
-    world.places["park-c"] = Place(
-        id="park-c", type="parking", name="Car Park C", coord=[0.002, 0.0], node_id="n-y"
-    )
-
-
 def test_drive_routes_on_roads_only(world):
-    _add_roads(world)
+    add_roads(world)
     rr = plan_route(world, "park-b", "park-c", "drive")
     assert rr.routes, rr
     r = rr.routes[0]
@@ -72,19 +44,67 @@ def test_drive_routes_on_roads_only(world):
     # never confirmed: one-way and turn restrictions are not modelled
     assert r.status == "partly_unverified" and rr.status == "partly_unverified"
     assert any("one-way" in w for w in rr.warnings)
-    # 800 m at the drive speed, not at walking speed
-    assert r.est_minutes == round(800 / (world.profiles["drive"].speed_kmh * 1000 / 60), 1)
-    assert r.est_minutes < 800 / 70
+    # 165 m at the drive speed, not at walking speed
+    assert r.est_minutes == round(165 / (world.profiles["drive"].speed_kmh * 1000 / 60), 1)
+    assert r.est_minutes < 165 / 70
 
 
-def test_drive_has_no_route_over_footways_only(world):
+def test_drive_snaps_footway_only_place_to_road_within_cap(world):
+    add_roads(world)
+    # the playground's node is footway-only, ~78 m from the road node n-z
+    assert all(world.edges[k].type != "street" for _, _, k in world.graph.edges("n-d", keys=True))
     rr = plan_route(world, "park-b", "playground", "drive")
-    assert rr.status == "blocked" and not rr.routes
+    assert rr.routes and rr.status == "partly_unverified"
+    assert [s.edge_id for s in rr.routes[0].segments] == ["rd-1", "rd-2"]
 
 
-def test_walking_unaffected_by_drive_standing_warning(world):
-    rr = plan_route(world, "park-b", "playground", "stroller")
-    assert rr.status == "confirmed" and not rr.warnings
+def test_drive_place_beyond_snap_cap_is_no_data_not_blocked(world):
+    add_roads(world)
+    rr = plan_route(world, "park-b", "island-hut", "drive")
+    assert rr.status == "no_data" and not rr.routes
+    assert any("no mapped road within 150 m of island-hut" in w for w in rr.warnings)
+
+
+def test_drive_disconnected_road_components_is_no_data_not_blocked(world):
+    add_roads(world)
+    from townshiplens_spatial.models import Edge
+
+    # a second, separate road piece at the island hut (its own node, beside n-h)
+    world.node_coords.update({"n-r1": [101.512, 3.182], "n-r2": [101.5125, 3.182]})
+    e = Edge(
+        id="rd-far",
+        type="street",
+        from_node="n-r1",
+        to_node="n-r2",
+        coords=[[101.512, 3.182], [101.5125, 3.182]],
+        length_m=55.0,
+    )
+    world.edges[e.id] = e
+    world.graph.add_edge("n-r1", "n-r2", key=e.id, edge_id=e.id)
+    rr = plan_route(world, "park-b", "island-hut", "drive")
+    assert rr.status == "no_data" and not rr.routes
+    assert any("mapped roads do not connect" in w for w in rr.warnings)
+
+
+def test_drive_flood_cut_road_is_blocked(world):
+    add_roads(world)
+    world.flood.edge_classes["stage_p3m"]["rd-1"] = "likely_flooded"
+    rr = plan_route(world, "park-b", "park-c", "drive", "stage_p3m")
+    assert rr.status == "blocked"
+
+
+def test_drive_without_any_roads_is_no_data(world):
+    rr = plan_route(world, "park-b", "playground", "drive")
+    assert rr.status == "no_data" and not rr.routes
+
+
+def test_walking_unaffected_by_drive_roads_and_warning(world):
+    before = plan_route(world, "park-b", "playground", "stroller")
+    add_roads(world)
+    after = plan_route(world, "park-b", "playground", "stroller")
+    assert after.status == "confirmed" and not after.warnings
+    assert [s.edge_id for s in after.routes[0].segments] == ["seg-ab", "seg-bc", "seg-cd"]
+    assert after.routes[0].distance_m == before.routes[0].distance_m
 
 
 def test_route_geometry_is_linestring(world):

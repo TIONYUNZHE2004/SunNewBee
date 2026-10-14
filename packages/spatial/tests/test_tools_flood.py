@@ -1,4 +1,5 @@
 import pytest
+from tests_support import add_roads
 from townshiplens_spatial import tools
 from townshiplens_spatial.vr_store import VerificationStore
 
@@ -97,34 +98,31 @@ def test_evac_evidence_status_and_disclaimer(ctx):
     assert all("not a forecast" in c["disclaimer"] for c in r.data)
 
 
-def test_evac_drive_reports_reachability_not_stub(ctx):
+def test_evac_drive_without_roads_is_no_data_not_blocked(ctx):
     r = tools.list_evacuation_centres(ctx, None, "drive", "park-b")
     assert not any("stub" in w or "not built" in w for w in r.warnings)
-    assert r.data and all(c["reachable"] is False for c in r.data)  # fixture has no roads
-    assert {c["route_status"] for c in r.data} == {"blocked"}
+    assert any("no mapped road within 150 m of park-b" in w for w in r.warnings)
+    assert r.data and all(c["reachable"] is False for c in r.data)
+    assert {c["route_status"] for c in r.data} == {"no_data"}
 
 
 def test_evac_drive_reachable_is_never_confirmed(ctx):
-    from townshiplens_spatial.models import Edge
-
-    w = ctx.world
-    # a road from the car park node to the hall's node
-    hall = w.centres["evc-hall"].node_id
-    e = Edge(
-        id="rd-hall",
-        type="street",
-        from_node="n-a",
-        to_node=hall,
-        coords=[[0.0, 0.0], [0.001, 0.0]],
-        length_m=300.0,
-    )
-    w.edges[e.id] = e
-    w.graph.add_edge("n-a", hall, key=e.id, edge_id=e.id)
+    add_roads(ctx.world)
     r = tools.list_evacuation_centres(ctx, None, "drive", "park-b")
-    hall_row = next(c for c in r.data if c["centre"]["id"] == "evc-hall")
-    assert hall_row["reachable"] is True
-    assert hall_row["route_status"] == "partly_unverified"
+    by = {c["centre"]["id"]: c for c in r.data}
+    # hall (n-c) is footway-only but ~55 m from the road; the island school is > 150 m away
+    assert by["evc-hall"]["reachable"] is True
+    assert by["evc-hall"]["route_status"] == "partly_unverified"
+    assert by["evc-school"]["reachable"] is False
+    assert by["evc-school"]["route_status"] == "no_data"
     assert any("one-way" in x for x in r.warnings)
+
+
+def test_nearby_amenities_drive_carries_standing_warning(ctx):
+    add_roads(ctx.world)
+    r = tools.nearby_amenities(ctx, "park-b", "parking", 1000, profile="drive")
+    assert any("one-way" in w for w in r.warnings)
+    assert [h["id"] for h in r.data] == ["park-b", "park-c"]
 
 
 def test_waste_unknown_near_place_warns(ctx):
