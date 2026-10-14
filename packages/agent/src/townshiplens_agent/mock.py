@@ -71,6 +71,18 @@ def _unknown_caveats(routes: list) -> list[str]:
     return out
 
 
+def _endpoint_flood(route_data) -> tuple[list[str], list[str], bool]:
+    """Caveats, evidence ids and "any likely flooded" for route endpoints in a flooded place."""
+    flagged = (route_data or {}).get("endpoint_flood") or []
+    caveats = [
+        f"{f['name']} is {'likely' if f['flood_class'] == 'likely_flooded' else 'possibly'} "
+        "flooded in this indicative scenario."
+        for f in flagged
+    ]
+    ev = [f"ev-scn-{f['scenario_id']}.{f['place_id']}" for f in flagged]
+    return caveats, ev, any(f["flood_class"] == "likely_flooded" for f in flagged)
+
+
 # Pinned prompt words -> find_place queries. First match in the prompt wins.
 DESTINATIONS = ["playground", "kiosk", "toilet"]  # access hero; default "playground"
 ORIGINS = ["lakeside mall", "playground", "car park b", "kiosk"]  # flood resident; default mall
@@ -161,11 +173,14 @@ def _script(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
         c0 = centres[0]["centre"]
         routes = (_data(rets[-1][1]) or {}).get("routes") or []
         route = routes[0] if routes else None
+        flood_cav, flood_ev, likely = _endpoint_flood(_data(rets[-1][1]))
         caveats = _unknown_caveats(routes[:1])
         if route and route.get("status") != "confirmed" and not caveats:
             caveats = [f"Route status: {route.get('status')}; not all segments are verified."]
+        caveats = flood_cav + caveats
+        confirmed = route and route.get("status") == "confirmed" and not likely
         return _final(
-            answer_status="answered" if route and route.get("status") == "confirmed" else "partial",
+            answer_status="answered" if confirmed else "partial",
             summary=(
                 "In the River +3 m indicative scenario, the nearest reachable centre is "
                 f"{c0['name']}; source: {_src(c0)}. {_FLOOD_NOTE}"
@@ -177,8 +192,19 @@ def _script(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
                     "evidence_ids": [
                         i for i in _ev_ids(rets) if i.startswith(("ev-centre-", "ev-scn-"))
                     ][:3],
-                }
-            ],
+                },
+            ]
+            + (
+                [
+                    {
+                        "text": "Flood class of the route endpoint",
+                        "status": "indicative",
+                        "evidence_ids": flood_ev,
+                    }
+                ]
+                if flood_ev
+                else []
+            ),
             route_id=route["id"] if route else None,
             scenario_id="stage_p3m",
             caveats=caveats,
@@ -211,12 +237,17 @@ def _script(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
         # Cite the two chosen places (not every find_place candidate) and the route's segments.
         ev = [i for i in (f"ev-place-{a['id']}", f"ev-place-{b['id']}") if i in seen]
         ev += [e["id"] for e in rets[-1][1].get("evidence", [])]
+        flood_cav, flood_ev, likely = _endpoint_flood(rr)
+        ev += flood_ev
         caveats = _unknown_caveats(routes)
         if status != "confirmed" and not caveats:
             caveats = [f"Route status: {status}; not all segments are verified."]
+        caveats = flood_cav + caveats
         dist = r0.get("distance_m") if r0 else None
+        flagged = rr.get("endpoint_flood") or []
         return _final(
-            answer_status="answered" if status == "confirmed" else "partial",
+            answer_status="answered" if status == "confirmed" and not likely else "partial",
+            scenario_id=flagged[0]["scenario_id"] if flagged else None,
             summary=f"{a.get('name', a['id'])} to {b.get('name', b['id'])}: route {status}"
             + (f", {dist} m." if dist is not None else "."),
             claims=[

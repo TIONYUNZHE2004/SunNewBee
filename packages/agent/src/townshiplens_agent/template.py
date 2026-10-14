@@ -4,7 +4,15 @@ from .record import TurnRecord
 
 
 def template_answer(rec: TurnRecord, question: str) -> FinalAnswer:
-    scenario_id = next(iter(rec.scenarios_used), None)
+    scenario_id = next(iter(sorted(rec.scenarios_used)), None)
+    flood_caveats = [
+        f"{i['name']} is {'likely' if i['flood_class'] == 'likely_flooded' else 'possibly'} "
+        "flooded in this indicative scenario."
+        for i in rec.flooded_endpoints.values()
+    ]
+    likely_flooded = any(
+        i["flood_class"] == "likely_flooded" for i in rec.flooded_endpoints.values()
+    )
     if not rec.routes:
         return FinalAnswer(
             answer_status="cannot_answer",
@@ -27,7 +35,7 @@ def template_answer(rec: TurnRecord, question: str) -> FinalAnswer:
         for eid, e in list(rec.evidence.items())[:8]
     ]
     unknowns = [f"{u['attribute']} on {u['element_id']}" for u in route.get("unknowns", [])]
-    caveats: list[str] = []
+    caveats: list[str] = list(flood_caveats)
     if unknowns:
         caveats.append(f"Not checked yet: {', '.join(unknowns)}.")
     if status != "confirmed":
@@ -35,7 +43,9 @@ def template_answer(rec: TurnRecord, question: str) -> FinalAnswer:
     dist = route.get("distance_m")
     summary = f"Route status: {status}" + (f", {dist} m." if dist is not None else ".")
     return FinalAnswer(
-        answer_status="answered" if status == "confirmed" and not unknowns else "partial",
+        answer_status="answered"
+        if status == "confirmed" and not unknowns and not likely_flooded
+        else "partial",
         summary=summary,
         claims=claims,
         route_id=rid,

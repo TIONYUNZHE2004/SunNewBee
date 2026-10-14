@@ -21,7 +21,7 @@ from townshiplens_spatial.world import load_world
 
 GOLDEN = Path(__file__).parent / "golden" / "hero.yaml"
 TINY = ROOT / "packages/spatial/tests/fixtures/tiny"
-KNOWN = {"tools_include", "events_include", "done_status_in", "text_excludes"}
+KNOWN = {"tools_include", "events_include", "done_status_in", "text_includes", "text_excludes"}
 
 
 def check(expect: dict, evs: list) -> list[str]:
@@ -39,6 +39,7 @@ def check(expect: dict, evs: list) -> list[str]:
     allowed = expect.get("done_status_in")
     if allowed and (done is None or done.answer_status not in allowed):
         fails.append(f"done status {done and done.answer_status} not in {allowed}")
+    fails += [f"text lacks {s!r}" for s in expect.get("text_includes", []) if s.lower() not in text]
     fails += [f"text contains {s!r}" for s in expect.get("text_excludes", []) if s.lower() in text]
     return fails
 

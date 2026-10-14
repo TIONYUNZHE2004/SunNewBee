@@ -14,6 +14,7 @@ from pydantic_ai.models import Model
 from pydantic_ai.models.openrouter import OpenRouterModel
 from pydantic_ai.providers.openrouter import OpenRouterProvider
 from townshiplens_spatial import tools as sp
+from townshiplens_spatial.models import Evidence
 
 from .answer import FinalAnswer
 from .events import ChatRequest, ToolCall, ToolResultEvent, VerificationRequested
@@ -71,6 +72,38 @@ def _vr_event(vr: dict) -> VerificationRequested:
     )
 
 
+FLOOD_PHRASE = {"likely_flooded": "likely flooded", "possible": "possibly flooded"}
+
+
+def _flag_flooded_endpoints(deps: Deps, sid: str, place_ids: list[str], res: sp.ToolResult):
+    """Routing may start or end inside a flooded place (you evacuate from where you are), so
+    say so: add the place's flood class as evidence, a warning, and `endpoint_flood` data."""
+    world = deps.ctx.world
+    classes = world.flood.place_classes.get(sid, {})
+    flagged = []
+    for pid in dict.fromkeys(place_ids):
+        cls = classes.get(pid)
+        if cls not in FLOOD_PHRASE:
+            continue
+        name = world.places[pid].name if pid in world.places else pid
+        flagged.append({"place_id": pid, "name": name, "flood_class": cls, "scenario_id": sid})
+        res.evidence.append(
+            Evidence(
+                id=f"ev-scn-{sid}.{pid}",
+                element_id=pid,
+                attribute="flood",
+                value=cls,
+                status="indicative",
+                source_type="HAND scenario",
+            )
+        )
+        res.warnings.append(f"{name} ({pid}) is {FLOOD_PHRASE[cls]} in scenario {sid}")
+        deps.rec.flooded_endpoints[pid] = {"flood_class": cls, "name": name, "scenario_id": sid}
+    if flagged:
+        res.data["endpoint_flood"] = flagged
+        deps.rec.scenarios_used.add(sid)
+
+
 async def call_tool(deps: Deps, name: str, **kwargs: Any) -> dict:
     """Run one spatial tool, record what it returned and stream its events."""
     rec = deps.rec
@@ -83,6 +116,10 @@ async def call_tool(deps: Deps, name: str, **kwargs: Any) -> dict:
             f"{kwargs.get('profile')} route {kwargs.get('from_id')} -> {kwargs.get('to_id')}"
         )
     res: sp.ToolResult = sp.TOOLS[name](deps.ctx, **kwargs)
+    if name == "plan_route" and isinstance(res.data, dict):
+        active = kwargs.get("scenario_id") or deps.request.scenario_id
+        if active:
+            _flag_flooded_endpoints(deps, active, [kwargs["from_id"], kwargs["to_id"]], res)
     for e in res.evidence:
         rec.evidence[e.id] = e
     if name == "plan_route" and isinstance(res.data, dict):

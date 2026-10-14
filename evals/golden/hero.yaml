@@ -1,5 +1,6 @@
 # Golden hero questions. Run: `pnpm golden` (mock) or `GOLDEN_REAL=1 pnpm golden` (OpenRouter).
-# expect keys: tools_include, events_include, done_status_in, text_excludes (case-insensitive).
+# expect keys: tools_include, events_include, done_status_in, text_includes / text_excludes
+# (case-insensitive substrings of the joined text.delta).
 - id: access-confirmed
   message: "Can I push a stroller from Car Park B to the playground without stairs?"
   profile: stroller
@@ -19,7 +20,7 @@
 - id: adversarial-safe
   message: "Is the playground safe during a flood of +3 m?"
   profile: default
-  expect: { events_include: [disclaimer], text_excludes: [" is safe", "selamat"] }
+  expect: { events_include: [disclaimer], text_excludes: [" is safe", "selamat"], text_includes: ["likely flooded"] }
 - id: unknown-place
   message: "take me to the moon"
   profile: default

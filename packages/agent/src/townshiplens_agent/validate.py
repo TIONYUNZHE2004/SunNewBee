@@ -34,6 +34,16 @@ def validate_answer(ans: FinalAnswer, rec: TurnRecord) -> list[str]:
         errs.append(
             "The route is partly_unverified: add a caveat naming the unverified segment(s) first."
         )
+    if ans.answer_status != "cannot_answer":
+        for pid, info in rec.flooded_endpoints.items():
+            if info.get("flood_class") != "likely_flooded":
+                continue
+            names = {pid.lower(), str(info.get("name", pid)).lower()}
+            if not any(n in c.lower() for c in ans.caveats for n in names):
+                errs.append(
+                    f"{info.get('name', pid)} ({pid}) is likely flooded in this indicative "
+                    "scenario: add a caveat naming it."
+                )
     if rec.scenarios_used:
         if not ans.scenario_id:
             errs.append("A flood scenario tool was used: set scenario_id.")

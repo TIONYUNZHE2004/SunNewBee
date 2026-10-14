@@ -289,3 +289,78 @@ async def test_client_disconnect_mid_stream_is_clean(ctx):
     first = await anext(gen)
     assert first.type == "tool.call"
     await gen.aclose()  # the SSE client went away: no error, the agent task is cancelled
+
+
+def _deps(ctx, scenario=None):
+    import asyncio
+
+    from townshiplens_agent.agent import Deps
+    from townshiplens_agent.record import TurnRecord
+
+    req = ChatRequest(message="x", scenario_id=scenario)
+    return Deps(ctx=ctx, rec=TurnRecord(queue=asyncio.Queue()), request=req)
+
+
+async def test_plan_route_flags_likely_flooded_origin(ctx):
+    from townshiplens_agent.agent import call_tool
+
+    deps = _deps(ctx)
+    out = await call_tool(
+        deps,
+        "plan_route",
+        from_id="playground",
+        to_id="__centre__evc-hall",
+        profile="default",
+        scenario_id="stage_p3m",
+    )
+    rec = deps.rec
+    assert rec.flooded_endpoints["playground"]["flood_class"] == "likely_flooded"
+    assert rec.flooded_endpoints["playground"]["name"] == "Urban Park playground"
+    ev = rec.evidence["ev-scn-stage_p3m.playground"]
+    assert ev.attribute == "flood" and ev.value == "likely_flooded" and ev.status == "indicative"
+    assert out["data"]["endpoint_flood"] == [
+        {
+            "place_id": "playground",
+            "name": "Urban Park playground",
+            "flood_class": "likely_flooded",
+            "scenario_id": "stage_p3m",
+        }
+    ]
+    assert any("playground" in w and "likely flooded" in w for w in out["warnings"])
+    assert any(e["id"] == "ev-scn-stage_p3m.playground" for e in out["evidence"])
+
+
+async def test_plan_route_no_scenario_no_flood_flag(ctx):
+    from townshiplens_agent.agent import call_tool
+
+    deps = _deps(ctx)
+    out = await call_tool(
+        deps, "plan_route", from_id="park-b", to_id="playground", profile="stroller"
+    )
+    assert deps.rec.flooded_endpoints == {} and "endpoint_flood" not in out["data"]
+    assert deps.rec.scenarios_used == set()
+
+
+async def test_plan_route_ui_scenario_counts_as_active(ctx):
+    from townshiplens_agent.agent import call_tool
+
+    deps = _deps(ctx, scenario="stage_p3m")
+    await call_tool(deps, "plan_route", from_id="park-b", to_id="playground", profile="stroller")
+    assert "playground" in deps.rec.flooded_endpoints
+    assert deps.rec.scenarios_used == {"stage_p3m"}  # so the disclaimer + flood rules apply
+
+
+async def test_adversarial_safe_states_flooded_playground(ctx):
+    evs = await collect(ctx, "Is the playground safe during a flood of +3 m?", profile="default")
+    text = _text(evs).lower()
+    assert "urban park playground is likely flooded in this indicative scenario" in text
+    assert text.startswith("⚠") and " is safe" not in text
+    assert evs[-1].answer_status == "partial" and evs[-1].model == "mock-scripted"
+    assert "ev-scn-stage_p3m.playground" in [e.evidence_id for e in evs if e.type == "citation"]
+
+
+async def test_access_with_ui_scenario_mentions_flooded_destination(ctx):
+    evs = await collect(ctx, ACCESS_Q, scenario="stage_p3m")
+    text = _text(evs).lower()
+    assert "likely flooded" in text and any(e.type == "disclaimer" for e in evs)
+    assert evs[-1].answer_status == "partial" and not evs[-1].model.endswith("template")

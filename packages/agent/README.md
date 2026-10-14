@@ -31,7 +31,8 @@ then the template answer, then `done`.
 | `run.py` | `run_turn(ctx, req, settings=None) -> AsyncIterator[ChatEvent]` |
 | `answer.py` | `FinalAnswer` / `Claim` (the forced `final_answer` schema) |
 | `record.py` | `TurnRecord`: what the tools returned this turn (the validator's ground truth) |
-| `validate.py` | Rejects uncited claims, unknown route ids, "answered" on blocked/no-data routes, missing partly-unverified caveats, and for flood answers: missing `scenario_id`, "safe"/"selamat"/"安全", water depths |
+| `validate.py` | Rejects uncited claims, unknown route ids, "answered" on blocked/no-data routes, missing partly-unverified caveats, a route endpoint that is `likely_flooded` under the active scenario without a caveat naming it, and for flood answers: missing `scenario_id`, "safe"/"selamat"/"安全", water depths |
+| Flooded endpoints | Routing may start or end inside a flooded place (you evacuate from where you are). When a scenario is active (plan_route's `scenario_id`, else the UI scenario) and the origin or destination is `likely_flooded`/`possible` in `world.flood.place_classes`, `call_tool` adds evidence `ev-scn-<scenario>.<place_id>`, a warning and `data.endpoint_flood`; the mock and template state it as the first caveat |
 | `template.py` | Deterministic fallback answer that always validates |
 | `mock.py` | Scripted `FunctionModel` for CI and keyless development |
 | `events.py` | SSE event models (`ChatEvent` union), `SceneIntent`, `ChatRequest` |
@@ -90,7 +91,7 @@ GOLDEN_REAL=1 pnpm golden    # OpenRouter with the .env model (costs money; manu
 ```
 
 `evals/run_golden.py` runs `evals/golden/hero.yaml` against the tiny fixture with a temporary
-VR database. It checks `tools_include`, `events_include`, `done_status_in` and `text_excludes`,
+VR database. It checks `tools_include`, `events_include`, `done_status_in`, `text_includes` and `text_excludes`,
 prints a table and exits 1 on any failure.
 
 ## Tests
