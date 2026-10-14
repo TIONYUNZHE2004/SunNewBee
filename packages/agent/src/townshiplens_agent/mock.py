@@ -71,6 +71,17 @@ def _unknown_caveats(routes: list) -> list[str]:
     return out
 
 
+def _placeholder_caveat(rets, caveats: list[str]) -> list[str]:
+    """Append the placeholder caveat when any evidence seen is team_survey_placeholder."""
+    if any(
+        e.get("source_type") == "team_survey_placeholder"
+        for _, r in rets
+        for e in r.get("evidence", [])
+    ):
+        return [*caveats, "Segment facts are demo values, not yet surveyed."]
+    return caveats
+
+
 def _endpoint_flood(route_data) -> tuple[list[str], list[str], bool]:
     """Caveats, evidence ids and "any likely flooded" for route endpoints in a flooded place."""
     flagged = (route_data or {}).get("endpoint_flood") or []
@@ -177,7 +188,7 @@ def _script(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
         caveats = _unknown_caveats(routes[:1])
         if route and route.get("status") != "confirmed" and not caveats:
             caveats = [f"Route status: {route.get('status')}; not all segments are verified."]
-        caveats = flood_cav + caveats
+        caveats = _placeholder_caveat(rets, flood_cav + caveats)
         confirmed = route and route.get("status") == "confirmed" and not likely
         return _final(
             answer_status="answered" if confirmed else "partial",
@@ -242,7 +253,7 @@ def _script(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
         caveats = _unknown_caveats(routes)
         if status != "confirmed" and not caveats:
             caveats = [f"Route status: {status}; not all segments are verified."]
-        caveats = flood_cav + caveats
+        caveats = _placeholder_caveat(rets, flood_cav + caveats)
         dist = r0.get("distance_m") if r0 else None
         flagged = rr.get("endpoint_flood") or []
         m = re.search(r"active_scenario=(\w+)", info.instructions or "")

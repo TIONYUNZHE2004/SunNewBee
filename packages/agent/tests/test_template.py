@@ -94,3 +94,20 @@ def test_template_flooded_endpoint_caveat(cls):
     assert "Urban Park playground" in a.caveats[0]
     if cls == "likely_flooded":
         assert a.answer_status == "partial" and "likely flooded" in a.caveats[0]
+
+
+def test_template_placeholder_evidence_validates():
+    r = TurnRecord()
+    r.evidence["ev-ph"] = Evidence(
+        id="ev-ph",
+        element_id="seg-ab",
+        attribute="width",
+        value=1.2,
+        status="verified",
+        source_type="team_survey_placeholder",
+    )
+    r.routes["rt-1"] = {"distance_m": 50, "unknowns": []}
+    r.route_status["rt-1"] = "confirmed"
+    a = template_answer(r, "route?")
+    assert any("demo values, not yet surveyed" in c for c in a.caveats)
+    assert validate_answer(a, r) == []

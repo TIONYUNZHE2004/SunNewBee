@@ -112,6 +112,9 @@ def get_place_details(ctx: Ctx, place_id: str) -> ToolResult:
     return ToolResult(ok=True, data=p.model_dump(mode="json"), evidence=ev)
 
 
+MAX_ROUTE_VRS = 10  # one question must not flood the staff verification queue
+
+
 def plan_route(
     ctx: Ctx,
     from_id: str,
@@ -124,12 +127,16 @@ def plan_route(
     evidence: list[Evidence] = []
     vrs = []
     filed: set[tuple[str, str]] = set()  # one VR per element/attribute per call (alt routes repeat)
+    truncated = 0
     for r in rr.routes:
         evidence += routing.evidence_for_route(ctx.world, r)
         for u in r.unknowns:
             if u["attribute"] == "flood" or (u["element_id"], u["attribute"]) in filed:
                 continue
             filed.add((u["element_id"], u["attribute"]))
+            if len(filed) > MAX_ROUTE_VRS:
+                truncated += 1
+                continue
             vr, created = ctx.vrs.request(
                 u["element_id"], u["attribute"], u.get("reason", "unknown"), question_summary
             )
@@ -156,7 +163,10 @@ def plan_route(
         if e.id not in seen:
             seen.add(e.id)
             uniq.append(e)
-    data = rr.model_dump(mode="json") | {"verification_requests": vrs}
+    data = rr.model_dump(mode="json") | {
+        "verification_requests": vrs,
+        "verification_requests_truncated": truncated,
+    }
     return ToolResult(ok=True, data=data, evidence=uniq, warnings=rr.warnings)
 
 
