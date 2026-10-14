@@ -187,3 +187,67 @@ For `stroller`, this edge evaluates **UNKNOWN** (the incline is unknown). Any ro
 - Fixture graph `tiny_site.geojson` with: one confirmed route, one route only via an unknown ramp, one blocked by steps, one closure, a rest-gap > 100 m, a stale claim and a contested claim.
 - One test per row of the classification table, for each profile.
 - Property tests (Hypothesis): monotonicity (relaxing a constraint never removes a route; adding a verified blocker never creates one) and "no FAIL edge ever appears in a returned route".
+
+---
+
+## 10. Township scale: base twin, lenses and scenarios (added 15 Oct 2026, ADRs 0009/0010)
+
+§1–9 define the **access** lens at the deep spot. At township scale, the world model is a **base twin plus lens overlays** that share IDs and provenance fields. Data research: [township-3d-engine-and-data § 4](../02-research/township-3d-engine-and-data.md).
+
+### 10.1 Layers
+
+| Layer | Contents | Source (MVP) | Format |
+|---|---|---|---|
+| **Base: boundary** | Elmina polygon (envelope `3.150,101.460,3.240,101.530`, clipped) | OSM `landuse`/names, or the SDP master plan if provided | GeoJSON |
+| **Base: buildings** | Footprints (about 7k OSM / 22k Overture in the envelope); heights mostly absent | OSM + Overture (2026-09 release) | GeoParquet → GeoJSON per area |
+| **Base: terrain** | Copernicus GLO-30 DEM (EGM2008) + derived HAND | Copernicus / ASF HAND (CC0) | COG GeoTIFF (build-time only) |
+| **Base: hydrology** | Rivers, streams, drains, ponds, retention basins, pumping stations | OSM (123 waterway features, 83 water bodies) | GeoJSON |
+| **Base: walk network** | Footways, paths, crossings, steps (whole envelope, `reported`), with deep-spot claims verified | OSM import + field survey | GeoJSON → NetworkX |
+| **Base: drive network** | Roads (residential, service, primary…) | OSM via OSMnx | GraphML/GeoJSON → NetworkX |
+| **Base: places** | Facilities, schools, halls, places of worship, clinics, parks, playgrounds, toilets, shelters | OSM + hand-curated | GeoJSON |
+| **Lens `access`** | Claims on walk edges, nodes, entrances (§2–3) | Survey + import | GeoJSON + SQLite claims |
+| **Lens `flood`** | Scenarios, water polygons, per-edge/per-place flood class, evacuation centres | HAND pipeline + OSM candidates + official PPS evidence | GeoJSON + JSON |
+| **Lens `waste`** | 20–40 hand-curated recycling / e-waste / bin points with status | Field + MBSA / SWCorp pages | GeoJSON |
+
+**Common feature fields:** `id, lens, kind, geometry, name, status, source, source_url, valid_from, valid_to, evidence_ids`.
+
+### 10.2 Flood scenario entities
+
+```
+Scenario        { id: "stage_p3m", stage_m: 3, method: "HAND", dem: "GLO-30", margin_m: 1.0,
+                  created, evidence_ids, disclaimer }
+ScenarioWater   { scenario_id, polygon (WGS84), surface_height_m (ellipsoidal, for the renderer),
+                  depth_band: "0-0.5|0.5-1|>1" (display only) }
+ScenarioEdge    { scenario_id, edge_id, flood_class: likely_flooded|possible|unlikely, hand_min_m, hand_mean_m }
+ScenarioPlace   { scenario_id, place_id, flood_class, cut_off: bool }
+EvacCentre      { id: "evc-…"|"pps-…", place_id, source: official_pps|osm_candidate, capacity?, evidence_ids }
+```
+
+**Classification** (per scenario `s`, edge `e`, with `stage = s.stage_m` and margin `M`):
+- `likely_flooded` if `hand_min(e) < stage − M`
+- `possible` if `hand_min(e) < stage + M`
+- `unlikely` otherwise
+
+Only cells **connected** to the drainage network count (no isolated hollows).
+
+### 10.3 Evaluation with a scenario (extends §5.1)
+
+```
+evaluate(e, profile, at, scenario):
+  if scenario and flood_class(e, scenario) == likely_flooded and profile.depth_fail_applies: FAIL
+  if scenario and flood_class(e, scenario) == possible: min(UNKNOWN, base)   # never upgrades
+  else: base = evaluate(e, profile, at)   # §5.1 rules
+```
+
+Flood depth thresholds per profile (`config/profiles/*.yaml`, shown in the UI legend): wheelchair/stroller are the strictest (engineering default, **unsourced**); pedestrians use UK FD2320-style danger bands; `drive` uses about 0.3 m. With a 30 m DEM we never compute path-level depth. The three classes plus the margin encode that uncertainty.
+
+**Invariant:** for stages `s1 < s2`, the flooded set at `s1` ⊆ the flooded set at `s2`, and a higher stage never un-floods an edge (property test).
+
+### 10.4 Evacuation analytics (per scenario × profile)
+- **Reachability:** multi-source Dijkstra from residential nodes over PASS edges → reachable centres, distance/time.
+- **Islands:** connected components with no PASS path to any centre → `isolated_components`.
+- **Isochrones:** 5/10/15-minute reach from each centre (`single_source_dijkstra_path_length` with a cutoff).
+- **Baseline vs scenario delta** = the management briefing.
+
+### 10.5 Storage (MVP)
+Versioned GeoJSON/GeoParquet in `data/` (build outputs committed when small, otherwise rebuilt by script) + in-memory Shapely STRtree + NetworkX graphs (walk, drive) + **SQLite** for claims, VRs, the question log and sim runs. **No PostGIS for the MVP.** DuckDB-spatial at build time only. PMTiles only for the Mapbox lite view.
