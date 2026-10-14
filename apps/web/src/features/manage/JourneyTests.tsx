@@ -164,7 +164,7 @@ export function JourneyTests() {
           {run.isPending ? "Running journey tests…" : "Run journey tests"}
         </button>
         {run.isError && (
-          <p role="alert" className="text-sm font-medium text-[#9b1c1c]">
+          <p role="alert" className="text-sm font-medium text-danger">
             {simErrorMessage(run.error)}{" "}
             {!(run.error instanceof ApiError && [401, 503, 422].includes(run.error.status)) && (
               <button type="button" className="underline" onClick={() => run.mutate()}>
@@ -188,7 +188,7 @@ export function JourneyTests() {
         )}
       </div>
       {loadError && (
-        <p role="alert" className="text-sm font-medium text-[#9b1c1c]">
+        <p role="alert" className="text-sm font-medium text-danger">
           That report could not be loaded.
         </p>
       )}

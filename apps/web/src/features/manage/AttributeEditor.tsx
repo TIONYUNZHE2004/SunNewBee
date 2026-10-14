@@ -31,7 +31,7 @@ export function AttributeEditor({
   /** Called after a successful save and refetch; the parent shows confirmation. */
   onSaved: () => void;
 }) {
-  const [form, setForm] = useState<AttrForm>(() => initialAttrForm(row.raw, row.status));
+  const [form, setForm] = useState<AttrForm>(() => initialAttrForm(row.raw, row.status, row.attr));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const qc = useQueryClient();
@@ -162,7 +162,7 @@ export function AttributeEditor({
       </div>
 
       {error && (
-        <p role="alert" className="text-sm font-medium text-[#9b1c1c]">
+        <p role="alert" className="text-sm font-medium text-danger">
           {error}
         </p>
       )}

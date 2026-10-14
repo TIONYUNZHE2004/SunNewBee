@@ -29,9 +29,25 @@ export interface AttrPayload {
   note?: string;
 }
 
-export function kindOf(v: unknown): Kind {
+const NUMBER_KEYS = new Set(["step_count", "incline_pct", "width_m", "step_height_cm"]);
+const BOOLEAN_KEYS = new Set([
+  "wheelchair",
+  "lit",
+  "ramp",
+  "covered",
+  "seating",
+  "tactile_paving",
+  "handrail",
+]);
+
+/** Kind from the current value; for a null value, from the attribute key (else text). */
+export function kindOf(v: unknown, key?: string): Kind {
   if (typeof v === "boolean") return "boolean";
   if (typeof v === "number") return "number";
+  if (v === null || v === undefined) {
+    if (key && NUMBER_KEYS.has(key)) return "number";
+    if (key && BOOLEAN_KEYS.has(key)) return "boolean";
+  }
   return "text";
 }
 
@@ -46,8 +62,8 @@ export function parseValue(kind: Kind, raw: string): number | boolean | string |
   return s === "" ? null : s;
 }
 
-export function initialAttrForm(value: unknown, status: string): AttrForm {
-  const kind = kindOf(value);
+export function initialAttrForm(value: unknown, status: string, key?: string): AttrForm {
+  const kind = kindOf(value, key);
   const raw =
     value === null || value === undefined
       ? ""

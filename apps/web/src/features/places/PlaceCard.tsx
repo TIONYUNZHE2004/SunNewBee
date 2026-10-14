@@ -3,7 +3,7 @@ import { usePlace } from "../../lib/api";
 import { useChatDraft } from "../chat/chatDraftStore";
 import { AttributeEditor } from "../manage/AttributeEditor";
 import { AuditHistory } from "../manage/AuditHistory";
-import { useStaffToken } from "../manage/useStaffToken";
+import { loadToken } from "../manage/manageApi";
 import { useScene } from "../scene/sceneStore";
 import { type ClaimRow, toPlaceView } from "./placeModel";
 
@@ -88,7 +88,8 @@ function PlaceCardInner({ id }: { id: string }) {
   const ref = useRef<HTMLDivElement>(null);
   const trigger = useRef<HTMLElement | null>(null);
   const asking = useRef(false);
-  const [token] = useStaffToken();
+  // Re-read on every render so a token entered on /manage after the card opened is picked up.
+  const token = loadToken();
   const [editing, setEditing] = useState<string | null>(null);
   const [saved, setSaved] = useState<string | null>(null);
 

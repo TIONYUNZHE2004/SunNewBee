@@ -24,6 +24,25 @@ describe("kindOf", () => {
     expect(kindOf("x")).toBe("text");
     expect(kindOf(null)).toBe("text");
   });
+  it("infers from the key when the value is null", () => {
+    for (const k of ["step_count", "incline_pct", "width_m", "step_height_cm"])
+      expect(kindOf(null, k)).toBe("number");
+    for (const k of [
+      "wheelchair",
+      "lit",
+      "ramp",
+      "covered",
+      "seating",
+      "tactile_paving",
+      "handrail",
+    ])
+      expect(kindOf(null, k)).toBe("boolean");
+    for (const k of ["surface", "kerb", "door_type", "shelter", "opening_hours", "other"])
+      expect(kindOf(null, k)).toBe("text");
+  });
+  it("prefers the value type over the key", () => {
+    expect(kindOf("steep", "incline_pct")).toBe("text");
+  });
 });
 
 describe("parseValue", () => {
@@ -87,6 +106,11 @@ describe("toPayload", () => {
 });
 
 describe("initialAttrForm", () => {
+  it("uses the key for null-valued claims", () => {
+    expect(initialAttrForm(null, "unknown", "wheelchair").kind).toBe("boolean");
+    expect(initialAttrForm(null, "unknown", "width_m").kind).toBe("number");
+    expect(initialAttrForm(null, "unknown", "surface").kind).toBe("text");
+  });
   it("prefills from the claim", () => {
     expect(initialAttrForm(true, "verified").raw).toBe("yes");
     expect(initialAttrForm(2, "reported")).toMatchObject({

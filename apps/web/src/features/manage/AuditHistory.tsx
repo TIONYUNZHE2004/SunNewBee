@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
+import { useId, useState } from "react";
 import { ApiError, type AuditClaim, type AuditRow, fetchAudit } from "./manageApi";
 
 function fmt(c: AuditClaim): string {
@@ -7,7 +7,8 @@ function fmt(c: AuditClaim): string {
   const v = c.value;
   const val =
     v === null || v === undefined ? "unknown" : v === true ? "Yes" : v === false ? "No" : String(v);
-  return `${val} (${c.status ?? "unknown"})`;
+  const st = c.status ?? "unknown";
+  return val === "unknown" && st === "unknown" ? "unknown" : `${val} (${st})`;
 }
 
 function Rows({ rows }: { rows: AuditRow[] }) {
@@ -32,6 +33,7 @@ function Rows({ rows }: { rows: AuditRow[] }) {
 /** Disclosure listing audit rows for one element. Fetches only when opened. */
 export function AuditHistory({ elementId, token }: { elementId: string; token: string }) {
   const [open, setOpen] = useState(false);
+  const panelId = useId();
   const q = useQuery({
     queryKey: ["audit", elementId],
     enabled: open,
@@ -45,14 +47,14 @@ export function AuditHistory({ elementId, token }: { elementId: string; token: s
       <button
         type="button"
         aria-expanded={open}
-        aria-controls="audit-panel"
+        aria-controls={panelId}
         onClick={() => setOpen(!open)}
         className="min-h-11 w-full rounded-lg border border-line bg-card px-4 text-left text-sm font-medium focus-visible:outline-2 focus-visible:outline-brand"
       >
         History
       </button>
       {open && (
-        <div id="audit-panel" className="mt-2">
+        <div id={panelId} className="mt-2">
           {q.isPending ? (
             <p role="status" className="text-sm text-ink-soft">
               Loading history…
