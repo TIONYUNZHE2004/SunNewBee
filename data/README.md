@@ -129,6 +129,8 @@ Drainage covers 1,508 cells (1.3% of the window).
 |---|---|---|---|---|---|
 | All wet cells | 33.9% | 19.8% | 14.1% | 9.0% | 7.5% |
 
+At +1 m about a third of the wet area is hidden under the 3D surface; the list view and 2D layers are authoritative.
+
 At +1 m, drainage cells make up 44% of the wet cells, and 54.8% of them read above the surface (canopy, banks and bridges in the surface model over rasterised channel cells). For non-drainage cells the figure is 17.7%. Smaller tiles barely help: 0.005° gives 29.5% and 0.0025° gives 27.5% at +1 m.
 
 ### Sanity check

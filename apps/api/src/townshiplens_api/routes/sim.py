@@ -8,7 +8,6 @@ from townshiplens_spatial.models import ProfileId
 
 from .. import state
 from ..auth import StaffOnly
-from ..settings import ApiSettings
 from ..store import SimStore
 
 router = APIRouter()
@@ -16,7 +15,7 @@ _stores: dict[str, SimStore] = {}
 
 
 def _store() -> SimStore:
-    path = ApiSettings().database_url.removeprefix("sqlite:///")
+    path = state.db_path()
     if path not in _stores:
         _stores[path] = SimStore(path)
     return _stores[path]

@@ -479,3 +479,54 @@ def test_ground_above_drawn_surface_share_is_small():
     # 0.01 deg tile = 10 rows = 2 m of river fall: the upstream half of a tile sits above +1 m
     assert 0.0 < share < 0.6
     assert ground_above_surface_share(rem, dem, T, 5, drain, STAGES, tile_deg=0.01) < share
+
+
+def test_unnamed_halls_are_never_merged():
+    from data.scripts.build_flood import dedupe_places
+
+    a = _place(
+        "osm-way-1", "community_centre", "Community hall (unnamed, OSM)", [101.5100, 3.1800], None
+    )
+    b = _place(
+        "osm-node-2",
+        "community_centre",
+        "Community hall (unnamed, OSM)",
+        [101.51045, 3.1800],
+        "n-x",
+    )
+    kept, dropped = dedupe_places([a, b])
+    assert len(kept) == 2 and dropped == []
+
+
+def test_seed_scenario_disclaimers_match_build_constant():
+    from data.scripts.build_flood import DISCLAIMERS
+
+    p = Path(__file__).resolve().parents[2] / "seed/elmina/flood/scenarios.json"
+    scenarios = json.loads(p.read_text())["scenarios"]
+    assert scenarios and all(s["disclaimer"] == DISCLAIMERS["rem"] for s in scenarios)
+    assert "101.46" in DISCLAIMERS["rem"] and "paths outside it are not" in DISCLAIMERS["rem"]
+
+
+def test_rewrite_disclaimers_edits_only_that_field(tmp_path):
+    from data.scripts.build_flood import DISCLAIMERS, rewrite_disclaimers
+
+    f = tmp_path / "flood"
+    f.mkdir()
+    raw = (
+        '{\n "scenarios": [\n  {\n   "id": "a",\n   "method": "REM",\n'
+        '   "disclaimer": "old"\n  },\n  {\n   "id": "b",\n   "method": "HAND",\n'
+        '   "disclaimer": "keep"\n  }\n ]\n}\n'
+    )
+    (f / "scenarios.json").write_text(raw)
+    assert rewrite_disclaimers(tmp_path) == 1
+    assert (f / "scenarios.json").read_text() == raw.replace(
+        '"old"', json.dumps(DISCLAIMERS["rem"], ensure_ascii=False)
+    )
+
+
+def test_update_site_writes_two_space_indent(tmp_path):
+    from data.scripts.build_flood import update_site
+
+    (tmp_path / "site.json").write_text('{"id": "x"}')
+    update_site(tmp_path, 1.5)
+    assert '\n  "attribution"' in (tmp_path / "site.json").read_text()

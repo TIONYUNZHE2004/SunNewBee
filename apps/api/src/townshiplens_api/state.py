@@ -25,11 +25,14 @@ def get_ctx() -> tools.Ctx:
                 else:
                     log.warning("no site.json in %s; using the tiny fixture", s.tl_data_dir)
                     data = TINY_FIXTURE
-                _ctx = tools.Ctx(
-                    world=load_world(data),
-                    vrs=VerificationStore(s.database_url.removeprefix("sqlite:///")),
-                )
+                world = load_world(data)
+                _ctx = tools.Ctx(world=world, vrs=VerificationStore(s.db_path(world.site.id)))
     return _ctx
+
+
+def db_path() -> str:
+    """The one SQLite path for the loaded world (VR, sim and audit stores all use it)."""
+    return ApiSettings().db_path(get_ctx().world.site.id)
 
 
 def reset() -> None:
