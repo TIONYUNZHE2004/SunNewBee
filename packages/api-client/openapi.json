@@ -702,6 +702,17 @@
             "title": "Id",
             "type": "string"
           },
+          "photo_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Photo Url"
+          },
           "source_type": {
             "anyOf": [
               {
@@ -775,6 +786,24 @@
         "title": "Evidence",
         "type": "object"
       },
+      "EvidenceUploaded": {
+        "properties": {
+          "evidence_id": {
+            "title": "Evidence Id",
+            "type": "string"
+          },
+          "photo_url": {
+            "title": "Photo Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "evidence_id",
+          "photo_url"
+        ],
+        "title": "EvidenceUploaded",
+        "type": "object"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -833,6 +862,17 @@
             ],
             "title": "Action",
             "type": "string"
+          },
+          "evidence_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Evidence Id"
           },
           "note": {
             "default": "",
@@ -2493,6 +2533,108 @@
           }
         },
         "summary": "Evac"
+      }
+    },
+    "/evidence": {
+      "post": {
+        "description": "Staff-only JPEG/PNG upload (max 5 MB). Type is decided by magic bytes; metadata (EXIF,\nGPS, comments, text chunks) is stripped before anything is stored.",
+        "operationId": "upload_evidence_evidence_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-staff-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Staff-Token"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "properties": {
+                  "file": {
+                    "format": "binary",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "file"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EvidenceUploaded"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Upload Evidence"
+      }
+    },
+    "/evidence/{evidence_id}": {
+      "get": {
+        "operationId": "get_evidence_evidence__evidence_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "evidence_id",
+            "required": true,
+            "schema": {
+              "title": "Evidence Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "image/jpeg": {},
+              "image/png": {}
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Evidence"
       }
     },
     "/graph": {

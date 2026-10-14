@@ -12,6 +12,7 @@ class ApiSettings(BaseSettings):
     tl_data_dir: Path = ROOT / "data/seed/elmina"
     database_url: str | None = None
     staff_token: str = DEFAULT_STAFF_TOKEN
+    evidence_dir: Path = ROOT / ".data" / "evidence"
     cors_origins: list[str] = ["http://localhost:5173", "http://127.0.0.1:5173"]
 
     def db_path(self, site_id: str) -> str:

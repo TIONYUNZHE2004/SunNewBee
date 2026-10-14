@@ -10,7 +10,7 @@ from . import flood as _flood
 from . import routing
 from .evaluate import evaluate_edge
 from .geo import haversine_m
-from .models import Claim, Evidence, ToolResult
+from .models import Claim, Evidence, ToolResult, photo_url
 from .scenario_meta import scenario_source
 from .vr_store import VerificationStore
 from .world import World
@@ -241,6 +241,7 @@ def get_place_details(
             status=c.status,
             verified_at=c.verified_at,
             source_type=c.evidence_type,
+            photo_url=photo_url(c),
         )
         for a, c in p.claims.items()
     ]

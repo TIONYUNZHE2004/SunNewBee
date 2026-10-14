@@ -89,6 +89,44 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/evidence": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Upload Evidence
+         * @description Staff-only JPEG/PNG upload (max 5 MB). Type is decided by magic bytes; metadata (EXIF,
+         *     GPS, comments, text chunks) is stripped before anything is stored.
+         */
+        post: operations["upload_evidence_evidence_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/evidence/{evidence_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Evidence */
+        get: operations["get_evidence_evidence__evidence_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/graph": {
         parameters: {
             query?: never;
@@ -640,6 +678,8 @@ export interface components {
             element_id: string;
             /** Id */
             id: string;
+            /** Photo Url */
+            photo_url?: string | null;
             /** Source Type */
             source_type?: string | null;
             /** Source Url */
@@ -650,6 +690,13 @@ export interface components {
             value?: unknown;
             /** Verified At */
             verified_at?: string | null;
+        };
+        /** EvidenceUploaded */
+        EvidenceUploaded: {
+            /** Evidence Id */
+            evidence_id: string;
+            /** Photo Url */
+            photo_url: string;
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -672,6 +719,8 @@ export interface components {
              * @enum {string}
              */
             action: "verify" | "correct" | "reject";
+            /** Evidence Id */
+            evidence_id?: string | null;
             /**
              * Note
              * @default
@@ -1351,6 +1400,76 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CentreReachability"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    upload_evidence_evidence_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-staff-token"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": {
+                    /** Format: binary */
+                    file: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EvidenceUploaded"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_evidence_evidence__evidence_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                evidence_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "image/jpeg": unknown;
+                    "image/png": unknown;
                 };
             };
             /** @description Validation Error */

@@ -4,7 +4,7 @@ import networkx as nx
 
 from .evaluate import evaluate_edge
 from .geo import haversine_m
-from .models import Evidence, Route, RouteResult, RouteSegment
+from .models import Evidence, Route, RouteResult, RouteSegment, photo_url
 from .scenario_meta import scenario_source
 from .world import World
 
@@ -246,6 +246,7 @@ def evidence_for_route(world: World, route: Route) -> list[Evidence]:
                     status=c.status,
                     verified_at=c.verified_at,
                     source_type=c.evidence_type,
+                    photo_url=photo_url(c),
                 )
             )
         if s.flood_class:
