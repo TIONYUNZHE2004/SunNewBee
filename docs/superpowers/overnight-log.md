@@ -120,3 +120,14 @@
   - **Usage:** about 16 model requests, **US$0.0062** (OpenRouter daily counter 0.0000 → 0.0062). Limits: ≤ 30 requests / US$3. These results are for the **tiny fixture world**; live on the real Elmina seed is NOT RUN until Task 3 merges.
 - **Task 10 (flood):** ruling made: switch to REM (height above mapped OSM drainage), because ASF HAND's dense drainage flooded 39% of segments at +1 m, contradicting the verified local facts. ADR 0010 amended (`main`). Rework in progress.
 - **External usage:** OpenRouter about 16 req / US$0.0062 · Google tiles about 12/30 · Overpass about 18.
+
+### 02:40 (+1:15)
+- **Integrated:** Task 14A (`8fa36e8`):
+  - Playwright hero smoke tests (6: access, flood with no "safe" after the stream completes, manage VR, flood briefing sources, accessible names on `/` and `/manage`).
+  - A CI Playwright step with artifacts.
+  - READMEs (root and web refreshed; api, spatial and agent checked).
+  - Docs synced (dev-setup commands, stack-decision deviations, the spec's "Deviations (implemented)" section; spec status "implemented, walking skeleton, tiny-fixture verified; real-data verification pending").
+- **Full checklist (main):** pytest PASS (212) · golden 6/6 PASS (mock) · web vitest PASS (49) · e2e 6/6 PASS (implementer evidence, mock + tiny fixture) · lint PASS · gen no drift PASS · typecheck PASS.
+- **CI:** run for `8fa36e8` **PASS** (first CI run including Playwright).
+- **Walking-skeleton status:** Tasks 1, 2, 4–9, 11–13 and 14A are done and reviewed. **Remaining:** Task 3 (OSM import; Overpass mirrors keep timing out, implementer still iterating) → Task 10 vector stage (flood REM rework in progress) → Task 14B (real-data verification).
+- **External usage:** OpenRouter about 16 req / US$0.0062 · Google tiles about 12/30.
