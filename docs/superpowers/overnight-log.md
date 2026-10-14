@@ -63,3 +63,19 @@
 - **In review/fix:** Task 5 (routing): an Opus review found a Critical parallel-edge selection bug plus 4 Important issues; the fix is done and in scoped re-review. Task 12 (Cesium/Mapbox/chat) is implementing. Task 3 (OSM import) is still fetching Overpass tiles (4 cached).
 - **Rulings:** Task 8 validator backstop added (answered on blocked/no_data rejected).
 - **External usage:** OpenRouter 0 · Google tiles 0 · Overpass about 4–8 requests.
+
+### 01:56 (+0:31)
+- **Integrated to main and pushed:**
+  - Task 5 (`e19e280`): routing. An Opus review caught a Critical parallel-edge selection bug, and 3 fix rounds also fixed CJK/BM place search, ranking ties and the steps rule.
+  - Task 6 (`71e35e4`): flood analytics and the 10-tool registry. Review fixes: no shared-state mutation, flood-induced islands only, fast centre reachability, grouped briefing lists.
+  - Task 12: the Cesium hero, Mapbox lite, scenario bar and streaming chat. Fixes: a Critical bug where Cesium init never ran (resium ref timing), requestRender, batched GroundPolylinePrimitives for township scale, a shared status mapper, non-colour cues, a legend, and Mapbox layer order.
+  - Task 13 (`957b581`): the management page.
+- **Verified (main, combined):** pytest PASS (129) · web vitest PASS (49 / 13 files) · lint PASS · typecheck PASS · web build PASS.
+- **CI:** the Task 11 merge PASSED. The later runs were not individually checked yet (to do).
+- **In flight:** Task 7 (real API): implemented (146 tests), Opus review running. Task 3 (OSM import): scripts written, Overpass fetch still in progress (7 tiles cached, no seed yet).
+- **Rulings:**
+  - Canonical `status_for_profile` values.
+  - The transient centre-place approach was replaced by `__centre__` target resolution.
+  - Small final fix diffs (2–17 lines) were verified directly by the coordinator.
+- **External usage:** OpenRouter 0 · Google tiles 0 · Overpass about 7–14 requests.
+- **Next:** finish the Task 7 review → integrate → Task 9 (agent + SSE) on the AI lane → Task 3/10 data → Task 14 integration + browser verification.
