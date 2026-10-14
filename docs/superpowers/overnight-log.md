@@ -87,3 +87,15 @@
 - **Browser verification (main, real keys, Google tiles load 1/30):** the page shell, layer toggles, legend, chat suggestions and attribution render, and API calls return 200. **FAIL: the 3D scene is blank.** Root cause: vite-plugin-static-copy v4 preserves the source directory structure, so Cesium's Workers and Assets are served as HTML (SPA fallback). Evidence: console JSON parse and MIME errors; `fetch('/cesium/Assets/approximateTerrainHeights.json')` returns `text/html`; `dist/cesium/node_modules/cesium/Build/Cesium/...`. Fix round 4 was dispatched to the Task 12 implementer (`stripBase` plus a post-build asset check).
 - **In flight:** Task 9 (agent + SSE, Opus implementer) · Task 10 (flood raster pipeline, Opus implementer) · Task 3 (Overpass 504s, retrying with backoff) · Task 12 round 4.
 - **External usage:** OpenRouter 0 · Google tiles 1/30 · Overpass ~14 requests.
+
+### 02:12 (+0:47)
+- **Integrated:**
+  - Task 12 round 4: the Cesium asset paths, with a build-time asset check (`32b7d6c`).
+  - Task 12 round 5: render on tile load, a destroyed-viewer guard and a visible tile-failure notice (`ea43ae0`).
+- **Browser verification (real keys, main, mock LLM):**
+  - **PASS:** Google Photorealistic 3D of the Elmina area renders with our markers, and the initial view is sharp without interaction after round 5. Screenshots: `docs/superpowers/screenshots/2026-10-15-0206-cesium-google-photoreal-elmina.jpg` and `…0208-cesium-initial-view-sharp.jpg`.
+  - **Debugging evidence (systematic):** tileset creation succeeded in the page (`root.json`), the instrumented effect ran and added tiles, and the Google credits appeared, which proved tiles were streaming. The root cause was frames not being requested on tile load in requestRenderMode. The temporary instrumentation was reverted (never committed).
+  - **Minor (to Task 14):** the initial camera looks past the site; frame the site bbox instead.
+- **Task 9 (agent + SSE):** implemented on `lane/ai`, with `main` merged in (186 tests, golden 6/6 mock). It closed the flooded-endpoint gap: a route endpoint that is likely flooded produces evidence plus a caveat, and the validator enforces it. Opus review in progress.
+- **Task 10 (flood pipeline):** Opus implementer running. **Task 3:** Overpass tiles cached (9); the implementer is fixing a parsing error.
+- **External usage:** OpenRouter 0/30 · Google tiles ≈8/30 · Overpass ≈18.
