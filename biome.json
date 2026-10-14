@@ -9,6 +9,7 @@
       "!reference",
       "!packages/api-client/src/schema.d.ts",
       "!data/seed",
+      "!data/cache",
       "!**/*.geojson"
     ]
   },
