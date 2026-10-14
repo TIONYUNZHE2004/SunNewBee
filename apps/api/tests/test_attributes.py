@@ -140,3 +140,53 @@ def test_resolve_vr_failure_after_commit_keeps_claim_and_audit(monkeypatch):
     assert c.get("/verification-requests").json()[0]["id"] == vid
     assert state.get_ctx().world.edges["seg-cf"].claims["incline_pct"].value == 4.0
     assert len(c.get("/audit", params={"element_id": "seg-cf"}, headers=OK).json()) == 1
+
+
+def _patch(key, value):
+    return c.patch(
+        f"/elements/seg-cf/attributes/{key}", json=_body(value=value), headers=OK
+    )
+
+
+def test_catalogue_types_enforced_with_null_existing():
+    state.get_ctx().world.refresh_claim("seg-cf", "step_count", Claim(value=None, status="unknown"))
+    r = _patch("step_count", "3")
+    assert r.status_code == 422 and "step_count" in r.json()["detail"]
+    assert _patch("step_count", 3).status_code == 200
+    assert _patch("wheelchair", "maybe").status_code == 422
+    assert _patch("wheelchair", "limited").status_code == 200
+    assert _patch("lit", "yes").status_code == 422
+    assert _patch("lit", True).status_code == 200
+
+
+def test_unknown_key_keeps_existing_value_check():
+    assert _patch("foo", "bar").status_code == 200  # no existing claim: anything goes
+    assert _patch("foo", 5).status_code == 422  # existing str -> int mismatch
+    assert _patch("foo", "baz").status_code == 200
+
+
+def test_resolve_enforces_catalogue():
+    null_claim = Claim(value=None, status="unknown")
+    state.get_ctx().world.refresh_claim("seg-cf", "incline_pct", null_claim)
+    c.post("/routes", json={"from": "park-b", "to": "kiosk", "profile": "stroller"})
+    vid = c.get("/verification-requests").json()[0]["id"]
+    for action in ("verify", "correct"):
+        r = c.post(
+            f"/verification-requests/{vid}/resolve",
+            json={"action": action, "value": "4"},
+            headers=OK,
+        )
+        assert r.status_code == 422
+    assert c.get("/verification-requests").json()[0]["id"] == vid  # still open
+
+
+def test_validate_value():
+    from townshiplens_spatial.attributes import validate_value as v
+
+    assert v("step_count", 3) is None and v("step_count", 2.5) is None
+    assert v("step_count", "3") and v("step_count", True)
+    assert v("ramp", False) is None and v("ramp", "true") and v("ramp", 1)
+    assert v("surface", "wood") is None and v("surface", "lava")
+    assert v("surface", 3)
+    assert v("name", "Kiosk") is None and v("name", 3)
+    assert v("foo", object()) is None

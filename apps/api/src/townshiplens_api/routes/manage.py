@@ -4,6 +4,7 @@ from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, HTTPException, Path
 from pydantic import BaseModel
+from townshiplens_spatial.attributes import ATTRIBUTE_TYPES, validate_value
 from townshiplens_spatial.models import Claim, VerificationRequest
 
 from .. import state
@@ -34,8 +35,13 @@ def commit_claim(
         if target is None:
             raise KeyError(element_id)
         old = target.claims.get(attribute)
-        if new.value is not None and old is not None and not _type_ok(new.value, old.value):
-            raise ValueError(f"value type does not match existing {attribute}")
+        if new.value is not None:
+            if attribute in ATTRIBUTE_TYPES:
+                err = validate_value(attribute, new.value)
+                if err:
+                    raise ValueError(err)
+            elif old is not None and not _type_ok(new.value, old.value):
+                raise ValueError(f"value type does not match existing {attribute}")
         _audit().append(
             element_id=element_id,
             attribute=attribute,
