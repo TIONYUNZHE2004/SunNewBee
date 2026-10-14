@@ -187,8 +187,8 @@ Create `packages/spatial` as a separate uv workspace member (`uv init --lib pack
 uv init --lib packages/agent && cd packages/agent
 uv add anthropic openai google-genai fastmcp pydantic
 uv add --dev pytest
-# milestone 1: tool registry stub in packages/spatial/tools.py (find_place, route, get_attributes,
-#   request_verification) with fixture-backed implementations, plus a CLI chat loop:
+# milestone 1: tool registry stub in packages/spatial/tools.py (find_place, get_place_details, plan_route,
+#   nearby_amenities, get_closures, create_verification_request) with fixture-backed implementations, plus a CLI chat loop:
 #   uv run python -m agent.cli "Can I reach the hall without stairs?"
 # milestone 2: SSE event stream matching the schema in stack-decision.md section 1.4; hand to backend to mount at POST /chat.
 # milestone 3: evals/: persona configs + deterministic journey runner -> report (JSON + Markdown).

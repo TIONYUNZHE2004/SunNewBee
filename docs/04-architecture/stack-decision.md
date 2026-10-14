@@ -147,7 +147,7 @@ Compared:
 ```
 packages/spatial/          # pure Python, no web deps
   graph.py                 # load from DB/GeoJSON -> NetworkX
-  tools.py                 # find_place, find_nearby, route, get_attributes, request_verification ...
+  tools.py                 # find_place, get_place_details, plan_route, nearby_amenities, get_closures, create_verification_request
   schemas.py               # Pydantic IO models (single source of tool schemas)
 apps/api/                  # FastAPI: REST + /chat SSE + /staff + mounts MCP
 packages/agent/            # provider-agnostic loop, prompts, grounding checks, persona definitions
