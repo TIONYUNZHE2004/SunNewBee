@@ -6,8 +6,11 @@ import { ResidentPage } from "./ResidentPage";
 const navCls = ({ isActive }: { isActive: boolean }) =>
   `rounded-md px-3 py-2 text-sm font-medium ${isActive ? "bg-brand text-white" : "text-brand hover:bg-brand-tint"}`;
 
+const FALLBACK_ATTRIBUTION = "© OpenStreetMap contributors (ODbL)";
+
 function Shell() {
   const site = useSite();
+  const attribution = site.data ? (site.data.attribution ?? []).join(" · ") : FALLBACK_ATTRIBUTION;
   return (
     <div className="flex min-h-screen flex-col">
       <a
@@ -36,10 +39,7 @@ function Shell() {
         <Outlet />
       </main>
       <footer className="border-t border-line bg-card px-4 py-3 text-xs text-ink-soft">
-        <p className="mx-auto max-w-7xl">
-          © OpenStreetMap contributors (ODbL). Copernicus DEM GLO-30 © DLR/Airbus, provided under
-          COPERNICUS by the EU and ESA. HAND: ASF (CC0).
-        </p>
+        <p className="mx-auto max-w-7xl">{attribution}</p>
       </footer>
     </div>
   );

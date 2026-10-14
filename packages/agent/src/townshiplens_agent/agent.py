@@ -17,6 +17,7 @@ from pydantic_ai.models.openrouter import OpenRouterModel
 from pydantic_ai.providers.openrouter import OpenRouterProvider
 from townshiplens_spatial import tools as sp
 from townshiplens_spatial.models import Evidence
+from townshiplens_spatial.scenario_meta import scenario_source
 
 from .answer import FinalAnswer
 from .events import ChatRequest, ToolCall, ToolResultEvent, VerificationRequested
@@ -96,7 +97,7 @@ def _flag_flooded_endpoints(deps: Deps, sid: str, place_ids: list[str], res: sp.
                 attribute="flood",
                 value=cls,
                 status="indicative",
-                source_type="HAND scenario",
+                source_type=scenario_source(deps.ctx.world, sid),
             )
         )
         res.warnings.append(f"{name} ({pid}) is {FLOOD_PHRASE[cls]} in scenario {sid}")

@@ -11,6 +11,7 @@ from . import routing
 from .evaluate import evaluate_edge
 from .geo import haversine_m
 from .models import Evidence, ToolResult
+from .scenario_meta import scenario_source
 from .vr_store import VerificationStore
 from .world import World
 
@@ -147,7 +148,7 @@ def plan_route(
                 element_id=scenario_id,
                 attribute="scenario",
                 status="indicative",
-                source_type="HAND scenario",
+                source_type=scenario_source(ctx.world, scenario_id),
             )
         )
     seen, uniq = set(), []
@@ -258,7 +259,7 @@ def affected_places(
             element_id=scenario_id,
             attribute="scenario",
             status="indicative",
-            source_type="HAND scenario",
+            source_type=scenario_source(ctx.world, scenario_id),
         )
     ]
     ev += [
@@ -268,7 +269,7 @@ def affected_places(
             attribute="flood",
             value=cls,
             status="indicative",
-            source_type="HAND scenario",
+            source_type=scenario_source(ctx.world, scenario_id),
         )
         for cls, xs in (
             ("likely_flooded", a.likely_place_ids + a.likely_edge_ids),
@@ -317,7 +318,7 @@ def list_evacuation_centres(
                 element_id=scenario_id,
                 attribute="scenario",
                 status="indicative",
-                source_type="HAND scenario",
+                source_type=scenario_source(ctx.world, scenario_id),
             )
         )
         if sc:
