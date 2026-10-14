@@ -38,7 +38,7 @@ A: No, and on purpose. Research shows LLM personas of disabled people are stereo
 ## Feasibility (20%)
 
 **Q: Can SDP actually deploy this?**
-A: Yes. It runs in a browser with no app install and no resident accounts. It uses existing 3D data and an open schema (OpenSidewalks), and it's hosted for near-zero cost. Onboarding a facility is a one-day survey plus data entry. We did it for <site> in <N> hours.
+A: Yes. It runs in a browser with no app install and no resident accounts. It uses existing 3D data and an open schema (OpenSidewalks), and it's hosted for near-zero cost. Onboarding a facility is a one-day survey plus data entry. We did it for Elmina Urban Park in <N> hours.
 
 **Q: What does it cost to run?**
 A: The LLM is about USD 1 per 1,000 questions on a small model. Hosting is on free or low tiers at pilot scale. The main cost is staff time for verification, which the system minimises by ranking. Details: [business-case.md](business-case.md).

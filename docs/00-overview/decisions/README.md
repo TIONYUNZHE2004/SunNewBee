@@ -33,5 +33,6 @@ What gets easier, what gets harder, what we must watch.
 | [0002](0002-use-existing-3d-data.md) | Use existing 3D data instead of our own capture for the MVP | accepted |
 | [0003](0003-structured-world-model-is-source-of-truth.md) | The structured world model, not the 3D scene or the LLM, is the source of truth | accepted |
 | [0004](0004-tri-state-accessibility-attributes.md) | Accessibility attributes are tri-state (yes / no / unknown) with provenance | accepted |
-| [0005](0005-tech-stack.md) | Tech stack | see [stack-decision](../../04-architecture/stack-decision.md) |
-| [0006](0006-mvp-site.md) | MVP site | see [site-selection](../../02-research/site-selection.md) |
+| [0005](0005-tech-stack.md) | Tech stack: Vite/React/R3F + FastAPI/NetworkX + Claude tool loop | proposed |
+| [0006](0006-mvp-site.md) | MVP site: Elmina Urban Park + Lakeside Mall frontage | proposed |
+| 0007 | 3D renderer after the Day-1 spike (R3F + 3d-tiles-renderer vs CesiumJS) | to write |

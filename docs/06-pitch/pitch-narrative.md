@@ -27,7 +27,7 @@
 | 9 | **Enabler 3: agents that test the map** | Enabler | Innovation, Evidence | Persona profiles; seeded faults found (x/y); "not role-play: real residents consulted in person" |
 | 10 | **Enabler 4: built to scale** | Enabler | Feasibility, Commercial | Swappable 3D (Google tiles today; SDP BIM or phone splats tomorrow); browser-only; about USD 1 per 1,000 questions; onboarding a facility = N hours |
 | 11 | **Evidence** | Results | Evidence, Impact | Results table from [evaluation-plan § 5](../03-product/evaluation-plan.md); user quotes |
-| 12 | **Pilot plan** | Ask | Feasibility, Commercial | 4–8 weeks at <facility>: KPIs, staff involvement, cost, privacy. "What we need from SDP: one facility, one ops contact, data access." |
+| 12 | **Pilot plan** | Ask | Feasibility, Commercial | 4–8 weeks at Elmina Urban Park + Lakeside Mall frontage: KPIs, staff involvement, cost, privacy. "What we need from SDP: one facility, one ops contact, data access." |
 | 13 | **Team** | Team | Team | Three lanes (photo + one-line role each); mentors' feedback we acted on |
 | 14 | **Close** | Memory | (all) | Tagline + the Aisyah image, now at the right entrance |
 

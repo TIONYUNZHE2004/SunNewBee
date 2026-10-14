@@ -16,14 +16,14 @@ Track: **People** · Sub-themes: Accessibility & inclusion · Getting around · 
 
 ## 2. Solution (≈200 words + 1 diagram) → Innovation 20%
 > Draft:
-> **TownshipLens** is a resident-facing web assistant for an SDP township facility. Residents ask questions in everyday language (English, Bahasa Melayu or Chinese), for example *"Can I take a stroller from Car Park B to the community hall without stairs?"*. TownshipLens answers from a **verified world model**: a map of entrances, path segments and amenities in which every accessibility fact is *yes*, *no* or *unknown*, with its source and verification date. A deterministic routing engine checks the route for the resident's needs (stroller, wheelchair, older resident needing rest points). An AI assistant explains the result in plain language, shows the route on a 3D view of the real site, and states clearly which parts are not yet verified.
+> **TownshipLens** is a resident-facing web assistant for an SDP township facility. Residents ask questions in everyday language (English, Bahasa Melayu or Chinese), for example *"Can I take a stroller from the Lakeside Mall car park to the Urban Park playground without stairs?"*. TownshipLens answers from a **verified world model**: a map of entrances, path segments and amenities in which every accessibility fact is *yes*, *no* or *unknown*, with its source and verification date. A deterministic routing engine checks the route for the resident's needs (stroller, wheelchair, older resident needing rest points). An AI assistant explains the result in plain language, shows the route on a 3D view of the real site, and states clearly which parts are not yet verified.
 >
 > Every unknown becomes a **verification request** for the township team, ranked by how many residents it affects. Staff verify it with a photo in about two minutes, and every later answer improves. Behind the scenes, **test personas** walk every journey through the map to find gaps before residents do.
 
 Diagram: the gap loop (question → route check → answer with evidence → unknown → ranked staff task → verified fact → better answer).
 
 ## 3. How it works / prototype (≈200 words + 2–3 screenshots) → Feasibility 20%
-- Site: **<facility>, <township>** (why: [site-selection](../02-research/site-selection.md)).
+- Site: **Elmina Urban Park + Elmina Lakeside Mall frontage, City of Elmina, Shah Alam** (SDP's flagship township; why: [site-selection](../02-research/site-selection.md)). OpenStreetMap already marks 28 of 54 footways here as `wheelchair=yes`, with no width, slope or source: asserted, not verified. That is exactly the gap we close.
 - Screenshots from the proof-of-life: 3D site view with route overlay; the chat answer with evidence and a "not checked yet" badge; the staff verification queue.
 - Architecture in one line: *verified spatial graph (OpenSidewalks-based) + NetworkX routing + tool-calling LLM with a citation validator + Google Photorealistic 3D Tiles + MapLibre 2D fallback; browser-based, no app install, no resident accounts.*
 - Link: <deployed URL> · <60–90 s demo video>.

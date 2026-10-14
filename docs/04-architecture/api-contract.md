@@ -26,10 +26,10 @@ Site metadata for the frontend bootstrap.
 ```json
 {
   "id": "site-01",
-  "name": "<facility name>",
-  "township": "<township>",
-  "center": [101.0, 3.0],
-  "bbox": [100.99, 2.99, 101.01, 3.01],
+  "name": "Elmina Urban Park + Lakeside Mall frontage",
+  "township": "City of Elmina",
+  "center": [101.5095, 3.1805],
+  "bbox": [101.5055, 3.1775, 101.5135, 3.1835],
   "scene": { "type": "google_3d_tiles | gltf | osm_extrusion", "url": "…", "attribution": "…" },
   "profiles": ["default", "stroller", "wheelchair", "older_adult_rest"],
   "data_as_of": "2026-11-04T10:00:00+08:00"

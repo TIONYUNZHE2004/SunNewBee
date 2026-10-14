@@ -2,6 +2,7 @@
 
 > Team knowledge base for **TownshipLens**, our entry to the Sime Darby Property University Hackathon 2026 ("Township of Tomorrow", **People** track).
 > Research is current to **14 Oct 2026**. **Proposal due 23 Oct · Final 11 Nov · Pitch 14 Nov.**
+> MVP site: **Elmina Urban Park + Elmina Lakeside Mall frontage, City of Elmina** ([why](02-research/site-selection.md)).
 
 **TownshipLens** answers residents' "how do I get there?" questions from a *verified* map of entrances, paths and amenities. It shows the route in 3D, says honestly what hasn't been checked, and turns each gap into a ranked task for the township team. → [Project brief](00-overview/project-brief.md)
 
@@ -71,6 +72,7 @@ docs/
     ├── proposal-outline.md           23 Oct proposal structure + draft text
     ├── pitch-narrative.md            story arc, Mechanism/Enabler, slide plan
     ├── business-case.md              who pays, costs, KPIs, scale, pilot plan
+    ├── key-numbers.md                ★ the only numbers allowed in the pitch (sourced)
     ├── judge-qa.md                   likely questions + answers
     └── risks.md                      project risk register
 ```

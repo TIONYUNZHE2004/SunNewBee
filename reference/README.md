@@ -9,6 +9,7 @@ reference/
   download-papers.sh     ← re-downloads all PDFs (PDFs > 10 MB are gitignored)
   notes/                 ← machine-readable source lists written by each research track
   papers/{ai,access,3d}/ ← PDFs, named <arXiv id>_<short title>.pdf
+  papers/context/        ← SDP reports, DOSM, UNICEF toolkit, PDPA summary
   repos/{3d,access,ai,stack}/
 ```
 
@@ -115,6 +116,19 @@ You can also clone one category: `bash reference/clone-repos.sh 3d`.
 | CityGaussian (2404.01133) · Hierarchical 3DGS (2406.12080) · Octree-GS (2403.17898) | 2024 | City-scale splats: the pilot-phase story | ★ |
 | VGGT (2503.11651) · MapAnything (2509.13414) · DUSt3R (2312.14132) | 2023–26 | Feed-forward reconstruction: fast future capture | ★ |
 | ConceptGraphs (2309.16650) | 2023 | Structured scene graphs ground LLMs better than raw 3D | ★★ |
+
+### SDP and Malaysia context (`papers/context/`)
+| Document | Use it for | Pri |
+|---|---|---|
+| SDP Integrated Annual Report 2025 (24 MB, local only) | Landbank, 27 townships, SHIFT32, digital section, **age-inclusive design** quote, CDTO profile | ★★★ |
+| SDP Sustainability Report 2025 (24 MB, local only) | **SSR2030 Community Experience pillar, "Inclusivity & Social Equity"** | ★★★ |
+| UNICEF × SDP Inclusive Playground Toolkit (2022) | Elmina precedent; Universal Design / MS 1184 checklist ideas for our field survey | ★★★ |
+| DOSM Current Population Estimates 2026 | Ageing statistics | ★★ |
+| SDP AGM 2026 Q&A | Leadership mindset, SHIFT32 | ★★ |
+| SDP IAR 2024 · SR 2024 | Prior-year baseline | ★ |
+| SDP Q1 2026 results · Kenanga 4Q25 note | Latest financial narrative | ★ |
+| Bandar Bukit Raja booklet | Backup site (shortlist #3) | ★ |
+| One Asia Lawyers: PDPA 2024 amendments | Plain-language PDPA summary | ★★ |
 
 ---
 

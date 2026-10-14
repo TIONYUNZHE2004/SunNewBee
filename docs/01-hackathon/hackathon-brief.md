@@ -96,7 +96,7 @@ Other opportunities: internships with SDP, development with SDP's industry exper
 ## Open questions to ask organisers / mentors
 
 - [ ] Can we get access to SDP site data (master plans, facility lists, BIM/CAD, photos) for one facility, and under what terms?
-- [ ] May we visit and photograph a public facility (e.g. a community hall or park) to verify it?
+- [ ] May we survey and photograph Elmina Urban Park and the Lakeside Mall frontage (our pick, see [site-selection](../02-research/site-selection.md)), and publish accessibility attributes about the mall-frontage entrances?
 - [ ] What format and page limit does the 23 Oct proposal have? (Check the registration portal.)
 - [ ] Do the judges expect a deployed URL, or is a video demo enough, for the 11 Nov final submission?
 - [ ] Who owns the IP in submitted work? (Check the Terms & Conditions.)

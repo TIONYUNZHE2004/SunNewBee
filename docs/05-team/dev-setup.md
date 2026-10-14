@@ -70,7 +70,7 @@ sim          uv run python -m evals.run --personas all --out evals/reports/lates
 ## 3. Conventions
 
 - **Coordinates:** API and data files use WGS84 `[lon, lat]`. Local metric projection only inside `packages/spatial` (pyproj) and the frontend scene helper. Never mix.
-- **IDs:** stable slugs (`place:hall-main`, `entrance:hall-north`, `edge:path-017`); never reuse.
+- **IDs:** stable slugs with the canonical prefixes from `docs/04-architecture/README.md` (`ent-mall-north`, `seg-0017`, `playground`, `vr-0003`); never reuse.
 - **Attribute provenance:** every attribute has `status` (`verified|unverified|disputed|stale`), `source`, `verified_by`, `verified_at`. The UI and the LLM must render status; "unknown" is a first-class answer.
 - **Tools:** defined only in `packages/spatial/tools.py` as Pydantic-typed functions. Do not define tools in the agent or the route handlers.
 - **Naming:** Python snake_case, TS camelCase; API JSON is snake_case (generated client keeps it, do not remap).

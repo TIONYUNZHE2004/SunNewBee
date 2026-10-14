@@ -46,6 +46,18 @@ PAPERS=(
   "3d|2509.13414_MapAnything.pdf|https://arxiv.org/pdf/2509.13414"
   "3d|2312.14132_DUSt3R.pdf|https://arxiv.org/pdf/2312.14132"
   "3d|2309.16650_ConceptGraphs.pdf|https://arxiv.org/pdf/2309.16650"
+  # --- SDP and Malaysia context (reports, policy). Large reports are gitignored.
+  "context|SDP_Integrated-Annual-Report-2025.pdf|https://www.simedarbyproperty.com/sites/default/files/2026-04/SDP%20IAR2025%20%28Website%29.pdf"
+  "context|SDP_Sustainability-Report-2025.pdf|https://www.simedarbyproperty.com/sites/default/files/2026-04/SDP%20SR2025%20%28Website%29.pdf"
+  "context|UNICEF-SDP_Inclusive-Playground-Toolkit-2022.pdf|https://www.unicef.org/malaysia/media/2071/file/Best%20Business%20Practice:%20Inclusive%20Playground%20Toolkit%20(FULL).pdf"
+  "context|DOSM_Current-Population-Estimates-2026.pdf|https://www.dosm.gov.my/uploads/release-content/file_20260730111244.pdf"
+  "context|SDP_AGM-2026-QA.pdf|https://www.simedarbyproperty.com/sites/default/files/2026-07/f%29%20Appendix%205%20-%20Question%20and%20Answer_clean_v2.pdf"
+  "context|SDP_Integrated-Annual-Report-2024.pdf|https://www.simedarbyproperty.com/sites/default/files/2025-06/INTEGRATED-ANNUAL-REPORT-2024.pdf"
+  "context|SDP_Sustainability-Report-2024.pdf|https://www.simedarbyproperty.com/sites/default/files/2025-05/SR2024.pdf"
+  "context|SDP_Q1-2026-results-release.pdf|https://www.simedarbyproperty.com/sites/default/files/2026-05/20260526%20-%20For%20Immediate%20Release%20-%20Sime%20Darby%20Property%E2%80%99s%20Q1%20Y-o-Y%20Profit%20Up%20by%2032%25%5B96%5D.pdf"
+  "context|Kenanga_SDP-4Q25-research-note.pdf|https://www.kenanga.com.my/wp-content/uploads/2026/02/SIMEPROP-260227-4Q25-RN-Kenanga.pdf"
+  "context|SDP_Bandar-Bukit-Raja-booklet.pdf|https://www.simedarbyproperty.com/bandar-bukit-raja/booklet.pdf"
+  "context|OneAsiaLawyers_PDPA-2024-amendments.pdf|https://oneasia.legal/en/wp-content/themes/standard_black_cmspro/img/EN_09-2024-Amendments-to-Personal-Data-Protection-Act-2024_20241124.pdf"
 )
 
 for entry in "${PAPERS[@]}"; do

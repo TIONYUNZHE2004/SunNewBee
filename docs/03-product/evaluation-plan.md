@@ -58,7 +58,7 @@ LLM-judge hygiene: use a stronger model than the system under test (Sonnet judge
 - **TownshipLens:** the deployed prototype on a phone.
 
 **Tasks** (3 per condition, matched difficulty):
-1. "You have a stroller. Find a step-free way from <car park> to the hall and tell me which entrance you'd use."
+1. "You have a stroller. Find a step-free way from the Lakeside Mall car park to the Urban Park playground and tell me which mall exit you'd use."
 2. "Find the nearest toilet to <place> that a wheelchair user could use."
 3. "Is the <walkway> usable today?" (a closure is active)
 

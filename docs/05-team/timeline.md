@@ -43,7 +43,7 @@ gantt
 | Thu 22 | Proposal review: each person reviews it against the [judging mapping](../01-hackathon/judging-criteria-mapping.md) | | Screenshots for the proposal | Eval numbers for the proposal (even small ones) |
 | **Fri 23** | **Submit the proposal before noon** (leave a buffer for portal issues) | | | |
 
-**Exit criteria:** proposal submitted; a deployed URL where one question ("stroller route from car park X to the hall") returns a highlighted route with at least one `unknown` flagged.
+**Exit criteria:** proposal submitted; a deployed URL where one question ("stroller route from the Lakeside Mall car park to the Urban Park playground") returns a highlighted route with at least one `unknown` flagged.
 
 ---
 

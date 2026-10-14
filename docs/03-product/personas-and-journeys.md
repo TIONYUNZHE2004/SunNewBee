@@ -9,28 +9,28 @@
 ## Resident-side personas
 
 ### 1. Aisyah, parent with a stroller (profile: `stroller`)
-- 32, two kids (3 years and 6 months). Comes to the community hall for a weekend parenting class.
+- 32, two kids (3 years and 6 months). Shops at Elmina Lakeside Mall on Saturday mornings, then takes the kids to the Urban Park playground.
 - **Need:** a step-free route from the car park to the right entrance, a baby-changing room, shade.
-- **Today:** follows Google Maps to the building pin, which is the back of the hall. Finds stairs. Carries the stroller up while holding the baby.
-- **Questions she'd ask:** *"Can I take a stroller from the car park to the hall without stairs?"* · *"Is there a baby-changing room?"* · *"Which entrance is closest to the drop-off?"*
+- **Today:** follows Google Maps to the park pin, comes out of the mall by the nearest exit and meets steps down to the waterside path. Carries the stroller down while holding the baby.
+- **Questions she'd ask:** *"Can I take a stroller from the mall car park to the playground without stairs?"* · *"Is there a baby-changing room?"* · *"Which mall exit is closest to the park?"*
 - **Success:** arrives at the right entrance first time, with no carrying.
 
 ### 2. Uncle Lim, older resident (profile: `older_adult_rest`)
 - 71, walks with a cane, gets tired after about 150–200 m, and is sensitive to heat.
 - **Need:** a route with seating at regular intervals, shade or shelter, toilets nearby, no long ramps.
 - **Today:** avoids the park on hot days because he doesn't know where the benches and shelters are.
-- **Questions:** *"Where can I sit along the way to the surau?"* · *"Nearest toilet to the playground?"* · *"Is the covered walkway open?"*
+- **Questions:** *"Where can I sit along the lakeside walk to the bridge?"* · *"Nearest toilet to the playground?"* · *"Is the covered walkway open?"*
 - Prefers **Mandarin or Bahasa Melayu**, and large text or voice input.
 
 ### 3. Priya, wheelchair user (profile: `wheelchair`)
-- 27, manual wheelchair, visiting a friend's event at the hall. Unfamiliar with the township.
+- 27, manual wheelchair, meeting friends for a weekend event at the Urban Park. Unfamiliar with the township.
 - **Need:** *verified* step-free access, door width, an accessible toilet, OKU parking, kerb cuts.
 - **Today:** calls ahead and often gets "should be OK" answers. Has learnt not to trust "accessible" labels.
 - **Questions:** *"Is the main entrance wheelchair accessible? How do you know?"* · *"Where's the OKU parking closest to an accessible entrance?"*
 - **Key insight: she values an honest "unknown" more than a confident "yes".** This is the persona that justifies the whole tri-state design (ADR [0004](../00-overview/decisions/0004-tri-state-accessibility-attributes.md)).
 
 ### 4. Daniel, first-time visitor (profile: `default`)
-- 24, coming to a futsal booking or a mall event. Has never been here.
+- 24, coming to an event at the park, dropped off by e-hailing. Has never been here.
 - **Need:** which car park, which entrance, how long the walk is.
 - **Questions:** *"I'm at the main gate. How do I get to court 2?"* · *"Where do I drop off my mum?"*
 
@@ -43,7 +43,7 @@
 - **Uses:** the VR queue, attribute editor, recurring-questions view and gap map.
 
 ### 6. Encik Rahman, facility manager
-- Runs the community hall. Knows things that aren't written down ("the side door is locked after 6pm").
+- Looks after the park and mall-frontage facilities. Knows things that aren't written down ("the side gate to the waterside path is locked after 7pm").
 - **Need:** a 2-minute way to record or update facts such as closures, temporary works and door schedules.
 - **Uses:** a mobile-friendly "update a fact" form linked from a VR notification.
 
@@ -53,14 +53,14 @@
 
 ### J1: Stroller step-free route ⭐ (hero journey)
 1. Aisyah opens TownshipLens on her phone. The 3D scene is centred on the site.
-2. She asks: *"Can I push a stroller from Car Park B to the community hall without stairs?"*
-3. Assistant → `find_place("Car Park B")`, `find_place("community hall")` → `plan_route(profile=stroller)`.
+2. She asks: *"Can I push a stroller from Car Park B at Elmina Lakeside Mall to the Urban Park playground without stairs?"*
+3. Assistant → `find_place("Car Park B")`, `find_place("playground")` → `plan_route(profile=stroller)`.
 4. The engine returns **partly unverified**: one route uses ramp R2, whose slope is `unknown`.
 5. The answer: route highlighted (green = verified, amber = unverified), *"…the ramp near the side entrance hasn't been verified yet (no record). The main entrance route is fully step-free but 120 m longer."* Plus evidence cards with photos and verified dates.
 6. A VR "verify slope of ramp R2" is created automatically (or upvoted).
 
 ### J2: Rest points and toilets
-Uncle Lim asks in Mandarin: *"去 surau 的路上有哪里可以坐？"* (Where can I sit on the way to the surau?) → `plan_route(profile=older_adult_rest)` + `nearby_amenities(type=seating|toilet|shelter)` → route with bench pins and the distance between rest points. One gap longer than 150 m is flagged.
+Uncle Lim asks in Mandarin: *"去桥那边的路上有哪里可以坐？"* (Where can I sit on the way to the bridge?) → `plan_route(profile=older_adult_rest)` + `nearby_amenities(type=seating|toilet|shelter)` → route with bench pins and the distance between rest points. One gap longer than 150 m is flagged.
 
 ### J3: "How do you know?"
 Priya asks: *"Is the main entrance wheelchair accessible?"* → `get_place_details(entrance)` → *"Yes: step-free, automatic door, 110 cm wide. Verified by site visit on 4 Nov 2026 (photo E-12)."* She taps the evidence card and sees the photo.

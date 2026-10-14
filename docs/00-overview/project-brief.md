@@ -30,7 +30,7 @@ Residents (Aisyah: stroller · Uncle Lim: older adult · Priya: wheelchair · Da
 - Criteria mapping: [judging-criteria-mapping](../01-hackathon/judging-criteria-mapping.md).
 
 ## MVP scope
-One facility and its surroundings in one SDP township ([site-selection](../02-research/site-selection.md)). 30+ nodes, 50+ edges, 4+ entrances; 4 profiles; 6 tools; staff console; persona simulation; EN/BM/中文. Full list: [mvp-spec](../03-product/mvp-spec.md). **Not in scope:** own 3D capture, indoor turn-by-turn, live sensors, compliance certification, resident accounts.
+**Elmina Urban Park + the Elmina Lakeside Mall frontage, City of Elmina, Shah Alam** (bbox S,W,N,E 3.1775, 101.5055, 3.1835, 101.5135; see [site-selection](../02-research/site-selection.md) and ADR [0006](decisions/0006-mvp-site.md)). 30+ nodes, 50+ edges, 4+ entrances; 4 profiles; 6 tools; staff console; persona simulation; EN/BM/中文. Full list: [mvp-spec](../03-product/mvp-spec.md). **Not in scope:** own 3D capture, indoor turn-by-turn, live sensors, compliance certification, resident accounts.
 
 ## Stack (summary)
 Vite + React 19 + R3F 9 + 3d-tiles-renderer · MapLibre · FastAPI + Pydantic 2 + NetworkX · Postgres (Supabase SG) · Claude Haiku 5.5 / Sonnet 5.5 via a hand-written tool loop · Promptfoo evals · Cloudflare Pages + Cloud Run (Singapore). See [stack-decision](../04-architecture/stack-decision.md).
