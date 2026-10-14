@@ -27,7 +27,8 @@ function StatusBadge({ status }: { status: Parameters<typeof statusStyle>[0] }) 
 }
 
 export function ListView() {
-  const { profile, scenarioId, route, focusPlaceId, lensVisible, selectPlace } = useScene();
+  const { profile, scenarioId, route, focusPlaceId, lensVisible, selectPlace, selectFloodEdge } =
+    useScene();
   const layer = useLayer("access", profile, scenarioId);
   const scenarios = useScenarios();
   const parsed = useMemo(() => parseLayer(layer.data), [layer.data]);
@@ -114,7 +115,15 @@ export function ListView() {
             <ul className="mt-3 space-y-2">
               {flooded.map((e) => (
                 <li key={e.id} className="flex flex-wrap items-center justify-between gap-2">
-                  <span>{e.name}</span>
+                  <button
+                    type="button"
+                    aria-haspopup="dialog"
+                    onClick={() => selectFloodEdge(e.id)}
+                    className="min-h-11 rounded-md px-2 text-left underline decoration-dotted hover:bg-brand-tint"
+                  >
+                    {e.name}
+                    <span className="sr-only">: why is this path flagged?</span>
+                  </button>
                   <StatusBadge status={e.status} />
                 </li>
               ))}

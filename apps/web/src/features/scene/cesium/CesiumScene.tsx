@@ -4,11 +4,13 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { type CesiumComponentRef, useCesium, Viewer } from "resium";
 import { useLayer, useSite } from "../../../lib/api";
 import { ENV } from "../../../lib/env";
-import { pointFeatures } from "../geo";
+import { pickedFloodEdgeId, pointFeatures } from "../geo";
 import { useScene } from "../sceneStore";
 import { useCameraIntents } from "./camera";
 import { type HomeView, homeView, shouldReframe } from "./home";
 import { AccessLayer, FloodLayer, WasteLayer } from "./layers";
+
+const PICK_PX = 8;
 
 function frameHome(viewer: Cesium.Viewer, { lon, lat, range_m }: HomeView) {
   viewer.camera.lookAt(
@@ -122,15 +124,28 @@ function SceneSetup({
     frameHome(viewer, homeView(siteData));
   }, [viewer, siteData]);
 
-  // Click a place marker (entity id = place id) to open its card.
+  // Click a place marker (entity id = place id) to open its card, or a flood path (instance id) for "Why this path?".
   useEffect(() => {
     if (!viewer || viewer.isDestroyed()) return;
     const handler = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas);
     handler.setInputAction((e: { position: Cesium.Cartesian2 }) => {
-      const picked = viewer.scene.pick(e.position);
-      const id = picked?.id;
-      const key = id instanceof Cesium.Entity ? id.properties?.placeId?.getValue() : undefined;
-      if (typeof key === "string") useScene.getState().selectPlace(key);
+      // Thin ground polylines: pick a small window (8 px) so near misses still hit.
+      const hits: { id?: unknown }[] = viewer.scene.drillPick(e.position, 5, PICK_PX, PICK_PX);
+      for (const h of hits) {
+        const key =
+          h.id instanceof Cesium.Entity ? h.id.properties?.placeId?.getValue() : undefined;
+        if (typeof key === "string") {
+          useScene.getState().selectPlace(key); // place markers keep priority
+          return;
+        }
+      }
+      for (const h of hits) {
+        const edgeId = pickedFloodEdgeId(h);
+        if (edgeId) {
+          useScene.getState().selectFloodEdge(edgeId);
+          return;
+        }
+      }
     }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
     return () => handler.destroy();
   }, [viewer]);

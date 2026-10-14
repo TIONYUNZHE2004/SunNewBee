@@ -56,3 +56,66 @@ def test_place_endpoint_resolves_centre_and_waste_ids():
     assert "route_status" in d["reachability"]
     w = c.get("/places/wp-park-recycle")
     assert w.status_code == 200 and w.json()["data"]["source_label"].startswith("Waste point")
+
+
+def test_flood_layer_edges_carry_class_and_scenario():
+    fc = c.get("/layers/flood", params={"scenario_id": "stage_p3m"}).json()
+    lines = [f for f in fc["features"] if f["geometry"]["type"] == "LineString"]
+    assert lines
+    for f in lines:
+        p = f["properties"]
+        assert p["scenario_id"] == "stage_p3m"
+        assert p["flood_class"] in {"likely_flooded", "possible"}
+        assert not any("depth" in k for k in p)
+    seg = next(f for f in lines if f["properties"]["id"] == "seg-cd")
+    assert seg["properties"]["flood_class"] == "likely_flooded"
+
+
+def test_access_layer_flags_flooded_edges_only():
+    fc = c.get("/layers/access", params={"scenario_id": "stage_p3m"}).json()
+    lines = [f["properties"] for f in fc["features"] if f["geometry"]["type"] == "LineString"]
+    assert any(p.get("flood_class") for p in lines)
+    assert all("flood_class" not in p for p in lines if p["status_for_profile"] == "ok")
+
+
+def test_briefing_baseline_has_edge_ids():
+    b = c.get("/briefings/flood", params={"scenario_id": "baseline"}).json()
+    assert b["affected"]["likely_edge_ids"] == []
+
+
+def test_scenario_margin_is_optional_and_not_defaulted():
+    from townshiplens_spatial.models import Scenario
+
+    s = Scenario(id="x", label="x", stage_m=1, disclaimer="d")
+    assert s.margin_m is None
+    assert Scenario(id="x", label="x", stage_m=1, disclaimer="d", margin_m=0.5).margin_m == 0.5
+    # The test fixture world does not state a margin: the API reports none, not a default.
+    fx = [s for s in c.get("/scenarios").json() if s["id"] == "stage_p3m"][0]
+    assert fx["margin_m"] is None
+
+
+def test_seed_scenarios_state_their_margin():
+    import json
+    from pathlib import Path
+
+    from townshiplens_spatial.models import Scenario
+
+    raw = json.loads(Path("data/seed/elmina/flood/scenarios.json").read_text())
+    items = raw if isinstance(raw, list) else raw["scenarios"]
+    assert items and all(Scenario.model_validate(i).margin_m is not None for i in items)
+
+
+def test_briefing_names_the_origin():
+    b = c.get("/briefings/flood", params={"scenario_id": "stage_p3m"}).json()
+    assert b["near_place"] and b["near_place_name"]
+
+
+def test_profiles_endpoint_lists_thresholds():
+    r = c.get("/profiles")
+    assert r.status_code == 200
+    by_id = {p["id"]: p for p in r.json()}
+    w = by_id["wheelchair"]
+    assert w["hard"]["max_incline_pct"] == 8.3
+    assert w["hard"]["min_width_m"] == 0.9
+    assert w["hard"]["max_step_count"] == 0
+    assert "no published source" in w["threshold_basis"]

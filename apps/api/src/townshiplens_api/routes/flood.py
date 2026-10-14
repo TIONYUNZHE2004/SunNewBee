@@ -67,6 +67,7 @@ def briefing(scenario_id: str, profile: str = "default") -> dict:
         "affected": flood.affected(ctx.world, scenario_id, profile).model_dump(mode="json"),
         "centres": centres,
         "near_place": near,
+        "near_place_name": (ctx.world.places[near].name if near in ctx.world.places else None),
         "as_of": date.today().isoformat(),
         "disclaimer": sc.disclaimer,
     }

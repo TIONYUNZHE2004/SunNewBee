@@ -39,9 +39,15 @@ export type Briefing = {
     possible: PlaceRef[];
     isolated_components: Island[];
     disclaimer: string;
+    likely_edge_ids?: string[];
+    possible_edge_ids?: string[];
+    likely_place_ids?: string[];
+    possible_place_ids?: string[];
   };
   centres: CentreReach[];
   disclaimer: string;
+  near_place?: string | null;
+  near_place_name?: string | null;
 };
 
 export class ApiError extends Error {

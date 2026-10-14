@@ -18,16 +18,20 @@ def _layer(
             if lens == "flood" and fc not in _FLOOD:
                 continue
             status = _FLOOD.get(fc or "") or _MAP[evaluate_edge(e, prof)[0]]
+            props = {
+                "id": e.id,
+                "type": e.type,
+                "name": e.name,
+                "status_for_profile": status,
+            }
+            if fc in _FLOOD:  # class + scenario only; never a depth
+                props["flood_class"] = fc
+                props["scenario_id"] = scenario_id
             feats.append(
                 {
                     "type": "Feature",
                     "geometry": {"type": "LineString", "coordinates": e.coords},
-                    "properties": {
-                        "id": e.id,
-                        "type": e.type,
-                        "name": e.name,
-                        "status_for_profile": status,
-                    },
+                    "properties": props,
                 }
             )
     if lens == "access":

@@ -108,7 +108,7 @@ class Scenario(BaseModel):
     stage_m: float
     method: str = "HAND"
     dem: str = "Copernicus GLO-30"
-    margin_m: float = 0.5
+    margin_m: float | None = None  # omitted when the scenario does not state one
     created: str | None = None
     disclaimer: str
     links: list[dict[str, str]] = Field(default_factory=list)

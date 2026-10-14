@@ -31,6 +31,31 @@ def site() -> Site:
     return state.get_ctx().world.site
 
 
+THRESHOLD_BASIS = "our engineering default (no published source)"
+
+
+class ProfileInfo(BaseModel):
+    """Read-only profile parameters, for the 'Assumptions' section. No secrets, no per-user data."""
+
+    id: str
+    label: str
+    hard: dict[str, float]
+    soft: dict[str, float]
+    max_rest_free_run_m: float | None = None
+    allowed_types: list[str] | None = None
+    speed_kmh: float | None = None
+    stub: bool = False
+    threshold_basis: str = THRESHOLD_BASIS
+
+
+@router.get("/profiles", response_model=list[ProfileInfo])
+def profiles() -> list[ProfileInfo]:
+    return [
+        ProfileInfo(**p.model_dump(include=set(ProfileInfo.model_fields) - {"threshold_basis"}))
+        for p in state.get_ctx().world.profiles.values()
+    ]
+
+
 # world.version restarts at 0 on every boot, so scope validators to this process.
 _BOOT = secrets.token_hex(4)
 CACHE_CONTROL = "private, max-age=0, must-revalidate"
