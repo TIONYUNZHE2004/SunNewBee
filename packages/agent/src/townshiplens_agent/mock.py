@@ -124,7 +124,9 @@ def _script(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
     rets = _returns(messages)
     n = len(rets)
     is_flood = bool(re.search(r"flood|river|banjir|sungai|rises|naik|水", q))
-    if is_flood and re.search(r"cut off|affected|briefing|terjejas", q):  # management
+    if is_flood and re.search(
+        r"cut off|affected|briefing|terjejas|island|isolated", q
+    ):  # management
         if n == 0:
             return _call("list_flood_scenarios")
         if n == 1:
@@ -221,6 +223,40 @@ def _script(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
             caveats=caveats,
             scene_intents=[{"kind": "flood.set_level", "scenario_id": "stage_p3m"}]
             + ([{"kind": "route.highlight", "route_id": route["id"]}] if route else []),
+        )
+    if re.search(r"recycl|e-?waste|waste|rubbish|sampah|batter|\bbins?\b", q):  # waste points
+        wtype = (
+            "e_waste_drop_off"
+            if re.search(r"e-?waste|batter|phone", q)
+            else "recycling_drop_off"
+            if re.search(r"recycl", q)
+            else None
+        )
+        if n == 0:
+            return _call("find_waste_points", type=wtype)
+        pts = _data(rets[-1][1])
+        if not pts:
+            return _cannot("I don't have a waste point of that kind in the township model yet.")
+        seen = set(_ev_ids(rets))
+        pts = [p for p in pts if f"ev-{p['id']}.status" in seen][:5]
+        if not pts:
+            return _cannot()
+        names = ", ".join(p["name"] for p in pts)
+        unconfirmed = [p for p in pts if p.get("status") != "verified"]
+        return _final(
+            answer_status="partial" if unconfirmed else "answered",
+            summary=f"Waste points found: {names}.",
+            claims=[
+                {
+                    "text": f"{p['name']} ({p['type'].replace('_', ' ')}) status: {p['status']}",
+                    "status": "verified" if p["status"] == "verified" else "unknown",
+                    "evidence_ids": [f"ev-{p['id']}.status"],
+                }
+                for p in pts
+            ],
+            caveats=[
+                f"{p['name']} is not confirmed yet; check before you go." for p in unconfirmed
+            ],
         )
     if re.search(r"stroller|pram|stairs|tangga|wheelchair|kerusi roda|step", q):  # access hero
         if n == 0:

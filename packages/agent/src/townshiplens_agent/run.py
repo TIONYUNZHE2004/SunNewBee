@@ -34,13 +34,25 @@ DEFAULT_DISCLAIMER = (
 )
 
 
-def _answer_events(ans: FinalAnswer, rec: TurnRecord, ctx: sp.Ctx) -> list[ChatEvent]:
+def _route_status_line(ans: FinalAnswer, rec: TurnRecord) -> str | None:
+    rid = ans.route_id if ans.route_id in rec.routes else next(iter(rec.routes), None)
+    if rid is None:
+        return None
+    return f"Route status: {rec.route_status.get(rid, 'no_data')}"
+
+
+def _answer_events(
+    ans: FinalAnswer, rec: TurnRecord, ctx: sp.Ctx, ui_scenario_id: str | None = None
+) -> list[ChatEvent]:
     evs: list[ChatEvent] = []
     text = ans.summary
     if ans.steps:
         text += "\n" + "\n".join(f"{i}. {s}" for i, s in enumerate(ans.steps, 1))
     if ans.caveats:
         text = "⚠ " + " ".join(ans.caveats) + "\n" + text
+    # Fixed order: status label, then the caveat line, then the summary and steps.
+    if label := _route_status_line(ans, rec):
+        text = label + "\n" + text
     evs += [TextDelta(delta=text[i : i + CHUNK]) for i in range(0, len(text), CHUNK)]
 
     for it in ans.scene_intents:
@@ -76,15 +88,28 @@ def _answer_events(ans: FinalAnswer, rec: TurnRecord, ctx: sp.Ctx) -> list[ChatE
     level = "partial" if unknowns else "none"
     if ans.answer_status == "cannot_answer":
         level = "high"
+
+    def _note(u: dict) -> str:
+        edge = ctx.world.edges.get(u["element_id"])
+        why = u.get("why", "")
+        return f"{edge.name}: {why}" if edge and edge.name else why
+
     items = [
-        {"element_id": u["element_id"], "attribute": u["attribute"], "note": u.get("why", "")}
+        {"element_id": u["element_id"], "attribute": u["attribute"], "note": _note(u)}
         for u in unknowns
     ]
     evs.append(Uncertainty(level=level, items=items))
 
-    if rec.scenarios_used or ans.scenario_id or "list_flood_scenarios" in rec.tool_calls:
-        sid = ans.scenario_id or next(
-            (s for s in sorted(rec.scenarios_used) if s.startswith("stage_")), None
+    if (
+        rec.scenarios_used
+        or ans.scenario_id
+        or ui_scenario_id
+        or "list_flood_scenarios" in rec.tool_calls
+    ):
+        sid = (
+            ans.scenario_id
+            or next((s for s in sorted(rec.scenarios_used) if s.startswith("stage_")), None)
+            or ui_scenario_id
         )
         sc = next((s for s in ctx.world.flood.scenarios if s.id == sid), None)
         evs.append(
@@ -174,7 +199,7 @@ async def run_turn(
         if ans is None:
             used = model_name + "+template"
             ans = template_answer(rec, req.message)
-        events = _answer_events(ans, rec, ctx)
+        events = _answer_events(ans, rec, ctx, req.scenario_id)
     except Exception as exc:  # last resort: never leave the client without done
         log.warning("answer rendering failed: %s", type(exc).__name__)
         if rec.scenarios_used:

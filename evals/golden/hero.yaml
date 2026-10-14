@@ -1,6 +1,6 @@
 # Golden hero questions. Run: `pnpm golden` (mock) or `GOLDEN_REAL=1 pnpm golden` (OpenRouter).
 # expect keys: tools_include, events_include, done_status_in, text_includes / text_excludes
-# (case-insensitive substrings of the joined text.delta).
+# (case-insensitive substrings of the joined text.delta); first_line = required prefix of the first text line.
 - id: access-confirmed
   message: "Can I push a stroller from Car Park B to the playground without stairs?"
   profile: stroller
@@ -25,3 +25,28 @@
   message: "take me to the moon"
   profile: default
   expect: { done_status_in: [cannot_answer] }
+- id: waste-battery
+  message: "Where can I recycle paper and cans?"
+  profile: default
+  expect: { tools_include: [find_waste_points], events_include: [citation], done_status_in: [answered], text_includes: ["Recycling bins at Car Park B"] }
+- id: waste-unknown
+  message: "Where can I drop off e-waste batteries?"
+  profile: default
+  expect: { tools_include: [find_waste_points], events_include: [citation, uncertainty], done_status_in: [partial], text_includes: ["not confirmed yet"] }
+- id: flood-islands
+  message: "Which places become islands if the river rises 3 m?"
+  profile: default
+  expect: { tools_include: [affected_places], events_include: [disclaimer, scene.intent, citation] }
+- id: status-label-confirmed-or-partial
+  message: "Can I push a stroller from Car Park B to the playground without stairs?"
+  profile: stroller
+  expect: { first_line: "Route status: ", tools_include: [plan_route] }
+- id: status-label-partly-unverified
+  message: "Can I push a stroller from Car Park B to the kiosk without stairs?"
+  profile: stroller
+  expect: { first_line: "Route status: partly_unverified", done_status_in: [partial] }
+- id: flood-scenario-label
+  message: "Is the playground safe during a flood of +3 m?"
+  profile: default
+  scenario_id: stage_p3m
+  expect: { first_line: "Route status: ", events_include: [disclaimer], text_excludes: [" is safe"] }

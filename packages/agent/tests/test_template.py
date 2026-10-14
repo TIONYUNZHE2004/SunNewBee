@@ -111,3 +111,29 @@ def test_template_placeholder_evidence_validates():
     a = template_answer(r, "route?")
     assert any("demo values, not yet surveyed" in c for c in a.caveats)
     assert validate_answer(a, r) == []
+
+
+def test_cannot_answer_names_unresolved_query():
+    a = template_answer(TurnRecord(), "Where is the town hall annex?")
+    assert a.answer_status == "cannot_answer" and "town hall annex" in a.summary.lower()
+
+
+def test_cannot_answer_names_missing_attribute():
+    r = TurnRecord()
+    r.evidence["ev-wp-ewaste.status"] = Evidence(
+        id="ev-wp-ewaste.status",
+        element_id="wp-ewaste",
+        attribute="status",
+        value="unknown",
+        status="unknown",
+    )
+    a = template_answer(r, "x")
+    assert "status" in a.summary and "wp-ewaste" in a.summary
+    assert validate_answer(a, r) == []
+
+
+def test_cannot_answer_does_not_echo_forbidden_words_in_flood_turn():
+    r = TurnRecord()
+    r.scenarios_used.add("stage_p3m")
+    a = template_answer(r, "Is the playground safe in a flood?")
+    assert validate_answer(a, r) == []

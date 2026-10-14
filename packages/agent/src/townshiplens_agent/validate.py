@@ -16,6 +16,17 @@ VERIFIED_WORD = re.compile(r"\bverified\b", re.IGNORECASE)  # not "unverified"/"
 NEGATED_VERIFIED = re.compile(r"\bnot (?:yet )?$", re.IGNORECASE)
 
 
+STATUS_NAMED = re.compile(
+    r"\broute(?:\s+status)?\s*(?:is|was|:)?\s*(confirmed|partly_unverified|blocked|no_data)\b"
+    r"|\b(partly_unverified|no_data)\b",
+    re.IGNORECASE,
+)
+
+
+def _named_statuses(text: str) -> set[str]:
+    return {(m.group(1) or m.group(2)).lower() for m in STATUS_NAMED.finditer(text)}
+
+
 def _claims_verified(text: str) -> bool:
     """True when the text uses "verified" affirmatively ("not (yet) verified" is allowed)."""
     return any(not NEGATED_VERIFIED.search(text[: m.start()]) for m in VERIFIED_WORD.finditer(text))
@@ -31,6 +42,11 @@ def _strip_names(text: str, names: set[str]) -> str:
 def validate_answer(ans: FinalAnswer, rec: TurnRecord) -> list[str]:
     errs: list[str] = []
     for c in ans.claims:
+        if ans.answer_status != "cannot_answer" and not c.evidence_ids:
+            errs.append(
+                f"Claim {c.text!r} cites no evidence: every claim needs at least one "
+                "evidence id returned by tools in this turn (or answer cannot_answer)."
+            )
         bad = [i for i in c.evidence_ids if i not in rec.evidence]
         if bad:
             errs.append(
@@ -44,6 +60,13 @@ def validate_answer(ans: FinalAnswer, rec: TurnRecord) -> list[str]:
             f"The route is {status}: answer_status cannot be 'answered'; "
             "use 'partial' or 'cannot_answer'."
         )
+    if status:
+        named = _named_statuses(" ".join([ans.summary, *ans.steps])) - {status}
+        if named:
+            errs.append(
+                f"Route status contradiction: the route is {status} but the summary/steps name "
+                f"{sorted(named)}. Use the status the tool returned."
+            )
     partly = status == "partly_unverified" or (
         ans.answer_status == "answered" and "partly_unverified" in rec.route_status.values()
     )

@@ -244,3 +244,60 @@ def test_placeholder_rejects_affirmative_verified(txt):
 def test_placeholder_allows_negated_verified(txt):
     a = _ph_answer(txt, ["demo values, not yet surveyed"])
     assert validate_answer(a, _ph_rec()) == []
+
+
+# --- Task 28: answer-contract hardening -------------------------------------------------
+
+
+def test_validator_rejects_claim_without_evidence():
+    a = FinalAnswer(
+        answer_status="answered",
+        summary="x",
+        claims=[Claim(text="No steps", status="verified", evidence_ids=[])],
+    )
+    assert any("evidence" in e.lower() for e in validate_answer(a, rec()))
+
+
+def test_validator_cannot_answer_exempt_from_claim_evidence():
+    a = FinalAnswer(
+        answer_status="cannot_answer",
+        summary="I don't know.",
+        claims=[Claim(text="gap", status="unknown", evidence_ids=[])],
+    )
+    assert validate_answer(a, rec()) == []
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "Route status: confirmed, 120 m.",
+        "The route is confirmed.",
+        "The route is blocked.",
+        "Route status: no_data",
+    ],
+)
+def test_validator_rejects_contradicting_route_status(text):
+    r = rec(routes={"rt-1": {}}, route_status={"rt-1": "partly_unverified"})
+    a = FinalAnswer(
+        answer_status="partial", summary=text, route_id="rt-1", caveats=["Not checked yet: x"]
+    )
+    assert any("route status" in e.lower() for e in validate_answer(a, r)), text
+    b = FinalAnswer(
+        answer_status="partial",
+        summary="ok",
+        steps=[text],
+        route_id="rt-1",
+        caveats=["Not checked yet: x"],
+    )
+    assert any("route status" in e.lower() for e in validate_answer(b, r)), text
+
+
+def test_validator_accepts_matching_route_status_and_unrelated_confirmed():
+    r = rec(routes={"rt-1": {}}, route_status={"rt-1": "partly_unverified"})
+    a = FinalAnswer(
+        answer_status="partial",
+        summary="Route status: partly_unverified. The centre is not confirmed as a PPS.",
+        route_id="rt-1",
+        caveats=["Not checked yet: x"],
+    )
+    assert validate_answer(a, r) == []

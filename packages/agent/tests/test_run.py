@@ -1,5 +1,6 @@
 import pytest
 from tests_support import TINY
+from townshiplens_agent import run as run_mod
 from townshiplens_agent.events import ChatRequest
 from townshiplens_agent.run import run_turn
 from townshiplens_agent.settings import AgentSettings
@@ -46,7 +47,9 @@ async def test_access_kiosk_partly_unverified_files_vr(ctx):
     vr = [e for e in evs if e.type == "verification.requested"]
     assert vr and vr[0].element_id == "seg-cf" and vr[0].attribute == "incline_pct"
     assert evs[-1].type == "done" and evs[-1].answer_status == "partial"
-    assert _text(evs).startswith("⚠") and "seg-cf" in _text(evs)
+    lines = _text(evs).split("\n")
+    assert lines[0] == "Route status: partly_unverified" and lines[1].startswith("⚠")
+    assert "seg-cf" in _text(evs)
     unc = next(e for e in evs if e.type == "uncertainty")
     assert unc.level == "partial" and unc.items[0]["element_id"] == "seg-cf"
 
@@ -354,7 +357,7 @@ async def test_adversarial_safe_states_flooded_playground(ctx):
     evs = await collect(ctx, "Is the playground safe during a flood of +3 m?", profile="default")
     text = _text(evs).lower()
     assert "urban park playground is likely flooded in this indicative scenario" in text
-    assert text.startswith("⚠") and " is safe" not in text
+    assert text.split("\n")[1].startswith("⚠") and " is safe" not in text
     assert evs[-1].answer_status == "partial" and evs[-1].model == "mock-scripted"
     assert "ev-scn-stage_p3m.playground" in [e.evidence_id for e in evs if e.type == "citation"]
 
@@ -633,3 +636,75 @@ async def test_vr_wrapper_accepts_waste_point_id(ctx):
         question_summary="x",
     )
     assert ctx.vrs.list()[0].element_id == wid
+
+
+# --- Task 28: route-status label, uncertainty note, scenario disclaimer ----------------------
+
+
+def _label_events(status, ans_kwargs=None, caveats=(), ctx_=None, unknowns=()):
+    from townshiplens_agent.answer import FinalAnswer
+    from townshiplens_agent.record import TurnRecord
+
+    rec = TurnRecord()
+    rec.routes["rt-1"] = {
+        "geometry": {"type": "LineString", "coordinates": []},
+        "unknowns": list(unknowns),
+    }
+    rec.route_status["rt-1"] = status
+    ans = FinalAnswer(
+        answer_status="partial",
+        summary="Short walk, 120 m.",
+        steps=["Go ahead."],
+        route_id="rt-1",
+        caveats=list(caveats),
+    )
+    return rec, ans
+
+
+@pytest.mark.parametrize("status", ["confirmed", "partly_unverified", "blocked"])
+def test_route_status_label_always_first_line(ctx, status):
+    rec, ans = _label_events(status, caveats=["Segment facts are demo values, not yet surveyed."])
+    text = "".join(e.delta for e in run_mod._answer_events(ans, rec, ctx) if e.type == "text.delta")
+    lines = text.split("\n")
+    assert lines[0] == f"Route status: {status}"
+    # deterministic order: label, then the caveat line, then the summary
+    assert lines[1].startswith("⚠ ") and "demo values, not yet surveyed" in lines[1]
+    assert lines[2] == "Short walk, 120 m."
+
+
+def test_no_route_no_status_label(ctx):
+    from townshiplens_agent.answer import FinalAnswer
+    from townshiplens_agent.record import TurnRecord
+
+    ans = FinalAnswer(answer_status="cannot_answer", summary="Nothing.")
+    text = "".join(
+        e.delta for e in run_mod._answer_events(ans, TurnRecord(), ctx) if e.type == "text.delta"
+    )
+    assert text == "Nothing."
+
+
+def test_uncertainty_note_uses_edge_name(ctx):
+    edge = next(iter(ctx.world.edges.values()))
+    edge.name = "Lakeside Walk"
+    rec, ans = _label_events(
+        "partly_unverified",
+        unknowns=[{"element_id": edge.id, "attribute": "step_count", "why": "never surveyed"}],
+    )
+    unc = next(e for e in run_mod._answer_events(ans, rec, ctx) if e.type == "uncertainty")
+    assert edge.name in unc.items[0]["note"]
+    assert unc.items[0]["element_id"] == edge.id
+
+
+async def test_ui_scenario_alone_emits_disclaimer(ctx):
+    evs = await collect(ctx, "take me to the moon", scenario="stage_p3m")
+    assert any(e.type == "disclaimer" for e in evs)
+
+
+async def test_mock_waste_verified_and_unknown(ctx):
+    evs = await collect(ctx, "Where can I recycle paper and cans?", profile="default")
+    assert any(e.type == "tool.call" and e.name == "find_waste_points" for e in evs)
+    assert evs[-1].answer_status in ("answered", "partial")
+    assert any(e.type == "citation" for e in evs)
+    assert "Recycling bins at Car Park B" in _text(evs)
+    evs = await collect(ctx, "Where can I drop off e-waste batteries?", profile="default")
+    assert "reported" in _text(evs).lower() and evs[-1].answer_status == "partial"
