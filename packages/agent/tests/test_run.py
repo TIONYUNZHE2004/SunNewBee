@@ -741,3 +741,14 @@ async def test_elmina_recycling_says_none_mapped_lists_unverified_points(elmina)
     assert any(e.type == "citation" for e in evs)
     assert not any(e.type == "verification.requested" for e in evs)
     assert not elmina.vrs.list()  # no bogus missing_place VR
+
+
+def test_route_summary_uses_names_not_ids():
+    from townshiplens_agent.agent import route_summary
+
+    w = load_world(TINY)
+    pid = next(iter(w.places))
+    cid = next(iter(w.centres))
+    s = route_summary(w, "wheelchair", pid, f"__centre__{cid}")
+    assert s == f"wheelchair route {w.places[pid].name} -> {w.centres[cid].name}"
+    assert route_summary(w, "default", "nope", "__centre__nope") == "default route nope -> nope"
