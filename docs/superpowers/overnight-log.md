@@ -323,3 +323,30 @@
   - Task 31 (major roads; Opus).
   - Task 34 fix round. The security review found 2 Important issues: the multipart header split across chunks, and a Correct keeping stale photo evidence.
 - **External usage:** Google tiles about 23/30 · OpenRouter unchanged at US$0.1407 (live calls stopped, R19).
+
+## 04:01 — Task 34 merged; Task 31 blocked on one Overpass tile
+- **Task 34** (`0bd0b47`): staff evidence photo upload; stdlib JPEG/PNG metadata stripping (no Pillow); public serving with id validation; resolve-with-evidence (a correct replaces stale photos).
+  - Security review (Opus) found 2 Important; both fixed. The re-review reproduced none: 3,000 random multipart splits, 13 encoder outputs plus a phone-style JPEG with GPS/ICC/MPF/IPTC all stripped, all decodable.
+  - New dependency: python-multipart 0.0.32, Apache-2.0.
+  - Checklist on `0bd0b47`:
+    - pytest 432: PASS
+    - golden 12/12 (mock): PASS
+    - vitest 177: PASS
+    - lint: PASS
+    - gen: PASS
+    - typecheck: PASS
+    - build: PASS
+    - e2e 10/10: PASS
+    - `.data/evidence` gitignored: PASS
+  - Note: a plain `uv sync --all-groups` (without `--all-packages`) uninstalled the workspace packages locally. Use the README/CI command `uv sync --all-packages --all-groups`.
+- **Coordinator fix** (`e7b7262`): VR summaries name places and centres instead of `__centre__…` ids.
+- **Task 31** (major roads): **BLOCKED** at the 12-request Overpass cap. The NE tile returned repeated 504s. Code is committed (`a154542`); the seed is not rebuilt.
+  - Estimate from the 3 cached tiles (in memory only, unverified until rebuilt):
+    - components 199 → 103;
+    - largest share 32% → 85%;
+    - stroller centres from the mall at baseline: 23 reachable → 53 partly_unverified;
+    - journey no_data 99% → 46%;
+    - hero route still confirmed 440.6 m.
+  - None of the 788 major-road segments has a usable OSM sidewalk tag. They are UNKNOWN, so routes over them are partly_unverified, never confirmed. Field-survey gap.
+  - **Ruling R23:** up to 4 more Overpass requests (task total 16), only for the failed tile, split in two.
+- **Dispatched:** Task 35 (photo evidence in the UI).
