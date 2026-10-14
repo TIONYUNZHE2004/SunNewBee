@@ -3,7 +3,7 @@ import { useLayer, useScenarios } from "../../../lib/api";
 import { useScene } from "../sceneStore";
 import { statusStyle } from "../styles";
 import { ListLensSections } from "./LensSections";
-import { groupByType, humanType, parseLayer, routeSteps } from "./listModel";
+import { groupByType, humanType, parseLayer, routeSteps, withIndicative } from "./listModel";
 
 function StatusBadge({ status }: { status: Parameters<typeof statusStyle>[0] }) {
   const st = statusStyle(status);
@@ -104,7 +104,7 @@ export function ListView() {
       {scenarioId && (
         <section aria-labelledby="scn-h" className="rounded-lg border border-line bg-warn-tint p-4">
           <h2 id="scn-h" className="text-xl font-semibold">
-            Scenario: {scenario?.label ?? scenarioId} (indicative)
+            Scenario: {withIndicative(scenario?.label ?? scenarioId)}
           </h2>
           {scenario?.disclaimer && <p className="mt-1 text-sm">{scenario.disclaimer}</p>}
           {flooded.length === 0 ? (

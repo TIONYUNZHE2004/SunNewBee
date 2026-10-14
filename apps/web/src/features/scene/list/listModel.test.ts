@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { groupByType, parseCentres, parseLayer, parseWaste, routeSteps } from "./listModel";
+import {
+  groupByType,
+  parseCentres,
+  parseLayer,
+  parseWaste,
+  routeSteps,
+  withIndicative,
+} from "./listModel";
 
 const fc = {
   features: [
@@ -144,5 +151,31 @@ describe("lens sections", () => {
       ["wp-1", "Status: unknown"],
       ["wp-2", "Status: verified"],
     ]);
+  });
+});
+
+describe("readable names", () => {
+  it("names an unnamed edge by its type, never its raw id", () => {
+    const m = parseLayer({
+      type: "FeatureCollection",
+      features: [
+        {
+          type: "Feature",
+          properties: { id: "seg-1-0", type: "footway" },
+          geometry: {
+            type: "LineString",
+            coordinates: [
+              [0, 0],
+              [1, 1],
+            ],
+          },
+        },
+      ],
+    });
+    expect(m.edges[0]?.name).toBe("Unnamed footway");
+  });
+  it("adds (indicative) to a scenario label only once", () => {
+    expect(withIndicative("River +3 m (indicative)")).toBe("River +3 m (indicative)");
+    expect(withIndicative("River +3 m")).toBe("River +3 m (indicative)");
   });
 });

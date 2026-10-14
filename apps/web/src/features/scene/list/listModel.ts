@@ -33,7 +33,7 @@ export function parseLayer(data: unknown): { places: PlaceItem[]; edges: EdgeIte
     } else if (f.geometry?.type === "LineString") {
       edges.push({
         id,
-        name: String(p.name ?? id),
+        name: p.name ? String(p.name) : `Unnamed ${String(p.type ?? "path").replace(/_/g, " ")}`,
         status: mapStatus(p),
         coords: (f.geometry.coordinates as [number, number][]) ?? [],
       });
@@ -69,6 +69,10 @@ export function routeSteps(route: GeoJSON.LineString | null, edges: EdgeItem[]):
         (idx.get(key(a.coords[0] as number[])) ?? 0) - (idx.get(key(b.coords[0] as number[])) ?? 0),
     );
 }
+
+/** Scenario labels already say "(indicative)" in the seed; never repeat it. */
+export const withIndicative = (label: string) =>
+  /indicative/i.test(label) ? label : `${label} (indicative)`;
 
 export const humanType = (t: string) => t.replace(/_/g, " ").replace(/^\w/, (c) => c.toUpperCase());
 
