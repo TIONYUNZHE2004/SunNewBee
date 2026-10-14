@@ -1,7 +1,16 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { type FormEvent, useReducer, useState } from "react";
 import { optionLabel, specFor } from "./attributeCatalogue";
-import { ApiError, fetchOpenVRs, resolveVR, type VR } from "./manageApi";
+import { ApiError, fetchVRs, resolveVR, type VR } from "./manageApi";
+import {
+  buildVrQuery,
+  DEFAULT_FILTERS,
+  type QueueTab,
+  REASONS,
+  TAB_LABELS,
+  type VrFilters,
+  vrQueryKey,
+} from "./queueFilters";
 import {
   buildResolveBody,
   currentValueText,
@@ -43,6 +52,7 @@ export function ResolveForm({ vr, token, onDone }: { vr: VR; token: string; onDo
     try {
       await resolveVR(vr.id, buildResolveBody(s, vr.attribute), token);
       await qc.invalidateQueries({ queryKey: ["manage", "vrs"] });
+      await qc.invalidateQueries({ queryKey: ["manage", "kpis"] });
       onDone();
     } catch (err) {
       // 409: someone else resolved it first, so drop the stale row.
@@ -152,7 +162,14 @@ export function ResolveForm({ vr, token, onDone }: { vr: VR; token: string; onDo
 }
 
 export function VerificationQueue() {
-  const q = useQuery({ queryKey: ["manage", "vrs"], queryFn: fetchOpenVRs, retry: false });
+  const [filters, setFilters] = useState<VrFilters>(DEFAULT_FILTERS);
+  const q = useQuery({
+    queryKey: vrQueryKey(filters),
+    queryFn: () => fetchVRs(buildVrQuery(filters)),
+    retry: false,
+  });
+  const set = (patch: Partial<VrFilters>) => setFilters({ ...filters, ...patch });
+  const tabs = Object.keys(TAB_LABELS) as QueueTab[];
   const [token, setToken] = useStaffToken();
   const [open, setOpen] = useState<string | null>(null);
   const rows = q.data ?? [];
@@ -184,6 +201,63 @@ export function VerificationQueue() {
         <p className="mt-1 text-xs text-ink-soft">Kept for this browser session only.</p>
       </div>
 
+      <fieldset aria-label="Request status" className="flex gap-2">
+        {tabs.map((t) => (
+          <button
+            key={t}
+            type="button"
+            aria-pressed={filters.tab === t}
+            onClick={() => set({ tab: t })}
+            className={`min-h-11 rounded-md border border-line px-4 text-sm font-medium ${filters.tab === t ? "bg-brand text-white" : "bg-card text-brand hover:bg-brand-tint"}`}
+          >
+            {TAB_LABELS[t]}
+          </button>
+        ))}
+      </fieldset>
+      <div className="grid gap-3 sm:grid-cols-3">
+        <div>
+          <label htmlFor="vq-reason" className="mb-1 block text-sm font-medium">
+            Reason
+          </label>
+          <select
+            id="vq-reason"
+            className={inputCls}
+            value={filters.reason}
+            onChange={(e) => set({ reason: e.target.value })}
+          >
+            <option value="">All reasons</option>
+            {REASONS.map((r) => (
+              <option key={r} value={r}>
+                {r.replaceAll("_", " ")}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label htmlFor="vq-attr" className="mb-1 block text-sm font-medium">
+            Attribute
+          </label>
+          <input
+            id="vq-attr"
+            className={inputCls}
+            value={filters.attribute}
+            onChange={(e) => set({ attribute: e.target.value })}
+            placeholder="e.g. incline_pct"
+          />
+        </div>
+        <div>
+          <label htmlFor="vq-el" className="mb-1 block text-sm font-medium">
+            Element id
+          </label>
+          <input
+            id="vq-el"
+            className={inputCls}
+            value={filters.elementId}
+            onChange={(e) => set({ elementId: e.target.value })}
+          />
+        </div>
+      </div>
+
       {q.isPending ? (
         <p role="status" className="text-sm text-ink-soft">
           Loading verification requests…
@@ -197,12 +271,14 @@ export function VerificationQueue() {
         </p>
       ) : rows.length === 0 ? (
         <p className="rounded-lg border border-line bg-card p-4 text-sm">
-          No open verification requests
+          {filters.tab === "all"
+            ? "No verification requests"
+            : `No ${filters.tab} verification requests`}
         </p>
       ) : (
         <div className="overflow-x-auto rounded-lg border border-line bg-card">
           <table className="w-full text-left text-sm">
-            <caption className="sr-only">Open verification requests, highest demand first</caption>
+            <caption className="sr-only">Verification requests, highest demand first</caption>
             <thead className="bg-brand-tint">
               <tr>
                 {[
@@ -266,21 +342,25 @@ function RowGroup({
         <td className="px-3 py-2">{vr.reason.replaceAll("_", " ")}</td>
         <td className="px-3 py-2">{new Date(vr.created_at).toLocaleString()}</td>
         <td className="px-3 py-2">
-          <button
-            type="button"
-            aria-expanded={open}
-            className="min-h-11 rounded-md border border-brand px-3 text-brand hover:bg-brand-tint"
-            onClick={onToggle}
-          >
-            {open ? "Close" : "Resolve"}
-            <span className="sr-only">
-              {" "}
-              {vr.element_id} {vr.attribute}
-            </span>
-          </button>
+          {vr.status === "open" || vr.status === "in_progress" ? (
+            <button
+              type="button"
+              aria-expanded={open}
+              className="min-h-11 rounded-md border border-brand px-3 text-brand hover:bg-brand-tint"
+              onClick={onToggle}
+            >
+              {open ? "Close" : "Resolve"}
+              <span className="sr-only">
+                {" "}
+                {vr.element_id} {vr.attribute}
+              </span>
+            </button>
+          ) : (
+            <span>{vr.status.replaceAll("_", " ")}</span>
+          )}
         </td>
       </tr>
-      {open && (
+      {open && (vr.status === "open" || vr.status === "in_progress") && (
         <tr>
           <td colSpan={7} className="px-3 pb-3">
             <ResolveForm vr={vr} token={token} onDone={onToggle} />
