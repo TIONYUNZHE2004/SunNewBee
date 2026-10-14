@@ -37,3 +37,21 @@ export const useScenarioWater = (id: string | null) =>
         }),
       ),
   });
+
+/** Evacuation centres reachability. May 404/empty under API stubs: callers treat errors as "none". */
+export const useEvacCentres = (
+  scenarioId: string | null,
+  profile: Profile,
+  near = "lakeside-mall",
+) =>
+  useQuery({
+    queryKey: ["evac", scenarioId, profile, near],
+    enabled: !!scenarioId,
+    retry: false,
+    queryFn: async () =>
+      unwrap(
+        await api.GET("/evacuation-centres", {
+          params: { query: { scenario_id: scenarioId, profile, near } },
+        }),
+      ),
+  });

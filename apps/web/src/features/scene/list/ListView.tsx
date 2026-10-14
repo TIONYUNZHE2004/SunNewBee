@@ -16,7 +16,8 @@ function StatusBadge({ status }: { status: Parameters<typeof statusStyle>[0] }) 
           y2="4"
           stroke={st.color}
           strokeWidth={Math.min(st.width, 7)}
-          strokeDasharray={st.dashed ? "5 4" : undefined}
+          strokeDasharray={st.dotted ? "1 5" : st.dashed ? "5 4" : undefined}
+          strokeLinecap={st.dotted ? "round" : "butt"}
         />
       </svg>
       {st.label}

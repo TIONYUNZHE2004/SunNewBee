@@ -3,6 +3,8 @@ export type EdgeStatus = "ok" | "unknown" | "blocked" | "flooded_likely" | "floo
 export interface StatusStyle {
   color: string;
   dashed: boolean;
+  /** Dotted pattern (blocked) so it differs from ok by more than colour. */
+  dotted?: boolean;
   label: string;
   width: number;
 }
@@ -10,7 +12,7 @@ export interface StatusStyle {
 const S: Record<EdgeStatus, StatusStyle> = {
   ok: { color: "#1B873F", dashed: false, label: "Checked", width: 4 },
   unknown: { color: "#B7791F", dashed: true, label: "Not checked yet", width: 4 },
-  blocked: { color: "#C53030", dashed: false, label: "Not passable", width: 4 },
+  blocked: { color: "#C53030", dashed: false, dotted: true, label: "Not passable", width: 5 },
   flooded_likely: {
     color: "#C53030",
     dashed: false,
@@ -28,3 +30,11 @@ const S: Record<EdgeStatus, StatusStyle> = {
 export const statusStyle = (s: EdgeStatus): StatusStyle => S[s];
 export const ROUTE_STYLE = { color: "#2B6CB0", width: 8, label: "Suggested route" };
 export const WATER_COLOR = "#1e6fb8";
+
+/** Cesium PolylineDash params per patterned status (16-bit on/off mask over dashLength px). */
+export const CESIUM_DASH: Partial<Record<EdgeStatus, { dashLength: number; dashPattern: number }>> =
+  {
+    blocked: { dashLength: 12, dashPattern: 0xf000 }, // dotted: 3px on / 9px off
+    unknown: { dashLength: 16, dashPattern: 0xfff0 }, // long dashes
+    flooded_possible: { dashLength: 16, dashPattern: 0xff00 }, // medium dashes
+  };
