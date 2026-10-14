@@ -24,24 +24,29 @@ describe("kindOf", () => {
     expect(kindOf("x")).toBe("text");
     expect(kindOf(null)).toBe("text");
   });
-  it("infers from the key when the value is null", () => {
-    for (const k of ["step_count", "incline_pct", "width_m", "step_height_cm"])
-      expect(kindOf(null, k)).toBe("number");
-    for (const k of [
-      "wheelchair",
-      "lit",
-      "ramp",
-      "covered",
-      "seating",
-      "tactile_paving",
-      "handrail",
-    ])
-      expect(kindOf(null, k)).toBe("boolean");
-    for (const k of ["surface", "kerb", "door_type", "shelter", "opening_hours", "other"])
-      expect(kindOf(null, k)).toBe("text");
+  it("uses the catalogue by key, even for non-null values", () => {
+    expect(kindOf(null, "step_count")).toBe("number");
+    expect(kindOf(null, "seating")).toBe("boolean");
+    expect(kindOf("yes", "wheelchair")).toBe("enum");
+    expect(kindOf("steep", "incline_pct")).toBe("number");
+    expect(kindOf(null, "opening_hours")).toBe("text");
   });
-  it("prefers the value type over the key", () => {
-    expect(kindOf("steep", "incline_pct")).toBe("text");
+});
+
+describe("enum kind", () => {
+  const e: AttrForm = { ...base, kind: "enum", attr: "handrail", raw: "one_side" };
+  it("prefills and validates against the catalogue", () => {
+    expect(initialAttrForm("yes", "verified", "wheelchair")).toMatchObject({
+      kind: "enum",
+      raw: "yes",
+    });
+    expect(validate(e)).toBeNull();
+    expect(validate({ ...e, raw: "yes" })).toMatch(/options/i);
+    expect(validate({ ...e, raw: "" })).toMatch(/options/i);
+    expect(validate({ ...e, status: "unknown", raw: "" })).toBeNull();
+  });
+  it("sends the string value", () => {
+    expect(toPayload(e).value).toBe("one_side");
   });
 });
 
@@ -107,9 +112,9 @@ describe("toPayload", () => {
 
 describe("initialAttrForm", () => {
   it("uses the key for null-valued claims", () => {
-    expect(initialAttrForm(null, "unknown", "wheelchair").kind).toBe("boolean");
+    expect(initialAttrForm(null, "unknown", "seating").kind).toBe("boolean");
     expect(initialAttrForm(null, "unknown", "width_m").kind).toBe("number");
-    expect(initialAttrForm(null, "unknown", "surface").kind).toBe("text");
+    expect(initialAttrForm(null, "unknown", "name").kind).toBe("text");
   });
   it("prefills from the claim", () => {
     expect(initialAttrForm(true, "verified").raw).toBe("yes");

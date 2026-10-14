@@ -1,4 +1,7 @@
-export type Kind = "number" | "boolean" | "text";
+import { type Kind, optionLabel, specFor } from "./attributeCatalogue";
+
+export type { Kind };
+export { optionLabel };
 export type EditStatus = "verified" | "reported" | "unknown";
 
 export const SOURCE_TYPES = [
@@ -16,6 +19,8 @@ export const EDIT_STATUSES: { value: EditStatus; label: string }[] = [
 
 export interface AttrForm {
   kind: Kind;
+  /** Attribute key; enables enum option checking. */
+  attr?: string;
   raw: string;
   status: EditStatus;
   sourceType: string;
@@ -29,26 +34,9 @@ export interface AttrPayload {
   note?: string;
 }
 
-const NUMBER_KEYS = new Set(["step_count", "incline_pct", "width_m", "step_height_cm"]);
-const BOOLEAN_KEYS = new Set([
-  "wheelchair",
-  "lit",
-  "ramp",
-  "covered",
-  "seating",
-  "tactile_paving",
-  "handrail",
-]);
-
-/** Kind from the current value; for a null value, from the attribute key (else text). */
+/** Kind from the catalogue by key, else from the value (see attributeCatalogue). */
 export function kindOf(v: unknown, key?: string): Kind {
-  if (typeof v === "boolean") return "boolean";
-  if (typeof v === "number") return "number";
-  if (v === null || v === undefined) {
-    if (key && NUMBER_KEYS.has(key)) return "number";
-    if (key && BOOLEAN_KEYS.has(key)) return "boolean";
-  }
-  return "text";
+  return specFor(key, v).kind;
 }
 
 export function parseValue(kind: Kind, raw: string): number | boolean | string | null {
@@ -78,12 +66,15 @@ export function initialAttrForm(value: unknown, status: string, key?: string): A
       : status === "unknown" && raw === ""
         ? "unknown"
         : "reported";
-  return { kind, raw, status: st, sourceType: "", note: "" };
+  return { kind, attr: key, raw, status: st, sourceType: "", note: "" };
 }
 
 export function validate(f: AttrForm): string | null {
   if (!f.sourceType) return "Choose a source type.";
-  if (f.status !== "unknown" && parseValue(f.kind, f.raw) === null) {
+  if (f.status !== "unknown" && f.kind === "enum") {
+    const opts = specFor(f.attr, null).options;
+    if (!opts.includes(f.raw)) return "Choose one of the listed options.";
+  } else if (f.status !== "unknown" && parseValue(f.kind, f.raw) === null) {
     return f.kind === "number"
       ? "Enter a value as a number."
       : f.kind === "boolean"

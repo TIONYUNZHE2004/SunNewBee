@@ -1,12 +1,14 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { type FormEvent, useState } from "react";
 import type { ClaimRow } from "../places/placeModel";
+import { specFor } from "./attributeCatalogue";
 import {
   type AttrForm,
   EDIT_STATUSES,
   type EditStatus,
   errorMessage,
   initialAttrForm,
+  optionLabel,
   SOURCE_TYPES,
   toPayload,
   validate,
@@ -106,6 +108,21 @@ export function AttributeEditor({
             <option value="yes">Yes</option>
             <option value="no">No</option>
             <option value="unknown">Unknown</option>
+          </select>
+        ) : form.kind === "enum" ? (
+          <select
+            id={`${id}-v`}
+            className={inputCls}
+            value={form.raw}
+            disabled={saving || isUnknown}
+            onChange={(e) => set("raw", e.target.value)}
+          >
+            <option value="">Choose a value…</option>
+            {specFor(row.attr, null).options.map((o) => (
+              <option key={o} value={o}>
+                {optionLabel(o)}
+              </option>
+            ))}
           </select>
         ) : (
           <input
