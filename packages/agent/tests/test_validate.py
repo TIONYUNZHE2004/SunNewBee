@@ -202,12 +202,6 @@ def test_placeholder_with_caveat_accepted():
     assert validate_answer(a, _ph_rec()) == []
 
 
-def test_placeholder_staff_verified_rejected():
-    for txt in ["Staff verified the segments", "verified by the team", "surveyed on 2026-10-15"]:
-        a = _ph_answer(txt, ["demo values, not yet surveyed"])
-        assert validate_answer(a, _ph_rec()), txt
-
-
 def test_no_placeholder_unaffected():
     a = FinalAnswer(
         answer_status="answered",
@@ -215,3 +209,38 @@ def test_no_placeholder_unaffected():
         claims=[Claim(text="steps", status="verified", evidence_ids=["ev-seg-ab.step_count"])],
     )
     assert validate_answer(a, rec()) == []
+
+
+@pytest.mark.parametrize(
+    "txt",
+    [
+        "Staff verified the segments",
+        "verified by the team",
+        "surveyed on 2026-10-15",
+        "verified by our team",
+        "facts were verified on 2026-10-15",
+        "checked and verified",
+        "Staff have verified",
+        "team has verified",
+        "Verified on 2026-10-15",
+        "Staff checked it",
+    ],
+)
+def test_placeholder_rejects_affirmative_verified(txt):
+    a = _ph_answer(txt, ["demo values, not yet surveyed"])
+    assert validate_answer(a, _ph_rec()), txt
+
+
+@pytest.mark.parametrize(
+    "txt",
+    [
+        "Route is partly unverified",
+        "Not yet verified",
+        "unverified",
+        "status partly_unverified",
+        "segments are not verified",
+    ],
+)
+def test_placeholder_allows_negated_verified(txt):
+    a = _ph_answer(txt, ["demo values, not yet surveyed"])
+    assert validate_answer(a, _ph_rec()) == []

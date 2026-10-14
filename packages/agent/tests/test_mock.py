@@ -12,7 +12,7 @@ PLACES = {
 }
 
 
-def _agent(calls: list[str]) -> Agent:
+def _agent(calls: list[str], plan_evidence: list[dict] | None = None) -> Agent:
     agent = Agent(mock_model(), output_type=ToolOutput(FinalAnswer, name="final_answer"))
 
     @agent.tool_plain
@@ -40,7 +40,7 @@ def _agent(calls: list[str]) -> Agent:
         return {
             "ok": True,
             "data": {"status": "partly_unverified", "routes": [route]},
-            "evidence": [{"id": "ev-seg-ab.step_count"}],
+            "evidence": plan_evidence or [{"id": "ev-seg-ab.step_count"}],
             "warnings": [],
         }
 
@@ -156,3 +156,11 @@ def test_mock_access_destination_from_prompt(q, dest):
     res = agent.run_sync(q)
     assert queries == ["car park b", dest]
     assert res.output.answer_status == "cannot_answer"
+
+
+def test_mock_adds_placeholder_caveat():
+    ev = [{"id": "ev-seg-ab.step_count", "source_type": "team_survey_placeholder"}]
+    res = _agent([], plan_evidence=ev).run_sync(
+        "Can I get from Car Park B to the playground with a stroller?"
+    )
+    assert any("demo values, not yet surveyed" in c for c in res.output.caveats)

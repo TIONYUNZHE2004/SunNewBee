@@ -11,11 +11,14 @@ DEPTH = re.compile(
 )
 PLACEHOLDER_SOURCE = "team_survey_placeholder"
 PLACEHOLDER_CAVEAT = "demo values, not yet surveyed"
-VERIFIED_CLAIM = re.compile(
-    r"(?:staff|team)[- ]verified|verified by (?:staff|the team)|\bsurveyed on\b"
-    r"|staff (?:have |has )?checked",
-    re.IGNORECASE,
-)
+BANNED_PLACEHOLDER = re.compile(r"\bsurveyed on\b|staff (?:have |has )?checked", re.IGNORECASE)
+VERIFIED_WORD = re.compile(r"\bverified\b", re.IGNORECASE)  # not "unverified"/"partly_unverified"
+NEGATED_VERIFIED = re.compile(r"\bnot (?:yet )?$", re.IGNORECASE)
+
+
+def _claims_verified(text: str) -> bool:
+    """True when the text uses "verified" affirmatively ("not (yet) verified" is allowed)."""
+    return any(not NEGATED_VERIFIED.search(text[: m.start()]) for m in VERIFIED_WORD.finditer(text))
 
 
 def _strip_names(text: str, names: set[str]) -> str:
@@ -69,11 +72,11 @@ def validate_answer(ans: FinalAnswer, rec: TurnRecord) -> list[str]:
                 "Some cited evidence is placeholder data (source_type team_survey_placeholder): "
                 f"add a caveat containing the exact phrase '{PLACEHOLDER_CAVEAT}'."
             )
-        if VERIFIED_CLAIM.search(all_text):
+        if BANNED_PLACEHOLDER.search(all_text) or _claims_verified(all_text):
             errs.append(
-                "Placeholder evidence is not verified: remove wording like 'staff verified', "
-                "'verified by staff' or 'surveyed on'; say the values are "
-                f"'{PLACEHOLDER_CAVEAT}'."
+                "Placeholder evidence is not verified: remove the word 'verified' "
+                "(only 'unverified' or 'not yet verified' are allowed) and 'surveyed on' / "
+                f"'staff checked'; say the values are '{PLACEHOLDER_CAVEAT}'."
             )
     if rec.scenarios_used:
         if not ans.scenario_id:

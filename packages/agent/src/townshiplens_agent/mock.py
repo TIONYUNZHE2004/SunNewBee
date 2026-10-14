@@ -187,7 +187,7 @@ def _script(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
         flood_cav, flood_ev, likely = _endpoint_flood(_data(rets[-1][1]))
         caveats = _unknown_caveats(routes[:1])
         if route and route.get("status") != "confirmed" and not caveats:
-            caveats = [f"Route status: {route.get('status')}; not all segments are verified."]
+            caveats = [f"Route status: {route.get('status')}; some segments are still unverified."]
         caveats = _placeholder_caveat(rets, flood_cav + caveats)
         confirmed = route and route.get("status") == "confirmed" and not likely
         return _final(
@@ -252,7 +252,7 @@ def _script(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
         ev += flood_ev
         caveats = _unknown_caveats(routes)
         if status != "confirmed" and not caveats:
-            caveats = [f"Route status: {status}; not all segments are verified."]
+            caveats = [f"Route status: {status}; some segments are still unverified."]
         caveats = _placeholder_caveat(rets, flood_cav + caveats)
         dist = r0.get("distance_m") if r0 else None
         flagged = rr.get("endpoint_flood") or []
