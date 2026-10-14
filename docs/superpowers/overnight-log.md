@@ -100,7 +100,7 @@
 - **Task 10 (flood pipeline):** Opus implementer running. **Task 3:** Overpass tiles cached (9); the implementer is fixing a parsing error.
 - **External usage:** OpenRouter 0/30 · Google tiles ≈8/30 · Overpass ≈18.
 
-### 02:27 (+1:02): the walking-skeleton hero flows are verified end to end
+### 02:23 (+0:58): the walking-skeleton hero flows are verified end to end
 - **Integrated:** Task 9, the PydanticAI agent + `run_turn` SSE + CLI + golden runner (merge `fcb50d3`). Review fixes:
   - the UI scenario is now applied to routing (Critical);
   - caveats are required for flooded route endpoints;
