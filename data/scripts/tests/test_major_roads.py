@@ -167,3 +167,15 @@ def test_overpass_cache_hit_costs_nothing(monkeypatch, tmp_path):
     monkeypatch.setattr(overpass, "MAX_REQUESTS", 0)
     assert overpass.query(ql) == {"elements": []}
     assert overpass.REQUESTS_MADE == 0
+
+
+def test_major_tiles_split_only_the_ne_tile_into_north_south_halves():
+    from data.scripts.import_osm import ENVELOPE, major_tiles
+
+    base = list(overpass.tiles(ENVELOPE, 2))
+    tiles = major_tiles()
+    # The three tiles cached under R22 keep their exact query bboxes (cache keys).
+    assert tiles[:3] == base[:3]
+    s, w, n, e = base[3]
+    mid = (s + n) / 2
+    assert tiles[3:] == [(s, w, mid, e), (mid, w, n, e)]

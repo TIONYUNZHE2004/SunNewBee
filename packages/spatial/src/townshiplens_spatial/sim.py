@@ -12,7 +12,7 @@ import uuid
 from datetime import UTC, date, datetime
 from typing import Any
 
-from .evaluate import _CHECKS, evaluate_edge
+from .evaluate import _CHECKS, SIDEWALK_TYPES, evaluate_edge
 from .models import Claim
 from .routing import _flood_class, plan_route
 from .world import World
@@ -30,7 +30,8 @@ OUTCOME = {
     "blocked": "blocked",
     "no_data": "no_data",
 }
-GAP_ATTRS = {attr for attr, _ in _CHECKS.values()}  # same keys the evaluator checks
+# Same keys the evaluator checks; `sidewalk` only on SIDEWALK_TYPES edges (major roads).
+GAP_ATTRS = {attr for attr, _ in _CHECKS.values()} | {"sidewalk"}
 
 
 def default_tasks(world: World, profiles: list[str] | None = None) -> list[dict[str, Any]]:
@@ -53,7 +54,9 @@ def default_tasks(world: World, profiles: list[str] | None = None) -> list[dict[
     return tasks[:MAX_TASKS]
 
 
-def _pass_value(world: World, profile_id: str, attribute: str) -> float:
+def _pass_value(world: World, profile_id: str, attribute: str) -> Any:
+    if attribute == "sidewalk":
+        return "both"
     hard = world.profiles[profile_id].hard
     if attribute == "width_m":
         return round(hard.get("min_width_m", 0.0) + 0.1, 3)
@@ -63,6 +66,8 @@ def _pass_value(world: World, profile_id: str, attribute: str) -> float:
 def _flipped(world: World, element_id: str, attribute: str, profile_id: str) -> World | None:
     edge = world.edges.get(element_id)
     if edge is None or attribute not in GAP_ATTRS or profile_id not in world.profiles:
+        return None
+    if attribute == "sidewalk" and edge.type not in SIDEWALK_TYPES:
         return None
     e2 = copy.deepcopy(edge)
     e2.claims = {

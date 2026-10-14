@@ -90,3 +90,25 @@ def test_gap_budget_truncates(world, monkeypatch):
 def test_report_shape(world):
     r = sim.run_suite(world, [])
     assert r["world_version"] == world.version and len(r["run_id"]) == 4 + 32
+
+
+def test_major_road_sidewalk_is_ranked_as_a_gap(world):
+    world.edges["seg-ab"] = world.edges["seg-ab"].model_copy(
+        deep=True, update={"type": "major_road"}
+    )
+    task = {
+        "id": "t",
+        "profile": "stroller",
+        "from_id": "park-b",
+        "to_id": "lakeside-mall",
+        "scenario_id": None,
+    }
+    r = sim.run_suite(world, [task])
+    assert r["results"][0]["outcome"] == "success_with_unknowns"
+    g = r["gaps"][0]
+    assert (g["element_id"], g["attribute"], g["impact"]) == ("seg-ab", "sidewalk", 1)
+    assert "sidewalk" not in world.edges["seg-ab"].claims  # world untouched
+
+
+def test_sidewalk_flip_only_for_major_roads(world):
+    assert sim._flipped(world, "seg-cf", "sidewalk", "stroller") is None

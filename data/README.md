@@ -50,19 +50,26 @@ Envelope bbox (s,w,n,e) = 3.150, 101.460, 3.240, 101.530.
 - **Evaluation** (walking profiles): a trusted `both | one_side | separate` claim → the normal rules apply. `none` → FAIL for stroller, wheelchair and older_adult_rest (`no_sidewalk_is: FAIL` in their profile yaml), UNKNOWN for default. No trusted claim → UNKNOWN for every walking profile. So a route over a major road is never `confirmed` without sidewalk data. `drive` allows `major_road`.
 - **Rate limit:** `import_osm.py --max-requests N` hard-caps real Overpass HTTP requests (retries included; cache hits are free) and prints `BLOCKED` with the count when the cap is reached, before writing anything.
 
-**Status (15 Oct 2026): the network budget ran out.** 3 of the 4 major-road tiles are cached in `data/cache/`. The NE tile `(3.195, 101.495, 3.24, 101.53)` timed out (12/12 requests used, all 504s or timeouts). The committed seed therefore still has **no** `major_road` edges. To finish: re-run `pnpm data:build` with `--max-requests` (one more tile request at minimum), then `build_flood.py --datum-offset -3.74 --osm-water data/cache/2f7c0c51d14428009f2172835c2108ed9966ae2d.json`.
+**Status (15 Oct 2026): the network budget ran out (16 of 16 Overpass requests, rulings R22 + R23).** The major-road tiles are the 2 × 2 `ENVELOPE` tiles, with the NE tile split into south/north halves (`major_tiles()`, R23). 4 of the 5 are cached in `data/cache/`. The north half of the NE tile, `(3.2175, 101.495, 3.24, 101.53)`, kept returning 504. The committed seed therefore still has **no** `major_road` edges. To finish:
+1. Re-run `import_osm.py --max-requests N` (≥ 1 request).
+2. `build_overlay.py`.
+3. `build_flood.py --datum-offset -3.74 --osm-water data/cache/2f7c0c51d14428009f2172835c2108ed9966ae2d.json`. The DEM is cached.
+4. `build_waste.py`.
+5. Re-record the 4 Elmina `data/demo/*.jsonl` entries with `LLM_PROVIDER=mock`.
 
-| Measure (stroller unless noted) | Seed today | Estimate, 3 of 4 tiles (not committed) |
+| Measure (stroller unless noted) | Seed today | Estimate, 4 of 5 tiles (not committed) |
 |---|---|---|
-| Walk graph components | 199 | 103 |
-| Largest component share of nodes | 32.0% (3,653 of 11,418) | 85% (9,954 of 11,710) |
-| Lakeside Mall → 72 evacuation centres, baseline | 23 partly_unverified / 49 no_data | 53 partly_unverified / 19 no_data |
+| Walk graph components | 199 | 84 |
+| Largest component share of nodes | 32.0% (3,653 of 11,418) | 87% (10,218 of 11,724) |
+| Lakeside Mall → 72 evacuation centres, baseline | 23 partly_unverified / 49 no_data | 56 partly_unverified / 16 no_data |
 | Lakeside Mall → 72 centres, stage_p3m | 3 partly_unverified / 20 blocked / 49 no_data | not measured (new edges have no flood class yet) |
 | Journey tests (300 tasks: 100 per profile) | 99 no_data + 1 success_with_unknowns per profile | 46 no_data + 54 success_with_unknowns per profile |
 | Hero `park-b → playground` | confirmed, 440.6 m | confirmed, 440.6 m |
-| `major_road` sidewalk claims | – | 0 of 788 segments (OSM has 3 one-side `separate` tags, which leave the other side unknown) |
+| `major_road` segments / sidewalk claims | – | 844 segments (81.5 km) / 0 claims (OSM has only 3 one-side `separate` tags, which leave the other side unknown) |
 
 The estimate adds the new edges in memory to today's seed and keeps the overlay. Flood stage stats are unchanged, because the seed was not rebuilt.
+
+**Segment renumbering:** 101 existing `seg-<way>-<k>` ids would get new geometry, because their ways are re-split at major-road junctions. None of them is referenced in this README, `access/README.md`, `data/demo/*.jsonl`, e2e tests or golden.
 
 ## Flood lens (Task 10: `data/scripts/build_flood.py`)
 

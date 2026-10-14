@@ -222,11 +222,19 @@ def _fetch_ways() -> list[dict]:
     return list(seen.values())
 
 
+def major_tiles() -> list[tuple[float, float, float, float]]:
+    """The 2 x 2 envelope tiles (ruling R22), with the NE tile split into south/north halves
+    (ruling R23: the full NE query kept timing out). Bboxes are cache keys: keep them stable."""
+    *rest, (s, w, n, e) = overpass.tiles(ENVELOPE, 2)
+    mid = (s + n) / 2
+    return [*rest, (s, w, mid, e), (mid, w, n, e)]
+
+
 def _fetch_major_ways() -> list[dict]:
-    """Ruling R22: one sequential pass over the 2 x 2 envelope tiles (4 queries, cached)."""
+    """One sequential pass over major_tiles() (5 queries, cached)."""
     seen: dict[int, dict] = {}
     hw = "|".join(MAJOR_HIGHWAYS)
-    for s, w, n, e in overpass.tiles(ENVELOPE, 2):
+    for s, w, n, e in major_tiles():
         ql = f'[out:json][timeout:180];way[highway~"^({hw})$"]({s},{w},{n},{e});out geom tags;'
         for el in overpass.query(ql).get("elements", []):
             if el["type"] == "way" and "geometry" in el:
