@@ -1,0 +1,22 @@
+{"meta": {"message": "Priya uses a wheelchair at Lakeside Mall. If the river rises 3 m, where can she go?", "profile": "wheelchair", "scenario_id": "stage_p3m", "world": "tiny", "model": "mock-scripted", "recorded_at": "2026-10-14T18:38:34+00:00"}}
+{"type": "tool.call", "id": "find_place-0", "name": "find_place", "args": {"query": "lakeside mall", "types": null, "limit": 5}}
+{"type": "tool.result", "id": "find_place-0", "name": "find_place", "summary": "1 result(s)"}
+{"type": "tool.call", "id": "list_evacuation_centres-1", "name": "list_evacuation_centres", "args": {"scenario_id": "stage_p3m", "profile": "wheelchair", "near_place": "lakeside-mall"}}
+{"type": "tool.result", "id": "list_evacuation_centres-1", "name": "list_evacuation_centres", "summary": "2 result(s)"}
+{"type": "tool.call", "id": "plan_route-2", "name": "plan_route", "args": {"from_id": "lakeside-mall", "to_id": "__centre__evc-hall", "profile": "wheelchair", "scenario_id": "stage_p3m"}}
+{"type": "tool.result", "id": "plan_route-2", "name": "plan_route", "summary": "route partly_unverified"}
+{"type": "text.delta", "delta": "⚠ seg-bc: possibly flooded in this scena"}
+{"type": "text.delta", "delta": "rio\nIn the River +3 m indicative scenari"}
+{"type": "text.delta", "delta": "o, the nearest reachable centre is Commu"}
+{"type": "text.delta", "delta": "nity hall (candidate); source: candidate"}
+{"type": "text.delta", "delta": ", not confirmed as a PPS. This is not a "}
+{"type": "text.delta", "delta": "forecast; follow official MBSA / JPS / N"}
+{"type": "text.delta", "delta": "ADMA guidance."}
+{"type": "scene.intent", "intent": {"kind": "flood.set_level", "place_id": null, "route_id": null, "scenario_id": "stage_p3m", "center": null, "range_m": null, "lens": null, "visible": null, "geojson": null}}
+{"type": "scene.intent", "intent": {"kind": "route.highlight", "place_id": null, "route_id": "rt-1d0a211e", "scenario_id": null, "center": null, "range_m": null, "lens": null, "visible": null, "geojson": {"type": "LineString", "coordinates": [[101.5095, 3.181], [101.51, 3.181]]}}}
+{"type": "citation", "ref": 1, "evidence_id": "ev-centre-evc-hall", "element_id": "evc-hall", "attribute": "source", "status": "unknown", "verified_at": null, "source_type": "OSM candidate"}
+{"type": "citation", "ref": 2, "evidence_id": "ev-centre-evc-school", "element_id": "evc-school", "attribute": "source", "status": "reported", "verified_at": null, "source_type": "official PPS report"}
+{"type": "citation", "ref": 3, "evidence_id": "ev-scn-stage_p3m", "element_id": "stage_p3m", "attribute": "scenario", "status": "indicative", "verified_at": null, "source_type": "HAND scenario"}
+{"type": "uncertainty", "level": "partial", "items": [{"element_id": "seg-bc", "attribute": "flood", "note": "possibly flooded in this scenario"}]}
+{"type": "disclaimer", "lens": "flood", "text": "Indicative scenario, not a forecast. Follow official MBSA / JPS / NADMA guidance.", "links": []}
+{"type": "done", "message_id": "demo", "answer_status": "partial", "model": "mock-scripted"}
