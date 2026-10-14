@@ -142,3 +142,11 @@
 - **Task 15 (sim runner):** the Opus review found the I7 filter hiding real rest-gap violations. Ruling: I7 applies to every offered route. A fix round is in progress (perf pruning, storage slimming).
 - **Task 10 (flood REM rework):** in progress.
 - **External usage:** OpenRouter about 16 req / US$0.0062 · Google tiles about 12/30 · **Overpass about 55 (cap ~40 exceeded by the data lane's retries)**.
+
+### 02:44
+- **Integrated:**
+  - Task 15: resident-agent batch runner + gap ranking + `/simulations` (merge `1233e9c`; Opus review → I7 ruling, perf budget, storage slimming).
+  - **Task 3: Elmina OSM seed** (merge `1a498b3`). The review fixes removed duplicate hero places, gave unnamed OSM places non-generic names, dropped the invented `seat_count`, made the steps-default provenance honest, and merge claims instead of overwriting them. Coordinator check: "playground", "car park b" and "lakeside mall" each resolve to the hero place first; stroller park-b → playground is confirmed at 440.6 m. One `biome.json` merge conflict was resolved (union of ignore lists).
+- **Verified (main):** pytest PASS (240) · golden 6/6 PASS (mock) · web vitest PASS (54) · e2e 7/7 PASS · lint PASS · gen no drift PASS · typecheck PASS. Pushed.
+- **The API now defaults to the real Elmina seed.** No flood data on main yet; Task 10 is in review, then a rebase onto the seed and the vector-stage run.
+- **In flight:** Task 18 (attribute editor + audit, in review) · Task 19 (journey-tests UI) · Task 10 review (Opus).
