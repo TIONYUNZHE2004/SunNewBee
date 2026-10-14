@@ -5,6 +5,7 @@ import { ScenarioButtons, shortLabel } from "./ScenarioBar";
 describe("ScenarioButtons", () => {
   it("shortens labels and keeps full accessible names", () => {
     expect(shortLabel("River +3 m (indicative)")).toBe("+3 m");
+    expect(shortLabel("+2 m of rain, then -1 m of drain")).toBe("+2 m of rain, then -1 m of drain");
     expect(shortLabel("Odd label")).toBe("Odd label");
     const html = renderToStaticMarkup(
       <ScenarioButtons

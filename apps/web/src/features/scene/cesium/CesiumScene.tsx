@@ -7,8 +7,17 @@ import { ENV } from "../../../lib/env";
 import { pointFeatures } from "../geo";
 import { useScene } from "../sceneStore";
 import { useCameraIntents } from "./camera";
-import { homeView } from "./home";
+import { type HomeView, homeView, shouldReframe } from "./home";
 import { AccessLayer, FloodLayer, WasteLayer } from "./layers";
+
+function frameHome(viewer: Cesium.Viewer, { lon, lat, range_m }: HomeView) {
+  viewer.camera.lookAt(
+    Cesium.Cartesian3.fromDegrees(lon, lat, 0),
+    new Cesium.HeadingPitchRange(0, Cesium.Math.toRadians(-45), range_m),
+  );
+  viewer.camera.lookAtTransform(Cesium.Matrix4.IDENTITY);
+  viewer.scene.requestRender();
+}
 
 /** Child of <Viewer>: mounts only after resium has created the viewer. */
 function SceneSetup({
@@ -81,20 +90,36 @@ function SceneSetup({
     };
   }, [viewer, onNoDraping, onTilesFailed]);
 
-  // Frame the site home once per viewer (separate from the tiles effect: no tileset reload).
-  const site = useSite();
-  const siteData = site.data;
-  const framedRef = useRef<Cesium.Viewer | null>(null);
+  // Frame the home view once per viewer (separate from the tiles effect: no tileset reload).
+  // Frame at once with the constants so a slow/failed /site never leaves the whole-globe view,
+  // then re-frame once to the site's home if the user has not touched the camera yet.
+  const siteData = useSite().data;
+  const framing = useRef({ moved: false, reframed: false });
   useEffect(() => {
-    if (!viewer || viewer.isDestroyed() || !siteData || framedRef.current === viewer) return;
-    framedRef.current = viewer;
-    const { lon, lat, range_m } = homeView(siteData);
-    viewer.camera.lookAt(
-      Cesium.Cartesian3.fromDegrees(lon, lat, 0),
-      new Cesium.HeadingPitchRange(0, Cesium.Math.toRadians(-45), range_m),
-    );
-    viewer.camera.lookAtTransform(Cesium.Matrix4.IDENTITY);
-    viewer.scene.requestRender();
+    if (!viewer || viewer.isDestroyed()) return;
+    framing.current = { moved: false, reframed: false };
+    frameHome(viewer, homeView(undefined));
+    const handler = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas);
+    const moved = () => {
+      framing.current.moved = true;
+    };
+    for (const t of [
+      Cesium.ScreenSpaceEventType.LEFT_DOWN,
+      Cesium.ScreenSpaceEventType.RIGHT_DOWN,
+      Cesium.ScreenSpaceEventType.MIDDLE_DOWN,
+      Cesium.ScreenSpaceEventType.WHEEL,
+      Cesium.ScreenSpaceEventType.PINCH_START,
+    ]) {
+      handler.setInputAction(moved, t);
+    }
+    return () => handler.destroy();
+  }, [viewer]);
+  useEffect(() => {
+    if (!viewer || viewer.isDestroyed() || !siteData) return;
+    const f = framing.current;
+    if (!shouldReframe(f)) return;
+    f.reframed = true;
+    frameHome(viewer, homeView(siteData));
   }, [viewer, siteData]);
 
   // Click a place marker (entity id = place id) to open its card.

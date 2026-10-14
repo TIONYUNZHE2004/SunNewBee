@@ -21,3 +21,6 @@ export function homeView(site: Pick<Site, "center" | "scene"> | null | undefined
   if (c && num(c[0]) && num(c[1])) return { lon: c[0], lat: c[1], range_m: DEFAULT_RANGE_M };
   return { ...FALLBACK };
 }
+
+/** Re-frame to the site's home only once, and never after the user moved the camera. */
+export const shouldReframe = (f: { moved: boolean; reframed: boolean }) => !f.moved && !f.reframed;

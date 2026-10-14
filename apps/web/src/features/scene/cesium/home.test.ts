@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { homeView } from "./home";
+import { homeView, shouldReframe } from "./home";
 
 const base = { center: [101.5, 3.2], scene: {} } as Parameters<typeof homeView>[0];
 
@@ -19,5 +19,13 @@ describe("homeView", () => {
     const c = { lon: 101.5099, lat: 3.1813, range_m: 6000 };
     expect(homeView(undefined)).toEqual(c);
     expect(homeView({ center: [], scene: {} } as never)).toEqual(c);
+  });
+});
+
+describe("shouldReframe", () => {
+  it("only when untouched and not yet re-framed", () => {
+    expect(shouldReframe({ moved: false, reframed: false })).toBe(true);
+    expect(shouldReframe({ moved: true, reframed: false })).toBe(false);
+    expect(shouldReframe({ moved: false, reframed: true })).toBe(false);
   });
 });

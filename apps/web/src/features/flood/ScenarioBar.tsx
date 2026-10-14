@@ -7,7 +7,8 @@ const cls = (active: boolean) =>
   }`;
 
 /** "River +1 m (indicative)" -> "+1 m"; labels without a level are kept whole. */
-export const shortLabel = (label: string) => label.match(/[+-]\d+(?:\.\d+)?\s*m\b/)?.[0] ?? label;
+export const shortLabel = (label: string) =>
+  label.match(/(?:^|\s)([+-]\d+(?:\.\d+)?\s*m)(?:\s*\(.*\))?$/)?.[1] ?? label;
 
 export function ScenarioButtons({
   scenarios,
