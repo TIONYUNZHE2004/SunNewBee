@@ -6,7 +6,7 @@ _MAP = {"PASS": "ok", "UNKNOWN": "unknown", "FAIL": "blocked"}
 _FLOOD = {"likely_flooded": "flooded_likely", "possible": "flooded_possible"}
 
 
-def layer(
+def _layer(
     world: World, lens: str, profile: str = "default", scenario_id: str | None = None
 ) -> dict:
     prof = world.profiles.get(profile) or world.profiles["default"]
@@ -65,3 +65,19 @@ def layer(
             for w in world.waste.values()
         ]
     return {"type": "FeatureCollection", "features": feats}
+
+
+_cache: dict[tuple, dict] = {}
+
+
+def layer(
+    world: World, lens: str, profile: str = "default", scenario_id: str | None = None
+) -> dict:
+    """Memoised on (world identity, world.version, lens, profile, scenario)."""
+    key = (id(world), world.version, lens, profile, scenario_id)
+    hit = _cache.get(key)
+    if hit is None:
+        if len(_cache) > 64:
+            _cache.clear()
+        hit = _cache[key] = _layer(world, lens, profile, scenario_id)
+    return hit

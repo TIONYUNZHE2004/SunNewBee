@@ -1,4 +1,5 @@
 import contextlib
+import hmac
 import sqlite3
 from datetime import date
 from typing import Annotated, Any, Literal
@@ -8,7 +9,7 @@ from pydantic import BaseModel
 from townshiplens_spatial.models import Claim, VerificationRequest
 
 from .. import state
-from ..settings import ApiSettings
+from ..settings import DEFAULT_STAFF_TOKEN, ApiSettings
 
 router = APIRouter()
 
@@ -24,38 +25,59 @@ def vrs(status: str = "open") -> list[VerificationRequest]:
     return state.get_ctx().vrs.list(status)
 
 
+def _type_ok(new: Any, old: Any) -> bool:
+    if old is None:
+        return True
+    num = (int, float)
+    if isinstance(old, bool) or isinstance(new, bool):
+        return isinstance(old, bool) and isinstance(new, bool)
+    if isinstance(old, num):
+        return isinstance(new, num)
+    return isinstance(new, type(old))
+
+
 @router.post("/verification-requests/{vr_id}/resolve", response_model=VerificationRequest)
 def resolve(
     vr_id: str,
     body: ResolveBody,
     x_staff_token: Annotated[str | None, Header()] = None,
 ) -> VerificationRequest:
-    if x_staff_token is None or x_staff_token != ApiSettings().staff_token:
+    configured = ApiSettings().staff_token
+    if not configured or configured == DEFAULT_STAFF_TOKEN:
+        raise HTTPException(503, "staff token not configured")
+    if x_staff_token is None or not hmac.compare_digest(
+        x_staff_token.encode(), configured.encode()
+    ):
         raise HTTPException(401, "staff token required")
     ctx = state.get_ctx()
-    existing = next(
-        (
-            v
-            for st in ("open", "in_progress", "resolved", "rejected")
-            for v in ctx.vrs.list(st)
-            if v.id == vr_id
-        ),
-        None,
-    )
+    try:
+        existing = ctx.vrs.get(vr_id)
+    except sqlite3.Error:
+        raise HTTPException(503, "verification store unavailable") from None
     if existing is None:
         raise HTTPException(404, f"unknown verification request {vr_id}")
     if existing.status not in ("open", "in_progress"):
         raise HTTPException(409, f"{vr_id} is already {existing.status}")
-    if body.action in ("verify", "correct") and body.value is None:
+    verifying = body.action in ("verify", "correct")
+    if verifying and body.value is None:
         raise HTTPException(422, "value is required for verify/correct")
+    if verifying:
+        target = ctx.world.edges.get(existing.element_id) or ctx.world.places.get(
+            existing.element_id
+        )
+        old = target.claims.get(existing.attribute) if target else None
+        if old is not None and not _type_ok(body.value, old.value):
+            raise HTTPException(422, f"value type does not match existing {existing.attribute}")
     try:
         done = ctx.vrs.resolve(vr_id, body.action, body.value, body.note)
     except KeyError:
         raise HTTPException(404, f"unknown verification request {vr_id}") from None
-    except (ValueError, sqlite3.Error) as e:
+    except ValueError as e:
         raise HTTPException(409, str(e)) from None
-    if body.action in ("verify", "correct"):
-        with contextlib.suppress(KeyError):  # element gone (e.g. missing_place VR)
+    except sqlite3.Error:
+        raise HTTPException(503, "verification store unavailable") from None
+    if verifying:
+        with state.world_lock, contextlib.suppress(KeyError):  # element gone (missing_place VR)
             ctx.world.refresh_claim(
                 done.element_id,
                 done.attribute,

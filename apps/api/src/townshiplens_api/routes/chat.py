@@ -1,9 +1,12 @@
+import logging
+
 from fastapi import APIRouter
 from sse_starlette.sse import EventSourceResponse
 from townshiplens_agent.events import ChatEventDoc, ChatRequest, Done, ErrorEvent
 
 from .. import state
 
+log = logging.getLogger(__name__)
 router = APIRouter()
 
 
@@ -27,7 +30,15 @@ async def chat(req: ChatRequest):
             ):
                 yield {"event": ev.type, "data": ev.model_dump_json()}
             return
-        async for ev in run_turn(state.get_ctx(), req):
-            yield {"event": ev.type, "data": ev.model_dump_json()}
+        try:
+            async for ev in run_turn(state.get_ctx(), req):
+                yield {"event": ev.type, "data": ev.model_dump_json()}
+        except Exception:
+            log.exception("chat turn failed")
+            for ev in (
+                ErrorEvent(code="internal", message="internal error"),
+                Done(message_id="none", answer_status="cannot_answer", model="none"),
+            ):
+                yield {"event": ev.type, "data": ev.model_dump_json()}
 
     return EventSourceResponse(gen())
