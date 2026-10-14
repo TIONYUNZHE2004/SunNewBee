@@ -17,7 +17,7 @@ def test_unknown_incline_is_unknown(world):
 
 
 def test_default_profile_has_no_hard_constraints(world):
-    assert evaluate_edge(world.edges["seg-be"], world.profiles["default"])[0] != "FAIL"
+    assert evaluate_edge(world.edges["seg-be"], world.profiles["default"])[0] == "PASS"
 
 
 def test_flood_likely_fails_possible_unknown(world):
@@ -83,4 +83,4 @@ def test_steps_edge_with_contested_or_stale_claim_fails(world):
         assert evaluate_edge(e, world.profiles["stroller"])[0] == "FAIL"
     e = world.edges["seg-be"].model_copy(deep=True)
     e.claims["step_count"] = Claim(value=0, status="verified", verified_at="2026-10-18")
-    assert evaluate_edge(e, world.profiles["stroller"])[0] != "FAIL"
+    assert evaluate_edge(e, world.profiles["stroller"])[0] == "UNKNOWN"
