@@ -1,46 +1,73 @@
 # TownshipLens: Project Brief (living)
 
 > The **current** one-page truth about the project. When something changes, update this page and add an ADR. The original concept note is frozen in [original-idea.md](original-idea.md).
-> Last updated: 14 Oct 2026.
+> Last updated: 14 Oct 2026, after the pivot to a world-model platform (ADR [0009](decisions/0009-township-world-model-platform.md)).
 
 ## One-liner
-**An AI assistant that understands your township, not just its documents.** Residents ask how to reach a place; TownshipLens answers from a *verified* map of entrances, paths and amenities, shows the route in 3D, says honestly what hasn't been checked, and turns every gap into a task for the township team.
+**A 3D world model of the township that residents and township managers can ask anything, and trust the answer.** TownshipLens turns City of Elmina into a living 3D model with "lenses" on top. Residents find step-free routes, toilets and shelter. Managers rehearse "what if it floods tonight?" and see which paths, facilities and residents get cut off. Everything the AI says comes from checked data, and gaps become tasks for the township team.
 
 ## Problem
-Township information is scattered across maps, notices, websites and staff memory. A pin tells you *where* a facility is, not *which entrance* to use, *whether there are stairs*, *where to rest*, or *whether a walkway is closed today*. For parents with strollers, older residents, wheelchair users and first-time visitors, that gap means wasted trips, carrying, and avoiding facilities altogether. Even when "accessible" labels exist, nobody knows **who checked, or when**.
+Township knowledge is scattered across maps, notices, WhatsApp groups and staff memory, and none of it is spatial or verified.
+- **Residents** can find *where* a facility is, but not *how* to get there without stairs, where to rest, or whether a path is closed. Where "accessible" labels exist, nobody knows who checked them or when.
+- **Township managers** can't easily answer "if heavy rain hits, which walkways, entrances and community facilities go under, who is cut off, and where should people go?" Shah Alam's December 2021 floods showed what that costs.
+- Both groups depend on the same underlying facts (paths, levels, entrances, facilities, drainage), but nobody keeps those facts in one trustworthy place.
 
-## Solution: four parts
+## Solution: one world model, many lenses
+
+```
+  Ask anything ─► AI assistant (cites evidence, says "unknown" honestly)
+                        │ calls deterministic tools
+  Lenses:   ① Accessibility & getting around   ② Flood / disaster what-if   (+ recycling layer, roadmap lenses)
+                        │
+  World model (Elmina): terrain · buildings · paths & entrances · facilities ·
+                        drains & retention ponds · evacuation centres · waste points
+                        every fact = yes/no/unknown + source + date
+                        │
+  3D view of the whole township (photoreal) + 2D/text fallbacks
+```
+
 | Part | What it does | Doc |
 |---|---|---|
-| **Verified world model** | A graph of places, entrances and path segments. Every accessibility fact is yes/no/**unknown**, with a source and a date | [world-model-schema](../04-architecture/world-model-schema.md) |
-| **Grounded assistant** | An LLM that calls six deterministic tools; a routing engine decides feasibility; every claim is cited; uncited claims are rejected | [ai-assistant-design](../04-architecture/ai-assistant-design.md) |
-| **3D + 2D + text views** | Google Photorealistic 3D Tiles backdrop with our overlay; MapLibre and text fallbacks | [3d-pipeline](../04-architecture/3d-pipeline.md) |
-| **Gap loop + resident agents** | Unknowns become ranked verification requests for staff. Persona profiles test every journey to find gaps first | [resident-agents-design](../04-architecture/resident-agents-design.md) |
+| **World model** | Layered, verified spatial data for City of Elmina; every accessibility- or safety-relevant fact is yes/no/**unknown** with a source and a date | [world-model-schema](../04-architecture/world-model-schema.md) (being extended) |
+| **Lens 1: Accessibility & getting around** (deep) | Step-free / rest-point / wheelchair routes, entrances, toilets, shelter; honest unknowns; staff verification loop | [accessibility-and-routing](../02-research/accessibility-and-routing.md) |
+| **Lens 2: Flood / disaster what-if** (deep) | Pick a scenario → water rises in 3D → cut-off paths and facilities → re-routed safe and evacuation routes → affected-area summary for managers. Indicative, not a forecast | [flood-disaster-lens](../02-research/flood-disaster-lens.md) (research in progress) |
+| **Recycling / waste** (thin) | Recycling and e-waste points, collection info as a layer + Q&A | [township-3d-engine-and-data](../02-research/township-3d-engine-and-data.md) (in progress) |
+| **Roadmap lenses** | Planning / site screening (e.g. data centres, tied to SDP's SHIFT32), events, maintenance | pitch only |
+| **Grounded AI assistant** | Calls deterministic tools (routing, scenarios, lookups); every claim is cited; uncited claims are rejected | [ai-assistant-design](../04-architecture/ai-assistant-design.md), [agent-harness-2026](../02-research/agent-harness-2026.md) |
+| **Resident agents (testers)** | Automatic journey tests per profile, including under flood scenarios ("can everyone still reach an evacuation centre?") | [resident-agents-design](../04-architecture/resident-agents-design.md) |
+| **3D experience** | Photoreal 3D of the whole of Elmina; the AI drives the camera, routes glow, water rises | engine: ADR-0007 (research in progress) |
 
 ## Differentiator
-**A closed loop from resident questions to verified facts.** Unknowns are visible, ranked by demand and impact, fixed by staff in minutes, and every later answer improves. Competitors either guess ("accessible ✓") or stop at a static map. See [competitors](../02-research/competitors.md).
+1. **One verified model, many uses.** The same paths, levels and facilities serve daily accessibility *and* emergency planning. That is where the value multiplies for SDP.
+2. **Honest by design.** "Unknown" is a first-class answer; every fact has a source and a date; scenarios are labelled indicative.
+3. **Closed loop.** Gaps found by residents, flood what-ifs or test agents become ranked tasks for staff, and fixes improve every lens at once.
+4. **3D you can query.** Not a pretty fly-through: ask a question and the township shows you the answer.
 
 ## Users
-Residents (Aisyah: stroller · Uncle Lim: older adult · Priya: wheelchair · Daniel: visitor) and staff (Farah: ops · Encik Rahman: facility manager). See [personas-and-journeys](../03-product/personas-and-journeys.md).
+- **Residents:** Aisyah (stroller), Uncle Lim (older adult), Priya (wheelchair), Daniel (visitor).
+- **Management:** Farah (township ops), Encik Rahman (facility manager), plus a **township safety / emergency lead** (flood lens).
+- See [personas-and-journeys](../03-product/personas-and-journeys.md) (being updated for the flood lens).
 
 ## Hackathon fit
-- **Track:** People. Sub-themes: accessibility & inclusion, getting around, digital living, community wellbeing.
-- **Mechanism:** make township knowledge spatially specific, verifiable and maintainable.
-- **Enabler:** a structured spatial model + deterministic routing + tool-using LLM + persona testing + existing 3D data.
-- Criteria mapping: [judging-criteria-mapping](../01-hackathon/judging-criteria-mapping.md).
+- **Track: People.** Sub-themes: accessibility & inclusion, safety & security, getting around, digital living, community wellbeing. The flood lens touches Planet's climate resilience, but it's framed as *resident safety*.
+- **Mechanism:** one trustworthy, spatial, queryable model of the township that residents and managers both use, and that improves itself through the verification loop.
+- **Enabler:** photoreal 3D + layered world model + deterministic routing and scenario engines + a grounded, tool-calling LLM (PydanticAI over OpenRouter) + automated persona testing.
 
 ## MVP scope
-**Elmina Urban Park + the Elmina Lakeside Mall frontage, City of Elmina, Shah Alam** (bbox S,W,N,E 3.1775, 101.5055, 3.1835, 101.5135; see [site-selection](../02-research/site-selection.md) and ADR [0006](decisions/0006-mvp-site.md)). 30+ nodes, 50+ edges, 4+ entrances; 4 profiles; 6 tools; staff console; persona simulation; EN/BM/中文. Full list: [mvp-spec](../03-product/mvp-spec.md). **Not in scope:** own 3D capture, indoor turn-by-turn, live sensors, compliance certification, resident accounts.
+- **Coverage:** the whole of City of Elmina in 3D with open base data (buildings, paths, terrain, waterways, facilities).
+- **Deep spots:** Elmina Urban Park + Lakeside Mall frontage (accessibility, verified on site), and one flood-relevant area or facility (chosen by the flood research).
+- **Lenses:** Accessibility (deep), Flood what-if (deep), Recycling (thin).
+- **Not in scope:** forecasting real floods, live sensor feeds, own 3D capture, indoor navigation, compliance certification, resident accounts, a working data-centre siting tool.
 
-## Stack (summary)
-Vite + React 19 + R3F 9 + 3d-tiles-renderer · MapLibre · FastAPI + Pydantic 2 + NetworkX · Postgres (Supabase SG) · Claude Haiku 5.5 / Sonnet 5.5 via a hand-written tool loop · Promptfoo evals · Cloudflare Pages + Cloud Run (Singapore). See [stack-decision](../04-architecture/stack-decision.md).
+## Stack (summary; being re-confirmed after the pivot)
+React 19 + Vite · 3D engine per ADR-0007 (CesiumJS + Google Photorealistic 3D Tiles under evaluation) · FastAPI + Pydantic 2 + NetworkX · spatial store per the township data research · PydanticAI over OpenRouter (model set in env) · Promptfoo/pytest evals · Cloudflare Pages + Cloud Run (Singapore).
 
 ## Key dates
 Proposal **23 Oct** · Top 10 **28 Oct** · Mentoring **2–6 Nov** · Final submission **11 Nov** · Pitch **14 Nov** · Awards **3 Dec**. Plan: [timeline](../05-team/timeline.md).
 
 ## Success looks like
-- Proposal submitted with a working proof-of-life screenshot or video.
-- **Zero unsupported claims** on the golden set; 100% correct route-status decisions.
-- A measured **before → after** improvement in confirmed journeys after one verification round.
-- A small real user test showing faster, more correct entrance-finding than map + FAQ, with users understanding what's unverified.
-- SDP leadership sees a credible **4–8 week pilot** path.
+- A 3D Elmina demo where one question shows a verified step-free route, and one scenario shows water rising, routes re-planning and an affected-facilities summary.
+- Zero unsupported AI claims on the golden set; scenario answers always labelled indicative.
+- Measured before → after improvement in confirmed journeys after one verification round.
+- A small real user test (residents) plus feedback from at least one township/ops person on the flood lens.
+- SDP sees a credible 4–8 week pilot: Lens 1 at one facility, Lens 2 as an ops planning tool.
