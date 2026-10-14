@@ -4,12 +4,13 @@ from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, HTTPException, Path
 from pydantic import BaseModel
+from townshiplens_agent.agent import _safe_vr_args
 from townshiplens_spatial.attributes import ATTRIBUTE_TYPES, validate_value
 from townshiplens_spatial.models import Claim, VerificationRequest
 
 from .. import state
 from ..auth import StaffOnly
-from ..store import AuditStore
+from ..store import AuditStore, SimStore
 
 router = APIRouter()
 _audits: dict[str, AuditStore] = {}
@@ -59,8 +60,67 @@ class ResolveBody(BaseModel):
 
 
 @router.get("/verification-requests", response_model=list[VerificationRequest])
-def vrs(status: str = "open") -> list[VerificationRequest]:
-    return state.get_ctx().vrs.list(status)
+def vrs(
+    status: str = "open",
+    reason: str | None = None,
+    element_id: str | None = None,
+    attribute: str | None = None,
+) -> list[VerificationRequest]:
+    """status=all returns every status."""
+    return state.get_ctx().vrs.list(status, reason, element_id, attribute)
+
+
+class CreateVRBody(BaseModel):
+    target_id: str
+    attribute: str
+    reason: str = "unknown"
+
+
+@router.post("/verification-requests", response_model=VerificationRequest, dependencies=[StaffOnly])
+def create_vr(body: CreateVRBody) -> VerificationRequest:
+    """Staff-filed VR; deduped against the open one (demand + 1). Same PDPA sanitising as chat."""
+    ctx = state.get_ctx()
+    safe = _safe_vr_args(ctx.world, body.model_dump())
+    try:
+        vr, _ = ctx.vrs.request(
+            safe["target_id"], safe["attribute"], safe["reason"], safe["question_summary"]
+        )
+    except sqlite3.Error:
+        raise HTTPException(503, "verification store unavailable") from None
+    return vr
+
+
+class Kpis(BaseModel):
+    open_vrs: int
+    median_hours_to_resolve: float | None = None
+    journeys_confirmed_pct: float | None = None
+
+
+_sims: dict[str, SimStore] = {}
+
+
+@router.get("/kpis", response_model=Kpis)
+def kpis() -> Kpis:
+    ctx = state.get_ctx()
+    path = state.db_path()
+    try:
+        n_open, median = ctx.vrs.kpis()
+        if path not in _sims:
+            _sims[path] = SimStore(path)
+        recent = _sims[path].recent(1)
+    except sqlite3.Error:
+        raise HTTPException(503, "store unavailable") from None
+    pct = None
+    if recent:
+        counts = recent[0]["counts"]
+        total = sum(sum(v.values()) for v in counts.values())
+        ok = sum(v.get("success", 0) for v in counts.values())
+        pct = round(100 * ok / total, 1) if total else None
+    return Kpis(
+        open_vrs=n_open,
+        median_hours_to_resolve=None if median is None else round(median, 2),
+        journeys_confirmed_pct=pct,
+    )
 
 
 def _type_ok(new: Any, old: Any) -> bool:

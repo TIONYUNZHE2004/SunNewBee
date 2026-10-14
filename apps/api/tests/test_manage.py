@@ -87,3 +87,47 @@ def test_layers_cache_invalidated_by_world_version():
         "seg-cf", "incline_pct", Claim(value=4.0, status="verified", verified_at="2026-10-15")
     )
     assert st() != "unknown"
+
+
+def test_vr_filters_reason_element_status():
+    from townshiplens_api import state
+
+    ctx = state.get_ctx()
+    ctx.vrs.request("seg-cf", "incline_pct", "unknown")
+    b, _ = ctx.vrs.request("seg-cf", "width_m", "stale")
+    ctx.vrs.request("seg-x", "incline_pct", "user_report")
+    ctx.vrs.resolve(b.id, "reject")
+
+    def ids(**p):
+        return {
+            (v["element_id"], v["attribute"])
+            for v in c.get("/verification-requests", params=p).json()
+        }
+
+    assert len(c.get("/verification-requests", params={"status": "all"}).json()) == 3
+    assert len(c.get("/verification-requests").json()) == 2
+    assert ids(reason="user_report") == {("seg-x", "incline_pct")}
+    assert ids(status="all", element_id="seg-cf") == {
+        ("seg-cf", "incline_pct"),
+        ("seg-cf", "width_m"),
+    }
+    assert ids(attribute="incline_pct") == {("seg-cf", "incline_pct"), ("seg-x", "incline_pct")}
+    assert ids(status="rejected", element_id="seg-cf") == {("seg-cf", "width_m")}
+
+
+def test_staff_create_vr_dedupes_and_sanitises():
+    body = {"target_id": "seg-cf", "attribute": "incline_pct", "reason": "stale"}
+    assert c.post("/verification-requests", json=body).status_code == 401
+    assert (
+        c.post("/verification-requests", json=body, headers={"X-Staff-Token": "x"}).status_code
+        == 401
+    )
+    a = c.post("/verification-requests", json=body, headers=OK)
+    assert a.status_code == 200 and a.json()["demand"] == 1
+    b = c.post("/verification-requests", json=body, headers=OK)
+    assert b.json()["id"] == a.json()["id"] and b.json()["demand"] == 2
+    # PDPA: unknown element / bad attribute / bad reason are normalised, no free text stored
+    evil = {"target_id": "Ah Meng 0123456789", "attribute": "Call me!", "reason": "lol"}
+    r = c.post("/verification-requests", json=evil, headers=OK).json()
+    assert r["element_id"] == "unknown_place" and r["attribute"] == "unknown"
+    assert r["reason"] == "unknown" and "Meng" not in str(r)

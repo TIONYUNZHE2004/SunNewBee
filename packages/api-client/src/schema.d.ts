@@ -123,6 +123,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/kpis": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Kpis */
+        get: operations["kpis_kpis_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/layers/{lens}": {
         parameters: {
             query?: never;
@@ -321,10 +338,17 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Vrs */
+        /**
+         * Vrs
+         * @description status=all returns every status.
+         */
         get: operations["vrs_verification_requests_get"];
         put?: never;
-        post?: never;
+        /**
+         * Create Vr
+         * @description Staff-filed VR; deduped against the open one (demand + 1). Same PDPA sanitising as chat.
+         */
+        post: operations["create_vr_verification_requests_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -512,6 +536,18 @@ export interface components {
             /** Verified By */
             verified_by?: string | null;
         };
+        /** CreateVRBody */
+        CreateVRBody: {
+            /** Attribute */
+            attribute: string;
+            /**
+             * Reason
+             * @default unknown
+             */
+            reason: string;
+            /** Target Id */
+            target_id: string;
+        };
         /** DeepSpot */
         DeepSpot: {
             /** Bbox */
@@ -619,6 +655,15 @@ export interface components {
         HTTPValidationError: {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
+        };
+        /** Kpis */
+        Kpis: {
+            /** Journeys Confirmed Pct */
+            journeys_confirmed_pct?: number | null;
+            /** Median Hours To Resolve */
+            median_hours_to_resolve?: number | null;
+            /** Open Vrs */
+            open_vrs: number;
         };
         /** ResolveBody */
         ResolveBody: {
@@ -1335,6 +1380,26 @@ export interface operations {
             };
         };
     };
+    kpis_kpis_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Kpis"];
+                };
+            };
+        };
+    };
     layers_layers__lens__get: {
         parameters: {
             query?: {
@@ -1355,9 +1420,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": unknown;
                 };
             };
             /** @description Validation Error */
@@ -1693,6 +1756,9 @@ export interface operations {
         parameters: {
             query?: {
                 status?: string;
+                reason?: string | null;
+                element_id?: string | null;
+                attribute?: string | null;
             };
             header?: never;
             path?: never;
@@ -1707,6 +1773,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["VerificationRequest"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_vr_verification_requests_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-staff-token"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateVRBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VerificationRequest"];
                 };
             };
             /** @description Validation Error */
