@@ -46,8 +46,8 @@ def haversine(a: dict, b: dict) -> float:
     return 2 * r * math.asin(math.sqrt(h))
 
 
-def _claim(value) -> dict:
-    return {"value": value, "status": "reported", "evidence_type": OSM}
+def _claim(value, evidence: str = OSM) -> dict:
+    return {"value": value, "status": "reported", "evidence_type": evidence}
 
 
 def _parse_float(text: str) -> float | None:
@@ -61,7 +61,7 @@ def _claims(tags: dict, seg_type: str) -> dict:
         with contextlib.suppress(ValueError):
             claims["step_count"] = _claim(int(float(tags["step_count"])))
     if "step_count" not in claims and seg_type == "steps":
-        claims["step_count"] = _claim(1)
+        claims["step_count"] = _claim(1, "osm_highway_steps_default")
     inc = tags.get("incline", "")
     if inc.strip().endswith("%"):
         v = _parse_float(inc)
@@ -184,6 +184,11 @@ def _title(s: str) -> str:
     return s.replace("_", " ").title()
 
 
+def place_name(tags: dict, ptype: str) -> str:
+    """Real OSM name, else a clearly generic label so searches prefer named places."""
+    return tags.get("name") or f"{_title(ptype)} (unnamed, OSM)"
+
+
 def build_places(elements: list[dict]) -> list[dict]:
     places = []
     for el in elements:
@@ -212,7 +217,7 @@ def build_places(elements: list[dict]) -> list[dict]:
                 "id": f"osm-{el['type']}-{el['id']}",
                 "kind": "place",
                 "type": ptype,
-                "name": tags.get("name") or _title(ptype),
+                "name": place_name(tags, ptype),
                 "aliases": aliases,
                 "node_id": None,
                 "entrance_ids": [],

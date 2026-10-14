@@ -38,6 +38,28 @@ def _dist(a, b) -> float:
     return haversine({"lon": a[0], "lat": a[1]}, {"lon": b[0], "lat": b[1]})
 
 
+def drop_duplicates(base_places: list[dict], overlay_places: list[dict], radius_m: float = 25.0):
+    """Remove base places of the same type within radius_m of an overlay place.
+
+    Returns (kept_base_places, removed_ids).
+    """
+    removed = set()
+    for o in overlay_places:
+        for b in base_places:
+            if (
+                b["properties"]["type"] == o["properties"]["type"]
+                and _dist(b["geometry"]["coordinates"], o["geometry"]["coordinates"]) <= radius_m
+            ):
+                removed.add(b["properties"]["id"])
+    kept = [b for b in base_places if b["properties"]["id"] not in removed]
+    return kept, sorted(removed)
+
+
+def merge_claims(existing: dict, new: dict) -> dict:
+    """Overlay claims win per key; other existing claims (surface, lit, ...) are kept."""
+    return {**existing, **new}
+
+
 def _place(pid, ptype, name, lonlat, node_id, claims=None, aliases=None) -> dict:
     return {
         "type": "Feature",
@@ -68,10 +90,6 @@ def main() -> None:
             continue
         g.add_edge(p["from"], p["to"], length_m=p["length_m"], id=p["id"])
     by_id = {f["properties"]["id"]: f for f in walk}
-
-    def nearest_node(lonlat, max_m=80.0):
-        best = min(pos, key=lambda n: _dist(pos[n], lonlat))
-        return best if _dist(pos[best], lonlat) <= max_m else None
 
     # Largest connected component only (the demo must be routable).
     comp = max(nx.connected_components(g), key=len)
@@ -132,22 +150,33 @@ def main() -> None:
     for eid in set(p1) | set(p2):
         f = json.loads(json.dumps(by_id[eid]))
         pr = f["properties"]
-        if pr["type"] == "steps" and eid != x_id:
-            print(f"WARNING: {eid} was steps in OSM; re-typed footway for the demo")
-            pr["type"] = "footway"
+        if pr["type"] == "steps":
+            sys.exit(
+                f"ERROR: {eid} is steps in OSM; route search must avoid steps. Adjust coordinates"
+            )
         if eid == x_id:
             pr["type"] = "ramp"
-            pr["claims"] = {
-                "step_count": _claim(0),
-                "width_m": _claim(1.4),
-                "incline_pct": {"value": None, "status": "unknown", "evidence_type": PLACEHOLDER},
-            }
+            pr["claims"] = merge_claims(
+                pr.get("claims", {}),
+                {
+                    "step_count": _claim(0),
+                    "width_m": _claim(1.4),
+                    "incline_pct": {
+                        "value": None,
+                        "status": "unknown",
+                        "evidence_type": PLACEHOLDER,
+                    },
+                },
+            )
         else:
-            pr["claims"] = {
-                "step_count": _claim(0),
-                "incline_pct": _claim(3),
-                "width_m": _claim(1.5),
-            }
+            pr["claims"] = merge_claims(
+                pr.get("claims", {}),
+                {
+                    "step_count": _claim(0),
+                    "incline_pct": _claim(3),
+                    "width_m": _claim(1.5),
+                },
+            )
         changed[eid] = f
 
     # Overlay places.
@@ -199,10 +228,15 @@ def main() -> None:
                 f"Urban Park bench {i}",
                 pos[n],
                 n,
-                claims={"seat_count": ph(2)},
+                claims={"seating": ph(True)},
             )
         )
 
+    kept, removed = drop_duplicates(base_places, places)
+    write = json.dumps(
+        {"type": "FeatureCollection", "features": kept}, ensure_ascii=False, separators=(",", ":")
+    )
+    (SEED / "base" / "places.geojson").write_text(write, encoding="utf-8")
     features = list(changed.values()) + places
     out = SEED / "access"
     out.mkdir(parents=True, exist_ok=True)
@@ -223,12 +257,14 @@ def main() -> None:
         f"Unknown ramp: `{x_id}`. Confirmed path P2 length: `{p2_len:.0f}` m; shorter path via ramp: `{p1_len:.0f}` m.\n\n"
         f"- Route `park-b` -> `playground`: P1 ({len(p1)} edges) goes through `{x_id}` whose `incline_pct` is unknown.\n"
         f"- P2 ({len(p2)} edges) avoids it; every edge has verified placeholder claims (0 steps, 3 % incline, 1.5 m).\n"
+        f"- Removed duplicate OSM places (same type within 25 m of an overlay place): {', '.join(removed) or 'none'}\n"
         f"- P1 edges: {', '.join(p1)}\n- P2 edges: {', '.join(p2)}\n",
         encoding="utf-8",
     )
     print(
         f"P1 len {p1_len:.0f} m ({len(p1)} edges), P2 len {p2_len:.0f} m ({len(p2)} edges), unknown ramp {x_id}"
     )
+    print(f"removed duplicate base places: {removed}")
     print(f"overlay features: {len(changed)} edges, {len(places)} places")
 
 
