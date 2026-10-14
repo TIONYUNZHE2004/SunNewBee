@@ -37,7 +37,7 @@ export function goToDeepSpot(spot: DeepSpot, applyIntent: (i: SceneIntent) => vo
 export function DeepSpots() {
   const site = useSite();
   const applyIntent = useScene((s) => s.applyIntent);
-  const spots = (site.data?.deep_spots ?? []) as DeepSpot[];
+  const spots = site.data?.deep_spots ?? [];
   if (spots.length === 0) return null;
   return (
     <fieldset className="m-0 min-w-0 border-0 p-0">

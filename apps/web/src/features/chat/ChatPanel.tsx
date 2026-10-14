@@ -4,7 +4,7 @@ import { useScene } from "../scene/sceneStore";
 import { CitationList } from "./CitationList";
 import { useChatDraft } from "./chatDraftStore";
 import type { AssistantMessage } from "./chatReducer";
-import { activeLens, suggestionsFor } from "./suggestions";
+import { activeLens, pickSuggestion, suggestionsFor } from "./suggestions";
 import { UncertaintyBanner } from "./UncertaintyBanner";
 import { useChatStream } from "./useChatStream";
 import { useElementNames } from "./useElementNames";
@@ -105,14 +105,14 @@ export function ChatPanel() {
             <p className="mb-2 text-sm text-ink-soft">Try a question:</p>
             <ul className="flex flex-col gap-2">
               {suggestions.map((s) => (
-                <li key={s}>
+                <li key={s.text}>
                   <button
                     type="button"
                     disabled={streaming}
-                    onClick={() => void send(s)}
+                    onClick={() => pickSuggestion(s, send)}
                     className="min-h-11 w-full rounded-lg border border-line bg-card px-3 py-2 text-left text-sm text-brand hover:bg-brand-tint disabled:opacity-60"
                   >
-                    {s}
+                    {s.text}
                   </button>
                 </li>
               ))}
