@@ -62,6 +62,28 @@ def _snap_to_road(world: World, roads: set[str], node: str, coord) -> str | None
     return best[1] if best else None
 
 
+def _components(world: World) -> dict[str, int]:
+    """Component id per node of the unfiltered mapped graph (no profile rules, no flood)."""
+    g = world.graph
+    key = (g.number_of_nodes(), g.number_of_edges())
+    cached = g.graph.get("_components")
+    if cached is None or cached[0] != key:
+        comps = {n: i for i, c in enumerate(nx.connected_components(g)) for n in c}
+        g.graph["_components"] = cached = (key, comps)
+    return cached[1]
+
+
+def _disconnected(world: World, profile, sources, targets) -> bool:
+    """True when the mapped data has no path at all between the endpoints (for a vehicle
+    profile: no road path). That is a data gap (no_data), never a known barrier (blocked)."""
+    comps = _components(world)
+    if not {comps.get(s) for s in sources} & {comps.get(t) for t in targets}:
+        return True
+    return profile.allowed_types is not None and _road_disconnected(
+        _road_components(world, profile), sources, targets
+    )
+
+
 def _road_components(world: World, profile) -> dict[str, int]:
     """Component id per node of the static road graph (allowed edge types only, no flood)."""
     g = nx.Graph()
@@ -285,16 +307,16 @@ def _plan(world, from_id, to_id, profile, scenario_id) -> RouteResult:
     if lenient:
         r = _route_from_nodes(world, lenient, lkeys, from_id, to_id, profile, scenario_id, evals)
         return RouteResult(status=r.status, routes=[r])
-    if profile.allowed_types is not None and _road_disconnected(
-        _road_components(world, profile), sources, targets
-    ):
-        # Not "blocked": the mapped road network simply does not join these two places.
+    if _disconnected(world, profile, sources, targets):
+        # Not "blocked": the mapped data does not join these two places, so no known barrier
+        # or flood class is responsible.
+        what = "roads" if profile.allowed_types is not None else "paths"
         return RouteResult(
             status="no_data",
             routes=[],
             warnings=[
-                f"mapped roads do not connect {from_id} and {to_id}; "
-                "the road data may be incomplete here"
+                f"mapped {what} do not connect {from_id} and {to_id}; "
+                f"the {what[:-1]} data may be incomplete here"
             ],
         )
     blocked = [w for res, why in evals.values() if res == "FAIL" for w in why][:5]

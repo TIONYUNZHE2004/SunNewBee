@@ -175,3 +175,18 @@ def test_drive_fails_non_road_edge_types(world):
 
     for eid in ("seg-ab", "seg-be", "seg-cf", "seg-gh"):  # footway, steps, ramp, path
         assert evaluate_edge(world.edges[eid], world.profiles["drive"])[0] == "FAIL"
+
+
+def test_islands_exclude_baseline_disconnected_components(world):
+    from townshiplens_spatial.models import Place
+
+    # a place on its own mapped component, with no centre: disconnected at baseline = data gap
+    world.node_coords["n-q"] = [101.5085, 3.181]
+    world.graph.add_node("n-q")
+    world.places["lone"] = Place(
+        id="lone", type="facility", name="Lone", coord=[101.5085, 3.181], node_id="n-q"
+    )
+    world._place_by_node.setdefault("n-q", []).append("lone")
+    for scen in ("baseline", "stage_p3m"):
+        a = flood.affected(world, scen, "stroller")
+        assert all("lone" not in c["sample_place_ids"] for c in a.isolated_components)

@@ -316,6 +316,13 @@ def list_evacuation_centres(
             routing._no_road_warning(ctx.world, near_place, prof)
             or f"place not mapped: {near_place}"
         )
+    if near_place and prof is not None and routing._targets(ctx.world, near_place, prof):
+        n_gap = sum(1 for r in res if r.route_status == "no_data")
+        if n_gap:
+            warnings.append(
+                f"{n_gap} centre(s) have no mapped connection from {near_place}; "
+                "the path data may be incomplete, so they are not shown as unreachable"
+            )
     ev = [
         Evidence(
             id=f"ev-centre-{r.centre.id}",

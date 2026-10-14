@@ -19,8 +19,7 @@ from .models import AffectedResult, CentreReachability, Scenario
 from .routing import (
     CENTRE_PREFIX,
     _caveat,
-    _road_components,
-    _road_disconnected,
+    _disconnected,
     _targets,
     make_weight,
     plan_route,
@@ -155,7 +154,6 @@ def centres_reachability(
     lenient = nx.multi_source_dijkstra_path_length(
         world.graph, sources, weight=make_weight(world, profile, scenario_id, True)
     )
-    comps = _road_components(world, profile) if profile.allowed_types is not None else None
     rows = []
     for c in world.centres.values():
         ts = _targets(world, f"{CENTRE_PREFIX}{c.id}", profile)
@@ -185,7 +183,7 @@ def centres_reachability(
                     CentreReachability(centre=c, reachable=True, route_status="partly_unverified"),
                 )
             )
-        elif comps is not None and _road_disconnected(comps, sources, ts):
+        elif _disconnected(world, profile, sources, ts):
             rows.append(
                 (2, 0.0, CentreReachability(centre=c, reachable=False, route_status="no_data"))
             )

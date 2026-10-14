@@ -125,6 +125,16 @@ def test_nearby_amenities_drive_carries_standing_warning(ctx):
     assert [h["id"] for h in r.data] == ["park-b", "park-c"]
 
 
+def test_centre_in_other_component_is_no_data_not_unreachable(ctx):
+    r = tools.list_evacuation_centres(ctx, None, "stroller", "park-b")
+    by = {c["centre"]["id"]: c for c in r.data}
+    # island school (n-h) is in another mapped component: a data gap, not "not reachable"
+    assert by["evc-school"]["route_status"] == "no_data"
+    assert by["evc-school"]["reachable"] is False
+    assert by["evc-hall"]["reachable"] is True
+    assert any("no mapped connection" in w for w in r.warnings)
+
+
 def test_waste_unknown_near_place_warns(ctx):
     r = tools.find_waste_points(ctx, near_place="nowhere")
     assert any("nowhere" in w for w in r.warnings)

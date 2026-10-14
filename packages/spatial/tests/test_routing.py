@@ -19,8 +19,9 @@ def test_no_data_unknown_place(world):
     assert plan_route(world, "park-b", "does-not-exist", "stroller").status == "no_data"
 
 
-def test_blocked_island(world):
-    assert plan_route(world, "park-b", "island-hut", "stroller").status == "blocked"
+def test_island_in_other_component_is_no_data(world):
+    # island-hut is not joined to the rest of the mapped graph: a data gap, not a barrier
+    assert plan_route(world, "park-b", "island-hut", "stroller").status == "no_data"
 
 
 def test_default_profile_uses_steps(world):
@@ -161,3 +162,41 @@ def test_status_derived_from_first_route(world):
 def test_unknown_id_vs_unmapped_place_warning(world):
     assert "no such place" in plan_route(world, "park-b", "nope", "stroller").warnings[0]
     assert "place not mapped" in plan_route(world, "park-b", "moon-base", "stroller").warnings[0]
+
+
+# --- C3: no_data (data gap) vs blocked (known FAIL) ---------------------------
+def _add_walk_node(world, nid, place_id, etype, near="n-a", lonlat=(101.5085, 3.181)):
+    from townshiplens_spatial.models import Edge, Place
+
+    world.node_coords[nid] = list(lonlat)
+    if etype is not None:
+        e = Edge(
+            id=f"e-{nid}",
+            type=etype,
+            from_node=near,
+            to_node=nid,
+            coords=[world.node_coords[near], list(lonlat)],
+            length_m=40.0,
+        )
+        world.edges[e.id] = e
+        world.graph.add_edge(near, nid, key=e.id, edge_id=e.id)
+    else:
+        world.graph.add_node(nid)
+    world.places[place_id] = Place(
+        id=place_id, type="facility", name=place_id, coord=list(lonlat), node_id=nid
+    )
+
+
+def test_walk_two_components_no_fail_edges_is_no_data(world):
+    _add_walk_node(world, "n-q", "lone", None)  # no edge touches it: separate component
+    for prof in ("default", "stroller", "wheelchair"):
+        rr = plan_route(world, "park-b", "lone", prof)
+        assert rr.status == "no_data" and not rr.routes and not rr.blocked_reasons
+        assert any("mapped paths do not connect park-b and lone" in w for w in rr.warnings)
+
+
+def test_walk_connected_but_only_path_has_fail_edge_is_blocked(world):
+    _add_walk_node(world, "n-q", "up-steps", "steps")  # reachable only over steps
+    assert plan_route(world, "park-b", "up-steps", "default").status == "confirmed"
+    rr = plan_route(world, "park-b", "up-steps", "stroller")
+    assert rr.status == "blocked" and rr.blocked_reasons
