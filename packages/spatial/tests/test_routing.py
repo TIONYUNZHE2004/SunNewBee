@@ -577,3 +577,48 @@ def test_route_evidence_carries_photo_url_only_for_uploaded_hex_ids(world):  # t
     ev = {e.id: e for e in evidence_for_route(world, rr.routes[0])}
     assert ev["ev-seg-ab.step_count"].photo_url == f"/evidence/{photo}"
     assert ev["ev-seg-bc.step_count"].photo_url is None
+
+
+def test_drive_route_says_when_a_place_is_snapped_to_a_road(world):  # task 26 Minor 1
+    add_roads(world)
+    rr = plan_route(world, "park-b", "playground", "drive")
+    notes = [w for w in rr.warnings if "nearest mapped road" in w]
+    # park-b is ~55 m and the playground ~78 m off the road spur: both are named, rounded to 10 m
+    assert any(w.startswith("Car Park B is about 60 m") for w in notes), rr.warnings
+    assert any("Playground is about 80 m" in w or "playground" in w.lower() for w in notes)
+    on_road = plan_route(world, "park-b", "park-c", "drive")  # park-c sits on a road node
+    assert not any(w.startswith("Car Park C") for w in on_road.warnings)
+    assert not [w for w in plan_route(world, "park-b", "playground", "stroller").warnings if "road" in w]
+
+
+def test_snap_to_road_breaks_ties_by_node_id(world):  # task 26 Minor 5
+    from townshiplens_spatial.routing import _snap_to_road
+
+    world.node_coords.update({"n-t1": [101.5, 3.18], "n-t2": [101.5, 3.18]})
+    for roads in ({"n-t1", "n-t2"}, {"n-t2", "n-t1"}):
+        assert _snap_to_road(world, roads, "n-none", [101.5, 3.18]) == "n-t1"
+
+
+def test_elmina_seed_pins_the_task_31_major_road_outcomes():  # task 31 M-6
+    import pytest
+    from townshiplens_spatial.sim import default_tasks
+    from townshiplens_spatial.world import load_world
+
+    if not (SEED / "site.json").exists():
+        pytest.skip("Elmina seed not built")
+    w = load_world(SEED)
+    roads = [e for e in w.edges.values() if e.type == "major_road"]
+    assert roads
+    # OSM gives no width or surface for major roads here, so none may carry such a claim
+    assert not [e.id for e in roads if {"width_m", "surface"} & set(e.claims)]
+    hero = plan_route(w, "park-b", "playground", "stroller")
+    assert hero.status == "confirmed" and hero.routes[0].distance_m == pytest.approx(440.6, abs=1)
+    # a confirmed route never crosses a major road (no verified sidewalk anywhere on the seed)
+    major = {e.id for e in roads}
+    for prof in ("stroller", "wheelchair", "older_adult_rest"):
+        tasks = default_tasks(w, [prof])
+        for t in tasks[:: max(1, len(tasks) // 8)]:
+            rr = plan_route(w, t["from_id"], t["to_id"], prof)
+            for r in rr.routes:
+                if r.status == "confirmed":
+                    assert not major & {s.edge_id for s in r.segments}, t["id"]

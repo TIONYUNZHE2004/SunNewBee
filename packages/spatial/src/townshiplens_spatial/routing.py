@@ -13,11 +13,9 @@ from .world import World
 CENTRE_PREFIX = "__centre__"
 UNKNOWN_WEIGHT = 5.0
 WALK_M_PER_MIN = 70.0
+PLACEHOLDER_SOURCE = "team_survey_placeholder"  # demo values (see Route.demo_evidence)
 # Place types that can be a rest point (OSM benches import as `seating`); whether one counts
 # is tri-state from its own claims (evaluate.rest_point_state).
-PLACEHOLDER_SOURCE = (
-    "team_survey_placeholder"  # demo values, not surveyed (see Route.demo_evidence)
-)
 REST_TYPES = frozenset({"seating", "shelter"})
 # Deterministic bound on the rest-constrained search (labels created, not wall-clock time).
 MAX_REST_LABELS = 200_000
@@ -73,7 +71,12 @@ def _snap_to_road(world: World, roads: set[str], node: str, coord) -> str | None
 
 
 def _components(world: World) -> dict[str, int]:
-    """Component id per node of the unfiltered mapped graph (no profile rules, no flood)."""
+    """Component id per node of the unfiltered mapped graph (no profile rules, no flood).
+
+    Cached on the graph. The key (node count, edge count) is sound only because the graph is
+    built once from `world.edges` in `load_world` and never mutated afterwards (claims, closures,
+    profiles, scenarios and `world.version` cannot change topology: a closure or FAIL gives
+    `blocked`, never `no_data`). An edge swap that keeps both counts would go unnoticed."""
     g = world.graph
     # O(1): number_of_edges() walks every adjacency (~20 ms on the seed) and runs per centre
     key = (g.number_of_nodes(), len(world.edges))
@@ -115,6 +118,27 @@ def _targets(world: World, place_id: str, profile=None) -> list[str]:
     roads = _road_nodes(world, profile)
     snapped = (_snap_to_road(world, roads, n, xy) for n, xy in pts)
     return sorted({n for n in snapped if n})
+
+
+def _snap_warning(world: World, place_id: str, profile) -> str | None:
+    """Vehicle profiles route from the nearest mapped road node, so distance and time leave out
+    the stretch between the place and that node (up to SNAP_CAP_M). Say so (Task 26 Minor 1)."""
+    roads = _road_nodes(world, profile)
+    best: float | None = None
+    for node, xy in _target_pts(world, place_id):
+        if node in roads:
+            return None  # a mapped way in is on a road: nothing left out
+        snapped = _snap_to_road(world, roads, node, xy)
+        if snapped is not None and snapped in world.node_coords:
+            d = haversine_m(xy, world.node_coords[snapped])
+            best = d if best is None else min(best, d)
+    if best is None:
+        return None
+    name = world.places[place_id].name if place_id in world.places else place_id
+    return (
+        f"{name} is about {max(10, round(best, -1)):.0f} m from the nearest mapped road; "
+        "distance and time stop at the road"
+    )
 
 
 def _no_road_warning(world: World, place_id: str, profile) -> str | None:
@@ -397,6 +421,10 @@ def plan_route(
     if profile is None:
         return RouteResult(status="no_data", routes=[], warnings=[f"unknown profile {profile_id}"])
     result = _plan(world, from_id, to_id, profile, scenario_id)
+    if profile.allowed_types is not None and result.routes:
+        for pid in (from_id, to_id):
+            if note := _snap_warning(world, pid, profile):
+                result.warnings.append(note)
     if profile.standing_warning and result.status != "no_data":
         result.warnings.append(profile.standing_warning)
     return result

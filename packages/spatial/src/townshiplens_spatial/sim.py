@@ -331,6 +331,10 @@ def evacuation_origins(world: World, n: int = EVAC_N, seed: int = EVAC_SEED) -> 
 
 
 def _journey(world: World, origin: str, profile: str, scenario_id: str | None) -> dict[str, Any]:
+    # top_routes=1: only the nearest centre's status comes from `plan_route` (it accounts for the
+    # older-adult rest gap); every other row keeps the Dijkstra status, which ignores it. So
+    # `any_confirmed` can be True from a farther centre that plan_route would call
+    # partly_unverified (E1 false positive; none found over 28 origins x 2 stages, Task 47 review).
     rows = flood.centres_reachability(world, scenario_id, profile, origin, top_routes=1)
     reach = [r for r in rows if r.reachable]
     confirmed = any(r.route_status == "confirmed" for r in reach)

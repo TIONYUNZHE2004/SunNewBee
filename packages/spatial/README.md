@@ -66,6 +66,9 @@ pruning, bounded by `MAX_REST_LABELS` (deterministic, not wall-clock).
   (`rest_limit_no_alternative`, or `rest_search_stopped_early`), with the number of segments
   longer than the limit. The report's `rest_long_segments` counts those distinct segments across
   the run: a rest point at a node cannot split them.
+- The gap ranking includes `sidewalk` (major roads), but on the Elmina seed it is structurally
+  empty: a major road carries no `width_m`, `step_count` or `incline_pct` claim, so flipping its
+  sidewalk alone never makes a journey `confirmed`. It stays empty until those are surveyed.
 - `sim.run_evacuation` runs evacuation journeys: a profile x river-stage table (default, stroller,
   wheelchair, older_adult_rest x baseline, +1, +3, +5 m) for a seeded sample (seed 47, N=50) of
   origins, each to the nearest reachable centre via `flood.centres_reachability`. Places that are
