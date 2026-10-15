@@ -13,6 +13,8 @@ const base: SimReport = {
   gaps: [],
   invariant_violations: [],
   rest_advisories: [],
+  rest_limit_m: 100,
+  rest_long_segments: 0,
   gaps_truncated: false,
   world_version: 0,
 };
@@ -28,14 +30,20 @@ describe("JourneyReport: critical violations vs advisory notes (Task 41)", () =>
           kind: "rest_limit_no_alternative",
           task_id: "older_adult_rest:park-b>hall",
           detail: "longest stretch without a rest point 146.0 m > limit 100 m",
+          long_segments: 2,
         },
       ],
+      rest_long_segments: 2,
     });
     expect(out).toContain("No critical invariant violations.");
     expect(out).toContain("Advisory notes");
     expect(out).toContain("Routes over the rest limit (no alternative): 1");
     expect(out).toContain("older_adult_rest:park-b&gt;hall");
+    expect(out).toContain(
+      "No route keeps every stretch under 100 m: 2 path segments are longer than 100 m with no mapped rest point along them.",
+    );
     expect(out).toContain("never confirmed");
+    expect(out).not.toMatch(/more mapped rest points|would help/i);
     expect(out).not.toContain("critical)");
   });
   it("marks a rest-limit breach the router claimed as critical", () => {

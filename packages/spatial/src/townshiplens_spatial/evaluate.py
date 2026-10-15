@@ -1,6 +1,6 @@
 from datetime import date
 
-from .models import Claim, Edge, EvalResult, FloodClass, Profile
+from .models import Claim, Edge, EvalResult, FloodClass, Place, Profile
 
 DEFAULT_TTL = {"step_count": 365, "incline_pct": 365, "width_m": 365, "surface": 365}
 _CHECKS = {  # hard key -> (attribute, violates(value, limit))
@@ -215,3 +215,39 @@ def edge_gaps(edge: Edge, profile: Profile, today: date | None = None) -> list[d
             }
         )
     return out
+
+
+# Rest points for max_rest_free_run_m (Task 41). The place's own claims decide whether it is a
+# rest point, mirroring evaluate_edge: verified present = PASS; verified or reported absent =
+# FAIL (a reported "gone" is enough to stop counting it); anything else (no claim / OSM only,
+# unknown, stale, contested, only reported present) = UNKNOWN.
+REST_ATTRS = {"seating": ("seating",), "shelter": ("shelter", "seating")}
+_YES = {True, "yes", "true"}
+_NO = {False, "no", "false"}
+
+
+def _rest_present(attr: str, value) -> bool | None:
+    v = value.lower() if isinstance(value, str) else value
+    if attr == "shelter":
+        return True if v in ("covered", "partial") else False if v == "none" else None
+    return True if v in _YES else False if v in _NO else None
+
+
+def rest_point_state(place: Place, today: date | None = None) -> EvalResult | None:
+    """PASS / FAIL / UNKNOWN for a seating or shelter place as a rest point; None otherwise."""
+    attrs = REST_ATTRS.get(place.type)
+    if attrs is None:
+        return None
+    today = today or date.today()
+    claims = [(a, place.claims[a]) for a in attrs if a in place.claims]
+    if any(
+        c.status in ("verified", "reported") and _rest_present(a, c.value) is False
+        for a, c in claims
+    ):
+        return "FAIL"
+    if any(
+        c.status == "verified" and _rest_present(a, c.value) and not _is_stale(c, a, today)
+        for a, c in claims
+    ):
+        return "PASS"
+    return "UNKNOWN"

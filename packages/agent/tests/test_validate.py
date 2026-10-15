@@ -450,3 +450,21 @@ def test_asked_wording_needs_a_request_filed_this_turn(text):
     rec = TurnRecord(tool_calls=["x"])
     rec.vrs = [{"element_id": "e", "attribute": "a"}]
     assert not any("request" in e for e in validate_answer(ans, rec))
+
+
+# --- Task 41 fix round 1: a route over the rest limit needs the rest-gap caveat ------------
+def test_route_over_rest_limit_needs_the_rest_gap_caveat():
+    from townshiplens_agent.answer import FinalAnswer
+    from townshiplens_agent.record import TurnRecord
+    from townshiplens_agent.validate import validate_answer
+
+    rec = TurnRecord(tool_calls=["plan_route"])
+    rec.routes["rt-1"] = {"rest_limit_m": 100, "rest_limit_met": False}
+    rec.route_status["rt-1"] = "partly_unverified"
+    base = {"answer_status": "partial", "summary": "Route partly unverified.", "route_id": "rt-1"}
+    bad = FinalAnswer(**base, caveats=["Some caveat."])
+    assert any("rest point" in e for e in validate_answer(bad, rec))
+    ok = FinalAnswer(
+        **base, caveats=["Longest stretch without a rest point is about 110 m (limit 100 m)."]
+    )
+    assert validate_answer(ok, rec) == []

@@ -195,3 +195,51 @@ def test_template_counts_items_not_segments():
     r.route_status["rt-1"] = "partly_unverified"
     text = " ".join(template_answer(r, "route?").caveats)
     assert "and 1 more unchecked item" in text and "items" not in text
+
+
+# --- Task 41 fix round 1 (R30 I-2) ------------------------------------------------------------
+def _rest_route(**extra):
+    return {
+        "distance_m": 222.4,
+        "unknowns": [],
+        "rest_limit_m": 100,
+        "rest_limit_met": False,
+        "max_gap_between_rest_m": 111.2,
+        "rest_points": [],
+        "rest_points_unverified": [],
+        **extra,
+    }
+
+
+def test_template_rest_gap_only_route_names_the_gap():
+    r = TurnRecord(tool_calls=["plan_route"])
+    r.routes["rt-1"] = _rest_route()
+    r.route_status["rt-1"] = "partly_unverified"
+    a = template_answer(r, "route?")
+    assert "Longest stretch without a rest point is about 110 m (limit 100 m)." in a.caveats
+    assert not [c for c in a.caveats if "segments are still unverified" in c.lower()]
+    assert a.answer_status == "partial" and validate_answer(a, r) == []
+
+
+def test_template_names_unverified_rest_points():
+    r = TurnRecord(tool_calls=["plan_route"])
+    r.routes["rt-1"] = _rest_route(
+        rest_limit_met=True,
+        max_gap_between_rest_m=60.0,
+        rest_points=[{"place_id": "b1", "name": "Bench by the pond", "status": "unverified"}],
+        rest_points_unverified=["b1"],
+    )
+    r.route_status["rt-1"] = "partly_unverified"
+    a = template_answer(r, "route?")
+    assert any("Rest point not checked yet: Bench by the pond" in c for c in a.caveats)
+    assert not [c for c in a.caveats if "segments are still unverified" in c.lower()]
+    assert validate_answer(a, r) == []
+
+
+def test_template_still_says_segments_unverified_when_there_are_unknowns():
+    r = TurnRecord(tool_calls=["plan_route"])
+    r.routes["rt-1"] = _rest_route(unknowns=[{"attribute": "incline_pct", "element_id": "s"}])
+    r.route_status["rt-1"] = "partly_unverified"
+    a = template_answer(r, "route?")
+    assert "Some segments are still unverified." in a.caveats
+    assert any(c.startswith("Longest stretch without a rest point") for c in a.caveats)

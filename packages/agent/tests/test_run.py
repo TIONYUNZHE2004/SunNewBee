@@ -822,3 +822,46 @@ def test_caveats_are_separated(ctx):
     )
     text = "".join(e.delta for e in run_mod._answer_events(ans, rec, ctx) if e.type == "text.delta")
     assert "⚠ Not checked yet: Steps on A; and 2 more unchecked items.\n" in text
+
+
+# --- Task 41 fix round 1 (review I-2, ruling R30): rest-gap wording ----------------------------
+OLDER_Q = "Can I get from Car Park B to the playground without stairs?"
+
+
+async def test_older_adult_rest_gap_only_route_names_the_gap_not_segments(ctx):
+    """Review I-2 reproduction: every segment is PASS; only the 111.2 m rest gap downgrades it."""
+    evs = await collect(ctx, OLDER_Q, profile="older_adult_rest")
+    text = _text(evs)
+    assert text.split("\n")[0] == "Route status: partly unverified"
+    assert "Longest stretch without a rest point is about 110 m (limit 100 m)" in text
+    assert "segments are still unverified" not in text.lower()
+    assert evs[-1].type == "done" and evs[-1].model == "mock-scripted"  # validator passed
+    assert evs[-1].answer_status == "partial"
+
+
+async def test_older_adult_unverified_rest_point_is_named(ctx):
+    import sys
+    from pathlib import Path
+
+    sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "spatial" / "tests"))
+    from rest_support import rest_detour
+
+    rest_detour(ctx.world, claims=None)  # rest-r is OSM-only: unverified
+    evs = await collect(ctx, OLDER_Q, profile="older_adult_rest")
+    text = _text(evs)
+    assert "Rest point not checked yet: Rest rest-r" in text
+    assert "segments are still unverified" not in text.lower()
+    assert "Longest stretch" not in text
+    assert evs[-1].model == "mock-scripted" and evs[-1].answer_status == "partial"
+    assert not [e for e in evs if e.type == "verification.requested"]
+
+
+async def test_older_adult_template_fallback_names_the_rest_gap(ctx, monkeypatch):
+    from townshiplens_agent import agent as agent_mod
+
+    monkeypatch.setattr(agent_mod, "validate_answer", lambda ans, rec: ["force the template"])
+    evs = await collect(ctx, OLDER_Q, profile="older_adult_rest")
+    assert evs[-1].model.endswith("+template")
+    text = _text(evs)
+    assert "Longest stretch without a rest point is about 110 m (limit 100 m)" in text
+    assert "segments are still unverified" not in text.lower()

@@ -68,7 +68,12 @@ flows:
 - **Access**: `find_place("car park b")`, `find_place(<destination>)`, `plan_route(profile)`.
   The destination is the first of `lakeside mall | mall | playground | kiosk | toilet` in the
   prompt (default `playground`), so the "mall" persona chip routes to `lakeside-mall`. On the tiny fixture, the playground is `confirmed`; the kiosk is
-  `partly_unverified` and files a VR for `seg-cf.incline_pct`.
+  `partly_unverified` and files a VR for `seg-cf.incline_pct`. For `older_adult_rest`
+  (`labels.rest_caveats`, also used by the template): a route over the rest limit gets
+  "Longest stretch without a rest point is about N m (limit 100 m)." and a route that keeps the
+  limit only through unverified rest points names them ("Rest point not checked yet: ...").
+  "Some segments are still unverified" is only said when the route has unknown segments. The
+  validator requires the rest-gap caveat whenever the answered route has `rest_limit_met: false`.
 - **Flood resident** (flood words, no "cut off"/"briefing"): `find_place(<origin>)`,
   `list_evacuation_centres(stage_p3m)`, `plan_route` to the nearest reachable centre as
   `__centre__<centre_id>`. Names the centre's source. Always says "not a forecast".

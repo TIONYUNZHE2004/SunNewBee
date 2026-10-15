@@ -4,7 +4,7 @@ import math
 
 import networkx as nx
 
-from .evaluate import evaluate_edge
+from .evaluate import evaluate_edge, rest_point_state
 from .geo import haversine_m
 from .models import Evidence, Route, RouteResult, RouteSegment, photo_url
 from .scenario_meta import scenario_source
@@ -13,7 +13,8 @@ from .world import World
 CENTRE_PREFIX = "__centre__"
 UNKNOWN_WEIGHT = 5.0
 WALK_M_PER_MIN = 70.0
-# Place types that count as a rest point (OSM benches import as `seating`).
+# Place types that can be a rest point (OSM benches import as `seating`); whether one counts
+# is tri-state from its own claims (evaluate.rest_point_state).
 REST_TYPES = frozenset({"seating", "shelter"})
 # Deterministic bound on the rest-constrained search (labels created, not wall-clock time).
 MAX_REST_LABELS = 200_000
@@ -191,8 +192,20 @@ def _search(world, sources, targets, profile, scenario_id, allow_unknown):
     return nodes, keys, evals
 
 
-def _is_rest(world: World, node: str) -> bool:
-    return any(p.type in REST_TYPES for p in world.places_at(node))
+def _rest_places(world: World, node: str) -> list[tuple[str, object]]:
+    """(state, place) for each rest place at a node that may count: PASS or UNKNOWN, never FAIL."""
+    out = []
+    for p in world.places_at(node):
+        st = rest_point_state(p) if p.type in REST_TYPES else None
+        if st in ("PASS", "UNKNOWN"):
+            out.append((st, p))
+    return out
+
+
+def _rest_node_state(world: World, node: str) -> str | None:
+    """PASS if a verified rest point is here, UNKNOWN if only unverified ones, else None."""
+    states = {st for st, _ in _rest_places(world, node)}
+    return "PASS" if "PASS" in states else "UNKNOWN" if states else None
 
 
 def _rest_search(world, sources, targets, profile, scenario_id, allow_unknown, limit):
@@ -201,7 +214,8 @@ def _rest_search(world, sources, targets, profile, scenario_id, allow_unknown, l
     Label-setting search over (node, metres since the last rest point) with the same edge costs
     as `_search`. A label is pruned when another label at its node is no costlier and no further
     from a rest point; a step that would run past the limit is never taken. Arriving at a rest
-    node resets the counter (same rule as `_max_rest_gap`). Returns (nodes, keys, evals,
+    node resets the counter (same rule as `_max_rest_gap`): the strict pass counts verified rest
+    points only, the lenient pass unverified ones too. Returns (nodes, keys, evals,
     truncated); `truncated` is True when MAX_REST_LABELS stopped the search before it finished.
     """
     evals: dict[str, tuple] = {}
@@ -258,7 +272,8 @@ def _rest_search(world, sources, targets, profile, scenario_id, allow_unknown, l
                 if run > limit:
                     continue
                 if nbr not in rest:
-                    rest[nbr] = _is_rest(world, nbr)
+                    st = _rest_node_state(world, nbr)
+                    rest[nbr] = st == "PASS" or (allow_unknown and st == "UNKNOWN")
                 if len(labels) >= MAX_REST_LABELS:
                     return None, [], evals, True
                 push(cost + w, 0.0 if rest[nbr] else run, nbr, idx, key)
@@ -278,6 +293,8 @@ def _route_from_nodes(world, nodes, keys, from_id, to_id, profile, scenario_id, 
         dist += e.length_m
         if res == "UNKNOWN":
             unknowns.extend(why)
+    # A detour out and back along a spur repeats edges: list each unknown once (review M-1).
+    unknowns = list({(u["element_id"], u["attribute"]): u for u in unknowns}.values())
     status = _caveat(profile, "confirmed" if not unknowns else "partly_unverified")
     rid = (
         "rt-"
@@ -285,12 +302,13 @@ def _route_from_nodes(world, nodes, keys, from_id, to_id, profile, scenario_id, 
             f"{from_id}|{to_id}|{profile.id}|{scenario_id}|{nodes}|{keys}".encode()
         ).hexdigest()[:8]
     )
-    rest = [
-        {"place_id": p.id, "node_id": n}
-        for n in nodes
-        for p in world.places_at(n)
-        if p.type in REST_TYPES
-    ]
+    rest, seen = [], set()
+    for n in nodes:
+        for st, p in _rest_places(world, n):
+            if p.id not in seen:
+                seen.add(p.id)
+                status_word = "verified" if st == "PASS" else "unverified"
+                rest.append({"place_id": p.id, "node_id": n, "name": p.name, "status": status_word})
     route = Route(
         id=rid,
         status=status,
@@ -307,7 +325,22 @@ def _route_from_nodes(world, nodes, keys, from_id, to_id, profile, scenario_id, 
         geometry={"type": "LineString", "coordinates": coords},
     )
     route.max_gap_between_rest_m = _max_rest_gap(world, nodes, keys, {r["node_id"] for r in rest})
-    route.evidence_ids = [ev.id for ev in evidence_for_route(world, route)]
+    route.evidence_ids = list(dict.fromkeys(ev.id for ev in evidence_for_route(world, route)))
+    limit = profile.max_rest_free_run_m
+    if limit is not None:
+        verified = {r["node_id"] for r in rest if r["status"] == "verified"}
+        route.rest_limit_m = limit
+        route.rest_limit_met = route.max_gap_between_rest_m <= limit
+        if route.rest_limit_met and _max_rest_gap(world, nodes, keys, verified) > limit:
+            # Within the limit only by counting unverified rest points: name them, and the
+            # route is at most partly_unverified (R30).
+            route.rest_points_unverified = [
+                r["place_id"] for r in rest if r["status"] == "unverified"
+            ]
+        if route.status == "confirmed" and (
+            not route.rest_limit_met or route.rest_points_unverified
+        ):
+            route.status = "partly_unverified"
     return route
 
 
@@ -388,18 +421,13 @@ def _plan(world, from_id, to_id, profile, scenario_id) -> RouteResult:
         )
         routes = _pick(world, *found, evals, from_id, to_id, profile, scenario_id)
         if routes:
-            return _with_rest(RouteResult(status=routes[0].status, routes=routes), limit)
+            result = RouteResult(status=routes[0].status, routes=routes)
+            return _with_rest(result, limit, truncated)
     found, evals, _ = _passes(_search, world, sources, targets, profile, scenario_id)
     routes = _pick(world, *found, evals, from_id, to_id, profile, scenario_id)
     if routes:
         result = RouteResult(status=routes[0].status, routes=routes)
-        if limit is not None:
-            result = _with_rest(result, limit)
-            if truncated:
-                result.warnings.append(
-                    "rest-point search stopped early; a route with closer rest points may exist"
-                )
-        return result
+        return _with_rest(result, limit, truncated) if limit is not None else result
     if _disconnected(world, profile, sources, targets):
         # Not "blocked": the mapped data does not join these two places, so no known barrier
         # or flood class is responsible.
@@ -446,26 +474,33 @@ def _pick(world, strict_found, lenient_found, evals, from_id, to_id, profile, sc
     return []
 
 
-def _with_rest(result: RouteResult, limit: float) -> RouteResult:
-    """Mark each route against the rest limit. A route over it is never `confirmed`, and the
-    answer carries the longest stretch without a rest point (rounded to 10 m)."""
-    for r in result.routes:
-        r.rest_limit_m = limit
-        r.rest_limit_met = (
-            r.max_gap_between_rest_m is not None and r.max_gap_between_rest_m <= limit
-        )
-        if not r.rest_limit_met and r.status == "confirmed":
-            r.status = "partly_unverified"
+def _with_rest(result: RouteResult, limit: float, truncated: bool = False) -> RouteResult:
+    """Result-level rest fields and warnings for routes[0] (routes are marked when built)."""
     r0 = result.routes[0]
     result.status = r0.status
     result.rest_limit_m = limit
     result.max_rest_gap_m = r0.max_gap_between_rest_m
+    result.rest_search_truncated = truncated
     if not r0.rest_limit_met:
-        about = _about_m(r0.max_gap_between_rest_m or 0.0, limit)
+        result.warnings.append(rest_gap_text(r0.max_gap_between_rest_m or 0.0, limit))
+    elif r0.rest_points_unverified:
+        names = [r["name"] for r in r0.rest_points if r["place_id"] in r0.rest_points_unverified]
         result.warnings.append(
-            f"longest stretch without a rest point is about {about} m (limit {limit:g} m)"
+            f"rest {'point' if len(names) == 1 else 'points'} not checked yet: "
+            f"{', '.join(names)}; this route needs "
+            f"{'it' if len(names) == 1 else 'them'} to keep every stretch within {limit:g} m"
+        )
+    if truncated:
+        result.warnings.append(
+            "rest-point search stopped early; a route with closer rest points may exist"
         )
     return result
+
+
+def rest_gap_text(gap: float, limit: float) -> str:
+    """The resident-facing rest-gap line (lower case; callers capitalise)."""
+    about = _about_m(gap, limit)
+    return f"longest stretch without a rest point is about {about} m (limit {limit:g} m)"
 
 
 def _about_m(gap: float, limit: float) -> int:

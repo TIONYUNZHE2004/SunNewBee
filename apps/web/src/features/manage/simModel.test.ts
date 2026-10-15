@@ -5,6 +5,7 @@ import {
   checkSummaryText,
   isCriticalViolation,
   outcomeLabel,
+  restAdvisoryText,
   summariseCounts,
   violationLabel,
 } from "./simModel";
@@ -72,6 +73,9 @@ describe("critical violations vs advisory notes", () => {
     expect(advisoryLabel("rest_limit_no_alternative")).toBe(
       "Routes over the rest limit (no alternative)",
     );
+    expect(advisoryLabel("rest_search_stopped_early")).toBe(
+      "Rest-point search stopped early (a route within the limit may exist)",
+    );
     expect(advisoryLabel("other")).toBe("Advisory note (other)");
   });
   it("checkSummary separates critical violations from advisory notes", () => {
@@ -95,6 +99,34 @@ describe("critical violations vs advisory notes", () => {
     );
     expect(checkSummaryText({ critical: 1, other: 2, advisories: 1 })).toBe(
       "1 critical invariant violation, 2 other invariant violations, 1 advisory note",
+    );
+  });
+});
+
+describe("restAdvisoryText (Task 41 fix round 1, R30 I-3)", () => {
+  it("names the long segments from the run's data", () => {
+    expect(restAdvisoryText({ rest_limit_m: 100, rest_long_segments: 151 })).toBe(
+      "No route keeps every stretch under 100 m: 151 path segments are longer than 100 m with no mapped rest point along them.",
+    );
+    expect(restAdvisoryText({ rest_limit_m: 100, rest_long_segments: 1 })).toBe(
+      "No route keeps every stretch under 100 m: 1 path segment is longer than 100 m with no mapped rest point along it.",
+    );
+  });
+  it("without long segments it says only what holds", () => {
+    expect(restAdvisoryText({ rest_limit_m: 100, rest_long_segments: 0 })).toBe(
+      "No route keeps every stretch under 100 m between mapped rest points.",
+    );
+  });
+  it("never suggests mapping more rest points", () => {
+    for (const n of [0, 1, 5]) {
+      expect(restAdvisoryText({ rest_limit_m: 100, rest_long_segments: n })).not.toMatch(
+        /map(ping)? more|would help/i,
+      );
+    }
+  });
+  it("older reports without the fields fall back to the profile limit wording", () => {
+    expect(restAdvisoryText({})).toBe(
+      "No route keeps every stretch within the rest limit between mapped rest points.",
     );
   });
 });

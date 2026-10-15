@@ -7,6 +7,7 @@ The structured values (route_status, element_id, attribute) stay unchanged in ev
 import re
 
 from townshiplens_spatial.attributes import ATTRIBUTE_LABELS
+from townshiplens_spatial.routing import rest_gap_text
 
 STATUS_LABELS = {
     "confirmed": "confirmed",
@@ -194,3 +195,32 @@ def unchecked_caveats(
     if sentence := request_sentence(items, vrs or []):
         out.append(sentence)
     return out
+
+
+REST_GAP_WORDS = "without a rest point"  # every rest-gap caveat contains this (validator)
+
+
+def rest_caveats(route: dict) -> list[str]:
+    """Rest-limit lines for a route of a profile with a rest limit (older_adult_rest), else [].
+
+    Over the limit: "Longest stretch without a rest point is about 110 m (limit 100 m)."
+    Within it only thanks to unverified rest points: name them.
+    """
+    limit = route.get("rest_limit_m")
+    if limit is None:
+        return []
+    if route.get("rest_limit_met") is False:
+        return [_cap(rest_gap_text(route.get("max_gap_between_rest_m") or 0.0, limit)) + "."]
+    needed = set(route.get("rest_points_unverified") or [])
+    names = [
+        p.get("name") or "an unnamed rest point"
+        for p in route.get("rest_points") or []
+        if p.get("place_id") in needed
+    ]
+    if not names:
+        return []
+    one = len(names) == 1
+    return [
+        f"Rest {'point' if one else 'points'} not checked yet: {', '.join(names)}; this route "
+        f"needs {'it' if one else 'them'} to keep every stretch within {limit:g} m."
+    ]

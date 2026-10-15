@@ -58,6 +58,8 @@ def test_rest_advisories_are_reported_apart_from_invariant_violations():
     assert not [v for v in rep["invariant_violations"] if v["invariant"] == "I7"]
     assert rep["rest_advisories"], rep  # tiny: no route keeps rest points within 100 m
     a = rep["rest_advisories"][0]
-    assert set(a) == {"kind", "task_id", "detail"} and a["kind"] == "rest_limit_no_alternative"
+    assert set(a) == {"kind", "task_id", "detail", "long_segments"}
+    assert a["kind"] == "rest_limit_no_alternative" and a["long_segments"] >= 1
+    assert rep["rest_limit_m"] == 100 and rep["rest_long_segments"] >= 1
     got = c.get(f"/simulations/{rep['run_id']}").json()
     assert got["rest_advisories"] == rep["rest_advisories"]

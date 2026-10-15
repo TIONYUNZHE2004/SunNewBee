@@ -40,17 +40,32 @@ treats a possibly flooded road as FAIL (walking profiles treat it as UNKNOWN), a
 its standing warning (one-way and turn restrictions are not modelled; indicative only).
 
 `older_adult_rest` has `max_rest_free_run_m: 100`. Routing first runs a resource-constrained
-search over (node, metres since the last rest point): a node with a `seating` (benches) or
-`shelter` place resets the counter, and no step may run past the limit. It is label-setting with
-dominance pruning, bounded by `MAX_REST_LABELS` (deterministic, not wall-clock). A route within
-the limit wins over any route that is not, verified or not. Only when no route keeps the limit
-does the router fall back to the usual strict/lenient order. The fallback route has
-`rest_limit_met: false`, is never `confirmed` (at most `partly_unverified`), and the result
-warns "longest stretch without a rest point is about N m (limit 100 m)" (N rounded to 10 m, never
-down to the limit). Routes carry `rest_limit_m` / `rest_limit_met`; `RouteResult` (and the
-`plan_route` tool data) carries `max_rest_gap_m` / `rest_limit_m`. Other profiles: all `None`.
-In `sim`, invariant I7 fires only when a route claims the limit but breaks it (a routing bug);
-fallback routes are listed under `rest_advisories` ("over the rest limit, no alternative").
+search over (node, metres since the last rest point). It is label-setting with dominance
+pruning, bounded by `MAX_REST_LABELS` (deterministic, not wall-clock).
+
+- **Rest points are tri-state** (`evaluate.rest_point_state`, from the place's own `seating` /
+  `shelter` claim):
+  - verified present and fresh: counts;
+  - verified or reported absent: never counts, and is left out of `rest_points`;
+  - no claim (OSM only), unknown, stale, contested or only reported present: counts only in
+    the lenient pass.
+- A route that keeps the limit only thanks to unverified rest points is at most
+  `partly_unverified`, lists them in `rest_points_unverified`, and gets a warning naming them.
+  No VRs are filed for them.
+- A route within the limit wins over any route that is not, verified or not.
+- Only when no route keeps the limit does the router fall back to the usual strict/lenient
+  order. That route has `rest_limit_met: false`, is never `confirmed`, and the result warns
+  "longest stretch without a rest point is about N m (limit 100 m)" (`rest_gap_text`; N rounded
+  to 10 m, never down to the limit). `rest_search_truncated` marks a search that hit the cap.
+- Routes carry `rest_limit_m`, `rest_limit_met` and `rest_points_unverified`. `RouteResult`
+  (and the `plan_route` tool data) carries `max_rest_gap_m` and `rest_limit_m`. For other
+  profiles the limit fields are `None`, but `rest_points` / `max_gap_between_rest_m` count
+  shelters too and leave out rest points recorded absent (informational only; routes unchanged).
+- In `sim`, I7 fires only when a route claims the limit but breaks it (a routing bug). Each
+  journey whose route is over the limit gets one entry in `rest_advisories`
+  (`rest_limit_no_alternative`, or `rest_search_stopped_early`), with the number of segments
+  longer than the limit. The report's `rest_long_segments` counts those distinct segments across
+  the run: a rest point at a node cannot split them.
 
 ## Route status
 

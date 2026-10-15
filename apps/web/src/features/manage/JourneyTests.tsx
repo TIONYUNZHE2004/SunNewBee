@@ -18,6 +18,7 @@ import {
   OUTCOMES,
   outcomeLabel,
   profileLabel,
+  restAdvisoryText,
   summariseCounts,
   violationLabel,
 } from "./simModel";
@@ -371,10 +372,12 @@ export function JourneyReport({
         <h3 className="text-lg font-semibold">Advisory notes</h3>
         <p className="text-sm text-ink-soft">
           Not errors. The best route for an older resident runs further between rest points
-          (benches, seats, shelters) than the profile allows, and no route within the limit exists.
-          Residents see it as possible, never confirmed, with a warning. More mapped rest points
-          would help.
+          (benches, seats, shelters) than the profile allows. Residents see it as possible, never
+          confirmed, with the longest stretch named.
         </p>
+        {advisories.some((a) => a.kind === "rest_limit_no_alternative") && (
+          <p className="text-sm font-medium">{restAdvisoryText(report)}</p>
+        )}
         {advisories.length === 0 ? (
           <p className="rounded-lg border border-line bg-card p-3 text-sm">No advisory notes.</p>
         ) : (

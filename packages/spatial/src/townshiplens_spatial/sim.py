@@ -82,7 +82,7 @@ def _flipped(world: World, element_id: str, attribute: str, profile_id: str) -> 
     return dataclasses.replace(world, edges={**world.edges, element_id: e2})
 
 
-def _check(world: World, task: dict, route, violations: list[dict], advisories: list[dict]) -> None:
+def _check(world: World, task: dict, route, violations: list[dict]) -> None:
     tid = task["id"]
     listed = {u["element_id"] for u in route.unknowns}
     for s in route.segments:
@@ -97,27 +97,54 @@ def _check(world: World, task: dict, route, violations: list[dict], advisories: 
     prof = world.profiles.get(task["profile"])
     limit = prof.max_rest_free_run_m if prof else None
     gap = route.max_gap_between_rest_m
+    # A route over the limit that says so (rest_limit_met False, never confirmed) is an
+    # advisory (see _rest_advisory); one that claims the limit, or is confirmed, is a bug.
     if limit is None or gap is None or gap <= limit:
         return
     if route.rest_limit_met is False and route.status != "confirmed":
-        # The router found no route within the limit and said so (warning, never confirmed):
-        # an advisory for staff (add rest points), not a broken invariant.
-        note = {
-            "kind": "rest_limit_no_alternative",
-            "task_id": tid,
-            "detail": f"longest stretch without a rest point {gap} m > limit {limit:g} m; "
-            "no route within the limit",
-        }
-        if note not in advisories[-2:]:  # an alternative route with the same gap adds nothing
-            advisories.append(note)
         return
     violations.append(
-        {
-            "invariant": "I7",
-            "task_id": tid,
-            "detail": f"rest_gap_exceeds_limit {gap}>{limit}",
-        }
+        {"invariant": "I7", "task_id": tid, "detail": f"rest_gap_exceeds_limit {gap}>{limit}"}
     )
+
+
+def _long_segments(world: World, route, limit: float) -> list[str]:
+    """Distinct segments on the route longer than the limit: a rest point at a node cannot split
+    them, so no amount of rest points there brings the route within the limit."""
+    ids = (s.edge_id for s in route.segments)
+    return list(dict.fromkeys(i for i in ids if world.edges[i].length_m > limit))
+
+
+def _rest_limit(world: World, tasks: list[dict]) -> float | None:
+    """The rest limit of the run's profiles (only older_adult_rest has one), else None."""
+    limits = {
+        world.profiles[p].max_rest_free_run_m
+        for p in {t["profile"] for t in tasks}
+        if p in world.profiles and world.profiles[p].max_rest_free_run_m is not None
+    }
+    return min(limits) if limits else None
+
+
+def _rest_advisory(world: World, task: dict, rr) -> tuple[dict, list[str]] | None:
+    """One advisory per journey, from routes[0], when the router returned a route over the
+    rest limit and said so: (advisory, long segment ids) or None."""
+    r0 = rr.routes[0] if rr.routes else None
+    limit = r0.rest_limit_m if r0 else None
+    if r0 is None or limit is None or r0.rest_limit_met is not False or r0.status == "confirmed":
+        return None
+    long_ids = _long_segments(world, r0, limit)
+    n = len(long_ids)
+    detail = (
+        f"longest stretch without a rest point {r0.max_gap_between_rest_m} m > limit {limit:g} m; "
+        f"{n} path {'segment' if n == 1 else 'segments'} longer than {limit:g} m"
+    )
+    if rr.rest_search_truncated:
+        kind = "rest_search_stopped_early"
+        detail += "; the search stopped early, so a route within the limit may exist"
+    else:
+        kind = "rest_limit_no_alternative"
+        detail += "; no route within the limit"
+    return {"kind": kind, "task_id": task["id"], "detail": detail, "long_segments": n}, long_ids
 
 
 def run_suite(world: World, tasks: list[dict], scenario_id: str | None = None) -> dict[str, Any]:
@@ -125,6 +152,7 @@ def run_suite(world: World, tasks: list[dict], scenario_id: str | None = None) -
     results: list[dict] = []
     violations: list[dict] = []
     advisories: list[dict] = []
+    long_segments: set[str] = set()
     gap_tasks: dict[tuple[str, str], list[dict]] = {}
     for t in tasks:
         sc = t.get("scenario_id") or scenario_id
@@ -138,7 +166,10 @@ def run_suite(world: World, tasks: list[dict], scenario_id: str | None = None) -
                 {"element_id": u["element_id"], "attribute": u["attribute"]} for u in r0.unknowns
             ]
             for r in rr.routes:
-                _check(world, t, r, violations, advisories)
+                _check(world, t, r, violations)
+            if adv := _rest_advisory(world, t, rr):
+                advisories.append(adv[0])
+                long_segments.update(adv[1])
             for key in {(u["element_id"], u["attribute"]) for u in r0.unknowns}:
                 gap_tasks.setdefault(key, []).append({**t, "scenario_id": sc})
         counts.setdefault(t["profile"], {}).setdefault(outcome, 0)
@@ -192,6 +223,9 @@ def run_suite(world: World, tasks: list[dict], scenario_id: str | None = None) -
         "gaps": gaps[:MAX_GAPS],
         "gaps_truncated": truncated,
         "invariant_violations": violations,
-        # Routes over the rest limit because no route within it exists (no alternative).
+        # One per journey whose route runs over the rest limit (see _rest_advisory).
         "rest_advisories": advisories,
+        "rest_limit_m": _rest_limit(world, tasks),
+        # Distinct segments longer than the limit on those journeys' routes.
+        "rest_long_segments": len(long_segments),
     }

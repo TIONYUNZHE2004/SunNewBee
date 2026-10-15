@@ -1187,6 +1187,13 @@
             "title": "Rest Points",
             "type": "array"
           },
+          "rest_points_unverified": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Rest Points Unverified",
+            "type": "array"
+          },
           "scenario_id": {
             "anyOf": [
               {
@@ -1316,6 +1323,11 @@
               }
             ],
             "title": "Rest Limit M"
+          },
+          "rest_search_truncated": {
+            "default": false,
+            "title": "Rest Search Truncated",
+            "type": "boolean"
           },
           "routes": {
             "items": {
@@ -1627,7 +1639,7 @@
         "type": "object"
       },
       "SimAdvisory": {
-        "description": "Not a broken invariant: e.g. the best route runs over the rest limit and no route within\nit exists (`rest_limit_no_alternative`); the router says so and never confirms it.",
+        "description": "Not a broken invariant: the journey's route runs over the rest limit and the router says\nso (never confirmed). `rest_limit_no_alternative`: no route within the limit exists;\n`rest_search_stopped_early`: the search hit its size cap, so one may exist.",
         "properties": {
           "detail": {
             "title": "Detail",
@@ -1636,6 +1648,11 @@
           "kind": {
             "title": "Kind",
             "type": "string"
+          },
+          "long_segments": {
+            "default": 0,
+            "title": "Long Segments",
+            "type": "integer"
           },
           "task_id": {
             "title": "Task Id",
@@ -1730,6 +1747,22 @@
             },
             "title": "Rest Advisories",
             "type": "array"
+          },
+          "rest_limit_m": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rest Limit M"
+          },
+          "rest_long_segments": {
+            "default": 0,
+            "title": "Rest Long Segments",
+            "type": "integer"
           },
           "results": {
             "items": {

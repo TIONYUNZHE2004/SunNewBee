@@ -25,6 +25,7 @@ export const isCriticalViolation = (i: string): boolean => VIOLATIONS[i]?.critic
 
 const ADVISORIES: Record<string, string> = {
   rest_limit_no_alternative: "Routes over the rest limit (no alternative)",
+  rest_search_stopped_early: "Rest-point search stopped early (a route within the limit may exist)",
 };
 export const advisoryLabel = (k: string): string => ADVISORIES[k] ?? `Advisory note (${k})`;
 
@@ -106,3 +107,19 @@ export const PROFILE_LABELS: Record<string, string> = {
   drive: "Drive",
 };
 export const profileLabel = (p: string): string => PROFILE_LABELS[p] ?? p;
+
+/** Why no route keeps the rest limit, from the run's own counts (Task 41, R30 I-3). Rest points
+ * sit at path junctions, so a segment longer than the limit cannot be split by one. */
+export function restAdvisoryText(report: {
+  rest_limit_m?: number | null;
+  rest_long_segments?: number;
+}): string {
+  const limit = report.rest_limit_m;
+  if (limit == null)
+    return "No route keeps every stretch within the rest limit between mapped rest points.";
+  const n = report.rest_long_segments ?? 0;
+  if (n === 0) return `No route keeps every stretch under ${limit} m between mapped rest points.`;
+  return n === 1
+    ? `No route keeps every stretch under ${limit} m: 1 path segment is longer than ${limit} m with no mapped rest point along it.`
+    : `No route keeps every stretch under ${limit} m: ${n} path segments are longer than ${limit} m with no mapped rest point along them.`;
+}
