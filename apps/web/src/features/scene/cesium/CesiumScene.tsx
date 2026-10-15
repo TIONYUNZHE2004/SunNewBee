@@ -4,12 +4,24 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { type CesiumComponentRef, useCesium, Viewer } from "resium";
 import { useLayer, useSite } from "../../../lib/api";
 import { ENV } from "../../../lib/env";
+import { useTheme } from "../../../ui/theme";
 import { pickedFloodEdgeId, pointFeatures } from "../geo";
 import { useScene } from "../sceneStore";
 import { useCameraIntents } from "./camera";
 import { failureBurst } from "./failureBurst";
 import { type HomeView, homeView, shouldReframe } from "./home";
 import { AccessLayer, FloodLayer, WasteLayer } from "./layers";
+import { applyCesiumTime, cesiumTimeStyle, type TimeOps } from "./timeOfDay";
+
+const TIME_OPS: TimeOps = {
+  color: (css) => Cesium.Color.fromCssColorString(css),
+  shader: (b) =>
+    new Cesium.CustomShader({
+      uniforms: { u_brightness: { type: Cesium.UniformType.FLOAT, value: b } },
+      fragmentShaderText:
+        "void fragmentMain(FragmentInput fsInput, inout czm_modelMaterial material){ material.diffuse *= u_brightness; }",
+    }),
+};
 
 const PICK_PX = 8;
 
@@ -34,6 +46,8 @@ function SceneSetup({
   const profile = useScene((s) => s.profile);
   const scenarioId = useScene((s) => s.scenarioId);
   const access = useLayer("access", profile, scenarioId);
+  const theme = useTheme((s) => s.theme);
+  const tilesRef = useRef<Cesium.Cesium3DTileset | undefined>(undefined);
   const placesRef = useRef(new Map<string, [number, number]>());
   placesRef.current = new Map(pointFeatures(access.data).map((p) => [p.id, p.coord]));
   const focusPoint = useCallback((id: string) => placesRef.current.get(id) ?? null, []);
@@ -63,6 +77,8 @@ function SceneSetup({
             tiles = undefined;
           } else {
             viewer.scene.primitives.add(tiles);
+            tilesRef.current = tiles;
+            applyCesiumTime(viewer, tiles, cesiumTimeStyle(useTheme.getState().theme), TIME_OPS);
             // requestRenderMode does not render on tile loads: request frames as tiles stream in.
             const render = () => {
               if (!viewer.isDestroyed()) viewer.scene.requestRender();
@@ -97,6 +113,7 @@ function SceneSetup({
     })();
     return () => {
       cancelled = true;
+      tilesRef.current = undefined;
       for (const r of removers) r();
       if (tiles && !viewer.isDestroyed()) {
         viewer.scene.primitives.remove(tiles); // removes and destroys
@@ -105,6 +122,11 @@ function SceneSetup({
       }
     };
   }, [viewer, onNoDraping, onTilesFailed]);
+
+  // Day/night lighting (display-only). Re-applies on theme change; the tiles effect applies it on load.
+  useEffect(() => {
+    applyCesiumTime(viewer, tilesRef.current, cesiumTimeStyle(theme), TIME_OPS);
+  }, [viewer, theme]);
 
   // Frame the home view once per viewer (separate from the tiles effect: no tileset reload).
   // Frame at once with the constants so a slow/failed /site never leaves the whole-globe view,

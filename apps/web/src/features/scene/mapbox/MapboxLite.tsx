@@ -3,8 +3,10 @@ import { useCallback, useEffect, useMemo, useRef } from "react";
 import MapGL, { Layer, type MapMouseEvent, type MapRef, Source } from "react-map-gl/mapbox";
 import { useGaps, useLayer, useScenarioWater, useSite } from "../../../lib/api";
 import { ENV } from "../../../lib/env";
+import { useTheme } from "../../../ui/theme";
 import { GAP_BAND_ORDER, GAP_BANDS, gapLines, gapsActive } from "../../gaps/gapModel";
 import { homeView, shouldReframe } from "../cesium/home";
+import { mapboxLightPreset } from "../cesium/timeOfDay";
 import { clickedPlaceId, normalizeLayer, pointFeatures } from "../geo";
 import { useScene } from "../sceneStore";
 import { ROUTE_STYLE, statusStyle, WATER_COLOR } from "../styles";
@@ -156,6 +158,20 @@ const pointsOnly = (fc: GeoJSON.FeatureCollection) =>
 
 export default function MapboxLite() {
   const mapRef = useRef<MapRef>(null);
+  const theme = useTheme((s) => s.theme);
+  // Mapbox Standard light preset; other styles have no "basemap" import, so ignore failures.
+  const applyLight = useCallback(() => {
+    try {
+      mapRef.current
+        ?.getMap()
+        .setConfigProperty("basemap", "lightPreset", mapboxLightPreset(theme));
+    } catch {
+      /* not a Standard style, or style not ready */
+    }
+  }, [theme]);
+  useEffect(() => {
+    applyLight();
+  }, [applyLight]);
   const profile = useScene((s) => s.profile);
   const scenarioId = useScene((s) => s.scenarioId);
   const lensVisible = useScene((s) => s.lensVisible);
@@ -244,6 +260,7 @@ export default function MapboxLite() {
         }}
         style={{ width: "100%", height: "100%" }}
         reuseMaps
+        onStyleData={applyLight}
         interactiveLayerIds={clickable}
         cursor="auto"
         onClick={(e: MapMouseEvent) => {
