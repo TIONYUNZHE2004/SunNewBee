@@ -22,6 +22,7 @@ from .events import (
     TextDelta,
     Uncertainty,
 )
+from .labels import element_label, status_label, unknown_note
 from .record import TurnRecord
 from .settings import AgentSettings
 from .template import template_answer
@@ -38,7 +39,7 @@ def _route_status_line(ans: FinalAnswer, rec: TurnRecord) -> str | None:
     rid = ans.route_id if ans.route_id in rec.routes else next(iter(rec.routes), None)
     if rid is None:
         return None
-    return f"Route status: {rec.route_status.get(rid, 'no_data')}"
+    return f"Route status: {status_label(rec.route_status.get(rid, 'no_data'))}"
 
 
 def _answer_events(
@@ -49,7 +50,7 @@ def _answer_events(
     if ans.steps:
         text += "\n" + "\n".join(f"{i}. {s}" for i, s in enumerate(ans.steps, 1))
     if ans.caveats:
-        text = "⚠ " + " ".join(ans.caveats) + "\n" + text
+        text = "⚠ " + "; ".join(c.rstrip(". ") for c in ans.caveats) + ".\n" + text
     # Fixed order: status label, then the caveat line, then the summary and steps.
     if label := _route_status_line(ans, rec):
         text = label + "\n" + text
@@ -92,8 +93,9 @@ def _answer_events(
 
     def _note(u: dict) -> str:
         edge = ctx.world.edges.get(u["element_id"])
-        why = u.get("why", "")
-        return f"{edge.name}: {why}" if edge and edge.name else why
+        return unknown_note(
+            u, element_label(edge.name if edge else None, edge.type if edge else None)
+        )
 
     items = [
         {"element_id": u["element_id"], "attribute": u["attribute"], "note": _note(u)}

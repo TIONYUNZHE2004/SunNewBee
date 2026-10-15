@@ -7,6 +7,8 @@ from pydantic_ai import ModelMessage, ModelResponse, ToolCallPart
 from pydantic_ai.messages import ModelRequest, ToolReturnPart, UserPromptPart
 from pydantic_ai.models.function import AgentInfo, FunctionModel
 
+from .labels import attribute_label, status_label, unchecked_caveats
+
 
 def _prompt(messages: list[ModelMessage]) -> str:
     for m in messages:
@@ -54,40 +56,26 @@ def _data(ret: dict):
     return ret.get("data") if ret.get("ok", True) else None
 
 
+def _vrs(ret: dict) -> list[dict]:
+    """Verification requests the plan_route call filed (or upvoted) this turn."""
+    data = _data(ret)
+    return (data or {}).get("verification_requests") or [] if isinstance(data, dict) else []
+
+
 def _cannot(
     msg: str = "I couldn't get verified information for that yet.", **extra
 ) -> ModelResponse:
     return _final(answer_status="cannot_answer", summary=msg, **extra)
 
 
-MAX_NAMED = 5  # unchecked items named in the answer text; the uncertainty event has them all
-
-
-def _unknown_caveats(routes: list) -> list[str]:
-    out = []
-    ids = []
-    for r in routes:
-        for u in r.get("unknowns") or []:
-            ids.append(u.get("element_id"))
-    for r in routes:
-        for u in r.get("unknowns") or []:
-            if u.get("attribute") == "flood":  # flood "unknowns" are possible-flood segments
-                out.append(f"{u.get('element_id')}: {u.get('why') or 'possibly flooded'}")
-            else:
-                out.append(f"Not checked yet: {u.get('attribute')} on {u.get('element_id')}")
-    if len(out) > MAX_NAMED:
-        named = ids[:MAX_NAMED]
-        more = len(set(ids) - set(named))
-        out = out[:MAX_NAMED]
-        if more:
-            out.append(f"and {more} more unchecked segments; staff have been asked to check them")
-    return out
+def _unknown_caveats(routes: list, vrs: list[dict] | None = None) -> list[str]:
+    return unchecked_caveats([u for r in routes for u in r.get("unknowns") or []], vrs)
 
 
 def _status_caveat(status: str, a: str, b: str) -> str:
     if status == "no_data":
         return f"No mapped connection between {a} and {b} (data gap)."
-    return f"Route status: {status}; some segments are still unverified."
+    return f"Route status: {status_label(status)}; some segments are still unverified."
 
 
 def _placeholder_caveat(rets, caveats: list[str]) -> list[str]:
@@ -170,6 +158,84 @@ def _profile(q: str, info: AgentInfo, fallback: str) -> str:
             return prof
     m = re.search(r"profile=(\w+)", info.instructions or "")
     return m.group(1) if m and m.group(1) != "default" else fallback
+
+
+PLACE_MIN_SCORE = 0.85  # find_place score needed to treat a hit as "the" place asked about
+PLACE_CLEAR_MARGIN = 0.05  # the top hit must lead the next place by at least this much
+_PLACE_Q = re.compile(
+    r"^\s*(?:please\s+)?"
+    r"(?:tell me (?:more )?about|what(?:'s| is) (?:at|in)|info(?:rmation)? (?:on|about))"
+    r"\s+(.+?)\s*[?.!]*\s*$"
+)
+
+
+def _place_question(q: str) -> str | None:
+    """The place named in "Tell me about <place>" / "What is at <place>", else None."""
+    m = _PLACE_Q.match(q)
+    return m.group(1) if m else None
+
+
+def _claim_value(v) -> str:
+    if isinstance(v, bool):
+        return "yes" if v else "no"
+    return str(v).replace("_", " ")
+
+
+def _claim_status(ev: dict) -> tuple[str, str]:
+    """(resident wording, FinalAnswer claim status) for one piece of evidence."""
+    if ev.get("source_type") == "team_survey_placeholder":
+        return "demo value, not surveyed", "unverified"
+    status = ev.get("status")
+    if status == "verified":
+        return f"staff verified on {ev.get('verified_at') or 'an unrecorded date'}", "verified"
+    if status == "stale":
+        return "last check is out of date", "stale"
+    if status == "reported":
+        return "reported, not checked yet", "unverified"
+    return "not checked yet", "unknown"
+
+
+def _place_answer(details: dict, evidence: list[dict]) -> ModelResponse:
+    """Summarise get_place_details: each recorded fact with its status. Files nothing."""
+    pid = details["id"]
+    kind = str(details.get("type") or "place").replace("_", " ")
+    claims = [
+        {
+            "text": f"Place name and type: {details['name']} ({kind})",
+            "status": "unverified",
+            "evidence_ids": [f"ev-place-{pid}"],
+        }
+    ]
+    statuses, placeholder = [], False
+    for ev in evidence:
+        if ev.get("attribute") in ("name", None) or ev["id"] == f"ev-place-{pid}":
+            continue
+        wording, status = _claim_status(ev)
+        statuses.append(status)
+        placeholder |= ev.get("source_type") == "team_survey_placeholder"
+        raw = (details.get("claims") or {}).get(ev["attribute"], {}).get("value", ev.get("value"))
+        claims.append(
+            {
+                "text": f"{attribute_label(ev['attribute'])}: {_claim_value(raw)} ({wording})",
+                "status": status,
+                "evidence_ids": [ev["id"]],
+            }
+        )
+    caveats = []
+    if not statuses:
+        caveats.append("No other facts about this place are recorded yet.")
+    if placeholder:
+        caveats.append("Some facts are demo values, not yet surveyed.")
+    if any(st != "verified" for st in statuses):
+        caveats.append("Not every fact here has been checked by township staff yet.")
+    answered = bool(statuses) and all(st == "verified" for st in statuses)
+    return _final(
+        answer_status="answered" if answered else "partial",
+        summary=f"{details['name']} ({kind}): here is what the township model records.",
+        claims=claims,
+        caveats=caveats,
+        scene_intents=[{"kind": "place.focus", "place_id": pid}],
+    )
 
 
 def _script(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
@@ -256,7 +322,7 @@ def _script(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
         routes = (_data(rets[-1][1]) or {}).get("routes") or []
         route = routes[0] if routes else None
         flood_cav, flood_ev, likely = _endpoint_flood(_data(rets[-1][1]))
-        caveats = _unknown_caveats(routes[:1])
+        caveats = _unknown_caveats(routes[:1], _vrs(rets[-1][1]))
         if route and route.get("status") != "confirmed" and not caveats:
             caveats = [_status_caveat(route.get("status"), found[0]["name"], c0["name"])]
         caveats = _placeholder_caveat(rets, flood_cav + caveats)
@@ -375,8 +441,8 @@ def _script(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
         ev += [e["id"] for e in rets[-1][1].get("evidence", [])]
         flood_cav, flood_ev, likely = _endpoint_flood(rr)
         ev += flood_ev
-        caveats = _unknown_caveats(routes)
-        if status != "confirmed" and not caveats:
+        caveats = _unknown_caveats(routes, _vrs(rets[-1][1]))
+        if status not in ("confirmed", "no_data") and not caveats:  # no_data: the summary says it
             caveats = [_status_caveat(status, a.get("name", a["id"]), b.get("name", b["id"]))]
         caveats = _placeholder_caveat(rets, flood_cav + caveats)
         gap = r0.get("max_gap_between_rest_m") if r0 else None
@@ -394,8 +460,8 @@ def _script(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
                 f"No mapped connection between {a.get('name', a['id'])} and "
                 f"{b.get('name', b['id'])} (data gap)."
                 if status == "no_data"
-                else f"{a.get('name', a['id'])} to {b.get('name', b['id'])}: route {status}"
-                + (f", {dist} m." if dist is not None else ".")
+                else f"{a.get('name', a['id'])} to {b.get('name', b['id'])}: "
+                f"route {status_label(status)}" + (f", {dist} m." if dist is not None else ".")
             ),
             claims=[
                 {
@@ -409,9 +475,14 @@ def _script(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
             scene_intents=[{"kind": "route.highlight", "route_id": r0["id"]}] if r0 else [],
         )
     # unknown: try to resolve, else cannot answer + missing_place VR
+    place_q = _place_question(q)
     if n == 0:
-        return _call("find_place", query=q[:80])
-    if n == 1 and not _data(rets[0][1]):
+        return _call("find_place", query=place_q or q[:80])
+    found = _data(rets[0][1]) or []
+    top = found[0].get("score", 1.0) if found else 0.0
+    if (
+        n == 1 and top < PLACE_MIN_SCORE
+    ):  # nothing, or only a weak fuzzy match: the place is missing
         # PDPA: never store the user's words on a staff-visible VR.
         return _call(
             "create_verification_request",
@@ -420,10 +491,24 @@ def _script(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
             reason="missing_place",
             question_summary="place asked about in chat was not found in the township model",
         )
-    return _final(
-        answer_status="cannot_answer",
-        summary="I don't have that place in the township model yet. I've asked the team to check.",
-    )
+    if top < PLACE_MIN_SCORE:
+        return _final(
+            answer_status="cannot_answer",
+            summary="I don't have that place in the township model yet. "
+            "I've asked the team to check.",
+        )
+    if place_q:  # "Tell me about <place>": summarise what the model has, with statuses
+        close = [p for p in found if top - p.get("score", 1.0) < PLACE_CLEAR_MARGIN]
+        if len(close) > 1:  # no clear top hit: ask, claim no follow-up
+            names = list(dict.fromkeys(p["name"] for p in close))[:3]
+            return _cannot(f"Which place do you mean? {', '.join(names)}?")
+        if n == 1:
+            return _call("get_place_details", place_id=found[0]["id"])
+        details = _data(rets[-1][1])
+        if isinstance(details, dict):
+            return _place_answer(details, rets[-1][1].get("evidence") or [])
+        return _cannot("I couldn't get the details for that place yet.")
+    return _cannot("I can't answer that from the township model yet.")  # found; no VR was filed
 
 
 def mock_model() -> FunctionModel:

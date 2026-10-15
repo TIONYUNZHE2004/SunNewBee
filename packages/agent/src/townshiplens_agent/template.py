@@ -1,9 +1,8 @@
 from .answer import Claim, FinalAnswer
 from .events import SceneIntent
+from .labels import attribute_label, unchecked_caveats
 from .record import TurnRecord
 from .validate import DEPTH, FORBIDDEN, PLACEHOLDER_CAVEAT, PLACEHOLDER_SOURCE
-
-MAX_NAMED = 5
 
 
 def _cannot_summary(rec: TurnRecord, question: str) -> str:
@@ -44,7 +43,7 @@ def template_answer(rec: TurnRecord, question: str) -> FinalAnswer:
     # Claim text omits raw values: they may contain wording forbidden in flood answers.
     claims = [
         Claim(
-            text=f"{e.attribute} on {e.element_id}: "
+            text=f"{attribute_label(e.attribute)}: "
             + ("demo value" if e.source_type == PLACEHOLDER_SOURCE else e.status),
             status={"verified": "verified", "stale": "stale", "indicative": "indicative"}.get(
                 e.status, "unverified"
@@ -53,13 +52,10 @@ def template_answer(rec: TurnRecord, question: str) -> FinalAnswer:
         )
         for eid, e in list(rec.evidence.items())[:8]
     ]
-    unknown_items = [f"{u['attribute']} on {u['element_id']}" for u in route.get("unknowns", [])]
-    unknowns = unknown_items[:MAX_NAMED]
+    route_unknowns = route.get("unknowns", [])
+    unknowns = unchecked_caveats(route_unknowns, rec.vrs)
     caveats: list[str] = list(flood_caveats)
-    if unknowns:
-        more = len(unknown_items) - len(unknowns)
-        tail = f" and {more} more unchecked; staff have been asked to check them" if more else ""
-        caveats.append(f"Not checked yet: {', '.join(unknowns)}{tail}.")
+    caveats += unknowns
     if status == "no_data":
         caveats.append("No mapped connection between these places (data gap).")
     elif status != "confirmed":
@@ -72,7 +68,7 @@ def template_answer(rec: TurnRecord, question: str) -> FinalAnswer:
         summary = "No mapped connection between these places (data gap)."
     return FinalAnswer(
         answer_status="answered"
-        if status == "confirmed" and not unknowns and not likely_flooded
+        if status == "confirmed" and not route_unknowns and not likely_flooded
         else "partial",
         summary=summary,
         claims=claims,
