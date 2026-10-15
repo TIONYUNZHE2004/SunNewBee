@@ -1,16 +1,16 @@
-{"meta": {"message": "Can I get to the lakeside mall with a stroller?", "profile": "stroller", "scenario_id": null, "world": "elmina", "model": "mock-scripted", "recorded_at": "2026-10-15T04:41:20+00:00"}}
+{"meta": {"message": "Can I get to the lakeside mall with a stroller?", "profile": "stroller", "scenario_id": null, "world": "elmina", "model": "mock-scripted", "recorded_at": "2026-10-15T04:52:42+00:00"}}
 {"type": "tool.call", "id": "find_place-0", "name": "find_place", "args": {"query": "car park b", "types": null, "limit": 5}}
 {"type": "tool.result", "id": "find_place-0", "name": "find_place", "summary": "5 result(s)"}
 {"type": "tool.call", "id": "find_place-1", "name": "find_place", "args": {"query": "lakeside mall", "types": null, "limit": 5}}
 {"type": "tool.result", "id": "find_place-1", "name": "find_place", "summary": "2 result(s)"}
 {"type": "tool.call", "id": "plan_route-2", "name": "plan_route", "args": {"from_id": "park-b", "to_id": "lakeside-mall", "profile": "stroller", "scenario_id": null}}
-{"type": "verification.requested", "request_id": "vr-0178", "element_id": "seg-1306543755-2", "attribute": "incline_pct", "created": true, "demand": 1}
-{"type": "verification.requested", "request_id": "vr-0179", "element_id": "seg-1450679024-0", "attribute": "step_count", "created": true, "demand": 1}
-{"type": "verification.requested", "request_id": "vr-0180", "element_id": "seg-1450679024-0", "attribute": "incline_pct", "created": true, "demand": 1}
-{"type": "verification.requested", "request_id": "vr-0181", "element_id": "seg-1450679024-0", "attribute": "width_m", "created": true, "demand": 1}
-{"type": "verification.requested", "request_id": "vr-0182", "element_id": "seg-1346154591-1", "attribute": "step_count", "created": true, "demand": 1}
-{"type": "verification.requested", "request_id": "vr-0183", "element_id": "seg-1346154591-1", "attribute": "incline_pct", "created": true, "demand": 1}
-{"type": "verification.requested", "request_id": "vr-0184", "element_id": "seg-1346154591-1", "attribute": "width_m", "created": true, "demand": 1}
+{"type": "verification.requested", "request_id": "vr-0012", "element_id": "seg-1306543755-2", "attribute": "incline_pct", "created": false, "demand": 10}
+{"type": "verification.requested", "request_id": "vr-0013", "element_id": "seg-1450679024-0", "attribute": "step_count", "created": false, "demand": 10}
+{"type": "verification.requested", "request_id": "vr-0014", "element_id": "seg-1450679024-0", "attribute": "incline_pct", "created": false, "demand": 10}
+{"type": "verification.requested", "request_id": "vr-0015", "element_id": "seg-1450679024-0", "attribute": "width_m", "created": false, "demand": 7}
+{"type": "verification.requested", "request_id": "vr-0016", "element_id": "seg-1346154591-1", "attribute": "step_count", "created": false, "demand": 10}
+{"type": "verification.requested", "request_id": "vr-0017", "element_id": "seg-1346154591-1", "attribute": "incline_pct", "created": false, "demand": 10}
+{"type": "verification.requested", "request_id": "vr-0018", "element_id": "seg-1346154591-1", "attribute": "width_m", "created": false, "demand": 7}
 {"type": "tool.result", "id": "plan_route-2", "name": "plan_route", "summary": "route partly_unverified"}
 {"type": "text.delta", "delta": "Route status: partly_unverified\n⚠ Not ch"}
 {"type": "text.delta", "delta": "ecked yet: incline_pct on seg-1306543755"}
@@ -18,13 +18,11 @@
 {"type": "text.delta", "delta": "50679024-0 Not checked yet: incline_pct "}
 {"type": "text.delta", "delta": "on seg-1450679024-0 Not checked yet: wid"}
 {"type": "text.delta", "delta": "th_m on seg-1450679024-0 Not checked yet"}
-{"type": "text.delta", "delta": ": step_count on seg-1346154591-1 Not che"}
-{"type": "text.delta", "delta": "cked yet: incline_pct on seg-1346154591-"}
-{"type": "text.delta", "delta": "1 Not checked yet: width_m on seg-134615"}
-{"type": "text.delta", "delta": "4591-1 Segment facts are demo values, no"}
-{"type": "text.delta", "delta": "t yet surveyed.\nLakeside Mall Car Park B"}
-{"type": "text.delta", "delta": " to Elmina Lakeside Mall: route partly_u"}
-{"type": "text.delta", "delta": "nverified, 445.9 m."}
+{"type": "text.delta", "delta": ": step_count on seg-1346154591-1 Segment"}
+{"type": "text.delta", "delta": " facts are demo values, not yet surveyed"}
+{"type": "text.delta", "delta": ".\nLakeside Mall Car Park B to Elmina Lak"}
+{"type": "text.delta", "delta": "eside Mall: route partly_unverified, 445"}
+{"type": "text.delta", "delta": ".9 m."}
 {"type": "scene.intent", "intent": {"kind": "route.highlight", "place_id": null, "route_id": "rt-13fc0a57", "scenario_id": null, "center": null, "range_m": null, "lens": null, "visible": null, "geojson": {"type": "LineString", "coordinates": [[101.508757, 3.18131], [101.50861, 3.181204], [101.508479, 3.181108], [101.508671, 3.180834], [101.508715, 3.180769], [101.508515, 3.180628], [101.508527, 3.180603], [101.508533, 3.180575], [101.50853, 3.180546], [101.508521, 3.180519], [101.508501, 3.180493], [101.508769, 3.180147], [101.508911, 3.179959], [101.50941, 3.180232], [101.509854, 3.180547], [101.509999, 3.180661], [101.510071, 3.180734], [101.50979, 3.181102], [101.510045, 3.18131]]}}}
 {"type": "citation", "ref": 1, "evidence_id": "ev-place-park-b", "element_id": "park-b", "attribute": "name", "status": "reported", "verified_at": null, "source_type": "world_model", "photo_url": null}
 {"type": "citation", "ref": 2, "evidence_id": "ev-place-lakeside-mall", "element_id": "lakeside-mall", "attribute": "name", "status": "reported", "verified_at": null, "source_type": "world_model", "photo_url": null}
