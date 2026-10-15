@@ -799,3 +799,16 @@ Found while capturing the pitch screenshots (continuation run).
 - **Tests:** DOM tests (Task 39 style) for row labels and each tab deep link; update e2e selectors only if needed.
 - **Verify:** vitest, lint, typecheck, build, e2e.
 - **Out of scope:** `apps/api`, `packages/*`, `data/`.
+
+### Task 51: Frontend Minors sweep (quality)
+
+Parked Minor findings from the web-side task reviews: Tasks 23, 25, 27, 32, 33, 35, 36, 37, 39, 42, 45, 50, and final reviews #1 and #2. The review files are `.superpowers/sdd/2026-10-15-mvp-p0-increment-1/task-*-review.md`, `final-review.md` and `final-review-2.md`.
+
+- For each Minor that concerns `apps/web`:
+  1. Check whether it still applies on current main. Many were fixed later.
+  2. If it does, fix it with a test where a test makes sense.
+  3. Skip anything that needs API or contract changes, and list it.
+- **Report** a table: finding id → status (fixed / already fixed / not applicable / deferred-with-reason).
+- **Rules:** no behaviour change beyond what each Minor asks. Keep the honesty invariants. DOM tests in the Task 39 style.
+- **Verify:** vitest, lint, typecheck, build, e2e.
+- **Out of scope:** `apps/api`, `packages/*`, `data/`.
