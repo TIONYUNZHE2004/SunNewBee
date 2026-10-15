@@ -1,3 +1,5 @@
+import dataclasses
+
 from townshiplens_spatial import sim
 
 
@@ -180,3 +182,132 @@ def test_truncated_rest_search_is_its_own_advisory(world, monkeypatch):
 def test_report_without_older_adults_has_no_rest_limit(world):
     r = sim.run_suite(world, [{**_older(), "profile": "stroller"}])
     assert r["rest_limit_m"] is None and r["rest_long_segments"] == 0
+
+
+# ---- Task 47: evacuation journeys (G-07) -------------------------------------------------
+
+# island-hut shares the school centre's node, so it is excluded (a 0 m journey is not a journey)
+EVAC_P5 = {
+    "reachable_partly_unverified": 2,  # playground, kiosk
+    "blocked_by_flood": 2,  # park-b, lakeside-mall
+    "no_mapped_connection": 1,  # moon-base has no mapped path
+}
+
+
+def _row(rep, profile, scenario):
+    (row,) = [r for r in rep["rows"] if r["profile"] == profile and r["scenario_id"] == scenario]
+    return row
+
+
+def test_evacuation_known_results_on_tiny(world):
+    rep = sim.run_evacuation(world, n_per_profile=50)
+    assert rep["origins_available"] == 5 and rep["origins_sampled"] == 5
+    assert rep["origins_excluded_centres"] == 1 and "island-hut" not in rep["origins"]
+    assert {r["profile"] for r in rep["rows"]} == set(sim.EVAC_PROFILES)
+    assert {r["scenario_id"] for r in rep["rows"]} == set(sim.EVAC_SCENARIOS)
+    row = _row(rep, "stroller", "stage_p5m")
+    assert {k: v for k, v in row["counts"].items() if v} == EVAC_P5
+    assert row["total"] == 5
+    assert _row(rep, "wheelchair", "stage_p5m")["counts"] == row["counts"]
+    base = _row(rep, "stroller", "baseline")["counts"]
+    assert base["reachable_confirmed"] == 3 and base["reachable_partly_unverified"] == 1
+    assert base["blocked_by_flood"] == 0 and base["no_mapped_connection"] == 1
+    assert rep["violations"] == []  # monotone and baseline == no-scenario on the fixture
+    assert all(set(r["counts"]) == set(sim.EVAC_RESULTS) for r in rep["rows"])
+
+
+def test_evacuation_sample_is_seeded_and_capped(world):
+    a = sim.run_evacuation(world, n_per_profile=3, seed=7)
+    b = sim.run_evacuation(world, n_per_profile=3, seed=7)
+    assert a["origins_sampled"] == 3 and a["rows"] == b["rows"] and a["origins"] == b["origins"]
+    assert sim.evacuation_origins(world, 3, 7) == sim.evacuation_origins(world, 3, 7)
+    assert set(a["origins"]) <= {p for p in world.places}
+
+
+def test_evacuation_no_centre(world):
+    w = dataclasses.replace(world, centres={})
+    rep = sim.run_evacuation(w, n_per_profile=50)
+    assert all(r["counts"]["no_centre"] == r["total"] == 6 for r in rep["rows"])
+    assert rep["origins_excluded_centres"] == 0
+
+
+def test_evacuation_profile_and_scenario_filters(world):
+    rep = sim.run_evacuation(world, profiles=["stroller"], scenario_ids=["baseline", "stage_p3m"])
+    assert {(r["profile"], r["scenario_id"]) for r in rep["rows"]} == {
+        ("stroller", "baseline"),
+        ("stroller", "stage_p3m"),
+    }
+
+
+def test_evacuation_flags_non_monotone_and_baseline_drift(world, monkeypatch):
+    from townshiplens_spatial import flood
+
+    real = flood.centres_reachability
+
+    def rigged(w, scenario_id, profile, near, top_routes=3):
+        res = real(w, scenario_id, profile, near, top_routes)
+        if near == "park-b" and profile == "stroller":
+            # blocked at +1 m but confirmed again at +3 m; baseline differs from no-scenario
+            for r in res:
+                if r.centre.id == "evc-hall":
+                    r.reachable = scenario_id != "stage_p1m"
+                    r.route_status = "blocked" if scenario_id == "stage_p1m" else "confirmed"
+        if scenario_id == "baseline" and near == "kiosk" and profile == "default":
+            for r in res:
+                r.reachable, r.route_status = False, "blocked"
+        return res
+
+    monkeypatch.setattr(flood, "centres_reachability", rigged)
+    rep = sim.run_evacuation(world, n_per_profile=50)
+    kinds = {(v["invariant"], v["profile"], v["origin_id"]) for v in rep["violations"]}
+    assert ("E1", "stroller", "park-b") in kinds
+    assert ("E2", "default", "kiosk") in kinds
+    assert all(v["detail"] for v in rep["violations"])
+
+
+def test_evacuation_invariants_hold_on_a_seed_sample():
+    from pathlib import Path
+
+    import pytest
+    from townshiplens_spatial.world import load_world
+
+    seed = Path(__file__).resolve().parents[3] / "data/seed/elmina"
+    if not (seed / "site.json").exists():
+        pytest.skip("Elmina seed not present")
+    w = load_world(seed)
+    rep = sim.run_evacuation(w, profiles=["stroller", "older_adult_rest"], n_per_profile=5)
+    assert rep["origins_sampled"] == 5 and rep["origins_available"] > 50
+    assert rep["violations"] == []  # E1 monotone across stages, E2 baseline == no scenario
+    centre_places = {c.place_id for c in w.centres.values() if c.place_id}
+    assert not set(rep["origins"]) & centre_places and rep["origins_excluded_centres"] > 0
+    assert all(sum(r["counts"].values()) == 5 for r in rep["rows"])
+
+
+def test_origin_that_is_a_centre_place_is_excluded_not_counted_confirmed(world):
+    hall = world.centres["evc-hall"].model_copy(update={"place_id": "kiosk"})
+    w = dataclasses.replace(world, centres={**world.centres, "evc-hall": hall})
+    rep = sim.run_evacuation(w, profiles=["default"], scenario_ids=["baseline"])
+    assert "kiosk" not in rep["origins"] and "island-hut" not in rep["origins"]
+    assert rep["origins_excluded_centres"] == 2 and rep["origins_sampled"] == 4
+    (row,) = rep["rows"]
+    assert row["total"] == 4 and row["counts"]["reachable_confirmed"] == 3
+
+
+def test_snapshot_is_isolated_from_later_claim_and_closure_changes(world):
+    from datetime import timedelta
+
+    from townshiplens_spatial.models import Claim, Closure, utcnow
+
+    now = utcnow()
+    live = Closure(id="c1", element_id="seg-ab", reason="works", starts_at=now - timedelta(hours=1))
+    soon = Closure(id="c2", element_id="seg-bc", reason="works", starts_at=now + timedelta(hours=1))
+    world.set_closures([live, soon])
+    v = world.version
+    snap, h1 = sim.snapshot_world(world, now)
+    assert snap.version == v and [c.id for c in snap.closures] == ["c1"]
+    world.refresh_claim("seg-cf", "incline_pct", Claim(value=1.0, status="verified"))
+    world.set_closures([])
+    assert snap.edges["seg-cf"].claims["incline_pct"].status == "unknown"
+    assert snap.edges["seg-ab"].closures and snap.edges["seg-ab"].closures[0].ends_at is None
+    assert not snap.edges["seg-bc"].closures  # starts after run start: frozen out
+    assert sim.snapshot_world(world, now)[1] != h1  # hash follows the closure set

@@ -7,14 +7,18 @@ from __future__ import annotations
 
 import copy
 import dataclasses
+import hashlib
+import random
 import time
 import uuid
+from collections.abc import Callable
 from datetime import UTC, date, datetime
 from typing import Any
 
+from . import flood
 from .evaluate import _CHECKS, SIDEWALK_TYPES, evaluate_edge
-from .models import Claim
-from .routing import _flood_class, plan_route
+from .models import Claim, Closure
+from .routing import _flood_class, _target_pts, plan_route
 from .world import World
 
 SIM_PROFILES = ("stroller", "wheelchair", "older_adult_rest")
@@ -32,6 +36,42 @@ OUTCOME = {
 }
 # Same keys the evaluator checks; `sidewalk` only on SIDEWALK_TYPES edges (major roads).
 GAP_ATTRS = {attr for attr, _ in _CHECKS.values()} | {"sidewalk"}
+
+
+def snapshot_world(world: World, now: datetime | None = None) -> tuple[World, str]:
+    """A consistent copy of the mutable parts of `world` for one run, plus a hash of the closure
+    set. The caller holds the API's `world_lock`. Edges and places are deep-copied (claims,
+    closures); the graph, flood bundle, profiles and centres are never mutated and are shared.
+
+    Closure time is frozen at `now`: a closure active then stays active for the whole run, one
+    that starts or ends mid-run changes nothing. So a staff edit or the clock cannot make two
+    halves of one run disagree."""
+    now = now or datetime.now(UTC)
+    frozen: dict[str, Closure] = {}
+    edges, places = {}, {}
+    for src, dst in ((world.edges, edges), (world.places, places)):
+        for k, el in src.items():
+            c = el.model_copy(deep=True)
+            if c.closures:
+                c.closures = [
+                    x.model_copy(update={"ends_at": None}) for x in c.closures if x.is_active(now)
+                ]
+                frozen.update({x.id: x for x in c.closures})
+            dst[k] = c
+    digest = hashlib.sha256(
+        "|".join(
+            f"{c.id}@{c.element_id}@{c.starts_at.isoformat()}"
+            for c in sorted(frozen.values(), key=lambda c: c.id)
+        ).encode()
+    ).hexdigest()[:16]
+    snap = dataclasses.replace(
+        world, edges=edges, places=places, closures=list(frozen.values()), version=world.version
+    )
+    return snap, digest
+
+
+def new_run_id() -> str:
+    return "sim-" + uuid.uuid4().hex
 
 
 def default_tasks(world: World, profiles: list[str] | None = None) -> list[dict[str, Any]]:
@@ -147,14 +187,22 @@ def _rest_advisory(world: World, task: dict, rr) -> tuple[dict, list[str]] | Non
     return {"kind": kind, "task_id": task["id"], "detail": detail, "long_segments": n}, long_ids
 
 
-def run_suite(world: World, tasks: list[dict], scenario_id: str | None = None) -> dict[str, Any]:
+def run_suite(
+    world: World,
+    tasks: list[dict],
+    scenario_id: str | None = None,
+    progress: Callable[[int, int], None] | None = None,
+    run_id: str | None = None,
+) -> dict[str, Any]:
     counts: dict[str, dict[str, int]] = {}
     results: list[dict] = []
     violations: list[dict] = []
     advisories: list[dict] = []
     long_segments: set[str] = set()
     gap_tasks: dict[tuple[str, str], list[dict]] = {}
-    for t in tasks:
+    for i, t in enumerate(tasks):
+        if progress:
+            progress(i, len(tasks))
         sc = t.get("scenario_id") or scenario_id
         rr = plan_route(world, t["from_id"], t["to_id"], t["profile"], sc)
         outcome = OUTCOME[rr.status]
@@ -214,7 +262,7 @@ def run_suite(world: World, tasks: list[dict], scenario_id: str | None = None) -
             break
     gaps.sort(key=lambda g: (-g["impact"], g["element_id"], g["attribute"]))
     return {
-        "run_id": "sim-" + uuid.uuid4().hex,
+        "run_id": run_id or new_run_id(),
         "world_version": world.version,
         "created_at": datetime.now(UTC).isoformat(),
         "scenario_id": scenario_id,
@@ -228,4 +276,170 @@ def run_suite(world: World, tasks: list[dict], scenario_id: str | None = None) -
         "rest_limit_m": _rest_limit(world, tasks),
         # Distinct segments longer than the limit on those journeys' routes.
         "rest_long_segments": len(long_segments),
+    }
+
+
+# ---- Evacuation journeys (Task 47, G-07) -------------------------------------------------
+# Nothing here computes a route: every journey is one `flood.centres_reachability` call, the same
+# logic behind the `list_evacuation_centres` tool. Scenarios are indicative, never forecasts.
+
+EVAC_PROFILES = ("default", "stroller", "wheelchair", "older_adult_rest")
+EVAC_SCENARIOS = ("baseline", "stage_p1m", "stage_p3m", "stage_p5m")  # rising river stage
+EVAC_N = 50  # sampled origins per profile
+EVAC_SEED = 47
+EVAC_RESULTS = (
+    "reachable_confirmed",
+    "reachable_partly_unverified",
+    "blocked_by_flood",  # a known FAIL cuts every path (flood, or at baseline a known barrier)
+    "no_mapped_connection",  # data gap: never reported as "not reachable"
+    "no_centre",
+)
+# The seed maps no residential buildings, so origins are every mapped place residents start from
+# except street furniture (a bench or bin is not where a journey begins).
+NON_ORIGIN_TYPES = {"seating", "toilet", "shelter", "waste_basket"}
+
+
+def _centre_origins(world: World) -> set[str]:
+    """Places that ARE an evacuation centre (by place id) or whose way into the network is a
+    centre's node. A journey from one is 0 m and says nothing about reaching a centre."""
+    cn = {c.node_id for c in world.centres.values() if c.node_id}
+    cp = {c.place_id for c in world.centres.values() if c.place_id}
+    out = set()
+    for p in world.places.values():
+        nodes = {n for n, _ in _target_pts(world, p.id)}
+        if p.id in cp or nodes & cn:
+            out.add(p.id)
+    return out
+
+
+def _all_origins(world: World) -> list[str]:
+    return sorted(p.id for p in world.places.values() if p.type not in NON_ORIGIN_TYPES)
+
+
+def _origin_pool(world: World) -> list[str]:
+    """Real journeys only: places a resident starts from that are not themselves a centre."""
+    centres = _centre_origins(world)
+    return [i for i in _all_origins(world) if i not in centres]
+
+
+def evacuation_origins(world: World, n: int = EVAC_N, seed: int = EVAC_SEED) -> list[str]:
+    """Deterministic sample: the same ids for every profile and scenario, so journeys compare."""
+    pool = _origin_pool(world)
+    if len(pool) <= n:
+        return pool
+    return sorted(random.Random(seed).sample(pool, n))
+
+
+def _journey(world: World, origin: str, profile: str, scenario_id: str | None) -> dict[str, Any]:
+    rows = flood.centres_reachability(world, scenario_id, profile, origin, top_routes=1)
+    reach = [r for r in rows if r.reachable]
+    confirmed = any(r.route_status == "confirmed" for r in reach)
+    if not world.centres:
+        result = "no_centre"
+    elif reach:  # rows are ordered nearest reachable first
+        result = (
+            "reachable_confirmed"
+            if reach[0].route_status == "confirmed"
+            else "reachable_partly_unverified"
+        )
+    elif any(r.route_status == "blocked" for r in rows):
+        result = "blocked_by_flood"
+    else:
+        result = "no_mapped_connection"
+    return {
+        "result": result,
+        "any_confirmed": confirmed,
+        "any_reachable": bool(reach),
+        "centre_id": reach[0].centre.id if reach else None,
+    }
+
+
+def _violation(inv: str, profile: str, origin: str, detail: str) -> dict[str, str]:
+    return {
+        "invariant": inv,
+        "task_id": f"evac:{profile}:{origin}",
+        "profile": profile,
+        "origin_id": origin,
+        "detail": detail,
+    }
+
+
+def run_evacuation(
+    world: World,
+    profiles: list[str] | None = None,
+    scenario_ids: list[str] | None = None,
+    n_per_profile: int = EVAC_N,
+    seed: int = EVAC_SEED,
+    progress: Callable[[int, int], None] | None = None,
+) -> dict[str, Any]:
+    """profile x scenario table of evacuation results for a seeded sample of origins, plus the
+    G-08 (c) invariants: E1 a worse flood never improves a journey, E2 baseline == no scenario."""
+    profs = [
+        p for p in EVAC_PROFILES if p in world.profiles and (profiles is None or p in profiles)
+    ]
+    known = {s.id for s in world.flood.scenarios}
+    scs = [s for s in (scenario_ids or EVAC_SCENARIOS) if s in known]
+    origins_pool = _origin_pool(world)
+    origins = evacuation_origins(world, n_per_profile, seed)
+    total, done = len(profs) * len(origins) * (len(scs) + ("baseline" in scs)), 0
+    violations: list[dict[str, str]] = []
+    rows: list[dict[str, Any]] = []
+    for prof in profs:
+        by: dict[tuple[str, str], dict[str, Any]] = {}
+        for sc in scs:
+            for o in origins:
+                by[(sc, o)] = _journey(world, o, prof, sc)
+                done += 1
+                if progress:
+                    progress(done, total)
+        for o in origins:
+            if "baseline" in scs:
+                none = _journey(world, o, prof, None)
+                done += 1
+                if progress:
+                    progress(done, total)
+                b = by[("baseline", o)]
+                if b != none:
+                    violations.append(
+                        _violation(
+                            "E2",
+                            prof,
+                            o,
+                            f"baseline gave {b['result']} but no scenario gave {none['result']}",
+                        )
+                    )
+            for lo, hi in zip(scs, scs[1:], strict=False):
+                a, c = by[(lo, o)], by[(hi, o)]
+                improved = (
+                    (a["result"] == "blocked_by_flood" and c["result"] == "reachable_confirmed")
+                    or (not a["any_confirmed"] and c["any_confirmed"])
+                    or (
+                        not a["any_reachable"] and c["any_reachable"] and a["result"] != "no_centre"
+                    )
+                )
+                if improved:
+                    violations.append(
+                        _violation(
+                            "E1",
+                            prof,
+                            o,
+                            f"{lo} gave {a['result']} but the higher stage {hi} gave {c['result']}",
+                        )
+                    )
+        for sc in scs:
+            counts = dict.fromkeys(EVAC_RESULTS, 0)
+            for o in origins:
+                counts[by[(sc, o)]["result"]] += 1
+            rows.append(
+                {"profile": prof, "scenario_id": sc, "counts": counts, "total": len(origins)}
+            )
+    return {
+        "rows": rows,
+        "violations": violations,
+        "origins": origins,
+        "origins_sampled": len(origins),
+        "origins_available": len(origins_pool),
+        # places that are evacuation centres (or share a centre's node), left out of the sample
+        "origins_excluded_centres": len(_all_origins(world)) - len(origins_pool),
+        "seed": seed,
     }

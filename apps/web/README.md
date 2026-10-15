@@ -7,7 +7,7 @@ The TownshipLens browser app: a Vite + React 19 SPA with two routes.
   `site.deep_spots`; each flies the camera, turns its layer on and, for a flood spot, sets
   `stage_p3m`), the scene, the chat panel, the place card and the "Why this path?" popover.
 - `/manage` management console: KPI tiles (open verification requests, median hours to resolve,
-  journeys confirmed from the latest run) above three tabs: **Verification queue** (resolve with
+  journeys confirmed from the latest run; journey tests run in the background and the page polls every 2 s, with an Evacuation table) above three tabs: **Verification queue** (resolve with
   a staff token), **Flood briefing** (cut-off places, isolated areas, evacuation centres, a draft
   advisory, an "Assumptions" section with the selected profile's thresholds) and **Journey
   tests** (run the resident-agent batch, outcome matrix, top data gaps, critical invariant

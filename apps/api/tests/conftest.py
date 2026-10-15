@@ -15,3 +15,29 @@ def _env(tmp_path, monkeypatch):
 
     state.reset()
     yield
+
+
+@pytest.fixture
+def run_sim():
+    """POST /simulations, expect 202, poll until the run is done, return its report."""
+    import time
+
+    from fastapi.testclient import TestClient
+    from townshiplens_api.main import app
+
+    c = TestClient(app)
+
+    def run(body: dict | None = None, timeout: float = 120.0) -> dict:
+        r = c.post("/simulations", json=body or {}, headers={"X-Staff-Token": "test-token"})
+        assert r.status_code == 202, r.text
+        rid = r.json()["run_id"]
+        end = time.monotonic() + timeout
+        while time.monotonic() < end:
+            got = c.get(f"/simulations/{rid}").json()
+            if got["status"] == "done":
+                return got["report"]
+            assert got["status"] in ("queued", "running"), got
+            time.sleep(0.02)
+        raise AssertionError("simulation did not finish")
+
+    return run

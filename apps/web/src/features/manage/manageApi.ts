@@ -146,13 +146,24 @@ export type SimSummary = Schemas["SimSummary"];
 export type SimGap = Schemas["SimGap"];
 
 export const fetchSimRuns = (limit = 5) => getJson<SimSummary[]>(`/simulations?limit=${limit}`);
-export const fetchSimReport = (runId: string) =>
-  getJson<SimReport>(`/simulations/${encodeURIComponent(runId)}`);
+export type SimRun = Schemas["SimRun"];
 
-export async function runSimulation(
+export const fetchSimRun = (runId: string) =>
+  getJson<SimRun>(`/simulations/${encodeURIComponent(runId)}`);
+
+/** A finished run's report; a run that is not done has none. */
+export async function fetchSimReport(runId: string): Promise<SimReport> {
+  const run = await fetchSimRun(runId);
+  if (!run.report) throw new ApiError(409, `run is ${run.status}`);
+  return run.report;
+}
+
+/** Start a run. The server answers 202 with the run id and works in the background; a run
+ * already in progress answers 409 with its id, which the caller follows instead. */
+export async function startSimulation(
   body: { scenario_id: string | null; profiles: string[] },
   token: string,
-): Promise<SimReport> {
+): Promise<{ run_id: string; alreadyRunning: boolean }> {
   const r = await fetch("/api/simulations", {
     method: "POST",
     headers: {
@@ -165,8 +176,13 @@ export async function runSimulation(
       profiles: body.profiles,
     }),
   });
-  if (!r.ok) throw new ApiError(r.status);
-  return (await r.json()) as SimReport;
+  if (r.status === 409) {
+    const b = (await r.json().catch(() => null)) as { run_id?: string } | null;
+    if (b?.run_id) return { run_id: b.run_id, alreadyRunning: true };
+  }
+  if (r.status !== 202) throw new ApiError(r.status);
+  const b = (await r.json()) as { run_id: string };
+  return { run_id: b.run_id, alreadyRunning: false };
 }
 
 export type AuditClaim = {

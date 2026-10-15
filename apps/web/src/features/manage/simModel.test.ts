@@ -3,6 +3,9 @@ import {
   advisoryLabel,
   checkSummary,
   checkSummaryText,
+  EVAC_RESULTS,
+  evacResultLabel,
+  evacScenarioLabel,
   isCriticalViolation,
   outcomeLabel,
   restAdvisoryText,
@@ -128,5 +131,22 @@ describe("restAdvisoryText (Task 41 fix round 1, R30 I-3)", () => {
     expect(restAdvisoryText({})).toBe(
       "No route keeps every stretch within the rest limit between mapped rest points.",
     );
+  });
+});
+
+describe("evacuation labels (Task 47)", () => {
+  it("uses plain words and never says safe or not reachable", () => {
+    const all = EVAC_RESULTS.map(evacResultLabel).join(" | ");
+    expect(all).toContain("No mapped connection (data gap)");
+    expect(all).not.toMatch(/\bsafe\b|not reachable/i);
+    expect(evacResultLabel("other")).toBe("other");
+  });
+  it("names river levels as indicative", () => {
+    expect(evacScenarioLabel("baseline")).toBe("Normal river level");
+    expect(evacScenarioLabel("stage_p3m")).toBe("River +3 m (indicative)");
+  });
+  it("treats E1 and E2 as critical", () => {
+    expect(isCriticalViolation("E1")).toBe(true);
+    expect(violationLabel("E2")).toMatch(/Baseline/);
   });
 });

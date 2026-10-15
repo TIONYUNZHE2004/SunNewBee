@@ -10,7 +10,7 @@ from townshiplens_spatial.models import Claim, VerificationRequest
 
 from .. import evidence, state
 from ..auth import StaffOnly
-from ..store import AuditStore, SimStore
+from ..store import AuditStore, sim_store
 
 router = APIRouter()
 _audits: dict[str, AuditStore] = {}
@@ -109,18 +109,13 @@ class Kpis(BaseModel):
     journeys_confirmed_pct: float | None = None
 
 
-_sims: dict[str, SimStore] = {}
-
-
 @router.get("/kpis", response_model=Kpis)
 def kpis() -> Kpis:
     ctx = state.get_ctx()
     path = state.db_path()
     try:
         n_open, median = ctx.vrs.kpis()
-        if path not in _sims:
-            _sims[path] = SimStore(path)
-        recent = _sims[path].recent(1)
+        recent = sim_store(path).recent(1)
     except sqlite3.Error:
         raise HTTPException(503, "store unavailable") from None
     pct = None

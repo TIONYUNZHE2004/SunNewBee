@@ -85,9 +85,9 @@ def test_reported_counts_as_a_gap_and_is_counted_separately():
     assert p["unknown_attributes"] == ["width_m"]
 
 
-def test_journey_impact_comes_from_the_latest_sim_run():
+def test_journey_impact_comes_from_the_latest_sim_run(run_sim):
     assert all(p["journey_impact"] == 0 for p in _props().values())
-    run = c.post("/simulations", json={}, headers={"X-Staff-Token": "test-token"}).json()
+    run = run_sim({})
     ranked = {(g["element_id"]) for g in run["gaps"] if "stroller" in g["affected_profiles"]}
     assert ranked, "tiny fixture should yield at least one ranked gap"
     p = _props("stroller")

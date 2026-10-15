@@ -8,6 +8,10 @@ KEEP_RUNS = 20
 SCHEMA = """CREATE TABLE IF NOT EXISTS sim_runs (
   run_id TEXT PRIMARY KEY, created_at TEXT, scenario_id TEXT, counts TEXT,
   n_tasks INTEGER, n_gaps INTEGER, n_violations INTEGER, world_version INTEGER, report TEXT)"""
+JOB_SCHEMA = """CREATE TABLE IF NOT EXISTS sim_jobs (
+  run_id TEXT PRIMARY KEY, status TEXT NOT NULL, created_at TEXT NOT NULL, scenario_id TEXT,
+  progress TEXT, error TEXT)"""
+ACTIVE = ("queued", "running")
 
 
 class SimStore:
@@ -21,7 +25,55 @@ class SimStore:
         if cols and "counts" not in cols:  # pre-summary-column dev table; runs are disposable
             self.db.execute("DROP TABLE sim_runs")
         self.db.execute(SCHEMA)
+        self.db.execute(JOB_SCHEMA)
         self._lock = threading.RLock()
+        self.start_lock = threading.Lock()  # serialises "is a run active? then start one"
+
+    def sweep_interrupted(self) -> int:
+        """Mark runs left active by a dead process as failed. Called once at app startup (the
+        lifespan), never from the constructor: other stores open the same file while a run lives."""
+        with self._lock, self.db:
+            cur = self.db.execute(
+                "UPDATE sim_jobs SET status='failed', error='interrupted by a server restart' "
+                "WHERE status IN ('queued','running')"
+            )
+        return cur.rowcount
+
+    def create_job(self, run_id: str, created_at: str, scenario_id: str | None) -> None:
+        with self._lock, self.db:
+            self.db.execute(
+                "INSERT INTO sim_jobs VALUES (?,?,?,?,?,NULL)",
+                (run_id, "queued", created_at, scenario_id, "Queued"),
+            )
+            self.db.execute(
+                "DELETE FROM sim_jobs WHERE run_id NOT IN "
+                "(SELECT run_id FROM sim_jobs ORDER BY created_at DESC, rowid DESC LIMIT ?)",
+                (KEEP_RUNS,),
+            )
+
+    def set_job(
+        self, run_id: str, status: str, progress: str | None, error: str | None = None
+    ) -> bool:
+        """Only a queued or running job changes: a terminal status is never overwritten."""
+        with self._lock, self.db:
+            cur = self.db.execute(
+                "UPDATE sim_jobs SET status=?, progress=?, error=? "
+                "WHERE run_id=? AND status IN ('queued','running')",
+                (status, progress, error, run_id),
+            )
+        return cur.rowcount == 1
+
+    def active_job(self) -> str | None:
+        with self._lock:
+            r = self.db.execute(
+                "SELECT run_id FROM sim_jobs WHERE status IN ('queued','running') LIMIT 1"
+            ).fetchone()
+        return r["run_id"] if r else None
+
+    def job(self, run_id: str) -> dict[str, Any] | None:
+        with self._lock:
+            r = self.db.execute("SELECT * FROM sim_jobs WHERE run_id=?", (run_id,)).fetchone()
+        return dict(r) if r else None
 
     def save(self, report: dict[str, Any]) -> None:
         with self._lock, self.db:
@@ -71,6 +123,18 @@ class SimStore:
             }
             for r in rows
         ]
+
+
+_sim_stores: dict[str, SimStore] = {}
+_sim_stores_lock = threading.Lock()
+
+
+def sim_store(path: str) -> SimStore:
+    """The one SimStore per database file, shared by the simulation and KPI routes."""
+    with _sim_stores_lock:
+        if path not in _sim_stores:
+            _sim_stores[path] = SimStore(path)
+        return _sim_stores[path]
 
 
 AUDIT_SCHEMA = """CREATE TABLE IF NOT EXISTS audit_log (

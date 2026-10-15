@@ -1,19 +1,24 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useScenarios } from "../../lib/api";
 import { CreateVrButton } from "./CreateVrButton";
 import {
   ApiError,
   fetchSimReport,
+  fetchSimRun,
   fetchSimRuns,
-  runSimulation,
   type SimReport,
   type SimSummary,
+  startSimulation,
 } from "./manageApi";
 import {
   advisoryLabel,
   checkSummary,
   checkSummaryText,
+  EVAC_RESULTS,
+  evacResultLabel,
+  evacScenarioLabel,
+  evacSummaryText,
   isCriticalViolation,
   OUTCOMES,
   outcomeLabel,
@@ -24,7 +29,7 @@ import {
 } from "./simModel";
 import { useStaffToken } from "./useStaffToken";
 
-const PROFILE_CHOICES = ["stroller", "wheelchair", "older_adult_rest"] as const;
+const PROFILE_CHOICES = ["default", "stroller", "wheelchair", "older_adult_rest"] as const;
 const inputCls = "min-h-11 w-full rounded-md border border-line bg-card px-3 text-sm";
 const btnCls =
   "min-h-11 rounded-md bg-brand px-4 text-sm font-medium text-white hover:bg-brand-dark disabled:cursor-not-allowed disabled:opacity-50";
@@ -36,10 +41,14 @@ export function simErrorMessage(err: unknown): string {
   return "Journey tests could not be run. Please try again.";
 }
 
+/** The run takes minutes, so the page polls its status; 2 s keeps progress fresh without load. */
+export const POLL_MS = 2000;
+const isActive = (status?: string) => status === "queued" || status === "running";
+
 const when = (iso: string) => new Date(iso).toLocaleString();
 const scenarioName = (id?: string | null) => id ?? "baseline";
 
-export function JourneyTests() {
+export function JourneyTests({ pollMs = POLL_MS }: { pollMs?: number } = {}) {
   const qc = useQueryClient();
   const scenarios = useScenarios();
   const [token, setToken] = useStaffToken();
@@ -53,18 +62,48 @@ export function JourneyTests() {
     retry: false,
   });
 
+  const [runId, setRunId] = useState<string | null>(null);
+  const [followed, setFollowed] = useState(false);
+  const [failed, setFailed] = useState<string | null>(null);
   const run = useMutation({
     mutationFn: () =>
-      runSimulation(
+      startSimulation(
         { scenario_id: scenarioId === "baseline" ? null : scenarioId, profiles },
         token,
       ),
     onSuccess: (r) => {
-      setReport(r);
-      setLoadError(false);
-      void qc.invalidateQueries({ queryKey: ["manage", "sim-runs"] });
+      setFailed(null);
+      setFollowed(r.alreadyRunning);
+      setRunId(r.run_id);
     },
   });
+  // Polls while the run is queued or running; the interval is false (polling stops) once it is
+  // done or failed.
+  const poll = useQuery({
+    queryKey: ["manage", "sim-run", runId],
+    queryFn: () => fetchSimRun(runId as string),
+    enabled: runId !== null,
+    retry: false,
+    staleTime: 0,
+    refetchInterval: (q) => (q.state.data && !isActive(q.state.data.status) ? false : pollMs),
+  });
+  const status = poll.data?.status;
+  useEffect(() => {
+    if (!runId || !poll.data) return;
+    if (poll.data.status === "done" && poll.data.report) {
+      setReport(poll.data.report);
+      setLoadError(false);
+      setRunId(null);
+      void qc.invalidateQueries({ queryKey: ["manage", "sim-runs"] });
+    } else if (poll.data.status === "failed") {
+      setFailed(poll.data.error ?? "Journey tests could not be run. Please try again.");
+      setRunId(null);
+    }
+  }, [runId, poll.data, qc]);
+  // A status check that errors (run gone after a reset, server down) ends the wait with a message.
+  const pollFailed = runId !== null && poll.isError;
+  const running =
+    run.isPending || (runId !== null && !pollFailed && (status === undefined || isActive(status)));
   const load = useMutation({
     mutationFn: (id: string) => fetchSimReport(id),
     onSuccess: (r) => {
@@ -95,7 +134,7 @@ export function JourneyTests() {
         aria-label="Run journey tests"
         onSubmit={(e) => {
           e.preventDefault();
-          if (!noProfiles && !run.isPending) run.mutate();
+          if (!noProfiles && !running) run.mutate();
         }}
       >
         <div className="grid gap-3 sm:grid-cols-2">
@@ -121,7 +160,7 @@ export function JourneyTests() {
               id="jt-sc"
               className={inputCls}
               value={scenarioId}
-              disabled={run.isPending}
+              disabled={running}
               onChange={(e) => setScenarioId(e.target.value)}
             >
               <option value="baseline">Baseline (no flooding)</option>
@@ -135,7 +174,7 @@ export function JourneyTests() {
             </select>
           </div>
         </div>
-        <fieldset className="space-y-1" disabled={run.isPending}>
+        <fieldset className="space-y-1" disabled={running}>
           <legend className="mb-1 text-sm font-medium">Mobility profiles</legend>
           <div className="flex flex-wrap gap-x-5">
             {PROFILE_CHOICES.map((p) => (
@@ -163,11 +202,34 @@ export function JourneyTests() {
         <button
           type="submit"
           className={btnCls}
-          disabled={run.isPending || noProfiles}
+          disabled={running || noProfiles}
           aria-describedby={noProfiles ? "jt-np" : undefined}
         >
-          {run.isPending ? "Running journey tests…" : "Run journey tests"}
+          {running ? "Running journey tests…" : "Run journey tests"}
         </button>
+        {pollFailed && (
+          <p role="alert" className="text-sm font-medium text-danger">
+            The run's progress could not be checked.{" "}
+            <button
+              type="button"
+              className="underline"
+              onClick={() => {
+                setRunId(null);
+                run.mutate();
+              }}
+            >
+              Retry
+            </button>
+          </p>
+        )}
+        {failed && (
+          <p role="alert" className="text-sm font-medium text-danger">
+            {failed}{" "}
+            <button type="button" className="underline" onClick={() => run.mutate()}>
+              Retry
+            </button>
+          </p>
+        )}
         {run.isError && (
           <p role="alert" className="text-sm font-medium text-danger">
             {simErrorMessage(run.error)}{" "}
@@ -181,9 +243,17 @@ export function JourneyTests() {
       </form>
 
       <div role="status" aria-live="polite" className="text-sm">
-        {run.isPending && "Running journey tests…"}
+        {running && (
+          <span>
+            {followed
+              ? "A run is already in progress; following it. "
+              : "Running journey tests in the background. "}
+            {poll.data?.progress ?? "Queued"}. This page checks every {pollMs / 1000} seconds and
+            can take a few minutes.
+          </span>
+        )}
         {load.isPending && "Loading report…"}
-        {!run.isPending && !load.isPending && report && summary && (
+        {!running && !load.isPending && report && summary && (
           <span className="font-medium">
             Run {report.run_id.slice(0, 8)} finished: {summary.overall.total} journeys,{" "}
             {summary.overall.confirmedPct}% confirmed, {summary.overall.blockedPct}% not passable,{" "}
@@ -198,7 +268,7 @@ export function JourneyTests() {
         </p>
       )}
 
-      {!report && !run.isPending && !load.isPending && (
+      {!report && !running && !load.isPending && (
         <p className="rounded-lg border border-line bg-card p-4 text-sm">
           No report yet. Run the journey tests or open a recent run.
         </p>
@@ -281,6 +351,8 @@ export function JourneyReport({
           </table>
         </div>
       </div>
+
+      <EvacuationTable report={report} />
 
       <div className="space-y-2">
         <h3 className="text-lg font-semibold">Top gaps</h3>
@@ -400,6 +472,74 @@ export function JourneyReport({
           })
         )}
       </div>
+    </div>
+  );
+}
+
+export function EvacuationTable({ report }: { report: SimReport }) {
+  const ev = report.evacuation;
+  return (
+    <div className="space-y-2">
+      <h3 className="text-lg font-semibold">Evacuation</h3>
+      {!ev ? (
+        <p className="rounded-lg border border-line bg-card p-3 text-sm">
+          This run has no evacuation journeys. Run the journey tests again to include them.
+        </p>
+      ) : (
+        <>
+          <p className="text-sm text-ink-soft">
+            Each journey goes from a starting place to the nearest reachable evacuation centre.{" "}
+            {evacSummaryText(ev)} River levels are indicative scenarios, not forecasts. Follow
+            official MBSA / JPS / NADMA guidance.
+          </p>
+          <div className="overflow-x-auto rounded-lg border border-line bg-card">
+            <table className="w-full text-left text-sm">
+              <caption className="sr-only">
+                Evacuation journey results by mobility profile and river level, as counts of
+                journeys
+              </caption>
+              <thead className="bg-brand-tint">
+                <tr>
+                  <th scope="col" className="px-3 py-2 font-medium">
+                    Profile
+                  </th>
+                  <th scope="col" className="px-3 py-2 font-medium">
+                    River level
+                  </th>
+                  {EVAC_RESULTS.map((r) => (
+                    <th key={r} scope="col" className="px-3 py-2 font-medium">
+                      {evacResultLabel(r)}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {ev.rows.map((row) => (
+                  <tr key={`${row.profile}/${row.scenario_id}`} className="border-t border-line">
+                    <th scope="row" className="px-3 py-2 font-medium">
+                      {profileLabel(row.profile)}
+                    </th>
+                    <td className="px-3 py-2">{evacScenarioLabel(row.scenario_id)}</td>
+                    {EVAC_RESULTS.map((r) => (
+                      <td key={r} className="px-3 py-2">
+                        {row.counts[r] ?? 0}
+                        <span className="text-ink-soft"> of {row.total}</span>
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+                {ev.rows.length === 0 && (
+                  <tr>
+                    <td colSpan={7} className="px-3 py-3 text-ink-soft">
+                      No evacuation journeys were run.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
     </div>
   );
 }

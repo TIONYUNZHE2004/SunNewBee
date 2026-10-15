@@ -72,7 +72,7 @@ def test_explicit_database_url_is_honoured(tmp_path):
 
 
 def test_all_three_stores_share_one_path_per_world(monkeypatch, tmp_path):
-    from townshiplens_api import state
+    from townshiplens_api import state, store
     from townshiplens_api.routes import manage, sim
 
     monkeypatch.delenv("DATABASE_URL", raising=False)
@@ -82,7 +82,7 @@ def test_all_three_stores_share_one_path_per_world(monkeypatch, tmp_path):
     assert path.endswith(f"/{state.get_ctx().world.site.id}.db")
     manage._audit()
     sim._store()
-    assert path in manage._audits and path in sim._stores
+    assert path in manage._audits and path in store._sim_stores
 
 
 def test_layer_etag_304_and_changes_after_resolve():

@@ -111,6 +111,7 @@ test("journey tests: staff runs the batch and sees the stroller row", async ({ p
   const matrix = page.getByRole("table", { name: /Journey outcomes by mobility profile/ });
   await expect(matrix.getByRole("rowheader", { name: "Stroller" })).toBeVisible();
   await expect(page.getByRole("status").filter({ hasText: "finished" })).toBeVisible();
+  await expect(page.getByRole("table", { name: /Evacuation journey results/ })).toBeVisible();
 });
 
 test("staff edits a fact to Unknown and sees it in history", async ({ page }) => {
