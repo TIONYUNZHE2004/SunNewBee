@@ -1,6 +1,6 @@
 import type { ChatEvent } from "@tl/api-client";
 import { describe, expect, it } from "vitest";
-import { emptyAssistant, reduceChatEvent } from "./chatReducer";
+import { emptyAssistant, isRefusal, reduceChatEvent } from "./chatReducer";
 
 const ev = (e: unknown) => e as ChatEvent;
 
@@ -72,5 +72,31 @@ describe("reduceChatEvent", () => {
     const m = emptyAssistant("a1");
     reduceChatEvent(m, ev({ type: "text.delta", delta: "x" }));
     expect(m.text).toBe("");
+  });
+});
+
+describe("answer status", () => {
+  it("keeps answer_status from the done event", () => {
+    const m = reduceChatEvent(emptyAssistant("a"), {
+      type: "done",
+      message_id: "m",
+      answer_status: "cannot_answer",
+      model: "mock",
+    } as never);
+    expect(m.done).toBe(true);
+    expect(m.answerStatus).toBe("cannot_answer");
+    expect(isRefusal(m)).toBe(true);
+  });
+  it("an answered message is not a refusal; an errored one is not either", () => {
+    const ok = reduceChatEvent(emptyAssistant("a"), {
+      type: "done",
+      message_id: "m",
+      answer_status: "answered",
+      model: "mock",
+    } as never);
+    expect(isRefusal(ok)).toBe(false);
+    expect(isRefusal({ ...emptyAssistant("b"), error: "x", answerStatus: "cannot_answer" })).toBe(
+      false,
+    );
   });
 });

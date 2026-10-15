@@ -21,6 +21,7 @@ export interface AssistantMessage {
   disclaimer?: Disclaimer;
   vrs: VerificationRequested[];
   error?: string;
+  answerStatus?: string;
   done: boolean;
 }
 
@@ -62,8 +63,12 @@ export function reduceChatEvent(m: AssistantMessage, ev: ChatEvent): AssistantMe
     case "error":
       return { ...m, error: ev.message };
     case "done":
-      return { ...m, done: true };
+      return { ...m, done: true, answerStatus: ev.answer_status };
     default:
       return m;
   }
 }
+
+/** "I can't answer that yet" is a normal outcome, shown calmly; a transport error is not. */
+export const isRefusal = (m: AssistantMessage): boolean =>
+  !m.error && m.answerStatus === "cannot_answer";
