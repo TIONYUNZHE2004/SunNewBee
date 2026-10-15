@@ -760,3 +760,26 @@ Deferred from Task 46 (review I2: answers never name a closure) and Task 41 (its
   - in-app prompts are unaffected;
   - the demo replay-diff test passes. Re-record Elmina entries only if they change.
 - **Out of scope:** `packages/spatial` (read only), `apps/web`, `data/seed`.
+
+### Task 49: Demo script, proposal outline and pitch docs match the built product (docs)
+
+Demo & pitch polish (continuation run). `docs/03-product/demo-script.md`, `docs/06-pitch/pitch-narrative.md`, `proposal-outline.md`, `judge-qa.md` and `risks.md` predate what is built:
+- `/?demo=hero`, deep spots, persona chips and "Where can I go?";
+- the honest wording ("Route status: partly unverified", "demo values, not yet surveyed", "No mapped connection (data gap)");
+- the gap map, closures, photo evidence, KPI tiles, journey tests (rest-gap advisories) and DEMO_MODE replay;
+- `pnpm db:reset`.
+
+- **Demo script:** rewrite `docs/03-product/demo-script.md` as the exact click path for the 14 Nov pitch.
+  - **Setup checklist:**
+    - `pnpm db:reset`, then the `townshiplens-dev-demo` config (`LLM_PROVIDER=mock DEMO_MODE=true pnpm dev`);
+    - map keys present;
+    - the fallback is the List view if Google tiles fail.
+  - **Flows:** the `/?demo=hero` walkthrough, plus a manual path for each hero flow. Include what the screen shows at each step and the line the presenter says. Every claim must be checked against the app and the screenshots in `docs/06-pitch/screenshots/`.
+  - **Backup:** a 60–90 s recorded video, and the List view without keys.
+- **Pitch and proposal:**
+  - Update `pitch-narrative.md` slide 3/4 references and `proposal-outline.md` §3 to cite the real screenshots by file name.
+  - Update `judge-qa.md` answers where the product changed: the gap map's "16,131 of 16,148 not yet checked" as the field-survey pitch; closures; rest-gap honesty; major roads with no sidewalk data.
+  - Update `risks.md` statuses for R6/R7 (validator, demo cache, replay-diff test, drift tests are now built).
+- **Key numbers:** refresh `docs/06-pitch/key-numbers.md` with measured product numbers from `data/README.md`, `docs/superpowers/overnight-log.md` and the screenshots: walk components, connected share, centres connected, flood stage edge counts. Mark each as measured on the seed (date).
+- **Method:** verify every statement against code, data, or a screenshot; invent nothing. Keep the existing tone and structure. Do NOT edit code, `AGENTS.md` or `CLAUDE.md`.
+- **Verify:** `pnpm lint`. Commit `docs: …` on the lane branch.
