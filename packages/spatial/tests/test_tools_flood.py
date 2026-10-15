@@ -206,3 +206,13 @@ def test_centre_details_caveat_inferred_node(ctx):
     r = tools.get_place_details(ctx, "evc-hall", None, "default", "park-b")
     assert r.data["reachability"]["entrance_note"] == ENTRANCE_NOTE
     assert ENTRANCE_NOTE in r.warnings
+
+
+def test_centre_flagged_node_inferred_gets_the_caveat_without_a_place(ctx):
+    ctx.world.centres["evc-hall"] = ctx.world.centres["evc-hall"].model_copy(
+        update={"node_inferred": True}
+    )
+    r = tools.list_evacuation_centres(ctx, None, "default", "park-b")
+    rows = {d["centre"]["id"]: d for d in r.data}
+    assert rows["evc-hall"]["entrance_note"] == ENTRANCE_NOTE
+    assert rows["evc-hall"]["centre"]["node_inferred"] is True

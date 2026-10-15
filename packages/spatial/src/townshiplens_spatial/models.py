@@ -132,6 +132,8 @@ class EvacCentre(BaseModel):
     name: str
     coord: LonLat
     node_id: str | None = None
+    # True when node_id comes from an area snap (Task 43): the entrance is not mapped.
+    node_inferred: bool = False
     source: Literal["official_pps", "osm_candidate"]
     capacity: int | None = None
     evidence_url: str | None = None

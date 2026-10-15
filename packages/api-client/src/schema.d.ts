@@ -679,6 +679,11 @@ export interface components {
             name: string;
             /** Node Id */
             node_id?: string | null;
+            /**
+             * Node Inferred
+             * @default false
+             */
+            node_inferred: boolean;
             /** Notes */
             notes?: string | null;
             /** Place Id */

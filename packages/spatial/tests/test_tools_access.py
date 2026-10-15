@@ -205,3 +205,22 @@ def test_place_details_expose_node_inferred(ctx):
     assert tools.get_place_details(ctx, "kiosk").data["node_inferred"] is False
     _infer(ctx, "kiosk")
     assert tools.get_place_details(ctx, "kiosk").data["node_inferred"] is True
+
+
+def test_no_entrance_warning_when_the_place_has_a_mapped_entrance(ctx):
+    """Review I2 (R28): routing ends at the mapped entrance, so the caveat would be false."""
+    from townshiplens_spatial.models import Place
+
+    p = _infer(ctx, "kiosk")
+    ent = Place(id="kiosk-gate", kind="entrance", type="entrance", name="Kiosk gate",
+                coord=[101.51, 3.181], node_id="n-c")  # fmt: skip
+    ctx.world.places[ent.id] = ent
+    p.entrance_ids = ["kiosk-gate"]
+    r = tools.plan_route(ctx, "park-b", "kiosk", "default")
+    assert r.data["routes"]
+    assert not [w for w in r.warnings if "entrance is not mapped" in w]
+    assert not [e for e in r.evidence if e.id == "ev-kiosk.access_point"]
+    # An entrance id that resolves to nothing mapped does not count.
+    p.entrance_ids = ["no-such-entrance"]
+    r = tools.plan_route(ctx, "park-b", "kiosk", "default")
+    assert [w for w in r.warnings if "entrance is not mapped" in w]

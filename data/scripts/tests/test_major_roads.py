@@ -319,3 +319,36 @@ def test_overpass_error_text_is_extracted_from_the_html_page():
     assert msg.startswith("Error: runtime error: open64")
     assert "too busy" in msg and "<" not in msg and "DOCTYPE" not in msg
     assert overpass.error_text("plain failure") == "plain failure"
+
+
+def test_overpass_response_with_remark_is_not_cached(monkeypatch, tmp_path):
+    """Review I1: Overpass answers 200 + `remark` on timeout/out-of-memory with truncated
+    elements; that must not be cached as a complete result."""
+    import json
+
+    monkeypatch.setattr(overpass, "CACHE", tmp_path)
+    monkeypatch.setattr(overpass, "REQUESTS_MADE", 0)
+    monkeypatch.setattr(overpass, "MAX_REQUESTS", 2)
+    monkeypatch.setattr(overpass.time, "sleep", lambda s: None)
+    body = {"elements": [{"type": "way", "id": 1}], "remark": "runtime error: Query timed out"}
+    text = json.dumps(body)
+
+    class R:
+        status_code = 200
+
+        def __init__(self):
+            self.text = text
+
+        def json(self):
+            return body
+
+    monkeypatch.setattr(overpass.requests, "post", lambda *a, **k: R())
+    with pytest.raises(overpass.BudgetExceeded):
+        overpass.query("[out:json];way(id:1);out geom;")
+    assert not list(tmp_path.glob("*.json"))
+    assert overpass.REQUESTS_MADE == 2
+
+
+def test_overpass_failure_classes():
+    assert issubclass(overpass.BudgetExceeded, overpass.OverpassError)
+    assert issubclass(overpass.OverpassFailed, overpass.OverpassError)

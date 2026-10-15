@@ -241,7 +241,7 @@ def _fetch_major_ways(allow_missing: bool = False) -> tuple[list[dict], list[tup
         ql = f'[out:json][timeout:180];way[highway~"^({hw})$"]({s},{w},{n},{e});out geom tags;'
         try:
             elements = overpass.query(ql).get("elements", [])
-        except RuntimeError:  # includes overpass.BudgetExceeded
+        except overpass.OverpassError:  # budget cap or Overpass failing every retry
             if not allow_missing:
                 raise
             missing.append((s, w, n, e))
@@ -303,11 +303,18 @@ def fetch_area_geometry(tile_results: list[tuple[tuple, list[dict]]]) -> dict[in
     if not ids:
         return {}
     ql = f"[out:json][timeout:180];way(id:{','.join(map(str, ids))});out geom;"
-    return {
+    geoms = {
         el["id"]: [g for g in el["geometry"] if g]
         for el in overpass.query(ql).get("elements", [])
         if el["type"] == "way" and el.get("geometry")
     }
+    missing = [i for i in ids if i not in geoms]
+    if missing:  # never silent: those places become inferred centre snaps with a warning
+        print(
+            f"WARNING: OSM outline not returned for {len(missing)} way place(s): "
+            + ", ".join(map(str, missing))
+        )
+    return geoms
 
 
 def _fetch_hydrology() -> list[dict]:
@@ -367,26 +374,47 @@ def build_places(
                 "lonlat": [round(lon, 6), round(lat, 6)],
             }
         )
-        outline = area_geoms.get(el["id"]) if el["type"] == "way" else None
-        if outline and len(outline) >= 2:
-            places[-1]["area"] = [[g["lon"], g["lat"]] for g in outline]
+        if el["type"] == "way":  # a way place is an area, with or without a fetched outline
+            outline = area_geoms.get(el["id"])
+            if outline and len(outline) >= 2:
+                places[-1]["area"] = [[g["lon"], g["lat"]] for g in outline]
+            else:
+                places[-1]["outline_missing"] = True
     return places
 
 
 AREA_SNAP_M = 40.0
-AREA_SNAP_EVIDENCE = "osm_area_boundary_snap"
+AREA_SNAP_EVIDENCE = "osm_area_boundary_snap"  # node inside / within 40 m of the OSM outline
+AREA_CENTRE_EVIDENCE = "osm_area_centre_snap"  # fallback: nearest node to the area centre
+# A walk component smaller than this (and not the network's largest) is a disconnected
+# fragment: snapping a place there would still route as no_data (review I3 / R28).
+MIN_COMPONENT_NODES = 50
+_FALLBACK_REASON = {
+    "outline_missing": "OSM outline not returned for this way",
+    "only_minor_component": (
+        f"walk nodes near the OSM area are only in small disconnected path fragments "
+        f"(< {MIN_COMPONENT_NODES} nodes)"
+    ),
+    "no_node_within_40m": f"no walk node within {AREA_SNAP_M:.0f} m of the OSM area",
+}
 
 
 def assign_nodes(
     places: list[dict], segs: list[dict], max_m: float = 60.0, area_max_m: float = AREA_SNAP_M
 ) -> None:
-    """Point places (and way places without fetched geometry): nearest walk node within max_m.
+    """Point places: nearest walk node within max_m (unchanged).
 
-    Area places (Task 43): the walk node nearest the place point among those inside the OSM
-    polygon or within area_max_m of its boundary; if there is none, the old centre rule (R26:
-    a place never loses the node it had). Either node is an inferred access point, not a
-    mapped entrance: the place gets `node_inferred: true` and a reported `access_point` claim.
+    Area places (Task 43; every way place is one): among walk nodes inside the OSM polygon or
+    within area_max_m of its outline that belong to the main network (the largest component,
+    or one with at least MIN_COMPONENT_NODES nodes), pick the largest component, then the node
+    nearest the place point. Otherwise (no outline, nothing within area_max_m, or only tiny
+    fragments) fall back to the nearest main-network node within max_m of the centre (R26/R28)
+    and set `snap_warning`; if there is none, the place stays without a node, with a warning.
+    Any area snap is an inferred access point, not a mapped entrance: `node_inferred: true` and
+    a reported `access_point` claim.
     """
+    import networkx as nx
+    from shapely import make_valid
     from shapely.geometry import LineString, Point, Polygon
     from shapely.strtree import STRtree
 
@@ -397,50 +425,86 @@ def assign_nodes(
         return Point(lon * kx, lat * ky)
 
     nodes: dict[str, Point] = {}
+    g = nx.Graph()
     for s in segs:
         nodes[s["from"]] = proj(*s["coords"][0])
         nodes[s["to"]] = proj(*s["coords"][-1])
+        g.add_edge(s["from"], s["to"])
+    comp_size: dict[str, int] = {}
+    for comp in nx.connected_components(g):
+        for n in comp:
+            comp_size[n] = len(comp)
+    largest = max(comp_size.values(), default=0)
+
+    def main_network(n: str) -> bool:
+        return comp_size.get(n, 0) >= min(largest, MIN_COMPONENT_NODES)
+
     ids = list(nodes)
     tree = STRtree([nodes[i] for i in ids])
+
+    def snap(p: dict, nid: str, evidence: str, where: str, method: str | None = None) -> None:
+        p["node_id"] = nid
+        p["node_inferred"] = True
+        claim = {
+            **_claim(nid, evidence),
+            "notes": f"nearest walk node {where}; the entrance is not mapped",
+        }
+        if method:
+            claim["method"] = method
+        p["claims"]["access_point"] = claim
+
     for p in places:
         pt = proj(*p["lonlat"])
+        if not (p.get("area") or p.get("outline_missing")):
+            idx = tree.nearest(pt)
+            if idx is not None and pt.distance(nodes[ids[idx]]) <= max_m:
+                p["node_id"] = ids[idx]
+            continue
+        reason = "outline_missing"
         if p.get("area"):
             xy = [(lon * kx, lat * ky) for lon, lat in p["area"]]
             closed = len(xy) >= 4 and xy[0] == xy[-1]
             shape = Polygon(xy) if closed else LineString(xy)
             if closed and not shape.is_valid:
-                shape = shape.buffer(0)
-            cands = []
+                shape = make_valid(shape)  # keeps every lobe (buffer(0) dropped some)
+            near = []
             for i in tree.query(shape.buffer(area_max_m)):
                 d = shape.distance(nodes[ids[i]])
-                if d <= area_max_m:
-                    cands.append((pt.distance(nodes[ids[i]]), ids[i], d))
+                if d <= area_max_m:  # NaN (empty shape) never qualifies
+                    near.append((-comp_size.get(ids[i], 0), pt.distance(nodes[ids[i]]), ids[i], d))
+            cands = [c for c in near if main_network(c[2])]
             if cands:
-                _, nid, d = min(cands)
+                _, _, nid, d = min(cands)
                 if d == 0:
                     where = "inside the OSM area" if closed else "on the OSM area outline"
                 else:
                     where = f"{d:.0f} m outside the OSM area boundary"
-            else:
-                # R26: never lose a node the old centre rule found; keep it, marked inferred.
-                idx = tree.nearest(pt)
-                if idx is None or pt.distance(nodes[ids[idx]]) > max_m:
-                    continue
-                nid = ids[idx]
-                where = (
-                    f"to the area centre ({pt.distance(nodes[nid]):.0f} m from the area centre); "
-                    f"no walk node within {area_max_m:.0f} m of the OSM area"
-                )
-            p["node_id"] = nid
-            p["node_inferred"] = True
-            p["claims"]["access_point"] = {
-                **_claim(nid, AREA_SNAP_EVIDENCE),
-                "notes": f"nearest walk node {where}; the entrance is not mapped",
-            }
-            continue
-        idx = tree.nearest(pt)
-        if idx is not None and pt.distance(nodes[ids[idx]]) <= max_m:
-            p["node_id"] = ids[idx]
+                snap(p, nid, AREA_SNAP_EVIDENCE, where)
+                continue
+            reason = "only_minor_component" if near else "no_node_within_40m"
+        # Fallback: never silent. Nearest main-network node within max_m of the centre.
+        ring = [
+            (-comp_size.get(ids[i], 0), pt.distance(nodes[ids[i]]), ids[i])
+            for i in tree.query(pt.buffer(max_m))
+            if pt.distance(nodes[ids[i]]) <= max_m and main_network(ids[i])
+        ]
+        why = _FALLBACK_REASON[reason]
+        if ring:
+            _, dist, nid = min(ring)
+            snap(
+                p,
+                nid,
+                AREA_CENTRE_EVIDENCE,
+                f"to the area centre ({dist:.0f} m from the area centre); {why}",
+                reason,
+            )
+            p["snap_warning"] = (
+                f"{why}; snapped to the nearest main-network walk node to its centre"
+            )
+        else:
+            p["snap_warning"] = (
+                f"{why}; not snapped (no main-network walk node within {max_m:.0f} m of its centre)"
+            )
 
 
 def _round(c):
@@ -469,7 +533,7 @@ def seg_feature(s: dict) -> dict:
 
 
 def place_feature(p: dict) -> dict:
-    props = {k: v for k, v in p.items() if k not in ("lonlat", "area")}
+    props = {k: v for k, v in p.items() if k not in ("lonlat", "area", "outline_missing")}
     return {
         "type": "Feature",
         "properties": props,
@@ -571,7 +635,7 @@ def main(argv: list[str] | None = None) -> None:
         place_els = _fetch_places(place_tiles)
         area_geoms = fetch_area_geometry(place_tiles)
         hydro_els = _fetch_hydrology()
-    except RuntimeError as exc:  # budget cap (BudgetExceeded) or Overpass failing every retry
+    except overpass.OverpassError as exc:  # budget cap or Overpass failing every retry
         print(f"BLOCKED: {exc}; overpass HTTP requests this run: {overpass.REQUESTS_MADE}")
         raise SystemExit(2) from None
     ways, foot_no = merge_ways(walk_ways, major_ways)
@@ -584,6 +648,9 @@ def main(argv: list[str] | None = None) -> None:
     n_area = sum(1 for p in places if p.get("area"))
     n_inferred = sum(1 for p in places if p.get("node_inferred"))
     print(f"area places with geometry: {n_area}; snapped to an inferred access point: {n_inferred}")
+    for p in places:
+        if p.get("snap_warning"):
+            print(f"WARNING: {p['id']} ({p['name']}): {p['snap_warning']}")
     hydro = hydrology_features(hydro_els)
     write_geojson(OUT / "base" / "walk.geojson", [seg_feature(s) for s in segs])
     write_geojson(OUT / "base" / "places.geojson", [place_feature(p) for p in places])

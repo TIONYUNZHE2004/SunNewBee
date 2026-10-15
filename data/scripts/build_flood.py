@@ -646,6 +646,7 @@ def evac_centres(places: list[dict], area=AREA, dropped: list | None = None) -> 
             name=p["name"],
             coord=f["geometry"]["coordinates"][:2],
             node_id=p.get("node_id"),
+            node_inferred=bool(p.get("node_inferred", False)),
             source="osm_candidate",
         )
 
@@ -741,6 +742,12 @@ def vector_stage(data_dir: Path, eff_hand: np.ndarray, transform, stages=STAGES,
         "places_without_node": sorted(
             pid for pid, f in pts.items() if not f["properties"].get("node_id")
         ),
+        # Review I1/I3 (R28): area places snapped by a fallback, or left unsnapped, and why.
+        "places_snap_warnings": [
+            {"id": pid, "warning": pts[pid]["properties"]["snap_warning"]}
+            for pid in sorted(pts)
+            if pts[pid]["properties"].get("snap_warning")
+        ],
         "dropped_duplicate_centres": dropped,
         "stats": {
             "edges": len(edge_h),
@@ -886,6 +893,7 @@ def write_outputs(
             "partial_edges": vec["partial_edges"],
             "uncovered_places": vec["uncovered_places"],
             "places_without_node": vec.get("places_without_node", []),
+            "places_snap_warnings": vec.get("places_snap_warnings", []),
             "dropped_duplicate_centres": [list(p) for p in vec["dropped_duplicate_centres"]],
         }
         (flood_dir / "coverage.json").write_text(json.dumps(coverage, indent=1) + "\n")

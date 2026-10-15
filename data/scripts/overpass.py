@@ -26,8 +26,16 @@ MAX_REQUESTS: int | None = None
 ENDPOINTS: list[str] | None = None
 
 
-class BudgetExceeded(RuntimeError):
+class OverpassError(RuntimeError):
+    """Base class for Overpass fetch failures the import reports as BLOCKED."""
+
+
+class BudgetExceeded(OverpassError):
     """Raised instead of making an HTTP request that would exceed MAX_REQUESTS."""
+
+
+class OverpassFailed(OverpassError):
+    """Every attempt failed (HTTP error, connection error or an incomplete response)."""
 
 
 def query(ql: str, retries: int = 6) -> dict:
@@ -37,6 +45,11 @@ def query(ql: str, retries: int = 6) -> dict:
     if key.exists():
         return json.loads(key.read_text())
     current = 0  # index into ENDPOINTS
+
+    def backoff(attempt: int) -> None:
+        if attempt + 1 < retries:  # no pointless wait after the final attempt
+            time.sleep(min(60, 5 * 2**attempt))
+
     for attempt in range(retries):
         if MAX_REQUESTS is not None and REQUESTS_MADE >= MAX_REQUESTS:
             raise BudgetExceeded(f"Overpass request budget of {MAX_REQUESTS} used up")
@@ -53,13 +66,19 @@ def query(ql: str, retries: int = 6) -> dict:
         except requests.RequestException as exc:
             print(f"  overpass error on {url}: {exc}")
             current += 1
-            time.sleep(min(60, 5 * 2**attempt))
+            backoff(attempt)
             continue
         if r.status_code == 200:
             try:
                 data = r.json()
             except ValueError:
                 data = None
+            if isinstance(data, dict) and data.get("remark"):
+                # 200 + remark = timeout / out of memory with truncated elements: incomplete,
+                # so never cached as a complete answer.
+                print(f"  overpass incomplete answer from {url}: {error_text(data['remark'])}")
+                backoff(attempt)
+                continue
             if data is not None:
                 key.write_text(r.text)
                 meta = {"endpoint": url, "fetched_at": datetime.now(UTC).isoformat()}
@@ -71,8 +90,8 @@ def query(ql: str, retries: int = 6) -> dict:
             f"  overpass {r.status_code} on {url}; backing off (attempt {attempt + 1}/{retries})"
             + (f": {head}" if head else "")
         )
-        time.sleep(min(60, 5 * 2**attempt))
-    raise RuntimeError(f"Overpass failed after {retries} attempts")
+        backoff(attempt)
+    raise OverpassFailed(f"Overpass failed after {retries} attempts")
 
 
 def error_text(body: str, limit: int = 300) -> str:

@@ -545,3 +545,27 @@ def test_coverage_lists_places_without_node(tmp_path):
     write_outputs(tmp_path, water, vec, created="2026-10-15")
     cov = json.loads((tmp_path / "flood/coverage.json").read_text())
     assert cov["places_without_node"] == expected
+
+
+def test_coverage_lists_snap_warnings_and_centres_carry_node_inferred(tmp_path):
+    """Review I1/I3 (R28): fallback snaps are listed in coverage; centres built from an
+    inferred-node place say so (typed EvacCentre.node_inferred)."""
+    _write_base(tmp_path)
+    pp = tmp_path / "base/places.geojson"
+    fc = json.loads(pp.read_text())
+    hall = next(f for f in fc["features"] if f["properties"]["id"] == "osm-node-1")
+    hall["properties"]["node_inferred"] = True
+    hall["properties"]["snap_warning"] = "OSM outline not returned for this way; snapped ..."
+    pp.write_text(json.dumps(fc))
+    hand, dem = _synthetic()
+    vec = vector_stage(tmp_path, effective_hand(hand), T, STAGES, MARGIN)
+    assert vec["places_snap_warnings"] == [
+        {"id": "osm-node-1", "warning": "OSM outline not returned for this way; snapped ..."}
+    ]
+    centres = {f["properties"]["place_id"]: f["properties"] for f in vec["centres"]}
+    assert centres["osm-node-1"]["node_inferred"] is True
+    assert centres["osm-node-2"].get("node_inferred", False) is False
+    water = water_features(hand, dem, T, STAGES, simplify_deg=0.0, tile_deg=1.0)
+    write_outputs(tmp_path, water, vec, created="2026-10-15")
+    cov = json.loads((tmp_path / "flood/coverage.json").read_text())
+    assert cov["places_snap_warnings"] == vec["places_snap_warnings"]

@@ -103,11 +103,14 @@ The vintages are mixed, as they are for the walk cache. Re-running `import_osm.p
 17 of 231 seed places have no `node_id`. Among them are 11 parks, 3 schools and the hero "Elmina Urban Park" (`osm-way-1309457596`). The old rule snaps an area's *centre* to a walk node within 60 m, which misses large areas.
 
 - `import_osm.py` now fetches the outline of every way place with one `way(id:…);out geom;` lookup (cached). The place query itself still uses `out center`.
-- Point places keep the 60 m rule. An area place snaps to the walk node nearest its centre among those **inside the polygon or within 40 m of its boundary**. If there is none, it keeps the old 60 m centre snap (R26), so no place loses the node it had. Either way the place gets:
-  - `node_inferred: true`;
-  - an `access_point` claim (`reported`, `evidence_type: osm_area_boundary_snap`) whose note says where the node is.
-- `tools.plan_route` adds, for a route to or from such a place: "Route ends (starts) at the nearest mapped path to <name>; its entrance is not mapped." It also cites the `access_point` evidence.
-- `flood/coverage.json` gains `places_without_node`.
+- Point places keep the 60 m rule. **Every way place is an area.**
+  - **Normal snap.** Candidates are walk nodes inside the polygon or within **40 m** of its outline that belong to the main network: the largest component, or a component of at least 50 nodes. Tiny disconnected fragments never count. The snap picks the largest candidate component, then the node nearest the place centre. Evidence: `osm_area_boundary_snap`.
+  - **Fallback.** It applies when the outline was not returned, when nothing is within 40 m, or when the only candidates are in tiny fragments. The place then takes the nearest main-network node within 60 m of its centre, so no place loses a main-network node it had (R26). A node in a tiny fragment is dropped on purpose (R28: honesty over coverage). Evidence: `osm_area_centre_snap`, with the reason in the claim's `method`. The place gets a `snap_warning`. With no such node, it stays unsnapped, still with a warning.
+  - **Marking.** Every area snap gets `node_inferred: true` and an `access_point` claim (`reported`).
+  - **Coverage.** `flood/coverage.json` lists `places_snap_warnings` (id + warning) and `places_without_node`.
+- **Completeness checks.** Missing outline ids are printed as a warning. An Overpass answer with a `remark` (truncated by a timeout or out-of-memory) is never cached.
+- `tools.plan_route` adds, for a route to or from such a place: "Route ends (starts) at the nearest mapped path to <name>; its entrance is not mapped." It also cites the `access_point` evidence. The warning is suppressed when the place has a mapped entrance, because routing then ends at that entrance.
+- `EvacCentre.node_inferred` (typed in the API) and the `/layers/access` place property `node_inferred` expose the flag.
 - Evacuation centres built from such a place carry `entrance_note` in `list_evacuation_centres` and in the place details' reachability. They add the warning "Reachability ends at the nearest mapped path to <centre>; its entrance is not mapped."
 
 **Status (15 Oct 2026): BLOCKED on Overpass load.** 10 of 12 requests are used.

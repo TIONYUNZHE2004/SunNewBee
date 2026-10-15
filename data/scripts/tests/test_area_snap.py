@@ -66,6 +66,7 @@ def test_area_place_beyond_40_m_stays_unsnapped():
     assert p["node_id"] is None
     assert not p.get("node_inferred")
     assert "access_point" not in p["claims"]
+    assert "not snapped" in p["snap_warning"]
 
 
 def test_area_place_picks_candidate_nearest_the_centre():
@@ -86,8 +87,10 @@ def test_area_place_keeps_old_centre_snap_as_inferred_when_none_within_40_m():
     assign_nodes([p], segs)
     assert p["node_id"] == "n-a" and p["node_inferred"] is True
     c = p["claims"]["access_point"]
-    assert c["evidence_type"] == "osm_area_boundary_snap" and c["status"] == "reported"
+    assert c["evidence_type"] == "osm_area_centre_snap" and c["status"] == "reported"
+    assert c["method"] == "no_node_within_40m"
     assert "no walk node within 40 m" in c["notes"] and "55 m from the area centre" in c["notes"]
+    assert "no walk node within 40 m" in p["snap_warning"]
 
 
 def test_point_place_keeps_the_60_m_rule_and_is_not_inferred():
@@ -100,13 +103,18 @@ def test_point_place_keeps_the_60_m_rule_and_is_not_inferred():
     assert "node_inferred" not in p and "access_point" not in p["claims"]
 
 
-def test_way_place_without_fetched_geometry_falls_back_to_centre_rule():
+def test_way_place_with_missing_outline_is_an_inferred_centre_snap_with_warning():
+    # Review I1 / R28: a way place is an area even when its outline did not come back.
     el = {"type": "way", "id": 9, "center": {"lon": _pt(0, 0)[0], "lat": _pt(0, 0)[1]},
           "tags": {"amenity": "school"}}  # fmt: skip
     (p,) = build_places([el], {})
     segs = [_seg("s1", "n-a", "n-b", _pt(50, 0), _pt(200, 0))]
     assign_nodes([p], segs)
-    assert p["node_id"] == "n-a" and "node_inferred" not in p
+    assert p["node_id"] == "n-a" and p["node_inferred"] is True
+    c = p["claims"]["access_point"]
+    assert c["evidence_type"] == "osm_area_centre_snap" and c["method"] == "outline_missing"
+    assert "outline not returned" in p["snap_warning"]
+    assert "snap_warning" in place_feature(p)["properties"]  # listed in coverage later
 
 
 def test_place_feature_drops_the_internal_polygon():
@@ -163,6 +171,7 @@ URBAN_PARK = "osm-way-1309457596"
 
 @pytest.mark.xfail(
     strict=True,
+    raises=AssertionError,
     reason="Task 43 BLOCKED: area geometry not fetched (Overpass HTTP 500, budget used); "
     "remove this mark after the seed rebuild",
 )
@@ -174,6 +183,7 @@ def test_seed_elmina_urban_park_has_inferred_node_and_warned_route(tmp_path):
     from townshiplens_spatial.world import load_world
 
     w = load_world(Path(__file__).resolve().parents[2] / "seed" / "elmina")
+    assert URBAN_PARK in w.places  # a KeyError here is a real failure, not the expected xfail
     park = w.places[URBAN_PARK]
     assert park.name == "Elmina Urban Park"
     assert park.node_id and park.node_id in w.graph and park.node_inferred
@@ -186,3 +196,75 @@ def test_seed_elmina_urban_park_has_inferred_node_and_warned_route(tmp_path):
         "Route ends at the nearest mapped path to Elmina Urban Park; its entrance is not mapped."
         in r.warnings
     )
+
+
+# --- review I3 / R28: candidates must be in the main walk network ---------------------------
+
+
+def _main_network(n: int = 4) -> list[dict]:
+    """A chain of n segments far east of the test park (the network's largest component)."""
+    return [
+        _seg(f"m{i}", f"n-m{i}", f"n-m{i + 1}", _pt(1000 + 10 * i, 0), _pt(1010 + 10 * i, 0))
+        for i in range(n)
+    ]
+
+
+def test_area_candidates_prefer_the_largest_component():
+    p = _area_place(200.0)
+    main = _main_network()
+    # A tiny fragment right at the centre, and a main-network spur reaching into the park.
+    frag = [_seg("f1", "n-f1", "n-f2", _pt(0, 5), _pt(0, 15))]
+    spur = [_seg("sp", "n-m0", "n-spur", _pt(1000, 0), _pt(180, 0))]
+    assign_nodes([p], main + frag + spur)
+    assert p["node_id"] == "n-spur"
+    assert p["claims"]["access_point"]["evidence_type"] == "osm_area_boundary_snap"
+
+
+def test_area_with_only_tiny_fragment_candidates_falls_back_with_warning():
+    p = _area_place(200.0)
+    frag = [_seg("f1", "n-f1", "n-f2", _pt(0, 5), _pt(0, 15))]
+    assign_nodes([p], _main_network() + frag)
+    # The fragment is the only thing near the park; it is not snapped to, and no main-network
+    # node is within 60 m of the centre, so the place stays without a node, with a warning.
+    assert p["node_id"] is None and not p.get("node_inferred")
+    assert "small disconnected" in p["snap_warning"] and "not snapped" in p["snap_warning"]
+
+
+def test_main_network_node_near_the_outline_beats_a_fragment_inside():
+    p = _area_place(20.0)
+    frag = [_seg("f1", "n-f1", "n-f2", _pt(0, 5), _pt(0, 15))]
+    # A main-network street runs 30 m east of the 40 m-wide lot (within 40 m of its outline),
+    # so it is a boundary candidate and wins over the fragment inside the lot.
+    main = [_seg("m", "n-a", "n-b", _pt(50, -30), _pt(50, 30)), *_main_network()]
+    main.append(_seg("j", "n-b", "n-m0", _pt(50, 30), _pt(1000, 0)))
+    assign_nodes([p], frag + main)
+    assert p["node_id"] in {"n-a", "n-b"}
+    assert p["claims"]["access_point"]["evidence_type"] == "osm_area_boundary_snap"
+
+
+def test_invalid_bowtie_outline_keeps_both_lobes():
+    # Review minor 3: buffer(0) dropped a lobe; make_valid keeps both.
+    el = {"type": "way", "id": 11, "center": {"lon": _pt(0, 0)[0], "lat": _pt(0, 0)[1]},
+          "tags": {"leisure": "park"}}  # fmt: skip
+    ring = [(-100, -100), (100, 100), (100, -100), (-100, 100), (-100, -100)]
+    outline = [{"lon": _pt(x, y)[0], "lat": _pt(x, y)[1]} for x, y in ring]
+    (p,) = build_places([el], {11: outline})
+    # Node deep inside the lobe that buffer(0) used to drop (x < 0 lobe) and > 60 m from centre.
+    for lobe_x in (-90, 90):
+        q = {**p, "claims": {}, "node_id": None}
+        assign_nodes([q], [_seg("s", "n-l", "n-r", _pt(lobe_x, 0), _pt(lobe_x, 5))])
+        assert q["node_id"] == "n-l", lobe_x
+        assert "inside" in q["claims"]["access_point"]["notes"]
+
+
+def test_fetch_area_geometry_warns_about_missing_ids(monkeypatch, capsys):
+    tiles = list(overpass.tiles(import_osm.ENVELOPE, 2))
+    tile_results = [(tiles[0], [{"type": "way", "id": 3}, {"type": "way", "id": 5}])]
+    monkeypatch.setattr(
+        overpass,
+        "query",
+        lambda ql: {"elements": [{"type": "way", "id": 3, "geometry": [{"lon": 1, "lat": 2}]}]},
+    )
+    geoms = import_osm.fetch_area_geometry(tile_results)
+    assert sorted(geoms) == [3]
+    assert "outline not returned for 1 way place(s): 5" in capsys.readouterr().out

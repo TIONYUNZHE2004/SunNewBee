@@ -103,7 +103,7 @@ def _centre_entrance_note(world: World, centre) -> str | None:
     """Task 43: a centre built from an area place whose walk node was inferred (nearest mapped
     path to the OSM area) has no mapped entrance; reachability stops at that path."""
     p = world.places.get(centre.place_id) if centre.place_id else None
-    if p is None or not p.node_inferred:
+    if not (centre.node_inferred or (p is not None and p.node_inferred)):
         return None
     return (
         f"Reachability ends at the nearest mapped path to {centre.name}; "
@@ -271,6 +271,9 @@ def _inferred_endpoints(world: World, from_id: str, to_id: str, warnings: list[s
     for pid, verb in ((from_id, "starts"), (to_id, "ends")):
         p = world.places.get(pid)
         if p is None or not p.node_inferred:
+            continue
+        # Review I2 (R28): routing prefers mapped entrances; then the route does end at one.
+        if any(world.places.get(e) and world.places[e].node_id for e in p.entrance_ids):
             continue
         warnings.append(
             f"Route {verb} at the nearest mapped path to {p.name}; its entrance is not mapped."
