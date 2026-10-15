@@ -834,3 +834,15 @@ The same method as Tasks 51 and 52, for `apps/api` and `packages/spatial`. It in
 - **Classification:** verify each Minor, fix it with a test or classify it, and report a status table.
 - **Out of scope:** `apps/web` (unless an API change needs a 1-line client consumer; prefer none), `packages/agent`, `data/seed`.
 - **Verify:** pytest, golden, lint, gen (commit the client), typecheck, web tests, e2e.
+
+### Task 54: Answers say when a confirmed route rests on demo values (AI)
+
+Follow-up from Task 53 (`RouteResult`/`Route` now carry `demo_evidence: bool`).
+
+- When a route is `confirmed` and `demo_evidence` is true, the mock and `template.py` say "Route status: confirmed (on demo values, not yet surveyed)". They keep the existing "demo values, not yet surveyed" caveat.
+- `validate.py` rejects a confirmed claim over demo evidence that lacks the qualifier.
+- The prompt gets the same rule.
+- The uncertainty item has attribute `demo_values`, already a note in the web banner.
+- **Tests:** tiny fixture with a placeholder-only confirmed route; the in-app prompts; the demo replay-diff test (re-record with the mock if answers change).
+- **Out of scope:** `packages/spatial` (read only), `apps/web`.
+- **Verify:** pytest, golden, lint, gen, e2e.
