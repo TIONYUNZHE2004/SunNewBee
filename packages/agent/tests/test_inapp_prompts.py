@@ -106,15 +106,19 @@ async def test_inapp_prompt_is_answered_by_the_mock(world, tmp_path, msg, profil
         assert "demo values, not yet surveyed" in low
 
 
-async def test_no_data_route_says_data_gap_not_unverified(world, tmp_path):
+async def test_urban_park_route_is_routable_with_entrance_caveat(world, tmp_path):
+    # Task 43 seed rebuild: Elmina Urban Park now snaps to the nearest mapped path (it was
+    # no_data). The answer must say the park's entrance is not mapped. The "(data gap)"
+    # wording for no_data routes stays covered by test_template.py.
     msg, profile, scenario = ACCESS[3]
     evs = await _turn(world, tmp_path, msg, profile, scenario)
     text = _text(evs)
+    assert "Elmina Urban Park to Elmina Lakeside Mall: route confirmed" in text
     assert (
-        "No mapped connection between Elmina Urban Park and Elmina Lakeside Mall (data gap)" in text
+        "Route starts at the nearest mapped path to Elmina Urban Park; "
+        "its entrance is not mapped" in text
     )
-    assert "unverified" not in text.lower() and "blocked" not in text.lower()
-    assert evs[-1].answer_status == "partial"
+    assert "data gap" not in text.lower()
 
 
 async def test_wheelchair_where_can_i_go_is_short(world, tmp_path):
@@ -127,8 +131,15 @@ async def test_wheelchair_where_can_i_go_is_short(world, tmp_path):
     assert m, text
     # Named lines + "and N more" count items, and the filed count is exact.
     unc = next(e for e in evs if e.type == "uncertainty")
-    items = {(i["element_id"], i["attribute"]) for i in unc.items if i["attribute"] != "flood"}
-    assert int(m.group(1)) == len(unc.items) - 5
+    # Caveat items (e.g. a centre's unmapped entrance, Task 43) are shown on their own line
+    # and are not "unchecked items".
+    items = {
+        (i["element_id"], i["attribute"])
+        for i in unc.items
+        if i["attribute"] not in ("flood", "caveat")
+    }
+    counted = [i for i in unc.items if i["attribute"] != "caveat"]
+    assert int(m.group(1)) == len(counted) - 5
     vrs = {(e.element_id, e.attribute) for e in evs if e.type == "verification.requested"}
     k = len(vrs & items)
     asked = re.search(r"Asked the township team to check (\d+) of the (\d+) unchecked items", text)

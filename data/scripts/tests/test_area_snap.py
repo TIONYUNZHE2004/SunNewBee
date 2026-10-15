@@ -3,8 +3,6 @@ within 40 m of its boundary, marked as inferred (`node_inferred`, `access_point`
 
 import math
 
-import pytest
-
 from data.scripts import import_osm, overpass
 from data.scripts.import_osm import assign_nodes, build_places, place_feature
 
@@ -169,12 +167,6 @@ def test_snap_notes_inside_wording():
 URBAN_PARK = "osm-way-1309457596"
 
 
-@pytest.mark.xfail(
-    strict=True,
-    raises=AssertionError,
-    reason="Task 43 BLOCKED: area geometry not fetched (Overpass HTTP 500, budget used); "
-    "remove this mark after the seed rebuild",
-)
 def test_seed_elmina_urban_park_has_inferred_node_and_warned_route(tmp_path):
     from pathlib import Path
 

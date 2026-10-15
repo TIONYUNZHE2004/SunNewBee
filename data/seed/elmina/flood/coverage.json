@@ -285,6 +285,49 @@
   "osm-way-691513797",
   "osm-way-691513809"
  ],
+ "places_without_node": [
+  "osm-way-1286251726",
+  "osm-way-390964557",
+  "osm-way-407859101",
+  "osm-way-691513809",
+  "osm-way-907988141",
+  "osm-way-910713223",
+  "osm-way-910713224"
+ ],
+ "places_snap_warnings": [
+  {
+   "id": "osm-way-1189405597",
+   "warning": "no walk node within 40 m of the OSM area; snapped to the nearest main-network walk node to its centre"
+  },
+  {
+   "id": "osm-way-1286251726",
+   "warning": "no walk node within 40 m of the OSM area; not snapped (no main-network walk node within 60 m of its centre)"
+  },
+  {
+   "id": "osm-way-390964557",
+   "warning": "walk nodes near the OSM area are only in small disconnected path fragments (< 50 nodes); not snapped (no main-network walk node within 60 m of its centre)"
+  },
+  {
+   "id": "osm-way-407859101",
+   "warning": "walk nodes near the OSM area are only in small disconnected path fragments (< 50 nodes); not snapped (no main-network walk node within 60 m of its centre)"
+  },
+  {
+   "id": "osm-way-691513809",
+   "warning": "walk nodes near the OSM area are only in small disconnected path fragments (< 50 nodes); not snapped (no main-network walk node within 60 m of its centre)"
+  },
+  {
+   "id": "osm-way-907988141",
+   "warning": "walk nodes near the OSM area are only in small disconnected path fragments (< 50 nodes); not snapped (no main-network walk node within 60 m of its centre)"
+  },
+  {
+   "id": "osm-way-910713223",
+   "warning": "no walk node within 40 m of the OSM area; not snapped (no main-network walk node within 60 m of its centre)"
+  },
+  {
+   "id": "osm-way-910713224",
+   "warning": "no walk node within 40 m of the OSM area; not snapped (no main-network walk node within 60 m of its centre)"
+  }
+ ],
  "dropped_duplicate_centres": [
   [
    "osm-node-12041425250",
