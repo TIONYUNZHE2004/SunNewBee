@@ -202,8 +202,9 @@ def place(
 
 @router.post("/routes", response_model=RouteResult)
 def routes(req: RouteRequest) -> RouteResult:
+    """Plan only: this anonymous endpoint never files verification requests (the chat does)."""
     r = tools.plan_route(
-        state.get_ctx(), req.from_, req.to, req.profile, req.scenario_id, "api request"
+        state.get_ctx(), req.from_, req.to, req.profile, req.scenario_id, file_vrs=False
     )
     data = copy.copy(r.data)
     data.pop("verification_requests", None)

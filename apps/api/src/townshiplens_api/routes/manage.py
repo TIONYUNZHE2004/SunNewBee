@@ -73,13 +73,16 @@ def vrs(
     element_id: str | None = None,
     attribute: str | None = None,
 ) -> list[VRRow]:
-    """status=all returns every status."""
+    """status=all returns every status. A resolved row's `resolution` omits the staff `note`."""
     ctx = state.get_ctx()
     rows = []
     for vr in ctx.vrs.list(status, reason, element_id, attribute):
         target = ctx.world.edges.get(vr.element_id) or ctx.world.places.get(vr.element_id)
         claim = target.claims.get(vr.attribute) if target else None
-        rows.append(VRRow(**vr.model_dump(), current_value=claim.value if claim else None))
+        row = VRRow(**vr.model_dump(), current_value=claim.value if claim else None)
+        if row.resolution:  # staff free text stays out of the public list (see GET /audit)
+            row.resolution = {k: v for k, v in row.resolution.items() if k != "note"}
+        rows.append(row)
     return rows
 
 

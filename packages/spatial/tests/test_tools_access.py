@@ -239,3 +239,15 @@ def test_plan_route_tool_data_carries_demo_evidence(ctx):
     res = tools.plan_route(ctx, "park-b", "playground", "stroller")
     assert res.data["status"] == "confirmed" and res.data["demo_evidence"] is True
     assert res.data["routes"][0]["demo_evidence"] is True
+
+
+def test_place_details_never_expose_claim_notes(ctx):
+    from townshiplens_spatial.models import Claim
+
+    ctx.world.refresh_claim(
+        "playground", "wheelchair", Claim(value="yes", status="verified", notes="ring 0123456789")
+    )
+    r = tools.get_place_details(ctx, "playground")
+    assert r.data["claims"]["wheelchair"]["value"] == "yes"
+    assert all("notes" not in c for c in r.data["claims"].values())
+    assert "0123456789" not in str(r.model_dump())

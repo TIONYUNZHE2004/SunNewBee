@@ -26,14 +26,14 @@ With no seed data present the API falls back to the tiny test fixture.
 | GET | `/graph` | alias of `/layers/access` (no ETag) |
 | GET | `/places?q=` | find_place |
 | GET | `/places/{id}` | `?scenario_id=&profile=&near=`; 404 if unknown |
-| POST | `/routes` | `{from, to, profile, scenario_id}` |
+| POST | `/routes` | `{from, to, profile, scenario_id}`; plans only, never files verification requests (the chat and staff do) |
 | GET | `/scenarios` | flood scenarios |
 | GET | `/scenarios/{id}` | water polygons, `surface_height_m` shifted by `site.scene.datum_offset_m`; 404 |
 | GET | `/scenarios/{id}/affected` | `?profile=`; 404 unknown scenario |
 | GET | `/evacuation-centres` | `?scenario_id=&profile=&near=` |
 | GET | `/waste-points` | `?type=&near=` |
 | GET | `/briefings/flood` | `?scenario_id=&profile=`; centres measured from `lakeside-mall` or the first facility |
-| GET | `/verification-requests` | `?status=` (default `open`; `all` returns every status), `&reason=&element_id=&attribute=`; each row adds the claim's `current_value` |
+| GET | `/verification-requests` | `?status=` (default `open`; `all` returns every status), `&reason=&element_id=&attribute=`; each row adds the claim's `current_value`; a resolved row's `resolution` omits the staff `note` (kept in `GET /audit`) |
 | POST | `/verification-requests` | staff; `{target_id, attribute, reason}`; sanitised with `safe_vr_args` (source `staff`), deduped against the open VR (demand + 1); 503 if the store is unavailable |
 | GET | `/closures` | public; `?active=true` (default: in force now) or `false` (ended or not started); every row is a staff report (`source_label` "Reported closure (staff)") |
 | POST | `/closures` | staff; `{element_id, reason: works/event/flooding/other, starts_at?, ends_at?, note?}`; 404 unknown element, 422 end not after start; audit row `closure:create` |

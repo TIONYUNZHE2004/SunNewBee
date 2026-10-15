@@ -265,6 +265,8 @@ def get_place_details(
         for a, c in p.claims.items()
     ]
     data = p.model_dump(mode="json")
+    for c in data["claims"].values():
+        c.pop("notes", None)  # staff free text (resolve/PATCH note): public via /places and the LLM
     live = [c for c in p.closures if c.is_active()]
     data["closures"] = [closure_row(ctx.world, c) for c in live]
     ev += [_closure_ev(ctx.world, c) for c in live]
@@ -383,7 +385,10 @@ def plan_route(
     profile: str,
     scenario_id: str | None = None,
     question_summary: str | None = None,
+    file_vrs: bool = True,
 ) -> ToolResult:
+    """`file_vrs=False` plans without writing: the anonymous REST route must not inflate the
+    staff queue (final review Minor 2)."""
     rr = routing.plan_route(ctx.world, from_id, to_id, profile, scenario_id)
     evidence: list[Evidence] = []
     vrs = []
@@ -392,7 +397,11 @@ def plan_route(
     for r in rr.routes:
         evidence += routing.evidence_for_route(ctx.world, r)
         for u in r.unknowns:
-            if u["attribute"] == "flood" or (u["element_id"], u["attribute"]) in filed:
+            if (
+                not file_vrs
+                or u["attribute"] == "flood"
+                or (u["element_id"], u["attribute"]) in filed
+            ):
                 continue
             filed.add((u["element_id"], u["attribute"]))
             if len(filed) > MAX_ROUTE_VRS:
@@ -402,7 +411,7 @@ def plan_route(
                 u["element_id"], u["attribute"], u.get("reason", "unknown"), question_summary
             )
             vrs.append({**vr.model_dump(mode="json"), "created": created})
-    if rr.status == "no_data":
+    if rr.status == "no_data" and file_vrs:
         for w in rr.warnings:
             if w.startswith("place not mapped: "):
                 vr, created = ctx.vrs.request(
