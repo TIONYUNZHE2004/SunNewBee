@@ -1566,6 +1566,8 @@ export interface components {
             demand: number;
             /** Element Id */
             element_id: string;
+            /** Reason */
+            reason?: string | null;
             /** Request Id */
             request_id: string;
             /**

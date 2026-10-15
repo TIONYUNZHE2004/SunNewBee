@@ -125,7 +125,7 @@ The response is `text/event-stream`. Event vocabulary (a Pydantic union, exporte
 | `citation` | `{ ref, element_id, attribute, state, verified_at, source_type, evidence_id? }` | Render an evidence card; `ref` matches `[1]`-style markers in the text |
 | `uncertainty` | `{ level: "none|partial|high", items: [ { element_id, attribute, note } ] }` | Show an amber banner with the list |
 | `disclaimer` | `{ lens: "flood", text, links: [{label, url}] }` | Persistent banner for scenario answers (never omitted) |
-| `verification.requested` | `{ request_id, element_id, attribute, created: bool }` | Show "We've asked the team to check this" |
+| `verification.requested` | `{ request_id, element_id, attribute, created: bool, demand: int, reason?: string }` | Show "We've asked the team to check this" |
 | `error` | `{ code, message }` | Show a retry option |
 | `done` | `{ message_id, usage? }` | Close the stream |
 

@@ -37,8 +37,13 @@ DEFAULT_DISCLAIMER = (
 
 
 def _route_status_line(ans: FinalAnswer, rec: TurnRecord) -> str | None:
-    rid = ans.route_id if ans.route_id in rec.routes else next(iter(rec.routes), None)
-    if rid is None:
+    # Same route the validator checked: the named one, else the only one. With several routes and
+    # no route_id the label would name a route nobody verified, so it is left out.
+    if ans.route_id in rec.routes:
+        rid = ans.route_id
+    elif len(rec.routes) == 1:
+        rid = next(iter(rec.routes))
+    else:
         return None
     return f"Route status: {status_label(rec.route_status.get(rid, 'no_data'))}"
 
@@ -73,7 +78,8 @@ def _caveat_items(rec: TurnRecord, ans: FinalAnswer) -> list[dict[str, str]]:
     out: list[dict[str, str]] = []
     for rid, route in rec.routes.items():
         if route.get("rest_limit_met") is False:
-            out.append({"element_id": rid, "attribute": "rest_gap", "note": rest_caveats(route)[0]})
+            if lines := rest_caveats(route):  # empty when the route carries no rest limit
+                out.append({"element_id": rid, "attribute": "rest_gap", "note": lines[0]})
             continue
         needed = set(route.get("rest_points_unverified") or [])
         for p in route.get("rest_points") or []:

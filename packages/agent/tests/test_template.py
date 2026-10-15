@@ -128,7 +128,7 @@ def test_cannot_answer_names_missing_attribute():
         status="unknown",
     )
     a = template_answer(r, "x")
-    assert "status" in a.summary and "wp-ewaste" in a.summary
+    assert "status" in a.summary and "wp-ewaste" not in a.summary  # readable, no raw id
     assert validate_answer(a, r) == []
 
 
@@ -243,3 +243,24 @@ def test_template_still_says_segments_unverified_when_there_are_unknowns():
     a = template_answer(r, "route?")
     assert "Some segments are still unverified." in a.caveats
     assert any(c.startswith("Longest stretch without a rest point") for c in a.caveats)
+
+
+def test_cannot_answer_ignores_unknowns_of_several_elements():
+    """Review (Task 28 M6): an unrelated unknown fact must not be reported as the gap."""
+    r = TurnRecord(tool_calls=["find_place"])
+    for i in ("a", "b"):
+        r.evidence[f"ev-wp-{i}.status"] = Evidence(
+            id=f"ev-wp-{i}.status", element_id=f"wp-{i}", attribute="status", status="unknown"
+        )
+    a = template_answer(r, "x")
+    assert "checked" not in a.summary and "wp-" not in a.summary
+    assert validate_answer(a, r) == []
+
+
+def test_template_no_data_does_not_say_the_data_gap_twice():
+    """Review (Task 44 #6): the caveat names the gap, the summary must not repeat it."""
+    r = TurnRecord(tool_calls=["plan_route"])
+    r.routes["rt-1"] = {"unknowns": []}
+    r.route_status["rt-1"] = "no_data"
+    a = template_answer(r, "route?")
+    assert " ".join([a.summary, *a.caveats]).count("No mapped connection") == 1

@@ -116,3 +116,24 @@ def test_committed_entries_load_and_are_mock():
         meta = json.loads(f.read_text().splitlines()[0])["meta"]
         assert demo.load(f.stem, f.parent) is not None, f.name
         assert meta["model"].startswith("mock") and meta["world"], f.name
+
+
+async def test_replay_files_the_recorded_reason(tmp_path):
+    """Review (final review Minor 10): a missing_place VR replays as missing_place."""
+    from townshiplens_agent.events import Done, VerificationRequested
+
+    store = VerificationStore(str(tmp_path / "reason.db"))
+    events = [
+        VerificationRequested(
+            request_id="x",
+            element_id="unknown_place",
+            attribute="existence",
+            created=True,
+            demand=1,
+            reason="missing_place",
+        ),
+        Done(message_id="m", answer_status="cannot_answer", model="mock-scripted"),
+    ]
+    out = [e async for e in demo.replay(events, store)]
+    row = next(r for r in store.list() if r.id == out[0].request_id)
+    assert row.reason == "missing_place"

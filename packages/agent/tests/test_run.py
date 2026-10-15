@@ -931,3 +931,84 @@ async def test_get_closures_wrapper_runs_through_call_tool(ctx):
     assert results[0]["data"][0]["id"] == "cl-0001"
     assert results[0]["data"][0]["source_label"] == "Reported closure (staff)"
     assert "ev-closure-cl-0001" in rec.evidence
+
+
+# --- Task 52: parked Minors (mock, run label, disclaimer) ---------------------------------------
+
+
+async def test_waste_schedule_question_says_no_schedule_is_recorded(ctx):
+    """Review (Task 28 M2): a "when" question gets the locations plus an honest schedule gap."""
+    evs = await collect(ctx, "When is rubbish collected?", profile="default")
+    low = _text(evs).lower()
+    assert "no collection schedule is recorded" in low and "ask mbsa" in low
+    assert evs[-1].answer_status == "partial" and evs[-1].model == "mock-scripted"
+
+
+@pytest.mark.parametrize("q", ["Is the weather better today?", "Where is my batter bowl?"])
+async def test_waste_route_ignores_batter_and_better(ctx, q):
+    evs = await collect(ctx, q, profile="default")
+    assert not any(e.type == "tool.call" and e.name == "find_waste_points" for e in evs)
+
+
+async def test_management_briefing_follows_the_asked_level(ctx):
+    """Review (Task 40 M1): "rises 1 m" must not answer River +3 m."""
+    evs = await collect(ctx, "Which places are cut off if the river rises 1 m?", profile="default")
+    call = next(e for e in evs if e.type == "tool.call" and e.name == "affected_places")
+    assert call.args["scenario_id"] == "stage_p1m"
+    text = _text(evs)
+    assert "River +1 m" in text and "+3 m" not in text
+    assert [e.evidence_id for e in evs if e.type == "citation"] == ["ev-scn-stage_p1m"]
+    intent = next(e for e in evs if e.type == "scene.intent").intent
+    assert intent.scenario_id == "stage_p1m"
+
+
+async def test_where_can_i_go_with_a_named_level_plans_instead_of_asking_for_one(ctx):
+    """Review (Task 40 M2): the question names the level, so no "pick a river level" reply."""
+    evs = await collect(ctx, "Where can I go if the river rises 3 m?", profile="default")
+    assert "Pick a river level" not in _text(evs)
+    assert any(e.type == "tool.call" for e in evs)
+    bare = await collect(ctx, "Where can I go?", profile="default")
+    assert "Pick a river level" in _text(bare)
+
+
+def test_route_status_label_is_left_out_when_the_route_is_ambiguous(ctx):
+    """Review (Task 28 M4): several routes and no route_id: the label would be unchecked."""
+    rec, ans = _label_events("confirmed")
+    rec.routes["rt-2"] = dict(rec.routes["rt-1"])
+    rec.route_status["rt-2"] = "blocked"
+    ans = ans.model_copy(update={"route_id": None})
+    assert run_mod._route_status_line(ans, rec) is None
+    assert run_mod._route_status_line(ans.model_copy(update={"route_id": "rt-2"}), rec) == (
+        "Route status: blocked"
+    )
+
+
+def test_rest_gap_without_a_limit_does_not_crash_the_items(ctx):
+    """Review (Task 48 M2): rest_limit_met False with no rest_limit_m used to raise IndexError."""
+    rec, ans = _label_events("confirmed")
+    rec.routes["rt-1"]["rest_limit_met"] = False
+    assert run_mod._caveat_items(rec, ans) == []
+
+
+def test_unchecked_rest_point_and_demo_values_become_items(ctx):
+    """Review (Task 48 M3): the rest-point and demo-values items had no test."""
+    rec, ans = _label_events("partly_unverified", caveats=["Segment facts are demo values."])
+    rec.routes["rt-1"].update(
+        rest_limit_m=100.0,
+        rest_limit_met=True,
+        rest_points=[{"place_id": "b1", "name": "Bench by the pond"}],
+        rest_points_unverified=["b1"],
+    )
+    ans = ans.model_copy(update={"caveats": ["Segment facts are demo values, not yet surveyed."]})
+    items = run_mod._caveat_items(rec, ans)
+    assert [i["attribute"] for i in items] == ["rest_point", "demo_values"]
+    assert items[0]["note"] == "Rest point not checked yet: Bench by the pond"
+
+
+def test_scenario_disclaimer_is_emitted_exactly_once(ctx):
+    """Review (Task 28 M5): a tool-run turn with a UI scenario still gets one disclaimer."""
+    rec, ans = _label_events("confirmed")
+    rec.scenarios_used.add("stage_p3m")
+    ans = ans.model_copy(update={"scenario_id": "stage_p3m"})
+    evs = run_mod._answer_events(ans, rec, ctx, "stage_p3m")
+    assert sum(e.type == "disclaimer" for e in evs) == 1

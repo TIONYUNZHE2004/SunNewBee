@@ -83,7 +83,9 @@ async def replay(events: list[ChatEvent], vrs=None) -> AsyncIterator[ChatEvent]:
             await asyncio.sleep(DELAY_S)
         if isinstance(ev, VerificationRequested) and vrs is not None:
             # Keep the staff queue consistent: replay files/upvotes the VR like a live turn.
-            vr, created = vrs.request(ev.element_id, ev.attribute, "unknown", "demo replay")
+            vr, created = vrs.request(
+                ev.element_id, ev.attribute, ev.reason or "unknown", "demo replay"
+            )
             ev = ev.model_copy(
                 update={"request_id": vr.id, "created": created, "demand": vr.demand}
             )

@@ -846,6 +846,14 @@ def rewrite_disclaimers(data_dir: Path) -> int:
     methods = [s["method"] for s in json.loads(text)["scenarios"]]
     new = json.dumps(DISCLAIMERS["rem"], ensure_ascii=False)
     pat = re.compile(r'("disclaimer": )"(?:[^"\\]|\\.)*"')
+    found = len(pat.findall(text))
+    if found != len(methods):
+        # The n-th hit is paired with the n-th scenario: a second (e.g. nested) key would shift
+        # the pairing and overwrite a HAND scenario's text, so refuse to touch the file.
+        raise ValueError(
+            f"scenarios.json has {found} disclaimer keys for {len(methods)} scenarios; "
+            "not rewriting"
+        )
     it = iter(methods)
     count = 0
 

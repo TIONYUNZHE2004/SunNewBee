@@ -79,6 +79,8 @@ class VerificationRequested(BaseModel):
     attribute: str
     created: bool
     demand: int
+    # Why the check was asked for (the VR's reason); a demo replay files the same reason.
+    reason: str | None = None
 
 
 class ErrorEvent(BaseModel):
