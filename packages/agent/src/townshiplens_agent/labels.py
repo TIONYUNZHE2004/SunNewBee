@@ -5,6 +5,7 @@ The structured values (route_status, element_id, attribute) stay unchanged in ev
 """
 
 import re
+from datetime import datetime
 
 from townshiplens_spatial.attributes import ATTRIBUTE_LABELS
 from townshiplens_spatial.routing import rest_gap_text
@@ -224,3 +225,47 @@ def rest_caveats(route: dict) -> list[str]:
         f"Rest {'point' if one else 'points'} not checked yet: {', '.join(names)}; this route "
         f"needs {'it' if one else 'them'} to keep every stretch within {limit:g} m."
     ]
+
+
+CLOSURE_WORDS = "Closed (staff report)"  # every closure line starts with this (validator, UI text)
+_CLOSURE_REASONS = {
+    "works": "works",
+    "event": "event",
+    "flooding": "flooding",
+    "other": "other reason",
+}
+
+
+def closure_name(row: dict) -> str:
+    """The closed element's name as the answer writes it ("an unnamed footway" when it has none)."""
+    name = (row.get("element_name") or "").strip()
+    if not name:
+        return "an unnamed element"
+    if name.startswith("Unnamed "):
+        return "an unnamed " + name.removeprefix("Unnamed ")
+    return name
+
+
+def closure_line(row: dict) -> str:
+    """ "Closed (staff report): Jalan Hopea until 20 Oct 2026 - works". `row` is a closure_row
+    (spatial tools); its `ends_at` is already in the site's time zone, so the date is read as is."""
+    ends = row.get("ends_at")
+    if ends:
+        d = datetime.fromisoformat(ends)
+        until = f"{d.day} {d.strftime('%b %Y')}"
+    else:
+        until = "further notice"
+    reason = _CLOSURE_REASONS.get(row.get("reason") or "", "reason not stated")
+    return f"{CLOSURE_WORDS}: {closure_name(row)} until {until} \u2014 {reason}"
+
+
+def closure_caveats(rows: list[dict]) -> list[str]:
+    """One caveat per closure, first-seen order, no repeats."""
+    return list(dict.fromkeys(closure_line(r) for r in rows))
+
+
+def closure_summary_tail(rows: list[dict], status: str) -> str:
+    """Extra words for a route summary: a blocked route says what blocked it."""
+    if status == "blocked" and any(r.get("impact") == "blocked" for r in rows):
+        return "blocked by a reported closure"
+    return ""

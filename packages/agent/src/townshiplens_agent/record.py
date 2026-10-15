@@ -18,4 +18,10 @@ class TurnRecord:
     # Names of places/centres the tools returned: stripped before the flood-wording check, so a
     # place called "Taman Selamat" can still be named in a caveat.
     place_names: set[str] = field(default_factory=set)
+    # Staff-reported closures plan_route says affect a route (rows with element_name, impact), and
+    # every closure row any tool returned this turn (id -> row).
+    route_closures: list[dict] = field(default_factory=list)
+    closures: dict[str, dict] = field(default_factory=dict)
+    # Plan_route warnings about endpoints whose entrance is not mapped (Task 43).
+    inferred_notes: list[str] = field(default_factory=list)
     queue: asyncio.Queue | None = None

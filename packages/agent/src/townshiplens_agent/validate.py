@@ -3,7 +3,7 @@ import re
 from townshiplens_spatial.attributes import ATTRIBUTE_TYPES
 
 from .answer import FinalAnswer
-from .labels import REST_GAP_WORDS
+from .labels import CLOSURE_WORDS, REST_GAP_WORDS, closure_name
 from .record import TurnRecord
 
 FORBIDDEN = re.compile(r"(?<![\w-])safe(?:ly)?(?![\w-])|\bselamat\b|安全", re.IGNORECASE)
@@ -121,6 +121,19 @@ def validate_answer(ans: FinalAnswer, rec: TurnRecord) -> list[str]:
             "warning as a caveat, e.g. 'Longest stretch without a rest point is about N m "
             "(limit 100 m).'"
         )
+    if rec.route_closures:
+        text = " ".join([ans.summary, *ans.steps, *ans.caveats]).lower()
+        missing = [
+            closure_name(c)
+            for c in rec.route_closures
+            if closure_name(c).lower() not in text or CLOSURE_WORDS.lower() not in text
+        ]
+        if missing:
+            errs.append(
+                "plan_route returned staff-reported closures: name each one in a caveat in the "
+                f"form 'Closed (staff report): <name> until <date> \u2014 <reason>' "
+                f"(missing: {sorted(set(missing))}). If they block the route, say so."
+            )
     if ans.answer_status != "cannot_answer":
         for pid, info in rec.flooded_endpoints.items():
             names = {pid.lower(), str(info.get("name", pid)).lower()}

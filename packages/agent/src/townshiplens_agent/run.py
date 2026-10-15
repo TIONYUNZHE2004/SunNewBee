@@ -22,10 +22,11 @@ from .events import (
     TextDelta,
     Uncertainty,
 )
-from .labels import element_label, status_label, unknown_note
+from .labels import closure_line, element_label, rest_caveats, status_label, unknown_note
 from .record import TurnRecord
 from .settings import AgentSettings
 from .template import template_answer
+from .validate import PLACEHOLDER_CAVEAT
 
 log = logging.getLogger(__name__)
 
@@ -40,6 +41,44 @@ def _route_status_line(ans: FinalAnswer, rec: TurnRecord) -> str | None:
     if rid is None:
         return None
     return f"Route status: {status_label(rec.route_status.get(rid, 'no_data'))}"
+
+
+def _caveat_items(rec: TurnRecord, ans: FinalAnswer) -> list[dict[str, str]]:
+    """Uncertainty items for every caveat except unchecked segments: rest gap, unverified rest
+    points, closures, inferred entrances and demo values, each in readable form."""
+    out: list[dict[str, str]] = []
+    for rid, route in rec.routes.items():
+        if route.get("rest_limit_met") is False:
+            out.append({"element_id": rid, "attribute": "rest_gap", "note": rest_caveats(route)[0]})
+            continue
+        needed = set(route.get("rest_points_unverified") or [])
+        for p in route.get("rest_points") or []:
+            if p.get("place_id") in needed:
+                name = p.get("name") or "an unnamed rest point"
+                out.append(
+                    {
+                        "element_id": p["place_id"],
+                        "attribute": "rest_point",
+                        "note": f"Rest point not checked yet: {name}",
+                    }
+                )
+    out += [
+        {"element_id": c["element_id"], "attribute": "closure", "note": closure_line(c)}
+        for c in rec.route_closures
+    ]
+    out += [
+        {"element_id": "route", "attribute": "entrance", "note": n.rstrip(".")}
+        for n in rec.inferred_notes
+    ]
+    if any(PLACEHOLDER_CAVEAT in c.lower() for c in ans.caveats):
+        out.append(
+            {
+                "element_id": "route",
+                "attribute": "demo_values",
+                "note": f"Some segment facts are {PLACEHOLDER_CAVEAT}",
+            }
+        )
+    return out
 
 
 def _answer_events(
@@ -87,9 +126,6 @@ def _answer_events(
                 )
 
     unknowns = [u for r in rec.routes.values() for u in r.get("unknowns", [])]
-    level = "partial" if unknowns else "none"
-    if ans.answer_status == "cannot_answer":
-        level = "high"
 
     def _note(u: dict) -> str:
         edge = ctx.world.edges.get(u["element_id"])
@@ -101,6 +137,11 @@ def _answer_events(
         {"element_id": u["element_id"], "attribute": u["attribute"], "note": _note(u)}
         for u in unknowns
     ]
+    items += _caveat_items(rec, ans)
+    # Partial whenever the answer carries any caveat (not only unchecked segments).
+    level = "partial" if unknowns or items or ans.caveats else "none"
+    if ans.answer_status == "cannot_answer":
+        level = "high"
     evs.append(Uncertainty(level=level, items=items))
 
     if (
