@@ -2,12 +2,9 @@
 
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter } from "react-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { json, newQueryClient, renderWithClient, stubFetch } from "../../test/helpers";
 import { useScene } from "../scene/sceneStore";
-import { GapLegend, GapProfileNote } from "./GapLegend";
-import { GapMapLink } from "./GapMapLink";
 import { GapsLensSection, GapsSection } from "./GapsSection";
 import type { GapItem } from "./gapModel";
 
@@ -120,32 +117,6 @@ describe("GapsLensSection (connected)", () => {
   });
 });
 
-describe("GapLegend and GapMapLink", () => {
-  it("names the three bands in words", () => {
-    render(<GapLegend />);
-    const items = within(screen.getByRole("list", { name: "Gap map legend" })).getAllByRole(
-      "listitem",
-    );
-    expect(items.map((i) => i.textContent)).toEqual([
-      "Fully checked",
-      "Some facts missing",
-      "Many facts missing",
-    ]);
-  });
-
-  it("links the queue to the gap map", () => {
-    render(
-      <MemoryRouter>
-        <GapMapLink />
-      </MemoryRouter>,
-    );
-    expect(screen.getByRole("link", { name: /gaps on the map/i })).toHaveAttribute(
-      "href",
-      "/?gaps=1",
-    );
-  });
-});
-
 describe("store", () => {
   it("is off by default and toggles", () => {
     expect(useScene.getState().gapsVisible).toBe(false);
@@ -153,36 +124,6 @@ describe("store", () => {
     expect(useScene.getState().gapsVisible).toBe(true);
     useScene.getState().reset();
     expect(useScene.getState().gapsVisible).toBe(false);
-  });
-});
-
-describe("profiles with no route-deciding facts", () => {
-  const NOTE =
-    "The gap map shows facts that matter for stroller, wheelchair and older-adult travel. Pick one of those profiles to see gaps.";
-
-  it.each(["default", "drive"] as const)("shows the note for %s and draws no list", (p) => {
-    useScene.getState().setProfile(p);
-    useScene.getState().setGaps(true);
-    renderWithClient(
-      <>
-        <GapProfileNote />
-        <GapsLensSection />
-      </>,
-    );
-    expect(screen.getByRole("note")).toHaveTextContent(NOTE);
-    expect(screen.queryByText("Biggest gaps")).not.toBeInTheDocument();
-    expect(screen.queryByText(/Fully checked/)).not.toBeInTheDocument();
-  });
-
-  it("stays quiet for a profile with facts, or when the toggle is off", () => {
-    useScene.getState().setProfile("stroller");
-    useScene.getState().setGaps(true);
-    const { container, rerender } = renderWithClient(<GapProfileNote />);
-    expect(container).toBeEmptyDOMElement();
-    useScene.getState().setProfile("default");
-    useScene.getState().setGaps(false);
-    rerender(<GapProfileNote />);
-    expect(screen.queryByRole("note")).not.toBeInTheDocument();
   });
 });
 

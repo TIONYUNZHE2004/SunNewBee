@@ -2,9 +2,9 @@ import { useMemo } from "react";
 import { useClosures, useLayer, useScenarios } from "../../../lib/api";
 import { GapsLensSection } from "../../gaps/GapsSection";
 import { gapsApplicable } from "../../gaps/gapModel";
-import { CLOSURE_SOURCE, closureLine } from "../../manage/closureModel";
 import { useScene } from "../sceneStore";
 import { statusStyle } from "../styles";
+import { CLOSURE_SOURCE, closureLine } from "./closureModel";
 import { ListLensSections } from "./LensSections";
 import { groupByType, humanType, parseLayer, routeSteps, withIndicative } from "./listModel";
 

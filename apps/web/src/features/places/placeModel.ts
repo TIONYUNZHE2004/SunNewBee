@@ -6,7 +6,7 @@ import {
 } from "../../lib/evidence";
 import { originName } from "../../lib/placeQuery";
 import { centreReachLabel } from "../../lib/routeStatus";
-import { closureLine } from "../manage/closureModel";
+import { closureLine } from "../scene/list/closureModel";
 import { humanType } from "../scene/list/listModel";
 
 export type ClaimStatus = "unknown" | "reported" | "verified" | "stale" | "contested";

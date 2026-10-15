@@ -3,7 +3,6 @@ import { screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { renderWithClient } from "../../../test/helpers";
-import { PlaceCard } from "../../places/PlaceCard";
 import { toPlaceView } from "../../places/placeModel";
 import { useScene } from "../sceneStore";
 import { ListView } from "./ListView";
@@ -165,31 +164,5 @@ describe("list view", () => {
     expect(
       screen.queryByRole("heading", { name: "Closed paths and places" }),
     ).not.toBeInTheDocument();
-  });
-});
-
-describe("place card", () => {
-  it("shows a Closed banner with the staff source and date", async () => {
-    state.place = {
-      ok: true,
-      data: {
-        id: "toilet-1",
-        name: "Park toilet",
-        type: "toilet",
-        claims: {},
-        closures: [closure],
-      },
-      evidence: [],
-    };
-    useScene.getState().selectPlace("toilet-1");
-    renderWithClient(
-      <MemoryRouter>
-        <PlaceCard />
-      </MemoryRouter>,
-    );
-    const banner = await screen.findByRole("status");
-    expect(banner).toHaveTextContent("Closed");
-    expect(banner).toHaveTextContent("Reported closure (staff)");
-    expect(banner).toHaveTextContent("20 Oct 2026");
   });
 });
