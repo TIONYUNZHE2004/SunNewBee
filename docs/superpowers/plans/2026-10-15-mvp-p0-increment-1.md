@@ -870,3 +870,14 @@ Follow ruling R33 and `.superpowers/sdd/2026-10-15-mvp-p0-increment-1/final-revi
 - **I3:** DEMO_MODE replay is a cache miss whenever any closure is active. Test: an active closure on a stroller-route footway, with demo mode on, runs the live mock path and names the closure.
 - **Minors:** in-scope review #3 Minors for `packages/agent`.
 - **Verify:** pytest, golden, lint, gen, e2e. Re-record the demo cache with the mock only if answers change.
+
+### Task 57: Refresh docs and numbers after the seed rebuild (final review #3 I4 + doc Minors)
+
+Final review #3 I4 and its doc Minors (`.superpowers/sdd/2026-10-15-mvp-p0-increment-1/final-review-3.md`). The screenshots were re-captured at 15:20; `docs/06-pitch/screenshots/README.md` has their current text.
+
+- **`docs/03-product/demo-script.md`:** the nearest +3 m wheelchair centre is now "SJK (C) Ladang Regent, Elmina" (entrance not mapped; 10 of the 66 unchecked items sent to the team). Centres reachable (default) are 25 → 3.
+- **`docs/06-pitch/key-numbers.md` and `data/README.md`:** stroller reachability is 68/4 and 68 → 47. Task 43 is done: 7 places without a node. Gap map: 16,148 of 16,148 not yet checked for wheelchair, 18 on demo values.
+- **Evacuation journeys:** re-measure with the current code on the seed (`sim.run_evacuation`, Task 47 settings) and quote the new table with its date.
+- **Other doc Minors** from review #3, in READMEs, AGENTS.md and CLAUDE.md, if listed.
+- **Method:** measure every number from code or data right now. Change nothing in code. Keep the tone.
+- **Verify:** `pnpm lint`. Commit `docs: …`.
