@@ -3,7 +3,7 @@ import re
 from townshiplens_spatial.attributes import ATTRIBUTE_TYPES
 
 from .answer import FinalAnswer
-from .labels import CLOSURE_WORDS, REST_GAP_WORDS, closure_name
+from .labels import CLOSURE_WORDS, REST_GAP_WORDS, closure_name, closure_until
 from .record import TurnRecord
 
 FORBIDDEN = re.compile(r"(?<![\w-])safe(?:ly)?(?![\w-])|\bselamat\b|安全", re.IGNORECASE)
@@ -33,6 +33,25 @@ ASKED = re.compile(
     re.IGNORECASE,
 )
 OTHER_ROUTE = {"alternative", "alternate", "other", "another", "second", "different"}
+
+
+OPEN_CLAIM = re.compile(
+    r"(?:\bis|\bare|'s|\bremains?|\bstill|\bnow|\bcurrently)\s+open\b", re.IGNORECASE
+)
+
+
+def _norm_note(text: str) -> str:
+    return " ".join(text.lower().rstrip(". ").split())
+
+
+def _names_closure(segments: list[str], row: dict) -> bool:
+    """One summary, step or caveat holds the closure's marker words, its display name and its
+    "until <date>" text together (a short or shared name alone is not enough)."""
+    name, until = closure_name(row).lower(), closure_until(row).lower()
+    return any(
+        CLOSURE_WORDS.lower() in low and name in low and until in low
+        for low in (seg.lower() for seg in segments)
+    )
 
 
 def _norm_status_text(text: str) -> str:
@@ -121,19 +140,24 @@ def validate_answer(ans: FinalAnswer, rec: TurnRecord) -> list[str]:
             "warning as a caveat, e.g. 'Longest stretch without a rest point is about N m "
             "(limit 100 m).'"
         )
-    if rec.route_closures:
-        text = " ".join([ans.summary, *ans.steps, *ans.caveats]).lower()
-        missing = [
-            closure_name(c)
-            for c in rec.route_closures
-            if closure_name(c).lower() not in text or CLOSURE_WORDS.lower() not in text
-        ]
-        if missing:
-            errs.append(
-                "plan_route returned staff-reported closures: name each one in a caveat in the "
-                f"form 'Closed (staff report): <name> until <date> \u2014 <reason>' "
-                f"(missing: {sorted(set(missing))}). If they block the route, say so."
-            )
+    segments = [ans.summary, *ans.steps, *ans.caveats]
+    named_rows = [*rec.route_closures, *rec.asked_closures]
+    missing = [closure_name(c) for c in named_rows if not _names_closure(segments, c)]
+    if missing:
+        errs.append(
+            "A staff-reported closure must be named in one caveat line, in the form "
+            "'Closed (staff report): <name> until <date> \u2014 <reason>' "
+            f"(missing: {sorted(set(missing))}). If it blocks the route, say so."
+        )
+    if rec.asked_closures and OPEN_CLAIM.search(" ".join(segments)):
+        errs.append(
+            "A staff-reported closure is on record for this place: never say it is open. "
+            "Name the closure instead."
+        )
+    if ans.answer_status != "cannot_answer":
+        for note in rec.inferred_notes:
+            if not any(_norm_note(note) in _norm_note(c) for c in ans.caveats):
+                errs.append(f"plan_route warned: {note!r} Add that as a caveat (word for word).")
     if ans.answer_status != "cannot_answer":
         for pid, info in rec.flooded_endpoints.items():
             names = {pid.lower(), str(info.get("name", pid)).lower()}

@@ -22,6 +22,9 @@ class TurnRecord:
     # every closure row any tool returned this turn (id -> row).
     route_closures: list[dict] = field(default_factory=list)
     closures: dict[str, dict] = field(default_factory=dict)
+    # Active closures get_closures returned for the place asked about (all of them when no place
+    # was given): the answer must name them and must not call the place open.
+    asked_closures: list[dict] = field(default_factory=list)
     # Plan_route warnings about endpoints whose entrance is not mapped (Task 43).
     inferred_notes: list[str] = field(default_factory=list)
     queue: asyncio.Queue | None = None

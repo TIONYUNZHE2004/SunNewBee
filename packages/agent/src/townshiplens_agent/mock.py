@@ -11,6 +11,7 @@ from .labels import (
     attribute_label,
     closure_caveats,
     closure_summary_tail,
+    inferred_caveats,
     rest_caveats,
     status_label,
     unchecked_caveats,
@@ -77,6 +78,21 @@ def _cannot(
 
 def _unknown_caveats(routes: list, vrs: list[dict] | None = None) -> list[str]:
     return unchecked_caveats([u for r in routes for u in r.get("unknowns") or []], vrs)
+
+
+def _inferred(ret: dict) -> list[str]:
+    """plan_route warnings about an endpoint whose entrance is not mapped (Task 43)."""
+    return inferred_caveats(
+        [
+            w
+            for w in ret.get("warnings") or []
+            if w.startswith("Route ") and "entrance is not mapped" in w
+        ]
+    )
+
+
+def _blocked_by_closure(closed: list[dict]) -> bool:
+    return any(c.get("impact") == "blocked" for c in closed)
 
 
 def _status_caveat(status: str, a: str, b: str) -> str:
@@ -374,10 +390,19 @@ def _script(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
         flood_cav, flood_ev, likely = _endpoint_flood(_data(rets[-1][1]))
         caveats = _unknown_caveats(routes[:1], _vrs(rets[-1][1]))
         rest = rest_caveats(route) if route else []
-        if route and route.get("status") != "confirmed" and not caveats and not rest:
-            caveats = [_status_caveat(route.get("status"), found[0]["name"], c0["name"])]
         closed = (_data(rets[-1][1]) or {}).get("closures") or []
-        caveats = _placeholder_caveat(rets, flood_cav + caveats + rest + closure_caveats(closed))
+        if (
+            route
+            and route.get("status") != "confirmed"
+            and not caveats
+            and not rest
+            and not _blocked_by_closure(closed)
+        ):
+            caveats = [_status_caveat(route.get("status"), found[0]["name"], c0["name"])]
+        caveats = _placeholder_caveat(
+            rets,
+            flood_cav + caveats + rest + closure_caveats(closed) + _inferred(rets[-1][1]),
+        )
         confirmed = route and route.get("status") == "confirmed" and not likely and not closed
         start = (
             f" from {DEMO_ORIGIN[1]} (demo start point)"
@@ -474,8 +499,13 @@ def _script(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
             return _call("find_place", query=place_q) if place_q else _call("get_closures")
         found = _data(rets[0][1]) if rets[0][0] == "find_place" else None
         if rets[0][0] == "find_place" and n == 1:
-            if not found:
+            top = found[0].get("score", 1.0) if found else 0.0
+            if top < PLACE_MIN_SCORE:
                 return _cannot("I couldn't find that place in the township model yet.")
+            close = [p for p in found if top - p.get("score", 1.0) < PLACE_CLEAR_MARGIN]
+            if len(close) > 1:
+                names = list(dict.fromkeys(p["name"] for p in close))[:3]
+                return _cannot(f"Which place do you mean? {', '.join(names)}?")
             return _call("get_closures", near_place=found[0]["id"])
         return _closure_answer(rets, place_q)
     if re.search(_ACCESS_Q, q):  # access hero
@@ -506,11 +536,19 @@ def _script(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
         caveats = _unknown_caveats(routes, _vrs(rets[-1][1]))
         # Rest-limit lines (older_adult_rest): the gap over the limit, or unverified rest points.
         rest = rest_caveats(r0) if r0 else []
-        if status not in ("confirmed", "no_data") and not caveats and not rest:
+        closed = rr.get("closures") or []
+        if (
+            status not in ("confirmed", "no_data")
+            and not caveats
+            and not rest
+            and not _blocked_by_closure(closed)
+        ):
             # no_data: the summary says it
             caveats = [_status_caveat(status, a.get("name", a["id"]), b.get("name", b["id"]))]
-        closed = rr.get("closures") or []
-        caveats = _placeholder_caveat(rets, flood_cav + caveats + rest + closure_caveats(closed))
+        caveats = _placeholder_caveat(
+            rets,
+            flood_cav + caveats + rest + closure_caveats(closed) + _inferred(rets[-1][1]),
+        )
         gap = r0.get("max_gap_between_rest_m") if r0 else None
         if gap is not None and plan_profile == "older_adult_rest" and not rest:
             caveats.append(

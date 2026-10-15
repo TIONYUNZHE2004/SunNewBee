@@ -900,11 +900,17 @@ async def test_get_closures_wrapper_runs_through_call_tool(ctx):
         ]
         if returned:
             results.append(returned[0].content)
+            from townshiplens_agent.labels import closure_line
+
             return ModelResponse(
                 parts=[
                     ToolCallPart(
                         tool_name="final_answer",
-                        args={"answer_status": "cannot_answer", "summary": "n/a"},
+                        args={
+                            "answer_status": "partial",
+                            "summary": "A closure is on record.",
+                            "caveats": [closure_line(returned[0].content["data"][0])],
+                        },
                     )
                 ]
             )

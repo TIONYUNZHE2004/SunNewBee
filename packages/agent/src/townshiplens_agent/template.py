@@ -4,6 +4,7 @@ from .labels import (
     attribute_label,
     closure_caveats,
     closure_summary_tail,
+    inferred_caveats,
     rest_caveats,
     unchecked_caveats,
 )
@@ -37,17 +38,20 @@ def template_answer(rec: TurnRecord, question: str) -> FinalAnswer:
     likely_flooded = any(
         i["flood_class"] == "likely_flooded" for i in rec.flooded_endpoints.values()
     )
-    if not rec.routes and rec.route_closures:  # closures left no route: say which ones
+    closed = [*rec.route_closures, *rec.asked_closures]
+    if not rec.routes and closed:  # closures left no route, or the question was about a closure
+        blocked = any(c.get("impact") == "blocked" for c in rec.route_closures)
         return FinalAnswer(
             answer_status="cannot_answer",
             summary=(
                 f"Route {closure_summary_tail(rec.route_closures, 'blocked')}."
-                if any(c.get("impact") == "blocked" for c in rec.route_closures)
-                else "No route to show: a reported closure affects this trip."
+                if blocked
+                else "A staff-reported closure is on record; see below."
             ),
             scenario_id=scenario_id,
             caveats=[
-                *closure_caveats(rec.route_closures),
+                *closure_caveats(closed),
+                *inferred_caveats(rec.inferred_notes),
                 "Answer generated from data without AI wording.",
             ],
         )
@@ -80,9 +84,11 @@ def template_answer(rec: TurnRecord, question: str) -> FinalAnswer:
     if status == "no_data":
         caveats.append("No mapped connection between these places (data gap).")
     elif status != "confirmed" and (route_unknowns or not rest):
-        caveats.append("Some segments are still unverified.")
+        if route_unknowns or not any(c.get("impact") == "blocked" for c in rec.route_closures):
+            caveats.append("Some segments are still unverified.")
     caveats += rest
-    caveats += closure_caveats(rec.route_closures)
+    caveats += closure_caveats(closed)
+    caveats += inferred_caveats(rec.inferred_notes)
     if any(getattr(e, "source_type", None) == PLACEHOLDER_SOURCE for e in rec.evidence.values()):
         caveats.append(f"Some segment facts are {PLACEHOLDER_CAVEAT}.")
     dist = route.get("distance_m")

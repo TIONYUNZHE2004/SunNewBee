@@ -246,17 +246,20 @@ def closure_name(row: dict) -> str:
     return name
 
 
+def closure_until(row: dict) -> str:
+    """ "until 20 Oct 2026" / "until further notice" for a closure row (site-local date)."""
+    ends = row.get("ends_at")
+    if not ends:
+        return "until further notice"
+    d = datetime.fromisoformat(ends)
+    return f"until {d.day} {d.strftime('%b %Y')}"
+
+
 def closure_line(row: dict) -> str:
     """ "Closed (staff report): Jalan Hopea until 20 Oct 2026 - works". `row` is a closure_row
     (spatial tools); its `ends_at` is already in the site's time zone, so the date is read as is."""
-    ends = row.get("ends_at")
-    if ends:
-        d = datetime.fromisoformat(ends)
-        until = f"{d.day} {d.strftime('%b %Y')}"
-    else:
-        until = "further notice"
     reason = _CLOSURE_REASONS.get(row.get("reason") or "", "reason not stated")
-    return f"{CLOSURE_WORDS}: {closure_name(row)} until {until} \u2014 {reason}"
+    return f"{CLOSURE_WORDS}: {closure_name(row)} {closure_until(row)} \u2014 {reason}"
 
 
 def closure_caveats(rows: list[dict]) -> list[str]:
@@ -269,3 +272,8 @@ def closure_summary_tail(rows: list[dict], status: str) -> str:
     if status == "blocked" and any(r.get("impact") == "blocked" for r in rows):
         return "blocked by a reported closure"
     return ""
+
+
+def inferred_caveats(notes: list[str]) -> list[str]:
+    """Entrance-not-mapped lines (plan_route warnings), no repeats."""
+    return list(dict.fromkeys(notes))
