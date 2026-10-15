@@ -707,3 +707,44 @@ Final review #2 Minors 1, 2, 3 and 6 (`.superpowers/…/final-review-2.md`):
    - `README.md:47` has the stale "data scripts arrive with the data lane" sentence.
    - `CLAUDE.md` says "Tasks 15–36"; make it say "Tasks 15+".
 - **Verify:** vitest, lint, typecheck, build, e2e. Commit on the lane branch.
+
+### Task 46: Time-bounded closures (AX-07 + M-04) (BE + FE)
+
+From the audit: AX-07 is MISSING (`get_closures` is a stub) and M-04 has no UI.
+
+- **Model:** a closure is a claim-like record on an edge or a place: `{id, element_id, reason (works|event|flooding|other), starts_at, ends_at|null, note, created_by: staff, source: staff_report}`. Persist it in the per-world SQLite (the same DB as VRs, with an audit row on create and end). Load active closures into the world on startup and on change, guarded by `world_lock`, with a `world.version` bump so layer ETags change.
+- **Evaluation:** an active closure (`now` within `[starts_at, ends_at)`) makes the element FAIL for every profile, with the reason "Closed: <reason> until <date or 'further notice'>". It never upgrades anything. Expired closures have no effect.
+- **Tool:** `get_closures(near_place?, active_only=true)` replaces the stub. `plan_route` warnings name closures on the chosen route's alternatives when they forced a detour, if cheaply derivable; otherwise skip that part and say so.
+- **API:**
+  - staff `POST /closures` and `POST /closures/{id}/end`, both requiring the staff token;
+  - public `GET /closures?active=`.
+  
+  Run `pnpm gen`.
+- **FE:**
+  - **Manage:** a "Closures" tab with a list, a create form (pick an element by id or from a place search, reason, start/end, note) and an "End now" button.
+  - **Resident:** closed segments are drawn as "Not passable", with a "Closed" label in the list view and the place card.
+- **Tests:**
+  - evaluation inside and outside the window;
+  - the tool;
+  - the API (auth, 422 on an end before the start);
+  - FE DOM tests for the form and list;
+  - the ETag changes after a closure.
+- **Honesty:** never say "safe". Closure text is staff-reported, so show "Reported closure (staff)" with its date.
+
+### Task 47: Evacuation journeys in the journey simulator (G-07) (BE + small FE)
+
+From the audit: G-07 is MISSING (sim tasks have no centre destinations).
+
+- **Sim:** add evacuation journeys. For each profile in (default, stroller, wheelchair, older_adult_rest) and each scenario in (baseline, stage_p1m, stage_p3m, stage_p5m), and for a deterministic sample of residential origins (seeded RNG, N=50 per profile), find the nearest reachable evacuation centre with `list_evacuation_centres` / `centres_reachability`. Each journey ends in exactly one of these results:
+  - `reachable_confirmed`
+  - `reachable_partly_unverified`
+  - `blocked_by_flood`
+  - `no_mapped_connection`
+  - `no_centre`
+- **Invariants checked:**
+  - **Monotonicity:** a journey that becomes blocked at +1 m stays non-confirmed at higher stages.
+  - **Baseline:** a baseline journey equals the no-scenario result.
+  - Report violations as critical. These are G-08 invariants (c).
+- **Runtime:** keep the whole sim under the existing time budget. Final review #2 measured about 75 s synchronously. Cap the evacuation journeys to fit, or move the run to a background task with status polling. Ruling: background task, and `POST /simulations` returns `202` with a run id. The UI polls. Update the JourneyTests UI accordingly.
+- **FE:** JourneyTests gains an "Evacuation" section: a table of profile × scenario with counts per result, in plain words.
+- **Tests:** a tiny-fixture sim with known results; monotonicity on the seed (a sample); the 202 and polling API test; DOM tests for the table.

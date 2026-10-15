@@ -23,7 +23,7 @@ Site: **whole City of Elmina** in 3D, with deep verified detail at **Elmina Urba
 | Path | What |
 |---|---|
 | [`docs/`](docs/README.md) | **Knowledge base: start here.** Brief, research, product spec, architecture, team plan, pitch |
-| [`reference/`](reference/README.md) | Papers (PDF), cloned reference repos (gitignored, use `reference/clone-repos.sh`), source notes |
+| [`reference/`](reference/README.md) | Source notes (tracked); papers and cloned repos are local only: `bash reference/download-papers.sh`, `bash reference/clone-repos.sh` |
 | [`apps/web`](apps/web/README.md) | Vite + React SPA: resident page (3D / lite map / list + chat) and `/manage` |
 | [`apps/api`](apps/api/README.md) | FastAPI: world-model endpoints, SSE `/chat`, verification requests |
 | [`packages/spatial`](packages/spatial/README.md) | World model, routing, flood analytics, the 10 tools |
@@ -44,7 +44,7 @@ requests on `/manage`, set `STAFF_TOKEN` in `.env` to something other than `chan
 refuses the default with a 503) and paste the same value into the "Staff token" field.
 
 Other commands: `pnpm test` (pytest + vitest), `pnpm lint`, `pnpm gen` (OpenAPI to TS client),
-`pnpm golden` (golden questions, mock LLM), `pnpm db:reset` (clear local verification requests and runs before a demo), `pnpm data:build` (rebuild seed data; the data scripts arrive with the data lane, until then the API serves the tiny fixture),
+`pnpm golden` (golden questions, mock LLM), `pnpm db:reset` (clear local verification requests and runs before a demo), `pnpm data:build` (rebuild the seed data from OSM and Copernicus; needs network, and the committed seed is already in `data/seed/elmina`),
 `pnpm --filter @tl/web e2e` (Playwright; first run `pnpm --filter @tl/web exec playwright install chromium`).
 More in [docs/05-team/dev-setup.md](docs/05-team/dev-setup.md).
 

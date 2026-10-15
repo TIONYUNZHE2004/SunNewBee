@@ -132,7 +132,10 @@ function PlaceCardInner({ id }: { id: string }) {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") selectPlace(null);
+      if (e.key !== "Escape") return;
+      // Mark it handled so the demo bar's Esc shortcut does not also exit the demo.
+      e.preventDefault();
+      selectPlace(null);
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
@@ -153,7 +156,7 @@ function PlaceCardInner({ id }: { id: string }) {
       aria-modal="false"
       aria-labelledby="place-card-h"
       tabIndex={-1}
-      className="fixed inset-x-0 bottom-0 z-40 max-h-[75vh] overflow-y-auto rounded-t-2xl border border-line bg-paper p-4 shadow-xl focus-visible:outline-2 focus-visible:outline-brand lg:inset-x-auto lg:bottom-4 lg:right-4 lg:top-20 lg:max-h-none lg:w-96 lg:rounded-2xl"
+      className="fixed inset-x-0 bottom-[var(--demo-bar-h,0px)] z-40 max-h-[75vh] overflow-y-auto rounded-t-2xl border border-line bg-paper p-4 shadow-xl focus-visible:outline-2 focus-visible:outline-brand lg:inset-x-auto lg:bottom-[calc(var(--demo-bar-h,0px)+1rem)] lg:right-4 lg:top-20 lg:max-h-none lg:w-96 lg:rounded-2xl"
     >
       <div className="flex items-start justify-between gap-3">
         <div>

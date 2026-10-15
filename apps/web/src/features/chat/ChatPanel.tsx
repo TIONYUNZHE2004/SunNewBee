@@ -75,9 +75,13 @@ export function ChatPanel() {
 
   useEffect(() => {
     if (!pendingAsk || streaming) return;
+    // Read the live store, not the render closure: StrictMode re-runs this effect with the same
+    // closure, and the first run has already taken the ask.
+    const ask = useChatDraft.getState().pendingAsk;
+    if (!ask) return;
     // Hand over atomically so observers never see "nothing pending and not streaming".
     useChatDraft.setState({ pendingAsk: null, streaming: true });
-    void send(pendingAsk.text, pendingAsk.profile as Profile | undefined, pendingAsk.scenarioId);
+    void send(ask.text, ask.profile as Profile | undefined, ask.scenarioId);
   }, [pendingAsk, streaming, send]);
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: scroll on any message change
