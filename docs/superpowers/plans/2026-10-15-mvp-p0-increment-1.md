@@ -669,3 +669,41 @@ From the audit: AX-09 is MISSING.
   - area-snap unit tests (inside the polygon, within 40 m, beyond 40 m);
   - a seed regression: Elmina Urban Park has a node and a routable route with the warning.
 - **Coordinate:** Task 40 (lane/ai) edits `packages/agent` and `data/demo`. Do not touch those; the coordinator re-records the demo cache after both merge. Task 41 (lane/be) edits `routing.py` and `sim.py`, so add the warning in `tools.py`, not `routing.py`. Task 42 (lane/fe) edits `apps/web` scene/list and adds `/layers/gaps`.
+
+### Task 44: Resident-readable, honest answer wording (AI)
+
+Found in the browser walkthrough of `/?demo=hero` on the Elmina seed, and in final review #2 (`.superpowers/…/final-review-2.md`: I1, I2, Minor 4, Minor 5). The answers and uncertainty notes show machine labels to residents:
+- "Route status: partly_unverified"
+- "Not checked yet: incline_pct on seg-1306543755-2"
+- "stroller needs incline_pct ≤ 8.3; not verified"
+
+They also claim "staff have been asked to check them" when only 10 of 56 were filed.
+
+- **Readable labels:**
+  - Status line: `Route status: confirmed | partly unverified | blocked | no mapped connection (data gap)`. The validator already accepts "partly unverified" with a space; extend it to every label, and keep the structured `route_status` in events unchanged.
+  - Attribute names use catalogue labels: "Incline (%)", "Steps", "Width (m)", "Sidewalk", …. Reuse one mapping. If Python has none, add `ATTRIBUTE_LABELS` beside `attributes.py` and keep it in sync with the web `attributeCatalogue.ts` through a drift test.
+  - Elements use their name ("Jalan Hopea U15/17D"), otherwise "an unnamed footway / street / major road". Never a raw `seg-…` id in answer text.
+  - Uncertainty `note`s read like: "Stroller: incline not checked yet (limit 8.3%)". Never "≤ 8.3; not verified" or raw keys.
+- **Honest counts (final-review I1):** state exactly what happened, e.g. "Asked the township team to check 10 of the 56 unchecked items." The numbers come from the `verification.requested` events this turn and the truncation count. Never say "staff have been asked" for items with no request. This applies to the mock and to `template.py`.
+- **Cap the item count (Minor 4):** the "and N more" must count items, not segments.
+- **Place-info questions (final-review I2):** "Tell me about <place>" and "What is at <place>" call `get_place_details` and summarise its claims with statuses. A found place must never produce "I don't have that place", and no VR is filed when the place exists.
+- **Demo cache:** re-record every Elmina `data/demo` entry with the mock (all 11 tuples plus the default-profile stroller entry `db7c2bc4ca95419d`). Add a pytest that replays every Elmina entry against the current mock and diffs the events, ignoring ids, timestamps and demand (Minor 5).
+- **Tests:**
+  - wording tests for each label;
+  - no `seg-` ids and no `_` keys in any in-app prompt answer;
+  - the counts are exact;
+  - place-info for Lakeside Mall.
+- **Out of scope:** `apps/web` (the UI already renders the text), `packages/spatial` except the label map, and `data/seed`.
+
+### Task 45: Demo-mode and doc fixes from final review #2 (FE + docs)
+
+Final review #2 Minors 1, 2, 3 and 6 (`.superpowers/…/final-review-2.md`):
+1. Esc on an open place card also exits the demo. Fix: `preventDefault()` in PlaceCard's Esc handler, and the same for FloodPathPopover. Add a DOM test.
+2. The demo bar hides the bottom of the PlaceCard and FloodPathPopover. Fix: expose the bar height as the CSS variable `--demo-bar-h` while the demo is active, and offset those overlays' `bottom`. Add a DOM test.
+3. StrictMode sends the question twice when ChatPanel mounts with a pending ask. Fix: read `useChatDraft.getState().pendingAsk` inside the effect and clear it atomically. Add a DOM test under `<StrictMode>` that asserts fetch is called once.
+4. Doc drift:
+   - `packages/spatial/README.md` and `docs/05-team/dev-setup.md` drive types now include `major_road`.
+   - dev-setup still says "no Testing Library".
+   - `README.md:47` has the stale "data scripts arrive with the data lane" sentence.
+   - `CLAUDE.md` says "Tasks 15–36"; make it say "Tasks 15+".
+- **Verify:** vitest, lint, typecheck, build, e2e. Commit on the lane branch.
