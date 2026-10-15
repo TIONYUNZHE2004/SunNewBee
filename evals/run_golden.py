@@ -78,7 +78,8 @@ async def main() -> int:
     cases = yaml.safe_load(GOLDEN.read_text(encoding="utf-8"))
     world = load_world(TINY)
     rows, failed, uncited = [], 0, 0
-    with tempfile.TemporaryDirectory() as tmp:
+    # ignore_cleanup_errors: the stores keep their SQLite files open, which Windows cannot delete.
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
         for i, case in enumerate(cases):
             ctx = tools.Ctx(world=world, vrs=VerificationStore(str(Path(tmp) / f"vr-{i}.db")))
             req = ChatRequest(

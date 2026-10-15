@@ -41,10 +41,12 @@ def test_merge_claims_keeps_existing():
 
 
 def test_seed_single_playground_near_hero():
-    places = json.loads((SEED / "base" / "places.geojson").read_text())["features"]
+    places = json.loads((SEED / "base" / "places.geojson").read_text(encoding="utf-8"))["features"]
     places += [
         f
-        for f in json.loads((SEED / "access" / "overlay.geojson").read_text())["features"]
+        for f in json.loads((SEED / "access" / "overlay.geojson").read_text(encoding="utf-8"))[
+            "features"
+        ]
         if f["properties"]["kind"] == "place"
     ]
     near = [

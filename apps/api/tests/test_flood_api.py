@@ -100,7 +100,7 @@ def test_seed_scenarios_state_their_margin():
 
     from townshiplens_spatial.models import Scenario
 
-    raw = json.loads(Path("data/seed/elmina/flood/scenarios.json").read_text())
+    raw = json.loads(Path("data/seed/elmina/flood/scenarios.json").read_text(encoding="utf-8"))
     items = raw if isinstance(raw, list) else raw["scenarios"]
     assert items and all(Scenario.model_validate(i).margin_m is not None for i in items)
 

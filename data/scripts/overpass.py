@@ -43,7 +43,7 @@ def query(ql: str, retries: int = 6) -> dict:
     CACHE.mkdir(exist_ok=True)
     key = CACHE / (hashlib.sha1(ql.encode()).hexdigest() + ".json")
     if key.exists():
-        return json.loads(key.read_text())
+        return json.loads(key.read_text(encoding="utf-8"))
     current = 0  # index into ENDPOINTS
 
     def backoff(attempt: int) -> None:
@@ -80,9 +80,11 @@ def query(ql: str, retries: int = 6) -> dict:
                 backoff(attempt)
                 continue
             if data is not None:
-                key.write_text(r.text)
+                key.write_text(r.text, encoding="utf-8", newline="\n")
                 meta = {"endpoint": url, "fetched_at": datetime.now(UTC).isoformat()}
-                key.with_suffix(".meta.json").write_text(json.dumps(meta))
+                key.with_suffix(".meta.json").write_text(
+                    json.dumps(meta), encoding="utf-8", newline="\n"
+                )
                 print(f"  overpass OK from {url} -> {key.name}")
                 return data
         head = error_text(r.text or "")  # e.g. Overpass's runtime-error text

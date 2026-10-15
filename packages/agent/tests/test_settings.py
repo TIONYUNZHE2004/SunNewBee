@@ -16,7 +16,7 @@ def test_settings_openrouter_when_key(monkeypatch):
 
 def test_empty_llm_provider_means_default(tmp_path, monkeypatch):
     env = tmp_path / ".env"
-    env.write_text("OPENROUTER_API_KEY=\nLLM_PROVIDER=\n")
+    env.write_text("OPENROUTER_API_KEY=\nLLM_PROVIDER=\n", encoding="utf-8")
     monkeypatch.delenv("LLM_PROVIDER", raising=False)
     monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
     assert AgentSettings(_env_file=env).provider == "mock"

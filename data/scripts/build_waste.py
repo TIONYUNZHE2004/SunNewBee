@@ -95,12 +95,14 @@ def build_waste(data_dir: Path) -> list[dict] | None:
     if not places_p.exists():
         print(f"[waste] base layers missing; run import_osm.py first ({places_p}). Skipping.")
         return None
-    feats = waste_points(json.loads(places_p.read_text())["features"])
+    feats = waste_points(json.loads(places_p.read_text(encoding="utf-8"))["features"])
     out = data_dir / "waste/points.geojson"
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(
         json.dumps({"type": "FeatureCollection", "features": feats}, ensure_ascii=False, indent=1)
-        + "\n"
+        + "\n",
+        encoding="utf-8",
+        newline="\n",
     )
     print(f"[waste] {len(feats)} placeholder points -> {out}")
     return feats
