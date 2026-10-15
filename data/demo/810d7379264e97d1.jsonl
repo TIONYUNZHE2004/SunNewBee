@@ -1,4 +1,4 @@
-{"meta": {"message": "Where is the nearest evacuation centre if the water rises 3 m?", "profile": "default", "scenario_id": null, "world": "elmina", "model": "mock-scripted", "recorded_at": "2026-10-15T05:10:18+00:00"}}
+{"meta": {"message": "Where is the nearest evacuation centre if the water rises 3 m?", "profile": "default", "scenario_id": null, "world": "elmina", "model": "mock-scripted", "recorded_at": "2026-10-15T05:18:27+00:00"}}
 {"type": "tool.call", "id": "find_place-0", "name": "find_place", "args": {"query": "lakeside mall", "types": null, "limit": 5}}
 {"type": "tool.result", "id": "find_place-0", "name": "find_place", "summary": "2 result(s)"}
 {"type": "tool.call", "id": "list_evacuation_centres-1", "name": "list_evacuation_centres", "args": {"scenario_id": "stage_p3m", "profile": "default", "near_place": "lakeside-mall"}}
