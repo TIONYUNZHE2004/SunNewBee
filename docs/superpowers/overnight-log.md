@@ -540,3 +540,30 @@
 - **R31:** Task 43 seed rebuild. overpass-api.de is still "too busy". Retrying about hourly (Overpass this run: 11 of 30). Asked the team lead about a Geofabrik extract as an offline alternative; no answer yet.
 - **In flight:** Task 47 review (Opus; evacuation journeys, background sim) and Task 50 (staff console readability, deep links).
 - **External usage this run:** Google tiles about 7 of 30. OpenRouter unchanged (no live calls).
+
+## 2026-10-15 14:40 — Task 47, 50, 51, 52 merged; Task 43 seed rebuilt
+- **Merged and pushed:**
+  - Task 50: readable staff queue rows; `/manage?tab=` deep links.
+  - e2e change: always starts a fresh server (`ff85a55`), so re-runs are safe.
+  - Task 51: frontend Minors sweep (10 fixed). Coordinator follow-up: the 3D tile fallback now needs a burst of 10 failures in 30 s instead of firing on a single failed tile.
+  - Task 47: evacuation journeys in a background, snapshot-consistent sim run.
+    - The review caught a **Critical honesty bug**: "15 confirmed" evacuation journeys were 0 m centre-to-itself trips. With centres excluded, no strict-profile journey is confirmed at any river level; the default profile goes from 39 confirmed (baseline) to 28 (+5 m).
+    - Also fixed: a run started from the UI skipped the default profile; a mid-run resolve could cause a false violation; `/kpis` could fail a live run.
+  - Task 52: agent, evals and data-scripts Minors sweep (14 fixed).
+  - Task 43 seed rebuild.
+    - The R31 hourly retry succeeded on overpass-api.de (Task 43 total: 12 requests).
+    - Places without a node: 17 → 7, each listed with a reason.
+    - Elmina Urban Park is routable from Car Park B (confirmed, 326 m, with "its entrance is not mapped").
+    - Evacuation, strict profiles at baseline: no mapped connection 8 → 3 of 50 origins.
+- **Flaky pytest:** one full-suite run failed once while another lane's suite ran in parallel. The failing test name was not captured. The only timing assertion (rest-routing perf guard) now uses best-of-3 (`b51329a`). Follow-up: capture the name if it recurs.
+- **Checklist on main after the seed merge:**
+  - pytest 787 (no xfail left): PASS
+  - golden 13/13 (mock): PASS
+  - vitest 390: PASS
+  - lint: PASS
+  - gen: PASS
+  - typecheck: PASS
+  - build: PASS
+  - e2e 13/13: PASS
+- **External usage this run:** Overpass 12 of 30 · Google tiles about 7 of 30 · OpenRouter none.
+- **In flight:** Task 53, the API and spatial Minors sweep (plus a `demo_evidence` flag and a sim time budget/cancel).
