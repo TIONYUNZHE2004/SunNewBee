@@ -567,3 +567,26 @@
   - e2e 13/13: PASS
 - **External usage this run:** Overpass 12 of 30 · Google tiles about 7 of 30 · OpenRouter none.
 - **In flight:** Task 53, the API and spatial Minors sweep (plus a `demo_evidence` flag and a sim time budget/cancel).
+
+## 2026-10-15 15:34 — Tasks 53–57, final review #3 fix wave, re-audit
+- **Merged and pushed:**
+  - Task 53: API and spatial Minors sweep (21 fixed); `demo_evidence` flag; sim time budget and staff cancel.
+  - Task 54: confirmed routes resting on demo values say so.
+- **Final review #3** (Opus) found 0 Critical, 4 Important and 8 Minor. All Important were fixed under R33:
+  - Task 55: closed evacuation centres are never recommended; demo values count as gaps, never "Fully checked".
+  - Task 56: demo-cache replay misses while any closure is active.
+  - Task 57 plus re-captured screenshots: docs and pitch numbers refreshed after the seed rebuild.
+  - Coordinator fix: "all centres closed" reads "Centres closed (staff report)", not a data gap.
+- **Hang investigation:** a chat hung during a screenshot session.
+  - Cause: an orphaned uvicorn from an earlier stopped preview, running 1.5 h across hot reloads and holding :8000, so the new API could not bind.
+  - Concurrency probe on a fresh throwaway API: a background sim run, 3 chats, KPI calls, a closure create and a chat after the closure all answered (chat about 2–3 s). No deadlock found.
+  - The orphan was force-stopped. It was this repo's own dev process.
+- **Pitch screenshots re-captured** on the rebuilt seed (`f11e1a0`). The gap map now reads "16,148 of 16,148 not yet checked; 18 on demo values".
+- **MVP re-audit** (`.superpowers/…/mvp-status-audit-2.md`): 47 DONE, 13 PARTIAL, 5 MISSING, 3 N/A-FIELD. This morning it was 18 / 32 / 17 / 1. P0 has 0 MISSING; 5 P0 rows are PARTIAL and 2 need fieldwork or a device.
+- **CI:** green on the latest pushes.
+- **Next wave (Tasks 58–62)** from the audit's ranked list:
+  - Task 58: evacuation-centre status editor.
+  - Task 59: resident "Report an issue" and collection-day requests.
+  - Task 60: grey "not relevant" state and flood margin in the legend.
+  - Task 61: renderer fallback chain and bundle budget.
+  - Task 62: waste goldens, scenario provenance hash, journey failure explanations, seed invariants, import counts.
