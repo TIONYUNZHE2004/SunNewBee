@@ -13,6 +13,7 @@ from .labels import (
     closure_summary_tail,
     inferred_caveats,
     rest_caveats,
+    route_status_text,
     status_label,
     unchecked_caveats,
 )
@@ -581,7 +582,7 @@ def _script(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
                 f"{b.get('name', b['id'])} (data gap)."
                 if status == "no_data"
                 else f"{a.get('name', a['id'])} to {b.get('name', b['id'])}: "
-                f"route {closure_summary_tail(closed, status) or status_label(status)}"
+                f"route {closure_summary_tail(closed, status, r0) or route_status_text(status, r0)}"
                 + (f", {dist} m." if dist is not None else ".")
             ),
             claims=[

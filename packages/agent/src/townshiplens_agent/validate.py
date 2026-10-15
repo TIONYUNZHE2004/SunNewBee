@@ -3,7 +3,7 @@ import re
 from townshiplens_spatial.attributes import ATTRIBUTE_TYPES
 
 from .answer import FinalAnswer
-from .labels import CLOSURE_WORDS, REST_GAP_WORDS, closure_name, closure_until
+from .labels import CLOSURE_WORDS, DEMO_CONFIRMED, REST_GAP_WORDS, closure_name, closure_until
 from .record import TurnRecord
 
 FORBIDDEN = re.compile(r"(?<![\w-])safe(?:ly)?(?![\w-])|\bselamat\b|安全", re.IGNORECASE)
@@ -23,6 +23,13 @@ _ST = r"(confirmed|partly_unverified|blocked|no_data)"
 STATUS_LABEL = re.compile(rf"\broute status\s*[:=]?\s*{_ST}\b")
 STATUS_IS = re.compile(
     rf"\broute (?:is|was) {_ST}\b(?!\s+(?:by|at|near|because|due|on|from|where)\b)"
+)
+# "route confirmed" / "Route status: confirmed" / "the route is confirmed" NOT followed by the demo
+# qualifier (a confirmed route over placeholder evidence must carry it).
+BARE_CONFIRMED = re.compile(
+    r"\broute\s+(?:status\s*[:=]?\s*|(?:is|was)\s+)?confirmed\b"
+    r"(?!\s*\(on demo values, not yet surveyed\))",
+    re.IGNORECASE,
 )
 RAW_ID = re.compile(
     r"\bseg-[\w-]+|\b(?:" + "|".join(sorted(k for k in ATTRIBUTE_TYPES if "_" in k)) + r")\b"
@@ -195,6 +202,16 @@ def validate_answer(ans: FinalAnswer, rec: TurnRecord) -> list[str]:
                 f"team_survey_placeholder): add a caveat containing the exact phrase "
                 f"'{PLACEHOLDER_CAVEAT}'."
             )
+    if (
+        ans.answer_status != "cannot_answer"
+        and status == "confirmed"
+        and route.get("demo_evidence")
+        and BARE_CONFIRMED.search(" ".join([ans.summary, *ans.steps, *ans.caveats]))
+    ):
+        errs.append(
+            "The route is confirmed only on placeholder (demo) values: say "
+            f"'Route status: {DEMO_CONFIRMED}' in the summary instead of a bare 'confirmed'."
+        )
     if rec.scenarios_used and not ans.scenario_id:
         errs.append("A flood scenario tool was used: set scenario_id.")
     # Honesty rules apply to every answer, whether or not a tool ran.

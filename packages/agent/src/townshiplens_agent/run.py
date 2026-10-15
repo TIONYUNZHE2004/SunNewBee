@@ -22,7 +22,7 @@ from .events import (
     TextDelta,
     Uncertainty,
 )
-from .labels import closure_line, element_label, rest_caveats, status_label, unknown_note
+from .labels import closure_line, element_label, rest_caveats, route_status_text, unknown_note
 from .record import TurnRecord
 from .settings import AgentSettings
 from .template import template_answer
@@ -45,7 +45,9 @@ def _route_status_line(ans: FinalAnswer, rec: TurnRecord) -> str | None:
         rid = next(iter(rec.routes))
     else:
         return None
-    return f"Route status: {status_label(rec.route_status.get(rid, 'no_data'))}"
+    return (
+        f"Route status: {route_status_text(rec.route_status.get(rid, 'no_data'), rec.routes[rid])}"
+    )
 
 
 _UNKNOWN_LINES = (

@@ -45,6 +45,17 @@ def status_label(status: str) -> str:
     return STATUS_LABELS.get(status, status.replace("_", " "))
 
 
+# A confirmed route whose facts include placeholder evidence is named with this qualifier.
+DEMO_CONFIRMED = "confirmed (on demo values, not yet surveyed)"
+
+
+def route_status_text(status: str, route: dict | None) -> str:
+    """Status words for a route; a demo_evidence route is "confirmed (on demo values, ...)"."""
+    if status == "confirmed" and route and route.get("demo_evidence"):
+        return DEMO_CONFIRMED
+    return status_label(status)
+
+
 def attribute_label(key: str) -> str:
     label = ATTRIBUTE_LABELS.get(key) or _EXTRA_ATTRIBUTES.get(key)
     return label or key.replace("_", " ").capitalize()
@@ -267,7 +278,7 @@ def closure_caveats(rows: list[dict]) -> list[str]:
     return list(dict.fromkeys(closure_line(r) for r in rows))
 
 
-def closure_summary_tail(rows: list[dict], status: str) -> str:
+def closure_summary_tail(rows: list[dict], status: str, route: dict | None = None) -> str:
     """Extra words for a route summary: a blocked route says what blocked it, and a route to or
     from a closed place does not read as plain "confirmed"."""
     if status == "blocked" and any(r.get("impact") == "blocked" for r in rows):
@@ -275,7 +286,7 @@ def closure_summary_tail(rows: list[dict], status: str) -> str:
     if status in ("confirmed", "partly_unverified") and any(
         r.get("impact") == "endpoint" for r in rows
     ):
-        return f"{status_label(status)}, but a place at one end is reported closed"
+        return f"{route_status_text(status, route)}, but a place at one end is reported closed"
     return ""
 
 
