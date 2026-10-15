@@ -1033,6 +1033,28 @@
             "title": "Profile",
             "type": "string"
           },
+          "rest_limit_m": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rest Limit M"
+          },
+          "rest_limit_met": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rest Limit Met"
+          },
           "rest_points": {
             "items": {
               "additionalProperties": true,
@@ -1148,6 +1170,28 @@
             },
             "title": "Blocked Reasons",
             "type": "array"
+          },
+          "max_rest_gap_m": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Rest Gap M"
+          },
+          "rest_limit_m": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rest Limit M"
           },
           "routes": {
             "items": {
@@ -1458,6 +1502,30 @@
         "title": "SceneIntentEvent",
         "type": "object"
       },
+      "SimAdvisory": {
+        "description": "Not a broken invariant: e.g. the best route runs over the rest limit and no route within\nit exists (`rest_limit_no_alternative`); the router says so and never confirms it.",
+        "properties": {
+          "detail": {
+            "title": "Detail",
+            "type": "string"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "task_id": {
+            "title": "Task Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "task_id",
+          "detail"
+        ],
+        "title": "SimAdvisory",
+        "type": "object"
+      },
       "SimGap": {
         "properties": {
           "affected_profiles": {
@@ -1530,6 +1598,13 @@
               "$ref": "#/components/schemas/SimViolation"
             },
             "title": "Invariant Violations",
+            "type": "array"
+          },
+          "rest_advisories": {
+            "items": {
+              "$ref": "#/components/schemas/SimAdvisory"
+            },
+            "title": "Rest Advisories",
             "type": "array"
           },
           "results": {

@@ -42,7 +42,7 @@ With no seed data present the API falls back to the tiny test fixture.
 | GET | `/evidence/{id}` | the stored photo (`nosniff`, restrictive CSP); 404 unknown id |
 | POST | `/simulations` | staff; `{scenario_id, profiles}` runs the resident-agent journey tests and stores the report; 422 unknown scenario |
 | GET | `/simulations` | recent run summaries, `?limit=` (1 to 50, default 5) |
-| GET | `/simulations/{run_id}` | full report (counts, results, ranked data gaps, invariant violations); 404 |
+| GET | `/simulations/{run_id}` | full report (counts, results, ranked data gaps, invariant violations, `rest_advisories` for older-adult routes over the rest limit with no alternative); 404 |
 | POST | `/chat` | SSE; streams `townshiplens_agent.run.run_turn` events (`LLM_PROVIDER=mock` gives the deterministic assistant); if the agent cannot load it emits `error` + `done` |
 | GET | `/schema/chat-event` | docs-only, exports the ChatEvent union |
 

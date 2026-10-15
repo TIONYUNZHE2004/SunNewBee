@@ -47,6 +47,15 @@ class SimViolation(BaseModel):
     detail: str
 
 
+class SimAdvisory(BaseModel):
+    """Not a broken invariant: e.g. the best route runs over the rest limit and no route within
+    it exists (`rest_limit_no_alternative`); the router says so and never confirms it."""
+
+    kind: str
+    task_id: str
+    detail: str
+
+
 class SimReport(BaseModel):
     run_id: str
     created_at: str
@@ -55,6 +64,7 @@ class SimReport(BaseModel):
     results: list[SimResult]
     gaps: list[SimGap]
     invariant_violations: list[SimViolation]
+    rest_advisories: list[SimAdvisory] = Field(default_factory=list)
     gaps_truncated: bool = False
     world_version: int = 0
 

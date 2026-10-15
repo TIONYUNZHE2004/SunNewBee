@@ -805,6 +805,10 @@ export interface components {
              * @enum {string}
              */
             profile: "default" | "stroller" | "wheelchair" | "older_adult_rest" | "drive";
+            /** Rest Limit M */
+            rest_limit_m?: number | null;
+            /** Rest Limit Met */
+            rest_limit_met?: boolean | null;
             /** Rest Points */
             rest_points?: {
                 [key: string]: unknown;
@@ -847,6 +851,10 @@ export interface components {
             blocked_reasons?: {
                 [key: string]: string;
             }[];
+            /** Max Rest Gap M */
+            max_rest_gap_m?: number | null;
+            /** Rest Limit M */
+            rest_limit_m?: number | null;
             /** Routes */
             routes: components["schemas"]["Route"][];
             /**
@@ -960,6 +968,19 @@ export interface components {
              */
             type: "scene.intent";
         };
+        /**
+         * SimAdvisory
+         * @description Not a broken invariant: e.g. the best route runs over the rest limit and no route within
+         *     it exists (`rest_limit_no_alternative`); the router says so and never confirms it.
+         */
+        SimAdvisory: {
+            /** Detail */
+            detail: string;
+            /** Kind */
+            kind: string;
+            /** Task Id */
+            task_id: string;
+        };
         /** SimGap */
         SimGap: {
             /** Affected Profiles */
@@ -992,6 +1013,8 @@ export interface components {
             gaps_truncated: boolean;
             /** Invariant Violations */
             invariant_violations: components["schemas"]["SimViolation"][];
+            /** Rest Advisories */
+            rest_advisories?: components["schemas"]["SimAdvisory"][];
             /** Results */
             results: components["schemas"]["SimResult"][];
             /** Run Id */
