@@ -1,6 +1,6 @@
 import { EvidencePhoto } from "../../lib/EvidencePhoto";
 import { DEMO_LABEL, isPlaceholderSource } from "../../lib/evidence";
-import { optionLabel } from "../manage/attributeCatalogue";
+import { optionLabel } from "../tickets/attributeCatalogue";
 import type { Citation } from "./chatReducer";
 
 const STATUS_ICON: Record<string, string> = {

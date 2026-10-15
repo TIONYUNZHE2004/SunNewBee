@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import type { VR } from "./manageApi";
+import type { VR } from "../tickets/manageApi";
 import { ResolveForm } from "./VerificationQueue";
 
 const vr = (current_value: unknown): VR => ({

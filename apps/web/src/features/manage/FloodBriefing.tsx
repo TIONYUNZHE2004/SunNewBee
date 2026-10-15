@@ -5,10 +5,10 @@ import { originName } from "../../lib/placeQuery";
 import { centreReachLabel, routeStatusLabel } from "../../lib/routeStatus";
 import { DisclaimerBanner } from "../flood/DisclaimerBanner";
 import type { Profile } from "../scene/sceneStore";
+import { type Briefing, fetchBriefing } from "../tickets/manageApi";
 import { Assumptions } from "./Assumptions";
 import { buildAdvisory, LANGS, type Lang } from "./advisory";
 import { comparisonRows } from "./comparison";
-import { type Briefing, fetchBriefing } from "./manageApi";
 
 export function summariseBriefing(b: Briefing) {
   return {

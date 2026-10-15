@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
+import { fetchKpis, fetchSimRuns, type Kpis } from "../tickets/manageApi";
 import { kpiTexts } from "./kpiModel";
-import { fetchKpis, fetchSimRuns, type Kpis } from "./manageApi";
 import { summariseCounts } from "./simModel";
 
 type Props = {

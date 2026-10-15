@@ -3,8 +3,8 @@ import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { json, renderWithClient, stubFetch } from "../../test/helpers";
+import type { SimReport } from "../tickets/manageApi";
 import { EvacuationTable, JourneyTests } from "./JourneyTests";
-import type { SimReport } from "./manageApi";
 
 const counts = (o: Partial<Record<string, number>>) => ({
   reachable_confirmed: 0,

@@ -1,5 +1,10 @@
 import type { QueryClient } from "@tanstack/react-query";
-import { ApiError, type EvidenceUploaded, type ResolveBody, type VrCreated } from "./manageApi";
+import {
+  ApiError,
+  type EvidenceUploaded,
+  type ResolveBody,
+  type VrCreated,
+} from "../tickets/manageApi";
 
 export const createVrMessage = (r: VrCreated): string =>
   r.created ? `Request filed (demand ${r.demand})` : `Already requested; demand is now ${r.demand}`;

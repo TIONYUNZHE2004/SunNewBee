@@ -1,8 +1,8 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useId } from "react";
+import { createVR } from "../tickets/manageApi";
+import { useStaffToken } from "../tickets/useStaffToken";
 import { createVrError, createVrMessage, onCreated } from "./createVr";
-import { createVR } from "./manageApi";
-import { useStaffToken } from "./useStaffToken";
 
 export type CreateVrStatus = "idle" | "pending" | "done" | "error";
 

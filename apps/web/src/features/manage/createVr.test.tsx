@@ -1,5 +1,6 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
+import { ApiError } from "../tickets/manageApi";
 import { CreateVrButtonView } from "./CreateVrButton";
 import {
   createVrError,
@@ -8,7 +9,6 @@ import {
   submitResolution,
   uploadErrorMessage,
 } from "./createVr";
-import { ApiError } from "./manageApi";
 
 const res = (created: boolean, demand: number) => ({
   request_id: "r",

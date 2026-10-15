@@ -1,6 +1,6 @@
 import type { Schemas } from "@tl/api-client";
 import { NO_DATA_LABEL, PARTLY_LABEL } from "../../lib/routeStatus";
-import type { Briefing } from "./manageApi";
+import type { Briefing } from "../tickets/manageApi";
 
 export type ProfileInfo = Schemas["ProfileInfo"];
 

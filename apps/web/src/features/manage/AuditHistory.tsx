@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useId, useState } from "react";
-import { ApiError, type AuditClaim, type AuditRow, fetchAudit } from "./manageApi";
+import { ApiError, type AuditClaim, type AuditRow, fetchAudit } from "../tickets/manageApi";
 
 function fmt(c: AuditClaim): string {
   if (!c) return "none";

@@ -5,8 +5,8 @@ import { placeReach } from "../../lib/placeQuery";
 import { useChatDraft } from "../chat/chatDraftStore";
 import { AttributeEditor } from "../manage/AttributeEditor";
 import { AuditHistory } from "../manage/AuditHistory";
-import { loadToken } from "../manage/manageApi";
 import { useScene } from "../scene/sceneStore";
+import { loadToken } from "../tickets/manageApi";
 import { type ClaimRow, toPlaceView } from "./placeModel";
 import { ClosureBanner, SourceBanner } from "./SourceBanner";
 

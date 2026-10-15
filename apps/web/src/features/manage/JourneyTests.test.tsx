@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
+import type { SimReport } from "../tickets/manageApi";
 import { JourneyReport } from "./JourneyTests";
-import type { SimReport } from "./manageApi";
 import { summariseCounts } from "./simModel";
 
 const base: SimReport = {

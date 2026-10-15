@@ -3,9 +3,8 @@ import { type FormEvent, useEffect, useReducer, useState } from "react";
 import { PHOTO_ACCEPT, validatePhoto } from "../../lib/evidence";
 import { elementName } from "../chat/citationLabel";
 import { GapMapLink } from "../gaps/GapMapLink";
-import { attributeLabel, optionLabel, specFor } from "./attributeCatalogue";
-import { onResolved, PhotoUploadError, submitResolution, uploadErrorMessage } from "./createVr";
-import { ApiError, fetchVRs, resolveVR, uploadEvidence, type VR } from "./manageApi";
+import { attributeLabel, optionLabel, specFor } from "../tickets/attributeCatalogue";
+import { ApiError, fetchVRs, resolveVR, uploadEvidence, type VR } from "../tickets/manageApi";
 import {
   buildVrQuery,
   DEFAULT_FILTERS,
@@ -14,8 +13,8 @@ import {
   TAB_LABELS,
   type VrFilters,
   vrQueryKey,
-} from "./queueFilters";
-import { reasonLabel } from "./queueLabels";
+} from "../tickets/queueFilters";
+import { reasonLabel } from "../tickets/queueLabels";
 import {
   buildResolveBody,
   currentValueText,
@@ -31,9 +30,10 @@ import {
   photoAllowed,
   VERIFY_DISABLED_TEXT,
   validateForm,
-} from "./resolveForm";
-import { useQueueNames } from "./useQueueNames";
-import { useStaffToken } from "./useStaffToken";
+} from "../tickets/resolveForm";
+import { useQueueNames } from "../tickets/useQueueNames";
+import { useStaffToken } from "../tickets/useStaffToken";
+import { onResolved, PhotoUploadError, submitResolution, uploadErrorMessage } from "./createVr";
 
 const inputCls = "min-h-11 w-full rounded-md border border-line bg-card px-3 text-sm";
 const btnCls =

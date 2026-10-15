@@ -3,7 +3,7 @@ import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { json, renderWithClient, stubFetch } from "../../test/helpers";
-import type { VR } from "./manageApi";
+import type { VR } from "../tickets/manageApi";
 import { ResolveForm } from "./VerificationQueue";
 
 const vr = (current_value: unknown): VR => ({

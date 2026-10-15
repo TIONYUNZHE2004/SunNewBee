@@ -1,4 +1,4 @@
-import type { Kpis } from "./manageApi";
+import type { Kpis } from "../tickets/manageApi";
 
 export type KpiTexts = {
   open: string;

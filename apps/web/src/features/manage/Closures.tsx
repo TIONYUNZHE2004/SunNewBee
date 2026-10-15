@@ -1,5 +1,7 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { type FormEvent, useState } from "react";
+import { ApiError, createClosure, endClosure, fetchClosures } from "../tickets/manageApi";
+import { useStaffToken } from "../tickets/useStaffToken";
 import {
   buildCreateBody,
   CLOSURE_REASONS,
@@ -11,8 +13,6 @@ import {
   EMPTY_FIELDS,
   TZ_NAME,
 } from "./closureModel";
-import { ApiError, createClosure, endClosure, fetchClosures } from "./manageApi";
-import { useStaffToken } from "./useStaffToken";
 
 const inputCls = "min-h-11 w-full rounded-md border border-line bg-card px-3 text-sm";
 const btnCls =

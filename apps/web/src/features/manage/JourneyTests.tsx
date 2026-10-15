@@ -1,7 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { useScenarios } from "../../lib/api";
-import { CreateVrButton } from "./CreateVrButton";
 import {
   ApiError,
   fetchSimReport,
@@ -10,7 +9,9 @@ import {
   type SimReport,
   type SimSummary,
   startSimulation,
-} from "./manageApi";
+} from "../tickets/manageApi";
+import { useStaffToken } from "../tickets/useStaffToken";
+import { CreateVrButton } from "./CreateVrButton";
 import {
   advisoryLabel,
   checkSummary,
@@ -27,7 +28,6 @@ import {
   summariseCounts,
   violationLabel,
 } from "./simModel";
-import { useStaffToken } from "./useStaffToken";
 
 const PROFILE_CHOICES = ["default", "stroller", "wheelchair", "older_adult_rest"] as const;
 const inputCls = "min-h-11 w-full rounded-md border border-line bg-card px-3 text-sm";

@@ -1,7 +1,7 @@
 import { QueryClient } from "@tanstack/react-query";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { createVR } from "../tickets/manageApi";
 import { onCreated, onResolved } from "./createVr";
-import { createVR } from "./manageApi";
 
 afterEach(() => vi.unstubAllGlobals());
 

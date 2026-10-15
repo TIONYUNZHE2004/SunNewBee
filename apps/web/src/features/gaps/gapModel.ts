@@ -1,5 +1,5 @@
 import type { Schemas } from "@tl/api-client";
-import { optionLabel } from "../manage/attributeCatalogue";
+import { optionLabel } from "../tickets/attributeCatalogue";
 
 /** How many of the facts a profile relies on are not yet checked. Words, patterns and colour all
  * carry the band; none of them says anything is unsafe or inaccessible. */

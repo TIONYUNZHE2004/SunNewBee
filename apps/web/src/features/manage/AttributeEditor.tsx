@@ -1,7 +1,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { type FormEvent, useState } from "react";
 import type { ClaimRow } from "../places/placeModel";
-import { specFor } from "./attributeCatalogue";
+import { specFor } from "../tickets/attributeCatalogue";
 import {
   type AttrForm,
   EDIT_STATUSES,
@@ -12,8 +12,8 @@ import {
   SOURCE_TYPES,
   toPayload,
   validate,
-} from "./attributeForm";
-import { ApiError, saveAttribute } from "./manageApi";
+} from "../tickets/attributeForm";
+import { ApiError, saveAttribute } from "../tickets/manageApi";
 
 const inputCls =
   "min-h-11 w-full rounded-md border border-line bg-card px-3 text-sm disabled:cursor-not-allowed disabled:opacity-60";
