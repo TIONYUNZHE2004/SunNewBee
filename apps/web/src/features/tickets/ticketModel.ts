@@ -5,6 +5,8 @@ import { currentValueText, hasCurrentValue } from "./resolveForm";
 
 export interface Ticket {
   id: string;
+  /** Attribute key, e.g. step_count (drives the value input). */
+  attribute: string;
   fact: string;
   place: string;
   reason: string;
@@ -46,6 +48,7 @@ export function toTicket(vr: VR, names: Map<string, string>, now: Date = new Dat
   const rv = vr.resolution?.value;
   return {
     id: vr.id,
+    attribute: vr.attribute,
     fact: attributeLabel(vr.attribute),
     place: names.get(vr.element_id) ?? vr.element_id,
     reason: vr.reason,

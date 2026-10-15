@@ -26,7 +26,7 @@ export function TicketDetail({ ticket }: { ticket: Ticket }) {
       </dl>
       <div className="mt-5">
         {ticket.isOpen ? (
-          <OutcomeForm />
+          <OutcomeForm key={ticket.id} ticket={ticket} />
         ) : ticket.isRejected ? (
           <p className="text-sm text-fg">
             Rejected on {ticket.resolution?.date ?? ""}. The ticket wasn't valid, so the recorded

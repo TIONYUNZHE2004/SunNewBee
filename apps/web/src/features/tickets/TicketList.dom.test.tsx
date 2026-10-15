@@ -86,6 +86,6 @@ describe("TicketsPage list", () => {
     await userEvent.click(row);
     expect(row).toHaveAttribute("aria-pressed", "true");
     expect(await screen.findByRole("heading", { level: 2, name: "Step count" })).toBeVisible();
-    expect(screen.getByTestId("outcome-slot")).toBeInTheDocument();
+    expect(screen.getByRole("radiogroup", { name: "Outcome" })).toBeInTheDocument();
   });
 });
