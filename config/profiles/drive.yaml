@@ -1,12 +1,12 @@
 id: drive
-label: "Driving (roads derived from OSM street and track edges)"
+label: "Driving (roads derived from OSM street, track and major-road edges)"
 hard: {}
 soft: {}
 max_rest_free_run_m: null
 # A possibly flooded road is not driveable: FAIL, unlike walking profiles where it is UNKNOWN.
 flood: { possible_is: FAIL, likely_is: FAIL }
 stub: false
-allowed_types: [street, track]
+allowed_types: [street, track, major_road]
 speed_kmh: 30
 standing_warning: "Drive routes: one-way and turn restrictions not modelled; indicative only, never confirmed."
-note: "Roads are the walk extract's street/track edges; no oneway-aware import yet."
+note: "Roads are the walk extract's street/track/major_road edges (no motorways); no oneway-aware import yet."

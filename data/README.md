@@ -29,6 +29,15 @@ The unknown ramp and path lengths are listed in `seed/elmina/access/README.md`.
 pnpm data:build        # import_osm.py, build_overlay.py, build_flood.py, build_waste.py. Run import before overlay: the overlay step rewrites `base/places.geojson`
 ```
 
+`pnpm data:build` runs `build_flood.py` without the flags the committed seed was built with, so from the cache it attempts network lookups. To reproduce the committed seed offline, run:
+
+```bash
+uv run python data/scripts/import_osm.py --max-requests 0
+uv run python data/scripts/build_overlay.py
+uv run --group data python data/scripts/build_flood.py --datum-offset -3.74 --osm-water data/cache/2f7c0c51d14428009f2172835c2108ed9966ae2d.json
+uv run --group data python data/scripts/build_waste.py
+```
+
 Overpass responses are cached in `data/cache/` (gitignored); delete it to refetch. Node ids (`n-<lat*1e7>_<lon*1e7>`)
 are derived from coordinates because the cached `out geom` responses omit OSM node ids.
 
@@ -36,11 +45,58 @@ are derived from coordinates because the cached `out geom` responses omit OSM no
 
 Envelope bbox (s,w,n,e) = 3.150, 101.460, 3.240, 101.530.
 
-- ways fetched: 6631; walk segments: 15252 (`base/walk.geojson`, ~5 MB)
-- places: 227 imported; 3 duplicates of hero places removed by `build_overlay.py` (`osm-way-1308938137`, `osm-way-1318133036`, `osm-way-1346154592`) -> 224 in `base/places.geojson`, plus 7 overlay places = 231 total. 210 imported places snap to a walk node within 60 m (any component; the walk graph is fragmented into ~199 components because primary roads are excluded)
+- ways fetched: 7036 (6631 walk + 460 major-road ways, 51 `secondary_link`s in both fetches, 4 `foot=no` dropped); walk segments: 16148, of which 909 `major_road` (`base/walk.geojson`, ~5 MB)
+- places: 227 imported; 3 duplicates of hero places removed by `build_overlay.py` (`osm-way-1308938137`, `osm-way-1318133036`, `osm-way-1346154592`) -> 224 in `base/places.geojson`, plus 7 overlay places = 231 total. 210 imported places snap to a walk node within 60 m (any component). Since Task 31 the walk graph has 74 components and the largest holds 95.2% of nodes; before major roads were imported it was 199 components and 32%
 - hydrology features: 204 (display only)
 - overlay: 18 edges + 7 places (`park-b`, `lakeside-mall`, `playground`, `toilet-urban-park`, `bench-urban-1..3`)
 - P1 416 m (via unknown ramp) vs verified detour P2 441 m
+
+## Major roads (Task 31)
+
+`import_osm.py` now also fetches `highway=primary|secondary|trunk` and their `_link`s (motorways stay excluded) in the 2 × 2 `ENVELOPE` tiles, with the NE tile split smaller after 504s (`major_tiles()`: 6 cached Overpass queries; rulings R22–R24). Ways tagged `foot=no` are skipped. They become walk edges of type **`major_road`**, split at shared nodes like every other way. `secondary_link`, which used to come in as `street`, is now `major_road` too (51 ways).
+
+- **`sidewalk` claim** (`osm_import`, `reported`, raw tags in `notes`): `sidewalk`, `sidewalk:both`, `sidewalk:left`, `sidewalk:right` are normalised to `both | one_side | none | separate`. Tags that do not fix both sides (`sidewalk=yes` on its own, or one side only) give **no claim**. Nothing is guessed. Carriageway `width` and `surface` are not imported as claims on major roads.
+- **Evaluation** (walking profiles). The status rules match the hard limits: reported data is never treated as verified for a hard constraint.
+  - Stroller, wheelchair and older_adult_rest (`no_sidewalk_is: FAIL` in their profile yaml):
+    - a **verified**, fresh `both | one_side | separate` → the normal rules apply;
+    - a merely `reported` (OSM-imported) one → UNKNOWN;
+    - `none`, even if only reported → FAIL.
+  - Default: a fresh `reported` or `verified` sidewalk is enough; `none` → UNKNOWN.
+  - Missing, contested or stale claim → UNKNOWN for every walking profile.
+  - So a route over a major road is never `confirmed` without sidewalk data, and never `confirmed` for the strict profiles without a verified sidewalk.
+  - `drive` allows `major_road`.
+- **Rate limit:** `import_osm.py --max-requests N` hard-caps real Overpass HTTP requests (retries included; cache hits are free) and prints `BLOCKED` with the count when the cap is reached, before writing anything.
+- **Endpoint:** `import_osm.py --endpoint URL` (repeatable) replaces the default mirror rotation. The next endpoint is tried only after a connection-level failure. Each fresh cache file gets a `<sha1>.meta.json` sidecar recording the endpoint and the fetch time.
+- `--allow-missing-major-tiles` builds without major-road tiles that cannot be fetched and lists their bboxes in `site.json` `major_roads_missing_bbox` (`[w, s, e, n]`). **On this seed nothing is missing**, so the field is absent.
+
+**Tile provenance (15 Oct 2026).** 18 Overpass requests in total, retries included:
+- The three R22 tiles came through the default rotation, with no endpoint recorded. OSM bases: 2026-07-15, 2026-10-14 and 2026-05-06.
+- NE-south `(3.195, 101.495, 3.2175, 101.53)` came through the default rotation (R23). By the rotation, that was `overpass.kumi.systems` on the 2nd attempt, after a 504 from overpass-api.de. OSM base 2026-07-24.
+- NE-north-west and NE-north-east came from `overpass.kumi.systems` (R24). OSM bases 2026-07-24 and 2026-05-06.
+
+The vintages are mixed, as they are for the walk cache. Re-running `import_osm.py` from the cache gives byte-identical `base/*.geojson` and `site.json` (checked).
+
+**Before vs after** (stroller unless noted; measured on the rebuilt seed):
+
+| Measure | Before (seed at 64dd224) | After (Task 31) |
+|---|---|---|
+| Walk graph components | 199 | 74 |
+| Largest component, share of nodes | 32.0% (3,653 of 11,418) | 95.2% (11,188 of 11,752) |
+| Lakeside Mall → 72 centres, baseline | 23 partly_unverified / 49 no_data | 64 partly_unverified / 8 no_data |
+| Lakeside Mall → 72 centres, stage_p3m | 3 partly_unverified / 20 blocked / 49 no_data | 44 partly_unverified / 20 blocked / 8 no_data |
+| Wheelchair, same (baseline / +3 m reachable) | 23 / 3 | 64 / 44 |
+| Journey tests (300 tasks, 100 per profile; stroller = wheelchair = older_adult_rest) | 99 no_data, 1 success_with_unknowns | 40 no_data, 60 success_with_unknowns |
+| Journey I7 (older-adult rest gap > 100 m) | 1 | 60, one per older-adult route found; rest points are sparse |
+| Hero `park-b → playground` | confirmed 440.6 m; +1/+3 m partly_unverified 485.7 m | unchanged |
+| `major_road` segments / km / with sidewalk claim | – | 909 / 86.7 km / 0 |
+| +1 m likely / possible edges, water km² | 404 / 311, 3.24 | 445 / 345, 3.24 |
+| +3 m | 1,224 / 355, 10.25 | 1,353 / 396, 10.25 |
+| +5 m | 2,263 / 553, 19.06 | 2,468 / 567, 19.06 |
+| Edges with no / partial flood coverage | 59 / 193 | 61 / 209 |
+
+**No major-road segment has a `sidewalk` claim.** The OSM sidewalk tags in Elmina only describe one side (`sidewalk:left` or `sidewalk:right=separate` on 3 ways), which leaves the other side unknown. So every major road is UNKNOWN for walking. Trips that were `no_data` become `partly_unverified`, never `confirmed`. The journey-test gap ranking now includes `sidewalk`, but on this seed it is **structurally empty**. A gap counts only if one flip makes the trip `confirmed`, and major roads carry no `width_m`, `step_count` or `incline_pct` claims, so a sidewalk flip alone never makes the edge PASS. Sidewalk gaps can appear only once those attributes are surveyed.
+
+**Segment renumbering.** 101+ existing `seg-<way>-<k>` ids now carry new geometry, because their ways are re-split at major-road junctions. None of the ids referenced in this README, `access/README.md`, `data/demo/*.jsonl`, e2e tests or golden changed. The overlay (P1/P2, ramp `seg-1306543755-2`) is identical. The 4 Elmina demo-cache entries were re-recorded with the mock.
 
 ## Flood lens (Task 10: `data/scripts/build_flood.py`)
 
@@ -87,7 +143,7 @@ This replaced ASF HAND on 15 Oct 2026, by coordinator ruling.
    - On this seed there is **no exact or fuzzy match**: the best is "Dewan Saujana Utama" at 0.58. The research's candidate "Dewan Bunga Matahari" (3.1799, 101.5414) lies east of the OSM import envelope (lon ≤ 101.530), so it is not in `base/places.geojson`.
 8. **Coverage** `flood/coverage.json`.
    - The walk graph extends past `AREA` (lon 101.434–101.542, lat 3.138–3.248). Widening `AREA` needs a new DEM read, which this review round did without network.
-   - **59 edges and 3 places lie wholly outside the raster.** They get no flood class, so they read as "unlikely". **193 edges are only partly covered** and are classified on their covered samples.
+   - **61 edges and 3 places lie wholly outside the raster.** They get no flood class, so they read as "unlikely". **209 edges are only partly covered** and are classified on their covered samples.
    - The ids are listed in `coverage.json`. The 3 places are `osm-way-377999794`, `osm-way-691513797` and `osm-way-691513809`.
    - Follow-up: widen `AREA` to `(101.430, 3.135, 101.560, 3.250)` (still DEM tile N03E101) and re-run.
 
@@ -109,17 +165,17 @@ uv run pytest data/scripts/tests -q                      # synthetic arrays/vect
 
 The seed was built on 15 Oct 2026 with `--osm-water` pointing at the OSM import's cached hydrology Overpass response: 204 elements, of which 23 channel lines and 80 water polygons are used. My own Overpass requests over `AREA` had failed (504 / timeout / 504).
 
-### Results (15 Oct 2026)
+### Results (15 Oct 2026; edge counts re-measured after Task 31 added major roads)
 
 Drainage covers 1,508 cells (1.3% of the window).
 
 | Scenario | Polygons | Water km² | `likely_flooded` edges | `possible` edges | `likely_flooded` places |
 |---|---|---|---|---|---|
-| stage_p1m | 71 | 3.24 | 404 | 311 | 15 |
-| stage_p2m | 129 | 6.15 | 715 | 509 | 18 |
-| stage_p3m | 140 | 10.25 | 1,224 | 355 | 23 |
-| stage_p4m | 152 | 14.95 | 1,579 | 684 | 29 |
-| stage_p5m | 133 | 19.06 | 2,263 | 553 | 35 |
+| stage_p1m | 71 | 3.24 | 445 | 345 | 15 |
+| stage_p2m | 129 | 6.15 | 790 | 563 | 18 |
+| stage_p3m | 140 | 10.25 | 1,353 | 396 | 23 |
+| stage_p4m | 152 | 14.95 | 1,749 | 719 | 29 |
+| stage_p5m | 133 | 19.06 | 2,468 | 567 | 35 |
 
 `flood/*.geojson` total 0.5 MB. Edge and place classes are monotonic (checked), and the water nests.
 
@@ -148,7 +204,10 @@ At +1 m, drainage cells make up 44% of the wet cells, and 54.8% of them read abo
 | Within 300 m of the mall (169) | 18.9% | 23.7% | 24.9% | 28.4% | 29.6% |
 | Within 1 km of the mall (924) | 15.7% | 19.8% | 23.9% | 30.6% | 33.1% |
 | Kubu Gajah street grid (710) | 3.0% | 15.8% | 35.5% | 42.7% | 51.7% |
-| Overall (15,252) | 2.6% | 4.7% | 8.0% | 10.4% | 14.8% |
+| Overall (15,252, before Task 31) | 2.6% | 4.7% | 8.0% | 10.4% | 14.8% |
+| Overall (16,148, after Task 31) | 2.8% | 4.9% | 8.4% | 10.8% | 15.3% |
+
+The three area rows were measured before Task 31 and were not recomputed.
 
 Near the mall, the flagged segments are the Urban Park / Central Park lake-edge footways and the park paths beside the on-line lake.
 
@@ -157,10 +216,10 @@ Near the mall, the flagged segments are the Urban Park / Central Park lake-edge 
   - Baseline: `confirmed`, 441 m.
   - At +1 m: three lake-side footways are `likely_flooded` (`seg-1346147882-0/1`, `seg-1318133037-1`). These are shared by P1 and P2. The router finds a 486 m alternative, `partly_unverified`. The same holds at +3 m.
 - **`affected` (likely / possible / isolated components):**
-  - +1 m: 419 / 314 / 11
-  - +3 m: 1,247 / 361 / 15
-  - +5 m: 2,298 / 562 / 22
-- **Wheelchair, reachable evacuation candidates from `lakeside-mall`:** 23 of 72 at baseline, 3 of 72 at +3 m. Nearest at +3 m: Masjid Jamiul Ehsan, 4.1 km, `partly_unverified`.
+  - +1 m: 460 / 348 / 11 (before Task 31: 419 / 314 / 11)
+  - +3 m: 1,376 / 402 / 18 (1,247 / 361 / 15)
+  - +5 m: 2,503 / 576 / 24 (2,298 / 562 / 22)
+- **Wheelchair, reachable evacuation candidates from `lakeside-mall`:** 64 of 72 at baseline, 44 of 72 at +3 m (before Task 31: 23 and 3). Nearest at baseline: Sri Maha Mariamman Temple Bukit Subang, 1.1 km. Nearest at +3 m: Masjid Jamiul Ehsan, 4.1 km. Both `partly_unverified`.
 
 ### Limits
 

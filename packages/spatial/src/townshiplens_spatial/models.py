@@ -247,3 +247,6 @@ class Profile(BaseModel):
     speed_kmh: float | None = None
     # Shown on every route/answer for this profile; the route is never "confirmed".
     standing_warning: str | None = None
+    # Walking profiles on a `major_road` edge whose sidewalk claim is "none": FAIL (cannot use the
+    # carriageway) or UNKNOWN. A missing sidewalk claim is always UNKNOWN.
+    no_sidewalk_is: Literal["FAIL", "UNKNOWN"] = "UNKNOWN"

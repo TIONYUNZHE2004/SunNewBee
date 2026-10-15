@@ -7,6 +7,7 @@ const TEXT_KEYS = ["opening_hours", "name"];
 const ENUMS: Record<string, string[]> = {
   wheelchair: ["yes", "limited", "no"],
   handrail: ["both", "one_side", "none"],
+  sidewalk: ["both", "one_side", "none", "separate"],
   surface: [
     "asphalt",
     "concrete",
