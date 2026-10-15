@@ -289,3 +289,27 @@ def test_missing_place_vrs_do_not_count_against_the_route_cap(ctx):
     assert r.data["status"] == "no_data"
     assert [v["reason"] for v in r.data["verification_requests"]] == ["missing_place"]
     assert r.data["verification_requests_truncated"] == 0
+
+
+def test_blocked_route_still_carries_the_inferred_entrance_caveat(ctx):
+    """Task 55: a closure that blocks the route must not drop the "entrance not mapped" caveat."""
+    from datetime import UTC, datetime, timedelta
+
+    from townshiplens_spatial.models import Closure
+
+    _infer(ctx, "kiosk")
+    now = datetime.now(UTC)
+    ctx.world.set_closures(
+        [
+            Closure(
+                id=f"cl-{i}", element_id=eid, reason="works", starts_at=now - timedelta(hours=1)
+            )
+            for i, eid in enumerate(e.id for e in ctx.world.edges.values())
+        ]
+    )
+    r = tools.plan_route(ctx, "park-b", "kiosk", "default")
+    assert r.data["status"] == "blocked"
+    assert (
+        "Route ends at the nearest mapped path to Park kiosk; its entrance is not mapped."
+        in r.warnings
+    )

@@ -242,9 +242,16 @@ export async function fetchAudit(elementId: string, token: string): Promise<Audi
   return (await r.json()) as AuditRow[];
 }
 
-export async function fetchClosures(active: boolean): Promise<Schemas["ClosureOut"][]> {
+/** The staff token (when given) lets the API include each closure's free-text note; public
+ * callers never receive it. */
+export async function fetchClosures(
+  active: boolean,
+  token?: string,
+): Promise<Schemas["ClosureOut"][]> {
   const r = await fetch(`/api/closures?active=${active}`, {
-    headers: { Accept: "application/json" },
+    headers: token
+      ? { Accept: "application/json", "X-Staff-Token": token }
+      : { Accept: "application/json" },
   });
   if (!r.ok) throw new ApiError(r.status, await readDetail(r));
   return (await r.json()) as Schemas["ClosureOut"][];

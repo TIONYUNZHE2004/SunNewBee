@@ -1,7 +1,14 @@
 from datetime import date, datetime
 
 from townshiplens_spatial import models as spatial_models
-from townshiplens_spatial.evaluate import claim_gap, edge_gaps, evaluate_edge, relevant_attributes
+from townshiplens_spatial.evaluate import (
+    claim_gap,
+    edge_demo_gaps,
+    edge_gaps,
+    evaluate_edge,
+    is_demo,
+    relevant_attributes,
+)
 from townshiplens_spatial.models import active_closures
 from townshiplens_spatial.world import World
 
@@ -127,8 +134,10 @@ def gaps_layer(
     and no verdict (a gap is "facts not yet checked", never "unsafe" or "inaccessible").
 
     Edges: the facts that keep `evaluate_edge` from a PASS for this profile (`edge_gaps`; reported
-    claims count, as they do for evaluation). Places: the
-    claims each place carries, since no profile decides which place facts matter. `demand` maps
+    claims count, as they do for evaluation; demo values, `team_survey_placeholder`, count as not
+    yet surveyed and are tallied in `demo_count`, so nothing resting on
+    them is "fully checked"). Places: the claims each place carries, since no profile decides
+    which place facts matter. `demand` maps
     element id to open verification-request demand; `impact` maps element id to the number of
     journey tasks the latest simulation says checking its facts would confirm (sim.py ranks it)."""
     prof = world.profiles.get(profile) or world.profiles["default"]
@@ -141,6 +150,7 @@ def gaps_layer(
             "unknown_count": len(gaps),
             "stale_count": sum(1 for g in gaps if g["stale"]),
             "reported_count": sum(1 for g in gaps if g["reported"]),
+            "demo_count": sum(1 for g in gaps if g.get("demo")),
             "unknown_attributes": [g["attribute"] for g in gaps],
         }
 
@@ -150,6 +160,8 @@ def gaps_layer(
             unknown, stale, reported = claim_gap(c, a, today)
             if unknown:
                 out.append({"attribute": a, "stale": stale, "reported": reported})
+            elif is_demo(c):  # demo values count as not yet surveyed (Task 55)
+                out.append({"attribute": a, "stale": False, "reported": False, "demo": True})
         return out
 
     feats: list[dict] = []
@@ -163,7 +175,10 @@ def gaps_layer(
                     "kind": "segment",
                     "type": e.type,
                     "name": e.name,
-                    **summary(edge_gaps(e, prof, today), len(relevant_attributes(e, prof))),
+                    **summary(
+                        edge_gaps(e, prof, today) + edge_demo_gaps(e, prof, today),
+                        len(relevant_attributes(e, prof)),
+                    ),
                     "demand": demand.get(e.id, 0),
                     "journey_impact": impact.get(e.id, 0),
                 },

@@ -1,6 +1,7 @@
 from datetime import UTC, datetime, timedelta
 
 from fastapi.testclient import TestClient
+from townshiplens_api import state
 from townshiplens_api.main import app
 
 c = TestClient(app)
@@ -187,3 +188,24 @@ def test_dates_are_site_local_with_offset():
 def test_internal_places_and_long_notes_are_refused():
     assert _create(element_id="__tmp").status_code == 404
     assert _create(note="x" * 301).status_code == 422
+
+
+def test_note_is_staff_only_in_the_api_and_never_reaches_the_llm_tools():
+    """Task 55: the free-text note can carry names or numbers (PDPA)."""
+    r = _create(note="Contractor Ali 012-3456789")
+    assert r.json()["note"] == "Contractor Ali 012-3456789"  # the staff caller sees it
+    public = c.get("/closures").json()[0]
+    assert public["note"] is None
+    assert "012-3456789" not in c.get("/closures").text
+    staff = c.get("/closures", headers=OK).json()[0]
+    assert staff["note"] == "Contractor Ali 012-3456789"
+    assert c.get("/closures", headers={"X-Staff-Token": "nope"}).json()[0]["note"] is None
+    # tool payloads (what the model provider receives) carry no note either
+    from townshiplens_spatial import tools
+
+    ctx = state.get_ctx()
+    got = tools.get_closures(ctx).data
+    assert got and all(row["note"] is None for row in got)
+    assert "012-3456789" not in tools.get_place_details(ctx, "park-b").model_dump_json()
+    res = tools.plan_route(ctx, "park-b", "playground", "stroller", file_vrs=False)
+    assert "012-3456789" not in res.model_dump_json()

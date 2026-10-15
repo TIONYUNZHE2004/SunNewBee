@@ -3,6 +3,9 @@ from datetime import date, datetime
 from . import models as _m
 from .models import Claim, Edge, EvalResult, FloodClass, Place, Profile, active_closures
 
+PLACEHOLDER_SOURCE = (
+    "team_survey_placeholder"  # demo values, not surveyed (see Route.demo_evidence)
+)
 DEFAULT_TTL = {"step_count": 365, "incline_pct": 365, "width_m": 365, "surface": 365}
 _CHECKS = {  # hard key -> (attribute, violates(value, limit))
     "max_step_count": ("step_count", lambda v, lim: v is not None and v > lim),
@@ -233,6 +236,33 @@ def edge_gaps(edge: Edge, profile: Profile, today: date | None = None) -> list[d
                 "reported": c is not None and c.status == "reported",
             }
         )
+    return out
+
+
+def is_demo(claim: Claim | None) -> bool:
+    """True for a claim whose evidence is a team placeholder: a demo value, not yet surveyed."""
+    return claim is not None and claim.evidence_type == PLACEHOLDER_SOURCE
+
+
+def edge_demo_gaps(edge: Edge, profile: Profile, today: date | None = None) -> list[dict]:
+    """Facts that let `evaluate_edge` PASS only on demo values (Task 55, R33): [{attribute,
+    stale, reported, demo}]. They are gaps for the gap map ("not yet surveyed") although the
+    evaluation stays PASS. A known barrier (FAIL) or a fact already unknown is not repeated."""
+    today = today or date.today()
+    already = {g["attribute"] for g in edge_gaps(edge, profile, today)}
+    out: list[dict] = []
+    for attr in relevant_attributes(edge, profile):
+        c = edge.claims.get(attr)
+        if attr in already or not is_demo(c) or c is None or c.value is None:
+            continue
+        if attr == "sidewalk":
+            if c.value not in SIDEWALK_PRESENT:
+                continue
+        else:
+            key = next((k for k, (a, _) in _CHECKS.items() if a == attr), None)
+            if key is not None and _CHECKS[key][1](c.value, profile.hard[key]):
+                continue  # a known barrier, not a gap
+        out.append({"attribute": attr, "stale": False, "reported": False, "demo": True})
     return out
 
 

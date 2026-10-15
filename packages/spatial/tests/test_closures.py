@@ -283,3 +283,79 @@ def test_parallel_closed_links_all_reported_past_the_reason_cap(ctx):
     assert r.data["status"] == "blocked"
     assert len(r.data["blocked_reasons"]) == 5
     assert len(r.data["closures"]) == 7
+
+
+# --- Task 55 I1: a centre whose place is closed is never "reachable" -------------------------
+def _closed_hall(world):
+    """evc-hall stands on the place 'bench-1' (same node n-c); close that place."""
+    world.centres["evc-hall"].place_id = "bench-1"
+    world.set_closures(
+        [_cl(el="bench-1", reason="flooding", start=datetime.now(UTC) - H, end=None)]
+    )
+
+
+def test_closed_centre_is_closed_not_reachable(world):
+    from townshiplens_spatial import flood
+
+    _closed_hall(world)
+    by_id = {r.centre.id: r for r in flood.centres_reachability(world, None, "stroller", "park-b")}
+    hall = by_id["evc-hall"]
+    assert hall.reachable is False
+    assert hall.route_status == "closed"
+    assert hall.closure and "Closed: flooding" in hall.closure
+    assert hall.route_id is None
+
+
+def test_closed_centre_never_the_nearest_reachable(world):
+    from townshiplens_spatial import flood
+
+    open_rows = [r for r in flood.centres_reachability(world, None, "stroller", "park-b")]
+    assert open_rows[0].centre.id == "evc-hall" and open_rows[0].reachable
+    _closed_hall(world)
+    rows = flood.centres_reachability(world, None, "stroller", "park-b")
+    assert not any(r.reachable and r.centre.id == "evc-hall" for r in rows)
+
+
+def test_list_evacuation_centres_tool_marks_closed(world, ctx):
+    _closed_hall(world)
+    res = tools.list_evacuation_centres(ctx, None, "stroller", "park-b")
+    row = next(d for d in res.data if d["centre"]["id"] == "evc-hall")
+    assert row["reachable"] is False and row["route_status"] == "closed"
+    assert "Closed" in row["closure"]
+    assert any("closed" in w.lower() for w in res.warnings)
+    assert any(e.attribute == "closure" for e in res.evidence)
+
+
+def test_centre_details_reachability_closed(world, ctx):
+    _closed_hall(world)
+    res = tools.get_place_details(ctx, "evc-hall", None, "stroller", "park-b")
+    assert res.data["reachability"]["route_status"] == "closed"
+    assert res.data["reachability"]["reachable"] is False
+    assert "Closed" in res.data["reachability"]["closure"]
+
+
+def test_route_to_closed_centre_names_the_closure(world, ctx):
+    _closed_hall(world)
+    res = tools.plan_route(ctx, "park-b", "__centre__evc-hall", "stroller", file_vrs=False)
+    assert any(c["impact"] == "endpoint" for c in res.data["closures"])
+
+
+def test_closed_centre_ended_closure_is_reachable_again(world):
+    from townshiplens_spatial import flood
+
+    world.centres["evc-hall"].place_id = "bench-1"
+    n = datetime.now(UTC)
+    world.set_closures([_cl(el="bench-1", start=n - 3 * H, end=n - H)])
+    rows = flood.centres_reachability(world, None, "stroller", "park-b")
+    assert next(r for r in rows if r.centre.id == "evc-hall").reachable is True
+
+
+def test_evacuation_journey_skips_a_closed_centre(world):
+    from townshiplens_spatial import sim
+
+    before = sim._journey(world, "park-b", "stroller", None)
+    assert before["centre_id"] == "evc-hall"
+    _closed_hall(world)
+    after = sim._journey(world, "park-b", "stroller", None)
+    assert after["centre_id"] != "evc-hall"
+    assert after["result"] != "blocked_by_flood"  # a closure is not a flood block

@@ -1,15 +1,15 @@
 import sqlite3
 from datetime import UTC, datetime
-from typing import Self
+from typing import Annotated, Self
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Header, HTTPException
 from pydantic import BaseModel, Field, model_validator
 from townshiplens_spatial import models as spatial_models
 from townshiplens_spatial import tools
 from townshiplens_spatial.models import Closure, ClosureReason
 
 from .. import state
-from ..auth import StaffOnly
+from ..auth import StaffOnly, is_staff
 from .manage import _audit
 
 router = APIRouter()
@@ -49,8 +49,9 @@ class CreateClosureBody(BaseModel):
         return self
 
 
-def _out(c: Closure) -> ClosureOut:
-    return ClosureOut(**tools.closure_row(state.get_ctx().world, c))
+def _out(c: Closure, staff: bool = False) -> ClosureOut:
+    """The staff `note` is free text, so only a staff caller sees it (PDPA, Task 55)."""
+    return ClosureOut(**tools.closure_row(state.get_ctx().world, c, with_note=staff))
 
 
 def _store():
@@ -76,11 +77,14 @@ def _audit_row(closure: Closure, old: Closure | None, reason: str) -> None:
 
 
 @router.get("/closures", response_model=list[ClosureOut])
-def list_closures(active: bool | None = True) -> list[ClosureOut]:
+def list_closures(
+    active: bool | None = True, x_staff_token: Annotated[str | None, Header()] = None
+) -> list[ClosureOut]:
     """Staff-reported closures. active=true (default): in force now; active=false: ended or not
-    started yet. Every row is a staff report, labelled as such."""
+    started yet. Every row is a staff report, labelled as such. `note` is shown to staff only."""
+    staff = is_staff(x_staff_token)
     try:
-        return [_out(c) for c in _store().list(active)]
+        return [_out(c, staff) for c in _store().list(active)]
     except sqlite3.Error:
         raise HTTPException(503, "closure store unavailable") from None
 
@@ -107,7 +111,7 @@ def create_closure(body: CreateClosureBody) -> ClosureOut:
             raise HTTPException(422, str(e)) from None
         except sqlite3.Error:
             raise HTTPException(503, "closure store unavailable") from None
-        return _out(c)
+        return _out(c, True)
 
 
 @router.post("/closures/{closure_id}/end", response_model=ClosureOut, dependencies=[StaffOnly])
@@ -123,4 +127,4 @@ def end_closure(closure_id: str) -> ClosureOut:
             raise HTTPException(409, str(e)) from None
         except sqlite3.Error:
             raise HTTPException(503, "closure store unavailable") from None
-        return _out(new)
+        return _out(new, True)

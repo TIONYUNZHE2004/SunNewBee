@@ -65,7 +65,7 @@ export interface paths {
         /**
          * List Closures
          * @description Staff-reported closures. active=true (default): in force now; active=false: ended or not
-         *     started yet. Every row is a staff report, labelled as such.
+         *     started yet. Every row is a staff report, labelled as such. `note` is shown to staff only.
          */
         get: operations["list_closures_closures_get"];
         put?: never;
@@ -603,17 +603,16 @@ export interface components {
         /** CentreReachability */
         CentreReachability: {
             centre: components["schemas"]["EvacCentre"];
+            /** Closure */
+            closure?: string | null;
             /** Distance M */
             distance_m?: number | null;
             /** Reachable */
             reachable: boolean;
             /** Route Id */
             route_id?: string | null;
-            /**
-             * Route Status
-             * @enum {string}
-             */
-            route_status: "confirmed" | "partly_unverified" | "blocked" | "no_data";
+            /** Route Status */
+            route_status: ("confirmed" | "partly_unverified" | "blocked" | "no_data") | "closed";
         };
         /**
          * ChatEventDoc
@@ -937,6 +936,8 @@ export interface components {
         GapProperties: {
             /** Demand */
             demand: number;
+            /** Demo Count */
+            demo_count: number;
             /** Id */
             id: string;
             /** Journey Impact */
@@ -1762,7 +1763,9 @@ export interface operations {
             query?: {
                 active?: boolean | null;
             };
-            header?: never;
+            header?: {
+                "x-staff-token"?: string | null;
+            };
             path?: never;
             cookie?: never;
         };

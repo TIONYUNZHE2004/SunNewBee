@@ -110,6 +110,7 @@ class GapProperties(BaseModel):
     unknown_count: int
     stale_count: int
     reported_count: int
+    demo_count: int  # of the unchecked facts, how many are demo values (not yet surveyed)
     unknown_attributes: list[str]
     demand: int  # open verification-request demand
     journey_impact: int  # journeys the latest simulation says checking this would confirm

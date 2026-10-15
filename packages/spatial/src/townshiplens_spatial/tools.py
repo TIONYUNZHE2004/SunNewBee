@@ -169,6 +169,7 @@ def _centre_details(
             data["reachability"] = {
                 "reachable": row.reachable,
                 "route_status": row.route_status,
+                "closure": row.closure,
                 "route_id": row.route_id,
                 "distance_m": row.distance_m,
                 "from": near,
@@ -180,6 +181,9 @@ def _centre_details(
             if note:
                 data["reachability"]["entrance_note"] = note
                 warnings.append(note)
+            if row.route_status == "closed":
+                warnings.append(f"{CLOSURE_SOURCE_LABEL}: {c.name}. {row.closure}.")
+                ev += _centre_closure_ev(ctx.world, c)
             if scenario_id:
                 ev.append(
                     Evidence(
@@ -363,6 +367,9 @@ def _closure_notes(
 
     for pid in (from_id, to_id):
         p = world.places.get(pid)
+        if p is None and pid.startswith(routing.CENTRE_PREFIX):  # a centre stands on its place
+            c = world.centres.get(pid[len(routing.CENTRE_PREFIX) :])
+            p = world.places.get(c.place_id) if c and c.place_id else None
         for c in p.closures if p else []:
             if c.is_active():
                 add(c, p.name, "endpoint")
@@ -419,7 +426,7 @@ def plan_route(
                 )
                 vrs.append({**vr.model_dump(mode="json"), "created": created})
     evidence += _closure_notes(ctx.world, rr, from_id, to_id, profile, scenario_id)
-    if rr.routes:
+    if rr.routes or rr.status == "blocked":  # a blocked answer still rests on the snapped endpoint
         evidence += _inferred_endpoints(ctx.world, from_id, to_id, rr.warnings)
     if scenario_id:
         evidence.append(
@@ -515,7 +522,10 @@ def _closure_anchor(world: World, element_id: str):
     return None
 
 
-def closure_row(world: World, c: Closure, now=None) -> dict:
+def closure_row(world: World, c: Closure, now=None, with_note: bool = False) -> dict:
+    """One closure as data. The staff `note` is free text (it can carry names or phone numbers),
+    so it is left out unless `with_note` (staff-only API output): public and LLM-facing rows never
+    carry it (PDPA, Task 55)."""
     tz = world.site.timezone
     zone = _m.site_tz(tz)
     anchor = _closure_anchor(world, c.element_id)
@@ -527,11 +537,16 @@ def closure_row(world: World, c: Closure, now=None) -> dict:
         "reason": c.reason,
         "starts_at": c.starts_at.astimezone(zone).isoformat(),  # site-local, with offset
         "ends_at": c.ends_at.astimezone(zone).isoformat() if c.ends_at else None,
-        "note": c.note,
+        "note": c.note if with_note else None,
         "label": c.label(tz),
         "source_label": CLOSURE_SOURCE_LABEL,
         "active": c.is_active(now),
     }
+
+
+def _centre_closure_ev(world: World, centre) -> list[Evidence]:
+    p = world.places.get(centre.place_id) if centre.place_id else None
+    return [_closure_ev(world, c) for c in (p.closures if p else []) if c.is_active()]
 
 
 def _closure_ev(world: World, c: Closure) -> Evidence:
@@ -693,6 +708,10 @@ def list_evacuation_centres(
         if note:
             d["entrance_note"] = note
             n_inferred += 1
+    closed = [r for r in res if r.route_status == "closed"]
+    for r in closed:
+        warnings.append(f"{CLOSURE_SOURCE_LABEL}: {r.centre.name}. {r.closure}.")
+        ev += _centre_closure_ev(ctx.world, r.centre)
     if n_inferred:
         warnings.append(
             f"{n_inferred} reachable centre(s) end at the nearest mapped path to the site; "

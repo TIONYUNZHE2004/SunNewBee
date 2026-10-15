@@ -331,9 +331,12 @@ export function ClosureList({
 export function Closures() {
   const [token, setToken] = useStaffToken();
   const q = useQuery({
-    queryKey: closuresKey,
+    queryKey: [...closuresKey, Boolean(token)],
     queryFn: async () => {
-      const [now, other] = await Promise.all([fetchClosures(true), fetchClosures(false)]);
+      const [now, other] = await Promise.all([
+        fetchClosures(true, token || undefined),
+        fetchClosures(false, token || undefined),
+      ]);
       return [...now, ...other];
     },
   });

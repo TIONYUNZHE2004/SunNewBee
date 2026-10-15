@@ -135,6 +135,20 @@ def affected(
     )
 
 
+def centre_closure(world: World, centre) -> str | None:
+    """The closure line ("Closed: flooding until further notice") when a staff-reported closure
+    is in force on the centre's place, else None."""
+    p = world.places.get(centre.place_id) if centre.place_id else None
+    live = [c for c in (p.closures if p else []) if c.is_active()]
+    return live[0].label(world.site.timezone) if live else None
+
+
+def _closed_row(centre, closure: str) -> CentreReachability:
+    return CentreReachability(
+        centre=centre, reachable=False, route_status="closed", closure=closure
+    )
+
+
 def centres_reachability(
     world: World,
     scenario_id: str | None,
@@ -147,7 +161,9 @@ def centres_reachability(
     profile = world.profiles.get(profile_id)
     sources = _targets(world, near_place, profile) if near_place and profile else []
     no_data = [
-        CentreReachability(centre=c, reachable=False, route_status="no_data")
+        _closed_row(c, line)
+        if (line := centre_closure(world, c)) is not None
+        else CentreReachability(centre=c, reachable=False, route_status="no_data")
         for c in world.centres.values()
     ]
     if not sources:
@@ -160,6 +176,10 @@ def centres_reachability(
     )
     rows = []
     for c in world.centres.values():
+        closure = centre_closure(world, c)
+        if closure is not None:  # closed: never reachable, never the "nearest reachable"
+            rows.append((3, 0.0, _closed_row(c, closure)))
+            continue
         ts = _targets(world, f"{CENTRE_PREFIX}{c.id}", profile)
         inf = float("inf")
         n = min(

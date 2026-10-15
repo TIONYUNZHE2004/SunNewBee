@@ -15,6 +15,21 @@ def _env(tmp_path, monkeypatch):
 
     state.reset()
     yield
+    _stop_sim_threads()
+
+
+def _stop_sim_threads() -> None:
+    """Test hygiene (Task 55): a test that starts a run and never waits must not leak its worker
+    into the next test. Cancel every run, then join the `sim-*` threads."""
+    import threading
+
+    from townshiplens_api.routes import sim as sim_routes
+
+    for flag in list(sim_routes._cancel_flags.values()):
+        flag.set()
+    for t in threading.enumerate():
+        if t.name.startswith("sim-") and t is not threading.current_thread():
+            t.join(timeout=30)
 
 
 @pytest.fixture

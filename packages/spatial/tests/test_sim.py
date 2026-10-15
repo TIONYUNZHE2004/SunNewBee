@@ -1,5 +1,6 @@
 import dataclasses
 
+import pytest
 from townshiplens_spatial import sim
 
 
@@ -311,3 +312,25 @@ def test_snapshot_is_isolated_from_later_claim_and_closure_changes(world):
     assert snap.edges["seg-ab"].closures and snap.edges["seg-ab"].closures[0].ends_at is None
     assert not snap.edges["seg-bc"].closures  # starts after run start: frozen out
     assert sim.snapshot_world(world, now)[1] != h1  # hash follows the closure set
+
+
+def test_gap_phase_checks_progress_so_a_run_can_stop(world):
+    """Task 55: every gap rerun calls `progress`, so a cancel lands within one rerun."""
+    tasks = sim.default_tasks(world)
+    n = len(tasks)
+    calls: list[tuple[int, int]] = []
+    sim.run_suite(world, tasks, progress=lambda i, total: calls.append((i, total)))
+    assert len(calls) > n  # more than the one call per journey
+
+    class Stop(Exception):
+        pass
+
+    seen = []
+
+    def stop_in_gap_phase(i, total):
+        seen.append(i)
+        if len(seen) > n:
+            raise Stop
+
+    with pytest.raises(Stop):
+        sim.run_suite(world, tasks, progress=stop_in_gap_phase)

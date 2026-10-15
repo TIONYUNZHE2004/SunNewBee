@@ -19,6 +19,7 @@ const item = (o: Partial<GapItem>): GapItem => ({
   unknown: 1,
   stale: 0,
   reported: 0,
+  demo: 0,
   relevant: 3,
   demand: 0,
   journey: 0,

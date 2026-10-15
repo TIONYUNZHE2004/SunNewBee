@@ -245,6 +245,8 @@ def run_suite(
             if res != "PASS":
                 continue
             reruns += 1
+            if progress:  # the hook also checks cancel and the time budget (Task 55)
+                progress(len(tasks), len(tasks))
             rr = plan_route(w2, t["from_id"], t["to_id"], prof, t["scenario_id"])
             if rr.status == "confirmed":
                 improved.append(t)

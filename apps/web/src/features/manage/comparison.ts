@@ -26,6 +26,7 @@ function counts(b: Briefing): Counts {
   const a = b.affected;
   const c = { reachable: 0, partly: 0, noData: 0, blocked: 0 };
   for (const x of b.centres as CentreLike[]) {
+    if (x.route_status === "closed") continue; // closed (staff report): neither reachable nor blocked
     if (x.route_status === "no_data") c.noData++;
     else if (x.reachable && x.route_status === "partly_unverified") c.partly++;
     else if (x.reachable) c.reachable++;
