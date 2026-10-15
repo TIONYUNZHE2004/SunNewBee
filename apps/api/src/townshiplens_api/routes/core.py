@@ -65,8 +65,11 @@ CACHE_CONTROL = "private, max-age=0, must-revalidate"
 
 def _etag(world, lens: str, profile: str, scenario_id: str | None) -> str:
     """Cheap validator: layer content is a pure function of these inputs (claims only change
-    through refresh_claim, which bumps world.version), so never serialise the layer."""
-    key = f"{_BOOT}|{world.site.id}|{world.version}|{lens}|{profile}|{scenario_id or ''}"
+    through refresh_claim / set_closures, which bump world.version, plus closures that start or
+    expire on the clock), so never serialise the layer."""
+    # Closures switch on and off with the clock, not only with world.version: sign the live set.
+    live = ",".join(c.id for c in world.active_closures())
+    key = f"{_BOOT}|{world.site.id}|{world.version}|{lens}|{profile}|{scenario_id or ''}|{live}"
     return f'"{hashlib.sha1(key.encode()).hexdigest()[:20]}"'
 
 

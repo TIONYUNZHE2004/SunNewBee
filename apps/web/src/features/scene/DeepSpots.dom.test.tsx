@@ -12,6 +12,7 @@ const site = (deep_spots?: Schemas["DeepSpot"][]): Schemas["Site"] => ({
   id: "t",
   name: "Test",
   township: "Test",
+  timezone: "Asia/Kuala_Lumpur",
   bbox: [101.4, 3.0, 101.5, 3.1],
   center: [101.45, 3.05],
   ...(deep_spots ? { deep_spots } : {}),

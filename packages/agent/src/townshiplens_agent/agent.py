@@ -290,9 +290,16 @@ def build_agent(model: Model) -> Agent[Deps, FinalAnswer]:
         )
 
     @agent.tool
-    async def get_closures(ctx: RunContext[Deps], scope_ids: list[str] | None = None) -> dict:
-        """Active and upcoming closures."""
-        return await call_tool(ctx.deps, "get_closures", scope_ids=scope_ids)
+    async def get_closures(
+        ctx: RunContext[Deps], near_place: str | None = None, active_only: bool = True
+    ) -> dict:
+        """Staff-reported closures ("Reported closure (staff)"), soonest first. near_place is a
+        place id from find_place: only closures on it or within about 300 m. active_only=False
+        also lists closures that have not started yet. A closure is a staff report, not a
+        guarantee: an empty list does not mean a path or place is open."""
+        return await call_tool(
+            ctx.deps, "get_closures", near_place=near_place, active_only=active_only
+        )
 
     @agent.tool
     async def create_verification_request(
