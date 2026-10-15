@@ -1,6 +1,6 @@
 import { type FormEvent, useEffect, useRef } from "react";
 import { DisclaimerBanner } from "../flood/DisclaimerBanner";
-import { useScene } from "../scene/sceneStore";
+import { type Profile, useScene } from "../scene/sceneStore";
 import { CitationList } from "./CitationList";
 import { useChatDraft } from "./chatDraftStore";
 import type { AssistantMessage } from "./chatReducer";
@@ -66,13 +66,19 @@ export function ChatPanel() {
   const lensVisible = useScene((s) => s.lensVisible);
   const suggestions = suggestionsFor(activeLens(lensVisible));
   const pendingAsk = useChatDraft((s) => s.pendingAsk);
-  const clearAsk = useChatDraft((s) => s.clearAsk);
+
+  const setStreamingMirror = useChatDraft((s) => s.setStreaming);
+  useEffect(() => {
+    setStreamingMirror(streaming);
+  }, [streaming, setStreamingMirror]);
+  useEffect(() => () => useChatDraft.getState().setStreaming(false), []);
 
   useEffect(() => {
     if (!pendingAsk || streaming) return;
-    void send(pendingAsk.text);
-    clearAsk();
-  }, [pendingAsk, streaming, send, clearAsk]);
+    // Hand over atomically so observers never see "nothing pending and not streaming".
+    useChatDraft.setState({ pendingAsk: null, streaming: true });
+    void send(pendingAsk.text, pendingAsk.profile as Profile | undefined, pendingAsk.scenarioId);
+  }, [pendingAsk, streaming, send]);
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: scroll on any message change
   useEffect(() => {

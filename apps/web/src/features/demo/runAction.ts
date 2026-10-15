@@ -1,7 +1,7 @@
 import type { SceneIntent } from "@tl/api-client";
 import { pickSuggestion } from "../chat/suggestions";
 import { type DeepSpot, goToDeepSpot } from "../scene/DeepSpots";
-import type { Profile } from "../scene/sceneStore";
+import { type Profile, useScene } from "../scene/sceneStore";
 import type { StepAction } from "./heroScript";
 
 export interface RunDeps {
@@ -10,7 +10,7 @@ export interface RunDeps {
   setProfile: (p: Profile) => void;
   setScenario: (id: string | null) => void;
   /** Queue a question for the chat panel (the same path the scenario bar uses). */
-  ask: (text: string) => void;
+  ask: (text: string, opts: { profile: Profile; scenarioId: string | null }) => void;
   navigate: (to: string) => void;
 }
 
@@ -42,7 +42,15 @@ export function runAction(a: StepAction, d: RunDeps): "ok" | "unavailable" {
       d.applyIntent({ kind: "layer.toggle", lens: a.lens, visible: a.on });
       return "ok";
     case "ask":
-      pickSuggestion({ text: a.text, profile: a.profile }, (text) => d.ask(text));
+      // Persona and scenario travel with the question, so a later step cannot change them.
+      if (a.scenarioId !== undefined) d.setScenario(a.scenarioId);
+      pickSuggestion({ text: a.text, profile: a.profile }, (text, profile) => {
+        const s = useScene.getState();
+        d.ask(text, {
+          profile: profile ?? s.profile,
+          scenarioId: a.scenarioId === undefined ? s.scenarioId : a.scenarioId,
+        });
+      });
       return "ok";
   }
 }

@@ -7,7 +7,7 @@ export type StepAction =
   | { kind: "setProfile"; profile: Profile }
   | { kind: "setScenario"; scenarioId: string | null }
   | { kind: "setLens"; lens: Lens; on: boolean }
-  | { kind: "ask"; text: string; profile?: Profile }
+  | { kind: "ask"; text: string; profile?: Profile; scenarioId?: string | null }
   | { kind: "openManage"; tab: ManageTab }
   | { kind: "wait"; ms: number };
 
@@ -33,11 +33,12 @@ export const HERO_SCRIPT: DemoStep[] = [
   },
   {
     caption:
-      "Ask in plain words. The answer separates a route with no known barrier from values marked “Demo value · not surveyed”, which are placeholders.",
+      "The answer states the route status. Unchecked segments are listed as “Not checked yet” and become verification requests for the township team. Placeholder values are labelled “Demo value · not surveyed”.",
     action: {
       kind: "ask",
       text: "Can I get to the lakeside mall with a stroller?",
       profile: "stroller",
+      scenarioId: null,
     },
   },
   {
@@ -56,6 +57,7 @@ export const HERO_SCRIPT: DemoStep[] = [
       kind: "ask",
       text: "Where is the nearest evacuation centre if the water rises 3 m?",
       profile: "wheelchair",
+      scenarioId: "stage_p3m",
     },
   },
   {
@@ -65,7 +67,7 @@ export const HERO_SCRIPT: DemoStep[] = [
   },
   {
     caption:
-      "Manager: the Verification queue holds every gap the assistant could not answer, ready for staff to check on site.",
+      "Manager: the Verification queue lists gaps the assistant has flagged, for staff to check on site.",
     action: { kind: "openManage", tab: "queue" },
   },
 ];

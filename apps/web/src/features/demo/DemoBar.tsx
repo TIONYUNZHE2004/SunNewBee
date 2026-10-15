@@ -6,15 +6,11 @@ import { useScene } from "../scene/sceneStore";
 import { parseDemoParam } from "./demoParam";
 import { demoReducer, initialDemoState } from "./demoReducer";
 import { HERO_SCRIPT } from "./heroScript";
+import { shouldHandleKey } from "./keyGuard";
 import { dwellMs, runAction, UNAVAILABLE_NOTE } from "./runAction";
 
+const WAITING = "Waiting for the answer…";
 const TOTAL = HERO_SCRIPT.length;
-const isTyping = (t: EventTarget | null) =>
-  t instanceof HTMLElement && (/^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName) || t.isContentEditable);
-/** Space already activates a focused button or link, so the shortcut must not double up. */
-const isActivatable = (t: EventTarget | null) =>
-  t instanceof HTMLElement && /^(BUTTON|A)$/.test(t.tagName);
-
 /** Mounted once in the app shell. Renders nothing unless the page was opened with `?demo=hero`. */
 export function DemoBar() {
   const { search } = useLocation();
@@ -26,7 +22,9 @@ export function DemoBar() {
 function HeroWalkthrough({ onExit }: { onExit: () => void }) {
   const navigate = useNavigate();
   const site = useSite();
-  const spots = site.data?.deep_spots;
+  // Wait for the site to load; if it failed, run anyway (only jumps need the spots).
+  const spots = site.isPending ? undefined : (site.data?.deep_spots ?? []);
+  const busy = useChatDraft((c) => c.streaming || c.pendingAsk !== null);
   const [state, dispatch] = useReducer(
     (s: typeof initialDemoState, a: Parameters<typeof demoReducer>[2]) => demoReducer(TOTAL, s, a),
     initialDemoState,
@@ -52,13 +50,25 @@ function HeroWalkthrough({ onExit }: { onExit: () => void }) {
     setUnavailable(result === "unavailable");
   }, [state.index, spots, navigate]);
 
-  // Autoplay.
   useEffect(() => {
-    if (!state.playing) return;
+    dispatch({ type: "waiting", on: busy });
+  }, [busy]);
+
+  // Autoplay: holds while an answer is streaming, then dwells after it is done.
+  useEffect(() => {
+    if (!state.playing || state.waiting) return;
     const step = HERO_SCRIPT[state.index];
     const t = setTimeout(() => dispatch({ type: "next" }), step ? dwellMs(step.action) : 7000);
     return () => clearTimeout(t);
-  }, [state.playing, state.index]);
+  }, [state.playing, state.waiting, state.index]);
+
+  useEffect(() => {
+    const prev = document.body.style.paddingBottom;
+    document.body.style.paddingBottom = "9rem";
+    return () => {
+      document.body.style.paddingBottom = prev;
+    };
+  }, []);
 
   const exit = useCallback(() => {
     onExit();
@@ -67,9 +77,8 @@ function HeroWalkthrough({ onExit }: { onExit: () => void }) {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      if (!shouldHandleKey(e)) return;
       if (e.key === "Escape") return exit();
-      if (isTyping(e.target) || (e.key === " " && isActivatable(e.target))) return;
       if (e.key === "ArrowRight") dispatch({ type: "next" });
       else if (e.key === "ArrowLeft") dispatch({ type: "back" });
       else if (e.key === " ") dispatch({ type: "toggle" });
@@ -100,10 +109,10 @@ function HeroWalkthrough({ onExit }: { onExit: () => void }) {
           <button
             type="button"
             className={btn}
-            disabled={state.index === 0}
+            disabled={state.index === 0 || state.waiting}
             onClick={() => dispatch({ type: "back" })}
           >
-            Back
+            {state.waiting ? WAITING : "Back"}
           </button>
           <button type="button" className={btn} onClick={() => dispatch({ type: "toggle" })}>
             {state.playing ? "Pause" : "Play"}
@@ -111,10 +120,10 @@ function HeroWalkthrough({ onExit }: { onExit: () => void }) {
           <button
             type="button"
             className={btn}
-            disabled={state.index >= TOTAL - 1}
+            disabled={state.index >= TOTAL - 1 || state.waiting}
             onClick={() => dispatch({ type: "next" })}
           >
-            Next
+            {state.waiting ? WAITING : "Next"}
           </button>
           <button type="button" className={btn} onClick={exit}>
             Exit demo

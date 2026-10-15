@@ -60,7 +60,15 @@ describe("runAction", () => {
     const d = deps();
     runAction({ kind: "ask", text: "Q?", profile: "wheelchair" }, d);
     expect(useScene.getState().profile).toBe("wheelchair");
-    expect(d.ask).toHaveBeenCalledWith("Q?");
+    expect(d.ask).toHaveBeenCalledWith("Q?", { profile: "wheelchair", scenarioId: null });
+  });
+  it("ask passes its own profile and scenario, not the store's", () => {
+    useScene.getState().setProfile("drive");
+    useScene.getState().setScenario("stage_p1m");
+    const d = deps();
+    runAction({ kind: "ask", text: "Q?", profile: "stroller", scenarioId: "stage_p3m" }, d);
+    expect(d.setScenario).toHaveBeenCalledWith("stage_p3m");
+    expect(d.ask).toHaveBeenCalledWith("Q?", { profile: "stroller", scenarioId: "stage_p3m" });
   });
   it("openManage navigates to the tab", () => {
     const d = deps();
