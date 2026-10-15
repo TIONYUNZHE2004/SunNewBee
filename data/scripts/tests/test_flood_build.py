@@ -524,6 +524,22 @@ def test_rewrite_disclaimers_edits_only_that_field(tmp_path):
     )
 
 
+def test_rewrite_disclaimers_refuses_when_keys_and_scenarios_disagree(tmp_path):
+    """Review (Task 22 M3): a second `disclaimer` key would shift the pairing."""
+    from data.scripts.build_flood import rewrite_disclaimers
+
+    f = tmp_path / "flood"
+    f.mkdir()
+    raw = (
+        '{"scenarios": [{"id": "a", "method": "HAND", "disclaimer": "keep",'
+        ' "extra": {"disclaimer": "nested"}}, {"id": "b", "method": "REM", "disclaimer": "old"}]}'
+    )
+    (f / "scenarios.json").write_text(raw)
+    with pytest.raises(ValueError, match="disclaimer keys"):
+        rewrite_disclaimers(tmp_path)
+    assert (f / "scenarios.json").read_text() == raw
+
+
 def test_update_site_writes_two_space_indent(tmp_path):
     from data.scripts.build_flood import update_site
 
