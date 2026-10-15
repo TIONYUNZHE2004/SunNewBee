@@ -103,17 +103,45 @@ DESTINATIONS = [
     "toilet",
 ]  # access hero; default "playground"
 ORIGINS = ["lakeside mall", "playground", "car park b", "kiosk"]  # flood resident; default mall
+# Access routing places, matched by position. Longest phrases first so "lakeside mall" beats "mall".
+PLACE_WORDS = ["lakeside mall", "urban park", "car park b", "playground", "kiosk", "toilet", "mall"]
+DEMO_ORIGIN = ("lakeside-mall", "Elmina Lakeside Mall")  # same start point the web uses
+_WHERE_NEXT = r"where (?:can|should|do) (?:i|we) go|where (?:to|should i) (?:go|evacuate)"
+_ACCESS_Q = (
+    r"stroller|pram|stairs|tangga|wheelchair|kerusi roda|step|older adult|elderly|\brest\b"
+    r"|\beasy\b|\bwalk\b|get to|from .+ to "
+)
 _PROFILE_WORDS = [
     ("wheelchair", r"wheelchair|kerusi roda"),
     ("stroller", r"stroller|pram|kereta sorong"),
+    ("older_adult_rest", r"older adult|elderly|needs? to rest|warga emas"),
 ]
 _FLOOD_NOTE = "This is not a forecast; follow official MBSA / JPS / NADMA guidance."
-_P3M = {"scenario_id": "stage_p3m"}
 
 
 def _first(q: str, words: list[str], default: str) -> str:
     hits = [(q.find(w), w) for w in words if w in q]
     return min(hits)[1] if hits else default
+
+
+def _place(text: str, default: str | None) -> str | None:
+    """The first known place named in `text` (by position), else `default`."""
+    hits = [(m.start(), w) for w in PLACE_WORDS if (m := re.search(re.escape(w), text))]
+    return min(hits, key=lambda h: (h[0], -len(h[1])))[1] if hits else default
+
+
+def _route_ends(q: str) -> tuple[str, str]:
+    """Origin and destination words: "from X to Y", else "get to Y" with Car Park B as origin."""
+    m = re.search(r"from (.+?) to (.+)", q)
+    if m:
+        return _place(m.group(1), "car park b"), _place(m.group(2), "playground")
+    origin = _place(q.split("from ", 1)[1], "car park b") if "from " in q else "car park b"
+    return origin, _place(q.replace(origin, " ", 1), "playground")
+
+
+def _ui(info: AgentInfo, key: str) -> str | None:
+    m = re.search(rf"{key}=(\w+)", info.instructions or "")
+    return m.group(1) if m else None
 
 
 def _profile(q: str, info: AgentInfo, fallback: str) -> str:
@@ -130,6 +158,19 @@ def _script(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
     rets = _returns(messages)
     n = len(rets)
     is_flood = bool(re.search(r"flood|river|banjir|sungai|rises|naik|水", q))
+    ui_sid = _ui(info, "active_scenario")
+    ui_sid = None if ui_sid == "none" else ui_sid
+    where_next = bool(re.search(_WHERE_NEXT, q))
+    if where_next and not ui_sid:  # no scenario to plan against: point at the river-level control
+        return _cannot(
+            "Pick a river level on the scenario bar, or ask about a specific route, "
+            "and I can show where to go."
+        )
+    sid = ui_sid or "stage_p3m"
+    if m := re.search(r"(\d)\s*m\b", q) if is_flood else None:
+        sid = f"stage_p{m.group(1)}m"
+    level = f"River +{sid.removeprefix('stage_p').removesuffix('m')} m"
+    scn = {"scenario_id": sid}
     if is_flood and re.search(
         r"cut off|affected|briefing|terjejas|island|isolated", q
     ):  # management
@@ -156,7 +197,7 @@ def _script(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
             scenario_id="stage_p3m",
             scene_intents=[{"kind": "flood.set_level", "scenario_id": "stage_p3m"}],
         )
-    if is_flood:  # resident: where can I go
+    if is_flood or where_next:  # resident: where can I go
         if n == 0:
             return _call("find_place", query=_first(q, ORIGINS, "lakeside mall"))
         found = _data(rets[0][1]) or []
@@ -170,14 +211,14 @@ def _script(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
                 return _cannot("I couldn't find where you are in the township model yet.")
             return _call(
                 "list_evacuation_centres",
-                scenario_id="stage_p3m",
+                scenario_id=sid,
                 profile=profile,
                 near_place=origin,
             )
         centres = [c for c in (_data(rets[1][1]) or []) if c.get("reachable")]
         if n == 2:
             if not centres:
-                return _cannot(none_reachable, **_P3M)
+                return _cannot(none_reachable, **scn)
             # Centres are routable as transient "__centre__<id>" targets (their place_id may be
             # unmapped); the list only carries route ids for the nearest few, so always re-plan.
             return _call(
@@ -185,10 +226,10 @@ def _script(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
                 from_id=origin,
                 to_id=f"__centre__{centres[0]['centre']['id']}",
                 profile=profile,
-                scenario_id="stage_p3m",
+                scenario_id=sid,
             )
         if not centres:
-            return _cannot(none_reachable, **_P3M)
+            return _cannot(none_reachable, **scn)
         c0 = centres[0]["centre"]
         routes = (_data(rets[-1][1]) or {}).get("routes") or []
         route = routes[0] if routes else None
@@ -198,10 +239,15 @@ def _script(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
             caveats = [f"Route status: {route.get('status')}; some segments are still unverified."]
         caveats = _placeholder_caveat(rets, flood_cav + caveats)
         confirmed = route and route.get("status") == "confirmed" and not likely
+        start = (
+            f" from {DEMO_ORIGIN[1]} (demo start point)"
+            if where_next and origin == DEMO_ORIGIN[0]
+            else ""
+        )
         return _final(
             answer_status="answered" if confirmed else "partial",
             summary=(
-                "In the River +3 m indicative scenario, the nearest reachable centre is "
+                f"In the {level} indicative scenario, the nearest reachable centre{start} is "
                 f"{c0['name']}; source: {_src(c0)}. {_FLOOD_NOTE}"
             ),
             claims=[
@@ -225,9 +271,9 @@ def _script(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
                 else []
             ),
             route_id=route["id"] if route else None,
-            scenario_id="stage_p3m",
+            scenario_id=sid,
             caveats=caveats,
-            scene_intents=[{"kind": "flood.set_level", "scenario_id": "stage_p3m"}]
+            scene_intents=[{"kind": "flood.set_level", "scenario_id": sid}]
             + ([{"kind": "route.highlight", "route_id": route["id"]}] if route else []),
         )
     if re.search(r"recycl|e-?waste|waste|rubbish|sampah|batter|\bbins?\b", q):  # waste points
@@ -282,11 +328,12 @@ def _script(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
             ],
             caveats=caveats,
         )
-    if re.search(r"stroller|pram|stairs|tangga|wheelchair|kerusi roda|step", q):  # access hero
+    if re.search(_ACCESS_Q, q):  # access hero
+        origin_w, dest_w = _route_ends(q)
         if n == 0:
-            return _call("find_place", query="car park b")
+            return _call("find_place", query=origin_w)
         if n == 1:
-            return _call("find_place", query=_first(q, DESTINATIONS, "playground"))
+            return _call("find_place", query=dest_w)
         if n == 2:
             a, b = _data(rets[0][1]), _data(rets[1][1])
             if not a or not b:
@@ -295,7 +342,7 @@ def _script(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
                 "plan_route",
                 from_id=a[0]["id"],
                 to_id=b[0]["id"],
-                profile=_profile(q, info, "stroller"),
+                profile=_profile(q, info, _ui(info, "profile") or "stroller"),
             )
         rr = _data(rets[-1][1])
         if not isinstance(rr, dict):
@@ -316,8 +363,6 @@ def _script(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
         caveats = _placeholder_caveat(rets, flood_cav + caveats)
         dist = r0.get("distance_m") if r0 else None
         flagged = rr.get("endpoint_flood") or []
-        m = re.search(r"active_scenario=(\w+)", info.instructions or "")
-        ui_sid = m.group(1) if m and m.group(1) != "none" else None
         return _final(
             answer_status="answered" if status == "confirmed" and not likely else "partial",
             scenario_id=flagged[0]["scenario_id"] if flagged else ui_sid,
