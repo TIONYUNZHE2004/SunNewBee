@@ -776,3 +776,13 @@ def test_citation_carries_photo_url():
     ctx = tools.Ctx(world=load_world(TINY), vrs=None)
     cites = [e for e in run_mod._answer_events(ans, rec, ctx) if isinstance(e, Citation)]
     assert cites and cites[0].photo_url == "/api/evidence/" + "a" * 32
+
+
+def test_vr_reasons_match_the_model():
+    from typing import get_args
+
+    from townshiplens_agent.agent import VR_REASONS
+    from townshiplens_spatial.models import VerificationRequest
+
+    assert set(get_args(VerificationRequest.model_fields["reason"].annotation)) == VR_REASONS
+    assert "no_route_unverified_segment" in VR_REASONS

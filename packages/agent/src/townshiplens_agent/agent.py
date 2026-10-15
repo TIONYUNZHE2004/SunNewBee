@@ -9,14 +9,14 @@ import asyncio
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, get_args
 
 from pydantic_ai import Agent, ModelRetry, RunContext, ToolOutput
 from pydantic_ai.models import Model
 from pydantic_ai.models.openrouter import OpenRouterModel
 from pydantic_ai.providers.openrouter import OpenRouterProvider
 from townshiplens_spatial import tools as sp
-from townshiplens_spatial.models import Evidence
+from townshiplens_spatial.models import Evidence, VerificationRequest
 from townshiplens_spatial.routing import CENTRE_PREFIX
 from townshiplens_spatial.scenario_meta import scenario_source
 
@@ -109,7 +109,8 @@ def _flag_flooded_endpoints(deps: Deps, sid: str, place_ids: list[str], res: sp.
         deps.rec.scenarios_used.add(sid)
 
 
-VR_REASONS = {"unknown", "stale", "contradicted", "missing_place", "user_report"}
+# Single source of truth: the VerificationRequest.reason literal.
+VR_REASONS = set(get_args(VerificationRequest.model_fields["reason"].annotation))
 _ATTRIBUTE = re.compile(r"^[a-z_]{1,40}$")
 
 
@@ -295,7 +296,8 @@ def build_agent(model: Model) -> Agent[Deps, FinalAnswer]:
     async def create_verification_request(
         ctx: RunContext[Deps], target_id: str, attribute: str, reason: str, question_summary: str
     ) -> dict:
-        """Log a gap for staff (reason: unknown|stale|contradicted|missing_place|user_report).
+        """Log a gap for staff (reason: unknown|stale|contradicted|no_route_unverified_segment|
+        missing_place|user_report).
         target_id must be an id returned by a tool (for a missing place, any value: it is stored
         as "unknown_place"); attribute is snake_case. question_summary is not stored."""
         return await call_tool(
