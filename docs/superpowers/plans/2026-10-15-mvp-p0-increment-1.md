@@ -783,3 +783,19 @@ Demo & pitch polish (continuation run). `docs/03-product/demo-script.md`, `docs/
 - **Key numbers:** refresh `docs/06-pitch/key-numbers.md` with measured product numbers from `data/README.md`, `docs/superpowers/overnight-log.md` and the screenshots: walk components, connected share, centres connected, flood stage edge counts. Mark each as measured on the seed (date).
 - **Method:** verify every statement against code, data, or a screenshot; invent nothing. Keep the existing tone and structure. Do NOT edit code, `AGENTS.md` or `CLAUDE.md`.
 - **Verify:** `pnpm lint`. Commit `docs: …` on the lane branch.
+
+### Task 50: Staff console readability and deep links (FE)
+
+Found while capturing the pitch screenshots (continuation run).
+
+- **Readable queue rows:** each verification-request row shows:
+  - the attribute's catalogue label ("Incline (%)", from `attributeCatalogue.ts` / `optionLabel`), not `incline_pct`;
+  - the element's name, or "unnamed footway / street / major road", using the same naming as the chat (`useElementNames` / `citationLabel`) where the data is available;
+  - the raw id in small, muted text for staff lookup;
+  - "Reason" values as words ("Unknown", "Stale", "No route: unverified segment", …).
+
+  Filters keep the raw values internally.
+- **Deep links:** `/manage?tab=queue|briefing|journeys|closures` opens that tab. Changing tab updates the URL with `replace`, so Back isn't spammed. Unknown values fall back to the queue. The demo-mode script's manage steps use these links if they don't already.
+- **Tests:** DOM tests (Task 39 style) for row labels and each tab deep link; update e2e selectors only if needed.
+- **Verify:** vitest, lint, typecheck, build, e2e.
+- **Out of scope:** `apps/api`, `packages/*`, `data/`.
