@@ -9,10 +9,9 @@ import { useScene } from "../features/scene/sceneStore";
 import { TicketsPage } from "../features/tickets/TicketsPage";
 import { useStaffTokenStore } from "../features/tickets/useStaffToken";
 import { type Theme, useTheme } from "../ui/theme";
+import mockFloodTurn from "./fixtures/mockFloodTurn.json";
 import { json, newQueryClient, renderWithClient, stubFetch } from "./helpers";
-
-const BANNED = /\bsafe\b|selamat|安全/i;
-const DEPTH = /\b\d+(\.\d+)?\s?(m|cm|metres?)\b[^.]{0,20}\b(deep|depth)/i;
+import { assertHonest, DEPTH, DEPTH_WORD, honestyViolations } from "./honesty";
 
 const scenarios = [
   { id: "baseline", label: "Baseline", stage_m: 0, disclaimer: "d", links: [] },
@@ -48,11 +47,15 @@ const sse = (events: object[]) =>
   });
 
 // The typed API client rejects relative URLs under jsdom, so seed the query cache instead.
+let qcLayerOverride: unknown = null;
 function main(opts: { scene?: () => void; place?: unknown } = {}) {
   const qc = newQueryClient();
   qc.setQueryData(["scenarios"], scenarios);
   qc.setQueryData(["site"], { id: "t", name: "Test", attribution: [] });
-  qc.setQueryData(["layer", "flood", useScene.getState().profile, "stage_p3m"], floodLayer);
+  qc.setQueryData(
+    ["layer", "flood", useScene.getState().profile, "stage_p3m"],
+    qcLayerOverride ?? floodLayer,
+  );
   if (opts.place) qc.setQueryData(["place", "p1", null, null], opts.place);
   opts.scene?.();
   return renderWithClient(<MainPage />, qc);
@@ -79,6 +82,7 @@ describe.each<Theme>(["day", "night"])("honesty and accessibility (%s theme)", (
     useScene.getState().reset();
     useMode.setState({ mode: "resident" });
     useStaffTokenStore.setState({ token: "tok" });
+    qcLayerOverride = null;
     stubFetch(() => json([]));
   });
   afterEach(() => cleanup());
@@ -92,36 +96,41 @@ describe.each<Theme>(["day", "night"])("honesty and accessibility (%s theme)", (
     await userEvent.click(screen.getByRole("button", { name: "Map settings" }));
     await userEvent.click(screen.getByRole("radio", { name: "+3 m" }));
     expect(await screen.findByRole("note")).toHaveTextContent(/not a forecast/i);
-    expect(body()).not.toMatch(BANNED);
-    expect(body()).not.toMatch(DEPTH);
+    assertHonest(body());
     expectAccessibleNames();
   });
 
-  it("management mode keeps the same wording rules", async () => {
+  it("management mode: its own starters and heading, no Travelling as, same wording rules", async () => {
     useMode.setState({ mode: "management" });
     main();
+    expect(screen.getByRole("heading", { name: "Ask about the township" })).toBeVisible();
+    expect(screen.queryByRole("heading", { name: "Ask about getting around" })).toBeNull();
     await userEvent.click(screen.getByRole("button", { name: "Map settings" }));
+    expect(screen.queryByRole("radiogroup", { name: "Travelling as" })).toBeNull();
     await userEvent.click(screen.getByRole("radio", { name: "+3 m" }));
     expect(await screen.findByRole("note")).toHaveTextContent(/not a forecast/i);
-    expect(body()).not.toMatch(BANNED);
-    expect(body()).not.toMatch(DEPTH);
+    assertHonest(body());
     expectAccessibleNames();
   });
 
-  it("an assistant flood answer carries the disclaimer and no safety claim", async () => {
+  it("a recorded mock flood turn renders not-a-forecast and passes the honesty gate", async () => {
+    stubFetch((url) => (url.includes("/chat") ? sse(mockFloodTurn.events) : json([])));
+    main();
+    await userEvent.type(screen.getByRole("textbox", { name: "Your question" }), "flood");
+    await userEvent.click(screen.getByRole("button", { name: "Ask" }));
+    const card = await screen.findByRole("article");
+    expect(card).toHaveTextContent(/This is not a forecast/);
+    expect(card).toHaveTextContent(/indicative scenario/i);
+    assertHonest(card.textContent ?? "");
+    assertHonest(body());
+    expectAccessibleNames();
+  });
+
+  it("negative control: a streamed 'it is safe' is caught by the matcher", async () => {
     stubFetch((url) =>
       url.includes("/chat")
         ? sse([
-            {
-              type: "text.delta",
-              delta: "At the River +3 m scenario, Jalan Tasik is likely flooded.",
-            },
-            {
-              type: "disclaimer",
-              lens: "flood",
-              text: "Indicative scenario, not a forecast.",
-              links: [],
-            },
+            { type: "text.delta", delta: "Take Jalan Tasik, it is safe." },
             { type: "done", message_id: "m", answer_status: "answered", model: "mock" },
           ])
         : json([]),
@@ -130,13 +139,27 @@ describe.each<Theme>(["day", "night"])("honesty and accessibility (%s theme)", (
     await userEvent.type(screen.getByRole("textbox", { name: "Your question" }), "flood");
     await userEvent.click(screen.getByRole("button", { name: "Ask" }));
     const card = await screen.findByRole("article");
-    expect(card).toHaveTextContent(/not a forecast/i);
-    expect(body()).not.toMatch(BANNED);
-    expect(body()).not.toMatch(DEPTH);
-    expectAccessibleNames();
+    expect(card).toHaveTextContent("it is safe");
+    expect(() => assertHonest(body())).toThrow(/safety wording/);
   });
 
-  it("path card: explains the path with no safety claim and no depth", () => {
+  it("path card: no safety claim, no depth, even when the edge carries a depth property", () => {
+    qcLayerOverride = {
+      type: "FeatureCollection",
+      features: [
+        {
+          type: "Feature",
+          geometry: null,
+          properties: {
+            id: "e1",
+            name: "Jalan Tasik",
+            flood_class: "likely_flooded",
+            depth_m: 0.73,
+            water_depth: "0.73 m",
+          },
+        },
+      ],
+    };
     main({
       scene: () => {
         useScene.setState({ scenarioId: "stage_p3m" });
@@ -144,10 +167,10 @@ describe.each<Theme>(["day", "night"])("honesty and accessibility (%s theme)", (
       },
     });
     const card = screen.getByRole("dialog", { name: "Why this path?" });
-    expect(card.textContent).not.toMatch(BANNED);
-    expect(card.textContent).not.toMatch(/depth/i);
-    expect(card.textContent).not.toMatch(DEPTH);
-    expect(card).toHaveTextContent(/not a forecast|indicative/i);
+    assertHonest(card.textContent ?? "");
+    expect(card.textContent).not.toMatch(DEPTH_WORD);
+    expect(card.textContent).not.toMatch(/0\.73/);
+    expect(card).toHaveTextContent(/indicative/i);
     expectAccessibleNames();
   });
 
@@ -166,8 +189,9 @@ describe.each<Theme>(["day", "night"])("honesty and accessibility (%s theme)", (
     expect(demo).not.toBeNull();
     expect(demo?.textContent).not.toMatch(/Verified/);
     // A genuinely verified fact still says so, so the check above is not vacuous.
-    expect(facts.textContent).toMatch(/Verified/);
-    expect(body()).not.toMatch(BANNED);
+    const verified = within(facts).getByText("Wheelchair").closest("li");
+    expect(verified?.textContent).toMatch(/Verified/);
+    assertHonest(body());
     expectAccessibleNames();
   });
 
@@ -191,7 +215,7 @@ describe.each<Theme>(["day", "night"])("honesty and accessibility (%s theme)", (
     });
     expect(screen.getAllByText(/Candidate/).length).toBeGreaterThan(0);
     expect(body()).not.toMatch(/Official/);
-    expect(body()).not.toMatch(BANNED);
+    assertHonest(body());
   });
 
   it("settings popover: every control is a 40px+ target with a name", async () => {
@@ -223,6 +247,19 @@ describe.each<Theme>(["day", "night"])("honesty and accessibility (%s theme)", (
               created_at: new Date().toISOString(),
               current_value: null,
             },
+            {
+              id: "b",
+              element_id: "seg-b",
+              attribute: "width_m",
+              reason: "no_route_unverified_segment",
+              status: "resolved",
+              demand: 2,
+              question_summary: "Wheelchair route from C to D",
+              created_at: new Date(Date.now() - 86_400_000).toISOString(),
+              resolved_at: new Date().toISOString(),
+              resolution: { action: "correct", value: "1.2" },
+              current_value: 1.2,
+            },
           ])
         : json({ type: "FeatureCollection", features: [] }),
     );
@@ -232,8 +269,39 @@ describe.each<Theme>(["day", "night"])("honesty and accessibility (%s theme)", (
     renderWithClient(<RouterProvider router={router} />);
     await screen.findByRole("radiogroup", { name: "Outcome" });
     await userEvent.click(screen.getByRole("radio", { name: /Correct|Record/ }));
-    expect(body()).not.toMatch(BANNED);
+    assertHonest(body());
+    assertHonest(body());
     expect(body()).not.toMatch(/not reachable/i);
     expectAccessibleNames();
+    // A checked ticket: the Before panel never repeats the post-resolution value.
+    await userEvent.click(screen.getByRole("button", { name: /Width \(m\)/ }));
+    expect(await screen.findByText("Not checked yet")).toBeInTheDocument();
+    assertHonest(body());
+    expectAccessibleNames();
+  });
+});
+
+describe("honesty matchers can fail", () => {
+  it.each(["the path is 0.5 m deep", "depth of 2 m", "water depth 30 cm"])(
+    "flags depth wording: %s",
+    (t) => {
+      expect(honestyViolations(t).length).toBeGreaterThan(0);
+      expect(() => assertHonest(t)).toThrow(/Honesty violation/);
+    },
+  );
+  it("DEPTH itself matches a measured depth", () => {
+    expect(DEPTH.test("0.5 m deep")).toBe(true);
+    expect(DEPTH.test("water 30 cm deep here")).toBe(true);
+  });
+  it.each(["it is safe", "Selamat datang", "这里很安全"])("flags safety wording: %s", (t) => {
+    expect(() => assertHonest(t)).toThrow(/safety wording/);
+  });
+  it.each([
+    "Indicative scenario, not a forecast; follow official MBSA / JPS / NADMA guidance.",
+    "River +3 m scenario: Jalan Tasik is likely flooded.",
+    "Step count 2, width 1.2 m.",
+    "Safely ignore this? no: unsafe is a different word",
+  ])("accepts clean text: %s", (t) => {
+    expect(() => assertHonest(t)).not.toThrow();
   });
 });
