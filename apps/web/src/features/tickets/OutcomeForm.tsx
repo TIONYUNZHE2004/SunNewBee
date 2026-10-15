@@ -16,9 +16,22 @@ const DEFAULT_NOTE = "Checked on site";
 const NEEDS_STAFF = "Staff access needed";
 const ALREADY = "Someone else already resolved this ticket.";
 
+const NUMBER_HINTS: Record<string, string> = {
+  step_count: "e.g. 0",
+  step_height_cm: "e.g. 4",
+  incline_pct: "e.g. 5",
+  width_m: "e.g. 1.2",
+};
+const TEXT_HINTS: Record<string, string> = {
+  opening_hours: "e.g. 9am to 5pm, Mon to Sat",
+  name: "e.g. Dewan Komuniti",
+};
+
+/** Placeholder that matches what the field accepts: numeric for number attributes. */
 function hintFor(attribute: string): string {
-  if (attribute === "step_count") return "e.g. 0 steps · ramp at both ends";
-  return specFor(attribute, null).kind === "number" ? "e.g. 2" : "Enter the value";
+  const kind = specFor(attribute, null).kind;
+  if (kind === "number") return NUMBER_HINTS[attribute] ?? "e.g. 2";
+  return TEXT_HINTS[attribute] ?? "Enter the value";
 }
 
 export function OutcomeForm({ ticket, onSaved }: { ticket: Ticket; onSaved?: () => void }) {

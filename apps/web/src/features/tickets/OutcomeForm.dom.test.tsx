@@ -103,6 +103,40 @@ describe("OutcomeForm", () => {
     expect(body(fm)).toEqual({ action: "correct", value: 2, note: "Checked on site" });
   });
 
+  it("number attributes get a numeric hint, and typing 0 enables Save and posts a number", async () => {
+    const fm = stubFetch(() => json({}));
+    const { user, onSaved } = setup(ticket({ attribute: "step_count" }));
+    await choose(user, /Correct/);
+    const input = screen.getByLabelText("Value found on site");
+    expect(input).toHaveAttribute("placeholder", "e.g. 0");
+    expect(save()).toBeDisabled();
+    await user.type(input, "0");
+    expect(save()).toBeEnabled();
+    await user.click(save());
+    await waitFor(() => expect(onSaved).toHaveBeenCalled());
+    expect(body(fm)).toEqual({ action: "correct", value: 0, note: "Checked on site" });
+  });
+
+  it("text attributes keep text hints", async () => {
+    const { user } = setup(ticket({ attribute: "name" }));
+    await choose(user, /Correct/);
+    expect(screen.getByLabelText("Value found on site").getAttribute("placeholder")).toMatch(
+      /^e\.g\. [A-Za-z]/,
+    );
+  });
+
+  it("an enum attribute's Correct select posts the chosen option", async () => {
+    const fm = stubFetch(() => json({}));
+    const { user, onSaved } = setup(ticket({ attribute: "wheelchair" }));
+    await choose(user, /Correct/);
+    expect(save()).toBeDisabled();
+    await user.selectOptions(screen.getByLabelText("Value found on site"), "yes");
+    expect(save()).toBeEnabled();
+    await user.click(save());
+    await waitFor(() => expect(onSaved).toHaveBeenCalled());
+    expect(body(fm)).toEqual({ action: "correct", value: "yes", note: "Checked on site" });
+  });
+
   it("uploads a photo first and sends evidence_id; Reject drops it", async () => {
     const fm = stubFetch((u) => (u === "/api/evidence" ? json({ evidence_id: "ev-9" }) : json({})));
     const { user, onSaved, unmount } = setup();
