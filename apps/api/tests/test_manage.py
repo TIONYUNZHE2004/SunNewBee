@@ -216,3 +216,12 @@ def test_staff_note_is_not_public():  # final review Minor 1
     assert public and all("note" not in (v["resolution"] or {}) for v in public)
     assert note not in str(public)
     assert any(x["note"] == note for x in c.get("/audit", headers=OK).json())  # kept for staff
+
+
+def test_unauthenticated_invalid_body_is_401_not_422():  # task 29 Minor 7
+    assert c.post("/verification-requests", json={"target_id": 5}).status_code == 401
+    assert c.post("/verification-requests", json={}).status_code == 401
+    url = "/verification-requests/vr-0001/resolve"
+    assert c.post(url, json={"action": "bogus"}).status_code == 401
+    assert c.post("/closures", json={"reason": "x"}).status_code == 401
+    assert c.post("/verification-requests", json={}, headers=OK).status_code == 422

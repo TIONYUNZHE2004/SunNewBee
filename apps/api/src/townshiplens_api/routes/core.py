@@ -204,9 +204,15 @@ def place(
     place_id: str,
     scenario_id: str | None = None,
     profile: str = "default",
-    near: str | None = None,
+    near: str | None = Query(None, max_length=120),
 ) -> ToolResult:
-    r = tools.get_place_details(state.get_ctx(), place_id, scenario_id, profile, near)
+    ctx = state.get_ctx()
+    # A bad parameter is an error, not a "data gap" row on the card (same as /briefings/flood).
+    if scenario_id is not None and scenario_id not in {s.id for s in ctx.world.flood.scenarios}:
+        raise HTTPException(404, f"unknown scenario {scenario_id}")
+    if profile not in ctx.world.profiles:
+        raise HTTPException(422, f"unknown profile {profile}")
+    r = tools.get_place_details(ctx, place_id, scenario_id, profile, near)
     if not r.ok:
         raise HTTPException(404, f"unknown place {place_id}")
     return r

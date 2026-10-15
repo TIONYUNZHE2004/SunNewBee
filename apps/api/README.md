@@ -25,7 +25,7 @@ With no seed data present the API falls back to the tiny test fixture.
 | GET | `/layers/gaps` | Gap map (Task 42): walk edges and places with `unknown_count`, `stale_count`, `relevant_count`, `unknown_attributes` and open-VR `demand`; `?profile=`. Edge facts are `evaluate.relevant_attributes`; places count the claims they carry. Counts only, no status or verdict. ETag also changes when VR demand changes |
 | GET | `/graph` | alias of `/layers/access` (no ETag) |
 | GET | `/places?q=` | find_place |
-| GET | `/places/{id}` | `?scenario_id=&profile=&near=`; 404 if unknown |
+| GET | `/places/{id}` | `?scenario_id=&profile=&near=`; 404 if the place or scenario is unknown, 422 for an unknown profile |
 | POST | `/routes` | `{from, to, profile, scenario_id}`; plans only, never files verification requests (the chat and staff do) |
 | GET | `/scenarios` | flood scenarios |
 | GET | `/scenarios/{id}` | water polygons, `surface_height_m` shifted by `site.scene.datum_offset_m`; 404 |
@@ -41,7 +41,7 @@ With no seed data present the API falls back to the tiny test fixture.
 | POST | `/verification-requests/{id}/resolve` | staff; `{action: verify, correct or reject, value, note, evidence_id}`; `verify` without a value confirms the current value; `evidence_id` (from `POST /evidence`) attaches a photo to the claim and is refused on `reject`; 404, 409 (already resolved), 422 (value missing, unknown or rejected `evidence_id`, type mismatch) |
 | PATCH | `/elements/{id}/attributes/{key}` | staff; `{value, status: verified, unknown or reported, source_type, note}`; writes an audit row; 404, 422 |
 | GET | `/audit` | staff; `?element_id=&limit=` (1 to 1000, default 200) |
-| GET | `/kpis` | `open_vrs`, `median_hours_to_resolve`, `journeys_confirmed_pct` (from the latest simulation run) |
+| GET | `/kpis` | `open_vrs`, `median_hours_to_resolve`, `journeys_confirmed_pct` (share of the latest simulation run's journeys that are `confirmed`; `partly_unverified` is not counted, and the run may be for any scenario; public, counts only) |
 | POST | `/evidence` | staff; multipart `file` (JPEG or PNG, max 5 MB; type by magic bytes, EXIF/GPS/text chunks stripped); returns `{evidence_id, photo_url}`; 413, 415, 422 |
 | GET | `/evidence/{id}` | the stored photo (`nosniff`, restrictive CSP); 404 unknown id |
 | POST | `/simulations` | staff; `{scenario_id, profiles}` starts the journey tests (plus evacuation journeys) in a background thread and returns `202 {run_id, status: "queued"}` with a `Location` header. One run at a time per world: a second POST while one is queued or running returns `409 {detail, run_id}` with the running id. 422 unknown scenario. A run has a total time budget (`SIM_TIME_BUDGET_S`, default 600 s); when it runs out the run ends as `timeout` with no report |
