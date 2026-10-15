@@ -6,6 +6,7 @@ from townshiplens_spatial.closure_store import ClosureStore
 from townshiplens_spatial.vr_store import VerificationStore
 from townshiplens_spatial.world import load_world
 
+from . import geojson
 from .settings import TINY_FIXTURE, ApiSettings
 
 log = logging.getLogger(__name__)
@@ -43,3 +44,4 @@ def reset() -> None:
     global _ctx
     with _init_lock:
         _ctx = None
+        geojson.clear_cache()

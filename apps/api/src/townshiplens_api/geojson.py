@@ -96,6 +96,12 @@ def _layer(
 _cache: dict[tuple, dict] = {}
 
 
+def clear_cache() -> None:
+    """Drop memoised layers. The key holds `id(world)`, which a new world can reuse once the old
+    one is freed, so a world swap (`state.reset`) must clear it."""
+    _cache.clear()
+
+
 def layer(
     world: World, lens: str, profile: str = "default", scenario_id: str | None = None
 ) -> dict:

@@ -13,6 +13,7 @@ class ApiSettings(BaseSettings):
     database_url: str | None = None
     staff_token: str = DEFAULT_STAFF_TOKEN
     evidence_dir: Path = ROOT / ".data" / "evidence"
+    sim_time_budget_s: float = 600.0  # a simulation run is stopped as `timeout` after this long
     cors_origins: list[str] = ["http://localhost:5173", "http://127.0.0.1:5173"]
 
     def db_path(self, site_id: str) -> str:
