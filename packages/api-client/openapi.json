@@ -459,6 +459,163 @@
         "title": "Claim",
         "type": "object"
       },
+      "ClosureOut": {
+        "description": "A closure as the public sees it: always a staff report, never a verified fact.",
+        "properties": {
+          "active": {
+            "title": "Active",
+            "type": "boolean"
+          },
+          "element_id": {
+            "title": "Element Id",
+            "type": "string"
+          },
+          "element_kind": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Element Kind"
+          },
+          "element_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Element Name"
+          },
+          "ends_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ends At"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "reason": {
+            "enum": [
+              "works",
+              "event",
+              "flooding",
+              "other"
+            ],
+            "title": "Reason",
+            "type": "string"
+          },
+          "source_label": {
+            "default": "Reported closure (staff)",
+            "title": "Source Label",
+            "type": "string"
+          },
+          "starts_at": {
+            "format": "date-time",
+            "title": "Starts At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "element_id",
+          "reason",
+          "starts_at",
+          "label",
+          "active"
+        ],
+        "title": "ClosureOut",
+        "type": "object"
+      },
+      "CreateClosureBody": {
+        "properties": {
+          "element_id": {
+            "maxLength": 120,
+            "title": "Element Id",
+            "type": "string"
+          },
+          "ends_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ends At"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "maxLength": 300,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "reason": {
+            "enum": [
+              "works",
+              "event",
+              "flooding",
+              "other"
+            ],
+            "title": "Reason",
+            "type": "string"
+          },
+          "starts_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Starts At"
+          }
+        },
+        "required": [
+          "element_id",
+          "reason"
+        ],
+        "title": "CreateClosureBody",
+        "type": "object"
+      },
       "CreateVRBody": {
         "properties": {
           "attribute": {
@@ -2604,6 +2761,167 @@
           }
         },
         "summary": "Chat"
+      }
+    },
+    "/closures": {
+      "get": {
+        "description": "Staff-reported closures. active=true (default): in force now; active=false: ended or not\nstarted yet. Every row is a staff report, labelled as such.",
+        "operationId": "list_closures_closures_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "active",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": true,
+              "title": "Active"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ClosureOut"
+                  },
+                  "title": "Response List Closures Closures Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Closures"
+      },
+      "post": {
+        "operationId": "create_closure_closures_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-staff-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Staff-Token"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateClosureBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClosureOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Closure"
+      }
+    },
+    "/closures/{closure_id}/end": {
+      "post": {
+        "operationId": "end_closure_closures__closure_id__end_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "closure_id",
+            "required": true,
+            "schema": {
+              "title": "Closure Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-staff-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Staff-Token"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClosureOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "End Closure"
       }
     },
     "/elements/{element_id}/attributes/{key}": {

@@ -1,6 +1,6 @@
-from datetime import date
+from datetime import UTC, date, datetime
 
-from .models import Claim, Edge, EvalResult, FloodClass, Profile
+from .models import Claim, Edge, EvalResult, FloodClass, Profile, active_closures
 
 DEFAULT_TTL = {"step_count": 365, "incline_pct": 365, "width_m": 365, "surface": 365}
 _CHECKS = {  # hard key -> (attribute, violates(value, limit))
@@ -76,10 +76,28 @@ def _sidewalk_check(edge: Edge, profile: Profile, today: date) -> tuple[EvalResu
 
 
 def evaluate_edge(
-    edge: Edge, profile: Profile, flood_class: FloodClass | None = None, today: date | None = None
+    edge: Edge,
+    profile: Profile,
+    flood_class: FloodClass | None = None,
+    today: date | None = None,
+    now: datetime | None = None,
 ) -> tuple[EvalResult, list[dict]]:
     today = today or date.today()
     why: list[dict] = []
+    if edge.closures:
+        # Staff-reported closure (Task 46): FAIL for every profile, never an upgrade. Outside
+        # its [starts_at, ends_at) window it has no effect.
+        live = active_closures(edge.closures, now or datetime.now(UTC))
+        if live:
+            return "FAIL", [
+                {
+                    "element_id": edge.id,
+                    "attribute": "closure",
+                    "reason": "unknown",
+                    "why": c.label(),
+                }
+                for c in live
+            ]
     if profile.allowed_types is not None and edge.type not in profile.allowed_types:
         return "FAIL", [
             {

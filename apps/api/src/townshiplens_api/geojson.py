@@ -1,6 +1,7 @@
-from datetime import date
+from datetime import UTC, date, datetime
 
 from townshiplens_spatial.evaluate import claim_gap, edge_gaps, evaluate_edge, relevant_attributes
+from townshiplens_spatial.models import active_closures
 from townshiplens_spatial.world import World
 
 LENSES = ("access", "flood", "waste")
@@ -8,10 +9,16 @@ _MAP = {"PASS": "ok", "UNKNOWN": "unknown", "FAIL": "blocked"}
 _FLOOD = {"likely_flooded": "flooded_likely", "possible": "flooded_possible"}
 
 
+def _place_closure(p, now: datetime) -> dict:
+    live = active_closures(p.closures, now)
+    return {"closed": True, "closure_label": live[0].label()} if live else {}
+
+
 def _layer(
     world: World, lens: str, profile: str = "default", scenario_id: str | None = None
 ) -> dict:
     prof = world.profiles.get(profile) or world.profiles["default"]
+    now = datetime.now(UTC)
     feats: list[dict] = []
     if lens in ("access", "flood"):
         classes = world.flood.edge_classes.get(scenario_id or "", {})
@@ -19,13 +26,18 @@ def _layer(
             fc = classes.get(e.id)
             if lens == "flood" and fc not in _FLOOD:
                 continue
-            status = _FLOOD.get(fc or "") or _MAP[evaluate_edge(e, prof)[0]]
+            live = active_closures(e.closures, now)
+            # A reported closure is shown as Not passable even where a flood class also applies.
+            status = "blocked" if live else _FLOOD.get(fc or "") or _MAP[evaluate_edge(e, prof)[0]]
             props = {
                 "id": e.id,
                 "type": e.type,
                 "name": e.name,
                 "status_for_profile": status,
             }
+            if live:  # Task 46: staff-reported, shown as "Reported closure (staff)"
+                props["closed"] = True
+                props["closure_label"] = live[0].label()
             if fc in _FLOOD:  # class + scenario only; never a depth
                 props["flood_class"] = fc
                 props["scenario_id"] = scenario_id
@@ -47,6 +59,7 @@ def _layer(
                     "type": p.type,
                     "name": p.name,
                     "node_inferred": p.node_inferred,  # Task 43: nearest path, not an entrance
+                    **_place_closure(p, now),
                 },
             }
             for p in world.places.values()

@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import re
+from datetime import UTC, datetime
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 ClaimStatus = Literal["unknown", "reported", "verified", "stale", "contested"]
 EvalResult = Literal["PASS", "FAIL", "UNKNOWN"]
@@ -46,6 +47,50 @@ class Evidence(BaseModel):
     photo_url: str | None = None
 
 
+ClosureReason = Literal["works", "event", "flooding", "other"]
+
+
+def _utc(v: Any) -> Any:
+    """Naive datetimes are read as UTC so window comparisons never mix naive and aware."""
+    if isinstance(v, str):
+        v = datetime.fromisoformat(v.replace("Z", "+00:00"))
+    if isinstance(v, datetime) and v.tzinfo is None:
+        return v.replace(tzinfo=UTC)
+    return v
+
+
+class Closure(BaseModel):
+    """A staff-reported closure of one edge or place (Task 46). Never verified data: it is a
+    report, shown as "Reported closure (staff)". Active while starts_at <= now < ends_at."""
+
+    id: str
+    element_id: str
+    reason: ClosureReason
+    starts_at: datetime
+    ends_at: datetime | None = None  # None = until further notice
+    note: str | None = None
+    created_by: Literal["staff"] = "staff"
+    source: Literal["staff_report"] = "staff_report"
+    created_at: datetime | None = None
+
+    _norm = field_validator("starts_at", "ends_at", "created_at", mode="before")(_utc)
+
+    def is_active(self, now: datetime | None = None) -> bool:
+        now = now or datetime.now(UTC)
+        return self.starts_at <= now and (self.ends_at is None or now < self.ends_at)
+
+    def label(self) -> str:
+        until = (
+            self.ends_at.astimezone(UTC).date().isoformat() if self.ends_at else "further notice"
+        )
+        return f"Closed: {self.reason} until {until}"
+
+
+def active_closures(closures: list[Closure], now: datetime | None = None) -> list[Closure]:
+    now = now or datetime.now(UTC)
+    return [c for c in closures if c.is_active(now)]
+
+
 class Edge(BaseModel):
     id: str
     type: str  # footway|sidewalk|crossing|steps|ramp|path|street|...
@@ -55,6 +100,8 @@ class Edge(BaseModel):
     length_m: float
     name: str | None = None
     claims: dict[str, Claim] = Field(default_factory=dict)
+    # Staff-reported closures (not yet expired); evaluate_edge ignores any outside its window.
+    closures: list[Closure] = Field(default_factory=list)
 
 
 class Place(BaseModel):
@@ -69,6 +116,7 @@ class Place(BaseModel):
     node_inferred: bool = False
     entrance_ids: list[str] = Field(default_factory=list)
     claims: dict[str, Claim] = Field(default_factory=dict)
+    closures: list[Closure] = Field(default_factory=list)
 
 
 class DeepSpot(BaseModel):

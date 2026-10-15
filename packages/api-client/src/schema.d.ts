@@ -55,6 +55,45 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/closures": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Closures
+         * @description Staff-reported closures. active=true (default): in force now; active=false: ended or not
+         *     started yet. Every row is a staff report, labelled as such.
+         */
+        get: operations["list_closures_closures_get"];
+        put?: never;
+        /** Create Closure */
+        post: operations["create_closure_closures_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/closures/{closure_id}/end": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** End Closure */
+        post: operations["end_closure_closures__closure_id__end_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/elements/{element_id}/attributes/{key}": {
         parameters: {
             query?: never;
@@ -614,6 +653,59 @@ export interface components {
             verified_at?: string | null;
             /** Verified By */
             verified_by?: string | null;
+        };
+        /**
+         * ClosureOut
+         * @description A closure as the public sees it: always a staff report, never a verified fact.
+         */
+        ClosureOut: {
+            /** Active */
+            active: boolean;
+            /** Element Id */
+            element_id: string;
+            /** Element Kind */
+            element_kind?: string | null;
+            /** Element Name */
+            element_name?: string | null;
+            /** Ends At */
+            ends_at?: string | null;
+            /** Id */
+            id: string;
+            /** Label */
+            label: string;
+            /** Note */
+            note?: string | null;
+            /**
+             * Reason
+             * @enum {string}
+             */
+            reason: "works" | "event" | "flooding" | "other";
+            /**
+             * Source Label
+             * @default Reported closure (staff)
+             */
+            source_label: string;
+            /**
+             * Starts At
+             * Format: date-time
+             */
+            starts_at: string;
+        };
+        /** CreateClosureBody */
+        CreateClosureBody: {
+            /** Element Id */
+            element_id: string;
+            /** Ends At */
+            ends_at?: string | null;
+            /** Note */
+            note?: string | null;
+            /**
+             * Reason
+             * @enum {string}
+             */
+            reason: "works" | "event" | "flooding" | "other";
+            /** Starts At */
+            starts_at?: string | null;
         };
         /** CreateVRBody */
         CreateVRBody: {
@@ -1459,6 +1551,105 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_closures_closures_get: {
+        parameters: {
+            query?: {
+                active?: boolean | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClosureOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_closure_closures_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-staff-token"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateClosureBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClosureOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    end_closure_closures__closure_id__end_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-staff-token"?: string | null;
+            };
+            path: {
+                closure_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClosureOut"];
                 };
             };
             /** @description Validation Error */

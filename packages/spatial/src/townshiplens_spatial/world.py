@@ -2,11 +2,12 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass, field
+from datetime import datetime
 from pathlib import Path
 
 import networkx as nx
 
-from .models import Claim, Edge, EvacCentre, FloodBundle, Place, Profile, Site, WastePoint
+from .models import Claim, Closure, Edge, EvacCentre, FloodBundle, Place, Profile, Site, WastePoint
 from .profiles import load_profiles
 
 
@@ -28,6 +29,7 @@ class World:
     profiles: dict[str, Profile]
     version: int = 0
     _place_by_node: dict[str, list[str]] = field(default_factory=dict)
+    closures: list[Closure] = field(default_factory=list)  # every loaded closure (flat index)
 
     def refresh_claim(self, element_id: str, attribute: str, claim: Claim) -> None:
         target = self.edges.get(element_id) or self.places.get(element_id)
@@ -35,6 +37,25 @@ class World:
             raise KeyError(element_id)
         target.claims = {**target.claims, attribute: claim}  # copy-on-write for readers
         self.version += 1
+
+    def set_closures(self, closures: list[Closure]) -> None:
+        """Replace every element's closures (copy-on-write) and bump the version so layer ETags
+        change. Closures for unknown elements are dropped. Callers hold `world_lock`."""
+        by_el: dict[str, list[Closure]] = {}
+        for c in closures:
+            if c.element_id in self.edges or c.element_id in self.places:
+                by_el.setdefault(c.element_id, []).append(c)
+        for el in (*self.edges.values(), *self.places.values()):
+            want = by_el.get(el.id, [])
+            if el.closures != want:
+                el.closures = want
+        self.closures = [c for cs in by_el.values() for c in cs]
+        self.version += 1
+
+    def active_closures(self, now: datetime | None = None) -> list[Closure]:
+        return sorted(
+            (c for c in self.closures if c.is_active(now)), key=lambda c: (c.starts_at, c.id)
+        )
 
     def places_at(self, node_id: str) -> list[Place]:
         return [self.places[p] for p in self._place_by_node.get(node_id, [])]
