@@ -12,7 +12,7 @@ from .profiles import load_profiles
 
 
 def _fc(path: Path) -> list[dict]:
-    return json.loads(path.read_text())["features"] if path.exists() else []
+    return json.loads(path.read_text(encoding="utf-8"))["features"] if path.exists() else []
 
 
 @dataclass
@@ -93,7 +93,7 @@ def _place(f: dict) -> Place:
 
 
 def load_world(data_dir: Path, config_dir: Path | None = None) -> World:
-    site = Site.model_validate_json((data_dir / "site.json").read_text())
+    site = Site.model_validate_json((data_dir / "site.json").read_text(encoding="utf-8"))
     edges = {e.id: e for e in map(_edge, _fc(data_dir / "base/walk.geojson"))}
     places = {p.id: p for p in map(_place, _fc(data_dir / "base/places.geojson"))}
     for f in _fc(data_dir / "access/overlay.geojson"):
@@ -111,12 +111,12 @@ def load_world(data_dir: Path, config_dir: Path | None = None) -> World:
         g.add_edge(e.from_node, e.to_node, key=e.id, edge_id=e.id)
     flood_path = data_dir / "flood/scenarios.json"
     flood = (
-        FloodBundle.model_validate_json(flood_path.read_text())
+        FloodBundle.model_validate_json(flood_path.read_text(encoding="utf-8"))
         if flood_path.exists()
         else FloodBundle(scenarios=[])
     )
     water = {
-        s.id: json.loads(p.read_text())
+        s.id: json.loads(p.read_text(encoding="utf-8"))
         for s in flood.scenarios
         if (p := data_dir / f"flood/{s.id}.geojson").exists()
     }

@@ -187,8 +187,8 @@ def _write_base(d: Path, hall_name="Dewan Bunga Matahari"):
         _place("osm-node-6", "park", "Elmina Central Park", [x(5), y(12)], None),
         _place("osm-node-7", "school", "Far school", [110.0, 1.0], None),
     ]
-    (d / "base/walk.geojson").write_text(json.dumps(_fc(walk)))
-    (d / "base/places.geojson").write_text(json.dumps(_fc(places)))
+    (d / "base/walk.geojson").write_text(json.dumps(_fc(walk)), encoding="utf-8")
+    (d / "base/places.geojson").write_text(json.dumps(_fc(places)), encoding="utf-8")
     (d / "site.json").write_text(
         json.dumps(
             {
@@ -199,7 +199,8 @@ def _write_base(d: Path, hall_name="Dewan Bunga Matahari"):
                 "bbox": [101.5, 3.18, 101.52, 3.2],
                 "attribution": ["© OpenStreetMap contributors (ODbL)"],
             }
-        )
+        ),
+        encoding="utf-8",
     )
 
 
@@ -258,12 +259,12 @@ def test_outputs_load_with_load_world(tmp_path):
     assert w.flood.edge_classes["stage_p1m"] == {"seg-river": "likely_flooded"}
     assert w.flood.edge_classes["baseline"] == {}
     assert len(w.centres) == 2
-    site = json.loads((tmp_path / "site.json").read_text())
+    site = json.loads((tmp_path / "site.json").read_text(encoding="utf-8"))
     assert any("Copernicus DEM GLO-30" in a for a in site["attribution"])
     assert site["attribution"].count("© OpenStreetMap contributors (ODbL)") == 1  # REM uses OSM
     assert "HAND: ASF (CC0)" not in site["attribution"]  # HAND is only the comparison method
     assert {s.method for s in w.flood.scenarios} == {"REM"}
-    FloodBundle.model_validate_json((tmp_path / "flood/scenarios.json").read_text())
+    FloodBundle.model_validate_json((tmp_path / "flood/scenarios.json").read_text(encoding="utf-8"))
     # waste: recycling + bin from OSM, plus the programme site only because the OSM name exists
     types = sorted(p.type for p in w.waste.values())
     assert types == ["bin", "programme_site", "recycling_drop_off"]
@@ -271,7 +272,7 @@ def test_outputs_load_with_load_world(tmp_path):
     assert w.site.scene.datum_offset_m == 0.0  # untouched without a computed geoid height
     # idempotent attribution append; the datum offset is written only when computed
     write_outputs(tmp_path, water, vec, created="2026-10-15", datum_offset_m=-3.74)
-    site2 = json.loads((tmp_path / "site.json").read_text())
+    site2 = json.loads((tmp_path / "site.json").read_text(encoding="utf-8"))
     assert site2["attribution"] == site["attribution"]
     assert load_world(tmp_path).site.scene.datum_offset_m == -3.74
 
@@ -280,7 +281,9 @@ def test_write_outputs_without_vector_stage_keeps_scenarios(tmp_path):
     hand, dem = _synthetic()
     water = water_features(hand, dem, T, STAGES, simplify_deg=0.0, tile_deg=1.0)
     write_outputs(tmp_path, water, None, created="2026-10-15")
-    b = FloodBundle.model_validate_json((tmp_path / "flood/scenarios.json").read_text())
+    b = FloodBundle.model_validate_json(
+        (tmp_path / "flood/scenarios.json").read_text(encoding="utf-8")
+    )
     assert [s.id for s in b.scenarios] == scenario_ids(STAGES)
     assert b.scenarios[3].label == "River +3 m (indicative)" and b.scenarios[3].margin_m == 0.5
     assert not (tmp_path / "site.json").exists()  # never created by this script
@@ -396,7 +399,8 @@ def test_load_osm_water_reads_overpass_and_geojson(tmp_path):
 
     a = tmp_path / "a.json"
     a.write_text(
-        json.dumps({"elements": [{"id": 1, **_way({"waterway": "river"}, [(0, 0), (1, 1)])}]})
+        json.dumps({"elements": [{"id": 1, **_way({"waterway": "river"}, [(0, 0), (1, 1)])}]}),
+        encoding="utf-8",
     )
     b = tmp_path / "b.geojson"
     sq = [[0, 0], [1, 0], [1, 1], [0, 1], [0, 0]]
@@ -416,7 +420,8 @@ def test_load_osm_water_reads_overpass_and_geojson(tmp_path):
                     },
                 ]
             )
-        )
+        ),
+        encoding="utf-8",
     )
     lines, polys = osm_drainage_geoms(load_osm_water([a, a, b]))
     assert len(lines) == 1 and len(polys) == 1
@@ -502,7 +507,7 @@ def test_seed_scenario_disclaimers_match_build_constant():
     from data.scripts.build_flood import DISCLAIMERS
 
     p = Path(__file__).resolve().parents[2] / "seed/elmina/flood/scenarios.json"
-    scenarios = json.loads(p.read_text())["scenarios"]
+    scenarios = json.loads(p.read_text(encoding="utf-8"))["scenarios"]
     assert scenarios and all(s["disclaimer"] == DISCLAIMERS["rem"] for s in scenarios)
     assert "101.46" in DISCLAIMERS["rem"] and "paths outside it are not" in DISCLAIMERS["rem"]
 
@@ -517,9 +522,9 @@ def test_rewrite_disclaimers_edits_only_that_field(tmp_path):
         '   "disclaimer": "old"\n  },\n  {\n   "id": "b",\n   "method": "HAND",\n'
         '   "disclaimer": "keep"\n  }\n ]\n}\n'
     )
-    (f / "scenarios.json").write_text(raw)
+    (f / "scenarios.json").write_text(raw, encoding="utf-8")
     assert rewrite_disclaimers(tmp_path) == 1
-    assert (f / "scenarios.json").read_text() == raw.replace(
+    assert (f / "scenarios.json").read_text(encoding="utf-8") == raw.replace(
         '"old"', json.dumps(DISCLAIMERS["rem"], ensure_ascii=False)
     )
 
@@ -534,18 +539,18 @@ def test_rewrite_disclaimers_refuses_when_keys_and_scenarios_disagree(tmp_path):
         '{"scenarios": [{"id": "a", "method": "HAND", "disclaimer": "keep",'
         ' "extra": {"disclaimer": "nested"}}, {"id": "b", "method": "REM", "disclaimer": "old"}]}'
     )
-    (f / "scenarios.json").write_text(raw)
+    (f / "scenarios.json").write_text(raw, encoding="utf-8")
     with pytest.raises(ValueError, match="disclaimer keys"):
         rewrite_disclaimers(tmp_path)
-    assert (f / "scenarios.json").read_text() == raw
+    assert (f / "scenarios.json").read_text(encoding="utf-8") == raw
 
 
 def test_update_site_writes_two_space_indent(tmp_path):
     from data.scripts.build_flood import update_site
 
-    (tmp_path / "site.json").write_text('{"id": "x"}')
+    (tmp_path / "site.json").write_text('{"id": "x"}', encoding="utf-8")
     update_site(tmp_path, 1.5)
-    assert '\n  "attribution"' in (tmp_path / "site.json").read_text()
+    assert '\n  "attribution"' in (tmp_path / "site.json").read_text(encoding="utf-8")
 
 
 def test_coverage_lists_places_without_node(tmp_path):
@@ -553,13 +558,13 @@ def test_coverage_lists_places_without_node(tmp_path):
     _write_base(tmp_path)
     hand, dem = _synthetic()
     vec = vector_stage(tmp_path, effective_hand(hand), T, STAGES, MARGIN)
-    places = json.loads((tmp_path / "base/places.geojson").read_text())["features"]
+    places = json.loads((tmp_path / "base/places.geojson").read_text(encoding="utf-8"))["features"]
     expected = sorted(f["properties"]["id"] for f in places if not f["properties"].get("node_id"))
     assert expected  # the synthetic base has unsnapped places
     assert vec["places_without_node"] == expected
     water = water_features(hand, dem, T, STAGES, simplify_deg=0.0, tile_deg=1.0)
     write_outputs(tmp_path, water, vec, created="2026-10-15")
-    cov = json.loads((tmp_path / "flood/coverage.json").read_text())
+    cov = json.loads((tmp_path / "flood/coverage.json").read_text(encoding="utf-8"))
     assert cov["places_without_node"] == expected
 
 
@@ -568,11 +573,11 @@ def test_coverage_lists_snap_warnings_and_centres_carry_node_inferred(tmp_path):
     inferred-node place say so (typed EvacCentre.node_inferred)."""
     _write_base(tmp_path)
     pp = tmp_path / "base/places.geojson"
-    fc = json.loads(pp.read_text())
+    fc = json.loads(pp.read_text(encoding="utf-8"))
     hall = next(f for f in fc["features"] if f["properties"]["id"] == "osm-node-1")
     hall["properties"]["node_inferred"] = True
     hall["properties"]["snap_warning"] = "OSM outline not returned for this way; snapped ..."
-    pp.write_text(json.dumps(fc))
+    pp.write_text(json.dumps(fc), encoding="utf-8")
     hand, dem = _synthetic()
     vec = vector_stage(tmp_path, effective_hand(hand), T, STAGES, MARGIN)
     assert vec["places_snap_warnings"] == [
@@ -583,5 +588,5 @@ def test_coverage_lists_snap_warnings_and_centres_carry_node_inferred(tmp_path):
     assert centres["osm-node-2"].get("node_inferred", False) is False
     water = water_features(hand, dem, T, STAGES, simplify_deg=0.0, tile_deg=1.0)
     write_outputs(tmp_path, water, vec, created="2026-10-15")
-    cov = json.loads((tmp_path / "flood/coverage.json").read_text())
+    cov = json.loads((tmp_path / "flood/coverage.json").read_text(encoding="utf-8"))
     assert cov["places_snap_warnings"] == vec["places_snap_warnings"]

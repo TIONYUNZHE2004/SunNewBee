@@ -161,7 +161,9 @@ def test_overpass_cache_hit_costs_nothing(monkeypatch, tmp_path):
     import hashlib
 
     ql = "[out:json];way(1,2,3,4);out;"
-    (tmp_path / (hashlib.sha1(ql.encode()).hexdigest() + ".json")).write_text('{"elements":[]}')
+    (tmp_path / (hashlib.sha1(ql.encode()).hexdigest() + ".json")).write_text(
+        '{"elements":[]}', encoding="utf-8"
+    )
     monkeypatch.setattr(overpass, "CACHE", tmp_path)
     monkeypatch.setattr(overpass, "REQUESTS_MADE", 0)
     monkeypatch.setattr(overpass, "MAX_REQUESTS", 0)
@@ -240,7 +242,7 @@ def test_overpass_endpoints_override_moves_on_only_after_connection_errors(monke
     ql = "[out:json];way(1,2,3,4);out;"
     assert overpass.query(ql) == {"elements": []}
     assert urls == ["https://a/api", "https://a/api", "https://b/api"]
-    meta = json.loads(next(tmp_path.glob("*.meta.json")).read_text())
+    meta = json.loads(next(tmp_path.glob("*.meta.json")).read_text(encoding="utf-8"))
     assert meta["endpoint"] == "https://b/api" and "fetched_at" in meta
 
 

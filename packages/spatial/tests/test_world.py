@@ -22,7 +22,7 @@ def test_load_counts(world):
 def test_overlay_replaces_by_id(tmp_path):
     d = tmp_path / "w"
     shutil.copytree(TINY, d)
-    walk = json.loads((d / "base/walk.geojson").read_text())
+    walk = json.loads((d / "base/walk.geojson").read_text(encoding="utf-8"))
     feat = next(f for f in walk["features"] if f["properties"]["id"] == "seg-cf")
     feat["properties"]["claims"]["incline_pct"] = {
         "value": 4,
@@ -30,7 +30,7 @@ def test_overlay_replaces_by_id(tmp_path):
         "verified_at": "2026-10-18",
     }
     (d / "access/overlay.geojson").write_text(
-        json.dumps({"type": "FeatureCollection", "features": [feat]})
+        json.dumps({"type": "FeatureCollection", "features": [feat]}), encoding="utf-8"
     )
     w = load_world(d)
     assert w.edges["seg-cf"].claims["incline_pct"].status == "verified"

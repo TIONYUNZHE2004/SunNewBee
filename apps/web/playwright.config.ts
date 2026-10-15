@@ -17,7 +17,9 @@ export default defineConfig({
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
   webServer: {
     // Delete the e2e DB first so each run starts with an empty verification queue.
-    command: "rm -f .data/e2e.db* && pnpm dev",
+    // Node, not `rm`: Playwright runs this through cmd.exe on Windows.
+    command:
+      "node -e \"for(const s of ['','-wal','-shm'])require('fs').rmSync('.data/e2e.db'+s,{force:true})\" && pnpm dev",
     cwd: "../..",
     // Wait for the API through the Vite proxy, so both servers are up before the first test.
     url: `http://localhost:${WEB_PORT}/api/site`,

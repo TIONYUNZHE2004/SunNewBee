@@ -4,7 +4,12 @@ import { loadEnv } from "vite";
 import { viteStaticCopy } from "vite-plugin-static-copy";
 import { defineConfig } from "vitest/config";
 
-const ROOT = new URL("../..", import.meta.url).pathname;
+// On Windows URL.pathname is "/C:/...", which Node resolves to C:\C:\...; drop the leading slash.
+// (No node:url import: this package has no @types/node.)
+const ROOT = decodeURIComponent(new URL("../..", import.meta.url).pathname).replace(
+  /^\/(?=[A-Za-z]:)/,
+  "",
+);
 const CESIUM = "node_modules/cesium/Build/Cesium";
 
 export default defineConfig(({ mode }) => {

@@ -11,6 +11,6 @@ def load_profiles(config_dir: Path | None = None) -> dict[str, Profile]:
     d = config_dir or DEFAULT_DIR
     out = {}
     for f in sorted(d.glob("*.yaml")):
-        p = Profile.model_validate(yaml.safe_load(f.read_text()))
+        p = Profile.model_validate(yaml.safe_load(f.read_text(encoding="utf-8")))
         out[p.id] = p
     return out

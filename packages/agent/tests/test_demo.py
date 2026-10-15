@@ -68,7 +68,9 @@ async def test_corrupt_file_ignored_with_warning(ctx, tmp_path, caplog):
     st = settings(tmp_path)
     st.demo_dir.mkdir()
     req = ChatRequest(message=Q, profile="stroller")
-    (st.demo_dir / f"{demo.key(req)}.jsonl").write_text('{"meta": {}}\n{not json\n')
+    (st.demo_dir / f"{demo.key(req)}.jsonl").write_text(
+        '{"meta": {}}\n{not json\n', encoding="utf-8"
+    )
     with caplog.at_level(logging.WARNING):
         evs = await run(ctx, st)
     assert "corrupt demo cache" in caplog.text
@@ -113,7 +115,7 @@ def test_committed_entries_load_and_are_mock():
     files = sorted((AgentSettings(_env_file=None).demo_dir).glob("*.jsonl"))
     assert len(files) >= 3
     for f in files:
-        meta = json.loads(f.read_text().splitlines()[0])["meta"]
+        meta = json.loads(f.read_text(encoding="utf-8").splitlines()[0])["meta"]
         assert demo.load(f.stem, f.parent) is not None, f.name
         assert meta["model"].startswith("mock") and meta["world"], f.name
 

@@ -73,7 +73,7 @@ def test_explicit_database_url_is_honoured(tmp_path):
     from townshiplens_api.settings import ApiSettings
 
     s = ApiSettings(database_url=f"sqlite:///{tmp_path}/x.db")
-    assert s.db_path("elmina") == f"{tmp_path}/x.db"
+    assert Path(s.db_path("elmina")) == tmp_path / "x.db"
 
 
 def test_all_three_stores_share_one_path_per_world(monkeypatch, tmp_path):
@@ -84,7 +84,7 @@ def test_all_three_stores_share_one_path_per_world(monkeypatch, tmp_path):
     monkeypatch.setattr("townshiplens_api.settings.ROOT", tmp_path)
     state.reset()
     path = state.db_path()
-    assert path.endswith(f"/{state.get_ctx().world.site.id}.db")
+    assert Path(path).name == f"{state.get_ctx().world.site.id}.db"
     manage._audit()
     sim._store()
     assert path in manage._audits and path in store._sim_stores
@@ -136,7 +136,7 @@ def test_layers_access_places_carry_node_inferred():
 
 
 def test_healthz_fails_when_the_world_cannot_load(tmp_path, monkeypatch):  # final review Minor 5
-    (tmp_path / "site.json").write_text("")  # empty: present but corrupt
+    (tmp_path / "site.json").write_text("", encoding="utf-8")  # empty: present but corrupt
     monkeypatch.setenv("TL_DATA_DIR", str(tmp_path))
     state.reset()
     assert c.get("/healthz").status_code == 503
@@ -152,10 +152,12 @@ def test_profiles_expose_the_sidewalk_rule():  # final review 2, Minor 9
     )
 
 
-def test_relative_database_url_is_resolved_against_the_repo_root(monkeypatch):
+def test_relative_database_url_is_resolved_against_the_repo_root(monkeypatch, tmp_path):
     from townshiplens_api.settings import ROOT, ApiSettings
 
     monkeypatch.setenv("DATABASE_URL", "sqlite:///./.data/x.db")
     assert ApiSettings().db_path("any") == str(ROOT / ".data" / "x.db")
-    monkeypatch.setenv("DATABASE_URL", "sqlite:////tmp/abs.db")
-    assert ApiSettings().db_path("any") == "/tmp/abs.db"
+    # A real absolute path for this OS ("/tmp/..." is not absolute on Windows).
+    absolute = tmp_path / "abs.db"
+    monkeypatch.setenv("DATABASE_URL", f"sqlite:///{absolute}")
+    assert Path(ApiSettings().db_path("any")) == absolute

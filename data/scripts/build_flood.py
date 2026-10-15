@@ -292,7 +292,7 @@ def read_window(url: str, area=AREA, name: str | None = None, refresh: bool = Fa
     tag = "_".join(f"{v:.3f}" for v in area)
     npy, meta = CACHE / f"{name}_{tag}.npy", CACHE / f"{name}_{tag}.json"
     if npy.exists() and meta.exists() and not refresh:
-        return np.load(npy), Affine(*json.loads(meta.read_text())["transform"])
+        return np.load(npy), Affine(*json.loads(meta.read_text(encoding="utf-8"))["transform"])
     env = {"GDAL_DISABLE_READDIR_ON_OPEN": "EMPTY_DIR", "GDAL_HTTP_MAX_RETRY": "3"}
     with rasterio.Env(**env), rasterio.open(url) as ds:
         w = from_bounds(*area, transform=ds.transform)
@@ -305,7 +305,11 @@ def read_window(url: str, area=AREA, name: str | None = None, refresh: bool = Fa
         crs = str(ds.crs)
     CACHE.mkdir(parents=True, exist_ok=True)
     np.save(npy, arr)
-    meta.write_text(json.dumps({"url": url, "crs": crs, "transform": list(t)[:6]}))
+    meta.write_text(
+        json.dumps({"url": url, "crs": crs, "transform": list(t)[:6]}),
+        encoding="utf-8",
+        newline="\n",
+    )
     return arr, t
 
 
@@ -442,7 +446,7 @@ def fetch_osm_water(area=AREA, refresh: bool = False) -> list[dict]:
     ql = OSM_WATER_QL.format(s=s, w=w, n=n, e=e)
     path = CACHE / f"osm_water_{hashlib.sha1(ql.encode()).hexdigest()[:12]}.json"
     if path.exists() and not refresh:
-        return json.loads(path.read_text())["elements"]
+        return json.loads(path.read_text(encoding="utf-8"))["elements"]
     for attempt in range(OVERPASS_MAX_REQUESTS):
         url = OVERPASS_MIRRORS[attempt % len(OVERPASS_MIRRORS)]
         try:
@@ -454,7 +458,7 @@ def fetch_osm_water(area=AREA, refresh: bool = False) -> list[dict]:
             )
             if r.status_code == 200:
                 CACHE.mkdir(parents=True, exist_ok=True)
-                path.write_text(r.text)
+                path.write_text(r.text, encoding="utf-8", newline="\n")
                 return r.json()["elements"]
             print(f"[osm] {url} -> HTTP {r.status_code}")
         except requests.RequestException as exc:
@@ -470,7 +474,7 @@ def load_osm_water(paths: list[Path]) -> list[dict]:
 
     els: dict[tuple, dict] = {}
     for path in paths:
-        d = json.loads(Path(path).read_text())
+        d = json.loads(Path(path).read_text(encoding="utf-8"))
         for el in d.get("elements", []):
             els[(el["type"], el["id"])] = el
         for i, f in enumerate(d.get("features", [])):
@@ -573,7 +577,7 @@ def drainage_mask(lines, polys, shape, transform, connected_only: bool = True) -
 
 
 def _features(path: Path) -> list[dict]:
-    return json.loads(path.read_text())["features"] if path.exists() else []
+    return json.loads(path.read_text(encoding="utf-8"))["features"] if path.exists() else []
 
 
 def _in_area(coord, area=AREA) -> bool:
@@ -764,7 +768,11 @@ def vector_stage(data_dir: Path, eff_hand: np.ndarray, transform, stages=STAGES,
 def _write_fc(path: Path, features: list[dict]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     fc = {"type": "FeatureCollection", "features": features}
-    path.write_text(json.dumps(fc, ensure_ascii=False, separators=(",", ":")) + "\n")
+    path.write_text(
+        json.dumps(fc, ensure_ascii=False, separators=(",", ":")) + "\n",
+        encoding="utf-8",
+        newline="\n",
+    )
 
 
 def scenarios(stages=STAGES, created: str | None = None, method: str = "rem") -> list[dict]:
@@ -826,14 +834,16 @@ def update_site(
             + (f", scene.datum_offset_m={datum_offset_m}" if datum_offset_m is not None else "")
         )
         return False
-    site = json.loads(site_p.read_text())
+    site = json.loads(site_p.read_text(encoding="utf-8"))
     before = json.dumps(site, sort_keys=True)
     attr = site.setdefault("attribution", [])
     attr.extend(a for a in attribution if a not in attr)
     if datum_offset_m is not None:
         site.setdefault("scene", {})["datum_offset_m"] = datum_offset_m
     if json.dumps(site, sort_keys=True) != before:
-        site_p.write_text(json.dumps(site, ensure_ascii=False, indent=2) + "\n")
+        site_p.write_text(
+            json.dumps(site, ensure_ascii=False, indent=2) + "\n", encoding="utf-8", newline="\n"
+        )
     return True
 
 
@@ -842,7 +852,7 @@ def rewrite_disclaimers(data_dir: Path) -> int:
     editing only those string values in place (no DEM rebuild, formatting untouched).
     Returns the number of scenarios rewritten."""
     p = data_dir / "flood" / "scenarios.json"
-    text = p.read_text()
+    text = p.read_text(encoding="utf-8")
     methods = [s["method"] for s in json.loads(text)["scenarios"]]
     new = json.dumps(DISCLAIMERS["rem"], ensure_ascii=False)
     pat = re.compile(r'("disclaimer": )"(?:[^"\\]|\\.)*"')
@@ -864,7 +874,7 @@ def rewrite_disclaimers(data_dir: Path) -> int:
         count += 1
         return m.group(1) + new
 
-    p.write_text(pat.sub(sub, text))
+    p.write_text(pat.sub(sub, text), encoding="utf-8", newline="\n")
     return count
 
 
@@ -889,7 +899,7 @@ def write_outputs(
     }
     FloodBundle.model_validate(bundle)  # contract check before writing
     (flood_dir / "scenarios.json").write_text(
-        json.dumps(bundle, ensure_ascii=False, indent=1) + "\n"
+        json.dumps(bundle, ensure_ascii=False, indent=1) + "\n", encoding="utf-8", newline="\n"
     )
     if vec:
         _write_fc(flood_dir / "evac_centres.geojson", vec["centres"])
@@ -904,7 +914,9 @@ def write_outputs(
             "places_snap_warnings": vec.get("places_snap_warnings", []),
             "dropped_duplicate_centres": [list(p) for p in vec["dropped_duplicate_centres"]],
         }
-        (flood_dir / "coverage.json").write_text(json.dumps(coverage, indent=1) + "\n")
+        (flood_dir / "coverage.json").write_text(
+            json.dumps(coverage, indent=1) + "\n", encoding="utf-8", newline="\n"
+        )
     update_site(data_dir, datum_offset_m, ATTRIBUTIONS[method])
 
 
