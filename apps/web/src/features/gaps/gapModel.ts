@@ -67,6 +67,8 @@ export interface GapItem {
   unknown: number;
   stale: number;
   reported: number;
+  /** Of the unchecked facts, how many are demo values (not yet surveyed). */
+  demo: number;
   relevant: number;
   demand: number;
   /** Journeys the latest simulation says checking this would confirm. */
@@ -103,6 +105,7 @@ export function parseGaps(data: unknown): GapItem[] {
       unknown,
       stale: num(p.stale_count),
       reported: num(p.reported_count),
+      demo: num(p.demo_count),
       relevant,
       demand: num(p.demand),
       journey: num(p.journey_impact),
@@ -244,11 +247,13 @@ export function gapSummaryLine(items: GapItem[], profile: string): string {
   const open = paths.filter((i) => i.unknown > 0).length;
   const n = (v: number) => v.toLocaleString("en-US");
   const who = PROFILE_WORDS[profile] ?? profile;
+  const demo = paths.filter((i) => i.demo > 0).length;
+  const demoNote = demo > 0 ? ` ${n(demo)} of them rest on demo values, not yet surveyed.` : "";
   if (open === 0)
     return `Every path has its facts checked for ${who} travel (${n(paths.length)} paths).`;
   if (open / paths.length > 0.5)
-    return `Most paths are not yet checked: ${n(open)} of ${n(paths.length)} for ${who} travel.`;
-  return `${n(open)} of ${n(paths.length)} paths have facts not yet checked for ${who} travel.`;
+    return `Most paths are not yet checked: ${n(open)} of ${n(paths.length)} for ${who} travel.${demoNote}`;
+  return `${n(open)} of ${n(paths.length)} paths have facts not yet checked for ${who} travel.${demoNote}`;
 }
 
 export const attributeNames = (attrs: string[]): string => attrs.map(optionLabel).join(", ");
@@ -258,9 +263,11 @@ export function gapSummary(i: GapItem): string {
   const facts = `${i.unknown} ${i.unknown === 1 ? "fact" : "facts"} not yet checked`;
   const stale = i.stale > 0 ? `, ${i.stale} out of date` : "";
   const reported = i.reported > 0 ? `, ${i.reported} only reported` : "";
+  const demo =
+    i.demo > 0 ? `, ${i.demo} demo ${i.demo === 1 ? "value" : "values"}, not yet surveyed` : "";
   const asked =
     i.demand > 0 ? `. Asked about ${i.demand} ${i.demand === 1 ? "time" : "times"}` : "";
-  return `${facts}${stale}${reported}${asked}`;
+  return `${facts}${stale}${reported}${demo}${asked}`;
 }
 
 /** The gap layer as GeoJSON with each line's band in `gap_band`, for the Mapbox renderer. Lines

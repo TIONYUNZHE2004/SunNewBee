@@ -138,6 +138,17 @@
           "centre": {
             "$ref": "#/components/schemas/EvacCentre"
           },
+          "closure": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Closure"
+          },
           "distance_m": {
             "anyOf": [
               {
@@ -165,14 +176,22 @@
             "title": "Route Id"
           },
           "route_status": {
-            "enum": [
-              "confirmed",
-              "partly_unverified",
-              "blocked",
-              "no_data"
+            "anyOf": [
+              {
+                "enum": [
+                  "confirmed",
+                  "partly_unverified",
+                  "blocked",
+                  "no_data"
+                ],
+                "type": "string"
+              },
+              {
+                "const": "closed",
+                "type": "string"
+              }
             ],
-            "title": "Route Status",
-            "type": "string"
+            "title": "Route Status"
           }
         },
         "required": [
@@ -1117,6 +1136,10 @@
             "title": "Demand",
             "type": "integer"
           },
+          "demo_count": {
+            "title": "Demo Count",
+            "type": "integer"
+          },
           "id": {
             "title": "Id",
             "type": "string"
@@ -1176,6 +1199,7 @@
           "unknown_count",
           "stale_count",
           "reported_count",
+          "demo_count",
           "unknown_attributes",
           "demand",
           "journey_impact"
@@ -3160,7 +3184,7 @@
     },
     "/closures": {
       "get": {
-        "description": "Staff-reported closures. active=true (default): in force now; active=false: ended or not\nstarted yet. Every row is a staff report, labelled as such.",
+        "description": "Staff-reported closures. active=true (default): in force now; active=false: ended or not\nstarted yet. Every row is a staff report, labelled as such. `note` is shown to staff only.",
         "operationId": "list_closures_closures_get",
         "parameters": [
           {
@@ -3178,6 +3202,22 @@
               ],
               "default": true,
               "title": "Active"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-staff-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Staff-Token"
             }
           }
         ],

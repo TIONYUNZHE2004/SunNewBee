@@ -323,7 +323,10 @@ class AffectedResult(BaseModel):
 class CentreReachability(BaseModel):
     centre: EvacCentre
     reachable: bool
-    route_status: RouteStatus
+    # "closed": a staff-reported closure is in force on the centre's place (Task 55, R33); the
+    # centre is never reachable, whatever the paths to it say. `closure` carries the closure line.
+    route_status: RouteStatus | Literal["closed"]
+    closure: str | None = None
     route_id: str | None = None
     distance_m: float | None = None
 

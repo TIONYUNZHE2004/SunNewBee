@@ -20,6 +20,7 @@ const item = (o: Partial<GapItem>): GapItem => ({
   unknown: 1,
   stale: 0,
   reported: 0,
+  demo: 0,
   relevant: 3,
   demand: 0,
   journey: 0,
@@ -139,6 +140,37 @@ describe("gapSummaryLine", () => {
       "1 of 3 paths have facts not yet checked for stroller travel.",
     );
     expect(gapSummaryLine([seg("a", 0, 0)], "default")).toBe("");
+  });
+});
+
+describe("demo values in the gap summary (Task 55)", () => {
+  it("mentions demo values when some paths rest on them", () => {
+    const items = [
+      item({ id: "a", unknown: 3, demo: 3 }),
+      item({ id: "b", unknown: 0 }),
+      item({ id: "c", unknown: 0 }),
+    ];
+    expect(gapSummaryLine(items, "stroller")).toBe(
+      "1 of 3 paths have facts not yet checked for stroller travel. 1 of them rest on demo values, not yet surveyed.",
+    );
+  });
+  it("says nothing about demo values when there are none", () => {
+    expect(gapSummaryLine([item({ id: "a", unknown: 1 })], "stroller")).not.toMatch(/demo/);
+  });
+  it("a row names its demo values and parseGaps reads demo_count", () => {
+    expect(gapSummary(item({ unknown: 3, demo: 3 }))).toBe(
+      "3 facts not yet checked, 3 demo values, not yet surveyed",
+    );
+    const [g] = parseGaps({
+      features: [
+        {
+          geometry: { type: "LineString", coordinates: [] },
+          properties: { id: "s", unknown_count: 2, relevant_count: 3, demo_count: 2 },
+        },
+      ],
+    });
+    expect(g?.demo).toBe(2);
+    expect(g?.band).toBe("many");
   });
 });
 

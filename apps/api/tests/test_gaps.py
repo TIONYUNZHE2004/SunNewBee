@@ -8,7 +8,29 @@ from townshiplens_spatial.models import Claim
 c = TestClient(app)
 
 
-def _props(profile="stroller", **kw):
+def _surveyed():
+    """The tiny fixture's verified claims are demo values; most tests here are about the
+    verified-claim semantics, so give them real field-survey evidence."""
+    w = state.get_ctx().world
+    for e in w.edges.values():
+        e.claims = {
+            a: cl.model_copy(update={"evidence_type": "field_survey"})
+            if cl.evidence_type == "team_survey_placeholder"
+            else cl
+            for a, cl in e.claims.items()
+        }
+    for p in w.places.values():
+        p.claims = {
+            a: cl.model_copy(update={"evidence_type": "field_survey"})
+            if cl.evidence_type == "team_survey_placeholder"
+            else cl
+            for a, cl in p.claims.items()
+        }
+
+
+def _props(profile="stroller", surveyed=True, **kw):
+    if surveyed:
+        _surveyed()
     fc = c.get("/layers/gaps", params={"profile": profile, **kw}).json()
     return {f["properties"]["id"]: f["properties"] for f in fc["features"]}
 
@@ -106,3 +128,58 @@ def test_response_is_typed_in_openapi():
 def test_default_profile_sees_major_road_sidewalk_as_relevant():
     state.get_ctx().world.edges["seg-gh"].type = "major_road"
     assert _props("default")["seg-gh"]["relevant_count"] == 1
+
+
+def test_demo_values_are_a_gap_not_fully_checked():
+    """Task 55 (R33): verified claims on team_survey_placeholder evidence are "not yet surveyed"."""
+    p = _props(surveyed=False)["seg-ab"]  # all three verified, all demo values
+    assert p["relevant_count"] == 3
+    assert p["unknown_count"] == 3 and p["demo_count"] == 3
+    assert p["unknown_attributes"] == ["step_count", "incline_pct", "width_m"]
+    real = _props()["seg-ab"]  # same edge once surveyed for real
+    assert real["unknown_count"] == 0 and real["demo_count"] == 0
+
+
+def test_demo_count_is_zero_without_demo_values():
+    assert all(p["demo_count"] == 0 for p in _props().values())
+
+
+def test_no_fully_checked_edge_rests_on_demo_values():
+    state.get_ctx()  # tiny world
+    w = state.get_ctx().world
+    for prof in ("stroller", "wheelchair", "older_adult_rest"):
+        for pid, p in _props(prof, surveyed=False).items():
+            e = w.edges.get(pid)
+            if e is None or p["relevant_count"] == 0 or p["unknown_count"] > 0:
+                continue
+            assert not any(
+                cl.evidence_type == "team_survey_placeholder" for cl in e.claims.values()
+            )
+
+
+def test_demo_count_is_typed_in_openapi():
+    schema = c.get("/openapi.json").json()["components"]["schemas"]
+    assert "demo_count" in schema["GapProperties"]["properties"]
+
+
+def test_seed_probe_no_fully_checked_edge_rests_on_demo_values(monkeypatch):
+    """On the committed Elmina seed (Task 55 I2): 0 "Fully checked" edges rest on demo values."""
+    from pathlib import Path
+
+    seed = Path(__file__).resolve().parents[3] / "data/seed/elmina"
+    if not (seed / "site.json").exists():
+        import pytest
+
+        pytest.skip("seed not present")
+    monkeypatch.setenv("TL_DATA_DIR", str(seed))
+    state.reset()
+    w = state.get_ctx().world
+    checked_on_demo = 0
+    for prof in ("stroller", "wheelchair", "older_adult_rest"):
+        for pid, p in _props(prof, surveyed=False).items():
+            e = w.edges.get(pid)
+            if e is None or p["relevant_count"] == 0 or p["unknown_count"] > 0:
+                continue
+            if any(cl.evidence_type == "team_survey_placeholder" for cl in e.claims.values()):
+                checked_on_demo += 1
+    assert checked_on_demo == 0

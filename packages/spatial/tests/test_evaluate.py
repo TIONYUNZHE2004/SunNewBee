@@ -286,3 +286,25 @@ def test_major_road_sidewalk_gap_follows_strictness(world):
     assert [g["attribute"] for g in strict] == ["sidewalk"] and strict[0]["reported"]
     for pid in PROFILES:
         _agrees(e, world.profiles[pid])
+
+
+def test_demo_values_pass_but_are_gaps(world):
+    """Task 55 (R33): evaluate_edge keeps its PASS; the gap map counts demo values as unsurveyed."""
+    from townshiplens_spatial.evaluate import edge_demo_gaps, edge_gaps
+
+    e = world.edges["seg-ab"]  # all three claims verified on team_survey_placeholder
+    prof = world.profiles["stroller"]
+    assert evaluate_edge(e, prof)[0] == "PASS"
+    assert edge_gaps(e, prof) == []
+    demo = edge_demo_gaps(e, prof)
+    assert [g["attribute"] for g in demo] == ["step_count", "incline_pct", "width_m"]
+    assert all(g["demo"] for g in demo)
+    real = e.model_copy(
+        update={
+            "claims": {
+                a: c.model_copy(update={"evidence_type": "field_survey"})
+                for a, c in e.claims.items()
+            }
+        }
+    )
+    assert edge_demo_gaps(real, prof) == []
