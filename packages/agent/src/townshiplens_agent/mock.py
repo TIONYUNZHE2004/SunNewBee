@@ -7,7 +7,15 @@ from pydantic_ai import ModelMessage, ModelResponse, ToolCallPart
 from pydantic_ai.messages import ModelRequest, ToolReturnPart, UserPromptPart
 from pydantic_ai.models.function import AgentInfo, FunctionModel
 
-from .labels import attribute_label, rest_caveats, status_label, unchecked_caveats
+from .labels import (
+    attribute_label,
+    closure_caveats,
+    closure_summary_tail,
+    inferred_caveats,
+    rest_caveats,
+    status_label,
+    unchecked_caveats,
+)
 
 
 def _prompt(messages: list[ModelMessage]) -> str:
@@ -70,6 +78,21 @@ def _cannot(
 
 def _unknown_caveats(routes: list, vrs: list[dict] | None = None) -> list[str]:
     return unchecked_caveats([u for r in routes for u in r.get("unknowns") or []], vrs)
+
+
+def _inferred(ret: dict) -> list[str]:
+    """plan_route warnings about an endpoint whose entrance is not mapped (Task 43)."""
+    return inferred_caveats(
+        [
+            w
+            for w in ret.get("warnings") or []
+            if w.startswith("Route ") and "entrance is not mapped" in w
+        ]
+    )
+
+
+def _blocked_by_closure(closed: list[dict]) -> bool:
+    return any(c.get("impact") == "blocked" for c in closed)
 
 
 def _status_caveat(status: str, a: str, b: str) -> str:
@@ -238,6 +261,49 @@ def _place_answer(details: dict, evidence: list[dict]) -> ModelResponse:
     )
 
 
+_CLOSURE_Q = r"\b(?:closed|closures?|reopen\w*)\b"
+_ROUTE_Q = r"stroller|pram|wheelchair|older adult|elderly|\bwalk\b|get to|from .+ to "
+_CLOSURE_PLACE = re.compile(
+    r"\b(?:is|are|was)\s+(?:the\s+)?(.+?)\s+closed\b|\bclosures?\s+(?:near|at|around)\s+(?:the\s+)?(.+?)\s*[?.!]*$"
+)
+
+
+def _closure_place(q: str) -> str | None:
+    """The place a closure question names ("Is the toilet closed?"), else None (list them all)."""
+    m = _CLOSURE_PLACE.search(q)
+    return next((g for g in (m.groups() if m else ()) if g), None)
+
+
+def _closure_answer(rets, place_q: str | None) -> ModelResponse:
+    """Name every closure get_closures returned, or say none is reported (never "it is open")."""
+    name, ret = rets[-1]
+    rows = _data(ret)
+    if name != "get_closures" or not isinstance(rows, list):
+        return _cannot("I couldn't look up closures just now.")
+    ev = [e["id"] for e in ret.get("evidence", [])]
+    if not rows:
+        where = f" near {place_q}" if place_q else ""
+        return _final(
+            answer_status="partial",
+            summary=f"No staff-reported closure{where} is on record. That is not a guarantee.",
+            caveats=["Closures are staff reports, not a full list."],
+        )
+    return _final(
+        answer_status="partial",
+        summary=f"{len(rows)} staff-reported {'closure' if len(rows) == 1 else 'closures'}.",
+        claims=[
+            {
+                "text": closure_caveats([r])[0],
+                "status": "unverified",
+                "evidence_ids": [f"ev-closure-{r['id']}"],
+            }
+            for r in rows
+            if f"ev-closure-{r['id']}" in ev
+        ],
+        caveats=[*closure_caveats(rows), "A closure is a staff report, not a guarantee."],
+    )
+
+
 def _script(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
     q = _prompt(messages).lower()
     rets = _returns(messages)
@@ -324,10 +390,20 @@ def _script(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
         flood_cav, flood_ev, likely = _endpoint_flood(_data(rets[-1][1]))
         caveats = _unknown_caveats(routes[:1], _vrs(rets[-1][1]))
         rest = rest_caveats(route) if route else []
-        if route and route.get("status") != "confirmed" and not caveats and not rest:
+        closed = (_data(rets[-1][1]) or {}).get("closures") or []
+        if (
+            route
+            and route.get("status") != "confirmed"
+            and not caveats
+            and not rest
+            and not _blocked_by_closure(closed)
+        ):
             caveats = [_status_caveat(route.get("status"), found[0]["name"], c0["name"])]
-        caveats = _placeholder_caveat(rets, flood_cav + caveats + rest)
-        confirmed = route and route.get("status") == "confirmed" and not likely
+        caveats = _placeholder_caveat(
+            rets,
+            flood_cav + caveats + rest + closure_caveats(closed) + _inferred(rets[-1][1]),
+        )
+        confirmed = route and route.get("status") == "confirmed" and not likely and not closed
         start = (
             f" from {DEMO_ORIGIN[1]} (demo start point)"
             if where_next and origin == DEMO_ORIGIN[0]
@@ -417,6 +493,21 @@ def _script(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
             ],
             caveats=caveats,
         )
+    if re.search(_CLOSURE_Q, q) and not re.search(_ROUTE_Q, q):  # is X closed?
+        place_q = _closure_place(q)
+        if n == 0:
+            return _call("find_place", query=place_q) if place_q else _call("get_closures")
+        found = _data(rets[0][1]) if rets[0][0] == "find_place" else None
+        if rets[0][0] == "find_place" and n == 1:
+            top = found[0].get("score", 1.0) if found else 0.0
+            if top < PLACE_MIN_SCORE:
+                return _cannot("I couldn't find that place in the township model yet.")
+            close = [p for p in found if top - p.get("score", 1.0) < PLACE_CLEAR_MARGIN]
+            if len(close) > 1:
+                names = list(dict.fromkeys(p["name"] for p in close))[:3]
+                return _cannot(f"Which place do you mean? {', '.join(names)}?")
+            return _call("get_closures", near_place=found[0]["id"])
+        return _closure_answer(rets, place_q)
     if re.search(_ACCESS_Q, q):  # access hero
         origin_w, dest_w = _route_ends(q)
         if n == 0:
@@ -445,10 +536,19 @@ def _script(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
         caveats = _unknown_caveats(routes, _vrs(rets[-1][1]))
         # Rest-limit lines (older_adult_rest): the gap over the limit, or unverified rest points.
         rest = rest_caveats(r0) if r0 else []
-        if status not in ("confirmed", "no_data") and not caveats and not rest:
+        closed = rr.get("closures") or []
+        if (
+            status not in ("confirmed", "no_data")
+            and not caveats
+            and not rest
+            and not _blocked_by_closure(closed)
+        ):
             # no_data: the summary says it
             caveats = [_status_caveat(status, a.get("name", a["id"]), b.get("name", b["id"]))]
-        caveats = _placeholder_caveat(rets, flood_cav + caveats + rest)
+        caveats = _placeholder_caveat(
+            rets,
+            flood_cav + caveats + rest + closure_caveats(closed) + _inferred(rets[-1][1]),
+        )
         gap = r0.get("max_gap_between_rest_m") if r0 else None
         if gap is not None and plan_profile == "older_adult_rest" and not rest:
             caveats.append(
@@ -458,14 +558,17 @@ def _script(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
         dist = r0.get("distance_m") if r0 else None
         flagged = rr.get("endpoint_flood") or []
         return _final(
-            answer_status="answered" if status == "confirmed" and not likely else "partial",
+            answer_status="answered"
+            if status == "confirmed" and not likely and not closed
+            else "partial",
             scenario_id=flagged[0]["scenario_id"] if flagged else ui_sid,
             summary=(
                 f"No mapped connection between {a.get('name', a['id'])} and "
                 f"{b.get('name', b['id'])} (data gap)."
                 if status == "no_data"
                 else f"{a.get('name', a['id'])} to {b.get('name', b['id'])}: "
-                f"route {status_label(status)}" + (f", {dist} m." if dist is not None else ".")
+                f"route {closure_summary_tail(closed, status) or status_label(status)}"
+                + (f", {dist} m." if dist is not None else ".")
             ),
             claims=[
                 {

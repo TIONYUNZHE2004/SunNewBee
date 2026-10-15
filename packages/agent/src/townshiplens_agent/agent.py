@@ -207,9 +207,25 @@ async def call_tool(deps: Deps, name: str, **kwargs: Any) -> dict:
             enrich_unknowns(deps.ctx.world, r)  # readable element labels and notes
             rec.routes[r["id"]] = r
             rec.route_status[r["id"]] = r["status"]
+        for c in res.data.get("closures") or []:
+            rec.route_closures.append(c)
+            rec.closures[c["id"]] = c
+        rec.inferred_notes += [
+            w
+            for w in res.warnings
+            if w.startswith("Route ")
+            and "entrance is not mapped" in w
+            and w not in rec.inferred_notes
+        ]
         for vr in res.data.get("verification_requests", []):
             rec.vrs.append(vr)
             await _emit(deps, _vr_event(vr))
+    if name == "get_closures" and res.ok and isinstance(res.data, list):
+        rec.closures.update({c["id"]: c for c in res.data})
+        near = kwargs.get("near_place")
+        rec.asked_closures += [
+            c for c in res.data if c.get("active") and (not near or c["element_id"] == near)
+        ]
     if name == "create_verification_request" and res.ok:
         rec.vrs.append(res.data)
         await _emit(deps, _vr_event(res.data))
