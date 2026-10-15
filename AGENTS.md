@@ -109,7 +109,7 @@ When changing the agent, the mock answers and `template.py` must still pass the 
   - Enum attributes use the strings from `docs/04-architecture/world-model-schema.md` (e.g. wheelchair `yes|limited|no`, handrail `both|one_side|none`).
 - **Tests:**
   - pytest + hypothesis live next to each package. `testpaths` covers spatial, agent, api and `data/scripts/tests`.
-  - vitest runs in the `node` environment with no Testing Library. Component tests render with `react-dom/server`, and side effects are extracted into pure, testable functions (see `features/manage/createVr.ts`).
+  - vitest runs in the `node` environment by default. Interaction tests (clicks, focus, keyboard) opt in per file with `// @vitest-environment jsdom` and use Testing Library (`*.dom.test.tsx`; helpers in `apps/web/src/test/`). Other component tests render with `react-dom/server`, and side effects are extracted into pure, testable functions (see `features/manage/createVr.ts`).
   - Playwright uses dedicated ports 5273/8100, so a running dev server on 5173/8000 is never reused. It runs with the tiny fixture, mock LLM, `STAFF_TOKEN=e2e-token` and no map keys (list view).
 - **Commits:** Conventional style with a scope, e.g. `feat(web): …`, `fix(api): …`, `fix(agent): …`, `data: …`, `docs: …`. Data regeneration is committed separately from code.
 - **Dependencies:** only MIT, Apache-2.0 or BSD licences. No GPL/AGPL/LGPL, non-commercial, source-available or unknown licences. This rules out Pillow (HPND); images are stripped with the stdlib (`apps/api/.../imagestrip`). Pin exact versions.

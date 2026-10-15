@@ -44,6 +44,11 @@ export default defineConfig(({ mode }) => {
         },
       },
     },
-    test: { environment: "node", exclude: ["e2e/**", "node_modules/**"] },
+    test: {
+      // Default stays node; DOM tests opt in per file with `// @vitest-environment jsdom`.
+      environment: "node",
+      setupFiles: ["./src/test/setup.ts"],
+      exclude: ["e2e/**", "node_modules/**"],
+    },
   };
 });
