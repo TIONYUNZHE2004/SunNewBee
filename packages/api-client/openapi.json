@@ -133,6 +133,46 @@
         "title": "AttributeBody",
         "type": "object"
       },
+      "BuildingsLayer": {
+        "description": "OSM building footprints and trees for the stylised 3D city (display only).",
+        "properties": {
+          "as_of": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "As Of"
+          },
+          "attribution": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Attribution",
+            "type": "array"
+          },
+          "buildings": {
+            "additionalProperties": true,
+            "title": "Buildings",
+            "type": "object"
+          },
+          "trees": {
+            "additionalProperties": true,
+            "title": "Trees",
+            "type": "object"
+          }
+        },
+        "required": [
+          "buildings",
+          "trees"
+        ],
+        "title": "BuildingsLayer",
+        "type": "object"
+      },
       "CentreReachability": {
         "properties": {
           "centre": {
@@ -3706,6 +3746,34 @@
           }
         },
         "summary": "Kpis"
+      }
+    },
+    "/layers/buildings": {
+      "get": {
+        "description": "OSM buildings and trees. Declared before /layers/{lens} so it wins. 404 when the world has\nno base/buildings.geojson (the client then falls back to the plain scene).",
+        "operationId": "buildings_layer_layers_buildings_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BuildingsLayer"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "304": {
+            "description": "Not modified"
+          },
+          "404": {
+            "description": "no buildings seed for this world"
+          },
+          "502": {
+            "description": "the buildings seed is unreadable"
+          }
+        },
+        "summary": "Buildings Layer"
       }
     },
     "/layers/gaps": {

@@ -1,5 +1,6 @@
 import logging
 import threading
+from pathlib import Path
 
 from townshiplens_spatial import tools
 from townshiplens_spatial.closure_store import ClosureStore
@@ -16,17 +17,21 @@ _init_lock = threading.Lock()
 world_lock = threading.RLock()
 
 
+def data_dir() -> Path:
+    """The world directory get_ctx loads: tl_data_dir if it has site.json, else the tiny fixture."""
+    d = ApiSettings().tl_data_dir
+    return d if (d / "site.json").exists() else TINY_FIXTURE
+
+
 def get_ctx() -> tools.Ctx:
     global _ctx
     if _ctx is None:
         with _init_lock:
             if _ctx is None:
                 s = ApiSettings()
-                if (s.tl_data_dir / "site.json").exists():
-                    data = s.tl_data_dir
-                else:
+                data = data_dir()
+                if data == TINY_FIXTURE and s.tl_data_dir != TINY_FIXTURE:
                     log.warning("no site.json in %s; using the tiny fixture", s.tl_data_dir)
-                    data = TINY_FIXTURE
                 world = load_world(data)
                 path = s.db_path(world.site.id)
                 closures = ClosureStore(path)
@@ -45,3 +50,6 @@ def reset() -> None:
     with _init_lock:
         _ctx = None
         geojson.clear_cache()
+        from .routes import core
+
+        core.clear_buildings_cache()

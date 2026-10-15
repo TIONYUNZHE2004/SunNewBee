@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { makeClient } from "@tl/api-client";
+import { makeClient, type Schemas } from "@tl/api-client";
 import type { Lens, Profile } from "../features/scene/sceneStore";
 import { DEMO_ORIGIN_ID, type PlaceReach, placeQueryParams } from "./placeQuery";
 
@@ -86,4 +86,26 @@ export const useClosures = () =>
     queryKey: ["closures", "active"],
     queryFn: async () =>
       unwrap(await api.GET("/closures", { params: { query: { active: true } } })),
+  });
+
+export type BuildingsLayer = Schemas["BuildingsLayer"];
+
+/** Plain fetch (not the typed client) so a 404 is data, not an error: worlds without a buildings
+ * seed simply render the plain scene. Any other failure throws. */
+export async function fetchBuildings(
+  fetchFn: typeof fetch = (...a) => fetch(...a),
+): Promise<BuildingsLayer | null> {
+  const r = await fetchFn("/api/layers/buildings");
+  if (r.status === 404) return null;
+  if (!r.ok) throw new Error(`buildings request failed (${r.status})`);
+  return (await r.json()) as BuildingsLayer;
+}
+
+/** OSM buildings and trees for the stylised city; null when the world has none. Static per boot. */
+export const useBuildings = () =>
+  useQuery({
+    queryKey: ["buildings"],
+    staleTime: Number.POSITIVE_INFINITY,
+    retry: false,
+    queryFn: () => fetchBuildings(),
   });

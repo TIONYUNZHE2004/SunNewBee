@@ -1,5 +1,6 @@
 import copy
 import hashlib
+import json
 import logging
 import secrets
 import sqlite3
@@ -165,6 +166,81 @@ def gaps_layer(request: Request, response: Response, profile: str = "default"):
         return Response(status_code=304, headers=headers)
     response.headers.update(headers)
     return geojson.gaps_layer(ctx.world, demand, profile, impact)
+
+
+class BuildingsLayer(BaseModel):
+    """OSM building footprints and trees for the stylised 3D city (display only)."""
+
+    buildings: dict[str, Any]  # GeoJSON FeatureCollection of Polygons
+    trees: dict[str, Any]  # GeoJSON FeatureCollection of Points
+    as_of: str | None = None
+    attribution: list[str] = []
+
+
+# (buildings mtime_ns, trees mtime_ns, site mtime_ns, data dir) -> (payload, etag)
+_buildings_cache: dict[tuple, tuple[BuildingsLayer, str]] = {}
+
+
+def clear_buildings_cache() -> None:
+    _buildings_cache.clear()
+
+
+def _mtime(path) -> int:
+    try:
+        return path.stat().st_mtime_ns
+    except OSError:
+        return 0
+
+
+def _read_collection(path) -> dict[str, Any]:
+    if not path.exists():
+        return {"type": "FeatureCollection", "features": []}
+    data = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(data, dict) or not isinstance(data.get("features"), list):
+        raise ValueError(f"{path.name} is not a FeatureCollection")
+    return data
+
+
+@router.get(
+    "/layers/buildings",
+    response_model=BuildingsLayer,
+    responses={
+        304: {"description": "Not modified"},
+        404: {"description": "no buildings seed for this world"},
+        502: {"description": "the buildings seed is unreadable"},
+    },
+)
+def buildings_layer(request: Request, response: Response):
+    """OSM buildings and trees. Declared before /layers/{lens} so it wins. 404 when the world has
+    no base/buildings.geojson (the client then falls back to the plain scene)."""
+    data = state.data_dir()
+    b_path, t_path = data / "base" / "buildings.geojson", data / "base" / "trees.geojson"
+    if not b_path.exists():
+        raise HTTPException(404, "no buildings data for this world")
+    site_path = data / "site.json"
+    key = (str(data), _mtime(b_path), _mtime(t_path), _mtime(site_path))
+    hit = _buildings_cache.get(key)
+    if hit is None:
+        try:
+            site = json.loads(site_path.read_text(encoding="utf-8"))
+            payload = BuildingsLayer(
+                buildings=_read_collection(b_path),
+                trees=_read_collection(t_path),
+                as_of=(site.get("buildings") or {}).get("as_of"),
+                attribution=list(site.get("attribution") or []),
+            )
+        except (OSError, ValueError) as e:  # JSONDecodeError and bad shapes are ValueErrors
+            log.warning("buildings seed unreadable: %s", e)
+            raise HTTPException(502, "buildings data is unreadable") from e
+        etag = f'"{hashlib.sha1(repr(key).encode()).hexdigest()[:20]}"'
+        _buildings_cache.clear()
+        hit = _buildings_cache[key] = (payload, etag)
+    payload, etag = hit
+    headers = {"ETag": etag, "Cache-Control": CACHE_CONTROL}
+    if _matches(request.headers.get("if-none-match"), etag):
+        return Response(status_code=304, headers=headers)
+    response.headers.update(headers)
+    return payload
 
 
 @router.get(
