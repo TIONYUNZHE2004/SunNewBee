@@ -23,6 +23,7 @@ pnpm -r --if-present typecheck
 pnpm --filter @tl/web build   # tsc + vite build + Cesium asset check
 pnpm --filter @tl/web e2e     # Playwright (first time: pnpm --filter @tl/web exec playwright install chromium)
 pnpm data:build     # rebuild data/seed/elmina from OSM + Copernicus DEM (network; see "Data" below)
+pnpm db:reset       # delete local SQLite DBs in .data/ (VRs, audit, sim runs); stop the API first
 ```
 
 Single tests:

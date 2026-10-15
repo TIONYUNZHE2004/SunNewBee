@@ -44,7 +44,7 @@ requests on `/manage`, set `STAFF_TOKEN` in `.env` to something other than `chan
 refuses the default with a 503) and paste the same value into the "Staff token" field.
 
 Other commands: `pnpm test` (pytest + vitest), `pnpm lint`, `pnpm gen` (OpenAPI to TS client),
-`pnpm golden` (golden questions, mock LLM), `pnpm data:build` (rebuild seed data; the data scripts arrive with the data lane, until then the API serves the tiny fixture),
+`pnpm golden` (golden questions, mock LLM), `pnpm db:reset` (clear local verification requests and runs before a demo), `pnpm data:build` (rebuild seed data; the data scripts arrive with the data lane, until then the API serves the tiny fixture),
 `pnpm --filter @tl/web e2e` (Playwright; first run `pnpm --filter @tl/web exec playwright install chromium`).
 More in [docs/05-team/dev-setup.md](docs/05-team/dev-setup.md).
 
