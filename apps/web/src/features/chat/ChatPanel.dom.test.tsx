@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { StrictMode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useScene } from "../scene/sceneStore";
 import { ChatPanel } from "./ChatPanel";
@@ -90,6 +91,18 @@ describe("ChatPanel pendingAsk", () => {
     rerender(<ChatPanel />);
     await waitFor(() => expect(stream.send).toHaveBeenCalledTimes(1));
     expect(stream.send).toHaveBeenCalledWith("Where is the nearest centre?", undefined, undefined);
+    expect(useChatDraft.getState().pendingAsk).toBeNull();
+  });
+
+  it("under StrictMode a pending ask is sent once", async () => {
+    useChatDraft.getState().ask("Which routes are cut off?", { profile: "stroller" });
+    render(
+      <StrictMode>
+        <ChatPanel />
+      </StrictMode>,
+    );
+    await waitFor(() => expect(stream.send).toHaveBeenCalled());
+    expect(stream.send).toHaveBeenCalledTimes(1);
     expect(useChatDraft.getState().pendingAsk).toBeNull();
   });
 });

@@ -61,7 +61,7 @@ Ownership: `apps/web` frontend; `apps/api`, `packages/spatial`, `data/scripts`, 
 | JS lint/format | Biome 2.5 | one config, no ESLint/Prettier |
 | Py lint/format | ruff 0.17 | `ruff check` + `ruff format` |
 | Types | `tsc --noEmit`, `pyright` or `mypy` (optional) | Pydantic gives most Python safety |
-| Unit tests | vitest 5 (node environment, no Testing Library; components render with `react-dom/server`), pytest 9 (+ Hypothesis for flood monotonicity) | |
+| Unit tests | vitest 5 (node environment by default; DOM tests opt in per file with `// @vitest-environment jsdom` and use Testing Library), pytest 9 (+ Hypothesis for flood monotonicity) | |
 | E2E / a11y | Playwright 1.64 (list view, mock LLM, tiny fixture; web :5273, API :8100) | hero smoke plus an accessible-name check. `@axe-core/playwright` is *planned*, not installed |
 | Hooks | pre-commit (`.pre-commit-config.yaml`) | ruff, ruff-format, gitleaks. Biome and a large-file check are *planned*, not configured |
 | Contract | `openapi-typescript` + `openapi-fetch` (instead of hey-api) | `pnpm gen` |
@@ -82,7 +82,7 @@ pnpm --filter @tl/web e2e   # Playwright smoke on its own ports (web :5273, API 
 uv run python -m townshiplens_agent.cli "Can I push a stroller from Car Park B to the kiosk?"
 ```
 
-*Planned, not built:* `data:roads` (OSMnx drive graph; the `drive` profile currently uses the walk extract's street/track edges), deploy workflows. The resident-agent runner is built as `packages/spatial` `sim`, the staff `/simulations` endpoints and the Journey tests tab on `/manage`; `config/profiles/*.yaml` exists.
+*Planned, not built:* `data:roads` (OSMnx drive graph; the `drive` profile currently uses the walk extract's street/track/major_road edges), deploy workflows. The resident-agent runner is built as `packages/spatial` `sim`, the staff `/simulations` endpoints and the Journey tests tab on `/manage`; `config/profiles/*.yaml` exists.
 
 ## 3. Conventions
 

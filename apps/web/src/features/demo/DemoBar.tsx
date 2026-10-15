@@ -65,8 +65,11 @@ function HeroWalkthrough({ onExit }: { onExit: () => void }) {
   useEffect(() => {
     const prev = document.body.style.paddingBottom;
     document.body.style.paddingBottom = "9rem";
+    // Overlays (place card, flood popover) offset their bottom by this so the bar never covers them.
+    document.documentElement.style.setProperty("--demo-bar-h", "9rem");
     return () => {
       document.body.style.paddingBottom = prev;
+      document.documentElement.style.removeProperty("--demo-bar-h");
     };
   }, []);
 

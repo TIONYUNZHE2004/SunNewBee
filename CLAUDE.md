@@ -27,7 +27,7 @@ The shared, tool-agnostic project instructions live in AGENTS.md: commands, arch
   - The coordinator merges with `--no-ff`, runs the full checklist, then pushes.
   - Subagent-driven-development ledgers, briefs and review packages live in `.superpowers/sdd/<plan>/` (gitignored). Trust the ledger plus `git log` over memory after a context reset.
 - **Plans and logs:**
-  - Implementation plans: `docs/superpowers/plans/`, e.g. `2026-10-15-mvp-p0-increment-1.md` with Tasks 15–36.
+  - Implementation plans: `docs/superpowers/plans/`, e.g. `2026-10-15-mvp-p0-increment-1.md` with Tasks 15+.
   - Spec: `docs/superpowers/specs/2026-10-15-platform-walking-skeleton-design.md`.
   - Status: `docs/03-product/mvp-spec.md`.
   - Append notable decisions as rulings ("Ruling: what — why — cost if wrong") to the plan's ledger, and log long runs in `docs/superpowers/overnight-log.md` using real `date` timestamps.
