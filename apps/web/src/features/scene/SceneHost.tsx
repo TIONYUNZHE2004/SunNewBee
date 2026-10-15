@@ -1,6 +1,7 @@
 import { Component, lazy, type ReactNode, Suspense, useEffect, useMemo } from "react";
 import { ENV } from "../../lib/env";
 import { PROFILE_IDS, PROFILE_LABELS } from "../../lib/profileStore";
+import { GapLegend } from "../gaps/GapLegend";
 import { ListView } from "./list/ListView";
 import { StatusLegend } from "./StatusLegend";
 import { type Profile, useScene } from "./sceneStore";
@@ -43,7 +44,7 @@ class RendererBoundary extends Component<
 const noKeys = !ENV.googleKey && !ENV.cesiumToken && !ENV.mapboxToken;
 
 export function SceneHost() {
-  const { view, setView, profile, setProfile } = useScene();
+  const { view, setView, profile, setProfile, gapsVisible } = useScene();
   const webglOk = useMemo(webglSupported, []);
   const available = useMemo(() => availableViews(ENV, webglOk), [webglOk]);
 
@@ -128,7 +129,11 @@ export function SceneHost() {
               {effective === "cesium" ? <CesiumScene /> : <MapboxLite />}
             </Suspense>
           </RendererBoundary>
-          <StatusLegend className="pointer-events-none absolute left-2 top-2 z-10 max-w-[70%]" />
+          {gapsVisible && effective === "cesium" ? (
+            <GapLegend className="pointer-events-none absolute left-2 top-2 z-10 max-w-[70%]" />
+          ) : (
+            <StatusLegend className="pointer-events-none absolute left-2 top-2 z-10 max-w-[70%]" />
+          )}
         </div>
       )}
     </div>

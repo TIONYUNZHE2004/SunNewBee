@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { useLayer, useScenarios } from "../../../lib/api";
+import { GapsLensSection } from "../../gaps/GapsSection";
 import { useScene } from "../sceneStore";
 import { statusStyle } from "../styles";
 import { ListLensSections } from "./LensSections";
@@ -27,8 +28,16 @@ function StatusBadge({ status }: { status: Parameters<typeof statusStyle>[0] }) 
 }
 
 export function ListView() {
-  const { profile, scenarioId, route, focusPlaceId, lensVisible, selectPlace, selectFloodEdge } =
-    useScene();
+  const {
+    profile,
+    scenarioId,
+    route,
+    focusPlaceId,
+    lensVisible,
+    gapsVisible,
+    selectPlace,
+    selectFloodEdge,
+  } = useScene();
   const layer = useLayer("access", profile, scenarioId);
   const scenarios = useScenarios();
   const parsed = useMemo(() => parseLayer(layer.data), [layer.data]);
@@ -131,6 +140,8 @@ export function ListView() {
           )}
         </section>
       )}
+
+      {gapsVisible && <GapsLensSection />}
 
       <section aria-labelledby="places-h">
         <h2 id="places-h" className="text-xl font-semibold">

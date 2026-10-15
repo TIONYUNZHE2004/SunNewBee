@@ -9,6 +9,8 @@ export type Lens = "access" | "flood" | "waste";
 interface SceneState {
   view: View;
   lensVisible: Record<Lens, boolean>;
+  /** Gap map overlay (AX-09). Separate from the lenses: it is not part of the intent contract. */
+  gapsVisible: boolean;
   profile: Profile;
   scenarioId: string | null;
   focusPlaceId: string | null;
@@ -24,12 +26,15 @@ interface SceneState {
   setProfile: (p: Profile) => void;
   setScenario: (s: string | null) => void;
   toggleLens: (l: Lens) => void;
+  setGaps: (on: boolean) => void;
+  toggleGaps: () => void;
   reset: () => void;
 }
 
 const initial = {
   view: "list" as View,
   lensVisible: { access: true, flood: false, waste: false } as Record<Lens, boolean>,
+  gapsVisible: false,
   profile: loadProfile(),
   scenarioId: null as string | null,
   focusPlaceId: null as string | null,
@@ -94,5 +99,7 @@ export const useScene = create<SceneState>((set) => ({
       lensVisible: { ...s.lensVisible, flood: !!scenarioId || s.lensVisible.flood },
     })),
   toggleLens: (l) => set((s) => ({ lensVisible: { ...s.lensVisible, [l]: !s.lensVisible[l] } })),
+  setGaps: (gapsVisible) => set({ gapsVisible }),
+  toggleGaps: () => set((s) => ({ gapsVisible: !s.gapsVisible })),
   reset: () => set(initial),
 }));

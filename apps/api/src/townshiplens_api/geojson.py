@@ -99,12 +99,13 @@ def gaps_layer(world: World, demand: dict[str, int], profile: str = "default") -
     prof = world.profiles.get(profile) or world.profiles["default"]
     today = date.today()
 
-    def counts(claims, attrs) -> dict[str, int]:
+    def counts(claims, attrs) -> dict:
         flags = [claim_gap(claims.get(a), a, today) for a in attrs]
         return {
             "relevant_count": len(attrs),
             "unknown_count": sum(1 for u, _ in flags if u),
             "stale_count": sum(1 for _, s in flags if s),
+            "unknown_attributes": [a for a, (u, _) in zip(attrs, flags, strict=True) if u],
         }
 
     feats: list[dict] = []

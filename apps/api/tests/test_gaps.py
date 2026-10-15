@@ -21,6 +21,7 @@ def test_counts_missing_unknown_and_fully_checked():
     # seg-be: step_count reported (not a gap), incline and width claims missing
     assert p["seg-be"]["unknown_count"] == 2
     assert p["seg-be"]["relevant_count"] == 3
+    assert p["seg-be"]["unknown_attributes"] == ["incline_pct", "width_m"]
     assert p["seg-gh"]["unknown_count"] == 3  # no claims at all
 
 

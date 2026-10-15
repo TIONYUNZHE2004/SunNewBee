@@ -169,7 +169,5 @@ def claim_gap(claim: Claim | None, attr: str, today: date | None = None) -> tupl
     if claim is None:
         return True, False
     stale = claim.status == "stale" or _is_stale(claim, attr, today or date.today())
-    unknown = (
-        stale or claim.value is None or claim.status in ("unknown", "contested")
-    )
+    unknown = stale or claim.value is None or claim.status in ("unknown", "contested")
     return unknown, stale
