@@ -334,16 +334,12 @@ def _script(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
             return _call("find_place", query=origin_w)
         if n == 1:
             return _call("find_place", query=dest_w)
+        plan_profile = _profile(q, info, _ui(info, "profile") or "stroller")
         if n == 2:
             a, b = _data(rets[0][1]), _data(rets[1][1])
             if not a or not b:
                 return _cannot("I couldn't find one of those places yet.")
-            return _call(
-                "plan_route",
-                from_id=a[0]["id"],
-                to_id=b[0]["id"],
-                profile=_profile(q, info, _ui(info, "profile") or "stroller"),
-            )
+            return _call("plan_route", from_id=a[0]["id"], to_id=b[0]["id"], profile=plan_profile)
         rr = _data(rets[-1][1])
         if not isinstance(rr, dict):
             return _cannot()
@@ -361,6 +357,12 @@ def _script(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
         if status != "confirmed" and not caveats:
             caveats = [f"Route status: {status}; some segments are still unverified."]
         caveats = _placeholder_caveat(rets, flood_cav + caveats)
+        gap = r0.get("max_gap_between_rest_m") if r0 else None
+        if gap is not None and plan_profile == "older_adult_rest":
+            caveats.append(
+                f"Rest stops mapped on this route: {len(r0.get('rest_points') or [])}; "
+                f"the longest stretch without one is about {round(gap)} m."
+            )
         dist = r0.get("distance_m") if r0 else None
         flagged = rr.get("endpoint_flood") or []
         return _final(

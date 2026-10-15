@@ -85,6 +85,12 @@ async def test_older_adult_chip_uses_that_profile(world, tmp_path):
     assert plans and plans[0]["profile"] == "older_adult_rest"
 
 
+async def test_older_adult_answer_reports_the_rest_gap(world, tmp_path):
+    msg, profile, scenario = ACCESS[2]
+    evs = await _turn(world, tmp_path, msg, profile, scenario)
+    assert "longest stretch without one" in _text(evs)
+
+
 async def test_urban_park_to_mall_routes_between_both(world, tmp_path):
     msg, profile, scenario = ACCESS[3]
     evs = await _turn(world, tmp_path, msg, profile, scenario)
