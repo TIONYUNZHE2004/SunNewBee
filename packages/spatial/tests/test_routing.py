@@ -202,12 +202,19 @@ def test_walk_connected_but_only_path_has_fail_edge_is_blocked(world):
     assert rr.status == "blocked" and rr.blocked_reasons
 
 
-def _retype_major(world, edge_id, sidewalk=None):
+def _retype_major(world, edge_id, sidewalk=None, status="reported"):
+    from datetime import date
+
     from townshiplens_spatial.models import Claim
 
     e = world.edges[edge_id].model_copy(deep=True, update={"type": "major_road"})
     if sidewalk:
-        e.claims["sidewalk"] = Claim(value=sidewalk, status="reported", evidence_type="osm_import")
+        e.claims["sidewalk"] = Claim(
+            value=sidewalk,
+            status=status,
+            evidence_type="osm_import",
+            verified_at=date.today().isoformat() if status == "verified" else None,
+        )
     world.edges[edge_id] = e
 
 
@@ -221,8 +228,17 @@ def test_route_over_major_road_without_sidewalk_data_is_never_confirmed(world):
         ].items()
 
 
-def test_route_over_major_road_with_mapped_sidewalk_can_be_confirmed(world):
-    _retype_major(world, "seg-ab", "both")
+def test_route_over_major_road_with_reported_sidewalk_is_confirmed_only_for_default(world):
+    _retype_major(world, "seg-ab", "both")  # reported (OSM)
+    assert plan_route(world, "park-b", "lakeside-mall", "default").status == "confirmed"
+    for pid in ("stroller", "wheelchair", "older_adult_rest"):
+        rr = plan_route(world, "park-b", "lakeside-mall", pid)
+        assert rr.status == "partly_unverified", pid
+        assert rr.routes[0].unknowns[0]["attribute"] == "sidewalk"
+
+
+def test_route_over_major_road_with_verified_sidewalk_can_be_confirmed(world):
+    _retype_major(world, "seg-ab", "both", status="verified")
     assert plan_route(world, "park-b", "lakeside-mall", "default").status == "confirmed"
     assert plan_route(world, "park-b", "lakeside-mall", "stroller").status == "confirmed"
 

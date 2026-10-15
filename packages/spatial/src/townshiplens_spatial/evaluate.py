@@ -19,29 +19,47 @@ def _is_stale(c: Claim, attr: str, today: date) -> bool:
 
 # Edge types people can only walk along on a sidewalk or verge (Task 31).
 SIDEWALK_TYPES = {"major_road"}
+# `separate` = the sidewalk is mapped as its own footway; the brief accepts the road edge too
+# (review M-5: a stricter "prefer the parallel footway" rule is a possible follow-up).
 SIDEWALK_PRESENT = {"both", "one_side", "separate"}
 
 
 def _sidewalk_check(edge: Edge, profile: Profile, today: date) -> tuple[EvalResult, dict] | None:
-    """Walking profiles on a major road: None when mapped sidewalk data supports it, else
-    FAIL/UNKNOWN with the reason. Vehicle profiles (allowed_types set) are not affected."""
+    """Walking profiles on a major road: None when the sidewalk claim supports it, else
+    FAIL/UNKNOWN with the reason. Vehicle profiles (allowed_types set) are not affected.
+
+    Same status semantics as the hard limits (world-model-schema 3): for a profile that treats
+    a missing sidewalk as a barrier (`no_sidewalk_is: FAIL`), "sidewalk present" counts only
+    when verified and fresh; a reported `none` is enough to FAIL. The default profile has no
+    hard constraints, so a fresh reported or verified sidewalk is enough there.
+    """
     if edge.type not in SIDEWALK_TYPES or profile.allowed_types is not None:
         return None
+    strict = profile.no_sidewalk_is == "FAIL"
     c = edge.claims.get("sidewalk")
     stale = c is not None and c.value is not None and _is_stale(c, "sidewalk", today)
     trusted = c is not None and c.status in ("verified", "reported") and not stale
     if trusted and c.value in SIDEWALK_PRESENT:
-        return None
-    if trusted and c.value == "none":
-        res: EvalResult = "FAIL" if profile.no_sidewalk_is == "FAIL" else "UNKNOWN"
-        why = f"major road with no sidewalk mapped; not usable for {profile.id}"
-        if res == "UNKNOWN":
-            why = "major road with no sidewalk mapped; walking means the carriageway or verge"
-        return res, {
+        if c.status == "verified" or not strict:
+            return None
+        return "UNKNOWN", {
             "element_id": edge.id,
             "attribute": "sidewalk",
             "reason": "unknown",
-            "why": why,
+            "why": f"major road; sidewalk only reported ({c.value}), not verified",
+        }
+    if trusted and c.value == "none":
+        if strict:
+            return "FAIL", {
+                "element_id": edge.id,
+                "attribute": "sidewalk",
+                "why": f"major road with no sidewalk mapped; not usable for {profile.id}",
+            }
+        return "UNKNOWN", {
+            "element_id": edge.id,
+            "attribute": "sidewalk",
+            "reason": "unknown",
+            "why": "major road with no sidewalk mapped; walking means the carriageway or verge",
         }
     return "UNKNOWN", {
         "element_id": edge.id,

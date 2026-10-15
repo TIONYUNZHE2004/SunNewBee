@@ -247,3 +247,43 @@ def test_overpass_endpoints_override_moves_on_only_after_connection_errors(monke
 def test_overpass_default_mirrors_unchanged():
     assert overpass.ENDPOINTS is None
     assert overpass.MIRRORS[0] == "https://overpass-api.de/api/interpreter"
+
+
+# --- Review M-6: pin the Task 31 outcomes on the committed Elmina seed ----------------------
+
+
+@pytest.fixture(scope="module")
+def elmina():
+    from pathlib import Path
+
+    from townshiplens_spatial.world import load_world
+
+    return load_world(Path(__file__).resolve().parents[2] / "seed" / "elmina")
+
+
+def test_seed_major_roads_carry_no_carriageway_width_or_surface(elmina):
+    major = [e for e in elmina.edges.values() if e.type == "major_road"]
+    assert major
+    assert not [e.id for e in major if "width_m" in e.claims or "surface" in e.claims]
+
+
+def test_seed_no_strict_walking_profile_passes_a_major_road_without_verified_sidewalk(elmina):
+    from townshiplens_spatial.evaluate import evaluate_edge
+
+    for e in elmina.edges.values():
+        if e.type != "major_road":
+            continue
+        c = e.claims.get("sidewalk")
+        if c is not None and c.status == "verified":
+            continue
+        for pid in ("stroller", "wheelchair", "older_adult_rest"):
+            assert evaluate_edge(e, elmina.profiles[pid])[0] != "PASS", (e.id, pid)
+
+
+def test_seed_hero_route_still_confirmed_without_major_roads(elmina):
+    from townshiplens_spatial.routing import plan_route
+
+    rr = plan_route(elmina, "park-b", "playground", "stroller")
+    assert rr.status == "confirmed"
+    assert rr.routes[0].distance_m == pytest.approx(440.6, abs=5)
+    assert not [s for s in rr.routes[0].segments if elmina.edges[s.edge_id].type == "major_road"]

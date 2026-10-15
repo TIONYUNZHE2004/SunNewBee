@@ -1,3 +1,5 @@
+from datetime import date
+
 from townshiplens_spatial.evaluate import evaluate_edge
 
 
@@ -122,16 +124,44 @@ def test_major_road_sidewalk_none_fails_strict_profiles_unknown_for_default(worl
     assert r == "UNKNOWN" and why[0]["attribute"] == "sidewalk"
 
 
-def test_major_road_with_sidewalk_follows_normal_rules(world):
+def test_major_road_reported_sidewalk_is_unknown_for_strict_profiles(world):
+    # Review I-1: an imported/reported "sidewalk present" is never treated as verified for a
+    # hard constraint (world-model-schema 3); a reported barrier (none) is enough to FAIL.
     for value in ("both", "one_side", "separate"):
-        e = _major(world, value)
+        e = _major(world, value)  # reported
+        for pid in STRICT:
+            r, why = evaluate_edge(e, world.profiles[pid])
+            assert r == "UNKNOWN", (value, pid)
+            assert [(w["attribute"], w["reason"]) for w in why] == [("sidewalk", "unknown")]
+            assert "only reported" in why[0]["why"]
+        # The default profile has no hard constraints: a reported sidewalk is enough.
+        assert evaluate_edge(e, world.profiles["default"]) == ("PASS", []), value
+
+
+def test_major_road_verified_sidewalk_follows_normal_rules(world):
+    for value in ("both", "one_side", "separate"):
+        e = _major(world, value, "verified", verified_at="2026-10-15")
         for pid in WALKING:
-            assert evaluate_edge(e, world.profiles[pid]) == ("PASS", []), (value, pid)
+            assert evaluate_edge(e, world.profiles[pid], today=date(2026, 10, 16)) == (
+                "PASS",
+                [],
+            ), (value, pid)
         # Other attributes still decide: an unverified width stays UNKNOWN for the stroller.
         e.claims["width_m"].status = "reported"
-        r, why = evaluate_edge(e, world.profiles["stroller"])
+        r, why = evaluate_edge(e, world.profiles["stroller"], today=date(2026, 10, 16))
         assert r == "UNKNOWN" and [w["attribute"] for w in why] == ["width_m"]
-        assert evaluate_edge(e, world.profiles["default"])[0] == "PASS"
+
+
+def test_reported_both_unknown_but_verified_both_passes_for_stroller(world):
+    stroller = world.profiles["stroller"]
+    assert evaluate_edge(_major(world, "both"), stroller)[0] == "UNKNOWN"
+    verified = _major(world, "both", "verified", verified_at="2026-10-15")
+    assert evaluate_edge(verified, stroller, today=date(2026, 10, 16)) == ("PASS", [])
+
+
+def test_major_road_sidewalk_none_fail_has_no_unknown_reason(world):
+    _, why = evaluate_edge(_major(world, "none"), world.profiles["stroller"])
+    assert "reason" not in why[0]  # the value is known: like a hard-limit FAIL
 
 
 def test_major_road_untrusted_sidewalk_claim_is_unknown(world):

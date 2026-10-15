@@ -241,7 +241,7 @@ def _fetch_major_ways(allow_missing: bool = False) -> tuple[list[dict], list[tup
         ql = f'[out:json][timeout:180];way[highway~"^({hw})$"]({s},{w},{n},{e});out geom tags;'
         try:
             elements = overpass.query(ql).get("elements", [])
-        except (overpass.BudgetExceeded, RuntimeError):
+        except RuntimeError:  # includes overpass.BudgetExceeded
             if not allow_missing:
                 raise
             missing.append((s, w, n, e))

@@ -29,6 +29,15 @@ The unknown ramp and path lengths are listed in `seed/elmina/access/README.md`.
 pnpm data:build        # import_osm.py, build_overlay.py, build_flood.py, build_waste.py. Run import before overlay: the overlay step rewrites `base/places.geojson`
 ```
 
+`pnpm data:build` runs `build_flood.py` without the flags the committed seed was built with, so from the cache it attempts network lookups. To reproduce the committed seed offline, run:
+
+```bash
+uv run python data/scripts/import_osm.py --max-requests 0
+uv run python data/scripts/build_overlay.py
+uv run --group data python data/scripts/build_flood.py --datum-offset -3.74 --osm-water data/cache/2f7c0c51d14428009f2172835c2108ed9966ae2d.json
+uv run --group data python data/scripts/build_waste.py
+```
+
 Overpass responses are cached in `data/cache/` (gitignored); delete it to refetch. Node ids (`n-<lat*1e7>_<lon*1e7>`)
 are derived from coordinates because the cached `out geom` responses omit OSM node ids.
 
@@ -47,14 +56,22 @@ Envelope bbox (s,w,n,e) = 3.150, 101.460, 3.240, 101.530.
 `import_osm.py` now also fetches `highway=primary|secondary|trunk` and their `_link`s (motorways stay excluded) in the 2 × 2 `ENVELOPE` tiles, with the NE tile split smaller after 504s (`major_tiles()`: 6 cached Overpass queries; rulings R22–R24). Ways tagged `foot=no` are skipped. They become walk edges of type **`major_road`**, split at shared nodes like every other way. `secondary_link`, which used to come in as `street`, is now `major_road` too (51 ways).
 
 - **`sidewalk` claim** (`osm_import`, `reported`, raw tags in `notes`): `sidewalk`, `sidewalk:both`, `sidewalk:left`, `sidewalk:right` are normalised to `both | one_side | none | separate`. Tags that do not fix both sides (`sidewalk=yes` on its own, or one side only) give **no claim**. Nothing is guessed. Carriageway `width` and `surface` are not imported as claims on major roads.
-- **Evaluation** (walking profiles): a trusted `both | one_side | separate` claim → the normal rules apply. `none` → FAIL for stroller, wheelchair and older_adult_rest (`no_sidewalk_is: FAIL` in their profile yaml), UNKNOWN for default. No trusted claim → UNKNOWN for every walking profile. So a route over a major road is never `confirmed` without sidewalk data. `drive` allows `major_road`.
+- **Evaluation** (walking profiles). The status rules match the hard limits: reported data is never treated as verified for a hard constraint.
+  - Stroller, wheelchair and older_adult_rest (`no_sidewalk_is: FAIL` in their profile yaml):
+    - a **verified**, fresh `both | one_side | separate` → the normal rules apply;
+    - a merely `reported` (OSM-imported) one → UNKNOWN;
+    - `none`, even if only reported → FAIL.
+  - Default: a fresh `reported` or `verified` sidewalk is enough; `none` → UNKNOWN.
+  - Missing, contested or stale claim → UNKNOWN for every walking profile.
+  - So a route over a major road is never `confirmed` without sidewalk data, and never `confirmed` for the strict profiles without a verified sidewalk.
+  - `drive` allows `major_road`.
 - **Rate limit:** `import_osm.py --max-requests N` hard-caps real Overpass HTTP requests (retries included; cache hits are free) and prints `BLOCKED` with the count when the cap is reached, before writing anything.
 - **Endpoint:** `import_osm.py --endpoint URL` (repeatable) replaces the default mirror rotation. The next endpoint is tried only after a connection-level failure. Each fresh cache file gets a `<sha1>.meta.json` sidecar recording the endpoint and the fetch time.
 - `--allow-missing-major-tiles` builds without major-road tiles that cannot be fetched and lists their bboxes in `site.json` `major_roads_missing_bbox` (`[w, s, e, n]`). **On this seed nothing is missing**, so the field is absent.
 
 **Tile provenance (15 Oct 2026).** 18 Overpass requests in total, retries included:
 - The three R22 tiles came through the default rotation, with no endpoint recorded. OSM bases: 2026-07-15, 2026-10-14 and 2026-05-06.
-- NE-south `(3.195, 101.495, 3.2175, 101.53)` came through the default rotation (R23). OSM base 2026-07-24.
+- NE-south `(3.195, 101.495, 3.2175, 101.53)` came through the default rotation (R23). By the rotation, that was `overpass.kumi.systems` on the 2nd attempt, after a 504 from overpass-api.de. OSM base 2026-07-24.
 - NE-north-west and NE-north-east came from `overpass.kumi.systems` (R24). OSM bases 2026-07-24 and 2026-05-06.
 
 The vintages are mixed, as they are for the walk cache. Re-running `import_osm.py` from the cache gives byte-identical `base/*.geojson` and `site.json` (checked).
@@ -77,7 +94,7 @@ The vintages are mixed, as they are for the walk cache. Re-running `import_osm.p
 | +5 m | 2,263 / 553, 19.06 | 2,468 / 567, 19.06 |
 | Edges with no / partial flood coverage | 59 / 193 | 61 / 209 |
 
-**No major-road segment has a `sidewalk` claim.** The OSM sidewalk tags in Elmina only describe one side (`sidewalk:left` or `sidewalk:right=separate` on 3 ways), which leaves the other side unknown. So every major road is UNKNOWN for walking. Trips that were `no_data` become `partly_unverified`, never `confirmed`. The journey-test gap ranking now includes `sidewalk`, but no single sidewalk flip confirms a trip, because the routes also need unverified step/incline/width data.
+**No major-road segment has a `sidewalk` claim.** The OSM sidewalk tags in Elmina only describe one side (`sidewalk:left` or `sidewalk:right=separate` on 3 ways), which leaves the other side unknown. So every major road is UNKNOWN for walking. Trips that were `no_data` become `partly_unverified`, never `confirmed`. The journey-test gap ranking now includes `sidewalk`, but on this seed it is **structurally empty**. A gap counts only if one flip makes the trip `confirmed`, and major roads carry no `width_m`, `step_count` or `incline_pct` claims, so a sidewalk flip alone never makes the edge PASS. Sidewalk gaps can appear only once those attributes are surveyed.
 
 **Segment renumbering.** 101+ existing `seg-<way>-<k>` ids now carry new geometry, because their ways are re-split at major-road junctions. None of the ids referenced in this README, `access/README.md`, `data/demo/*.jsonl`, e2e tests or golden changed. The overlay (P1/P2, ramp `seg-1306543755-2`) is identical. The 4 Elmina demo-cache entries were re-recorded with the mock.
 
