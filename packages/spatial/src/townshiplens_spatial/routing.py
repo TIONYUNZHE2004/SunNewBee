@@ -1,5 +1,6 @@
 import hashlib
 import heapq
+import itertools
 import math
 
 import networkx as nx
@@ -194,30 +195,44 @@ def make_weight(world, profile, scenario_id, allow_unknown, evals=None, chosen=N
 
 
 def _search(world, sources, targets, profile, scenario_id, allow_unknown):
+    """Cheapest path from any source to any target: Dijkstra straight over `world.graph`.
+
+    Same result as `nx.dijkstra_path` between a temporary super-source and super-target (equal
+    costs resolve by insertion order, the first source/target reached wins), without copying the
+    whole graph for those two nodes on every call (about half of a seed route's time)."""
     evals: dict[str, tuple] = {}
     chosen: dict[frozenset, str] = {}  # node pair -> edge key the search actually costed
     weight = make_weight(world, profile, scenario_id, allow_unknown, evals, chosen)
-
-    g = world.graph
-    tmp_s, tmp_t = "__S__", "__T__"
-    h = nx.MultiGraph(g)
-    for s in sources:
-        h.add_edge(tmp_s, s, key="__s__" + s)
-    for t in targets:
-        h.add_edge(t, tmp_t, key="__t__" + t)
-
-    def w2(u, v, data):
-        if any(str(k).startswith("__") for k in data):
-            return 0.0
-        return weight(u, v, data)
-
-    try:
-        path = nx.dijkstra_path(h, tmp_s, tmp_t, weight=w2)
-    except nx.NetworkXNoPath:
-        return None, [], evals
-    nodes = path[1:-1]
-    keys = [chosen[frozenset((u, v))] for u, v in zip(nodes, nodes[1:], strict=False)]
-    return nodes, keys, evals
+    g, goal = world.graph, set(targets)
+    seen: dict[str, float] = {}
+    done: set[str] = set()
+    pred: dict[str, str] = {}
+    tick = itertools.count()
+    heap: list[tuple[float, int, str]] = []
+    for s in dict.fromkeys(sources):
+        seen[s] = 0.0
+        heapq.heappush(heap, (0.0, next(tick), s))
+    while heap:
+        dist, _, v = heapq.heappop(heap)
+        if v in done:
+            continue
+        done.add(v)
+        if v in goal:
+            nodes = [v]
+            while nodes[-1] in pred:
+                nodes.append(pred[nodes[-1]])
+            nodes.reverse()
+            keys = [chosen[frozenset((u, w))] for u, w in zip(nodes, nodes[1:], strict=False)]
+            return nodes, keys, evals
+        for u, data in g[v].items():
+            cost = weight(v, u, data)
+            if cost is None or u in done:
+                continue
+            if u not in seen or dist + cost < seen[u]:
+                seen[u] = dist + cost
+                pred[u] = v
+                heapq.heappush(heap, (seen[u], next(tick), u))
+    return None, [], evals
 
 
 def _rest_places(world: World, node: str) -> list[tuple[str, object]]:

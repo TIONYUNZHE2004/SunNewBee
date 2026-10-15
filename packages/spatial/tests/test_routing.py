@@ -588,7 +588,9 @@ def test_drive_route_says_when_a_place_is_snapped_to_a_road(world):  # task 26 M
     assert any("Playground is about 80 m" in w or "playground" in w.lower() for w in notes)
     on_road = plan_route(world, "park-b", "park-c", "drive")  # park-c sits on a road node
     assert not any(w.startswith("Car Park C") for w in on_road.warnings)
-    assert not [w for w in plan_route(world, "park-b", "playground", "stroller").warnings if "road" in w]
+    assert not [
+        w for w in plan_route(world, "park-b", "playground", "stroller").warnings if "road" in w
+    ]
 
 
 def test_snap_to_road_breaks_ties_by_node_id(world):  # task 26 Minor 5
@@ -622,3 +624,69 @@ def test_elmina_seed_pins_the_task_31_major_road_outcomes():  # task 31 M-6
             for r in rr.routes:
                 if r.status == "confirmed":
                     assert not major & {s.edge_id for s in r.segments}, t["id"]
+
+
+def _nx_reference_search(world, sources, targets, profile, scenario_id, allow_unknown):
+    """The pre-Task-53 `_search`: networkx on a copy with a super-source and super-target."""
+    import networkx as nx
+    from townshiplens_spatial.routing import make_weight
+
+    evals, chosen = {}, {}
+    weight = make_weight(world, profile, scenario_id, allow_unknown, evals, chosen)
+    h = nx.MultiGraph(world.graph)
+    for s in sources:
+        h.add_edge("__S__", s, key="__s__" + s)
+    for t in targets:
+        h.add_edge(t, "__T__", key="__t__" + t)
+
+    def w2(u, v, data):
+        return 0.0 if any(str(k).startswith("__") for k in data) else weight(u, v, data)
+
+    try:
+        path = nx.dijkstra_path(h, "__S__", "__T__", weight=w2)
+    except nx.NetworkXNoPath:
+        return None, [], evals
+    nodes = path[1:-1]
+    return nodes, [chosen[frozenset((u, v))] for u, v in zip(nodes, nodes[1:], strict=False)], evals
+
+
+def test_search_matches_the_networkx_reference_without_copying_the_graph(world):
+    from townshiplens_spatial.routing import _search, _targets
+
+    add_roads(world)
+    places = sorted(p for p in world.places if not p.startswith("__"))
+    checked = 0
+    for prof in ("stroller", "default", "drive", "wheelchair"):
+        profile = world.profiles[prof]
+        for sc in (None, "stage_p3m"):
+            for a in places:
+                for b in places:
+                    src, dst = _targets(world, a, profile), _targets(world, b, profile)
+                    if not src or not dst:
+                        continue
+                    for lenient in (False, True):
+                        want = _nx_reference_search(world, src, dst, profile, sc, lenient)
+                        got = _search(world, src, dst, profile, sc, lenient)
+                        assert got[:2] == want[:2], (prof, sc, a, b, lenient)
+                        checked += 1
+    assert checked > 200
+
+
+def test_search_matches_the_reference_on_the_elmina_seed():
+    import random
+
+    import pytest
+    from townshiplens_spatial.routing import _search, _targets
+    from townshiplens_spatial.sim import default_tasks
+    from townshiplens_spatial.world import load_world
+
+    if not (SEED / "site.json").exists():
+        pytest.skip("Elmina seed not built")
+    w = load_world(SEED)
+    tasks = default_tasks(w, ["stroller", "wheelchair"])
+    for t in random.Random(53).sample(tasks, 12):
+        profile = w.profiles[t["profile"]]
+        src, dst = _targets(w, t["from_id"], profile), _targets(w, t["to_id"], profile)
+        for lenient in (False, True):
+            want = _nx_reference_search(w, src, dst, profile, None, lenient)
+            assert _search(w, src, dst, profile, None, lenient)[:2] == want[:2], t["id"]
