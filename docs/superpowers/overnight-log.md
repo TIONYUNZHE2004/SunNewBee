@@ -394,3 +394,23 @@
   - OpenRouter daily counter US$0.1407 (live calls stopped at R19).
   - Google tiles about 26/30.
   - Overpass about 55 (Task 3) + 16 to 19 (Task 31).
+
+## 2026-10-15 12:21 — Continuation run: preflight
+- **Asked by the team lead:** continue from Task 31 with no early stop.
+- **Answers:**
+  - Deadline: none fixed; keep going until the MVP backlog in the audit is done, then summarise.
+  - Budget: LLM US$3 total (US$0.1407 already used); Google tiles 30 fresh page loads.
+  - Overpass: up to 30 more requests, cache first.
+  - Priorities after Task 31 and the final-review fix wave: demo & pitch polish; remaining P0/P1 gaps; quality & tech debt. (Multilingual was not chosen.)
+- **Unchanged constraints from the original brief:**
+  - Lanes never push to main.
+  - Only MIT, Apache or BSD licences.
+  - No paid resources; never print or commit keys.
+  - Mock LLM for tests.
+  - Report checks as PASS / FAIL / BLOCKED / NOT RUN.
+- **Order:**
+  1. Task 31 merge.
+  2. Final whole-branch review of Tasks 31–36, then its fix wave.
+  3. Demo & pitch polish.
+  4. P0/P1 gaps: closures, gap map, rest-point routing, evacuation journeys.
+  5. Quality & tech debt.
