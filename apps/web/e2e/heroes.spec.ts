@@ -99,6 +99,9 @@ test("mobile: the assistant input is reachable without horizontal scroll", async
   expect(fits).toBe(true);
 });
 
+// The local DB persists tickets between runs, so a retry would see a resolved ticket (applies file-wide).
+test.describe.configure({ retries: 0 });
+
 test("management: a gap becomes a ticket, staff resolve it, before/after shows", async ({
   page,
 }) => {

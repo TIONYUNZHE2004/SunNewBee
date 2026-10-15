@@ -67,7 +67,7 @@ The keyless override (`GOOGLE_MAPS_API_KEY= ... pnpm dev`) did not take effect: 
 
 ## Remaining issues
 
-- Management starters ("Which places are cut off at +3 m", "Which areas are isolated at +5 m", "Which routes to the mall are cut off at +3 m", "Tell me about a place") get `cannot_answer` from the mock. The resident starters are all answered. The old "mock answers every chip" invariant does not hold for the Management starters; the agent lane should add mock intents or reword the chips.
+- Management starters were reworded in 3ab1db6 so the mock answers all of them (they previously got `cannot_answer`). The live model is not exercised by this check.
 - Home view is township-wide with dense pins; consider clustering or a closer default range.
 - `data/demo/*.jsonl` replays were recorded against the old chips and have not been re-recorded.
 - DEV: Windows needs a different keyless method (for example `.env.local` override or a `TL_NO_MAP` flag) to avoid billable tiles in audits.

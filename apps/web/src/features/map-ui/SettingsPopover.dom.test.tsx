@@ -92,4 +92,12 @@ describe("SettingsPopover", () => {
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(btn).toHaveFocus();
   });
+  it("ignores an Escape another layer already handled", async () => {
+    renderWithClient(<SettingsPopover />, seeded());
+    await userEvent.click(screen.getByRole("button", { name: "Map settings" }));
+    const ev = new KeyboardEvent("keydown", { key: "Escape", cancelable: true, bubbles: true });
+    ev.preventDefault();
+    document.dispatchEvent(ev);
+    expect(screen.getByRole("dialog")).toBeVisible();
+  });
 });

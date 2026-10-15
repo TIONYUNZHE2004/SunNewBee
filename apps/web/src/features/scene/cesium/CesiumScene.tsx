@@ -197,11 +197,11 @@ export default function CesiumScene() {
   const onTilesFailed = useCallback(() => setTilesFailed(true), []);
   const onNoDraping = useCallback(() => setNoDraping(true), []);
   return (
-    <section className="relative h-full w-full" aria-label="3D map of Elmina">
+    <section className="relative h-full w-full">
       {tilesFailed && (
         <p
           role="status"
-          className="absolute right-2 top-2 z-10 rounded-md border border-line bg-white/95 px-2 py-1 text-xs"
+          className="absolute right-2 top-2 z-10 rounded-md border border-line bg-surface/95 px-2 py-1 text-xs text-fg"
         >
           Photoreal tiles unavailable — showing basic globe
         </p>
@@ -209,7 +209,7 @@ export default function CesiumScene() {
       {noDraping && (
         <p
           role="note"
-          className="absolute bottom-8 left-2 z-10 rounded-md border border-line bg-white/95 px-2 py-1 text-xs"
+          className="absolute bottom-8 left-2 z-10 rounded-md border border-line bg-surface/95 px-2 py-1 text-xs text-fg"
         >
           Paths shown without terrain draping
         </p>

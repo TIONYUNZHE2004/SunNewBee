@@ -30,7 +30,7 @@ function Radio({
       role="radio"
       aria-checked={checked}
       onClick={onClick}
-      className={`min-h-10 rounded-lg border px-2 text-sm font-medium ${
+      className={`min-h-11 rounded-lg border px-2 text-sm font-medium ${
         checked ? "border-accent bg-accent text-on-accent" : "border-edge bg-raised text-fg"
       }`}
     >
@@ -55,7 +55,7 @@ export function SettingsPopover() {
     if (!open) return;
     dialogRef.current?.querySelector<HTMLElement>('[role="radio"]')?.focus();
     const onKey = (e: KeyboardEvent) => {
-      if (e.key !== "Escape") return;
+      if (e.key !== "Escape" || e.defaultPrevented) return;
       setOpen(false);
       btnRef.current?.focus();
     };
