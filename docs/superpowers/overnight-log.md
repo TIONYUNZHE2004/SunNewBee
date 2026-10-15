@@ -483,3 +483,32 @@
   - Task 43: R26 retry.
   - Task 44: readable, honest wording.
   - Task 45: demo-mode and doc minors.
+
+## 2026-10-15 13:23 — Repo tidy-up; Tasks 43 (code), 44, 45 merged
+- **Folder tidy-up** (team lead: "make the structure of the folder look clean"):
+  - `.gitignore` rewritten as commented sections. Reference notes, README and scripts are tracked; the 42 PDFs (130 MB, all fetchable with `download-papers.sh`) are untracked, with local copies kept. Cloned repos stay local.
+  - `.claude/launch.json` is shared; personal Claude files are ignored.
+  - Removed 4 stale merged worktrees and branches (copyfix, foundation, integ, flood), after copying the flood DEM/HAND cache into the main checkout.
+  - `git status` is clean.
+- **Merged and pushed:**
+  - Task 45 (`4f7c01b`): demo-mode Esc, overlay offset and StrictMode fixes; doc drift.
+  - Task 43 code (`71bf15b`): area places snap by outline, never silently, main-component only. The seed rebuild is pending: overpass-api.de reported "Dispatcher_Client … timeout" (load), so per R27 it is retried later. Overpass this run: 10 of 30.
+  - Task 44 (`e9657c5`): resident-readable wording, honest VR counts, confident place-info, drift test over real `evaluate_edge` reasons, replay-diff test for the demo cache.
+- **Process slip:** Task 44 was merged and e2e failed (two assertions on the old "partly_unverified" text). Caught before pushing; the assertions were updated in `e9657c5`. Implementers that change wording must run e2e.
+- **Checklist on `e9657c5`:**
+  - pytest 641 + 1 xfail: PASS
+  - golden 13/13 (mock): PASS
+  - vitest 317: PASS
+  - lint: PASS
+  - gen: PASS
+  - typecheck: PASS
+  - build: PASS
+  - e2e 13/13: PASS
+- **Bundle (P-01):**
+  - Initial JS: 137 KB gz.
+  - Lazy-loaded: Cesium 1.2 MB gz, Mapbox 0.5 MB gz.
+  - Estimated ≈ 1–2 s of transfer on 4G, within the "< 6 s on 4G" target. A measured test on a mid-range phone is NOT RUN (needs a device).
+- **Rulings R25–R30 are now in the ledger.** R26 and R27 had been stated only in chat; the Task 43 reviewer flagged their absence, and they are now written down.
+- **In flight:**
+  - Task 41 fix round (R30): tri-state rest points, rest-gap wording, honest staff copy.
+  - Task 46: closures.
