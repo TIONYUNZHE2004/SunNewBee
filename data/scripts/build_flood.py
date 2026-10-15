@@ -737,6 +737,10 @@ def vector_stage(data_dir: Path, eff_hand: np.ndarray, transform, stages=STAGES,
         "uncovered_edges": sorted(uncovered),
         "partial_edges": sorted(partial),
         "uncovered_places": sorted(k for k, v in place_h.items() if math.isnan(v)),
+        # Task 43: places (base + overlay) with no walk node; routing to them is no_data.
+        "places_without_node": sorted(
+            pid for pid, f in pts.items() if not f["properties"].get("node_id")
+        ),
         "dropped_duplicate_centres": dropped,
         "stats": {
             "edges": len(edge_h),
@@ -881,6 +885,7 @@ def write_outputs(
             "uncovered_edges": vec["uncovered_edges"],
             "partial_edges": vec["partial_edges"],
             "uncovered_places": vec["uncovered_places"],
+            "places_without_node": vec.get("places_without_node", []),
             "dropped_duplicate_centres": [list(p) for p in vec["dropped_duplicate_centres"]],
         }
         (flood_dir / "coverage.json").write_text(json.dumps(coverage, indent=1) + "\n")

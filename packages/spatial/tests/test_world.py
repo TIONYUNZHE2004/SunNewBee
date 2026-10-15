@@ -34,3 +34,16 @@ def test_overlay_replaces_by_id(tmp_path):
     )
     w = load_world(d)
     assert w.edges["seg-cf"].claims["incline_pct"].status == "verified"
+
+
+def test_place_node_inferred_is_loaded():
+    from townshiplens_spatial.world import _place
+
+    f = {
+        "properties": {"id": "p", "type": "park", "name": "P", "node_id": "n-1",
+                       "node_inferred": True},
+        "geometry": {"coordinates": [101.5, 3.18]},
+    }  # fmt: skip
+    assert _place(f).node_inferred is True
+    del f["properties"]["node_inferred"]
+    assert _place(f).node_inferred is False

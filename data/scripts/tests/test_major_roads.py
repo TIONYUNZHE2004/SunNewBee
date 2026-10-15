@@ -287,3 +287,20 @@ def test_seed_hero_route_still_confirmed_without_major_roads(elmina):
     assert rr.status == "confirmed"
     assert rr.routes[0].distance_m == pytest.approx(440.6, abs=5)
     assert not [s for s in rr.routes[0].segments if elmina.edges[s.edge_id].type == "major_road"]
+
+
+def test_overpass_http_error_logs_the_response_head(monkeypatch, tmp_path, capsys):
+    monkeypatch.setattr(overpass, "CACHE", tmp_path)
+    monkeypatch.setattr(overpass, "REQUESTS_MADE", 0)
+    monkeypatch.setattr(overpass, "MAX_REQUESTS", 1)
+    monkeypatch.setattr(overpass.time, "sleep", lambda s: None)
+
+    class R:
+        status_code = 500
+        text = "<p>runtime error: Query failed with the exception: x</p>" + "y" * 500
+
+    monkeypatch.setattr(overpass.requests, "post", lambda *a, **k: R())
+    with pytest.raises(overpass.BudgetExceeded):
+        overpass.query("[out:json];way(1,2,3,4);out;")
+    out = capsys.readouterr().out
+    assert "runtime error: Query failed" in out and "y" * 300 not in out

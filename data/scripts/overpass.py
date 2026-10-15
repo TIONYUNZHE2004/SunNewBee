@@ -65,7 +65,11 @@ def query(ql: str, retries: int = 6) -> dict:
                 key.with_suffix(".meta.json").write_text(json.dumps(meta))
                 print(f"  overpass OK from {url} -> {key.name}")
                 return data
-        print(f"  overpass {r.status_code} on {url}; backing off (attempt {attempt + 1}/{retries})")
+        head = " ".join((r.text or "")[:200].split())  # e.g. Overpass's runtime-error text
+        print(
+            f"  overpass {r.status_code} on {url}; backing off (attempt {attempt + 1}/{retries})"
+            + (f": {head}" if head else "")
+        )
         time.sleep(min(60, 5 * 2**attempt))
     raise RuntimeError(f"Overpass failed after {retries} attempts")
 

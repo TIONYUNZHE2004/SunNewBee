@@ -155,3 +155,53 @@ def test_plan_route_caps_auto_filed_vrs(ctx, monkeypatch):
 def test_plan_route_not_truncated_reports_zero(ctx):
     r = tools.plan_route(ctx, "park-b", "kiosk", "stroller")
     assert r.data["verification_requests_truncated"] == 0
+
+
+# --- Task 43: area places snapped to an inferred access point ---------------------------------
+
+
+def _infer(ctx, place_id):
+    from townshiplens_spatial.models import Claim
+
+    p = ctx.world.places[place_id]
+    p.node_inferred = True
+    p.claims["access_point"] = Claim(
+        value=p.node_id, status="reported", evidence_type="osm_area_boundary_snap"
+    )
+    return p
+
+
+def test_route_to_inferred_place_warns_entrance_not_mapped(ctx):
+    _infer(ctx, "kiosk")
+    r = tools.plan_route(ctx, "park-b", "kiosk", "default")
+    assert r.data["routes"]
+    assert (
+        "Route ends at the nearest mapped path to Park kiosk; its entrance is not mapped."
+        in r.warnings
+    )
+    ev = next(e for e in r.evidence if e.id == "ev-kiosk.access_point")
+    assert ev.source_type == "osm_area_boundary_snap" and ev.status == "reported"
+
+
+def test_route_from_inferred_place_warns_too(ctx):
+    _infer(ctx, "kiosk")
+    r = tools.plan_route(ctx, "kiosk", "park-b", "default")
+    assert (
+        "Route starts at the nearest mapped path to Park kiosk; its entrance is not mapped."
+        in r.warnings
+    )
+
+
+def test_no_entrance_warning_for_mapped_places_or_no_route(ctx):
+    r = tools.plan_route(ctx, "park-b", "kiosk", "default")
+    assert not [w for w in r.warnings if "entrance is not mapped" in w]
+    _infer(ctx, "island-hut")
+    r = tools.plan_route(ctx, "park-b", "island-hut", "default")
+    assert r.data["status"] == "no_data"
+    assert not [w for w in r.warnings if "entrance is not mapped" in w]
+
+
+def test_place_details_expose_node_inferred(ctx):
+    assert tools.get_place_details(ctx, "kiosk").data["node_inferred"] is False
+    _infer(ctx, "kiosk")
+    assert tools.get_place_details(ctx, "kiosk").data["node_inferred"] is True

@@ -530,3 +530,18 @@ def test_update_site_writes_two_space_indent(tmp_path):
     (tmp_path / "site.json").write_text('{"id": "x"}')
     update_site(tmp_path, 1.5)
     assert '\n  "attribution"' in (tmp_path / "site.json").read_text()
+
+
+def test_coverage_lists_places_without_node(tmp_path):
+    """Task 43: places nothing can route to are listed in coverage.json."""
+    _write_base(tmp_path)
+    hand, dem = _synthetic()
+    vec = vector_stage(tmp_path, effective_hand(hand), T, STAGES, MARGIN)
+    places = json.loads((tmp_path / "base/places.geojson").read_text())["features"]
+    expected = sorted(f["properties"]["id"] for f in places if not f["properties"].get("node_id"))
+    assert expected  # the synthetic base has unsnapped places
+    assert vec["places_without_node"] == expected
+    water = water_features(hand, dem, T, STAGES, simplify_deg=0.0, tile_deg=1.0)
+    write_outputs(tmp_path, water, vec, created="2026-10-15")
+    cov = json.loads((tmp_path / "flood/coverage.json").read_text())
+    assert cov["places_without_node"] == expected

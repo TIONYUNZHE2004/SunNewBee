@@ -248,6 +248,32 @@ def get_place_details(
     return ToolResult(ok=True, data=p.model_dump(mode="json"), evidence=ev)
 
 
+def _inferred_endpoints(world: World, from_id: str, to_id: str, warnings: list[str]) -> list:
+    """Task 43: a route to or from an area place whose walk node was inferred (nearest mapped
+    path, not a mapped entrance) says so, and cites the access_point claim."""
+    ev = []
+    for pid, verb in ((from_id, "starts"), (to_id, "ends")):
+        p = world.places.get(pid)
+        if p is None or not p.node_inferred:
+            continue
+        warnings.append(
+            f"Route {verb} at the nearest mapped path to {p.name}; its entrance is not mapped."
+        )
+        c = p.claims.get("access_point")
+        if c is not None:
+            ev.append(
+                Evidence(
+                    id=f"ev-{p.id}.access_point",
+                    element_id=p.id,
+                    attribute="access_point",
+                    value=c.value,
+                    status=c.status,
+                    source_type=c.evidence_type,
+                )
+            )
+    return ev
+
+
 MAX_ROUTE_VRS = 10  # one question must not flood the staff verification queue
 
 
@@ -284,6 +310,8 @@ def plan_route(
                     w.split(": ", 1)[1], "existence", "missing_place", question_summary
                 )
                 vrs.append({**vr.model_dump(mode="json"), "created": created})
+    if rr.routes:
+        evidence += _inferred_endpoints(ctx.world, from_id, to_id, rr.warnings)
     if scenario_id:
         evidence.append(
             Evidence(

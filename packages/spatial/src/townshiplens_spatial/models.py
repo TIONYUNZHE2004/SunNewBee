@@ -65,6 +65,8 @@ class Place(BaseModel):
     aliases: list[str] = Field(default_factory=list)
     coord: LonLat
     node_id: str | None = None
+    # True when node_id is the nearest walk node to an OSM area (Task 43), not a mapped entrance.
+    node_inferred: bool = False
     entrance_ids: list[str] = Field(default_factory=list)
     claims: dict[str, Claim] = Field(default_factory=dict)
 

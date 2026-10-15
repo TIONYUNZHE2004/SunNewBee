@@ -266,8 +266,9 @@ def merge_ways(walk: list[dict], major: list[dict]) -> tuple[list[dict], int]:
     return keep, len(seen) - len(keep)
 
 
-def _fetch_places() -> list[dict]:
-    seen: dict[tuple, dict] = {}
+def _place_tile_results() -> list[tuple[tuple, list[dict]]]:
+    """(tile, elements) for the 2 x 2 place queries (`out center`, cached)."""
+    out = []
     for s, w, n, e in overpass.tiles(ENVELOPE, 2):
         b = f"({s},{w},{n},{e})"
         parts = []
@@ -279,9 +280,34 @@ def _fetch_places() -> list[dict]:
                 f'{t}[building][name~"Lakeside|Elmina"]{b};',
             ]
         ql = "[out:json][timeout:180];(" + "".join(parts) + ");out center tags;"
-        for el in overpass.query(ql).get("elements", []):
+        out.append(((s, w, n, e), overpass.query(ql).get("elements", [])))
+    return out
+
+
+def _fetch_places(tile_results: list[tuple[tuple, list[dict]]] | None = None) -> list[dict]:
+    seen: dict[tuple, dict] = {}
+    for _, elements in tile_results if tile_results is not None else _place_tile_results():
+        for el in elements:
             seen[(el["type"], el["id"])] = el
     return list(seen.values())
+
+
+def fetch_area_geometry(tile_results: list[tuple[tuple, list[dict]]]) -> dict[int, list[dict]]:
+    """Task 43: polygon geometry of the way places (the place query only has `out center`).
+
+    One `way(id:...)` lookup for every way place in the cached place tiles, ids sorted so the
+    cache key is stable. (A per-tile version met repeated HTTP 500s; an id lookup is light.)
+    Returns {way id: [{lon, lat}, ...]}. The place query returns no relations.
+    """
+    ids = sorted({el["id"] for _, els in tile_results for el in els if el["type"] == "way"})
+    if not ids:
+        return {}
+    ql = f"[out:json][timeout:180];way(id:{','.join(map(str, ids))});out geom;"
+    return {
+        el["id"]: [g for g in el["geometry"] if g]
+        for el in overpass.query(ql).get("elements", [])
+        if el["type"] == "way" and el.get("geometry")
+    }
 
 
 def _fetch_hydrology() -> list[dict]:
@@ -300,8 +326,13 @@ def place_name(tags: dict, ptype: str) -> str:
     return tags.get("name") or f"{_title(ptype)} (unnamed, OSM)"
 
 
-def build_places(elements: list[dict]) -> list[dict]:
+def build_places(
+    elements: list[dict], area_geoms: dict[int, list[dict]] | None = None
+) -> list[dict]:
+    """OSM place elements -> place dicts. Way places with fetched geometry carry an internal
+    `area` ([lon, lat] outline, not written out) used by assign_nodes."""
     places = []
+    area_geoms = area_geoms or {}
     for el in elements:
         tags = el.get("tags", {})
         if el["type"] == "node":
@@ -336,11 +367,26 @@ def build_places(elements: list[dict]) -> list[dict]:
                 "lonlat": [round(lon, 6), round(lat, 6)],
             }
         )
+        outline = area_geoms.get(el["id"]) if el["type"] == "way" else None
+        if outline and len(outline) >= 2:
+            places[-1]["area"] = [[g["lon"], g["lat"]] for g in outline]
     return places
 
 
-def assign_nodes(places: list[dict], segs: list[dict], max_m: float = 60.0) -> None:
-    from shapely.geometry import Point
+AREA_SNAP_M = 40.0
+AREA_SNAP_EVIDENCE = "osm_area_boundary_snap"
+
+
+def assign_nodes(
+    places: list[dict], segs: list[dict], max_m: float = 60.0, area_max_m: float = AREA_SNAP_M
+) -> None:
+    """Point places (and way places without fetched geometry): nearest walk node within max_m.
+
+    Area places (Task 43): the walk node nearest the place point among those inside the OSM
+    polygon or within area_max_m of its boundary. That node is an inferred access point, not a
+    mapped entrance: the place gets `node_inferred: true` and a reported `access_point` claim.
+    """
+    from shapely.geometry import LineString, Point, Polygon
     from shapely.strtree import STRtree
 
     lat0 = (ENVELOPE[0] + ENVELOPE[2]) / 2
@@ -357,6 +403,31 @@ def assign_nodes(places: list[dict], segs: list[dict], max_m: float = 60.0) -> N
     tree = STRtree([nodes[i] for i in ids])
     for p in places:
         pt = proj(*p["lonlat"])
+        if p.get("area"):
+            xy = [(lon * kx, lat * ky) for lon, lat in p["area"]]
+            closed = len(xy) >= 4 and xy[0] == xy[-1]
+            shape = Polygon(xy) if closed else LineString(xy)
+            if closed and not shape.is_valid:
+                shape = shape.buffer(0)
+            cands = []
+            for i in tree.query(shape.buffer(area_max_m)):
+                d = shape.distance(nodes[ids[i]])
+                if d <= area_max_m:
+                    cands.append((pt.distance(nodes[ids[i]]), ids[i], d))
+            if not cands:
+                continue
+            _, nid, d = min(cands)
+            if d == 0:
+                where = "inside the OSM area" if closed else "on the OSM area outline"
+            else:
+                where = f"{d:.0f} m outside the OSM area boundary"
+            p["node_id"] = nid
+            p["node_inferred"] = True
+            p["claims"]["access_point"] = {
+                **_claim(nid, AREA_SNAP_EVIDENCE),
+                "notes": f"nearest walk node {where}; the entrance is not mapped",
+            }
+            continue
         idx = tree.nearest(pt)
         if idx is not None and pt.distance(nodes[ids[idx]]) <= max_m:
             p["node_id"] = ids[idx]
@@ -388,7 +459,7 @@ def seg_feature(s: dict) -> dict:
 
 
 def place_feature(p: dict) -> dict:
-    props = {k: v for k, v in p.items() if k != "lonlat"}
+    props = {k: v for k, v in p.items() if k not in ("lonlat", "area")}
     return {
         "type": "Feature",
         "properties": props,
@@ -486,9 +557,11 @@ def main(argv: list[str] | None = None) -> None:
     try:  # every fetch before any write, so a budget stop leaves the seed untouched
         walk_ways = _fetch_ways()
         major_ways, major_missing = _fetch_major_ways(args.allow_missing_major_tiles)
-        place_els = _fetch_places()
+        place_tiles = _place_tile_results()
+        place_els = _fetch_places(place_tiles)
+        area_geoms = fetch_area_geometry(place_tiles)
         hydro_els = _fetch_hydrology()
-    except overpass.BudgetExceeded as exc:
+    except RuntimeError as exc:  # budget cap (BudgetExceeded) or Overpass failing every retry
         print(f"BLOCKED: {exc}; overpass HTTP requests this run: {overpass.REQUESTS_MADE}")
         raise SystemExit(2) from None
     ways, foot_no = merge_ways(walk_ways, major_ways)
@@ -496,8 +569,11 @@ def main(argv: list[str] | None = None) -> None:
     for s, w, n, e in major_missing:
         print(f"WARNING: major roads NOT imported for tile s,w,n,e = {s}, {w}, {n}, {e}")
     segs = split_ways(ways)
-    places = build_places(place_els)
+    places = build_places(place_els, area_geoms)
     assign_nodes(places, segs)
+    n_area = sum(1 for p in places if p.get("area"))
+    n_inferred = sum(1 for p in places if p.get("node_inferred"))
+    print(f"area places with geometry: {n_area}; snapped to an inferred access point: {n_inferred}")
     hydro = hydrology_features(hydro_els)
     write_geojson(OUT / "base" / "walk.geojson", [seg_feature(s) for s in segs])
     write_geojson(OUT / "base" / "places.geojson", [place_feature(p) for p in places])

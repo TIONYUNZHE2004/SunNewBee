@@ -98,6 +98,23 @@ The vintages are mixed, as they are for the walk cache. Re-running `import_osm.p
 
 **Segment renumbering.** 101+ existing `seg-<way>-<k>` ids now carry new geometry, because their ways are re-split at major-road junctions. None of the ids referenced in this README, `access/README.md`, `data/demo/*.jsonl`, e2e tests or golden changed. The overlay (P1/P2, ramp `seg-1306543755-2`) is identical. The 4 Elmina demo-cache entries were re-recorded with the mock.
 
+## Area places (Task 43): code ready, seed NOT yet rebuilt
+
+17 of 231 seed places have no `node_id`. Among them are 11 parks, 3 schools and the hero "Elmina Urban Park" (`osm-way-1309457596`). The old rule snaps an area's *centre* to a walk node within 60 m, which misses large areas.
+
+- `import_osm.py` now fetches the outline of every way place with one `way(id:…);out geom;` lookup (cached). The place query itself still uses `out center`.
+- Point places keep the 60 m rule. An area place snaps to the walk node nearest its centre among those **inside the polygon or within 40 m of its boundary**. The place then gets:
+  - `node_inferred: true`;
+  - an `access_point` claim (`reported`, `evidence_type: osm_area_boundary_snap`) whose note says where the node is.
+- `tools.plan_route` adds, for a route to or from such a place: "Route ends (starts) at the nearest mapped path to <name>; its entrance is not mapped." It also cites the `access_point` evidence.
+- `flood/coverage.json` gains `places_without_node`.
+
+**Status (15 Oct 2026): BLOCKED on Overpass.**
+- All 8 budgeted requests returned **HTTP 500**: 6 on `overpass.kumi.systems` for a per-tile id lookup, then 2 on `overpass.private.coffee` for a single all-ids lookup.
+- The seed is unchanged, so the 17 places are still unsnapped.
+- Two different mirrors failing with 500 suggests a query-level runtime error rather than load. The client now logs the head of the error body, so the next attempt will show the reason.
+- To finish: re-run `import_osm.py`, then overlay → flood → waste with the offline flags under Rebuild. Then remove the `xfail` on `test_seed_elmina_urban_park_has_inferred_node_and_warned_route`.
+
 ## Flood lens (Task 10: `data/scripts/build_flood.py`)
 
 **Indicative scenarios from a 30 m elevation model, not a forecast.** The app never gives a water depth on a path. Every scenario carries its disclaimer and the official links (JPS Public InfoBanjir, MET Malaysia). See [ADR 0010](../docs/00-overview/decisions/0010-flood-lens-hand-scenarios.md); the method changed from HAND to REM as described below.
