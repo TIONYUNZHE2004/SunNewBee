@@ -7,6 +7,7 @@ import { ENV } from "../../../lib/env";
 import { pickedFloodEdgeId, pointFeatures } from "../geo";
 import { useScene } from "../sceneStore";
 import { useCameraIntents } from "./camera";
+import { failureBurst } from "./failureBurst";
 import { type HomeView, homeView, shouldReframe } from "./home";
 import { AccessLayer, FloodLayer, WasteLayer } from "./layers";
 
@@ -71,11 +72,14 @@ function SceneSetup({
               tiles.allTilesLoaded.addEventListener(render),
             );
             if (ENV.googleKey) viewer.scene.globe.show = false;
-            // Quota or network failures after the root loaded: bring the base globe back
-            // instead of leaving overlays on black.
+            // A burst of tile failures after the root loaded (quota, key, network): bring the
+            // base globe back instead of leaving overlays on black. Single failures are normal.
+            const burst = failureBurst(10, 30_000);
+            let fellBack = false;
             removers.push(
               tiles.tileFailed.addEventListener(() => {
-                if (viewer.isDestroyed()) return;
+                if (fellBack || viewer.isDestroyed() || !burst(Date.now())) return;
+                fellBack = true;
                 viewer.scene.globe.show = true;
                 viewer.scene.requestRender();
                 onTilesFailed();
