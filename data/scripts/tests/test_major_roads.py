@@ -304,3 +304,18 @@ def test_overpass_http_error_logs_the_response_head(monkeypatch, tmp_path, capsy
         overpass.query("[out:json];way(1,2,3,4);out;")
     out = capsys.readouterr().out
     assert "runtime error: Query failed" in out and "y" * 300 not in out
+
+
+def test_overpass_error_text_is_extracted_from_the_html_page():
+    page = (
+        '<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 '
+        'Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html><head>'
+        "<title>OSM3S Response</title></head><body><p>The data included in this document is "
+        'from www.openstreetmap.org.</p><p><strong style="color:#FF0000">Error</strong>: '
+        "runtime error: open64: 0 Success /osm3s_osm_base Dispatcher_Client::request_read_and_idx"
+        "::timeout. The server is probably too busy to handle your request. </p></body></html>"
+    )
+    msg = overpass.error_text(page)
+    assert msg.startswith("Error: runtime error: open64")
+    assert "too busy" in msg and "<" not in msg and "DOCTYPE" not in msg
+    assert overpass.error_text("plain failure") == "plain failure"

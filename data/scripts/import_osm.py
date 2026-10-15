@@ -383,7 +383,8 @@ def assign_nodes(
     """Point places (and way places without fetched geometry): nearest walk node within max_m.
 
     Area places (Task 43): the walk node nearest the place point among those inside the OSM
-    polygon or within area_max_m of its boundary. That node is an inferred access point, not a
+    polygon or within area_max_m of its boundary; if there is none, the old centre rule (R26:
+    a place never loses the node it had). Either node is an inferred access point, not a
     mapped entrance: the place gets `node_inferred: true` and a reported `access_point` claim.
     """
     from shapely.geometry import LineString, Point, Polygon
@@ -414,13 +415,22 @@ def assign_nodes(
                 d = shape.distance(nodes[ids[i]])
                 if d <= area_max_m:
                     cands.append((pt.distance(nodes[ids[i]]), ids[i], d))
-            if not cands:
-                continue
-            _, nid, d = min(cands)
-            if d == 0:
-                where = "inside the OSM area" if closed else "on the OSM area outline"
+            if cands:
+                _, nid, d = min(cands)
+                if d == 0:
+                    where = "inside the OSM area" if closed else "on the OSM area outline"
+                else:
+                    where = f"{d:.0f} m outside the OSM area boundary"
             else:
-                where = f"{d:.0f} m outside the OSM area boundary"
+                # R26: never lose a node the old centre rule found; keep it, marked inferred.
+                idx = tree.nearest(pt)
+                if idx is None or pt.distance(nodes[ids[idx]]) > max_m:
+                    continue
+                nid = ids[idx]
+                where = (
+                    f"to the area centre ({pt.distance(nodes[nid]):.0f} m from the area centre); "
+                    f"no walk node within {area_max_m:.0f} m of the OSM area"
+                )
             p["node_id"] = nid
             p["node_inferred"] = True
             p["claims"]["access_point"] = {

@@ -169,3 +169,40 @@ def test_place_details_resolves_waste_without_inventing_a_schedule(ctx):
     assert r.data["claims"]["status"]["status"] == "verified"
     e = tools.get_place_details(ctx, "wp-ewaste")
     assert e.ok and e.data["source_label"].startswith("Waste point:")
+
+
+# --- Task 43 (R26): centres whose walk node is an inferred area snap ------------------------
+
+ENTRANCE_NOTE = (
+    "Reachability ends at the nearest mapped path to Community hall (candidate); "
+    "its entrance is not mapped."
+)
+
+
+def _inferred_hall(ctx):
+    ctx.world.centres["evc-hall"] = ctx.world.centres["evc-hall"].model_copy(
+        update={"place_id": "bench-1"}
+    )
+    ctx.world.places["bench-1"].node_inferred = True
+
+
+def test_evacuation_list_caveats_centres_with_inferred_node(ctx):
+    _inferred_hall(ctx)
+    r = tools.list_evacuation_centres(ctx, None, "default", "park-b")
+    rows = {d["centre"]["id"]: d for d in r.data}
+    assert rows["evc-hall"]["reachable"] and rows["evc-hall"]["entrance_note"] == ENTRANCE_NOTE
+    assert "entrance_note" not in rows["evc-school"]  # not reachable / not inferred
+    assert any("entrances are not mapped" in w and w.startswith("1 reachable") for w in r.warnings)
+
+
+def test_evacuation_list_no_caveat_without_inferred_nodes(ctx):
+    r = tools.list_evacuation_centres(ctx, None, "default", "park-b")
+    assert all("entrance_note" not in d for d in r.data)
+    assert not any("entrance" in w for w in r.warnings)
+
+
+def test_centre_details_caveat_inferred_node(ctx):
+    _inferred_hall(ctx)
+    r = tools.get_place_details(ctx, "evc-hall", None, "default", "park-b")
+    assert r.data["reachability"]["entrance_note"] == ENTRANCE_NOTE
+    assert ENTRANCE_NOTE in r.warnings

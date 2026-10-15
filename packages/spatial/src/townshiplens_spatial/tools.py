@@ -99,6 +99,18 @@ CENTRE_SOURCE_LABEL = {
 }
 
 
+def _centre_entrance_note(world: World, centre) -> str | None:
+    """Task 43: a centre built from an area place whose walk node was inferred (nearest mapped
+    path to the OSM area) has no mapped entrance; reachability stops at that path."""
+    p = world.places.get(centre.place_id) if centre.place_id else None
+    if p is None or not p.node_inferred:
+        return None
+    return (
+        f"Reachability ends at the nearest mapped path to {centre.name}; "
+        "its entrance is not mapped."
+    )
+
+
 def _centre_details(
     ctx: Ctx, place_id: str, scenario_id: str | None, profile: str, near: str | None
 ) -> ToolResult | None:
@@ -161,6 +173,10 @@ def _centre_details(
                 "scenario_id": scenario_id,
                 "disclaimer": sc.disclaimer if sc else None,
             }
+            note = _centre_entrance_note(ctx.world, c) if row.reachable else None
+            if note:
+                data["reachability"]["entrance_note"] = note
+                warnings.append(note)
             if scenario_id:
                 ev.append(
                     Evidence(
@@ -502,6 +518,17 @@ def list_evacuation_centres(
         for r in res
     ]
     data = [r.model_dump(mode="json") for r in res]
+    n_inferred = 0
+    for r, d in zip(res, data, strict=True):
+        note = _centre_entrance_note(ctx.world, r.centre) if r.reachable else None
+        if note:
+            d["entrance_note"] = note
+            n_inferred += 1
+    if n_inferred:
+        warnings.append(
+            f"{n_inferred} reachable centre(s) end at the nearest mapped path to the site; "
+            "their entrances are not mapped"
+        )
     sc = _flood.scenario(ctx.world, scenario_id) if scenario_id else None
     if scenario_id:
         ev.append(

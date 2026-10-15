@@ -103,17 +103,18 @@ The vintages are mixed, as they are for the walk cache. Re-running `import_osm.p
 17 of 231 seed places have no `node_id`. Among them are 11 parks, 3 schools and the hero "Elmina Urban Park" (`osm-way-1309457596`). The old rule snaps an area's *centre* to a walk node within 60 m, which misses large areas.
 
 - `import_osm.py` now fetches the outline of every way place with one `way(id:…);out geom;` lookup (cached). The place query itself still uses `out center`.
-- Point places keep the 60 m rule. An area place snaps to the walk node nearest its centre among those **inside the polygon or within 40 m of its boundary**. The place then gets:
+- Point places keep the 60 m rule. An area place snaps to the walk node nearest its centre among those **inside the polygon or within 40 m of its boundary**. If there is none, it keeps the old 60 m centre snap (R26), so no place loses the node it had. Either way the place gets:
   - `node_inferred: true`;
   - an `access_point` claim (`reported`, `evidence_type: osm_area_boundary_snap`) whose note says where the node is.
 - `tools.plan_route` adds, for a route to or from such a place: "Route ends (starts) at the nearest mapped path to <name>; its entrance is not mapped." It also cites the `access_point` evidence.
 - `flood/coverage.json` gains `places_without_node`.
+- Evacuation centres built from such a place carry `entrance_note` in `list_evacuation_centres` and in the place details' reachability. They add the warning "Reachability ends at the nearest mapped path to <centre>; its entrance is not mapped."
 
-**Status (15 Oct 2026): BLOCKED on Overpass.**
-- All 8 budgeted requests returned **HTTP 500**: 6 on `overpass.kumi.systems` for a per-tile id lookup, then 2 on `overpass.private.coffee` for a single all-ids lookup.
+**Status (15 Oct 2026): BLOCKED on Overpass load.** 10 of 12 requests are used.
+- First 8: HTTP 500 from `overpass.kumi.systems` (6) and `overpass.private.coffee` (2).
+- Then 2 single all-ids lookups on `overpass-api.de` (R26), 2 minutes apart. Both returned HTTP 504 with "Error: runtime error: open64: 0 Success /osm3s_osm_base Dispatcher_Client::request_read_and_idx::timeout. The server is probably too busy to handle your request."
 - The seed is unchanged, so the 17 places are still unsnapped.
-- Two different mirrors failing with 500 suggests a query-level runtime error rather than load. The client now logs the head of the error body, so the next attempt will show the reason.
-- To finish: re-run `import_osm.py`, then overlay → flood → waste with the offline flags under Rebuild. Then remove the `xfail` on `test_seed_elmina_urban_park_has_inferred_node_and_warned_route`.
+- To finish: re-run `import_osm.py --endpoint https://overpass-api.de/api/interpreter --max-requests N` when the server is less busy. Then overlay → flood → waste with the offline flags under Rebuild, and remove the `xfail` on `test_seed_elmina_urban_park_has_inferred_node_and_warned_route`.
 
 ## Flood lens (Task 10: `data/scripts/build_flood.py`)
 

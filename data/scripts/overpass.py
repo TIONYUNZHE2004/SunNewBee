@@ -3,6 +3,7 @@
 
 import hashlib
 import json
+import re
 import time
 from datetime import UTC, datetime
 from pathlib import Path
@@ -65,13 +66,24 @@ def query(ql: str, retries: int = 6) -> dict:
                 key.with_suffix(".meta.json").write_text(json.dumps(meta))
                 print(f"  overpass OK from {url} -> {key.name}")
                 return data
-        head = " ".join((r.text or "")[:200].split())  # e.g. Overpass's runtime-error text
+        head = error_text(r.text or "")  # e.g. Overpass's runtime-error text
         print(
             f"  overpass {r.status_code} on {url}; backing off (attempt {attempt + 1}/{retries})"
             + (f": {head}" if head else "")
         )
         time.sleep(min(60, 5 * 2**attempt))
     raise RuntimeError(f"Overpass failed after {retries} attempts")
+
+
+def error_text(body: str, limit: int = 300) -> str:
+    """The readable part of an Overpass error page: tags stripped, from the first "Error"
+    (Overpass puts the reason there) or else the whole text, whitespace collapsed."""
+    text = " ".join(
+        re.sub(r"<[^>]*>", " ", re.sub(r"<head>.*?</head>", " ", body, flags=re.S)).split()
+    )
+    text = text.replace(" :", ":")
+    i = text.find("Error")
+    return (text[i:] if i >= 0 else text)[:limit]
 
 
 def tiles(bbox: tuple[float, float, float, float], n: int = 2):

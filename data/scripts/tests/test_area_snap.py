@@ -78,12 +78,16 @@ def test_area_place_picks_candidate_nearest_the_centre():
     assert p["node_id"] == "n-mid"
 
 
-def test_area_place_ignores_the_60_m_centre_rule_when_outside_40_m():
-    # A small 20 m lot whose centre is 55 m from a node: 45 m beyond its boundary, so no snap.
+def test_area_place_keeps_old_centre_snap_as_inferred_when_none_within_40_m():
+    # R26: a small 20 m lot whose centre is 55 m from a node (45 m beyond its boundary) keeps
+    # today's 60 m centre snap instead of losing its node, and is marked inferred.
     p = _area_place(10.0)
     segs = [_seg("s1", "n-a", "n-b", _pt(55, 0), _pt(55, 50))]
     assign_nodes([p], segs)
-    assert p["node_id"] is None
+    assert p["node_id"] == "n-a" and p["node_inferred"] is True
+    c = p["claims"]["access_point"]
+    assert c["evidence_type"] == "osm_area_boundary_snap" and c["status"] == "reported"
+    assert "no walk node within 40 m" in c["notes"] and "55 m from the area centre" in c["notes"]
 
 
 def test_point_place_keeps_the_60_m_rule_and_is_not_inferred():
