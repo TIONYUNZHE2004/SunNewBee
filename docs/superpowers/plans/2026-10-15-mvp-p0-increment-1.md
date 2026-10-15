@@ -824,3 +824,13 @@ The same method as Task 51, for `packages/agent`, `evals/` and `data/scripts`. S
   - `apps/web`
 - Mock answer changes need a re-recorded demo cache (mock); the replay-diff test must pass.
 - **Verify:** pytest, golden, lint, gen, e2e.
+
+### Task 53: API and spatial Minors sweep (quality)
+
+The same method as Tasks 51 and 52, for `apps/api` and `packages/spatial`. It includes Task 47's leftovers: an overall time budget or cancel for a sim run, and the `any_confirmed` status source. It also includes Task 52's deferred "Route status: confirmed over placeholder evidence" decision.
+
+- **Route status over placeholder evidence:** a route whose every segment PASSes only on `team_survey_placeholder` evidence must stay `confirmed`; the evaluation is correct. The answer text and route data carry a `demo_evidence: true` flag, so the UI and agent can say "confirmed on demo values, not yet surveyed". Do not change the status semantics.
+- **Sim runs:** add a total time budget (default 600 s, a setting) and `POST /simulations/{id}/cancel` (staff). Both end the run as `cancelled` or `timeout`, never stuck. Test with a tiny budget.
+- **Classification:** verify each Minor, fix it with a test or classify it, and report a status table.
+- **Out of scope:** `apps/web` (unless an API change needs a 1-line client consumer; prefer none), `packages/agent`, `data/seed`.
+- **Verify:** pytest, golden, lint, gen (commit the client), typecheck, web tests, e2e.
