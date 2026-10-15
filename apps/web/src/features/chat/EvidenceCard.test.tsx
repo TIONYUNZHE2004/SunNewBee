@@ -49,7 +49,7 @@ describe("CitationList", () => {
   }));
   it("shows 4 cards and a collapsed expander", () => {
     const html = renderToStaticMarkup(<CitationList citations={cs} names={names} />);
-    expect(html.match(/<li class="evidence-card/g)).toHaveLength(4);
+    expect(html.match(/<li data-evidence-card/g)).toHaveLength(4);
     expect(html).toContain("Show 11 more sources");
     expect(html).toContain('aria-expanded="false"');
   });
@@ -57,7 +57,7 @@ describe("CitationList", () => {
     const html = renderToStaticMarkup(
       <CitationList citations={cs} names={names} defaultExpanded />,
     );
-    expect(html.match(/<li class="evidence-card/g)).toHaveLength(15);
+    expect(html.match(/<li data-evidence-card/g)).toHaveLength(15);
     expect(html).toContain('aria-expanded="true"');
   });
 });

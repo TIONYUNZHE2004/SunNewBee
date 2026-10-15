@@ -17,6 +17,19 @@ describe("sceneStore.applyIntent", () => {
     } as never);
     expect(useScene.getState().route?.id).toBe("rt-1");
   });
+  it("changing profile or scenario drops a route planned for the old one", () => {
+    const route = {
+      kind: "route.highlight",
+      route_id: "rt-1",
+      geojson: { type: "LineString", coordinates: [[101.5, 3.18]] },
+    } as never;
+    useScene.getState().applyIntent(route);
+    useScene.getState().setProfile("wheelchair");
+    expect(useScene.getState().route).toBeNull();
+    useScene.getState().applyIntent(route);
+    useScene.getState().setScenario("stage_p3m");
+    expect(useScene.getState().route).toBeNull();
+  });
   it("flood.set_level sets scenario and shows the flood lens", () => {
     useScene.getState().applyIntent({ kind: "flood.set_level", scenario_id: "stage_p3m" } as never);
     expect(useScene.getState().scenarioId).toBe("stage_p3m");

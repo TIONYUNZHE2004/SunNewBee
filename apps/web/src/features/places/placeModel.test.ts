@@ -103,6 +103,17 @@ describe("toPlaceView photos", () => {
     expect(v?.rows.find((r) => r.attr === "step_count")?.photoUrl).toBe("/evidence/ab12");
     expect(v?.rows.find((r) => r.attr === "kerb")?.photoUrl).toBeNull();
   });
+  it("ignores evidence for another element, and takes the later photo of the same element", () => {
+    const v = toPlaceView({
+      ok: true,
+      data: { id: "p", name: "Mall", claims },
+      evidence: [
+        { id: "e0", element_id: "other", attribute: "step_count", photo_url: "/evidence/zz" },
+        { id: "e1", element_id: "p", attribute: "step_count", photo_url: "/evidence/aa" },
+      ],
+    });
+    expect(v?.rows.find((r) => r.attr === "step_count")?.photoUrl).toBe("/evidence/aa");
+  });
   it("has no photo when evidence is missing", () => {
     const v = toPlaceView({ ok: true, data: { id: "p", name: "Mall", claims } });
     expect(v?.rows.every((r) => r.photoUrl === null)).toBe(true);
