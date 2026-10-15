@@ -883,7 +883,7 @@ Final review #3 I4 and its doc Minors (`.superpowers/sdd/2026-10-15-mvp-p0-incre
 - **Verify:** `pnpm lint`. Commit `docs: …`.
 
 ### Task 58: Evacuation-centre status editor (M-09, B-05, F-05)
-Spec, files and acceptance tests: `.superpowers/sdd/2026-10-15-mvp-p0-increment-1/mvp-status-audit-2.md`, "Remaining code-only work", item 1. Every centre-status change writes an audit row. Undo is supported. `official_pps` needs evidence (an uploaded photo id or a source URL).
+Spec, files and acceptance tests: [`docs/03-product/mvp-status-2026-10-15.md`](../../03-product/mvp-status-2026-10-15.md), "Remaining code-only work", item 1. Every centre-status change writes an audit row. Undo is supported. `official_pps` needs evidence (an uploaded photo id or a source URL).
 
 ### Task 59: Resident "Report an issue" and collection-day requests (C-09, W-03)
 Spec: the same file, item 2.
