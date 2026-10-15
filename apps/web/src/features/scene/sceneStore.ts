@@ -90,11 +90,13 @@ export const useScene = create<SceneState>((set) => ({
   setView: (view) => set({ view }),
   setProfile: (profile) => {
     saveProfile(profile);
-    set({ profile });
+    // A highlighted route was planned for the previous persona; do not show it as this one's.
+    set({ profile, route: null });
   },
   setScenario: (scenarioId) =>
     set((s) => ({
       scenarioId,
+      route: null, // planned under the previous scenario
       selectedFloodEdgeId: null,
       lensVisible: { ...s.lensVisible, flood: !!scenarioId || s.lensVisible.flood },
     })),

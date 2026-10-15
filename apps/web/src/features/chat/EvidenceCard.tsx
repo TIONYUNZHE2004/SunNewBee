@@ -58,7 +58,7 @@ export function EvidenceCard({
   citations: Citation[];
 }) {
   return (
-    <li className="evidence-card rounded-md border border-line bg-card px-3 py-2 text-sm">
+    <li data-evidence-card className="rounded-md border border-line bg-card px-3 py-2 text-sm">
       <p className="font-semibold" title={element_id}>
         {title}
       </p>

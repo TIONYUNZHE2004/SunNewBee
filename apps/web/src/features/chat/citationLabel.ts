@@ -1,4 +1,3 @@
-import { optionLabel } from "../manage/attributeCatalogue";
 import type { Citation } from "./chatReducer";
 
 const PREFIX_NAMES: [string, string][] = [
@@ -8,10 +7,6 @@ const PREFIX_NAMES: [string, string][] = [
 
 export function elementName(id: string, names: Map<string, string>): string {
   return names.get(id) ?? PREFIX_NAMES.find(([p]) => id.startsWith(p))?.[1] ?? id;
-}
-
-export function citationLabel(c: Citation, names: Map<string, string>): string {
-  return `${elementName(c.element_id, names)} · ${optionLabel(c.attribute)}`;
 }
 
 export interface ElementCitations {

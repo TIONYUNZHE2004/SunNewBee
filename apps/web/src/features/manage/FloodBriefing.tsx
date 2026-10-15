@@ -43,18 +43,37 @@ export function ComparisonTable({
   scenario,
   scenarioLabel,
   origin,
+  baselineState = "ready",
+  onRetryBaseline,
 }: {
   baseline: Briefing | undefined;
+  /** Why `baseline` is missing: still loading, or failed (offers a retry). */
+  baselineState?: "loading" | "error" | "ready";
+  onRetryBaseline?: () => void;
   scenario: Briefing;
   scenarioLabel: string;
   /** Place the centre rows were measured from (the API's near_place). */
   origin?: { id?: string | null; name?: string | null };
 }) {
   const from = origin?.name || originName(origin?.id);
+  if (!baseline && baselineState === "loading")
+    return (
+      <p role="status" className="text-sm text-ink-soft">
+        Loading the normal river level…
+      </p>
+    );
   if (!baseline)
     return (
       <p role="status" className="text-sm text-ink-soft">
         Normal river level unavailable, so no comparison is shown.
+        {onRetryBaseline && (
+          <>
+            {" "}
+            <button type="button" className="underline" onClick={onRetryBaseline}>
+              Retry
+            </button>
+          </>
+        )}
       </p>
     );
   const rows = comparisonRows(baseline, scenario);
@@ -274,6 +293,8 @@ export function FloodBriefing() {
           <DisclaimerBanner text={b.disclaimer} />
           <ComparisonTable
             baseline={base.data}
+            baselineState={base.isError ? "error" : base.isPending ? "loading" : "ready"}
+            onRetryBaseline={() => base.refetch()}
             scenario={b}
             scenarioLabel={b.scenario.label}
             origin={{ id: b.near_place, name: b.near_place_name }}

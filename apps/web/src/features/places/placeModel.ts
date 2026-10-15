@@ -80,7 +80,13 @@ export function toPlaceView(result: unknown): PlaceView | null {
   for (const e of Array.isArray((r as { evidence?: unknown }).evidence)
     ? ((r as { evidence: unknown[] }).evidence as Record<string, unknown>[])
     : []) {
-    if (e && typeof e.attribute === "string" && typeof e.photo_url === "string" && e.photo_url)
+    if (
+      e &&
+      e.element_id === d.id &&
+      typeof e.attribute === "string" &&
+      typeof e.photo_url === "string" &&
+      e.photo_url
+    )
       photos.set(e.attribute, e.photo_url);
   }
   const rows = Object.keys(claims)

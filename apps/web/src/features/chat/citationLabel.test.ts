@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Citation } from "./chatReducer";
-import { citationLabel, groupByElement } from "./citationLabel";
+import { elementName, groupByElement } from "./citationLabel";
 
 const c = (element_id: string, attribute: string, ref = 1): Citation => ({
   type: "citation",
@@ -11,18 +11,13 @@ const c = (element_id: string, attribute: string, ref = 1): Citation => ({
   status: "verified",
 });
 
-describe("citationLabel", () => {
+describe("elementName", () => {
   const names = new Map([["pl-mall", "Lakeside Mall"]]);
-  it("uses the element name and a humanised attribute", () => {
-    expect(citationLabel(c("pl-mall", "step_count"), names)).toBe("Lakeside Mall · Step count");
-  });
-  it("falls back by id prefix", () => {
-    expect(citationLabel(c("seg-1-3", "surface"), names)).toBe("Path segment · Surface");
-    expect(citationLabel(c("evc-osm-way-9", "source"), names)).toBe(
-      "Evacuation candidate · Source",
-    );
-    expect(citationLabel(c("pl-x", "source"), names)).toBe("pl-x · Source");
-    expect(citationLabel(c("other", "source"), names)).toBe("other · Source");
+  it("uses the element name, then falls back by id prefix, then the id", () => {
+    expect(elementName("pl-mall", names)).toBe("Lakeside Mall");
+    expect(elementName("seg-1-3", names)).toBe("Path segment");
+    expect(elementName("evc-osm-way-9", names)).toBe("Evacuation candidate");
+    expect(elementName("pl-x", names)).toBe("pl-x");
   });
 });
 

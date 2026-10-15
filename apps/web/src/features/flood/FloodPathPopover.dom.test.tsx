@@ -74,6 +74,16 @@ describe("flood 'Why this path?' popover", () => {
     expect(opener).toHaveFocus();
   });
 
+  it("Escape closes it even when focus has left the card (after a map click)", async () => {
+    const user = userEvent.setup();
+    setup();
+    await user.click(screen.getByRole("button", { name: "Jalan Tasik row" }));
+    (document.activeElement as HTMLElement).blur();
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(useScene.getState().selectedFloodEdgeId).toBeNull();
+  });
+
   it("sits above the demo bar (bottom offset by --demo-bar-h)", async () => {
     const user = userEvent.setup();
     setup();
