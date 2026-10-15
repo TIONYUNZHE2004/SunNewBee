@@ -748,3 +748,15 @@ From the audit: G-07 is MISSING (sim tasks have no centre destinations).
 - **Runtime:** keep the whole sim under the existing time budget. Final review #2 measured about 75 s synchronously. Cap the evacuation journeys to fit, or move the run to a background task with status polling. Ruling: background task, and `POST /simulations` returns `202` with a run id. The UI polls. Update the JourneyTests UI accordingly.
 - **FE:** JourneyTests gains an "Evacuation" section: a table of profile × scenario with counts per result, in plain words.
 - **Tests:** a tiny-fixture sim with known results; monotonicity on the seed (a sample); the 202 and polling API test; DOM tests for the table.
+
+### Task 48: Agent wording for closures; uncertainty matches every caveat (AI)
+
+Deferred from Task 46 (review I2: answers never name a closure) and Task 41 (its report: the uncertainty event says level "none" when the only caveat is the rest gap).
+
+- **Closures in answers:** when `plan_route` returns `closures` (`RouteResult.closures`) or a closed start or destination, the mock and `template.py` name each closure in the Task 44 readable style: "Closed (staff report): <element name> until <date in Malaysia time> — <reason>". A route blocked by closures must say so, never just "blocked". `validate.py` rejects an answer about a route with closures that doesn't name them. The system prompt gets the same rule. `get_closures` is used for "is X closed?" questions.
+- **Uncertainty event:** the level is "partial" whenever the answer carries any caveat: unverified segments, rest gap, unverified rest point, inferred entrance, closure or demo values. The items list each one in readable form. A test covers the rest-gap-only and the closure-only cases.
+- **Tests:**
+  - tiny-fixture closures (active, expired, on destination);
+  - in-app prompts are unaffected;
+  - the demo replay-diff test passes. Re-record Elmina entries only if they change.
+- **Out of scope:** `packages/spatial` (read only), `apps/web`, `data/seed`.
