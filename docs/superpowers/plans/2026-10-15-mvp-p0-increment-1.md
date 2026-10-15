@@ -812,3 +812,15 @@ Parked Minor findings from the web-side task reviews: Tasks 23, 25, 27, 32, 33, 
 - **Rules:** no behaviour change beyond what each Minor asks. Keep the honesty invariants. DOM tests in the Task 39 style.
 - **Verify:** vitest, lint, typecheck, build, e2e.
 - **Out of scope:** `apps/api`, `packages/*`, `data/`.
+
+### Task 52: Agent and data-scripts Minors sweep (quality)
+
+The same method as Task 51, for `packages/agent`, `evals/` and `data/scripts`. Sources are the parked Minors in `.superpowers/sdd/2026-10-15-mvp-p0-increment-1/task-*-review.md`, `task-*-rereview.md`, `final-review.md` and `final-review-2.md`.
+
+- Verify each Minor against current main; fix it with a test, or classify it. Report a status table.
+- **Out of scope (Task 47 is editing these):**
+  - `packages/spatial/src/townshiplens_spatial/{sim,routing,flood}.py`
+  - `apps/api/src/townshiplens_api/{store.py,routes/sim.py,routes/manage.py}`
+  - `apps/web`
+- Mock answer changes need a re-recorded demo cache (mock); the replay-diff test must pass.
+- **Verify:** pytest, golden, lint, gen, e2e.
