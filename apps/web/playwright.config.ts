@@ -21,8 +21,9 @@ export default defineConfig({
     cwd: "../..",
     // Wait for the API through the Vite proxy, so both servers are up before the first test.
     url: `http://localhost:${WEB_PORT}/api/site`,
-    // Locally, an e2e server still running on WEB_PORT is reused; CI always starts a fresh one.
-    reuseExistingServer: !process.env.CI,
+    // Always a fresh server: the suite mutates its DB (deleted on start), so reusing a leftover
+    // server would run against stale state. A leftover on WEB_PORT fails loudly instead.
+    reuseExistingServer: false,
     timeout: 120_000,
     env: {
       WEB_PORT: String(WEB_PORT),
