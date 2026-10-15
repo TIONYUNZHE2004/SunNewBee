@@ -360,9 +360,14 @@ def test_rest_route_on_elmina_seed_is_fast():
     assert tasks
     worst = 0.0
     for t in tasks[:: max(1, len(tasks) // 10)]:
-        t0 = time.perf_counter()
-        rr = plan_route(w, t["from_id"], t["to_id"], "older_adult_rest")
-        worst = max(worst, time.perf_counter() - t0)
+        # Best of 3 per route: ignores scheduler noise (e.g. parallel test runs), still
+        # catches a real algorithmic slowdown.
+        best = float("inf")
+        for _ in range(3):
+            t0 = time.perf_counter()
+            rr = plan_route(w, t["from_id"], t["to_id"], "older_adult_rest")
+            best = min(best, time.perf_counter() - t0)
+        worst = max(worst, best)
         for r in rr.routes:
             assert r.status != "confirmed" or r.rest_limit_met, t["id"]
     assert worst < 2.0, f"slowest older-adult route took {worst:.2f}s"
