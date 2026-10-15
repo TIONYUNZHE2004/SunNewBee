@@ -1,4 +1,6 @@
 import hashlib
+import heapq
+import math
 
 import networkx as nx
 
@@ -11,6 +13,10 @@ from .world import World
 CENTRE_PREFIX = "__centre__"
 UNKNOWN_WEIGHT = 5.0
 WALK_M_PER_MIN = 70.0
+# Place types that count as a rest point (OSM benches import as `seating`).
+REST_TYPES = frozenset({"seating", "shelter"})
+# Deterministic bound on the rest-constrained search (labels created, not wall-clock time).
+MAX_REST_LABELS = 200_000
 
 
 def _pace_m_per_min(profile) -> float:
@@ -122,6 +128,20 @@ def _flood_class(world: World, scenario_id: str | None, edge_id: str):
     return world.flood.edge_classes.get(scenario_id or "", {}).get(edge_id) if scenario_id else None
 
 
+def _edge_cost(world, profile, scenario_id, allow_unknown, key, evals=None) -> float | None:
+    """Search cost of one edge for this profile, or None when the search must not use it."""
+    e = world.edges[key]
+    res, why = evaluate_edge(e, profile, _flood_class(world, scenario_id, key))
+    if evals is not None:
+        evals[key] = (res, why)
+    if res == "FAIL" or (res == "UNKNOWN" and not allow_unknown):
+        return None
+    w = e.length_m * (UNKNOWN_WEIGHT if res == "UNKNOWN" else 1.0)
+    if e.type == "steps":
+        w *= profile.soft.get("steps_multiplier", 1.0)
+    return w
+
+
 def make_weight(world, profile, scenario_id, allow_unknown, evals=None, chosen=None):
     """Edge-cost function shared by route search and flood reachability (single rule set).
 
@@ -132,15 +152,9 @@ def make_weight(world, profile, scenario_id, allow_unknown, evals=None, chosen=N
     def weight(u, v, data):
         best = None
         for key in data:  # MultiGraph: data = {edge_id: attrs}
-            e = world.edges[key]
-            res, why = evaluate_edge(e, profile, _flood_class(world, scenario_id, key))
-            if evals is not None:
-                evals[key] = (res, why)
-            if res == "FAIL" or (res == "UNKNOWN" and not allow_unknown):
+            w = _edge_cost(world, profile, scenario_id, allow_unknown, key, evals)
+            if w is None:
                 continue
-            w = e.length_m * (UNKNOWN_WEIGHT if res == "UNKNOWN" else 1.0)
-            if e.type == "steps":
-                w *= profile.soft.get("steps_multiplier", 1.0)
             if best is None or w < best:
                 best = w
                 if chosen is not None:
@@ -177,6 +191,80 @@ def _search(world, sources, targets, profile, scenario_id, allow_unknown):
     return nodes, keys, evals
 
 
+def _is_rest(world: World, node: str) -> bool:
+    return any(p.type in REST_TYPES for p in world.places_at(node))
+
+
+def _rest_search(world, sources, targets, profile, scenario_id, allow_unknown, limit):
+    """Cheapest path whose every stretch between rest points is <= `limit` metres.
+
+    Label-setting search over (node, metres since the last rest point) with the same edge costs
+    as `_search`. A label is pruned when another label at its node is no costlier and no further
+    from a rest point; a step that would run past the limit is never taken. Arriving at a rest
+    node resets the counter (same rule as `_max_rest_gap`). Returns (nodes, keys, evals,
+    truncated); `truncated` is True when MAX_REST_LABELS stopped the search before it finished.
+    """
+    evals: dict[str, tuple] = {}
+    costs: dict[str, float | None] = {}
+    rest: dict[str, bool] = {}
+    goal = set(targets)
+    labels: list[tuple[float, float, str, int, str | None]] = []  # cost, gap, node, parent, key
+    alive: list[bool] = []
+    front: dict[str, list[int]] = {}  # node -> non-dominated label ids
+    heap: list[tuple[float, float, int]] = []
+
+    def push(cost, gap, node, parent, key):
+        ids = front.setdefault(node, [])
+        for i in ids:
+            if labels[i][0] <= cost and labels[i][1] <= gap:
+                return
+        keep = []
+        for i in ids:
+            if cost <= labels[i][0] and gap <= labels[i][1]:
+                alive[i] = False
+            else:
+                keep.append(i)
+        keep.append(len(labels))
+        front[node] = keep
+        labels.append((cost, gap, node, parent, key))
+        alive.append(True)
+        heapq.heappush(heap, (cost, gap, len(labels) - 1))
+
+    for s in sorted(set(sources)):
+        push(0.0, 0.0, s, -1, None)
+    g = world.graph
+    while heap:
+        cost, gap, idx = heapq.heappop(heap)
+        if not alive[idx]:
+            continue
+        node = labels[idx][2]
+        if node in goal:
+            nodes, keys = [], []
+            while idx >= 0:
+                _, _, n, parent, key = labels[idx]
+                nodes.append(n)
+                if key is not None:
+                    keys.append(key)
+                idx = parent
+            return nodes[::-1], keys[::-1], evals, False
+        for nbr, data in g[node].items():
+            for key in data:
+                if key not in costs:
+                    costs[key] = _edge_cost(world, profile, scenario_id, allow_unknown, key, evals)
+                w = costs[key]
+                if w is None:
+                    continue
+                run = gap + world.edges[key].length_m
+                if run > limit:
+                    continue
+                if nbr not in rest:
+                    rest[nbr] = _is_rest(world, nbr)
+                if len(labels) >= MAX_REST_LABELS:
+                    return None, [], evals, True
+                push(cost + w, 0.0 if rest[nbr] else run, nbr, idx, key)
+    return None, [], evals, False
+
+
 def _route_from_nodes(world, nodes, keys, from_id, to_id, profile, scenario_id, evals) -> Route:
     segs, coords, unknowns, dist = [], [], [], 0.0
     for u, k in zip(nodes, keys, strict=False):
@@ -201,7 +289,7 @@ def _route_from_nodes(world, nodes, keys, from_id, to_id, profile, scenario_id, 
         {"place_id": p.id, "node_id": n}
         for n in nodes
         for p in world.places_at(n)
-        if p.type == "seating"
+        if p.type in REST_TYPES
     ]
     route = Route(
         id=rid,
@@ -290,24 +378,28 @@ def _plan(world, from_id, to_id, profile, scenario_id) -> RouteResult:
                     )
                 )
         return RouteResult(status="no_data", routes=[], warnings=warnings)
-    strict, skeys, ev1 = _search(world, sources, targets, profile, scenario_id, allow_unknown=False)
-    lenient, lkeys, ev2 = _search(world, sources, targets, profile, scenario_id, allow_unknown=True)
-    evals = {**ev2, **ev1}
-    routes: list[Route] = []
-    if strict:
-        routes.append(
-            _route_from_nodes(world, strict, skeys, from_id, to_id, profile, scenario_id, evals)
+    limit = profile.max_rest_free_run_m
+    truncated = False
+    if limit is not None:
+        # Rest-point-aware pass first: a route that keeps every stretch between rest points
+        # within the limit beats any route that does not, verified or not.
+        found, evals, truncated = _passes(
+            _rest_search, world, sources, targets, profile, scenario_id, limit
         )
-        if lenient and lkeys != skeys:
-            alt = _route_from_nodes(
-                world, lenient, lkeys, from_id, to_id, profile, scenario_id, evals
-            )
-            if alt.distance_m < 0.8 * routes[0].distance_m:
-                routes.append(alt)
-        return RouteResult(status=routes[0].status, routes=routes)
-    if lenient:
-        r = _route_from_nodes(world, lenient, lkeys, from_id, to_id, profile, scenario_id, evals)
-        return RouteResult(status=r.status, routes=[r])
+        routes = _pick(world, *found, evals, from_id, to_id, profile, scenario_id)
+        if routes:
+            return _with_rest(RouteResult(status=routes[0].status, routes=routes), limit)
+    found, evals, _ = _passes(_search, world, sources, targets, profile, scenario_id)
+    routes = _pick(world, *found, evals, from_id, to_id, profile, scenario_id)
+    if routes:
+        result = RouteResult(status=routes[0].status, routes=routes)
+        if limit is not None:
+            result = _with_rest(result, limit)
+            if truncated:
+                result.warnings.append(
+                    "rest-point search stopped early; a route with closer rest points may exist"
+                )
+        return result
     if _disconnected(world, profile, sources, targets):
         # Not "blocked": the mapped data does not join these two places, so no known barrier
         # or flood class is responsible.
@@ -322,3 +414,62 @@ def _plan(world, from_id, to_id, profile, scenario_id) -> RouteResult:
         )
     blocked = [w for res, why in evals.values() if res == "FAIL" for w in why][:5]
     return RouteResult(status="blocked", routes=[], blocked_reasons=blocked)
+
+
+def _passes(search, world, sources, targets, profile, scenario_id, *limit):
+    """Strict (PASS only) and lenient (PASS + UNKNOWN) runs of one search function."""
+    out = [search(world, sources, targets, profile, scenario_id, False, *limit)]
+    out.append(search(world, sources, targets, profile, scenario_id, True, *limit))
+    (strict, skeys, ev1, *t1), (lenient, lkeys, ev2, *t2) = out
+    return ((strict, skeys), (lenient, lkeys)), {**ev2, **ev1}, any(t1 + t2)
+
+
+def _pick(world, strict_found, lenient_found, evals, from_id, to_id, profile, scenario_id):
+    """routes[0] from the strict pass (else the lenient one); a much shorter lenient alternative
+    is offered next to a strict route."""
+    (strict, skeys), (lenient, lkeys) = strict_found, lenient_found
+    if strict:
+        routes = [
+            _route_from_nodes(world, strict, skeys, from_id, to_id, profile, scenario_id, evals)
+        ]
+        if lenient and lkeys != skeys:
+            alt = _route_from_nodes(
+                world, lenient, lkeys, from_id, to_id, profile, scenario_id, evals
+            )
+            if alt.distance_m < 0.8 * routes[0].distance_m:
+                routes.append(alt)
+        return routes
+    if lenient:
+        return [
+            _route_from_nodes(world, lenient, lkeys, from_id, to_id, profile, scenario_id, evals)
+        ]
+    return []
+
+
+def _with_rest(result: RouteResult, limit: float) -> RouteResult:
+    """Mark each route against the rest limit. A route over it is never `confirmed`, and the
+    answer carries the longest stretch without a rest point (rounded to 10 m)."""
+    for r in result.routes:
+        r.rest_limit_m = limit
+        r.rest_limit_met = (
+            r.max_gap_between_rest_m is not None and r.max_gap_between_rest_m <= limit
+        )
+        if not r.rest_limit_met and r.status == "confirmed":
+            r.status = "partly_unverified"
+    r0 = result.routes[0]
+    result.status = r0.status
+    result.rest_limit_m = limit
+    result.max_rest_gap_m = r0.max_gap_between_rest_m
+    if not r0.rest_limit_met:
+        about = _about_m(r0.max_gap_between_rest_m or 0.0, limit)
+        result.warnings.append(
+            f"longest stretch without a rest point is about {about} m (limit {limit:g} m)"
+        )
+    return result
+
+
+def _about_m(gap: float, limit: float) -> int:
+    """`gap` rounded to 10 m, but never down to the limit or below it (103 m must not read as
+    "about 100 m (limit 100 m)")."""
+    about = math.floor(gap / 10 + 0.5) * 10
+    return about if about > limit else math.floor(limit / 10) * 10 + 10

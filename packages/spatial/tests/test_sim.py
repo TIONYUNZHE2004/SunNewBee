@@ -57,22 +57,45 @@ def test_scenario_counts(world):
     assert sum(sum(v.values()) for v in r["counts"].values()) == len(r["results"])
 
 
-def test_i7_fires_on_baseline_older_adult(world):
-    # honest: the router does not enforce max_rest_free_run_m yet
-    r = sim.run_suite(
-        world,
-        [
-            {
-                "id": "o",
-                "profile": "older_adult_rest",
-                "from_id": "park-b",
-                "to_id": "kiosk",
-                "scenario_id": None,
-            }
-        ],
-    )
-    assert [v["invariant"] for v in r["invariant_violations"]] == ["I7"]
-    assert "rest_gap_exceeds_limit" in r["invariant_violations"][0]["detail"]
+def _older(to_id="kiosk"):
+    return {
+        "id": "o",
+        "profile": "older_adult_rest",
+        "from_id": "park-b",
+        "to_id": to_id,
+        "scenario_id": None,
+    }
+
+
+def test_route_over_rest_limit_without_alternative_is_advisory_not_i7(world):
+    # Tiny: park-b -> kiosk; every route runs over 100 m before or after the only bench (n-c).
+    r = sim.run_suite(world, [_older()])
+    assert r["invariant_violations"] == []
+    assert len(r["rest_advisories"]) == 1
+    a = r["rest_advisories"][0]
+    assert a["task_id"] == "o" and a["kind"] == "rest_limit_no_alternative"
+    assert "235.5 m > limit 100 m" in a["detail"]  # strict route a-b-c-d-f: c->d->f
+    assert r["results"][0]["outcome"] == "success_with_unknowns"  # never "success"
+
+
+def test_i7_fires_when_router_claims_the_rest_limit_but_breaks_it(world):
+    from townshiplens_spatial.routing import plan_route
+
+    route = plan_route(world, "park-b", "kiosk", "older_adult_rest").routes[0]
+    route.rest_limit_met = True  # a router bug: claims the limit while the gap is 111.2 m
+    violations, advisories = [], []
+    sim._check(world, _older(), route, violations, advisories)
+    assert [v["invariant"] for v in violations] == ["I7"] and advisories == []
+    assert "rest_gap_exceeds_limit" in violations[0]["detail"]
+
+
+def test_routes_within_rest_limit_raise_nothing(world):
+    from test_routing import _rest_detour
+
+    _rest_detour(world)
+    r = sim.run_suite(world, [_older("playground")])
+    assert r["invariant_violations"] == [] and r["rest_advisories"] == []
+    assert r["results"][0]["outcome"] == "success"
 
 
 def test_profiles_filter_before_cap(world):
@@ -90,6 +113,7 @@ def test_gap_budget_truncates(world, monkeypatch):
 def test_report_shape(world):
     r = sim.run_suite(world, [])
     assert r["world_version"] == world.version and len(r["run_id"]) == 4 + 32
+    assert r["rest_advisories"] == []
 
 
 def test_major_road_sidewalk_is_ranked_as_a_gap(world):

@@ -155,3 +155,12 @@ def test_plan_route_caps_auto_filed_vrs(ctx, monkeypatch):
 def test_plan_route_not_truncated_reports_zero(ctx):
     r = tools.plan_route(ctx, "park-b", "kiosk", "stroller")
     assert r.data["verification_requests_truncated"] == 0
+
+
+def test_plan_route_reports_rest_gap_and_limit_for_older_adult(ctx):
+    r = tools.plan_route(ctx, "park-b", "playground", "older_adult_rest")
+    assert r.data["max_rest_gap_m"] == 111.2 and r.data["rest_limit_m"] == 100
+    assert r.data["status"] == "partly_unverified"
+    assert "longest stretch without a rest point is about 110 m (limit 100 m)" in r.warnings
+    s = tools.plan_route(ctx, "park-b", "playground", "stroller")
+    assert s.data["max_rest_gap_m"] is None and s.data["rest_limit_m"] is None

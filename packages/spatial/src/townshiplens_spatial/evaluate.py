@@ -101,7 +101,7 @@ def evaluate_edge(
                 "why": f"possibly flooded; not passable for {profile.id}",
             }
         ]
-    # TODO(deferred): enforce profile.max_rest_free_run_m; not used in the walking skeleton.
+    # profile.max_rest_free_run_m is a path property, enforced by routing._rest_search.
     result: EvalResult = "PASS"
     side = _sidewalk_check(edge, profile, today)
     if side is not None:

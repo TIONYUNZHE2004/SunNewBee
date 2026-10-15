@@ -169,6 +169,10 @@ class Route(BaseModel):
     unknowns: list[dict[str, str]] = Field(default_factory=list)  # {element_id, attribute, why}
     rest_points: list[dict[str, Any]] = Field(default_factory=list)
     max_gap_between_rest_m: float | None = None
+    # Profiles with max_rest_free_run_m (older_adult_rest): the limit, and whether this route
+    # keeps every stretch between rest points within it. None for profiles without a limit.
+    rest_limit_m: float | None = None
+    rest_limit_met: bool | None = None
     geometry: dict[str, Any]  # GeoJSON LineString
     evidence_ids: list[str] = Field(default_factory=list)
 
@@ -178,6 +182,10 @@ class RouteResult(BaseModel):
     routes: list[Route]  # routes[0] = recommended; optional routes[1] = shorter lenient alternative
     blocked_reasons: list[dict[str, str]] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
+    # Profiles with max_rest_free_run_m only (else None): routes[0]'s longest stretch without
+    # a rest point, and the profile's limit.
+    max_rest_gap_m: float | None = None
+    rest_limit_m: float | None = None
 
 
 class ToolResult(BaseModel):

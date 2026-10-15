@@ -39,6 +39,19 @@ runner that ranks data gaps), `tools` (tool functions and the `TOOLS` registry).
 treats a possibly flooded road as FAIL (walking profiles treat it as UNKNOWN), and always adds
 its standing warning (one-way and turn restrictions are not modelled; indicative only).
 
+`older_adult_rest` has `max_rest_free_run_m: 100`. Routing first runs a resource-constrained
+search over (node, metres since the last rest point): a node with a `seating` (benches) or
+`shelter` place resets the counter, and no step may run past the limit. It is label-setting with
+dominance pruning, bounded by `MAX_REST_LABELS` (deterministic, not wall-clock). A route within
+the limit wins over any route that is not, verified or not. Only when no route keeps the limit
+does the router fall back to the usual strict/lenient order. The fallback route has
+`rest_limit_met: false`, is never `confirmed` (at most `partly_unverified`), and the result
+warns "longest stretch without a rest point is about N m (limit 100 m)" (N rounded to 10 m, never
+down to the limit). Routes carry `rest_limit_m` / `rest_limit_met`; `RouteResult` (and the
+`plan_route` tool data) carries `max_rest_gap_m` / `rest_limit_m`. Other profiles: all `None`.
+In `sim`, invariant I7 fires only when a route claims the limit but breaks it (a routing bug);
+fallback routes are listed under `rest_advisories` ("over the rest limit, no alternative").
+
 ## Route status
 
 | Status | Meaning |
@@ -80,7 +93,6 @@ with `__`.
 
 ## What to build next (BE lane)
 
-- Resource-constrained rest-point search (enforce `max_rest_free_run_m`).
 - Oneway- and turn-aware drive graph (the `drive` profile reuses the walk extract's street/track edges).
 - Closures (`get_closures`).
 - Staleness TTL configuration.

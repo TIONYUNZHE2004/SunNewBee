@@ -82,7 +82,7 @@ def _flipped(world: World, element_id: str, attribute: str, profile_id: str) -> 
     return dataclasses.replace(world, edges={**world.edges, element_id: e2})
 
 
-def _check(world: World, task: dict, route, violations: list[dict]) -> None:
+def _check(world: World, task: dict, route, violations: list[dict], advisories: list[dict]) -> None:
     tid = task["id"]
     listed = {u["element_id"] for u in route.unknowns}
     for s in route.segments:
@@ -96,25 +96,35 @@ def _check(world: World, task: dict, route, violations: list[dict]) -> None:
             )
     prof = world.profiles.get(task["profile"])
     limit = prof.max_rest_free_run_m if prof else None
-    if (
-        task["profile"] == "older_adult_rest"
-        and limit is not None
-        and route.max_gap_between_rest_m is not None
-        and route.max_gap_between_rest_m > limit
-    ):
-        violations.append(
-            {
-                "invariant": "I7",
-                "task_id": tid,
-                "detail": f"rest_gap_exceeds_limit {route.max_gap_between_rest_m}>{limit}",
-            }
-        )
+    gap = route.max_gap_between_rest_m
+    if limit is None or gap is None or gap <= limit:
+        return
+    if route.rest_limit_met is False and route.status != "confirmed":
+        # The router found no route within the limit and said so (warning, never confirmed):
+        # an advisory for staff (add rest points), not a broken invariant.
+        note = {
+            "kind": "rest_limit_no_alternative",
+            "task_id": tid,
+            "detail": f"longest stretch without a rest point {gap} m > limit {limit:g} m; "
+            "no route within the limit",
+        }
+        if note not in advisories[-2:]:  # an alternative route with the same gap adds nothing
+            advisories.append(note)
+        return
+    violations.append(
+        {
+            "invariant": "I7",
+            "task_id": tid,
+            "detail": f"rest_gap_exceeds_limit {gap}>{limit}",
+        }
+    )
 
 
 def run_suite(world: World, tasks: list[dict], scenario_id: str | None = None) -> dict[str, Any]:
     counts: dict[str, dict[str, int]] = {}
     results: list[dict] = []
     violations: list[dict] = []
+    advisories: list[dict] = []
     gap_tasks: dict[tuple[str, str], list[dict]] = {}
     for t in tasks:
         sc = t.get("scenario_id") or scenario_id
@@ -128,7 +138,7 @@ def run_suite(world: World, tasks: list[dict], scenario_id: str | None = None) -
                 {"element_id": u["element_id"], "attribute": u["attribute"]} for u in r0.unknowns
             ]
             for r in rr.routes:
-                _check(world, t, r, violations)
+                _check(world, t, r, violations, advisories)
             for key in {(u["element_id"], u["attribute"]) for u in r0.unknowns}:
                 gap_tasks.setdefault(key, []).append({**t, "scenario_id": sc})
         counts.setdefault(t["profile"], {}).setdefault(outcome, 0)
@@ -182,4 +192,6 @@ def run_suite(world: World, tasks: list[dict], scenario_id: str | None = None) -
         "gaps": gaps[:MAX_GAPS],
         "gaps_truncated": truncated,
         "invariant_violations": violations,
+        # Routes over the rest limit because no route within it exists (no alternative).
+        "rest_advisories": advisories,
     }
