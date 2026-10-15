@@ -19,9 +19,12 @@ def _cannot_summary(rec: TurnRecord, question: str) -> str:
     depth rules (it is the user's own text; never let it smuggle forbidden wording in).
     """
     tail = " I've noted the gap for the township team." if rec.vrs else ""
-    for e in rec.evidence.values():
-        if str(e.status) == "unknown":
-            return f"I don't have a verified {e.attribute} for {e.element_id} yet.{tail}"
+    # Name the gap only when the unknown facts this turn all belong to one element (otherwise
+    # an unrelated unknown could be reported), in readable words (no ids or attribute keys).
+    unknown = [e for e in rec.evidence.values() if str(e.status) == "unknown"]
+    if unknown and len({e.element_id for e in unknown}) == 1:
+        labels = list(dict.fromkeys(attribute_label(e.attribute).lower() for e in unknown))
+        return f"I don't have a checked {', '.join(labels[:3])} for that place yet.{tail}"
     q = " ".join(question.split())[:80]
     if q and not rec.scenarios_used and not FORBIDDEN.search(q) and not DEPTH.search(q):
         return f'I couldn\'t find an answer for "{q}" in the township model yet.{tail}'
@@ -99,7 +102,7 @@ def template_answer(rec: TurnRecord, question: str) -> FinalAnswer:
     if tail := closure_summary_tail(rec.route_closures, status):
         summary = f"Route {tail}."
     if status == "no_data":
-        summary = "No mapped connection between these places (data gap)."
+        summary = "No route can be shown between these places."  # the data-gap caveat says why
     return FinalAnswer(
         answer_status="answered"
         if status == "confirmed"

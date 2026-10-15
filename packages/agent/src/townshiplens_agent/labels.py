@@ -268,9 +268,14 @@ def closure_caveats(rows: list[dict]) -> list[str]:
 
 
 def closure_summary_tail(rows: list[dict], status: str) -> str:
-    """Extra words for a route summary: a blocked route says what blocked it."""
+    """Extra words for a route summary: a blocked route says what blocked it, and a route to or
+    from a closed place does not read as plain "confirmed"."""
     if status == "blocked" and any(r.get("impact") == "blocked" for r in rows):
         return "blocked by a reported closure"
+    if status in ("confirmed", "partly_unverified") and any(
+        r.get("impact") == "endpoint" for r in rows
+    ):
+        return f"{status_label(status)}, but a place at one end is reported closed"
     return ""
 
 

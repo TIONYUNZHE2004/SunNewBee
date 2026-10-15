@@ -79,6 +79,8 @@ async def test_active_closure_on_destination_is_named(ctx):
     assert u.level == "partial"
     assert any(i["attribute"] == "closure" and "Elmina Playground" in i["note"] for i in u.items)
     assert "cl-0001" not in t and "seg-" not in t
+    # Review (Task 48 M1): the summary must not say plain "route confirmed" for a closed end.
+    assert "but a place at one end is reported closed" in t
 
 
 async def test_closure_that_blocks_the_route_says_so(ctx):

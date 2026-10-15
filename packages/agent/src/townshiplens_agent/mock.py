@@ -312,7 +312,8 @@ def _script(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
     ui_sid = _ui(info, "active_scenario")
     ui_sid = None if ui_sid == "none" else ui_sid
     where_next = bool(re.search(_WHERE_NEXT, q))
-    if where_next and not ui_sid:  # no scenario to plan against: point at the river-level control
+    names_level = is_flood and bool(re.search(r"\d+(?:\.\d+)?\s*m\b", q))
+    if where_next and not ui_sid and not names_level:  # no scenario to plan against
         return _cannot(
             "Pick a river level on the scenario bar, or ask about a specific route, "
             "and I can show where to go."
@@ -331,25 +332,25 @@ def _script(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
         if n == 0:
             return _call("list_flood_scenarios")
         if n == 1:
-            return _call("affected_places", scenario_id="stage_p3m", kind="all", profile="default")
+            return _call("affected_places", scenario_id=sid, kind="all", profile="default")
         a = _data(rets[-1][1])
         if not isinstance(a, dict):
             return _cannot()
         # Lists are capped by the tool: prefer the totals when present.
         likely = a["likely_total"] if "likely_total" in a else len(a.get("likely") or [])
         possible = a["possible_total"] if "possible_total" in a else len(a.get("possible") or [])
-        ev = [i for i in _ev_ids(rets) if i == "ev-scn-stage_p3m"]
+        ev = [i for i in _ev_ids(rets) if i == f"ev-scn-{sid}"]
         if not ev:
             return _cannot()
         return _final(
             answer_status="answered",
             summary=(
-                f"In the River +3 m indicative scenario, {likely} places/paths are likely "
+                f"In the {level} indicative scenario, {likely} places/paths are likely "
                 f"cut off and {possible} possibly. {_FLOOD_NOTE}"
             ),
-            claims=[{"text": "Scenario River +3 m", "status": "indicative", "evidence_ids": ev}],
-            scenario_id="stage_p3m",
-            scene_intents=[{"kind": "flood.set_level", "scenario_id": "stage_p3m"}],
+            claims=[{"text": f"Scenario {level}", "status": "indicative", "evidence_ids": ev}],
+            scenario_id=sid,
+            scene_intents=[{"kind": "flood.set_level", "scenario_id": sid}],
         )
     if is_flood or where_next:  # resident: where can I go
         if n == 0:
@@ -401,7 +402,12 @@ def _script(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
             caveats = [_status_caveat(route.get("status"), found[0]["name"], c0["name"])]
         caveats = _placeholder_caveat(
             rets,
-            flood_cav + caveats + rest + closure_caveats(closed) + _inferred(rets[-1][1]),
+            flood_cav
+            + caveats
+            + rest
+            + closure_caveats(closed)
+            + _inferred(rets[-1][1])
+            + inferred_caveats([n for n in [centres[0].get("entrance_note")] if n]),
         )
         confirmed = route and route.get("status") == "confirmed" and not likely and not closed
         start = (
@@ -441,10 +447,12 @@ def _script(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
             scene_intents=[{"kind": "flood.set_level", "scenario_id": sid}]
             + ([{"kind": "route.highlight", "route_id": route["id"]}] if route else []),
         )
-    if re.search(r"recycl|e-?waste|waste|rubbish|sampah|batter|\bbins?\b", q):  # waste points
+    if re.search(
+        r"recycl|e-?waste|waste|rubbish|sampah|batter(?:y|ies)|\bbins?\b", q
+    ):  # waste points
         wtype = (
             "e_waste_drop_off"
-            if re.search(r"e-?waste|batter|phone", q)
+            if re.search(r"e-?waste|batter(?:y|ies)|phone", q)
             else "recycling_drop_off"
             if re.search(r"recycl", q)
             else None
@@ -462,6 +470,7 @@ def _script(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
         if not pts:
             return _cannot()
         gap = bool(wtype) and n > 1  # the typed search was empty; these are other kinds
+        asks_when = bool(re.search(r"\bwhen\b|schedule|which day|what day|jadual", q))
         names = list(dict.fromkeys(p["name"] for p in pts))
         unconfirmed = list(dict.fromkeys(p["name"] for p in pts if p.get("status") != "verified"))
         caveats = (
@@ -480,8 +489,13 @@ def _script(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
             )
         else:
             summary = f"Waste points found: {', '.join(names)}."
+        if asks_when:  # the model holds locations only: say so instead of implying a timetable
+            caveats.append(
+                "No collection schedule is recorded for these points; ask MBSA for the "
+                "collection day."
+            )
         return _final(
-            answer_status="partial" if unconfirmed or gap else "answered",
+            answer_status="partial" if unconfirmed or gap or asks_when else "answered",
             summary=summary,
             claims=[
                 {

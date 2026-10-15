@@ -226,6 +226,8 @@ def test_no_placeholder_unaffected():
         "team has verified",
         "Verified on 2026-10-15",
         "Staff checked it",
+        "Staff has checked it",
+        "team verified",
     ],
 )
 def test_placeholder_rejects_affirmative_verified(txt):
@@ -468,3 +470,11 @@ def test_route_over_rest_limit_needs_the_rest_gap_caveat():
         **base, caveats=["Longest stretch without a rest point is about 110 m (limit 100 m)."]
     )
     assert validate_answer(ok, rec) == []
+
+
+def test_placeholder_retry_message_tells_the_model_what_to_say():
+    """Review (Task 24 M3): the rejection text names the banned wording and the allowed phrase."""
+    (msg,) = validate_answer(
+        _ph_answer("Staff have verified", ["demo values, not yet surveyed"]), _ph_rec()
+    )
+    assert "'verified'" in msg and "staff checked" in msg and "demo values, not yet surveyed" in msg
