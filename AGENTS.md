@@ -123,7 +123,7 @@ When changing the agent, the mock answers and `template.py` must still pass the 
 
 - Rebuild order matters: `import_osm.py` → `build_overlay.py` (rewrites `base/places.geojson`) → `build_flood.py` → `build_waste.py` (`pnpm data:build`).
 - **Overpass is a shared public service.** Requests go through `data/scripts/overpass.py`: a cache in `data/cache/` (gitignored), tiled sequential requests and backoff. Keep request counts small, and don't loop re-fetches.
-- **Major roads** (`primary|secondary|trunk` + links) are imported as `major_road` (Task 31). OSM has no usable sidewalk tags here, so they carry no `sidewalk` claim: strict profiles (stroller, wheelchair, older_adult_rest) need a *verified* sidewalk to pass, so routes over them stay `partly_unverified`. Area places (parks, schools) are snapped to the network by their centre only; 17 seed places still have no node (being fixed in Task 43).
+- **Major roads** (`primary|secondary|trunk` + links) are imported as `major_road` (Task 31). OSM has no usable sidewalk tags here, so they carry no `sidewalk` claim: strict profiles (stroller, wheelchair, older_adult_rest) need a *verified* sidewalk to pass, so routes over them stay `partly_unverified`. Area places (parks, schools) snap to the nearest main-network walk node inside or within 40 m of their OSM outline, marked `node_inferred` with an "entrance not mapped" caveat (Task 43); 7 seed places still have no node and are listed with reasons in `flood/coverage.json`.
 - `build_flood.py` needs the cached DEM in `data/cache/` (`glo30_dem_*.npy`). `--rewrite-disclaimers` edits scenario disclaimers without a rebuild.
 - **Licences:**
   - OSM is ODbL, so keep attribution in `site.json`.
