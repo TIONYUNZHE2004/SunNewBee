@@ -74,6 +74,15 @@ describe("flood 'Why this path?' popover", () => {
     expect(opener).toHaveFocus();
   });
 
+  it("sits above the demo bar (bottom offset by --demo-bar-h)", async () => {
+    const user = userEvent.setup();
+    setup();
+    await user.click(screen.getByRole("button", { name: "Jalan Tasik row" }));
+    expect(screen.getByRole("dialog").className).toContain(
+      "bottom-[calc(var(--demo-bar-h,0px)+1rem)]",
+    );
+  });
+
   it("the Close button also closes it and returns focus", async () => {
     const user = userEvent.setup();
     setup();

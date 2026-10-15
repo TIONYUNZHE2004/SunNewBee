@@ -164,3 +164,72 @@ def test_plan_route_reports_rest_gap_and_limit_for_older_adult(ctx):
     assert "longest stretch without a rest point is about 110 m (limit 100 m)" in r.warnings
     s = tools.plan_route(ctx, "park-b", "playground", "stroller")
     assert s.data["max_rest_gap_m"] is None and s.data["rest_limit_m"] is None
+
+
+# --- Task 43: area places snapped to an inferred access point ---------------------------------
+
+
+def _infer(ctx, place_id):
+    from townshiplens_spatial.models import Claim
+
+    p = ctx.world.places[place_id]
+    p.node_inferred = True
+    p.claims["access_point"] = Claim(
+        value=p.node_id, status="reported", evidence_type="osm_area_boundary_snap"
+    )
+    return p
+
+
+def test_route_to_inferred_place_warns_entrance_not_mapped(ctx):
+    _infer(ctx, "kiosk")
+    r = tools.plan_route(ctx, "park-b", "kiosk", "default")
+    assert r.data["routes"]
+    assert (
+        "Route ends at the nearest mapped path to Park kiosk; its entrance is not mapped."
+        in r.warnings
+    )
+    ev = next(e for e in r.evidence if e.id == "ev-kiosk.access_point")
+    assert ev.source_type == "osm_area_boundary_snap" and ev.status == "reported"
+
+
+def test_route_from_inferred_place_warns_too(ctx):
+    _infer(ctx, "kiosk")
+    r = tools.plan_route(ctx, "kiosk", "park-b", "default")
+    assert (
+        "Route starts at the nearest mapped path to Park kiosk; its entrance is not mapped."
+        in r.warnings
+    )
+
+
+def test_no_entrance_warning_for_mapped_places_or_no_route(ctx):
+    r = tools.plan_route(ctx, "park-b", "kiosk", "default")
+    assert not [w for w in r.warnings if "entrance is not mapped" in w]
+    _infer(ctx, "island-hut")
+    r = tools.plan_route(ctx, "park-b", "island-hut", "default")
+    assert r.data["status"] == "no_data"
+    assert not [w for w in r.warnings if "entrance is not mapped" in w]
+
+
+def test_place_details_expose_node_inferred(ctx):
+    assert tools.get_place_details(ctx, "kiosk").data["node_inferred"] is False
+    _infer(ctx, "kiosk")
+    assert tools.get_place_details(ctx, "kiosk").data["node_inferred"] is True
+
+
+def test_no_entrance_warning_when_the_place_has_a_mapped_entrance(ctx):
+    """Review I2 (R28): routing ends at the mapped entrance, so the caveat would be false."""
+    from townshiplens_spatial.models import Place
+
+    p = _infer(ctx, "kiosk")
+    ent = Place(id="kiosk-gate", kind="entrance", type="entrance", name="Kiosk gate",
+                coord=[101.51, 3.181], node_id="n-c")  # fmt: skip
+    ctx.world.places[ent.id] = ent
+    p.entrance_ids = ["kiosk-gate"]
+    r = tools.plan_route(ctx, "park-b", "kiosk", "default")
+    assert r.data["routes"]
+    assert not [w for w in r.warnings if "entrance is not mapped" in w]
+    assert not [e for e in r.evidence if e.id == "ev-kiosk.access_point"]
+    # An entrance id that resolves to nothing mapped does not count.
+    p.entrance_ids = ["no-such-entrance"]
+    r = tools.plan_route(ctx, "park-b", "kiosk", "default")
+    assert [w for w in r.warnings if "entrance is not mapped" in w]

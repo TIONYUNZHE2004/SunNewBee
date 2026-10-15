@@ -584,3 +584,167 @@ Reviews of Tasks 23, 27, 33, 35, 36 and 37 flagged the same gap. Vitest runs in 
 - **Rules:** test behaviour through the DOM (roles, labels, text), not implementation details. No snapshot tests. Each test asserts something that would fail if the feature broke; check that by briefly breaking the code locally.
 - **Out of scope:** do NOT change production code, except a minimal export or test-id where a test truly needs it; explain any in the report. Do NOT touch `packages/*`, `apps/api` or `data/`.
 - **Verify:** `pnpm --filter @tl/web test`, `pnpm lint`, typecheck, build, e2e. Commit on the lane branch.
+
+### Task 40: The mock answers every in-app prompt on the Elmina seed (AI)
+
+Found while recording the demo cache for Task 37 (continuation run). These in-app prompts come back `cannot_answer` from the mock on the Elmina seed:
+- the older-adult chip "Can I get to the lakeside mall if I am an older adult who needs to rest?" (`older_adult_rest`);
+- the default chip "Is the walk from the urban park to the lakeside mall easy?";
+- the scenario-bar button "Where can I go?" (`default` and `wheelchair`, `stage_p3m`).
+
+DEMO_MODE replays these, and keyless demos run the mock, so the pitch shows "I don't know" for the app's own suggestions.
+
+- **Access routing in the mock:**
+  - Parse origin and destination from "from X to Y" or "get to Y".
+  - Places: Lakeside Mall, Urban Park, playground, Car Park B, kiosk, toilet. Use `find_place` results. Don't hard-code ids beyond the existing defaults.
+  - The default origin stays Car Park B when none is given.
+  - The profile comes from the request, so the older-adult chip uses `older_adult_rest`, and its answer reports the rest-gap information `plan_route` returns (if it returns it).
+- **"Where can I go?" (and similar: "where should I go", "where do I go"):** treat it as the flood-resident flow when a scenario is active.
+  - Origin is the demo start point `lakeside-mall` (the same constant the web uses). The answer says "from Elmina Lakeside Mall (demo start point)", because the assistant doesn't know the user's location.
+  - With no scenario active, answer `cannot_answer` with one helpful sentence suggesting they pick a river level or ask about a route.
+- **Tests:** a pytest that loads `data/seed/elmina` and checks every in-app prompt with its profile/scenario returns a non-`cannot_answer` answer that passes the validator:
+  - the 4 access chips, the 3 flood chips and the waste chip, from `apps/web/src/features/chat/suggestions.ts`;
+  - "Where can I go?" for default and wheelchair at `stage_p3m`.
+
+  Copy the strings into the test with a comment pointing at `suggestions.ts`, and add a sync test that parses `suggestions.ts` with a regex to catch drift.
+- **Re-record:** the affected `data/demo` entries with the mock, for the same 11 (question, profile, scenario) tuples recorded in `ffd4ebc`; read their meta. Commit the data separately.
+- **Out of scope:** do NOT touch `apps/web`, `packages/spatial` or `data/seed`.
+- **Verify:** pytest, golden (mock), lint, gen (no drift).
+
+### Task 41: Rest-point-aware routing for older adults (AX-08) (BE + small FE)
+
+From the audit: AX-08 is PARTIAL. The max rest gap is computed per route (`routing.py`) and checked in the sim as invariant I7. But `max_rest_free_run_m` (100 m in `config/profiles/older_adult_rest.yaml`) is not enforced (`evaluate.py:104` TODO). On the Task 31 seed, 60 of 60 older-adult journey routes violate I7.
+
+- **Routing:** for profiles with `max_rest_free_run_m`, search for a route whose longest stretch between rest points (`seating`, `shelter` and benches, i.e. the places the existing `rest_gap` logic counts) is ≤ the limit.
+  - Use a resource-constrained search: label-setting over (node, distance since last rest), with pruning, bounded in time like the existing routing.
+  - If no route satisfies the limit, return the best route by the existing order and set `status` to at most `partly_unverified`. Add a warning: "longest stretch without a rest point is about N m (limit 100 m)". Round N to 10 m.
+  - Never `confirmed` when the limit is exceeded.
+- **Answers:** `plan_route` returns `max_rest_gap_m` and `rest_limit_m`. The mock and template mention the rest-gap line for `older_adult_rest`. Keep the honesty rules.
+- **Sim:**
+  - I7 should now hold for every route that the router claims satisfies the limit.
+  - Report a separate advisory count, "routes over the rest limit (no alternative)", instead of counting them as invariant violations.
+  - `JourneyTests.tsx` must label it in plain words, separating critical invariant violations from advisory notes. This is review M-1 from Task 31.
+- **Tests:**
+  - a fixture where the shortest route exceeds 100 m without rest but a slightly longer one passes;
+  - a fixture where none passes, giving the warning and `partly_unverified`;
+  - other profiles unchanged;
+  - a performance guard on the Elmina seed: one older-adult route under 2 s.
+- **Out of scope:** do NOT touch `data/seed`, `apps/web/src/features/scene/*` or `features/chat/*`. Coordinate with Task 42, which edits the API layers and web scene.
+
+### Task 42: Gap map, where the world model is unknown or stale (AX-09) (API + FE)
+
+From the audit: AX-09 is MISSING.
+
+- **API:** `GET /layers/gaps?profile=` returns the walk edges and places, each with:
+  - `unknown_count`: the profile-relevant attributes whose claim is unknown, missing, stale or contested;
+  - `stale_count`;
+  - `demand`: open VR demand for that element.
+
+  It reuses `evaluate.py`'s per-profile relevant-attribute list and must not duplicate it. Add an ETag like the other layers, then run `pnpm gen`.
+- **FE:** a "Gaps" toggle in the Layers group. It is off by default.
+  - **Cesium:** colours edges by gap density in 3 bands ("Fully checked", "Some facts missing", "Many facts missing"), each with a pattern as well as a colour, and adds a legend.
+  - **List view:** a "Biggest gaps" section, ordered by demand and then unknown_count. Each row is a button that opens the place card or the "Why this path?" equivalent.
+  - **Manage:** the Verification queue links to the gap map.
+- **Honesty:** this layer shows what isn't known. Copy says "facts not yet checked", never "unsafe" or "inaccessible".
+- **Tests:** pytest for counts on the tiny fixture (stale, contested, missing); vitest for band mapping and the list order; DOM tests in the Task 39 Testing Library style.
+- **Out of scope:** do NOT touch `routing.py`, `evaluate.py` (import from it only), `sim.py`, `data/` or `features/chat/*`.
+
+### Task 43: Snap area places (parks, schools) to the walk network honestly (data)
+
+**Found while reviewing Task 40.** 17 of 231 seed places have no `node_id`, so nothing can route to them (`no_data`). Most are large areas (11 parks, 3 schools, including the hero "Elmina Urban Park" `osm-way-1309457596`). `assign_nodes` (import_osm.py) snaps the area's **centre** to a node within 60 m, and a big park's centre is far from any path. The Overpass place query uses `out center`, so polygons are not cached.
+
+- **Fetch:** for ways and relations among the place results, fetch geometry once (`out geom`), tiled like the existing place query and cached in `data/cache`. **Budget: ≤ 8 Overpass requests**, part of the 30 the team lead allowed for this run.
+- **Snap:** a point place keeps today's rule. An area place snaps to the nearest walk node inside its polygon or within 40 m of its boundary. The place gets:
+  - `node_inferred: true`;
+  - a claim/evidence `access_point` with `evidence_type: osm_area_boundary_snap`, status `reported`.
+  
+  Routing to or from it adds the warning: "Route ends at the nearest mapped path to <name>; its entrance is not mapped." Keep `node_inferred` in the place model and the API, and run `pnpm gen`.
+  
+  A place that is still unsnapped stays `no_data` and appears in `coverage.json` (`places_without_node`).
+- **Rebuild** in the usual order: import → overlay → flood → waste, from cache plus the new geometry. Measure before and after:
+  - the number of places without a node;
+  - default-profile routes from `park-b` to "Elmina Urban Park" and from "Elmina Urban Park" to `lakeside-mall`;
+  - check that the hero route is unchanged.
+- **Tests:**
+  - area-snap unit tests (inside the polygon, within 40 m, beyond 40 m);
+  - a seed regression: Elmina Urban Park has a node and a routable route with the warning.
+- **Coordinate:** Task 40 (lane/ai) edits `packages/agent` and `data/demo`. Do not touch those; the coordinator re-records the demo cache after both merge. Task 41 (lane/be) edits `routing.py` and `sim.py`, so add the warning in `tools.py`, not `routing.py`. Task 42 (lane/fe) edits `apps/web` scene/list and adds `/layers/gaps`.
+
+### Task 44: Resident-readable, honest answer wording (AI)
+
+Found in the browser walkthrough of `/?demo=hero` on the Elmina seed, and in final review #2 (`.superpowers/…/final-review-2.md`: I1, I2, Minor 4, Minor 5). The answers and uncertainty notes show machine labels to residents:
+- "Route status: partly_unverified"
+- "Not checked yet: incline_pct on seg-1306543755-2"
+- "stroller needs incline_pct ≤ 8.3; not verified"
+
+They also claim "staff have been asked to check them" when only 10 of 56 were filed.
+
+- **Readable labels:**
+  - Status line: `Route status: confirmed | partly unverified | blocked | no mapped connection (data gap)`. The validator already accepts "partly unverified" with a space; extend it to every label, and keep the structured `route_status` in events unchanged.
+  - Attribute names use catalogue labels: "Incline (%)", "Steps", "Width (m)", "Sidewalk", …. Reuse one mapping. If Python has none, add `ATTRIBUTE_LABELS` beside `attributes.py` and keep it in sync with the web `attributeCatalogue.ts` through a drift test.
+  - Elements use their name ("Jalan Hopea U15/17D"), otherwise "an unnamed footway / street / major road". Never a raw `seg-…` id in answer text.
+  - Uncertainty `note`s read like: "Stroller: incline not checked yet (limit 8.3%)". Never "≤ 8.3; not verified" or raw keys.
+- **Honest counts (final-review I1):** state exactly what happened, e.g. "Asked the township team to check 10 of the 56 unchecked items." The numbers come from the `verification.requested` events this turn and the truncation count. Never say "staff have been asked" for items with no request. This applies to the mock and to `template.py`.
+- **Cap the item count (Minor 4):** the "and N more" must count items, not segments.
+- **Place-info questions (final-review I2):** "Tell me about <place>" and "What is at <place>" call `get_place_details` and summarise its claims with statuses. A found place must never produce "I don't have that place", and no VR is filed when the place exists.
+- **Demo cache:** re-record every Elmina `data/demo` entry with the mock (all 11 tuples plus the default-profile stroller entry `db7c2bc4ca95419d`). Add a pytest that replays every Elmina entry against the current mock and diffs the events, ignoring ids, timestamps and demand (Minor 5).
+- **Tests:**
+  - wording tests for each label;
+  - no `seg-` ids and no `_` keys in any in-app prompt answer;
+  - the counts are exact;
+  - place-info for Lakeside Mall.
+- **Out of scope:** `apps/web` (the UI already renders the text), `packages/spatial` except the label map, and `data/seed`.
+
+### Task 45: Demo-mode and doc fixes from final review #2 (FE + docs)
+
+Final review #2 Minors 1, 2, 3 and 6 (`.superpowers/…/final-review-2.md`):
+1. Esc on an open place card also exits the demo. Fix: `preventDefault()` in PlaceCard's Esc handler, and the same for FloodPathPopover. Add a DOM test.
+2. The demo bar hides the bottom of the PlaceCard and FloodPathPopover. Fix: expose the bar height as the CSS variable `--demo-bar-h` while the demo is active, and offset those overlays' `bottom`. Add a DOM test.
+3. StrictMode sends the question twice when ChatPanel mounts with a pending ask. Fix: read `useChatDraft.getState().pendingAsk` inside the effect and clear it atomically. Add a DOM test under `<StrictMode>` that asserts fetch is called once.
+4. Doc drift:
+   - `packages/spatial/README.md` and `docs/05-team/dev-setup.md` drive types now include `major_road`.
+   - dev-setup still says "no Testing Library".
+   - `README.md:47` has the stale "data scripts arrive with the data lane" sentence.
+   - `CLAUDE.md` says "Tasks 15–36"; make it say "Tasks 15+".
+- **Verify:** vitest, lint, typecheck, build, e2e. Commit on the lane branch.
+
+### Task 46: Time-bounded closures (AX-07 + M-04) (BE + FE)
+
+From the audit: AX-07 is MISSING (`get_closures` is a stub) and M-04 has no UI.
+
+- **Model:** a closure is a claim-like record on an edge or a place: `{id, element_id, reason (works|event|flooding|other), starts_at, ends_at|null, note, created_by: staff, source: staff_report}`. Persist it in the per-world SQLite (the same DB as VRs, with an audit row on create and end). Load active closures into the world on startup and on change, guarded by `world_lock`, with a `world.version` bump so layer ETags change.
+- **Evaluation:** an active closure (`now` within `[starts_at, ends_at)`) makes the element FAIL for every profile, with the reason "Closed: <reason> until <date or 'further notice'>". It never upgrades anything. Expired closures have no effect.
+- **Tool:** `get_closures(near_place?, active_only=true)` replaces the stub. `plan_route` warnings name closures on the chosen route's alternatives when they forced a detour, if cheaply derivable; otherwise skip that part and say so.
+- **API:**
+  - staff `POST /closures` and `POST /closures/{id}/end`, both requiring the staff token;
+  - public `GET /closures?active=`.
+  
+  Run `pnpm gen`.
+- **FE:**
+  - **Manage:** a "Closures" tab with a list, a create form (pick an element by id or from a place search, reason, start/end, note) and an "End now" button.
+  - **Resident:** closed segments are drawn as "Not passable", with a "Closed" label in the list view and the place card.
+- **Tests:**
+  - evaluation inside and outside the window;
+  - the tool;
+  - the API (auth, 422 on an end before the start);
+  - FE DOM tests for the form and list;
+  - the ETag changes after a closure.
+- **Honesty:** never say "safe". Closure text is staff-reported, so show "Reported closure (staff)" with its date.
+
+### Task 47: Evacuation journeys in the journey simulator (G-07) (BE + small FE)
+
+From the audit: G-07 is MISSING (sim tasks have no centre destinations).
+
+- **Sim:** add evacuation journeys. For each profile in (default, stroller, wheelchair, older_adult_rest) and each scenario in (baseline, stage_p1m, stage_p3m, stage_p5m), and for a deterministic sample of residential origins (seeded RNG, N=50 per profile), find the nearest reachable evacuation centre with `list_evacuation_centres` / `centres_reachability`. Each journey ends in exactly one of these results:
+  - `reachable_confirmed`
+  - `reachable_partly_unverified`
+  - `blocked_by_flood`
+  - `no_mapped_connection`
+  - `no_centre`
+- **Invariants checked:**
+  - **Monotonicity:** a journey that becomes blocked at +1 m stays non-confirmed at higher stages.
+  - **Baseline:** a baseline journey equals the no-scenario result.
+  - Report violations as critical. These are G-08 invariants (c).
+- **Runtime:** keep the whole sim under the existing time budget. Final review #2 measured about 75 s synchronously. Cap the evacuation journeys to fit, or move the run to a background task with status polling. Ruling: background task, and `POST /simulations` returns `202` with a run id. The UI polls. Update the JourneyTests UI accordingly.
+- **FE:** JourneyTests gains an "Evacuation" section: a table of profile × scenario with counts per result, in plain words.
+- **Tests:** a tiny-fixture sim with known results; monotonicity on the seed (a sample); the 202 and polling API test; DOM tests for the table.

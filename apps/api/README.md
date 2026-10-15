@@ -22,6 +22,7 @@ With no seed data present the API falls back to the tiny test fixture.
 | GET | `/site` | site config |
 | GET | `/profiles` | read-only profile parameters (hard/soft limits, allowed types, speed, `stub`) for the "Assumptions" view |
 | GET | `/layers/{lens}` | `access`, `flood`, `waste`; `?profile=&scenario_id=`; LineStrings carry `status_for_profile` (ok, unknown, blocked, flooded_likely, flooded_possible); 404 unknown lens. Sends `ETag` and `Cache-Control: private, max-age=0, must-revalidate`; a matching `If-None-Match` gets 304. The ETag changes when a claim changes (`world.version`) and on API restart |
+| GET | `/layers/gaps` | Gap map (Task 42): walk edges and places with `unknown_count`, `stale_count`, `relevant_count`, `unknown_attributes` and open-VR `demand`; `?profile=`. Edge facts are `evaluate.relevant_attributes`; places count the claims they carry. Counts only, no status or verdict. ETag also changes when VR demand changes |
 | GET | `/graph` | alias of `/layers/access` (no ETag) |
 | GET | `/places?q=` | find_place |
 | GET | `/places/{id}` | `?scenario_id=&profile=&near=`; 404 if unknown |

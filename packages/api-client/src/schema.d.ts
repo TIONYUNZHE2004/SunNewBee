@@ -178,6 +178,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/layers/gaps": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Gaps Layer
+         * @description Gap map: per walk edge and place, how many relevant facts are not yet checked, how many
+         *     are stale or only reported, open verification demand and simulated journey impact. Declared
+         *     before /layers/{lens} so it wins.
+         */
+        get: operations["gaps_layer_layers_gaps_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/layers/{lens}": {
         parameters: {
             query?: never;
@@ -679,6 +701,11 @@ export interface components {
             name: string;
             /** Node Id */
             node_id?: string | null;
+            /**
+             * Node Inferred
+             * @default false
+             */
+            node_inferred: boolean;
             /** Notes */
             notes?: string | null;
             /** Place Id */
@@ -716,6 +743,59 @@ export interface components {
             evidence_id: string;
             /** Photo Url */
             photo_url: string;
+        };
+        /** GapFeature */
+        GapFeature: {
+            /** Geometry */
+            geometry: {
+                [key: string]: unknown;
+            };
+            properties: components["schemas"]["GapProperties"];
+            /**
+             * Type
+             * @default Feature
+             * @constant
+             */
+            type: "Feature";
+        };
+        /**
+         * GapProperties
+         * @description Per element: how many facts are not yet checked for the profile, and why it matters.
+         */
+        GapProperties: {
+            /** Demand */
+            demand: number;
+            /** Id */
+            id: string;
+            /** Journey Impact */
+            journey_impact: number;
+            /** Kind */
+            kind: string;
+            /** Name */
+            name?: string | null;
+            /** Relevant Count */
+            relevant_count: number;
+            /** Reported Count */
+            reported_count: number;
+            /** Stale Count */
+            stale_count: number;
+            /** Type */
+            type: string;
+            /** Unknown Attributes */
+            unknown_attributes: string[];
+            /** Unknown Count */
+            unknown_count: number;
+        };
+        /** GapsLayer */
+        GapsLayer: {
+            /** Features */
+            features: components["schemas"]["GapFeature"][];
+            /**
+             * Type
+             * @default FeatureCollection
+             * @constant
+             */
+            type: "FeatureCollection";
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -1628,6 +1708,44 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Kpis"];
+                };
+            };
+        };
+    };
+    gaps_layer_layers_gaps_get: {
+        parameters: {
+            query?: {
+                profile?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GapsLayer"];
+                };
+            };
+            /** @description Not modified */
+            304: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

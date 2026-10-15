@@ -37,6 +37,31 @@ ATTRIBUTE_TYPES: dict[str, tuple[str, frozenset[str] | None]] = {
     "name": _TEXT,
 }  # fmt: skip
 
+# Resident/staff-readable names, one per catalogue key. The agent builds its answer wording from
+# these; test_attribute_catalogue.py keeps them in step with ATTRIBUTE_TYPES and the web catalogue.
+ATTRIBUTE_LABELS: dict[str, str] = {
+    "step_count": "Steps",
+    "step_height_cm": "Step height (cm)",
+    "incline_pct": "Incline (%)",
+    "width_m": "Width (m)",
+    "ramp": "Ramp",
+    "tactile_paving": "Tactile paving",
+    "lit": "Lighting",
+    "seating_adjacent": "Seating nearby",
+    "seating": "Seating",
+    "covered": "Covered",
+    "surface": "Surface",
+    "surface_condition": "Surface condition",
+    "kerb": "Kerb",
+    "handrail": "Handrail",
+    "sidewalk": "Sidewalk",
+    "shelter": "Shelter",
+    "door_type": "Door type",
+    "wheelchair": "Wheelchair access",
+    "opening_hours": "Opening hours",
+    "name": "Name",
+}
+
 
 def validate_value(key: str, value: Any) -> str | None:
     """Return an error message if value is invalid for a catalogued key, else None.

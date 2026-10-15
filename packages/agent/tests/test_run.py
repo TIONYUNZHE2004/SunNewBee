@@ -48,8 +48,9 @@ async def test_access_kiosk_partly_unverified_files_vr(ctx):
     assert vr and vr[0].element_id == "seg-cf" and vr[0].attribute == "incline_pct"
     assert evs[-1].type == "done" and evs[-1].answer_status == "partial"
     lines = _text(evs).split("\n")
-    assert lines[0] == "Route status: partly_unverified" and lines[1].startswith("⚠")
-    assert "seg-cf" in _text(evs)
+    assert lines[0] == "Route status: partly unverified" and lines[1].startswith("⚠")
+    assert "seg-cf" not in _text(evs) and "incline_pct" not in _text(evs)
+    assert "Incline (%)" in _text(evs)
     unc = next(e for e in evs if e.type == "uncertainty")
     assert unc.level == "partial" and unc.items[0]["element_id"] == "seg-cf"
 
@@ -666,7 +667,7 @@ def test_route_status_label_always_first_line(ctx, status):
     rec, ans = _label_events(status, caveats=["Segment facts are demo values, not yet surveyed."])
     text = "".join(e.delta for e in run_mod._answer_events(ans, rec, ctx) if e.type == "text.delta")
     lines = text.split("\n")
-    assert lines[0] == f"Route status: {status}"
+    assert lines[0] == f"Route status: {status.replace('_', ' ')}"
     # deterministic order: label, then the caveat line, then the summary
     assert lines[1].startswith("⚠ ") and "demo values, not yet surveyed" in lines[1]
     assert lines[2] == "Short walk, 120 m."
@@ -786,3 +787,38 @@ def test_vr_reasons_match_the_model():
 
     assert set(get_args(VerificationRequest.model_fields["reason"].annotation)) == VR_REASONS
     assert "no_route_unverified_segment" in VR_REASONS
+
+
+def test_uncertainty_note_is_readable_for_a_profile_limit(ctx):
+    edge = next(iter(ctx.world.edges.values()))
+    edge.name = None
+    edge.type = "footway"
+    rec, ans = _label_events(
+        "partly_unverified",
+        unknowns=[
+            {
+                "element_id": edge.id,
+                "attribute": "incline_pct",
+                "why": "stroller needs incline_pct ≤ 8.3; not verified",
+            }
+        ],
+    )
+    unc = next(e for e in run_mod._answer_events(ans, rec, ctx) if e.type == "uncertainty")
+    note = unc.items[0]["note"]
+    assert note == "Stroller: incline not checked yet (limit 8.3%) on an unnamed footway"
+    assert unc.items[0]["attribute"] == "incline_pct"  # structured fields are unchanged
+
+
+def test_no_data_label_is_readable_and_status_stays_structured(ctx):
+    rec, ans = _label_events("no_data")
+    text = "".join(e.delta for e in run_mod._answer_events(ans, rec, ctx) if e.type == "text.delta")
+    assert text.split("\n")[0] == "Route status: no mapped connection (data gap)"
+    assert rec.route_status[next(iter(rec.route_status))] == "no_data"
+
+
+def test_caveats_are_separated(ctx):
+    rec, ans = _label_events(
+        "partly_unverified", caveats=["Not checked yet: Steps on A", "and 2 more unchecked items."]
+    )
+    text = "".join(e.delta for e in run_mod._answer_events(ans, rec, ctx) if e.type == "text.delta")
+    assert "⚠ Not checked yet: Steps on A; and 2 more unchecked items.\n" in text

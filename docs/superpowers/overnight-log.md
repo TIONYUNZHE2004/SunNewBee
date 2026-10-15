@@ -414,3 +414,72 @@
   3. Demo & pitch polish.
   4. P0/P1 gaps: closures, gap map, rest-point routing, evacuation journeys.
   5. Quality & tech debt.
+
+## 2026-10-15 12:43 — Continuation: Task 31 merged, wave 4 running
+- **Merged and pushed:**
+  - Task 31 (major roads; `ffd4ebc` area). Review-driven fix: strict profiles trust a sidewalk only if it is verified.
+    - Measured on the rebuilt seed: walk components 199 → 74; largest share 32% → 95.2%.
+    - Stroller, Lakeside Mall to the 72 centres, baseline: 23 reachable → 64 partly_unverified.
+    - Journey no_data: 99% → 40%.
+    - Hero route still confirmed at 440.6 m.
+    - 18 Overpass requests; re-import from the cache is byte-identical.
+  - Task 37: pitch demo mode `/?demo=hero`, with captions. Keyboard guards; it waits for streaming answers.
+  - Task 38: lane READMEs and dev-setup refreshed against the code.
+  - Task 39: Testing Library + jsdom DOM tests (30 tests, mutation-checked).
+  - Coordinator fixes:
+    - `pnpm db:reset`;
+    - VR reasons derived from the model (`no_route_unverified_segment` had been rewritten to `unknown`);
+    - demo cache recorded for the demo script and chips (11 tuples, mock).
+- **Checklist on main after the merges:**
+  - pytest 505: PASS
+  - golden 12/12 (mock): PASS
+  - vitest 280: PASS
+  - lint: PASS
+  - gen: PASS
+  - typecheck: PASS
+  - build: PASS
+  - e2e 13/13: PASS
+- **Ruling R25 (licences):** the MIT/Apache/BSD rule covers direct dependencies and code we ship. Unmodified transitive or dev-only packages are accepted and logged:
+  - permissive: ISC, MIT-0, BlueOak-1.0.0, CC0-1.0, Python-2.0, Zlib;
+  - file-level MPL-2.0: lightningcss via Tailwind/Vite, hypothesis, certifi.
+  - **Flagged for the team lead:** `mapbox-gl@3.33.0` is a direct dependency under Mapbox's proprietary licence ("SEE LICENSE IN LICENSE.txt"). The team lead chose Mapbox GL JS explicitly, but it conflicts with the brief's "exclude source-available". Not removed; needs a decision. Alternative: MapLibre GL (BSD-3).
+- **Found while recording the demo cache:** the mock answers `cannot_answer` for the older-adult chip, the "urban park → mall" chip and "Where can I go?". Fixing as Task 40.
+- **In flight:**
+  - Task 40: mock covers every in-app prompt.
+  - Task 41: rest-point-aware routing for older adults, AX-08 (Opus).
+  - Task 42: gap map, AX-09.
+  - Final whole-branch review #2 (Opus) of the continuation.
+
+## 2026-10-15 13:02 — Wave 4 merges, final review #2, browser walkthrough
+- **Merged and pushed:**
+  - Task 40 (`b28f72d`): the mock answers every in-app prompt. River level parsed as a decimal; data-gap wording; at most 5 "not checked yet" lines; drift test against `suggestions.ts`.
+  - Task 42 (`6ed68a7`): gap map ("facts not yet checked").
+    - The predicate is shared with `evaluate_edge`: 0 differences across 242,220 combinations.
+    - Summary line, e.g. "Most paths are not yet checked: 16,137 of 16,148".
+    - "Biggest gaps" ranked by VR demand, then journey impact, then named streets.
+    - Cesium, Mapbox and List views.
+  - Docs fixes.
+- **Checklist on `6ed68a7`:**
+  - pytest 548: PASS
+  - golden 12/12 (mock): PASS
+  - vitest 311: PASS
+  - lint: PASS
+  - gen: PASS
+  - typecheck: PASS
+  - build: PASS
+  - e2e 13/13: PASS
+- **Browser** (real seed, DEMO_MODE, mock-backed):
+  - `/?demo=hero` walkthrough steps 1–6: PASS. Captions are correct, the persona switches, cached answers appear, and +3 m wheelchair shows flood red with OSM-candidate centres (`screenshots/2026-10-15-1305-demo-mode-step6-flood-wheelchair.jpg`).
+  - Defect: answer text shows machine labels ("partly_unverified", "incline_pct on seg-…"). Fixing as Task 44.
+- **Final review #2** (Opus) found 0 Critical, 3 Important and 10 Minor:
+  - I1: false "staff have been asked" claim; Task 44.
+  - I2: mock fall-through on "Tell me about <place>"; Task 44.
+  - I3: stale AGENTS.md; fixed in `7b6f32d`.
+  - Minors are in Tasks 44 and 45. The journey-test runtime (about 75 s, synchronous) goes to Task 41's lane.
+- **Process note:** `3041cac` (my preflight commit) also contains a `.gitignore` edit I didn't make. It replaced the `reference/repos/*` and large-PDF ignores with a blanket `reference/`. Probably the team lead's deliberate edit, swept in by `git commit -am`. Not reverted; asking. I now stage explicit paths only.
+- **Task 43** (area places): BLOCKED. All 8 budgeted Overpass requests got HTTP 500 from the kumi and private.coffee mirrors. **Ruling R26:** up to 4 more, aimed at overpass-api.de first; stop with the error text if the 500s continue. Overpass used this run: 8 of 30.
+- **In flight:**
+  - Task 41: rest routing (Opus).
+  - Task 43: R26 retry.
+  - Task 44: readable, honest wording.
+  - Task 45: demo-mode and doc minors.

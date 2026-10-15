@@ -35,7 +35,7 @@ runner that ranks data gaps), `tools` (tool functions and the `TOOLS` registry).
 ## Profiles
 
 `config/profiles/`: `default`, `stroller`, `wheelchair`, `older_adult_rest` and `drive`.
-`drive` only uses edges whose `type` is `street` or `track` (`allowed_types`), assumes 30 km/h,
+`drive` only uses edges whose `type` is `street`, `track` or `major_road` (`allowed_types`), assumes 30 km/h,
 treats a possibly flooded road as FAIL (walking profiles treat it as UNKNOWN), and always adds
 its standing warning (one-way and turn restrictions are not modelled; indicative only).
 
@@ -93,7 +93,7 @@ with `__`.
 
 ## What to build next (BE lane)
 
-- Oneway- and turn-aware drive graph (the `drive` profile reuses the walk extract's street/track edges).
+- Oneway- and turn-aware drive graph (the `drive` profile reuses the walk extract's street/track/major_road edges).
 - Closures (`get_closures`).
 - Staleness TTL configuration.
 - Performance caching keyed by `world.version`.

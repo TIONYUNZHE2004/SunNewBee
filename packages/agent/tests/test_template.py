@@ -26,7 +26,7 @@ def test_template_partly_unverified_route_validates():
     r.route_status["rt-1"] = "partly_unverified"
     a = template_answer(r, "route?")
     assert a.answer_status == "partial" and a.route_id == "rt-1"
-    assert "seg-bc" in a.caveats[0]
+    assert a.caveats[0].startswith("Not checked yet: Steps on") and "seg-" not in a.caveats[0]
     assert validate_answer(a, r) == []
 
 
@@ -137,3 +137,61 @@ def test_cannot_answer_does_not_echo_forbidden_words_in_flood_turn():
     r.scenarios_used.add("stage_p3m")
     a = template_answer(r, "Is the playground safe in a flood?")
     assert validate_answer(a, r) == []
+
+
+def test_template_no_data_route_says_data_gap():
+    r = TurnRecord(tool_calls=["plan_route"])
+    r.routes["rt-1"] = {"unknowns": []}
+    r.route_status["rt-1"] = "no_data"
+    a = template_answer(r, "route?")
+    text = " ".join([a.summary, *a.caveats])
+    assert "No mapped connection" in text and "(data gap)" in text
+    assert "unverified" not in text and "blocked" not in text
+    assert validate_answer(a, r) == []
+
+
+def _capped_record(n=12, filed=0):
+    r = TurnRecord(tool_calls=["plan_route"])
+    r.routes["rt-1"] = {
+        "distance_m": 10,
+        "unknowns": [
+            {"attribute": "step_count", "element_id": f"seg-{i}", "element_label": f"Lane {i}"}
+            for i in range(n)
+        ],
+    }
+    r.route_status["rt-1"] = "partly_unverified"
+    r.vrs = [
+        {"element_id": f"seg-{i}", "attribute": "step_count", "created": True} for i in range(filed)
+    ]
+    return r
+
+
+def test_template_caps_unchecked_items_and_counts_items():
+    r = _capped_record(12, filed=10)
+    a = template_answer(r, "route?")
+    text = " ".join(a.caveats)
+    assert "Lane 4" in text and "Lane 5" not in text and "seg-" not in text
+    assert "and 7 more unchecked items" in text
+    assert "Asked the township team to check 10 of the 12 unchecked items." in " ".join(a.caveats)
+    assert "staff have been asked" not in " ".join(a.caveats)
+    assert validate_answer(a, r) == []
+
+
+def test_template_claims_no_request_when_none_was_filed():
+    a = template_answer(_capped_record(12, filed=0), "route?")
+    assert "Asked the township team" not in " ".join(a.caveats)
+    assert "and 7 more unchecked items" in " ".join(a.caveats)
+
+
+def test_template_counts_items_not_segments():
+    r = TurnRecord(tool_calls=["plan_route"])
+    r.routes["rt-1"] = {
+        "unknowns": [
+            {"attribute": a, "element_id": f"seg-{i}", "element_label": f"Lane {i}"}
+            for i in range(3)
+            for a in ("incline_pct", "width_m")
+        ]
+    }
+    r.route_status["rt-1"] = "partly_unverified"
+    text = " ".join(template_answer(r, "route?").caveats)
+    assert "and 1 more unchecked item" in text and "items" not in text

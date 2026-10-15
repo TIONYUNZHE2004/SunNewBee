@@ -13,7 +13,7 @@ The shared, tool-agnostic project instructions live in AGENTS.md: commands, arch
   - Say when a result is mock-backed (mock LLM, tiny fixture) rather than live.
   - "Implemented", "tested", "pushed" and "deployed" are different states; say which one applies.
 - **Browser checks:**
-  - UI changes should be checked in the built-in browser via `preview_start`. Local `.claude/launch.json` defines `townshiplens-dev` (`pnpm dev`), `townshiplens-dev-mock` (`LLM_PROVIDER=mock`) and `townshiplens-dev-demo` (`+ DEMO_MODE=true`), all on :5173. Recreate it if it's missing; it is untracked.
+  - UI changes should be checked in the built-in browser via `preview_start`. `.claude/launch.json` (tracked) defines `townshiplens-dev` (`pnpm dev`), `townshiplens-dev-mock` (`LLM_PROVIDER=mock`) and `townshiplens-dev-demo` (`+ DEMO_MODE=true`), all on :5173.
   - Prefer `get_page_text` / `read_page` over screenshots.
   - Every 3D page load fetches billable Google tiles, so use the List view when 3D isn't the point.
   - A preview server can keep running during e2e, because Playwright uses its own ports (5273/8100).
@@ -27,7 +27,7 @@ The shared, tool-agnostic project instructions live in AGENTS.md: commands, arch
   - The coordinator merges with `--no-ff`, runs the full checklist, then pushes.
   - Subagent-driven-development ledgers, briefs and review packages live in `.superpowers/sdd/<plan>/` (gitignored). Trust the ledger plus `git log` over memory after a context reset.
 - **Plans and logs:**
-  - Implementation plans: `docs/superpowers/plans/`, e.g. `2026-10-15-mvp-p0-increment-1.md` with Tasks 15–36.
+  - Implementation plans: `docs/superpowers/plans/`, e.g. `2026-10-15-mvp-p0-increment-1.md` with Tasks 15+.
   - Spec: `docs/superpowers/specs/2026-10-15-platform-walking-skeleton-design.md`.
   - Status: `docs/03-product/mvp-spec.md`.
   - Append notable decisions as rulings ("Ruling: what — why — cost if wrong") to the plan's ledger, and log long runs in `docs/superpowers/overnight-log.md` using real `date` timestamps.
@@ -36,7 +36,7 @@ The shared, tool-agnostic project instructions live in AGENTS.md: commands, arch
 ## Gotchas seen in this repo
 
 - `uv sync --all-groups` without `--all-packages` silently uninstalls the workspace packages, giving `ModuleNotFoundError: townshiplens_spatial`.
-- Staging an untracked file before `git merge` can make the merge abort ("Merge with strategy ort failed"). Keep `.claude/` untracked.
+- Staging an untracked file before `git merge` can make the merge abort ("Merge with strategy ort failed"). Stage explicit paths (never `git commit -am`) so unrelated edits aren't swept in.
 - The Cesium viewer runs with `requestRenderMode`: anything that changes the scene must call `viewer.scene.requestRender()`. Tile loads are wired to `loadProgress` / `allTilesLoaded`. Changing a read-only `<Viewer>` prop under HMR recreates the viewer and logs harmless `scene` TypeErrors. Reload before judging the console.
 - Cesium static assets must land at `/cesium/<Dir>/…` (`vite-plugin-static-copy` with `rename.stripBase: 4`). `pnpm --filter @tl/web build` fails if they don't.
 - Ground polylines over Google tiles are pickable via `scene.drillPick` (with an 8 px window). Place markers take priority, so a click near a dense cluster opens a place card instead of "Why this path?".

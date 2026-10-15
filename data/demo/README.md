@@ -6,8 +6,10 @@ Line 1 is `{"meta": {...}}`; the rest are one ChatEvent per line.
 
 The committed entries were recorded with `LLM_PROVIDER=mock` (see `meta.model`), on the tiny test
 fixture or on the Elmina seed (`meta.world`); they are not live-model answers. Replay only uses an
-entry whose `meta.world` matches the loaded world. The Elmina entries cover the three suggested
-questions (walking, no scenario) and the stroller variant of the first. Replay ends with `done` whose model is suffixed
+entry whose `meta.world` matches the loaded world. The Elmina entries cover every in-app prompt
+with the profile and scenario the app sends: the persona and flood chips, the waste chip, "Where can I go?"
+(default and wheelchair at +3 m) and the `/?demo=hero` script steps. `packages/agent/tests/test_inapp_prompts.py`
+lists them and checks they stay in sync with `apps/web/src/features/chat/suggestions.ts`. Replay ends with `done` whose model is suffixed
 `+demo-cache`. A cache miss or corrupt file runs the turn normally.
 
 Re-record (mock only unless you mean it):

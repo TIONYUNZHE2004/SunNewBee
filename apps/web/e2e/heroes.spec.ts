@@ -9,7 +9,7 @@ async function ask(page: Page, question: string) {
 test("access hero in list view shows a route status and honest demo evidence", async ({ page }) => {
   await ask(page, "Can I push a stroller from Car Park B to the playground without stairs?");
   const log = page.getByRole("log");
-  await expect(log).toContainText(/route confirmed/);
+  await expect(log).toContainText(/Route status: confirmed/);
   await expect(log).toContainText(/Demo value · not surveyed/);
   await expect(log).not.toContainText(/verified/);
 });
@@ -29,18 +29,18 @@ test("flood hero shows the disclaimer and never says 'safe'", async ({ page }) =
 test("manage page lists the verification request after the kiosk question", async ({ page }) => {
   await ask(page, "Can I push a stroller from Car Park B to the kiosk without stairs?");
   const log = page.getByRole("log");
-  await expect(log).toContainText(/route partly_unverified/);
+  await expect(log).toContainText(/Route status: partly unverified/);
   await expect(log).toContainText(/Not checked yet/);
   await page.goto("/manage");
   await expect(page.getByText("seg-cf").first()).toBeVisible();
 });
 
 // Mutates the server's in-memory world (the kiosk route becomes confirmed): restart the server
-// before re-running locally, or the partly_unverified assertions above fail.
+// before re-running locally, or the "partly unverified" assertions above fail.
 test("staff corrects a numeric fact from the queue and the request leaves it", async ({ page }) => {
   await page.addInitScript(() => sessionStorage.setItem("tl.staffToken", "e2e-token"));
   await ask(page, "Can I push a stroller from Car Park B to the kiosk without stairs?");
-  await expect(page.getByRole("log")).toContainText(/route partly_unverified/);
+  await expect(page.getByRole("log")).toContainText(/Route status: partly unverified/);
   await page.goto("/manage");
   const row = page
     .getByRole("row")
@@ -58,7 +58,7 @@ test("staff corrects a numeric fact from the queue and the request leaves it", a
   ).toHaveCount(0);
   // The corrected value now confirms the route (Correct, not a bare Reject).
   await ask(page, "Can I push a stroller from Car Park B to the kiosk without stairs?");
-  await expect(page.getByRole("log")).toContainText(/route confirmed/);
+  await expect(page.getByRole("log")).toContainText(/Route status: confirmed/);
 });
 
 test("flood briefing labels official and candidate evacuation centres", async ({ page }) => {

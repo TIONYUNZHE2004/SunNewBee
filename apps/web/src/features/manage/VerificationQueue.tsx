@@ -1,6 +1,7 @@
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import { type FormEvent, useReducer, useState } from "react";
 import { PHOTO_ACCEPT, validatePhoto } from "../../lib/evidence";
+import { GapMapLink } from "../gaps/GapMapLink";
 import { optionLabel, specFor } from "./attributeCatalogue";
 import { onResolved, PhotoUploadError, submitResolution, uploadErrorMessage } from "./createVr";
 import { ApiError, fetchVRs, resolveVR, uploadEvidence, type VR } from "./manageApi";
@@ -228,6 +229,9 @@ export function VerificationQueue() {
         <p className="text-sm text-ink-soft">
           Gaps raised by resident questions and journey tests, ranked by demand.
         </p>
+        <div className="mt-2">
+          <GapMapLink />
+        </div>
       </div>
       <div className="max-w-sm">
         <label htmlFor="staff-token" className="mb-1 block text-sm font-medium">

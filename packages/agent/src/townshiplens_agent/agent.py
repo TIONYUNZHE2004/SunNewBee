@@ -22,6 +22,7 @@ from townshiplens_spatial.scenario_meta import scenario_source
 
 from .answer import FinalAnswer
 from .events import ChatRequest, ToolCall, ToolResultEvent, VerificationRequested
+from .labels import enrich_unknowns
 from .mock import mock_model
 from .record import TurnRecord
 from .settings import AgentSettings
@@ -203,6 +204,7 @@ async def call_tool(deps: Deps, name: str, **kwargs: Any) -> dict:
         rec.evidence[e.id] = e
     if name == "plan_route" and isinstance(res.data, dict):
         for r in res.data.get("routes", []):
+            enrich_unknowns(deps.ctx.world, r)  # readable element labels and notes
             rec.routes[r["id"]] = r
             rec.route_status[r["id"]] = r["status"]
         for vr in res.data.get("verification_requests", []):

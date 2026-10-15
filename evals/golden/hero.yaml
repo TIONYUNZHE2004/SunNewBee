@@ -44,9 +44,13 @@
 - id: status-label-partly-unverified
   message: "Can I push a stroller from Car Park B to the kiosk without stairs?"
   profile: stroller
-  expect: { first_line: "Route status: partly_unverified", done_status_in: [partial] }
+  expect: { first_line: "Route status: partly unverified", done_status_in: [partial] }
 - id: flood-scenario-label
   message: "Is the playground safe during a flood of +3 m?"
   profile: default
   scenario_id: stage_p3m
   expect: { first_line: "Route status: ", events_include: [disclaimer], text_excludes: [" is safe"] }
+- id: place-info-found-place
+  message: "Tell me about Elmina Lakeside Mall"
+  profile: default
+  expect: { tools_include: [get_place_details], events_include: [citation], text_excludes: ["don't have that place"] }

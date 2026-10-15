@@ -8,9 +8,16 @@ import {
   PolylineGraphics,
   useCesium,
 } from "resium";
-import { useEvacCentres, useLayer, useScenarioWater } from "../../../lib/api";
+import { useEvacCentres, useGaps, useLayer, useScenarioWater } from "../../../lib/api";
 import { ENV } from "../../../lib/env";
 import { centreMapMarker } from "../../../lib/routeStatus";
+import {
+  GAP_BANDS,
+  GAP_CESIUM_DASH,
+  type GapBand,
+  gapsActive,
+  parseGaps,
+} from "../../gaps/gapModel";
 import {
   floodEdgePickId,
   groupEdgesByStatus,
@@ -39,10 +46,17 @@ function useRenderOn(...deps: unknown[]) {
 /** Labels of many markers overlap at city zoom: show them only near the camera (or when focused). */
 const NEAR_LABEL = new Cesium.DistanceDisplayCondition(0, 1500);
 
-function material(status: EdgeStatus) {
-  const { color: css, alpha = 1 } = statusStyle(status);
+interface LineStyle {
+  color: string;
+  alpha?: number;
+  width: number;
+  dash?: { dashLength: number; dashPattern: number };
+}
+const statusLine = (s: EdgeStatus): LineStyle => ({ ...statusStyle(s), dash: CESIUM_DASH[s] });
+const gapLine = (b: GapBand): LineStyle => ({ ...GAP_BANDS[b], dash: GAP_CESIUM_DASH[b] });
+
+function material({ color: css, alpha = 1, dash }: LineStyle) {
   const color = Cesium.Color.fromCssColorString(css).withAlpha(alpha);
-  const dash = CESIUM_DASH[status];
   if (dash) return Cesium.Material.fromType("PolylineDash", { color, ...dash });
   return Cesium.Material.fromType("Color", { color });
 }
@@ -51,12 +65,14 @@ function material(status: EdgeStatus) {
  * One GroundPolylinePrimitive per status (not one entity per edge): stays smooth with thousands of
  * edges. Patterns (solid / dashed / dotted) carry the status, not colour alone.
  */
-function StatusLines({
+function StatusLines<K extends string>({
   groups,
   extraWidth = 0,
+  styleOf = statusLine as unknown as (k: K) => LineStyle,
 }: {
-  groups: Map<EdgeStatus, EdgeGroup[]>;
+  groups: Map<K, EdgeGroup[]>;
   extraWidth?: number;
+  styleOf?: (k: K) => LineStyle;
 }) {
   const { viewer } = useCesium();
   useEffect(() => {
@@ -66,12 +82,12 @@ function StatusLines({
       // Fallback: ordinary (non-draped) polylines so status is still visible.
       const collection = new Cesium.PolylineCollection();
       for (const [status, lines] of groups) {
-        const width = statusStyle(status).width + extraWidth;
+        const width = styleOf(status).width + extraWidth;
         for (const { coords } of lines)
           collection.add({
             positions: Cesium.Cartesian3.fromDegreesArray(flat(coords)),
             width,
-            material: material(status),
+            material: material(styleOf(status)),
           });
       }
       scene.primitives.add(collection);
@@ -84,8 +100,8 @@ function StatusLines({
     }
     const prims: Cesium.GroundPolylinePrimitive[] = [];
     for (const [status, lines] of groups) {
-      const width = statusStyle(status).width + extraWidth;
-      const pickable = FLOODED.includes(status);
+      const width = styleOf(status).width + extraWidth;
+      const pickable = (FLOODED as string[]).includes(status);
       const prim = new Cesium.GroundPolylinePrimitive({
         // Flood edges carry a per-instance id so scene.pick maps a click back to its path.
         geometryInstances: lines.map(
@@ -98,7 +114,7 @@ function StatusLines({
               }),
             }),
         ),
-        appearance: new Cesium.PolylineMaterialAppearance({ material: material(status) }),
+        appearance: new Cesium.PolylineMaterialAppearance({ material: material(styleOf(status)) }),
         classificationType: Cesium.ClassificationType.BOTH,
       });
       scene.groundPrimitives.add(prim);
@@ -110,7 +126,7 @@ function StatusLines({
       for (const p of prims) scene.groundPrimitives.remove(p);
       scene.requestRender();
     };
-  }, [viewer, groups, extraWidth]);
+  }, [viewer, groups, extraWidth, styleOf]);
   return null;
 }
 
@@ -118,17 +134,20 @@ export function AccessLayer() {
   const profile = useScene((s) => s.profile);
   const scenarioId = useScene((s) => s.scenarioId);
   const visible = useScene((s) => s.lensVisible.access);
+  const gapsOn = useScene((s) => gapsActive(s.gapsVisible, s.profile));
   const focusPlaceId = useScene((s) => s.focusPlaceId);
   const q = useLayer("access", profile, scenarioId);
+  // The gap bands replace the status lines while the Gaps layer is on (one meaning per line).
   const groups = useMemo(
-    () => (visible ? groupEdgesByStatus(lineFeatures(q.data)) : new Map()),
-    [q.data, visible],
+    () => (visible && !gapsOn ? groupEdgesByStatus(lineFeatures(q.data)) : new Map()),
+    [q.data, visible, gapsOn],
   );
   const points = useMemo(() => pointFeatures(q.data), [q.data]);
-  useRenderOn(q.data, visible, focusPlaceId);
+  useRenderOn(q.data, visible, gapsOn, focusPlaceId);
   return (
     <>
       <StatusLines groups={groups} />
+      <GapsLayer />
       {visible &&
         points.map((p) => (
           <Entity
@@ -162,6 +181,24 @@ export function AccessLayer() {
       <RouteLayer />
     </>
   );
+}
+
+/** Edges coloured by how many facts are not yet checked: three bands, each with a pattern. */
+function GapsLayer() {
+  const profile = useScene((s) => s.profile);
+  const on = useScene((s) => gapsActive(s.gapsVisible, s.profile) && s.lensVisible.access);
+  const q = useGaps(profile, on);
+  const groups = useMemo(() => {
+    const m = new Map<GapBand, EdgeGroup[]>();
+    if (!on) return m;
+    for (const i of parseGaps(q.data)) {
+      if (i.kind !== "segment" || !i.band || i.coords.length < 2) continue;
+      m.set(i.band, [...(m.get(i.band) ?? []), { id: i.id, coords: i.coords }]);
+    }
+    return m;
+  }, [q.data, on]);
+  useRenderOn(groups, on);
+  return <StatusLines groups={groups} styleOf={gapLine} />;
 }
 
 function RouteLayer() {

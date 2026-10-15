@@ -1,11 +1,11 @@
-{"meta": {"message": "Where can I drop off recycling nearby?", "profile": "default", "scenario_id": null, "world": "elmina", "model": "mock-scripted", "recorded_at": "2026-10-15T04:41:35+00:00"}}
+{"meta": {"message": "Where can I drop off recycling nearby?", "profile": "default", "scenario_id": null, "world": "elmina", "model": "mock-scripted", "recorded_at": "2026-10-15T05:18:30+00:00"}}
 {"type": "tool.call", "id": "find_waste_points-0", "name": "find_waste_points", "args": {"type": "recycling_drop_off", "near_place": "lakeside-mall"}}
 {"type": "tool.result", "id": "find_waste_points-0", "name": "find_waste_points", "summary": "0 result(s)"}
 {"type": "tool.call", "id": "find_waste_points-1", "name": "find_waste_points", "args": {"type": null, "near_place": "lakeside-mall"}}
 {"type": "tool.result", "id": "find_waste_points-1", "name": "find_waste_points", "summary": "7 result(s)"}
 {"type": "text.delta", "delta": "⚠ Not confirmed yet: Waste Basket (unnam"}
 {"type": "text.delta", "delta": "ed, OSM), Central Park community garden "}
-{"type": "text.delta", "delta": "(programme site); check before you go. C"}
+{"type": "text.delta", "delta": "(programme site); check before you go; C"}
 {"type": "text.delta", "delta": "heck with MBSA (Majlis Bandaraya Subang "}
 {"type": "text.delta", "delta": "Jaya) for official recycling drop-off lo"}
 {"type": "text.delta", "delta": "cations.\nNo recycling drop-off is mapped"}
