@@ -3,6 +3,7 @@ import re
 from townshiplens_spatial.attributes import ATTRIBUTE_TYPES
 
 from .answer import FinalAnswer
+from .labels import REST_GAP_WORDS
 from .record import TurnRecord
 
 FORBIDDEN = re.compile(r"(?<![\w-])safe(?:ly)?(?![\w-])|\bselamat\b|安全", re.IGNORECASE)
@@ -107,6 +108,18 @@ def validate_answer(ans: FinalAnswer, rec: TurnRecord) -> list[str]:
     if partly and not ans.caveats:
         errs.append(
             "The route is partly_unverified: add a caveat naming the unverified segment(s) first."
+        )
+    rid = ans.route_id or (next(iter(rec.routes)) if len(rec.routes) == 1 else None)
+    route = rec.routes.get(rid or "") or {}
+    if (
+        ans.answer_status != "cannot_answer"
+        and route.get("rest_limit_met") is False
+        and not any(REST_GAP_WORDS in c.lower() for c in ans.caveats)
+    ):
+        errs.append(
+            "The route runs further than the rest limit between rest points: add the plan_route "
+            "warning as a caveat, e.g. 'Longest stretch without a rest point is about N m "
+            "(limit 100 m).'"
         )
     if ans.answer_status != "cannot_answer":
         for pid, info in rec.flooded_endpoints.items():

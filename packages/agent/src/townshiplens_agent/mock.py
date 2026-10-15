@@ -7,7 +7,7 @@ from pydantic_ai import ModelMessage, ModelResponse, ToolCallPart
 from pydantic_ai.messages import ModelRequest, ToolReturnPart, UserPromptPart
 from pydantic_ai.models.function import AgentInfo, FunctionModel
 
-from .labels import attribute_label, status_label, unchecked_caveats
+from .labels import attribute_label, rest_caveats, status_label, unchecked_caveats
 
 
 def _prompt(messages: list[ModelMessage]) -> str:
@@ -323,9 +323,10 @@ def _script(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
         route = routes[0] if routes else None
         flood_cav, flood_ev, likely = _endpoint_flood(_data(rets[-1][1]))
         caveats = _unknown_caveats(routes[:1], _vrs(rets[-1][1]))
-        if route and route.get("status") != "confirmed" and not caveats:
+        rest = rest_caveats(route) if route else []
+        if route and route.get("status") != "confirmed" and not caveats and not rest:
             caveats = [_status_caveat(route.get("status"), found[0]["name"], c0["name"])]
-        caveats = _placeholder_caveat(rets, flood_cav + caveats)
+        caveats = _placeholder_caveat(rets, flood_cav + caveats + rest)
         confirmed = route and route.get("status") == "confirmed" and not likely
         start = (
             f" from {DEMO_ORIGIN[1]} (demo start point)"
@@ -442,11 +443,14 @@ def _script(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
         flood_cav, flood_ev, likely = _endpoint_flood(rr)
         ev += flood_ev
         caveats = _unknown_caveats(routes, _vrs(rets[-1][1]))
-        if status not in ("confirmed", "no_data") and not caveats:  # no_data: the summary says it
+        # Rest-limit lines (older_adult_rest): the gap over the limit, or unverified rest points.
+        rest = rest_caveats(r0) if r0 else []
+        if status not in ("confirmed", "no_data") and not caveats and not rest:
+            # no_data: the summary says it
             caveats = [_status_caveat(status, a.get("name", a["id"]), b.get("name", b["id"]))]
-        caveats = _placeholder_caveat(rets, flood_cav + caveats)
+        caveats = _placeholder_caveat(rets, flood_cav + caveats + rest)
         gap = r0.get("max_gap_between_rest_m") if r0 else None
-        if gap is not None and plan_profile == "older_adult_rest":
+        if gap is not None and plan_profile == "older_adult_rest" and not rest:
             caveats.append(
                 f"Rest stops mapped on this route: {len(r0.get('rest_points') or [])}; "
                 f"the longest stretch without one is about {round(gap)} m."

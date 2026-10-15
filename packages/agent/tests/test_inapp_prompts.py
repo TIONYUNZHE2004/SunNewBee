@@ -166,7 +166,10 @@ async def test_older_adult_chip_uses_that_profile(world, tmp_path):
 async def test_older_adult_answer_reports_the_rest_gap(world, tmp_path):
     msg, profile, scenario = ACCESS[2]
     evs = await _turn(world, tmp_path, msg, profile, scenario)
-    assert "longest stretch without one" in _text(evs)
+    # No Elmina route keeps 100 m between rest points: the answer says so (Task 41, R30).
+    assert re.search(
+        r"Longest stretch without a rest point is about \d+ m \(limit 100 m\)", _text(evs)
+    )
 
 
 async def test_urban_park_to_mall_routes_between_both(world, tmp_path):

@@ -171,8 +171,17 @@ class Route(BaseModel):
     est_minutes: float
     segments: list[RouteSegment]
     unknowns: list[dict[str, str]] = Field(default_factory=list)  # {element_id, attribute, why}
+    # {place_id, node_id, name, status: verified|unverified}; rest points recorded absent are
+    # left out.
     rest_points: list[dict[str, Any]] = Field(default_factory=list)
     max_gap_between_rest_m: float | None = None
+    # Profiles with max_rest_free_run_m (older_adult_rest): the limit, and whether this route
+    # keeps every stretch between rest points within it. None for profiles without a limit.
+    rest_limit_m: float | None = None
+    rest_limit_met: bool | None = None
+    # Unverified rest points (no claim / OSM only, unknown, stale, contested) this route needs to
+    # stay within the limit; non-empty means the route is at most partly_unverified.
+    rest_points_unverified: list[str] = Field(default_factory=list)
     geometry: dict[str, Any]  # GeoJSON LineString
     evidence_ids: list[str] = Field(default_factory=list)
 
@@ -182,6 +191,12 @@ class RouteResult(BaseModel):
     routes: list[Route]  # routes[0] = recommended; optional routes[1] = shorter lenient alternative
     blocked_reasons: list[dict[str, str]] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
+    # Profiles with max_rest_free_run_m only (else None): routes[0]'s longest stretch without
+    # a rest point, and the profile's limit.
+    max_rest_gap_m: float | None = None
+    rest_limit_m: float | None = None
+    # The rest-constrained search hit MAX_REST_LABELS: a route within the limit may exist.
+    rest_search_truncated: bool = False
 
 
 class ToolResult(BaseModel):

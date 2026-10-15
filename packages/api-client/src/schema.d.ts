@@ -885,10 +885,16 @@ export interface components {
              * @enum {string}
              */
             profile: "default" | "stroller" | "wheelchair" | "older_adult_rest" | "drive";
+            /** Rest Limit M */
+            rest_limit_m?: number | null;
+            /** Rest Limit Met */
+            rest_limit_met?: boolean | null;
             /** Rest Points */
             rest_points?: {
                 [key: string]: unknown;
             }[];
+            /** Rest Points Unverified */
+            rest_points_unverified?: string[];
             /** Scenario Id */
             scenario_id?: string | null;
             /** Segments */
@@ -927,6 +933,15 @@ export interface components {
             blocked_reasons?: {
                 [key: string]: string;
             }[];
+            /** Max Rest Gap M */
+            max_rest_gap_m?: number | null;
+            /** Rest Limit M */
+            rest_limit_m?: number | null;
+            /**
+             * Rest Search Truncated
+             * @default false
+             */
+            rest_search_truncated: boolean;
             /** Routes */
             routes: components["schemas"]["Route"][];
             /**
@@ -1040,6 +1055,25 @@ export interface components {
              */
             type: "scene.intent";
         };
+        /**
+         * SimAdvisory
+         * @description Not a broken invariant: the journey's route runs over the rest limit and the router says
+         *     so (never confirmed). `rest_limit_no_alternative`: no route within the limit exists;
+         *     `rest_search_stopped_early`: the search hit its size cap, so one may exist.
+         */
+        SimAdvisory: {
+            /** Detail */
+            detail: string;
+            /** Kind */
+            kind: string;
+            /**
+             * Long Segments
+             * @default 0
+             */
+            long_segments: number;
+            /** Task Id */
+            task_id: string;
+        };
         /** SimGap */
         SimGap: {
             /** Affected Profiles */
@@ -1072,6 +1106,15 @@ export interface components {
             gaps_truncated: boolean;
             /** Invariant Violations */
             invariant_violations: components["schemas"]["SimViolation"][];
+            /** Rest Advisories */
+            rest_advisories?: components["schemas"]["SimAdvisory"][];
+            /** Rest Limit M */
+            rest_limit_m?: number | null;
+            /**
+             * Rest Long Segments
+             * @default 0
+             */
+            rest_long_segments: number;
             /** Results */
             results: components["schemas"]["SimResult"][];
             /** Run Id */

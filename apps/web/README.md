@@ -10,8 +10,9 @@ The TownshipLens browser app: a Vite + React 19 SPA with two routes.
   journeys confirmed from the latest run) above three tabs: **Verification queue** (resolve with
   a staff token), **Flood briefing** (cut-off places, isolated areas, evacuation centres, a draft
   advisory, an "Assumptions" section with the selected profile's thresholds) and **Journey
-  tests** (run the resident-agent batch, outcome matrix, top data gaps, invariant violations,
-  recent runs, file a verification request for a gap).
+  tests** (run the resident-agent batch, outcome matrix, top data gaps, critical invariant
+  violations, advisory notes such as routes over the rest limit with no alternative, recent runs,
+  file a verification request for a gap).
 
 ## Run
 

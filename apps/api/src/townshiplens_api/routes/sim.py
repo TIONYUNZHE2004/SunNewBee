@@ -47,6 +47,17 @@ class SimViolation(BaseModel):
     detail: str
 
 
+class SimAdvisory(BaseModel):
+    """Not a broken invariant: the journey's route runs over the rest limit and the router says
+    so (never confirmed). `rest_limit_no_alternative`: no route within the limit exists;
+    `rest_search_stopped_early`: the search hit its size cap, so one may exist."""
+
+    kind: str
+    task_id: str
+    detail: str
+    long_segments: int = 0  # segments on the route longer than the limit
+
+
 class SimReport(BaseModel):
     run_id: str
     created_at: str
@@ -55,6 +66,9 @@ class SimReport(BaseModel):
     results: list[SimResult]
     gaps: list[SimGap]
     invariant_violations: list[SimViolation]
+    rest_advisories: list[SimAdvisory] = Field(default_factory=list)
+    rest_limit_m: float | None = None  # the run's rest limit (older_adult_rest), if any
+    rest_long_segments: int = 0  # distinct segments longer than it on the advisory routes
     gaps_truncated: bool = False
     world_version: int = 0
 

@@ -1,6 +1,6 @@
 from .answer import Claim, FinalAnswer
 from .events import SceneIntent
-from .labels import attribute_label, unchecked_caveats
+from .labels import attribute_label, rest_caveats, unchecked_caveats
 from .record import TurnRecord
 from .validate import DEPTH, FORBIDDEN, PLACEHOLDER_CAVEAT, PLACEHOLDER_SOURCE
 
@@ -54,12 +54,14 @@ def template_answer(rec: TurnRecord, question: str) -> FinalAnswer:
     ]
     route_unknowns = route.get("unknowns", [])
     unknowns = unchecked_caveats(route_unknowns, rec.vrs)
+    rest = rest_caveats(route)
     caveats: list[str] = list(flood_caveats)
     caveats += unknowns
     if status == "no_data":
         caveats.append("No mapped connection between these places (data gap).")
-    elif status != "confirmed":
+    elif status != "confirmed" and (route_unknowns or not rest):
         caveats.append("Some segments are still unverified.")
+    caveats += rest
     if any(getattr(e, "source_type", None) == PLACEHOLDER_SOURCE for e in rec.evidence.values()):
         caveats.append(f"Some segment facts are {PLACEHOLDER_CAVEAT}.")
     dist = route.get("distance_m")

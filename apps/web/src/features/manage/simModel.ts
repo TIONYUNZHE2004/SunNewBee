@@ -12,11 +12,50 @@ export const outcomeLabel = (o: string): string => OUTCOME_LABELS[o as Outcome] 
 const VIOLATIONS: Record<string, { label: string; critical: boolean }> = {
   I1: { label: "Route used a non-passable segment", critical: true },
   I2: { label: "Unverified segment not disclosed", critical: true },
-  I7: { label: "Rest stops too far apart for older residents", critical: false },
+  // The router marks a route as within the rest limit only when it is (Task 41), so a breach
+  // is a routing bug. Routes with no alternative are advisory notes, not I7.
+  I7: {
+    label: "Route claimed rest stops within the limit, but a stretch is longer",
+    critical: true,
+  },
 };
 export const violationLabel = (i: string): string =>
   VIOLATIONS[i]?.label ?? `Invariant check failed (${i})`;
 export const isCriticalViolation = (i: string): boolean => VIOLATIONS[i]?.critical ?? false;
+
+const ADVISORIES: Record<string, string> = {
+  rest_limit_no_alternative: "Routes over the rest limit (no alternative)",
+  rest_search_stopped_early: "Rest-point search stopped early (a route within the limit may exist)",
+};
+export const advisoryLabel = (k: string): string => ADVISORIES[k] ?? `Advisory note (${k})`;
+
+export type CheckSummary = { critical: number; other: number; advisories: number };
+
+export function checkSummary(report: {
+  invariant_violations: { invariant: string }[];
+  rest_advisories?: unknown[];
+}): CheckSummary {
+  const critical = report.invariant_violations.filter((v) =>
+    isCriticalViolation(v.invariant),
+  ).length;
+  return {
+    critical,
+    other: report.invariant_violations.length - critical,
+    advisories: report.rest_advisories?.length ?? 0,
+  };
+}
+
+const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+
+export function checkSummaryText(s: CheckSummary): string {
+  return [
+    plural(s.critical, "critical invariant violation", "critical invariant violations"),
+    ...(s.other > 0
+      ? [plural(s.other, "other invariant violation", "other invariant violations")]
+      : []),
+    plural(s.advisories, "advisory note", "advisory notes"),
+  ].join(", ");
+}
 
 export type Pcts = {
   total: number;
@@ -68,3 +107,19 @@ export const PROFILE_LABELS: Record<string, string> = {
   drive: "Drive",
 };
 export const profileLabel = (p: string): string => PROFILE_LABELS[p] ?? p;
+
+/** Why no route keeps the rest limit, from the run's own counts (Task 41, R30 I-3). Rest points
+ * sit at path junctions, so a segment longer than the limit cannot be split by one. */
+export function restAdvisoryText(report: {
+  rest_limit_m?: number | null;
+  rest_long_segments?: number;
+}): string {
+  const limit = report.rest_limit_m;
+  if (limit == null)
+    return "No route keeps every stretch within the rest limit between mapped rest points.";
+  const n = report.rest_long_segments ?? 0;
+  if (n === 0) return `No route keeps every stretch under ${limit} m between mapped rest points.`;
+  return n === 1
+    ? `No route keeps every stretch under ${limit} m: 1 path segment is longer than ${limit} m with no mapped rest point along it.`
+    : `No route keeps every stretch under ${limit} m: ${n} path segments are longer than ${limit} m with no mapped rest point along them.`;
+}

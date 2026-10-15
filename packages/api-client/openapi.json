@@ -1157,12 +1157,41 @@
             "title": "Profile",
             "type": "string"
           },
+          "rest_limit_m": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rest Limit M"
+          },
+          "rest_limit_met": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rest Limit Met"
+          },
           "rest_points": {
             "items": {
               "additionalProperties": true,
               "type": "object"
             },
             "title": "Rest Points",
+            "type": "array"
+          },
+          "rest_points_unverified": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Rest Points Unverified",
             "type": "array"
           },
           "scenario_id": {
@@ -1272,6 +1301,33 @@
             },
             "title": "Blocked Reasons",
             "type": "array"
+          },
+          "max_rest_gap_m": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Rest Gap M"
+          },
+          "rest_limit_m": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rest Limit M"
+          },
+          "rest_search_truncated": {
+            "default": false,
+            "title": "Rest Search Truncated",
+            "type": "boolean"
           },
           "routes": {
             "items": {
@@ -1582,6 +1638,35 @@
         "title": "SceneIntentEvent",
         "type": "object"
       },
+      "SimAdvisory": {
+        "description": "Not a broken invariant: the journey's route runs over the rest limit and the router says\nso (never confirmed). `rest_limit_no_alternative`: no route within the limit exists;\n`rest_search_stopped_early`: the search hit its size cap, so one may exist.",
+        "properties": {
+          "detail": {
+            "title": "Detail",
+            "type": "string"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "long_segments": {
+            "default": 0,
+            "title": "Long Segments",
+            "type": "integer"
+          },
+          "task_id": {
+            "title": "Task Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "task_id",
+          "detail"
+        ],
+        "title": "SimAdvisory",
+        "type": "object"
+      },
       "SimGap": {
         "properties": {
           "affected_profiles": {
@@ -1655,6 +1740,29 @@
             },
             "title": "Invariant Violations",
             "type": "array"
+          },
+          "rest_advisories": {
+            "items": {
+              "$ref": "#/components/schemas/SimAdvisory"
+            },
+            "title": "Rest Advisories",
+            "type": "array"
+          },
+          "rest_limit_m": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rest Limit M"
+          },
+          "rest_long_segments": {
+            "default": 0,
+            "title": "Rest Long Segments",
+            "type": "integer"
           },
           "results": {
             "items": {
