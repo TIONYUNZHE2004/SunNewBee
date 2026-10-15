@@ -137,3 +137,31 @@ async def test_replay_files_the_recorded_reason(tmp_path):
     out = [e async for e in demo.replay(events, store)]
     row = next(r for r in store.list() if r.id == out[0].request_id)
     assert row.reason == "missing_place"
+
+
+async def test_active_closure_makes_replay_a_miss(ctx, tmp_path):
+    """R33/I3: a recording cannot reflect a live closure: no replay while one is active."""
+    from datetime import UTC, datetime, timedelta
+
+    from townshiplens_spatial.models import Closure
+
+    st = settings(tmp_path)
+    live = await run(ctx, st)
+    req = ChatRequest(message=Q, profile="stroller")
+    demo.save(demo.key(req), live, demo.make_meta(req, live, ctx.world.site.id), st.demo_dir)
+    assert (await run(ctx, st))[-1].model.endswith("+demo-cache")  # no closure: replays
+    now = datetime.now(UTC)
+    ctx.world.set_closures(
+        [
+            Closure(
+                id="cl-x",
+                element_id="toilet-1",
+                reason="works",
+                starts_at=now - timedelta(hours=1),
+                ends_at=now + timedelta(days=1),
+            )
+        ]
+    )
+    assert ctx.world.active_closures()
+    evs = await run(ctx, st)
+    assert not evs[-1].model.endswith("+demo-cache")

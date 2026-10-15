@@ -275,9 +275,7 @@ async def test_unknown_place_still_files_a_missing_place_request(world, tmp_path
     assert [e for e in evs if e.type == "verification.requested"]
 
 
-@pytest.mark.parametrize(
-    "msg", ["Tell me about Qwzxv Plaza", "What is at Blorpt Park", "Is Qwzxv Plaza open now?"]
-)
+@pytest.mark.parametrize("msg", ["Tell me about Qwzxv Plaza", "What is at Blorpt Park"])
 async def test_weak_fuzzy_match_is_treated_as_a_missing_place(world, tmp_path, msg):
     evs = await _turn(world, tmp_path, msg, "default", None)
     calls = [e.name for e in evs if e.type == "tool.call"]
@@ -303,3 +301,11 @@ async def test_clear_hit_still_answers(world, tmp_path):
     evs = await _turn(world, tmp_path, "Tell me about Elmina Lakeside Mall", "default", None)
     assert evs[-1].answer_status in ("answered", "partial")
     assert "Elmina Lakeside Mall" in _text(evs)
+
+
+async def test_weak_match_without_a_place_phrase_says_cannot_and_files_nothing(world, tmp_path):
+    """Review #3 minor 5: a weak hit on the whole question may be a real place: no "missing" VR."""
+    evs = await _turn(world, tmp_path, "Is Qwzxv Plaza open now?", "default", None)
+    assert evs[-1].answer_status == "cannot_answer"
+    assert not [e for e in evs if e.type == "verification.requested"]
+    assert "don't have that place" not in _text(evs)

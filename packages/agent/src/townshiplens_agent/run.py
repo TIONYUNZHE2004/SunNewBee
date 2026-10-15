@@ -216,7 +216,8 @@ async def run_turn(
     ctx: sp.Ctx, req: ChatRequest, settings: AgentSettings | None = None
 ) -> AsyncIterator[ChatEvent]:
     settings = settings or AgentSettings()
-    if settings.demo_mode:
+    # A recording cannot reflect a live closure (R33), so any active closure is a cache miss.
+    if settings.demo_mode and not ctx.world.active_closures():
         cached = demo.load(demo.key(req), settings.demo_dir, ctx.world.site.id)
         if cached:
             async for ev in demo.replay(cached, ctx.vrs):

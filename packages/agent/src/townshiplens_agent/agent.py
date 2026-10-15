@@ -227,6 +227,12 @@ async def call_tool(deps: Deps, name: str, **kwargs: Any) -> dict:
         rec.asked_closures += [
             c for c in res.data if c.get("active") and (not near or c["element_id"] == near)
         ]
+    if name == "get_place_details" and res.ok and isinstance(res.data, dict):
+        # A closure on the place asked about must be named (same rule as get_closures).
+        for c in res.data.get("closures") or []:
+            rec.closures[c["id"]] = c
+            if c.get("active"):
+                rec.asked_closures.append(c)
     if name == "create_verification_request" and res.ok:
         rec.vrs.append(res.data)
         await _emit(deps, _vr_event(res.data))
@@ -236,7 +242,19 @@ async def call_tool(deps: Deps, name: str, **kwargs: Any) -> dict:
     elif name == "list_flood_scenarios" and ui_scenario(deps):
         rec.scenarios_used.add(ui_scenario(deps))
     await _emit(deps, ToolResultEvent(id=call_id, name=name, summary=_summarise(name, res)))
-    return res.model_dump(mode="json")
+    return _without_closure_notes(res.model_dump(mode="json"))
+
+
+def _without_closure_notes(out: Any) -> Any:
+    """Staff free text on a closure (`note`) can hold names or phone numbers: it never goes to
+    the model provider. The UI and the recorded rows keep it."""
+    if isinstance(out, dict):
+        if "source_label" in out and out.get("source_label") == "Reported closure (staff)":
+            return {k: _without_closure_notes(v) for k, v in out.items() if k != "note"}
+        return {k: _without_closure_notes(v) for k, v in out.items()}
+    if isinstance(out, list):
+        return [_without_closure_notes(v) for v in out]
+    return out
 
 
 def build_agent(model: Model) -> Agent[Deps, FinalAnswer]:

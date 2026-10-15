@@ -245,7 +245,7 @@ def _place_answer(details: dict, evidence: list[dict]) -> ModelResponse:
                 "evidence_ids": [ev["id"]],
             }
         )
-    caveats = []
+    caveats = closure_caveats(details.get("closures") or [])
     if not statuses:
         caveats.append("No other facts about this place are recorded yet.")
     if placeholder:
@@ -255,7 +255,9 @@ def _place_answer(details: dict, evidence: list[dict]) -> ModelResponse:
     answered = bool(statuses) and all(st == "verified" for st in statuses)
     return _final(
         answer_status="answered" if answered else "partial",
-        summary=f"{details['name']} ({kind}): here is what the township model records.",
+        summary=f"{details['name']} ({kind}): "
+        + ("it has a staff-reported closure; " if details.get("closures") else "")
+        + "here is what the township model records.",
         claims=claims,
         caveats=caveats,
         scene_intents=[{"kind": "place.focus", "place_id": pid}],
@@ -602,9 +604,11 @@ def _script(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
         return _call("find_place", query=place_q or q[:80])
     found = _data(rets[0][1]) or []
     top = found[0].get("score", 1.0) if found else 0.0
-    if (
-        n == 1 and top < PLACE_MIN_SCORE
-    ):  # nothing, or only a weak fuzzy match: the place is missing
+    if n == 1 and found and top < PLACE_MIN_SCORE and not place_q:
+        # No place phrase was recognised, so the whole question was searched and only weakly
+        # matched: a place may exist, so don't say it is missing or file a VR.
+        return _cannot("I can't answer that from the township model yet.")
+    if n == 1 and top < PLACE_MIN_SCORE:  # nothing found: the place is missing
         # PDPA: never store the user's words on a staff-visible VR.
         return _call(
             "create_verification_request",

@@ -369,3 +369,38 @@ def test_validator_requires_inferred_entrance_caveat():
     assert validate_answer(_answer(caveats=["Something else."]), rec)
     assert validate_answer(_answer(caveats=[rec.inferred_notes[0]]), rec) == []
     assert validate_answer(template_answer(rec, "route?"), rec) == []
+
+
+async def test_place_answer_names_a_closure_on_that_place(ctx):
+    """Review #3 minor 2: "Tell me about <place>" names an active closure on it."""
+    _close(ctx, "toilet-1", name="Test Toilet")
+    evs = await ask(ctx, "Tell me about Test Toilet")
+    assert any(
+        i["attribute"] == "closure" and i["note"].startswith("Closed (staff report)")
+        for i in unc(evs).items
+    ), unc(evs)
+    assert "Closed (staff report)" in text(evs)
+
+
+async def test_closure_note_never_reaches_the_model(ctx):
+    """Review #3 minor 3: staff free text on a closure stays out of tool results sent to the LLM."""
+    from townshiplens_agent.agent import Deps, call_tool
+
+    now = datetime.now(UTC)
+    ctx.world.set_closures(
+        [
+            Closure(
+                id="cl-n",
+                element_id="toilet-1",
+                reason="works",
+                note="Contractor Ali 012-3456789",
+                starts_at=now - H,
+                ends_at=now + 24 * H,
+            )
+        ]
+    )
+    deps = Deps(ctx=ctx, rec=TurnRecord(), request=ChatRequest(message="x", profile="stroller"))
+    for name, kw in (("get_closures", {}), ("get_place_details", {"place_id": "toilet-1"})):
+        out = await call_tool(deps, name, **kw)
+        assert "012-3456789" not in str(out), name
+        assert "Contractor" not in str(out), name

@@ -171,3 +171,16 @@ def test_mock_adds_placeholder_caveat():
         "Can I get from Car Park B to the playground with a stroller?"
     )
     assert any("demo values, not yet surveyed" in c for c in res.output.caveats)
+
+
+def test_mock_weak_place_match_files_no_missing_place_vr(monkeypatch):
+    """Review #3 minor 5: a weak fuzzy match may be a real place: no VR."""
+    q = "How deep is the water at the urban park at +3 m?"
+    monkeypatch.setitem(PLACES, q.lower()[:80], {"id": "p1", "name": "Elmina Park", "score": 0.1})
+    calls: list[str] = []
+    agent = _agent(calls)
+
+    res = agent.run_sync(q)
+    assert "create_verification_request" not in calls
+    assert res.output.answer_status == "cannot_answer"
+    assert "don't have that place" not in res.output.summary
