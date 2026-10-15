@@ -255,3 +255,33 @@ async def test_unknown_place_still_files_a_missing_place_request(world, tmp_path
     evs = await _turn(world, tmp_path, "Tell me about Zzyzx Qwerty Xylophone", "default", None)
     assert evs[-1].answer_status == "cannot_answer"
     assert [e for e in evs if e.type == "verification.requested"]
+
+
+@pytest.mark.parametrize(
+    "msg", ["Tell me about Qwzxv Plaza", "What is at Blorpt Park", "Is Qwzxv Plaza open now?"]
+)
+async def test_weak_fuzzy_match_is_treated_as_a_missing_place(world, tmp_path, msg):
+    evs = await _turn(world, tmp_path, msg, "default", None)
+    calls = [e.name for e in evs if e.type == "tool.call"]
+    assert "get_place_details" not in calls
+    assert evs[-1].answer_status == "cannot_answer"
+    assert [e for e in evs if e.type == "verification.requested"]
+    assert "here is what the township model records" not in _text(evs)
+
+
+async def test_ambiguous_place_asks_which_one_and_files_nothing(world, tmp_path):
+    evs = await _turn(world, tmp_path, "Tell me about Elmina", "default", None)
+    text = _text(evs)
+    assert evs[-1].answer_status == "cannot_answer"
+    assert "Which place do you mean?" in text
+    names = text.split("Which place do you mean?")[1]
+    assert 2 <= len([n for n in re.split(r",| or ", names) if n.strip(" ?.")]) <= 3
+    assert "get_place_details" not in [e.name for e in evs if e.type == "tool.call"]
+    assert not [e for e in evs if e.type == "verification.requested"]
+    assert "asked the team" not in text.lower()
+
+
+async def test_clear_hit_still_answers(world, tmp_path):
+    evs = await _turn(world, tmp_path, "Tell me about Elmina Lakeside Mall", "default", None)
+    assert evs[-1].answer_status in ("answered", "partial")
+    assert "Elmina Lakeside Mall" in _text(evs)

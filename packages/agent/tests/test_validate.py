@@ -24,7 +24,9 @@ def test_validator_accepts_cited():
         summary="Route confirmed.",
         claims=[
             Claim(
-                text="No steps on seg-ab", status="verified", evidence_ids=["ev-seg-ab.step_count"]
+                text="No steps on Jalan Ab",
+                status="verified",
+                evidence_ids=["ev-seg-ab.step_count"],
             )
         ],
     )
@@ -421,3 +423,30 @@ def test_raw_element_ids_and_attribute_keys_are_rejected_in_answer_text():
         caveats=["Not checked yet: Incline (%) on Jalan Hopea U15/17D"],
     )
     assert validate_answer(ok, rec) == []
+
+
+def test_claim_text_is_checked_for_raw_ids_too():
+    rec = TurnRecord(tool_calls=["plan_route"])
+    ans = FinalAnswer(
+        answer_status="cannot_answer",
+        summary="Nothing.",
+        claims=[Claim(text="Steps on seg-123-4", status="unknown", evidence_ids=[])],
+    )
+    assert any("readable" in e for e in validate_answer(ans, rec))
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "Staff have been asked to check them.",
+        "I've asked the team to check.",
+        "Asked the township team to check 3 of the 5 unchecked items.",
+        "I've noted the gap for the township team.",
+    ],
+)
+def test_asked_wording_needs_a_request_filed_this_turn(text):
+    ans = FinalAnswer(answer_status="cannot_answer", summary="Nothing.", caveats=[text])
+    assert any("request" in e for e in validate_answer(ans, TurnRecord(tool_calls=["x"])))
+    rec = TurnRecord(tool_calls=["x"])
+    rec.vrs = [{"element_id": "e", "attribute": "a"}]
+    assert not any("request" in e for e in validate_answer(ans, rec))

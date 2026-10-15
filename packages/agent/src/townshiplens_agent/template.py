@@ -1,6 +1,6 @@
 from .answer import Claim, FinalAnswer
 from .events import SceneIntent
-from .labels import unchecked_caveats
+from .labels import attribute_label, unchecked_caveats
 from .record import TurnRecord
 from .validate import DEPTH, FORBIDDEN, PLACEHOLDER_CAVEAT, PLACEHOLDER_SOURCE
 
@@ -43,7 +43,7 @@ def template_answer(rec: TurnRecord, question: str) -> FinalAnswer:
     # Claim text omits raw values: they may contain wording forbidden in flood answers.
     claims = [
         Claim(
-            text=f"{e.attribute} on {e.element_id}: "
+            text=f"{attribute_label(e.attribute)}: "
             + ("demo value" if e.source_type == PLACEHOLDER_SOURCE else e.status),
             status={"verified": "verified", "stale": "stale", "indicative": "indicative"}.get(
                 e.status, "unverified"

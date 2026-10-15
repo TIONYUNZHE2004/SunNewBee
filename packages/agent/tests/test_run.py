@@ -814,3 +814,11 @@ def test_no_data_label_is_readable_and_status_stays_structured(ctx):
     text = "".join(e.delta for e in run_mod._answer_events(ans, rec, ctx) if e.type == "text.delta")
     assert text.split("\n")[0] == "Route status: no mapped connection (data gap)"
     assert rec.route_status[next(iter(rec.route_status))] == "no_data"
+
+
+def test_caveats_are_separated(ctx):
+    rec, ans = _label_events(
+        "partly_unverified", caveats=["Not checked yet: Steps on A", "and 2 more unchecked items."]
+    )
+    text = "".join(e.delta for e in run_mod._answer_events(ans, rec, ctx) if e.type == "text.delta")
+    assert "⚠ Not checked yet: Steps on A; and 2 more unchecked items.\n" in text

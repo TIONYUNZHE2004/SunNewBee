@@ -160,6 +160,8 @@ def _profile(q: str, info: AgentInfo, fallback: str) -> str:
     return m.group(1) if m and m.group(1) != "default" else fallback
 
 
+PLACE_MIN_SCORE = 0.85  # find_place score needed to treat a hit as "the" place asked about
+PLACE_CLEAR_MARGIN = 0.05  # the top hit must lead the next place by at least this much
 _PLACE_Q = re.compile(
     r"^\s*(?:please\s+)?"
     r"(?:tell me (?:more )?about|what(?:'s| is) (?:at|in)|info(?:rmation)? (?:on|about))"
@@ -440,7 +442,7 @@ def _script(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
         flood_cav, flood_ev, likely = _endpoint_flood(rr)
         ev += flood_ev
         caveats = _unknown_caveats(routes, _vrs(rets[-1][1]))
-        if status != "confirmed" and not caveats:
+        if status not in ("confirmed", "no_data") and not caveats:  # no_data: the summary says it
             caveats = [_status_caveat(status, a.get("name", a["id"]), b.get("name", b["id"]))]
         caveats = _placeholder_caveat(rets, flood_cav + caveats)
         gap = r0.get("max_gap_between_rest_m") if r0 else None
@@ -476,8 +478,11 @@ def _script(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
     place_q = _place_question(q)
     if n == 0:
         return _call("find_place", query=place_q or q[:80])
-    found = _data(rets[0][1])
-    if n == 1 and not found:
+    found = _data(rets[0][1]) or []
+    top = found[0].get("score", 1.0) if found else 0.0
+    if (
+        n == 1 and top < PLACE_MIN_SCORE
+    ):  # nothing, or only a weak fuzzy match: the place is missing
         # PDPA: never store the user's words on a staff-visible VR.
         return _call(
             "create_verification_request",
@@ -486,19 +491,24 @@ def _script(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
             reason="missing_place",
             question_summary="place asked about in chat was not found in the township model",
         )
-    if found and place_q:  # "Tell me about <place>": summarise what the model has, with statuses
+    if top < PLACE_MIN_SCORE:
+        return _final(
+            answer_status="cannot_answer",
+            summary="I don't have that place in the township model yet. "
+            "I've asked the team to check.",
+        )
+    if place_q:  # "Tell me about <place>": summarise what the model has, with statuses
+        close = [p for p in found if top - p.get("score", 1.0) < PLACE_CLEAR_MARGIN]
+        if len(close) > 1:  # no clear top hit: ask, claim no follow-up
+            names = list(dict.fromkeys(p["name"] for p in close))[:3]
+            return _cannot(f"Which place do you mean? {', '.join(names)}?")
         if n == 1:
             return _call("get_place_details", place_id=found[0]["id"])
         details = _data(rets[-1][1])
         if isinstance(details, dict):
             return _place_answer(details, rets[-1][1].get("evidence") or [])
         return _cannot("I couldn't get the details for that place yet.")
-    if found:  # the place exists but this question is not one the mock can answer; no VR was filed
-        return _cannot("I can't answer that from the township model yet.")
-    return _final(
-        answer_status="cannot_answer",
-        summary="I don't have that place in the township model yet. I've asked the team to check.",
-    )
+    return _cannot("I can't answer that from the township model yet.")  # found; no VR was filed
 
 
 def mock_model() -> FunctionModel:

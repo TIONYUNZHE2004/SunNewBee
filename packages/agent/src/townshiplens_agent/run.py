@@ -50,7 +50,7 @@ def _answer_events(
     if ans.steps:
         text += "\n" + "\n".join(f"{i}. {s}" for i, s in enumerate(ans.steps, 1))
     if ans.caveats:
-        text = "⚠ " + " ".join(ans.caveats) + "\n" + text
+        text = "⚠ " + "; ".join(c.rstrip(". ") for c in ans.caveats) + ".\n" + text
     # Fixed order: status label, then the caveat line, then the summary and steps.
     if label := _route_status_line(ans, rec):
         text = label + "\n" + text

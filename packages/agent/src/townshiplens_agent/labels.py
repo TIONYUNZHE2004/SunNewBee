@@ -69,23 +69,52 @@ def _cap(text: str) -> str:
     return text[:1].upper() + text[1:]
 
 
+def classify_why(u: dict) -> str:
+    """Which evaluate.py reason this unknown carries; "fallback" means the wording is not
+    understood (a drift test over real evaluate output keeps this from happening silently)."""
+    why = u.get("why") or ""
+    if _NEEDS.match(why):
+        return "limit"
+    if _SIDEWALK_REPORTED.search(why):
+        return "sidewalk_reported"
+    if "no sidewalk mapped" in why:
+        return "sidewalk_none"
+    if "sidewalk not verified" in why:
+        return "sidewalk_unchecked"
+    if u.get("attribute") == "flood" and "flooded" in why:
+        return "flood"
+    return "fallback"
+
+
+def _fmt(x: str) -> str:
+    return f"{float(x):g}"
+
+
 def unknown_core(u: dict) -> str:
     """What is unknown, without saying where: "Stroller: incline not checked yet (limit 8.3%)"."""
     attr = u.get("attribute") or ""
     why = u.get("why") or ""
-    if m := _NEEDS.match(why):
-        profile, key, op, limit = m.groups()
-        unit = _UNITS.get(key, "")
-        word = "limit" if op == "≤" else "minimum"
-        state = "check is out of date" if u.get("reason") == "stale" else "not checked yet"
-        return f"{profile_label(profile)}: {_short(key)} {state} ({word} {limit}{unit})"
-    if m := _SIDEWALK_REPORTED.search(why):
-        return f"Sidewalk: reported as {m.group(1).replace('_', ' ')}, not checked yet"
-    if "no sidewalk mapped" in why:
+    stale = u.get("reason") == "stale"
+    state = "last check is out of date" if stale else "not checked yet"
+    kind = classify_why(u)
+    if kind == "limit":
+        profile, key, op, limit = _NEEDS.match(why).groups()
+        if key == "step_count" and float(limit) == 0:
+            rule = "no steps allowed"
+        else:
+            word = "limit" if op == "≤" else "minimum"
+            rule = f"{word} {_fmt(limit)}{_UNITS.get(key, '')}"
+        return f"{profile_label(profile)}: {_short(key)} {state} ({rule})"
+    if kind == "sidewalk_reported":
+        value = _SIDEWALK_REPORTED.search(why).group(1).replace("_", " ")
+        return f"Sidewalk: reported as {value}, {state}"
+    if kind == "sidewalk_none":
         return "Sidewalk: none mapped, so walking means the carriageway or verge"
-    if attr == "flood":
+    if kind == "sidewalk_unchecked":
+        return f"Sidewalk: {state}"
+    if kind == "flood":
         return "Possibly flooded in this indicative scenario"
-    return f"{attribute_label(attr)}: not checked yet"
+    return f"{attribute_label(attr)}: {state}"
 
 
 def unknown_note(u: dict, element: str | None = None) -> str:
@@ -141,16 +170,27 @@ MAX_NAMED = 5  # unchecked items named in answer text; the uncertainty event lis
 def unchecked_caveats(
     unknowns: list[dict], vrs: list[dict] | None = None, max_named: int = MAX_NAMED
 ) -> list[str]:
-    """Caveat lines: up to `max_named` items, an exact "and N more" (items, not segments), then
-    exactly how many checks were requested this turn (nothing when none were)."""
+    """Caveat lines: up to `max_named` items (identical lines collapse to "(x3)"), then exact
+    "and N more" counts (same unit as the request sentence: unchecked items, flood separately),
+    then exactly how many checks were requested this turn (nothing when none were)."""
     seen: dict[tuple, dict] = {}
     for u in unknowns:
         seen.setdefault((u.get("element_id"), u.get("attribute")), u)
     items = list(seen.values())
-    out = [unknown_line(u) for u in items[:max_named]]
-    more = len(items) - max_named
-    if more > 0:
+    lines: dict[str, int] = {}
+    for u in items[:max_named]:
+        line = unknown_line(u)
+        lines[line] = lines.get(line, 0) + 1
+    out = [f"{line} (x{n})" if n > 1 else line for line, n in lines.items()]
+    rest = items[max_named:]
+    more = sum(u.get("attribute") != "flood" for u in rest)
+    more_flood = len(rest) - more
+    if more:
         out.append(f"and {more} more unchecked {'item' if more == 1 else 'items'}")
+    if more_flood:
+        out.append(
+            f"and {more_flood} more possibly flooded {'path' if more_flood == 1 else 'paths'}"
+        )
     if sentence := request_sentence(items, vrs or []):
         out.append(sentence)
     return out

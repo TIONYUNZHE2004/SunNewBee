@@ -26,6 +26,11 @@ STATUS_IS = re.compile(
 RAW_ID = re.compile(
     r"\bseg-[\w-]+|\b(?:" + "|".join(sorted(k for k in ATTRIBUTE_TYPES if "_" in k)) + r")\b"
 )
+ASKED = re.compile(
+    r"\b(?:asked|requested|filed|notified)\b[^.;]{0,40}\b(?:team|staff)\b"
+    r"|\bstaff (?:have|has) been (?:asked|notified)\b|\bnoted the gap\b",
+    re.IGNORECASE,
+)
 OTHER_ROUTE = {"alternative", "alternate", "other", "another", "second", "different"}
 
 
@@ -143,7 +148,12 @@ def validate_answer(ans: FinalAnswer, rec: TurnRecord) -> list[str]:
     if rec.scenarios_used and not ans.scenario_id:
         errs.append("A flood scenario tool was used: set scenario_id.")
     # Honesty rules apply to every answer, whether or not a tool ran.
-    if RAW_ID.search(" ".join([ans.summary, *ans.steps, *ans.caveats])):
+    if not rec.vrs and ASKED.search(all_text):
+        errs.append(
+            "No verification request was filed this turn: do not say staff or the team were "
+            "asked (or that the gap was noted). Say nothing about a request."
+        )
+    if RAW_ID.search(all_text):
         errs.append(
             "Write for residents: use the readable names from the tool result "
             "(element_label, e.g. 'Incline (%)'), never segment ids or snake_case attribute keys."
