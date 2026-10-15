@@ -648,3 +648,24 @@ From the audit: AX-09 is MISSING.
 - **Honesty:** this layer shows what isn't known. Copy says "facts not yet checked", never "unsafe" or "inaccessible".
 - **Tests:** pytest for counts on the tiny fixture (stale, contested, missing); vitest for band mapping and the list order; DOM tests in the Task 39 Testing Library style.
 - **Out of scope:** do NOT touch `routing.py`, `evaluate.py` (import from it only), `sim.py`, `data/` or `features/chat/*`.
+
+### Task 43: Snap area places (parks, schools) to the walk network honestly (data)
+
+**Found while reviewing Task 40.** 17 of 231 seed places have no `node_id`, so nothing can route to them (`no_data`). Most are large areas (11 parks, 3 schools, including the hero "Elmina Urban Park" `osm-way-1309457596`). `assign_nodes` (import_osm.py) snaps the area's **centre** to a node within 60 m, and a big park's centre is far from any path. The Overpass place query uses `out center`, so polygons are not cached.
+
+- **Fetch:** for ways and relations among the place results, fetch geometry once (`out geom`), tiled like the existing place query and cached in `data/cache`. **Budget: ≤ 8 Overpass requests**, part of the 30 the team lead allowed for this run.
+- **Snap:** a point place keeps today's rule. An area place snaps to the nearest walk node inside its polygon or within 40 m of its boundary. The place gets:
+  - `node_inferred: true`;
+  - a claim/evidence `access_point` with `evidence_type: osm_area_boundary_snap`, status `reported`.
+  
+  Routing to or from it adds the warning: "Route ends at the nearest mapped path to <name>; its entrance is not mapped." Keep `node_inferred` in the place model and the API, and run `pnpm gen`.
+  
+  A place that is still unsnapped stays `no_data` and appears in `coverage.json` (`places_without_node`).
+- **Rebuild** in the usual order: import → overlay → flood → waste, from cache plus the new geometry. Measure before and after:
+  - the number of places without a node;
+  - default-profile routes from `park-b` to "Elmina Urban Park" and from "Elmina Urban Park" to `lakeside-mall`;
+  - check that the hero route is unchanged.
+- **Tests:**
+  - area-snap unit tests (inside the polygon, within 40 m, beyond 40 m);
+  - a seed regression: Elmina Urban Park has a node and a routable route with the warning.
+- **Coordinate:** Task 40 (lane/ai) edits `packages/agent` and `data/demo`. Do not touch those; the coordinator re-records the demo cache after both merge. Task 41 (lane/be) edits `routing.py` and `sim.py`, so add the warning in `tools.py`, not `routing.py`. Task 42 (lane/fe) edits `apps/web` scene/list and adds `/layers/gaps`.
