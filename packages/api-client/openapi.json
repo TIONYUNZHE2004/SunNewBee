@@ -2612,6 +2612,17 @@
             "title": "Element Id",
             "type": "string"
           },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
           "request_id": {
             "title": "Request Id",
             "type": "string"
