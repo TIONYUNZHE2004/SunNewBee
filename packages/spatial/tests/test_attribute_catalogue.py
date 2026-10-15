@@ -23,7 +23,7 @@ def test_attribute_labels_cover_the_catalogue_and_match_the_web_catalogue():
     assert ATTRIBUTE_LABELS["sidewalk"] == "Sidewalk"
     # Drift: the web catalogue lists the same keys (attributeCatalogue.ts).
     ts = (
-        Path(__file__).resolve().parents[3] / "apps/web/src/features/manage/attributeCatalogue.ts"
+        Path(__file__).resolve().parents[3] / "apps/web/src/features/tickets/attributeCatalogue.ts"
     ).read_text(encoding="utf-8")
     web = set()
     for name in ("NUMBER_KEYS", "BOOLEAN_KEYS", "TEXT_KEYS"):

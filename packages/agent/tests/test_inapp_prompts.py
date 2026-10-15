@@ -14,12 +14,12 @@ from townshiplens_spatial.vr_store import VerificationStore
 from townshiplens_spatial.world import load_world
 
 SEED = ROOT / "data/seed/elmina"
-SUGGESTIONS_TS = ROOT / "apps/web/src/features/chat/suggestions.ts"
+STARTERS_TS = ROOT / "apps/web/src/features/assistant/starters.ts"
 pytestmark = pytest.mark.skipif(not (SEED / "site.json").exists(), reason="Elmina seed not built")
 MOCK = AgentSettings(_env_file=None, llm_provider="mock")
 
-# (message, profile, scenario_id). Copied from apps/web/src/features/chat/suggestions.ts
-# (SUGGESTIONS and WHERE_CAN_I_GO); test_prompts_match_suggestions_ts catches drift.
+# (message, profile, scenario_id). The resident starters are copied from
+# apps/web/src/features/assistant/starters.ts; test_resident_starters_match_starters_ts: drift.
 ACCESS = [
     ("Can I get to the lakeside mall with a stroller?", "stroller", None),
     ("Can I get to the lakeside mall in a wheelchair?", "wheelchair", None),
@@ -45,7 +45,14 @@ WHERE = [
     ("Where can I go?", "default", "stage_p3m"),
     ("Where can I go?", "wheelchair", "stage_p3m"),
 ]
-ALL = ACCESS + FLOOD + WASTE + WHERE
+# Resident starters in the two-screen assistant (features/assistant/starters.ts).
+STARTERS = [
+    ("Stroller route from Car Park B to the playground", "stroller", None),
+    ("Wheelchair route to the lakeside mall", "wheelchair", None),
+    ("Nearest evacuation centre if the water rises 3 m", "default", None),
+    ("Where to drop off recycling", "default", None),
+]
+ALL = ACCESS + FLOOD + WASTE + WHERE + STARTERS
 
 
 @pytest.fixture(scope="module")
@@ -208,31 +215,23 @@ async def test_where_can_i_go_without_scenario_asks_for_a_river_level(world, tmp
     assert "river level" in _text(evs)
 
 
-def _parse_suggestions(src: str) -> list[tuple[str, str, str | None]]:
-    """(lens, text, profile) for every live chip, plus WHERE_CAN_I_GO under "scenario-bar"."""
+def _parse_resident_starters(src: str) -> list[tuple[str, str | None]]:
+    """(text, profile) for each resident starter in starters.ts."""
     src = re.sub(r"/\*.*?\*/", "", src, flags=re.S)
-    src = "\n".join(ln for ln in src.splitlines() if not ln.lstrip().startswith("//"))
-    block = re.search(r"SUGGESTIONS[^=]*=\s*\{(.*?)\n\};", src, re.S).group(1)
-    heads = list(re.finditer(r"^  (\w+):\s*\[", block, re.M))
+    block = re.search(r"resident:\s*\[(.*?)\n  \],", src, re.S).group(1)
     out = []
-    for i, h in enumerate(heads):
-        body = block[h.end() : heads[i + 1].start() if i + 1 < len(heads) else len(block)]
-        for item in re.findall(r"\{(.*?)\}", body, re.S):
-            t = re.search(r'text:\s*"([^"]+)"', item)
-            pr = re.search(r'profile:\s*"([^"]+)"', item)
-            out.append((h.group(1), t.group(1), pr.group(1) if pr else None))
-    out.append(("scenario-bar", re.search(r'WHERE_CAN_I_GO\s*=\s*"([^"]+)"', src).group(1), None))
+    for item in re.findall(r"\{(.*?)\}", block, re.S):
+        t = re.search(r'text:\s*"([^"]+)"', item)
+        pr = re.search(r'profile:\s*"([^"]+)"', item)
+        out.append((t.group(1), pr.group(1) if pr else None))
     return out
 
 
-def test_prompts_match_suggestions_ts():
-    parsed = _parse_suggestions(SUGGESTIONS_TS.read_text(encoding="utf-8"))
-    assert len(parsed) == len(set(parsed)), f"duplicate chips: {parsed}"
-    mine = {("access", m, pr) for m, pr, _ in ACCESS}
-    mine |= {("flood", m, None) for m in dict.fromkeys(m for m, _, _ in FLOOD)}
-    mine |= {("waste", m, None) for m, _, _ in WASTE}
-    mine |= {("scenario-bar", m, None) for m, _, _ in WHERE}
-    assert mine == set(parsed)
+def test_resident_starters_match_starters_ts():
+    parsed = _parse_resident_starters(STARTERS_TS.read_text(encoding="utf-8"))
+    assert len(parsed) == len(set(parsed)), f"duplicate starters: {parsed}"
+    mine = [(m, None if pr == "default" else pr) for m, pr, _ in STARTERS]
+    assert mine == parsed
 
 
 PLACE_Q = [

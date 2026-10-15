@@ -105,7 +105,7 @@ When changing the agent, the mock answers and `template.py` must still pass the 
 - **Lint and format:** Python uses ruff (`ruff check --fix`, `ruff format`); TS/JSON uses Biome (`pnpm exec biome check --write`). Imports are sorted by ruff.
 - **Generated client:** after any API model or route change, run `pnpm gen` and commit `packages/api-client`. CI fails on drift.
 - **Attribute catalogue is mirrored:**
-  - `packages/spatial/src/townshiplens_spatial/attributes.py` (enforced in `commit_claim` / VR resolve) must match `apps/web/src/features/manage/attributeCatalogue.ts`.
+  - `packages/spatial/src/townshiplens_spatial/attributes.py` (enforced in `commit_claim` / VR resolve) must match `apps/web/src/features/tickets/attributeCatalogue.ts`.
   - Enum attributes use the strings from `docs/04-architecture/world-model-schema.md` (e.g. wheelchair `yes|limited|no`, handrail `both|one_side|none`).
 - **Tests:**
   - pytest + hypothesis live next to each package. `testpaths` covers spatial, agent, api and `data/scripts/tests`.
