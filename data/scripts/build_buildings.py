@@ -125,9 +125,18 @@ def fetch_all(bbox, step: float, max_requests: int | None) -> list[dict]:
     return elements
 
 
+MAX_HEIGHT_M = 300.0
+
+
 def _number(text) -> float | None:
-    m = re.match(r"^\s*(-?\d+(?:[.,]\d+)?)", str(text or ""))
-    return float(m.group(1).replace(",", ".")) if m else None
+    """Leading number of an OSM tag value; None when absent or in non-metre units (ft, ')."""
+    m = re.match(r"^\s*(-?\d+(?:[.,]\d+)?)(.*)$", str(text or ""))
+    if not m:
+        return None
+    rest = m.group(2).strip().lower()
+    if "'" in rest or rest.startswith(("ft", "feet", "foot", "in", '"')):
+        return None
+    return float(m.group(1).replace(",", "."))
 
 
 def kind_of(tags: dict) -> str:
@@ -152,11 +161,11 @@ def kind_of(tags: dict) -> str:
 def infer_height(tags: dict, id: str) -> tuple[float, str, float]:  # noqa: A002
     """(height_m, source, min_height_m). Deterministic: defaults hash the OSM id."""
     h = _number(tags.get("height"))
-    if h is not None and h > 0:
+    if h is not None and 0 < h <= MAX_HEIGHT_M:
         height, source = h, "osm_height"
     else:
         levels = _number(tags.get("building:levels"))
-        if levels is not None and levels > 0:
+        if levels is not None and 0 < levels * LEVEL_M <= MAX_HEIGHT_M:
             height, source = levels * LEVEL_M, "osm_levels"
         else:
             lo, hi = _HEIGHT_RANGE[kind_of(tags)]
@@ -293,9 +302,11 @@ def main(argv: list[str] | None = None) -> None:
     buildings, trees, stats = build_features(elements)
     b_text, t_text = _dump(buildings), _dump(trees)
     size = len(b_text.encode("utf-8"))
-    if size > MAX_BYTES:
-        print(f"buildings.geojson is {size} bytes (> {MAX_BYTES}); lower --radius-m")
-        raise SystemExit(3)
+    t_size = len(t_text.encode("utf-8"))
+    for name, n in (("buildings.geojson", size), ("trees.geojson", t_size)):
+        if n > MAX_BYTES:
+            print(f"{name} is {n} bytes (> {MAX_BYTES}); lower --radius-m")
+            raise SystemExit(3)
     base = OUT / "base"
     base.mkdir(parents=True, exist_ok=True)
     (base / "buildings.geojson").write_text(b_text, encoding="utf-8", newline="\n")

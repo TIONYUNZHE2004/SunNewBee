@@ -82,6 +82,7 @@ def test_build_features_dedupes_skips_and_counts():
     assert b[0]["properties"]["name"] == "Block C" and b[0]["geometry"]["type"] == "Polygon"
     assert len(t) == 1 and t[0]["geometry"]["coordinates"] == [101.501, 3.181]
     assert stats["skipped_relations"] == 1 and stats["skipped_invalid"] == 1
+    assert stats["duplicates"] == 1
 
 
 def test_main_dry_run_makes_no_request_and_writes_nothing(tmp_path, monkeypatch):
@@ -89,6 +90,11 @@ def test_main_dry_run_makes_no_request_and_writes_nothing(tmp_path, monkeypatch)
     (tmp_path / "site.json").write_text(
         json.dumps({"scene": {"home": {"lon": 101.5099, "lat": 3.1813}}})
     )
+
+    def boom(*a, **k):
+        raise AssertionError("dry run must not fetch")
+
+    monkeypatch.setattr(bb, "fetch_all", boom)
     with pytest.raises(SystemExit) as e:
         bb.main(["--dry-run"])
     assert e.value.code == 0
@@ -117,3 +123,52 @@ def test_main_writes_files_and_site_key(tmp_path, monkeypatch):
     site = json.loads((tmp_path / "site.json").read_text())
     assert site["buildings"]["count"] == 1 and site["buildings"]["file"] == "base/buildings.geojson"
     assert (tmp_path / "base" / "trees.geojson").exists()
+
+
+@pytest.mark.parametrize(
+    "exc", [bb.overpass.OverpassFailed("down"), bb.overpass.BudgetExceeded("cap")]
+)
+def test_blocked_exit_code_2_when_fetch_fails(tmp_path, monkeypatch, exc):
+    monkeypatch.setattr(bb, "OUT", tmp_path)
+    (tmp_path / "site.json").write_text(
+        json.dumps({"scene": {"home": {"lon": 101.5099, "lat": 3.1813}}})
+    )
+
+    def fail(*a, **k):
+        raise exc
+
+    monkeypatch.setattr(bb, "fetch_all", fail)
+    with pytest.raises(SystemExit) as e:
+        bb.main([])
+    assert e.value.code == 2
+    assert not (tmp_path / "base" / "buildings.geojson").exists()
+
+
+def test_height_rejects_absurd_values_and_non_metre_units():
+    assert bb.infer_height({"height": "500"}, "w1")[1] == "default"
+    assert bb.infer_height({"height": "500", "building:levels": "3"}, "w1")[:2] == (
+        9.6,
+        "osm_levels",
+    )
+    assert bb.infer_height({"building:levels": "200"}, "w1")[1] == "default"
+    assert bb.infer_height({"height": "300"}, "w1")[:2] == (300.0, "osm_height")
+    assert bb.infer_height({"height": "40 ft"}, "w1")[1] == "default"
+    assert bb.infer_height({"height": "10'"}, "w1")[1] == "default"
+    assert bb.infer_height({"height": "12,5 m"}, "w1")[:2] == (12.5, "osm_height")
+
+
+def test_size_guard_applies_to_trees_too(tmp_path, monkeypatch):
+    monkeypatch.setattr(bb, "OUT", tmp_path)
+    monkeypatch.setattr(bb, "MAX_BYTES", 400)
+    trees = [
+        {"type": "node", "id": i, "lat": 3.181, "lon": 101.501, "tags": {"natural": "tree"}}
+        for i in range(30)
+    ]
+    monkeypatch.setattr(bb, "fetch_all", lambda *a, **k: [way(1, SQ, building="yes"), *trees])
+    (tmp_path / "site.json").write_text(
+        json.dumps({"scene": {"home": {"lon": 101.5099, "lat": 3.1813}}})
+    )
+    with pytest.raises(SystemExit) as e:
+        bb.main([])
+    assert e.value.code == 3
+    assert not (tmp_path / "base" / "trees.geojson").exists()
