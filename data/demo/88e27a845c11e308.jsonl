@@ -1,10 +1,10 @@
-{"meta": {"message": "Is the walk from the urban park to the lakeside mall easy?", "profile": "default", "scenario_id": null, "world": "elmina", "model": "mock-scripted", "recorded_at": "2026-10-15T04:52:46+00:00"}}
+{"meta": {"message": "Is the walk from the urban park to the lakeside mall easy?", "profile": "default", "scenario_id": null, "world": "elmina", "model": "mock-scripted", "recorded_at": "2026-10-15T05:10:20+00:00"}}
 {"type": "tool.call", "id": "find_place-0", "name": "find_place", "args": {"query": "urban park", "types": null, "limit": 5}}
 {"type": "tool.result", "id": "find_place-0", "name": "find_place", "summary": "5 result(s)"}
 {"type": "tool.call", "id": "find_place-1", "name": "find_place", "args": {"query": "lakeside mall", "types": null, "limit": 5}}
 {"type": "tool.result", "id": "find_place-1", "name": "find_place", "summary": "2 result(s)"}
 {"type": "tool.call", "id": "plan_route-2", "name": "plan_route", "args": {"from_id": "osm-way-1309457596", "to_id": "lakeside-mall", "profile": "default", "scenario_id": null}}
-{"type": "verification.requested", "request_id": "vr-0019", "element_id": "osm-way-1309457596", "attribute": "existence", "created": false, "demand": 4}
+{"type": "verification.requested", "request_id": "vr-0016", "element_id": "osm-way-1309457596", "attribute": "existence", "created": true, "demand": 1}
 {"type": "tool.result", "id": "plan_route-2", "name": "plan_route", "summary": "route no_data"}
 {"type": "text.delta", "delta": "⚠ No mapped connection between Elmina Ur"}
 {"type": "text.delta", "delta": "ban Park and Elmina Lakeside Mall (data "}
