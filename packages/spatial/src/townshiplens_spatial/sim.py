@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import copy
 import dataclasses
+import hashlib
 import random
 import time
 import uuid
@@ -16,8 +17,8 @@ from typing import Any
 
 from . import flood
 from .evaluate import _CHECKS, SIDEWALK_TYPES, evaluate_edge
-from .models import Claim
-from .routing import _flood_class, plan_route
+from .models import Claim, Closure
+from .routing import _flood_class, _target_pts, plan_route
 from .world import World
 
 SIM_PROFILES = ("stroller", "wheelchair", "older_adult_rest")
@@ -35,6 +36,38 @@ OUTCOME = {
 }
 # Same keys the evaluator checks; `sidewalk` only on SIDEWALK_TYPES edges (major roads).
 GAP_ATTRS = {attr for attr, _ in _CHECKS.values()} | {"sidewalk"}
+
+
+def snapshot_world(world: World, now: datetime | None = None) -> tuple[World, str]:
+    """A consistent copy of the mutable parts of `world` for one run, plus a hash of the closure
+    set. The caller holds the API's `world_lock`. Edges and places are deep-copied (claims,
+    closures); the graph, flood bundle, profiles and centres are never mutated and are shared.
+
+    Closure time is frozen at `now`: a closure active then stays active for the whole run, one
+    that starts or ends mid-run changes nothing. So a staff edit or the clock cannot make two
+    halves of one run disagree."""
+    now = now or datetime.now(UTC)
+    frozen: dict[str, Closure] = {}
+    edges, places = {}, {}
+    for src, dst in ((world.edges, edges), (world.places, places)):
+        for k, el in src.items():
+            c = el.model_copy(deep=True)
+            if c.closures:
+                c.closures = [
+                    x.model_copy(update={"ends_at": None}) for x in c.closures if x.is_active(now)
+                ]
+                frozen.update({x.id: x for x in c.closures})
+            dst[k] = c
+    digest = hashlib.sha256(
+        "|".join(
+            f"{c.id}@{c.element_id}@{c.starts_at.isoformat()}"
+            for c in sorted(frozen.values(), key=lambda c: c.id)
+        ).encode()
+    ).hexdigest()[:16]
+    snap = dataclasses.replace(
+        world, edges=edges, places=places, closures=list(frozen.values()), version=world.version
+    )
+    return snap, digest
 
 
 def new_run_id() -> str:
@@ -264,11 +297,29 @@ EVAC_RESULTS = (
 # The seed maps no residential buildings, so origins are every mapped place residents start from
 # except street furniture (a bench or bin is not where a journey begins).
 NON_ORIGIN_TYPES = {"seating", "toilet", "shelter", "waste_basket"}
-_RANK = {"reachable_confirmed": 0, "reachable_partly_unverified": 1, "blocked_by_flood": 2}
+
+
+def _centre_origins(world: World) -> set[str]:
+    """Places that ARE an evacuation centre (by place id) or whose way into the network is a
+    centre's node. A journey from one is 0 m and says nothing about reaching a centre."""
+    cn = {c.node_id for c in world.centres.values() if c.node_id}
+    cp = {c.place_id for c in world.centres.values() if c.place_id}
+    out = set()
+    for p in world.places.values():
+        nodes = {n for n, _ in _target_pts(world, p.id)}
+        if p.id in cp or nodes & cn:
+            out.add(p.id)
+    return out
+
+
+def _all_origins(world: World) -> list[str]:
+    return sorted(p.id for p in world.places.values() if p.type not in NON_ORIGIN_TYPES)
 
 
 def _origin_pool(world: World) -> list[str]:
-    return sorted(p.id for p in world.places.values() if p.type not in NON_ORIGIN_TYPES)
+    """Real journeys only: places a resident starts from that are not themselves a centre."""
+    centres = _centre_origins(world)
+    return [i for i in _all_origins(world) if i not in centres]
 
 
 def evacuation_origins(world: World, n: int = EVAC_N, seed: int = EVAC_SEED) -> list[str]:
@@ -328,6 +379,7 @@ def run_evacuation(
     ]
     known = {s.id for s in world.flood.scenarios}
     scs = [s for s in (scenario_ids or EVAC_SCENARIOS) if s in known]
+    origins_pool = _origin_pool(world)
     origins = evacuation_origins(world, n_per_profile, seed)
     total, done = len(profs) * len(origins) * (len(scs) + ("baseline" in scs)), 0
     violations: list[dict[str, str]] = []
@@ -358,14 +410,14 @@ def run_evacuation(
                     )
             for lo, hi in zip(scs, scs[1:], strict=False):
                 a, c = by[(lo, o)], by[(hi, o)]
-                worse = (
+                improved = (
                     (a["result"] == "blocked_by_flood" and c["result"] == "reachable_confirmed")
                     or (not a["any_confirmed"] and c["any_confirmed"])
                     or (
                         not a["any_reachable"] and c["any_reachable"] and a["result"] != "no_centre"
                     )
                 )
-                if worse:
+                if improved:
                     violations.append(
                         _violation(
                             "E1",
@@ -386,6 +438,8 @@ def run_evacuation(
         "violations": violations,
         "origins": origins,
         "origins_sampled": len(origins),
-        "origins_available": len(_origin_pool(world)),
+        "origins_available": len(origins_pool),
+        # places that are evacuation centres (or share a centre's node), left out of the sample
+        "origins_excluded_centres": len(_all_origins(world)) - len(origins_pool),
         "seed": seed,
     }

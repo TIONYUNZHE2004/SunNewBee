@@ -29,6 +29,7 @@ const REPORT: SimReport = {
   evacuation: {
     origins_sampled: 50,
     origins_available: 192,
+    origins_excluded_centres: 15,
     seed: 47,
     violations: [],
     rows: [
@@ -78,6 +79,9 @@ describe("EvacuationTable", () => {
     expect(r3).toHaveTextContent("River +3 m (indicative)");
     expect(r3).toHaveTextContent("12 of 50");
     expect(screen.getByText(/50 of 192 mapped starting places/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/15 places that are an evacuation centre themselves are left out/),
+    ).toBeInTheDocument();
     expect(screen.getByText(/not forecasts/)).toBeInTheDocument();
     expect(document.body.textContent).not.toMatch(/\bsafe\b|not reachable/i);
   });
@@ -148,6 +152,43 @@ describe("JourneyTests async run", () => {
     await user.click(screen.getByRole("button", { name: "Run journey tests" }));
     expect(await screen.findByText(/already in progress; following it/)).toBeInTheDocument();
     expect(await screen.findByText(/finished/)).toBeInTheDocument();
+  });
+
+  it("ends the wait with a message and Retry when the status check keeps failing", async () => {
+    stubFetch((url, init) => {
+      if (url === "/api/scenarios") return json([]);
+      if (url.startsWith("/api/simulations?")) return json([]);
+      if (url === "/api/simulations" && init?.method === "POST")
+        return json({ run_id: "sim-gone", status: "queued" }, 202);
+      return json({ detail: "unknown" }, 404);
+    });
+    const user = userEvent.setup();
+    renderWithClient(<JourneyTests pollMs={20} />);
+    await user.click(screen.getByRole("button", { name: "Run journey tests" }));
+    expect(await screen.findByText(/progress could not be checked/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Run journey tests" })).toBeEnabled();
+  });
+
+  it("sends all four profiles, default included", async () => {
+    const fetchMock = stubFetch((url, init) => {
+      if (url === "/api/scenarios") return json([]);
+      if (url.startsWith("/api/simulations?")) return json([]);
+      if (url === "/api/simulations" && init?.method === "POST")
+        return json({ run_id: "sim-x", status: "queued" }, 202);
+      return json({ run_id: "sim-x", status: "running" });
+    });
+    const user = userEvent.setup();
+    renderWithClient(<JourneyTests pollMs={20} />);
+    await user.click(screen.getByRole("button", { name: "Run journey tests" }));
+    const post = fetchMock.mock.calls.find(
+      (c) => (c[1] as RequestInit | undefined)?.method === "POST",
+    );
+    expect(JSON.parse(String(((post as unknown[])[1] as RequestInit).body)).profiles).toEqual([
+      "default",
+      "stroller",
+      "wheelchair",
+      "older_adult_rest",
+    ]);
   });
 
   it("shows a failed run as an error with Retry and stops polling", async () => {

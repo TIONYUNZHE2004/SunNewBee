@@ -59,8 +59,14 @@ export function evacScenarioLabel(id: string): string {
 export function evacSummaryText(ev: {
   origins_sampled: number;
   origins_available: number;
+  origins_excluded_centres?: number;
 }): string {
-  return `${ev.origins_sampled} of ${ev.origins_available} mapped starting places, the same places for every profile and river level.`;
+  const out = ev.origins_excluded_centres ?? 0;
+  const left =
+    out > 0
+      ? ` ${out} ${out === 1 ? "place that is" : "places that are"} an evacuation centre ${out === 1 ? "itself is" : "themselves are"} left out, because a journey from a centre to itself is not a journey.`
+      : "";
+  return `${ev.origins_sampled} of ${ev.origins_available} mapped starting places, the same places for every profile and river level.${left}`;
 }
 
 const ADVISORIES: Record<string, string> = {

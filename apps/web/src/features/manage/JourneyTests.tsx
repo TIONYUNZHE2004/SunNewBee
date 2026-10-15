@@ -29,7 +29,7 @@ import {
 } from "./simModel";
 import { useStaffToken } from "./useStaffToken";
 
-const PROFILE_CHOICES = ["stroller", "wheelchair", "older_adult_rest"] as const;
+const PROFILE_CHOICES = ["default", "stroller", "wheelchair", "older_adult_rest"] as const;
 const inputCls = "min-h-11 w-full rounded-md border border-line bg-card px-3 text-sm";
 const btnCls =
   "min-h-11 rounded-md bg-brand px-4 text-sm font-medium text-white hover:bg-brand-dark disabled:cursor-not-allowed disabled:opacity-50";
@@ -100,7 +100,10 @@ export function JourneyTests({ pollMs = POLL_MS }: { pollMs?: number } = {}) {
       setRunId(null);
     }
   }, [runId, poll.data, qc]);
-  const running = run.isPending || (runId !== null && (status === undefined || isActive(status)));
+  // A status check that errors (run gone after a reset, server down) ends the wait with a message.
+  const pollFailed = runId !== null && poll.isError;
+  const running =
+    run.isPending || (runId !== null && !pollFailed && (status === undefined || isActive(status)));
   const load = useMutation({
     mutationFn: (id: string) => fetchSimReport(id),
     onSuccess: (r) => {
@@ -204,6 +207,21 @@ export function JourneyTests({ pollMs = POLL_MS }: { pollMs?: number } = {}) {
         >
           {running ? "Running journey tests…" : "Run journey tests"}
         </button>
+        {pollFailed && (
+          <p role="alert" className="text-sm font-medium text-danger">
+            The run's progress could not be checked.{" "}
+            <button
+              type="button"
+              className="underline"
+              onClick={() => {
+                setRunId(null);
+                run.mutate();
+              }}
+            >
+              Retry
+            </button>
+          </p>
+        )}
         {failed && (
           <p role="alert" className="text-sm font-medium text-danger">
             {failed}{" "}

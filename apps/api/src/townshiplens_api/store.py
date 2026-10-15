@@ -28,11 +28,16 @@ class SimStore:
         self.db.execute(JOB_SCHEMA)
         self._lock = threading.RLock()
         self.start_lock = threading.Lock()  # serialises "is a run active? then start one"
-        with self.db:  # a run cannot survive a restart: never leave one looking active
-            self.db.execute(
+
+    def sweep_interrupted(self) -> int:
+        """Mark runs left active by a dead process as failed. Called once at app startup (the
+        lifespan), never from the constructor: other stores open the same file while a run lives."""
+        with self._lock, self.db:
+            cur = self.db.execute(
                 "UPDATE sim_jobs SET status='failed', error='interrupted by a server restart' "
                 "WHERE status IN ('queued','running')"
             )
+        return cur.rowcount
 
     def create_job(self, run_id: str, created_at: str, scenario_id: str | None) -> None:
         with self._lock, self.db:
@@ -46,12 +51,17 @@ class SimStore:
                 (KEEP_RUNS,),
             )
 
-    def set_job(self, run_id: str, status: str, progress: str | None, error: str | None = None):
+    def set_job(
+        self, run_id: str, status: str, progress: str | None, error: str | None = None
+    ) -> bool:
+        """Only a queued or running job changes: a terminal status is never overwritten."""
         with self._lock, self.db:
-            self.db.execute(
-                "UPDATE sim_jobs SET status=?, progress=?, error=? WHERE run_id=?",
+            cur = self.db.execute(
+                "UPDATE sim_jobs SET status=?, progress=?, error=? "
+                "WHERE run_id=? AND status IN ('queued','running')",
                 (status, progress, error, run_id),
             )
+        return cur.rowcount == 1
 
     def active_job(self) -> str | None:
         with self._lock:
@@ -113,6 +123,18 @@ class SimStore:
             }
             for r in rows
         ]
+
+
+_sim_stores: dict[str, SimStore] = {}
+_sim_stores_lock = threading.Lock()
+
+
+def sim_store(path: str) -> SimStore:
+    """The one SimStore per database file, shared by the simulation and KPI routes."""
+    with _sim_stores_lock:
+        if path not in _sim_stores:
+            _sim_stores[path] = SimStore(path)
+        return _sim_stores[path]
 
 
 AUDIT_SCHEMA = """CREATE TABLE IF NOT EXISTS audit_log (

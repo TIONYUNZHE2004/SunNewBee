@@ -186,8 +186,8 @@ def test_report_without_older_adults_has_no_rest_limit(world):
 
 # ---- Task 47: evacuation journeys (G-07) -------------------------------------------------
 
+# island-hut shares the school centre's node, so it is excluded (a 0 m journey is not a journey)
 EVAC_P5 = {
-    "reachable_confirmed": 1,  # island-hut reaches the school
     "reachable_partly_unverified": 2,  # playground, kiosk
     "blocked_by_flood": 2,  # park-b, lakeside-mall
     "no_mapped_connection": 1,  # moon-base has no mapped path
@@ -201,15 +201,16 @@ def _row(rep, profile, scenario):
 
 def test_evacuation_known_results_on_tiny(world):
     rep = sim.run_evacuation(world, n_per_profile=50)
-    assert rep["origins_available"] == 6 and rep["origins_sampled"] == 6
+    assert rep["origins_available"] == 5 and rep["origins_sampled"] == 5
+    assert rep["origins_excluded_centres"] == 1 and "island-hut" not in rep["origins"]
     assert {r["profile"] for r in rep["rows"]} == set(sim.EVAC_PROFILES)
     assert {r["scenario_id"] for r in rep["rows"]} == set(sim.EVAC_SCENARIOS)
     row = _row(rep, "stroller", "stage_p5m")
     assert {k: v for k, v in row["counts"].items() if v} == EVAC_P5
-    assert row["total"] == 6
+    assert row["total"] == 5
     assert _row(rep, "wheelchair", "stage_p5m")["counts"] == row["counts"]
     base = _row(rep, "stroller", "baseline")["counts"]
-    assert base["reachable_confirmed"] == 4 and base["reachable_partly_unverified"] == 1
+    assert base["reachable_confirmed"] == 3 and base["reachable_partly_unverified"] == 1
     assert base["blocked_by_flood"] == 0 and base["no_mapped_connection"] == 1
     assert rep["violations"] == []  # monotone and baseline == no-scenario on the fixture
     assert all(set(r["counts"]) == set(sim.EVAC_RESULTS) for r in rep["rows"])
@@ -227,6 +228,7 @@ def test_evacuation_no_centre(world):
     w = dataclasses.replace(world, centres={})
     rep = sim.run_evacuation(w, n_per_profile=50)
     assert all(r["counts"]["no_centre"] == r["total"] == 6 for r in rep["rows"])
+    assert rep["origins_excluded_centres"] == 0
 
 
 def test_evacuation_profile_and_scenario_filters(world):
@@ -276,4 +278,36 @@ def test_evacuation_invariants_hold_on_a_seed_sample():
     rep = sim.run_evacuation(w, profiles=["stroller", "older_adult_rest"], n_per_profile=5)
     assert rep["origins_sampled"] == 5 and rep["origins_available"] > 50
     assert rep["violations"] == []  # E1 monotone across stages, E2 baseline == no scenario
+    centre_places = {c.place_id for c in w.centres.values() if c.place_id}
+    assert not set(rep["origins"]) & centre_places and rep["origins_excluded_centres"] > 0
     assert all(sum(r["counts"].values()) == 5 for r in rep["rows"])
+
+
+def test_origin_that_is_a_centre_place_is_excluded_not_counted_confirmed(world):
+    hall = world.centres["evc-hall"].model_copy(update={"place_id": "kiosk"})
+    w = dataclasses.replace(world, centres={**world.centres, "evc-hall": hall})
+    rep = sim.run_evacuation(w, profiles=["default"], scenario_ids=["baseline"])
+    assert "kiosk" not in rep["origins"] and "island-hut" not in rep["origins"]
+    assert rep["origins_excluded_centres"] == 2 and rep["origins_sampled"] == 4
+    (row,) = rep["rows"]
+    assert row["total"] == 4 and row["counts"]["reachable_confirmed"] == 3
+
+
+def test_snapshot_is_isolated_from_later_claim_and_closure_changes(world):
+    from datetime import timedelta
+
+    from townshiplens_spatial.models import Claim, Closure, utcnow
+
+    now = utcnow()
+    live = Closure(id="c1", element_id="seg-ab", reason="works", starts_at=now - timedelta(hours=1))
+    soon = Closure(id="c2", element_id="seg-bc", reason="works", starts_at=now + timedelta(hours=1))
+    world.set_closures([live, soon])
+    v = world.version
+    snap, h1 = sim.snapshot_world(world, now)
+    assert snap.version == v and [c.id for c in snap.closures] == ["c1"]
+    world.refresh_claim("seg-cf", "incline_pct", Claim(value=1.0, status="verified"))
+    world.set_closures([])
+    assert snap.edges["seg-cf"].claims["incline_pct"].status == "unknown"
+    assert snap.edges["seg-ab"].closures and snap.edges["seg-ab"].closures[0].ends_at is None
+    assert not snap.edges["seg-bc"].closures  # starts after run start: frozen out
+    assert sim.snapshot_world(world, now)[1] != h1  # hash follows the closure set

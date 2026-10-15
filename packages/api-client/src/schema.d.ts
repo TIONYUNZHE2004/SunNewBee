@@ -847,6 +847,11 @@ export interface components {
         EvacuationReport: {
             /** Origins Available */
             origins_available: number;
+            /**
+             * Origins Excluded Centres
+             * @default 0
+             */
+            origins_excluded_centres: number;
             /** Origins Sampled */
             origins_sampled: number;
             /** Rows */
@@ -1240,6 +1245,8 @@ export interface components {
         };
         /** SimReport */
         SimReport: {
+            /** Closure Hash */
+            closure_hash?: string | null;
             /** Counts */
             counts: {
                 [key: string]: {

@@ -932,6 +932,11 @@
             "title": "Origins Available",
             "type": "integer"
           },
+          "origins_excluded_centres": {
+            "default": 0,
+            "title": "Origins Excluded Centres",
+            "type": "integer"
+          },
           "origins_sampled": {
             "title": "Origins Sampled",
             "type": "integer"
@@ -1995,6 +2000,17 @@
       },
       "SimReport": {
         "properties": {
+          "closure_hash": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Closure Hash"
+          },
           "counts": {
             "additionalProperties": {
               "additionalProperties": {

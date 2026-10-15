@@ -105,18 +105,13 @@ def test_failed_run_is_reported_without_internals(monkeypatch):
     assert c.post("/simulations", json={}, headers=OK).status_code == 202  # not stuck
 
 
-def test_runs_are_persisted_and_active_runs_do_not_survive_a_restart():
+def test_runs_are_persisted_across_stores():
     rid = c.post("/simulations", json={"profiles": ["stroller"]}, headers=OK).json()["run_id"]
     assert _wait(rid)["status"] == "done"
-    store = sim_route._store()
-    store.create_job("sim-stuck", "2026-10-15T00:00:00+00:00", None)
-    store.set_job("sim-stuck", "running", "Planning journeys")
     from townshiplens_api.store import SimStore
 
     fresh = SimStore(state.db_path())  # a new process opens the same file
-    assert fresh.get(rid)["run_id"] == rid
-    j = fresh.job("sim-stuck")
-    assert j["status"] == "failed" and "restart" in j["error"] and fresh.active_job() is None
+    assert fresh.get(rid)["run_id"] == rid and fresh.job(rid)["status"] == "done"
 
 
 def test_unknown_run_404():
@@ -156,11 +151,11 @@ def test_rest_advisories_are_reported_apart_from_invariant_violations(run_sim):
 def test_report_carries_the_evacuation_table(run_sim):
     rep = run_sim({"profiles": ["stroller"]})
     ev = rep["evacuation"]
-    assert ev["origins_sampled"] == 6 and ev["origins_available"] == 6
+    assert ev["origins_sampled"] == 5 and ev["origins_available"] == 5
     assert {r["profile"] for r in ev["rows"]} == {"stroller"}
     assert [r["scenario_id"] for r in ev["rows"]] == list(sim_core.EVAC_SCENARIOS)
     p5 = next(r for r in ev["rows"] if r["scenario_id"] == "stage_p5m")
-    assert p5["counts"]["blocked_by_flood"] == 2 and p5["total"] == 6
+    assert p5["counts"]["blocked_by_flood"] == 2 and p5["total"] == 5
     assert ev["violations"] == [] and not [
         v for v in rep["invariant_violations"] if v["invariant"] in ("E1", "E2")
     ]
@@ -193,3 +188,80 @@ def test_evacuation_violations_are_critical_invariant_violations(run_sim, monkey
     rep = run_sim({"profiles": ["stroller"]})
     assert [v["invariant"] for v in rep["invariant_violations"]] == ["E1"]
     assert c.get("/simulations").json()[0]["violation_count"] == 1
+
+
+def test_default_run_includes_all_four_profiles_in_the_evacuation_table(run_sim):
+    rep = run_sim({})
+    assert {r["profile"] for r in rep["evacuation"]["rows"]} == set(sim_core.EVAC_PROFILES)
+    assert (
+        rep["evacuation"]["origins_excluded_centres"] == 1
+    )  # tiny: island-hut is the school's node
+    body = {"profiles": ["default", "stroller", "wheelchair", "older_adult_rest"]}
+    rep = run_sim(body)  # what the UI sends
+    assert {r["profile"] for r in rep["evacuation"]["rows"]} == set(sim_core.EVAC_PROFILES)
+
+
+def test_a_staff_resolve_mid_run_changes_nothing_in_that_run(run_sim, monkeypatch):
+    from townshiplens_spatial.models import Claim
+
+    base = run_sim({"profiles": ["stroller"]})
+    real_suite = sim_core.run_suite
+
+    def suite_then_world_changes(world, tasks, scenario_id=None, progress=None, run_id=None):
+        out = real_suite(world, tasks, scenario_id, progress, run_id)
+        live = state.get_ctx().world  # staff verify an incline between the two phases
+        with state.world_lock:
+            live.refresh_claim(
+                "seg-cf", "incline_pct", Claim(value=1.0, status="verified", evidence_type="x")
+            )
+        return out
+
+    monkeypatch.setattr(sim_core, "run_suite", suite_then_world_changes)
+    v0 = state.get_ctx().world.version
+    rep = run_sim({"profiles": ["stroller"]})
+    assert state.get_ctx().world.version == v0 + 1  # the change really happened
+    assert rep["world_version"] == v0 and rep["closure_hash"] is not None
+    assert not [v for v in rep["invariant_violations"] if v["invariant"] in ("E1", "E2")]
+    assert rep["evacuation"]["rows"] == base["evacuation"]["rows"]
+    assert rep["counts"] == base["counts"]
+
+
+def test_kpis_during_a_run_does_not_fail_it_and_a_second_post_is_still_409(monkeypatch):
+    release, started = threading.Event(), threading.Event()
+    real = sim_core.run_suite
+
+    def slow(world, tasks, scenario_id=None, progress=None, run_id=None):
+        started.set()
+        assert release.wait(30)
+        return real(world, tasks, scenario_id, progress, run_id)
+
+    monkeypatch.setattr(sim_core, "run_suite", slow)
+    rid = c.post("/simulations", json={}, headers=OK).json()["run_id"]
+    assert started.wait(30)
+    assert c.get("/kpis").status_code == 200
+    assert c.get(f"/simulations/{rid}").json()["status"] == "running"
+    r = c.post("/simulations", json={}, headers=OK)
+    assert r.status_code == 409 and r.json()["run_id"] == rid
+    release.set()
+    assert _wait(rid)["status"] == "done"
+
+
+def test_terminal_status_is_never_overwritten():
+    store = sim_route._store()
+    store.create_job("sim-t", "2026-10-15T00:00:00+00:00", None)
+    assert store.set_job("sim-t", "failed", None, "x") is True
+    assert store.set_job("sim-t", "running", "late progress") is False
+    assert store.job("sim-t")["status"] == "failed"
+
+
+def test_startup_sweep_runs_in_the_lifespan_only():
+    from townshiplens_api.store import SimStore
+
+    store = sim_route._store()
+    store.create_job("sim-old", "2026-10-15T00:00:00+00:00", None)
+    SimStore(state.db_path())  # constructing another store must not touch live runs
+    assert store.active_job() == "sim-old"
+    with TestClient(app):  # lifespan startup
+        pass
+    j = store.job("sim-old")
+    assert j["status"] == "failed" and "restart" in j["error"] and store.active_job() is None

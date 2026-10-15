@@ -66,6 +66,13 @@ pruning, bounded by `MAX_REST_LABELS` (deterministic, not wall-clock).
   (`rest_limit_no_alternative`, or `rest_search_stopped_early`), with the number of segments
   longer than the limit. The report's `rest_long_segments` counts those distinct segments across
   the run: a rest point at a node cannot split them.
+- `sim.run_evacuation` runs evacuation journeys: a profile x river-stage table (default, stroller,
+  wheelchair, older_adult_rest x baseline, +1, +3, +5 m) for a seeded sample (seed 47, N=50) of
+  origins, each to the nearest reachable centre via `flood.centres_reachability`. Places that are
+  a centre, or share a centre's node, are excluded (a 0 m journey is not a journey) and counted in
+  `origins_excluded_centres`. E1 (a worse river stage never improves a journey) and E2 (baseline
+  equals no scenario) are critical violations. `sim.snapshot_world` gives a run one consistent
+  view (claims and closures copied, closure time frozen, closure-set hash).
 
 ## Route status
 

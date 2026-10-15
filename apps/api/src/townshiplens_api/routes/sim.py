@@ -13,19 +13,25 @@ from townshiplens_spatial.models import ProfileId
 
 from .. import state
 from ..auth import StaffOnly
-from ..store import SimStore
+from ..store import SimStore, sim_store
 
 router = APIRouter()
 log = logging.getLogger(__name__)
 PROGRESS_EVERY_S = 0.5  # throttle progress writes to SQLite
-_stores: dict[str, SimStore] = {}
 
 
 def _store() -> SimStore:
-    path = state.db_path()
-    if path not in _stores:
-        _stores[path] = SimStore(path)
-    return _stores[path]
+    return sim_store(state.db_path())
+
+
+def recover_interrupted_runs() -> None:
+    """Startup hook: runs left active by a previous process cannot still be running."""
+    try:
+        n = _store().sweep_interrupted()
+        if n:
+            log.warning("marked %d interrupted simulation run(s) as failed", n)
+    except Exception:  # noqa: BLE001 - a store problem must not stop the API starting
+        log.exception("could not sweep interrupted simulation runs")
 
 
 class SimRequest(BaseModel):
@@ -68,7 +74,10 @@ class SimAdvisory(BaseModel):
 class EvacRow(BaseModel):
     profile: str
     scenario_id: str
-    counts: dict[str, int]  # reachable_confirmed|reachable_partly_unverified|blocked_by_flood|...
+    # Keys: reachable_confirmed, reachable_partly_unverified, blocked_by_flood,
+    # no_mapped_connection, no_centre. blocked_by_flood = a known FAIL cuts every path (a flood
+    # class, or at baseline a known barrier).
+    counts: dict[str, int]
     total: int
 
 
@@ -86,7 +95,8 @@ class EvacuationReport(BaseModel):
     rows: list[EvacRow]
     violations: list[EvacViolation]
     origins_sampled: int
-    origins_available: int
+    origins_available: int  # places a journey can start from, centres excluded
+    origins_excluded_centres: int = 0  # places that are evacuation centres, left out of the sample
     seed: int
 
 
@@ -103,6 +113,7 @@ class SimReport(BaseModel):
     rest_long_segments: int = 0  # distinct segments longer than it on the advisory routes
     gaps_truncated: bool = False
     world_version: int = 0
+    closure_hash: str | None = None  # hash of the closure set frozen at run start
     evacuation: EvacuationReport | None = None  # absent on runs saved before Task 47
 
 
@@ -139,7 +150,7 @@ class SimBusy(BaseModel):
     run_id: str  # the run that is already in progress
 
 
-def _execute(store: SimStore, world, run_id: str, body: SimRequest) -> None:
+def _execute(store: SimStore, live_world, run_id: str, body: SimRequest) -> None:
     """Background worker: one run, never raises. Progress and the outcome go to SQLite."""
     last = [0.0]
 
@@ -151,6 +162,10 @@ def _execute(store: SimStore, world, run_id: str, body: SimRequest) -> None:
 
     try:
         note("Planning journeys", True)
+        # One consistent view for the whole run: claims, closures and "now" are frozen here,
+        # so a staff edit mid-run cannot make two halves of the report disagree.
+        with state.world_lock:
+            world, closure_hash = sim.snapshot_world(live_world)
         profiles = list(body.profiles) if body.profiles else None
         tasks = sim.default_tasks(world, profiles)
         report = sim.run_suite(
@@ -167,10 +182,11 @@ def _execute(store: SimStore, world, run_id: str, body: SimRequest) -> None:
             progress=lambda i, n: note(f"Evacuation journeys: {i} of {n}"),
         )
         report["evacuation"] = evac
+        report["closure_hash"] = closure_hash
         # evacuation violations are critical findings like I1/I2/I7
         report["invariant_violations"] = report["invariant_violations"] + evac["violations"]
         store.save(report)
-        store.set_job(run_id, "done", "Done")
+        store.set_job(run_id, "done", "Done")  # no-op if the job is no longer active
     except Exception:  # noqa: BLE001 - the worker must record any failure
         log.exception("simulation %s failed", run_id)
         try:
@@ -206,9 +222,13 @@ def run_simulation(body: SimRequest, response: Response):
             store.create_job(run_id, datetime.now(UTC).isoformat(), body.scenario_id)
     except sqlite3.Error:
         raise HTTPException(503, "simulation store unavailable") from None
-    threading.Thread(
-        target=_execute, args=(store, world, run_id, body), name=f"sim-{run_id}", daemon=True
-    ).start()
+    try:
+        threading.Thread(
+            target=_execute, args=(store, world, run_id, body), name=f"sim-{run_id}", daemon=True
+        ).start()
+    except Exception:  # noqa: BLE001 - never leave a job that nothing will run
+        store.set_job(run_id, "failed", None, "The simulation could not be started.")
+        raise HTTPException(503, "could not start the simulation") from None
     response.headers["Location"] = f"/simulations/{run_id}"
     return SimStarted(run_id=run_id)
 
