@@ -7,6 +7,7 @@ import {
   GAP_HELP,
   type GapItem,
   gapSummary,
+  gapsApplicable,
   parseGaps,
 } from "./gapModel";
 
@@ -109,8 +110,9 @@ export function GapsSection({
 export function GapsLensSection() {
   const profile = useScene((s) => s.profile);
   const selectPlace = useScene((s) => s.selectPlace);
-  const q = useGaps(profile);
+  const q = useGaps(profile, gapsApplicable(profile));
   const items = useMemo(() => parseGaps(q.data), [q.data]);
+  if (!gapsApplicable(profile)) return null; // GapProfileNote explains why
   if (q.isPending)
     return (
       <p role="status" className="text-ink-soft">

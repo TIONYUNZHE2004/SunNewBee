@@ -21,6 +21,7 @@ def test_counts_missing_unknown_and_fully_checked():
     # seg-be: step_count reported (not a gap), incline and width claims missing
     assert p["seg-be"]["unknown_count"] == 2
     assert p["seg-be"]["relevant_count"] == 3
+    assert p["seg-be"]["reported_count"] == 0  # the reported steps break the limit: a barrier
     assert p["seg-be"]["unknown_attributes"] == ["incline_pct", "width_m"]
     assert p["seg-gh"]["unknown_count"] == 3  # no claims at all
 
@@ -74,3 +75,11 @@ def test_etag_304_and_demand_invalidates():
 def test_other_lenses_still_route():
     assert c.get("/layers/access").status_code == 200
     assert c.get("/layers/nope").status_code == 404
+
+
+def test_reported_counts_as_a_gap_and_is_counted_separately():
+    w = state.get_ctx().world
+    w.edges["seg-ab"].claims["width_m"] = Claim(value=1.5, status="reported")
+    p = _props()["seg-ab"]
+    assert (p["unknown_count"], p["reported_count"]) == (1, 1)
+    assert p["unknown_attributes"] == ["width_m"]

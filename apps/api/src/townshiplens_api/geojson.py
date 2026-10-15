@@ -1,6 +1,6 @@
 from datetime import date
 
-from townshiplens_spatial.evaluate import claim_gap, evaluate_edge, relevant_attributes
+from townshiplens_spatial.evaluate import claim_gap, edge_gaps, evaluate_edge, relevant_attributes
 from townshiplens_spatial.world import World
 
 LENSES = ("access", "flood", "waste")
@@ -93,20 +93,29 @@ def gaps_layer(world: World, demand: dict[str, int], profile: str = "default") -
     """Where the world model is not yet checked, for one profile. Counts only: no status colour
     and no verdict (a gap is "facts not yet checked", never "unsafe" or "inaccessible").
 
-    Edges: the profile-relevant attributes (the same list `evaluate_edge` reads). Places: the
+    Edges: the facts that keep `evaluate_edge` from a PASS for this profile (`edge_gaps`; reported
+    claims count, as they do for evaluation). Places: the
     claims each place carries, since no profile decides which place facts matter. `demand` maps
     element id to open verification-request demand."""
     prof = world.profiles.get(profile) or world.profiles["default"]
     today = date.today()
 
-    def counts(claims, attrs) -> dict:
-        flags = [claim_gap(claims.get(a), a, today) for a in attrs]
+    def summary(gaps: list[dict], relevant: int) -> dict:
         return {
-            "relevant_count": len(attrs),
-            "unknown_count": sum(1 for u, _ in flags if u),
-            "stale_count": sum(1 for _, s in flags if s),
-            "unknown_attributes": [a for a, (u, _) in zip(attrs, flags, strict=True) if u],
+            "relevant_count": relevant,
+            "unknown_count": len(gaps),
+            "stale_count": sum(1 for g in gaps if g["stale"]),
+            "reported_count": sum(1 for g in gaps if g["reported"]),
+            "unknown_attributes": [g["attribute"] for g in gaps],
         }
+
+    def place_gaps(claims) -> list[dict]:
+        out = []
+        for a, c in claims.items():
+            unknown, stale, reported = claim_gap(c, a, today)
+            if unknown:
+                out.append({"attribute": a, "stale": stale, "reported": reported})
+        return out
 
     feats: list[dict] = []
     for e in world.edges.values():
@@ -119,7 +128,7 @@ def gaps_layer(world: World, demand: dict[str, int], profile: str = "default") -
                     "kind": "segment",
                     "type": e.type,
                     "name": e.name,
-                    **counts(e.claims, relevant_attributes(e, prof)),
+                    **summary(edge_gaps(e, prof, today), len(relevant_attributes(e, prof))),
                     "demand": demand.get(e.id, 0),
                 },
             }
@@ -136,7 +145,7 @@ def gaps_layer(world: World, demand: dict[str, int], profile: str = "default") -
                     "kind": p.kind,
                     "type": p.type,
                     "name": p.name,
-                    **counts(p.claims, list(p.claims)),
+                    **summary(place_gaps(p.claims), len(p.claims)),
                     "demand": demand.get(p.id, 0),
                 },
             }

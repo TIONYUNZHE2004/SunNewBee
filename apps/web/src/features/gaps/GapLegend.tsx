@@ -1,4 +1,5 @@
-import { GAP_BAND_ORDER, GAP_BANDS } from "./gapModel";
+import { useScene } from "../scene/sceneStore";
+import { GAP_BAND_ORDER, GAP_BANDS, GAP_PROFILE_NOTE, gapsApplicable } from "./gapModel";
 
 /** Text legend: pattern plus words, so a band is never colour alone. */
 export function GapLegend({ className = "" }: { className?: string }) {
@@ -30,5 +31,17 @@ export function GapLegend({ className = "" }: { className?: string }) {
         );
       })}
     </ul>
+  );
+}
+
+/** Shown while the Gaps toggle is on but the chosen profile has no route-deciding facts. */
+export function GapProfileNote() {
+  const on = useScene((s) => s.gapsVisible);
+  const profile = useScene((s) => s.profile);
+  if (!on || gapsApplicable(profile)) return null;
+  return (
+    <p role="note" className="rounded-lg border border-line bg-brand-tint px-4 py-3 text-sm">
+      {GAP_PROFILE_NOTE}
+    </p>
   );
 }

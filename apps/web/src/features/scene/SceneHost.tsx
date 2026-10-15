@@ -2,6 +2,7 @@ import { Component, lazy, type ReactNode, Suspense, useEffect, useMemo } from "r
 import { ENV } from "../../lib/env";
 import { PROFILE_IDS, PROFILE_LABELS } from "../../lib/profileStore";
 import { GapLegend } from "../gaps/GapLegend";
+import { gapsActive } from "../gaps/gapModel";
 import { ListView } from "./list/ListView";
 import { StatusLegend } from "./StatusLegend";
 import { type Profile, useScene } from "./sceneStore";
@@ -129,7 +130,7 @@ export function SceneHost() {
               {effective === "cesium" ? <CesiumScene /> : <MapboxLite />}
             </Suspense>
           </RendererBoundary>
-          {gapsVisible && effective === "cesium" ? (
+          {gapsActive(gapsVisible, profile) ? (
             <GapLegend className="pointer-events-none absolute left-2 top-2 z-10 max-w-[70%]" />
           ) : (
             <StatusLegend className="pointer-events-none absolute left-2 top-2 z-10 max-w-[70%]" />

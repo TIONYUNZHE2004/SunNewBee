@@ -6,7 +6,7 @@ import { MemoryRouter } from "react-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { json, newQueryClient, renderWithClient, stubFetch } from "../../test/helpers";
 import { useScene } from "../scene/sceneStore";
-import { GapLegend } from "./GapLegend";
+import { GapLegend, GapProfileNote } from "./GapLegend";
 import { GapMapLink } from "./GapMapLink";
 import { GapsLensSection, GapsSection } from "./GapsSection";
 import type { GapItem } from "./gapModel";
@@ -18,6 +18,7 @@ const item = (o: Partial<GapItem>): GapItem => ({
   type: "footway",
   unknown: 1,
   stale: 0,
+  reported: 0,
   relevant: 3,
   demand: 0,
   attributes: [],
@@ -107,6 +108,7 @@ describe("GapsLensSection (connected)", () => {
   });
 
   it("offers a retry when the layer fails", async () => {
+    useScene.getState().setProfile("stroller");
     stubFetch(() => json({ detail: "boom" }, 500));
     renderWithClient(<GapsLensSection />);
     expect(await screen.findByRole("alert")).toHaveTextContent(/gap map is unavailable/i);
@@ -146,5 +148,35 @@ describe("store", () => {
     expect(useScene.getState().gapsVisible).toBe(true);
     useScene.getState().reset();
     expect(useScene.getState().gapsVisible).toBe(false);
+  });
+});
+
+describe("profiles with no route-deciding facts", () => {
+  const NOTE =
+    "The gap map shows facts that matter for stroller, wheelchair and older-adult travel. Pick one of those profiles to see gaps.";
+
+  it.each(["default", "drive"] as const)("shows the note for %s and draws no list", (p) => {
+    useScene.getState().setProfile(p);
+    useScene.getState().setGaps(true);
+    renderWithClient(
+      <>
+        <GapProfileNote />
+        <GapsLensSection />
+      </>,
+    );
+    expect(screen.getByRole("note")).toHaveTextContent(NOTE);
+    expect(screen.queryByText("Biggest gaps")).not.toBeInTheDocument();
+    expect(screen.queryByText(/Fully checked/)).not.toBeInTheDocument();
+  });
+
+  it("stays quiet for a profile with facts, or when the toggle is off", () => {
+    useScene.getState().setProfile("stroller");
+    useScene.getState().setGaps(true);
+    const { container, rerender } = renderWithClient(<GapProfileNote />);
+    expect(container).toBeEmptyDOMElement();
+    useScene.getState().setProfile("default");
+    useScene.getState().setGaps(false);
+    rerender(<GapProfileNote />);
+    expect(screen.queryByRole("note")).not.toBeInTheDocument();
   });
 });

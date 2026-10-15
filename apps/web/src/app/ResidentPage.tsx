@@ -4,6 +4,7 @@ import { ChatPanel } from "../features/chat/ChatPanel";
 import { DisclaimerBanner } from "../features/flood/DisclaimerBanner";
 import { FloodPathPopover } from "../features/flood/FloodPathPopover";
 import { ScenarioBar } from "../features/flood/ScenarioBar";
+import { GapProfileNote } from "../features/gaps/GapLegend";
 import { PlaceCard } from "../features/places/PlaceCard";
 import { DeepSpots } from "../features/scene/DeepSpots";
 import { SceneHost } from "../features/scene/SceneHost";
@@ -60,6 +61,7 @@ export function ResidentPage() {
         <ScenarioBar />
         <DeepSpots />
       </div>
+      <GapProfileNote />
       {scenarioId && (
         <DisclaimerBanner
           text={

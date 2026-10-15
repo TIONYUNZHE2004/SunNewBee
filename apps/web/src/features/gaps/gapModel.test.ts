@@ -1,5 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { biggestGaps, GAP_BANDS, type GapItem, gapBand, gapSummary, parseGaps } from "./gapModel";
+import {
+  biggestGaps,
+  GAP_BANDS,
+  type GapItem,
+  gapBand,
+  gapLines,
+  gapSummary,
+  gapsActive,
+  gapsApplicable,
+  parseGaps,
+} from "./gapModel";
 
 const item = (o: Partial<GapItem>): GapItem => ({
   id: "x",
@@ -8,6 +18,7 @@ const item = (o: Partial<GapItem>): GapItem => ({
   type: "footway",
   unknown: 1,
   stale: 0,
+  reported: 0,
   relevant: 3,
   demand: 0,
   attributes: [],
@@ -106,5 +117,43 @@ describe("gapSummary", () => {
     expect(s).toBe("2 facts not yet checked, 1 out of date. Asked about 3 times");
     expect(gapSummary(item({ unknown: 1 }))).toBe("1 fact not yet checked");
     expect(s).not.toMatch(/unsafe|inaccessible/i);
+  });
+});
+
+describe("profile applicability", () => {
+  it("applies only to profiles with route-deciding facts", () => {
+    for (const p of ["stroller", "wheelchair", "older_adult_rest"])
+      expect(gapsApplicable(p)).toBe(true);
+    for (const p of ["default", "drive"]) expect(gapsApplicable(p)).toBe(false);
+    expect(gapsActive(true, "default")).toBe(false);
+    expect(gapsActive(false, "stroller")).toBe(false);
+    expect(gapsActive(true, "stroller")).toBe(true);
+  });
+});
+
+describe("gapLines", () => {
+  it("keeps only banded lines, with the band as a property", () => {
+    const line = (id: string, unknown: number, relevant: number) => ({
+      geometry: {
+        type: "LineString",
+        coordinates: [
+          [1, 2],
+          [3, 4],
+        ],
+      },
+      properties: { id, unknown_count: unknown, relevant_count: relevant },
+    });
+    const fc = gapLines({
+      features: [line("a", 0, 3), line("b", 1, 3), line("c", 3, 3), line("d", 0, 0)],
+    });
+    expect(fc.features.map((f) => f.properties?.gap_band)).toEqual(["checked", "some", "many"]);
+  });
+});
+
+describe("reported facts", () => {
+  it("are named in the summary", () => {
+    expect(gapSummary(item({ unknown: 2, reported: 1 }))).toBe(
+      "2 facts not yet checked, 1 only reported",
+    );
   });
 });

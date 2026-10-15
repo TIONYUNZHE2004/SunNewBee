@@ -17,6 +17,12 @@ def _is_stale(c: Claim, attr: str, today: date) -> bool:
     return (today - date.fromisoformat(c.verified_at[:10])).days > ttl
 
 
+def _needs_verification(c: Claim | None, attr: str, today: date) -> bool:
+    """True when `c` cannot support a PASS: missing, valueless, not verified (reported, unknown,
+    stale, contested) or past its TTL. `evaluate_edge` and the gap map both use this."""
+    return c is None or c.status != "verified" or c.value is None or _is_stale(c, attr, today)
+
+
 # Edge types people can only walk along on a sidewalk or verge (Task 31).
 SIDEWALK_TYPES = {"major_road"}
 # `separate` = the sidewalk is mapped as its own footway; the brief accepts the road edge too
@@ -128,7 +134,7 @@ def evaluate_edge(
                     "why": f"{attr}={c.value} breaks {profile.id} limit {limit}",
                 }
             ]
-        if c is None or c.status != "verified" or c.value is None or _is_stale(c, attr, today):
+        if _needs_verification(c, attr, today):
             result = "UNKNOWN"
             stale = c is not None and c.value is not None and c.status in ("verified", "stale")
             op = "≤" if key.startswith("max") else "≥"
@@ -163,11 +169,46 @@ def relevant_attributes(edge: Edge, profile: Profile) -> list[str]:
     return attrs
 
 
-def claim_gap(claim: Claim | None, attr: str, today: date | None = None) -> tuple[bool, bool]:
-    """(unknown, stale) for one claim. Unknown covers a missing or valueless claim, status
-    unknown, stale or contested, and an expired verification; stale is the expired/stale subset."""
+def claim_gap(claim: Claim | None, attr: str, today: date | None = None) -> tuple[bool, bool, bool]:
+    """(unknown, stale, reported) for one claim, by the same rule `evaluate_edge` uses: unknown
+    means the claim cannot support a PASS (missing, valueless, reported, unknown, stale,
+    contested or past its TTL). stale is the stale/expired subset; reported marks a claim that is
+    only reported, not verified."""
+    today = today or date.today()
+    unknown = _needs_verification(claim, attr, today)
     if claim is None:
-        return True, False
-    stale = claim.status == "stale" or _is_stale(claim, attr, today or date.today())
-    unknown = stale or claim.value is None or claim.status in ("unknown", "contested")
-    return unknown, stale
+        return unknown, False, False
+    stale = claim.status == "stale" or _is_stale(claim, attr, today)
+    return unknown, stale, unknown and claim.status == "reported"
+
+
+def edge_gaps(edge: Edge, profile: Profile, today: date | None = None) -> list[dict]:
+    """Facts that would make `evaluate_edge` answer UNKNOWN for this edge and profile (flood
+    aside): [{attribute, stale, reported}]. A reported or verified claim that breaks a hard limit
+    is a known barrier (FAIL), not a gap. Same predicates as `evaluate_edge`, so the two agree."""
+    today = today or date.today()
+    out: list[dict] = []
+    if profile.allowed_types is not None:
+        return out
+    for key, limit in profile.hard.items():
+        attr, violates = _CHECKS[key]
+        c = edge.claims.get(attr)
+        untrusted = c is None or c.value is None or c.status not in ("verified", "reported")
+        if attr == "step_count" and edge.type == "steps" and untrusted:
+            continue  # implied barrier: FAIL
+        if c is not None and c.status in ("verified", "reported") and violates(c.value, limit):
+            continue  # known barrier: FAIL
+        unknown, stale, reported = claim_gap(c, attr, today)
+        if unknown:
+            out.append({"attribute": attr, "stale": stale, "reported": reported})
+    side = _sidewalk_check(edge, profile, today)
+    if side is not None and side[0] == "UNKNOWN":
+        c = edge.claims.get("sidewalk")
+        out.append(
+            {
+                "attribute": "sidewalk",
+                "stale": side[1].get("reason") == "stale",
+                "reported": c is not None and c.status == "reported",
+            }
+        )
+    return out

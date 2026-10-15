@@ -211,9 +211,78 @@ def test_relevant_attributes_and_claim_gap(world):
     assert relevant_attributes(e, world.profiles["default"]) == []
     assert relevant_attributes(e, world.profiles["drive"]) == []
     today = date(2026, 10, 15)
-    assert claim_gap(None, "width_m", today) == (True, False)
-    assert claim_gap(Claim(value=1, status="reported"), "width_m", today) == (False, False)
-    assert claim_gap(Claim(value=1, status="contested"), "width_m", today) == (True, False)
-    assert claim_gap(Claim(value=1, status="stale"), "width_m", today) == (True, True)
+    assert claim_gap(None, "width_m", today) == (True, False, False)
+    assert claim_gap(
+        Claim(value=1, status="verified", verified_at="2026-10-01"), "width_m", today
+    ) == (
+        False,
+        False,
+        False,
+    )
+    assert claim_gap(Claim(value=1, status="reported"), "width_m", today) == (True, False, True)
+    assert claim_gap(Claim(value=1, status="contested"), "width_m", today) == (True, False, False)
+    assert claim_gap(Claim(value=1, status="stale"), "width_m", today) == (True, True, False)
     old = Claim(value=1, status="verified", verified_at="2024-01-01")
-    assert claim_gap(old, "width_m", today) == (True, True)
+    assert claim_gap(old, "width_m", today) == (True, True, False)
+
+
+PROFILES = ("default", "stroller", "wheelchair", "older_adult_rest", "drive")
+
+
+def _agrees(edge, profile):
+    from townshiplens_spatial.evaluate import edge_gaps
+
+    today = date(2026, 10, 15)
+    result, _ = evaluate_edge(edge, profile, today=today)
+    gaps = edge_gaps(edge, profile, today)
+    # "no gaps" <=> evaluation is PASS, or FAIL for a known barrier with nothing else unknown.
+    if result == "PASS":
+        assert gaps == [], (edge.id, profile.id)
+    if result == "UNKNOWN":
+        assert gaps, (edge.id, profile.id)
+    if not gaps:
+        assert result != "UNKNOWN", (edge.id, profile.id)
+
+
+def test_no_gaps_iff_evaluation_is_not_unknown_on_the_fixture(world):
+    for e in world.edges.values():
+        for pid in PROFILES:
+            _agrees(e, world.profiles[pid])
+
+
+def test_gaps_agree_with_evaluation_for_every_claim_state(world):
+    from townshiplens_spatial.models import Claim
+
+    states = [
+        None,
+        Claim(value=None, status="unknown"),
+        Claim(value=0, status="reported"),
+        Claim(value=0, status="contested"),
+        Claim(value=0, status="stale"),
+        Claim(value=0, status="verified", verified_at="2020-01-01"),
+        Claim(value=0, status="verified", verified_at="2026-10-01"),
+    ]
+    for edge in world.edges.values():
+        for st in states:
+            for attr in ("step_count", "incline_pct", "width_m", "sidewalk"):
+                e = edge.model_copy(deep=True)
+                if st is None:
+                    e.claims.pop(attr, None)
+                else:
+                    e.claims[attr] = st.model_copy()
+                for pid in PROFILES:
+                    _agrees(e, world.profiles[pid])
+
+
+def test_major_road_sidewalk_gap_follows_strictness(world):
+    from townshiplens_spatial.evaluate import edge_gaps
+    from townshiplens_spatial.models import Claim
+
+    e = world.edges["seg-ab"].model_copy(deep=True)
+    e.type = "major_road"
+    today = date(2026, 10, 15)
+    e.claims["sidewalk"] = Claim(value="both", status="reported")
+    strict = edge_gaps(e, world.profiles["wheelchair"], today)
+    assert [g["attribute"] for g in strict] == ["sidewalk"] and strict[0]["reported"]
+    for pid in PROFILES:
+        _agrees(e, world.profiles[pid])

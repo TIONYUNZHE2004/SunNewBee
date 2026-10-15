@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { useLayer, useScenarios } from "../../../lib/api";
 import { GapsLensSection } from "../../gaps/GapsSection";
+import { gapsApplicable } from "../../gaps/gapModel";
 import { useScene } from "../sceneStore";
 import { statusStyle } from "../styles";
 import { ListLensSections } from "./LensSections";
@@ -141,7 +142,7 @@ export function ListView() {
         </section>
       )}
 
-      {gapsVisible && <GapsLensSection />}
+      {gapsVisible && gapsApplicable(profile) && <GapsLensSection />}
 
       <section aria-labelledby="places-h">
         <h2 id="places-h" className="text-xl font-semibold">

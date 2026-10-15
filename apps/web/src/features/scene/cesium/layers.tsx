@@ -11,7 +11,13 @@ import {
 import { useEvacCentres, useGaps, useLayer, useScenarioWater } from "../../../lib/api";
 import { ENV } from "../../../lib/env";
 import { centreMapMarker } from "../../../lib/routeStatus";
-import { GAP_BANDS, GAP_CESIUM_DASH, type GapBand, parseGaps } from "../../gaps/gapModel";
+import {
+  GAP_BANDS,
+  GAP_CESIUM_DASH,
+  type GapBand,
+  gapsActive,
+  parseGaps,
+} from "../../gaps/gapModel";
 import {
   floodEdgePickId,
   groupEdgesByStatus,
@@ -128,7 +134,7 @@ export function AccessLayer() {
   const profile = useScene((s) => s.profile);
   const scenarioId = useScene((s) => s.scenarioId);
   const visible = useScene((s) => s.lensVisible.access);
-  const gapsOn = useScene((s) => s.gapsVisible);
+  const gapsOn = useScene((s) => gapsActive(s.gapsVisible, s.profile));
   const focusPlaceId = useScene((s) => s.focusPlaceId);
   const q = useLayer("access", profile, scenarioId);
   // The gap bands replace the status lines while the Gaps layer is on (one meaning per line).
@@ -180,7 +186,7 @@ export function AccessLayer() {
 /** Edges coloured by how many facts are not yet checked: three bands, each with a pattern. */
 function GapsLayer() {
   const profile = useScene((s) => s.profile);
-  const on = useScene((s) => s.gapsVisible);
+  const on = useScene((s) => gapsActive(s.gapsVisible, s.profile));
   const q = useGaps(profile, on);
   const groups = useMemo(() => {
     const m = new Map<GapBand, EdgeGroup[]>();

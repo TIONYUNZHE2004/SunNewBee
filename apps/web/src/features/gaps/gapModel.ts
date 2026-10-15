@@ -37,6 +37,16 @@ export const GAP_CESIUM_DASH: Partial<
 export const GAP_HELP =
   "Facts not yet checked on paths and places, for the profile you chose. It shows what our records do not yet cover, nothing more.";
 
+/** Profiles with facts that decide a route (hard limits, sidewalks). Default and drive have none,
+ * so the gap map has nothing to say for them. */
+const GAP_PROFILES = ["stroller", "wheelchair", "older_adult_rest"];
+export const gapsApplicable = (profile: string): boolean => GAP_PROFILES.includes(profile);
+/** The overlay is drawn only when it is on and the profile has facts to check. */
+export const gapsActive = (visible: boolean, profile: string): boolean =>
+  visible && gapsApplicable(profile);
+export const GAP_PROFILE_NOTE =
+  "The gap map shows facts that matter for stroller, wheelchair and older-adult travel. Pick one of those profiles to see gaps.";
+
 /**
  * Band from the share of relevant facts that are not yet checked: none = fully checked, up to
  * half = some missing, more than half = many missing. Null when no fact is relevant to the
@@ -55,6 +65,7 @@ export interface GapItem {
   type: string;
   unknown: number;
   stale: number;
+  reported: number;
   relevant: number;
   demand: number;
   attributes: string[];
@@ -86,6 +97,7 @@ export function parseGaps(data: unknown): GapItem[] {
       type,
       unknown,
       stale: num(p.stale_count),
+      reported: num(p.reported_count),
       relevant,
       demand: num(p.demand),
       attributes: Array.isArray(p.unknown_attributes) ? p.unknown_attributes.map(String) : [],
@@ -116,7 +128,23 @@ export const attributeNames = (attrs: string[]): string => attrs.map(optionLabel
 export function gapSummary(i: GapItem): string {
   const facts = `${i.unknown} ${i.unknown === 1 ? "fact" : "facts"} not yet checked`;
   const stale = i.stale > 0 ? `, ${i.stale} out of date` : "";
+  const reported = i.reported > 0 ? `, ${i.reported} only reported` : "";
   const asked =
     i.demand > 0 ? `. Asked about ${i.demand} ${i.demand === 1 ? "time" : "times"}` : "";
-  return `${facts}${stale}${asked}`;
+  return `${facts}${stale}${reported}${asked}`;
+}
+
+/** The gap layer as GeoJSON with each line's band in `gap_band`, for the Mapbox renderer. Lines
+ * with no relevant fact (band null) are left out, never drawn as fully checked. */
+export function gapLines(data: unknown): GeoJSON.FeatureCollection {
+  const features: GeoJSON.Feature[] = [];
+  for (const i of parseGaps(data)) {
+    if (i.kind !== "segment" || !i.band || i.coords.length < 2) continue;
+    features.push({
+      type: "Feature",
+      geometry: { type: "LineString", coordinates: i.coords },
+      properties: { id: i.id, gap_band: i.band },
+    });
+  }
+  return { type: "FeatureCollection", features };
 }
