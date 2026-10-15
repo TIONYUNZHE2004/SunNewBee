@@ -186,7 +186,7 @@ export function AccessLayer() {
 /** Edges coloured by how many facts are not yet checked: three bands, each with a pattern. */
 function GapsLayer() {
   const profile = useScene((s) => s.profile);
-  const on = useScene((s) => gapsActive(s.gapsVisible, s.profile));
+  const on = useScene((s) => gapsActive(s.gapsVisible, s.profile) && s.lensVisible.access);
   const q = useGaps(profile, on);
   const groups = useMemo(() => {
     const m = new Map<GapBand, EdgeGroup[]>();

@@ -1,11 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
-  biggestGaps,
   GAP_BANDS,
   type GapItem,
   gapBand,
   gapLines,
+  gapRows,
   gapSummary,
+  gapSummaryLine,
   gapsActive,
   gapsApplicable,
   parseGaps,
@@ -21,6 +22,8 @@ const item = (o: Partial<GapItem>): GapItem => ({
   reported: 0,
   relevant: 3,
   demand: 0,
+  journey: 0,
+  named: true,
   attributes: [],
   band: "some",
   coords: [],
@@ -49,19 +52,93 @@ describe("gapBand", () => {
   });
 });
 
-describe("biggestGaps", () => {
-  it("orders by demand, then unknown count, and drops fully checked items", () => {
-    const rows = biggestGaps([
-      item({ id: "a", name: "A", demand: 0, unknown: 3 }),
-      item({ id: "b", name: "B", demand: 2, unknown: 1 }),
-      item({ id: "c", name: "C", demand: 2, unknown: 2 }),
-      item({ id: "d", name: "D", demand: 5, unknown: 0 }),
+describe("gapRows", () => {
+  it("orders by demand, then journey impact, then facts missing; drops fully checked items", () => {
+    const rows = gapRows([
+      item({ id: "a", name: "Low street", unknown: 3 }),
+      item({ id: "b", name: "Asked street", unknown: 1, demand: 4 }),
+      item({ id: "c", name: "Journey street", unknown: 1, journey: 7 }),
+      item({ id: "d", name: "Fine street", unknown: 0, demand: 9 }),
     ]);
-    expect(rows.map((r) => r.id)).toEqual(["c", "b", "a"]);
+    expect(rows.map((r) => r.label)).toEqual(["Asked street", "Journey street", "Low street"]);
   });
+
+  it("aggregates a street into one row and focuses its first segment", () => {
+    const seg = (id: string, demand = 0) =>
+      item({
+        id,
+        name: "Jalan Hopea U15/17D",
+        unknown: 3,
+        demand,
+        coords: [
+          [1, 2],
+          [3, 4],
+          [5, 6],
+        ],
+      });
+    const rows = gapRows([seg("s1"), seg("s2", 2), seg("s3")]);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      kind: "street",
+      count: 3,
+      unknown: 9,
+      demand: 2,
+      firstId: "s2",
+    });
+    expect(rows[0]?.detail).toBe(
+      "3 path segments, 3 facts each not yet checked. Asked about 2 times",
+    );
+    expect(rows[0]?.at).toEqual([3, 4]);
+  });
+
+  it("collapses unnamed segments into a single row", () => {
+    const rows = gapRows([
+      item({ id: "u1", named: false, name: "Unnamed footway", unknown: 2 }),
+      item({ id: "u2", named: false, name: "Unnamed footway", unknown: 2 }),
+      item({ id: "p", kind: "amenity", name: "Park toilet", unknown: 1 }),
+    ]);
+    expect(rows.map((r) => r.label)).toEqual(["2 unnamed path segments", "Park toilet"]);
+    expect(rows[0]?.kind).toBe("unnamed");
+  });
+
+  it("mentions journeys, in words", () => {
+    const [r] = gapRows([item({ id: "a", unknown: 1, journey: 3 })]);
+    expect(r?.detail).toContain("Checking would confirm 3 journeys in the latest test run");
+  });
+
   it("caps the list", () => {
     const many = Array.from({ length: 30 }, (_, i) => item({ id: `e${i}`, name: `E${i}` }));
-    expect(biggestGaps(many, 5)).toHaveLength(5);
+    expect(gapRows(many, 5)).toHaveLength(5);
+  });
+});
+
+describe("gapSummaryLine", () => {
+  const seg = (id: string, unknown: number, relevant = 3) => item({ id, unknown, relevant });
+  it("states the computed numbers as a finding", () => {
+    const items = [
+      seg("a", 3),
+      seg("b", 3),
+      seg("c", 0),
+      item({ id: "p", kind: "place", unknown: 1 }),
+    ];
+    expect(gapSummaryLine(items, "wheelchair")).toBe(
+      "Most paths are not yet checked: 2 of 3 for wheelchair travel.",
+    );
+  });
+  it("formats large numbers", () => {
+    const items = [
+      ...Array.from({ length: 16137 }, (_, i) => seg(`x${i}`, 3)),
+      ...Array.from({ length: 11 }, (_, i) => seg(`y${i}`, 0)),
+    ];
+    expect(gapSummaryLine(items, "wheelchair")).toBe(
+      "Most paths are not yet checked: 16,137 of 16,148 for wheelchair travel.",
+    );
+  });
+  it("is calmer when most paths are checked, and silent with nothing relevant", () => {
+    expect(gapSummaryLine([seg("a", 1), seg("b", 0), seg("c", 0)], "stroller")).toBe(
+      "1 of 3 paths have facts not yet checked for stroller travel.",
+    );
+    expect(gapSummaryLine([seg("a", 0, 0)], "default")).toBe("");
   });
 });
 

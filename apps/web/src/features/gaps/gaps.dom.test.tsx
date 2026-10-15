@@ -21,6 +21,8 @@ const item = (o: Partial<GapItem>): GapItem => ({
   reported: 0,
   relevant: 3,
   demand: 0,
+  journey: 0,
+  named: true,
   attributes: [],
   band: "some",
   coords: [],
@@ -41,7 +43,7 @@ describe("GapsSection", () => {
   ];
 
   it("lists the biggest gaps by demand then unknown count, as buttons", () => {
-    render(<GapsSection items={items} onSelectPlace={() => {}} />);
+    render(<GapsSection profile="stroller" items={items} onSelectPlace={() => {}} />);
     expect(screen.getByRole("heading", { name: "Biggest gaps" })).toBeInTheDocument();
     const names = screen.getAllByRole("button").map((b) => b.textContent);
     expect(names[0]).toContain("Asked path");
@@ -52,14 +54,14 @@ describe("GapsSection", () => {
 
   it("opens the place card for a place row", async () => {
     const onSelectPlace = vi.fn();
-    render(<GapsSection items={items} onSelectPlace={onSelectPlace} />);
+    render(<GapsSection profile="stroller" items={items} onSelectPlace={onSelectPlace} />);
     await userEvent.setup().click(screen.getByRole("button", { name: /Park toilet/ }));
     expect(onSelectPlace).toHaveBeenCalledWith("t");
   });
 
   it("opens a path card listing the facts not yet checked, closes on Escape", async () => {
     const user = userEvent.setup();
-    render(<GapsSection items={items} onSelectPlace={() => {}} />);
+    render(<GapsSection profile="stroller" items={items} onSelectPlace={() => {}} />);
     await user.click(screen.getByRole("button", { name: /Asked path/ }));
     const dlg = screen.getByRole("dialog");
     expect(within(dlg).getByText(/Incline pct/)).toBeInTheDocument();
@@ -71,10 +73,12 @@ describe("GapsSection", () => {
   });
 
   it("never calls a gap unsafe or inaccessible, and shows an empty state", async () => {
-    const { rerender } = render(<GapsSection items={items} onSelectPlace={() => {}} />);
+    const { rerender } = render(
+      <GapsSection profile="stroller" items={items} onSelectPlace={() => {}} />,
+    );
     await userEvent.setup().click(screen.getByRole("button", { name: /Asked path/ }));
     expect(document.body.textContent ?? "").not.toMatch(/unsafe|inaccessible/i);
-    rerender(<GapsSection items={[]} onSelectPlace={() => {}} />);
+    rerender(<GapsSection profile="stroller" items={[]} onSelectPlace={() => {}} />);
     expect(screen.getByText(/No gaps to show/)).toBeInTheDocument();
   });
 });
@@ -178,5 +182,56 @@ describe("profiles with no route-deciding facts", () => {
     useScene.getState().setGaps(false);
     rerender(<GapProfileNote />);
     expect(screen.queryByRole("note")).not.toBeInTheDocument();
+  });
+});
+
+describe("street and unnamed rows", () => {
+  const seg = (id: string, name: string, named: boolean) =>
+    item({
+      id,
+      name,
+      named,
+      unknown: 3,
+      attributes: ["step_count", "incline_pct", "width_m"],
+      coords: [
+        [101.5, 3.1],
+        [101.51, 3.11],
+      ],
+    });
+  const items = [
+    seg("s1", "Jalan Hopea U15/17D", true),
+    seg("s2", "Jalan Hopea U15/17D", true),
+    seg("u1", "Unnamed footway", false),
+    seg("u2", "Unnamed footway", false),
+    seg("u3", "Unnamed footway", false),
+  ];
+
+  it("shows one row per street and one for all unnamed paths, plus the summary", () => {
+    render(<GapsSection profile="wheelchair" items={items} onSelectPlace={() => {}} />);
+    expect(screen.getAllByRole("button")).toHaveLength(2);
+    expect(screen.getByRole("button", { name: /3 unnamed path segments/ })).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /Jalan Hopea U15\/17D.*2 path segments, 3 facts each/ }),
+    ).toBeInTheDocument();
+    expect(screen.getByTestId("gap-summary")).toHaveTextContent(
+      "Most paths are not yet checked: 5 of 5 for wheelchair travel.",
+    );
+  });
+
+  it("locating a street flies to its first segment and opens the card", async () => {
+    const onLocate = vi.fn();
+    render(
+      <GapsSection
+        profile="wheelchair"
+        items={items}
+        onSelectPlace={() => {}}
+        onLocate={onLocate}
+      />,
+    );
+    await userEvent.setup().click(screen.getByRole("button", { name: /Jalan Hopea/ }));
+    expect(onLocate).toHaveBeenCalledWith(
+      expect.objectContaining({ firstId: "s1", at: [101.51, 3.11] }),
+    );
+    expect(screen.getByRole("dialog")).toHaveTextContent(/Step count, Incline pct, Width m/);
   });
 });

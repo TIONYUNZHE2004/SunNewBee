@@ -188,7 +188,8 @@ export interface paths {
         /**
          * Gaps Layer
          * @description Gap map: per walk edge and place, how many relevant facts are not yet checked, how many
-         *     are stale, and the open verification demand. Declared before /layers/{lens} so it wins.
+         *     are stale or only reported, open verification demand and simulated journey impact. Declared
+         *     before /layers/{lens} so it wins.
          */
         get: operations["gaps_layer_layers_gaps_get"];
         put?: never;
@@ -737,6 +738,59 @@ export interface components {
             evidence_id: string;
             /** Photo Url */
             photo_url: string;
+        };
+        /** GapFeature */
+        GapFeature: {
+            /** Geometry */
+            geometry: {
+                [key: string]: unknown;
+            };
+            properties: components["schemas"]["GapProperties"];
+            /**
+             * Type
+             * @default Feature
+             * @constant
+             */
+            type: "Feature";
+        };
+        /**
+         * GapProperties
+         * @description Per element: how many facts are not yet checked for the profile, and why it matters.
+         */
+        GapProperties: {
+            /** Demand */
+            demand: number;
+            /** Id */
+            id: string;
+            /** Journey Impact */
+            journey_impact: number;
+            /** Kind */
+            kind: string;
+            /** Name */
+            name?: string | null;
+            /** Relevant Count */
+            relevant_count: number;
+            /** Reported Count */
+            reported_count: number;
+            /** Stale Count */
+            stale_count: number;
+            /** Type */
+            type: string;
+            /** Unknown Attributes */
+            unknown_attributes: string[];
+            /** Unknown Count */
+            unknown_count: number;
+        };
+        /** GapsLayer */
+        GapsLayer: {
+            /** Features */
+            features: components["schemas"]["GapFeature"][];
+            /**
+             * Type
+             * @default FeatureCollection
+             * @constant
+             */
+            type: "FeatureCollection";
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -1647,9 +1701,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["GapsLayer"];
                 };
             };
             /** @description Not modified */

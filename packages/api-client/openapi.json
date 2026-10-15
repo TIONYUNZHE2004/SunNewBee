@@ -815,6 +815,125 @@
         "title": "EvidenceUploaded",
         "type": "object"
       },
+      "GapFeature": {
+        "properties": {
+          "geometry": {
+            "additionalProperties": true,
+            "title": "Geometry",
+            "type": "object"
+          },
+          "properties": {
+            "$ref": "#/components/schemas/GapProperties"
+          },
+          "type": {
+            "const": "Feature",
+            "default": "Feature",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "geometry",
+          "properties"
+        ],
+        "title": "GapFeature",
+        "type": "object"
+      },
+      "GapProperties": {
+        "description": "Per element: how many facts are not yet checked for the profile, and why it matters.",
+        "properties": {
+          "demand": {
+            "title": "Demand",
+            "type": "integer"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "journey_impact": {
+            "title": "Journey Impact",
+            "type": "integer"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "relevant_count": {
+            "title": "Relevant Count",
+            "type": "integer"
+          },
+          "reported_count": {
+            "title": "Reported Count",
+            "type": "integer"
+          },
+          "stale_count": {
+            "title": "Stale Count",
+            "type": "integer"
+          },
+          "type": {
+            "title": "Type",
+            "type": "string"
+          },
+          "unknown_attributes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Unknown Attributes",
+            "type": "array"
+          },
+          "unknown_count": {
+            "title": "Unknown Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "type",
+          "relevant_count",
+          "unknown_count",
+          "stale_count",
+          "reported_count",
+          "unknown_attributes",
+          "demand",
+          "journey_impact"
+        ],
+        "title": "GapProperties",
+        "type": "object"
+      },
+      "GapsLayer": {
+        "properties": {
+          "features": {
+            "items": {
+              "$ref": "#/components/schemas/GapFeature"
+            },
+            "title": "Features",
+            "type": "array"
+          },
+          "type": {
+            "const": "FeatureCollection",
+            "default": "FeatureCollection",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "features"
+        ],
+        "title": "GapsLayer",
+        "type": "object"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -2835,7 +2954,7 @@
     },
     "/layers/gaps": {
       "get": {
-        "description": "Gap map: per walk edge and place, how many relevant facts are not yet checked, how many\nare stale, and the open verification demand. Declared before /layers/{lens} so it wins.",
+        "description": "Gap map: per walk edge and place, how many relevant facts are not yet checked, how many\nare stale or only reported, open verification demand and simulated journey impact. Declared\nbefore /layers/{lens} so it wins.",
         "operationId": "gaps_layer_layers_gaps_get",
         "parameters": [
           {
@@ -2854,9 +2973,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Gaps Layer Layers Gaps Get",
-                  "type": "object"
+                  "$ref": "#/components/schemas/GapsLayer"
                 }
               }
             },

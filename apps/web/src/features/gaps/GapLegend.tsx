@@ -1,5 +1,14 @@
+import { useMemo } from "react";
+import { useGaps } from "../../lib/api";
 import { useScene } from "../scene/sceneStore";
-import { GAP_BAND_ORDER, GAP_BANDS, GAP_PROFILE_NOTE, gapsApplicable } from "./gapModel";
+import {
+  GAP_BAND_ORDER,
+  GAP_BANDS,
+  GAP_PROFILE_NOTE,
+  gapSummaryLine,
+  gapsApplicable,
+  parseGaps,
+} from "./gapModel";
 
 /** Text legend: pattern plus words, so a band is never colour alone. */
 export function GapLegend({ className = "" }: { className?: string }) {
@@ -43,5 +52,22 @@ export function GapProfileNote() {
     <p role="note" className="rounded-lg border border-line bg-brand-tint px-4 py-3 text-sm">
       {GAP_PROFILE_NOTE}
     </p>
+  );
+}
+
+/** Legend with the computed summary above it (same cached query as the layer). */
+export function GapLegendPanel({ className = "" }: { className?: string }) {
+  const profile = useScene((s) => s.profile);
+  const q = useGaps(profile, gapsApplicable(profile));
+  const line = useMemo(() => gapSummaryLine(parseGaps(q.data), profile), [q.data, profile]);
+  return (
+    <div className={`space-y-1 ${className}`}>
+      {line && (
+        <p className="m-0 rounded-md border border-line bg-white/95 px-2 py-1.5 text-xs font-medium shadow-sm">
+          {line}
+        </p>
+      )}
+      <GapLegend />
+    </div>
   );
 }

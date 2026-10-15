@@ -89,16 +89,23 @@ def layer(
     return hit
 
 
-def gaps_layer(world: World, demand: dict[str, int], profile: str = "default") -> dict:
+def gaps_layer(
+    world: World,
+    demand: dict[str, int],
+    profile: str = "default",
+    impact: dict[str, int] | None = None,
+) -> dict:
     """Where the world model is not yet checked, for one profile. Counts only: no status colour
     and no verdict (a gap is "facts not yet checked", never "unsafe" or "inaccessible").
 
     Edges: the facts that keep `evaluate_edge` from a PASS for this profile (`edge_gaps`; reported
     claims count, as they do for evaluation). Places: the
     claims each place carries, since no profile decides which place facts matter. `demand` maps
-    element id to open verification-request demand."""
+    element id to open verification-request demand; `impact` maps element id to the number of
+    journey tasks the latest simulation says checking its facts would confirm (sim.py ranks it)."""
     prof = world.profiles.get(profile) or world.profiles["default"]
     today = date.today()
+    impact = impact or {}
 
     def summary(gaps: list[dict], relevant: int) -> dict:
         return {
@@ -130,6 +137,7 @@ def gaps_layer(world: World, demand: dict[str, int], profile: str = "default") -
                     "name": e.name,
                     **summary(edge_gaps(e, prof, today), len(relevant_attributes(e, prof))),
                     "demand": demand.get(e.id, 0),
+                    "journey_impact": impact.get(e.id, 0),
                 },
             }
         )
@@ -147,6 +155,7 @@ def gaps_layer(world: World, demand: dict[str, int], profile: str = "default") -
                     "name": p.name,
                     **summary(place_gaps(p.claims), len(p.claims)),
                     "demand": demand.get(p.id, 0),
+                    "journey_impact": impact.get(p.id, 0),
                 },
             }
         )

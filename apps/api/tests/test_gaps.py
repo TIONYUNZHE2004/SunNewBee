@@ -83,3 +83,26 @@ def test_reported_counts_as_a_gap_and_is_counted_separately():
     p = _props()["seg-ab"]
     assert (p["unknown_count"], p["reported_count"]) == (1, 1)
     assert p["unknown_attributes"] == ["width_m"]
+
+
+def test_journey_impact_comes_from_the_latest_sim_run():
+    assert all(p["journey_impact"] == 0 for p in _props().values())
+    run = c.post("/simulations", json={}, headers={"X-Staff-Token": "test-token"}).json()
+    ranked = {(g["element_id"]) for g in run["gaps"] if "stroller" in g["affected_profiles"]}
+    assert ranked, "tiny fixture should yield at least one ranked gap"
+    p = _props("stroller")
+    assert {i for i, v in p.items() if v["journey_impact"] > 0} == ranked
+    # a new run changes the validator, so a cached 304 is not served
+    assert c.get("/layers/gaps", params={"profile": "stroller"}).headers["etag"]
+
+
+def test_response_is_typed_in_openapi():
+    schema = c.get("/openapi.json").json()["components"]["schemas"]
+    assert {"reported_count", "journey_impact", "unknown_count"} <= set(
+        schema["GapProperties"]["properties"]
+    )
+
+
+def test_default_profile_sees_major_road_sidewalk_as_relevant():
+    state.get_ctx().world.edges["seg-gh"].type = "major_road"
+    assert _props("default")["seg-gh"]["relevant_count"] == 1

@@ -193,9 +193,12 @@ def edge_gaps(edge: Edge, profile: Profile, today: date | None = None) -> list[d
     for key, limit in profile.hard.items():
         attr, violates = _CHECKS[key]
         c = edge.claims.get(attr)
-        untrusted = c is None or c.value is None or c.status not in ("verified", "reported")
-        if attr == "step_count" and edge.type == "steps" and untrusted:
-            continue  # implied barrier: FAIL
+        if (
+            attr == "step_count"
+            and edge.type == "steps"
+            and (c is None or c.value is None or c.status not in ("verified", "reported"))
+        ):  # the implied claim evaluate_edge substitutes (a reported step)
+            c = Claim(value=max(c.value or 0, 1) if c else 1, status="reported")
         if c is not None and c.status in ("verified", "reported") and violates(c.value, limit):
             continue  # known barrier: FAIL
         unknown, stale, reported = claim_gap(c, attr, today)
