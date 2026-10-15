@@ -8,7 +8,7 @@ import { AuditHistory } from "../manage/AuditHistory";
 import { loadToken } from "../manage/manageApi";
 import { useScene } from "../scene/sceneStore";
 import { type ClaimRow, toPlaceView } from "./placeModel";
-import { SourceBanner } from "./SourceBanner";
+import { ClosureBanner, SourceBanner } from "./SourceBanner";
 
 function Row({
   r,
@@ -175,6 +175,7 @@ function PlaceCardInner({ id }: { id: string }) {
       </div>
 
       <SourceBanner view={view} />
+      <ClosureBanner view={view} />
 
       <div className="mt-3">
         {q.isPending ? (

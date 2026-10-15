@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router";
+import { Closures } from "./Closures";
 import { FloodBriefing } from "./FloodBriefing";
 import { JourneyTests } from "./JourneyTests";
 import { KpiTiles } from "./KpiTiles";
@@ -9,6 +10,7 @@ const TABS = [
   { id: "queue", label: "Verification queue" },
   { id: "flood", label: "Flood briefing" },
   { id: "journeys", label: "Journey tests" },
+  { id: "closures", label: "Closures" },
 ] as const;
 
 type TabId = (typeof TABS)[number]["id"];
@@ -72,6 +74,8 @@ export function ManagePage() {
           <VerificationQueue />
         ) : tab === "flood" ? (
           <FloodBriefing />
+        ) : tab === "closures" ? (
+          <Closures />
         ) : (
           <JourneyTests />
         )}
