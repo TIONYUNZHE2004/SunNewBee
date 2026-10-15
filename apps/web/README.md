@@ -100,8 +100,11 @@ name. Playwright uses its own ports (web 5273, API 8100) and waits for `/api/sit
 ## What to build next (FE lane)
 
 - Water-rise animation between scenario levels (levels currently switch).
-- Demo replay: `?replay=` plays a scripted conversation and scene for the pitch.
 - Accessibility audit with axe (`@axe-core/playwright` is not yet a dependency; the smoke only checks accessible names).
 - Mobile performance: Cesium chunk weight, `requestRenderMode`, test on a mid-range phone.
 - A proper legend component shared by all three renderers.
 - Evidence photos on evidence cards and in the VR resolve form.
+
+## Pitch demo mode
+
+`/?demo=hero` shows a fixed control bar (caption, Back / Play / Next / Exit demo; keys: Right, Left, Space, Esc) that walks the three hero flows. The script is plain data in `src/features/demo/heroScript.ts`; each step goes through the existing scene store, the chip send path and the router. A deep spot missing from the dataset is skipped with "(not available in this dataset)".

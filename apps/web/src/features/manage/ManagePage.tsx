@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Link } from "react-router";
+import { useEffect, useState } from "react";
+import { Link, useSearchParams } from "react-router";
 import { FloodBriefing } from "./FloodBriefing";
 import { JourneyTests } from "./JourneyTests";
 import { KpiTiles } from "./KpiTiles";
@@ -11,8 +11,20 @@ const TABS = [
   { id: "journeys", label: "Journey tests" },
 ] as const;
 
+type TabId = (typeof TABS)[number]["id"];
+
+/** `/manage?tab=flood` opens that tab (used by the demo walkthrough); anything else is the queue. */
+export function tabFromParam(v: string | null): TabId {
+  return TABS.find((t) => t.id === v)?.id ?? "queue";
+}
+
 export function ManagePage() {
-  const [tab, setTab] = useState<(typeof TABS)[number]["id"]>("queue");
+  const [params] = useSearchParams();
+  const wanted = params.get("tab");
+  const [tab, setTab] = useState<TabId>(() => tabFromParam(wanted));
+  useEffect(() => {
+    if (wanted) setTab(tabFromParam(wanted));
+  }, [wanted]);
 
   function onKey(e: React.KeyboardEvent, i: number) {
     const d = e.key === "ArrowRight" ? 1 : e.key === "ArrowLeft" ? -1 : 0;
