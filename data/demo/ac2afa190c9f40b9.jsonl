@@ -1,0 +1,11 @@
+{"meta": {"message": "Where can I go?", "profile": "default", "scenario_id": "stage_p3m", "world": "elmina", "model": "mock-scripted", "recorded_at": "2026-10-15T04:41:32+00:00"}}
+{"type": "tool.call", "id": "find_place-0", "name": "find_place", "args": {"query": "where can i go?", "types": null, "limit": 5}}
+{"type": "tool.result", "id": "find_place-0", "name": "find_place", "summary": "0 result(s)"}
+{"type": "tool.call", "id": "create_verification_request-1", "name": "create_verification_request", "args": {"target_id": "unknown_place", "attribute": "existence", "reason": "missing_place", "question_summary": "chat: missing_place existence on unknown_place"}}
+{"type": "verification.requested", "request_id": "vr-0177", "element_id": "unknown_place", "attribute": "existence", "created": false, "demand": 2}
+{"type": "tool.result", "id": "create_verification_request-1", "name": "create_verification_request", "summary": "ok"}
+{"type": "text.delta", "delta": "I don't have that place in the township "}
+{"type": "text.delta", "delta": "model yet. I've asked the team to check."}
+{"type": "uncertainty", "level": "high", "items": []}
+{"type": "disclaimer", "lens": "flood", "text": "Indicative scenario from a 30 m elevation model (Copernicus GLO-30, height above mapped rivers and lakes), not a forecast. Follow official MBSA / JPS / NADMA guidance. Only the area 101.46–101.56 E, 3.15–3.24 N is assessed; paths outside it are not.", "links": [{"label": "Public InfoBanjir (JPS)", "url": "https://publicinfobanjir.water.gov.my"}, {"label": "MET Malaysia warnings", "url": "https://www.met.gov.my"}]}
+{"type": "done", "message_id": "demo", "answer_status": "cannot_answer", "model": "mock-scripted"}
