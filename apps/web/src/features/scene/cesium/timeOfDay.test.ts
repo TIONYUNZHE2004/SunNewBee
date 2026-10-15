@@ -26,14 +26,14 @@ describe("applyCesiumTime", () => {
       scene: {
         backgroundColor: null as unknown,
         fog: { density: 0 },
-        globe: { baseColor: null as unknown },
-        skyAtmosphere: { brightnessShift: 0 },
         requestRender,
       },
     };
     const tiles = { customShader: undefined as unknown };
-    const ops = { color: (c: string) => `color:${c}`, shader: (b: number) => `shader:${b}` };
-    return { viewer, tiles, requestRender, ops };
+    const setUniform = vi.fn();
+    const shader = vi.fn((_b: number) => ({ setUniform }));
+    const ops = { color: (c: string) => `color:${c}`, shader };
+    return { viewer, tiles, requestRender, ops, setUniform, shader };
   };
 
   it("sets background, fog, tile shader and requests a render", () => {
@@ -41,8 +41,21 @@ describe("applyCesiumTime", () => {
     applyCesiumTime(viewer, tiles, cesiumTimeStyle("night"), ops);
     expect(viewer.scene.backgroundColor).toBe("color:#1f1838");
     expect(viewer.scene.fog.density).toBe(0.0004);
-    expect(tiles.customShader).toBe("shader:0.45");
+    expect(tiles.customShader).toBeDefined();
     expect(requestRender).toHaveBeenCalledTimes(1);
+  });
+
+  it("creates the shader once and only updates the uniform on toggles", () => {
+    const { viewer, tiles, requestRender, ops, setUniform, shader } = make();
+    for (const t of ["night", "day", "night"] as const)
+      applyCesiumTime(viewer, tiles, cesiumTimeStyle(t), ops);
+    expect(shader).toHaveBeenCalledTimes(1);
+    expect(shader).toHaveBeenCalledWith(0.45);
+    expect(setUniform.mock.calls).toEqual([
+      ["u_brightness", 1],
+      ["u_brightness", 0.45],
+    ]);
+    expect(requestRender).toHaveBeenCalledTimes(3);
   });
 
   it("tolerates missing viewer, tiles and destroyed viewer", () => {

@@ -30,8 +30,6 @@ export interface TimeViewer {
   scene: {
     backgroundColor: unknown;
     fog: { density: number };
-    globe?: { baseColor: unknown };
-    skyAtmosphere?: { brightnessShift: number };
     requestRender(): void;
   };
 }
@@ -39,10 +37,16 @@ export interface TimeTiles {
   isDestroyed?: () => boolean;
   customShader: unknown;
 }
+export interface TimeShader {
+  setUniform(name: string, value: number): void;
+}
 export interface TimeOps {
   color: (css: string) => unknown;
-  shader: (brightness: number) => unknown;
+  shader: (brightness: number) => TimeShader;
 }
+
+// One CustomShader per tileset: toggling the theme only updates the uniform (no shader rebuild).
+const shaders = new WeakMap<object, TimeShader>();
 
 export function applyCesiumTime(
   viewer: TimeViewer | undefined,
@@ -54,11 +58,15 @@ export function applyCesiumTime(
   const scene = viewer.scene;
   scene.backgroundColor = ops.color(style.skyColor);
   scene.fog.density = style.fogDensity;
-  if (scene.globe) scene.globe.baseColor = ops.color(style.globeBase);
-  if (scene.skyAtmosphere) scene.skyAtmosphere.brightnessShift = style.tileBrightness - 1;
   if (tiles && !tiles.isDestroyed?.()) {
     try {
-      tiles.customShader = ops.shader(style.tileBrightness);
+      let shader = shaders.get(tiles);
+      if (shader) shader.setUniform("u_brightness", style.tileBrightness);
+      else {
+        shader = ops.shader(style.tileBrightness);
+        shaders.set(tiles, shader);
+        tiles.customShader = shader;
+      }
     } catch {
       /* tileset torn down mid-update: ignore */
     }

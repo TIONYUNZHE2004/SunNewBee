@@ -160,11 +160,13 @@ export default function MapboxLite() {
   const mapRef = useRef<MapRef>(null);
   const theme = useTheme((s) => s.theme);
   // Mapbox Standard light preset; other styles have no "basemap" import, so ignore failures.
+  const lastPreset = useRef<string | undefined>(undefined);
   const applyLight = useCallback(() => {
+    const preset = mapboxLightPreset(theme);
+    if (lastPreset.current === preset) return;
     try {
-      mapRef.current
-        ?.getMap()
-        .setConfigProperty("basemap", "lightPreset", mapboxLightPreset(theme));
+      mapRef.current?.getMap().setConfigProperty("basemap", "lightPreset", preset);
+      lastPreset.current = preset;
     } catch {
       /* not a Standard style, or style not ready */
     }
@@ -260,7 +262,10 @@ export default function MapboxLite() {
         }}
         style={{ width: "100%", height: "100%" }}
         reuseMaps
-        onStyleData={applyLight}
+        onLoad={() => {
+          lastPreset.current = undefined; // fresh style: re-apply
+          applyLight();
+        }}
         interactiveLayerIds={clickable}
         cursor="auto"
         onClick={(e: MapMouseEvent) => {
