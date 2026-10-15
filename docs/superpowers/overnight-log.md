@@ -512,3 +512,31 @@
 - **In flight:**
   - Task 41 fix round (R30): tri-state rest points, rest-gap wording, honest staff copy.
   - Task 46: closures.
+
+## 2026-10-15 13:57 — Tasks 41, 46, 48, 49 merged; pitch screenshots; banner fix
+- **Merged and pushed:**
+  - Task 41 (`96294ae`): rest-point-aware routing for older adults.
+    - Rest points are tri-state: only a verified bench counts fully.
+    - Rest-gap wording: "Longest stretch without a rest point is about N m (limit 100 m)".
+    - I7 violations on the seed go from 111 to 0. The trips are now advisories, because 139 path segments over 100 m have no rest point along them.
+  - Task 46 (`955148b`): time-bounded closures (staff tab, API, evaluation FAIL, `get_closures`), with dates in Malaysia time. Its clock test caught a real bug: an expired closure stayed cached as closed.
+  - Task 49 (`7acba19`): demo script and pitch docs match the built product. Stale claims removed: a reset endpoint that doesn't exist, a flood "slider", HAND as the method.
+  - Uncertainty banner (`932252e`): unchecked facts are listed separately from notes (closures, rest gaps, demo values).
+  - Task 48 (`03c3310`):
+    - answers name closures with dates;
+    - the uncertainty level is "partial" exactly when there are items;
+    - the validator rejects "it's open" while a closure is active;
+    - the inferred-entrance caveat appears in the answer text.
+- **Pitch screenshot pack:** `docs/06-pitch/screenshots/`, 4 real screenshots on the Elmina seed with mock-backed answers, plus a README.
+- **Checklist on `03c3310`:**
+  - pytest 748 + 1 xfail: PASS
+  - golden 13/13 (mock): PASS
+  - vitest 356: PASS
+  - lint: PASS
+  - gen: PASS
+  - typecheck: PASS
+  - build: PASS
+  - e2e 13/13: PASS
+- **R31:** Task 43 seed rebuild. overpass-api.de is still "too busy". Retrying about hourly (Overpass this run: 11 of 30). Asked the team lead about a Geofabrik extract as an offline alternative; no answer yet.
+- **In flight:** Task 47 review (Opus; evacuation journeys, background sim) and Task 50 (staff console readability, deep links).
+- **External usage this run:** Google tiles about 7 of 30. OpenRouter unchanged (no live calls).
