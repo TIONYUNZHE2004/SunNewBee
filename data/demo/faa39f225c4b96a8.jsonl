@@ -1,16 +1,16 @@
-{"meta": {"message": "Can I get to the lakeside mall in a wheelchair?", "profile": "wheelchair", "scenario_id": null, "world": "elmina", "model": "mock-scripted", "recorded_at": "2026-10-15T05:46:01+00:00"}}
+{"meta": {"message": "Can I get to the lakeside mall in a wheelchair?", "profile": "wheelchair", "scenario_id": null, "world": "elmina", "model": "mock-scripted", "recorded_at": "2026-10-15T06:22:32+00:00"}}
 {"type": "tool.call", "id": "find_place-0", "name": "find_place", "args": {"query": "car park b", "types": null, "limit": 5}}
 {"type": "tool.result", "id": "find_place-0", "name": "find_place", "summary": "5 result(s)"}
 {"type": "tool.call", "id": "find_place-1", "name": "find_place", "args": {"query": "lakeside mall", "types": null, "limit": 5}}
 {"type": "tool.result", "id": "find_place-1", "name": "find_place", "summary": "2 result(s)"}
 {"type": "tool.call", "id": "plan_route-2", "name": "plan_route", "args": {"from_id": "park-b", "to_id": "lakeside-mall", "profile": "wheelchair", "scenario_id": null}}
-{"type": "verification.requested", "request_id": "vr-0011", "element_id": "seg-1306543755-2", "attribute": "incline_pct", "created": false, "demand": 8}
-{"type": "verification.requested", "request_id": "vr-0012", "element_id": "seg-1450679024-0", "attribute": "step_count", "created": false, "demand": 8}
-{"type": "verification.requested", "request_id": "vr-0013", "element_id": "seg-1450679024-0", "attribute": "incline_pct", "created": false, "demand": 8}
-{"type": "verification.requested", "request_id": "vr-0017", "element_id": "seg-1450679024-0", "attribute": "width_m", "created": false, "demand": 6}
-{"type": "verification.requested", "request_id": "vr-0014", "element_id": "seg-1346154591-1", "attribute": "step_count", "created": false, "demand": 8}
-{"type": "verification.requested", "request_id": "vr-0015", "element_id": "seg-1346154591-1", "attribute": "incline_pct", "created": false, "demand": 8}
-{"type": "verification.requested", "request_id": "vr-0018", "element_id": "seg-1346154591-1", "attribute": "width_m", "created": false, "demand": 6}
+{"type": "verification.requested", "request_id": "vr-0011", "element_id": "seg-1306543755-2", "attribute": "incline_pct", "created": false, "demand": 16, "reason": "unknown"}
+{"type": "verification.requested", "request_id": "vr-0012", "element_id": "seg-1450679024-0", "attribute": "step_count", "created": false, "demand": 16, "reason": "unknown"}
+{"type": "verification.requested", "request_id": "vr-0013", "element_id": "seg-1450679024-0", "attribute": "incline_pct", "created": false, "demand": 16, "reason": "unknown"}
+{"type": "verification.requested", "request_id": "vr-0017", "element_id": "seg-1450679024-0", "attribute": "width_m", "created": false, "demand": 12, "reason": "unknown"}
+{"type": "verification.requested", "request_id": "vr-0014", "element_id": "seg-1346154591-1", "attribute": "step_count", "created": false, "demand": 16, "reason": "unknown"}
+{"type": "verification.requested", "request_id": "vr-0015", "element_id": "seg-1346154591-1", "attribute": "incline_pct", "created": false, "demand": 16, "reason": "unknown"}
+{"type": "verification.requested", "request_id": "vr-0018", "element_id": "seg-1346154591-1", "attribute": "width_m", "created": false, "demand": 12, "reason": "unknown"}
 {"type": "tool.result", "id": "plan_route-2", "name": "plan_route", "summary": "route partly_unverified"}
 {"type": "text.delta", "delta": "Route status: partly unverified\n⚠ Not ch"}
 {"type": "text.delta", "delta": "ecked yet: Incline (%) on an unnamed ram"}
