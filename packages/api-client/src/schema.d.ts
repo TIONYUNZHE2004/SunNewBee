@@ -190,7 +190,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Healthz */
+        /**
+         * Healthz
+         * @description Liveness that includes the world: a corrupt seed fails here, not only on every request.
+         */
         get: operations["healthz_healthz_get"];
         put?: never;
         post?: never;
@@ -316,7 +319,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Routes */
+        /**
+         * Routes
+         * @description Plan only: this anonymous endpoint never files verification requests (the chat does).
+         */
         post: operations["routes_routes_post"];
         delete?: never;
         options?: never;
@@ -483,7 +489,7 @@ export interface paths {
         };
         /**
          * Vrs
-         * @description status=all returns every status.
+         * @description status=all returns every status. A resolved row's `resolution` omits the staff `note`.
          */
         get: operations["vrs_verification_requests_get"];
         put?: never;
@@ -994,6 +1000,11 @@ export interface components {
             label: string;
             /** Max Rest Free Run M */
             max_rest_free_run_m?: number | null;
+            /**
+             * No Sidewalk Is
+             * @default UNKNOWN
+             */
+            no_sidewalk_is: string;
             /** Soft */
             soft: {
                 [key: string]: number;
@@ -2035,10 +2046,15 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: string;
-                    };
+                    "application/json": unknown;
                 };
+            };
+            /** @description the world did not load */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };

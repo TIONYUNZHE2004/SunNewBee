@@ -1296,6 +1296,11 @@
             ],
             "title": "Max Rest Free Run M"
           },
+          "no_sidewalk_is": {
+            "default": "UNKNOWN",
+            "title": "No Sidewalk Is",
+            "type": "string"
+          },
           "soft": {
             "additionalProperties": {
               "type": "number"
@@ -3627,21 +3632,19 @@
     },
     "/healthz": {
       "get": {
+        "description": "Liveness that includes the world: a corrupt seed fails here, not only on every request.",
         "operationId": "healthz_healthz_get",
         "responses": {
           "200": {
             "content": {
               "application/json": {
-                "schema": {
-                  "additionalProperties": {
-                    "type": "string"
-                  },
-                  "title": "Response Healthz Healthz Get",
-                  "type": "object"
-                }
+                "schema": {}
               }
             },
             "description": "Successful Response"
+          },
+          "503": {
+            "description": "the world did not load"
           }
         },
         "summary": "Healthz"
@@ -3866,6 +3869,7 @@
             "schema": {
               "anyOf": [
                 {
+                  "maxLength": 120,
                   "type": "string"
                 },
                 {
@@ -3925,6 +3929,7 @@
     },
     "/routes": {
       "post": {
+        "description": "Plan only: this anonymous endpoint never files verification requests (the chat does).",
         "operationId": "routes_routes_post",
         "requestBody": {
           "content": {
@@ -4328,7 +4333,7 @@
     },
     "/verification-requests": {
       "get": {
-        "description": "status=all returns every status.",
+        "description": "status=all returns every status. A resolved row's `resolution` omits the staff `note`.",
         "operationId": "vrs_verification_requests_get",
         "parameters": [
           {
