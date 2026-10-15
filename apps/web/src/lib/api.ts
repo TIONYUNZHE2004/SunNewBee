@@ -79,3 +79,11 @@ export const usePlace = (id: string | null, reach?: PlaceReach) =>
         }),
       ),
   });
+
+/** Staff-reported closures in force now (public). Every row is labelled "Reported closure (staff)". */
+export const useClosures = () =>
+  useQuery({
+    queryKey: ["closures", "active"],
+    queryFn: async () =>
+      unwrap(await api.GET("/closures", { params: { query: { active: true } } })),
+  });

@@ -6,13 +6,19 @@ export interface PlaceItem {
   id: string;
   name: string;
   type: string;
+  /** Staff-reported closure in force ("Closed: works until 2026-10-20"), else undefined. */
+  closure?: string;
 }
 export interface EdgeItem {
   id: string;
   name: string;
   status: EdgeStatus;
   coords: [number, number][];
+  closure?: string;
 }
+
+const closureOf = (p: Record<string, unknown>): { closure?: string } =>
+  p.closed === true && typeof p.closure_label === "string" ? { closure: p.closure_label } : {};
 
 type Feature = {
   geometry?: { type?: string; coordinates?: unknown };
@@ -29,13 +35,19 @@ export function parseLayer(data: unknown): { places: PlaceItem[]; edges: EdgeIte
     const id = String(p.id ?? "");
     if (!id) continue;
     if (f.geometry?.type === "Point") {
-      places.push({ id, name: String(p.name ?? id), type: String(p.type ?? "other") });
+      places.push({
+        id,
+        name: String(p.name ?? id),
+        type: String(p.type ?? "other"),
+        ...closureOf(p),
+      });
     } else if (f.geometry?.type === "LineString") {
       edges.push({
         id,
         name: p.name ? String(p.name) : `Unnamed ${String(p.type ?? "path").replace(/_/g, " ")}`,
         status: mapStatus(p),
         coords: (f.geometry.coordinates as [number, number][]) ?? [],
+        ...closureOf(p),
       });
     }
   }

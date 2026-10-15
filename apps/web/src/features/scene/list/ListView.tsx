@@ -1,7 +1,8 @@
 import { useMemo } from "react";
-import { useLayer, useScenarios } from "../../../lib/api";
+import { useClosures, useLayer, useScenarios } from "../../../lib/api";
 import { GapsLensSection } from "../../gaps/GapsSection";
 import { gapsApplicable } from "../../gaps/gapModel";
+import { CLOSURE_SOURCE, closureLine } from "../../manage/closureModel";
 import { useScene } from "../sceneStore";
 import { statusStyle } from "../styles";
 import { ListLensSections } from "./LensSections";
@@ -25,6 +26,32 @@ function StatusBadge({ status }: { status: Parameters<typeof statusStyle>[0] }) 
       </svg>
       {st.label}
     </span>
+  );
+}
+
+/** Closures in force, from staff. Hidden when there are none (or the request failed). */
+export function ClosuresSection() {
+  const q = useClosures();
+  const items = q.data ?? [];
+  if (items.length === 0) return null;
+  return (
+    <section aria-labelledby="closures-h" className="rounded-lg border border-line bg-card p-4">
+      <h2 id="closures-h" className="text-xl font-semibold">
+        Closed paths and places
+      </h2>
+      <ul className="mt-3 space-y-2">
+        {items.map((c) => (
+          <li key={c.id} className="text-sm">
+            <span className="font-medium">{c.element_name ?? c.element_id}</span>
+            <span className="ml-2 rounded border border-[#C53030] px-1.5 py-0.5 font-medium">
+              Closed
+            </span>
+            <span className="block text-ink-soft">{closureLine(c)}</span>
+            {c.note && <span className="block text-ink-soft">Note: {c.note}</span>}
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }
 
@@ -104,12 +131,21 @@ export function ListView() {
                   <span className="mr-2 font-semibold">{i + 1}.</span>
                   {s.name}
                 </span>
-                <StatusBadge status={s.status} />
+                <span className="flex flex-wrap items-center gap-2">
+                  {s.closure && (
+                    <span className="rounded border border-[#C53030] px-1.5 py-0.5 text-sm font-medium">
+                      Closed<span className="sr-only">. {CLOSURE_SOURCE}</span>
+                    </span>
+                  )}
+                  <StatusBadge status={s.status} />
+                </span>
               </li>
             ))}
           </ol>
         )}
       </section>
+
+      <ClosuresSection />
 
       {scenarioId && (
         <section aria-labelledby="scn-h" className="rounded-lg border border-line bg-warn-tint p-4">
@@ -168,6 +204,11 @@ export function ListView() {
                       className={`min-h-11 w-full rounded-lg border px-4 py-3 text-left hover:bg-brand-tint ${p.id === focusPlaceId ? "border-brand bg-brand-tint" : "border-line bg-card"}`}
                     >
                       {p.name}
+                      {p.closure && (
+                        <span className="ml-2 rounded border border-[#C53030] px-1.5 py-0.5 text-sm font-medium">
+                          Closed<span className="sr-only">. {CLOSURE_SOURCE}</span>
+                        </span>
+                      )}
                       {p.id === focusPlaceId && (
                         <span className="ml-2 text-sm font-medium text-brand">(selected)</span>
                       )}

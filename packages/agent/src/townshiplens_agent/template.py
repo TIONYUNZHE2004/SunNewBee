@@ -1,6 +1,13 @@
 from .answer import Claim, FinalAnswer
 from .events import SceneIntent
-from .labels import attribute_label, rest_caveats, unchecked_caveats
+from .labels import (
+    attribute_label,
+    closure_caveats,
+    closure_summary_tail,
+    inferred_caveats,
+    rest_caveats,
+    unchecked_caveats,
+)
 from .record import TurnRecord
 from .validate import DEPTH, FORBIDDEN, PLACEHOLDER_CAVEAT, PLACEHOLDER_SOURCE
 
@@ -31,6 +38,23 @@ def template_answer(rec: TurnRecord, question: str) -> FinalAnswer:
     likely_flooded = any(
         i["flood_class"] == "likely_flooded" for i in rec.flooded_endpoints.values()
     )
+    closed = [*rec.route_closures, *rec.asked_closures]
+    if not rec.routes and closed:  # closures left no route, or the question was about a closure
+        blocked = any(c.get("impact") == "blocked" for c in rec.route_closures)
+        return FinalAnswer(
+            answer_status="cannot_answer",
+            summary=(
+                f"Route {closure_summary_tail(rec.route_closures, 'blocked')}."
+                if blocked
+                else "A staff-reported closure is on record; see below."
+            ),
+            scenario_id=scenario_id,
+            caveats=[
+                *closure_caveats(closed),
+                *inferred_caveats(rec.inferred_notes),
+                "Answer generated from data without AI wording.",
+            ],
+        )
     if not rec.routes:
         return FinalAnswer(
             answer_status="cannot_answer",
@@ -59,18 +83,29 @@ def template_answer(rec: TurnRecord, question: str) -> FinalAnswer:
     caveats += unknowns
     if status == "no_data":
         caveats.append("No mapped connection between these places (data gap).")
-    elif status != "confirmed" and (route_unknowns or not rest):
+    elif (
+        status != "confirmed"
+        and (route_unknowns or not rest)
+        and (route_unknowns or not any(c.get("impact") == "blocked" for c in rec.route_closures))
+    ):
         caveats.append("Some segments are still unverified.")
     caveats += rest
+    caveats += closure_caveats(closed)
+    caveats += inferred_caveats(rec.inferred_notes)
     if any(getattr(e, "source_type", None) == PLACEHOLDER_SOURCE for e in rec.evidence.values()):
         caveats.append(f"Some segment facts are {PLACEHOLDER_CAVEAT}.")
     dist = route.get("distance_m")
     summary = f"Route of {dist} m." if dist is not None else "Route found."
+    if tail := closure_summary_tail(rec.route_closures, status):
+        summary = f"Route {tail}."
     if status == "no_data":
         summary = "No mapped connection between these places (data gap)."
     return FinalAnswer(
         answer_status="answered"
-        if status == "confirmed" and not route_unknowns and not likely_flooded
+        if status == "confirmed"
+        and not route_unknowns
+        and not likely_flooded
+        and not rec.route_closures
         else "partial",
         summary=summary,
         claims=claims,

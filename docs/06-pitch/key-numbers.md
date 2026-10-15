@@ -2,6 +2,7 @@
 
 > **Only use numbers from this page** in the proposal, deck and Q&A. Each has a source and a date. Add new numbers here first, with the source. Our own measured results go in [evaluation-plan § 5](../03-product/evaluation-plan.md) and are copied here when final.
 > Checked 14 Oct 2026 by the research tracks; flood, whole-Elmina and waste sections added 15 Oct 2026 from [flood-disaster-lens](../02-research/flood-disaster-lens.md) and [township-3d-engine-and-data](../02-research/township-3d-engine-and-data.md). Every number below appears in those docs with its source; do not add numbers that don't. Items marked ⚠️ have caveats; read them before quoting.
+> The section "Measured on the committed Elmina seed" holds our own measured product numbers (15 Oct 2026, from [data/README](../../data/README.md), [overnight-log](../superpowers/overnight-log.md) and the [screenshots](screenshots/README.md)); it is separate from the research and open-data counts, which come from different queries and are not interchangeable with it.
 
 ## Who needs this (Malaysia)
 
@@ -30,6 +31,37 @@
 | Number | Source |
 |---|---|
 | OSM in bbox: **54 footways, 58 buildings; 28 footways tagged `wheelchair=yes` with no width/incline/source; 0 entrances, 0 kerbs, 0 toilets, 1 bench** | Live Overpass query, 14 Oct 2026 ([site-selection § 4](../02-research/site-selection.md)). Re-run before the final pitch. |
+
+## Measured on the committed Elmina seed (15 Oct 2026)
+
+> Measured by us on `data/seed/elmina` as committed on 15 Oct 2026; re-measure after any seed rebuild (the area-places snap, Task 43, is still pending and will change place counts). Sources: [data/README](../../data/README.md) (Task 31 and flood sections), [overnight-log](../superpowers/overnight-log.md), and the screenshots. Say "indicative, not a forecast" with every flood number. Never quote a flood number as a depth.
+
+| Number | Say it as | Source (measured 15 Oct 2026) |
+|---|---|---|
+| **16,148** walk segments (909 are `major_road`, 86.7 km); **231** places (72 evacuation candidates) | "A mapped network of 16,000+ paths" | data/README import and Task 31 |
+| **74** walk-network components; the largest holds **95.2%** of nodes (11,188 of 11,752). Before major roads: 199 components, 32% | "Most of Elmina is one connected walking network" | data/README Task 31 |
+| **16,131 of 16,148** paths not yet checked for wheelchair travel | "Almost nothing is checked yet, and we show it" | Screenshot 04 (wheelchair profile). The count is per profile and moves with the data: an earlier build read 16,137 of 16,148 |
+| **0** major-road segments with a `sidewalk` claim | "We don't know if the main roads have pavements, and we say so" | data/README Task 31 |
+| Stroller, from Lakeside Mall to the 72 centres, baseline: **64** partly unverified, **8** no data (was 23 / 49). Wheelchair reachable: **64** at baseline, **44** at +3 m | "Reachable, but never 'confirmed' without sidewalk data" | data/README Task 31 and flood results |
+| **From the management briefing** (default profile, from Lakeside Mall, demo start point): centres reachable **23** at normal river level, **2** at +3 m | Quote only with the profile and the start point | Screenshot 03. Differs from the stroller/wheelchair line above because the profile differs |
+| Journey tests (100 tasks per profile; stroller, wheelchair and older-adult results identical): **40** no data, **60** success with unknowns, none confirmed; **60** older-adult rest-gap advisories | "Every journey that finds a route is 'partly unverified' at best, so far" | data/README Task 31 table; run before the rest-point routing (Task 41), so re-run before quoting |
+| Hero route `park-b → playground`: **confirmed, 440.6 m** (placeholder facts); at +1 m and +3 m **partly unverified, 485.7 m** | "A confirmed route until the water reaches the lake path" | data/README (facts are `team_survey_placeholder`, not surveyed) |
+| Stroller route Car Park B → Elmina Lakeside Mall: **partly unverified, 445.9 m**, 7 unchecked items | The demo answer (screenshot 01) | `data/demo` replay entry (the answer shown in screenshot 01) |
+
+### Flood scenarios on the seed (REM, indicative, not a forecast)
+
+| Scenario | Water km² | `likely_flooded` paths | `possible` paths | `likely_flooded` places |
+|---|---|---|---|---|
+| River +1 m | 3.24 | 445 | 345 | 15 |
+| River +2 m | 6.15 | 790 | 563 | 18 |
+| River +3 m | 10.25 | 1,353 | 396 | 23 |
+| River +4 m | 14.95 | 1,749 | 719 | 29 |
+| River +5 m | 19.06 | 2,468 | 567 | 35 |
+
+Share of the 16,148 paths `likely_flooded`: +1 m 2.8%, +3 m 8.4%, +5 m 15.3%. At +3 m the briefing lists **29** places affected (screenshot 03). Coverage limits: 61 paths and 3 places lie outside the elevation window and read "unlikely", and 209 paths are only partly covered ([data/README](../../data/README.md)). Method: REM over mapped OSM drainage (ADR 0010 amendment); HAND, which flagged 39% of segments at +1 m, was dropped.
+
+### Test suite state (15 Oct 2026, checklist on `e9657c5`)
+pytest 641 (+1 expected failure), golden 13/13 on the mock, vitest 317, e2e 13/13, lint, gen, typecheck and build passing. These are test results, not user or model-quality measurements.
 
 ## Whole of City of Elmina: what open data gives us
 
@@ -62,8 +94,8 @@ Envelope bbox (S, W, N, E) `3.150, 101.460, 3.240, 101.530`, about 10.0 km x 7.8
 | SDP says Central Park was designed as a temporary flood basin (Q1000) | ⚠️ developer-sourced and uncorroborated; say "SDP says" | The Edge Malaysia Weekly, 25 Nov–1 Dec 2024, § 1.5 [F4] |
 | OSM: **3** features named "flood retention pond", **1** pumping station, **48** embankments (local flood-relevant bbox) | ⚠️ crowd-mapped; capacities unknown | § 1.5 / § 2.3 (ran 14–15 Oct 2026) |
 | Copernicus GLO-30: **30 m** surface model, free with attribution; vertical error of order **1–4 m** vs flood depths of 0.15–0.5 m | "Too coarse for per-path depths, so we use three classes and a margin" | § TL;DR and § 2.1 [F18][F19] |
-| ASF global HAND raster: **CC0**, built from GLO-30 | "Open data starting point" | [F20] |
-| Our scenarios: `stage_p1m` … `stage_p5m` (river stage +1 to +5 m, indicative); default margin **0.5–1.0 m** | "Engineering defaults, versioned and shown to users" | [ADR 0010](../00-overview/decisions/0010-flood-lens-hand-scenarios.md) |
+| ASF global HAND raster: **CC0**, built from GLO-30 | ⚠️ Tried first and **dropped** (too dense a channel network: flagged 39% of segments at +1 m); kept only as a comparison. Our scenarios use REM over OSM drainage | [F20]; data/README |
+| Our scenarios: `stage_p1m` … `stage_p5m` (river stage +1 to +5 m, indicative); margin **0.5 m** in the built seed (planning default was 0.5–1.0 m) | "Engineering defaults, versioned and shown to users" | [ADR 0010](../00-overview/decisions/0010-flood-lens-hand-scenarios.md) |
 | Depth thresholds: wheelchair/stroller FAIL above about **0.05–0.10 m**; pedestrian FAIL above **0.30 m**; car about **0.30 m** | ⚠️ wheelchair/stroller values are **our engineering default with no published source**; pedestrian bands follow UK FD2320-style danger bands | § 5.1 [F37][F38][F40] |
 | MET Malaysia warnings are available via `api.data.gov.my` | Optional live banner | § 2.4 [F16] |
 | JPS InfoBanjir: **no documented public API** found (~1,500 stations) | "We don't scrape it; permission needed" | § 2.4 [F15] |
@@ -105,9 +137,9 @@ Envelope bbox (S, W, N, E) `3.150, 101.460, 3.240, 101.530`, about 10.0 km x 7.8
 
 | Metric | Value | Run / session |
 |---|---|---|
-| Unsupported claims on golden set | _ | |
+| Golden set (mock assistant): questions passing | 13 / 13 | 15 Oct 2026, `e9657c5`; mock only, so not a live-model unsupported-claim rate (that stays _) |
 | Correct route-status decisions | _ | |
-| Journeys confirmed before → after one verification round | _ → _ | |
+| Journeys confirmed before → after one verification round | _ → _ | not run (console shows "No run yet"). The Task 31 baseline has none confirmed: see the measured section |
 | Flood answers with disclaimer present / with forbidden wording | _ / _ · _ / _ | |
 | Residential clusters reaching a candidate centre at `stage_p3m` (by profile) | _ % | |
 | Flood engine agreement (answers vs engine) | _ / _ | |

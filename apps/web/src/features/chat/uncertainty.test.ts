@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { describeUncertainty } from "./uncertainty";
+import { bannerParts, describeUncertainty } from "./uncertainty";
 
 describe("describeUncertainty", () => {
   it("prefers note text", () => {
@@ -17,5 +17,31 @@ describe("describeUncertainty", () => {
   it("skips empty items and handles undefined", () => {
     expect(describeUncertainty([{}])).toEqual([]);
     expect(describeUncertainty(undefined)).toEqual([]);
+  });
+});
+
+describe("bannerParts", () => {
+  it("lists unchecked facts under 'Not checked yet' and other caveats as notes", () => {
+    const p = bannerParts([
+      { attribute: "incline_pct", note: "Stroller: incline not checked yet (limit 8.3%)" },
+      { attribute: "closure", note: "Closed (staff report): Jalan A until 20 Oct 2026" },
+      { attribute: "rest_gap", note: "Longest stretch without a rest point is about 110 m" },
+    ]);
+    expect(p.heading).toBe("Not checked yet");
+    expect(p.unchecked).toEqual(["Stroller: incline not checked yet (limit 8.3%)"]);
+    expect(p.notes).toEqual([
+      "Closed (staff report): Jalan A until 20 Oct 2026",
+      "Longest stretch without a rest point is about 110 m",
+    ]);
+  });
+  it("uses 'Please note' when there are only notes", () => {
+    const p = bannerParts([{ attribute: "demo_values", note: "Demo values, not yet surveyed" }]);
+    expect(p.heading).toBe("Please note");
+    expect(p.unchecked).toEqual([]);
+  });
+  it("is neutral when a partial answer has no items", () => {
+    const p = bannerParts([]);
+    expect(p.heading).toBe("Please note");
+    expect(p.notes).toEqual(["Some details are unconfirmed."]);
   });
 });

@@ -35,8 +35,8 @@ test("manage page lists the verification request after the kiosk question", asyn
   await expect(page.getByText("seg-cf").first()).toBeVisible();
 });
 
-// Mutates the server's in-memory world (the kiosk route becomes confirmed): restart the server
-// before re-running locally, or the "partly unverified" assertions above fail.
+// Mutates the server's in-memory world (the kiosk route becomes confirmed). Safe to re-run:
+// playwright.config.ts always starts a fresh server with a fresh DB (no reuse).
 test("staff corrects a numeric fact from the queue and the request leaves it", async ({ page }) => {
   await page.addInitScript(() => sessionStorage.setItem("tl.staffToken", "e2e-token"));
   await ask(page, "Can I push a stroller from Car Park B to the kiosk without stairs?");

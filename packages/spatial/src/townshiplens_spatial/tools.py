@@ -2,15 +2,17 @@ from __future__ import annotations
 
 import difflib
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 import networkx as nx
 
 from . import flood as _flood
+from . import models as _m
 from . import routing
+from .closure_store import ClosureStore
 from .evaluate import evaluate_edge
 from .geo import haversine_m
-from .models import Claim, Evidence, ToolResult, photo_url
+from .models import Claim, Closure, Evidence, ToolResult, photo_url
 from .scenario_meta import scenario_source
 from .vr_store import VerificationStore
 from .world import World
@@ -20,6 +22,7 @@ from .world import World
 class Ctx:
     world: World
     vrs: VerificationStore
+    closures: ClosureStore | None = None  # API-owned; tools read closures from the world
 
 
 def _place_ev(p) -> Evidence:
@@ -261,7 +264,11 @@ def get_place_details(
         )
         for a, c in p.claims.items()
     ]
-    return ToolResult(ok=True, data=p.model_dump(mode="json"), evidence=ev)
+    data = p.model_dump(mode="json")
+    live = [c for c in p.closures if c.is_active()]
+    data["closures"] = [closure_row(ctx.world, c) for c in live]
+    ev += [_closure_ev(ctx.world, c) for c in live]
+    return ToolResult(ok=True, data=data, evidence=ev)
 
 
 def _inferred_endpoints(world: World, from_id: str, to_id: str, warnings: list[str]) -> list:
@@ -290,6 +297,79 @@ def _inferred_endpoints(world: World, from_id: str, to_id: str, warnings: list[s
                     source_type=c.evidence_type,
                 )
             )
+    return ev
+
+
+MAX_CLOSURE_PROBES = 30
+
+
+def _edge_closure_impact(
+    world: World, rr, from_id: str, to_id: str, profile: str, scenario_id: str | None
+) -> list[tuple]:
+    """(edge, closure) pairs a staff-reported closure took out of this answer, or [].
+
+    Search again on a shallow copy of the world whose closed edges have no closure. If that
+    route uses closed edges, those closures are what blocked the question (no route now) or
+    forced the detour (a different route now). Costs one extra search, and only while an edge
+    closure is in force."""
+    live = [(e, c) for e in world.edges.values() for c in e.closures if c.is_active()]
+    if not live or rr.status == "no_data":
+        return []
+    opened = replace(
+        world,
+        edges={
+            **world.edges,
+            **{e.id: e.model_copy(update={"closures": []}) for e, _ in live},
+        },
+    )
+    alt = routing.plan_route(opened, from_id, to_id, profile, scenario_id)
+    if not alt.routes:
+        return []
+    used = {s.edge_id for s in alt.routes[0].segments}
+    hit = [(e, c) for e, c in live if e.id in used]
+    if rr.status == "blocked":
+        # A closure that alone unblocks the question is also responsible (parallel closed
+        # links: the opened route uses only one of them). Capped so a busy day stays cheap.
+        for e, c in live[:MAX_CLOSURE_PROBES]:
+            if (e, c) in hit:
+                continue
+            one = replace(world, edges={**world.edges, e.id: e.model_copy(update={"closures": []})})
+            if routing.plan_route(one, from_id, to_id, profile, scenario_id).routes:
+                hit.append((e, c))
+    if rr.status != "blocked" and rr.routes and {s.edge_id for s in rr.routes[0].segments} == used:
+        return []  # same route either way: no closure was in its way
+    return hit
+
+
+def _closure_notes(
+    world: World, rr, from_id: str, to_id: str, profile: str, scenario_id: str | None
+) -> list[Evidence]:
+    """Name staff-reported closures that stop or reshape this answer: a closed start or
+    destination place, and closed segments that left no route or forced a detour. They go in
+    `rr.closures` (never truncated, unlike `blocked_reasons`) and in the warnings."""
+    tz = world.site.timezone
+    ev: list[Evidence] = []
+    seen: set[str] = set()
+
+    def add(c: Closure, name: str, kind: str, note: str = "") -> None:
+        if c.id in seen:
+            return
+        seen.add(c.id)
+        rr.closures.append(closure_row(world, c) | {"element_name": name, "impact": kind})
+        rr.warnings.append(f"{CLOSURE_SOURCE_LABEL}: {name}. {c.label(tz)}.{note}")
+        ev.append(_closure_ev(world, c))
+
+    for pid in (from_id, to_id):
+        p = world.places.get(pid)
+        for c in p.closures if p else []:
+            if c.is_active():
+                add(c, p.name, "endpoint")
+    for e, c in _edge_closure_impact(world, rr, from_id, to_id, profile, scenario_id):
+        name = e.name or f"an unnamed {e.type.replace('_', ' ')}"
+        if rr.status == "blocked":
+            add(c, name, "blocked", " Without it a route would exist.")
+        else:
+            add(c, name, "detour", " The route below detours around it.")
     return ev
 
 
@@ -329,6 +409,7 @@ def plan_route(
                     w.split(": ", 1)[1], "existence", "missing_place", question_summary
                 )
                 vrs.append({**vr.model_dump(mode="json"), "created": created})
+    evidence += _closure_notes(ctx.world, rr, from_id, to_id, profile, scenario_id)
     if rr.routes:
         evidence += _inferred_endpoints(ctx.world, from_id, to_id, rr.warnings)
     if scenario_id:
@@ -410,8 +491,84 @@ def nearby_amenities(
     )
 
 
-def get_closures(ctx: Ctx, scope_ids: list[str] | None = None) -> ToolResult:
-    return ToolResult(ok=True, data=[], warnings=["closures not modelled in the skeleton"])
+CLOSURE_SOURCE_LABEL = "Reported closure (staff)"
+NEAR_CLOSURE_M = 300.0
+
+
+def _closure_anchor(world: World, element_id: str):
+    """(name, kind, [lon, lat]) of the closed element, or None when it no longer exists."""
+    e = world.edges.get(element_id)
+    if e is not None:
+        return e.name or f"Unnamed {e.type.replace('_', ' ')}", "edge", e.coords[len(e.coords) // 2]
+    p = world.places.get(element_id)
+    if p is not None:
+        return p.name, "place", p.coord
+    return None
+
+
+def closure_row(world: World, c: Closure, now=None) -> dict:
+    tz = world.site.timezone
+    zone = _m.site_tz(tz)
+    anchor = _closure_anchor(world, c.element_id)
+    return {
+        "id": c.id,
+        "element_id": c.element_id,
+        "element_name": anchor[0] if anchor else None,
+        "element_kind": anchor[1] if anchor else None,
+        "reason": c.reason,
+        "starts_at": c.starts_at.astimezone(zone).isoformat(),  # site-local, with offset
+        "ends_at": c.ends_at.astimezone(zone).isoformat() if c.ends_at else None,
+        "note": c.note,
+        "label": c.label(tz),
+        "source_label": CLOSURE_SOURCE_LABEL,
+        "active": c.is_active(now),
+    }
+
+
+def _closure_ev(world: World, c: Closure) -> Evidence:
+    return Evidence(
+        id=f"ev-closure-{c.id}",
+        element_id=c.element_id,
+        attribute="closure",
+        value=c.label(),
+        status="reported",
+        verified_at=c.starts_at.astimezone(_m.site_tz(world.site.timezone)).date().isoformat(),
+        source_type="staff report",
+    )
+
+
+def get_closures(ctx: Ctx, near_place: str | None = None, active_only: bool = True) -> ToolResult:
+    """Staff-reported closures, soonest first. active_only=False also lists closures that have
+    not started yet (expired ones are dropped when the world loads). With near_place, only
+    closures on that place or within ~300 m of it, nearest first. A report, never a guarantee."""
+    w = ctx.world
+    now = _m.utcnow()
+    found = list(w.closures)
+    found = [c for c in found if not active_only or c.is_active(now)]
+    warnings: list[str] = []
+    dist: dict[str, float] = {}
+    if near_place:
+        origin = w.places.get(near_place)
+        if origin is None:
+            return ToolResult(ok=False, warnings=[f"no such place: {near_place}"])
+        for c in found:
+            anchor = _closure_anchor(w, c.element_id)
+            if anchor is not None:
+                dist[c.id] = (
+                    0.0 if c.element_id == origin.id else haversine_m(origin.coord, anchor[2])
+                )
+        found = [c for c in found if dist.get(c.id, 1e9) <= NEAR_CLOSURE_M]
+        found.sort(key=lambda c: (dist[c.id], c.id))
+    else:
+        found.sort(key=lambda c: (c.starts_at, c.id))
+    if not found:
+        warnings.append("no reported closures in the loaded data; this is not a guarantee")
+    return ToolResult(
+        ok=True,
+        data=[closure_row(w, c, now) for c in found],
+        evidence=[_closure_ev(w, c) for c in found],
+        warnings=warnings,
+    )
 
 
 def create_verification_request(

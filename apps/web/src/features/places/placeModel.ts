@@ -6,6 +6,7 @@ import {
 } from "../../lib/evidence";
 import { originName } from "../../lib/placeQuery";
 import { centreReachLabel } from "../../lib/routeStatus";
+import { closureLine } from "../manage/closureModel";
 import { humanType } from "../scene/list/listModel";
 
 export type ClaimStatus = "unknown" | "reported" | "verified" | "stale" | "contested";
@@ -50,6 +51,8 @@ export interface PlaceView {
   type: string;
   typeLabel: string;
   rows: ClaimRow[];
+  /** Staff-reported closures in force at this place; empty when none. */
+  closures: { label: string; line: string; note: string | null }[];
 }
 
 const label = (attr: string) => {
@@ -112,6 +115,14 @@ export function toPlaceView(result: unknown): PlaceView | null {
       };
     });
   const type = String(d.type ?? "other");
+  const closures = (Array.isArray(d.closures) ? d.closures : [])
+    .filter((c): c is Record<string, unknown> => !!c && typeof c === "object")
+    .filter((c) => c.active !== false && typeof c.label === "string")
+    .map((c) => ({
+      label: String(c.label),
+      line: closureLine({ label: String(c.label), starts_at: String(c.starts_at ?? "") }),
+      note: typeof c.note === "string" && c.note ? c.note : null,
+    }));
   const reach = d.reachability as Record<string, unknown> | null | undefined;
   const official = kind === "evac_centre" && d.source === "official_pps";
   return {
@@ -147,5 +158,6 @@ export function toPlaceView(result: unknown): PlaceView | null {
     type,
     typeLabel: kind === "evac_centre" ? "Evacuation centre" : humanType(type),
     rows,
+    closures,
   };
 }

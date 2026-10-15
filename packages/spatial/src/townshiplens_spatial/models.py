@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import re
+from datetime import UTC, datetime, timedelta, timezone
 from typing import Any, Literal
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 ClaimStatus = Literal["unknown", "reported", "verified", "stale", "contested"]
 EvalResult = Literal["PASS", "FAIL", "UNKNOWN"]
@@ -46,6 +48,69 @@ class Evidence(BaseModel):
     photo_url: str | None = None
 
 
+DEFAULT_TIMEZONE = "Asia/Kuala_Lumpur"
+
+
+def utcnow() -> datetime:
+    """The one clock closures use; tests replace it to move time without a restart."""
+    return datetime.now(UTC)
+
+
+def site_tz(name: str | None = None):
+    try:
+        return ZoneInfo(name or DEFAULT_TIMEZONE)
+    except ZoneInfoNotFoundError:  # no tzdata installed: Malaysia has no DST, so +08:00 is exact
+        return timezone(timedelta(hours=8))
+
+
+ClosureReason = Literal["works", "event", "flooding", "other"]
+
+
+def _utc(v: Any) -> Any:
+    """Naive datetimes are read as UTC so window comparisons never mix naive and aware."""
+    if isinstance(v, str):
+        v = datetime.fromisoformat(v.replace("Z", "+00:00"))
+    if isinstance(v, datetime) and v.tzinfo is None:
+        return v.replace(tzinfo=UTC)
+    return v
+
+
+class Closure(BaseModel):
+    """A staff-reported closure of one edge or place (Task 46). Never verified data: it is a
+    report, shown as "Reported closure (staff)". Active while starts_at <= now < ends_at."""
+
+    id: str
+    element_id: str
+    reason: ClosureReason
+    starts_at: datetime
+    ends_at: datetime | None = None  # None = until further notice
+    note: str | None = None
+    created_by: Literal["staff"] = "staff"
+    source: Literal["staff_report"] = "staff_report"
+    created_at: datetime | None = None
+
+    _norm = field_validator("starts_at", "ends_at", "created_at", mode="before")(_utc)
+
+    def is_active(self, now: datetime | None = None) -> bool:
+        now = now or utcnow()
+        return self.starts_at <= now and (self.ends_at is None or now < self.ends_at)
+
+    def label(self, tz: str | None = None) -> str:
+        """ "Closed: works until 20 Oct 2026" with the date in the site's time zone."""
+        until = fmt_day(self.ends_at, tz) if self.ends_at else "further notice"
+        return f"Closed: {self.reason} until {until}"
+
+
+def fmt_day(d: datetime, tz: str | None = None) -> str:
+    local = d.astimezone(site_tz(tz))
+    return f"{local.day} {local.strftime('%b %Y')}"
+
+
+def active_closures(closures: list[Closure], now: datetime | None = None) -> list[Closure]:
+    now = now or utcnow()
+    return [c for c in closures if c.is_active(now)]
+
+
 class Edge(BaseModel):
     id: str
     type: str  # footway|sidewalk|crossing|steps|ramp|path|street|...
@@ -55,6 +120,8 @@ class Edge(BaseModel):
     length_m: float
     name: str | None = None
     claims: dict[str, Claim] = Field(default_factory=dict)
+    # Staff-reported closures (not yet expired); evaluate_edge ignores any outside its window.
+    closures: list[Closure] = Field(default_factory=list)
 
 
 class Place(BaseModel):
@@ -69,6 +136,7 @@ class Place(BaseModel):
     node_inferred: bool = False
     entrance_ids: list[str] = Field(default_factory=list)
     claims: dict[str, Claim] = Field(default_factory=dict)
+    closures: list[Closure] = Field(default_factory=list)
 
 
 class DeepSpot(BaseModel):
@@ -95,6 +163,7 @@ class Site(BaseModel):
     center: LonLat
     bbox: list[float]  # [w, s, e, n]
     deep_spots: list[DeepSpot] = Field(default_factory=list)
+    timezone: str = DEFAULT_TIMEZONE  # IANA zone for every date shown to residents and staff
     lenses: list[Lens] = Field(default_factory=lambda: ["access", "flood", "waste"])
     scene: SceneConfig = Field(default_factory=SceneConfig)
     profiles: list[ProfileId] = Field(
@@ -190,6 +259,9 @@ class RouteResult(BaseModel):
     status: RouteStatus
     routes: list[Route]  # routes[0] = recommended; optional routes[1] = shorter lenient alternative
     blocked_reasons: list[dict[str, str]] = Field(default_factory=list)
+    # Staff-reported closures responsible for this answer: on the route they forced a detour from,
+    # or that the route would need. Never truncated (blocked_reasons is capped at 5).
+    closures: list[dict[str, Any]] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
     # Profiles with max_rest_free_run_m only (else None): routes[0]'s longest stretch without
     # a rest point, and the profile's limit.

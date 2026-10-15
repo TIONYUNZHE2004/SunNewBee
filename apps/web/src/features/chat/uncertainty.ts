@@ -12,3 +12,32 @@ export function describeUncertainty(items: Record<string, string>[] | undefined)
   }
   return out;
 }
+
+/** Items that are things to know (closures, rest gaps, demo values…), not unchecked facts. */
+const NOTE_ATTRIBUTES = new Set([
+  "closure",
+  "rest_gap",
+  "entrance",
+  "demo_values",
+  "flood",
+  "caveat",
+]);
+
+export interface BannerParts {
+  heading: "Not checked yet" | "Please note";
+  unchecked: string[];
+  notes: string[];
+}
+
+/** Split uncertainty items into unchecked facts and notes, so the banner never mislabels a closure. */
+export function bannerParts(items: Record<string, string>[] | undefined): BannerParts {
+  const unchecked: string[] = [];
+  const notes: string[] = [];
+  for (const it of items ?? []) {
+    const [line] = describeUncertainty([it]);
+    if (!line) continue;
+    (NOTE_ATTRIBUTES.has(it.attribute ?? "") ? notes : unchecked).push(line);
+  }
+  if (unchecked.length === 0 && notes.length === 0) notes.push("Some details are unconfirmed.");
+  return { heading: unchecked.length > 0 ? "Not checked yet" : "Please note", unchecked, notes };
+}

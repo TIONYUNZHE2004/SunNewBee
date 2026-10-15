@@ -94,7 +94,7 @@ Tests run against the tiny fixture world in `tests/fixtures/tiny`.
 | `get_place_details` | Place record with per-attribute claims and evidence |
 | `plan_route` | Route for a profile (optionally under a flood scenario); files verification requests for unknowns |
 | `nearby_amenities` | Amenities within walking distance, profile-aware |
-| `get_closures` | Stub in the skeleton (closures not modelled) |
+| `get_closures` | `(near_place?, active_only=true)`: staff-reported closures ("Reported closure (staff)"); an active one makes its edge FAIL for every profile in `evaluate_edge` |
 | `create_verification_request` | Deduplicated verification request, demand increments on repeats |
 | `list_flood_scenarios` | Scenarios with disclaimers (indicative, not forecasts) |
 | `affected_places` | Likely/possible flooded places and paths, plus isolated components |
@@ -109,6 +109,6 @@ with `__`.
 ## What to build next (BE lane)
 
 - Oneway- and turn-aware drive graph (the `drive` profile reuses the walk extract's street/track/major_road edges).
-- Closures (`get_closures`).
+- Closures: `plan_route` does not say when a closure forced a detour on a route that still exists (it names closures only when they leave no route or close an endpoint place). A closed place does not block routing to or through it.
 - Staleness TTL configuration.
 - Performance caching keyed by `world.version`.

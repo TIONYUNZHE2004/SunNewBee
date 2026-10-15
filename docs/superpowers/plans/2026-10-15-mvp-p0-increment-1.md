@@ -748,3 +748,54 @@ From the audit: G-07 is MISSING (sim tasks have no centre destinations).
 - **Runtime:** keep the whole sim under the existing time budget. Final review #2 measured about 75 s synchronously. Cap the evacuation journeys to fit, or move the run to a background task with status polling. Ruling: background task, and `POST /simulations` returns `202` with a run id. The UI polls. Update the JourneyTests UI accordingly.
 - **FE:** JourneyTests gains an "Evacuation" section: a table of profile × scenario with counts per result, in plain words.
 - **Tests:** a tiny-fixture sim with known results; monotonicity on the seed (a sample); the 202 and polling API test; DOM tests for the table.
+
+### Task 48: Agent wording for closures; uncertainty matches every caveat (AI)
+
+Deferred from Task 46 (review I2: answers never name a closure) and Task 41 (its report: the uncertainty event says level "none" when the only caveat is the rest gap).
+
+- **Closures in answers:** when `plan_route` returns `closures` (`RouteResult.closures`) or a closed start or destination, the mock and `template.py` name each closure in the Task 44 readable style: "Closed (staff report): <element name> until <date in Malaysia time> — <reason>". A route blocked by closures must say so, never just "blocked". `validate.py` rejects an answer about a route with closures that doesn't name them. The system prompt gets the same rule. `get_closures` is used for "is X closed?" questions.
+- **Uncertainty event:** the level is "partial" whenever the answer carries any caveat: unverified segments, rest gap, unverified rest point, inferred entrance, closure or demo values. The items list each one in readable form. A test covers the rest-gap-only and the closure-only cases.
+- **Tests:**
+  - tiny-fixture closures (active, expired, on destination);
+  - in-app prompts are unaffected;
+  - the demo replay-diff test passes. Re-record Elmina entries only if they change.
+- **Out of scope:** `packages/spatial` (read only), `apps/web`, `data/seed`.
+
+### Task 49: Demo script, proposal outline and pitch docs match the built product (docs)
+
+Demo & pitch polish (continuation run). `docs/03-product/demo-script.md`, `docs/06-pitch/pitch-narrative.md`, `proposal-outline.md`, `judge-qa.md` and `risks.md` predate what is built:
+- `/?demo=hero`, deep spots, persona chips and "Where can I go?";
+- the honest wording ("Route status: partly unverified", "demo values, not yet surveyed", "No mapped connection (data gap)");
+- the gap map, closures, photo evidence, KPI tiles, journey tests (rest-gap advisories) and DEMO_MODE replay;
+- `pnpm db:reset`.
+
+- **Demo script:** rewrite `docs/03-product/demo-script.md` as the exact click path for the 14 Nov pitch.
+  - **Setup checklist:**
+    - `pnpm db:reset`, then the `townshiplens-dev-demo` config (`LLM_PROVIDER=mock DEMO_MODE=true pnpm dev`);
+    - map keys present;
+    - the fallback is the List view if Google tiles fail.
+  - **Flows:** the `/?demo=hero` walkthrough, plus a manual path for each hero flow. Include what the screen shows at each step and the line the presenter says. Every claim must be checked against the app and the screenshots in `docs/06-pitch/screenshots/`.
+  - **Backup:** a 60–90 s recorded video, and the List view without keys.
+- **Pitch and proposal:**
+  - Update `pitch-narrative.md` slide 3/4 references and `proposal-outline.md` §3 to cite the real screenshots by file name.
+  - Update `judge-qa.md` answers where the product changed: the gap map's "16,131 of 16,148 not yet checked" as the field-survey pitch; closures; rest-gap honesty; major roads with no sidewalk data.
+  - Update `risks.md` statuses for R6/R7 (validator, demo cache, replay-diff test, drift tests are now built).
+- **Key numbers:** refresh `docs/06-pitch/key-numbers.md` with measured product numbers from `data/README.md`, `docs/superpowers/overnight-log.md` and the screenshots: walk components, connected share, centres connected, flood stage edge counts. Mark each as measured on the seed (date).
+- **Method:** verify every statement against code, data, or a screenshot; invent nothing. Keep the existing tone and structure. Do NOT edit code, `AGENTS.md` or `CLAUDE.md`.
+- **Verify:** `pnpm lint`. Commit `docs: …` on the lane branch.
+
+### Task 50: Staff console readability and deep links (FE)
+
+Found while capturing the pitch screenshots (continuation run).
+
+- **Readable queue rows:** each verification-request row shows:
+  - the attribute's catalogue label ("Incline (%)", from `attributeCatalogue.ts` / `optionLabel`), not `incline_pct`;
+  - the element's name, or "unnamed footway / street / major road", using the same naming as the chat (`useElementNames` / `citationLabel`) where the data is available;
+  - the raw id in small, muted text for staff lookup;
+  - "Reason" values as words ("Unknown", "Stale", "No route: unverified segment", …).
+
+  Filters keep the raw values internally.
+- **Deep links:** `/manage?tab=queue|briefing|journeys|closures` opens that tab. Changing tab updates the URL with `replace`, so Back isn't spammed. Unknown values fall back to the queue. The demo-mode script's manage steps use these links if they don't already.
+- **Tests:** DOM tests (Task 39 style) for row labels and each tab deep link; update e2e selectors only if needed.
+- **Verify:** vitest, lint, typecheck, build, e2e.
+- **Out of scope:** `apps/api`, `packages/*`, `data/`.

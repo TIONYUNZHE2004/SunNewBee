@@ -35,6 +35,9 @@ With no seed data present the API falls back to the tiny test fixture.
 | GET | `/briefings/flood` | `?scenario_id=&profile=`; centres measured from `lakeside-mall` or the first facility |
 | GET | `/verification-requests` | `?status=` (default `open`; `all` returns every status), `&reason=&element_id=&attribute=`; each row adds the claim's `current_value` |
 | POST | `/verification-requests` | staff; `{target_id, attribute, reason}`; sanitised with `safe_vr_args` (source `staff`), deduped against the open VR (demand + 1); 503 if the store is unavailable |
+| GET | `/closures` | public; `?active=true` (default: in force now) or `false` (ended or not started); every row is a staff report (`source_label` "Reported closure (staff)") |
+| POST | `/closures` | staff; `{element_id, reason: works/event/flooding/other, starts_at?, ends_at?, note?}`; 404 unknown element, 422 end not after start; audit row `closure:create` |
+| POST | `/closures/{id}/end` | staff; ends it now; 404, 409 (already ended); audit row `closure:end` |
 | POST | `/verification-requests/{id}/resolve` | staff; `{action: verify, correct or reject, value, note, evidence_id}`; `verify` without a value confirms the current value; `evidence_id` (from `POST /evidence`) attaches a photo to the claim and is refused on `reject`; 404, 409 (already resolved), 422 (value missing, unknown or rejected `evidence_id`, type mismatch) |
 | PATCH | `/elements/{id}/attributes/{key}` | staff; `{value, status: verified, unknown or reported, source_type, note}`; writes an audit row; 404, 422 |
 | GET | `/audit` | staff; `?element_id=&limit=` (1 to 1000, default 200) |
@@ -54,5 +57,4 @@ With no seed data present the API falls back to the tiny test fixture.
 ## Build next
 
 - Real staff auth (replace the shared token)
-- Closures (`get_closures` is a stub)
 - Deploy to Cloud Run with a persistent database

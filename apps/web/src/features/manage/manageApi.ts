@@ -241,3 +241,37 @@ export async function fetchAudit(elementId: string, token: string): Promise<Audi
   if (!r.ok) throw new ApiError(r.status, await readDetail(r));
   return (await r.json()) as AuditRow[];
 }
+
+export async function fetchClosures(active: boolean): Promise<Schemas["ClosureOut"][]> {
+  const r = await fetch(`/api/closures?active=${active}`, {
+    headers: { Accept: "application/json" },
+  });
+  if (!r.ok) throw new ApiError(r.status, await readDetail(r));
+  return (await r.json()) as Schemas["ClosureOut"][];
+}
+
+export async function createClosure(
+  body: Schemas["CreateClosureBody"],
+  token: string,
+): Promise<Schemas["ClosureOut"]> {
+  const r = await fetch("/api/closures", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "application/json",
+      "X-Staff-Token": token,
+    },
+    body: JSON.stringify(body),
+  });
+  if (!r.ok) throw new ApiError(r.status, await readDetail(r));
+  return (await r.json()) as Schemas["ClosureOut"];
+}
+
+export async function endClosure(id: string, token: string): Promise<Schemas["ClosureOut"]> {
+  const r = await fetch(`/api/closures/${encodeURIComponent(id)}/end`, {
+    method: "POST",
+    headers: { Accept: "application/json", "X-Staff-Token": token },
+  });
+  if (!r.ok) throw new ApiError(r.status, await readDetail(r));
+  return (await r.json()) as Schemas["ClosureOut"];
+}

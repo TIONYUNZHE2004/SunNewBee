@@ -40,3 +40,22 @@ export function SourceBanner({ view }: { view: PlaceView | null }) {
     </div>
   );
 }
+
+/** "Closed" notice for a place with a staff-reported closure in force. */
+export function ClosureBanner({ view }: { view: PlaceView | null }) {
+  if (!view || view.closures.length === 0) return null;
+  return (
+    <div
+      role="status"
+      className="mt-3 rounded-lg border border-[#C53030] bg-danger-tint px-3 py-2 text-sm"
+    >
+      <p className="font-semibold">Closed</p>
+      {view.closures.map((c) => (
+        <p key={c.line}>
+          {c.line}
+          {c.note && <span className="block text-ink-soft">Note: {c.note}</span>}
+        </p>
+      ))}
+    </div>
+  );
+}
