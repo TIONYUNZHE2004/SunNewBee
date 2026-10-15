@@ -4,7 +4,7 @@ Instructions for AI coding agents working in this repository (Claude Code, Codex
 
 TownshipLens is a hackathon project (Sime Darby Property University Hackathon 2026, People track). It is a 3D "township world model" of City of Elmina:
 - residents ask an AI assistant about step-free routes and indicative river-rise flood scenarios;
-- staff verify facts in a management console.
+- staff verify facts by resolving Tickets (verification requests) on a second screen.
 
 The product's core promise is **honesty**: answers come only from checked data, and every gap is shown as a gap.
 
@@ -80,6 +80,7 @@ apps/api POST /chat (SSE) ──► apps/web: parseSse → useChatStream → cha
   - No model names live in code.
   - The deterministic mock (`packages/agent/.../mock.py`) is the default for tests, CI and keyless development.
 - **Web renderers** degrade in order: Cesium 3D (Google Photorealistic tiles, else Cesium OSM Buildings), then Mapbox lite, then the List view. The choice is made in `features/scene/selectView.ts` behind an error boundary. Only three public browser keys reach the bundle (mapped via `define` in `vite.config.ts`; `envPrefix` is `TL_PUBLIC_`).
+- **Web screens:** two routes, `/` (map plus assistant) and `/tickets` (verification queue; staff enter a token in the outcome form, kept in `sessionStorage`). Day/night is owned by the `useTheme` store in `apps/web/src/ui/theme.ts` (not the scene store); `useScene().mapStyle` (`realistic|stylised`) selects the map style. See `apps/web/README.md`.
 - **State:**
   - Verification requests, the audit log and sim runs live in SQLite at `.data/<site id>.db`, one file per world unless `DATABASE_URL` is set.
   - Evidence photos live in `.data/evidence/`.
@@ -109,7 +110,7 @@ When changing the agent, the mock answers and `template.py` must still pass the 
   - Enum attributes use the strings from `docs/04-architecture/world-model-schema.md` (e.g. wheelchair `yes|limited|no`, handrail `both|one_side|none`).
 - **Tests:**
   - pytest + hypothesis live next to each package. `testpaths` covers spatial, agent, api and `data/scripts/tests`.
-  - vitest runs in the `node` environment by default. Interaction tests (clicks, focus, keyboard) opt in per file with `// @vitest-environment jsdom` and use Testing Library (`*.dom.test.tsx`; helpers in `apps/web/src/test/`). Other component tests render with `react-dom/server`, and side effects are extracted into pure, testable functions (see `features/manage/createVr.ts`).
+  - vitest runs in the `node` environment by default. Interaction tests (clicks, focus, keyboard) opt in per file with `// @vitest-environment jsdom` and use Testing Library (`*.dom.test.tsx`; helpers in `apps/web/src/test/`). Other component tests render with `react-dom/server`, and side effects are extracted into pure, testable functions (see `features/tickets/resolveForm.ts`).
   - Playwright uses dedicated ports 5273/8100, so a running dev server on 5173/8000 is never reused. It runs with the tiny fixture, mock LLM, `STAFF_TOKEN=e2e-token` and no map keys (list view).
 - **Commits:** Conventional style with a scope, e.g. `feat(web): …`, `fix(api): …`, `fix(agent): …`, `data: …`, `docs: …`. Data regeneration is committed separately from code.
 - **Dependencies:** only MIT, Apache-2.0 or BSD licences. No GPL/AGPL/LGPL, non-commercial, source-available or unknown licences. This rules out Pillow (HPND); images are stripped with the stdlib (`apps/api/.../imagestrip`). Pin exact versions.
@@ -136,4 +137,4 @@ When changing the agent, the mock answers and `template.py` must still pass the 
 
 - `.env` (repo root, gitignored) holds `OPENROUTER_API_KEY`, `STAFF_TOKEN`, `OPENCELLID_TOKEN` (server-only) and three public browser keys (`GOOGLE_MAPS_API_KEY`, `CESIUM_ION_ACCESS_TOKEN`, `MAPBOX_ACCESS_TOKEN`, `pk.` only). Never print or log `.env` values. Never move a server key into a browser variable.
 - Live LLM calls and Google 3D tile loads cost money. Prefer `LLM_PROVIDER=mock` and the list view, and keep live smoke tests small and deliberate.
-- `STAFF_TOKEN=change-me` (the default) makes staff endpoints return 503 by design. Set a real value to resolve VRs on `/manage`.
+- `STAFF_TOKEN=change-me` (the default) makes staff endpoints return 503 by design. Set a real value to resolve tickets on `/tickets`.

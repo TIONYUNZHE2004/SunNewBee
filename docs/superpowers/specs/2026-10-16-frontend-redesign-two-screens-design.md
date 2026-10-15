@@ -75,7 +75,7 @@ Starters: Resident (stroller route to the playground, wheelchair route to the la
 KAMUI tokens become Tailwind 4 `@theme` variables in `index.css` (colours, spacing, radii, fonts). Components use semantic tokens (surface, text, border, accent) so Day/Night is a single `data-theme` attribute on the root. Default follows `prefers-color-scheme`; the choice is stored in `localStorage` (wrapped in try/catch, per-viewer convenience only).
 
 - Panels, assistant, Tickets: Night = mockup palette; Day = cream/peach surfaces, indigo text. Contrast checked in both.
-- Map: `sceneStore` gains `timeOfDay: "day" | "night"`. Cesium Night = dark sky and dimmed tiles (Google tiles cannot be relit); Mapbox uses its day/night light presets; List follows the page theme. Project 2 consumes the same `timeOfDay` for the stylised city.
+- Map: the theme store (`ui/theme.ts`) is the single source of day/night (Ruling 1 of the plan), and `sceneStore` gains `mapStyle` (not `timeOfDay`). Cesium Night = dark sky and dimmed tiles (Google tiles cannot be relit); Mapbox uses its day/night light presets; List follows the page theme. Project 2 consumes the same theme (`useTheme`) for the stylised city.
 - Status is never colour only: every chip and map line has an icon, border/pattern and label in both themes.
 
 ## Honesty and wording (enforced, with tests)
@@ -99,7 +99,7 @@ Chat failure: error card with "Try again". Tickets load failure: plain message w
 
 ## Hook for Project 2
 
-`sceneStore.timeOfDay` and a `mapStyle: "realistic" | "stylised"` setting exist in Project 1 (stylised unimplemented, falls back to realistic). Project 2 adds the building data pipeline and the stylised renderer behind that setting.
+Exact names: `useTheme` (from `ui/theme.ts`; `theme: "day" | "night"`, the single source of day/night) and `useScene().mapStyle` (`"realistic" | "stylised"`, from `sceneStore`). Both exist in Project 1; `stylised` is unimplemented and falls back to realistic. Project 2 adds the building data pipeline and the stylised renderer behind that setting.
 
 ## Risks
 

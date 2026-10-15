@@ -2,6 +2,8 @@
 
 > The demo is the most persuasive 3–4 minutes we have. It shows the platform claim: **one 3D world model of Elmina, two very different lenses** (plus the management console). It is journeys J1, J3, J5, J7 and J8 ([personas-and-journeys](personas-and-journeys.md)) as built. Rehearse it until it's boring. **Always have the recorded backup video ready.**
 > Rules for the flood part: say "indicative scenario, not a forecast", never say "safe", never give a water depth, and never present Elmina itself as "going under". Elmina's core is not low-lying; the documented floods are in the downstream neighbours Kampung Kubu Gajah / Paya Jaras ([flood-disaster-lens § 1.3](../02-research/flood-disaster-lens.md)). The story is how a river rise affects **Elmina residents' routes, their neighbours and the evacuation centres**.
+> **Stale in places:** the two-screen redesign removed `/manage` (KPIs, briefing, journey tests, closures), the header Manage link, the "Jump to" buttons and `/?demo=hero`. The setup and beats below still describe the earlier UI; re-record the walkthrough against `/` and `/tickets` before pitching.
+
 > **What the demo is:** the real app on the real Elmina seed, with the deterministic **mock** assistant and `DEMO_MODE` replay. Answers are scripted and checked, not a live model; say so if asked. Facts on the access segments are **demo values, not yet surveyed** (`team_survey_placeholder`), and the app labels them that way. Screenshots of every beat: [screenshots/](../06-pitch/screenshots/README.md).
 
 ## Setup checklist (T–30 min)
@@ -13,7 +15,7 @@
 - [ ] **Fallback if Google tiles fail or look poor:** the 3D tab falls back to Cesium OSM Buildings, then use the **Lite map** or **List** tab. The List view needs no keys at all and carries every answer and layer
 - [ ] Replay only matches the **chip questions** and the **Where can I go?** button with the exact persona and scenario (`data/demo/*.jsonl`). A typed variation is a cache miss and runs the mock live, so use chips on stage
 - [ ] Run the walkthrough once end to end (`/?demo=hero`: Right / Left arrows, Space = auto-play / pause, Esc = exit) and read off the numbers you will quote
-- [ ] Second tab: `/manage?tab=queue` with the staff token entered (deep links: `?tab=queue|briefing|journeys|closures`); third tab: backup video
+- [ ] Second tab: `/tickets` (enter the staff token in a ticket's outcome form); third tab: backup video
 - [ ] Browser zoom 125%, notifications off, dark mode off
 
 ## Script (about 3:45)

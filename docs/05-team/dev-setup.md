@@ -82,7 +82,7 @@ pnpm --filter @tl/web e2e   # Playwright smoke on its own ports (web :5273, API 
 uv run python -m townshiplens_agent.cli "Can I push a stroller from Car Park B to the kiosk?"
 ```
 
-*Planned, not built:* `data:roads` (OSMnx drive graph; the `drive` profile currently uses the walk extract's street/track/major_road edges), deploy workflows. The resident-agent runner is built as `packages/spatial` `sim`, the staff `/simulations` endpoints and the Journey tests tab on `/manage`; `config/profiles/*.yaml` exists.
+*Planned, not built:* `data:roads` (OSMnx drive graph; the `drive` profile currently uses the walk extract's street/track/major_road edges), deploy workflows. The resident-agent runner is built as `packages/spatial` `sim`, the staff `/simulations` endpoints and the Journey tests UI was removed with the two-screen redesign (the API stays); `config/profiles/*.yaml` exists.
 
 ## 3. Conventions
 
@@ -159,7 +159,7 @@ Rules:
 ```bash
 git clone <repo> && cd SunNiuBi
 corepack enable                     # pnpm; Node 24 and uv (https://docs.astral.sh/uv/) installed
-cp .env.example .env                # keys optional; set STAFF_TOKEN to use the /manage resolve form
+cp .env.example .env                # keys optional; set STAFF_TOKEN to resolve tickets on /tickets
 pnpm install && uv sync --all-packages --all-groups
 pnpm dev                            # http://localhost:5173 (web), http://localhost:8000/docs (API)
 ```

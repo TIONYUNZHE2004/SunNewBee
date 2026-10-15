@@ -4,6 +4,8 @@
 > Priorities: **P0** = the demo fails without it · **P1** = needed for a strong final submission · **P2** = only if time allows. Calibrated for **3 students and about 4 weeks of build** (timeline: [../05-team/timeline.md](../05-team/timeline.md)); the flood lens week-by-week split is in [flood-disaster-lens § 8.6](../02-research/flood-disaster-lens.md).
 > Journeys (J1–J10) are defined in [personas-and-journeys.md](personas-and-journeys.md). Names (lenses, profiles, tools, scenario ids, events) follow the [canonical names table](../04-architecture/README.md); endpoints and events are in the [API contract](../04-architecture/api-contract.md).
 
+> **Status (2026-10-16):** the web UI is now two screens, `/` (map plus assistant) and `/tickets` (verification queue), with a day/night theme. The `/manage` console (KPI tiles, flood briefing, journey tests, closures) and the persona/scenario bars described in the M- and P- rows below were removed in that redesign; the backend endpoints stay. See [apps/web/README.md](../../apps/web/README.md) and the [redesign spec](../superpowers/specs/2026-10-16-frontend-redesign-two-screens-design.md). Rows below are the original scope, not the current UI.
+
 ## How the product is organised
 
 ```

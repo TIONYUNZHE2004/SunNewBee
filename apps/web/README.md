@@ -1,18 +1,17 @@
 # @tl/web
 
-The TownshipLens browser app: a Vite + React 19 SPA with two routes.
+The TownshipLens browser app: a Vite + React 19 SPA with two screens and a day/night theme.
 
-- `/` resident page: layer toggles (Access / Flood / Waste), the flood scenario bar (with a
-  "Where can I go?" button once a scenario is on), "Jump to" deep-spot buttons (from
-  `site.deep_spots`; each flies the camera, turns its layer on and, for a flood spot, sets
-  `stage_p3m`), the scene, the chat panel, the place card and the "Why this path?" popover.
-- `/manage` management console: KPI tiles (open verification requests, median hours to resolve,
-  journeys confirmed from the latest run; journey tests run in the background and the page polls every 2 s, with an Evacuation table) above four tabs: **Verification queue** (resolve with
-  a staff token), **Flood briefing** (cut-off places, isolated areas, evacuation centres, a draft
-  advisory, an "Assumptions" section with the selected profile's thresholds), **Journey
-  tests** (run the resident-agent batch, outcome matrix, top data gaps, critical invariant
-  violations, advisory notes such as routes over the rest limit with no alternative, recent runs,
-  file a verification request for a gap) and **Closures** (staff-reported closures; the free-text note is shown to staff only).
+- `/` **Main** (`features/main/MainPage.tsx`): the map on the left (`MapStage`: Cesium 3D, Mapbox
+  lite or the List view) with overlays (route tag, flood note, settings popover, place and path
+  overlays), and the **assistant** panel on the right (stacked, map first, below the `lg`
+  breakpoint). The assistant has modes with starter questions (`features/assistant/starters.ts`),
+  answer cards with citations and uncertainty banners, and a Gaps section of unverified facts.
+- `/tickets` **Tickets** (`features/tickets`): the verification queue, grouped "To check" and
+  "Checked". Pick a ticket to see its detail and a before/after of the assistant's answer, and
+  record the outcome. There is no `/manage` route any more.
+- A shared **Shell** (`app/Shell.tsx`) carries the navigation between the two screens and the
+  day/night toggle.
 
 ## Run
 
@@ -53,15 +52,13 @@ Playwright config does) forces the keyless list view.
 
 ## Resident features
 
-- **Persona chips:** the chat suggests plain questions for the active layer (flood, else waste,
-  else access). A chip with a persona (stroller, wheelchair, older adult needing rest, default)
-  switches the profile selector first, then sends the question with that profile.
-- **"Where can I go?"** in the scenario bar asks the assistant from the active flood scenario.
+- **Starters:** the assistant offers plain starter questions per mode. A starter with a persona
+  (stroller, wheelchair, older adult needing rest, default) switches the mobility profile first,
+  then sends the question with that profile.
 - **Tappable markers:** a place, evacuation-centre or waste marker (Cesium, Mapbox) or list row
   opens the place card with its claims, status chips, evidence photo and, for evacuation centres
   and waste points, a source banner ("Official PPS" or "Candidate (OSM), not an official relief
-  centre"; collection day "unknown, ask MBSA"). With a staff token entered on `/manage`, the card
-  also offers per-attribute editing and the audit history.
+  centre"; collection day "unknown, ask MBSA").
 - **"Why this path?":** selecting a flood-coloured path (map click or list row) opens a card with
   the scenario, class (always "indicative"), method, elevation data, margin and disclaimer.
 - **Honest labels:** `lib/evidence.ts` shows `team_survey_placeholder` facts as "Demo value · not
@@ -71,14 +68,39 @@ Playwright config does) forces the keyless list view.
   `/evidence/<id>`, requested under `/api`) renders on evidence cards and the place card. Only
   JPEG or PNG up to 5 MB are accepted for upload.
 
-## Management features
+## Tickets and staff access
 
-- **Deep links:** `/manage?tab=queue|briefing|journeys|closures` opens that tab (unknown values open the queue); switching tabs updates the URL with `replace`.
-- **Verification queue:** rows show the attribute label, the element name (or "Unnamed footway / street / major road") with the raw id muted, and the reason in words. Open / Resolved / All tabs plus reason, attribute and element filters
-  (sent as `?status=&reason=&attribute=&element_id=`). The resolve form (verify, correct, reject)
-  takes an optional photo, uploaded with `POST /evidence` and attached via `evidence_id`.
-- **Staff token:** one shared token for all tabs, kept in `sessionStorage` (`tl.staffToken`) and
-  sent as `X-Staff-Token`.
+- **Where tickets come from:** each ticket is a verification request (VR) the assistant filed for
+  a gap (`GET /verification-requests`). `ticketModel.ts` groups them into "To check" and "Checked";
+  `queueLabels.ts` turns the attribute, element and reason into words (never a raw id).
+- **How a ticket is resolved:** staff open a ticket and choose an outcome in `OutcomeForm`
+  (verify, correct or reject), with a value for a correction and an optional photo (JPEG or PNG up
+  to 5 MB, uploaded with `POST /evidence` and attached via `evidence_id`). The save goes to
+  `POST /verification-requests/{id}/resolve`; the queue and the assistant's answers refetch, so the
+  `BeforeAfter` panel shows how the answer changes once the fact is checked. A second resolver gets
+  "Someone else already resolved this ticket."
+- **Staff token field:** a "Staff access" password field (`StaffAccess.tsx`) is shown in the
+  outcome form. The value is one shared token (`useStaffToken`), kept in `sessionStorage`
+  (`tl.staffToken`) and sent as `X-Staff-Token`. Without it, the form says "Staff access needed".
+  The API answers 503 while `STAFF_TOKEN` is the default `change-me`.
+- **Attribute catalogue:** `features/tickets/attributeCatalogue.ts` mirrors
+  `packages/spatial/.../attributes.py`; a drift test keeps them equal.
+
+## Theme (day / night)
+
+`src/ui/theme.ts` is the single source of day/night. The `useTheme` zustand store (`theme`,
+`setTheme`, `toggle`) persists the choice in `localStorage` (`tl.theme`, wrapped in try/catch),
+falls back to the device preference (`prefers-color-scheme: light` gives day), else night, and
+writes `data-theme="day|night"` on `<html>`. Colours are CSS custom properties defined per theme;
+components use semantic tokens such as `bg-surface`, `bg-raised`, `text-fg`, `text-fg-soft` and
+`border-edge`, not raw palette values. Status is never colour only: `src/ui/status.ts` and
+`StatusChip` pair every status with an icon, a border or pattern and a label in both themes, and
+own the honest wording. `ThemeToggle` sits in the Shell. The map follows the theme: Cesium night is
+a dark sky with dimmed tiles (`scene/cesium/timeOfDay.ts`; Google tiles cannot be relit), Mapbox
+uses its light presets, and the List view follows the page.
+
+`sceneStore.mapStyle` (`"realistic" | "stylised"`, read with `useScene().mapStyle`) selects the map
+style. Only `realistic` is implemented; `stylised` is the hook for a planned stylised city.
 
 ## Scene-intent flow
 
@@ -94,7 +116,7 @@ POST /chat (SSE) -> parseSse -> useChatStream -> chatReducer   (messages, tool c
                                                               flood.set_level  -> scenarioId (+ flood layer on)
                                                               camera.fly_to    -> camera
                                                               layer.toggle     -> lensVisible
-sceneStore --> Cesium / Mapbox / List renderers (one adapter each) + ScenarioBar + legend
+sceneStore --> Cesium / Mapbox / List renderers (one adapter each) + map overlays + legend
 ```
 
 Each renderer reads `useScene` and the REST layers (`/layers/{lens}?profile=&scenario_id=`);
@@ -105,22 +127,24 @@ flooded_possible`) via `scene/status.ts`, and unknown is drawn dashed and amber,
 
 ```
 src/
-  main.tsx, app/            router (/ and /manage), providers (TanStack Query), ResidentPage
+  main.tsx, app/            routes.tsx (/ and /tickets), Shell (nav, theme toggle), providers (TanStack Query)
+  ui/                       theme.ts (useTheme), ThemeToggle, Button, StatusChip, status.ts (honest wording)
   lib/api.ts, env.ts        typed client (openapi-fetch over @tl/api-client), ENV keys
   lib/profileStore.ts       selected mobility profile, persisted
   lib/evidence.ts, routeStatus.ts, EvidencePhoto.tsx   honest labels, photo rules and rendering
   features/
-    chat/                   ChatPanel, useChatStream, parseSse, chatReducer, EvidenceCard, suggestions
-                            (persona chips), UncertaintyBanner (every claim shows its verification status)
-    flood/                  ScenarioBar ("River +3 m (indicative)", "Where can I go?"), DisclaimerBanner,
-                            FloodPathPopover ("Why this path?")
-    places/                 PlaceCard, SourceBanner, placeModel
-    scene/                  SceneHost (view choice + boundary), sceneStore, selectView, status, styles,
-                            StatusLegend, DeepSpots; cesium/, mapbox/, list/ adapters
-    manage/                 ManagePage (KPI tiles + tabs), VerificationQueue (filters, resolve form),
-                            FloodBriefing + Assumptions, JourneyTests, AttributeEditor, AuditHistory,
-                            CreateVrButton, advisory
-e2e/heroes.spec.ts          Playwright smoke
+    main/                   MainPage (map + assistant layout)
+    assistant/              AssistantPanel, AnswerCard, starters
+    chat/                   useChatStream, parseSse, chatReducer, EvidenceCard, CitationList, uncertainty
+    gaps/                   GapsSection, gapModel (what is not checked yet)
+    map-ui/                 MapStage and overlays: RouteTag, FloodNote, SettingsPopover, PlaceOverlay, PathOverlay
+    flood/                  floodPath ("Why this path?" facts, always indicative)
+    places/                 SourceBanner, placeModel
+    scene/                  sceneStore (incl. mapStyle), selectView, status, styles, StatusLegend;
+                            cesium/, mapbox/, list/ adapters
+    tickets/                TicketsPage, TicketList, TicketDetail, OutcomeForm, BeforeAfter,
+                            StaffAccess, useStaffToken, attributeCatalogue
+e2e/heroes.spec.ts          Playwright flows
 playwright.config.ts        webServer env (see below)
 scripts/check-cesium-assets.mjs   build-time check that /cesium assets were copied
 ```
@@ -128,27 +152,27 @@ scripts/check-cesium-assets.mjs   build-time check that /cesium assets were copi
 Cesium's static assets are copied to `/cesium` by `vite-plugin-static-copy` (`stripBase: 4` so
 files land at `/cesium/<Dir>/...`, matching `CESIUM_BASE_URL`); they are gitignored.
 
-## E2E smoke (Playwright)
+## E2E (Playwright)
 
 `playwright.config.ts` starts `pnpm dev` with a deterministic environment: `LLM_PROVIDER=mock`,
 `TL_DATA_DIR` pointing at the tiny fixture world, a fresh SQLite file (`.data/e2e.db`, deleted
-before each run), `STAFF_TOKEN=e2e-token`, and all three map keys empty (list view). It checks
-the access hero (route status and honest demo evidence), the flood hero ("not a forecast", never
-"safe"), that the kiosk question's gap appears in `/manage`, that staff can correct a numeric fact
-from the queue, that the flood briefing labels Official PPS and Candidate centres, that every
-button, textbox and select on both pages has an accessible name, that a list-view place card opens
-and Esc returns focus, that the journey tests run, and that a fact edited to Unknown shows in its
-history. Playwright uses its own ports (web 5273, API 8100) and waits for `/api/site`, so a dev
-server on :5173/:8000 is never reused (a leftover e2e server on :5273 is reused locally, never in
-CI). First run: `pnpm --filter @tl/web exec playwright install chromium`.
+before each run), `STAFF_TOKEN=e2e-token`, and all three map keys empty (list view).
+`e2e/heroes.spec.ts` covers the two-screen flow: the access and flood questions (route status,
+honest demo evidence, "not a forecast", never "safe"), a gap that becomes a ticket, resolving a
+ticket with the staff token, and the assistant's answer changing after the ticket is resolved.
+Playwright uses its own ports (web 5273, API 8100) and waits for `/api/site`, so a dev server on
+:5173/:8000 is never reused (a leftover e2e server on :5273 is reused locally, never in CI). First
+run: `pnpm --filter @tl/web exec playwright install chromium`.
 
-## What to build next (FE lane)
+## What to build next
 
+- Stylised city renderer behind `mapStyle` (committed OSM footprints, day and night looks).
 - Water-rise animation between scenario levels (levels currently switch).
 - Accessibility audit beyond accessible names (axe-core is MPL-2.0, outside the MIT/Apache/BSD licence policy; use a manual screen-reader pass or a permitted checker).
 - Mobile performance: Cesium chunk weight, `requestRenderMode`, test on a mid-range phone.
-- A proper legend component shared by all three renderers.
 
-## Pitch demo mode
+## Recorded answers
 
-`/?demo=hero` shows a fixed control bar (caption, Back / Play / Next / Exit demo; keys: Right, Left, Space, Esc) that walks the three hero flows. The script is plain data in `src/features/demo/heroScript.ts`; each step goes through the existing scene store, the chip send path and the router. A deep spot missing from the dataset is skipped with "(not available in this dataset)". With `DEMO_MODE=true` the API replays recorded answers for the script's questions (see `data/demo/README.md`).
+With `DEMO_MODE=true` the API replays recorded answers for questions it has seen (see
+`data/demo/README.md`); the web app needs no change. The earlier `/?demo=hero` control bar and
+the `/manage` console were removed with the redesign.
