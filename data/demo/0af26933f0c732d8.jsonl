@@ -1,19 +1,19 @@
-{"meta": {"message": "Where is the nearest evacuation centre if the water rises 3 m?", "profile": "wheelchair", "scenario_id": "stage_p3m", "world": "elmina", "model": "mock-scripted", "recorded_at": "2026-10-15T04:41:25+00:00"}}
+{"meta": {"message": "Where is the nearest evacuation centre if the water rises 3 m?", "profile": "wheelchair", "scenario_id": "stage_p3m", "world": "elmina", "model": "mock-scripted", "recorded_at": "2026-10-15T04:45:06+00:00"}}
 {"type": "tool.call", "id": "find_place-0", "name": "find_place", "args": {"query": "lakeside mall", "types": null, "limit": 5}}
 {"type": "tool.result", "id": "find_place-0", "name": "find_place", "summary": "2 result(s)"}
 {"type": "tool.call", "id": "list_evacuation_centres-1", "name": "list_evacuation_centres", "args": {"scenario_id": "stage_p3m", "profile": "wheelchair", "near_place": "lakeside-mall"}}
 {"type": "tool.result", "id": "list_evacuation_centres-1", "name": "list_evacuation_centres", "summary": "72 result(s)"}
 {"type": "tool.call", "id": "plan_route-2", "name": "plan_route", "args": {"from_id": "lakeside-mall", "to_id": "__centre__evc-osm-way-1063471271", "profile": "wheelchair", "scenario_id": "stage_p3m"}}
-{"type": "verification.requested", "request_id": "vr-0003", "element_id": "seg-1346154591-2", "attribute": "step_count", "created": false, "demand": 2}
-{"type": "verification.requested", "request_id": "vr-0004", "element_id": "seg-1346154591-2", "attribute": "incline_pct", "created": false, "demand": 2}
-{"type": "verification.requested", "request_id": "vr-0005", "element_id": "seg-1346154591-2", "attribute": "width_m", "created": false, "demand": 2}
-{"type": "verification.requested", "request_id": "vr-0006", "element_id": "seg-1346154591-3", "attribute": "step_count", "created": false, "demand": 2}
-{"type": "verification.requested", "request_id": "vr-0007", "element_id": "seg-1346154591-3", "attribute": "incline_pct", "created": false, "demand": 2}
-{"type": "verification.requested", "request_id": "vr-0008", "element_id": "seg-1346154591-3", "attribute": "width_m", "created": false, "demand": 2}
-{"type": "verification.requested", "request_id": "vr-0009", "element_id": "seg-1346154589-0", "attribute": "step_count", "created": false, "demand": 2}
-{"type": "verification.requested", "request_id": "vr-0010", "element_id": "seg-1346154589-0", "attribute": "incline_pct", "created": false, "demand": 2}
-{"type": "verification.requested", "request_id": "vr-0011", "element_id": "seg-1346154589-0", "attribute": "width_m", "created": false, "demand": 2}
-{"type": "verification.requested", "request_id": "vr-0012", "element_id": "seg-1306543745-2", "attribute": "step_count", "created": false, "demand": 2}
+{"type": "verification.requested", "request_id": "vr-0002", "element_id": "seg-1346154591-2", "attribute": "step_count", "created": false, "demand": 6}
+{"type": "verification.requested", "request_id": "vr-0003", "element_id": "seg-1346154591-2", "attribute": "incline_pct", "created": false, "demand": 6}
+{"type": "verification.requested", "request_id": "vr-0004", "element_id": "seg-1346154591-2", "attribute": "width_m", "created": false, "demand": 6}
+{"type": "verification.requested", "request_id": "vr-0005", "element_id": "seg-1346154591-3", "attribute": "step_count", "created": false, "demand": 6}
+{"type": "verification.requested", "request_id": "vr-0006", "element_id": "seg-1346154591-3", "attribute": "incline_pct", "created": false, "demand": 6}
+{"type": "verification.requested", "request_id": "vr-0007", "element_id": "seg-1346154591-3", "attribute": "width_m", "created": false, "demand": 6}
+{"type": "verification.requested", "request_id": "vr-0008", "element_id": "seg-1346154589-0", "attribute": "step_count", "created": false, "demand": 6}
+{"type": "verification.requested", "request_id": "vr-0009", "element_id": "seg-1346154589-0", "attribute": "incline_pct", "created": false, "demand": 6}
+{"type": "verification.requested", "request_id": "vr-0010", "element_id": "seg-1346154589-0", "attribute": "width_m", "created": false, "demand": 6}
+{"type": "verification.requested", "request_id": "vr-0011", "element_id": "seg-1306543745-2", "attribute": "step_count", "created": false, "demand": 6}
 {"type": "tool.result", "id": "plan_route-2", "name": "plan_route", "summary": "route partly_unverified"}
 {"type": "text.delta", "delta": "Route status: partly_unverified\n⚠ Not ch"}
 {"type": "text.delta", "delta": "ecked yet: step_count on seg-1346154591-"}

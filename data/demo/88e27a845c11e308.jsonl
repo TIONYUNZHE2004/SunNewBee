@@ -1,7 +1,15 @@
-{"meta": {"message": "Is the walk from the urban park to the lakeside mall easy?", "profile": "default", "scenario_id": null, "world": "elmina", "model": "mock-scripted", "recorded_at": "2026-10-15T04:41:23+00:00"}}
-{"type": "tool.call", "id": "find_place-0", "name": "find_place", "args": {"query": "is the walk from the urban park to the lakeside mall easy?", "types": null, "limit": 5}}
+{"meta": {"message": "Is the walk from the urban park to the lakeside mall easy?", "profile": "default", "scenario_id": null, "world": "elmina", "model": "mock-scripted", "recorded_at": "2026-10-15T04:45:02+00:00"}}
+{"type": "tool.call", "id": "find_place-0", "name": "find_place", "args": {"query": "urban park", "types": null, "limit": 5}}
 {"type": "tool.result", "id": "find_place-0", "name": "find_place", "summary": "5 result(s)"}
-{"type": "text.delta", "delta": "I don't have that place in the township "}
-{"type": "text.delta", "delta": "model yet. I've asked the team to check."}
-{"type": "uncertainty", "level": "high", "items": []}
-{"type": "done", "message_id": "demo", "answer_status": "cannot_answer", "model": "mock-scripted"}
+{"type": "tool.call", "id": "find_place-1", "name": "find_place", "args": {"query": "lakeside mall", "types": null, "limit": 5}}
+{"type": "tool.result", "id": "find_place-1", "name": "find_place", "summary": "2 result(s)"}
+{"type": "tool.call", "id": "plan_route-2", "name": "plan_route", "args": {"from_id": "osm-way-1309457596", "to_id": "lakeside-mall", "profile": "default", "scenario_id": null}}
+{"type": "verification.requested", "request_id": "vr-0019", "element_id": "osm-way-1309457596", "attribute": "existence", "created": false, "demand": 2}
+{"type": "tool.result", "id": "plan_route-2", "name": "plan_route", "summary": "route no_data"}
+{"type": "text.delta", "delta": "⚠ Route status: no_data; some segments a"}
+{"type": "text.delta", "delta": "re still unverified.\nElmina Urban Park t"}
+{"type": "text.delta", "delta": "o Elmina Lakeside Mall: route no_data."}
+{"type": "citation", "ref": 1, "evidence_id": "ev-place-osm-way-1309457596", "element_id": "osm-way-1309457596", "attribute": "name", "status": "reported", "verified_at": null, "source_type": "world_model", "photo_url": null}
+{"type": "citation", "ref": 2, "evidence_id": "ev-place-lakeside-mall", "element_id": "lakeside-mall", "attribute": "name", "status": "reported", "verified_at": null, "source_type": "world_model", "photo_url": null}
+{"type": "uncertainty", "level": "none", "items": []}
+{"type": "done", "message_id": "demo", "answer_status": "partial", "model": "mock-scripted"}
