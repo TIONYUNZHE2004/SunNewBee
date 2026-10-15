@@ -83,9 +83,12 @@ def template_answer(rec: TurnRecord, question: str) -> FinalAnswer:
     caveats += unknowns
     if status == "no_data":
         caveats.append("No mapped connection between these places (data gap).")
-    elif status != "confirmed" and (route_unknowns or not rest):
-        if route_unknowns or not any(c.get("impact") == "blocked" for c in rec.route_closures):
-            caveats.append("Some segments are still unverified.")
+    elif (
+        status != "confirmed"
+        and (route_unknowns or not rest)
+        and (route_unknowns or not any(c.get("impact") == "blocked" for c in rec.route_closures))
+    ):
+        caveats.append("Some segments are still unverified.")
     caveats += rest
     caveats += closure_caveats(closed)
     caveats += inferred_caveats(rec.inferred_notes)
