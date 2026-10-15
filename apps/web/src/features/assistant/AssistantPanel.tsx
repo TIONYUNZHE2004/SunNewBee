@@ -104,7 +104,7 @@ export function AssistantPanel() {
                 type="button"
                 disabled={streaming}
                 onClick={() => pick(s)}
-                className="min-h-9 shrink-0 rounded-full border border-edge bg-raised px-3 text-xs text-fg hover:border-accent disabled:opacity-60"
+                className="min-h-11 shrink-0 rounded-full border border-edge bg-raised px-3 text-xs text-fg hover:border-accent disabled:opacity-60"
               >
                 {s.text}
               </button>

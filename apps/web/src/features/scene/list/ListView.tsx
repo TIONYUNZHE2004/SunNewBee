@@ -94,7 +94,7 @@ export function ListView() {
         <button
           type="button"
           onClick={() => layer.refetch()}
-          className="mt-3 rounded-md bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-dark"
+          className="mt-3 rounded-md bg-accent px-4 py-2 text-sm font-medium text-on-accent hover:opacity-90"
         >
           Retry
         </button>

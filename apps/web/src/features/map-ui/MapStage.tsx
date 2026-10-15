@@ -44,6 +44,7 @@ export function MapStage({ children }: { children?: ReactNode }) {
     setView(selectView(ENV, webglOk));
   }, [webglOk, setView]);
 
+  const has3d = available.some((v) => v !== "list");
   const effective: View = available.includes(view) ? view : "list";
   const listFallback = (
     <div className="h-full space-y-3 overflow-auto p-4">
@@ -58,13 +59,15 @@ export function MapStage({ children }: { children?: ReactNode }) {
     <div className="relative h-full min-h-72 overflow-hidden bg-surface">
       {effective === "list" ? (
         <div className="h-full space-y-3 overflow-auto p-4">
-          <p
-            role="status"
-            className="rounded-lg border border-edge bg-raised px-4 py-3 text-sm text-fg"
-          >
-            3D map couldn't load. Showing the list view instead. Everything the assistant does still
-            works here.
-          </p>
+          {!has3d && (
+            <p
+              role="status"
+              className="rounded-lg border border-edge bg-raised px-4 py-3 text-sm text-fg"
+            >
+              3D map couldn't load. Showing the list view instead. Everything the assistant does
+              still works here.
+            </p>
+          )}
           <ListView />
         </div>
       ) : (

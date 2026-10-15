@@ -83,7 +83,7 @@ export function SettingsPopover() {
               {levels.map((o) => (
                 <Radio
                   key={o.id ?? "normal"}
-                  checked={scenarioId === o.id}
+                  checked={scenarioId === o.id || (o.id === null && scenarioId === "baseline")}
                   onClick={() => setScenario(o.id)}
                 >
                   {o.label}
@@ -122,7 +122,7 @@ export function SettingsPopover() {
         type="button"
         aria-label="Map settings"
         aria-expanded={open}
-        aria-controls="map-settings"
+        aria-controls={open ? "map-settings" : undefined}
         onClick={() => setOpen((o) => !o)}
         className="absolute bottom-4 right-4 z-20 grid size-11 place-items-center rounded-full border border-edge bg-surface text-fg shadow-md hover:bg-raised"
       >

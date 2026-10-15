@@ -49,6 +49,15 @@ describe("SettingsPopover", () => {
     ])
       expect(within(legend).getByText(t)).toBeInTheDocument();
   });
+  it("treats the baseline scenario as Normal and sets aria-controls only while open", async () => {
+    useScene.getState().setScenario("baseline");
+    renderWithClient(<SettingsPopover />, seeded());
+    const btn = screen.getByRole("button", { name: "Map settings" });
+    expect(btn).not.toHaveAttribute("aria-controls");
+    await userEvent.click(btn);
+    expect(btn).toHaveAttribute("aria-controls", "map-settings");
+    expect(screen.getByRole("radio", { name: "Normal" })).toHaveAttribute("aria-checked", "true");
+  });
   it("river level picks the scenario; Normal clears it", async () => {
     renderWithClient(<SettingsPopover />, seeded());
     await userEvent.click(screen.getByRole("button", { name: "Map settings" }));

@@ -13,7 +13,7 @@ export function FloodNote() {
   return (
     <div
       role="note"
-      className="absolute bottom-4 left-4 z-10 max-w-sm rounded-xl border border-flood bg-surface/95 px-3 py-2 text-sm text-fg shadow-md"
+      className="absolute bottom-4 left-4 z-10 max-w-[min(24rem,calc(100%-5rem))] rounded-xl border border-flood bg-surface/95 px-3 py-2 text-sm text-fg shadow-md"
     >
       <p className="m-0 font-medium">River {label} · indicative scenario, not a forecast</p>
       <p className="m-0 mt-1">

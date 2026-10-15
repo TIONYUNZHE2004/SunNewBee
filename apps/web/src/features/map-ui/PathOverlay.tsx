@@ -56,8 +56,8 @@ export function PathCard({
         </div>
         {how && row("How it was worked out", how)}
         {row("Data", v.generated)}
-        <p className="text-xs text-fg-soft">{v.datesNote}</p>
       </dl>
+      <p className="mt-2 text-xs text-fg-soft">{v.datesNote}</p>
       <p className="mt-3 text-sm">
         <strong>Indicative only. </strong>
         {v.disclaimer}
