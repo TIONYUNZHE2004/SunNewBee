@@ -19,7 +19,11 @@ const routes = [
 
 function setup(path = "/") {
   stubFetch((url) => {
-    if (url.includes("/verification-requests")) return json([{ id: "v1" }, { id: "v2" }]);
+    if (url.includes("/verification-requests"))
+      return json([
+        { id: "v1", status: "open" },
+        { id: "v2", status: "open" },
+      ]);
     return json({ name: "City of Elmina", attribution: ["© OpenStreetMap contributors (ODbL)"] });
   });
   return renderWithClient(
