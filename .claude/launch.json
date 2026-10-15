@@ -1,0 +1,23 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "townshiplens-dev",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["dev"],
+      "port": 5173
+    },
+    {
+      "name": "townshiplens-dev-mock",
+      "runtimeExecutable": "env",
+      "runtimeArgs": ["LLM_PROVIDER=mock", "pnpm", "dev"],
+      "port": 5173
+    },
+    {
+      "name": "townshiplens-dev-demo",
+      "runtimeExecutable": "env",
+      "runtimeArgs": ["LLM_PROVIDER=mock", "DEMO_MODE=true", "pnpm", "dev"],
+      "port": 5173
+    }
+  ]
+}

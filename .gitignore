@@ -28,3 +28,7 @@ reference/papers/**/*.pdf
 
 # --- Agent workspaces (subagent-driven-development ledgers, briefs, review packages)
 .superpowers/
+
+# --- Claude Code: personal settings stay local; .claude/launch.json (preview servers) is shared
+.claude/settings.local.json
+CLAUDE.local.md
