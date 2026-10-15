@@ -22,7 +22,10 @@ export function AnswerCard({ m, onRetry }: { m: AssistantMessage; onRetry: () =>
     .filter((l) => l.href && /^https?:\/\//.test(l.href));
 
   return (
-    <article className={`space-y-3 rounded-lg border p-3 text-sm text-fg ${tone}`}>
+    <article
+      data-done={m.done || m.error ? "true" : "false"}
+      className={`space-y-3 rounded-lg border p-3 text-sm text-fg ${tone}`}
+    >
       {refusal && (
         <p className="inline-block rounded-full border border-dashed border-lilac px-2.5 py-0.5 text-xs text-lilac">
           Can't answer that yet

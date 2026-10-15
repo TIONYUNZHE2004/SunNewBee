@@ -7,6 +7,13 @@ async function ask(page: Page, question: string) {
   await page.getByRole("button", { name: "Ask", exact: true }).click();
 }
 
+/** The newest assistant message, and a wait until its stream has finished (data-done marker). */
+async function lastAnswer(page: Page) {
+  const last = page.getByRole("log").getByRole("article").last();
+  await expect(last).toHaveAttribute("data-done", "true");
+  return last;
+}
+
 async function open(page: Page) {
   await page.goto("/");
   await expect(page.getByRole("textbox", { name: "Your question" })).toBeVisible();
@@ -21,9 +28,10 @@ test("list fallback keeps the product working as text", async ({ page }) => {
 test("access hero shows a route status and honest demo evidence", async ({ page }) => {
   await open(page);
   await ask(page, "Can I push a stroller from Car Park B to the playground without stairs?");
-  const log = page.getByRole("log");
-  await expect(log).toContainText(/Route status: confirmed/);
-  await expect(log).toContainText(/Demo value · not surveyed/);
+  const last = await lastAnswer(page);
+  await expect(last).toContainText(/Route status: confirmed/);
+  await expect(last).toContainText(/Demo value · not surveyed/);
+  await expect(last).not.toContainText(/(?<!not |un)verified/i);
 });
 
 test("flood answer carries the disclaimer and never says safe", async ({ page }) => {
@@ -32,10 +40,9 @@ test("flood answer carries the disclaimer and never says safe", async ({ page })
     page,
     "Priya uses a wheelchair at Lakeside Mall. If the river rises 3 m, where can she go?",
   );
-  const log = page.getByRole("log");
-  await expect(log.getByText(/not a forecast/i).first()).toBeVisible();
-  await expect(page.getByRole("button", { name: "Ask", exact: true })).toBeVisible();
-  await expect(log).not.toContainText(/\bsafe\b/i);
+  const last = await lastAnswer(page);
+  await expect(last.getByText(/not a forecast/i).first()).toBeVisible();
+  await expect(last).not.toContainText(/(?<![a-z])safe(?![a-z])/i);
 });
 
 test("settings popover sets a river level and shows the flood note", async ({ page }) => {
@@ -97,17 +104,28 @@ test("management: a gap becomes a ticket, staff resolve it, before/after shows",
 }) => {
   await open(page);
   await ask(page, KIOSK);
-  await expect(page.getByRole("log")).toContainText(/Route status: partly unverified/);
+  await expect(await lastAnswer(page)).toContainText(/Route status: partly unverified/);
   await page.getByRole("radio", { name: "Management" }).click();
   await page.getByRole("link", { name: /Tickets/ }).click();
   await expect(page.getByRole("heading", { name: "Gaps to close" })).toBeVisible();
-  // The only open ticket is auto-selected; clicking its row is idempotent.
-  await page.getByRole("button", { name: /Incline/ }).click();
+  const row = page.getByRole("button", { name: /Incline/ });
+  await row.click();
+  await expect(row).toHaveAttribute("aria-pressed", "true");
   await page.getByLabel("Staff access").fill("e2e-token");
   // Nothing is recorded yet, so "Record what you found" is the correct-path option.
   await page.getByRole("radio", { name: /Record what you found/ }).click();
   await page.getByLabel("Value found on site").fill("4");
   await page.getByRole("button", { name: "Save result" }).click();
   await expect(page.getByText(/Verified on/)).toBeVisible();
-  await expect(page.getByText("Not checked yet").first()).toBeVisible();
+  const before = page
+    .locator("section")
+    .filter({ has: page.getByRole("heading", { name: "Before" }) });
+  await expect(before).toContainText("Not checked yet");
+
+  // The headline claim: the same question now gets a confirmed route.
+  await page.getByRole("link", { name: "Back to map" }).click();
+  await ask(page, KIOSK);
+  const again = await lastAnswer(page);
+  await expect(again).toContainText(/Route status: confirmed/);
+  await expect(again).not.toContainText(/partly unverified/);
 });
