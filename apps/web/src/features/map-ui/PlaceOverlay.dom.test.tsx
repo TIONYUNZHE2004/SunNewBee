@@ -21,9 +21,9 @@ const place = {
   },
 };
 
-function setup() {
+function setup(data: unknown = place) {
   const qc = newQueryClient();
-  qc.setQueryData(["place", "p1", null, null], place);
+  qc.setQueryData(["place", "p1", null, null], data);
   useScene.getState().selectPlace("p1");
   return renderWithClient(<PlaceOverlay />, qc);
 }
@@ -40,6 +40,41 @@ describe("PlaceOverlay", () => {
     expect(screen.getByText("Demo value · not surveyed")).toBeInTheDocument();
     expect(screen.queryByText(/Verified/)).not.toBeInTheDocument();
     expect(screen.getByText("Not checked yet")).toBeInTheDocument();
+  });
+
+  it("shows a Closed banner with the staff source and date for an active closure", () => {
+    const LABEL = "Closed: works until 20 Oct 2026";
+    setup({
+      ok: true,
+      data: {
+        id: "p1",
+        name: "Park toilet",
+        type: "toilet",
+        claims: {},
+        closures: [
+          {
+            id: "cl-0001",
+            element_id: "p1",
+            reason: "works",
+            starts_at: "2026-10-15T00:00:00Z",
+            ends_at: "2026-10-20T00:00:00Z",
+            note: null,
+            label: LABEL,
+            source_label: "Reported closure (staff)",
+            active: true,
+          },
+        ],
+      },
+    });
+    const banner = screen.getByRole("status");
+    expect(banner).toHaveTextContent("Closed");
+    expect(banner).toHaveTextContent(`Reported closure (staff): ${LABEL}`);
+    expect(banner).toHaveTextContent("15 Oct 2026");
+  });
+
+  it("shows no Closed banner when nothing is closed", () => {
+    setup();
+    expect(screen.queryByText("Closed")).not.toBeInTheDocument();
   });
 
   it("has no staff editing", () => {
