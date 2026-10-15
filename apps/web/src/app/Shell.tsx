@@ -71,12 +71,12 @@ export function Shell() {
       >
         Skip to content
       </a>
-      <header className="grid grid-cols-[1fr_auto_1fr] items-center gap-3 border-b border-edge bg-surface px-4 py-2">
+      <header className="grid grid-cols-[1fr_auto] items-center gap-3 border-b border-edge bg-surface px-4 py-2 sm:grid-cols-[1fr_auto_1fr]">
         <div>
           <p className="font-display text-lg tracking-[0.22em]">TOWNSHIPLENS</p>
           {site.data && <p className="text-xs text-fg-soft">{site.data.name}</p>}
         </div>
-        <div className="text-center">
+        <div className="order-last col-span-2 text-center sm:order-none sm:col-span-1">
           {onTickets ? (
             <p className="text-sm font-semibold tracking-wide">TICKETS · MANAGEMENT</p>
           ) : (

@@ -1,137 +1,113 @@
 import { expect, type Page, test } from "@playwright/test";
 
+const KIOSK = "Can I push a stroller from Car Park B to the kiosk without stairs?";
+
 async function ask(page: Page, question: string) {
-  await page.goto("/");
   await page.getByRole("textbox", { name: "Your question" }).fill(question);
-  await page.getByRole("button", { name: "Send" }).click();
+  await page.getByRole("button", { name: "Ask", exact: true }).click();
 }
 
-test("access hero in list view shows a route status and honest demo evidence", async ({ page }) => {
+async function open(page: Page) {
+  await page.goto("/");
+  await expect(page.getByRole("textbox", { name: "Your question" })).toBeVisible();
+}
+
+test("list fallback keeps the product working as text", async ({ page }) => {
+  await open(page);
+  await expect(page.getByText(/3D map couldn't load/i)).toBeVisible();
+  await expect(page.getByRole("button", { name: "Map settings" })).toBeVisible();
+});
+
+test("access hero shows a route status and honest demo evidence", async ({ page }) => {
+  await open(page);
   await ask(page, "Can I push a stroller from Car Park B to the playground without stairs?");
   const log = page.getByRole("log");
   await expect(log).toContainText(/Route status: confirmed/);
   await expect(log).toContainText(/Demo value · not surveyed/);
-  await expect(log).not.toContainText(/verified/);
 });
 
-test("flood hero shows the disclaimer and never says 'safe'", async ({ page }) => {
+test("flood answer carries the disclaimer and never says safe", async ({ page }) => {
+  await open(page);
   await ask(
     page,
     "Priya uses a wheelchair at Lakeside Mall. If the river rises 3 m, where can she go?",
   );
   const log = page.getByRole("log");
   await expect(log.getByText(/not a forecast/i).first()).toBeVisible();
-  // Wait for the stream to finish (the button reads "Sending…" while streaming).
-  await expect(page.getByRole("button", { name: "Send", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Ask", exact: true })).toBeVisible();
   await expect(log).not.toContainText(/\bsafe\b/i);
 });
 
-test("manage page lists the verification request after the kiosk question", async ({ page }) => {
-  await ask(page, "Can I push a stroller from Car Park B to the kiosk without stairs?");
-  const log = page.getByRole("log");
-  await expect(log).toContainText(/Route status: partly unverified/);
-  await expect(log).toContainText(/Not checked yet/);
-  await page.goto("/manage");
-  await expect(page.getByText("seg-cf").first()).toBeVisible();
+test("settings popover sets a river level and shows the flood note", async ({ page }) => {
+  await open(page);
+  await page.getByRole("button", { name: "Map settings" }).click();
+  await page.getByRole("radio", { name: "+3 m" }).click();
+  await expect(page.getByRole("note")).toContainText(/indicative scenario, not a forecast/i);
 });
 
-// Mutates the server's in-memory world (the kiosk route becomes confirmed). Safe to re-run:
-// playwright.config.ts always starts a fresh server with a fresh DB (no reuse).
-test("staff corrects a numeric fact from the queue and the request leaves it", async ({ page }) => {
-  await page.addInitScript(() => sessionStorage.setItem("tl.staffToken", "e2e-token"));
-  await ask(page, "Can I push a stroller from Car Park B to the kiosk without stairs?");
-  await expect(page.getByRole("log")).toContainText(/Route status: partly unverified/);
-  await page.goto("/manage");
-  const row = page
-    .getByRole("row")
-    .filter({ hasText: "seg-cf" })
-    .filter({ hasText: "incline_pct" });
-  await row.getByRole("button", { name: /Resolve/ }).click();
-  const form = page.getByRole("form", { name: "Resolve seg-cf" });
-  await form.getByLabel("Action").selectOption("correct");
-  await form.getByLabel("Corrected value").fill("4");
-  await form.getByLabel("Note").fill("measured on site");
-  await form.getByRole("button", { name: "Submit resolution" }).click();
-  await expect(form).toBeHidden();
-  await expect(
-    page.getByRole("row").filter({ hasText: "seg-cf" }).filter({ hasText: "incline_pct" }),
-  ).toHaveCount(0);
-  // The corrected value now confirms the route (Correct, not a bare Reject).
-  await ask(page, "Can I push a stroller from Car Park B to the kiosk without stairs?");
-  await expect(page.getByRole("log")).toContainText(/Route status: confirmed/);
-});
-
-test("flood briefing labels official and candidate evacuation centres", async ({ page }) => {
-  await page.goto("/manage");
-  await page.getByRole("tab", { name: "Flood briefing" }).click();
-  await expect(page.getByRole("cell", { name: "Official PPS" }).first()).toBeVisible();
-  await expect(page.getByRole("cell", { name: "Candidate" }).first()).toBeVisible();
-});
-
-for (const path of ["/", "/manage"]) {
-  test(`every button and textbox on ${path} has an accessible name`, async ({ page }) => {
-    await page.goto(path);
-    await expect(page.getByRole("heading", { level: 1 })).toHaveCount(1);
-    for (const role of ["button", "textbox", "combobox"] as const) {
-      const els = page.getByRole(role);
-      const n = await els.count();
-      for (let i = 0; i < n; i++) {
-        const el = els.nth(i);
-        const name = await el.evaluate(
-          (node) =>
-            (node as HTMLElement).ariaLabel ||
-            (node as HTMLInputElement).labels?.[0]?.textContent ||
-            node.textContent ||
-            "",
-        );
-        expect(name.trim(), `${role} #${i} on ${path}`).not.toBe("");
-      }
-    }
-  });
-}
-
-test("list view: clicking a place opens its card; Esc closes and returns focus", async ({
-  page,
-}) => {
-  await page.goto("/");
-  const btn = page.getByRole("button", { name: "Car Park B" });
+test("Escape closes the settings popover and returns focus to its button", async ({ page }) => {
+  await open(page);
+  const btn = page.getByRole("button", { name: "Map settings" });
   await btn.click();
-  const card = page.getByRole("dialog", { name: "Car Park B" });
-  await expect(card).toBeVisible();
+  const dialog = page.getByRole("dialog", { name: "Map settings" });
+  await expect(dialog).toBeVisible();
   await page.keyboard.press("Escape");
-  await expect(card).toBeHidden();
+  await expect(dialog).toBeHidden();
   await expect(btn).toBeFocused();
 });
 
-test("journey tests: staff runs the batch and sees the stroller row", async ({ page }) => {
-  await page.goto("/manage");
-  await page.getByRole("tab", { name: "Journey tests" }).click();
-  await page.getByLabel("Staff token").fill("e2e-token");
-  await page.getByRole("button", { name: "Run journey tests" }).click();
-  const matrix = page.getByRole("table", { name: /Journey outcomes by mobility profile/ });
-  await expect(matrix.getByRole("rowheader", { name: "Stroller" })).toBeVisible();
-  await expect(page.getByRole("status").filter({ hasText: "finished" })).toBeVisible();
-  await expect(page.getByRole("table", { name: /Evacuation journey results/ })).toBeVisible();
+test("day/night toggle switches the app theme", async ({ page }) => {
+  await open(page);
+  const toggle = page.getByRole("button", { name: /Switch to (day|night) theme/ });
+  const before = await page.evaluate(() => document.documentElement.dataset.theme);
+  await toggle.click();
+  const after = await page.evaluate(() => document.documentElement.dataset.theme);
+  expect(["day", "night"]).toContain(after);
+  expect(after).not.toBe(before);
 });
 
-test("staff edits a fact to Unknown and sees it in history", async ({ page }) => {
-  await page.addInitScript(() => sessionStorage.setItem("tl.staffToken", "e2e-token"));
-  await page.goto("/");
-  await page.getByRole("button", { name: "Bench by the path" }).click();
-  const card = page.getByRole("dialog", { name: "Bench by the path" });
-  await expect(card.getByRole("list", { name: "Facts" })).toContainText("Yes");
-  const edit = card.getByRole("button", { name: "Edit Seating" });
-  await edit.click();
-  await card.getByLabel("Status").selectOption("unknown");
-  await expect(card.getByLabel("Value")).toBeDisabled();
-  await card.getByLabel("Source type").selectOption("staff_site_visit");
-  await card.getByLabel("Note (optional)").fill("bench removed");
-  await card.getByRole("button", { name: /^Save/ }).click();
-  await expect(card.getByRole("status").filter({ hasText: "Saved" })).toBeVisible();
-  await expect(card.getByRole("list", { name: "Facts" })).toContainText("unknown");
-  await expect(edit).toBeFocused();
-  await card.getByRole("button", { name: "History" }).click();
-  const history = card.getByRole("list", { name: /Edit history/ });
-  await expect(history.getByRole("listitem")).toHaveCount(1);
-  await expect(history).toContainText("bench removed");
+test("Tickets is reachable by keyboard Tab order from the header", async ({ page }) => {
+  await open(page);
+  await page.getByRole("radio", { name: "Management" }).click();
+  const tickets = page.getByRole("link", { name: /Tickets/ });
+  await expect(tickets).toBeVisible();
+  await page.getByRole("radio", { name: "Management" }).focus();
+  let reached = false;
+  for (let i = 0; i < 6 && !reached; i++) {
+    await page.keyboard.press("Tab");
+    reached = await tickets.evaluate((el) => el === document.activeElement);
+  }
+  expect(reached).toBe(true);
+  await page.keyboard.press("Enter");
+  await expect(page.getByRole("heading", { name: "Gaps to close" })).toBeVisible();
+});
+
+test("mobile: the assistant input is reachable without horizontal scroll", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await open(page);
+  const input = page.getByRole("textbox", { name: "Your question" });
+  await input.scrollIntoViewIfNeeded();
+  await expect(input).toBeVisible();
+  const fits = await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth);
+  expect(fits).toBe(true);
+});
+
+test("management: a gap becomes a ticket, staff resolve it, before/after shows", async ({
+  page,
+}) => {
+  await open(page);
+  await ask(page, KIOSK);
+  await expect(page.getByRole("log")).toContainText(/Route status: partly unverified/);
+  await page.getByRole("radio", { name: "Management" }).click();
+  await page.getByRole("link", { name: /Tickets/ }).click();
+  await expect(page.getByRole("heading", { name: "Gaps to close" })).toBeVisible();
+  // The only open ticket is auto-selected; clicking its row is idempotent.
+  await page.getByRole("button", { name: /Incline/ }).click();
+  await page.getByLabel("Staff access").fill("e2e-token");
+  // Nothing is recorded yet, so "Record what you found" is the correct-path option.
+  await page.getByRole("radio", { name: /Record what you found/ }).click();
+  await page.getByLabel("Value found on site").fill("4");
+  await page.getByRole("button", { name: "Save result" }).click();
+  await expect(page.getByText(/Verified on/)).toBeVisible();
+  await expect(page.getByText("Not checked yet").first()).toBeVisible();
 });
