@@ -6,9 +6,10 @@ import {
   CLOSURE_SOURCE,
   type Closure,
   type ClosureFields,
-  closureDay,
+  closureDate,
   closureState,
   EMPTY_FIELDS,
+  TZ_NAME,
 } from "./closureModel";
 import { ApiError, createClosure, endClosure, fetchClosures } from "./manageApi";
 import { useStaffToken } from "./useStaffToken";
@@ -185,7 +186,7 @@ export function ClosureForm({ token, onCreated }: { token: string; onCreated?: (
         </div>
         <div>
           <label htmlFor="cl-start" className="mb-1 block text-sm font-medium">
-            Starts
+            Starts ({TZ_NAME})
           </label>
           <input
             id="cl-start"
@@ -194,11 +195,13 @@ export function ClosureForm({ token, onCreated }: { token: string; onCreated?: (
             value={f.startsAt}
             onChange={(e) => set({ startsAt: e.target.value })}
           />
-          <p className="mt-1 text-xs text-ink-soft">Leave empty to start now.</p>
+          <p className="mt-1 text-xs text-ink-soft">
+            Times are Malaysia time (Asia/Kuala_Lumpur). Leave empty to start now.
+          </p>
         </div>
         <div>
           <label htmlFor="cl-end" className="mb-1 block text-sm font-medium">
-            Ends
+            Ends ({TZ_NAME})
           </label>
           <input
             id="cl-end"
@@ -298,8 +301,8 @@ export function ClosureList({
                 </p>
                 <p>{c.label}</p>
                 <p className="text-ink-soft">
-                  {CLOSURE_SOURCE}. From {closureDay(c.starts_at)}
-                  {c.ends_at ? ` to ${closureDay(c.ends_at)}` : ", until further notice"}.
+                  {CLOSURE_SOURCE}. From {closureDate(c.starts_at)}
+                  {c.ends_at ? ` to ${closureDate(c.ends_at)}` : ", until further notice"}.
                 </p>
                 {c.note && <p className="text-ink-soft">Note: {c.note}</p>}
                 <p className="text-xs text-ink-soft">

@@ -2,9 +2,10 @@ from __future__ import annotations
 
 import sqlite3
 import threading
-from datetime import UTC, datetime
+from datetime import datetime
 from pathlib import Path
 
+from . import models as _m
 from .models import Closure
 
 SCHEMA = """CREATE TABLE IF NOT EXISTS closures (
@@ -65,7 +66,7 @@ class ClosureStore:
                     note,
                     "staff",
                     "staff_report",
-                    datetime.now(UTC).isoformat(),
+                    _m.utcnow().isoformat(),
                 ),
             )
         got = self.get(cid)
@@ -79,7 +80,7 @@ class ClosureStore:
 
     def list(self, active: bool | None = None, now: datetime | None = None) -> list[Closure]:
         """active=True: in force now; False: not in force (ended or not started yet); None: all."""
-        now = now or datetime.now(UTC)
+        now = now or _m.utcnow()
         with self._lock:
             rows = self.db.execute("SELECT * FROM closures ORDER BY starts_at, id").fetchall()
         out = [self._row(r) for r in rows]
@@ -89,18 +90,18 @@ class ClosureStore:
 
     def current(self, now: datetime | None = None) -> list[Closure]:
         """Closures that are active or still to start (not expired): what the world loads."""
-        now = now or datetime.now(UTC)
+        now = now or _m.utcnow()
         return [c for c in self.list() if c.ends_at is None or now < c.ends_at]
 
     def end(self, closure_id: str, now: datetime | None = None) -> tuple[Closure, Closure]:
         """End a closure now (or cancel one that has not started). Returns (old, new). KeyError
         for an unknown id; ValueError when it has already ended."""
-        now = now or datetime.now(UTC)
+        now = now or _m.utcnow()
         with self._lock, self.db:
             old = self.get(closure_id)
             if old is None:
                 raise KeyError(closure_id)
-            if old.ends_at is not None and old.ends_at <= now:
+            if old.ends_at is not None and old.ends_at <= max(now, old.starts_at):
                 raise ValueError(f"{closure_id} has already ended")
             # A closure that has not started is cancelled by collapsing its window to nothing.
             end = max(now, old.starts_at)

@@ -39,8 +39,9 @@ class World:
         self.version += 1
 
     def set_closures(self, closures: list[Closure]) -> None:
-        """Replace every element's closures (copy-on-write) and bump the version so layer ETags
-        change. Closures for unknown elements are dropped. Callers hold `world_lock`."""
+        """Replace every element's closures (whole-list assignment, so a reader sees the old or
+        the new list, never a mix) and bump the version so layer ETags change. Unknown elements
+        are dropped. Callers hold `world_lock`."""
         by_el: dict[str, list[Closure]] = {}
         for c in closures:
             if c.element_id in self.edges or c.element_id in self.places:

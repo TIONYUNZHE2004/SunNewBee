@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import re
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta, timezone
 from typing import Any, Literal
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -47,6 +48,21 @@ class Evidence(BaseModel):
     photo_url: str | None = None
 
 
+DEFAULT_TIMEZONE = "Asia/Kuala_Lumpur"
+
+
+def utcnow() -> datetime:
+    """The one clock closures use; tests replace it to move time without a restart."""
+    return datetime.now(UTC)
+
+
+def site_tz(name: str | None = None):
+    try:
+        return ZoneInfo(name or DEFAULT_TIMEZONE)
+    except ZoneInfoNotFoundError:  # no tzdata installed: Malaysia has no DST, so +08:00 is exact
+        return timezone(timedelta(hours=8))
+
+
 ClosureReason = Literal["works", "event", "flooding", "other"]
 
 
@@ -76,18 +92,22 @@ class Closure(BaseModel):
     _norm = field_validator("starts_at", "ends_at", "created_at", mode="before")(_utc)
 
     def is_active(self, now: datetime | None = None) -> bool:
-        now = now or datetime.now(UTC)
+        now = now or utcnow()
         return self.starts_at <= now and (self.ends_at is None or now < self.ends_at)
 
-    def label(self) -> str:
-        until = (
-            self.ends_at.astimezone(UTC).date().isoformat() if self.ends_at else "further notice"
-        )
+    def label(self, tz: str | None = None) -> str:
+        """ "Closed: works until 20 Oct 2026" with the date in the site's time zone."""
+        until = fmt_day(self.ends_at, tz) if self.ends_at else "further notice"
         return f"Closed: {self.reason} until {until}"
 
 
+def fmt_day(d: datetime, tz: str | None = None) -> str:
+    local = d.astimezone(site_tz(tz))
+    return f"{local.day} {local.strftime('%b %Y')}"
+
+
 def active_closures(closures: list[Closure], now: datetime | None = None) -> list[Closure]:
-    now = now or datetime.now(UTC)
+    now = now or utcnow()
     return [c for c in closures if c.is_active(now)]
 
 
@@ -143,6 +163,7 @@ class Site(BaseModel):
     center: LonLat
     bbox: list[float]  # [w, s, e, n]
     deep_spots: list[DeepSpot] = Field(default_factory=list)
+    timezone: str = DEFAULT_TIMEZONE  # IANA zone for every date shown to residents and staff
     lenses: list[Lens] = Field(default_factory=lambda: ["access", "flood", "waste"])
     scene: SceneConfig = Field(default_factory=SceneConfig)
     profiles: list[ProfileId] = Field(
@@ -229,6 +250,9 @@ class RouteResult(BaseModel):
     status: RouteStatus
     routes: list[Route]  # routes[0] = recommended; optional routes[1] = shorter lenient alternative
     blocked_reasons: list[dict[str, str]] = Field(default_factory=list)
+    # Staff-reported closures responsible for this answer: on the route they forced a detour from,
+    # or that the route would need. Never truncated (blocked_reasons is capped at 5).
+    closures: list[dict[str, Any]] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
 
 

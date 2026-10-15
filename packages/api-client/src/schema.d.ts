@@ -1019,6 +1019,10 @@ export interface components {
             blocked_reasons?: {
                 [key: string]: string;
             }[];
+            /** Closures */
+            closures?: {
+                [key: string]: unknown;
+            }[];
             /** Routes */
             routes: components["schemas"]["Route"][];
             /**
@@ -1249,6 +1253,11 @@ export interface components {
             /** Profiles */
             profiles?: ("default" | "stroller" | "wheelchair" | "older_adult_rest" | "drive")[];
             scene?: components["schemas"]["SceneConfig"];
+            /**
+             * Timezone
+             * @default Asia/Kuala_Lumpur
+             */
+            timezone: string;
             /** Township */
             township: string;
         };

@@ -26,7 +26,7 @@ def test_active_closure_fails_every_profile_with_reason(world, profile):
     r, why = evaluate_edge(world.edges["seg-ab"], world.profiles[profile], now=NOW)
     assert r == "FAIL"
     assert why[0]["attribute"] == "closure"
-    assert why[0]["why"] == "Closed: works until 2026-10-16"
+    assert why[0]["why"] == "Closed: works until 16 Oct 2026"
 
 
 def test_open_ended_closure_says_further_notice(world):
@@ -138,3 +138,148 @@ def test_store_create_end_and_rules(tmp_path):
     assert s.list(active=True, now=NOW + H / 2) == [s.get(c.id)]
     assert s.current(now=NOW + 2 * H) == []
     assert ClosureStore(str(tmp_path / "c.db")).get(c.id) is not None  # persisted
+
+
+def test_label_uses_kuala_lumpur_date_not_utc(world):
+    # 06:00 KL on the 20th is 22:00 UTC on the 19th: residents must read "until 20 Oct".
+    end = datetime(2026, 10, 19, 22, 0, tzinfo=UTC)
+    c = _cl(end=end)
+    assert c.label() == "Closed: works until 20 Oct 2026"
+    assert c.label("UTC") == "Closed: works until 19 Oct 2026"
+    world.set_closures([c])
+    _, why = evaluate_edge(world.edges["seg-ab"], world.profiles["default"], now=NOW)
+    assert why[0]["why"] == "Closed: works until 20 Oct 2026"
+
+
+def test_site_timezone_default_and_row_offsets(ctx):
+    assert ctx.world.site.timezone == "Asia/Kuala_Lumpur"
+    c = _cl(start=datetime(2026, 10, 14, 17, 0, tzinfo=UTC), end=NOW + 24 * H)
+    ctx.world.set_closures([c])
+    row = tools.closure_row(ctx.world, c)
+    assert row["starts_at"] == "2026-10-15T01:00:00+08:00"
+    ev = tools._closure_ev(ctx.world, c)
+    assert ev.verified_at == "2026-10-15"  # KL date, not the UTC date (14th)
+
+
+def _chain(ctx, n=7):
+    """park-b -> n closed chain edges -> new place `far`; the only way to `far`."""
+    from townshiplens_spatial.models import Edge, Place
+
+    w = ctx.world
+    prev = w.places["park-b"].node_id
+    now = datetime.now(UTC)
+    cls = []
+    for i in range(n):
+        nxt = f"n-ch{i}"
+        w.node_coords[nxt] = [101.52 + i * 0.0001, 3.19]
+        e = Edge(
+            id=f"ch-{i}",
+            type="footway",
+            from_node=prev,
+            to_node=nxt,
+            coords=[w.node_coords[prev], w.node_coords[nxt]],
+            length_m=10,
+            name=f"Chain {i}",
+        )
+        w.edges[e.id] = e
+        w.graph.add_edge(prev, nxt, key=e.id, edge_id=e.id)
+        cls.append(_cl(e.id, now - H, now + H, cid=f"cl-{i + 1:04d}"))
+        prev = nxt
+    w.places["far"] = Place(
+        id="far", type="kiosk", name="Far kiosk", coord=w.node_coords[prev], node_id=prev
+    )
+    w._place_by_node.setdefault(prev, []).append("far")
+    w.set_closures(cls)
+
+
+def test_blocked_answer_keeps_every_closure_beyond_the_five_reason_cap(ctx):
+    _chain(ctx, 7)
+    r = tools.plan_route(ctx, "park-b", "far", "default")
+    assert r.data["status"] == "blocked"
+    assert len(r.data["closures"]) == 7  # every closure on the opened route
+    assert {c["impact"] for c in r.data["closures"]} == {"blocked"}
+    assert sum("Reported closure (staff)" in w for w in r.warnings) == 7
+
+
+def test_detour_is_named_when_a_closure_forced_it(ctx):
+    now = datetime.now(UTC)
+    base = tools.plan_route(ctx, "park-b", "playground", "default").data["routes"][0]
+    first = base["segments"][0]["edge_id"]
+    assert not tools.plan_route(ctx, "park-b", "playground", "default").data["closures"]
+    ctx.world.set_closures([_cl(first, now - H, now + H)])
+    r = tools.plan_route(ctx, "park-b", "playground", "default")
+    if r.data["status"] != "blocked":  # a detour exists in the fixture
+        assert r.data["closures"] and r.data["closures"][0]["impact"] == "detour"
+        assert any("detours around it" in w for w in r.warnings)
+        assert first not in {s["edge_id"] for s in r.data["routes"][0]["segments"]}
+
+
+def test_closure_off_the_route_is_not_reported(ctx):
+    now = datetime.now(UTC)
+    ctx.world.set_closures([_cl("seg-gh", now - H, now + H)])  # island path, nowhere near
+    r = tools.plan_route(ctx, "park-b", "playground", "default")
+    assert r.data["closures"] == []
+
+
+def test_closure_stops_applying_when_the_clock_passes_ends_at(ctx, monkeypatch):
+    from townshiplens_spatial import models
+
+    start = datetime(2026, 10, 15, 12, 0, tzinfo=UTC)
+    monkeypatch.setattr(models, "utcnow", lambda: start)
+    ctx.world.set_closures([_cl(start=start - H, end=start + H)])
+    e, p = ctx.world.edges["seg-ab"], ctx.world.profiles["default"]
+    assert evaluate_edge(e, p)[0] == "FAIL"
+    assert [d["id"] for d in tools.get_closures(ctx).data] == ["cl-0001"]
+    monkeypatch.setattr(models, "utcnow", lambda: start + 2 * H)  # no restart, no set_closures
+    assert evaluate_edge(e, p)[0] == "PASS"
+    assert tools.get_closures(ctx).data == []
+    assert ctx.world.active_closures() == []
+
+
+def test_ending_a_scheduled_closure_twice_is_refused(tmp_path):
+    s = ClosureStore(str(tmp_path / "c.db"))
+    c = s.create(
+        element_id="seg-ab",
+        reason="works",
+        starts_at=datetime.now(UTC) + 5 * H,
+        ends_at=None,
+        note=None,
+    )
+    s.end(c.id)
+    with pytest.raises(ValueError):
+        s.end(c.id)
+
+
+def test_parallel_closed_links_all_reported_past_the_reason_cap(ctx):
+    """7 closed links in parallel: routing keeps 5 reasons, the closure list keeps all 7."""
+    from townshiplens_spatial.models import Edge, Place
+
+    w = ctx.world
+    src = w.places["park-b"].node_id
+    w.node_coords["n-far"] = [101.53, 3.19]
+    now = datetime.now(UTC)
+    cls = []
+    for i in range(7):
+        mid = f"n-m{i}"
+        w.node_coords[mid] = [101.52 + i * 0.0001, 3.19]
+        for eid, a, b in ((f"pa-{i}", src, mid), (f"pb-{i}", mid, "n-far")):
+            w.edges[eid] = Edge(
+                id=eid,
+                type="footway",
+                from_node=a,
+                to_node=b,
+                coords=[w.node_coords[a], w.node_coords[b]],
+                length_m=10,
+                name=eid,
+            )
+            w.graph.add_edge(a, b, key=eid, edge_id=eid)
+        cls.append(_cl(f"pa-{i}", now - H, now + H, cid=f"cl-{i + 1:04d}"))
+    w.places["far"] = Place(
+        id="far", type="kiosk", name="Far", coord=[101.53, 3.19], node_id="n-far"
+    )
+    w._place_by_node.setdefault("n-far", []).append("far")
+    w.set_closures(cls)
+    r = tools.plan_route(ctx, "park-b", "far", "default")
+    assert r.data["status"] == "blocked"
+    assert len(r.data["blocked_reasons"]) == 5
+    assert len(r.data["closures"]) == 7

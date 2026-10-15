@@ -1,5 +1,6 @@
-from datetime import UTC, date, datetime
+from datetime import date, datetime
 
+from townshiplens_spatial import models as spatial_models
 from townshiplens_spatial.evaluate import claim_gap, edge_gaps, evaluate_edge, relevant_attributes
 from townshiplens_spatial.models import active_closures
 from townshiplens_spatial.world import World
@@ -9,16 +10,16 @@ _MAP = {"PASS": "ok", "UNKNOWN": "unknown", "FAIL": "blocked"}
 _FLOOD = {"likely_flooded": "flooded_likely", "possible": "flooded_possible"}
 
 
-def _place_closure(p, now: datetime) -> dict:
+def _place_closure(p, now: datetime, tz: str) -> dict:
     live = active_closures(p.closures, now)
-    return {"closed": True, "closure_label": live[0].label()} if live else {}
+    return {"closed": True, "closure_label": live[0].label(tz)} if live else {}
 
 
 def _layer(
     world: World, lens: str, profile: str = "default", scenario_id: str | None = None
 ) -> dict:
     prof = world.profiles.get(profile) or world.profiles["default"]
-    now = datetime.now(UTC)
+    now = spatial_models.utcnow()
     feats: list[dict] = []
     if lens in ("access", "flood"):
         classes = world.flood.edge_classes.get(scenario_id or "", {})
@@ -37,7 +38,7 @@ def _layer(
             }
             if live:  # Task 46: staff-reported, shown as "Reported closure (staff)"
                 props["closed"] = True
-                props["closure_label"] = live[0].label()
+                props["closure_label"] = live[0].label(world.site.timezone)
             if fc in _FLOOD:  # class + scenario only; never a depth
                 props["flood_class"] = fc
                 props["scenario_id"] = scenario_id
@@ -59,7 +60,7 @@ def _layer(
                     "type": p.type,
                     "name": p.name,
                     "node_inferred": p.node_inferred,  # Task 43: nearest path, not an entrance
-                    **_place_closure(p, now),
+                    **_place_closure(p, now, world.site.timezone),
                 },
             }
             for p in world.places.values()
@@ -98,8 +99,10 @@ _cache: dict[tuple, dict] = {}
 def layer(
     world: World, lens: str, profile: str = "default", scenario_id: str | None = None
 ) -> dict:
-    """Memoised on (world identity, world.version, lens, profile, scenario)."""
-    key = (id(world), world.version, lens, profile, scenario_id)
+    """Memoised on (world identity, world.version, lens, profile, scenario, live closures): a
+    closure starts and expires on the clock without a version bump."""
+    live = tuple(c.id for c in world.active_closures())
+    key = (id(world), world.version, lens, profile, scenario_id, live)
     hit = _cache.get(key)
     if hit is None:
         if len(_cache) > 64:

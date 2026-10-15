@@ -139,3 +139,51 @@ def test_closures_survive_restart():
     feats = c.get("/layers/access").json()["features"]
     seg = next(f for f in feats if f["properties"]["id"] == "seg-ab")["properties"]
     assert seg["closed"] is True
+
+
+def test_closure_expires_on_the_clock_without_restart_and_etag_changes(monkeypatch):
+    from townshiplens_spatial import models
+
+    t0 = datetime(2026, 10, 15, 4, 0, tzinfo=UTC)
+    monkeypatch.setattr(models, "utcnow", lambda: t0)
+    r = c.post(
+        "/closures",
+        json={
+            "element_id": "seg-ab",
+            "reason": "works",
+            "starts_at": t0.isoformat(),
+            "ends_at": (t0 + timedelta(hours=2)).isoformat(),
+        },
+        headers=OK,
+    )
+    assert r.status_code == 201
+    r1 = c.get("/layers/access")
+    etag = r1.headers["etag"]
+
+    def seg(resp):
+        return next(f for f in resp.json()["features"] if f["properties"]["id"] == "seg-ab")[
+            "properties"
+        ]
+
+    assert seg(r1)["status_for_profile"] == "blocked"
+    assert c.get("/layers/access", headers={"If-None-Match": etag}).status_code == 304
+    monkeypatch.setattr(models, "utcnow", lambda: t0 + timedelta(hours=3))
+    r2 = c.get("/layers/access", headers={"If-None-Match": etag})
+    assert r2.status_code == 200 and r2.headers["etag"] != etag
+    assert seg(r2)["status_for_profile"] != "blocked" and "closed" not in seg(r2)
+    assert c.get("/closures").json() == []
+    route = {"from": "park-b", "to": "playground", "profile": "default"}
+    assert c.post("/routes", json=route).json()["status"] != "blocked"
+
+
+def test_dates_are_site_local_with_offset():
+    # 06:00 KL on the 20th = 22:00 UTC on the 19th
+    row = _create(starts_at="2026-10-15T06:00:00+08:00", ends_at="2026-10-20T06:00:00+08:00").json()
+    assert row["label"] == "Closed: works until 20 Oct 2026"
+    assert row["ends_at"].endswith("+08:00") and row["ends_at"].startswith("2026-10-20T06:00")
+    assert c.get("/site").json()["timezone"] == "Asia/Kuala_Lumpur"
+
+
+def test_internal_places_and_long_notes_are_refused():
+    assert _create(element_id="__tmp").status_code == 404
+    assert _create(note="x" * 301).status_code == 422

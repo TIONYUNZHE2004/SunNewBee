@@ -64,13 +64,33 @@ describe("ClosureForm", () => {
     expect(screen.getByText("Selected: Park toilet")).toBeInTheDocument();
   });
 
+  it("says the times are Malaysia time", () => {
+    renderWithClient(<ClosureForm token="tok" />);
+    expect(screen.getByLabelText("Starts (Malaysia time)")).toBeInTheDocument();
+    expect(screen.getByLabelText("Ends (Malaysia time)")).toBeInTheDocument();
+  });
+
+  it("sends a form time as Malaysia time", async () => {
+    const fetchMock = stubFetch(() => json(row(), 201));
+    const user = userEvent.setup();
+    renderWithClient(<ClosureForm token="tok" />);
+    await user.type(screen.getByLabelText("Element id"), "seg-ab");
+    await user.type(screen.getByLabelText(/^Starts/), "2999-10-19T06:00");
+    await user.type(screen.getByLabelText(/^Ends/), "2999-10-20T06:00");
+    await user.click(screen.getByRole("button", { name: "Report closure" }));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled());
+    const body = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body));
+    expect(body.starts_at).toBe("2999-10-18T22:00:00.000Z");
+    expect(body.ends_at).toBe("2999-10-19T22:00:00.000Z");
+  });
+
   it("refuses an end before the start without calling the API", async () => {
     const fetchMock = stubFetch(() => json({}));
     const user = userEvent.setup();
     renderWithClient(<ClosureForm token="tok" />);
     await user.type(screen.getByLabelText("Element id"), "seg-ab");
-    await user.type(screen.getByLabelText("Starts"), "2026-10-17T08:00");
-    await user.type(screen.getByLabelText("Ends"), "2026-10-16T08:00");
+    await user.type(screen.getByLabelText(/^Starts/), "2026-10-17T08:00");
+    await user.type(screen.getByLabelText(/^Ends/), "2026-10-16T08:00");
     await user.click(screen.getByRole("button", { name: "Report closure" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("End must be after the start");
     expect(fetchMock).not.toHaveBeenCalled();
@@ -105,7 +125,7 @@ describe("ClosureList", () => {
     expect(within(li).getAllByText(/Lakeside path/).length).toBeGreaterThan(0);
     expect(within(li).getByText("Closed: works until 2999-10-20")).toBeInTheDocument();
     expect(
-      within(li).getByText(/Reported closure \(staff\)\. From 2026-10-15 to 2999-10-20/),
+      within(li).getByText(/Reported closure \(staff\)\. From 15 Oct 2026 to 20 Oct 2999/),
     ).toBeInTheDocument();
     expect(within(li).getByText("Note: Resurfacing")).toBeInTheDocument();
     expect(li.textContent?.toLowerCase()).not.toContain("safe");

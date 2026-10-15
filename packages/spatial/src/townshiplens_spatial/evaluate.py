@@ -1,5 +1,6 @@
-from datetime import UTC, date, datetime
+from datetime import date, datetime
 
+from . import models as _m
 from .models import Claim, Edge, EvalResult, FloodClass, Profile, active_closures
 
 DEFAULT_TTL = {"step_count": 365, "incline_pct": 365, "width_m": 365, "surface": 365}
@@ -87,7 +88,7 @@ def evaluate_edge(
     if edge.closures:
         # Staff-reported closure (Task 46): FAIL for every profile, never an upgrade. Outside
         # its [starts_at, ends_at) window it has no effect.
-        live = active_closures(edge.closures, now or datetime.now(UTC))
+        live = active_closures(edge.closures, now or _m.utcnow())
         if live:
             return "FAIL", [
                 {

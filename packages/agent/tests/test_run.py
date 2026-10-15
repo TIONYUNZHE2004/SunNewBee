@@ -822,3 +822,63 @@ def test_caveats_are_separated(ctx):
     )
     text = "".join(e.delta for e in run_mod._answer_events(ans, rec, ctx) if e.type == "text.delta")
     assert "⚠ Not checked yet: Steps on A; and 2 more unchecked items.\n" in text
+
+
+async def test_get_closures_wrapper_runs_through_call_tool(ctx):
+    """C1: the LLM-facing wrapper must match tools.get_closures (it once passed scope_ids)."""
+    from datetime import UTC, datetime, timedelta
+
+    from pydantic_ai import ModelResponse, ToolCallPart
+    from pydantic_ai.models.function import FunctionModel
+    from townshiplens_agent.agent import Deps, build_agent
+    from townshiplens_agent.record import TurnRecord
+    from townshiplens_spatial.models import Closure
+
+    now = datetime.now(UTC)
+    ctx.world.set_closures(
+        [
+            Closure(
+                id="cl-0001",
+                element_id="toilet-1",
+                reason="works",
+                starts_at=now - timedelta(hours=1),
+                ends_at=now + timedelta(days=1),
+            )
+        ]
+    )
+    results = []
+
+    def model(messages, info):
+        returned = [
+            p
+            for m in messages
+            for p in m.parts
+            if getattr(p, "tool_name", "") == "get_closures" and p.part_kind == "tool-return"
+        ]
+        if returned:
+            results.append(returned[0].content)
+            return ModelResponse(
+                parts=[
+                    ToolCallPart(
+                        tool_name="final_answer",
+                        args={"answer_status": "cannot_answer", "summary": "n/a"},
+                    )
+                ]
+            )
+        return ModelResponse(
+            parts=[
+                ToolCallPart(
+                    tool_name="get_closures",
+                    args={"near_place": "toilet-1", "active_only": True},
+                )
+            ]
+        )
+
+    rec = TurnRecord()
+    req = ChatRequest(message="is the toilet closed?")
+    await build_agent(FunctionModel(model)).run("hi", deps=Deps(ctx=ctx, rec=rec, request=req))
+    assert "get_closures" in rec.tool_calls
+    assert results and results[0]["ok"] is True
+    assert results[0]["data"][0]["id"] == "cl-0001"
+    assert results[0]["data"][0]["source_label"] == "Reported closure (staff)"
+    assert "ev-closure-cl-0001" in rec.evidence

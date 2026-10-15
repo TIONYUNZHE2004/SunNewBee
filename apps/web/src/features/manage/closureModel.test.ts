@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildCreateBody,
   type Closure,
+  closureDate,
   closureLine,
   closureState,
   EMPTY_FIELDS,
@@ -35,7 +36,7 @@ describe("buildCreateBody", () => {
     expect(r.body.reason).toBe("event");
     expect(r.body.note).toBe("paving");
     expect(new Date(r.body.starts_at as string).getTime()).toBe(
-      new Date("2026-10-16T08:00").getTime(),
+      new Date("2026-10-16T08:00:00+08:00").getTime(),
     );
     expect(r.body.ends_at).toMatch(/Z$/);
   });
@@ -57,15 +58,15 @@ describe("closure text and state", () => {
     element_id: "seg-ab",
     reason: "works",
     starts_at: "2026-10-15T00:00:00Z",
-    ends_at: "2026-10-20T00:00:00Z",
-    label: "Closed: works until 2026-10-20",
+    ends_at: "20 Oct 2026T00:00:00Z",
+    label: "Closed: works until 20 Oct 2026",
     source_label: "Reported closure (staff)",
     active: true,
   } as Closure;
   it("always names the staff source and the date, and never says safe", () => {
     const line = closureLine(c);
     expect(line).toBe(
-      "Reported closure (staff): Closed: works until 2026-10-20 (reported from 2026-10-15)",
+      "Reported closure (staff): Closed: works until 20 Oct 2026 (reported from 15 Oct 2026)",
     );
     expect(line.toLowerCase()).not.toContain("safe");
   });
@@ -75,5 +76,19 @@ describe("closure text and state", () => {
       "scheduled",
     );
     expect(closureState({ ...c, active: false, ends_at: "2020-01-01T00:00:00Z" })).toBe("ended");
+  });
+});
+
+describe("site time zone (Malaysia)", () => {
+  it("reads 06:00 KL on the 20th as 22:00 UTC on the 19th, whatever the browser zone", () => {
+    const r = buildCreateBody(f({ endsAt: "2026-10-20T06:00" }), new Date("2026-10-15T00:00:00Z"));
+    if (!("body" in r)) throw new Error("expected a body");
+    expect(r.body.ends_at).toBe("2026-10-19T22:00:00.000Z");
+  });
+  it("shows the KL calendar day, not the UTC day", () => {
+    expect(closureDate("2026-10-19T22:00:00Z")).toBe("20 Oct 2026");
+    expect(closureDate("2026-10-19T22:00:00+00:00", "UTC")).toBe("19 Oct 2026");
+    expect(closureDate("2026-09-02T00:00:00+08:00")).toBe("2 Sep 2026");
+    expect(closureDate("nope")).toBe("");
   });
 });

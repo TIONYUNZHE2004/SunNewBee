@@ -1430,6 +1430,14 @@
             "title": "Blocked Reasons",
             "type": "array"
           },
+          "closures": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Closures",
+            "type": "array"
+          },
           "routes": {
             "items": {
               "$ref": "#/components/schemas/Route"
@@ -2089,6 +2097,11 @@
           },
           "scene": {
             "$ref": "#/components/schemas/SceneConfig"
+          },
+          "timezone": {
+            "default": "Asia/Kuala_Lumpur",
+            "title": "Timezone",
+            "type": "string"
           },
           "township": {
             "title": "Township",

@@ -9,7 +9,7 @@ import { useScene } from "../sceneStore";
 import { ListView } from "./ListView";
 import { parseLayer } from "./listModel";
 
-const LABEL = "Closed: works until 2026-10-20";
+const LABEL = "Closed: works until 20 Oct 2026";
 const closure = {
   id: "cl-0001",
   element_id: "seg-ab",
@@ -109,7 +109,7 @@ describe("closure parsing", () => {
     expect(v?.closures).toEqual([
       {
         label: LABEL,
-        line: `Reported closure (staff): ${LABEL} (reported from 2026-10-15)`,
+        line: `Reported closure (staff): ${LABEL} (reported from 15 Oct 2026)`,
         note: null,
       },
     ]);
@@ -142,7 +142,7 @@ describe("list view", () => {
       await screen.findByRole("heading", { name: "Closed paths and places" }),
     ).toBeInTheDocument();
     expect(
-      screen.getByText(`Reported closure (staff): ${LABEL} (reported from 2026-10-15)`),
+      screen.getByText(`Reported closure (staff): ${LABEL} (reported from 15 Oct 2026)`),
     ).toBeInTheDocument();
     const toilet = screen.getByRole("button", { name: /Park toilet/ });
     expect(toilet).toHaveTextContent("Closed");
@@ -190,6 +190,6 @@ describe("place card", () => {
     const banner = await screen.findByRole("status");
     expect(banner).toHaveTextContent("Closed");
     expect(banner).toHaveTextContent("Reported closure (staff)");
-    expect(banner).toHaveTextContent("2026-10-20");
+    expect(banner).toHaveTextContent("20 Oct 2026");
   });
 });

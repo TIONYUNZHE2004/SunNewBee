@@ -3,6 +3,12 @@ import type { Schemas } from "@tl/api-client";
 export type Closure = Schemas["ClosureOut"];
 export type CreateClosureBody = Schemas["CreateClosureBody"];
 
+/** Every date residents and staff see is in the site's time zone, whatever the browser's. */
+export const SITE_TZ = "Asia/Kuala_Lumpur";
+/** Malaysia has no daylight saving, so a fixed offset turns a form time into an instant. */
+const SITE_OFFSET = "+08:00";
+export const TZ_NAME = "Malaysia time";
+
 export const CLOSURE_SOURCE = "Reported closure (staff)";
 export const CLOSURE_REASONS = [
   ["works", "Works"],
@@ -29,9 +35,10 @@ export const EMPTY_FIELDS: ClosureFields = {
   note: "",
 };
 
+/** A `datetime-local` value ("2026-10-20T06:00") read as Malaysia time, not browser time. */
 const parse = (v: string): Date | null => {
   if (!v) return null;
-  const d = new Date(v);
+  const d = new Date(`${v}${v.length === 16 ? ":00" : ""}${SITE_OFFSET}`);
   return Number.isNaN(d.getTime()) ? null : d;
 };
 
@@ -59,12 +66,23 @@ export function buildCreateBody(
   };
 }
 
-/** "2026-10-15" from an ISO instant. */
-export const closureDay = (iso: string): string => iso.slice(0, 10);
+/** "20 Oct 2026": the calendar day of an instant in the site time zone. */
+export function closureDate(iso: string, timeZone: string = SITE_TZ): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  }).formatToParts(d);
+  const get = (t: string) => parts.find((p) => p.type === t)?.value ?? "";
+  return `${get("day")} ${get("month")} ${get("year")}`;
+}
 
 /** One line for residents and staff. Always names the source; never claims a place is safe. */
 export function closureLine(c: Pick<Closure, "label" | "starts_at">): string {
-  return `${CLOSURE_SOURCE}: ${c.label} (reported from ${closureDay(c.starts_at)})`;
+  return `${CLOSURE_SOURCE}: ${c.label} (reported from ${closureDate(c.starts_at)})`;
 }
 
 export type ClosureState = "active" | "scheduled" | "ended";

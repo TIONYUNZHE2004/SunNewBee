@@ -4,6 +4,7 @@ from typing import Self
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field, model_validator
+from townshiplens_spatial import models as spatial_models
 from townshiplens_spatial import tools
 from townshiplens_spatial.models import Closure, ClosureReason
 
@@ -87,9 +88,10 @@ def list_closures(active: bool | None = True) -> list[ClosureOut]:
 @router.post("/closures", response_model=ClosureOut, status_code=201, dependencies=[StaffOnly])
 def create_closure(body: CreateClosureBody) -> ClosureOut:
     ctx = state.get_ctx()
-    now = datetime.now(UTC)
+    now = spatial_models.utcnow()
     with state.world_lock:
-        if body.element_id not in ctx.world.edges and body.element_id not in ctx.world.places:
+        known = body.element_id in ctx.world.edges or body.element_id in ctx.world.places
+        if body.element_id.startswith("__") or not known:
             raise HTTPException(404, f"unknown element {body.element_id}")
         try:
             c = _store().create(
