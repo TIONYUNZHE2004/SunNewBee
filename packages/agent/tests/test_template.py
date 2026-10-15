@@ -264,3 +264,21 @@ def test_template_no_data_does_not_say_the_data_gap_twice():
     r.route_status["rt-1"] = "no_data"
     a = template_answer(r, "route?")
     assert " ".join([a.summary, *a.caveats]).count("No mapped connection") == 1
+
+
+def test_template_confirmed_demo_route_carries_qualifier_and_validates():
+    r = TurnRecord(tool_calls=["plan_route"])
+    r.evidence["ev-ph"] = Evidence(
+        id="ev-ph",
+        element_id="seg-a",
+        attribute="width",
+        value=1.2,
+        status="verified",
+        source_type="team_survey_placeholder",
+    )
+    r.routes["rt-1"] = {"distance_m": 90, "unknowns": [], "demo_evidence": True}
+    r.route_status["rt-1"] = "confirmed"
+    a = template_answer(r, "route?")
+    assert "confirmed (on demo values, not yet surveyed)" in a.summary
+    assert any("demo values, not yet surveyed" in c for c in a.caveats)
+    assert validate_answer(a, r) == []

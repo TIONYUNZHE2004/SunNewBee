@@ -6,6 +6,7 @@ from .labels import (
     closure_summary_tail,
     inferred_caveats,
     rest_caveats,
+    route_status_text,
     unchecked_caveats,
 )
 from .record import TurnRecord
@@ -99,7 +100,11 @@ def template_answer(rec: TurnRecord, question: str) -> FinalAnswer:
         caveats.append(f"Some segment facts are {PLACEHOLDER_CAVEAT}.")
     dist = route.get("distance_m")
     summary = f"Route of {dist} m." if dist is not None else "Route found."
-    if tail := closure_summary_tail(rec.route_closures, status):
+    if status == "confirmed" and route.get("demo_evidence"):
+        summary = f"Route {route_status_text(status, route)}" + (
+            f", {dist} m." if dist is not None else "."
+        )
+    if tail := closure_summary_tail(rec.route_closures, status, route):
         summary = f"Route {tail}."
     if status == "no_data":
         summary = "No route can be shown between these places."  # the data-gap caveat says why

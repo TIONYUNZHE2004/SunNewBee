@@ -478,3 +478,47 @@ def test_placeholder_retry_message_tells_the_model_what_to_say():
         _ph_answer("Staff have verified", ["demo values, not yet surveyed"]), _ph_rec()
     )
     assert "'verified'" in msg and "staff checked" in msg and "demo values, not yet surveyed" in msg
+
+
+# --- Task 54: a confirmed route over demo values must say so --------------------------------
+QUAL = "confirmed (on demo values, not yet surveyed)"
+
+
+def _demo_route_rec(demo=True, status="confirmed"):
+    r = _ph_rec()
+    r.tool_calls = ["plan_route"]
+    r.routes["rt-1"] = {"demo_evidence": demo}
+    r.route_status["rt-1"] = status
+    return r
+
+
+def _demo_route_answer(summary, caveats=("Segment facts are demo values, not yet surveyed.",)):
+    return FinalAnswer(
+        answer_status="answered",
+        summary=summary,
+        route_id="rt-1",
+        caveats=list(caveats),
+        claims=[Claim(text="width ok", status="unverified", evidence_ids=["ev-ph"])],
+    )
+
+
+def test_confirmed_demo_route_without_qualifier_rejected():
+    errs = validate_answer(_demo_route_answer("Route status: confirmed, 120 m."), _demo_route_rec())
+    assert any("on demo values" in e for e in errs)
+
+
+def test_confirmed_demo_route_with_qualifier_accepted():
+    a = _demo_route_answer(f"Route status: {QUAL}, 120 m.")
+    assert validate_answer(a, _demo_route_rec()) == []
+    b = _demo_route_answer("120 m.", [f"Route status: {QUAL}", "Demo values, not yet surveyed."])
+    assert validate_answer(b, _demo_route_rec()) == []
+
+
+def test_qualifier_not_required_without_demo_evidence_or_when_not_confirmed():
+    plain = _demo_route_answer("Route status: confirmed, 120 m.")
+    assert validate_answer(plain, _demo_route_rec(demo=False)) == []
+    partly = _demo_route_answer(
+        "Route status: partly unverified.",
+        ["Not checked yet: Width.", "Segment facts are demo values, not yet surveyed."],
+    )
+    assert validate_answer(partly, _demo_route_rec(status="partly_unverified")) == []

@@ -1012,3 +1012,17 @@ def test_scenario_disclaimer_is_emitted_exactly_once(ctx):
     ans = ans.model_copy(update={"scenario_id": "stage_p3m"})
     evs = run_mod._answer_events(ans, rec, ctx, "stage_p3m")
     assert sum(e.type == "disclaimer" for e in evs) == 1
+
+
+QUALIFIED = "confirmed (on demo values, not yet surveyed)"
+
+
+async def test_confirmed_route_over_demo_values_says_so(ctx):
+    evs = await collect(ctx, ACCESS_Q)
+    text = _text(evs)
+    assert evs[-1].model == "mock-scripted" and evs[-1].answer_status == "answered"
+    assert f"Route status: {QUALIFIED}" in text
+    assert f"route {QUALIFIED}" in text  # the answer's own summary, not only the label
+    assert "demo values, not yet surveyed" in text.lower()
+    unc = [e for e in evs if e.type == "uncertainty"]
+    assert any(i["attribute"] == "demo_values" for u in unc for i in u.items)
