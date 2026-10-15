@@ -32,6 +32,10 @@ function setup(path = "/") {
 }
 
 describe("Shell", () => {
+  it("bounds the root height on desktop so main can size its children", () => {
+    setup();
+    expect(screen.getByRole("main").parentElement).toHaveClass("lg:h-dvh");
+  });
   beforeEach(() => useMode.setState({ mode: "resident" }));
 
   it("shows the mode switch on the main screen and no Tickets button for residents", async () => {

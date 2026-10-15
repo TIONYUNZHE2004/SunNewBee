@@ -9,8 +9,11 @@ import { SettingsPopover } from "../map-ui/SettingsPopover";
 /** Map on the left, assistant on the right; stacked (map first) below `lg`. */
 export function MainPage() {
   return (
-    <div className="grid grid-cols-1 lg:h-[calc(100vh-7rem)] lg:grid-cols-[minmax(0,3fr)_minmax(340px,2fr)]">
-      <section aria-label="3D map of City of Elmina" className="h-[56vh] min-h-72 lg:h-full">
+    <div className="grid h-full min-h-0 grid-cols-1 lg:grid-cols-[minmax(0,3fr)_minmax(340px,2fr)]">
+      <section
+        aria-label="3D map of City of Elmina"
+        className="h-[56vh] min-h-72 lg:h-full lg:min-h-0"
+      >
         <MapStage>
           <RouteTag />
           <FloodNote />
@@ -19,7 +22,7 @@ export function MainPage() {
           <PathOverlay />
         </MapStage>
       </section>
-      <div className="min-h-[60vh] min-w-0 lg:min-h-0">
+      <div className="flex min-h-[60vh] min-w-0 flex-col lg:min-h-0">
         <AssistantPanel />
       </div>
     </div>

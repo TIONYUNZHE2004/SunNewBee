@@ -15,7 +15,7 @@ export function RouteTag() {
         type="button"
         aria-label="Clear route from map"
         onClick={clearRoute}
-        className="grid size-10 place-items-center rounded-full text-fg-soft hover:bg-raised"
+        className="grid size-11 place-items-center rounded-full text-fg-soft hover:bg-raised"
       >
         ×
       </button>

@@ -64,7 +64,7 @@ export function Shell() {
   const onTickets = useLocation().pathname.startsWith("/tickets");
   const attribution = site.data?.attribution?.join(" · ") ?? FALLBACK_ATTRIBUTION;
   return (
-    <div className="flex min-h-screen flex-col bg-bg text-fg">
+    <div className="flex min-h-screen flex-col lg:h-dvh bg-bg text-fg">
       <a
         href="#main"
         className="sr-only focus:not-sr-only focus:absolute focus:left-2 focus:top-2 focus:z-50 focus:rounded-md focus:bg-surface focus:px-3 focus:py-2"

@@ -34,6 +34,21 @@ describe("MainPage", () => {
     expect(within(map).queryByRole("radiogroup")).toBeNull();
     expect(within(map).queryByRole("list", { name: "Path status legend" })).toBeNull();
     expect(within(map).getByText(/3D map couldn't load/)).toBeVisible();
+    const list = within(map).queryByRole("list");
+    const controls = within(map)
+      .getAllByRole("button")
+      .filter((b) => !list?.contains(b));
+    expect(controls.map((b) => b.getAttribute("aria-label") ?? b.textContent)).toEqual([
+      "Map settings",
+    ]);
+  });
+  it("bounds the assistant column so the message list scrolls, not the page", () => {
+    renderMain();
+    const wrapper = screen.getByRole("complementary", { name: "Assistant" }).parentElement;
+    expect(wrapper).toHaveClass("flex", "flex-col", "lg:min-h-0");
+    expect(screen.getByRole("region", { name: "3D map of City of Elmina" })).toHaveClass(
+      "lg:min-h-0",
+    );
   });
   it("settings reveal the legend; +3 m shows the not-a-forecast note", async () => {
     renderMain();

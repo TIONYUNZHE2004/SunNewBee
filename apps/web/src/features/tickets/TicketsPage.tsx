@@ -26,7 +26,7 @@ export function TicketsPage() {
   const selected = tickets.find((t) => t.id === picked) ?? toCheck[0] ?? checked[0] ?? null;
 
   return (
-    <div className="mx-auto grid max-w-6xl gap-6 p-4 lg:grid-cols-[minmax(280px,380px)_minmax(0,1fr)]">
+    <div className="mx-auto grid min-h-0 max-w-6xl lg:h-full lg:overflow-auto gap-6 p-4 lg:grid-cols-[minmax(280px,380px)_minmax(0,1fr)]">
       <div className={showDetail ? "hidden lg:block" : ""}>
         <TicketList
           toCheck={toCheck}
