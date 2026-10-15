@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
-import { screen } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it } from "vitest";
 import { useMode } from "../../app/modeStore";
-import { json, renderWithClient, stubFetch } from "../../test/helpers";
+import { json, newQueryClient, renderWithClient, stubFetch } from "../../test/helpers";
 import { AssistantPanel } from "./AssistantPanel";
 
 const sse = (events: object[]) =>
@@ -97,5 +97,33 @@ describe("AssistantPanel", () => {
     expect(text.indexOf("Not verified")).toBeLessThan(text.indexOf("not a forecast"));
     expect(text.indexOf("not a forecast")).toBeLessThan(text.indexOf("A check has been requested"));
     expect(screen.getByRole("log")).toHaveAttribute("aria-live", "polite");
+  });
+  it("invalidates the tickets cache when a ticket is filed from chat", async () => {
+    const fetchFn = stubFetch((url) =>
+      url.includes("/chat")
+        ? sse([
+            {
+              type: "verification.requested",
+              request_id: "vr-1",
+              element_id: "x",
+              attribute: "step_count",
+              created: true,
+              demand: 1,
+              reason: "unknown",
+            },
+            done("partial"),
+          ])
+        : json([]),
+    );
+    const qc = newQueryClient();
+    qc.setQueryData(["tickets", "all"], []);
+    renderWithClient(<AssistantPanel />, qc);
+    const before = fetchFn.mock.calls.length;
+    expect(qc.getQueryState(["tickets", "all"])?.isInvalidated).toBe(false);
+    await userEvent.type(screen.getByRole("textbox", { name: "Your question" }), "route");
+    await userEvent.click(screen.getByRole("button", { name: "Ask" }));
+    await screen.findByRole("article");
+    await waitFor(() => expect(qc.getQueryState(["tickets", "all"])?.isInvalidated).toBe(true));
+    expect(fetchFn.mock.calls.length).toBeGreaterThan(before);
   });
 });

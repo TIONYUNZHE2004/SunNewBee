@@ -1,20 +1,31 @@
 import { useNavigate } from "react-router";
 import { useMode } from "../../app/modeStore";
-import { STARTERS } from "../assistant/starters";
 import { useChatDraft } from "../chat/chatDraftStore";
 import type { Ticket } from "./ticketModel";
 
-function starterFor(kind: string) {
-  if (kind.startsWith("Stroller route")) return STARTERS.resident[0];
-  if (kind.startsWith("Wheelchair route")) return STARTERS.resident[1];
-  return undefined;
+const PROFILE_WORDS: Record<string, { profile: string; label: string }> = {
+  stroller: { profile: "stroller", label: "Stroller" },
+  wheelchair: { profile: "wheelchair", label: "Wheelchair" },
+  older_adult_rest: { profile: "older_adult_rest", label: "Older adult" },
+};
+
+/**
+ * The server files route tickets as "<profile> route <A> -> <B>". Rebuild a question from those
+ * endpoints so a replay asks what the ticket was about; anything else cannot be replayed truthfully.
+ */
+export function replayFor(summary: string): { text: string; profile: string } | undefined {
+  const m = /^(\w+) route (.+?) -> (.+)$/i.exec(summary.trim());
+  if (!m) return undefined;
+  const p = PROFILE_WORDS[(m[1] ?? "").toLowerCase()];
+  if (!p) return undefined;
+  return { text: `${p.label} route from ${m[2]} to ${m[3]}`, profile: p.profile };
 }
 
 /** What residents saw before staff checked it, and what staff recorded after. */
 export function BeforeAfter({ ticket }: { ticket: Ticket }) {
   const navigate = useNavigate();
   const r = ticket.resolution;
-  const starter = starterFor(ticket.kind);
+  const starter = replayFor(ticket.kind);
   const replay = () => {
     if (!starter) return;
     useMode.getState().setMode("resident");
@@ -32,7 +43,7 @@ export function BeforeAfter({ ticket }: { ticket: Ticket }) {
         <section className="rounded-lg border border-edge bg-accent p-4 text-on-accent">
           <h3 className="text-xs font-semibold uppercase tracking-wide">Now</h3>
           <p className="mt-1 text-sm">
-            {`Verified on ${r?.date ?? ""}${r?.value ? `: ${r.value}` : ""}`}
+            {`Verified on ${r?.date ?? ""}${(r?.value ?? ticket.current) ? `: ${r?.value ?? ticket.current}` : ""}`}
           </p>
         </section>
       </div>

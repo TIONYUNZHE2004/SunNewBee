@@ -4,7 +4,6 @@ import userEvent from "@testing-library/user-event";
 import { createMemoryRouter, RouterProvider } from "react-router";
 import { beforeEach, describe, expect, it } from "vitest";
 import { useMode } from "../../app/modeStore";
-import { STARTERS } from "../assistant/starters";
 import { useChatDraft } from "../chat/chatDraftStore";
 import { BeforeAfter } from "./BeforeAfter";
 import type { Ticket } from "./ticketModel";
@@ -27,12 +26,12 @@ const view = (ticket: Ticket) =>
 
 describe("BeforeAfter", () => {
   it("Before never repeats the post-resolution value", () => {
-    view(t("Stroller route from A to B"));
+    view(t("stroller route Car Park B -> Kiosk"));
     expect(screen.getByText("Not checked yet")).toBeInTheDocument();
     expect(screen.getByText("Verified on 1 Oct 2026: 2")).toBeInTheDocument();
   });
   it("shows the replay button only for known starters", () => {
-    const { unmount } = view(t("Stroller route from A to B"));
+    const { unmount } = view(t("stroller route Car Park B -> Kiosk"));
     expect(screen.getByRole("button", { name: "Ask the question again" })).toBeInTheDocument();
     expect(screen.getByText("The next answer uses the checked fact.")).toBeInTheDocument();
     unmount();
@@ -40,6 +39,18 @@ describe("BeforeAfter", () => {
     expect(
       screen.queryByRole("button", { name: "Ask the question again" }),
     ).not.toBeInTheDocument();
+  });
+
+  it("hides the replay when the summary is not a parseable route", () => {
+    view(t("Wheelchair route to the mall"));
+    expect(
+      screen.queryByRole("button", { name: "Ask the question again" }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText("The next answer uses the checked fact.")).not.toBeInTheDocument();
+  });
+  it("Now falls back to the ticket's current value for a plain confirm", () => {
+    view({ ...t("x"), resolution: { outcome: "verify", value: null, date: "1 Oct 2026" } });
+    expect(screen.getByText("Verified on 1 Oct 2026: 2")).toBeInTheDocument();
   });
 
   describe("replay", () => {
@@ -50,7 +61,10 @@ describe("BeforeAfter", () => {
     it("sets resident mode, queues the starter and goes to the map", async () => {
       const router = createMemoryRouter(
         [
-          { path: "/tickets", element: <BeforeAfter ticket={t("Stroller route from A to B")} /> },
+          {
+            path: "/tickets",
+            element: <BeforeAfter ticket={t("stroller route Car Park B -> Kiosk")} />,
+          },
           { path: "/", element: <p>map screen</p> },
         ],
         { initialEntries: ["/tickets"] },
@@ -58,10 +72,9 @@ describe("BeforeAfter", () => {
       render(<RouterProvider router={router} />);
       await userEvent.click(screen.getByRole("button", { name: "Ask the question again" }));
       expect(useMode.getState().mode).toBe("resident");
-      const starter = STARTERS.resident[0] as NonNullable<(typeof STARTERS.resident)[number]>;
       expect(useChatDraft.getState().pendingAsk).toEqual({
-        text: starter.text,
-        profile: starter.profile,
+        text: "Stroller route from Car Park B to Kiosk",
+        profile: "stroller",
       });
       expect(router.state.location.pathname).toBe("/");
       expect(await screen.findByText("map screen")).toBeInTheDocument();

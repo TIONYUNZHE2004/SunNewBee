@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Button } from "../../ui/Button";
 import { TicketDetail } from "./TicketDetail";
 import { TicketList } from "./TicketList";
@@ -12,6 +12,13 @@ export function TicketsPage() {
   // On narrow screens the detail replaces the list once a ticket is picked.
   const [showDetail, setShowDetail] = useState(false);
 
+  const selected = tickets.find((t) => t.id === picked) ?? toCheck[0] ?? checked[0] ?? null;
+  const selectedId = selected?.id ?? null;
+  // Pin an auto-picked ticket so saving it doesn't make the selection jump to the next one.
+  useEffect(() => {
+    if (picked === null && selectedId !== null) setPicked(selectedId);
+  }, [picked, selectedId]);
+
   if (isPending) return <p className="p-6 text-fg-soft">Loading tickets…</p>;
   if (isError)
     return (
@@ -22,8 +29,6 @@ export function TicketsPage() {
         </Button>
       </div>
     );
-
-  const selected = tickets.find((t) => t.id === picked) ?? toCheck[0] ?? checked[0] ?? null;
 
   return (
     <div className="mx-auto grid min-h-0 max-w-6xl lg:h-full lg:overflow-auto gap-6 p-4 lg:grid-cols-[minmax(280px,380px)_minmax(0,1fr)]">

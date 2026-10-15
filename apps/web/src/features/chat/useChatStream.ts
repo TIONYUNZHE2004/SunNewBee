@@ -1,3 +1,4 @@
+import { useQueryClient } from "@tanstack/react-query";
 import type { ChatEvent } from "@tl/api-client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { type Profile, useScene } from "../scene/sceneStore";
@@ -23,6 +24,7 @@ let counter = 0;
 const nextId = (p: string) => `${p}-${++counter}`;
 
 export function useChatStream() {
+  const queryClient = useQueryClient();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [streaming, setStreaming] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
@@ -69,6 +71,8 @@ export function useChatStream() {
               continue;
             }
             if (ev.type === "scene.intent") useScene.getState().applyIntent(ev.intent);
+            if (ev.type === "verification.requested")
+              void queryClient.invalidateQueries({ queryKey: ["tickets"] });
             patch(aid, (m) => reduceChatEvent(m, ev));
           }
         };
@@ -98,7 +102,7 @@ export function useChatStream() {
         if (abortRef.current === ctrl) setStreaming(false);
       }
     },
-    [patch],
+    [patch, queryClient],
   );
 
   useEffect(() => () => abortRef.current?.abort(), []);
