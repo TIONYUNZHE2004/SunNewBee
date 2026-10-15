@@ -95,7 +95,7 @@ before each run), `STAFF_TOKEN=e2e-token`, and all three map keys empty (list vi
 the access hero (route status and evidence), the flood hero ("not a forecast", never "safe"),
 that the kiosk question's gap appears in `/manage`, that the flood briefing labels Official PPS
 and Candidate centres, and that every button, textbox and select on both pages has an accessible
-name. With `reuseExistingServer` off in CI only, a dev server already running locally on :5173 is reused, so stop it first or the tests will run against your own env. First run: `pnpm --filter @tl/web exec playwright install chromium`.
+name. Playwright uses its own ports (web 5273, API 8100) and waits for `/api/site`, so a dev server you have running on :5173/:8000 is never reused. First run: `pnpm --filter @tl/web exec playwright install chromium`.
 
 ## What to build next (FE lane)
 
