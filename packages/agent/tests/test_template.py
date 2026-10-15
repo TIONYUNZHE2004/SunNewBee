@@ -137,3 +137,27 @@ def test_cannot_answer_does_not_echo_forbidden_words_in_flood_turn():
     r.scenarios_used.add("stage_p3m")
     a = template_answer(r, "Is the playground safe in a flood?")
     assert validate_answer(a, r) == []
+
+
+def test_template_no_data_route_says_data_gap():
+    r = TurnRecord(tool_calls=["plan_route"])
+    r.routes["rt-1"] = {"unknowns": []}
+    r.route_status["rt-1"] = "no_data"
+    a = template_answer(r, "route?")
+    text = " ".join([a.summary, *a.caveats])
+    assert "No mapped connection" in text and "(data gap)" in text
+    assert "unverified" not in text and "blocked" not in text
+    assert validate_answer(a, r) == []
+
+
+def test_template_caps_unchecked_items():
+    r = TurnRecord(tool_calls=["plan_route"])
+    r.routes["rt-1"] = {
+        "distance_m": 10,
+        "unknowns": [{"attribute": "step_count", "element_id": f"seg-{i}"} for i in range(12)],
+    }
+    r.route_status["rt-1"] = "partly_unverified"
+    a = template_answer(r, "route?")
+    assert "seg-4" in a.caveats[0] and "seg-5" not in a.caveats[0]
+    assert "and 7 more unchecked; staff have been asked to check them" in a.caveats[0]
+    assert validate_answer(a, r) == []
