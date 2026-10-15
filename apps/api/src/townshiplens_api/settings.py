@@ -19,5 +19,7 @@ class ApiSettings(BaseSettings):
     def db_path(self, site_id: str) -> str:
         """Explicit DATABASE_URL wins; otherwise one file per world so seeds never share rows."""
         if self.database_url:
-            return self.database_url.removeprefix("sqlite:///")
+            path = Path(self.database_url.removeprefix("sqlite:///"))
+            # A relative path means the repo root, not the directory the API happens to start in.
+            return str(path if path.is_absolute() else ROOT / path)
         return str(ROOT / ".data" / f"{site_id}.db")

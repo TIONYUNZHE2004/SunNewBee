@@ -1,4 +1,5 @@
 from fastapi.testclient import TestClient
+from townshiplens_api import state
 from townshiplens_api.main import app
 
 c = TestClient(app)
@@ -124,3 +125,29 @@ def test_layers_access_places_carry_node_inferred():
     fc = c.get("/layers/access").json()
     pts = [f["properties"] for f in fc["features"] if f["geometry"]["type"] == "Point"]
     assert pts and all(p["node_inferred"] is False for p in pts)  # tiny fixture: none inferred
+
+
+def test_healthz_fails_when_the_world_cannot_load(tmp_path, monkeypatch):  # final review Minor 5
+    (tmp_path / "site.json").write_text("")  # empty: present but corrupt
+    monkeypatch.setenv("TL_DATA_DIR", str(tmp_path))
+    state.reset()
+    assert c.get("/healthz").status_code == 503
+    assert TestClient(app, raise_server_exceptions=False).get("/site").status_code == 500
+
+
+def test_profiles_expose_the_sidewalk_rule():  # final review 2, Minor 9
+    rows = {p["id"]: p for p in c.get("/profiles").json()}
+    assert rows["stroller"]["no_sidewalk_is"] in ("FAIL", "UNKNOWN")
+    assert (
+        rows["stroller"]["no_sidewalk_is"]
+        == state.get_ctx().world.profiles["stroller"].no_sidewalk_is
+    )
+
+
+def test_relative_database_url_is_resolved_against_the_repo_root(monkeypatch):
+    from townshiplens_api.settings import ROOT, ApiSettings
+
+    monkeypatch.setenv("DATABASE_URL", "sqlite:///./.data/x.db")
+    assert ApiSettings().db_path("any") == str(ROOT / ".data" / "x.db")
+    monkeypatch.setenv("DATABASE_URL", "sqlite:////tmp/abs.db")
+    assert ApiSettings().db_path("any") == "/tmp/abs.db"

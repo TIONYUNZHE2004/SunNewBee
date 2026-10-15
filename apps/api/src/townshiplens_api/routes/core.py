@@ -1,10 +1,12 @@
 import copy
 import hashlib
+import logging
 import secrets
 import sqlite3
 from typing import Any, Literal
 
 from fastapi import APIRouter, HTTPException, Query, Request, Response
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field
 from townshiplens_spatial import tools
 from townshiplens_spatial.models import RouteResult, Site, ToolResult
@@ -13,6 +15,7 @@ from .. import geojson, state
 from .sim import _store as _sim_store
 
 router = APIRouter()
+log = logging.getLogger(__name__)
 
 
 class RouteRequest(BaseModel):
@@ -23,8 +26,14 @@ class RouteRequest(BaseModel):
     scenario_id: str | None = None
 
 
-@router.get("/healthz")
-def healthz() -> dict[str, str]:
+@router.get("/healthz", responses={503: {"description": "the world did not load"}})
+def healthz():
+    """Liveness that includes the world: a corrupt seed fails here, not only on every request."""
+    try:
+        state.get_ctx()
+    except Exception:  # noqa: BLE001 - any load failure means not healthy
+        log.exception("world failed to load")
+        return JSONResponse({"status": "error"}, status_code=503)
     return {"status": "ok"}
 
 
@@ -47,6 +56,9 @@ class ProfileInfo(BaseModel):
     allowed_types: list[str] | None = None
     speed_kmh: float | None = None
     stub: bool = False
+    # Walking profiles on a major_road: a sidewalk claim of "none" is FAIL or UNKNOWN; a missing
+    # claim is always UNKNOWN, so strict profiles need a verified sidewalk there.
+    no_sidewalk_is: str = "UNKNOWN"
     threshold_basis: str = THRESHOLD_BASIS
 
 
