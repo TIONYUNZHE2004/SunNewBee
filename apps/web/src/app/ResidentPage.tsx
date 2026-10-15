@@ -1,7 +1,10 @@
+import { useEffect } from "react";
+import { useSearchParams } from "react-router";
 import { ChatPanel } from "../features/chat/ChatPanel";
 import { DisclaimerBanner } from "../features/flood/DisclaimerBanner";
 import { FloodPathPopover } from "../features/flood/FloodPathPopover";
 import { ScenarioBar } from "../features/flood/ScenarioBar";
+import { GapProfileNote } from "../features/gaps/GapLegend";
 import { PlaceCard } from "../features/places/PlaceCard";
 import { DeepSpots } from "../features/scene/DeepSpots";
 import { SceneHost } from "../features/scene/SceneHost";
@@ -15,7 +18,13 @@ const LENSES: [Lens, string][] = [
 ];
 
 export function ResidentPage() {
-  const { lensVisible, toggleLens, scenarioId } = useScene();
+  const { lensVisible, toggleLens, scenarioId, gapsVisible, toggleGaps, setGaps } = useScene();
+  // The manage console links here with ?gaps=1.
+  const [params] = useSearchParams();
+  const gapsParam = params.get("gaps") === "1";
+  useEffect(() => {
+    if (gapsParam) setGaps(true);
+  }, [gapsParam, setGaps]);
   const scenarios = useScenarios();
   const scenario = scenarios.data?.find((s) => s.id === scenarioId);
 
@@ -38,11 +47,21 @@ export function ResidentPage() {
                 {label}
               </button>
             ))}
+            <button
+              type="button"
+              aria-pressed={gapsVisible}
+              onClick={toggleGaps}
+              className={`min-h-11 border-l border-line px-3 text-sm font-medium ${gapsVisible ? "bg-brand text-white" : "text-brand hover:bg-brand-tint"}`}
+            >
+              <span aria-hidden="true">{gapsVisible ? "✓ " : ""}</span>
+              Gaps
+            </button>
           </div>
         </fieldset>
         <ScenarioBar />
         <DeepSpots />
       </div>
+      <GapProfileNote />
       {scenarioId && (
         <DisclaimerBanner
           text={

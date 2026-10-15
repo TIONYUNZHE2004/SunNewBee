@@ -25,6 +25,14 @@ export const useLayer = (lens: Lens, profile: Profile, scenarioId: string | null
       ),
   });
 
+/** Gap map payload: per edge and place, how many facts are not yet checked. */
+export const useGaps = (profile: Profile, enabled = true) =>
+  useQuery({
+    enabled,
+    queryKey: ["layer", "gaps", profile],
+    queryFn: async () => unwrap(await api.GET("/layers/gaps", { params: { query: { profile } } })),
+  });
+
 export const useScenarios = () =>
   useQuery({ queryKey: ["scenarios"], queryFn: async () => unwrap(await api.GET("/scenarios")) });
 

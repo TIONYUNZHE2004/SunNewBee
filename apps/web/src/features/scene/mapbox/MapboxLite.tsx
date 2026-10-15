@@ -1,8 +1,9 @@
 import "mapbox-gl/dist/mapbox-gl.css";
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import MapGL, { Layer, type MapMouseEvent, type MapRef, Source } from "react-map-gl/mapbox";
-import { useLayer, useScenarioWater } from "../../../lib/api";
+import { useGaps, useLayer, useScenarioWater } from "../../../lib/api";
 import { ENV } from "../../../lib/env";
+import { GAP_BAND_ORDER, GAP_BANDS, gapLines, gapsActive } from "../../gaps/gapModel";
 import { clickedPlaceId, normalizeLayer, pointFeatures } from "../geo";
 import { useScene } from "../sceneStore";
 import { ROUTE_STYLE, statusStyle, WATER_COLOR } from "../styles";
@@ -118,6 +119,40 @@ function StatusLines({
   );
 }
 
+const GAP_DASH = { dashed: [2, 1], dotted: [0, 2] } as const;
+
+/** Gap bands: one layer per band so each gets its own pattern as well as colour. */
+function GapLines({ data }: { data: GeoJSON.FeatureCollection }) {
+  return (
+    <Source id="gaps" type="geojson" data={data}>
+      {GAP_BAND_ORDER.map((b) => {
+        const st = GAP_BANDS[b];
+        return (
+          <Layer
+            key={b}
+            id={`gaps-${b}`}
+            type="line"
+            slot="middle"
+            filter={["==", ["get", "gap_band"], b] as never}
+            layout={(st.pattern === "dotted" ? { "line-cap": "round" } : {}) as never}
+            paint={
+              {
+                "line-color": st.color,
+                "line-width": st.width,
+                "line-opacity": st.alpha,
+                ...(st.pattern === "solid" ? {} : { "line-dasharray": GAP_DASH[st.pattern] }),
+              } as never
+            }
+          />
+        );
+      })}
+    </Source>
+  );
+}
+
+const pointsOnly = (fc: GeoJSON.FeatureCollection) =>
+  fc.features.filter((f) => f.geometry.type === "Point");
+
 export default function MapboxLite() {
   const mapRef = useRef<MapRef>(null);
   const profile = useScene((s) => s.profile);
@@ -127,7 +162,10 @@ export default function MapboxLite() {
   const focusPlaceId = useScene((s) => s.focusPlaceId);
   const camera = useScene((s) => s.camera);
   const selectPlace = useScene((s) => s.selectPlace);
+  const gapsOn = useScene((s) => gapsActive(s.gapsVisible, s.profile));
   const access = useLayer("access", profile, scenarioId);
+  const gaps = useGaps(profile, gapsOn);
+  const gapData = useMemo(() => gapLines(gaps.data), [gaps.data]);
   const water = useScenarioWater(scenarioId);
   const flood = useLayer("flood", profile, scenarioId);
   const waste = useLayer("waste", profile, scenarioId, lensVisible.waste);
@@ -203,7 +241,16 @@ export default function MapboxLite() {
             />
           </Source>
         )}
-        {showAccess && <StatusLines id="access" data={accessData} withPlaces />}
+        {showAccess && (
+          <StatusLines
+            id="access"
+            data={
+              gapsOn ? { type: "FeatureCollection", features: pointsOnly(accessData) } : accessData
+            }
+            withPlaces
+          />
+        )}
+        {gapsOn && showAccess && <GapLines data={gapData} />}
         {showWater && flood.data && (
           <StatusLines
             id="flood-lines"

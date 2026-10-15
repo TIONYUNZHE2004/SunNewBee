@@ -1,7 +1,8 @@
 import copy
 import hashlib
 import secrets
-from typing import Any
+import sqlite3
+from typing import Any, Literal
 
 from fastapi import APIRouter, HTTPException, Query, Request, Response
 from pydantic import BaseModel, ConfigDict, Field
@@ -9,6 +10,7 @@ from townshiplens_spatial import tools
 from townshiplens_spatial.models import RouteResult, Site, ToolResult
 
 from .. import geojson, state
+from .sim import _store as _sim_store
 
 router = APIRouter()
 
@@ -73,6 +75,80 @@ def _matches(header: str | None, etag: str) -> bool:
         return False
     cands = [t.strip().removeprefix("W/") for t in header.split(",")]
     return "*" in cands or etag in cands
+
+
+def _open_demand(ctx) -> dict[str, int]:
+    out: dict[str, int] = {}
+    for vr in ctx.vrs.list("open"):
+        out[vr.element_id] = out.get(vr.element_id, 0) + vr.demand
+    return out
+
+
+class GapProperties(BaseModel):
+    """Per element: how many facts are not yet checked for the profile, and why it matters."""
+
+    id: str
+    kind: str
+    type: str
+    name: str | None = None
+    relevant_count: int
+    unknown_count: int
+    stale_count: int
+    reported_count: int
+    unknown_attributes: list[str]
+    demand: int  # open verification-request demand
+    journey_impact: int  # journeys the latest simulation says checking this would confirm
+
+
+class GapFeature(BaseModel):
+    type: Literal["Feature"] = "Feature"
+    geometry: dict[str, Any]
+    properties: GapProperties
+
+
+class GapsLayer(BaseModel):
+    type: Literal["FeatureCollection"] = "FeatureCollection"
+    features: list[GapFeature]
+
+
+def _journey_impact(profile: str) -> tuple[str, dict[str, int]]:
+    """(latest run id, element id -> impact) for gaps whose profiles include `profile`. This is
+    sim.py's own ranking (which unknowns would confirm the most journeys), read from the store."""
+    try:
+        store = _sim_store()
+        recent = store.recent(1)
+        report = store.get(recent[0]["run_id"]) if recent else None
+    except sqlite3.Error:
+        return "", {}
+    if not report:
+        return "", {}
+    out: dict[str, int] = {}
+    for g in report.get("gaps", []):
+        if profile in g.get("affected_profiles", []):
+            out[g["element_id"]] = out.get(g["element_id"], 0) + int(g["impact"])
+    return report["run_id"], out
+
+
+@router.get(
+    "/layers/gaps",
+    response_model=GapsLayer,
+    responses={304: {"description": "Not modified"}},
+)
+def gaps_layer(request: Request, response: Response, profile: str = "default"):
+    """Gap map: per walk edge and place, how many relevant facts are not yet checked, how many
+    are stale or only reported, open verification demand and simulated journey impact. Declared
+    before /layers/{lens} so it wins."""
+    ctx = state.get_ctx()
+    demand = _open_demand(ctx)
+    run_id, impact = _journey_impact(profile)
+    # Demand and the latest sim run change without a world.version bump: both are validators.
+    sig = ",".join(f"{k}:{v}" for k, v in sorted(demand.items())) + "|" + run_id
+    etag = _etag(ctx.world, "gaps", profile, sig)
+    headers = {"ETag": etag, "Cache-Control": CACHE_CONTROL}
+    if _matches(request.headers.get("if-none-match"), etag):
+        return Response(status_code=304, headers=headers)
+    response.headers.update(headers)
+    return geojson.gaps_layer(ctx.world, demand, profile, impact)
 
 
 @router.get(
