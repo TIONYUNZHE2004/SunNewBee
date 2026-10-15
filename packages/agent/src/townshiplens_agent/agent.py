@@ -74,6 +74,7 @@ def _vr_event(vr: dict) -> VerificationRequested:
         attribute=vr["attribute"],
         created=vr["created"],
         demand=vr["demand"],
+        reason=vr.get("reason"),
     )
 
 
