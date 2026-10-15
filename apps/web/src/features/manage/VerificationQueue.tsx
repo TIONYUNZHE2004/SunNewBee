@@ -1,8 +1,9 @@
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import { type FormEvent, useReducer, useState } from "react";
 import { PHOTO_ACCEPT, validatePhoto } from "../../lib/evidence";
+import { elementName } from "../chat/citationLabel";
 import { GapMapLink } from "../gaps/GapMapLink";
-import { optionLabel, specFor } from "./attributeCatalogue";
+import { attributeLabel, optionLabel, specFor } from "./attributeCatalogue";
 import { onResolved, PhotoUploadError, submitResolution, uploadErrorMessage } from "./createVr";
 import { ApiError, fetchVRs, resolveVR, uploadEvidence, type VR } from "./manageApi";
 import {
@@ -14,6 +15,7 @@ import {
   type VrFilters,
   vrQueryKey,
 } from "./queueFilters";
+import { reasonLabel } from "./queueLabels";
 import {
   buildResolveBody,
   currentValueText,
@@ -30,6 +32,7 @@ import {
   VERIFY_DISABLED_TEXT,
   validateForm,
 } from "./resolveForm";
+import { useQueueNames } from "./useQueueNames";
 import { useStaffToken } from "./useStaffToken";
 
 const inputCls = "min-h-11 w-full rounded-md border border-line bg-card px-3 text-sm";
@@ -219,6 +222,7 @@ export function VerificationQueue() {
   const [token, setToken] = useStaffToken();
   const [open, setOpen] = useState<string | null>(null);
   const rows = q.data ?? [];
+  const names = useQueueNames();
 
   return (
     <section aria-labelledby="vq-h" className="space-y-4">
@@ -277,7 +281,7 @@ export function VerificationQueue() {
             <option value="">All reasons</option>
             {REASONS.map((r) => (
               <option key={r} value={r}>
-                {r.replaceAll("_", " ")}
+                {reasonLabel(r)}
               </option>
             ))}
           </select>
@@ -352,6 +356,7 @@ export function VerificationQueue() {
                   vr={vr}
                   open={open === vr.id}
                   token={token}
+                  names={names}
                   onToggle={() => setOpen(open === vr.id ? null : vr.id)}
                 />
               ))}
@@ -367,11 +372,13 @@ function RowGroup({
   vr,
   open,
   token,
+  names,
   onToggle,
 }: {
   vr: VR;
   open: boolean;
   token: string;
+  names: Map<string, string>;
   onToggle: () => void;
 }) {
   return (
@@ -381,14 +388,22 @@ function RowGroup({
           {vr.demand}
         </th>
         <td className="px-3 py-2">
-          {vr.element_id}
+          {elementName(vr.element_id, names)}
+          {elementName(vr.element_id, names) !== vr.element_id && (
+            <span className="block text-xs text-ink-soft">{vr.element_id}</span>
+          )}
           {vr.question_summary && (
             <span className="block text-xs text-ink-soft">{vr.question_summary}</span>
           )}
         </td>
-        <td className="px-3 py-2">{vr.attribute}</td>
+        <td className="px-3 py-2">
+          {attributeLabel(vr.attribute)}
+          {attributeLabel(vr.attribute) !== vr.attribute && (
+            <span className="block text-xs text-ink-soft">{vr.attribute}</span>
+          )}
+        </td>
         <td className="px-3 py-2">{currentValueText(vr.current_value)}</td>
-        <td className="px-3 py-2">{vr.reason.replaceAll("_", " ")}</td>
+        <td className="px-3 py-2">{reasonLabel(vr.reason)}</td>
         <td className="px-3 py-2">{new Date(vr.created_at).toLocaleString()}</td>
         <td className="px-3 py-2">
           {vr.status === "open" || vr.status === "in_progress" ? (

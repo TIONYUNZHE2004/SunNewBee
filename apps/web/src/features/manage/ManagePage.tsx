@@ -1,4 +1,3 @@
-import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router";
 import { Closures } from "./Closures";
 import { FloodBriefing } from "./FloodBriefing";
@@ -8,25 +7,25 @@ import { VerificationQueue } from "./VerificationQueue";
 
 const TABS = [
   { id: "queue", label: "Verification queue" },
-  { id: "flood", label: "Flood briefing" },
+  { id: "briefing", label: "Flood briefing" },
   { id: "journeys", label: "Journey tests" },
   { id: "closures", label: "Closures" },
 ] as const;
 
 type TabId = (typeof TABS)[number]["id"];
 
-/** `/manage?tab=flood` opens that tab (used by the demo walkthrough); anything else is the queue. */
+/** `/manage?tab=briefing` opens that tab (used by the demo walkthrough); anything else is the queue.
+ * `flood` is the pre-Task 50 name of the briefing tab and still works. */
 export function tabFromParam(v: string | null): TabId {
+  if (v === "flood") return "briefing";
   return TABS.find((t) => t.id === v)?.id ?? "queue";
 }
 
 export function ManagePage() {
-  const [params] = useSearchParams();
-  const wanted = params.get("tab");
-  const [tab, setTab] = useState<TabId>(() => tabFromParam(wanted));
-  useEffect(() => {
-    if (wanted) setTab(tabFromParam(wanted));
-  }, [wanted]);
+  const [params, setParams] = useSearchParams();
+  const tab = tabFromParam(params.get("tab"));
+  // replace, not push: switching tabs must not fill the Back stack.
+  const setTab = (id: TabId) => setParams({ tab: id }, { replace: true });
 
   function onKey(e: React.KeyboardEvent, i: number) {
     const d = e.key === "ArrowRight" ? 1 : e.key === "ArrowLeft" ? -1 : 0;
@@ -72,7 +71,7 @@ export function ManagePage() {
       <div id={`mpanel-${tab}`} role="tabpanel" aria-labelledby={`mtab-${tab}`}>
         {tab === "queue" ? (
           <VerificationQueue />
-        ) : tab === "flood" ? (
+        ) : tab === "briefing" ? (
           <FloodBriefing />
         ) : tab === "closures" ? (
           <Closures />
