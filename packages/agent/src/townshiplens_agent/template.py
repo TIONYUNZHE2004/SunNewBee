@@ -3,6 +3,8 @@ from .events import SceneIntent
 from .record import TurnRecord
 from .validate import DEPTH, FORBIDDEN, PLACEHOLDER_CAVEAT, PLACEHOLDER_SOURCE
 
+MAX_NAMED = 5
+
 
 def _cannot_summary(rec: TurnRecord, question: str) -> str:
     """Say what could not be resolved: a missing attribute if a tool surfaced one, else the query.
@@ -51,16 +53,23 @@ def template_answer(rec: TurnRecord, question: str) -> FinalAnswer:
         )
         for eid, e in list(rec.evidence.items())[:8]
     ]
-    unknowns = [f"{u['attribute']} on {u['element_id']}" for u in route.get("unknowns", [])]
+    unknown_items = [f"{u['attribute']} on {u['element_id']}" for u in route.get("unknowns", [])]
+    unknowns = unknown_items[:MAX_NAMED]
     caveats: list[str] = list(flood_caveats)
     if unknowns:
-        caveats.append(f"Not checked yet: {', '.join(unknowns)}.")
-    if status != "confirmed":
+        more = len(unknown_items) - len(unknowns)
+        tail = f" and {more} more unchecked; staff have been asked to check them" if more else ""
+        caveats.append(f"Not checked yet: {', '.join(unknowns)}{tail}.")
+    if status == "no_data":
+        caveats.append("No mapped connection between these places (data gap).")
+    elif status != "confirmed":
         caveats.append("Some segments are still unverified.")
     if any(getattr(e, "source_type", None) == PLACEHOLDER_SOURCE for e in rec.evidence.values()):
         caveats.append(f"Some segment facts are {PLACEHOLDER_CAVEAT}.")
     dist = route.get("distance_m")
     summary = f"Route of {dist} m." if dist is not None else "Route found."
+    if status == "no_data":
+        summary = "No mapped connection between these places (data gap)."
     return FinalAnswer(
         answer_status="answered"
         if status == "confirmed" and not unknowns and not likely_flooded

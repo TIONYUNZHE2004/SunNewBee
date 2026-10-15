@@ -60,15 +60,34 @@ def _cannot(
     return _final(answer_status="cannot_answer", summary=msg, **extra)
 
 
+MAX_NAMED = 5  # unchecked items named in the answer text; the uncertainty event has them all
+
+
 def _unknown_caveats(routes: list) -> list[str]:
     out = []
+    ids = []
+    for r in routes:
+        for u in r.get("unknowns") or []:
+            ids.append(u.get("element_id"))
     for r in routes:
         for u in r.get("unknowns") or []:
             if u.get("attribute") == "flood":  # flood "unknowns" are possible-flood segments
                 out.append(f"{u.get('element_id')}: {u.get('why') or 'possibly flooded'}")
             else:
                 out.append(f"Not checked yet: {u.get('attribute')} on {u.get('element_id')}")
+    if len(out) > MAX_NAMED:
+        named = ids[:MAX_NAMED]
+        more = len(set(ids) - set(named))
+        out = out[:MAX_NAMED]
+        if more:
+            out.append(f"and {more} more unchecked segments; staff have been asked to check them")
     return out
+
+
+def _status_caveat(status: str, a: str, b: str) -> str:
+    if status == "no_data":
+        return f"No mapped connection between {a} and {b} (data gap)."
+    return f"Route status: {status}; some segments are still unverified."
 
 
 def _placeholder_caveat(rets, caveats: list[str]) -> list[str]:
@@ -167,8 +186,11 @@ def _script(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
             "and I can show where to go."
         )
     sid = ui_sid or "stage_p3m"
-    if m := re.search(r"(\d)\s*m\b", q) if is_flood else None:
-        sid = f"stage_p{m.group(1)}m"
+    if m := re.search(r"(\d+(?:\.\d+)?)\s*m\b", q) if is_flood else None:
+        metres = float(m.group(1))
+        if metres != int(metres) or not 1 <= metres <= 5:
+            return _cannot("Scenarios exist for river levels +1 m to +5 m only.")
+        sid = f"stage_p{int(metres)}m"
     level = f"River +{sid.removeprefix('stage_p').removesuffix('m')} m"
     scn = {"scenario_id": sid}
     if is_flood and re.search(
@@ -236,7 +258,7 @@ def _script(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
         flood_cav, flood_ev, likely = _endpoint_flood(_data(rets[-1][1]))
         caveats = _unknown_caveats(routes[:1])
         if route and route.get("status") != "confirmed" and not caveats:
-            caveats = [f"Route status: {route.get('status')}; some segments are still unverified."]
+            caveats = [_status_caveat(route.get("status"), found[0]["name"], c0["name"])]
         caveats = _placeholder_caveat(rets, flood_cav + caveats)
         confirmed = route and route.get("status") == "confirmed" and not likely
         start = (
@@ -355,7 +377,7 @@ def _script(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
         ev += flood_ev
         caveats = _unknown_caveats(routes)
         if status != "confirmed" and not caveats:
-            caveats = [f"Route status: {status}; some segments are still unverified."]
+            caveats = [_status_caveat(status, a.get("name", a["id"]), b.get("name", b["id"]))]
         caveats = _placeholder_caveat(rets, flood_cav + caveats)
         gap = r0.get("max_gap_between_rest_m") if r0 else None
         if gap is not None and plan_profile == "older_adult_rest":
@@ -368,8 +390,13 @@ def _script(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
         return _final(
             answer_status="answered" if status == "confirmed" and not likely else "partial",
             scenario_id=flagged[0]["scenario_id"] if flagged else ui_sid,
-            summary=f"{a.get('name', a['id'])} to {b.get('name', b['id'])}: route {status}"
-            + (f", {dist} m." if dist is not None else "."),
+            summary=(
+                f"No mapped connection between {a.get('name', a['id'])} and "
+                f"{b.get('name', b['id'])} (data gap)."
+                if status == "no_data"
+                else f"{a.get('name', a['id'])} to {b.get('name', b['id'])}: route {status}"
+                + (f", {dist} m." if dist is not None else ".")
+            ),
             claims=[
                 {
                     "text": "Places and segments on this route",
