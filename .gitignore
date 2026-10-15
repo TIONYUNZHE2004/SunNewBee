@@ -1,19 +1,30 @@
-# Shallow-cloned reference repos (re-create with reference/clone-repos.sh)
-!reference/repos/.gitkeep
-.DS_Store
-node_modules/
-__pycache__/
-.venv/
+# --- Secrets
 .env
-reference/
 
-# Agent workspaces (subagent-driven-development ledgers, briefs, review packages)
-.superpowers/
+# --- OS / editors
+.DS_Store
 
-.data/
+# --- Dependencies and toolchains
+node_modules/
+.venv/
+__pycache__/
+
+# --- Build and test output
 dist/
 apps/web/public/cesium/
-data/cache/
-*.tif
 playwright-report/
 test-results/
+
+# --- Local runtime state (SQLite DBs, evidence photos) and data caches
+.data/
+data/cache/
+*.tif
+
+# --- Reference material: notes, README and scripts are tracked; heavy files are re-created
+# reference/clone-repos.sh (shallow clones) and reference/download-papers.sh (open-access PDFs)
+reference/repos/*
+!reference/repos/.gitkeep
+reference/papers/**/*.pdf
+
+# --- Agent workspaces (subagent-driven-development ledgers, briefs, review packages)
+.superpowers/

@@ -6,7 +6,7 @@ Papers, repos and source notes collected during research (14 Oct 2026). The **do
 reference/
   README.md              ← this index
   clone-repos.sh         ← recreates repos/ (shallow clones, ~4 GB, gitignored; categories 3d access ai flood stack)
-  download-papers.sh     ← re-downloads all PDFs (PDFs > 10 MB are gitignored)
+  download-papers.sh     ← downloads all PDFs into papers/ (PDFs are gitignored; only the notes and scripts are tracked)
   notes/                 ← machine-readable source lists written by each research track
   papers/{ai,access,3d,flood}/ ← PDFs, named <arXiv id>_<short title>.pdf
   papers/context/        ← SDP reports, DOSM, UNICEF toolkit, PDPA summary

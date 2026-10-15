@@ -23,7 +23,7 @@ Site: **whole City of Elmina** in 3D, with deep verified detail at **Elmina Urba
 | Path | What |
 |---|---|
 | [`docs/`](docs/README.md) | **Knowledge base: start here.** Brief, research, product spec, architecture, team plan, pitch |
-| [`reference/`](reference/README.md) | Papers (PDF), cloned reference repos (gitignored, use `reference/clone-repos.sh`), source notes |
+| [`reference/`](reference/README.md) | Source notes (tracked); papers and cloned repos are local only: `bash reference/download-papers.sh`, `bash reference/clone-repos.sh` |
 | [`apps/web`](apps/web/README.md) | Vite + React SPA: resident page (3D / lite map / list + chat) and `/manage` |
 | [`apps/api`](apps/api/README.md) | FastAPI: world-model endpoints, SSE `/chat`, verification requests |
 | [`packages/spatial`](packages/spatial/README.md) | World model, routing, flood analytics, the 10 tools |
