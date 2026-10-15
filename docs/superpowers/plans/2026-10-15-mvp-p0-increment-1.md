@@ -881,3 +881,25 @@ Final review #3 I4 and its doc Minors (`.superpowers/sdd/2026-10-15-mvp-p0-incre
 - **Other doc Minors** from review #3, in READMEs, AGENTS.md and CLAUDE.md, if listed.
 - **Method:** measure every number from code or data right now. Change nothing in code. Keep the tone.
 - **Verify:** `pnpm lint`. Commit `docs: …`.
+
+### Task 58: Evacuation-centre status editor (M-09, B-05, F-05)
+Spec, files and acceptance tests: `.superpowers/sdd/2026-10-15-mvp-p0-increment-1/mvp-status-audit-2.md`, "Remaining code-only work", item 1. Every centre-status change writes an audit row. Undo is supported. `official_pps` needs evidence (an uploaded photo id or a source URL).
+
+### Task 59: Resident "Report an issue" and collection-day requests (C-09, W-03)
+Spec: the same file, item 2.
+- The anonymous endpoint takes no free text: the attribute comes from the catalogue, the summary is fixed, and `source="resident"`.
+- Add simple abuse protection: dedupe per element and attribute (demand increments) and a per-IP rate limit, e.g. 10 per minute, in memory.
+- `collection_day` is mirrored in `attributes.py` and `attributeCatalogue.ts`.
+- The small mock touch is out of scope here; Task 62 does it.
+
+### Task 60: Grey "not relevant" state and flood margin in the legend (AX-01, P-05, F-03, F-16)
+Spec: the same file, items 3 and 5.
+
+### Task 61: Renderer fallback chain and bundle budget (P-06, P-08, P-01)
+Spec: the same file, items 4 and 12. Keep the Task 51 tile-failure burst threshold (`failureBurst`). The OSM Buildings fallback is tried only after a burst or a root failure.
+
+### Task 62: AI/data quality pack (W-04, G-05, G-08, C-01, B-02)
+Spec: the same file, items 6, 9, 10, 11 and 13. Follow ruling R35 for G-05 and update the spec text. Item 6: the collection-day answer may say a request was filed only once Task 59's endpoint is merged; until then, no claim about filing.
+
+### Task 63: Recurring-questions view and scenario provenance hash (B-08, M-06, B-03)
+Spec: the same file, items 8 and 7. Follow ruling R34. Item 7 needs a flood rebuild from the cached DEM and drainage; no network.
