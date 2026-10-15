@@ -12,11 +12,49 @@ export const outcomeLabel = (o: string): string => OUTCOME_LABELS[o as Outcome] 
 const VIOLATIONS: Record<string, { label: string; critical: boolean }> = {
   I1: { label: "Route used a non-passable segment", critical: true },
   I2: { label: "Unverified segment not disclosed", critical: true },
-  I7: { label: "Rest stops too far apart for older residents", critical: false },
+  // The router marks a route as within the rest limit only when it is (Task 41), so a breach
+  // is a routing bug. Routes with no alternative are advisory notes, not I7.
+  I7: {
+    label: "Route claimed rest stops within the limit, but a stretch is longer",
+    critical: true,
+  },
 };
 export const violationLabel = (i: string): string =>
   VIOLATIONS[i]?.label ?? `Invariant check failed (${i})`;
 export const isCriticalViolation = (i: string): boolean => VIOLATIONS[i]?.critical ?? false;
+
+const ADVISORIES: Record<string, string> = {
+  rest_limit_no_alternative: "Routes over the rest limit (no alternative)",
+};
+export const advisoryLabel = (k: string): string => ADVISORIES[k] ?? `Advisory note (${k})`;
+
+export type CheckSummary = { critical: number; other: number; advisories: number };
+
+export function checkSummary(report: {
+  invariant_violations: { invariant: string }[];
+  rest_advisories?: unknown[];
+}): CheckSummary {
+  const critical = report.invariant_violations.filter((v) =>
+    isCriticalViolation(v.invariant),
+  ).length;
+  return {
+    critical,
+    other: report.invariant_violations.length - critical,
+    advisories: report.rest_advisories?.length ?? 0,
+  };
+}
+
+const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+
+export function checkSummaryText(s: CheckSummary): string {
+  return [
+    plural(s.critical, "critical invariant violation", "critical invariant violations"),
+    ...(s.other > 0
+      ? [plural(s.other, "other invariant violation", "other invariant violations")]
+      : []),
+    plural(s.advisories, "advisory note", "advisory notes"),
+  ].join(", ");
+}
 
 export type Pcts = {
   total: number;

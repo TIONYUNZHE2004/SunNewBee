@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { outcomeLabel, summariseCounts, violationLabel } from "./simModel";
+import {
+  advisoryLabel,
+  checkSummary,
+  checkSummaryText,
+  isCriticalViolation,
+  outcomeLabel,
+  summariseCounts,
+  violationLabel,
+} from "./simModel";
 
 const counts = {
   stroller: { success: 3, success_with_unknowns: 1, blocked: 1, no_data: 1 },
@@ -47,7 +55,46 @@ describe("labels", () => {
   it("violationLabel", () => {
     expect(violationLabel("I1")).toBe("Route used a non-passable segment");
     expect(violationLabel("I2")).toBe("Unverified segment not disclosed");
-    expect(violationLabel("I7")).toBe("Rest stops too far apart for older residents");
+    expect(violationLabel("I7")).toBe(
+      "Route claimed rest stops within the limit, but a stretch is longer",
+    );
     expect(violationLabel("I9")).toBe("Invariant check failed (I9)");
+  });
+});
+
+describe("critical violations vs advisory notes", () => {
+  it("I7 is critical now: the router only claims the rest limit when it holds", () => {
+    expect(isCriticalViolation("I7")).toBe(true);
+    expect(isCriticalViolation("I1")).toBe(true);
+    expect(isCriticalViolation("I9")).toBe(false);
+  });
+  it("advisoryLabel", () => {
+    expect(advisoryLabel("rest_limit_no_alternative")).toBe(
+      "Routes over the rest limit (no alternative)",
+    );
+    expect(advisoryLabel("other")).toBe("Advisory note (other)");
+  });
+  it("checkSummary separates critical violations from advisory notes", () => {
+    const adv = { kind: "rest_limit_no_alternative", task_id: "t", detail: "d" };
+    const s = checkSummary({
+      invariant_violations: [{ invariant: "I1" }],
+      rest_advisories: [adv, adv],
+    });
+    expect(s).toEqual({ critical: 1, other: 0, advisories: 2 });
+  });
+  it("an empty or older report has nothing to flag", () => {
+    expect(checkSummary({ invariant_violations: [] })).toEqual({
+      critical: 0,
+      other: 0,
+      advisories: 0,
+    });
+  });
+  it("checkSummaryText in plain words", () => {
+    expect(checkSummaryText({ critical: 0, other: 0, advisories: 60 })).toBe(
+      "0 critical invariant violations, 60 advisory notes",
+    );
+    expect(checkSummaryText({ critical: 1, other: 2, advisories: 1 })).toBe(
+      "1 critical invariant violation, 2 other invariant violations, 1 advisory note",
+    );
   });
 });

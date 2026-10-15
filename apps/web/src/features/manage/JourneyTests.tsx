@@ -11,6 +11,9 @@ import {
   type SimSummary,
 } from "./manageApi";
 import {
+  advisoryLabel,
+  checkSummary,
+  checkSummaryText,
   isCriticalViolation,
   OUTCOMES,
   outcomeLabel,
@@ -184,7 +187,7 @@ export function JourneyTests() {
             Run {report.run_id.slice(0, 8)} finished: {summary.overall.total} journeys,{" "}
             {summary.overall.confirmedPct}% confirmed, {summary.overall.blockedPct}% not passable,{" "}
             {summary.overall.noDataPct}% no mapped connection (data gap), {report.gaps.length} top
-            gaps, {report.invariant_violations.length} invariant violations.
+            gaps, {checkSummaryText(checkSummary(report))}.
           </span>
         )}
       </div>
@@ -200,7 +203,7 @@ export function JourneyTests() {
         </p>
       )}
 
-      {report && summary && <Report report={report} summary={summary} />}
+      {report && summary && <JourneyReport report={report} summary={summary} />}
 
       <RecentRuns
         runs={runs}
@@ -212,7 +215,7 @@ export function JourneyTests() {
   );
 }
 
-function Report({
+export function JourneyReport({
   report,
   summary,
 }: {
@@ -220,6 +223,8 @@ function Report({
   summary: ReturnType<typeof summariseCounts>;
 }) {
   const profileRows = Object.keys(report.counts);
+  const advisories = report.rest_advisories ?? [];
+  const advisoryKinds = [...new Set(advisories.map((a) => a.kind))];
   return (
     <div className="space-y-5">
       <p className="text-xs text-ink-soft">
@@ -332,9 +337,12 @@ function Report({
 
       <div className="space-y-2">
         <h3 className="text-lg font-semibold">Invariant violations</h3>
+        <p className="text-sm text-ink-soft">
+          Critical checks: a route broke an honesty rule. These need a fix in the routing code.
+        </p>
         {report.invariant_violations.length === 0 ? (
           <p className="rounded-lg border border-line bg-card p-3 text-sm">
-            No invariant violations.
+            No critical invariant violations.
           </p>
         ) : (
           <ul className="space-y-2">
@@ -356,6 +364,37 @@ function Report({
               </li>
             ))}
           </ul>
+        )}
+      </div>
+
+      <div className="space-y-2">
+        <h3 className="text-lg font-semibold">Advisory notes</h3>
+        <p className="text-sm text-ink-soft">
+          Not errors. The best route for an older resident runs further between rest points
+          (benches, seats, shelters) than the profile allows, and no route within the limit exists.
+          Residents see it as possible, never confirmed, with a warning. More mapped rest points
+          would help.
+        </p>
+        {advisories.length === 0 ? (
+          <p className="rounded-lg border border-line bg-card p-3 text-sm">No advisory notes.</p>
+        ) : (
+          advisoryKinds.map((k) => {
+            const items = advisories.filter((a) => a.kind === k);
+            return (
+              <details key={k} className="rounded-lg border border-line bg-card p-3 text-sm">
+                <summary className="min-h-11 cursor-pointer font-medium">
+                  {advisoryLabel(k)}: {items.length}
+                </summary>
+                <ul className="mt-2 space-y-1">
+                  {items.map((a) => (
+                    <li key={`${a.task_id}/${a.detail}`} className="text-ink-soft">
+                      Journey {a.task_id}: {a.detail}
+                    </li>
+                  ))}
+                </ul>
+              </details>
+            );
+          })
         )}
       </div>
     </div>
