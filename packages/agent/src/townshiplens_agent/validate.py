@@ -1,5 +1,7 @@
 import re
 
+from townshiplens_spatial.attributes import ATTRIBUTE_TYPES
+
 from .answer import FinalAnswer
 from .record import TurnRecord
 
@@ -21,11 +23,15 @@ STATUS_LABEL = re.compile(rf"\broute status\s*[:=]?\s*{_ST}\b")
 STATUS_IS = re.compile(
     rf"\broute (?:is|was) {_ST}\b(?!\s+(?:by|at|near|because|due|on|from|where)\b)"
 )
+RAW_ID = re.compile(
+    r"\bseg-[\w-]+|\b(?:" + "|".join(sorted(k for k in ATTRIBUTE_TYPES if "_" in k)) + r")\b"
+)
 OTHER_ROUTE = {"alternative", "alternate", "other", "another", "second", "different"}
 
 
 def _norm_status_text(text: str) -> str:
     text = text.lower().replace("partly unverified", "partly_unverified")
+    text = text.replace("no mapped connection", "no_data")
     return text.replace("no data", "no_data")
 
 
@@ -137,6 +143,11 @@ def validate_answer(ans: FinalAnswer, rec: TurnRecord) -> list[str]:
     if rec.scenarios_used and not ans.scenario_id:
         errs.append("A flood scenario tool was used: set scenario_id.")
     # Honesty rules apply to every answer, whether or not a tool ran.
+    if RAW_ID.search(" ".join([ans.summary, *ans.steps, *ans.caveats])):
+        errs.append(
+            "Write for residents: use the readable names from the tool result "
+            "(element_label, e.g. 'Incline (%)'), never segment ids or snake_case attribute keys."
+        )
     if FORBIDDEN.search(_strip_names(all_text, rec.place_names)):
         errs.append("Never describe a place or route as safe/selamat/安全.")
     if DEPTH.search(all_text):

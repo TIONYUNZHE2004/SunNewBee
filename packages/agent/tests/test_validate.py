@@ -110,7 +110,7 @@ def test_validator_any_partly_unverified_route_needs_caveat_even_without_route_i
     r = rec(routes={"rt-1": {}}, route_status={"rt-1": "partly_unverified"})
     a = FinalAnswer(answer_status="answered", summary="Done.")
     assert validate_answer(a, r)
-    b = a.model_copy(update={"caveats": ["Segment seg-bc not checked yet."]})
+    b = a.model_copy(update={"caveats": ["Segment Jalan Bc not checked yet."]})
     assert validate_answer(b, r) == []
 
 
@@ -308,8 +308,8 @@ def test_validator_accepts_matching_route_status_and_unrelated_confirmed():
 @pytest.mark.parametrize(
     "text",
     [
-        "The segment seg-cf is partly_unverified.",
-        "no_data for slope on seg-1.",
+        "The segment Jalan Cf is partly_unverified.",
+        "no_data for slope on Jalan One.",
         "An alternative route confirmed by staff.",
         "The route is blocked by the flooded playground.",
         "Go ahead. The route is blocked later on.",  # not the first sentence
@@ -403,3 +403,21 @@ def test_placeholder_uncited_no_route_no_caveat_needed():
         claims=[Claim(text="place", status="verified", evidence_ids=["ev-seg-ab.step_count"])],
     )
     assert validate_answer(a, r) == []
+
+
+def test_raw_element_ids_and_attribute_keys_are_rejected_in_answer_text():
+    rec = TurnRecord(tool_calls=["plan_route"])
+    for text in (
+        "Not checked yet: incline_pct on Jalan X",
+        "Not checked yet: Incline (%) on seg-1306543755-2",
+        "Stroller needs width_m >= 0.8",
+    ):
+        ans = FinalAnswer(answer_status="cannot_answer", summary="Nothing.", caveats=[text])
+        errs = validate_answer(ans, rec)
+        assert any("readable" in e for e in errs), text
+    ok = FinalAnswer(
+        answer_status="cannot_answer",
+        summary="Nothing.",
+        caveats=["Not checked yet: Incline (%) on Jalan Hopea U15/17D"],
+    )
+    assert validate_answer(ok, rec) == []

@@ -35,7 +35,13 @@ def _agent(calls: list[str], plan_evidence: list[dict] | None = None) -> Agent:
             "id": "rt-1",
             "distance_m": 120,
             "status": "partly_unverified",
-            "unknowns": [{"attribute": "step_count", "element_id": "seg-bc"}],
+            "unknowns": [
+                {
+                    "attribute": "step_count",
+                    "element_id": "seg-bc",
+                    "element_label": "Lakeside Walk",
+                }
+            ],
         }
         return {
             "ok": True,
@@ -60,7 +66,8 @@ def test_mock_access_hero_script():
         "ev-place-park-b",
         "ev-seg-ab.step_count",
     ]
-    assert "seg-bc" in ans.caveats[0]
+    assert ans.caveats[0] == "Not checked yet: Steps on Lakeside Walk"
+    assert not any("seg-" in c or "_" in c for c in ans.caveats)
     assert ans.scene_intents[0].kind == "route.highlight"
 
 

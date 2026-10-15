@@ -97,10 +97,11 @@ async def test_inapp_prompt_is_answered_by_the_mock(world, tmp_path, msg, profil
     # a planned route is always named with its status
     if any(e.type == "tool.result" and e.name == "plan_route" for e in evs):
         assert re.search(
-            r"Route status: (confirmed|partly_unverified|blocked|no_data)|route "
-            r"(confirmed|partly_unverified)|No mapped connection|nearest reachable centre",
+            r"Route status: (confirmed|partly unverified|blocked|no mapped connection)|route "
+            r"(confirmed|partly unverified)|No mapped connection|nearest reachable centre",
             text,
         ), text
+    assert not re.search(r"\bseg-|\bosm-way|[a-z]+_[a-z]+", text), text  # no ids or raw keys
     if any(e.type == "citation" and e.source_type == "team_survey_placeholder" for e in evs):
         assert "demo values, not yet surveyed" in low
 
@@ -120,8 +121,21 @@ async def test_wheelchair_where_can_i_go_is_short(world, tmp_path):
     evs = await _turn(world, tmp_path, "Where can I go?", "wheelchair", "stage_p3m")
     text = _text(evs)
     assert len(text.encode()) < 2048, len(text)
-    assert "more unchecked segments; staff have been asked to check them" in text
+    assert "staff have been asked" not in text
     assert text.count("Not checked yet") <= 5
+    m = re.search(r"and (\d+) more unchecked items", text)
+    assert m, text
+    # Named lines + "and N more" count items, and the filed count is exact.
+    unc = next(e for e in evs if e.type == "uncertainty")
+    items = {(i["element_id"], i["attribute"]) for i in unc.items if i["attribute"] != "flood"}
+    assert int(m.group(1)) == len(unc.items) - 5
+    vrs = {(e.element_id, e.attribute) for e in evs if e.type == "verification.requested"}
+    k = len(vrs & items)
+    asked = re.search(r"Asked the township team to check (\d+) of the (\d+) unchecked items", text)
+    if k and k < len(items):
+        assert asked and (int(asked.group(1)), int(asked.group(2))) == (k, len(items)), text
+    elif not k:
+        assert "Asked the township team" not in text
 
 
 @pytest.mark.parametrize("level,sid", [("1 m", "stage_p1m"), ("3 m", "stage_p3m")])
@@ -201,3 +215,43 @@ def test_prompts_match_suggestions_ts():
     mine |= {("waste", m, None) for m, _, _ in WASTE}
     mine |= {("scenario-bar", m, None) for m, _, _ in WHERE}
     assert mine == set(parsed)
+
+
+PLACE_Q = [
+    ("Tell me about Elmina Lakeside Mall", "Elmina Lakeside Mall"),
+    ("What is at Elmina Urban Park", "Elmina Urban Park"),
+    ("Tell me about the lakeside mall", "Elmina Lakeside Mall"),
+]
+
+
+@pytest.mark.parametrize("msg,name", PLACE_Q)
+async def test_place_info_question_summarises_the_place_and_files_nothing(
+    world, tmp_path, msg, name
+):
+    evs = await _turn(world, tmp_path, msg, "default", None)
+    text = _text(evs)
+    done = evs[-1]
+    assert done.model == "mock-scripted", "validator rejected the mock answer"
+    calls = [e.name for e in evs if e.type == "tool.call"]
+    assert "get_place_details" in calls and "create_verification_request" not in calls
+    assert not [e for e in evs if e.type == "verification.requested"]
+    assert name in text
+    assert "don't have that place" not in text and "asked the team" not in text.lower()
+    assert done.answer_status in ("answered", "partial")
+    assert any(e.type == "citation" for e in evs)
+    assert not re.search(r"\bseg-|[a-z]+_[a-z]+", text), text
+
+
+async def test_place_found_but_unanswerable_does_not_claim_a_request(world, tmp_path):
+    evs = await _turn(world, tmp_path, "Is the lakeside mall open now?", "default", None)
+    text = _text(evs)
+    assert evs[-1].answer_status == "cannot_answer"
+    assert "can't answer that from the township model yet" in text
+    assert "asked" not in text.lower() and "don't have that place" not in text
+    assert not [e for e in evs if e.type == "verification.requested"]
+
+
+async def test_unknown_place_still_files_a_missing_place_request(world, tmp_path):
+    evs = await _turn(world, tmp_path, "Tell me about Zzyzx Qwerty Xylophone", "default", None)
+    assert evs[-1].answer_status == "cannot_answer"
+    assert [e for e in evs if e.type == "verification.requested"]
