@@ -93,6 +93,29 @@ describe("ComparisonTable", () => {
     );
     expect(h).toContain("Normal river level unavailable");
   });
+  it("shows loading, not unavailable, while the baseline loads; a failure offers a retry", () => {
+    const loading = renderToStaticMarkup(
+      <ComparisonTable
+        baseline={undefined}
+        baselineState="loading"
+        scenario={scen}
+        scenarioLabel="x"
+      />,
+    );
+    expect(loading).toContain("Loading the normal river level");
+    expect(loading).not.toContain("unavailable");
+    const failed = renderToStaticMarkup(
+      <ComparisonTable
+        baseline={undefined}
+        baselineState="error"
+        onRetryBaseline={() => {}}
+        scenario={scen}
+        scenarioLabel="x"
+      />,
+    );
+    expect(failed).toContain("Normal river level unavailable");
+    expect(failed).toContain("Retry");
+  });
 });
 
 describe("assumptions", () => {

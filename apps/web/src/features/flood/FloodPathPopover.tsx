@@ -22,6 +22,16 @@ export function FloodPathCard({
       if (opener && document.contains(opener)) opener.focus();
     };
   }, []);
+  // Escape also works after a map click moved focus out of the card (the canvas has no key handler).
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape" || e.defaultPrevented) return;
+      e.preventDefault();
+      onClose();
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [onClose]);
   const row = (k: string, val: string) => (
     <div className="grid gap-0.5 sm:grid-cols-[9rem_1fr]">
       <dt className="font-medium">{k}</dt>
