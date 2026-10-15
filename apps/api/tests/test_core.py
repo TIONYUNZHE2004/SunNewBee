@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from fastapi.testclient import TestClient
 from townshiplens_api import state
 from townshiplens_api.main import app
@@ -86,6 +88,12 @@ def test_all_three_stores_share_one_path_per_world(monkeypatch, tmp_path):
     manage._audit()
     sim._store()
     assert path in manage._audits and path in store._sim_stores
+    ctx = state.get_ctx()  # the VR and closure stores open the same file too (task 22 Minor 2)
+    for db in (ctx.vrs.db, ctx.closures.db):
+        assert (
+            Path(db.execute("PRAGMA database_list").fetchone()["file"]).resolve()
+            == Path(path).resolve()
+        )
 
 
 def test_layer_etag_304_and_changes_after_resolve():

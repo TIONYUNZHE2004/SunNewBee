@@ -565,3 +565,15 @@ def test_route_without_placeholder_evidence_is_not_flagged(world):
 def test_no_route_result_is_not_demo(world):
     rr = plan_route(world, "park-b", "moon-base", "stroller")
     assert rr.demo_evidence is False
+
+
+def test_route_evidence_carries_photo_url_only_for_uploaded_hex_ids(world):  # task 34 M8
+    from townshiplens_spatial.routing import evidence_for_route
+
+    photo = "ab" * 16
+    world.edges["seg-ab"].claims["step_count"].evidence_ids = ["note-7", photo]
+    world.edges["seg-bc"].claims["step_count"].evidence_ids = ["note-7"]
+    rr = plan_route(world, "park-b", "playground", "stroller")
+    ev = {e.id: e for e in evidence_for_route(world, rr.routes[0])}
+    assert ev["ev-seg-ab.step_count"].photo_url == f"/evidence/{photo}"
+    assert ev["ev-seg-bc.step_count"].photo_url is None

@@ -251,3 +251,41 @@ def test_place_details_never_expose_claim_notes(ctx):
     assert r.data["claims"]["wheelchair"]["value"] == "yes"
     assert all("notes" not in c for c in r.data["claims"].values())
     assert "0123456789" not in str(r.model_dump())
+
+
+def _fake_unknowns(ctx, monkeypatch, per_route):
+    """Plan park-b to playground, then replace each route's unknowns (a list per route)."""
+    real = tools.routing.plan_route(ctx.world, "park-b", "playground", "stroller")
+    alt = real.routes[0].model_copy(deep=True)
+    real.routes = [real.routes[0], alt][: len(per_route)]
+    for r, u in zip(real.routes, per_route, strict=True):
+        r.unknowns = u
+    monkeypatch.setattr(tools.routing, "plan_route", lambda *a, **k: real)
+
+
+def _unk(n, start=0):
+    return [{"element_id": f"seg-{i}", "attribute": "width"} for i in range(start, start + n)]
+
+
+def test_vr_cap_boundary_exactly_ten_is_not_truncated(ctx, monkeypatch):  # task 24 Minor 4
+    _fake_unknowns(ctx, monkeypatch, [_unk(10)])
+    r = tools.plan_route(ctx, "park-b", "playground", "stroller")
+    assert len(r.data["verification_requests"]) == 10
+    assert r.data["verification_requests_truncated"] == 0
+
+
+def test_vr_cap_counts_distinct_pairs_across_alternate_routes(ctx, monkeypatch):
+    # the alternate repeats 6 of the first route's 8 pairs and adds 4 new: 12 distinct, cap 10
+    _fake_unknowns(ctx, monkeypatch, [_unk(8), _unk(10, start=2)])
+    r = tools.plan_route(ctx, "park-b", "playground", "stroller")
+    assert len(r.data["verification_requests"]) == 10
+    assert r.data["verification_requests_truncated"] == 2
+    ids = [v["element_id"] for v in r.data["verification_requests"]]
+    assert ids == [f"seg-{i}" for i in range(10)]  # route order, no repeats
+
+
+def test_missing_place_vrs_do_not_count_against_the_route_cap(ctx):
+    r = tools.plan_route(ctx, "moon-base", "playground", "stroller")  # moon-base has no node
+    assert r.data["status"] == "no_data"
+    assert [v["reason"] for v in r.data["verification_requests"]] == ["missing_place"]
+    assert r.data["verification_requests_truncated"] == 0
