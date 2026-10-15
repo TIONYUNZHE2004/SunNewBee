@@ -1,9 +1,10 @@
 import "mapbox-gl/dist/mapbox-gl.css";
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import MapGL, { Layer, type MapMouseEvent, type MapRef, Source } from "react-map-gl/mapbox";
-import { useGaps, useLayer, useScenarioWater } from "../../../lib/api";
+import { useGaps, useLayer, useScenarioWater, useSite } from "../../../lib/api";
 import { ENV } from "../../../lib/env";
 import { GAP_BAND_ORDER, GAP_BANDS, gapLines, gapsActive } from "../../gaps/gapModel";
+import { homeView, shouldReframe } from "../cesium/home";
 import { clickedPlaceId, normalizeLayer, pointFeatures } from "../geo";
 import { useScene } from "../sceneStore";
 import { ROUTE_STYLE, statusStyle, WATER_COLOR } from "../styles";
@@ -174,6 +175,17 @@ export default function MapboxLite() {
   const places = useMemo(() => pointFeatures(access.data), [access.data]);
   const wasteData = useMemo(() => normalizeLayer(waste.data), [waste.data]);
 
+  // Start where the site says (scene.home, else its centre), once, unless the user already moved.
+  const site = useSite().data;
+  const framing = useRef({ moved: false, reframed: false });
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!site || !map || !shouldReframe(framing.current)) return;
+    framing.current.reframed = true;
+    const h = homeView(site);
+    map.jumpTo({ center: [h.lon, h.lat] });
+  }, [site]);
+
   const fly = useCallback((center: [number, number], zoom?: number) => {
     const map = mapRef.current;
     if (!map) return;
@@ -221,7 +233,15 @@ export default function MapboxLite() {
         ref={mapRef}
         mapboxAccessToken={ENV.mapboxToken}
         mapStyle="mapbox://styles/mapbox/standard"
-        initialViewState={{ longitude: 101.5099, latitude: 3.1813, zoom: 15, pitch: 55 }}
+        initialViewState={{
+          longitude: homeView(site).lon,
+          latitude: homeView(site).lat,
+          zoom: 15,
+          pitch: 55,
+        }}
+        onMoveStart={(e) => {
+          if ((e as { originalEvent?: unknown }).originalEvent) framing.current.moved = true;
+        }}
         style={{ width: "100%", height: "100%" }}
         reuseMaps
         interactiveLayerIds={clickable}

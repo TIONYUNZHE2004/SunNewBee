@@ -71,6 +71,16 @@ function SceneSetup({
               tiles.allTilesLoaded.addEventListener(render),
             );
             if (ENV.googleKey) viewer.scene.globe.show = false;
+            // Quota or network failures after the root loaded: bring the base globe back
+            // instead of leaving overlays on black.
+            removers.push(
+              tiles.tileFailed.addEventListener(() => {
+                if (viewer.isDestroyed()) return;
+                viewer.scene.globe.show = true;
+                viewer.scene.requestRender();
+                onTilesFailed();
+              }),
+            );
           }
         }
       } catch (err) {
