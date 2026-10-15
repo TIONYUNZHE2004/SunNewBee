@@ -14,10 +14,10 @@ export const STARTERS: Record<Mode, Starter[]> = {
     { text: "Where to drop off recycling" },
   ],
   management: [
-    { text: "Which places are cut off at +3 m" },
-    { text: "Which areas are isolated at +5 m" },
-    { text: "Which routes to the mall are cut off at +3 m" },
-    { text: "Tell me about a place" },
+    { text: "Which places are cut off if the water rises 3 m?" },
+    { text: "Which areas are isolated if the water rises 5 m?" },
+    { text: "Which routes to the lakeside mall are cut off if the water rises 3 m?" },
+    { text: "Tell me about Elmina Lakeside Mall" },
   ],
 };
 
