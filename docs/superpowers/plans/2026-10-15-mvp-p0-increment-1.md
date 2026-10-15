@@ -506,3 +506,81 @@ From the audit: F-08 (MISSING), F-09/M-05 (PARTIAL: no baseline comparison), F-1
   - pytest: the flood layer properties; `/profiles` if added.
   - vitest: popover content per class with no depth numbers; briefing two-column rendering; assumptions labels.
 - **Out of scope:** do NOT touch `data/`, `import_osm.py`, `attributes.py`, `evaluate.py`, `sim.py` or `features/chat/*`.
+
+### Task 37: Pitch demo mode: scripted hero walkthrough with captions (FE)
+
+Priority from the team lead (continuation run): demo & pitch polish. The web README's "build next" list also has "Demo replay: `?replay=` plays a scripted conversation and scene for the pitch".
+
+- **Entry:** `/?demo=hero` starts a walkthrough. A small fixed control bar shows the step caption, Back / Next / Pause, and "Exit demo". Keyboard: → / ← / Space / Esc. Without the param, the app is unchanged.
+- **Script:** a pure data file (`features/demo/heroScript.ts`). Each step is one of:
+  - `{caption, action}`, where `action` is one of `jump(deepSpotId)`, `setProfile(p)`, `setScenario(id|null)`, `setLens(lens, on)`, `ask(text, profile?)`, `openManage(tab)`, `wait(ms)`.
+  - Actions go through the existing paths:
+    - `useScene` setters and `applyIntent`;
+    - the chat send path, the same as the suggestion chips (`pickSuggestion`);
+    - the router for `/manage` tabs.
+  - **Never** a parallel implementation.
+- **Default script:** the three README hero flows.
+  1. **Access:** jump to "Elmina Urban Park + Lakeside Mall frontage", switch to stroller, ask "Can I get to the lakeside mall with a stroller?". Caption explains confirmed vs "Demo value · not surveyed".
+  2. **Flood resident:** jump to the Subang corridor (+3 m), wheelchair, ask "Where is the nearest evacuation centre if the water rises 3 m?". Caption: "indicative, not a forecast; candidate vs official centres".
+  3. **Manager:** open `/manage`, then the Flood briefing at +3 m, then the Verification queue.
+
+  Use only questions that have DEMO_MODE cache entries for the Elmina world (`data/demo/*.jsonl` meta), or that the mock answers deterministically. List the ones used in the report.
+- **Honesty:** captions never say "safe", never give depths, and never claim facts are verified.
+- **Tests (vitest, pure functions):**
+  - the step reducer: next, back and bounds;
+  - URL param parsing;
+  - each action maps to the right store or router call. Use injected fakes in the testable side-effect style, as in `features/manage/createVr.ts`.
+  - Add one Playwright test: `/?demo=hero` shows step 1's caption and Next advances to step 2. It runs on the tiny fixture: a step whose deep spot doesn't exist must skip gracefully with the caption "(not available in this dataset)".
+- **Out of scope:** do NOT touch `apps/api`, `packages/*`, `data/`, `attributeCatalogue.ts` or `features/scene/cesium/*`.
+
+### Task 38: Refresh stale lane READMEs and dev-setup docs (docs only)
+
+Quality & tech debt (continuation run). The READMEs predate Tasks 22–36.
+
+- **`apps/api/README.md`:**
+  - Regenerate the endpoint table from the real routes (`apps/api/src/townshiplens_api/routes/*.py`, or `packages/api-client/openapi.json`). That includes `/kpis`, `/profiles`, `/evidence` (POST staff multipart and GET), `/simulations`, staff `POST /verification-requests`, VR filters and `?status=all`, the layer ETag/304, and resolve with `evidence_id`.
+  - Record the per-world DB path and `evidence_dir`.
+  - Update "Build next" so it lists only what is still open.
+- **`packages/agent/README.md`:** bring it up to date with:
+  - validator rules: the no-tool rule, placeholder evidence, status-contradiction check, citation requirement;
+  - the `Route status:` first line;
+  - Elmina mock behaviour: the mall chip and the recycling answer;
+  - `safe_vr_args` and `route_summary`;
+  - the citation `photo_url`;
+  - the golden metric `answered_without_citations`.
+- **`packages/spatial/README.md`:**
+  - drive profile;
+  - `no_data` vs `blocked` semantics;
+  - the per-route VR cap of 10;
+  - the 10 tools table, if it changed.
+  
+  Do NOT document Task 31's `major_road`; it isn't merged yet.
+- **`apps/web/README.md`:** current routes and features. These include deep spots, persona chips, "Where can I go?", tappable markers, the "Why this path?" popover, KPI tiles, filters, photo evidence, honest labels, and the e2e ports 5273/8100.
+- **`docs/05-team/dev-setup.md`:** fix commands that changed:
+  - `uv sync --all-packages --all-groups`;
+  - `pnpm db:reset`;
+  - e2e ports;
+  - remove "planned" markers for things now built.
+- **Method:** check every statement against the code, and invent nothing. Keep each file's existing structure and tone. Do NOT edit `data/README.md`, `AGENTS.md` or `CLAUDE.md`.
+- **Verify:** `pnpm lint`. Commit `docs: …` on the lane branch.
+
+### Task 39: Real component tests with Testing Library (FE quality)
+
+Reviews of Tasks 23, 27, 33, 35, 36 and 37 flagged the same gap. Vitest runs in `node` with `react-dom/server`, so clicks and focus are never exercised.
+
+- **Dependencies (dev only, exact pins; all MIT):** `@testing-library/react`, `@testing-library/user-event`, `@testing-library/jest-dom`, `jsdom`. Record each licence from its package metadata in the report.
+- **Config:** keep the default environment `node`. Opt individual files into jsdom with `// @vitest-environment jsdom`, so existing tests and speed are unchanged. Add a small setup that registers the jest-dom matchers only for jsdom files, or import them per file.
+- **Convert or add DOM tests** for the interactions reviews said were untested:
+  1. `CitationList`: "Show N more sources" expands on click and keyboard; `aria-expanded` flips.
+  2. Resolve form (`VerificationQueue`):
+     - choosing Reject hides the photo input and clears a chosen file;
+     - submit uploads first, then resolves, with fetch mocked;
+     - an upload failure shows the readable message and does not resolve;
+     - Verify is disabled when there is no current value.
+  3. `ChatPanel`: tapping a persona chip sets the profile and sends with it (mock the send path); a `pendingAsk` is consumed once.
+  4. `DeepSpots`: renders nothing without `deep_spots`; clicking a spot applies the intent.
+  5. Flood "Why this path?" popover: Esc closes it and focus returns.
+  6. `KpiTiles`: shows "Data-gap share unavailable" when `/simulations` errors.
+- **Rules:** test behaviour through the DOM (roles, labels, text), not implementation details. No snapshot tests. Each test asserts something that would fail if the feature broke; check that by briefly breaking the code locally.
+- **Out of scope:** do NOT change production code, except a minimal export or test-id where a test truly needs it; explain any in the report. Do NOT touch `packages/*`, `apps/api` or `data/`.
+- **Verify:** `pnpm --filter @tl/web test`, `pnpm lint`, typecheck, build, e2e. Commit on the lane branch.
