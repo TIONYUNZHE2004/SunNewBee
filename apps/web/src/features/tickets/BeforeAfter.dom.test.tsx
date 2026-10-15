@@ -58,7 +58,7 @@ describe("BeforeAfter", () => {
       render(<RouterProvider router={router} />);
       await userEvent.click(screen.getByRole("button", { name: "Ask the question again" }));
       expect(useMode.getState().mode).toBe("resident");
-      const starter = STARTERS.resident[0];
+      const starter = STARTERS.resident[0] as NonNullable<(typeof STARTERS.resident)[number]>;
       expect(useChatDraft.getState().pendingAsk).toEqual({
         text: starter.text,
         profile: starter.profile,
