@@ -13,11 +13,23 @@ from townshiplens_spatial.models import ProfileId
 
 from .. import state
 from ..auth import StaffOnly
+from ..settings import ApiSettings
 from ..store import SimStore, sim_store
 
 router = APIRouter()
 log = logging.getLogger(__name__)
 PROGRESS_EVERY_S = 0.5  # throttle progress writes to SQLite
+# Cancel flags of the runs this process is executing, by run id.
+_cancel_flags: dict[str, threading.Event] = {}
+_cancel_lock = threading.Lock()
+
+
+class _Stopped(Exception):  # noqa: N818 - control flow out of the progress hook, not an error
+    """Raised from the progress hook to end a run: `status` is `cancelled` or `timeout`."""
+
+    def __init__(self, status: str):
+        super().__init__(status)
+        self.status = status
 
 
 def _store() -> SimStore:
@@ -134,10 +146,11 @@ class SimStarted(BaseModel):
 
 
 class SimRun(BaseModel):
-    """A run's state. `report` is set only when `status` is `done`."""
+    """A run's state. `report` is set only when `status` is `done`. `cancelled` (staff asked) and
+    `timeout` (the total time budget ran out) end a run without a report."""
 
     run_id: str
-    status: Literal["queued", "running", "done", "failed"]
+    status: Literal["queued", "running", "done", "failed", "cancelled", "timeout"]
     created_at: str | None = None
     scenario_id: str | None = None
     progress: str | None = None  # plain words, e.g. "Evacuation journeys: 400 of 1000"
@@ -150,11 +163,29 @@ class SimBusy(BaseModel):
     run_id: str  # the run that is already in progress
 
 
-def _execute(store: SimStore, live_world, run_id: str, body: SimRequest) -> None:
-    """Background worker: one run, never raises. Progress and the outcome go to SQLite."""
+def _execute(
+    store: SimStore,
+    live_world,
+    run_id: str,
+    body: SimRequest,
+    budget_s: float,
+    cancel: threading.Event,
+) -> None:
+    """Background worker: one run, never raises. Progress and the outcome go to SQLite.
+
+    Every progress call checks the cancel flag and the total time budget and raises `_Stopped`,
+    so a run ends within one journey of either, and never stays active."""
     last = [0.0]
+    deadline = time.monotonic() + budget_s
+
+    def check() -> None:
+        if cancel.is_set():
+            raise _Stopped("cancelled")
+        if time.monotonic() >= deadline:
+            raise _Stopped("timeout")
 
     def note(text: str, force: bool = False) -> None:
+        check()
         now = time.monotonic()
         if force or now - last[0] >= PROGRESS_EVERY_S:
             last[0] = now
@@ -187,12 +218,31 @@ def _execute(store: SimStore, live_world, run_id: str, body: SimRequest) -> None
         report["invariant_violations"] = report["invariant_violations"] + evac["violations"]
         store.save(report)
         store.set_job(run_id, "done", "Done")  # no-op if the job is no longer active
+    except _Stopped as stop:
+        msg = (
+            "Stopped by staff."
+            if stop.status == "cancelled"
+            else f"Stopped: the {budget_s:g} s time budget ran out."
+        )
+        log.warning("simulation %s %s", run_id, stop.status)
+        try:
+            store.set_job(run_id, stop.status, None, msg)
+        except sqlite3.Error:
+            log.exception("could not record the end of %s", run_id)
     except Exception:  # noqa: BLE001 - the worker must record any failure
         log.exception("simulation %s failed", run_id)
         try:
             store.set_job(run_id, "failed", None, "The simulation failed. Please try again.")
         except sqlite3.Error:
             log.exception("could not record failure of %s", run_id)
+
+
+def _run_and_forget(*args) -> None:
+    try:
+        _execute(*args)
+    finally:
+        with _cancel_lock:
+            _cancel_flags.pop(args[2], None)
 
 
 @router.post(
@@ -222,11 +272,19 @@ def run_simulation(body: SimRequest, response: Response):
             store.create_job(run_id, datetime.now(UTC).isoformat(), body.scenario_id)
     except sqlite3.Error:
         raise HTTPException(503, "simulation store unavailable") from None
+    cancel = threading.Event()
+    with _cancel_lock:
+        _cancel_flags[run_id] = cancel
     try:
         threading.Thread(
-            target=_execute, args=(store, world, run_id, body), name=f"sim-{run_id}", daemon=True
+            target=_run_and_forget,
+            args=(store, world, run_id, body, ApiSettings().sim_time_budget_s, cancel),
+            name=f"sim-{run_id}",
+            daemon=True,
         ).start()
     except Exception:  # noqa: BLE001 - never leave a job that nothing will run
+        with _cancel_lock:
+            _cancel_flags.pop(run_id, None)
         store.set_job(run_id, "failed", None, "The simulation could not be started.")
         raise HTTPException(503, "could not start the simulation") from None
     response.headers["Location"] = f"/simulations/{run_id}"
@@ -248,3 +306,25 @@ def get_simulation(run_id: str) -> dict[str, Any]:
     if job is None:  # saved before runs were asynchronous
         return {"run_id": run_id, "status": "done", "report": report}
     return {**job, "report": report}
+
+
+@router.post(
+    "/simulations/{run_id}/cancel",
+    response_model=SimRun,
+    dependencies=[StaffOnly],
+    responses={409: {"model": SimRun, "description": "the run already ended"}},
+)
+def cancel_simulation(run_id: str):
+    """Stop a queued or running run. It ends as `cancelled` at once (the worker stops at its next
+    journey) and the run slot is free again. 404 unknown run, 409 if it already ended."""
+    store = _store()
+    job = store.job(run_id)
+    if job is None:
+        raise HTTPException(404, f"unknown simulation {run_id}")
+    with _cancel_lock:
+        flag = _cancel_flags.get(run_id)
+    if flag is not None:
+        flag.set()
+    if not store.set_job(run_id, "cancelled", None, "Stopped by staff."):
+        return JSONResponse({**(store.job(run_id) or job), "report": None}, status_code=409)
+    return {**(store.job(run_id) or job), "report": None}

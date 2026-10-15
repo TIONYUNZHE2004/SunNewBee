@@ -1296,6 +1296,11 @@
             ],
             "title": "Max Rest Free Run M"
           },
+          "no_sidewalk_is": {
+            "default": "UNKNOWN",
+            "title": "No Sidewalk Is",
+            "type": "string"
+          },
           "soft": {
             "additionalProperties": {
               "type": "number"
@@ -1373,6 +1378,11 @@
       },
       "Route": {
         "properties": {
+          "demo_evidence": {
+            "default": false,
+            "title": "Demo Evidence",
+            "type": "boolean"
+          },
           "distance_m": {
             "title": "Distance M",
             "type": "number"
@@ -1575,6 +1585,11 @@
             },
             "title": "Closures",
             "type": "array"
+          },
+          "demo_evidence": {
+            "default": false,
+            "title": "Demo Evidence",
+            "type": "boolean"
           },
           "max_rest_gap_m": {
             "anyOf": [
@@ -2194,7 +2209,7 @@
         "type": "object"
       },
       "SimRun": {
-        "description": "A run's state. `report` is set only when `status` is `done`.",
+        "description": "A run's state. `report` is set only when `status` is `done`. `cancelled` (staff asked) and\n`timeout` (the total time budget ran out) end a run without a report.",
         "properties": {
           "created_at": {
             "anyOf": [
@@ -2259,7 +2274,9 @@
               "queued",
               "running",
               "done",
-              "failed"
+              "failed",
+              "cancelled",
+              "timeout"
             ],
             "title": "Status",
             "type": "string"
@@ -3615,21 +3632,19 @@
     },
     "/healthz": {
       "get": {
+        "description": "Liveness that includes the world: a corrupt seed fails here, not only on every request.",
         "operationId": "healthz_healthz_get",
         "responses": {
           "200": {
             "content": {
               "application/json": {
-                "schema": {
-                  "additionalProperties": {
-                    "type": "string"
-                  },
-                  "title": "Response Healthz Healthz Get",
-                  "type": "object"
-                }
+                "schema": {}
               }
             },
             "description": "Successful Response"
+          },
+          "503": {
+            "description": "the world did not load"
           }
         },
         "summary": "Healthz"
@@ -3854,6 +3869,7 @@
             "schema": {
               "anyOf": [
                 {
+                  "maxLength": 120,
                   "type": "string"
                 },
                 {
@@ -3913,6 +3929,7 @@
     },
     "/routes": {
       "post": {
+        "description": "Plan only: this anonymous endpoint never files verification requests (the chat does).",
         "operationId": "routes_routes_post",
         "requestBody": {
           "content": {
@@ -4230,6 +4247,72 @@
         "summary": "Get Simulation"
       }
     },
+    "/simulations/{run_id}/cancel": {
+      "post": {
+        "description": "Stop a queued or running run. It ends as `cancelled` at once (the worker stops at its next\njourney) and the run slot is free again. 404 unknown run, 409 if it already ended.",
+        "operationId": "cancel_simulation_simulations__run_id__cancel_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "title": "Run Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-staff-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Staff-Token"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SimRun"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SimRun"
+                }
+              }
+            },
+            "description": "the run already ended"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Cancel Simulation"
+      }
+    },
     "/site": {
       "get": {
         "operationId": "site_site_get",
@@ -4250,7 +4333,7 @@
     },
     "/verification-requests": {
       "get": {
-        "description": "status=all returns every status.",
+        "description": "status=all returns every status. A resolved row's `resolution` omits the staff `note`.",
         "operationId": "vrs_verification_requests_get",
         "parameters": [
           {

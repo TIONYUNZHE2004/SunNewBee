@@ -1,5 +1,6 @@
 import hashlib
 import heapq
+import itertools
 import math
 
 import networkx as nx
@@ -13,6 +14,7 @@ from .world import World
 CENTRE_PREFIX = "__centre__"
 UNKNOWN_WEIGHT = 5.0
 WALK_M_PER_MIN = 70.0
+PLACEHOLDER_SOURCE = "team_survey_placeholder"  # demo values (see Route.demo_evidence)
 # Place types that can be a rest point (OSM benches import as `seating`); whether one counts
 # is tri-state from its own claims (evaluate.rest_point_state).
 REST_TYPES = frozenset({"seating", "shelter"})
@@ -70,7 +72,12 @@ def _snap_to_road(world: World, roads: set[str], node: str, coord) -> str | None
 
 
 def _components(world: World) -> dict[str, int]:
-    """Component id per node of the unfiltered mapped graph (no profile rules, no flood)."""
+    """Component id per node of the unfiltered mapped graph (no profile rules, no flood).
+
+    Cached on the graph. The key (node count, edge count) is sound only because the graph is
+    built once from `world.edges` in `load_world` and never mutated afterwards (claims, closures,
+    profiles, scenarios and `world.version` cannot change topology: a closure or FAIL gives
+    `blocked`, never `no_data`). An edge swap that keeps both counts would go unnoticed."""
     g = world.graph
     # O(1): number_of_edges() walks every adjacency (~20 ms on the seed) and runs per centre
     key = (g.number_of_nodes(), len(world.edges))
@@ -112,6 +119,27 @@ def _targets(world: World, place_id: str, profile=None) -> list[str]:
     roads = _road_nodes(world, profile)
     snapped = (_snap_to_road(world, roads, n, xy) for n, xy in pts)
     return sorted({n for n in snapped if n})
+
+
+def _snap_warning(world: World, place_id: str, profile) -> str | None:
+    """Vehicle profiles route from the nearest mapped road node, so distance and time leave out
+    the stretch between the place and that node (up to SNAP_CAP_M). Say so (Task 26 Minor 1)."""
+    roads = _road_nodes(world, profile)
+    best: float | None = None
+    for node, xy in _target_pts(world, place_id):
+        if node in roads:
+            return None  # a mapped way in is on a road: nothing left out
+        snapped = _snap_to_road(world, roads, node, xy)
+        if snapped is not None and snapped in world.node_coords:
+            d = haversine_m(xy, world.node_coords[snapped])
+            best = d if best is None else min(best, d)
+    if best is None:
+        return None
+    name = world.places[place_id].name if place_id in world.places else place_id
+    return (
+        f"{name} is about {max(10, round(best, -1)):.0f} m from the nearest mapped road; "
+        "distance and time stop at the road"
+    )
 
 
 def _no_road_warning(world: World, place_id: str, profile) -> str | None:
@@ -167,30 +195,44 @@ def make_weight(world, profile, scenario_id, allow_unknown, evals=None, chosen=N
 
 
 def _search(world, sources, targets, profile, scenario_id, allow_unknown):
+    """Cheapest path from any source to any target: Dijkstra straight over `world.graph`.
+
+    Same result as `nx.dijkstra_path` between a temporary super-source and super-target (equal
+    costs resolve by insertion order, the first source/target reached wins), without copying the
+    whole graph for those two nodes on every call (about half of a seed route's time)."""
     evals: dict[str, tuple] = {}
     chosen: dict[frozenset, str] = {}  # node pair -> edge key the search actually costed
     weight = make_weight(world, profile, scenario_id, allow_unknown, evals, chosen)
-
-    g = world.graph
-    tmp_s, tmp_t = "__S__", "__T__"
-    h = nx.MultiGraph(g)
-    for s in sources:
-        h.add_edge(tmp_s, s, key="__s__" + s)
-    for t in targets:
-        h.add_edge(t, tmp_t, key="__t__" + t)
-
-    def w2(u, v, data):
-        if any(str(k).startswith("__") for k in data):
-            return 0.0
-        return weight(u, v, data)
-
-    try:
-        path = nx.dijkstra_path(h, tmp_s, tmp_t, weight=w2)
-    except nx.NetworkXNoPath:
-        return None, [], evals
-    nodes = path[1:-1]
-    keys = [chosen[frozenset((u, v))] for u, v in zip(nodes, nodes[1:], strict=False)]
-    return nodes, keys, evals
+    g, goal = world.graph, set(targets)
+    seen: dict[str, float] = {}
+    done: set[str] = set()
+    pred: dict[str, str] = {}
+    tick = itertools.count()
+    heap: list[tuple[float, int, str]] = []
+    for s in dict.fromkeys(sources):
+        seen[s] = 0.0
+        heapq.heappush(heap, (0.0, next(tick), s))
+    while heap:
+        dist, _, v = heapq.heappop(heap)
+        if v in done:
+            continue
+        done.add(v)
+        if v in goal:
+            nodes = [v]
+            while nodes[-1] in pred:
+                nodes.append(pred[nodes[-1]])
+            nodes.reverse()
+            keys = [chosen[frozenset((u, w))] for u, w in zip(nodes, nodes[1:], strict=False)]
+            return nodes, keys, evals
+        for u, data in g[v].items():
+            cost = weight(v, u, data)
+            if cost is None or u in done:
+                continue
+            if u not in seen or dist + cost < seen[u]:
+                seen[u] = dist + cost
+                pred[u] = v
+                heapq.heappush(heap, (seen[u], next(tick), u))
+    return None, [], evals
 
 
 def _rest_places(world: World, node: str) -> list[tuple[str, object]]:
@@ -326,7 +368,9 @@ def _route_from_nodes(world, nodes, keys, from_id, to_id, profile, scenario_id, 
         geometry={"type": "LineString", "coordinates": coords},
     )
     route.max_gap_between_rest_m = _max_rest_gap(world, nodes, keys, {r["node_id"] for r in rest})
-    route.evidence_ids = list(dict.fromkeys(ev.id for ev in evidence_for_route(world, route)))
+    ev_list = evidence_for_route(world, route)
+    route.evidence_ids = list(dict.fromkeys(ev.id for ev in ev_list))
+    route.demo_evidence = any(ev.source_type == PLACEHOLDER_SOURCE for ev in ev_list)
     limit = profile.max_rest_free_run_m
     if limit is not None:
         verified = {r["node_id"] for r in rest if r["status"] == "verified"}
@@ -392,6 +436,10 @@ def plan_route(
     if profile is None:
         return RouteResult(status="no_data", routes=[], warnings=[f"unknown profile {profile_id}"])
     result = _plan(world, from_id, to_id, profile, scenario_id)
+    if profile.allowed_types is not None and result.routes:
+        for pid in (from_id, to_id):
+            if note := _snap_warning(world, pid, profile):
+                result.warnings.append(note)
     if profile.standing_warning and result.status != "no_data":
         result.warnings.append(profile.standing_warning)
     return result
@@ -422,12 +470,16 @@ def _plan(world, from_id, to_id, profile, scenario_id) -> RouteResult:
         )
         routes = _pick(world, *found, evals, from_id, to_id, profile, scenario_id)
         if routes:
-            result = RouteResult(status=routes[0].status, routes=routes)
+            result = RouteResult(
+                status=routes[0].status, routes=routes, demo_evidence=routes[0].demo_evidence
+            )
             return _with_rest(result, limit, truncated)
     found, evals, _ = _passes(_search, world, sources, targets, profile, scenario_id)
     routes = _pick(world, *found, evals, from_id, to_id, profile, scenario_id)
     if routes:
-        result = RouteResult(status=routes[0].status, routes=routes)
+        result = RouteResult(
+            status=routes[0].status, routes=routes, demo_evidence=routes[0].demo_evidence
+        )
         return _with_rest(result, limit, truncated) if limit is not None else result
     if _disconnected(world, profile, sources, targets):
         # Not "blocked": the mapped data does not join these two places, so no known barrier

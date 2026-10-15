@@ -253,6 +253,10 @@ class Route(BaseModel):
     rest_points_unverified: list[str] = Field(default_factory=list)
     geometry: dict[str, Any]  # GeoJSON LineString
     evidence_ids: list[str] = Field(default_factory=list)
+    # True when any fact this route rests on is `team_survey_placeholder` evidence. The status is
+    # unchanged (the evaluation is right); this lets the UI and agent say "confirmed on demo
+    # values, not yet surveyed".
+    demo_evidence: bool = False
 
 
 class RouteResult(BaseModel):
@@ -269,6 +273,7 @@ class RouteResult(BaseModel):
     rest_limit_m: float | None = None
     # The rest-constrained search hit MAX_REST_LABELS: a route within the limit may exist.
     rest_search_truncated: bool = False
+    demo_evidence: bool = False  # routes[0].demo_evidence (False when there is no route)
 
 
 class ToolResult(BaseModel):

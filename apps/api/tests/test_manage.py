@@ -1,15 +1,13 @@
 from fastapi.testclient import TestClient
 from townshiplens_api.main import app
+from vr_support import file_kiosk_vr
 
 c = TestClient(app)
 OK = {"X-Staff-Token": "test-token"}
 
 
 def _file_vr():
-    c.post("/routes", json={"from": "park-b", "to": "kiosk", "profile": "stroller"})
-    vrs = c.get("/verification-requests").json()
-    assert vrs and vrs[0]["element_id"] == "seg-cf"
-    return vrs[0]["id"]
+    return file_kiosk_vr()
 
 
 def test_vr_flow():
@@ -203,3 +201,27 @@ def test_vr_list_carries_current_value():
     state.get_ctx().world.refresh_claim("seg-cf", "incline_pct", Claim(value=3.0, status="stale"))
     row = next(v for v in c.get("/verification-requests").json() if v["id"] == vid)
     assert row["current_value"] == 3.0
+
+
+def test_staff_note_is_not_public():  # final review Minor 1
+    vid = _file_vr()
+    note = "call Mr Tan on 0123456789"
+    r = c.post(
+        f"/verification-requests/{vid}/resolve",
+        json={"action": "verify", "value": 3.0, "note": note},
+        headers=OK,
+    )
+    assert r.status_code == 200 and r.json()["resolution"]["note"] == note  # staff see it
+    public = c.get("/verification-requests", params={"status": "resolved"}).json()
+    assert public and all("note" not in (v["resolution"] or {}) for v in public)
+    assert note not in str(public)
+    assert any(x["note"] == note for x in c.get("/audit", headers=OK).json())  # kept for staff
+
+
+def test_unauthenticated_invalid_body_is_401_not_422():  # task 29 Minor 7
+    assert c.post("/verification-requests", json={"target_id": 5}).status_code == 401
+    assert c.post("/verification-requests", json={}).status_code == 401
+    url = "/verification-requests/vr-0001/resolve"
+    assert c.post(url, json={"action": "bogus"}).status_code == 401
+    assert c.post("/closures", json={"reason": "x"}).status_code == 401
+    assert c.post("/verification-requests", json={}, headers=OK).status_code == 422

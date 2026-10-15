@@ -265,3 +265,63 @@ def test_startup_sweep_runs_in_the_lifespan_only():
         pass
     j = store.job("sim-old")
     assert j["status"] == "failed" and "restart" in j["error"] and store.active_job() is None
+
+
+def _wait_ended(rid: str) -> dict:
+    end = time.monotonic() + 30
+    while time.monotonic() < end:
+        got = c.get(f"/simulations/{rid}").json()
+        if got["status"] not in ("queued", "running"):
+            return got
+        time.sleep(0.02)
+    raise AssertionError("run is stuck")
+
+
+def test_a_tiny_time_budget_ends_the_run_as_timeout(monkeypatch):
+    monkeypatch.setenv("SIM_TIME_BUDGET_S", "0.000001")
+    rid = c.post("/simulations", json={}, headers=OK).json()["run_id"]
+    got = _wait_ended(rid)
+    assert got["status"] == "timeout" and got["report"] is None
+    assert "time budget" in got["error"]
+    assert c.get("/simulations").json() == []  # nothing saved for a stopped run
+    monkeypatch.delenv("SIM_TIME_BUDGET_S")
+    assert c.post("/simulations", json={}, headers=OK).status_code == 202  # slot is free again
+
+
+def test_cancel_requires_staff_and_knows_the_run():
+    assert c.post("/simulations/sim-x/cancel").status_code == 401
+    assert c.post("/simulations/sim-nope/cancel", headers=OK).status_code == 404
+
+
+def test_cancel_a_running_run_ends_it_as_cancelled(monkeypatch):
+    started, stopped = threading.Event(), threading.Event()
+    real = sim_core.run_suite
+
+    def slow(world, tasks, scenario_id=None, progress=None, run_id=None):
+        started.set()
+        try:
+            for i in range(10_000):  # ends only when the progress hook raises
+                progress(i, 10_000)
+                time.sleep(0.005)
+        finally:
+            stopped.set()
+        return real(world, tasks, scenario_id, progress, run_id)
+
+    monkeypatch.setattr(sim_core, "run_suite", slow)
+    rid = c.post("/simulations", json={"profiles": ["stroller"]}, headers=OK).json()["run_id"]
+    assert started.wait(30)
+    r = c.post(f"/simulations/{rid}/cancel", headers=OK)
+    assert r.status_code == 200 and r.json()["status"] == "cancelled"
+    got = _wait_ended(rid)
+    assert got["status"] == "cancelled" and got["report"] is None
+    assert stopped.wait(10), "the worker kept running"
+    monkeypatch.setattr(sim_core, "run_suite", real)
+    assert _wait_ended(rid)["status"] == "cancelled"  # never overwritten
+    assert c.post("/simulations", json={}, headers=OK).status_code == 202  # slot is free
+
+
+def test_cancel_a_finished_run_is_409():
+    rid = c.post("/simulations", json={"profiles": ["stroller"]}, headers=OK).json()["run_id"]
+    assert _wait(rid)["status"] == "done"
+    r = c.post(f"/simulations/{rid}/cancel", headers=OK)
+    assert r.status_code == 409 and r.json()["status"] == "done"

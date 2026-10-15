@@ -119,3 +119,19 @@ def test_profiles_endpoint_lists_thresholds():
     assert w["hard"]["min_width_m"] == 0.9
     assert w["hard"]["max_step_count"] == 0
     assert "no published source" in w["threshold_basis"]
+
+
+def test_briefing_scenario_has_edge_ids():  # task 36 M-5
+    b = c.get("/briefings/flood", params={"scenario_id": "stage_p3m"}).json()
+    ids = b["affected"]["likely_edge_ids"] + b["affected"]["possible_edge_ids"]
+    assert ids and all(i.startswith("seg-") for i in ids)
+    assert "seg-cd" in b["affected"]["likely_edge_ids"]
+
+
+def test_place_endpoint_rejects_bad_scenario_and_profile():  # task 32 Minor 3
+    assert c.get("/places/evc-hall", params={"scenario_id": "nope"}).status_code == 404
+    assert c.get("/places/evc-hall", params={"profile": "nope"}).status_code == 422
+    assert c.get("/places/evc-hall", params={"near": "x" * 500}).status_code == 422
+    ok = c.get("/places/evc-hall", params={"scenario_id": "baseline", "profile": "stroller"})
+    assert ok.status_code == 200
+    assert c.get("/places/evc-hall", params={"near": "no-such-place"}).status_code == 200  # a gap

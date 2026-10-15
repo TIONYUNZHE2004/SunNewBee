@@ -1,10 +1,12 @@
 import copy
 import hashlib
+import logging
 import secrets
 import sqlite3
 from typing import Any, Literal
 
 from fastapi import APIRouter, HTTPException, Query, Request, Response
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field
 from townshiplens_spatial import tools
 from townshiplens_spatial.models import RouteResult, Site, ToolResult
@@ -13,6 +15,7 @@ from .. import geojson, state
 from .sim import _store as _sim_store
 
 router = APIRouter()
+log = logging.getLogger(__name__)
 
 
 class RouteRequest(BaseModel):
@@ -23,8 +26,14 @@ class RouteRequest(BaseModel):
     scenario_id: str | None = None
 
 
-@router.get("/healthz")
-def healthz() -> dict[str, str]:
+@router.get("/healthz", responses={503: {"description": "the world did not load"}})
+def healthz():
+    """Liveness that includes the world: a corrupt seed fails here, not only on every request."""
+    try:
+        state.get_ctx()
+    except Exception:  # noqa: BLE001 - any load failure means not healthy
+        log.exception("world failed to load")
+        return JSONResponse({"status": "error"}, status_code=503)
     return {"status": "ok"}
 
 
@@ -47,6 +56,9 @@ class ProfileInfo(BaseModel):
     allowed_types: list[str] | None = None
     speed_kmh: float | None = None
     stub: bool = False
+    # Walking profiles on a major_road: a sidewalk claim of "none" is FAIL or UNKNOWN; a missing
+    # claim is always UNKNOWN, so strict profiles need a verified sidewalk there.
+    no_sidewalk_is: str = "UNKNOWN"
     threshold_basis: str = THRESHOLD_BASIS
 
 
@@ -192,9 +204,15 @@ def place(
     place_id: str,
     scenario_id: str | None = None,
     profile: str = "default",
-    near: str | None = None,
+    near: str | None = Query(None, max_length=120),
 ) -> ToolResult:
-    r = tools.get_place_details(state.get_ctx(), place_id, scenario_id, profile, near)
+    ctx = state.get_ctx()
+    # A bad parameter is an error, not a "data gap" row on the card (same as /briefings/flood).
+    if scenario_id is not None and scenario_id not in {s.id for s in ctx.world.flood.scenarios}:
+        raise HTTPException(404, f"unknown scenario {scenario_id}")
+    if profile not in ctx.world.profiles:
+        raise HTTPException(422, f"unknown profile {profile}")
+    r = tools.get_place_details(ctx, place_id, scenario_id, profile, near)
     if not r.ok:
         raise HTTPException(404, f"unknown place {place_id}")
     return r
@@ -202,8 +220,9 @@ def place(
 
 @router.post("/routes", response_model=RouteResult)
 def routes(req: RouteRequest) -> RouteResult:
+    """Plan only: this anonymous endpoint never files verification requests (the chat does)."""
     r = tools.plan_route(
-        state.get_ctx(), req.from_, req.to, req.profile, req.scenario_id, "api request"
+        state.get_ctx(), req.from_, req.to, req.profile, req.scenario_id, file_vrs=False
     )
     data = copy.copy(r.data)
     data.pop("verification_requests", None)

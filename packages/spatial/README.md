@@ -66,6 +66,9 @@ pruning, bounded by `MAX_REST_LABELS` (deterministic, not wall-clock).
   (`rest_limit_no_alternative`, or `rest_search_stopped_early`), with the number of segments
   longer than the limit. The report's `rest_long_segments` counts those distinct segments across
   the run: a rest point at a node cannot split them.
+- The gap ranking includes `sidewalk` (major roads), but on the Elmina seed it is structurally
+  empty: a major road carries no `width_m`, `step_count` or `incline_pct` claim, so flipping its
+  sidewalk alone never makes a journey `confirmed`. It stays empty until those are surveyed.
 - `sim.run_evacuation` runs evacuation journeys: a profile x river-stage table (default, stroller,
   wheelchair, older_adult_rest x baseline, +1, +3, +5 m) for a seeded sample (seed 47, N=50) of
   origins, each to the nearest reachable centre via `flood.centres_reachability`. Places that are
@@ -81,6 +84,10 @@ pruning, bounded by `MAX_REST_LABELS` (deterministic, not wall-clock).
 | `confirmed` / `partly_unverified` | A route exists; `partly_unverified` crosses UNKNOWN edges |
 | `blocked` | The endpoints are connected in the unfiltered graph, but every path is cut by a known FAIL |
 | `no_data` | The endpoints are in different graph components (for `drive`: no connecting road, or a place with no mapped road within the snap distance), or a place or profile is unknown. A data gap, never "not reachable" |
+
+A route whose facts include `team_survey_placeholder` evidence carries `demo_evidence: true`
+(also on `RouteResult` for `routes[0]`). The status is not downgraded: `confirmed` stays
+`confirmed`, and the UI and agent say "confirmed on demo values, not yet surveyed".
 
 `plan_route` files at most 10 verification requests per call (`MAX_ROUTE_VRS`); the overflow is
 counted in `verification_requests_truncated`. Flood unknowns never file a VR.

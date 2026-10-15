@@ -2,6 +2,7 @@ from fastapi.testclient import TestClient
 from townshiplens_api import state
 from townshiplens_api.main import app
 from townshiplens_spatial.models import Claim
+from vr_support import file_kiosk_vr
 
 c = TestClient(app)
 OK = {"X-Staff-Token": "test-token"}
@@ -75,8 +76,7 @@ def test_first_claim_old_null_and_order():
 
 
 def test_resolve_writes_audit():
-    c.post("/routes", json={"from": "park-b", "to": "kiosk", "profile": "stroller"})
-    vid = c.get("/verification-requests").json()[0]["id"]
+    vid = file_kiosk_vr()
     r = c.post(
         f"/verification-requests/{vid}/resolve",
         json={"action": "verify", "value": 4.0},
@@ -99,8 +99,7 @@ def test_null_value_422_unless_unknown():
 
 
 def _vr():
-    c.post("/routes", json={"from": "park-b", "to": "kiosk", "profile": "stroller"})
-    return c.get("/verification-requests").json()[0]["id"]
+    return file_kiosk_vr()
 
 
 def test_resolve_audit_failure_leaves_vr_open(monkeypatch):
@@ -166,8 +165,7 @@ def test_unknown_key_keeps_existing_value_check():
 def test_resolve_enforces_catalogue():
     null_claim = Claim(value=None, status="unknown")
     state.get_ctx().world.refresh_claim("seg-cf", "incline_pct", null_claim)
-    c.post("/routes", json={"from": "park-b", "to": "kiosk", "profile": "stroller"})
-    vid = c.get("/verification-requests").json()[0]["id"]
+    vid = file_kiosk_vr()
     for action in ("verify", "correct"):
         r = c.post(
             f"/verification-requests/{vid}/resolve",
