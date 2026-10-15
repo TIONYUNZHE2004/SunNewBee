@@ -846,3 +846,27 @@ Follow-up from Task 53 (`RouteResult`/`Route` now carry `demo_evidence: bool`).
 - **Tests:** tiny fixture with a placeholder-only confirmed route; the in-app prompts; the demo replay-diff test (re-record with the mock if answers change).
 - **Out of scope:** `packages/spatial` (read only), `apps/web`.
 - **Verify:** pytest, golden, lint, gen, e2e.
+
+### Task 55: Final review #3 fix wave, BE (I1, I2 + API/spatial Minors)
+
+Follow ruling R33 and `.superpowers/sdd/2026-10-15-mvp-p0-increment-1/final-review-3.md`.
+
+- **I1:** a centre whose place or node is under an active closure is never reachable.
+  - Its status becomes `closed`, carrying the closure line.
+  - It is excluded from the "nearest reachable" pick in `list_evacuation_centres` / `centres_reachability`, the flood briefing and the evacuation sim. That covers `flood.py`, `tools.py` and `sim.py`.
+  - The web shows "Closed (staff report)" for it, through the existing label helpers or a minimal addition.
+  - Tests cover all of these.
+- **I2:** gap counting treats `team_survey_placeholder` evidence as a gap ("not yet surveyed"), adds `demo_count`, and never reports a band of "Fully checked" for demo values. The web summary line mentions demo values when `demo_count > 0`.
+  - Tests: seed probe; 0 "Fully checked" edges rest on demo values.
+  - `evaluate_edge` semantics stay unchanged.
+- **Minors:** fix the in-scope review #3 Minors for `apps/api`, `packages/spatial` and `apps/web`:
+  - closure notes: PDPA-sanitise or keep staff-only in public and LLM-facing output;
+  - cancel checks in the gap phase;
+  - test-thread hygiene.
+- **Verify:** pytest, golden, lint, gen (commit the client), typecheck, web tests, build, e2e.
+
+### Task 56: Final review #3 fix wave, AI (I3 + agent Minors)
+
+- **I3:** DEMO_MODE replay is a cache miss whenever any closure is active. Test: an active closure on a stroller-route footway, with demo mode on, runs the live mock path and names the closure.
+- **Minors:** in-scope review #3 Minors for `packages/agent`.
+- **Verify:** pytest, golden, lint, gen, e2e. Re-record the demo cache with the mock only if answers change.
