@@ -1,4 +1,4 @@
-import { type EdgeStatus, statusStyle } from "./styles";
+import { type EdgeStatus, ROUTE_STYLE, statusStyle } from "./styles";
 
 const ORDER: EdgeStatus[] = ["ok", "unknown", "blocked", "flooded_likely", "flooded_possible"];
 
@@ -7,7 +7,7 @@ export function StatusLegend({ className = "" }: { className?: string }) {
   return (
     <ul
       aria-label="Path status legend"
-      className={`m-0 list-none space-y-0.5 rounded-md border border-line bg-white/95 px-2 py-1.5 text-xs shadow-sm ${className}`}
+      className={`m-0 list-none space-y-0.5 rounded-md border border-edge bg-surface/95 text-fg px-2 py-1.5 text-xs shadow-sm ${className}`}
     >
       {ORDER.map((s) => {
         const st = statusStyle(s);
@@ -29,6 +29,13 @@ export function StatusLegend({ className = "" }: { className?: string }) {
           </li>
         );
       })}
+      <li className="flex items-center gap-2">
+        <svg width="28" height="8" aria-hidden="true">
+          <line x1="2" y1="4" x2="26" y2="4" stroke={ROUTE_STYLE.color} strokeWidth="6" />
+          <line x1="2" y1="4" x2="26" y2="4" stroke="#fff" strokeWidth="1" strokeDasharray="3 3" />
+        </svg>
+        {ROUTE_STYLE.label}
+      </li>
     </ul>
   );
 }
