@@ -1,4 +1,4 @@
-{"meta": {"message": "Where can I drop off recycling nearby?", "profile": "default", "scenario_id": null, "world": "elmina", "model": "mock-scripted", "recorded_at": "2026-10-15T05:18:30+00:00"}}
+{"meta": {"message": "Where can I drop off recycling nearby?", "profile": "default", "scenario_id": null, "world": "elmina", "model": "mock-scripted", "recorded_at": "2026-10-15T05:45:57+00:00"}}
 {"type": "tool.call", "id": "find_waste_points-0", "name": "find_waste_points", "args": {"type": "recycling_drop_off", "near_place": "lakeside-mall"}}
 {"type": "tool.result", "id": "find_waste_points-0", "name": "find_waste_points", "summary": "0 result(s)"}
 {"type": "tool.call", "id": "find_waste_points-1", "name": "find_waste_points", "args": {"type": null, "near_place": "lakeside-mall"}}
@@ -16,5 +16,5 @@
 {"type": "citation", "ref": 1, "evidence_id": "ev-wp-osm-node-12001752608.status", "element_id": "wp-osm-node-12001752608", "attribute": "status", "status": "unknown", "verified_at": null, "source_type": null, "photo_url": null}
 {"type": "citation", "ref": 2, "evidence_id": "ev-wp-prog-osm-way-866543394.status", "element_id": "wp-prog-osm-way-866543394", "attribute": "status", "status": "unknown", "verified_at": null, "source_type": null, "photo_url": null}
 {"type": "citation", "ref": 3, "evidence_id": "ev-wp-osm-node-12001761367.status", "element_id": "wp-osm-node-12001761367", "attribute": "status", "status": "unknown", "verified_at": null, "source_type": null, "photo_url": null}
-{"type": "uncertainty", "level": "none", "items": []}
+{"type": "uncertainty", "level": "partial", "items": []}
 {"type": "done", "message_id": "demo", "answer_status": "partial", "model": "mock-scripted"}
