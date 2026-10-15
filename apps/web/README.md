@@ -73,7 +73,8 @@ Playwright config does) forces the keyless list view.
 
 ## Management features
 
-- **Verification queue:** Open / Resolved / All tabs plus reason, attribute and element filters
+- **Deep links:** `/manage?tab=queue|briefing|journeys|closures` opens that tab (unknown values open the queue); switching tabs updates the URL with `replace`.
+- **Verification queue:** rows show the attribute label, the element name (or "Unnamed footway / street / major road") with the raw id muted, and the reason in words. Open / Resolved / All tabs plus reason, attribute and element filters
   (sent as `?status=&reason=&attribute=&element_id=`). The resolve form (verify, correct, reject)
   takes an optional photo, uploaded with `POST /evidence` and attached via `evidence_id`.
 - **Staff token:** one shared token for all tabs, kept in `sessionStorage` (`tl.staffToken`) and

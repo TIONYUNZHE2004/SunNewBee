@@ -37,6 +37,18 @@ export function optionLabel(v: string): string {
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
+const ATTRIBUTE_LABELS: Record<string, string> = {
+  step_count: "Step count",
+  step_height_cm: "Step height (cm)",
+  incline_pct: "Incline (%)",
+  width_m: "Width (m)",
+};
+
+/** Staff-facing attribute name: "incline_pct" -> "Incline (%)"; unknown keys fall back to optionLabel. */
+export function attributeLabel(key: string): string {
+  return ATTRIBUTE_LABELS[key] ?? optionLabel(key);
+}
+
 /** The catalogue wins for known keys (even with a non-null value); other keys infer from the value. */
 export function specFor(key: string | undefined, value: unknown): AttrSpec {
   if (key) {
