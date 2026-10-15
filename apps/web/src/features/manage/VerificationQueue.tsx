@@ -1,5 +1,5 @@
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
-import { type FormEvent, useReducer, useState } from "react";
+import { type FormEvent, useEffect, useReducer, useState } from "react";
 import { PHOTO_ACCEPT, validatePhoto } from "../../lib/evidence";
 import { elementName } from "../chat/citationLabel";
 import { GapMapLink } from "../gaps/GapMapLink";
@@ -209,18 +209,33 @@ export function ResolveForm({ vr, token, onDone }: { vr: VR; token: string; onDo
   );
 }
 
+const TYPING_DEBOUNCE_MS = 300;
+
 export function VerificationQueue() {
   const [filters, setFilters] = useState<VrFilters>(DEFAULT_FILTERS);
+  // Free-text filters are sent after a short pause, not on every keystroke.
+  const [typed, setTyped] = useState({ attribute: "", elementId: "" });
+  useEffect(() => {
+    const t = setTimeout(
+      () => setTyped({ attribute: filters.attribute, elementId: filters.elementId }),
+      TYPING_DEBOUNCE_MS,
+    );
+    return () => clearTimeout(t);
+  }, [filters.attribute, filters.elementId]);
+  const sent: VrFilters = { ...filters, ...typed };
   const q = useQuery({
-    queryKey: vrQueryKey(filters),
-    queryFn: () => fetchVRs(buildVrQuery(filters)),
+    queryKey: vrQueryKey(sent),
+    queryFn: () => fetchVRs(buildVrQuery(sent)),
     retry: false,
     placeholderData: keepPreviousData,
   });
-  const set = (patch: Partial<VrFilters>) => setFilters({ ...filters, ...patch });
+  const [open, setOpen] = useState<string | null>(null);
+  const set = (patch: Partial<VrFilters>) => {
+    setFilters({ ...filters, ...patch });
+    setOpen(null); // an expanded row may not survive the new filter
+  };
   const tabs = Object.keys(TAB_LABELS) as QueueTab[];
   const [token, setToken] = useStaffToken();
-  const [open, setOpen] = useState<string | null>(null);
   const rows = q.data ?? [];
   const names = useQueueNames();
 
@@ -254,6 +269,7 @@ export function VerificationQueue() {
         <p className="mt-1 text-xs text-ink-soft">Kept for this browser session only.</p>
       </div>
 
+      {/* Toggle buttons (aria-pressed) in a named group, not tabs: they filter one list, no panels. */}
       <fieldset aria-label="Request status" className="flex gap-2">
         {tabs.map((t) => (
           <button
@@ -267,6 +283,9 @@ export function VerificationQueue() {
           </button>
         ))}
       </fieldset>
+      {filters.tab === "resolved" && (
+        <p className="text-xs text-ink-soft">Rejected requests are listed under All.</p>
+      )}
       <div className="grid gap-3 sm:grid-cols-3">
         <div>
           <label htmlFor="vq-reason" className="mb-1 block text-sm font-medium">

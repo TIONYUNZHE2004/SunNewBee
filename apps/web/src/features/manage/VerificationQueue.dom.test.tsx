@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
-import { cleanup, screen, within } from "@testing-library/react";
+import { cleanup, screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { json, renderWithClient, stubFetch } from "../../test/helpers";
@@ -82,5 +83,36 @@ describe("VerificationQueue rows", () => {
     await screen.findByText("Incline (%)");
     const opt = screen.getByRole("option", { name: "No route: unverified segment" });
     expect(opt).toHaveValue("no_route_unverified_segment");
+  });
+});
+
+describe("VerificationQueue filters", () => {
+  it("sends a typed attribute once after a pause, not per keystroke", async () => {
+    const urls: string[] = [];
+    stubFetch((url) => {
+      if (url.includes("/verification-requests")) urls.push(url);
+      return url.includes("/verification-requests") ? json([vr({})]) : json([]);
+    });
+    renderWithClient(
+      <MemoryRouter>
+        <VerificationQueue />
+      </MemoryRouter>,
+    );
+    await screen.findByText("Unnamed footway");
+    await userEvent.type(screen.getByLabelText("Attribute"), "incl");
+    await waitFor(() => expect(urls.some((u) => u.includes("attribute=incl"))).toBe(true));
+    expect(urls.filter((u) => u.includes("attribute="))).toHaveLength(1);
+  });
+
+  it("explains that rejected requests sit under All", async () => {
+    stub([]);
+    renderWithClient(
+      <MemoryRouter>
+        <VerificationQueue />
+      </MemoryRouter>,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Resolved" }));
+    expect(screen.getByText("Rejected requests are listed under All.")).toBeInTheDocument();
+    expect(screen.getByRole("group", { name: "Request status" })).toBeInTheDocument();
   });
 });
