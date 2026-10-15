@@ -46,7 +46,7 @@ are derived from coordinates because the cached `out geom` responses omit OSM no
 Envelope bbox (s,w,n,e) = 3.150, 101.460, 3.240, 101.530.
 
 - ways fetched: 7036 (6631 walk + 460 major-road ways, 51 `secondary_link`s in both fetches, 4 `foot=no` dropped); walk segments: 16148, of which 909 `major_road` (`base/walk.geojson`, ~5 MB)
-- places: 227 imported; 3 duplicates of hero places removed by `build_overlay.py` (`osm-way-1308938137`, `osm-way-1318133036`, `osm-way-1346154592`) -> 224 in `base/places.geojson`, plus 7 overlay places = 231 total. 210 imported places snap to a walk node within 60 m (any component). Since Task 31 the walk graph has 74 components and the largest holds 95.2% of nodes; before major roads were imported it was 199 components and 32%
+- places: 227 imported; 3 duplicates of hero places removed by `build_overlay.py` (`osm-way-1308938137`, `osm-way-1318133036`, `osm-way-1346154592`) -> 224 in `base/places.geojson`, plus 7 overlay places = 231 total. 220 imported places have a walk node: point places within 60 m, area places by the Task 43 rule below (146 of the 231 seed places are `node_inferred` area snaps). Since Task 31 the walk graph has 74 components and the largest holds 95.2% of nodes; before major roads were imported it was 199 components and 32%
 - hydrology features: 204 (display only)
 - overlay: 18 edges + 7 places (`park-b`, `lakeside-mall`, `playground`, `toilet-urban-park`, `bench-urban-1..3`)
 - P1 416 m (via unknown ramp) vs verified detour P2 441 m
@@ -98,7 +98,7 @@ The vintages are mixed, as they are for the walk cache. Re-running `import_osm.p
 
 **Segment renumbering.** 101+ existing `seg-<way>-<k>` ids now carry new geometry, because their ways are re-split at major-road junctions. None of the ids referenced in this README, `access/README.md`, `data/demo/*.jsonl`, e2e tests or golden changed. The overlay (P1/P2, ramp `seg-1306543755-2`) is identical. The 4 Elmina demo-cache entries were re-recorded with the mock.
 
-## Area places (Task 43): code ready, seed NOT yet rebuilt
+## Area places (Task 43)
 
 17 of 231 seed places have no `node_id`. Among them are 11 parks, 3 schools and the hero "Elmina Urban Park" (`osm-way-1309457596`). The old rule snaps an area's *centre* to a walk node within 60 m, which misses large areas.
 
@@ -113,11 +113,27 @@ The vintages are mixed, as they are for the walk cache. Re-running `import_osm.p
 - `EvacCentre.node_inferred` (typed in the API) and the `/layers/access` place property `node_inferred` expose the flag.
 - Evacuation centres built from such a place carry `entrance_note` in `list_evacuation_centres` and in the place details' reachability. They add the warning "Reachability ends at the nearest mapped path to <centre>; its entrance is not mapped."
 
-**Status (15 Oct 2026): BLOCKED on Overpass load.** 10 of 12 requests are used.
-- First 8: HTTP 500 from `overpass.kumi.systems` (6) and `overpass.private.coffee` (2).
-- Then 2 single all-ids lookups on `overpass-api.de` (R26), 2 minutes apart. Both returned HTTP 504 with "Error: runtime error: open64: 0 Success /osm3s_osm_base Dispatcher_Client::request_read_and_idx::timeout. The server is probably too busy to handle your request."
-- The seed is unchanged, so the 17 places are still unsnapped.
-- To finish: re-run `import_osm.py --endpoint https://overpass-api.de/api/interpreter --max-requests N` when the server is less busy. Then overlay → flood → waste with the offline flags under Rebuild, and remove the `xfail` on `test_seed_elmina_urban_park_has_inferred_node_and_warned_route`.
+**Seed rebuilt (15 Oct 2026, R31).**
+- The outline lookup succeeded on `overpass-api.de` (1 request, endpoint recorded in the cache `.meta.json`). All 156 way outlines came back.
+- The task used 12 Overpass requests in total: the earlier 8 HTTP 500s on kumi.systems and private.coffee, 3 dispatcher-timeout 504s on overpass-api.de, then this success.
+- Re-running the import from the cache is byte-identical.
+
+| Measure | Before | After |
+|---|---|---|
+| Places without a node | 17 of 231 | **7** (listed in `coverage.json` `places_without_node`) |
+| Places with `node_inferred` | 0 | 146 |
+| Default `park-b` → Elmina Urban Park | no_data | confirmed, 326.1 m, with "Route ends at the nearest mapped path to Elmina Urban Park; its entrance is not mapped." |
+| Default Elmina Urban Park → `lakeside-mall` | no_data | confirmed, 119.8 m, with the "starts at" caveat |
+| Hero stroller `park-b → playground` | confirmed 440.6 m | unchanged |
+| Evacuation centres with a node | 69 of 72 | 71 of 72 (54 `node_inferred`) |
+
+- **Gained a node (14):** 9 parks, 3 schools, Maha Su Meru (place of worship) and 1 car park, including Elmina Urban Park.
+- **Moved from a small fragment to the main network (3):** 2 parks and SMK Bukit Gading.
+- **Lost a node on purpose (4, R28 honesty over coverage).** Their old nodes sat in disconnected fragments, so routes there were never possible:
+  - 2 car parks (fragments of 30 and 3 nodes);
+  - "Surau" (46 nodes; it is an evacuation centre, now no_data instead of a node in a 46-node island);
+  - Plaza Tol Elmina (4 nodes).
+- **Still without a node (7):** those 4, plus 2 unnamed parks and 1 shelter with no walk node within 40 m of the outline or 60 m of the centre. All 7 are listed with the reason in `coverage.json` `places_snap_warnings`.
 
 ## Flood lens (Task 10: `data/scripts/build_flood.py`)
 
