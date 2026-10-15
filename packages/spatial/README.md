@@ -26,10 +26,29 @@ LineString define a node and its position. Coordinates are WGS84 `[lon, lat]`.
 
 ## Modules
 
-`world` (loader), `models` (pydantic), `evaluate` (per-edge PASS/FAIL/UNKNOWN per profile),
-`routing` (profile- and scenario-aware route search), `flood` (affected places, islands,
-evacuation reachability), `vr_store` (SQLite verification requests), `tools` (tool functions and
-the `TOOLS` registry).
+`world` (loader), `models` (pydantic), `profiles` (loads `config/profiles/*.yaml`), `evaluate`
+(per-edge PASS/FAIL/UNKNOWN per profile), `routing` (profile- and scenario-aware route search),
+`flood` (affected places, islands, evacuation reachability), `vr_store` (SQLite verification
+requests), `attributes` (attribute catalogue and value validation), `sim` (resident-agent batch
+runner that ranks data gaps), `tools` (tool functions and the `TOOLS` registry).
+
+## Profiles
+
+`config/profiles/`: `default`, `stroller`, `wheelchair`, `older_adult_rest` and `drive`.
+`drive` only uses edges whose `type` is `street` or `track` (`allowed_types`), assumes 30 km/h,
+treats a possibly flooded road as FAIL (walking profiles treat it as UNKNOWN), and always adds
+its standing warning (one-way and turn restrictions are not modelled; indicative only).
+
+## Route status
+
+| Status | Meaning |
+| --- | --- |
+| `confirmed` / `partly_unverified` | A route exists; `partly_unverified` crosses UNKNOWN edges |
+| `blocked` | The endpoints are connected in the unfiltered graph, but every path is cut by a known FAIL |
+| `no_data` | The endpoints are in different graph components (for `drive`: no connecting road, or a place with no mapped road within the snap distance), or a place or profile is unknown. A data gap, never "not reachable" |
+
+`plan_route` files at most 10 verification requests per call (`MAX_ROUTE_VRS`); the overflow is
+counted in `verification_requests_truncated`. Flood unknowns never file a VR.
 
 ## Tests
 
@@ -62,7 +81,7 @@ with `__`.
 ## What to build next (BE lane)
 
 - Resource-constrained rest-point search (enforce `max_rest_free_run_m`).
-- OSMnx drive graph and the `drive` profile.
+- Oneway- and turn-aware drive graph (the `drive` profile reuses the walk extract's street/track edges).
 - Closures (`get_closures`).
 - Staleness TTL configuration.
 - Performance caching keyed by `world.version`.

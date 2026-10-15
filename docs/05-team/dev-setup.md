@@ -19,29 +19,26 @@ Companion to [stack-decision.md](../04-architecture/stack-decision.md). Versions
 │   │   │   └── components/ui/
 │   │   └── e2e/              # Playwright
 │   └── api/                  # FastAPI (backend owner)
-│       ├── src/townshiplens_api/{routes,auth,db,sse}.py
-│       ├── alembic/          # optional while SQLite + seed rebuild is enough
+│       ├── src/townshiplens_api/  # routes/{core,flood,manage,evidence,sim,chat}.py, auth, settings, state, store, evidence, imagestrip
 │       └── tests/
 ├── packages/
-│   ├── spatial/              # Python (backend): graph loader, geo utils, tools.py (10 tools), routing
-│   │   ├── flood/            # scenario loader, edge/place classification, evacuation analytics
-│   │   └── ...
-│   ├── agent/                # Python (AI owner): PydanticAI agent, run_turn(), validate.py, prompts, personas
-│   ├── api-client/           # generated TS client + SSE event / scene-intent types (CI-checked)
-│   └── fixtures/             # JSON fixtures for stub endpoints and tests
+│   ├── spatial/              # Python (backend): world loader, tools.py (10 tools), routing, flood.py (scenarios, evacuation), sim.py
+│   ├── agent/                # Python (AI owner): PydanticAI agent, run_turn(), validate.py, mock, prompts
+│   └── api-client/           # generated TS client + SSE event / scene-intent types (CI-checked)
 ├── config/
 │   └── profiles/             # YAML: default, stroller, wheelchair, older_adult_rest, drive (+ flood depth thresholds, versioned)
 ├── data/
 │   ├── seed/elmina/          # committed data: site.json, base/*.geojson (buildings, network, places, hydrology; GeoJSON/GeoParquet),
 │   │                         #   access/overlay.geojson, flood/ (scenarios stage_p1m.geojson ..., evac_centres), waste/points.geojson (+ provenance)
-│   ├── raw/                  # downloaded DEM, OSM, Overture extracts (gitignored)
-│   ├── scripts/              # import_osm.py, import_overture.py, build_roads.py (OSMnx),
-│   │                         # build_hand.py (GLO-30 → HAND), build_scenarios.py (HAND → scenarios + edge status)
+│   ├── cache/                # Overpass responses and the GLO-30 DEM (gitignored)
+│   ├── demo/                 # recorded chat turns for DEMO_MODE (*.jsonl)
+│   ├── scripts/              # import_osm.py, build_overlay.py, build_flood.py (GLO-30 → REM scenarios + edge status),
+│   │                         # build_waste.py, overpass.py (cached Overpass client)
 │   └── README.md             # sources, licences, capture dates
-├── evals/                    # resident-agent runner, persona configs, journey sets, golden set, reports/
+├── evals/                    # run_golden.py + golden/hero.yaml
 ├── docs/                     # knowledge base (existing)
 ├── reference/                # external notes/repos (existing)
-├── .github/workflows/        # ci.yml, deploy-web.yml, deploy-api.yml
+├── .github/workflows/        # ci.yml (deploy workflows are planned)
 ├── pnpm-workspace.yaml
 ├── package.json              # root scripts
 ├── pyproject.toml            # uv workspace root
@@ -49,11 +46,10 @@ Companion to [stack-decision.md](../04-architecture/stack-decision.md). Versions
 ├── biome.json
 ├── .pre-commit-config.yaml
 ├── .env.example
-├── .nvmrc
-└── justfile                  # optional: one-line commands (just dev, just test, just gen)
+└── .nvmrc
 ```
 
-Ownership: `apps/web` frontend; `apps/api`, `packages/spatial`, `data/scripts`, `config/profiles` backend; `packages/agent`, `evals/` AI; `data/` shared (backend merges). Cross-boundary changes go via PR with the other owner as reviewer. Large generated files (DEM tiles, HAND rasters) live in `data/raw/` and are **not** committed (the pre-commit hook rejects files over 5 MB); only the small derived GeoJSON/GeoParquet outputs (in `data/seed/elmina/`) are committed, so a teammate can run the app without re-running the pipeline.
+Ownership: `apps/web` frontend; `apps/api`, `packages/spatial`, `data/scripts`, `config/profiles` backend; `packages/agent`, `evals/` AI; `data/` shared (backend merges). Cross-boundary changes go via PR with the other owner as reviewer. Large generated files (DEM tiles, HAND rasters) live in `data/cache/` and are **not** committed (keep them out of git; a large-file pre-commit check is planned, not configured); only the small derived GeoJSON/GeoParquet outputs (in `data/seed/elmina/`) are committed, so a teammate can run the app without re-running the pipeline.
 
 ## 2. Tooling
 
@@ -65,15 +61,15 @@ Ownership: `apps/web` frontend; `apps/api`, `packages/spatial`, `data/scripts`, 
 | JS lint/format | Biome 2.5 | one config, no ESLint/Prettier |
 | Py lint/format | ruff 0.17 | `ruff check` + `ruff format` |
 | Types | `tsc --noEmit`, `pyright` or `mypy` (optional) | Pydantic gives most Python safety |
-| Unit tests | vitest 5 (+ Testing Library), pytest 9 (+ Hypothesis for flood monotonicity) | |
-| E2E / a11y | Playwright 1.64 (list view, mock LLM, tiny fixture) | hero smoke plus an accessible-name check. `@axe-core/playwright` is *planned*, not installed |
-| Hooks | pre-commit (*planned*; not configured yet) | biome, ruff, gitleaks, large-file check (reject >5 MB) |
+| Unit tests | vitest 5 (node environment, no Testing Library; components render with `react-dom/server`), pytest 9 (+ Hypothesis for flood monotonicity) | |
+| E2E / a11y | Playwright 1.64 (list view, mock LLM, tiny fixture; web :5273, API :8100) | hero smoke plus an accessible-name check. `@axe-core/playwright` is *planned*, not installed |
+| Hooks | pre-commit (`.pre-commit-config.yaml`) | ruff, ruff-format, gitleaks. Biome and a large-file check are *planned*, not configured |
 | Contract | `openapi-typescript` + `openapi-fetch` (instead of hey-api) | `pnpm gen` |
 
 Root scripts (`package.json`; there is no `justfile` and no worktree setup is needed):
 
 ```
-pnpm dev           # API (uvicorn --reload, :8000) + web (vite, :5173, /api proxied) via concurrently
+pnpm dev           # API (uvicorn --reload, :8000) + web (vite, :5173, /api proxied) via concurrently; ports via API_PORT / WEB_PORT
 pnpm dev:api       # API only
 pnpm test          # uv run pytest && pnpm -r --if-present test (vitest)
 pnpm lint          # ruff check + ruff format --check + biome check
@@ -81,11 +77,12 @@ pnpm gen           # export OpenAPI -> packages/api-client/openapi.json -> schem
 pnpm golden        # evals/run_golden.py: golden questions against the tiny fixture with the mock LLM
 pnpm data:build    # import_osm.py, build_overlay.py, build_flood.py, build_waste.py under data/scripts
                    # (the pipeline scripts arrive with the data and flood lanes; check `ls data/scripts`)
-pnpm --filter @tl/web e2e   # Playwright hero smoke (needs `playwright install chromium` once)
+pnpm db:reset      # delete the local SQLite files in .data/ (VRs, audit, sim runs); stop the API first
+pnpm --filter @tl/web e2e   # Playwright smoke on its own ports (web :5273, API :8100, DB .data/e2e.db); needs `pnpm --filter @tl/web exec playwright install chromium` once
 uv run python -m townshiplens_agent.cli "Can I push a stroller from Car Park B to the kiosk?"
 ```
 
-*Planned, not built:* `sim` (resident-agent runner), `data:roads` (OSMnx drive graph), deploy workflows, `config/profiles` YAML.
+*Planned, not built:* `data:roads` (OSMnx drive graph; the `drive` profile currently uses the walk extract's street/track edges), deploy workflows. The resident-agent runner is built as `packages/spatial` `sim`, the staff `/simulations` endpoints and the Journey tests tab on `/manage`; `config/profiles/*.yaml` exists.
 
 ## 3. Conventions
 
@@ -107,7 +104,7 @@ Trunk-based:
 3. **Squash merge**, title in Conventional Commit form. Delete branch.
 4. `git pull --rebase` before pushing; never force-push `main`. Protect `main` (require PR + CI; allow admins to bypass during the final 24 hours only).
 5. Unfinished UI/features hide behind env flags (`VITE_FEATURE_*`) instead of long-lived branches.
-6. Generated files (`apps/api/openapi.json`, `packages/api-client/src`) are committed; CI fails if regeneration produces a diff. If you change an endpoint, run `pnpm gen:api` in the same PR.
+6. Generated files (`packages/api-client/openapi.json`, `packages/api-client/src/schema.d.ts`) are committed; CI fails if regeneration produces a diff. If you change an endpoint, run `pnpm gen` in the same PR.
 7. Daily 10-minute sync; a tagged `demo-YYYYMMDD` release on every deploy that is shown to anyone.
 
 ## 5. Environment variables and key safety
@@ -122,9 +119,10 @@ LLM_MODEL_DEFAULT=anthropic/claude-haiku-5.5
 LLM_MODEL_ESCALATE=anthropic/claude-sonnet-5.5
 LLM_OUTPUT_RETRIES=2
 STAFF_TOKEN=change-me    # the API refuses to resolve verification requests until this is changed
-DATABASE_URL=sqlite:///./.data/townshiplens.db
+DATABASE_URL=            # optional; default .data/<site id>.db, one file per world
 OPENCELLID_TOKEN=        # reserved
-# Optional server overrides: TL_DATA_DIR (default data/seed/elmina, else the tiny fixture), TURN_TIMEOUT_S
+# Optional server overrides: TL_DATA_DIR (default data/seed/elmina, else the tiny fixture), EVIDENCE_DIR (default .data/evidence), TURN_TIMEOUT_S
+# Demo cache (replays recorded answers offline): DEMO_MODE=true, DEMO_DIR=data/demo
 # Browser (public; restrict by referrer). vite.config.ts maps ONLY these three.
 GOOGLE_MAPS_API_KEY=
 CESIUM_ION_ACCESS_TOKEN=
@@ -135,7 +133,7 @@ Rules:
 - Only the three browser keys above reach the browser (explicit `define` mapping in `apps/web/vite.config.ts`, no `VITE_*` prefix); assume they are public. Restrict the Google key by HTTP referrer and to the Map Tiles API, the Mapbox token by URL, and set quota caps and budget alerts (Google: 1,000 free events/month then USD 6 per 1,000; Mapbox: 50,000 free loads/month).
 - `OPENROUTER_API_KEY` exists only in the API environment (Cloud Run env / Secret Manager, GitHub Actions secrets). Each dev uses a personal key with a spend cap; do not share keys in chat. Choose models in env only (`LLM_MODEL_DEFAULT`, `LLM_MODEL_ESCALATE`).
 - `STAFF_TOKEN` is an MVP shortcut (a shared token in the `X-Staff-Token` header): rotate it before any public demo and never commit a real value.
-- `.env` is gitignored; gitleaks runs in pre-commit and CI. If a key leaks, rotate immediately; removing it from git history is not enough.
+- `.env` is gitignored; gitleaks runs in pre-commit. If a key leaks, rotate immediately; removing it from git history is not enough.
 - Never log prompts that contain staff or personal data; the chat log stores sessions without IP addresses.
 
 ## 6. CI (GitHub Actions)
@@ -150,7 +148,7 @@ Rules:
 6. `pnpm golden` (golden questions, mock LLM).
 7. Playwright hero smoke: `playwright install --with-deps chromium`, then `pnpm --filter @tl/web e2e`; the HTML report is uploaded on failure.
 
-*Planned:* gitleaks, axe checks, the evals simulation smoke.
+*Planned:* gitleaks in CI (it runs only as a pre-commit hook today), axe checks, the evals simulation smoke.
 
 *Planned (not built):* `deploy-web.yml`: on `main`, build `apps/web`, deploy to Cloudflare Pages (`wrangler pages deploy` or Pages Git integration). `deploy-api.yml`: on `main`, build the Docker image (with the committed `data/seed/elmina` files and a freshly seeded SQLite), push, `gcloud run deploy --region asia-southeast1` (Workload Identity Federation preferred over JSON keys). There is no keep-alive workflow while we use SQLite + files; add one only if we later move to a hosted Postgres that pauses when idle. Cloud Run disk is ephemeral: staff edits made on the deployed demo are lost on a new revision unless exported back to `data/seed` (or the DB moves to Postgres).
 
@@ -182,7 +180,8 @@ Keys for 3D: `GOOGLE_MAPS_API_KEY` (photoreal tiles) or `CESIUM_ION_ACCESS_TOKEN
 ```bash
 uv run pytest apps/api packages/spatial -q
 uv run uvicorn townshiplens_api.main:app --reload --port 8000 --app-dir apps/api/src
-pnpm data:build                     # rebuild seed data (see section 2 for script status)
+pnpm data:build                     # rebuild seed data (needs network; see data/README.md)
+pnpm db:reset                       # clear local SQLite state before a demo (stop the API first)
 ```
 
 `packages/spatial` is a uv workspace member used by `apps/api` and `packages/agent`. The 10 tools live only in `packages/spatial/src/townshiplens_spatial/tools.py`. Data sources and licences: [../02-research/flood-disaster-lens.md](../02-research/flood-disaster-lens.md), [../02-research/township-3d-engine-and-data.md](../02-research/township-3d-engine-and-data.md).
