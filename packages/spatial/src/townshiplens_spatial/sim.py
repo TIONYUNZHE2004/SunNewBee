@@ -294,6 +294,7 @@ EVAC_RESULTS = (
     "reachable_partly_unverified",
     "blocked_by_flood",  # a known FAIL cuts every path (flood, or at baseline a known barrier)
     "no_mapped_connection",  # data gap: never reported as "not reachable"
+    "centres_closed",  # every centre that could be reached is under a staff-reported closure
     "no_centre",
 )
 # The seed maps no residential buildings, so origins are every mapped place residents start from
@@ -350,6 +351,8 @@ def _journey(world: World, origin: str, profile: str, scenario_id: str | None) -
         )
     elif any(r.route_status == "blocked" for r in rows):
         result = "blocked_by_flood"
+    elif any(r.route_status == "closed" for r in rows):
+        result = "centres_closed"
     else:
         result = "no_mapped_connection"
     return {

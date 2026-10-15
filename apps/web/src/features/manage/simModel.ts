@@ -38,6 +38,7 @@ export const EVAC_RESULTS = [
   "reachable_partly_unverified",
   "blocked_by_flood",
   "no_mapped_connection",
+  "centres_closed",
   "no_centre",
 ] as const;
 const EVAC_LABELS: Record<string, string> = {
@@ -45,6 +46,7 @@ const EVAC_LABELS: Record<string, string> = {
   reachable_partly_unverified: "Reachable (some parts unverified)",
   blocked_by_flood: "Blocked (known barrier or flood)",
   no_mapped_connection: "No mapped connection (data gap)",
+  centres_closed: "Centres closed (staff report)",
   no_centre: "No evacuation centre mapped",
 };
 export const evacResultLabel = (r: string): string => EVAC_LABELS[r] ?? r;

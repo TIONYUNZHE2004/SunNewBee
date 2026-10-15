@@ -334,3 +334,17 @@ def test_gap_phase_checks_progress_so_a_run_can_stop(world):
 
     with pytest.raises(Stop):
         sim.run_suite(world, tasks, progress=stop_in_gap_phase)
+
+
+def test_evacuation_all_centres_closed_is_not_a_data_gap(world, monkeypatch):
+    """Final review #3 follow-up: closures on every centre are a staff-reported closure,
+    never 'no mapped connection'. (Fixture centres have no place, so stub the closure lookup.)"""
+    from townshiplens_spatial import flood
+
+    monkeypatch.setattr(flood, "centre_closure", lambda w, c: "Closed (staff report): test")
+    rep = sim.run_evacuation(
+        world, n_per_profile=50, profiles=["default"], scenario_ids=["baseline"]
+    )
+    counts = rep["rows"][0]["counts"]
+    assert counts["centres_closed"] > 0
+    assert counts["reachable_confirmed"] == counts["reachable_partly_unverified"] == 0
