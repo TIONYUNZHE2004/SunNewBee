@@ -136,7 +136,11 @@ def affected(
 
 
 def centres_reachability(
-    world: World, scenario_id: str | None, profile_id: str, near_place: str | None
+    world: World,
+    scenario_id: str | None,
+    profile_id: str,
+    near_place: str | None,
+    top_routes: int = TOP_ROUTES,
 ) -> list[CentreReachability]:
     """One strict and one lenient multi-source Dijkstra from the origin, costed by the same
     edge rules as routing. Full Route objects are built only for the nearest TOP_ROUTES centres."""
@@ -193,7 +197,7 @@ def centres_reachability(
             )
     rows.sort(key=lambda t: (t[0], t[1], t[2].centre.id))
     out = [r for _, _, r in rows]
-    for r in [r for r in out if r.reachable][:TOP_ROUTES]:
+    for r in [r for r in out if r.reachable][:top_routes]:
         rr = plan_route(world, near_place, f"{CENTRE_PREFIX}{r.centre.id}", profile_id, scenario_id)
         if rr.routes:
             r.route_id = rr.routes[0].id

@@ -366,7 +366,13 @@ export interface paths {
         /** List Simulations */
         get: operations["list_simulations_simulations_get"];
         put?: never;
-        /** Run Simulation */
+        /**
+         * Run Simulation
+         * @description Start a run in the background and return its id; poll `GET /simulations/{run_id}`.
+         *
+         *     One run at a time per world: a second POST while one is queued or running gets 409 with the
+         *     running id, so the caller can poll that run instead.
+         */
         post: operations["run_simulation_simulations_post"];
         delete?: never;
         options?: never;
@@ -715,6 +721,48 @@ export interface components {
              * @enum {string}
              */
             source: "official_pps" | "osm_candidate";
+        };
+        /** EvacRow */
+        EvacRow: {
+            /** Counts */
+            counts: {
+                [key: string]: number;
+            };
+            /** Profile */
+            profile: string;
+            /** Scenario Id */
+            scenario_id: string;
+            /** Total */
+            total: number;
+        };
+        /** EvacViolation */
+        EvacViolation: {
+            /** Detail */
+            detail: string;
+            /** Invariant */
+            invariant: string;
+            /** Origin Id */
+            origin_id: string;
+            /** Profile */
+            profile: string;
+            /** Task Id */
+            task_id: string;
+        };
+        /**
+         * EvacuationReport
+         * @description Journeys from a seeded sample of origins to the nearest reachable evacuation centre.
+         */
+        EvacuationReport: {
+            /** Origins Available */
+            origins_available: number;
+            /** Origins Sampled */
+            origins_sampled: number;
+            /** Rows */
+            rows: components["schemas"]["EvacRow"][];
+            /** Seed */
+            seed: number;
+            /** Violations */
+            violations: components["schemas"]["EvacViolation"][];
         };
         /** Evidence */
         Evidence: {
@@ -1074,6 +1122,13 @@ export interface components {
             /** Task Id */
             task_id: string;
         };
+        /** SimBusy */
+        SimBusy: {
+            /** Detail */
+            detail: string;
+            /** Run Id */
+            run_id: string;
+        };
         /** SimGap */
         SimGap: {
             /** Affected Profiles */
@@ -1097,6 +1152,7 @@ export interface components {
             };
             /** Created At */
             created_at: string;
+            evacuation?: components["schemas"]["EvacuationReport"] | null;
             /** Gaps */
             gaps: components["schemas"]["SimGap"][];
             /**
@@ -1146,6 +1202,39 @@ export interface components {
             unknowns?: {
                 [key: string]: string;
             }[];
+        };
+        /**
+         * SimRun
+         * @description A run's state. `report` is set only when `status` is `done`.
+         */
+        SimRun: {
+            /** Created At */
+            created_at?: string | null;
+            /** Error */
+            error?: string | null;
+            /** Progress */
+            progress?: string | null;
+            report?: components["schemas"]["SimReport"] | null;
+            /** Run Id */
+            run_id: string;
+            /** Scenario Id */
+            scenario_id?: string | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "queued" | "running" | "done" | "failed";
+        };
+        /** SimStarted */
+        SimStarted: {
+            /** Run Id */
+            run_id: string;
+            /**
+             * Status
+             * @default queued
+             * @constant
+             */
+            status: "queued";
         };
         /** SimSummary */
         SimSummary: {
@@ -2085,12 +2174,21 @@ export interface operations {
         };
         responses: {
             /** @description Successful Response */
-            200: {
+            202: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["SimReport"];
+                    "application/json": components["schemas"]["SimStarted"];
+                };
+            };
+            /** @description a run is already in progress */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SimBusy"];
                 };
             };
             /** @description Validation Error */
@@ -2121,7 +2219,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["SimReport"];
+                    "application/json": components["schemas"]["SimRun"];
                 };
             };
             /** @description Validation Error */

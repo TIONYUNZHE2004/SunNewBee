@@ -41,9 +41,9 @@ With no seed data present the API falls back to the tiny test fixture.
 | GET | `/kpis` | `open_vrs`, `median_hours_to_resolve`, `journeys_confirmed_pct` (from the latest simulation run) |
 | POST | `/evidence` | staff; multipart `file` (JPEG or PNG, max 5 MB; type by magic bytes, EXIF/GPS/text chunks stripped); returns `{evidence_id, photo_url}`; 413, 415, 422 |
 | GET | `/evidence/{id}` | the stored photo (`nosniff`, restrictive CSP); 404 unknown id |
-| POST | `/simulations` | staff; `{scenario_id, profiles}` runs the resident-agent journey tests and stores the report; 422 unknown scenario |
+| POST | `/simulations` | staff; `{scenario_id, profiles}` starts the journey tests (plus evacuation journeys) in a background thread and returns `202 {run_id, status: "queued"}` with a `Location` header. One run at a time per world: a second POST while one is queued or running returns `409 {detail, run_id}` with the running id. 422 unknown scenario |
 | GET | `/simulations` | recent run summaries, `?limit=` (1 to 50, default 5) |
-| GET | `/simulations/{run_id}` | full report (counts, results, ranked data gaps, invariant violations, one `rest_advisories` entry per older-adult journey over the rest limit, `rest_limit_m`, `rest_long_segments` = distinct segments longer than the limit on those routes); 404 |
+| GET | `/simulations/{run_id}` | `{run_id, status: queued\|running\|done\|failed, progress, error, report}`; `report` only when `done`, persisted in the per-world SQLite store (a run active at a restart is marked `failed`). The report holds (counts, results, ranked data gaps, invariant violations, one `rest_advisories` entry per older-adult journey over the rest limit, `rest_limit_m`, `rest_long_segments` = distinct segments longer than the limit on those routes, and `evacuation`: a profile x river-stage table of results from a seeded sample of 50 origins to the nearest reachable evacuation centre, with E1 (a higher stage never improves a journey) and E2 (baseline equals no scenario) violations, also listed in `invariant_violations`); 404 |
 | POST | `/chat` | SSE; streams `townshiplens_agent.run.run_turn` events (`LLM_PROVIDER=mock` gives the deterministic assistant); if the agent cannot load it emits `error` + `done` |
 | GET | `/schema/chat-event` | docs-only, exports the ChatEvent union |
 

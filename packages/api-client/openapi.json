@@ -704,6 +704,110 @@
         "title": "EvacCentre",
         "type": "object"
       },
+      "EvacRow": {
+        "properties": {
+          "counts": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Counts",
+            "type": "object"
+          },
+          "profile": {
+            "title": "Profile",
+            "type": "string"
+          },
+          "scenario_id": {
+            "title": "Scenario Id",
+            "type": "string"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "profile",
+          "scenario_id",
+          "counts",
+          "total"
+        ],
+        "title": "EvacRow",
+        "type": "object"
+      },
+      "EvacViolation": {
+        "properties": {
+          "detail": {
+            "title": "Detail",
+            "type": "string"
+          },
+          "invariant": {
+            "title": "Invariant",
+            "type": "string"
+          },
+          "origin_id": {
+            "title": "Origin Id",
+            "type": "string"
+          },
+          "profile": {
+            "title": "Profile",
+            "type": "string"
+          },
+          "task_id": {
+            "title": "Task Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "invariant",
+          "task_id",
+          "profile",
+          "origin_id",
+          "detail"
+        ],
+        "title": "EvacViolation",
+        "type": "object"
+      },
+      "EvacuationReport": {
+        "description": "Journeys from a seeded sample of origins to the nearest reachable evacuation centre.",
+        "properties": {
+          "origins_available": {
+            "title": "Origins Available",
+            "type": "integer"
+          },
+          "origins_sampled": {
+            "title": "Origins Sampled",
+            "type": "integer"
+          },
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/EvacRow"
+            },
+            "title": "Rows",
+            "type": "array"
+          },
+          "seed": {
+            "title": "Seed",
+            "type": "integer"
+          },
+          "violations": {
+            "items": {
+              "$ref": "#/components/schemas/EvacViolation"
+            },
+            "title": "Violations",
+            "type": "array"
+          }
+        },
+        "required": [
+          "rows",
+          "violations",
+          "origins_sampled",
+          "origins_available",
+          "seed"
+        ],
+        "title": "EvacuationReport",
+        "type": "object"
+      },
       "Evidence": {
         "properties": {
           "attribute": {
@@ -1667,6 +1771,24 @@
         "title": "SimAdvisory",
         "type": "object"
       },
+      "SimBusy": {
+        "properties": {
+          "detail": {
+            "title": "Detail",
+            "type": "string"
+          },
+          "run_id": {
+            "title": "Run Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "detail",
+          "run_id"
+        ],
+        "title": "SimBusy",
+        "type": "object"
+      },
       "SimGap": {
         "properties": {
           "affected_profiles": {
@@ -1721,6 +1843,16 @@
           "created_at": {
             "title": "Created At",
             "type": "string"
+          },
+          "evacuation": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EvacuationReport"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "gaps": {
             "items": {
@@ -1878,6 +2010,104 @@
           "outcome"
         ],
         "title": "SimResult",
+        "type": "object"
+      },
+      "SimRun": {
+        "description": "A run's state. `report` is set only when `status` is `done`.",
+        "properties": {
+          "created_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created At"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "progress": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Progress"
+          },
+          "report": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SimReport"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "run_id": {
+            "title": "Run Id",
+            "type": "string"
+          },
+          "scenario_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scenario Id"
+          },
+          "status": {
+            "enum": [
+              "queued",
+              "running",
+              "done",
+              "failed"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "run_id",
+          "status"
+        ],
+        "title": "SimRun",
+        "type": "object"
+      },
+      "SimStarted": {
+        "properties": {
+          "run_id": {
+            "title": "Run Id",
+            "type": "string"
+          },
+          "status": {
+            "const": "queued",
+            "default": "queued",
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "run_id"
+        ],
+        "title": "SimStarted",
         "type": "object"
       },
       "SimSummary": {
@@ -3538,6 +3768,7 @@
         "summary": "List Simulations"
       },
       "post": {
+        "description": "Start a run in the background and return its id; poll `GET /simulations/{run_id}`.\n\nOne run at a time per world: a second POST while one is queued or running gets 409 with the\nrunning id, so the caller can poll that run instead.",
         "operationId": "run_simulation_simulations_post",
         "parameters": [
           {
@@ -3568,15 +3799,25 @@
           "required": true
         },
         "responses": {
-          "200": {
+          "202": {
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/SimReport"
+                  "$ref": "#/components/schemas/SimStarted"
                 }
               }
             },
             "description": "Successful Response"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SimBusy"
+                }
+              }
+            },
+            "description": "a run is already in progress"
           },
           "422": {
             "content": {
@@ -3611,7 +3852,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/SimReport"
+                  "$ref": "#/components/schemas/SimRun"
                 }
               }
             },

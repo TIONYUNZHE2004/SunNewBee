@@ -1,3 +1,5 @@
+import dataclasses
+
 from townshiplens_spatial import sim
 
 
@@ -180,3 +182,98 @@ def test_truncated_rest_search_is_its_own_advisory(world, monkeypatch):
 def test_report_without_older_adults_has_no_rest_limit(world):
     r = sim.run_suite(world, [{**_older(), "profile": "stroller"}])
     assert r["rest_limit_m"] is None and r["rest_long_segments"] == 0
+
+
+# ---- Task 47: evacuation journeys (G-07) -------------------------------------------------
+
+EVAC_P5 = {
+    "reachable_confirmed": 1,  # island-hut reaches the school
+    "reachable_partly_unverified": 2,  # playground, kiosk
+    "blocked_by_flood": 2,  # park-b, lakeside-mall
+    "no_mapped_connection": 1,  # moon-base has no mapped path
+}
+
+
+def _row(rep, profile, scenario):
+    (row,) = [r for r in rep["rows"] if r["profile"] == profile and r["scenario_id"] == scenario]
+    return row
+
+
+def test_evacuation_known_results_on_tiny(world):
+    rep = sim.run_evacuation(world, n_per_profile=50)
+    assert rep["origins_available"] == 6 and rep["origins_sampled"] == 6
+    assert {r["profile"] for r in rep["rows"]} == set(sim.EVAC_PROFILES)
+    assert {r["scenario_id"] for r in rep["rows"]} == set(sim.EVAC_SCENARIOS)
+    row = _row(rep, "stroller", "stage_p5m")
+    assert {k: v for k, v in row["counts"].items() if v} == EVAC_P5
+    assert row["total"] == 6
+    assert _row(rep, "wheelchair", "stage_p5m")["counts"] == row["counts"]
+    base = _row(rep, "stroller", "baseline")["counts"]
+    assert base["reachable_confirmed"] == 4 and base["reachable_partly_unverified"] == 1
+    assert base["blocked_by_flood"] == 0 and base["no_mapped_connection"] == 1
+    assert rep["violations"] == []  # monotone and baseline == no-scenario on the fixture
+    assert all(set(r["counts"]) == set(sim.EVAC_RESULTS) for r in rep["rows"])
+
+
+def test_evacuation_sample_is_seeded_and_capped(world):
+    a = sim.run_evacuation(world, n_per_profile=3, seed=7)
+    b = sim.run_evacuation(world, n_per_profile=3, seed=7)
+    assert a["origins_sampled"] == 3 and a["rows"] == b["rows"] and a["origins"] == b["origins"]
+    assert sim.evacuation_origins(world, 3, 7) == sim.evacuation_origins(world, 3, 7)
+    assert set(a["origins"]) <= {p for p in world.places}
+
+
+def test_evacuation_no_centre(world):
+    w = dataclasses.replace(world, centres={})
+    rep = sim.run_evacuation(w, n_per_profile=50)
+    assert all(r["counts"]["no_centre"] == r["total"] == 6 for r in rep["rows"])
+
+
+def test_evacuation_profile_and_scenario_filters(world):
+    rep = sim.run_evacuation(world, profiles=["stroller"], scenario_ids=["baseline", "stage_p3m"])
+    assert {(r["profile"], r["scenario_id"]) for r in rep["rows"]} == {
+        ("stroller", "baseline"),
+        ("stroller", "stage_p3m"),
+    }
+
+
+def test_evacuation_flags_non_monotone_and_baseline_drift(world, monkeypatch):
+    from townshiplens_spatial import flood
+
+    real = flood.centres_reachability
+
+    def rigged(w, scenario_id, profile, near, top_routes=3):
+        res = real(w, scenario_id, profile, near, top_routes)
+        if near == "park-b" and profile == "stroller":
+            # blocked at +1 m but confirmed again at +3 m; baseline differs from no-scenario
+            for r in res:
+                if r.centre.id == "evc-hall":
+                    r.reachable = scenario_id != "stage_p1m"
+                    r.route_status = "blocked" if scenario_id == "stage_p1m" else "confirmed"
+        if scenario_id == "baseline" and near == "kiosk" and profile == "default":
+            for r in res:
+                r.reachable, r.route_status = False, "blocked"
+        return res
+
+    monkeypatch.setattr(flood, "centres_reachability", rigged)
+    rep = sim.run_evacuation(world, n_per_profile=50)
+    kinds = {(v["invariant"], v["profile"], v["origin_id"]) for v in rep["violations"]}
+    assert ("E1", "stroller", "park-b") in kinds
+    assert ("E2", "default", "kiosk") in kinds
+    assert all(v["detail"] for v in rep["violations"])
+
+
+def test_evacuation_invariants_hold_on_a_seed_sample():
+    from pathlib import Path
+
+    import pytest
+    from townshiplens_spatial.world import load_world
+
+    seed = Path(__file__).resolve().parents[3] / "data/seed/elmina"
+    if not (seed / "site.json").exists():
+        pytest.skip("Elmina seed not present")
+    w = load_world(seed)
+    rep = sim.run_evacuation(w, profiles=["stroller", "older_adult_rest"], n_per_profile=5)
+    assert rep["origins_sampled"] == 5 and rep["origins_available"] > 50
+    assert rep["violations"] == []  # E1 monotone across stages, E2 baseline == no scenario
+    assert all(sum(r["counts"].values()) == 5 for r in rep["rows"])

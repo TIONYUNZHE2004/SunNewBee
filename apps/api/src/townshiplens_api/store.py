@@ -8,6 +8,10 @@ KEEP_RUNS = 20
 SCHEMA = """CREATE TABLE IF NOT EXISTS sim_runs (
   run_id TEXT PRIMARY KEY, created_at TEXT, scenario_id TEXT, counts TEXT,
   n_tasks INTEGER, n_gaps INTEGER, n_violations INTEGER, world_version INTEGER, report TEXT)"""
+JOB_SCHEMA = """CREATE TABLE IF NOT EXISTS sim_jobs (
+  run_id TEXT PRIMARY KEY, status TEXT NOT NULL, created_at TEXT NOT NULL, scenario_id TEXT,
+  progress TEXT, error TEXT)"""
+ACTIVE = ("queued", "running")
 
 
 class SimStore:
@@ -21,7 +25,45 @@ class SimStore:
         if cols and "counts" not in cols:  # pre-summary-column dev table; runs are disposable
             self.db.execute("DROP TABLE sim_runs")
         self.db.execute(SCHEMA)
+        self.db.execute(JOB_SCHEMA)
         self._lock = threading.RLock()
+        self.start_lock = threading.Lock()  # serialises "is a run active? then start one"
+        with self.db:  # a run cannot survive a restart: never leave one looking active
+            self.db.execute(
+                "UPDATE sim_jobs SET status='failed', error='interrupted by a server restart' "
+                "WHERE status IN ('queued','running')"
+            )
+
+    def create_job(self, run_id: str, created_at: str, scenario_id: str | None) -> None:
+        with self._lock, self.db:
+            self.db.execute(
+                "INSERT INTO sim_jobs VALUES (?,?,?,?,?,NULL)",
+                (run_id, "queued", created_at, scenario_id, "Queued"),
+            )
+            self.db.execute(
+                "DELETE FROM sim_jobs WHERE run_id NOT IN "
+                "(SELECT run_id FROM sim_jobs ORDER BY created_at DESC, rowid DESC LIMIT ?)",
+                (KEEP_RUNS,),
+            )
+
+    def set_job(self, run_id: str, status: str, progress: str | None, error: str | None = None):
+        with self._lock, self.db:
+            self.db.execute(
+                "UPDATE sim_jobs SET status=?, progress=?, error=? WHERE run_id=?",
+                (status, progress, error, run_id),
+            )
+
+    def active_job(self) -> str | None:
+        with self._lock:
+            r = self.db.execute(
+                "SELECT run_id FROM sim_jobs WHERE status IN ('queued','running') LIMIT 1"
+            ).fetchone()
+        return r["run_id"] if r else None
+
+    def job(self, run_id: str) -> dict[str, Any] | None:
+        with self._lock:
+            r = self.db.execute("SELECT * FROM sim_jobs WHERE run_id=?", (run_id,)).fetchone()
+        return dict(r) if r else None
 
     def save(self, report: dict[str, Any]) -> None:
         with self._lock, self.db:

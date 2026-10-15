@@ -72,7 +72,8 @@ def _snap_to_road(world: World, roads: set[str], node: str, coord) -> str | None
 def _components(world: World) -> dict[str, int]:
     """Component id per node of the unfiltered mapped graph (no profile rules, no flood)."""
     g = world.graph
-    key = (g.number_of_nodes(), g.number_of_edges())
+    # O(1): number_of_edges() walks every adjacency (~20 ms on the seed) and runs per centre
+    key = (g.number_of_nodes(), len(world.edges))
     cached = g.graph.get("_components")
     if cached is None or cached[0] != key:
         comps = {n: i for i, c in enumerate(nx.connected_components(g)) for n in c}

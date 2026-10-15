@@ -23,6 +23,46 @@ export const violationLabel = (i: string): string =>
   VIOLATIONS[i]?.label ?? `Invariant check failed (${i})`;
 export const isCriticalViolation = (i: string): boolean => VIOLATIONS[i]?.critical ?? false;
 
+// Evacuation journeys (Task 47, G-07). E1/E2 are the G-08 (c) checks on the evacuation table.
+VIOLATIONS.E1 = {
+  label: "A higher river stage improved an evacuation journey",
+  critical: true,
+};
+VIOLATIONS.E2 = {
+  label: "Baseline evacuation result differs from the no-scenario result",
+  critical: true,
+};
+
+export const EVAC_RESULTS = [
+  "reachable_confirmed",
+  "reachable_partly_unverified",
+  "blocked_by_flood",
+  "no_mapped_connection",
+  "no_centre",
+] as const;
+const EVAC_LABELS: Record<string, string> = {
+  reachable_confirmed: "Reachable (confirmed)",
+  reachable_partly_unverified: "Reachable (some parts unverified)",
+  blocked_by_flood: "Blocked (known barrier or flood)",
+  no_mapped_connection: "No mapped connection (data gap)",
+  no_centre: "No evacuation centre mapped",
+};
+export const evacResultLabel = (r: string): string => EVAC_LABELS[r] ?? r;
+
+export function evacScenarioLabel(id: string): string {
+  if (id === "baseline") return "Normal river level";
+  const m = /^stage_p(\d+)m$/.exec(id);
+  return m ? `River +${m[1]} m (indicative)` : id;
+}
+
+/** One plain sentence per run: how many sampled journeys reach a centre at all. */
+export function evacSummaryText(ev: {
+  origins_sampled: number;
+  origins_available: number;
+}): string {
+  return `${ev.origins_sampled} of ${ev.origins_available} mapped starting places, the same places for every profile and river level.`;
+}
+
 const ADVISORIES: Record<string, string> = {
   rest_limit_no_alternative: "Routes over the rest limit (no alternative)",
   rest_search_stopped_early: "Rest-point search stopped early (a route within the limit may exist)",

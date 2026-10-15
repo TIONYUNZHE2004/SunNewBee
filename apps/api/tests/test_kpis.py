@@ -40,8 +40,8 @@ def test_median_of_two_resolved():
     assert c.get("/kpis").json()["median_hours_to_resolve"] == 4.0
 
 
-def test_journeys_confirmed_from_latest_run():
-    assert c.post("/simulations", json={}, headers=OK).status_code == 200
+def test_journeys_confirmed_from_latest_run(run_sim):
+    run_sim({})
     run = c.get("/simulations").json()[0]
     total = sum(sum(v.values()) for v in run["counts"].values())
     ok = sum(v.get("success", 0) for v in run["counts"].values())
