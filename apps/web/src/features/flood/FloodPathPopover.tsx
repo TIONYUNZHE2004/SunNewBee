@@ -35,11 +35,12 @@ export function FloodPathCard({
       aria-labelledby="fp-h"
       onKeyDown={(e) => {
         if (e.key === "Escape") {
+          e.preventDefault();
           e.stopPropagation();
           onClose();
         }
       }}
-      className="fixed bottom-4 left-4 right-4 z-30 max-h-[70vh] overflow-y-auto rounded-lg border border-[#DD6B20] bg-card p-4 shadow-lg sm:left-auto sm:w-96"
+      className="fixed bottom-[calc(var(--demo-bar-h,0px)+1rem)] left-4 right-4 z-30 max-h-[70vh] overflow-y-auto rounded-lg border border-[#DD6B20] bg-card p-4 shadow-lg sm:left-auto sm:w-96"
     >
       <div className="flex items-start justify-between gap-3">
         <h2 id="fp-h" ref={head} tabIndex={-1} className="text-lg font-semibold">
