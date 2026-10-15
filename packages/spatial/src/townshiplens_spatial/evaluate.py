@@ -150,3 +150,26 @@ def evaluate_edge(
             }
         )
     return result, why
+
+
+def relevant_attributes(edge: Edge, profile: Profile) -> list[str]:
+    """Attributes `evaluate_edge` consults for this edge and profile (pure; the gap map reuses
+    it so the two never drift). Vehicle profiles check only edge type, so nothing is relevant."""
+    if profile.allowed_types is not None:
+        return []
+    attrs = [_CHECKS[key][0] for key in profile.hard]
+    if edge.type in SIDEWALK_TYPES:
+        attrs.append("sidewalk")
+    return attrs
+
+
+def claim_gap(claim: Claim | None, attr: str, today: date | None = None) -> tuple[bool, bool]:
+    """(unknown, stale) for one claim. Unknown covers a missing or valueless claim, status
+    unknown, stale or contested, and an expired verification; stale is the expired/stale subset."""
+    if claim is None:
+        return True, False
+    stale = claim.status == "stale" or _is_stale(claim, attr, today or date.today())
+    unknown = (
+        stale or claim.value is None or claim.status in ("unknown", "contested")
+    )
+    return unknown, stale

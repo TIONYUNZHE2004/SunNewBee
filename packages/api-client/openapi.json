@@ -2833,6 +2833,52 @@
         "summary": "Kpis"
       }
     },
+    "/layers/gaps": {
+      "get": {
+        "description": "Gap map: per walk edge and place, how many relevant facts are not yet checked, how many\nare stale, and the open verification demand. Declared before /layers/{lens} so it wins.",
+        "operationId": "gaps_layer_layers_gaps_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "profile",
+            "required": false,
+            "schema": {
+              "default": "default",
+              "title": "Profile",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Gaps Layer Layers Gaps Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "304": {
+            "description": "Not modified"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Gaps Layer"
+      }
+    },
     "/layers/{lens}": {
       "get": {
         "operationId": "layers_layers__lens__get",

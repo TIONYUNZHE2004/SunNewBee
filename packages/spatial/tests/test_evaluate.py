@@ -196,3 +196,24 @@ def test_drive_allows_major_road_without_sidewalk(world):
 
 def test_sidewalk_rule_only_for_major_roads(world):
     assert evaluate_edge(world.edges["seg-ab"], world.profiles["default"]) == ("PASS", [])
+
+
+def test_relevant_attributes_and_claim_gap(world):
+    from townshiplens_spatial.evaluate import claim_gap, relevant_attributes
+    from townshiplens_spatial.models import Claim
+
+    e = world.edges["seg-ab"]
+    assert relevant_attributes(e, world.profiles["stroller"]) == [
+        "step_count",
+        "incline_pct",
+        "width_m",
+    ]
+    assert relevant_attributes(e, world.profiles["default"]) == []
+    assert relevant_attributes(e, world.profiles["drive"]) == []
+    today = date(2026, 10, 15)
+    assert claim_gap(None, "width_m", today) == (True, False)
+    assert claim_gap(Claim(value=1, status="reported"), "width_m", today) == (False, False)
+    assert claim_gap(Claim(value=1, status="contested"), "width_m", today) == (True, False)
+    assert claim_gap(Claim(value=1, status="stale"), "width_m", today) == (True, True)
+    old = Claim(value=1, status="verified", verified_at="2024-01-01")
+    assert claim_gap(old, "width_m", today) == (True, True)

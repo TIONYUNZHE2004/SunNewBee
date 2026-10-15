@@ -1,4 +1,6 @@
-from townshiplens_spatial.evaluate import evaluate_edge
+from datetime import date
+
+from townshiplens_spatial.evaluate import claim_gap, evaluate_edge, relevant_attributes
 from townshiplens_spatial.world import World
 
 LENSES = ("access", "flood", "waste")
@@ -85,3 +87,57 @@ def layer(
             _cache.clear()
         hit = _cache[key] = _layer(world, lens, profile, scenario_id)
     return hit
+
+
+def gaps_layer(world: World, demand: dict[str, int], profile: str = "default") -> dict:
+    """Where the world model is not yet checked, for one profile. Counts only: no status colour
+    and no verdict (a gap is "facts not yet checked", never "unsafe" or "inaccessible").
+
+    Edges: the profile-relevant attributes (the same list `evaluate_edge` reads). Places: the
+    claims each place carries, since no profile decides which place facts matter. `demand` maps
+    element id to open verification-request demand."""
+    prof = world.profiles.get(profile) or world.profiles["default"]
+    today = date.today()
+
+    def counts(claims, attrs) -> dict[str, int]:
+        flags = [claim_gap(claims.get(a), a, today) for a in attrs]
+        return {
+            "relevant_count": len(attrs),
+            "unknown_count": sum(1 for u, _ in flags if u),
+            "stale_count": sum(1 for _, s in flags if s),
+        }
+
+    feats: list[dict] = []
+    for e in world.edges.values():
+        feats.append(
+            {
+                "type": "Feature",
+                "geometry": {"type": "LineString", "coordinates": e.coords},
+                "properties": {
+                    "id": e.id,
+                    "kind": "segment",
+                    "type": e.type,
+                    "name": e.name,
+                    **counts(e.claims, relevant_attributes(e, prof)),
+                    "demand": demand.get(e.id, 0),
+                },
+            }
+        )
+    for p in world.places.values():
+        if p.id.startswith("__"):
+            continue
+        feats.append(
+            {
+                "type": "Feature",
+                "geometry": {"type": "Point", "coordinates": p.coord},
+                "properties": {
+                    "id": p.id,
+                    "kind": p.kind,
+                    "type": p.type,
+                    "name": p.name,
+                    **counts(p.claims, list(p.claims)),
+                    "demand": demand.get(p.id, 0),
+                },
+            }
+        )
+    return {"type": "FeatureCollection", "features": feats}

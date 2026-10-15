@@ -75,6 +75,33 @@ def _matches(header: str | None, etag: str) -> bool:
     return "*" in cands or etag in cands
 
 
+def _open_demand(ctx) -> dict[str, int]:
+    out: dict[str, int] = {}
+    for vr in ctx.vrs.list("open"):
+        out[vr.element_id] = out.get(vr.element_id, 0) + vr.demand
+    return out
+
+
+@router.get(
+    "/layers/gaps",
+    response_model=dict[str, Any],
+    responses={304: {"description": "Not modified"}},
+)
+def gaps_layer(request: Request, response: Response, profile: str = "default"):
+    """Gap map: per walk edge and place, how many relevant facts are not yet checked, how many
+    are stale, and the open verification demand. Declared before /layers/{lens} so it wins."""
+    ctx = state.get_ctx()
+    demand = _open_demand(ctx)
+    # Demand changes without a world.version bump, so it is part of the validator.
+    sig = ",".join(f"{k}:{v}" for k, v in sorted(demand.items()))
+    etag = _etag(ctx.world, "gaps", profile, sig)
+    headers = {"ETag": etag, "Cache-Control": CACHE_CONTROL}
+    if _matches(request.headers.get("if-none-match"), etag):
+        return Response(status_code=304, headers=headers)
+    response.headers.update(headers)
+    return geojson.gaps_layer(ctx.world, demand, profile)
+
+
 @router.get(
     "/layers/{lens}",
     response_model=dict[str, Any],
