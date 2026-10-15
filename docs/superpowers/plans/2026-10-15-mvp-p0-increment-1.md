@@ -584,3 +584,67 @@ Reviews of Tasks 23, 27, 33, 35, 36 and 37 flagged the same gap. Vitest runs in 
 - **Rules:** test behaviour through the DOM (roles, labels, text), not implementation details. No snapshot tests. Each test asserts something that would fail if the feature broke; check that by briefly breaking the code locally.
 - **Out of scope:** do NOT change production code, except a minimal export or test-id where a test truly needs it; explain any in the report. Do NOT touch `packages/*`, `apps/api` or `data/`.
 - **Verify:** `pnpm --filter @tl/web test`, `pnpm lint`, typecheck, build, e2e. Commit on the lane branch.
+
+### Task 40: The mock answers every in-app prompt on the Elmina seed (AI)
+
+Found while recording the demo cache for Task 37 (continuation run). These in-app prompts come back `cannot_answer` from the mock on the Elmina seed:
+- the older-adult chip "Can I get to the lakeside mall if I am an older adult who needs to rest?" (`older_adult_rest`);
+- the default chip "Is the walk from the urban park to the lakeside mall easy?";
+- the scenario-bar button "Where can I go?" (`default` and `wheelchair`, `stage_p3m`).
+
+DEMO_MODE replays these, and keyless demos run the mock, so the pitch shows "I don't know" for the app's own suggestions.
+
+- **Access routing in the mock:**
+  - Parse origin and destination from "from X to Y" or "get to Y".
+  - Places: Lakeside Mall, Urban Park, playground, Car Park B, kiosk, toilet. Use `find_place` results. Don't hard-code ids beyond the existing defaults.
+  - The default origin stays Car Park B when none is given.
+  - The profile comes from the request, so the older-adult chip uses `older_adult_rest`, and its answer reports the rest-gap information `plan_route` returns (if it returns it).
+- **"Where can I go?" (and similar: "where should I go", "where do I go"):** treat it as the flood-resident flow when a scenario is active.
+  - Origin is the demo start point `lakeside-mall` (the same constant the web uses). The answer says "from Elmina Lakeside Mall (demo start point)", because the assistant doesn't know the user's location.
+  - With no scenario active, answer `cannot_answer` with one helpful sentence suggesting they pick a river level or ask about a route.
+- **Tests:** a pytest that loads `data/seed/elmina` and checks every in-app prompt with its profile/scenario returns a non-`cannot_answer` answer that passes the validator:
+  - the 4 access chips, the 3 flood chips and the waste chip, from `apps/web/src/features/chat/suggestions.ts`;
+  - "Where can I go?" for default and wheelchair at `stage_p3m`.
+
+  Copy the strings into the test with a comment pointing at `suggestions.ts`, and add a sync test that parses `suggestions.ts` with a regex to catch drift.
+- **Re-record:** the affected `data/demo` entries with the mock, for the same 11 (question, profile, scenario) tuples recorded in `ffd4ebc`; read their meta. Commit the data separately.
+- **Out of scope:** do NOT touch `apps/web`, `packages/spatial` or `data/seed`.
+- **Verify:** pytest, golden (mock), lint, gen (no drift).
+
+### Task 41: Rest-point-aware routing for older adults (AX-08) (BE + small FE)
+
+From the audit: AX-08 is PARTIAL. The max rest gap is computed per route (`routing.py`) and checked in the sim as invariant I7. But `max_rest_free_run_m` (100 m in `config/profiles/older_adult_rest.yaml`) is not enforced (`evaluate.py:104` TODO). On the Task 31 seed, 60 of 60 older-adult journey routes violate I7.
+
+- **Routing:** for profiles with `max_rest_free_run_m`, search for a route whose longest stretch between rest points (`seating`, `shelter` and benches, i.e. the places the existing `rest_gap` logic counts) is ≤ the limit.
+  - Use a resource-constrained search: label-setting over (node, distance since last rest), with pruning, bounded in time like the existing routing.
+  - If no route satisfies the limit, return the best route by the existing order and set `status` to at most `partly_unverified`. Add a warning: "longest stretch without a rest point is about N m (limit 100 m)". Round N to 10 m.
+  - Never `confirmed` when the limit is exceeded.
+- **Answers:** `plan_route` returns `max_rest_gap_m` and `rest_limit_m`. The mock and template mention the rest-gap line for `older_adult_rest`. Keep the honesty rules.
+- **Sim:**
+  - I7 should now hold for every route that the router claims satisfies the limit.
+  - Report a separate advisory count, "routes over the rest limit (no alternative)", instead of counting them as invariant violations.
+  - `JourneyTests.tsx` must label it in plain words, separating critical invariant violations from advisory notes. This is review M-1 from Task 31.
+- **Tests:**
+  - a fixture where the shortest route exceeds 100 m without rest but a slightly longer one passes;
+  - a fixture where none passes, giving the warning and `partly_unverified`;
+  - other profiles unchanged;
+  - a performance guard on the Elmina seed: one older-adult route under 2 s.
+- **Out of scope:** do NOT touch `data/seed`, `apps/web/src/features/scene/*` or `features/chat/*`. Coordinate with Task 42, which edits the API layers and web scene.
+
+### Task 42: Gap map, where the world model is unknown or stale (AX-09) (API + FE)
+
+From the audit: AX-09 is MISSING.
+
+- **API:** `GET /layers/gaps?profile=` returns the walk edges and places, each with:
+  - `unknown_count`: the profile-relevant attributes whose claim is unknown, missing, stale or contested;
+  - `stale_count`;
+  - `demand`: open VR demand for that element.
+
+  It reuses `evaluate.py`'s per-profile relevant-attribute list and must not duplicate it. Add an ETag like the other layers, then run `pnpm gen`.
+- **FE:** a "Gaps" toggle in the Layers group. It is off by default.
+  - **Cesium:** colours edges by gap density in 3 bands ("Fully checked", "Some facts missing", "Many facts missing"), each with a pattern as well as a colour, and adds a legend.
+  - **List view:** a "Biggest gaps" section, ordered by demand and then unknown_count. Each row is a button that opens the place card or the "Why this path?" equivalent.
+  - **Manage:** the Verification queue links to the gap map.
+- **Honesty:** this layer shows what isn't known. Copy says "facts not yet checked", never "unsafe" or "inaccessible".
+- **Tests:** pytest for counts on the tiny fixture (stale, contested, missing); vitest for band mapping and the list order; DOM tests in the Task 39 Testing Library style.
+- **Out of scope:** do NOT touch `routing.py`, `evaluate.py` (import from it only), `sim.py`, `data/` or `features/chat/*`.
