@@ -143,7 +143,10 @@ CI). First run: `pnpm --filter @tl/web exec playwright install chromium`.
 ## What to build next (FE lane)
 
 - Water-rise animation between scenario levels (levels currently switch).
-- Demo replay in the UI: `?replay=` plays a scripted conversation and scene for the pitch (the API side, `DEMO_MODE`, replays recorded turns).
-- Accessibility audit with axe (`@axe-core/playwright` is not yet a dependency; the smoke only checks accessible names).
+- Accessibility audit beyond accessible names (axe-core is MPL-2.0, outside the MIT/Apache/BSD licence policy; use a manual screen-reader pass or a permitted checker).
 - Mobile performance: Cesium chunk weight, `requestRenderMode`, test on a mid-range phone.
 - A proper legend component shared by all three renderers.
+
+## Pitch demo mode
+
+`/?demo=hero` shows a fixed control bar (caption, Back / Play / Next / Exit demo; keys: Right, Left, Space, Esc) that walks the three hero flows. The script is plain data in `src/features/demo/heroScript.ts`; each step goes through the existing scene store, the chip send path and the router. A deep spot missing from the dataset is skipped with "(not available in this dataset)". With `DEMO_MODE=true` the API replays recorded answers for the script's questions (see `data/demo/README.md`).

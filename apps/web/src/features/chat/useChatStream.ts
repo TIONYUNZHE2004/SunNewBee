@@ -10,9 +10,13 @@ import {
 import { parseSse } from "./parseSse";
 
 /** Request body; an explicit profile wins over the store so a chip's persona is never stale. */
-export function chatRequestBody(message: string, profile?: Profile) {
+export function chatRequestBody(message: string, profile?: Profile, scenarioId?: string | null) {
   const s = useScene.getState();
-  return { message, profile: profile ?? s.profile, scenario_id: s.scenarioId };
+  return {
+    message,
+    profile: profile ?? s.profile,
+    scenario_id: scenarioId === undefined ? s.scenarioId : scenarioId,
+  };
 }
 
 let counter = 0;
@@ -22,17 +26,19 @@ export function useChatStream() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [streaming, setStreaming] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
-  const lastRef = useRef<{ message: string; profile?: Profile } | null>(null);
+  const lastRef = useRef<{ message: string; profile?: Profile; scenarioId?: string | null } | null>(
+    null,
+  );
 
   const patch = useCallback((id: string, fn: (m: AssistantMessage) => AssistantMessage) => {
     setMessages((ms) => ms.map((m) => (m.role === "assistant" && m.id === id ? fn(m) : m)));
   }, []);
 
   const send = useCallback(
-    async (text: string, profile?: Profile) => {
+    async (text: string, profile?: Profile, scenarioId?: string | null) => {
       const message = text.trim();
       if (!message) return;
-      lastRef.current = { message, profile };
+      lastRef.current = { message, profile, scenarioId };
       abortRef.current?.abort();
       const ctrl = new AbortController();
       abortRef.current = ctrl;
@@ -47,7 +53,7 @@ export function useChatStream() {
         const res = await fetch("/api/chat", {
           method: "POST",
           headers: { "Content-Type": "application/json", Accept: "text/event-stream" },
-          body: JSON.stringify(chatRequestBody(message, profile)),
+          body: JSON.stringify(chatRequestBody(message, profile, scenarioId)),
           signal: ctrl.signal,
         });
         if (!res.ok || !res.body) throw new Error(`Chat request failed (${res.status})`);
@@ -98,7 +104,8 @@ export function useChatStream() {
   useEffect(() => () => abortRef.current?.abort(), []);
 
   const retry = useCallback(() => {
-    if (lastRef.current) void send(lastRef.current.message, lastRef.current.profile);
+    if (lastRef.current)
+      void send(lastRef.current.message, lastRef.current.profile, lastRef.current.scenarioId);
   }, [send]);
 
   return { messages, send, retry, streaming };

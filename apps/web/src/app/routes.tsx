@@ -1,4 +1,5 @@
 import { createBrowserRouter, NavLink, Outlet } from "react-router";
+import { DemoBar } from "../features/demo/DemoBar";
 import { ManagePage } from "../features/manage/ManagePage";
 import { useSite } from "../lib/api";
 import { ResidentPage } from "./ResidentPage";
@@ -41,6 +42,7 @@ function Shell() {
       <footer className="border-t border-line bg-card px-4 py-3 text-xs text-ink-soft">
         <p className="mx-auto max-w-7xl">{attribution}</p>
       </footer>
+      <DemoBar />
     </div>
   );
 }
