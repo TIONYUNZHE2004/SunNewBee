@@ -28,6 +28,9 @@ interface SceneState {
   toggleLens: (l: Lens) => void;
   setGaps: (on: boolean) => void;
   toggleGaps: () => void;
+  mapStyle: "realistic" | "stylised";
+  setMapStyle: (s: "realistic" | "stylised") => void;
+  clearRoute: () => void;
   reset: () => void;
 }
 
@@ -43,6 +46,7 @@ const initial = {
   route: null as SceneState["route"],
   camera: null as SceneState["camera"],
   intents: [] as SceneIntent[],
+  mapStyle: "realistic" as "realistic" | "stylised",
 };
 
 export const useScene = create<SceneState>((set) => ({
@@ -103,5 +107,7 @@ export const useScene = create<SceneState>((set) => ({
   toggleLens: (l) => set((s) => ({ lensVisible: { ...s.lensVisible, [l]: !s.lensVisible[l] } })),
   setGaps: (gapsVisible) => set({ gapsVisible }),
   toggleGaps: () => set((s) => ({ gapsVisible: !s.gapsVisible })),
+  setMapStyle: (mapStyle) => set({ mapStyle }),
+  clearRoute: () => set({ route: null }),
   reset: () => set(initial),
 }));

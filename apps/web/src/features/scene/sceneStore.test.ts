@@ -50,3 +50,31 @@ describe("sceneStore.applyIntent", () => {
     expect(useScene.getState().lensVisible.waste).toBe(true);
   });
 });
+
+describe("redesign additions", () => {
+  it("mapStyle defaults to realistic and can be set", () => {
+    useScene.getState().reset();
+    expect(useScene.getState().mapStyle).toBe("realistic");
+    useScene.getState().setMapStyle("stylised");
+    expect(useScene.getState().mapStyle).toBe("stylised");
+  });
+  it("clearRoute drops the highlighted route only", () => {
+    useScene.getState().reset();
+    useScene.getState().setScenario("stage_p3m");
+    useScene.getState().applyIntent({
+      kind: "route.highlight",
+      route_id: "r1",
+      geojson: {
+        type: "LineString",
+        coordinates: [
+          [0, 0],
+          [1, 1],
+        ],
+      },
+    } as never);
+    expect(useScene.getState().route?.id).toBe("r1");
+    useScene.getState().clearRoute();
+    expect(useScene.getState().route).toBeNull();
+    expect(useScene.getState().scenarioId).toBe("stage_p3m");
+  });
+});
