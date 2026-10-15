@@ -12,6 +12,8 @@ def test_health_and_site():
 def test_routes_confirmed():
     r = c.post("/routes", json={"from": "park-b", "to": "playground", "profile": "stroller"}).json()
     assert r["status"] == "confirmed"
+    # confirmed over team_survey_placeholder evidence: status unchanged, flagged as demo values
+    assert r["demo_evidence"] is True and r["routes"][0]["demo_evidence"] is True
 
 
 def test_layers_access_has_status():

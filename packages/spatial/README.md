@@ -82,6 +82,10 @@ pruning, bounded by `MAX_REST_LABELS` (deterministic, not wall-clock).
 | `blocked` | The endpoints are connected in the unfiltered graph, but every path is cut by a known FAIL |
 | `no_data` | The endpoints are in different graph components (for `drive`: no connecting road, or a place with no mapped road within the snap distance), or a place or profile is unknown. A data gap, never "not reachable" |
 
+A route whose facts include `team_survey_placeholder` evidence carries `demo_evidence: true`
+(also on `RouteResult` for `routes[0]`). The status is not downgraded: `confirmed` stays
+`confirmed`, and the UI and agent say "confirmed on demo values, not yet surveyed".
+
 `plan_route` files at most 10 verification requests per call (`MAX_ROUTE_VRS`); the overflow is
 counted in `verification_requests_truncated`. Flood unknowns never file a VR.
 

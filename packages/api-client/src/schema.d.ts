@@ -436,6 +436,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/simulations/{run_id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Cancel Simulation
+         * @description Stop a queued or running run. It ends as `cancelled` at once (the worker stops at its next
+         *     journey) and the run slot is free again. 404 unknown run, 409 if it already ended.
+         */
+        post: operations["cancel_simulation_simulations__run_id__cancel_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/site": {
         parameters: {
             query?: never;
@@ -1009,6 +1030,11 @@ export interface components {
         };
         /** Route */
         Route: {
+            /**
+             * Demo Evidence
+             * @default false
+             */
+            demo_evidence: boolean;
             /** Distance M */
             distance_m: number;
             /** Est Minutes */
@@ -1082,6 +1108,11 @@ export interface components {
             closures?: {
                 [key: string]: unknown;
             }[];
+            /**
+             * Demo Evidence
+             * @default false
+             */
+            demo_evidence: boolean;
             /** Max Rest Gap M */
             max_rest_gap_m?: number | null;
             /** Rest Limit M */
@@ -1308,7 +1339,8 @@ export interface components {
         };
         /**
          * SimRun
-         * @description A run's state. `report` is set only when `status` is `done`.
+         * @description A run's state. `report` is set only when `status` is `done`. `cancelled` (staff asked) and
+         *     `timeout` (the total time budget ran out) end a run without a report.
          */
         SimRun: {
             /** Created At */
@@ -1326,7 +1358,7 @@ export interface components {
              * Status
              * @enum {string}
              */
-            status: "queued" | "running" | "done" | "failed";
+            status: "queued" | "running" | "done" | "failed" | "cancelled" | "timeout";
         };
         /** SimStarted */
         SimStarted: {
@@ -2424,6 +2456,48 @@ export interface operations {
         responses: {
             /** @description Successful Response */
             200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SimRun"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    cancel_simulation_simulations__run_id__cancel_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-staff-token"?: string | null;
+            };
+            path: {
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SimRun"];
+                };
+            };
+            /** @description the run already ended */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };

@@ -233,3 +233,9 @@ def test_no_entrance_warning_when_the_place_has_a_mapped_entrance(ctx):
     p.entrance_ids = ["no-such-entrance"]
     r = tools.plan_route(ctx, "park-b", "kiosk", "default")
     assert [w for w in r.warnings if "entrance is not mapped" in w]
+
+
+def test_plan_route_tool_data_carries_demo_evidence(ctx):
+    res = tools.plan_route(ctx, "park-b", "playground", "stroller")
+    assert res.data["status"] == "confirmed" and res.data["demo_evidence"] is True
+    assert res.data["routes"][0]["demo_evidence"] is True

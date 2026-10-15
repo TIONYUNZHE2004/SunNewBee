@@ -1373,6 +1373,11 @@
       },
       "Route": {
         "properties": {
+          "demo_evidence": {
+            "default": false,
+            "title": "Demo Evidence",
+            "type": "boolean"
+          },
           "distance_m": {
             "title": "Distance M",
             "type": "number"
@@ -1575,6 +1580,11 @@
             },
             "title": "Closures",
             "type": "array"
+          },
+          "demo_evidence": {
+            "default": false,
+            "title": "Demo Evidence",
+            "type": "boolean"
           },
           "max_rest_gap_m": {
             "anyOf": [
@@ -2194,7 +2204,7 @@
         "type": "object"
       },
       "SimRun": {
-        "description": "A run's state. `report` is set only when `status` is `done`.",
+        "description": "A run's state. `report` is set only when `status` is `done`. `cancelled` (staff asked) and\n`timeout` (the total time budget ran out) end a run without a report.",
         "properties": {
           "created_at": {
             "anyOf": [
@@ -2259,7 +2269,9 @@
               "queued",
               "running",
               "done",
-              "failed"
+              "failed",
+              "cancelled",
+              "timeout"
             ],
             "title": "Status",
             "type": "string"
@@ -4228,6 +4240,72 @@
           }
         },
         "summary": "Get Simulation"
+      }
+    },
+    "/simulations/{run_id}/cancel": {
+      "post": {
+        "description": "Stop a queued or running run. It ends as `cancelled` at once (the worker stops at its next\njourney) and the run slot is free again. 404 unknown run, 409 if it already ended.",
+        "operationId": "cancel_simulation_simulations__run_id__cancel_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "title": "Run Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-staff-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Staff-Token"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SimRun"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SimRun"
+                }
+              }
+            },
+            "description": "the run already ended"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Cancel Simulation"
       }
     },
     "/site": {

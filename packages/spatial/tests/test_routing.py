@@ -543,3 +543,25 @@ def world_edge_template() -> dict:
             "width_m": Claim(value=1.5, **v),
         },
     }
+
+
+def test_confirmed_route_over_placeholder_evidence_is_flagged_demo(world):
+    # Status stays `confirmed` (the evaluation is correct); the flag lets the UI and agent say
+    # "confirmed on demo values, not yet surveyed".
+    rr = plan_route(world, "park-b", "playground", "stroller")
+    assert rr.status == "confirmed" and rr.routes[0].status == "confirmed"
+    assert rr.routes[0].demo_evidence is True and rr.demo_evidence is True
+
+
+def test_route_without_placeholder_evidence_is_not_flagged(world):
+    for eid in ("seg-ab", "seg-bc", "seg-cd"):
+        for c in world.edges[eid].claims.values():
+            c.evidence_type = "field_survey"
+    rr = plan_route(world, "park-b", "playground", "stroller")
+    assert rr.status == "confirmed"
+    assert rr.routes[0].demo_evidence is False and rr.demo_evidence is False
+
+
+def test_no_route_result_is_not_demo(world):
+    rr = plan_route(world, "park-b", "moon-base", "stroller")
+    assert rr.demo_evidence is False

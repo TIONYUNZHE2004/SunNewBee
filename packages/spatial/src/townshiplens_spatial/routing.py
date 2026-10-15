@@ -15,6 +15,9 @@ UNKNOWN_WEIGHT = 5.0
 WALK_M_PER_MIN = 70.0
 # Place types that can be a rest point (OSM benches import as `seating`); whether one counts
 # is tri-state from its own claims (evaluate.rest_point_state).
+PLACEHOLDER_SOURCE = (
+    "team_survey_placeholder"  # demo values, not surveyed (see Route.demo_evidence)
+)
 REST_TYPES = frozenset({"seating", "shelter"})
 # Deterministic bound on the rest-constrained search (labels created, not wall-clock time).
 MAX_REST_LABELS = 200_000
@@ -326,7 +329,9 @@ def _route_from_nodes(world, nodes, keys, from_id, to_id, profile, scenario_id, 
         geometry={"type": "LineString", "coordinates": coords},
     )
     route.max_gap_between_rest_m = _max_rest_gap(world, nodes, keys, {r["node_id"] for r in rest})
-    route.evidence_ids = list(dict.fromkeys(ev.id for ev in evidence_for_route(world, route)))
+    ev_list = evidence_for_route(world, route)
+    route.evidence_ids = list(dict.fromkeys(ev.id for ev in ev_list))
+    route.demo_evidence = any(ev.source_type == PLACEHOLDER_SOURCE for ev in ev_list)
     limit = profile.max_rest_free_run_m
     if limit is not None:
         verified = {r["node_id"] for r in rest if r["status"] == "verified"}
@@ -422,12 +427,16 @@ def _plan(world, from_id, to_id, profile, scenario_id) -> RouteResult:
         )
         routes = _pick(world, *found, evals, from_id, to_id, profile, scenario_id)
         if routes:
-            result = RouteResult(status=routes[0].status, routes=routes)
+            result = RouteResult(
+                status=routes[0].status, routes=routes, demo_evidence=routes[0].demo_evidence
+            )
             return _with_rest(result, limit, truncated)
     found, evals, _ = _passes(_search, world, sources, targets, profile, scenario_id)
     routes = _pick(world, *found, evals, from_id, to_id, profile, scenario_id)
     if routes:
-        result = RouteResult(status=routes[0].status, routes=routes)
+        result = RouteResult(
+            status=routes[0].status, routes=routes, demo_evidence=routes[0].demo_evidence
+        )
         return _with_rest(result, limit, truncated) if limit is not None else result
     if _disconnected(world, profile, sources, targets):
         # Not "blocked": the mapped data does not join these two places, so no known barrier
