@@ -287,3 +287,68 @@ def test_seed_hero_route_still_confirmed_without_major_roads(elmina):
     assert rr.status == "confirmed"
     assert rr.routes[0].distance_m == pytest.approx(440.6, abs=5)
     assert not [s for s in rr.routes[0].segments if elmina.edges[s.edge_id].type == "major_road"]
+
+
+def test_overpass_http_error_logs_the_response_head(monkeypatch, tmp_path, capsys):
+    monkeypatch.setattr(overpass, "CACHE", tmp_path)
+    monkeypatch.setattr(overpass, "REQUESTS_MADE", 0)
+    monkeypatch.setattr(overpass, "MAX_REQUESTS", 1)
+    monkeypatch.setattr(overpass.time, "sleep", lambda s: None)
+
+    class R:
+        status_code = 500
+        text = "<p>runtime error: Query failed with the exception: x</p>" + "y" * 500
+
+    monkeypatch.setattr(overpass.requests, "post", lambda *a, **k: R())
+    with pytest.raises(overpass.BudgetExceeded):
+        overpass.query("[out:json];way(1,2,3,4);out;")
+    out = capsys.readouterr().out
+    assert "runtime error: Query failed" in out and "y" * 300 not in out
+
+
+def test_overpass_error_text_is_extracted_from_the_html_page():
+    page = (
+        '<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 '
+        'Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html><head>'
+        "<title>OSM3S Response</title></head><body><p>The data included in this document is "
+        'from www.openstreetmap.org.</p><p><strong style="color:#FF0000">Error</strong>: '
+        "runtime error: open64: 0 Success /osm3s_osm_base Dispatcher_Client::request_read_and_idx"
+        "::timeout. The server is probably too busy to handle your request. </p></body></html>"
+    )
+    msg = overpass.error_text(page)
+    assert msg.startswith("Error: runtime error: open64")
+    assert "too busy" in msg and "<" not in msg and "DOCTYPE" not in msg
+    assert overpass.error_text("plain failure") == "plain failure"
+
+
+def test_overpass_response_with_remark_is_not_cached(monkeypatch, tmp_path):
+    """Review I1: Overpass answers 200 + `remark` on timeout/out-of-memory with truncated
+    elements; that must not be cached as a complete result."""
+    import json
+
+    monkeypatch.setattr(overpass, "CACHE", tmp_path)
+    monkeypatch.setattr(overpass, "REQUESTS_MADE", 0)
+    monkeypatch.setattr(overpass, "MAX_REQUESTS", 2)
+    monkeypatch.setattr(overpass.time, "sleep", lambda s: None)
+    body = {"elements": [{"type": "way", "id": 1}], "remark": "runtime error: Query timed out"}
+    text = json.dumps(body)
+
+    class R:
+        status_code = 200
+
+        def __init__(self):
+            self.text = text
+
+        def json(self):
+            return body
+
+    monkeypatch.setattr(overpass.requests, "post", lambda *a, **k: R())
+    with pytest.raises(overpass.BudgetExceeded):
+        overpass.query("[out:json];way(id:1);out geom;")
+    assert not list(tmp_path.glob("*.json"))
+    assert overpass.REQUESTS_MADE == 2
+
+
+def test_overpass_failure_classes():
+    assert issubclass(overpass.BudgetExceeded, overpass.OverpassError)
+    assert issubclass(overpass.OverpassFailed, overpass.OverpassError)

@@ -3,6 +3,7 @@
 
 import hashlib
 import json
+import re
 import time
 from datetime import UTC, datetime
 from pathlib import Path
@@ -25,8 +26,16 @@ MAX_REQUESTS: int | None = None
 ENDPOINTS: list[str] | None = None
 
 
-class BudgetExceeded(RuntimeError):
+class OverpassError(RuntimeError):
+    """Base class for Overpass fetch failures the import reports as BLOCKED."""
+
+
+class BudgetExceeded(OverpassError):
     """Raised instead of making an HTTP request that would exceed MAX_REQUESTS."""
+
+
+class OverpassFailed(OverpassError):
+    """Every attempt failed (HTTP error, connection error or an incomplete response)."""
 
 
 def query(ql: str, retries: int = 6) -> dict:
@@ -36,6 +45,11 @@ def query(ql: str, retries: int = 6) -> dict:
     if key.exists():
         return json.loads(key.read_text())
     current = 0  # index into ENDPOINTS
+
+    def backoff(attempt: int) -> None:
+        if attempt + 1 < retries:  # no pointless wait after the final attempt
+            time.sleep(min(60, 5 * 2**attempt))
+
     for attempt in range(retries):
         if MAX_REQUESTS is not None and REQUESTS_MADE >= MAX_REQUESTS:
             raise BudgetExceeded(f"Overpass request budget of {MAX_REQUESTS} used up")
@@ -52,22 +66,43 @@ def query(ql: str, retries: int = 6) -> dict:
         except requests.RequestException as exc:
             print(f"  overpass error on {url}: {exc}")
             current += 1
-            time.sleep(min(60, 5 * 2**attempt))
+            backoff(attempt)
             continue
         if r.status_code == 200:
             try:
                 data = r.json()
             except ValueError:
                 data = None
+            if isinstance(data, dict) and data.get("remark"):
+                # 200 + remark = timeout / out of memory with truncated elements: incomplete,
+                # so never cached as a complete answer.
+                print(f"  overpass incomplete answer from {url}: {error_text(data['remark'])}")
+                backoff(attempt)
+                continue
             if data is not None:
                 key.write_text(r.text)
                 meta = {"endpoint": url, "fetched_at": datetime.now(UTC).isoformat()}
                 key.with_suffix(".meta.json").write_text(json.dumps(meta))
                 print(f"  overpass OK from {url} -> {key.name}")
                 return data
-        print(f"  overpass {r.status_code} on {url}; backing off (attempt {attempt + 1}/{retries})")
-        time.sleep(min(60, 5 * 2**attempt))
-    raise RuntimeError(f"Overpass failed after {retries} attempts")
+        head = error_text(r.text or "")  # e.g. Overpass's runtime-error text
+        print(
+            f"  overpass {r.status_code} on {url}; backing off (attempt {attempt + 1}/{retries})"
+            + (f": {head}" if head else "")
+        )
+        backoff(attempt)
+    raise OverpassFailed(f"Overpass failed after {retries} attempts")
+
+
+def error_text(body: str, limit: int = 300) -> str:
+    """The readable part of an Overpass error page: tags stripped, from the first "Error"
+    (Overpass puts the reason there) or else the whole text, whitespace collapsed."""
+    text = " ".join(
+        re.sub(r"<[^>]*>", " ", re.sub(r"<head>.*?</head>", " ", body, flags=re.S)).split()
+    )
+    text = text.replace(" :", ":")
+    i = text.find("Error")
+    return (text[i:] if i >= 0 else text)[:limit]
 
 
 def tiles(bbox: tuple[float, float, float, float], n: int = 2):

@@ -659,6 +659,11 @@
             ],
             "title": "Node Id"
           },
+          "node_inferred": {
+            "default": false,
+            "title": "Node Inferred",
+            "type": "boolean"
+          },
           "notes": {
             "anyOf": [
               {

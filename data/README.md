@@ -98,6 +98,27 @@ The vintages are mixed, as they are for the walk cache. Re-running `import_osm.p
 
 **Segment renumbering.** 101+ existing `seg-<way>-<k>` ids now carry new geometry, because their ways are re-split at major-road junctions. None of the ids referenced in this README, `access/README.md`, `data/demo/*.jsonl`, e2e tests or golden changed. The overlay (P1/P2, ramp `seg-1306543755-2`) is identical. The 4 Elmina demo-cache entries were re-recorded with the mock.
 
+## Area places (Task 43): code ready, seed NOT yet rebuilt
+
+17 of 231 seed places have no `node_id`. Among them are 11 parks, 3 schools and the hero "Elmina Urban Park" (`osm-way-1309457596`). The old rule snaps an area's *centre* to a walk node within 60 m, which misses large areas.
+
+- `import_osm.py` now fetches the outline of every way place with one `way(id:…);out geom;` lookup (cached). The place query itself still uses `out center`.
+- Point places keep the 60 m rule. **Every way place is an area.**
+  - **Normal snap.** Candidates are walk nodes inside the polygon or within **40 m** of its outline that belong to the main network: the largest component, or a component of at least 50 nodes. Tiny disconnected fragments never count. The snap picks the largest candidate component, then the node nearest the place centre. Evidence: `osm_area_boundary_snap`.
+  - **Fallback.** It applies when the outline was not returned, when nothing is within 40 m, or when the only candidates are in tiny fragments. The place then takes the nearest main-network node within 60 m of its centre, so no place loses a main-network node it had (R26). A node in a tiny fragment is dropped on purpose (R28: honesty over coverage). Evidence: `osm_area_centre_snap`, with the reason in the claim's `method`. The place gets a `snap_warning`. With no such node, it stays unsnapped, still with a warning.
+  - **Marking.** Every area snap gets `node_inferred: true` and an `access_point` claim (`reported`).
+  - **Coverage.** `flood/coverage.json` lists `places_snap_warnings` (id + warning) and `places_without_node`.
+- **Completeness checks.** Missing outline ids are printed as a warning. An Overpass answer with a `remark` (truncated by a timeout or out-of-memory) is never cached.
+- `tools.plan_route` adds, for a route to or from such a place: "Route ends (starts) at the nearest mapped path to <name>; its entrance is not mapped." It also cites the `access_point` evidence. The warning is suppressed when the place has a mapped entrance, because routing then ends at that entrance.
+- `EvacCentre.node_inferred` (typed in the API) and the `/layers/access` place property `node_inferred` expose the flag.
+- Evacuation centres built from such a place carry `entrance_note` in `list_evacuation_centres` and in the place details' reachability. They add the warning "Reachability ends at the nearest mapped path to <centre>; its entrance is not mapped."
+
+**Status (15 Oct 2026): BLOCKED on Overpass load.** 10 of 12 requests are used.
+- First 8: HTTP 500 from `overpass.kumi.systems` (6) and `overpass.private.coffee` (2).
+- Then 2 single all-ids lookups on `overpass-api.de` (R26), 2 minutes apart. Both returned HTTP 504 with "Error: runtime error: open64: 0 Success /osm3s_osm_base Dispatcher_Client::request_read_and_idx::timeout. The server is probably too busy to handle your request."
+- The seed is unchanged, so the 17 places are still unsnapped.
+- To finish: re-run `import_osm.py --endpoint https://overpass-api.de/api/interpreter --max-requests N` when the server is less busy. Then overlay → flood → waste with the offline flags under Rebuild, and remove the `xfail` on `test_seed_elmina_urban_park_has_inferred_node_and_warned_route`.
+
 ## Flood lens (Task 10: `data/scripts/build_flood.py`)
 
 **Indicative scenarios from a 30 m elevation model, not a forecast.** The app never gives a water depth on a path. Every scenario carries its disclaimer and the official links (JPS Public InfoBanjir, MET Malaysia). See [ADR 0010](../docs/00-overview/decisions/0010-flood-lens-hand-scenarios.md); the method changed from HAND to REM as described below.

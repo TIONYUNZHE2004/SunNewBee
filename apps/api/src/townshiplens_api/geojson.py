@@ -41,7 +41,13 @@ def _layer(
             {
                 "type": "Feature",
                 "geometry": {"type": "Point", "coordinates": p.coord},
-                "properties": {"id": p.id, "kind": p.kind, "type": p.type, "name": p.name},
+                "properties": {
+                    "id": p.id,
+                    "kind": p.kind,
+                    "type": p.type,
+                    "name": p.name,
+                    "node_inferred": p.node_inferred,  # Task 43: nearest path, not an entrance
+                },
             }
             for p in world.places.values()
             if not p.id.startswith("__")

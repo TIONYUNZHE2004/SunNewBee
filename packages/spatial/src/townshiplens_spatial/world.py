@@ -64,6 +64,7 @@ def _place(f: dict) -> Place:
         aliases=p.get("aliases", []),
         coord=f["geometry"]["coordinates"],
         node_id=p.get("node_id"),
+        node_inferred=bool(p.get("node_inferred", False)),
         entrance_ids=p.get("entrance_ids", []),
         claims=p.get("claims") or {},
     )

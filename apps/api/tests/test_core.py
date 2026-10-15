@@ -115,3 +115,10 @@ def test_layer_etag_changes_with_boot_nonce(monkeypatch):
     monkeypatch.setattr(core, "_BOOT", "other-boot")
     r = c.get("/layers/access", headers={"If-None-Match": a})
     assert r.status_code == 200 and r.headers["etag"] != a
+
+
+def test_layers_access_places_carry_node_inferred():
+    """Task 43 review minor 7: the map can tell an inferred access point from a mapped one."""
+    fc = c.get("/layers/access").json()
+    pts = [f["properties"] for f in fc["features"] if f["geometry"]["type"] == "Point"]
+    assert pts and all(p["node_inferred"] is False for p in pts)  # tiny fixture: none inferred
