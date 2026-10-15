@@ -22,6 +22,16 @@ export const initialForm: FormState = {
   error: null,
 };
 
+export const PHOTO_PRIVACY_NOTE =
+  "Location and camera details are removed from the photo before it is stored.";
+
+export const PHOTO_REJECT_TEXT = "Photos are only attached to Verify or Correct";
+
+/** The photo only applies to Verify or Correct; switching to Reject drops any chosen file. */
+export const photoAllowed = (a: FormState["action"]) => a !== "reject";
+export const photoAfterAction = (a: FormState["action"], photo: File | null): File | null =>
+  photoAllowed(a) ? photo : null;
+
 export const VERIFY_DISABLED_TEXT = "Nothing to verify yet: enter the observed value with Correct";
 
 export const hasCurrentValue = (v: unknown): boolean => v !== null && v !== undefined && v !== "";

@@ -39,9 +39,15 @@ export type Briefing = {
     possible: PlaceRef[];
     isolated_components: Island[];
     disclaimer: string;
+    likely_edge_ids?: string[];
+    possible_edge_ids?: string[];
+    likely_place_ids?: string[];
+    possible_place_ids?: string[];
   };
   centres: CentreReach[];
   disclaimer: string;
+  near_place?: string | null;
+  near_place_name?: string | null;
 };
 
 export class ApiError extends Error {
@@ -76,7 +82,28 @@ async function getJson<T>(path: string): Promise<T> {
   return (await r.json()) as T;
 }
 
-export const fetchOpenVRs = () => getJson<VR[]>("/verification-requests?status=open");
+export type Kpis = Schemas["Kpis"];
+export type VrCreated = Schemas["VerificationRequested"];
+
+export const fetchKpis = () => getJson<Kpis>("/kpis");
+export const fetchVRs = (query: string) => getJson<VR[]>(`/verification-requests${query}`);
+
+export async function createVR(
+  body: { target_id: string; attribute: string; reason?: string },
+  token: string,
+): Promise<VrCreated> {
+  const r = await fetch("/api/verification-requests", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "application/json",
+      "X-Staff-Token": token,
+    },
+    body: JSON.stringify(body),
+  });
+  if (!r.ok) throw new ApiError(r.status, await readDetail(r));
+  return (await r.json()) as VrCreated;
+}
 
 export const fetchBriefing = (scenarioId: string, profile: string) =>
   getJson<Briefing>(
@@ -87,6 +114,7 @@ export type ResolveBody = {
   action: "verify" | "correct" | "reject";
   value?: string | number | boolean;
   note: string;
+  evidence_id?: string;
 };
 
 export async function resolveVR(id: string, body: ResolveBody, token: string): Promise<void> {
@@ -96,6 +124,21 @@ export async function resolveVR(id: string, body: ResolveBody, token: string): P
     body: JSON.stringify(body),
   });
   if (!r.ok) throw new ApiError(r.status, await readDetail(r));
+}
+
+export type EvidenceUploaded = Schemas["EvidenceUploaded"];
+
+/** Multipart upload; the browser sets the boundary, so no Content-Type here. */
+export async function uploadEvidence(file: File, token: string): Promise<EvidenceUploaded> {
+  const form = new FormData();
+  form.append("file", file);
+  const r = await fetch("/api/evidence", {
+    method: "POST",
+    headers: { Accept: "application/json", "X-Staff-Token": token },
+    body: form,
+  });
+  if (!r.ok) throw new ApiError(r.status, await readDetail(r));
+  return (await r.json()) as EvidenceUploaded;
 }
 
 export type SimReport = Schemas["SimReport"];

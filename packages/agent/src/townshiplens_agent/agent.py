@@ -17,6 +17,7 @@ from pydantic_ai.models.openrouter import OpenRouterModel
 from pydantic_ai.providers.openrouter import OpenRouterProvider
 from townshiplens_spatial import tools as sp
 from townshiplens_spatial.models import Evidence
+from townshiplens_spatial.routing import CENTRE_PREFIX
 from townshiplens_spatial.scenario_meta import scenario_source
 
 from .answer import FinalAnswer
@@ -161,6 +162,20 @@ def _place_names(name: str, data: Any) -> set[str]:
     return out
 
 
+def route_summary(world, profile: str | None, from_id: str | None, to_id: str | None) -> str:
+    """Staff-facing VR text: place and centre names, never the user's words or internal ids."""
+
+    def label(i: str | None) -> str:
+        i = i or ""
+        if i.startswith(CENTRE_PREFIX):
+            c = world.centres.get(i.removeprefix(CENTRE_PREFIX))
+            return c.name if c else i.removeprefix(CENTRE_PREFIX)
+        p = world.places.get(i)
+        return p.name if p else i
+
+    return f"{profile} route {label(from_id)} -> {label(to_id)}"
+
+
 async def call_tool(deps: Deps, name: str, **kwargs: Any) -> dict:
     """Run one spatial tool, record what it returned and stream its events."""
     rec = deps.rec
@@ -174,8 +189,8 @@ async def call_tool(deps: Deps, name: str, **kwargs: Any) -> dict:
     await _emit(deps, ToolCall(id=call_id, name=name, args=dict(kwargs)))
     if name == "plan_route":
         # Shown to staff on the VR: describe the request, never copy the user's words (PII).
-        kwargs["question_summary"] = (
-            f"{kwargs.get('profile')} route {kwargs.get('from_id')} -> {kwargs.get('to_id')}"
+        kwargs["question_summary"] = route_summary(
+            deps.ctx.world, kwargs.get("profile"), kwargs.get("from_id"), kwargs.get("to_id")
         )
     # Spatial tools are sync (graph search, SQLite): keep the event loop free.
     res: sp.ToolResult = await asyncio.to_thread(sp.TOOLS[name], deps.ctx, **kwargs)

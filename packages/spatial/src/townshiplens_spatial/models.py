@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from typing import Any, Literal
 
 from pydantic import BaseModel, Field
@@ -27,6 +28,12 @@ class Claim(BaseModel):
     notes: str | None = None
 
 
+def photo_url(claim: Claim) -> str | None:
+    """Public URL of the newest uploaded photo attached to a claim (GET /evidence/{id})."""
+    last = claim.evidence_ids[-1] if claim.evidence_ids else ""
+    return f"/evidence/{last}" if re.fullmatch(r"[0-9a-f]{32}", last) else None
+
+
 class Evidence(BaseModel):
     id: str  # "ev-<element_id>.<attribute>" or "ev-scn-<scenario_id>" or "ev-place-<place_id>"
     element_id: str
@@ -36,6 +43,7 @@ class Evidence(BaseModel):
     verified_at: str | None = None
     source_type: str | None = None
     source_url: str | None = None
+    photo_url: str | None = None
 
 
 class Edge(BaseModel):
@@ -100,7 +108,7 @@ class Scenario(BaseModel):
     stage_m: float
     method: str = "HAND"
     dem: str = "Copernicus GLO-30"
-    margin_m: float = 0.5
+    margin_m: float | None = None  # omitted when the scenario does not state one
     created: str | None = None
     disclaimer: str
     links: list[dict[str, str]] = Field(default_factory=list)

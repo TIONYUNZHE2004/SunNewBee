@@ -257,3 +257,160 @@
   - lane/data (Task 26 round 2): C3, ruled as `no_data` with a "mapped paths do not connect" warning when endpoints are in different components; `blocked` only when a known FAIL cuts every path; islands exclude components already disconnected at baseline.
   - lane/be (Task 30): C1, I3, I2 (the label becomes "No known barrier"), and FE labels `no_data` as "No mapped connection (data gap)".
 - **Task 26 round 1** (drive): endpoints snap to roads within 150 m. On the seed's 66 parking pairs: 6 partly_unverified, 60 no_data, 0 blocked. The roads split into 201 components, so they need a road-aware import later.
+
+## 03:41 — Final-review fix wave merged; connectivity + wave 3 dispatched
+- **Merged and pushed:**
+  - Task 28 (`f577516`):
+    - honesty rules (no "safe", no depths, tool required) hold even when no tool ran;
+    - placeholder rule keyed on returned evidence;
+    - empty `LLM_PROVIDER` resolves to mock;
+    - Elmina mock answers fixed: mall chip routes to Lakeside Mall; recycling says none mapped and files no bogus VR;
+    - metric renamed `answered_without_citations`;
+    - greeting prompt rule;
+    - 4 Elmina demo entries re-recorded with the mock.
+  - e2e readiness fix (`aefcd8e`): Playwright waits for `/api/site` through the proxy. Probable cause of the first-run flake; 3 of 3 runs passed since.
+  - Task 30 (`ae8fd44`):
+    - staff Verify/Correct work (typed values; Verify disabled when nothing is recorded; current value shown);
+    - resolve holds `world_lock` end to end;
+    - "Checked" becomes "No known barrier";
+    - `no_data` reads "No mapped connection (data gap)";
+    - demo facts in the place card show "Demo value · not surveyed".
+  - Task 26 (`64dd224`):
+    - drive profile on street/track edges, snapped within 150 m, never `confirmed`;
+    - `blocked` only when a known FAIL cuts every path in a connected network, otherwise `no_data`.
+- **Checklist on `64dd224`:**
+  - pytest 365: PASS
+  - golden 12/12 (mock): PASS
+  - vitest 127: PASS
+  - lint: PASS
+  - gen drift: PASS
+  - typecheck: PASS
+  - build: PASS
+  - e2e 10/10 on the first run (includes the new staff correct-and-reroute journey): PASS
+- **Fragmentation measured:** 199 components; the largest holds only 32% of 11,418 nodes. Root cause: the import excludes `primary|secondary|trunk`, the roads that join Elmina's neighbourhoods.
+  - **Ruling R22:** one polite tiled Overpass fetch of major roads, ≤ 12 requests.
+  - Major roads are imported with an honest `sidewalk` claim. A missing claim means UNKNOWN, so such routes can never be `confirmed`.
+  - Dispatched as Task 31 (Opus).
+- **Wave 3 dispatched in parallel:**
+  - Task 32: tappable centre and waste markers, list sections, "Collection day: unknown, ask MBSA".
+  - Task 33: management KPI tiles, queue filters and tabs, Create VR on journey gaps.
+  - Task 34: evidence photo upload with stdlib JPEG/PNG metadata stripping (no Pillow, per R21); the new dependency is python-multipart (Apache-2.0).
+
+## 03:51 — Wave 3 merges + browser check
+- **Merged and pushed:**
+  - Task 33 (`bda5218`): KPI tiles, queue filters and tabs, Create VR on journey gaps; staff token in one shared store.
+  - Task 32 (`8d3be9e`):
+    - tappable centre and waste markers in Cesium and Mapbox, plus list sections;
+    - cards say "Candidate (OSM), not an official relief centre" and "Route from Elmina Lakeside Mall (demo start point, not your location)";
+    - reach labels per status;
+    - waste cards say "Collection day: unknown, ask MBSA".
+  - Coordinator fix (`0162637`): centre and waste labels show only within 1.5 km of the camera or when focused. 72 labels had formed an unreadable block.
+- **Checklist on `0162637`:**
+  - pytest 369: PASS
+  - golden 12/12 (mock): PASS
+  - vitest 177: PASS
+  - lint: PASS
+  - gen drift: PASS
+  - typecheck: PASS
+  - build: PASS
+  - e2e 10/10: PASS
+- **Browser, real seed (DEMO_MODE, mock-backed):**
+  - Deep spot "Sungai Subang corridor": PASS. It turns the flood lens on, selects +3 m, swaps in the flood chips, shows "Where can I go?" and the assessed-area disclaimer (`screenshots/2026-10-15-0352-real-seed-subang-deep-spot-p3m.jpg`).
+  - `/manage`: KPI tiles, filters and the Current value column render: PASS.
+  - Local dev DB note: `.data/elmina.db` holds 174 VRs filed at 03:06, before the Task 24 cap. Delete it before a demo.
+  - Polish: VR summaries show raw ids such as `__centre__evc-…`.
+- **In flight:**
+  - Task 31 (major roads; Opus).
+  - Task 34 fix round. The security review found 2 Important issues: the multipart header split across chunks, and a Correct keeping stale photo evidence.
+- **External usage:** Google tiles about 23/30 · OpenRouter unchanged at US$0.1407 (live calls stopped, R19).
+
+## 04:01 — Task 34 merged; Task 31 blocked on one Overpass tile
+- **Task 34** (`0bd0b47`): staff evidence photo upload; stdlib JPEG/PNG metadata stripping (no Pillow); public serving with id validation; resolve-with-evidence (a correct replaces stale photos).
+  - Security review (Opus) found 2 Important; both fixed. The re-review reproduced none: 3,000 random multipart splits, 13 encoder outputs plus a phone-style JPEG with GPS/ICC/MPF/IPTC all stripped, all decodable.
+  - New dependency: python-multipart 0.0.32, Apache-2.0.
+  - Checklist on `0bd0b47`:
+    - pytest 432: PASS
+    - golden 12/12 (mock): PASS
+    - vitest 177: PASS
+    - lint: PASS
+    - gen: PASS
+    - typecheck: PASS
+    - build: PASS
+    - e2e 10/10: PASS
+    - `.data/evidence` gitignored: PASS
+  - Note: a plain `uv sync --all-groups` (without `--all-packages`) uninstalled the workspace packages locally. Use the README/CI command `uv sync --all-packages --all-groups`.
+- **Coordinator fix** (`e7b7262`): VR summaries name places and centres instead of `__centre__…` ids.
+- **Task 31** (major roads): **BLOCKED** at the 12-request Overpass cap. The NE tile returned repeated 504s. Code is committed (`a154542`); the seed is not rebuilt.
+  - Estimate from the 3 cached tiles (in memory only, unverified until rebuilt):
+    - components 199 → 103;
+    - largest share 32% → 85%;
+    - stroller centres from the mall at baseline: 23 reachable → 53 partly_unverified;
+    - journey no_data 99% → 46%;
+    - hero route still confirmed 440.6 m.
+  - None of the 788 major-road segments has a usable OSM sidewalk tag. They are UNKNOWN, so routes over them are partly_unverified, never confirmed. Field-survey gap.
+  - **Ruling R23:** up to 4 more Overpass requests (task total 16), only for the failed tile, split in two.
+- **Dispatched:** Task 35 (photo evidence in the UI).
+
+## 04:10 — Tasks 35 merged; Task 31 R24; Task 36 dispatched
+- **Merged and pushed:**
+  - Task 35 (`7793b86`): photo field in the resolve form (upload then resolve; hidden on Reject; metadata note); thumbnails on evidence and place cards; same-origin `/evidence/<hex>` only.
+  - `e97e644`: citations carry `photo_url`.
+- **Checklist on `7793b86`:**
+  - pytest 433: PASS
+  - vitest 202: PASS
+  - lint: PASS
+  - gen: PASS
+  - typecheck: PASS
+  - build: PASS
+  - e2e 10/10: PASS
+- **Task 31:** still BLOCKED on the north strip (3.2175–3.24 N, 101.495–101.53 E). Overpass 504s; 16 requests used. Estimate with 4 of 5 tiles: components 199 → 84; largest share 32% → 87%; centres from the mall 23 → 56 connected (all partly_unverified); journey no_data 99% → 46%.
+  - **Ruling R24:** one last try via a public mirror (≤ 3 requests). Either way, build the seed from the tiles available and document any missing strip honestly.
+- **Dispatched:** Task 36 (F-08 "why this path" provenance popover, F-09 baseline vs scenario briefing, F-16 thresholds shown as engineering defaults).
+
+## 04:19 — Usage limit reached: early stop (deadline was 09:25)
+- **Merged and pushed since the last entry:**
+  - Task 36 (`ddf6bf7`): "Why this path?" provenance popover, baseline vs scenario flood briefing, profile thresholds labelled as engineering defaults.
+  - List-view polish (`f421243`).
+- **Browser check:** a real click on a flooded path in the Google 3D view opens the popover (PASS; `screenshots/2026-10-15-0420-real-seed-why-this-path-3d-click.jpg`). It was verified with a temporary debug hook, which is reverted and was never committed.
+- **Checklist on `f421243`:**
+  - pytest 440: PASS
+  - golden 12/12 (mock): PASS
+  - vitest 223: PASS
+  - lint: PASS
+  - gen: PASS
+  - typecheck: PASS
+  - build: PASS
+  - e2e 10/10: PASS
+- **NOT DONE / still open:**
+  - Task 31 (major roads, lane/data): the agent was still running when the run stopped. Its code commits `a154542` and `b85455a` are on lane/data and **not merged**. The seed rebuild under R24 may or may not have landed on lane/data. To resume:
+    1. Review lane/data.
+    2. Run the full checklist.
+    3. Merge.
+    4. Re-record the 4 Elmina demo entries with the mock.
+  - No final whole-branch review of Tasks 31–36.
+  - Minors are parked in the ledger.
+  - Local `.data/elmina.db` holds 174 stale VRs; delete it before a demo.
+- **External usage:**
+  - OpenRouter daily counter US$0.1407 (live calls stopped at R19).
+  - Google tiles about 26/30.
+  - Overpass about 55 (Task 3) + 16 to 19 (Task 31).
+
+## 2026-10-15 12:21 — Continuation run: preflight
+- **Asked by the team lead:** continue from Task 31 with no early stop.
+- **Answers:**
+  - Deadline: none fixed; keep going until the MVP backlog in the audit is done, then summarise.
+  - Budget: LLM US$3 total (US$0.1407 already used); Google tiles 30 fresh page loads.
+  - Overpass: up to 30 more requests, cache first.
+  - Priorities after Task 31 and the final-review fix wave: demo & pitch polish; remaining P0/P1 gaps; quality & tech debt. (Multilingual was not chosen.)
+- **Unchanged constraints from the original brief:**
+  - Lanes never push to main.
+  - Only MIT, Apache or BSD licences.
+  - No paid resources; never print or commit keys.
+  - Mock LLM for tests.
+  - Report checks as PASS / FAIL / BLOCKED / NOT RUN.
+- **Order:**
+  1. Task 31 merge.
+  2. Final whole-branch review of Tasks 31–36, then its fix wave.
+  3. Demo & pitch polish.
+  4. P0/P1 gaps: closures, gap map, rest-point routing, evacuation journeys.
+  5. Quality & tech debt.

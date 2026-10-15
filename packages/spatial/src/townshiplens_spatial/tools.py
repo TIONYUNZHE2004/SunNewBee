@@ -10,7 +10,7 @@ from . import flood as _flood
 from . import routing
 from .evaluate import evaluate_edge
 from .geo import haversine_m
-from .models import Evidence, ToolResult
+from .models import Claim, Evidence, ToolResult, photo_url
 from .scenario_meta import scenario_source
 from .vr_store import VerificationStore
 from .world import World
@@ -93,9 +93,144 @@ def find_place(ctx: Ctx, query: str, types: list[str] | None = None, limit: int 
     )
 
 
-def get_place_details(ctx: Ctx, place_id: str) -> ToolResult:
+CENTRE_SOURCE_LABEL = {
+    "official_pps": "Official PPS",
+    "osm_candidate": "Candidate (OSM), not an official relief centre",
+}
+
+
+def _centre_details(
+    ctx: Ctx, place_id: str, scenario_id: str | None, profile: str, near: str | None
+) -> ToolResult | None:
+    c = ctx.world.centres.get(place_id)
+    if c is None:
+        return None
+    official = c.source == "official_pps"
+    src_type = "official PPS report" if official else "OSM candidate"
+    claims = {
+        "source": Claim(
+            value=CENTRE_SOURCE_LABEL[c.source],
+            status="reported" if official else "unknown",
+            evidence_type=src_type,
+        )
+    }
+    if c.capacity is not None:
+        claims["capacity"] = Claim(value=c.capacity, status="unknown", evidence_type=src_type)
+    data = {
+        "id": c.id,
+        "kind": "evac_centre",
+        "type": "evacuation_centre",
+        "name": c.name,
+        "coord": c.coord,
+        "source": c.source,
+        "source_label": CENTRE_SOURCE_LABEL[c.source],
+        "evidence_url": c.evidence_url,
+        "notes": c.notes,
+        "claims": {a: v.model_dump(mode="json") for a, v in claims.items()},
+    }
+    ev = [
+        Evidence(
+            id=f"ev-centre-{c.id}",
+            element_id=c.id,
+            attribute="source",
+            value=c.source,
+            status=claims["source"].status,
+            source_type=src_type,
+            source_url=c.evidence_url,
+        )
+    ]
+    warnings: list[str] = []
+    if near:
+        row = next(
+            (
+                r
+                for r in _flood.centres_reachability(ctx.world, scenario_id, profile, near)
+                if r.centre.id == c.id
+            ),
+            None,
+        )
+        if row is not None:
+            sc = _flood.scenario(ctx.world, scenario_id) if scenario_id else None
+            data["reachability"] = {
+                "reachable": row.reachable,
+                "route_status": row.route_status,
+                "route_id": row.route_id,
+                "distance_m": row.distance_m,
+                "from": near,
+                "profile": profile,
+                "scenario_id": scenario_id,
+                "disclaimer": sc.disclaimer if sc else None,
+            }
+            if scenario_id:
+                ev.append(
+                    Evidence(
+                        id=f"ev-scn-{scenario_id}",
+                        element_id=scenario_id,
+                        attribute="scenario",
+                        status="indicative",
+                        source_type=scenario_source(ctx.world, scenario_id),
+                    )
+                )
+    return ToolResult(ok=True, data=data, evidence=ev, warnings=warnings)
+
+
+def _waste_details(ctx: Ctx, place_id: str) -> ToolResult | None:
+    w = ctx.world.waste.get(place_id)
+    if w is None:
+        return None
+    claims = {
+        "status": Claim(
+            value=w.status,
+            status=w.status,
+            evidence_type="waste point listing",
+            verified_at=w.verified_at,
+        ),
+    }
+    if w.accepted_items:
+        claims["accepted_items"] = Claim(
+            value=", ".join(w.accepted_items), status=w.status, verified_at=w.verified_at
+        )
+    data = {
+        "id": w.id,
+        "kind": "waste_point",
+        "type": w.type,
+        "name": w.name,
+        "coord": w.coord,
+        "status": w.status,
+        "source_label": f"Waste point: {w.status}",
+        "source_url": w.source_url,
+        "collection_day": None,  # never invented; ask the council
+        "claims": {a: v.model_dump(mode="json") for a, v in claims.items()},
+    }
+    ev = [
+        Evidence(
+            id=f"ev-{w.id}.status",
+            element_id=w.id,
+            attribute="status",
+            value=w.status,
+            status=w.status,
+            verified_at=w.verified_at,
+            source_type="waste point listing",
+            source_url=w.source_url,
+        )
+    ]
+    return ToolResult(ok=True, data=data, evidence=ev)
+
+
+def get_place_details(
+    ctx: Ctx,
+    place_id: str,
+    scenario_id: str | None = None,
+    profile: str = "default",
+    near: str | None = None,
+) -> ToolResult:
     p = ctx.world.places.get(place_id)
     if p is None:
+        r = _centre_details(ctx, place_id, scenario_id, profile, near) or _waste_details(
+            ctx, place_id
+        )
+        if r is not None:
+            return r
         return ToolResult(ok=False, warnings=[f"unknown place {place_id}"])
     ev = [_place_ev(p)] + [
         Evidence(
@@ -106,6 +241,7 @@ def get_place_details(ctx: Ctx, place_id: str) -> ToolResult:
             status=c.status,
             verified_at=c.verified_at,
             source_type=c.evidence_type,
+            photo_url=photo_url(c),
         )
         for a, c in p.claims.items()
     ]

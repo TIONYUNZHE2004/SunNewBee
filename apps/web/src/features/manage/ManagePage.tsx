@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link } from "react-router";
 import { FloodBriefing } from "./FloodBriefing";
 import { JourneyTests } from "./JourneyTests";
+import { KpiTiles } from "./KpiTiles";
 import { VerificationQueue } from "./VerificationQueue";
 
 const TABS = [
@@ -31,6 +32,7 @@ export function ManagePage() {
           ← Back to resident view
         </Link>
       </div>
+      <KpiTiles />
       <div
         role="tablist"
         aria-label="Management sections"

@@ -1,5 +1,47 @@
 import { describe, expect, it } from "vitest";
-import { groupByStatus, lineFeatures, normalizeLayer, pointFeatures, waterPolygons } from "./geo";
+import {
+  clickedPlaceId,
+  floodEdgePickId,
+  groupByStatus,
+  groupEdgesByStatus,
+  lineFeatures,
+  normalizeLayer,
+  pickedFloodEdgeId,
+  pointFeatures,
+  waterPolygons,
+} from "./geo";
+
+describe("flood edge picking", () => {
+  it("keeps edge ids per status group", () => {
+    const g = groupEdgesByStatus([
+      {
+        id: "a",
+        status: "flooded_likely",
+        coords: [
+          [0, 0],
+          [1, 1],
+        ],
+      },
+      {
+        id: "b",
+        status: "flooded_likely",
+        coords: [
+          [1, 1],
+          [2, 2],
+        ],
+      },
+      { id: "c", status: "flooded_possible", coords: [[1, 1]] },
+    ]);
+    expect(g.get("flooded_likely")?.map((e) => e.id)).toEqual(["a", "b"]);
+    expect(g.has("flooded_possible")).toBe(false); // < 2 points: dropped like groupByStatus
+  });
+  it("round-trips the pick id and ignores other picks", () => {
+    expect(pickedFloodEdgeId({ id: floodEdgePickId("seg-1"), primitive: {} })).toBe("seg-1");
+    expect(pickedFloodEdgeId(undefined)).toBeNull();
+    expect(pickedFloodEdgeId({ id: { placeId: "x" } })).toBeNull();
+    expect(pickedFloodEdgeId({ id: "plain" })).toBeNull();
+  });
+});
 
 describe("geo", () => {
   it("defaults a missing status to unknown, never ok", () => {
@@ -122,5 +164,25 @@ describe("geo", () => {
     ]);
     expect(g.get("ok")).toHaveLength(2);
     expect(g.has("blocked")).toBe(false);
+  });
+});
+
+describe("clickedPlaceId", () => {
+  const f = (layer: string, id?: string) => ({
+    layer: { id: layer },
+    properties: id ? { id } : {},
+  });
+  it("picks the first feature on an interactive layer", () => {
+    expect(
+      clickedPlaceId(
+        [f("other", "x"), f("evac-centres", "evc-1")],
+        ["access-places", "evac-centres"],
+      ),
+    ).toBe("evc-1");
+    expect(clickedPlaceId([f("waste-points", "wp-1")], ["waste-points"])).toBe("wp-1");
+  });
+  it("returns null when nothing matches", () => {
+    expect(clickedPlaceId([f("evac-centres")], ["evac-centres"])).toBeNull();
+    expect(clickedPlaceId(undefined, ["a"])).toBeNull();
   });
 });

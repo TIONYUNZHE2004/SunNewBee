@@ -11,7 +11,14 @@ import {
 import { useEvacCentres, useLayer, useScenarioWater } from "../../../lib/api";
 import { ENV } from "../../../lib/env";
 import { centreMapMarker } from "../../../lib/routeStatus";
-import { groupByStatus, type LonLat, lineFeatures, pointFeatures, waterPolygons } from "../geo";
+import {
+  floodEdgePickId,
+  groupEdgesByStatus,
+  type LonLat,
+  lineFeatures,
+  pointFeatures,
+  waterPolygons,
+} from "../geo";
 import { useScene } from "../sceneStore";
 import { CESIUM_DASH, type EdgeStatus, ROUTE_STYLE, statusStyle, WATER_COLOR } from "../styles";
 
@@ -19,6 +26,7 @@ const heightRef = () =>
   ENV.googleKey ? Cesium.HeightReference.CLAMP_TO_3D_TILE : Cesium.HeightReference.CLAMP_TO_GROUND;
 const flat = (coords: number[][]) => coords.flatMap((c) => [c[0] as number, c[1] as number]);
 const FLOODED: EdgeStatus[] = ["flooded_likely", "flooded_possible"];
+type EdgeGroup = { id: string; coords: LonLat[] };
 
 /** requestRenderMode: request a frame whenever `deps` change. */
 function useRenderOn(...deps: unknown[]) {
@@ -27,6 +35,9 @@ function useRenderOn(...deps: unknown[]) {
     if (viewer && !viewer.isDestroyed()) viewer.scene.requestRender();
   }, [viewer, ...deps]);
 }
+
+/** Labels of many markers overlap at city zoom: show them only near the camera (or when focused). */
+const NEAR_LABEL = new Cesium.DistanceDisplayCondition(0, 1500);
 
 function material(status: EdgeStatus) {
   const { color: css, alpha = 1 } = statusStyle(status);
@@ -44,7 +55,7 @@ function StatusLines({
   groups,
   extraWidth = 0,
 }: {
-  groups: Map<EdgeStatus, LonLat[][]>;
+  groups: Map<EdgeStatus, EdgeGroup[]>;
   extraWidth?: number;
 }) {
   const { viewer } = useCesium();
@@ -56,9 +67,9 @@ function StatusLines({
       const collection = new Cesium.PolylineCollection();
       for (const [status, lines] of groups) {
         const width = statusStyle(status).width + extraWidth;
-        for (const c of lines)
+        for (const { coords } of lines)
           collection.add({
-            positions: Cesium.Cartesian3.fromDegreesArray(flat(c)),
+            positions: Cesium.Cartesian3.fromDegreesArray(flat(coords)),
             width,
             material: material(status),
           });
@@ -74,12 +85,15 @@ function StatusLines({
     const prims: Cesium.GroundPolylinePrimitive[] = [];
     for (const [status, lines] of groups) {
       const width = statusStyle(status).width + extraWidth;
+      const pickable = FLOODED.includes(status);
       const prim = new Cesium.GroundPolylinePrimitive({
+        // Flood edges carry a per-instance id so scene.pick maps a click back to its path.
         geometryInstances: lines.map(
-          (c) =>
+          ({ id, coords }) =>
             new Cesium.GeometryInstance({
+              id: pickable ? floodEdgePickId(id) : undefined,
               geometry: new Cesium.GroundPolylineGeometry({
-                positions: Cesium.Cartesian3.fromDegreesArray(flat(c)),
+                positions: Cesium.Cartesian3.fromDegreesArray(flat(coords)),
                 width,
               }),
             }),
@@ -107,7 +121,7 @@ export function AccessLayer() {
   const focusPlaceId = useScene((s) => s.focusPlaceId);
   const q = useLayer("access", profile, scenarioId);
   const groups = useMemo(
-    () => (visible ? groupByStatus(lineFeatures(q.data)) : new Map()),
+    () => (visible ? groupEdgesByStatus(lineFeatures(q.data)) : new Map()),
     [q.data, visible],
   );
   const points = useMemo(() => pointFeatures(q.data), [q.data]);
@@ -183,6 +197,7 @@ export function FloodLayer() {
   const water = useScenarioWater(scenarioId);
   const flood = useLayer("flood", profile, scenarioId);
   const evac = useEvacCentres(scenarioId, profile);
+  const focusPlaceId = useScene((s) => s.focusPlaceId);
   const polys = useMemo(
     () =>
       waterPolygons(water.data).map((p) => ({
@@ -198,7 +213,9 @@ export function FloodLayer() {
     [water.data],
   );
   const groups = useMemo(() => {
-    const all = on ? groupByStatus(lineFeatures(flood.data)) : new Map<EdgeStatus, LonLat[][]>();
+    const all = on
+      ? groupEdgesByStatus(lineFeatures(flood.data))
+      : new Map<EdgeStatus, EdgeGroup[]>();
     return new Map([...all].filter(([s]) => FLOODED.includes(s)));
   }, [flood.data, on]);
   const waterColor = useMemo(
@@ -225,6 +242,7 @@ export function FloodLayer() {
         <Entity
           key={r.centre.id}
           name={r.centre.name}
+          properties={new Cesium.PropertyBag({ placeId: r.centre.id })}
           position={Cesium.Cartesian3.fromDegrees(
             r.centre.coord[0] as number,
             r.centre.coord[1] as number,
@@ -240,6 +258,7 @@ export function FloodLayer() {
           />
           <LabelGraphics
             text={`${r.centre.name}: ${centreMapMarker(r).text}`}
+            distanceDisplayCondition={r.centre.id === focusPlaceId ? undefined : NEAR_LABEL}
             font="600 14px sans-serif"
             showBackground
             backgroundColor={Cesium.Color.WHITE.withAlpha(0.9)}
@@ -259,6 +278,7 @@ export function WasteLayer() {
   const scenarioId = useScene((s) => s.scenarioId);
   const visible = useScene((s) => s.lensVisible.waste);
   const q = useLayer("waste", profile, scenarioId);
+  const focusPlaceId = useScene((s) => s.focusPlaceId);
   const points = useMemo(() => pointFeatures(q.data), [q.data]);
   useRenderOn(points, visible);
   if (!visible) return null;
@@ -268,6 +288,7 @@ export function WasteLayer() {
         <Entity
           key={p.id}
           name={p.name}
+          properties={new Cesium.PropertyBag({ placeId: p.id })}
           position={Cesium.Cartesian3.fromDegrees(p.coord[0], p.coord[1])}
         >
           <PointGraphics
@@ -280,6 +301,7 @@ export function WasteLayer() {
           />
           <LabelGraphics
             text={`Waste point: ${p.name}`}
+            distanceDisplayCondition={p.id === focusPlaceId ? undefined : NEAR_LABEL}
             font="13px sans-serif"
             showBackground
             backgroundColor={Cesium.Color.WHITE.withAlpha(0.9)}

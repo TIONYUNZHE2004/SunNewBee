@@ -89,6 +89,44 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/evidence": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Upload Evidence
+         * @description Staff-only JPEG/PNG upload (max 5 MB). Type is decided by magic bytes; metadata (EXIF,
+         *     GPS, comments, text chunks) is stripped before anything is stored.
+         */
+        post: operations["upload_evidence_evidence_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/evidence/{evidence_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Evidence */
+        get: operations["get_evidence_evidence__evidence_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/graph": {
         parameters: {
             query?: never;
@@ -183,6 +221,23 @@ export interface paths {
         };
         /** Place */
         get: operations["place_places__place_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/profiles": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Profiles */
+        get: operations["profiles_profiles_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -497,6 +552,8 @@ export interface components {
             element_id: string;
             /** Evidence Id */
             evidence_id: string;
+            /** Photo Url */
+            photo_url?: string | null;
             /** Ref */
             ref: number;
             /** Source Type */
@@ -640,6 +697,8 @@ export interface components {
             element_id: string;
             /** Id */
             id: string;
+            /** Photo Url */
+            photo_url?: string | null;
             /** Source Type */
             source_type?: string | null;
             /** Source Url */
@@ -650,6 +709,13 @@ export interface components {
             value?: unknown;
             /** Verified At */
             verified_at?: string | null;
+        };
+        /** EvidenceUploaded */
+        EvidenceUploaded: {
+            /** Evidence Id */
+            evidence_id: string;
+            /** Photo Url */
+            photo_url: string;
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -665,6 +731,40 @@ export interface components {
             /** Open Vrs */
             open_vrs: number;
         };
+        /**
+         * ProfileInfo
+         * @description Read-only profile parameters, for the 'Assumptions' section. No secrets, no per-user data.
+         */
+        ProfileInfo: {
+            /** Allowed Types */
+            allowed_types?: string[] | null;
+            /** Hard */
+            hard: {
+                [key: string]: number;
+            };
+            /** Id */
+            id: string;
+            /** Label */
+            label: string;
+            /** Max Rest Free Run M */
+            max_rest_free_run_m?: number | null;
+            /** Soft */
+            soft: {
+                [key: string]: number;
+            };
+            /** Speed Kmh */
+            speed_kmh?: number | null;
+            /**
+             * Stub
+             * @default false
+             */
+            stub: boolean;
+            /**
+             * Threshold Basis
+             * @default our engineering default (no published source)
+             */
+            threshold_basis: string;
+        };
         /** ResolveBody */
         ResolveBody: {
             /**
@@ -672,6 +772,8 @@ export interface components {
              * @enum {string}
              */
             action: "verify" | "correct" | "reject";
+            /** Evidence Id */
+            evidence_id?: string | null;
             /**
              * Note
              * @default
@@ -786,11 +888,8 @@ export interface components {
             links?: {
                 [key: string]: string;
             }[];
-            /**
-             * Margin M
-             * @default 0.5
-             */
-            margin_m: number;
+            /** Margin M */
+            margin_m?: number | null;
             /**
              * Method
              * @default HAND
@@ -1364,6 +1463,76 @@ export interface operations {
             };
         };
     };
+    upload_evidence_evidence_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-staff-token"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": {
+                    /** Format: binary */
+                    file: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EvidenceUploaded"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_evidence_evidence__evidence_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                evidence_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "image/jpeg": unknown;
+                    "image/png": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     graph_graph_get: {
         parameters: {
             query?: {
@@ -1516,7 +1685,11 @@ export interface operations {
     };
     place_places__place_id__get: {
         parameters: {
-            query?: never;
+            query?: {
+                scenario_id?: string | null;
+                profile?: string;
+                near?: string | null;
+            };
             header?: never;
             path: {
                 place_id: string;
@@ -1541,6 +1714,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    profiles_profiles_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProfileInfo"][];
                 };
             };
         };

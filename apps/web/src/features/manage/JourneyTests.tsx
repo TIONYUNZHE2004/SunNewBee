@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { useScenarios } from "../../lib/api";
+import { CreateVrButton } from "./CreateVrButton";
 import {
   ApiError,
   fetchSimReport,
@@ -289,7 +290,7 @@ function Report({
               </caption>
               <thead className="bg-brand-tint">
                 <tr>
-                  {["Element", "Attribute", "Impact", "Profiles"].map((h) => (
+                  {["Element", "Attribute", "Impact", "Profiles", "Action"].map((h) => (
                     <th key={h} scope="col" className="px-3 py-2 font-medium">
                       {h}
                     </th>
@@ -311,6 +312,9 @@ function Report({
                     </td>
                     <td className="px-3 py-2">
                       {g.affected_profiles.map(profileLabel).join(", ")}
+                    </td>
+                    <td className="px-3 py-2">
+                      <CreateVrButton elementId={g.element_id} attribute={g.attribute} />
                     </td>
                   </tr>
                 ))}

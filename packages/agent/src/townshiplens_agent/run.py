@@ -81,6 +81,7 @@ def _answer_events(
                         status=str(e.status),
                         verified_at=e.verified_at,
                         source_type=e.source_type,
+                        photo_url=e.photo_url,
                     )
                 )
 

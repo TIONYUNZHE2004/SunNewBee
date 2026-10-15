@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { groupByType, parseLayer, routeSteps } from "./listModel";
+import {
+  groupByType,
+  parseCentres,
+  parseLayer,
+  parseWaste,
+  routeSteps,
+  withIndicative,
+} from "./listModel";
 
 const fc = {
   features: [
@@ -99,5 +106,76 @@ describe("listModel", () => {
       ],
     });
     expect(edges.map((e) => e.status)).toEqual(["unknown", "unknown"]);
+  });
+});
+
+describe("lens sections", () => {
+  const flood = {
+    features: [
+      { geometry: { type: "LineString", coordinates: [] }, properties: { id: "e" } },
+      {
+        geometry: { type: "Point", coordinates: [1, 1] },
+        properties: { id: "evc-a", kind: "evac_centre", type: "official_pps", name: "School" },
+      },
+      {
+        geometry: { type: "Point", coordinates: [1, 2] },
+        properties: { id: "evc-b", kind: "evac_centre", type: "osm_candidate", name: "Hall" },
+      },
+    ],
+  };
+  it("lists centres with source labels", () => {
+    expect(parseCentres(flood)).toEqual([
+      { id: "evc-a", name: "School", sourceLabel: "Official PPS" },
+      {
+        id: "evc-b",
+        name: "Hall",
+        sourceLabel: "Candidate (OSM), not an official relief centre",
+      },
+    ]);
+    expect(parseCentres(null)).toEqual([]);
+  });
+  it("lists waste points with status", () => {
+    const w = {
+      features: [
+        {
+          geometry: { type: "Point", coordinates: [1, 1] },
+          properties: { id: "wp-1", kind: "waste_point", type: "e_waste_drop_off", name: "Box" },
+        },
+        {
+          geometry: { type: "Point", coordinates: [1, 1] },
+          properties: { id: "wp-2", kind: "waste_point", name: "Bin", status: "verified" },
+        },
+      ],
+    };
+    expect(parseWaste(w).map((x) => [x.id, x.statusLabel])).toEqual([
+      ["wp-1", "Status: unknown"],
+      ["wp-2", "Status: verified"],
+    ]);
+  });
+});
+
+describe("readable names", () => {
+  it("names an unnamed edge by its type, never its raw id", () => {
+    const m = parseLayer({
+      type: "FeatureCollection",
+      features: [
+        {
+          type: "Feature",
+          properties: { id: "seg-1-0", type: "footway" },
+          geometry: {
+            type: "LineString",
+            coordinates: [
+              [0, 0],
+              [1, 1],
+            ],
+          },
+        },
+      ],
+    });
+    expect(m.edges[0]?.name).toBe("Unnamed footway");
+  });
+  it("adds (indicative) to a scenario label only once", () => {
+    expect(withIndicative("River +3 m (indicative)")).toBe("River +3 m (indicative)");
+    expect(withIndicative("River +3 m")).toBe("River +3 m (indicative)");
   });
 });

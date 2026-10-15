@@ -19,6 +19,20 @@ describe("route status labels", () => {
     expect(centreReachLabel({ reachable: false, route_status: "no_data" })).toBe(NO_DATA_LABEL);
     expect(centreReachLabel({ reachable: false, route_status: "blocked" })).toBe("Not passable");
   });
+  it("centre reachability distinguishes every route status", () => {
+    const r = (reachable: boolean, route_status: string) =>
+      centreReachLabel({ reachable, route_status });
+    expect(r(true, "confirmed")).toBe("Reachable");
+    expect(r(true, "partly_unverified")).toBe("Reachable, some paths not yet checked");
+    expect(r(false, "blocked")).toBe("Not passable");
+    expect(r(false, "no_data")).toBe("No mapped connection (data gap)");
+  });
+  it("map marker flags partly unverified centres", () => {
+    expect(centreMapMarker({ reachable: true, route_status: "partly_unverified" })).toEqual({
+      text: "Reachable, some paths not yet checked",
+      color: "#B7791F",
+    });
+  });
   it("map marker: no_data is neutral, blocked stays red", () => {
     const nd = centreMapMarker({ reachable: false, route_status: "no_data" });
     expect(nd).toEqual({ text: "No mapped connection", color: "#6B7280" });

@@ -1,3 +1,4 @@
+import { centreSourceLabel } from "../../../lib/evidence";
 import { mapStatus } from "../status";
 import type { EdgeStatus } from "../styles";
 
@@ -32,7 +33,7 @@ export function parseLayer(data: unknown): { places: PlaceItem[]; edges: EdgeIte
     } else if (f.geometry?.type === "LineString") {
       edges.push({
         id,
-        name: String(p.name ?? id),
+        name: p.name ? String(p.name) : `Unnamed ${String(p.type ?? "path").replace(/_/g, " ")}`,
         status: mapStatus(p),
         coords: (f.geometry.coordinates as [number, number][]) ?? [],
       });
@@ -69,4 +70,45 @@ export function routeSteps(route: GeoJSON.LineString | null, edges: EdgeItem[]):
     );
 }
 
+/** Scenario labels already say "(indicative)" in the seed; never repeat it. */
+export const withIndicative = (label: string) =>
+  /indicative/i.test(label) ? label : `${label} (indicative)`;
+
 export const humanType = (t: string) => t.replace(/_/g, " ").replace(/^\w/, (c) => c.toUpperCase());
+
+export interface CentreItem {
+  id: string;
+  name: string;
+  sourceLabel: string;
+}
+export interface WasteItem {
+  id: string;
+  name: string;
+  typeLabel: string;
+  statusLabel: string;
+}
+
+const pointProps = (data: unknown, kind: string) =>
+  ((data as { features?: Feature[] } | null)?.features ?? [])
+    .filter((f) => f?.geometry?.type === "Point" && f.properties?.kind === kind && f.properties.id)
+    .map((f) => f.properties as Record<string, unknown>);
+
+/** Evacuation centres from the flood layer, each with its source label. The layer puts the
+ * centre's source (official_pps | osm_candidate) in the feature's `type`. */
+export function parseCentres(data: unknown): CentreItem[] {
+  return pointProps(data, "evac_centre").map((p) => ({
+    id: String(p.id),
+    name: String(p.name ?? p.id),
+    sourceLabel: centreSourceLabel(p.type),
+  }));
+}
+
+/** Waste points from the waste layer, with status (unknown when absent). */
+export function parseWaste(data: unknown): WasteItem[] {
+  return pointProps(data, "waste_point").map((p) => ({
+    id: String(p.id),
+    name: String(p.name ?? p.id),
+    typeLabel: humanType(String(p.type ?? "other")),
+    statusLabel: `Status: ${String(p.status ?? "unknown")}`,
+  }));
+}

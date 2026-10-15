@@ -56,6 +56,7 @@ class Citation(BaseModel):
     status: str
     verified_at: str | None = None
     source_type: str | None = None
+    photo_url: str | None = None
 
 
 class Uncertainty(BaseModel):
