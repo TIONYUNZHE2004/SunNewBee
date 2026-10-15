@@ -590,3 +590,11 @@
   - Task 60: grey "not relevant" state and flood margin in the legend.
   - Task 61: renderer fallback chain and bundle budget.
   - Task 62: waste goldens, scenario provenance hash, journey failure explanations, seed invariants, import counts.
+
+## 2026-10-16 Frontend redesign, Task 17 quality evaluation
+
+- **2026-10-16 02:29** (`date`): started the automated suite on `feat/redesign-two-screens`.
+  - lint, typecheck, vitest (342), gen, golden (13/13 mock), build and e2e (9/9) PASS. pytest had 2 failures: drift tests still pointing at the moved `suggestions.ts` and `manage/attributeCatalogue.ts`. Fixed in `a8972cc` (842 passed).
+- **2026-10-16 02:35**: Lighthouse on `/` and `/tickets`, both themes, desktop and mobile: accessibility 100 everywhere. Best practices 77-81 on `/` (Cesium deprecation), 100 on `/tickets`.
+- **2026-10-16 02:38**: Ruling: keyless override did not work on Windows (empty env var dropped), so about 12 loads of `/` fetched real Google tiles — over the 6-load budget — cost if wrong: a few extra tile sessions. Not repeated; dev server stopped at 02:42.
+- **2026-10-16 02:40**: real 3D check: Night shader compiled with a clean console, routes and pins legible in both themes. Management starters are unanswered by the mock (reported, not fixed).
