@@ -82,9 +82,9 @@ The vintages are mixed, as they are for the walk cache. Re-running `import_osm.p
 |---|---|---|
 | Walk graph components | 199 | 74 |
 | Largest component, share of nodes | 32.0% (3,653 of 11,418) | 95.2% (11,188 of 11,752) |
-| Lakeside Mall → 72 centres, baseline | 23 partly_unverified / 49 no_data | 64 partly_unverified / 8 no_data |
-| Lakeside Mall → 72 centres, stage_p3m | 3 partly_unverified / 20 blocked / 49 no_data | 44 partly_unverified / 20 blocked / 8 no_data |
-| Wheelchair, same (baseline / +3 m reachable) | 23 / 3 | 64 / 44 |
+| Lakeside Mall → 72 centres, baseline (stroller) | 23 partly_unverified / 49 no_data | 64 partly_unverified / 8 no_data (68 / 4 after the Task 43 rebuild, 15 Oct 2026) |
+| Lakeside Mall → 72 centres, stage_p3m (stroller) | 3 partly_unverified / 20 blocked / 49 no_data | 44 partly_unverified / 20 blocked / 8 no_data (47 / 21 / 4 after Task 43) |
+| Wheelchair, same (baseline / +3 m reachable) | 23 / 3 | 64 / 44 (68 / 47 after Task 43) |
 | Journey tests (300 tasks, 100 per profile; stroller = wheelchair = older_adult_rest) | 99 no_data, 1 success_with_unknowns | 40 no_data, 60 success_with_unknowns |
 | Journey I7 (older-adult rest gap > 100 m) | 1 | 60, one per older-adult route found; rest points are sparse |
 | Hero `park-b → playground` | confirmed 440.6 m; +1/+3 m partly_unverified 485.7 m | unchanged |
@@ -126,6 +126,7 @@ The vintages are mixed, as they are for the walk cache. Re-running `import_osm.p
 | Default Elmina Urban Park → `lakeside-mall` | no_data | confirmed, 119.8 m, with the "starts at" caveat |
 | Hero stroller `park-b → playground` | confirmed 440.6 m | unchanged |
 | Evacuation centres with a node | 69 of 72 | 71 of 72 (54 `node_inferred`) |
+| Gap map, wheelchair (`gaps_layer`, measured 15 Oct 2026) | – | 16,148 of 16,148 segments not yet checked; 18 rest on demo values (`team_survey_placeholder`) |
 
 - **Gained a node (14):** 9 parks, 3 schools, Maha Su Meru (place of worship) and 1 car park, including Elmina Urban Park.
 - **Moved from a small fragment to the main network (3):** 2 parks and SMK Bukit Gading.
@@ -256,7 +257,7 @@ Near the mall, the flagged segments are the Urban Park / Central Park lake-edge 
   - +1 m: 460 / 348 / 11 (before Task 31: 419 / 314 / 11)
   - +3 m: 1,376 / 402 / 18 (1,247 / 361 / 15)
   - +5 m: 2,503 / 576 / 24 (2,298 / 562 / 22)
-- **Wheelchair, reachable evacuation candidates from `lakeside-mall`:** 64 of 72 at baseline, 44 of 72 at +3 m (before Task 31: 23 and 3). Nearest at baseline: Sri Maha Mariamman Temple Bukit Subang, 1.1 km. Nearest at +3 m: Masjid Jamiul Ehsan, 4.1 km. Both `partly_unverified`.
+- **Wheelchair, reachable evacuation candidates from `lakeside-mall`:** 68 of 72 at baseline, 47 of 72 at +3 m (before Task 31: 23 and 3; before the Task 43 rebuild: 64 and 44). The other 4 have no mapped connection; at +3 m 21 are blocked by flood. Nearest at baseline: Sri Maha Mariamman Temple Bukit Subang, 1.1 km. Nearest at +3 m: SJK (C) Ladang Regent, Elmina, 1.2 km. All `partly_unverified`. Stroller, default-profile counts: see `docs/06-pitch/key-numbers.md`. Re-measured 15 Oct 2026.
 
 ### Limits
 
