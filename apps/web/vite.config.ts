@@ -1,10 +1,12 @@
+import { fileURLToPath } from "node:url";
 import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
 import { loadEnv } from "vite";
 import { viteStaticCopy } from "vite-plugin-static-copy";
 import { defineConfig } from "vitest/config";
 
-const ROOT = new URL("../..", import.meta.url).pathname;
+// fileURLToPath, not URL.pathname: on Windows .pathname gives "/C:/..." and resolves to C:\C:\...
+const ROOT = fileURLToPath(new URL("../..", import.meta.url));
 const CESIUM = "node_modules/cesium/Build/Cesium";
 
 export default defineConfig(({ mode }) => {
