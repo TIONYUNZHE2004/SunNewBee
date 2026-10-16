@@ -217,6 +217,7 @@ function Overview({ d, headline }: { d: Any; headline: Any }) {
   const school = (d.school ?? {}) as Any;
   const health = (d.health ?? {}) as Any;
   const places = ((d.places ?? []) as Any[]).slice(0, 5);
+  const stuck = groups.some((g) => num(g.stranded) > 0);
   return (
     <div className="space-y-3">
       <p className="text-fg">
@@ -226,7 +227,9 @@ function Overview({ d, headline }: { d: Any; headline: Any }) {
         {num(headline.data_gap)} with no mapped way (a data gap).
       </p>
       <table className="w-full text-xs">
-        <caption className="sr-only">Residents by group, worst outcome of their day</caption>
+        <caption className="sr-only">
+          Residents by group, worst outcome of their day (every resident is in one column)
+        </caption>
         <thead>
           <tr className="text-left text-fg-soft">
             <th className="py-1 font-medium">Group</th>
@@ -235,6 +238,9 @@ function Overview({ d, headline }: { d: Any; headline: Any }) {
             <th className="font-medium">Late</th>
             <th className="font-medium">Couldn't go</th>
             <th className="font-medium">Turned back</th>
+            {stuck && <th className="font-medium">Stuck</th>}
+            <th className="font-medium">Data gap</th>
+            <th className="font-medium">Stayed home</th>
           </tr>
         </thead>
         <tbody>
@@ -246,13 +252,17 @@ function Overview({ d, headline }: { d: Any; headline: Any }) {
               <td>{num(g.late)}</td>
               <td>{num(g.cancelled)}</td>
               <td>{num(g.turned_back)}</td>
+              {stuck && <td>{num(g.stranded)}</td>}
+              <td>{num(g.data_gap)}</td>
+              <td>{num(g.stayed_home)}</td>
             </tr>
           ))}
         </tbody>
       </table>
       <p className="text-fg">
         School: {num(school.pupils)} pupils; {num(school.on_time)} on time, {num(school.late)} late,{" "}
-        {num(school.cancelled)} couldn't get there, {num(school.turned_back)} turned back.
+        {num(school.cancelled)} couldn't get there, {num(school.turned_back)} turned back
+        {num(school.data_gap) ? `, ${num(school.data_gap)} with no mapped way (a data gap)` : ""}.
       </p>
       <p className="text-fg">
         {num(health.residents_walking_20_min).toLocaleString()} of{" "}

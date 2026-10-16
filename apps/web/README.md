@@ -171,6 +171,7 @@ POST /chat (SSE) -> parseSse -> useChatStream -> chatReducer   (messages, tool c
                                                               layer.toggle     -> lensVisible
                                                               whatif.diff      -> whatIf (imagined diff)
                                                               river.rollout    -> rollout {on, stage, playing}
+                                                              day.show         -> day {on, scenario, t} paused (+ its river stage)
 sceneStore --> Cesium / Mapbox / List renderers (one adapter each) + map overlays + legend
 ```
 

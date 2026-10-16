@@ -30,6 +30,15 @@ describe("sceneStore.applyIntent", () => {
     useScene.getState().setScenario("stage_p3m");
     expect(useScene.getState().route).toBeNull();
   });
+  it("day.show opens that rehearsal paused at its minute, with its river level", () => {
+    useScene
+      .getState()
+      .applyIntent({ kind: "day.show", day: "event", t_min: 1230, scenario_id: null } as never);
+    const s = useScene.getState();
+    expect(s.day).toMatchObject({ on: true, scenario: "event", t: 1230, playing: false });
+    expect(s.scenarioId).toBe(null);
+  });
+
   it("flood.set_level sets scenario and shows the flood lens", () => {
     useScene.getState().applyIntent({ kind: "flood.set_level", scenario_id: "stage_p3m" } as never);
     expect(useScene.getState().scenarioId).toBe("stage_p3m");

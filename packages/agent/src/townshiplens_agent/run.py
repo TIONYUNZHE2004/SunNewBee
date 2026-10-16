@@ -228,6 +228,19 @@ def _answer_events(
         intents.append(
             SceneIntent(kind="flood.set_level", scenario_id=ans.scenario_id or day_stage)
         )
+    intents = [i for i in intents if i.kind != "day.show"]  # only ever built by the server
+    if rec.days:
+        # the map opens the rehearsal the answer came from, paused at its peak
+        d = rec.days[-1]
+        hh, _, mm = str(d.get("show_at") or "").partition(":")
+        intents.append(
+            SceneIntent(
+                kind="day.show",
+                day=(d.get("scenario") or {}).get("id"),
+                t_min=int(hh) * 60 + int(mm) if hh.isdigit() and mm.isdigit() else None,
+                scenario_id=day_stage,
+            )
+        )
     diff = next((w["diff_geojson"] for w in reversed(rec.what_ifs) if w.get("diff_geojson")), None)
     if diff and not any(i.kind == "whatif.diff" for i in intents):
         intents.append(SceneIntent(kind="whatif.diff"))  # a what-if is always drawn as a diff

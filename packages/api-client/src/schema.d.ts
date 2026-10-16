@@ -1881,6 +1881,8 @@ export interface components {
         SceneIntent: {
             /** Center */
             center?: number[] | null;
+            /** Day */
+            day?: string | null;
             /** Geojson */
             geojson?: {
                 [key: string]: unknown;
@@ -1889,7 +1891,7 @@ export interface components {
              * Kind
              * @enum {string}
              */
-            kind: "camera.fly_to" | "place.focus" | "route.highlight" | "flood.set_level" | "layer.toggle" | "whatif.diff" | "river.rollout";
+            kind: "camera.fly_to" | "place.focus" | "route.highlight" | "flood.set_level" | "layer.toggle" | "whatif.diff" | "river.rollout" | "day.show";
             /** Lens */
             lens?: ("access" | "flood" | "waste") | null;
             /** Place Id */
@@ -1900,6 +1902,8 @@ export interface components {
             route_id?: string | null;
             /** Scenario Id */
             scenario_id?: string | null;
+            /** T Min */
+            t_min?: number | null;
             /** Visible */
             visible?: boolean | null;
         };

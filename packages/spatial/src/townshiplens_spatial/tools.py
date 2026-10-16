@@ -1417,6 +1417,19 @@ def day_compare(ctx: Ctx, scenario_id: str, actions: list) -> ToolResult:
     return _wm_cached(w, "day_compare", key, run, cache=_DAY_CACHE, cache_max=16)
 
 
+def _day_show_at(ctx: Ctx, sc: dict, places: list[dict]) -> str | None:
+    by_m = {s.id: s.stage_m for s in ctx.world.flood.scenarios}
+    stages = [(m, sid) for m, sid in sc.get("stages", []) if sid]
+    if stages:
+        top = max(by_m.get(sid, 0) for _, sid in stages)
+        t = min(m for m, sid in stages if by_m.get(sid, 0) == top)
+    elif places and isinstance(places[0].get("peak_at"), int):
+        t = places[0]["peak_at"]
+    else:
+        return None
+    return f"{int(t) // 60:02d}:{int(t) % 60:02d}"
+
+
 def day_rehearsal_summary(ctx: Ctx, day: str = "storm") -> ToolResult:
     """For the assistant: a simulated day of 5,000 synthetic residents (Elmina Day) in one
     built-in scenario (weekday | storm | event | friday), summarised: trips by outcome, residents
@@ -1447,6 +1460,9 @@ def day_rehearsal_summary(ctx: Ctx, day: str = "storm") -> ToolResult:
             {"name": p["name"], "peak": p["peak"], "visits": p["visits"]} for p in d["places"][:3]
         ],
         "river_stages": [s for _, s in sc.get("stages", []) if s],
+        # when the map should open this day: the river's peak, else the busiest moment (a clock
+        # time as text, so it is never read as a count)
+        "show_at": _day_show_at(ctx, sc, d["places"]),
     }
     ev = Evidence(
         id=f"ev-day-{scenario_id}",

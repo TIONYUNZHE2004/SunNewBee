@@ -319,35 +319,41 @@ DAY_CAVEAT = (
 
 def day_answer(d: dict, evidence_ids: list[str]) -> dict:
     """FinalAnswer fields for an Elmina Day rehearsal (shared by the mock and the template).
-    Every number is copied from the tool's summary."""
+    Every number is copied from the tool's summary: school first, then the groups hit hardest
+    (by share of the group), and every data gap named as one."""
     o = d.get("outcomes") or {}
     sc = d.get("scenario") or {}
+    top = _top_stage(d.get("river_stages") or [])
+    river = f", with the river rising to {_stage_words(top)[6:]}" if _stage_words(top) else ""
     summary = (
-        f"In this rehearsal of {d.get('residents', 0)} synthetic residents "
-        f"({sc.get('label', 'a simulated day')}), {d.get('trips', 0)} trips: "
-        f"{o.get('on_time', 0)} on time, {o.get('late', 0)} late, {o.get('cancelled', 0)} could "
-        f"not happen and {o.get('turned_back', 0)} turned back"
-        + (f"; {o['data_gap']} had no mapped connection (data gap)" if o.get("data_gap") else "")
+        f"In this rehearsal of {d.get('residents', 0):,} synthetic residents "
+        f"({sc.get('label', 'a simulated day')}{river}), {d.get('trips', 0):,} trips: "
+        f"{o.get('on_time', 0):,} on time, {o.get('late', 0):,} late, "
+        f"{o.get('cancelled', 0):,} couldn't go and {o.get('turned_back', 0):,} turned back"
+        + (f"; {o['data_gap']:,} had no mapped connection (data gap)" if o.get("data_gap") else "")
         + ". It is a rehearsal, not a forecast."
     )
     steps = []
-    for g in d.get("groups") or []:
-        bad = g.get("could_not_make_a_trip", 0)
-        if bad or g.get("late", 0):
-            steps.append(
-                f"{g['label']}: {bad} of {g['residents']} could not make a trip, "
-                f"{g.get('late', 0)} late."
-            )
     sch = d.get("school") or {}
     if sch.get("pupils"):
         steps.append(
-            f"School: {sch.get('on_time', 0)} of {sch['pupils']} pupils on time, "
-            f"{sch.get('cancelled', 0)} could not get there"
+            f"School: {sch.get('on_time', 0):,} of {sch['pupils']:,} pupils on time, "
+            f"{sch.get('cancelled', 0):,} couldn't get there, {sch.get('turned_back', 0):,} "
+            "turned back"
             + (
-                f", {sch['data_gap']} had no mapped connection (data gap)."
+                f", {sch['data_gap']:,} had no mapped connection (data gap)."
                 if sch.get("data_gap")
                 else "."
             )
+        )
+    hit = [
+        g for g in d.get("groups") or [] if g.get("could_not_make_a_trip", 0) or g.get("late", 0)
+    ]
+    hit.sort(key=lambda g: -g.get("could_not_make_a_trip", 0) / max(g.get("residents", 0), 1))
+    for g in hit:
+        steps.append(
+            f"{g['label']}: {g.get('could_not_make_a_trip', 0):,} of {g['residents']:,} had a "
+            f"trip they couldn't make, {g.get('late', 0):,} late."
         )
     caveats = [DAY_CAVEAT]
     if d.get("river_stages"):
@@ -359,7 +365,7 @@ def day_answer(d: dict, evidence_ids: list[str]) -> dict:
         "claims": [
             {"text": "Elmina Day rehearsal", "status": "indicative", "evidence_ids": evidence_ids}
         ],
-        "scenario_id": _top_stage(d.get("river_stages") or []),
+        "scenario_id": top,
         "caveats": caveats,
     }
 

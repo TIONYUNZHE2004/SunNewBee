@@ -59,4 +59,23 @@ describe("Elmina Day playback", () => {
     expect(useScene.getState().day.on).toBe(false);
     expect(useScene.getState().scenarioId).toBe("stage_p5m");
   });
+
+  it("the assistant's day.show opens the day at its peak, also when the day was already open", () => {
+    renderWithClient(<Host />, seeded());
+    act(() => useScene.getState().setDay({ on: true, t: 360, scenario: "storm" }));
+    expect(useScene.getState().scenarioId).toBe(null); // 06:00: the river at its normal level
+    act(() =>
+      useScene.getState().applyIntent({
+        kind: "day.show",
+        day: "storm",
+        t_min: 445,
+        scenario_id: "stage_p3m",
+      } as never),
+    );
+    const s = useScene.getState();
+    expect(s.day).toMatchObject({ on: true, t: 445, scenario: "storm", playing: false });
+    expect(s.scenarioId).toBe("stage_p3m");
+    act(() => useScene.getState().setDay({ on: false, playing: false }));
+    expect(useScene.getState().scenarioId).toBe("stage_p2m"); // the user's choice comes back
+  });
 });

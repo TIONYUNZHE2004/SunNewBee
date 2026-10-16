@@ -113,6 +113,18 @@ const initial = {
   mapStyleChosen: false,
 };
 
+/** A river level from an intent; a what-if diff compared at another level no longer matches. */
+function floodLevel(s: SceneState, scenarioId: string | null): Partial<SceneState> {
+  const out: Partial<SceneState> = {
+    scenarioId,
+    lensVisible: { ...s.lensVisible, flood: true },
+  };
+  const m = (s.whatIf?.geojson as { meta?: Record<string, unknown> } | undefined)?.meta;
+  const stages = [m?.scenario_id, m?.base_scenario_id].filter(Boolean);
+  if (s.whatIf && !stages.includes(scenarioId ?? undefined)) out.whatIf = null;
+  return out;
+}
+
 export const useScene = create<SceneState>((set) => ({
   ...initial,
   applyIntent: (i) =>
@@ -137,15 +149,21 @@ export const useScene = create<SceneState>((set) => ({
         case "place.focus":
           next.focusPlaceId = i.place_id ?? null;
           break;
-        case "flood.set_level": {
-          next.scenarioId = i.scenario_id ?? null;
-          next.lensVisible = { ...s.lensVisible, flood: true };
-          // A diff compared at another river level no longer matches the map: clear it.
-          const m = (s.whatIf?.geojson as { meta?: Record<string, unknown> } | undefined)?.meta;
-          const stages = [m?.scenario_id, m?.base_scenario_id].filter(Boolean);
-          if (s.whatIf && !stages.includes(next.scenarioId ?? undefined)) next.whatIf = null;
+        case "day.show":
+          // the rehearsal an answer came from, paused at its peak; its river stage comes along
+          next.day = {
+            ...s.day,
+            on: true,
+            playing: false,
+            focus: null,
+            scenario: i.day ?? s.day.scenario,
+            t: typeof i.t_min === "number" ? i.t_min : s.day.t,
+          };
+          if (i.scenario_id) Object.assign(next, floodLevel(s, i.scenario_id));
           break;
-        }
+        case "flood.set_level":
+          Object.assign(next, floodLevel(s, i.scenario_id ?? null));
+          break;
         case "camera.fly_to":
           if (i.center && i.center.length >= 2)
             next.camera = {

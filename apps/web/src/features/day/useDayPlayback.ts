@@ -60,7 +60,9 @@ export function useDayPlayback() {
   useEffect(() => {
     if (!on || !stages) return;
     const cur = scenarioId;
-    if (lastSet.current !== undefined && cur !== lastSet.current) {
+    // (a level that is the day's own stage at the clock, e.g. from the assistant's day.show, is
+    // not a different choice)
+    if (lastSet.current !== undefined && cur !== lastSet.current && cur !== stage) {
       before.current = null; // the user's choice stays
       setDay({ on: false, playing: false });
       return;

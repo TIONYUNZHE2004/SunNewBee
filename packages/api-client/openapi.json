@@ -2851,6 +2851,17 @@
             ],
             "title": "Center"
           },
+          "day": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Day"
+          },
           "geojson": {
             "anyOf": [
               {
@@ -2871,7 +2882,8 @@
               "flood.set_level",
               "layer.toggle",
               "whatif.diff",
-              "river.rollout"
+              "river.rollout",
+              "day.show"
             ],
             "title": "Kind",
             "type": "string"
@@ -2935,6 +2947,17 @@
               }
             ],
             "title": "Scenario Id"
+          },
+          "t_min": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "T Min"
           },
           "visible": {
             "anyOf": [

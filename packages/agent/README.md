@@ -75,6 +75,16 @@ model is dropped, because the label line already says it.
 - **Scene intent:** a rollout adds `river.rollout`, so the map plays it. The geometry stays out of the prompt.
 - **Repair:** it fills `scenario_id` for river-stage simulations.
 
+**Elmina Day rehearsals (Cycles 14–16):**
+- **Tool:** `day_rehearsal(day)`, one of weekday | storm | event | friday. It returns trips by outcome, residents by group, school, busiest places and `show_at` (a clock time).
+- **Validator (`day_errors`):**
+  - the answer says "rehearsal of synthetic residents" and "not a forecast";
+  - it names the data gap when there is one;
+  - it gives counts as digits, from the rehearsal only (sums and differences of two are allowed; times, ages and durations are not counts);
+  - it makes no predictions about real people.
+- **Shared wording:** `template.day_answer` (school first, then groups by share hit).
+- **Scene intents (server-built):** `flood.set_level` for a storm's peak stage, plus `day.show` (the day, `t_min`, its stage), so the map opens the rehearsal at the moment the answer is about. A rehearsal's stage is filled in by the server; the model is never asked for `scenario_id`.
+
 **Fix-it search and MCP (Cycle 4):**
 - **`find_fixes`:** beam search over imagined fixes on the world model (`townshiplens_spatial.fixit`).
   - The best set is recorded as a what-if, so every what-if validator rule applies.

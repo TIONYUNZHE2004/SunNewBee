@@ -34,7 +34,10 @@ def _entries():
 
 
 def _norm(row: dict) -> dict:
-    return {k: v for k, v in row.items() if k not in IGNORED}
+    out = {k: v for k, v in row.items() if k not in IGNORED}
+    if isinstance(out.get("intent"), dict):  # an optional intent field added later is null
+        out["intent"] = {k: v for k, v in out["intent"].items() if v is not None}
+    return out
 
 
 def test_there_are_elmina_entries():

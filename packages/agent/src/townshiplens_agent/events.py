@@ -14,6 +14,7 @@ IntentKind = Literal[
     "layer.toggle",
     "whatif.diff",  # before/after lines of a what-if simulation (geojson attached by the server)
     "river.rollout",  # open and play the rising-river rollout (the client fetches /river-rollout)
+    "day.show",  # open an Elmina Day rehearsal on the map, paused at `t_min` (server-added)
 ]
 
 
@@ -27,6 +28,8 @@ class SceneIntent(BaseModel):
     lens: Literal["access", "flood", "waste"] | None = None
     visible: bool | None = None
     geojson: dict[str, Any] | None = None  # attached by the server for route.highlight
+    day: str | None = None  # day.show: weekday | storm | event | friday
+    t_min: int | None = None  # day.show: the rehearsal clock, minutes after midnight
 
 
 class TextDelta(BaseModel):
