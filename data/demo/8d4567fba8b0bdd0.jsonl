@@ -1,0 +1,38 @@
+{"meta": {"message": "What happens to residents in the storm rehearsal?", "profile": "default", "scenario_id": null, "world": "elmina", "model": "mock-scripted", "recorded_at": "2026-10-16T19:51:37+00:00"}}
+{"type": "tool.call", "id": "day_rehearsal-0", "name": "day_rehearsal", "args": {"day": "storm"}}
+{"type": "tool.result", "id": "day_rehearsal-0", "name": "day_rehearsal", "summary": "ok"}
+{"type": "answer.draft", "attempt": 1, "delta": "In "}
+{"type": "answer.draft", "attempt": 1, "delta": "this rehearsal of 5000 "}
+{"type": "answer.draft", "attempt": 1, "delta": "synthetic residents (Storm "}
+{"type": "answer.draft", "attempt": 1, "delta": "at the school run), 7881 "}
+{"type": "answer.draft", "attempt": 1, "delta": "trips: 6169 on time, 71 "}
+{"type": "answer.draft", "attempt": 1, "delta": "late, 1399 could not "}
+{"type": "answer.draft", "attempt": 1, "delta": "happen and 79 turned back. "}
+{"type": "answer.draft", "attempt": 1, "delta": "It is a rehearsal, not "}
+{"type": "answer.draft", "attempt": 1, "delta": "a "}
+{"type": "answer.draft", "attempt": 1, "delta": "forecast."}
+{"type": "answer.check", "attempt": 1, "ok": true, "issues": [], "repairs": 0}
+{"type": "text.delta", "delta": "In this rehearsal of 5000 synthetic resi"}
+{"type": "text.delta", "delta": "dents (Storm at the school run), 7881 tr"}
+{"type": "text.delta", "delta": "ips: 6169 on time, 71 late, 1399 could n"}
+{"type": "text.delta", "delta": "ot happen and 79 turned back. It is a re"}
+{"type": "text.delta", "delta": "hearsal, not a forecast.\n1. Children (un"}
+{"type": "text.delta", "delta": "der 13): 191 of 1014 could not make a tr"}
+{"type": "text.delta", "delta": "ip, 5 late.\n2. Teenagers: 151 of 362 cou"}
+{"type": "text.delta", "delta": "ld not make a trip, 14 late.\n3. Older re"}
+{"type": "text.delta", "delta": "sidents (65+): 48 of 464 could not make "}
+{"type": "text.delta", "delta": "a trip, 18 late.\n4. Wheelchair users: 3 "}
+{"type": "text.delta", "delta": "of 12 could not make a trip, 0 late.\n5. "}
+{"type": "text.delta", "delta": "Parents with a stroller: 43 of 217 could"}
+{"type": "text.delta", "delta": " not make a trip, 7 late.\n6. Households "}
+{"type": "text.delta", "delta": "without a car: 156 of 442 could not make"}
+{"type": "text.delta", "delta": " a trip, 3 late.\nWorth knowing:\n• Reside"}
+{"type": "text.delta", "delta": "nts are synthetic: a rehearsal on the to"}
+{"type": "text.delta", "delta": "wnship model, not a forecast and not rea"}
+{"type": "text.delta", "delta": "l people.\n• This is an indicative scenar"}
+{"type": "text.delta", "delta": "io, not a forecast. Follow official MBSA"}
+{"type": "text.delta", "delta": " / JPS / NADMA guidance."}
+{"type": "citation", "ref": 1, "evidence_id": "ev-day-storm", "element_id": "day", "attribute": "storm", "status": "indicative", "verified_at": null, "source_type": "rehearsal", "photo_url": null}
+{"type": "uncertainty", "level": "partial", "items": [{"element_id": "answer", "attribute": "caveat", "note": "Residents are synthetic: a rehearsal on the township model, not a forecast and not real people"}, {"element_id": "answer", "attribute": "caveat", "note": "This is an indicative scenario, not a forecast. Follow official MBSA / JPS / NADMA guidance"}]}
+{"type": "disclaimer", "lens": "flood", "text": "Indicative scenario from a 30 m elevation model (Copernicus GLO-30, height above mapped rivers and lakes), not a forecast. Follow official MBSA / JPS / NADMA guidance. Only the area 101.46–101.56 E, 3.15–3.24 N is assessed; paths outside it are not.", "links": [{"label": "Public InfoBanjir (JPS)", "url": "https://publicinfobanjir.water.gov.my"}, {"label": "MET Malaysia warnings", "url": "https://www.met.gov.my"}]}
+{"type": "done", "message_id": "demo", "answer_status": "answered", "model": "mock-scripted"}
