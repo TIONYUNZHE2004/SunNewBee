@@ -101,7 +101,7 @@ function StatusLines({
                 ["in", ["get", "status_for_profile"], ["literal", statuses]],
               ] as never
             }
-            layout={pt.layout as never}
+            layout={(pt.layout ?? {}) as never}
             paint={{ "line-color": COLOR, "line-width": WIDTH(extraWidth), ...pt.paint } as never}
           />
         );

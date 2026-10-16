@@ -1241,3 +1241,11 @@ No Critical findings. All 7 Important findings are fixed; 5 Minor are fixed and 
 | Minor: MCP clients got `changed_geojson`. | `MAP_ONLY` drops it in the MCP wrapper (only that field; `affected_places` is untouched). |
 
 **Checklist** (mock-backed): lint PASS, pytest 1,238 PASS, typecheck PASS, vitest 475 PASS, gen PASS, golden 22/22 PASS (mock), e2e 17 PASS.
+
+### Cycle 18: the fallback views in the browser (17 Oct, 05:19)
+
+The demo's recovery plan is "Map settings → Lite map or List (text)". I checked both with the new rehearsal and change answers (mock, seed):
+- **List (text):** works. It shows the day line ("Storm at the school run · 07:25 … 399 walking, 133 driving, 837 waiting … River +3 m") and the what-if section naming the imagined paths, with "not a real plan or a forecast".
+- **Lite map (Mapbox): broken, now fixed.** Mapbox GL rejected three status layers (`access-dashed`, `flood-lines-solid`, `flood-lines-dashed`): "layout: object expected, undefined found". On the fallback map **the flood paths were never drawn**. The patterns without a layout passed `undefined`, and the bug predates this mission. They now pass `{}`. Checked in the browser: at +3 m the likely-flooded paths are drawn and the console is clean.
+
+Checks: lint PASS, typecheck PASS, vitest PASS, e2e 17 PASS (List view). Lite map: checked in the browser only; there is no automated test (e2e runs keyless).
