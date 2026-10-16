@@ -147,6 +147,10 @@ def _strip_label(text: str, label: str | None) -> str:
     return rest[:1].upper() + rest[1:]
 
 
+# "flooded" in the three answer languages (Cycles 5-6 review A9).
+FLOOD_WORDS = ("flooded", "dinaiki air", "dilanda air", "banjir", "被淹", "受淹", "淹没")
+
+
 def _urgent(caveat: str, rec: TurnRecord | None) -> bool:
     """Caveats that change whether to go at all: a staff-reported closure, or the start or
     destination being flooded in the scenario. They are pinned above the summary."""
@@ -157,7 +161,8 @@ def _urgent(caveat: str, rec: TurnRecord | None) -> bool:
         return True
     names = {str(i.get("name", "")).lower() for i in rec.flooded_endpoints.values()}
     names |= {p.lower() for p in rec.flooded_endpoints}
-    return "flooded" in low and any(n and n in low for n in names)
+    flooded = any(w in low for w in FLOOD_WORDS)
+    return flooded and any(n and n in low for n in names)
 
 
 def answer_text(
@@ -192,7 +197,7 @@ def answer_text(
             rest.append(c)
 
     def dot(c: str) -> str:
-        return c if c.endswith((".", "!", "?")) else c + "."
+        return c if c.endswith((".", "!", "?", "。", "！", "？")) else c + "."
 
     parts = [label] if label else []
     parts += [f"{URGENT_MARK} {dot(c)}" for c in urgent]
@@ -412,9 +417,14 @@ async def run_turn(
         if ans is None:
             used = model_name + "+template"
             ans = template_answer(rec, req.message)
-        # The frame (status line, headings) follows the question's language; template answers
+        # The frame (status line, headings) follows the language the answer is written in (a
+        # model that answered a BM question in English gets an English frame); template answers
         # (fallbacks) stay English.
-        lang = detect_language(req.message) if not used.endswith("+template") else "en"
+        lang = (
+            "en"
+            if used.endswith("+template")
+            else detect_language(" ".join([ans.summary, *ans.caveats]), rec.place_names)
+        )
         events = _answer_events(ans, rec, ctx, req.scenario_id, lang)
     except Exception as exc:  # last resort: never leave the client without done
         log.warning("answer rendering failed: %s", type(exc).__name__)

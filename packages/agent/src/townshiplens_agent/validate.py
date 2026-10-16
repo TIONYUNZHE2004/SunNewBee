@@ -3,24 +3,40 @@ import re
 from townshiplens_spatial.attributes import ATTRIBUTE_TYPES
 
 from .answer import FinalAnswer
-from .labels import CLOSURE_WORDS, DEMO_CONFIRMED, REST_GAP_WORDS, closure_name, closure_until
+from .labels import (
+    CLOSURE_WORDS,
+    DEMO_CONFIRMED,
+    REST_GAP_WORDS,
+    closure_name,
+    closure_until,
+    detect_language,
+)
 from .record import TurnRecord
 
 FORBIDDEN = re.compile(r"(?<![\w-])safe(?:ly)?(?![\w-])|\bselamat\b|安全", re.IGNORECASE)
 DEPTH = re.compile(
     r"\d+(?:\.\d+)?\s?(?:cm|m|厘米|米)\s*(?:deep|of water|dalam|深)"
-    r"|depth\s+of\s+\d|\d+(?:\.\d+)?\s?(?:cm|m)\s+depth|(?:knee|waist|ankle)-deep",
+    r"|depth\s+of\s+\d|\d+(?:\.\d+)?\s?(?:cm|m)\s+depth|(?:knee|waist|ankle)-deep"
+    # Bahasa Melayu and Chinese (Cycles 5-6 review A7)
+    r"|\bkedalaman\b[^.;]{0,20}\d|\bsedalam\s+\d|\bparas (?:lutut|pinggang|buku lali)\b"
+    r"|水深|深度[^。；]{0,8}\d|[齐没](?:膝|腰|踝)",
     re.IGNORECASE,
 )
 # Guesses and reassurance: the engine computes no likelihood for a route, so the answer must not
 # imply one ("likely flooded" is a flood class and stays allowed).
 REASSURE = re.compile(
     r"\bprobably\b|\bshould be (?:fine|ok(?:ay)?|alright|accessible|passable)\b"
+    r"|\b(?:may|might|could) (?:well )?be (?:fine|ok(?:ay)?|alright|passable|accessible)\b"
     r"|\byou(?:'ll| will) be (?:fine|ok(?:ay)?)\b|\bno problem\b|\bnothing to worry\b"
-    # Bahasa Melayu and Chinese reassurance ("mungkin" / "可能" stay allowed: they translate the
-    # "possibly flooded" flood class).
-    r"|\bjangan risau\b|\btiada masalah\b|\btak apa-apa\b|\bpasti boleh\b"
-    r"|应该没问题|没问题|不用担心|放心|肯定可以",
+    # Bahasa Melayu and Chinese. "mungkin" / "可能" alone stay allowed (they translate "possibly
+    # flooded" and honest "may have steps"); a guess that something works does not.
+    r"|\bjangan risau\b|\b(?:tak|tidak) perlu (?:risau|bimbang)\b|\btak apa-apa\b"
+    r"|\btiada masalah\b(?!\s+(?:yang\s+)?(?:dilaporkan|direkodkan|diketahui))|\bpasti boleh\b"
+    r"|\bbarangkali\b|\bsepatutnya\s+(?:boleh|ok(?:ey)?|tiada masalah|baik)\b"
+    r"|\bmungkin\s+(?:boleh|dapat|ok(?:ey)?|sesuai|tiada masalah)\b"
+    r"|应该(?:可以|能|没问题|没事|行)|可能(?:可以|能够?(?:通过|通行|走)|没问题|没事)"
+    r"|大概(?:可以|能|没问题)|估计(?:可以|没问题)|不用担心|别担心|放心|肯定可以"
+    r"|(?<!代表)(?<!意味着)(?<!不是)没问题",
     re.IGNORECASE,
 )
 # Required phrases, accepted in English, Bahasa Melayu and Chinese (Cycle 6), so a resident who
@@ -32,7 +48,24 @@ DEMO_PHRASES = (
     "演示数据,尚未实地调查",
 )
 NOT_FORECAST = ("not a forecast", "bukan ramalan", "不是预报", "并非预报", "不是预测")
-ENTRANCE_WORDS = ("entrance", "pintu masuk", "入口")
+# A likely-flooded place keeps its strength in a caveat (Cycles 5-6 review A1): "mungkin" /
+# "可能" alone mean "possibly".
+LIKELY_WORDS = (
+    "likely flooded",
+    "likely to flood",
+    "likely to be flooded",
+    "besar kemungkinan",
+    "很可能",
+)
+# The "entrance is not mapped" note, translated: the place, its entrance and a negation (review A4).
+ENTRANCE_UNMAPPED = re.compile(
+    r"\bentrance (?:is |isn't |is not |has not been |hasn't been )?(?:not |un)?mapped"
+    r"|\bpintu masuk\w*[^.;]{0,30}\b(?:belum|tidak|tiada)\s+(?:di)?(?:petakan|peta|tanda|tandakan)"
+    r"|\b(?:belum|tidak)\s+dipetakan\b[^.;]{0,30}\bpintu masuk"
+    r"|入口[^。；]{0,15}(?:未|没有|尚未)(?:在地图上)?(?:标注|标出|绘制|标明|测绘|显示)"
+    r"|(?:未|没有|尚未)(?:在地图上)?(?:标注|标出|绘制|标明)[^。；]{0,10}入口|地图上(?:没有|未)[^。；]{0,10}入口",
+    re.IGNORECASE,
+)
 
 
 def has_demo_phrase(text: str) -> bool:
@@ -106,6 +139,17 @@ PLACEHOLDER_CAVEAT = "demo values, not yet surveyed"
 BANNED_PLACEHOLDER = re.compile(r"\bsurveyed on\b|staff (?:have |has )?checked", re.IGNORECASE)
 VERIFIED_WORD = re.compile(r"\bverified\b", re.IGNORECASE)  # not "unverified"/"partly_unverified"
 NEGATED_VERIFIED = re.compile(r"\bnot (?:yet )?$", re.IGNORECASE)
+# "Verified" in Bahasa Melayu and Chinese (review A2). The app's own demo status line
+# "disahkan (pada nilai demo, belum ditinjau)" stays allowed.
+VERIFIED_ML = re.compile(
+    r"\b(?:telah|sudah)\s+disahkan\b(?!\s*\(pada nilai demo)|\bdisahkan oleh\b"
+    r"|\bdisemak oleh (?:kakitangan|pegawai|staf)\b"
+    r"|\b(?:telah|sudah)\s+ditinjau\b|\bditinjau pada\b"
+    r"|已(?:经)?(?:核实|验证|实地调查)|经(?:过)?(?:核实|验证)|核实过|验证过"
+    r"|工作人员[^。；]{0,6}(?:检查|核实|确认)|实地调查于",
+    re.IGNORECASE,
+)
+NEGATED_ML = re.compile(r"(?:\b(?:belum|tidak|bukan)\s+|未|没有|尚未|并未|未曾)$", re.IGNORECASE)
 
 
 _ST = r"(confirmed|partly_unverified|blocked|no_data)"
@@ -121,7 +165,9 @@ BARE_CONFIRMED = re.compile(
     re.IGNORECASE,
 )
 RAW_ID = re.compile(
-    r"\bseg-[\w-]+|\b(?:" + "|".join(sorted(k for k in ATTRIBUTE_TYPES if "_" in k)) + r")\b"
+    r"\bseg-[\w-]+|\bev-[\w.-]+|\brt-[0-9a-f]+\b|\bvr-\d+\b|\bevidence_ids\b"
+    r"|</?(?:parameter|summary|claims|invoke|function_calls|antml:\w+)\b[^>]*>"
+    r"|\b(?:" + "|".join(sorted(k for k in ATTRIBUTE_TYPES if "_" in k)) + r")\b"
 )
 ASKED = re.compile(
     r"\b(?:asked|requested|filed|notified)\b[^.;]{0,40}\b(?:team|staff)\b"
@@ -152,16 +198,46 @@ def _names_closure(segments: list[str], row: dict) -> bool:
 
 def _inferred_ok(note: str, caveat: str) -> bool:
     """The plan_route note "... nearest mapped path to <place>; its entrance is not mapped" is
-    given word for word, or (in any language) as a caveat naming the place and its entrance."""
+    given word for word, or (in any language) as a caveat naming the place and saying its
+    entrance is not mapped (a positive "use the entrance by the lake" never counts)."""
     if _norm_note(note) in _norm_note(caveat):
         return True
     m = re.search(r"nearest mapped path to (.+?); its entrance", note)
     low = caveat.lower()
-    return bool(m and m.group(1).lower() in low and any(w in low for w in ENTRANCE_WORDS))
+    return bool(m and m.group(1).lower() in low and ENTRANCE_UNMAPPED.search(caveat))
+
+
+# Bahasa Melayu and Chinese status words mapped to the English ones before the status checks
+# (review A5); the longer forms first.
+_ML_STATUS = (
+    ("disahkan (pada nilai demo, belum ditinjau)", "confirmed (on demo values, not yet surveyed)"),
+    ("已确认（基于演示数据，尚未实地调查）", "confirmed (on demo values, not yet surveyed)"),
+    ("已确认(基于演示数据,尚未实地调查)", "confirmed (on demo values, not yet surveyed)"),
+    ("sebahagian belum disahkan", "partly_unverified"),
+    ("部分未核实", "partly_unverified"),
+    ("tiada sambungan dipetakan", "no_data"),
+    ("无已绘制的连接", "no_data"),
+    ("status laluan", "route status"),
+    ("路线状态", "route status"),
+    ("：", ": "),
+    ("tersekat", "blocked"),
+    ("受阻", "blocked"),
+    ("已确认", " confirmed"),
+    ("disahkan", "confirmed"),
+    ("laluan", "route"),
+    ("路线", " route "),
+)
+
+
+def _to_en(text: str) -> str:
+    low = text.lower()
+    for a, b in _ML_STATUS:
+        low = low.replace(a, b)
+    return low
 
 
 def _norm_status_text(text: str) -> str:
-    text = text.lower().replace("partly unverified", "partly_unverified")
+    text = _to_en(text).replace("partly unverified", "partly_unverified")
     text = text.replace("no mapped connection", "no_data")
     return text.replace("no data", "no_data")
 
@@ -181,8 +257,11 @@ def _named_statuses(summary: str, steps: list[str]) -> set[str]:
 
 
 def _claims_verified(text: str) -> bool:
-    """True when the text uses "verified" affirmatively ("not (yet) verified" is allowed)."""
-    return any(not NEGATED_VERIFIED.search(text[: m.start()]) for m in VERIFIED_WORD.finditer(text))
+    """True when the text uses "verified" affirmatively, in English, Bahasa Melayu or Chinese
+    ("not (yet) verified", "belum disahkan", "未经核实" are allowed)."""
+    if any(not NEGATED_VERIFIED.search(text[: m.start()]) for m in VERIFIED_WORD.finditer(text)):
+        return True
+    return any(not NEGATED_ML.search(text[: m.start()]) for m in VERIFIED_ML.finditer(text))
 
 
 def _strip_names(text: str, names: set[str]) -> str:
@@ -262,12 +341,16 @@ def validate_answer(ans: FinalAnswer, rec: TurnRecord) -> list[str]:
     if ans.answer_status != "cannot_answer":
         for pid, info in rec.flooded_endpoints.items():
             names = {pid.lower(), str(info.get("name", pid)).lower()}
-            if not any(n in c.lower() for c in ans.caveats for n in names):
-                phrase = (
-                    "likely flooded"
-                    if info.get("flood_class") == "likely_flooded"
-                    else "possibly flooded"
+            likely = info.get("flood_class") == "likely_flooded"
+            naming = [c.lower() for c in ans.caveats if any(n in c.lower() for n in names)]
+            if likely and naming and not any(w in c for c in naming for w in LIKELY_WORDS):
+                errs.append(
+                    f"{info.get('name', pid)} ({pid}) is likely flooded in this indicative "
+                    "scenario: keep the strength of the flood class ('likely flooded' / "
+                    "'besar kemungkinan dinaiki air' / '很可能被淹'), never 'possibly'."
                 )
+            elif not naming:
+                phrase = "likely flooded" if likely else "possibly flooded"
                 errs.append(
                     f"{info.get('name', pid)} ({pid}) is {phrase} in this indicative "
                     "scenario: add a caveat naming it."
@@ -295,7 +378,7 @@ def validate_answer(ans: FinalAnswer, rec: TurnRecord) -> list[str]:
         ans.answer_status != "cannot_answer"
         and status == "confirmed"
         and route.get("demo_evidence")
-        and BARE_CONFIRMED.search(" ".join([ans.summary, *ans.steps, *ans.caveats]))
+        and BARE_CONFIRMED.search(_to_en(" ".join([ans.summary, *ans.steps, *ans.caveats])))
     ):
         errs.append(
             "The route is confirmed only on placeholder (demo) values: say "
@@ -306,6 +389,8 @@ def validate_answer(ans: FinalAnswer, rec: TurnRecord) -> list[str]:
     errs += whatif_errors(ans, rec)
     errs += plan_errors(ans, rec)
     errs += rollout_errors(ans, rec)
+    errs += foreign_number_errors(ans, rec)
+    errs += affected_errors(ans, rec)
     # Honesty rules apply to every answer, whether or not a tool ran.
     errs += text_errors(all_text, rec)
     return errs
@@ -340,7 +425,8 @@ def text_errors(text: str, rec: TurnRecord) -> list[str]:
     if RAW_ID.search(text):
         errs.append(
             "Write for residents: use the readable names from the tool result "
-            "(element_label, e.g. 'Incline (%)'), never segment ids or snake_case attribute keys."
+            "(element_label, e.g. 'Incline (%)'), never segment, evidence, route or ticket ids, "
+            "snake_case attribute keys or tool-call markup."
         )
     plain = _strip_names(text, rec.place_names)
     if FORBIDDEN.search(plain):
@@ -473,6 +559,83 @@ def whatif_errors(ans: FinalAnswer, rec: TurnRecord) -> list[str]:
             f"phrase '{PLACEHOLDER_CAVEAT}'."
         )
     return errs
+
+
+# An integer that is not a measurement, in any of the three languages ("2,503" is one number).
+_ANY_COUNT = re.compile(
+    r"(?<![\d.,])(\d{1,3}(?:,\d{3})+|\d+)(?![.,]?\d)"
+    r"(?!\s*(?:m|km|cm|min|minit|mins|minutes?|h|jam|%|metres?|meters?|meter|米|公里|厘米|分钟|小时)"
+    r"(?![a-z]))",
+    re.IGNORECASE,
+)
+_STEP_NUMBER = re.compile(r"^\s*\d+[.)]\s")
+
+
+def _ints(x) -> set[int]:
+    """Every integer leaf in a tool payload (counts, totals)."""
+    if isinstance(x, bool):
+        return set()
+    if isinstance(x, int):
+        return {x}
+    if isinstance(x, dict):
+        return set().union(*(_ints(v) for v in x.values())) if x else set()
+    if isinstance(x, list):
+        return set().union(*(_ints(v) for v in x)) if x else set()
+    return set()
+
+
+def foreign_number_errors(ans: FinalAnswer, rec: TurnRecord) -> list[str]:
+    """Simulation answers in Bahasa Melayu or Chinese (review A6): the English count patterns do
+    not read them, so every count in the answer must be a number the simulation produced."""
+    if ans.answer_status == "cannot_answer" or not (
+        rec.what_ifs or rec.plans or rec.rollouts or rec.tippings
+    ):
+        return []
+    parts = [ans.summary, *(_STEP_NUMBER.sub("", s) for s in ans.steps), *ans.caveats]
+    text = _strip_names(" ".join(parts), rec.place_names)
+    if detect_language(text) == "en" and ans.language in ("", "en"):
+        return []
+    allowed = _whatif_numbers(rec) | _plan_numbers(rec)
+    for r in rec.rollouts:
+        allowed |= _ints(r.get("counts"))
+    for t in rec.tippings:
+        allowed |= _ints(t.get("stages"))
+    spoken = {int(m.group(1).replace(",", "")) for m in _ANY_COUNT.finditer(text)}
+    if bad := sorted(spoken - allowed):
+        return [
+            f"Numbers {bad} do not appear in the simulation result: in every language, quote "
+            "only the counts the tool returned."
+        ]
+    return []
+
+
+# "35 places", "35 tempat", "35个地点": a count of places (review B1: path segments are not places).
+PLACE_COUNT = re.compile(
+    r"(?<![\d.,])(\d{1,3}(?:,\d{3})+|\d+)\s+(?:[a-z-]+\s+){0,2}?(?:places?|tempat|lokasi)\b"
+    r"|(?<![\d.,])(\d{1,3}(?:,\d{3})+|\d+)\s*(?:个|处)(?:地点|地方)",
+    re.IGNORECASE,
+)
+
+
+def affected_errors(ans: FinalAnswer, rec: TurnRecord) -> list[str]:
+    """affected_places totals add places and path segments: a count of places must be one of
+    the place counts, never the combined total."""
+    if not rec.affected or rec.plans or ans.answer_status == "cannot_answer":
+        return []
+    allowed: set[int] = set()
+    for a in rec.affected:
+        lp, pp = int(a.get("likely_place_count", 0)), int(a.get("possible_place_count", 0))
+        allowed |= {lp, pp, lp + pp, int(a.get("isolated_place_count", 0))}
+        allowed |= {int(a.get("likely_listed", 0)), int(a.get("possible_listed", 0))}
+    text = " ".join([ans.summary, *ans.steps, *ans.caveats])
+    spoken = {int((m.group(1) or m.group(2)).replace(",", "")) for m in PLACE_COUNT.finditer(text)}
+    if bad := sorted(spoken - allowed):
+        return [
+            f"Place counts {bad} are not place counts from affected_places: likely_total adds "
+            "places and path segments. Say 'N places and M path segments' with "
+            "likely_place_count / likely_path_count."
+        ]
+    return []
 
 
 def _plan_numbers(rec: TurnRecord) -> set[int]:
@@ -719,6 +882,9 @@ _ISSUES = (
     ("rest limit", "left out the longest stretch without a rest point"),
     ("say plainly it is a what-if", "did not say the answer is a what-if simulation"),
     ("do not appear in the what-if result", "used numbers the simulation did not produce"),
+    ("do not appear in the simulation result", "used numbers the simulation did not produce"),
+    ("are not place counts", "counted path segments as places"),
+    ("keep the strength of the flood class", "weakened a 'likely flooded' warning"),
     ("Imagined outcomes are conditional", "stated an imagined outcome as fact"),
     ("found no candidate change that helps", "claimed a fix helps when none does"),
     ("stopped at its time limit", "did not say the search was inconclusive"),

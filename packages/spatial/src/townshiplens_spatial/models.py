@@ -317,6 +317,11 @@ class AffectedResult(BaseModel):
     likely_total: int = 0  # underlying elements (places + path edges), before grouping/capping
     possible_total: int = 0
     isolated_total: int = 0
+    # The same totals split: places and path segments are never counted together as "places".
+    likely_place_count: int = 0
+    likely_path_count: int = 0
+    possible_place_count: int = 0
+    possible_path_count: int = 0
     likely_place_ids: list[str] = Field(default_factory=list)  # full id lists for evidence / map
     possible_place_ids: list[str] = Field(default_factory=list)
     likely_edge_ids: list[str] = Field(default_factory=list)

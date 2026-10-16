@@ -725,3 +725,30 @@ Each ruling gives what was decided, why, and the cost if it is wrong.
 | 9 | Minor | Weak tests. | Exact modes and profile; tests for ambiguous names, centres, a verified fail, resolved-but-unverified tickets and the cache. The wording moved to a pure `impactModel.ts` with vitest. |
 
 Ruling W19: impact stays public and read-only (counts and place names, like `/verify-next`). Making it staff-only would need the staff token on every ticket view. The fact-keyed cache and the 2 s wait bound the cost instead. Cost if wrong: a scraper could still spend one slot about 2.8 s per distinct fact, at most once per world version.
+
+## Cycles 5–6 review (independent Opus reviewer) and fixes
+
+The reviewer reproduced each gap against the validator, the eval scorer or the committed live results. Each is now a regression test (`packages/agent/tests/test_validate_multilingual.py`, `evals/tests/test_run_eval.py`).
+
+| # | Severity | Finding (reproduced) | Fix |
+|---|---|---|---|
+| A1 | High | A likely-flooded place could be weakened to "possibly" in any language. It happened live: zh-safe said 可能受淹 and bm-flood-safe "kemungkinan dilanda air" for a *likely* flooded Urban Park. | A caveat naming a likely-flooded endpoint must say "likely flooded" / "besar kemungkinan" / "很可能". |
+| A2 | Medium-High | BM and 中文 could call demo values verified ("telah disahkan oleh kakitangan", "已由工作人员核实"). | `VERIFIED_ML`, with negation (belum, 未, 没有…). The app's own demo status line stays allowed. |
+| A3 | Medium-High | Guesses passed in BM and 中文 ("mungkin boleh dilalui", "应该可以通行", "barangkali"). Two false positives ("Tiada masalah yang dilaporkan", "这并不代表没问题"). | Positive guesses are banned in all three languages, including English "might be fine". "mungkin" / "可能" alone stay allowed, since they translate "possibly flooded" and honest "may have steps". The two false positives are fixed. |
+| A4 | Medium | Any caveat naming the place plus "entrance" satisfied the "entrance is not mapped" rule, even "use the entrance by the lake". | The translated note must carry a negation (not mapped / belum dipetakan / 未标注). |
+| A5 | Medium | "Status laluan: disahkan" or "路线状态：已确认" contradicting a partly-unverified route passed. So did a plain "laluan disahkan" on demo values. | BM and 中文 status words are mapped to English before the status checks. |
+| A6 | Medium | What-if, plan and rollout counts went unchecked in BM and 中文 ("46 daripada 50"). | For a non-English simulation answer, every count must be a number the simulation returned. |
+| A7 | Low-Medium | Depths in BM and 中文 passed (kedalaman, 水深, 齐膝). | DEPTH covers them. |
+| A9 | Medium | A flooded endpoint named in BM or 中文 was not pinned above the summary. | `FLOOD_WORDS` in `_urgent`. |
+| A10 | Low | Place names made English questions "Malay". Short BM questions read as English. The mock's English answer got a BM frame. "。." appeared at sentence ends. | Names are stripped before detection, and more BM words are known. **The frame now follows the answer's language.** CJK sentence ends are handled. |
+| B1 | High | Live "2,503 places likely cut off": 35 places plus 2,468 path segments. | `affected_places` returns `likely_place_count` / `likely_path_count` (and the possible pair). The tool docstring says which to use. A validator rule keeps a "N places" count to place counts. The mock now says "23 places and 1353 path segments". |
+| B2 | Low-Medium | The 60-row evidence cap could drop every placeholder row from the model's view. | Ranked before the cap: scenario, then placeholder, then unknown/place rows, then the rest. |
+| B3 | Low | `evidence_truncated` was never explained to the model. | Prompt rule 9. |
+| C1 | High | The number-faithfulness scorer was a substring test over the whole payload: "47" matched inside an id, and "2,503" was read as 2 and 503. | Numbers come from JSON values only (no ids, keys or geometry) and are compared as numbers. List lengths count ("all 6 unchecked items"), as does a list's remainder ("and 61 more"). |
+| C2 | High | Live zh-flood leaked `</summary><parameter name="claims">…ev-scn-…` to the resident, and the gate passed it. | RAW_ID covers ev-/rt-/vr- ids, `evidence_ids` and tool-call markup. |
+| C3 | Medium | The report claimed more than its JSON showed. "0/30 step-free claims" was never measured for the world model. "Grounded" and "says no data" were not in the committed JSON. Rewrites were 10, not 9. "English-mixed 8 → 1" was wrong. | The report is rewritten from a fresh live run (below), with every number from its JSON. The certainty count is now measured for both sides. |
+| C4 | Medium | The scoring is not independent of the validator. The percentage regex never matched. Place names were not stripped. | The report says so plainly. `SPECIFIC` matches %. Names are stripped. |
+
+Ruling W20: the language-specific rules are phrase lists, not a translation model. They catch what the review reproduced and close variants, but not every paraphrase. The prompt carries the same translations, and the eval re-reads the shown text. Cost if wrong: an unusual BM or 中文 phrasing of a banned idea could pass. Mitigation: wrong numbers in BM and 中文 are still caught by the count check, which needs no phrase list.
+
+Ruling W21: the answer frame follows the answer's language, not the question's. A model that answers a BM question in English (the mock always does) gets an English frame, never a mixed one.

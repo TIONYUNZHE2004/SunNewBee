@@ -706,6 +706,16 @@ export interface components {
             }[];
             /** Likely Edge Ids */
             likely_edge_ids?: string[];
+            /**
+             * Likely Path Count
+             * @default 0
+             */
+            likely_path_count: number;
+            /**
+             * Likely Place Count
+             * @default 0
+             */
+            likely_place_count: number;
             /** Likely Place Ids */
             likely_place_ids?: string[];
             /**
@@ -719,6 +729,16 @@ export interface components {
             }[];
             /** Possible Edge Ids */
             possible_edge_ids?: string[];
+            /**
+             * Possible Path Count
+             * @default 0
+             */
+            possible_path_count: number;
+            /**
+             * Possible Place Count
+             * @default 0
+             */
+            possible_place_count: number;
             /** Possible Place Ids */
             possible_place_ids?: string[];
             /**

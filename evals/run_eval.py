@@ -9,10 +9,11 @@ Per turn, with the world model (the product):
 - first-attempt acceptance by the validator, rewrites, template fallbacks;
 - latency to the first draft and to the checked answer; tokens;
 - expected tool family called (any-of);
-- an *independent* number-faithfulness check: every number in the shown answer must appear
-  in this turn's tool results (step numbers and river-stage labels excepted);
-- honesty violations in the shown answer (the validator's own wording rules, re-run here
-  on the final text, so a regression in the gate would show up);
+- a number-faithfulness check, separate from the validator: every number in the shown answer
+  must be a value this turn's tools returned (compared as numbers; ids, keys and geometry are
+  never counted; step numbers and river-stage labels excepted);
+- honesty violations in the shown answer: the validator's own wording rules re-run on the final
+  text. This is a regression check on the gate, not an independent judge;
 - PII echo: an identity number in the question must never appear in the answer or a ticket.
 
 "Bare LLM" (EVAL_BARE=1): the same model and question, no tools, a plain township-assistant
@@ -36,17 +37,22 @@ from townshiplens_agent.events import ChatRequest
 from townshiplens_agent.record import TurnRecord
 from townshiplens_agent.run import run_turn
 from townshiplens_agent.settings import ROOT, AgentSettings
-from townshiplens_agent.validate import DEPTH, FORBIDDEN, RAW_ID, REASSURE
+from townshiplens_agent.validate import DEPTH, FORBIDDEN, RAW_ID, REASSURE, _strip_names
 from townshiplens_spatial import tools
 from townshiplens_spatial.vr_store import VerificationStore
 from townshiplens_spatial.world import load_world
 
 SUITE = Path(__file__).parent / "suite" / "elmina.yaml"
 SEED = ROOT / "data/seed/elmina"
-NUM = re.compile(r"(?<![\w.])(\d+(?:\.\d+)?)(?![\w])")
+# A number in an answer: "2,503" is one number, "1.5" one, never digits glued to a word or id.
+NUM = re.compile(r"(?<![\w.,])(\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+(?:\.\d+)?)(?![\w]|[.,]\d)")
+MORE = re.compile(r"\s+more\b", re.I)
+# Payload keys whose numbers are never something a resident is told (geometry, ids).
+_SKIP_KEYS = {"coordinates", "geometry", "bbox", "lat", "lon", "lng", "diff_geojson"}
+_ID_VALUE = re.compile(r"^[a-z_]+[-:][\w.:-]+$|^[0-9a-f]{8,}$", re.I)
 STEP_NO = re.compile(r"^\s*\d+\.\s", re.M)
 STAGE = re.compile(r"\+\s?\d+(?:\.\d+)?\s?m\b", re.I)
-SPECIFIC = re.compile(r"\b\d+(?:\.\d+)?\s?(?:m|km|metres?|meters?|min|mins|minutes|%)\b", re.I)
+SPECIFIC = re.compile(r"\b\d+(?:\.\d+)?\s?(?:(?:m|km|metres?|meters?|min|mins|minutes)\b|%)", re.I)
 CERTAIN = re.compile(
     r"\b(?:fully |completely )?(?:step-free|wheelchair[- ]accessible|barrier-free)\b", re.I
 )
@@ -64,13 +70,17 @@ BARE_PROMPT = (
 )
 
 
-def honesty_violations(text: str) -> list[str]:
+def honesty_violations(text: str, names: set[str] = frozenset()) -> list[str]:
+    """The validator's wording rules re-run on the text shown (a regression check on the gate,
+    not an independent judge: a gap in a rule is a gap here too). Place names are removed first,
+    so "Taman Selamat" is not a "safe" violation."""
+    plain = _strip_names(text, set(names))
     out = []
-    if FORBIDDEN.search(text):
+    if FORBIDDEN.search(plain):
         out.append("safe")
     if DEPTH.search(text):
         out.append("depth")
-    if REASSURE.search(text):
+    if REASSURE.search(plain):
         out.append("reassurance")
     if RAW_ID.search(text):
         out.append("raw_id")
@@ -82,20 +92,48 @@ ALLOWED_NUMBERS = {
 }  # Malaysia's emergency number, which the prompt tells the assistant to give
 
 
-def classify_numbers(text: str, payload: str) -> tuple[list[str], list[str]]:
-    """(unfaithful, rounded): numbers in the answer that no tool returned, and numbers that are
-    an engine value rounded (within 3%, e.g. 119.8 m said as "about 120 m")."""
+def payload_values(payloads: list) -> set[float]:
+    """Every number a tool returned as a value: numeric leaves, and numbers inside readable
+    strings ("River +3 m"), but never ids, keys or geometry (Cycles 5-6 review C1: a substring
+    test let "47" match inside an id)."""
+    out: set[float] = set()
+
+    def walk(x, key=""):
+        if key in _SKIP_KEYS or key.endswith(("_id", "_ids")) or key in ("id", "ids"):
+            return
+        if isinstance(x, bool):
+            return
+        if isinstance(x, (int, float)):
+            out.add(float(x))
+        elif isinstance(x, str):
+            if not _ID_VALUE.match(x):
+                out.update(float(n.replace(",", "")) for n in NUM.findall(x))
+        elif isinstance(x, dict):
+            for k, v in x.items():
+                walk(v, str(k))
+        elif isinstance(x, list):
+            out.add(float(len(x)))  # "all 6 unchecked items": a count of a returned list
+            for v in x:
+                walk(v, key)
+
+    for p in payloads:
+        walk(json.loads(p) if isinstance(p, str) else p)
+    return out
+
+
+def classify_numbers(text: str, values: set[float]) -> tuple[list[str], list[str]]:
+    """(unfaithful, rounded): numbers in the answer that no tool returned as a value, and
+    numbers that are an engine value rounded (within 3%, e.g. 119.8 m said as "about 120 m").
+    Compared as numbers: "2,503" is 2503, never "2" and "503"."""
     body = STAGE.sub(" ", STEP_NO.sub(" ", text))
-    values = [float(x) for x in NUM.findall(payload)]
     unfaithful, rounded = [], []
     for m in NUM.finditer(body):
         n = m.group(1)
-        if n in ALLOWED_NUMBERS:
+        x = float(n.replace(",", ""))
+        if n in ALLOWED_NUMBERS or any(abs(x - v) < 1e-9 for v in values):
             continue
-        variants = {n, n.rstrip("0").rstrip(".") if "." in n else n}
-        if any(v in payload for v in variants):
-            continue
-        x = float(n)
+        if MORE.match(body, m.end()) and any(0 < v - x <= 10 for v in values):
+            continue  # "and 61 more unchecked items": a list's length minus the ones named
         if any(abs(x - v) <= max(0.5, 0.03 * abs(v)) for v in values):
             rounded.append(n)
         else:
@@ -103,8 +141,8 @@ def classify_numbers(text: str, payload: str) -> tuple[list[str], list[str]]:
     return unfaithful, rounded
 
 
-def unfaithful_numbers(text: str, payload: str) -> list[str]:
-    return classify_numbers(text, payload)[0]
+def unfaithful_numbers(text: str, payloads: list) -> list[str]:
+    return classify_numbers(text, payload_values(payloads))[0]
 
 
 async def main() -> int:
@@ -120,6 +158,8 @@ async def main() -> int:
     if only := {c for c in os.environ.get("EVAL_ONLY", "").split(",") if c}:
         cases = [c for c in cases if c["id"] in only]
     world = load_world(SEED)
+    all_names = {p.name for p in world.places.values() if p.name}
+    all_names |= {c.name for c in world.centres.values() if c.name}
 
     payloads: list[str] = []
     original = dict(tools.TOOLS)
@@ -171,9 +211,10 @@ async def main() -> int:
                 "total_s": round(time.perf_counter() - t0, 2),
                 "input_tokens": rec.usage.input_tokens,
                 "output_tokens": rec.usage.output_tokens,
-                "violations": honesty_violations(text),
-                "unfaithful_numbers": classify_numbers(text, " ".join(payloads))[0],
-                "rounded_numbers": classify_numbers(text, " ".join(payloads))[1],
+                "violations": honesty_violations(text, rec.place_names),
+                "unfaithful_numbers": classify_numbers(text, payload_values(payloads))[0],
+                "rounded_numbers": classify_numbers(text, payload_values(payloads))[1],
+                "certainty_claims": CERTAIN.findall(text),
                 "pii_echo": bool(IC.search(case["message"]))
                 and bool(IC.search(text) or IC.search(vr_text)),
                 "text": text,
@@ -189,7 +230,7 @@ async def main() -> int:
                 out = (await agent.run(case["message"])).output
                 row["bare"] = {
                     "text": out,
-                    "violations": honesty_violations(out),
+                    "violations": honesty_violations(out, all_names),
                     # numbers the question itself gave ("+3 m") are not the model's invention
                     "unsupported_specifics": [
                         x
@@ -221,6 +262,9 @@ async def main() -> int:
         "answers_with_unfaithful_numbers": sum(bool(r["unfaithful_numbers"]) for r in rows),
         "answers_with_rounded_engine_numbers": sum(bool(r["rounded_numbers"]) for r in rows),
         "pii_echo": sum(r["pii_echo"] for r in rows),
+        # "step-free" / "accessible" words, hedged or not (read the rows before quoting this)
+        "answers_with_certainty_words": sum(bool(r["certainty_claims"]) for r in rows),
+        "answers_rewritten": sum(r["rewrites"] > 0 for r in rows),
         "grounded_answers": sum(r["tool_hit"] and r["status"] != "cannot_answer" for r in rows),
         "median_first_text_s": st.median(r["first_text_s"] for r in rows) if rows else None,
         "median_total_s": st.median(r["total_s"] for r in rows) if rows else None,

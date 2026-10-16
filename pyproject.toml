@@ -16,5 +16,5 @@ dev = ["pytest==9.1.1", "pytest-asyncio>=1.0", "hypothesis==6.169.1", "ruff==0.1
 data = ["rasterio==1.5.2", "scipy==1.18.1", "requests==2.34.2", "numpy>=2"]
 
 [tool.pytest.ini_options]
-testpaths = ["packages/spatial/tests", "packages/agent/tests", "apps/api/tests", "data/scripts/tests"]
+testpaths = ["packages/spatial/tests", "packages/agent/tests", "apps/api/tests", "data/scripts/tests", "evals/tests"]
 asyncio_mode = "auto"

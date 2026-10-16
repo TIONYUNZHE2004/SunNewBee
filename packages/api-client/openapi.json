@@ -35,6 +35,16 @@
             "title": "Likely Edge Ids",
             "type": "array"
           },
+          "likely_path_count": {
+            "default": 0,
+            "title": "Likely Path Count",
+            "type": "integer"
+          },
+          "likely_place_count": {
+            "default": 0,
+            "title": "Likely Place Count",
+            "type": "integer"
+          },
           "likely_place_ids": {
             "items": {
               "type": "string"
@@ -61,6 +71,16 @@
             },
             "title": "Possible Edge Ids",
             "type": "array"
+          },
+          "possible_path_count": {
+            "default": 0,
+            "title": "Possible Path Count",
+            "type": "integer"
+          },
+          "possible_place_count": {
+            "default": 0,
+            "title": "Possible Place Count",
+            "type": "integer"
           },
           "possible_place_ids": {
             "items": {

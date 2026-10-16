@@ -482,17 +482,26 @@ def _script(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
         a = _data(rets[-1][1])
         if not isinstance(a, dict):
             return _cannot()
-        # Lists are capped by the tool: prefer the totals when present.
-        likely = a["likely_total"] if "likely_total" in a else len(a.get("likely") or [])
-        possible = a["possible_total"] if "possible_total" in a else len(a.get("possible") or [])
+
+        # Lists are capped by the tool: use the counts, places and path segments apart.
+        def both(side: str) -> str:
+            if f"{side}_place_count" not in a:
+                return f"{a.get(f'{side}_total', len(a.get(side) or []))} places/paths"
+            pl, pa = a[f"{side}_place_count"], a[f"{side}_path_count"]
+            return (
+                f"{pl} {'place' if pl == 1 else 'places'} and "
+                f"{pa} path {'segment' if pa == 1 else 'segments'}"
+            )
+
+        likely, possible = both("likely"), both("possible")  # a malformed payload raises here
         ev = [i for i in _ev_ids(rets) if i == f"ev-scn-{sid}"]
         if not ev:
             return _cannot()
         return _final(
             answer_status="answered",
             summary=(
-                f"In the {level} indicative scenario, {likely} places/paths are likely "
-                f"cut off and {possible} possibly. {_FLOOD_NOTE}"
+                f"In the {level} indicative scenario, {likely} are likely flooded, "
+                f"and {possible} possibly. {_FLOOD_NOTE}"
             ),
             claims=[{"text": f"Scenario {level}", "status": "indicative", "evidence_ids": ev}],
             scenario_id=sid,

@@ -74,7 +74,11 @@ def _summarise(name: str, res: sp.ToolResult) -> str:
     if name == "plan_route" and isinstance(d, dict):
         return f"route {d.get('status')}"
     if name == "affected_places" and isinstance(d, dict):
-        return f"{d.get('likely_total', 0)} likely, {d.get('possible_total', 0)} possible"
+        return (
+            f"{d.get('likely_place_count', 0)} places and {d.get('likely_path_count', 0)} paths "
+            f"likely, {d.get('possible_place_count', 0)} places and "
+            f"{d.get('possible_path_count', 0)} paths possible"
+        )
     if name == "simulate_what_if" and isinstance(d, dict):
         sm = d.get("summary") or {}
         before, after, total = sm.get("reach_before"), sm.get("reach_after"), sm.get("total")
@@ -286,6 +290,28 @@ async def call_tool(deps: Deps, name: str, **kwargs: Any) -> dict:
         }
     if name == "plan_verifications" and res.ok and isinstance(res.data, dict):
         rec.plans.append(res.data)
+    if name == "affected_places" and res.ok and isinstance(res.data, dict):
+        d = res.data
+        rec.affected.append(
+            {
+                **{
+                    k: int(d.get(k) or 0)
+                    for k in (
+                        "likely_place_count",
+                        "likely_path_count",
+                        "possible_place_count",
+                        "possible_path_count",
+                    )
+                },
+                "likely_listed": sum(1 for i in d.get("likely") or [] if i.get("kind") != "path"),
+                "possible_listed": sum(
+                    1 for i in d.get("possible") or [] if i.get("kind") != "path"
+                ),
+                "isolated_place_count": sum(
+                    int(c.get("place_count") or 0) for c in d.get("isolated_components") or []
+                ),
+            }
+        )
     if name == "rising_river_rollout" and res.ok and isinstance(res.data, dict):
         res.data.pop("routes", None)  # geometry and per-resident rows stay out of the prompt
         res.data.pop("residents", None)
@@ -349,10 +375,19 @@ MODEL_EVIDENCE_CAP = 60  # evidence rows sent to the model; the TurnRecord keeps
 def _for_model(name: str, out: dict) -> dict:
     ev = out.get("evidence")
     if isinstance(ev, list) and len(ev) > MODEL_EVIDENCE_CAP:
-        # Scenario-level evidence first, then the first rows: enough to cite; all stay citable.
-        first = [e for e in ev if str(e.get("id", "")).startswith("ev-scn-") and "." not in e["id"]]
-        rest = [e for e in ev if e not in first]
-        out["evidence"] = (first + rest)[:MODEL_EVIDENCE_CAP]
+        # Scenario-level evidence first, then demo (placeholder) rows and place-level rows (the
+        # caveats depend on them), then the rest in order: enough to cite; all stay citable.
+        def rank(e: dict) -> int:
+            i = str(e.get("id", ""))
+            if i.startswith("ev-scn-") and "." not in i:
+                return 0
+            if e.get("source_type") == "team_survey_placeholder":
+                return 1
+            if i.startswith("ev-place-") or e.get("status") in ("unknown", "reported"):
+                return 2
+            return 3
+
+        out["evidence"] = sorted(ev, key=rank)[:MODEL_EVIDENCE_CAP]
         out["evidence_truncated"] = len(ev) - len(out["evidence"])
     data = out.get("data")
     if isinstance(data, dict):
@@ -482,7 +517,9 @@ def build_agent(model: Model) -> Agent[Deps, FinalAnswer]:
         ctx: RunContext[Deps], scenario_id: str, kind: str = "all", profile: str = "default"
     ) -> dict:
         """What is likely/possibly cut off under a scenario, plus isolated islands.
-        Lists are capped: use likely_total / possible_total for counts."""
+        Lists are capped. For counts use likely_place_count (places) and likely_path_count
+        (path segments), and the possible_* pair: say "N places and M path segments", never
+        likely_total as a number of places (it adds both)."""
         return await call_tool(
             ctx.deps, "affected_places", scenario_id=scenario_id, kind=kind, profile=profile
         )

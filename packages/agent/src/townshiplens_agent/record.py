@@ -39,6 +39,8 @@ class TurnRecord:
     rollouts: list[dict] = field(default_factory=list)
     tippings: list[dict] = field(default_factory=list)
     fixes: list[dict] = field(default_factory=list)  # find_fixes results (Cycle 4)
+    # affected_places counts this turn: places and path segments apart (Cycles 5-6 review B1).
+    affected: list[dict] = field(default_factory=list)
     # Diagnostics (never shown to users, never stored): the validator's errors for each rejected
     # final_answer attempt, and token usage across all model requests of the turn.
     validator_errors: list[list[str]] = field(default_factory=list)

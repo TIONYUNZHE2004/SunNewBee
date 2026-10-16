@@ -5,6 +5,7 @@ The structured values (route_status, element_id, attribute) stay unchanged in ev
 """
 
 import re
+from collections.abc import Iterable
 from datetime import datetime
 
 from townshiplens_spatial.attributes import ATTRIBUTE_LABELS
@@ -299,7 +300,8 @@ def inferred_caveats(notes: list[str]) -> list[str]:
 _CJK = re.compile(r"[\u4e00-\u9fff]")
 _BM = re.compile(
     r"\b(?:boleh|saya|dari|tanpa|tangga|jika|paras|sungai|laluan|pusat|bagaimana|berapa|"
-    r"adakah|kerusi roda|kereta sorong|pemindahan|terputus|di mana|ke mana|untuk|dengan)\b",
+    r"adakah|kerusi roda|kereta sorong|pemindahan|terputus|di mana|ke mana|untuk|dengan|"
+    r"ke|nak|tak|ini|itu|ada|akan|dalam|daripada|yang|tidak|belum|perjalanan|macam mana)\b",
     re.IGNORECASE,
 )
 FRAME = {
@@ -325,11 +327,16 @@ STATUS_WORDS = {
 }
 
 
-def detect_language(text: str) -> str:
-    """'zh' for Chinese characters, 'ms' for Bahasa Melayu (two or more common words), else 'en'."""
-    if _CJK.search(text or ""):
+def detect_language(text: str, names: Iterable[str] = ()) -> str:
+    """'zh' for Chinese characters, 'ms' for Bahasa Melayu (two or more common words), else 'en'.
+    Place names are removed first, so "Pusat Pemindahan …" or "Sungai Buloh" in an English
+    question does not make it Malay."""
+    text = text or ""
+    for n in sorted((n for n in names if n), key=len, reverse=True):
+        text = re.sub(re.escape(n), " ", text, flags=re.IGNORECASE)
+    if _CJK.search(text):
         return "zh"
-    return "ms" if len(_BM.findall(text or "")) >= 2 else "en"
+    return "ms" if len(_BM.findall(text)) >= 2 else "en"
 
 
 def route_status_line(status: str, route: dict | None, lang: str = "en") -> str:
