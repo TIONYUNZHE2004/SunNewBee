@@ -3,6 +3,7 @@ import type { ChatEvent, components } from "@tl/api-client";
 export type Citation = components["schemas"]["Citation"];
 export type Uncertainty = components["schemas"]["Uncertainty"];
 export type Disclaimer = components["schemas"]["Disclaimer"];
+export type SceneIntent = components["schemas"]["SceneIntent"];
 export type VerificationRequested = components["schemas"]["VerificationRequested"];
 
 export interface ToolChip {
@@ -22,6 +23,8 @@ export interface AssistantMessage {
   vrs: VerificationRequested[];
   error?: string;
   answerStatus?: string;
+  route?: { id: string; status?: string; distanceM?: number; minutes?: number };
+  scenarioId?: string;
   done: boolean;
 }
 
@@ -67,6 +70,22 @@ export function reduceChatEvent(m: AssistantMessage, ev: ChatEvent): AssistantMe
     default:
       return m;
   }
+}
+
+/** Fold a scene intent into the message: the route summary and scenario the answer is about. */
+export function reduceIntent(m: AssistantMessage, i: SceneIntent): AssistantMessage {
+  if (i.kind === "route.highlight" && i.route_id)
+    return {
+      ...m,
+      route: {
+        id: i.route_id,
+        status: i.route_status ?? undefined,
+        distanceM: i.distance_m ?? undefined,
+        minutes: i.est_minutes ?? undefined,
+      },
+    };
+  if (i.kind === "flood.set_level" && i.scenario_id) return { ...m, scenarioId: i.scenario_id };
+  return m;
 }
 
 /** "I can't answer that yet" is a normal outcome, shown calmly; a transport error is not. */

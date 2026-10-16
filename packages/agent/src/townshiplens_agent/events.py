@@ -21,6 +21,11 @@ class SceneIntent(BaseModel):
     lens: Literal["access", "flood", "waste"] | None = None
     visible: bool | None = None
     geojson: dict[str, Any] | None = None  # attached by the server for route.highlight
+    # Attached by the server for route.highlight from the route plan_route returned this turn
+    # (never set by the model): lets the UI show a summary without computing any fact.
+    route_status: Literal["confirmed", "partly_unverified", "blocked", "no_data"] | None = None
+    distance_m: float | None = None
+    est_minutes: float | None = None
 
 
 class TextDelta(BaseModel):

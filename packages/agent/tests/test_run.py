@@ -1026,3 +1026,13 @@ async def test_confirmed_route_over_demo_values_says_so(ctx):
     assert "demo values, not yet surveyed" in text.lower()
     unc = [e for e in evs if e.type == "uncertainty"]
     assert any(i["attribute"] == "demo_values" for u in unc for i in u.items)
+
+
+async def test_route_highlight_carries_server_attached_summary(ctx):
+    evs = await collect(ctx, ACCESS_Q)
+    intent = next(
+        e.intent for e in evs if e.type == "scene.intent" and e.intent.kind == "route.highlight"
+    )
+    assert intent.route_status in ("confirmed", "partly_unverified", "blocked", "no_data")
+    assert intent.distance_m and intent.distance_m > 0
+    assert intent.est_minutes and intent.est_minutes > 0
