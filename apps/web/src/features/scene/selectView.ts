@@ -1,29 +1,28 @@
 export type View = "cesium" | "mapbox" | "list";
 
-export function selectView(
-  env: { googleKey: string; cesiumToken: string; mapboxToken: string },
-  webglOk: boolean,
-  preferred?: View,
-): View {
-  if (!webglOk) return "list";
-  const available: View[] = [
-    ...(env.googleKey || env.cesiumToken ? (["cesium"] as View[]) : []),
-    ...(env.mapboxToken ? (["mapbox"] as View[]) : []),
-    "list",
-  ];
-  if (preferred && available.includes(preferred)) return preferred;
-  return available[0] ?? "list";
-}
+type Env = { googleKey: string; cesiumToken: string; mapboxToken: string };
 
-/** Which views can be chosen (used to disable switcher buttons). */
-export function availableViews(
-  env: { googleKey: string; cesiumToken: string; mapboxToken: string },
-  webglOk: boolean,
-): View[] {
+/**
+ * Which views can be chosen (used to disable switcher buttons). Cesium needs WebGL plus something
+ * to draw: Google/Ion tiles (a key) or the keyless stylised city (the world has buildings data).
+ */
+export function availableViews(env: Env, webglOk: boolean, hasBuildings = false): View[] {
   if (!webglOk) return ["list"];
   return [
-    ...(env.googleKey || env.cesiumToken ? (["cesium"] as View[]) : []),
+    ...(env.googleKey || env.cesiumToken || hasBuildings ? (["cesium"] as View[]) : []),
     ...(env.mapboxToken ? (["mapbox"] as View[]) : []),
     "list",
   ];
+}
+
+/** The single place the renderer is decided: preferred if available, else the best available. */
+export function selectView(
+  env: Env,
+  webglOk: boolean,
+  preferred?: View,
+  hasBuildings = false,
+): View {
+  const available = availableViews(env, webglOk, hasBuildings);
+  if (preferred && available.includes(preferred)) return preferred;
+  return available[0] ?? "list";
 }

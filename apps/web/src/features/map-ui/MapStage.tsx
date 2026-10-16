@@ -3,6 +3,7 @@ import { ENV } from "../../lib/env";
 import { ListView } from "../scene/list/ListView";
 import { useScene } from "../scene/sceneStore";
 import { availableViews, selectView, type View } from "../scene/selectView";
+import { useMapStyle } from "../scene/useMapStyle";
 
 const webglSupported = () => {
   try {
@@ -34,15 +35,27 @@ class RendererBoundary extends Component<
 /** The renderer area only; chrome (cards, notes, settings) arrives as children. */
 export function MapStage({ children }: { children?: ReactNode }) {
   const { view, setView } = useScene();
+  const applyDefaultMapStyle = useScene((s) => s.applyDefaultMapStyle);
+  const { hasBuildings, hasGoogle, settled } = useMapStyle();
   const webglOk = useMemo(webglSupported, []);
-  const available = useMemo(() => availableViews(ENV, webglOk), [webglOk]);
+  const available = useMemo(
+    () => availableViews(ENV, webglOk, hasBuildings),
+    [webglOk, hasBuildings],
+  );
+  // Keyless worlds can still get the 3D (stylised) city once buildings data arrives: wait for it.
+  const waiting = !autoSelected && !settled && webglOk && !available.includes("cesium");
 
   // Auto-select once per page load; never overwrite a view the user chose before a remount.
   useEffect(() => {
-    if (autoSelected) return;
+    if (autoSelected || waiting) return;
     autoSelected = true;
-    setView(selectView(ENV, webglOk));
-  }, [webglOk, setView]);
+    setView(selectView(ENV, webglOk, undefined, hasBuildings));
+  }, [webglOk, setView, waiting, hasBuildings]);
+
+  // Stylised by default when the world has buildings, unless the user picked a style.
+  useEffect(() => {
+    if (settled) applyDefaultMapStyle(hasBuildings, hasGoogle);
+  }, [settled, hasBuildings, hasGoogle, applyDefaultMapStyle]);
 
   const has3d = available.some((v) => v !== "list");
   const effective: View = available.includes(view) ? view : "list";
@@ -57,7 +70,11 @@ export function MapStage({ children }: { children?: ReactNode }) {
 
   return (
     <div className="relative h-full min-h-72 overflow-hidden bg-surface">
-      {effective === "list" ? (
+      {waiting ? (
+        <p role="status" className="p-4 text-fg-soft">
+          Loading the township
+        </p>
+      ) : effective === "list" ? (
         <div className="h-full space-y-3 overflow-auto p-4">
           {!has3d && (
             <p

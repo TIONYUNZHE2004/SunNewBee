@@ -7,10 +7,12 @@ import { ENV } from "../../../lib/env";
 import { useTheme } from "../../../ui/theme";
 import { pickedFloodEdgeId, pointFeatures } from "../geo";
 import { useScene } from "../sceneStore";
+import { useMapStyle } from "../useMapStyle";
 import { useCameraIntents } from "./camera";
-import { failureBurst } from "./failureBurst";
-import { type HomeView, homeView, shouldReframe } from "./home";
+import { type HomeView, homeView, stylisedHomeView } from "./home";
 import { AccessLayer, FloodLayer, WasteLayer } from "./layers";
+import { setupRealistic } from "./realistic";
+import { StylisedCity } from "./stylised/StylisedCity";
 import { applyCesiumTime, cesiumTimeStyle, type TimeOps } from "./timeOfDay";
 
 const TIME_OPS: TimeOps = {
@@ -47,6 +49,7 @@ function SceneSetup({
   const scenarioId = useScene((s) => s.scenarioId);
   const access = useLayer("access", profile, scenarioId);
   const theme = useTheme((s) => s.theme);
+  const { style, settled } = useMapStyle();
   const tilesRef = useRef<Cesium.Cesium3DTileset | undefined>(undefined);
   const placesRef = useRef(new Map<string, [number, number]>());
   placesRef.current = new Map(pointFeatures(access.data).map((p) => [p.id, p.coord]));
@@ -55,91 +58,44 @@ function SceneSetup({
   useEffect(() => {
     if (!viewer || viewer.isDestroyed()) return;
     if (!Cesium.GroundPolylinePrimitive.isSupported(viewer.scene)) onNoDraping();
-    let cancelled = false;
-    let tiles: Cesium.Cesium3DTileset | undefined;
-    const removers: (() => void)[] = [];
-    (async () => {
-      try {
-        if (ENV.cesiumToken) Cesium.Ion.defaultAccessToken = ENV.cesiumToken;
-        if (ENV.googleKey) {
-          // Display-only: no height sampling, tracing or caching of Google tiles.
-          tiles = await Cesium.createGooglePhotorealistic3DTileset({
-            key: ENV.googleKey,
-            onlyUsingWithGoogleGeocoder: true,
-          });
-        } else if (ENV.cesiumToken) {
-          viewer.scene.setTerrain(Cesium.Terrain.fromWorldTerrain());
-          tiles = await Cesium.createOsmBuildingsAsync();
-        }
-        if (tiles) {
-          if (cancelled || viewer.isDestroyed()) {
-            tiles.destroy();
-            tiles = undefined;
-          } else {
-            viewer.scene.primitives.add(tiles);
-            tilesRef.current = tiles;
-            applyCesiumTime(viewer, tiles, cesiumTimeStyle(useTheme.getState().theme), TIME_OPS);
-            // requestRenderMode does not render on tile loads: request frames as tiles stream in.
-            const render = () => {
-              if (!viewer.isDestroyed()) viewer.scene.requestRender();
-            };
-            removers.push(
-              tiles.loadProgress.addEventListener(render),
-              tiles.allTilesLoaded.addEventListener(render),
-            );
-            if (ENV.googleKey) viewer.scene.globe.show = false;
-            // A burst of tile failures after the root loaded (quota, key, network): bring the
-            // base globe back instead of leaving overlays on black. Single failures are normal.
-            const burst = failureBurst(10, 30_000);
-            let fellBack = false;
-            removers.push(
-              tiles.tileFailed.addEventListener(() => {
-                if (fellBack || viewer.isDestroyed() || !burst(Date.now())) return;
-                fellBack = true;
-                viewer.scene.globe.show = true;
-                viewer.scene.requestRender();
-                onTilesFailed();
-              }),
-            );
-          }
-        }
-      } catch (err) {
-        // Tileset failed (bad key/quota/offline): keep the base globe and overlays. Never log the key.
-        console.warn("3D tiles unavailable:", err instanceof Error ? err.message : "unknown error");
-        if (!cancelled) onTilesFailed();
-      }
-      if (cancelled || viewer.isDestroyed()) return;
-      viewer.scene.requestRender();
-    })();
-    return () => {
-      cancelled = true;
-      tilesRef.current = undefined;
-      for (const r of removers) r();
-      if (tiles && !viewer.isDestroyed()) {
-        viewer.scene.primitives.remove(tiles); // removes and destroys
-        if (ENV.googleKey) viewer.scene.globe.show = true;
-        viewer.scene.requestRender();
-      }
-    };
-  }, [viewer, onNoDraping, onTilesFailed]);
+  }, [viewer, onNoDraping]);
 
-  // Day/night lighting (display-only). Re-applies on theme change; the tiles effect applies it on load.
+  // Realistic photos only. The stylised city creates no tileset and no Ion imagery (no billable
+  // calls); wait until the buildings request settles so the default style is known first.
   useEffect(() => {
-    applyCesiumTime(viewer, tilesRef.current, cesiumTimeStyle(theme), TIME_OPS);
-  }, [viewer, theme]);
+    if (!viewer || viewer.isDestroyed() || !settled || style !== "realistic") return;
+    const stop = setupRealistic(Cesium, viewer, ENV, {
+      onTilesFailed,
+      onTiles: (tiles) => {
+        tilesRef.current = tiles;
+        applyCesiumTime(viewer, tiles, cesiumTimeStyle(useTheme.getState().theme), TIME_OPS);
+      },
+    });
+    applyCesiumTime(viewer, undefined, cesiumTimeStyle(useTheme.getState().theme), TIME_OPS);
+    return () => {
+      tilesRef.current = undefined;
+      stop();
+    };
+  }, [viewer, settled, style, onTilesFailed]);
 
-  // Frame the home view once per viewer (separate from the tiles effect: no tileset reload).
-  // Frame at once with the constants so a slow/failed /site never leaves the whole-globe view,
-  // then re-frame once to the site's home if the user has not touched the camera yet.
+  // Day/night lighting (display-only). Re-applies on theme change; the tiles effect applies it on
+  // load. The stylised city re-skins itself (palette, sky, light), so skip it there.
+  useEffect(() => {
+    if (style !== "realistic") return;
+    applyCesiumTime(viewer, tilesRef.current, cesiumTimeStyle(theme), TIME_OPS);
+  }, [viewer, theme, style]);
+
+  // Frame the home view (separate from the tiles effect: no tileset reload). Frame at once with
+  // the constants so a slow/failed /site never leaves the whole-globe view, then re-frame to the
+  // site's home (closer for the stylised city) until the user touches the camera.
   const siteData = useSite().data;
-  const framing = useRef({ moved: false, reframed: false });
+  const moved = useRef(false);
   useEffect(() => {
     if (!viewer || viewer.isDestroyed()) return;
-    framing.current = { moved: false, reframed: false };
-    frameHome(viewer, homeView(undefined));
+    moved.current = false;
     const handler = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas);
-    const moved = () => {
-      framing.current.moved = true;
+    const onMove = () => {
+      moved.current = true;
     };
     for (const t of [
       Cesium.ScreenSpaceEventType.LEFT_DOWN,
@@ -148,17 +104,15 @@ function SceneSetup({
       Cesium.ScreenSpaceEventType.WHEEL,
       Cesium.ScreenSpaceEventType.PINCH_START,
     ]) {
-      handler.setInputAction(moved, t);
+      handler.setInputAction(onMove, t);
     }
     return () => handler.destroy();
   }, [viewer]);
   useEffect(() => {
-    if (!viewer || viewer.isDestroyed() || !siteData) return;
-    const f = framing.current;
-    if (!shouldReframe(f)) return;
-    f.reframed = true;
-    frameHome(viewer, homeView(siteData));
-  }, [viewer, siteData]);
+    if (!viewer || viewer.isDestroyed() || moved.current) return;
+    const home = homeView(siteData);
+    frameHome(viewer, style === "stylised" ? stylisedHomeView(home) : home);
+  }, [viewer, siteData, style]);
 
   // Click a place marker (entity id = place id) to open its card, or a flood path (instance id) for "Why this path?".
   useEffect(() => {
@@ -196,9 +150,10 @@ export default function CesiumScene() {
   const [tilesFailed, setTilesFailed] = useState(false);
   const onTilesFailed = useCallback(() => setTilesFailed(true), []);
   const onNoDraping = useCallback(() => setNoDraping(true), []);
+  const { style } = useMapStyle();
   return (
     <section className="relative h-full w-full">
-      {tilesFailed && (
+      {tilesFailed && style === "realistic" && (
         <p
           role="status"
           className="absolute right-2 top-2 z-10 rounded-md border border-line bg-surface/95 px-2 py-1 text-xs text-fg"
@@ -224,6 +179,9 @@ export default function CesiumScene() {
           if (v && !v.isDestroyed()) v.scene.requestRender();
         }}
         baseLayerPicker={false}
+        // No Ion imagery by default: the stylised city needs none (no billable request), and the
+        // realistic setup adds the world imagery itself.
+        baseLayer={false}
         timeline={false}
         animation={false}
         geocoder={false}
@@ -235,6 +193,7 @@ export default function CesiumScene() {
         fullscreenButton={false}
       >
         <SceneSetup onNoDraping={onNoDraping} onTilesFailed={onTilesFailed} />
+        {style === "stylised" && <StylisedCity />}
         <AccessLayer />
         <FloodLayer />
         <WasteLayer />

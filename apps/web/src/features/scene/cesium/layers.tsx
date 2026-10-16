@@ -28,6 +28,7 @@ import {
 } from "../geo";
 import { useScene } from "../sceneStore";
 import { CESIUM_DASH, type EdgeStatus, ROUTE_STYLE, statusStyle, WATER_COLOR } from "../styles";
+import { useMapStyle } from "../useMapStyle";
 import { heightRefFor, type MapStyle } from "./heightRef";
 
 /** Stylised draws on the flat ellipsoid: clamp to ground there, to Google tiles only when realistic. */
@@ -137,7 +138,7 @@ export function AccessLayer() {
   const visible = useScene((s) => s.lensVisible.access);
   const gapsOn = useScene((s) => gapsActive(s.gapsVisible, s.profile));
   const focusPlaceId = useScene((s) => s.focusPlaceId);
-  const mapStyle = useScene((s) => s.mapStyle);
+  const mapStyle = useMapStyle().style;
   const q = useLayer("access", profile, scenarioId);
   // The gap bands replace the status lines while the Gaps layer is on (one meaning per line).
   const groups = useMemo(
@@ -237,7 +238,7 @@ export function FloodLayer() {
   const flood = useLayer("flood", profile, scenarioId);
   const evac = useEvacCentres(scenarioId, profile);
   const focusPlaceId = useScene((s) => s.focusPlaceId);
-  const mapStyle = useScene((s) => s.mapStyle);
+  const mapStyle = useMapStyle().style;
   const polys = useMemo(
     () =>
       waterPolygons(water.data).map((p) => ({
@@ -325,7 +326,7 @@ export function WasteLayer() {
   const visible = useScene((s) => s.lensVisible.waste);
   const q = useLayer("waste", profile, scenarioId);
   const focusPlaceId = useScene((s) => s.focusPlaceId);
-  const mapStyle = useScene((s) => s.mapStyle);
+  const mapStyle = useMapStyle().style;
   const points = useMemo(() => pointFeatures(q.data), [q.data]);
   useRenderOn(points, visible);
   if (!visible) return null;

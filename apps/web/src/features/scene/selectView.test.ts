@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { selectView } from "./selectView";
+import { availableViews, selectView } from "./selectView";
 
 describe("selectView", () => {
   it("falls back to list with no keys", () => {
@@ -23,5 +23,28 @@ describe("selectView", () => {
     expect(
       selectView({ googleKey: "g", cesiumToken: "", mapboxToken: "pk.x" }, true, "mapbox"),
     ).toBe("mapbox");
+  });
+});
+
+describe("selectView with stylised buildings", () => {
+  const none = { googleKey: "", cesiumToken: "", mapboxToken: "" };
+  it("cesium is available keyless when the world has buildings", () => {
+    expect(selectView(none, true, undefined, true)).toBe("cesium");
+    expect(availableViews(none, true, true)).toEqual(["cesium", "list"]);
+  });
+  it("buildings never beat a missing WebGL", () => {
+    expect(selectView(none, false, undefined, true)).toBe("list");
+    expect(availableViews(none, false, true)).toEqual(["list"]);
+  });
+  it("without buildings behaviour is unchanged", () => {
+    expect(selectView(none, true, undefined, false)).toBe("list");
+    expect(availableViews(none, true, false)).toEqual(["list"]);
+    expect(selectView({ ...none, mapboxToken: "pk.x" }, true, undefined, false)).toBe("mapbox");
+    expect(availableViews({ ...none, googleKey: "g" }, true)).toEqual(["cesium", "list"]);
+  });
+  it("buildings keep cesium first ahead of mapbox, and a preferred view still wins", () => {
+    const mb = { ...none, mapboxToken: "pk.x" };
+    expect(selectView(mb, true, undefined, true)).toBe("cesium");
+    expect(selectView(mb, true, "mapbox", true)).toBe("mapbox");
   });
 });

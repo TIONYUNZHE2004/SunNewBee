@@ -3,7 +3,8 @@ import { useMode } from "../../app/modeStore";
 import { useScenarios } from "../../lib/api";
 import { useTheme } from "../../ui/theme";
 import { StatusLegend } from "../scene/StatusLegend";
-import { useScene } from "../scene/sceneStore";
+import { type MapStyle, useScene } from "../scene/sceneStore";
+import { useMapStyle } from "../scene/useMapStyle";
 import { TRAVEL_LABELS, TRAVEL_ORDER } from "./TravelLabels";
 
 export function levelOptions(scenarios: { id: string; label: string; stage_m?: number | null }[]) {
@@ -14,14 +15,34 @@ export function levelOptions(scenarios: { id: string; label: string; stage_m?: n
   return [{ id: null as string | null, label: "Normal" }, ...stages];
 }
 
+/** Map style options with the reason an option cannot be used (shown, and read as its description). */
+export function mapStyleOptions(hasBuildings: boolean, hasGoogle: boolean) {
+  return [
+    {
+      style: "stylised" as MapStyle,
+      label: "Stylised",
+      reason: hasBuildings ? null : "Needs building data",
+    },
+    {
+      style: "realistic" as MapStyle,
+      label: "Realistic photos (Google)",
+      reason: hasGoogle ? null : "Needs a Google Maps key",
+    },
+  ];
+}
+
 function Radio({
   checked,
   onClick,
   children,
+  disabled,
+  describedBy,
 }: {
   checked: boolean;
   onClick: () => void;
   children: string;
+  disabled?: boolean;
+  describedBy?: string;
 }) {
   return (
     // biome-ignore lint/a11y/useSemanticElements: a styled toggle button in a radiogroup, per the brief
@@ -30,7 +51,9 @@ function Radio({
       role="radio"
       aria-checked={checked}
       onClick={onClick}
-      className={`min-h-11 rounded-lg border px-2 text-sm font-medium ${
+      disabled={disabled}
+      aria-describedby={describedBy}
+      className={`min-h-11 rounded-lg border px-2 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-50 ${
         checked ? "border-accent bg-accent text-on-accent" : "border-edge bg-raised text-fg"
       }`}
     >
@@ -46,7 +69,8 @@ export function SettingsPopover() {
   const btnRef = useRef<HTMLButtonElement>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
   const mode = useMode((s) => s.mode);
-  const { scenarioId, profile, setScenario, setProfile } = useScene();
+  const { scenarioId, profile, setScenario, setProfile, setMapStyle } = useScene();
+  const { style, hasBuildings, hasGoogle } = useMapStyle();
   const { theme, setTheme } = useTheme();
   const scenarios = useScenarios();
   const levels = levelOptions(scenarios.data ?? []);
@@ -114,6 +138,32 @@ export function SettingsPopover() {
                 Night
               </Radio>
             </div>
+          </div>
+          <div>
+            <h3 className={H}>Map style</h3>
+            <div role="radiogroup" aria-label="Map style" className="grid grid-cols-2 gap-2">
+              {mapStyleOptions(hasBuildings, hasGoogle).map((o) => (
+                <div key={o.style} className="flex flex-col gap-1">
+                  <Radio
+                    checked={style === o.style && !o.reason}
+                    disabled={!!o.reason}
+                    describedBy={o.reason ? `map-style-${o.style}-reason` : undefined}
+                    onClick={() => setMapStyle(o.style)}
+                  >
+                    {o.label}
+                  </Radio>
+                  {o.reason && (
+                    <span id={`map-style-${o.style}-reason`} className="text-xs text-fg-soft">
+                      {o.reason}
+                    </span>
+                  )}
+                </div>
+              ))}
+            </div>
+            {style === "stylised" && hasBuildings && (
+              // Honesty: trees, parked cars and base water in the stylised city are decorative.
+              <p className="m-0 mt-1 text-xs text-fg-soft">Decorative details are illustrative.</p>
+            )}
           </div>
         </div>
       )}

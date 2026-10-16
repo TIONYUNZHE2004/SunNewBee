@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
 import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { useMode } from "../../app/modeStore";
+import { ENV } from "../../lib/env";
 import { newQueryClient, renderWithClient } from "../../test/helpers";
 import { useTheme } from "../../ui/theme";
 import { useScene } from "../scene/sceneStore";
@@ -15,11 +16,22 @@ const scenarios = [
 ];
 
 // The API client builds a Request with a relative URL, which jsdom rejects; seed the cache instead.
-function seeded() {
+function seeded(buildings: unknown = null) {
   const qc = newQueryClient();
   qc.setQueryData(["scenarios"], scenarios);
+  qc.setQueryData(["buildings"], buildings); // null = the world has no buildings (API 404)
   return qc;
 }
+
+const BUILDINGS = {
+  attribution: [],
+  buildings: { type: "FeatureCollection", features: [{ type: "Feature" }] },
+  trees: { type: "FeatureCollection", features: [] },
+};
+const savedGoogle = ENV.googleKey;
+afterEach(() => {
+  ENV.googleKey = savedGoogle;
+});
 
 beforeEach(() => {
   useScene.getState().reset();
@@ -99,5 +111,52 @@ describe("SettingsPopover", () => {
     ev.preventDefault();
     document.dispatchEvent(ev);
     expect(screen.getByRole("dialog")).toBeVisible();
+  });
+
+  describe("Map style", () => {
+    const openIt = async (buildings: unknown, google: string) => {
+      ENV.googleKey = google;
+      renderWithClient(<SettingsPopover />, seeded(buildings));
+      await userEvent.click(screen.getByRole("button", { name: "Map settings" }));
+      return screen.getByRole("radiogroup", { name: "Map style" });
+    };
+    it("names the views honestly; keyless with buildings: Stylised on, Realistic disabled with a reason", async () => {
+      const g = await openIt(BUILDINGS, "");
+      const st = within(g).getByRole("radio", { name: "Stylised" });
+      const re = within(g).getByRole("radio", { name: "Realistic photos (Google)" });
+      expect(st).toHaveAttribute("aria-checked", "true");
+      expect(st).toBeEnabled();
+      expect(re).toBeDisabled();
+      expect(re).toHaveAccessibleDescription("Needs a Google Maps key");
+      expect(screen.getByText("Needs a Google Maps key")).toBeVisible();
+      expect(screen.getByText("Decorative details are illustrative.")).toBeVisible();
+      expect(st.className).toContain("min-h-11");
+    });
+    it("no buildings (404): Stylised disabled with a reason, no illustrative note", async () => {
+      const g = await openIt(null, "g");
+      const st = within(g).getByRole("radio", { name: "Stylised" });
+      expect(st).toBeDisabled();
+      expect(st).toHaveAccessibleDescription("Needs building data");
+      expect(within(g).getByRole("radio", { name: "Realistic photos (Google)" })).toHaveAttribute(
+        "aria-checked",
+        "true",
+      );
+      expect(screen.queryByText("Decorative details are illustrative.")).toBeNull();
+    });
+    it("selecting writes the store and records the user's choice", async () => {
+      const g = await openIt(BUILDINGS, "g");
+      await userEvent.click(within(g).getByRole("radio", { name: "Realistic photos (Google)" }));
+      expect(useScene.getState().mapStyle).toBe("realistic");
+      expect(useScene.getState().mapStyleChosen).toBe(true);
+      expect(screen.queryByText("Decorative details are illustrative.")).toBeNull();
+      await userEvent.click(within(g).getByRole("radio", { name: "Stylised" }));
+      expect(useScene.getState().mapStyle).toBe("stylised");
+      expect(screen.getByText("Decorative details are illustrative.")).toBeVisible();
+    });
+    it("a disabled option cannot be selected", async () => {
+      const g = await openIt(BUILDINGS, "");
+      await userEvent.click(within(g).getByRole("radio", { name: "Realistic photos (Google)" }));
+      expect(useScene.getState().mapStyleChosen).toBe(false);
+    });
   });
 });

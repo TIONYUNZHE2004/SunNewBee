@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { useScene } from "./sceneStore";
+import { defaultMapStyle, resolveMapStyle, useScene } from "./sceneStore";
 
 describe("sceneStore.applyIntent", () => {
   beforeEach(() => useScene.getState().reset());
@@ -76,5 +76,46 @@ describe("redesign additions", () => {
     useScene.getState().clearRoute();
     expect(useScene.getState().route).toBeNull();
     expect(useScene.getState().scenarioId).toBe("stage_p3m");
+  });
+});
+
+describe("map style default", () => {
+  beforeEach(() => useScene.getState().reset());
+  it("defaultMapStyle: stylised when buildings exist, else realistic", () => {
+    expect(defaultMapStyle(true, false)).toBe("stylised");
+    expect(defaultMapStyle(true, true)).toBe("stylised");
+    expect(defaultMapStyle(false, true)).toBe("realistic");
+    expect(defaultMapStyle(false, false)).toBe("realistic");
+  });
+  it("applies the default once buildings load, unless the user chose", () => {
+    expect(useScene.getState().mapStyleChosen).toBe(false);
+    useScene.getState().applyDefaultMapStyle(true, false);
+    expect(useScene.getState().mapStyle).toBe("stylised");
+    useScene.getState().reset();
+    useScene.getState().setMapStyle("realistic");
+    expect(useScene.getState().mapStyleChosen).toBe(true);
+    useScene.getState().applyDefaultMapStyle(true, true);
+    expect(useScene.getState().mapStyle).toBe("realistic");
+  });
+  it("reset clears the user's choice", () => {
+    useScene.getState().setMapStyle("stylised");
+    useScene.getState().reset();
+    expect(useScene.getState().mapStyleChosen).toBe(false);
+    expect(useScene.getState().mapStyle).toBe("realistic");
+  });
+  it("resolveMapStyle never shows stylised without buildings or realistic without a Google key", () => {
+    const s = (mapStyle: "realistic" | "stylised", mapStyleChosen: boolean) => ({
+      mapStyle,
+      mapStyleChosen,
+    });
+    // Not chosen: the default rule, even before the store default was applied.
+    expect(resolveMapStyle(s("realistic", false), true, true)).toBe("stylised");
+    expect(resolveMapStyle(s("realistic", false), false, true)).toBe("realistic");
+    // Chosen and possible: the choice.
+    expect(resolveMapStyle(s("realistic", true), true, true)).toBe("realistic");
+    expect(resolveMapStyle(s("stylised", true), true, true)).toBe("stylised");
+    // Chosen but impossible.
+    expect(resolveMapStyle(s("stylised", true), false, true)).toBe("realistic");
+    expect(resolveMapStyle(s("realistic", true), true, false)).toBe("stylised");
   });
 });

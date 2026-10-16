@@ -5,6 +5,30 @@ import type { View } from "./selectView";
 
 export type Profile = "default" | "stroller" | "wheelchair" | "older_adult_rest" | "drive";
 export type Lens = "access" | "flood" | "waste";
+export type MapStyle = "realistic" | "stylised";
+
+/** Pure: the map style before the user picks one. Stylised whenever the world has buildings data
+ * (it needs no key and makes no billable tile loads); otherwise realistic (the old chain). */
+export function defaultMapStyle(hasBuildings: boolean, _hasGoogle: boolean): MapStyle {
+  return hasBuildings ? "stylised" : "realistic";
+}
+
+/**
+ * Pure: the style actually drawn. The user's choice wins when it is possible; Stylised needs
+ * buildings data and "Realistic photos (Google)" needs a Google key, so an impossible choice falls
+ * back to the other. Not chosen yet: the default rule (also covers the commit before the store
+ * default is applied, so no realistic tiles are requested in between).
+ */
+export function resolveMapStyle(
+  s: { mapStyle: MapStyle; mapStyleChosen: boolean },
+  hasBuildings: boolean,
+  hasGoogle: boolean,
+): MapStyle {
+  const want = s.mapStyleChosen ? s.mapStyle : defaultMapStyle(hasBuildings, hasGoogle);
+  if (want === "stylised" && !hasBuildings) return "realistic";
+  if (want === "realistic" && !hasGoogle && hasBuildings) return "stylised";
+  return want;
+}
 
 interface SceneState {
   view: View;
@@ -28,8 +52,13 @@ interface SceneState {
   toggleLens: (l: Lens) => void;
   setGaps: (on: boolean) => void;
   toggleGaps: () => void;
-  mapStyle: "realistic" | "stylised";
-  setMapStyle: (s: "realistic" | "stylised") => void;
+  mapStyle: MapStyle;
+  /** True once the user picked a style (Settings); the default rule never overrides it. */
+  mapStyleChosen: boolean;
+  /** Called from the UI only: records the user's choice. */
+  setMapStyle: (s: MapStyle) => void;
+  /** Apply `defaultMapStyle` once buildings data has settled, unless the user chose. */
+  applyDefaultMapStyle: (hasBuildings: boolean, hasGoogle: boolean) => void;
   clearRoute: () => void;
   reset: () => void;
 }
@@ -46,7 +75,8 @@ const initial = {
   route: null as SceneState["route"],
   camera: null as SceneState["camera"],
   intents: [] as SceneIntent[],
-  mapStyle: "realistic" as "realistic" | "stylised",
+  mapStyle: "realistic" as MapStyle,
+  mapStyleChosen: false,
 };
 
 export const useScene = create<SceneState>((set) => ({
@@ -107,7 +137,9 @@ export const useScene = create<SceneState>((set) => ({
   toggleLens: (l) => set((s) => ({ lensVisible: { ...s.lensVisible, [l]: !s.lensVisible[l] } })),
   setGaps: (gapsVisible) => set({ gapsVisible }),
   toggleGaps: () => set((s) => ({ gapsVisible: !s.gapsVisible })),
-  setMapStyle: (mapStyle) => set({ mapStyle }),
+  setMapStyle: (mapStyle) => set({ mapStyle, mapStyleChosen: true }),
+  applyDefaultMapStyle: (hasBuildings, hasGoogle) =>
+    set((s) => (s.mapStyleChosen ? {} : { mapStyle: defaultMapStyle(hasBuildings, hasGoogle) })),
   clearRoute: () => set({ route: null }),
   reset: () => set(initial),
 }));
