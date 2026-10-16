@@ -1165,3 +1165,20 @@ I walked the demo script's world-model beats on `townshiplens-dev-mock` and foun
 | `test_demo_cache_current` flagged all 15 entries as stale after the new optional intent fields. | The staleness check ignores null intent fields (replay parses with defaults). Only the storm chip, which really changed, was re-recorded. |
 
 **Checklist** (mock-backed): lint PASS, pytest 1,194 PASS, typecheck PASS, vitest 473 PASS, golden 19/19 PASS (mock), e2e 17 PASS. gen: the regenerated client adds the two intent fields and is committed with the change. The browser console is clean after a reload.
+
+### Cycle 16 review (independent Sonnet reviewer) and fixes (17 Oct, 04:39)
+
+| Finding | Fix |
+|---|---|
+| **Important:** the blanket sum allowance (every sum or difference of two counts) let small invented counts through. On the real storm payload every number from 0 to 199 passed ("150 residents could not go"). | Removed. A sum or difference counts only where the answer writes it out ("464 - 400 = 64"), from two of the rehearsal's own counts. "464 - 400 = 70" is rejected. |
+| **Important:** "over/under/aged N" and "N+" were stripped for any N, so "over 3000 residents" and "3000+ trips" passed. | At most two digits, and never before a count noun ("residents", "trips", "pupils", "orang"…). |
+| **Important:** percentages and number words slipped through ("25 percent", "twenty trips", "a third of"). | `DAY_PERCENT` covers "percent", "per cent" and "peratus", and `DAY_WORD_COUNT` covers spelled-out counts, fractions and "most of the residents". |
+| **Important:** when the assistant opened a closed day, the river stayed at its peak after Close, because the store had already set the stage when the hook remembered "before". | The store snapshots what was on screen in `day.before` (a field that was unused), and the hook restores from it. Only `day.show` carries the stage; a separate `flood.set_level` is no longer sent for a rehearsal. Tested in jsdom and in the browser (Close returns to the normal river level). |
+| Minor: `day.show` in Resident mode opened and closed the day at once. | In Resident mode it shows only the stage. |
+| Minor: hedged forecasts passed ("may be stranded tomorrow", "won't get to school"). | Modal forms are rejected. |
+| Minor: a negated "no data gap" satisfied the data-gap rule. | The count must sit next to the phrase. |
+| Minor: the stage was picked by string sort across days. | It is the last day's own top stage, by number. |
+| Minor: the template printed "2 of 0" for empty groups and crashed on a missing `residents` key. | Groups that are empty or unlabelled are skipped (tested). |
+| Minor, kept: a user who picks exactly the day's current stage doesn't end the day. | Harmless, because the level is the same; documented here. Also kept: `setDayStage` keeps a what-if diff during playback, as designed. |
+
+The storm chip replay is re-recorded with the mock. The two saved live answers (English after the fix, and Bahasa Melayu) still pass the stricter rules offline. **Checklist** (mock-backed): lint PASS, pytest 1,206 PASS, typecheck PASS, vitest 475 PASS, gen PASS, golden 19/19 PASS (mock), e2e 17 PASS.
