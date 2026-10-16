@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { StatusChip } from "../../ui/StatusChip";
 import type { Ticket } from "./ticketModel";
 
@@ -27,7 +27,7 @@ function Row({
         aria-pressed={selected}
         onClick={() => onSelect(t.id)}
         className={`glass flex w-full flex-col gap-1 rounded-xl border p-3 text-left ${
-          selected ? "border-accent" : "border-edge"
+          selected ? "border-accent ring-2 ring-accent" : "border-edge"
         }`}
       >
         <span className="flex items-baseline justify-between gap-2">
@@ -82,6 +82,39 @@ export function TicketList({ toCheck, checked, selectedId, onSelect }: Props) {
     { id: "to-check", label: "To check", items: toCheck },
     { id: "checked", label: "Checked", items: checked },
   ];
+  // After a save the selected ticket moves groups; follow it.
+  const selectedGroup: Tab | null = toCheck.some((t) => t.id === selectedId)
+    ? "to-check"
+    : checked.some((t) => t.id === selectedId)
+      ? "checked"
+      : null;
+  useEffect(() => {
+    if (selectedGroup) setTab(selectedGroup);
+  }, [selectedGroup]);
+  const tabRefs = useRef<Record<Tab, HTMLButtonElement | null>>({
+    "to-check": null,
+    checked: null,
+  });
+  const go = (id: Tab) => {
+    setTab(id);
+    tabRefs.current[id]?.focus();
+  };
+  const onTabKey = (e: React.KeyboardEvent, i: number) => {
+    const last = tabs.length - 1;
+    const to =
+      e.key === "ArrowRight"
+        ? (i + 1) % tabs.length
+        : e.key === "ArrowLeft"
+          ? (i + last) % tabs.length
+          : e.key === "Home"
+            ? 0
+            : e.key === "End"
+              ? last
+              : -1;
+    if (to < 0) return;
+    e.preventDefault();
+    go((tabs[to] as (typeof tabs)[number]).id);
+  };
   const current = tabs.find((x) => x.id === tab) ?? (tabs[0] as (typeof tabs)[number]);
   return (
     <section aria-label="Ticket list" className="flex flex-col gap-4">
@@ -93,7 +126,7 @@ export function TicketList({ toCheck, checked, selectedId, onSelect }: Props) {
         </p>
       </header>
       <div role="tablist" aria-label="Tickets" className="flex gap-2">
-        {tabs.map((x) => (
+        {tabs.map((x, i) => (
           <button
             key={x.id}
             type="button"
@@ -101,6 +134,11 @@ export function TicketList({ toCheck, checked, selectedId, onSelect }: Props) {
             id={`tickets-tab-${x.id}`}
             aria-selected={tab === x.id}
             aria-controls="tickets-panel"
+            tabIndex={tab === x.id ? 0 : -1}
+            ref={(el) => {
+              tabRefs.current[x.id] = el;
+            }}
+            onKeyDown={(e) => onTabKey(e, i)}
             onClick={() => setTab(x.id)}
             className={`flex min-h-11 items-center gap-2 rounded-full border px-4 text-sm font-semibold ${
               tab === x.id ? "border-accent bg-brand-tint text-fg" : "border-edge text-fg-soft"

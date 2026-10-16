@@ -146,4 +146,28 @@ describe("TicketList tabs and meter", () => {
     expect(m[0]).toHaveAccessibleName("Asked 3 times");
     expect(m[1]).toHaveAccessibleName("Asked 1 time");
   });
+  it("tabs use roving tabindex and arrow, Home and End keys", () => {
+    render(<TicketList toCheck={[t1]} checked={[t3]} selectedId={null} onSelect={() => {}} />);
+    const [a, b] = screen.getAllByRole("tab") as HTMLElement[];
+    expect([a?.tabIndex, b?.tabIndex]).toEqual([0, -1]);
+    fireEvent.keyDown(a as HTMLElement, { key: "ArrowRight" });
+    expect(b).toHaveAttribute("aria-selected", "true");
+    expect(b).toHaveFocus();
+    expect([a?.tabIndex, b?.tabIndex]).toEqual([-1, 0]);
+    fireEvent.keyDown(b as HTMLElement, { key: "ArrowRight" });
+    expect(a).toHaveAttribute("aria-selected", "true");
+    fireEvent.keyDown(a as HTMLElement, { key: "ArrowLeft" });
+    expect(b).toHaveAttribute("aria-selected", "true");
+    fireEvent.keyDown(b as HTMLElement, { key: "Home" });
+    expect(a).toHaveFocus();
+    fireEvent.keyDown(a as HTMLElement, { key: "End" });
+    expect(b).toHaveFocus();
+  });
+  it("follows the selected ticket when it moves to Checked", () => {
+    const p = { selectedId: "t1", onSelect: () => {}, checked: [] as Ticket[] };
+    const { rerender } = render(<TicketList toCheck={[t1]} {...p} />);
+    expect(screen.getAllByRole("tab")[0]).toHaveAttribute("aria-selected", "true");
+    rerender(<TicketList toCheck={[]} {...p} checked={[{ ...t1, isChecked: true }]} />);
+    expect(screen.getAllByRole("tab")[1]).toHaveAttribute("aria-selected", "true");
+  });
 });
