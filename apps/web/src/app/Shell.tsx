@@ -1,7 +1,7 @@
 import { Link, Outlet, useLocation } from "react-router";
 import { useOpenTicketCount } from "../features/tickets/useTickets";
 import { useSite } from "../lib/api";
-import { ThemeToggle } from "../ui/ThemeToggle";
+import { ThemeMenu } from "../ui/ThemeMenu";
 import { type Mode, useMode } from "./modeStore";
 
 const FALLBACK_ATTRIBUTION = "© OpenStreetMap contributors (ODbL)";
@@ -91,7 +91,7 @@ export function Shell() {
           ) : (
             mode === "management" && <TicketsLink />
           )}
-          <ThemeToggle />
+          <ThemeMenu />
         </div>
       </header>
       <main id="main" tabIndex={-1} className="min-h-0 flex-1">

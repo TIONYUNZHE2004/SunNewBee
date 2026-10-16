@@ -92,11 +92,16 @@ describe("SettingsPopover", () => {
     await userEvent.click(screen.getByRole("button", { name: "Map settings" }));
     expect(screen.queryByRole("radiogroup", { name: "Travelling as" })).toBeNull();
   });
-  it("Day/Night radiogroup drives the theme", async () => {
+  it("Theme radiogroup offers Auto/Day/Dusk/Night and drives the choice", async () => {
     renderWithClient(<SettingsPopover />, seeded());
     await userEvent.click(screen.getByRole("button", { name: "Map settings" }));
+    for (const name of ["Auto (clock)", "Day", "Dusk", "Night"]) {
+      expect(screen.getByRole("radio", { name })).toBeInTheDocument();
+    }
+    await userEvent.click(screen.getByRole("radio", { name: "Dusk" }));
+    expect(useTheme.getState().choice).toBe("dusk");
     await userEvent.click(screen.getByRole("radio", { name: "Day" }));
-    expect(useTheme.getState().theme).toBe("day");
+    expect(useTheme.getState().choice).toBe("day");
   });
   it("Escape closes and returns focus to the button", async () => {
     renderWithClient(<SettingsPopover />, seeded());
