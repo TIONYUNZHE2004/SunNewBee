@@ -980,3 +980,50 @@ The minor findings are fixed too:
 **Recordings** (`data/sim/elmina/day-*.json`, GPT-6 Luna): storm 86 calls, weekday 62, event 66, friday 63, with no failed calls. 0 to 5 lines per day were rejected by the check and replaced by templates.
 
 **Spend, corrected again:** OpenRouter's counter caught up at 19:07 UTC and shows **US$1.39 used** this mission (26.79 → 28.18). That is more than the token estimate, which undercounted. **About US$1.61 of the US$3 cap remains.** From now on the counter is the authority, a margin is kept, and only essential live calls are made.
+
+### Cycle 11 review (independent Opus reviewer) and fixes (17 Oct, 03:26)
+
+The reviewer read 390 AI diary lines, 30 feed posts and 15 decision reasons from the recordings, and found **no honesty failures in them**: no wrong times, numbers, places or modes, no wrong on-time or late claims, no invented children. The gaps were in the checks that keep future lines honest:
+
+| Finding | Fix |
+|---|---|
+| A recorded diary line survived when its trip's outcome had changed (only the trip id was matched). | Each recorded line carries the trip's status and is kept only on an exact match. Test included. |
+| Feed posts were checked only when written by the AI; recorded names, roles and cast voice lines were trusted. | Every resident post is checked. Name and role always come from the cast. Voice lines go through the check. |
+| `check_text` missed "1 metre of water", number words, am/pm times, "unsafe", "'ll / going to flood", "next week" and "aman"; the resident's age licensed any matching number; every check was against the whole day. | All of these are now caught. Each line is checked against its own trip's times and numbers. Decimals are flagged too. |
+| OSM place names reached prompts unfiltered (prompt injection), and the interview pasted the question raw. | Place names are sanitised (`clean_name`) and the interview question is delimited. The interview endpoint will be staff-only (Cycle 14). |
+| Trip ids were a global counter, so one changed outcome renumbered every later trip. | Stable ids (`resident-plan-direction`). |
+| Decision keys collided across plans with the same purpose. | Keys are per plan. |
+| A lift was written as "I drove". "Another place" could swap a child's school. Trips home offered pointless choices. | A lift flag, written as "get a lift". Another place only for the clinic, shops, park or worship. No decision on trips home. |
+| The template "took N minutes longer" was false when leaving late, and "stuck" appeared without any wait. | "Got to X N minutes later than planned"; "stuck" only after a wait. |
+| Minor: home trips said they came from "a main road out of Elmina"; likes were not de-duplicated; pending decisions after the third pass were never re-run. | Home trips come "from work"; one like per resident; a final re-run of the day. |
+
+**Found in the re-run check:** a place name with digits ("Dewan Serbaguna U16/1") failed the number check. The resident's own place names are now removed before numbers are checked.
+
+**Re-recorded** all four days with the stable ids. When the day is re-run live, 0 to 1 lines per day are dropped (the U16/1 case, now fixed).
+
+## Cycle 12: Simulate-a-day panel and map playback (03:26)
+
+**What was built** (controls only, no visual redesign):
+- **`features/day/DayPanel`,** in Management mode above the What-if Lab:
+  - choice of day, and a clock with play/pause and a time slider from 05:00 to 23:00;
+  - live counts at the clock (walking, driving, waiting for the water) and the river stage and rain;
+  - Overview: outcomes by group, school, walking, busiest places;
+  - Residents: the spotlight cards; picking one flies the camera to them, and their diary is marked "AI voice, checked" or "template", with their decisions and reasons;
+  - Feed: only posts that exist at the clock time, newest first, notices dashed;
+  - How it was made: DOSM sources, assumptions, the voice model and recording date.
+- **`DayLayer` (Cesium):** up to 1,500 residents moving along their real paths (yellow walking, blue driving, red waiting); the followed resident is drawn larger with a white ring. **The flood layer follows the river stage at the clock**, so the water rises and falls as the day plays, and the scenario on screen is restored when the panel closes.
+- **The lite map and the List view** show the same day: circle dots, and a text section.
+- **`DayTag`:** the clock plus a "Rehearsal · synthetic residents · not a forecast" legend.
+- **`dayModel.ts`** (pure, with vitest): residents interpolated along each segment by length, waiting dots held still, the stage at a minute, the feed up to a minute.
+
+**Browser check** (seed, mock, Stylised 3D, nothing billable): on the storm day at 07:26, the river is at +3 m with heavy rain. Red waiting dots cluster in the flooded neighbourhoods. The panel reads "399 walking, 133 driving, 837 waiting for the water". The feed at 11:31 shows the river notices and the "no way through … waited at home until 08:37, then gave up" posts with a "Same here" reply thread.
+
+**e2e:** a new Elmina Day test (weekday on the tiny world: slider to 08:00, counts, the List heading, the groups table, DOSM sources, Close). 16 of 16 pass.
+
+**Checklist:** lint, pytest, typecheck, vitest, gen, golden (mock) and e2e (mock) all PASS.
+
+**Spend:** US$1.48 of US$3 (OpenRouter counter, 19:22 UTC).
+
+**Integration notes for shaoxian04:**
+- New: `features/day/*`, `map-ui/DayTag`, `scene/cesium/DayLayer`, `scene/list/DayListSection`, and a `day` source in MapboxLite.
+- Store: `day`, `setDay`, `setDayStage`. `setDayStage` changes the river level without clearing routes.

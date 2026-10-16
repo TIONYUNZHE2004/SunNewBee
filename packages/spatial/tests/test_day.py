@@ -84,7 +84,7 @@ def test_a_spotlight_resident_chooses_only_among_feasible_options(world):
     d = _tiny_day(world)
     i = d.graph.index
     d.spotlight = {"me"}
-    d.decisions = {"me|clinic|out|no_way_at_departure|0": "lift"}
+    d.decisions = {"me|clinic|out|no_way_at_departure": "lift"}
     tr = d.travel(
         "wheelchair", i["n-a"], (i["n-d"],), 410.0, essential=True, who="me", purpose="clinic"
     )
@@ -96,7 +96,7 @@ def test_a_spotlight_resident_chooses_only_among_feasible_options(world):
         assert point.chosen == "wait"  # an infeasible decision falls back to the rule
     d2 = _tiny_day(world)
     d2.spotlight = {"me"}
-    d2.decisions = {"me|clinic|out|no_way_at_departure|0": "fly"}
+    d2.decisions = {"me|clinic|out|no_way_at_departure": "fly"}
     d2.travel(
         "wheelchair", i["n-a"], (i["n-d"],), 410.0, essential=True, who="me", purpose="clinic"
     )
@@ -114,7 +114,7 @@ def test_caught_on_the_way_a_spotlight_resident_may_turn_back(world):
     d = _tiny_day(world)
     i = d.graph.index
     d.spotlight = {"me"}
-    d.decisions = {"me|park|out|caught_on_the_way|0": "turn_back"}
+    d.decisions = {"me|park|out|caught_on_the_way": "turn_back"}
     tr = d.travel(
         "older_adult_rest",
         i["n-a"],
@@ -293,9 +293,19 @@ def test_recorded_lines_survive_only_while_the_day_still_happened(storm):
     facts = SP.facts_for(storm, d, cast)
     c = next(c for c in cast if facts[c.id]["trips"])
     trip = facts[c.id]["trips"][0]
-    good = {"trip": trip["id"], "text": f"Left at {trip['left']}.", "voice": "ai"}
-    stale = {"trip": "t99999", "text": "Left at 07:00.", "voice": "ai"}
-    made_up = {"trip": trip["id"], "text": "Waited 999 minutes.", "voice": "ai"}
+    good = {
+        "trip": trip["id"],
+        "status": trip["status"],
+        "text": f"Planned for {trip['planned']}.",
+        "voice": "ai",
+    }
+    stale = {"trip": "t99999", "status": "late", "text": "Left at 07:00.", "voice": "ai"}
+    made_up = {
+        "trip": trip["id"],
+        "status": trip["status"],
+        "text": "Waited 999 minutes.",
+        "voice": "ai",
+    }
     rec = {
         "cast": [asdict(x) for x in cast],
         "diaries": {c.id: [good, stale, made_up]},
@@ -322,3 +332,64 @@ def test_recorded_lines_survive_only_while_the_day_still_happened(storm):
     for p in out["feed"]:
         if p["author"] != "township":
             assert not SP.check_text(p["text"], facts[p["author"]])
+
+
+@pytest.mark.parametrize(
+    "bad",
+    [
+        "There was 1 metre of water.",
+        "The water was two metres high.",
+        "It took two hours.",
+        "Left at 7:00pm.",
+        "It's unsafe there.",
+        "It'll flood again.",
+        "Next week will be worse.",
+        "Walked 1.2 km.",
+        "Walked 67 minutes.",  # the resident's age is not a licence for another number
+    ],
+)
+def test_check_text_catches_what_the_first_version_missed(bad):
+    from townshiplens_spatial.day import spotlight as SP
+
+    f = {
+        "age": 67,
+        "trips": [
+            {
+                "id": "t1",
+                "planned": "07:00",
+                "left": "07:00",
+                "arrived": "08:35",
+                "ended": "08:35",
+                "late_by_min": 80,
+                "waited_min": 75,
+                "children_with_them": 2,
+            },
+        ],
+        "decisions": [],
+    }
+    assert SP.check_text(bad, f, "t1"), bad
+    assert SP.check_text("Left at 7.00am and got there at 8:35 a.m.", f, "t1") == []
+    f["trips"][0]["place"] = "Dewan Serbaguna U16/1"
+    assert SP.check_text("Got to Dewan Serbaguna U16/1 at 08:35.", f, "t1") == []
+
+
+def test_a_recorded_line_needs_the_same_outcome_not_just_the_same_trip(storm):
+    from dataclasses import asdict
+
+    from townshiplens_spatial.day import spotlight as SP
+    from townshiplens_spatial.day import voices
+
+    d = storm.day
+    cast = SP.choose(d.pop)
+    facts = SP.facts_for(storm, d, cast)
+    c = next(c for c in cast if facts[c.id]["trips"])
+    trip = facts[c.id]["trips"][0]
+    wrong = {
+        "trip": trip["id"],
+        "status": "cancelled" if trip["status"] != "cancelled" else "on_time",
+        "text": "No way through, so I stayed.",
+        "voice": "ai",
+    }
+    rec = {"cast": [asdict(x) for x in cast], "diaries": {c.id: [wrong]}, "feed": []}
+    me = next(p for p in voices.attach(storm, d, cast, rec)["residents"] if p["id"] == c.id)
+    assert wrong not in me["diary"]

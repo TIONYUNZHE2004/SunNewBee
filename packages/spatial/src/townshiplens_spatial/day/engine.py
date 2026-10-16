@@ -106,6 +106,7 @@ class Travel:
     mode: str = ""
     place_id: str | None = None  # changed when the resident chose another place
     ended_at: float | None = None  # when a trip that never arrived ended (gave up, day over)
+    lift: bool = False  # got a lift from a neighbour (driving, but not their own car)
 
 
 @dataclass
@@ -140,6 +141,7 @@ class Trip:
     stranded_at: list[float] | None = None  # coord where the resident was stuck
     reason: str = ""
     ended_at: float | None = None  # a trip that never arrived: when it ended
+    lift: bool = False
 
 
 class Day:
@@ -238,10 +240,10 @@ class Day:
                 best = (pid, n, leg.length_m)
         return (best[0], best[1]) if best else None
 
-    def _decide(self, who, kind, t, purpose, direction, options, default, n) -> str:
+    def _decide(self, who, kind, t, purpose, direction, options, default, plan) -> str:
         if who not in self.spotlight:
             return default
-        key = f"{who}|{purpose}|{direction}|{kind}|{n}"
+        key = f"{plan or who}|{purpose}|{direction}|{kind}"
         chosen = self.decisions.get(key, default)
         if chosen not in {o["id"] for o in options}:
             chosen = default  # a stale or invalid decision never forces an impossible move
@@ -262,6 +264,7 @@ class Day:
         purpose: str = "",
         direction: str = "out",
         place_id: str | None = None,
+        plan: str = "",
     ) -> Travel:
         """One trip on the township state minute by minute. `essential` trips wait up to 90
         minutes for a way to open; a trip home (direction "back") waits as long as it takes."""
@@ -281,18 +284,19 @@ class Day:
                     # No mapped way even on a normal day: a data gap, nothing to wait for.
                     out.status, out.ended_at = "cancelled", t
                     return out
-                if not started and spot and "no_way_at_departure" not in asked:
+                # A choice only on the way out (on the way home, waiting is the only sensible
+                # thing and needs no decision).
+                ask = direction == "out" and "no_way_at_departure" not in asked
+                if not started and spot and ask:
                     asked.add("no_way_at_departure")
                     opts = [
                         {"id": "wait", "label": "Wait for a way to open (up to 90 minutes)"},
-                        {
-                            "id": "cancel",
-                            "label": "Stay where I am" if direction == "back" else "Stay home",
-                        },
+                        {"id": "cancel", "label": "Stay home"},
                     ]
+                    # Another place only where any one will do (never another child's school).
                     alt = (
                         self._alternative(mode, stage, node, purpose, place_id)
-                        if purpose not in ("work", "") and direction == "out"
+                        if purpose in ("clinic", "shops", "park", "worship")
                         else None
                     )
                     if alt:
@@ -316,9 +320,9 @@ class Day:
                         direction,
                         opts,
                         "wait" if must_wait else "cancel",
-                        0,
+                        plan,
                     )
-                    if choice == "cancel" and direction == "out":
+                    if choice == "cancel":
                         out.status, out.ended_at = "cancelled", t
                         return out
                     if choice == "wait":
@@ -328,6 +332,7 @@ class Day:
                         continue
                     if choice == "lift":
                         mode = out.mode = "drive"
+                        out.lift = True
                         pace = DRIVE_PACE
                         continue
                 if not started and not must_wait:
@@ -350,7 +355,7 @@ class Day:
                     choice = default
                     if spot:
                         choice = self._decide(
-                            who, "caught_on_the_way", t, purpose, direction, opts, default, 0
+                            who, "caught_on_the_way", t, purpose, direction, opts, default, plan
                         )
                     if choice == "turn_back" and back:
                         t1 = t + back.length_m / pace
@@ -418,17 +423,21 @@ class Day:
         stuck: set[str] = set()
         trips: list[Trip] = []
         stays: list[tuple] = []
-        n = 0
+        plan_no: dict[str, int] = {}
         for a in sorted(acts, key=lambda a: (a.depart_min, a.resident)):
             r = res[a.resident]
+            # Stable ids: resident, their plan number, direction. A changed outcome elsewhere in
+            # the day never renumbers this resident's trips (recorded voices stay attached).
+            k = plan_no.get(r.id, 0)
+            plan_no[r.id] = k + 1
+            pid = f"{r.id}-{k}"
             home = idx.get(r.home_node)
             targets = tuple(idx[x] for x in a.target_nodes if x in idx)
             if home is None or not targets:
                 continue
             if r.id in stuck:
                 # Still stuck from an earlier trip: this plan cannot happen (and is counted).
-                trips.append(self._missed(f"t{n:05d}", r, a))
-                n += 1
+                trips.append(self._missed(f"{pid}-out", r, a))
                 continue
             src = home
             depart = max(float(a.depart_min), free_at.get(r.id, 0.0))
@@ -443,9 +452,8 @@ class Day:
             mode = self._mode(r, a)
             kids_out = a.companions if a.kids_out else []
             out = self._trip(
-                f"t{n:05d}", r, a, mode, src, targets, depart, "out", planned, kids_out
+                f"{pid}-out", r, a, mode, src, targets, depart, "out", planned, kids_out
             )
-            n += 1
             trips.append(out)
             if out.status == "stranded":
                 stuck.add(r.id)
@@ -478,7 +486,7 @@ class Day:
                 continue  # comes home after the rehearsal window
             kids_back = a.companions if a.kids_back else []
             back = self._trip(
-                f"t{n:05d}",
+                f"{pid}-back",
                 r,
                 a,
                 out.mode,
@@ -489,7 +497,6 @@ class Day:
                 leave,
                 kids_back,
             )
-            n += 1
             trips.append(back)
             if back.status == "stranded":
                 stuck.add(r.id)
@@ -546,6 +553,7 @@ class Day:
             purpose=a.purpose,
             direction=direction,
             place_id=a.place_id,
+            plan=tid,
         )
         mode = tr.mode
         normal = self._leg(mode, None, True, src, targets)
@@ -586,6 +594,7 @@ class Day:
             segments=tr.segments,
             stranded_at=stranded_at,
             ended_at=tr.ended_at,
+            lift=tr.lift,
         )
 
 

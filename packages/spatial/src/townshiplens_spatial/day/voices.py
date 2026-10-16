@@ -95,12 +95,20 @@ def attach(res, day, cast: list[S.Spotlight], rec: dict | None) -> dict:
     rec_diaries = (rec or {}).get("diaries", {})
     reasons = (rec or {}).get("decision_reasons", {})
     for c in cast:
+        if S.check_text(c.voice, {"trips": [], "decisions": []}):
+            c.voice = f"Speaks plainly about their own day as a {c.role}."
         f = facts[c.id]
         status = _status_of(f)
         tmpl = {x["trip"]: x for x in S.template_diary(f)}
         lines = []
         for ln in rec_diaries.get(c.id, []):
-            ok = ln.get("trip") in status and not S.check_text(ln.get("text", ""), f)
+            # kept only while that trip still happened with the same outcome, and every time
+            # and number in it is that trip's own
+            ok = (
+                ln.get("trip") in status
+                and ln.get("status") == status[ln["trip"]]
+                and not S.check_text(ln.get("text", ""), f, ln["trip"])
+            )
             if ok and ln.get("voice") == "ai":
                 lines.append(ln)
             elif ln.get("trip") in tmpl:
@@ -114,7 +122,7 @@ def attach(res, day, cast: list[S.Spotlight], rec: dict | None) -> dict:
             if p.resident == c.id
         ]
         for d in decisions:
-            if d["reason"] and S.check_text(d["reason"], f):
+            if d["reason"] and (S.check_text(d["reason"], f) or len(d["reason"]) > 200):
                 d["reason"] = ""
         people.append({**asdict(c), "facts": f, "diary": lines, "decisions": decisions})
     feed = []
@@ -127,17 +135,20 @@ def attach(res, day, cast: list[S.Spotlight], rec: dict | None) -> dict:
             if f is None or _status_of(f).get(p.get("trip")) != p.get("status"):
                 dropped += 1
                 continue
-            if p.get("voice") == "ai" and S.check_text(p.get("text", ""), f):
+            # every resident post is checked, whatever voice wrote it
+            if S.check_text(p.get("text", ""), f, p.get("trip")):
                 dropped += 1
                 continue
             replies = [
-                r
+                {**r, "name": by_id[r["author"]].name}
                 for r in p.get("replies", [])
                 if r.get("author") in facts
-                and (r.get("trip") is None or r.get("trip") in _status_of(facts[r["author"]]))
-                and not S.check_text(r.get("text", ""), facts[r["author"]])
+                and r.get("trip") in _status_of(facts[r["author"]])
+                and not S.check_text(r.get("text", ""), facts[r["author"]], r.get("trip"))
             ]
-            feed.append({**p, "replies": replies})
+            # name and role always from the cast, never from the recording
+            c = by_id[p["author"]]
+            feed.append({**p, "name": c.name, "role": c.role, "replies": replies})
     if not feed:
         feed = template_feed(cast, facts)
     feed = sorted(notices + feed, key=lambda p: (p["t"], p["id"]))

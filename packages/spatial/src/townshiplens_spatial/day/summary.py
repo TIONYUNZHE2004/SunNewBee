@@ -263,7 +263,7 @@ def trip_json(t: Trip, world) -> dict:
         "to": PURPOSE_LABEL.get(t.purpose, t.purpose),
         "place": p.name if p else ("a main road out of Elmina" if t.purpose == "work" else None),
         "label": t.label,
-        "mode": "drive" if t.mode == "drive" else "walk",
+        "mode": "lift" if t.lift else ("drive" if t.mode == "drive" else "walk"),
         "direction": t.direction,
         "planned": t.planned,
         "depart": round(t.depart, 1),

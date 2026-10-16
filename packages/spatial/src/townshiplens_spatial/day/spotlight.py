@@ -180,8 +180,12 @@ def facts(sp: Spotlight, trips: list[dict], decisions: list[dict]) -> dict:
             {
                 "id": t["id"],
                 "to": "home" if t["direction"] == "back" else t["to"],
-                "place": None if t["direction"] == "back" else t["place"],
-                "from": t["place"] if t["direction"] == "back" else None,
+                "place": None if t["direction"] == "back" else clean_name(t["place"]),
+                "from": (
+                    ("work" if t["to"] == "work" else clean_name(t["place"]))
+                    if t["direction"] == "back"
+                    else None
+                ),
                 "direction": t["direction"],
                 "mode": t["mode"],
                 "planned": hhmm(t["planned"]),
@@ -215,9 +219,11 @@ def facts(sp: Spotlight, trips: list[dict], decisions: list[dict]) -> dict:
 
 def story(t: dict) -> str:
     """One plain sentence, written by the engine, of what happened on this trip."""
-    how = "drive" if t["mode"] == "drive" else "walk"
+    how = {"drive": "drive", "lift": "get a lift"}.get(t["mode"], "walk")
     back = t["direction"] == "back"
-    where = "home" if back else ("work" if t["to"] == "work" else (t["place"] or t["to"]))
+    where = (
+        "home" if back else ("work" if t["to"] == "work" else (clean_name(t["place"]) or t["to"]))
+    )
     kids = t["companions"]
     with_kids = "" if not kids else (" with my child" if kids == 1 else f" with my {kids} children")
     plan, left, arr, end = (
@@ -277,99 +283,109 @@ def facts_for(res, day, cast: list[Spotlight]) -> dict[str, dict]:
 
 
 # ---- checking any text a voice writes -------------------------------------------------------
-TIME = re.compile(r"\b(\d{1,2})[:.](\d{2})\b")
+TIME = re.compile(r"\b(\d{1,2})[:.](\d{2})\s*([ap]\.?m\.?)?(?![\w])", re.IGNORECASE)
 NUM = re.compile(r"(?<![\d:.])\d+(?![\d:.]\d)")
+NUMBER_WORDS = re.compile(
+    r"\b(?:two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|twenty|thirty|forty|"
+    r"fifty|sixty|hundred|dozen|half an hour|dua|tiga|empat|lima)\b",
+    re.IGNORECASE,
+)
 BANNED = re.compile(
-    r"(?<![\w-])safe(?:ly)?(?![\w-])|\bselamat\b|安全|\bdeep\b|\bdepth\b|knee|waist|ankle"
-    r"|\bwill (?:flood|be flooded|rain|get worse)\b|\bforecast\b(?<!not a forecast)|\btomorrow\b"
-    r"|\bverified\b|\bguarantee",
+    r"(?<![\w-])(?:un)?safe(?:ly|ty)?(?![\w-])|\bselamat\b|\baman\b|安全|\bdeep\b|\bdepth\b"
+    r"|knee|waist|ankle|\b\d+(?:\.\d+)?\s?(?:m|cm|metres?|meters?|feet|ft|inch(?:es)?)\b"
+    r"|\b(?:metres?|meters?|centimet(?:re|er)s?|feet|inches) of water\b"
+    r"|\b(?:will|'ll|going to|gonna) (?:flood|be flooded|rain|get worse|happen again)\b"
+    r"|\bforecast\b(?<!not a forecast)|\btomorrow\b|\bnext (?:week|time|year)\b"
+    r"|\bbanjir akan\b|\bverified\b|\bguarantee",
     re.IGNORECASE,
 )
 
 
-def allowed_numbers(f: dict) -> tuple[set[str], set[int]]:
-    times, nums = set(), {f["age"]}
+def allowed_numbers(f: dict, trip: str | None = None) -> tuple[set[str], set[int]]:
+    """Times and numbers a line may use: those of one trip (when the line is about a trip),
+    else the whole day's. The resident's age is never a licence for another number."""
+    times: set[str] = set()
+    nums: set[int] = set()
     for t in f["trips"]:
+        if trip is not None and t["id"] != trip:
+            continue
         for k in ("planned", "left", "arrived", "ended"):
             if t.get(k):
                 times.add(t[k])
         nums |= {t["late_by_min"], t["waited_min"], t["children_with_them"]}
-    for d in f["decisions"]:
-        if d["at"]:
-            times.add(d["at"])
+    if trip is None:
+        for d in f["decisions"]:
+            if d["at"]:
+                times.add(d["at"])
     return times, nums
 
 
-def check_text(text: str, f: dict) -> list[str]:
+def _hhmm_token(m: re.Match) -> str:
+    h, mm, ap = int(m.group(1)), m.group(2), (m.group(3) or "").lower()
+    if ap.startswith("p") and h < 12:
+        h += 12
+    if ap.startswith("a") and h == 12:
+        h = 0
+    return f"{h:02d}:{mm}"
+
+
+def check_text(text: str, f: dict, trip: str | None = None) -> list[str]:
     """Reasons this text may not be shown as this resident's words (empty list = fine)."""
     errs = []
     if m := BANNED.search(text):
         errs.append(f"banned wording: {m.group(0)!r}")
-    times, nums = allowed_numbers(f)
+    if m := NUMBER_WORDS.search(text):
+        errs.append(f"numbers in words: {m.group(0)!r}")
+    times, nums = allowed_numbers(f, trip)
+    # The resident's own place names may hold digits ("Dewan Serbaguna U16/1"): not numbers.
+    names = sorted(
+        {n for t in f["trips"] for n in (t.get("place"), t.get("from")) if n},
+        key=len,
+        reverse=True,
+    )
+    for n in names:
+        text = re.sub(re.escape(n), " ", text, flags=re.IGNORECASE)
     for m in TIME.finditer(text):
-        tok = f"{int(m.group(1)):02d}:{m.group(2)}"
+        tok = _hhmm_token(m)
         if tok not in times:
-            errs.append(f"time {tok} is not in their day")
+            errs.append(f"time {tok} is not in this day")
     stripped = TIME.sub(" ", text)
+    if m := re.search(r"\b\d+\.\d\b", stripped):
+        errs.append(f"number {m.group(0)} is not in this day")
     for m in NUM.finditer(stripped):
-        if int(m.group(0)) not in nums and int(m.group(0)) not in (0, 1):
-            errs.append(f"number {m.group(0)} is not in their day")
+        if int(m.group(0)) not in nums and int(m.group(0)) != 1:
+            errs.append(f"number {m.group(0)} is not in this day")
     if len(text) > 400:
         errs.append("too long")
     return errs
 
 
+SAFE_NAME = re.compile(r"[^\w\s()'.,&/-]", re.UNICODE)
+
+
+def clean_name(name: str | None) -> str | None:
+    """A place name as it may reach a prompt: letters, digits and simple punctuation only, at
+    most 60 characters (an OSM name is data, never an instruction)."""
+    if not name:
+        return name
+    return SAFE_NAME.sub("", name)[:60].strip()
+
+
 # ---- template voice (no LLM) -----------------------------------------------------------------
 def template_diary(f: dict) -> list[dict]:
-    out = []
-    for t in f["trips"]:
-        if t["direction"] != "out":
-            continue
-        where = "work" if t["to"] == "work" else (t["place"] or t["to"])
-        kids = t["children_with_them"]
-        with_kids = f" with the {kids} kids" if kids > 1 else " with my child" if kids else ""
-        if t["status"] == "on_time":
-            line = f"{t['left']}: off to {where}{with_kids}. Got there at {t['arrived']}."
-        elif t["status"] == "late" and t["waited_min"]:
-            line = (
-                f"{t['left']}: left for {where}{with_kids}, but the way was cut. "
-                f"Waited {t['waited_min']} minutes and arrived at {t['arrived']}."
-            )
-        elif t["status"] == "late":
-            line = (
-                f"{t['left']}: off to {where}{with_kids}. Got there at {t['arrived']}, "
-                f"{t['late_by_min']} minutes later than planned."
-            )
-        elif t["status"] == "cancelled":
-            line = (
-                f"{t['planned']}: wanted to go to {where}{with_kids}, but there was no "
-                "way through. Stayed home."
-            )
-        elif t["status"] == "turned_back":
-            line = f"{t['left']}: set out for {where}, got stuck and turned back home."
-        elif t["status"] == "stranded":
-            line = (
-                f"{t['left']}: set out for {where} and got stuck on the way. Waited the "
-                "rest of the day."
-            )
-        else:
-            line = f"{t['planned']}: no mapped way to {where}. The map has a gap there."
-        out.append(
-            {
-                "trip": t["id"],
-                "text": f"{t['planned']}: {t['what_happened']}" if "what_happened" in t else line,
-            }
-        )
-    return out[:5]
+    """The engine's own sentence for each trip out (the voice when there is no AI)."""
+    return [
+        {"trip": t["id"], "status": t["status"], "text": f"{t['planned']}: {t['what_happened']}"}
+        for t in f["trips"]
+        if t["direction"] == "out"
+    ][:5]
 
 
 def template_post(f: dict, trip: dict) -> str | None:
     where = "work" if trip["to"] == "work" else (trip["place"] or trip["to"])
     if trip["status"] == "late":
-        return (
-            f"Took me {trip['late_by_min']} minutes longer to reach {where} today. "
-            "Anyone else stuck?"
-        )
+        stuck = " Anyone else stuck?" if trip["waited_min"] else ""
+        return f"Got to {where} {trip['late_by_min']} minutes later than planned today.{stuck}"
     if trip["status"] in ("cancelled", "turned_back"):
         return f"Couldn't get to {where} today, no way through from our side."
     if trip["status"] == "stranded":
