@@ -45,12 +45,14 @@ describe("TicketsPage", () => {
         <TicketsPage />
       </MemoryRouter>,
     );
-    await screen.findByRole("radiogroup", { name: "Outcome" });
+    await screen.findByRole("group", { name: "What did you find on site?" });
     const user = userEvent.setup();
     await user.click(screen.getByRole("radio", { name: /Record what you found/ }));
     await user.type(screen.getByLabelText("Value found on site"), "2");
     await user.click(screen.getByRole("button", { name: "Save result" }));
     expect(await screen.findByText(/Verified on/)).toBeInTheDocument();
-    expect(screen.queryByRole("radiogroup", { name: "Outcome" })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("group", { name: "What did you find on site?" }),
+    ).not.toBeInTheDocument();
   });
 });

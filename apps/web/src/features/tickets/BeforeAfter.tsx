@@ -1,5 +1,7 @@
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router";
 import { useMode } from "../../app/modeStore";
+import { Icon } from "../../ui/icons";
 import { useChatDraft } from "../chat/chatDraftStore";
 import type { Ticket } from "./ticketModel";
 
@@ -24,6 +26,11 @@ export function replayFor(summary: string): { text: string; profile: string } | 
 /** What residents saw before staff checked it, and what staff recorded after. */
 export function BeforeAfter({ ticket }: { ticket: Ticket }) {
   const navigate = useNavigate();
+  const [hl, setHl] = useState(true);
+  useEffect(() => {
+    const id = setTimeout(() => setHl(false), 1200);
+    return () => clearTimeout(id);
+  }, []);
   const r = ticket.resolution;
   const starter = replayFor(ticket.kind);
   const replay = () => {
@@ -34,13 +41,19 @@ export function BeforeAfter({ ticket }: { ticket: Ticket }) {
   };
   return (
     <div>
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="grid items-center gap-3 sm:grid-cols-[1fr_auto_1fr]">
         <section className="rounded-lg border border-dashed border-edge bg-raised p-4">
           <h3 className="text-xs font-semibold uppercase tracking-wide text-fg-soft">Before</h3>
           {/* current_value is already the post-resolution value, so never show it here. */}
           <p className="mt-1 text-sm text-fg">Not checked yet</p>
         </section>
-        <section className="rounded-lg border border-edge bg-accent p-4 text-on-accent">
+        <span className="hidden text-fg-soft sm:block">
+          <Icon name="chevron" />
+        </span>
+        <section
+          data-highlight={String(hl)}
+          className={`rounded-lg border border-edge bg-accent p-4 text-on-accent transition-shadow ${hl ? "ring-accent motion-safe:ring-2" : ""}`}
+        >
           <h3 className="text-xs font-semibold uppercase tracking-wide">Now</h3>
           <p className="mt-1 text-sm">
             {`Verified on ${r?.date ?? ""}${(r?.value ?? ticket.current) ? `: ${r?.value ?? ticket.current}` : ""}`}

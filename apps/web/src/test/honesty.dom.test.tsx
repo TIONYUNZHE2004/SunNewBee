@@ -269,11 +269,12 @@ describe.each<Theme>(["day", "night"])("honesty and accessibility (%s theme)", (
       initialEntries: ["/tickets"],
     });
     renderWithClient(<RouterProvider router={router} />);
-    await screen.findByRole("radiogroup", { name: "Outcome" });
+    await screen.findByRole("group", { name: "What did you find on site?" });
     await userEvent.click(screen.getByRole("radio", { name: /Correct|Record/ }));
     assertHonest(body());
     assertHonest(body());
     expect(body()).not.toMatch(/not reachable/i);
+    await userEvent.click(screen.getByRole("tab", { name: /Checked/ }));
     expectAccessibleNames();
     // A checked ticket: the Before panel never repeats the post-resolution value.
     await userEvent.click(screen.getByRole("button", { name: /Width \(m\)/ }));

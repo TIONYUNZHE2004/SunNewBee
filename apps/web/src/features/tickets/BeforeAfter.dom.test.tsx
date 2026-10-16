@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
-import { render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { createMemoryRouter, RouterProvider } from "react-router";
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useMode } from "../../app/modeStore";
 import { useChatDraft } from "../chat/chatDraftStore";
 import { BeforeAfter } from "./BeforeAfter";
@@ -51,6 +51,20 @@ describe("BeforeAfter", () => {
   it("Now falls back to the ticket's current value for a plain confirm", () => {
     view({ ...t("x"), resolution: { outcome: "verify", value: null, date: "1 Oct 2026" } });
     expect(screen.getByText("Verified on 1 Oct 2026: 2")).toBeInTheDocument();
+  });
+
+  describe("highlight", () => {
+    beforeEach(() => vi.useFakeTimers());
+    afterEach(() => vi.useRealTimers());
+    it("highlights the after side for 1.2 s", () => {
+      view(t("x"));
+      const after = screen.getByText(/Verified on/).closest("section");
+      expect(after).toHaveAttribute("data-highlight", "true");
+      act(() => {
+        vi.advanceTimersByTime(1300);
+      });
+      expect(after).toHaveAttribute("data-highlight", "false");
+    });
   });
 
   describe("replay", () => {

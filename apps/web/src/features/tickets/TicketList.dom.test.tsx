@@ -1,10 +1,12 @@
 // @vitest-environment jsdom
-import { screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { createMemoryRouter, RouterProvider } from "react-router";
 import { describe, expect, it } from "vitest";
 import { json, renderWithClient, stubFetch } from "../../test/helpers";
+import { TicketList } from "./TicketList";
 import { TicketsPage } from "./TicketsPage";
+import type { Ticket } from "./ticketModel";
 
 const now = Date.now();
 const iso = (minAgo: number) => new Date(now - minAgo * 60_000).toISOString();
@@ -60,9 +62,8 @@ function setup() {
 describe("TicketsPage list", () => {
   it("groups To check (count) and Checked, most asked first", async () => {
     setup();
-    const toCheck = await screen.findByRole("heading", { name: /To check/ });
-    expect(within(toCheck).getByText("2")).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: /Checked/ })).toBeInTheDocument();
+    const tabs = await screen.findAllByRole("tab");
+    expect(tabs.map((x) => x.textContent)).toEqual(["To check2", "Checked1"]);
     const list = screen.getByRole("region", { name: "Ticket list" });
     const buttons = within(list)
       .getAllByRole("button", { pressed: false })
@@ -86,6 +87,63 @@ describe("TicketsPage list", () => {
     await userEvent.click(row);
     expect(row).toHaveAttribute("aria-pressed", "true");
     expect(await screen.findByRole("heading", { level: 2, name: "Step count" })).toBeVisible();
-    expect(screen.getByRole("radiogroup", { name: "Outcome" })).toBeInTheDocument();
+    expect(screen.getByRole("group", { name: "What did you find on site?" })).toBeInTheDocument();
+  });
+});
+
+const tk = (id: string, over: Partial<Ticket> = {}): Ticket => ({
+  id,
+  attribute: "step_count",
+  fact: `Fact ${id}`,
+  place: `Place ${id}`,
+  reason: "unknown",
+  reasonLabel: "Unknown",
+  kind: "k",
+  asked: 1,
+  ago: "just now",
+  current: null,
+  hasCurrent: false,
+  isOpen: true,
+  isRejected: false,
+  isChecked: false,
+  resolution: null,
+  createdMs: 0,
+  resolvedMs: 0,
+  ...over,
+});
+
+describe("TicketList tabs and meter", () => {
+  const t1 = tk("t1");
+  const t2 = tk("t2");
+  const t3 = tk("t3", { isOpen: false, isChecked: true });
+  it("To check and Checked are tabs with counts", () => {
+    render(<TicketList toCheck={[t1, t2]} checked={[t3]} selectedId={null} onSelect={() => {}} />);
+    const tabs = screen.getAllByRole("tab");
+    expect(tabs.map((t) => t.textContent)).toEqual(["To check2", "Checked1"]);
+    expect(tabs[0]).toHaveAttribute("aria-selected", "true");
+    fireEvent.click(tabs[1] as HTMLElement);
+    expect(screen.getByRole("tabpanel")).toHaveTextContent(t3.fact);
+  });
+  it("opens on Checked when nothing is left to check", () => {
+    render(<TicketList toCheck={[]} checked={[t3]} selectedId={null} onSelect={() => {}} />);
+    expect(screen.getAllByRole("tab")[1]).toHaveAttribute("aria-selected", "true");
+  });
+  it("each open ticket shows how often it was asked as a meter", () => {
+    render(
+      <TicketList
+        toCheck={[
+          { ...t1, asked: 3 },
+          { ...t2, asked: 1 },
+        ]}
+        checked={[]}
+        selectedId={null}
+        onSelect={() => {}}
+      />,
+    );
+    const m = screen.getAllByRole("meter");
+    expect(m[0]).toHaveAttribute("aria-valuenow", "3");
+    expect(m[0]).toHaveAttribute("aria-valuemax", "3");
+    expect(m[0]).toHaveAccessibleName("Asked 3 times");
+    expect(m[1]).toHaveAccessibleName("Asked 1 time");
   });
 });

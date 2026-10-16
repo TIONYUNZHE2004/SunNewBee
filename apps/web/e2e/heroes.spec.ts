@@ -129,7 +129,8 @@ test("management: a gap becomes a ticket, staff resolve it, before/after shows",
   await expect(row).toHaveAttribute("aria-pressed", "true");
   await page.getByLabel("Staff access").fill("e2e-token");
   // Nothing is recorded yet, so "Record what you found" is the correct-path option.
-  await page.getByRole("radio", { name: /Record what you found/ }).click();
+  await page.getByText("Record what you found").click();
+  await expect(page.getByRole("radio", { name: /Record what you found/ })).toBeChecked();
   await page.getByLabel("Value found on site").fill("4");
   await page.getByRole("button", { name: "Save result" }).click();
   await expect(page.getByText(/Verified on/)).toBeVisible();

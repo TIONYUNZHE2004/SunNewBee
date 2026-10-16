@@ -4,7 +4,7 @@ import type { Ticket } from "./ticketModel";
 
 export function TicketDetail({ ticket }: { ticket: Ticket }) {
   return (
-    <article aria-label="Ticket detail" className="rounded-xl border border-edge bg-surface p-5">
+    <article aria-label="Ticket detail" className="glass rounded-2xl p-5">
       <p className="text-xs font-semibold uppercase tracking-wide text-fg-soft">
         {ticket.reasonLabel}
       </p>
