@@ -24,3 +24,11 @@ export function homeView(site: Pick<Site, "center" | "scene"> | null | undefined
 
 /** Re-frame to the site's home only once, and never after the user moved the camera. */
 export const shouldReframe = (f: { moved: boolean; reframed: boolean }) => !f.moved && !f.reframed;
+
+/** Closer opening range for the stylised city: at the default range the night city reads as dim specks. */
+export const STYLISED_RANGE_M = 2500;
+
+/** The home view when the stylised map style is active: same centre, a closer camera (never further out). */
+export function stylisedHomeView(home: HomeView): HomeView {
+  return { ...home, range_m: Math.min(home.range_m, STYLISED_RANGE_M) };
+}

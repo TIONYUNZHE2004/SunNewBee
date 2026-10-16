@@ -100,7 +100,7 @@ export function toBuildings(fc: unknown): { buildings: Building[]; skipped: numb
       minHeight,
       kind: typeof props.kind === "string" ? props.kind : "building",
       tone: t < 0.45 ? "warm" : t < 0.8 ? "cool" : "rose",
-      floors: clamp(Math.round(height / FLOOR_M), 1, 40),
+      floors: clamp(Math.round((height - minHeight) / FLOOR_M), 1, 40),
       perimeterM,
       cols: clamp(Math.round(perimeterM / COL_M), 4, 128),
       litSeed: hashUnit(id, "lit"),

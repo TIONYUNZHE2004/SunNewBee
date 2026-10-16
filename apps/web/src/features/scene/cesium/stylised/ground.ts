@@ -11,6 +11,45 @@ export interface Road {
 /** A water polygon: outer ring then holes, lon/lat. */
 export type WaterPolygon = [number, number][][];
 
+function toPolygon(coords: unknown): WaterPolygon | null {
+  if (!Array.isArray(coords) || coords.length === 0) return null;
+  const rings: WaterPolygon = [];
+  for (const r of coords) {
+    if (!Array.isArray(r) || r.length < 4) return null;
+    const ring: [number, number][] = [];
+    for (const p of r) {
+      if (!Array.isArray(p) || !Number.isFinite(p[0]) || !Number.isFinite(p[1])) return null;
+      ring.push([p[0] as number, p[1] as number]);
+    }
+    rings.push(ring);
+  }
+  return rings;
+}
+
+/**
+ * Lake/riverbank polygons from the buildings payload's `water` collection. This is DECORATIVE base
+ * water (OSM hydrology) for the stylised look, NOT a flood scenario: it never encodes a water level,
+ * depth or extent. Lines and malformed geometry are dropped.
+ */
+export function waterFromLayer(fc: unknown): WaterPolygon[] {
+  const features = isRec(fc) && Array.isArray(fc.features) ? fc.features : [];
+  const out: WaterPolygon[] = [];
+  for (const f of features) {
+    const g = isRec(f) ? f.geometry : null;
+    if (!isRec(g)) continue;
+    if (g.type === "Polygon") {
+      const p = toPolygon(g.coordinates);
+      if (p) out.push(p);
+    } else if (g.type === "MultiPolygon" && Array.isArray(g.coordinates)) {
+      for (const c of g.coordinates) {
+        const p = toPolygon(c);
+        if (p) out.push(p);
+      }
+    }
+  }
+  return out;
+}
+
 const WIDTH_BY_TYPE: Record<string, number> = {
   major_road: 10,
   residential: 6,

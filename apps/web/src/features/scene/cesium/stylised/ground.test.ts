@@ -1,6 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
 import { fakeCesium, fakeCollection, fakeEvent } from "./fakeCesium.test-util";
-import { buildGround, type GroundCesium, roadsFromWalk, VOLUME_HALF_M } from "./ground";
+import {
+  buildGround,
+  type GroundCesium,
+  roadsFromWalk,
+  VOLUME_HALF_M,
+  waterFromLayer,
+} from "./ground";
 import { paletteFor } from "./palette";
 
 const line = (id: string, type: string | undefined, coords: unknown) => ({
@@ -197,5 +203,45 @@ describe("buildGround", () => {
       g.setTheme("night");
       g.destroy();
     }).not.toThrow();
+  });
+});
+
+describe("waterFromLayer", () => {
+  const ring = [
+    [101.5, 3.18],
+    [101.51, 3.18],
+    [101.51, 3.19],
+    [101.5, 3.18],
+  ];
+  it("keeps Polygon and MultiPolygon, drops lines, junk and undefined", () => {
+    const fc = {
+      features: [
+        { geometry: { type: "Polygon", coordinates: [ring] } },
+        {
+          geometry: {
+            type: "MultiPolygon",
+            coordinates: [[ring], [ring]],
+          },
+        },
+        { geometry: { type: "LineString", coordinates: ring } },
+        {
+          geometry: {
+            type: "Polygon",
+            coordinates: [
+              [
+                [1, "x"],
+                [2, 2],
+                [3, 3],
+              ],
+            ],
+          },
+        },
+        { geometry: null },
+        null,
+      ],
+    };
+    expect(waterFromLayer(fc)).toHaveLength(3);
+    expect(waterFromLayer(undefined)).toEqual([]);
+    expect(waterFromLayer({ features: "no" })).toEqual([]);
   });
 });

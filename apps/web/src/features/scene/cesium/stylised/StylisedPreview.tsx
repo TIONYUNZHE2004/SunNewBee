@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useCesium, Viewer } from "resium";
 import { useTheme } from "../../../../ui/theme";
 import { useScene } from "../../sceneStore";
-import { homeView } from "../home";
+import { homeView, stylisedHomeView } from "../home";
 import { AccessLayer, FloodLayer } from "../layers";
 import { StylisedCity, type StylisedReady } from "./StylisedCity";
 
@@ -35,7 +35,7 @@ declare global {
 }
 
 function look(viewer: Cesium.Viewer, range_m: number, pitchDeg = -45, headingDeg = 0) {
-  const h = homeView(undefined);
+  const h = stylisedHomeView(homeView(undefined));
   viewer.camera.lookAt(
     Cesium.Cartesian3.fromDegrees(h.lon, h.lat, 0),
     new Cesium.HeadingPitchRange(
@@ -75,7 +75,7 @@ function Probe({ onStats }: { onStats: (s: Stats) => void }) {
 
   useEffect(() => {
     if (!viewer || viewer.isDestroyed()) return;
-    look(viewer, homeView(undefined).range_m);
+    look(viewer, stylisedHomeView(homeView(undefined)).range_m);
     window.__tlStylised = {
       stats: stats.current,
       look: (r, p, h) => look(viewer, r, p, h),

@@ -5,7 +5,13 @@ import { useBuildings, useLayer, useSite } from "../../../../lib/api";
 import { useTheme } from "../../../../ui/theme";
 import { homeView } from "../home";
 import { type BuildingPrimitives, buildBuildingPrimitives } from "./buildingsPrimitive";
-import { buildGround, type Ground, roadsFromWalk, type WaterPolygon } from "./ground";
+import {
+  buildGround,
+  type Ground,
+  roadsFromWalk,
+  type WaterPolygon,
+  waterFromLayer,
+} from "./ground";
 import { groupByClass, toBuildings, treesToPoints } from "./model";
 import { paletteFor } from "./palette";
 import { buildProps, kerbCars, type Props, streetTrees } from "./props";
@@ -69,8 +75,8 @@ export function applyStylisedLook(viewer: Cesium.Viewer): () => void {
 /** Seed for decorative placement (trees, cars): fixed, so the city looks the same every visit. */
 const PROPS_SEED = "tl-stylised";
 /**
- * Permanent water (rivers, lakes) is not served by the API yet (base/hydrology.geojson is not on
- * any endpoint). Flood scenario water is a scenario, never decoration, so it is not used here.
+ * Decorative base water comes from `/layers/buildings` (`water`, OSM hydrology polygons). It is NOT
+ * a flood scenario: flood water is a scenario, never decoration, and is not used here.
  */
 const NO_WATER: WaterPolygon[] = [];
 
@@ -105,6 +111,7 @@ export function StylisedCity({ onReady }: { onReady?: (info: StylisedReady) => v
     return { classes: groupByClass(buildings), count: buildings.length, skipped, t0 };
   }, [data]);
   const roads = useMemo(() => (details ? roadsFromWalk(walk) : []), [walk, details]);
+  const water = useMemo(() => (data?.water ? waterFromLayer(data.water) : NO_WATER), [data]);
   const decor = useMemo(
     () => ({
       trees: [...treesToPoints(data?.trees), ...streetTrees(roads, PROPS_SEED)],
@@ -154,7 +161,7 @@ export function StylisedCity({ onReady }: { onReady?: (info: StylisedReady) => v
     if (!viewer || viewer.isDestroyed() || roads.length === 0) return;
     const h = buildGround(Cesium, viewer, {
       roads,
-      water: NO_WATER,
+      water,
       palette: paletteFor(useTheme.getState().theme),
     });
     ground.current = h;
@@ -165,7 +172,7 @@ export function StylisedCity({ onReady }: { onReady?: (info: StylisedReady) => v
       h.destroy();
       viewer.scene.requestRender();
     };
-  }, [viewer, roads]);
+  }, [viewer, roads, water]);
 
   useEffect(() => {
     if (!viewer || viewer.isDestroyed() || !details) return;

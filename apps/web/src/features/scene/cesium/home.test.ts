@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { homeView, shouldReframe } from "./home";
+import { homeView, shouldReframe, stylisedHomeView } from "./home";
 
 const base = { center: [101.5, 3.2], scene: {} } as Parameters<typeof homeView>[0];
 
@@ -27,5 +27,20 @@ describe("shouldReframe", () => {
     expect(shouldReframe({ moved: false, reframed: false })).toBe(true);
     expect(shouldReframe({ moved: true, reframed: false })).toBe(false);
     expect(shouldReframe({ moved: false, reframed: true })).toBe(false);
+  });
+});
+
+describe("stylisedHomeView", () => {
+  it("brings the camera closer to about 2500 m and keeps the centre", () => {
+    const h = stylisedHomeView({ lon: 101.5, lat: 3.18, range_m: 6000 });
+    expect(h).toEqual({ lon: 101.5, lat: 3.18, range_m: 2500 });
+  });
+  it("never zooms further out than the site's own closer range", () => {
+    expect(stylisedHomeView({ lon: 1, lat: 2, range_m: 1200 }).range_m).toBe(1200);
+  });
+  it("does not mutate its input", () => {
+    const h = { lon: 1, lat: 2, range_m: 6000 };
+    stylisedHomeView(h);
+    expect(h.range_m).toBe(6000);
   });
 });

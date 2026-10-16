@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   type Building,
   classKey,
+  FLOOR_M,
   groupByClass,
   hashUnit,
   scatterTrees,
@@ -34,6 +35,21 @@ describe("toBuildings", () => {
     expect(a.floors).toBe(4);
     expect(a.perimeterM).toBeGreaterThan(100);
     expect(a.cols).toBeGreaterThanOrEqual(4);
+  });
+  it("derives floors from height - minHeight, not height", () => {
+    const fc = {
+      features: [
+        f("p1", sq(101.5, 3.18), { height_m: 30, min_height_m: 20 }),
+        f("p2", sq(101.5, 3.18), { height_m: 12.8, min_height_m: 0 }),
+        f("p3", sq(101.5, 3.18), { height_m: 400, min_height_m: 0 }),
+        f("p4", sq(101.5, 3.18), { height_m: 5, min_height_m: 4.5 }),
+      ],
+    };
+    const [a, b, c, d] = toBuildings(fc).buildings;
+    expect(a!.floors).toBe(Math.round(10 / FLOOR_M)); // 3, not 9
+    expect(b!.floors).toBe(4);
+    expect(c!.floors).toBe(40);
+    expect(d!.floors).toBe(1); // clamped to at least one floor
   });
   it("skips and counts invalid features instead of throwing", () => {
     const fc = {
