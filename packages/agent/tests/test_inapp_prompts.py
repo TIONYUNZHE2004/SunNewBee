@@ -231,6 +231,13 @@ def _parse_resident_starters(src: str) -> list[tuple[str, str | None]]:
     return out
 
 
+def test_management_starters_include_the_rehearsal_chip():
+    """The storm rehearsal chip is answered end to end on the seed in test_day_agent."""
+    src = STARTERS_TS.read_text(encoding="utf-8")
+    block = re.search(r"management:\s*\[(.*?)\n  \],", src, re.S).group(1)
+    assert '"What happens to residents in the storm rehearsal?"' in block
+
+
 def test_resident_starters_match_starters_ts():
     parsed = _parse_resident_starters(STARTERS_TS.read_text(encoding="utf-8"))
     assert len(parsed) == len(set(parsed)), f"duplicate starters: {parsed}"

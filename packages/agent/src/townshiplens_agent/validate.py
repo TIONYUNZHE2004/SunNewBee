@@ -396,7 +396,8 @@ def validate_answer(ans: FinalAnswer, rec: TurnRecord) -> list[str]:
             "The route is confirmed only on placeholder (demo) values: say "
             f"'Route status: {DEMO_CONFIRMED}' in the summary instead of a bare 'confirmed'."
         )
-    if rec.scenarios_used and not ans.scenario_id:
+    # a rehearsal's river stage comes from the tool (run.py fills it in), not from the model
+    if rec.scenarios_used - rec.day_stages and not ans.scenario_id:
         errs.append("A flood scenario tool was used: set scenario_id.")
     errs += whatif_errors(ans, rec)
     errs += plan_errors(ans, rec)
@@ -638,6 +639,30 @@ def foreign_number_errors(ans: FinalAnswer, rec: TurnRecord) -> list[str]:
 DAY_WORD = re.compile(r"\brehears|\bsimulat|\bsimulasi\b|\blatihan\b|模拟|演练", re.IGNORECASE)
 SYNTHETIC = re.compile(r"\bsynthetic\b|\bsintetik\b|虚拟|合成", re.IGNORECASE)
 _HHMM = re.compile(r"\b\d{1,2}:\d{2}\b")
+# Not counts: clock times (12- and 24-hour), ages ("under 13", "65+"), durations and dates.
+_DAY_NOT_COUNT = re.compile(
+    r"\b\d{1,2}(?::\d{2})?\s?(?:am|pm|a\.m\.|p\.m\.)(?![a-z])"
+    r"|\b(?:under|over|aged|above|below|bawah|atas|berumur)\s+\d+\b|\b\d+\s?\+|\b\d+\s?岁"
+    r"|\b\d+(?:\.\d+)?\s?(?:hours?|hrs?|percent|peratus)\b"
+    r"|\b\d{1,2}\s+(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\b",
+    re.IGNORECASE,
+)
+# A rehearsal says what happened in it; "0 stranded" is one of its outcomes, not a prediction.
+DAY_FORECAST = re.compile(
+    r"\bwill (?:be |get )?(?:stranded|trapped|cut off|flooded|lose|stuck|affected|miss|struggle)"
+    r"\b|\breal (?:people|residents)\b[^.]*\b(?:will|tomorrow)\b",
+    re.IGNORECASE,
+)
+DAY_GAP = re.compile(
+    r"data gap|no mapped connection|jurang data|tiada data|tiada sambungan|数据缺口|数据空白",
+    re.IGNORECASE,
+)
+
+
+def _sums(nums: set[int]) -> set[int]:
+    """Differences and sums of two rehearsal counts ("464 - 400 = 64", "71 late + 79 back")."""
+    small = sorted(nums)[:400]
+    return {a + b for a in small for b in small} | {abs(a - b) for a in small for b in small}
 
 
 def day_errors(ans: FinalAnswer, rec: TurnRecord) -> list[str]:
@@ -653,15 +678,23 @@ def day_errors(ans: FinalAnswer, rec: TurnRecord) -> list[str]:
         )
     if not has_not_forecast(text):
         errs.append("A rehearsal must say it is not a forecast (include 'not a forecast').")
-    if FORECAST_WORDS.search(text):
+    if DAY_FORECAST.search(text):
         errs.append(
-            "A rehearsal does not predict who will be stranded: say what happened in the "
-            "rehearsal instead of 'will be'."
+            "A rehearsal does not predict what will happen to real residents: say what happened "
+            "in the rehearsal (for example 'could not make the trip in the rehearsal')."
         )
+    gaps = sum((d.get("outcomes") or {}).get("data_gap", 0) for d in rec.days)
+    if gaps and not DAY_GAP.search(text):
+        errs.append(
+            f"{gaps} trips had no mapped connection: say so as a data gap "
+            "(for example 'N had no mapped connection (data gap)')."
+        )
+    if PERCENT.search(text) or NUMBER_WORDS.search(text) or re.search(r"\b\d+\.\d{3}\b", text):
+        errs.append("Give counts as digits copied from the rehearsal, not percentages or words.")
     allowed = set().union(*(_ints(d) for d in rec.days)) if rec.days else set()
-    plain = _HHMM.sub(" ", _strip_names(text, rec.place_names))
+    plain = _DAY_NOT_COUNT.sub(" ", _HHMM.sub(" ", _strip_names(text, rec.place_names)))
     spoken = {int(m.group(1).replace(",", "")) for m in _DAY_COUNT.finditer(plain)}
-    if bad := sorted(spoken - allowed):
+    if (bad := spoken - allowed) and (bad := sorted(bad - _sums(allowed))):
         errs.append(
             f"Numbers {bad} do not appear in the rehearsal: quote only its counts "
             "(trips by outcome, residents by group, school)."

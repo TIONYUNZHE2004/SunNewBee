@@ -1119,3 +1119,35 @@ A second stretch, about 1.1 km of Persiaran Eserina, helps **96 children and 65 
 | (Found in testing) FastAPI's response model would have dropped the new fields. | Declared, and the API test now asserts them. |
 
 **Re-recorded the AI town hall:** 5 lines, all passing the check. Checklist: all PASS.
+
+### Cycle 14 review and Cycle 15: live smoke test, credits, demo script (17 Oct, 04:12)
+
+**Live smoke test** (the default chat model, Claude Haiku 5.5 via OpenRouter, 3 turns, about US$0.13; results in `evals/results/2026-10-17-live-day-assistant.json`):
+- The Bahasa Melayu storm question passed the checks first time.
+- The English "What happens to residents in the storm rehearsal?" failed all three attempts and fell back to the template. Two reasons, both ours:
+  - the validator rejected "stranded" even in "no one was stranded", though `stranded` is one of the rehearsal's own outcomes;
+  - it asked the model to set `scenario_id`, but the model never sets one for a rehearsal.
+- After the fixes below, the same English question passed first time. It showed `flood.set_level stage_p3m`, named the 163 data-gap trips and said "No residents were stranded".
+
+**Cycle 14 reviewer findings (Sonnet; 4 Important, 5 Minor), all fixed:**
+
+| Finding | Fix |
+|---|---|
+| Data-gap trips were dropped from the answer: weekday 9,380 trips, but only 9,217 accounted for. | The template and mock now say "N had no mapped connection (data gap)" in the summary and the school line. The validator requires a data-gap mention whenever the rehearsal has one, in EN, BM or ZH. |
+| Honest numbers were rejected: "8:00am", "aged 65", "65+", "2 hours", "17 October", "464 - 400 = 64". | 12-hour times, ages, durations and dates are not read as counts. Sums and differences of two rehearsal counts are allowed. |
+| The map got no scene intent for a storm rehearsal. | `run.py` adds `flood.set_level` for the rehearsal's peak stage (recorded in `rec.day_stages`). That stage comes from the tool, so the `scenario_id` rule no longer applies to it. |
+| The new management chip had no mirror test. | Mirror test, plus a full mock turn of that chip on the seed (the map stage, data gap and validator). |
+| Minor: "fourteen out of", "14%" and "5.000" slipped through. | Rejected ("give counts as digits"). |
+| Minor: "real people will be affected tomorrow" slipped through. | Rejected (`DAY_FORECAST`). |
+| Minor: "stranded" was over-blocked. | Only "will be stranded" is refused. |
+| Minor: mock `_DAY` matched "normal weekday" route questions. | Rehearsal wording is required. |
+| Minor: "Storm" or " STORM " failed as the day argument. | A `Literal` type plus normalisation. |
+| Minor: memory ignored rehearsals. | `simulated` now includes `rec.days`. |
+
+**Also in this cycle:**
+- Prompt rule 17: past tense, a data-gap count, and "do not set scenario_id".
+- The storm chip's demo replay is re-recorded with the mock.
+- CREDITS.md now records the OASIS, AgentSociety and MiroFish ideas.
+- The demo script's world-model segment is rewritten around Elmina Day.
+
+**Checklist** (mock-backed except the smoke test): lint PASS, pytest 1,194 PASS, typecheck PASS, vitest PASS, gen PASS, golden 19/19 PASS (mock), e2e 17 PASS. OpenRouter spend is about US$1.7 of the US$3 cap; the counter lags, so this is an estimate.

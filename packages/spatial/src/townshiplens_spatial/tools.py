@@ -1421,7 +1421,7 @@ def day_rehearsal_summary(ctx: Ctx, day: str = "storm") -> ToolResult:
     """For the assistant: a simulated day of 5,000 synthetic residents (Elmina Day) in one
     built-in scenario (weekday | storm | event | friday), summarised: trips by outcome, residents
     by group, school, the busiest places. A rehearsal, not a forecast; residents are synthetic."""
-    scenario_id = day
+    scenario_id = str(day).strip().lower()
     full = day_rehearsal(ctx, scenario_id)
     if not full.ok:
         return full

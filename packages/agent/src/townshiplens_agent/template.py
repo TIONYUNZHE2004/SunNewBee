@@ -326,7 +326,9 @@ def day_answer(d: dict, evidence_ids: list[str]) -> dict:
         f"In this rehearsal of {d.get('residents', 0)} synthetic residents "
         f"({sc.get('label', 'a simulated day')}), {d.get('trips', 0)} trips: "
         f"{o.get('on_time', 0)} on time, {o.get('late', 0)} late, {o.get('cancelled', 0)} could "
-        f"not happen and {o.get('turned_back', 0)} turned back. It is a rehearsal, not a forecast."
+        f"not happen and {o.get('turned_back', 0)} turned back"
+        + (f"; {o['data_gap']} had no mapped connection (data gap)" if o.get("data_gap") else "")
+        + ". It is a rehearsal, not a forecast."
     )
     steps = []
     for g in d.get("groups") or []:
@@ -340,7 +342,12 @@ def day_answer(d: dict, evidence_ids: list[str]) -> dict:
     if sch.get("pupils"):
         steps.append(
             f"School: {sch.get('on_time', 0)} of {sch['pupils']} pupils on time, "
-            f"{sch.get('cancelled', 0)} could not get there."
+            f"{sch.get('cancelled', 0)} could not get there"
+            + (
+                f", {sch['data_gap']} had no mapped connection (data gap)."
+                if sch.get("data_gap")
+                else "."
+            )
         )
     caveats = [DAY_CAVEAT]
     if d.get("river_stages"):

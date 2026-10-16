@@ -1,0 +1,41 @@
+[
+  {
+    "q": "What happens to residents in the storm rehearsal?",
+    "model": "anthropic/claude-haiku-5.5+template",
+    "text": "In this rehearsal of 5000 synthetic residents (Storm at the school run), 7881 trips: 6169 on time, 71 late, 1399 could not happen and 79 turned back. It is a rehearsal, not a forecast.\n1. Children (under 13): 191 of 1014 could not make a trip, 5 late.\n2. Teenagers: 151 of 362 could not make a trip, 14 late.\n3. Older residents (65+): 48 of 464 could not make a trip, 18 late.\n4. Wheelchair users: 3 of 12 could not make a trip, 0 late.\n5. Parents with a stroller: 43 of 217 could not make a trip, 7 late.\n6. Households without a car: 156 of 442 could not make a trip, 3 late.\nWorth knowing:\n• Residents are synthetic: a rehearsal on the township model, not a forecast and not real people.\n• This is an indicative scenario, not a forecast. Follow official MBSA / JPS / NADMA guidance.\n• Answer generated from data without AI wording.",
+    "checks": [
+      [false, ["did not name the flood scenario it used", "described a rehearsal as a prediction"]],
+      [false, ["did not name the flood scenario it used", "described a rehearsal as a prediction"]],
+      [false, ["did not name the flood scenario it used", "described a rehearsal as a prediction"]]
+    ],
+    "validator_errors": [
+      [
+        "A flood scenario tool was used: set scenario_id.",
+        "A rehearsal does not predict who will be stranded: say what happened in the rehearsal instead of 'will be'."
+      ],
+      [
+        "A flood scenario tool was used: set scenario_id.",
+        "A rehearsal does not predict who will be stranded: say what happened in the rehearsal instead of 'will be'."
+      ],
+      [
+        "A flood scenario tool was used: set scenario_id.",
+        "A rehearsal does not predict who will be stranded: say what happened in the rehearsal instead of 'will be'."
+      ]
+    ]
+  },
+  {
+    "q": "Apa yang berlaku kepada penduduk dalam latihan ribut semasa perjalanan ke sekolah?",
+    "model": "anthropic/claude-haiku-5.5",
+    "text": "Dalam latihan ribut semasa perjalanan ke sekolah, hujan lebat bermula pukul 06:15 dan sungai dimodelkan naik. Daripada 7,881 perjalanan oleh 5,000 penduduk sintetik, 6,169 tepat pada masa, 71 lewat, 1,399 dibatalkan, 79 berpatah balik, dan 163 tiada data. Tiada yang terkandas. Di sekolah, 979 daripada 1,373 murid tiba tepat pada masa, 261 perjalanan dibatalkan, 81 berpatah balik.\nPerlu diketahui:\n• Ini ialah latihan dengan penduduk sintetik, bukan ramalan dan bukan orang sebenar.\n• Tahap sungai ialah senario penunjuk (+1 m hingga +3 m), bukan ramalan. Ikut garis panduan rasmi MBSA, JPS dan NADMA.",
+    "checks": [[true, []]],
+    "validator_errors": []
+  },
+  {
+    "q": "What happens to residents in the storm rehearsal?",
+    "after_fix": true,
+    "model": "anthropic/claude-haiku-5.5",
+    "text": "In the storm rehearsal (a rehearsal of synthetic residents, not a forecast), the river rose to +3 m during the school run. Of 7,881 trips, 6,169 were on time, 71 late, 1,399 cancelled, 79 turned back, and 163 had a data gap. No residents were stranded. Children, teenagers, households without a car and parents with strollers had the most cancelled or unmade trips. Of 1,373 pupils, 979 were on time and 261 were cancelled.\nWorth knowing:\n• Indicative rehearsal with synthetic residents, not a forecast and not real people.\n• Follow official MBSA / JPS / NADMA guidance.\n• 163 trips had no mapped connection, which is a data gap rather than a confirmed outcome.",
+    "validator_errors": [],
+    "intents": ["flood.set_level:stage_p3m"]
+  }
+]

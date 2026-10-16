@@ -441,18 +441,20 @@ def _whatif(q: str, rets, info: AgentInfo) -> ModelResponse:
     return _final(**whatif_answer(wi, ev))
 
 
-_DAY = r"\brehears|\bsimulated day\b|\belmina day\b|\ba day in elmina\b|\bnormal weekday\b"
+_DAY = r"\brehears|\bsimulated day\b|\belmina day\b|\ba day in elmina\b|\blatihan\b"
 
 
 def _day(q: str, rets, info: AgentInfo) -> ModelResponse:
     if not rets:
         sid = (
             "storm"
-            if re.search(r"storm|flood|rain|river|banjir|水", q)
-            else "event"
-            if re.search(r"event|night|park|community", q)
+            if re.search(r"storm|flood|rain|river|banjir|ribut|水", q)
+            else "weekday"
+            if re.search(r"weekday|hari biasa", q)
             else "friday"
             if re.search(r"friday|jumaat|jumat|prayer", q)
+            else "event"
+            if re.search(r"event|night|park|community", q)
             else "weekday"
         )
         return _call("day_rehearsal", day=sid)

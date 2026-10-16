@@ -222,6 +222,12 @@ def _answer_events(
     evs += [TextDelta(delta=text[i : i + CHUNK]) for i in range(0, len(text), CHUNK)]
 
     intents = list(ans.scene_intents)
+    day_stage = next(iter(sorted(rec.day_stages)), None)
+    if day_stage and not any(i.kind == "flood.set_level" for i in intents):
+        # a storm rehearsal shows its peak river stage on the map, as a scenario answer does
+        intents.append(
+            SceneIntent(kind="flood.set_level", scenario_id=ans.scenario_id or day_stage)
+        )
     diff = next((w["diff_geojson"] for w in reversed(rec.what_ifs) if w.get("diff_geojson")), None)
     if diff and not any(i.kind == "whatif.diff" for i in intents):
         intents.append(SceneIntent(kind="whatif.diff"))  # a what-if is always drawn as a diff
@@ -435,7 +441,9 @@ async def run_turn(
         return
     # Follow-up context: the question and the answer as shown (template fallbacks included).
     shown = "".join(e.delta for e in events if isinstance(e, TextDelta))
-    memory.add_turn(req.session_id, req.message, shown, simulated=bool(rec.what_ifs or rec.plans))
+    memory.add_turn(
+        req.session_id, req.message, shown, simulated=bool(rec.what_ifs or rec.plans or rec.days)
+    )
     for ev in events:
         yield ev
     yield Done(message_id=msg_id, answer_status=ans.answer_status, model=used)

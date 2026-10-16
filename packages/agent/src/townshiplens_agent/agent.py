@@ -9,7 +9,7 @@ import asyncio
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, get_args
+from typing import Any, Literal, get_args
 
 from pydantic_ai import Agent, ModelRetry, RunContext, ToolOutput
 from pydantic_ai.models import Model
@@ -351,7 +351,9 @@ async def call_tool(deps: Deps, name: str, **kwargs: Any) -> dict:
         stages = res.data.get("river_stages") or []
         if stages:  # a day with a river rise: the flood disclaimer and scenario rules apply
             by_m = {s.id: s.stage_m for s in deps.ctx.world.flood.scenarios}
-            rec.scenarios_used.add(max(stages, key=lambda s: by_m.get(s, 0)))
+            top = max(stages, key=lambda s: by_m.get(s, 0))
+            rec.scenarios_used.add(top)
+            rec.day_stages.add(top)
         rec.place_names |= {
             p["name"] for p in res.data.get("busiest_places") or [] if p.get("name")
         }
@@ -636,13 +638,15 @@ def build_agent(model: Model) -> Agent[Deps, FinalAnswer]:
         return await call_tool(ctx.deps, "rising_river_rollout", profiles=profiles, n=n)
 
     @agent.tool
-    async def day_rehearsal(ctx: RunContext[Deps], day: str = "storm") -> dict:
+    async def day_rehearsal(
+        ctx: RunContext[Deps], day: Literal["weekday", "storm", "event", "friday"] = "storm"
+    ) -> dict:
         """Elmina Day: a simulated day of 5,000 synthetic residents on the township model, in a
         built-in scenario: weekday, storm (the river rises during the school run), event (a
         night at the park) or friday (prayers). Trips by outcome, residents by group (children,
         older, wheelchair users, parents with strollers, households without a car), school
         and the busiest places. A rehearsal, not a forecast; residents are synthetic."""
-        return await call_tool(ctx.deps, "day_rehearsal", day=day)
+        return await call_tool(ctx.deps, "day_rehearsal", day=str(day).strip().lower())
 
     @agent.tool
     async def find_fixes(
