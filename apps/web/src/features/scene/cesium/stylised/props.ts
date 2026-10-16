@@ -240,9 +240,10 @@ export function buildProps(
   return {
     setTheme(t) {
       const p = paletteFor(t);
+      const light = lightUniforms(C, p, at);
       for (const { mat, colour } of parts) {
         mat.uniforms.color = C.Color.fromCssColorString(colour(p));
-        setLightUniforms(mat, lightUniforms(C, p, at));
+        setLightUniforms(mat, light);
       }
     },
     destroy() {

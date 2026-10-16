@@ -51,11 +51,12 @@ export function lightUniforms(
   };
 }
 
-const LIT_COLOR_SOURCE = /* glsl */ `
+export const LIT_COLOR_SOURCE = /* glsl */ `
 ${LIGHTING_GLSL}
 czm_material czm_getMaterial(czm_materialInput materialInput) {
   czm_material m = czm_getDefaultMaterial(materialInput);
-  m.diffuse = tl_fog(color.rgb * tl_light(materialInput.normalEC), materialInput.positionToEyeEC);
+  // Lift like the roofs, so props stay readable at Dusk and Night.
+  m.diffuse = tl_fog(color.rgb * mix(tl_light(materialInput.normalEC), vec3(1.0), 0.35), materialInput.positionToEyeEC);
   return m;
 }
 `;

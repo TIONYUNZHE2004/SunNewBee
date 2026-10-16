@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { LIGHTING_GLSL, lightUniforms } from "./lighting";
+import { LIGHTING_GLSL, LIT_COLOR_SOURCE, lightUniforms } from "./lighting";
 import { paletteFor } from "./palette";
 
 const C = {
@@ -42,5 +42,10 @@ describe("lighting", () => {
       "fogDensity",
     ])
       expect(u).toHaveProperty(name);
+  });
+  it("lit colour source lifts the light towards white so props stay readable at night", () => {
+    expect(LIT_COLOR_SOURCE).toMatch(
+      /mix\(tl_light\(materialInput\.normalEC\),\s*vec3\(1\.0\),\s*0\.35\)/,
+    );
   });
 });
