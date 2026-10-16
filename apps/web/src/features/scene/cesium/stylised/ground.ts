@@ -157,6 +157,9 @@ export interface Ground {
   setPalette(p: Palette, final: boolean): void;
   /** Motion clock seconds: drives the base-water ripple (the only animated ground part). */
   setTime(t: number): void;
+  /** Lower every part to the bottom again in the original order, so a band added later and
+   * lowered to the bottom (the light pools) ends just above the ground and below the overlays. */
+  restack(): void;
   /** Remove and destroy everything. Idempotent. */
   destroy(): void;
 }
@@ -377,6 +380,9 @@ export function buildGround(
         stopWatching = null;
         scene.requestRender(); // the recolour lands after this frame
       });
+    },
+    restack() {
+      for (const { prim } of parts) collection.lowerToBottom(prim);
     },
     setTime(t) {
       if (waterMat && !waterMat.isDestroyed()) waterMat.uniforms.time = t;

@@ -71,4 +71,14 @@ describe("fadeMs", () => {
     expect(fadeMs("dusk", "night")).toBe(2000);
     expect(fadeMs("night", "day")).toBe(2000);
   });
+
+  it("is 0 (apply once, no fade) when the target is what is already shown", () => {
+    for (const t of ["day", "dusk", "night"]) expect(fadeMs(t, t)).toBe(0);
+    const apply = vi.fn();
+    const raf = vi.fn(() => 1);
+    startCrossfade(paletteFor("day"), paletteFor("day"), apply, { ms: fadeMs("day", "day"), raf });
+    expect(apply).toHaveBeenCalledTimes(1);
+    expect(apply).toHaveBeenCalledWith(paletteFor("day"), 1);
+    expect(raf).not.toHaveBeenCalled();
+  });
 });

@@ -2,7 +2,7 @@ import * as Cesium from "cesium";
 import { describe, expect, it } from "vitest";
 import { fakeCesium } from "../fakeCesium.test-util";
 import { paletteFor } from "../palette";
-import { ANIMATED_VS, buildSky } from "./sky";
+import { ANIMATED_VS, buildSky, CLOUD_ALPHA } from "./sky";
 
 const viewer = () => {
   let renders = 0;
@@ -134,17 +134,30 @@ describe("buildSky", () => {
     expect([bird.show, cloud.show]).toEqual([true, true]);
   });
 
+  it("setVisible(birds, false) hides the clouds only (route or flood scenario shown)", () => {
+    const { C, primitives } = fakeCesium();
+    const sky = buildSky(C as never, viewer().v as never, { ...OPTS, palette: paletteFor("day") });
+    const prims = primitives as unknown as Prim[];
+    const bird = prims.find((p) => !isCloud(p))!;
+    const cloud = prims.find(isCloud)!;
+    sky.setVisible(true, false);
+    expect([bird.show, cloud.show]).toEqual([true, false]);
+    sky.setVisible(true, true);
+    expect([bird.show, cloud.show]).toEqual([true, true]);
+  });
+
   it("clouds take a dusk tint, stay translucent and do not shade themselves", () => {
     const { C, materials } = fakeCesium();
     const sky = buildSky(C as never, viewer().v as never, { ...OPTS, palette: paletteFor("day") });
     const cloudMat = materials.find((m) => "cloudShadow" in m.uniforms && m.type === "fabric")!;
     expect(cloudMat.uniforms.cloudShadow).toBe(0);
     const dayColour = cloudMat.uniforms.color as { css: string; alpha: number };
-    expect(dayColour.alpha).toBe(0.92);
+    expect(dayColour.alpha).toBe(CLOUD_ALPHA);
+    expect(CLOUD_ALPHA).toBe(0.5); // see-through enough never to hide an overlay line
     sky.setPalette(paletteFor("dusk"));
     const duskColour = cloudMat.uniforms.color as { css: string; alpha: number };
     expect(duskColour.css).not.toBe(dayColour.css);
-    expect(duskColour.alpha).toBe(0.92);
+    expect(duskColour.alpha).toBe(CLOUD_ALPHA);
     expect(cloudMat.uniforms.cloudShadow).toBe(0);
   });
 

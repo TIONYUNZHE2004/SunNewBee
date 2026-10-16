@@ -1,7 +1,9 @@
 import { lerpPalette, type Palette } from "./palette";
 
-/** Day <-> Dusk fades over 3 s so the lamps visibly come on; every other change takes 2 s. */
+/** Day <-> Dusk fades over 3 s so the lamps visibly come on; every other change takes 2 s. The
+ * same theme takes 0 (mount, home change): the target is applied once, with no frame loop. */
 export function fadeMs(from: string, to: string): number {
+  if (from === to) return 0;
   return (from === "day" && to === "dusk") || (from === "dusk" && to === "day") ? 3000 : 2000;
 }
 

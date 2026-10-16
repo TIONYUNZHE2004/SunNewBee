@@ -14,6 +14,11 @@ import { cloudOffset, type Loop, loopPoint, wrapCentred } from "./flocks";
  * Cesium 1.146's TexturedMaterialAppearanceVS (same attribute and varying names, so Primitive's
  * shader rewrites still match) plus one displacement per variant. The clock is the built-in
  * czm_frameNumber: frames only advance while rendering, so motion freezes when the loop pauses.
+ * Known limitation: a material uniform is not visible to a custom appearance vertex shader in
+ * Cesium 1.146 (material uniforms are renamed and only bound in the fragment stage), so the phase
+ * follows the render rate, not wall time. The motion clock renders at 30 fps, so flap and sway run
+ * at their designed speed while idle and faster while the camera moves (frames up to 60 fps).
+ * With Motion off or reduced motion, canopies use the plain appearance and birds are hidden.
  * Prefix "#define TL_BIRD\n" (flapping wings) or "#define TL_SWAY\n" (swaying canopies).
  */
 export const ANIMATED_VS = /* glsl */ `
@@ -86,7 +91,8 @@ export interface Sky {
   setPalette(p: Palette): void;
   /** Move flocks and clouds to clock time `t` (seconds). The caller requests the render. */
   tick(t: number): void;
-  /** Birds follow the Motion setting; clouds the tier. Night hides both regardless. */
+  /** Birds follow the Motion setting; clouds the tier and the overlays (hidden while a route or a
+   * flood scenario is shown). Night hides both regardless. */
   setVisible(birds: boolean, clouds: boolean): void;
   destroy(): void;
 }
@@ -94,7 +100,9 @@ export interface Sky {
 const birdColour = (p: Palette) => mixHex(p.light.fill, "#2a2148", 0.5);
 /** White with a touch of the key light: warm at Dusk, near white by Day. */
 const cloudColour = (p: Palette) => mixHex("#ffffff", p.light.key, 0.35);
-const CLOUD_ALPHA = 0.92;
+/** See-through enough that a cloud never hides a route, path or flood line below it. Clouds are
+ * also hidden while a route is highlighted or a flood scenario is active (StylisedCity). */
+export const CLOUD_ALPHA = 0.5;
 const isNight = (p: Palette) => p.glow >= 1;
 
 /**

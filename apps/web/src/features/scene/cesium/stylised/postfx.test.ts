@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { paletteFor } from "./palette";
-import { applyPostFx, skyCss } from "./postfx";
+import { applyPostFx, saveRenderSettings, skyCss } from "./postfx";
 import { TIERS } from "./quality";
 
 function viewer() {
@@ -17,6 +17,31 @@ function viewer() {
   };
 }
 const C = {};
+
+describe("saveRenderSettings", () => {
+  it("restores every render setting the stylised city changes (switch to Realistic)", () => {
+    const v = viewer();
+    v.scene.postProcessStages.fxaa.enabled = false;
+    v.scene.postProcessStages.ambientOcclusion.enabled = true;
+    v.scene.shadowMap = { softShadows: false, size: 1024, maximumDistance: 5000, darkness: 0.3 };
+    const before = structuredClone({ ...v, scene: { ...v.scene, requestRender: undefined } });
+    const restore = saveRenderSettings(v as never);
+    applyPostFx(C as never, v as never, paletteFor("dusk"), TIERS.high);
+    expect(v.useBrowserRecommendedResolution).toBe(false);
+    restore();
+    expect(v.useBrowserRecommendedResolution).toBe(true);
+    expect(v.resolutionScale).toBe(before.resolutionScale);
+    expect(v.shadows).toBe(before.shadows);
+    const s = v.scene.postProcessStages;
+    expect([s.fxaa.enabled, s.bloom.enabled, s.ambientOcclusion.enabled]).toEqual([
+      false,
+      false,
+      true,
+    ]);
+    expect(v.scene.shadowMap).toEqual(before.scene.shadowMap);
+    expect(v.scene.requestRender).toHaveBeenCalled();
+  });
+});
 
 describe("applyPostFx", () => {
   it("high tier at dusk: soft shadows, AO, bloom, FXAA", () => {

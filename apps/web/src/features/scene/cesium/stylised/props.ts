@@ -1,5 +1,5 @@
 import type * as Cesium from "cesium";
-import type { Road } from "./ground";
+import { type Road, VOLUME_HALF_M } from "./ground";
 import { LIT_COLOR_SOURCE, lightUniforms, litColorMaterial, setLightUniforms } from "./lighting";
 import { hashUnit } from "./model";
 import { ANIMATED_VS } from "./motion/sky";
@@ -164,12 +164,31 @@ export type PropsCesium = Pick<
   | "Matrix4"
   | "Transforms"
   | "ShadowMode"
+  | "ClassificationPrimitive"
+  | "PerInstanceColorAppearance"
+  | "ColorGeometryInstanceAttribute"
+  | "VertexFormat"
+  | "ClassificationType"
 >;
 
 interface PrimitiveCollectionLike {
   add(p: Cesium.Primitive): unknown;
   remove(p: Cesium.Primitive): unknown;
 }
+
+/** Where the light pools go: `scene.groundPrimitives` (flat decals under the overlay lines). */
+export interface PropsGroundScene {
+  groundPrimitives: {
+    add(p: Cesium.ClassificationPrimitive): unknown;
+    remove(p: Cesium.ClassificationPrimitive): unknown;
+    lowerToBottom(p: Cesium.ClassificationPrimitive): void;
+  };
+  postRender: { addEventListener(cb: () => void): () => void };
+  requestRender(): void;
+}
+
+/** Light pool colour alpha at full glow (Night). */
+export const POOL_ALPHA = 0.35;
 
 export interface Props {
   setPalette(p: Palette, final: boolean): void;
@@ -186,16 +205,22 @@ const LAMP_HEAD_SOURCE = LIT_COLOR_SOURCE.replace(
   "m.emission = color.rgb * glow;\n  return m;",
 );
 
-/** Canopy vertex shader: the shared animated shader with the sway variant. */
+/** Canopy vertex shader: the shared animated shader with the sway variant (Motion on only). */
 const SWAY_VS = `#define TL_SWAY
 ${ANIMATED_VS}`;
 
 /**
- * Trees (two-tier low-poly canopy + trunk), parked cars, street lamps with light pools and rooftop
- * clutter as a few instanced Primitives, one per colour, so the Day/Night swap is a material
- * uniform write. Unit geometries are shared and sized by each instance's model matrix. Lit by the
- * shared stylised lighting model (`lighting.ts`). Lamps, pools and roof items are fine detail: they
- * carry a distance-display condition (`detailRangeM`) and are not built at all when it is 0.
+ * Trees (two-tier low-poly canopy + trunk), parked cars, street lamps and rooftop clutter as a few
+ * instanced Primitives, one per colour, so the Day/Night swap is a material uniform write. Unit
+ * geometries are shared and sized by each instance's model matrix. Lit by the shared stylised
+ * lighting model (`lighting.ts`). Canopies sway only when `sway` is true (Motion on, no reduced
+ * motion); otherwise they get the plain appearance and the scene is a still frame.
+ *
+ * Light pools are a flat ClassificationPrimitive band in `ground.groundPrimitives` (like the
+ * pavements), lowered to the bottom so overlay lines draw on top and are never tinted; the caller
+ * then restacks the ground parts under them (`Ground.restack`). One colour for every pool, alpha
+ * POOL_ALPHA x glow, hidden when glow is 0. Lamps, pools and roof items are fine detail: they carry
+ * a distance-display condition (`detailRangeM`) and are not built at all when it is 0.
  */
 export function buildProps(
   C: PropsCesium,
@@ -207,6 +232,7 @@ export function buildProps(
     palette,
     at,
     detailRangeM,
+    sway = false,
   }: {
     trees: Tree[];
     cars: Car[];
@@ -215,8 +241,11 @@ export function buildProps(
     palette: Palette;
     at: { lon: number; lat: number };
     detailRangeM: number;
+    /** Canopy sway in the vertex shader (Motion on and no reduced-motion preference). */
+    sway?: boolean;
   },
   collection?: PrimitiveCollectionLike,
+  ground?: PropsGroundScene,
 ): Props {
   const vertexFormat = C.MaterialAppearance.MaterialSupport.BASIC.vertexFormat;
   const unit = new C.Cartesian3(1, 1, 1);
@@ -225,7 +254,7 @@ export function buildProps(
     radii: unit,
     stackPartitions: 5,
     slicePartitions: 7,
-    vertexFormat: C.MaterialAppearance.MaterialSupport.TEXTURED.vertexFormat,
+    vertexFormat: sway ? C.MaterialAppearance.MaterialSupport.TEXTURED.vertexFormat : vertexFormat,
   });
   const trunk = new C.CylinderGeometry({
     length: 1,
@@ -250,6 +279,10 @@ export function buildProps(
     if (heading !== 0) C.Matrix4.multiplyByMatrix3(m, C.Matrix3.fromRotationZ(heading), m);
     return C.Matrix4.multiplyByScale(m, new C.Cartesian3(sx, sy, sz), m);
   };
+  const poolColour = (p: Palette) =>
+    C.Color.fromCssColorString(p.lightPool).withAlpha(POOL_ALPHA * p.glow);
+  const poolKey = (p: Palette) => `${p.lightPool}|${p.glow}`;
+  const poolValue = (p: Palette) => C.ColorGeometryInstanceAttribute.fromColor(poolColour(p));
   const nearOnly = () => ({
     distanceDisplayCondition:
       C.DistanceDisplayConditionGeometryInstanceAttribute.fromDistanceDisplayCondition(
@@ -275,9 +308,9 @@ export function buildProps(
     /** Canopies: textured vertex format and the swaying vertex shader. */
     sway?: boolean;
   }[] = [
-    { colour: (p) => p.tree[0], instances: [], sway: true },
-    { colour: (p) => p.tree[1], instances: [], sway: true },
-    { colour: (p) => p.tree[2], instances: [], sway: true },
+    { colour: (p) => p.tree[0], instances: [], sway },
+    { colour: (p) => p.tree[1], instances: [], sway },
+    { colour: (p) => p.tree[2], instances: [], sway },
     { colour: (p) => p.trunk, instances: [] },
     { colour: (p) => p.car[0], instances: [] },
     { colour: (p) => p.car[1], instances: [] },
@@ -314,14 +347,17 @@ export function buildProps(
       groups[HEAD]!.instances.push(inst(box, frame(l.lon, l.lat, 4.5, 0.5, 0.25, 0.15), true));
       poolInstances.push(
         new C.GeometryInstance({
+          // A thin classification volume around the flat ellipsoid ground, like the pavements.
           geometry: new C.EllipseGeometry({
             center: C.Cartesian3.fromDegrees(l.lon, l.lat),
             semiMajorAxis: 5,
             semiMinorAxis: 5,
-            height: 0.05,
-            vertexFormat,
+            height: -VOLUME_HALF_M,
+            extrudedHeight: VOLUME_HALF_M,
+            vertexFormat: C.VertexFormat.POSITION_ONLY,
           }),
-          attributes: nearOnly(),
+          id: `pool:${poolInstances.length}`,
+          attributes: { ...nearOnly(), color: poolValue(palette) },
         }),
       );
     }
@@ -387,34 +423,48 @@ export function buildProps(
       },
     });
   }
-  if (poolInstances.length > 0) {
-    const poolColour = (p: Palette) =>
-      C.Color.fromCssColorString(p.lightPool).withAlpha(0.35 * p.glow);
-    const mat = C.Material.fromType("Color", { color: poolColour(palette) });
-    const prim = new C.Primitive({
+  /** The light pools: one ClassificationPrimitive in the ground collection (or none). */
+  let pools: {
+    prim: Cesium.ClassificationPrimitive;
+    ids: string[];
+    applied: string;
+    want: Palette;
+    stopWatching: (() => void) | null;
+  } | null = null;
+  if (poolInstances.length > 0 && ground) {
+    const prim = new C.ClassificationPrimitive({
       geometryInstances: poolInstances,
-      appearance: new C.MaterialAppearance({
-        material: mat,
-        materialSupport: C.MaterialAppearance.MaterialSupport.BASIC,
-        translucent: true,
-        flat: true,
-      }),
+      appearance: new C.PerInstanceColorAppearance({ flat: true, translucent: true }),
+      classificationType: C.ClassificationType.TERRAIN,
       allowPicking: false,
       asynchronous: true,
       releaseGeometryInstances: true,
     });
     prim.show = palette.glow > 0;
-    collection?.add(prim);
-    parts.push({
+    ground.groundPrimitives.add(prim);
+    ground.groundPrimitives.lowerToBottom(prim);
+    pools = {
       prim,
-      mat,
-      lit: false,
-      update(p) {
-        mat.uniforms.color = poolColour(p);
-        prim.show = p.glow > 0;
-      },
-    });
+      ids: poolInstances.map((_, i) => `pool:${i}`),
+      applied: poolKey(palette),
+      want: palette,
+      stopWatching: null,
+    };
   }
+  /** Write the wanted pool colour into the ready primitive; true when nothing is left to do. */
+  const syncPools = () => {
+    if (!pools) return true;
+    const key = poolKey(pools.want);
+    if (key === pools.applied) return true;
+    if (!pools.prim.ready) return false;
+    const value = C.ColorGeometryInstanceAttribute.toValue(poolColour(pools.want));
+    for (const id of pools.ids) {
+      const a = pools.prim.getGeometryInstanceAttributes(id) as { color?: Uint8Array } | undefined;
+      if (a) a.color = value;
+    }
+    pools.applied = key;
+    return true;
+  };
 
   return {
     setPalette(p) {
@@ -423,6 +473,19 @@ export function buildProps(
         update(p);
         if (lit) setLightUniforms(mat, light);
       }
+      if (!pools || !ground) return;
+      pools.want = p;
+      pools.prim.show = p.glow > 0;
+      if (syncPools() || pools.stopWatching) return;
+      // Not ready yet: re-check after each frame until the latest colour is in.
+      const pl = pools;
+      const g = ground;
+      pl.stopWatching = g.postRender.addEventListener(() => {
+        if (!syncPools()) return;
+        pl.stopWatching?.();
+        pl.stopWatching = null;
+        g.requestRender();
+      });
     },
     setTime(t) {
       time = t;
@@ -435,6 +498,12 @@ export function buildProps(
         if (!mat.isDestroyed()) mat.destroy();
       }
       parts = [];
+      if (pools) {
+        pools.stopWatching?.();
+        ground?.groundPrimitives.remove(pools.prim); // a scene collection also destroys it
+        if (!pools.prim.isDestroyed()) pools.prim.destroy();
+        pools = null;
+      }
     },
   };
 }

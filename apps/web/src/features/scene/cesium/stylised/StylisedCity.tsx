@@ -4,6 +4,7 @@ import { useCesium } from "resium";
 import { useBuildings, useLayer, useSite } from "../../../../lib/api";
 import { useTheme } from "../../../../ui/theme";
 import { prefersReducedMotion, useSceneSettings } from "../../sceneSettingsStore";
+import { useScene } from "../../sceneStore";
 import { homeView } from "../home";
 import { usePerfStats } from "../PerfOverlay";
 import { type BuildingPrimitives, buildBuildingPrimitives } from "./buildingsPrimitive";
@@ -21,7 +22,7 @@ import { createMotionClock, motionActive } from "./motion/clock";
 import { cloudSpots, flockLoops } from "./motion/flocks";
 import { buildSky, type Sky } from "./motion/sky";
 import { paletteFor } from "./palette";
-import { applyPostFx } from "./postfx";
+import { applyPostFx, saveRenderSettings } from "./postfx";
 import { buildProps, kerbCars, type Props, streetLamps, streetTrees } from "./props";
 import {
   createFrameMonitor,
@@ -106,8 +107,9 @@ const NO_WATER: WaterPolygon[] = [];
 /** Side of the square the decorative clouds drift and wrap in (metres, centred on home). */
 const CLOUD_EXTENT_M = 5000;
 const BIRDS_PER_FLOCK = 7;
-/** Birds need Motion on (and no reduced-motion preference); clouds stay, frozen, without it. */
-const birdsWanted = (motion: boolean) => motion && !prefersReducedMotion();
+/** Birds and canopy sway need Motion on (and no reduced-motion preference); clouds stay, frozen,
+ * without it. */
+const motionWanted = (motion: boolean) => motion && !prefersReducedMotion();
 
 /**
  * Resium child of <Viewer>: the stylised city (flat ground, roads, buildings with lit windows,
@@ -238,6 +240,12 @@ export function StylisedCity({ onReady }: { onReady?: (info: StylisedReady) => v
   const [dropped, setDropped] = useState<Tier | null>(null);
   const autoTier = dropped ?? detected;
   const tier: Tier = quality === "auto" ? autoTier : quality;
+  // Motion off or reduced motion: canopies are built without the sway shader (a still frame).
+  const sway = motionWanted(useSceneSettings((s) => s.motion));
+  // Clouds never cover the answer: hidden while a route is highlighted or a flood scenario is on.
+  const overlayShown = useScene((s) => s.route !== null || s.scenarioId !== null);
+  const overlayShownRef = useRef(overlayShown);
+  overlayShownRef.current = overlayShown;
 
   useEffect(() => {
     if (!viewer || viewer.isDestroyed() || !details) return;
@@ -250,10 +258,14 @@ export function StylisedCity({ onReady }: { onReady?: (info: StylisedReady) => v
         palette: paletteFor(useTheme.getState().theme),
         at: home,
         detailRangeM: TIERS[tier].detailRangeM,
+        sway,
       },
       viewer.scene.primitives,
+      viewer.scene,
     );
     props.current = h;
+    // The light pools were lowered to the bottom: put the ground parts back under them.
+    ground.current?.restack();
     viewer.scene.requestRender();
     return () => {
       props.current = null;
@@ -261,7 +273,7 @@ export function StylisedCity({ onReady }: { onReady?: (info: StylisedReady) => v
       h.destroy();
       viewer.scene.requestRender();
     };
-  }, [viewer, decor, details, home, tier]);
+  }, [viewer, decor, details, home, tier, sway]);
 
   // Decorative birds and clouds, after the details like the props. Counts follow the tier.
   useEffect(() => {
@@ -276,7 +288,7 @@ export function StylisedCity({ onReady }: { onReady?: (info: StylisedReady) => v
       birdsPerFlock: BIRDS_PER_FLOCK,
       extentM: CLOUD_EXTENT_M,
     });
-    h.setVisible(birdsWanted(useSceneSettings.getState().motion), true);
+    h.setVisible(motionWanted(useSceneSettings.getState().motion), !overlayShownRef.current);
     if (clock.current) h.tick(clock.current.time());
     sky.current = h;
     return () => {
@@ -314,7 +326,7 @@ export function StylisedCity({ onReady }: { onReady?: (info: StylisedReady) => v
   useEffect(() => {
     const c = clock.current;
     if (!viewer || viewer.isDestroyed() || !c) return;
-    sky.current?.setVisible(birdsWanted(motion), true);
+    sky.current?.setVisible(motionWanted(motion), !overlayShownRef.current);
     let onScreen = true;
     const update = () =>
       c.setActive(
@@ -341,6 +353,9 @@ export function StylisedCity({ onReady }: { onReady?: (info: StylisedReady) => v
       c.setActive(false);
     };
   }, [viewer, motion]);
+  useEffect(() => {
+    sky.current?.setVisible(motionWanted(useSceneSettings.getState().motion), !overlayShown);
+  }, [overlayShown]);
   // One postRender listener feeds the auto-drop monitor (auto quality only), the slow-device
   // monitor (only once the tier is already Low) and the perf stats (4 Hz).
   useEffect(() => {
@@ -394,22 +409,19 @@ export function StylisedCity({ onReady }: { onReady?: (info: StylisedReady) => v
     };
   }, [viewer, quality, detected, tier]);
   useEffect(() => () => usePerfStats.getState().update({ slow: false }), []);
+  // Declared before applyPostFx: snapshot the viewer's render settings first, restore on unmount
+  // (switching to Realistic must not keep the stylised resolution, bloom or shadows).
+  useEffect(() => {
+    if (!viewer || viewer.isDestroyed()) return;
+    const restore = saveRenderSettings(viewer);
+    return () => {
+      if (!viewer.isDestroyed()) restore();
+    };
+  }, [viewer]);
   useEffect(() => {
     if (!viewer || viewer.isDestroyed()) return;
     applyPostFx(Cesium, viewer, paletteFor(theme), TIERS[tier]);
   }, [viewer, theme, tier]);
-  useEffect(() => {
-    if (!viewer || viewer.isDestroyed()) return;
-    return () => {
-      if (viewer.isDestroyed()) return;
-      const s = viewer.scene.postProcessStages;
-      s.ambientOcclusion.enabled = false;
-      s.bloom.enabled = false;
-      viewer.shadows = false;
-      viewer.resolutionScale = 1;
-      viewer.scene.requestRender();
-    };
-  }, [viewer]);
 
   // Crossfade to the chosen mood. A new theme cancels the running fade and restarts from what is
   // shown; layers built mid-fade (or after) start from the latest theme's palette, so every path
@@ -420,7 +432,8 @@ export function StylisedCity({ onReady }: { onReady?: (info: StylisedReady) => v
     if (!viewer || viewer.isDestroyed()) return;
     const to = paletteFor(theme);
     let groundDone = false;
-    // Day <-> Dusk takes 3 s so the lamps visibly fade on; every other change takes 2 s.
+    // Day <-> Dusk takes 3 s so the lamps visibly fade on; every other change takes 2 s. The same
+    // theme (mount, home change) applies once with no fade (fadeMs returns 0).
     const from = shownTheme.current;
     const ms = fadeMs(from, theme);
     shownTheme.current = theme;

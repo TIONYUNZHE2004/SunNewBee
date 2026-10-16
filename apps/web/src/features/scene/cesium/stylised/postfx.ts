@@ -19,6 +19,40 @@ export interface FxViewer {
   };
 }
 
+/**
+ * Snapshot every render setting applyPostFx changes; the returned function puts them back (on
+ * unmount, e.g. switching to Realistic, which must not keep the stylised look or resolution).
+ */
+export function saveRenderSettings(viewer: FxViewer): () => void {
+  const { scene } = viewer;
+  const s = scene.postProcessStages;
+  const m = scene.shadowMap;
+  const prev = {
+    useBrowserRecommendedResolution: viewer.useBrowserRecommendedResolution,
+    resolutionScale: viewer.resolutionScale,
+    shadows: viewer.shadows,
+    fxaa: s.fxaa.enabled,
+    bloom: s.bloom.enabled,
+    ambientOcclusion: s.ambientOcclusion.enabled,
+    shadowMap: {
+      softShadows: m.softShadows,
+      size: m.size,
+      maximumDistance: m.maximumDistance,
+      darkness: m.darkness,
+    },
+  };
+  return () => {
+    viewer.useBrowserRecommendedResolution = prev.useBrowserRecommendedResolution;
+    viewer.resolutionScale = prev.resolutionScale;
+    viewer.shadows = prev.shadows;
+    s.fxaa.enabled = prev.fxaa;
+    s.bloom.enabled = prev.bloom;
+    s.ambientOcclusion.enabled = prev.ambientOcclusion;
+    Object.assign(scene.shadowMap, prev.shadowMap);
+    scene.requestRender();
+  };
+}
+
 /** Display-only post-processing for the stylised city, per mood and quality tier. */
 export function applyPostFx(_C: typeof Cesium, viewer: FxViewer, p: Palette, tier: TierSpec): void {
   const { scene } = viewer;

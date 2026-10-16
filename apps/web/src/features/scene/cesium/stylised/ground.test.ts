@@ -216,6 +216,19 @@ describe("buildGround", () => {
     expect(groundPrimitives.lowerToBottom).toHaveBeenCalledTimes(8);
   });
 
+  it("restack re-lowers every part in the same order (so a pool band lowered later sits above)", () => {
+    const { primitives, groundPrimitives, g } = setup();
+    const first = groundPrimitives.lowerToBottom.mock.calls.map((c) => c[0]);
+    expect(first).toEqual(primitives);
+    groundPrimitives.lowerToBottom.mockClear();
+    g.restack();
+    expect(groundPrimitives.lowerToBottom.mock.calls.map((c) => c[0])).toEqual(first);
+    g.destroy();
+    groundPrimitives.lowerToBottom.mockClear();
+    g.restack();
+    expect(groundPrimitives.lowerToBottom).not.toHaveBeenCalled();
+  });
+
   it("no water polygons -> no water or shore primitive", () => {
     const { primitives } = setup(false);
     expect(primitives).toHaveLength(6);
