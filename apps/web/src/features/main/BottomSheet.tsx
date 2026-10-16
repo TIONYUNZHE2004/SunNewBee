@@ -5,13 +5,15 @@ import { usePanel } from "./panelStore";
 const ORDER = ["peek", "half", "full"] as const;
 type Sheet = (typeof ORDER)[number];
 
-/** Heights are relative to the map area (the sheet's offset parent), so `full` clears the header. */
-/** Map area kept clear above the full sheet: route tag + flood banner (TopStack) stay visible. */
-export const SHEET_TOP_RESERVE = "6rem";
+/**
+ * Heights are relative to the map area (the sheet's offset parent), so `full` clears the header.
+ * `full` keeps the TopStack (route tag, flood banner) visible: `--top-h` is its measured bottom,
+ * published by MainPage; 6rem until measured.
+ */
 export const SHEET_HEIGHTS: Record<Sheet, string> = {
   peek: "9.5rem",
   half: "55dvh",
-  full: `calc(100% - ${SHEET_TOP_RESERVE})`,
+  full: "calc(100% - var(--top-h, 6rem) - 0.5rem)",
 };
 
 const stepBtn =

@@ -12,6 +12,7 @@ import { BottomSheet } from "./BottomSheet";
 import { usePanel } from "./panelStore";
 import { useAttribution } from "./useAttribution";
 import { usePanelReserve } from "./usePanelReserve";
+import { useTopStackHeight } from "./useTopStackHeight";
 
 /** Full-bleed map; the assistant floats over it on the right (bottom sheet on phones, Task 8). */
 export function MainPage() {
@@ -19,6 +20,9 @@ export function MainPage() {
   const { wide, panelW, reserved, sheetH } = usePanelReserve();
   const attribution = useAttribution();
   const streaming = useChatDraft((s) => s.streaming);
+  const pendingAsk = useChatDraft((s) => s.pendingAsk);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const topH = useTopStackHeight(rootRef);
   const hideRef = useRef<HTMLButtonElement>(null);
   const showRef = useRef<HTMLButtonElement>(null);
   const moveFocus = useRef(false);
@@ -31,15 +35,27 @@ export function MainPage() {
   useEffect(() => {
     if (!wide && streaming && usePanel.getState().sheet === "peek") setSheet("half");
   }, [wide, streaming, setSheet]);
+  // An ask from elsewhere (Tickets "Ask the question again") would otherwise stream into a
+  // hidden, inert panel on wide screens.
+  useEffect(() => {
+    if (wide && (streaming || pendingAsk) && !usePanel.getState().open) setOpen(true);
+  }, [wide, streaming, pendingAsk, setOpen]);
   const toggle = (v: boolean) => {
     moveFocus.current = true;
     setOpen(v);
   };
 
   return (
+    // `absolute inset-0`, not `h-full`: below lg the Shell has no definite height, so `h-full`
+    // would collapse to 0 px (all children are absolute) and push the sheet under the header.
     <div
-      className="relative h-full min-h-0"
-      style={{ ["--panel-w" as string]: `${reserved}px`, ["--sheet-h" as string]: sheetH }}
+      ref={rootRef}
+      className="absolute inset-0"
+      style={{
+        ["--panel-w" as string]: `${reserved}px`,
+        ["--sheet-h" as string]: sheetH,
+        ...(topH === null ? {} : { ["--top-h" as string]: `${topH}px` }),
+      }}
     >
       <section aria-label="3D map of City of Elmina" className="absolute inset-0">
         <MapStage>
@@ -53,7 +69,7 @@ export function MainPage() {
       {wide ? (
         <>
           <div
-            className={`absolute bottom-4 right-4 top-4 z-20 flex flex-col transition-transform duration-200 ease-[cubic-bezier(.2,.7,.2,1)] ${
+            className={`absolute bottom-4 right-4 top-4 z-20 flex flex-col transition-transform duration-200 ease-[cubic-bezier(.2,.7,.2,1)] motion-reduce:transition-none ${
               open ? "translate-x-0" : "translate-x-[calc(100%+2rem)]"
             }`}
             style={{ width: panelW }}

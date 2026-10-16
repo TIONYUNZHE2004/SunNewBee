@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it } from "vitest";
-import { BottomSheet, SHEET_HEIGHTS, SHEET_TOP_RESERVE } from "./BottomSheet";
+import { BottomSheet, SHEET_HEIGHTS } from "./BottomSheet";
 import { usePanel } from "./panelStore";
 
 describe("BottomSheet", () => {
@@ -89,9 +89,8 @@ describe("BottomSheet", () => {
     fireEvent.click(expand);
     expect(usePanel.getState().sheet).toBe("full");
   });
-  it("full leaves the TopStack reserve clear", () => {
-    expect(SHEET_HEIGHTS.full).toBe(`calc(100% - ${SHEET_TOP_RESERVE})`);
-    expect(SHEET_TOP_RESERVE).toBe("6rem");
+  it("full leaves the measured TopStack height clear (6rem until measured)", () => {
+    expect(SHEET_HEIGHTS.full).toBe("calc(100% - var(--top-h, 6rem) - 0.5rem)");
   });
   it("carries the attribution on its bottom edge at full only", () => {
     render(

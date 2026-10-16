@@ -6,6 +6,8 @@ import { Icon, type IconName } from "../../ui/icons";
 import { StatusChip } from "../../ui/StatusChip";
 import type { StatusKey } from "../../ui/status";
 import { useChatDraft } from "../chat/chatDraftStore";
+import { usePanel } from "../main/panelStore";
+import { isWide } from "../main/usePanelReserve";
 import { type ClaimRow, toPlaceView } from "../places/placeModel";
 import { ClosureBanner, SourceBanner } from "../places/SourceBanner";
 import { useScene } from "../scene/sceneStore";
@@ -77,6 +79,8 @@ function PlaceOverlayInner({ id }: { id: string }) {
     asking.current = true;
     setDraft(`Tell me about ${view.name}`);
     selectPlace(null);
+    // A closed wide panel is inert: open it first, so the composer can take focus.
+    if (isWide()) usePanel.getState().setOpen(true);
     setTimeout(() => document.getElementById("chat-input")?.focus(), 0);
   };
 

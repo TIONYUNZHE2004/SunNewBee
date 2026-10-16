@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, fireEvent, screen, within } from "@testing-library/react";
+import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useMode } from "../../app/modeStore";
@@ -72,6 +72,70 @@ describe("MainPage", () => {
     expect(screen.getByRole("list", { name: "Path status legend" })).toBeVisible();
     await userEvent.click(screen.getByRole("radio", { name: "+3 m" }));
     expect(await screen.findByRole("note")).toHaveTextContent(/not a forecast/);
+  });
+
+  it("fills the map area with a definite box (absolute inset-0, not h-full)", () => {
+    const { container } = renderMain();
+    expect(container.firstElementChild).toHaveClass("absolute", "inset-0");
+    expect(container.firstElementChild).not.toHaveClass("h-full");
+  });
+  it("an ask from elsewhere opens a closed panel on wide screens", () => {
+    usePanel.setState({ open: false });
+    renderMain();
+    act(() => useChatDraft.getState().ask("Can I push a stroller to the kiosk?"));
+    expect(usePanel.getState().open).toBe(true);
+    expect(screen.getByRole("complementary", { name: "Assistant" })).toBeVisible();
+  });
+  it("a stream starting while the panel is closed opens it on wide screens", () => {
+    usePanel.setState({ open: false });
+    renderMain();
+    act(() => useChatDraft.setState({ streaming: true }));
+    expect(usePanel.getState().open).toBe(true);
+  });
+  it("Ask about this place opens a closed panel and focuses the composer", async () => {
+    usePanel.setState({ open: false });
+    const qc = newQueryClient();
+    qc.setQueryData(["scenarios"], scenarios);
+    qc.setQueryData(["site"], { id: "t", name: "Test", attribution: [] });
+    qc.setQueryData(["place", "p1", null, null], {
+      ok: true,
+      data: { id: "p1", name: "Kiosk", kind: "amenity", source: "osm", claims: {} },
+    });
+    useScene.getState().selectPlace("p1");
+    renderWithClient(<MainPage />, qc);
+    await userEvent.click(screen.getByRole("button", { name: "Ask about this place" }));
+    expect(usePanel.getState().open).toBe(true);
+    await waitFor(() =>
+      expect(screen.getByRole("textbox", { name: "Your question" })).toHaveFocus(),
+    );
+    expect(screen.getByRole("textbox", { name: "Your question" })).toHaveValue(
+      "Tell me about Kiosk",
+    );
+  });
+  it("publishes the measured TopStack bottom as --top-h", () => {
+    const observed: Element[] = [];
+    vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        constructor(private cb: () => void) {}
+        observe(el: Element) {
+          observed.push(el);
+          this.cb();
+        }
+        disconnect() {}
+      },
+    );
+    const rect = vi
+      .spyOn(HTMLElement.prototype, "getBoundingClientRect")
+      .mockImplementation(function (this: HTMLElement) {
+        const bottom = this.dataset.testid === "top-stack" ? 180 : 0;
+        return { top: 60, bottom, left: 0, right: 0, width: 0, height: 0, x: 0, y: 0 } as DOMRect;
+      });
+    const { container } = renderMain();
+    const root = container.firstElementChild as HTMLElement;
+    expect(observed).toContain(screen.getByTestId("top-stack"));
+    expect(root.style.getPropertyValue("--top-h")).toBe("120px");
+    rect.mockRestore();
   });
 
   it("moves focus to Show after Hide and back to Hide after Show", () => {

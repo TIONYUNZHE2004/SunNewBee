@@ -112,6 +112,39 @@ test("mobile: the assistant input is reachable without horizontal scroll", async
   expect(fits).toBe(true);
 });
 
+test("phone 390x844: the sheet sits at the bottom with a usable composer", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await open(page);
+  const header = await page.getByRole("banner").boundingBox();
+  const input = page.getByRole("textbox", { name: "Your question" });
+  const box = await input.boundingBox();
+  if (!header || !box) throw new Error("no layout box");
+  const headerBottom = header.y + header.height;
+  expect(box.y).toBeGreaterThanOrEqual(headerBottom);
+  expect(box.y + box.height).toBeLessThanOrEqual(844);
+  // The peeking sheet hugs the bottom of the screen, not the header.
+  expect(box.y).toBeGreaterThan(844 / 2);
+  const attribution = page.getByText("Test fixture", { exact: true });
+  await expect(attribution).toBeVisible();
+  const attr = await attribution.boundingBox();
+  if (!attr) throw new Error("no attribution box");
+  expect(attr.y).toBeGreaterThanOrEqual(headerBottom);
+  expect(attr.y + attr.height).toBeLessThanOrEqual(box.y);
+
+  await page.getByRole("button", { name: "Expand assistant" }).click();
+  const conversation = page.getByRole("log", { name: "Conversation" });
+  await expect(conversation).toBeVisible();
+  // The sheet animates its height; wait for the conversation to get real room.
+  await expect
+    .poll(async () => (await conversation.boundingBox())?.height ?? 0)
+    .toBeGreaterThan(150);
+  const log = await conversation.boundingBox();
+  const after = await input.boundingBox();
+  if (!log || !after) throw new Error("no layout box after expand");
+  expect(log.y).toBeGreaterThanOrEqual(headerBottom);
+  expect(after.y + after.height).toBeLessThanOrEqual(844);
+});
+
 // The local DB persists tickets between runs, so a retry would see a resolved ticket (applies file-wide).
 test.describe.configure({ retries: 0 });
 
