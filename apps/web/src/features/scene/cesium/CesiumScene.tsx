@@ -24,6 +24,7 @@ import {
   shouldReframe,
 } from "./home";
 import { AccessLayer, FloodLayer, WasteLayer } from "./layers";
+import { PerfOverlay, SlowBanner } from "./PerfOverlay";
 import { setupRealistic } from "./realistic";
 import { paletteFor } from "./stylised/palette";
 import { skyCss } from "./stylised/postfx";
@@ -291,6 +292,8 @@ export default function CesiumScene({ onOps }: { onOps?: (ops: CameraOps | null)
         <WasteLayer />
       </Viewer>
       <CameraControls ops={ops} tick={tick} />
+      <PerfOverlay />
+      <SlowBanner />
     </section>
   );
 }

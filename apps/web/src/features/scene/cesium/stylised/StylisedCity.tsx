@@ -5,6 +5,7 @@ import { useBuildings, useLayer, useSite } from "../../../../lib/api";
 import { useTheme } from "../../../../ui/theme";
 import { prefersReducedMotion, useSceneSettings } from "../../sceneSettingsStore";
 import { homeView } from "../home";
+import { usePerfStats } from "../PerfOverlay";
 import { type BuildingPrimitives, buildBuildingPrimitives } from "./buildingsPrimitive";
 import { fadeMs, startCrossfade } from "./crossfade";
 import {
@@ -340,19 +341,59 @@ export function StylisedCity({ onReady }: { onReady?: (info: StylisedReady) => v
       c.setActive(false);
     };
   }, [viewer, motion]);
+  // One postRender listener feeds the auto-drop monitor (auto quality only), the slow-device
+  // monitor (only once the tier is already Low) and the perf stats (4 Hz).
   useEffect(() => {
-    if (!viewer || viewer.isDestroyed() || quality !== "auto") return;
-    const monitor = createFrameMonitor(() => setDropped((d) => lowerTier(d ?? detected)));
-    const sampler = createFrameSampler(monitor);
+    if (!viewer || viewer.isDestroyed()) return;
+    const autoMonitor =
+      quality === "auto"
+        ? createFrameMonitor(() => setDropped((d) => lowerTier(d ?? detected)))
+        : null;
+    const slowMonitor =
+      tier === "low"
+        ? createFrameMonitor(() => usePerfStats.getState().update({ slow: true }), { minFps: 15 })
+        : null;
+    if (tier !== "low") usePerfStats.getState().update({ slow: false });
+    const sampler = createFrameSampler({
+      sample(dtMs, moving) {
+        autoMonitor?.sample(dtMs, moving);
+        slowMonitor?.sample(dtMs, moving);
+      },
+    });
+    const recent: number[] = [];
+    let prev = performance.now();
+    let lastPublish = 0;
     const offMove = viewer.camera.changed.addEventListener(() => sampler.moved(performance.now()));
-    const offPost = viewer.scene.postRender.addEventListener(() =>
-      sampler.frame(performance.now()),
-    );
+    const offPost = viewer.scene.postRender.addEventListener(() => {
+      const now = performance.now();
+      sampler.frame(now);
+      const dt = now - prev;
+      prev = now;
+      // Gaps over 500 ms are idle time under requestRenderMode, not slow frames.
+      if (dt > 0 && dt <= 500) {
+        recent.push(dt);
+        if (recent.length > 30) recent.shift();
+      }
+      if (now - lastPublish < 250 || recent.length === 0) return;
+      lastPublish = now;
+      const frameMs = recent.reduce((a, b) => a + b, 0) / recent.length;
+      let drawCalls = 0;
+      try {
+        // Dev-only: private Cesium state, may be absent or renamed; used by ?perf=1 only.
+        drawCalls =
+          (viewer.scene as unknown as { _frameState?: { commandList: unknown[] } })._frameState
+            ?.commandList.length ?? 0;
+      } catch {
+        drawCalls = 0;
+      }
+      usePerfStats.getState().update({ fps: 1000 / frameMs, frameMs, drawCalls, tier });
+    });
     return () => {
       offMove();
       offPost();
     };
-  }, [viewer, quality, detected]);
+  }, [viewer, quality, detected, tier]);
+  useEffect(() => () => usePerfStats.getState().update({ slow: false }), []);
   useEffect(() => {
     if (!viewer || viewer.isDestroyed()) return;
     applyPostFx(Cesium, viewer, paletteFor(theme), TIERS[tier]);
