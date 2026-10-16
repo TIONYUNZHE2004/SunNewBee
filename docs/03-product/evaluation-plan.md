@@ -1,5 +1,7 @@
 # Evaluation & Validation Plan
 
+> **Latest results:** [ai-eval-report-2026-10.md](ai-eval-report-2026-10.md) is the live 30-question run on the Elmina seed, with and without the township world model (16–17 Oct 2026).
+
 > Judges give **10% for evidence** and **25% for measurable impact**. A small amount of real, honest data beats big claims. This plan produces the numbers for the proposal (23 Oct), the final submission (11 Nov) and the pitch (14 Nov). Research background: [../02-research/ai-assistant-research.md § 4](../02-research/ai-assistant-research.md), [../02-research/resident-agent-simulation.md](../02-research/resident-agent-simulation.md) and, for the flood lens, [../02-research/flood-disaster-lens.md](../02-research/flood-disaster-lens.md). Names (lenses, scenario ids, tools, events) follow the [canonical names](../04-architecture/README.md).
 
 ## 1. Three layers of evidence

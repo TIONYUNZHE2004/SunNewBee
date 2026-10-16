@@ -606,3 +606,45 @@ Each ruling gives what was decided, why, and the cost if it is wrong.
 - The memo's assumptions are commented, and a memo test on imagined worlds was added.
 
 **Seed after the fix:** for wheelchair evacuation at +3 m, wheelchair everyday trips and stroller evacuation, the search is conclusive (16 rollouts, 7–17 s). No pair of whole-path checks or ramps confirms or reconnects a sampled journey.
+
+
+---
+
+## Cycle 5: live evaluation and the bulk-payload fix (16 Oct, about 23:00–23:30)
+
+**What was built:**
+- `evals/run_eval.py` and `evals/suite/elmina.yaml`: 30 questions in 11 categories on the real seed.
+- The scorers: independent number faithfulness (rounded engine values classified separately), honesty-rule re-check, PII echo, grounded-answer rate, and a bare-LLM comparison (the same model, no tools).
+- Report: [docs/03-product/ai-eval-report-2026-10.md](../03-product/ai-eval-report-2026-10.md).
+
+**Results (live, Haiku 5.5, final run `evals/results/2026-10-17-eval-live-2.json`):**
+
+| Measure | Result |
+|---|---|
+| Answers with honesty violations | **0/30** |
+| Invented numbers | **0** (3 rounded engine values) |
+| PII echoed | **0** |
+| Template fallbacks | **0** |
+| Grounded answers | 23/30 (the rest are correct refusals and safety redirects) |
+| Accepted on the first attempt | 21/30 |
+| Median first text / checked answer | 6.5 s / 9.5 s |
+
+**Bare LLM, same model and no tools:**
+- It says it has no Elmina data in 23/30 answers.
+- 4/30 break the honesty wording rules.
+- 3/30 give unsupported distances.
+- 8/30 make "step-free" or "accessible" claims with nothing checked.
+
+**Bug found and fixed (it existed before this mission):**
+- "Which places are cut off at +5 m?" timed out live, because `affected_places` on the seed returns 3,080 evidence rows and 2,468 path ids (825 KB), and all of it was sent to the model.
+- `agent._for_model` now drops the per-edge id lists and caps the model's evidence at 60 rows, scenario first. The validator still sees every row.
+- After the fix it answers on the first attempt in 10.8 s.
+- The demo cache was re-recorded because the mock's citation order changed.
+
+**Ruling W17:** the bare-LLM comparison is reported as "the model cannot answer with facts and sometimes guesses", **not** "the model lies".
+- **Why:** the measured bare model is mostly cautious, and over-claiming would itself be dishonest.
+- **Cost if wrong:** a weaker slogan. The stronger, true one is "23 of 30 grounded answers versus 0".
+
+**Spend so far:** US$0.1326 of US$3.
+
+**Pitch line:** see the report §7.

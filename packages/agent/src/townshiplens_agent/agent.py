@@ -334,7 +334,34 @@ async def call_tool(deps: Deps, name: str, **kwargs: Any) -> dict:
     elif name == "list_flood_scenarios" and ui_scenario(deps):
         rec.scenarios_used.add(ui_scenario(deps))
     await _emit(deps, ToolResultEvent(id=call_id, name=name, summary=_summarise(name, res)))
-    return _without_closure_notes(res.model_dump(mode="json"))
+    return _for_model(name, _without_closure_notes(res.model_dump(mode="json")))
+
+
+# Id lists the model never needs: on the Elmina seed affected_places at +5 m lists 2,468 edge ids
+# (825 KB), which pushed a live turn past its timeout (eval, Cycle 5). Totals stay.
+_MODEL_DROP = {"affected_places": ("likely_edge_ids", "possible_edge_ids")}
+_MODEL_CAP = {"affected_places": ("likely_place_ids", "possible_place_ids")}
+
+
+MODEL_EVIDENCE_CAP = 60  # evidence rows sent to the model; the TurnRecord keeps them all
+
+
+def _for_model(name: str, out: dict) -> dict:
+    ev = out.get("evidence")
+    if isinstance(ev, list) and len(ev) > MODEL_EVIDENCE_CAP:
+        # Scenario-level evidence first, then the first rows: enough to cite; all stay citable.
+        first = [e for e in ev if str(e.get("id", "")).startswith("ev-scn-") and "." not in e["id"]]
+        rest = [e for e in ev if e not in first]
+        out["evidence"] = (first + rest)[:MODEL_EVIDENCE_CAP]
+        out["evidence_truncated"] = len(ev) - len(out["evidence"])
+    data = out.get("data")
+    if isinstance(data, dict):
+        for k in _MODEL_DROP.get(name, ()):
+            data.pop(k, None)
+        for k in _MODEL_CAP.get(name, ()):
+            if isinstance(data.get(k), list):
+                data[k] = data[k][:20]
+    return out
 
 
 def _without_closure_notes(out: Any) -> Any:

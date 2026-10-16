@@ -1103,3 +1103,28 @@ def test_closure_and_flooded_endpoint_caveats_are_pinned_above_the_summary(ctx):
     assert lines[2] == "⚠ Urban Park playground is likely flooded in this indicative scenario."
     assert lines[3] == "Short walk, 120 m."
     assert lines[-1] == "• Segment facts are demo values, not yet surveyed."
+
+
+def test_model_never_receives_bulk_edge_id_lists():
+    """Eval finding (Cycle 5): affected_places id lists were sent to the model in full."""
+    from townshiplens_agent.agent import _for_model
+
+    out = {
+        "data": {
+            "likely_edge_ids": ["e"] * 3000,
+            "likely_place_ids": ["p"] * 50,
+            "likely_total": 3000,
+        }
+    }
+    slim = _for_model("affected_places", out)
+    assert "likely_edge_ids" not in slim["data"] and len(slim["data"]["likely_place_ids"]) == 20
+    assert slim["data"]["likely_total"] == 3000
+
+
+def test_model_receives_capped_evidence_scenario_first():
+    from townshiplens_agent.agent import MODEL_EVIDENCE_CAP, _for_model
+
+    ev = [{"id": f"ev-scn-stage_p5m.e{i}"} for i in range(500)] + [{"id": "ev-scn-stage_p5m"}]
+    slim = _for_model("affected_places", {"data": {}, "evidence": ev})
+    assert slim["evidence"][0]["id"] == "ev-scn-stage_p5m"
+    assert len(slim["evidence"]) == MODEL_EVIDENCE_CAP and slim["evidence_truncated"] == 441
