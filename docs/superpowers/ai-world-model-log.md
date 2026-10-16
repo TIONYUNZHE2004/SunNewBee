@@ -1151,3 +1151,17 @@ A second stretch, about 1.1 km of Persiaran Eserina, helps **96 children and 65 
 - The demo script's world-model segment is rewritten around Elmina Day.
 
 **Checklist** (mock-backed except the smoke test): lint PASS, pytest 1,194 PASS, typecheck PASS, vitest PASS, gen PASS, golden 19/19 PASS (mock), e2e 17 PASS. OpenRouter spend is about US$1.7 of the US$3 cap; the counter lags, so this is an estimate.
+
+### Cycle 16: demo walk-through in the browser (mock, Stylised), fixes (17 Oct, 04:25)
+
+I walked the demo script's world-model beats on `townshiplens-dev-mock` and found these:
+
+| Found | Fix |
+|---|---|
+| **Honesty gap in the Overview:** the group table's rows did not add up. "Everyone" showed 4,231 of 5,000, because 636 who stayed home and 133 with a data gap had no column. The school line hid its 33 data-gap pupils. | The table now has **Data gap** and **Stayed home** columns (plus **Stuck** whenever any resident is stuck), so every resident is in one column. All four days add up to 5,000 (checked through the API). The school line names its data gap. |
+| **The demo script overclaimed:** "households without a car are hit hardest". Teenagers are worse (151 of 362, 42%, against 156 of 442, 35%). 149 counted only "couldn't go"; 156 also includes those who turned back. | The script is corrected: teenagers first, then households without a car "149 of 442 couldn't go at all". |
+| The assistant's answer moved the map to +3 m, while the Day panel's clock still said "06:00 · River at its normal level". | A new server-built scene intent, **`day.show`** (day, `t_min`, stage), opens the rehearsal paused at its peak (storm: 07:25, +3 m). The server always builds it: a model-written `day.show` is dropped. The playback hook no longer treats a level equal to the day's own stage as a user override. Checked in the browser: the chip opens the Day panel at 07:25 with "399 walking, 133 driving, 837 waiting". |
+| The replayed template answer read "5000 … 7881 … could not happen", with the school line cut off after 6 steps. | Thousands separators and "couldn't go" (as in the panel). School comes first, then the groups by share hit, so teenagers lead. |
+| `test_demo_cache_current` flagged all 15 entries as stale after the new optional intent fields. | The staleness check ignores null intent fields (replay parses with defaults). Only the storm chip, which really changed, was re-recorded. |
+
+**Checklist** (mock-backed): lint PASS, pytest 1,194 PASS, typecheck PASS, vitest 473 PASS, golden 19/19 PASS (mock), e2e 17 PASS. gen: the regenerated client adds the two intent fields and is committed with the change. The browser console is clean after a reload.
