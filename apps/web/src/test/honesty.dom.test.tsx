@@ -5,6 +5,7 @@ import { createMemoryRouter, RouterProvider } from "react-router";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { useMode } from "../app/modeStore";
 import { MainPage } from "../features/main/MainPage";
+import { usePanel } from "../features/main/panelStore";
 import { useScene } from "../features/scene/sceneStore";
 import { TicketsPage } from "../features/tickets/TicketsPage";
 import { useStaffTokenStore } from "../features/tickets/useStaffToken";
@@ -78,6 +79,7 @@ const body = () => document.body.textContent ?? "";
 
 describe.each<Theme>(["day", "night"])("honesty and accessibility (%s theme)", (theme) => {
   beforeEach(() => {
+    usePanel.setState({ open: true });
     useTheme.getState().setChoice(theme);
     useScene.getState().reset();
     useMode.setState({ mode: "resident" });

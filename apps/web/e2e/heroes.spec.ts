@@ -16,6 +16,9 @@ async function lastAnswer(page: Page) {
 
 async function open(page: Page) {
   await page.goto("/");
+  // Below lg the assistant starts closed (until the bottom sheet exists); open it.
+  const show = page.getByRole("button", { name: "Show assistant" });
+  if (await show.isVisible()) await show.click();
   await expect(page.getByRole("textbox", { name: "Your question" })).toBeVisible();
 }
 

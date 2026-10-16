@@ -1,4 +1,5 @@
 import { Link, Outlet, useLocation } from "react-router";
+import { usePanelReserve } from "../features/main/usePanelReserve";
 import { useOpenTicketCount } from "../features/tickets/useTickets";
 import { useSite } from "../lib/api";
 import { ThemeMenu } from "../ui/ThemeMenu";
@@ -71,6 +72,8 @@ export function Shell() {
   const site = useSite();
   const mode = useMode((s) => s.mode);
   const onTickets = useLocation().pathname.startsWith("/tickets");
+  const { reserved } = usePanelReserve();
+  const strip = onTickets ? 0 : reserved;
   const attribution = site.data?.attribution?.join(" · ") ?? FALLBACK_ATTRIBUTION;
   return (
     <div className="relative flex min-h-screen flex-col lg:h-dvh bg-bg text-fg">
@@ -105,7 +108,10 @@ export function Shell() {
       </header>
       <main id="main" tabIndex={-1} className="relative min-h-0 flex-1">
         <Outlet />
-        <p className="glass pointer-events-auto absolute bottom-2 left-2 z-10 m-0 max-w-[calc(100%-1rem)] rounded-md px-2 py-0.5 text-[0.68rem] text-fg-soft lg:max-w-[calc(100%-var(--panel-w,0px)-1rem)]">
+        <p
+          className="glass pointer-events-auto absolute bottom-2 left-2 z-10 m-0 rounded-md px-2 py-0.5 text-[0.68rem] text-fg-soft"
+          style={{ maxWidth: `calc(100% - ${strip}px - 1rem)` }}
+        >
           {attribution}
         </p>
       </main>

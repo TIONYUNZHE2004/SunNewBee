@@ -2,7 +2,8 @@
 import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { createMemoryRouter, RouterProvider } from "react-router";
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { usePanel } from "../features/main/panelStore";
 import { json, renderWithClient, stubFetch } from "../test/helpers";
 import { useMode } from "./modeStore";
 import { Shell } from "./Shell";
@@ -62,5 +63,31 @@ describe("Shell", () => {
     setup();
     expect(await screen.findByRole("link", { name: "Skip to content" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /theme|day|night/i })).toBeInTheDocument();
+  });
+
+  describe("attribution strip width", () => {
+    const strip = () => screen.getByText(/OpenStreetMap contributors/);
+    beforeEach(() => {
+      vi.stubGlobal("matchMedia", () => ({
+        matches: true,
+        addEventListener() {},
+        removeEventListener() {},
+      }));
+      vi.stubGlobal("innerWidth", 1200);
+      usePanel.setState({ open: true });
+    });
+    afterEach(() => vi.unstubAllGlobals());
+
+    it("excludes the open panel on the map route", async () => {
+      setup("/");
+      await screen.findByText(/OpenStreetMap contributors/);
+      // panel = clamp(360, 360, 440) = 360, plus 2 x 16 inset
+      expect(strip().style.maxWidth).toContain("392px");
+    });
+    it("uses the full width on /tickets", async () => {
+      setup("/tickets");
+      await screen.findByText(/OpenStreetMap contributors/);
+      expect(strip().style.maxWidth).toContain("(0px");
+    });
   });
 });

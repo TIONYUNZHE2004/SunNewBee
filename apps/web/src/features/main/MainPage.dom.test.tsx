@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { fireEvent, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useMode } from "../../app/modeStore";
 import { json, newQueryClient, renderWithClient, stubFetch } from "../../test/helpers";
 import { useScene } from "../scene/sceneStore";
@@ -60,5 +60,34 @@ describe("MainPage", () => {
     expect(screen.getByRole("list", { name: "Path status legend" })).toBeVisible();
     await userEvent.click(screen.getByRole("radio", { name: "+3 m" }));
     expect(await screen.findByRole("note")).toHaveTextContent(/not a forecast/);
+  });
+
+  it("moves focus to Show after Hide and back to Hide after Show", () => {
+    renderMain();
+    fireEvent.click(screen.getByRole("button", { name: "Hide assistant" }));
+    expect(screen.getByRole("button", { name: "Show assistant" })).toHaveFocus();
+    fireEvent.click(screen.getByRole("button", { name: "Show assistant" }));
+    expect(screen.getByRole("button", { name: "Hide assistant" })).toHaveFocus();
+  });
+  it("narrow screens: the hide control sits inside the panel corner", () => {
+    renderMain();
+    const hide = screen.getByRole("button", { name: "Hide assistant" });
+    expect(hide).toHaveClass("right-2");
+    expect(hide).not.toHaveClass("-left-11");
+  });
+  describe("store default", () => {
+    afterEach(() => vi.unstubAllGlobals());
+    const fresh = async (wide: boolean) => {
+      vi.resetModules();
+      vi.stubGlobal("matchMedia", () => ({ matches: wide }));
+      localStorage.setItem("tl.panel.open", "true");
+      return (await import("./panelStore")).usePanel.getState().open;
+    };
+    it("starts closed on narrow screens even if a stored value says open", async () => {
+      expect(await fresh(false)).toBe(false);
+    });
+    it("starts open on wide screens", async () => {
+      expect(await fresh(true)).toBe(true);
+    });
   });
 });

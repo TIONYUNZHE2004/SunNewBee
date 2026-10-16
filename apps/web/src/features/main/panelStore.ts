@@ -1,6 +1,7 @@
 import { create } from "zustand";
 
 const KEY = "tl.panel.open";
+const wideNow = () => typeof matchMedia === "function" && matchMedia("(min-width: 1024px)").matches;
 const read = () => {
   try {
     return typeof localStorage === "undefined" ? null : localStorage.getItem(KEY);
@@ -19,7 +20,8 @@ interface PanelState {
 }
 
 export const usePanel = create<PanelState>((set) => ({
-  open: read() !== "false",
+  // Narrow screens (no bottom sheet yet) start closed and ignore the stored choice.
+  open: wideNow() && read() !== "false",
   setOpen: (open) => {
     try {
       localStorage.setItem(KEY, String(open));
