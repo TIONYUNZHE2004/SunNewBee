@@ -286,3 +286,13 @@ Near the mall, the flagged segments are the Urban Park / Central Park lake-edge 
   - "Elmina Rainforest Knowledge Centre (programme site)".
 - Every point is `status: "unknown"`, because the import carries no `check_date`. `source_url` points to the OSM element.
 - **The field survey replaces these points.**
+
+## Buildings (display only)
+
+`data/scripts/build_buildings.py` writes `base/buildings.geojson` and `base/trees.geojson` for the stylised 3D city and records them under `buildings` in `site.json`. Nothing in routing, evaluation or flood uses these files.
+
+- **Source:** OpenStreetMap via Overpass (ODbL; attribution stays in `site.json`). Never derived from Google 3D tiles.
+- **Area:** 3500 m radius around the home point. Rebuild with `uv run python data/scripts/build_buildings.py --max-requests 40` (exit 3 means the file is too large; retry with `--radius-m 3000` then `2500`; cached tiles are free).
+- **`height_source`:** `osm_height` (an OSM `height` tag), `osm_levels` (from `building:levels`, 3.2 m per level) or `default` (a deterministic default by building kind).
+- **Skipped:** multipolygon relations are not imported (7 skipped), plus 2 invalid ways; 116 duplicates were dropped.
+- **Current seed (2026-10-16):** 7803 buildings (7330 default, 460 osm_levels, 13 osm_height; heights 3.2 to 35.2 m) and 491 trees.
