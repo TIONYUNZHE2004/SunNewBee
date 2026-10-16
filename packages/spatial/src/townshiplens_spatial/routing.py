@@ -161,14 +161,20 @@ def _flood_class(world: World, scenario_id: str | None, edge_id: str):
 
 
 # Batch memo of edge evaluations (twm rollouts route hundreds of journeys over one state).
-# Keyed by the world's edge table object, so a real world and an imagined copy never share
-# entries. Only set inside `eval_memo()`; a single plan_route call is unchanged.
+# Keyed by the Edge object itself: an imagined world (twm.apply) copies only the edges its
+# actions touch, so every untouched edge is the same object in the real and the imagined world
+# and its evaluation is shared, while a touched edge is a new object and is evaluated afresh.
+# Only set inside `eval_memo()`; a single plan_route call is unchanged.
 _EVAL_MEMO: contextvars.ContextVar[dict | None] = contextvars.ContextVar("eval_memo", default=None)
 
 
 @contextlib.contextmanager
 def eval_memo():
-    """Within this block, each (state, profile, scenario, edge) is evaluated once."""
+    """Within this block, each (edge object, profile, scenario) is evaluated once. Re-entrant:
+    an inner block shares the outer memo (e.g. many what-ifs inside one fix-it search)."""
+    if _EVAL_MEMO.get() is not None:
+        yield
+        return
     token = _EVAL_MEMO.set({})
     try:
         yield
@@ -177,19 +183,19 @@ def eval_memo():
 
 
 def _evaluate(world, profile, scenario_id, key):
+    edge = world.edges[key]
     memo = _EVAL_MEMO.get()
     if memo is None:
-        return evaluate_edge(world.edges[key], profile, _flood_class(world, scenario_id, key))
-    # Keep the edge table alive while the memo is, so its id() cannot be reused by another
-    # (short-lived imagined) world inside the same block.
-    memo.setdefault(("__ref__", id(world.edges)), world.edges)
-    k = (id(world.edges), profile.id, scenario_id, key)
-    out = memo.get(k)
-    if out is None:
-        memo[k] = out = evaluate_edge(
-            world.edges[key], profile, _flood_class(world, scenario_id, key)
-        )
-    return out
+        return evaluate_edge(edge, profile, _flood_class(world, scenario_id, key))
+    # The memo holds the edge, so its id() cannot be reused by another object meanwhile. The key
+    # leaves out the world: imagined worlds (twm.apply) share the real world's flood classes
+    # and profiles, and a scenario's flood class is part of the key through `scenario_id`.
+    # Blocks are short (one batch): World.refresh_claim / set_closures mutate edges in place.
+    k = (id(edge), profile.id, scenario_id)
+    hit = memo.get(k)
+    if hit is None:
+        hit = memo[k] = (edge, evaluate_edge(edge, profile, _flood_class(world, scenario_id, key)))
+    return hit[1]
 
 
 def _edge_cost(world, profile, scenario_id, allow_unknown, key, evals=None) -> float | None:

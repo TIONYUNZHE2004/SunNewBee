@@ -263,6 +263,54 @@ def rollout_answer(ro: dict, evidence_ids: list[str]) -> dict:
     }
 
 
+def fixit_answer(fx: dict, evidence_ids: list[str]) -> dict:
+    """FinalAnswer fields for a fix-it search (shared by the mock and the template)."""
+    best = fx.get("best") or {}
+    sm = best.get("summary") or {}
+    who = profile_label(fx.get("profile") or "default").lower()
+    goal = (
+        "reach an evacuation centre" if fx.get("scope") == "evacuation" else "have a mapped route"
+    )
+    stage = _stage_words(fx.get("stage"))
+    at = f" at {stage}" if stage else ""
+    n = len(fx.get("candidates") or [])
+    if not best.get("actions") and not fx.get("conclusive", True):
+        summary = (
+            f"In this what-if search{at}, the township model ran out of time before trying every "
+            f"set of the {n} candidate changes, and none it tried changed the sampled {who} "
+            "journeys; the result is inconclusive."
+        )
+    elif not best.get("actions"):
+        summary = (
+            f"In this what-if search{at}, none of the {n} candidate changes the township model "
+            f"tried changes the sampled {who} journeys: {sm.get('reach_before', 0)} of "
+            f"{sm.get('total', 0)} would {goal} with or without them. The gaps here are "
+            "unchecked facts; ask which facts staff should verify first."
+        )
+    else:
+        summary = (
+            f"In this what-if search{at}, the best set of changes the model found is: "
+            f"{'; '.join(best.get('labels') or [])}. With it, {sm.get('reach_after', 0)} of "
+            f"{sm.get('total', 0)} sampled {who} journeys would {goal} "
+            f"(without it: {sm.get('reach_before', 0)}), and {sm.get('confirmed_after', 0)} "
+            f"would be confirmed (without it: {sm.get('confirmed_before', 0)})."
+        )
+    caveats = [WHATIF_CAVEAT, "No costs or construction feasibility are modelled."]
+    if sm.get("confirmed_on_demo_after"):
+        caveats.append(f"Segment facts are {PLACEHOLDER_CAVEAT}.")
+    if stage:
+        caveats.append(FLOOD_GUIDANCE)
+    if fx.get("stopped_early") and best.get("actions"):
+        caveats.append("The search stopped at its time limit before trying every set.")
+    return {
+        "answer_status": "partial",
+        "summary": summary,
+        "claims": [{"text": "Fix-it search", "status": "indicative", "evidence_ids": evidence_ids}],
+        "scenario_id": fx.get("stage"),
+        "caveats": caveats,
+    }
+
+
 def template_answer(rec: TurnRecord, question: str) -> FinalAnswer:
     scenario_id = next(iter(sorted(rec.scenarios_used)), None)
     flood_caveats = [
@@ -274,7 +322,9 @@ def template_answer(rec: TurnRecord, question: str) -> FinalAnswer:
         i["flood_class"] == "likely_flooded" for i in rec.flooded_endpoints.values()
     )
     closed = [*rec.route_closures, *rec.asked_closures]
+    last_fixit = bool(rec.what_ifs and rec.what_ifs[-1].get("fixit"))
     for items, fn, prefix in (
+        (rec.fixes if last_fixit else [], fixit_answer, "ev-fixit-"),
         (rec.tippings, tipping_answer, "ev-tip-"),
         (rec.rollouts, rollout_answer, "ev-rollout-"),
     ):

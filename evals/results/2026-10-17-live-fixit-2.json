@@ -1,0 +1,41 @@
+[
+ {
+  "id": "fixit-best-changes",
+  "pass": true,
+  "failures": [],
+  "status": "answered",
+  "model": "anthropic/claude-haiku-5.5",
+  "fallback": false,
+  "rejected_attempts": 1,
+  "validator_errors": [
+   [
+    "Numbers [5] do not appear in the what-if result for what they describe: 'reach' numbers come from reach_*, 'confirmed' numbers from confirmed_* (or their changes)."
+   ]
+  ],
+  "seconds": 14.03,
+  "first_text_s": 14.03,
+  "first_draft_s": 7.23,
+  "repairs": [],
+  "checks": [
+   {
+    "ok": false,
+    "issues": [
+     "used numbers the simulation did not produce"
+    ]
+   },
+   {
+    "ok": true,
+    "issues": []
+   }
+  ],
+  "requests": 3,
+  "cache_read_tokens": 17896,
+  "cache_write_tokens": 10855,
+  "input_tokens": 28759,
+  "output_tokens": 2521,
+  "tools": [
+   "find_fixes"
+  ],
+  "text": "In this what-if simulation, the one change that helps wheelchair users on everyday trips is building a step-free ramp at a set of unnamed steps. Confirmed routes would rise from 1 to 3 across the sampled everyday trips. The number of trips that can be reached would stay the same. No second change added anything in the model: a staff check of an unnamed ramp's incline gives the same result, and combining the two gives the same result too.\nWorth knowing:\n• Imagined changes are not real; unverified facts stay unverified.\n• Segment facts are demo values, not yet surveyed.\n• The search found no useful second change: the staff incline check only ties with the ramp, and the two together do no better than the ramp alone."
+ }
+]

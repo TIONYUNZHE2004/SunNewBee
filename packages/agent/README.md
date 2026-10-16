@@ -75,6 +75,21 @@ model is dropped, because the label line already says it.
 - **Scene intent:** a rollout adds `river.rollout`, so the map plays it. The geometry stays out of the prompt.
 - **Repair:** it fills `scenario_id` for river-stage simulations.
 
+**Fix-it search and MCP (Cycle 4):**
+- **`find_fixes`:** beam search over imagined fixes on the world model (`townshiplens_spatial.fixit`).
+  - The best set is recorded as a what-if, so every what-if validator rule applies.
+  - A "no change helps" result may not be spun as a fix.
+- **MCP server:** `mcp_server.py` serves every engine tool over the Model Context Protocol (FastMCP 4.0.9, Apache-2.0).
+  - Run it with `uv run python -m townshiplens_agent.mcp_server`, over stdio.
+  - Verification requests from MCP clients stay in memory, and `create_verification_request` is hidden unless `MCP_ALLOW_VR=true`.
+  - `TL_DATA_DIR` picks the world.
+  - Claude Desktop config:
+
+  ```json
+  {"mcpServers": {"townshiplens": {"command": "uv",
+    "args": ["--directory", "/path/to/SunNiuBi", "run", "python", "-m", "townshiplens_agent.mcp_server"]}}}
+  ```
+
 **Live cost and latency:**
 - OpenRouter prompt caching is on (system prompt, tool schemas and the last message).
 - On the 13 golden turns this cut spend from about US$0.035 to about US$0.006.

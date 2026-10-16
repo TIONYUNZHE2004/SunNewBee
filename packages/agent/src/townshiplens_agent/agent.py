@@ -294,6 +294,32 @@ async def call_tool(deps: Deps, name: str, **kwargs: Any) -> dict:
         # every stage was simulated: the flood disclaimer and scenario rules apply
         scs = sorted(deps.ctx.world.flood.scenarios, key=lambda sc: sc.stage_m)
         rec.scenarios_used |= {sc.id for sc in scs[-1:] if sc.id != "baseline"}
+    if name == "find_fixes" and res.ok and isinstance(res.data, dict):
+        # The best set is a what-if: every what-if rule (label, numbers, conditional) applies.
+        best = res.data["best"]
+        rec.fixes.append(res.data)
+        rec.what_ifs.append(
+            {
+                "summary": best["summary"],
+                "counts_before": {},
+                "counts_after": {},
+                "scope": res.data["scope"],
+                "profile": res.data["profile"],
+                "labels": best["labels"],
+                "scenario_id": res.data.get("stage"),
+                "base_scenario_id": res.data.get("stage"),
+                "imagined": bool(best["actions"]),
+                "diff_geojson": None,
+                "disclaimer": res.data.get("disclaimer"),
+                "fixit": {
+                    "empty": not best["actions"],
+                    "stopped": bool(res.data.get("stopped_early")) and not best["actions"],
+                    "candidates": len(res.data["candidates"]),
+                },
+            }
+        )
+        if res.data.get("stage"):
+            rec.scenarios_used.add(res.data["stage"])
     if name == "river_tipping_point" and res.ok and isinstance(res.data, dict):
         rec.tippings.append(res.data)
         rec.place_names |= {
@@ -533,6 +559,29 @@ def build_agent(model: Model) -> Agent[Deps, FinalAnswer]:
         river stage: counts per stage (reach, confirmed, cut_off, no_data) and who is cut off
         first. The app animates it on the map. Indicative simulation, not a forecast."""
         return await call_tool(ctx.deps, "rising_river_rollout", profiles=profiles, n=n)
+
+    @agent.tool
+    async def find_fixes(
+        ctx: RunContext[Deps],
+        profile: str = "wheelchair",
+        scope: str = "evacuation",
+        scenario_id: str | None = None,
+        budget: int = 2,
+        proposals: list[dict] | None = None,
+    ) -> dict:
+        """Fix-it search ("which 2 changes would help wheelchair users most at +3 m?"): beam
+        search over imagined fixes (ramps, verifications) scored on the world model. proposals:
+        extra legal actions you suggest (from suggest_interventions). Report the best set and
+        the numbers in its summary; if best has no actions, say no candidate change helps."""
+        return await call_tool(
+            ctx.deps,
+            "find_fixes",
+            profile=profile,
+            scope=scope,
+            scenario_id=scenario_id,
+            budget=budget,
+            proposals=proposals,
+        )
 
     @agent.output_validator
     async def check(ctx: RunContext[Deps], out: FinalAnswer) -> FinalAnswer:

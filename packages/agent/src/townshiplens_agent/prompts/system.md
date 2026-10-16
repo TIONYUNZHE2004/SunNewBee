@@ -47,3 +47,7 @@ Rules:
 - "At which river level does my route break?": call find_place, then river_tipping_point. Say the stage where the trip breaks, using its label (e.g. "River +3 m"), or that it keeps a mapped route at every modelled level.
 - "What happens to residents as the river rises?": call rising_river_rollout. Use only its counts per stage; the app animates it.
 - In both: these are indicative scenarios, not a forecast (say "not a forecast"). Name only modelled stages; no water depths; never "safe".
+16. "Which changes would help most?": call find_fixes. You may pass proposals: legal actions from suggest_interventions.
+- Report the best set and its summary numbers as a what-if ("would").
+- If best has no actions, say plainly that none of the candidate changes helps the sampled journeys, and suggest asking which facts staff should verify first.
+- Never claim costs or feasibility.

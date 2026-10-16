@@ -22,7 +22,8 @@ Direct dependencies (pinned in `pyproject.toml` and `package.json` files) carry 
 
 | Source | Licence | Idea used | Where |
 |---|---|---|---|
-| [maitrix-org/llm-reasoners](https://github.com/maitrix-org/llm-reasoners) | Apache-2.0 | `WorldModel` / `SearchConfig` split and beam search over actions, which the township world-model planners follow | planned: `packages/spatial` world model |
-| [projectmesa/mesa](https://github.com/projectmesa/mesa) | Apache-2.0 | "model owns agents" and data-collector pattern for population rollouts | planned: population rollout |
+| [maitrix-org/llm-reasoners](https://github.com/maitrix-org/llm-reasoners) | Apache-2.0 | `WorldModel` / `SearchConfig` split and beam search over actions | `packages/spatial/.../twm.py` (state / actions / transition), `fixit.py` (beam search over intervention sets) |
+| [projectmesa/mesa](https://github.com/projectmesa/mesa) | Apache-2.0 | "model owns agents" and the per-step data-collector pattern | `packages/spatial/.../rollout.py` (per-stage counts per persona) |
+| [PrefectHQ/fastmcp](https://github.com/PrefectHQ/fastmcp) docs | Apache-2.0 | server and in-memory client usage (a dependency, pinned 4.0.9) | `packages/agent/.../mcp_server.py` |
 
 Papers behind the design are listed in [docs/02-research/world-models-2026.md](docs/02-research/world-models-2026.md).

@@ -76,3 +76,7 @@
   message: "What happens to residents as the river rises?"
   profile: wheelchair
   expect: { tools_include: [rising_river_rollout], events_include: [scene.intent, disclaimer], text_includes: ["not a forecast"], text_excludes: [" safe"] }
+- id: fixit-best-changes
+  message: "Which 2 changes would help wheelchair users most on everyday trips?"
+  profile: wheelchair
+  expect: { tools_include: [find_fixes], events_include: [citation], text_includes: ["what-if"], text_excludes: ["will be built", " is confirmed"] }

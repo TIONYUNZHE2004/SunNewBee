@@ -1,0 +1,29 @@
+[
+  {
+    "id": "fixit-best-changes",
+    "pass": true,
+    "failures": [],
+    "status": "answered",
+    "model": "anthropic/claude-haiku-5.5",
+    "fallback": false,
+    "rejected_attempts": 0,
+    "validator_errors": [],
+    "seconds": 9.82,
+    "first_text_s": 9.82,
+    "first_draft_s": 7.27,
+    "repairs": [],
+    "checks": [
+      {
+        "ok": true,
+        "issues": []
+      }
+    ],
+    "requests": 2,
+    "cache_read_tokens": 8338,
+    "cache_write_tokens": 9611,
+    "input_tokens": 17955,
+    "output_tokens": 1324,
+    "tools": ["find_fixes"],
+    "text": "In this what-if search, the best change for wheelchair users on everyday trips is staff checking the incline of an unnamed ramp. The search found no second change that added anything, so the top result uses only one action. In the imagined case, confirmed routes across the 5 sampled everyday trips would rise from 1 to 3, and the number reachable would stay at 3.\n1. Best single change: staff verify the incline of an unnamed ramp (imagined pass).\n2. Other candidate: build a step-free ramp at a set of unnamed steps (same imagined result when combined with the check).\nWorth knowing:\n• Imagined changes are not real; unverified facts stay unverified.\n• Segment facts are demo values, not yet surveyed.\n• Indicative what-if on the township model, not a plan or a cost estimate; no costs or feasibility are assessed.\n• The top result is a single staff check, not two physical changes."
+  }
+]

@@ -149,7 +149,17 @@ Reach is monotone across stages (a test asserts it).
 
 It is a simulation, not a forecast. Stages are labels, never depths, and departure times, warnings, crowding and travel times are not modelled. On the seed it takes about 13 s for 3 profiles × 30 residents × 6 stages, and the tools cache it.
 
-## The tools (10 lookups + 5 world-model tools)
+## Fix-it search (`fixit.py`, Cycle 4)
+
+`find_fixes(world, profile, scope, stage, budget<=3, extra_actions)` runs a beam search (width 2) over sets of fix candidates:
+- candidates are `build_ramp` / `verify_fact` from `twm.suggest_actions`, capped at 6, plus legal assistant proposals; closures are never candidates;
+- each set is scored by one rollout of its imagined world against a "before" computed once (confirmed first, then reach);
+- the search has a 20 s time budget, with `stopped_early` set if it runs out;
+- it equals exhaustive search on the tiny world (tested).
+
+On the Elmina seed it takes about 10–15 s, and **no candidate pair changes any sampled evacuation journey**, for any persona, at normal level or at +5 m. The binding constraint there is unverified data, which `planner.py` addresses.
+
+## The tools (10 lookups + 6 world-model tools)
 
 | Tool | Purpose |
 | --- | --- |
@@ -167,6 +177,7 @@ It is a simulation, not a forecast. Stages are labels, never depths, and departu
 | `plan_verifications` | `(profile, scope, budget)`: verify-next survey plan (planner.py), engine-verified, with open tickets linked |
 | `river_tipping_point` | `(from_id, profile, to_id?)`: the status per river stage and the stage where the trip degrades or breaks |
 | `rising_river_rollout` | `(profiles?, n=30)`: synthetic residents per stage (rollout.py); counts, the first residents cut off, routes |
+| `find_fixes` | `(profile, scope, scenario_id?, budget<=3, proposals?)`: the best set of imagined fixes by beam search on the world model |
 | `simulate_what_if` | `(actions, profile, scope=journey\|suite\|evacuation, from_id?, to_id?, scenario_id?)`: what-if diff (summary, counts, changed journeys, `diff_geojson`, `ev-whatif-…` evidence, disclaimer). Never changes the real world |
 
 Flood definitions: an island is a connected component of the passable (non-FAIL) graph for the

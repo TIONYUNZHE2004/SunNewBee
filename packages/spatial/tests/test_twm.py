@@ -303,3 +303,17 @@ def test_memo_gives_the_same_answers_as_no_memo(world):
     with eval_memo():
         memo = twm.rollout(world, "stage_p3m", js)
     assert plain == memo
+
+
+def test_memo_on_imagined_worlds_equals_no_memo(world):
+    """The edge-keyed memo is shared between real and imagined worlds (fixit, Cycle 4)."""
+    from townshiplens_spatial.routing import eval_memo
+
+    js = twm.suite_journeys(world, "wheelchair")
+    acts = [twm.BuildRamp(element_id="seg-be"), twm.ClosePath(element_id="seg-cf")]
+    plain_real = twm.rollout(world, "stage_p3m", js)
+    plain_im = twm.rollout(twm.apply(world, acts).world, "stage_p3m", js, imagined=True)
+    with eval_memo():
+        memo_real = twm.rollout(world, "stage_p3m", js)
+        memo_im = twm.rollout(twm.apply(world, acts).world, "stage_p3m", js, imagined=True)
+    assert plain_real == memo_real and plain_im == memo_im

@@ -351,3 +351,125 @@ def test_mock_tipping_trigger_needs_a_river_word():
     assert not re.search(_TIPPING, "which level is the ramp at?")
     assert not re.search(_TIPPING, "does my route break if it rains?")
     assert re.search(_TIPPING, "at which river level does my route break?")
+
+
+# ---- fix-it (Cycle 4) ------------------------------------------------------------------------
+FIX_Q = "Which 2 changes would help wheelchair users most on everyday trips?"
+
+
+async def test_fixit_hero_reports_the_engine_best_set(ctx):
+    rec = TurnRecord()
+    evs = await turn(ctx, FIX_Q, rec)
+    assert [e.name for e in evs if e.type == "tool.call"] == ["find_fixes"]
+    assert rec.validator_errors == [] and evs[-1].model == "mock-scripted"
+    t = text(evs)
+    assert "the best set of changes the model found is" in t and "would be confirmed" in t
+    assert "No costs or construction feasibility" in t
+
+
+def test_fixit_with_no_helpful_change_cannot_claim_one():
+    from townshiplens_agent.answer import Claim, FinalAnswer
+    from townshiplens_agent.validate import validate_answer
+    from townshiplens_spatial.models import Evidence
+
+    rec = TurnRecord(tool_calls=["find_fixes"])
+    rec.evidence["ev-fixit-x"] = Evidence(
+        id="ev-fixit-x", element_id="fixit", attribute="find_fixes", status="indicative"
+    )
+    s = {
+        "total": 20,
+        "reach_before": 18,
+        "reach_after": 18,
+        "confirmed_before": 0,
+        "confirmed_after": 0,
+        "changed": 0,
+        "confirmed_on_demo_after": 0,
+    }
+    rec.what_ifs.append({"summary": s, "imagined": False, "fixit": {"empty": True}})
+    a = FinalAnswer(
+        answer_status="partial",
+        summary="In this what-if search, building a ramp would help: 18 of 20 would reach.",
+        claims=[Claim(text="f", status="indicative", evidence_ids=["ev-fixit-x"])],
+    )
+    assert any("no candidate change" in e for e in validate_answer(a, rec))
+
+
+def _fix_rec(empty=True, stopped=False):
+    from townshiplens_spatial.models import Evidence
+
+    rec = TurnRecord(tool_calls=["find_fixes"])
+    rec.evidence["ev-fixit-x"] = Evidence(
+        id="ev-fixit-x", element_id="fixit", attribute="find_fixes", status="indicative"
+    )
+    s = {
+        "total": 20,
+        "reach_before": 8,
+        "reach_after": 8 if empty else 10,
+        "confirmed_before": 0,
+        "confirmed_after": 0,
+        "changed": 0 if empty else 2,
+        "confirmed_on_demo_after": 0,
+    }
+    rec.what_ifs.append(
+        {"summary": s, "imagined": not empty, "fixit": {"empty": empty, "stopped": stopped}}
+    )
+    return rec
+
+
+def _fix_ans(summary):
+    from townshiplens_agent.answer import Claim, FinalAnswer
+
+    return FinalAnswer(
+        answer_status="partial",
+        summary=summary,
+        claims=[Claim(text="f", status="indicative", evidence_ids=["ev-fixit-x"])],
+    )
+
+
+@pytest.mark.parametrize(
+    "summary",
+    [
+        "In this what-if search, a ramp could help wheelchair users.",
+        "In this what-if search, building a ramp would let 12 more journeys have a mapped route.",
+        "In this what-if search, verifying the footway would make the biggest difference.",
+        "In this what-if search, the top change is verifying the footway.",
+    ],
+)
+def test_fixit_empty_result_cannot_be_spun(summary):
+    from townshiplens_agent.validate import validate_answer
+
+    assert validate_answer(_fix_ans(summary), _fix_rec()), summary
+
+
+@pytest.mark.parametrize(
+    "summary",
+    [
+        "In this what-if search, a cheap ramp costing about RM 5,000 would let 10 of 20 reach.",
+        "In this what-if search, the easiest and most feasible fix: 10 of 20 would reach.",
+    ],
+)
+def test_fixit_never_invents_costs_or_feasibility(summary):
+    from townshiplens_agent.validate import validate_answer
+
+    errs = " ".join(validate_answer(_fix_ans(summary), _fix_rec(empty=False)))
+    assert "costs or feasibility" in errs
+
+
+def test_fixit_stopped_early_must_say_inconclusive():
+    from townshiplens_agent.template import fixit_answer
+    from townshiplens_agent.validate import validate_answer
+
+    rec = _fix_rec(stopped=True)
+    bad = _fix_ans("In this what-if search, none of the changes helps: 8 of 20 would reach.")
+    assert any("inconclusive" in e for e in validate_answer(bad, rec))
+    fields = fixit_answer(
+        {
+            "best": {"actions": [], "summary": rec.what_ifs[0]["summary"]},
+            "conclusive": False,
+            "candidates": [1, 2],
+            "profile": "wheelchair",
+            "scope": "evacuation",
+        },
+        ["ev-fixit-x"],
+    )
+    assert "inconclusive" in fields["summary"]

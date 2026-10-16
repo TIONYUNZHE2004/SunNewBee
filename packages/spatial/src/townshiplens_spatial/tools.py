@@ -809,8 +809,8 @@ def _wm_cached(world: World, kind: str, args: dict, run) -> ToolResult:
         res = run()
     finally:
         _WM_SLOTS.release()
-    if res.ok:
-        _WM_CACHE[key] = res.model_copy(deep=True)
+    if res.ok and not (isinstance(res.data, dict) and res.data.get("stopped_early")):
+        _WM_CACHE[key] = res.model_copy(deep=True)  # a stopped (partial) search is not cached
         while len(_WM_CACHE) > _WM_CACHE_MAX:
             _WM_CACHE.popitem(last=False)
     return res
@@ -1102,3 +1102,56 @@ def _rollout(w: World, profs: list[str], n: int) -> ToolResult:
 
 TOOLS["river_tipping_point"] = river_tipping_point
 TOOLS["rising_river_rollout"] = rising_river_rollout
+
+
+def find_fixes(
+    ctx: Ctx,
+    profile: str = "wheelchair",
+    scope: str = "evacuation",
+    scenario_id: str | None = None,
+    budget: int = 2,
+    proposals: list[dict] | None = None,
+):
+    """Fix-it search: the best set of up to `budget` imagined fixes (ramps, verifications) for
+    `profile` under an optional river stage, scored by rolling each set out on the world model.
+    `proposals` are extra legal actions the assistant suggests (illegal ones are rejected)."""
+
+    w = ctx.world
+    if err := _walking(w, profile):
+        return ToolResult(ok=False, warnings=[err])
+    if scenario_id and scenario_id not in {s.id for s in w.flood.scenarios}:
+        return ToolResult(ok=False, warnings=[f"unknown scenario {scenario_id}"])
+    if scope not in ("suite", "evacuation"):
+        return ToolResult(ok=False, warnings=["scope must be suite or evacuation"])
+    from . import fixit as _fx
+
+    props = sorted(json.dumps(p, sort_keys=True, default=str) for p in (proposals or [])[:10])
+    args = {
+        "profile": profile,
+        "scope": scope,
+        "stage": None if scenario_id in (None, "", "baseline") else scenario_id,
+        "budget": max(1, min(int(budget), _fx.MAX_BUDGET)),
+        "proposals": [json.loads(p) for p in props],
+    }
+    return _wm_cached(w, "fixit", args, lambda: _fixes(w, args))
+
+
+def _fixes(w: World, a: dict) -> ToolResult:
+    from . import fixit
+
+    r = fixit.find_fixes(
+        w, a["profile"], a["scope"], a["stage"], a["budget"], extra_actions=a["proposals"]
+    )
+    data = r.model_dump(mode="json")
+    ev = Evidence(
+        id=r.evidence_id,
+        element_id="fixit",
+        attribute="find_fixes",
+        value={"rollouts": r.rollouts},
+        status="indicative",
+        source_type="whatif",
+    )
+    return ToolResult(ok=True, data=data, evidence=[ev], warnings=[r.disclaimer])
+
+
+TOOLS["find_fixes"] = find_fixes

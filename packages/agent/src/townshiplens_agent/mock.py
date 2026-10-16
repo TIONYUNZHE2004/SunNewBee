@@ -17,7 +17,13 @@ from .labels import (
     status_label,
     unchecked_caveats,
 )
-from .template import plan_answer, rollout_answer, tipping_answer, whatif_answer
+from .template import (
+    fixit_answer,
+    plan_answer,
+    rollout_answer,
+    tipping_answer,
+    whatif_answer,
+)
 
 
 def _current(messages: list[ModelMessage]) -> list[ModelMessage]:
@@ -374,6 +380,30 @@ def _rollout(q: str, rets, info: AgentInfo) -> ModelResponse:
     return _final(**rollout_answer(d, ev))
 
 
+_FIXIT = (
+    r"\bwhich (?:\d+ |two |three )?(?:changes|fixes) would\b|\bbest (?:fixes|changes)\b"
+    r"|\bfix-it\b"
+)
+
+
+def _fixit(q: str, rets, info: AgentInfo) -> ModelResponse:
+    profile = _profile(q, info, "wheelchair")
+    if not rets:
+        stage = None
+        if (m := re.search(r"(\d+)\s*m\b", q)) and 1 <= int(m.group(1)) <= 5:
+            stage = f"stage_p{m.group(1)}m"
+        scope = "suite" if re.search(r"trip|journey|everyday", q) else "evacuation"
+        words = {"two": 2, "three": 3, "one": 1}
+        nb = re.search(r"which (\d+|one|two|three) (?:changes|fixes)", q)
+        budget = (int(nb.group(1)) if nb.group(1).isdigit() else words[nb.group(1)]) if nb else 2
+        return _call("find_fixes", profile=profile, scope=scope, scenario_id=stage, budget=budget)
+    d = _data(rets[-1][1])
+    if not isinstance(d, dict):
+        return _cannot("I couldn't run the fix-it search on the township model.")
+    ev = [i for i in _ev_ids(rets) if i.startswith("ev-fixit-")]
+    return _final(**fixit_answer(d, ev))
+
+
 _WHATIF = r"\bwhat[- ]if\b|\bimagine\b|\bif (?:we|you|staff) (?:build|add|close|verify)\b"
 
 
@@ -414,6 +444,8 @@ def _script(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
     q = _prompt(messages).lower()
     rets = _returns(messages)
     n = len(rets)
+    if re.search(_FIXIT, q):
+        return _fixit(q, rets, info)
     if re.search(_ROLLOUT, q):
         return _rollout(q, rets, info)
     if re.search(_TIPPING, q):

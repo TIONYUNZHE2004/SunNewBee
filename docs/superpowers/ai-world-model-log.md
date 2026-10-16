@@ -529,3 +529,80 @@ The reviewer found 4 Critical and 6 Important issues, all reproduced. Each is fi
 - The current stage is announced through `aria-live`.
 - The legend moved below the tiles status.
 - The Resident starter "At which river level does my route … break?" was added (it replaces recycling).
+
+---
+
+## Cycle 4: fix-it planner and the MCP server (16 Oct, about 22:35–22:55)
+
+**Spec:** [2026-10-17-fix-it-planner-mcp-design.md](specs/2026-10-17-fix-it-planner-mcp-design.md). Research basis: brief #4 and #8, LLM notes P1–P3, repo notes §2 (llm-reasoners beam search) and §3 (FastMCP).
+
+### What was built
+
+1. **`fixit.find_fixes`: "the LLM proposes, the world model disposes", literally.**
+   - Candidates are the engine's legal fixes (ramps, verifications) plus any legal proposals from the assistant. Invented ids and closures are rejected and listed.
+   - Beam search (width 2) runs over sets of up to 3 fixes. Each set is scored by one rollout of its imagined world against a "before" computed once.
+   - It has a 20 s time budget and a `stopped_early` flag.
+   - It equals exhaustive search on the tiny world, with and without a flood (tested).
+2. **`eval_memo` keyed by the edge object and re-entrant.**
+   - Untouched edges are the same object in every imagined world, so one memo serves a whole search.
+   - Fix-it on the seed: about 55 s → 10–15 s, combined with computing "before" once.
+3. **Assistant `find_fixes`.**
+   - The best set is recorded as a what-if, so every what-if validator rule applies.
+   - A new rule: when the search found no helpful change, the answer may not claim one.
+   - Shared `template.fixit_answer`, mock flow, prompt rule 16.
+4. **MCP server (`townshiplens_agent.mcp_server`, FastMCP 4.0.9, Apache-2.0).**
+   - Serves the township world model's tools to any MCP client over stdio (Claude Desktop config is in `packages/agent/README.md`).
+   - Verification requests from clients stay in memory, and `create_verification_request` is hidden unless `MCP_ALLOW_VR=true`.
+   - Staff closure notes are stripped, as for the assistant.
+   - No banner on stdout.
+
+### Evidence
+
+- **Elmina seed (honest null result):** for every persona, at normal level and at +5 m, no candidate pair changes a single sampled evacuation journey. The answer says so and points to "which facts should staff verify first?", the plan that does move the numbers (Cycle 2: 4 of 50 confirmed after 15 checks). This is decision-useful: the gap is data, not concrete.
+- **Tiny world:** the best single fix is "staff verify the incline of the unnamed ramp", which takes confirmed routes from 1 to 3 of 5 trips. The search also reports that a second change adds nothing. A live Haiku 5.5 answer passed first time (`evals/results/2026-10-17-live-fixit-1.json`).
+- **MCP over real stdio:** 15 tools listed (ticket creation hidden). `river_tipping_point` returns `breaks_at=stage_p3m` with its disclaimer.
+- **Checklist:** all 7 steps PASS (pytest, vitest, e2e 13/13, golden 19/19 mock), mock-backed.
+
+### Rulings (Cycle 4)
+
+Each ruling gives what was decided, why, and the cost if it is wrong.
+
+- **W15: no Lab UI for fix-it.**
+  - **Why:** on the real seed it always shows "no change helps", so the What-if Lab and Verify next carry the visual story. Fix-it lives in the assistant and over MCP.
+  - **Cost if wrong:** less visible. It is a one-component addition if the field survey turns up blocking steps.
+- **W16: the edge-object memo is scoped to one batch only** (one `compare`, one search or one rollout).
+  - **Why:** `World.refresh_claim` replaces an edge's claims on the same object, so a long-lived memo could go stale.
+  - **Cost if wrong:** a ticket resolved mid-batch shows up in the next batch, not the current one.
+
+### Pitch line (judge-facing)
+
+> Ask TownshipLens "which two changes would help wheelchair users reach a centre at +3 m?" and it searches every combination the world model allows, scoring each one by simulation. In Elmina the answer is honest and surprising: no ramp or single fix in reach changes anyone's route. The missing piece is checked data, and it tells you exactly which 15 checks would. Any AI tool can ask the same questions through our MCP server and get the same validated answers.
+
+### Integration notes for shaoxian04
+
+- No web changes this cycle.
+- The MCP server is a separate process (`uv run python -m townshiplens_agent.mcp_server`).
+
+### Cycle 4 review (independent Opus reviewer) and fixes
+
+1 Critical and 6 Important findings, all fixed with regression tests.
+
+| # | Finding | Fix |
+|---|---|---|
+| C1 | On Elmina the search could hit its time limit, still answer "none helps", and cache it | The clock covers candidate generation too, and a timeout with no helpful set is `conclusive=False`. The answer says "inconclusive" (the validator requires it), and stopped results are never cached (`test_a_search_that_runs_out_of_time_is_inconclusive`, `test_fixit_stopped_early_must_say_inconclusive`) |
+| I2 | Candidates came from other journeys or stages, and one fact per path never helps strict profiles | Candidates are generated from the scored journeys under the scored stage. They include "Staff check <path>: incline, steps, width" bundles and ramps at steps that block the unconstrained route (`test_path_bundles_are_candidates`) |
+| I3 | The beam-equals-exhaustive test was trivially true | It now compares a full-width beam with exhaustive search and checks that the default beam never claims more than exhaustive search finds |
+| I4 | Proposals were silently dropped; a failing check was accepted as a "fix" | Proposals get 3 reserved slots, anything over the cap is listed in `rejected`, and only ramps and passing checks are fixes |
+| I5 | Fix-it lies passed: "could help", "would let 12 more" when nothing changed, costs, "easiest / most feasible" | `FIX_HELPS` is broader; no derived numbers are allowed for empty results; `COST_WORDS` is new; the rule is scoped to fix-it-only turns (`test_fixit_empty_result_cannot_be_spun`, `test_fixit_never_invents_costs_or_feasibility`) |
+| I6 | MCP could store raw client text in the staff queue | `plan_route` hides `question_summary` (built from place names), and `create_verification_request` goes through `safe_vr_args(source="mcp")` (`test_mcp_clients_cannot_store_free_text`) |
+| I7 | The MCP world had no staff closures | Closures are loaded read-only from the site DB at start; the instructions say outcomes are "as of the server's start" |
+
+**Minor findings fixed:**
+- The cache key is normalised (budget clamped, baseline treated as none, proposals sorted and capped).
+- Runners-up must beat doing nothing.
+- The evidence id includes the stop flag.
+- The mock reads the number of changes asked for, and its trigger is stricter.
+- The template picks the last simulation of the turn.
+- The memo's assumptions are commented, and a memo test on imagined worlds was added.
+
+**Seed after the fix:** for wheelchair evacuation at +3 m, wheelchair everyday trips and stroller evacuation, the search is conclusive (16 rollouts, 7–17 s). No pair of whole-path checks or ramps confirms or reconnects a sampled journey.

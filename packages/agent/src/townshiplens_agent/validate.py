@@ -43,6 +43,19 @@ WHATIF_AS_FACT = re.compile(
     re.IGNORECASE,
 )
 _REAL_NOW = re.compile(r"\b(?:today|currently|at present|at the moment|right now)\b", re.I)
+# Fix-it answers (Cycle 4)
+FIX_HELPS = re.compile(
+    r"\b(?:would|could|might|may|will) (?:help|improve|unlock|add|let|make (?:a|the) "
+    r"(?:biggest |real )?difference)\b|\bbiggest difference\b|\b(?:best|top) "
+    r"(?:fix|change|option|candidate)\b",
+    re.IGNORECASE,
+)
+STOPPED_WORDS = re.compile(r"inconclusive|time limit|ran out of time|not every", re.IGNORECASE)
+COST_WORDS = re.compile(
+    r"\bRM\s?\d|\$\s?\d|\bcheap(?:er|est)?\b|\beasiest\b|\b(?:most |very )?feasible\b"
+    r"|\bcosting\b|\bcosts? (?:about|around|roughly|only|RM)",
+    re.IGNORECASE,
+)
 # A what-if described as a real plan ("will be built", "the council plans to build").
 WHATIF_AS_PLAN = re.compile(
     r"\b(?:will be|is being|is planned to be|are planned to be)\s+"
@@ -314,6 +327,8 @@ def _whatif_numbers(rec: TurnRecord) -> set[int]:
         for side in ("counts_before", "counts_after"):
             for per in (w.get(side) or {}).values():
                 out |= {int(v) for v in per.values()}
+        if (w.get("fixit") or {}).get("empty"):
+            continue  # nothing changed: only the plain counts may be said
         total = sm.get("total", 0)
         for m in ("reach", "confirmed"):
             vals = [sm[k] for k in (f"{m}_before", f"{m}_after", f"{m}_stage_only") if k in sm]
@@ -328,6 +343,9 @@ def _metric_numbers(rec: TurnRecord, metric: str) -> set[int]:
     for w in rec.what_ifs:
         sm = {k: int(v) for k, v in (w.get("summary") or {}).items()}
         vals = [v for k, v in sm.items() if k.startswith(f"{metric}_")]
+        if (w.get("fixit") or {}).get("empty"):
+            out |= set(vals) | {sm.get("total", 0)}
+            continue
         total = sm.get("total", 0)
         out |= set(vals) | {abs(a - b) for a in vals for b in vals} | {total - v for v in vals}
     return out
@@ -386,6 +404,23 @@ def whatif_errors(ans: FinalAnswer, rec: TurnRecord) -> list[str]:
         errs.append(
             "Imagined outcomes are conditional: say 'would be confirmed' / 'would reach', "
             "never 'is confirmed' or 'can now reach'."
+        )
+    fixes = [w["fixit"] for w in rec.what_ifs if w.get("fixit")]
+    only_fixit = all(w.get("fixit") for w in rec.what_ifs)
+    if any(f.get("empty") for f in fixes) and only_fixit and FIX_HELPS.search(text):
+        errs.append(
+            "The fix-it search found no candidate change that helps: say so plainly, never "
+            "that a change would or could help."
+        )
+    if any(f.get("stopped") for f in fixes) and not STOPPED_WORDS.search(text):
+        errs.append(
+            "The fix-it search stopped at its time limit: say the result is inconclusive "
+            "(not every set was tried)."
+        )
+    if fixes and COST_WORDS.search(text):
+        errs.append(
+            "No costs or feasibility are modelled: never give a price or call a change cheap, "
+            "easy or feasible."
         )
     staged = any(w.get("scenario_id") or w.get("base_scenario_id") for w in rec.what_ifs)
     if staged and "not a forecast" not in text.lower():
@@ -647,6 +682,9 @@ _ISSUES = (
     ("say plainly it is a what-if", "did not say the answer is a what-if simulation"),
     ("do not appear in the what-if result", "used numbers the simulation did not produce"),
     ("Imagined outcomes are conditional", "stated an imagined outcome as fact"),
+    ("found no candidate change that helps", "claimed a fix helps when none does"),
+    ("stopped at its time limit", "did not say the search was inconclusive"),
+    ("No costs or feasibility are modelled", "made up a cost or feasibility claim"),
     ("cannot be repeated from memory", "repeated earlier what-if numbers without re-checking"),
     ("not percentages", "gave percentages instead of simulated counts"),
     ("with a river stage must say", "did not say the flood scenario is not a forecast"),
