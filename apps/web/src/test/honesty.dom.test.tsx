@@ -78,7 +78,7 @@ const body = () => document.body.textContent ?? "";
 
 describe.each<Theme>(["day", "night"])("honesty and accessibility (%s theme)", (theme) => {
   beforeEach(() => {
-    useTheme.getState().setTheme(theme);
+    useTheme.getState().setChoice(theme);
     useScene.getState().reset();
     useMode.setState({ mode: "resident" });
     useStaffTokenStore.setState({ token: "tok" });

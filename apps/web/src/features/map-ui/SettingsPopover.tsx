@@ -81,7 +81,7 @@ export function SettingsPopover() {
   const { scenarioId, profile, setScenario, setProfile, setMapStyle } = useScene();
   const { style, hasBuildings, hasGoogle, settled } = useMapStyle();
   const effective = useEffectiveView();
-  const { theme, setTheme } = useTheme();
+  const { theme, setChoice } = useTheme();
   const scenarios = useScenarios();
   const levels = levelOptions(scenarios.data ?? []);
 
@@ -141,10 +141,10 @@ export function SettingsPopover() {
           <div>
             <h3 className={H}>Theme</h3>
             <div role="radiogroup" aria-label="Theme" className="grid grid-cols-2 gap-2">
-              <Radio checked={theme === "day"} onClick={() => setTheme("day")}>
+              <Radio checked={theme === "day"} onClick={() => setChoice("day")}>
                 Day
               </Radio>
-              <Radio checked={theme === "night"} onClick={() => setTheme("night")}>
+              <Radio checked={theme === "night"} onClick={() => setChoice("night")}>
                 Night
               </Radio>
             </div>

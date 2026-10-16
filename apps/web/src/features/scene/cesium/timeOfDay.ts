@@ -10,6 +10,13 @@ export interface CesiumTimeStyle {
 
 const STYLES: Record<Theme, CesiumTimeStyle> = {
   day: { skyColor: "#9bc4e8", globeBase: "#5f7f5a", tileBrightness: 1, fogDensity: 0.0001, hue: 0 },
+  dusk: {
+    skyColor: "#9bc4e8",
+    globeBase: "#5f7f5a",
+    tileBrightness: 1,
+    fogDensity: 0.0001,
+    hue: 0,
+  },
   night: {
     skyColor: "#1f1838",
     globeBase: "#1c2330",

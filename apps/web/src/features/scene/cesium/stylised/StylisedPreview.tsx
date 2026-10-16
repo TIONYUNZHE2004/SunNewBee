@@ -130,13 +130,17 @@ export default function StylisedPreview() {
   useEffect(() => {
     useScene.getState().setMapStyle("stylised");
   }, []);
-  const toggle = useTheme((s) => s.toggle);
+  const setChoice = useTheme((s) => s.setChoice);
   const [stats, setStats] = useState<Stats | null>(null);
   return (
     <div className="relative h-dvh w-full">
       <div className="absolute left-2 top-2 z-10 flex items-center gap-2 rounded-md border border-line bg-surface/95 px-2 py-1 text-xs text-fg">
         <span>DEV stylised preview</span>
-        <button type="button" className="rounded border border-line px-2 py-1" onClick={toggle}>
+        <button
+          type="button"
+          className="rounded border border-line px-2 py-1"
+          onClick={() => setChoice(theme === "night" ? "day" : "night")}
+        >
           {theme === "night" ? "Day" : "Night"}
         </button>
         {stats && (

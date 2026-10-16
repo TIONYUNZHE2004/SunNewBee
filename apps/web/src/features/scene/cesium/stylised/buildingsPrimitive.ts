@@ -35,7 +35,7 @@ export interface BuildingPrimitives {
 }
 
 /** Share of windows lit (seeded per cell in the shader). */
-const LIT_FRACTION = { night: 0.58, day: 0.35 } as const;
+const LIT_FRACTION = { night: 0.58, dusk: 0.35, day: 0.35 } as const;
 
 /**
  * Window material. st from buildingsMesh: s = window columns (+ per-building seed, + tone *
