@@ -121,6 +121,19 @@ describe("map style default", () => {
 });
 
 describe("what-if diff", () => {
+  it("flood.set_level keeps a diff simulated at that level and clears one from another level", () => {
+    const at = (sid: string) => ({
+      type: "FeatureCollection",
+      features: [],
+      meta: { scenario_id: sid, summary: {} },
+    });
+    useScene.getState().applyIntent({ kind: "whatif.diff", geojson: at("stage_p3m") } as never);
+    useScene.getState().applyIntent({ kind: "flood.set_level", scenario_id: "stage_p3m" } as never);
+    expect(useScene.getState().whatIf).not.toBeNull();
+    useScene.getState().applyIntent({ kind: "flood.set_level", scenario_id: "stage_p5m" } as never);
+    expect(useScene.getState().whatIf).toBeNull();
+  });
+
   it("whatif.diff stores the imagined diff; a persona change or clear removes it", () => {
     const fc = { type: "FeatureCollection", features: [] };
     useScene.getState().reset();

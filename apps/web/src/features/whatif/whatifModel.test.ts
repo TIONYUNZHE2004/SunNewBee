@@ -174,7 +174,13 @@ describe("diff meta for the lite map and the list (Cycle 8)", () => {
 
   it("lists changed journeys and imagined paths, ignoring untagged features", () => {
     expect(diffJourneys(fc)).toEqual([
-      { from: "Car Park B", to: "Park toilet", before: "partly_unverified", after: "confirmed" },
+      {
+        id: "j0",
+        from: "Car Park B",
+        to: "Park toilet",
+        before: "partly_unverified",
+        after: "confirmed",
+      },
     ]);
     expect(touchedLabels(fc)).toEqual(["A set of unnamed steps"]);
   });
@@ -190,7 +196,7 @@ describe("diff meta for the lite map and the list (Cycle 8)", () => {
       },
     };
     expect(diffJourneys(cut)).toEqual([
-      { from: "Car Park B", to: "Park kiosk", before: "confirmed", after: "blocked" },
+      { id: "j0", from: "Car Park B", to: "Park kiosk", before: "confirmed", after: "blocked" },
     ]);
   });
 });

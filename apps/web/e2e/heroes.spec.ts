@@ -52,6 +52,18 @@ test("settings popover sets a river level and shows the flood note", async ({ pa
   await expect(page.getByRole("note")).toContainText(/indicative scenario, not a forecast/i);
 });
 
+test("map view switch: the list view is always offered (demo recovery)", async ({ page }) => {
+  await open(page);
+  await page.getByRole("button", { name: "Map settings" }).click();
+  const views = page.getByRole("radiogroup", { name: "Map view" });
+  // e2e runs keyless on the tiny fixture: no buildings, no keys, so the list is the only view.
+  await expect(views.getByRole("radio", { name: "List (text)" })).toHaveAttribute(
+    "aria-checked",
+    "true",
+  );
+  await expect(views.getByRole("radio", { name: "3D" })).toBeDisabled();
+});
+
 test("Escape closes the settings popover and returns focus to its button", async ({ page }) => {
   await open(page);
   const btn = page.getByRole("button", { name: "Map settings" });

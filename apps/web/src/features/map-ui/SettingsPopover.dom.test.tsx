@@ -165,3 +165,18 @@ describe("SettingsPopover", () => {
     });
   });
 });
+
+describe("Map view (demo recovery: 3D → lite → list)", () => {
+  it("always offers the list view, and disables views the device cannot show, with a reason", async () => {
+    renderWithClient(<SettingsPopover />, seeded());
+    await userEvent.click(screen.getByRole("button", { name: "Map settings" }));
+    const group = screen.getByRole("radiogroup", { name: "Map view" });
+    const list = within(group).getByRole("radio", { name: "List (text)" });
+    expect(list).toBeEnabled();
+    const three = within(group).getByRole("radio", { name: "3D" });
+    expect(three).toBeDisabled(); // jsdom: no WebGL
+    expect(three).toHaveAccessibleDescription(/3D-capable device/);
+    await userEvent.click(list);
+    expect(useScene.getState().view).toBe("list");
+  });
+});

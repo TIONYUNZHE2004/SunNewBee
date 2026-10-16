@@ -115,10 +115,15 @@ export const useScene = create<SceneState>((set) => ({
         case "place.focus":
           next.focusPlaceId = i.place_id ?? null;
           break;
-        case "flood.set_level":
+        case "flood.set_level": {
           next.scenarioId = i.scenario_id ?? null;
           next.lensVisible = { ...s.lensVisible, flood: true };
+          // A diff compared at another river level no longer matches the map: clear it.
+          const m = (s.whatIf?.geojson as { meta?: Record<string, unknown> } | undefined)?.meta;
+          const stages = [m?.scenario_id, m?.base_scenario_id].filter(Boolean);
+          if (s.whatIf && !stages.includes(next.scenarioId ?? undefined)) next.whatIf = null;
           break;
+        }
         case "camera.fly_to":
           if (i.center && i.center.length >= 2)
             next.camera = {

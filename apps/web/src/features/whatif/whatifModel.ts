@@ -130,6 +130,8 @@ export interface DiffMeta {
   scope: string;
   imagined: boolean;
   changedShown: number;
+  scenarioId: string | null; // the imagined state's river stage, if any
+  baseScenarioId: string | null; // the stage of "today" (the one on screen)
 }
 
 /** The engine's summary carried on the diff (`meta`, a GeoJSON foreign member), so the lite map
@@ -144,10 +146,13 @@ export function diffMeta(fc: { meta?: unknown } | null | undefined): DiffMeta | 
     scope: typeof m.scope === "string" ? m.scope : "suite",
     imagined: m.imagined === true,
     changedShown: typeof m.changed_shown === "number" ? m.changed_shown : 0,
+    scenarioId: typeof m.scenario_id === "string" ? m.scenario_id : null,
+    baseScenarioId: typeof m.base_scenario_id === "string" ? m.base_scenario_id : null,
   };
 }
 
 export interface DiffJourney {
+  id: string; // stable within one diff: the engine's order of changed journeys
   from: string;
   to: string;
   before: string;
@@ -163,7 +168,8 @@ export function diffJourneys(
   if (Array.isArray(rows))
     return rows
       .filter((r): r is Record<string, unknown> => !!r && typeof r === "object")
-      .map((r) => ({
+      .map((r, n) => ({
+        id: `j${n}`,
         from: String(r.from_name ?? "A mapped place"),
         to: String(r.to_name ?? "a mapped place"),
         before: String(r.before ?? ""),
@@ -175,6 +181,7 @@ export function diffJourneys(
     if (p.whatif !== true || (p.side !== "before" && p.side !== "after")) continue;
     if (typeof p.journey !== "number") continue;
     const j = by.get(p.journey) ?? {
+      id: `j${p.journey}`,
       from: String(p.from_name ?? "A mapped place"),
       to: String(p.to_name ?? "a mapped place"),
       before: "",

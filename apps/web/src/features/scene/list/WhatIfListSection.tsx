@@ -37,11 +37,18 @@ export function WhatIfListSection() {
         </button>
       </div>
       <p className="mt-1 text-sm text-ink-soft">
-        An imagined change on the township model, not a real plan or a forecast.
+        {meta && !meta.imagined
+          ? "A simulation on the township model, not a forecast."
+          : "An imagined change on the township model, not a real plan or a forecast."}
+        {meta &&
+          (meta.scenarioId || meta.baseScenarioId) &&
+          " River levels are indicative scenarios, not a forecast."}
       </p>
       {meta && meta.actions.length > 0 && (
         <>
-          <h3 className="mt-3 text-sm font-semibold">Imagined changes</h3>
+          <h3 className="mt-3 text-sm font-semibold">
+            {meta.imagined ? "Imagined changes" : "Simulated"}
+          </h3>
           <ul className="mt-1 list-disc pl-5 text-sm">
             {meta.actions.map((a) => (
               <li key={a}>{a}</li>
@@ -70,9 +77,11 @@ export function WhatIfListSection() {
         <>
           <h3 className="mt-3 text-sm font-semibold">Journeys that change</h3>
           <ul className="mt-1 space-y-1 text-sm">
-            {journeys.map((j, i) => (
-              <li key={`${j.from}-${j.to}-${i}`}>
-                {j.from} → {j.to}: {routeStatusWord(j.before)} → would be {routeStatusWord(j.after)}
+            {journeys.map((j) => (
+              <li key={j.id}>
+                {j.from} → {j.to}: {routeStatusWord(j.before)} →{" "}
+                {meta?.imagined === false ? "" : "would be "}
+                {routeStatusWord(j.after)}
               </li>
             ))}
           </ul>
@@ -82,9 +91,9 @@ export function WhatIfListSection() {
             </p>
           )}
         </>
-      ) : (
+      ) : meta?.summary.changed === 0 ? (
         <p className="mt-3 text-sm text-ink-soft">No sampled journey changes status.</p>
-      )}
+      ) : null}
     </section>
   );
 }

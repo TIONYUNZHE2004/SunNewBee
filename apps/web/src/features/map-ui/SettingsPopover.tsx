@@ -1,10 +1,11 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useMode } from "../../app/modeStore";
 import { useScenarios } from "../../lib/api";
+import { ENV } from "../../lib/env";
 import { useTheme } from "../../ui/theme";
 import { StatusLegend } from "../scene/StatusLegend";
 import { type MapStyle, useScene } from "../scene/sceneStore";
-import type { View } from "../scene/selectView";
+import { availableViews, type View, webglSupported } from "../scene/selectView";
 import { useEffectiveView, useMapStyle } from "../scene/useMapStyle";
 import { TRAVEL_LABELS, TRAVEL_ORDER } from "./TravelLabels";
 
@@ -14,6 +15,22 @@ export function levelOptions(scenarios: { id: string; label: string; stage_m?: n
     .sort((a, b) => (a.stage_m as number) - (b.stage_m as number))
     .map((s) => ({ id: s.id as string | null, label: `+${s.stage_m} m` }));
   return [{ id: null as string | null, label: "Normal" }, ...stages];
+}
+
+/** Map view options (3D, lite map, list) with the reason a view cannot be used. The list view
+ * always works: it is the accessible, keyless fallback and shows everything as text. */
+export function viewOptions(available: View[]) {
+  const reason = (v: View) =>
+    available.includes(v)
+      ? null
+      : v === "cesium"
+        ? "Needs a 3D-capable device and building data or a map key"
+        : "Needs a Mapbox token";
+  return [
+    { view: "cesium" as View, label: "3D", reason: reason("cesium") },
+    { view: "mapbox" as View, label: "Lite map", reason: reason("mapbox") },
+    { view: "list" as View, label: "List (text)", reason: null },
+  ];
 }
 
 /** Map style options with the reason an option cannot be used (shown, and read as its description). */
@@ -78,9 +95,13 @@ export function SettingsPopover() {
   const btnRef = useRef<HTMLButtonElement>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
   const mode = useMode((s) => s.mode);
-  const { scenarioId, profile, setScenario, setProfile, setMapStyle } = useScene();
+  const { scenarioId, profile, setScenario, setProfile, setMapStyle, setView } = useScene();
   const { style, hasBuildings, hasGoogle, settled } = useMapStyle();
   const effective = useEffectiveView();
+  const available = useMemo(
+    () => availableViews(ENV, webglSupported(), hasBuildings),
+    [hasBuildings],
+  );
   const { theme, setTheme } = useTheme();
   const scenarios = useScenarios();
   const levels = levelOptions(scenarios.data ?? []);
@@ -147,6 +168,28 @@ export function SettingsPopover() {
               <Radio checked={theme === "night"} onClick={() => setTheme("night")}>
                 Night
               </Radio>
+            </div>
+          </div>
+          <div>
+            <h3 className={H}>Map view</h3>
+            <div role="radiogroup" aria-label="Map view" className="grid grid-cols-3 gap-2">
+              {viewOptions(available).map((o) => (
+                <div key={o.view} className="flex flex-col gap-1">
+                  <Radio
+                    checked={effective === o.view}
+                    disabled={!!o.reason}
+                    describedBy={o.reason ? `map-view-${o.view}-reason` : undefined}
+                    onClick={() => setView(o.view)}
+                  >
+                    {o.label}
+                  </Radio>
+                  {o.reason && (
+                    <span id={`map-view-${o.view}-reason`} className="text-xs text-fg-soft">
+                      {o.reason}
+                    </span>
+                  )}
+                </div>
+              ))}
             </div>
           </div>
           <div>
