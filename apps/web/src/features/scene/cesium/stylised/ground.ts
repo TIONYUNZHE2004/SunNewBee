@@ -6,7 +6,11 @@ export interface Road {
   id: string;
   coords: [number, number][];
   widthM: number;
+  /** What the street is for (drives decoration): not inferred from the width. */
+  kind: RoadKind;
 }
+
+export type RoadKind = "major" | "residential" | "footway" | "other";
 
 /** A water polygon: outer ring then holes, lon/lat. */
 export type WaterPolygon = [number, number][][];
@@ -61,6 +65,17 @@ const WIDTH_BY_TYPE: Record<string, number> = {
   steps: 2.5,
   crossing: 2.5,
 };
+const KIND_BY_TYPE: Record<string, RoadKind> = {
+  major_road: "major",
+  residential: "residential",
+  service: "residential",
+  street: "residential",
+  footway: "footway",
+  path: "footway",
+  pedestrian: "footway",
+  steps: "footway",
+  crossing: "footway",
+};
 export const ROAD_WIDTH_UNKNOWN = 3;
 
 const isRec = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null;
@@ -91,6 +106,7 @@ export function roadsFromWalk(layer: unknown): Road[] {
       id: String(props.id ?? `r${i}`),
       coords,
       widthM: WIDTH_BY_TYPE[type] ?? ROAD_WIDTH_UNKNOWN,
+      kind: KIND_BY_TYPE[type] ?? "other",
     });
   });
   return out;

@@ -19,12 +19,19 @@ function go(viewer: Cesium.Viewer, sphere: Cesium.BoundingSphere, rangeM?: numbe
 }
 
 /** Subscribes to scene-intent state and moves the camera. Reduced motion: no animation. */
-export function useCameraIntents(focusPoint: (id: string) => [number, number] | null) {
+export function useCameraIntents(
+  focusPoint: (id: string) => [number, number] | null,
+  /** Called when an intent moved the camera, so the home re-frame rule leaves it alone. */
+  onMoved?: () => void,
+) {
   const { viewer } = useCesium();
   useEffect(() => {
     const move = (fn: (v: Cesium.Viewer) => void) => {
       const v = viewer;
-      if (v && !v.isDestroyed()) fn(v);
+      if (v && !v.isDestroyed()) {
+        onMoved?.();
+        fn(v);
+      }
     };
     return useScene.subscribe((s, prev) => {
       if (s.route && s.route !== prev.route) {
@@ -52,5 +59,5 @@ export function useCameraIntents(focusPoint: (id: string) => [number, number] | 
         );
       }
     });
-  }, [viewer, focusPoint]);
+  }, [viewer, focusPoint, onMoved]);
 }

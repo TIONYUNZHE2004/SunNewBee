@@ -32,6 +32,9 @@ export function resolveMapStyle(
 
 interface SceneState {
   view: View;
+  /** True when the 3D renderer crashed and the list fallback is showing (set by MapStage). */
+  rendererFailed: boolean;
+  setRendererFailed: (f: boolean) => void;
   lensVisible: Record<Lens, boolean>;
   /** Gap map overlay (AX-09). Separate from the lenses: it is not part of the intent contract. */
   gapsVisible: boolean;
@@ -65,6 +68,7 @@ interface SceneState {
 
 const initial = {
   view: "list" as View,
+  rendererFailed: false,
   lensVisible: { access: true, flood: false, waste: false } as Record<Lens, boolean>,
   gapsVisible: false,
   profile: loadProfile(),
@@ -121,7 +125,8 @@ export const useScene = create<SceneState>((set) => ({
       selectedFloodEdgeId,
       selectedPlaceId: selectedFloodEdgeId ? null : s.selectedPlaceId,
     })),
-  setView: (view) => set({ view }),
+  setView: (view) => set({ view, rendererFailed: false }),
+  setRendererFailed: (rendererFailed) => set({ rendererFailed }),
   setProfile: (profile) => {
     saveProfile(profile);
     // A highlighted route was planned for the previous persona; do not show it as this one's.

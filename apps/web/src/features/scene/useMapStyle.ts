@@ -1,6 +1,8 @@
+import { useMemo } from "react";
 import { type BuildingsLayer, useBuildings } from "../../lib/api";
 import { ENV } from "../../lib/env";
 import { type MapStyle, resolveMapStyle, useScene } from "./sceneStore";
+import { availableViews, effectiveView, type View, webglSupported } from "./selectView";
 
 /** Pure: the world has at least one building footprint to draw (a 404 is null, so false). */
 export function hasBuildingsData(d: BuildingsLayer | null | undefined): boolean {
@@ -29,4 +31,13 @@ export function useMapStyle(): {
     hasGoogle,
     settled: q.isSuccess || q.isError,
   };
+}
+
+/** The view really on screen: chosen and available (WebGL, keys, buildings) and not crashed. */
+export function useEffectiveView(): View {
+  const view = useScene((s) => s.view);
+  const rendererFailed = useScene((s) => s.rendererFailed);
+  const { hasBuildings } = useMapStyle();
+  const webglOk = useMemo(webglSupported, []);
+  return effectiveView(view, availableViews(ENV, webglOk, hasBuildings), rendererFailed);
 }

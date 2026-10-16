@@ -29,7 +29,9 @@ const BUILDINGS = {
   trees: { type: "FeatureCollection", features: [] },
 };
 const savedGoogle = ENV.googleKey;
+const savedGetContext = HTMLCanvasElement.prototype.getContext;
 afterEach(() => {
+  HTMLCanvasElement.prototype.getContext = savedGetContext;
   ENV.googleKey = savedGoogle;
 });
 
@@ -116,6 +118,9 @@ describe("SettingsPopover", () => {
   describe("Map style", () => {
     const openIt = async (buildings: unknown, google: string) => {
       ENV.googleKey = google;
+      // Map styles are for the 3D renderer: a WebGL-capable device showing Cesium.
+      HTMLCanvasElement.prototype.getContext = (() => ({})) as never;
+      useScene.getState().setView("cesium");
       renderWithClient(<SettingsPopover />, seeded(buildings));
       await userEvent.click(screen.getByRole("button", { name: "Map settings" }));
       return screen.getByRole("radiogroup", { name: "Map style" });

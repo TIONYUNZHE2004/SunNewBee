@@ -4,7 +4,8 @@ import { useScenarios } from "../../lib/api";
 import { useTheme } from "../../ui/theme";
 import { StatusLegend } from "../scene/StatusLegend";
 import { type MapStyle, useScene } from "../scene/sceneStore";
-import { useMapStyle } from "../scene/useMapStyle";
+import type { View } from "../scene/selectView";
+import { useEffectiveView, useMapStyle } from "../scene/useMapStyle";
 import { TRAVEL_LABELS, TRAVEL_ORDER } from "./TravelLabels";
 
 export function levelOptions(scenarios: { id: string; label: string; stage_m?: number | null }[]) {
@@ -16,17 +17,25 @@ export function levelOptions(scenarios: { id: string; label: string; stage_m?: n
 }
 
 /** Map style options with the reason an option cannot be used (shown, and read as its description). */
-export function mapStyleOptions(hasBuildings: boolean, hasGoogle: boolean) {
+export function mapStyleOptions(
+  hasBuildings: boolean,
+  hasGoogle: boolean,
+  view: View,
+  settled = true,
+) {
+  // Map styles only exist in the 3D renderer: with Mapbox/List active (no WebGL, or a crash into
+  // the list fallback) none is selectable and none claims to be shown.
+  const device = view === "cesium" ? null : "Needs a 3D-capable device";
   return [
     {
       style: "stylised" as MapStyle,
       label: "Stylised",
-      reason: hasBuildings ? null : "Needs building data",
+      reason: !settled ? "Loading…" : !hasBuildings ? "Needs building data" : device,
     },
     {
       style: "realistic" as MapStyle,
       label: "Realistic photos (Google)",
-      reason: hasGoogle ? null : "Needs a Google Maps key",
+      reason: device ?? (hasGoogle ? null : "Needs a Google Maps key"),
     },
   ];
 }
@@ -70,7 +79,8 @@ export function SettingsPopover() {
   const dialogRef = useRef<HTMLDivElement>(null);
   const mode = useMode((s) => s.mode);
   const { scenarioId, profile, setScenario, setProfile, setMapStyle } = useScene();
-  const { style, hasBuildings, hasGoogle } = useMapStyle();
+  const { style, hasBuildings, hasGoogle, settled } = useMapStyle();
+  const effective = useEffectiveView();
   const { theme, setTheme } = useTheme();
   const scenarios = useScenarios();
   const levels = levelOptions(scenarios.data ?? []);
@@ -142,7 +152,7 @@ export function SettingsPopover() {
           <div>
             <h3 className={H}>Map style</h3>
             <div role="radiogroup" aria-label="Map style" className="grid grid-cols-2 gap-2">
-              {mapStyleOptions(hasBuildings, hasGoogle).map((o) => (
+              {mapStyleOptions(hasBuildings, hasGoogle, effective, settled).map((o) => (
                 <div key={o.style} className="flex flex-col gap-1">
                   <Radio
                     checked={style === o.style && !o.reason}
@@ -160,7 +170,7 @@ export function SettingsPopover() {
                 </div>
               ))}
             </div>
-            {style === "stylised" && hasBuildings && (
+            {effective === "cesium" && style === "stylised" && hasBuildings && (
               // Honesty: trees, parked cars and base water in the stylised city are decorative.
               <p className="m-0 mt-1 text-xs text-fg-soft">Decorative details are illustrative.</p>
             )}

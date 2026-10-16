@@ -2,16 +2,8 @@ import { Component, lazy, type ReactNode, Suspense, useEffect, useMemo } from "r
 import { ENV } from "../../lib/env";
 import { ListView } from "../scene/list/ListView";
 import { useScene } from "../scene/sceneStore";
-import { availableViews, selectView, type View } from "../scene/selectView";
+import { availableViews, effectiveView, selectView, webglSupported } from "../scene/selectView";
 import { useMapStyle } from "../scene/useMapStyle";
-
-const webglSupported = () => {
-  try {
-    return !!document.createElement("canvas").getContext("webgl2");
-  } catch {
-    return false;
-  }
-};
 
 const CesiumScene = lazy(() => import("../scene/cesium/CesiumScene"));
 const MapboxLite = lazy(() => import("../scene/mapbox/MapboxLite"));
@@ -20,12 +12,15 @@ let autoSelected = false;
 
 /** A renderer that fails to load or crashes (WebGL, chunk, bad key) falls back to the list. */
 class RendererBoundary extends Component<
-  { fallback: ReactNode; children: ReactNode },
+  { fallback: ReactNode; children: ReactNode; onFail?: () => void },
   { failed: boolean }
 > {
   state = { failed: false };
   static getDerivedStateFromError() {
     return { failed: true };
+  }
+  componentDidCatch() {
+    this.props.onFail?.();
   }
   render() {
     return this.state.failed ? this.props.fallback : this.props.children;
@@ -34,7 +29,7 @@ class RendererBoundary extends Component<
 
 /** The renderer area only; chrome (cards, notes, settings) arrives as children. */
 export function MapStage({ children }: { children?: ReactNode }) {
-  const { view, setView } = useScene();
+  const { view, setView, setRendererFailed } = useScene();
   const applyDefaultMapStyle = useScene((s) => s.applyDefaultMapStyle);
   const { hasBuildings, hasGoogle, settled } = useMapStyle();
   const webglOk = useMemo(webglSupported, []);
@@ -58,7 +53,7 @@ export function MapStage({ children }: { children?: ReactNode }) {
   }, [settled, hasBuildings, hasGoogle, applyDefaultMapStyle]);
 
   const has3d = available.some((v) => v !== "list");
-  const effective: View = available.includes(view) ? view : "list";
+  const effective = effectiveView(view, available, false);
   const listFallback = (
     <div className="h-full space-y-3 overflow-auto p-4">
       <p role="alert" className="rounded-lg border border-rose bg-raised px-4 py-3 text-sm text-fg">
@@ -88,7 +83,11 @@ export function MapStage({ children }: { children?: ReactNode }) {
           <ListView />
         </div>
       ) : (
-        <RendererBoundary key={effective} fallback={listFallback}>
+        <RendererBoundary
+          key={effective}
+          fallback={listFallback}
+          onFail={() => setRendererFailed(true)}
+        >
           <Suspense
             fallback={
               <p role="status" className="p-4 text-fg-soft">

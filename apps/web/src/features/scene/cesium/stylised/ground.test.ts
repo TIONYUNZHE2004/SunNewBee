@@ -36,6 +36,17 @@ describe("roadsFromWalk", () => {
     };
     const w = Object.fromEntries(roadsFromWalk(fc).map((r) => [r.id, r.widthM]));
     expect(w).toEqual({ a: 10, b: 6, c: 6, d: 6, e: 2.5, f: 2.5, g: 3, h: 3 });
+    const k = Object.fromEntries(roadsFromWalk(fc).map((r) => [r.id, r.kind]));
+    expect(k).toEqual({
+      a: "major",
+      b: "residential",
+      c: "residential",
+      d: "residential",
+      e: "footway",
+      f: "footway",
+      g: "other",
+      h: "other",
+    });
   });
 
   it("drops non-LineString features, bad coordinates and degenerate lines", () => {
@@ -78,8 +89,8 @@ describe("roadsFromWalk", () => {
 });
 
 const roads = [
-  { id: "a", coords: L as [number, number][], widthM: 10 },
-  { id: "b", coords: L as [number, number][], widthM: 2.5 },
+  { id: "a", coords: L as [number, number][], widthM: 10, kind: "major" as const },
+  { id: "b", coords: L as [number, number][], widthM: 2.5, kind: "footway" as const },
 ];
 const water = [
   [

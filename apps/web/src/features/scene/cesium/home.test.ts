@@ -28,6 +28,12 @@ describe("shouldReframe", () => {
     expect(shouldReframe({ moved: true, reframed: false })).toBe(false);
     expect(shouldReframe({ moved: false, reframed: true })).toBe(false);
   });
+  it("a style change after an assistant fly-to (moved) or once framed never reframes", () => {
+    // The scene marks `moved` when camera.fly_to / place.focus is applied; switching style re-runs
+    // the framing decision with the same flags.
+    expect(shouldReframe({ moved: true, reframed: false })).toBe(false);
+    expect(shouldReframe({ moved: false, reframed: true })).toBe(false);
+  });
 });
 
 describe("stylisedHomeView", () => {

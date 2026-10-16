@@ -7,13 +7,30 @@ import { buildProps, type Car, kerbCars, type PropsCesium, streetTrees, type Tre
 
 const M_PER_DEG = 111_320;
 // A 400 m east-west residential street, a 400 m major road and a 400 m footway.
-const street = (id: string, widthM: number, y = 3.18): Road => ({
+const street = (
+  id: string,
+  widthM: number,
+  y = 3.18,
+  kind: Road["kind"] = widthM === 6 ? "residential" : widthM === 10 ? "major" : "footway",
+): Road => ({
   id,
   coords: [
     [101.5, y],
     [101.5 + 400 / (M_PER_DEG * Math.cos((y * Math.PI) / 180)), y],
   ],
   widthM,
+  kind,
+});
+
+describe("residential detection uses the road kind, not its width", () => {
+  it("a residential street of any width gets cars/trees; a 6 m footway does not", () => {
+    const res5 = street("res5", 5, 3.18, "residential");
+    const foot6 = street("foot6", 6, 3.19, "footway");
+    expect(kerbCars([res5], "s", { density: 1 }).length).toBeGreaterThan(0);
+    expect(streetTrees([res5], "s", { keep: 1 }).length).toBeGreaterThan(0);
+    expect(kerbCars([foot6], "s", { density: 1 })).toEqual([]);
+    expect(streetTrees([foot6], "s", { keep: 1 })).toEqual([]);
+  });
 });
 
 describe("kerbCars", () => {

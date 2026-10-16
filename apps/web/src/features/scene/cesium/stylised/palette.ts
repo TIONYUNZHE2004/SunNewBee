@@ -5,6 +5,7 @@ import type { Theme } from "../../../../ui/theme";
 export interface Palette {
   ground: string;
   road: string;
+  /** Decorative base water (lakes, rivers): teal-grey, deliberately unlike the flood-scenario blue. */
   water: string;
   sky: string;
   /** Fog density (exponential, per metre). */
@@ -24,7 +25,7 @@ export interface Palette {
 const NIGHT: Palette = {
   ground: "#1a1430",
   road: "#372b62",
-  water: "#2c3f78",
+  water: "#2b5750",
   sky: "#1f1838",
   fog: 0.0004,
   tree: ["#2f8c7e", "#1d5a5f"],
@@ -41,7 +42,7 @@ const NIGHT: Palette = {
 const DAY: Palette = {
   ground: "#e8dccf",
   road: "#9a8fb0",
-  water: "#7fb0ec",
+  water: "#8fb8b0",
   sky: "#9bc4e8",
   fog: 0.00025,
   tree: ["#5fb88a", "#3b8c66"],

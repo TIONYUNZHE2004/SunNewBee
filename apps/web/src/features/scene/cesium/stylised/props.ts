@@ -23,7 +23,7 @@ export interface Car {
 
 const M_PER_DEG = 111_320;
 /** Streets that get kerbside cars and street trees (residential / service width). */
-const isResidential = (r: Road) => r.widthM === 6;
+const isResidential = (r: Road) => r.kind === "residential";
 
 interface Slot {
   key: string;

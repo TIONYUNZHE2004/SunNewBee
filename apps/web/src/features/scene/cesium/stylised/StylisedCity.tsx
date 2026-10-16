@@ -136,6 +136,7 @@ export function StylisedCity({ onReady }: { onReady?: (info: StylisedReady) => v
       viewer.scene.primitives,
     );
     buildings.current = h;
+    setBuildingsShown(false); // new data: details wait for this set's first frame again
     viewer.scene.requestRender();
     const off = viewer.scene.postRender.addEventListener(() => {
       if (h.primitives.some((p) => !p.ready)) return;
@@ -159,6 +160,9 @@ export function StylisedCity({ onReady }: { onReady?: (info: StylisedReady) => v
 
   useEffect(() => {
     if (!viewer || viewer.isDestroyed() || roads.length === 0) return;
+    // Roads are ClassificationPrimitives (thin volumes around height 0): they only show on the
+    // flat ellipsoid ground that resolveMapStyle guarantees for the stylised style (no terrain,
+    // no tiles). Do not mount StylisedCity over terrain.
     const h = buildGround(Cesium, viewer, {
       roads,
       water,

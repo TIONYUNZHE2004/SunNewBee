@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { WATER_COLOR } from "../../styles";
 import { paletteFor } from "./palette";
 
 const lin = (c: number) => {
@@ -27,6 +28,24 @@ describe("paletteFor", () => {
     expect(night.windowLit).toHaveLength(2);
     expect(day.windowLit).toHaveLength(2);
     expect(night.ambient).toBeLessThan(day.ambient);
+  });
+  it("decorative base water is visibly distinct from the flood-scenario water colour", () => {
+    const hue = (hex: string) => {
+      const [r, g, b] = [1, 3, 5].map((i) => Number.parseInt(hex.slice(i, i + 2), 16) / 255) as [
+        number,
+        number,
+        number,
+      ];
+      const mx = Math.max(r, g, b);
+      const d = mx - Math.min(r, g, b);
+      if (d === 0) return 0;
+      const h = mx === r ? ((g - b) / d) % 6 : mx === g ? (b - r) / d + 2 : (r - g) / d + 4;
+      return (h * 60 + 360) % 360;
+    };
+    for (const p of [day, night]) {
+      expect(p.water.toLowerCase()).not.toBe(WATER_COLOR.toLowerCase());
+      expect(Math.abs(hue(p.water) - hue(WATER_COLOR))).toBeGreaterThan(20); // teal-grey, not scenario blue
+    }
   });
   it("every colour is a 6-digit hex", () => {
     for (const p of [day, night]) {

@@ -7,7 +7,6 @@ import { fakeCesium } from "./fakeCesium.test-util";
 import { paletteFor } from "./palette";
 import { buildProps, type PropsCesium } from "./props";
 import { StylisedCity } from "./StylisedCity";
-import stylisedCitySource from "./StylisedCity.tsx?raw";
 
 // The real renderer needs WebGL; the integration under test is which view and style get chosen.
 vi.mock("../CesiumScene", () => ({ default: () => <div data-testid="cesium-scene" /> }));
@@ -17,6 +16,26 @@ const BUILDINGS = {
   attribution: [],
   buildings: { type: "FeatureCollection", features: [{ type: "Feature" }] },
   trees: { type: "FeatureCollection", features: [] },
+};
+
+// Just enough viewer for applyStylisedLook (the fake primitives collections are mocked per test).
+const FAKE_VIEWER = {
+  isDestroyed: () => false,
+  scene: {
+    imageryLayers: { length: 0, get: () => undefined },
+    globe: { baseColor: { clone: () => ({}) } },
+    backgroundColor: { clone: () => ({}) },
+    fog: { density: 0 },
+    primitives: {},
+    // Fires once on the next tick (the first frame), as the real event does.
+    postRender: {
+      addEventListener: (cb: () => void) => {
+        setTimeout(cb, 0);
+        return () => {};
+      },
+    },
+    requestRender: () => {},
+  },
 };
 
 let webgl = true;
@@ -89,6 +108,28 @@ describe("stylised city integration", () => {
     expect(screen.getByText("Decorative details are illustrative.")).toBeVisible();
   });
 
+  it("buildings but no WebGL: Map style radios disabled, none checked, no illustrative note", async () => {
+    webgl = false;
+    await mount(BUILDINGS);
+    await waitFor(() => expect(screen.getByText(/3D map couldn't load/i)).toBeInTheDocument());
+    const g = await mapStyleGroup();
+    for (const r of within(g).getAllByRole("radio")) {
+      expect(r).toBeDisabled();
+      expect(r).toHaveAttribute("aria-checked", "false");
+    }
+    expect(screen.getAllByText("Needs a 3D-capable device").length).toBeGreaterThan(0);
+    expect(screen.queryByText("Decorative details are illustrative.")).toBeNull();
+  });
+
+  it("a crashed 3D renderer (list fallback) also disables the style radios", async () => {
+    const useScene = await mount(BUILDINGS);
+    expect(await screen.findByTestId("cesium-scene")).toBeInTheDocument();
+    await act(async () => useScene.getState().setRendererFailed(true));
+    const g = await mapStyleGroup();
+    for (const r of within(g).getAllByRole("radio")) expect(r).toBeDisabled();
+    expect(screen.queryByText("Decorative details are illustrative.")).toBeNull();
+  });
+
   it("buildings never beat a missing WebGL", async () => {
     webgl = false;
     const useScene = await mount(BUILDINGS);
@@ -129,8 +170,67 @@ describe("decorative props honesty", () => {
     expect(screen.queryAllByRole("button")).toHaveLength(0);
   });
 
-  it("base water is documented as decorative, never a flood scenario", () => {
-    expect(stylisedCitySource).toMatch(/Decorative base water/);
-    expect(stylisedCitySource).toMatch(/NOT\s+\*?\s*a flood scenario/);
+  it("water given to buildGround comes from the buildings layer, never from scenario data", async () => {
+    const ring = (x: number) => [
+      [x, 3.18],
+      [x + 0.001, 3.18],
+      [x + 0.001, 3.181],
+      [x, 3.18],
+    ];
+    const poly = (x: number) => ({
+      type: "Feature",
+      geometry: { type: "Polygon", coordinates: [ring(x)] },
+      properties: {},
+    });
+    const baseWater = { type: "FeatureCollection", features: [poly(101.5)] };
+    const scenarioWater = { type: "FeatureCollection", features: [poly(101.9)] };
+    const buildGround = vi.fn(() => ({ setTheme: vi.fn(), destroy: vi.fn() }));
+    vi.resetModules();
+    vi.doMock("resium", () => ({ useCesium: () => ({ viewer: FAKE_VIEWER }) }));
+    vi.doMock("./ground", async (orig) => ({
+      ...(await orig<typeof import("./ground")>()),
+      buildGround,
+    }));
+    vi.doMock("./buildingsPrimitive", () => ({
+      buildBuildingPrimitives: () => ({ primitives: [], setTheme: vi.fn(), destroy: vi.fn() }),
+    }));
+    vi.doMock("./props", () => ({
+      buildProps: () => ({ setTheme: vi.fn(), destroy: vi.fn() }),
+      kerbCars: () => [],
+      streetTrees: () => [],
+    }));
+    vi.doMock("./reskin", () => ({ reskin: vi.fn() }));
+    const { StylisedCity: City } = await import("./StylisedCity");
+    const qc = newQueryClient();
+    qc.setQueryData(["buildings"], { ...BUILDINGS, water: baseWater });
+    qc.setQueryData(["scenario", "stage_p3m"], scenarioWater);
+    qc.setQueryData(["layer", "access", "default", null], {
+      type: "FeatureCollection",
+      features: [
+        {
+          type: "Feature",
+          geometry: { type: "LineString", coordinates: ring(101.5).slice(0, 2) },
+          properties: { id: "r", type: "street" },
+        },
+      ],
+    });
+    // Flood scenario selected: its water must not leak into the stylised ground.
+    (await import("../../sceneStore")).useScene.getState().setScenario("stage_p3m");
+    renderWithClient(<City />, qc);
+    await waitFor(() => expect(buildGround).toHaveBeenCalled());
+    const calls = buildGround.mock.calls as unknown as [
+      unknown,
+      unknown,
+      { water: unknown[][][] },
+    ][];
+    for (const c of calls) {
+      expect(c[2].water).toHaveLength(1);
+      expect(c[2].water[0]![0]![0]).toEqual([101.5, 3.18]); // the buildings-layer polygon, not 101.9
+    }
+    vi.doUnmock("resium");
+    vi.doUnmock("./ground");
+    vi.doUnmock("./buildingsPrimitive");
+    vi.doUnmock("./props");
+    vi.doUnmock("./reskin");
   });
 });

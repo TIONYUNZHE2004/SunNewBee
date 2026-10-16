@@ -48,3 +48,12 @@ describe("selectView with stylised buildings", () => {
     expect(selectView(mb, true, "mapbox", true)).toBe("mapbox");
   });
 });
+
+describe("effectiveView", () => {
+  it("is the chosen view only when available and the renderer has not failed", async () => {
+    const { effectiveView } = await import("./selectView");
+    expect(effectiveView("cesium", ["cesium", "list"], false)).toBe("cesium");
+    expect(effectiveView("cesium", ["list"], false)).toBe("list");
+    expect(effectiveView("cesium", ["cesium", "list"], true)).toBe("list");
+  });
+});

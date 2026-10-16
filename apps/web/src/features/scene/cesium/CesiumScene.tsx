@@ -9,7 +9,7 @@ import { pickedFloodEdgeId, pointFeatures } from "../geo";
 import { useScene } from "../sceneStore";
 import { useMapStyle } from "../useMapStyle";
 import { useCameraIntents } from "./camera";
-import { type HomeView, homeView, stylisedHomeView } from "./home";
+import { type HomeView, homeView, shouldReframe, stylisedHomeView } from "./home";
 import { AccessLayer, FloodLayer, WasteLayer } from "./layers";
 import { setupRealistic } from "./realistic";
 import { StylisedCity } from "./stylised/StylisedCity";
@@ -89,13 +89,13 @@ function SceneSetup({
   // the constants so a slow/failed /site never leaves the whole-globe view, then re-frame to the
   // site's home (closer for the stylised city) until the user touches the camera.
   const siteData = useSite().data;
-  const moved = useRef(false);
+  const framing = useRef({ moved: false, reframed: false });
   useEffect(() => {
     if (!viewer || viewer.isDestroyed()) return;
-    moved.current = false;
+    framing.current = { moved: false, reframed: false };
     const handler = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas);
     const onMove = () => {
-      moved.current = true;
+      framing.current.moved = true;
     };
     for (const t of [
       Cesium.ScreenSpaceEventType.LEFT_DOWN,
@@ -109,10 +109,13 @@ function SceneSetup({
     return () => handler.destroy();
   }, [viewer]);
   useEffect(() => {
-    if (!viewer || viewer.isDestroyed() || moved.current) return;
+    if (!viewer || viewer.isDestroyed() || !shouldReframe(framing.current)) return;
     const home = homeView(siteData);
     frameHome(viewer, style === "stylised" ? stylisedHomeView(home) : home);
-  }, [viewer, siteData, style]);
+    // Locked once the real inputs are in (site data + the settled default style). After that a
+    // style switch keeps whatever the camera shows, e.g. a fly-to the assistant just made.
+    if (siteData && settled) framing.current.reframed = true;
+  }, [viewer, siteData, style, settled]);
 
   // Click a place marker (entity id = place id) to open its card, or a flood path (instance id) for "Why this path?".
   useEffect(() => {
@@ -140,7 +143,10 @@ function SceneSetup({
     return () => handler.destroy();
   }, [viewer]);
 
-  useCameraIntents(focusPoint);
+  const onIntentMoved = useCallback(() => {
+    framing.current.moved = true;
+  }, []);
+  useCameraIntents(focusPoint, onIntentMoved);
   return null;
 }
 
