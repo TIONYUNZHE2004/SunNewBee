@@ -9,6 +9,7 @@ import { useChatDraft } from "../chat/chatDraftStore";
 import { type ClaimRow, toPlaceView } from "../places/placeModel";
 import { ClosureBanner, SourceBanner } from "../places/SourceBanner";
 import { useScene } from "../scene/sceneStore";
+import { InSlot } from "./mapSlots";
 import { OVERLAY_CLASS, useOverlayA11y } from "./overlayA11y";
 
 function chipFor(r: ClaimRow): { status: StatusKey; label?: string } {
@@ -80,90 +81,94 @@ function PlaceOverlayInner({ id }: { id: string }) {
   };
 
   return (
-    <div
-      role="dialog"
-      aria-modal="false"
-      aria-labelledby="place-overlay-h"
-      className={OVERLAY_CLASS}
-    >
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex items-start gap-2">
-          {view && (
-            <span className="mt-0.5 text-accent">
-              <Icon name={iconFor(view.kind, view.typeLabel)} />
-            </span>
-          )}
-          <div>
-            <h2 id="place-overlay-h" ref={head} tabIndex={-1} className="text-lg font-semibold">
-              {view?.name ?? "Place details"}
-            </h2>
-            {view && <p className="text-sm text-fg-soft">{view.typeLabel}</p>}
+    <InSlot name="card">
+      <div
+        role="dialog"
+        aria-modal="false"
+        aria-labelledby="place-overlay-h"
+        className={OVERLAY_CLASS}
+      >
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex items-start gap-2">
+            {view && (
+              <span className="mt-0.5 text-accent">
+                <Icon name={iconFor(view.kind, view.typeLabel)} />
+              </span>
+            )}
+            <div>
+              <h2 id="place-overlay-h" ref={head} tabIndex={-1} className="text-lg font-semibold">
+                {view?.name ?? "Place details"}
+              </h2>
+              {view && <p className="text-sm text-fg-soft">{view.typeLabel}</p>}
+            </div>
           </div>
+          <button
+            type="button"
+            aria-label="Close place details"
+            onClick={() => selectPlace(null)}
+            className="min-h-11 min-w-11 shrink-0 rounded-lg border border-edge px-3 text-sm font-medium focus-visible:outline-2 focus-visible:outline-accent"
+          >
+            <span aria-hidden="true">×</span>
+          </button>
         </div>
-        <button
-          type="button"
-          aria-label="Close place details"
-          onClick={() => selectPlace(null)}
-          className="min-h-11 min-w-11 shrink-0 rounded-lg border border-edge px-3 text-sm font-medium focus-visible:outline-2 focus-visible:outline-accent"
-        >
-          <span aria-hidden="true">×</span>
-        </button>
-      </div>
 
-      <SourceBanner view={view} />
-      <ClosureBanner view={view} />
+        <SourceBanner view={view} />
+        <ClosureBanner view={view} />
 
-      <div className="mt-3">
-        {q.isPending ? (
-          <p role="status" className="text-fg-soft">
-            Loading…
-          </p>
-        ) : q.isError || !view ? (
-          <div role="alert" className="rounded-lg border border-edge p-3 text-sm">
-            <p className="font-medium">We could not load this place.</p>
-            <p className="text-fg-soft">It may no longer exist, or the service is unavailable.</p>
-            <button
-              type="button"
-              onClick={() => q.refetch()}
-              className="mt-2 min-h-11 rounded-lg bg-accent px-4 text-sm font-medium text-on-accent"
-            >
-              Retry
-            </button>
-          </div>
-        ) : (
-          <ul className="space-y-2" aria-label="Facts">
-            {view.kind === "evac_centre" && (
-              <li className="rounded-lg border border-edge px-3 py-2 text-sm">
-                <p className="flex flex-wrap items-center justify-between gap-2">
-                  <span className="font-medium">Evacuation centre</span>
-                  <StatusChip status={view.sourceTone === "official" ? "official" : "candidate"} />
-                </p>
-                <p className="mt-1 text-fg-soft">
-                  {view.sourceTone === "official"
-                    ? "Listed as an official relief centre. Opening depends on the authorities."
-                    : "Found in map data. Not confirmed as an official relief centre."}
-                </p>
-              </li>
-            )}
-            {view.rows.map((r) => (
-              <Row key={r.attr} r={r} placeName={view.name} />
-            ))}
-            {view.rows.length === 0 && view.kind !== "evac_centre" && (
-              <li className="text-fg-soft">No facts recorded yet</li>
-            )}
-          </ul>
+        <div className="mt-3">
+          {q.isPending ? (
+            <p role="status" className="text-fg-soft">
+              Loading…
+            </p>
+          ) : q.isError || !view ? (
+            <div role="alert" className="rounded-lg border border-edge p-3 text-sm">
+              <p className="font-medium">We could not load this place.</p>
+              <p className="text-fg-soft">It may no longer exist, or the service is unavailable.</p>
+              <button
+                type="button"
+                onClick={() => q.refetch()}
+                className="mt-2 min-h-11 rounded-lg bg-accent px-4 text-sm font-medium text-on-accent"
+              >
+                Retry
+              </button>
+            </div>
+          ) : (
+            <ul className="space-y-2" aria-label="Facts">
+              {view.kind === "evac_centre" && (
+                <li className="rounded-lg border border-edge px-3 py-2 text-sm">
+                  <p className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="font-medium">Evacuation centre</span>
+                    <StatusChip
+                      status={view.sourceTone === "official" ? "official" : "candidate"}
+                    />
+                  </p>
+                  <p className="mt-1 text-fg-soft">
+                    {view.sourceTone === "official"
+                      ? "Listed as an official relief centre. Opening depends on the authorities."
+                      : "Found in map data. Not confirmed as an official relief centre."}
+                  </p>
+                </li>
+              )}
+              {view.rows.map((r) => (
+                <Row key={r.attr} r={r} placeName={view.name} />
+              ))}
+              {view.rows.length === 0 && view.kind !== "evac_centre" && (
+                <li className="text-fg-soft">No facts recorded yet</li>
+              )}
+            </ul>
+          )}
+        </div>
+
+        {view && (
+          <button
+            type="button"
+            onClick={ask}
+            className="mt-4 min-h-11 w-full rounded-lg bg-accent px-4 text-sm font-medium text-on-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+          >
+            Ask about this place
+          </button>
         )}
       </div>
-
-      {view && (
-        <button
-          type="button"
-          onClick={ask}
-          className="mt-4 min-h-11 w-full rounded-lg bg-accent px-4 text-sm font-medium text-on-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-        >
-          Ask about this place
-        </button>
-      )}
-    </div>
+    </InSlot>
   );
 }

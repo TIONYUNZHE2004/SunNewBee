@@ -7,6 +7,7 @@ import { ENV } from "../../../lib/env";
 import { useTheme } from "../../../ui/theme";
 import { usePanel } from "../../main/panelStore";
 import { frustumXOffset, PANEL_INSET_PX, panelWidthPx } from "../../main/viewport";
+import { InSlot } from "../../map-ui/mapSlots";
 import { pickedFloodEdgeId, pointFeatures } from "../geo";
 import { useScene } from "../sceneStore";
 import { useMapStyle } from "../useMapStyle";
@@ -270,12 +271,11 @@ export default function CesiumScene({ onOps }: { onOps?: (ops: CameraOps | null)
         </p>
       )}
       {noDraping && (
-        <p
-          role="note"
-          className="absolute bottom-8 left-2 z-10 rounded-md border border-line bg-surface/95 px-2 py-1 text-xs text-fg"
-        >
-          Paths shown without terrain draping
-        </p>
+        <InSlot name="notes">
+          <p role="note" className="glass rounded-md px-2 py-1 text-xs text-fg">
+            Paths shown without terrain draping
+          </p>
+        </InSlot>
       )}
       <Viewer
         ref={ref}

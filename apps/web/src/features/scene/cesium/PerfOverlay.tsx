@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { InSlot } from "../../map-ui/mapSlots";
 import { useScene } from "../sceneStore";
 import type { Tier } from "./stylised/quality";
 
@@ -38,18 +39,20 @@ export function SlowBanner() {
   const slow = usePerfStats((s) => s.slow);
   if (!slow) return null;
   return (
-    <div
-      role="status"
-      className="absolute bottom-8 left-2 z-20 flex items-center gap-2 rounded-md border border-line bg-surface/95 px-2 py-1 text-xs text-fg"
-    >
-      <span>The 3D map is running slowly on this device.</span>
-      <button
-        type="button"
-        className="rounded border border-line px-2 py-0.5 font-medium underline"
-        onClick={() => useScene.getState().setView("list")}
+    <InSlot name="notes">
+      <div
+        role="status"
+        className="glass flex items-center gap-2 rounded-md px-2 py-1 text-xs text-fg"
       >
-        Use the list view
-      </button>
-    </div>
+        <span>The 3D map is running slowly on this device.</span>
+        <button
+          type="button"
+          className="rounded border border-line px-2 py-0.5 font-medium underline"
+          onClick={() => useScene.getState().setView("list")}
+        >
+          Use the list view
+        </button>
+      </div>
+    </InSlot>
   );
 }

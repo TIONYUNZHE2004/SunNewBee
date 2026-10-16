@@ -5,6 +5,7 @@ import { useScene } from "../scene/sceneStore";
 import { availableViews, effectiveView, selectView, webglSupported } from "../scene/selectView";
 import { useMapStyle } from "../scene/useMapStyle";
 import { LoadingTownship } from "./LoadingTownship";
+import { BottomStack, TopStack } from "./mapSlots";
 
 const CesiumScene = lazy(() => import("../scene/cesium/CesiumScene"));
 const MapboxLite = lazy(() => import("../scene/mapbox/MapboxLite"));
@@ -92,6 +93,8 @@ export function MapStage({ children }: { children?: ReactNode }) {
           </Suspense>
         </RendererBoundary>
       )}
+      <TopStack />
+      <BottomStack />
       {children}
     </div>
   );
