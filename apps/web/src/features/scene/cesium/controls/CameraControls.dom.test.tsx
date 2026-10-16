@@ -32,6 +32,13 @@ describe("CameraControls", () => {
     expect(screen.getByRole("button", { name: "Zoom in (+)" })).toBeInTheDocument();
   });
 
+  it("the camera cluster sits above the phone sheet", () => {
+    render(<CameraControls ops={ops()} />);
+    expect(screen.getByRole("group", { name: "Camera" }).className).toContain(
+      "bottom-[calc(var(--sheet-h,0px)+1rem)]",
+    );
+  });
+
   it("buttons call the camera actions", () => {
     const o = ops();
     useCameraUi.setState({ alwaysShow: true });

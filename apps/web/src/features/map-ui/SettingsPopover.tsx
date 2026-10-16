@@ -117,7 +117,7 @@ export function SettingsPopover() {
           role="dialog"
           aria-label="Map settings"
           id="map-settings"
-          className="glass absolute bottom-20 right-[calc(var(--panel-w,0px)+1rem)] z-20 max-h-[70%] w-80 max-w-[calc(100%-var(--panel-w,0px)-2rem)] space-y-4 overflow-auto rounded-2xl p-4 text-fg"
+          className="glass absolute bottom-[calc(var(--sheet-h,0px)+5rem)] right-[calc(var(--panel-w,0px)+1rem)] z-20 max-h-[min(70%,calc(100%-var(--sheet-h,0px)-6rem))] w-80 max-w-[calc(100%-var(--panel-w,0px)-2rem)] space-y-4 overflow-auto rounded-2xl p-4 text-fg"
         >
           <div>
             <Heading icon="compass">Theme</Heading>
@@ -241,7 +241,7 @@ export function SettingsPopover() {
         aria-expanded={open}
         aria-controls={open ? "map-settings" : undefined}
         onClick={() => setOpen((o) => !o)}
-        className="absolute bottom-4 right-[calc(var(--panel-w,0px)+1rem)] z-20 grid size-11 place-items-center rounded-full border border-edge bg-surface text-fg shadow-md hover:bg-raised"
+        className="absolute bottom-[calc(var(--sheet-h,0px)+1rem)] right-[calc(var(--panel-w,0px)+1rem)] z-20 grid size-11 place-items-center rounded-full border border-edge bg-surface text-fg shadow-md hover:bg-raised"
       >
         <svg
           width="20"

@@ -86,7 +86,7 @@ export function CameraControls({ ops }: { ops: CameraOps | null }) {
         onBlur={(e) => {
           if (!e.currentTarget.contains(e.relatedTarget as Node)) setPeek(false);
         }}
-        className="absolute bottom-4 right-[calc(var(--panel-w,0px)+4.5rem)] z-20 flex items-end gap-2"
+        className="absolute bottom-[calc(var(--sheet-h,0px)+1rem)] right-[calc(var(--panel-w,0px)+4.5rem)] z-20 flex items-end gap-2"
       >
         {open && (
           <div className="flex flex-col gap-2 motion-safe:animate-[fadeIn_200ms_ease-out]">

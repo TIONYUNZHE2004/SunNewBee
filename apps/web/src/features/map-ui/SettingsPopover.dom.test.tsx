@@ -50,6 +50,15 @@ describe("SettingsPopover", () => {
     await userEvent.click(btn);
     expect(screen.getByRole("dialog", { name: "Map settings" })).toBeVisible();
   });
+  it("the gear and the popover sit above the phone sheet, within the space left above it", async () => {
+    renderWithClient(<SettingsPopover />, seeded());
+    const gear = screen.getByRole("button", { name: "Map settings" });
+    expect(gear.className).toContain("bottom-[calc(var(--sheet-h,0px)+1rem)]");
+    await userEvent.click(gear);
+    const dialog = screen.getByRole("dialog", { name: "Map settings" });
+    expect(dialog.className).toContain("bottom-[calc(var(--sheet-h,0px)+5rem)]");
+    expect(dialog.className).toContain("max-h-[min(70%,calc(100%-var(--sheet-h,0px)-6rem))]");
+  });
   it("lists the legend with all six statuses incl. Suggested route", async () => {
     renderWithClient(<SettingsPopover />, seeded());
     await userEvent.click(screen.getByRole("button", { name: "Map settings" }));
