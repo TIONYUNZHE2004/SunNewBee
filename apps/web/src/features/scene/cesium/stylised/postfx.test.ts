@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { paletteFor } from "./palette";
 import { applyPostFx, skyCss } from "./postfx";
 import { TIERS } from "./quality";
@@ -8,6 +8,7 @@ function viewer() {
   return {
     shadows: false,
     resolutionScale: 1,
+    useBrowserRecommendedResolution: true,
     scene: {
       postProcessStages: { fxaa: stage(), ambientOcclusion: stage(), bloom: stage() },
       shadowMap: { softShadows: false, size: 0, maximumDistance: 0, darkness: 0 },
@@ -45,5 +46,34 @@ describe("applyPostFx", () => {
   it("skyCss is a vertical gradient from the palette", () => {
     const p = paletteFor("dusk");
     expect(skyCss(p)).toBe(`linear-gradient(180deg, ${p.skyTop} 0%, ${p.horizon} 100%)`);
+  });
+  it("uses Cesium's real AO uniforms, lighter on the low setting", () => {
+    const v = viewer();
+    applyPostFx(C as never, v as never, paletteFor("day"), TIERS.high);
+    const ao = v.scene.postProcessStages.ambientOcclusion.uniforms;
+    expect(ao).toMatchObject({
+      intensity: 3,
+      bias: 0.1,
+      lengthCap: 0.26,
+      directionCount: 8,
+      stepCount: 16,
+    });
+    applyPostFx(C as never, v as never, paletteFor("day"), TIERS.medium);
+    expect(ao).toMatchObject({ intensity: 2, directionCount: 4, stepCount: 8 });
+    expect(ao).not.toHaveProperty("stepSize");
+  });
+  describe("pixel ratio", () => {
+    afterEach(() => vi.unstubAllGlobals());
+    it("caps the device pixel ratio per tier on a 2x display", () => {
+      vi.stubGlobal("devicePixelRatio", 2);
+      const v = viewer();
+      applyPostFx(C as never, v as never, paletteFor("day"), TIERS.high);
+      expect(v.resolutionScale).toBe(1);
+      expect(v.useBrowserRecommendedResolution).toBe(false);
+      applyPostFx(C as never, v as never, paletteFor("day"), TIERS.medium);
+      expect(v.resolutionScale).toBe(0.75);
+      applyPostFx(C as never, v as never, paletteFor("day"), TIERS.low);
+      expect(v.resolutionScale).toBe(0.5);
+    });
   });
 });

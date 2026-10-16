@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { createFrameMonitor, lowerTier, pickTier, TIERS } from "./quality";
+import { createFrameMonitor, createFrameSampler, lowerTier, pickTier, TIERS } from "./quality";
 
 describe("quality tiers", () => {
   it("picks high for discrete GPUs, low for software, medium when unknown", () => {
@@ -44,5 +44,21 @@ describe("quality tiers", () => {
     expect(onDrop).toHaveBeenCalledTimes(1);
     for (let i = 0; i < 30; i++) m.sample(50, true); // window restarted after a drop
     expect(onDrop).toHaveBeenCalledTimes(1);
+  });
+  it("very slow frames (2 s each) still trigger a drop", () => {
+    const onDrop = vi.fn();
+    const m = createFrameMonitor(onDrop, { windowMs: 3000, minFps: 24 });
+    for (let i = 0; i < 4; i++) m.sample(2000, true);
+    expect(onDrop).toHaveBeenCalled();
+  });
+  it("the sampler does not count an idle pause as a slow frame", () => {
+    const sample = vi.fn();
+    const s = createFrameSampler({ sample });
+    s.frame(0);
+    s.moved(10_000); // movement resumes after 10 s idle
+    s.frame(10_016);
+    expect(sample).toHaveBeenLastCalledWith(16, true);
+    s.frame(20_000); // idle again, no movement: reported as not moving
+    expect(sample).toHaveBeenLastCalledWith(9984, false);
   });
 });

@@ -97,13 +97,12 @@ export function fakeCesium() {
     MaterialAppearance: Object.assign(Plain, {
       MaterialSupport: { BASIC: { vertexFormat: { basic: true } } },
     }),
-    Material: Object.assign(
-      // biome-ignore lint/complexity/useArrowFunction: called with `new`, must stay a function
-      function (o: { fabric: { uniforms: Record<string, unknown> } }) {
-        return new FakeMaterial("fabric", o.fabric.uniforms);
-      },
-      { fromType: (type: string, u: Record<string, unknown>) => new FakeMaterial(type, u) },
-    ),
+    Material: class extends FakeMaterial {
+      constructor(o: { fabric: { uniforms: Record<string, unknown> } }) {
+        super("fabric", o.fabric.uniforms);
+      }
+      static fromType = (type: string, u: Record<string, unknown>) => new FakeMaterial(type, u);
+    },
     Color: { fromCssColorString: (c: string) => ({ css: c }) },
     ClassificationType: { TERRAIN: 0, BOTH: 2 },
     ShadowMode: { ENABLED: 1, CAST_ONLY: 2 },

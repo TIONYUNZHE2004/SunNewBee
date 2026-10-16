@@ -42,6 +42,10 @@ const TIME_OPS: TimeOps = {
 
 const PICK_PX = 8;
 
+// Module-level: resium compares read-only Viewer props by reference and recreates the viewer on a
+// new object, so an inline literal would rebuild the WebGL context on every render.
+const CONTEXT_OPTIONS = { webgl: { alpha: true } } as const;
+
 /** Child of <Viewer>: mounts only after resium has created the viewer. */
 function SceneSetup({
   onNoDraping,
@@ -256,7 +260,7 @@ export default function CesiumScene({ onOps }: { onOps?: (ops: CameraOps | null)
         full={false}
         style={{ width: "100%", height: "100%" }}
         requestRenderMode
-        contextOptions={{ webgl: { alpha: true } }}
+        contextOptions={CONTEXT_OPTIONS}
         onUpdate={() => {
           const v = ref.current?.cesiumElement;
           if (v && !v.isDestroyed()) v.scene.requestRender();

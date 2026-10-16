@@ -17,7 +17,15 @@ import { groupByClass, toBuildings, treesToPoints } from "./model";
 import { paletteFor } from "./palette";
 import { applyPostFx } from "./postfx";
 import { buildProps, kerbCars, type Props, streetTrees } from "./props";
-import { createFrameMonitor, gpuName, lowerTier, pickTier, TIERS, type Tier } from "./quality";
+import {
+  createFrameMonitor,
+  createFrameSampler,
+  gpuName,
+  lowerTier,
+  pickTier,
+  TIERS,
+  type Tier,
+} from "./quality";
 import { reskin } from "./reskin";
 
 export interface StylisedReady {
@@ -206,10 +214,8 @@ export function StylisedCity({ onReady }: { onReady?: (info: StylisedReady) => v
 
   // Quality tier: the user's choice, or the GPU-picked tier lowered by the frame monitor.
   const quality = useSceneSettings((s) => s.quality);
-  const [autoTier, setAutoTier] = useState<Tier>("medium");
-  const tier: Tier = quality === "auto" ? autoTier : quality;
-  useEffect(() => {
-    if (!viewer || viewer.isDestroyed()) return;
+  const detected = useMemo<Tier>(() => {
+    if (!viewer || viewer.isDestroyed()) return "medium";
     let gpu: string | undefined;
     try {
       const gl = (viewer.scene as unknown as { context: { _gl?: WebGLRenderingContext } }).context
@@ -218,27 +224,25 @@ export function StylisedCity({ onReady }: { onReady?: (info: StylisedReady) => v
     } catch {
       gpu = undefined;
     }
-    const mem = (navigator as Navigator & { deviceMemory?: number }).deviceMemory;
-    setAutoTier(pickTier(gpu, mem));
+    return pickTier(gpu, (navigator as Navigator & { deviceMemory?: number }).deviceMemory);
   }, [viewer]);
+  // Only ever lowered from the detected tier by the frame monitor.
+  const [dropped, setDropped] = useState<Tier | null>(null);
+  const autoTier = dropped ?? detected;
+  const tier: Tier = quality === "auto" ? autoTier : quality;
   useEffect(() => {
     if (!viewer || viewer.isDestroyed() || quality !== "auto") return;
-    const monitor = createFrameMonitor(() => setAutoTier(lowerTier));
-    let last = performance.now();
-    let lastMove = Number.NEGATIVE_INFINITY;
-    const offMove = viewer.camera.changed.addEventListener(() => {
-      lastMove = performance.now();
-    });
-    const offPost = viewer.scene.postRender.addEventListener(() => {
-      const now = performance.now();
-      monitor.sample(now - last, now - lastMove < 300);
-      last = now;
-    });
+    const monitor = createFrameMonitor(() => setDropped((d) => lowerTier(d ?? detected)));
+    const sampler = createFrameSampler(monitor);
+    const offMove = viewer.camera.changed.addEventListener(() => sampler.moved(performance.now()));
+    const offPost = viewer.scene.postRender.addEventListener(() =>
+      sampler.frame(performance.now()),
+    );
     return () => {
       offMove();
       offPost();
     };
-  }, [viewer, quality]);
+  }, [viewer, quality, detected]);
   useEffect(() => {
     if (!viewer || viewer.isDestroyed()) return;
     applyPostFx(Cesium, viewer, paletteFor(theme), TIERS[tier]);

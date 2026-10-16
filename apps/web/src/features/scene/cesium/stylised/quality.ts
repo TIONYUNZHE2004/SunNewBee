@@ -63,9 +63,10 @@ export function createFrameMonitor(onDrop: () => void, { windowMs = 3000, minFps
   let elapsed = 0;
   return {
     sample(dtMs: number, moving: boolean) {
-      if (!moving || dtMs <= 0 || dtMs > 1000) return;
-      samples.push(dtMs);
-      elapsed += dtMs;
+      if (!moving || dtMs <= 0) return;
+      const dt = Math.min(dtMs, 1000); // a very slow frame still counts as slow
+      samples.push(dt);
+      elapsed += dt;
       if (elapsed < windowMs) return;
       const sorted = [...samples].sort((a, b) => a - b);
       const median = sorted[Math.floor(sorted.length / 2)] as number;
@@ -86,4 +87,27 @@ export function gpuName(
   } catch {
     return undefined;
   }
+}
+
+/**
+ * Feeds a frame monitor from render events. Under requestRenderMode frames only happen on demand,
+ * so the gap since the previous frame includes idle time: restart the clock when movement resumes
+ * after an idle spell, so the pause is not counted as one slow frame.
+ */
+export function createFrameSampler(
+  monitor: { sample(dtMs: number, moving: boolean): void },
+  idleMs = 300,
+) {
+  let last = Number.NEGATIVE_INFINITY;
+  let lastMove = Number.NEGATIVE_INFINITY;
+  return {
+    moved(now: number) {
+      if (now - lastMove >= idleMs) last = now;
+      lastMove = now;
+    },
+    frame(now: number) {
+      if (last !== Number.NEGATIVE_INFINITY) monitor.sample(now - last, now - lastMove < idleMs);
+      last = now;
+    },
+  };
 }

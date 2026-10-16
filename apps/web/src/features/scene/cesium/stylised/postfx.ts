@@ -6,6 +6,7 @@ type Stage = { enabled: boolean; uniforms: Record<string, number | boolean> };
 export interface FxViewer {
   shadows: boolean;
   resolutionScale: number;
+  useBrowserRecommendedResolution: boolean;
   scene: {
     postProcessStages: { fxaa: Stage; ambientOcclusion: Stage; bloom: Stage };
     shadowMap: {
@@ -30,9 +31,8 @@ export function applyPostFx(_C: typeof Cesium, viewer: FxViewer, p: Palette, tie
     intensity: tier.ao === "low" ? 2.0 : 3.0,
     bias: 0.1,
     lengthCap: 0.26,
-    stepSize: tier.ao === "low" ? 2.0 : 1.0,
-    frustumLength: 1000,
-    blurStepSize: 0.86,
+    directionCount: tier.ao === "low" ? 4 : 8,
+    stepCount: tier.ao === "low" ? 8 : 16,
     ambientOcclusionOnly: false,
   });
 
@@ -56,6 +56,8 @@ export function applyPostFx(_C: typeof Cesium, viewer: FxViewer, p: Palette, tie
   }
 
   const dpr = typeof devicePixelRatio === "number" ? devicePixelRatio : 1;
+  // Otherwise Cesium's pixel ratio is resolutionScale alone (CSS pixels) and HiDPI renders soft.
+  viewer.useBrowserRecommendedResolution = false;
   viewer.resolutionScale = Math.min(dpr, tier.maxPixelRatio) / dpr;
   scene.requestRender();
 }
