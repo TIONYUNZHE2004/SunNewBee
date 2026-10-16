@@ -205,9 +205,9 @@ export function buildProps(
     { colour: (p) => p.tree[0], instances: [], shadows: C.ShadowMode.CAST_ONLY },
     { colour: (p) => p.tree[1], instances: [], shadows: C.ShadowMode.CAST_ONLY },
     { colour: (p) => p.trunk, instances: [], shadows: C.ShadowMode.CAST_ONLY },
-    { colour: (p) => p.car[0], instances: [], shadows: C.ShadowMode.ENABLED },
-    { colour: (p) => p.car[1], instances: [], shadows: C.ShadowMode.ENABLED },
-    { colour: (p) => p.car[2], instances: [], shadows: C.ShadowMode.ENABLED },
+    { colour: (p) => p.car[0], instances: [], shadows: C.ShadowMode.CAST_ONLY },
+    { colour: (p) => p.car[1], instances: [], shadows: C.ShadowMode.CAST_ONLY },
+    { colour: (p) => p.car[2], instances: [], shadows: C.ShadowMode.CAST_ONLY },
   ];
   for (const t of trees) {
     const tone = hashUnit(`${t.lon.toFixed(6)},${t.lat.toFixed(6)}`, "tree") < 0.55 ? 0 : 1;

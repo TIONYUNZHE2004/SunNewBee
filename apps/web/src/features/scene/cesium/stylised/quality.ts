@@ -3,7 +3,7 @@ export type Tier = "high" | "medium" | "low";
 export interface TierSpec {
   shadows: "soft" | "hard" | "off";
   shadowMapSize: number;
-  ao: "on" | "low" | "off";
+  ao: "off" | "low" | "off";
   bloom: boolean;
   maxPixelRatio: number;
   birds: number;
@@ -12,11 +12,16 @@ export interface TierSpec {
   detailRangeM: number;
 }
 
+/**
+ * `ao` is "off" at every tier: Cesium's ambient occlusion (HBAO) renders black buildings and red
+ * horizontal streaks over the stylised flat-ellipsoid scene (verified on a real GPU). The field stays
+ * so a future AO can be switched on per tier.
+ */
 export const TIERS: Record<Tier, TierSpec> = {
   high: {
     shadows: "soft",
     shadowMapSize: 2048,
-    ao: "on",
+    ao: "off",
     bloom: true,
     maxPixelRatio: 2,
     birds: 5,
@@ -26,7 +31,7 @@ export const TIERS: Record<Tier, TierSpec> = {
   medium: {
     shadows: "hard",
     shadowMapSize: 1024,
-    ao: "low",
+    ao: "off",
     bloom: true,
     maxPixelRatio: 1.5,
     birds: 3,

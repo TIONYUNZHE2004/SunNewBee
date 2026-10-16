@@ -116,7 +116,7 @@ describe("buildProps", () => {
     expect(primitives.length).toBeGreaterThan(0);
     for (const p of primitives) {
       expect(p.kind).toBe("Primitive");
-      expect(p.options).toMatchObject({ allowPicking: false, asynchronous: true });
+      expect(p.options).toMatchObject({ allowPicking: false, asynchronous: true, shadows: 2 });
     }
   });
 

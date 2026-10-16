@@ -28,7 +28,7 @@ describe("applyPostFx", () => {
       size: 2048,
       maximumDistance: 3000,
     });
-    expect(v.scene.postProcessStages.ambientOcclusion.enabled).toBe(true);
+    expect(v.scene.postProcessStages.ambientOcclusion.enabled).toBe(false); // off even at high
     expect(v.scene.postProcessStages.bloom.enabled).toBe(true);
     expect(v.scene.postProcessStages.fxaa.enabled).toBe(true);
   });
@@ -47,20 +47,17 @@ describe("applyPostFx", () => {
     const p = paletteFor("dusk");
     expect(skyCss(p)).toBe(`linear-gradient(180deg, ${p.skyTop} 0%, ${p.horizon} 100%)`);
   });
-  it("uses Cesium's real AO uniforms, lighter on the low setting", () => {
+  it("uses the tuned bloom uniforms", () => {
     const v = viewer();
-    applyPostFx(C as never, v as never, paletteFor("day"), TIERS.high);
-    const ao = v.scene.postProcessStages.ambientOcclusion.uniforms;
-    expect(ao).toMatchObject({
-      intensity: 3,
-      bias: 0.1,
-      lengthCap: 0.26,
-      directionCount: 8,
-      stepCount: 16,
+    applyPostFx(C as never, v as never, paletteFor("dusk"), TIERS.high);
+    expect(v.scene.postProcessStages.bloom.uniforms).toMatchObject({
+      contrast: 119,
+      brightness: -0.85,
+      delta: 1,
+      sigma: 2,
+      stepSize: 1,
+      glowOnly: false,
     });
-    applyPostFx(C as never, v as never, paletteFor("day"), TIERS.medium);
-    expect(ao).toMatchObject({ intensity: 2, directionCount: 4, stepCount: 8 });
-    expect(ao).not.toHaveProperty("stepSize");
   });
   describe("pixel ratio", () => {
     afterEach(() => vi.unstubAllGlobals());

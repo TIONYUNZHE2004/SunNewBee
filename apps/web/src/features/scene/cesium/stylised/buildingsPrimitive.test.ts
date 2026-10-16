@@ -116,6 +116,7 @@ describe("buildBuildingPrimitives", () => {
         asynchronous: false,
         compressVertices: false,
         allowPicking: false,
+        shadows: 2, // CAST_ONLY: faces never self-shadow (acne)
       });
     }
   });

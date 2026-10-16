@@ -180,7 +180,7 @@ export function buildBuildingPrimitives(
       compressVertices: false,
       releaseGeometryInstances: true,
       allowPicking: false,
-      shadows: C.ShadowMode.ENABLED,
+      shadows: C.ShadowMode.CAST_ONLY,
     });
     collection?.add(primitive);
     primitives.push(primitive);

@@ -18,13 +18,13 @@ describe("quality tiers", () => {
     expect(TIERS.high).toMatchObject({
       shadows: "soft",
       shadowMapSize: 2048,
-      ao: "on",
+      ao: "off",
       maxPixelRatio: 2,
     });
     expect(TIERS.medium).toMatchObject({
       shadows: "hard",
       shadowMapSize: 1024,
-      ao: "low",
+      ao: "off",
       maxPixelRatio: 1.5,
     });
     expect(TIERS.low).toMatchObject({

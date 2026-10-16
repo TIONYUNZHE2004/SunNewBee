@@ -25,25 +25,17 @@ export function applyPostFx(_C: typeof Cesium, viewer: FxViewer, p: Palette, tie
   const s = scene.postProcessStages;
   s.fxaa.enabled = true;
 
-  const ao = s.ambientOcclusion;
-  ao.enabled = tier.ao !== "off";
-  Object.assign(ao.uniforms, {
-    intensity: tier.ao === "low" ? 2.0 : 3.0,
-    bias: 0.1,
-    lengthCap: 0.26,
-    directionCount: tier.ao === "low" ? 4 : 8,
-    stepCount: tier.ao === "low" ? 8 : 16,
-    ambientOcclusionOnly: false,
-  });
+  // Always off: Cesium's HBAO draws black buildings and streaks on this flat scene (see TIERS).
+  s.ambientOcclusion.enabled = false;
 
   const bloom = s.bloom;
   bloom.enabled = p.bloom && tier.bloom;
   Object.assign(bloom.uniforms, {
     glowOnly: false,
-    contrast: 128,
-    brightness: -0.3,
+    contrast: 119,
+    brightness: -0.85,
     delta: 1.0,
-    sigma: 2.5,
+    sigma: 2.0,
     stepSize: 1.0,
   });
 
