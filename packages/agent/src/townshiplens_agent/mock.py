@@ -454,7 +454,7 @@ def _day(q: str, rets, info: AgentInfo) -> ModelResponse:
             else "friday"
             if re.search(r"friday|jumaat|jumat|prayer", q)
             else "event"
-            if re.search(r"event|night|park|community", q)
+            if re.search(r"event|night|park|community|acara|malam|taman", q)
             else "weekday"
         )
         return _call("day_rehearsal", day=sid)

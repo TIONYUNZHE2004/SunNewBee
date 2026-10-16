@@ -80,3 +80,11 @@
   message: "Which 2 changes would help wheelchair users most on everyday trips?"
   profile: wheelchair
   expect: { tools_include: [find_fixes], events_include: [citation], text_includes: ["what-if"], text_excludes: ["will be built", " is confirmed"] }
+- id: day-weekday-rehearsal
+  message: "What happens to residents on a normal weekday rehearsal?"
+  profile: default
+  expect: { tools_include: [day_rehearsal], events_include: [scene.intent, citation], text_includes: ["synthetic", "not a forecast"], text_excludes: [" safe", "will be stranded", "%"] }
+- id: day-event-rehearsal-bm
+  message: "Apa yang berlaku kepada penduduk dalam latihan malam acara di taman?"
+  profile: default
+  expect: { tools_include: [day_rehearsal], events_include: [scene.intent, citation], text_excludes: [" safe", "selamat"], mock_only: { text_includes: ["synthetic", "not a forecast", "night"] } }
