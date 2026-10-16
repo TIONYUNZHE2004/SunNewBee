@@ -20,14 +20,18 @@ export function RouteSummary({ m }: { m: AssistantMessage }) {
   const chip = r?.status ? ROUTE_CHIP[r.status] : undefined;
   const sc = m.scenarioId ? scenarios.find((s) => s.id === m.scenarioId) : undefined;
   const flood =
-    sc && typeof sc.stage_m === "number" && sc.stage_m > 0 ? `+${sc.stage_m} m · indicative` : null;
-  if (!chip && !flood) return null;
+    sc && typeof sc.stage_m === "number" && sc.stage_m > 0
+      ? `River +${sc.stage_m} m · indicative`
+      : null;
   // A bare "No known barrier" must never read as surveyed fact when the evidence is demo data.
   const demo = m.citations.some((c) => isPlaceholderSource(c.source_type));
+  // "Show on map" flies to the scene's current route, so it is offered only on that route's card.
+  const isCurrent = useScene((s) => s.route?.id) === r?.id;
+  if (!chip && !flood && !demo) return null;
   return (
     <div className="flex flex-wrap items-center gap-2 rounded-xl bg-brand-tint px-3 py-2">
       {chip && <StatusChip status={chip.status} label={chip.label} />}
-      {chip && demo && <StatusChip status="demo" />}
+      {demo && <StatusChip status="demo" />}
       {chip && typeof r?.distanceM === "number" && (
         <span className="text-xs font-semibold text-fg">{Math.round(r.distanceM)} m</span>
       )}
@@ -37,7 +41,7 @@ export function RouteSummary({ m }: { m: AssistantMessage }) {
         </span>
       )}
       {flood && <StatusChip status="likely" label={flood} />}
-      {chip && r && (
+      {chip && r && isCurrent && (
         <button
           type="button"
           onClick={() => useScene.getState().requestRouteFocus(r.id)}

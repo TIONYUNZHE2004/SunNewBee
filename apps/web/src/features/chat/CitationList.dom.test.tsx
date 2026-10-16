@@ -20,7 +20,7 @@ const names = new Map(citations.map((c) => [c.element_id, `Place ${c.element_id.
 const setup = (defaultExpanded = false) =>
   render(<CitationList citations={citations} names={names} defaultExpanded={defaultExpanded} />);
 
-const HEADER = "Evidence · 6 sources · 2 demo values";
+const HEADER = "Evidence · 6 sources · 2 with demo values (not surveyed)";
 
 describe("CitationList summary", () => {
   it("is collapsed by default behind a summary that states source and demo counts", () => {

@@ -51,6 +51,7 @@ describe("AnswerCard", () => {
   });
 
   it("summary strip shows status with its label, distance, time and Show on map", () => {
+    useScene.setState({ route: { id: "r1", geojson: { type: "LineString", coordinates: [] } } });
     show(msg());
     expect(screen.getByText("Some parts not checked yet")).toBeInTheDocument();
     expect(screen.getByText("420 m")).toBeInTheDocument();
@@ -81,7 +82,9 @@ describe("AnswerCard", () => {
   });
   it("evidence is collapsed to a summary that states the demo-value count", () => {
     show(msg());
-    const btn = screen.getByRole("button", { name: /Evidence · 3 sources · 2 demo values/ });
+    const btn = screen.getByRole("button", {
+      name: /Evidence · 3 sources · 2 with demo values \(not surveyed\)/,
+    });
     expect(btn).toHaveAttribute("aria-expanded", "false");
     fireEvent.click(btn);
     expect(screen.getAllByText("Demo value · not surveyed").length).toBeGreaterThan(0);

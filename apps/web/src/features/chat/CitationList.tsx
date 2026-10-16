@@ -31,7 +31,9 @@ export function CitationList({
       >
         <span>
           Evidence · {n} {n === 1 ? "source" : "sources"}
-          {demo > 0 ? ` · ${demo} demo ${demo === 1 ? "value" : "values"}` : ""}
+          {demo > 0
+            ? ` · ${demo} with ${demo === 1 ? "a demo value" : "demo values"} (not surveyed)`
+            : ""}
         </span>
         <Icon name="chevron" className={`size-4 transition-transform ${open ? "rotate-90" : ""}`} />
       </button>

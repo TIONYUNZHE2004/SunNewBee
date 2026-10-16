@@ -42,7 +42,11 @@ export function useCameraIntents(
         );
         if (pts.length)
           move((v) => go(v, Cesium.BoundingSphere.fromPoints(pts), undefined, pitchDeg));
-      } else if (s.focusRouteRequest && s.focusRouteRequest !== prev.focusRouteRequest && s.route) {
+      } else if (
+        s.focusRouteRequest &&
+        s.focusRouteRequest !== prev.focusRouteRequest &&
+        s.route?.id === s.focusRouteRequest
+      ) {
         const pts = s.route.geojson.coordinates.map((c) =>
           Cesium.Cartesian3.fromDegrees(c[0] as number, c[1] as number),
         );

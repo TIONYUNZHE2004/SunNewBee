@@ -36,6 +36,10 @@ test("access hero shows a route status and honest demo evidence", async ({ page 
   await expect(last).toContainText(/Route status: confirmed/);
   await expect(last).toContainText(/Demo value · not surveyed/);
   await expect(last).not.toContainText(/(?<!not |un)verified/i);
+  await last.getByRole("button", { name: /^Evidence/ }).click();
+  await expect(last.getByRole("list", { name: "Evidence" })).toContainText(
+    /Demo value · not surveyed/,
+  );
 });
 
 test("flood answer carries the disclaimer and never says safe", async ({ page }) => {
