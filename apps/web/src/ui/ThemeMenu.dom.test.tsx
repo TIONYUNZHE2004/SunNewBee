@@ -40,4 +40,22 @@ describe("ThemeMenu", () => {
     expect(screen.queryByRole("menu")).toBeNull();
     expect(document.activeElement).toBe(btn);
   });
+
+  it("clicking the icon inside the open button closes the menu (no reopen)", () => {
+    render(<ThemeMenu />);
+    const btn = screen.getByRole("button", { name: /^Theme:/ });
+    fireEvent.click(btn);
+    const icon = btn.querySelector("span") as HTMLElement;
+    fireEvent.mouseDown(icon);
+    fireEvent.click(icon);
+    expect(screen.queryByRole("menu")).toBeNull();
+    expect(btn).toHaveAttribute("aria-expanded", "false");
+  });
+
+  it("a mousedown outside closes the menu", () => {
+    render(<ThemeMenu />);
+    fireEvent.click(screen.getByRole("button", { name: /^Theme:/ }));
+    fireEvent.mouseDown(document.body);
+    expect(screen.queryByRole("menu")).toBeNull();
+  });
 });

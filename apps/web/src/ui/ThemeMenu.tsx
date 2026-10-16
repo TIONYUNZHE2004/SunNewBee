@@ -26,7 +26,8 @@ export function ThemeMenu() {
       btn.current?.focus();
     };
     const onDown = (e: MouseEvent) => {
-      if (!menu.current?.contains(e.target as Node) && e.target !== btn.current) setOpen(false);
+      if (!menu.current?.contains(e.target as Node) && !btn.current?.contains(e.target as Node))
+        setOpen(false);
     };
     document.addEventListener("keydown", onKey);
     document.addEventListener("mousedown", onDown);
