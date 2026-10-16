@@ -57,6 +57,11 @@ describe("MainPage", () => {
       "Map settings",
     ]);
   });
+  it("the panel slide is off under reduced motion", () => {
+    renderMain();
+    const panel = screen.getByRole("complementary", { name: "Assistant" }).parentElement;
+    expect(panel).toHaveClass("transition-transform", "motion-reduce:transition-none");
+  });
   it("collapsing hides the panel visually but keeps the conversation mounted", () => {
     renderMain();
     fireEvent.click(screen.getByRole("button", { name: "Hide assistant" }));

@@ -60,10 +60,13 @@ describe("BeforeAfter", () => {
       view(t("x"));
       const after = screen.getByText(/Verified on/).closest("section");
       expect(after).toHaveAttribute("data-highlight", "true");
+      // The focus ring with an offset stays visible on the accent-filled card.
+      expect(after).toHaveClass("ring-2", "ring-focus", "ring-offset-2");
       act(() => {
         vi.advanceTimersByTime(1300);
       });
       expect(after).toHaveAttribute("data-highlight", "false");
+      expect(after).not.toHaveClass("ring-2");
     });
   });
 

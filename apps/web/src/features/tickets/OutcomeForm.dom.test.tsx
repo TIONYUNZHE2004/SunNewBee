@@ -71,6 +71,20 @@ describe("OutcomeForm", () => {
     expect(screen.getByRole("radio", { name: /Confirm/ })).toBeChecked();
   });
 
+  it("the chosen card shows a check glyph and a 2 px accent border", async () => {
+    const { user } = setup();
+    const card = (name: RegExp) =>
+      screen.getByRole("radio", { name }).closest("label") as HTMLElement;
+    expect(card(/Reject/).querySelector('[data-testid="choice-check"]')).toBeNull();
+    await user.click(screen.getByRole("radio", { name: /Reject/ }));
+    const chosen = card(/Reject/);
+    const check = chosen.querySelector('[data-testid="choice-check"]');
+    expect(check).not.toBeNull();
+    expect(check?.closest("[aria-hidden='true']")).not.toBeNull();
+    expect(chosen.className).toContain("has-[:checked]:border-2");
+    expect(card(/Confirm/).querySelector('[data-testid="choice-check"]')).toBeNull();
+  });
+
   it("disables Save until an outcome (and a value for Correct) is chosen", async () => {
     const { user } = setup();
     expect(save()).toBeDisabled();

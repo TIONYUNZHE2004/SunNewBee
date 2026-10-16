@@ -46,6 +46,15 @@ describe("AssistantPanel", () => {
     expect(cards.length).toBeGreaterThanOrEqual(4);
     expect(cards[0]?.querySelector("svg[aria-hidden='true']")).not.toBeNull();
   });
+  it("the starter card lift only runs when motion is allowed", () => {
+    stubFetch(() => json([]));
+    renderWithClient(<AssistantPanel />);
+    const card = screen.getAllByRole("button", { name: /route/i })[0] as HTMLElement;
+    const classes = card.className.split(/\s+/);
+    expect(classes).toContain("motion-safe:hover:-translate-y-px");
+    expect(classes).not.toContain("hover:-translate-y-px");
+    expect(classes).not.toContain("transition");
+  });
   it("tapping a starter card sends it", async () => {
     const fetchFn = stubFetch((url) =>
       url.includes("/chat")

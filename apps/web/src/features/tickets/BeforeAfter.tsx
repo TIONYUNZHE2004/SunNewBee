@@ -52,7 +52,7 @@ export function BeforeAfter({ ticket }: { ticket: Ticket }) {
         </span>
         <section
           data-highlight={String(hl)}
-          className={`rounded-lg border border-edge bg-accent p-4 text-on-accent transition-shadow ${hl ? "ring-accent motion-safe:ring-2" : ""}`}
+          className={`rounded-lg border border-edge bg-accent p-4 text-on-accent motion-safe:transition-shadow ${hl ? "ring-2 ring-focus ring-offset-2 ring-offset-bg" : ""}`}
         >
           <h3 className="text-xs font-semibold uppercase tracking-wide">Now</h3>
           <p className="mt-1 text-sm">

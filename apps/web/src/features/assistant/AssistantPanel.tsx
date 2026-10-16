@@ -88,7 +88,7 @@ export function AssistantPanel({
                       type="button"
                       disabled={streaming}
                       onClick={() => pick(s)}
-                      className="flex h-full min-h-24 w-full flex-col items-start gap-2 rounded-xl border border-edge bg-raised p-3 text-left text-sm text-fg transition hover:-translate-y-px hover:border-accent disabled:opacity-60"
+                      className="flex h-full min-h-24 w-full flex-col items-start gap-2 rounded-xl border border-edge bg-raised p-3 text-left text-sm text-fg hover:border-accent motion-safe:transition motion-safe:hover:-translate-y-px disabled:opacity-60"
                     >
                       <span className="grid size-9 place-items-center rounded-lg bg-brand-tint text-accent">
                         <Icon name={s.icon} />

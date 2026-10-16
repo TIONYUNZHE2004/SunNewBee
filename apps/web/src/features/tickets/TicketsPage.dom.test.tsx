@@ -25,6 +25,16 @@ const vr = (id: string, demand: number, over: object = {}) => ({
 beforeEach(() => useStaffTokenStore.setState({ token: "tok" }));
 
 describe("TicketsPage", () => {
+  it("leaves room at the bottom for the attribution strip", async () => {
+    stubFetch((url) => json(url.includes("verification-requests") ? [vr("one", 5)] : []));
+    const { container } = renderWithClient(
+      <MemoryRouter>
+        <TicketsPage />
+      </MemoryRouter>,
+    );
+    await screen.findByRole("heading", { name: "Gaps to close" });
+    expect(container.firstElementChild).toHaveClass("pb-10");
+  });
   it("keeps the auto-selected ticket after Save instead of jumping to the next", async () => {
     let first: object = vr("one", 5);
     stubFetch((url, init) => {

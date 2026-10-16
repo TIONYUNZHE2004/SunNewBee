@@ -1,10 +1,16 @@
 // @vitest-environment jsdom
 import { fireEvent, screen, within } from "@testing-library/react";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { json, renderWithClient, stubFetch } from "../../test/helpers";
 import type { AssistantMessage } from "../chat/chatReducer";
 import { useScene } from "../scene/sceneStore";
 import { AnswerCard } from "./AnswerCard";
+
+// Show on map is offered only in the 3D view.
+vi.mock("../scene/useMapStyle", async (orig) => ({
+  ...(await orig<typeof import("../scene/useMapStyle")>()),
+  useEffectiveView: () => "cesium",
+}));
 
 const cite = (i: number, demo: boolean) => ({
   type: "citation",

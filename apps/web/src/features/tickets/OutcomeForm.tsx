@@ -127,7 +127,7 @@ export function OutcomeForm({ ticket, onSaved }: { ticket: Ticket; onSaved?: () 
           {options.map((o) => (
             <label
               key={o.id}
-              className="flex min-h-20 cursor-pointer flex-col gap-1 rounded-xl border border-edge p-3 text-sm text-fg transition has-[:checked]:border-accent has-[:checked]:bg-brand-tint has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-focus"
+              className="flex min-h-20 cursor-pointer flex-col gap-1 rounded-xl border border-edge p-3 text-sm text-fg transition has-[:checked]:border-2 has-[:checked]:border-accent has-[:checked]:bg-brand-tint has-[:checked]:p-[11px] has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-focus"
             >
               <input
                 type="radio"
@@ -140,6 +140,15 @@ export function OutcomeForm({ ticket, onSaved }: { ticket: Ticket; onSaved?: () 
               <span className="flex items-center gap-2 font-semibold">
                 <Icon name={ICONS[o.id]} className="size-4" />
                 {o.label}
+                {outcome === o.id && (
+                  <span
+                    data-testid="choice-check"
+                    aria-hidden="true"
+                    className="ml-auto text-accent"
+                  >
+                    <Icon name="check" className="size-4" />
+                  </span>
+                )}
               </span>
               <span className="text-xs text-fg-soft">{o.desc}</span>
             </label>

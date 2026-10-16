@@ -5,6 +5,7 @@ import { StatusChip } from "../../ui/StatusChip";
 import type { StatusKey } from "../../ui/status";
 import type { AssistantMessage } from "../chat/chatReducer";
 import { useScene } from "../scene/sceneStore";
+import { useEffectiveView } from "../scene/useMapStyle";
 
 /** Route status -> chip. OSM-derived "confirmed" is never called Verified (honesty rule). */
 export const ROUTE_CHIP: Record<string, { status: StatusKey; label: string }> = {
@@ -25,8 +26,10 @@ export function RouteSummary({ m }: { m: AssistantMessage }) {
       : null;
   // A bare "No known barrier" must never read as surveyed fact when the evidence is demo data.
   const demo = m.citations.some((c) => isPlaceholderSource(c.source_type));
-  // "Show on map" flies to the scene's current route, so it is offered only on that route's card.
+  // "Show on map" flies to the scene's current route, so it is offered only on that route's card,
+  // and only in the 3D view (List and Mapbox ignore focusRouteRequest).
   const isCurrent = useScene((s) => s.route?.id) === r?.id;
+  const in3d = useEffectiveView() === "cesium";
   if (!chip && !flood && !demo) return null;
   return (
     <div className="flex flex-wrap items-center gap-2 rounded-xl bg-brand-tint px-3 py-2">
@@ -41,7 +44,7 @@ export function RouteSummary({ m }: { m: AssistantMessage }) {
         </span>
       )}
       {flood && <StatusChip status="likely" label={flood} />}
-      {chip && r && isCurrent && (
+      {chip && r && isCurrent && in3d && (
         <button
           type="button"
           onClick={() => useScene.getState().requestRouteFocus(r.id)}

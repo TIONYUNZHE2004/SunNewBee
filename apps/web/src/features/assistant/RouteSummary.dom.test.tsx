@@ -1,10 +1,17 @@
 // @vitest-environment jsdom
 import { screen } from "@testing-library/react";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { json, newQueryClient, renderWithClient, stubFetch } from "../../test/helpers";
 import type { AssistantMessage } from "../chat/chatReducer";
 import { useScene } from "../scene/sceneStore";
 import { RouteSummary } from "./RouteSummary";
+
+const eff = vi.hoisted(() => ({ view: "cesium" }));
+// Show on map only does something in the 3D view, so these tests run "on" Cesium by default.
+vi.mock("../scene/useMapStyle", async (orig) => ({
+  ...(await orig<typeof import("../scene/useMapStyle")>()),
+  useEffectiveView: () => eff.view,
+}));
 
 const demoCite = {
   type: "citation",
@@ -30,6 +37,7 @@ const DEMO = /Demo value · not surveyed/;
 describe("RouteSummary", () => {
   beforeEach(() => {
     useScene.setState({ route: null });
+    eff.view = "cesium";
     stubFetch(() => json([]));
   });
 
@@ -67,5 +75,13 @@ describe("RouteSummary", () => {
     useScene.setState({ route: line("r1") });
     renderWithClient(<RouteSummary m={m} />);
     expect(screen.getByRole("button", { name: "Show on map" })).toBeInTheDocument();
+  });
+
+  it.each(["list", "mapbox"])("Show on map is not offered in the %s view", (view) => {
+    eff.view = view;
+    useScene.setState({ route: line("r1") });
+    renderWithClient(<RouteSummary m={{ ...base, route: { id: "r1", status: "confirmed" } }} />);
+    expect(screen.getByText("No known barrier")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Show on map" })).toBeNull();
   });
 });

@@ -20,7 +20,8 @@ interface PanelState {
 }
 
 export const usePanel = create<PanelState>((set) => ({
-  // Narrow screens (no bottom sheet yet) start closed and ignore the stored choice.
+  // Narrow screens use the bottom sheet, not this panel: `open` starts false there and ignores the
+  // stored choice.
   open: wideNow() && read() !== "false",
   setOpen: (open) => {
     try {
