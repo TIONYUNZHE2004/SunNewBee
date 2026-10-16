@@ -74,4 +74,54 @@ describe("CameraControls", () => {
     handleMapKey(ev("w", input), o);
     expect(o.move).toHaveBeenCalledTimes(1);
   });
+
+  describe("keyboard through React's event path", () => {
+    const setup = () => {
+      const o = ops();
+      render(
+        <div>
+          {/* biome-ignore lint/a11y/noNoninteractiveTabindex: mirrors the real map section */}
+          <section tabIndex={0} aria-label="map" onKeyDown={(e) => handleMapKey(e, o)}>
+            <button type="button">inside</button>
+          </section>
+          <input aria-label="chat" />
+        </div>,
+      );
+      const acted = () =>
+        (o.move as ReturnType<typeof vi.fn>).mock.calls.length +
+        (o.orbit as ReturnType<typeof vi.fn>).mock.calls.length +
+        (o.zoom as ReturnType<typeof vi.fn>).mock.calls.length;
+      return { o, acted };
+    };
+    const KEYS = ["w", "a", "+", "ArrowUp"];
+
+    it("typing in a sibling text field never acts", () => {
+      const { acted } = setup();
+      const input = screen.getByLabelText("chat");
+      for (const key of KEYS) fireEvent.keyDown(input, { key });
+      expect(acted()).toBe(0);
+    });
+
+    it("the same keys on the focused map act", () => {
+      const { acted } = setup();
+      const map = screen.getByLabelText("map");
+      for (const key of KEYS) fireEvent.keyDown(map, { key });
+      expect(acted()).toBe(KEYS.length);
+    });
+
+    it("a key from a button inside the map acts", () => {
+      const { o } = setup();
+      fireEvent.keyDown(screen.getByRole("button", { name: "inside" }), { key: "w" });
+      expect(o.move).toHaveBeenCalledWith(0, 1);
+    });
+
+    it("Ctrl, Meta and Alt combos never act", () => {
+      const { acted } = setup();
+      const map = screen.getByLabelText("map");
+      fireEvent.keyDown(map, { key: "w", ctrlKey: true });
+      fireEvent.keyDown(map, { key: "w", metaKey: true });
+      fireEvent.keyDown(map, { key: "w", altKey: true });
+      expect(acted()).toBe(0);
+    });
+  });
 });

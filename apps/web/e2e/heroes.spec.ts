@@ -64,14 +64,19 @@ test("Escape closes the settings popover and returns focus to its button", async
   await expect(btn).toBeFocused();
 });
 
-test("day/night toggle switches the app theme", async ({ page }) => {
+test("theme menu switches the app theme", async ({ page }) => {
   await open(page);
-  const toggle = page.getByRole("button", { name: /Switch to (day|night) theme/ });
-  const before = await page.evaluate(() => document.documentElement.dataset.theme);
-  await toggle.click();
-  const after = await page.evaluate(() => document.documentElement.dataset.theme);
-  expect(["day", "night"]).toContain(after);
-  expect(after).not.toBe(before);
+  const attrs = () =>
+    page.evaluate(() => ({
+      theme: document.documentElement.dataset.theme,
+      skin: document.documentElement.dataset.skin,
+    }));
+  await page.getByRole("button", { name: /^Theme:/ }).click();
+  await page.getByRole("menuitemradio", { name: "Night" }).click();
+  expect(await attrs()).toEqual({ theme: "night", skin: "dark" });
+  await page.getByRole("button", { name: /^Theme:/ }).click();
+  await page.getByRole("menuitemradio", { name: "Day" }).click();
+  expect(await attrs()).toEqual({ theme: "day", skin: "light" });
 });
 
 test("Tickets is reachable by keyboard Tab order from the header", async ({ page }) => {
