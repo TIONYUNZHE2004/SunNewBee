@@ -117,7 +117,7 @@ export function SettingsPopover() {
           role="dialog"
           aria-label="Map settings"
           id="map-settings"
-          className="glass absolute bottom-20 right-[calc(var(--panel-w,0px)+1rem)] z-20 max-h-[70%] w-80 max-w-[calc(100%-var(--panel-w,0px)-2rem)] space-y-4 overflow-auto rounded-2xl p-4 text-fg shadow-lg"
+          className="glass absolute bottom-20 right-[calc(var(--panel-w,0px)+1rem)] z-20 max-h-[70%] w-80 max-w-[calc(100%-var(--panel-w,0px)-2rem)] space-y-4 overflow-auto rounded-2xl p-4 text-fg"
         >
           <div>
             <Heading icon="compass">Theme</Heading>

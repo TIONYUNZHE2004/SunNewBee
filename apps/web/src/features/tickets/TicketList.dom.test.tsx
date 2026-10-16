@@ -170,4 +170,14 @@ describe("TicketList tabs and meter", () => {
     rerender(<TicketList toCheck={[]} {...p} checked={[{ ...t1, isChecked: true }]} />);
     expect(screen.getAllByRole("tab")[1]).toHaveAttribute("aria-selected", "true");
   });
+  it("the selected row shows selection with outline and bar, not glass-overridden props", () => {
+    render(<TicketList toCheck={[t1, t2]} checked={[]} selectedId="t2" onSelect={() => {}} />);
+    const rows = screen.getAllByRole("button", { pressed: true });
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toHaveClass("outline-2", "outline-accent");
+    expect(rows[0]?.querySelector('span[aria-hidden="true"]')).toHaveClass("bg-accent");
+    const other = screen.getAllByRole("button", { pressed: false })[0];
+    expect(other).not.toHaveClass("outline-accent");
+    expect(other?.querySelector('span[aria-hidden="true"]')).toBeNull();
+  });
 });

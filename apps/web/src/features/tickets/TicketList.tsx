@@ -26,10 +26,13 @@ function Row({
         type="button"
         aria-pressed={selected}
         onClick={() => onSelect(t.id)}
-        className={`glass flex w-full flex-col gap-1 rounded-xl border p-3 text-left ${
-          selected ? "border-accent ring-2 ring-accent" : "border-edge"
+        className={`glass relative flex w-full flex-col overflow-hidden gap-1 rounded-xl border p-3 text-left ${
+          selected ? "outline-2 -outline-offset-2 outline-accent" : ""
         }`}
       >
+        {selected && (
+          <span aria-hidden="true" className="absolute inset-y-0 left-0 w-1.5 bg-accent" />
+        )}
         <span className="flex items-baseline justify-between gap-2">
           <strong className="text-fg">{t.fact}</strong>
           <span className="text-xs text-fg-soft">{t.ago}</span>
