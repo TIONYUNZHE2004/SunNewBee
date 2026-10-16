@@ -221,7 +221,7 @@ motion/flocks.ts       seeded bird loops and cloud spots
 motion/sky.ts          bird and cloud primitives (never pickable, no shadows, hidden at Night)
 reskin.ts              applies a palette to globe, sky, fog, light and every handle
 StylisedCity.tsx       mounts it all inside <Viewer>; roads and props start after the buildings' first frame
-StylisedPreview.tsx    DEV only: /dev/stylised (bare viewer, Day/Dusk/Night, window.__tlStylised timing hooks)
+StylisedPreview.tsx    DEV only: /dev/stylised (bare viewer, Day/Night toggle, window.__tlStylised timing hooks)
 ```
 
 Camera and overlays, beside `stylised/`:
