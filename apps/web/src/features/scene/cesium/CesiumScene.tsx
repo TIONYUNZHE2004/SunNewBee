@@ -5,6 +5,8 @@ import { type CesiumComponentRef, useCesium, Viewer } from "resium";
 import { useLayer, useSite } from "../../../lib/api";
 import { ENV } from "../../../lib/env";
 import { useTheme } from "../../../ui/theme";
+import { usePanel } from "../../main/panelStore";
+import { frustumXOffset, PANEL_INSET_PX, panelWidthPx } from "../../main/viewport";
 import { pickedFloodEdgeId, pointFeatures } from "../geo";
 import { useScene } from "../sceneStore";
 import { useMapStyle } from "../useMapStyle";
@@ -176,6 +178,28 @@ function SceneSetup({
     ro.observe(viewer.canvas);
     return () => ro.disconnect();
   }, [viewer, style]);
+
+  // Shift the projection so the look point sits in the middle of the map area left of the panel.
+  // Runs after the fov effect above (same `style` dependency), so `f.fov` is current.
+  const panelOpen = usePanel((s) => s.open);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `style` re-runs this after the fov effect changes f.fov
+  useEffect(() => {
+    if (!viewer || viewer.isDestroyed()) return;
+    const apply = () => {
+      const f = viewer.camera.frustum;
+      if (!(f instanceof Cesium.PerspectiveFrustum)) return;
+      const w = viewer.canvas.clientWidth;
+      const h = viewer.canvas.clientHeight;
+      const wide = innerWidth >= 1024; // phones use the sheet, not a side panel
+      const panel = wide && panelOpen ? panelWidthPx(innerWidth) + PANEL_INSET_PX * 2 : 0;
+      f.xOffset = frustumXOffset(panel / 2, w, f.near, f.fov ?? 0, h);
+      viewer.scene.requestRender();
+    };
+    apply();
+    const ro = new ResizeObserver(apply);
+    ro.observe(viewer.canvas);
+    return () => ro.disconnect();
+  }, [viewer, panelOpen, style]);
 
   // The compass follows the heading through its own store, so camera moves never re-render the
   // Viewer subtree (only the compass subscribes).

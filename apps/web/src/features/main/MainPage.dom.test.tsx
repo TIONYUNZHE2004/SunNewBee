@@ -1,11 +1,12 @@
 // @vitest-environment jsdom
-import { screen, within } from "@testing-library/react";
+import { fireEvent, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it } from "vitest";
 import { useMode } from "../../app/modeStore";
 import { json, newQueryClient, renderWithClient, stubFetch } from "../../test/helpers";
 import { useScene } from "../scene/sceneStore";
 import { MainPage } from "./MainPage";
+import { usePanel } from "./panelStore";
 
 const scenarios = [
   { id: "baseline", label: "Baseline", stage_m: 0, disclaimer: "d", links: [] },
@@ -13,6 +14,8 @@ const scenarios = [
 ];
 
 beforeEach(() => {
+  localStorage.clear();
+  usePanel.setState({ open: true });
   useScene.getState().reset();
   useMode.setState({ mode: "resident" });
   stubFetch(() => json([]));
@@ -42,13 +45,14 @@ describe("MainPage", () => {
       "Map settings",
     ]);
   });
-  it("bounds the assistant column so the message list scrolls, not the page", () => {
+  it("collapsing hides the panel visually but keeps the conversation mounted", () => {
     renderMain();
-    const wrapper = screen.getByRole("complementary", { name: "Assistant" }).parentElement;
-    expect(wrapper).toHaveClass("flex", "flex-col", "lg:min-h-0");
-    expect(screen.getByRole("region", { name: "3D map of City of Elmina" })).toHaveClass(
-      "lg:min-h-0",
-    );
+    fireEvent.click(screen.getByRole("button", { name: "Hide assistant" }));
+    expect(usePanel.getState().open).toBe(false);
+    expect(localStorage.getItem("tl.panel.open")).toBe("false");
+    expect(screen.getByRole("log", { name: "Conversation", hidden: true })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Show assistant" }));
+    expect(usePanel.getState().open).toBe(true);
   });
   it("settings reveal the legend; +3 m shows the not-a-forecast note", async () => {
     renderMain();

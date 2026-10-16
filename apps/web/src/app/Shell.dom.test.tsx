@@ -54,7 +54,7 @@ describe("Shell", () => {
     expect(await screen.findByRole("link", { name: "Back to map" })).toBeVisible();
     expect(screen.queryByRole("radiogroup", { name: "Perspective" })).toBeNull();
   });
-  it("footer keeps the OpenStreetMap attribution", async () => {
+  it("attribution strip keeps the OpenStreetMap attribution", async () => {
     setup();
     expect(await screen.findByText(/OpenStreetMap contributors/)).toBeVisible();
   });
