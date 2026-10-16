@@ -1,11 +1,12 @@
 // @vitest-environment jsdom
-import { screen, within } from "@testing-library/react";
+import { act, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useMode } from "../../app/modeStore";
 import { ENV } from "../../lib/env";
 import { newQueryClient, renderWithClient } from "../../test/helpers";
 import { useTheme } from "../../ui/theme";
+import { usePanel } from "../main/panelStore";
 import { useSceneSettings } from "../scene/sceneSettingsStore";
 import { useScene } from "../scene/sceneStore";
 import { SettingsPopover } from "./SettingsPopover";
@@ -225,5 +226,47 @@ describe("SettingsPopover", () => {
       );
       expect(useSceneSettings.getState().motion).toBe(false);
     });
+  });
+});
+
+describe("SettingsPopover behind the full phone sheet", () => {
+  const media = (wide: boolean) =>
+    vi.stubGlobal("matchMedia", () => ({
+      matches: wide,
+      addEventListener() {},
+      removeEventListener() {},
+    }));
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    act(() => usePanel.setState({ sheet: "peek" }));
+  });
+  const gear = () => screen.getByRole("button", { name: "Map settings" });
+
+  it("hides the gear (out of tab order) on a narrow screen with the sheet at full", () => {
+    media(false);
+    usePanel.setState({ sheet: "full" });
+    renderWithClient(<SettingsPopover />, seeded());
+    expect(gear().className.split(" ")).toContain("invisible");
+  });
+  it("keeps the gear visible on a narrow screen at half, and on a wide screen at full", () => {
+    media(false);
+    usePanel.setState({ sheet: "half" });
+    const { unmount } = renderWithClient(<SettingsPopover />, seeded());
+    expect(gear().className.split(" ")).not.toContain("invisible");
+    unmount();
+    media(true);
+    usePanel.setState({ sheet: "full" });
+    renderWithClient(<SettingsPopover />, seeded());
+    expect(gear().className.split(" ")).not.toContain("invisible");
+  });
+  it("closes an open popover when the narrow sheet goes to full", async () => {
+    media(false);
+    usePanel.setState({ sheet: "half" });
+    renderWithClient(<SettingsPopover />, seeded());
+    await userEvent.click(gear());
+    expect(screen.getByRole("dialog", { name: "Map settings" })).toBeInTheDocument();
+    act(() => usePanel.setState({ sheet: "full" }));
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(gear()).toHaveAttribute("aria-expanded", "false");
   });
 });

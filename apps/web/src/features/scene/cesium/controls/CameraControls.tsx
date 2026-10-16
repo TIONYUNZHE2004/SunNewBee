@@ -1,5 +1,6 @@
 import type { KeyboardEvent as ReactKeyboardEvent, ReactNode } from "react";
 import { useState } from "react";
+import { useBehindFullSheet } from "../../../main/usePanelReserve";
 import { InSlot } from "../../../map-ui/mapSlots";
 import { useCameraHeading } from "./cameraHeadingStore";
 import { keyAction, STEP } from "./cameraMath";
@@ -54,6 +55,7 @@ export function CameraControls({ ops }: { ops: CameraOps | null }) {
   const [peek, setPeek] = useState(false);
   const open = alwaysShow || peek;
   const heading = useCameraHeading((s) => s.heading);
+  const hidden = useBehindFullSheet();
   if (!ops) return null;
   return (
     <>
@@ -86,7 +88,7 @@ export function CameraControls({ ops }: { ops: CameraOps | null }) {
         onBlur={(e) => {
           if (!e.currentTarget.contains(e.relatedTarget as Node)) setPeek(false);
         }}
-        className="absolute bottom-[calc(var(--sheet-h,0px)+1rem)] right-[calc(var(--panel-w,0px)+4.5rem)] z-20 flex items-end gap-2"
+        className={`absolute bottom-[calc(var(--sheet-h,0px)+1rem)] right-[calc(var(--panel-w,0px)+4.5rem)] z-20 flex items-end gap-2${hidden ? " invisible" : ""}`}
       >
         {open && (
           <div className="flex flex-col gap-2 motion-safe:animate-[fadeIn_200ms_ease-out]">

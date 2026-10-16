@@ -39,3 +39,13 @@ export function usePanelReserve() {
     sheetH: wide ? "0px" : SHEET_HEIGHTS[sheet],
   };
 }
+
+/**
+ * Phones with the sheet at `full`: map controls (settings gear, camera cluster) would sit off-screen
+ * or under the sheet, so they hide (`invisible` also drops them from the tab order, WCAG 2.4.11).
+ */
+export function useBehindFullSheet() {
+  const wide = useWide();
+  const sheet = usePanel((s) => s.sheet);
+  return !wide && sheet === "full";
+}

@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { act, fireEvent, render, screen } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { usePanel } from "../../../main/panelStore";
 import { CameraControls, handleMapKey } from "./CameraControls";
 import { useCameraHeading } from "./cameraHeadingStore";
 import { STEP } from "./cameraMath";
@@ -143,5 +144,37 @@ describe("CameraControls", () => {
       fireEvent.keyDown(map, { key: "w", altKey: true });
       expect(acted()).toBe(0);
     });
+  });
+});
+
+describe("CameraControls behind the full phone sheet", () => {
+  const media = (wide: boolean) =>
+    vi.stubGlobal("matchMedia", () => ({
+      matches: wide,
+      addEventListener() {},
+      removeEventListener() {},
+    }));
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    act(() => usePanel.setState({ sheet: "peek" }));
+  });
+  const group = () => screen.getByRole("group", { name: "Camera" });
+
+  it("hides the camera group on a narrow screen with the sheet at full", () => {
+    media(false);
+    usePanel.setState({ sheet: "full" });
+    render(<CameraControls ops={ops()} />);
+    expect(group().className.split(" ")).toContain("invisible");
+  });
+  it("keeps it visible on a narrow screen at half, and on a wide screen at full", () => {
+    media(false);
+    usePanel.setState({ sheet: "half" });
+    const { unmount } = render(<CameraControls ops={ops()} />);
+    expect(group().className.split(" ")).not.toContain("invisible");
+    unmount();
+    media(true);
+    usePanel.setState({ sheet: "full" });
+    render(<CameraControls ops={ops()} />);
+    expect(group().className.split(" ")).not.toContain("invisible");
   });
 });
