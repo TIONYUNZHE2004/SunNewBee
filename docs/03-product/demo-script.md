@@ -41,23 +41,36 @@ Two ways to run it. **Walkthrough:** open `/?demo=hero` and step through the 8 c
 
 **Not in the live demo** (and not claimed): re-asking after a staff fix, and the journey-test before/after numbers. With `DEMO_MODE` on, a repeated chip replays the cached answer, so a fix does not change it. Journey tests ("Journey tests" tab: simulated residents across profiles and scenarios, with outcome matrix and rest-gap advisories for older adults) take about 90 s to run (measured 15 Oct 2026 on the seed: about 33 s journeys and 58 s evacuation) and need the staff token; the console shows "No run yet" until one is run. Run it before the demo and quote only what the screen shows.
 
-## World-model segment (about 3:00, current two-screen UI, `ai/world-model`)
+## World-model segment: Elmina Day (about 3:00, current two-screen UI, `ai/world-model`)
 
-This segment uses only the current screens (`/` and `/tickets`). The chips are replayed from the demo cache in `DEMO_MODE`.
-
-**Caches warm themselves.** The API computes the rising-river simulation, the What-if Lab's suggestions and the survey plan in the background after it starts (about 30 s on the seed), and again within about 10 s of any change to the world (a resolved ticket, a closure). Check `GET /api/healthz` → `world_model.state: "warm"` before going on stage; after that those screens answer in milliseconds.
+This segment uses only the current screens. Management mode opens **Simulate a day**. The caches warm themselves: check `GET /api/healthz` → `world_model.state: "warm"` before going on stage. The numbers below are from the Elmina seed on 17 Oct; they change if the data changes, so read them off the screen.
 
 | Time | On screen | Say (presenter) |
 |---|---|---|
-| 0:00 | **Resident.** Chip "Stroller route from Car Park B to the playground". The draft streams in grey ("Draft · checking against the township data…"), then "✓ Answer checked against the township data", then the status line and the answer | "Watch it think honestly. The first sentence appears as a draft, a validator checks every claim against the township's world model, and only then is it final. If the AI guesses or says 'safe', you see it sent back and rewritten." |
-| 0:35 | **Resident.** Chip "At which river level does my route from the mall to an evacuation centre break?" | "A resident's real question: not 'is it safe', but 'when does my way out stop working'. The model replays the trip at every modelled river stage and names the level. These are indicative scenarios, not a forecast." |
-| 1:00 | **Management.** Open the What-if Lab, set River +3 m, tick a suggested change, Run. The diff draws on the map (grey before, lilac imagined, magenta the change) with before/after bars and "What-if · not real" | "Planning, not guessing. The language model proposes from the engine's legal moves, and the world model simulates every sampled journey on a copy of the township. It shows what the flood alone does and what the change adds. Nothing real changes." |
-| 1:45 | **Management.** Rising river, then Play. Stages step from normal level to +5 m; yellow residents walk their routes, and red ones are cut off | "Synthetic residents of each persona head for their nearest evacuation centre as the river rises. Elmina mostly holds: 29 of 30 at normal level, 27 from +2 m. The model shows exactly who loses their route first, and from which level. A simulation, not a forecast. It says so on screen the whole time." |
-| 2:20 | **Tickets.** Plan a survey: "If these 15 checks at 5 places pass, 4 of 50 sample journeys would have a confirmed route (today: 0)" | "Honesty becomes a work plan. Every gap is visible, so the model can tell staff exactly where to look next. And it learns: every ticket they resolve updates its belief about what the next survey will find." |
-| 2:30 | **Tickets.** Open a ticket: "What this check would change: if it passes, the question this came from gets a confirmed answer" | "Every ticket says what checking it is worth. After the check, it shows what really changed and how the model's belief moved. The loop is visible." |
-| 2:45 | Slide: the evaluation table from [ai-eval-report-2026-10.md](ai-eval-report-2026-10.md) | "We asked the same AI 36 real questions about Elmina, in English, Malay and Chinese, with and without the world model. Without it, the model mostly couldn't answer and sometimes made up ramp lengths. With it: 30 checked, cited answers, zero honesty violations, zero invented numbers, every gap shown as a gap." |
+| 0:00 | **Management → Simulate a day → Storm at the school run → Play on the map.** The clock runs from 06:00. At 06:45 the river rises to +1 m, then +2 m and +3 m (the flood layer follows the clock). Yellow dots walk, blue dots drive, and red dots wait for a way through | "This is a rehearsal of tomorrow morning in City of Elmina. 5,000 synthetic residents live in real Elmina homes, in proportions from DOSM statistics: the school run, commutes, prayers, the clinic. Then the river rises during the school run. Every dot follows its own path on the real map, and every count is the world model's." |
+| 0:45 | **Overview tab:** the groups table and the school line ("1,373 pupils… 261 couldn't get there") | "It doesn't say 'the town flooded'. It says *who*. 261 children couldn't get to school, and households without a car are hit hardest: 149 of 442 had a trip they couldn't make. That is the People track: every resident, by group." |
+| 1:10 | **Residents tab:** pick a parent with a stroller or a wheelchair user; the camera flies to them; their diary is marked "AI voice, checked" | "Forty of them have a voice. A cheap AI model writes their diary and makes their choices, and only from options the engine offers: wait, stay home, ask a neighbour for a lift, turn back. Every time and number they say is checked against their own simulated day before it's shown." |
+| 1:35 | **Feed tab** while the clock plays: the township's river notices, then "I planned to drive to work at 07:07, but there was no way through…" with a "Same here" reply | "This is MiroFish-style social simulation, except these residents walk on real data. The feed fills up as the morning goes on. It is a rehearsal of what people will be dealing with, not a poll and not a forecast." |
+| 2:00 | **Test a change → "Imagine the flooded stretch on Jalan Sungai Buloh … raised" → Compare the day.** "823 residents would be better off and 0 worse off"; the town hall; the stretch drawn on the map | "Now the planner's question: what if we raise this one kilometre of road above the flood levels? Same day, same residents, run again: 823 residents would be better off, and nobody worse off. On Persiaran Eserina, it's a hundred children who'd get to school. A world model lets you test a change *before* you build it." |
+| 2:35 | **Ask the assistant:** "What happens to residents in the storm rehearsal?" → the checked answer with the counts | "And the assistant can answer from the rehearsal, through the same honesty gate: synthetic residents, not a forecast, only the engine's counts." |
+| 2:50 | Slide: the evaluation table from [ai-eval-report-2026-10.md](ai-eval-report-2026-10.md) | "Underneath, the same rule as everywhere in TownshipLens: the AI never invents a fact, and every gap is shown as a gap." |
 
-**If asked "is it a real world model?"** It has an explicit state, a closed set of actions, a transition function, rollouts and planners on top: the functional definition, the same family as AlphaZero's rules or DeepMind's Code World Models. The dynamics are engineered, not learned. What it learns is its uncertainty, from OpenStreetMap tags and staff verifications, and that is used only for planning. See [world-models-2026.md](../02-research/world-models-2026.md) §8.
+**Backup beats:**
+- the night event at the park: up to 479 residents at once, and 393 met a neighbour from another household;
+- the rising-river and tipping-point views;
+- the ticket impact card on `/tickets`.
+
+**If asked "is it a real world model?"** Yes, in the functional sense:
+- **an explicit state:** the township's paths, places, flood scenarios and facts;
+- **a closed set of actions:** close a path, build a ramp, raise a flooded stretch, verify a fact;
+- **a transition function** that applies them to a copy;
+- **simulation and planning on top:** 5,000 agents living a day, comparisons before and after, survey and fix-it planners.
+
+The township dynamics are engineered from open data, not learned. What is learned or generated is kept separate and checked:
+- the model's belief about unchecked facts (from OpenStreetMap tags and staff checks);
+- the spotlight residents' words and choices (an LLM, limited to what the engine offers).
+
+See [world-models-2026.md](../02-research/world-models-2026.md) §8 and the [Elmina Day design](../superpowers/specs/2026-10-17-elmina-day-design.md).
 
 ## What can go wrong → recovery
 
