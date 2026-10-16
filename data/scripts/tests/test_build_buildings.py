@@ -172,3 +172,23 @@ def test_size_guard_applies_to_trees_too(tmp_path, monkeypatch):
         bb.main([])
     assert e.value.code == 3
     assert not (tmp_path / "base" / "trees.geojson").exists()
+
+
+def test_parks_query_asks_for_park_like_ways_only():
+    q = bb.parks_query_for((3.15, 101.46, 3.17, 101.48))
+    assert 'way["leisure"~"^(park|garden|playground)$"]' in q
+    assert 'way["landuse"~"^(grass|recreation_ground)$"]' in q
+    assert "building" not in q
+
+
+def test_build_parks_keeps_closed_rings_and_labels_kind():
+    ring = [(101.5, 3.18), (101.501, 3.18), (101.501, 3.181), (101.5, 3.18)]
+    els = [
+        way(1, ring, leisure="park"),
+        way(2, ring, landuse="grass"),
+        way(3, ring[:2], leisure="park"),  # open: dropped
+    ]
+    feats = bb.build_parks(els)
+    assert [f["properties"]["kind"] for f in feats] == ["park", "grass"]
+    assert feats[0]["geometry"]["type"] == "Polygon"
+    assert feats[0]["properties"]["id"] == "way/1"

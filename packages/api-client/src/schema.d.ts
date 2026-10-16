@@ -637,6 +637,16 @@ export interface components {
             buildings: {
                 [key: string]: unknown;
             };
+            /**
+             * Parks
+             * @default {
+             *       "features": [],
+             *       "type": "FeatureCollection"
+             *     }
+             */
+            parks: {
+                [key: string]: unknown;
+            };
             /** Trees */
             trees: {
                 [key: string]: unknown;

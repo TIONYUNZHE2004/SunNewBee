@@ -160,6 +160,15 @@
             "title": "Buildings",
             "type": "object"
           },
+          "parks": {
+            "additionalProperties": true,
+            "default": {
+              "features": [],
+              "type": "FeatureCollection"
+            },
+            "title": "Parks",
+            "type": "object"
+          },
           "trees": {
             "additionalProperties": true,
             "title": "Trees",

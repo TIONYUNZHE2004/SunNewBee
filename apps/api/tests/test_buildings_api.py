@@ -154,3 +154,10 @@ def test_water_empty_without_hydrology(tmp_path, monkeypatch):
     _world(tmp_path, monkeypatch)
     body = TestClient(app).get("/layers/buildings").json()
     assert body["water"] == {"type": "FeatureCollection", "features": []}
+
+
+def test_buildings_layer_has_empty_parks_when_absent(tmp_path, monkeypatch):
+    _world(tmp_path, monkeypatch)
+    r = TestClient(app).get("/layers/buildings")
+    assert r.status_code == 200
+    assert r.json()["parks"] == {"type": "FeatureCollection", "features": []}

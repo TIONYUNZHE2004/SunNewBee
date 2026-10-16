@@ -269,6 +269,43 @@ def build_features(elements: list[dict]) -> tuple[list[dict], list[dict], dict]:
     return buildings, trees, stats
 
 
+PARK_KINDS = ("park", "garden", "playground", "grass", "recreation_ground")
+
+
+def parks_query_for(tile: tuple[float, float, float, float]) -> str:
+    s, w, n, e = tile
+    b = f"({s:.6f},{w:.6f},{n:.6f},{e:.6f})"
+    return (
+        "[out:json][timeout:180];("
+        f'way["leisure"~"^(park|garden|playground)$"]{b};'
+        f'way["landuse"~"^(grass|recreation_ground)$"]{b};'
+        ");out geom tags;"
+    )
+
+
+def build_parks(elements: list[dict]) -> list[dict]:
+    """Display-only park/green outlines for the stylised city (never used for any fact)."""
+    out: list[dict] = []
+    for el in elements:
+        if el.get("type") != "way":
+            continue
+        tags = el.get("tags") or {}
+        kind = tags.get("leisure") or tags.get("landuse")
+        if kind not in PARK_KINDS:
+            continue
+        pts = [[round(p["lon"], 6), round(p["lat"], 6)] for p in el.get("geometry") or []]
+        if len(pts) < 4 or pts[0] != pts[-1]:
+            continue
+        out.append(
+            {
+                "type": "Feature",
+                "geometry": {"type": "Polygon", "coordinates": [pts]},
+                "properties": {"id": f"way/{el['id']}", "kind": kind},
+            }
+        )
+    return out
+
+
 def _dump(feats: list[dict]) -> str:
     text = json.dumps(
         {"type": "FeatureCollection", "features": feats}, ensure_ascii=False, separators=(",", ":")
@@ -284,6 +321,7 @@ def main(argv: list[str] | None = None) -> None:
     ap.add_argument("--radius-m", type=float, default=3500)
     ap.add_argument("--step", type=float, default=0.02, help="tile size in degrees")
     ap.add_argument("--dry-run", action="store_true", help="print the plan, make no request")
+    ap.add_argument("--parks", action="store_true", help="only (re)build base/parks.geojson")
     args = ap.parse_args(argv)
 
     site_path = OUT / "site.json"
@@ -294,6 +332,22 @@ def main(argv: list[str] | None = None) -> None:
         n_tiles = len(tiles(bbox, args.step))
         print(f"bbox s,w,n,e = {bbox}; {n_tiles} Overpass tile request(s); nothing fetched")
         raise SystemExit(0)
+    if args.parks:
+        overpass.MAX_REQUESTS = args.max_requests
+        try:
+            els: list[dict] = []
+            for tile in tiles(bbox, args.step):
+                els.extend(overpass.query(parks_query_for(tile)).get("elements", []))
+        except overpass.OverpassError as exc:
+            print(f"BLOCKED: {exc}; overpass HTTP requests this run: {overpass.REQUESTS_MADE}")
+            raise SystemExit(2) from None
+        parks = build_parks(els)
+        text = _dump(parks)
+        (OUT / "base").mkdir(parents=True, exist_ok=True)
+        (OUT / "base" / "parks.geojson").write_text(text, encoding="utf-8", newline="\n")
+        print(f"parks: {len(parks)}  {len(text.encode('utf-8'))} bytes")
+        print(f"overpass HTTP requests this run: {overpass.REQUESTS_MADE}")
+        return
     try:
         elements = fetch_all(bbox, args.step, args.max_requests)
     except overpass.OverpassError as exc:
