@@ -14,7 +14,7 @@ Run log for the "Township World Model" AI work: research, implement, validate, f
 
 ---
 
-## Cycle 0: research sprint and a solid live-model path (16 Oct, 20:00–21:00)
+## Cycle 0: research sprint and a solid live-model path (16 Oct, about 20:30–21:16; commit `258c14a`)
 
 ### Research
 
@@ -221,7 +221,7 @@ Minor findings:
 
 ---
 
-## Cycle 1: Township World Model core, What-if Lab and multi-turn memory (16 Oct, 21:00–22:00)
+## Cycle 1: Township World Model core, What-if Lab and multi-turn memory (16 Oct, about 21:16–21:45)
 
 **Spec:** [2026-10-16-township-world-model-whatif-design.md](specs/2026-10-16-township-world-model-whatif-design.md). Research basis: brief §4 and §6 (#1 What-if Lab and #7 multi-turn memory).
 
@@ -322,7 +322,7 @@ Each ruling gives what was decided, why, and the cost if it is wrong.
 
 ---
 
-## Cycle 2: verify-next planner (value of information) and the belief over unchecked facts (16 Oct, 22:00–23:00)
+## Cycle 2: verify-next planner (value of information) and the belief over unchecked facts (16 Oct, about 21:45–21:55)
 
 **Spec:** [2026-10-16-verify-next-planner-design.md](specs/2026-10-16-verify-next-planner-design.md). Research basis:
 - feature #2 (verify-next) and #5 (learned belief) in the brief;
@@ -388,7 +388,7 @@ Each ruling gives what was decided, why, and the cost if it is wrong.
 
 ---
 
-## Cycle 1–2 review (independent Opus reviewer) and fixes (16 Oct, 23:00–23:40)
+## Cycle 1–2 review (independent Opus reviewer) and fixes (16 Oct, about 21:55–22:11; commits `c66cf59`, `3ac3bd7`)
 
 **1 Critical + 8 Important findings, all reproduced by the reviewer and fixed with regression tests.**
 
@@ -429,9 +429,103 @@ Each ruling gives what was decided, why, and the cost if it is wrong.
 - The trace caught and rewrote six attempts (demo "confirmed", "probably", a wrong what-if number, an imagined outcome stated as fact, and two schema slips).
 - The two-turn follow-up passes.
 
-**Overpass prior: unblocked at 23:40.**
+**Overpass prior: unblocked at about 22:08.**
 - One request on the hourly retry succeeded, returning 2,832 Klang Valley paths with accessibility tags.
 - `data/seed/elmina/belief_prior.json` holds 2,984 observations, for example footway width 139 pass / 5 fail, path incline 28/11, pedestrian incline 6/8.
 - The belief is now informed for footway, path, pedestrian and steps types. Streets and major roads stay Beta(1, 1), which `GET /belief` shows openly.
 
 **Spend so far:** US$0.086 of US$3 (usage 26.87891).
+
+
+---
+
+## Cycle 3: rising-river population rollout and tipping points (16 Oct, about 22:11–22:30)
+
+**Spec:** [2026-10-17-rising-river-rollout-design.md](specs/2026-10-17-rising-river-rollout-design.md). Research basis: brief #3 and #9, the urban notes §4 (evacuation simplifications) and the repo notes §7 (Cesium agent animation).
+
+### What was built and why it is impressive
+
+1. **`rollout.river_rollout`: the world model's time axis.**
+   - Synthetic residents per persona, the same seeded origins as the journey tests, head for their nearest reachable centre at every precomputed river stage.
+   - It returns per-stage counts, per-resident statuses, the **tipping stage** and deduplicated routes.
+   - Reach is monotone across stages (tested).
+2. **`rollout.tipping_point`: the resident question, "At which river level does my route break?"**
+   - It covers one journey across all stages.
+   - A likely-flooded start or destination breaks the trip even when a path to it still exists. The plain route status would hide that.
+3. **Assistant support.**
+   - Tools `river_tipping_point` and `rising_river_rollout`.
+   - `validate.rollout_errors`: the answer must say "not a forecast", name only modelled stages, name the breaking stage, and use only rollout counts.
+   - Shared `tipping_answer` / `rollout_answer` for the mock and the template.
+   - The repair step fills the stage for disclaimers.
+   - A `river.rollout` scene intent plays the animation.
+   - Prompt rule 15.
+4. **Web.**
+   - **Rising river panel** (Management mode): stage buttons, play/pause, and per-persona "N of M still reach a centre" bars. The flood layer follows the playback stage.
+   - **Cesium `RolloutLayer`:** one `PointPrimitiveCollection` with one `clock.onTick`. Yellow residents walk their engine route; red ones are cut off and stand still; grey ones have no mapped connection.
+   - **Legend:** "Synthetic residents · simulation, not a forecast · no crowding or departure times".
+   - **API:** `GET /river-rollout`, cached by world version.
+
+### Evidence
+
+- **Elmina seed, 3 personas × 30 sampled residents × 6 stages, 13 s:** "still reach a centre" goes 29 at normal level → 28 at +1 m → 27 from +2 m to +5 m, for every persona.
+  - **Honest finding:** Elmina's routes mostly hold. The model names the two places whose residents are cut off first, at +1 m and +2 m. That is a resilience result the developer can use.
+- **Tipping point on the seed:** the playground's trip to the nearest centre breaks at **River +4 m**, because the playground itself is likely flooded there. The path is still "confirmed" at that stage, which is why the endpoint check matters.
+- **Live (Haiku 5.5):** both river golden cases pass with no template fallbacks (`evals/results/2026-10-17-live-river-1.json`). The rewrites were "set scenario_id" plus one count the rollout had not produced. The scenario_id fill is now a fact-free repair.
+- **e2e:** 13/13, including the Rising-river panel and the assistant tipping point.
+- **Golden (mock):** 18/18.
+- **Screenshot:** `docs/06-pitch/screenshots/ai-cycle3-rising-river-stylised.jpg`.
+
+### Rulings (Cycle 3)
+
+Each ruling gives what was decided, why, and the cost if it is wrong.
+
+- **W12: residents are drawn only on engine routes.**
+  - **What:** a cut-off resident stands still at the start of their last route, and the animation speed is display-only. No minutes are ever stated.
+  - **Why:** honesty. Travel times per profile are unsourced (urban notes §4).
+  - **Cost if wrong:** less "realistic" motion, but nothing implies a time to safety.
+- **W13: the tipping point counts a likely-flooded start or destination as a break.**
+  - **Why:** "the path exists but the playground is under water" must not read as reachable.
+  - **Cost if wrong:** a stricter break stage than the route status alone. That is the safe direction.
+- **W14: 30 residents per persona by default.**
+  - **Why:** each profile × stage is one rollout, about 13 s on the seed, and the result is cached.
+  - **Cost if wrong:** small samples. Every count is labelled "sampled".
+
+### Pitch line (judge-facing)
+
+> Press play and the river rises: +1 m, +2 m, up to +5 m. Synthetic residents of each persona walk the township model's own routes to their nearest evacuation centre. The moment a route breaks, that resident stops and turns red, and the panel counts who still gets through. It shows that Elmina's network largely holds and exactly where it doesn't. A resident can ask "at which river level does my route break?" and get the stage, and the reason. A simulation, not a forecast, and it says so on screen the whole time.
+
+### Integration notes for shaoxian04
+
+- **New scene intent `river.rollout`** maps to `sceneStore.rollout = {on, stage, playing}` through `setRollout`.
+- **New layer and legend:** the Cesium `RolloutLayer` (in `layers.tsx`) and `map-ui/RolloutTag` (top right).
+- **New panel:** `whatif/RisingRiverPanel`, rendered by `AssistantPanel` in Management mode under the Lab.
+- **New hook:** `lib/api.useRiverRollout`.
+- **Management starters:** "Tell me about Elmina Lakeside Mall" was replaced by "What happens to residents as the river rises?".
+
+**Spend so far:** US$0.0875 of US$3.
+
+### Cycle 3 review (independent Opus reviewer) and fixes
+
+The reviewer found 4 Critical and 6 Important issues, all reproduced. Each is fixed with a regression test.
+
+| # | Finding | Fix |
+|---|---|---|
+| C1 | A trip with no route even at normal level was described as "keeps a mapped route" | `reached_at_normal`, plus its own wording ("no working route at any modelled river level: a data gap / cut off already") and a validator rule (`test_a_trip_that_never_works_…`, `test_tipping_answer_for_a_trip_that_never_works`) |
+| C2 | Tipping steps called demo-value routes "confirmed" | Per-stage `demo_evidence`; steps say "confirmed (on demo values, not yet surveyed)"; the validator requires the caveat (`test_tipping_hero_labels_demo_values`) |
+| C3 | The validator let invented counts, percentages, spelled-out numbers, stages written without "+", forecast words and wrong break stages through | Counts are bound to the stage named in the same sentence, by metric. Percentages and number words are rejected. Stage detection is broader ("rises 2 metres", "a 4 m rise"). "Stranded / will be cut off" is rejected. A break must be stated at `breaks_at` (`test_rollout_lies_are_rejected`, `test_rollout_truth_passes`, `test_tipping_wrong_break_stage_is_rejected`) |
+| C4 | `/river-rollout` accepted unbounded, repeated profiles: hours of work in one request, and cache busting | Profiles are deduplicated, ordered and capped at 4 (`rollout.normalise_profiles`) before the cache key; the endpoint returns 503 when busy (`test_river_rollout_repeats_and_permutations_hit_one_cache_entry`) |
+| I1 | Route dedupe never merged (route ids hash profile and stage) | Geometry is keyed by a coordinate hash |
+| I2 | The rollout animated residents walking from a likely-flooded start, while the tipping point said the trip broke | One rule: a `start_flooded` status that counts as cut off. Cross-check test |
+| I3 | A nearest centre that changes by stage was hidden | Per-stage `target_name`, `centre_changes`, and the change counts as a degrade |
+| I4 | Playback stuck at normal level in Resident mode | `useRolloutPlayback` is mounted with the map. Browser-checked: a Resident-mode question plays to +3 m |
+| I5 | Playback cleared a what-if diff and left the flood layer up | The stage syncs without clearing; the previous scenario is restored on stop |
+| I6 | The mock tipping trigger was too broad | A river, flood or water word is required (test) |
+
+**Minor findings fixed:**
+- The legend now says "warnings" and "animation speed is illustrative".
+- Stages are sorted by `stage_m`; repair sorts numerically; tipping `scenario_id` is the top stage.
+- The previous `shouldAnimate` value is restored.
+- Residents with no route stand grey at their start.
+- The current stage is announced through `aria-live`.
+- The legend moved below the tiles status.
+- The Resident starter "At which river level does my route … break?" was added (it replaces recycling).

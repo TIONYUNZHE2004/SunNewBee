@@ -46,6 +46,9 @@ interface SceneState {
   route: { id: string; geojson: GeoJSON.LineString } | null;
   /** A what-if diff (imagined, never a real route): before/after lines and imagined changes. */
   whatIf: { geojson: { type: string; features: unknown[] } } | null;
+  /** Rising-river rollout playback: synthetic residents on the map (simulation, not a forecast). */
+  rollout: { on: boolean; stage: number; playing: boolean };
+  setRollout: (r: Partial<SceneState["rollout"]>) => void;
   camera: { center: [number, number]; rangeM: number } | null;
   intents: SceneIntent[];
   applyIntent: (i: SceneIntent) => void;
@@ -81,6 +84,7 @@ const initial = {
   selectedFloodEdgeId: null as string | null,
   route: null as SceneState["route"],
   whatIf: null as SceneState["whatIf"],
+  rollout: { on: false, stage: 0, playing: false } as SceneState["rollout"],
   camera: null as SceneState["camera"],
   intents: [] as SceneIntent[],
   mapStyle: "realistic" as MapStyle,
@@ -104,6 +108,9 @@ export const useScene = create<SceneState>((set) => ({
             next.whatIf = {
               geojson: i.geojson as unknown as { type: string; features: unknown[] },
             };
+          break;
+        case "river.rollout":
+          next.rollout = { on: true, stage: 0, playing: true };
           break;
         case "place.focus":
           next.focusPlaceId = i.place_id ?? null;
@@ -160,5 +167,6 @@ export const useScene = create<SceneState>((set) => ({
     set((s) => (s.mapStyleChosen ? {} : { mapStyle: defaultMapStyle(hasBuildings, hasGoogle) })),
   clearRoute: () => set({ route: null }),
   clearWhatIf: () => set({ whatIf: null }),
+  setRollout: (r) => set((s) => ({ rollout: { ...s.rollout, ...r } })),
   reset: () => set(initial),
 }));

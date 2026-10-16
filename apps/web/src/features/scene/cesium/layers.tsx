@@ -31,6 +31,7 @@ import { useScene } from "../sceneStore";
 import { CESIUM_DASH, type EdgeStatus, ROUTE_STYLE, statusStyle, WATER_COLOR } from "../styles";
 import { useMapStyle } from "../useMapStyle";
 import { heightRefFor, type MapStyle } from "./heightRef";
+import { RolloutLayer } from "./RolloutLayer";
 
 /** Stylised draws on the flat ellipsoid: clamp to ground there, to Google tiles only when realistic. */
 const heightRef = (style: MapStyle) => heightRefFor(style, !!ENV.googleKey, Cesium.HeightReference);
@@ -184,6 +185,7 @@ export function AccessLayer() {
         ))}
       <RouteLayer />
       <WhatIfLayer />
+      <RolloutLayer />
     </>
   );
 }

@@ -68,3 +68,11 @@
   message: "Which facts should staff verify first so wheelchair users can reach an evacuation centre?"
   profile: wheelchair
   expect: { tools_include: [plan_verifications], events_include: [citation], done_status_in: [partial, answered], text_excludes: ["will be confirmed", "probably"], mock_only: { first_line: "If this check at 1 place passes" } }
+- id: river-tipping-point
+  message: "At which river level does my route from the playground to the evacuation centre break?"
+  profile: default
+  expect: { tools_include: [river_tipping_point], events_include: [disclaimer], text_includes: ["not a forecast", "River +3 m"], text_excludes: [" safe", " deep"] }
+- id: river-rollout
+  message: "What happens to residents as the river rises?"
+  profile: wheelchair
+  expect: { tools_include: [rising_river_rollout], events_include: [scene.intent, disclaimer], text_includes: ["not a forecast"], text_excludes: [" safe"] }

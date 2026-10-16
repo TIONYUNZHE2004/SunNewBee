@@ -66,6 +66,15 @@ model is dropped, because the label line already says it.
   - The mock reads only the current turn (`mock._current`).
   - `evals/run_followups.py` runs a two-turn live smoke.
 
+**Verify-next, tipping points and the rising river (Cycles 2–3):**
+- **Tools:** `plan_verifications`, `river_tipping_point` and `rising_river_rollout`.
+- **Validator:**
+  - `plan_errors`: the answer is conditional ("if … pass") and uses the plan's numbers only.
+  - `rollout_errors`: the answer says "not a forecast", names only modelled stages, names the breaking stage, and uses only rollout counts.
+- **Shared wording:** `template.plan_answer`, `tipping_answer` and `rollout_answer` are shared by the mock and the template.
+- **Scene intent:** a rollout adds `river.rollout`, so the map plays it. The geometry stays out of the prompt.
+- **Repair:** it fills `scenario_id` for river-stage simulations.
+
 **Live cost and latency:**
 - OpenRouter prompt caching is on (system prompt, tool schemas and the last message).
 - On the 13 golden turns this cut spend from about US$0.035 to about US$0.006.

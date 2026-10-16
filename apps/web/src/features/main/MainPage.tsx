@@ -3,12 +3,15 @@ import { FloodNote } from "../map-ui/FloodNote";
 import { MapStage } from "../map-ui/MapStage";
 import { PathOverlay } from "../map-ui/PathOverlay";
 import { PlaceOverlay } from "../map-ui/PlaceOverlay";
+import { RolloutTag } from "../map-ui/RolloutTag";
 import { RouteTag } from "../map-ui/RouteTag";
 import { SettingsPopover } from "../map-ui/SettingsPopover";
 import { WhatIfTag } from "../map-ui/WhatIfTag";
+import { useRolloutPlayback } from "../whatif/useRolloutPlayback";
 
 /** Map on the left, assistant on the right; stacked (map first) below `lg`. */
 export function MainPage() {
+  useRolloutPlayback();
   return (
     <div className="grid h-full min-h-0 grid-cols-1 lg:grid-cols-[minmax(0,3fr)_minmax(340px,2fr)]">
       <section
@@ -18,6 +21,7 @@ export function MainPage() {
         <MapStage>
           <RouteTag />
           <WhatIfTag />
+          <RolloutTag />
           <FloodNote />
           <SettingsPopover />
           <PlaceOverlay />

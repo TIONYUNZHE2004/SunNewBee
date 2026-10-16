@@ -1027,3 +1027,78 @@ def _plan(w: World, profile, scope, budget, tickets, prior) -> ToolResult:
 
 
 TOOLS["plan_verifications"] = plan_verifications
+
+
+def river_tipping_point(ctx: Ctx, from_id: str, profile: str = "default", to_id: str | None = None):
+    """One journey across every river stage (to a place, or the nearest evacuation centre):
+    the status per stage and the first stage where it degrades or breaks. Indicative."""
+    from . import rollout
+
+    w = ctx.world
+    if err := _walking(w, profile):
+        return ToolResult(ok=False, warnings=[err])
+    if from_id not in w.places or (to_id and to_id not in w.places):
+        return ToolResult(ok=False, warnings=["unknown place: use ids from find_place"])
+    tp = rollout.tipping_point(w, from_id, profile, to_id)
+    data = tp.model_dump(mode="json")
+    p = w.places.get(from_id)
+    data["from_name"] = p.name if p else None
+    if to_id:
+        data["target_name"] = w.places[to_id].name
+    ev = Evidence(
+        id=tp.evidence_id,
+        element_id=from_id,
+        attribute="tipping_point",
+        value=tp.breaks_at,
+        status="indicative",
+        source_type=scenario_source(w, "stage_p3m") if w.flood.scenarios else None,
+    )
+    return ToolResult(ok=True, data=data, evidence=[ev], warnings=[tp.disclaimer])
+
+
+def rising_river_rollout(ctx: Ctx, profiles: list[str] | None = None, n: int = 30):
+    """Synthetic residents per persona heading for the nearest evacuation centre at every river
+    stage: counts per stage and who is cut off first. Indicative simulation, not a forecast."""
+    from . import rollout
+
+    w = ctx.world
+    for p in set(profiles or []):
+        if err := _walking(w, p):
+            return ToolResult(ok=False, warnings=[err])
+    # Deduplicated, ordered and capped, so repeats or permutations neither cost nor bust the cache.
+    profs = rollout.normalise_profiles(profiles)
+    n = max(5, min(int(n), 50))
+    return _wm_cached(w, "rollout", {"profiles": profs, "n": n}, lambda: _rollout(w, profs, n))
+
+
+def _rollout(w: World, profs: list[str], n: int) -> ToolResult:
+    from . import rollout
+
+    r = rollout.river_rollout(w, profs, n)
+    data = r.model_dump(mode="json")
+    stage_label = {s.id: s.label for s in r.stages}
+    data["first_cut_off"] = [
+        {
+            "origin_name": res.origin_name,
+            "profile": res.profile,
+            "stage": res.tipping_stage,
+            "stage_label": stage_label.get(res.tipping_stage or ""),
+        }
+        for res in sorted(
+            (x for x in r.residents if x.tipping_stage),
+            key=lambda x: ([s.id for s in r.stages].index(x.tipping_stage), x.id),
+        )
+    ][:10]
+    ev = Evidence(
+        id=r.evidence_id,
+        element_id="rollout",
+        attribute="river_rollout",
+        value={"residents": len(r.residents)},
+        status="indicative",
+        source_type="whatif",
+    )
+    return ToolResult(ok=True, data=data, evidence=[ev], warnings=[r.disclaimer])
+
+
+TOOLS["river_tipping_point"] = river_tipping_point
+TOOLS["rising_river_rollout"] = rising_river_rollout

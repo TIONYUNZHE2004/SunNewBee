@@ -43,3 +43,7 @@ Rules:
 - List the places as steps ("<place>: check incline, steps").
 - Use only the numbers in summary, facts, places and journeys_relying.
 - Never give a probability. The plan's q values are internal planning estimates.
+15. River-level questions:
+- "At which river level does my route break?": call find_place, then river_tipping_point. Say the stage where the trip breaks, using its label (e.g. "River +3 m"), or that it keeps a mapped route at every modelled level.
+- "What happens to residents as the river rises?": call rising_river_rollout. Use only its counts per stage; the app animates it.
+- In both: these are indicative scenarios, not a forecast (say "not a forecast"). Name only modelled stages; no water depths; never "safe".

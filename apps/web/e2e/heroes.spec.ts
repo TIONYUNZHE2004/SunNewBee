@@ -161,3 +161,26 @@ test("What-if Lab: staff run a river rise plus a suggested change on a copy of t
   await expect(note).toContainText(/Reach a centre \(river rise only\)/);
   await expect(note).toContainText(/not a forecast/);
 });
+
+test("Rising river: synthetic residents per stage, labelled a simulation", async ({ page }) => {
+  await open(page);
+  await page.getByRole("radio", { name: "Management" }).click();
+  await page.getByRole("button", { name: "Rising river" }).click();
+  const panel = page.getByRole("region", { name: "Rising river" });
+  await expect(panel.getByRole("note")).toContainText(/not a forecast/);
+  await panel.getByRole("button", { name: "River +5 m" }).click();
+  await expect(panel.getByRole("list", { name: "At River +5 m" })).toContainText(
+    /of \d+ still reach a centre/,
+  );
+});
+
+test("tipping point: the assistant names the river level where a trip breaks", async ({ page }) => {
+  await open(page);
+  await ask(
+    page,
+    "At which river level does my route from the playground to the evacuation centre break?",
+  );
+  const last = await lastAnswer(page);
+  await expect(last).toContainText(/River \+3 m/);
+  await expect(last).toContainText(/not a forecast/);
+});

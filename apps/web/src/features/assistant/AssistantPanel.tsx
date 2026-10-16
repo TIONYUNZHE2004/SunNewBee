@@ -4,6 +4,7 @@ import { Button } from "../../ui/Button";
 import { useChatDraft } from "../chat/chatDraftStore";
 import { useChatStream } from "../chat/useChatStream";
 import { type Profile, useScene } from "../scene/sceneStore";
+import { RisingRiverPanel } from "../whatif/RisingRiverPanel";
 import { WhatIfLab } from "../whatif/WhatIfLab";
 import { AnswerCard } from "./AnswerCard";
 import { copyFor, STARTERS, type Starter } from "./starters";
@@ -61,7 +62,12 @@ export function AssistantPanel() {
         <h1 className="text-lg font-semibold text-fg">{copy.title}</h1>
         <p className="mt-1 text-sm text-fg-soft">{copy.sub}</p>
       </header>
-      {mode === "management" && <WhatIfLab />}
+      {mode === "management" && (
+        <>
+          <WhatIfLab />
+          <RisingRiverPanel />
+        </>
+      )}
       <div
         role="log"
         aria-live="polite"

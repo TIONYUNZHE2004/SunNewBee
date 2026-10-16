@@ -352,6 +352,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/river-rollout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * River Rollout
+         * @description Synthetic residents per persona heading for the nearest evacuation centre at every river
+         *     stage, with routes for the 3D animation. Indicative simulation, not a forecast. Cached by
+         *     world version (the first call on the seed takes about 15 s).
+         */
+        get: operations["river_rollout_river_rollout_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/routes": {
         parameters: {
             query?: never;
@@ -1290,6 +1312,30 @@ export interface components {
              */
             threshold_basis: string;
         };
+        /** Resident */
+        Resident: {
+            /**
+             * Demo Evidence
+             * @default false
+             */
+            demo_evidence: boolean;
+            /** Id */
+            id: string;
+            /** Origin Coord */
+            origin_coord?: number[] | null;
+            /** Origin Id */
+            origin_id: string;
+            /** Origin Name */
+            origin_name?: string | null;
+            /** Profile */
+            profile: string;
+            /** Route Ids */
+            route_ids: (string | null)[];
+            /** Statuses */
+            statuses: string[];
+            /** Tipping Stage */
+            tipping_stage?: string | null;
+        };
         /** ResolveBody */
         ResolveBody: {
             /**
@@ -1306,6 +1352,36 @@ export interface components {
             note: string;
             /** Value */
             value?: unknown;
+        };
+        /** RiverRollout */
+        RiverRollout: {
+            /** Counts */
+            counts: {
+                [key: string]: {
+                    [key: string]: {
+                        [key: string]: number;
+                    };
+                };
+            };
+            /**
+             * Disclaimer
+             * @default Synthetic residents on the township model: an indicative simulation, not a forecast. River stages are scenarios, not water depths; departure times, warnings and crowding are not modelled; animation speed is illustrative. Follow official MBSA / JPS / NADMA guidance.
+             */
+            disclaimer: string;
+            /** Evidence Id */
+            evidence_id: string;
+            /** Profiles */
+            profiles: string[];
+            /** Residents */
+            residents: components["schemas"]["Resident"][];
+            /** Routes */
+            routes?: {
+                [key: string]: {
+                    [key: string]: unknown;
+                };
+            };
+            /** Stages */
+            stages: components["schemas"]["Stage"][];
         };
         /** Route */
         Route: {
@@ -1491,7 +1567,7 @@ export interface components {
              * Kind
              * @enum {string}
              */
-            kind: "camera.fly_to" | "place.focus" | "route.highlight" | "flood.set_level" | "layer.toggle" | "whatif.diff";
+            kind: "camera.fly_to" | "place.focus" | "route.highlight" | "flood.set_level" | "layer.toggle" | "whatif.diff" | "river.rollout";
             /** Lens */
             lens?: ("access" | "flood" | "waste") | null;
             /** Place Id */
@@ -1723,6 +1799,13 @@ export interface components {
             timezone: string;
             /** Township */
             township: string;
+        };
+        /** Stage */
+        Stage: {
+            /** Id */
+            id: string;
+            /** Label */
+            label: string;
         };
         /** Suggestions */
         Suggestions: {
@@ -2711,6 +2794,43 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["ProfileInfo"][];
                 };
+            };
+        };
+    };
+    river_rollout_river_rollout_get: {
+        parameters: {
+            query?: {
+                profiles?: string[] | null;
+                n?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RiverRollout"];
+                };
+            };
+            /** @description unknown or non-walking profile */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description the township model is busy; retry shortly */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };

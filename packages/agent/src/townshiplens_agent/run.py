@@ -213,6 +213,8 @@ def _answer_events(
     diff = next((w["diff_geojson"] for w in reversed(rec.what_ifs) if w.get("diff_geojson")), None)
     if diff and not any(i.kind == "whatif.diff" for i in intents):
         intents.append(SceneIntent(kind="whatif.diff"))  # a what-if is always drawn as a diff
+    if rec.rollouts and not any(i.kind == "river.rollout" for i in intents):
+        intents.append(SceneIntent(kind="river.rollout"))  # the map plays the rollout
     for it in intents:
         intent = it.model_copy()
         if intent.kind == "route.highlight":
@@ -220,6 +222,8 @@ def _answer_events(
             if route is None:
                 continue  # nothing to draw: the route was not returned this turn
             intent.geojson = route["geometry"]
+        if intent.kind == "river.rollout" and not rec.rollouts:
+            continue  # nothing was simulated this turn
         if intent.kind == "whatif.diff":
             if diff is None:
                 continue  # no simulation ran this turn

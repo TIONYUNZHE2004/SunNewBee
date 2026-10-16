@@ -136,7 +136,20 @@ uv run pytest packages/spatial -q
 
 Tests run against the tiny fixture world in `tests/fixtures/tiny`.
 
-## The tools (10 lookups + 2 world-model tools)
+## Rising river (`rollout.py`, Cycle 3)
+
+`river_rollout(world, profiles, n=30)` follows synthetic residents (the seeded origin sample of `sim.evacuation_origins`) at every precomputed river stage, each heading for the nearest reachable centre. It returns:
+- counts per stage per profile: reach, confirmed, confirmed on demo values, cut off, no mapped connection;
+- per resident: the status per stage, the route walked per stage, and the **tipping stage**, the first stage at which they no longer reach a centre;
+- the distinct route geometries, deduplicated.
+
+Reach is monotone across stages (a test asserts it).
+
+`tipping_point(world, from_id, profile, to_id=None)` takes one journey across all stages. A start or destination that is likely flooded at a stage breaks the trip there, even if a path to it still exists.
+
+It is a simulation, not a forecast. Stages are labels, never depths, and departure times, warnings, crowding and travel times are not modelled. On the seed it takes about 13 s for 3 profiles × 30 residents × 6 stages, and the tools cache it.
+
+## The tools (10 lookups + 5 world-model tools)
 
 | Tool | Purpose |
 | --- | --- |
@@ -151,6 +164,9 @@ Tests run against the tiny fixture world in `tests/fixtures/tiny`.
 | `list_evacuation_centres` | Centres labelled `official_pps` or `osm_candidate`, with reachability from a place |
 | `find_waste_points` | Waste/recycling points by type, nearest first when `near_place` given |
 | `suggest_interventions` | `(profile, near_place?)`: engine-proposed what-if actions with readable labels (ramps, verifications, keystone paths) and the river stages |
+| `plan_verifications` | `(profile, scope, budget)`: verify-next survey plan (planner.py), engine-verified, with open tickets linked |
+| `river_tipping_point` | `(from_id, profile, to_id?)`: the status per river stage and the stage where the trip degrades or breaks |
+| `rising_river_rollout` | `(profiles?, n=30)`: synthetic residents per stage (rollout.py); counts, the first residents cut off, routes |
 | `simulate_what_if` | `(actions, profile, scope=journey\|suite\|evacuation, from_id?, to_id?, scenario_id?)`: what-if diff (summary, counts, changed journeys, `diff_geojson`, `ev-whatif-…` evidence, disclaimer). Never changes the real world |
 
 Flood definitions: an island is a connected component of the passable (non-FAIL) graph for the

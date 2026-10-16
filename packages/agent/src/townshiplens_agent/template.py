@@ -135,6 +135,134 @@ def plan_answer(plan: dict, evidence_ids: list[str]) -> dict:
     }
 
 
+ROLLOUT_GUIDANCE = (
+    "Indicative simulation with synthetic residents, not a forecast; follow official MBSA / JPS "
+    "/ NADMA guidance."
+)
+_STATUS_WORDS = {
+    "confirmed": "confirmed",
+    "partly_unverified": "partly unverified",
+    "blocked": "cut off",
+    "no_data": "no mapped connection",
+}
+
+
+def tipping_answer(tp: dict, evidence_ids: list[str]) -> dict:
+    """FinalAnswer fields for a tipping point (shared by the mock and the template)."""
+    labels = tp.get("labels") or {}
+    origin = tp.get("from_name") or "your start"
+    to_centre = tp.get("to_id") == "__nearest_centre__"
+    target = tp.get("target_name") or ("the nearest evacuation centre" if to_centre else "there")
+    rows = tp.get("stages") or []
+    br = tp.get("breaks_at")
+    demo = any(r.get("demo_evidence") for r in rows)
+    caveats = [ROLLOUT_GUIDANCE]
+
+    def status_words(r: dict) -> str:
+        w = _STATUS_WORDS.get(r["status"], r["status"])
+        if r.get("demo_evidence"):
+            w = "confirmed (on demo values, not yet surveyed)"
+        if "likely_flooded" in (r.get("start_flood"), r.get("end_flood")):
+            w += (
+                "; the start is likely flooded"
+                if r.get("start_flood") == "likely_flooded"
+                else ("; the destination is likely flooded")
+            )
+        elif r.get("start_flood") or r.get("end_flood"):
+            w += "; possibly flooded at the start or destination"
+        if to_centre and r.get("target_name"):
+            w += f" (nearest centre: {r['target_name']})"
+        return w
+
+    if not tp.get("reached_at_normal", True):
+        base = rows[0]["status"] if rows else "no_data"
+        why = (
+            "there is no mapped connection (a data gap)"
+            if base == "no_data"
+            else "it is cut off even at normal river level"
+        )
+        summary = (
+            f"In this simulation, the trip from {origin} has no working route at any modelled "
+            f"river level: {why}. Indicative scenarios, not a forecast."
+        )
+    elif br:
+        row = next((r for r in rows if r["stage"] == br), {})
+        flood = "likely_flooded" in (row.get("start_flood"), row.get("end_flood"))
+        why = (
+            ", because the start or destination is likely flooded there"
+            if flood and row.get("status") in ("confirmed", "partly_unverified")
+            else ""
+        )
+        summary = (
+            f"In this simulation, the trip from {origin} to {target} is cut off from "
+            f"{labels.get(br, br)}{why} (indicative river scenarios, not a forecast)."
+        )
+    else:
+        summary = (
+            f"In this simulation, the trip from {origin} to {target} keeps a mapped route at every "
+            "modelled river level; indicative scenarios, not a forecast."
+        )
+    if tp.get("centre_changes"):
+        caveats.append("The nearest reachable centre changes as the river rises (see each level).")
+    if demo:
+        caveats.append(f"Segment facts are {PLACEHOLDER_CAVEAT}.")
+    stage_ids = [r["stage"] for r in rows if r["stage"] != "baseline"]
+    return {
+        "answer_status": "partial",
+        "summary": summary,
+        "steps": [f"{labels.get(r['stage'], r['stage'])}: {status_words(r)}" for r in rows],
+        "claims": [
+            {"text": "River tipping point", "status": "indicative", "evidence_ids": evidence_ids}
+        ],
+        "scenario_id": stage_ids[-1] if stage_ids else None,
+        "caveats": caveats,
+    }
+
+
+def rollout_answer(ro: dict, evidence_ids: list[str]) -> dict:
+    """FinalAnswer fields for a rising-river rollout (shared by the mock and the template)."""
+    stages = ro.get("stages") or []
+    start, last = (stages[0], stages[-1]) if stages else ({}, {})
+    parts = []
+    for prof, per in (ro.get("counts") or {}).items():
+        a, b = per.get(start.get("id"), {}), per.get(last.get("id"), {})
+        parts.append(
+            f"{b.get('reach', 0)} of {b.get('total', 0)} {profile_label(prof).lower()} residents"
+            f" (at {start.get('label', 'normal level').lower()}: {a.get('reach', 0)})"
+        )
+    summary = (
+        "In this rising-river simulation, synthetic residents heading for the nearest "
+        f"evacuation centre: at {last.get('label', 'the highest stage')}, "
+        + "; ".join(parts)
+        + " would still reach one."
+    )
+    first: dict[tuple[str, str], list[str]] = {}  # (stage label, place) -> personas
+    for c in ro.get("first_cut_off") or []:
+        if c.get("stage_label"):
+            key = (c["stage_label"], c.get("origin_name") or "an unnamed place")
+            first.setdefault(key, []).append(profile_label(c["profile"]).lower())
+    steps = [
+        f"{stage}: sampled residents starting at {place} are cut off first ({', '.join(who)})"
+        for (stage, place), who in list(first.items())[:3]
+    ]
+    top = last.get("id") if last.get("id") != "baseline" else None
+    return {
+        "answer_status": "partial",
+        "summary": summary,
+        "steps": steps,
+        "claims": [
+            {"text": "Rising-river rollout", "status": "indicative", "evidence_ids": evidence_ids}
+        ],
+        "scenario_id": top,
+        "caveats": [
+            ROLLOUT_GUIDANCE,
+            "No departure times, warnings or crowding are modelled; "
+            "animation speed is illustrative.",
+        ],
+        "scene_intents": [{"kind": "river.rollout"}],
+    }
+
+
 def template_answer(rec: TurnRecord, question: str) -> FinalAnswer:
     scenario_id = next(iter(sorted(rec.scenarios_used)), None)
     flood_caveats = [
@@ -146,6 +274,18 @@ def template_answer(rec: TurnRecord, question: str) -> FinalAnswer:
         i["flood_class"] == "likely_flooded" for i in rec.flooded_endpoints.values()
     )
     closed = [*rec.route_closures, *rec.asked_closures]
+    for items, fn, prefix in (
+        (rec.tippings, tipping_answer, "ev-tip-"),
+        (rec.rollouts, rollout_answer, "ev-rollout-"),
+    ):
+        if items and not rec.routes:
+            ev = [i for i in rec.evidence if i.startswith(prefix)][-1:]
+            fields = fn(items[-1], ev)
+            fields["caveats"] = [
+                *fields["caveats"],
+                "Answer generated from data without AI wording.",
+            ]
+            return FinalAnswer(**fields)
     if rec.plans and not rec.routes:
         ev = [i for i in rec.evidence if i.startswith("ev-plan-")][-1:]
         fields = plan_answer(rec.plans[-1], ev)

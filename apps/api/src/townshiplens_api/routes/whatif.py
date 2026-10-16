@@ -4,11 +4,12 @@ Same engine and the same tool functions the assistant calls (`tools.simulate_wha
 `tools.suggest_interventions`). Nothing is stored and the real township never changes.
 """
 
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
 from townshiplens_spatial import tools, twm
+from townshiplens_spatial.rollout import RiverRollout
 
 from .. import state
 
@@ -71,7 +72,8 @@ def what_if(body: WhatIfRequest) -> dict[str, Any]:
         scenario_id=body.scenario_id,
     )
     if not res.ok:
-        raise HTTPException(status_code=422, detail="; ".join(res.warnings))
+        busy = any("busy" in w for w in res.warnings)
+        raise HTTPException(status_code=503 if busy else 422, detail="; ".join(res.warnings))
     d = res.data
     return {
         **{k: d[k] for k in WhatIfResponse.model_fields if k in d},
@@ -86,3 +88,25 @@ def what_if_suggestions(profile: str = "wheelchair", near_place: str | None = No
     if not res.ok:
         raise HTTPException(status_code=422, detail="; ".join(res.warnings))
     return {"profile": profile, **res.data}
+
+
+@router.get(
+    "/river-rollout",
+    response_model=RiverRollout,
+    responses={
+        422: {"description": "unknown or non-walking profile"},
+        503: {"description": "the township model is busy; retry shortly"},
+    },
+)
+def river_rollout(
+    profiles: Annotated[list[str] | None, Query()] = None,
+    n: Annotated[int, Query(ge=5, le=50)] = 30,
+) -> dict[str, Any]:
+    """Synthetic residents per persona heading for the nearest evacuation centre at every river
+    stage, with routes for the 3D animation. Indicative simulation, not a forecast. Cached by
+    world version (the first call on the seed takes about 15 s)."""
+    res = tools.rising_river_rollout(state.get_ctx(), profiles=profiles, n=n)
+    if not res.ok:
+        busy = any("busy" in w for w in res.warnings)
+        raise HTTPException(status_code=503 if busy else 422, detail="; ".join(res.warnings))
+    return res.data

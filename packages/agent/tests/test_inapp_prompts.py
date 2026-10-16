@@ -50,7 +50,11 @@ STARTERS = [
     ("Stroller route from Car Park B to the playground", "stroller", None),
     ("Wheelchair route to the lakeside mall", "wheelchair", None),
     ("Nearest evacuation centre if the water rises 3 m", "default", None),
-    ("Where to drop off recycling", "default", None),
+    (
+        "At which river level does my route from the mall to an evacuation centre break?",
+        "default",
+        None,
+    ),
 ]
 ALL = ACCESS + FLOOD + WASTE + WHERE + STARTERS
 

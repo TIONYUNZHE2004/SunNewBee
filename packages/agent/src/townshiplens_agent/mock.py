@@ -17,7 +17,7 @@ from .labels import (
     status_label,
     unchecked_caveats,
 )
-from .template import plan_answer, whatif_answer
+from .template import plan_answer, rollout_answer, tipping_answer, whatif_answer
 
 
 def _current(messages: list[ModelMessage]) -> list[ModelMessage]:
@@ -339,6 +339,41 @@ def _plan(q: str, rets, info: AgentInfo) -> ModelResponse:
     return _final(**plan_answer(d, ev))
 
 
+# River-level questions only: a river/flood/water word must appear (review I6).
+_TIPPING = (
+    r"(?=.*\b(?:river|flood|water|banjir|sungai)\b)"
+    r"(?:(?:which|what) (?:river |water )?level|tipping|route (?:to [^?]* )?break"
+    r"|does my (?:route|trip) break)"
+)
+_ROLLOUT = r"rising[- ]river|as the river rises|stage by stage|river rollout"
+
+
+def _tipping(q: str, rets, info: AgentInfo) -> ModelResponse:
+    profile = _profile(q, info, "default")
+    if not rets:
+        return _call("find_place", query=_first(q, ORIGINS, "lakeside mall"))
+    if len(rets) == 1:
+        found = _data(rets[0][1]) or []
+        if not found:
+            return _cannot("I couldn't find where you start in the township model yet.")
+        return _call("river_tipping_point", from_id=found[0]["id"], profile=profile)
+    d = _data(rets[-1][1])
+    if not isinstance(d, dict):
+        return _cannot("I couldn't run the river levels for that trip.")
+    ev = [i for i in _ev_ids(rets) if i.startswith("ev-tip-")]
+    return _final(**tipping_answer(d, ev))
+
+
+def _rollout(q: str, rets, info: AgentInfo) -> ModelResponse:
+    if not rets:
+        return _call("rising_river_rollout")
+    d = _data(rets[-1][1])
+    if not isinstance(d, dict):
+        return _cannot("I couldn't run the rising-river simulation.")
+    ev = [i for i in _ev_ids(rets) if i.startswith("ev-rollout-")]
+    return _final(**rollout_answer(d, ev))
+
+
 _WHATIF = r"\bwhat[- ]if\b|\bimagine\b|\bif (?:we|you|staff) (?:build|add|close|verify)\b"
 
 
@@ -379,6 +414,10 @@ def _script(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
     q = _prompt(messages).lower()
     rets = _returns(messages)
     n = len(rets)
+    if re.search(_ROLLOUT, q):
+        return _rollout(q, rets, info)
+    if re.search(_TIPPING, q):
+        return _tipping(q, rets, info)
     if re.search(_PLAN, q):
         return _plan(q, rets, info)
     if re.search(_WHATIF, q):

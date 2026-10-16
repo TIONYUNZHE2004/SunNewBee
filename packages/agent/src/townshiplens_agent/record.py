@@ -35,6 +35,9 @@ class TurnRecord:
     history_simulated: bool = False
     # plan_verifications results this turn (survey plans: facts, places, summary).
     plans: list[dict] = field(default_factory=list)
+    # rising_river_rollout / river_tipping_point results this turn (Cycle 3).
+    rollouts: list[dict] = field(default_factory=list)
+    tippings: list[dict] = field(default_factory=list)
     # Diagnostics (never shown to users, never stored): the validator's errors for each rejected
     # final_answer attempt, and token usage across all model requests of the turn.
     validator_errors: list[list[str]] = field(default_factory=list)

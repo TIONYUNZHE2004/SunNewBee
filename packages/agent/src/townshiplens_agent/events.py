@@ -13,6 +13,7 @@ IntentKind = Literal[
     "flood.set_level",
     "layer.toggle",
     "whatif.diff",  # before/after lines of a what-if simulation (geojson attached by the server)
+    "river.rollout",  # open and play the rising-river rollout (the client fetches /river-rollout)
 ]
 
 

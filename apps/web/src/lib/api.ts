@@ -109,3 +109,13 @@ export const useBuildings = () =>
     retry: false,
     queryFn: () => fetchBuildings(),
   });
+
+/** Rising-river rollout (synthetic residents per persona at every river stage). Deterministic per
+ * world version and cached by the API; the first call on the seed takes about 15 s. */
+export const useRiverRollout = (enabled: boolean) =>
+  useQuery({
+    queryKey: ["river-rollout"],
+    enabled,
+    staleTime: Number.POSITIVE_INFINITY,
+    queryFn: async () => unwrap(await api.GET("/river-rollout", { params: { query: {} } })),
+  });

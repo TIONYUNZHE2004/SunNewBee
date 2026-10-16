@@ -254,6 +254,7 @@ def validate_answer(ans: FinalAnswer, rec: TurnRecord) -> list[str]:
         errs.append("A flood scenario tool was used: set scenario_id.")
     errs += whatif_errors(ans, rec)
     errs += plan_errors(ans, rec)
+    errs += rollout_errors(ans, rec)
     # Honesty rules apply to every answer, whether or not a tool ran.
     errs += text_errors(all_text, rec)
     return errs
@@ -441,6 +442,148 @@ def plan_errors(ans: FinalAnswer, rec: TurnRecord) -> list[str]:
     return errs
 
 
+# A river level, written any way: "+3 m", "rises 2 metres", "a 4 m rise", "rise of 3 m".
+STAGE_MENTION = re.compile(
+    r"(?:\+\s?|\brises?\s+(?:by\s+)?(?:another\s+)?|\brise of\s+)(\d+(?:\.\d+)?)\s?"
+    r"(?:m|metres?|meters?)\b|\b(\d+(?:\.\d+)?)\s?(?:m|metres?|meters?)\s+rise\b",
+    re.IGNORECASE,
+)
+FORECAST_WORDS = re.compile(
+    r"\bstranded\b|\btrapped\b|\bwill (?:be |get )?(?:cut off|flooded|lose|stuck)\b",
+    re.IGNORECASE,
+)
+NUMBER_WORDS = re.compile(
+    r"\b(?:one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)\s+(?:out\s+)?of\b",
+    re.IGNORECASE,
+)
+BREAK_WORDS = re.compile(r"\bcut off\b|\bbreaks?\b|\bno longer\b|\bloses?\b", re.IGNORECASE)
+_LABEL = re.compile(r"\bnormal (?:river )?level\b|\briver \+\d+(?:\.\d+)? m\b", re.IGNORECASE)
+# rollout metric words -> count key
+_METRIC = (
+    (re.compile(r"cut off", re.I), "cut_off"),
+    (re.compile(r"confirmed", re.I), "confirmed"),
+    (re.compile(r"no mapped connection", re.I), "no_data"),
+    (re.compile(r"reach", re.I), "reach"),
+)
+_COUNTED_METRIC = re.compile(
+    rf"\b{_COUNT}(?:\s+(?:out\s+)?of\s+(?:the\s+)?(\d+))?([^.;:()\d]{{0,70}}?)"
+    r"\b(cut off|confirmed|no mapped connection|reach(?:ed|es)?)",
+    re.IGNORECASE,
+)
+
+
+def _stage_values(stage_ids) -> set[float]:
+    out = set()
+    for sid in stage_ids:
+        if m := re.fullmatch(r"stage_p(\d+)m", sid or ""):
+            out.add(float(m.group(1)))
+    return out
+
+
+def _sentences(text: str) -> list[str]:
+    return [x for x in re.split(r"(?<=[.!?;])\s+|\n", text) if x.strip()]
+
+
+def _label_to_stage(rec: TurnRecord) -> dict[str, str]:
+    out: dict[str, str] = {}
+    for r in rec.rollouts:
+        for st in r.get("stages", []):
+            if st.get("label"):
+                out[st["label"].lower()] = st["id"]
+    for t in rec.tippings:
+        for sid, lab in (t.get("labels") or {}).items():
+            out[lab.lower()] = sid
+    out.setdefault("normal level", "baseline")
+    out["normal river level"] = "baseline"
+    return out
+
+
+def rollout_errors(ans: FinalAnswer, rec: TurnRecord) -> list[str]:
+    """Rising-river rollouts and tipping points (Cycle 3): stage-bound numbers, modelled stages
+    only, the right break stage, conditional wording, demo values labelled."""
+    if not (rec.rollouts or rec.tippings) or ans.answer_status == "cannot_answer":
+        return []
+    text = " ".join([ans.summary, *ans.steps, *ans.caveats, *(c.text for c in ans.claims)])
+    low = text.lower()
+    errs: list[str] = []
+    if "not a forecast" not in low:
+        errs.append(
+            "River-stage simulations must say they are indicative scenarios, not a forecast "
+            "(include the words 'not a forecast')."
+        )
+    if FORECAST_WORDS.search(text):
+        errs.append(
+            "A simulation does not predict who will be stranded or cut off: say who 'is cut off "
+            "in this scenario' instead of 'will be'."
+        )
+    stage_ids = {s["id"] for r in rec.rollouts for s in r.get("stages", [])}
+    stage_ids |= {row["stage"] for t in rec.tippings for row in t.get("stages", [])}
+    known = _stage_values(stage_ids)
+    spoken = {float(a or b) for a, b in STAGE_MENTION.findall(text)}
+    if bad := sorted(spoken - known):
+        errs.append(
+            f"River stages {[f'+{b:g} m' for b in bad]} were not simulated: name only the "
+            "modelled stages."
+        )
+    if PERCENT.search(text) or NUMBER_WORDS.search(text):
+        errs.append("Give counts as digits from the simulation, not percentages or words.")
+    labels = _label_to_stage(rec)
+    # Counts must match the stage named in the same sentence (any persona), for that metric.
+    for sent in _sentences(text):
+        named = {
+            labels[m.group(0).lower()]
+            for m in _LABEL.finditer(sent)
+            if m.group(0).lower() in labels
+        }
+        for m in _COUNTED_METRIC.finditer(sent):
+            n = int(m.group(1))
+            metric = next(k for rx, k in _METRIC if rx.search(m.group(4)))
+            ok = set()
+            for r in rec.rollouts:
+                for per in (r.get("counts") or {}).values():
+                    for sid, c in per.items():
+                        if not named or sid in named:
+                            ok |= {int(c.get(metric, -1)), int(c.get("total", -1))}
+            if rec.rollouts and n not in ok:
+                where = f" at {sorted(named)}" if named else ""
+                errs.append(
+                    f"Number {n} does not match the rollout's '{metric}' count{where}: quote the "
+                    "counts of the stage you name."
+                )
+    for t in rec.tippings:
+        labs = t.get("labels") or {}
+        br, dg = t.get("breaks_at"), t.get("degrades_at")
+        if not t.get("reached_at_normal", True) and re.search(r"keeps? a (?:mapped )?route", low):
+            errs.append(
+                "This trip has no working route even at normal level: say so (a data gap or "
+                "cut off already), never that it keeps a route."
+            )
+        for sent in _sentences(text):
+            if not BREAK_WORDS.search(sent):
+                continue
+            stages_here = {labels.get(m.group(0).lower()) for m in _LABEL.finditer(sent)}
+            stages_here.discard(None)
+            allowed_stages = {x for x in (br, dg) if x}
+            if stages_here - allowed_stages - {"baseline"}:
+                want = labs.get(br or "", "no stage")
+                errs.append(f"The trip breaks at {want}, not at the stage named in: {sent[:80]!r}.")
+        if br and (lab := labs.get(br)) and lab.lower() not in low:
+            errs.append(f"Say the stage where the trip breaks, as '{lab}'.")
+    demo = any(row.get("demo_evidence") for t in rec.tippings for row in t.get("stages", []))
+    demo |= any(
+        c.get("confirmed_on_demo")
+        for r in rec.rollouts
+        for per in (r.get("counts") or {}).values()
+        for c in per.values()
+    )
+    if demo and "confirmed" in low and PLACEHOLDER_CAVEAT not in low:
+        errs.append(
+            "Confirmed routes in this simulation rest on demo values: add the exact phrase "
+            f"'{PLACEHOLDER_CAVEAT}'."
+        )
+    return errs
+
+
 def repair_answer(ans: FinalAnswer, rec: TurnRecord) -> tuple[FinalAnswer, list[str]]:
     """Fact-free fixes applied before `validate_answer`, so a live model is not sent back for them.
 
@@ -455,12 +598,18 @@ def repair_answer(ans: FinalAnswer, rec: TurnRecord) -> tuple[FinalAnswer, list[
     """
     if ans.answer_status == "cannot_answer":
         return ans, []
+    notes: list[str] = []
+    if (rec.rollouts or rec.tippings) and not ans.scenario_id and rec.scenarios_used:
+        # Every stage was simulated: name the top one so the right disclaimer is shown.
+        top = max(rec.scenarios_used, key=lambda x: float(re.sub(r"\D", "", x) or 0))
+        ans = ans.model_copy(update={"scenario_id": top})
+        notes.append("set scenario_id for a river-stage simulation")
     not_evidence = set(rec.routes) | {str(v.get("id")) for v in rec.vrs}
     stripped = [
         c.model_copy(update={"evidence_ids": [i for i in c.evidence_ids if i not in not_evidence]})
         for c in ans.claims
     ]
-    notes = [
+    notes += [
         f"dropped non-evidence ids from claim {c.text[:40]!r}"
         for c, s in zip(ans.claims, stripped, strict=True)
         if len(s.evidence_ids) != len(c.evidence_ids)
@@ -506,6 +655,18 @@ _ISSUES = (
     ("A survey plan is conditional", "did not say the plan depends on the checks passing"),
     ("do not appear in the survey plan", "used numbers the survey plan did not produce"),
     ("Planned checks have not happened", "stated a planned result as certain"),
+    ("River-stage simulations must say", "did not say the river scenario is not a forecast"),
+    ("were not simulated", "named a river level the model did not simulate"),
+    ("Say the stage where the trip breaks", "did not say at which river level the trip breaks"),
+    ("does not match the rollout", "used a count the rollout did not produce for that stage"),
+    ("does not predict who will be", "described a simulation as a prediction"),
+    ("not percentages or words", "gave percentages or spelled-out numbers"),
+    ("no working route even at normal level", "said a trip works when it never does"),
+    ("The trip breaks at", "named the wrong river level for the break"),
+    (
+        "Confirmed routes in this simulation rest on demo values",
+        "left out that values are demo values",
+    ),
     ("caveat", "left out a required caveat"),
     ("scenario_id", "did not name the flood scenario it used"),
 )

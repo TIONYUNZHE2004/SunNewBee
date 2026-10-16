@@ -165,3 +165,189 @@ def test_plan_validator_rejects_certainty_and_invented_numbers():
         validate_answer(ans("If these 12 checks pass, 9 journeys would be confirmed."), rec)
     )
     assert "12" in bad and "9" in bad
+
+
+# ---- rising river (Cycle 3) ------------------------------------------------------------------
+TIP_Q = "At which river level does my route from the playground to the evacuation centre break?"
+ROLL_Q = "What happens to residents as the river rises?"
+
+
+async def test_tipping_point_hero(ctx):
+    rec = TurnRecord()
+    evs = await turn(ctx, TIP_Q, rec, profile="default")
+    assert [e.name for e in evs if e.type == "tool.call"] == ["find_place", "river_tipping_point"]
+    assert rec.validator_errors == [] and evs[-1].model == "mock-scripted"
+    t = text(evs)
+    assert "is cut off from River +3 m, because the start or destination is likely flooded" in t
+    assert "not a forecast" in t and any(e.type == "disclaimer" for e in evs)
+
+
+async def test_rollout_hero_plays_on_the_map(ctx):
+    rec = TurnRecord()
+    evs = await turn(ctx, ROLL_Q, rec)
+    assert rec.validator_errors == [] and evs[-1].model == "mock-scripted"
+    assert any(e.type == "scene.intent" and e.intent.kind == "river.rollout" for e in evs)
+    assert "rollout" not in str(rec.rollouts[0].get("routes", "absent"))  # geometry not kept
+
+
+def test_rollout_validator_rules():
+    from townshiplens_agent.answer import Claim, FinalAnswer
+    from townshiplens_agent.validate import validate_answer
+    from townshiplens_spatial.models import Evidence
+
+    rec = TurnRecord(tool_calls=["rising_river_rollout"], scenarios_used={"stage_p5m"})
+    rec.evidence["ev-rollout-x"] = Evidence(
+        id="ev-rollout-x", element_id="rollout", attribute="river_rollout", status="indicative"
+    )
+    c = {
+        "total": 30,
+        "reach": 27,
+        "confirmed": 0,
+        "confirmed_on_demo": 0,
+        "cut_off": 0,
+        "no_data": 3,
+    }
+    rec.rollouts.append(
+        {
+            "stages": [{"id": "baseline"}, {"id": "stage_p3m"}, {"id": "stage_p5m"}],
+            "counts": {
+                "wheelchair": {"baseline": {**c, "reach": 29, "no_data": 1}, "stage_p5m": c}
+            },
+        }
+    )
+
+    def ans(summary):
+        return FinalAnswer(
+            answer_status="partial",
+            summary=summary,
+            scenario_id="stage_p5m",
+            claims=[Claim(text="r", status="indicative", evidence_ids=["ev-rollout-x"])],
+        )
+
+    ok = "In this simulation (not a forecast), at River +5 m 27 of 30 wheelchair residents reach."
+    assert validate_answer(ans(ok), rec) == []
+    errs = " ".join(validate_answer(ans("At River +2.5 m, 25 of 30 residents reach."), rec))
+    assert "not a forecast" in errs and "+2.5 m" in errs and "25" in errs
+
+
+# ---- Cycle 3 review fixes ------------------------------------------------------------------
+async def test_tipping_answer_for_a_trip_that_never_works(ctx):
+    """C1: no route at normal level is said plainly, never 'keeps a mapped route'."""
+    from townshiplens_agent.template import tipping_answer
+    from townshiplens_spatial import tools as sp
+
+    d = sp.river_tipping_point(ctx, from_id="moon-base", profile="wheelchair").data
+    a = tipping_answer(d, ["ev-tip-x"])
+    assert "no working route at any modelled river level" in a["summary"]
+    assert "keeps a mapped route" not in a["summary"]
+
+
+async def test_tipping_hero_labels_demo_values(ctx):
+    """C2: demo-value 'confirmed' steps are labelled."""
+    evs = await turn(ctx, TIP_Q, profile="default")
+    t = text(evs)
+    assert "confirmed (on demo values, not yet surveyed)" in t
+    assert "demo values, not yet surveyed" in t
+
+
+def _rollout_rec():
+    from townshiplens_spatial.models import Evidence
+
+    rec = TurnRecord(tool_calls=["rising_river_rollout"], scenarios_used={"stage_p5m"})
+    rec.evidence["ev-rollout-x"] = Evidence(
+        id="ev-rollout-x", element_id="rollout", attribute="river_rollout", status="indicative"
+    )
+    base = {
+        "total": 5,
+        "reach": 4,
+        "confirmed": 3,
+        "confirmed_on_demo": 0,
+        "cut_off": 0,
+        "no_data": 1,
+    }
+    top = {
+        "total": 5,
+        "reach": 2,
+        "confirmed": 0,
+        "confirmed_on_demo": 0,
+        "cut_off": 2,
+        "no_data": 1,
+    }
+    rec.rollouts.append(
+        {
+            "stages": [
+                {"id": "baseline", "label": "Normal level"},
+                {"id": "stage_p3m", "label": "River +3 m"},
+                {"id": "stage_p5m", "label": "River +5 m"},
+            ],
+            "counts": {"wheelchair": {"baseline": base, "stage_p3m": base, "stage_p5m": top}},
+        }
+    )
+    return rec
+
+
+@pytest.mark.parametrize(
+    "summary",
+    [
+        "In this simulation (not a forecast), at River +5 m 3 of 5 wheelchair residents still "
+        "have a confirmed route.",
+        "In this simulation (not a forecast), at River +5 m 4 wheelchair residents are cut off.",
+        "In this simulation (not a forecast), at River +3 m 1 of 5 residents is cut off.",
+        "In this simulation (not a forecast), 60% of residents are cut off at River +5 m.",
+        "In this simulation (not a forecast), three of five residents reach a centre.",
+        "In this simulation (not a forecast), if the river rises 2 metres most still reach one.",
+        "In this simulation (not a forecast), residents will be stranded at River +5 m.",
+    ],
+)
+def test_rollout_lies_are_rejected(summary):
+    from townshiplens_agent.answer import Claim, FinalAnswer
+    from townshiplens_agent.validate import validate_answer
+
+    a = FinalAnswer(
+        answer_status="partial",
+        summary=summary,
+        scenario_id="stage_p5m",
+        claims=[Claim(text="r", status="indicative", evidence_ids=["ev-rollout-x"])],
+    )
+    assert validate_answer(a, _rollout_rec()), summary
+
+
+def test_rollout_truth_passes():
+    from townshiplens_agent.answer import Claim, FinalAnswer
+    from townshiplens_agent.validate import validate_answer
+
+    a = FinalAnswer(
+        answer_status="partial",
+        summary="In this simulation (not a forecast), at River +5 m 2 of 5 wheelchair residents "
+        "still reach a centre and 2 are cut off.",
+        scenario_id="stage_p5m",
+        claims=[Claim(text="r", status="indicative", evidence_ids=["ev-rollout-x"])],
+    )
+    assert validate_answer(a, _rollout_rec()) == []
+
+
+async def test_tipping_wrong_break_stage_is_rejected(ctx, monkeypatch):
+    from townshiplens_agent.answer import Claim, FinalAnswer
+    from townshiplens_agent.validate import validate_answer
+
+    rec = TurnRecord()
+    await turn(ctx, TIP_Q, rec, profile="default")
+    ev = [i for i in rec.evidence if i.startswith("ev-tip-")]
+    a = FinalAnswer(
+        answer_status="partial",
+        summary="In this simulation (not a forecast), the trip already breaks at River +1 m and "
+        "is cut off from River +3 m. Demo values, not yet surveyed.",
+        scenario_id="stage_p5m",
+        claims=[Claim(text="t", status="indicative", evidence_ids=ev)],
+    )
+    assert any("breaks at River +3 m, not" in e for e in validate_answer(a, rec))
+
+
+def test_mock_tipping_trigger_needs_a_river_word():
+    import re
+
+    from townshiplens_agent.mock import _TIPPING
+
+    assert not re.search(_TIPPING, "which level is the ramp at?")
+    assert not re.search(_TIPPING, "does my route break if it rains?")
+    assert re.search(_TIPPING, "at which river level does my route break?")

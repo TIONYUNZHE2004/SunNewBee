@@ -11,7 +11,7 @@ export const STARTERS: Record<Mode, Starter[]> = {
     { text: "Stroller route from Car Park B to the playground", profile: "stroller" },
     { text: "Wheelchair route to the lakeside mall", profile: "wheelchair" },
     { text: "Nearest evacuation centre if the water rises 3 m" },
-    { text: "Where to drop off recycling" },
+    { text: "At which river level does my route from the mall to an evacuation centre break?" },
   ],
   management: [
     {
@@ -23,7 +23,7 @@ export const STARTERS: Record<Mode, Starter[]> = {
       text: "Which facts should staff verify first so wheelchair users can reach a centre?",
       profile: "wheelchair",
     },
-    { text: "Tell me about Elmina Lakeside Mall" },
+    { text: "What happens to residents as the river rises?", profile: "wheelchair" },
   ],
 };
 

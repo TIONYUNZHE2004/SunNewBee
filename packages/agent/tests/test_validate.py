@@ -741,3 +741,13 @@ def test_staged_whatif_must_say_not_a_forecast():
     assert any("not a forecast" in e for e in whatif_errors(a, r))
     ok = _wa("In this what-if simulation, 45 of 50 would reach.", caveats=["Not a forecast."])
     assert whatif_errors(ok, r) == []
+
+
+def test_repair_names_the_stage_of_a_river_simulation():
+    from townshiplens_agent.validate import repair_answer
+
+    r = rec(scenarios_used={"stage_p5m"})
+    r.rollouts.append({"stages": []})
+    a = FinalAnswer(answer_status="partial", summary="x", claims=[])
+    fixed, notes = repair_answer(a, r)
+    assert fixed.scenario_id == "stage_p5m" and notes

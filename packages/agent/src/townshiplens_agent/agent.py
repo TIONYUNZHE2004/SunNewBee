@@ -286,6 +286,19 @@ async def call_tool(deps: Deps, name: str, **kwargs: Any) -> dict:
         }
     if name == "plan_verifications" and res.ok and isinstance(res.data, dict):
         rec.plans.append(res.data)
+    if name == "rising_river_rollout" and res.ok and isinstance(res.data, dict):
+        res.data.pop("routes", None)  # geometry and per-resident rows stay out of the prompt
+        res.data.pop("residents", None)
+        rec.rollouts.append(res.data)
+    if name in ("rising_river_rollout", "river_tipping_point") and res.ok:
+        # every stage was simulated: the flood disclaimer and scenario rules apply
+        scs = sorted(deps.ctx.world.flood.scenarios, key=lambda sc: sc.stage_m)
+        rec.scenarios_used |= {sc.id for sc in scs[-1:] if sc.id != "baseline"}
+    if name == "river_tipping_point" and res.ok and isinstance(res.data, dict):
+        rec.tippings.append(res.data)
+        rec.place_names |= {
+            n for n in (res.data.get("from_name"), res.data.get("target_name")) if n
+        }
     if name == "create_verification_request" and res.ok:
         rec.vrs.append(res.data)
         await _emit(deps, _vr_event(res.data))
@@ -500,6 +513,26 @@ def build_agent(model: Model) -> Agent[Deps, FinalAnswer]:
         return await call_tool(
             ctx.deps, "plan_verifications", profile=profile, scope=scope, budget=budget
         )
+
+    @agent.tool
+    async def river_tipping_point(
+        ctx: RunContext[Deps], from_id: str, profile: str = "default", to_id: str | None = None
+    ) -> dict:
+        """At which river stage does a journey break? One journey (from_id -> to_id, or the
+        nearest evacuation centre when to_id is omitted) across every precomputed stage: the
+        status per stage, degrades_at and breaks_at (stage ids). Indicative, not a forecast."""
+        return await call_tool(
+            ctx.deps, "river_tipping_point", from_id=from_id, profile=profile, to_id=to_id
+        )
+
+    @agent.tool
+    async def rising_river_rollout(
+        ctx: RunContext[Deps], profiles: list[str] | None = None, n: int = 30
+    ) -> dict:
+        """Synthetic residents per persona heading for the nearest evacuation centre at every
+        river stage: counts per stage (reach, confirmed, cut_off, no_data) and who is cut off
+        first. The app animates it on the map. Indicative simulation, not a forecast."""
+        return await call_tool(ctx.deps, "rising_river_rollout", profiles=profiles, n=n)
 
     @agent.output_validator
     async def check(ctx: RunContext[Deps], out: FinalAnswer) -> FinalAnswer:

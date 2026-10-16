@@ -1726,6 +1726,93 @@
         "title": "ProfileInfo",
         "type": "object"
       },
+      "Resident": {
+        "properties": {
+          "demo_evidence": {
+            "default": false,
+            "title": "Demo Evidence",
+            "type": "boolean"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "origin_coord": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "number"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Origin Coord"
+          },
+          "origin_id": {
+            "title": "Origin Id",
+            "type": "string"
+          },
+          "origin_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Origin Name"
+          },
+          "profile": {
+            "title": "Profile",
+            "type": "string"
+          },
+          "route_ids": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "title": "Route Ids",
+            "type": "array"
+          },
+          "statuses": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Statuses",
+            "type": "array"
+          },
+          "tipping_stage": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tipping Stage"
+          }
+        },
+        "required": [
+          "id",
+          "profile",
+          "origin_id",
+          "statuses",
+          "route_ids"
+        ],
+        "title": "Resident",
+        "type": "object"
+      },
       "ResolveBody": {
         "properties": {
           "action": {
@@ -1761,6 +1848,70 @@
           "action"
         ],
         "title": "ResolveBody",
+        "type": "object"
+      },
+      "RiverRollout": {
+        "properties": {
+          "counts": {
+            "additionalProperties": {
+              "additionalProperties": {
+                "additionalProperties": {
+                  "type": "integer"
+                },
+                "type": "object"
+              },
+              "type": "object"
+            },
+            "title": "Counts",
+            "type": "object"
+          },
+          "disclaimer": {
+            "default": "Synthetic residents on the township model: an indicative simulation, not a forecast. River stages are scenarios, not water depths; departure times, warnings and crowding are not modelled; animation speed is illustrative. Follow official MBSA / JPS / NADMA guidance.",
+            "title": "Disclaimer",
+            "type": "string"
+          },
+          "evidence_id": {
+            "title": "Evidence Id",
+            "type": "string"
+          },
+          "profiles": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Profiles",
+            "type": "array"
+          },
+          "residents": {
+            "items": {
+              "$ref": "#/components/schemas/Resident"
+            },
+            "title": "Residents",
+            "type": "array"
+          },
+          "routes": {
+            "additionalProperties": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Routes",
+            "type": "object"
+          },
+          "stages": {
+            "items": {
+              "$ref": "#/components/schemas/Stage"
+            },
+            "title": "Stages",
+            "type": "array"
+          }
+        },
+        "required": [
+          "stages",
+          "profiles",
+          "counts",
+          "residents",
+          "evidence_id"
+        ],
+        "title": "RiverRollout",
         "type": "object"
       },
       "Route": {
@@ -2214,7 +2365,8 @@
               "route.highlight",
               "flood.set_level",
               "layer.toggle",
-              "whatif.diff"
+              "whatif.diff",
+              "river.rollout"
             ],
             "title": "Kind",
             "type": "string"
@@ -2895,6 +3047,24 @@
           "bbox"
         ],
         "title": "Site",
+        "type": "object"
+      },
+      "Stage": {
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "label"
+        ],
+        "title": "Stage",
         "type": "object"
       },
       "Suggestions": {
@@ -4750,6 +4920,64 @@
           }
         },
         "summary": "Profiles"
+      }
+    },
+    "/river-rollout": {
+      "get": {
+        "description": "Synthetic residents per persona heading for the nearest evacuation centre at every river\nstage, with routes for the 3D animation. Indicative simulation, not a forecast. Cached by\nworld version (the first call on the seed takes about 15 s).",
+        "operationId": "river_rollout_river_rollout_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "profiles",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Profiles"
+            }
+          },
+          {
+            "in": "query",
+            "name": "n",
+            "required": false,
+            "schema": {
+              "default": 30,
+              "maximum": 50,
+              "minimum": 5,
+              "title": "N",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RiverRollout"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "unknown or non-walking profile"
+          },
+          "503": {
+            "description": "the township model is busy; retry shortly"
+          }
+        },
+        "summary": "River Rollout"
       }
     },
     "/routes": {

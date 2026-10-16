@@ -24,6 +24,8 @@ def test_registry_has_the_ten_lookups_and_three_world_model_tools(ctx):
         "suggest_interventions",
         "simulate_what_if",
         "plan_verifications",
+        "river_tipping_point",
+        "rising_river_rollout",
     }
 
 

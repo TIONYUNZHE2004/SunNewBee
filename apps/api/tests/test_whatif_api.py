@@ -63,3 +63,24 @@ def test_what_if_rejects_drive_and_bogus_stage(client):
     assert r.status_code == 422 and "walking profiles" in r.text
     r = client.post("/what-if", json={"actions": [], "scope": "suite", "scenario_id": "stage_p9m"})
     assert r.status_code == 422
+
+
+def test_river_rollout_endpoint(client):
+    r = client.get("/river-rollout", params={"profiles": ["wheelchair"], "n": 5})
+    assert r.status_code == 200, r.text
+    d = r.json()
+    assert d["stages"][0]["id"] == "baseline" and d["residents"] and d["routes"]
+    assert "not a forecast" in d["disclaimer"]
+    assert client.get("/river-rollout", params={"profiles": ["drive"]}).status_code == 422
+
+
+def test_river_rollout_repeats_and_permutations_hit_one_cache_entry(client):
+    """Review C4: repeated or reordered profiles never multiply the work."""
+    from townshiplens_spatial import tools
+
+    before = len(tools._WM_CACHE)
+    a = client.get("/river-rollout", params={"profiles": ["stroller", "wheelchair"], "n": 5})
+    b = client.get("/river-rollout", params={"profiles": ["wheelchair", "stroller"] * 10, "n": 5})
+    assert a.status_code == b.status_code == 200 and a.json() == b.json()
+    assert len(tools._WM_CACHE) - before <= 1
+    assert len({r["id"] for r in b.json()["residents"]}) == len(b.json()["residents"])

@@ -170,6 +170,7 @@ POST /chat (SSE) -> parseSse -> useChatStream -> chatReducer   (messages, tool c
                                                               camera.fly_to    -> camera
                                                               layer.toggle     -> lensVisible
                                                               whatif.diff      -> whatIf (imagined diff)
+                                                              river.rollout    -> rollout {on, stage, playing}
 sceneStore --> Cesium / Mapbox / List renderers (one adapter each) + map overlays + legend
 ```
 
@@ -186,6 +187,16 @@ flooded_possible`) via `scene/status.ts`, and unknown is drawn dashed and amber,
   - `map-ui/WhatIfTag` shows the "What-if · not real" legend, with a clear button.
 - **The panel.** `features/whatif/WhatIfLab` (Management mode, top of the assistant panel) calls `GET /what-if/suggestions` and `POST /what-if` without the LLM.
 - **Not yet drawn.** The Mapbox lite and List views do not draw the diff; the Lab card still shows the numbers.
+
+**Rising river (Cycle 3):**
+- **Panel.** `features/whatif/RisingRiverPanel` (Management mode, under the What-if Lab) fetches `GET /river-rollout` through `useRiverRollout`. It has stage buttons and play/pause, which steps one stage every 2.5 s and drives `setScenario` so the flood layer follows. It shows per-persona "N of M still reach a centre" bars.
+- **Map.** `scene/cesium/RolloutLayer` draws the synthetic residents as one `PointPrimitiveCollection` with one `clock.onTick`:
+  - yellow residents walk their engine-computed route for the current stage;
+  - red residents are cut off and stand still;
+  - grey residents have no mapped connection.
+
+  `map-ui/RolloutTag` (top right) always says "simulation, not a forecast".
+- **Pure helpers** are in `whatif/rolloutModel`.
 
 ## File map
 

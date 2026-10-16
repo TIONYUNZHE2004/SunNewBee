@@ -51,6 +51,9 @@ With no seed data present the API falls back to the tiny test fixture.
 | POST | `/chat` | SSE; streams `townshiplens_agent.run.run_turn` events (`LLM_PROVIDER=mock` gives the deterministic assistant); if the agent cannot load it emits `error` + `done` |
 | GET | `/schema/chat-event` | docs-only, exports the ChatEvent union |
 | POST | `/what-if` | public; `{actions, profile, scope: journey\|suite\|evacuation, from_id?, to_id?, scenario_id?}`. A Township World Model diff on a copy of the world: `summary`, `counts_before` / `counts_after`, `changed`, `diff_geojson` (all features tagged `whatif`), `evidence_id`, `disclaimer`. 422 for illegal or invented actions. Nothing is stored |
+| GET | `/verify-next` | public; `?profile=&scope=suite\|evacuation&budget=1..40`. A survey plan (planner.py): which unchecked facts to verify first, with the engine-verified count of journeys that would be confirmed if they pass, and open tickets linked |
+| GET | `/belief` | public; the planner's Beta belief per (path type, attribute), with its sources (OSM prior observations, real staff verifications). Planning only |
+| GET | `/river-rollout` | public; `?profiles=&n=5..50`. Synthetic residents per persona at every river stage, with routes for the 3D animation; cached by world version (the first call on the seed takes about 15 s). A simulation, not a forecast |
 | GET | `/what-if/suggestions` | public; `?profile=&near_place=`. Engine-proposed legal actions with readable labels, plus the river stages; 422 unknown profile or place |
 
 ## Environment (repo-root `.env`)
