@@ -4,6 +4,7 @@ import { ListView } from "../scene/list/ListView";
 import { useScene } from "../scene/sceneStore";
 import { availableViews, effectiveView, selectView, webglSupported } from "../scene/selectView";
 import { useMapStyle } from "../scene/useMapStyle";
+import { LoadingTownship } from "./LoadingTownship";
 
 const CesiumScene = lazy(() => import("../scene/cesium/CesiumScene"));
 const MapboxLite = lazy(() => import("../scene/mapbox/MapboxLite"));
@@ -66,9 +67,7 @@ export function MapStage({ children }: { children?: ReactNode }) {
   return (
     <div className="relative h-full min-h-72 overflow-hidden bg-surface">
       {waiting ? (
-        <p role="status" className="p-4 text-fg-soft">
-          Loading the township
-        </p>
+        <LoadingTownship />
       ) : effective === "list" ? (
         <div className="h-full space-y-3 overflow-auto p-4">
           {!has3d && (
@@ -88,13 +87,7 @@ export function MapStage({ children }: { children?: ReactNode }) {
           fallback={listFallback}
           onFail={() => setRendererFailed(true)}
         >
-          <Suspense
-            fallback={
-              <p role="status" className="p-4 text-fg-soft">
-                Loading the township
-              </p>
-            }
-          >
+          <Suspense fallback={<LoadingTownship />}>
             {effective === "cesium" ? <CesiumScene /> : <MapboxLite />}
           </Suspense>
         </RendererBoundary>

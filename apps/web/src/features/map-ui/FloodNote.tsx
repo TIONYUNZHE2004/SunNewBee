@@ -13,11 +13,12 @@ export function FloodNote() {
   return (
     <div
       role="note"
-      className="absolute bottom-4 left-4 z-10 max-w-[min(24rem,calc(100%-5rem))] rounded-xl border border-flood bg-surface/95 px-3 py-2 text-sm text-fg shadow-md"
+      className="glass absolute left-1/2 top-4 z-10 max-w-[calc(100%-2rem)] -translate-x-1/2 rounded-2xl px-4 py-2 text-sm text-fg sm:rounded-full"
     >
-      <p className="m-0 font-medium">River {label} · indicative scenario, not a forecast</p>
-      <p className="m-0 mt-1">
-        For official guidance see{" "}
+      <p className="m-0">
+        <span className="font-medium">
+          River {label} · Indicative scenario, not a forecast · Official guidance:
+        </span>{" "}
         <a
           className={LINK}
           href="https://www.mbsa.gov.my"
@@ -26,7 +27,7 @@ export function FloodNote() {
         >
           MBSA
         </a>
-        ,{" "}
+        {" / "}
         <a
           className={LINK}
           href="https://publicinfobanjir.water.gov.my"
@@ -34,8 +35,8 @@ export function FloodNote() {
           rel="noopener noreferrer"
         >
           JPS
-        </a>{" "}
-        and{" "}
+        </a>
+        {" / "}
         <a
           className={LINK}
           href="https://www.nadma.gov.my"
@@ -44,7 +45,6 @@ export function FloodNote() {
         >
           NADMA
         </a>
-        .
       </p>
       {sc?.disclaimer && <p className="m-0 mt-1 text-xs text-fg-soft">{sc.disclaimer}</p>}
     </div>

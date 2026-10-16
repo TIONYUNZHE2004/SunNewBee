@@ -26,4 +26,4 @@ export function useOverlayA11y(
 }
 
 export const OVERLAY_CLASS =
-  "absolute right-4 top-4 z-20 w-[330px] max-w-[calc(100%-2rem)] max-h-[calc(100%-6rem)] overflow-y-auto rounded-2xl border border-edge bg-surface p-4 text-fg shadow-xl focus-visible:outline-2 focus-visible:outline-accent";
+  "glass absolute bottom-10 left-4 z-20 w-[330px] max-w-[calc(100%-2rem)] max-h-[calc(100%-6rem)] overflow-y-auto rounded-2xl p-4 text-fg shadow-xl focus-visible:outline-2 focus-visible:outline-accent motion-safe:animate-[fadeIn_200ms_ease-out]";

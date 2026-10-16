@@ -202,3 +202,12 @@ body {
     transform: none;
   }
 }
+
+@keyframes trace {
+  from {
+    stroke-dashoffset: 220;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}

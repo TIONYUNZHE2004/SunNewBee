@@ -2,6 +2,7 @@ import { useMemo, useRef } from "react";
 import { usePlace } from "../../lib/api";
 import { EvidencePhoto } from "../../lib/EvidencePhoto";
 import { placeReach } from "../../lib/placeQuery";
+import { Icon, type IconName } from "../../ui/icons";
 import { StatusChip } from "../../ui/StatusChip";
 import type { StatusKey } from "../../ui/status";
 import { useChatDraft } from "../chat/chatDraftStore";
@@ -19,6 +20,14 @@ function chipFor(r: ClaimRow): { status: StatusKey; label?: string } {
     };
   if (r.status === "reported") return { status: "reported" };
   return { status: "unchecked" };
+}
+
+function iconFor(kind: string, typeLabel: string): IconName {
+  const t = typeLabel.toLowerCase();
+  if (kind === "evac_centre") return "pin";
+  if (kind === "waste_point" || t.includes("recycl")) return "recycle";
+  if (t.includes("park") || t.includes("playground")) return "walk";
+  return "pin";
 }
 
 function Row({ r, placeName }: { r: ClaimRow; placeName: string }) {
@@ -78,11 +87,18 @@ function PlaceOverlayInner({ id }: { id: string }) {
       className={OVERLAY_CLASS}
     >
       <div className="flex items-start justify-between gap-3">
-        <div>
-          <h2 id="place-overlay-h" ref={head} tabIndex={-1} className="text-lg font-semibold">
-            {view?.name ?? "Place details"}
-          </h2>
-          {view && <p className="text-sm text-fg-soft">{view.typeLabel}</p>}
+        <div className="flex items-start gap-2">
+          {view && (
+            <span className="mt-0.5 text-accent">
+              <Icon name={iconFor(view.kind, view.typeLabel)} />
+            </span>
+          )}
+          <div>
+            <h2 id="place-overlay-h" ref={head} tabIndex={-1} className="text-lg font-semibold">
+              {view?.name ?? "Place details"}
+            </h2>
+            {view && <p className="text-sm text-fg-soft">{view.typeLabel}</p>}
+          </div>
         </div>
         <button
           type="button"

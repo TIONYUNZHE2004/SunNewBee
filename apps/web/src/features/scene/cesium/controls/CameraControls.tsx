@@ -1,5 +1,6 @@
 import type { KeyboardEvent as ReactKeyboardEvent, ReactNode } from "react";
 import { useState } from "react";
+import { useScene } from "../../sceneStore";
 import { useCameraHeading } from "./cameraHeadingStore";
 import { keyAction, STEP } from "./cameraMath";
 import type { CameraOps } from "./cameraOps";
@@ -53,13 +54,14 @@ export function CameraControls({ ops }: { ops: CameraOps | null }) {
   const [peek, setPeek] = useState(false);
   const open = alwaysShow || peek;
   const heading = useCameraHeading((s) => s.heading);
+  const flood = useScene((s) => !!s.scenarioId && s.scenarioId !== "baseline");
   if (!ops) return null;
   return (
     <>
       {!hintDismissed && (
         <div
           role="note"
-          className="absolute left-1/2 top-4 z-20 flex -translate-x-1/2 items-center gap-3 rounded-full border border-edge bg-surface/90 px-4 py-2 text-sm text-fg shadow-md backdrop-blur"
+          className={`absolute left-1/2 ${flood ? "top-16" : "top-4"} z-20 flex -translate-x-1/2 items-center gap-3 rounded-full border border-edge bg-surface/90 px-4 py-2 text-sm text-fg shadow-md backdrop-blur`}
         >
           <span>Drag to move · Scroll to zoom · Right-drag to rotate</span>
           <button
@@ -83,7 +85,7 @@ export function CameraControls({ ops }: { ops: CameraOps | null }) {
         onBlur={(e) => {
           if (!e.currentTarget.contains(e.relatedTarget as Node)) setPeek(false);
         }}
-        className="absolute bottom-4 right-[4.5rem] z-20 flex items-end gap-2"
+        className="absolute bottom-4 right-[calc(var(--panel-w,0px)+4.5rem)] z-20 flex items-end gap-2"
       >
         {open && (
           <div className="flex flex-col gap-2 motion-safe:animate-[fadeIn_200ms_ease-out]">

@@ -6,7 +6,7 @@ export function RouteTag() {
   const clearRoute = useScene((s) => s.clearRoute);
   if (!route) return null;
   return (
-    <div className="absolute left-4 top-4 z-10 flex items-center gap-2 rounded-full border border-edge bg-surface/95 py-1 pl-3 pr-1 text-sm text-fg shadow-md">
+    <div className="absolute left-4 top-4 z-10 flex items-center gap-2 glass rounded-2xl py-1 pl-3 pr-1 text-sm text-fg motion-safe:animate-[fadeIn_200ms_ease-out]">
       <svg width="28" height="8" aria-hidden="true">
         <line x1="2" y1="4" x2="26" y2="4" stroke={ROUTE_STYLE.color} strokeWidth="6" />
       </svg>

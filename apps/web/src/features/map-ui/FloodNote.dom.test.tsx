@@ -30,6 +30,7 @@ describe("FloodNote", () => {
     expect(note).toHaveTextContent(/indicative scenario, not a forecast/i);
     for (const n of ["MBSA", "JPS", "NADMA"])
       expect(screen.getByRole("link", { name: new RegExp(n) })).toHaveAttribute("href");
+    expect(note.className).toContain("top-4");
     expect(note.textContent).not.toMatch(/\bsafe\b|depth|metres deep/i);
   });
 });

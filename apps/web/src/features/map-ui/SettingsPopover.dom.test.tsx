@@ -121,6 +121,24 @@ describe("SettingsPopover", () => {
     expect(screen.getByRole("dialog")).toBeVisible();
   });
 
+  it("orders the groups Theme, Map style, Motion, Quality, Camera controls, Travelling as, River level, Legend", async () => {
+    HTMLCanvasElement.prototype.getContext = (() => ({})) as never;
+    useScene.getState().setView("cesium");
+    renderWithClient(<SettingsPopover />, seeded());
+    await userEvent.click(screen.getByRole("button", { name: "Map settings" }));
+    const heads = screen.getAllByRole("heading", { level: 3 }).map((h) => h.textContent);
+    expect(heads).toEqual([
+      "Theme",
+      "Map style",
+      "Motion",
+      "Quality",
+      "Camera controls",
+      "Travelling as",
+      "River level",
+      "Legend",
+    ]);
+  });
+
   describe("Map style", () => {
     const openIt = async (buildings: unknown, google: string) => {
       ENV.googleKey = google;
