@@ -39,3 +39,4 @@ What gets easier, what gets harder, what we must watch.
 | [0008](0008-agent-harness-pydantic-ai.md) | Agent harness: PydanticAI over OpenRouter (model from env) | accepted |
 | [0009](0009-township-world-model-platform.md) | **Township World Model platform: whole-Elmina 3D, 2 deep lenses (accessibility, flood), People track** | accepted |
 | [0010](0010-flood-lens-hand-scenarios.md) | Flood lens: precomputed HAND river-stage scenarios, indicative, Elmina + downstream corridor | accepted |
+| [0011](0011-time-of-day-theme-and-decorative-motion.md) | Time-of-day theme (Day / Dusk / Night) and decorative-only motion in the stylised city | accepted |

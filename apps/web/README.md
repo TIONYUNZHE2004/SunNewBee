@@ -1,6 +1,6 @@
 # @tl/web
 
-The TownshipLens browser app: a Vite + React 19 SPA with two screens and a day/night theme.
+The TownshipLens browser app: a Vite + React 19 SPA with two screens and a time-of-day theme (Day / Dusk / Night).
 
 - `/` **Main** (`features/main/MainPage.tsx`): the map on the left (`MapStage`: Cesium 3D, Mapbox
   lite or the List view) with overlays (route tag, flood note, settings popover, place and path
@@ -91,12 +91,12 @@ Playwright does.
 - **Attribute catalogue:** `features/tickets/attributeCatalogue.ts` mirrors
   `packages/spatial/.../attributes.py`; a drift test keeps them equal.
 
-## Theme (day / night)
+## Theme (Auto / Day / Dusk / Night)
 
 `src/ui/theme.ts` is the single source of day/night. The `useTheme` zustand store (`theme`,
 `setTheme`, `toggle`) persists the choice in `localStorage` (`tl.theme`, wrapped in try/catch),
-falls back to the device preference (`prefers-color-scheme: light` gives day), else night, and
-writes `data-theme="day|night"` on `<html>`. Colours are CSS custom properties defined per theme;
+falls back to Auto, and
+writes `data-theme="day|dusk|night"` and `data-skin="light|dark"` on `<html>`. Colours are CSS custom properties defined per theme;
 components use semantic tokens such as `bg-surface`, `bg-raised`, `text-fg`, `text-fg-soft` and
 `border-edge`, not raw palette values. Status is never colour only: `src/ui/status.ts` and
 `StatusChip` pair every status with an icon, a border or pattern and a label in both themes, and
@@ -127,17 +127,75 @@ the settings popover.
   Building heights are mostly defaults by building kind (display only). Cars, street trees,
   colours and lit windows are seeded decoration. Base water is decorative and is never a flood
   scenario. The route, flood and place layers are the same data in both styles.
-- **Time of day:** Stylised re-skins itself on theme change (`reskin.ts`: palette, sky, light).
+- **Time of day:** Stylised re-skins itself on theme change (`reskin.ts`: palette, sky, light) with a crossfade.
   Realistic uses `timeOfDay.ts`.
 - **Camera:** the home view is closer for Stylised (`stylisedHomeView`, at most 2.5 km). Switching
   style keeps the current camera.
 
+### Theme: Auto, Day, Dusk, Night
+
+The theme menu offers **Auto** (follows the Elmina clock, Asia/Kuala_Lumpur: Day 07:00-18:00, Dusk
+18:00-19:30, Night 19:30-07:00; re-checked on a timer), or a fixed Day, Dusk or Night. The choice is
+display-only lighting and never changes a fact. Chrome has two skins: light (Day and Dusk) and dark
+(Night). Dusk chrome uses the light skin, so CSS keys on `data-skin`, not `data-theme`.
+
+### 3D controls (Cesium)
+
+| Input | Action |
+|---|---|
+| Left-drag | Pan at constant height (grabbed point stays under the cursor) |
+| Right-drag, middle-drag, Ctrl+left-drag, two-finger drag | Orbit and tilt |
+| Wheel, pinch | Zoom towards the cursor |
+| Shift+wheel | Tilt |
+| Double-click | Glide in |
+| Arrow keys or WASD | Move |
+| Q / E | Rotate left / right |
+| R / F | Tilt up / down |
+| + / - | Zoom |
+| N | Face north |
+
+A camera cluster (bottom right, revealed on hover or focus): Home view, Whole township, zoom, tilt,
+rotate, and a compass button that faces north. A one-time hint ("Drag to move, Scroll to zoom,
+Right-drag to rotate") can be dismissed. The camera is bounded: its position is clamped to the
+township plus a 5 km margin, and pitch and range have limits. Home always recovers. Clicks use
+Cesium's built-in 5 px pick tolerance.
+
+### Motion
+
+Birds, clouds with cloud shadows, leaf shimmer, base-water ripple, lamp fade and night window
+flicker. All are decorative, seeded and deterministic, and never tied to data. There is no moving
+traffic. Water animation touches only decorative base water, never a flood scenario. One loop,
+capped at 30 fps, drives it, and it stops when the tab is hidden, the map is off-screen, Motion is
+Off or `prefers-reduced-motion` is set. Switch it off with **Motion: Off** in the settings popover
+(stored in `tl.motion`).
+
+### Quality
+
+**Quality** (Auto / High / Medium / Low, stored in `tl.quality`) is picked from the GPU string and
+device memory (`quality.ts`, `pickTier`) and lowered automatically when the median frame rate during
+camera movement stays under 24 fps; a slow device is also offered the List view. Tiers set shadow
+type and map size, bloom, the maximum pixel ratio (2 / 1.5 / 1, applied with
+`useBrowserRecommendedResolution = false` plus `resolutionScale`), bird and cloud counts and the
+small-detail range. Ambient occlusion is off at every tier: Cesium's HBAO caused streak artifacts on
+this scene. Buildings, trees and cars cast shadows only (`CAST_ONLY`). Add `?perf=1` to the URL for a
+performance readout.
+
+### Honesty (decorative rules)
+
+Everything above is display-only and covered by "Decorative details are illustrative." There is no
+moving traffic and there are no invented landmarks or signage. Pavements, kerbs, markings and parks
+are flat, so they never hide route or path-status lines. Parks are display-only and read
+`base/parks.geojson`, which the seed does not currently contain (Overpass was blocked); fetch it
+with `uv run python data/scripts/build_buildings.py --parks --max-requests 40`. Water is a
+GroundPrimitive with a shimmer material and is never drawn as a flood scenario. See
+[ADR 0011](../../docs/00-overview/decisions/0011-time-of-day-theme-and-decorative-motion.md).
+
 ### Stylised module map (`features/scene/cesium/stylised/`)
 
 ```
-model.ts               GeoJSON -> buildings (height, kind, tone, lit seed), grid buckets, trees; hashUnit
-palette.ts             paletteFor("day" | "night"): ground, roads, water, walls, roofs, windows, trees, cars, sky
-buildingsMesh.ts       walls + roof geometry with metric st (window columns x floors; roof t = -1)
+model.ts               GeoJSON -> buildings (height, kind, one of six tones, window style grid|strip|curtain, lit seed), grid buckets, trees; hashUnit
+palette.ts             paletteFor("day" | "dusk" | "night"): ground, roads, water, six facade tones, roofs, windows, trees, cars, sky
+buildingsMesh.ts       walls + roof geometry with metric st (window columns x floors; roof t = -1, parapet t = -2); parapet draws 0.6 m above the data height (decorative)
 buildingsPrimitive.ts  one Primitive per grid cell + window Material; setTheme, far-range night boost
 ground.ts              roadsFromWalk (width by road kind), ClassificationPrimitive roads, decorative water
 props.ts               kerbCars, streetTrees, instanced tree and car primitives (allowPicking: false)

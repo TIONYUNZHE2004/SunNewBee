@@ -612,3 +612,16 @@
   - Network: localhost and Google Fonts only, no Google tile loads (the Realistic comparison was NOT RUN).
   - Replaced the synthetic screenshots with 5 real-seed ones.
 - **2026-10-16 10:29** (`date`): full checklist PASS: lint, pytest 864, typecheck, vitest 440, gen with no drift, golden 13/13 (mock), build, and e2e 9/9 (mock, tiny fixture). Report: `docs/03-product/stylised-city-quality-report.md`.
+
+## 2026-10-16 Stylised city enhancement (Project 3): phase gates and final verification
+
+- **2026-10-16 15:27** (`date`): Phase 1 gate. CI 7/7 PASS (lint, pytest, typecheck, test, gen drift, golden, e2e). Visual check on a worktree dev server (:5180, mock LLM, Stylised): close oblique home view, hint, compass and the Day / Dusk / Night theme menu all OK.
+- **2026-10-16 18:59**: Phase 2 gate. CI 7/7 PASS. The visual gate was only partly done: the dev servers were reaped for low memory and were not restarted without the owner's go-ahead. Earlier browser checks covered the Task 7, 8 and 9 visuals (no errors, clean shadows, crossfade OK).
+  - Task 8 hang, found in the browser and fixed: an inline `contextOptions` object was recreated every render, so Resium recreated the viewer in a loop. Fix: a module constant plus a regression test.
+  - Ruling: Cesium ambient occlusion is disabled at every tier (HBAO streaks on a real GPU). Bloom tuned (brightness -0.85). Buildings, trees and cars use `CAST_ONLY` shadows. Props are lifted toward white.
+- **2026-10-16 19:25**: Phase 3 gate. lint, typecheck, test and e2e PASS (pytest, gen and golden unaffected by web-only changes since the Phase 2 gate). Visual deferred (no dev server).
+- **2026-10-16 20:06** (`date`): Task 18 final verification at head `454a099` plus docs (ADR 0011, `apps/web/README.md`).
+  - lint PASS; pytest PASS (867); typecheck PASS; vitest PASS (583/583 in 85 files, with `--maxWorkers=2`); gen PASS with no drift in `packages/api-client`; golden PASS (13/13, mock); e2e PASS (9/9, mock, tiny fixture).
+  - Note: with the default vitest worker count, workers die with "Zone Allocation failed - process out of memory" on this low-memory machine (77 of 85 files ran). It is an environment limit, not a test failure.
+  - Parks: the seed has no `base/parks.geojson` (Overpass returned 502/500 on both mirrors). Retry with `uv run python data/scripts/build_buildings.py --parks --max-requests 40`.
+  - NOT RUN, still outstanding (needs a WebGL browser, owner or controller): Day, Dusk and Night at Home, close-up and Whole township; T11 ground (pavements, kerbs, markings); T12 buildings (facades, parapets); T13 lamps; T15 and T16 motion; fps from `?perf=1` per tier; the mock stroller route visible on top of everything; a flood scenario (+3 m) with no shimmer and the disclaimer still showing.
