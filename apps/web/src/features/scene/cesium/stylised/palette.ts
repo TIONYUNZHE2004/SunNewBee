@@ -1,6 +1,7 @@
 export type { Theme } from "../../../../ui/theme";
 
 import type { Theme } from "../../../../ui/theme";
+import { mixHex } from "./colour";
 
 export interface Palette {
   ground: string;
@@ -24,6 +25,20 @@ export interface Palette {
   glow: number;
   /** Share of windows that are lit. */
   litFrac: number;
+  light: {
+    key: string;
+    fill: string;
+    bounce: string;
+    /** ENU direction the key light travels (same convention as `sun.dir`). */
+    keyDir: [number, number, number];
+    keyIntensity: number;
+    ambient: number;
+  };
+  /** CSS sky gradient behind the transparent canvas. */
+  skyTop: string;
+  horizon: string;
+  shadows: boolean;
+  bloom: boolean;
 }
 
 const NIGHT: Palette = {
@@ -43,6 +58,18 @@ const NIGHT: Palette = {
   ambient: 0.35,
   glow: 1,
   litFrac: 0.58,
+  light: {
+    key: "#8fa6ff",
+    fill: "#3d2f6b",
+    bounce: "#1a1430",
+    keyDir: [0.4, -0.5, -0.25],
+    keyIntensity: 0.35,
+    ambient: 0.4,
+  },
+  skyTop: "#120d26",
+  horizon: "#3d2f6b",
+  shadows: false,
+  bloom: true,
 };
 
 const DAY: Palette = {
@@ -62,6 +89,18 @@ const DAY: Palette = {
   ambient: 0.8,
   glow: 0,
   litFrac: 0.35,
+  light: {
+    key: "#fff1d6",
+    fill: "#cfe3ff",
+    bounce: "#e8dccf",
+    keyDir: [0.5, -0.6, -0.8],
+    keyIntensity: 0.85,
+    ambient: 0.55,
+  },
+  skyTop: "#7fb2e5",
+  horizon: "#e9f1f7",
+  shadows: true,
+  bloom: false,
 };
 
 const DUSK: Palette = {
@@ -81,7 +120,42 @@ const DUSK: Palette = {
   ambient: 0.6,
   glow: 0.6,
   litFrac: 0.45,
+  light: {
+    key: "#ffb38a",
+    fill: "#8f8be0",
+    bounce: "#d9a7a0",
+    keyDir: [0.75, -0.2, -0.3],
+    keyIntensity: 0.9,
+    ambient: 0.45,
+  },
+  skyTop: "#6f5aa8",
+  horizon: "#f8cdb0",
+  shadows: true,
+  bloom: true,
 };
 
 const PALETTES: Record<Theme, Palette> = { day: DAY, dusk: DUSK, night: NIGHT };
 export const paletteFor = (t: Theme): Palette => PALETTES[t] ?? NIGHT;
+
+const isHex = (v: unknown): v is string => typeof v === "string" && /^#[0-9a-f]{6}$/i.test(v);
+
+function lerpAny(a: unknown, b: unknown, t: number): unknown {
+  if (isHex(a) && isHex(b)) return mixHex(a, b, t);
+  if (typeof a === "number" && typeof b === "number") return a + (b - a) * t;
+  if (Array.isArray(a) && Array.isArray(b) && a.length === b.length)
+    return a.every(isHex)
+      ? a.map((v, i) => mixHex(v as string, b[i] as string, t))
+      : t < 0.5
+        ? a
+        : b;
+  if (a && b && typeof a === "object" && typeof b === "object") {
+    const out: Record<string, unknown> = {};
+    for (const k of Object.keys(a)) out[k] = lerpAny((a as never)[k], (b as never)[k], t);
+    return out;
+  }
+  return t < 0.5 ? a : b;
+}
+
+/** Palette between a (t=0) and b (t=1): colours mixed, numbers lerped, flags switch at 0.5. */
+export const lerpPalette = (a: Palette, b: Palette, t: number): Palette =>
+  t <= 0 ? a : t >= 1 ? b : (lerpAny(a, b, t) as Palette);

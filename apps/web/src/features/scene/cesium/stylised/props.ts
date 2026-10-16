@@ -1,5 +1,6 @@
 import type * as Cesium from "cesium";
 import type { Road } from "./ground";
+import { lightUniforms, litColorMaterial, setLightUniforms } from "./lighting";
 import { hashUnit } from "./model";
 import { type Palette, paletteFor, type Theme } from "./palette";
 
@@ -149,11 +150,16 @@ type ColourOf = (p: Palette) => string;
 /**
  * Trees (low-poly canopy + trunk) and parked cars (body + cabin) as a few instanced Primitives,
  * one per colour, so the Day/Night swap is a material uniform write. Unit geometries are shared and
- * sized by each instance's model matrix. Lit by `scene.light` (the palette sun).
+ * sized by each instance's model matrix. Lit by the shared stylised lighting model (`lighting.ts`).
  */
 export function buildProps(
   C: PropsCesium,
-  { trees, cars, palette }: { trees: Tree[]; cars: Car[]; palette: Palette },
+  {
+    trees,
+    cars,
+    palette,
+    at,
+  }: { trees: Tree[]; cars: Car[]; palette: Palette; at: { lon: number; lat: number } },
   collection?: PrimitiveCollectionLike,
 ): Props {
   const vertexFormat = C.MaterialAppearance.MaterialSupport.BASIC.vertexFormat;
@@ -213,14 +219,13 @@ export function buildProps(
   let parts: { prim: Cesium.Primitive; mat: Cesium.Material; colour: ColourOf }[] = [];
   for (const { colour, instances } of groups) {
     if (instances.length === 0) continue;
-    const mat = C.Material.fromType("Color", {
-      color: C.Color.fromCssColorString(colour(palette)),
-    });
+    const mat = litColorMaterial(C, colour(palette), palette, at);
     const prim = new C.Primitive({
       geometryInstances: instances,
       appearance: new C.MaterialAppearance({
         material: mat,
         materialSupport: C.MaterialAppearance.MaterialSupport.BASIC,
+        flat: true,
         translucent: false,
         closed: true,
       }),
@@ -235,8 +240,10 @@ export function buildProps(
   return {
     setTheme(t) {
       const p = paletteFor(t);
-      for (const { mat, colour } of parts)
+      for (const { mat, colour } of parts) {
         mat.uniforms.color = C.Color.fromCssColorString(colour(p));
+        setLightUniforms(mat, lightUniforms(C, p, at));
+      }
     },
     destroy() {
       for (const { prim, mat } of parts) {

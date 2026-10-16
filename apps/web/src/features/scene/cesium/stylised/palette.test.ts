@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { WATER_COLOR } from "../../styles";
-import { paletteFor } from "./palette";
+import { lerpPalette, paletteFor } from "./palette";
 
 const lin = (c: number) => {
   const s = c / 255;
@@ -80,5 +80,22 @@ describe("paletteFor", () => {
   });
   it("lit windows have WCAG contrast >= 3 against night walls", () => {
     expect(contrast(night.windowLit[0], night.wall.warm)).toBeGreaterThanOrEqual(3);
+  });
+  it("lerpPalette is a at 0, b at 1, and mixes colours in between", () => {
+    expect(lerpPalette(day, night, 0)).toEqual(day);
+    expect(lerpPalette(day, night, 1)).toEqual(night);
+    const mid = lerpPalette(day, night, 0.5);
+    expect(mid.sky).not.toBe(day.sky);
+    expect(mid.sky).not.toBe(night.sky);
+    expect(mid.glow).toBeCloseTo(0.5);
+  });
+  it("every mood defines key/fill/bounce light, sky gradient and horizon", () => {
+    for (const p of [day, dusk, night]) {
+      for (const c of [p.light.key, p.light.fill, p.light.bounce, p.skyTop, p.horizon])
+        expect(c).toMatch(/^#[0-9a-f]{6}$/i);
+    }
+    expect(night.shadows).toBe(false);
+    expect(day.bloom).toBe(false);
+    expect(dusk.bloom && night.bloom).toBe(true);
   });
 });

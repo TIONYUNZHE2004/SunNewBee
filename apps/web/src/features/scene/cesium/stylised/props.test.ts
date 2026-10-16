@@ -97,12 +97,14 @@ const cars: Car[] = [
   { lon: 101.5, lat: 3.182, headingRad: 1, tone: 2 },
 ];
 
+const AT = { lon: 101.5, lat: 3.18 };
+
 function setup(theme: "day" | "night" = "night") {
   const f = fakeCesium();
   const collection = fakeCollection();
   const out = buildProps(
     f.C as unknown as PropsCesium,
-    { trees, cars, palette: paletteFor(theme) },
+    { trees, cars, palette: paletteFor(theme), at: AT },
     collection,
   );
   return { ...f, collection, out };
@@ -138,6 +140,22 @@ describe("buildProps", () => {
     expect(primitives).toHaveLength(before);
   });
 
+  it("uses flat lit materials and setTheme rewrites the light uniforms", () => {
+    const { out, primitives, materials } = setup("night");
+    for (const p of primitives)
+      expect((p.options.appearance as { options: Record<string, unknown> }).options).toMatchObject({
+        flat: true,
+        translucent: false,
+      });
+    out.setTheme("day");
+    const day = paletteFor("day");
+    for (const m of materials) {
+      expect(m.writes).toEqual(expect.arrayContaining(["color", "keyColor", "horizonColor"]));
+      expect(m.uniforms.keyColor).toEqual({ css: day.light.key });
+      expect(m.uniforms.horizonColor).toEqual({ css: day.horizon });
+    }
+  });
+
   it("destroy removes and destroys once, idempotent; empty input creates nothing", () => {
     const { out, primitives, collection } = setup();
     out.destroy();
@@ -149,6 +167,7 @@ describe("buildProps", () => {
       trees: [],
       cars: [],
       palette: paletteFor("day"),
+      at: AT,
     });
     expect(f.primitives).toHaveLength(0);
     expect(() => {

@@ -153,6 +153,7 @@ describe("decorative props honesty", () => {
       trees: [{ lon: 101.5, lat: 3.18, h: 8 }],
       cars: [{ lon: 101.5, lat: 3.181, headingRad: 0, tone: 0 }],
       palette: paletteFor("night"),
+      at: { lon: 101.5, lat: 3.18 },
     });
     expect(f.primitives.length).toBeGreaterThan(0);
     for (const p of f.primitives) {

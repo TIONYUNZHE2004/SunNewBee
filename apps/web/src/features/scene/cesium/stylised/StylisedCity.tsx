@@ -183,7 +183,7 @@ export function StylisedCity({ onReady }: { onReady?: (info: StylisedReady) => v
     if (decor.trees.length === 0 && decor.cars.length === 0) return;
     const h = buildProps(
       Cesium,
-      { ...decor, palette: paletteFor(useTheme.getState().theme) },
+      { ...decor, palette: paletteFor(useTheme.getState().theme), at: home },
       viewer.scene.primitives,
     );
     props.current = h;
@@ -194,7 +194,7 @@ export function StylisedCity({ onReady }: { onReady?: (info: StylisedReady) => v
       h.destroy();
       viewer.scene.requestRender();
     };
-  }, [viewer, decor, details]);
+  }, [viewer, decor, details, home]);
 
   useEffect(() => {
     if (!viewer || viewer.isDestroyed()) return;
