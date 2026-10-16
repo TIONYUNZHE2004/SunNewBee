@@ -24,7 +24,8 @@ from ..world import World
 # Public statistics (DOSM) and stated assumptions. Shown in the UI as "how the residents were made".
 SOURCES = [
     {
-        "fact": "Ages: 21.2% aged 0-14, 70.4% aged 15-64, 8.4% aged 65+",
+        "fact": "Ages: 21.2% aged 0-14, 70.4% aged 15-64, 8.4% aged 65+ (the generated "
+        "households match these within about 2 points)",
         "source": "DOSM, Current Population Estimates, Malaysia 2026",
     },
     {"fact": "3.8 people per household on average", "source": "DOSM, Census 2020"},
@@ -59,6 +60,7 @@ class Resident:
     household: str
     age: int
     group: str  # child | teen | adult | older
+    sex: str  # f | m (half each, assumption)
     persona: str  # routing profile: default | stroller | wheelchair | older_adult_rest
     home_node: str
     home_coord: list[float]
@@ -98,8 +100,9 @@ def _weighted(rng: random.Random, pairs) -> object:
 
 
 def _homes(world: World) -> list[tuple[list[float], float]]:
-    """(centroid, weight) of residential buildings; weight ~ floor area (apartments hold more
-    households). Worlds without buildings (the tiny fixture) use parking places as homes."""
+    """(centroid, weight) of residential buildings, weighted by footprint area. Building
+    heights are display-only (AGENTS.md) and mostly defaults, so they are not used. Worlds
+    without buildings (the tiny fixture) use parking places as homes."""
     path = (world.data_dir or Path(".")) / "base" / "buildings.geojson"
     out: list[tuple[list[float], float]] = []
     if path.exists():
@@ -121,8 +124,7 @@ def _homes(world: World) -> list[tuple[list[float], float]]:
                     for i in range(len(xs) - 1)
                 )
             )
-            floors = max(1.0, float(p.get("height_m") or 6.4) / 3.2)
-            out.append(([cx, cy], max(area, 40.0) * floors))
+            out.append(([cx, cy], max(area, 40.0)))
     if not out:
         out = [(p.coord, 1.0) for p in world.places.values() if p.type in ("parking", "building")]
     if not out:
@@ -166,7 +168,8 @@ def synthesize(world: World, n_residents: int = 5000, seed: int = 11) -> Populat
             group = (
                 "child" if age < 13 else "teen" if age < 18 else "older" if age >= 65 else "adult"
             )
-            oku = rng.random() < OKU_SHARE * (2.0 if group == "older" else 1.0)
+            sex = "f" if rng.random() < 0.5 else "m"
+            oku = rng.random() < OKU_SHARE
             wheelchair = oku and rng.random() < PHYSICAL_SHARE * WHEELCHAIR_OF_PHYSICAL
             persona = "default"
             toddler = False
@@ -184,6 +187,7 @@ def synthesize(world: World, n_residents: int = 5000, seed: int = 11) -> Populat
                     household=hid,
                     age=age,
                     group=group,
+                    sex=sex,
                     persona=persona,
                     home_node=node,
                     home_coord=[round(coord[0], 6), round(coord[1], 6)],

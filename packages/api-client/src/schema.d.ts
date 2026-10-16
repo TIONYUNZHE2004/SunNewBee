@@ -1138,6 +1138,10 @@ export interface components {
             school: {
                 [key: string]: number;
             };
+            /** Spotlight */
+            spotlight: {
+                [key: string]: unknown;
+            };
             /** Timeline */
             timeline: {
                 [key: string]: unknown;

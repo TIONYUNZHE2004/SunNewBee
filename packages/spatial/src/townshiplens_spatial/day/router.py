@@ -14,7 +14,9 @@ crosses. A FAIL (steps for a wheelchair, a likely-flooded path, a staff closure)
 
 from __future__ import annotations
 
+from collections import OrderedDict
 from dataclasses import dataclass
+from datetime import datetime
 
 import numpy as np
 from scipy.sparse import csr_matrix
@@ -51,7 +53,16 @@ class Graph:
 class Router:
     """Shortest paths for one persona in one world state (stage = river scenario id or None)."""
 
-    def __init__(self, world: World, graph: Graph, profile_id: str, stage: str | None):
+    def __init__(
+        self,
+        world: World,
+        graph: Graph,
+        profile_id: str,
+        stage: str | None,
+        now: datetime | None = None,
+        fields: OrderedDict | None = None,
+        max_fields: int = 400,
+    ):
         self.world, self.graph, self.stage = world, graph, stage
         prof = world.profiles[profile_id]
         self.profile_id = profile_id
@@ -62,7 +73,8 @@ class Router:
         # Edges are looked up in `world` (an imagined world from twm.apply has its own copies).
         for i, e0 in enumerate(g.edges):
             e = world.edges.get(e0.id, e0)
-            res, _ = evaluate_edge(e, prof, _flood_class(world, stage, e.id))
+            # Staff closures are evaluated at the rehearsal's own moment, not the wall clock.
+            res, _ = evaluate_edge(e, prof, _flood_class(world, stage, e.id), now=now)
             if res == "FAIL":
                 continue
             c = e.length_m * (UNKNOWN_WEIGHT if res == "UNKNOWN" else 1.0)
@@ -89,21 +101,29 @@ class Router:
         self.usable_nodes = np.zeros(n, dtype=bool)
         self.usable_nodes[a] = True
         self.usable_nodes[b] = True
-        self._fields: dict[tuple[int, ...], tuple[np.ndarray, np.ndarray]] = {}
+        # Shortest-path fields, shared LRU across a day's routers (memory: ~8 bytes per node per
+        # field as float32 + int32, so 400 fields on the seed are about 38 MB).
+        self._fields = fields if fields is not None else OrderedDict()
+        self._max_fields = max_fields
+        self._key = (profile_id, stage, id(world))
 
     def field(self, targets: tuple[int, ...]) -> tuple[np.ndarray, np.ndarray]:
         """(cost to the nearest target, predecessor towards it) for every node."""
-        key = tuple(sorted(set(targets)))
+        key = (self._key, tuple(sorted(set(targets))))
         hit = self._fields.get(key)
-        if hit is None:
-            d, pred, _ = dijkstra(
-                self.matrix,
-                directed=False,
-                indices=list(key),
-                min_only=True,
-                return_predecessors=True,
-            )
-            hit = self._fields[key] = (d, pred)
+        if hit is not None:
+            self._fields.move_to_end(key)
+            return hit
+        d, pred, _ = dijkstra(
+            self.matrix,
+            directed=False,
+            indices=list(key[1]),
+            min_only=True,
+            return_predecessors=True,
+        )
+        hit = self._fields[key] = (d.astype(np.float32), pred.astype(np.int32))
+        while len(self._fields) > self._max_fields:
+            self._fields.popitem(last=False)
         return hit
 
     def leg(self, src: int, targets: tuple[int, ...]) -> Leg | None:

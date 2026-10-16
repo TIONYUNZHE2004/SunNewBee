@@ -34,6 +34,7 @@ class DayReport(BaseModel):
     places: list[dict[str, Any]]
     timeline: list[dict[str, Any]]
     tracks: dict[str, Any]
+    spotlight: dict[str, Any]
     disclaimer: str
     world_version: int
 

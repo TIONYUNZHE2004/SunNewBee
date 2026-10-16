@@ -13,6 +13,7 @@ Destinations follow a gravity rule (nearby places much more likely; AgentSociety
 from __future__ import annotations
 
 import random
+import re
 from dataclasses import dataclass, field
 
 import numpy as np
@@ -37,8 +38,11 @@ PRAYER = {
     "maghrib": 19 * 60 + 10,
 }
 ASSUMPTIONS = [
-    "School starts about 07:30 and ends 13:30 (primary) or 14:15 (secondary).",
-    "Commuters leave between 07:00 and 08:00 and return between 17:30 and 19:00.",
+    "School starts about 07:30; children under 13 are collected at 13:30 and teenagers leave "
+    "at 14:15.",
+    "Commuters leave between 07:00 and 08:00 and set off home between 17:30 and 19:00; those "
+    "without a car take a ride-hail or a lift (the driving profile).",
+    "Friday prayers: Muslim men aged 15 to 74 who are in the township that day.",
     "Prayer times are approximate for Shah Alam in October (JAKIM e-Solat).",
     "Walking paces: 75 m/min, 65 with a stroller, 60 in a wheelchair, 50 for older residents "
     "who need rests; driving 500 m/min (30 km/h, the drive profile).",
@@ -56,16 +60,39 @@ class Activity:
     stay_min: int
     companions: list[str] = field(default_factory=list)  # children travelling with this carer
     label: str = ""
+    until_min: int | None = None  # absolute time to leave (school ends, office hours)
+    kids_out: bool = True  # the children are on the outward leg
+    kids_back: bool = True  # the children are on the way home
+    chain_next: bool = False  # the next plan starts from here (no trip home in between)
+    chained: bool = False  # this plan starts where the previous one ended
 
 
-def _places_by_purpose(world: World) -> dict[str, list]:
+NOT_SCHOOL = re.compile(r"\b(?:tadika|taska|tuition|kindergarten|nursery)\b", re.IGNORECASE)
+PRIMARY = re.compile(r"^(?:SK|SJK|SRII?)\b|sekolah (?:kebangsaan|rendah)", re.IGNORECASE)
+SECONDARY = re.compile(r"^SMK\b|menengah|maahad", re.IGNORECASE)
+
+
+def _places_by_purpose(world: World, now=None) -> dict[str, list]:
+    """Places per purpose; a place under a staff closure on the rehearsal day is left out."""
+    from ..models import active_closures
+
     out: dict[str, list] = {}
     for purpose, types in PURPOSE_TYPES.items():
         out[purpose] = [
             p
             for p in world.places.values()
-            if p.type in types and p.node_id and p.node_id in world.graph and p.kind == "place"
+            if p.type in types
+            and p.node_id
+            and p.node_id in world.graph
+            and p.kind == "place"
+            and not (p.closures and now is not None and active_closures(p.closures, now))
+            and not (purpose == "school" and NOT_SCHOOL.search(p.name or ""))
         ]
+    # Pupils go to a school of their level by name (SK / SJK / sekolah rendah for children,
+    # SMK / menengah for teenagers); other named or unnamed schools serve both.
+    schools = out["school"]
+    out["school_primary"] = [p for p in schools if not SECONDARY.search(p.name or "")]
+    out["school_secondary"] = [p for p in schools if not PRIMARY.search(p.name or "")]
     return out
 
 
@@ -87,10 +114,10 @@ def work_exits(world: World, k: int = 6) -> list[str]:
 
 
 class Planner:
-    def __init__(self, world: World, seed: int = 11):
+    def __init__(self, world: World, seed: int = 11, now=None):
         self.world = world
         self.rng = random.Random(seed)
-        self.places = _places_by_purpose(world)
+        self.places = _places_by_purpose(world, now)
         self.trees = {
             p: cKDTree(np.array([_xy(x.coord) for x in xs])) if xs else None
             for p, xs in self.places.items()
@@ -113,17 +140,33 @@ class Planner:
 
 
 def plan_day(
-    world: World, pop: Population, day: str = "weekday", seed: int = 11, event: dict | None = None
+    world: World,
+    pop: Population,
+    day: str = "weekday",
+    seed: int = 11,
+    event: dict | None = None,
+    now=None,
 ) -> list[Activity]:
     """Activities for every resident, in departure order. `event` = {place_id, start, end,
-    share} adds an evening event that `share` of residents within 3 km attend."""
-    pl = Planner(world, seed)
+    share, radius_m} adds an evening event that `share` of carers within 3 km attend."""
+    pl = Planner(world, seed, now)
     acts: list[Activity] = []
     by_house: dict[str, list[Resident]] = {}
     for r in pop.residents:
         by_house.setdefault(r.household, []).append(r)
 
-    def add(r, purpose, place, depart, stay, companions=(), label=""):
+    def add(
+        r,
+        purpose,
+        place,
+        depart,
+        stay,
+        companions=(),
+        label="",
+        until=None,
+        kids_out=True,
+        kids_back=True,
+    ):
         if purpose == "work":
             targets = tuple(pl.exits)
             pid = None
@@ -131,7 +174,21 @@ def plan_day(
             if place is None:
                 return
             targets, pid = (place.node_id,), place.id
-        acts.append(Activity(r.id, purpose, pid, targets, depart, stay, list(companions), label))
+        acts.append(
+            Activity(
+                r.id,
+                purpose,
+                pid,
+                targets,
+                depart,
+                stay,
+                list(companions),
+                label,
+                until,
+                kids_out,
+                kids_back,
+            )
+        )
 
     for members in by_house.values():
         kids = [m for m in members if m.group == "child"]
@@ -139,28 +196,42 @@ def plan_day(
         carer = next((m for m in carers if not m.commuter), carers[0] if carers else None)
         for m in members:
             if m.group == "teen":
-                add(m, "school", pl.pick("school", m), pl.minutes(395, 420), pl.minutes(400, 430))
+                add(m, "school", pl.pick("school_secondary", m), pl.minutes(395, 420), 0, until=855)
         if kids and carer:
-            school = pl.pick("school", carer)
+            school = pl.pick("school_primary", carer)
+            ids = [k.id for k in kids]
+            # Drop-off: the children ride out, the carer comes home alone.
             add(
-                carer, "school", school, pl.minutes(400, 430), 0, [k.id for k in kids], "school run"
+                carer, "school", school, pl.minutes(400, 430), 0, ids, "school run", kids_back=False
             )
             if not carer.commuter:
+                # Pick-up: the carer goes alone, waits for 13:30 and brings the children home.
                 add(
                     carer,
                     "school",
                     school,
-                    pl.minutes(795, 815),
+                    pl.minutes(780, 795),
                     0,
-                    [k.id for k in kids],
+                    ids,
                     "school pick-up",
+                    until=810,
+                    kids_out=False,
                 )
         for m in carers:
             if m.commuter:
-                add(m, "work", None, pl.minutes(420, 480), pl.minutes(570, 660), label="commute")
+                add(
+                    m,
+                    "work",
+                    None,
+                    pl.minutes(420, 480),
+                    0,
+                    label="commute",
+                    until=pl.minutes(1050, 1140),
+                )
             if m.muslim and m.age >= 15:
                 # Commuters pray near work; only residents in the township are simulated here.
-                if day == "friday" and not m.commuter and m.age < 75 and pl.rng.random() < 0.8:
+                friday = day == "friday" and m.sex == "m" and not m.commuter and m.age < 75
+                if friday and pl.rng.random() < 0.8:
                     add(
                         m,
                         "worship",
@@ -180,7 +251,7 @@ def plan_day(
                     )
             if not m.commuter:
                 if pl.rng.random() < 0.3:
-                    add(m, "shops", pl.pick("shops", m), pl.minutes(600, 690), pl.minutes(45, 120))
+                    add(m, "shops", pl.pick("shops", m), pl.minutes(600, 660), pl.minutes(30, 75))
                 if m.group == "older" and pl.rng.random() < 0.06:
                     add(m, "clinic", pl.pick("clinic", m), pl.minutes(540, 600), pl.minutes(40, 90))
                 if m.group == "older" and pl.rng.random() < 0.25:
@@ -197,7 +268,8 @@ def plan_day(
                     m,
                     "park",
                     pl.pick("park", m),
-                    pl.minutes(1050, 1110),
+                    # commuters go after they are home from work
+                    pl.minutes(1170, 1200) if m.commuter else pl.minutes(1050, 1110),
                     pl.minutes(40, 80),
                     [k.id for k in kids] if m is carer else [],
                     "evening at the park",
@@ -220,5 +292,47 @@ def plan_day(
                     [k.id for k in kids] if m is carer else [],
                     event.get("label", "community event"),
                 )
+    people = {r.id: r for r in pop.residents}
+
+    def est(a: Activity) -> float:
+        """Rough minutes there and back, for keeping plans apart (not used for any result)."""
+        r = people[a.resident]
+        x0, y0 = r.home_coord
+        x1, y1 = world.node_coords[a.target_nodes[0]]
+        d = ((x1 - x0) * 111_320) ** 2 + ((y1 - y0) * 110_540) ** 2
+        pace = 500.0 if a.purpose == "work" or r.drives else 50.0
+        return 2 * 1.8 * d**0.5 / pace + 15
+
+    acts = _no_overlaps(acts, est)
     acts.sort(key=lambda a: (a.depart_min, a.resident))
     return acts
+
+
+def _no_overlaps(acts: list[Activity], est) -> list[Activity]:
+    """A resident's plans never overlap: a plan that would start before the previous one is
+    over (its stay or absolute end, plus `est` minutes of travel) is moved later, or dropped
+    when it would start after 22:00. A commuting parent drives to work straight from the school
+    gate (the commute is chained to the drop-off; the engine starts it where the drop-off ended).
+    """
+    by: dict[str, list[Activity]] = {}
+    for a in acts:
+        by.setdefault(a.resident, []).append(a)
+    out: list[Activity] = []
+    for plans in by.values():
+        plans.sort(key=lambda a: a.depart_min)
+        free = 0.0
+        prev: Activity | None = None
+        for a in plans:
+            if a.purpose == "work" and prev is not None and prev.label == "school run":
+                prev.chain_next, a.chained = True, True
+                a.depart_min = prev.depart_min  # the engine starts it on arrival at the school
+            elif a.depart_min < free:
+                a.depart_min = int(free)
+            if a.depart_min > 22 * 60:
+                continue
+            end = a.until_min if a.until_min is not None else a.depart_min + a.stay_min
+            if not a.chain_next:
+                free = max(free, end + est(a))
+            out.append(a)
+            prev = a
+    return out

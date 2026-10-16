@@ -1267,25 +1267,45 @@ def day_scenarios(ctx: Ctx) -> list[dict]:
     ]
 
 
+def _today() -> str:
+    from datetime import date
+
+    return date.today().isoformat()
+
+
 def day_rehearsal(ctx: Ctx, scenario_id: str = "weekday") -> ToolResult:
     """A simulated day of 5,000 synthetic residents in one built-in scenario: counts by group,
-    a timeline, busy places and map tracks. A rehearsal on the township model, not a forecast.
-    Cached per world version (about 5 s on the seed when cold)."""
-    from .day import engine, summary
+    a timeline, busy places, map tracks and the spotlight residents' voices. A rehearsal on the
+    township model, not a forecast. Cached per world version (about 6 s on the seed when cold)."""
+    from .day import engine, summary, voices
+    from .day import spotlight as spot
+    from .day.population import synthesize
     from .day.scenarios import scenarios
 
     w = ctx.world
     sc = scenarios(w)
     if scenario_id not in sc:
         return ToolResult(ok=False, warnings=[f"unknown day scenario {scenario_id}"])
+
+    def run() -> ToolResult:
+        rec = voices.load(w, scenario_id)
+        pop = synthesize(w, DAY_RESIDENTS)
+        cast = spot.choose(pop)
+        ids = {c.id for c in cast}
+        d = engine.Day(
+            w, sc[scenario_id], pop=pop, spotlight=ids, decisions=(rec or {}).get("decisions")
+        )
+        res = d.run()
+        data = summary.report(res, keep=ids)
+        data["spotlight"] = voices.attach(res, d, cast, rec)
+        return ToolResult(ok=True, data=data)
+
     return _wm_cached(
         w,
         "day",
-        {"s": scenario_id, "n": DAY_RESIDENTS},
-        lambda: ToolResult(
-            ok=True,
-            data=summary.report(engine.Day(w, sc[scenario_id], n_residents=DAY_RESIDENTS).run()),
-        ),
+        # the rehearsal date is in the key: closures are evaluated on that day
+        {"s": scenario_id, "n": DAY_RESIDENTS, "on": _today()},
+        run,
         cache=_DAY_CACHE,
         cache_max=16,
     )

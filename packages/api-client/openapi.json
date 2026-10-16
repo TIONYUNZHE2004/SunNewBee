@@ -1054,6 +1054,11 @@
             "title": "School",
             "type": "object"
           },
+          "spotlight": {
+            "additionalProperties": true,
+            "title": "Spotlight",
+            "type": "object"
+          },
           "timeline": {
             "items": {
               "additionalProperties": true,
@@ -1084,6 +1089,7 @@
           "places",
           "timeline",
           "tracks",
+          "spotlight",
           "disclaimer",
           "world_version"
         ],

@@ -921,3 +921,62 @@ In the storm, 216 pupils miss school, and households without a car are hit harde
 **Ruling W24:** lenient routing for residents (unchecked paths allowed, as people do), with every trip counting the unchecked stretches it used. Strict (verified-only) routing would show a township where nobody can go anywhere, since most paths are unchecked. Cost if wrong: residents look more mobile than verified data supports; the count of unchecked stretches says so.
 
 **Ruling W25:** delays are measured against the same trip on a normal day in the real township, so an imagined change and a storm are both compared with today.
+
+### Cycle 10 review (independent Opus reviewer) and fixes (17 Oct, 03:10)
+
+No Critical findings. The router agreed with `routing._search` on 200 random seed pairs across 4 personas and 2 river stages. 8 Important findings, all fixed:
+
+| Finding | Fix |
+|---|---|
+| Delay was measured from departure, which hid queueing behind an earlier trip. | Delay is now measured from the planned time. The planner also keeps a resident's plans apart, using a travel estimate per plan. Commuting parents drive to work straight from the school gate (a chained plan). A normal weekday now has 14 late trips out of 9,380 (one plan running into the next), down from a hidden count. |
+| Children were counted on legs they were not on. | Drop-offs carry the children out only; pick-ups carry them home only. |
+| A failed return trip was labelled "cancelled", and the next plan silently vanished. | A resident who cannot get home waits; still stuck at 23:00 means stranded. Any later plan is counted as cancelled ("still stuck from an earlier trip"). |
+| "Stranded" almost never applied, and "late" hid six-hour waits. | Residents caught on the way out now turn back home if they can (spotlight residents choose). The report adds "waited over an hour", the median and p90 delay, and splits "caught on the way" from "waited before setting off". |
+| "Everyone" counted only residents who went out. | Every group's denominator is the whole group, plus a "stayed home" count. Children travelling as companions count as out. |
+| The Friday scenario said "men", but residents had no sex. | Residents get a sex attribute (half each, an assumption). Jumaat is for Muslim men aged 15 to 74. |
+| The stated commute and school end times were not implemented. | Plans have absolute end times: children are collected at 13:30, teenagers leave at 14:15, commuters set off home between 17:30 and 19:00. No trip home is made after 23:00. |
+| Closures were evaluated on the wall clock. | Closures are evaluated at noon on the rehearsal day, the date is in the cache key, and closed places are left out of plans. |
+| A cold day used about 720 MB of path fields. | A shared LRU of 400 fields per day, stored as float32 and int32 (about 38 MB). |
+
+The minor findings are fixed too:
+- Homes are weighted by footprint only, since building heights are display-only.
+- Commuters without a car take a ride-hail or a lift (the driving profile, stated as an assumption).
+- Commutes and data gaps are left out of walking minutes.
+- "Visits" replaces "visitors", and school stays don't count as neighbours met.
+- A cancelled essential trip records its 90-minute wait.
+- Data gaps never wait.
+- New tests cover each of these.
+
+**Found while recording:** a resident whose trip was underway at a river change paused at a junction even when their path was still clear, and "caught on the way" was inflated (1,323 trips). Now the path ahead is checked edge by edge at each change, and the resident stops only when it is cut (63 trips). The test checks every edge against the river state at the minute the resident starts it.
+
+## Cycle 11: spotlight residents, voices and the feed (03:10)
+
+**What was built:**
+- **`day/spotlight.py`:**
+  - a deterministic cast of 40 with unique synthetic Malaysian names: all wheelchair users (up to 3), parents with strollers, older residents, school-run parents, commuters, teens and households without a car;
+  - per-resident facts, with an engine-written "what_happened" sentence for each trip;
+  - `check_text`: any time or number not in the resident's own day, "safe", depths, forecasts and "verified" are rejected;
+  - template voice and feed;
+  - the OASIS hot score;
+  - township notices written by the engine.
+- **Engine decision hook.** At "no way at departure" and "caught on the way", a spotlight resident chooses among options the engine checked as feasible: wait, stay home, another reachable school or clinic, a lift from a neighbour, or turn back. An invalid or stale choice falls back to the rule.
+- **`townshiplens_agent/day_voice.py`:**
+  - runs up to 3 passes (run the day, collect decisions, ask the model, run again);
+  - then diaries, then five feed rounds of residents acting in batches, so later residents reply to earlier posts;
+  - interviews;
+  - a recording CLI.
+- **`day/voices.py`:** the API re-runs the day with the recorded decisions on the current world. It keeps a recorded line only while its trip still happened with the same outcome and the line passes the check. Otherwise it uses the template, and it counts the stale lines it dropped.
+
+**Model benchmark** (`evals/bench_sim_models.py`, the same storm tasks for all four; full table in `evals/results/2026-10-17-sim-model-bench.json`): openai/gpt-6-luna had no failed calls, the fewest output tokens and the fastest run (32 s), and was the cheapest (about $0.003). DeepSeek V4.1 Flash, MiMo-V2.6-Flash and Claude Haiku 5.5 each had 1 to 3 failed calls, more rejected lines, and more tokens. Ruling W26: GPT-6 Luna at low reasoning for the spotlight voices (`LLM_MODEL_SIM` / `LLM_SIM_REASONING`).
+
+**Quality iterations, from reading the recordings:**
+- Posts described outcomes before they had happened. Feed rounds now use only trips that are over, and decision reasons must be written before the outcome is known.
+- The feed was a flat list of "on time" posts. Now only trips that went wrong, changed, or reached the event may post; others like, reply or stay quiet.
+- Names were duplicated; they are now unique.
+- Return trips said "reached the Community Centre"; they now go home.
+- Cancelled trips said "left at"; they no longer do.
+- Teens went to a kindergarten. Schools are now split by level from their names (SK / SJK / sekolah rendah, SMK / menengah), and tadika and tuition centres are excluded.
+
+**Recordings** (`data/sim/elmina/day-*.json`, GPT-6 Luna): storm 86 calls, weekday 62, event 66, friday 63, with no failed calls. 0 to 5 lines per day were rejected by the check and replaced by templates.
+
+**Spend, corrected again:** OpenRouter's counter caught up at 19:07 UTC and shows **US$1.39 used** this mission (26.79 → 28.18). That is more than the token estimate, which undercounted. **About US$1.61 of the US$3 cap remains.** From now on the counter is the authority, a margin is kept, and only essential live calls are made.

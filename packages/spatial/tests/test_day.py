@@ -1,12 +1,13 @@
 """Elmina Day (Cycle 10): synthetic residents living a day on the world model."""
 
+import math
 from pathlib import Path
 
 import pytest
 from townshiplens_spatial import routing, twm
 from townshiplens_spatial.day import population as P
 from townshiplens_spatial.day import summary as S
-from townshiplens_spatial.day.engine import Day, Scenario
+from townshiplens_spatial.day.engine import PACE, Day, Scenario
 from townshiplens_spatial.day.router import Graph, Router
 from townshiplens_spatial.day.scenarios import scenarios
 from townshiplens_spatial.world import load_world
@@ -59,25 +60,71 @@ def _tiny_day(world, **kw):
 def test_no_way_open_an_essential_trip_waits_for_the_water_then_arrives(world):
     d = _tiny_day(world)
     i = d.graph.index
-    st, arrive, segs, rerouted, waited, *_ = d.travel(
-        "wheelchair", i["n-a"], (i["n-d"],), 410.0, essential=True
-    )
-    assert st == "arrived" and waited == pytest.approx(50.0) and arrive > 460
-    assert segs[0].wait and segs[0].t1 == 460
-    st2, *_ = d.travel("wheelchair", i["n-a"], (i["n-d"],), 410.0, essential=False)
-    assert st2 == "cancelled"  # nobody sets out on an optional trip with no way open
+    tr = d.travel("wheelchair", i["n-a"], (i["n-d"],), 410.0, essential=True)
+    assert tr.status == "arrived" and tr.waited == pytest.approx(50.0) and tr.arrive > 460
+    assert tr.segments[0].wait and tr.segments[0].t1 == 460
+    tr2 = d.travel("wheelchair", i["n-a"], (i["n-d"],), 410.0, essential=False)
+    assert tr2.status == "cancelled"  # nobody sets out on an optional trip with no way open
 
 
-def test_caught_on_the_way_the_resident_waits_where_they_are(world):
+def test_caught_on_the_way_home_the_resident_waits_where_they_are(world):
     d = _tiny_day(world)
     i = d.graph.index
-    st, arrive, segs, rerouted, waited, *_ = d.travel(
-        "older_adult_rest", i["n-a"], (i["n-d"],), 397.0, essential=False
+    tr = d.travel(
+        "older_adult_rest", i["n-a"], (i["n-d"],), 397.0, essential=False, direction="back"
     )
-    walked, wait = segs[0], segs[1]
-    assert not walked.wait and walked.nodes[-1] == i["n-c"]  # reached the junction at 400
+    walked, pause, wait = tr.segments[0], tr.segments[1], tr.segments[2]
+    assert not walked.wait and walked.nodes[-1] == i["n-c"]  # the last junction before 400
+    assert pause.wait and pause.t1 == 400.0  # re-plans there when the water rises
     assert wait.wait and wait.nodes == [i["n-c"]] and (wait.t0, wait.t1) == (400.0, 460.0)
-    assert rerouted and st == "arrived" and arrive > 460
+    assert tr.rerouted and tr.status == "arrived" and tr.arrive > 460
+
+
+def test_a_spotlight_resident_chooses_only_among_feasible_options(world):
+    d = _tiny_day(world)
+    i = d.graph.index
+    d.spotlight = {"me"}
+    d.decisions = {"me|clinic|out|no_way_at_departure|0": "lift"}
+    tr = d.travel(
+        "wheelchair", i["n-a"], (i["n-d"],), 410.0, essential=True, who="me", purpose="clinic"
+    )
+    point = d.points[0]
+    assert {o["id"] for o in point.options} >= {"wait", "cancel"}
+    if any(o["id"] == "lift" for o in point.options):
+        assert point.chosen == "lift" and tr.mode == "drive"
+    else:
+        assert point.chosen == "wait"  # an infeasible decision falls back to the rule
+    d2 = _tiny_day(world)
+    d2.spotlight = {"me"}
+    d2.decisions = {"me|clinic|out|no_way_at_departure|0": "fly"}
+    d2.travel(
+        "wheelchair", i["n-a"], (i["n-d"],), 410.0, essential=True, who="me", purpose="clinic"
+    )
+    assert d2.points[0].chosen == "wait"
+
+
+def test_caught_on_the_way_out_residents_turn_back_home(world):
+    d = _tiny_day(world)
+    i = d.graph.index
+    tr = d.travel("older_adult_rest", i["n-a"], (i["n-d"],), 397.0, essential=False)
+    assert tr.status == "turned_back" and tr.segments[-1].nodes[-1] == i["n-a"]
+
+
+def test_caught_on_the_way_a_spotlight_resident_may_turn_back(world):
+    d = _tiny_day(world)
+    i = d.graph.index
+    d.spotlight = {"me"}
+    d.decisions = {"me|park|out|caught_on_the_way|0": "turn_back"}
+    tr = d.travel(
+        "older_adult_rest",
+        i["n-a"],
+        (i["n-d"],),
+        397.0,
+        essential=False,
+        who="me",
+        purpose="park",
+    )
+    assert tr.status == "turned_back" and tr.segments[-1].nodes[-1] == i["n-a"]
 
 
 def test_population_matches_the_public_statistics(world):
@@ -113,28 +160,33 @@ def test_storm_day_every_step_is_legal_in_the_river_state_at_that_minute(storm):
             assert t.arrive >= t.depart
         if t.delay_min is not None:
             assert t.delay_min >= 0
+        pace = 500.0 if t.mode == "drive" else PACE.get(t.mode, 75.0)
         for s in t.segments:
             if s.wait or len(s.nodes) < 2:
                 continue
-            r = d.router(t.mode, d.scenario.stage_at(s.t0))
+            # each edge is usable in the river state at the minute the resident starts it
+            clock = s.t0
             for x, y in zip(s.nodes, s.nodes[1:], strict=False):
-                assert (min(x, y), max(x, y)) in r.pair_edge, (t.id, s.t0)
-            # a segment never spans a change of river level
-            nxt = d._next_change(s.t0)
-            assert nxt is None or s.t1 <= nxt + 1e-6
+                r = d.router(t.mode, d.scenario.stage_at(clock))
+                key = (min(x, y), max(x, y))
+                assert key in r.pair_edge, (t.id, clock)
+                clock += d.graph.edges[r.pair_edge[key]].length_m / pace
+            assert abs(clock - s.t1) < 1e-6
 
 
 def test_storm_is_worse_than_a_normal_day_and_counts_add_up(seed_world, storm):
     normal = Day(seed_world, scenarios(seed_world)["weekday"], n_residents=1500).run()
     h, hn = S.headline(storm), S.headline(normal)
-    assert hn["cancelled"] == 0 and hn["late"] == 0 and hn["rerouted"] == 0
+    # A normal day: nothing cancelled or rerouted; "late" only where one plan ran into the next
+    # (a slow walk home before the surau), under 1% of trips.
+    assert hn["cancelled"] == 0 and hn["rerouted"] == 0 and hn["late"] <= 0.01 * hn["trips"]
     assert h["cancelled"] > 0 and h["late"] > 0
-    assert h["on_time"] + h["late"] + h["cancelled"] + h["stranded"] + h["data_gap"] == h["trips"]
-    for g in S.groups(storm):
-        assert (
-            g["on_time"] + g["late"] + g["cancelled"] + g["stranded"] + g["data_gap"]
-            == g["residents"]
-        )
+    keys = ("on_time", "late", "cancelled", "turned_back", "stranded", "data_gap")
+    assert sum(h[k] for k in keys) == h["trips"]
+    groups = S.groups(storm)
+    for g in groups:
+        assert sum(g[k] for k in keys) + g["stayed_home"] == g["residents"]
+    assert groups[0]["residents"] == len(storm.day.pop.residents)  # everyone means everyone
     sch = S.school(storm)
     assert sch["pupils"] == sum(sch[k] for k in S.SEVERITY)
     rep = S.report(storm)
@@ -147,3 +199,126 @@ def test_the_same_day_twice_gives_the_same_result(seed_world):
     a = S.headline(Day(seed_world, sc, n_residents=400).run())
     b = S.headline(Day(seed_world, sc, n_residents=400).run())
     assert a == b
+
+
+def test_children_ride_only_on_their_legs_and_end_times_hold(storm, seed_world):
+    by = storm.by_resident()
+    for trips in by.values():
+        for t in trips:
+            if t.label == "school run" and t.direction == "back":
+                assert not t.companions  # dropped at school; the carer comes home alone
+            if t.label == "school pick-up" and t.direction == "out":
+                assert not t.companions  # goes alone to collect them
+            if t.label == "commute" and t.direction == "back":
+                assert t.planned >= 1050 - 1e-6  # sets off home 17:30 or later
+            if t.label == "school pick-up" and t.direction == "back":
+                assert t.planned >= 810 - 1e-6  # collected at 13:30
+            assert t.depart < 23 * 60 or t.status == "cancelled"
+    normal = Day(seed_world, scenarios(seed_world)["weekday"], n_residents=1500).run()
+    for trips in normal.by_resident().values():
+        outs = sorted((t for t in trips if t.direction == "out"), key=lambda t: t.planned)
+        for a, b in zip(outs, outs[1:], strict=False):
+            assert b.planned >= a.planned  # one plan after another, never two at once
+
+
+def test_friday_prayers_are_men_and_the_field_cache_is_bounded(seed_world):
+    fri = Day(seed_world, scenarios(seed_world)["friday"], n_residents=1500)
+    res = fri.run()
+    people = {r.id: r for r in fri.pop.residents}
+    jumaat = [t for t in res.trips if t.label == "Friday prayers"]
+    assert jumaat and all(people[t.resident].sex == "m" for t in jumaat)
+    assert len(fri._fields) <= 400
+
+
+def test_staff_closures_count_at_noon_on_the_rehearsal_day(world):
+    from datetime import UTC, date, datetime
+
+    from townshiplens_spatial.models import Closure
+
+    e = world.edges["seg-cd"]
+    e.closures = [
+        Closure(
+            id="c1",
+            element_id="seg-cd",
+            reason="works",
+            created_by="staff",
+            starts_at=datetime(2026, 11, 3, 1, tzinfo=UTC),  # 09:00 in Malaysia
+            ends_at=datetime(2026, 11, 3, 6, tzinfo=UTC),  # 14:00
+        )
+    ]
+    sc = Scenario(id="t", label="t", summary="")
+    on = Day(world, sc, n_residents=10, on=date(2026, 11, 3))
+    off = Day(world, sc, n_residents=10, on=date(2026, 11, 4))
+    pos = on.graph.edges.index(world.edges["seg-cd"])
+    assert not math.isfinite(on.router("default", None).edge_cost[pos])
+    assert math.isfinite(off.router("default", None).edge_cost[pos])
+
+
+def test_voice_text_is_checked_against_the_residents_own_day():
+    from townshiplens_spatial.day import spotlight as SP
+
+    f = {
+        "age": 67,
+        "trips": [
+            {
+                "id": "t1",
+                "planned": "07:00",
+                "left": "07:00",
+                "arrived": "08:35",
+                "late_by_min": 80,
+                "waited_min": 75,
+                "children_with_them": 2,
+            },
+        ],
+        "decisions": [{"at": "07:20"}],
+    }
+    assert (
+        SP.check_text("Left at 07:00 with the 2 kids, waited 75 minutes, arrived 08:35.", f) == []
+    )
+    assert SP.check_text("Waited 90 minutes.", f)  # a number that is not in their day
+    assert SP.check_text("Arrived at 09:10.", f)  # a time that is not in their day
+    assert SP.check_text("The park is safe now.", f)
+    assert SP.check_text("The water was knee deep.", f)
+    assert SP.check_text("It will flood again tomorrow.", f)
+
+
+def test_recorded_lines_survive_only_while_the_day_still_happened(storm):
+    from dataclasses import asdict
+
+    from townshiplens_spatial.day import spotlight as SP
+    from townshiplens_spatial.day import voices
+
+    d = storm.day
+    cast = SP.choose(d.pop)
+    facts = SP.facts_for(storm, d, cast)
+    c = next(c for c in cast if facts[c.id]["trips"])
+    trip = facts[c.id]["trips"][0]
+    good = {"trip": trip["id"], "text": f"Left at {trip['left']}.", "voice": "ai"}
+    stale = {"trip": "t99999", "text": "Left at 07:00.", "voice": "ai"}
+    made_up = {"trip": trip["id"], "text": "Waited 999 minutes.", "voice": "ai"}
+    rec = {
+        "cast": [asdict(x) for x in cast],
+        "diaries": {c.id: [good, stale, made_up]},
+        "feed": [
+            {
+                "id": "p1",
+                "author": c.id,
+                "trip": "t99999",
+                "status": "late",
+                "text": "x",
+                "likes": 3,
+                "replies": [],
+                "voice": "ai",
+            }
+        ],
+    }
+    out = voices.attach(storm, d, cast, rec)
+    me = next(p for p in out["residents"] if p["id"] == c.id)
+    assert good in me["diary"]
+    assert all(x["text"] != "Waited 999 minutes." for x in me["diary"])
+    assert out["voice"]["dropped_as_stale"] >= 2
+    # the stale post fell back to templates; notices come from the scenario, not the recording
+    assert all(p["voice"] in ("template", "engine") for p in out["feed"])
+    for p in out["feed"]:
+        if p["author"] != "township":
+            assert not SP.check_text(p["text"], facts[p["author"]])
