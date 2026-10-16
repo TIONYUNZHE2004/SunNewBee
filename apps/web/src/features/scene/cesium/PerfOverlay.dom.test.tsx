@@ -34,7 +34,7 @@ describe("SlowBanner", () => {
     expect(screen.getByRole("status")).toHaveTextContent(
       "The 3D map is running slowly on this device.",
     );
-    expect(useScene.getState().view).toBe("3d");
+    expect(useScene.getState().view).toBe("cesium");
     fireEvent.click(screen.getByRole("button", { name: "Use the list view" }));
     expect(useScene.getState().view).toBe("list");
   });
