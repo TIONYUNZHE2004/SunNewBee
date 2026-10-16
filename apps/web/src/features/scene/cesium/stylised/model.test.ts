@@ -6,8 +6,10 @@ import {
   groupByClass,
   hashUnit,
   scatterTrees,
+  TONE_LIST,
   toBuildings,
   treesToPoints,
+  windowStyleFor,
 } from "./model";
 
 const sq = (x: number, y: number, d = 0.0003) => [
@@ -251,7 +253,8 @@ describe("holes, column bins and tones", () => {
       height: 9,
       minHeight: 0,
       kind: "building",
-      tone: "warm",
+      tone: "t0",
+      style: "grid",
       floors: 3,
       perimeterM: cols * 3.5,
       cols,
@@ -263,7 +266,7 @@ describe("holes, column bins and tones", () => {
     expect(classKey(mk(128))).toBe("3x128");
     expect(classKey(mk(4))).toBe("3x8");
   });
-  it("assigns tones deterministically from the id hash thresholds", () => {
+  it("assigns tones deterministically from the id hash", () => {
     const ids = Array.from({ length: 200 }, (_, i) => `b${i}`);
     const run = () =>
       toBuildings({ features: ids.map((id) => f(id, sq(101.5, 3.18))) }).buildings.map(
@@ -272,9 +275,43 @@ describe("holes, column bins and tones", () => {
     const tones = run();
     expect(run()).toEqual(tones);
     ids.forEach((id, i) => {
-      const t = hashUnit(id, "tone");
-      expect(tones[i]).toBe(t < 0.45 ? "warm" : t < 0.8 ? "cool" : "rose");
+      expect(tones[i]).toBe(TONE_LIST[Math.min(5, Math.floor(hashUnit(id, "tone") * 6))]);
     });
-    expect(new Set(tones)).toEqual(new Set(["warm", "cool", "rose"]));
+  });
+  it("window style follows kind and height", () => {
+    expect(windowStyleFor("residential", 4)).toBe("grid");
+    expect(windowStyleFor("commercial", 4)).toBe("strip");
+    expect(windowStyleFor("residential", 14)).toBe("curtain");
+    const [shop, tower] = toBuildings({
+      features: [
+        f("s", sq(101.5, 3.18), { kind: "retail", height_m: 6 }),
+        f("t", sq(101.5, 3.18), { kind: "residential", height_m: 45 }),
+      ],
+    }).buildings;
+    expect(shop!.style).toBe("strip");
+    expect(tower!.style).toBe("curtain");
+  });
+  it("spreads buildings over six tones deterministically", () => {
+    const fc = {
+      type: "FeatureCollection",
+      features: Array.from({ length: 600 }, (_, i) => ({
+        type: "Feature",
+        properties: { id: `b${i}`, height_m: 9 },
+        geometry: {
+          type: "Polygon",
+          coordinates: [
+            [
+              [0, 0],
+              [0.0001, 0],
+              [0.0001, 0.0001],
+              [0, 0],
+            ],
+          ],
+        },
+      })),
+    };
+    const tones = new Set(toBuildings(fc).buildings.map((b) => b.tone));
+    expect(tones.size).toBe(6);
+    expect(toBuildings(fc).buildings[7]!.tone).toBe(toBuildings(fc).buildings[7]!.tone);
   });
 });

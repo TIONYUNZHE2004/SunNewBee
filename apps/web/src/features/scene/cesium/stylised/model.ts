@@ -1,13 +1,26 @@
 export const FLOOR_M = 3.2;
 export const COL_M = 3.5;
 
+export type Tone = "t0" | "t1" | "t2" | "t3" | "t4" | "t5";
+export const TONE_LIST: Tone[] = ["t0", "t1", "t2", "t3", "t4", "t5"];
+export type WindowStyle = "grid" | "strip" | "curtain";
+export const STYLE_LIST: WindowStyle[] = ["grid", "strip", "curtain"];
+
+/** Facade pattern: curtain glass on towers, strip windows on shops and offices, else a grid. */
+export function windowStyleFor(kind: string, floors: number): WindowStyle {
+  if (floors >= 12) return "curtain";
+  if (/^(commercial|office|retail)$/.test(kind)) return "strip";
+  return "grid";
+}
+
 export interface Building {
   id: string;
   ring: [number, number][];
   height: number;
   minHeight: number;
   kind: string;
-  tone: "warm" | "cool" | "rose";
+  tone: Tone;
+  style: WindowStyle;
   floors: number;
   perimeterM: number;
   cols: number;
@@ -92,15 +105,17 @@ export function toBuildings(fc: unknown): { buildings: Building[]; skipped: numb
     const minHeight =
       typeof mh === "number" && Number.isFinite(mh) ? clamp(mh, 0, height * 0.9) : 0;
     const perimeterM = ringPerimeterM(ring);
-    const t = hashUnit(id, "tone");
+    const kind = typeof props.kind === "string" ? props.kind : "building";
+    const floors = clamp(Math.round((height - minHeight) / FLOOR_M), 1, 40);
     buildings.push({
       id,
       ring,
       height,
       minHeight,
-      kind: typeof props.kind === "string" ? props.kind : "building",
-      tone: t < 0.45 ? "warm" : t < 0.8 ? "cool" : "rose",
-      floors: clamp(Math.round((height - minHeight) / FLOOR_M), 1, 40),
+      kind,
+      tone: TONE_LIST[Math.min(5, Math.floor(hashUnit(id, "tone") * 6))]!,
+      style: windowStyleFor(kind, floors),
+      floors,
       perimeterM,
       cols: clamp(Math.round(perimeterM / COL_M), 4, 128),
       litSeed: hashUnit(id, "lit"),

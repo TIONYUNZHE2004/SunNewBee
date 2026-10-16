@@ -83,6 +83,8 @@ describe("paletteFor", () => {
         ...p.car,
         ...Object.values(p.wall),
         ...Object.values(p.roof),
+        p.shopfront,
+        ...p.glassSky,
         ...p.windowLit,
         p.windowDark,
         p.sun.color,
@@ -91,7 +93,26 @@ describe("paletteFor", () => {
     }
   });
   it("lit windows have WCAG contrast >= 3 against night walls", () => {
-    expect(contrast(night.windowLit[0], night.wall.warm)).toBeGreaterThanOrEqual(3);
+    for (const w of Object.values(night.wall))
+      expect(contrast(night.windowLit[0], w)).toBeGreaterThanOrEqual(3);
+  });
+  it("defines six wall and roof tones, a shopfront and a curtain-glass sky gradient", () => {
+    for (const p of [day, dusk, night]) {
+      expect(Object.keys(p.wall).sort()).toEqual(["t0", "t1", "t2", "t3", "t4", "t5"]);
+      expect(Object.keys(p.roof).sort()).toEqual(["t0", "t1", "t2", "t3", "t4", "t5"]);
+      expect(new Set(Object.values(p.wall)).size).toBe(6);
+      expect(new Set(Object.values(p.roof)).size).toBe(6);
+      for (const c of [p.shopfront, ...p.glassSky]) expect(c).toMatch(/^#[0-9a-f]{6}$/i);
+      expect(p.glassSky).toHaveLength(2);
+    }
+    expect(day.wall.t0).toBe("#f1d9c4");
+    expect(night.roof.t5).toBe("#b496b8");
+    expect(dusk.shopfront).toBe("#3d2f6b");
+    // The crossfade mixes nested tone maps colour by colour.
+    const mid = lerpPalette(day, night, 0.5);
+    expect(mid.wall.t3).not.toBe(day.wall.t3);
+    expect(mid.wall.t3).not.toBe(night.wall.t3);
+    expect(mid.glassSky[0]).not.toBe(day.glassSky[0]);
   });
   it("lerpPalette is a at 0, b at 1, and mixes colours in between", () => {
     expect(lerpPalette(day, night, 0)).toEqual(day);

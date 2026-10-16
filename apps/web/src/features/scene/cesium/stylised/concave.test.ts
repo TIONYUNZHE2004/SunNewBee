@@ -1,6 +1,6 @@
 import * as Cesium from "cesium";
 import { describe, expect, it } from "vitest";
-import { buildMesh, enuBasis, type Triangulate } from "./buildingsMesh";
+import { buildMesh, enuBasis, PARAPET_INSET_M, type Triangulate } from "./buildingsMesh";
 import type { Building } from "./model";
 
 // The same triangulation path the shipped code uses (buildingsPrimitive.ts).
@@ -46,7 +46,8 @@ function building(pts: [number, number][]): Building {
     height: 10,
     minHeight: 0,
     kind: "building",
-    tone: "warm",
+    tone: "t0",
+    style: "grid",
     floors: 3,
     perimeterM: 100,
     cols: 20,
@@ -109,8 +110,16 @@ describe.each([
     const { tris } = roofTriangles(pts);
     expect(tris.length).toBe(pts.length - 2);
     const sum = tris.reduce((s, t) => s + triArea(t), 0);
+    // The roof sits inside the parapet: every edge moves in by PARAPET_INSET_M. For a rectilinear
+    // footprint that removes m * perimeter and adds back m^2 per (convex - reflex) corner = 4 m^2.
+    const m = PARAPET_INSET_M;
+    const perimeter = pts.reduce((s, p, i) => {
+      const q = pts[(i + 1) % pts.length]!;
+      return s + Math.hypot(q[0] - p[0], q[1] - p[1]);
+    }, 0);
+    const want = polyArea(pts) - m * perimeter + 4 * m * m;
     // The ECEF projection used here differs from the mesh's flat 111,320 m/deg by < 1%.
-    expect(Math.abs(sum - polyArea(pts)) / polyArea(pts)).toBeLessThan(0.015);
+    expect(Math.abs(sum - want) / want).toBeLessThan(0.015);
     for (const t of tris) {
       const cx = (t[0]![0] + t[1]![0] + t[2]![0]) / 3;
       const cy = (t[0]![1] + t[1]![1] + t[2]![1]) / 3;

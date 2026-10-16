@@ -152,7 +152,6 @@ export function StylisedCity({ onReady }: { onReady?: (info: StylisedReady) => v
       Cesium,
       parsed.classes,
       paletteFor(t),
-      t,
       viewer.scene.primitives,
     );
     buildings.current = h;

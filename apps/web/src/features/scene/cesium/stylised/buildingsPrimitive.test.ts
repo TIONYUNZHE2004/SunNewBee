@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { buildBuildingPrimitives, type CesiumLike } from "./buildingsPrimitive";
+import { buildBuildingPrimitives, type CesiumLike, WINDOW_SHADER } from "./buildingsPrimitive";
 import { groupByClass, toBuildings } from "./model";
 import { paletteFor } from "./palette";
 
@@ -102,7 +102,7 @@ describe("buildBuildingPrimitives", () => {
     const classes = twoClasses();
     classes.set("empty", []);
     const add = vi.fn();
-    const out = buildBuildingPrimitives(C, classes, paletteFor("night"), "night", {
+    const out = buildBuildingPrimitives(C, classes, paletteFor("night"), {
       add,
       remove: vi.fn(),
     });
@@ -123,25 +123,51 @@ describe("buildBuildingPrimitives", () => {
 
   it("setPalette mutates material uniforms in place and never creates primitives", () => {
     const { C, primitives, materials } = fakeCesium();
-    const out = buildBuildingPrimitives(C, twoClasses(), paletteFor("night"), "night");
+    const out = buildBuildingPrimitives(C, twoClasses(), paletteFor("night"));
     const n = primitives.length;
     const glowAt = () => materials.map((m) => m.uniforms.glow);
     expect(glowAt()).toEqual([1, 1]);
     out.setPalette(paletteFor("day"), true);
     expect(glowAt()).toEqual([0, 0]);
-    expect(materials[0]!.uniforms.wallWarm).toEqual({ css: paletteFor("day").wall.warm });
+    expect(materials[0]!.uniforms.wall3).toEqual({ css: paletteFor("day").wall.t3 });
     out.setPalette(paletteFor("night"), true);
     expect(glowAt()).toEqual([1, 1]);
-    expect(materials[0]!.uniforms.wallWarm).toEqual({ css: paletteFor("night").wall.warm });
+    expect(materials[0]!.uniforms.wall3).toEqual({ css: paletteFor("night").wall.t3 });
     expect(primitives).toHaveLength(n);
     expect(materials).toHaveLength(n);
     for (const m of materials) expect(m.writes).toContain("litA");
   });
 
+  it("passes six wall and roof tones, the shopfront and the glass sky; the shader reads them", () => {
+    const { C, materials } = fakeCesium();
+    buildBuildingPrimitives(C, twoClasses(), paletteFor("dusk"));
+    const u = materials[0]!.uniforms;
+    const p = paletteFor("dusk");
+    const want = [
+      ...[0, 1, 2, 3, 4, 5].flatMap((i) => [`wall${i}`, `roof${i}`]),
+      "shopfront",
+      "glassSky0",
+      "glassSky1",
+    ];
+    for (const name of want) {
+      expect(u).toHaveProperty(name);
+      expect(WINDOW_SHADER).toMatch(new RegExp(`\\b${name}\\.rgb\\b`));
+    }
+    expect(u.roof5).toEqual({ css: p.roof.t5 });
+    expect(u.shopfront).toEqual({ css: p.shopfront });
+    expect(u.glassSky1).toEqual({ css: p.glassSky[1] });
+    // Every `<name>.rgb` the shader samples is a uniform the material provides.
+    const sampled = new Set(
+      [...WINDOW_SHADER.matchAll(/\b([a-zA-Z]\w*)\.rgb\b/g)].map((m) => m[1]),
+    );
+    for (const name of sampled) if (name !== "p3") expect(u).toHaveProperty(name!);
+    expect(u).not.toHaveProperty("wallWarm");
+  });
+
   it("destroy removes and destroys every primitive and is idempotent", () => {
     const { C, primitives, materials } = fakeCesium();
     const remove = vi.fn();
-    const out = buildBuildingPrimitives(C, twoClasses(), paletteFor("day"), "day", {
+    const out = buildBuildingPrimitives(C, twoClasses(), paletteFor("day"), {
       add: vi.fn(),
       remove,
     });
@@ -157,7 +183,7 @@ describe("buildBuildingPrimitives", () => {
 
   it("an empty class map yields no primitives and no throw", () => {
     const { C, primitives } = fakeCesium();
-    const out = buildBuildingPrimitives(C, new Map(), paletteFor("night"), "night");
+    const out = buildBuildingPrimitives(C, new Map(), paletteFor("night"));
     expect(out.primitives).toEqual([]);
     expect(primitives).toHaveLength(0);
     expect(() => {

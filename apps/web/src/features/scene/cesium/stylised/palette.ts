@@ -2,6 +2,7 @@ export type { Theme } from "../../../../ui/theme";
 
 import type { Theme } from "../../../../ui/theme";
 import { mixHex } from "./colour";
+import type { Tone } from "./model";
 
 export interface Palette {
   ground: string;
@@ -22,8 +23,13 @@ export interface Palette {
   trunk: string;
   /** Static parked cars (decorative). */
   car: [string, string, string];
-  wall: { warm: string; cool: string; rose: string };
-  roof: { warm: string; cool: string; rose: string };
+  /** Six facade tones (a building's tone is hashed from its id). */
+  wall: Record<Tone, string>;
+  roof: Record<Tone, string>;
+  /** Ground-floor shop glazing and doors. */
+  shopfront: string;
+  /** Curtain-wall reflection gradient, bottom to top. */
+  glassSky: [string, string];
   windowLit: [string, string];
   windowDark: string;
   sun: { dir: [number, number, number]; color: string; intensity: number };
@@ -63,8 +69,24 @@ const NIGHT: Palette = {
   tree: ["#2f8c7e", "#1d5a5f"],
   trunk: "#3b2b55",
   car: ["#c8628c", "#4f78c8", "#d8c9a6"],
-  wall: { warm: "#4a3b82", cool: "#4f4590", rose: "#6a4377" },
-  roof: { warm: "#8c76c6", cool: "#a98bd0", rose: "#d98ca8" },
+  wall: {
+    t0: "#4a3b82",
+    t1: "#4f4590",
+    t2: "#6a4377",
+    t3: "#3f3a66",
+    t4: "#36507a",
+    t5: "#5a4a6a",
+  },
+  roof: {
+    t0: "#8c76c6",
+    t1: "#a98bd0",
+    t2: "#d98ca8",
+    t3: "#7a6fa8",
+    t4: "#6f8fc0",
+    t5: "#b496b8",
+  },
+  shopfront: "#140f2a",
+  glassSky: ["#1f1838", "#3d2f6b"],
   windowLit: ["#f6be64", "#fdf0ea"],
   windowDark: "#0c081e",
   sun: { dir: [0.4, -0.5, -0.25], color: "#8fa6ff", intensity: 0.6 },
@@ -100,8 +122,24 @@ const DAY: Palette = {
   tree: ["#5fb88a", "#3b8c66"],
   trunk: "#8a6a55",
   car: ["#e0686a", "#5a8fd9", "#f4f1ea"],
-  wall: { warm: "#e9c9a8", cool: "#c9c4ea", rose: "#f0b8c4" },
-  roof: { warm: "#c08a6a", cool: "#8f86c4", rose: "#d9788f" },
+  wall: {
+    t0: "#f1d9c4",
+    t1: "#d9d3f0",
+    t2: "#f3c6cf",
+    t3: "#e8e1d3",
+    t4: "#c9dfe0",
+    t5: "#f2e2b8",
+  },
+  roof: {
+    t0: "#c27a5c",
+    t1: "#7f86b8",
+    t2: "#d07a8c",
+    t3: "#8d8476",
+    t4: "#5f8f8f",
+    t5: "#b98a4a",
+  },
+  shopfront: "#3d2f6b",
+  glassSky: ["#9fc6ea", "#eaf3fb"],
   windowLit: ["#fff3c4", "#cfe7ff"],
   windowDark: "#5a5280",
   sun: { dir: [0.5, -0.6, -0.8], color: "#fff1d6", intensity: 2.2 },
@@ -137,8 +175,24 @@ const DUSK: Palette = {
   tree: ["#4f9a7a", "#2f7466"],
   trunk: "#6a4a55",
   car: ["#e0686a", "#5a8fd9", "#f4f1ea"],
-  wall: { warm: "#e3b49a", cool: "#a99ad6", rose: "#e7a2b4" },
-  roof: { warm: "#b4745e", cool: "#7f70b8", rose: "#cc6c86" },
+  wall: {
+    t0: "#e3b49a",
+    t1: "#a99ad6",
+    t2: "#e7a2b4",
+    t3: "#cfb3a3",
+    t4: "#8fb0bd",
+    t5: "#e8c08e",
+  },
+  roof: {
+    t0: "#b4745e",
+    t1: "#7f70b8",
+    t2: "#cc6c86",
+    t3: "#8a6f74",
+    t4: "#4f7f8a",
+    t5: "#b07a48",
+  },
+  shopfront: "#3d2f6b",
+  glassSky: ["#c48fb0", "#f8cdb0"],
   windowLit: ["#ffd08a", "#fff0dc"],
   windowDark: "#3d2f6b",
   sun: { dir: [0.75, -0.2, -0.3], color: "#ffb38a", intensity: 1.4 },
