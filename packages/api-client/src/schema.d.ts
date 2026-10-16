@@ -1155,6 +1155,8 @@ export interface components {
         DayCompare: {
             /** Actions */
             actions: string[];
+            /** Baseline */
+            baseline: string;
             /** Biggest */
             biggest: {
                 [key: string]: unknown;
@@ -1169,8 +1171,12 @@ export interface components {
             groups: {
                 [key: string]: unknown;
             }[];
+            /** Residents Better */
+            residents_better: number;
             /** Residents Changed */
             residents_changed: number;
+            /** Residents Worse */
+            residents_worse: number;
             /** Scenario */
             scenario: string;
             /** Town Hall */

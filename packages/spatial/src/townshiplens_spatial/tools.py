@@ -1382,6 +1382,18 @@ def day_compare(ctx: Ctx, scenario_id: str, actions: list) -> ToolResult:
         return ToolResult(ok=False, warnings=["give 1 to 4 imagined changes"])
     if any(isinstance(a, twm.SetRiverStage) for a in acts):
         return ToolResult(ok=False, warnings=["the day's river levels come from its scenario"])
+    if any(isinstance(a, twm.AssumeFact | twm.VerifyFact) for a in acts):
+        return ToolResult(ok=False, warnings=["compare a change to the township, not a fact"])
+    raised = [e for a in acts if isinstance(a, twm.RaisePaths) for e in a.element_ids]
+    if len(raised) > 40:
+        return ToolResult(ok=False, warnings=["raise at most 40 path segments at once"])
+    # labels are built here from the street names, never taken from the request
+    acts = [
+        a.model_copy(update={"label": compare.stretch_label(w, a.element_ids)})
+        if isinstance(a, twm.RaisePaths)
+        else a
+        for a in acts
+    ]
     for a in acts:
         if reason := twm.legal(w, a):
             return ToolResult(ok=False, warnings=[reason])

@@ -21,7 +21,12 @@ from .spotlight import Spotlight, hhmm
 from .summary import GROUPS, PURPOSE_LABEL, SEVERITY
 
 WALK_TYPES = {"footway", "path", "pedestrian", "crossing", "steps", "ramp"}
-CHANGED_MIN = 5  # a trip "changed" when its delay moved by more than this, or its outcome did
+CHANGED_MIN = 5
+CUT = (
+    "cancelled",
+    "stranded",
+    "turned_back",
+)  # a trip "changed" when its delay moved by more than this, or its outcome did
 DISCLAIMER = (
     "Imagined change on a rehearsal of synthetic residents: not a plan, not a promise and not a "
     "forecast. The real township is unchanged."
@@ -54,13 +59,20 @@ def candidates(res: DayResult, k: int = 3) -> list[dict]:
     use = _edge_use(res)
     out = flood_stretches(res)  # on a day with a river rise, the flood works come first
     paths = [(e, n) for e, n in use.most_common() if w.edges[e].type in WALK_TYPES - {"steps"}]
-    for eid, n in paths[:k]:
+    nodes_used: set[str] = set()
+    picked = 0
+    for eid, n in paths:
+        e = w.edges[eid]
+        if picked >= k or {e.from_node, e.to_node} & nodes_used:
+            continue  # a neighbour of one already offered: the same corridor
+        nodes_used |= {e.from_node, e.to_node}
+        picked += 1
         a = twm.ClosePath(element_id=eid)
         out.append(
             {
                 "action": a.model_dump(),
                 "label": f"{twm.describe(w, a)} all day for works",
-                "why": f"walked by {n} people on this day",
+                "why": f"on {n} trips walked this day",
             }
         )
     steps = [(e, n) for e, n in use.most_common() if w.edges[e].type == "steps"]
@@ -70,59 +82,71 @@ def candidates(res: DayResult, k: int = 3) -> list[dict]:
             {
                 "action": a.model_dump(),
                 "label": twm.describe(w, a),
-                "why": f"walked by {n} people on this day",
+                "why": f"on {n} trips walked this day",
             }
         )
     return out
 
 
+def stretch_label(world, ids: list[str]) -> str:
+    """A server-built name for a stretch (from its street names); never client text."""
+    names = Counter(world.edges[x].name for x in ids if x in world.edges and world.edges[x].name)
+    return (
+        f"the flooded stretch on {names.most_common(1)[0][0]}"
+        if names
+        else ("a flooded stretch of path")
+    )
+
+
 def flood_stretches(
     res: DayResult, k: int = 3, max_edges: int = 40, max_m: float = 900.0
 ) -> list[dict]:
-    """Flooded stretches the most people relied on: for every trip the water cancelled or cut,
-    the normal-day route is checked for path segments that are flooded at the day's highest
-    river level. The most relied-on segment grows into a connected flooded stretch (up to 40
+    """Flooded stretches the most residents relied on. For every trip the water cut (cancelled,
+    turned back, stuck, or late after waiting), its normal-day route is checked for path
+    segments that were flooded at the river level of the trip's planned time; each segment
+    counts the distinct residents (children with their carer) whose trip it was on. The most
+    relied-on segment grows along neighbouring segments that people also relied on (up to 40
     segments / about 900 m). From the day's own trips; nothing is estimated."""
     d = res.day
     w = d.base_world
-    stages = [sid for _, sid in d.scenario.stages if sid]
-    if not stages:
+    if not any(sid for _, sid in d.scenario.stages):
         return []
-    by_m = {s.id: s.stage_m for s in w.flood.scenarios}
-    top = max(stages, key=lambda s: by_m.get(s, 0))
-    flooded = w.flood.edge_classes.get(top, {})
-    hit: Counter = Counter()
+    people: dict[str, set[str]] = {}
     for t in res.trips:
-        if t.status not in ("cancelled", "turned_back", "stranded") and not (
+        cut = t.status in ("cancelled", "turned_back", "stranded") or (
             t.status == "late" and t.waited_min > 0
-        ):
+        )
+        if not cut or t.src is None or not t.targets:
             continue
-        if t.src is None or not t.targets:
+        stage = d.scenario.stage_at(t.planned)
+        flooded = w.flood.edge_classes.get(stage or "", {})
+        if not flooded:
             continue
         leg = d._leg(t.mode, None, True, t.src, t.targets)
         if leg is None:
             continue
-        n = 1 + len(t.companions)
+        who = {t.resident, *t.companions}
         for eid in leg.edge_ids:
             if eid in flooded:
-                hit[eid] += n
-    out, used = [], set()
+                people.setdefault(eid, set()).update(who)
+    hit = Counter({e: len(p) for e, p in people.items()})
     by_node: dict[str, list[str]] = {}
-    for eid in flooded:
-        e = w.edges.get(eid)
-        if e:
-            by_node.setdefault(e.from_node, []).append(eid)
-            by_node.setdefault(e.to_node, []).append(eid)
-    for seed, people in hit.most_common():
-        if seed in used or len(out) >= k:
+    for eid in hit:
+        e = w.edges[eid]
+        by_node.setdefault(e.from_node, []).append(eid)
+        by_node.setdefault(e.to_node, []).append(eid)
+    out, used = [], set()
+    for seed, _ in hit.most_common():
+        if len(out) >= k:
+            break
+        if seed in used:
             continue
-        stretch, metres, frontier = [seed], w.edges[seed].length_m, [seed]
-        seen = {seed}
+        stretch, metres, frontier, seen = [seed], w.edges[seed].length_m, [seed], {seed}
         while frontier and len(stretch) < max_edges and metres < max_m:
             e = w.edges[frontier.pop(0)]
             nbrs = sorted(
                 {x for n in (e.from_node, e.to_node) for x in by_node.get(n, [])} - seen,
-                key=lambda x: (-hit.get(x, 0), x),
+                key=lambda x: (-hit[x], x),
             )
             for x in nbrs:
                 if len(stretch) >= max_edges or metres >= max_m:
@@ -131,16 +155,18 @@ def flood_stretches(
                 stretch.append(x)
                 frontier.append(x)
                 metres += w.edges[x].length_m
+        if len(set(stretch) & used) > len(stretch) / 2:
+            continue  # mostly the same stretch as one already offered
         used |= set(stretch)
-        names = Counter(w.edges[x].name for x in stretch if w.edges[x].name)
-        where = f"on {names.most_common(1)[0][0]}" if names else "nearby"
-        label = f"the flooded stretch {where}"
-        a = twm.RaisePaths(element_ids=stretch, label=label)
+        residents = set().union(*(people[x] for x in stretch))
+        a = twm.RaisePaths(element_ids=stretch, label=stretch_label(w, stretch))
         out.append(
             {
                 "action": a.model_dump(),
                 "label": twm.describe(w, a),
-                "why": f"on the usual route of {people} people whose trips the water cut",
+                "why": (
+                    f"on the usual route of {len(residents)} residents whose trips the water cut"
+                ),
             }
         )
     return out
@@ -188,39 +214,31 @@ def compare(
             "minutes_after": int(round(da)) if da is not None else None,
             "change_min": int(round(delta)) if delta is not None else None,
             "companions": len(t.companions),
+            "with": list(t.companions),
         }
+        row["verdict"] = _verdict(row)
         changed.setdefault(t.resident, []).append(row)
-        worse = SEVERITY.get(sa, 0) > SEVERITY.get(sb, 0) or (delta or 0) > CHANGED_MIN
-        better = SEVERITY.get(sa, 0) < SEVERITY.get(sb, 0) or (delta or 0) < -CHANGED_MIN
-        lost += worse
-        gained += better
+        gained += row["verdict"] > 0
+        lost += row["verdict"] < 0
+    # Each resident (children through the trips they are on) is better off, worse off or
+    # mixed: the same rule for the headline and for every group.
+    feel: dict[str, int] = {}
+    for rows in changed.values():
+        for x in rows:
+            for rid in (x["resident"], *x["with"]):
+                feel[rid] = feel.get(rid, 0) + x["verdict"]
+    better_ids = {r for r, v in feel.items() if v > 0}
+    worse_ids = {r for r, v in feel.items() if v < 0}
     groups = []
     for gid, label, pred in GROUPS:
-        ids = [rid for rid, r in people.items() if pred(r)]
-        worse = better = 0
-        for rid in ids:
-            rows = changed.get(rid, [])
-            # children feel their carer's trips
-            if not rows:
-                rows = [
-                    x
-                    for rs in changed.values()
-                    for x in rs
-                    if rid in _companions(b.get(x["trip"]) or a.get(x["trip"]))
-                ]
-            if not rows:
-                continue
-            w = sum(1 for x in rows if _worse(x))
-            g = sum(1 for x in rows if _better(x))
-            worse += w > g
-            better += g > w
+        ids = {rid for rid, r in people.items() if pred(r)}
         groups.append(
             {
                 "id": gid,
                 "label": label,
                 "residents": len(ids),
-                "worse_off": worse,
-                "better_off": better,
+                "worse_off": len(ids & worse_ids),
+                "better_off": len(ids & better_ids),
             }
         )
     cast_ids = {c.id: c for c in (cast or [])}
@@ -255,14 +273,32 @@ def compare(
     return {
         "actions": [twm.describe(world, x) for x in actions],
         "trips_changed": sum(len(r) for r in changed.values()),
-        "residents_changed": len(changed),
+        "residents_changed": len(feel),
+        "residents_better": len(better_ids),
+        "residents_worse": len(worse_ids),
         "trips_better": gained,
         "trips_worse": lost,
         "groups": groups,
         "biggest": biggest,
         "town_hall": town_hall,
+        "baseline": "the same day with residents following the rules (no spotlight choices)",
         "disclaimer": DISCLAIMER,
     }
+
+
+def _verdict(x: dict) -> int:
+    """+1 better, -1 worse, 0 neither: the outcome decides first (a trip made possible counts
+    as better, one no longer made as worse), then the time."""
+    order = {"not made": 6, **SEVERITY}
+    sb, sa = order.get(x["before"], 0), order.get(x["after"], 0)
+    if x["before"] == "not made" and x["after"] not in CUT:
+        return 1
+    if x["after"] == "not made" and x["before"] not in CUT:
+        return -1
+    if sa != sb:
+        return 1 if sa < sb else -1
+    d = x["change_min"] or 0
+    return -1 if d > CHANGED_MIN else 1 if d < -CHANGED_MIN else 0
 
 
 def _companions(t) -> list[str]:
@@ -283,9 +319,6 @@ def _better(x: dict) -> bool:
     )
 
 
-CUT = ("cancelled", "stranded", "turned_back")
-
-
 def _impact(x: dict) -> float:
     return 100.0 * abs(SEVERITY.get(x["after"], 0) - SEVERITY.get(x["before"], 0)) + abs(
         x["change_min"] or 0
@@ -297,7 +330,7 @@ def reaction(x: dict) -> str | None:
     nothing worth saying changed)."""
     trip = "getting home" if x["direction"] == "back" else f"my trip to {x['to']}"
     if x["before"] in CUT and x["after"] not in CUT:
-        return f"With this change I could make {trip}, which the water stopped before."
+        return f"With this change I could make {trip}, which was cut before."
     if x["after"] in CUT and x["before"] not in CUT:
         return f"With this change I could not make {trip} at all."
     d = x["change_min"] or 0

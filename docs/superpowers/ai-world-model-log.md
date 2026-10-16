@@ -1103,3 +1103,19 @@ A second stretch, about 1.1 km of Persiaran Eserina, helps **96 children and 65 
 - "65" in "Older residents (65+)" was read as a count; group labels are now stripped.
 
 **Tests:** `test_day_agent.py` checks that the template passes and that four dishonest answers are each refused, plus a full mock turn on the tiny world. Full checklist PASS (pytest 1,176, vitest 471, golden mock, e2e 17).
+
+### Cycle 13 review (independent Opus reviewer) and fixes (17 Oct, 04:01)
+
+| Finding | Fix |
+|---|---|
+| The suggestion overstated the benefit: it counted person-trips on the seed edge, including trips cut elsewhere or at another time. 1,082 people were claimed, but only 389 were better off. | Distinct residents, crediting a segment only when it was flooded at the trip's own planned time. The stretch grows only along segments people relied on. Now 1,129 residents are relied-on and **823 are better off** (931 m of Jalan Sungai Buloh). |
+| Trips made possible were neither better nor worse, so the headline mixed units. | A per-trip verdict: made possible counts as better, no longer made as worse, never both. |
+| "Residents changed" and the "everyone" group disagreed. | One per-resident rule (children through their trips) for the headline and every group: "N residents would be better off and M worse off". Tested. |
+| A public POST could burn CPU, and the label was client text in the cache key. | Labels are server-built from street names (`stretch_label`), and a forged label is ignored (tested). At most 40 raised segments. Fact actions (assume/verify) are refused. |
+| "Raise … above the indicative flood levels" overclaimed. | "Imagine … raised so it never floods in any scenario (best case)". |
+| Stale state when switching day; the change stayed on the map. | The tab is keyed by day, and the what-if diff is cleared when it unmounts. |
+| The baseline was rule-based, not the day with spotlight choices. | It is stated in the result: "Compared with the same day with residents following the rules". |
+| Minor: near-duplicate closures; person-trips called "people"; "stopped by the water" on any cut; place classes. | Closures de-duplicated by corridor; "on N trips walked this day"; "which was cut before"; place classes are documented as unchanged. |
+| (Found in testing) FastAPI's response model would have dropped the new fields. | Declared, and the API test now asserts them. |
+
+**Re-recorded the AI town hall:** 5 lines, all passing the check. Checklist: all PASS.

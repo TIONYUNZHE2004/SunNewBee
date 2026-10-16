@@ -234,7 +234,8 @@ def apply(world: World, actions: list[Any], max_actions: int = MAX_ACTIONS) -> I
                     "edge_classes": {
                         sid: {k: v for k, v in m.items() if k not in raised}
                         for sid, m in flood.edge_classes.items()
-                    }
+                    },
+                    # place classes stay: a place is not raised with the paths beside it
                 }
             )
             for eid in a.element_ids:
@@ -569,7 +570,10 @@ def describe(world: World, a: Any) -> str:
         n = len(a.element_ids)
         m = sum(world.edges[e].length_m for e in a.element_ids if e in world.edges)
         what = a.label or f"{n} flooded path segment{'s' if n != 1 else ''}"
-        return f"Raise {what} (about {m:.0f} m) above the indicative flood levels"
+        return (
+            f"Imagine {what} (about {m:.0f} m) raised so it never floods in any scenario "
+            "(best case)"
+        )
     where = path_label(world, a.element_id)
     if isinstance(a, ClosePath):
         return f"Close {where}"

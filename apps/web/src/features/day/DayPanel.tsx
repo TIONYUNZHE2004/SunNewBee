@@ -203,7 +203,7 @@ export function DayPanel() {
               />
             )}
             {tab === "Feed" && <Feed feed={(spotlight.feed ?? []) as Any[]} t={t} />}
-            {tab === "Test a change" && <TestChange scenario={scenario} />}
+            {tab === "Test a change" && <TestChange key={scenario} scenario={scenario} />}
             {tab === "How it was made" && <About d={d} voice={(spotlight.voice ?? {}) as Any} />}
           </div>
         </>

@@ -251,8 +251,6 @@ test("Test a change: the same day with an imagined change, who gains and who los
   await panel.getByRole("button", { name: "Compare the day" }).click();
   const result = panel.getByRole("region", { name: "Before and after" });
   await expect(result).toContainText("not a plan");
-  await expect(result).toContainText(
-    /\d+ residents' day would change: \d+ trips better, \d+ worse/,
-  );
+  await expect(result).toContainText(/\d+ residents would be better off and \d+ worse off/);
   await expect(page.getByRole("note").filter({ hasText: "What-if · not real" })).toBeVisible();
 });

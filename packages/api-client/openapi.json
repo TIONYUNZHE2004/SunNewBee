@@ -1022,6 +1022,10 @@
             "title": "Actions",
             "type": "array"
           },
+          "baseline": {
+            "title": "Baseline",
+            "type": "string"
+          },
           "biggest": {
             "items": {
               "additionalProperties": true,
@@ -1047,8 +1051,16 @@
             "title": "Groups",
             "type": "array"
           },
+          "residents_better": {
+            "title": "Residents Better",
+            "type": "integer"
+          },
           "residents_changed": {
             "title": "Residents Changed",
+            "type": "integer"
+          },
+          "residents_worse": {
+            "title": "Residents Worse",
             "type": "integer"
           },
           "scenario": {
@@ -1086,8 +1098,11 @@
           "actions",
           "trips_changed",
           "residents_changed",
+          "residents_better",
+          "residents_worse",
           "trips_better",
           "trips_worse",
+          "baseline",
           "groups",
           "biggest",
           "town_hall",

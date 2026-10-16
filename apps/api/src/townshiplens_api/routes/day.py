@@ -72,8 +72,11 @@ class DayCompare(BaseModel):
     actions: list[str]
     trips_changed: int
     residents_changed: int
+    residents_better: int
+    residents_worse: int
     trips_better: int
     trips_worse: int
+    baseline: str
     groups: list[dict[str, Any]]
     biggest: list[dict[str, Any]]
     town_hall: list[dict[str, Any]]

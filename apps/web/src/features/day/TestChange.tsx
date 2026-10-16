@@ -1,5 +1,5 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { api } from "../../lib/api";
 import { Button } from "../../ui/Button";
 import { useScene } from "../scene/sceneStore";
@@ -13,7 +13,10 @@ const str = (x: unknown) => (typeof x === "string" ? x : "");
  * suggestions come from the day's own trips; every count is the engine's. */
 export function TestChange({ scenario }: { scenario: string }) {
   const applyIntent = useScene((s) => s.applyIntent);
+  const clearWhatIf = useScene((s) => s.clearWhatIf);
   const [pick, setPick] = useState(0);
+  // the imagined change leaves the map with this tab (or with a switch to another day)
+  useEffect(() => () => clearWhatIf(), [clearWhatIf]);
   const changes = useQuery({
     queryKey: ["day-changes", scenario],
     staleTime: Number.POSITIVE_INFINITY,
@@ -100,10 +103,11 @@ function Result({ d }: { d: Any }) {
       </p>
       <p className="font-semibold text-fg">{((d.actions ?? []) as string[]).join("; ")}</p>
       <p className="text-fg">
-        {num(d.residents_changed).toLocaleString()} residents' day would change:{" "}
-        {num(d.trips_better).toLocaleString()} trips better, {num(d.trips_worse).toLocaleString()}{" "}
-        worse.
+        {num(d.residents_better).toLocaleString()} residents would be better off and{" "}
+        {num(d.residents_worse).toLocaleString()} worse off ({num(d.trips_better).toLocaleString()}{" "}
+        trips better, {num(d.trips_worse).toLocaleString()} worse).
       </p>
+      <p className="text-[10px] text-fg-soft">Compared with {str(d.baseline)}.</p>
       {groups.length > 0 && (
         <table className="w-full text-xs">
           <caption className="sr-only">Residents better or worse off, by group</caption>

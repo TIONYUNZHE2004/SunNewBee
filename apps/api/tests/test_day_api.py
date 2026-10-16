@@ -31,6 +31,7 @@ def test_day_changes_and_compare_on_the_tiny_world():
         assert r.status_code == 200, r.text
         d = r.json()
         assert d["trips_better"] + d["trips_worse"] <= d["trips_changed"]
+        assert "residents_better" in d and "residents_worse" in d and d["baseline"]
         assert "not a plan" in d["disclaimer"] and d["changed_geojson"]["features"]
         assert all(f["properties"]["whatif"] for f in d["changed_geojson"]["features"])
     bad = c.post(
