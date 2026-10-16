@@ -47,10 +47,10 @@ describe("CitationList", () => {
     ref: i + 1,
     element_id: `seg-${i % 15}`,
   }));
-  it("shows 4 cards and a collapsed expander", () => {
+  it("shows no cards and a collapsed summary header", () => {
     const html = renderToStaticMarkup(<CitationList citations={cs} names={names} />);
-    expect(html.match(/<li data-evidence-card/g)).toHaveLength(4);
-    expect(html).toContain("Show 11 more sources");
+    expect(html.match(/<li data-evidence-card/g)).toBeNull();
+    expect(html).toContain("Evidence · 15 sources");
     expect(html).toContain('aria-expanded="false"');
   });
   it("shows all 15 when expanded", () => {

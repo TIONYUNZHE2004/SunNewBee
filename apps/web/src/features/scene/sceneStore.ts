@@ -41,12 +41,15 @@ interface SceneState {
   profile: Profile;
   scenarioId: string | null;
   focusPlaceId: string | null;
+  /** Route id the user asked to re-centre on (Show on map); the camera subscribes. */
+  focusRouteRequest: string | null;
   selectedPlaceId: string | null;
   selectedFloodEdgeId: string | null;
   route: { id: string; geojson: GeoJSON.LineString } | null;
   camera: { center: [number, number]; rangeM: number } | null;
   intents: SceneIntent[];
   applyIntent: (i: SceneIntent) => void;
+  requestRouteFocus: (id: string) => void;
   selectPlace: (id: string | null) => void;
   selectFloodEdge: (id: string | null) => void;
   setView: (v: View) => void;
@@ -74,6 +77,7 @@ const initial = {
   profile: loadProfile(),
   scenarioId: null as string | null,
   focusPlaceId: null as string | null,
+  focusRouteRequest: null as string | null,
   selectedPlaceId: null as string | null,
   selectedFloodEdgeId: null as string | null,
   route: null as SceneState["route"],
@@ -145,6 +149,11 @@ export const useScene = create<SceneState>((set) => ({
   setMapStyle: (mapStyle) => set({ mapStyle, mapStyleChosen: true }),
   applyDefaultMapStyle: (hasBuildings, hasGoogle) =>
     set((s) => (s.mapStyleChosen ? {} : { mapStyle: defaultMapStyle(hasBuildings, hasGoogle) })),
+  requestRouteFocus: (id) => {
+    // Reset first so asking for the same route twice still changes state for subscribers.
+    set({ focusRouteRequest: null });
+    set({ focusRouteRequest: id });
+  },
   clearRoute: () => set({ route: null }),
   reset: () => set(initial),
 }));

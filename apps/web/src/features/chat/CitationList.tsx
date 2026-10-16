@@ -1,9 +1,9 @@
 import { useState } from "react";
+import { isPlaceholderSource } from "../../lib/evidence";
+import { Icon } from "../../ui/icons";
 import type { Citation } from "./chatReducer";
 import { elementName, groupByElement } from "./citationLabel";
 import { EvidenceCard } from "./EvidenceCard";
-
-const VISIBLE = 4;
 
 export function CitationList({
   citations,
@@ -16,29 +16,36 @@ export function CitationList({
 }) {
   const [open, setOpen] = useState(defaultExpanded);
   const groups = groupByElement(citations);
-  const shown = open ? groups : groups.slice(0, VISIBLE);
-  const hidden = groups.length - VISIBLE;
+  const n = groups.length;
+  // Sources (groups) resting on demo data, so the count shares a unit with "N sources".
+  const demo = groups.filter((g) =>
+    g.citations.some((c) => isPlaceholderSource(c.source_type)),
+  ).length;
   return (
-    <div className="space-y-1.5">
-      <ul className="space-y-1.5" aria-label="Evidence">
-        {shown.map((g) => (
-          <EvidenceCard
-            key={g.element_id}
-            element_id={g.element_id}
-            title={elementName(g.element_id, names)}
-            citations={g.citations}
-          />
-        ))}
-      </ul>
-      {hidden > 0 && (
-        <button
-          type="button"
-          aria-expanded={open}
-          onClick={() => setOpen(!open)}
-          className="min-h-11 rounded-lg border border-line px-3 text-sm font-medium text-brand hover:bg-brand-tint"
-        >
-          {open ? "Show fewer sources" : `Show ${hidden} more sources`}
-        </button>
+    <div className="space-y-1.5" data-collapsible="">
+      <button
+        type="button"
+        aria-expanded={open}
+        onClick={() => setOpen(!open)}
+        className="flex min-h-11 w-full items-center justify-between rounded-lg border border-edge px-3 text-left text-sm font-medium text-fg hover:bg-fg/5"
+      >
+        <span>
+          Evidence · {n} {n === 1 ? "source" : "sources"}
+          {demo > 0 ? ` · ${demo} demo ${demo === 1 ? "value" : "values"}` : ""}
+        </span>
+        <Icon name="chevron" className={`size-4 transition-transform ${open ? "rotate-90" : ""}`} />
+      </button>
+      {open && (
+        <ul className="space-y-1.5" aria-label="Evidence">
+          {groups.map((g) => (
+            <EvidenceCard
+              key={g.element_id}
+              element_id={g.element_id}
+              title={elementName(g.element_id, names)}
+              citations={g.citations}
+            />
+          ))}
+        </ul>
       )}
     </div>
   );

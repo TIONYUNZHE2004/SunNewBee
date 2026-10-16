@@ -1,11 +1,16 @@
+import { useState } from "react";
 import { Button } from "../../ui/Button";
+import { Icon } from "../../ui/icons";
 import { CitationList } from "../chat/CitationList";
 import { type AssistantMessage, isRefusal } from "../chat/chatReducer";
 import { describeUncertainty } from "../chat/uncertainty";
 import { useElementNames } from "../chat/useElementNames";
+import { RouteSummary } from "./RouteSummary";
 
 export function AnswerCard({ m, onRetry }: { m: AssistantMessage; onRetry: () => void }) {
   const names = useElementNames();
+  const [checksOpen, setChecksOpen] = useState(false);
+  const checksRunning = m.tools.some((t) => !t.done);
   const thinking = !m.done && !m.text && !m.error;
   const refusal = isRefusal(m);
   const tone = m.error
@@ -21,33 +26,34 @@ export function AnswerCard({ m, onRetry }: { m: AssistantMessage; onRetry: () =>
     .map((l) => ({ href: l.url ?? l.href, label: l.label ?? l.title ?? l.name }))
     .filter((l) => l.href && /^https?:\/\//.test(l.href));
 
+  const checksList = (
+    <ol aria-label="Checks the assistant ran" className="space-y-1 text-xs text-fg-soft">
+      {m.tools.map((t) => (
+        <li key={t.id} className="flex items-center gap-1.5">
+          {t.done ? (
+            <span aria-hidden="true">✓</span>
+          ) : (
+            <span
+              aria-hidden="true"
+              className="inline-block size-3 motion-safe:animate-spin rounded-full border-2 border-accent border-t-transparent"
+            />
+          )}
+          {t.name.replace(/_/g, " ")}
+          <span className="sr-only">{t.done ? " done" : " running"}</span>
+        </li>
+      ))}
+    </ol>
+  );
+
   return (
     <article
       data-done={m.done || m.error ? "true" : "false"}
-      className={`space-y-3 rounded-lg border p-3 text-sm text-fg ${tone}`}
+      className={`space-y-3 rounded-2xl border p-3 text-sm text-fg ${tone}`}
     >
       {refusal && (
         <p className="inline-block rounded-full border border-dashed border-lilac px-2.5 py-0.5 text-xs text-lilac">
           Can't answer that yet
         </p>
-      )}
-      {m.tools.length > 0 && (
-        <ol aria-label="Checks the assistant ran" className="space-y-1 text-xs text-fg-soft">
-          {m.tools.map((t) => (
-            <li key={t.id} className="flex items-center gap-1.5">
-              {t.done ? (
-                <span aria-hidden="true">✓</span>
-              ) : (
-                <span
-                  aria-hidden="true"
-                  className="inline-block size-3 motion-safe:animate-spin rounded-full border-2 border-accent border-t-transparent"
-                />
-              )}
-              {t.name.replace(/_/g, " ")}
-              <span className="sr-only">{t.done ? " done" : " running"}</span>
-            </li>
-          ))}
-        </ol>
       )}
       {thinking && (
         <p className="text-fg-soft">
@@ -67,6 +73,28 @@ export function AnswerCard({ m, onRetry }: { m: AssistantMessage; onRetry: () =>
           )}
         </p>
       )}
+      {m.text && <RouteSummary m={m} />}
+      {m.tools.length > 0 &&
+        (checksRunning ? (
+          checksList
+        ) : (
+          <div data-collapsible="" className="space-y-1">
+            <button
+              type="button"
+              aria-expanded={checksOpen}
+              onClick={() => setChecksOpen(!checksOpen)}
+              className="inline-flex min-h-11 items-center gap-1.5 text-xs text-fg-soft hover:text-fg"
+            >
+              <span aria-hidden="true">✓</span>
+              {m.tools.length} {m.tools.length === 1 ? "check" : "checks"}
+              <Icon
+                name="chevron"
+                className={`size-3.5 transition-transform ${checksOpen ? "rotate-90" : ""}`}
+              />
+            </button>
+            {checksOpen && checksList}
+          </div>
+        ))}
       {uncertain.length > 0 && (
         <div
           role="note"
@@ -102,7 +130,8 @@ export function AnswerCard({ m, onRetry }: { m: AssistantMessage; onRetry: () =>
         </section>
       )}
       {m.vrs.length > 0 && (
-        <p className="text-fg-soft">
+        <p className="flex items-center gap-1.5 text-fg-soft">
+          <Icon name="ticket" className="size-4" />
           {m.vrs.length === 1 ? "A check has" : `${m.vrs.length} checks have`} been requested from
           the township team.
         </p>
