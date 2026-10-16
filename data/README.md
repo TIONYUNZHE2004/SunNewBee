@@ -296,3 +296,7 @@ Near the mall, the flagged segments are the Urban Park / Central Park lake-edge 
 - **`height_source`:** `osm_height` (an OSM `height` tag), `osm_levels` (from `building:levels`, 3.2 m per level) or `default` (a deterministic default by building kind).
 - **Skipped:** multipolygon relations are not imported (7 skipped), plus 2 invalid ways; 116 duplicates were dropped.
 - **Current seed (2026-10-16):** 7803 buildings (7330 default, 460 osm_levels, 13 osm_height; heights 3.2 to 35.2 m) and 491 trees.
+
+### Parks (display only)
+
+`uv run python data/scripts/build_buildings.py --parks --max-requests 40` fetches OSM `leisure=park|garden|playground` and `landuse=grass|recreation_ground` closed ways (one query per tile, through `overpass.py`) into `base/parks.geojson`. It is not part of `pnpm data:build`, and parks are never used for routing, evaluation, flood or answers. The API serves an empty collection when the file is absent.
