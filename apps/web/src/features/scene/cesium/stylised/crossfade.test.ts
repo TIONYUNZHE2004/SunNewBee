@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { startCrossfade } from "./crossfade";
+import { fadeMs, startCrossfade } from "./crossfade";
 import { paletteFor } from "./palette";
 
 function clock() {
@@ -60,5 +60,15 @@ describe("startCrossfade", () => {
     startCrossfade(paletteFor("day"), paletteFor("dusk"), apply, { ms: 2000, ...c });
     for (let i = 0; i < 25; i++) c.step(100);
     expect(apply.mock.calls.at(-1)).toEqual([paletteFor("dusk"), 1]);
+  });
+});
+
+describe("fadeMs", () => {
+  it("takes 3 s between Day and Dusk, either way, and 2 s otherwise", () => {
+    expect(fadeMs("day", "dusk")).toBe(3000);
+    expect(fadeMs("dusk", "day")).toBe(3000);
+    expect(fadeMs("day", "night")).toBe(2000);
+    expect(fadeMs("dusk", "night")).toBe(2000);
+    expect(fadeMs("night", "day")).toBe(2000);
   });
 });

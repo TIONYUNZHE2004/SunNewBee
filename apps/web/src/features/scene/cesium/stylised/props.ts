@@ -2,6 +2,7 @@ import type * as Cesium from "cesium";
 import type { Road } from "./ground";
 import { LIT_COLOR_SOURCE, lightUniforms, litColorMaterial, setLightUniforms } from "./lighting";
 import { hashUnit } from "./model";
+import { ANIMATED_VS } from "./motion/sky";
 import type { Palette } from "./palette";
 import type { RoofItem } from "./roofs";
 
@@ -185,6 +186,10 @@ const LAMP_HEAD_SOURCE = LIT_COLOR_SOURCE.replace(
   "m.emission = color.rgb * glow;\n  return m;",
 );
 
+/** Canopy vertex shader: the shared animated shader with the sway variant. */
+const SWAY_VS = `#define TL_SWAY
+${ANIMATED_VS}`;
+
 /**
  * Trees (two-tier low-poly canopy + trunk), parked cars, street lamps with light pools and rooftop
  * clutter as a few instanced Primitives, one per colour, so the Day/Night swap is a material
@@ -215,11 +220,12 @@ export function buildProps(
 ): Props {
   const vertexFormat = C.MaterialAppearance.MaterialSupport.BASIC.vertexFormat;
   const unit = new C.Cartesian3(1, 1, 1);
+  // Canopies sway in the vertex shader, which needs `st` (t runs bottom to top): TEXTURED format.
   const canopy = new C.EllipsoidGeometry({
     radii: unit,
     stackPartitions: 5,
     slicePartitions: 7,
-    vertexFormat,
+    vertexFormat: C.MaterialAppearance.MaterialSupport.TEXTURED.vertexFormat,
   });
   const trunk = new C.CylinderGeometry({
     length: 1,
@@ -266,10 +272,12 @@ export function buildProps(
     instances: Cesium.GeometryInstance[];
     /** Emissive lamp heads (carry a `glow` uniform). */
     emissive?: boolean;
+    /** Canopies: textured vertex format and the swaying vertex shader. */
+    sway?: boolean;
   }[] = [
-    { colour: (p) => p.tree[0], instances: [] },
-    { colour: (p) => p.tree[1], instances: [] },
-    { colour: (p) => p.tree[2], instances: [] },
+    { colour: (p) => p.tree[0], instances: [], sway: true },
+    { colour: (p) => p.tree[1], instances: [], sway: true },
+    { colour: (p) => p.tree[2], instances: [], sway: true },
     { colour: (p) => p.trunk, instances: [] },
     { colour: (p) => p.car[0], instances: [] },
     { colour: (p) => p.car[1], instances: [] },
@@ -336,7 +344,7 @@ export function buildProps(
   }
   let parts: Part[] = [];
   let time = 0;
-  for (const { colour, instances, emissive } of groups) {
+  for (const { colour, instances, emissive, sway } of groups) {
     if (instances.length === 0) continue;
     const mat = emissive
       ? new C.Material({
@@ -355,7 +363,10 @@ export function buildProps(
       geometryInstances: instances,
       appearance: new C.MaterialAppearance({
         material: mat,
-        materialSupport: C.MaterialAppearance.MaterialSupport.BASIC,
+        materialSupport: sway
+          ? C.MaterialAppearance.MaterialSupport.TEXTURED
+          : C.MaterialAppearance.MaterialSupport.BASIC,
+        ...(sway ? { vertexShaderSource: SWAY_VS } : {}),
         flat: true,
         translucent: false,
         closed: true,

@@ -6,7 +6,7 @@ import { useTheme } from "../../../../ui/theme";
 import { prefersReducedMotion, useSceneSettings } from "../../sceneSettingsStore";
 import { homeView } from "../home";
 import { type BuildingPrimitives, buildBuildingPrimitives } from "./buildingsPrimitive";
-import { startCrossfade } from "./crossfade";
+import { fadeMs, startCrossfade } from "./crossfade";
 import {
   buildGround,
   type Ground,
@@ -298,6 +298,7 @@ export function StylisedCity({ onReady }: { onReady?: (info: StylisedReady) => v
         sky.current?.tick(t);
         buildings.current?.setTime(t);
         props.current?.setTime(t);
+        ground.current?.setTime(t);
       },
     });
     clock.current = c;
@@ -373,10 +374,15 @@ export function StylisedCity({ onReady }: { onReady?: (info: StylisedReady) => v
   // shown; layers built mid-fade (or after) start from the latest theme's palette, so every path
   // ends on the last choice. The ground recolours once, at the midpoint (never intermediates).
   const shown = useRef(paletteFor(useTheme.getState().theme));
+  const shownTheme = useRef(useTheme.getState().theme);
   useEffect(() => {
     if (!viewer || viewer.isDestroyed()) return;
     const to = paletteFor(theme);
     let groundDone = false;
+    // Day <-> Dusk takes 3 s so the lamps visibly fade on; every other change takes 2 s.
+    const from = shownTheme.current;
+    const ms = fadeMs(from, theme);
+    shownTheme.current = theme;
     const cancel = startCrossfade(
       shown.current,
       to,
@@ -396,7 +402,7 @@ export function StylisedCity({ onReady }: { onReady?: (info: StylisedReady) => v
           ground.current?.setPalette(to, true);
         }
       },
-      { reduced: prefersReducedMotion() },
+      { reduced: prefersReducedMotion(), ms },
     );
     return cancel;
   }, [viewer, theme, home]);

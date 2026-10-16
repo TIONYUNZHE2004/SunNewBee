@@ -197,7 +197,7 @@ describe("decorative props honesty", () => {
     });
     const baseWater = { type: "FeatureCollection", features: [poly(101.5)] };
     const scenarioWater = { type: "FeatureCollection", features: [poly(101.9)] };
-    const buildGround = vi.fn(() => ({ setPalette: vi.fn(), destroy: vi.fn() }));
+    const buildGround = vi.fn(() => ({ setPalette: vi.fn(), setTime: vi.fn(), destroy: vi.fn() }));
     vi.resetModules();
     vi.doMock("resium", () => ({ useCesium: () => ({ viewer: FAKE_VIEWER }) }));
     vi.doMock("./ground", async (orig) => ({

@@ -120,6 +120,9 @@ export function roadsFromWalk(layer: unknown): Road[] {
 export type GroundCesium = Pick<
   typeof Cesium,
   | "ClassificationPrimitive"
+  | "GroundPrimitive"
+  | "EllipsoidSurfaceAppearance"
+  | "Material"
   | "GeometryInstance"
   | "CorridorGeometry"
   | "PolygonGeometry"
@@ -133,10 +136,12 @@ export type GroundCesium = Pick<
   | "CornerType"
 >;
 
+type GroundPrim = Cesium.ClassificationPrimitive | Cesium.GroundPrimitive;
+
 interface GroundCollection {
-  add(p: Cesium.ClassificationPrimitive): unknown;
-  remove(p: Cesium.ClassificationPrimitive): unknown;
-  lowerToBottom(p: Cesium.ClassificationPrimitive): void;
+  add(p: GroundPrim): unknown;
+  remove(p: GroundPrim): unknown;
+  lowerToBottom(p: GroundPrim): void;
 }
 
 interface PostRender {
@@ -150,9 +155,25 @@ export interface Ground {
    * latest palette is kept and applied as soon as they are. Only `final` calls recolour: the
    * caller passes the target palette once, at the fade's midpoint. */
   setPalette(p: Palette, final: boolean): void;
+  /** Motion clock seconds: drives the base-water ripple (the only animated ground part). */
+  setTime(t: number): void;
   /** Remove and destroy everything. Idempotent. */
   destroy(): void;
 }
+
+/**
+ * Ripple for DECORATIVE base water only (never a flood layer: flood scenarios are drawn by the
+ * overlay lines and carry no animation). Uniforms: color, shoreColor, time.
+ */
+export const WATER_SHIMMER_GLSL = /* glsl */ `
+czm_material czm_getMaterial(czm_materialInput mi) {
+  czm_material m = czm_getDefaultMaterial(mi);
+  vec2 p = mi.st * 40.0;
+  float w = sin(p.x * 1.7 + time * 0.8) * sin(p.y * 1.3 - time * 0.6);
+  m.diffuse = mix(color.rgb, shoreColor.rgb, 0.12 + 0.08 * w);
+  return m;
+}
+`;
 
 /** Half-height of the classification volumes around the flat (ellipsoid) stylised ground. */
 export const VOLUME_HALF_M = 1;
@@ -182,11 +203,14 @@ export function buildGround(
   const { scene } = viewer;
   const collection = scene.groundPrimitives;
   type Part = {
-    prim: Cesium.ClassificationPrimitive;
+    prim: GroundPrim;
     key: PartKey;
     ids: string[];
     applied: string;
   };
+  /** The base-water material (set when there are lakes). */
+  let waterMat: Cesium.Material | null = null;
+  let waterApplied = `${palette.water}|${palette.shore}`;
   let parts: Part[] = [];
   let want = palette;
   let stopWatching: (() => void) | null = null;
@@ -197,7 +221,7 @@ export function buildGround(
       C.Color.fromCssColorString(palette[key]),
     );
     const ids = geometries.map((_, i) => `${key}:${i}`);
-    const prim = new C.ClassificationPrimitive({
+    const prim: GroundPrim = new C.ClassificationPrimitive({
       geometryInstances: geometries.map(
         (geometry, i) =>
           new C.GeometryInstance({ geometry, id: ids[i], attributes: { color: colour } }),
@@ -216,7 +240,16 @@ export function buildGround(
   /** Write the wanted colours into ready primitives; true when nothing is left to do. */
   const sync = () => {
     let done = true;
+    if (waterMat) {
+      const key = `${want.water}|${want.shore}`;
+      if (key !== waterApplied) {
+        waterMat.uniforms.color = C.Color.fromCssColorString(want.water);
+        waterMat.uniforms.shoreColor = C.Color.fromCssColorString(want.shore);
+        waterApplied = key;
+      }
+    }
     for (const part of parts) {
+      if (part.prim === waterPrim) continue; // coloured through its material above
       const css = want[part.key];
       if (part.applied === css) continue;
       if (!part.prim.ready) {
@@ -251,6 +284,15 @@ export function buildGround(
       height: -VOLUME_HALF_M,
       extrudedHeight: VOLUME_HALF_M,
       vertexFormat: C.VertexFormat.POSITION_ONLY,
+    });
+  /** Lake polygon for the material-based water primitive: a flat surface, not a thin volume. */
+  const surface = (rings: WaterPolygon) =>
+    new C.PolygonGeometry({
+      polygonHierarchy: new C.PolygonHierarchy(
+        C.Cartesian3.fromDegreesArray(flat(rings[0]!)),
+        rings.slice(1).map((r) => new C.PolygonHierarchy(C.Cartesian3.fromDegreesArray(flat(r)))),
+      ),
+      vertexFormat: C.EllipsoidSurfaceAppearance.VERTEX_FORMAT,
     });
   const valid = (list: WaterPolygon[]) => list.filter((rings) => (rings[0]?.length ?? 0) >= 3);
   const kerbed = roads.filter((r) => r.kind === "residential" || r.kind === "major");
@@ -287,7 +329,36 @@ export function buildGround(
     "shore",
     valid(water).map((rings) => corridor(rings[0]!, 4)),
   );
-  add("water", valid(water).map(polygon));
+  // Base water is the one part with a material (ripple): a GroundPrimitive over the few lake
+  // polygons. Still lowered under the overlays and never pickable.
+  let waterPrim: GroundPrim | null = null;
+  const lakes = valid(water);
+  if (lakes.length > 0) {
+    waterMat = new C.Material({
+      fabric: {
+        uniforms: {
+          color: C.Color.fromCssColorString(palette.water),
+          shoreColor: C.Color.fromCssColorString(palette.shore),
+          time: 0,
+        },
+        source: WATER_SHIMMER_GLSL,
+      },
+      translucent: false,
+    });
+    waterPrim = new C.GroundPrimitive({
+      geometryInstances: lakes.map(
+        (rings, i) => new C.GeometryInstance({ geometry: surface(rings), id: `water:${i}` }),
+      ),
+      appearance: new C.EllipsoidSurfaceAppearance({ material: waterMat, aboveGround: false }),
+      classificationType: C.ClassificationType.TERRAIN,
+      allowPicking: false,
+      asynchronous: true,
+      releaseGeometryInstances: true,
+    });
+    collection.add(waterPrim);
+    collection.lowerToBottom(waterPrim);
+    parts.push({ prim: waterPrim, key: "water", ids: [], applied: palette.water });
+  }
   add(
     "parkEdge",
     valid(parks).map((rings) => corridor(rings[0]!, 3)),
@@ -307,6 +378,9 @@ export function buildGround(
         scene.requestRender(); // the recolour lands after this frame
       });
     },
+    setTime(t) {
+      if (waterMat && !waterMat.isDestroyed()) waterMat.uniforms.time = t;
+    },
     destroy() {
       stopWatching?.();
       stopWatching = null;
@@ -315,6 +389,8 @@ export function buildGround(
         if (!prim.isDestroyed()) prim.destroy();
       }
       parts = [];
+      if (waterMat && !waterMat.isDestroyed()) waterMat.destroy();
+      waterMat = null;
     },
   };
 }

@@ -163,6 +163,29 @@ describe("buildProps", () => {
     }
   });
 
+  it("only canopies get the swaying vertex shader and the textured vertex format", () => {
+    const { primitives, geometries } = setup();
+    const vs = (p: (typeof primitives)[number]) =>
+      String(
+        (p.options.appearance as { options?: { vertexShaderSource?: string } })?.options
+          ?.vertexShaderSource ?? "",
+      );
+    const swaying = primitives.filter((p) => vs(p).includes("TL_SWAY"));
+    expect(swaying.length).toBeGreaterThan(0);
+    expect(swaying.length).toBeLessThanOrEqual(3); // one per canopy tone
+    for (const p of swaying) {
+      expect(p.options.appearance).toMatchObject({
+        options: { materialSupport: { vertexFormat: { textured: true } } },
+      });
+    }
+    for (const p of primitives.filter((q) => !swaying.includes(q))) {
+      expect(vs(p)).toBe(""); // trunks, cars, lamps, pools and roof items stay still
+    }
+    expect(geometries.find((g) => g.kind === "ellipsoid")?.options.vertexFormat).toEqual({
+      textured: true,
+    });
+  });
+
   it("instances: two canopies colours + trunks for trees, body + cabin per car", () => {
     const { primitives } = setup();
     const n = primitives.reduce((s, p) => s + (p.options.geometryInstances as unknown[]).length, 0);

@@ -1,5 +1,10 @@
 import { lerpPalette, type Palette } from "./palette";
 
+/** Day <-> Dusk fades over 3 s so the lamps visibly come on; every other change takes 2 s. */
+export function fadeMs(from: string, to: string): number {
+  return (from === "day" && to === "dusk") || (from === "dusk" && to === "day") ? 3000 : 2000;
+}
+
 const ease = (t: number) => t * t * (3 - 2 * t);
 
 /**

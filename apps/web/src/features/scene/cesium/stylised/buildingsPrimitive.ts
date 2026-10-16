@@ -87,7 +87,11 @@ czm_material czm_getMaterial(czm_materialInput materialInput) {
   vec2 g = vec2(st.s - cls * ${TONE_STRIDE.toFixed(1)}, st.t);
   vec2 cell = floor(g);
   vec2 f = fract(g);
-  float isLit = step(tl_hash(cell), litFrac);
+  // Only while the lamps are on (glow 0 by day: no flips): about 3% of windows flip every 20 s.
+  // step() keeps the flip binary so isLit stays 0 or 1 at dusk's partial glow.
+  float epoch = floor(time / 20.0);
+  float flip = step(0.97, tl_hash(cell + epoch * 13.0)) * step(0.5, glow);
+  float isLit = abs(step(tl_hash(cell), litFrac) - flip);
   vec3 litC = mix(litA.rgb, litB.rgb, step(0.62, tl_hash(cell + 17.0)));
   vec3 avgLit = mix(litA.rgb, litB.rgb, 0.38);
   vec3 darkC = darkWin.rgb * mix(lit, vec3(1.0), glow);

@@ -32,6 +32,9 @@ export function fakeCesium() {
       return a;
     });
   }
+  class FakeGroundPrimitive extends FakePrimitive {
+    override kind = "GroundPrimitive";
+  }
   class FakeMaterial {
     uniforms: Record<string, unknown>;
     writes: string[] = [];
@@ -95,6 +98,7 @@ export function fakeCesium() {
   const C = {
     Primitive: FakePrimitive,
     ClassificationPrimitive: FakeClassificationPrimitive,
+    GroundPrimitive: FakeGroundPrimitive,
     PerInstanceColorAppearance: Plain,
     ColorGeometryInstanceAttribute: {
       fromColor: (c: { css: string }) => ({ value: c.css }),

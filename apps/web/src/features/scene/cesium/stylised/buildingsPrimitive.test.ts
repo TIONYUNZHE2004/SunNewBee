@@ -151,6 +151,16 @@ describe("buildBuildingPrimitives", () => {
     expect(materials[0]!.uniforms.cloudShadow).toBe(0);
   });
 
+  it("windows flip about 3% of lit cells every 20 s, only while glow is on", () => {
+    expect(WINDOW_SHADER).toContain("float epoch = floor(time / 20.0);");
+    expect(WINDOW_SHADER).toMatch(
+      /step\(0\.97, tl_hash\(cell \+ epoch \* 13\.0\)\) \* step\(0\.5, glow\)/,
+    );
+    expect(WINDOW_SHADER).toContain("float isLit = abs(step(tl_hash(cell), litFrac) - flip);");
+    // Day has glow 0, so the flip term is always 0 and the lit set is unchanged.
+    expect(paletteFor("day").glow).toBe(0);
+  });
+
   it("the window shader shades roofs and walls with the cloud shadow", () => {
     expect(WINDOW_SHADER).toContain(
       "vec3 positionWC = (czm_inverseView * vec4(-materialInput.positionToEyeEC, 1.0)).xyz;",

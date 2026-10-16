@@ -116,7 +116,8 @@ function setup(withWater = true) {
     parks: water,
     palette: paletteFor("night"),
   });
-  const prims = f.primitives as unknown as {
+  // Per-instance-colour primitives only: base water is a material-based GroundPrimitive.
+  const prims = f.primitives.filter((p) => p.kind === "ClassificationPrimitive") as unknown as {
     ready: boolean;
     attrs: Map<string, { color?: unknown }>;
     options: Record<string, unknown>;
@@ -124,6 +125,10 @@ function setup(withWater = true) {
   return { ...f, prims, groundPrimitives, postRender, requestRender, g };
 }
 const colourOf = (css: string) => `rgba:${css}`;
+const waterColours = (materials: { uniforms: Record<string, unknown> }[]) =>
+  [materials[0]?.uniforms.color, materials[0]?.uniforms.shoreColor].map(
+    (c) => (c as { css: string }).css,
+  );
 
 describe("buildGround", () => {
   it("draws pavements, kerbs and marks for residential/major roads, parks and shoreline", () => {
@@ -159,6 +164,23 @@ describe("buildGround", () => {
     expect(ids.filter((k) => k === "kerb")).toHaveLength(2);
   });
 
+  it("only base water shimmers; flood layers are never touched by this module", () => {
+    const { g, primitives, materials } = setup();
+    const water = primitives.find((p) =>
+      (p.options.geometryInstances as { options: { id: string } }[])?.[0]?.options.id.startsWith(
+        "water:",
+      ),
+    );
+    const others = primitives.filter((p) => p !== water);
+    expect(water?.options.appearance).toHaveProperty("options.material.uniforms.time");
+    expect(water?.options).toMatchObject({ allowPicking: false, classificationType: 0 });
+    for (const p of others) expect(p.options.appearance).not.toHaveProperty("options.material");
+    expect(materials).toHaveLength(1); // the one water material; nothing else is animated
+    g.setTime(5);
+    expect(materials[0]?.uniforms.time).toBe(5);
+    expect(materials[0]?.writes).toEqual(["time"]);
+  });
+
   it("parksFromLayer parses polygons like water and tolerates an empty collection", () => {
     expect(parksFromLayer({ type: "FeatureCollection", features: [] })).toEqual([]);
     expect(parksFromLayer(undefined)).toEqual([]);
@@ -167,18 +189,25 @@ describe("buildGround", () => {
   it("draws roads and water as thin, non-pickable classification volumes under the overlays", () => {
     const { primitives, geometries, groundPrimitives } = setup();
     // roadMark, kerb, road, pavement, shore, water parkEdge, park
-    expect(primitives.map((p) => p.kind)).toEqual(Array(8).fill("ClassificationPrimitive"));
+    expect(primitives.map((p) => p.kind)).toEqual([
+      ...Array(4).fill("ClassificationPrimitive"), // roadMark, kerb, road, pavement
+      "ClassificationPrimitive", // shore
+      "GroundPrimitive", // water (material, see below)
+      "ClassificationPrimitive", // parkEdge
+      "ClassificationPrimitive", // park
+    ]);
     for (const p of primitives) {
       expect(p.options).toMatchObject({ allowPicking: false, asynchronous: true });
     }
     const corridors = geometries.filter((g) => g.kind === "corridor").map((g) => g.options);
     expect(corridors.filter((o) => o.width === 10).length).toBe(1); // the major road
     expect(corridors.filter((o) => o.width === 2.5).length).toBe(1); // the footway
-    for (const o of [
-      ...corridors,
-      ...geometries.filter((g) => g.kind === "polygon").map((g) => g.options),
-    ]) {
-      // Thin volumes around the flat ellipsoid ground (no tall GroundPrimitive volumes).
+    const polygons = geometries.filter((g) => g.kind === "polygon").map((g) => g.options);
+    // The lake surface (water) is a flat polygon for the material primitive; the rest are thin
+    // volumes around the flat ellipsoid ground (no tall volumes).
+    const volumes = [...corridors, ...polygons.filter((o) => o.height !== undefined)];
+    expect(polygons.length - polygons.filter((o) => o.height !== undefined).length).toBe(1);
+    for (const o of volumes) {
       expect([o.height, o.extrudedHeight]).toEqual([-VOLUME_HALF_M, VOLUME_HALF_M]);
     }
     expect(geometries.filter((g) => g.kind === "polygon")).toHaveLength(2);
@@ -193,7 +222,7 @@ describe("buildGround", () => {
   });
 
   it("theme toggled before the primitives are ready ends on the latest theme once ready", () => {
-    const { g, prims, primitives, postRender, requestRender } = setup();
+    const { g, prims, primitives, postRender, requestRender, materials } = setup();
     g.setPalette(paletteFor("day"), true);
     g.setPalette(paletteFor("night"), true);
     g.setPalette(paletteFor("day"), true);
@@ -208,7 +237,7 @@ describe("buildGround", () => {
     const attr = (id: string) => prims.map((p) => p.attrs.get(id)?.color).find(Boolean);
     expect(attr("road:0")).toBe(colourOf(day.road));
     expect(attr("road:1")).toBe(colourOf(day.road));
-    expect(attr("water:0")).toBe(colourOf(day.water));
+    expect(waterColours(materials)).toEqual([day.water, day.shore]);
     expect(attr("pavement:0")).toBe(colourOf(day.pavement));
     expect(postRender.listeners.size).toBe(0);
     expect(requestRender).toHaveBeenCalledTimes(1);
@@ -226,18 +255,18 @@ describe("buildGround", () => {
   });
 
   it("recolours every part key in place", () => {
-    const { g, prims } = setup();
+    const { g, prims, materials } = setup();
     for (const p of prims) p.ready = true;
     g.setPalette(paletteFor("day"), true);
     g.setPalette(paletteFor("night"), true);
     const night = paletteFor("night");
+    expect(waterColours(materials)).toEqual([night.water, night.shore]);
     const attr = (id: string) => prims.map((p) => p.attrs.get(id)?.color).find(Boolean);
     for (const key of [
       "road",
       "pavement",
       "kerb",
       "roadMark",
-      "water",
       "shore",
       "park",
       "parkEdge",
