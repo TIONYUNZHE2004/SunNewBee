@@ -681,3 +681,31 @@ Each ruling gives what was decided, why, and the cost if it is wrong.
 - **Cost if wrong:** a BM or 中文 answer could misstate a count unchecked. Mitigation: the eval's number-faithfulness check is language-independent and found 0 invented numbers.
 
 **Spend so far:** US$0.1326 of US$3.
+
+---
+
+## Cycle 7: ticket impact, value of information on every ticket (17 Oct, about 00:00–00:20)
+
+**Spec:** [2026-10-17-ticket-impact-design.md](specs/2026-10-17-ticket-impact-design.md). This makes the timeline's "close the loop live" visible on `/tickets`.
+
+**What was built:**
+- **`twm.ForgetFact`:** an internal action, not offered to the language model.
+- **`impact.fact_impact`:** the ticket's own journey (parsed from "<profile> route <A> -> <B>") plus 20 everyday trips for that profile.
+  - **Open ticket:** imagine the fact passing, or failing, and count the journeys that would become confirmed or lose their route. It also gives the own journey's statuses and the unchecked facts still left on that route.
+  - **Resolved ticket:** compare now with "never checked". It gives the journeys the check changed and the belief before and after.
+- **`GET /verification-requests/{id}/impact`:** cached per world version, through the world-model slots. It is staff-only and not an assistant or MCP tool.
+- **Web `tickets/ImpactCard`,** shown on every open or resolved ticket.
+
+**Evidence:**
+- **Tiny world:** the stroller ticket "Car Park B → Park kiosk" (ramp incline). If it passes, the resident's own trip goes from partly unverified to confirmed, with 0 other checks left on that route. Once resolved, the card reads "before partly unverified, now confirmed", and the model's estimate for that kind of fact rises (tests).
+- **Elmina seed:** about 2.8 s per ticket. A typical honest result is "if it passes, 0 of 21 sampled journeys would become confirmed". One fact rarely completes a route, which is why the survey plan (Cycle 2) bundles them.
+- **Browser check:** the card renders on `/tickets`, seed, Stylised.
+- **e2e:** a new "ticket impact" hero passes. The checklist passes except gen, which shows only the uncommitted client diff.
+
+**Pitch line:**
+
+> Every ticket now tells staff what checking it would change: "if this ramp's incline passes, this resident's own question gets a confirmed answer." After they check, it shows what it did change, and how the model's belief moved. The verification loop, visible.
+
+**Integration notes for shaoxian04:**
+- New `tickets/ImpactCard`, inside `TicketDetail` under the facts list.
+- It uses the new `GET /verification-requests/{id}/impact`.

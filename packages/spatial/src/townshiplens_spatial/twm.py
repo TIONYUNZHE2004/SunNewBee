@@ -97,6 +97,15 @@ Action = Annotated[
 ]
 
 
+class ForgetFact(BaseModel):
+    """Internal (never offered to the language model): imagine a fact as never checked, to see
+    what its verification changed (ticket impact)."""
+
+    kind: Literal["forget_fact"] = "forget_fact"
+    element_id: str
+    attribute: str
+
+
 class IllegalAction(ValueError):
     pass
 
@@ -220,6 +229,8 @@ def apply(world: World, actions: list[Any], max_actions: int = MAX_ACTIONS) -> I
             e.claims = {**e.claims, **{k: _claim(_passing(world, k)) for k in attrs}}
         elif isinstance(a, AssumeFact):
             e.claims = {**e.claims, a.attribute: _claim(a.value)}
+        elif isinstance(a, ForgetFact):
+            e.claims = {**e.claims, a.attribute: Claim(status="unknown", evidence_type=WHATIF)}
         elif isinstance(a, VerifyFact):
             value = (_passing if a.outcome == "pass" else _failing)(world, a.attribute)
             if a.attribute == "step_count" and a.outcome == "pass" and e.type == "steps":

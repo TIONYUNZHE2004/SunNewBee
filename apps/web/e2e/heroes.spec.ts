@@ -184,3 +184,13 @@ test("tipping point: the assistant names the river level where a trip breaks", a
   await expect(last).toContainText(/River \+3 m/);
   await expect(last).toContainText(/not a forecast/);
 });
+
+test("ticket impact: the world model says what one check would change", async ({ page }) => {
+  await open(page);
+  await ask(page, "Can I push a stroller from Car Park B to the kiosk without stairs?");
+  await lastAnswer(page);
+  await page.goto("/tickets");
+  const card = page.getByRole("region", { name: "What this check changes" });
+  await expect(card).toContainText(/would become confirmed|changed/);
+  await expect(card).toContainText(/planning estimate/);
+});

@@ -568,6 +568,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/verification-requests/{vr_id}/impact": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Ticket Impact
+         * @description What this check would change (open) or changed (resolved) on the township model: sampled
+         *     journeys, the ticket's own journey and the belief. Staff planning estimate; counts only.
+         */
+        get: operations["ticket_impact_verification_requests__vr_id__impact_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/verification-requests/{vr_id}/resolve": {
         parameters: {
             query?: never;
@@ -1185,6 +1206,46 @@ export interface components {
             /** Photo Url */
             photo_url: string;
         };
+        /** FactImpact */
+        FactImpact: {
+            /** Attribute */
+            attribute: string;
+            /**
+             * Became Confirmed
+             * @default 0
+             */
+            became_confirmed: number;
+            /** Belief Q */
+            belief_q?: number | null;
+            /** Belief Q Before */
+            belief_q_before?: number | null;
+            /**
+             * Changed
+             * @default 0
+             */
+            changed: number;
+            /** Element Id */
+            element_id: string;
+            /**
+             * Lost Route
+             * @default 0
+             */
+            lost_route: number;
+            /** Mode */
+            mode: string;
+            /**
+             * Note
+             * @default Sampled journeys on the township model; a planning estimate, not a promise. Residents never see these numbers.
+             */
+            note: string;
+            own?: components["schemas"]["OwnJourney"] | null;
+            /** Own Other Checks */
+            own_other_checks?: number | null;
+            /** Profile */
+            profile: string;
+            /** Sampled */
+            sampled: number;
+        };
         /** GapFeature */
         GapFeature: {
             /** Geometry */
@@ -1253,6 +1314,17 @@ export interface components {
             median_hours_to_resolve?: number | null;
             /** Open Vrs */
             open_vrs: number;
+        };
+        /** OwnJourney */
+        OwnJourney: {
+            /** From Name */
+            from_name: string;
+            /** Statuses */
+            statuses: {
+                [key: string]: string;
+            };
+            /** To Name */
+            to_name: string;
         };
         /** PlanFact */
         PlanFact: {
@@ -3207,6 +3279,51 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
                 };
+            };
+        };
+    };
+    ticket_impact_verification_requests__vr_id__impact_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                vr_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FactImpact"];
+                };
+            };
+            /** @description unknown verification request */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description busy */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };

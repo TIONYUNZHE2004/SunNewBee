@@ -1155,3 +1155,27 @@ def _fixes(w: World, a: dict) -> ToolResult:
 
 
 TOOLS["find_fixes"] = find_fixes
+
+
+def ticket_impact(ctx: Ctx, vr_id: str):
+    """What one verification ticket would change (open) or changed (resolved) on the world
+    model: sampled journeys, the ticket's own journey, and the belief. Staff planning only."""
+    from . import belief, impact
+
+    vr = ctx.vrs.get(vr_id)
+    if vr is None:
+        return ToolResult(ok=False, warnings=[f"unknown verification request {vr_id}"])
+    w = ctx.world
+    prior = belief.load_prior(w.data_dir / "belief_prior.json") if w.data_dir else {}
+    args = {"vr": vr_id, "element": vr.element_id, "attr": vr.attribute, "status": vr.status}
+    return _wm_cached(
+        w,
+        "impact",
+        args,
+        lambda: ToolResult(
+            ok=True,
+            data=impact.fact_impact(
+                w, vr.element_id, vr.attribute, vr.question_summary, prior
+            ).model_dump(mode="json"),
+        ),
+    )

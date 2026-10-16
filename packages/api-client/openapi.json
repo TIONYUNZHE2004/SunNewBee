@@ -1414,6 +1414,102 @@
         "title": "EvidenceUploaded",
         "type": "object"
       },
+      "FactImpact": {
+        "properties": {
+          "attribute": {
+            "title": "Attribute",
+            "type": "string"
+          },
+          "became_confirmed": {
+            "default": 0,
+            "title": "Became Confirmed",
+            "type": "integer"
+          },
+          "belief_q": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Belief Q"
+          },
+          "belief_q_before": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Belief Q Before"
+          },
+          "changed": {
+            "default": 0,
+            "title": "Changed",
+            "type": "integer"
+          },
+          "element_id": {
+            "title": "Element Id",
+            "type": "string"
+          },
+          "lost_route": {
+            "default": 0,
+            "title": "Lost Route",
+            "type": "integer"
+          },
+          "mode": {
+            "title": "Mode",
+            "type": "string"
+          },
+          "note": {
+            "default": "Sampled journeys on the township model; a planning estimate, not a promise. Residents never see these numbers.",
+            "title": "Note",
+            "type": "string"
+          },
+          "own": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OwnJourney"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "own_other_checks": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Own Other Checks"
+          },
+          "profile": {
+            "title": "Profile",
+            "type": "string"
+          },
+          "sampled": {
+            "title": "Sampled",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "element_id",
+          "attribute",
+          "mode",
+          "profile",
+          "sampled"
+        ],
+        "title": "FactImpact",
+        "type": "object"
+      },
       "GapFeature": {
         "properties": {
           "geometry": {
@@ -1584,6 +1680,32 @@
           "open_vrs"
         ],
         "title": "Kpis",
+        "type": "object"
+      },
+      "OwnJourney": {
+        "properties": {
+          "from_name": {
+            "title": "From Name",
+            "type": "string"
+          },
+          "statuses": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Statuses",
+            "type": "object"
+          },
+          "to_name": {
+            "title": "To Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "from_name",
+          "to_name",
+          "statuses"
+        ],
+        "title": "OwnJourney",
         "type": "object"
       },
       "PlanFact": {
@@ -5530,6 +5652,52 @@
           }
         },
         "summary": "Create Vr"
+      }
+    },
+    "/verification-requests/{vr_id}/impact": {
+      "get": {
+        "description": "What this check would change (open) or changed (resolved) on the township model: sampled\njourneys, the ticket's own journey and the belief. Staff planning estimate; counts only.",
+        "operationId": "ticket_impact_verification_requests__vr_id__impact_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "vr_id",
+            "required": true,
+            "schema": {
+              "title": "Vr Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FactImpact"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "description": "unknown verification request"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "503": {
+            "description": "busy"
+          }
+        },
+        "summary": "Ticket Impact"
       }
     },
     "/verification-requests/{vr_id}/resolve": {

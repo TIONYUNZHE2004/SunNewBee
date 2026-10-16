@@ -22,3 +22,25 @@ def test_belief_is_public_and_planning_only():
     assert r.status_code == 200
     assert "Planning estimate only" in r.json()["note"]
     assert set(r.json()["sources"]) == {"osm_prior_obs", "staff_verified"}
+
+
+def test_ticket_impact_endpoint():
+    r = c.post("/routes", json={"from": "park-b", "to": "kiosk", "profile": "stroller"})
+    assert r.status_code == 200
+    vrs = c.get("/verification-requests").json()
+    vr = next((v for v in vrs if v["element_id"] == "seg-cf"), None)
+    if vr is None:  # /routes may not file tickets; file one through the chat tool path
+        from townshiplens_api import state
+        from townshiplens_spatial import tools as sp
+
+        sp.plan_route(
+            state.get_ctx(),
+            from_id="park-b",
+            to_id="kiosk",
+            profile="stroller",
+            question_summary="stroller route Car Park B -> Park kiosk",
+        )
+        vr = next(v for v in state.get_ctx().vrs.list() if v.element_id == "seg-cf").model_dump()
+    d = c.get(f"/verification-requests/{vr['id']}/impact").json()
+    assert d["mode"] in ("would", "did") and d["sampled"] >= 1 and "planning estimate" in d["note"]
+    assert c.get("/verification-requests/vr-9999/impact").status_code == 404

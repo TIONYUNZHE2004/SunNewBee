@@ -10,6 +10,7 @@ from typing import Literal
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 from townshiplens_spatial import belief, planner
+from townshiplens_spatial.impact import FactImpact
 from townshiplens_spatial.planner import VerificationPlan
 
 from .. import state
@@ -69,3 +70,20 @@ def belief_table() -> dict:
         "sources": b.sources,
         "note": "Planning estimate only: never used to mark a path passable or shown to residents.",
     }
+
+
+@router.get(
+    "/verification-requests/{vr_id}/impact",
+    response_model=FactImpact,
+    responses={404: {"description": "unknown verification request"}, 503: {"description": "busy"}},
+)
+def ticket_impact(vr_id: str) -> dict:
+    """What this check would change (open) or changed (resolved) on the township model: sampled
+    journeys, the ticket's own journey and the belief. Staff planning estimate; counts only."""
+    from townshiplens_spatial import tools
+
+    res = tools.ticket_impact(state.get_ctx(), vr_id)
+    if not res.ok:
+        busy = any("busy" in w for w in res.warnings)
+        raise HTTPException(status_code=503 if busy else 404, detail="; ".join(res.warnings))
+    return res.data
