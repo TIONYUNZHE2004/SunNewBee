@@ -11,10 +11,10 @@ export interface CesiumTimeStyle {
 const STYLES: Record<Theme, CesiumTimeStyle> = {
   day: { skyColor: "#9bc4e8", globeBase: "#5f7f5a", tileBrightness: 1, fogDensity: 0.0001, hue: 0 },
   dusk: {
-    skyColor: "#9bc4e8",
-    globeBase: "#5f7f5a",
-    tileBrightness: 1,
-    fogDensity: 0.0001,
+    skyColor: "#c98aa6",
+    globeBase: "#4a4a5a",
+    tileBrightness: 0.75,
+    fogDensity: 0.0002,
     hue: 0,
   },
   night: {
@@ -29,7 +29,7 @@ const STYLES: Record<Theme, CesiumTimeStyle> = {
 /** Pure: display-only lighting for the 3D scene. Never used to derive any fact. */
 export const cesiumTimeStyle = (t: Theme): CesiumTimeStyle => STYLES[t] ?? STYLES.night;
 
-export const mapboxLightPreset = (t: Theme): "day" | "night" => (t === "day" ? "day" : "night");
+export const mapboxLightPreset = (t: Theme): "day" | "dusk" | "night" => t;
 
 /** Narrow structural types so the helper can be tested with fakes (no WebGL in jsdom). */
 export interface TimeViewer {

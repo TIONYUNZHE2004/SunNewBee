@@ -77,4 +77,10 @@ describe("applyCesiumTime", () => {
     };
     expect(() => applyCesiumTime(viewer, tiles, cesiumTimeStyle("day"), ops)).not.toThrow();
   });
+  it("has a dusk style and maps dusk to the Mapbox dusk preset", () => {
+    expect(cesiumTimeStyle("dusk").skyColor).toMatch(/^#[0-9a-f]{6}$/i);
+    expect(mapboxLightPreset("dusk")).toBe("dusk");
+    expect(mapboxLightPreset("day")).toBe("day");
+    expect(mapboxLightPreset("night")).toBe("night");
+  });
 });

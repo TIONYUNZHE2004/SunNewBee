@@ -20,6 +20,10 @@ export interface Palette {
   windowDark: string;
   sun: { dir: [number, number, number]; color: string; intensity: number };
   ambient: number;
+  /** Window emission, 0 to 1. */
+  glow: number;
+  /** Share of windows that are lit. */
+  litFrac: number;
 }
 
 const NIGHT: Palette = {
@@ -37,6 +41,8 @@ const NIGHT: Palette = {
   windowDark: "#0c081e",
   sun: { dir: [0.4, -0.5, -0.25], color: "#8fa6ff", intensity: 0.6 },
   ambient: 0.35,
+  glow: 1,
+  litFrac: 0.58,
 };
 
 const DAY: Palette = {
@@ -54,6 +60,28 @@ const DAY: Palette = {
   windowDark: "#5a5280",
   sun: { dir: [0.5, -0.6, -0.8], color: "#fff1d6", intensity: 2.2 },
   ambient: 0.8,
+  glow: 0,
+  litFrac: 0.35,
 };
 
-export const paletteFor = (t: Theme): Palette => (t === "night" ? NIGHT : DAY);
+const DUSK: Palette = {
+  ground: "#d9b9b4",
+  road: "#7d6a92",
+  water: "#5f8f93",
+  sky: "#c98aa6",
+  fog: 0.0003,
+  tree: ["#4f9a7a", "#2f7466"],
+  trunk: "#6a4a55",
+  car: ["#e0686a", "#5a8fd9", "#f4f1ea"],
+  wall: { warm: "#e3b49a", cool: "#a99ad6", rose: "#e7a2b4" },
+  roof: { warm: "#b4745e", cool: "#7f70b8", rose: "#cc6c86" },
+  windowLit: ["#ffd08a", "#fff0dc"],
+  windowDark: "#3d2f6b",
+  sun: { dir: [0.75, -0.2, -0.3], color: "#ffb38a", intensity: 1.4 },
+  ambient: 0.6,
+  glow: 0.6,
+  litFrac: 0.45,
+};
+
+const PALETTES: Record<Theme, Palette> = { day: DAY, dusk: DUSK, night: NIGHT };
+export const paletteFor = (t: Theme): Palette => PALETTES[t] ?? NIGHT;

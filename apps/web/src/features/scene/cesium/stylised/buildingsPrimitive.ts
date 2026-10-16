@@ -35,7 +35,6 @@ export interface BuildingPrimitives {
 }
 
 /** Share of windows lit (seeded per cell in the shader). */
-const LIT_FRACTION = { night: 0.58, dusk: 0.35, day: 0.35 } as const;
 
 /**
  * Window material. st from buildingsMesh: s = window columns (+ per-building seed, + tone *
@@ -93,7 +92,7 @@ czm_material czm_getMaterial(czm_materialInput materialInput) {
 }
 `;
 
-function uniformsFor(C: CesiumLike, palette: Palette, theme: Theme, sunWC: Cesium.Cartesian3) {
+function uniformsFor(C: CesiumLike, palette: Palette, sunWC: Cesium.Cartesian3) {
   const col = (c: string) => C.Color.fromCssColorString(c);
   return {
     wallWarm: col(palette.wall.warm),
@@ -105,8 +104,8 @@ function uniformsFor(C: CesiumLike, palette: Palette, theme: Theme, sunWC: Cesiu
     litA: col(palette.windowLit[0]),
     litB: col(palette.windowLit[1]),
     darkWin: col(palette.windowDark),
-    litFrac: LIT_FRACTION[theme],
-    glow: theme === "night" ? 1 : 0,
+    litFrac: palette.litFrac,
+    glow: palette.glow,
     ambient: palette.ambient,
     sunIntensity: Math.min(1, palette.sun.intensity),
     sunWC,
@@ -175,7 +174,7 @@ export function buildBuildingPrimitives(
     });
     const material = new C.Material({
       fabric: {
-        uniforms: uniformsFor(C, palette, theme, sunVector(C, palette, at)),
+        uniforms: uniformsFor(C, palette, sunVector(C, palette, at)),
         source: WINDOW_SHADER,
       },
       translucent: false,
@@ -203,7 +202,7 @@ export function buildBuildingPrimitives(
     primitives,
     setTheme(t) {
       const p = paletteFor(t);
-      const u = uniformsFor(C, p, t, sunVector(C, p, at));
+      const u = uniformsFor(C, p, sunVector(C, p, at));
       for (const m of materials) Object.assign(m.uniforms, u);
     },
     destroy() {

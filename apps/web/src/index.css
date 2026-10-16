@@ -1,8 +1,8 @@
 @import "tailwindcss";
 
-/* Night is the default (the mockup palette). Day swaps the same semantic variables. */
+/* Dark chrome is the default (Night). Light chrome (Day and Dusk) swaps the same semantic variables. */
 :root,
-:root[data-theme="night"] {
+:root[data-skin="dark"] {
   color-scheme: dark;
   --c-bg: #1f1838;
   --c-surface: #241c42;
@@ -22,7 +22,7 @@
   --c-danger-tint: rgba(194, 74, 104, 0.18);
   --c-brand-tint: rgba(255, 255, 255, 0.06);
 }
-:root[data-theme="day"] {
+:root[data-skin="light"] {
   color-scheme: light;
   --c-bg: #fdf0ea;
   --c-surface: #ffffff;

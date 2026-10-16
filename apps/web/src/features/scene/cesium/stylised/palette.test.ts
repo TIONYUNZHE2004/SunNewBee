@@ -17,9 +17,21 @@ const contrast = (a: string, b: string) => {
 
 describe("paletteFor", () => {
   const day = paletteFor("day");
+  const dusk = paletteFor("dusk");
   const night = paletteFor("night");
   it("night sky is darker than day sky", () => {
     expect(lum(night.sky)).toBeLessThan(lum(day.sky));
+  });
+  it("dusk is between day and night: warmer sky than day, brighter than night", () => {
+    expect(lum(dusk.sky)).toBeLessThan(lum(day.sky));
+    expect(lum(dusk.sky)).toBeGreaterThan(lum(night.sky));
+  });
+  it("window glow and lit share rise from day to night", () => {
+    expect(day.glow).toBe(0);
+    expect(dusk.glow).toBeGreaterThan(0);
+    expect(night.glow).toBe(1);
+    expect(day.litFrac).toBeLessThan(dusk.litFrac);
+    expect(dusk.litFrac).toBeLessThan(night.litFrac);
   });
   it("day and night differ on ground", () => {
     expect(day.ground).not.toBe(night.ground);
@@ -42,13 +54,13 @@ describe("paletteFor", () => {
       const h = mx === r ? ((g - b) / d) % 6 : mx === g ? (b - r) / d + 2 : (r - g) / d + 4;
       return (h * 60 + 360) % 360;
     };
-    for (const p of [day, night]) {
+    for (const p of [day, dusk, night]) {
       expect(p.water.toLowerCase()).not.toBe(WATER_COLOR.toLowerCase());
       expect(Math.abs(hue(p.water) - hue(WATER_COLOR))).toBeGreaterThan(20); // teal-grey, not scenario blue
     }
   });
   it("every colour is a 6-digit hex", () => {
-    for (const p of [day, night]) {
+    for (const p of [day, dusk, night]) {
       const colours = [
         p.ground,
         p.road,
