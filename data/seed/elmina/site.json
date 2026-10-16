@@ -52,5 +52,12 @@
     "Copernicus DEM GLO-30 © DLR/Airbus, provided under COPERNICUS by the EU and ESA",
     "Flood scenarios: relative elevation above mapped OSM drainage (indicative)"
   ],
-  "data_as_of": "2026-10-15"
+  "data_as_of": "2026-10-15",
+  "buildings": {
+    "file": "base/buildings.geojson",
+    "trees": "base/trees.geojson",
+    "radius_m": 3500,
+    "count": 7803,
+    "as_of": "2026-10-16"
+  }
 }
