@@ -31,13 +31,17 @@ export function createMotionClock({
   let active = false;
   const frame = () => {
     if (!active) return;
+    // Reschedule first: a throwing tick surfaces its error but never stalls the loop.
+    id = raf(frame);
     const t = now();
     if (t - last >= minDt) {
       last = t;
-      onTick((t - t0) / 1000);
-      requestRender();
+      try {
+        onTick((t - t0) / 1000);
+      } finally {
+        requestRender();
+      }
     }
-    id = raf(frame);
   };
   return {
     setActive(a: boolean) {

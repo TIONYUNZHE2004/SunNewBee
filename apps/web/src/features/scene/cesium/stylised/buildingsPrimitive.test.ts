@@ -138,6 +138,26 @@ describe("buildBuildingPrimitives", () => {
     for (const m of materials) expect(m.writes).toContain("litA");
   });
 
+  it("setTime writes the time uniform; a later setPalette keeps it", () => {
+    const { C, materials } = fakeCesium();
+    const out = buildBuildingPrimitives(C, twoClasses(), paletteFor("day"));
+    expect(materials.map((m) => m.uniforms.time)).toEqual([0, 0]);
+    out.setTime(42);
+    expect(materials.map((m) => m.uniforms.time)).toEqual([42, 42]);
+    out.setPalette(paletteFor("dusk"), true);
+    expect(materials.map((m) => m.uniforms.time)).toEqual([42, 42]);
+    expect(materials[0]!.uniforms.cloudShadow).toBe(0.15);
+    out.setPalette(paletteFor("night"), true);
+    expect(materials[0]!.uniforms.cloudShadow).toBe(0);
+  });
+
+  it("the window shader shades roofs and walls with the cloud shadow", () => {
+    expect(WINDOW_SHADER).toContain(
+      "vec3 positionWC = (czm_inverseView * vec4(-materialInput.positionToEyeEC, 1.0)).xyz;",
+    );
+    expect(WINDOW_SHADER.match(/\* cloud\b/g)?.length).toBe(2);
+  });
+
   it("passes six wall and roof tones, the shopfront and the glass sky; the shader reads them", () => {
     const { C, materials } = fakeCesium();
     buildBuildingPrimitives(C, twoClasses(), paletteFor("dusk"));

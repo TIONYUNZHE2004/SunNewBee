@@ -45,6 +45,22 @@ describe("motion clock", () => {
     c.frame(1000);
     expect(requestRender.mock.calls.length).toBe(n);
   });
+  it("keeps running when a tick throws (the error surfaces, the loop does not stall)", () => {
+    const c = rafClock();
+    const requestRender = vi.fn();
+    let n = 0;
+    const onTick = vi.fn(() => {
+      if (n++ === 0) throw new Error("boom");
+    });
+    const clock = createMotionClock({ requestRender, onTick, ...c });
+    clock.setActive(true);
+    expect(() => c.frame(40)).toThrow("boom");
+    expect(requestRender).toHaveBeenCalledTimes(1); // the failed tick still renders
+    expect(c.pending()).toBe(1);
+    c.frame(40);
+    expect(onTick).toHaveBeenCalledTimes(2);
+    expect(requestRender).toHaveBeenCalledTimes(2);
+  });
   it("motionActive needs enabled, visible, on screen and no reduced motion", () => {
     expect(motionActive({ enabled: true, visible: true, onScreen: true, reduced: false })).toBe(
       true,

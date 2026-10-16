@@ -172,6 +172,8 @@ interface PrimitiveCollectionLike {
 
 export interface Props {
   setPalette(p: Palette, final: boolean): void;
+  /** Motion clock seconds (drifts the cloud shadows on lit props). */
+  setTime(t: number): void;
   destroy(): void;
 }
 
@@ -333,6 +335,7 @@ export function buildProps(
     update(p: Palette): void;
   }
   let parts: Part[] = [];
+  let time = 0;
   for (const { colour, instances, emissive } of groups) {
     if (instances.length === 0) continue;
     const mat = emissive
@@ -404,11 +407,15 @@ export function buildProps(
 
   return {
     setPalette(p) {
-      const light = lightUniforms(C, p, at);
+      const light = lightUniforms(C, p, at, time);
       for (const { mat, lit, update } of parts) {
         update(p);
         if (lit) setLightUniforms(mat, light);
       }
+    },
+    setTime(t) {
+      time = t;
+      for (const { mat, lit } of parts) if (lit) mat.uniforms.time = t;
     },
     destroy() {
       for (const { prim, mat } of parts) {

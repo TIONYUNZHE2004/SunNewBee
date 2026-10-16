@@ -205,15 +205,28 @@ describe("decorative props honesty", () => {
       buildGround,
     }));
     vi.doMock("./buildingsPrimitive", () => ({
-      buildBuildingPrimitives: () => ({ primitives: [], setPalette: vi.fn(), destroy: vi.fn() }),
+      buildBuildingPrimitives: () => ({
+        primitives: [],
+        setPalette: vi.fn(),
+        setTime: vi.fn(),
+        destroy: vi.fn(),
+      }),
     }));
     vi.doMock("./props", () => ({
-      buildProps: () => ({ setPalette: vi.fn(), destroy: vi.fn() }),
+      buildProps: () => ({ setPalette: vi.fn(), setTime: vi.fn(), destroy: vi.fn() }),
       kerbCars: () => [],
       streetTrees: () => [],
       streetLamps: () => [],
     }));
     vi.doMock("./reskin", () => ({ reskin: vi.fn(), reskinPalette: vi.fn() }));
+    vi.doMock("./motion/sky", () => ({
+      buildSky: () => ({
+        setPalette: vi.fn(),
+        tick: vi.fn(),
+        setVisible: vi.fn(),
+        destroy: vi.fn(),
+      }),
+    }));
     const { StylisedCity: City } = await import("./StylisedCity");
     const qc = newQueryClient();
     qc.setQueryData(["buildings"], { ...BUILDINGS, water: baseWater });
@@ -246,5 +259,6 @@ describe("decorative props honesty", () => {
     vi.doUnmock("./buildingsPrimitive");
     vi.doUnmock("./props");
     vi.doUnmock("./reskin");
+    vi.doUnmock("./motion/sky");
   });
 });

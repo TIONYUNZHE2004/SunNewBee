@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { LIGHTING_GLSL, LIT_COLOR_SOURCE, lightUniforms } from "./lighting";
+import { CLOUD_GLSL, LIGHTING_GLSL, LIT_COLOR_SOURCE, lightUniforms } from "./lighting";
 import { paletteFor } from "./palette";
 
 const C = {
@@ -40,8 +40,35 @@ describe("lighting", () => {
       "keyIntensity",
       "ambient",
       "fogDensity",
+      "time",
+      "cloudShadow",
+      "cloudOrigin",
     ])
       expect(u).toHaveProperty(name);
+  });
+  it("declares tl_cloud in the shared GLSL, reading time, cloudShadow and cloudOrigin", () => {
+    expect(CLOUD_GLSL).toMatch(/float tl_cloud\(vec3 positionWC\)/);
+    expect(LIGHTING_GLSL).toContain(CLOUD_GLSL);
+    for (const name of ["time", "cloudShadow", "cloudOrigin"])
+      expect(CLOUD_GLSL).toMatch(new RegExp(`\\b${name}\\b`));
+  });
+  it("cloud shadows are 0.15 deep by day and dusk, off at night; time defaults to 0", () => {
+    const at = { lon: 101.51, lat: 3.18 };
+    const day = lightUniforms(C as never, paletteFor("day"), at) as Record<string, any>;
+    expect(day.cloudShadow).toBe(0.15);
+    expect(day.time).toBe(0);
+    expect(lightUniforms(C as never, paletteFor("dusk"), at).cloudShadow).toBe(0.15);
+    expect(lightUniforms(C as never, paletteFor("night"), at).cloudShadow).toBe(0);
+    expect(lightUniforms(C as never, paletteFor("day"), at, 12.5).time).toBe(12.5);
+    // cloudOrigin: the ECEF position of `at` (an Earth-radius vector).
+    const o = day.cloudOrigin;
+    expect(Math.hypot(o.x, o.y, o.z)).toBeGreaterThan(6.3e6);
+  });
+  it("lit colour source darkens the diffuse under a passing cloud", () => {
+    expect(LIT_COLOR_SOURCE).toMatch(/tl_cloud\(positionWC\)/);
+    expect(LIT_COLOR_SOURCE).toContain(
+      "vec3 positionWC = (czm_inverseView * vec4(-materialInput.positionToEyeEC, 1.0)).xyz;",
+    );
   });
   it("lit colour source lifts the light towards white so props stay readable at night", () => {
     expect(LIT_COLOR_SOURCE).toMatch(

@@ -16,6 +16,9 @@ import {
   waterFromLayer,
 } from "./ground";
 import { groupByClass, toBuildings, treesToPoints } from "./model";
+import { createMotionClock, motionActive } from "./motion/clock";
+import { cloudSpots, flockLoops } from "./motion/flocks";
+import { buildSky, type Sky } from "./motion/sky";
 import { paletteFor } from "./palette";
 import { applyPostFx } from "./postfx";
 import { buildProps, kerbCars, type Props, streetLamps, streetTrees } from "./props";
@@ -99,6 +102,11 @@ const PROPS_SEED = "tl-stylised";
  * decorative outlines too (OSM), flat bands with no access or safety meaning.
  */
 const NO_WATER: WaterPolygon[] = [];
+/** Side of the square the decorative clouds drift and wrap in (metres, centred on home). */
+const CLOUD_EXTENT_M = 5000;
+const BIRDS_PER_FLOCK = 7;
+/** Birds need Motion on (and no reduced-motion preference); clouds stay, frozen, without it. */
+const birdsWanted = (motion: boolean) => motion && !prefersReducedMotion();
 
 /**
  * Resium child of <Viewer>: the stylised city (flat ground, roads, buildings with lit windows,
@@ -114,6 +122,8 @@ export function StylisedCity({ onReady }: { onReady?: (info: StylisedReady) => v
   const buildings = useRef<BuildingPrimitives | null>(null);
   const ground = useRef<Ground | null>(null);
   const props = useRef<Props | null>(null);
+  const sky = useRef<Sky | null>(null);
+  const clock = useRef<ReturnType<typeof createMotionClock> | null>(null);
   const onReadyRef = useRef(onReady);
   onReadyRef.current = onReady;
   // Roads and props start after the buildings' first frame (or at once when there are none), so
@@ -133,6 +143,14 @@ export function StylisedCity({ onReady }: { onReady?: (info: StylisedReady) => v
   const roads = useMemo(() => (details ? roadsFromWalk(walk) : []), [walk, details]);
   const parks = useMemo(() => (data?.parks ? parksFromLayer(data.parks) : NO_WATER), [data]);
   const water = useMemo(() => (data?.water ? waterFromLayer(data.water) : NO_WATER), [data]);
+  // Flocks circle parks (first vertex of each outline), or water when there are no parks.
+  const flockAnchors = useMemo(
+    () =>
+      (parks.length > 0 ? parks : water)
+        .map((poly) => poly[0]?.[0])
+        .filter((p): p is [number, number] => p !== undefined),
+    [parks, water],
+  );
   const decor = useMemo(
     () => ({
       trees: [...treesToPoints(data?.trees), ...streetTrees(roads, PROPS_SEED)],
@@ -243,6 +261,84 @@ export function StylisedCity({ onReady }: { onReady?: (info: StylisedReady) => v
       viewer.scene.requestRender();
     };
   }, [viewer, decor, details, home, tier]);
+
+  // Decorative birds and clouds, after the details like the props. Counts follow the tier.
+  useEffect(() => {
+    if (!viewer || viewer.isDestroyed() || !details) return;
+    const spec = TIERS[tier];
+    if (spec.birds + spec.clouds === 0) return;
+    const h = buildSky(Cesium, viewer, {
+      at: home,
+      loops: flockLoops(home, flockAnchors, spec.birds, PROPS_SEED),
+      clouds: cloudSpots(spec.clouds, PROPS_SEED, CLOUD_EXTENT_M),
+      palette: paletteFor(useTheme.getState().theme),
+      birdsPerFlock: BIRDS_PER_FLOCK,
+      extentM: CLOUD_EXTENT_M,
+    });
+    h.setVisible(birdsWanted(useSceneSettings.getState().motion), true);
+    if (clock.current) h.tick(clock.current.time());
+    sky.current = h;
+    return () => {
+      sky.current = null;
+      if (viewer.isDestroyed()) return;
+      h.destroy();
+      viewer.scene.requestRender();
+    };
+  }, [viewer, details, home, tier, flockAnchors]);
+
+  // One capped motion clock per viewer drives the birds, the clouds and the cloud shadows.
+  useEffect(() => {
+    if (!viewer || viewer.isDestroyed()) return;
+    const c = createMotionClock({
+      fps: 30,
+      requestRender: () => {
+        if (!viewer.isDestroyed()) viewer.scene.requestRender();
+      },
+      onTick: (t) => {
+        sky.current?.tick(t);
+        buildings.current?.setTime(t);
+        props.current?.setTime(t);
+      },
+    });
+    clock.current = c;
+    return () => {
+      c.destroy();
+      clock.current = null;
+    };
+  }, [viewer]);
+
+  // Run the clock only while Motion is on, the tab is visible and the map is on screen.
+  const motion = useSceneSettings((s) => s.motion);
+  useEffect(() => {
+    const c = clock.current;
+    if (!viewer || viewer.isDestroyed() || !c) return;
+    sky.current?.setVisible(birdsWanted(motion), true);
+    let onScreen = true;
+    const update = () =>
+      c.setActive(
+        motionActive({
+          enabled: motion,
+          visible: document.visibilityState === "visible",
+          onScreen,
+          reduced: prefersReducedMotion(),
+        }),
+      );
+    document.addEventListener("visibilitychange", update);
+    let io: IntersectionObserver | undefined;
+    if (typeof IntersectionObserver === "function") {
+      io = new IntersectionObserver((entries) => {
+        onScreen = entries.some((e) => e.isIntersecting);
+        update();
+      });
+      io.observe(viewer.container);
+    }
+    update();
+    return () => {
+      document.removeEventListener("visibilitychange", update);
+      io?.disconnect();
+      c.setActive(false);
+    };
+  }, [viewer, motion]);
   useEffect(() => {
     if (!viewer || viewer.isDestroyed() || quality !== "auto") return;
     const monitor = createFrameMonitor(() => setDropped((d) => lowerTier(d ?? detected)));
@@ -287,7 +383,14 @@ export function StylisedCity({ onReady }: { onReady?: (info: StylisedReady) => v
       (p, t) => {
         if (viewer.isDestroyed()) return;
         shown.current = p;
-        reskinPalette(Cesium, viewer, [buildings.current, props.current], p, home, t >= 1);
+        reskinPalette(
+          Cesium,
+          viewer,
+          [buildings.current, props.current, sky.current],
+          p,
+          home,
+          t >= 1,
+        );
         if (!groundDone && t >= 0.5) {
           groundDone = true;
           ground.current?.setPalette(to, true);

@@ -1,7 +1,7 @@
 import { vi } from "vitest";
 
 /**
- * Minimal fake of the Cesium surface used by ground.ts / props.ts: records primitive and material
+ * Minimal fake of the Cesium surface used by ground.ts / props.ts / sky.ts: records primitive and material
  * constructions and every uniform write. Primitives start not ready (as with asynchronous: true).
  */
 export function fakeCesium() {
@@ -70,6 +70,19 @@ export function fakeCesium() {
       return { css: this.css, alpha: a };
     }
   }
+  /** Records the last translation written into it (`t`), so tests can follow moving primitives. */
+  class Matrix4 {
+    t?: number[];
+    static fromScale = () => new Matrix4();
+    static fromRotationTranslation = () => new Matrix4();
+    static fromTranslation = (v: Cartesian3, r = new Matrix4()) =>
+      Object.assign(r, { t: [v.x, v.y, v.z] });
+    static multiply = () => new Matrix4();
+    static multiplyByMatrix3 = (_m: Matrix4, _r: unknown, out = new Matrix4()) => out;
+    static multiplyByScale = (_m: Matrix4, _s: unknown, out = new Matrix4()) => out;
+    static multiplyByTranslation = (_m: Matrix4, v: Cartesian3, out = new Matrix4()) =>
+      Object.assign(out, { t: [v.x, v.y, v.z] });
+  }
   class Cartesian3 {
     constructor(
       public x = 0,
@@ -102,8 +115,16 @@ export function fakeCesium() {
     }),
     EllipsoidSurfaceAppearance: Object.assign(Plain, { VERTEX_FORMAT: { st: true } }),
     MaterialAppearance: Object.assign(Plain, {
-      MaterialSupport: { BASIC: { vertexFormat: { basic: true } } },
+      MaterialSupport: {
+        BASIC: { vertexFormat: { basic: true } },
+        TEXTURED: { vertexFormat: { textured: true } },
+      },
     }),
+    Geometry: Plain,
+    GeometryAttribute: Plain,
+    ComponentDatatype: { DOUBLE: 5130, FLOAT: 5126 },
+    PrimitiveType: { TRIANGLES: 4 },
+    BoundingSphere: { fromVertices: () => ({}) },
     Material: class extends FakeMaterial {
       constructor(o: { fabric: { uniforms: Record<string, unknown> } }) {
         super("fabric", o.fabric.uniforms);
@@ -119,16 +140,10 @@ export function fakeCesium() {
       fromDistanceDisplayCondition: (c: unknown) => ({ ddc: c }),
     },
     ClassificationType: { TERRAIN: 0, BOTH: 2 },
-    ShadowMode: { ENABLED: 1, CAST_ONLY: 2 },
+    ShadowMode: { DISABLED: 0, ENABLED: 1, CAST_ONLY: 2 },
     CornerType: { ROUNDED: 0 },
     Cartesian3,
-    Matrix4: {
-      fromScale: () => ({}),
-      fromRotationTranslation: () => ({}),
-      multiply: () => ({}),
-      multiplyByMatrix3: () => ({}),
-      multiplyByScale: () => ({}),
-    },
+    Matrix4,
     Matrix3: { fromRotationZ: () => ({}) },
     Transforms: { eastNorthUpToFixedFrame: () => ({}) },
   };

@@ -1,6 +1,6 @@
 import type * as Cesium from "cesium";
 import { buildMesh, TONE_STRIDE, type Triangulate } from "./buildingsMesh";
-import { LIGHTING_GLSL, lightUniforms } from "./lighting";
+import { LIGHTING_GLSL, lightUniforms, POSITION_WC_GLSL } from "./lighting";
 import { type Building, TONE_LIST } from "./model";
 import type { Palette } from "./palette";
 
@@ -32,6 +32,8 @@ export interface BuildingPrimitives {
   primitives: Cesium.Primitive[];
   /** Swap the look in place (material uniforms only, no geometry rebuild). */
   setPalette(p: Palette, final: boolean): void;
+  /** Motion clock seconds (drifts the cloud shadows). */
+  setTime(t: number): void;
   /** Remove and destroy every primitive and material. Idempotent. */
   destroy(): void;
 }
@@ -45,7 +47,8 @@ export interface BuildingPrimitives {
  *   bands, curtain = glass with thin mullions reflecting a sky gradient by day.
  * A hash of the cell decides lit vs dark. Far away (cells under ~3 px) each pattern fades to its
  * average colour, so the city does not shimmer. Lit windows go to `emission` at night (glow = 1).
- * Shading is `tl_light` (key + fill + bounce) and `tl_fog`, so the look does not depend on the clock.
+ * Shading is `tl_light` (key + fill + bounce), `tl_cloud` (drifting cloud shadows, decorative) and
+ * `tl_fog`, so the look does not depend on the clock.
  */
 export const WINDOW_SHADER = /* glsl */ `
 float tl_hash(vec2 p) {
@@ -71,11 +74,13 @@ czm_material czm_getMaterial(czm_materialInput materialInput) {
   float tone = floor((cls + 0.5) / 3.0);
   float style = cls - tone * 3.0;
   vec3 lit = tl_light(materialInput.normalEC);
+  ${POSITION_WC_GLSL}
+  float cloud = tl_cloud(positionWC);
   if (st.t < 0.0) {
     vec3 roof = pick6(tone, roof0.rgb, roof1.rgb, roof2.rgb, roof3.rgb, roof4.rgb, roof5.rgb);
     if (st.t < -1.5) roof *= 0.85; // parapet cap and inner face
     // Roofs are what the oblique home view mostly sees: keep them readable at night.
-    m.diffuse = tl_fog(roof * mix(lit, vec3(1.0), 0.35), materialInput.positionToEyeEC);
+    m.diffuse = tl_fog(roof * mix(lit, vec3(1.0), 0.35) * cloud, materialInput.positionToEyeEC);
     return m;
   }
   vec3 wall = pick6(tone, wall0.rgb, wall1.rgb, wall2.rgb, wall3.rgb, wall4.rgb, wall5.rgb) * lit;
@@ -141,13 +146,18 @@ czm_material czm_getMaterial(czm_materialInput materialInput) {
     // (x4: at the 6 km home view a building is a few pixels, so it must read as a warm point).
     glowFar = glow * avgLit * min(litFar * 4.0, 0.85);
   }
-  m.diffuse = tl_fog(mix(near, far, fade), materialInput.positionToEyeEC);
+  m.diffuse = tl_fog(mix(near, far, fade) * cloud, materialInput.positionToEyeEC);
   m.emission = mix(glowNear, glowFar, fade);
   return m;
 }
 `;
 
-function uniformsFor(C: CesiumLike, palette: Palette, at: { lon: number; lat: number }) {
+function uniformsFor(
+  C: CesiumLike,
+  palette: Palette,
+  at: { lon: number; lat: number },
+  time: number,
+) {
   const col = (c: string) => C.Color.fromCssColorString(c);
   const tones: Record<string, Cesium.Color> = {};
   TONE_LIST.forEach((t, i) => {
@@ -164,7 +174,7 @@ function uniformsFor(C: CesiumLike, palette: Palette, at: { lon: number; lat: nu
     darkWin: col(palette.windowDark),
     litFrac: palette.litFrac,
     glow: palette.glow,
-    ...lightUniforms(C, palette, at),
+    ...lightUniforms(C, palette, at, time),
   };
 }
 
@@ -189,6 +199,7 @@ export function buildBuildingPrimitives(
   const at = { lon: first ? first[0] : 0, lat: first ? first[1] : 0 };
   let primitives: Cesium.Primitive[] = [];
   let materials: Cesium.Material[] = [];
+  let time = 0;
 
   for (const group of classes.values()) {
     if (group.length === 0) continue;
@@ -218,7 +229,7 @@ export function buildBuildingPrimitives(
     });
     const material = new C.Material({
       fabric: {
-        uniforms: uniformsFor(C, palette, at),
+        uniforms: uniformsFor(C, palette, at, time),
         source: WINDOW_SHADER,
       },
       translucent: false,
@@ -246,8 +257,12 @@ export function buildBuildingPrimitives(
   const out: BuildingPrimitives = {
     primitives,
     setPalette(p) {
-      const u = uniformsFor(C, p, at);
+      const u = uniformsFor(C, p, at, time);
       for (const m of materials) Object.assign(m.uniforms, u);
+    },
+    setTime(t) {
+      time = t;
+      for (const m of materials) m.uniforms.time = t;
     },
     destroy() {
       for (const p of primitives) {

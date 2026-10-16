@@ -208,6 +208,22 @@ describe("buildProps", () => {
     }
   });
 
+  it("setTime writes the time uniform on every lit material; setPalette keeps it", () => {
+    const { out, materials } = setup("day");
+    const lit = materials.filter((m) => m.type === "fabric");
+    expect(lit.length).toBeGreaterThan(0);
+    out.setTime(7);
+    for (const m of lit) expect(m.uniforms.time).toBe(7);
+    out.setPalette(paletteFor("night"), true);
+    for (const m of lit) {
+      expect(m.uniforms.time).toBe(7);
+      expect(m.uniforms.cloudShadow).toBe(0);
+    }
+    // The light pool (plain Color material) has no time uniform.
+    for (const m of materials.filter((x) => x.type !== "fabric"))
+      expect(m.uniforms).not.toHaveProperty("time");
+  });
+
   it("lamp heads glow, pools fade with the palette and hide by day", () => {
     const { out, primitives, materials } = setup("night");
     const pool = primitives.find(
