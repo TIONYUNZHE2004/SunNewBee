@@ -140,6 +140,30 @@ def test_honest_rehearsal_wording_passes(summary):
         ("In this rehearsal of synthetic residents, three out of 464 were late" + GAP, "digits"),
         ("In this rehearsal of synthetic residents 14% of trips were late" + GAP, "digits"),
         ("In this rehearsal of synthetic residents 5.000 residents moved" + GAP, "digits"),
+        # review C16: no blanket sums, no "over N" escape, no percent or number words
+        ("In this rehearsal of synthetic residents 150 residents could not go" + GAP, "appear"),
+        ("In this rehearsal of synthetic residents 27 trips were late" + GAP, "appear"),
+        (
+            "In this rehearsal of synthetic residents over 3000 residents could not go" + GAP,
+            "appear",
+        ),
+        ("In this rehearsal of synthetic residents 3000+ trips were lost" + GAP, "appear"),
+        ("In this rehearsal of synthetic residents about 25 percent were late" + GAP, "digits"),
+        ("In this rehearsal of synthetic residents twenty trips were late" + GAP, "digits"),
+        ("In this rehearsal of synthetic residents a third of residents were late" + GAP, "digits"),
+        ("In this rehearsal of synthetic residents 464 - 400 = 70 were late" + GAP, "appear"),
+        (
+            "In this rehearsal of synthetic residents, residents may be stranded tomorrow" + GAP,
+            "does not predict",
+        ),
+        (
+            "In this rehearsal of synthetic residents, pupils won't get to school" + GAP,
+            "does not predict",
+        ),
+        (
+            "In this rehearsal of synthetic residents 14 trips were late; there is no data gap.",
+            "data gap",
+        ),
         (
             "In this rehearsal of synthetic residents, real people will be affected tomorrow" + GAP,
             "does not predict",
@@ -167,12 +191,8 @@ def test_a_storm_rehearsal_sets_the_map_stage_without_the_model_naming_it():
     evs = asyncio.run(go())
     assert evs[-1].model == "mock-scripted" and rec.validator_errors == []
     assert rec.day_stages == {"stage_p3m"}
-    assert any(
-        e.type == "scene.intent"
-        and e.intent.kind == "flood.set_level"
-        and e.intent.scenario_id == "stage_p3m"
-        for e in evs
-    )
+    # day.show carries the stage; no separate flood.set_level (review C16: restore on close)
+    assert not any(e.type == "scene.intent" and e.intent.kind == "flood.set_level" for e in evs)
     shows = [e.intent for e in evs if e.type == "scene.intent" and e.intent.kind == "day.show"]
     assert [(i.day, i.t_min, i.scenario_id) for i in shows] == [("storm", 7 * 60 + 25, "stage_p3m")]
     text = "".join(e.delta for e in evs if e.type == "text.delta")
@@ -205,3 +225,12 @@ def test_the_mock_does_not_treat_other_questions_as_a_rehearsal(q):
     from townshiplens_agent.mock import _DAY
 
     assert not re.search(_DAY, q.lower())
+
+
+def test_the_template_skips_empty_or_unlabelled_groups():
+    d = {
+        **DAY,
+        "groups": [*DAY["groups"], {"label": "Empty", "residents": 0, "late": 2}, {"late": 1}],
+    }
+    a = FinalAnswer(**day_answer(d, ["ev-day-weekday"]))
+    assert not any("Empty" in x or "of 0" in x for x in a.steps), a.steps

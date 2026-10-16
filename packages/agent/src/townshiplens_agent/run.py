@@ -39,7 +39,7 @@ from .memory import DEFAULT as DEFAULT_MEMORY
 from .memory import SessionMemory
 from .record import TurnRecord
 from .settings import AgentSettings
-from .template import template_answer
+from .template import _top_stage, template_answer
 from .validate import PLACEHOLDER_CAVEAT
 
 log = logging.getLogger(__name__)
@@ -222,23 +222,20 @@ def _answer_events(
     evs += [TextDelta(delta=text[i : i + CHUNK]) for i in range(0, len(text), CHUNK)]
 
     intents = list(ans.scene_intents)
-    day_stage = next(iter(sorted(rec.day_stages)), None)
-    if day_stage and not any(i.kind == "flood.set_level" for i in intents):
-        # a storm rehearsal shows its peak river stage on the map, as a scenario answer does
-        intents.append(
-            SceneIntent(kind="flood.set_level", scenario_id=ans.scenario_id or day_stage)
-        )
     intents = [i for i in intents if i.kind != "day.show"]  # only ever built by the server
     if rec.days:
-        # the map opens the rehearsal the answer came from, paused at its peak
+        # The map opens the rehearsal the answer came from, paused at its peak, with that day's
+        # own river stage. day.show carries the stage, so no separate flood.set_level is sent
+        # (the client remembers what was on screen before the day and restores it on close).
         d = rec.days[-1]
         hh, _, mm = str(d.get("show_at") or "").partition(":")
+        intents = [i for i in intents if i.kind != "flood.set_level"]
         intents.append(
             SceneIntent(
                 kind="day.show",
                 day=(d.get("scenario") or {}).get("id"),
                 t_min=int(hh) * 60 + int(mm) if hh.isdigit() and mm.isdigit() else None,
-                scenario_id=day_stage,
+                scenario_id=_top_stage(d.get("river_stages") or []),
             )
         )
     diff = next((w["diff_geojson"] for w in reversed(rec.what_ifs) if w.get("diff_geojson")), None)

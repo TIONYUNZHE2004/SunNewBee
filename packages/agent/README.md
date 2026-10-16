@@ -80,10 +80,10 @@ model is dropped, because the label line already says it.
 - **Validator (`day_errors`):**
   - the answer says "rehearsal of synthetic residents" and "not a forecast";
   - it names the data gap when there is one;
-  - it gives counts as digits, from the rehearsal only (sums and differences of two are allowed; times, ages and durations are not counts);
+  - it gives counts as digits, from the rehearsal only: no percentages or number words; a sum or difference only where it is written out ("464 - 400 = 64"); clock times, ages under 100 with no count noun, and hours are not counts;
   - it makes no predictions about real people.
 - **Shared wording:** `template.day_answer` (school first, then groups by share hit).
-- **Scene intents (server-built):** `flood.set_level` for a storm's peak stage, plus `day.show` (the day, `t_min`, its stage), so the map opens the rehearsal at the moment the answer is about. A rehearsal's stage is filled in by the server; the model is never asked for `scenario_id`.
+- **Scene intent (server-built):** `day.show` (the day, `t_min`, the day's own peak stage). The map opens the rehearsal at the moment the answer is about, and the client restores what was on screen when the day closes. In Resident mode only the stage is shown. A model-written `day.show` or `flood.set_level` is dropped for a rehearsal turn, and the model is never asked for `scenario_id`.
 
 **Fix-it search and MCP (Cycle 4):**
 - **`find_fixes`:** beam search over imagined fixes on the world model (`townshiplens_spatial.fixit`).

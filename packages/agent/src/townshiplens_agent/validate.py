@@ -639,30 +639,61 @@ def foreign_number_errors(ans: FinalAnswer, rec: TurnRecord) -> list[str]:
 DAY_WORD = re.compile(r"\brehears|\bsimulat|\bsimulasi\b|\blatihan\b|模拟|演练", re.IGNORECASE)
 SYNTHETIC = re.compile(r"\bsynthetic\b|\bsintetik\b|虚拟|合成", re.IGNORECASE)
 _HHMM = re.compile(r"\b\d{1,2}:\d{2}\b")
-# Not counts: clock times (12- and 24-hour), ages ("under 13", "65+"), durations and dates.
+# Not counts: clock times (12- and 24-hour), ages ("under 13", "65+" with no count noun after
+# them, two digits at most), durations in hours and dates. Review C16: "over 3000 residents" and
+# "25 percent" are still read as numbers.
+_COUNT_NOUN = (
+    r"(?!\s*(?:residents?|trips?|people|persons?|pupils?|children|households?"
+    r"|orang|penduduk|perjalanan|murid))"
+)
 _DAY_NOT_COUNT = re.compile(
     r"\b\d{1,2}(?::\d{2})?\s?(?:am|pm|a\.m\.|p\.m\.)(?![a-z])"
-    r"|\b(?:under|over|aged|above|below|bawah|atas|berumur)\s+\d+\b|\b\d+\s?\+|\b\d+\s?岁"
-    r"|\b\d+(?:\.\d+)?\s?(?:hours?|hrs?|percent|peratus)\b"
+    rf"|\b(?:under|over|aged|above|below|bawah|atas|berumur)\s+\d{{1,2}}\b{_COUNT_NOUN}"
+    rf"|\b\d{{1,2}}\s?\+{_COUNT_NOUN}|\b\d{{1,2}}\s?岁"
+    r"|\b\d+(?:\.\d+)?\s?(?:hours?|hrs?)\b"
     r"|\b\d{1,2}\s+(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\b",
     re.IGNORECASE,
 )
 # A rehearsal says what happened in it; "0 stranded" is one of its outcomes, not a prediction.
 DAY_FORECAST = re.compile(
-    r"\bwill (?:be |get )?(?:stranded|trapped|cut off|flooded|lose|stuck|affected|miss|struggle)"
-    r"\b|\breal (?:people|residents)\b[^.]*\b(?:will|tomorrow)\b",
+    r"\b(?:will|may|might|could|would|won't|will not|would not)\s+(?:not\s+)?(?:be\s+|get\s+)?"
+    r"(?:stranded|trapped|cut off|flooded|lose|stuck|affected|miss|struggle|unable)\b"
+    r"|\b(?:won't|will not)\s+(?:be able to|get to|reach|make it)\b"
+    r"|\breal (?:people|residents)\b[^.]*\b(?:will|tomorrow|may|might)\b",
     re.IGNORECASE,
+)
+# The data gap is named with its count nearby ("163 had no mapped connection (data gap)").
+_GAP_WORDS = (
+    r"(?:data gap|no mapped (?:connection|way)|jurang data|tiada data|tiada sambungan"
+    r"|数据缺口|数据空白)"
 )
 DAY_GAP = re.compile(
-    r"data gap|no mapped connection|jurang data|tiada data|tiada sambungan|数据缺口|数据空白",
+    rf"\d[\d,]*[^\d.;]{{0,15}}{_GAP_WORDS}|{_GAP_WORDS}[\s:(—-]{{0,4}}\d", re.IGNORECASE
+)
+DAY_PERCENT = re.compile(r"\d\s*(?:%|percent|per cent|peratus)|百分之", re.IGNORECASE)
+# Spelled-out counts and fractions ("twenty trips", "a third of residents", "half of them").
+DAY_WORD_COUNT = re.compile(
+    r"\b(?:two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen"
+    r"|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety"
+    r"|hundreds?|thousands?|dozens?)\b|\b(?:a|one|two)\s+(?:third|quarter)s?\s+of\b|\bhalf\s+of\b"
+    r"|\bmajority\b|\bmost of the (?:residents|trips|pupils|children)\b",
     re.IGNORECASE,
+)
+_ARITH = re.compile(
+    r"(\d{1,3}(?:,\d{3})+|\d+)\s*([+\-−])\s*(\d{1,3}(?:,\d{3})+|\d+)"
+    r"(?:\s*=\s*(\d{1,3}(?:,\d{3})+|\d+))?"
 )
 
 
-def _sums(nums: set[int]) -> set[int]:
-    """Differences and sums of two rehearsal counts ("464 - 400 = 64", "71 late + 79 back")."""
-    small = sorted(nums)[:400]
-    return {a + b for a in small for b in small} | {abs(a - b) for a in small for b in small}
+def _stated_sums(text: str, allowed: set[int]) -> set[int]:
+    """A sum or difference is allowed only where the answer shows it ("464 - 400 = 64"), from
+    two of the rehearsal's own counts (review C16: a blanket allowance let invented counts by)."""
+    out = set()
+    for m in _ARITH.finditer(text):
+        a, op, b, c = (int(x.replace(",", "")) if x and x[0].isdigit() else x for x in m.groups())
+        if a in allowed and b in allowed and c is not None and c == (a + b if op == "+" else a - b):
+            out.add(c)
+    return out
 
 
 def day_errors(ans: FinalAnswer, rec: TurnRecord) -> list[str]:
@@ -686,15 +717,21 @@ def day_errors(ans: FinalAnswer, rec: TurnRecord) -> list[str]:
     gaps = sum((d.get("outcomes") or {}).get("data_gap", 0) for d in rec.days)
     if gaps and not DAY_GAP.search(text):
         errs.append(
-            f"{gaps} trips had no mapped connection: say so as a data gap "
+            f"{gaps} trips had no mapped connection: say so as a data gap with its count "
             "(for example 'N had no mapped connection (data gap)')."
         )
-    if PERCENT.search(text) or NUMBER_WORDS.search(text) or re.search(r"\b\d+\.\d{3}\b", text):
+    named = _strip_names(text, rec.place_names)
+    if (
+        DAY_PERCENT.search(named)
+        or NUMBER_WORDS.search(named)
+        or DAY_WORD_COUNT.search(named)
+        or re.search(r"\b\d+\.\d{3}\b", named)
+    ):
         errs.append("Give counts as digits copied from the rehearsal, not percentages or words.")
     allowed = set().union(*(_ints(d) for d in rec.days)) if rec.days else set()
-    plain = _DAY_NOT_COUNT.sub(" ", _HHMM.sub(" ", _strip_names(text, rec.place_names)))
+    plain = _DAY_NOT_COUNT.sub(" ", _HHMM.sub(" ", named))
     spoken = {int(m.group(1).replace(",", "")) for m in _DAY_COUNT.finditer(plain)}
-    if (bad := spoken - allowed) and (bad := sorted(bad - _sums(allowed))):
+    if (bad := spoken - allowed) and (bad := sorted(bad - _stated_sums(plain, allowed))):
         errs.append(
             f"Numbers {bad} do not appear in the rehearsal: quote only its counts "
             "(trips by outcome, residents by group, school)."

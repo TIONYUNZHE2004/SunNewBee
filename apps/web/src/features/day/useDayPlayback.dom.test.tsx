@@ -78,4 +78,36 @@ describe("Elmina Day playback", () => {
     act(() => useScene.getState().setDay({ on: false, playing: false }));
     expect(useScene.getState().scenarioId).toBe("stage_p2m"); // the user's choice comes back
   });
+
+  it("day.show on a closed day restores the user's level on close (review C16)", () => {
+    renderWithClient(<Host />, seeded());
+    act(() =>
+      useScene.getState().applyIntent({
+        kind: "day.show",
+        day: "storm",
+        t_min: 445,
+        scenario_id: "stage_p3m",
+      } as never),
+    );
+    expect(useScene.getState().day.on).toBe(true);
+    expect(useScene.getState().scenarioId).toBe("stage_p3m");
+    act(() => useScene.getState().setDay({ on: false, playing: false }));
+    expect(useScene.getState().scenarioId).toBe("stage_p2m");
+    expect(useScene.getState().day.before).toBe(null);
+  });
+
+  it("day.show in Resident mode shows only the river stage", () => {
+    useMode.setState({ mode: "resident" });
+    renderWithClient(<Host />, seeded());
+    act(() =>
+      useScene.getState().applyIntent({
+        kind: "day.show",
+        day: "storm",
+        t_min: 445,
+        scenario_id: "stage_p3m",
+      } as never),
+    );
+    expect(useScene.getState().day.on).toBe(false);
+    expect(useScene.getState().scenarioId).toBe("stage_p3m");
+  });
 });

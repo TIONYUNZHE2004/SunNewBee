@@ -31,7 +31,8 @@ export function useDayPlayback() {
   useEffect(() => {
     if (on && before.current === null) {
       const s = useScene.getState();
-      before.current = { scenarioId: s.scenarioId, flood: s.lensVisible.flood };
+      // opened by the assistant (day.show): the store kept what was on screen before its stage
+      before.current = s.day.before ?? { scenarioId: s.scenarioId, flood: s.lensVisible.flood };
       lastSet.current = undefined;
       if (s.rollout.on) s.setRollout({ on: false, playing: false });
     }
@@ -39,6 +40,7 @@ export function useDayPlayback() {
       // the day still owns the river level: put back what was on screen before it started
       const prev = before.current;
       before.current = null;
+      useScene.getState().setDay({ before: null });
       lastSet.current = undefined;
       useScene.setState((s) => ({
         scenarioId: prev.scenarioId,
@@ -64,7 +66,7 @@ export function useDayPlayback() {
     // not a different choice)
     if (lastSet.current !== undefined && cur !== lastSet.current && cur !== stage) {
       before.current = null; // the user's choice stays
-      setDay({ on: false, playing: false });
+      setDay({ on: false, playing: false, before: null });
       return;
     }
     if (cur !== stage) {

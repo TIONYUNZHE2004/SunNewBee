@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
+import { useMode } from "../../app/modeStore";
 import { defaultMapStyle, resolveMapStyle, useScene } from "./sceneStore";
 
 describe("sceneStore.applyIntent", () => {
@@ -31,6 +32,7 @@ describe("sceneStore.applyIntent", () => {
     expect(useScene.getState().route).toBeNull();
   });
   it("day.show opens that rehearsal paused at its minute, with its river level", () => {
+    useMode.setState({ mode: "management" });
     useScene
       .getState()
       .applyIntent({ kind: "day.show", day: "event", t_min: 1230, scenario_id: null } as never);

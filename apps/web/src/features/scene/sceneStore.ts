@@ -1,5 +1,6 @@
 import type { SceneIntent } from "@tl/api-client";
 import { create } from "zustand";
+import { useMode } from "../../app/modeStore";
 import { loadProfile, saveProfile } from "../../lib/profileStore";
 import type { View } from "./selectView";
 
@@ -50,15 +51,15 @@ interface SceneState {
   rollout: { on: boolean; stage: number; playing: boolean };
   setRollout: (r: Partial<SceneState["rollout"]>) => void;
   /** Elmina Day playback: synthetic residents living a day (a rehearsal, not a forecast).
-   * `t` is the clock in minutes after midnight; `focus` a spotlight resident; `before` the
-   * scenario on screen when playback started (restored when it stops). */
+   * `t` is the clock in minutes after midnight; `focus` a spotlight resident; `before` what was
+   * on screen when the assistant opened the day (day.show), restored when it stops. */
   day: {
     on: boolean;
     scenario: string;
     t: number;
     playing: boolean;
     focus: string | null;
-    before: string | null;
+    before: { scenarioId: string | null; flood: boolean } | null;
   };
   setDay: (d: Partial<SceneState["day"]>) => void;
   /** The river level follows the day's clock without clearing routes or what-ifs. */
@@ -150,15 +151,21 @@ export const useScene = create<SceneState>((set) => ({
           next.focusPlaceId = i.place_id ?? null;
           break;
         case "day.show":
-          // the rehearsal an answer came from, paused at its peak; its river stage comes along
-          next.day = {
-            ...s.day,
-            on: true,
-            playing: false,
-            focus: null,
-            scenario: i.day ?? s.day.scenario,
-            t: typeof i.t_min === "number" ? i.t_min : s.day.t,
-          };
+          // the rehearsal an answer came from, paused at its peak, with its river stage; the
+          // day lives in Management mode, so elsewhere only the river stage is shown
+          if (useMode.getState().mode === "management")
+            next.day = {
+              ...s.day,
+              on: true,
+              playing: false,
+              focus: null,
+              scenario: i.day ?? s.day.scenario,
+              t: typeof i.t_min === "number" ? i.t_min : s.day.t,
+              // what is on screen now comes back when the day stops (not the day's own stage)
+              before: s.day.on
+                ? s.day.before
+                : { scenarioId: s.scenarioId, flood: s.lensVisible.flood },
+            };
           if (i.scenario_id) Object.assign(next, floodLevel(s, i.scenario_id));
           break;
         case "flood.set_level":

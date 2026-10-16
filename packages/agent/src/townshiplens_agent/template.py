@@ -347,9 +347,13 @@ def day_answer(d: dict, evidence_ids: list[str]) -> dict:
             )
         )
     hit = [
-        g for g in d.get("groups") or [] if g.get("could_not_make_a_trip", 0) or g.get("late", 0)
+        g
+        for g in d.get("groups") or []
+        if g.get("residents")
+        and g.get("label")
+        and (g.get("could_not_make_a_trip", 0) or g.get("late", 0))
     ]
-    hit.sort(key=lambda g: -g.get("could_not_make_a_trip", 0) / max(g.get("residents", 0), 1))
+    hit.sort(key=lambda g: -g.get("could_not_make_a_trip", 0) / g["residents"])
     for g in hit:
         steps.append(
             f"{g['label']}: {g.get('could_not_make_a_trip', 0):,} of {g['residents']:,} had a "
