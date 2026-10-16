@@ -36,6 +36,8 @@ describe("paletteFor", () => {
         p.water,
         p.sky,
         ...p.tree,
+        p.trunk,
+        ...p.car,
         ...Object.values(p.wall),
         ...Object.values(p.roof),
         ...p.windowLit,

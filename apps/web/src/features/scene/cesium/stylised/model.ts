@@ -18,7 +18,11 @@ const FLOOR_BINS = [1, 2, 3, 4, 6, 8, 12, 16, 24, 40];
 const COL_BINS = [8, 12, 16, 24, 32, 48, 64, 128];
 const M_PER_DEG = 111_320;
 
-/** FNV-1a 32-bit of `${salt}:${id}` scaled to [0,1). Deterministic. */
+/**
+ * FNV-1a 32-bit of `${salt}:${id}` with a murmur3 finaliser, scaled to [0,1). Deterministic.
+ * The finaliser matters: plain FNV-1a barely moves the high bits when only the last character
+ * changes, so sequential keys (`street:1`, `street:2`, ...) all landed near the same value.
+ */
 export function hashUnit(id: string, salt = ""): number {
   const s = `${salt}:${id}`;
   let h = 0x811c9dc5;
@@ -26,7 +30,12 @@ export function hashUnit(id: string, salt = ""): number {
     h ^= s.charCodeAt(i);
     h = Math.imul(h, 0x01000193) >>> 0;
   }
-  return h / 2 ** 32;
+  h ^= h >>> 16;
+  h = Math.imul(h, 0x85ebca6b);
+  h ^= h >>> 13;
+  h = Math.imul(h, 0xc2b2ae35);
+  h ^= h >>> 16;
+  return (h >>> 0) / 2 ** 32;
 }
 
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));

@@ -3,13 +3,16 @@ import * as Cesium from "cesium";
 import { useEffect, useRef, useState } from "react";
 import { useCesium, Viewer } from "resium";
 import { useTheme } from "../../../../ui/theme";
+import { useScene } from "../../sceneStore";
 import { homeView } from "../home";
+import { AccessLayer, FloodLayer } from "../layers";
 import { StylisedCity, type StylisedReady } from "./StylisedCity";
 
 /**
  * DEV-ONLY preview of the stylised city at /dev/stylised (registered only when
  * import.meta.env.DEV, so it is not in production builds). A bare viewer with no base imagery, so
  * it makes no billable or keyed requests. Exposes `window.__tlStylised` for the frame-time spike.
+ * `?overlays=1` also mounts the Project 1 access/route/flood layers to check they stay legible.
  */
 
 interface Stats extends StylisedReady {
@@ -25,6 +28,8 @@ declare global {
       stats?: Stats;
       orbit: (seconds: number, range_m: number) => Promise<{ fps: number; p95Ms: number }>;
       look: (range_m: number, pitchDeg?: number, headingDeg?: number) => void;
+      /** Primitives (scene + ground) still loading, and how many exist. */
+      pending: () => { loading: number; total: number };
     };
   }
 }
@@ -74,6 +79,18 @@ function Probe({ onStats }: { onStats: (s: Stats) => void }) {
     window.__tlStylised = {
       stats: stats.current,
       look: (r, p, h) => look(viewer, r, p, h),
+      pending: () => {
+        let loading = 0;
+        let total = 0;
+        for (const c of [viewer.scene.primitives, viewer.scene.groundPrimitives]) {
+          for (let i = 0; i < c.length; i++) {
+            total++;
+            if ((c.get(i) as { ready?: boolean }).ready === false) loading++;
+          }
+        }
+        viewer.scene.requestRender();
+        return { loading, total };
+      },
       orbit: (seconds, range_m) =>
         new Promise((resolve) => {
           const times: number[] = [];
@@ -106,8 +123,13 @@ function Probe({ onStats }: { onStats: (s: Stats) => void }) {
   return <StylisedCity onReady={ready} />;
 }
 
+const OVERLAYS = new URLSearchParams(window.location.search).has("overlays");
+
 export default function StylisedPreview() {
   const theme = useTheme((s) => s.theme);
+  useEffect(() => {
+    useScene.getState().setMapStyle("stylised");
+  }, []);
   const toggle = useTheme((s) => s.toggle);
   const [stats, setStats] = useState<Stats | null>(null);
   return (
@@ -141,6 +163,12 @@ export default function StylisedPreview() {
         fullscreenButton={false}
       >
         <Probe onStats={setStats} />
+        {OVERLAYS && (
+          <>
+            <AccessLayer />
+            <FloodLayer />
+          </>
+        )}
       </Viewer>
     </div>
   );

@@ -86,8 +86,9 @@ czm_material czm_getMaterial(czm_materialInput materialInput) {
   vec3 near = wall * (1.0 - win) + darkC * win * (1.0 - isLit) + litC * shade * (1.0 - glow) * litNear;
   vec3 far = wall * (1.0 - cover) + darkC * cover * (1.0 - litFrac) + avgLit * shade * (1.0 - glow) * litFar;
   m.diffuse = mix(near, far, fade);
-  // Far away the lit cells are sub-pixel: boost their average so the city still glows at night.
-  m.emission = glow * mix(litC * litNear, avgLit * min(litFar * 2.2, 0.6), fade);
+  // Far away the lit cells are sub-pixel: boost their average so the city still glows at night
+  // (x4: at the 6 km home view a building is a few pixels, so it must read as a warm point).
+  m.emission = glow * mix(litC * litNear, avgLit * min(litFar * 4.0, 0.85), fade);
   return m;
 }
 `;

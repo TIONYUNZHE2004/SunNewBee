@@ -90,6 +90,14 @@ describe("grouping and hashing", () => {
       expect(u).toBeLessThan(1);
     }
   });
+  it("hashUnit spreads sequential keys over [0,1) (only the last character differs)", () => {
+    const us = Array.from({ length: 200 }, (_, n) => hashUnit(`elmina:street:${n}`, "car"));
+    const below = (x: number) => us.filter((u) => u < x).length / us.length;
+    expect(below(0.25)).toBeGreaterThan(0.15);
+    expect(below(0.25)).toBeLessThan(0.35);
+    expect(below(0.5)).toBeGreaterThan(0.4);
+    expect(below(0.5)).toBeLessThan(0.6);
+  });
   it("classKey bins up and groupByClass keeps every building once", () => {
     const bs = toBuildings({
       features: [

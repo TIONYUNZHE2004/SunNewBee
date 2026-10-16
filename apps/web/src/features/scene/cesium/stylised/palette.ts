@@ -10,6 +10,9 @@ export interface Palette {
   /** Fog density (exponential, per metre). */
   fog: number;
   tree: [string, string];
+  trunk: string;
+  /** Static parked cars (decorative). */
+  car: [string, string, string];
   wall: { warm: string; cool: string; rose: string };
   roof: { warm: string; cool: string; rose: string };
   windowLit: [string, string];
@@ -20,11 +23,13 @@ export interface Palette {
 
 const NIGHT: Palette = {
   ground: "#1a1430",
-  road: "#2a2147",
+  road: "#372b62",
   water: "#2c3f78",
   sky: "#1f1838",
   fog: 0.0004,
   tree: ["#2f8c7e", "#1d5a5f"],
+  trunk: "#3b2b55",
+  car: ["#c8628c", "#4f78c8", "#d8c9a6"],
   wall: { warm: "#4a3b82", cool: "#4f4590", rose: "#6a4377" },
   roof: { warm: "#8c76c6", cool: "#a98bd0", rose: "#d98ca8" },
   windowLit: ["#f6be64", "#fdf0ea"],
@@ -40,6 +45,8 @@ const DAY: Palette = {
   sky: "#9bc4e8",
   fog: 0.00025,
   tree: ["#5fb88a", "#3b8c66"],
+  trunk: "#8a6a55",
+  car: ["#e0686a", "#5a8fd9", "#f4f1ea"],
   wall: { warm: "#e9c9a8", cool: "#c9c4ea", rose: "#f0b8c4" },
   roof: { warm: "#c08a6a", cool: "#8f86c4", rose: "#d9788f" },
   windowLit: ["#fff3c4", "#cfe7ff"],
