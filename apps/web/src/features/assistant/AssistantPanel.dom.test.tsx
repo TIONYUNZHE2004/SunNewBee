@@ -46,6 +46,75 @@ describe("AssistantPanel", () => {
     expect(cards.length).toBeGreaterThanOrEqual(4);
     expect(cards[0]?.querySelector("svg[aria-hidden='true']")).not.toBeNull();
   });
+  it("tapping a starter card sends it", async () => {
+    const fetchFn = stubFetch((url) =>
+      url.includes("/chat")
+        ? sse([{ type: "text.delta", delta: "ok" }, done("answered")])
+        : json([]),
+    );
+    renderWithClient(<AssistantPanel />);
+    fireEvent.click(screen.getByRole("button", { name: /Where to drop off recycling/ }));
+    expect(await screen.findByText("Where to drop off recycling", { selector: "p" })).toBeVisible();
+    expect(fetchFn.mock.calls.some(([u]) => String(u).includes("/chat"))).toBe(true);
+  });
+  describe("Travelling-as keyboard pattern", () => {
+    const openChip = () => {
+      stubFetch(() => json([]));
+      useScene.getState().setProfile("default");
+      renderWithClient(
+        <>
+          <AssistantPanel />
+          <button type="button">outside</button>
+        </>,
+      );
+      const chip = screen.getByRole("button", { name: /^Travelling as:/ });
+      fireEvent.click(chip);
+      return chip;
+    };
+    it("arrows, Home and End move focus with wrapping", () => {
+      openChip();
+      const o = screen.getAllByRole("option");
+      expect(o[0]).toHaveFocus();
+      fireEvent.keyDown(o[0] as HTMLElement, { key: "ArrowDown" });
+      expect(o[1]).toHaveFocus();
+      fireEvent.keyDown(o[1] as HTMLElement, { key: "End" });
+      expect(o[o.length - 1]).toHaveFocus();
+      fireEvent.keyDown(o[o.length - 1] as HTMLElement, { key: "ArrowDown" });
+      expect(o[0]).toHaveFocus();
+      fireEvent.keyDown(o[0] as HTMLElement, { key: "ArrowUp" });
+      expect(o[o.length - 1]).toHaveFocus();
+      fireEvent.keyDown(o[o.length - 1] as HTMLElement, { key: "Home" });
+      expect(o[0]).toHaveFocus();
+      expect(o.filter((x) => x.tabIndex === 0)).toHaveLength(1);
+    });
+    it("Enter selects and returns focus to the chip", () => {
+      const chip = openChip();
+      const o = screen.getAllByRole("option");
+      fireEvent.keyDown(o[0] as HTMLElement, { key: "ArrowDown" });
+      fireEvent.keyDown(o[1] as HTMLElement, { key: "Enter" });
+      expect(useScene.getState().profile).toBe("stroller");
+      expect(screen.queryByRole("listbox")).toBeNull();
+      expect(screen.getByRole("button", { name: "Travelling as: Stroller" })).toHaveFocus();
+      expect(chip).toBeDefined();
+    });
+    it("Escape closes and returns focus to the chip", () => {
+      openChip();
+      fireEvent.keyDown(screen.getAllByRole("option")[0] as HTMLElement, { key: "Escape" });
+      expect(screen.queryByRole("listbox")).toBeNull();
+      expect(screen.getByRole("button", { name: /^Travelling as:/ })).toHaveFocus();
+    });
+    it("tabbing away closes the list", () => {
+      openChip();
+      const outside = screen.getByRole("button", { name: "outside" });
+      fireEvent.blur(screen.getAllByRole("option")[0] as HTMLElement, { relatedTarget: outside });
+      expect(screen.queryByRole("listbox")).toBeNull();
+    });
+    it("a mousedown outside closes the list", () => {
+      openChip();
+      fireEvent.mouseDown(screen.getByRole("button", { name: "outside" }));
+      expect(screen.queryByRole("listbox")).toBeNull();
+    });
+  });
   it("resident mode shows a Travelling-as chip that changes the shared profile", () => {
     useMode.setState({ mode: "resident" });
     stubFetch(() => json([]));
