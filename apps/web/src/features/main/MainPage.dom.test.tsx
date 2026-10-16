@@ -1,9 +1,10 @@
 // @vitest-environment jsdom
-import { fireEvent, screen, within } from "@testing-library/react";
+import { act, fireEvent, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useMode } from "../../app/modeStore";
 import { json, newQueryClient, renderWithClient, stubFetch } from "../../test/helpers";
+import { useChatDraft } from "../chat/chatDraftStore";
 import { useScene } from "../scene/sceneStore";
 import { MainPage } from "./MainPage";
 import { usePanel } from "./panelStore";
@@ -13,9 +14,20 @@ const scenarios = [
   { id: "stage_p3m", label: "River +3 m", stage_m: 3, disclaimer: "d", links: [] },
 ];
 
+const stubWide = (wide: boolean) =>
+  vi.stubGlobal("matchMedia", () => ({
+    matches: wide,
+    addEventListener: () => {},
+    removeEventListener: () => {},
+  }));
+
+afterEach(() => vi.unstubAllGlobals());
+
 beforeEach(() => {
   localStorage.clear();
-  usePanel.setState({ open: true });
+  stubWide(true);
+  usePanel.setState({ open: true, sheet: "peek" });
+  useChatDraft.setState({ streaming: false });
   useScene.getState().reset();
   useMode.setState({ mode: "resident" });
   stubFetch(() => json([]));
@@ -69,11 +81,36 @@ describe("MainPage", () => {
     fireEvent.click(screen.getByRole("button", { name: "Show assistant" }));
     expect(screen.getByRole("button", { name: "Hide assistant" })).toHaveFocus();
   });
-  it("narrow screens: the hide control sits inside the panel corner", () => {
-    renderMain();
-    const hide = screen.getByRole("button", { name: "Hide assistant" });
-    expect(hide).toHaveClass("right-2");
-    expect(hide).not.toHaveClass("-left-11");
+  describe("narrow screens (bottom sheet)", () => {
+    beforeEach(() => stubWide(false));
+    it("shows the sheet with the composer at peek and no hide/show buttons", () => {
+      renderMain();
+      expect(screen.queryByRole("button", { name: "Hide assistant" })).toBeNull();
+      expect(screen.queryByRole("button", { name: "Show assistant" })).toBeNull();
+      expect(screen.getByRole("textbox", { name: "Your question" })).toBeVisible();
+      expect(screen.getByRole("slider", { name: "Assistant height" })).toBeVisible();
+      // Header and log stay mounted but hidden at peek.
+      expect(screen.getByRole("log", { name: "Conversation", hidden: true })).toHaveClass("hidden");
+    });
+    it("expanding reveals the conversation and moves the --sheet-h offset", () => {
+      const { container } = renderMain();
+      const root = container.firstElementChild as HTMLElement;
+      expect(root.style.getPropertyValue("--sheet-h")).toBe("9.5rem");
+      fireEvent.click(screen.getByRole("button", { name: "Expand assistant" }));
+      expect(screen.getByRole("log", { name: "Conversation" })).not.toHaveClass("hidden");
+      expect(root.style.getPropertyValue("--sheet-h")).toBe("55dvh");
+    });
+    it("the place/path card stack sits above the sheet", () => {
+      renderMain();
+      expect(screen.getByTestId("bottom-stack").className).toContain(
+        "bottom-[calc(var(--sheet-h,0px)+2rem)]",
+      );
+    });
+    it("a question asked at peek opens the sheet to half", () => {
+      renderMain();
+      act(() => useChatDraft.setState({ streaming: true }));
+      expect(usePanel.getState().sheet).toBe("half");
+    });
   });
   describe("store default", () => {
     afterEach(() => vi.unstubAllGlobals());

@@ -8,7 +8,17 @@ import { AnswerCard } from "./AnswerCard";
 import { copyFor, STARTERS, type Starter } from "./starters";
 import { TravelChip } from "./TravelChip";
 
-export function AssistantPanel() {
+/**
+ * `compact` (bottom sheet at peek) hides everything but the composer with `hidden`, keeping the
+ * conversation mounted. `flat` drops the panel's own glass because the sheet already has it.
+ */
+export function AssistantPanel({
+  compact = false,
+  flat = false,
+}: {
+  compact?: boolean;
+  flat?: boolean;
+}) {
   const mode = useMode((s) => s.mode);
   const copy = copyFor(mode);
   const starters = STARTERS[mode];
@@ -55,9 +65,9 @@ export function AssistantPanel() {
   return (
     <aside
       aria-label="Assistant"
-      className="glass flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl"
+      className={`flex min-h-0 flex-1 flex-col overflow-hidden ${flat ? "" : "glass rounded-2xl"}`}
     >
-      <header className="border-b border-edge px-4 py-3">
+      <header className={`border-b border-edge px-4 py-3 ${compact ? "hidden" : ""}`}>
         <h1 className="text-lg font-semibold text-fg">{copy.title}</h1>
         <p className="mt-1 text-sm text-fg-soft">{copy.sub}</p>
       </header>
@@ -65,7 +75,7 @@ export function AssistantPanel() {
         role="log"
         aria-live="polite"
         aria-label="Conversation"
-        className="min-h-0 flex-1 overflow-y-auto p-3"
+        className={`min-h-0 flex-1 overflow-y-auto p-3 ${compact ? "hidden" : ""}`}
       >
         <div className="flex flex-col gap-3">
           {messages.length === 0 && (
@@ -108,7 +118,9 @@ export function AssistantPanel() {
       </div>
       <footer className="border-t border-edge p-3">
         {messages.length > 0 && (
-          <div className="-mx-1 mb-2 flex gap-2 overflow-x-auto px-1 pb-1">
+          <div
+            className={`-mx-1 mb-2 flex gap-2 overflow-x-auto px-1 pb-1 ${compact ? "hidden" : ""}`}
+          >
             {starters.map((s) => (
               <button
                 key={s.text}
@@ -123,7 +135,7 @@ export function AssistantPanel() {
           </div>
         )}
         {mode === "resident" && (
-          <div className="mb-2">
+          <div className={`mb-2 ${compact ? "hidden" : ""}`}>
             <TravelChip />
           </div>
         )}

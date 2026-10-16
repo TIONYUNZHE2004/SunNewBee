@@ -50,12 +50,12 @@ export function TopStack() {
   );
 }
 
-/** Bottom-left: the place or path card, then map notes beneath it. */
+/** Bottom-left: the place or path card, then map notes beneath it; sits above the phone sheet. */
 export function BottomStack() {
   return (
     <div
       data-testid="bottom-stack"
-      className="pointer-events-none absolute bottom-8 left-4 z-20 flex max-h-[calc(100%-6rem)] max-w-[calc(100%-2rem)] flex-col items-start gap-2"
+      className="pointer-events-none absolute bottom-[calc(var(--sheet-h,0px)+2rem)] left-4 z-20 flex max-h-[max(0px,calc(100%-var(--sheet-h,0px)-6rem))] max-w-[calc(100%-2rem)] flex-col items-start gap-2"
     >
       <Slot name="card" className="min-h-0 max-w-full overflow-y-auto" />
       <Slot name="notes" className="flex flex-col gap-2" />

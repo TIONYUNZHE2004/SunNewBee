@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { screen, within } from "@testing-library/react";
+import { act, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { createMemoryRouter, RouterProvider } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -88,6 +88,38 @@ describe("Shell", () => {
       setup("/tickets");
       await screen.findByText(/OpenStreetMap contributors/);
       expect(strip().style.maxWidth).toContain("(0px");
+    });
+  });
+
+  describe("attribution on phones", () => {
+    afterEach(() => vi.unstubAllGlobals());
+    const narrow = () =>
+      vi.stubGlobal("matchMedia", () => ({
+        matches: false,
+        addEventListener() {},
+        removeEventListener() {},
+      }));
+    const strip = () => screen.getByText(/OpenStreetMap contributors/);
+
+    it("rides above the bottom sheet at every height", async () => {
+      narrow();
+      setup("/");
+      await screen.findByText(/OpenStreetMap contributors/);
+      for (const [sheet, h] of [
+        ["peek", "10rem"],
+        ["half", "55dvh"],
+        ["full", "100%"],
+      ] as const) {
+        act(() => usePanel.setState({ sheet }));
+        expect(strip().style.bottom).toContain(h);
+        expect(strip().style.bottom).not.toBe("");
+      }
+    });
+    it("stays at the bottom edge on /tickets", async () => {
+      narrow();
+      setup("/tickets");
+      await screen.findByText(/OpenStreetMap contributors/);
+      expect(strip().style.bottom).toBe("");
     });
   });
 });

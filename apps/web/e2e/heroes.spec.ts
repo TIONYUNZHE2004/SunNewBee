@@ -16,7 +16,7 @@ async function lastAnswer(page: Page) {
 
 async function open(page: Page) {
   await page.goto("/");
-  // Below lg the assistant starts closed (until the bottom sheet exists); open it.
+  // Wide screens can start with the panel closed; below lg the composer is always visible in the sheet.
   const show = page.getByRole("button", { name: "Show assistant" });
   if (await show.isVisible()) await show.click();
   await expect(page.getByRole("textbox", { name: "Your question" })).toBeVisible();

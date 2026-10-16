@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { SHEET_HEIGHTS } from "./BottomSheet";
 import { usePanel } from "./panelStore";
 import { PANEL_INSET_PX, panelWidthPx } from "./viewport";
 
@@ -21,6 +22,7 @@ export function useWide() {
 /** Width of the floating assistant panel and the map width it covers (0 when closed or narrow). */
 export function usePanelReserve() {
   const open = usePanel((s) => s.open);
+  const sheet = usePanel((s) => s.sheet);
   const wide = useWide();
   const [vw, setVw] = useState(() => (typeof innerWidth === "number" ? innerWidth : 1440));
   useEffect(() => {
@@ -29,5 +31,11 @@ export function usePanelReserve() {
     return () => removeEventListener("resize", on);
   }, []);
   const panelW = panelWidthPx(vw);
-  return { wide, panelW, reserved: wide && open ? panelW + PANEL_INSET_PX * 2 : 0 };
+  return {
+    wide,
+    panelW,
+    reserved: wide && open ? panelW + PANEL_INSET_PX * 2 : 0,
+    /** Height the phone bottom sheet covers (CSS length); "0px" on wide screens. */
+    sheetH: wide ? "0px" : SHEET_HEIGHTS[sheet],
+  };
 }

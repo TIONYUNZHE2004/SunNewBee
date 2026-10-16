@@ -72,7 +72,7 @@ export function Shell() {
   const site = useSite();
   const mode = useMode((s) => s.mode);
   const onTickets = useLocation().pathname.startsWith("/tickets");
-  const { reserved } = usePanelReserve();
+  const { reserved, sheetH } = usePanelReserve();
   const strip = onTickets ? 0 : reserved;
   const attribution = site.data?.attribution?.join(" · ") ?? FALLBACK_ATTRIBUTION;
   return (
@@ -110,7 +110,11 @@ export function Shell() {
         <Outlet />
         <p
           className="glass pointer-events-auto absolute bottom-2 left-2 z-10 m-0 rounded-md px-2 py-0.5 text-[0.68rem] text-fg-soft"
-          style={{ maxWidth: `calc(100% - ${strip}px - 1rem)` }}
+          style={{
+            maxWidth: `calc(100% - ${strip}px - 1rem)`,
+            // On phones the attribution rides just above the bottom sheet so it is never covered.
+            bottom: onTickets ? undefined : `calc(${sheetH} + 0.5rem)`,
+          }}
         >
           {attribution}
         </p>
