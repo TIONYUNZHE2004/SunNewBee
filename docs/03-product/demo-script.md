@@ -41,6 +41,23 @@ Two ways to run it. **Walkthrough:** open `/?demo=hero` and step through the 8 c
 
 **Not in the live demo** (and not claimed): re-asking after a staff fix, and the journey-test before/after numbers. With `DEMO_MODE` on, a repeated chip replays the cached answer, so a fix does not change it. Journey tests ("Journey tests" tab: simulated residents across profiles and scenarios, with outcome matrix and rest-gap advisories for older adults) take about 90 s to run (measured 15 Oct 2026 on the seed: about 33 s journeys and 58 s evacuation) and need the staff token; the console shows "No run yet" until one is run. Run it before the demo and quote only what the screen shows.
 
+## World-model segment (about 3:00, current two-screen UI, `ai/world-model`)
+
+This segment uses only the current screens (`/` and `/tickets`). The chips are replayed from the demo cache in `DEMO_MODE`.
+
+**Warm the caches first (T–10 min).** The first rising-river simulation on the seed takes about 15 s and the What-if Lab's suggestions about 5 s. Open both once before going on stage; after that they are instant.
+
+| Time | On screen | Say (presenter) |
+|---|---|---|
+| 0:00 | **Resident.** Chip "Stroller route from Car Park B to the playground". The draft streams in grey ("Draft · checking against the township data…"), then "✓ Answer checked against the township data", then the status line and the answer | "Watch it think honestly. The first sentence appears as a draft, a validator checks every claim against the township's world model, and only then is it final. If the AI guesses or says 'safe', you see it sent back and rewritten." |
+| 0:35 | **Resident.** Chip "At which river level does my route from the mall to an evacuation centre break?" | "A resident's real question: not 'is it safe', but 'when does my way out stop working'. The model replays the trip at every modelled river stage and names the level. These are indicative scenarios, not a forecast." |
+| 1:00 | **Management.** Open the What-if Lab, set River +3 m, tick a suggested change, Run. The diff draws on the map (grey before, lilac imagined, magenta the change) with before/after bars and "What-if · not real" | "Planning, not guessing. The language model proposes from the engine's legal moves, and the world model simulates every sampled journey on a copy of the township. It shows what the flood alone does and what the change adds. Nothing real changes." |
+| 1:45 | **Management.** Rising river, then Play. Stages step from normal level to +5 m; yellow residents walk their routes, and red ones are cut off | "Synthetic residents of each persona head for their nearest evacuation centre as the river rises. Elmina mostly holds: 29 of 30 at normal level, 27 from +2 m. The model shows exactly who loses their route first, and from which level. A simulation, not a forecast. It says so on screen the whole time." |
+| 2:20 | **Tickets.** Plan a survey: "If these 15 checks at 5 places pass, 4 of 50 sample journeys would have a confirmed route (today: 0)" | "Honesty becomes a work plan. Every gap is visible, so the model can tell staff exactly where to look next. And it learns: every ticket they resolve updates its belief about what the next survey will find." |
+| 2:45 | Slide: the evaluation table from [ai-eval-report-2026-10.md](ai-eval-report-2026-10.md) | "We asked the same AI 30 real questions about Elmina, with and without the world model. Without it, the model mostly couldn't answer and sometimes guessed. With it: 23 checked, cited answers, the rest correct refusals, zero honesty violations, zero invented numbers. It cost cents." |
+
+**If asked "is it a real world model?"** It has an explicit state, a closed set of actions, a transition function, rollouts and planners on top: the functional definition, the same family as AlphaZero's rules or DeepMind's Code World Models. The dynamics are engineered, not learned. What it learns is its uncertainty, from OpenStreetMap tags and staff verifications, and that is used only for planning. See [world-models-2026.md](../02-research/world-models-2026.md) §8.
+
 ## What can go wrong → recovery
 
 | Failure | Recovery line + action |

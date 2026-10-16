@@ -293,3 +293,48 @@ def closure_summary_tail(rows: list[dict], status: str, route: dict | None = Non
 def inferred_caveats(notes: list[str]) -> list[str]:
     """Entrance-not-mapped lines (plan_route warnings), no repeats."""
     return list(dict.fromkeys(notes))
+
+
+# ---- answer language (Cycle 6): the frame around the model's text follows the question -------
+_CJK = re.compile(r"[\u4e00-\u9fff]")
+_BM = re.compile(
+    r"\b(?:boleh|saya|dari|tanpa|tangga|jika|paras|sungai|laluan|pusat|bagaimana|berapa|"
+    r"adakah|kerusi roda|kereta sorong|pemindahan|terputus|di mana|ke mana|untuk|dengan)\b",
+    re.IGNORECASE,
+)
+FRAME = {
+    "en": {"status": "Route status", "worth": "Worth knowing:"},
+    "ms": {"status": "Status laluan", "worth": "Perlu diketahui:"},
+    "zh": {"status": "路线状态", "worth": "注意事项："},
+}
+STATUS_WORDS = {
+    "ms": {
+        "confirmed": "disahkan",
+        "partly_unverified": "sebahagian belum disahkan",
+        "blocked": "tersekat",
+        "no_data": "tiada sambungan dipetakan (jurang data)",
+        "demo": "disahkan (pada nilai demo, belum ditinjau)",
+    },
+    "zh": {
+        "confirmed": "已确认",
+        "partly_unverified": "部分未核实",
+        "blocked": "受阻",
+        "no_data": "无已绘制的连接（数据缺口）",
+        "demo": "已确认（基于演示数据，尚未实地调查）",
+    },
+}
+
+
+def detect_language(text: str) -> str:
+    """'zh' for Chinese characters, 'ms' for Bahasa Melayu (two or more common words), else 'en'."""
+    if _CJK.search(text or ""):
+        return "zh"
+    return "ms" if len(_BM.findall(text or "")) >= 2 else "en"
+
+
+def route_status_line(status: str, route: dict | None, lang: str = "en") -> str:
+    words = STATUS_WORDS.get(lang)
+    if not words:
+        return f"{FRAME['en']['status']}: {route_status_text(status, route)}"
+    demo = status == "confirmed" and route and route.get("demo_evidence")
+    return f"{FRAME[lang]['status']}: {words['demo'] if demo else words.get(status, status)}"

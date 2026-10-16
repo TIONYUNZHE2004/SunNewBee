@@ -27,10 +27,12 @@ from .events import (
 )
 from .labels import (
     CLOSURE_WORDS,
+    FRAME,
     closure_line,
+    detect_language,
     element_label,
     rest_caveats,
-    route_status_text,
+    route_status_line,
     unknown_note,
 )
 from .memory import DEFAULT as DEFAULT_MEMORY
@@ -49,7 +51,7 @@ DEFAULT_DISCLAIMER = (
 )
 
 
-def _route_status_line(ans: FinalAnswer, rec: TurnRecord) -> str | None:
+def _route_status_line(ans: FinalAnswer, rec: TurnRecord, lang: str = "en") -> str | None:
     # Same route the validator checked: the named one, else the only one. With several routes and
     # no route_id the label would name a route nobody verified, so it is left out.
     if ans.route_id in rec.routes:
@@ -58,9 +60,7 @@ def _route_status_line(ans: FinalAnswer, rec: TurnRecord) -> str | None:
         rid = next(iter(rec.routes))
     else:
         return None
-    return (
-        f"Route status: {route_status_text(rec.route_status.get(rid, 'no_data'), rec.routes[rid])}"
-    )
+    return route_status_line(rec.route_status.get(rid, "no_data"), rec.routes[rid], lang)
 
 
 _UNKNOWN_LINES = (
@@ -160,7 +160,9 @@ def _urgent(caveat: str, rec: TurnRecord | None) -> bool:
     return "flooded" in low and any(n and n in low for n in names)
 
 
-def answer_text(ans: FinalAnswer, label: str | None, rec: TurnRecord | None = None) -> str:
+def answer_text(
+    ans: FinalAnswer, label: str | None, rec: TurnRecord | None = None, lang: str = "en"
+) -> str:
     """Resident-facing text, answer first:
 
     1. the route status label (when a route was checked);
@@ -198,15 +200,20 @@ def answer_text(ans: FinalAnswer, label: str | None, rec: TurnRecord | None = No
     if ans.steps:
         parts.append("\n".join(f"{i}. {s}" for i, s in enumerate(ans.steps, 1)))
     if rest:
-        parts.append(CAVEAT_HEAD + "\n" + "\n".join(f"• {dot(c)}" for c in rest))
+        head = FRAME.get(lang, FRAME["en"])["worth"]
+        parts.append(head + "\n" + "\n".join(f"• {dot(c)}" for c in rest))
     return "\n".join(parts)
 
 
 def _answer_events(
-    ans: FinalAnswer, rec: TurnRecord, ctx: sp.Ctx, ui_scenario_id: str | None = None
+    ans: FinalAnswer,
+    rec: TurnRecord,
+    ctx: sp.Ctx,
+    ui_scenario_id: str | None = None,
+    lang: str = "en",
 ) -> list[ChatEvent]:
     evs: list[ChatEvent] = []
-    text = answer_text(ans, _route_status_line(ans, rec), rec)
+    text = answer_text(ans, _route_status_line(ans, rec, lang), rec, lang)
     evs += [TextDelta(delta=text[i : i + CHUNK]) for i in range(0, len(text), CHUNK)]
 
     intents = list(ans.scene_intents)
@@ -405,7 +412,10 @@ async def run_turn(
         if ans is None:
             used = model_name + "+template"
             ans = template_answer(rec, req.message)
-        events = _answer_events(ans, rec, ctx, req.scenario_id)
+        # The frame (status line, headings) follows the question's language; template answers
+        # (fallbacks) stay English.
+        lang = detect_language(req.message) if not used.endswith("+template") else "en"
+        events = _answer_events(ans, rec, ctx, req.scenario_id, lang)
     except Exception as exc:  # last resort: never leave the client without done
         log.warning("answer rendering failed: %s", type(exc).__name__)
         if rec.scenarios_used:

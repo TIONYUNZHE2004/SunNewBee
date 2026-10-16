@@ -1128,3 +1128,23 @@ def test_model_receives_capped_evidence_scenario_first():
     slim = _for_model("affected_places", {"data": {}, "evidence": ev})
     assert slim["evidence"][0]["id"] == "ev-scn-stage_p5m"
     assert len(slim["evidence"]) == MODEL_EVIDENCE_CAP and slim["evidence_truncated"] == 441
+
+
+def test_frame_follows_the_question_language(ctx):
+    from townshiplens_agent.labels import detect_language
+
+    assert detect_language("如果河水上涨3米") == "zh"
+    assert (
+        detect_language("Boleh saya tolak kereta sorong dari mall ke taman tanpa tangga?") == "ms"
+    )
+    assert detect_language("Can I push a stroller?") == "en"
+    rec_, ans = _label_events("partly_unverified", caveats=["Nilai demo, belum ditinjau."])
+    text = "".join(
+        e.delta for e in run_mod._answer_events(ans, rec_, ctx, lang="ms") if e.type == "text.delta"
+    )
+    assert text.startswith("Status laluan: sebahagian belum disahkan")
+    assert "Perlu diketahui:" in text
+    zh = "".join(
+        e.delta for e in run_mod._answer_events(ans, rec_, ctx, lang="zh") if e.type == "text.delta"
+    )
+    assert zh.startswith("路线状态: 部分未核实") and "注意事项：" in zh

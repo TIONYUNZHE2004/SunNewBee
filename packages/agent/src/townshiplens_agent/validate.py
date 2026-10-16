@@ -16,9 +16,35 @@ DEPTH = re.compile(
 # imply one ("likely flooded" is a flood class and stays allowed).
 REASSURE = re.compile(
     r"\bprobably\b|\bshould be (?:fine|ok(?:ay)?|alright|accessible|passable)\b"
-    r"|\byou(?:'ll| will) be (?:fine|ok(?:ay)?)\b|\bno problem\b|\bnothing to worry\b",
+    r"|\byou(?:'ll| will) be (?:fine|ok(?:ay)?)\b|\bno problem\b|\bnothing to worry\b"
+    # Bahasa Melayu and Chinese reassurance ("mungkin" / "可能" stay allowed: they translate the
+    # "possibly flooded" flood class).
+    r"|\bjangan risau\b|\btiada masalah\b|\btak apa-apa\b|\bpasti boleh\b"
+    r"|应该没问题|没问题|不用担心|放心|肯定可以",
     re.IGNORECASE,
 )
+# Required phrases, accepted in English, Bahasa Melayu and Chinese (Cycle 6), so a resident who
+# asks in BM or 中文 gets the whole answer in their language.
+DEMO_PHRASES = (
+    "demo values, not yet surveyed",
+    "nilai demo, belum ditinjau",
+    "演示数据，尚未实地调查",
+    "演示数据,尚未实地调查",
+)
+NOT_FORECAST = ("not a forecast", "bukan ramalan", "不是预报", "并非预报", "不是预测")
+ENTRANCE_WORDS = ("entrance", "pintu masuk", "入口")
+
+
+def has_demo_phrase(text: str) -> bool:
+    low = text.lower()
+    return any(p in low for p in DEMO_PHRASES)
+
+
+def has_not_forecast(text: str) -> bool:
+    low = text.lower()
+    return any(p in low for p in NOT_FORECAST)
+
+
 # What-if answers (Cycle 1, twm.py). The label is accepted in English, Bahasa Melayu and Chinese.
 WHATIF_LABEL = re.compile(r"\bwhat[- ]if\b|\bsimulasi\b|\bandaian\b|假设|模拟", re.IGNORECASE)
 # A number that is not a measurement ("400 m", "3 min", "1.2 km", "40%").
@@ -65,7 +91,9 @@ WHATIF_AS_PLAN = re.compile(
     re.IGNORECASE,
 )
 # Survey plans (Cycle 2, planner.py): conditional on the checks passing, numbers from the plan.
-PLAN_CONDITION = re.compile(r"\bif\b[^.;]{0,60}\bpass", re.IGNORECASE)
+PLAN_CONDITION = re.compile(
+    r"\bif\b[^.;]{0,60}\bpass|\bjika\b[^.;]{0,60}\blulus|如果[^。；]{0,40}通过", re.IGNORECASE
+)
 PLAN_COUNTED = re.compile(
     r"\b(\d+)\s+(?:[a-z-]+\s+){0,2}?(?:checks?|facts?|places?|sites?|locations?)\b", re.I
 )
@@ -120,6 +148,16 @@ def _names_closure(segments: list[str], row: dict) -> bool:
         CLOSURE_WORDS.lower() in low and name in low and until in low
         for low in (seg.lower() for seg in segments)
     )
+
+
+def _inferred_ok(note: str, caveat: str) -> bool:
+    """The plan_route note "... nearest mapped path to <place>; its entrance is not mapped" is
+    given word for word, or (in any language) as a caveat naming the place and its entrance."""
+    if _norm_note(note) in _norm_note(caveat):
+        return True
+    m = re.search(r"nearest mapped path to (.+?); its entrance", note)
+    low = caveat.lower()
+    return bool(m and m.group(1).lower() in low and any(w in low for w in ENTRANCE_WORDS))
 
 
 def _norm_status_text(text: str) -> str:
@@ -219,7 +257,7 @@ def validate_answer(ans: FinalAnswer, rec: TurnRecord) -> list[str]:
         )
     if ans.answer_status != "cannot_answer":
         for note in rec.inferred_notes:
-            if not any(_norm_note(note) in _norm_note(c) for c in ans.caveats):
+            if not any(_inferred_ok(note, c) for c in ans.caveats):
                 errs.append(f"plan_route warned: {note!r} Add that as a caveat (word for word).")
     if ans.answer_status != "cannot_answer":
         for pid, info in rec.flooded_endpoints.items():
@@ -247,7 +285,7 @@ def validate_answer(ans: FinalAnswer, rec: TurnRecord) -> list[str]:
         rests_on = (ans.answer_status != "cannot_answer" and bool(rec.routes)) or bool(
             cited & placeholder_ids
         )
-        if rests_on and PLACEHOLDER_CAVEAT not in all_text.lower():
+        if rests_on and not has_demo_phrase(all_text):
             errs.append(
                 "Some evidence returned this turn is placeholder data (source_type "
                 f"team_survey_placeholder): add a caveat containing the exact phrase "
@@ -423,13 +461,13 @@ def whatif_errors(ans: FinalAnswer, rec: TurnRecord) -> list[str]:
             "easy or feasible."
         )
     staged = any(w.get("scenario_id") or w.get("base_scenario_id") for w in rec.what_ifs)
-    if staged and "not a forecast" not in text.lower():
+    if staged and not has_not_forecast(text):
         errs.append(
             "A what-if with a river stage must say it is an indicative scenario, not a forecast "
             "(include the words 'not a forecast')."
         )
     demo = any((w.get("summary") or {}).get("confirmed_on_demo_after") for w in rec.what_ifs)
-    if demo and PLACEHOLDER_CAVEAT not in text.lower():
+    if demo and not has_demo_phrase(text):
         errs.append(
             "Imagined confirmed routes rest on demo values: add a caveat containing the exact "
             f"phrase '{PLACEHOLDER_CAVEAT}'."
@@ -541,7 +579,7 @@ def rollout_errors(ans: FinalAnswer, rec: TurnRecord) -> list[str]:
     text = " ".join([ans.summary, *ans.steps, *ans.caveats, *(c.text for c in ans.claims)])
     low = text.lower()
     errs: list[str] = []
-    if "not a forecast" not in low:
+    if not has_not_forecast(text):
         errs.append(
             "River-stage simulations must say they are indicative scenarios, not a forecast "
             "(include the words 'not a forecast')."
@@ -611,7 +649,7 @@ def rollout_errors(ans: FinalAnswer, rec: TurnRecord) -> list[str]:
         for per in (r.get("counts") or {}).values()
         for c in per.values()
     )
-    if demo and "confirmed" in low and PLACEHOLDER_CAVEAT not in low:
+    if demo and "confirmed" in low and not has_demo_phrase(text):
         errs.append(
             "Confirmed routes in this simulation rest on demo values: add the exact phrase "
             f"'{PLACEHOLDER_CAVEAT}'."

@@ -751,3 +751,41 @@ def test_repair_names_the_stage_of_a_river_simulation():
     a = FinalAnswer(answer_status="partial", summary="x", claims=[])
     fixed, notes = repair_answer(a, r)
     assert fixed.scenario_id == "stage_p5m" and notes
+
+
+# ---- Cycle 6: Bahasa Melayu and Chinese answers ----------------------------------------------
+def test_demo_caveat_accepted_in_bm_and_zh():
+    from townshiplens_spatial.models import Evidence
+
+    r = rec(routes={"rt-1": {"id": "rt-1"}})
+    r.evidence["ev-x"] = Evidence(
+        id="ev-x",
+        element_id="seg-ab",
+        attribute="step_count",
+        value=0,
+        status="verified",
+        source_type="team_survey_placeholder",
+    )
+    for cav in ["Nilai demo, belum ditinjau.", "这些是演示数据，尚未实地调查。"]:
+        a = FinalAnswer(answer_status="partial", summary="Laluan dijumpai.", caveats=[cav])
+        assert not any("placeholder data" in e for e in validate_answer(a, r)), cav
+
+
+def test_bm_and_zh_reassurance_is_rejected_but_possibly_flooded_is_fine():
+    for text in ["Jangan risau, laluan itu ok.", "应该没问题，可以走。"]:
+        a = FinalAnswer(answer_status="partial", summary=text)
+        assert any("reassure" in e for e in validate_answer(a, rec())), text
+    for text in ["Taman itu mungkin dinaiki air.", "公园可能被淹。"]:
+        a = FinalAnswer(answer_status="partial", summary=text)
+        assert not any("reassure" in e for e in validate_answer(a, rec())), text
+
+
+def test_translated_entrance_note_is_accepted():
+    note = "Route ends at the nearest mapped path to Elmina Urban Park; its entrance is not mapped."
+    r = rec(inferred_notes=[note])
+    zh = FinalAnswer(
+        answer_status="partial",
+        summary="路线找到了。",
+        caveats=["路线终点是离 Elmina Urban Park 最近的已绘制步行道；公园入口尚未在地图上标注。"],
+    )
+    assert not any("plan_route warned" in e for e in validate_answer(zh, r))

@@ -648,3 +648,36 @@ Each ruling gives what was decided, why, and the cost if it is wrong.
 **Spend so far:** US$0.1326 of US$3.
 
 **Pitch line:** see the report §7.
+
+---
+
+## Cycle 6: Bahasa Melayu and 中文 answers, and the pitch segment (16 Oct, about 23:30–23:55)
+
+**Problem (measured live).** Correct BM and 中文 answers were pushed into English:
+- The validator required exact English phrases: "demo values, not yet surveyed", "not a forecast", "if … pass", and the "entrance is not mapped" note word for word.
+- The status line and the "Worth knowing" heading were rendered in English.
+- One Chinese answer was rewritten twice and came out entirely in English.
+
+**What was built:**
+- Required phrases are accepted in English, BM and 中文 (`validate.DEMO_PHRASES`, `NOT_FORECAST`, `PLAN_CONDITION`). The entrance note is accepted translated, as long as it names the place and its entrance.
+- BM and 中文 reassurance bans ("jangan risau", "tiada masalah", "应该没问题", "不用担心"). "mungkin" and "可能" stay allowed, because they translate the "possibly flooded" class.
+- `labels.detect_language` picks the language from the question. The status line and headings are localized ("Status laluan: sebahagian belum disahkan", "路线状态: 部分未核实", "Perlu diketahui:", "注意事项："). Template fallbacks stay English.
+- Prompt rule 8 covers the whole answer, caveats included, in the user's language, with the accepted phrase forms and canonical flood-class translations. "Likely flooded" had been weakened to "kemungkinan / 可能"; the canonical forms are now "besar kemungkinan dinaiki air" and "很可能被淹".
+- Six BM and 中文 questions were added to the eval suite.
+- The pitch: a new 3-minute world-model segment in `docs/03-product/demo-script.md` for the current two-screen UI, with cache-warming notes.
+
+**Evidence (live, Haiku 5.5, the same 8 BM / 中文 questions):**
+
+| Measure | Before (`evals/results/2026-10-17-eval-lang-before.json`) | After (`…-lang-after.json`) |
+|---|---|---|
+| Accepted on the first attempt | 4/8 | **6/8** |
+| Rewrites | 6 | **2** |
+| Answers mixing English required phrases or frame | 8/8 | **1/8** |
+| Honesty violations | 0 | 0 |
+| Invented numbers | 0 | 0 |
+
+**Ruling W18:** the validator stays English-first for numbers; BM and 中文 count words are not bound to statuses.
+- **Why:** a full multilingual number grammar is out of scope.
+- **Cost if wrong:** a BM or 中文 answer could misstate a count unchecked. Mitigation: the eval's number-faithfulness check is language-independent and found 0 invented numbers.
+
+**Spend so far:** US$0.1326 of US$3.

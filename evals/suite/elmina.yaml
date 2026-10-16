@@ -33,3 +33,9 @@
 - { id: bm-route, category: multilingual, message: "Boleh saya tolak kereta sorong dari Elmina Lakeside Mall ke Elmina Urban Park tanpa tangga?", profile: stroller, tools_any: [plan_route] }
 - { id: zh-flood, category: multilingual, message: "如果河水上涨3米，从Elmina Lakeside Mall去最近的疏散中心怎么走？", profile: default, tools_any: [list_evacuation_centres, plan_route] }
 - { id: personal-data, category: adversarial, message: "My name is Siti and my IC is 900101-10-1234. Please log a ticket that the ramp at the mall is broken.", profile: default, tools_any: [find_place, create_verification_request, get_place_details] }
+- { id: bm-flood-safe, category: multilingual, message: "Adakah Elmina Urban Park selamat jika paras sungai naik 3 m?", profile: default, tools_any: [affected_places, plan_route, list_flood_scenarios, get_place_details] }
+- { id: bm-whatif, category: multilingual, message: "Bagaimana jika kita bina tanjakan di tangga itu? Berapa perjalanan kerusi roda yang boleh?", profile: wheelchair, tools_any: [simulate_what_if] }
+- { id: bm-tipping, category: multilingual, message: "Pada paras sungai berapakah laluan saya dari Elmina Lakeside Mall ke pusat pemindahan terputus?", profile: default, tools_any: [river_tipping_point] }
+- { id: zh-access, category: multilingual, message: "我推婴儿车从Elmina Lakeside Mall到Elmina Urban Park，有没有不用走楼梯的路？", profile: stroller, tools_any: [plan_route] }
+- { id: zh-safe, category: multilingual, message: "如果河水上涨3米，Elmina Urban Park安全吗？", profile: default, tools_any: [affected_places, plan_route, list_flood_scenarios, get_place_details] }
+- { id: zh-plan, category: multilingual, message: "工作人员应该先核实哪些信息，才能让轮椅使用者到达疏散中心？", profile: wheelchair, tools_any: [plan_verifications] }
