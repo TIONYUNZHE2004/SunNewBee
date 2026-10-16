@@ -1,9 +1,10 @@
 import "mapbox-gl/dist/mapbox-gl.css";
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import MapGL, { Layer, type MapMouseEvent, type MapRef, Source } from "react-map-gl/mapbox";
-import { useGaps, useLayer, useScenarioWater, useSite } from "../../../lib/api";
+import { useDay, useGaps, useLayer, useScenarioWater, useSite } from "../../../lib/api";
 import { ENV } from "../../../lib/env";
 import { useTheme } from "../../../ui/theme";
+import { DAY_STYLE, dotsAt, prepare, type Tracks } from "../../day/dayModel";
 import { GAP_BAND_ORDER, GAP_BANDS, gapLines, gapsActive } from "../../gaps/gapModel";
 import { WHATIF_STYLE } from "../../whatif/whatifModel";
 import { homeView, shouldReframe } from "../cesium/home";
@@ -180,6 +181,26 @@ export default function MapboxLite() {
   const lensVisible = useScene((s) => s.lensVisible);
   const route = useScene((s) => s.route);
   const whatIf = useScene((s) => s.whatIf);
+  const day = useScene((s) => s.day);
+  const dayQ = useDay(day.scenario, day.on);
+  const dayPrepared = useMemo(
+    () => prepare((dayQ.data as { tracks?: Tracks } | undefined)?.tracks),
+    [dayQ.data],
+  );
+  const dayDots = useMemo(
+    () =>
+      day.on
+        ? {
+            type: "FeatureCollection",
+            features: dotsAt(dayPrepared, day.t).map((d) => ({
+              type: "Feature",
+              geometry: { type: "Point", coordinates: [d.lon, d.lat] },
+              properties: { state: d.state, focus: d.r === day.focus },
+            })),
+          }
+        : null,
+    [day.on, day.t, day.focus, dayPrepared],
+  );
   const focusPlaceId = useScene((s) => s.focusPlaceId);
   const camera = useScene((s) => s.camera);
   const selectPlace = useScene((s) => s.selectPlace);
@@ -352,6 +373,29 @@ export default function MapboxLite() {
                 }}
               />
             ))}
+          </Source>
+        )}
+        {dayDots && (
+          <Source id="day" type="geojson" data={dayDots as never}>
+            <Layer
+              id="day-residents"
+              type="circle"
+              slot="top"
+              paint={{
+                "circle-radius": ["case", ["get", "focus"], 8, 4],
+                "circle-color": [
+                  "match",
+                  ["get", "state"],
+                  "drive",
+                  DAY_STYLE.drive.color,
+                  "wait",
+                  DAY_STYLE.wait.color,
+                  DAY_STYLE.walk.color,
+                ],
+                "circle-stroke-color": ["case", ["get", "focus"], "#ffffff", "#000000"],
+                "circle-stroke-width": ["case", ["get", "focus"], 2, 0.5],
+              }}
+            />
           </Source>
         )}
         {route && (

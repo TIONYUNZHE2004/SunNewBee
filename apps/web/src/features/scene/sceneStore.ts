@@ -49,6 +49,20 @@ interface SceneState {
   /** Rising-river rollout playback: synthetic residents on the map (simulation, not a forecast). */
   rollout: { on: boolean; stage: number; playing: boolean };
   setRollout: (r: Partial<SceneState["rollout"]>) => void;
+  /** Elmina Day playback: synthetic residents living a day (a rehearsal, not a forecast).
+   * `t` is the clock in minutes after midnight; `focus` a spotlight resident; `before` the
+   * scenario on screen when playback started (restored when it stops). */
+  day: {
+    on: boolean;
+    scenario: string;
+    t: number;
+    playing: boolean;
+    focus: string | null;
+    before: string | null;
+  };
+  setDay: (d: Partial<SceneState["day"]>) => void;
+  /** The river level follows the day's clock without clearing routes or what-ifs. */
+  setDayStage: (scenarioId: string | null) => void;
   camera: { center: [number, number]; rangeM: number } | null;
   intents: SceneIntent[];
   applyIntent: (i: SceneIntent) => void;
@@ -85,6 +99,14 @@ const initial = {
   route: null as SceneState["route"],
   whatIf: null as SceneState["whatIf"],
   rollout: { on: false, stage: 0, playing: false } as SceneState["rollout"],
+  day: {
+    on: false,
+    scenario: "storm",
+    t: 6 * 60,
+    playing: false,
+    focus: null,
+    before: null,
+  } as SceneState["day"],
   camera: null as SceneState["camera"],
   intents: [] as SceneIntent[],
   mapStyle: "realistic" as MapStyle,
@@ -173,5 +195,12 @@ export const useScene = create<SceneState>((set) => ({
   clearRoute: () => set({ route: null }),
   clearWhatIf: () => set({ whatIf: null }),
   setRollout: (r) => set((s) => ({ rollout: { ...s.rollout, ...r } })),
+  setDay: (d) => set((s) => ({ day: { ...s.day, ...d } })),
+  setDayStage: (scenarioId) =>
+    set((s) =>
+      s.scenarioId === scenarioId
+        ? {}
+        : { scenarioId, lensVisible: { ...s.lensVisible, flood: true } },
+    ),
   reset: () => set(initial),
 }));

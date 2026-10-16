@@ -3,6 +3,7 @@ import { useMode } from "../../app/modeStore";
 import { Button } from "../../ui/Button";
 import { useChatDraft } from "../chat/chatDraftStore";
 import { useChatStream } from "../chat/useChatStream";
+import { DayPanel } from "../day/DayPanel";
 import { type Profile, useScene } from "../scene/sceneStore";
 import { RisingRiverPanel } from "../whatif/RisingRiverPanel";
 import { WhatIfLab } from "../whatif/WhatIfLab";
@@ -64,6 +65,7 @@ export function AssistantPanel() {
       </header>
       {mode === "management" && (
         <>
+          <DayPanel />
           <WhatIfLab />
           <RisingRiverPanel />
         </>

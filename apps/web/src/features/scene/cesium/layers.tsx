@@ -30,6 +30,7 @@ import {
 import { useScene } from "../sceneStore";
 import { CESIUM_DASH, type EdgeStatus, ROUTE_STYLE, statusStyle, WATER_COLOR } from "../styles";
 import { useMapStyle } from "../useMapStyle";
+import { DayLayer } from "./DayLayer";
 import { heightRefFor, type MapStyle } from "./heightRef";
 import { RolloutLayer } from "./RolloutLayer";
 
@@ -186,6 +187,7 @@ export function AccessLayer() {
       <RouteLayer />
       <WhatIfLayer />
       <RolloutLayer />
+      <DayLayer />
     </>
   );
 }

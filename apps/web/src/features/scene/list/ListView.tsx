@@ -5,6 +5,7 @@ import { gapsApplicable } from "../../gaps/gapModel";
 import { useScene } from "../sceneStore";
 import { statusStyle } from "../styles";
 import { CLOSURE_SOURCE, closureLine } from "./closureModel";
+import { DayListSection } from "./DayListSection";
 import { ListLensSections } from "./LensSections";
 import { groupByType, humanType, parseLayer, routeSteps, withIndicative } from "./listModel";
 import { WhatIfListSection } from "./WhatIfListSection";
@@ -145,6 +146,8 @@ export function ListView() {
           </ol>
         )}
       </section>
+
+      <DayListSection />
 
       <WhatIfListSection />
 

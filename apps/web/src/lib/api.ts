@@ -119,3 +119,22 @@ export const useRiverRollout = (enabled: boolean) =>
     staleTime: Number.POSITIVE_INFINITY,
     queryFn: async () => unwrap(await api.GET("/river-rollout", { params: { query: {} } })),
   });
+
+/** Elmina Day: one simulated day of 5,000 synthetic residents (rehearsal, not a forecast).
+ * Cached by the API per world version; the first call on the seed takes a few seconds. */
+export const useDay = (scenario: string, enabled: boolean) =>
+  useQuery({
+    queryKey: ["day", scenario],
+    enabled,
+    staleTime: Number.POSITIVE_INFINITY,
+    queryFn: async () =>
+      unwrap(await api.GET("/day/{scenario_id}", { params: { path: { scenario_id: scenario } } })),
+  });
+
+export const useDayScenarios = (enabled: boolean) =>
+  useQuery({
+    queryKey: ["day-scenarios"],
+    enabled,
+    staleTime: Number.POSITIVE_INFINITY,
+    queryFn: async () => unwrap(await api.GET("/day/scenarios")),
+  });

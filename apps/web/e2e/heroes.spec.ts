@@ -216,3 +216,25 @@ test("ticket impact: the world model says what one check would change", async ({
   await expect(card).toContainText(/would become confirmed|changed/);
   await expect(card).toContainText(/planning estimate/);
 });
+
+test("Elmina Day: synthetic residents live a day; the clock drives the list and the feed", async ({
+  page,
+}) => {
+  await open(page);
+  await page.getByRole("radio", { name: "Management" }).click();
+  await page.getByRole("button", { name: "Simulate a day" }).click();
+  const panel = page.getByRole("region", { name: "Simulate a day" });
+  await expect(panel).toContainText("not a forecast");
+  await panel.getByRole("button", { name: "A normal weekday" }).click();
+  await expect(panel.getByRole("button", { name: "Play on the map" })).toBeVisible();
+  await panel.getByRole("slider", { name: "Time of day" }).fill("480");
+  await expect(panel).toContainText(/At 08:00: \d+ walking, \d+ driving, \d+ waiting/);
+  // the list view spells out the same moment
+  await expect(page.getByRole("heading", { name: /A normal weekday · 08:00/ })).toBeVisible();
+  await panel.getByRole("tab", { name: "Overview" }).click();
+  await expect(panel.getByRole("table")).toContainText("Wheelchair users");
+  await panel.getByRole("tab", { name: "How it was made" }).click();
+  await expect(panel).toContainText("DOSM");
+  await panel.getByRole("button", { name: "Close" }).first().click();
+  await expect(page.getByRole("region", { name: "Simulate a day" })).toHaveCount(0);
+});

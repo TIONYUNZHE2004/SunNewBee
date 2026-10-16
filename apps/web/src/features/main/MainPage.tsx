@@ -1,4 +1,5 @@
 import { AssistantPanel } from "../assistant/AssistantPanel";
+import { DayTag } from "../map-ui/DayTag";
 import { FloodNote } from "../map-ui/FloodNote";
 import { MapStage } from "../map-ui/MapStage";
 import { PathOverlay } from "../map-ui/PathOverlay";
@@ -22,6 +23,7 @@ export function MainPage() {
           <RouteTag />
           <WhatIfTag />
           <RolloutTag />
+          <DayTag />
           <FloodNote />
           <SettingsPopover />
           <PlaceOverlay />
