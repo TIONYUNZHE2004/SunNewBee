@@ -1,4 +1,5 @@
 import { AssistantPanel } from "../assistant/AssistantPanel";
+import { useDayPlayback } from "../day/useDayPlayback";
 import { DayTag } from "../map-ui/DayTag";
 import { FloodNote } from "../map-ui/FloodNote";
 import { MapStage } from "../map-ui/MapStage";
@@ -13,6 +14,7 @@ import { useRolloutPlayback } from "../whatif/useRolloutPlayback";
 /** Map on the left, assistant on the right; stacked (map first) below `lg`. */
 export function MainPage() {
   useRolloutPlayback();
+  useDayPlayback();
   return (
     <div className="grid h-full min-h-0 grid-cols-1 lg:grid-cols-[minmax(0,3fr)_minmax(340px,2fr)]">
       <section

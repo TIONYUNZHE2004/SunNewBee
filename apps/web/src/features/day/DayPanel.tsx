@@ -1,8 +1,19 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useDay, useDayScenarios } from "../../lib/api";
 import { Button } from "../../ui/Button";
 import { useScene } from "../scene/sceneStore";
-import { binAt, DAY_END, DAY_LEGEND, DAY_START, feedUntil, hhmm, stageAt } from "./dayModel";
+import {
+  binAt,
+  DAY_END,
+  DAY_LEGEND,
+  DAY_START,
+  dotsAt,
+  feedUntil,
+  hhmm,
+  prepare,
+  stageAt,
+  type Tracks,
+} from "./dayModel";
 
 const STATUS: Record<string, string> = {
   on_time: "on time",
@@ -14,7 +25,6 @@ const STATUS: Record<string, string> = {
 };
 const TABS = ["Overview", "Residents", "Feed", "How it was made"] as const;
 type Tab = (typeof TABS)[number];
-const MIN_PER_TICK = 1.8; // 18 hours of the day in about a minute at 1x
 
 type Any = Record<string, unknown>;
 const num = (x: unknown) => (typeof x === "number" ? x : 0);
@@ -30,50 +40,42 @@ function stageLabel(sid: string | null) {
  * model. The clock drives the map (moving residents, the river level) and the feed; every
  * number is the engine's. A rehearsal, not a forecast. */
 export function DayPanel() {
-  const day = useScene((s) => s.day);
+  const on = useScene((s) => s.day.on);
+  const playing = useScene((s) => s.day.playing);
+  const scenario = useScene((s) => s.day.scenario);
+  const t = useScene((s) => s.day.t);
+  const focus = useScene((s) => s.day.focus);
   const setDay = useScene((s) => s.setDay);
-  const setDayStage = useScene((s) => s.setDayStage);
   const applyIntent = useScene((s) => s.applyIntent);
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState<Tab>("Overview");
-  const shown = open || day.on;
+  const opener = useRef<HTMLButtonElement>(null);
+  const wasShown = useRef(false);
+  const shown = open || on;
   const scenarios = useDayScenarios(shown);
-  const q = useDay(day.scenario, shown);
+  const q = useDay(scenario, shown);
   const d = q.data as unknown as Any | undefined;
   const sc = (d?.scenario ?? {}) as Any;
   const stages = (sc.stages ?? []) as [number, string | null][];
+  const stage = stageAt(stages, t);
+  const tracks = (d?.tracks ?? {}) as Any;
+  const prepared = useMemo(() => prepare(d?.tracks as Tracks | undefined), [d?.tracks]);
 
-  // the clock
   useEffect(() => {
-    if (!day.on || !day.playing) return;
-    const id = window.setInterval(() => {
-      const t = useScene.getState().day.t + MIN_PER_TICK;
-      if (t >= DAY_END) setDay({ t: DAY_END, playing: false });
-      else setDay({ t });
-    }, 100);
-    return () => window.clearInterval(id);
-  }, [day.on, day.playing, setDay]);
+    if (wasShown.current && !shown) opener.current?.focus(); // back to the button on Close
+    wasShown.current = shown;
+  }, [shown]);
 
-  // the river level follows the clock while the day plays on the map
-  const stage = stageAt(stages, day.t);
-  useEffect(() => {
-    if (day.on && d) setDayStage(stage);
-  }, [day.on, d, stage, setDayStage]);
-
-  const start = () => {
-    const before = useScene.getState().scenarioId;
-    setDay({ on: true, playing: true, before, t: day.t >= DAY_END ? DAY_START : day.t });
-  };
+  const start = () => setDay({ on: true, playing: true, t: t >= DAY_END ? DAY_START : t });
   const close = () => {
     setOpen(false);
-    if (day.on) setDayStage(day.before);
     setDay({ on: false, playing: false, focus: null });
   };
 
   if (!shown)
     return (
       <div className="border-b border-edge px-4 py-2">
-        <Button variant="outline" onClick={() => setOpen(true)}>
+        <Button ref={opener} variant="outline" onClick={() => setOpen(true)}>
           Simulate a day
         </Button>
         <span className="ml-2 text-xs text-fg-soft">
@@ -91,7 +93,7 @@ export function DayPanel() {
       waiting: number;
       rain: boolean;
     }[],
-    day.t,
+    t,
   );
   const spotlight = (d?.spotlight ?? {}) as Any;
 
@@ -119,10 +121,12 @@ export function DayPanel() {
           <button
             key={s.id}
             type="button"
-            aria-pressed={s.id === day.scenario}
-            onClick={() => setDay({ scenario: s.id, t: DAY_START + 60, focus: null })}
+            aria-pressed={s.id === scenario}
+            onClick={() =>
+              setDay({ scenario: s.id, t: DAY_START + 60, focus: null, playing: false })
+            }
             className={`min-h-11 rounded-full border px-3 text-xs ${
-              s.id === day.scenario
+              s.id === scenario
                 ? "border-accent bg-accent text-on-accent"
                 : "border-edge bg-raised text-fg"
             }`}
@@ -138,10 +142,10 @@ export function DayPanel() {
           <p className="text-xs text-fg-soft">{str(sc.summary)}</p>
           <div className="flex flex-wrap items-center gap-3">
             <span className="font-mono text-2xl text-fg" role="timer" aria-label="Clock">
-              {hhmm(day.t)}
+              {hhmm(t)}
             </span>
-            <Button onClick={() => (day.on && day.playing ? setDay({ playing: false }) : start())}>
-              {day.on && day.playing ? "Pause" : day.on ? "Play" : "Play on the map"}
+            <Button onClick={() => (on && playing ? setDay({ playing: false }) : start())}>
+              {on && playing ? "Pause" : on ? "Play" : "Play on the map"}
             </Button>
             <span className="text-xs text-fg">
               {stageLabel(stage)}
@@ -154,13 +158,15 @@ export function DayPanel() {
             min={DAY_START}
             max={DAY_END}
             step={5}
-            value={Math.round(day.t)}
+            value={Math.round(t)}
+            aria-valuetext={hhmm(t)}
             onChange={(e) => setDay({ t: Number(e.target.value), on: true, playing: false })}
             className="w-full"
           />
-          <p aria-live="polite" className="text-xs text-fg">
-            At {hhmm(day.t)}: {bin?.walking ?? 0} walking, {bin?.driving ?? 0} driving,{" "}
-            {bin?.waiting ?? 0} waiting for the water.
+          <p className="text-xs text-fg">
+            At {hhmm(t)}: {bin?.walking ?? 0} walking, {bin?.driving ?? 0} driving,{" "}
+            {bin?.waiting ?? 0} waiting for a way through. The map shows{" "}
+            {num(tracks.shown).toLocaleString()} of {num(tracks.of).toLocaleString()} residents.
           </p>
           <div role="tablist" aria-label="Day views" className="flex flex-wrap gap-1">
             {TABS.map((x) => (
@@ -168,6 +174,8 @@ export function DayPanel() {
                 key={x}
                 type="button"
                 role="tab"
+                id={`day-tab-${x}`}
+                aria-controls="day-tabpanel"
                 aria-selected={tab === x}
                 onClick={() => setTab(x)}
                 className={`min-h-11 rounded px-2 text-xs ${
@@ -178,19 +186,24 @@ export function DayPanel() {
               </button>
             ))}
           </div>
-          {tab === "Overview" && <Overview d={d} headline={headline} />}
-          {tab === "Residents" && (
-            <Residents
-              people={(spotlight.residents ?? []) as Any[]}
-              focus={day.focus}
-              onFocus={(id, coord) => {
-                setDay({ focus: id });
-                if (coord) applyIntent({ kind: "camera.fly_to", center: coord, range_m: 700 });
-              }}
-            />
-          )}
-          {tab === "Feed" && <Feed feed={(spotlight.feed ?? []) as Any[]} t={day.t} />}
-          {tab === "How it was made" && <About d={d} voice={(spotlight.voice ?? {}) as Any} />}
+          <div role="tabpanel" id="day-tabpanel" aria-labelledby={`day-tab-${tab}`}>
+            {tab === "Overview" && <Overview d={d} headline={headline} />}
+            {tab === "Residents" && (
+              <Residents
+                people={(spotlight.residents ?? []) as Any[]}
+                focus={focus}
+                onFocus={(id, home) => {
+                  setDay({ focus: id });
+                  // fly to where they are at this minute, else to their home
+                  const dot = dotsAt(prepared, t).find((x) => x.r === id);
+                  const at = dot ? [dot.lon, dot.lat] : home;
+                  if (at) applyIntent({ kind: "camera.fly_to", center: at, range_m: 700 });
+                }}
+              />
+            )}
+            {tab === "Feed" && <Feed feed={(spotlight.feed ?? []) as Any[]} t={t} />}
+            {tab === "How it was made" && <About d={d} voice={(spotlight.voice ?? {}) as Any} />}
+          </div>
         </>
       )}
     </section>
@@ -312,6 +325,7 @@ function Residents({
           <h3 className="font-semibold text-fg">
             {str(sel.name)}, {num(sel.age)} · {str(sel.role)}
           </h3>
+          <p className="text-[10px] text-fg-soft">Their whole day</p>
           <ul className="space-y-1">
             {((sel.diary ?? []) as Any[]).map((l) => (
               <li key={`${str(l.trip)}-${str(l.text).slice(0, 12)}`} className="text-fg">
@@ -362,7 +376,7 @@ function Feed({ feed, t }: { feed: Any[]; t: number }) {
           <p className="text-fg">{str(p.text)}</p>
           {(p.replies as Any[]).map((r) => (
             <p
-              key={`${str(r.author)}-${num(r.t)}`}
+              key={`${str(r.author)}-${str(r.text).slice(0, 16)}`}
               className="mt-1 border-l-2 border-edge pl-2 text-xs text-fg"
             >
               <span className="text-fg-soft">{str(r.name)}:</span> {str(r.text)}

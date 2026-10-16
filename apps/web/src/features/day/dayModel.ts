@@ -9,7 +9,7 @@ export const DAY_LEGEND = "Rehearsal · synthetic residents · not a forecast";
 export const DAY_STYLE = {
   walk: { color: "#F6E05E", label: "Walking" },
   drive: { color: "#63B3ED", label: "Driving" },
-  wait: { color: "#F56565", label: "Waiting for the water" },
+  wait: { color: "#F56565", label: "Waiting for a way through" },
 } as const;
 export type DayState = keyof typeof DAY_STYLE;
 

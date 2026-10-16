@@ -1,6 +1,7 @@
-import type { ButtonHTMLAttributes, ReactNode } from "react";
+import type { ComponentProps, ReactNode } from "react";
 
-type Props = ButtonHTMLAttributes<HTMLButtonElement> & {
+// ComponentProps<"button"> includes `ref` (React 19 passes it through as a prop).
+type Props = ComponentProps<"button"> & {
   variant?: "primary" | "outline";
   icon?: ReactNode;
 };

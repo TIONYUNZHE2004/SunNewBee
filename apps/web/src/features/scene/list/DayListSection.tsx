@@ -6,8 +6,12 @@ type Bin = { t: number; walking: number; driving: number; waiting: number };
 
 /** Elmina Day in the list view: the clock and what the residents are doing, as text. */
 export function DayListSection() {
-  const day = useScene((s) => s.day);
-  const q = useDay(day.scenario, day.on);
+  const on = useScene((s) => s.day.on);
+  const t = useScene((s) => s.day.t);
+  const playing = useScene((s) => s.day.playing);
+  const scenario = useScene((s) => s.day.scenario);
+  const day = { on, t, scenario };
+  const q = useDay(scenario, on);
   const d = q.data as
     | { scenario?: { label?: string; stages?: [number, string | null][] }; timeline?: Bin[] }
     | undefined;
@@ -23,9 +27,10 @@ export function DayListSection() {
         {d.scenario?.label ?? "Simulated day"} · {hhmm(day.t)}
       </h2>
       <p className="mt-1 text-sm text-ink-soft">{DAY_LEGEND}</p>
-      <p className="mt-2 text-sm" aria-live="polite">
-        {bin?.walking ?? 0} walking, {bin?.driving ?? 0} driving, {bin?.waiting ?? 0} waiting for
-        the water.{" "}
+      {/* announced only when the clock is stopped, not ten times a second */}
+      <p className="mt-2 text-sm" aria-live={playing ? "off" : "polite"}>
+        {bin?.walking ?? 0} walking, {bin?.driving ?? 0} driving, {bin?.waiting ?? 0} waiting for a
+        way through.{" "}
         {stage
           ? `River ${stage.replace("stage_p", "+").replace("m", " m")} (indicative scenario).`
           : "River at its normal level."}

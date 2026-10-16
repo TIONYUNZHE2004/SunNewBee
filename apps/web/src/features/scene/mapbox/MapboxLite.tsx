@@ -181,25 +181,29 @@ export default function MapboxLite() {
   const lensVisible = useScene((s) => s.lensVisible);
   const route = useScene((s) => s.route);
   const whatIf = useScene((s) => s.whatIf);
-  const day = useScene((s) => s.day);
-  const dayQ = useDay(day.scenario, day.on);
+  const dayOn = useScene((s) => s.day.on);
+  const dayScenario = useScene((s) => s.day.scenario);
+  const dayFocus = useScene((s) => s.day.focus);
+  // about 5 updates a second at most: the lite map redraws its source on every change
+  const dayStep = useScene((s) => Math.floor(s.day.t / 3));
+  const dayQ = useDay(dayScenario, dayOn);
   const dayPrepared = useMemo(
     () => prepare((dayQ.data as { tracks?: Tracks } | undefined)?.tracks),
     [dayQ.data],
   );
   const dayDots = useMemo(
     () =>
-      day.on
+      dayOn
         ? {
             type: "FeatureCollection",
-            features: dotsAt(dayPrepared, day.t).map((d) => ({
+            features: dotsAt(dayPrepared, dayStep * 3).map((d) => ({
               type: "Feature",
               geometry: { type: "Point", coordinates: [d.lon, d.lat] },
-              properties: { state: d.state, focus: d.r === day.focus },
+              properties: { state: d.state, focus: d.r === dayFocus },
             })),
           }
         : null,
-    [day.on, day.t, day.focus, dayPrepared],
+    [dayOn, dayStep, dayFocus, dayPrepared],
   );
   const focusPlaceId = useScene((s) => s.focusPlaceId);
   const camera = useScene((s) => s.camera);

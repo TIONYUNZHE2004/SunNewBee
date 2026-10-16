@@ -1027,3 +1027,18 @@ The reviewer read 390 AI diary lines, 30 feed posts and 15 decision reasons from
 **Integration notes for shaoxian04:**
 - New: `features/day/*`, `map-ui/DayTag`, `scene/cesium/DayLayer`, `scene/list/DayListSection`, and a `day` source in MapboxLite.
 - Store: `day`, `setDay`, `setDayStage`. `setDayStage` changes the river level without clearing routes.
+
+### Cycle 12 review (independent Opus reviewer) and fixes (17 Oct, 03:32)
+
+| # | Severity | Finding | Fix |
+|---|---|---|---|
+| C1 | Critical | The day's clock, river sync and restore lived in the panel. Switching to Resident mode left a frozen day on the map, with the river stuck and no Close button. | `useDayPlayback` is mounted with the map (like the rollout hook). Leaving Management mode, or starting the river rollout, ends the day. |
+| C2 | Critical | The prior scenario was re-captured on every Play and never captured on a slider move, so Close could restore the day's own stage or wipe the user's scenario. The flood lens was never restored. | The scenario and flood lens are captured once, when the day turns on, and restored when it turns off. Tested in jsdom, including pause and resume. |
+| I1 | Important | The map showed 1,500 of 5,000 residents without saying so. | "The map shows 1,500 of 5,000 residents" in the panel, and "showing … of …" in the map legend. |
+| I2 | Important | A river level the user picked during playback was snapped back at the next stage change, conflicting with the rollout. | A river level the user picks ends the day and stays. The day and the rollout end each other. Tested. |
+| I3 | Important | Switching the scenario mid-play kept the clock ticking with no data. | Switching scenario pauses; the clock ticks only once the day has loaded. |
+| I4 | Important | A live region fired 10 times a second. | Removed from the per-tick text. The List view announces only when the clock is stopped. |
+| I5 | Important | Every day component re-rendered on every tick, and the lite map rebuilt its source at 10 Hz. | Per-field selectors; the lite map updates at most about 5 times a second. |
+| m | Minor | Tab semantics; slider value text; focus lost on Close; follow flew to home, not the dot; "waiting for the water" also counted waits at home; reply keys could collide. | Tabpanel with aria-controls, `aria-valuetext` on the slider, focus back to the opener, fly to the dot's position at the clock, "waiting for a way through", stable keys. `Button` takes a `ref` (React 19 `ComponentProps`). |
+
+Checklist: lint PASS, vitest PASS (471), e2e PASS (16), typecheck PASS.
