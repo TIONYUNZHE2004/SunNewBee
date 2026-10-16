@@ -79,6 +79,16 @@ Playwright does.
 - **Where tickets come from:** each ticket is a verification request (VR) the assistant filed for
   a gap (`GET /verification-requests`). `ticketModel.ts` groups them into "To check" and "Checked";
   `queueLabels.ts` turns the attribute, element and reason into words (never a raw id).
+- **Queue layout:** "To check" and "Checked" are tabs (`role="tablist"`, roving tabindex: Left and
+  Right arrows move between tabs with wrapping, Home and End jump to the first and last, only the
+  selected tab is in the Tab order). Each "To check" row carries an **asked meter**, a bar exposed as
+  `role="meter"` with the label "Asked N time(s)", scaled to the most-asked open ticket. The selected
+  row is marked with an accent **outline** and a left bar, and `aria-pressed="true"`.
+- **Outcome choice cards:** the outcomes are native radios styled as cards (Tab and Space work).
+  The chosen card gets a 2 px accent border, a tinted fill and a check glyph (decorative,
+  `aria-hidden`).
+- **Before/after highlight:** after a save, the "Now" side of `BeforeAfter` is highlighted for
+  1.2 s with the focus-colour ring and an offset, so it shows on the accent-filled card.
 - **How a ticket is resolved:** staff open a ticket and choose an outcome in `OutcomeForm`
   (verify, correct or reject), with a value for a correction and an optional photo (JPEG or PNG up
   to 5 MB, uploaded with `POST /evidence` and attached via `evidence_id`). The save goes to
@@ -156,11 +166,17 @@ handle (a 44 px target, with step buttons and keyboard: arrows, Home, End, Escap
 | --- | --- | --- |
 | peek | 9.5 rem | the composer only |
 | half | 55 dvh | the conversation |
-| full | `calc(100% - 6rem)` | the conversation, leaving the top stack (route tag, flood banner) clear |
+| full | `calc(100% - var(--top-h, 6rem) - 0.5rem)` | the conversation, leaving the top stack (route tag, flood banner) clear |
 
+`MainPage`'s root is `absolute inset-0` inside the Shell's `main`, which gives the map area a
+definite height on phones too (below `lg` the Shell is only `min-h-screen`). It publishes
+`--sheet-h` (the height the sheet covers) and `--top-h` (the TopStack's bottom, measured with a
+ResizeObserver); the place/path card stack, the Map settings gear and popover and the camera
+controls sit `--sheet-h` above the bottom. A Playwright test checks the layout at 390×844.
 At `full` the map attribution strip is rendered on the sheet's bottom edge, since the map strip
 would be covered (the licence requires it to stay visible). Asking a question from `peek` opens the
-sheet to `half`. The sheet state lives in `panelStore` (`usePanel().sheet`).
+sheet to `half`. On wide screens, an ask from elsewhere (Tickets "Ask the question again", a place
+card's "Ask about this place") opens a closed assistant panel first. The sheet state lives in `panelStore` (`usePanel().sheet`).
 
 ## Icons
 
@@ -180,10 +196,12 @@ glyphs do not justify it. Add a glyph by adding a path to `PATHS` and a name to 
 - **Demo-value chip:** whenever the answer cites `team_survey_placeholder` evidence, the strip shows
   "Demo value · not surveyed", even without a route chip, so a bare status never reads as surveyed
   fact.
-- **Show on map:** the button appears only on the card whose route is the scene's current route and
-  flies the camera to it (`requestRouteFocus`); older cards do not offer it.
-- **Evidence collapses:** the evidence list sits behind a header such as "N sources · M with demo
-  values (not surveyed)". Open it for the claim-by-claim list.
+- **Show on map:** the button appears only on the card whose route is the scene's current route, and
+  only in the 3D view (List and Lite map ignore it); it flies the camera to the route
+  (`requestRouteFocus`). Older cards do not offer it.
+- **Evidence collapses:** the evidence list sits behind a header such as "Evidence · 3 sources ·
+  2 with demo values (not surveyed)", with singular forms for one ("Evidence · 1 source · 1 with a
+  demo value (not surveyed)"). Open it for the claim-by-claim list.
 - **Honesty notes never collapse:** the uncertainty note ("Not verified"), the flood disclaimer
   ("indicative scenario, not a forecast", MBSA / JPS / NADMA) and the tickets-created line are
   always visible.
