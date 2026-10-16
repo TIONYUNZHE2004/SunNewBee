@@ -234,3 +234,168 @@ def test_the_template_skips_empty_or_unlabelled_groups():
     }
     a = FinalAnswer(**day_answer(d, ["ev-day-weekday"]))
     assert not any("Empty" in x or "of 0" in x for x in a.steps), a.steps
+
+
+# Cycle 17: the assistant tests an imagined change on a rehearsal (day_test_change).
+CHANGE = {
+    "scenario": {"id": "storm", "label": "Storm at the school run"},
+    "option": 1,
+    "change": "Imagine the flooded stretch on Jalan Sungai Buloh (about 931 m) raised so it "
+    "never floods in any scenario (best case)",
+    "why": "on the usual route of 1129 residents whose trips the water cut",
+    "relied_on": 1129,
+    "options": [
+        {"option": 1, "change": "Imagine A raised", "why": "x", "count": 1129},
+        {"option": 2, "change": "Imagine B raised", "why": "y", "count": 247},
+    ],
+    "residents_better": 823,
+    "residents_worse": 0,
+    "trips_better": 1645,
+    "trips_worse": 0,
+    "groups": [
+        {"label": "Households without a car", "residents": 442, "better_off": 80, "worse_off": 0}
+    ],
+    "river_stages": ["stage_p1m", "stage_p3m"],
+}
+
+
+def _crec():
+    r = TurnRecord(tool_calls=["day_test_change"], day_changes=[CHANGE])
+    r.place_names |= {"Households without a car", CHANGE["change"], CHANGE["why"]}
+    r.evidence["ev-daychange-storm-1"] = Evidence(
+        id="ev-daychange-storm-1", element_id="day", attribute="storm change 1", status="indicative"
+    )
+    return r
+
+
+def _cans(
+    summary, caveats=("Imagined change on a rehearsal of synthetic residents, not a forecast.",)
+):
+    return FinalAnswer(
+        answer_status="answered",
+        summary=summary,
+        caveats=list(caveats),
+        claims=[Claim(text="change", status="indicative", evidence_ids=["ev-daychange-storm-1"])],
+    )
+
+
+def test_the_change_template_passes_the_validator():
+    from townshiplens_agent.template import day_change_answer
+
+    a = FinalAnswer(**day_change_answer(CHANGE, ["ev-daychange-storm-1"]))
+    assert validate_answer(a, _crec()) == []
+    assert "823 residents would be better off and 0 worse off" in a.summary
+    assert any("(option 2)" in s for s in a.steps)
+
+
+@pytest.mark.parametrize(
+    "summary,why",
+    [
+        (
+            "Raising it would help 823 residents and 0 would be worse off. Not a forecast.",
+            "imagined",
+        ),
+        ("Raising it will be built next year: 823 residents better off.", "not a plan"),
+        ("In this imagined change, 900 residents would be better off.", "appear"),
+        ("In this imagined change, most of the residents would be better off.", "digits"),
+        # live smoke test C17: only option 1 was tested, so it is not "the best"
+        ("The change that would help most: 823 residents would be better off.", "top suggestion"),
+        ("This is the best change: 823 residents would be better off.", "top suggestion"),
+    ],
+)
+def test_dishonest_change_answers_are_rejected(summary, why):
+    errs = validate_answer(
+        _cans(summary, [] if why == "imagined" else _cans.__defaults__[0]), _crec()
+    )
+    assert any(why in e for e in errs), errs
+
+
+def test_the_assistant_tests_a_change_end_to_end_on_the_seed():
+    seed = Path(__file__).resolve().parents[3] / "data" / "seed" / "elmina"
+    ctx = tools.Ctx(world=load_world(seed), vrs=VerificationStore(":memory:"))
+    rec = TurnRecord()
+
+    async def go():
+        q = "Which change would help most residents in the storm rehearsal?"
+        s = AgentSettings(_env_file=None, llm_provider="mock")
+        return [e async for e in run_turn(ctx, ChatRequest(message=q), s, record=rec)]
+
+    evs = asyncio.run(go())
+    assert evs[-1].model == "mock-scripted" and rec.validator_errors == []
+    kinds = [e.intent.kind for e in evs if e.type == "scene.intent"]
+    assert kinds == ["day.show", "whatif.diff"], kinds  # day.show first, or it clears the diff
+    diff = next(
+        e.intent.geojson for e in evs if e.type == "scene.intent" and e.intent.kind == "whatif.diff"
+    )
+    assert diff and diff["features"]
+    assert any(e.type == "disclaimer" and e.lens == "whatif" for e in evs)
+    text = "".join(e.delta for e in evs if e.type == "text.delta")
+    assert "residents would be better off" in text and "not a forecast" in text
+    # the map geometry never reaches the model
+    from townshiplens_agent.agent import _for_model
+
+    out = _for_model("day_test_change", {"data": dict(rec.day_changes[0])})
+    assert "changed_geojson" not in out["data"]
+
+
+def test_day_test_change_rejects_an_unknown_option():
+    ctx = tools.Ctx(world=load_world(TINY), vrs=VerificationStore(":memory:"))
+    r = tools.TOOLS["day_test_change"](ctx, day="weekday", option=99)
+    assert not r.ok and "option must be 1 to" in r.warnings[0]
+
+
+def test_suggested_changes_never_read_the_same_twice():
+    ctx = tools.Ctx(world=load_world(TINY), vrs=VerificationStore(":memory:"))
+    c = tools.day_changes(ctx, "weekday").data["candidates"]
+    pairs = [(x["label"], x["why"]) for x in c]
+    assert len(pairs) == len(set(pairs)), pairs
+
+
+def test_the_mock_keeps_fixit_questions_apart_from_day_changes():
+    import re
+
+    from townshiplens_agent.mock import _DAY_CHANGE
+
+    assert not re.search(
+        _DAY_CHANGE, "which 2 changes would help wheelchair users most on everyday trips?"
+    )
+    assert re.search(_DAY_CHANGE, "what if we raise the flooded road in the storm rehearsal?")
+
+
+def test_day_show_goes_before_a_model_written_diff():
+    """Live smoke test C17: the model wrote whatif.diff itself; day.show must still come first."""
+    from townshiplens_agent.events import SceneIntent
+    from townshiplens_agent.run import _answer_events
+
+    rec = _crec()
+    rec.day_changes[0] = {
+        **CHANGE,
+        "show_at": "07:25",
+        "changed_geojson": {"type": "FeatureCollection", "features": [{}]},
+    }
+    a = FinalAnswer(
+        **{
+            **__import__("townshiplens_agent.template", fromlist=["x"]).day_change_answer(
+                CHANGE, ["ev-daychange-storm-1"]
+            ),
+            "scene_intents": [SceneIntent(kind="whatif.diff")],
+        }
+    )
+    ctx = tools.Ctx(world=load_world(TINY), vrs=VerificationStore(":memory:"))
+    kinds = [e.intent.kind for e in _answer_events(a, rec, ctx) if e.type == "scene.intent"]
+    assert kinds == ["day.show", "whatif.diff"], kinds
+
+
+@pytest.mark.parametrize(
+    "summary",
+    [
+        # the live model's honest wording (Cycle 17), rejected before negation was read
+        "In the storm rehearsal, the top suggestion is an imagined change. This is a top "
+        "suggestion, not a proven best option. 823 residents would be better off and 0 worse off.",
+        "I tested only this 1 of 2 suggested changes, so it is the top suggestion, not the best "
+        "option. 823 residents would be better off.",
+    ],
+)
+def test_a_negated_best_claim_is_honest(summary):
+    errs = validate_answer(_cans(summary), _crec())
+    assert not any("top suggestion" in e for e in errs), errs

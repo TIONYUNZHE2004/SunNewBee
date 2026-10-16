@@ -404,6 +404,7 @@ def validate_answer(ans: FinalAnswer, rec: TurnRecord) -> list[str]:
     errs += rollout_errors(ans, rec)
     errs += foreign_number_errors(ans, rec)
     errs += day_errors(ans, rec)
+    errs += day_change_errors(ans, rec)
     errs += affected_errors(ans, rec)
     # Honesty rules apply to every answer, whether or not a tool ran.
     errs += text_errors(all_text, rec)
@@ -720,6 +721,13 @@ def day_errors(ans: FinalAnswer, rec: TurnRecord) -> list[str]:
             f"{gaps} trips had no mapped connection: say so as a data gap with its count "
             "(for example 'N had no mapped connection (data gap)')."
         )
+    errs += _day_number_errors(text, rec, "trips by outcome, residents by group, school")
+    return errs
+
+
+def _day_number_errors(text: str, rec: TurnRecord, what: str) -> list[str]:
+    """Every count is a digit the rehearsal (or the change tested on it) produced."""
+    errs = []
     named = _strip_names(text, rec.place_names)
     if (
         DAY_PERCENT.search(named)
@@ -728,15 +736,68 @@ def day_errors(ans: FinalAnswer, rec: TurnRecord) -> list[str]:
         or re.search(r"\b\d+\.\d{3}\b", named)
     ):
         errs.append("Give counts as digits copied from the rehearsal, not percentages or words.")
-    allowed = set().union(*(_ints(d) for d in rec.days)) if rec.days else set()
+    allowed = set().union(set(), *(_ints(d) for d in [*rec.days, *rec.day_changes]))
     plain = _DAY_NOT_COUNT.sub(" ", _HHMM.sub(" ", named))
     spoken = {int(m.group(1).replace(",", "")) for m in _DAY_COUNT.finditer(plain)}
     if (bad := spoken - allowed) and (bad := sorted(bad - _stated_sums(plain, allowed))):
         errs.append(
-            f"Numbers {bad} do not appear in the rehearsal: quote only its counts "
-            "(trips by outcome, residents by group, school)."
+            f"Numbers {bad} do not appear in the rehearsal: quote only its counts ({what})."
         )
     return errs
+
+
+IMAGINED = re.compile(r"\bimagin|\bwhat-if\b|\bbayangkan|\bandaian\b|假设|设想", re.IGNORECASE)
+
+
+def day_change_errors(ans: FinalAnswer, rec: TurnRecord) -> list[str]:
+    """An imagined change tested on a rehearsal (Cycle 17): called imagined, on synthetic
+    residents, not a plan and not a forecast, never "will be built", and only its counts."""
+    if not rec.day_changes or ans.answer_status == "cannot_answer":
+        return []
+    text = " ".join([ans.summary, *ans.steps, *ans.caveats])
+    errs = []
+    if not IMAGINED.search(text) or not SYNTHETIC.search(text):
+        errs.append(
+            "A tested change must be called imagined, on a rehearsal of synthetic residents."
+        )
+    if not has_not_forecast(text):
+        errs.append("A tested change must say it is not a forecast (include 'not a forecast').")
+    if WHATIF_AS_PLAN.search(text) or DAY_FORECAST.search(text):
+        errs.append(
+            "An imagined change is not a plan: never say it will be built, and say what would "
+            "change in the rehearsal, not what will happen to real residents."
+        )
+    tested = {c.get("option") for c in rec.day_changes}
+    offered = max(len(c.get("options") or []) for c in rec.day_changes)
+    if _claims_best(text) and len(tested) < offered:
+        errs.append(
+            f"Only {len(tested)} of {offered} suggested changes were tested: call it the top "
+            "suggestion (the one the most residents relied on), not the best or the one that "
+            "helps most."
+        )
+    errs += _day_number_errors(
+        text, rec, "residents and trips better or worse off, by group, and the change's own"
+    )
+    return errs
+
+
+def _claims_best(text: str) -> bool:
+    """A ranking claim that is not negated ("not the best option", "not a proven best" are the
+    honest wording, seen in the live smoke test of Cycle 17)."""
+    for m in BEST_CHANGE.finditer(text):
+        before = text[max(0, m.start() - 30) : m.start()].lower()
+        if not re.search(r"\bnot\b|\bbukan\b|不是|未必|n't\b", before):
+            return True
+    return False
+
+
+# "the best change", "would help most", "the most effective": a ranking needs every option tested
+BEST_CHANGE = re.compile(
+    r"\bbest (?:change|option|fix|choice|one)\b|\bhelps? (?:the )?most\b|\bwould help most\b"
+    r"|\bmost (?:effective|helpful|useful)\b"
+    r"|\bterbaik\b|\bpaling (?:berkesan|membantu)\b|最好|最有效",
+    re.IGNORECASE,
+)
 
 
 # "35 places", "35 tempat", "35个地点": a count of places (review B1: path segments are not places).
@@ -1028,6 +1089,13 @@ _ISSUES = (
     ("No costs or feasibility are modelled", "made up a cost or feasibility claim"),
     ("cannot be repeated from memory", "repeated earlier what-if numbers without re-checking"),
     ("not percentages", "gave percentages instead of simulated counts"),
+    ("do not appear in the rehearsal", "used numbers the rehearsal did not produce"),
+    ("suggested changes were tested", "called an untested change the best"),
+    ("must be called imagined", "did not say the change is imagined"),
+    ("must be called a rehearsal", "did not say it is a rehearsal of synthetic residents"),
+    ("say so as a data gap", "left out the data gap"),
+    ("does not predict what will happen", "predicted what will happen to real residents"),
+    ("An imagined change is not a plan", "described an imagined change as a plan"),
     ("with a river stage must say", "did not say the flood scenario is not a forecast"),
     ("rest on demo values", "left out that the imagined routes use demo values"),
     ("A what-if is not a real plan", "described a what-if as a real plan"),

@@ -88,3 +88,7 @@
   message: "Apa yang berlaku kepada penduduk dalam latihan malam acara di taman?"
   profile: default
   expect: { tools_include: [day_rehearsal], events_include: [scene.intent, citation], text_excludes: [" safe", "selamat"], mock_only: { text_includes: ["synthetic", "not a forecast", "night"] } }
+- id: day-test-a-change
+  message: "Which change should we test in the weekday rehearsal?"
+  profile: default
+  expect: { tools_include: [day_test_change], events_include: [scene.intent, citation, disclaimer], text_includes: ["imagined", "synthetic", "not a forecast"], text_excludes: ["will be built", " safe", "%"] }

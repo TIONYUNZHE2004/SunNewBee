@@ -359,6 +359,22 @@ async def call_tool(deps: Deps, name: str, **kwargs: Any) -> dict:
         }
         # group labels hold digits ("Older residents (65+)"): names, not counts
         rec.place_names |= {g["label"] for g in res.data.get("groups") or [] if g.get("label")}
+    if name == "day_test_change" and res.ok and isinstance(res.data, dict):
+        rec.day_changes.append(res.data)
+        stages = res.data.get("river_stages") or []
+        if stages:
+            by_m = {s.id: s.stage_m for s in deps.ctx.world.flood.scenarios}
+            top = max(stages, key=lambda s: by_m.get(s, 0))
+            rec.scenarios_used.add(top)
+            rec.day_stages.add(top)
+        # labels are server text with digits ("about 931 m", "of 1129 residents"): names
+        rec.place_names |= {g["label"] for g in res.data.get("groups") or [] if g.get("label")}
+        rec.place_names |= {
+            t
+            for o in [res.data, *(res.data.get("options") or [])]
+            for t in (o.get("change"), o.get("why"))
+            if t
+        }
     if name == "river_tipping_point" and res.ok and isinstance(res.data, dict):
         rec.tippings.append(res.data)
         rec.place_names |= {
@@ -378,7 +394,10 @@ async def call_tool(deps: Deps, name: str, **kwargs: Any) -> dict:
 
 # Id lists the model never needs: on the Elmina seed affected_places at +5 m lists 2,468 edge ids
 # (825 KB), which pushed a live turn past its timeout (eval, Cycle 5). Totals stay.
-_MODEL_DROP = {"affected_places": ("likely_edge_ids", "possible_edge_ids")}
+_MODEL_DROP = {
+    "affected_places": ("likely_edge_ids", "possible_edge_ids"),
+    "day_test_change": ("changed_geojson",),  # for the map only
+}
 _MODEL_CAP = {"affected_places": ("likely_place_ids", "possible_place_ids")}
 
 
@@ -636,6 +655,21 @@ def build_agent(model: Model) -> Agent[Deps, FinalAnswer]:
         river stage: counts per stage (reach, confirmed, cut_off, no_data) and who is cut off
         first. The app animates it on the map. Indicative simulation, not a forecast."""
         return await call_tool(ctx.deps, "rising_river_rollout", profiles=profiles, n=n)
+
+    @agent.tool
+    async def day_test_change(
+        ctx: RunContext[Deps],
+        day: Literal["weekday", "storm", "event", "friday"] = "storm",
+        option: int = 1,
+    ) -> dict:
+        """Test an imagined change on an Elmina Day rehearsal: the same day of 5,000 synthetic
+        residents is run again with the change, and compared trip by trip (residents better and
+        worse off, by group). Option 1 is the day's top suggestion (on a storm day the flooded
+        stretch the most residents relied on); `options` in the result names them all, so call
+        again with another number to test another. Imagined: never a plan or a forecast."""
+        return await call_tool(
+            ctx.deps, "day_test_change", day=str(day).strip().lower(), option=int(option)
+        )
 
     @agent.tool
     async def day_rehearsal(

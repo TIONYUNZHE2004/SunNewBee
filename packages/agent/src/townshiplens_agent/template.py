@@ -374,6 +374,55 @@ def day_answer(d: dict, evidence_ids: list[str]) -> dict:
     }
 
 
+DAY_CHANGE_CAVEAT = (
+    "Imagined change on a rehearsal of synthetic residents: not a plan, not a promise and not a "
+    "forecast. The real township is unchanged."
+)
+
+
+def day_change_answer(c: dict, evidence_ids: list[str]) -> dict:
+    """FinalAnswer fields for an imagined change tested on an Elmina Day rehearsal (shared by
+    the mock and the template). Every number is copied from the tool's result."""
+    sc = c.get("scenario") or {}
+    better, worse = c.get("residents_better", 0), c.get("residents_worse", 0)
+    summary = (
+        f"On the {sc.get('label', 'simulated day')} rehearsal of synthetic residents: "
+        f"{c.get('change', 'an imagined change')}. In that imagined day, {better:,} residents "
+        f"would be better off and {worse:,} worse off ({c.get('trips_better', 0):,} trips better, "
+        f"{c.get('trips_worse', 0):,} worse). Not a plan and not a forecast."
+    )
+    steps = [
+        f"{g['label']}: {g.get('better_off', 0):,} better off, {g.get('worse_off', 0):,} worse off."
+        for g in c.get("groups") or []
+        if g.get("label") and g.get("residents")
+    ]
+    if c.get("why"):
+        top = "the day's top suggestion, " if c.get("option") == 1 else ""
+        steps.insert(0, f"Why this change: {top}{c['why']}.")
+    others = [o for o in c.get("options") or [] if o.get("option") != c.get("option")]
+    if others:
+        steps.append(
+            f"Another change to test (option {others[0]['option']}): {others[0]['change']}."
+        )
+    caveats = [DAY_CHANGE_CAVEAT]
+    if c.get("river_stages"):
+        caveats.append(FLOOD_GUIDANCE)
+    return {
+        "answer_status": "answered",
+        "summary": summary,
+        "steps": steps[:6],
+        "claims": [
+            {
+                "text": "Imagined change on a rehearsal",
+                "status": "indicative",
+                "evidence_ids": evidence_ids,
+            }
+        ],
+        "scenario_id": _top_stage(c.get("river_stages") or []),
+        "caveats": caveats,
+    }
+
+
 def _top_stage(stages: list[str]) -> str | None:
     import re
 
@@ -398,6 +447,7 @@ def template_answer(rec: TurnRecord, question: str) -> FinalAnswer:
     closed = [*rec.route_closures, *rec.asked_closures]
     last_fixit = bool(rec.what_ifs and rec.what_ifs[-1].get("fixit"))
     for items, fn, prefix in (
+        (rec.day_changes, day_change_answer, "ev-daychange-"),
         (rec.days, day_answer, "ev-day-"),
         (rec.fixes if last_fixit else [], fixit_answer, "ev-fixit-"),
         (rec.tippings, tipping_answer, "ev-tip-"),

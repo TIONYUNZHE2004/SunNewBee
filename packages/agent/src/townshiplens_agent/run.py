@@ -223,22 +223,26 @@ def _answer_events(
 
     intents = list(ans.scene_intents)
     intents = [i for i in intents if i.kind != "day.show"]  # only ever built by the server
-    if rec.days:
+    if rec.days or rec.day_changes:
         # The map opens the rehearsal the answer came from, paused at its peak, with that day's
         # own river stage. day.show carries the stage, so no separate flood.set_level is sent
         # (the client remembers what was on screen before the day and restores it on close).
-        d = rec.days[-1]
+        d = (rec.day_changes or rec.days)[-1]
         hh, _, mm = str(d.get("show_at") or "").partition(":")
         intents = [i for i in intents if i.kind != "flood.set_level"]
-        intents.append(
+        # first: it sets the day's river level, which would clear a what-if diff drawn before it
+        intents.insert(
+            0,
             SceneIntent(
                 kind="day.show",
                 day=(d.get("scenario") or {}).get("id"),
                 t_min=int(hh) * 60 + int(mm) if hh.isdigit() and mm.isdigit() else None,
                 scenario_id=_top_stage(d.get("river_stages") or []),
-            )
+            ),
         )
     diff = next((w["diff_geojson"] for w in reversed(rec.what_ifs) if w.get("diff_geojson")), None)
+    if rec.day_changes and rec.day_changes[-1].get("changed_geojson"):
+        diff = rec.day_changes[-1]["changed_geojson"]  # the imagined change, drawn on the map
     if diff and not any(i.kind == "whatif.diff" for i in intents):
         intents.append(SceneIntent(kind="whatif.diff"))  # a what-if is always drawn as a diff
     if rec.rollouts and not any(i.kind == "river.rollout" for i in intents):
@@ -307,10 +311,9 @@ def _answer_events(
         level = "high"
     evs.append(Uncertainty(level=level, items=items))
 
-    if rec.what_ifs:  # before the flood disclaimer, which stays the last word when both apply
-        evs.append(
-            Disclaimer(lens="whatif", text=rec.what_ifs[-1].get("disclaimer") or WHATIF_NOTE)
-        )
+    if rec.what_ifs or rec.day_changes:  # before the flood disclaimer, the last word
+        last = (rec.day_changes or rec.what_ifs)[-1]
+        evs.append(Disclaimer(lens="whatif", text=last.get("disclaimer") or WHATIF_NOTE))
     if (
         rec.scenarios_used
         or ans.scenario_id
@@ -452,7 +455,10 @@ async def run_turn(
     # Follow-up context: the question and the answer as shown (template fallbacks included).
     shown = "".join(e.delta for e in events if isinstance(e, TextDelta))
     memory.add_turn(
-        req.session_id, req.message, shown, simulated=bool(rec.what_ifs or rec.plans or rec.days)
+        req.session_id,
+        req.message,
+        shown,
+        simulated=bool(rec.what_ifs or rec.plans or rec.days or rec.day_changes),
     )
     for ev in events:
         yield ev

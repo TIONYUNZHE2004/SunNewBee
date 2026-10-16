@@ -1476,3 +1476,69 @@ def day_rehearsal_summary(ctx: Ctx, day: str = "storm") -> ToolResult:
 
 
 TOOLS["day_rehearsal"] = day_rehearsal_summary
+
+
+def day_test_change(ctx: Ctx, day: str = "storm", option: int = 1) -> ToolResult:
+    """For the assistant: run one of the day's own suggested changes (option 1 is the top
+    suggestion; `options` names them all) on the same simulated day, before and after: residents
+    better and worse off, by group. An imagined change on a rehearsal of synthetic residents:
+    never a plan, a promise or a forecast. The change comes from the server's list, never from
+    the model."""
+    scenario_id = str(day).strip().lower()
+    ch = day_changes(ctx, scenario_id)
+    if not ch.ok:
+        return ch
+    cands = ch.data["candidates"]
+    if not cands:
+        return ToolResult(ok=False, warnings=["no change to test on this day"])
+    try:
+        n = int(option)
+    except (TypeError, ValueError):
+        n = 1
+    if not 1 <= n <= len(cands):
+        return ToolResult(ok=False, warnings=[f"option must be 1 to {len(cands)}"])
+    pick = cands[n - 1]
+    res = day_compare(ctx, scenario_id, [pick["action"]])
+    if not res.ok:
+        return res
+    d = res.data
+    full = day_rehearsal(ctx, scenario_id)
+    sc = (full.data or {}).get("scenario", {}) if full.ok else {}
+    data = {
+        "scenario": {k: sc.get(k) for k in ("id", "label")},
+        "option": n,
+        "change": pick["label"],
+        "why": pick["why"],
+        "relied_on": pick.get("count"),
+        "options": [
+            {"option": i + 1, "change": c["label"], "why": c["why"], "count": c.get("count")}
+            for i, c in enumerate(cands)
+        ],
+        "residents_better": d["residents_better"],
+        "residents_worse": d["residents_worse"],
+        "trips_better": d["trips_better"],
+        "trips_worse": d["trips_worse"],
+        "groups": [
+            {k: g[k] for k in ("label", "residents", "better_off", "worse_off")}
+            for g in d["groups"]
+            if g["id"] != "everyone" and (g["better_off"] or g["worse_off"])
+        ],
+        "baseline": d["baseline"],
+        "disclaimer": d["disclaimer"],
+        "river_stages": [s for _, s in sc.get("stages", []) if s],
+        "show_at": _day_show_at(ctx, sc, (full.data or {}).get("places", [])) if full.ok else None,
+        # for the map only (the agent drops it before the model sees the result)
+        "changed_geojson": d.get("changed_geojson"),
+    }
+    ev = Evidence(
+        id=f"ev-daychange-{scenario_id}-{n}",
+        element_id="day",
+        attribute=f"{scenario_id} change {n}",
+        value={"better": data["residents_better"], "worse": data["residents_worse"]},
+        status="indicative",
+        source_type="rehearsal",
+    )
+    return ToolResult(ok=True, data=data, evidence=[ev], warnings=[d["disclaimer"]])
+
+
+TOOLS["day_test_change"] = day_test_change

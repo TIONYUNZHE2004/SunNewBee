@@ -28,6 +28,7 @@ def test_registry_has_the_ten_lookups_and_three_world_model_tools(ctx):
         "rising_river_rollout",
         "find_fixes",
         "day_rehearsal",
+        "day_test_change",
     }
 
 

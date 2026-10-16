@@ -19,6 +19,7 @@ from .labels import (
 )
 from .template import (
     day_answer,
+    day_change_answer,
     fixit_answer,
     plan_answer,
     rollout_answer,
@@ -444,20 +445,23 @@ def _whatif(q: str, rets, info: AgentInfo) -> ModelResponse:
 _DAY = r"\brehears|\bsimulated day\b|\belmina day\b|\ba day in elmina\b|\blatihan\b"
 
 
+def _day_id(q: str) -> str:
+    return (
+        "storm"
+        if re.search(r"storm|flood|rain|river|banjir|ribut|水", q)
+        else "weekday"
+        if re.search(r"weekday|hari biasa", q)
+        else "friday"
+        if re.search(r"friday|jumaat|jumat|prayer", q)
+        else "event"
+        if re.search(r"event|night|park|community|acara|malam|taman", q)
+        else "weekday"
+    )
+
+
 def _day(q: str, rets, info: AgentInfo) -> ModelResponse:
     if not rets:
-        sid = (
-            "storm"
-            if re.search(r"storm|flood|rain|river|banjir|ribut|水", q)
-            else "weekday"
-            if re.search(r"weekday|hari biasa", q)
-            else "friday"
-            if re.search(r"friday|jumaat|jumat|prayer", q)
-            else "event"
-            if re.search(r"event|night|park|community|acara|malam|taman", q)
-            else "weekday"
-        )
-        return _call("day_rehearsal", day=sid)
+        return _call("day_rehearsal", day=_day_id(q))
     d = _data(rets[-1][1])
     if not isinstance(d, dict):
         return _cannot("I couldn't run the simulated day on the township model.")
@@ -465,10 +469,30 @@ def _day(q: str, rets, info: AgentInfo) -> ModelResponse:
     return _final(**day_answer(d, ev))
 
 
+_DAY_CHANGE = (
+    r"(?=.*(?:\brehears|\bstorm\b|\bribut\b|\blatihan\b|\bsimulated day\b))"
+    r"(?=.*(?:\bchange\b|\braise[ds]?\b|\bperubahan\b|\btinggikan\b))"
+)
+
+
+def _day_change(q: str, rets, info: AgentInfo) -> ModelResponse:
+    if not rets:
+        m = re.search(r"\boption (\d)\b|\bpilihan (\d)\b", q)
+        n = int(next(g for g in m.groups() if g)) if m else 1
+        return _call("day_test_change", day=_day_id(q), option=n)
+    d = _data(rets[-1][1])
+    if not isinstance(d, dict):
+        return _cannot("I couldn't test that change on the simulated day.")
+    ev = [i for i in _ev_ids(rets) if i.startswith("ev-daychange-")]
+    return _final(**day_change_answer(d, ev))
+
+
 def _script(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
     q = _prompt(messages).lower()
     rets = _returns(messages)
     n = len(rets)
+    if re.search(_DAY_CHANGE, q):
+        return _day_change(q, rets, info)
     if re.search(_DAY, q):
         return _day(q, rets, info)
     if re.search(_FIXIT, q):

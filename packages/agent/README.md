@@ -85,6 +85,16 @@ model is dropped, because the label line already says it.
 - **Shared wording:** `template.day_answer` (school first, then groups by share hit).
 - **Scene intent (server-built):** `day.show` (the day, `t_min`, the day's own peak stage). The map opens the rehearsal at the moment the answer is about, and the client restores what was on screen when the day closes. In Resident mode only the stage is shown. A model-written `day.show` or `flood.set_level` is dropped for a rehearsal turn, and the model is never asked for `scenario_id`.
 
+**Testing a change on a rehearsal (Cycle 17):**
+- **Tool:** `day_test_change(day, option)`. It runs one of the day's own suggested changes, so the model never writes an action: option 1 is the top suggestion, and `options` lists the rest by number. The same day is run again with the change and compared trip by trip, giving residents better and worse off by group.
+- **What the model sees:** `changed_geojson` is dropped; it is for the map only.
+- **Validator (`day_change_errors`):**
+  - the answer says "imagined", "synthetic" and "not a forecast";
+  - no plan wording ("will be built") and no forecasts;
+  - counts only from the result, under the same digit rules as `day_errors`.
+- **Shared wording:** `template.day_change_answer`.
+- **Scene intents:** `day.show` plus `whatif.diff` (the stretch drawn as an imagined change), and the what-if disclaimer.
+
 **Fix-it search and MCP (Cycle 4):**
 - **`find_fixes`:** beam search over imagined fixes on the world model (`townshiplens_spatial.fixit`).
   - The best set is recorded as a what-if, so every what-if validator rule applies.

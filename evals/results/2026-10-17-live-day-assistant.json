@@ -37,5 +37,45 @@
     "text": "In the storm rehearsal (a rehearsal of synthetic residents, not a forecast), the river rose to +3 m during the school run. Of 7,881 trips, 6,169 were on time, 71 late, 1,399 cancelled, 79 turned back, and 163 had a data gap. No residents were stranded. Children, teenagers, households without a car and parents with strollers had the most cancelled or unmade trips. Of 1,373 pupils, 979 were on time and 261 were cancelled.\nWorth knowing:\n• Indicative rehearsal with synthetic residents, not a forecast and not real people.\n• Follow official MBSA / JPS / NADMA guidance.\n• 163 trips had no mapped connection, which is a data gap rather than a confirmed outcome.",
     "validator_errors": [],
     "intents": ["flood.set_level:stage_p3m"]
+  },
+  {
+    "q": "Which change would help most residents in the storm rehearsal?",
+    "cycle": 17,
+    "model": "anthropic/claude-haiku-5.5",
+    "text": "In the storm rehearsal, the change that would help most is raising the flooded stretch on Jalan Sungai Buloh (about 931 m) so it never floods. This is a what-if simulation on synthetic residents, not a plan or a forecast: 823 residents would be better off and none worse off, across 1645 trips. Of these, 12 wheelchair users (2 better off) and 442 households without a car (80 better off) were counted in the groups.\nWorth knowing:\n• Imagined change on a rehearsal of synthetic residents: not a plan, not a promise and not a forecast. The real township is unchanged.\n• Indicative scenario, not a forecast.",
+    "validator_errors": [],
+    "intents": ["whatif.diff", "day.show"]
+  },
+  {
+    "q": "Which change would help most residents in the storm rehearsal?",
+    "cycle": "17-after-fix",
+    "model": "anthropic/claude-haiku-5.5+template",
+    "text": "On the Storm at the school run rehearsal of synthetic residents: Imagine the flooded stretch on Jalan Sungai Buloh (about 931 m) raised so it never floods in any scenario (best case). In that imagined day, 823 residents would be better off and 0 worse off (1,645 trips better, 0 worse). Not a plan and not a forecast.\n1. Why this change: the day's top suggestion, on the usual route of 1129 residents whose trips the water cut.\n2. Wheelchair users: 2 better off, 0 worse off.\n3. Households without a car: 80 better off, 0 worse off.\n4. Another change to test (option 2): Imagine the flooded stretch on Persiaran Eserina (about 935 m) raised so it never floods in any scenario (best case).\nWorth knowing:\n• Imagined change on a rehearsal of synthetic residents: not a plan, not a promise and not a forecast. The real township is unchanged.\n• This is an indicative scenario, not a forecast. Follow official MBSA / JPS / NADMA guidance.\n• Answer generated from data without AI wording.",
+    "checks": [
+      [false, ["did not match the checked data"]],
+      [false, ["did not match the checked data"]],
+      [false, ["gave percentages instead of simulated counts"]]
+    ],
+    "intents": ["day.show", "whatif.diff"]
+  },
+  {
+    "q": "Which change would help most residents in the storm rehearsal?",
+    "cycle": "17-best-rule",
+    "model": "anthropic/claude-haiku-5.5",
+    "drafts": {
+      "1": "In the storm rehearsal, the top suggestion is an imagined change to raise the flooded stretch on Jalan Sungai Buloh (about 931 m) so it never floods. This is a top suggestion, not a proven best option. In the rehearsal, 823 residents would be better off and 0 worse off. Of these, 2 wheelchair users (of 12) and 80 households without a car (of 442) would be better off. This is an imagined change on a rehearsal of synthetic residents, not a plan and not a forecast.",
+      "2": "In the storm rehearsal, the top suggestion is an imagined change that raises the flooded stretch on Jalan Sungai Buloh (about 931 m) so it never floods. I tested only this 1 of 8 suggested changes, so it is the top suggestion, not the best option. In the rehearsal, 823 residents would be better off and 0 would be worse off. Of these, 2 of 12 wheelchair users and 80 of 442 households without a car would be better off. This is a what-if simulation on synthetic residents, not a plan and not a forecast.",
+      "3": "In the storm rehearsal, the top suggestion is an imagined change that raises the flooded stretch on Jalan Sungai Buloh (about 931 m) so it never floods. Only 1 of 8 suggested changes was tested, so this is the top suggestion, which is the change the most residents relied on. In the rehearsal, 823 residents would be better off and 0 would be worse off. Of these, 2 of 12 wheelchair users and 80 of 442 households without a car would be better off. This is a what-if simulation on synthetic residents, not a plan and not a forecast."
+    },
+    "validator_errors": [
+      [
+        "Only 1 of 8 suggested changes were tested: call it the top suggestion (the one the most residents relied on), not the best or the one that helps most."
+      ],
+      [
+        "Only 1 of 8 suggested changes were tested: call it the top suggestion (the one the most residents relied on), not the best or the one that helps most."
+      ]
+    ],
+    "text": "In the storm rehearsal, the top suggestion is an imagined change that raises the flooded stretch on Jalan Sungai Buloh (about 931 m) so it never floods. Only 1 of 8 suggested changes was tested, so this is the top suggestion, which is the change the most residents relied on. In the rehearsal, 823 residents would be better off and 0 would be worse off. Of these, 2 of 12 wheelchair users and 80 of 442 households without a car would be better off. This is a what-if simulation on synthetic residents, not a plan and not a forecast.\nWorth knowing:\n• Imagined change on a rehearsal of synthetic residents: not a plan, not a promise and not a forecast; the real township is unchanged.",
+    "note": "attempts 1-2 were honest negations ('not the best option') rejected by the first best-claim rule; negation is now read"
   }
 ]

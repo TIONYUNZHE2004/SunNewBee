@@ -60,31 +60,31 @@ def candidates(res: DayResult, k: int = 3) -> list[dict]:
     out = flood_stretches(res)  # on a day with a river rise, the flood works come first
     paths = [(e, n) for e, n in use.most_common() if w.edges[e].type in WALK_TYPES - {"steps"}]
     nodes_used: set[str] = set()
+    shown: set[tuple[str, str]] = set()  # two offers that read the same are one offer
     picked = 0
     for eid, n in paths:
         e = w.edges[eid]
         if picked >= k or {e.from_node, e.to_node} & nodes_used:
             continue  # a neighbour of one already offered: the same corridor
         nodes_used |= {e.from_node, e.to_node}
-        picked += 1
         a = twm.ClosePath(element_id=eid)
-        out.append(
-            {
-                "action": a.model_dump(),
-                "label": f"{twm.describe(w, a)} all day for works",
-                "why": f"on {n} trips walked this day",
-            }
-        )
-    steps = [(e, n) for e, n in use.most_common() if w.edges[e].type == "steps"]
-    for eid, n in steps[:k]:
+        label, why = f"{twm.describe(w, a)} all day for works", f"on {n} trips walked this day"
+        if (label, why) in shown:
+            continue  # a parallel piece of the same corridor: same name, same trips
+        shown.add((label, why))
+        picked += 1
+        out.append({"action": a.model_dump(), "label": label, "why": why, "count": n})
+    picked = 0
+    for eid, n in use.most_common():
+        if w.edges[eid].type != "steps":
+            continue
         a = twm.BuildRamp(element_id=eid)
-        out.append(
-            {
-                "action": a.model_dump(),
-                "label": twm.describe(w, a),
-                "why": f"on {n} trips walked this day",
-            }
-        )
+        label, why = twm.describe(w, a), f"on {n} trips walked this day"
+        if picked >= k or (label, why) in shown:
+            continue
+        shown.add((label, why))
+        picked += 1
+        out.append({"action": a.model_dump(), "label": label, "why": why, "count": n})
     return out
 
 
@@ -167,6 +167,7 @@ def flood_stretches(
                 "why": (
                     f"on the usual route of {len(residents)} residents whose trips the water cut"
                 ),
+                "count": len(residents),
             }
         )
     return out
