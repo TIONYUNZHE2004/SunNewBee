@@ -13,7 +13,7 @@ from typing import Any, get_args
 
 from pydantic_ai import Agent, ModelRetry, RunContext, ToolOutput
 from pydantic_ai.models import Model
-from pydantic_ai.models.openrouter import OpenRouterModel
+from pydantic_ai.models.openrouter import OpenRouterModel, OpenRouterModelSettings
 from pydantic_ai.providers.openrouter import OpenRouterProvider
 from townshiplens_spatial import tools as sp
 from townshiplens_spatial.models import Evidence, VerificationRequest
@@ -21,12 +21,18 @@ from townshiplens_spatial.routing import CENTRE_PREFIX
 from townshiplens_spatial.scenario_meta import scenario_source
 
 from .answer import FinalAnswer
-from .events import ChatRequest, ToolCall, ToolResultEvent, VerificationRequested
+from .events import (
+    AnswerCheck,
+    ChatRequest,
+    ToolCall,
+    ToolResultEvent,
+    VerificationRequested,
+)
 from .labels import enrich_unknowns
 from .mock import mock_model
 from .record import TurnRecord
 from .settings import AgentSettings
-from .validate import validate_answer
+from .validate import issue_labels, repair_answer, validate_answer
 
 SYSTEM = (Path(__file__).parent / "prompts" / "system.md").read_text(encoding="utf-8")
 
@@ -46,7 +52,14 @@ def model_for(settings: AgentSettings, escalate: bool = False) -> Model:
     provider = OpenRouterProvider(
         api_key=settings.openrouter_api_key or None, app_title="TownshipLens"
     )
-    return OpenRouterModel(name, provider=provider)
+    # Prompt caching (Anthropic via OpenRouter): the system prompt and the 10 tool schemas are
+    # ~5k tokens resent on every request of a turn; caching them cuts input cost and latency.
+    cache = OpenRouterModelSettings(
+        openrouter_cache_instructions=True,
+        openrouter_cache_tool_definitions=True,
+        openrouter_cache_messages=True,
+    )
+    return OpenRouterModel(name, provider=provider, settings=cache)
 
 
 async def _emit(deps: Deps, ev) -> None:
@@ -393,9 +406,24 @@ def build_agent(model: Model) -> Agent[Deps, FinalAnswer]:
         return await call_tool(ctx.deps, "find_waste_points", type=type, near_place=near_place)
 
     @agent.output_validator
-    def check(ctx: RunContext[Deps], out: FinalAnswer) -> FinalAnswer:
-        errs = validate_answer(out, ctx.deps.rec)
+    async def check(ctx: RunContext[Deps], out: FinalAnswer) -> FinalAnswer:
+        if ctx.partial_output:  # only whole answers are checked (drafts are guarded in draft.py)
+            return out
+        rec = ctx.deps.rec
+        out, repairs = repair_answer(out, rec)
+        rec.repairs += repairs
+        errs = validate_answer(out, rec)
+        # One verdict per attempt; attempts are numbered as the draft stream numbered them
+        # (a model that does not stream has no drafts: count the checks instead).
+        rec.checks = max(rec.checks + 1, rec.draft_attempt)
+        await _emit(
+            ctx.deps,
+            AnswerCheck(
+                attempt=rec.checks, ok=not errs, issues=issue_labels(errs), repairs=len(repairs)
+            ),
+        )
         if errs:
+            rec.validator_errors.append(errs)
             raise ModelRetry(" ".join(errs))
         return out
 

@@ -96,6 +96,68 @@
         "title": "AffectedResult",
         "type": "object"
       },
+      "AnswerCheck": {
+        "description": "The validator's verdict on one answer attempt: accepted, or sent back with readable\nreasons (the model then rewrites it). `repairs` counts fact-free fixes applied first.",
+        "properties": {
+          "attempt": {
+            "title": "Attempt",
+            "type": "integer"
+          },
+          "issues": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Issues",
+            "type": "array"
+          },
+          "ok": {
+            "title": "Ok",
+            "type": "boolean"
+          },
+          "repairs": {
+            "default": 0,
+            "title": "Repairs",
+            "type": "integer"
+          },
+          "type": {
+            "const": "answer.check",
+            "default": "answer.check",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "attempt",
+          "ok"
+        ],
+        "title": "AnswerCheck",
+        "type": "object"
+      },
+      "AnswerDraft": {
+        "description": "Provisional summary text while the model writes its answer. Not checked yet: the client\nshows it as a draft and replaces it with the validated `text.delta` stream.",
+        "properties": {
+          "attempt": {
+            "title": "Attempt",
+            "type": "integer"
+          },
+          "delta": {
+            "title": "Delta",
+            "type": "string"
+          },
+          "type": {
+            "const": "answer.draft",
+            "default": "answer.draft",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "attempt",
+          "delta"
+        ],
+        "title": "AnswerDraft",
+        "type": "object"
+      },
       "AttributeBody": {
         "properties": {
           "note": {
@@ -257,6 +319,8 @@
           "event": {
             "discriminator": {
               "mapping": {
+                "answer.check": "#/components/schemas/AnswerCheck",
+                "answer.draft": "#/components/schemas/AnswerDraft",
                 "citation": "#/components/schemas/Citation",
                 "disclaimer": "#/components/schemas/Disclaimer",
                 "done": "#/components/schemas/Done",
@@ -273,6 +337,12 @@
             "oneOf": [
               {
                 "$ref": "#/components/schemas/TextDelta"
+              },
+              {
+                "$ref": "#/components/schemas/AnswerDraft"
+              },
+              {
+                "$ref": "#/components/schemas/AnswerCheck"
               },
               {
                 "$ref": "#/components/schemas/ToolCall"

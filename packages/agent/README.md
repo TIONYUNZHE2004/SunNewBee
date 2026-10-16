@@ -15,19 +15,40 @@ user message ─► Agent (instructions = prompts/system.md + UI context)
                   │         scenarios used, VRs)                                 verification.requested
                   │
                   └─ final_answer (forced output tool, FinalAnswer)
-                        └─ output_validator = validate.validate_answer(answer, TurnRecord)
+                        └─ output_validator: validate.repair_answer (fact-free fixes), then
+                           validate.validate_answer(answer, TurnRecord) → answer.check event
                               ├─ ok ─────────────► answer
                               └─ errors ─► ModelRetry (LLM_OUTPUT_RETRIES times)
                                                 └─ still bad ─► template.template_answer
-run.run_turn: streams tool events while the agent runs, then text.delta, scene.intent
+run.run_turn: streams tool events while the agent runs, answer.draft deltas while the model
+writes final_answer (draft.DraftStreamer), one answer.check per attempt, then text.delta, scene.intent
 (route geometry attached server-side), citation, uncertainty, disclaimer (whenever a flood
 scenario was used), and always ends with done. Provider/network/config errors emit `error`,
 then the template answer, then `done`.
 ```
 
 The streamed text always starts with a `Route status: <status>` line (from the tool's status for
-the answer's route, else the first route returned this turn) when a route was planned, then the
-caveat line (`⚠ ...`), then the summary and steps.
+the answer's route, else the first route returned this turn) when a route was planned. The
+summary and numbered steps follow (answer first). Then the caveats, as a `Worth knowing:` list
+with one `•` line each (`run.answer_text`). A repeated "Route status: …" sentence written by the
+model is dropped, because the label line already says it.
+
+**Drafts and checks (Cycle 0, `ai/world-model`):**
+- `answer.draft {attempt, delta}` streams the summary while the model is still writing it. The UI
+  shows it muted as "Draft · checking against the township data…".
+- A draft stops at the first forbidden word, water depth or raw id, and never ends in a half
+  word.
+- `answer.check {attempt, ok, issues, repairs}` is the validator's verdict. `issues` are short
+  readable reasons (`validate.issue_labels`). A rejected attempt clears the draft, and the
+  rewrite starts a new one.
+- The validated `text.delta` stream replaces the draft.
+- With the mock, drafts stream too (`mock._stream_script`), so tests and e2e exercise them
+  without a key.
+
+**Live cost and latency:**
+- OpenRouter prompt caching is on (system prompt, tool schemas and the last message).
+- On the 13 golden turns this cut spend from about US$0.035 to about US$0.006.
+- The median first visible text went from 12.0 s to 5.7 s (Haiku 5.5; `evals/results/`).
 
 | Module | Role |
 | --- | --- |

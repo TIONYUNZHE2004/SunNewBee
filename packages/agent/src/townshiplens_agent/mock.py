@@ -5,7 +5,7 @@ import re
 
 from pydantic_ai import ModelMessage, ModelResponse, ToolCallPart
 from pydantic_ai.messages import ModelRequest, ToolReturnPart, UserPromptPart
-from pydantic_ai.models.function import AgentInfo, FunctionModel
+from pydantic_ai.models.function import AgentInfo, DeltaToolCall, FunctionModel
 
 from .labels import (
     attribute_label,
@@ -637,5 +637,20 @@ def _script(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
     return _cannot("I can't answer that from the township model yet.")  # found; no VR was filed
 
 
+STREAM_CHUNK = 24  # characters of tool-call JSON per streamed delta
+
+
+async def _stream_script(messages: list[ModelMessage], info: AgentInfo):
+    """The same scripted response, streamed in small JSON chunks like a real provider, so the
+    draft stream (`answer.draft`) is exercised keylessly in tests and e2e."""
+    resp = _script(messages, info)
+    for i, part in enumerate(resp.parts):
+        args = part.args if isinstance(part.args, str) else json.dumps(part.args)
+        call_id = f"mock-{i}"
+        yield {i: DeltaToolCall(name=part.tool_name, json_args="", tool_call_id=call_id)}
+        for k in range(0, len(args), STREAM_CHUNK):
+            yield {i: DeltaToolCall(json_args=args[k : k + STREAM_CHUNK], tool_call_id=call_id)}
+
+
 def mock_model() -> FunctionModel:
-    return FunctionModel(_script, model_name="mock-scripted")
+    return FunctionModel(_script, stream_function=_stream_script, model_name="mock-scripted")

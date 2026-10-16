@@ -1,18 +1,25 @@
-{"meta": {"message": "Is the walk from the urban park to the lakeside mall easy?", "profile": "default", "scenario_id": null, "world": "elmina", "model": "mock-scripted", "recorded_at": "2026-10-15T06:50:42+00:00"}}
+{"meta": {"message": "Is the walk from the urban park to the lakeside mall easy?", "profile": "default", "scenario_id": null, "world": "elmina", "model": "mock-scripted", "recorded_at": "2026-10-16T13:10:12+00:00"}}
 {"type": "tool.call", "id": "find_place-0", "name": "find_place", "args": {"query": "urban park", "types": null, "limit": 5}}
 {"type": "tool.result", "id": "find_place-0", "name": "find_place", "summary": "5 result(s)"}
 {"type": "tool.call", "id": "find_place-1", "name": "find_place", "args": {"query": "lakeside mall", "types": null, "limit": 5}}
 {"type": "tool.result", "id": "find_place-1", "name": "find_place", "summary": "2 result(s)"}
 {"type": "tool.call", "id": "plan_route-2", "name": "plan_route", "args": {"from_id": "osm-way-1309457596", "to_id": "lakeside-mall", "profile": "default", "scenario_id": null}}
 {"type": "tool.result", "id": "plan_route-2", "name": "plan_route", "summary": "route confirmed"}
+{"type": "answer.draft", "attempt": 1, "delta": "Elmina "}
+{"type": "answer.draft", "attempt": 1, "delta": "Urban Park to Elmina "}
+{"type": "answer.draft", "attempt": 1, "delta": "Lakeside Mall: route "}
+{"type": "answer.draft", "attempt": 1, "delta": "confirmed (on demo values, not "}
+{"type": "answer.draft", "attempt": 1, "delta": "yet surveyed), 119.8 "}
+{"type": "answer.draft", "attempt": 1, "delta": "m."}
+{"type": "answer.check", "attempt": 1, "ok": true, "issues": [], "repairs": 0}
 {"type": "text.delta", "delta": "Route status: confirmed (on demo values,"}
-{"type": "text.delta", "delta": " not yet surveyed)\n⚠ Route starts at the"}
-{"type": "text.delta", "delta": " nearest mapped path to Elmina Urban Par"}
-{"type": "text.delta", "delta": "k; its entrance is not mapped; Segment f"}
-{"type": "text.delta", "delta": "acts are demo values, not yet surveyed.\n"}
-{"type": "text.delta", "delta": "Elmina Urban Park to Elmina Lakeside Mal"}
-{"type": "text.delta", "delta": "l: route confirmed (on demo values, not "}
-{"type": "text.delta", "delta": "yet surveyed), 119.8 m."}
+{"type": "text.delta", "delta": " not yet surveyed)\nElmina Urban Park to "}
+{"type": "text.delta", "delta": "Elmina Lakeside Mall: route confirmed (o"}
+{"type": "text.delta", "delta": "n demo values, not yet surveyed), 119.8 "}
+{"type": "text.delta", "delta": "m.\nWorth knowing:\n• Route starts at the "}
+{"type": "text.delta", "delta": "nearest mapped path to Elmina Urban Park"}
+{"type": "text.delta", "delta": "; its entrance is not mapped.\n• Segment "}
+{"type": "text.delta", "delta": "facts are demo values, not yet surveyed."}
 {"type": "scene.intent", "intent": {"kind": "route.highlight", "place_id": null, "route_id": "rt-279d8891", "scenario_id": null, "center": null, "range_m": null, "lens": null, "visible": null, "geojson": {"type": "LineString", "coordinates": [[101.509854, 3.180547], [101.509999, 3.180661], [101.510071, 3.180734], [101.50979, 3.181102], [101.510045, 3.18131]]}}}
 {"type": "citation", "ref": 1, "evidence_id": "ev-place-osm-way-1309457596", "element_id": "osm-way-1309457596", "attribute": "name", "status": "reported", "verified_at": null, "source_type": "world_model", "photo_url": null}
 {"type": "citation", "ref": 2, "evidence_id": "ev-place-lakeside-mall", "element_id": "lakeside-mall", "attribute": "name", "status": "reported", "verified_at": null, "source_type": "world_model", "photo_url": null}

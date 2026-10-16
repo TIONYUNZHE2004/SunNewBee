@@ -28,6 +28,26 @@ class TextDelta(BaseModel):
     delta: str
 
 
+class AnswerDraft(BaseModel):
+    """Provisional summary text while the model writes its answer. Not checked yet: the client
+    shows it as a draft and replaces it with the validated `text.delta` stream."""
+
+    type: Literal["answer.draft"] = "answer.draft"
+    attempt: int
+    delta: str
+
+
+class AnswerCheck(BaseModel):
+    """The validator's verdict on one answer attempt: accepted, or sent back with readable
+    reasons (the model then rewrites it). `repairs` counts fact-free fixes applied first."""
+
+    type: Literal["answer.check"] = "answer.check"
+    attempt: int
+    ok: bool
+    issues: list[str] = Field(default_factory=list)
+    repairs: int = 0
+
+
 class ToolCall(BaseModel):
     type: Literal["tool.call"] = "tool.call"
     id: str
@@ -98,6 +118,8 @@ class Done(BaseModel):
 
 ChatEvent = Annotated[
     TextDelta
+    | AnswerDraft
+    | AnswerCheck
     | ToolCall
     | ToolResultEvent
     | SceneIntentEvent

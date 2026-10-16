@@ -607,6 +607,45 @@ export interface components {
             /** Warnings */
             warnings?: string[];
         };
+        /**
+         * AnswerCheck
+         * @description The validator's verdict on one answer attempt: accepted, or sent back with readable
+         *     reasons (the model then rewrites it). `repairs` counts fact-free fixes applied first.
+         */
+        AnswerCheck: {
+            /** Attempt */
+            attempt: number;
+            /** Issues */
+            issues?: string[];
+            /** Ok */
+            ok: boolean;
+            /**
+             * Repairs
+             * @default 0
+             */
+            repairs: number;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "answer.check";
+        };
+        /**
+         * AnswerDraft
+         * @description Provisional summary text while the model writes its answer. Not checked yet: the client
+         *     shows it as a draft and replaces it with the validated `text.delta` stream.
+         */
+        AnswerDraft: {
+            /** Attempt */
+            attempt: number;
+            /** Delta */
+            delta: string;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "answer.draft";
+        };
         /** AttributeBody */
         AttributeBody: {
             /** Note */
@@ -672,7 +711,7 @@ export interface components {
          */
         ChatEventDoc: {
             /** Event */
-            event: components["schemas"]["TextDelta"] | components["schemas"]["ToolCall"] | components["schemas"]["ToolResultEvent"] | components["schemas"]["SceneIntentEvent"] | components["schemas"]["Citation"] | components["schemas"]["Uncertainty"] | components["schemas"]["Disclaimer"] | components["schemas"]["VerificationRequested"] | components["schemas"]["ErrorEvent"] | components["schemas"]["Done"];
+            event: components["schemas"]["TextDelta"] | components["schemas"]["AnswerDraft"] | components["schemas"]["AnswerCheck"] | components["schemas"]["ToolCall"] | components["schemas"]["ToolResultEvent"] | components["schemas"]["SceneIntentEvent"] | components["schemas"]["Citation"] | components["schemas"]["Uncertainty"] | components["schemas"]["Disclaimer"] | components["schemas"]["VerificationRequested"] | components["schemas"]["ErrorEvent"] | components["schemas"]["Done"];
         };
         /** ChatRequest */
         ChatRequest: {

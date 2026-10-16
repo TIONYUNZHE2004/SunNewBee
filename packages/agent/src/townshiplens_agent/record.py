@@ -1,6 +1,7 @@
 import asyncio
 from dataclasses import dataclass, field
 
+from pydantic_ai.usage import RunUsage
 from townshiplens_spatial.models import Evidence
 
 
@@ -27,4 +28,11 @@ class TurnRecord:
     asked_closures: list[dict] = field(default_factory=list)
     # Plan_route warnings about endpoints whose entrance is not mapped (Task 43).
     inferred_notes: list[str] = field(default_factory=list)
+    # Diagnostics (never shown to users, never stored): the validator's errors for each rejected
+    # final_answer attempt, and token usage across all model requests of the turn.
+    validator_errors: list[list[str]] = field(default_factory=list)
+    repairs: list[str] = field(default_factory=list)  # validate.repair_answer notes
+    checks: int = 0  # final_answer attempts judged (validator, or a schema failure)
+    draft_attempt: int = 0  # final_answer attempts the draft streamer has started
+    usage: RunUsage = field(default_factory=RunUsage)
     queue: asyncio.Queue | None = None

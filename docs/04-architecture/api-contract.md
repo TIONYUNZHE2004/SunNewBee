@@ -119,6 +119,8 @@ The response is `text/event-stream`. Event vocabulary (a Pydantic union, exporte
 | Event | Data | Frontend behaviour |
 |---|---|---|
 | `text.delta` | `{ id, delta }` | Append to the assistant bubble |
+| `answer.draft` | `{ attempt, delta }` | Provisional summary while the model writes; show muted as a draft, restart on a new attempt, replace with the `text.delta` text |
+| `answer.check` | `{ attempt, ok, issues[], repairs }` | Validator verdict per attempt ("✓ checked" or "sent back: …"); clear the draft when `ok` is false |
 | `tool.call` | `{ id, name, args }` | Show a chip, e.g. "Checking step-free routes…" |
 | `tool.result` | `{ id, summary }` | Mark the chip done |
 | `scene.intent` | `{ kind: "camera.fly_to|place.focus|route.highlight|flood.set_level|layer.toggle", ... }`, e.g. `{kind:"route.highlight", route_id, geojson, style}`, `{kind:"flood.set_level", scenario_id}`, `{kind:"camera.fly_to", center, heading, pitch, range_m}` | The renderer adapter (Cesium / Mapbox / list) applies it |

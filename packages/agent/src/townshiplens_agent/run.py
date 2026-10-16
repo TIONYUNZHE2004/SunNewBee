@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+import re
 import uuid
 from collections.abc import AsyncIterator
 
@@ -11,6 +12,7 @@ from townshiplens_spatial import tools as sp
 from . import agent as agent_mod
 from . import demo
 from .answer import FinalAnswer
+from .draft import DraftStreamer
 from .events import (
     ChatEvent,
     ChatRequest,
@@ -22,7 +24,14 @@ from .events import (
     TextDelta,
     Uncertainty,
 )
-from .labels import closure_line, element_label, rest_caveats, route_status_text, unknown_note
+from .labels import (
+    CLOSURE_WORDS,
+    closure_line,
+    element_label,
+    rest_caveats,
+    route_status_text,
+    unknown_note,
+)
 from .record import TurnRecord
 from .settings import AgentSettings
 from .template import template_answer
@@ -115,18 +124,85 @@ def _caveat_items(rec: TurnRecord, ans: FinalAnswer) -> list[dict[str, str]]:
     return out
 
 
+CAVEAT_HEAD = "Worth knowing:"
+URGENT_MARK = "⚠"
+
+
+def _strip_label(text: str, label: str | None) -> str:
+    """Remove an exact leading copy of the status label ("Route status: blocked." / "Route
+    status: blocked —") and nothing else. Returns "" only when the text was just the label."""
+    text = text.strip()
+    if not label:
+        return text
+    m = re.match(rf"\s*{re.escape(label)}\s*(?:[.;,:\u2014\u2013-]\s*)?", text, re.IGNORECASE)
+    if not m:
+        return text
+    rest = text[m.end() :].strip()
+    if rest.startswith("(") and rest.endswith(")") and rest.count("(") == 1:
+        rest = rest[1:-1].strip()
+    return rest[:1].upper() + rest[1:]
+
+
+def _urgent(caveat: str, rec: TurnRecord | None) -> bool:
+    """Caveats that change whether to go at all: a staff-reported closure, or the start or
+    destination being flooded in the scenario. They are pinned above the summary."""
+    if rec is None:
+        return False
+    low = caveat.lower()
+    if CLOSURE_WORDS.lower() in low:
+        return True
+    names = {str(i.get("name", "")).lower() for i in rec.flooded_endpoints.values()}
+    names |= {p.lower() for p in rec.flooded_endpoints}
+    return "flooded" in low and any(n and n in low for n in names)
+
+
+def answer_text(ans: FinalAnswer, label: str | None, rec: TurnRecord | None = None) -> str:
+    """Resident-facing text, answer first:
+
+    1. the route status label (when a route was checked);
+    2. urgent caveats (closures, a flooded start or destination), each on a "⚠" line;
+    3. the summary and numbered steps;
+    4. every other caveat under "Worth knowing:", one "•" line each.
+
+    Presentation only: every caveat is printed in full (an exact copy of the label is the only
+    text ever removed), so whatever the validator required is still in the text."""
+    summary = _strip_label(ans.summary, label) or ans.summary
+    urgent: list[str] = []
+    rest: list[str] = []
+    seen: set[str] = set()
+    for raw in ans.caveats:
+        c = _strip_label(raw, label)
+        key = _norm(c)
+        if not c or key in seen:
+            continue  # empty only when the caveat was just the label, which line 1 says
+        if key in _norm(summary) and not _urgent(c, rec):
+            continue  # already said in the summary
+        seen.add(key)
+        if _urgent(c, rec):
+            urgent.append(c)
+        elif rest and c.startswith("and ") and rest[-1].lower().startswith("not checked yet"):
+            rest[-1] = rest[-1].rstrip(".") + "; " + c  # "and N more unchecked items"
+        else:
+            rest.append(c)
+
+    def dot(c: str) -> str:
+        return c if c.endswith((".", "!", "?")) else c + "."
+
+    parts = [label] if label else []
+    parts += [f"{URGENT_MARK} {dot(c)}" for c in urgent]
+    parts.append(summary)
+    if ans.steps:
+        parts.append("\n".join(f"{i}. {s}" for i, s in enumerate(ans.steps, 1)))
+    if rest:
+        parts.append(CAVEAT_HEAD + "\n" + "\n".join(f"• {dot(c)}" for c in rest))
+    return "\n".join(parts)
+
+
 def _answer_events(
     ans: FinalAnswer, rec: TurnRecord, ctx: sp.Ctx, ui_scenario_id: str | None = None
 ) -> list[ChatEvent]:
     evs: list[ChatEvent] = []
-    text = ans.summary
-    if ans.steps:
-        text += "\n" + "\n".join(f"{i}. {s}" for i, s in enumerate(ans.steps, 1))
-    if ans.caveats:
-        text = "⚠ " + "; ".join(c.rstrip(". ") for c in ans.caveats) + ".\n" + text
-    # Fixed order: status label, then the caveat line, then the summary and steps.
-    if label := _route_status_line(ans, rec):
-        text = label + "\n" + text
+    text = answer_text(ans, _route_status_line(ans, rec), rec)
     evs += [TextDelta(delta=text[i : i + CHUNK]) for i in range(0, len(text), CHUNK)]
 
     for it in ans.scene_intents:
@@ -205,6 +281,14 @@ def _answer_events(
     return evs
 
 
+def _streams(model) -> bool:
+    """Streaming drafts need a model that streams; a FunctionModel only does with stream_function
+    (the mock has one; ad-hoc test models usually do not)."""
+    from pydantic_ai.models.function import FunctionModel
+
+    return not isinstance(model, FunctionModel) or model.stream_function is not None
+
+
 def _scrub(msg: str, settings: AgentSettings) -> str:
     key = settings.openrouter_api_key
     if key:
@@ -213,8 +297,12 @@ def _scrub(msg: str, settings: AgentSettings) -> str:
 
 
 async def run_turn(
-    ctx: sp.Ctx, req: ChatRequest, settings: AgentSettings | None = None
+    ctx: sp.Ctx,
+    req: ChatRequest,
+    settings: AgentSettings | None = None,
+    record: TurnRecord | None = None,
 ) -> AsyncIterator[ChatEvent]:
+    """`record` lets an eval harness inspect the turn afterwards (validator errors, usage)."""
     settings = settings or AgentSettings()
     # A recording cannot reflect a live closure (R33), so any active closure is a cache miss.
     if settings.demo_mode and not ctx.world.active_closures():
@@ -223,7 +311,8 @@ async def run_turn(
             async for ev in demo.replay(cached, ctx.vrs):
                 yield ev
             return
-    rec = TurnRecord(queue=asyncio.Queue())
+    rec = record or TurnRecord()
+    rec.queue = asyncio.Queue()
     deps = agent_mod.Deps(ctx=ctx, rec=rec, request=req)
     msg_id = uuid.uuid4().hex[:12]
     model_name = "unknown"
@@ -241,7 +330,11 @@ async def run_turn(
         async def bounded_run():
             async with asyncio.timeout(settings.turn_timeout_s):
                 return await agent.run(
-                    req.message, deps=deps, retries={"output": settings.llm_output_retries}
+                    req.message,
+                    deps=deps,
+                    retries={"output": settings.llm_output_retries},
+                    usage=rec.usage,
+                    event_stream_handler=DraftStreamer(deps) if _streams(model) else None,
                 )
 
         task = asyncio.create_task(bounded_run())

@@ -1,0 +1,28 @@
+# Credits: copied code and reused designs
+
+The team lead ruled on 16 Oct 2026 that any licence is acceptable for this hackathon (see the "Dependencies and copied code" rule in [AGENTS.md](AGENTS.md)).
+
+Every piece of code copied from another repository is listed here with:
+- its source URL;
+- its licence;
+- the files it came from;
+- where it now lives.
+
+Designs that only *inspired* our own code are listed separately, so reviewers can tell the two apart.
+
+Direct dependencies (pinned in `pyproject.toml` and `package.json` files) carry their own licences and are not repeated here.
+
+## Copied code
+
+| Source | Licence | Copied from | Lives in | Notes |
+|---|---|---|---|---|
+| *(none yet)* | | | | |
+
+## Designs that inspired our code (no code copied)
+
+| Source | Licence | Idea used | Where |
+|---|---|---|---|
+| [maitrix-org/llm-reasoners](https://github.com/maitrix-org/llm-reasoners) | Apache-2.0 | `WorldModel` / `SearchConfig` split and beam search over actions, which the township world-model planners follow | planned: `packages/spatial` world model |
+| [projectmesa/mesa](https://github.com/projectmesa/mesa) | Apache-2.0 | "model owns agents" and data-collector pattern for population rollouts | planned: population rollout |
+
+Papers behind the design are listed in [docs/02-research/world-models-2026.md](docs/02-research/world-models-2026.md).

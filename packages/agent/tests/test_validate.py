@@ -522,3 +522,100 @@ def test_qualifier_not_required_without_demo_evidence_or_when_not_confirmed():
         ["Not checked yet: Width.", "Segment facts are demo values, not yet surveyed."],
     )
     assert validate_answer(partly, _demo_route_rec(status="partly_unverified")) == []
+
+
+# ---- repair_answer: deterministic, fact-free fixes applied before validation (Cycle 0) -------
+
+
+def test_repair_strips_route_and_request_ids_from_evidence():
+    from townshiplens_agent.validate import repair_answer
+
+    r = rec(routes={"rt-1": {"id": "rt-1"}}, vrs=[{"id": "vr-0001"}])
+    a = FinalAnswer(
+        answer_status="answered",
+        summary="Route found.",
+        claims=[
+            Claim(
+                text="No steps",
+                status="verified",
+                evidence_ids=["rt-1", "ev-seg-ab.step_count", "vr-0001"],
+            )
+        ],
+    )
+    fixed, notes = repair_answer(a, r)
+    assert fixed.claims[0].evidence_ids == ["ev-seg-ab.step_count"]
+    assert notes and validate_answer(fixed, r) == []
+
+
+def test_repair_drops_claims_left_without_evidence():
+    from townshiplens_agent.validate import repair_answer
+
+    r = rec(routes={"rt-1": {"id": "rt-1"}})
+    a = FinalAnswer(
+        answer_status="partial",
+        summary="Route found.",
+        claims=[
+            Claim(text="No closures were returned", status="unknown"),
+            Claim(text="Route exists", status="unverified", evidence_ids=["rt-1"]),
+            Claim(text="No steps", status="verified", evidence_ids=["ev-seg-ab.step_count"]),
+        ],
+    )
+    fixed, notes = repair_answer(a, r)
+    assert [c.text for c in fixed.claims] == ["No steps"]
+    assert len(notes) == 3  # one id strip, two dropped claims
+
+
+def test_repair_never_leaves_an_answer_without_evidence():
+    """Review fix 3: if every claim would be uncited, nothing is dropped and validation fails."""
+    from townshiplens_agent.validate import repair_answer
+
+    r = rec(routes={"rt-1": {"id": "rt-1"}})
+    a = FinalAnswer(
+        answer_status="answered",
+        summary="Route found.",
+        claims=[
+            Claim(text="Route exists", status="unverified", evidence_ids=["rt-1"]),
+            Claim(text="It is fine", status="unknown"),
+        ],
+    )
+    fixed, _ = repair_answer(a, r)
+    assert len(fixed.claims) == 2
+    errs = validate_answer(fixed, r)
+    assert any("cites no evidence" in e for e in errs)
+
+
+def test_repair_never_hides_invented_evidence():
+    from townshiplens_agent.validate import repair_answer
+
+    a = FinalAnswer(
+        answer_status="answered",
+        summary="x",
+        claims=[Claim(text="ramp ok", status="verified", evidence_ids=["ev-made-up"])],
+    )
+    fixed, _ = repair_answer(a, rec())
+    assert any("ev-made-up" in e for e in validate_answer(fixed, rec()))
+
+
+def test_repair_keeps_cannot_answer_claims_untouched():
+    from townshiplens_agent.validate import repair_answer
+
+    a = FinalAnswer(
+        answer_status="cannot_answer",
+        summary="Which place do you mean?",
+        claims=[Claim(text="Two places match", status="unknown")],
+    )
+    fixed, notes = repair_answer(a, rec())
+    assert fixed == a and notes == []
+
+
+def test_validator_rejects_guesses_and_reassurance():
+    for text in [
+        "Probably, but not confirmed yet.",
+        "It should be fine for a stroller.",
+        "You'll be fine.",
+        "No problem getting there.",
+    ]:
+        a = FinalAnswer(answer_status="partial", summary=text)
+        assert any("reassure" in e for e in validate_answer(a, rec())), text
+    ok = FinalAnswer(answer_status="partial", summary="The playground is likely flooded here.")
+    assert not any("reassure" in e for e in validate_answer(ok, rec()))

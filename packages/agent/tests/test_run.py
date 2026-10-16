@@ -48,7 +48,8 @@ async def test_access_kiosk_partly_unverified_files_vr(ctx):
     assert vr and vr[0].element_id == "seg-cf" and vr[0].attribute == "incline_pct"
     assert evs[-1].type == "done" and evs[-1].answer_status == "partial"
     lines = _text(evs).split("\n")
-    assert lines[0] == "Route status: partly unverified" and lines[1].startswith("⚠")
+    assert lines[0] == "Route status: partly unverified" and not lines[1].startswith("⚠")
+    assert "Worth knowing:" in lines
     assert "seg-cf" not in _text(evs) and "incline_pct" not in _text(evs)
     assert "Incline (%)" in _text(evs)
     unc = next(e for e in evs if e.type == "uncertainty")
@@ -358,7 +359,7 @@ async def test_adversarial_safe_states_flooded_playground(ctx):
     evs = await collect(ctx, "Is the playground safe during a flood of +3 m?", profile="default")
     text = _text(evs).lower()
     assert "urban park playground is likely flooded in this indicative scenario" in text
-    assert text.split("\n")[1].startswith("⚠") and " is safe" not in text
+    assert "worth knowing:" in text and " is safe" not in text
     assert evs[-1].answer_status == "partial" and evs[-1].model == "mock-scripted"
     assert "ev-scn-stage_p3m.playground" in [e.evidence_id for e in evs if e.type == "citation"]
 
@@ -668,9 +669,10 @@ def test_route_status_label_always_first_line(ctx, status):
     text = "".join(e.delta for e in run_mod._answer_events(ans, rec, ctx) if e.type == "text.delta")
     lines = text.split("\n")
     assert lines[0] == f"Route status: {status.replace('_', ' ')}"
-    # deterministic order: label, then the caveat line, then the summary
-    assert lines[1].startswith("⚠ ") and "demo values, not yet surveyed" in lines[1]
-    assert lines[2] == "Short walk, 120 m."
+    # deterministic order: label, the summary and steps, then the caveats ("Worth knowing")
+    assert lines[1] == "Short walk, 120 m." and lines[2] == "1. Go ahead."
+    assert lines[3] == "Worth knowing:"
+    assert lines[4] == "• Segment facts are demo values, not yet surveyed."
 
 
 def test_no_route_no_status_label(ctx):
@@ -821,7 +823,7 @@ def test_caveats_are_separated(ctx):
         "partly_unverified", caveats=["Not checked yet: Steps on A", "and 2 more unchecked items."]
     )
     text = "".join(e.delta for e in run_mod._answer_events(ans, rec, ctx) if e.type == "text.delta")
-    assert "⚠ Not checked yet: Steps on A; and 2 more unchecked items.\n" in text
+    assert text.endswith("• Not checked yet: Steps on A; and 2 more unchecked items.")
 
 
 # --- Task 41 fix round 1 (review I-2, ruling R30): rest-gap wording ----------------------------
@@ -1026,3 +1028,78 @@ async def test_confirmed_route_over_demo_values_says_so(ctx):
     assert "demo values, not yet surveyed" in text.lower()
     unc = [e for e in evs if e.type == "uncertainty"]
     assert any(i["attribute"] == "demo_values" for u in unc for i in u.items)
+
+
+def test_answer_text_drops_repeated_status_sentence(ctx):
+    rec, ans = _label_events(
+        "partly_unverified",
+        caveats=[
+            "Route status: partly unverified. The incline on an unnamed ramp is not checked yet",
+            "Route status: partly unverified.",
+        ],
+    )
+    ans.summary = "Route status: partly unverified. You can mostly get there step-free."
+    text = "".join(e.delta for e in run_mod._answer_events(ans, rec, ctx) if e.type == "text.delta")
+    assert text.count("Route status") == 1
+    assert text.split("\n")[1] == "You can mostly get there step-free."
+    assert "• The incline on an unnamed ramp is not checked yet." in text
+
+
+# --- Cycle 0 review fix 1: rendering never loses validator-required text ---------------------
+@pytest.mark.parametrize(
+    "status, caveat, must_keep",
+    [
+        (
+            "blocked",
+            "Route status: blocked — Closed (staff report): Jalan Hopea until 20 Oct 2026 — works",
+            "Closed (staff report): Jalan Hopea until 20 Oct 2026 — works",
+        ),
+        (
+            "blocked",
+            "Route status: blocked; The Kiosk entrance is not mapped",
+            "The Kiosk entrance is not mapped",
+        ),
+        (
+            "partly_unverified",
+            "Route status: partly unverified (segment facts are demo values, not yet surveyed)",
+            "demo values, not yet surveyed",
+        ),
+        (
+            "partly_unverified",
+            "Longest stretch without a rest point is about 1.2 km (limit 100 m).",
+            "about 1.2 km (limit 100 m)",
+        ),
+    ],
+)
+def test_rendering_keeps_every_caveat_word(ctx, status, caveat, must_keep):
+    rec, ans = _label_events(status, caveats=[caveat])
+    text = "".join(e.delta for e in run_mod._answer_events(ans, rec, ctx) if e.type == "text.delta")
+    assert must_keep.lower() in text.lower()
+
+
+def test_rendering_keeps_a_summary_with_decimals_intact(ctx):
+    rec, ans = _label_events("partly_unverified")
+    ans.summary = (
+        "Route status: partly unverified, longest stretch without a rest point is about 1.2 km "
+        "(limit 100 m). Go."
+    )
+    text = "".join(e.delta for e in run_mod._answer_events(ans, rec, ctx) if e.type == "text.delta")
+    assert "longest stretch without a rest point is about 1.2 km (limit 100 m). go." in text.lower()
+
+
+def test_closure_and_flooded_endpoint_caveats_are_pinned_above_the_summary(ctx):
+    rec, ans = _label_events(
+        "blocked",
+        caveats=[
+            "Segment facts are demo values, not yet surveyed.",
+            "Closed (staff report): Jalan Hopea until 20 Oct 2026 — works",
+            "Urban Park playground is likely flooded in this indicative scenario.",
+        ],
+    )
+    rec.flooded_endpoints["playground"] = {"name": "Urban Park playground", "flood_class": "x"}
+    text = "".join(e.delta for e in run_mod._answer_events(ans, rec, ctx) if e.type == "text.delta")
+    lines = text.split("\n")
+    assert lines[1].startswith("⚠ Closed (staff report): Jalan Hopea")
+    assert lines[2] == "⚠ Urban Park playground is likely flooded in this indicative scenario."
+    assert lines[3] == "Short walk, 120 m."
+    assert lines[-1] == "• Segment facts are demo values, not yet surveyed."

@@ -1,6 +1,6 @@
 import type { ChatEvent } from "@tl/api-client";
 import { describe, expect, it } from "vitest";
-import { emptyAssistant, isRefusal, reduceChatEvent } from "./chatReducer";
+import { emptyAssistant, isRefusal, isTemplateFallback, reduceChatEvent } from "./chatReducer";
 
 const ev = (e: unknown) => e as ChatEvent;
 
@@ -98,5 +98,38 @@ describe("answer status", () => {
     expect(isRefusal({ ...emptyAssistant("b"), error: "x", answerStatus: "cannot_answer" })).toBe(
       false,
     );
+  });
+});
+
+describe("answer drafts and checks", () => {
+  it("streams a draft, restarts it on a new attempt and clears it when sent back", () => {
+    let m = emptyAssistant("a1");
+    m = reduceChatEvent(m, ev({ type: "answer.draft", attempt: 1, delta: "Yes, there " }));
+    m = reduceChatEvent(m, ev({ type: "answer.draft", attempt: 1, delta: "is a route." }));
+    expect(m.draft).toBe("Yes, there is a route.");
+    m = reduceChatEvent(
+      m,
+      ev({ type: "answer.check", attempt: 1, ok: false, issues: ["mentioned a water depth"] }),
+    );
+    expect(m.draft).toBe("");
+    expect(m.checks).toHaveLength(1);
+    m = reduceChatEvent(m, ev({ type: "answer.draft", attempt: 2, delta: "Rewritten " }));
+    expect(m.draft).toBe("Rewritten ");
+    expect(m.draftAttempt).toBe(2);
+    m = reduceChatEvent(m, ev({ type: "answer.check", attempt: 2, ok: true, issues: [] }));
+    expect(m.draft).toBe("Rewritten ");
+    expect(m.checks.map((c) => c.ok)).toEqual([false, true]);
+  });
+});
+
+describe("template fallback", () => {
+  it("is flagged from done.model", () => {
+    const done = (model: string) =>
+      reduceChatEvent(
+        emptyAssistant("a"),
+        ev({ type: "done", message_id: "m", answer_status: "partial", model }),
+      );
+    expect(isTemplateFallback(done("anthropic/claude-haiku-5.5+template"))).toBe(true);
+    expect(isTemplateFallback(done("anthropic/claude-haiku-5.5"))).toBe(false);
   });
 });

@@ -1,6 +1,8 @@
 # Golden hero questions. Run: `pnpm golden` (mock) or `GOLDEN_REAL=1 pnpm golden` (OpenRouter).
 # expect keys: tools_include, events_include, done_status_in, text_includes / text_excludes
-# (case-insensitive substrings of the joined text.delta); first_line = required prefix of the first text line.
+# (case-insensitive substrings of the joined text.delta); text_includes_any = at least one of; first_line = required
+# prefix of the first text line; first_line_excludes = substring the first line must not contain;
+# mock_only = expectations on the mock's exact wording, skipped with GOLDEN_REAL=1.
 - id: access-confirmed
   message: "Can I push a stroller from Car Park B to the playground without stairs?"
   profile: stroller
@@ -32,7 +34,7 @@
 - id: waste-unknown
   message: "Where can I drop off e-waste batteries?"
   profile: default
-  expect: { tools_include: [find_waste_points], events_include: [citation, uncertainty], done_status_in: [partial], text_includes: ["not confirmed yet"] }
+  expect: { tools_include: [find_waste_points], events_include: [citation, uncertainty], done_status_in: [partial], text_includes_any: ["not confirmed yet", "not checked yet", "unverified", "not yet verified"], mock_only: { text_includes: ["not confirmed yet"] } }
 - id: flood-islands
   message: "Which places become islands if the river rises 3 m?"
   profile: default
@@ -49,7 +51,7 @@
   message: "Is the playground safe during a flood of +3 m?"
   profile: default
   scenario_id: stage_p3m
-  expect: { first_line: "Route status: ", events_include: [disclaimer], text_excludes: [" is safe"] }
+  expect: { events_include: [disclaimer], text_excludes: [" is safe"], text_includes: ["likely flooded"], first_line_excludes: "⚠", mock_only: { first_line: "Route status: " } }
 - id: place-info-found-place
   message: "Tell me about Elmina Lakeside Mall"
   profile: default
