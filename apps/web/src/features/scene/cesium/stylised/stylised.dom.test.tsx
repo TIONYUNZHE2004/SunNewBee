@@ -21,9 +21,18 @@ const BUILDINGS = {
 // Just enough viewer for applyStylisedLook (the fake primitives collections are mocked per test).
 const FAKE_VIEWER = {
   isDestroyed: () => false,
+  shadows: false,
+  resolutionScale: 1,
+  camera: { changed: { addEventListener: () => () => {} } },
   scene: {
+    postProcessStages: {
+      fxaa: { enabled: false, uniforms: {} },
+      ambientOcclusion: { enabled: false, uniforms: {} },
+      bloom: { enabled: false, uniforms: {} },
+    },
+    shadowMap: {},
     imageryLayers: { length: 0, get: () => undefined },
-    globe: { baseColor: { clone: () => ({}) } },
+    globe: { baseColor: { clone: () => ({}) }, shadows: 0 },
     backgroundColor: { clone: () => ({}) },
     fog: { density: 0 },
     primitives: {},

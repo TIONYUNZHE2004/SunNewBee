@@ -20,6 +20,7 @@ export type CesiumLike = Pick<
   | "Cartesian2"
   | "Cartesian3"
   | "PolygonPipeline"
+  | "ShadowMode"
 >;
 
 export interface PrimitiveCollectionLike {
@@ -179,6 +180,7 @@ export function buildBuildingPrimitives(
       compressVertices: false,
       releaseGeometryInstances: true,
       allowPicking: false,
+      shadows: C.ShadowMode.ENABLED,
     });
     collection?.add(primitive);
     primitives.push(primitive);

@@ -26,7 +26,6 @@ function viewer() {
   return {
     scene: {
       globe: { baseColor: null },
-      backgroundColor: null,
       fog: { density: 0 },
       light: null,
       requestRender: vi.fn(),
@@ -35,7 +34,7 @@ function viewer() {
 }
 
 describe("reskin", () => {
-  it("re-themes every built layer, sets ground/sky/fog and the sun light, renders once", () => {
+  it("re-themes every built layer, sets ground/fog and the key light, renders once", () => {
     const v = viewer();
     const a = { setTheme: vi.fn() };
     const b = { setTheme: vi.fn() };
@@ -44,11 +43,10 @@ describe("reskin", () => {
     expect(b.setTheme).toHaveBeenCalledWith("day");
     const day = paletteFor("day");
     expect(v.scene.globe.baseColor).toEqual({ css: day.ground });
-    expect(v.scene.backgroundColor).toEqual({ css: day.sky });
     expect(v.scene.fog.density).toBe(day.fog);
     const light = v.scene.light as unknown as DirectionalLight;
-    expect(light.options.color).toEqual({ css: day.sun.color });
-    expect(light.options.intensity).toBe(day.sun.intensity);
+    expect(light.options.color).toEqual({ css: day.light.key });
+    expect(light.options.intensity).toBe(day.light.keyIntensity * 2.5);
     // The light travels downwards: its direction points against the local up vector.
     const up = ecef(AT.lon, AT.lat, 0);
     const d = light.options.direction;
@@ -63,7 +61,7 @@ describe("reskin", () => {
     for (const t of ["night", "day", "night"] as const) reskin(C, v, [h], t, AT);
     expect(h.setTheme).toHaveBeenLastCalledWith("night");
     expect((v.scene.light as unknown as DirectionalLight).options.color).toEqual({
-      css: paletteFor("night").sun.color,
+      css: paletteFor("night").light.key,
     });
   });
 });

@@ -63,6 +63,7 @@ function fakeCesium() {
     GeometryAttribute: Plain,
     ComponentDatatype: { DOUBLE: 5130, FLOAT: 5126 },
     PrimitiveType: { TRIANGLES: 4 },
+    ShadowMode: { ENABLED: 1, CAST_ONLY: 2 },
     BoundingSphere: { fromVertices: () => ({}) },
     MaterialAppearance: Object.assign(Plain, {
       MaterialSupport: { TEXTURED: { vertexFormat: {} } },

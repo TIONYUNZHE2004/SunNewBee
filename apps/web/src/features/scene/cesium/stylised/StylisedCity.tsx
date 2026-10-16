@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useCesium } from "resium";
 import { useBuildings, useLayer, useSite } from "../../../../lib/api";
 import { useTheme } from "../../../../ui/theme";
+import { useSceneSettings } from "../../sceneSettingsStore";
 import { homeView } from "../home";
 import { type BuildingPrimitives, buildBuildingPrimitives } from "./buildingsPrimitive";
 import {
@@ -14,7 +15,9 @@ import {
 } from "./ground";
 import { groupByClass, toBuildings, treesToPoints } from "./model";
 import { paletteFor } from "./palette";
+import { applyPostFx } from "./postfx";
 import { buildProps, kerbCars, type Props, streetTrees } from "./props";
+import { createFrameMonitor, gpuName, lowerTier, pickTier, TIERS, type Tier } from "./quality";
 import { reskin } from "./reskin";
 
 export interface StylisedReady {
@@ -25,7 +28,7 @@ export interface StylisedReady {
   buildMs: number;
 }
 
-/** Hide imagery, sky and atmosphere (keeps the light, sky colour and fog to restore). Returns a restore function. */
+/** Hide imagery, sky and atmosphere (keeps the light, background, fog and globe shadows to restore). Returns a restore function. */
 export function applyStylisedLook(viewer: Cesium.Viewer): () => void {
   const { scene } = viewer;
   const { globe } = scene;
@@ -37,6 +40,7 @@ export function applyStylisedLook(viewer: Cesium.Viewer): () => void {
     groundAtmosphere: globe.showGroundAtmosphere,
     lighting: globe.enableLighting,
     background: scene.backgroundColor.clone(),
+    globeShadows: globe.shadows,
     fog: scene.fog.density,
     skyAtmosphere: scene.skyAtmosphere?.show,
     skyBox: scene.skyBox?.show,
@@ -52,12 +56,16 @@ export function applyStylisedLook(viewer: Cesium.Viewer): () => void {
   if (scene.skyBox) scene.skyBox.show = false;
   if (scene.sun) scene.sun.show = false;
   if (scene.moon) scene.moon.show = false;
+  // The page behind the canvas shows the sky gradient (CesiumScene).
+  scene.backgroundColor = Cesium.Color.TRANSPARENT;
+  globe.shadows = Cesium.ShadowMode.RECEIVE_ONLY;
   return () => {
     if (viewer.isDestroyed()) return;
     globe.baseColor = prev.baseColor;
     globe.showGroundAtmosphere = prev.groundAtmosphere;
     globe.enableLighting = prev.lighting;
     scene.backgroundColor = prev.background;
+    globe.shadows = prev.globeShadows;
     scene.fog.density = prev.fog;
     scene.light = prev.light;
     layers.forEach((l, i) => {
@@ -195,6 +203,58 @@ export function StylisedCity({ onReady }: { onReady?: (info: StylisedReady) => v
       viewer.scene.requestRender();
     };
   }, [viewer, decor, details, home]);
+
+  // Quality tier: the user's choice, or the GPU-picked tier lowered by the frame monitor.
+  const quality = useSceneSettings((s) => s.quality);
+  const [autoTier, setAutoTier] = useState<Tier>("medium");
+  const tier: Tier = quality === "auto" ? autoTier : quality;
+  useEffect(() => {
+    if (!viewer || viewer.isDestroyed()) return;
+    let gpu: string | undefined;
+    try {
+      const gl = (viewer.scene as unknown as { context: { _gl?: WebGLRenderingContext } }).context
+        ._gl;
+      gpu = gpuName(gl);
+    } catch {
+      gpu = undefined;
+    }
+    const mem = (navigator as Navigator & { deviceMemory?: number }).deviceMemory;
+    setAutoTier(pickTier(gpu, mem));
+  }, [viewer]);
+  useEffect(() => {
+    if (!viewer || viewer.isDestroyed() || quality !== "auto") return;
+    const monitor = createFrameMonitor(() => setAutoTier(lowerTier));
+    let last = performance.now();
+    let lastMove = Number.NEGATIVE_INFINITY;
+    const offMove = viewer.camera.changed.addEventListener(() => {
+      lastMove = performance.now();
+    });
+    const offPost = viewer.scene.postRender.addEventListener(() => {
+      const now = performance.now();
+      monitor.sample(now - last, now - lastMove < 300);
+      last = now;
+    });
+    return () => {
+      offMove();
+      offPost();
+    };
+  }, [viewer, quality]);
+  useEffect(() => {
+    if (!viewer || viewer.isDestroyed()) return;
+    applyPostFx(Cesium, viewer, paletteFor(theme), TIERS[tier]);
+  }, [viewer, theme, tier]);
+  useEffect(() => {
+    if (!viewer || viewer.isDestroyed()) return;
+    return () => {
+      if (viewer.isDestroyed()) return;
+      const s = viewer.scene.postProcessStages;
+      s.ambientOcclusion.enabled = false;
+      s.bloom.enabled = false;
+      viewer.shadows = false;
+      viewer.resolutionScale = 1;
+      viewer.scene.requestRender();
+    };
+  }, [viewer]);
 
   useEffect(() => {
     if (!viewer || viewer.isDestroyed()) return;

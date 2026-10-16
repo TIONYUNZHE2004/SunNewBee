@@ -11,30 +11,29 @@ export type ReskinCesium = Pick<typeof Cesium, "Color" | "Cartesian3" | "Directi
 export interface ReskinViewer {
   scene: {
     globe: { baseColor: Cesium.Color };
-    backgroundColor: Cesium.Color;
     fog: { density: number };
     light: Cesium.Light;
     requestRender(): void;
   };
 }
 
-/** The palette sun as a Cesium DirectionalLight (direction = where the light travels, ECEF). */
+/** The palette key light as a Cesium DirectionalLight (direction = where the light travels, ECEF). */
 export function sunLight(
   C: ReskinCesium,
   p: Palette,
   at: { lon: number; lat: number },
 ): Cesium.DirectionalLight {
-  const [x, y, z] = enuToEcef(p.sun.dir, at.lon, at.lat);
+  const [x, y, z] = enuToEcef(p.light.keyDir, at.lon, at.lat);
   const n = Math.hypot(x, y, z) || 1;
   return new C.DirectionalLight({
     direction: new C.Cartesian3(x / n, y / n, z / n),
-    color: C.Color.fromCssColorString(p.sun.color),
-    intensity: p.sun.intensity,
+    color: C.Color.fromCssColorString(p.light.key),
+    intensity: p.light.keyIntensity * 2.5,
   });
 }
 
 /**
- * Day/Night re-skin in place: flat ground and sky colours, every layer's `setTheme` (handles that
+ * Day/Night re-skin in place: flat ground colour and fog, every layer's `setTheme` (handles that
  * are not built yet are skipped: they are created with the latest theme), the sun light, then one
  * requestRender (requestRenderMode).
  */
@@ -48,7 +47,6 @@ export function reskin(
   const p = paletteFor(theme);
   const { scene } = viewer;
   scene.globe.baseColor = C.Color.fromCssColorString(p.ground);
-  scene.backgroundColor = C.Color.fromCssColorString(p.sky);
   scene.fog.density = p.fog;
   for (const h of handles) h?.setTheme(theme);
   scene.light = sunLight(C, p, at);

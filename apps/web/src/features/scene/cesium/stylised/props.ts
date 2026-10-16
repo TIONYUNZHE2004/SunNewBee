@@ -133,6 +133,7 @@ export type PropsCesium = Pick<
   | "Matrix3"
   | "Matrix4"
   | "Transforms"
+  | "ShadowMode"
 >;
 
 interface PrimitiveCollectionLike {
@@ -196,13 +197,17 @@ export function buildProps(
   const inst = (geometry: Cesium.Geometry | Cesium.GeometryFactory, modelMatrix: Cesium.Matrix4) =>
     new C.GeometryInstance({ geometry: geometry as Cesium.Geometry, modelMatrix });
 
-  const groups: { colour: ColourOf; instances: Cesium.GeometryInstance[] }[] = [
-    { colour: (p) => p.tree[0], instances: [] },
-    { colour: (p) => p.tree[1], instances: [] },
-    { colour: (p) => p.trunk, instances: [] },
-    { colour: (p) => p.car[0], instances: [] },
-    { colour: (p) => p.car[1], instances: [] },
-    { colour: (p) => p.car[2], instances: [] },
+  const groups: {
+    colour: ColourOf;
+    instances: Cesium.GeometryInstance[];
+    shadows: Cesium.ShadowMode;
+  }[] = [
+    { colour: (p) => p.tree[0], instances: [], shadows: C.ShadowMode.CAST_ONLY },
+    { colour: (p) => p.tree[1], instances: [], shadows: C.ShadowMode.CAST_ONLY },
+    { colour: (p) => p.trunk, instances: [], shadows: C.ShadowMode.CAST_ONLY },
+    { colour: (p) => p.car[0], instances: [], shadows: C.ShadowMode.ENABLED },
+    { colour: (p) => p.car[1], instances: [], shadows: C.ShadowMode.ENABLED },
+    { colour: (p) => p.car[2], instances: [], shadows: C.ShadowMode.ENABLED },
   ];
   for (const t of trees) {
     const tone = hashUnit(`${t.lon.toFixed(6)},${t.lat.toFixed(6)}`, "tree") < 0.55 ? 0 : 1;
@@ -217,7 +222,7 @@ export function buildProps(
   }
 
   let parts: { prim: Cesium.Primitive; mat: Cesium.Material; colour: ColourOf }[] = [];
-  for (const { colour, instances } of groups) {
+  for (const { colour, instances, shadows } of groups) {
     if (instances.length === 0) continue;
     const mat = litColorMaterial(C, colour(palette), palette, at);
     const prim = new C.Primitive({
@@ -230,6 +235,7 @@ export function buildProps(
         closed: true,
       }),
       allowPicking: false,
+      shadows,
       asynchronous: true,
       releaseGeometryInstances: true,
     });

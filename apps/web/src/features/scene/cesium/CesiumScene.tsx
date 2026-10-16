@@ -25,6 +25,8 @@ import {
 } from "./home";
 import { AccessLayer, FloodLayer, WasteLayer } from "./layers";
 import { setupRealistic } from "./realistic";
+import { paletteFor } from "./stylised/palette";
+import { skyCss } from "./stylised/postfx";
 import { StylisedCity } from "./stylised/StylisedCity";
 import { applyCesiumTime, cesiumTimeStyle, type TimeOps } from "./timeOfDay";
 
@@ -214,6 +216,7 @@ export default function CesiumScene({ onOps }: { onOps?: (ops: CameraOps | null)
   const onTilesFailed = useCallback(() => setTilesFailed(true), []);
   const onNoDraping = useCallback(() => setNoDraping(true), []);
   const { style } = useMapStyle();
+  const theme = useTheme((s) => s.theme);
   const [ops, setOpsState] = useState<CameraOps | null>(null);
   const [tick, setTick] = useState(0);
   const onOpsRef = useRef(onOps);
@@ -226,6 +229,7 @@ export default function CesiumScene({ onOps }: { onOps?: (ops: CameraOps | null)
   return (
     <section
       className="relative h-full w-full"
+      style={style === "stylised" ? { background: skyCss(paletteFor(theme)) } : undefined}
       // biome-ignore lint/a11y/noNoninteractiveTabindex: the 3D map takes keyboard focus for WASD/QE/RF
       tabIndex={0}
       aria-label="3D map. Arrow keys or WASD move, Q and E rotate, R and F tilt, plus and minus zoom, N faces north."
@@ -252,6 +256,7 @@ export default function CesiumScene({ onOps }: { onOps?: (ops: CameraOps | null)
         full={false}
         style={{ width: "100%", height: "100%" }}
         requestRenderMode
+        contextOptions={{ webgl: { alpha: true } }}
         onUpdate={() => {
           const v = ref.current?.cesiumElement;
           if (v && !v.isDestroyed()) v.scene.requestRender();
