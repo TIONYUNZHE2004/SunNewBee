@@ -20,3 +20,22 @@ def test_day_scenarios_and_a_report_on_the_tiny_world():
     assert "not a forecast" in d["disclaimer"] and d["population"]["sources"]
     assert d["timeline"] and d["tracks"]["nodes"]
     assert c.get("/day/nope").status_code == 404
+
+
+def test_day_changes_and_compare_on_the_tiny_world():
+    ch = c.get("/day/weekday/changes").json()
+    assert ch["scenario"] == "weekday" and isinstance(ch["candidates"], list)
+    if ch["candidates"]:
+        body = {"actions": [ch["candidates"][0]["action"]]}
+        r = c.post("/day/weekday/compare", json=body)
+        assert r.status_code == 200, r.text
+        d = r.json()
+        assert d["trips_better"] + d["trips_worse"] <= d["trips_changed"]
+        assert "not a plan" in d["disclaimer"] and d["changed_geojson"]["features"]
+        assert all(f["properties"]["whatif"] for f in d["changed_geojson"]["features"])
+    bad = c.post(
+        "/day/weekday/compare",
+        json={"actions": [{"kind": "set_river_stage", "scenario_id": "stage_p3m"}]},
+    )
+    assert bad.status_code == 422
+    assert c.post("/day/weekday/compare", json={"actions": []}).status_code == 422

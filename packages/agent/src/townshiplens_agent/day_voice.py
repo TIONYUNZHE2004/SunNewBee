@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
 import time
 from dataclasses import asdict
 from datetime import UTC, datetime
@@ -419,6 +420,54 @@ def recording_path(world, scenario_id: str) -> Path:
     return base.parent.parent / "sim" / base.name / f"day-{scenario_id}.json"
 
 
+async def record_compare(world, scenario_id: str, settings: AgentSettings) -> dict:
+    """AI town-hall lines for the planner's hero comparison (the day's top suggested change).
+    Each line is checked against that resident's own before/after; a failed line keeps the
+    engine's template."""
+    from townshiplens_spatial import tools
+    from townshiplens_spatial.day.compare import reaction_facts
+    from townshiplens_spatial.vr_store import VerificationStore
+
+    v = Voice(settings)
+    ctx = tools.Ctx(world=world, vrs=VerificationStore(":memory:"))
+    ch = tools.day_changes(ctx, scenario_id)
+    action = ch.data["candidates"][0]["action"]
+    d = tools.day_compare(ctx, scenario_id, [action]).data
+    # the change in words without its length (a metre figure is never a resident's to say)
+    change = re.sub(r"\s*\(about [^)]*\)", "", d["actions"][0])
+
+    async def one(x):
+        row = x["row"]
+        out = await v.ask(
+            Answer,
+            f"You are {x['name']}, {x['role']}. A township planner proposes this imagined change: "
+            f"{change}. In the simulated day, your trip changes like this (facts): "
+            f"{json.dumps(row)}. The engine's summary: {x['text']}\nSay in one or two short "
+            "sentences, in the first person, what this change would mean for you. Use only "
+            "the numbers in the facts. It is imagined, not a promise.",
+        )
+        if out and not S.check_text(out.text, reaction_facts(row), row["trip"]):
+            return {**x, "text": out.text, "voice": "ai"}
+        v.rejected += out is not None
+        return x
+
+    hall = await asyncio.gather(*(one(x) for x in d["town_hall"][:12]))
+    return {
+        "scenario": f"{scenario_id}-compare",
+        "recorded_at": datetime.now(UTC).isoformat(timespec="seconds"),
+        "model": v.model_name,
+        "actions": [action],
+        "town_hall": list(hall),
+        "stats": {
+            "calls": v.calls,
+            "failed_calls": v.failed,
+            "tokens_in": v.tokens_in,
+            "tokens_out": v.tokens_out,
+            "rejected_lines": v.rejected,
+        },
+    }
+
+
 def main(argv: list[str] | None = None) -> int:
     """Record spotlight voices for built-in day scenarios (costs money unless LLM_PROVIDER=mock):
 
@@ -438,6 +487,12 @@ def main(argv: list[str] | None = None) -> int:
     world = load_world(ROOT / "data/seed/elmina")
     sc = scenarios(world)
     for sid in ids:
+        if sid.endswith("-compare"):
+            rec = asyncio.run(record_compare(world, sid.removesuffix("-compare"), settings))
+            path = recording_path(world, sid)
+            path.write_text(json.dumps(rec, indent=1, ensure_ascii=False) + "\n", encoding="utf-8")
+            print(sid, rec["model"], rec["stats"], "->", path.relative_to(ROOT))
+            continue
         rec = asyncio.run(record_day(world, sc[sid], settings))
         path = recording_path(world, sid)
         path.parent.mkdir(parents=True, exist_ok=True)

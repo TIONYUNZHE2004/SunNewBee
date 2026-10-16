@@ -1309,3 +1309,97 @@ def day_rehearsal(ctx: Ctx, scenario_id: str = "weekday") -> ToolResult:
         cache=_DAY_CACHE,
         cache_max=16,
     )
+
+
+def _day_parts(w: World, scenario_id: str):
+    from .day import spotlight as spot
+    from .day.population import synthesize
+    from .day.scenarios import scenarios
+
+    sc = scenarios(w).get(scenario_id)
+    pop = synthesize(w, DAY_RESIDENTS)
+    return sc, pop, spot.choose(pop)
+
+
+_DAY_RESULTS: OrderedDict[str, object] = OrderedDict()  # finished rule-based days (2 kept)
+
+
+def _day_result(w: World, scenario_id: str):
+    """The rule-based day (no spotlight decisions) for comparisons, kept for the two latest
+    scenarios: suggestions and every comparison share one run instead of re-simulating."""
+    from .day import engine
+
+    sc, pop, cast = _day_parts(w, scenario_id)
+    if sc is None:
+        return None, None, None, None
+    key = json.dumps([id(w), w.version, scenario_id, _today()])
+    with _WM_CACHE_LOCK:
+        hit = _DAY_RESULTS.get(key)
+    if hit is None:
+        hit = engine.Day(w, sc, pop=pop).run()
+        with _WM_CACHE_LOCK:
+            _DAY_RESULTS[key] = hit
+            while len(_DAY_RESULTS) > 2:
+                _DAY_RESULTS.popitem(last=False)
+    return sc, hit.day.pop, cast, hit
+
+
+def day_changes(ctx: Ctx, scenario_id: str = "weekday") -> ToolResult:
+    """Imagined changes worth testing on a day, from its own trips: on a river-rise day the
+    flooded stretches the most residents rely on, then the busiest footways and busy steps."""
+    from .day import compare
+
+    w = ctx.world
+
+    def run() -> ToolResult:
+        sc, _, _, res = _day_result(w, scenario_id)
+        if sc is None:
+            return ToolResult(ok=False, warnings=[f"unknown day scenario {scenario_id}"])
+        return ToolResult(
+            ok=True, data={"scenario": scenario_id, "candidates": compare.candidates(res)}
+        )
+
+    return _wm_cached(
+        w, "day_changes", {"s": scenario_id, "on": _today()}, run, cache=_DAY_CACHE, cache_max=16
+    )
+
+
+def day_compare(ctx: Ctx, scenario_id: str, actions: list) -> ToolResult:
+    """The same simulated day with and without imagined changes, trip by trip: who gains and
+    who loses, by group. A rehearsal of an imagined change, never a plan or a forecast."""
+    from pydantic import TypeAdapter
+
+    from . import twm
+    from .day import compare
+    from .day import voices as dv
+
+    w = ctx.world
+    try:
+        acts = TypeAdapter(list[twm.Action]).validate_python(actions or [])
+    except Exception as exc:  # noqa: BLE001 - a malformed action is a 422, not a crash
+        return ToolResult(ok=False, warnings=[f"invalid action: {exc.__class__.__name__}"])
+    if not acts or len(acts) > 4:
+        return ToolResult(ok=False, warnings=["give 1 to 4 imagined changes"])
+    if any(isinstance(a, twm.SetRiverStage) for a in acts):
+        return ToolResult(ok=False, warnings=["the day's river levels come from its scenario"])
+    for a in acts:
+        if reason := twm.legal(w, a):
+            return ToolResult(ok=False, warnings=[reason])
+
+    def run() -> ToolResult:
+        sc, pop, cast, before = _day_result(w, scenario_id)
+        if sc is None:
+            return ToolResult(ok=False, warnings=[f"unknown day scenario {scenario_id}"])
+        data = compare.compare(w, sc, acts, pop, cast, before=before)
+        data["scenario"] = scenario_id
+        data["changed_geojson"] = compare.touched_geojson(w, acts)
+        rec = dv.load(w, f"{scenario_id}-compare")
+        if rec and rec.get("actions") == [a.model_dump(mode="json") for a in acts]:
+            data["town_hall"] = dv.attach_town_hall(data["town_hall"], rec)
+            data["voice"] = {"model": rec.get("model"), "recorded_at": rec.get("recorded_at")}
+        else:
+            data["voice"] = {"model": "template (no AI)", "recorded_at": None}
+        return ToolResult(ok=True, data=data)
+
+    key = {"s": scenario_id, "a": [a.model_dump(mode="json") for a in acts], "on": _today()}
+    return _wm_cached(w, "day_compare", key, run, cache=_DAY_CACHE, cache_max=16)

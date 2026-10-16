@@ -163,3 +163,24 @@ def attach(res, day, cast: list[S.Spotlight], rec: dict | None) -> dict:
             "and number in them is checked against their own simulated day.",
         },
     }
+
+
+def attach_town_hall(lines: list[dict], rec: dict) -> list[dict]:
+    """Recorded AI town-hall lines, kept only while the resident's before/after is the same and
+    the line passes the check against that trip's own minutes."""
+    from .compare import reaction_facts
+
+    by = {x.get("author"): x for x in rec.get("town_hall", [])}
+    out = []
+    for ln in lines:
+        r = by.get(ln["author"])
+        same = r and r.get("trip") == ln["trip"] and r.get("row") == ln["row"]
+        if (
+            same
+            and r.get("voice") == "ai"
+            and not S.check_text(r.get("text", ""), reaction_facts(ln["row"]), ln["trip"])
+        ):
+            out.append({**ln, "text": r["text"], "voice": "ai"})
+        else:
+            out.append(ln)
+    return out

@@ -383,6 +383,7 @@
                 "assume_fact": "#/components/schemas/AssumeFact",
                 "build_ramp": "#/components/schemas/BuildRamp",
                 "close_path": "#/components/schemas/ClosePath",
+                "raise_paths": "#/components/schemas/RaisePaths",
                 "set_river_stage": "#/components/schemas/SetRiverStage",
                 "verify_fact": "#/components/schemas/VerifyFact"
               },
@@ -403,6 +404,9 @@
               },
               {
                 "$ref": "#/components/schemas/VerifyFact"
+              },
+              {
+                "$ref": "#/components/schemas/RaisePaths"
               }
             ],
             "title": "Action"
@@ -985,6 +989,161 @@
           "attribute"
         ],
         "title": "CreateVRBody",
+        "type": "object"
+      },
+      "DayChanges": {
+        "properties": {
+          "candidates": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Candidates",
+            "type": "array"
+          },
+          "scenario": {
+            "title": "Scenario",
+            "type": "string"
+          }
+        },
+        "required": [
+          "scenario",
+          "candidates"
+        ],
+        "title": "DayChanges",
+        "type": "object"
+      },
+      "DayCompare": {
+        "properties": {
+          "actions": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Actions",
+            "type": "array"
+          },
+          "biggest": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Biggest",
+            "type": "array"
+          },
+          "changed_geojson": {
+            "additionalProperties": true,
+            "title": "Changed Geojson",
+            "type": "object"
+          },
+          "disclaimer": {
+            "title": "Disclaimer",
+            "type": "string"
+          },
+          "groups": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Groups",
+            "type": "array"
+          },
+          "residents_changed": {
+            "title": "Residents Changed",
+            "type": "integer"
+          },
+          "scenario": {
+            "title": "Scenario",
+            "type": "string"
+          },
+          "town_hall": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Town Hall",
+            "type": "array"
+          },
+          "trips_better": {
+            "title": "Trips Better",
+            "type": "integer"
+          },
+          "trips_changed": {
+            "title": "Trips Changed",
+            "type": "integer"
+          },
+          "trips_worse": {
+            "title": "Trips Worse",
+            "type": "integer"
+          },
+          "voice": {
+            "additionalProperties": true,
+            "title": "Voice",
+            "type": "object"
+          }
+        },
+        "required": [
+          "scenario",
+          "actions",
+          "trips_changed",
+          "residents_changed",
+          "trips_better",
+          "trips_worse",
+          "groups",
+          "biggest",
+          "town_hall",
+          "changed_geojson",
+          "voice",
+          "disclaimer"
+        ],
+        "title": "DayCompare",
+        "type": "object"
+      },
+      "DayCompareRequest": {
+        "properties": {
+          "actions": {
+            "items": {
+              "discriminator": {
+                "mapping": {
+                  "assume_fact": "#/components/schemas/AssumeFact",
+                  "build_ramp": "#/components/schemas/BuildRamp",
+                  "close_path": "#/components/schemas/ClosePath",
+                  "raise_paths": "#/components/schemas/RaisePaths",
+                  "set_river_stage": "#/components/schemas/SetRiverStage",
+                  "verify_fact": "#/components/schemas/VerifyFact"
+                },
+                "propertyName": "kind"
+              },
+              "oneOf": [
+                {
+                  "$ref": "#/components/schemas/SetRiverStage"
+                },
+                {
+                  "$ref": "#/components/schemas/ClosePath"
+                },
+                {
+                  "$ref": "#/components/schemas/BuildRamp"
+                },
+                {
+                  "$ref": "#/components/schemas/AssumeFact"
+                },
+                {
+                  "$ref": "#/components/schemas/VerifyFact"
+                },
+                {
+                  "$ref": "#/components/schemas/RaisePaths"
+                }
+              ]
+            },
+            "maxItems": 4,
+            "minItems": 1,
+            "title": "Actions",
+            "type": "array"
+          }
+        },
+        "required": [
+          "actions"
+        ],
+        "title": "DayCompareRequest",
         "type": "object"
       },
       "DayReport": {
@@ -2018,6 +2177,43 @@
           "soft"
         ],
         "title": "ProfileInfo",
+        "type": "object"
+      },
+      "RaisePaths": {
+        "description": "Imagine a capital work against floods: these path segments rebuilt above the township's\nindicative flood levels (they no longer flood in any scenario). Imagined only: the real flood\ndata is never changed, and nothing says the real path is above any water level.",
+        "properties": {
+          "element_ids": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 40,
+            "minItems": 1,
+            "title": "Element Ids",
+            "type": "array"
+          },
+          "kind": {
+            "const": "raise_paths",
+            "default": "raise_paths",
+            "title": "Kind",
+            "type": "string"
+          },
+          "label": {
+            "anyOf": [
+              {
+                "maxLength": 80,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label"
+          }
+        },
+        "required": [
+          "element_ids"
+        ],
+        "title": "RaisePaths",
         "type": "object"
       },
       "Resident": {
@@ -3992,6 +4188,7 @@
                   "assume_fact": "#/components/schemas/AssumeFact",
                   "build_ramp": "#/components/schemas/BuildRamp",
                   "close_path": "#/components/schemas/ClosePath",
+                  "raise_paths": "#/components/schemas/RaisePaths",
                   "set_river_stage": "#/components/schemas/SetRiverStage",
                   "verify_fact": "#/components/schemas/VerifyFact"
                 },
@@ -4012,6 +4209,9 @@
                 },
                 {
                   "$ref": "#/components/schemas/VerifyFact"
+                },
+                {
+                  "$ref": "#/components/schemas/RaisePaths"
                 }
               ]
             },
@@ -4088,6 +4288,7 @@
                   "assume_fact": "#/components/schemas/AssumeFact",
                   "build_ramp": "#/components/schemas/BuildRamp",
                   "close_path": "#/components/schemas/ClosePath",
+                  "raise_paths": "#/components/schemas/RaisePaths",
                   "set_river_stage": "#/components/schemas/SetRiverStage",
                   "verify_fact": "#/components/schemas/VerifyFact"
                 },
@@ -4108,6 +4309,9 @@
                 },
                 {
                   "$ref": "#/components/schemas/VerifyFact"
+                },
+                {
+                  "$ref": "#/components/schemas/RaisePaths"
                 }
               ]
             },
@@ -4646,6 +4850,108 @@
           }
         },
         "summary": "Day Report"
+      }
+    },
+    "/day/{scenario_id}/changes": {
+      "get": {
+        "description": "Imagined changes worth testing on this day, from its own trips (on a river-rise day the\nflooded stretches the most residents rely on, then busy footways and steps).",
+        "operationId": "day_changes_day__scenario_id__changes_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "scenario_id",
+            "required": true,
+            "schema": {
+              "title": "Scenario Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DayChanges"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "description": "unknown scenario"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "503": {
+            "description": "busy"
+          }
+        },
+        "summary": "Day Changes"
+      }
+    },
+    "/day/{scenario_id}/compare": {
+      "post": {
+        "description": "The same simulated day with and without imagined changes, trip by trip: who gains and\nwho loses, by group, and what the spotlight residents would say. Imagined, never a plan.",
+        "operationId": "day_compare_day__scenario_id__compare_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "scenario_id",
+            "required": true,
+            "schema": {
+              "title": "Scenario Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DayCompareRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DayCompare"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "description": "unknown scenario"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "503": {
+            "description": "busy"
+          }
+        },
+        "summary": "Day Compare"
       }
     },
     "/elements/{element_id}/attributes/{key}": {

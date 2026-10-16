@@ -33,6 +33,15 @@ def _day(ctx, sid: str):
     return tools.day_rehearsal(ctx, sid)
 
 
+def _hero_compare(ctx):
+    if not any(s["id"] == "storm" for s in tools.day_scenarios(ctx)):
+        return None
+    ch = tools.day_changes(ctx, "storm")
+    if not ch.ok or not ch.data["candidates"]:
+        return ch if not ch.ok else None
+    return tools.day_compare(ctx, "storm", [ch.data["candidates"][0]["action"]])
+
+
 # (name, call) with the endpoints' default arguments: GET /river-rollout (no query),
 # GET /what-if/suggestions (Lab default persona), GET /verify-next (board defaults).
 JOBS = (
@@ -41,6 +50,8 @@ JOBS = (
     ("verify_next", lambda ctx: tools.plan_verifications(ctx, "wheelchair", "evacuation", 15)),
     # Elmina Day: the four built-in rehearsals (about 5 s each on the seed).
     *((f"day_{sid}", lambda ctx, sid=sid: _day(ctx, sid)) for sid in DAY_ORDER),
+    # the planner's hero: the storm's top suggested change, compared (Cycle 13)
+    ("day_storm_compare", lambda ctx: _hero_compare(ctx)),
 )
 POLL_S = 10.0
 IDLE_WAIT_S = 120.0  # how long a job waits for the solver to be idle before running anyway

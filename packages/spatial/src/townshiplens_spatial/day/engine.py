@@ -142,6 +142,8 @@ class Trip:
     reason: str = ""
     ended_at: float | None = None  # a trip that never arrived: when it ended
     lift: bool = False
+    src: int | None = None  # node index the trip started from
+    targets: tuple[int, ...] = ()  # node indices it was going to
 
 
 class Day:
@@ -595,6 +597,8 @@ class Day:
             stranded_at=stranded_at,
             ended_at=tr.ended_at,
             lift=tr.lift,
+            src=src,
+            targets=tuple(targets),
         )
 
 

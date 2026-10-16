@@ -92,8 +92,19 @@ class VerifyFact(BaseModel):
     outcome: Literal["pass", "fail"] = "pass"
 
 
+class RaisePaths(BaseModel):
+    """Imagine a capital work against floods: these path segments rebuilt above the township's
+    indicative flood levels (they no longer flood in any scenario). Imagined only: the real flood
+    data is never changed, and nothing says the real path is above any water level."""
+
+    kind: Literal["raise_paths"] = "raise_paths"
+    element_ids: list[str] = Field(min_length=1, max_length=40)
+    label: str | None = Field(default=None, max_length=80)
+
+
 Action = Annotated[
-    SetRiverStage | ClosePath | BuildRamp | AssumeFact | VerifyFact, Field(discriminator="kind")
+    SetRiverStage | ClosePath | BuildRamp | AssumeFact | VerifyFact | RaisePaths,
+    Field(discriminator="kind"),
 ]
 
 
@@ -115,6 +126,14 @@ def legal(world: World, a: Any) -> str | None:
     if isinstance(a, SetRiverStage):
         known = {s.id for s in world.flood.scenarios}
         return None if a.scenario_id in known else f"unknown scenario {a.scenario_id!r}"
+    if isinstance(a, RaisePaths):
+        flooded = {e for m in world.flood.edge_classes.values() for e in m}
+        for eid in a.element_ids:
+            if eid not in world.edges:
+                return f"unknown path {eid!r}"
+            if eid not in flooded:
+                return f"{eid} does not flood in any scenario: nothing to raise"
+        return None
     if a.element_id not in world.edges:
         return f"unknown path {a.element_id!r}"
     if isinstance(a, BuildRamp) and not _has_steps(world.edges[a.element_id]):
@@ -203,9 +222,23 @@ def apply(world: World, actions: list[Any], max_actions: int = MAX_ACTIONS) -> I
         return copied[eid]
 
     scenario_id: str | None = None
+    flood = world.flood
     for a in actions:
         if isinstance(a, SetRiverStage):
             scenario_id = None if a.scenario_id == "baseline" else a.scenario_id
+            continue
+        if isinstance(a, RaisePaths):
+            raised = set(a.element_ids)
+            flood = flood.model_copy(
+                update={
+                    "edge_classes": {
+                        sid: {k: v for k, v in m.items() if k not in raised}
+                        for sid, m in flood.edge_classes.items()
+                    }
+                }
+            )
+            for eid in a.element_ids:
+                edge(eid)  # a new object, so batch memos evaluate it afresh
             continue
         e = edge(a.element_id)
         if isinstance(a, ClosePath):
@@ -238,7 +271,7 @@ def apply(world: World, actions: list[Any], max_actions: int = MAX_ACTIONS) -> I
             e.claims = {**e.claims, a.attribute: _claim(value)}
     touched = sorted(copied)
     return Imagined(
-        world=dataclasses.replace(world, edges=edges),
+        world=dataclasses.replace(world, edges=edges, flood=flood),
         scenario_id=scenario_id,
         actions=list(actions),
         touched=touched,
@@ -532,6 +565,11 @@ def describe(world: World, a: Any) -> str:
         if sc is None or a.scenario_id == "baseline":
             return "River at its normal level"
         return f"River +{sc.stage_m:g} m (indicative scenario)"
+    if isinstance(a, RaisePaths):
+        n = len(a.element_ids)
+        m = sum(world.edges[e].length_m for e in a.element_ids if e in world.edges)
+        what = a.label or f"{n} flooded path segment{'s' if n != 1 else ''}"
+        return f"Raise {what} (about {m:.0f} m) above the indicative flood levels"
     where = path_label(world, a.element_id)
     if isinstance(a, ClosePath):
         return f"Close {where}"

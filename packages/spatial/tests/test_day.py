@@ -393,3 +393,31 @@ def test_a_recorded_line_needs_the_same_outcome_not_just_the_same_trip(storm):
     rec = {"cast": [asdict(x) for x in cast], "diaries": {c.id: [wrong]}, "feed": []}
     me = next(p for p in voices.attach(storm, d, cast, rec)["residents"] if p["id"] == c.id)
     assert wrong not in me["diary"]
+
+
+def test_raising_paths_is_imagined_and_needs_a_flooded_path(world):
+    flooded = sorted(world.flood.edge_classes["stage_p3m"])
+    a = twm.RaisePaths(element_ids=flooded)
+    im = twm.apply(world, [a], max_actions=64)
+    assert all(e not in im.world.flood.edge_classes["stage_p3m"] for e in flooded)
+    assert set(flooded) <= set(world.flood.edge_classes["stage_p3m"])  # the real world is unchanged
+    ever = {e for m in world.flood.edge_classes.values() for e in m}
+    dry = next(e for e in world.edges if e not in ever)
+    assert twm.legal(world, twm.RaisePaths(element_ids=[dry]))  # never floods: refused
+    assert "above the indicative flood levels" in twm.describe(world, a)
+
+
+def test_raising_the_top_flooded_stretch_helps_on_the_storm_day(storm, seed_world):
+    from townshiplens_spatial.day import compare
+    from townshiplens_spatial.day import spotlight as SP
+
+    cands = compare.candidates(storm)
+    raise_ = [c for c in cands if c["action"]["kind"] == "raise_paths"]
+    assert raise_ and "whose trips the water cut" in raise_[0]["why"]
+    act = twm.RaisePaths(**raise_[0]["action"])
+    cast = SP.choose(storm.day.pop)
+    d = compare.compare(seed_world, storm.day.scenario, [act], storm.day.pop, cast, before=storm)
+    assert d["trips_better"] > 0 and d["trips_better"] >= d["trips_worse"]
+    assert "not a plan" in d["disclaimer"]
+    for x in d["town_hall"]:
+        assert not SP.check_text(x["text"], compare.reaction_facts(x["row"]), x["trip"])

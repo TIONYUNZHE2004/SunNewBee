@@ -152,6 +152,48 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/day/{scenario_id}/changes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Day Changes
+         * @description Imagined changes worth testing on this day, from its own trips (on a river-rise day the
+         *     flooded stretches the most residents rely on, then busy footways and steps).
+         */
+        get: operations["day_changes_day__scenario_id__changes_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/day/{scenario_id}/compare": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Day Compare
+         * @description The same simulated day with and without imagined changes, trip by trip: who gains and
+         *     who loses, by group, and what the spotlight residents would say. Imagined, never a plan.
+         */
+        post: operations["day_compare_day__scenario_id__compare_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/elements/{element_id}/attributes/{key}": {
         parameters: {
             query?: never;
@@ -930,7 +972,7 @@ export interface components {
         /** Candidate */
         Candidate: {
             /** Action */
-            action: components["schemas"]["SetRiverStage"] | components["schemas"]["ClosePath"] | components["schemas"]["BuildRamp"] | components["schemas"]["AssumeFact"] | components["schemas"]["VerifyFact"];
+            action: components["schemas"]["SetRiverStage"] | components["schemas"]["ClosePath"] | components["schemas"]["BuildRamp"] | components["schemas"]["AssumeFact"] | components["schemas"]["VerifyFact"] | components["schemas"]["RaisePaths"];
             /** Journeys Using It */
             journeys_using_it?: number | null;
             /** Label */
@@ -1099,6 +1141,57 @@ export interface components {
             reason: string;
             /** Target Id */
             target_id: string;
+        };
+        /** DayChanges */
+        DayChanges: {
+            /** Candidates */
+            candidates: {
+                [key: string]: unknown;
+            }[];
+            /** Scenario */
+            scenario: string;
+        };
+        /** DayCompare */
+        DayCompare: {
+            /** Actions */
+            actions: string[];
+            /** Biggest */
+            biggest: {
+                [key: string]: unknown;
+            }[];
+            /** Changed Geojson */
+            changed_geojson: {
+                [key: string]: unknown;
+            };
+            /** Disclaimer */
+            disclaimer: string;
+            /** Groups */
+            groups: {
+                [key: string]: unknown;
+            }[];
+            /** Residents Changed */
+            residents_changed: number;
+            /** Scenario */
+            scenario: string;
+            /** Town Hall */
+            town_hall: {
+                [key: string]: unknown;
+            }[];
+            /** Trips Better */
+            trips_better: number;
+            /** Trips Changed */
+            trips_changed: number;
+            /** Trips Worse */
+            trips_worse: number;
+            /** Voice */
+            voice: {
+                [key: string]: unknown;
+            };
+        };
+        /** DayCompareRequest */
+        DayCompareRequest: {
+            /** Actions */
+            actions: (components["schemas"]["SetRiverStage"] | components["schemas"]["ClosePath"] | components["schemas"]["BuildRamp"] | components["schemas"]["AssumeFact"] | components["schemas"]["VerifyFact"] | components["schemas"]["RaisePaths"])[];
         };
         /** DayReport */
         DayReport: {
@@ -1517,6 +1610,23 @@ export interface components {
              * @default our engineering default (no published source)
              */
             threshold_basis: string;
+        };
+        /**
+         * RaisePaths
+         * @description Imagine a capital work against floods: these path segments rebuilt above the township's
+         *     indicative flood levels (they no longer flood in any scenario). Imagined only: the real flood
+         *     data is never changed, and nothing says the real path is above any water level.
+         */
+        RaisePaths: {
+            /** Element Ids */
+            element_ids: string[];
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "raise_paths";
+            /** Label */
+            label?: string | null;
         };
         /** Resident */
         Resident: {
@@ -2276,7 +2386,7 @@ export interface components {
         /** WhatIfRequest */
         WhatIfRequest: {
             /** Actions */
-            actions?: (components["schemas"]["SetRiverStage"] | components["schemas"]["ClosePath"] | components["schemas"]["BuildRamp"] | components["schemas"]["AssumeFact"] | components["schemas"]["VerifyFact"])[];
+            actions?: (components["schemas"]["SetRiverStage"] | components["schemas"]["ClosePath"] | components["schemas"]["BuildRamp"] | components["schemas"]["AssumeFact"] | components["schemas"]["VerifyFact"] | components["schemas"]["RaisePaths"])[];
             /** From Id */
             from_id?: string | null;
             /**
@@ -2300,7 +2410,7 @@ export interface components {
             /** Action Labels */
             action_labels: string[];
             /** Actions */
-            actions: (components["schemas"]["SetRiverStage"] | components["schemas"]["ClosePath"] | components["schemas"]["BuildRamp"] | components["schemas"]["AssumeFact"] | components["schemas"]["VerifyFact"])[];
+            actions: (components["schemas"]["SetRiverStage"] | components["schemas"]["ClosePath"] | components["schemas"]["BuildRamp"] | components["schemas"]["AssumeFact"] | components["schemas"]["VerifyFact"] | components["schemas"]["RaisePaths"])[];
             /** Changed */
             changed: {
                 [key: string]: unknown;
@@ -2611,6 +2721,100 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DayReport"];
+                };
+            };
+            /** @description unknown scenario */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description busy */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    day_changes_day__scenario_id__changes_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                scenario_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DayChanges"];
+                };
+            };
+            /** @description unknown scenario */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description busy */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    day_compare_day__scenario_id__compare_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                scenario_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DayCompareRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DayCompare"];
                 };
             };
             /** @description unknown scenario */

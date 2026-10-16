@@ -6,8 +6,8 @@ residents are synthetic and the river levels indicative scenarios, never a forec
 from typing import Any
 
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
-from townshiplens_spatial import tools
+from pydantic import BaseModel, Field
+from townshiplens_spatial import tools, twm
 
 from .. import state
 
@@ -55,4 +55,65 @@ def day_report(scenario_id: str) -> dict:
     if not res.ok:
         busy = any("busy" in w for w in res.warnings)
         raise HTTPException(status_code=503 if busy else 404, detail="; ".join(res.warnings))
+    return res.data
+
+
+class DayChanges(BaseModel):
+    scenario: str
+    candidates: list[dict[str, Any]]
+
+
+class DayCompareRequest(BaseModel):
+    actions: list[twm.Action] = Field(min_length=1, max_length=4)
+
+
+class DayCompare(BaseModel):
+    scenario: str
+    actions: list[str]
+    trips_changed: int
+    residents_changed: int
+    trips_better: int
+    trips_worse: int
+    groups: list[dict[str, Any]]
+    biggest: list[dict[str, Any]]
+    town_hall: list[dict[str, Any]]
+    changed_geojson: dict[str, Any]
+    voice: dict[str, Any]
+    disclaimer: str
+
+
+def _fail(res) -> HTTPException:
+    busy = any("busy" in w for w in res.warnings)
+    unknown = any("unknown day scenario" in w for w in res.warnings)
+    code = 503 if busy else 404 if unknown else 422
+    return HTTPException(status_code=code, detail="; ".join(res.warnings))
+
+
+@router.get(
+    "/day/{scenario_id}/changes",
+    response_model=DayChanges,
+    responses={404: {"description": "unknown scenario"}, 503: {"description": "busy"}},
+)
+def day_changes(scenario_id: str) -> dict:
+    """Imagined changes worth testing on this day, from its own trips (on a river-rise day the
+    flooded stretches the most residents rely on, then busy footways and steps)."""
+    res = tools.day_changes(state.get_ctx(), scenario_id)
+    if not res.ok:
+        raise _fail(res)
+    return res.data
+
+
+@router.post(
+    "/day/{scenario_id}/compare",
+    response_model=DayCompare,
+    responses={404: {"description": "unknown scenario"}, 503: {"description": "busy"}},
+)
+def day_compare(scenario_id: str, body: DayCompareRequest) -> dict:
+    """The same simulated day with and without imagined changes, trip by trip: who gains and
+    who loses, by group, and what the spotlight residents would say. Imagined, never a plan."""
+    res = tools.day_compare(
+        state.get_ctx(), scenario_id, [a.model_dump(mode="json") for a in body.actions]
+    )
+    if not res.ok:
+        raise _fail(res)
     return res.data

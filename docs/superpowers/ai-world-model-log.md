@@ -1042,3 +1042,39 @@ The reviewer read 390 AI diary lines, 30 feed posts and 15 decision reasons from
 | m | Minor | Tab semantics; slider value text; focus lost on Close; follow flew to home, not the dot; "waiting for the water" also counted waits at home; reply keys could collide. | Tabpanel with aria-controls, `aria-valuetext` on the slider, focus back to the opener, fly to the dot's position at the clock, "waiting for a way through", stable keys. `Button` takes a `ref` (React 19 `ComponentProps`). |
 
 Checklist: lint PASS, vitest PASS (471), e2e PASS (16), typecheck PASS.
+
+## Cycle 13: test a change before building it, raise a flooded stretch, town hall (17 Oct, 03:46)
+
+**What was built:**
+- **`twm.RaisePaths`,** a new imagined capital work in the world model's action set. A set of path segments is raised above the indicative flood levels, and they no longer flood in any scenario on the imagined copy. It is legal only for paths that flood somewhere, the real flood data is untouched, and its description is "Raise … above the indicative flood levels".
+- **`day/compare.py`:**
+  - **suggestions from the day's own trips:**
+    - on a river-rise day, the flooded stretches the most residents relied on. For every trip the water cancelled or cut, its normal-day route is checked for segments flooded at the day's top level; the most-used segment then grows into a connected stretch of up to 40 segments or about 900 m;
+    - otherwise, the most-walked footways (closed for works) and busy steps (rebuilt as a ramp);
+  - **the comparison itself:** the same day with and without the change, matched trip by trip with the stable ids. It reports trips better or worse, residents better or worse off by group, the biggest changes, and the changed paths drawn in the what-if style;
+  - **town hall:** spotlight residents whose day changed react in a line the engine writes from their own before/after.
+- **API:** `GET /day/{id}/changes` and `POST /day/{id}/compare` (1 to 4 actions, no river-stage actions). Rule-based days are cached and shared. The warm-up includes the storm's top comparison, so the hero is instant.
+- **Web:** a "Test a change" tab in the Day panel: pick a change, compare, see the before/after by group and the town hall, with the change drawn on the map ("What-if · not real").
+- **AI town hall** for the hero (`day_voice record_compare`, GPT-6 Luna, 4 calls). Each line is checked against that resident's own before/after.
+
+**Result on the seed (mock engine; the town-hall voices are live):**
+
+> Storm at the school run, with the flooded stretch on Jalan Sungai Buloh (about 972 m) raised: **389 residents' day would change, 389 trips better, 0 worse.**
+
+Commuters, a wheelchair user and 35 people in households without a car could get to work. The town hall says, for example: "In this imagined change, I could get to work instead of having my trip stopped by the water. It would take me 9 minutes."
+
+A second stretch, about 1.1 km of Persiaran Eserina, helps **96 children and 65 teenagers** get to school.
+
+**Found while building:**
+- Town-hall lines were wrong for trips that existed on only one side ("my trip to home would be 0 minutes quicker"). Now only trips present in both days speak, outward first, and only a real change is stated.
+- AI lines with "9.2 minutes" or a stretch length in metres were rightly rejected by the check. Rows now use whole minutes, and the change is named without its length.
+
+**Tests:**
+- Spatial: raising is imagined and refused for paths that never flood; the storm comparison helps, and every town-hall line passes the check.
+- API: changes, compare, and rejection of a river-stage action or an empty list.
+- e2e: Test a change on the tiny world (17 of 17 pass).
+- Checklist: lint, pytest, typecheck, vitest, golden and e2e PASS; gen PASS after the commit.
+
+**Ruling W27:** the planner's lever against floods is "raise these paths above the indicative flood levels". It is imagined, and the result is phrased as "would", never as a plan or a promise. A real raised walkway needs engineering and hydrology this model does not have. Cost if wrong: a judge reads it as a design. The disclaimer is shown on every comparison.
+
+**Spend:** see the ledger (`.data/spend.jsonl`). This cycle's live calls were 3 town-hall recordings of 4 calls each.
