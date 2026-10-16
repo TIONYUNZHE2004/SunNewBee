@@ -1,6 +1,6 @@
 {
   "scenario": "storm-compare",
-  "recorded_at": "2026-10-16T19:43:52+00:00",
+  "recorded_at": "2026-10-16T19:58:28+00:00",
   "model": "openai/gpt-6-luna",
   "actions": [
     {
@@ -10,15 +10,16 @@
         "seg-220202115-0",
         "seg-1174255005-0",
         "seg-1030433961-0",
-        "seg-606549462-0",
         "seg-220202113-0",
         "seg-458522695-0",
         "seg-458522696-0",
         "seg-1485871810-0",
-        "seg-599124628-0",
         "seg-1174257061-0",
         "seg-933079063-0",
-        "seg-1165665873-0"
+        "seg-1165665873-0",
+        "seg-458522697-0",
+        "seg-1165665873-1",
+        "seg-1174257060-0"
       ],
       "label": "the flooded stretch on Jalan Sungai Buloh"
     }
@@ -38,11 +39,36 @@
         "before": "cancelled",
         "after": "on_time",
         "minutes_before": null,
-        "minutes_after": 9,
+        "minutes_after": 8,
         "change_min": null,
-        "companions": 0
+        "companions": 0,
+        "with": [],
+        "verdict": 1
       },
-      "text": "In this imagined change, I could get to work instead of having my trip stopped by the water. It would take me 9 minutes.",
+      "text": "In this imagined day, I could get to work on time instead of having my trip cancelled. It would take 8 minutes.",
+      "voice": "ai"
+    },
+    {
+      "author": "r01412",
+      "name": "Jun Hao",
+      "role": "commuter and parent",
+      "trip": "r01412-0-out",
+      "row": {
+        "trip": "r01412-0-out",
+        "resident": "r01412",
+        "purpose": "work",
+        "to": "work",
+        "direction": "out",
+        "before": "cancelled",
+        "after": "on_time",
+        "minutes_before": null,
+        "minutes_after": 8,
+        "change_min": null,
+        "companions": 0,
+        "with": [],
+        "verdict": 1
+      },
+      "text": "In this imagined scenario, I could make it to work instead of having my trip cancelled. I’d arrive 8 minutes after leaving.",
       "voice": "ai"
     },
     {
@@ -61,9 +87,11 @@
         "minutes_before": null,
         "minutes_after": 8,
         "change_min": null,
-        "companions": 0
+        "companions": 0,
+        "with": [],
+        "verdict": 1
       },
-      "text": "In this imagined change, I could get to work on time in 8 minutes, instead of having my trip cancelled. It is not a promise.",
+      "text": "In this imagined change, I could get to work on time in 8 minutes. Before, my trip was cancelled.",
       "voice": "ai"
     },
     {
@@ -80,11 +108,13 @@
         "before": "cancelled",
         "after": "on_time",
         "minutes_before": null,
-        "minutes_after": 9,
+        "minutes_after": 8,
         "change_min": null,
-        "companions": 0
+        "companions": 0,
+        "with": [],
+        "verdict": 1
       },
-      "text": "In this imagined change, I could get to work instead of having my trip stopped by the water. The trip would take 9 minutes.",
+      "text": "In this imagined day, I could get to work in 8 minutes instead of having my trip cancelled. It’s not a promise.",
       "voice": "ai"
     },
     {
@@ -103,17 +133,19 @@
         "minutes_before": null,
         "minutes_after": 8,
         "change_min": null,
-        "companions": 0
+        "companions": 0,
+        "with": [],
+        "verdict": 1
       },
-      "text": "In this imagined change, I could get to work in 8 minutes instead of having my trip stopped by the water.",
+      "text": "In this imagined change, I could make my trip to work instead of having it cancelled. I’d arrive on time after 8 minutes.",
       "voice": "ai"
     }
   ],
   "stats": {
-    "calls": 4,
+    "calls": 5,
     "failed_calls": 0,
-    "tokens_in": 1276,
-    "tokens_out": 178,
+    "tokens_in": 1674,
+    "tokens_out": 217,
     "rejected_lines": 0
   }
 }
