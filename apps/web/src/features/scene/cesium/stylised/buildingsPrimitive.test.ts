@@ -121,16 +121,16 @@ describe("buildBuildingPrimitives", () => {
     }
   });
 
-  it("setTheme mutates material uniforms in place and never creates primitives", () => {
+  it("setPalette mutates material uniforms in place and never creates primitives", () => {
     const { C, primitives, materials } = fakeCesium();
     const out = buildBuildingPrimitives(C, twoClasses(), paletteFor("night"), "night");
     const n = primitives.length;
     const glowAt = () => materials.map((m) => m.uniforms.glow);
     expect(glowAt()).toEqual([1, 1]);
-    out.setTheme("day");
+    out.setPalette(paletteFor("day"), true);
     expect(glowAt()).toEqual([0, 0]);
     expect(materials[0]!.uniforms.wallWarm).toEqual({ css: paletteFor("day").wall.warm });
-    out.setTheme("night");
+    out.setPalette(paletteFor("night"), true);
     expect(glowAt()).toEqual([1, 1]);
     expect(materials[0]!.uniforms.wallWarm).toEqual({ css: paletteFor("night").wall.warm });
     expect(primitives).toHaveLength(n);
@@ -151,8 +151,8 @@ describe("buildBuildingPrimitives", () => {
     for (const p of primitives) expect(p.destroy).toHaveBeenCalledTimes(1);
     for (const m of materials) expect(m.destroy).toHaveBeenCalledTimes(1);
     expect(out.primitives).toHaveLength(0);
-    // setTheme after destroy is a no-op, not a throw.
-    expect(() => out.setTheme("night")).not.toThrow();
+    // setPalette after destroy is a no-op, not a throw.
+    expect(() => out.setPalette(paletteFor("night"), true)).not.toThrow();
   });
 
   it("an empty class map yields no primitives and no throw", () => {
@@ -161,7 +161,7 @@ describe("buildBuildingPrimitives", () => {
     expect(out.primitives).toEqual([]);
     expect(primitives).toHaveLength(0);
     expect(() => {
-      out.setTheme("day");
+      out.setPalette(paletteFor("day"), true);
       out.destroy();
     }).not.toThrow();
   });

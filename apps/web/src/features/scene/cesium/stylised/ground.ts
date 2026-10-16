@@ -1,5 +1,5 @@
 import type * as Cesium from "cesium";
-import { type Palette, paletteFor, type Theme } from "./palette";
+import type { Palette } from "./palette";
 
 /** A road centre line from the walk network, drawn as a flat corridor `widthM` wide. */
 export interface Road {
@@ -141,8 +141,9 @@ interface PostRender {
 
 export interface Ground {
   /** Recolour in place (per-instance colour attributes). Before the primitives are ready the
-   * latest theme is kept and applied as soon as they are. */
-  setTheme(t: Theme): void;
+   * latest palette is kept and applied as soon as they are. Only `final` calls recolour: the
+   * caller passes the target palette once, at the fade's midpoint. */
+  setPalette(p: Palette, final: boolean): void;
   /** Remove and destroy everything. Idempotent. */
   destroy(): void;
 }
@@ -261,8 +262,9 @@ export function buildGround(
   );
 
   return {
-    setTheme(t) {
-      want = paletteFor(t);
+    setPalette(p, final) {
+      want = p;
+      if (!final) return;
       if (sync() || stopWatching || parts.length === 0) return;
       // Not ready yet: re-check after each frame until the latest colours are in.
       stopWatching = scene.postRender.addEventListener(() => {

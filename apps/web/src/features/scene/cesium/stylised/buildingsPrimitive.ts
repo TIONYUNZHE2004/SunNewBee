@@ -2,7 +2,7 @@ import type * as Cesium from "cesium";
 import { buildMesh, TONE_STRIDE, type Triangulate } from "./buildingsMesh";
 import { LIGHTING_GLSL, lightUniforms } from "./lighting";
 import type { Building } from "./model";
-import { type Palette, paletteFor, type Theme } from "./palette";
+import type { Palette, Theme } from "./palette";
 
 /** The slice of the Cesium namespace the builder uses (a fake in unit tests). */
 export type CesiumLike = Pick<
@@ -31,7 +31,7 @@ export interface PrimitiveCollectionLike {
 export interface BuildingPrimitives {
   primitives: Cesium.Primitive[];
   /** Swap the look in place (material uniforms only, no geometry rebuild). */
-  setTheme(theme: Theme): void;
+  setPalette(p: Palette, final: boolean): void;
   /** Remove and destroy every primitive and material. Idempotent. */
   destroy(): void;
 }
@@ -121,7 +121,7 @@ export function buildBuildingPrimitives(
   C: CesiumLike,
   classes: Map<string, Building[]>,
   palette: Palette,
-  theme: Theme,
+  _theme: Theme,
   collection?: PrimitiveCollectionLike,
 ): BuildingPrimitives {
   const triangulate: Triangulate = (xy) => {
@@ -189,8 +189,7 @@ export function buildBuildingPrimitives(
 
   const out: BuildingPrimitives = {
     primitives,
-    setTheme(t) {
-      const p = paletteFor(t);
+    setPalette(p) {
       const u = uniformsFor(C, p, at);
       for (const m of materials) Object.assign(m.uniforms, u);
     },

@@ -155,9 +155,9 @@ describe("buildGround", () => {
 
   it("theme toggled before the primitives are ready ends on the latest theme once ready", () => {
     const { g, prims, primitives, postRender, requestRender } = setup();
-    g.setTheme("day");
-    g.setTheme("night");
-    g.setTheme("day");
+    g.setPalette(paletteFor("day"), true);
+    g.setPalette(paletteFor("night"), true);
+    g.setPalette(paletteFor("day"), true);
     // Not ready: nothing written yet, one watcher (not one per toggle).
     expect(prims.every((p) => p.attrs.size === 0)).toBe(true);
     expect(postRender.listeners.size).toBe(1);
@@ -174,25 +174,34 @@ describe("buildGround", () => {
     expect(primitives).toHaveLength(2);
   });
 
-  it("setTheme on ready primitives recolours in place right away; same theme is a no-op", () => {
+  it("setPalette on ready primitives recolours in place right away; same theme is a no-op", () => {
     const { g, prims, postRender } = setup();
     for (const p of prims) p.ready = true;
-    g.setTheme("night"); // built as night: nothing to write
+    g.setPalette(paletteFor("night"), true); // built as night: nothing to write
     expect(prims[0]!.attrs.size).toBe(0);
-    g.setTheme("day");
+    g.setPalette(paletteFor("day"), true);
     expect(prims[0]!.attrs.get("road:1")?.color).toBe(colourOf(paletteFor("day").road));
     expect(postRender.listeners.size).toBe(0);
   });
 
+  it("a non-final palette is stored but not written; the final one recolours", () => {
+    const { g, prims } = setup();
+    for (const p of prims) p.ready = true;
+    g.setPalette(paletteFor("day"), false);
+    expect(prims[0]!.attrs.size).toBe(0);
+    g.setPalette(paletteFor("day"), true);
+    expect(prims[0]!.attrs.get("road:0")?.color).toBe(colourOf(paletteFor("day").road));
+  });
+
   it("destroy removes every primitive once, stops watching, and is idempotent", () => {
     const { g, primitives, groundPrimitives, postRender } = setup();
-    g.setTheme("day");
+    g.setPalette(paletteFor("day"), true);
     g.destroy();
     g.destroy();
     expect(groundPrimitives.remove).toHaveBeenCalledTimes(2);
     for (const p of primitives) expect(p.destroy).toHaveBeenCalledTimes(1);
     expect(postRender.listeners.size).toBe(0);
-    expect(() => g.setTheme("night")).not.toThrow();
+    expect(() => g.setPalette(paletteFor("night"), true)).not.toThrow();
   });
 
   it("no roads and no water -> nothing created, no throw", () => {
@@ -211,7 +220,7 @@ describe("buildGround", () => {
     });
     expect(f.primitives).toHaveLength(0);
     expect(() => {
-      g.setTheme("night");
+      g.setPalette(paletteFor("night"), true);
       g.destroy();
     }).not.toThrow();
   });

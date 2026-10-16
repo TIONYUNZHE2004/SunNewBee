@@ -3,9 +3,10 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useCesium } from "resium";
 import { useBuildings, useLayer, useSite } from "../../../../lib/api";
 import { useTheme } from "../../../../ui/theme";
-import { useSceneSettings } from "../../sceneSettingsStore";
+import { prefersReducedMotion, useSceneSettings } from "../../sceneSettingsStore";
 import { homeView } from "../home";
 import { type BuildingPrimitives, buildBuildingPrimitives } from "./buildingsPrimitive";
+import { startCrossfade } from "./crossfade";
 import {
   buildGround,
   type Ground,
@@ -26,7 +27,7 @@ import {
   TIERS,
   type Tier,
 } from "./quality";
-import { reskin } from "./reskin";
+import { reskinPalette } from "./reskin";
 
 export interface StylisedReady {
   buildings: number;
@@ -260,9 +261,29 @@ export function StylisedCity({ onReady }: { onReady?: (info: StylisedReady) => v
     };
   }, [viewer]);
 
+  // Crossfade to the chosen mood. A new theme cancels the running fade and restarts from what is
+  // shown; layers built mid-fade (or after) start from the latest theme's palette, so every path
+  // ends on the last choice. The ground recolours once, at the midpoint (never intermediates).
+  const shown = useRef(paletteFor(useTheme.getState().theme));
   useEffect(() => {
     if (!viewer || viewer.isDestroyed()) return;
-    reskin(Cesium, viewer, [buildings.current, ground.current, props.current], theme, home);
+    const to = paletteFor(theme);
+    let groundDone = false;
+    const cancel = startCrossfade(
+      shown.current,
+      to,
+      (p, t) => {
+        if (viewer.isDestroyed()) return;
+        shown.current = p;
+        reskinPalette(Cesium, viewer, [buildings.current, props.current], p, home, t >= 1);
+        if (!groundDone && t >= 0.5) {
+          groundDone = true;
+          ground.current?.setPalette(to, true);
+        }
+      },
+      { reduced: prefersReducedMotion() },
+    );
+    return cancel;
   }, [viewer, theme, home]);
 
   return null;

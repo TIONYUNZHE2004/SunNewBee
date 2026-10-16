@@ -194,7 +194,7 @@ describe("decorative props honesty", () => {
     });
     const baseWater = { type: "FeatureCollection", features: [poly(101.5)] };
     const scenarioWater = { type: "FeatureCollection", features: [poly(101.9)] };
-    const buildGround = vi.fn(() => ({ setTheme: vi.fn(), destroy: vi.fn() }));
+    const buildGround = vi.fn(() => ({ setPalette: vi.fn(), destroy: vi.fn() }));
     vi.resetModules();
     vi.doMock("resium", () => ({ useCesium: () => ({ viewer: FAKE_VIEWER }) }));
     vi.doMock("./ground", async (orig) => ({
@@ -202,14 +202,14 @@ describe("decorative props honesty", () => {
       buildGround,
     }));
     vi.doMock("./buildingsPrimitive", () => ({
-      buildBuildingPrimitives: () => ({ primitives: [], setTheme: vi.fn(), destroy: vi.fn() }),
+      buildBuildingPrimitives: () => ({ primitives: [], setPalette: vi.fn(), destroy: vi.fn() }),
     }));
     vi.doMock("./props", () => ({
-      buildProps: () => ({ setTheme: vi.fn(), destroy: vi.fn() }),
+      buildProps: () => ({ setPalette: vi.fn(), destroy: vi.fn() }),
       kerbCars: () => [],
       streetTrees: () => [],
     }));
-    vi.doMock("./reskin", () => ({ reskin: vi.fn() }));
+    vi.doMock("./reskin", () => ({ reskin: vi.fn(), reskinPalette: vi.fn() }));
     const { StylisedCity: City } = await import("./StylisedCity");
     const qc = newQueryClient();
     qc.setQueryData(["buildings"], { ...BUILDINGS, water: baseWater });

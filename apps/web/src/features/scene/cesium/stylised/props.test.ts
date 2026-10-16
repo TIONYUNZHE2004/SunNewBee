@@ -126,12 +126,12 @@ describe("buildProps", () => {
     expect(n).toBe(trees.length * 2 + cars.length * 2);
   });
 
-  it("setTheme mutates colours in place (before ready) and ends on the latest theme", () => {
+  it("setPalette mutates colours in place (before ready) and ends on the latest theme", () => {
     const { out, primitives, materials } = setup("night");
     const before = primitives.length;
-    out.setTheme("day");
-    out.setTheme("night");
-    out.setTheme("day");
+    out.setPalette(paletteFor("day"), true);
+    out.setPalette(paletteFor("night"), true);
+    out.setPalette(paletteFor("day"), true);
     const day = paletteFor("day");
     const colours = materials.map((m) => (m.uniforms.color as { css: string }).css);
     for (const c of colours) {
@@ -140,14 +140,14 @@ describe("buildProps", () => {
     expect(primitives).toHaveLength(before);
   });
 
-  it("uses flat lit materials and setTheme rewrites the light uniforms", () => {
+  it("uses flat lit materials and setPalette rewrites the light uniforms", () => {
     const { out, primitives, materials } = setup("night");
     for (const p of primitives)
       expect((p.options.appearance as { options: Record<string, unknown> }).options).toMatchObject({
         flat: true,
         translucent: false,
       });
-    out.setTheme("day");
+    out.setPalette(paletteFor("day"), true);
     const day = paletteFor("day");
     for (const m of materials) {
       expect(m.writes).toEqual(expect.arrayContaining(["color", "keyColor", "horizonColor"]));
@@ -171,7 +171,7 @@ describe("buildProps", () => {
     });
     expect(f.primitives).toHaveLength(0);
     expect(() => {
-      empty.setTheme("night");
+      empty.setPalette(paletteFor("night"), true);
       empty.destroy();
     }).not.toThrow();
   });

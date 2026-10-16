@@ -3,7 +3,7 @@ import { enuToEcef } from "./buildingsMesh";
 import { type Palette, paletteFor, type Theme } from "./palette";
 
 export interface Reskinnable {
-  setTheme(t: Theme): void;
+  setPalette(p: Palette, final: boolean): void;
 }
 
 export type ReskinCesium = Pick<typeof Cesium, "Color" | "Cartesian3" | "DirectionalLight">;
@@ -33,10 +33,27 @@ export function sunLight(
 }
 
 /**
- * Day/Night re-skin in place: flat ground colour and fog, every layer's `setTheme` (handles that
+ * Apply one palette in place: flat ground colour and fog, every layer's `setPalette` (handles that
  * are not built yet are skipped: they are created with the latest theme), the sun light, then one
- * requestRender (requestRenderMode).
+ * requestRender (requestRenderMode). `final` is true on the last frame of a fade.
  */
+export function reskinPalette(
+  C: ReskinCesium,
+  viewer: ReskinViewer,
+  handles: (Reskinnable | null | undefined)[],
+  p: Palette,
+  at: { lon: number; lat: number },
+  final: boolean,
+): void {
+  const { scene } = viewer;
+  scene.globe.baseColor = C.Color.fromCssColorString(p.ground);
+  scene.fog.density = p.fog;
+  for (const h of handles) h?.setPalette(p, final);
+  scene.light = sunLight(C, p, at);
+  scene.requestRender();
+}
+
+/** Snap to a theme's palette at once. */
 export function reskin(
   C: ReskinCesium,
   viewer: ReskinViewer,
@@ -44,11 +61,5 @@ export function reskin(
   theme: Theme,
   at: { lon: number; lat: number },
 ): void {
-  const p = paletteFor(theme);
-  const { scene } = viewer;
-  scene.globe.baseColor = C.Color.fromCssColorString(p.ground);
-  scene.fog.density = p.fog;
-  for (const h of handles) h?.setTheme(theme);
-  scene.light = sunLight(C, p, at);
-  scene.requestRender();
+  reskinPalette(C, viewer, handles, paletteFor(theme), at, true);
 }

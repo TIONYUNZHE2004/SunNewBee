@@ -2,7 +2,7 @@ import type * as Cesium from "cesium";
 import type { Road } from "./ground";
 import { lightUniforms, litColorMaterial, setLightUniforms } from "./lighting";
 import { hashUnit } from "./model";
-import { type Palette, paletteFor, type Theme } from "./palette";
+import type { Palette } from "./palette";
 
 /**
  * Decorative props: trees and static parked cars. Illustrative only: never pickable, never
@@ -142,7 +142,7 @@ interface PrimitiveCollectionLike {
 }
 
 export interface Props {
-  setTheme(t: Theme): void;
+  setPalette(p: Palette, final: boolean): void;
   destroy(): void;
 }
 
@@ -244,8 +244,7 @@ export function buildProps(
   }
 
   return {
-    setTheme(t) {
-      const p = paletteFor(t);
+    setPalette(p) {
       const light = lightUniforms(C, p, at);
       for (const { mat, colour } of parts) {
         mat.uniforms.color = C.Color.fromCssColorString(colour(p));
