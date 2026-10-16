@@ -1,0 +1,1268 @@
+{
+ "scenario": "friday",
+ "recorded_at": "2026-10-16T19:07:03+00:00",
+ "model": "openai/gpt-6-luna",
+ "residents": 5000,
+ "seed": 11,
+ "cast": [
+  {
+   "id": "r04629",
+   "name": "Kok Leong",
+   "age": 73,
+   "role": "wheelchair user",
+   "persona": "wheelchair",
+   "group": "older",
+   "household": "h01227",
+   "home_coord": [
+    101.520886,
+    3.190837
+   ],
+   "voice": "Kok Leong speaks plainly about his day as a wheelchair user.",
+   "tags": []
+  },
+  {
+   "id": "r04099",
+   "name": "Hasnah",
+   "age": 34,
+   "role": "wheelchair user",
+   "persona": "wheelchair",
+   "group": "adult",
+   "household": "h01080",
+   "home_coord": [
+    101.483363,
+    3.201578
+   ],
+   "voice": "Hasnah speaks plainly about her day as a wheelchair user.",
+   "tags": []
+  },
+  {
+   "id": "r03669",
+   "name": "Yusof",
+   "age": 29,
+   "role": "wheelchair user",
+   "persona": "wheelchair",
+   "group": "adult",
+   "household": "h00971",
+   "home_coord": [
+    101.537085,
+    3.183661
+   ],
+   "voice": "Yusof speaks plainly about his day as a wheelchair user.",
+   "tags": []
+  },
+  {
+   "id": "r02168",
+   "name": "Kavitha",
+   "age": 49,
+   "role": "parent with a toddler in a stroller",
+   "persona": "stroller",
+   "group": "adult",
+   "household": "h00582",
+   "home_coord": [
+    101.489231,
+    3.203856
+   ],
+   "voice": "Kavitha speaks plainly about her day as a parent with a toddler in a stroller.",
+   "tags": []
+  },
+  {
+   "id": "r03679",
+   "name": "Nurul",
+   "age": 47,
+   "role": "parent with a toddler in a stroller",
+   "persona": "stroller",
+   "group": "adult",
+   "household": "h00974",
+   "home_coord": [
+    101.505788,
+    3.158209
+   ],
+   "voice": "Nurul speaks plainly about her day as a parent with a toddler in a stroller.",
+   "tags": []
+  },
+  {
+   "id": "r00239",
+   "name": "Arjun",
+   "age": 48,
+   "role": "parent with a toddler in a stroller",
+   "persona": "stroller",
+   "group": "adult",
+   "household": "h00064",
+   "home_coord": [
+    101.515676,
+    3.176766
+   ],
+   "voice": "Arjun speaks plainly about his day as a parent with a toddler in a stroller.",
+   "tags": []
+  },
+  {
+   "id": "r00319",
+   "name": "Salmah",
+   "age": 29,
+   "role": "parent with a toddler in a stroller",
+   "persona": "stroller",
+   "group": "adult",
+   "household": "h00087",
+   "home_coord": [
+    101.491257,
+    3.211751
+   ],
+   "voice": "Salmah speaks plainly about her day as a parent with a toddler in a stroller.",
+   "tags": []
+  },
+  {
+   "id": "r01053",
+   "name": "Siti Nur",
+   "age": 32,
+   "role": "parent with a toddler in a stroller",
+   "persona": "stroller",
+   "group": "adult",
+   "household": "h00283",
+   "home_coord": [
+    101.509005,
+    3.155766
+   ],
+   "voice": "Siti Nur speaks plainly about her day as a parent with a toddler in a stroller.",
+   "tags": []
+  },
+  {
+   "id": "r00951",
+   "name": "Zainab",
+   "age": 46,
+   "role": "parent with a toddler in a stroller",
+   "persona": "stroller",
+   "group": "adult",
+   "household": "h00259",
+   "home_coord": [
+    101.536603,
+    3.18065
+   ],
+   "voice": "Zainab speaks plainly about her day as a parent with a toddler in a stroller.",
+   "tags": []
+  },
+  {
+   "id": "r04850",
+   "name": "Mak Cik Haslinda",
+   "age": 86,
+   "role": "retiree who needs to rest often",
+   "persona": "older_adult_rest",
+   "group": "older",
+   "household": "h01283",
+   "home_coord": [
+    101.511432,
+    3.168291
+   ],
+   "voice": "Mak Cik Haslinda speaks plainly about her day and needing frequent rests.",
+   "tags": []
+  },
+  {
+   "id": "r00353",
+   "name": "Pak Cik Zulkifli",
+   "age": 82,
+   "role": "retiree who needs to rest often",
+   "persona": "older_adult_rest",
+   "group": "older",
+   "household": "h00096",
+   "home_coord": [
+    101.506375,
+    3.163701
+   ],
+   "voice": "Pak Cik Zulkifli speaks plainly about his day and needing frequent rests.",
+   "tags": []
+  },
+  {
+   "id": "r04359",
+   "name": "Pak Cik Kamal",
+   "age": 77,
+   "role": "retiree who needs to rest often",
+   "persona": "older_adult_rest",
+   "group": "older",
+   "household": "h01152",
+   "home_coord": [
+    101.51807,
+    3.170212
+   ],
+   "voice": "Pak Cik Kamal speaks plainly about his day and needing frequent rests.",
+   "tags": []
+  },
+  {
+   "id": "r03799",
+   "name": "Mak Cik Rohani",
+   "age": 78,
+   "role": "retiree who needs to rest often",
+   "persona": "older_adult_rest",
+   "group": "older",
+   "household": "h01005",
+   "home_coord": [
+    101.517168,
+    3.151767
+   ],
+   "voice": "Mak Cik Rohani speaks plainly about her day and needing frequent rests.",
+   "tags": []
+  },
+  {
+   "id": "r02561",
+   "name": "Mak Cik Aminah",
+   "age": 73,
+   "role": "retiree who needs to rest often",
+   "persona": "older_adult_rest",
+   "group": "older",
+   "household": "h00681",
+   "home_coord": [
+    101.512045,
+    3.163726
+   ],
+   "voice": "Mak Cik Aminah speaks plainly about her day and needing frequent rests.",
+   "tags": []
+  },
+  {
+   "id": "r04061",
+   "name": "Shahrul",
+   "age": 27,
+   "role": "commuter and parent",
+   "persona": "default",
+   "group": "adult",
+   "household": "h01070",
+   "home_coord": [
+    101.512184,
+    3.170561
+   ],
+   "voice": "Shahrul speaks plainly about his day as a commuter and parent.",
+   "tags": []
+  },
+  {
+   "id": "r03209",
+   "name": "Hafiz",
+   "age": 41,
+   "role": "commuter and parent",
+   "persona": "default",
+   "group": "adult",
+   "household": "h00849",
+   "home_coord": [
+    101.497547,
+    3.20912
+   ],
+   "voice": "Hafiz speaks plainly about his day as a commuter and parent.",
+   "tags": []
+  },
+  {
+   "id": "r01198",
+   "name": "Faridah",
+   "age": 44,
+   "role": "commuter and parent",
+   "persona": "default",
+   "group": "adult",
+   "household": "h00318",
+   "home_coord": [
+    101.494391,
+    3.209269
+   ],
+   "voice": "Faridah speaks plainly about her day as a commuter and parent.",
+   "tags": []
+  },
+  {
+   "id": "r04389",
+   "name": "Rosnah",
+   "age": 17,
+   "role": "secondary school student",
+   "persona": "default",
+   "group": "teen",
+   "household": "h01161",
+   "home_coord": [
+    101.506947,
+    3.157974
+   ],
+   "voice": "Rosnah speaks plainly about her day as a secondary school student.",
+   "tags": []
+  },
+  {
+   "id": "r00867",
+   "name": "Normah",
+   "age": 14,
+   "role": "secondary school student",
+   "persona": "default",
+   "group": "teen",
+   "household": "h00236",
+   "home_coord": [
+    101.524303,
+    3.191804
+   ],
+   "voice": "Normah speaks plainly about her day as a secondary school student.",
+   "tags": []
+  },
+  {
+   "id": "r00582",
+   "name": "Rahim",
+   "age": 14,
+   "role": "secondary school student",
+   "persona": "default",
+   "group": "teen",
+   "household": "h00157",
+   "home_coord": [
+    101.510082,
+    3.154805
+   ],
+   "voice": "Rahim speaks plainly about his day as a secondary school student.",
+   "tags": []
+  },
+  {
+   "id": "r04591",
+   "name": "Rajesh",
+   "age": 17,
+   "role": "secondary school student",
+   "persona": "default",
+   "group": "teen",
+   "household": "h01216",
+   "home_coord": [
+    101.527638,
+    3.155038
+   ],
+   "voice": "Rajesh speaks plainly about his day as a secondary school student.",
+   "tags": []
+  },
+  {
+   "id": "r01807",
+   "name": "Pei Shan",
+   "age": 22,
+   "role": "commuter and parent",
+   "persona": "default",
+   "group": "adult",
+   "household": "h00485",
+   "home_coord": [
+    101.526997,
+    3.152579
+   ],
+   "voice": "Pei Shan speaks plainly about her day as a commuter and parent.",
+   "tags": []
+  },
+  {
+   "id": "r03549",
+   "name": "Azman",
+   "age": 28,
+   "role": "resident working from home",
+   "persona": "default",
+   "group": "adult",
+   "household": "h00942",
+   "home_coord": [
+    101.522391,
+    3.191313
+   ],
+   "voice": "Azman speaks plainly about his day working from home.",
+   "tags": []
+  },
+  {
+   "id": "r00285",
+   "name": "Hakim",
+   "age": 41,
+   "role": "commuter and parent",
+   "persona": "default",
+   "group": "adult",
+   "household": "h00075",
+   "home_coord": [
+    101.540024,
+    3.163151
+   ],
+   "voice": "Hakim speaks plainly about his day as a commuter and parent.",
+   "tags": []
+  },
+  {
+   "id": "r00773",
+   "name": "Pak Cik Ismail",
+   "age": 69,
+   "role": "retiree",
+   "persona": "default",
+   "group": "older",
+   "household": "h00211",
+   "home_coord": [
+    101.505894,
+    3.151431
+   ],
+   "voice": "Pak Cik Ismail speaks plainly about his day as a retiree.",
+   "tags": []
+  },
+  {
+   "id": "r00385",
+   "name": "Ahmad",
+   "age": 29,
+   "role": "parent doing the school run",
+   "persona": "default",
+   "group": "adult",
+   "household": "h00102",
+   "home_coord": [
+    101.518455,
+    3.190833
+   ],
+   "voice": "Ahmad speaks plainly about his day doing the school run.",
+   "tags": []
+  },
+  {
+   "id": "r03414",
+   "name": "Faizal",
+   "age": 48,
+   "role": "commuter",
+   "persona": "default",
+   "group": "adult",
+   "household": "h00907",
+   "home_coord": [
+    101.52561,
+    3.153158
+   ],
+   "voice": "Faizal speaks plainly about his day as a commuter.",
+   "tags": []
+  },
+  {
+   "id": "r04957",
+   "name": "Rosli",
+   "age": 33,
+   "role": "resident working from home",
+   "persona": "default",
+   "group": "adult",
+   "household": "h01312",
+   "home_coord": [
+    101.522487,
+    3.192208
+   ],
+   "voice": "Rosli speaks plainly about his day working from home.",
+   "tags": []
+  },
+  {
+   "id": "r04703",
+   "name": "Ganesh",
+   "age": 28,
+   "role": "commuter and parent",
+   "persona": "default",
+   "group": "adult",
+   "household": "h01245",
+   "home_coord": [
+    101.508861,
+    3.167551
+   ],
+   "voice": "Ganesh speaks plainly about his day as a commuter and parent.",
+   "tags": []
+  },
+  {
+   "id": "r03714",
+   "name": "Aishah",
+   "age": 25,
+   "role": "parent doing the school run",
+   "persona": "default",
+   "group": "adult",
+   "household": "h00982",
+   "home_coord": [
+    101.514956,
+    3.165478
+   ],
+   "voice": "Aishah speaks plainly about her day doing the school run.",
+   "tags": []
+  },
+  {
+   "id": "r03893",
+   "name": "Kamal E.",
+   "age": 44,
+   "role": "commuter",
+   "persona": "default",
+   "group": "adult",
+   "household": "h01028",
+   "home_coord": [
+    101.494391,
+    3.209269
+   ],
+   "voice": "Kamal E. speaks plainly about his day as a commuter.",
+   "tags": []
+  },
+  {
+   "id": "r03476",
+   "name": "Chee Keong",
+   "age": 20,
+   "role": "commuter and parent",
+   "persona": "default",
+   "group": "adult",
+   "household": "h00923",
+   "home_coord": [
+    101.515298,
+    3.154362
+   ],
+   "voice": "Chee Keong speaks plainly about his day as a commuter and parent.",
+   "tags": []
+  },
+  {
+   "id": "r00681",
+   "name": "Hasnah G.",
+   "age": 43,
+   "role": "commuter and parent",
+   "persona": "default",
+   "group": "adult",
+   "household": "h00185",
+   "home_coord": [
+    101.508729,
+    3.168279
+   ],
+   "voice": "Hasnah G. speaks plainly about her day as a commuter and parent.",
+   "tags": []
+  },
+  {
+   "id": "r02099",
+   "name": "Wei Jie",
+   "age": 59,
+   "role": "commuter",
+   "persona": "default",
+   "group": "adult",
+   "household": "h00563",
+   "home_coord": [
+    101.48997,
+    3.199916
+   ],
+   "voice": "Wei Jie speaks plainly about his day as a commuter.",
+   "tags": []
+  },
+  {
+   "id": "r01645",
+   "name": "Zulkifli I.",
+   "age": 32,
+   "role": "parent doing the school run",
+   "persona": "default",
+   "group": "adult",
+   "household": "h00439",
+   "home_coord": [
+    101.538628,
+    3.165264
+   ],
+   "voice": "Zulkifli I. speaks plainly about his day doing the school run.",
+   "tags": []
+  },
+  {
+   "id": "r02766",
+   "name": "Aminah J.",
+   "age": 27,
+   "role": "commuter and parent",
+   "persona": "default",
+   "group": "adult",
+   "household": "h00733",
+   "home_coord": [
+    101.490485,
+    3.208334
+   ],
+   "voice": "Aminah J. speaks plainly about her day as a commuter and parent.",
+   "tags": []
+  },
+  {
+   "id": "r01412",
+   "name": "Jun Hao",
+   "age": 38,
+   "role": "commuter and parent",
+   "persona": "default",
+   "group": "adult",
+   "household": "h00373",
+   "home_coord": [
+    101.516069,
+    3.152692
+   ],
+   "voice": "Jun Hao speaks plainly about his day as a commuter and parent.",
+   "tags": []
+  },
+  {
+   "id": "r00678",
+   "name": "Priya",
+   "age": 45,
+   "role": "commuter",
+   "persona": "default",
+   "group": "adult",
+   "household": "h00184",
+   "home_coord": [
+    101.481547,
+    3.210316
+   ],
+   "voice": "Priya speaks plainly about her day as a commuter.",
+   "tags": []
+  },
+  {
+   "id": "r03987",
+   "name": "Rahim M.",
+   "age": 38,
+   "role": "parent doing the school run",
+   "persona": "default",
+   "group": "adult",
+   "household": "h01051",
+   "home_coord": [
+    101.518033,
+    3.15276
+   ],
+   "voice": "Rahim M. speaks plainly about his day doing the school run.",
+   "tags": []
+  },
+  {
+   "id": "r02686",
+   "name": "Haslinda N.",
+   "age": 39,
+   "role": "commuter",
+   "persona": "default",
+   "group": "adult",
+   "household": "h00711",
+   "home_coord": [
+    101.483346,
+    3.208764
+   ],
+   "voice": "Haslinda N. speaks plainly about her day as a commuter.",
+   "tags": []
+  }
+ ],
+ "decisions": {},
+ "decision_reasons": {},
+ "diaries": {
+  "r04629": [
+   {
+    "trip": "t06632",
+    "text": "10:54 — I set off to walk to Community Centre (unnamed, OSM) and got there at 11:07.",
+    "voice": "ai"
+   },
+   {
+    "trip": "t06633",
+    "text": "11:50 — I set off to walk home and got there at 12:03.",
+    "voice": "ai"
+   }
+  ],
+  "r04099": [
+   {
+    "trip": "t03752",
+    "text": "07:25 I set off to drive to work and got there at 07:34.",
+    "voice": "ai"
+   },
+   {
+    "trip": "t03753",
+    "text": "17:40 I set off to drive home and got there at 17:49.",
+    "voice": "ai"
+   }
+  ],
+  "r03669": [
+   {
+    "trip": "t04580",
+    "text": "07:42 — I set off to drive to work and got there at 07:58.",
+    "voice": "ai"
+   },
+   {
+    "trip": "t04581",
+    "text": "17:48 — I set off to drive home and got there at 18:04.",
+    "voice": "ai"
+   }
+  ],
+  "r02168": [
+   {
+    "trip": "t00439",
+    "text": "06:43 — I set off to walk to SRII Huffaz with my 2 children and got there at 06:48.",
+    "voice": "ai"
+   },
+   {
+    "trip": "t00440",
+    "text": "06:48 — I set off to walk home and got there at 06:52.",
+    "voice": "ai"
+   },
+   {
+    "trip": "t08362",
+    "text": "13:15 — I set off to walk to SRII Huffaz and got there at 13:20.",
+    "voice": "ai"
+   },
+   {
+    "trip": "t08363",
+    "text": "13:30 — I set off to walk home with my 2 children and got there at 13:35.",
+    "voice": "ai"
+   }
+  ],
+  "r03679": [
+   {
+    "trip": "t01329",
+    "text": "06:54 I walked to Seven Skies Islamic School with my 3 children and got there at 07:17.",
+    "voice": "ai"
+   },
+   {
+    "trip": "t01330",
+    "text": "07:17 I walked home from Seven Skies Islamic School and got there at 07:40.",
+    "voice": "ai"
+   },
+   {
+    "trip": "t08109",
+    "text": "13:10 I walked to Seven Skies Islamic School and got there at 13:33.",
+    "voice": "ai"
+   },
+   {
+    "trip": "t08110",
+    "text": "13:33 I walked home with my 3 children and got there at 13:56.",
+    "voice": "ai"
+   },
+   {
+    "trip": "t09090",
+    "text": "18:08 I walked to Park (unnamed, OSM) with my 3 children and got there at 18:12.",
+    "voice": "ai"
+   }
+  ],
+  "r00239": [
+   {
+    "trip": "t00834",
+    "text": "06:48 — I walked to SK Taman Bukit Subang with my 2 children and got there at 07:10.",
+    "voice": "ai"
+   },
+   {
+    "trip": "t00835",
+    "text": "07:10 — I walked home from SK Taman Bukit Subang and got there at 07:32.",
+    "voice": "ai"
+   },
+   {
+    "trip": "t07714",
+    "text": "13:03 — I walked to SK Taman Bukit Subang and got there at 13:25.",
+    "voice": "ai"
+   },
+   {
+    "trip": "t07715",
+    "text": "13:30 — I walked home with my 2 children and got there at 13:52.",
+    "voice": "ai"
+   }
+  ],
+  "r00319": [
+   {
+    "trip": "t00560",
+    "text": "06:45 I drove to school with my 2 children and got there at 06:49.",
+    "voice": "ai"
+   },
+   {
+    "trip": "t00561",
+    "text": "06:49 I drove home and got there at 06:53.",
+    "voice": "ai"
+   },
+   {
+    "trip": "t07917",
+    "text": "13:07 I drove to school and got there at 13:11.",
+    "voice": "ai"
+   },
+   {
+    "trip": "t07918",
+    "text": "13:30 I drove home with my 2 children and got there at 13:34.",
+    "voice": "ai"
+   }
+  ],
+  "r01053": [
+   {
+    "trip": "t02837",
+    "text": "07:10 — I set off to walk to SK Denai Alam with my 2 children. We got there at 07:35.",
+    "voice": "ai"
+   },
+   {
+    "trip": "t02838",
+    "text": "07:35 — I set off to walk home. I got there at 08:00.",
+    "voice": "ai"
+   },
+   {
+    "trip": "t07873",
+    "text": "13:06 — I set off to walk to SK Denai Alam. I got there at 13:31.",
+    "voice": "ai"
+   },
+   {
+    "trip": "t07874",
+    "text": "13:31 — I set off to walk home with my 2 children. We got there at 13:56.",
+    "voice": "ai"
+   }
+  ],
+  "r00951": [
+   {
+    "trip": "t02390",
+    "text": "07:06 — I drove my child to Al-Amin Darul Musthopa and got there at 07:13.",
+    "voice": "ai"
+   },
+   {
+    "trip": "t02391",
+    "text": "07:13 — I drove home from Al-Amin Darul Musthopa and got there at 07:20.",
+    "voice": "ai"
+   },
+   {
+    "trip": "t07963",
+    "text": "13:08 — I drove to Al-Amin Darul Musthopa and got there at 13:15.",
+    "voice": "ai"
+   },
+   {
+    "trip": "t07964",
+    "text": "13:30 — I drove home from Al-Amin Darul Musthopa with my child and got there at 13:37.",
+    "voice": "ai"
+   }
+  ],
+  "r04850": [
+   {
+    "trip": "t09339",
+    "text": "18:50 — I set off on foot to Surau Lili and got there at 19:04. I needed rests along the way.",
+    "voice": "ai"
+   },
+   {
+    "trip": "t09340",
+    "text": "20:14 — I set off on foot from Surau Lili to go home and got there at 20:28. I needed rests along the way.",
+    "voice": "ai"
+   }
+  ],
+  "r00353": [
+   {
+    "trip": "t09331",
+    "text": "18:50 — I set off on foot for Masjid Denai Alam and got there at 19:07. I needed a rest.",
+    "voice": "ai"
+   },
+   {
+    "trip": "t09332",
+    "text": "20:25 — I set off on foot for home from Masjid Denai Alam and got there at 20:42. I needed a rest.",
+    "voice": "ai"
+   }
+  ],
+  "r04359": [
+   {
+    "trip": "t00646",
+    "text": "06:45 — I planned to walk to RSA Elmina S, but the map showed no way there. I needed a rest.",
+    "voice": "ai"
+   },
+   {
+    "trip": "t08765",
+    "text": "17:35 — I planned to walk to RSA Elmina S, but the map showed no way there. I needed a rest.",
+    "voice": "ai"
+   },
+   {
+    "trip": "t09441",
+    "text": "19:16 — I set off walking to Surau Al Falah and got there at 19:24. I needed a rest.",
+    "voice": "ai"
+   },
+   {
+    "trip": "t09442",
+    "text": "20:16 — I set off walking home from Surau Al Falah and got there at 20:24. I needed a rest.",
+    "voice": "ai"
+   }
+  ],
+  "r03799": [
+   {
+    "trip": "t05481",
+    "text": "09:12 I set off walking to Klinik Bungaraya and got there at 09:50. I needed a rest.",
+    "voice": "ai"
+   },
+   {
+    "trip": "t05482",
+    "text": "10:40 I set off walking home from Klinik Bungaraya and got there at 11:18. I needed to rest again.",
+    "voice": "ai"
+   },
+   {
+    "trip": "t06753",
+    "text": "11:36 I set off walking to Dewan Refelsia and got there at 12:31. I had to rest along the way.",
+    "voice": "ai"
+   },
+   {
+    "trip": "t06754",
+    "text": "13:23 I set off walking home from Dewan Refelsia and got there at 14:18. I needed another rest.",
+    "voice": "ai"
+   },
+   {
+    "trip": "t09026",
+    "text": "18:02 I set off walking to Park (unnamed, OSM) and got there at 18:22. I took a rest.",
+    "voice": "ai"
+   }
+  ],
+  "r02561": [
+   {
+    "trip": "t09425",
+    "text": "18:59 — I set off on foot to Masjid Denai Alam and got there at 19:22. I needed to rest along the way.",
+    "voice": "ai"
+   },
+   {
+    "trip": "t09426",
+    "text": "20:25 — I set off on foot from Masjid Denai Alam to go home and got there at 20:48. I needed to rest along the way.",
+    "voice": "ai"
+   }
+  ],
+  "r04061": [
+   {
+    "trip": "t03990",
+    "text": "07:30 — I set off to drive to work and got there at 07:38.",
+    "voice": "ai"
+   },
+   {
+    "trip": "t03991",
+    "text": "17:31 — I set off to drive home and got there at 17:39.",
+    "voice": "ai"
+   }
+  ],
+  "r03209": [
+   {
+    "trip": "t04523",
+    "text": "07:41 I set off to drive to work and got there at 07:54.",
+    "voice": "ai"
+   },
+   {
+    "trip": "t04524",
+    "text": "17:35 I set off to drive home and got there at 17:48.",
+    "voice": "ai"
+   }
+  ],
+  "r01198": [
+   {
+    "trip": "t02185",
+    "text": "07:04 — I set off by car for work and got there at 07:17.",
+    "voice": "ai"
+   },
+   {
+    "trip": "t02186",
+    "text": "17:51 — I set off by car for home and got there at 18:04.",
+    "voice": "ai"
+   }
+  ],
+  "r04389": [
+   {
+    "trip": "t01506",
+    "text": "06:56 I set off on foot to Seven Skies Islamic School and got there at 07:17.",
+    "voice": "ai"
+   },
+   {
+    "trip": "t01507",
+    "text": "14:15 I set off on foot home from Seven Skies Islamic School and got there at 14:36.",
+    "voice": "ai"
+   }
+  ],
+  "r00867": [
+   {
+    "trip": "t00334",
+    "text": "06:42 — I set off on foot for Maahad Tahfiz Al-Quran At-Taqwa and got there at 07:30.",
+    "voice": "ai"
+   },
+   {
+    "trip": "t00335",
+    "text": "14:15 — I set off on foot for home from Maahad Tahfiz Al-Quran At-Taqwa and got there at 15:03.",
+    "voice": "ai"
+   }
+  ],
+  "r00582": [
+   {
+    "trip": "t00074",
+    "text": "06:37 — I set off on foot to Seven Skies Islamic School and got there at 06:46.",
+    "voice": "ai"
+   },
+   {
+    "trip": "t00075",
+    "text": "14:15 — I set off on foot from Seven Skies Islamic School to home and got there at 14:24.",
+    "voice": "ai"
+   }
+  ],
+  "r04591": [
+   {
+    "trip": "t01747",
+    "text": "06:59 — I set off on foot to SMK Subang and got there at 07:09.",
+    "voice": "ai"
+   },
+   {
+    "trip": "t01748",
+    "text": "14:15 — I set off on foot from SMK Subang to home and got there at 14:25.",
+    "voice": "ai"
+   }
+  ],
+  "r01807": [
+   {
+    "trip": "t04845",
+    "text": "07:48 I set off by car for work and got there at 07:53.",
+    "voice": "ai"
+   },
+   {
+    "trip": "t04846",
+    "text": "17:39 I set off by car for home and got there at 17:44.",
+    "voice": "ai"
+   }
+  ],
+  "r03549": [
+   {
+    "trip": "t07418",
+    "text": "12:38 — I set off on foot to Surau Elmina Gardens and got there at 12:41.",
+    "voice": "ai"
+   },
+   {
+    "trip": "t07419",
+    "text": "13:51 — I set off on foot for home from Surau Elmina Gardens and got there at 13:54.",
+    "voice": "ai"
+   }
+  ],
+  "r00285": [
+   {
+    "trip": "t02717",
+    "text": "07:09 — I set off to drive to Sekolah Rendah Islam As-Sakinah with my child and got there at 07:16.",
+    "voice": "ai"
+   },
+   {
+    "trip": "t02718",
+    "text": "07:16 — I set off to drive to work and got there at 07:22.",
+    "voice": "ai"
+   },
+   {
+    "trip": "t02719",
+    "text": "18:16 — I set off to drive home and got there at 18:21.",
+    "voice": "ai"
+   }
+  ],
+  "r00773": [
+   {
+    "trip": "t06767",
+    "text": "12:25 — I set off by car to Surau Al Abrar and got there at 12:29.",
+    "voice": "ai"
+   },
+   {
+    "trip": "t06768",
+    "text": "13:39 — I set off by car from Surau Al Abrar for home and got there at 13:43.",
+    "voice": "ai"
+   }
+  ],
+  "r00385": [
+   {
+    "trip": "t07164",
+    "text": "12:33 — I set off walking to Surau Elmina Gardens and got there at 12:46.",
+    "voice": "ai"
+   },
+   {
+    "trip": "t07165",
+    "text": "13:56 — I set off walking home from Surau Elmina Gardens and got there at 14:10.",
+    "voice": "ai"
+   }
+  ],
+  "r03414": [
+   {
+    "trip": "t04383",
+    "text": "07:38 — I set off by car for work and got there at 07:44.",
+    "voice": "ai"
+   },
+   {
+    "trip": "t04384",
+    "text": "18:51 — I set off by car for home and got there at 18:57.",
+    "voice": "ai"
+   },
+   {
+    "trip": "t09859",
+    "text": "19:52 — I set off on foot for Taman Permainan and got there at 19:54.",
+    "voice": "ai"
+   },
+   {
+    "trip": "t09860",
+    "text": "21:06 — I set off on foot for home and got there at 21:09.",
+    "voice": "ai"
+   }
+  ],
+  "r04957": [
+   {
+    "trip": "t07387",
+    "text": "12:37 I set off walking to Surau Elmina Gardens and got there at 12:41.",
+    "voice": "ai"
+   },
+   {
+    "trip": "t07388",
+    "text": "13:51 I set off walking home from Surau Elmina Gardens and got there at 13:55.",
+    "voice": "ai"
+   }
+  ],
+  "r04703": [
+   {
+    "trip": "t04769",
+    "text": "07:46 I set off to drive to work and got there at 07:54.",
+    "voice": "ai"
+   },
+   {
+    "trip": "t04770",
+    "text": "18:33 I set off to drive home and got there at 18:41.",
+    "voice": "ai"
+   }
+  ],
+  "r03714": [],
+  "r03893": [
+   {
+    "trip": "t02675",
+    "text": "07:08 — I set off by car for work and got there at 07:21.",
+    "voice": "ai"
+   },
+   {
+    "trip": "t02676",
+    "text": "18:24 — I set off by car for home and got there at 18:37.",
+    "voice": "ai"
+   },
+   {
+    "trip": "t09591",
+    "text": "19:39 — I set off on foot to Elmina Green One Park and got there at 19:45.",
+    "voice": "ai"
+   },
+   {
+    "trip": "t09592",
+    "text": "20:43 — I set off on foot for home and got there at 20:48.",
+    "voice": "ai"
+   }
+  ],
+  "r03476": [
+   {
+    "trip": "t04385",
+    "text": "07:38 — I set off to drive to work and got there at 07:46.",
+    "voice": "ai"
+   },
+   {
+    "trip": "t04386",
+    "text": "18:08 — I set off to drive home and got there at 18:16.",
+    "voice": "ai"
+   }
+  ],
+  "r00681": [
+   {
+    "trip": "t03150",
+    "text": "07:15 — I drove to work and got there at 07:23.",
+    "voice": "ai"
+   },
+   {
+    "trip": "t03151",
+    "text": "18:03 — I drove home and got there at 18:11.",
+    "voice": "ai"
+   },
+   {
+    "trip": "t09874",
+    "text": "19:53 — I walked to the park and got there at 20:17.",
+    "voice": "ai"
+   },
+   {
+    "trip": "t09875",
+    "text": "21:18 — I walked home and got there at 21:42.",
+    "voice": "ai"
+   }
+  ],
+  "r02099": [
+   {
+    "trip": "t02525",
+    "text": "07:07 — I set off driving to work and got there at 07:18.",
+    "voice": "ai"
+   },
+   {
+    "trip": "t02526",
+    "text": "18:08 — I set off driving home and got there at 18:19.",
+    "voice": "ai"
+   }
+  ],
+  "r01645": [
+   {
+    "trip": "t00991",
+    "text": "06:50 — I drove my child to Al-Amin Darul Musthopa and got there at 07:04.",
+    "voice": "ai"
+   },
+   {
+    "trip": "t00992",
+    "text": "07:04 — I drove home and got there at 07:19.",
+    "voice": "ai"
+   },
+   {
+    "trip": "t06005",
+    "text": "10:24 — I drove to Dewan Refelsia and got there at 10:32.",
+    "voice": "ai"
+   },
+   {
+    "trip": "t06006",
+    "text": "11:41 — I drove home and got there at 11:50.",
+    "voice": "ai"
+   },
+   {
+    "trip": "t07365",
+    "text": "12:37 — I drove to Surau Jamihayy Karimah and got there at 12:56.",
+    "voice": "ai"
+   }
+  ],
+  "r02766": [
+   {
+    "trip": "t02649",
+    "text": "07:08 — I set off to drive to work and got there at 07:20.",
+    "voice": "ai"
+   },
+   {
+    "trip": "t02650",
+    "text": "18:24 — I set off to drive home and got there at 18:36.",
+    "voice": "ai"
+   }
+  ],
+  "r01412": [
+   {
+    "trip": "t04745",
+    "text": "07:46 — I set off by car to work and got there at 07:54.",
+    "voice": "ai"
+   },
+   {
+    "trip": "t04746",
+    "text": "18:04 — I set off by car home and got there at 18:12.",
+    "voice": "ai"
+   }
+  ],
+  "r00678": [
+   {
+    "trip": "t05143",
+    "text": "07:54 — I set off driving to work and got there at 08:03.",
+    "voice": "ai"
+   },
+   {
+    "trip": "t05144",
+    "text": "18:44 — I set off driving home and got there at 18:53.",
+    "voice": "ai"
+   }
+  ],
+  "r03987": [
+   {
+    "trip": "t07466",
+    "text": "12:39 — I set off on foot to Surau Al Islah and got there at 12:41.",
+    "voice": "ai"
+   },
+   {
+    "trip": "t07467",
+    "text": "13:51 — I set off on foot for home from Surau Al Islah and got there at 13:53.",
+    "voice": "ai"
+   },
+   {
+    "trip": "t09255",
+    "text": "18:24 — I set off on foot to Park (unnamed, OSM) and got there at 18:35.",
+    "voice": "ai"
+   },
+   {
+    "trip": "t09256",
+    "text": "19:52 — I set off on foot for home from Park (unnamed, OSM) and got there at 20:03.",
+    "voice": "ai"
+   }
+  ],
+  "r02686": [
+   {
+    "trip": "t04627",
+    "text": "07:43 — I set off to drive to work and got there at 07:52.",
+    "voice": "ai"
+   },
+   {
+    "trip": "t04628",
+    "text": "18:19 — I set off to drive home and got there at 18:28.",
+    "voice": "ai"
+   }
+  ]
+ },
+ "feed": [
+  {
+   "id": "p001",
+   "author": "r04359",
+   "name": "Pak Cik Kamal",
+   "role": "retiree who needs to rest often",
+   "t": 465,
+   "text": "I planned to walk to RSA Elmina S at 06:45, but the map showed no way there. I need to rest often, so I stopped there.",
+   "trip": "t00646",
+   "status": "data_gap",
+   "likes": 0,
+   "replies": [],
+   "voice": "ai"
+  },
+  {
+   "id": "p002",
+   "author": "r04359",
+   "name": "Pak Cik Kamal",
+   "role": "retiree who needs to rest often",
+   "t": 1110,
+   "text": "I planned to walk to RSA Elmina S at 17:35, but the map showed no way there. I need to rest often, so I stayed put.",
+   "trip": "t08765",
+   "status": "data_gap",
+   "likes": 0,
+   "replies": [],
+   "voice": "ai"
+  }
+ ],
+ "stats": {
+  "calls": 63,
+  "failed_calls": 0,
+  "tokens_in": 40081,
+  "tokens_out": 5416,
+  "rejected_lines": 0,
+  "seconds": 48.9
+ }
+}
