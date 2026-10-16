@@ -23,12 +23,24 @@ from . import state
 
 log = logging.getLogger(__name__)
 
+DAY_ORDER = ("storm", "weekday", "event", "friday")
+
+
+def _day(ctx, sid: str):
+    """A day rehearsal, or None (skipped) when this world has no such scenario."""
+    if not any(s["id"] == sid for s in tools.day_scenarios(ctx)):
+        return None
+    return tools.day_rehearsal(ctx, sid)
+
+
 # (name, call) with the endpoints' default arguments: GET /river-rollout (no query),
 # GET /what-if/suggestions (Lab default persona), GET /verify-next (board defaults).
 JOBS = (
     ("river_rollout", lambda ctx: tools.rising_river_rollout(ctx, profiles=None, n=30)),
     ("what_if_suggestions", lambda ctx: tools.suggest_interventions(ctx, profile="wheelchair")),
     ("verify_next", lambda ctx: tools.plan_verifications(ctx, "wheelchair", "evacuation", 15)),
+    # Elmina Day: the four built-in rehearsals (about 5 s each on the seed).
+    *((f"day_{sid}", lambda ctx, sid=sid: _day(ctx, sid)) for sid in DAY_ORDER),
 )
 POLL_S = 10.0
 IDLE_WAIT_S = 120.0  # how long a job waits for the solver to be idle before running anyway
@@ -80,7 +92,7 @@ def warm_once(ctx=None, stop: threading.Event | None = None) -> dict:
         t0 = time.perf_counter()
         try:
             res = job(ctx)
-            ok = bool(getattr(res, "ok", True))
+            ok = res is None or bool(getattr(res, "ok", True))
         except Exception:  # noqa: BLE001 - a warm-up failure must never take the API down
             log.exception("warm-up job %s failed", name)
             ok = False

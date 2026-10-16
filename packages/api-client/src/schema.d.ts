@@ -115,6 +115,43 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/day/scenarios": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Day Scenarios */
+        get: operations["day_scenarios_day_scenarios_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/day/{scenario_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Day Report
+         * @description One simulated day: 5,000 synthetic residents, counts by group, timeline and map tracks.
+         */
+        get: operations["day_report_day__scenario_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/elements/{element_id}/attributes/{key}": {
         parameters: {
             query?: never;
@@ -1062,6 +1099,68 @@ export interface components {
             reason: string;
             /** Target Id */
             target_id: string;
+        };
+        /** DayReport */
+        DayReport: {
+            /** Assumptions */
+            assumptions: string[];
+            /** Disclaimer */
+            disclaimer: string;
+            /** Groups */
+            groups: {
+                [key: string]: unknown;
+            }[];
+            /** Headline */
+            headline: {
+                [key: string]: number;
+            };
+            /** Health */
+            health: {
+                [key: string]: number;
+            };
+            /** Paces M Per Min */
+            paces_m_per_min: {
+                [key: string]: number;
+            };
+            /** Places */
+            places: {
+                [key: string]: unknown;
+            }[];
+            /** Population */
+            population: {
+                [key: string]: unknown;
+            };
+            /** Scenario */
+            scenario: {
+                [key: string]: unknown;
+            };
+            /** School */
+            school: {
+                [key: string]: number;
+            };
+            /** Timeline */
+            timeline: {
+                [key: string]: unknown;
+            }[];
+            /** Tracks */
+            tracks: {
+                [key: string]: unknown;
+            };
+            /** World Version */
+            world_version: number;
+        };
+        /** DayScenario */
+        DayScenario: {
+            /** Day */
+            day: string;
+            /** Hero */
+            hero: string;
+            /** Id */
+            id: string;
+            /** Label */
+            label: string;
+            /** Summary */
+            summary: string;
         };
         /** DeepSpot */
         DeepSpot: {
@@ -2467,6 +2566,71 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
                 };
+            };
+        };
+    };
+    day_scenarios_day_scenarios_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DayScenario"][];
+                };
+            };
+        };
+    };
+    day_report_day__scenario_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                scenario_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DayReport"];
+                };
+            };
+            /** @description unknown scenario */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description busy */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };

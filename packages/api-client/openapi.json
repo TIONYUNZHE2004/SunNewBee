@@ -987,6 +987,142 @@
         "title": "CreateVRBody",
         "type": "object"
       },
+      "DayReport": {
+        "properties": {
+          "assumptions": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Assumptions",
+            "type": "array"
+          },
+          "disclaimer": {
+            "title": "Disclaimer",
+            "type": "string"
+          },
+          "groups": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Groups",
+            "type": "array"
+          },
+          "headline": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Headline",
+            "type": "object"
+          },
+          "health": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Health",
+            "type": "object"
+          },
+          "paces_m_per_min": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "title": "Paces M Per Min",
+            "type": "object"
+          },
+          "places": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Places",
+            "type": "array"
+          },
+          "population": {
+            "additionalProperties": true,
+            "title": "Population",
+            "type": "object"
+          },
+          "scenario": {
+            "additionalProperties": true,
+            "title": "Scenario",
+            "type": "object"
+          },
+          "school": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "School",
+            "type": "object"
+          },
+          "timeline": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Timeline",
+            "type": "array"
+          },
+          "tracks": {
+            "additionalProperties": true,
+            "title": "Tracks",
+            "type": "object"
+          },
+          "world_version": {
+            "title": "World Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "scenario",
+          "population",
+          "assumptions",
+          "paces_m_per_min",
+          "headline",
+          "groups",
+          "school",
+          "health",
+          "places",
+          "timeline",
+          "tracks",
+          "disclaimer",
+          "world_version"
+        ],
+        "title": "DayReport",
+        "type": "object"
+      },
+      "DayScenario": {
+        "properties": {
+          "day": {
+            "title": "Day",
+            "type": "string"
+          },
+          "hero": {
+            "title": "Hero",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "summary": {
+            "title": "Summary",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "label",
+          "summary",
+          "hero",
+          "day"
+        ],
+        "title": "DayScenario",
+        "type": "object"
+      },
       "DeepSpot": {
         "properties": {
           "bbox": {
@@ -4436,6 +4572,74 @@
           }
         },
         "summary": "End Closure"
+      }
+    },
+    "/day/scenarios": {
+      "get": {
+        "operationId": "day_scenarios_day_scenarios_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/DayScenario"
+                  },
+                  "title": "Response Day Scenarios Day Scenarios Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Day Scenarios"
+      }
+    },
+    "/day/{scenario_id}": {
+      "get": {
+        "description": "One simulated day: 5,000 synthetic residents, counts by group, timeline and map tracks.",
+        "operationId": "day_report_day__scenario_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "scenario_id",
+            "required": true,
+            "schema": {
+              "title": "Scenario Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DayReport"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "description": "unknown scenario"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "503": {
+            "description": "busy"
+          }
+        },
+        "summary": "Day Report"
       }
     },
     "/elements/{element_id}/attributes/{key}": {

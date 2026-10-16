@@ -845,3 +845,79 @@ Ruling W22: the view switch lives in the existing settings popover (shaoxian04's
 | 6 | Minor | The loop test's first wait could pass before any warm-up, because status was global. | `warm.reset()` in conftest. |
 
 Checklist after the fixes: lint, pytest, typecheck, vitest, golden (mock) and e2e (mock) PASS; gen PASS after the commit.
+
+---
+
+# Elmina Day (overnight build, started 17 Oct)
+
+The user asked for the world model to do "real world model jobs" for the People track, MiroFish-style, and approved the Elmina Day plan ([design](specs/2026-10-17-elmina-day-design.md)). Constraints: the US$3 cap stays, using a cheap model; frontend changes add controls only.
+
+## Research (17 Oct, 02:24)
+
+Three reference repos were cloned into `reference/repos/simulation/` (added to `clone-repos.sh`), each analysed by a subagent.
+
+- **MiroFish** (AGPL; built on OASIS). One persona per knowledge-graph entity, not thousands.
+  - **Worth copying:** activity-gated agent sampling, the hot-score feed, interviews, batch surveys, and an action log that the report reads as its only source of numbers.
+  - **Not copying:**
+    - random follower counts;
+    - persona prompts that force invented memories;
+    - simulated chatter written into the factual graph;
+    - a report prompt that plants a made-up statistic;
+    - "real interview" wording for an LLM call.
+- **AgentSociety** (Tsinghua).
+  - **Worth copying:**
+    - whole-day plans as segments (the v2 daily-guidance "story");
+    - the gravity destination model (walk under 1 km);
+    - the MobilitySpace move-and-interpolate loop;
+    - compact memory episodes with importance;
+    - Zipf workplace sizes.
+  - **Not copying:**
+    - random durations;
+    - moves reported successful before arrival;
+    - every trip forced to finish within 30 minutes;
+    - benchmark rhythm guards;
+    - uniform demographics.
+- **OASIS** (CAMEL).
+  - **Worth copying:** actions as tools, the platform schema, the Reddit hot score, `ManualAction` event injection, a per-hour `active_threshold` gate, and cascade metrics.
+- **Literature:**
+  - a 2026 validation study found LLM city simulators "plausible, not realistic" against Paris and Shanghai travel data;
+  - CityBehavEx replaces per-action LLM calls with mobility models.
+
+  Our design follows both: a deterministic engine for the crowd, and an LLM only for about 40 spotlight residents.
+- **Statistics:**
+  - DOSM 2026 ages 21.2 / 70.4 / 8.4%;
+  - Census 2020: 3.8 people per household;
+  - DOSM 2024: 92.3% of households own a car;
+  - 2.4% registered OKU, 35.6% of them physical.
+
+## Cycle 10: the day engine (02:24)
+
+**What was built:** `packages/spatial/.../day/` (router, population, schedule, engine, scenarios, summary), `tools.day_rehearsal`, `GET /day/scenarios`, `GET /day/{id}`, and warm-up for the four days.
+
+**Router speed:** about 40 ms to build a cost array per persona and stage, then about 1.5 ms per destination field. On the seed, a day of 5,000 residents takes about 5–6 s.
+
+| Day | Trips | Results |
+|---|---|---|
+| Weekday | 9,493 | 9,300 on time; 193 data gaps (no mapped connection even on a normal day) |
+| Storm at the school run | 8,202 | 1,275 cancelled, 189 late (waited for the water), 71 rerouted on the way |
+| Event | 10,591 | 647 reach Elmina Valley Central Park; peak 609 there at once |
+
+In the storm, 216 pupils miss school, and households without a car are hit hardest.
+
+**Bug found in testing:** when every way into a destination was cut, the first draft snapped the destination to a nearby usable node, so the trip "arrived" elsewhere. Now only drivers are snapped, to the nearest road on the normal network; a walker who is cut off stays cut off.
+
+**Tests:**
+- 13 new tests, including:
+  - the router agrees with `routing._search` (lenient) on every node pair, persona and stage;
+  - a trip with no way open waits for the water, then arrives;
+  - a resident caught on the way waits at the junction they reached;
+  - population shares match DOSM within a tolerance;
+  - every storm segment is legal in the river state at its minute and never spans a change;
+  - counts add up;
+  - runs are deterministic.
+- API test for `/day`.
+- Full pytest PASS (1,144), lint PASS.
+
+**Ruling W24:** lenient routing for residents (unchecked paths allowed, as people do), with every trip counting the unchecked stretches it used. Strict (verified-only) routing would show a township where nobody can go anywhere, since most paths are unchecked. Cost if wrong: residents look more mobile than verified data supports; the count of unchecked stretches says so.
+
+**Ruling W25:** delays are measured against the same trip on a normal day in the real township, so an imagined change and a storm are both compared with today.

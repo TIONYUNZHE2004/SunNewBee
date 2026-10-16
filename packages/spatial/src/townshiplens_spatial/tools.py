@@ -1251,3 +1251,41 @@ def ticket_impact(ctx: Ctx, vr_id: str):
         cache_max=_IMPACT_CACHE_MAX,
         wait_s=_IMPACT_WAIT_S,
     )
+
+
+# ---- Elmina Day (Cycle 10): synthetic residents living a day on the world model -------------
+DAY_RESIDENTS = 5000
+_DAY_CACHE: OrderedDict[str, ToolResult] = OrderedDict()
+
+
+def day_scenarios(ctx: Ctx) -> list[dict]:
+    from .day.scenarios import scenarios
+
+    return [
+        {"id": s.id, "label": s.label, "summary": s.summary, "hero": s.hero, "day": s.day}
+        for s in scenarios(ctx.world).values()
+    ]
+
+
+def day_rehearsal(ctx: Ctx, scenario_id: str = "weekday") -> ToolResult:
+    """A simulated day of 5,000 synthetic residents in one built-in scenario: counts by group,
+    a timeline, busy places and map tracks. A rehearsal on the township model, not a forecast.
+    Cached per world version (about 5 s on the seed when cold)."""
+    from .day import engine, summary
+    from .day.scenarios import scenarios
+
+    w = ctx.world
+    sc = scenarios(w)
+    if scenario_id not in sc:
+        return ToolResult(ok=False, warnings=[f"unknown day scenario {scenario_id}"])
+    return _wm_cached(
+        w,
+        "day",
+        {"s": scenario_id, "n": DAY_RESIDENTS},
+        lambda: ToolResult(
+            ok=True,
+            data=summary.report(engine.Day(w, sc[scenario_id], n_residents=DAY_RESIDENTS).run()),
+        ),
+        cache=_DAY_CACHE,
+        cache_max=16,
+    )

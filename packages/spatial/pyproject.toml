@@ -2,7 +2,7 @@
 name = "townshiplens-spatial"
 version = "0.1.0"
 requires-python = ">=3.13"
-dependencies = ["pydantic==2.14.1", "networkx==3.7", "shapely==2.2.0", "pyyaml==6.0.3"]
+dependencies = ["pydantic==2.14.1", "networkx==3.7", "shapely==2.2.0", "pyyaml==6.0.3", "numpy==2.5.4", "scipy==1.18.1"]
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
