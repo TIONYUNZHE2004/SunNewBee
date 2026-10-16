@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { WATER_COLOR } from "../../styles";
+import { deltaE } from "./colour";
 import { lerpPalette, paletteFor } from "./palette";
 
 const lin = (c: number) => {
@@ -58,6 +59,17 @@ describe("paletteFor", () => {
       expect(p.water.toLowerCase()).not.toBe(WATER_COLOR.toLowerCase());
       expect(Math.abs(hue(p.water) - hue(WATER_COLOR))).toBeGreaterThan(20); // teal-grey, not scenario blue
     }
+  });
+  it("decorative water and shoreline stay far from the flood-scenario colour (deltaE > 25)", () => {
+    for (const p of [day, dusk, night]) {
+      expect(deltaE(p.water, WATER_COLOR)).toBeGreaterThan(25);
+      expect(deltaE(p.shore, WATER_COLOR)).toBeGreaterThan(25);
+    }
+  });
+  it("defines every ground colour", () => {
+    for (const p of [day, dusk, night])
+      for (const c of [p.pavement, p.kerb, p.roadMark, p.park, p.parkEdge, p.shore])
+        expect(c).toMatch(/^#[0-9a-f]{6}$/i);
   });
   it("every colour is a 6-digit hex", () => {
     for (const p of [day, dusk, night]) {

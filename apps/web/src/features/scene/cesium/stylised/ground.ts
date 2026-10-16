@@ -1,4 +1,5 @@
 import type * as Cesium from "cesium";
+import { dashSegments, offsetLine } from "./lines";
 import type { Palette } from "./palette";
 
 /** A road centre line from the walk network, drawn as a flat corridor `widthM` wide. */
@@ -53,6 +54,9 @@ export function waterFromLayer(fc: unknown): WaterPolygon[] {
   }
   return out;
 }
+
+/** Park polygons from the buildings payload's `parks`: DECORATIVE outlines, parsed like water. */
+export const parksFromLayer = waterFromLayer;
 
 const WIDTH_BY_TYPE: Record<string, number> = {
   major_road: 10,
@@ -139,6 +143,8 @@ interface PostRender {
   addEventListener(cb: () => void): () => void;
 }
 
+type PartKey = "road" | "pavement" | "kerb" | "roadMark" | "park" | "parkEdge" | "water" | "shore";
+
 export interface Ground {
   /** Recolour in place (per-instance colour attributes). Before the primitives are ready the
    * latest palette is kept and applied as soon as they are. Only `final` calls recolour: the
@@ -166,13 +172,18 @@ export function buildGround(
   viewer: {
     scene: { groundPrimitives: GroundCollection; postRender: PostRender; requestRender(): void };
   },
-  { roads, water, palette }: { roads: Road[]; water: WaterPolygon[]; palette: Palette },
+  {
+    roads,
+    water,
+    parks,
+    palette,
+  }: { roads: Road[]; water: WaterPolygon[]; parks: WaterPolygon[]; palette: Palette },
 ): Ground {
   const { scene } = viewer;
   const collection = scene.groundPrimitives;
   type Part = {
     prim: Cesium.ClassificationPrimitive;
-    key: "road" | "water";
+    key: PartKey;
     ids: string[];
     applied: string;
   };
@@ -180,10 +191,7 @@ export function buildGround(
   let want = palette;
   let stopWatching: (() => void) | null = null;
 
-  const add = (
-    key: "road" | "water",
-    geometries: (Cesium.CorridorGeometry | Cesium.PolygonGeometry)[],
-  ) => {
+  const add = (key: PartKey, geometries: (Cesium.CorridorGeometry | Cesium.PolygonGeometry)[]) => {
     if (geometries.length === 0) return;
     const colour = C.ColorGeometryInstanceAttribute.fromColor(
       C.Color.fromCssColorString(palette[key]),
@@ -225,41 +233,66 @@ export function buildGround(
     return done;
   };
 
-  // Roads first, then water, each lowered to the bottom: draw order is water, roads (bridges
-  // cross the river), then every overlay line.
+  const corridor = (coords: [number, number][], width: number) =>
+    new C.CorridorGeometry({
+      positions: C.Cartesian3.fromDegreesArray(flat(coords)),
+      width,
+      cornerType: C.CornerType.ROUNDED,
+      height: -VOLUME_HALF_M,
+      extrudedHeight: VOLUME_HALF_M,
+      vertexFormat: C.VertexFormat.POSITION_ONLY,
+    });
+  const polygon = (rings: WaterPolygon) =>
+    new C.PolygonGeometry({
+      polygonHierarchy: new C.PolygonHierarchy(
+        C.Cartesian3.fromDegreesArray(flat(rings[0]!)),
+        rings.slice(1).map((r) => new C.PolygonHierarchy(C.Cartesian3.fromDegreesArray(flat(r)))),
+      ),
+      height: -VOLUME_HALF_M,
+      extrudedHeight: VOLUME_HALF_M,
+      vertexFormat: C.VertexFormat.POSITION_ONLY,
+    });
+  const valid = (list: WaterPolygon[]) => list.filter((rings) => (rings[0]?.length ?? 0) >= 3);
+  const kerbed = roads.filter((r) => r.kind === "residential" || r.kind === "major");
+
+  // Pavements, kerbs, parks and shore are FLAT classification bands, never raised geometry, so
+  // route, path-status and flood lines drawn on the ground stay visible. Each part is lowered to
+  // the bottom as it is added, so add in reverse of the wanted bottom-to-top order:
+  // park, parkEdge, water, shore, pavement, road, kerb, roadMark, then every overlay line.
+  add(
+    "roadMark",
+    roads
+      .filter((r) => r.kind === "major")
+      .flatMap((r) => dashSegments(r.coords, 3, 6).map((d) => corridor(d, 0.25))),
+  );
+  add(
+    "kerb",
+    kerbed.flatMap((r) => [
+      corridor(offsetLine(r.coords, r.widthM / 2), 0.35),
+      corridor(offsetLine(r.coords, -r.widthM / 2), 0.35),
+    ]),
+  );
   add(
     "road",
-    roads.map(
-      (r) =>
-        new C.CorridorGeometry({
-          positions: C.Cartesian3.fromDegreesArray(flat(r.coords)),
-          width: r.widthM,
-          cornerType: C.CornerType.ROUNDED,
-          height: -VOLUME_HALF_M,
-          extrudedHeight: VOLUME_HALF_M,
-          vertexFormat: C.VertexFormat.POSITION_ONLY,
-        }),
-    ),
+    roads.map((r) => corridor(r.coords, r.widthM)),
   );
   add(
-    "water",
-    water
-      .filter((rings) => (rings[0]?.length ?? 0) >= 3)
-      .map(
-        (rings) =>
-          new C.PolygonGeometry({
-            polygonHierarchy: new C.PolygonHierarchy(
-              C.Cartesian3.fromDegreesArray(flat(rings[0]!)),
-              rings
-                .slice(1)
-                .map((r) => new C.PolygonHierarchy(C.Cartesian3.fromDegreesArray(flat(r)))),
-            ),
-            height: -VOLUME_HALF_M,
-            extrudedHeight: VOLUME_HALF_M,
-            vertexFormat: C.VertexFormat.POSITION_ONLY,
-          }),
-      ),
+    "pavement",
+    kerbed.flatMap((r) => [
+      corridor(offsetLine(r.coords, r.widthM / 2 + 1), 2),
+      corridor(offsetLine(r.coords, -(r.widthM / 2 + 1)), 2),
+    ]),
   );
+  add(
+    "shore",
+    valid(water).map((rings) => corridor(rings[0]!, 4)),
+  );
+  add("water", valid(water).map(polygon));
+  add(
+    "parkEdge",
+    valid(parks).map((rings) => corridor(rings[0]!, 3)),
+  );
+  add("park", valid(parks).map(polygon));
 
   return {
     setPalette(p, final) {

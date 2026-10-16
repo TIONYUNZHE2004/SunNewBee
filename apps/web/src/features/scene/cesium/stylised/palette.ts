@@ -6,6 +6,13 @@ import { mixHex } from "./colour";
 export interface Palette {
   ground: string;
   road: string;
+  /** Flat classification bands beside roads, parks and lakes (decorative, never raised). */
+  pavement: string;
+  kerb: string;
+  roadMark: string;
+  park: string;
+  parkEdge: string;
+  shore: string;
   /** Decorative base water (lakes, rivers): teal-grey, deliberately unlike the flood-scenario blue. */
   water: string;
   sky: string;
@@ -43,7 +50,13 @@ export interface Palette {
 
 const NIGHT: Palette = {
   ground: "#1a1430",
-  road: "#372b62",
+  road: "#2f2a45",
+  pavement: "#2a2148",
+  kerb: "#463a74",
+  roadMark: "#6d5fa3",
+  park: "#1f4a45",
+  parkEdge: "#2c6158",
+  shore: "#3c6e66",
   water: "#2b5750",
   sky: "#1f1838",
   fog: 0.0004,
@@ -74,7 +87,13 @@ const NIGHT: Palette = {
 
 const DAY: Palette = {
   ground: "#e8dccf",
-  road: "#9a8fb0",
+  road: "#8f8a9e",
+  pavement: "#d8cdc4",
+  kerb: "#a89cb4",
+  roadMark: "#f4efe6",
+  park: "#a9d39a",
+  parkEdge: "#7fb478",
+  shore: "#cfe6df",
   water: "#8fb8b0",
   sky: "#9bc4e8",
   fog: 0.00025,
@@ -105,7 +124,13 @@ const DAY: Palette = {
 
 const DUSK: Palette = {
   ground: "#d9b9b4",
-  road: "#7d6a92",
+  road: "#6f6684",
+  pavement: "#c9aaa8",
+  kerb: "#8a7598",
+  roadMark: "#f3dccb",
+  park: "#86b38a",
+  parkEdge: "#5f9470",
+  shore: "#9fc5c3",
   water: "#5f8f93",
   sky: "#c98aa6",
   fog: 0.0003,

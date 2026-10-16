@@ -10,6 +10,7 @@ import { startCrossfade } from "./crossfade";
 import {
   buildGround,
   type Ground,
+  parksFromLayer,
   roadsFromWalk,
   type WaterPolygon,
   waterFromLayer,
@@ -93,7 +94,8 @@ export function applyStylisedLook(viewer: Cesium.Viewer): () => void {
 const PROPS_SEED = "tl-stylised";
 /**
  * Decorative base water comes from `/layers/buildings` (`water`, OSM hydrology polygons). It is NOT
- * a flood scenario: flood water is a scenario, never decoration, and is not used here.
+ * a flood scenario: flood water is a scenario, never decoration, and is not used here. Parks are
+ * decorative outlines too (OSM), flat bands with no access or safety meaning.
  */
 const NO_WATER: WaterPolygon[] = [];
 
@@ -128,6 +130,7 @@ export function StylisedCity({ onReady }: { onReady?: (info: StylisedReady) => v
     return { classes: groupByClass(buildings), count: buildings.length, skipped, t0 };
   }, [data]);
   const roads = useMemo(() => (details ? roadsFromWalk(walk) : []), [walk, details]);
+  const parks = useMemo(() => (data?.parks ? parksFromLayer(data.parks) : NO_WATER), [data]);
   const water = useMemo(() => (data?.water ? waterFromLayer(data.water) : NO_WATER), [data]);
   const decor = useMemo(
     () => ({
@@ -183,6 +186,7 @@ export function StylisedCity({ onReady }: { onReady?: (info: StylisedReady) => v
     const h = buildGround(Cesium, viewer, {
       roads,
       water,
+      parks,
       palette: paletteFor(useTheme.getState().theme),
     });
     ground.current = h;
@@ -193,7 +197,7 @@ export function StylisedCity({ onReady }: { onReady?: (info: StylisedReady) => v
       h.destroy();
       viewer.scene.requestRender();
     };
-  }, [viewer, roads, water]);
+  }, [viewer, roads, water, parks]);
 
   useEffect(() => {
     if (!viewer || viewer.isDestroyed() || !details) return;
