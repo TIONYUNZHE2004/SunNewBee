@@ -25,6 +25,8 @@ A simpler frontend with two screens so a judge understands the product in about 
 In: main screen, Tickets screen, shared UI kit, theme tokens and Day/Night, quality evaluation, deletion of the superseded UI.
 Out: road and infrastructure planning, resident accounts, real-time flood data, any API or data change, the stylised city renderer (Project 2).
 
+> **Superseded by Project 4 (layout).** Project 4 (2026-10-16) replaces the two-column grid with a full-bleed map and a floating glass assistant (same one-third width, in practice 30% of the viewport clamped to 360-440 px; a bottom sheet on phones), and collapses the evidence list behind a summary that states the demo-value count. See `2026-10-16-ui-polish-design.md`.
+
 ## Structure
 
 Routes: `/` (main) and `/tickets`. Header: wordmark and township name, Resident/Management switch (main only), Tickets button with open count (Management only), Back to map (tickets), Day/Night toggle.

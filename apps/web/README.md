@@ -2,11 +2,12 @@
 
 The TownshipLens browser app: a Vite + React 19 SPA with two screens and a time-of-day theme (Day / Dusk / Night).
 
-- `/` **Main** (`features/main/MainPage.tsx`): the map on the left (`MapStage`: Cesium 3D, Mapbox
-  lite or the List view) with overlays (route tag, flood note, settings popover, place and path
-  overlays), and the **assistant** panel on the right (stacked, map first, below the `lg`
-  breakpoint). The assistant has modes with starter questions (`features/assistant/starters.ts`),
-  answer cards with citations and uncertainty banners, and a Gaps section of unverified facts.
+- `/` **Main** (`features/main/MainPage.tsx`): a full-bleed map (`MapStage`: Cesium 3D, Mapbox
+  lite or the List view) with a floating glass **assistant** panel over its right edge (a bottom
+  sheet on phones). Overlays sit in map slots (route tag, flood banner, settings popover, place
+  and path overlays). The assistant has modes with starter questions (`features/assistant/starters.ts`),
+  answer cards with a summary strip, collapsed evidence and uncertainty banners, and a Gaps section
+  of unverified facts. See "Layout", "Answers" and "Phone bottom sheet" below.
 - `/tickets` **Tickets** (`features/tickets`): the verification queue, grouped "To check" and
   "Checked". Pick a ticket to see its detail and a before/after of the assistant's answer, and
   record the outcome. There is no `/manage` route any more.
@@ -106,6 +107,88 @@ the honest wording. `ThemeMenu` (Auto / Day / Dusk / Night) sits in the Shell. T
 mood: Stylised re-lights per mood, Realistic Cesium night is a dark sky with dimmed tiles
 (`scene/cesium/timeOfDay.ts`; Google tiles cannot be relit), Mapbox uses its light presets, and the
 List view follows the page.
+
+## Skins and glass (Project 4)
+
+Two skins, set on `<html data-skin>` by `ui/theme.ts`: **Light** (Day and Dusk) and **Dark** (Night).
+`index.css` defines the palette as `--c-*` custom properties per skin (`--c-bg`, `--c-surface`,
+`--c-raised`, `--c-fg`, `--c-fg-soft`, `--c-edge`, `--c-accent`, `--c-on-accent`, `--c-focus`,
+`--c-lantern`, `--c-lilac`, `--c-flood`, `--c-rose`, `--c-peach`, the tints, and `--c-glass`,
+`--c-glass-edge`, `--c-shadow`). The Tailwind 4 `@theme` block maps them to `bg-surface`, `text-fg`,
+`border-edge` and so on, so components never use raw palette values. `skins.test.ts` checks the
+contrast of the text tokens in both skins.
+
+`.glass` and `.glass-strong` are Tailwind 4 `@utility` definitions (layered, so variants such as
+`lg:glass` work and utilities can override them): a translucent `--c-glass` background, a blur and
+saturate `backdrop-filter`, and a hairline border and shadow. An `@supports not (backdrop-filter)`
+rule swaps in the opaque `--c-surface`. Because `.glass` owns the border and shadow, **selection
+states use `outline`** (not border or ring), for example the selected ticket row.
+
+## Layout (Project 4)
+
+- **Full-bleed map:** the map section fills the area under the header (`absolute inset-0`); nothing
+  is laid out beside it.
+- **Floating panel (lg and up):** `AssistantPanel` is a glass card inset 16 px from the top, right
+  and bottom, with a width of 30% of the viewport clamped to 360-440 px (`panelWidthPx`). A tab on
+  its left edge hides it (focus moves to the show button, and back). The open state persists in
+  `localStorage` (`tl.panel.open`, try/catch). Narrow screens start with the panel closed and
+  ignore the stored choice.
+- **`--panel-w`:** `MainPage` sets `--panel-w` (the width the panel covers, 0 when closed or on a
+  narrow screen) on the map wrapper. Map furniture offsets itself with it, for example the camera
+  controls (`right-[calc(var(--panel-w,0px)+4.5rem)]`), the settings gear and the flood banner
+  (centred in the visible area).
+- **Frustum offset:** `CesiumScene` sets `camera.frustum.xOffset` (`frustumXOffset` in
+  `main/viewport.ts`) so the camera's look point sits at the centre of the visible map, not behind
+  the panel. It is 0 below 1024 px and is applied after the field-of-view effect.
+- **Map slots:** `map-ui/mapSlots.tsx` has `TopStack` (route tag, flood banner, camera hint) and
+  `BottomStack` (place card and notes). Overlays render into a slot with `InSlot`, so they stack
+  instead of overlapping.
+- **Legend:** `StatusLegend` draws line samples with butt caps and dash patterns scaled to the
+  stroke width, taken from `features/scene/styles.ts`, so they match the map. Status is never
+  colour only.
+
+## Phone bottom sheet
+
+Below `lg` the assistant is `BottomSheet`, mounted at all times, with three heights set by a drag
+handle (a 44 px target, with step buttons and keyboard: arrows, Home, End, Escape):
+
+| Height | Size | Shows |
+| --- | --- | --- |
+| peek | 9.5 rem | the composer only |
+| half | 55 dvh | the conversation |
+| full | `calc(100% - 6rem)` | the conversation, leaving the top stack (route tag, flood banner) clear |
+
+At `full` the map attribution strip is rendered on the sheet's bottom edge, since the map strip
+would be covered (the licence requires it to stay visible). Asking a question from `peek` opens the
+sheet to `half`. The sheet state lives in `panelStore` (`usePanel().sheet`).
+
+## Icons
+
+`ui/icons.tsx` is a small in-repo set of stroked 24 px SVG paths (`<Icon name=... />`: walk,
+stroller, wheelchair, older, car, flood, recycle, pin, route, check, ticket, compass, chevron, send,
+camera, close), tested in `icons.test.tsx`. There is deliberately no icon package: a pack adds a
+dependency and a licence to audit (the repo allows only MIT, Apache-2.0 and BSD), and sixteen
+glyphs do not justify it. Add a glyph by adding a path to `PATHS` and a name to `IconName`.
+
+## Answers (summary strip and evidence)
+
+- **Summary strip:** `AnswerCard` renders `RouteSummary` above the text. It is built from fields the
+  server attaches to the `route.highlight` scene intent (`route_status`, `distance_m`,
+  `est_minutes`), not from the model's words. It shows a route-status chip (`ROUTE_CHIP`: "No known
+  barrier", "Some parts not checked yet", "Not passable", "No mapped connection (data gap)"),
+  distance and minutes, and for a flood answer "River +N m · indicative" (never a depth reading).
+- **Demo-value chip:** whenever the answer cites `team_survey_placeholder` evidence, the strip shows
+  "Demo value · not surveyed", even without a route chip, so a bare status never reads as surveyed
+  fact.
+- **Show on map:** the button appears only on the card whose route is the scene's current route and
+  flies the camera to it (`requestRouteFocus`); older cards do not offer it.
+- **Evidence collapses:** the evidence list sits behind a header such as "N sources · M with demo
+  values (not surveyed)". Open it for the claim-by-claim list.
+- **Honesty notes never collapse:** the uncertainty note ("Not verified"), the flood disclaimer
+  ("indicative scenario, not a forecast", MBSA / JPS / NADMA) and the tickets-created line are
+  always visible.
+- The demo cache (`data/demo/*.jsonl`) was re-recorded with the mock so replayed intents carry the
+  same route fields.
 
 ## Map styles (Stylised and Realistic)
 
@@ -281,16 +364,16 @@ flooded_possible`) via `scene/status.ts`, and unknown is drawn dashed and amber,
 ```
 src/
   main.tsx, app/            routes.tsx (/ and /tickets), Shell (nav, theme menu), providers (TanStack Query)
-  ui/                       theme.ts (useTheme, startThemeClock), ThemeMenu, Button, StatusChip, status.ts (honest wording)
+  ui/                       theme.ts (useTheme, startThemeClock), ThemeMenu, Button, StatusChip, icons.tsx, status.ts (honest wording)
   lib/api.ts, env.ts        typed client (openapi-fetch over @tl/api-client), ENV keys
   lib/profileStore.ts       selected mobility profile, persisted
   lib/evidence.ts, routeStatus.ts, EvidencePhoto.tsx   honest labels, photo rules and rendering
   features/
-    main/                   MainPage (map + assistant layout)
-    assistant/              AssistantPanel, AnswerCard, starters
+    main/                   MainPage (full-bleed map + panel), BottomSheet, panelStore, viewport
+    assistant/              AssistantPanel, AnswerCard, RouteSummary, TravelChip, starters
     chat/                   useChatStream, parseSse, chatReducer, EvidenceCard, CitationList, uncertainty
     gaps/                   GapsSection, gapModel (what is not checked yet)
-    map-ui/                 MapStage and overlays: RouteTag, FloodNote, SettingsPopover, PlaceOverlay, PathOverlay
+    map-ui/                 MapStage and overlays: mapSlots (TopStack, BottomStack), RouteTag, FloodNote, SettingsPopover, PlaceOverlay, PathOverlay
     flood/                  floodPath ("Why this path?" facts, always indicative)
     places/                 SourceBanner, placeModel
     scene/                  sceneStore (incl. mapStyle), selectView, useMapStyle, status, styles, StatusLegend;
