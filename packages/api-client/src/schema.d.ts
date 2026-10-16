@@ -641,6 +641,16 @@ export interface components {
             trees: {
                 [key: string]: unknown;
             };
+            /**
+             * Water
+             * @default {
+             *       "features": [],
+             *       "type": "FeatureCollection"
+             *     }
+             */
+            water: {
+                [key: string]: unknown;
+            };
         };
         /** CentreReachability */
         CentreReachability: {

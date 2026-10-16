@@ -173,6 +173,9 @@ class BuildingsLayer(BaseModel):
 
     buildings: dict[str, Any]  # GeoJSON FeatureCollection of Polygons
     trees: dict[str, Any]  # GeoJSON FeatureCollection of Points
+    # Decorative base water (lake/riverbank polygons from OSM hydrology). Display only: this is
+    # NOT a flood scenario and says nothing about water depth or extent in any event.
+    water: dict[str, Any] = {"type": "FeatureCollection", "features": []}
     as_of: str | None = None
     attribution: list[str] = []
 
@@ -201,6 +204,17 @@ def _read_collection(path) -> dict[str, Any]:
     return data
 
 
+def _polygons_only(fc: dict[str, Any]) -> dict[str, Any]:
+    keep = [
+        f
+        for f in fc["features"]
+        if isinstance(f, dict)
+        and isinstance(f.get("geometry"), dict)
+        and f["geometry"].get("type") in ("Polygon", "MultiPolygon")
+    ]
+    return {"type": "FeatureCollection", "features": keep}
+
+
 @router.get(
     "/layers/buildings",
     response_model=BuildingsLayer,
@@ -218,18 +232,28 @@ def buildings_layer(request: Request, response: Response):
     if not b_path.exists():
         raise HTTPException(404, "no buildings data for this world")
     site_path = data / "site.json"
-    key = (str(data), _mtime(b_path), _mtime(t_path), _mtime(site_path))
+    h_path = data / "base" / "hydrology.geojson"
+    key = (str(data), _mtime(b_path), _mtime(t_path), _mtime(site_path), _mtime(h_path))
     hit = _buildings_cache.get(key)
     if hit is None:
         try:
             site = json.loads(site_path.read_text(encoding="utf-8"))
+            if not isinstance(site, dict):
+                raise ValueError("site.json is not an object")
             payload = BuildingsLayer(
                 buildings=_read_collection(b_path),
                 trees=_read_collection(t_path),
+                water=_polygons_only(_read_collection(h_path)),
                 as_of=(site.get("buildings") or {}).get("as_of"),
                 attribution=list(site.get("attribution") or []),
             )
-        except (OSError, ValueError) as e:  # JSONDecodeError and bad shapes are ValueErrors
+        except (
+            OSError,
+            ValueError,
+            TypeError,
+            AttributeError,
+            RecursionError,
+        ) as e:
             log.warning("buildings seed unreadable: %s", e)
             raise HTTPException(502, "buildings data is unreadable") from e
         etag = f'"{hashlib.sha1(repr(key).encode()).hexdigest()[:20]}"'

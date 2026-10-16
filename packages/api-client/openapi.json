@@ -164,6 +164,15 @@
             "additionalProperties": true,
             "title": "Trees",
             "type": "object"
+          },
+          "water": {
+            "additionalProperties": true,
+            "default": {
+              "features": [],
+              "type": "FeatureCollection"
+            },
+            "title": "Water",
+            "type": "object"
           }
         },
         "required": [
