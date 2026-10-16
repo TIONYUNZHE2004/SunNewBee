@@ -50,8 +50,8 @@ Out: moving cars, boats, balloons; new access/flood facts; per-building click ca
   | Touch | One-finger pan; pinch zoom; twist rotate; two-finger drag tilt |
 
 - **Keyboard** (only while the map region has focus, gained by click or Tab; never while typing in chat): WASD / arrows move, Q/E rotate, R/F tilt, +/− zoom.
-- **Guard rails**: zoom 30 m to 20 km; tilt from straight down to 5° above horizontal; never below ground; camera centre held within about 5 km of the world bounds; hitting a limit eases to a stop, no snap.
-- **Click vs drag**: a press–release with under 4 px movement is a click (place card, route card, "Why this path?" behave as today); anything more is a drag and opens nothing.
+- **Guard rails**: zoom 30 m to 20 km; tilt from straight down to 5° short of horizontal (pitch ≤ −5°); never below ground; camera centre held within about 5 km of the world bounds (`site.bbox`); a limit is enforced every frame, so a drag stops at it rather than snapping back.
+- **Click vs drag**: Cesium's built-in click tolerance (a press–release moving under 5 px is a `LEFT_CLICK`) decides; place card, route card and "Why this path?" behave as today, and a drag opens nothing.
 - **On-screen cluster** (`CameraControls`, bottom-right beside Map settings), **minimal by default** to honour the handoff's clean-map rule: only a small compass is always visible (click = face north). The full cluster (zoom +/−, tilt, rotate, Home, Whole township) slides out on hover or keyboard focus of that corner. Map settings gains "Always show camera controls". Every button has an accessible name and a tooltip naming its key.
 - **First-visit hint**: dismissible card "Drag to move · Scroll to zoom · Right-drag to rotate", dismissal remembered in localStorage.
 - Tests: pure unit tests for pan, zoom-to-cursor, orbit and every clamp; jsdom tests that buttons and keys call the camera API and keys are ignored while focus is in the chat input; Playwright asserts the List view (e2e) does not render the cluster.
@@ -65,7 +65,8 @@ Out: moving cars, boats, balloons; new access/flood facts; per-building click ca
 - Ambient occlusion: Cesium `postProcessStages.ambientOcclusion`, low settings.
 - Bloom: `postProcessStages.bloom`, Dusk and Night only, tuned so only windows, lamp heads and light pools glow.
 - FXAA on.
-- Sky: CSS gradient behind a transparent canvas (Day soft blue to pale horizon; Dusk violet to peach; Night deep indigo with a faint horizon glow). Fog tinted to each mood's horizon colour.
+- Sky: CSS gradient behind a transparent canvas (Day soft blue to pale horizon; Dusk violet to peach; Night deep indigo with a faint horizon glow). Distance fog towards each mood's horizon colour is applied in our own building and prop shaders (Cesium's scene fog has no colour control); the flat ground keeps its colour.
+- Crossfade detail: scene colours and every material uniform interpolate over the 2 s fade; the ground's per-instance colours (tens of thousands of instances) switch once at the fade's midpoint, so the fade never stalls a frame.
 
 ### Buildings (`buildingsMesh.ts`; still a few merged meshes per tone class)
 
@@ -80,8 +81,8 @@ Out: moving cars, boats, balloons; new access/flood facts; per-building click ca
 ### Ground (`ground.ts`)
 
 - Roads: asphalt grey-violet in every mood; subtle light centre dashes on major roads only. The night orange dash is removed.
-- Pavements: raised 0.15 m slabs with kerbs along both sides of residential and major roads, from existing road widths.
-- Parks / green areas: grass tint with a slightly raised edge.
+- Pavements: flat lighter bands with a darker kerb edge line along both sides of residential and major roads, from existing road widths. Flat on purpose: a raised slab would hide route and path-status lines drawn on the ground beside roads, which would break the honesty layers.
+- Parks / green areas: grass tint with a darker edge band (flat, same reason). Park outlines come from a new display-only `base/parks.geojson` (OSM `leisure=park|garden|playground`, `landuse=grass|recreation_ground`) written by `build_buildings.py --parks` and served as `parks` in `GET /layers/buildings` (empty collection when absent).
 - Decorative water: deeper teal with a lighter shoreline band; minimum colour difference (ΔE) from the flood-scenario blue in every mood, tested.
 
 ### Props (`props.ts`)

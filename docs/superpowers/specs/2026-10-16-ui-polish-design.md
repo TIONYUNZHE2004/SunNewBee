@@ -53,7 +53,7 @@ Two chrome skins, chosen by `skinFor(theme)` from Project 3 (Day and Dusk: Light
 - **User message**: right-aligned accent bubble.
 - **Answer card**, in the brief's order of importance:
   1. Answer text, streaming, with a soft caret.
-  2. **Summary strip**: route answers show the status chip (pattern + label), distance, walking time and a **Show on map** button that re-applies the route's scene intent; flood answers show the scenario chip ("+3 m · indicative"). Only fields present in the turn's tool results are shown; nothing is computed in the UI.
+  2. **Summary strip**: route answers show the status chip (pattern + label), distance, walking time and a **Show on map** button that re-applies the route's scene intent; flood answers show the scenario chip ("+3 m · indicative"). Only fields present in the turn's tool results are shown; nothing is computed in the UI. To make that possible the server attaches `route_status`, `distance_m` and `est_minutes` to `route.highlight` scene intents from the route `plan_route` returned this turn (the same way it already attaches `geojson`); the model cannot set them. Older demo recordings without these fields simply show no strip.
   3. **Checks**: live checklist while running; once done, collapses to "✓ N checks", expandable.
   4. Not-verified note and flood disclaimer (with official links): restyled, **never collapsible**.
   5. **Evidence**: collapsed by default to "Evidence · N sources · M demo values"; expands to the existing evidence cards (which keep "Demo value · not surveyed").
