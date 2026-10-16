@@ -192,3 +192,14 @@ def test_build_parks_keeps_closed_rings_and_labels_kind():
     assert [f["properties"]["kind"] for f in feats] == ["park", "grass"]
     assert feats[0]["geometry"]["type"] == "Polygon"
     assert feats[0]["properties"]["id"] == "way/1"
+
+
+def test_build_parks_dedupes_ways_repeated_across_tiles():
+    ring = [(101.5, 3.18), (101.501, 3.18), (101.501, 3.181), (101.5, 3.18)]
+    els = [
+        way(1, ring, leisure="park"),
+        way(2, ring, leisure="garden"),
+        way(1, ring, leisure="park"),
+    ]
+    feats = bb.build_parks(els)
+    assert [f["properties"]["id"] for f in feats] == ["way/1", "way/2"]

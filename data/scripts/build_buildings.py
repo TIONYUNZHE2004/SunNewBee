@@ -286,8 +286,9 @@ def parks_query_for(tile: tuple[float, float, float, float]) -> str:
 def build_parks(elements: list[dict]) -> list[dict]:
     """Display-only park/green outlines for the stylised city (never used for any fact)."""
     out: list[dict] = []
+    seen: set[int] = set()  # tiled requests return a way once per tile it crosses
     for el in elements:
-        if el.get("type") != "way":
+        if el.get("type") != "way" or el["id"] in seen:
             continue
         tags = el.get("tags") or {}
         kind = tags.get("leisure") or tags.get("landuse")
@@ -296,6 +297,7 @@ def build_parks(elements: list[dict]) -> list[dict]:
         pts = [[round(p["lon"], 6), round(p["lat"], 6)] for p in el.get("geometry") or []]
         if len(pts) < 4 or pts[0] != pts[-1]:
             continue
+        seen.add(el["id"])
         out.append(
             {
                 "type": "Feature",
