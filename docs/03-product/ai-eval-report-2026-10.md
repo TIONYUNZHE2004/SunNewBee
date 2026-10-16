@@ -72,6 +72,21 @@ Each question was asked twice:
 - Its real misses are made-up measurements (ramp lengths) and depth talk.
 - So the world model's value is **not** stopping a lying model. It **turns a model that cannot answer into one that answers with checked facts and shows every gap**, without crossing the honesty lines.
 
+## 2b. Elmina Day rehearsals: live smoke tests (17 Oct, Cycles 15–17)
+
+These are smoke tests (6 live turns, one model, Claude Haiku 5.5), not an evaluation: they show whether the honesty gate lets a real model answer the rehearsal questions, and they found bugs on our side. Results are in `evals/results/2026-10-17-live-day-assistant.json`.
+
+| Question | Result | What it taught us |
+|---|---|---|
+| "What happens to residents in the storm rehearsal?" (first run) | Template fallback after 3 attempts | Two validator bugs: "no one was stranded" was read as a forecast, and the model was asked for a `scenario_id` it never sets for a rehearsal |
+| The same, in Bahasa Melayu | Passed first time | Counts and the "latihan … bukan ramalan" wording checked in BM |
+| The same, after the fix | Passed first time | It named the 163 data-gap trips, and the map opened at the +3 m peak |
+| "Which change would help most residents in the storm rehearsal?" (run 1) | Passed first time | The model said the change "would help most", but only 1 of 8 suggestions was tested. That gave the best-claim rule, plus a fix to the order of the map instructions |
+| The same, run 2 | Template fallback | The first best-claim rule also rejected honest negations ("not the best option") |
+| The same, run 3 (drafts captured) | Passed on attempt 3 | Both rejected drafts are now passing tests; the rule reads negation |
+
+On the mock, the golden set is now **22/22**, including three rehearsal questions (weekday in EN, a night event in BM, and testing a change). Each of the 6 smoke-test turns cost a few cents.
+
 ## 3. Where the gate earned its keep (live rewrites)
 
 The 11 rewritten questions were re-run with the validator's reasons recorded (`…-eval-rewrites.json`). In that re-run, 10 rewrites happened, with 0 fallbacks and 0 violations in the final answers. The reasons were:
