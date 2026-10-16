@@ -9,7 +9,18 @@ import { pickedFloodEdgeId, pointFeatures } from "../geo";
 import { useScene } from "../sceneStore";
 import { useMapStyle } from "../useMapStyle";
 import { useCameraIntents } from "./camera";
-import { type HomeView, homeView, shouldReframe, stylisedHomeView } from "./home";
+import { type CameraOps, createCameraOps, frameNow } from "./controls/cameraOps";
+import { configureControls } from "./controls/configureControls";
+import {
+  DEFAULT_FOV_DEG,
+  DEFAULT_PITCH_DEG,
+  fovForVertical,
+  framingFor,
+  homeView,
+  STYLISED_FOV_DEG,
+  STYLISED_PITCH_DEG,
+  shouldReframe,
+} from "./home";
 import { AccessLayer, FloodLayer, WasteLayer } from "./layers";
 import { setupRealistic } from "./realistic";
 import { StylisedCity } from "./stylised/StylisedCity";
@@ -27,22 +38,15 @@ const TIME_OPS: TimeOps = {
 
 const PICK_PX = 8;
 
-function frameHome(viewer: Cesium.Viewer, { lon, lat, range_m }: HomeView) {
-  viewer.camera.lookAt(
-    Cesium.Cartesian3.fromDegrees(lon, lat, 0),
-    new Cesium.HeadingPitchRange(0, Cesium.Math.toRadians(-45), range_m),
-  );
-  viewer.camera.lookAtTransform(Cesium.Matrix4.IDENTITY);
-  viewer.scene.requestRender();
-}
-
 /** Child of <Viewer>: mounts only after resium has created the viewer. */
 function SceneSetup({
   onNoDraping,
   onTilesFailed,
+  onOps,
 }: {
   onNoDraping: () => void;
   onTilesFailed: () => void;
+  onOps?: (ops: CameraOps | null) => void;
 }) {
   const { viewer } = useCesium();
   const profile = useScene((s) => s.profile);
@@ -110,8 +114,7 @@ function SceneSetup({
   }, [viewer]);
   useEffect(() => {
     if (!viewer || viewer.isDestroyed() || !shouldReframe(framing.current)) return;
-    const home = homeView(siteData);
-    frameHome(viewer, style === "stylised" ? stylisedHomeView(home) : home);
+    frameNow(Cesium, viewer, framingFor(style, homeView(siteData)));
     // Locked once the real inputs are in (site data + the settled default style). After that a
     // style switch keeps whatever the camera shows, e.g. a fly-to the assistant just made.
     if (siteData && settled) framing.current.reframed = true;
@@ -146,11 +149,55 @@ function SceneSetup({
   const onIntentMoved = useCallback(() => {
     framing.current.moved = true;
   }, []);
-  useCameraIntents(focusPoint, onIntentMoved);
+  useCameraIntents(
+    focusPoint,
+    onIntentMoved,
+    style === "stylised" ? STYLISED_PITCH_DEG : DEFAULT_PITCH_DEG,
+  );
+
+  // Vertical field of view per style (Cesium's fov is the horizontal angle on landscape canvases).
+  useEffect(() => {
+    if (!viewer || viewer.isDestroyed()) return;
+    const apply = () => {
+      const f = viewer.camera.frustum;
+      if (!(f instanceof Cesium.PerspectiveFrustum)) return;
+      f.fov =
+        style !== "stylised"
+          ? Cesium.Math.toRadians(DEFAULT_FOV_DEG)
+          : fovForVertical(STYLISED_FOV_DEG, viewer.canvas.clientWidth, viewer.canvas.clientHeight);
+      viewer.scene.requestRender();
+    };
+    apply();
+    const ro = new ResizeObserver(apply);
+    ro.observe(viewer.canvas);
+    return () => ro.disconnect();
+  }, [viewer, style]);
+
+  // Camera actions (buttons, keyboard, double-click) and the mouse/touch mapping with limits.
+  const framingRef = useRef(framingFor(style, homeView(siteData)));
+  framingRef.current = framingFor(style, homeView(siteData));
+  const bboxRef = useRef<[number, number, number, number]>([101.46, 3.15, 101.53, 3.24]);
+  if (siteData?.bbox?.length === 4)
+    bboxRef.current = siteData.bbox as [number, number, number, number];
+  useEffect(() => {
+    if (!viewer || viewer.isDestroyed()) return;
+    const ops = createCameraOps(
+      Cesium,
+      viewer,
+      () => framingRef.current,
+      () => bboxRef.current,
+    );
+    const undo = configureControls(Cesium, viewer, ops, () => bboxRef.current);
+    onOps?.(ops);
+    return () => {
+      onOps?.(null);
+      undo();
+    };
+  }, [viewer, onOps]);
   return null;
 }
 
-export default function CesiumScene() {
+export default function CesiumScene({ onOps }: { onOps?: (ops: CameraOps | null) => void } = {}) {
   const ref = useRef<CesiumComponentRef<Cesium.Viewer>>(null);
   const [noDraping, setNoDraping] = useState(false);
   const [tilesFailed, setTilesFailed] = useState(false);
@@ -198,7 +245,7 @@ export default function CesiumScene() {
         selectionIndicator={false}
         fullscreenButton={false}
       >
-        <SceneSetup onNoDraping={onNoDraping} onTilesFailed={onTilesFailed} />
+        <SceneSetup onNoDraping={onNoDraping} onTilesFailed={onTilesFailed} onOps={onOps} />
         {style === "stylised" && <StylisedCity />}
         <AccessLayer />
         <FloodLayer />
