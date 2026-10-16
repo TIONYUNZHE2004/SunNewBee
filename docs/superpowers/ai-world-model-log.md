@@ -1182,3 +1182,40 @@ I walked the demo script's world-model beats on `townshiplens-dev-mock` and foun
 | Minor, kept: a user who picks exactly the day's current stage doesn't end the day. | Harmless, because the level is the same; documented here. Also kept: `setDayStage` keeps a what-if diff during playback, as designed. |
 
 The storm chip replay is re-recorded with the mock. The two saved live answers (English after the fix, and Bahasa Melayu) still pass the stricter rules offline. **Checklist** (mock-backed): lint PASS, pytest 1,206 PASS, typecheck PASS, vitest 475 PASS, gen PASS, golden 19/19 PASS (mock), e2e 17 PASS.
+
+### Cycle 17: the assistant tests a change on a rehearsal (17 Oct, 05:00)
+
+**Why:** "Test a change" was a panel-only feature. A planner should be able to ask the assistant "which change would help most residents in the storm rehearsal?" and get the same before/after comparison of the world model, through the same honesty gate.
+
+**Built:**
+- **`day_test_change(day, option)`** (spatial tool, agent tool, MCP via `TOOLS`):
+  - runs one of the day's own suggestions; the server builds the action, so the model never writes one. Option 1 is the top suggestion, and `options` lists the rest with their reasons and counts;
+  - runs the same day again and compares it trip by trip: residents and trips better and worse off, by group;
+  - the map geometry (`changed_geojson`) is dropped before the model sees the result.
+- **Validator `day_change_errors`:**
+  - the answer says "imagined", "synthetic" and "not a forecast";
+  - no plan wording, no forecasts;
+  - counts under the same digit rules as `day_errors` (shared `_day_number_errors`);
+  - **no "best" or "helps most" unless every option was tested** (negated wording such as "not the best option" passes).
+- **Shared wording:** `template.day_change_answer` (mock and template): "Why this change: the day's top suggestion, on the usual route of 1129 residents…", groups, and "Another change to test (option 2)".
+- **Prompt:** rule 18.
+- **Mock:** a `_DAY_CHANGE` route ("option N" picks a number), kept apart from fix-it questions.
+- **Map:** `day.show` (always first: it sets the river level, which would clear a diff drawn before it) plus `whatif.diff` with the stretch, and the what-if disclaimer.
+- **Suggestions:** they never read the same twice (on the tiny fixture two did), and each carries its `count`.
+- **Golden:** `day-test-a-change` (22/22 on the mock).
+- **Labels:** the rehearsal validator messages now have readable issue labels.
+
+**Seed results (mock engine):**
+- option 1 (Jalan Sungai Buloh, about 931 m): 823 residents better off, 0 worse off;
+- option 2 (Persiaran Eserina): 345 better off, 2 worse off, including 101 children and 99 teenagers.
+
+**Browser** (mock, Stylised): typing the question opens the Day panel at 07:25 at +3 m. The map flies to the stretch, drawn as "What-if · not real · Imagined change". The console is clean.
+
+**Live smoke tests** (Claude Haiku 5.5, 3 turns, about US$0.15):
+1. The first run passed first time, but the model wrote "the change that would help most", and its own `whatif.diff` came before `day.show`. This led to the best-claim rule and the intent order.
+2. The second fell back to the template after three attempts.
+3. The third, with drafts captured, showed why: attempts 1 and 2 were honest negations ("not a proven best option") that the first version of the rule rejected. Attempt 3 passed. Negation is now read, and both drafts are kept as passing tests.
+
+Results are in `evals/results/2026-10-17-live-day-assistant.json`.
+
+**Checklist** (mock-backed except the smoke tests): lint PASS, pytest 1,220 PASS, typecheck PASS, vitest 475 PASS, gen PASS, golden 22/22 PASS (mock), e2e 17 PASS. OpenRouter spend is about US$1.9 of US$3; the counter lags, so this is an estimate.

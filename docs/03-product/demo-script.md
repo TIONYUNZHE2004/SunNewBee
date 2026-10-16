@@ -56,6 +56,7 @@ This segment uses only the current screens. Management mode opens **Simulate a d
 | 2:50 | Slide: the evaluation table from [ai-eval-report-2026-10.md](ai-eval-report-2026-10.md) | "Underneath, the same rule as everywhere in TownshipLens: the AI never invents a fact, and every gap is shown as a gap." |
 
 **Backup beats:**
+- type "Which change would help most residents in the storm rehearsal?". The assistant runs the same before/after comparison as Test a change ("823 residents would be better off and 0 worse off"). The map flies to the stretch, drawn as an imagined change. Then ask for option 2 (Persiaran Eserina: 101 children better off);
 - the night event at the park: up to 479 residents at once, and 393 met a neighbour from another household;
 - the rising-river and tipping-point views;
 - the ticket impact card on `/tickets`.
