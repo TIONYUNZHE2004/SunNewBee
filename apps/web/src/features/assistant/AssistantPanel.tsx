@@ -54,7 +54,7 @@ export function AssistantPanel() {
   return (
     <aside
       aria-label="Assistant"
-      className="flex min-h-0 flex-1 flex-col border-l border-edge bg-surface"
+      className="m-2 flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border-2 border-edge bg-surface shadow-sm lg:m-3"
     >
       <header className="border-b border-edge px-4 py-3">
         <h1 className="text-lg font-semibold text-fg">{copy.title}</h1>

@@ -167,7 +167,7 @@ describe("OutcomeForm", () => {
   it("without a token asks for staff access and disables Save", async () => {
     useStaffTokenStore.setState({ token: "" });
     const { user } = setup();
-    expect(screen.getAllByText("Staff access needed").length).toBeGreaterThan(0);
+    expect(screen.getByLabelText("Staff access")).toBeInTheDocument();
     await choose(user, /Confirm/);
     expect(save()).toBeDisabled();
     await user.type(screen.getByLabelText("Staff access"), "tok");

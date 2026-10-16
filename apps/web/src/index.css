@@ -149,3 +149,10 @@ body {
     scroll-behavior: auto;
   }
 }
+
+/* Keep the Cesium credit (a licence requirement) but make it small and quiet. */
+.cesium-credit-logoContainer img {
+  height: 14px;
+  width: auto;
+  opacity: 0.55;
+}

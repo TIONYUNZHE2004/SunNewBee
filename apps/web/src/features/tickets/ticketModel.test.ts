@@ -71,3 +71,14 @@ describe("ticketModel", () => {
     expect(timeAgo("2026-10-14T12:00:00Z", NOW)).toBe("2 d ago");
   });
 });
+
+import { friendlyKind } from "./ticketModel";
+
+describe("friendlyKind", () => {
+  it("rewrites route summaries in plain words", () => {
+    expect(friendlyKind("older_adult_rest route A -> B")).toBe(
+      "Route from A to B (older adult rest)",
+    );
+    expect(friendlyKind(null)).toBe("Resident question");
+  });
+});

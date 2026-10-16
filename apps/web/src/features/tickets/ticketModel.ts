@@ -41,6 +41,14 @@ export function timeAgo(iso: string, now: Date): string {
 const DATE = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric" });
 const formatDate = (iso: string | null | undefined) => (iso ? DATE.format(new Date(iso)) : "");
 
+/** Turns the stored summary ("older_adult_rest route A -> B") into plain words. */
+export function friendlyKind(summary: string | null | undefined): string {
+  if (!summary) return "Resident question";
+  const m = /^([a-z_]+) route (.+?) -> (.+)$/.exec(summary);
+  if (m) return `Route from ${m[2]} to ${m[3]} (${(m[1] ?? "").replace(/_/g, " ")})`;
+  return summary.replace(/_/g, " ");
+}
+
 export function toTicket(vr: VR, names: Map<string, string>, now: Date = new Date()): Ticket {
   const hasCurrent = hasCurrentValue(vr.current_value);
   const isRejected = vr.status === "rejected";
@@ -53,7 +61,7 @@ export function toTicket(vr: VR, names: Map<string, string>, now: Date = new Dat
     place: names.get(vr.element_id) ?? vr.element_id,
     reason: vr.reason,
     reasonLabel: reasonLabel(vr.reason),
-    kind: vr.question_summary ?? "Resident question",
+    kind: friendlyKind(vr.question_summary),
     asked: vr.demand,
     ago: timeAgo(vr.created_at, now),
     current: hasCurrent ? currentValueText(vr.current_value) : null,

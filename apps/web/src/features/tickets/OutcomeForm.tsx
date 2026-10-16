@@ -215,7 +215,6 @@ export function OutcomeForm({ ticket, onSaved }: { ticket: Ticket; onSaved?: () 
         </div>
       )}
 
-      {!token && <p className="mt-3 text-sm text-fg-soft">{NEEDS_STAFF}</p>}
       {error && (
         <p role="alert" className="mt-3 text-sm text-fg">
           {error}
