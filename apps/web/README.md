@@ -11,7 +11,7 @@ The TownshipLens browser app: a Vite + React 19 SPA with two screens and a time-
   "Checked". Pick a ticket to see its detail and a before/after of the assistant's answer, and
   record the outcome. There is no `/manage` route any more.
 - A shared **Shell** (`app/Shell.tsx`) carries the navigation between the two screens and the
-  day/night toggle.
+  theme menu.
 
 ## Run
 
@@ -93,16 +93,19 @@ Playwright does.
 
 ## Theme (Auto / Day / Dusk / Night)
 
-`src/ui/theme.ts` is the single source of day/night. The `useTheme` zustand store (`theme`,
-`setTheme`, `toggle`) persists the choice in `localStorage` (`tl.theme`, wrapped in try/catch),
-falls back to Auto, and
-writes `data-theme="day|dusk|night"` and `data-skin="light|dark"` on `<html>`. Colours are CSS custom properties defined per theme;
-components use semantic tokens such as `bg-surface`, `bg-raised`, `text-fg`, `text-fg-soft` and
-`border-edge`, not raw palette values. Status is never colour only: `src/ui/status.ts` and
-`StatusChip` pair every status with an icon, a border or pattern and a label in both themes, and
-own the honest wording. `ThemeToggle` sits in the Shell. The map follows the theme: Cesium night is
-a dark sky with dimmed tiles (`scene/cesium/timeOfDay.ts`; Google tiles cannot be relit), Mapbox
-uses its light presets, and the List view follows the page.
+`src/ui/theme.ts` is the single source of the mood (Day, Dusk or Night) and the skin. The
+`useTheme` zustand store holds `{choice, theme, setChoice, refresh}`: `choice` is what the user picked
+(`auto|day|dusk|night`, persisted in `localStorage` as `tl.theme`, wrapped in try/catch, default
+Auto) and `theme` is the resolved mood. `startThemeClock()` re-checks Auto against the Elmina clock
+on a timer. It writes `data-theme="day|dusk|night"` and `data-skin="light|dark"` on `<html>`: three
+moods and two skins, with Night the only dark skin. Colours are CSS custom properties keyed on the
+skin; components use semantic tokens such as `bg-surface`, `bg-raised`, `text-fg`, `text-fg-soft`
+and `border-edge`, not raw palette values. Status is never colour only: `src/ui/status.ts` and
+`StatusChip` pair every status with an icon, a border or pattern and a label in both skins, and own
+the honest wording. `ThemeMenu` (Auto / Day / Dusk / Night) sits in the Shell. The map follows the
+mood: Stylised re-lights per mood, Realistic Cesium night is a dark sky with dimmed tiles
+(`scene/cesium/timeOfDay.ts`; Google tiles cannot be relit), Mapbox uses its light presets, and the
+List view follows the page.
 
 ## Map styles (Stylised and Realistic)
 
@@ -124,12 +127,17 @@ the settings popover.
   building data", "Needs a Google Maps key" or "Needs a 3D-capable device". A disabled option is
   never checked.
 - **Honesty:** while Stylised is active the popover says "Decorative details are illustrative."
-  Building heights are mostly defaults by building kind (display only). Cars, street trees,
-  colours and lit windows are seeded decoration. Base water is decorative and is never a flood
-  scenario. The route, flood and place layers are the same data in both styles.
+  Building heights are mostly defaults by building kind, and the parapet adds 0.6 m (display only).
+  Everything else is decoration, seeded and never a fact: the six facade tones and window styles,
+  lit windows, rooftop clutter, cars, street trees, lamps and light pools, birds, clouds and cloud
+  shadows, parks, pavements, kerbs and markings, and base water. Base water is never a flood
+  scenario. The route, flood and place layers are the same data in both styles. The full rules are
+  under "Honesty (decorative rules)" below.
 - **Time of day:** Stylised re-skins itself on theme change (`reskin.ts`: palette, sky, light) with a crossfade.
   Realistic uses `timeOfDay.ts`.
-- **Camera:** the home view is closer for Stylised (`stylisedHomeView`, at most 2.5 km). Switching
+- **Camera:** the home view is closer for Stylised: `framingFor("stylised", home)` gives a 1200 m
+  range, a -35 degree pitch and a 30 degree vertical field of view (`fovForVertical` converts it to
+  Cesium's horizontal `fov` for the canvas aspect); Realistic keeps -45 degrees and 60. Switching
   style keeps the current camera.
 
 ### Theme: Auto, Day, Dusk, Night
@@ -197,11 +205,31 @@ model.ts               GeoJSON -> buildings (height, kind, one of six tones, win
 palette.ts             paletteFor("day" | "dusk" | "night"): ground, roads, water, six facade tones, roofs, windows, trees, cars, sky
 buildingsMesh.ts       walls + roof geometry with metric st (window columns x floors; roof t = -1, parapet t = -2); parapet draws 0.6 m above the data height (decorative)
 buildingsPrimitive.ts  one Primitive per grid cell + window Material; setTheme, far-range night boost
-ground.ts              roadsFromWalk (width by road kind), ClassificationPrimitive roads, decorative water
-props.ts               kerbCars, streetTrees, instanced tree and car primitives (allowPicking: false)
+ground.ts              roadsFromWalk (width by road kind); roads, pavements, kerbs, markings and parks are flat
+                       ClassificationPrimitives (so overlay lines are never hidden); decorative water is a
+                       GroundPrimitive with a shimmer material
+props.ts               kerbCars, streetTrees, streetLamps, instanced primitives (allowPicking: false, CAST_ONLY shadows)
+colour.ts              hex <-> rgb and colour mixing helpers
+lighting.ts            shared shader light model (key, fill, bounce, cloud-shadow `tl_cloud`)
+postfx.ts              per mood and tier post-processing (bloom values)
+quality.ts             High / Medium / Low tier specs, pickTier, lowerTier, frame monitor
+crossfade.ts           palette fade between moods (3 s Day to Dusk, otherwise 2 s)
+lines.ts               pure line helpers: dedupe, offsetLine, dashSegments (kerbs, markings)
+roofs.ts               seeded AC boxes and water tanks on larger flat roofs
+motion/clock.ts        one capped (30 fps) loop for all decorative motion
+motion/flocks.ts       seeded bird loops and cloud spots
+motion/sky.ts          bird and cloud primitives (never pickable, no shadows, hidden at Night)
 reskin.ts              applies a palette to globe, sky, fog, light and every handle
 StylisedCity.tsx       mounts it all inside <Viewer>; roads and props start after the buildings' first frame
-StylisedPreview.tsx    DEV only: /dev/stylised (bare viewer, Day/Night, window.__tlStylised timing hooks)
+StylisedPreview.tsx    DEV only: /dev/stylised (bare viewer, Day/Dusk/Night, window.__tlStylised timing hooks)
+```
+
+Camera and overlays, beside `stylised/`:
+
+```
+cesium/controls/*      CameraControls (button cluster, hint), cameraOps, cameraMath (limits, clamps),
+                       configureControls (mouse/touch mapping, bounds), movedInputs, cameraUiStore
+cesium/PerfOverlay.tsx ?perf=1 readout (frame time, tier)
 ```
 
 Related: `cesium/realistic.ts` sets up and cleans up the Google/Ion tiles and imagery,
@@ -238,8 +266,8 @@ flooded_possible`) via `scene/status.ts`, and unknown is drawn dashed and amber,
 
 ```
 src/
-  main.tsx, app/            routes.tsx (/ and /tickets), Shell (nav, theme toggle), providers (TanStack Query)
-  ui/                       theme.ts (useTheme), ThemeToggle, Button, StatusChip, status.ts (honest wording)
+  main.tsx, app/            routes.tsx (/ and /tickets), Shell (nav, theme menu), providers (TanStack Query)
+  ui/                       theme.ts (useTheme, startThemeClock), ThemeMenu, Button, StatusChip, status.ts (honest wording)
   lib/api.ts, env.ts        typed client (openapi-fetch over @tl/api-client), ENV keys
   lib/profileStore.ts       selected mobility profile, persisted
   lib/evidence.ts, routeStatus.ts, EvidencePhoto.tsx   honest labels, photo rules and rendering

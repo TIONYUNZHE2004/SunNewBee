@@ -18,8 +18,8 @@ The owner wants the stylised 3D city to follow the Elmina clock (Day / Dusk / Ni
 
 ## Options considered
 - Moving traffic: rejected, it can be mistaken for live traffic data.
-- Cesium ambient occlusion: tried and disabled at every tier. HBAO produced black buildings and streaks over this flat-ellipsoid scene on a real GPU. Contact darkening comes from shadows plus a bounce term.
-- Buildings with `ShadowMode.ENABLED`: replaced by `CAST_ONLY` (also trees and cars), which removes self-shadow acne while buildings still cast onto the ground.
+- Cesium ambient occlusion: tried and disabled at every tier. HBAO produced streak artifacts over this flat-ellipsoid scene on a real GPU. Contact darkening comes from shadows plus a bounce term.
+- Buildings with `ShadowMode.ENABLED`: replaced by `CAST_ONLY`, which removes self-shadow acne while buildings still cast onto the ground (the ground receives shadows). Trees, cars and lamps, which are built by one shared loop in `props.ts`, are also `CAST_ONLY`; birds and clouds use `DISABLED`.
 
 ## Consequences
 - Extra GPU load, bounded by quality tiers (High / Medium / Low, auto-detected, auto-lowered). Pixel ratio is capped per tier (2 / 1.5 / 1) through `useBrowserRecommendedResolution = false` and `resolutionScale`.
