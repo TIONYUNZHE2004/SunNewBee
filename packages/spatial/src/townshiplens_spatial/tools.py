@@ -939,8 +939,8 @@ def _simulate(w: World, acts, journeys, base, scope: str, profile: str) -> ToolR
 
     res = twm.compare(w, acts, journeys, base_scenario_id=base)
     data = res.model_dump(mode="json")
-    data["diff_geojson"] = _diff_geojson(w, res)
     data["action_labels"] = [twm.describe(w, a) for a in acts]
+    data["diff_geojson"] = _diff_geojson(w, res, data["action_labels"], scope, profile)
     data["scope"] = scope
     data["profile"] = profile
     data["imagined"] = bool(res.touched)  # any non-stage change: outcomes are "would be"
@@ -955,11 +955,25 @@ def _simulate(w: World, acts, journeys, base, scope: str, profile: str) -> ToolR
     return ToolResult(ok=True, data=data, evidence=[res.evidence], warnings=[res.disclaimer])
 
 
-def _diff_geojson(world: World, res) -> dict:
+def _diff_geojson(world: World, res, labels: list[str], scope: str, profile: str) -> dict:
     """Before/after lines of the journeys that changed, plus the imagined paths, for the map.
-    Every feature is tagged `whatif` so a renderer can never draw it as a real route."""
+    Every feature is tagged `whatif` so a renderer can never draw it as a real route. The `meta`
+    member (a GeoJSON foreign member) carries the engine's summary and readable names, so the
+    lite map and the list view can show the same what-if without recomputing anything."""
+    from . import twm
+
     feats = []
+    changed = []
     for i, o in enumerate(res.changed[:20]):
+        names = {
+            "from_name": twm._name(world, o.journey.from_id) or "a mapped place",
+            "to_name": o.after.target_name
+            or o.before.target_name
+            or twm._name(world, o.journey.to_id)
+            or "a mapped place",
+        }
+        # Both statuses, whether or not a side has a line (a cut route has no "after" geometry).
+        changed.append({**names, "before": o.before.status, "after": o.after.status})
         for side in ("before", "after"):
             st = getattr(o, side)
             if st.geometry:
@@ -972,6 +986,7 @@ def _diff_geojson(world: World, res) -> dict:
                             "side": side,
                             "status": st.status,
                             "journey": i,
+                            **names,
                         },
                     }
                 )
@@ -982,10 +997,26 @@ def _diff_geojson(world: World, res) -> dict:
                 {
                     "type": "Feature",
                     "geometry": {"type": "LineString", "coordinates": e.coords},
-                    "properties": {"whatif": True, "side": "touched", "element_id": eid},
+                    "properties": {
+                        "whatif": True,
+                        "side": "touched",
+                        "element_id": eid,
+                        "label": twm.path_label(world, eid),
+                    },
                 }
             )
-    return {"type": "FeatureCollection", "features": feats}
+    meta = {
+        "summary": res.summary,
+        "actions": labels,
+        "profile": profile,
+        "scope": scope,
+        "imagined": bool(res.touched),
+        "base_scenario_id": res.base_scenario_id,
+        "scenario_id": res.scenario_id,
+        "changed_shown": len(changed),
+        "changed": changed,
+    }
+    return {"type": "FeatureCollection", "features": feats, "meta": meta}
 
 
 def _place_name(world: World, pid: str) -> str | None:

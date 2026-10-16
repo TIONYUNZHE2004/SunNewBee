@@ -6,7 +6,8 @@ import { WHATIF_LEGEND, WHATIF_STYLE } from "../whatif/whatifModel";
 export function WhatIfTag() {
   const whatIf = useScene((s) => s.whatIf);
   const clear = useScene((s) => s.clearWhatIf);
-  const drawn = useEffectiveView() === "cesium"; // the lite map and list do not draw the diff
+  const view = useEffectiveView();
+  const drawn = view !== "list"; // the 3D and lite maps draw the diff; the list spells it out
   if (!whatIf) return null;
   return (
     <div
@@ -14,7 +15,7 @@ export function WhatIfTag() {
       className="absolute left-4 top-20 z-10 flex max-w-[calc(100%-2rem)] flex-wrap items-center gap-x-3 gap-y-1 rounded-full border border-dashed border-lilac bg-surface/95 py-1 pl-3 pr-1 text-sm text-fg shadow-md"
     >
       <strong className="text-lilac">{WHATIF_LEGEND}</strong>
-      {!drawn && <span className="text-xs text-fg-soft">The diff is drawn on the 3D map</span>}
+      {!drawn && <span className="text-xs text-fg-soft">Listed below</span>}
       {(drawn ? (["before", "after", "touched"] as const) : []).map((k) => (
         <span key={k} className="flex items-center gap-1 text-xs text-fg-soft">
           <svg width="18" height="8" aria-hidden="true">

@@ -143,6 +143,16 @@ test("what-if hero: the assistant imagines a ramp and the answer is labelled not
   await expect(last).toContainText(/Imagined changes are not real/);
   await expect(last).toContainText(/Answer checked against the township data/);
   await expect(last).not.toContainText(/ is confirmed|will be built/);
+  // The list view (no WebGL, no keys) spells out the same diff the 3D map draws (Cycle 8).
+  const diff = page.getByRole("region", { name: "What-if · not real" });
+  await expect(diff).toContainText("Imagined changes");
+  await expect(diff).toContainText(/today \d+, what-if \d+ \(of \d+\)/);
+  // Earlier tests change the shared world, so the imagined change varies; the row never ends empty.
+  await expect(diff).toContainText(
+    /→ would be (confirmed|partly unverified|blocked|no mapped connection)/,
+  );
+  await diff.getByRole("button", { name: "Clear what-if" }).click();
+  await expect(diff).toHaveCount(0);
 });
 
 test("What-if Lab: staff run a river rise plus a suggested change on a copy of the township", async ({

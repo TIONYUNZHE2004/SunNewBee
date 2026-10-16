@@ -7,6 +7,7 @@ import { statusStyle } from "../styles";
 import { CLOSURE_SOURCE, closureLine } from "./closureModel";
 import { ListLensSections } from "./LensSections";
 import { groupByType, humanType, parseLayer, routeSteps, withIndicative } from "./listModel";
+import { WhatIfListSection } from "./WhatIfListSection";
 
 function StatusBadge({ status }: { status: Parameters<typeof statusStyle>[0] }) {
   const st = statusStyle(status);
@@ -144,6 +145,8 @@ export function ListView() {
           </ol>
         )}
       </section>
+
+      <WhatIfListSection />
 
       <ClosuresSection />
 

@@ -122,3 +122,88 @@ export function groupBySite(facts: PlanFactLike[]): SiteGroup[] {
 }
 
 export const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
+
+export interface DiffMeta {
+  summary: WhatIfSummary;
+  actions: string[];
+  profile: string;
+  scope: string;
+  imagined: boolean;
+  changedShown: number;
+}
+
+/** The engine's summary carried on the diff (`meta`, a GeoJSON foreign member), so the lite map
+ * and the list can show a what-if without the Lab. Copied, never recomputed; null when absent. */
+export function diffMeta(fc: { meta?: unknown } | null | undefined): DiffMeta | null {
+  const m = fc?.meta as Record<string, unknown> | undefined;
+  if (!m || typeof m !== "object" || typeof m.summary !== "object" || !m.summary) return null;
+  return {
+    summary: m.summary as WhatIfSummary,
+    actions: Array.isArray(m.actions) ? m.actions.filter((a) => typeof a === "string") : [],
+    profile: typeof m.profile === "string" ? m.profile : "",
+    scope: typeof m.scope === "string" ? m.scope : "suite",
+    imagined: m.imagined === true,
+    changedShown: typeof m.changed_shown === "number" ? m.changed_shown : 0,
+  };
+}
+
+export interface DiffJourney {
+  from: string;
+  to: string;
+  before: string;
+  after: string;
+}
+
+/** One row per changed journey (before/after status), in engine order: from `meta.changed`,
+ * which lists both statuses even when a cut route has no "after" line; else from the lines. */
+export function diffJourneys(
+  fc: { features?: Feature[]; meta?: unknown } | null | undefined,
+): DiffJourney[] {
+  const rows = (fc?.meta as { changed?: unknown } | undefined)?.changed;
+  if (Array.isArray(rows))
+    return rows
+      .filter((r): r is Record<string, unknown> => !!r && typeof r === "object")
+      .map((r) => ({
+        from: String(r.from_name ?? "A mapped place"),
+        to: String(r.to_name ?? "a mapped place"),
+        before: String(r.before ?? ""),
+        after: String(r.after ?? ""),
+      }));
+  const by = new Map<number, DiffJourney>();
+  for (const f of fc?.features ?? []) {
+    const p = f.properties ?? {};
+    if (p.whatif !== true || (p.side !== "before" && p.side !== "after")) continue;
+    if (typeof p.journey !== "number") continue;
+    const j = by.get(p.journey) ?? {
+      from: String(p.from_name ?? "A mapped place"),
+      to: String(p.to_name ?? "a mapped place"),
+      before: "",
+      after: "",
+    };
+    j[p.side] = String(p.status ?? "");
+    by.set(p.journey, j);
+  }
+  return [...by.entries()].sort((a, b) => a[0] - b[0]).map(([, j]) => j);
+}
+
+/** Readable names of the imagined paths (touched edges). */
+export function touchedLabels(fc: { features?: Feature[] } | null | undefined): string[] {
+  const out: string[] = [];
+  for (const f of fc?.features ?? []) {
+    const p = f.properties ?? {};
+    if (p.whatif === true && p.side === "touched" && typeof p.label === "string") {
+      const l = p.label.charAt(0).toUpperCase() + p.label.slice(1);
+      if (!out.includes(l)) out.push(l);
+    }
+  }
+  return out;
+}
+
+const ROUTE_STATUS_WORDS: Record<string, string> = {
+  confirmed: "confirmed",
+  partly_unverified: "partly unverified",
+  blocked: "blocked",
+  no_data: "no mapped connection",
+};
+/** A route status in words ("no_data" is a data gap, never "not reachable"). */
+export const routeStatusWord = (s: string) => ROUTE_STATUS_WORDS[s] ?? s.replace(/_/g, " ");

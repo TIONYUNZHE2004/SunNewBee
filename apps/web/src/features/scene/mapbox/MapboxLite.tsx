@@ -5,6 +5,7 @@ import { useGaps, useLayer, useScenarioWater, useSite } from "../../../lib/api";
 import { ENV } from "../../../lib/env";
 import { useTheme } from "../../../ui/theme";
 import { GAP_BAND_ORDER, GAP_BANDS, gapLines, gapsActive } from "../../gaps/gapModel";
+import { WHATIF_STYLE } from "../../whatif/whatifModel";
 import { homeView, shouldReframe } from "../cesium/home";
 import { mapboxLightPreset } from "../cesium/timeOfDay";
 import { clickedPlaceId, normalizeLayer, pointFeatures } from "../geo";
@@ -178,6 +179,7 @@ export default function MapboxLite() {
   const scenarioId = useScene((s) => s.scenarioId);
   const lensVisible = useScene((s) => s.lensVisible);
   const route = useScene((s) => s.route);
+  const whatIf = useScene((s) => s.whatIf);
   const focusPlaceId = useScene((s) => s.focusPlaceId);
   const camera = useScene((s) => s.camera);
   const selectPlace = useScene((s) => s.selectPlace);
@@ -330,6 +332,26 @@ export default function MapboxLite() {
                 "circle-stroke-width": 2,
               }}
             />
+          </Source>
+        )}
+        {whatIf && (
+          <Source id="whatif" type="geojson" data={whatIf.geojson as never}>
+            {(["before", "after", "touched"] as const).map((side) => (
+              <Layer
+                key={side}
+                id={`whatif-${side}`}
+                type="line"
+                slot="top"
+                // Only features the engine tagged as imagined: a real route is never drawn here.
+                filter={["all", ["==", ["get", "whatif"], true], ["==", ["get", "side"], side]]}
+                paint={{
+                  "line-color": WHATIF_STYLE[side].color,
+                  "line-width": WHATIF_STYLE[side].width,
+                  "line-opacity": side === "before" ? 0.7 : 0.95,
+                  ...(side === "before" ? { "line-dasharray": [2, 1.5] } : {}),
+                }}
+              />
+            ))}
           </Source>
         )}
         {route && (

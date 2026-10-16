@@ -205,6 +205,55 @@ def test_simulate_what_if_tool_ramp_journey(ctx):
     assert "not a forecast" in r.warnings[0]
 
 
+def test_diff_geojson_carries_what_the_list_and_lite_map_need(ctx):
+    """Cycle 8: every renderer can show a what-if, so the diff names its paths and journeys
+    and carries the engine's summary (copied, never recomputed in the browser)."""
+    r = tools.simulate_what_if(
+        ctx,
+        actions=[{"kind": "build_ramp", "element_id": "seg-be"}],
+        profile="wheelchair",
+        scope="journey",
+        from_id="park-b",
+        to_id="toilet-1",
+    )
+    fc = r.data["diff_geojson"]
+    meta = fc["meta"]
+    assert meta["summary"] == r.data["summary"] and meta["imagined"] is True
+    assert meta["actions"] == r.data["action_labels"]
+    assert meta["profile"] == "wheelchair" and meta["scope"] == "journey"
+    assert meta["base_scenario_id"] is None
+    touched = [f for f in fc["features"] if f["properties"]["side"] == "touched"]
+    assert touched[0]["properties"]["label"] == "a set of unnamed steps"
+    lines = [f["properties"] for f in fc["features"] if f["properties"]["side"] != "touched"]
+    assert {(p["side"], p["status"]) for p in lines} == {
+        ("before", "partly_unverified"),
+        ("after", "confirmed"),
+    }
+    assert all(p["from_name"] and p["to_name"] for p in lines)
+    assert meta["changed"] == [
+        {
+            "from_name": lines[0]["from_name"],
+            "to_name": lines[0]["to_name"],
+            "before": "partly_unverified",
+            "after": "confirmed",
+        }
+    ]
+
+
+def test_a_cut_route_still_lists_both_statuses(ctx):
+    """Closing a path can leave a journey with no route: no "after" line, but the list view
+    still needs "confirmed -> would be blocked / no mapped connection"."""
+    r = tools.simulate_what_if(
+        ctx,
+        actions=[{"kind": "close_path", "element_id": "seg-ab"}],
+        profile="default",
+        scope="suite",
+    )
+    rows = r.data["diff_geojson"]["meta"]["changed"]
+    assert rows and all(row["before"] and row["after"] for row in rows)
+    assert any(row["after"] in ("blocked", "no_data") for row in rows)
+
+
 def test_simulate_what_if_tool_rejects_illegal_or_invented_actions(ctx):
     bad = tools.simulate_what_if(ctx, actions=[{"kind": "build_ramp", "element_id": "seg-zz"}])
     assert not bad.ok and "unknown path" in bad.warnings[0]

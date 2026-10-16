@@ -752,3 +752,32 @@ The reviewer reproduced each gap against the validator, the eval scorer or the c
 Ruling W20: the language-specific rules are phrase lists, not a translation model. They catch what the review reproduced and close variants, but not every paraphrase. The prompt carries the same translations, and the eval re-reads the shown text. Cost if wrong: an unusual BM or 中文 phrasing of a banned idea could pass. Mitigation: wrong numbers in BM and 中文 are still caught by the count check, which needs no phrase list.
 
 Ruling W21: the answer frame follows the answer's language, not the question's. A model that answers a BM question in English (the mock always does) gets an English frame, never a mixed one.
+
+## Cycle 8: what-if in every view (17 Oct, about 00:00–00:22)
+
+**Spec:** [2026-10-17-whatif-every-view-design.md](specs/2026-10-17-whatif-every-view-design.md).
+
+**Why:** the list view is the accessible fallback (no WebGL, no keys, screen readers) and the view e2e runs in, yet a what-if only said "the diff is drawn on the 3D map". The world model's main result was missing exactly where accessibility matters most.
+
+**What was built:**
+- **Engine.** `diff_geojson` carries a `meta` member: the engine summary, action labels, profile, scope and stages. Its `changed` rows hold both statuses even when a cut route has no line. Features also carry readable names.
+- **List view.** `WhatIfListSection` (region "What-if · not real") shows the imagined changes, today vs what-if counts, the imagined paths and the journeys that change ("confirmed → would be blocked"), with a Clear button.
+- **Lite map.** It draws the same before/after/touched layers; the filter requires `whatif == true`.
+- **Tag.** It shows the legend on both maps and says "Listed below" in the list view.
+
+**Evidence:**
+- pytest: two new tests, the diff meta and a cut route listing both statuses.
+- vitest: three new cases for `diffMeta`, `diffJourneys` and `touchedLabels`.
+- e2e: the what-if hero now also checks the list-view section and Clear (14/14).
+- **The e2e found a real bug.** A closure that cuts a route left the row "confirmed → would be" with nothing after it, because the cut side has no line. Fixed at the source with `meta.changed`.
+- Browser (seed, mock, Stylised 3D): the what-if tag and legend still draw.
+- **Not browser-checked:** the lite map. It has no user toggle, so the renderer could not be forced. The layer is typechecked only.
+
+**Pitch line:**
+
+> The world model's answer reaches everyone: on the 3D map, on the lite map, and as plain text for screen readers and phones without 3D. The same numbers each time, always labelled imagined.
+
+**Integration notes for shaoxian04:**
+- New `scene/list/WhatIfListSection.tsx`, mounted in `ListView` after Route.
+- A `whatif` source in `MapboxLite`.
+- `WhatIfTag` wording changed.

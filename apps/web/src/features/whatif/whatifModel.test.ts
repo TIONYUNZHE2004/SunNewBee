@@ -1,5 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { actionKey, diffLines, groupBySite, pct, plural, summaryBars } from "./whatifModel";
+import {
+  actionKey,
+  diffJourneys,
+  diffLines,
+  diffMeta,
+  groupBySite,
+  pct,
+  plural,
+  summaryBars,
+  touchedLabels,
+} from "./whatifModel";
 
 const line = [
   [101.5, 3.18],
@@ -96,5 +106,91 @@ describe("groupBySite", () => {
     ]);
     expect(plural(1, "journey")).toBe("1 journey");
     expect(plural(2, "journey")).toBe("2 journeys");
+  });
+});
+
+describe("diff meta for the lite map and the list (Cycle 8)", () => {
+  const line = [
+    [101.5, 3.1],
+    [101.6, 3.2],
+  ];
+  const fc = {
+    type: "FeatureCollection",
+    meta: {
+      summary: {
+        total: 5,
+        reach_before: 4,
+        reach_after: 5,
+        confirmed_before: 0,
+        confirmed_after: 1,
+      },
+      actions: ["Build a step-free ramp at a set of unnamed steps"],
+      profile: "wheelchair",
+      scope: "suite",
+      imagined: true,
+      changed_shown: 1,
+    },
+    features: [
+      {
+        geometry: { type: "LineString", coordinates: line },
+        properties: {
+          whatif: true,
+          side: "before",
+          status: "partly_unverified",
+          journey: 0,
+          from_name: "Car Park B",
+          to_name: "Park toilet",
+        },
+      },
+      {
+        geometry: { type: "LineString", coordinates: line },
+        properties: {
+          whatif: true,
+          side: "after",
+          status: "confirmed",
+          journey: 0,
+          from_name: "Car Park B",
+          to_name: "Park toilet",
+        },
+      },
+      {
+        geometry: { type: "LineString", coordinates: line },
+        properties: { whatif: true, side: "touched", label: "a set of unnamed steps" },
+      },
+      {
+        geometry: { type: "LineString", coordinates: line },
+        properties: { side: "after", journey: 1, status: "confirmed" },
+      },
+    ],
+  };
+
+  it("copies the engine summary and actions", () => {
+    const m = diffMeta(fc);
+    expect(m?.summary.reach_after).toBe(5);
+    expect(m?.actions).toEqual(["Build a step-free ramp at a set of unnamed steps"]);
+    expect(m?.imagined).toBe(true);
+    expect(diffMeta({})).toBeNull();
+  });
+
+  it("lists changed journeys and imagined paths, ignoring untagged features", () => {
+    expect(diffJourneys(fc)).toEqual([
+      { from: "Car Park B", to: "Park toilet", before: "partly_unverified", after: "confirmed" },
+    ]);
+    expect(touchedLabels(fc)).toEqual(["A set of unnamed steps"]);
+  });
+
+  it("prefers meta.changed, which keeps both statuses of a cut route", () => {
+    const cut = {
+      ...fc,
+      meta: {
+        ...fc.meta,
+        changed: [
+          { from_name: "Car Park B", to_name: "Park kiosk", before: "confirmed", after: "blocked" },
+        ],
+      },
+    };
+    expect(diffJourneys(cut)).toEqual([
+      { from: "Car Park B", to: "Park kiosk", before: "confirmed", after: "blocked" },
+    ]);
   });
 });

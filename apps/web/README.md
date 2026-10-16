@@ -185,8 +185,11 @@ flooded_possible`) via `scene/status.ts`, and unknown is drawn dashed and amber,
   - The Cesium `WhatIfLayer` draws today's lines grey and dashed, the imagined lines lilac, and the imagined changes magenta.
   - The camera frames the diff.
   - `map-ui/WhatIfTag` shows the "What-if · not real" legend, with a clear button.
+- **Every view (Cycle 8).** The diff also carries a `meta` member: the engine summary, action labels and profile. Before/after features carry `from_name`/`to_name`, and touched features carry `label`.
+  - `MapboxLite` draws the same three line layers. Its filter requires `whatif == true`.
+  - The List view's `scene/list/WhatIfListSection` spells out the diff as text: the imagined changes, today vs what-if counts, and the journeys that change.
+  - The pure helpers are `diffMeta`, `diffJourneys` and `touchedLabels`.
 - **The panel.** `features/whatif/WhatIfLab` (Management mode, top of the assistant panel) calls `GET /what-if/suggestions` and `POST /what-if` without the LLM.
-- **Not yet drawn.** The Mapbox lite and List views do not draw the diff; the Lab card still shows the numbers.
 
 **Rising river (Cycle 3):**
 - **Panel.** `features/whatif/RisingRiverPanel` (Management mode, under the What-if Lab) fetches `GET /river-rollout` through `useRiverRollout`. It has stage buttons and play/pause, which steps one stage every 2.5 s and drives `setScenario` so the flood layer follows. It shows per-persona "N of M still reach a centre" bars.
