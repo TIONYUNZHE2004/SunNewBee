@@ -1,11 +1,13 @@
 import type * as Cesium from "cesium";
 import type { Framing } from "../home";
-import { moveVector, orbitStep, STEP } from "./cameraMath";
+import { clampPitch, LIMITS, moveVector, orbitStep, STEP } from "./cameraMath";
 
 export interface CameraOps {
   orbit(dHeading: number, dPitch: number): void;
   move(right: number, forward: number): void;
   zoom(factor: number): void;
+  /** Glide in to the ground point under a screen position (sky: zoom about the centre). */
+  glideTo(screenPos: Cesium.Cartesian2): void;
   faceNorth(): void;
   home(): void;
   whole(): void;
@@ -23,6 +25,8 @@ export function createCameraOps(
   viewer: Cesium.Viewer,
   getFraming: () => Framing,
   getBbox: () => Bbox,
+  /** Called at the start of every action, so the home re-frame leaves the camera alone. */
+  onUserMove?: () => void,
 ): CameraOps {
   const { scene } = viewer;
   const camera = scene.camera;
@@ -37,6 +41,7 @@ export function createCameraOps(
   };
 
   const orbitAbout = (dHeading: number, dPitch: number, zoomFactor = 1) => {
+    onUserMove?.();
     const target = pivot();
     const range = C.Cartesian3.distance(camera.position, target);
     const next = orbitStep(
@@ -51,6 +56,7 @@ export function createCameraOps(
   };
 
   const frame = (f: Framing, fly: boolean) => {
+    onUserMove?.();
     const target = C.Cartesian3.fromDegrees(f.lon, f.lat, 0);
     const offset = new C.HeadingPitchRange(0, C.Math.toRadians(f.pitchDeg), f.range_m);
     const sphere = new C.BoundingSphere(target, 1);
@@ -63,7 +69,23 @@ export function createCameraOps(
   return {
     orbit: (dh, dp) => orbitAbout(dh, dp),
     zoom: (factor) => orbitAbout(0, 0, factor),
+    glideTo(screenPos) {
+      const hit = camera.pickEllipsoid(screenPos);
+      if (!hit) {
+        orbitAbout(0, 0, 0.5);
+        return;
+      }
+      onUserMove?.();
+      const range = Math.max(LIMITS.minRangeM, C.Cartesian3.distance(camera.position, hit) * 0.5);
+      const offset = new C.HeadingPitchRange(camera.heading, clampPitch(camera.pitch), range);
+      const sphere = new C.BoundingSphere(hit, 1);
+      if (reducedMotion()) camera.viewBoundingSphere(sphere, offset);
+      else camera.flyToBoundingSphere(sphere, { offset, duration: 0.8 });
+      camera.lookAtTransform(C.Matrix4.IDENTITY);
+      scene.requestRender();
+    },
     move(right, forward) {
+      onUserMove?.();
       const h = camera.positionCartographic.height;
       const step = Math.max(10, h * STEP.moveShare);
       const [e, n] = moveVector(camera.heading, right * step, forward * step);
@@ -80,6 +102,7 @@ export function createCameraOps(
     faceNorth: () => orbitAbout(-camera.heading, 0),
     home: () => frame(getFraming(), true),
     whole() {
+      onUserMove?.();
       const [w, s, e, n] = getBbox();
       const dest = C.Rectangle.fromDegrees(w, s, e, n);
       const orientation = { heading: 0, pitch: C.Math.toRadians(-50), roll: 0 };

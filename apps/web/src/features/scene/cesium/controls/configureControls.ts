@@ -47,7 +47,10 @@ export function configureControls(
     C.ScreenSpaceEventType.WHEEL,
     K.SHIFT,
   );
-  handler.setInputAction(() => ops.zoom(0.5), C.ScreenSpaceEventType.LEFT_DOUBLE_CLICK);
+  handler.setInputAction(
+    (e: { position: Cesium.Cartesian2 }) => ops.glideTo(e.position),
+    C.ScreenSpaceEventType.LEFT_DOUBLE_CLICK,
+  );
 
   const camera = scene.camera;
   const offLimits = scene.preUpdate.addEventListener(() => {

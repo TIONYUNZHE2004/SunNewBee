@@ -4,7 +4,11 @@ import { configureControls } from "./configureControls";
 
 function fakes() {
   const actions = new Map<string, (e: unknown) => void>();
+  const handlers: { destroy: ReturnType<typeof vi.fn> }[] = [];
   class Handler {
+    constructor() {
+      handlers.push(this);
+    }
     setInputAction = vi.fn((fn: (e: unknown) => void, type: number, mod?: number) =>
       actions.set(`${type}:${mod ?? ""}`, fn),
     );
@@ -50,12 +54,13 @@ function fakes() {
     orbit: vi.fn(),
     move: vi.fn(),
     zoom: vi.fn(),
+    glideTo: vi.fn(),
     faceNorth: vi.fn(),
     home: vi.fn(),
     whole: vi.fn(),
     headingRad: () => 0,
   };
-  return { C, viewer, camera, ssc, actions, pre, ops, widgetHandler };
+  return { C, viewer, camera, ssc, actions, pre, ops, widgetHandler, handlers };
 }
 
 const BBOX: [number, number, number, number] = [101.46, 3.15, 101.53, 3.24];
@@ -108,10 +113,33 @@ describe("configureControls", () => {
     expect(f.ops.orbit).toHaveBeenCalledWith(0, expect.any(Number));
   });
 
-  it("undo restores nothing twice and destroys its handler", () => {
+  it("leaves the camera alone while within the limits (flyTo animations undisturbed)", () => {
+    const f = fakes();
+    f.camera.positionCartographic = {
+      longitude: (101.5 * Math.PI) / 180,
+      latitude: (3.2 * Math.PI) / 180,
+      height: 500,
+    };
+    configureControls(f.C as never, f.viewer as never, f.ops, () => BBOX);
+    for (const cb of f.pre) cb();
+    expect(f.camera.setView).not.toHaveBeenCalled();
+  });
+
+  it("double-click glides to the clicked position", () => {
+    const f = fakes();
+    configureControls(f.C as never, f.viewer as never, f.ops, () => BBOX);
+    const pos = { x: 5, y: 6 };
+    f.actions.get("2:")?.({ position: pos });
+    expect(f.ops.glideTo).toHaveBeenCalledWith(pos);
+  });
+
+  it("undo removes the per-frame limiter and destroys its event handler", () => {
     const f = fakes();
     const undo = configureControls(f.C as never, f.viewer as never, f.ops, () => BBOX);
+    expect(f.pre.size).toBe(1);
     undo();
     expect(f.pre.size).toBe(0);
+    expect(f.handlers.length).toBeGreaterThan(0);
+    for (const h of f.handlers) expect(h.destroy).toHaveBeenCalledTimes(1);
   });
 });

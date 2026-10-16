@@ -11,6 +11,7 @@ import { useMapStyle } from "../useMapStyle";
 import { useCameraIntents } from "./camera";
 import { type CameraOps, createCameraOps, frameNow } from "./controls/cameraOps";
 import { configureControls } from "./controls/configureControls";
+import { movedInputs } from "./controls/movedInputs";
 import {
   DEFAULT_FOV_DEG,
   DEFAULT_PITCH_DEG,
@@ -101,14 +102,8 @@ function SceneSetup({
     const onMove = () => {
       framing.current.moved = true;
     };
-    for (const t of [
-      Cesium.ScreenSpaceEventType.LEFT_DOWN,
-      Cesium.ScreenSpaceEventType.RIGHT_DOWN,
-      Cesium.ScreenSpaceEventType.MIDDLE_DOWN,
-      Cesium.ScreenSpaceEventType.WHEEL,
-      Cesium.ScreenSpaceEventType.PINCH_START,
-    ]) {
-      handler.setInputAction(onMove, t);
+    for (const [type, modifier] of movedInputs(Cesium)) {
+      handler.setInputAction(onMove, type, modifier);
     }
     return () => handler.destroy();
   }, [viewer]);
@@ -174,6 +169,8 @@ function SceneSetup({
   }, [viewer, style]);
 
   // Camera actions (buttons, keyboard, double-click) and the mouse/touch mapping with limits.
+  const onOpsRef = useRef(onOps);
+  onOpsRef.current = onOps;
   const framingRef = useRef(framingFor(style, homeView(siteData)));
   framingRef.current = framingFor(style, homeView(siteData));
   const bboxRef = useRef<[number, number, number, number]>([101.46, 3.15, 101.53, 3.24]);
@@ -186,14 +183,17 @@ function SceneSetup({
       viewer,
       () => framingRef.current,
       () => bboxRef.current,
+      () => {
+        framing.current.moved = true;
+      },
     );
     const undo = configureControls(Cesium, viewer, ops, () => bboxRef.current);
-    onOps?.(ops);
+    onOpsRef.current?.(ops);
     return () => {
-      onOps?.(null);
+      onOpsRef.current?.(null);
       undo();
     };
-  }, [viewer, onOps]);
+  }, [viewer]);
   return null;
 }
 
