@@ -598,3 +598,17 @@
 - **2026-10-16 02:35**: Lighthouse on `/` and `/tickets`, both themes, desktop and mobile: accessibility 100 everywhere. Best practices 77-81 on `/` (Cesium deprecation), 100 on `/tickets`.
 - **2026-10-16 02:38**: Ruling: keyless override did not work on Windows (empty env var dropped), so about 12 loads of `/` fetched real Google tiles — over the 6-load budget — cost if wrong: a few extra tile sessions. Not repeated; dev server stopped at 02:42.
 - **2026-10-16 02:40**: real 3D check: Night shader compiled with a clean console, routes and pins legible in both themes. Management starters are unanswered by the mock (reported, not fixed).
+
+## 2026-10-16 Stylised city (Project 2), Task 8 quality pass on the real seed
+
+- **2026-10-16 10:11** (log file time): started the keyless browser pass on the real Elmina seed (7,803 OSM buildings, 491 trees), with the mock LLM.
+  - Ruling: the first dev server, started from PowerShell with `$env:KEY=''`, still had the `.env` Google key and Ion token. PowerShell 5.1 deletes empty variables. Why: Stylised is the default and needs no tiles, so 0 billable requests were made, and it was caught by checking `ENV` lengths in the page. Cost if wrong: a Realistic click would have loaded Google tiles.
+  - That server was stopped, and the next one was started from Git Bash (`KEY= pnpm dev`), with the empty keys verified. The README now documents this.
+- **2026-10-16 10:23** (`date`): browser pass done, in dev on :5473/:8300 and production `vite preview` on :5474.
+  - City first frame: 1.56–1.94 s in production, about 3 s in dev, 4.55 s with CPU throttled 4x.
+  - Orbit: 48.9–59.6 fps, with overlays on.
+  - Lighthouse accessibility: 100 for Day and Night, popover included.
+  - Keyboard (Tab, arrows, Escape) and responsive (390/820/1440) checks pass, and the console is clean.
+  - Network: localhost and Google Fonts only, no Google tile loads (the Realistic comparison was NOT RUN).
+  - Replaced the synthetic screenshots with 5 real-seed ones.
+- **2026-10-16 10:29** (`date`): full checklist PASS: lint, pytest 864, typecheck, vitest 440, gen with no drift, golden 13/13 (mock), build, and e2e 9/9 (mock, tiny fixture). Report: `docs/03-product/stylised-city-quality-report.md`.

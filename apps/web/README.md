@@ -29,11 +29,12 @@ switch with the view buttons.
 
 | View | Needs | Falls back to |
 | --- | --- | --- |
-| 3D (Cesium + Resium; Google photorealistic tiles, else Cesium OSM Buildings) | `GOOGLE_MAPS_API_KEY` or `CESIUM_ION_ACCESS_TOKEN`, and WebGL2 | Lite map |
+| 3D (Cesium + Resium): **Stylised** city, or **Realistic** (Google photorealistic tiles, else Cesium OSM Buildings) | WebGL2, and building data (`/layers/buildings`) or `GOOGLE_MAPS_API_KEY` or `CESIUM_ION_ACCESS_TOKEN` | Lite map |
 | Lite map (Mapbox GL Standard, GeoJSON layers) | `MAPBOX_ACCESS_TOKEN` (must start with `pk.`) | List |
 | List (text, no map) | nothing | n/a |
 
-With no keys the app shows the list view and everything still works. Renderers are lazy-loaded
+With no keys the app shows the stylised 3D city when the world has building data (the Elmina
+seed does), else the list view, and everything still works. Renderers are lazy-loaded
 (the Cesium chunk is large) and wrapped in an error boundary, so a bad key, a missing WebGL
 context or a failed chunk drops to the list instead of a blank page.
 
@@ -48,7 +49,11 @@ browser (`envPrefix` is `TL_PUBLIC_`).
 console (Google: Map Tiles API only; Mapbox: URL restriction) and set quota and budget alerts.
 Never put a server secret (`OPENROUTER_API_KEY`, `STAFF_TOKEN`) in a browser variable. Process
 environment variables override `.env` in `loadEnv`, so setting a key to an empty string (as the
-Playwright config does) forces the keyless list view.
+Playwright config does) forces a keyless run (stylised city or list view, never billable tiles).
+**Windows PowerShell 5.1 deletes a variable assigned `''`**, so `$env:GOOGLE_MAPS_API_KEY=''`
+lets the `.env` keys through. Start a keyless server from Git Bash instead
+(`GOOGLE_MAPS_API_KEY= CESIUM_ION_ACCESS_TOKEN= MAPBOX_ACCESS_TOKEN= pnpm dev`), or from Node, as
+Playwright does.
 
 ## Resident features
 
@@ -99,8 +104,56 @@ own the honest wording. `ThemeToggle` sits in the Shell. The map follows the the
 a dark sky with dimmed tiles (`scene/cesium/timeOfDay.ts`; Google tiles cannot be relit), Mapbox
 uses its light presets, and the List view follows the page.
 
-`sceneStore.mapStyle` (`"realistic" | "stylised"`, read with `useScene().mapStyle`) selects the map
-style. Only `realistic` is implemented; `stylised` is the hook for a planned stylised city.
+## Map styles (Stylised and Realistic)
+
+Inside the 3D view there are two map styles. The user picks one with the **Map style** radios in
+the settings popover.
+
+- **Stylised** (the default when the world has buildings): a low-poly city drawn from committed OSM
+  footprints (`GET /layers/buildings`: buildings, trees and base water). It has a Day palette and a
+  Night palette with lit windows. It needs no key and makes no billable request.
+- **Realistic photos (Google)**: Google Photorealistic 3D tiles. Without a Google key, but with an
+  Ion token, it falls back to Cesium Ion world imagery and OSM Buildings.
+- **Choosing the style:** `sceneStore` holds `mapStyle` and `mapStyleChosen`.
+  - `defaultMapStyle(hasBuildings, hasGoogle)` returns `stylised` when buildings exist. The
+    default applies once the buildings request settles, unless the user has chosen a style.
+  - `resolveMapStyle` returns the style that is actually drawn. An impossible choice falls back
+    to the other style.
+  - `useMapStyle()` returns `{style, hasBuildings, hasGoogle, settled}`.
+- **Disabled options:** an unavailable option is disabled, with its reason as visible text: "Needs
+  building data", "Needs a Google Maps key" or "Needs a 3D-capable device". A disabled option is
+  never checked.
+- **Honesty:** while Stylised is active the popover says "Decorative details are illustrative."
+  Building heights are mostly defaults by building kind (display only). Cars, street trees,
+  colours and lit windows are seeded decoration. Base water is decorative and is never a flood
+  scenario. The route, flood and place layers are the same data in both styles.
+- **Time of day:** Stylised re-skins itself on theme change (`reskin.ts`: palette, sky, light).
+  Realistic uses `timeOfDay.ts`.
+- **Camera:** the home view is closer for Stylised (`stylisedHomeView`, at most 2.5 km). Switching
+  style keeps the current camera.
+
+### Stylised module map (`features/scene/cesium/stylised/`)
+
+```
+model.ts               GeoJSON -> buildings (height, kind, tone, lit seed), grid buckets, trees; hashUnit
+palette.ts             paletteFor("day" | "night"): ground, roads, water, walls, roofs, windows, trees, cars, sky
+buildingsMesh.ts       walls + roof geometry with metric st (window columns x floors; roof t = -1)
+buildingsPrimitive.ts  one Primitive per grid cell + window Material; setTheme, far-range night boost
+ground.ts              roadsFromWalk (width by road kind), ClassificationPrimitive roads, decorative water
+props.ts               kerbCars, streetTrees, instanced tree and car primitives (allowPicking: false)
+reskin.ts              applies a palette to globe, sky, fog, light and every handle
+StylisedCity.tsx       mounts it all inside <Viewer>; roads and props start after the buildings' first frame
+StylisedPreview.tsx    DEV only: /dev/stylised (bare viewer, Day/Night, window.__tlStylised timing hooks)
+```
+
+Related: `cesium/realistic.ts` sets up and cleans up the Google/Ion tiles and imagery,
+`cesium/home.ts` has `homeView`, `stylisedHomeView` and `shouldReframe`, and
+`cesium/heightRef.ts` clamps overlays to the ground when Stylised is active.
+
+**`/dev/stylised`** is registered only under `import.meta.env.DEV`, and the production build
+contains none of it. It renders the city alone for visual and frame-time checks. Add `?overlays=1`
+to mount the access and flood layers too. Measured numbers are in
+[the quality report](../../docs/03-product/stylised-city-quality-report.md).
 
 ## Scene-intent flow
 
@@ -140,8 +193,8 @@ src/
     map-ui/                 MapStage and overlays: RouteTag, FloodNote, SettingsPopover, PlaceOverlay, PathOverlay
     flood/                  floodPath ("Why this path?" facts, always indicative)
     places/                 SourceBanner, placeModel
-    scene/                  sceneStore (incl. mapStyle), selectView, status, styles, StatusLegend;
-                            cesium/, mapbox/, list/ adapters
+    scene/                  sceneStore (incl. mapStyle), selectView, useMapStyle, status, styles, StatusLegend;
+                            cesium/ (incl. stylised/, realistic.ts), mapbox/, list/ adapters
     tickets/                TicketsPage, TicketList, TicketDetail, OutcomeForm, BeforeAfter,
                             StaffAccess, useStaffToken, attributeCatalogue
 e2e/heroes.spec.ts          Playwright flows
@@ -166,7 +219,8 @@ run: `pnpm --filter @tl/web exec playwright install chromium`.
 
 ## What to build next
 
-- Stylised city renderer behind `mapStyle` (committed OSM footprints, day and night looks).
+- Stylised city: measured heights for more buildings (94% are defaults), multipolygon buildings, a
+  framing of the opening view that shows lit windows.
 - Water-rise animation between scenario levels (levels currently switch).
 - Accessibility audit beyond accessible names (axe-core is MPL-2.0, outside the MIT/Apache/BSD licence policy; use a manual screen-reader pass or a permitted checker).
 - Mobile performance: Cesium chunk weight, `requestRenderMode`, test on a mid-range phone.

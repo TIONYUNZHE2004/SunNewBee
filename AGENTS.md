@@ -79,7 +79,10 @@ apps/api POST /chat (SSE) ──► apps/web: parseSse → useChatStream → cha
   - `LLM_MODEL_DEFAULT` / `LLM_MODEL_ESCALATE` are OpenRouter ids.
   - No model names live in code.
   - The deterministic mock (`packages/agent/.../mock.py`) is the default for tests, CI and keyless development.
-- **Web renderers** degrade in order: Cesium 3D (Google Photorealistic tiles, else Cesium OSM Buildings), then Mapbox lite, then the List view. The choice is made in `features/scene/selectView.ts` behind an error boundary. Only three public browser keys reach the bundle (mapped via `define` in `vite.config.ts`; `envPrefix` is `TL_PUBLIC_`).
+- **Web renderers** degrade in order: Cesium 3D, then Mapbox lite, then the List view. The choice is made in `features/scene/selectView.ts` behind an error boundary. Only three public browser keys reach the bundle (mapped via `define` in `vite.config.ts`; `envPrefix` is `TL_PUBLIC_`).
+  - Cesium has two **map styles**. **Stylised** is the default whenever the world has buildings, and it needs no key. It is a low-poly city drawn from `GET /layers/buildings` (OSM buildings, trees and base water; 404 when the world has none). **Realistic** uses Google Photorealistic tiles, else Cesium OSM Buildings via Ion.
+  - Cesium is available when WebGL works and there are buildings, a Google key or an Ion token. So a keyless run with the Elmina seed shows Stylised. The tiny fixture has no buildings, so e2e stays on the List view.
+  - Code: `scene/cesium/stylised/`, `cesium/realistic.ts`, and `sceneStore` (`mapStyle`, `mapStyleChosen`, `resolveMapStyle`). See `apps/web/README.md`.
 - **Web screens:** two routes, `/` (map plus assistant) and `/tickets` (verification queue; staff enter a token in the outcome form, kept in `sessionStorage`). Day/night is owned by the `useTheme` store in `apps/web/src/ui/theme.ts` (not the scene store); `useScene().mapStyle` (`realistic|stylised`) selects the map style. See `apps/web/README.md`.
 - **State:**
   - Verification requests, the audit log and sim runs live in SQLite at `.data/<site id>.db`, one file per world unless `DATABASE_URL` is set.
@@ -97,6 +100,7 @@ apps/api POST /chat (SSE) ──► apps/web: parseSse → useChatStream → cha
 | Call missing data "blocked" / "not reachable" | `no_data` → "No mapped connection (data gap)" |
 | Label OSM-derived passability "Checked" / "Verified" | "No known barrier"; "Verified" only for verified claims |
 | Label an OSM evacuation candidate as official | `osm_candidate` vs `official_pps` (`official_pps` needs an exact name match with evidence) |
+| Present stylised-city details (default heights, cars, street trees, lit windows, base water) as facts | Keep them display-only and labelled "Decorative details are illustrative."; base water is never drawn or described as a flood scenario |
 | Store user words or model-written text in a VR | `safe_vr_args()` sanitises target, attribute and reason; summaries are built from place and centre names (PDPA) |
 
 When changing the agent, the mock answers and `template.py` must still pass the validator. The validator, mock and template change together.
@@ -126,10 +130,15 @@ When changing the agent, the mock answers and `template.py` must still pass the 
 - **Overpass is a shared public service.** Requests go through `data/scripts/overpass.py`: a cache in `data/cache/` (gitignored), tiled sequential requests and backoff. Keep request counts small, and don't loop re-fetches.
 - **Major roads** (`primary|secondary|trunk` + links) are imported as `major_road` (Task 31). OSM has no usable sidewalk tags here, so they carry no `sidewalk` claim: strict profiles (stroller, wheelchair, older_adult_rest) need a *verified* sidewalk to pass, so routes over them stay `partly_unverified`. Area places (parks, schools) snap to the nearest main-network walk node inside or within 40 m of their OSM outline, marked `node_inferred` with an "entrance not mapped" caveat (Task 43); 7 seed places still have no node and are listed with reasons in `flood/coverage.json`.
 - `build_flood.py` needs the cached DEM in `data/cache/` (`glo30_dem_*.npy`). `--rewrite-disclaimers` edits scenario disclaimers without a rebuild.
+- **Buildings for the stylised city:** `data/scripts/build_buildings.py` writes `base/buildings.geojson` and `base/trees.geojson` and records them in `site.json` (`buildings`). It is not part of `pnpm data:build`. Run it once, with `--max-requests 40`, through `overpass.py`.
+  - **Display only.** Routing, evaluation, flood and answers never read these files.
+  - Heights come from OSM `height`, else `building:levels` × 3.2 m, else a deterministic default by kind (`height_source`). About 94% of the current seed uses defaults.
+  - Multipolygon relations are skipped and counted. See `data/README.md`.
+  - The stylised view's cars, street trees, colours and lit windows are seeded decoration, labelled "Decorative details are illustrative." Base water is decorative, never a flood scenario.
 - **Licences:**
   - OSM is ODbL, so keep attribution in `site.json`.
   - Copernicus GLO-30 needs its attribution string.
-  - **Never derive heights or hydrology from Google 3D tiles.** They are display-only (licence).
+  - **Never derive heights or hydrology from Google 3D tiles.** They are display-only (licence). Stylised building heights come from OSM tags or defaults, never from Google tiles.
 - After a seed rebuild, re-record the Elmina demo cache with the mock: `LLM_PROVIDER=mock uv run python -m townshiplens_agent.cli --record "<question>" --profile <p>`. Check that hard-coded segment ids in docs and tests still exist.
 - `access/overlay.geojson` facts are demo placeholders (`evidence_type: team_survey_placeholder`) until the field survey replaces them.
 

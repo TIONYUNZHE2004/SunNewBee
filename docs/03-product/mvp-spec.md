@@ -5,6 +5,8 @@
 > Journeys (J1–J10) are defined in [personas-and-journeys.md](personas-and-journeys.md). Names (lenses, profiles, tools, scenario ids, events) follow the [canonical names table](../04-architecture/README.md); endpoints and events are in the [API contract](../04-architecture/api-contract.md).
 
 > **Status (2026-10-16):** the web UI is now two screens, `/` (map plus assistant) and `/tickets` (verification queue), with a day/night theme. The `/manage` console (KPI tiles, flood briefing, journey tests, closures) and the persona/scenario bars described in the M- and P- rows below were removed in that redesign; the backend endpoints stay. See [apps/web/README.md](../../apps/web/README.md) and the [redesign spec](../superpowers/specs/2026-10-16-frontend-redesign-two-screens-design.md). Rows below are the original scope, not the current UI.
+>
+> **Status (2026-10-16, stylised city):** the 3D map now opens on a keyless **Stylised** city by default. It has Day and Night looks and lit windows at night, and it is drawn from committed OSM buildings and trees (7,803 buildings, 94% with default heights, display only). **Realistic photos (Google)** stays selectable under Map style when a Google key is set. Branch `feat/stylised-city`. Measurements and limits: [stylised-city quality report](stylised-city-quality-report.md).
 
 ## How the product is organised
 
