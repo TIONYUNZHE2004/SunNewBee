@@ -23,6 +23,7 @@ test("list fallback keeps the product working as text", async ({ page }) => {
   await open(page);
   await expect(page.getByText(/3D map couldn't load/i)).toBeVisible();
   await expect(page.getByRole("button", { name: "Map settings" })).toBeVisible();
+  await expect(page.getByRole("group", { name: "Camera" })).toHaveCount(0);
 });
 
 test("access hero shows a route status and honest demo evidence", async ({ page }) => {

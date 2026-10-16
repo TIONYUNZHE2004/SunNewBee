@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useMode } from "../../app/modeStore";
 import { useScenarios } from "../../lib/api";
 import { useTheme } from "../../ui/theme";
+import { useCameraUi } from "../scene/cesium/controls/cameraUiStore";
 import { StatusLegend } from "../scene/StatusLegend";
 import { type MapStyle, useScene } from "../scene/sceneStore";
 import type { View } from "../scene/selectView";
@@ -82,6 +83,7 @@ export function SettingsPopover() {
   const { style, hasBuildings, hasGoogle, settled } = useMapStyle();
   const effective = useEffectiveView();
   const { choice, setChoice } = useTheme();
+  const { alwaysShow, setAlwaysShow } = useCameraUi();
   const scenarios = useScenarios();
   const levels = levelOptions(scenarios.data ?? []);
 
@@ -174,6 +176,23 @@ export function SettingsPopover() {
               <p className="m-0 mt-1 text-xs text-fg-soft">Decorative details are illustrative.</p>
             )}
           </div>
+          {effective === "cesium" && (
+            <div>
+              <h3 className={H}>Camera controls</h3>
+              <div
+                role="radiogroup"
+                aria-label="Camera controls"
+                className="grid grid-cols-2 gap-2"
+              >
+                <Radio checked={!alwaysShow} onClick={() => setAlwaysShow(false)}>
+                  Compass only
+                </Radio>
+                <Radio checked={alwaysShow} onClick={() => setAlwaysShow(true)}>
+                  Always show
+                </Radio>
+              </div>
+            </div>
+          )}
         </div>
       )}
       <button

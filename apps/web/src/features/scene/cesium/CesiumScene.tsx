@@ -9,6 +9,7 @@ import { pickedFloodEdgeId, pointFeatures } from "../geo";
 import { useScene } from "../sceneStore";
 import { useMapStyle } from "../useMapStyle";
 import { useCameraIntents } from "./camera";
+import { CameraControls, handleMapKey } from "./controls/CameraControls";
 import { type CameraOps, createCameraOps, frameNow } from "./controls/cameraOps";
 import { configureControls } from "./controls/configureControls";
 import { movedInputs } from "./controls/movedInputs";
@@ -44,10 +45,12 @@ function SceneSetup({
   onNoDraping,
   onTilesFailed,
   onOps,
+  onCameraChange,
 }: {
   onNoDraping: () => void;
   onTilesFailed: () => void;
   onOps?: (ops: CameraOps | null) => void;
+  onCameraChange?: () => void;
 }) {
   const { viewer } = useCesium();
   const profile = useScene((s) => s.profile);
@@ -168,6 +171,13 @@ function SceneSetup({
     return () => ro.disconnect();
   }, [viewer, style]);
 
+  // Tell the parent when the camera moves, so the compass follows the heading.
+  useEffect(() => {
+    if (!viewer || viewer.isDestroyed()) return;
+    viewer.camera.percentageChanged = 0.01;
+    return viewer.camera.changed.addEventListener(() => onCameraChange?.());
+  }, [viewer, onCameraChange]);
+
   // Camera actions (buttons, keyboard, double-click) and the mouse/touch mapping with limits.
   const onOpsRef = useRef(onOps);
   onOpsRef.current = onOps;
@@ -204,8 +214,23 @@ export default function CesiumScene({ onOps }: { onOps?: (ops: CameraOps | null)
   const onTilesFailed = useCallback(() => setTilesFailed(true), []);
   const onNoDraping = useCallback(() => setNoDraping(true), []);
   const { style } = useMapStyle();
+  const [ops, setOpsState] = useState<CameraOps | null>(null);
+  const [tick, setTick] = useState(0);
+  const onOpsRef = useRef(onOps);
+  onOpsRef.current = onOps;
+  const setOps = useCallback((o: CameraOps | null) => {
+    setOpsState(o);
+    onOpsRef.current?.(o);
+  }, []);
+  const onCameraChange = useCallback(() => setTick((t) => t + 1), []);
   return (
-    <section className="relative h-full w-full">
+    <section
+      className="relative h-full w-full"
+      // biome-ignore lint/a11y/noNoninteractiveTabindex: the 3D map takes keyboard focus for WASD/QE/RF
+      tabIndex={0}
+      aria-label="3D map. Arrow keys or WASD move, Q and E rotate, R and F tilt, plus and minus zoom, N faces north."
+      onKeyDown={(e) => handleMapKey(e, ops)}
+    >
       {tilesFailed && style === "realistic" && (
         <p
           role="status"
@@ -245,12 +270,18 @@ export default function CesiumScene({ onOps }: { onOps?: (ops: CameraOps | null)
         selectionIndicator={false}
         fullscreenButton={false}
       >
-        <SceneSetup onNoDraping={onNoDraping} onTilesFailed={onTilesFailed} onOps={onOps} />
+        <SceneSetup
+          onNoDraping={onNoDraping}
+          onTilesFailed={onTilesFailed}
+          onOps={setOps}
+          onCameraChange={onCameraChange}
+        />
         {style === "stylised" && <StylisedCity />}
         <AccessLayer />
         <FloodLayer />
         <WasteLayer />
       </Viewer>
+      <CameraControls ops={ops} tick={tick} />
     </section>
   );
 }
