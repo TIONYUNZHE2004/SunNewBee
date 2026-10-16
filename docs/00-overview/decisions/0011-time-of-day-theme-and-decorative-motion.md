@@ -9,11 +9,12 @@ The owner wants the stylised 3D city to follow the Elmina clock (Day / Dusk / Ni
 
 ## Decision
 - The mood is display-only lighting from `themeAt()` (Asia/Kuala_Lumpur): Day 07:00-18:00, Dusk 18:00-19:30, Night 19:30-07:00. It never changes a fact. UI chrome has two skins (`data-skin` light for Day and Dusk, dark for Night); `data-theme` carries `day|dusk|night`.
-- All motion is decorative, seeded and deterministic, never tied to data: birds, clouds and cloud shadows, leaf shimmer, base-water ripple, lamp fade, night window flicker.
+- All motion is decorative, seeded and deterministic, never tied to data: birds, clouds and cloud shadows, canopy sway, base-water ripple, lamp fade, night window flicker.
 - No moving traffic (it could read as live traffic data). No invented landmarks or signage.
 - Water animation is confined to decorative base water and never touches flood-scenario layers (tested).
-- Motion runs from one capped (30 fps) loop that stops when hidden, off-screen, disabled or under `prefers-reduced-motion`.
-- Pavements, kerbs, markings and parks are drawn flat (ClassificationPrimitives) so they can never hide route or path-status lines. Water is a GroundPrimitive with a shimmer material.
+- Motion runs from one capped (30 fps) loop that stops when hidden, off-screen, disabled or under `prefers-reduced-motion`. With Motion off the scene is a still frame: birds hidden, canopies built without the sway shader. Flap and sway are clocked by `czm_frameNumber` (a custom appearance vertex shader cannot read material uniforms in Cesium 1.146), so they speed up while the camera moves.
+- Clouds are 50% opaque and hidden while a route is highlighted or a flood scenario is active, so they never cover an answer.
+- Pavements, kerbs, markings, parks and lamp light pools are drawn flat (ClassificationPrimitives) so they can never hide or tint route or path-status lines. Light pools stack above the ground parts and below the overlays. Water is a GroundPrimitive with a shimmer material.
 - Parks are display-only, and the seed currently has no `parks.geojson` (Overpass was blocked). Fetch with `uv run python data/scripts/build_buildings.py --parks --max-requests 40`.
 
 ## Options considered
@@ -26,5 +27,6 @@ The owner wants the stylised 3D city to follow the Elmina clock (Day / Dusk / Ni
 - Bloom is tuned so only bright windows glow (contrast 119, brightness -0.85, delta 1.0, sigma 2.0, step size 1.0).
 - Props are lifted toward white (`mix(tl_light, 1, 0.35)`) so they are never black at Dusk or Night.
 - Camera bounds clamp the camera position (5 km margin), not the view centre. At low pitch the look target can sit 1-2 km past the margin; Home always recovers.
-- Picking uses Cesium's built-in 5 px click tolerance.
+- Click versus drag uses Cesium's `ScreenSpaceEventHandler` click tolerance (5 px); the click picks with `scene.drillPick` over an 8 px window, place markers first.
+- Leaving Stylised restores the viewer's own render settings (resolution, FXAA, bloom, AO, shadows).
 - The "Decorative details are illustrative." label covers every addition.

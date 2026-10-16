@@ -129,7 +129,8 @@ the settings popover.
 - **Honesty:** while Stylised is active the popover says "Decorative details are illustrative."
   Building heights are mostly defaults by building kind, and the parapet adds 0.6 m (display only).
   Everything else is decoration, seeded and never a fact: the six facade tones and window styles,
-  lit windows, rooftop clutter, cars, street trees, lamps and light pools, birds, clouds and cloud
+  lit windows, rooftop clutter, cars, street trees, lamps and light pools (flat ground decals under
+the route and flood lines), birds, clouds and cloud
   shadows, parks, pavements, kerbs and markings, and base water. Base water is never a flood
   scenario. The route, flood and place layers are the same data in both styles. The full rules are
   under "Honesty (decorative rules)" below.
@@ -165,17 +166,28 @@ display-only lighting and never changes a fact. Chrome has two skins: light (Day
 A camera cluster (bottom right, revealed on hover or focus): Home view, Whole township, zoom, tilt,
 rotate, and a compass button that faces north. A one-time hint ("Drag to move, Scroll to zoom,
 Right-drag to rotate") can be dismissed. The camera is bounded: its position is clamped to the
-township plus a 5 km margin, and pitch and range have limits. Home always recovers. Clicks use
-Cesium's built-in 5 px pick tolerance.
+township plus a 5 km margin, and pitch and range have limits. Home always recovers. A click versus
+a drag is decided by Cesium's `ScreenSpaceEventHandler` click tolerance (5 px of pointer movement);
+the click itself picks with `scene.drillPick` over an 8 px window, so thin ground lines are easy to
+hit and place markers win over paths. The compass reads its own heading store
+(`controls/cameraHeadingStore.ts`), so camera moves re-render only the camera controls.
 
 ### Motion
 
-Birds, clouds with cloud shadows, leaf shimmer, base-water ripple, lamp fade and night window
+Birds, clouds with cloud shadows, canopy sway, base-water ripple, lamp fade and night window
 flicker. All are decorative, seeded and deterministic, and never tied to data. There is no moving
 traffic. Water animation touches only decorative base water, never a flood scenario. One loop,
 capped at 30 fps, drives it, and it stops when the tab is hidden, the map is off-screen, Motion is
 Off or `prefers-reduced-motion` is set. Switch it off with **Motion: Off** in the settings popover
-(stored in `tl.motion`).
+(stored in `tl.motion`). With Motion off (or reduced motion) the scene is a still frame: birds are
+hidden and canopies are rebuilt without the sway shader.
+
+Wing flap and canopy sway are vertex-shader effects clocked by `czm_frameNumber`, because a custom
+appearance vertex shader cannot read a material uniform in Cesium 1.146. They run at their designed
+speed at the loop's 30 fps and faster while the camera moves (more frames). Clouds are drawn at
+50% opacity and hidden while a route is highlighted or a flood scenario is active, so they never
+cover the answer. Leaving Stylised (for Realistic) restores the viewer's own resolution, FXAA,
+bloom, ambient occlusion and shadow settings.
 
 ### Quality
 
@@ -192,7 +204,9 @@ performance readout.
 
 Everything above is display-only and covered by "Decorative details are illustrative." There is no
 moving traffic and there are no invented landmarks or signage. Pavements, kerbs, markings and parks
-are flat, so they never hide route or path-status lines. Parks are display-only and read
+are flat, so they never hide route or path-status lines. Light pools are a flat, translucent
+classification band stacked above the ground and below the overlay lines, so they never tint a
+route or flood line, and they show only at Dusk and Night. Parks are display-only and read
 `base/parks.geojson`, which the seed does not currently contain (Overpass was blocked); fetch it
 with `uv run python data/scripts/build_buildings.py --parks --max-requests 40`. Water is a
 GroundPrimitive with a shimmer material and is never drawn as a flood scenario. See
