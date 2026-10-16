@@ -285,3 +285,123 @@ def test_place_counts_come_from_the_place_count():
 )
 def test_leaked_markup_and_ids_are_rejected(text):
     assert any("Write for residents" in e for e in text_errors(text, _rec()))
+
+
+# Second review: false positives (a correct answer must not be sent back).
+@pytest.mark.parametrize(
+    "text",
+    [
+        "工作人员尚未检查这段路。",
+        "需要工作人员实地确认坡度。",
+        "已请工作人员核实。",
+        "工作人员没有核实。",
+        "这并非已核实的数据。",
+        "It may be accessible only with help; no step data.",
+        "我不放心这段路，请核实。",
+        "没问题吗？请核实。",
+        "没有问题被报告。",
+    ],
+)
+def test_second_review_false_positives(text):
+    errs = text_errors(text, _placeholder_rec())
+    assert not any("Placeholder" in e or "reassure" in e for e in errs), errs
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "工作人员已检查这段路。",
+        "坡度已由工作人员核实。",
+        "Hanya sebahagian disahkan.",
+        "这段路没有问题。",
+        "Tak ada masalah.",
+        "Tiada sebarang masalah.",
+    ],
+)
+def test_second_review_false_negatives(text):
+    errs = text_errors(text, _placeholder_rec())
+    assert any("Placeholder" in e or "reassure" in e for e in errs), text
+
+
+@pytest.mark.parametrize("text", ["Charge at the ev-charging bay.", "Take the Level-ev-3 lift."])
+def test_hyphenated_words_are_not_ids(text):
+    assert not any("Write for residents" in e for e in text_errors(text, _rec()))
+
+
+@pytest.mark.parametrize(
+    "summary,caveat",
+    [
+        (
+            "Dalam simulasi ini, 45 daripada 50 perjalanan akan sampai.",
+            "Ditutup sehingga 30 Okt 2026.",
+        ),
+        (
+            "Dalam simulasi ini, 45 daripada 50 perjalanan akan sampai melalui Jalan 2/3.",
+            "Seksyen U16.",
+        ),
+        (
+            "Dalam simulasi ini, 45 daripada 50 perjalanan akan sampai.",
+            "Ada 2 anak tangga, 3-5 minit.",
+        ),
+        ("在这个模拟中，50次行程中有45次可以到达。", "第2步有3级台阶，10月30日前关闭。"),
+        (
+            "In this what-if simulation, 45 of 50 journeys would reach "
+            "Pusat Komuniti Sungai Buloh via Jalan 2.",
+            "x",
+        ),
+    ],
+)
+def test_foreign_counts_ignore_dates_streets_steps_and_times(summary, caveat):
+    errs = validate_answer(_ans(summary, [caveat]), _whatif_rec())
+    assert not any("simulation result" in e for e in errs), errs
+
+
+@pytest.mark.parametrize(
+    "summary",
+    [
+        "At +5 m, 32 places are likely flooded but still connected (35 minus 3 isolated).",
+        "Of the 35 places, the first 10 places are listed below.",
+        "35 places at risk, 12 more places possibly flooded.",
+    ],
+)
+def test_place_counts_other_than_the_combined_total_are_allowed(summary):
+    r = _rec(
+        tool_calls=["affected_places"],
+        affected=[
+            {
+                "likely_place_count": 35,
+                "likely_path_count": 2468,
+                "possible_place_count": 20,
+                "possible_path_count": 556,
+            }
+        ],
+    )
+    errs = validate_answer(_ans(summary, scenario_id="stage_p5m"), r)
+    assert not any("path segments" in e for e in errs), errs
+
+
+@pytest.mark.parametrize(
+    "summary", ["Laluan ini tersekat dan tidak boleh digunakan.", "路线受阻。请走别的路。"]
+)
+def test_status_contradiction_in_sentence_form(summary):
+    r = _rec(routes={"rt-1": {}}, route_status={"rt-1": "confirmed"})
+    assert any("contradiction" in e for e in validate_answer(_ans(summary, route_id="rt-1"), r))
+
+
+@pytest.mark.parametrize(
+    "q,lang",
+    [
+        ("Can I reach Pusat Komuniti from Sungai Buloh Park?", "en"),
+        ("Saya nak ke Elmina Urban Park", "ms"),
+        (
+            "Pada paras sungai berapakah laluan saya dari Elmina Lakeside Mall "
+            "ke pusat pemindahan terputus?",
+            "ms",
+        ),
+        ("Bagaimana jika kita bina tanjakan di tangga itu?", "ms"),
+    ],
+)
+def test_language_detection_ignores_malay_place_words(q, lang):
+    from townshiplens_agent.labels import detect_language
+
+    assert detect_language(q) == lang

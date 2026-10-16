@@ -45,7 +45,7 @@ from townshiplens_spatial.world import load_world
 SUITE = Path(__file__).parent / "suite" / "elmina.yaml"
 SEED = ROOT / "data/seed/elmina"
 # A number in an answer: "2,503" is one number, "1.5" one, never digits glued to a word or id.
-NUM = re.compile(r"(?<![\w.,])(\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+(?:\.\d+)?)(?![\w]|[.,]\d)")
+NUM = re.compile(r"(?<![\w.,/])(\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+(?:\.\d+)?)(?![\w]|[.,]\d)")
 MORE = re.compile(r"\s+more\b", re.I)
 # Payload keys whose numbers are never something a resident is told (geometry, ids).
 _SKIP_KEYS = {"coordinates", "geometry", "bbox", "lat", "lon", "lng", "diff_geojson"}
@@ -123,7 +123,8 @@ def payload_values(payloads: list) -> set[float]:
 
 def classify_numbers(text: str, values: set[float]) -> tuple[list[str], list[str]]:
     """(unfaithful, rounded): numbers in the answer that no tool returned as a value, and
-    numbers that are an engine value rounded (within 3%, e.g. 119.8 m said as "about 120 m").
+    numbers that are an engine value rounded to a coarser unit (119.8 m said as "about 120 m";
+    2,450 for 2,468 is not a rounding, it is unfaithful).
     Compared as numbers: "2,503" is 2503, never "2" and "503"."""
     body = STAGE.sub(" ", STEP_NO.sub(" ", text))
     unfaithful, rounded = [], []
@@ -134,8 +135,8 @@ def classify_numbers(text: str, values: set[float]) -> tuple[list[str], list[str
             continue
         if MORE.match(body, m.end()) and any(0 < v - x <= 10 for v in values):
             continue  # "and 61 more unchecked items": a list's length minus the ones named
-        if any(abs(x - v) <= max(0.5, 0.03 * abs(v)) for v in values):
-            rounded.append(n)
+        if x and any(abs(x - round(v, d)) < 1e-9 for v in values for d in (1, 0, -1, -2, -3)):
+            rounded.append(n)  # an engine value rounded to a coarser unit (119.8 -> 120)
         else:
             unfaithful.append(n)
     return unfaithful, rounded
@@ -205,6 +206,9 @@ async def main() -> int:
                 "fallback": evs[-1].model.endswith("+template"),
                 "first_attempt_ok": bool(checks and checks[0].ok),
                 "rewrites": sum(not c.ok for c in checks),
+                # Why each attempt was sent back (readable labels, and the validator's own text)
+                "check_issues": [c.issues for c in checks if not c.ok],
+                "validator_errors": [list(e) for e in rec.validator_errors],
                 "tool_hit": (not want) or any(t in called for t in want),
                 "tools": called,
                 "first_text_s": round(first_draft or 0, 2),

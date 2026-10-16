@@ -48,3 +48,14 @@ def test_list_lengths_and_the_rest_of_a_list_count_as_returned():
     ]
     assert ev.classify_numbers("Width unknown; and 61 more unchecked items.", vals)[0] == []
     assert ev.classify_numbers("and 20 more", vals)[0] == ["20"]
+
+
+def test_numbers_in_street_names_are_not_answer_numbers():
+    assert ev.classify_numbers("Jalan Tristania U15/32: steps unchecked", set())[0] == []
+
+
+def test_rounding_means_a_coarser_unit_not_a_nearby_number():
+    vals = {2468.0, 1174.6}
+    assert ev.classify_numbers("2,450 path segments", vals)[0] == ["2,450"]
+    assert ev.classify_numbers("about 2,500 path segments", vals) == ([], ["2,500"])
+    assert ev.classify_numbers("1,175 m", vals) == ([], ["1,175"])

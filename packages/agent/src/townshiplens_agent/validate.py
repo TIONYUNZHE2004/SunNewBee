@@ -26,17 +26,18 @@ DEPTH = re.compile(
 # imply one ("likely flooded" is a flood class and stays allowed).
 REASSURE = re.compile(
     r"\bprobably\b|\bshould be (?:fine|ok(?:ay)?|alright|accessible|passable)\b"
-    r"|\b(?:may|might|could) (?:well )?be (?:fine|ok(?:ay)?|alright|passable|accessible)\b"
+    r"|\b(?:may|might|could) (?:well )?be (?:fine|ok(?:ay)?|alright)\b"
     r"|\byou(?:'ll| will) be (?:fine|ok(?:ay)?)\b|\bno problem\b|\bnothing to worry\b"
     # Bahasa Melayu and Chinese. "mungkin" / "可能" alone stay allowed (they translate "possibly
     # flooded" and honest "may have steps"); a guess that something works does not.
     r"|\bjangan risau\b|\b(?:tak|tidak) perlu (?:risau|bimbang)\b|\btak apa-apa\b"
-    r"|\btiada masalah\b(?!\s+(?:yang\s+)?(?:dilaporkan|direkodkan|diketahui))|\bpasti boleh\b"
+    r"|\b(?:tiada|tak ada|tidak ada)\s+(?:sebarang\s+)?masalah\b"
+    r"(?!\s+(?:yang\s+)?(?:dilaporkan|direkodkan|diketahui))|\bpasti boleh\b"
     r"|\bbarangkali\b|\bsepatutnya\s+(?:boleh|ok(?:ey)?|tiada masalah|baik)\b"
     r"|\bmungkin\s+(?:boleh|dapat|ok(?:ey)?|sesuai|tiada masalah)\b"
     r"|应该(?:可以|能|没问题|没事|行)|可能(?:可以|能够?(?:通过|通行|走)|没问题|没事)"
-    r"|大概(?:可以|能|没问题)|估计(?:可以|没问题)|不用担心|别担心|放心|肯定可以"
-    r"|(?<!代表)(?<!意味着)(?<!不是)没问题",
+    r"|大概(?:可以|能|没问题)|估计(?:可以|没问题)|不用担心|别担心|(?<!不)放心|肯定可以"
+    r"|(?<!代表)(?<!意味着)(?<!不是)(?:没|没有|不会有|无)问题(?!吗|被?(?:报告|记录|上报))",
     re.IGNORECASE,
 )
 # Required phrases, accepted in English, Bahasa Melayu and Chinese (Cycle 6), so a resident who
@@ -146,10 +147,16 @@ VERIFIED_ML = re.compile(
     r"|\bdisemak oleh (?:kakitangan|pegawai|staf)\b"
     r"|\b(?:telah|sudah)\s+ditinjau\b|\bditinjau pada\b"
     r"|已(?:经)?(?:核实|验证|实地调查)|经(?:过)?(?:核实|验证)|核实过|验证过"
-    r"|工作人员[^。；]{0,6}(?:检查|核实|确认)|实地调查于",
+    r"|\bsebahagian\s+(?:telah\s+)?disahkan\b"
+    # perfective only: "已由工作人员核实", "工作人员已检查", "工作人员检查过"
+    # (never "请工作人员核实" / "需要工作人员确认")
+    r"|已(?:经)?由工作人员|工作人员已(?:经)?[^。；]{0,4}(?:检查|核实|确认)"
+    r"|工作人员[^。；]{0,4}(?:检查|核实|确认)过|实地调查于",
     re.IGNORECASE,
 )
-NEGATED_ML = re.compile(r"(?:\b(?:belum|tidak|bukan)\s+|未|没有|尚未|并未|未曾)$", re.IGNORECASE)
+NEGATED_ML = re.compile(
+    r"(?:\b(?:belum|tidak|bukan|perlu)\s+|未|没有|尚未|并未|未曾|并非|不是|需要|请)$", re.IGNORECASE
+)
 
 
 _ST = r"(confirmed|partly_unverified|blocked|no_data)"
@@ -157,6 +164,9 @@ STATUS_LABEL = re.compile(rf"\broute status\s*[:=]?\s*{_ST}\b")
 STATUS_IS = re.compile(
     rf"\broute (?:is|was) {_ST}\b(?!\s+(?:by|at|near|because|due|on|from|where)\b)"
 )
+# BM / 中文 sentence form after `_to_en`: "laluan ini tersekat" -> "route ini blocked",
+# "路线受阻" -> " route blocked".
+STATUS_IS_ML = re.compile(rf"\broute (?:ini |itu |adalah |ini adalah )?{_ST}\b(?!\s*\()")
 # "route confirmed" / "Route status: confirmed" / "the route is confirmed" NOT followed by the demo
 # qualifier (a confirmed route over placeholder evidence must carry it).
 BARE_CONFIRMED = re.compile(
@@ -165,7 +175,8 @@ BARE_CONFIRMED = re.compile(
     re.IGNORECASE,
 )
 RAW_ID = re.compile(
-    r"\bseg-[\w-]+|\bev-[\w.-]+|\brt-[0-9a-f]+\b|\bvr-\d+\b|\bevidence_ids\b"
+    r"\bseg-[\w-]+|(?<![\w-])ev-[\w-]*(?:\d|\.)[\w.-]*|(?<![\w-])rt-[0-9a-f]*\d[0-9a-f]*\b"
+    r"|(?<![\w-])vr-\d+\b|\bevidence_ids\b"
     r"|</?(?:parameter|summary|claims|invoke|function_calls|antml:\w+)\b[^>]*>"
     r"|\b(?:" + "|".join(sorted(k for k in ATTRIBUTE_TYPES if "_" in k)) + r")\b"
 )
@@ -248,8 +259,9 @@ def _named_statuses(summary: str, steps: list[str]) -> set[str]:
     ids and other routes are ignored."""
     text = _norm_status_text(" ".join([summary, *steps]))
     out = {m.group(1) for m in STATUS_LABEL.finditer(text)}
-    first = re.split(r"(?<=[.!?])\s|\n", _norm_status_text(summary), maxsplit=1)[0]
-    for m in STATUS_IS.finditer(first):
+    first = re.split(r"(?<=[.!?])\s|(?<=[。！？])|\n", _norm_status_text(summary), maxsplit=1)[0]
+    ml = list(STATUS_IS_ML.finditer(first)) if detect_language(summary) != "en" else []
+    for m in [*STATUS_IS.finditer(first), *ml]:
         prev = first[: m.start()].split()[-1:] or [""]
         if prev[0] not in OTHER_ROUTE:
             out.add(m.group(1))
@@ -561,11 +573,15 @@ def whatif_errors(ans: FinalAnswer, rec: TurnRecord) -> list[str]:
     return errs
 
 
-# An integer that is not a measurement, in any of the three languages ("2,503" is one number).
-_ANY_COUNT = re.compile(
-    r"(?<![\d.,])(\d{1,3}(?:,\d{3})+|\d+)(?![.,]?\d)"
-    r"(?!\s*(?:m|km|cm|min|minit|mins|minutes?|h|jam|%|metres?|meters?|meter|米|公里|厘米|分钟|小时)"
-    r"(?![a-z]))",
+# A count in a Bahasa Melayu or Chinese answer: next to a count noun ("45 daripada 50
+# perjalanan", "3 tempat") or a Chinese measure word ("46次", "4条", "15项"). Dates, street
+# numbers ("Jalan 2/3", "Seksyen U16"), steps, distances and times are not counts.
+_N = r"(?<![\d.,/A-Za-z_])(\d{1,3}(?:,\d{3})+|\d+)(?![.,/]?\d)"  # CJK may touch the digits
+FOREIGN_COUNT = re.compile(
+    rf"{_N}\s+daripada\s+{_N}"
+    rf"|{_N}\s+(?:[a-z-]+\s+){{0,2}}?(?:perjalanan|laluan|orang|penduduk|pengguna|tempat|lokasi"
+    r"|pemeriksaan|semakan|fakta|tapak|pusat|perubahan)\b"
+    rf"|{_N}\s*(?:次|条|个|位|名|项|处|人)",
     re.IGNORECASE,
 )
 _STEP_NUMBER = re.compile(r"^\s*\d+[.)]\s")
@@ -600,7 +616,9 @@ def foreign_number_errors(ans: FinalAnswer, rec: TurnRecord) -> list[str]:
         allowed |= _ints(r.get("counts"))
     for t in rec.tippings:
         allowed |= _ints(t.get("stages"))
-    spoken = {int(m.group(1).replace(",", "")) for m in _ANY_COUNT.finditer(text)}
+    spoken = {
+        int(n.replace(",", "")) for m in FOREIGN_COUNT.finditer(text) for n in m.groups() if n
+    }
     if bad := sorted(spoken - allowed):
         return [
             f"Numbers {bad} do not appear in the simulation result: in every language, quote "
@@ -618,18 +636,21 @@ PLACE_COUNT = re.compile(
 
 
 def affected_errors(ans: FinalAnswer, rec: TurnRecord) -> list[str]:
-    """affected_places totals add places and path segments: a count of places must be one of
-    the place counts, never the combined total."""
+    """affected_places totals add places and path segments: a combined total is never said as a
+    number of places (other place counts, sums or list lengths are the model's to phrase)."""
     if not rec.affected or rec.plans or ans.answer_status == "cannot_answer":
         return []
-    allowed: set[int] = set()
+    combined: set[int] = set()  # totals that add path segments: never a number of places
+    places: set[int] = set()
     for a in rec.affected:
         lp, pp = int(a.get("likely_place_count", 0)), int(a.get("possible_place_count", 0))
-        allowed |= {lp, pp, lp + pp, int(a.get("isolated_place_count", 0))}
-        allowed |= {int(a.get("likely_listed", 0)), int(a.get("possible_listed", 0))}
+        lt = lp + int(a.get("likely_path_count", 0))
+        pt = pp + int(a.get("possible_path_count", 0))
+        places |= {lp, pp, lp + pp}
+        combined |= {lt, pt, lt + pt}
     text = " ".join([ans.summary, *ans.steps, *ans.caveats])
     spoken = {int((m.group(1) or m.group(2)).replace(",", "")) for m in PLACE_COUNT.finditer(text)}
-    if bad := sorted(spoken - allowed):
+    if bad := sorted((spoken & combined) - places):
         return [
             f"Place counts {bad} are not place counts from affected_places: likely_total adds "
             "places and path segments. Say 'N places and M path segments' with "

@@ -298,10 +298,12 @@ def inferred_caveats(notes: list[str]) -> list[str]:
 
 # ---- answer language (Cycle 6): the frame around the model's text follows the question -------
 _CJK = re.compile(r"[\u4e00-\u9fff]")
+# Bahasa Melayu function words. Place-like nouns ("pusat", "sungai", "laluan", "tangga") are left
+# out on purpose: they appear in Elmina's place names inside English text.
 _BM = re.compile(
-    r"\b(?:boleh|saya|dari|tanpa|tangga|jika|paras|sungai|laluan|pusat|bagaimana|berapa|"
-    r"adakah|kerusi roda|kereta sorong|pemindahan|terputus|di mana|ke mana|untuk|dengan|"
-    r"ke|nak|tak|ini|itu|ada|akan|dalam|daripada|yang|tidak|belum|perjalanan|macam mana)\b",
+    r"\b(?:boleh|saya|dari|tanpa|jika|kalau|bagaimana|berapa|adakah|apakah|di mana|ke mana|"
+    r"untuk|dengan|ke|nak|tak|ini|itu|ada|akan|dalam|daripada|yang|tidak|belum|macam mana|"
+    r"kerusi roda|kereta sorong|atau|juga|sahaja|tiada|sudah|telah|mahu|hendak)\b",
     re.IGNORECASE,
 )
 FRAME = {
