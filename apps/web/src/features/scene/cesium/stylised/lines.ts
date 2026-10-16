@@ -4,9 +4,17 @@ const RAD = Math.PI / 180;
 
 type Pt = [number, number];
 
+/** Drop consecutive duplicate points (zero-length segments have no direction). */
+function dedupe(coords: Pt[]): Pt[] {
+  return coords.filter(
+    (p, i) => i === 0 || p[0] !== coords[i - 1]![0] || p[1] !== coords[i - 1]![1],
+  );
+}
+
 /** Offset a line sideways by `m` metres (left of travel for positive `m`), mitred at corners. */
-export function offsetLine(coords: Pt[], m: number): Pt[] {
-  if (coords.length < 2) return coords.slice();
+export function offsetLine(input: Pt[], m: number): Pt[] {
+  const coords = dedupe(input);
+  if (coords.length < 2) return input.slice();
   const lat0 = coords[0]![1];
   const kx = Math.cos(lat0 * RAD) * M_PER_DEG;
   const xy = coords.map(([lon, lat]) => [lon * kx, lat * M_PER_DEG] as Pt);
@@ -35,30 +43,43 @@ export function offsetLine(coords: Pt[], m: number): Pt[] {
   return out;
 }
 
-/** Cut a line into `dashM` dashes separated by `gapM` gaps; each dash is a two-point segment. */
-export function dashSegments(coords: Pt[], dashM: number, gapM: number): Pt[][] {
-  const out: Pt[][] = [];
-  const period = dashM + gapM;
-  let pos = 0; // metres along the line where the current period started
-  let walked = 0;
-  for (let i = 0; i + 1 < coords.length; i++) {
-    const [x1, y1] = coords[i]!;
-    const [x2, y2] = coords[i + 1]!;
+/**
+ * Cut a line into `dashM` dashes separated by `gapM` gaps, measured by arc length along the whole
+ * polyline. A dash that spans a vertex keeps that vertex (so a dash has 2+ points). A final dash
+ * that would run past the line end is dropped, so every dash measures `dashM`.
+ */
+export function dashSegments(input: Pt[], dashM: number, gapM: number): Pt[][] {
+  const coords = dedupe(input);
+  if (coords.length < 2 || dashM <= 0) return [];
+  const cum = [0];
+  for (let i = 1; i < coords.length; i++) {
+    const [x1, y1] = coords[i - 1]!;
+    const [x2, y2] = coords[i]!;
     const k = Math.cos(((y1 + y2) / 2) * RAD) * M_PER_DEG;
-    const len = Math.hypot((x2 - x1) * k, (y2 - y1) * M_PER_DEG);
-    if (len === 0) continue;
-    const at = (d: number): Pt => {
-      const f = (d - walked) / len;
-      return [x1 + (x2 - x1) * f, y1 + (y2 - y1) * f];
-    };
-    while (pos < walked + len) {
-      const a = Math.max(pos, walked);
-      const b = Math.min(pos + dashM, walked + len);
-      if (b > a + 0.01 && pos + dashM <= walked + len + 1e-6) out.push([at(a), at(b)]);
-      if (pos + dashM > walked + len) break;
-      pos += period;
+    cum.push(cum[i - 1]! + Math.hypot((x2 - x1) * k, (y2 - y1) * M_PER_DEG));
+  }
+  const total = cum[cum.length - 1]!;
+  const at = (d: number, seg: number): Pt => {
+    const [x1, y1] = coords[seg]!;
+    const [x2, y2] = coords[seg + 1]!;
+    const f = (d - cum[seg]!) / (cum[seg + 1]! - cum[seg]!);
+    return [x1 + (x2 - x1) * f, y1 + (y2 - y1) * f];
+  };
+  const segOf = (d: number) => {
+    let s = 0;
+    while (s < coords.length - 2 && cum[s + 1]! <= d) s++;
+    return s;
+  };
+  const out: Pt[][] = [];
+  for (let start = 0; start + dashM <= total + 1e-6; start += dashM + gapM) {
+    const end = Math.min(start + dashM, total);
+    const sa = segOf(start);
+    const dash: Pt[] = [at(start, sa)];
+    for (let v = sa + 1; v < coords.length - 1 && cum[v]! < end - 1e-6; v++) {
+      if (cum[v]! > start + 1e-6) dash.push(coords[v]!);
     }
-    walked += len;
+    dash.push(at(end, segOf(Math.max(start, end - 1e-9))));
+    out.push(dash);
   }
   return out;
 }

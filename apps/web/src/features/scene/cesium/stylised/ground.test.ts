@@ -113,7 +113,7 @@ function setup(withWater = true) {
   const g = buildGround(f.C as unknown as GroundCesium, viewer, {
     roads,
     water: withWater ? water : [],
-    parks: [],
+    parks: water,
     palette: paletteFor("night"),
   });
   const prims = f.primitives as unknown as {
@@ -166,8 +166,8 @@ describe("buildGround", () => {
 
   it("draws roads and water as thin, non-pickable classification volumes under the overlays", () => {
     const { primitives, geometries, groundPrimitives } = setup();
-    // roadMark, kerb, road, pavement, shore, water (no parks in this fixture)
-    expect(primitives.map((p) => p.kind)).toEqual(Array(6).fill("ClassificationPrimitive"));
+    // roadMark, kerb, road, pavement, shore, water parkEdge, park
+    expect(primitives.map((p) => p.kind)).toEqual(Array(8).fill("ClassificationPrimitive"));
     for (const p of primitives) {
       expect(p.options).toMatchObject({ allowPicking: false, asynchronous: true });
     }
@@ -181,15 +181,15 @@ describe("buildGround", () => {
       // Thin volumes around the flat ellipsoid ground (no tall GroundPrimitive volumes).
       expect([o.height, o.extrudedHeight]).toEqual([-VOLUME_HALF_M, VOLUME_HALF_M]);
     }
-    expect(geometries.filter((g) => g.kind === "polygon")).toHaveLength(1);
-    expect(groundPrimitives.add).toHaveBeenCalledTimes(6);
+    expect(geometries.filter((g) => g.kind === "polygon")).toHaveLength(2);
+    expect(groundPrimitives.add).toHaveBeenCalledTimes(8);
     // Routes / flood lines (GroundPolylinePrimitives) must draw on top of the roads.
-    expect(groundPrimitives.lowerToBottom).toHaveBeenCalledTimes(6);
+    expect(groundPrimitives.lowerToBottom).toHaveBeenCalledTimes(8);
   });
 
   it("no water polygons -> no water or shore primitive", () => {
     const { primitives } = setup(false);
-    expect(primitives).toHaveLength(4);
+    expect(primitives).toHaveLength(6);
   });
 
   it("theme toggled before the primitives are ready ends on the latest theme once ready", () => {
@@ -212,7 +212,7 @@ describe("buildGround", () => {
     expect(attr("pavement:0")).toBe(colourOf(day.pavement));
     expect(postRender.listeners.size).toBe(0);
     expect(requestRender).toHaveBeenCalledTimes(1);
-    expect(primitives).toHaveLength(6);
+    expect(primitives).toHaveLength(8);
   });
 
   it("setPalette on ready primitives recolours in place right away; same theme is a no-op", () => {
@@ -223,6 +223,26 @@ describe("buildGround", () => {
     g.setPalette(paletteFor("day"), true);
     expect(prims[2]!.attrs.get("road:1")?.color).toBe(colourOf(paletteFor("day").road));
     expect(postRender.listeners.size).toBe(0);
+  });
+
+  it("recolours every part key in place", () => {
+    const { g, prims } = setup();
+    for (const p of prims) p.ready = true;
+    g.setPalette(paletteFor("day"), true);
+    g.setPalette(paletteFor("night"), true);
+    const night = paletteFor("night");
+    const attr = (id: string) => prims.map((p) => p.attrs.get(id)?.color).find(Boolean);
+    for (const key of [
+      "road",
+      "pavement",
+      "kerb",
+      "roadMark",
+      "water",
+      "shore",
+      "park",
+      "parkEdge",
+    ] as const)
+      expect(attr(`${key}:0`), key).toBe(colourOf(night[key]));
   });
 
   it("a non-final palette is stored but not written; the final one recolours", () => {
@@ -239,7 +259,7 @@ describe("buildGround", () => {
     g.setPalette(paletteFor("day"), true);
     g.destroy();
     g.destroy();
-    expect(groundPrimitives.remove).toHaveBeenCalledTimes(6);
+    expect(groundPrimitives.remove).toHaveBeenCalledTimes(8);
     for (const p of primitives) expect(p.destroy).toHaveBeenCalledTimes(1);
     expect(postRender.listeners.size).toBe(0);
     expect(() => g.setPalette(paletteFor("night"), true)).not.toThrow();
