@@ -660,6 +660,8 @@ DAY_FORECAST = re.compile(
     r"\b(?:will|may|might|could|would|won't|will not|would not)\s+(?:not\s+)?(?:be\s+|get\s+)?"
     r"(?:stranded|trapped|cut off|flooded|lose|stuck|affected|miss|struggle|unable)\b"
     r"|\b(?:won't|will not)\s+(?:be able to|get to|reach|make it)\b"
+    # review C17: "823 residents will be better off", "this will help 823 residents"
+    r"|\bwill\s+(?:be\s+(?:better|worse)|help|benefit|reach|arrive|get to|make it|save)\b"
     r"|\breal (?:people|residents)\b[^.]*\b(?:will|tomorrow|may|might)\b",
     re.IGNORECASE,
 )
@@ -736,14 +738,66 @@ def _day_number_errors(text: str, rec: TurnRecord, what: str) -> list[str]:
         or re.search(r"\b\d+\.\d{3}\b", named)
     ):
         errs.append("Give counts as digits copied from the rehearsal, not percentages or words.")
-    allowed = set().union(set(), *(_ints(d) for d in [*rec.days, *rec.day_changes]))
-    plain = _DAY_NOT_COUNT.sub(" ", _HHMM.sub(" ", named))
+    # a tested change licenses its headline and group counts only (review C17: every integer in
+    # its payload, option numbers and other options' counts included, let invented ones by)
+    allowed = set().union(
+        set(), *(_ints(d) for d in rec.days), *map(_change_counts, rec.day_changes)
+    )
+    plain = _strip_change_context(_DAY_NOT_COUNT.sub(" ", _HHMM.sub(" ", named)), rec)
     spoken = {int(m.group(1).replace(",", "")) for m in _DAY_COUNT.finditer(plain)}
     if (bad := spoken - allowed) and (bad := sorted(bad - _stated_sums(plain, allowed))):
         errs.append(
             f"Numbers {bad} do not appear in the rehearsal: quote only its counts ({what})."
         )
     return errs
+
+
+def _change_counts(c: dict) -> set[int]:
+    out = {c.get(k) for k in ("residents_better", "residents_worse", "trips_better", "trips_worse")}
+    for g in c.get("groups") or []:
+        out |= {g.get(k) for k in ("residents", "better_off", "worse_off")}
+    return {x for x in out if isinstance(x, int) and not isinstance(x, bool)}
+
+
+def _strip_change_context(text: str, rec: TurnRecord) -> str:
+    """Numbers that are not outcome counts, only where their words say what they are: "option 2",
+    "1 of 8 suggested changes", "1,129 residents whose trips the water cut", "318 trips walked"."""
+    if not rec.day_changes:
+        return text
+    offered = max(len(c.get("options") or []) for c in rec.day_changes)
+    reasons = {
+        n
+        for c in rec.day_changes
+        for o in c.get("options") or []
+        for n in (o.get("residents_relying"), o.get("trips_walked"))
+        if isinstance(n, int)
+    }
+
+    def num(x: str) -> int:
+        return int(x.replace(",", ""))
+
+    text = re.sub(
+        r"\b(?:option|pilihan)\s+(\d+)\b",
+        lambda m: " " if num(m.group(1)) <= offered else m.group(0),
+        text,
+        flags=re.IGNORECASE,
+    )
+    text = re.sub(
+        r"\b(\d+)\s+of\s+(\d+)\s+(?:suggested\s+)?(?:changes|options|suggestions)\b",
+        lambda m: " " if num(m.group(2)) == offered and num(m.group(1)) <= offered else m.group(0),
+        text,
+        flags=re.IGNORECASE,
+    )
+    return re.sub(
+        r"(\d{1,3}(?:,\d{3})+|\d+)(\s+(?:[a-z]+\s+){0,3}?(?:whose trips|trips walked|walked|"
+        r"relied|rely|relying))"
+        r"|((?:relied on by|used by|usual route of|on the route of)\s+)(\d{1,3}(?:,\d{3})+|\d+)",
+        lambda m: (
+            (" " + (m.group(2) or "")) if num(m.group(1) or m.group(4)) in reasons else m.group(0)
+        ),
+        text,
+        flags=re.IGNORECASE,
+    )
 
 
 IMAGINED = re.compile(r"\bimagin|\bwhat-if\b|\bbayangkan|\bandaian\b|假设|设想", re.IGNORECASE)
@@ -762,18 +816,24 @@ def day_change_errors(ans: FinalAnswer, rec: TurnRecord) -> list[str]:
         )
     if not has_not_forecast(text):
         errs.append("A tested change must say it is not a forecast (include 'not a forecast').")
-    if WHATIF_AS_PLAN.search(text) or DAY_FORECAST.search(text):
+    if WHATIF_AS_PLAN.search(text) or DAY_FORECAST.search(text) or SHOULD_BUILD.search(text):
         errs.append(
-            "An imagined change is not a plan: never say it will be built, and say what would "
-            "change in the rehearsal, not what will happen to real residents."
+            "An imagined change is not a plan: never say it will be built or should be, and say "
+            "what would change in the rehearsal, not what will happen to real residents."
         )
-    tested = {c.get("option") for c in rec.day_changes}
-    offered = max(len(c.get("options") or []) for c in rec.day_changes)
-    if _claims_best(text) and len(tested) < offered:
+    # a ranking needs every option of that day tested (review C17: per day, not across days)
+    tested: dict[str, set] = {}
+    offered: dict[str, int] = {}
+    for c in rec.day_changes:
+        day = (c.get("scenario") or {}).get("id") or ""
+        tested.setdefault(day, set()).add(c.get("option"))
+        offered[day] = len(c.get("options") or [])
+    short = {d: (len(tested[d]), offered[d]) for d in tested if len(tested[d]) < offered[d]}
+    if _claims_best(_strip_names(text, rec.place_names)) and short:
+        n, m = next(iter(short.values()))
         errs.append(
-            f"Only {len(tested)} of {offered} suggested changes were tested: call it the top "
-            "suggestion (the one the most residents relied on), not the best or the one that "
-            "helps most."
+            f"Only {n} of {m} suggested changes were tested: call it the top suggestion, not "
+            "the best or the one that helps most."
         )
     errs += _day_number_errors(
         text, rec, "residents and trips better or worse off, by group, and the change's own"
@@ -785,16 +845,33 @@ def _claims_best(text: str) -> bool:
     """A ranking claim that is not negated ("not the best option", "not a proven best" are the
     honest wording, seen in the live smoke test of Cycle 17)."""
     for m in BEST_CHANGE.finditer(text):
+        # the negation must govern the phrase itself ("is not the best", "not a proven best"),
+        # review C17: "isn't it the best change?" and "not clear, but this is the best" are claims
         before = text[max(0, m.start() - 30) : m.start()].lower()
-        if not re.search(r"\bnot\b|\bbukan\b|不是|未必|n't\b", before):
+        if not _NEGATES.search(before):
             return True
     return False
 
 
-# "the best change", "would help most", "the most effective": a ranking needs every option tested
+_NEGATES = re.compile(
+    r"(?:\bnot|\bbukan|n't)\s+(?:necessarily\s+)?(?:(?:a|the)\s+)?(?:proven\s+|single\s+)?$"
+    r"|(?:不是|未必)$"
+)
+
+
+# "the best change", "would help most", "number one", "ideal", "recommended": a ranking needs every
+# option tested; "best case" is the change's own wording (it never floods in any scenario)
+SHOULD_BUILD = re.compile(
+    r"\b(?:should|must|need to|ought to|harus|perlu)\s+(?:be\s+)?(?:build|built|raise|raised|"
+    r"fix|fixed|do|done|go ahead|prioriti[sz]e|bina|dibina|tinggikan)\b",
+    re.IGNORECASE,
+)
 BEST_CHANGE = re.compile(
-    r"\bbest (?:change|option|fix|choice|one)\b|\bhelps? (?:the )?most\b|\bwould help most\b"
-    r"|\bmost (?:effective|helpful|useful)\b"
+    r"\bbest\b(?!\s*-?\s*case)|\bhelps? (?:the )?most\b|\bwould help most\b"
+    r"|\bnumber one\b|\bno\. ?1\b"
+    r"|\bideal\b|\boptimal\b|\bbiggest (?:impact|benefit|difference|gain)\b"
+    r"|\bgreatest (?:impact|benefit)\b|\bmost (?:effective|helpful|useful|beneficial|impactful)\b"
+    r"|\brecommend"
     r"|\bterbaik\b|\bpaling (?:berkesan|membantu)\b|最好|最有效",
     re.IGNORECASE,
 )

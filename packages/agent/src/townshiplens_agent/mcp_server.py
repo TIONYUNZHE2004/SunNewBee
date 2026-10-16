@@ -70,6 +70,9 @@ def _ctx() -> sp.Ctx:
     return sp.Ctx(world=world, vrs=VerificationStore(vr_db(world.site.id)))
 
 
+MAP_ONLY = {"day_test_change": ("changed_geojson",)}
+
+
 def _expose(mcp: FastMCP, name: str, fn) -> None:
     hints = typing.get_type_hints(fn)
     sig = inspect.signature(fn)
@@ -89,7 +92,11 @@ def _expose(mcp: FastMCP, name: str, fn) -> None:
                 ctx.world, kwargs.get("profile"), kwargs.get("from_id"), kwargs.get("to_id")
             )
         # Same PDPA rule as the assistant: staff free text on closures never leaves the server.
-        return _without_closure_notes(fn(ctx, **kwargs).model_dump(mode="json"))
+        out = _without_closure_notes(fn(ctx, **kwargs).model_dump(mode="json"))
+        if isinstance(out.get("data"), dict):
+            for k in MAP_ONLY.get(name, ()):  # drawn by the app's map, no use to a client
+                out["data"].pop(k, None)
+        return out
 
     tool.__name__ = name
     tool.__doc__ = inspect.getdoc(fn) or name

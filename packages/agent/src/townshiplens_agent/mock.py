@@ -446,15 +446,19 @@ _DAY = r"\brehears|\bsimulated day\b|\belmina day\b|\ba day in elmina\b|\blatiha
 
 
 def _day_id(q: str) -> str:
+    # a day named in the question wins over flood words ("raise the flooded road in the event
+    # rehearsal", review C17)
     return (
-        "storm"
-        if re.search(r"storm|flood|rain|river|banjir|ribut|水", q)
-        else "weekday"
+        "weekday"
         if re.search(r"weekday|hari biasa", q)
         else "friday"
         if re.search(r"friday|jumaat|jumat|prayer", q)
         else "event"
-        if re.search(r"event|night|park|community|acara|malam|taman", q)
+        if re.search(r"\bevent|night|community|acara|malam|taman", q)
+        else "storm"
+        if re.search(r"storm|flood|rain|river|banjir|ribut|水", q)
+        else "event"
+        if re.search(r"\bpark\b", q)
         else "weekday"
     )
 
@@ -471,7 +475,9 @@ def _day(q: str, rets, info: AgentInfo) -> ModelResponse:
 
 _DAY_CHANGE = (
     r"(?=.*(?:\brehears|\bstorm\b|\bribut\b|\blatihan\b|\bsimulated day\b))"
-    r"(?=.*(?:\bchange\b|\braise[ds]?\b|\bperubahan\b|\btinggikan\b))"
+    r"(?=.*(?:\bwhich (?:one )?change\b|\btest (?:a |the |another |option)"
+    r"|\bchange (?:to test|would help|that would)|\braise[ds]?\b|\braising\b|\boption \d\b"
+    r"|\bperubahan\b|\btinggikan\b))"
 )
 
 

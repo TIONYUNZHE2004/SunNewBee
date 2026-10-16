@@ -227,7 +227,15 @@ def _answer_events(
         # The map opens the rehearsal the answer came from, paused at its peak, with that day's
         # own river stage. day.show carries the stage, so no separate flood.set_level is sent
         # (the client remembers what was on screen before the day and restores it on close).
-        d = (rec.day_changes or rec.days)[-1]
+        # the day the turn ended on, by call order (review C17)
+        calls = rec.tool_calls
+        last_change = max((i for i, n in enumerate(calls) if n == "day_test_change"), default=-1)
+        last_day = max((i for i, n in enumerate(calls) if n == "day_rehearsal"), default=-1)
+        d = (
+            rec.day_changes[-1]
+            if rec.day_changes and last_change > last_day
+            else (rec.days or rec.day_changes)[-1]
+        )
         hh, _, mm = str(d.get("show_at") or "").partition(":")
         intents = [i for i in intents if i.kind != "flood.set_level"]
         # first: it sets the day's river level, which would clear a what-if diff drawn before it

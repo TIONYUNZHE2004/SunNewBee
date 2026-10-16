@@ -446,6 +446,18 @@ def template_answer(rec: TurnRecord, question: str) -> FinalAnswer:
     )
     closed = [*rec.route_closures, *rec.asked_closures]
     last_fixit = bool(rec.what_ifs and rec.what_ifs[-1].get("fixit"))
+    if rec.day_changes and rec.days and not rec.routes:
+        # a turn that also ran the rehearsal names its data gap too (review C17)
+        ev = [i for i in rec.evidence if i.startswith("ev-daychange-")][-1:]
+        fields = day_change_answer(rec.day_changes[-1], ev)
+        gap = (rec.days[-1].get("outcomes") or {}).get("data_gap")
+        if gap:
+            fields["steps"] = [
+                *fields["steps"][:5],
+                f"In the rehearsal itself, {gap:,} trips had no mapped connection (data gap).",
+            ]
+        fields["caveats"] = [*fields["caveats"], "Answer generated from data without AI wording."]
+        return FinalAnswer(**fields)
     for items, fn, prefix in (
         (rec.day_changes, day_change_answer, "ev-daychange-"),
         (rec.days, day_answer, "ev-day-"),

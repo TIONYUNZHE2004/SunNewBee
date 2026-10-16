@@ -1509,9 +1509,19 @@ def day_test_change(ctx: Ctx, day: str = "storm", option: int = 1) -> ToolResult
         "option": n,
         "change": pick["label"],
         "why": pick["why"],
-        "relied_on": pick.get("count"),
+        # what the count in each option's reason means: on a river day the residents whose cut
+        # trips used the stretch, otherwise the trips walked over it (review C17)
         "options": [
-            {"option": i + 1, "change": c["label"], "why": c["why"], "count": c.get("count")}
+            {
+                "option": i + 1,
+                "change": c["label"],
+                "why": c["why"],
+                **(
+                    {"residents_relying": c.get("count")}
+                    if c["action"].get("kind") == "raise_paths"
+                    else {"trips_walked": c.get("count")}
+                ),
+            }
             for i, c in enumerate(cands)
         ],
         "residents_better": d["residents_better"],

@@ -1219,3 +1219,25 @@ The storm chip replay is re-recorded with the mock. The two saved live answers (
 Results are in `evals/results/2026-10-17-live-day-assistant.json`.
 
 **Checklist** (mock-backed except the smoke tests): lint PASS, pytest 1,220 PASS, typecheck PASS, vitest 475 PASS, gen PASS, golden 22/22 PASS (mock), e2e 17 PASS. OpenRouter spend is about US$1.9 of US$3; the counter lags, so this is an estimate.
+
+### Cycle 17 review (independent Sonnet reviewer) and fixes (17 Oct, 05:16)
+
+No Critical findings. All 7 Important findings are fixed; 5 Minor are fixed and none deferred.
+
+| Finding | Fix |
+|---|---|
+| Ranking words outside the list passed: "number one fix", "ideal", "optimal", "most beneficial". | `BEST_CHANGE` covers any "best" (except the change's own "best case"), "number one", "ideal", "optimal", "biggest/greatest impact", "most beneficial/impactful" and "recommend…". It runs on text with the change labels stripped. |
+| "You should build it" and "the council should raise it" passed. | `SHOULD_BUILD` (EN/BM) is plan wording and rejected. |
+| A 30-character negation window cancelled claims: "isn't it the best change?", "not clear, but this is the best", "not only the best". | The negation must govern the phrase directly ("is not the best", "not a proven best", "not necessarily the best"). The live model's honest drafts still pass. |
+| "Every option tested" counted options across days (storm 1 + weekday 2 = 2 of 2). | It is checked per day against that day's own options. |
+| Every integer in the payload was allowed, so "247 residents would be better off" (option 2's reason count) and "1 residents" passed. | Only the headline and group counts are allowed. Option numbers, "N of M suggested changes" and reason counts pass only next to their own words ("option 2", "residents whose trips…", "trips walked"). |
+| `relied_on` meant residents on a storm day and trips on other days. | Dropped. Each option now carries `residents_relying` (flood stretches) or `trips_walked` (paths and steps). Prompt rule 18 now says what option 1 is on each kind of day. |
+| Future tense passed: "823 residents will be better off", "this will help". | `DAY_FORECAST` covers "will be better/worse", "will help/benefit/reach…". The prompt asks for "would", never "will". |
+| A turn that ran both the rehearsal and a change failed its own template (no data-gap line). | The template adds "In the rehearsal itself, N trips had no mapped connection (data gap)". Rule 18 asks the model to name the gap too. Tested. |
+| Minor: `day.show` came from the last change even when a rehearsal was called after it. | It follows the call order (tested). |
+| Minor: the mock's flood words beat the named day. | A named day wins (tested). |
+| Minor: `_DAY_CHANGE` matched "how does the rehearsal change…". | It needs "which change", "test …", "raise", "option N" or the BM words. |
+| Minor: cold cost (about 10–23 s). | The warm-up thread also runs the storm's options 1–3. |
+| Minor: MCP clients got `changed_geojson`. | `MAP_ONLY` drops it in the MCP wrapper (only that field; `affected_places` is untouched). |
+
+**Checklist** (mock-backed): lint PASS, pytest 1,238 PASS, typecheck PASS, vitest 475 PASS, gen PASS, golden 22/22 PASS (mock), e2e 17 PASS.

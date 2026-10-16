@@ -44,6 +44,12 @@ def _hero_compare(ctx):
 
 # (name, call) with the endpoints' default arguments: GET /river-rollout (no query),
 # GET /what-if/suggestions (Lab default persona), GET /verify-next (board defaults).
+def _storm_change(ctx, n: int):
+    if not any(s["id"] == "storm" for s in tools.day_scenarios(ctx)):
+        return None
+    return tools.day_test_change(ctx, "storm", n)
+
+
 JOBS = (
     ("river_rollout", lambda ctx: tools.rising_river_rollout(ctx, profiles=None, n=30)),
     ("what_if_suggestions", lambda ctx: tools.suggest_interventions(ctx, profile="wheelchair")),
@@ -52,6 +58,8 @@ JOBS = (
     *((f"day_{sid}", lambda ctx, sid=sid: _day(ctx, sid)) for sid in DAY_ORDER),
     # the planner's hero: the storm's top suggested change, compared (Cycle 13)
     ("day_storm_compare", lambda ctx: _hero_compare(ctx)),
+    # the assistant's "test option 2/3" on the storm (about 10 s each cold, review C17)
+    *((f"day_storm_change_{n}", lambda ctx, n=n: _storm_change(ctx, n)) for n in (1, 2, 3)),
 )
 POLL_S = 10.0
 IDLE_WAIT_S = 120.0  # how long a job waits for the solver to be idle before running anyway

@@ -243,10 +243,9 @@ CHANGE = {
     "change": "Imagine the flooded stretch on Jalan Sungai Buloh (about 931 m) raised so it "
     "never floods in any scenario (best case)",
     "why": "on the usual route of 1129 residents whose trips the water cut",
-    "relied_on": 1129,
     "options": [
-        {"option": 1, "change": "Imagine A raised", "why": "x", "count": 1129},
-        {"option": 2, "change": "Imagine B raised", "why": "y", "count": 247},
+        {"option": 1, "change": "Imagine A raised", "why": "x", "residents_relying": 1129},
+        {"option": 2, "change": "Imagine B raised", "why": "y", "residents_relying": 247},
     ],
     "residents_better": 823,
     "residents_worse": 0,
@@ -399,3 +398,112 @@ def test_day_show_goes_before_a_model_written_diff():
 def test_a_negated_best_claim_is_honest(summary):
     errs = validate_answer(_cans(summary), _crec())
     assert not any("top suggestion" in e for e in errs), errs
+
+
+# Cycle 17 review: ranking words, negation, per-day testing, numbers, future tense, mixed turns.
+@pytest.mark.parametrize(
+    "summary,why",
+    [
+        (
+            "In this imagined change, the number one fix: 823 residents would be better off.",
+            "top suggestion",
+        ),
+        (
+            "In this imagined change, the ideal change: 823 residents would be better off.",
+            "top suggestion",
+        ),
+        (
+            "Imagined: isn't it the best change? 823 residents would be better off.",
+            "top suggestion",
+        ),
+        (
+            "Imagined. It is not clear, but this is the best change for 823 residents.",
+            "top suggestion",
+        ),
+        (
+            "Imagined: it is not only the best change, 823 residents would be better off.",
+            "top suggestion",
+        ),
+        ("Imagined: you should build it, 823 residents would be better off.", "not a plan"),
+        ("Imagined: the council should raise it; 823 residents would be better off.", "not a plan"),
+        ("Imagined: 823 residents will be better off.", "not a plan"),
+        ("Imagined: this will help 823 residents.", "not a plan"),
+        ("Imagined: 247 residents would be better off.", "appear"),
+        ("Imagined: 1 residents would be better off, 2 worse off.", "appear"),
+    ],
+)
+def test_review_c17_dishonest_change_answers_are_rejected(summary, why):
+    errs = validate_answer(_cans(summary), _crec())
+    assert any(why in e for e in errs), errs
+
+
+@pytest.mark.parametrize(
+    "summary",
+    [
+        "Imagined (best case): 823 residents would be better off, on the usual route of 1,129 "
+        "residents whose trips the water cut. It is not the best option, only the top suggestion.",
+        "Imagined: I tested option 1, 1 of 2 suggested changes. 823 residents would be better off.",
+    ],
+)
+def test_review_c17_honest_change_answers_pass(summary):
+    assert validate_answer(_cans(summary), _crec()) == []
+
+
+def test_best_needs_every_option_of_that_day_tested():
+    rec = _crec()
+    rec.day_changes.append({**CHANGE, "scenario": {"id": "weekday", "label": "w"}, "option": 2})
+    errs = validate_answer(
+        _cans("Imagined: the best change, 823 residents would be better off."), rec
+    )
+    assert any("top suggestion" in e for e in errs), errs
+    rec.day_changes.append({**CHANGE, "option": 2})  # now both storm options are tested too
+    rec.day_changes.append({**CHANGE, "scenario": {"id": "weekday", "label": "w"}, "option": 1})
+    errs = validate_answer(
+        _cans("Imagined: the best change, 823 residents would be better off."), rec
+    )
+    assert not any("top suggestion" in e for e in errs), errs
+
+
+def test_a_turn_with_rehearsal_and_change_gets_a_valid_template():
+    from townshiplens_agent.template import template_answer
+
+    rec = _crec()
+    rec.days.append(DAY)
+    rec.place_names |= {"Older residents (65+)"}
+    rec.tool_calls = ["day_rehearsal", "day_test_change"]
+    a = template_answer(rec, "q")
+    assert validate_answer(a, rec) == [], validate_answer(a, rec)
+    assert any("data gap" in x for x in a.steps)
+
+
+def test_day_show_follows_the_last_call():
+    from townshiplens_agent.run import _answer_events
+
+    rec = _crec()
+    rec.days.append({**DAY, "show_at": "13:15"})
+    rec.tool_calls = ["day_test_change", "day_rehearsal"]  # the rehearsal came last
+    a = FinalAnswer(**__import__("townshiplens_agent.template", fromlist=["x"]).day_answer(DAY, []))
+    ctx = tools.Ctx(world=load_world(TINY), vrs=VerificationStore(":memory:"))
+    show = [
+        e.intent
+        for e in _answer_events(a, rec, ctx)
+        if e.type == "scene.intent" and e.intent.kind == "day.show"
+    ]
+    assert show[0].day == "weekday" and show[0].t_min == 13 * 60 + 15
+
+
+def test_the_mock_routes_day_changes_by_the_named_day():
+    import re
+
+    from townshiplens_agent.mock import _DAY_CHANGE, _day_id
+
+    q = "what if we raise the flooded road in the event rehearsal? option 3"
+    assert re.search(_DAY_CHANGE, q) and _day_id(q) == "event"
+    assert not re.search(_DAY_CHANGE, "how does the rehearsal change when the river rises?")
+    assert _day_id("what happens to residents in the storm rehearsal?") == "storm"
+
+
+def test_mcp_drops_the_map_only_geometry():
+    from townshiplens_agent.mcp_server import MAP_ONLY
+
+    assert MAP_ONLY["day_test_change"] == ("changed_geojson",)
