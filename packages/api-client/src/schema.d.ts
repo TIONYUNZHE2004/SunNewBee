@@ -616,6 +616,7 @@ export interface paths {
         /**
          * Verify Next
          * @description Survey plan: which facts to check first so the most sample journeys would be confirmed.
+         *     The same cached tool the assistant calls (cached per world version and open tickets).
          */
         get: operations["verify_next_verify_next_get"];
         put?: never;
@@ -3416,14 +3417,19 @@ export interface operations {
                     "application/json": components["schemas"]["VerificationPlan"];
                 };
             };
-            /** @description Validation Error */
+            /** @description unknown or non-walking profile */
             422: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                content?: never;
+            };
+            /** @description busy */
+            503: {
+                headers: {
+                    [name: string]: unknown;
                 };
+                content?: never;
             };
         };
     };

@@ -815,3 +815,20 @@ Ruling W21: the answer frame follows the answer's language, not the question's. 
 **Demo-day fix.** The demo script's recovery line said "click Lite map or List", but the current UI had no such control. The settings popover now has **Map view: 3D / Lite map / List (text)**, with reasons for views the device cannot show. A browser check on the seed with the mock: the lite map draws the what-if, with the legend.
 
 Ruling W22: the view switch lives in the existing settings popover (shaoxian04's map-ui), not a new toolbar. It is one radiogroup, uses the store's `setView`, and makes the documented recovery step real. Cost if wrong: the UI owner may want it elsewhere; it is a self-contained block.
+
+## Cycle 9: the world model warms itself (demo hardening) (17 Oct, 00:44)
+
+**Why:** cold on the seed, the rising-river rollout takes 14.6 s, the What-if suggestions 9.5 s, and the survey plan 4.7 s *on every load* (the endpoint bypassed the cache). The demo script asked the presenter to open each screen 10 minutes before going on stage, and any ticket resolved on stage made those screens cold again.
+
+**What was built:**
+- `apps/api/warm.py`: one daemon thread, started from the lifespan and on by default. It computes the screens' default requests through the same cached tool functions, so the cache keys match. It warms again within 10 s of any world-version change.
+- `/healthz` reports `world_model`: state, timings and version.
+- `/verify-next` now goes through the cached `tools.plan_verifications` (503 when busy, 422 for a non-walking profile).
+- A lock on the shared world-model caches, which request threads and the warm thread now share.
+
+**Evidence:**
+- 5 new API tests: the endpoints hit the warmed entries with no new cache entries, health, a failing job, a re-warm on version change, and the profile check.
+- Seed, dev server, through the proxy: warm-up took 14.6 s + 9.5 s + 4.7 s in the background. After that, rollout answered in 21 ms, survey plan in 7 ms and suggestions in 3 ms.
+- Full checklist PASS. gen showed only the uncommitted client diff for the new 422/503 responses.
+
+**Ruling W23:** warm the defaults only. These are the requests the screens make on open. The What-if Lab's own runs depend on what staff tick, so they are not guessed. Cost if wrong: a presenter who changes persona or budget first waits once.

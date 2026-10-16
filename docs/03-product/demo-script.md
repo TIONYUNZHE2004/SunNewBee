@@ -45,7 +45,7 @@ Two ways to run it. **Walkthrough:** open `/?demo=hero` and step through the 8 c
 
 This segment uses only the current screens (`/` and `/tickets`). The chips are replayed from the demo cache in `DEMO_MODE`.
 
-**Warm the caches first (T–10 min).** The first rising-river simulation on the seed takes about 15 s and the What-if Lab's suggestions about 5 s. Open both once before going on stage; after that they are instant.
+**Caches warm themselves.** The API computes the rising-river simulation, the What-if Lab's suggestions and the survey plan in the background after it starts (about 30 s on the seed), and again within about 10 s of any change to the world (a resolved ticket, a closure). Check `GET /api/healthz` → `world_model.state: "warm"` before going on stage; after that those screens answer in milliseconds.
 
 | Time | On screen | Say (presenter) |
 |---|---|---|

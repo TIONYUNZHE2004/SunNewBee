@@ -5797,7 +5797,7 @@
     },
     "/verify-next": {
       "get": {
-        "description": "Survey plan: which facts to check first so the most sample journeys would be confirmed.",
+        "description": "Survey plan: which facts to check first so the most sample journeys would be confirmed.\nThe same cached tool the assistant calls (cached per world version and open tickets).",
         "operationId": "verify_next_verify_next_get",
         "parameters": [
           {
@@ -5849,14 +5849,10 @@
             "description": "Successful Response"
           },
           "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
+            "description": "unknown or non-walking profile"
+          },
+          "503": {
+            "description": "busy"
           }
         },
         "summary": "Verify Next"

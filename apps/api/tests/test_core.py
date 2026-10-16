@@ -8,7 +8,8 @@ c = TestClient(app)
 
 
 def test_health_and_site():
-    assert c.get("/healthz").json() == {"status": "ok"}
+    h = c.get("/healthz").json()
+    assert h["status"] == "ok" and h["world_model"]["state"] in ("off", "warming", "warm")
     assert c.get("/site").json()["id"] == "tiny"
 
 

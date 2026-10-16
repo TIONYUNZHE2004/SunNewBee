@@ -795,6 +795,7 @@ _WM_SLOTS = threading.BoundedSemaphore(2)
 _WM_WAIT_S = 20.0
 _WM_CACHE: OrderedDict[str, ToolResult] = OrderedDict()
 _WM_CACHE_MAX = 32
+_WM_CACHE_LOCK = threading.Lock()
 
 
 # Ticket impact (staff board) has its own, larger cache of small results keyed by the fact, not
@@ -815,10 +816,11 @@ def _wm_cached(
     wait_s: float = _WM_WAIT_S,
 ) -> ToolResult:
     key = json.dumps([kind, id(world), world.version, args], sort_keys=True, default=str)
-    hit = cache.get(key)
-    if hit is not None:
-        cache.move_to_end(key)
-        return hit.model_copy(deep=True)
+    with _WM_CACHE_LOCK:  # request threads and the warm-up thread share the caches
+        hit = cache.get(key)
+        if hit is not None:
+            cache.move_to_end(key)
+            return hit.model_copy(deep=True)
     if not _WM_SLOTS.acquire(timeout=wait_s):
         return ToolResult(ok=False, warnings=["the township model is busy; try again shortly"])
     try:
@@ -826,9 +828,10 @@ def _wm_cached(
     finally:
         _WM_SLOTS.release()
     if res.ok and not (isinstance(res.data, dict) and res.data.get("stopped_early")):
-        cache[key] = res.model_copy(deep=True)  # a stopped (partial) search is not cached
-        while len(cache) > cache_max:
-            cache.popitem(last=False)
+        with _WM_CACHE_LOCK:
+            cache[key] = res.model_copy(deep=True)  # a stopped (partial) search is not cached
+            while len(cache) > cache_max:
+                cache.popitem(last=False)
     return res
 
 

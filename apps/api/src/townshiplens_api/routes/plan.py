@@ -23,27 +23,31 @@ def _prior() -> dict:
     return belief.load_prior(state.data_dir() / "belief_prior.json")
 
 
-def _open_tickets() -> dict[tuple[str, str], str]:
-    out: dict[tuple[str, str], str] = {}
-    for status in ("open", "in_progress"):
-        for vr in state.get_ctx().vrs.list(status=status):
-            out.setdefault((vr.element_id, vr.attribute), vr.id)
-    return out
-
-
-@router.get("/verify-next", response_model=VerificationPlan)
+@router.get(
+    "/verify-next",
+    response_model=VerificationPlan,
+    responses={
+        422: {"description": "unknown or non-walking profile"},
+        503: {"description": "busy"},
+    },
+)
 def verify_next(
     profile: str = "wheelchair",
     scope: Literal["suite", "evacuation"] = "evacuation",
     budget: int = Query(15, ge=1, le=planner.MAX_BUDGET),
 ) -> VerificationPlan:
-    """Survey plan: which facts to check first so the most sample journeys would be confirmed."""
+    """Survey plan: which facts to check first so the most sample journeys would be confirmed.
+    The same cached tool the assistant calls (cached per world version and open tickets)."""
+    from townshiplens_spatial import tools
+
     ctx = state.get_ctx()
     if profile not in ctx.world.profiles:
         raise HTTPException(status_code=422, detail=f"unknown profile {profile}")
-    return planner.plan_verifications(
-        ctx.world, profile, scope, budget, open_tickets=_open_tickets(), prior=_prior()
-    )
+    res = tools.plan_verifications(ctx, profile, scope, budget)
+    if not res.ok:
+        busy = any("busy" in w for w in res.warnings)
+        raise HTTPException(status_code=503 if busy else 422, detail="; ".join(res.warnings))
+    return VerificationPlan.model_validate(res.data)
 
 
 class BeliefRow(BaseModel):

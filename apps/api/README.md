@@ -18,7 +18,7 @@ With no seed data present the API falls back to the tiny test fixture.
 
 | Method | Path | Notes |
 |---|---|---|
-| GET | `/healthz` | liveness |
+| GET | `/healthz` | liveness, plus `world_model`: the background warm-up's state (`warming` / `warm`), timings and world version |
 | GET | `/site` | site config |
 | GET | `/profiles` | read-only profile parameters (hard/soft limits, allowed types, speed, `stub`) for the "Assumptions" view |
 | GET | `/layers/{lens}` | `access`, `flood`, `waste`; `?profile=&scenario_id=`; LineStrings carry `status_for_profile` (ok, unknown, blocked, flooded_likely, flooded_possible); 404 unknown lens. Sends `ETag` and `Cache-Control: private, max-age=0, must-revalidate`; a matching `If-None-Match` gets 304. The ETag changes when a claim changes (`world.version`) and on API restart |
@@ -64,3 +64,14 @@ With no seed data present the API falls back to the tiny test fixture.
 
 - Real staff auth (replace the shared token)
 - Deploy to Cloud Run with a persistent database
+
+## World-model warm-up (Cycle 9)
+
+`warm.py` starts one daemon thread from the lifespan (`WARM_WORLD_MODEL=true`, the default; tests set it to false). The thread computes the screens' default requests through the same cached tool functions as the endpoints, so the cache keys match:
+
+- `GET /river-rollout`;
+- `GET /what-if/suggestions` for wheelchair;
+- `GET /verify-next` with wheelchair / evacuation / 15.
+
+It warms again whenever `world.version` changes (it polls every 10 s). It takes the same two solver slots as requests, and a failing job is logged and skipped. `/verify-next` now goes through the cached `tools.plan_verifications`, so a busy solver returns 503.
+
