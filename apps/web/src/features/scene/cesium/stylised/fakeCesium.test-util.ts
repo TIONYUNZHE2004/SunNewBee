@@ -11,6 +11,7 @@ export function fakeCesium() {
   class FakePrimitive {
     destroyed = false;
     ready = false;
+    show = true;
     kind = "Primitive";
     destroy = vi.fn(() => {
       this.destroyed = true;
@@ -63,6 +64,12 @@ export function fakeCesium() {
   class Plain {
     constructor(public options?: unknown) {}
   }
+  class FakeColor {
+    constructor(public css: string) {}
+    withAlpha(a: number) {
+      return { css: this.css, alpha: a };
+    }
+  }
   class Cartesian3 {
     constructor(
       public x = 0,
@@ -103,7 +110,14 @@ export function fakeCesium() {
       }
       static fromType = (type: string, u: Record<string, unknown>) => new FakeMaterial(type, u);
     },
-    Color: { fromCssColorString: (c: string) => ({ css: c }) },
+    Color: {
+      fromCssColorString: (c: string) => new FakeColor(c),
+    },
+    EllipseGeometry: geom("ellipse"),
+    DistanceDisplayCondition: Plain,
+    DistanceDisplayConditionGeometryInstanceAttribute: {
+      fromDistanceDisplayCondition: (c: unknown) => ({ ddc: c }),
+    },
     ClassificationType: { TERRAIN: 0, BOTH: 2 },
     ShadowMode: { ENABLED: 1, CAST_ONLY: 2 },
     CornerType: { ROUNDED: 0 },

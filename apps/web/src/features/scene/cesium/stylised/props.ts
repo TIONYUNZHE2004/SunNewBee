@@ -1,8 +1,9 @@
 import type * as Cesium from "cesium";
 import type { Road } from "./ground";
-import { lightUniforms, litColorMaterial, setLightUniforms } from "./lighting";
+import { LIT_COLOR_SOURCE, lightUniforms, litColorMaterial, setLightUniforms } from "./lighting";
 import { hashUnit } from "./model";
 import type { Palette } from "./palette";
+import type { RoofItem } from "./roofs";
 
 /**
  * Decorative props: trees and static parked cars. Illustrative only: never pickable, never
@@ -13,13 +14,19 @@ export interface Tree {
   lon: number;
   lat: number;
   h: number;
+  /** A second, smaller canopy above the first. */
+  tier2: boolean;
+}
+export interface Lamp {
+  lon: number;
+  lat: number;
 }
 export interface Car {
   lon: number;
   lat: number;
   /** Direction of the street, radians counter-clockwise from east (local ENU). */
   headingRad: number;
-  tone: 0 | 1 | 2;
+  tone: 0 | 1 | 2 | 3 | 4;
 }
 
 const M_PER_DEG = 111_320;
@@ -93,7 +100,7 @@ export function kerbCars(
       if (hashUnit(s.key, "car") >= density) continue;
       const side = hashUnit(s.key, "side") < 0.5 ? 1 : -1;
       const p = offset(s, side * (r.widthM / 2 - 1));
-      const tone = Math.min(2, Math.floor(hashUnit(s.key, "tone") * 3)) as 0 | 1 | 2;
+      const tone = Math.min(4, Math.floor(hashUnit(s.key, "tone") * 5)) as Car["tone"];
       out.push({ key: s.key, v: { ...p, headingRad: Math.atan2(s.uy, s.ux), tone } });
     }
   }
@@ -112,7 +119,26 @@ export function streetTrees(
     slotsAlong(r, `${seed}:tree`, spacingM).forEach((s, n) => {
       if (hashUnit(s.key, "keep") >= keep) return;
       const p = offset(s, (n % 2 === 0 ? 1 : -1) * (r.widthM / 2 + 2.5));
-      out.push({ key: s.key, v: { ...p, h: 4 + hashUnit(s.key, "h") * 4 } });
+      out.push({
+        key: s.key,
+        v: { ...p, h: 4 + hashUnit(s.key, "h") * 4, tier2: hashUnit(s.key, "t2") < 0.5 },
+      });
+    });
+  }
+  return cap(out, max);
+}
+
+/** Street lamps along residential and major roads, alternating sides (display only). */
+export function streetLamps(
+  roads: Road[],
+  seed: string,
+  { spacingM = 30, max = 3000 } = {},
+): Lamp[] {
+  const out: { v: Lamp; key: string }[] = [];
+  for (const r of roads) {
+    if (r.kind !== "residential" && r.kind !== "major") continue;
+    slotsAlong(r, `${seed}:lamp`, spacingM).forEach((s, n) => {
+      out.push({ key: s.key, v: offset(s, (n % 2 ? 1 : -1) * (r.widthM / 2 + 1.5)) });
     });
   }
   return cap(out, max);
@@ -126,6 +152,9 @@ export type PropsCesium = Pick<
   | "EllipsoidGeometry"
   | "CylinderGeometry"
   | "BoxGeometry"
+  | "EllipseGeometry"
+  | "DistanceDisplayCondition"
+  | "DistanceDisplayConditionGeometryInstanceAttribute"
   | "MaterialAppearance"
   | "Material"
   | "Color"
@@ -148,19 +177,38 @@ export interface Props {
 
 type ColourOf = (p: Palette) => string;
 
+/** Lit like every prop, plus a warm emission scaled by the `glow` uniform (lamp heads). */
+const LAMP_HEAD_SOURCE = LIT_COLOR_SOURCE.replace(
+  "return m;",
+  "m.emission = color.rgb * glow;\n  return m;",
+);
+
 /**
- * Trees (low-poly canopy + trunk) and parked cars (body + cabin) as a few instanced Primitives,
- * one per colour, so the Day/Night swap is a material uniform write. Unit geometries are shared and
- * sized by each instance's model matrix. Lit by the shared stylised lighting model (`lighting.ts`).
+ * Trees (two-tier low-poly canopy + trunk), parked cars, street lamps with light pools and rooftop
+ * clutter as a few instanced Primitives, one per colour, so the Day/Night swap is a material
+ * uniform write. Unit geometries are shared and sized by each instance's model matrix. Lit by the
+ * shared stylised lighting model (`lighting.ts`). Lamps, pools and roof items are fine detail: they
+ * carry a distance-display condition (`detailRangeM`) and are not built at all when it is 0.
  */
 export function buildProps(
   C: PropsCesium,
   {
     trees,
     cars,
+    lamps,
+    roofItems,
     palette,
     at,
-  }: { trees: Tree[]; cars: Car[]; palette: Palette; at: { lon: number; lat: number } },
+    detailRangeM,
+  }: {
+    trees: Tree[];
+    cars: Car[];
+    lamps: Lamp[];
+    roofItems: RoofItem[];
+    palette: Palette;
+    at: { lon: number; lat: number };
+    detailRangeM: number;
+  },
   collection?: PrimitiveCollectionLike,
 ): Props {
   const vertexFormat = C.MaterialAppearance.MaterialSupport.BASIC.vertexFormat;
@@ -194,37 +242,112 @@ export function buildProps(
     if (heading !== 0) C.Matrix4.multiplyByMatrix3(m, C.Matrix3.fromRotationZ(heading), m);
     return C.Matrix4.multiplyByScale(m, new C.Cartesian3(sx, sy, sz), m);
   };
-  const inst = (geometry: Cesium.Geometry | Cesium.GeometryFactory, modelMatrix: Cesium.Matrix4) =>
-    new C.GeometryInstance({ geometry: geometry as Cesium.Geometry, modelMatrix });
+  const nearOnly = () => ({
+    distanceDisplayCondition:
+      C.DistanceDisplayConditionGeometryInstanceAttribute.fromDistanceDisplayCondition(
+        new C.DistanceDisplayCondition(0, detailRangeM),
+      ),
+  });
+  const inst = (
+    geometry: Cesium.Geometry | Cesium.GeometryFactory,
+    modelMatrix: Cesium.Matrix4,
+    near = false,
+  ) =>
+    new C.GeometryInstance({
+      geometry: geometry as Cesium.Geometry,
+      modelMatrix,
+      ...(near ? { attributes: nearOnly() } : {}),
+    });
 
   const groups: {
     colour: ColourOf;
     instances: Cesium.GeometryInstance[];
-    shadows: Cesium.ShadowMode;
+    /** Emissive lamp heads (carry a `glow` uniform). */
+    emissive?: boolean;
   }[] = [
-    { colour: (p) => p.tree[0], instances: [], shadows: C.ShadowMode.CAST_ONLY },
-    { colour: (p) => p.tree[1], instances: [], shadows: C.ShadowMode.CAST_ONLY },
-    { colour: (p) => p.trunk, instances: [], shadows: C.ShadowMode.CAST_ONLY },
-    { colour: (p) => p.car[0], instances: [], shadows: C.ShadowMode.CAST_ONLY },
-    { colour: (p) => p.car[1], instances: [], shadows: C.ShadowMode.CAST_ONLY },
-    { colour: (p) => p.car[2], instances: [], shadows: C.ShadowMode.CAST_ONLY },
+    { colour: (p) => p.tree[0], instances: [] },
+    { colour: (p) => p.tree[1], instances: [] },
+    { colour: (p) => p.tree[2], instances: [] },
+    { colour: (p) => p.trunk, instances: [] },
+    { colour: (p) => p.car[0], instances: [] },
+    { colour: (p) => p.car[1], instances: [] },
+    { colour: (p) => p.car[2], instances: [] },
+    { colour: (p) => p.car[3], instances: [] },
+    { colour: (p) => p.car[4], instances: [] },
+    { colour: (p) => p.lampPost, instances: [] },
+    { colour: (p) => p.lampHead, instances: [], emissive: true },
+    { colour: (p) => p.roofItem, instances: [] },
   ];
+  const [TREE, TRUNK, CAR, POST, HEAD, ROOF] = [0, 3, 4, 9, 10, 11] as const;
   for (const t of trees) {
-    const tone = hashUnit(`${t.lon.toFixed(6)},${t.lat.toFixed(6)}`, "tree") < 0.55 ? 0 : 1;
+    const key = `${t.lon.toFixed(6)},${t.lat.toFixed(6)}`;
+    const tone = Math.min(2, Math.floor(hashUnit(key, "tree") * 3));
     const r = t.h * 0.32;
-    groups[tone]!.instances.push(inst(canopy, frame(t.lon, t.lat, t.h * 0.6, r, r, t.h * 0.38)));
-    groups[2]!.instances.push(inst(trunk, frame(t.lon, t.lat, t.h * 0.18, 0.22, 0.22, t.h * 0.36)));
+    const g = groups[TREE + tone]!.instances;
+    g.push(inst(canopy, frame(t.lon, t.lat, t.h * 0.6, r, r, t.h * 0.38)));
+    if (t.tier2)
+      g.push(inst(canopy, frame(t.lon, t.lat, t.h * 0.85, r * 0.7, r * 0.7, t.h * 0.26)));
+    groups[TRUNK]!.instances.push(
+      inst(trunk, frame(t.lon, t.lat, t.h * 0.18, 0.22, 0.22, t.h * 0.36)),
+    );
   }
   for (const c of cars) {
-    const g = groups[3 + c.tone]!.instances;
+    const g = groups[CAR + c.tone]!.instances;
     g.push(inst(box, frame(c.lon, c.lat, 0.6, 4.2, 1.8, 0.9, c.headingRad)));
     g.push(inst(box, frame(c.lon, c.lat, 1.35, 2.3, 1.6, 0.6, c.headingRad)));
   }
+  // Fine detail: only near the camera, and not built at all on the Low tier.
+  const poolInstances: Cesium.GeometryInstance[] = [];
+  if (detailRangeM > 0) {
+    for (const l of lamps) {
+      groups[POST]!.instances.push(inst(trunk, frame(l.lon, l.lat, 2.25, 0.08, 0.08, 4.5), true));
+      groups[HEAD]!.instances.push(inst(box, frame(l.lon, l.lat, 4.5, 0.5, 0.25, 0.15), true));
+      poolInstances.push(
+        new C.GeometryInstance({
+          geometry: new C.EllipseGeometry({
+            center: C.Cartesian3.fromDegrees(l.lon, l.lat),
+            semiMajorAxis: 5,
+            semiMinorAxis: 5,
+            height: 0.05,
+            vertexFormat,
+          }),
+          attributes: nearOnly(),
+        }),
+      );
+    }
+    for (const it of roofItems) {
+      const z = it.z + it.sizeM / 2;
+      groups[ROOF]!.instances.push(
+        it.kind === "tank"
+          ? inst(trunk, frame(it.lon, it.lat, z, it.sizeM / 2, it.sizeM / 2, it.sizeM), true)
+          : inst(box, frame(it.lon, it.lat, z, it.sizeM, it.sizeM, it.sizeM), true),
+      );
+    }
+  }
 
-  let parts: { prim: Cesium.Primitive; mat: Cesium.Material; colour: ColourOf }[] = [];
-  for (const { colour, instances, shadows } of groups) {
+  interface Part {
+    prim: Cesium.Primitive;
+    mat: Cesium.Material;
+    /** Lit materials also take the shared light uniforms. */
+    lit: boolean;
+    update(p: Palette): void;
+  }
+  let parts: Part[] = [];
+  for (const { colour, instances, emissive } of groups) {
     if (instances.length === 0) continue;
-    const mat = litColorMaterial(C, colour(palette), palette, at);
+    const mat = emissive
+      ? new C.Material({
+          fabric: {
+            uniforms: {
+              color: C.Color.fromCssColorString(colour(palette)),
+              glow: palette.glow,
+              ...lightUniforms(C, palette, at),
+            },
+            source: LAMP_HEAD_SOURCE,
+          },
+          translucent: false,
+        })
+      : litColorMaterial(C, colour(palette), palette, at);
     const prim = new C.Primitive({
       geometryInstances: instances,
       appearance: new C.MaterialAppearance({
@@ -235,20 +358,56 @@ export function buildProps(
         closed: true,
       }),
       allowPicking: false,
-      shadows,
+      shadows: C.ShadowMode.CAST_ONLY,
       asynchronous: true,
       releaseGeometryInstances: true,
     });
     collection?.add(prim);
-    parts.push({ prim, mat, colour });
+    parts.push({
+      prim,
+      mat,
+      lit: true,
+      update(p) {
+        mat.uniforms.color = C.Color.fromCssColorString(colour(p));
+        if (emissive) mat.uniforms.glow = p.glow;
+      },
+    });
+  }
+  if (poolInstances.length > 0) {
+    const poolColour = (p: Palette) =>
+      C.Color.fromCssColorString(p.lightPool).withAlpha(0.35 * p.glow);
+    const mat = C.Material.fromType("Color", { color: poolColour(palette) });
+    const prim = new C.Primitive({
+      geometryInstances: poolInstances,
+      appearance: new C.MaterialAppearance({
+        material: mat,
+        materialSupport: C.MaterialAppearance.MaterialSupport.BASIC,
+        translucent: true,
+        flat: true,
+      }),
+      allowPicking: false,
+      asynchronous: true,
+      releaseGeometryInstances: true,
+    });
+    prim.show = palette.glow > 0;
+    collection?.add(prim);
+    parts.push({
+      prim,
+      mat,
+      lit: false,
+      update(p) {
+        mat.uniforms.color = poolColour(p);
+        prim.show = p.glow > 0;
+      },
+    });
   }
 
   return {
     setPalette(p) {
       const light = lightUniforms(C, p, at);
-      for (const { mat, colour } of parts) {
-        mat.uniforms.color = C.Color.fromCssColorString(colour(p));
-        setLightUniforms(mat, light);
+      for (const { mat, lit, update } of parts) {
+        update(p);
+        if (lit) setLightUniforms(mat, light);
       }
     },
     destroy() {

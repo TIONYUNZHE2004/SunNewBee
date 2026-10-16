@@ -18,7 +18,7 @@ import {
 import { groupByClass, toBuildings, treesToPoints } from "./model";
 import { paletteFor } from "./palette";
 import { applyPostFx } from "./postfx";
-import { buildProps, kerbCars, type Props, streetTrees } from "./props";
+import { buildProps, kerbCars, type Props, streetLamps, streetTrees } from "./props";
 import {
   createFrameMonitor,
   createFrameSampler,
@@ -29,6 +29,7 @@ import {
   type Tier,
 } from "./quality";
 import { reskinPalette } from "./reskin";
+import { roofClutter } from "./roofs";
 
 export interface StylisedReady {
   buildings: number;
@@ -136,8 +137,10 @@ export function StylisedCity({ onReady }: { onReady?: (info: StylisedReady) => v
     () => ({
       trees: [...treesToPoints(data?.trees), ...streetTrees(roads, PROPS_SEED)],
       cars: kerbCars(roads, PROPS_SEED),
+      lamps: streetLamps(roads, PROPS_SEED),
+      roofItems: roofClutter(parsed ? [...parsed.classes.values()].flat() : [], PROPS_SEED),
     }),
-    [data, roads],
+    [data, roads, parsed],
   );
 
   useEffect(() => {
@@ -198,24 +201,6 @@ export function StylisedCity({ onReady }: { onReady?: (info: StylisedReady) => v
     };
   }, [viewer, roads, water, parks]);
 
-  useEffect(() => {
-    if (!viewer || viewer.isDestroyed() || !details) return;
-    if (decor.trees.length === 0 && decor.cars.length === 0) return;
-    const h = buildProps(
-      Cesium,
-      { ...decor, palette: paletteFor(useTheme.getState().theme), at: home },
-      viewer.scene.primitives,
-    );
-    props.current = h;
-    viewer.scene.requestRender();
-    return () => {
-      props.current = null;
-      if (viewer.isDestroyed()) return;
-      h.destroy();
-      viewer.scene.requestRender();
-    };
-  }, [viewer, decor, details, home]);
-
   // Quality tier: the user's choice, or the GPU-picked tier lowered by the frame monitor.
   const quality = useSceneSettings((s) => s.quality);
   const detected = useMemo<Tier>(() => {
@@ -234,6 +219,30 @@ export function StylisedCity({ onReady }: { onReady?: (info: StylisedReady) => v
   const [dropped, setDropped] = useState<Tier | null>(null);
   const autoTier = dropped ?? detected;
   const tier: Tier = quality === "auto" ? autoTier : quality;
+
+  useEffect(() => {
+    if (!viewer || viewer.isDestroyed() || !details) return;
+    if (decor.trees.length + decor.cars.length + decor.lamps.length + decor.roofItems.length === 0)
+      return;
+    const h = buildProps(
+      Cesium,
+      {
+        ...decor,
+        palette: paletteFor(useTheme.getState().theme),
+        at: home,
+        detailRangeM: TIERS[tier].detailRangeM,
+      },
+      viewer.scene.primitives,
+    );
+    props.current = h;
+    viewer.scene.requestRender();
+    return () => {
+      props.current = null;
+      if (viewer.isDestroyed()) return;
+      h.destroy();
+      viewer.scene.requestRender();
+    };
+  }, [viewer, decor, details, home, tier]);
   useEffect(() => {
     if (!viewer || viewer.isDestroyed() || quality !== "auto") return;
     const monitor = createFrameMonitor(() => setDropped((d) => lowerTier(d ?? detected)));

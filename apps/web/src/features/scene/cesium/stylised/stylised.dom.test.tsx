@@ -159,7 +159,10 @@ describe("decorative props honesty", () => {
   it("props are never pickable and carry no pick id", () => {
     const f = fakeCesium();
     buildProps(f.C as unknown as PropsCesium, {
-      trees: [{ lon: 101.5, lat: 3.18, h: 8 }],
+      trees: [{ lon: 101.5, lat: 3.18, h: 8, tier2: true }],
+      lamps: [{ lon: 101.5, lat: 3.1801 }],
+      roofItems: [{ lon: 101.5, lat: 3.18, z: 10, kind: "ac", sizeM: 1.2 }],
+      detailRangeM: 1500,
       cars: [{ lon: 101.5, lat: 3.181, headingRad: 0, tone: 0 }],
       palette: paletteFor("night"),
       at: { lon: 101.5, lat: 3.18 },
@@ -208,6 +211,7 @@ describe("decorative props honesty", () => {
       buildProps: () => ({ setPalette: vi.fn(), destroy: vi.fn() }),
       kerbCars: () => [],
       streetTrees: () => [],
+      streetLamps: () => [],
     }));
     vi.doMock("./reskin", () => ({ reskin: vi.fn(), reskinPalette: vi.fn() }));
     const { StylisedCity: City } = await import("./StylisedCity");

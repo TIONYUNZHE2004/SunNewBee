@@ -141,8 +141,9 @@ export function groupByClass(bs: Building[]): Map<string, Building[]> {
   return m;
 }
 
-export function treesToPoints(fc: unknown): { id: string; lon: number; lat: number; h: number }[] {
-  const out: { id: string; lon: number; lat: number; h: number }[] = [];
+type TreePoint = { id: string; lon: number; lat: number; h: number; tier2: boolean };
+export function treesToPoints(fc: unknown): TreePoint[] {
+  const out: TreePoint[] = [];
   const features = isRec(fc) && Array.isArray(fc.features) ? fc.features : [];
   features.forEach((feat: unknown, i: number) => {
     if (!isRec(feat) || !isRec(feat.geometry) || feat.geometry.type !== "Point") return;
@@ -159,6 +160,7 @@ export function treesToPoints(fc: unknown): { id: string; lon: number; lat: numb
       lon,
       lat,
       h: typeof h === "number" && Number.isFinite(h) && h > 0 ? h : 4 + hashUnit(id, "th") * 4,
+      tier2: hashUnit(id, "t2") < 0.5,
     });
   });
   return out;

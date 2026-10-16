@@ -19,10 +19,16 @@ export interface Palette {
   sky: string;
   /** Fog density (exponential, per metre). */
   fog: number;
-  tree: [string, string];
+  tree: [string, string, string];
   trunk: string;
   /** Static parked cars (decorative). */
-  car: [string, string, string];
+  car: [string, string, string, string, string];
+  lampPost: string;
+  lampHead: string;
+  /** Warm pool of light under each street lamp (hidden when glow is 0). */
+  lightPool: string;
+  /** Rooftop AC units and water tanks. */
+  roofItem: string;
   /** Six facade tones (a building's tone is hashed from its id). */
   wall: Record<Tone, string>;
   roof: Record<Tone, string>;
@@ -66,9 +72,13 @@ const NIGHT: Palette = {
   water: "#2b5750",
   sky: "#1f1838",
   fog: 0.0004,
-  tree: ["#2f8c7e", "#1d5a5f"],
+  tree: ["#2f8c7e", "#1d5a5f", "#3f7a5a"],
   trunk: "#3b2b55",
-  car: ["#c8628c", "#4f78c8", "#d8c9a6"],
+  car: ["#c8628c", "#4f78c8", "#d8c9a6", "#c9a24a", "#2a2a3a"],
+  lampPost: "#2a2148",
+  lampHead: "#ffcf7a",
+  lightPool: "#f6a94a",
+  roofItem: "#3f3a66",
   wall: {
     t0: "#4a3b82",
     t1: "#4f4590",
@@ -119,9 +129,13 @@ const DAY: Palette = {
   water: "#8fb8b0",
   sky: "#9bc4e8",
   fog: 0.00025,
-  tree: ["#5fb88a", "#3b8c66"],
+  tree: ["#5fb88a", "#3b8c66", "#8cc66a"],
   trunk: "#8a6a55",
-  car: ["#e0686a", "#5a8fd9", "#f4f1ea"],
+  car: ["#e0686a", "#5a8fd9", "#f4f1ea", "#f2c14e", "#4a4a5a"],
+  lampPost: "#5a5280",
+  lampHead: "#f4efe6",
+  lightPool: "#000000",
+  roofItem: "#b8b2c8",
   wall: {
     t0: "#f1d9c4",
     t1: "#d9d3f0",
@@ -172,9 +186,13 @@ const DUSK: Palette = {
   water: "#5f8f93",
   sky: "#c98aa6",
   fog: 0.0003,
-  tree: ["#4f9a7a", "#2f7466"],
+  tree: ["#4f9a7a", "#2f7466", "#7aa860"],
   trunk: "#6a4a55",
-  car: ["#e0686a", "#5a8fd9", "#f4f1ea"],
+  car: ["#e0686a", "#5a8fd9", "#f4f1ea", "#f2c14e", "#4a4a5a"],
+  lampPost: "#3d2f6b",
+  lampHead: "#ffd08a",
+  lightPool: "#ffb86b",
+  roofItem: "#9f8fb0",
   wall: {
     t0: "#e3b49a",
     t1: "#a99ad6",
