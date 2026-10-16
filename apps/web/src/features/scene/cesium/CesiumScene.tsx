@@ -10,6 +10,7 @@ import { useScene } from "../sceneStore";
 import { useMapStyle } from "../useMapStyle";
 import { useCameraIntents } from "./camera";
 import { CameraControls, handleMapKey } from "./controls/CameraControls";
+import { trackHeading } from "./controls/cameraHeadingStore";
 import { type CameraOps, createCameraOps, frameNow } from "./controls/cameraOps";
 import { configureControls } from "./controls/configureControls";
 import { movedInputs } from "./controls/movedInputs";
@@ -52,12 +53,10 @@ function SceneSetup({
   onNoDraping,
   onTilesFailed,
   onOps,
-  onCameraChange,
 }: {
   onNoDraping: () => void;
   onTilesFailed: () => void;
   onOps?: (ops: CameraOps | null) => void;
-  onCameraChange?: () => void;
 }) {
   const { viewer } = useCesium();
   const profile = useScene((s) => s.profile);
@@ -178,12 +177,12 @@ function SceneSetup({
     return () => ro.disconnect();
   }, [viewer, style]);
 
-  // Tell the parent when the camera moves, so the compass follows the heading.
+  // The compass follows the heading through its own store, so camera moves never re-render the
+  // Viewer subtree (only the compass subscribes).
   useEffect(() => {
     if (!viewer || viewer.isDestroyed()) return;
-    viewer.camera.percentageChanged = 0.01;
-    return viewer.camera.changed.addEventListener(() => onCameraChange?.());
-  }, [viewer, onCameraChange]);
+    return trackHeading(viewer.camera);
+  }, [viewer]);
 
   // Camera actions (buttons, keyboard, double-click) and the mouse/touch mapping with limits.
   const onOpsRef = useRef(onOps);
@@ -223,14 +222,12 @@ export default function CesiumScene({ onOps }: { onOps?: (ops: CameraOps | null)
   const { style } = useMapStyle();
   const theme = useTheme((s) => s.theme);
   const [ops, setOpsState] = useState<CameraOps | null>(null);
-  const [tick, setTick] = useState(0);
   const onOpsRef = useRef(onOps);
   onOpsRef.current = onOps;
   const setOps = useCallback((o: CameraOps | null) => {
     setOpsState(o);
     onOpsRef.current?.(o);
   }, []);
-  const onCameraChange = useCallback(() => setTick((t) => t + 1), []);
   return (
     <section
       className="relative h-full w-full"
@@ -280,18 +277,13 @@ export default function CesiumScene({ onOps }: { onOps?: (ops: CameraOps | null)
         selectionIndicator={false}
         fullscreenButton={false}
       >
-        <SceneSetup
-          onNoDraping={onNoDraping}
-          onTilesFailed={onTilesFailed}
-          onOps={setOps}
-          onCameraChange={onCameraChange}
-        />
+        <SceneSetup onNoDraping={onNoDraping} onTilesFailed={onTilesFailed} onOps={setOps} />
         {style === "stylised" && <StylisedCity />}
         <AccessLayer />
         <FloodLayer />
         <WasteLayer />
       </Viewer>
-      <CameraControls ops={ops} tick={tick} />
+      <CameraControls ops={ops} />
       <PerfOverlay />
       <SlowBanner />
     </section>

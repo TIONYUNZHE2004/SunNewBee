@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { CameraControls, handleMapKey } from "./CameraControls";
+import { useCameraHeading } from "./cameraHeadingStore";
 import { STEP } from "./cameraMath";
 import type { CameraOps } from "./cameraOps";
 import { useCameraUi } from "./cameraUiStore";
@@ -47,6 +48,18 @@ describe("CameraControls", () => {
     expect(o.whole).toHaveBeenCalled();
     fireEvent.click(screen.getByRole("button", { name: "Face north (N)" }));
     expect(o.faceNorth).toHaveBeenCalled();
+  });
+
+  it("the compass follows the heading store", () => {
+    useCameraHeading.setState({ heading: 0 });
+    render(<CameraControls ops={ops()} />);
+    const needle = () =>
+      screen
+        .getByRole("button", { name: "Face north (N)" })
+        .querySelector("span span") as HTMLElement;
+    expect(needle().style.transform).toBe("rotate(0rad)");
+    act(() => useCameraHeading.setState({ heading: 1.5 }));
+    expect(needle().style.transform).toBe("rotate(-1.5rad)");
   });
 
   it("first-visit hint can be dismissed and stays dismissed", () => {

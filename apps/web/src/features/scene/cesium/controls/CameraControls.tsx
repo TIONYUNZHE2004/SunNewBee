@@ -1,5 +1,6 @@
 import type { KeyboardEvent as ReactKeyboardEvent, ReactNode } from "react";
 import { useState } from "react";
+import { useCameraHeading } from "./cameraHeadingStore";
 import { keyAction, STEP } from "./cameraMath";
 import type { CameraOps } from "./cameraOps";
 import { useCameraUi } from "./cameraUiStore";
@@ -46,12 +47,12 @@ function Btn({
   );
 }
 
-/** `tick` only forces a re-render so the compass follows the camera heading. */
-export function CameraControls({ ops }: { ops: CameraOps | null; tick?: number }) {
+/** The compass reads the heading store, so only these controls re-render on camera moves. */
+export function CameraControls({ ops }: { ops: CameraOps | null }) {
   const { alwaysShow, hintDismissed, dismissHint } = useCameraUi();
   const [peek, setPeek] = useState(false);
   const open = alwaysShow || peek;
-  const heading = ops?.headingRad() ?? 0;
+  const heading = useCameraHeading((s) => s.heading);
   if (!ops) return null;
   return (
     <>
