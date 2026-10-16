@@ -38,3 +38,75 @@ def test_forget_fact_is_not_offered_to_the_model():
 
     kinds = {t.model_fields["kind"].default for t in get_args(get_args(twm.Action)[0])}
     assert "forget_fact" not in kinds
+
+
+def test_own_journey_is_reported_separately_from_the_sample(world):
+    r = impact.fact_impact(
+        world, "seg-cf", "incline_pct", "stroller route Car Park B -> Park kiosk"
+    )
+    plain = impact.fact_impact(world, "seg-cf", "incline_pct", None)
+    # the own journey is not part of `sampled` nor of the sample counts
+    assert r.sampled == len(
+        [
+            j
+            for j in twm.suite_journeys(world, "stroller")[:20]
+            if (j.from_id, j.to_id) != ("park-b", "kiosk")
+        ]
+    )
+    assert r.became_confirmed <= r.sampled
+    assert plain.own is None
+
+
+def test_unparsed_summary_assumes_a_profile_that_uses_the_fact_and_says_so(world):
+    r = impact.fact_impact(world, "seg-cf", "incline_pct", "chat: unknown incline on a path")
+    assert r.own is None and r.profile_assumed is True
+    assert r.profile == "wheelchair"  # wheelchair rules check the incline
+    named = impact.fact_impact(world, "seg-cf", "incline_pct", "stroller route X -> Y")
+    assert named.profile == "stroller" and named.profile_assumed is False and named.own is None
+
+
+def test_ambiguous_names_and_centres(world):
+    world.places["toilet-1"].name = "Car Park B"  # now two places share the name
+    r = impact.fact_impact(
+        world, "seg-cf", "incline_pct", "stroller route Car Park B -> Park kiosk"
+    )
+    assert r.own is None  # never guess which place the ticket meant
+    world.places["toilet-1"].name = "Park toilet"
+    centre = next(iter(world.centres.values()))
+    r = impact.fact_impact(
+        world, "seg-cf", "incline_pct", f"wheelchair route Car Park B -> {centre.name}"
+    )
+    assert r.own is not None and r.own.to_name == centre.name
+
+
+def test_resolved_ticket_without_a_counted_verification_counts_nothing(world):
+    e = world.edges["seg-cf"]
+    for status, ev in (("contested", "staff"), ("verified", "team_survey_placeholder")):
+        e.claims = {**e.claims, "incline_pct": Claim(value=3, status=status, evidence_type=ev)}
+        r = impact.fact_impact(
+            world,
+            "seg-cf",
+            "incline_pct",
+            "stroller route Car Park B -> Park kiosk",
+            ticket_status="resolved",
+        )
+        assert r.mode == "none" and r.sampled == 0 and "not count" in r.note
+
+
+def test_verified_fail_reports_the_routes_it_cut(world):
+    e = world.edges["seg-cf"]
+    e.claims = {
+        **e.claims,
+        "incline_pct": Claim(value=30, status="verified", evidence_type="staff"),
+    }
+    r = impact.fact_impact(
+        world,
+        "seg-cf",
+        "incline_pct",
+        "stroller route Car Park B -> Park kiosk",
+        ticket_status="resolved",
+    )
+    assert r.mode == "did"
+    assert r.own.statuses["before"] == "partly_unverified"
+    assert r.own.statuses["now"] != "confirmed"
+    assert r.became_confirmed == 0

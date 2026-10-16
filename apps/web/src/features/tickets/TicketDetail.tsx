@@ -25,7 +25,7 @@ export function TicketDetail({ ticket }: { ticket: Ticket }) {
           <dd className="text-fg">{ticket.current ?? "Nothing recorded yet"}</dd>
         </div>
       </dl>
-      {!ticket.isRejected && <ImpactCard ticketId={ticket.id} />}
+      {!ticket.isRejected && <ImpactCard ticketId={ticket.id} isOpen={ticket.isOpen} />}
       <div className="mt-5">
         {ticket.isOpen ? (
           <OutcomeForm key={ticket.id} ticket={ticket} />

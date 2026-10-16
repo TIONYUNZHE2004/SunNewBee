@@ -42,5 +42,9 @@ def test_ticket_impact_endpoint():
         )
         vr = next(v for v in state.get_ctx().vrs.list() if v.element_id == "seg-cf").model_dump()
     d = c.get(f"/verification-requests/{vr['id']}/impact").json()
-    assert d["mode"] in ("would", "did") and d["sampled"] >= 1 and "planning estimate" in d["note"]
+    assert d["mode"] == ("did" if vr["status"] == "resolved" else "would")
+    assert d["sampled"] >= 1 and "planning estimate" in d["note"]
+    assert d["profile"] == "stroller" and d["profile_assumed"] is False
+    assert d["own"]["from_name"] == "Car Park B" and d["own"]["to_name"] == "Park kiosk"
+    assert c.get(f"/verification-requests/{vr['id']}/impact").json() == d  # cached by fact
     assert c.get("/verification-requests/vr-9999/impact").status_code == 404

@@ -1495,6 +1495,11 @@
             "title": "Profile",
             "type": "string"
           },
+          "profile_assumed": {
+            "default": false,
+            "title": "Profile Assumed",
+            "type": "boolean"
+          },
           "sampled": {
             "title": "Sampled",
             "type": "integer"
@@ -1684,6 +1689,11 @@
       },
       "OwnJourney": {
         "properties": {
+          "demo_values": {
+            "default": false,
+            "title": "Demo Values",
+            "type": "boolean"
+          },
           "from_name": {
             "title": "From Name",
             "type": "string"

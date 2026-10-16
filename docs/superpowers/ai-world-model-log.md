@@ -610,7 +610,7 @@ Each ruling gives what was decided, why, and the cost if it is wrong.
 
 ---
 
-## Cycle 5: live evaluation and the bulk-payload fix (16 Oct, about 23:00–23:30)
+## Cycle 5: live evaluation and the bulk-payload fix (16 Oct, about 23:12–23:32; commits `655554f`, `e8604a8`)
 
 **What was built:**
 - `evals/run_eval.py` and `evals/suite/elmina.yaml`: 30 questions in 11 categories on the real seed.
@@ -651,7 +651,7 @@ Each ruling gives what was decided, why, and the cost if it is wrong.
 
 ---
 
-## Cycle 6: Bahasa Melayu and 中文 answers, and the pitch segment (16 Oct, about 23:30–23:55)
+## Cycle 6: Bahasa Melayu and 中文 answers, and the pitch segment (16 Oct, about 23:32–23:42; commit `2d5ae80`)
 
 **Problem (measured live).** Correct BM and 中文 answers were pushed into English:
 - The validator required exact English phrases: "demo values, not yet surveyed", "not a forecast", "if … pass", and the "entrance is not mapped" note word for word.
@@ -684,7 +684,7 @@ Each ruling gives what was decided, why, and the cost if it is wrong.
 
 ---
 
-## Cycle 7: ticket impact, value of information on every ticket (17 Oct, about 00:00–00:20)
+## Cycle 7: ticket impact, value of information on every ticket (16 Oct, about 23:42–23:48; commit `f24e821`)
 
 **Spec:** [2026-10-17-ticket-impact-design.md](specs/2026-10-17-ticket-impact-design.md). This makes the timeline's "close the loop live" visible on `/tickets`.
 
@@ -709,3 +709,19 @@ Each ruling gives what was decided, why, and the cost if it is wrong.
 **Integration notes for shaoxian04:**
 - New `tickets/ImpactCard`, inside `TicketDetail` under the facts list.
 - It uses the new `GET /verification-requests/{id}/impact`.
+
+### Cycle 7 review (independent Opus reviewer) and fixes (16 Oct, 23:56)
+
+| # | Severity | Finding | Fix |
+|---|---|---|---|
+| 1 | Important | The public endpoint, cached per ticket id in the shared 32-entry cache, could be thrashed by cycling ids. Each miss costs about 2.8 s and holds one of 2 solver slots for up to 20 s. | Impact has its own 512-entry cache keyed by the **fact** (element, attribute, ticket state, summary). It waits at most 2 s for a slot and then answers "busy". Chat what-ifs are never evicted. |
+| 2 | Important | Tickets that did not name a profile silently got wheelchair numbers, and the card never said which profile. | The first walking profile whose rules use the fact; `profile_assumed` is returned. The card says "Sampled N everyday stroller journeys" and "(profile assumed: …)". |
+| 3 | Important | The own journey used the first name hit (the seed has 18 duplicated names, e.g. "Surau"), ignored centre names, and split on the first " -> ". | No guessing: a name must match exactly one place or centre, and exactly one split must resolve. Otherwise no own journey is shown. |
+| 4 | Important | A just-resolved ticket kept its "would" card for up to 30 s. | The ticket state is in the query key, and resolving invalidates `ticket-impact`. |
+| 5 | Important | The mode followed the claim, not the ticket. A resolved ticket with a contested, stale or placeholder claim read "would". `did` never counted routes cut. | The ticket state is passed in. A resolved ticket without a counted verification gets `none` and says why. `did` counts `lost_route`, and the card says "N lost their route". |
+| 6 | Minor | The own journey was inside the sample, which made the test assertion near-tautological. | It is reported separately; `sampled` and the counts cover the everyday sample only. |
+| 7 | Minor | "Confirmed" could rest on demo values with no caveat. | "Includes demo values, not yet surveyed." whenever the own route carries placeholder evidence. |
+| 8 | Minor | Busy or error looked like "no impact", and loading had no live region. | `role="status"`, and a "busy, try again" message. |
+| 9 | Minor | Weak tests. | Exact modes and profile; tests for ambiguous names, centres, a verified fail, resolved-but-unverified tickets and the cache. The wording moved to a pure `impactModel.ts` with vitest. |
+
+Ruling W19: impact stays public and read-only (counts and place names, like `/verify-next`). Making it staff-only would need the staff token on every ticket view. The fact-keyed cache and the 2 s wait bound the cost instead. Cost if wrong: a scraper could still spend one slot about 2.8 s per distinct fact, at most once per world version.

@@ -1,6 +1,6 @@
 # Ticket impact: what one check would change, and what it changed (Cycle 7 design)
 
-Status: design, 17 Oct 2026, branch `ai/world-model`. This puts value of information on every ticket and makes the team timeline's "close the loop live" ([timeline P2](../../05-team/timeline.md)) visible.
+Status: design, 16 Oct 2026, branch `ai/world-model`. This puts value of information on every ticket and makes the team timeline's "close the loop live" ([timeline P2](../../05-team/timeline.md)) visible.
 
 ## Intent
 

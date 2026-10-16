@@ -1243,6 +1243,11 @@ export interface components {
             own_other_checks?: number | null;
             /** Profile */
             profile: string;
+            /**
+             * Profile Assumed
+             * @default false
+             */
+            profile_assumed: boolean;
             /** Sampled */
             sampled: number;
         };
@@ -1317,6 +1322,11 @@ export interface components {
         };
         /** OwnJourney */
         OwnJourney: {
+            /**
+             * Demo Values
+             * @default false
+             */
+            demo_values: boolean;
             /** From Name */
             from_name: string;
             /** Statuses */

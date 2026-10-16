@@ -797,22 +797,38 @@ _WM_CACHE: OrderedDict[str, ToolResult] = OrderedDict()
 _WM_CACHE_MAX = 32
 
 
-def _wm_cached(world: World, kind: str, args: dict, run) -> ToolResult:
+# Ticket impact (staff board) has its own, larger cache of small results keyed by the fact, not
+# the ticket id, and waits briefly for a slot: cycling through ticket ids cannot evict chat
+# what-ifs or queue threads behind the solver for long.
+_IMPACT_CACHE: OrderedDict[str, ToolResult] = OrderedDict()
+_IMPACT_CACHE_MAX = 512
+_IMPACT_WAIT_S = 2.0
+
+
+def _wm_cached(
+    world: World,
+    kind: str,
+    args: dict,
+    run,
+    cache: OrderedDict[str, ToolResult] = _WM_CACHE,
+    cache_max: int = _WM_CACHE_MAX,
+    wait_s: float = _WM_WAIT_S,
+) -> ToolResult:
     key = json.dumps([kind, id(world), world.version, args], sort_keys=True, default=str)
-    hit = _WM_CACHE.get(key)
+    hit = cache.get(key)
     if hit is not None:
-        _WM_CACHE.move_to_end(key)
+        cache.move_to_end(key)
         return hit.model_copy(deep=True)
-    if not _WM_SLOTS.acquire(timeout=_WM_WAIT_S):
+    if not _WM_SLOTS.acquire(timeout=wait_s):
         return ToolResult(ok=False, warnings=["the township model is busy; try again shortly"])
     try:
         res = run()
     finally:
         _WM_SLOTS.release()
     if res.ok and not (isinstance(res.data, dict) and res.data.get("stopped_early")):
-        _WM_CACHE[key] = res.model_copy(deep=True)  # a stopped (partial) search is not cached
-        while len(_WM_CACHE) > _WM_CACHE_MAX:
-            _WM_CACHE.popitem(last=False)
+        cache[key] = res.model_copy(deep=True)  # a stopped (partial) search is not cached
+        while len(cache) > cache_max:
+            cache.popitem(last=False)
     return res
 
 
@@ -1167,7 +1183,13 @@ def ticket_impact(ctx: Ctx, vr_id: str):
         return ToolResult(ok=False, warnings=[f"unknown verification request {vr_id}"])
     w = ctx.world
     prior = belief.load_prior(w.data_dir / "belief_prior.json") if w.data_dir else {}
-    args = {"vr": vr_id, "element": vr.element_id, "attr": vr.attribute, "status": vr.status}
+    status = "resolved" if vr.status == "resolved" else "open"
+    args = {
+        "element": vr.element_id,
+        "attr": vr.attribute,
+        "status": status,
+        "summary": vr.question_summary,
+    }
     return _wm_cached(
         w,
         "impact",
@@ -1175,7 +1197,10 @@ def ticket_impact(ctx: Ctx, vr_id: str):
         lambda: ToolResult(
             ok=True,
             data=impact.fact_impact(
-                w, vr.element_id, vr.attribute, vr.question_summary, prior
+                w, vr.element_id, vr.attribute, vr.question_summary, prior, status
             ).model_dump(mode="json"),
         ),
+        cache=_IMPACT_CACHE,
+        cache_max=_IMPACT_CACHE_MAX,
+        wait_s=_IMPACT_WAIT_S,
     )
