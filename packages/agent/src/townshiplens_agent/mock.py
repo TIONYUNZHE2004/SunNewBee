@@ -18,6 +18,7 @@ from .labels import (
     unchecked_caveats,
 )
 from .template import (
+    day_answer,
     fixit_answer,
     plan_answer,
     rollout_answer,
@@ -440,10 +441,34 @@ def _whatif(q: str, rets, info: AgentInfo) -> ModelResponse:
     return _final(**whatif_answer(wi, ev))
 
 
+_DAY = r"\brehears|\bsimulated day\b|\belmina day\b|\ba day in elmina\b|\bnormal weekday\b"
+
+
+def _day(q: str, rets, info: AgentInfo) -> ModelResponse:
+    if not rets:
+        sid = (
+            "storm"
+            if re.search(r"storm|flood|rain|river|banjir|水", q)
+            else "event"
+            if re.search(r"event|night|park|community", q)
+            else "friday"
+            if re.search(r"friday|jumaat|jumat|prayer", q)
+            else "weekday"
+        )
+        return _call("day_rehearsal", day=sid)
+    d = _data(rets[-1][1])
+    if not isinstance(d, dict):
+        return _cannot("I couldn't run the simulated day on the township model.")
+    ev = [i for i in _ev_ids(rets) if i.startswith("ev-day-")]
+    return _final(**day_answer(d, ev))
+
+
 def _script(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
     q = _prompt(messages).lower()
     rets = _returns(messages)
     n = len(rets)
+    if re.search(_DAY, q):
+        return _day(q, rets, info)
     if re.search(_FIXIT, q):
         return _fixit(q, rets, info)
     if re.search(_ROLLOUT, q):

@@ -311,6 +311,63 @@ def fixit_answer(fx: dict, evidence_ids: list[str]) -> dict:
     }
 
 
+DAY_CAVEAT = (
+    "Residents are synthetic: a rehearsal on the township model, not a forecast and not real "
+    "people."
+)
+
+
+def day_answer(d: dict, evidence_ids: list[str]) -> dict:
+    """FinalAnswer fields for an Elmina Day rehearsal (shared by the mock and the template).
+    Every number is copied from the tool's summary."""
+    o = d.get("outcomes") or {}
+    sc = d.get("scenario") or {}
+    summary = (
+        f"In this rehearsal of {d.get('residents', 0)} synthetic residents "
+        f"({sc.get('label', 'a simulated day')}), {d.get('trips', 0)} trips: "
+        f"{o.get('on_time', 0)} on time, {o.get('late', 0)} late, {o.get('cancelled', 0)} could "
+        f"not happen and {o.get('turned_back', 0)} turned back. It is a rehearsal, not a forecast."
+    )
+    steps = []
+    for g in d.get("groups") or []:
+        bad = g.get("could_not_make_a_trip", 0)
+        if bad or g.get("late", 0):
+            steps.append(
+                f"{g['label']}: {bad} of {g['residents']} could not make a trip, "
+                f"{g.get('late', 0)} late."
+            )
+    sch = d.get("school") or {}
+    if sch.get("pupils"):
+        steps.append(
+            f"School: {sch.get('on_time', 0)} of {sch['pupils']} pupils on time, "
+            f"{sch.get('cancelled', 0)} could not get there."
+        )
+    caveats = [DAY_CAVEAT]
+    if d.get("river_stages"):
+        caveats.append(FLOOD_GUIDANCE)
+    return {
+        "answer_status": "answered",
+        "summary": summary,
+        "steps": steps[:6],
+        "claims": [
+            {"text": "Elmina Day rehearsal", "status": "indicative", "evidence_ids": evidence_ids}
+        ],
+        "scenario_id": _top_stage(d.get("river_stages") or []),
+        "caveats": caveats,
+    }
+
+
+def _top_stage(stages: list[str]) -> str | None:
+    import re
+
+    best = None
+    for s in stages:
+        m = re.fullmatch(r"stage_p(\d+)m", s or "")
+        if m and (best is None or int(m.group(1)) > int(best.removeprefix("stage_p")[:-1])):
+            best = s
+    return best
+
+
 def template_answer(rec: TurnRecord, question: str) -> FinalAnswer:
     scenario_id = next(iter(sorted(rec.scenarios_used)), None)
     flood_caveats = [
@@ -324,6 +381,7 @@ def template_answer(rec: TurnRecord, question: str) -> FinalAnswer:
     closed = [*rec.route_closures, *rec.asked_closures]
     last_fixit = bool(rec.what_ifs and rec.what_ifs[-1].get("fixit"))
     for items, fn, prefix in (
+        (rec.days, day_answer, "ev-day-"),
         (rec.fixes if last_fixit else [], fixit_answer, "ev-fixit-"),
         (rec.tippings, tipping_answer, "ev-tip-"),
         (rec.rollouts, rollout_answer, "ev-rollout-"),

@@ -23,7 +23,7 @@ export const STARTERS: Record<Mode, Starter[]> = {
       text: "Which facts should staff verify first so wheelchair users can reach a centre?",
       profile: "wheelchair",
     },
-    { text: "What happens to residents as the river rises?", profile: "wheelchair" },
+    { text: "What happens to residents in the storm rehearsal?" },
   ],
 };
 

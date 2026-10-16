@@ -1403,3 +1403,48 @@ def day_compare(ctx: Ctx, scenario_id: str, actions: list) -> ToolResult:
 
     key = {"s": scenario_id, "a": [a.model_dump(mode="json") for a in acts], "on": _today()}
     return _wm_cached(w, "day_compare", key, run, cache=_DAY_CACHE, cache_max=16)
+
+
+def day_rehearsal_summary(ctx: Ctx, day: str = "storm") -> ToolResult:
+    """For the assistant: a simulated day of 5,000 synthetic residents (Elmina Day) in one
+    built-in scenario (weekday | storm | event | friday), summarised: trips by outcome, residents
+    by group, school, the busiest places. A rehearsal, not a forecast; residents are synthetic."""
+    scenario_id = day
+    full = day_rehearsal(ctx, scenario_id)
+    if not full.ok:
+        return full
+    d = full.data
+    sc = d["scenario"]
+    keep = ("on_time", "late", "cancelled", "turned_back", "stranded", "data_gap", "stayed_home")
+    data = {
+        "scenario": {k: sc.get(k) for k in ("id", "label", "summary")},
+        "residents": d["headline"]["residents"],
+        "trips": d["headline"]["trips"],
+        "outcomes": {k: d["headline"].get(k, 0) for k in keep if k != "stayed_home"},
+        "groups": [
+            {
+                **{k: g[k] for k in ("label", "residents", *keep)},
+                # residents with a trip they could not make (cancelled, turned back or stuck)
+                "could_not_make_a_trip": g["cancelled"] + g["turned_back"] + g["stranded"],
+            }
+            for g in d["groups"]
+            if g["id"] != "everyone"
+        ],
+        "school": d["school"],
+        "busiest_places": [
+            {"name": p["name"], "peak": p["peak"], "visits": p["visits"]} for p in d["places"][:3]
+        ],
+        "river_stages": [s for _, s in sc.get("stages", []) if s],
+    }
+    ev = Evidence(
+        id=f"ev-day-{scenario_id}",
+        element_id="day",
+        attribute=scenario_id,
+        value={"residents": data["residents"], "trips": data["trips"]},
+        status="indicative",
+        source_type="rehearsal",
+    )
+    return ToolResult(ok=True, data=data, evidence=[ev], warnings=[d["disclaimer"]])
+
+
+TOOLS["day_rehearsal"] = day_rehearsal_summary

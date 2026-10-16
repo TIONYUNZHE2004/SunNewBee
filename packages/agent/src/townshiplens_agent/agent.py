@@ -346,6 +346,17 @@ async def call_tool(deps: Deps, name: str, **kwargs: Any) -> dict:
         )
         if res.data.get("stage"):
             rec.scenarios_used.add(res.data["stage"])
+    if name == "day_rehearsal" and res.ok and isinstance(res.data, dict):
+        rec.days.append(res.data)
+        stages = res.data.get("river_stages") or []
+        if stages:  # a day with a river rise: the flood disclaimer and scenario rules apply
+            by_m = {s.id: s.stage_m for s in deps.ctx.world.flood.scenarios}
+            rec.scenarios_used.add(max(stages, key=lambda s: by_m.get(s, 0)))
+        rec.place_names |= {
+            p["name"] for p in res.data.get("busiest_places") or [] if p.get("name")
+        }
+        # group labels hold digits ("Older residents (65+)"): names, not counts
+        rec.place_names |= {g["label"] for g in res.data.get("groups") or [] if g.get("label")}
     if name == "river_tipping_point" and res.ok and isinstance(res.data, dict):
         rec.tippings.append(res.data)
         rec.place_names |= {
@@ -623,6 +634,15 @@ def build_agent(model: Model) -> Agent[Deps, FinalAnswer]:
         river stage: counts per stage (reach, confirmed, cut_off, no_data) and who is cut off
         first. The app animates it on the map. Indicative simulation, not a forecast."""
         return await call_tool(ctx.deps, "rising_river_rollout", profiles=profiles, n=n)
+
+    @agent.tool
+    async def day_rehearsal(ctx: RunContext[Deps], day: str = "storm") -> dict:
+        """Elmina Day: a simulated day of 5,000 synthetic residents on the township model, in a
+        built-in scenario: weekday, storm (the river rises during the school run), event (a
+        night at the park) or friday (prayers). Trips by outcome, residents by group (children,
+        older, wheelchair users, parents with strollers, households without a car), school
+        and the busiest places. A rehearsal, not a forecast; residents are synthetic."""
+        return await call_tool(ctx.deps, "day_rehearsal", day=day)
 
     @agent.tool
     async def find_fixes(

@@ -1078,3 +1078,28 @@ A second stretch, about 1.1 km of Persiaran Eserina, helps **96 children and 65 
 **Ruling W27:** the planner's lever against floods is "raise these paths above the indicative flood levels". It is imagined, and the result is phrased as "would", never as a plan or a promise. A real raised walkway needs engineering and hydrology this model does not have. Cost if wrong: a judge reads it as a design. The disclaimer is shown on every comparison.
 
 **Spend:** see the ledger (`.data/spend.jsonl`). This cycle's live calls were 3 town-hall recordings of 4 calls each.
+
+## Cycle 14: the assistant speaks from a rehearsal (17 Oct, 03:54)
+
+**What was built:**
+- **`tools.day_rehearsal`** (assistant tool `day_rehearsal(day=…)`, also on the MCP server) returns a slim summary of a rehearsal:
+  - trips by outcome;
+  - residents by group, including an engine-counted "could not make a trip";
+  - school and the busiest places;
+  - the river stages, and evidence `ev-day-<day>`.
+- **A river-rise day sets the flood scenario,** so the disclaimer and scenario rules apply.
+- **Validator `day_errors`:**
+  - the answer must call it a rehearsal (or simulation) of synthetic residents, in English, BM or 中文;
+  - it must say "not a forecast";
+  - forecast wording ("will be stranded") is refused;
+  - every count must be one the rehearsal produced. Times, measurements, and place names and group labels with digits ("(65+)") are not counts.
+- **The mock and the template change together,** sharing `day_answer`. The template also falls back to it.
+- **Prompt rule 17.**
+- **A Management "Try asking" chip,** "What happens to residents in the storm rehearsal?" (the design keeps 4 per mode, so it replaces the rising-river chip; the rising-river panel stays). Its demo replay is recorded with the mock.
+
+**Found while building:**
+- The template added three outcome counts together, which the validator rejected. The tool now returns the count itself.
+- The generic tool plumbing reads any `scenario_id` argument as a flood scenario, so the parameter is named `day`.
+- "65" in "Older residents (65+)" was read as a count; group labels are now stripped.
+
+**Tests:** `test_day_agent.py` checks that the template passes and that four dishonest answers are each refused, plus a full mock turn on the tiny world. Full checklist PASS (pytest 1,176, vitest 471, golden mock, e2e 17).

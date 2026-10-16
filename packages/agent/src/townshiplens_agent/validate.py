@@ -402,6 +402,7 @@ def validate_answer(ans: FinalAnswer, rec: TurnRecord) -> list[str]:
     errs += plan_errors(ans, rec)
     errs += rollout_errors(ans, rec)
     errs += foreign_number_errors(ans, rec)
+    errs += day_errors(ans, rec)
     errs += affected_errors(ans, rec)
     # Honesty rules apply to every answer, whether or not a tool ran.
     errs += text_errors(all_text, rec)
@@ -585,6 +586,12 @@ FOREIGN_COUNT = re.compile(
     re.IGNORECASE,
 )
 _STEP_NUMBER = re.compile(r"^\s*\d+[.)]\s")
+# Any count in a rehearsal answer ("2,503" is one number); measurements and stages are not.
+_DAY_COUNT = re.compile(
+    r"(?<![\d.,/A-Za-z_+])(\d{1,3}(?:,\d{3})+|\d+)(?![.,/]?\d)"
+    r"(?!\s*(?:m|km|cm|min|minit|mins|minutes?|h|jam|%|metres?|meters?|米|公里|分钟)(?![a-z]))",
+    re.IGNORECASE,
+)
 
 
 def _ints(x) -> set[int]:
@@ -625,6 +632,41 @@ def foreign_number_errors(ans: FinalAnswer, rec: TurnRecord) -> list[str]:
             "only the counts the tool returned."
         ]
     return []
+
+
+# Elmina Day rehearsals (Cycle 14): synthetic residents' simulated day.
+DAY_WORD = re.compile(r"\brehears|\bsimulat|\bsimulasi\b|\blatihan\b|模拟|演练", re.IGNORECASE)
+SYNTHETIC = re.compile(r"\bsynthetic\b|\bsintetik\b|虚拟|合成", re.IGNORECASE)
+_HHMM = re.compile(r"\b\d{1,2}:\d{2}\b")
+
+
+def day_errors(ans: FinalAnswer, rec: TurnRecord) -> list[str]:
+    """A rehearsal answer says it is a rehearsal of synthetic residents, not a forecast, and
+    every count in it is one the rehearsal produced."""
+    if not rec.days or ans.answer_status == "cannot_answer":
+        return []
+    text = " ".join([ans.summary, *ans.steps, *ans.caveats])
+    errs = []
+    if not DAY_WORD.search(text) or not SYNTHETIC.search(text):
+        errs.append(
+            "A simulated day must be called a rehearsal (or simulation) of synthetic residents."
+        )
+    if not has_not_forecast(text):
+        errs.append("A rehearsal must say it is not a forecast (include 'not a forecast').")
+    if FORECAST_WORDS.search(text):
+        errs.append(
+            "A rehearsal does not predict who will be stranded: say what happened in the "
+            "rehearsal instead of 'will be'."
+        )
+    allowed = set().union(*(_ints(d) for d in rec.days)) if rec.days else set()
+    plain = _HHMM.sub(" ", _strip_names(text, rec.place_names))
+    spoken = {int(m.group(1).replace(",", "")) for m in _DAY_COUNT.finditer(plain)}
+    if bad := sorted(spoken - allowed):
+        errs.append(
+            f"Numbers {bad} do not appear in the rehearsal: quote only its counts "
+            "(trips by outcome, residents by group, school)."
+        )
+    return errs
 
 
 # "35 places", "35 tempat", "35个地点": a count of places (review B1: path segments are not places).
@@ -905,6 +947,10 @@ _ISSUES = (
     ("do not appear in the what-if result", "used numbers the simulation did not produce"),
     ("do not appear in the simulation result", "used numbers the simulation did not produce"),
     ("are not place counts", "counted path segments as places"),
+    ("must be called a rehearsal", "did not say it is a rehearsal of synthetic residents"),
+    ("A rehearsal must say it is not a forecast", "did not say the rehearsal is not a forecast"),
+    ("do not appear in the rehearsal", "used numbers the rehearsal did not produce"),
+    ("A rehearsal does not predict", "described a rehearsal as a prediction"),
     ("keep the strength of the flood class", "weakened a 'likely flooded' warning"),
     ("Imagined outcomes are conditional", "stated an imagined outcome as fact"),
     ("found no candidate change that helps", "claimed a fix helps when none does"),
