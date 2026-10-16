@@ -1,11 +1,12 @@
 import { Link, Outlet, useLocation } from "react-router";
+import { usePanel } from "../features/main/panelStore";
+import { useAttribution } from "../features/main/useAttribution";
 import { usePanelReserve } from "../features/main/usePanelReserve";
 import { useOpenTicketCount } from "../features/tickets/useTickets";
 import { useSite } from "../lib/api";
 import { ThemeMenu } from "../ui/ThemeMenu";
 import { type Mode, useMode } from "./modeStore";
 
-const FALLBACK_ATTRIBUTION = "© OpenStreetMap contributors (ODbL)";
 const linkBtn =
   "inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-fg/70 px-4 text-sm font-semibold uppercase tracking-wide text-fg hover:bg-fg/10";
 
@@ -72,9 +73,10 @@ export function Shell() {
   const site = useSite();
   const mode = useMode((s) => s.mode);
   const onTickets = useLocation().pathname.startsWith("/tickets");
-  const { reserved, sheetH } = usePanelReserve();
+  const { reserved, sheetH, wide } = usePanelReserve();
   const strip = onTickets ? 0 : reserved;
-  const attribution = site.data?.attribution?.join(" · ") ?? FALLBACK_ATTRIBUTION;
+  const attribution = useAttribution();
+  const sheetFull = usePanel((s) => s.sheet) === "full" && !wide;
   return (
     <div className="relative flex min-h-screen flex-col lg:h-dvh bg-bg text-fg">
       <a
@@ -109,6 +111,8 @@ export function Shell() {
       <main id="main" tabIndex={-1} className="relative min-h-0 flex-1">
         <Outlet />
         <p
+          // At full the phone sheet carries the attribution on its own bottom edge.
+          hidden={!onTickets && sheetFull}
           className="glass pointer-events-auto absolute bottom-2 left-2 z-10 m-0 rounded-md px-2 py-0.5 text-[0.68rem] text-fg-soft"
           style={{
             maxWidth: `calc(100% - ${strip}px - 1rem)`,

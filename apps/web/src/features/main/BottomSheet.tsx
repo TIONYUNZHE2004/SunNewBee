@@ -6,21 +6,30 @@ const ORDER = ["peek", "half", "full"] as const;
 type Sheet = (typeof ORDER)[number];
 
 /** Heights are relative to the map area (the sheet's offset parent), so `full` clears the header. */
+/** Map area kept clear above the full sheet: route tag + flood banner (TopStack) stay visible. */
+export const SHEET_TOP_RESERVE = "6rem";
 export const SHEET_HEIGHTS: Record<Sheet, string> = {
   peek: "9.5rem",
   half: "55dvh",
-  full: "calc(100% - 1rem)",
+  full: `calc(100% - ${SHEET_TOP_RESERVE})`,
 };
 
 const stepBtn =
-  "grid size-11 place-items-center rounded-full text-fg disabled:opacity-30 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent";
+  "grid size-11 place-items-center rounded-full text-fg aria-disabled:opacity-30 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent";
 
 /** Phone assistant: stays mounted at every height; peek shows the composer only. */
-export function BottomSheet({ children }: { children: ReactNode }) {
+export function BottomSheet({
+  children,
+  attribution,
+}: {
+  children: ReactNode;
+  /** Shown on the sheet's bottom edge at `full`, where the map strip would otherwise be covered. */
+  attribution?: string;
+}) {
   const { sheet, setSheet } = usePanel();
   const i = ORDER.indexOf(sheet);
-  const up = () => setSheet(ORDER[Math.min(2, i + 1)] as Sheet);
-  const down = () => setSheet(ORDER[Math.max(0, i - 1)] as Sheet);
+  const up = () => i < 2 && setSheet(ORDER[i + 1] as Sheet);
+  const down = () => i > 0 && setSheet(ORDER[i - 1] as Sheet);
   const drag = useRef<{ y: number; i: number } | null>(null);
   return (
     <div
@@ -32,7 +41,7 @@ export function BottomSheet({ children }: { children: ReactNode }) {
           type="button"
           aria-label="Collapse assistant"
           onClick={down}
-          disabled={i === 0}
+          aria-disabled={i === 0}
           className={stepBtn}
         >
           <Icon name="chevron" className="size-5 rotate-90" />
@@ -55,6 +64,14 @@ export function BottomSheet({ children }: { children: ReactNode }) {
               e.preventDefault();
               down();
             }
+            if (e.key === "Home" || e.key === "Escape") {
+              e.preventDefault();
+              setSheet("peek");
+            }
+            if (e.key === "End") {
+              e.preventDefault();
+              setSheet("full");
+            }
           }}
           onPointerDown={(e) => {
             drag.current = { y: e.clientY, i };
@@ -71,7 +88,7 @@ export function BottomSheet({ children }: { children: ReactNode }) {
           onPointerCancel={() => {
             drag.current = null;
           }}
-          className="h-6 w-16 cursor-grab touch-none rounded-full py-2.5 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+          className="grid h-11 w-16 cursor-grab touch-none place-items-center rounded-full focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
         >
           <span className="block h-1.5 w-full rounded-full bg-fg/30" />
         </div>
@@ -79,13 +96,16 @@ export function BottomSheet({ children }: { children: ReactNode }) {
           type="button"
           aria-label="Expand assistant"
           onClick={up}
-          disabled={i === 2}
+          aria-disabled={i === 2}
           className={stepBtn}
         >
           <Icon name="chevron" className="size-5 -rotate-90" />
         </button>
       </div>
       <div className="flex min-h-0 flex-1 flex-col">{children}</div>
+      {sheet === "full" && attribution && (
+        <p className="shrink-0 px-4 pb-1.5 pt-1 text-[0.68rem] text-fg-soft">{attribution}</p>
+      )}
     </div>
   );
 }

@@ -101,19 +101,20 @@ describe("Shell", () => {
       }));
     const strip = () => screen.getByText(/OpenStreetMap contributors/);
 
-    it("rides above the bottom sheet at every height", async () => {
+    it("rides above the sheet at peek and half, and hides at full (the sheet carries it)", async () => {
       narrow();
       setup("/");
       await screen.findByText(/OpenStreetMap contributors/);
       for (const [sheet, h] of [
         ["peek", "10rem"],
         ["half", "55dvh"],
-        ["full", "100%"],
       ] as const) {
         act(() => usePanel.setState({ sheet }));
         expect(strip().style.bottom).toContain(h);
-        expect(strip().style.bottom).not.toBe("");
+        expect(strip()).not.toHaveAttribute("hidden");
       }
+      act(() => usePanel.setState({ sheet: "full" }));
+      expect(strip()).toHaveAttribute("hidden");
     });
     it("stays at the bottom edge on /tickets", async () => {
       narrow();

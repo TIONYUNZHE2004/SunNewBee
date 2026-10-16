@@ -10,12 +10,14 @@ import { RouteTag } from "../map-ui/RouteTag";
 import { SettingsPopover } from "../map-ui/SettingsPopover";
 import { BottomSheet } from "./BottomSheet";
 import { usePanel } from "./panelStore";
+import { useAttribution } from "./useAttribution";
 import { usePanelReserve } from "./usePanelReserve";
 
 /** Full-bleed map; the assistant floats over it on the right (bottom sheet on phones, Task 8). */
 export function MainPage() {
   const { open, setOpen, sheet, setSheet } = usePanel();
   const { wide, panelW, reserved, sheetH } = usePanelReserve();
+  const attribution = useAttribution();
   const streaming = useChatDraft((s) => s.streaming);
   const hideRef = useRef<HTMLButtonElement>(null);
   const showRef = useRef<HTMLButtonElement>(null);
@@ -83,7 +85,7 @@ export function MainPage() {
           )}
         </>
       ) : (
-        <BottomSheet>
+        <BottomSheet attribution={attribution}>
           <AssistantPanel compact={sheet === "peek"} flat />
         </BottomSheet>
       )}
