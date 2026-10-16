@@ -1,23 +1,25 @@
-{"meta": {"message": "Which routes to the lakeside mall are cut off if the water rises 3 m?", "profile": "default", "scenario_id": "stage_p3m", "world": "elmina", "model": "mock-scripted", "recorded_at": "2026-10-16T13:10:13+00:00"}}
+{"meta": {"message": "Which routes to the lakeside mall are cut off if the water rises 3 m?", "profile": "default", "scenario_id": "stage_p3m", "world": "elmina", "model": "mock-scripted", "recorded_at": "2026-10-16T16:20:08+00:00"}}
 {"type": "tool.call", "id": "list_flood_scenarios-0", "name": "list_flood_scenarios", "args": {}}
 {"type": "tool.result", "id": "list_flood_scenarios-0", "name": "list_flood_scenarios", "summary": "6 result(s)"}
 {"type": "tool.call", "id": "affected_places-1", "name": "affected_places", "args": {"scenario_id": "stage_p3m", "kind": "all", "profile": "default"}}
-{"type": "tool.result", "id": "affected_places-1", "name": "affected_places", "summary": "1376 likely, 402 possible"}
+{"type": "tool.result", "id": "affected_places-1", "name": "affected_places", "summary": "23 places and 1353 paths likely, 6 places and 396 paths possible"}
 {"type": "answer.draft", "attempt": 1, "delta": "In "}
 {"type": "answer.draft", "attempt": 1, "delta": "the River +"}
-{"type": "answer.draft", "attempt": 1, "delta": "3 m indicative scenario, 1376 "}
-{"type": "answer.draft", "attempt": 1, "delta": "places/paths are likely cut off "}
-{"type": "answer.draft", "attempt": 1, "delta": "and 402 possibly. This is "}
-{"type": "answer.draft", "attempt": 1, "delta": "not a forecast; follow "}
-{"type": "answer.draft", "attempt": 1, "delta": "official MBSA / JPS / "}
-{"type": "answer.draft", "attempt": 1, "delta": "NADMA "}
+{"type": "answer.draft", "attempt": 1, "delta": "3 m indicative scenario, 23 places and "}
+{"type": "answer.draft", "attempt": 1, "delta": "1353 path segments are "}
+{"type": "answer.draft", "attempt": 1, "delta": "likely flooded, and 6 "}
+{"type": "answer.draft", "attempt": 1, "delta": "places and 396 path "}
+{"type": "answer.draft", "attempt": 1, "delta": "segments possibly. This is not "}
+{"type": "answer.draft", "attempt": 1, "delta": "a forecast; follow "}
+{"type": "answer.draft", "attempt": 1, "delta": "official MBSA / JPS / NADMA "}
 {"type": "answer.draft", "attempt": 1, "delta": "guidance."}
 {"type": "answer.check", "attempt": 1, "ok": true, "issues": [], "repairs": 0}
-{"type": "text.delta", "delta": "In the River +3 m indicative scenario, 1"}
-{"type": "text.delta", "delta": "376 places/paths are likely cut off and "}
-{"type": "text.delta", "delta": "402 possibly. This is not a forecast; fo"}
-{"type": "text.delta", "delta": "llow official MBSA / JPS / NADMA guidanc"}
-{"type": "text.delta", "delta": "e."}
+{"type": "text.delta", "delta": "In the River +3 m indicative scenario, 2"}
+{"type": "text.delta", "delta": "3 places and 1353 path segments are like"}
+{"type": "text.delta", "delta": "ly flooded, and 6 places and 396 path se"}
+{"type": "text.delta", "delta": "gments possibly. This is not a forecast;"}
+{"type": "text.delta", "delta": " follow official MBSA / JPS / NADMA guid"}
+{"type": "text.delta", "delta": "ance."}
 {"type": "scene.intent", "intent": {"kind": "flood.set_level", "place_id": null, "route_id": null, "scenario_id": "stage_p3m", "center": null, "range_m": null, "lens": null, "visible": null, "geojson": null}}
 {"type": "citation", "ref": 1, "evidence_id": "ev-scn-stage_p3m", "element_id": "stage_p3m", "attribute": "scenario", "status": "indicative", "verified_at": null, "source_type": "REM scenario (indicative)", "photo_url": null}
 {"type": "uncertainty", "level": "none", "items": []}
