@@ -4,6 +4,7 @@ import { useScenarios } from "../../lib/api";
 import { useTheme } from "../../ui/theme";
 import { useCameraUi } from "../scene/cesium/controls/cameraUiStore";
 import { StatusLegend } from "../scene/StatusLegend";
+import { useSceneSettings } from "../scene/sceneSettingsStore";
 import { type MapStyle, useScene } from "../scene/sceneStore";
 import type { View } from "../scene/selectView";
 import { useEffectiveView, useMapStyle } from "../scene/useMapStyle";
@@ -84,6 +85,7 @@ export function SettingsPopover() {
   const effective = useEffectiveView();
   const { choice, setChoice } = useTheme();
   const { alwaysShow, setAlwaysShow } = useCameraUi();
+  const { motion, quality, setMotion, setQuality } = useSceneSettings();
   const scenarios = useScenarios();
   const levels = levelOptions(scenarios.data ?? []);
 
@@ -192,6 +194,31 @@ export function SettingsPopover() {
                 </Radio>
               </div>
             </div>
+          )}
+          {effective === "cesium" && (
+            <>
+              <div>
+                <h3 className={H}>Motion</h3>
+                <div role="radiogroup" aria-label="Motion" className="grid grid-cols-2 gap-2">
+                  <Radio checked={motion} onClick={() => setMotion(true)}>
+                    On
+                  </Radio>
+                  <Radio checked={!motion} onClick={() => setMotion(false)}>
+                    Off
+                  </Radio>
+                </div>
+              </div>
+              <div>
+                <h3 className={H}>Quality</h3>
+                <div role="radiogroup" aria-label="Quality" className="grid grid-cols-4 gap-2">
+                  {(["auto", "high", "medium", "low"] as const).map((q) => (
+                    <Radio key={q} checked={quality === q} onClick={() => setQuality(q)}>
+                      {q[0]!.toUpperCase() + q.slice(1)}
+                    </Radio>
+                  ))}
+                </div>
+              </div>
+            </>
           )}
         </div>
       )}

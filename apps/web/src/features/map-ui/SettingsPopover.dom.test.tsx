@@ -6,6 +6,7 @@ import { useMode } from "../../app/modeStore";
 import { ENV } from "../../lib/env";
 import { newQueryClient, renderWithClient } from "../../test/helpers";
 import { useTheme } from "../../ui/theme";
+import { useSceneSettings } from "../scene/sceneSettingsStore";
 import { useScene } from "../scene/sceneStore";
 import { SettingsPopover } from "./SettingsPopover";
 
@@ -167,6 +168,35 @@ describe("SettingsPopover", () => {
       const g = await openIt(BUILDINGS, "");
       await userEvent.click(within(g).getByRole("radio", { name: "Realistic photos (Google)" }));
       expect(useScene.getState().mapStyleChosen).toBe(false);
+    });
+  });
+
+  describe("Motion and Quality (Cesium view)", () => {
+    beforeEach(() => {
+      useSceneSettings.setState({ motion: true, quality: "auto" });
+      HTMLCanvasElement.prototype.getContext = (() => ({})) as never;
+      useScene.getState().setView("cesium");
+    });
+    it("offers Motion On/Off and Quality Auto/High/Medium/Low", async () => {
+      renderWithClient(<SettingsPopover />, seeded());
+      await userEvent.click(screen.getByRole("button", { name: "Map settings" }));
+      const motion = screen.getByRole("radiogroup", { name: "Motion" });
+      expect(within(motion).getByRole("radio", { name: "On" })).toBeInTheDocument();
+      expect(within(motion).getByRole("radio", { name: "Off" })).toBeInTheDocument();
+      const quality = screen.getByRole("radiogroup", { name: "Quality" });
+      for (const name of ["Auto", "High", "Medium", "Low"]) {
+        expect(within(quality).getByRole("radio", { name })).toBeInTheDocument();
+      }
+    });
+    it("Off sets motion to false", async () => {
+      renderWithClient(<SettingsPopover />, seeded());
+      await userEvent.click(screen.getByRole("button", { name: "Map settings" }));
+      await userEvent.click(
+        within(screen.getByRole("radiogroup", { name: "Motion" })).getByRole("radio", {
+          name: "Off",
+        }),
+      );
+      expect(useSceneSettings.getState().motion).toBe(false);
     });
   });
 });
