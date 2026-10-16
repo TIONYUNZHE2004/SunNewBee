@@ -238,3 +238,21 @@ test("Elmina Day: synthetic residents live a day; the clock drives the list and 
   await panel.getByRole("button", { name: "Close" }).first().click();
   await expect(page.getByRole("region", { name: "Simulate a day" })).toHaveCount(0);
 });
+
+test("Test a change: the same day with an imagined change, who gains and who loses", async ({
+  page,
+}) => {
+  await open(page);
+  await page.getByRole("radio", { name: "Management" }).click();
+  await page.getByRole("button", { name: "Simulate a day" }).click();
+  const panel = page.getByRole("region", { name: "Simulate a day" });
+  await panel.getByRole("button", { name: "A normal weekday" }).click();
+  await panel.getByRole("tab", { name: "Test a change" }).click();
+  await panel.getByRole("button", { name: "Compare the day" }).click();
+  const result = panel.getByRole("region", { name: "Before and after" });
+  await expect(result).toContainText("not a plan");
+  await expect(result).toContainText(
+    /\d+ residents' day would change: \d+ trips better, \d+ worse/,
+  );
+  await expect(page.getByRole("note").filter({ hasText: "What-if · not real" })).toBeVisible();
+});

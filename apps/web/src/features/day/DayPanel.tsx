@@ -14,6 +14,7 @@ import {
   stageAt,
   type Tracks,
 } from "./dayModel";
+import { TestChange } from "./TestChange";
 
 const STATUS: Record<string, string> = {
   on_time: "on time",
@@ -23,7 +24,7 @@ const STATUS: Record<string, string> = {
   stranded: "stuck",
   data_gap: "no mapped way",
 };
-const TABS = ["Overview", "Residents", "Feed", "How it was made"] as const;
+const TABS = ["Overview", "Residents", "Feed", "Test a change", "How it was made"] as const;
 type Tab = (typeof TABS)[number];
 
 type Any = Record<string, unknown>;
@@ -202,6 +203,7 @@ export function DayPanel() {
               />
             )}
             {tab === "Feed" && <Feed feed={(spotlight.feed ?? []) as Any[]} t={t} />}
+            {tab === "Test a change" && <TestChange scenario={scenario} />}
             {tab === "How it was made" && <About d={d} voice={(spotlight.voice ?? {}) as Any} />}
           </div>
         </>
