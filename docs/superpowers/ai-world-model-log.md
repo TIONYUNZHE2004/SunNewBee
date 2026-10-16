@@ -645,7 +645,7 @@ Each ruling gives what was decided, why, and the cost if it is wrong.
 - **Why:** the measured bare model is mostly cautious, and over-claiming would itself be dishonest.
 - **Cost if wrong:** a weaker slogan. The stronger, true one is "23 of 30 grounded answers versus 0".
 
-**Spend so far:** US$0.1326 of US$3.
+**Spend so far:** US$0.1326 of US$3 by OpenRouter's key counter (corrected later: the counter lags; see "Spend, corrected" below).
 
 **Pitch line:** see the report §7.
 
@@ -680,7 +680,7 @@ Each ruling gives what was decided, why, and the cost if it is wrong.
 - **Why:** a full multilingual number grammar is out of scope.
 - **Cost if wrong:** a BM or 中文 answer could misstate a count unchecked. Mitigation: the eval's number-faithfulness check is language-independent and found 0 invented numbers.
 
-**Spend so far:** US$0.1326 of US$3.
+**Spend so far:** US$0.1326 of US$3 by OpenRouter's key counter (corrected later: the counter lags; see "Spend, corrected" below).
 
 ---
 
@@ -781,3 +781,37 @@ Ruling W21: the answer frame follows the answer's language, not the question's. 
 - New `scene/list/WhatIfListSection.tsx`, mounted in `ListView` after Route.
 - A `whatif` source in `MapboxLite`.
 - `WhatIfTag` wording changed.
+
+## Second review (fixes and Cycle 8) and the fresh live evaluation (17 Oct, 00:34)
+
+**Fresh live evaluation.** All 36 suite questions, with the bare-model comparison, on the fixed validator: `evals/results/2026-10-17-eval-live-3.json`. The [report](../03-product/ai-eval-report-2026-10.md) is rewritten from it.
+- **World model:**
+  - 0/36 honesty-wording violations;
+  - 0 invented numbers (the 1 flagged was a street name, and the scorer is fixed);
+  - 0 fallbacks;
+  - 25/36 accepted on the first attempt;
+  - 30 grounded answers;
+  - 7/8 BM and 中文 questions answered in the user's language.
+- **Bare model:** says it has no data in 24/36, and gives made-up measurements in 6/36.
+- **Re-run of the 11 rewritten questions** with reasons recorded (`…-eval-rewrites.json`). The reasons were legitimate: the demo caveat, "is confirmed" for an imagined outcome, unproduced numbers, the plan condition, and "safe". One BM/中文 count rejection can no longer be judged, because the rejected text is not stored; that rule has since been narrowed (below).
+
+**Spend, corrected.** OpenRouter's key counter stopped moving at 15:42 UTC while live calls continued, so it lags. Estimated from the recorded tokens at list price, with no cache discount (an upper bound): about **US$0.87** for all live runs of the mission, plus a few cents for bare calls. The counter shows US$0.13. From now on the cap is tracked by the token estimate.
+
+**Second review findings (independent Opus reviewer), mostly false positives in the new BM/中文 rules.** A false positive sends a correct answer to a rewrite or to the English template.
+
+| Severity | Finding | Fix |
+|---|---|---|
+| Important | "工作人员…检查/核实/确认" fired on requests and negations ("需要工作人员实地确认", "已请工作人员核实"). | Only perfective forms count ("工作人员已检查", "已由工作人员核实", "…检查过"); more negation words are handled. |
+| Important | The BM/中文 count rule rejected any digit: dates, "Jalan 2/3", "Seksyen U16", "2 anak tangga", "3-5 minit". | Only counts next to a count noun ("daripada", perjalanan, tempat …) or a Chinese measure word (次/条/个/项/处/人) are checked. |
+| Important | `detect_language` read English with Malay place names ("Pusat Komuniti Sungai Buloh") as Malay. | Place-like nouns are dropped from the word list; only function words count. |
+| Important | The place-count rule flagged any "N places" (sums, list sizes). | It flags only a combined places-plus-paths total said as places. That was the live bug. |
+| Important | The List what-if section said "imagined" for a stage-only simulation and never said "not a forecast". | It branches on `meta.imagined` and adds "River levels are indicative scenarios, not a forecast". |
+| Minor | "may be accessible" (honest hedge), "不放心", "没问题吗", "ev-charging", "Level-ev-3" were false positives. | Fixed. |
+| Minor | Missed: "没有问题", "tak ada masalah", "tiada sebarang masalah", "sebahagian disahkan", sentence-form status contradictions in BM/中文. | Caught. |
+| Minor | "No sampled journey changes" was asserted without `meta`, and an agent `flood.set_level` left a diff simulated at another level on screen. | The line now needs `changed === 0`; the diff is cleared when the level no longer matches. |
+| Minor | The scorer treated nearby numbers as roundings. | A rounding must be the engine value at a coarser unit. |
+| Lint | The Cycle 8 commit had a Biome error (array index as a React key); my partial lint run missed it. | Stable journey ids. |
+
+**Demo-day fix.** The demo script's recovery line said "click Lite map or List", but the current UI had no such control. The settings popover now has **Map view: 3D / Lite map / List (text)**, with reasons for views the device cannot show. A browser check on the seed with the mock: the lite map draws the what-if, with the legend.
+
+Ruling W22: the view switch lives in the existing settings popover (shaoxian04's map-ui), not a new toolbar. It is one radiogroup, uses the store's `setView`, and makes the documented recovery step real. Cost if wrong: the UI owner may want it elsewhere; it is a self-contained block.
