@@ -3417,12 +3417,14 @@ export interface operations {
                     "application/json": components["schemas"]["VerificationPlan"];
                 };
             };
-            /** @description unknown or non-walking profile */
+            /** @description Validation Error */
             422: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
             };
             /** @description busy */
             503: {

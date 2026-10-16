@@ -5849,7 +5849,14 @@
             "description": "Successful Response"
           },
           "422": {
-            "description": "unknown or non-walking profile"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
           },
           "503": {
             "description": "busy"

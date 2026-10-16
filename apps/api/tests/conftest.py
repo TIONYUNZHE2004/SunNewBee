@@ -12,6 +12,9 @@ def _env(tmp_path, monkeypatch):
     monkeypatch.setenv("STAFF_TOKEN", "test-token")
     monkeypatch.setenv("LLM_PROVIDER", "mock")
     monkeypatch.setenv("WARM_WORLD_MODEL", "false")  # no background solver work in tests
+    from townshiplens_api import warm
+
+    warm.reset()
     from townshiplens_api import state
 
     state.reset()

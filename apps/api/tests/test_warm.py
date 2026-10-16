@@ -23,6 +23,7 @@ def test_health_reports_the_warm_state():
     warm.warm_once(state.get_ctx())
     d = TestClient(app).get("/healthz").json()
     assert d["status"] == "ok" and d["world_model"]["state"] == "warm"
+    assert set(d["world_model"]) == {"state", "done"}  # no activity counters on a public route
 
 
 def test_a_failing_job_never_breaks_the_warm_up(monkeypatch):
@@ -55,3 +56,40 @@ def test_the_loop_warms_again_when_the_world_changes(monkeypatch):
             time.sleep(0.05)
     finally:
         warm.stop()
+
+
+def test_filing_a_ticket_changes_the_warm_signal():
+    ctx = state.get_ctx()
+    before = warm._signal(ctx)
+    tools.plan_route(
+        ctx,
+        from_id="park-b",
+        to_id="kiosk",
+        profile="stroller",
+        question_summary="stroller route Car Park B -> Park kiosk",
+    )
+    assert ctx.vrs.list(status="open") and warm._signal(ctx) != before
+
+
+def test_warm_up_waits_while_a_request_holds_a_slot(monkeypatch):
+    monkeypatch.setattr(warm, "IDLE_WAIT_S", 0.5)
+    tools._WM_SLOTS.acquire()
+    try:
+        assert not tools.wm_idle()
+        import time
+
+        t0 = time.monotonic()
+        warm._wait_idle(None)
+        assert time.monotonic() - t0 >= 0.4  # waited for the request, then gave up waiting
+    finally:
+        tools._WM_SLOTS.release()
+    assert tools.wm_idle()
+
+
+def test_stop_returns_quickly():
+    import time
+
+    warm.start()
+    t0 = time.monotonic()
+    warm.stop()
+    assert time.monotonic() - t0 < 3

@@ -26,10 +26,7 @@ def _prior() -> dict:
 @router.get(
     "/verify-next",
     response_model=VerificationPlan,
-    responses={
-        422: {"description": "unknown or non-walking profile"},
-        503: {"description": "busy"},
-    },
+    responses={503: {"description": "busy"}},  # 422 (default schema): unknown or non-walking
 )
 def verify_next(
     profile: str = "wheelchair",

@@ -38,7 +38,7 @@ def healthz():
     from .. import warm
 
     # "warm": the world-model screens' default requests are cached (instant on stage).
-    return {"status": "ok", "world_model": warm.status()}
+    return {"status": "ok", "world_model": warm.public_status()}
 
 
 @router.get("/site", response_model=Site)

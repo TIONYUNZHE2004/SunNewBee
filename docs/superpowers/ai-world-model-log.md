@@ -832,3 +832,16 @@ Ruling W22: the view switch lives in the existing settings popover (shaoxian04's
 - Full checklist PASS. gen showed only the uncommitted client diff for the new 422/503 responses.
 
 **Ruling W23:** warm the defaults only. These are the requests the screens make on open. The What-if Lab's own runs depend on what staff tick, so they are not guessed. Cost if wrong: a presenter who changes persona or budget first waits once.
+
+### Cycle 9 review (independent Opus reviewer) and fixes (17 Oct, 00:48)
+
+| # | Severity | Finding | Fix |
+|---|---|---|---|
+| 1 | Important | Filing a ticket changes the survey plan's cache key (it links open tickets) without bumping the world version, so `/verify-next` went cold again. | The loop's change signal is the world version plus the open-ticket keys. Test: filing a ticket changes it. |
+| 2 | Important | `warm.stop()` joined for 30 s inside the async lifespan, so `--reload` could stall. | Join for at most 2 s (the thread is a daemon). Test: stop returns in under 3 s. |
+| 3 | Important | Warm jobs took one of the two solver slots, so a third user request could wait 20 s and get 503. | A job starts only when both slots are free (`tools.wm_idle`), or after 120 s. It yields to residents and staff. Test included. |
+| 4 | Minor | The custom 422 entry dropped the validation schema from the client. | Removed; the default 422 schema is back. |
+| 5 | Minor | Public `/healthz` exposed a world-change counter and timings. | It shows only `{state, done}`. |
+| 6 | Minor | The loop test's first wait could pass before any warm-up, because status was global. | `warm.reset()` in conftest. |
+
+Checklist after the fixes: lint, pytest, typecheck, vitest, golden (mock) and e2e (mock) PASS; gen PASS after the commit.

@@ -806,6 +806,19 @@ _IMPACT_CACHE_MAX = 512
 _IMPACT_WAIT_S = 2.0
 
 
+def wm_idle() -> bool:
+    """No world-model request is running (both solver slots free)."""
+    if not _WM_SLOTS.acquire(blocking=False):
+        return False
+    try:
+        if not _WM_SLOTS.acquire(blocking=False):
+            return False
+        _WM_SLOTS.release()
+        return True
+    finally:
+        _WM_SLOTS.release()
+
+
 def _wm_cached(
     world: World,
     kind: str,

@@ -31,6 +31,7 @@ JOBS = (
     ("verify_next", lambda ctx: tools.plan_verifications(ctx, "wheelchair", "evacuation", 15)),
 )
 POLL_S = 10.0
+IDLE_WAIT_S = 120.0  # how long a job waits for the solver to be idle before running anyway
 
 _lock = threading.Lock()
 _status: dict = {"state": "off", "version": None, "done": [], "seconds": {}}
@@ -43,6 +44,28 @@ def status() -> dict:
         return {**_status, "done": list(_status["done"]), "seconds": dict(_status["seconds"])}
 
 
+def _signal(ctx) -> tuple:
+    """What the caches are keyed by: the world version and the open tickets (the survey plan
+    links them, so filing a ticket changes its key without bumping the version)."""
+    keys = {
+        (vr.element_id, vr.attribute)
+        for status in ("open", "in_progress")
+        for vr in ctx.vrs.list(status=status)
+    }
+    return ctx.world.version, tuple(sorted(keys))
+
+
+def _wait_idle(stop: threading.Event | None) -> None:
+    """Warm-up yields to residents and staff: a job starts only when no request holds a solver
+    slot (or after IDLE_WAIT_S), so it never takes the second slot from a waiting request."""
+    deadline = time.monotonic() + IDLE_WAIT_S
+    while not tools.wm_idle() and time.monotonic() < deadline:
+        if stop is not None and stop.wait(0.2):
+            return
+        if stop is None:
+            time.sleep(0.2)
+
+
 def warm_once(ctx=None, stop: threading.Event | None = None) -> dict:
     """Run every job once for the current world version; returns the status. `stop` (the
     background loop's flag) ends the run early at shutdown."""
@@ -53,6 +76,7 @@ def warm_once(ctx=None, stop: threading.Event | None = None) -> dict:
     for name, job in JOBS:
         if stop is not None and stop.is_set():
             break
+        _wait_idle(stop)
         t0 = time.perf_counter()
         try:
             res = job(ctx)
@@ -74,10 +98,11 @@ def _loop() -> None:
     while not _stop.is_set():
         try:
             ctx = state.get_ctx()
-            if ctx.world.version != last:
-                last = ctx.world.version
+            sig = _signal(ctx)
+            if sig != last:
+                last = sig
                 s = warm_once(ctx, _stop)
-                log.info("world model warm (version %s): %s", last, s["seconds"])
+                log.info("world model warm (version %s): %s", last[0], s["seconds"])
         except Exception:  # noqa: BLE001
             log.exception("warm-up loop failed")
         _stop.wait(POLL_S)
@@ -93,6 +118,19 @@ def start() -> None:
 
 
 def stop() -> None:
+    """Ask the thread to stop. It is a daemon and a job cannot be interrupted, so shutdown
+    waits at most 2 s instead of the rest of a 15 s solve."""
     _stop.set()
     if _thread:
-        _thread.join(timeout=30)
+        _thread.join(timeout=2)
+
+
+def public_status() -> dict:
+    """What /healthz shows: whether the screens are warm, nothing about activity."""
+    st = status()
+    return {"state": st["state"], "done": st["done"]}
+
+
+def reset() -> None:
+    with _lock:
+        _status.update(state="off", version=None, done=[], seconds={})
