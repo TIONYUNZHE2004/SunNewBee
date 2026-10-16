@@ -45,6 +45,27 @@ model is dropped, because the label line already says it.
 - With the mock, drafts stream too (`mock._stream_script`), so tests and e2e exercise them
   without a key.
 
+**What-ifs and memory (Cycle 1):**
+
+- **Tools.** The agent exposes all 12 engine tools. The two world-model tools are:
+  - `suggest_interventions`, which returns legal candidate actions with readable labels;
+  - `simulate_what_if`, which runs a Township World Model diff (`townshiplens_spatial.twm`).
+
+  `call_tool` keeps each what-if in `TurnRecord.what_ifs`, including `diff_geojson` for the `whatif.diff` scene intent, which is added automatically. Geometry never goes to the model.
+- **Validator (`validate.whatif_errors`).** A what-if answer must:
+  - say "what-if";
+  - quote only numbers from the result: summary and counts, the change of each measure, and total minus a count;
+  - keep imagined outcomes conditional ("would be confirmed", never "is confirmed");
+  - never call a what-if a real plan ("will be built").
+- **Shared wording.** `template.whatif_answer` is shared by the mock (`_whatif` flow, triggered by "what if / imagine / if we build…") and the template fallback.
+- **Rendering.** `run.py` adds an uncertainty note and a `Disclaimer(lens="whatif")`, which comes before any flood disclaimer.
+- **Multi-turn memory (`memory.py`).**
+  - `ChatRequest.session_id` (8–64 chars `[A-Za-z0-9_-]`; the web client mints one per page load) keys an in-process store: at most 6 turns, 200 sessions and 30 min idle.
+  - It is never written to disk and never put in a verification request (PDPA).
+  - Evidence rules stay per turn, so follow-ups re-run their tools.
+  - The mock reads only the current turn (`mock._current`).
+  - `evals/run_followups.py` runs a two-turn live smoke.
+
 **Live cost and latency:**
 - OpenRouter prompt caching is on (system prompt, tool schemas and the last message).
 - On the 13 golden turns this cut spend from about US$0.035 to about US$0.006.

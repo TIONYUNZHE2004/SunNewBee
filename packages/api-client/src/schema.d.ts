@@ -21,6 +21,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/belief": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Belief Table
+         * @description The planner's belief over unchecked facts: Beta(alpha, beta) per path type and attribute,
+         *     from regional OSM tags (if built) and real staff verifications. Planning only.
+         */
+        get: operations["belief_table_belief_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/briefings/flood": {
         parameters: {
             query?: never;
@@ -542,6 +563,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/verify-next": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Verify Next
+         * @description Survey plan: which facts to check first so the most sample journeys would be confirmed.
+         */
+        get: operations["verify_next_verify_next_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/waste-points": {
         parameters: {
             query?: never;
@@ -551,6 +592,46 @@ export interface paths {
         };
         /** Waste */
         get: operations["waste_waste_points_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/what-if": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * What If
+         * @description Imagine changes on a copy of the township and compare journeys before and after.
+         */
+        post: operations["what_if_what_if_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/what-if/suggestions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * What If Suggestions
+         * @description Engine-proposed what-if actions with readable labels (ramps, verifications, keystones).
+         */
+        get: operations["what_if_suggestions_what_if_suggestions_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -646,6 +727,23 @@ export interface components {
              */
             type: "answer.draft";
         };
+        /**
+         * AssumeFact
+         * @description Imagine one recorded fact on a path, e.g. width_m = 1.2.
+         */
+        AssumeFact: {
+            /** Attribute */
+            attribute: string;
+            /** Element Id */
+            element_id: string;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "assume_fact";
+            /** Value */
+            value: unknown;
+        };
         /** AttributeBody */
         AttributeBody: {
             /** Note */
@@ -659,6 +757,43 @@ export interface components {
             status: "verified" | "unknown" | "reported";
             /** Value */
             value?: unknown;
+        };
+        /** BeliefRow */
+        BeliefRow: {
+            /** Alpha */
+            alpha: number;
+            /** Attribute */
+            attribute: string;
+            /** Beta */
+            beta: number;
+            /** Edge Type */
+            edge_type: string;
+            /** Q */
+            q: number;
+        };
+        /** BeliefTable */
+        BeliefTable: {
+            /** Note */
+            note: string;
+            /** Rows */
+            rows: components["schemas"]["BeliefRow"][];
+            /** Sources */
+            sources: {
+                [key: string]: number;
+            };
+        };
+        /**
+         * BuildRamp
+         * @description Imagine a capital work: the path rebuilt step-free (steps become a ramp).
+         */
+        BuildRamp: {
+            /** Element Id */
+            element_id: string;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "build_ramp";
         };
         /**
          * BuildingsLayer
@@ -690,6 +825,15 @@ export interface components {
             water: {
                 [key: string]: unknown;
             };
+        };
+        /** Candidate */
+        Candidate: {
+            /** Action */
+            action: components["schemas"]["SetRiverStage"] | components["schemas"]["ClosePath"] | components["schemas"]["BuildRamp"] | components["schemas"]["AssumeFact"] | components["schemas"]["VerifyFact"];
+            /** Journeys Using It */
+            journeys_using_it?: number | null;
+            /** Label */
+            label: string;
         };
         /** CentreReachability */
         CentreReachability: {
@@ -778,6 +922,19 @@ export interface components {
             verified_by?: string | null;
         };
         /**
+         * ClosePath
+         * @description Imagine a path closed (works, an event, a fallen tree).
+         */
+        ClosePath: {
+            /** Element Id */
+            element_id: string;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "close_path";
+        };
+        /**
          * ClosureOut
          * @description A closure as the public sees it: always a staff report, never a verified fact.
          */
@@ -861,9 +1018,9 @@ export interface components {
             /**
              * Lens
              * @default flood
-             * @constant
+             * @enum {string}
              */
-            lens: "flood";
+            lens: "flood" | "whatif";
             /** Links */
             links?: {
                 [key: string]: string;
@@ -1074,6 +1231,25 @@ export interface components {
             median_hours_to_resolve?: number | null;
             /** Open Vrs */
             open_vrs: number;
+        };
+        /** PlanFact */
+        PlanFact: {
+            /** Attribute */
+            attribute: string;
+            /** Check */
+            check: string;
+            /** Element Id */
+            element_id: string;
+            /** Journeys Relying */
+            journeys_relying: number;
+            /** Label */
+            label: string;
+            /** Path Label */
+            path_label: string;
+            /** Q */
+            q: number;
+            /** Ticket Id */
+            ticket_id?: string | null;
         };
         /**
          * ProfileInfo
@@ -1315,7 +1491,7 @@ export interface components {
              * Kind
              * @enum {string}
              */
-            kind: "camera.fly_to" | "place.focus" | "route.highlight" | "flood.set_level" | "layer.toggle";
+            kind: "camera.fly_to" | "place.focus" | "route.highlight" | "flood.set_level" | "layer.toggle" | "whatif.diff";
             /** Lens */
             lens?: ("access" | "flood" | "waste") | null;
             /** Place Id */
@@ -1337,6 +1513,19 @@ export interface components {
              * @enum {string}
              */
             type: "scene.intent";
+        };
+        /**
+         * SetRiverStage
+         * @description River rise scenario (indicative stages only; a stage never upgrades anything).
+         */
+        SetRiverStage: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "set_river_stage";
+            /** Scenario Id */
+            scenario_id: string;
         };
         /**
          * SimAdvisory
@@ -1535,6 +1724,15 @@ export interface components {
             /** Township */
             township: string;
         };
+        /** Suggestions */
+        Suggestions: {
+            /** Candidates */
+            candidates: components["schemas"]["Candidate"][];
+            /** Profile */
+            profile: string;
+            /** River Stages */
+            river_stages: string[];
+        };
         /** TextDelta */
         TextDelta: {
             /** Delta */
@@ -1656,6 +1854,34 @@ export interface components {
             /** Error Type */
             type: string;
         };
+        /** VerificationPlan */
+        VerificationPlan: {
+            /** Belief Sources */
+            belief_sources: {
+                [key: string]: number;
+            };
+            /** Budget */
+            budget: number;
+            /**
+             * Disclaimer
+             * @default Survey plan from the township model: journeys would be confirmed only if they pass when staff check these facts on site. A planning estimate, not a promise.
+             */
+            disclaimer: string;
+            /** Evidence Id */
+            evidence_id: string;
+            /** Expected Confirmed */
+            expected_confirmed: number;
+            /** Facts */
+            facts: components["schemas"]["PlanFact"][];
+            /** Profile */
+            profile: string;
+            /** Scope */
+            scope: string;
+            /** Summary */
+            summary: {
+                [key: string]: number;
+            };
+        };
         /** VerificationRequest */
         VerificationRequest: {
             /** Attribute */
@@ -1711,6 +1937,27 @@ export interface components {
              */
             type: "verification.requested";
         };
+        /**
+         * VerifyFact
+         * @description Imagine staff verifying a fact: it passes every profile's limit, or it fails.
+         */
+        VerifyFact: {
+            /** Attribute */
+            attribute: string;
+            /** Element Id */
+            element_id: string;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "verify_fact";
+            /**
+             * Outcome
+             * @default pass
+             * @enum {string}
+             */
+            outcome: "pass" | "fail";
+        };
         /** WastePoint */
         WastePoint: {
             /** Accepted Items */
@@ -1736,6 +1983,73 @@ export interface components {
             type: "bin" | "recycling_drop_off" | "e_waste_drop_off" | "composting_site" | "programme_site";
             /** Verified At */
             verified_at?: string | null;
+        };
+        /** WhatIfRequest */
+        WhatIfRequest: {
+            /** Actions */
+            actions?: (components["schemas"]["SetRiverStage"] | components["schemas"]["ClosePath"] | components["schemas"]["BuildRamp"] | components["schemas"]["AssumeFact"] | components["schemas"]["VerifyFact"])[];
+            /** From Id */
+            from_id?: string | null;
+            /**
+             * Profile
+             * @default wheelchair
+             */
+            profile: string;
+            /** Scenario Id */
+            scenario_id?: string | null;
+            /**
+             * Scope
+             * @default evacuation
+             * @enum {string}
+             */
+            scope: "journey" | "suite" | "evacuation";
+            /** To Id */
+            to_id?: string | null;
+        };
+        /** WhatIfResponse */
+        WhatIfResponse: {
+            /** Action Labels */
+            action_labels: string[];
+            /** Actions */
+            actions: (components["schemas"]["SetRiverStage"] | components["schemas"]["ClosePath"] | components["schemas"]["BuildRamp"] | components["schemas"]["AssumeFact"] | components["schemas"]["VerifyFact"])[];
+            /** Changed */
+            changed: {
+                [key: string]: unknown;
+            }[];
+            /** Changed Truncated */
+            changed_truncated: boolean;
+            /** Counts After */
+            counts_after: {
+                [key: string]: {
+                    [key: string]: number;
+                };
+            };
+            /** Counts Before */
+            counts_before: {
+                [key: string]: {
+                    [key: string]: number;
+                };
+            };
+            /** Diff Geojson */
+            diff_geojson: {
+                [key: string]: unknown;
+            };
+            /** Disclaimer */
+            disclaimer: string;
+            /** Evidence Id */
+            evidence_id: string;
+            /** Profile */
+            profile: string;
+            /** Scenario Id */
+            scenario_id: string | null;
+            /** Scope */
+            scope: string;
+            /** Summary */
+            summary: {
+                [key: string]: number;
+            };
+            /** Touched */
+            touched: string[];
         };
     };
     responses: never;
@@ -1778,6 +2092,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    belief_table_belief_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BeliefTable"];
                 };
             };
         };
@@ -2793,6 +3127,39 @@ export interface operations {
             };
         };
     };
+    verify_next_verify_next_get: {
+        parameters: {
+            query?: {
+                profile?: string;
+                scope?: "suite" | "evacuation";
+                budget?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VerificationPlan"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     waste_waste_points_get: {
         parameters: {
             query?: {
@@ -2812,6 +3179,69 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["WastePoint"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    what_if_what_if_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WhatIfRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WhatIfResponse"];
+                };
+            };
+            /** @description illegal or invalid actions */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    what_if_suggestions_what_if_suggestions_get: {
+        parameters: {
+            query?: {
+                profile?: string;
+                near_place?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Suggestions"];
                 };
             };
             /** @description Validation Error */

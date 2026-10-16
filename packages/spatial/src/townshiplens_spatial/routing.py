@@ -1,3 +1,5 @@
+import contextlib
+import contextvars
 import hashlib
 import heapq
 import itertools
@@ -158,10 +160,42 @@ def _flood_class(world: World, scenario_id: str | None, edge_id: str):
     return world.flood.edge_classes.get(scenario_id or "", {}).get(edge_id) if scenario_id else None
 
 
+# Batch memo of edge evaluations (twm rollouts route hundreds of journeys over one state).
+# Keyed by the world's edge table object, so a real world and an imagined copy never share
+# entries. Only set inside `eval_memo()`; a single plan_route call is unchanged.
+_EVAL_MEMO: contextvars.ContextVar[dict | None] = contextvars.ContextVar("eval_memo", default=None)
+
+
+@contextlib.contextmanager
+def eval_memo():
+    """Within this block, each (state, profile, scenario, edge) is evaluated once."""
+    token = _EVAL_MEMO.set({})
+    try:
+        yield
+    finally:
+        _EVAL_MEMO.reset(token)
+
+
+def _evaluate(world, profile, scenario_id, key):
+    memo = _EVAL_MEMO.get()
+    if memo is None:
+        return evaluate_edge(world.edges[key], profile, _flood_class(world, scenario_id, key))
+    # Keep the edge table alive while the memo is, so its id() cannot be reused by another
+    # (short-lived imagined) world inside the same block.
+    memo.setdefault(("__ref__", id(world.edges)), world.edges)
+    k = (id(world.edges), profile.id, scenario_id, key)
+    out = memo.get(k)
+    if out is None:
+        memo[k] = out = evaluate_edge(
+            world.edges[key], profile, _flood_class(world, scenario_id, key)
+        )
+    return out
+
+
 def _edge_cost(world, profile, scenario_id, allow_unknown, key, evals=None) -> float | None:
     """Search cost of one edge for this profile, or None when the search must not use it."""
     e = world.edges[key]
-    res, why = evaluate_edge(e, profile, _flood_class(world, scenario_id, key))
+    res, why = _evaluate(world, profile, scenario_id, key)
     if evals is not None:
         evals[key] = (res, why)
     if res == "FAIL" or (res == "UNKNOWN" and not allow_unknown):

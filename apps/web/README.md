@@ -169,12 +169,23 @@ POST /chat (SSE) -> parseSse -> useChatStream -> chatReducer   (messages, tool c
                                                               flood.set_level  -> scenarioId (+ flood layer on)
                                                               camera.fly_to    -> camera
                                                               layer.toggle     -> lensVisible
+                                                              whatif.diff      -> whatIf (imagined diff)
 sceneStore --> Cesium / Mapbox / List renderers (one adapter each) + map overlays + legend
 ```
 
 Each renderer reads `useScene` and the REST layers (`/layers/{lens}?profile=&scenario_id=`);
 edge colour comes from `status_for_profile` (`ok | unknown | blocked | flooded_likely |
 flooded_possible`) via `scene/status.ts`, and unknown is drawn dashed and amber, never green.
+
+**What-if (Cycle 1, `ai/world-model`):**
+
+- **The intent.** `whatif.diff` carries a FeatureCollection, and every feature has `whatif: true` and `side: before|after|touched`.
+- **The map.** `features/whatif/whatifModel.diffLines` splits it.
+  - The Cesium `WhatIfLayer` draws today's lines grey and dashed, the imagined lines lilac, and the imagined changes magenta.
+  - The camera frames the diff.
+  - `map-ui/WhatIfTag` shows the "What-if · not real" legend, with a clear button.
+- **The panel.** `features/whatif/WhatIfLab` (Management mode, top of the assistant panel) calls `GET /what-if/suggestions` and `POST /what-if` without the LLM.
+- **Not yet drawn.** The Mapbox lite and List views do not draw the diff; the Lab card still shows the numbers.
 
 ## File map
 

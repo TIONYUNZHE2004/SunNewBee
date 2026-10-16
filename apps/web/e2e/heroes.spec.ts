@@ -132,3 +132,32 @@ test("management: a gap becomes a ticket, staff resolve it, before/after shows",
   await expect(again).toContainText(/Route status: confirmed/);
   await expect(again).not.toContainText(/partly unverified/);
 });
+
+test("what-if hero: the assistant imagines a ramp and the answer is labelled not real", async ({
+  page,
+}) => {
+  await open(page);
+  await ask(page, "What if we build a ramp at the steps? How many wheelchair journeys would work?");
+  const last = await lastAnswer(page);
+  await expect(last).toContainText(/In this what-if simulation/);
+  await expect(last).toContainText(/Imagined changes are not real/);
+  await expect(last).toContainText(/Answer checked against the township data/);
+  await expect(last).not.toContainText(/ is confirmed|will be built/);
+});
+
+test("What-if Lab: staff run a river rise plus a suggested change on a copy of the township", async ({
+  page,
+}) => {
+  await open(page);
+  await page.getByRole("radio", { name: "Management" }).click();
+  await page.getByRole("button", { name: "Open What-if Lab" }).click();
+  const lab = page.getByRole("region", { name: "What-if Lab" });
+  // Earlier tests resolve tickets on the shared world, so take whatever the model suggests first.
+  await lab.getByRole("checkbox").first().check();
+  await lab.getByRole("button", { name: "Run what-if" }).click();
+  const note = lab.getByRole("note");
+  await expect(note).toContainText("What-if · not real");
+  await expect(note).toContainText(/River \+3 m \(indicative scenario\)/);
+  await expect(note).toContainText(/Reach a centre \(river rise only\)/);
+  await expect(note).toContainText(/not a forecast/);
+});

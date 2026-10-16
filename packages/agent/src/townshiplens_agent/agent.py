@@ -75,6 +75,15 @@ def _summarise(name: str, res: sp.ToolResult) -> str:
         return f"route {d.get('status')}"
     if name == "affected_places" and isinstance(d, dict):
         return f"{d.get('likely_total', 0)} likely, {d.get('possible_total', 0)} possible"
+    if name == "simulate_what_if" and isinstance(d, dict):
+        sm = d.get("summary") or {}
+        before, after, total = sm.get("reach_before"), sm.get("reach_after"), sm.get("total")
+        return f"what-if: {before} -> {after} of {total} reach"
+    if name == "plan_verifications" and isinstance(d, dict):
+        sm = d.get("summary") or {}
+        return f"plan: {len(d.get('facts') or [])} checks -> {sm.get('confirmed_after')} confirmed"
+    if name == "suggest_interventions" and isinstance(d, dict):
+        return f"{len(d.get('candidates') or [])} candidate(s)"
     if isinstance(d, list):
         return f"{len(d)} result(s)"
     return "ok"
@@ -154,7 +163,7 @@ def safe_vr_args(world, kwargs: dict, source: str = "chat") -> dict:
 _safe_vr_args = safe_vr_args  # backwards-compatible alias
 
 
-SCENARIO_TOOLS = ("plan_route", "list_evacuation_centres", "affected_places")
+SCENARIO_TOOLS = ("plan_route", "list_evacuation_centres", "affected_places", "simulate_what_if")
 
 
 def ui_scenario(deps: Deps) -> str | None:
@@ -246,6 +255,37 @@ async def call_tool(deps: Deps, name: str, **kwargs: Any) -> dict:
             rec.closures[c["id"]] = c
             if c.get("active"):
                 rec.asked_closures.append(c)
+    if name == "simulate_what_if" and res.ok and isinstance(res.data, dict):
+        d = res.data
+        stages = [
+            a["scenario_id"] for a in d.get("actions", []) if a.get("kind") == "set_river_stage"
+        ]
+        rec.what_ifs.append(
+            {
+                **{k: d.get(k) for k in ("summary", "counts_before", "counts_after", "scope")},
+                "profile": d.get("profile"),
+                "labels": d.get("action_labels") or [],
+                "scenario_id": d.get("scenario_id"),
+                "base_scenario_id": d.get("base_scenario_id"),
+                "imagined": bool(d.get("imagined")),
+                "diff_geojson": d.pop("diff_geojson", None),
+                "disclaimer": d.get("disclaimer"),
+            }
+        )
+        base = d.get("base_scenario_id")
+        rec.scenarios_used |= {s for s in [*stages, base] if s and s != "baseline"}
+        rec.place_names |= {
+            n
+            for o in d.get("journeys", [])
+            for n in (
+                o.get("from_name"),
+                o["after"].get("target_name"),
+                o["before"].get("target_name"),
+            )
+            if n
+        }
+    if name == "plan_verifications" and res.ok and isinstance(res.data, dict):
+        rec.plans.append(res.data)
     if name == "create_verification_request" and res.ok:
         rec.vrs.append(res.data)
         await _emit(deps, _vr_event(res.data))
@@ -404,6 +444,62 @@ def build_agent(model: Model) -> Agent[Deps, FinalAnswer]:
     ) -> dict:
         """Recycling / e-waste / waste points with verification status."""
         return await call_tool(ctx.deps, "find_waste_points", type=type, near_place=near_place)
+
+    @agent.tool
+    async def suggest_interventions(
+        ctx: RunContext[Deps], profile: str = "wheelchair", near_place: str | None = None
+    ) -> dict:
+        """What-if candidates from the township world model, with readable labels: ramps where
+        steps block the profile, facts staff could verify, paths most journeys rely on (to
+        imagine them closed), and the river stages. Use these actions; never invent ids.
+        near_place is a place id from find_place."""
+        return await call_tool(
+            ctx.deps, "suggest_interventions", profile=profile, near_place=near_place
+        )
+
+    @agent.tool
+    async def simulate_what_if(
+        ctx: RunContext[Deps],
+        actions: list[dict],
+        profile: str = "default",
+        scope: str = "journey",
+        from_id: str | None = None,
+        to_id: str | None = None,
+        scenario_id: str | None = None,
+    ) -> dict:
+        """Imagine changes on a copy of the township and compare journeys before and after.
+        actions: [{"kind": "set_river_stage", "scenario_id": "stage_p3m"},
+        {"kind": "build_ramp", "element_id": ...}, {"kind": "close_path", "element_id": ...},
+        {"kind": "verify_fact", "element_id": ..., "attribute": ..., "outcome": "pass"|"fail"},
+        {"kind": "assume_fact", "element_id": ..., "attribute": ..., "value": ...}].
+        scope: journey (from_id -> to_id; to_id may be "nearest_centre"), suite (sample
+        resident journeys) or evacuation (sampled origins -> nearest reachable centre).
+        Never changes the real township. Say only the numbers in summary and counts."""
+        return await call_tool(
+            ctx.deps,
+            "simulate_what_if",
+            actions=actions,
+            profile=profile,
+            scope=scope,
+            from_id=from_id,
+            to_id=to_id,
+            scenario_id=scenario_id,
+        )
+
+    @agent.tool
+    async def plan_verifications(
+        ctx: RunContext[Deps],
+        profile: str = "wheelchair",
+        scope: str = "evacuation",
+        budget: int = 15,
+    ) -> dict:
+        """Survey plan for staff: which unchecked facts to verify first (at most `budget`
+        checks) so the most sample journeys would have a confirmed route if those facts pass.
+        scope: evacuation (sampled origins -> nearest centre) or suite (everyday trips).
+        Say only the numbers in summary, facts and places, always conditional on the checks."""
+        return await call_tool(
+            ctx.deps, "plan_verifications", profile=profile, scope=scope, budget=budget
+        )
 
     @agent.output_validator
     async def check(ctx: RunContext[Deps], out: FinalAnswer) -> FinalAnswer:

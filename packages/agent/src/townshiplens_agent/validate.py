@@ -19,6 +19,47 @@ REASSURE = re.compile(
     r"|\byou(?:'ll| will) be (?:fine|ok(?:ay)?)\b|\bno problem\b|\bnothing to worry\b",
     re.IGNORECASE,
 )
+# What-if answers (Cycle 1, twm.py). The label is accepted in English, Bahasa Melayu and Chinese.
+WHATIF_LABEL = re.compile(r"\bwhat[- ]if\b|\bsimulasi\b|\bandaian\b|假设|模拟", re.IGNORECASE)
+# A number that is not a measurement ("400 m", "3 min", "1.2 km", "40%").
+_COUNT = r"(\d+)(?![.,]\d)(?!\s*(?:m|km|cm|min|mins|minutes?|h|hours?|%)(?![a-z]))"
+# A count of journeys/people/routes: "45 of 50 wheelchair journeys", "3 journeys", "12 people".
+COUNTED = re.compile(
+    rf"\b{_COUNT}\s+(?:out\s+)?(?:of\s+(?:the\s+)?(\d+)\s+)?(?:[a-z-]+\s+){{0,3}}?"
+    r"(?:journeys?|trips?|routes?|people|residents|origins|places|users)\b",
+    re.IGNORECASE,
+)
+# A count bound to the status it is about: "45 of 50 ... would reach", "3 would be confirmed".
+STATUS_NUM = re.compile(
+    rf"\b{_COUNT}(?:\s+(?:out\s+)?of\s+(?:the\s+)?\d+)?([^.;:()\d]{{0,60}}?)"
+    r"\b(confirmed|reach(?:ed|es)?|(?:have|get) a mapped route)",
+    re.IGNORECASE,
+)
+PERCENT = re.compile(r"\b\d+(?:[.,]\d+)?\s*%")
+# An imagined outcome stated as fact ("is confirmed", "are now reachable", "can now reach").
+WHATIF_AS_FACT = re.compile(
+    r"\b(?:is|are|now)\s+(?:now\s+)?(?:confirmed|reachable|step-free)\b"
+    r"|\bcan now (?:reach|get to|use)\b",
+    re.IGNORECASE,
+)
+_REAL_NOW = re.compile(r"\b(?:today|currently|at present|at the moment|right now)\b", re.I)
+# A what-if described as a real plan ("will be built", "the council plans to build").
+WHATIF_AS_PLAN = re.compile(
+    r"\b(?:will be|is being|is planned to be|are planned to be)\s+"
+    r"(?:built|installed|added|fixed|repaired|upgraded)\b"
+    r"|\bwe (?:will|are going to) build\b|\bplans? to (?:build|install|add|upgrade)\b"
+    r"|\bwill get an? (?:ramp|lift|new path)\b",
+    re.IGNORECASE,
+)
+# Survey plans (Cycle 2, planner.py): conditional on the checks passing, numbers from the plan.
+PLAN_CONDITION = re.compile(r"\bif\b[^.;]{0,60}\bpass", re.IGNORECASE)
+PLAN_COUNTED = re.compile(
+    r"\b(\d+)\s+(?:[a-z-]+\s+){0,2}?(?:checks?|facts?|places?|sites?|locations?)\b", re.I
+)
+PLAN_AS_FACT = re.compile(
+    r"\bwill\s+(?:be\s+)?(?:confirm(?:ed)?|have a confirmed|get a confirmed|become confirmed)\b",
+    re.IGNORECASE,
+)
 PLACEHOLDER_SOURCE = "team_survey_placeholder"
 PLACEHOLDER_CAVEAT = "demo values, not yet surveyed"
 BANNED_PLACEHOLDER = re.compile(r"\bsurveyed on\b|staff (?:have |has )?checked", re.IGNORECASE)
@@ -211,6 +252,8 @@ def validate_answer(ans: FinalAnswer, rec: TurnRecord) -> list[str]:
         )
     if rec.scenarios_used and not ans.scenario_id:
         errs.append("A flood scenario tool was used: set scenario_id.")
+    errs += whatif_errors(ans, rec)
+    errs += plan_errors(ans, rec)
     # Honesty rules apply to every answer, whether or not a tool ran.
     errs += text_errors(all_text, rec)
     return errs
@@ -256,6 +299,144 @@ def text_errors(text: str, rec: TurnRecord) -> list[str]:
         errs.append(
             "Do not guess or reassure ('probably', 'should be fine'): the tools give no "
             "likelihood. State the route status and what is not checked yet."
+        )
+    return errs
+
+
+def _whatif_numbers(rec: TurnRecord) -> set[int]:
+    """Every number a what-if answer may say: the summary and per-profile counts, the change
+    of each measure, and how many journeys fall short of the total."""
+    out: set[int] = set()
+    for w in rec.what_ifs:
+        sm = {k: int(v) for k, v in (w.get("summary") or {}).items()}
+        out |= set(sm.values())
+        for side in ("counts_before", "counts_after"):
+            for per in (w.get(side) or {}).values():
+                out |= {int(v) for v in per.values()}
+        total = sm.get("total", 0)
+        for m in ("reach", "confirmed"):
+            vals = [sm[k] for k in (f"{m}_before", f"{m}_after", f"{m}_stage_only") if k in sm]
+            out |= {abs(a - b) for a in vals for b in vals} | {total - v for v in vals}
+    return out
+
+
+def _metric_numbers(rec: TurnRecord, metric: str) -> set[int]:
+    """Numbers allowed next to one status word: that measure before / after / stage-only, its
+    changes, and how many journeys fall short of the total."""
+    out: set[int] = set()
+    for w in rec.what_ifs:
+        sm = {k: int(v) for k, v in (w.get("summary") or {}).items()}
+        vals = [v for k, v in sm.items() if k.startswith(f"{metric}_")]
+        total = sm.get("total", 0)
+        out |= set(vals) | {abs(a - b) for a in vals for b in vals} | {total - v for v in vals}
+    return out
+
+
+def _as_fact(text: str) -> bool:
+    for m in WHATIF_AS_FACT.finditer(text):
+        sentence = re.split(r"[.!?;]\s", text[: m.start()])[-1]
+        if not _REAL_NOW.search(sentence):  # "Today the route is confirmed" is a real fact
+            return True
+    return False
+
+
+def whatif_errors(ans: FinalAnswer, rec: TurnRecord) -> list[str]:
+    if ans.answer_status == "cannot_answer":
+        return []
+    text = " ".join([ans.summary, *ans.steps, *ans.caveats, *(c.text for c in ans.claims)])
+    errs: list[str] = []
+    simulated = bool(rec.what_ifs or rec.plans)
+    if (simulated or rec.history_simulated) and WHATIF_AS_PLAN.search(text):
+        errs.append(
+            "A what-if is not a real plan or a real change: never say something will be built, "
+            "installed or added, or that anyone plans to."
+        )
+    if not rec.what_ifs:
+        if (
+            rec.history_simulated
+            and not simulated
+            and (STATUS_NUM.search(text) and (WHATIF_LABEL.search(text) or "would" in text.lower()))
+        ):
+            errs.append(
+                "Earlier what-if numbers cannot be repeated from memory: call simulate_what_if "
+                "again this turn, or answer without them."
+            )
+        return errs
+    if not WHATIF_LABEL.search(ans.summary):
+        errs.append(
+            "A what-if simulation was run: say plainly in the summary that it is a what-if "
+            "(imagined, not real), e.g. 'In this what-if simulation, ...'."
+        )
+    allowed = _whatif_numbers(rec)
+    bad = sorted({int(n) for m in COUNTED.finditer(text) for n in m.groups() if n} - allowed)
+    for m in STATUS_NUM.finditer(text):
+        metric = "confirmed" if m.group(3).lower() == "confirmed" else "reach"
+        if int(m.group(1)) not in _metric_numbers(rec, metric):
+            bad.append(int(m.group(1)))
+    if bad:
+        errs.append(
+            f"Numbers {sorted(set(bad))} do not appear in the what-if result for what they "
+            "describe: 'reach' numbers come from reach_*, 'confirmed' numbers from confirmed_* "
+            "(or their changes)."
+        )
+    if PERCENT.search(text):
+        errs.append("Give what-if results as counts from the simulation, not percentages.")
+    if any(w.get("imagined") for w in rec.what_ifs) and _as_fact(text):
+        errs.append(
+            "Imagined outcomes are conditional: say 'would be confirmed' / 'would reach', "
+            "never 'is confirmed' or 'can now reach'."
+        )
+    staged = any(w.get("scenario_id") or w.get("base_scenario_id") for w in rec.what_ifs)
+    if staged and "not a forecast" not in text.lower():
+        errs.append(
+            "A what-if with a river stage must say it is an indicative scenario, not a forecast "
+            "(include the words 'not a forecast')."
+        )
+    demo = any((w.get("summary") or {}).get("confirmed_on_demo_after") for w in rec.what_ifs)
+    if demo and PLACEHOLDER_CAVEAT not in text.lower():
+        errs.append(
+            "Imagined confirmed routes rest on demo values: add a caveat containing the exact "
+            f"phrase '{PLACEHOLDER_CAVEAT}'."
+        )
+    return errs
+
+
+def _plan_numbers(rec: TurnRecord) -> set[int]:
+    out: set[int] = set()
+    for p in rec.plans:
+        sm = {k: int(v) for k, v in (p.get("summary") or {}).items()}
+        out |= set(sm.values())
+        out |= {abs(sm.get("confirmed_after", 0) - sm.get("confirmed_before", 0))}
+        out |= {sm.get("total", 0) - sm.get("confirmed_after", 0)}
+        facts = p.get("facts") or []
+        out |= {len(facts), int(p.get("places") or 0), int(p.get("budget") or 0)}
+        out |= {int(f.get("journeys_relying") or 0) for f in facts}
+        out |= {sum(1 for f in facts if f.get("ticket_id"))}
+    return out
+
+
+def plan_errors(ans: FinalAnswer, rec: TurnRecord) -> list[str]:
+    if not rec.plans or ans.answer_status == "cannot_answer":
+        return []
+    errs: list[str] = []
+    text = " ".join([ans.summary, *ans.steps, *ans.caveats])
+    if not PLAN_CONDITION.search(text):
+        errs.append(
+            "A survey plan is conditional: say the journeys would be confirmed only if the "
+            "checks pass, e.g. 'If these 15 checks pass, ...'."
+        )
+    allowed = _plan_numbers(rec) | _whatif_numbers(rec)
+    spoken = {int(n) for m in COUNTED.finditer(text) for n in m.groups() if n}
+    spoken |= {int(m.group(1)) for m in PLAN_COUNTED.finditer(text)}
+    if bad := sorted(spoken - allowed):
+        errs.append(
+            f"Numbers {bad} do not appear in the survey plan: use only its summary, the number "
+            "of facts and places, and journeys_relying."
+        )
+    if PLAN_AS_FACT.search(text):
+        errs.append(
+            "Planned checks have not happened: say journeys 'would' be confirmed if they pass, "
+            "never 'will be confirmed'."
         )
     return errs
 
@@ -314,6 +495,17 @@ _ISSUES = (
     ("route_id", "referred to a route that was not checked"),
     ("answer_status cannot be", "called a blocked or unmapped route answered"),
     ("rest limit", "left out the longest stretch without a rest point"),
+    ("say plainly it is a what-if", "did not say the answer is a what-if simulation"),
+    ("do not appear in the what-if result", "used numbers the simulation did not produce"),
+    ("Imagined outcomes are conditional", "stated an imagined outcome as fact"),
+    ("cannot be repeated from memory", "repeated earlier what-if numbers without re-checking"),
+    ("not percentages", "gave percentages instead of simulated counts"),
+    ("with a river stage must say", "did not say the flood scenario is not a forecast"),
+    ("rest on demo values", "left out that the imagined routes use demo values"),
+    ("A what-if is not a real plan", "described a what-if as a real plan"),
+    ("A survey plan is conditional", "did not say the plan depends on the checks passing"),
+    ("do not appear in the survey plan", "used numbers the survey plan did not produce"),
+    ("Planned checks have not happened", "stated a planned result as certain"),
     ("caveat", "left out a required caveat"),
     ("scenario_id", "did not name the flood scenario it used"),
 )

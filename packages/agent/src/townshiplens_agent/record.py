@@ -28,6 +28,13 @@ class TurnRecord:
     asked_closures: list[dict] = field(default_factory=list)
     # Plan_route warnings about endpoints whose entrance is not mapped (Task 43).
     inferred_notes: list[str] = field(default_factory=list)
+    # simulate_what_if results this turn (tool data, incl. diff_geojson and "imagined").
+    what_ifs: list[dict] = field(default_factory=list)
+    # An earlier turn of this session ran a simulation (from memory): its numbers may not be
+    # repeated unless re-simulated this turn.
+    history_simulated: bool = False
+    # plan_verifications results this turn (survey plans: facts, places, summary).
+    plans: list[dict] = field(default_factory=list)
     # Diagnostics (never shown to users, never stored): the validator's errors for each rejected
     # final_answer attempt, and token usage across all model requests of the turn.
     validator_errors: list[list[str]] = field(default_factory=list)

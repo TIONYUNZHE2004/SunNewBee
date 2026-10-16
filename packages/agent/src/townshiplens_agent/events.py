@@ -7,7 +7,12 @@ from typing import Annotated, Any, Literal
 from pydantic import BaseModel, Field
 
 IntentKind = Literal[
-    "camera.fly_to", "place.focus", "route.highlight", "flood.set_level", "layer.toggle"
+    "camera.fly_to",
+    "place.focus",
+    "route.highlight",
+    "flood.set_level",
+    "layer.toggle",
+    "whatif.diff",  # before/after lines of a what-if simulation (geojson attached by the server)
 ]
 
 
@@ -87,7 +92,7 @@ class Uncertainty(BaseModel):
 
 class Disclaimer(BaseModel):
     type: Literal["disclaimer"] = "disclaimer"
-    lens: Literal["flood"] = "flood"
+    lens: Literal["flood", "whatif"] = "flood"
     text: str
     links: list[dict[str, str]] = Field(default_factory=list)
 
@@ -144,4 +149,5 @@ class ChatRequest(BaseModel):
     profile: Literal["default", "stroller", "wheelchair", "older_adult_rest", "drive"] = "default"
     # Constrained: it is interpolated into the agent's instructions (prompt-injection guard).
     scenario_id: str | None = Field(default=None, pattern=r"^(baseline|stage_p[1-5]m)$")
-    session_id: str | None = None
+    # A random per-tab id (the web client mints it) keying short in-memory follow-up context.
+    session_id: str | None = Field(default=None, pattern=r"^[A-Za-z0-9_-]{8,64}$")

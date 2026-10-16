@@ -119,3 +119,42 @@ describe("map style default", () => {
     expect(resolveMapStyle(s("realistic", true), true, false)).toBe("stylised");
   });
 });
+
+describe("what-if diff", () => {
+  it("whatif.diff stores the imagined diff; a persona change or clear removes it", () => {
+    const fc = { type: "FeatureCollection", features: [] };
+    useScene.getState().reset();
+    useScene.getState().applyIntent({ kind: "whatif.diff", geojson: fc } as never);
+    expect(useScene.getState().whatIf?.geojson).toEqual(fc);
+    useScene.getState().setProfile("stroller");
+    expect(useScene.getState().whatIf).toBeNull();
+    useScene.getState().applyIntent({ kind: "whatif.diff", geojson: fc } as never);
+    useScene.getState().clearWhatIf();
+    expect(useScene.getState().whatIf).toBeNull();
+    useScene.getState().applyIntent({ kind: "whatif.diff" } as never);
+    expect(useScene.getState().whatIf).toBeNull(); // nothing to draw without geometry
+  });
+});
+
+describe("what-if diff is never left under newer state", () => {
+  it("a new route or a scenario change clears the old diff", () => {
+    const fc = { type: "FeatureCollection", features: [] };
+    useScene.getState().reset();
+    useScene.getState().applyIntent({ kind: "whatif.diff", geojson: fc } as never);
+    useScene.getState().applyIntent({
+      kind: "route.highlight",
+      route_id: "rt-1",
+      geojson: {
+        type: "LineString",
+        coordinates: [
+          [1, 2],
+          [3, 4],
+        ],
+      },
+    } as never);
+    expect(useScene.getState().whatIf).toBeNull();
+    useScene.getState().applyIntent({ kind: "whatif.diff", geojson: fc } as never);
+    useScene.getState().setScenario("stage_p3m");
+    expect(useScene.getState().whatIf).toBeNull();
+  });
+});

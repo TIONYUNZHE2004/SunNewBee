@@ -85,8 +85,10 @@ class Closure(BaseModel):
     starts_at: datetime
     ends_at: datetime | None = None  # None = until further notice
     note: str | None = None
-    created_by: Literal["staff"] = "staff"
-    source: Literal["staff_report"] = "staff_report"
+    created_by: Literal["staff", "whatif"] = "staff"
+    # "whatif": imagined by the township world model (twm.ClosePath); never stored or shown as
+    # a staff report.
+    source: Literal["staff_report", "whatif"] = "staff_report"
     created_at: datetime | None = None
 
     _norm = field_validator("starts_at", "ends_at", "created_at", mode="before")(_utc)
@@ -97,6 +99,8 @@ class Closure(BaseModel):
 
     def label(self, tz: str | None = None) -> str:
         """ "Closed: works until 20 Oct 2026" with the date in the site's time zone."""
+        if self.source == "whatif":
+            return "Closed in this what-if (not a real closure)"
         until = fmt_day(self.ends_at, tz) if self.ends_at else "further notice"
         return f"Closed: {self.reason} until {until}"
 

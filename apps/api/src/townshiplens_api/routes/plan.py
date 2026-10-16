@@ -1,0 +1,71 @@
+"""Verify-next planner and the belief behind it (Cycle 2, Township World Model).
+
+GET /verify-next ranks the unchecked facts staff should verify first. The plan is verified on
+the world model: the number of journeys that would be confirmed comes from simulating the facts
+as passing. Open verification requests for planned facts are linked. Nothing is stored.
+"""
+
+from typing import Literal
+
+from fastapi import APIRouter, HTTPException, Query
+from pydantic import BaseModel
+from townshiplens_spatial import belief, planner
+from townshiplens_spatial.planner import VerificationPlan
+
+from .. import state
+
+router = APIRouter()
+
+
+def _prior() -> dict:
+    """Regional OSM prior next to the loaded world (absent: Beta(1, 1), no information)."""
+    return belief.load_prior(state.data_dir() / "belief_prior.json")
+
+
+def _open_tickets() -> dict[tuple[str, str], str]:
+    out: dict[tuple[str, str], str] = {}
+    for status in ("open", "in_progress"):
+        for vr in state.get_ctx().vrs.list(status=status):
+            out.setdefault((vr.element_id, vr.attribute), vr.id)
+    return out
+
+
+@router.get("/verify-next", response_model=VerificationPlan)
+def verify_next(
+    profile: str = "wheelchair",
+    scope: Literal["suite", "evacuation"] = "evacuation",
+    budget: int = Query(15, ge=1, le=planner.MAX_BUDGET),
+) -> VerificationPlan:
+    """Survey plan: which facts to check first so the most sample journeys would be confirmed."""
+    ctx = state.get_ctx()
+    if profile not in ctx.world.profiles:
+        raise HTTPException(status_code=422, detail=f"unknown profile {profile}")
+    return planner.plan_verifications(
+        ctx.world, profile, scope, budget, open_tickets=_open_tickets(), prior=_prior()
+    )
+
+
+class BeliefRow(BaseModel):
+    edge_type: str
+    attribute: str
+    alpha: float
+    beta: float
+    q: float
+
+
+class BeliefTable(BaseModel):
+    rows: list[BeliefRow]
+    sources: dict[str, int]
+    note: str
+
+
+@router.get("/belief", response_model=BeliefTable)
+def belief_table() -> dict:
+    """The planner's belief over unchecked facts: Beta(alpha, beta) per path type and attribute,
+    from regional OSM tags (if built) and real staff verifications. Planning only."""
+    b = belief.build(state.get_ctx().world, _prior())
+    return {
+        "rows": b.table(),
+        "sources": b.sources,
+        "note": "Planning estimate only: never used to mark a path passable or shown to residents.",
+    }

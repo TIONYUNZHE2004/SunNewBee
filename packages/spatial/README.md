@@ -30,7 +30,43 @@ LineString define a node and its position. Coordinates are WGS84 `[lon, lat]`.
 (per-edge PASS/FAIL/UNKNOWN per profile), `routing` (profile- and scenario-aware route search),
 `flood` (affected places, islands, evacuation reachability), `vr_store` (SQLite verification
 requests), `attributes` (attribute catalogue and value validation), `sim` (resident-agent batch
-runner that ranks data gaps), `tools` (tool functions and the `TOOLS` registry).
+runner that ranks data gaps), `twm` (the Township World Model: actions, the pure transition
+`apply`, journey rollouts and what-if diffs), `tools` (tool functions and the `TOOLS` registry).
+
+## Township World Model (`twm.py`, Cycle 1 of `ai/world-model`)
+
+The world as a world model in the planning sense:
+
+- **State:** the `World`.
+- **Actions:** a closed vocabulary. `SetRiverStage`, `ClosePath`, `BuildRamp`, `AssumeFact` and `VerifyFact`, each gated by `legal()`, which rejects unknown ids, attributes and scenarios.
+- **Transition:** `apply(world, actions)` returns a copy-on-write imagined world. Imagined claims and closures are tagged `whatif`, and the live world is never mutated.
+- **Rollouts:** `rollout(...)` uses the same `plan_route` and evacuation reachability as everything else.
+- **Diff:** `compare(...)` gives counts per status before and after, the journeys that changed (before and after geometry), the touched paths, a deterministic `ev-whatif-…` evidence id, and a `summary`. The summary also carries `reach_stage_only` when a river rise is combined with other changes, so their effects can be told apart.
+
+Honesty rules:
+- A river stage only adds FAIL or UNKNOWN, as everywhere else. A test asserts that a stage never upgrades a journey.
+- An outcome resting on an imagined change is `whatif=True` ("would be confirmed").
+
+Journey sets:
+- `suite_journeys` comes from `sim.default_tasks`; chat uses a 60-journey prefix.
+- `evacuation_journeys` comes from `sim.evacuation_origins`; each journey goes to the nearest reachable centre.
+
+Guards (Cycle 1 review):
+- What-ifs and plans cover walking profiles only (`twm.WALKING`). A drive what-if took minutes on the seed.
+- `build_ramp` needs a path with steps.
+- At most 8 actions per request, and stage ids are checked.
+- The tools allow at most 2 world-model runs at once per process (`tools._WM_SLOTS`) and keep a 32-entry result cache keyed by world version, so a repeat request returns instantly.
+- After-states carry `demo_evidence`, and `summary.confirmed_on_demo_after` counts imagined confirmations that rest on demo values.
+- `base_scenario_id` records the stage of the before state.
+
+`suggest_actions` and `keystone_paths` propose legal candidates from the engine (never from the model): ramps where steps block a profile, unknown facts on many journeys, and the paths most journeys rely on.
+
+Speed: rollouts run inside `routing.eval_memo()`, which evaluates each (state, profile, scenario, edge) once per batch. On the Elmina seed:
+
+| Operation | Before the memo | With the memo |
+|---|---|---|
+| 50-origin evacuation what-if | 7.2 s | about 2.7 s |
+| Suggestions | 29.5 s | about 5 s |
 
 ## Profiles
 
@@ -100,7 +136,7 @@ uv run pytest packages/spatial -q
 
 Tests run against the tiny fixture world in `tests/fixtures/tiny`.
 
-## The 10 tools
+## The tools (10 lookups + 2 world-model tools)
 
 | Tool | Purpose |
 | --- | --- |
@@ -114,6 +150,8 @@ Tests run against the tiny fixture world in `tests/fixtures/tiny`.
 | `affected_places` | Likely/possible flooded places and paths, plus isolated components |
 | `list_evacuation_centres` | Centres labelled `official_pps` or `osm_candidate`, with reachability from a place |
 | `find_waste_points` | Waste/recycling points by type, nearest first when `near_place` given |
+| `suggest_interventions` | `(profile, near_place?)`: engine-proposed what-if actions with readable labels (ramps, verifications, keystone paths) and the river stages |
+| `simulate_what_if` | `(actions, profile, scope=journey\|suite\|evacuation, from_id?, to_id?, scenario_id?)`: what-if diff (summary, counts, changed journeys, `diff_geojson`, `ev-whatif-…` evidence, disclaimer). Never changes the real world |
 
 Flood definitions: an island is a connected component of the passable (non-FAIL) graph for the
 profile and scenario that contains no evacuation-centre node. `centres_reachability` registers a

@@ -158,6 +158,35 @@
         "title": "AnswerDraft",
         "type": "object"
       },
+      "AssumeFact": {
+        "description": "Imagine one recorded fact on a path, e.g. width_m = 1.2.",
+        "properties": {
+          "attribute": {
+            "title": "Attribute",
+            "type": "string"
+          },
+          "element_id": {
+            "title": "Element Id",
+            "type": "string"
+          },
+          "kind": {
+            "const": "assume_fact",
+            "default": "assume_fact",
+            "title": "Kind",
+            "type": "string"
+          },
+          "value": {
+            "title": "Value"
+          }
+        },
+        "required": [
+          "element_id",
+          "attribute",
+          "value"
+        ],
+        "title": "AssumeFact",
+        "type": "object"
+      },
       "AttributeBody": {
         "properties": {
           "note": {
@@ -193,6 +222,88 @@
           "source_type"
         ],
         "title": "AttributeBody",
+        "type": "object"
+      },
+      "BeliefRow": {
+        "properties": {
+          "alpha": {
+            "title": "Alpha",
+            "type": "number"
+          },
+          "attribute": {
+            "title": "Attribute",
+            "type": "string"
+          },
+          "beta": {
+            "title": "Beta",
+            "type": "number"
+          },
+          "edge_type": {
+            "title": "Edge Type",
+            "type": "string"
+          },
+          "q": {
+            "title": "Q",
+            "type": "number"
+          }
+        },
+        "required": [
+          "edge_type",
+          "attribute",
+          "alpha",
+          "beta",
+          "q"
+        ],
+        "title": "BeliefRow",
+        "type": "object"
+      },
+      "BeliefTable": {
+        "properties": {
+          "note": {
+            "title": "Note",
+            "type": "string"
+          },
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/BeliefRow"
+            },
+            "title": "Rows",
+            "type": "array"
+          },
+          "sources": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Sources",
+            "type": "object"
+          }
+        },
+        "required": [
+          "rows",
+          "sources",
+          "note"
+        ],
+        "title": "BeliefTable",
+        "type": "object"
+      },
+      "BuildRamp": {
+        "description": "Imagine a capital work: the path rebuilt step-free (steps become a ramp).",
+        "properties": {
+          "element_id": {
+            "title": "Element Id",
+            "type": "string"
+          },
+          "kind": {
+            "const": "build_ramp",
+            "default": "build_ramp",
+            "title": "Kind",
+            "type": "string"
+          }
+        },
+        "required": [
+          "element_id"
+        ],
+        "title": "BuildRamp",
         "type": "object"
       },
       "BuildingsLayer": {
@@ -242,6 +353,61 @@
           "trees"
         ],
         "title": "BuildingsLayer",
+        "type": "object"
+      },
+      "Candidate": {
+        "properties": {
+          "action": {
+            "discriminator": {
+              "mapping": {
+                "assume_fact": "#/components/schemas/AssumeFact",
+                "build_ramp": "#/components/schemas/BuildRamp",
+                "close_path": "#/components/schemas/ClosePath",
+                "set_river_stage": "#/components/schemas/SetRiverStage",
+                "verify_fact": "#/components/schemas/VerifyFact"
+              },
+              "propertyName": "kind"
+            },
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/SetRiverStage"
+              },
+              {
+                "$ref": "#/components/schemas/ClosePath"
+              },
+              {
+                "$ref": "#/components/schemas/BuildRamp"
+              },
+              {
+                "$ref": "#/components/schemas/AssumeFact"
+              },
+              {
+                "$ref": "#/components/schemas/VerifyFact"
+              }
+            ],
+            "title": "Action"
+          },
+          "journeys_using_it": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Journeys Using It"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          }
+        },
+        "required": [
+          "action",
+          "label"
+        ],
+        "title": "Candidate",
         "type": "object"
       },
       "CentreReachability": {
@@ -416,6 +582,7 @@
           "session_id": {
             "anyOf": [
               {
+                "pattern": "^[A-Za-z0-9_-]{8,64}$",
                 "type": "string"
               },
               {
@@ -595,6 +762,26 @@
           }
         },
         "title": "Claim",
+        "type": "object"
+      },
+      "ClosePath": {
+        "description": "Imagine a path closed (works, an event, a fallen tree).",
+        "properties": {
+          "element_id": {
+            "title": "Element Id",
+            "type": "string"
+          },
+          "kind": {
+            "const": "close_path",
+            "default": "close_path",
+            "title": "Kind",
+            "type": "string"
+          }
+        },
+        "required": [
+          "element_id"
+        ],
+        "title": "ClosePath",
         "type": "object"
       },
       "ClosureOut": {
@@ -819,8 +1006,11 @@
       "Disclaimer": {
         "properties": {
           "lens": {
-            "const": "flood",
             "default": "flood",
+            "enum": [
+              "flood",
+              "whatif"
+            ],
             "title": "Lens",
             "type": "string"
           },
@@ -1396,6 +1586,60 @@
         "title": "Kpis",
         "type": "object"
       },
+      "PlanFact": {
+        "properties": {
+          "attribute": {
+            "title": "Attribute",
+            "type": "string"
+          },
+          "check": {
+            "title": "Check",
+            "type": "string"
+          },
+          "element_id": {
+            "title": "Element Id",
+            "type": "string"
+          },
+          "journeys_relying": {
+            "title": "Journeys Relying",
+            "type": "integer"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "path_label": {
+            "title": "Path Label",
+            "type": "string"
+          },
+          "q": {
+            "title": "Q",
+            "type": "number"
+          },
+          "ticket_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ticket Id"
+          }
+        },
+        "required": [
+          "element_id",
+          "attribute",
+          "label",
+          "path_label",
+          "check",
+          "journeys_relying",
+          "q"
+        ],
+        "title": "PlanFact",
+        "type": "object"
+      },
       "ProfileInfo": {
         "description": "Read-only profile parameters, for the 'Assumptions' section. No secrets, no per-user data.",
         "properties": {
@@ -1969,7 +2213,8 @@
               "place.focus",
               "route.highlight",
               "flood.set_level",
-              "layer.toggle"
+              "layer.toggle",
+              "whatif.diff"
             ],
             "title": "Kind",
             "type": "string"
@@ -2068,6 +2313,26 @@
           "intent"
         ],
         "title": "SceneIntentEvent",
+        "type": "object"
+      },
+      "SetRiverStage": {
+        "description": "River rise scenario (indicative stages only; a stage never upgrades anything).",
+        "properties": {
+          "kind": {
+            "const": "set_river_stage",
+            "default": "set_river_stage",
+            "title": "Kind",
+            "type": "string"
+          },
+          "scenario_id": {
+            "title": "Scenario Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "scenario_id"
+        ],
+        "title": "SetRiverStage",
         "type": "object"
       },
       "SimAdvisory": {
@@ -2632,6 +2897,35 @@
         "title": "Site",
         "type": "object"
       },
+      "Suggestions": {
+        "properties": {
+          "candidates": {
+            "items": {
+              "$ref": "#/components/schemas/Candidate"
+            },
+            "title": "Candidates",
+            "type": "array"
+          },
+          "profile": {
+            "title": "Profile",
+            "type": "string"
+          },
+          "river_stages": {
+            "items": {
+              "type": "string"
+            },
+            "title": "River Stages",
+            "type": "array"
+          }
+        },
+        "required": [
+          "profile",
+          "candidates",
+          "river_stages"
+        ],
+        "title": "Suggestions",
+        "type": "object"
+      },
       "TextDelta": {
         "properties": {
           "delta": {
@@ -2909,6 +3203,68 @@
         "title": "ValidationError",
         "type": "object"
       },
+      "VerificationPlan": {
+        "properties": {
+          "belief_sources": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Belief Sources",
+            "type": "object"
+          },
+          "budget": {
+            "title": "Budget",
+            "type": "integer"
+          },
+          "disclaimer": {
+            "default": "Survey plan from the township model: journeys would be confirmed only if they pass when staff check these facts on site. A planning estimate, not a promise.",
+            "title": "Disclaimer",
+            "type": "string"
+          },
+          "evidence_id": {
+            "title": "Evidence Id",
+            "type": "string"
+          },
+          "expected_confirmed": {
+            "title": "Expected Confirmed",
+            "type": "number"
+          },
+          "facts": {
+            "items": {
+              "$ref": "#/components/schemas/PlanFact"
+            },
+            "title": "Facts",
+            "type": "array"
+          },
+          "profile": {
+            "title": "Profile",
+            "type": "string"
+          },
+          "scope": {
+            "title": "Scope",
+            "type": "string"
+          },
+          "summary": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Summary",
+            "type": "object"
+          }
+        },
+        "required": [
+          "profile",
+          "scope",
+          "budget",
+          "facts",
+          "summary",
+          "expected_confirmed",
+          "belief_sources",
+          "evidence_id"
+        ],
+        "title": "VerificationPlan",
+        "type": "object"
+      },
       "VerificationRequest": {
         "properties": {
           "attribute": {
@@ -3050,6 +3406,40 @@
         "title": "VerificationRequested",
         "type": "object"
       },
+      "VerifyFact": {
+        "description": "Imagine staff verifying a fact: it passes every profile's limit, or it fails.",
+        "properties": {
+          "attribute": {
+            "title": "Attribute",
+            "type": "string"
+          },
+          "element_id": {
+            "title": "Element Id",
+            "type": "string"
+          },
+          "kind": {
+            "const": "verify_fact",
+            "default": "verify_fact",
+            "title": "Kind",
+            "type": "string"
+          },
+          "outcome": {
+            "default": "pass",
+            "enum": [
+              "pass",
+              "fail"
+            ],
+            "title": "Outcome",
+            "type": "string"
+          }
+        },
+        "required": [
+          "element_id",
+          "attribute"
+        ],
+        "title": "VerifyFact",
+        "type": "object"
+      },
       "WastePoint": {
         "properties": {
           "accepted_items": {
@@ -3127,6 +3517,235 @@
           "coord"
         ],
         "title": "WastePoint",
+        "type": "object"
+      },
+      "WhatIfRequest": {
+        "properties": {
+          "actions": {
+            "items": {
+              "discriminator": {
+                "mapping": {
+                  "assume_fact": "#/components/schemas/AssumeFact",
+                  "build_ramp": "#/components/schemas/BuildRamp",
+                  "close_path": "#/components/schemas/ClosePath",
+                  "set_river_stage": "#/components/schemas/SetRiverStage",
+                  "verify_fact": "#/components/schemas/VerifyFact"
+                },
+                "propertyName": "kind"
+              },
+              "oneOf": [
+                {
+                  "$ref": "#/components/schemas/SetRiverStage"
+                },
+                {
+                  "$ref": "#/components/schemas/ClosePath"
+                },
+                {
+                  "$ref": "#/components/schemas/BuildRamp"
+                },
+                {
+                  "$ref": "#/components/schemas/AssumeFact"
+                },
+                {
+                  "$ref": "#/components/schemas/VerifyFact"
+                }
+              ]
+            },
+            "maxItems": 8,
+            "title": "Actions",
+            "type": "array"
+          },
+          "from_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "From Id"
+          },
+          "profile": {
+            "default": "wheelchair",
+            "title": "Profile",
+            "type": "string"
+          },
+          "scenario_id": {
+            "anyOf": [
+              {
+                "pattern": "^(baseline|stage_p[1-5]m)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scenario Id"
+          },
+          "scope": {
+            "default": "evacuation",
+            "enum": [
+              "journey",
+              "suite",
+              "evacuation"
+            ],
+            "title": "Scope",
+            "type": "string"
+          },
+          "to_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "To Id"
+          }
+        },
+        "title": "WhatIfRequest",
+        "type": "object"
+      },
+      "WhatIfResponse": {
+        "properties": {
+          "action_labels": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Action Labels",
+            "type": "array"
+          },
+          "actions": {
+            "items": {
+              "discriminator": {
+                "mapping": {
+                  "assume_fact": "#/components/schemas/AssumeFact",
+                  "build_ramp": "#/components/schemas/BuildRamp",
+                  "close_path": "#/components/schemas/ClosePath",
+                  "set_river_stage": "#/components/schemas/SetRiverStage",
+                  "verify_fact": "#/components/schemas/VerifyFact"
+                },
+                "propertyName": "kind"
+              },
+              "oneOf": [
+                {
+                  "$ref": "#/components/schemas/SetRiverStage"
+                },
+                {
+                  "$ref": "#/components/schemas/ClosePath"
+                },
+                {
+                  "$ref": "#/components/schemas/BuildRamp"
+                },
+                {
+                  "$ref": "#/components/schemas/AssumeFact"
+                },
+                {
+                  "$ref": "#/components/schemas/VerifyFact"
+                }
+              ]
+            },
+            "title": "Actions",
+            "type": "array"
+          },
+          "changed": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Changed",
+            "type": "array"
+          },
+          "changed_truncated": {
+            "title": "Changed Truncated",
+            "type": "boolean"
+          },
+          "counts_after": {
+            "additionalProperties": {
+              "additionalProperties": {
+                "type": "integer"
+              },
+              "type": "object"
+            },
+            "title": "Counts After",
+            "type": "object"
+          },
+          "counts_before": {
+            "additionalProperties": {
+              "additionalProperties": {
+                "type": "integer"
+              },
+              "type": "object"
+            },
+            "title": "Counts Before",
+            "type": "object"
+          },
+          "diff_geojson": {
+            "additionalProperties": true,
+            "title": "Diff Geojson",
+            "type": "object"
+          },
+          "disclaimer": {
+            "title": "Disclaimer",
+            "type": "string"
+          },
+          "evidence_id": {
+            "title": "Evidence Id",
+            "type": "string"
+          },
+          "profile": {
+            "title": "Profile",
+            "type": "string"
+          },
+          "scenario_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scenario Id"
+          },
+          "scope": {
+            "title": "Scope",
+            "type": "string"
+          },
+          "summary": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Summary",
+            "type": "object"
+          },
+          "touched": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Touched",
+            "type": "array"
+          }
+        },
+        "required": [
+          "profile",
+          "scope",
+          "scenario_id",
+          "actions",
+          "action_labels",
+          "summary",
+          "counts_before",
+          "counts_after",
+          "changed",
+          "changed_truncated",
+          "touched",
+          "diff_geojson",
+          "evidence_id",
+          "disclaimer"
+        ],
+        "title": "WhatIfResponse",
         "type": "object"
       }
     }
@@ -3212,6 +3831,25 @@
           }
         },
         "summary": "Audit"
+      }
+    },
+    "/belief": {
+      "get": {
+        "description": "The planner's belief over unchecked facts: Beta(alpha, beta) per path type and attribute,\nfrom regional OSM tags (if built) and real staff verifications. Planning only.",
+        "operationId": "belief_table_belief_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BeliefTable"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Belief Table"
       }
     },
     "/briefings/flood": {
@@ -4731,6 +5369,73 @@
         "summary": "Resolve"
       }
     },
+    "/verify-next": {
+      "get": {
+        "description": "Survey plan: which facts to check first so the most sample journeys would be confirmed.",
+        "operationId": "verify_next_verify_next_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "profile",
+            "required": false,
+            "schema": {
+              "default": "wheelchair",
+              "title": "Profile",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "scope",
+            "required": false,
+            "schema": {
+              "default": "evacuation",
+              "enum": [
+                "suite",
+                "evacuation"
+              ],
+              "title": "Scope",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "budget",
+            "required": false,
+            "schema": {
+              "default": 15,
+              "maximum": 40,
+              "minimum": 1,
+              "title": "Budget",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VerificationPlan"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Verify Next"
+      }
+    },
     "/waste-points": {
       "get": {
         "operationId": "waste_waste_points_get",
@@ -4795,6 +5500,95 @@
           }
         },
         "summary": "Waste"
+      }
+    },
+    "/what-if": {
+      "post": {
+        "description": "Imagine changes on a copy of the township and compare journeys before and after.",
+        "operationId": "what_if_what_if_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WhatIfRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WhatIfResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "illegal or invalid actions"
+          }
+        },
+        "summary": "What If"
+      }
+    },
+    "/what-if/suggestions": {
+      "get": {
+        "description": "Engine-proposed what-if actions with readable labels (ramps, verifications, keystones).",
+        "operationId": "what_if_suggestions_what_if_suggestions_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "profile",
+            "required": false,
+            "schema": {
+              "default": "wheelchair",
+              "title": "Profile",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "near_place",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Near Place"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Suggestions"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "What If Suggestions"
       }
     }
   }

@@ -56,3 +56,15 @@
   message: "Tell me about Elmina Lakeside Mall"
   profile: default
   expect: { tools_include: [get_place_details], events_include: [citation], text_excludes: ["don't have that place"] }
+- id: whatif-ramp
+  message: "What if we build a ramp at the steps? How many wheelchair journeys would work?"
+  profile: wheelchair
+  expect: { tools_include: [simulate_what_if], events_include: [scene.intent, citation, disclaimer], done_status_in: [partial, answered], text_includes: ["what-if"], text_excludes: [" is confirmed", "will be built"], mock_only: { text_includes: ["3 of 5 wheelchair journeys"] } }
+- id: whatif-flood-ramp-evacuation
+  message: "If the river rises 3 m and we build a ramp at the steps, how many wheelchair users can still reach an evacuation centre? What if?"
+  profile: wheelchair
+  expect: { tools_include: [simulate_what_if], events_include: [disclaimer], text_includes: ["what-if", "not a forecast"], text_excludes: [" safe", "will be built"] }
+- id: verify-next-plan
+  message: "Which facts should staff verify first so wheelchair users can reach an evacuation centre?"
+  profile: wheelchair
+  expect: { tools_include: [plan_verifications], events_include: [citation], done_status_in: [partial, answered], text_excludes: ["will be confirmed", "probably"], mock_only: { first_line: "If this check at 1 place passes" } }

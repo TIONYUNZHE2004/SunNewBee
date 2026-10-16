@@ -17,10 +17,21 @@ from .labels import (
     status_label,
     unchecked_caveats,
 )
+from .template import plan_answer, whatif_answer
+
+
+def _current(messages: list[ModelMessage]) -> list[ModelMessage]:
+    """This turn's messages: from the last user prompt on (earlier turns are only history)."""
+    starts = [
+        i
+        for i, m in enumerate(messages)
+        if isinstance(m, ModelRequest) and any(isinstance(p, UserPromptPart) for p in m.parts)
+    ]
+    return messages[starts[-1] :] if starts else messages
 
 
 def _prompt(messages: list[ModelMessage]) -> str:
-    for m in messages:
+    for m in _current(messages):
         if isinstance(m, ModelRequest):
             for p in m.parts:
                 if isinstance(p, UserPromptPart) and isinstance(p.content, str):
@@ -30,10 +41,12 @@ def _prompt(messages: list[ModelMessage]) -> str:
 
 def _returns(messages: list[ModelMessage]) -> list[tuple[str, dict]]:
     out = []
-    for m in messages:
+    for m in _current(messages):
         if isinstance(m, ModelRequest):
             for p in m.parts:
-                if isinstance(p, ToolReturnPart):
+                # The previous turn's final_answer return can share a request with the new
+                # prompt (multi-turn history): it is not a tool result.
+                if isinstance(p, ToolReturnPart) and p.tool_name != "final_answer":
                     c = (
                         p.content
                         if isinstance(p.content, dict)
@@ -307,10 +320,69 @@ def _closure_answer(rets, place_q: str | None) -> ModelResponse:
     )
 
 
+_PLAN = (
+    r"which (?:facts|checks|things)\b|verify (?:first|next)|survey plan"
+    r"|what should (?:staff|we|the team) (?:check|verify)"
+)
+
+
+def _plan(q: str, rets, info: AgentInfo) -> ModelResponse:
+    """Survey-plan flow: one plan_verifications call, then narrate its numbers only."""
+    profile = _profile(q, info, "wheelchair")
+    if not rets:
+        scope = "evacuation" if re.search(r"centre|center|evacuat|pps|shelter", q) else "suite"
+        return _call("plan_verifications", profile=profile, scope=scope, budget=15)
+    d = _data(rets[-1][1])
+    if not isinstance(d, dict):
+        return _cannot("I couldn't build a survey plan from the township model.")
+    ev = [i for i in _ev_ids(rets) if i.startswith("ev-plan-")]
+    return _final(**plan_answer(d, ev))
+
+
+_WHATIF = r"\bwhat[- ]if\b|\bimagine\b|\bif (?:we|you|staff) (?:build|add|close|verify)\b"
+
+
+def _whatif(q: str, rets, info: AgentInfo) -> ModelResponse:
+    """What-if hero flow: engine suggestions -> one simulation -> narrate its summary only."""
+    profile = _profile(q, info, "wheelchair")
+    if not rets:
+        return _call("suggest_interventions", profile=profile)
+    if len(rets) == 1:
+        cands = (_data(rets[0][1]) or {}).get("candidates") or []
+        want = (
+            "build_ramp"
+            if "ramp" in q
+            else "close_path"
+            if "close" in q
+            else "verify_fact"
+            if "verif" in q
+            else None
+        )
+        pick = next((c for c in cands if c["action"]["kind"] == want), cands[0] if cands else None)
+        actions = [pick["action"]] if pick else []
+        if (m := re.search(r"(\d+)\s*m\b", q)) and 1 <= int(m.group(1)) <= 5:
+            stage = {"kind": "set_river_stage", "scenario_id": f"stage_p{m.group(1)}m"}
+            actions.insert(0, stage)
+        if not actions:
+            return _cannot("I couldn't find a change to imagine for that yet.")
+        scope = "evacuation" if re.search(r"centre|center|evacuat|pps|shelter", q) else "suite"
+        return _call("simulate_what_if", actions=actions, profile=profile, scope=scope)
+    d = _data(rets[-1][1])
+    if not isinstance(d, dict):
+        return _cannot("I couldn't run that what-if on the township model.")
+    wi = {**d, "labels": d.get("action_labels") or []}
+    ev = [i for i in _ev_ids(rets) if i.startswith("ev-whatif-")]
+    return _final(**whatif_answer(wi, ev))
+
+
 def _script(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
     q = _prompt(messages).lower()
     rets = _returns(messages)
     n = len(rets)
+    if re.search(_PLAN, q):
+        return _plan(q, rets, info)
+    if re.search(_WHATIF, q):
+        return _whatif(q, rets, info)
     is_flood = bool(re.search(r"flood|river|banjir|sungai|rises|naik|水", q))
     ui_sid = _ui(info, "active_scenario")
     ui_sid = None if ui_sid == "none" else ui_sid

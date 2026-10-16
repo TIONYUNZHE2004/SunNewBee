@@ -5,6 +5,7 @@ import { PathOverlay } from "../map-ui/PathOverlay";
 import { PlaceOverlay } from "../map-ui/PlaceOverlay";
 import { RouteTag } from "../map-ui/RouteTag";
 import { SettingsPopover } from "../map-ui/SettingsPopover";
+import { WhatIfTag } from "../map-ui/WhatIfTag";
 
 /** Map on the left, assistant on the right; stacked (map first) below `lg`. */
 export function MainPage() {
@@ -16,6 +17,7 @@ export function MainPage() {
       >
         <MapStage>
           <RouteTag />
+          <WhatIfTag />
           <FloodNote />
           <SettingsPopover />
           <PlaceOverlay />

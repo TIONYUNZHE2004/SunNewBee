@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 import difflib
+import json
 import re
+import threading
+from collections import OrderedDict
 from dataclasses import dataclass, replace
 
 import networkx as nx
@@ -780,3 +783,247 @@ TOOLS = {
         find_waste_points,
     )
 }
+
+
+# ---- Township World Model tools (Cycle 1): what-if rollouts ----------------------------------
+SCOPES = ("journey", "suite", "evacuation")
+SUITE_SAMPLE = 60  # journeys per what-if in chat (deterministic prefix of the suite)
+# World-model runs are CPU-bound (seconds each): at most 2 at once per process, and identical
+# requests on the same world version are answered from a small cache (the engine is
+# deterministic), so a public endpoint or a looping model cannot stall chat for everyone.
+_WM_SLOTS = threading.BoundedSemaphore(2)
+_WM_WAIT_S = 20.0
+_WM_CACHE: OrderedDict[str, ToolResult] = OrderedDict()
+_WM_CACHE_MAX = 32
+
+
+def _wm_cached(world: World, kind: str, args: dict, run) -> ToolResult:
+    key = json.dumps([kind, id(world), world.version, args], sort_keys=True, default=str)
+    hit = _WM_CACHE.get(key)
+    if hit is not None:
+        _WM_CACHE.move_to_end(key)
+        return hit.model_copy(deep=True)
+    if not _WM_SLOTS.acquire(timeout=_WM_WAIT_S):
+        return ToolResult(ok=False, warnings=["the township model is busy; try again shortly"])
+    try:
+        res = run()
+    finally:
+        _WM_SLOTS.release()
+    if res.ok:
+        _WM_CACHE[key] = res.model_copy(deep=True)
+        while len(_WM_CACHE) > _WM_CACHE_MAX:
+            _WM_CACHE.popitem(last=False)
+    return res
+
+
+def _walking(world: World, profile: str) -> str | None:
+    from . import twm
+
+    if profile not in world.profiles or profile not in twm.WALKING:
+        return f"what-ifs cover walking profiles only ({', '.join(twm.WALKING)})"
+    return None
+
+
+def suggest_interventions(ctx: Ctx, profile: str = "wheelchair", near_place: str | None = None):
+    """Legal what-if actions proposed by the engine, with readable labels: ramps where steps
+    block `profile`, facts staff could verify, and the paths most journeys rely on (to imagine
+    them closed)."""
+
+    w = ctx.world
+    if err := _walking(w, profile):
+        return ToolResult(ok=False, warnings=[err])
+    if (
+        near_place
+        and near_place not in w.places
+        and not near_place.startswith(routing.CENTRE_PREFIX)
+    ):
+        return ToolResult(ok=False, warnings=[f"unknown place {near_place}"])
+    return _wm_cached(
+        w,
+        "suggest",
+        {"profile": profile, "near_place": near_place},
+        lambda: _suggest(w, profile, near_place),
+    )
+
+
+def _suggest(w: World, profile: str, near_place: str | None) -> ToolResult:
+    from . import twm
+
+    out = [
+        {"action": a.model_dump(), "label": twm.describe(w, a)}
+        for a in twm.suggest_actions(w, profile, near_place=near_place)
+    ]
+    out += [
+        {
+            "action": a.model_dump(),
+            "label": twm.describe(w, a),
+            "journeys_using_it": n,
+        }
+        for a, n in twm.keystone_paths(w, profile, near_place)
+    ]
+    stages = [s.id for s in w.flood.scenarios]
+    return ToolResult(ok=True, data={"candidates": out, "river_stages": stages})
+
+
+def simulate_what_if(
+    ctx: Ctx,
+    actions: list[dict],
+    profile: str = "default",
+    scope: str = "journey",
+    from_id: str | None = None,
+    to_id: str | None = None,
+    scenario_id: str | None = None,
+):
+    """Imagine `actions` on a copy of the township and compare journeys before and after.
+
+    scope journey: from_id -> to_id (to_id may be "__centre__<id>" or "nearest_centre");
+    suite: sample resident journeys; evacuation: sampled origins -> nearest reachable centre.
+    `scenario_id` is the stage already on screen (the "before" state). Never changes the real
+    world; the result is labelled what-if."""
+    from pydantic import TypeAdapter, ValidationError
+
+    from . import twm
+
+    w = ctx.world
+    if err := _walking(w, profile):
+        return ToolResult(ok=False, warnings=[err])
+    if scenario_id and scenario_id not in {s.id for s in w.flood.scenarios}:
+        return ToolResult(ok=False, warnings=[f"unknown scenario {scenario_id}"])
+    if len(actions or []) > twm.MAX_ACTIONS:
+        return ToolResult(ok=False, warnings=[f"at most {twm.MAX_ACTIONS} actions"])
+    if scope not in SCOPES:
+        return ToolResult(ok=False, warnings=[f"scope must be one of {', '.join(SCOPES)}"])
+    try:
+        acts = TypeAdapter(list[twm.Action]).validate_python(actions or [])
+    except ValidationError as exc:
+        return ToolResult(ok=False, warnings=[f"invalid actions: {exc.errors()[0]['msg']}"])
+    if illegal := [r for a in acts if (r := twm.legal(w, a))]:
+        return ToolResult(ok=False, warnings=[f"illegal action: {r}" for r in illegal])
+    if scope == "journey":
+        if not from_id or not to_id:
+            return ToolResult(ok=False, warnings=["scope journey needs from_id and to_id"])
+        dest = twm.NEAREST_CENTRE if to_id in ("nearest_centre", twm.NEAREST_CENTRE) else to_id
+        journeys = [twm.Journey(from_id=from_id, to_id=dest, profile=profile)]
+    elif scope == "suite":
+        journeys = twm.suite_journeys(w, profile)[:SUITE_SAMPLE]
+    else:
+        journeys = twm.evacuation_journeys(w, profile)
+    base = scenario_id if scenario_id and scenario_id != "baseline" else None
+    args = {
+        "actions": [a.model_dump(mode="json") for a in acts],
+        "profile": profile,
+        "journeys": [j.model_dump() for j in journeys],
+        "base": base,
+    }
+    return _wm_cached(w, "whatif", args, lambda: _simulate(w, acts, journeys, base, scope, profile))
+
+
+def _simulate(w: World, acts, journeys, base, scope: str, profile: str) -> ToolResult:
+    from . import twm
+
+    res = twm.compare(w, acts, journeys, base_scenario_id=base)
+    data = res.model_dump(mode="json")
+    data["diff_geojson"] = _diff_geojson(w, res)
+    data["action_labels"] = [twm.describe(w, a) for a in acts]
+    data["scope"] = scope
+    data["profile"] = profile
+    data["imagined"] = bool(res.touched)  # any non-stage change: outcomes are "would be"
+    for o in data["journeys"]:
+        for side in ("before", "after"):
+            o[side].pop("geometry", None)  # the agent gets geometry from the record, not here
+        o["from_name"] = _place_name(w, o["journey"]["from_id"])
+    data["changed"] = [o for o in data["journeys"] if o["before"]["status"] != o["after"]["status"]]
+    data["journeys"] = data["journeys"][:10] if scope != "journey" else data["journeys"]
+    data["changed"] = data["changed"][:10]
+    data["changed_truncated"] = res.summary["changed"] > 10
+    return ToolResult(ok=True, data=data, evidence=[res.evidence], warnings=[res.disclaimer])
+
+
+def _diff_geojson(world: World, res) -> dict:
+    """Before/after lines of the journeys that changed, plus the imagined paths, for the map.
+    Every feature is tagged `whatif` so a renderer can never draw it as a real route."""
+    feats = []
+    for i, o in enumerate(res.changed[:20]):
+        for side in ("before", "after"):
+            st = getattr(o, side)
+            if st.geometry:
+                feats.append(
+                    {
+                        "type": "Feature",
+                        "geometry": st.geometry,
+                        "properties": {
+                            "whatif": True,
+                            "side": side,
+                            "status": st.status,
+                            "journey": i,
+                        },
+                    }
+                )
+    for eid in res.touched:
+        e = world.edges.get(eid)
+        if e is not None:
+            feats.append(
+                {
+                    "type": "Feature",
+                    "geometry": {"type": "LineString", "coordinates": e.coords},
+                    "properties": {"whatif": True, "side": "touched", "element_id": eid},
+                }
+            )
+    return {"type": "FeatureCollection", "features": feats}
+
+
+def _place_name(world: World, pid: str) -> str | None:
+    p = world.places.get(pid)
+    return p.name if p else None
+
+
+TOOLS["suggest_interventions"] = suggest_interventions
+TOOLS["simulate_what_if"] = simulate_what_if
+
+
+def plan_verifications(
+    ctx: Ctx, profile: str = "wheelchair", scope: str = "evacuation", budget: int = 15
+):
+    """Survey plan (staff): which unchecked facts to verify first so the most sample journeys
+    would be confirmed, if those facts pass. Verified on the world model; open tickets linked."""
+    from . import belief
+
+    w = ctx.world
+    if err := _walking(w, profile):
+        return ToolResult(ok=False, warnings=[err])
+    if scope not in ("suite", "evacuation"):
+        return ToolResult(ok=False, warnings=["scope must be suite or evacuation"])
+    tickets: dict[tuple[str, str], str] = {}
+    for status in ("open", "in_progress"):
+        for vr in ctx.vrs.list(status=status):
+            tickets.setdefault((vr.element_id, vr.attribute), vr.id)
+    prior = belief.load_prior(w.data_dir / "belief_prior.json") if w.data_dir else {}
+    args = {
+        "profile": profile,
+        "scope": scope,
+        "budget": int(budget),
+        "tickets": sorted(tickets.items()),
+    }
+    return _wm_cached(
+        w, "plan", args, lambda: _plan(w, profile, scope, int(budget), tickets, prior)
+    )
+
+
+def _plan(w: World, profile, scope, budget, tickets, prior) -> ToolResult:
+    from . import planner
+
+    plan = planner.plan_verifications(w, profile, scope, budget, tickets, prior=prior)
+    data = plan.model_dump(mode="json")
+    data["places"] = len({f["element_id"] for f in data["facts"]})
+    ev = Evidence(
+        id=plan.evidence_id,
+        element_id="plan",
+        attribute="verify_next",
+        value={"facts": len(plan.facts)},
+        status="indicative",
+        source_type="whatif",
+    )
+    return ToolResult(ok=True, data=data, evidence=[ev], warnings=[plan.disclaimer])
+
+
+TOOLS["plan_verifications"] = plan_verifications

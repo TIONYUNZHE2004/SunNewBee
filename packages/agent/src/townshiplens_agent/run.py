@@ -20,6 +20,7 @@ from .events import (
     Disclaimer,
     Done,
     ErrorEvent,
+    SceneIntent,
     SceneIntentEvent,
     TextDelta,
     Uncertainty,
@@ -32,6 +33,8 @@ from .labels import (
     route_status_text,
     unknown_note,
 )
+from .memory import DEFAULT as DEFAULT_MEMORY
+from .memory import SessionMemory
 from .record import TurnRecord
 from .settings import AgentSettings
 from .template import template_answer
@@ -40,6 +43,7 @@ from .validate import PLACEHOLDER_CAVEAT
 log = logging.getLogger(__name__)
 
 CHUNK = 40
+WHATIF_NOTE = "What-if simulation: imagined changes are not real; unverified facts stay unverified"
 DEFAULT_DISCLAIMER = (
     "Indicative scenario, not a forecast. Follow official MBSA / JPS / NADMA guidance."
 )
@@ -205,13 +209,21 @@ def _answer_events(
     text = answer_text(ans, _route_status_line(ans, rec), rec)
     evs += [TextDelta(delta=text[i : i + CHUNK]) for i in range(0, len(text), CHUNK)]
 
-    for it in ans.scene_intents:
+    intents = list(ans.scene_intents)
+    diff = next((w["diff_geojson"] for w in reversed(rec.what_ifs) if w.get("diff_geojson")), None)
+    if diff and not any(i.kind == "whatif.diff" for i in intents):
+        intents.append(SceneIntent(kind="whatif.diff"))  # a what-if is always drawn as a diff
+    for it in intents:
         intent = it.model_copy()
         if intent.kind == "route.highlight":
             route = rec.routes.get(intent.route_id or "")
             if route is None:
                 continue  # nothing to draw: the route was not returned this turn
             intent.geojson = route["geometry"]
+        if intent.kind == "whatif.diff":
+            if diff is None:
+                continue  # no simulation ran this turn
+            intent.geojson = diff
         evs.append(SceneIntentEvent(intent=intent))
 
     ref = 0
@@ -255,12 +267,18 @@ def _answer_events(
         for c in ans.caveats
         if not _covered(c, items, bool(unknowns))
     ]
+    if rec.what_ifs:
+        items.append({"element_id": "whatif", "attribute": "whatif", "note": WHATIF_NOTE})
     # Partial whenever the answer carries any caveat (not only unchecked segments).
     level = "partial" if unknowns or items or ans.caveats else "none"
     if ans.answer_status == "cannot_answer":
         level = "high"
     evs.append(Uncertainty(level=level, items=items))
 
+    if rec.what_ifs:  # before the flood disclaimer, which stays the last word when both apply
+        evs.append(
+            Disclaimer(lens="whatif", text=rec.what_ifs[-1].get("disclaimer") or WHATIF_NOTE)
+        )
     if (
         rec.scenarios_used
         or ans.scenario_id
@@ -301,8 +319,11 @@ async def run_turn(
     req: ChatRequest,
     settings: AgentSettings | None = None,
     record: TurnRecord | None = None,
+    memory: SessionMemory | None = None,
 ) -> AsyncIterator[ChatEvent]:
-    """`record` lets an eval harness inspect the turn afterwards (validator errors, usage)."""
+    """`record` lets an eval harness inspect the turn afterwards (validator errors, usage).
+    `memory` (default: the process-wide store) gives follow-ups the session's earlier turns."""
+    memory = memory if memory is not None else DEFAULT_MEMORY
     settings = settings or AgentSettings()
     # A recording cannot reflect a live closure (R33), so any active closure is a cache miss.
     if settings.demo_mode and not ctx.world.active_closures():
@@ -313,6 +334,7 @@ async def run_turn(
             return
     rec = record or TurnRecord()
     rec.queue = asyncio.Queue()
+    rec.history_simulated = memory.simulated(req.session_id)
     deps = agent_mod.Deps(ctx=ctx, rec=rec, request=req)
     msg_id = uuid.uuid4().hex[:12]
     model_name = "unknown"
@@ -331,6 +353,7 @@ async def run_turn(
             async with asyncio.timeout(settings.turn_timeout_s):
                 return await agent.run(
                     req.message,
+                    message_history=memory.history(req.session_id) or None,
                     deps=deps,
                     retries={"output": settings.llm_output_retries},
                     usage=rec.usage,
@@ -386,6 +409,9 @@ async def run_turn(
         yield ErrorEvent(code="internal", message="could not build the answer")
         yield Done(message_id=msg_id, answer_status="cannot_answer", model=used)
         return
+    # Follow-up context: the question and the answer as shown (template fallbacks included).
+    shown = "".join(e.delta for e in events if isinstance(e, TextDelta))
+    memory.add_turn(req.session_id, req.message, shown, simulated=bool(rec.what_ifs or rec.plans))
     for ev in events:
         yield ev
     yield Done(message_id=msg_id, answer_status=ans.answer_status, model=used)

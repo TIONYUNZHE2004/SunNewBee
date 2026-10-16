@@ -44,6 +44,8 @@ interface SceneState {
   selectedPlaceId: string | null;
   selectedFloodEdgeId: string | null;
   route: { id: string; geojson: GeoJSON.LineString } | null;
+  /** A what-if diff (imagined, never a real route): before/after lines and imagined changes. */
+  whatIf: { geojson: { type: string; features: unknown[] } } | null;
   camera: { center: [number, number]; rangeM: number } | null;
   intents: SceneIntent[];
   applyIntent: (i: SceneIntent) => void;
@@ -63,6 +65,7 @@ interface SceneState {
   /** Apply `defaultMapStyle` once buildings data has settled, unless the user chose. */
   applyDefaultMapStyle: (hasBuildings: boolean, hasGoogle: boolean) => void;
   clearRoute: () => void;
+  clearWhatIf: () => void;
   reset: () => void;
 }
 
@@ -77,6 +80,7 @@ const initial = {
   selectedPlaceId: null as string | null,
   selectedFloodEdgeId: null as string | null,
   route: null as SceneState["route"],
+  whatIf: null as SceneState["whatIf"],
   camera: null as SceneState["camera"],
   intents: [] as SceneIntent[],
   mapStyle: "realistic" as MapStyle,
@@ -90,8 +94,16 @@ export const useScene = create<SceneState>((set) => ({
       const next: Partial<SceneState> = { intents: [...s.intents, i] };
       switch (i.kind) {
         case "route.highlight":
-          if (i.route_id && i.geojson)
+          if (i.route_id && i.geojson) {
             next.route = { id: i.route_id, geojson: i.geojson as unknown as GeoJSON.LineString };
+            next.whatIf = null; // a real route is never drawn under an older imagined diff
+          }
+          break;
+        case "whatif.diff":
+          if (i.geojson)
+            next.whatIf = {
+              geojson: i.geojson as unknown as { type: string; features: unknown[] },
+            };
           break;
         case "place.focus":
           next.focusPlaceId = i.place_id ?? null;
@@ -130,12 +142,13 @@ export const useScene = create<SceneState>((set) => ({
   setProfile: (profile) => {
     saveProfile(profile);
     // A highlighted route was planned for the previous persona; do not show it as this one's.
-    set({ profile, route: null });
+    set({ profile, route: null, whatIf: null });
   },
   setScenario: (scenarioId) =>
     set((s) => ({
       scenarioId,
       route: null, // planned under the previous scenario
+      whatIf: null, // compared against the previous scenario
       selectedFloodEdgeId: null,
       lensVisible: { ...s.lensVisible, flood: !!scenarioId || s.lensVisible.flood },
     })),
@@ -146,5 +159,6 @@ export const useScene = create<SceneState>((set) => ({
   applyDefaultMapStyle: (hasBuildings, hasGoogle) =>
     set((s) => (s.mapStyleChosen ? {} : { mapStyle: defaultMapStyle(hasBuildings, hasGoogle) })),
   clearRoute: () => set({ route: null }),
+  clearWhatIf: () => set({ whatIf: null }),
   reset: () => set(initial),
 }));

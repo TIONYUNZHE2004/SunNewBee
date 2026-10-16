@@ -218,3 +218,220 @@ Minor findings:
 | 9 | "and N more" could merge into an unrelated caveat | Fixed: it only merges after a "Not checked yet" line |
 | 10 | `REASSURE` is English-only | Deferred to the BM/中文 cycle |
 | 11 | The licence change had no ruling | W1 above |
+
+---
+
+## Cycle 1: Township World Model core, What-if Lab and multi-turn memory (16 Oct, 21:00–22:00)
+
+**Spec:** [2026-10-16-township-world-model-whatif-design.md](specs/2026-10-16-township-world-model-whatif-design.md). Research basis: brief §4 and §6 (#1 What-if Lab and #7 multi-turn memory).
+
+### What was built and why it is impressive
+
+**1. A real world model (`packages/spatial/.../twm.py`).**
+- **State:** the `World`.
+- **Actions:** a closed vocabulary (`SetRiverStage`, `ClosePath`, `BuildRamp`, `AssumeFact`, `VerifyFact`), gated by `legal()`.
+- **Transition:** a pure copy-on-write `apply()`.
+- **Rollouts:** `rollout()` over resident journeys or over an evacuation sample.
+- **Diff:** `compare()`.
+
+This is the Code World Models / LLM+P pattern from the research brief: the language model proposes from the engine's own "legal moves" (`suggest_interventions`), the engine disposes (`simulate_what_if`), and the validator checks every spoken number against the simulation.
+
+**2. The `eval_memo` batch memo** makes rollouts 3–6× faster on the real seed, so a what-if fits inside a chat turn (numbers in the Evidence table).
+
+**3. Agent what-ifs.**
+- New validator rules: the answer must say "what-if", quote only simulated numbers, keep imagined outcomes conditional, and never call a what-if a real plan.
+- A shared `template.whatif_answer` gives the mock and the template the same wording.
+- A `whatif.diff` scene intent, a what-if disclaimer and an uncertainty note.
+
+**4. A river-rise-plus-change decomposition** (`reach_stage_only`). The answer separates what the flood does from what the ramp adds.
+
+**5. Multi-turn memory.** The in-process `SessionMemory` is keyed by a per-tab `session_id` and never written to disk. Follow-ups such as "and if it rises another metre?" now work.
+
+**6. Web.**
+- What-if diff on the Stylised 3D map: grey today, lilac imagined, magenta changed paths. The camera frames it and a "What-if · not real" legend sits on top.
+- What-if Lab panel (Management mode): engine-suggested changes, a river stage and a journey set, then Run, with before/after bars and no LLM involved.
+- `POST /what-if` and `GET /what-if/suggestions`.
+
+### Evidence
+
+**Engine timings on the Elmina seed:**
+
+| Operation | Before | After `eval_memo` |
+|---|---|---|
+| 50-origin evacuation what-if | 7.2 s | 2.7 s |
+| Engine suggestions | 29.5 s | 5.0 s |
+| 200-journey suite | 44 s | 20 s (chat uses 60) |
+
+**On the real seed:**
+- At +3 m: 47 of 50 sampled wheelchair origins reach a centre today, and 45 of 50 at +3 m.
+- The suggested street closure on top changes nothing further. Every reachable route is partly unverified, which is honest given the 16k unchecked paths.
+
+**Live (Haiku 5.5), tiny world:**
+- The 2 what-if golden cases pass. The validator caught "will be built" and an imagined outcome stated as fact in the first attempt, and the model rewrote both.
+- **Two-turn follow-up** (`evals/run_followups.py`):
+  - Turn 1, +3 m plus a ramp: 4 of 5 reach a centre, and the ramp changes nothing.
+  - Turn 2, "another 2 metres": the model re-ran at +5 m keeping the ramp. 4 of 5 with the ramp versus 2 of 5 without it. **The ramp only matters in the bigger flood.**
+  - Both turns were accepted first time (`evals/results/2026-10-16-live-followups.json.txt`).
+
+**Screenshot:** `docs/06-pitch/screenshots/ai-cycle1-whatif-lab-stylised.jpg`.
+
+**Tests:**
+- spatial `test_twm.py`: 21 tests, covering purity, each action, illegal actions, stage monotonicity, the evacuation scope and the tools;
+- agent `test_whatif_agent.py`: 4 tests;
+- agent `test_memory.py`: 4 tests;
+- what-if validator tests: 4;
+- API `test_whatif_api.py`: 4 tests;
+- vitest: `whatifModel`, plus the scene store `whatif.diff` test;
+- e2e: what-if assistant hero and What-if Lab run.
+
+**Golden (mock):** 15/15, including 2 new what-if cases.
+
+### Rulings (Cycle 1)
+
+Each ruling gives what was decided, why, and the cost if it is wrong.
+
+- **W5: v1 actions never change graph topology.**
+  - **What:** no new footbridges.
+  - **Why:** the component cache relies on fixed topology, and claim, closure and stage changes cover the hero questions.
+  - **Cost if wrong:** "what if we build a new link?" is not answerable yet. That is the next action to add, together with a cache rewrite.
+- **W6: imagined claims use status `verified` inside the copy, with `evidence_type="whatif"`.**
+  - **Why:** the evaluator treats them as facts, but only in the imagined world. Every after-state is `whatif=True`, so the validator forces "would be".
+  - **Cost if wrong:** if an imagined world leaked, its claims would look verified. `apply()` purity tests guard this.
+- **W7: memory is in-process only.**
+  - **What:** 6 turns, 200 sessions, 30 min idle.
+  - **Why:** PDPA, since user words are never persisted.
+  - **Cost if wrong:** follow-ups are lost on restart or on another worker. Acceptable for the demo; a multi-worker deployment would need a shared TTL store.
+- **W8: the What-if Lab sits in Management mode, at the top of the assistant column, not over the map.**
+  - **Why:** it keeps the map clear for the diff, and staff plan changes while residents ask questions.
+  - **Cost if wrong:** less discoverable. The Management starter also offers a what-if question.
+
+### Pitch line (judge-facing)
+
+> TownshipLens doesn't just answer questions about the township: it imagines. Ask "what if the river rises 3 m and we build a ramp at those steps?" and it runs your change on a copy of the township's world model. It compares every sampled journey before and after, draws the difference on the 3D map, and tells you what the flood does and what the ramp adds. Ask "and another two metres?" and it remembers the conversation and finds that the ramp only matters in the bigger flood. Every number comes from the simulation, never from the AI, and every imagined change is labelled not real.
+
+### Integration notes for shaoxian04
+
+- **New scene intent `whatif.diff`.** It carries a FeatureCollection; every feature has `whatif: true` and `side: before|after|touched`.
+  - `sceneStore.whatIf` holds it, and `clearWhatIf()` clears it. It is also cleared on a persona change.
+  - The Cesium `WhatIfLayer` draws it and the camera frames it.
+  - **Mapbox lite and the List view do not draw it yet.** Please add it if you touch them; `whatifModel.diffLines` gives the three line sets.
+- **New overlay `map-ui/WhatIfTag`.** It shows the legend and a clear button at `top-16`, below `RouteTag`.
+- **New panel `features/whatif/WhatIfLab`.** It is rendered by `AssistantPanel` in Management mode only, collapsed by default, and capped at 48vh with its own scroll. Restyle freely.
+- **`chatRequestBody` now sends `session_id`.** It is one per page load, used for follow-up memory.
+- **Management starters:** "Which areas are isolated if the water rises 5 m?" was replaced by the what-if starter, because the test requires four starters per mode.
+
+---
+
+## Cycle 2: verify-next planner (value of information) and the belief over unchecked facts (16 Oct, 22:00–23:00)
+
+**Spec:** [2026-10-16-verify-next-planner-design.md](specs/2026-10-16-verify-next-planner-design.md). Research basis:
+- feature #2 (verify-next) and #5 (learned belief) in the brief;
+- the value-of-information formulation in `reference/notes/world-models-urban.md` §5.
+
+### What was built and why it is impressive
+
+1. **`planner.plan_verifications`: budgeted route-bundle coverage.**
+   - On the real seed one fact almost never changes a journey, because one evacuation route crossed 66 unchecked items. Myopic value of information is therefore useless, and the objective is an AND (not submodular).
+   - The planner greedily picks whole route bundles: the most journeys newly covered per new fact.
+   - It then **verifies the plan on the world model**: `twm.compare` with the facts passing. The reported number is the simulated one, phrased "would be confirmed if they pass".
+   - Each fact carries a readable label, a place, how many sample journeys rely on it, and the open ticket if there is one.
+2. **`belief.py`: the one learned part, kept honest.**
+   - An empirical-Bayes Beta-Bernoulli model per (path type, attribute).
+   - The prior is regional OSM tag counts (`data/scripts/build_belief_prior.py`); without them it is Beta(1, 1).
+   - It is updated only by real staff verifications: demo values, what-if claims and OSM imports never count.
+   - It is used only for the staff-side expected value (`expected_confirmed`), never for resident answers.
+3. **Assistant support.**
+   - A `plan_verifications` tool.
+   - Validator `plan_errors`: the answer must be conditional ("if … pass"), use only the plan's numbers (checks, places, journeys), and never say "will be confirmed".
+   - A shared `template.plan_answer` for the mock and the template.
+   - Prompt rule 14, and a Management starter.
+4. **API and web.**
+   - `GET /verify-next` and `GET /belief`.
+   - A "Verify next · survey plan" board on `/tickets`: who, journeys, a budget of checks, one line per place to visit, and "Open ticket" links.
+
+### Evidence
+
+- **Real seed, wheelchair, evacuation sample, budget 15 checks:** "If these 15 checks at 5 places pass, 4 of 50 sampled wheelchair journeys would have a confirmed route to an evacuation centre (today: 0)." It takes 5 s.
+- **Greedy against brute force:** equal on the tiny fixture for budgets 1–3 (`test_greedy_matches_brute_force_on_the_tiny_world`). The engine-verified count equals an independent `compare`.
+- **Live (Haiku 5.5):** the verify-next golden case passes first time with no rewrites (`evals/results/2026-10-16-live-plan-1.json`).
+- **Screenshot:** `docs/06-pitch/screenshots/ai-cycle2-verify-next-board.jpg`.
+- **Data finding (an honest negative result):**
+  - The seed's 516 OSM `wheelchair` tags are all "yes", concrete footways from one mapping campaign. No classifier is trained on a single-class label.
+  - The regional Overpass prior query is **BLOCKED**: both mirrors returned 502/500 ("at capacity"). Two requests were made and the run stopped. It will be retried once later; until then the belief is Beta(1, 1) and `GET /belief` reports `osm_prior_obs: 0`.
+
+### Rulings (Cycle 2)
+
+Each ruling gives what was decided, why, and the cost if it is wrong.
+
+- **W9: plan over route bundles, verified by simulation.**
+  - **Why:** single-fact value of information is zero almost everywhere on the seed.
+  - **Cost if wrong:** greedy can miss a better set (no guarantee, PSPACE-complete in general). Brute force matches on small worlds.
+- **W10: belief = Beta-Bernoulli, not a classifier.**
+  - **Why:** the only local labels are single-class, and a classifier would be fake.
+  - **Cost if wrong:** weaker ranking than a good classifier. When real staff verifications accumulate, the belief improves on its own.
+- **W11: older-adult journeys whose route needs unverified rest points are left out of plans in v1.**
+  - **Why:** rest points are place facts, not path facts.
+  - **Cost if wrong:** plans under-serve that profile. Rest-point facts are the next addition.
+
+### Pitch line (judge-facing)
+
+> TownshipLens turns its honesty into a work plan. Every gap is visible, so the world model can tell staff exactly where to look next: "check these 15 things at 5 places and 4 more wheelchair users would have a confirmed route to an evacuation centre; today none do." The plan is checked by simulating the township, not guessed by the AI. Every ticket staff resolve updates the model's belief about what the next survey will find.
+
+### Integration notes for shaoxian04
+
+- **New board `features/whatif/VerifyNextBoard`,** rendered at the top of the `/tickets` list column. It is collapsed by default and opens with "Plan a survey". "Open ticket" selects that ticket.
+- **New model helpers:**
+  - `whatifModel.groupBySite` groups the plan's checks into one line per place;
+  - `whatifModel.plural`.
+- **New endpoints:** `GET /verify-next` and `GET /belief`, both in the generated client.
+
+
+---
+
+## Cycle 1–2 review (independent Opus reviewer) and fixes (16 Oct, 23:00–23:40)
+
+**1 Critical + 8 Important findings, all reproduced by the reviewer and fixed with regression tests.**
+
+| # | Finding | Fix |
+|---|---|---|
+| C1 | Public `POST /what-if` could run for 148 s (a drive profile with 7 actions rebuilt road components per call) | Walking profiles only; at most 2 world-model runs at once; a 32-entry result cache by world version. Worst case on the seed is now about 4 s, and a repeat takes 0 s (`test_tool_rejects_drive…`, `test_repeated_requests_are_served_from_the_cache`, API `test_what_if_rejects_drive_and_bogus_stage`) |
+| I1 | Memory let a follow-up repeat simulated numbers with no check | Memory records whether a turn simulated; a later turn quoting what-if numbers must re-simulate, and plan wording ("will be built") is banned after any simulation (`test_follow_up_cannot_repeat_whatif_numbers_without_resimulating`) |
+| I2 | "Would be confirmed" hid demo values | `RouteState.demo_evidence` and `summary.confirmed_on_demo_after`; the validator requires "demo values, not yet surveyed", and the template and mock add it (`test_whatif_on_demo_values_needs_the_caveat`) |
+| I3 | A stage on screen was called "today" | `base_scenario_id`: the before state reads "before, at River +N m", and flood guidance is kept when either state has a stage. The web says "Before" |
+| I4 | Validator false positives: "become reachable", "today … is confirmed", "has been closed by staff", "a 400 m route", Bahasa/中文 labels | Scoped regexes: measurement numbers are excluded, "today/currently" sentences are skipped, `WHATIF_AS_PLAN` covers only future builds, and BM/中文 labels are accepted (`test_whatif_correct_answers_are_not_rejected`) |
+| I5 | False negatives: a reach number spoken as "confirmed", percentages, "can now reach", "plans to build", the label only in a caveat, claims not checked | Numbers are bound to the status next to them (`STATUS_NUM`); percentages are rejected; claims are checked; the label must be in the summary (`test_whatif_lies_are_rejected`) |
+| I6 | The `default` profile gave "0 of 0" | `suite_journeys` uses the sim's origin→destination pairs for every walking profile |
+| I7 | Memory replayed full tool results (10–30 KB per turn) | Compact turns only (question plus shown answer, at most 1200 chars each), capped at 6000 chars per session |
+| I8 | More than 8 actions crashed the turn; `stage_p9m` was accepted | Both rejected inside the tool with `ok=False` |
+
+**Minor findings fixed:**
+- `build_ramp` is only allowed on steps.
+- Raw attribute keys no longer reach `describe`.
+- Duplicate React keys are gone.
+- `eval_memo` keeps a strong reference to the edge table.
+- The evidence id includes the before stage.
+- `whatIf` is cleared on a new route or a scenario change.
+- The Lab clears stale results when its inputs change and shows a suggestions error state.
+- The legend moved to `top-20` and wraps, and it says the diff is only drawn on the 3D map in the lite and list views.
+- The session id uses `getRandomValues`.
+
+**Deferred (Minor):**
+- Lab focus management.
+- The evidence card for what-if citations.
+- Multi-worker memory, which needs a shared TTL store (W7).
+- Drawing the diff in Mapbox lite and the List view.
+
+**Seed numbers after the fix:** at +5 m with the suggested changes, the walking profile's confirmed evacuation journeys fall from 41 to 33 of 50 (4.2 s).
+
+**Live after the review fixes (Haiku 5.5, tiny world):**
+- Golden: 15/16 on the first run. The miss was a +3 m what-if answer without "not a forecast". The validator now requires that phrase for staged what-ifs. After the fix, both what-if cases pass live (`evals/results/2026-10-16-live-whatif-2.json`).
+- Template fallbacks: 0.
+- The trace caught and rewrote six attempts (demo "confirmed", "probably", a wrong what-if number, an imagined outcome stated as fact, and two schema slips).
+- The two-turn follow-up passes.
+
+**Overpass prior: unblocked at 23:40.**
+- One request on the hourly retry succeeded, returning 2,832 Klang Valley paths with accessibility tags.
+- `data/seed/elmina/belief_prior.json` holds 2,984 observations, for example footway width 139 pass / 5 fail, path incline 28/11, pedestrian incline 6/8.
+- The belief is now informed for footway, path, pedestrian and steps types. Streets and major roads stay Beta(1, 1), which `GET /belief` shows openly.
+
+**Spend so far:** US$0.086 of US$3 (usage 26.87891).

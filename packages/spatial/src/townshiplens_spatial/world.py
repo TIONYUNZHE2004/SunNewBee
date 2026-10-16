@@ -30,6 +30,7 @@ class World:
     version: int = 0
     _place_by_node: dict[str, list[str]] = field(default_factory=dict)
     closures: list[Closure] = field(default_factory=list)  # every loaded closure (flat index)
+    data_dir: Path | None = None  # where load_world read it (e.g. for belief_prior.json)
 
     def refresh_claim(self, element_id: str, attribute: str, claim: Claim) -> None:
         target = self.edges.get(element_id) or self.places.get(element_id)
@@ -145,4 +146,5 @@ def load_world(data_dir: Path, config_dir: Path | None = None) -> World:
         load_profiles(config_dir),
         0,
         by_node,
+        data_dir=data_dir,
     )

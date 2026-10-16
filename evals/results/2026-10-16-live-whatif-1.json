@@ -1,0 +1,71 @@
+[
+  {
+    "id": "whatif-ramp",
+    "pass": true,
+    "failures": [],
+    "status": "answered",
+    "model": "anthropic/claude-haiku-5.5",
+    "fallback": false,
+    "rejected_attempts": 2,
+    "validator_errors": [
+      [
+        "A what-if is not a real plan or a real change: never say something will be or has been built, closed or verified."
+      ],
+      [
+        "Imagined outcomes are conditional: say 'would be confirmed' / 'would reach', never 'is confirmed' or 'are now reachable'."
+      ]
+    ],
+    "seconds": 18.83,
+    "first_text_s": 18.83,
+    "first_draft_s": 8.88,
+    "repairs": [],
+    "checks": [
+      {
+        "ok": false,
+        "issues": ["described a what-if as a real plan"]
+      },
+      {
+        "ok": false,
+        "issues": ["stated an imagined outcome as fact"]
+      },
+      {
+        "ok": true,
+        "issues": []
+      }
+    ],
+    "requests": 5,
+    "cache_read_tokens": 33417,
+    "cache_write_tokens": 11512,
+    "input_tokens": 44941,
+    "output_tokens": 3441,
+    "tools": ["suggest_interventions", "simulate_what_if"],
+    "text": "This is a what-if simulation. In a sample of 5 wheelchair journeys from Car Park B, the imagined ramp would reach 3 of 5 journeys, the same as now. Confirmed journeys would be 3 instead of 1, because the Park kiosk and Park toilet journeys would be confirmed.\nWorth knowing:\n• Imagined changes are not real; unverified facts stay unverified.\n• The ramp option is for a set of unnamed steps; this is a simulation only."
+  },
+  {
+    "id": "whatif-flood-ramp-evacuation",
+    "pass": true,
+    "failures": [],
+    "status": "partial",
+    "model": "anthropic/claude-haiku-5.5",
+    "fallback": false,
+    "rejected_attempts": 0,
+    "validator_errors": [],
+    "seconds": 9.48,
+    "first_text_s": 9.48,
+    "first_draft_s": 6.95,
+    "repairs": [],
+    "checks": [
+      {
+        "ok": true,
+        "issues": []
+      }
+    ],
+    "requests": 3,
+    "cache_read_tokens": 20451,
+    "cache_write_tokens": 4162,
+    "input_tokens": 24621,
+    "output_tokens": 1883,
+    "tools": ["suggest_interventions", "simulate_what_if", "simulate_what_if"],
+    "text": "This is a what-if simulation. With the river at +3 m (indicative scenario), 4 of the 5 sampled wheelchair origins would still reach a nearest evacuation centre, before and after the imagined ramp. The imagined ramp at the unnamed steps changed no journey in this sample. One sampled origin (Unmapped place) has no mapped route.\nWorth knowing:\n• Imagined changes are not real; unverified facts stay unverified.\n• All 4 reachable routes are partly unverified, and the nearest centre in the results is a community hall candidate, not an official PPS centre.\n• The river rise alone leaves 4 of 5 sampled origins reaching a centre; the ramp adds nothing in this sample.\n• This is an indicative scenario, not a forecast. Follow official MBSA, JPS and NADMA guidance."
+  }
+]

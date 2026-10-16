@@ -1,6 +1,7 @@
+import pytest
 from townshiplens_agent.answer import Claim, FinalAnswer
 from townshiplens_agent.record import TurnRecord
-from townshiplens_agent.validate import validate_answer
+from townshiplens_agent.validate import validate_answer, whatif_errors
 from townshiplens_spatial.models import Evidence
 
 
@@ -63,9 +64,6 @@ def test_validator_requires_caveat_for_partly_unverified():
 def test_validator_rejects_unknown_route_id():
     a = FinalAnswer(answer_status="answered", summary="x", route_id="rt-nope")
     assert validate_answer(a, rec())
-
-
-import pytest  # noqa: E402
 
 
 @pytest.mark.parametrize(
@@ -619,3 +617,127 @@ def test_validator_rejects_guesses_and_reassurance():
         assert any("reassure" in e for e in validate_answer(a, rec())), text
     ok = FinalAnswer(answer_status="partial", summary="The playground is likely flooded here.")
     assert not any("reassure" in e for e in validate_answer(ok, rec()))
+
+
+# ---- what-if answers (Cycle 1) ---------------------------------------------------------------
+def _whatif_rec(**kw):
+    r = rec(**kw)
+    r.tool_calls.append("simulate_what_if")
+    r.evidence["ev-whatif-abc"] = Evidence(
+        id="ev-whatif-abc", element_id="whatif", attribute="whatif", status="indicative"
+    )
+    r.what_ifs.append(
+        {
+            "summary": {
+                "total": 50,
+                "reach_before": 47,
+                "reach_after": 45,
+                "confirmed_before": 0,
+                "confirmed_after": 3,
+                "changed": 5,
+            },
+            "counts_before": {"wheelchair": {"partly_unverified": 47, "no_data": 3}},
+            "counts_after": {"wheelchair": {"partly_unverified": 42, "confirmed": 3, "no_data": 5}},
+            "imagined": True,
+        }
+    )
+    return r
+
+
+def _wa(summary, caveats=()):
+    return FinalAnswer(
+        answer_status="partial",
+        summary=summary,
+        caveats=list(caveats),
+        claims=[Claim(text="what-if", status="indicative", evidence_ids=["ev-whatif-abc"])],
+    )
+
+
+def test_whatif_answer_with_matching_numbers_passes():
+    a = _wa(
+        "In this what-if simulation, 45 of 50 wheelchair journeys would still reach a centre "
+        "(47 today), and 3 would be confirmed."
+    )
+    assert validate_answer(a, _whatif_rec()) == []
+
+
+def test_whatif_answer_must_say_what_if():
+    a = _wa("45 of 50 wheelchair journeys would still reach a centre.")
+    assert any("what-if" in e for e in validate_answer(a, _whatif_rec()))
+
+
+def test_whatif_numbers_must_come_from_the_simulation():
+    a = _wa("In this what-if simulation, 46 of 50 wheelchair journeys would reach a centre.")
+    assert any("46" in e for e in validate_answer(a, _whatif_rec()))
+
+
+def test_whatif_imagined_outcomes_are_conditional():
+    for text in [
+        "In this what-if, the route is confirmed once the ramp is built.",
+        "In this what-if, 3 journeys are now confirmed.",
+        "In this what-if, the ramp will be built next year.",
+    ]:
+        assert any(
+            "would" in e or "real" in e for e in validate_answer(_wa(text), _whatif_rec())
+        ), text
+
+
+# ---- Cycle 1 review fixes (I4 false positives, I5 false negatives, I2 demo) -------------------
+@pytest.mark.parametrize(
+    "summary",
+    [
+        "In this what-if simulation, 45 of 50 wheelchair journeys would become reachable.",
+        "In this what-if simulation, today the route is confirmed and 45 of 50 would reach it.",
+        "In this what-if simulation, a 400 m route: 45 of 50 wheelchair journeys would reach.",
+        "Dalam simulasi andaian ini, 45 daripada 50 perjalanan boleh sampai.",
+        "在这个假设模拟中，50 次行程中有 45 次可以到达。",
+    ],
+)
+def test_whatif_correct_answers_are_not_rejected(summary):
+    assert whatif_errors(_wa(summary), _whatif_rec()) == [], summary
+
+
+@pytest.mark.parametrize(
+    "summary, needle",
+    [
+        ("In this what-if simulation, 45 of 50 wheelchair journeys would be confirmed.", "45"),
+        ("In this what-if simulation, 90% of wheelchair journeys would reach a centre.", "percent"),
+        ("In this what-if simulation, residents can now reach the hall.", "conditional"),
+        ("In this what-if simulation, the council plans to build the ramp.", "real plan"),
+    ],
+)
+def test_whatif_lies_are_rejected(summary, needle):
+    errs = " ".join(whatif_errors(_wa(summary), _whatif_rec()))
+    assert needle in errs, (summary, errs)
+
+
+def test_whatif_on_demo_values_needs_the_caveat():
+    r = _whatif_rec()
+    r.what_ifs[0]["summary"]["confirmed_on_demo_after"] = 3
+    a = _wa("In this what-if simulation, 3 would be confirmed (today: 0).")
+    assert any("demo values" in e for e in whatif_errors(a, r))
+    ok = _wa(
+        "In this what-if simulation, 3 would be confirmed (today: 0).",
+        caveats=["Segment facts are demo values, not yet surveyed."],
+    )
+    assert whatif_errors(ok, r) == []
+
+
+def test_real_staff_closure_wording_is_not_a_what_if_plan():
+    r = _whatif_rec()
+    a = _wa("In this what-if simulation, 45 of 50 would reach. The path has been closed by staff.")
+    assert whatif_errors(a, r) == []
+
+
+def test_whatif_label_only_in_a_caveat_is_not_enough():
+    a = _wa("45 of 50 wheelchair journeys would reach a centre.", caveats=["This is a what-if."])
+    assert any("in the summary" in e for e in whatif_errors(a, _whatif_rec()))
+
+
+def test_staged_whatif_must_say_not_a_forecast():
+    r = _whatif_rec()
+    r.what_ifs[0]["scenario_id"] = "stage_p3m"
+    a = _wa("In this what-if simulation at River +3 m (indicative), 45 of 50 would reach.")
+    assert any("not a forecast" in e for e in whatif_errors(a, r))
+    ok = _wa("In this what-if simulation, 45 of 50 would reach.", caveats=["Not a forecast."])
+    assert whatif_errors(ok, r) == []

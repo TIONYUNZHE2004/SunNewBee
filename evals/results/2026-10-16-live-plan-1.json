@@ -1,0 +1,29 @@
+[
+  {
+    "id": "verify-next-plan",
+    "pass": true,
+    "failures": [],
+    "status": "answered",
+    "model": "anthropic/claude-haiku-5.5",
+    "fallback": false,
+    "rejected_attempts": 0,
+    "validator_errors": [],
+    "seconds": 7.09,
+    "first_text_s": 7.09,
+    "first_draft_s": 5.4,
+    "repairs": [],
+    "checks": [
+      {
+        "ok": true,
+        "issues": []
+      }
+    ],
+    "requests": 2,
+    "cache_read_tokens": 7105,
+    "cache_write_tokens": 7721,
+    "input_tokens": 14832,
+    "output_tokens": 1160,
+    "tools": ["plan_verifications"],
+    "text": "If this 1 check at 1 place passes, 4 of 5 sampled journeys to an evacuation centre would have a confirmed route (today: 3 of 5). The one check is the incline of an unnamed ramp.\n1. Check the incline (%) of the unnamed ramp (1 place in the plan).\nWorth knowing:\n• Imagined outcomes depend on staff confirming the check on site; no facts have been verified by this plan.\n• This is a survey plan from the township model, not a route result; it applies to the wheelchair profile only."
+  }
+]

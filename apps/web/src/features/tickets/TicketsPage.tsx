@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Button } from "../../ui/Button";
+import { VerifyNextBoard } from "../whatif/VerifyNextBoard";
 import { TicketDetail } from "./TicketDetail";
 import { TicketList } from "./TicketList";
 import { groupTickets } from "./ticketModel";
@@ -33,6 +34,12 @@ export function TicketsPage() {
   return (
     <div className="mx-auto grid min-h-0 max-w-6xl lg:h-full lg:overflow-auto gap-6 p-4 lg:grid-cols-[minmax(280px,380px)_minmax(0,1fr)]">
       <div className={showDetail ? "hidden lg:block" : ""}>
+        <VerifyNextBoard
+          onTicket={(id) => {
+            setPicked(id);
+            setShowDetail(true);
+          }}
+        />
         <TicketList
           toCheck={toCheck}
           checked={checked}

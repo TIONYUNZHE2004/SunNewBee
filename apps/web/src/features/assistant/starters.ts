@@ -14,9 +14,15 @@ export const STARTERS: Record<Mode, Starter[]> = {
     { text: "Where to drop off recycling" },
   ],
   management: [
+    {
+      text: "What if the river rises 3 m and we build a ramp at the steps? Can wheelchair users still reach a centre?",
+      profile: "wheelchair",
+    },
     { text: "Which places are cut off if the water rises 3 m?" },
-    { text: "Which areas are isolated if the water rises 5 m?" },
-    { text: "Which routes to the lakeside mall are cut off if the water rises 3 m?" },
+    {
+      text: "Which facts should staff verify first so wheelchair users can reach a centre?",
+      profile: "wheelchair",
+    },
     { text: "Tell me about Elmina Lakeside Mall" },
   ],
 };
