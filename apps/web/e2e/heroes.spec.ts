@@ -1,4 +1,4 @@
-import { expect, type Page, test } from "@playwright/test";
+import { expect, type Locator, type Page, test } from "@playwright/test";
 
 const KIOSK = "Can I push a stroller from Car Park B to the kiosk without stairs?";
 
@@ -112,13 +112,31 @@ test("mobile: the assistant input is reachable without horizontal scroll", async
   expect(fits).toBe(true);
 });
 
+/** The element's box once it has stopped moving (the sheet animates its height); no fixed sleeps. */
+async function settledBox(locator: Locator) {
+  let prev = "";
+  await expect
+    .poll(async () => {
+      const b = await locator.boundingBox();
+      const key = b ? JSON.stringify(b) : "none";
+      const same = b !== null && key === prev;
+      prev = key;
+      return same;
+    })
+    .toBe(true);
+  const box = await locator.boundingBox();
+  if (!box) throw new Error("no layout box");
+  return box;
+}
+
 test("phone 390x844: the sheet sits at the bottom with a usable composer", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await open(page);
   const header = await page.getByRole("banner").boundingBox();
   const input = page.getByRole("textbox", { name: "Your question" });
-  const box = await input.boundingBox();
-  if (!header || !box) throw new Error("no layout box");
+  await expect(input).toBeVisible();
+  const box = await settledBox(input);
+  if (!header) throw new Error("no layout box");
   const headerBottom = header.y + header.height;
   expect(box.y).toBeGreaterThanOrEqual(headerBottom);
   expect(box.y + box.height).toBeLessThanOrEqual(844);
@@ -131,18 +149,38 @@ test("phone 390x844: the sheet sits at the bottom with a usable composer", async
   expect(attr.y).toBeGreaterThanOrEqual(headerBottom);
   expect(attr.y + attr.height).toBeLessThanOrEqual(box.y);
 
-  await page.getByRole("button", { name: "Expand assistant" }).click();
+  const expand = page.getByRole("button", { name: "Expand assistant" });
+  await expand.click();
   const conversation = page.getByRole("log", { name: "Conversation" });
   await expect(conversation).toBeVisible();
   // The sheet animates its height; wait for the conversation to get real room.
   await expect
     .poll(async () => (await conversation.boundingBox())?.height ?? 0)
     .toBeGreaterThan(150);
-  const log = await conversation.boundingBox();
-  const after = await input.boundingBox();
-  if (!log || !after) throw new Error("no layout box after expand");
+  const log = await settledBox(conversation);
+  const after = await settledBox(input);
   expect(log.y).toBeGreaterThanOrEqual(headerBottom);
   expect(after.y + after.height).toBeLessThanOrEqual(844);
+
+  // Full: the composer stays on screen, the sheet carries the attribution, and the map controls
+  // behind it leave the accessibility tree.
+  await expand.click();
+  await expect(page.getByRole("slider", { name: "Assistant height" })).toHaveAttribute(
+    "aria-valuetext",
+    "full",
+  );
+  await expect(input).toBeVisible();
+  const full = await settledBox(input);
+  expect(full.y).toBeGreaterThanOrEqual(headerBottom);
+  expect(full.y + full.height).toBeLessThanOrEqual(844);
+  const sheetAttribution = page
+    .getByText("Test fixture", { exact: true })
+    .filter({ visible: true });
+  await expect(sheetAttribution).toBeVisible();
+  const sheetAttr = await settledBox(sheetAttribution);
+  expect(sheetAttr.y).toBeGreaterThanOrEqual(full.y + full.height);
+  expect(sheetAttr.y + sheetAttr.height).toBeLessThanOrEqual(844);
+  await expect(page.getByRole("button", { name: "Map settings" })).toBeHidden();
 });
 
 // The local DB persists tickets between runs, so a retry would see a resolved ticket (applies file-wide).
