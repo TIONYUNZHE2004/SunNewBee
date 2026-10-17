@@ -2,6 +2,7 @@ import copy
 import hashlib
 import json
 import logging
+import re
 import secrets
 import sqlite3
 from typing import Any, Literal
@@ -227,16 +228,22 @@ def _polygons_only(fc: dict[str, Any]) -> dict[str, Any]:
 
 
 _SIGN_REQUIRED = ("text", "source_url", "as_of")
+# Mapper notes and placeholders are never sign text. Duplicated from data/scripts/build_signage.py
+# JUNK (the API does not import data/scripts); a test in data/scripts/tests keeps them equal.
+SIGN_JUNK = re.compile(r"unnamed|not osv|google maps|fixme|\btodo\b|\?|^\W*$", re.I)
 
 
 def _sourced_signs_only(fc: dict[str, Any]) -> dict[str, Any]:
-    """Honesty gate (ADR 0013): a sign without text, a source and an as-of date is never served."""
+    """Honesty gate (ADR 0013): a sign without text, a source and an as-of date, or whose text is
+    a mapper note (SIGN_JUNK), is never served."""
 
     def ok(f: Any) -> bool:
         props = f.get("properties") if isinstance(f, dict) else None
         if not isinstance(props, dict):
             return False
-        return all(isinstance(props.get(k), str) and props[k].strip() for k in _SIGN_REQUIRED)
+        if not all(isinstance(props.get(k), str) and props[k].strip() for k in _SIGN_REQUIRED):
+            return False
+        return not SIGN_JUNK.search(props["text"].strip())
 
     return {"type": "FeatureCollection", "features": [f for f in fc["features"] if ok(f)]}
 

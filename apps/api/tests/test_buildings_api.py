@@ -243,6 +243,24 @@ def test_signage_without_source_is_dropped(tmp_path, monkeypatch):
     assert [f["properties"]["id"] for f in body["signage"]["features"]] == ["s0"]
 
 
+def test_signage_with_mapper_note_text_is_dropped(tmp_path, monkeypatch):
+    texts = [
+        "Kedai Ali",
+        "Only seen in Google Maps. Not OSV.",
+        "Clinic (unnamed)",
+        "FIXME name",
+        "todo",
+        "Shop?",
+        "--",
+        "Todoroki Ramen",  # "todo" only as a whole word
+    ]
+    signs = [_sign(i, text=t) for i, t in enumerate(texts)]
+    _world(tmp_path, monkeypatch, signage=signs)
+    body = TestClient(app).get("/layers/buildings").json()
+    kept = [f["properties"]["text"] for f in body["signage"]["features"]]
+    assert kept == ["Kedai Ali", "Todoroki Ramen"]
+
+
 def test_editing_signage_invalidates_cache(tmp_path, monkeypatch):
     d = _world(tmp_path, monkeypatch, signage=[_sign(0)])
     c = TestClient(app)

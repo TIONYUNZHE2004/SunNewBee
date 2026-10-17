@@ -190,3 +190,9 @@ def test_todo_only_rejected_as_a_whole_word():
     assert bs.sign_text({"name": "Mastodon Cafe"}) == "Mastodon Cafe"
     assert bs.sign_text({"name": "Kedai Todoroki"}) == "Kedai Todoroki"
     assert bs.sign_text({"name": "TODO name"}) is None
+
+
+def test_api_sign_guard_mirrors_junk():
+    from townshiplens_api.routes.core import SIGN_JUNK
+
+    assert (SIGN_JUNK.pattern, SIGN_JUNK.flags) == (bs.JUNK.pattern, bs.JUNK.flags)
