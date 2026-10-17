@@ -1,8 +1,8 @@
 # T-008 Invented toilet returned as ordinary evidence (audit A1, Cannon F1)
 
-- **Status:** handoff
-- **Owner:** unassigned
-- **Branch:** —
+- **Status:** assigned
+- **Owner:** Codex worker
+- **Branch:** `codex/yunzhe-workflow`
 - **Priority:** P1 (before open demo)
 - **Lane:** Backend / data: Jun Quan
 - **Source:** [A1, Cannon F1](https://github.com/TIONYUNZHE2004/SunNewBee/blob/main/docs/04-architecture/ai-independent-audit-2026-10-17.md)
@@ -18,3 +18,4 @@ The exact query exposes demo provenance; UI and assistant keep it. Outside Yunzh
 ## Log
 
 - 2026-10-17 08:39 UTC · control (claude/sweet-davinci-29v7ne) · Created from the independent audit by Codex (`codex/yunzhe-workflow`, merged as PR #4).
+- 2026-10-17 09:29 UTC · control (claude/sweet-davinci-29v7ne) · Assigned to Codex worker (Yunzhe: our agents may change Backend when needed). In scope B: the toilet is in the deep spot. List Backend files in the PR so Jun Quan can review.

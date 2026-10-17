@@ -1,6 +1,6 @@
 # T-009 Rate and cost limit for public chat (audit A7)
 
-- **Status:** handoff
+- **Status:** parked
 - **Owner:** unassigned
 - **Branch:** —
 - **Priority:** P2 (before collecting resident questions)
@@ -18,3 +18,4 @@ A concurrency test shows bounded provider calls and graceful 429/503 responses.
 ## Log
 
 - 2026-10-17 08:39 UTC · control (claude/sweet-davinci-29v7ne) · Created from the independent audit by Codex (`codex/yunzhe-workflow`, merged as PR #4).
+- 2026-10-17 09:29 UTC · control (claude/sweet-davinci-29v7ne) · Parked: needed before a public deployment, not for the proposal.

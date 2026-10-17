@@ -1,8 +1,8 @@
 # T-010 Rebuild the Elmina seed so crossings get real types
 
-- **Status:** handoff
-- **Owner:** unassigned
-- **Branch:** —
+- **Status:** blocked
+- **Owner:** Control session
+- **Branch:** `claude/sweet-davinci-29v7ne`
 - **Priority:** P3
 - **Lane:** Backend / data: Jun Quan
 - **Source:** [PR #1 note](https://github.com/TIONYUNZHE2004/SunNewBee/blob/main/docs/04-architecture/ai-independent-audit-2026-10-17.md)
@@ -18,3 +18,4 @@
 ## Log
 
 - 2026-10-17 08:39 UTC · control (claude/sweet-davinci-29v7ne) · Created from the independent audit by Codex (`codex/yunzhe-workflow`, merged as PR #4).
+- 2026-10-17 09:29 UTC · control (claude/sweet-davinci-29v7ne) · Assigned to control, after T-008 is merged (both change seed data). Needs Overpass network access; control checks it first.

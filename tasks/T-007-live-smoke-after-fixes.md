@@ -19,3 +19,4 @@ A few live turns on the hero questions with rewrite/fallback counts and cost, ru
 
 - 2026-10-17 08:39 UTC · control (claude/sweet-davinci-29v7ne) · Created from the independent audit by Codex (`codex/yunzhe-workflow`, merged as PR #4).
 - 2026-10-17 09:13 UTC · control (claude/sweet-davinci-29v7ne) · Assigned to Control session on `claude/sweet-davinci-29v7ne`. Control runs it on Yunzhe's instruction after T-001 to T-003 are merged.
+- 2026-10-17 09:29 UTC · control (claude/sweet-davinci-29v7ne) · Scope B: run on the T-012 answer key only, after T-001 to T-003 and T-011 are merged.

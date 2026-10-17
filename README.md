@@ -19,7 +19,7 @@ tasks/T-NNN-<slug>.md   one file per task: header, goal, acceptance, log
 
 ## Status values
 
-`open` (nobody yet) → `assigned` → `in-progress` → `review` (PR open into control) → `done` (merged into control). Also `blocked` (the log says why) and `handoff` (owned outside Yunzhe's lanes; tracked here only).
+`open` (nobody yet) → `assigned` → `in-progress` → `review` (PR open into control) → `done` (merged into control). Also `blocked` (the log says why), `parked` (out of the current scope; kept for later) and `handoff` (owned outside Yunzhe's agents; tracked here only).
 
 ## Read the board
 
