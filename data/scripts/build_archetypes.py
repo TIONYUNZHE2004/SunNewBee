@@ -19,7 +19,6 @@ import json
 import math
 import re
 import sys
-from datetime import date
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -245,12 +244,10 @@ def precinct_of(lon: float, lat: float, precincts: list[dict]) -> str | None:
     return best_name if best_name is not None else nearest_name
 
 
-def fetch_precincts(bbox, step: float, max_requests: int | None) -> list[dict]:
+def fetch_precincts(bbox, step: float, max_requests: int | None) -> tuple[list[dict], str | None]:
+    """Precinct elements and the latest OSM data date across the Overpass answers."""
     overpass.MAX_REQUESTS = max_requests
-    elements: list[dict] = []
-    for tile in bb.tiles(bbox, step):
-        elements.extend(overpass.query(precincts_query(tile)).get("elements", []))
-    return elements
+    return overpass.fetch_elements(precincts_query(t) for t in bb.tiles(bbox, step))
 
 
 # --- land use -----------------------------------------------------------------------
@@ -576,10 +573,11 @@ def main(argv: list[str] | None = None) -> None:
     home = site["scene"]["home"]
     bbox = bb.bbox_around(home["lon"], home["lat"], site["buildings"]["radius_m"])
     try:
-        precincts = build_precincts(fetch_precincts(bbox, args.step, args.max_requests))
+        elements, as_of = fetch_precincts(bbox, args.step, args.max_requests)
     except overpass.OverpassError as exc:
         print(f"BLOCKED: {exc}; overpass HTTP requests this run: {overpass.REQUESTS_MADE}")
         raise SystemExit(2) from None
+    precincts = build_precincts(elements)
 
     out = transform(buildings, precincts, landcover, samples, overrides)
     if [f["properties"]["id"] for f in out] != ids:  # ids are stable: signs attach to them
@@ -592,20 +590,22 @@ def main(argv: list[str] | None = None) -> None:
     if args.dry_run:
         print("dry run: nothing written")
         return
+    if as_of is None:
+        print("no OSM data date in the Overpass answers; nothing written")
+        raise SystemExit(3)
 
     b_text = bb._dump(out)
     if len(b_text.encode("utf-8")) > bb.MAX_BYTES:
         print(f"buildings.geojson would exceed {bb.MAX_BYTES} bytes; nothing written")
         raise SystemExit(3)
-    today = date.today().isoformat()
     (base / "buildings.geojson").write_text(b_text, encoding="utf-8", newline="\n")
     (base / "precincts.geojson").write_text(bb._dump(precincts), encoding="utf-8", newline="\n")
     (base / "archetype_coverage.json").write_text(
-        json.dumps({"as_of": today, **cov}, ensure_ascii=False, indent=1) + "\n",
+        json.dumps({"as_of": as_of, **cov}, ensure_ascii=False, indent=1) + "\n",
         encoding="utf-8",
         newline="\n",
     )
-    site["buildings"]["archetypes_as_of"] = today
+    site["buildings"]["archetypes_as_of"] = as_of
     site_path.write_text(
         json.dumps(site, ensure_ascii=False, indent=2) + "\n", encoding="utf-8", newline="\n"
     )

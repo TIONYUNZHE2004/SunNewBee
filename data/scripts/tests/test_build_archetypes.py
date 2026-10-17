@@ -466,7 +466,7 @@ def _fake_precinct_fetch(monkeypatch):
             name="Elmina Ridge",
         )
     ]
-    monkeypatch.setattr(ba, "fetch_precincts", lambda *a, **k: els)
+    monkeypatch.setattr(ba, "fetch_precincts", lambda *a, **k: (els, "2026-10-01"))
 
 
 def test_main_writes_outputs_without_height_samples(tmp_path, monkeypatch, capsys):
@@ -483,7 +483,8 @@ def test_main_writes_outputs_without_height_samples(tmp_path, monkeypatch, capsy
     cov = json.loads((base / "archetype_coverage.json").read_text())
     assert cov["total"]["count"] == 4
     site = json.loads((tmp_path / "site.json").read_text())
-    assert site["buildings"]["archetypes_as_of"]
+    assert site["buildings"]["archetypes_as_of"] == "2026-10-01"  # OSM data date, not today
+    assert cov["as_of"] == "2026-10-01"
     assert "generic" in capsys.readouterr().out
 
 

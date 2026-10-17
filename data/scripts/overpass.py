@@ -38,10 +38,14 @@ class OverpassFailed(OverpassError):
     """Every attempt failed (HTTP error, connection error or an incomplete response)."""
 
 
+def _cache_key(ql: str) -> Path:
+    return CACHE / (hashlib.sha1(ql.encode()).hexdigest() + ".json")
+
+
 def query(ql: str, retries: int = 6) -> dict:
     global REQUESTS_MADE
     CACHE.mkdir(exist_ok=True)
-    key = CACHE / (hashlib.sha1(ql.encode()).hexdigest() + ".json")
+    key = _cache_key(ql)
     if key.exists():
         return json.loads(key.read_text(encoding="utf-8"))
     current = 0  # index into ENDPOINTS
@@ -94,6 +98,41 @@ def query(ql: str, retries: int = 6) -> dict:
         )
         backoff(attempt)
     raise OverpassFailed(f"Overpass failed after {retries} attempts")
+
+
+_DATE = re.compile(r"^\d{4}-\d{2}-\d{2}")
+
+
+def data_date(data: dict, ql: str | None = None) -> str | None:
+    """YYYY-MM-DD of the OSM data in an answer: its `osm3s.timestamp_osm_base`, else (for a
+    cached answer) the fetch time in `<sha>.meta.json`, else None. Never today's date, so a
+    rebuild from the cache is byte-identical on any day."""
+    ts = (data.get("osm3s") or {}).get("timestamp_osm_base") if isinstance(data, dict) else None
+    if isinstance(ts, str) and _DATE.match(ts):
+        return ts[:10]
+    meta = _cache_key(ql).with_suffix(".meta.json") if ql is not None else None
+    if meta is not None and meta.exists():
+        try:
+            fetched = json.loads(meta.read_text(encoding="utf-8")).get("fetched_at")
+        except ValueError:
+            fetched = None
+        if isinstance(fetched, str) and _DATE.match(fetched):
+            return fetched[:10]
+    return None
+
+
+def fetch_elements(queries) -> tuple[list[dict], str | None]:
+    """Elements of every query (in order) and the latest data date across the answers (None
+    when no answer carries one)."""
+    elements: list[dict] = []
+    dates: list[str] = []
+    for ql in queries:
+        data = query(ql)
+        elements.extend(data.get("elements", []))
+        d = data_date(data, ql)
+        if d is not None:
+            dates.append(d)
+    return elements, max(dates, default=None)
 
 
 def error_text(body: str, limit: int = 300) -> str:

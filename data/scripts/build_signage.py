@@ -14,7 +14,6 @@ import json
 import math
 import re
 import sys
-from datetime import date
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -189,13 +188,14 @@ def main(argv: list[str] | None = None) -> None:
     buildings = json.loads(path.read_text(encoding="utf-8"))["features"]
     overpass.MAX_REQUESTS = args.max_requests
     try:
-        elements: list[dict] = []
-        for tile in tiles(bbox, args.step):
-            elements.extend(overpass.query(signage_query(tile)).get("elements", []))
+        elements, as_of = overpass.fetch_elements(signage_query(t) for t in tiles(bbox, args.step))
     except overpass.OverpassError as exc:
         print(f"BLOCKED: {exc}; overpass HTTP requests this run: {overpass.REQUESTS_MADE}")
         raise SystemExit(2) from None
-    feats, stats = build_signs(elements, buildings, date.today().isoformat())
+    if as_of is None:
+        print("no OSM data date in the Overpass answers; nothing written")
+        raise SystemExit(3)
+    feats, stats = build_signs(elements, buildings, as_of)
     (OUT / "base" / "signage.geojson").write_text(_dump(feats), encoding="utf-8", newline="\n")
     print(f"signs: {stats}")
     print(f"overpass HTTP requests this run: {overpass.REQUESTS_MADE}")
