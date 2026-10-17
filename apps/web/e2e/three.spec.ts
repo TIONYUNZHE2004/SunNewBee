@@ -77,9 +77,7 @@ const LINK_ROW = {
   },
 };
 
-// FIXME(Task 14): the lane `blender` glbs and public/city/manifest.json are not merged into lane/fe
-// yet, so the real assets cannot load here. The coordinator unfixmes this at the Task 14 merge.
-test.fixme("three.js city draws instanced archetypes from the real public/city assets", async ({
+test("three.js city draws instanced archetypes from the real public/city assets", async ({
   page,
 }) => {
   // Only the buildings layer is stubbed; /city/manifest.json and the glbs are the committed files.
