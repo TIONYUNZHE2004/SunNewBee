@@ -1365,3 +1365,46 @@ Alignment, asked first (17 Oct, about 13:00):
 - **e2e (new):** "Rehearse my trip" on the tiny fixture (Car Park B → the playground, weekday, 07:30: the ▲ departure got there; the list heading shows; no advice words).
 
 **Checklist** (mock-backed): lint PASS, pytest 1,296 PASS, typecheck PASS, vitest 796 PASS, gen PASS, golden 23/23 PASS, build PASS, e2e 20 PASS.
+
+### Cycle 21: calibration against official open data, and the bug it found (17 Oct, 13:55)
+
+**Data** (approved by the user; official, CC BY 4.0; about 400 KB in all, cached in `data/cache/opendata/`):
+- DOSM `population_district` (the parquet, 265 KB; the 24.6 MB CSV was avoided, and `pyarrow==26.0.0` was added to the `data` group to read it);
+- the Selangor rows of MOE EMIS `enrolment_school_district` and `schools_district` from the data.gov.my API (100 KB and 37 KB).
+
+Each is recorded in `data/README.md` and `CREDITS.md`.
+
+**The bug calibration found.** Every under-13, toddlers included, went on a primary-school run and was counted as a pupil. 293 of 674 households with children drove to a primary school with no one aged 7–12. The storm day reported 1,373 pupils (275 per 1,000), against 105 government-school pupils per 1,000 in Petaling.
+- **Fix:** a school run only when a child aged 7–12 (Standard 1–6) lives there. Younger siblings ride along and are not counted. `PRIMARY_AGE` and `SECONDARY_AGE` are now in `schedule.py`. Tested.
+- **Storm day now:** 6,710 trips, 818 pupils, 188 couldn't get to school and 61 turned back. Teenagers are hit hardest (160 of 362), then households without a car (130 of 442 couldn't go).
+- **Test a change:** option 1 gives 820 better off and 0 worse; option 2 (Persiaran Eserina) gives 262 better off and 2 worse, among them 105 teenagers and 55 children.
+- **Event:** 449 at the park at once, and 400 met a neighbour.
+- The demo script is re-measured and updated.
+
+**Calibration** (`data/scripts/calibrate_day.py` → `data/sim/elmina/calibration.json`; report `docs/03-product/calibration-report-2026-10.md`; shown in the Day panel under "How it was made → Checked against Petaling district"):
+- **Ages:** 0–14 23.3% vs 19.1%; 15–64 67.4% vs 71.8%; 65+ 9.2% vs 9.0%. The largest 5-year gap is 4.8 points (ages 25–29: the household generator makes parents 26–50).
+- **School-age children:** 92 per 1,000 aged 7–12 vs about 83 in Petaling (estimated from DOSM bands); 72 aged 13–17 vs about 66.
+- **Government-school pupils:** 62 and 43 per 1,000. About 75% and 65% of Petaling's school-age children are in government schools; the rest are in private or international schools, or are non-citizens.
+- **Household size and cars:** 3.77 people (cited 3.8); 91.5% with a car (cited 92.3%).
+- **Nothing is fitted.** The gap is measured and reported.
+
+**Voices re-recorded** after the fix: most recorded lines no longer matched their trips and had fallen back to template wording.
+- GPT-6 Luna, 4 days: 269 calls, 0 failed, about 165k tokens in and 22k out (a few cents).
+- 17 lines were rejected by the checks and fall back to template wording.
+- The storm town hall's 5 AI lines still match and were kept.
+
+**Cycle 20 review (Sonnet; 5 Important, 5 Minor), fixed:**
+- picking is reset when the mode switches (a module-level subscription);
+- the trip card stays mounted (hidden) in the peeking phone sheet, so its state survives;
+- the trip is cleared whenever its day ends, including when the user picks a river level;
+- **Play/Pause and Stop** on the rehearsal tag, so a resident can play their trip;
+- `MyTripLayer` builds its lines once per trip, and only "You" follows the clock;
+- a re-rehearsed departure clears any what-if;
+- Escape respects other popovers;
+- the strip follows the trip on the map, has one tab stop with arrow keys, and labels the asked cell "The time you asked about";
+- the camera frames once per trip (cut pieces included; Lite map uses `fitBounds`);
+- the strip scrolls inside its card;
+- trips from tapped points can be re-rehearsed (the card passes its points);
+- "tap a point" is hidden in the List view.
+
+**Checklist** (mock-backed; the voices were live): lint PASS (after formatting the JSON), pytest 1,299 PASS, typecheck PASS, vitest 801 PASS, gen PASS, golden 23/23 PASS, build PASS, e2e 20 PASS.
