@@ -5,14 +5,21 @@ city's building heights and nothing else. Never use them in routing, evaluation,
 agent, answers or evidence. This script is billable and is NOT part of `pnpm data:city`; its
 output base/height_samples.json is committed and read by later builders.
 
-Method: tile points (glb, via gtiles) -> tile world transform -> ECEF -> east-north-up metres
-around the bbox centre -> a 1 m max-z grid (DSM). Per OSM footprint: roof = p90 of the DSM
-inside the footprint eroded by 1 m; ground = p10 of the 3-15 m ring outside it, excluding other
-footprints. Heights are relative (roof - local ground), so geoid and ellipsoid datums never mix.
+Method: tile triangles (glb, via gtiles) -> tile world transform -> ECEF -> east-north-up
+metres around the bbox centre -> a 1 m max-z grid (DSM). The triangles are rasterised, not
+just their vertices: Google's leaf meshes have tens to hundreds of vertices per 38 m tile, so a
+vertex-only DSM fills about 5 % of the cells and no footprint passes the coverage gate.
+Per OSM footprint: roof = p90 of the DSM inside the footprint eroded by 1 m; ground = p10 of
+the 3-15 m ring outside it, excluding other footprints. Heights are relative (roof - local
+ground), so geoid and ellipsoid datums never mix.
 
 Usage:
   uv run python data/scripts/sample_heights.py --bbox hero --plan --max-requests 60
   uv run python data/scripts/sample_heights.py --bbox hero --max-requests <approved>
+
+--offline reads everything (root.json included) from data/cache/gtiles, never makes a request
+and needs no key; a missing file fails the run. The output is written only when at least 10 %
+of the footprints with tile data get a sample; the rejection reasons are always printed.
 
 --plan fetches tileset JSON only (no glb) and prints the request counts. --plan --count-leaves
 stops one level early: leaf tilesets at max-error are counted, not fetched, and the requests a
@@ -54,6 +61,20 @@ FRAME_Z = (-100.0, 500.0)
 # Stop before spending the budget if none of the first glbs can be frame-checked (unsupported
 # content or no points).
 FIRST_TILES_CHECK = 3
+# Never write a near-empty result: samples must reach this share of footprints with tile data.
+MIN_SAMPLE_RATE = 0.10
+# Triangle rasterisation works on at most this many candidate cells at a time (memory bound).
+_TRI_CHUNK_CELLS = 2_000_000
+
+# Rejection reasons (assess), in report order.
+SAMPLED = "sampled"
+OUTSIDE = "outside the DSM"
+NO_DATA = "no tile data in footprint"
+LOW_COVERAGE = f"roof coverage < {MIN_COVERAGE}"
+FEW_GROUND = f"ground cells < {MIN_GROUND_CELLS}"
+TOO_LOW = f"height < {HEIGHT_RANGE[0]} m"
+TOO_HIGH = f"height > {HEIGHT_RANGE[1]:g} m"
+REASONS = (SAMPLED, OUTSIDE, NO_DATA, LOW_COVERAGE, FEW_GROUND, TOO_LOW, TOO_HIGH)
 
 
 # --- DSM and footprints -------------------------------------------------------------
@@ -73,6 +94,47 @@ def _accumulate(acc: np.ndarray, points: np.ndarray, extent, cell: float) -> Non
     np.maximum.at(acc.reshape(-1), row[ok] * acc.shape[1] + col[ok], points[ok, 2])
 
 
+def _accumulate_triangles(acc: np.ndarray, tris: np.ndarray, extent, cell: float) -> None:
+    """Raise each cell whose centre lies inside a triangle (xy projection) to the triangle's
+    z there. Near-vertical triangles (walls) cover no cell centres; their vertices do."""
+    tris = np.asarray(tris, dtype=np.float64).reshape(-1, 3, 3)
+    if not len(tris):
+        return
+    gx = (tris[:, :, 0] - extent[0]) / cell - 0.5  # cell (i, j) has its centre at (j, i)
+    gy = (tris[:, :, 1] - extent[1]) / cell - 0.5
+    c0 = np.maximum(np.ceil(gx.min(axis=1)), 0).astype(np.int64)
+    c1 = np.minimum(np.floor(gx.max(axis=1)), acc.shape[1] - 1).astype(np.int64)
+    r0 = np.maximum(np.ceil(gy.min(axis=1)), 0).astype(np.int64)
+    r1 = np.minimum(np.floor(gy.max(axis=1)), acc.shape[0] - 1).astype(np.int64)
+    area = (gx[:, 1] - gx[:, 0]) * (gy[:, 2] - gy[:, 0]) - (gx[:, 2] - gx[:, 0]) * (
+        gy[:, 1] - gy[:, 0]
+    )
+    keep = (c1 >= c0) & (r1 >= r0) & (np.abs(area) > 1e-12)
+    idx = np.flatnonzero(keep)
+    width = c1 - c0 + 1
+    n = np.where(keep, width * (r1 - r0 + 1), 0)
+    flat = acc.reshape(-1)
+    start = 0
+    while start < len(idx):
+        take = int(np.searchsorted(np.cumsum(n[idx[start:]]), _TRI_CHUNK_CELLS, side="right"))
+        stop = start + max(take, 1)
+        t = idx[start:stop]
+        start = stop
+        counts = n[t]
+        owner = np.repeat(np.arange(len(t)), counts)
+        local = np.arange(int(counts.sum())) - np.repeat(np.cumsum(counts) - counts, counts)
+        tt = t[owner]
+        col = c0[tt] + local % width[tt]
+        row = r0[tt] + local // width[tt]
+        x, y, z = gx[tt], gy[tt], tris[tt, :, 2]
+        l0 = ((x[:, 1] - col) * (y[:, 2] - row) - (x[:, 2] - col) * (y[:, 1] - row)) / area[tt]
+        l1 = ((x[:, 2] - col) * (y[:, 0] - row) - (x[:, 0] - col) * (y[:, 2] - row)) / area[tt]
+        l2 = 1.0 - l0 - l1
+        inside = (l0 >= -1e-9) & (l1 >= -1e-9) & (l2 >= -1e-9)
+        zc = l0 * z[:, 0] + l1 * z[:, 1] + l2 * z[:, 2]
+        np.maximum.at(flat, row[inside] * acc.shape[1] + col[inside], zc[inside])
+
+
 def _empty(extent, cell_m: float) -> np.ndarray:
     return np.full(_grid(extent, cell_m), -np.inf, dtype=np.float32)
 
@@ -90,12 +152,18 @@ def _grid(extent, cell_m: float) -> tuple[int, int]:
 
 
 def build_dsm(
-    points_enu: np.ndarray, extent: tuple[float, float, float, float], cell_m: float = 1.0
+    points_enu: np.ndarray,
+    extent: tuple[float, float, float, float],
+    cell_m: float = 1.0,
+    triangles: np.ndarray | None = None,
 ) -> np.ndarray:
     """Max z per cell (row = north, column = east, origin at extent's min corner), NaN where
-    empty. Points outside the extent are dropped."""
+    empty, from points and (optionally) (m, 3, 3) triangles, all in ENU. Anything outside the
+    extent is dropped."""
     acc = _empty(extent, cell_m)
-    _accumulate(acc, np.asarray(points_enu, dtype=np.float64), extent, cell_m)
+    _accumulate(acc, np.asarray(points_enu, dtype=np.float64).reshape(-1, 3), extent, cell_m)
+    if triangles is not None:
+        _accumulate_triangles(acc, triangles, extent, cell_m)
     return _finish(acc)
 
 
@@ -144,36 +212,60 @@ def footprint_sample(
     outside the footprint, excluding others_mask cells (other footprints). None if coverage
     < 0.5, fewer than 10 ground cells, or a height outside 2.5-200 m.
     """
+    return assess(ring_enu, dsm, extent, others_mask)[0]
+
+
+def assess(
+    ring_enu: np.ndarray, dsm: np.ndarray, extent, others_mask: np.ndarray
+) -> tuple[dict | None, str]:
+    """footprint_sample plus the reason: (sample, SAMPLED) or (None, one of REASONS)."""
     cell = _cell(extent, dsm.shape)
     win, x, y = _window(ring_enu, extent, dsm.shape, RING_M[1] + 2 * cell)
     if x.size == 0:
-        return None
+        return None, OUTSIDE
     inside = _inside(ring_enu, x, y)
     if not inside.any():
-        return None
+        return None, OUTSIDE
     d = dsm[win].astype(np.float64)
+    if not np.isfinite(d[inside]).any():
+        return None, NO_DATA
     eroded = inside & (distance_transform_edt(inside) * cell > ERODE_M)
     if not eroded.any():
         eroded = inside
     roof = d[eroded]
     coverage = float(np.isfinite(roof).mean())
     if coverage < MIN_COVERAGE:
-        return None
+        return None, LOW_COVERAGE
     out_dist = distance_transform_edt(~inside) * cell
     ring = (out_dist >= RING_M[0]) & (out_dist <= RING_M[1]) & ~others_mask[win] & np.isfinite(d)
     if ring.sum() < MIN_GROUND_CELLS:
-        return None
+        return None, FEW_GROUND
     roof_p90 = float(np.percentile(roof[np.isfinite(roof)], 90))
     ground_p10 = float(np.percentile(d[ring], 10))
     height = roof_p90 - ground_p10
-    if not HEIGHT_RANGE[0] <= height <= HEIGHT_RANGE[1]:
-        return None
+    if height < HEIGHT_RANGE[0]:
+        return None, TOO_LOW
+    if height > HEIGHT_RANGE[1]:
+        return None, TOO_HIGH
     return {
         "height_m": round(height, 2),
         "roof_p90": round(roof_p90, 2),
         "ground_p10": round(ground_p10, 2),
         "coverage": round(coverage, 3),
-    }
+    }, SAMPLED
+
+
+def write_gate(samples: int, covered: int) -> str | None:
+    """Why the result must not be written (0 samples, or under MIN_SAMPLE_RATE of the
+    footprints with tile data), else None."""
+    if samples == 0:
+        return f"0 samples among {covered} footprints with tile data"
+    if samples < MIN_SAMPLE_RATE * covered:
+        return (
+            f"{samples} samples is {samples / covered:.1%} of {covered} footprints with tile "
+            f"data, below the {MIN_SAMPLE_RATE:.0%} minimum"
+        )
+    return None
 
 
 # --- frames and checks ------------------------------------------------------------
@@ -238,8 +330,8 @@ def load_key() -> str:
     return _Env().google_maps_api_key.strip()
 
 
-def make_fetcher(key: str, max_requests: int) -> gtiles.Fetcher:
-    return gtiles.Fetcher(key, max_requests)
+def make_fetcher(key: str, max_requests: int, offline: bool = False) -> gtiles.Fetcher:
+    return gtiles.Fetcher(key, max_requests, cache=gtiles.CACHE, offline=offline)
 
 
 def _footprints(bbox) -> list[tuple[str, list]]:
@@ -327,7 +419,8 @@ def _sample(bbox, fetcher: gtiles.Fetcher, max_error: float, cell_m: float) -> N
         for world, _url, glb, cache_id in gtiles.traverse(bbox, fetcher, max_error):
             read += 1
             try:
-                pts = to_enu(gtiles.glb_positions(glb), world, enu)
+                tris = gtiles.glb_triangles(glb)
+                pts = to_enu(tris.reshape(-1, 3), world, enu)
             except gtiles.UnsupportedGlb as exc:
                 skipped += 1
                 print(f"WARNING: skipped tile {cache_id[:10]}: {exc}")
@@ -347,6 +440,7 @@ def _sample(bbox, fetcher: gtiles.Fetcher, max_error: float, cell_m: float) -> N
             if pts is None:
                 continue
             _accumulate(acc, pts, extent, cell_m)
+            _accumulate_triangles(acc, pts.reshape(-1, 3, 3), extent, cell_m)
             tiles += 1
             if tiles % 50 == 0:
                 print(f"  {tiles} tiles, {fetcher.requests_made} requests")
@@ -366,15 +460,25 @@ def _sample(bbox, fetcher: gtiles.Fetcher, max_error: float, cell_m: float) -> N
     for ring in rings.values():
         win, x, y = _window(ring, extent, dsm.shape, 0.0)
         footprints[win] |= _inside(ring, x, y)
-    samples = {}
+    samples, reasons = {}, dict.fromkeys(REASONS, 0)
     for fid, ring in rings.items():
-        s = footprint_sample(ring, dsm, extent, footprints)
+        s, why = assess(ring, dsm, extent, footprints)
+        reasons[why] += 1
         if s is not None:
             samples[fid] = s
+    covered = len(rings) - reasons[OUTSIDE] - reasons[NO_DATA]
+    print(f"tiles: {tiles} (skipped {skipped}); requests made: {fetcher.requests_made}")
+    print(f"DSM cells with data: {float(np.isfinite(dsm).mean()):.1%}")
+    print(f"rejections: {len(rings)} footprints, {covered} with tile data")
+    for why in REASONS:
+        print(f"  {why}: {reasons[why]}")
+    problem = write_gate(len(samples), covered)
+    if problem:
+        print(f"NOT WRITTEN: {problem}; {OUT.name} left unchanged")
+        raise SystemExit(5)
     doc = merge(existing, samples, date.today().isoformat())
     OUT.write_text(json.dumps(doc, indent=1, sort_keys=True) + "\n", encoding="utf-8", newline="\n")
     share = len(samples) / len(rings) if rings else 0.0
-    print(f"tiles: {tiles} (skipped {skipped}); requests made: {fetcher.requests_made}")
     print(
         f"samples: {len(samples)} of {len(rings)} footprints ({share:.0%}); total in file: "
         f"{len(doc['samples'])}"
@@ -394,19 +498,27 @@ def main(argv: list[str] | None = None) -> None:
         "estimate the requests a full run needs",
     )
     ap.add_argument("--cell-m", type=float, default=1.0, help="DSM cell size (m)")
+    ap.add_argument(
+        "--offline",
+        action="store_true",
+        help="read root.json and every tile from data/cache/gtiles; no request, no key",
+    )
     args = ap.parse_args(argv)
     if args.count_leaves and not args.plan:
         ap.error("--count-leaves needs --plan")
 
-    key = load_key()
-    if not key:
+    key = "" if args.offline else load_key()
+    if not key and not args.offline:
         print("BLOCKED: GOOGLE_MAPS_API_KEY is not set (environment or repo-root .env)")
         raise SystemExit(2)
     rings = []
     if args.bbox == "township":
         rings = [ring for _, ring in _footprints((-180, -90, 180, 90))]
     bbox = parse_bbox(args.bbox, rings)
-    fetcher = make_fetcher(key, args.max_requests)
+    if args.offline:
+        fetcher = make_fetcher(key, args.max_requests, offline=True)
+    else:
+        fetcher = make_fetcher(key, args.max_requests)
     try:
         if args.plan:
             _plan(bbox, fetcher, args.max_error, args.count_leaves)

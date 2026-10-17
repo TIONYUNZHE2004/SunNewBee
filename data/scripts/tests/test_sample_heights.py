@@ -205,11 +205,11 @@ class _NoFetch:
 
 def _sampling_env(tmp_path, monkeypatch, glbs, positions):
     """main() in sampling mode over a fake traversal of `glbs` tiles; positions(glb) stands in
-    for gtiles.glb_positions. Returns the list of tiles the run consumed."""
+    for gtiles.glb_triangles. Returns the list of tiles the run consumed."""
     out = tmp_path / "height_samples.json"
     monkeypatch.setattr(sh, "OUT", out)
     monkeypatch.setattr(sh, "load_key", lambda: "K")
-    monkeypatch.setattr(sh, "make_fetcher", lambda key, n: _NoFetch())
+    monkeypatch.setattr(sh, "make_fetcher", lambda key, n, offline=False: _NoFetch())
     monkeypatch.setattr(sh, "_footprints", lambda bbox: [])
     consumed = []
 
@@ -219,7 +219,7 @@ def _sampling_env(tmp_path, monkeypatch, glbs, positions):
             yield gtiles.Content(np.eye(4), f"https://h/{i}.glb", b"glb", f"id{i}")
 
     monkeypatch.setattr(sh.gtiles, "traverse", fake_traverse)
-    monkeypatch.setattr(sh.gtiles, "glb_positions", positions)
+    monkeypatch.setattr(sh.gtiles, "glb_triangles", positions)
     return out, consumed
 
 
@@ -238,7 +238,7 @@ def test_sampling_aborts_early_when_first_glbs_are_unsupported(tmp_path, monkeyp
 
 
 def test_sampling_aborts_early_when_first_glbs_have_no_points(tmp_path, monkeypatch, capsys):
-    out, consumed = _sampling_env(tmp_path, monkeypatch, 50, lambda _g: np.zeros((0, 3)))
+    out, consumed = _sampling_env(tmp_path, monkeypatch, 50, lambda _g: np.zeros((0, 3, 3)))
     with pytest.raises(SystemExit) as exc:
         sh.main(["--bbox", "hero"])
     assert exc.value.code == 4 and len(consumed) == sh.FIRST_TILES_CHECK
@@ -246,7 +246,7 @@ def test_sampling_aborts_early_when_first_glbs_have_no_points(tmp_path, monkeypa
 
 
 def test_sampling_without_frame_check_writes_nothing(tmp_path, monkeypatch, capsys):
-    out, consumed = _sampling_env(tmp_path, monkeypatch, 1, lambda _g: np.zeros((0, 3)))
+    out, consumed = _sampling_env(tmp_path, monkeypatch, 1, lambda _g: np.zeros((0, 3, 3)))
     with pytest.raises(SystemExit) as exc:
         sh.main(["--bbox", "hero"])
     assert exc.value.code == 4 and consumed == [0]
@@ -312,3 +312,165 @@ def test_count_leaves_needs_plan(monkeypatch):
     with pytest.raises(SystemExit) as exc:
         sh.main(["--bbox", "hero", "--count-leaves"])
     assert exc.value.code == 2
+
+
+# --- fix round 3: triangles, rejection reasons, write gate, offline ----------------------
+# Google's leaf meshes carry 17-300 vertices per 38 m tile; a vertex-only DSM filled 5 % of
+# the hero cells and every footprint failed the coverage gate. The DSM must rasterise the
+# triangles.
+
+
+def _quad(x0, y0, x1, y1, z):
+    a, b, c, d = [x0, y0, z], [x1, y0, z], [x1, y1, z], [x0, y1, z]
+    return np.array([[a, b, c], [a, c, d]], dtype=np.float64)
+
+
+def test_build_dsm_fills_cells_under_triangles_not_just_vertices():
+    tris = np.concatenate([_quad(-30, -30, 30, 30, 10.0), _quad(-5, -5, 5, 5, 19.0)])
+    dsm = sh.build_dsm(tris.reshape(-1, 3), EXTENT, triangles=tris)
+    assert np.isfinite(dsm[20:80, 20:80]).all()  # 60 x 60 m of ground from 4 vertices
+    assert dsm[50, 50] == pytest.approx(19.0) and dsm[30, 30] == pytest.approx(10.0)
+    assert np.isnan(dsm[5, 5])
+    s = sh.footprint_sample(BOX, dsm, EXTENT, NO_OTHERS)
+    assert s is not None and s["height_m"] == pytest.approx(9.0, abs=0.5)
+
+
+def test_build_dsm_interpolates_a_sloped_triangle():
+    tri = np.array([[[-40, -40, 0.0], [40, -40, 80.0], [-40, 40, 0.0]]])
+    dsm = sh.build_dsm(np.zeros((0, 3)), EXTENT, triangles=tri)
+    # z = x + 40 on this plane; cell (row 30, col 30) has its centre at (-19.5, -19.5)
+    assert dsm[30, 30] == pytest.approx(20.5, abs=1e-3)
+    assert np.isnan(dsm[95, 95])  # outside the triangle
+
+
+def test_build_dsm_triangle_chunks_match_one_pass(monkeypatch):
+    rng = np.random.default_rng(3)
+    tris = rng.uniform(-60, 60, (200, 3, 3))
+    whole = sh.build_dsm(np.zeros((0, 3)), EXTENT, triangles=tris)
+    monkeypatch.setattr(sh, "_TRI_CHUNK_CELLS", 500)
+    chunked = sh.build_dsm(np.zeros((0, 3)), EXTENT, triangles=tris)
+    assert np.array_equal(np.isnan(whole), np.isnan(chunked))
+    assert np.allclose(whole[np.isfinite(whole)], chunked[np.isfinite(chunked)])
+
+
+@pytest.mark.parametrize(
+    ("make", "reason"),
+    [
+        (lambda: _dsm(), sh.SAMPLED),
+        (lambda: _dsm(roof=11.0), sh.TOO_LOW),
+        (lambda: _dsm(roof=260.0), sh.TOO_HIGH),
+        (lambda: np.full((100, 100), np.nan), sh.NO_DATA),
+    ],
+)
+def test_assess_names_the_reason(make, reason):
+    sample, why = sh.assess(BOX, make(), EXTENT, NO_OTHERS)
+    assert why == reason and (sample is not None) == (reason == sh.SAMPLED)
+
+
+def test_assess_reasons_for_sparse_roof_bare_ring_and_off_grid():
+    sparse = _dsm()
+    x, y = _centres()
+    rng = np.random.default_rng(0)
+    sparse[(np.abs(x) < 5) & (np.abs(y) < 5) & (rng.random(sparse.shape) > 0.3)] = np.nan
+    assert sh.assess(BOX, sparse, EXTENT, NO_OTHERS)[1] == sh.LOW_COVERAGE
+    bare = _dsm()
+    bare[~((np.abs(x) < 5) & (np.abs(y) < 5))] = np.nan
+    assert sh.assess(BOX, bare, EXTENT, NO_OTHERS)[1] == sh.FEW_GROUND
+    assert sh.assess(BOX + 500, _dsm(), EXTENT, NO_OTHERS)[1] == sh.OUTSIDE
+
+
+def test_write_gate():
+    assert sh.write_gate(0, 0) is not None
+    assert "0 samples" in sh.write_gate(0, 50)
+    assert "below" in sh.write_gate(4, 50)  # 8 % of covered footprints
+    assert sh.write_gate(5, 50) is None
+
+
+# Sampling runs over a fake traversal whose triangles are built in ENU and sent as ECEF.
+_LON0 = (sh.HERO_BBOX[0] + sh.HERO_BBOX[2]) / 2
+_LAT0 = (sh.HERO_BBOX[1] + sh.HERO_BBOX[3]) / 2
+_ENU = gtiles.enu_matrix(_LON0, _LAT0)
+
+
+def _as_ecef(tris_enu):
+    inv = np.linalg.inv(_ENU)
+    flat = tris_enu.reshape(-1, 3)
+    return (flat @ inv[:3, :3].T + inv[:3, 3]).reshape(-1, 3, 3)
+
+
+def _lonlat_box(cx, cy, half):
+    """A square footprint around ENU (cx, cy) metres, as a lon/lat ring."""
+    k_lat = 1 / 110_574.0
+    k_lon = 1 / (111_320.0 * np.cos(np.radians(_LAT0)))
+    pts = [(-half, -half), (half, -half), (half, half), (-half, half), (-half, -half)]
+    return [[_LON0 + (cx + dx) * k_lon, _LAT0 + (cy + dy) * k_lat] for dx, dy in pts]
+
+
+def _city_env(tmp_path, monkeypatch, roofs):
+    """Ground at 40 m over 200 x 200 m and one 10 m box per (cx, cy, roof_z) in roofs."""
+    out = tmp_path / "height_samples.json"
+    monkeypatch.setattr(sh, "OUT", out)
+    monkeypatch.setattr(sh, "load_key", lambda: "K")
+    monkeypatch.setattr(sh, "make_fetcher", lambda key, n, offline=False: _NoFetch())
+    feats = [(f"way/{i}", _lonlat_box(cx, cy, 5.0)) for i, (cx, cy, _z) in enumerate(roofs)]
+    monkeypatch.setattr(sh, "_footprints", lambda bbox: feats)
+    tris = [_quad(-100, -100, 100, 100, 40.0)]
+    tris += [_quad(cx - 5, cy - 5, cx + 5, cy + 5, z) for cx, cy, z in roofs]
+    ecef_tris = _as_ecef(np.concatenate(tris))
+
+    def fake_traverse(bbox, fetch, max_error, plan_only=False, count_leaves=False):
+        yield gtiles.Content(np.eye(4), "https://h/0.glb", b"glb", "id0")
+
+    monkeypatch.setattr(sh.gtiles, "traverse", fake_traverse)
+    monkeypatch.setattr(sh.gtiles, "glb_triangles", lambda _g: ecef_tris)
+    return out
+
+
+def test_sampling_writes_real_samples_and_prints_reasons(tmp_path, monkeypatch, capsys):
+    out = _city_env(tmp_path, monkeypatch, [(0, 0, 49.0), (40, 0, 41.0)])
+    sh.main(["--bbox", "hero"])
+    text = capsys.readouterr().out
+    doc = json.loads(out.read_text(encoding="utf-8"))
+    assert list(doc["samples"]) == ["way/0"]
+    assert doc["samples"]["way/0"]["height_m"] == pytest.approx(9.0, abs=0.5)
+    assert "rejections:" in text and f"{sh.TOO_LOW}: 1" in text and f"{sh.SAMPLED}: 1" in text
+
+
+def test_sampling_with_no_samples_writes_nothing(tmp_path, monkeypatch, capsys):
+    out = _city_env(tmp_path, monkeypatch, [(0, 0, 41.0), (40, 0, 41.0)])
+    with pytest.raises(SystemExit) as exc:
+        sh.main(["--bbox", "hero"])
+    assert exc.value.code == 5
+    text = capsys.readouterr().out
+    assert "NOT WRITTEN" in text and f"{sh.TOO_LOW}: 2" in text
+    assert not out.exists()
+
+
+def test_sampling_below_the_sample_rate_writes_nothing(tmp_path, monkeypatch, capsys):
+    roofs = [(0, 0, 49.0)] + [(-80 + 16 * i, 60, 41.0) for i in range(10)]  # 1 of 11 = 9 %
+    out = _city_env(tmp_path, monkeypatch, roofs)
+    with pytest.raises(SystemExit) as exc:
+        sh.main(["--bbox", "hero"])
+    assert exc.value.code == 5 and not out.exists()
+    assert "below" in capsys.readouterr().out
+
+
+def test_offline_needs_no_key_and_uses_an_offline_fetcher(tmp_path, monkeypatch):
+    out = _city_env(tmp_path, monkeypatch, [(0, 0, 49.0)])
+    monkeypatch.setattr(sh, "load_key", lambda: "")
+    seen = {}
+
+    def fetcher(key, n, offline=False):
+        seen["offline"] = offline
+        return _NoFetch()
+
+    monkeypatch.setattr(sh, "make_fetcher", fetcher)
+    sh.main(["--bbox", "hero", "--offline"])
+    assert seen == {"offline": True} and out.exists()
+
+
+def test_make_fetcher_offline_never_touches_the_network(tmp_path, monkeypatch):
+    monkeypatch.setattr(gtiles, "CACHE", tmp_path)
+    f = sh.make_fetcher("", 0, offline=True)
+    with pytest.raises(gtiles.OfflineMiss):
+        f("https://h/x.glb")

@@ -5,7 +5,8 @@ the display layer. Never use them in routing, evaluation, flood, the agent, answ
 
 - Fetcher: cache first (data/cache/gtiles/<id>.bin), appends the API key, hard request budget.
   The key is never printed or logged: error messages pass through redact(). fresh=True skips
-  the cache read (root.json, stale tilesets).
+  the cache read (root.json, stale tilesets). offline=True serves everything from the cache
+  (fresh ignored) and raises OfflineMiss instead of making any request.
 - traverse: 3D Tiles 1.1 traversal, breadth-first over tilesets, limited to a lon/lat bbox
   (sphere pre-filter, then an exact OBB test against the bbox rectangle in ENU) and a target
   geometric error (1 % tolerance: Google's levels are 2.006, 4.013 ... m); composes tile
@@ -16,6 +17,8 @@ the display layer. Never use them in routing, evaluation, flood, the agent, answ
 - glb_positions: vertex positions of a glb (Draco via DracoPy), node transforms applied,
   glTF y-up converted to 3D Tiles z-up. Raises UnsupportedGlb for content it cannot decode
   correctly (unknown required extensions, CESIUM_RTC) instead of returning wrong points.
+- glb_triangles: the same content as (m, 3, 3) triangles (TRIANGLES mode only), for a surface
+  model: Google's leaf meshes are too coarse for a vertex-only DSM.
 """
 
 import hashlib
@@ -70,6 +73,10 @@ class TilesFetchError(RuntimeError):
     def __init__(self, message: str, status: int | None = None):
         super().__init__(message)
         self.status = status
+
+
+class OfflineMiss(TilesFetchError):
+    """Offline mode needed a file that is not in the cache (no request is ever made)."""
 
 
 class UnsupportedGlb(ValueError):
@@ -230,8 +237,16 @@ class Fetcher:
 
     cache_hits = 0
 
-    def __init__(self, key: str, max_requests: int, cache: Path = CACHE, get=requests.get):
+    def __init__(
+        self,
+        key: str,
+        max_requests: int,
+        cache: Path = CACHE,
+        get=requests.get,
+        offline: bool = False,
+    ):
         self._key = key
+        self.offline = offline
         self.max_requests = max_requests
         self.cache = Path(cache)
         self._get = get
@@ -244,12 +259,16 @@ class Fetcher:
         return self.path(cache_id).exists()
 
     def __call__(self, url: str, fresh: bool = False, cache_id: str | None = None) -> bytes:
-        """cache_id (from traverse) names the cache file; without it the URL's cache_key does."""
+        """cache_id (from traverse) names the cache file; without it the URL's cache_key does.
+        Offline, everything comes from the cache (fresh is ignored) and a miss raises
+        OfflineMiss without any request."""
         path = self.path(cache_id or cache_key(url))
-        if path.exists() and not fresh:
+        if path.exists() and (self.offline or not fresh):
             self.cache_hits += 1
             return path.read_bytes()
         shown = redact(_strip(url), self._key)
+        if self.offline:
+            raise OfflineMiss(f"offline: {shown} is not cached (cache id {path.stem})")
         if self.requests_made >= self.max_requests:
             raise TilesBudgetExceeded(
                 f"3D Tiles request budget of {self.max_requests} used up (next: {shown})"
@@ -490,28 +509,47 @@ def _accessor_positions(gltf: pygltflib.GLTF2, blob: bytes, index: int) -> np.nd
     return pts
 
 
-def _primitive_positions(gltf: pygltflib.GLTF2, blob: bytes, prim: pygltflib.Primitive):
+def _accessor_indices(gltf: pygltflib.GLTF2, blob: bytes, index: int) -> np.ndarray:
+    acc = gltf.accessors[index]
+    view = gltf.bufferViews[acc.bufferView]
+    dtype = np.dtype(_COMPONENTS[acc.componentType])
+    start = (view.byteOffset or 0) + (acc.byteOffset or 0)
+    return np.frombuffer(blob, dtype=dtype, count=acc.count, offset=start).astype(np.int64)
+
+
+def _primitive_mesh(gltf: pygltflib.GLTF2, blob: bytes, prim: pygltflib.Primitive):
+    """(positions (n, 3), faces (m, 3) or None when the primitive is not indexed)."""
     draco = (prim.extensions or {}).get(_DRACO)
     if draco is not None:
         mesh = DracoPy.decode(_view_bytes(gltf, blob, draco["bufferView"]))
-        return np.asarray(mesh.points, dtype=np.float64).reshape(-1, 3)
+        faces = np.asarray(mesh.faces, dtype=np.int64).reshape(-1, 3)
+        return np.asarray(mesh.points, dtype=np.float64).reshape(-1, 3), faces
     if prim.attributes.POSITION is None:
-        return np.zeros((0, 3))
-    return _accessor_positions(gltf, blob, prim.attributes.POSITION)
+        return np.zeros((0, 3)), None
+    pts = _accessor_positions(gltf, blob, prim.attributes.POSITION)
+    if prim.indices is None:
+        return pts, None
+    return pts, _accessor_indices(gltf, blob, prim.indices).reshape(-1, 3)
 
 
-def glb_positions(glb: bytes) -> np.ndarray:
-    """(n, 3) vertex positions in the tile's frame: node transforms applied, glTF y-up -> z-up."""
+def _primitive_positions(gltf: pygltflib.GLTF2, blob: bytes, prim: pygltflib.Primitive):
+    return _primitive_mesh(gltf, blob, prim)[0]
+
+
+def _load_checked(glb: bytes) -> pygltflib.GLTF2:
     gltf = pygltflib.GLTF2.load_from_bytes(glb)
     unsupported = sorted(set(gltf.extensionsRequired or []) - _SUPPORTED_REQUIRED)
     if unsupported:
         raise UnsupportedGlb(f"glb requires unsupported extension(s): {', '.join(unsupported)}")
     if "CESIUM_RTC" in (gltf.extensionsUsed or []) or "CESIUM_RTC" in (gltf.extensions or {}):
         raise UnsupportedGlb("glb uses CESIUM_RTC, which glb_positions does not apply")
-    blob = gltf.binary_blob() or b""
+    return gltf
+
+
+def _mesh_primitives(gltf: pygltflib.GLTF2) -> Iterator[tuple[pygltflib.Primitive, np.ndarray]]:
+    """Each mesh primitive with its node's world matrix (node transforms, then y-up -> z-up)."""
     scene = gltf.scenes[gltf.scene or 0] if gltf.scenes else None
     roots = scene.nodes if scene else range(len(gltf.nodes))
-    out: list[np.ndarray] = []
     stack = [(i, _Y_UP_TO_Z_UP) for i in roots]
     while stack:
         i, parent = stack.pop()
@@ -519,8 +557,39 @@ def glb_positions(glb: bytes) -> np.ndarray:
         world = parent @ _node_matrix(node)
         if node.mesh is not None:
             for prim in gltf.meshes[node.mesh].primitives:
-                pts = _primitive_positions(gltf, blob, prim)
-                if len(pts):
-                    out.append(pts @ world[:3, :3].T + world[:3, 3])
+                yield prim, world
         stack.extend((c, world) for c in node.children or [])
+
+
+def glb_positions(glb: bytes) -> np.ndarray:
+    """(n, 3) vertex positions in the tile's frame: node transforms applied, glTF y-up -> z-up."""
+    gltf = _load_checked(glb)
+    blob = gltf.binary_blob() or b""
+    out: list[np.ndarray] = []
+    for prim, world in _mesh_primitives(gltf):
+        pts = _primitive_positions(gltf, blob, prim)
+        if len(pts):
+            out.append(pts @ world[:3, :3].T + world[:3, 3])
     return np.concatenate(out) if out else np.zeros((0, 3))
+
+
+def glb_triangles(glb: bytes) -> np.ndarray:
+    """(m, 3, 3) triangles (three xyz vertices each) in the tile's frame, transformed like
+    glb_positions. Google's leaf meshes are coarse (tens to hundreds of vertices per 38 m
+    tile), so a surface model must rasterise these, not the vertices. Only TRIANGLES (mode 4)
+    is decoded; any other mode raises UnsupportedGlb."""
+    gltf = _load_checked(glb)
+    blob = gltf.binary_blob() or b""
+    out: list[np.ndarray] = []
+    for prim, world in _mesh_primitives(gltf):
+        mode = 4 if prim.mode is None else prim.mode
+        if mode != 4:
+            raise UnsupportedGlb(f"primitive mode {mode} is not TRIANGLES (4)")
+        pts, faces = _primitive_mesh(gltf, blob, prim)
+        if not len(pts):
+            continue
+        pts = pts @ world[:3, :3].T + world[:3, 3]
+        if faces is None:
+            faces = np.arange(len(pts) - len(pts) % 3).reshape(-1, 3)
+        out.append(pts[faces])
+    return np.concatenate(out) if out else np.zeros((0, 3, 3))
