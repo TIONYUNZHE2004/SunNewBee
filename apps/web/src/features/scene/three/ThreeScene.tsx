@@ -20,9 +20,15 @@ import {
 import { type LonLat, pointFeatures } from "../geo";
 import { useSceneSettings } from "../sceneSettingsStore";
 import { useScene } from "../sceneStore";
-import { BOOKMARKS, bookmarkFromSearch, DEFAULT_BOOKMARK } from "./bookmarks";
+import { createCityInstances } from "./assets/cityInstances";
+import { type AssetLibrary, loadAssetLibrary } from "./assets/library";
+import { MANIFEST_URL, type Manifest, parseManifest } from "./assets/manifest";
+import { planCity } from "./assets/plan";
+import { createRoleUniforms } from "./assets/roleMaterial";
+import { showroomManifest, showroomPlan } from "./assets/showroom";
+import { BOOKMARKS, bookmarkFromSearch, DEFAULT_BOOKMARK, HERO_CENTRE } from "./bookmarks";
 import { createThreeCameraOps, type Pose, type ThreeCameraOps } from "./cameraRig";
-import { buildCityGeometry } from "./cityMesh";
+import { buildCityGeometry, type CityGeometry } from "./cityMesh";
 import { createEngine, type Engine } from "./engine";
 import { cesiumEngineHref } from "./engineChoice";
 import { createFrame, type LocalFrame } from "./frame";
@@ -81,6 +87,42 @@ function ExperimentalEngineChip() {
 
 const asError = (err: unknown) => (err instanceof Error ? err : new Error(String(err)));
 
+type AssetsState = "off" | "loading" | "ready" | "failed";
+interface LoadedAssets {
+  manifest: Manifest;
+  lib: AssetLibrary;
+}
+/** Already reported (the library warns once per failed glb): fail without a second warning. */
+class Reported extends Error {}
+
+const ASSET_WARN = "TownshipLens 3D: city assets unavailable, drawing the extruded city";
+
+/** The manifest, or a throw for 404, a body that is not JSON (Vite's index.html) or a bad shape. */
+async function fetchManifest(signal: AbortSignal): Promise<Manifest> {
+  const r = await fetch(MANIFEST_URL, { signal });
+  if (!r.ok) throw new Error(`manifest HTTP ${r.status}`);
+  let body: unknown;
+  try {
+    body = JSON.parse(await r.text());
+  } catch {
+    throw new Error("manifest is not JSON");
+  }
+  const { manifest, problems } = parseManifest(body);
+  if (!manifest) throw new Error(`manifest rejected: ${problems.join("; ")}`);
+  if (Object.keys(manifest.assets).length === 0) throw new Error("manifest has no assets");
+  if (problems.length > 0)
+    console.warn(`TownshipLens 3D: city manifest entries dropped: ${problems.join("; ")}`);
+  return manifest;
+}
+
+const geometryBytes = (g: CityGeometry) => {
+  let n = 0;
+  for (const geo of [g.buildings, g.parks, g.water])
+    for (const a of Object.values(geo.attributes)) n += a.array.byteLength;
+  return n;
+};
+const MB = 1024 * 1024;
+
 /** Three.js stylised city (opt-in with `?engine=three`). All WebGL lives in `engine.ts`. */
 export default function ThreeScene({
   onOps,
@@ -93,6 +135,18 @@ export default function ThreeScene({
   const sectionRef = useRef<HTMLElement>(null);
   const [engine, setEngine] = useState<Engine | null>(null);
   const [failure, setFailure] = useState<Error | null>(null);
+
+  // `?assets=0` keeps the extruded city only; `?showroom=1` lays out every asset for owner review.
+  const [assetsOn, showroom] = useMemo(() => {
+    const q = new URLSearchParams(location.search);
+    return [q.get("assets") !== "0", q.get("showroom") === "1"];
+  }, []);
+  const [assetsState, setAssetsState] = useState<AssetsState>(assetsOn ? "loading" : "off");
+  const [loaded, setLoaded] = useState<LoadedAssets | null>(null);
+  const [instances, setInstances] = useState(0);
+  const roleUniforms = useMemo(createRoleUniforms, []);
+  /** True while the engine holds instances built from the current library. */
+  const handedOff = useRef(false);
 
   const site = useSite().data;
   const buildings = useBuildings().data;
@@ -171,10 +225,74 @@ export default function ThreeScene({
     });
   }, [engine, frame, bbox]);
 
+  // City assets: manifest, then the glb library (aborted on unmount). Any failure leaves the full
+  // extruded city drawn, with data-assets="failed" and one warning.
+  useEffect(() => {
+    if (!engine || !assetsOn) return;
+    const ac = new AbortController();
+    let lib: AssetLibrary | null = null;
+    setAssetsState("loading");
+    (async () => {
+      const manifest = await fetchManifest(ac.signal);
+      lib = await loadAssetLibrary(manifest, { signal: ac.signal });
+      if (ac.signal.aborted) return;
+      const got = lib;
+      if (!Object.keys(manifest.assets).some((id) => got.has(id)))
+        throw new Reported("no city asset loaded");
+      setLoaded({ manifest, lib: got });
+    })().catch((err: unknown) => {
+      if (ac.signal.aborted) return;
+      lib?.dispose();
+      lib = null;
+      if (!(err instanceof Reported)) console.warn(`${ASSET_WARN}: ${String(err)}`);
+      setAssetsState("failed");
+    });
+    return () => {
+      ac.abort();
+      // The engine drops (and disposes) the instances before the library frees their geometry.
+      if (handedOff.current) engine.setAssets(null);
+      handedOff.current = false;
+      lib?.dispose();
+      setLoaded(null);
+    };
+  }, [engine, assetsOn]);
+
   useEffect(() => {
     if (!engine || !frame || !buildings) return;
-    engine.setCity(buildCityGeometry(buildings, frame));
-  }, [engine, frame, buildings]);
+    const full = () => {
+      const g = buildCityGeometry(buildings, frame);
+      engine.setCity(g);
+      setInstances(0);
+      usePerfStats.getState().update({ gpuMB: geometryBytes(g) / MB });
+    };
+    if (!loaded) {
+      full();
+      return;
+    }
+    const { manifest, lib } = loaded;
+    try {
+      const m = showroom ? showroomManifest(manifest) : manifest;
+      const plan = showroom
+        ? showroomPlan(m, frame.toLocal(HERO_CENTRE[0], HERO_CENTRE[1]))
+        : planCity(buildings, frame, manifest, lib.has);
+      const inst = createCityInstances(lib, plan, m, roleUniforms);
+      const g = buildCityGeometry(buildings, frame, { only: plan.extrude });
+      engine.setCity(g);
+      engine.setAssets(inst);
+      handedOff.current = true;
+      setInstances(plan.stats.units + plan.landmarks.length);
+      setAssetsState("ready");
+      usePerfStats.getState().update({
+        gpuMB: (geometryBytes(g) + lib.gpuBytes() + inst.stats().gpuBytes) / MB,
+      });
+    } catch (err) {
+      console.warn(`${ASSET_WARN}: ${String(err)}`);
+      if (handedOff.current) engine.setAssets(null);
+      handedOff.current = false;
+      full();
+      setAssetsState("failed");
+    }
+  }, [engine, frame, buildings, loaded, showroom, roleUniforms]);
 
   // Frame the start view once per engine, as soon as the local frame exists.
   const framed = useRef<Engine | null>(null);
@@ -251,7 +369,7 @@ export default function ThreeScene({
     const off = engine.onFrame((dt, info) => {
       const heading = engine.rig.get().headingDeg * RAD;
       if (useCameraHeading.getState().heading !== heading) useCameraHeading.setState({ heading });
-      stats.frame(engine.frames, dt, info.calls);
+      stats.frame(engine.frames, dt, info.calls, info.tris);
     });
     return () => {
       off();
@@ -332,6 +450,8 @@ export default function ThreeScene({
       data-testid="three-scene"
       data-frames={frames}
       data-route={routeOn ? "on" : "off"}
+      data-assets={assetsState}
+      data-instances={instances}
       className="relative h-full w-full"
       style={{ background: LIGHT_PRESETS[theme].background }}
       // biome-ignore lint/a11y/noNoninteractiveTabindex: the 3D map takes keyboard focus for WASD/QE/RF

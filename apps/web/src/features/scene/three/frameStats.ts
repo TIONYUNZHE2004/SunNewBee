@@ -6,6 +6,8 @@ export interface PerfSample {
   fps: number;
   frameMs: number;
   drawCalls: number;
+  /** Triangles per frame over all passes (only when the caller reports them). */
+  tris?: number;
 }
 
 /**
@@ -34,7 +36,7 @@ export function createFrameStats(
   };
 
   return {
-    frame(count: number, dtMs: number, drawCalls: number) {
+    frame(count: number, dtMs: number, drawCalls: number, tris?: number) {
       pending = count;
       const t = now();
       if (timer === undefined) {
@@ -49,11 +51,13 @@ export function createFrameStats(
       if (t - lastPerf < perfMs) return;
       lastPerf = t;
       if (recent.length === 0) {
-        out.perf({ drawCalls });
+        out.perf(tris === undefined ? { drawCalls } : { drawCalls, tris });
         return;
       }
       const frameMs = recent.reduce((a, b) => a + b, 0) / recent.length;
-      out.perf({ fps: 1000 / frameMs, frameMs, drawCalls });
+      const sample: Partial<PerfSample> = { fps: 1000 / frameMs, frameMs, drawCalls };
+      if (tris !== undefined) sample.tris = tris;
+      out.perf(sample);
     },
     /** Publishes any pending frame count now and stops the timer. */
     dispose() {

@@ -2,13 +2,17 @@
 import { QueryClientProvider } from "@tanstack/react-query";
 import { act, render, screen, waitFor } from "@testing-library/react";
 import { Component, type ReactNode, StrictMode } from "react";
+import * as THREE from "three";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { makeGlb } from "../../../test/glbFixture";
 import { json, newQueryClient, renderWithClient, stubFetch } from "../../../test/helpers";
 import { useTheme } from "../../../ui/theme";
 import { usePanel } from "../../main/panelStore";
 import { PANEL_INSET_PX, panelWidthPx } from "../../main/viewport";
 import { usePerfStats } from "../cesium/PerfOverlay";
 import { useScene } from "../sceneStore";
+import type { CityInstances } from "./assets/cityInstances";
+import type { Manifest } from "./assets/manifest";
 import { BOOKMARKS, type BookmarkId, DEFAULT_BOOKMARK } from "./bookmarks";
 import type { Pose } from "./cameraRig";
 import type { Engine } from "./engine";
@@ -63,6 +67,7 @@ function fakeEngine() {
   const e = {
     frames: 0,
     setCity: vi.fn(),
+    setAssets: vi.fn(),
     setBounds: vi.fn(),
     setRoute: vi.fn(),
     setLighting: vi.fn(),
@@ -139,6 +144,8 @@ const route = {
 };
 
 beforeEach(() => {
+  // No manifest by default: the scene falls back to the full extruded city with one warning.
+  vi.spyOn(console, "warn").mockImplementation(() => {});
   stubFetch((url) => (url.includes("/layers/buildings") ? json(BUILDINGS) : json({}, 404)));
   useScene.setState({
     route: null,
@@ -362,5 +369,219 @@ describe("ThreeScene", () => {
     );
     unmount();
     expect(onOps).toHaveBeenLastCalledWith(null);
+  });
+
+  describe("city assets", () => {
+    const local = (pts: [number, number][]) => [
+      [...pts, pts[0]!].map(([x, z]) => frame.toLonLat(x, z)),
+    ];
+    /** 6.4 m frontage along x, 15.5 m deep along z, centred on (cx, 100). */
+    const link = (id: string, cx: number) => ({
+      type: "Feature",
+      geometry: {
+        type: "Polygon",
+        coordinates: local([
+          [cx - 3.2, 100 - 7.75],
+          [cx + 3.2, 100 - 7.75],
+          [cx + 3.2, 100 + 7.75],
+          [cx - 3.2, 100 + 7.75],
+        ]),
+      },
+      properties: {
+        id,
+        kind: "residential",
+        height_m: 8.5,
+        archetype: "link_intermediate",
+        precinct: "Elmina Valley 2",
+      },
+    });
+    const CITY = {
+      ...BUILDINGS,
+      buildings: {
+        type: "FeatureCollection",
+        features: [
+          { ...BUILDINGS.buildings.features[0], properties: { id: "plain", height_m: 9 } },
+          link("l1", 50),
+          link("l2", 80),
+        ],
+      },
+    };
+    const lodNodes = ["link_intermediate__gable__LOD0", "link_intermediate__gable__LOD1"];
+    const MANIFEST: Manifest = {
+      version: 1,
+      as_of: "2026-10-17",
+      precinctGroups: [["valley", "elmina valley"]],
+      assets: {
+        link_intermediate: {
+          group: "archetype",
+          file: "link_intermediate.glb",
+          bytes: 1,
+          repeat: "none",
+          frontage: "short",
+          fit: { xz: [0.75, 1.35], y: [0.6, 1.6] },
+          decorative: false,
+          placement: null,
+          jitter: {},
+          variantByGroup: { default: "gable" },
+          palettes: { default: [["#111111", "#222222", "#333333"]] },
+          variants: {
+            gable: {
+              size: [6.4, 8.5, 15.5],
+              lods: [
+                { node: lodNodes[0]!, tris: 1, maxM: 300 },
+                { node: lodNodes[1]!, tris: 1, maxM: null },
+              ],
+            },
+          },
+        },
+      },
+      landmarks: {},
+    };
+    const glb = () => new Response(makeGlb(lodNodes.map((name) => ({ name }))));
+
+    function serve(over: { manifest?: () => Response; glb?: () => Response | Promise<Response> }) {
+      return stubFetch((url) => {
+        if (url.includes("/layers/buildings")) return json(CITY);
+        if (url.endsWith("/city/manifest.json"))
+          return over.manifest ? over.manifest() : json(MANIFEST);
+        if (url.endsWith("/city/link_intermediate.glb")) return over.glb ? over.glb() : glb();
+        return json({}, 404);
+      });
+    }
+    type Geo = { buildings: THREE.BufferGeometry };
+    const vertsOf = (engine: Fake, call: number) =>
+      (engine.setCity.mock.calls.at(call)![0] as Geo).buildings.getAttribute("position").count;
+
+    it('assets load: setCity with only plan.extrude, setAssets once, data-assets="ready"', async () => {
+      // Hold the glb until the buildings are drawn, so the order is deterministic.
+      let open: () => void = () => {};
+      const gate = new Promise<void>((r) => (open = r));
+      serve({ glb: () => gate.then(glb) });
+      const { engine } = mount();
+      const s = screen.getByTestId("three-scene");
+      await waitFor(() => expect(engine.setCity).toHaveBeenCalledTimes(1));
+      expect(s).toHaveAttribute("data-assets", "loading");
+      open();
+      await waitFor(() => expect(s).toHaveAttribute("data-assets", "ready"));
+      expect(engine.setAssets).toHaveBeenCalledTimes(1);
+      // The full city first (no holes while loading), then only the plain building (one box).
+      expect(vertsOf(engine, 0)).toBe(90);
+      expect(vertsOf(engine, -1)).toBe(30);
+      const inst = engine.setAssets.mock.calls[0]?.[0] as CityInstances;
+      expect(inst.group).toBeInstanceOf(THREE.Group);
+      expect(console.warn).not.toHaveBeenCalled();
+    });
+
+    it("data-instances equals the placed unit count", async () => {
+      serve({});
+      mount();
+      const s = screen.getByTestId("three-scene");
+      await waitFor(() => expect(s).toHaveAttribute("data-assets", "ready"));
+      expect(s).toHaveAttribute("data-instances", "2");
+    });
+
+    it.each([
+      ["manifest 404", () => json({}, 404)],
+      ["malformed manifest", () => json({ version: 2, assets: {} })],
+      ["non-JSON manifest (dev server index.html)", () => new Response("<!doctype html><html>")],
+      ["missing glb", undefined],
+    ])(
+      '%s: data-assets="failed", full city, setAssets never called, one warning',
+      async (_n, manifest) => {
+        serve(manifest ? { manifest } : { glb: () => json({}, 404) });
+        const { engine } = mount();
+        const s = screen.getByTestId("three-scene");
+        await waitFor(() => expect(s).toHaveAttribute("data-assets", "failed"));
+        expect(engine.setCity).toHaveBeenCalled();
+        for (let i = 0; i < engine.setCity.mock.calls.length; i++)
+          expect(vertsOf(engine, i)).toBe(90);
+        expect(engine.setAssets).not.toHaveBeenCalled();
+        expect(console.warn).toHaveBeenCalledTimes(1);
+        expect(s).toHaveAttribute("data-instances", "0");
+      },
+    );
+
+    it("unmount while glbs are pending: no setAssets after dispose, library geometries disposed", async () => {
+      let release: (r: Response) => void = () => {};
+      const fetchFn = serve({ glb: () => new Promise<Response>((r) => (release = r)) });
+      const disposed = vi.spyOn(THREE.BufferGeometry.prototype, "dispose");
+      const { engine, unmount } = mount();
+      await waitFor(() =>
+        expect(fetchFn.mock.calls.some(([u]) => String(u).endsWith(".glb"))).toBe(true),
+      );
+      expect(screen.getByTestId("three-scene")).toHaveAttribute("data-assets", "loading");
+      unmount();
+      expect(engine.dispose).toHaveBeenCalledTimes(1);
+      const before = disposed.mock.calls.length;
+      await act(async () => {
+        release(glb());
+        await new Promise((r) => setTimeout(r, 50));
+      });
+      expect(engine.setAssets).not.toHaveBeenCalled();
+      // Both baked LOD geometries were released by the aborted library.
+      expect(disposed.mock.calls.length - before).toBeGreaterThanOrEqual(2);
+      expect(console.warn).not.toHaveBeenCalled();
+    });
+
+    it("unmount after the assets are ready disposes the library geometries", async () => {
+      serve({});
+      const disposed: THREE.BufferGeometry[] = [];
+      const orig = THREE.BufferGeometry.prototype.dispose;
+      vi.spyOn(THREE.BufferGeometry.prototype, "dispose").mockImplementation(function (
+        this: THREE.BufferGeometry,
+      ) {
+        disposed.push(this);
+        orig.call(this);
+      });
+      const { engine, unmount } = mount();
+      const s = screen.getByTestId("three-scene");
+      await waitFor(() => expect(s).toHaveAttribute("data-assets", "ready"));
+      const inst = engine.setAssets.mock.calls[0]?.[0] as CityInstances;
+      const shared = new Set<unknown>();
+      inst.group.traverse((o) => {
+        const g = (o as THREE.Mesh).geometry as THREE.BufferGeometry | undefined;
+        if (g) shared.add(g.getAttribute("position"));
+      });
+      expect(shared.size).toBeGreaterThan(0);
+      unmount();
+      const freed = new Set(disposed.map((g) => g.getAttribute("position")));
+      for (const a of shared) expect(freed.has(a as never)).toBe(true);
+    });
+
+    it('?assets=0: data-assets="off", no manifest fetch, full city', async () => {
+      history.replaceState(null, "", "/?assets=0");
+      const fetchFn = serve({});
+      const { engine } = mount();
+      const s = screen.getByTestId("three-scene");
+      await waitFor(() => expect(engine.setCity).toHaveBeenCalled());
+      expect(s).toHaveAttribute("data-assets", "off");
+      expect(fetchFn.mock.calls.some(([u]) => String(u).includes("/city/"))).toBe(false);
+      expect(vertsOf(engine, -1)).toBe(90);
+      expect(engine.setAssets).not.toHaveBeenCalled();
+    });
+
+    it("?showroom=1: every variant placed, nothing extruded", async () => {
+      history.replaceState(null, "", "/?showroom=1");
+      serve({});
+      const { engine } = mount();
+      const s = screen.getByTestId("three-scene");
+      await waitFor(() => expect(s).toHaveAttribute("data-assets", "ready"));
+      expect(s).toHaveAttribute("data-instances", "1");
+      expect(vertsOf(engine, -1)).toBe(0);
+    });
+
+    it("frame perf: tris and gpuMB reach usePerfStats", async () => {
+      serve({});
+      const { engine } = mount();
+      const s = screen.getByTestId("three-scene");
+      await waitFor(() => expect(s).toHaveAttribute("data-assets", "ready"));
+      act(() => {
+        engine.frames++;
+        for (const cb of engine.frameCbs)
+          (cb as (dt: number, i: unknown) => void)(0, { calls: 9, tris: 1234, moving: false });
+      });
+      await waitFor(() => expect(usePerfStats.getState().tris).toBe(1234));
+      expect(usePerfStats.getState().gpuMB).toBeGreaterThan(0);
+    });
   });
 });

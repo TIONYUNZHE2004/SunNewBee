@@ -200,4 +200,28 @@ describe("buildCityGeometry", () => {
     expect(g.ground.size[0]).toBeCloseTo(10 + 1000, 3);
     expect(g.ground.size[1]).toBeCloseTo(10 + 1000, 3);
   });
+
+  describe("only", () => {
+    const two = () =>
+      layer({
+        buildings: fc([
+          feat(poly(square(0, 0)), { id: "b1", height_m: 9 }),
+          feat(poly(square(50, 0)), { id: "b2", height_m: 12 }),
+        ]),
+      });
+
+    it("extrudes only the given ids (b1: one 10 m box, 30 vertices)", () => {
+      const g = buildCityGeometry(two(), frame, { only: new Set(["b1"]) });
+      expect(pos(g.buildings).count).toBe(30);
+      g.buildings.computeBoundingBox();
+      expect(g.buildings.boundingBox!.max.x).toBeCloseTo(10, 3);
+      expect(g.buildings.boundingBox!.max.y).toBeCloseTo(9, 6);
+    });
+
+    it("an empty set extrudes nothing; undefined keeps every building", () => {
+      expect(pos(buildCityGeometry(two(), frame, { only: new Set() }).buildings).count).toBe(0);
+      expect(pos(buildCityGeometry(two(), frame).buildings).count).toBe(60);
+      expect(pos(buildCityGeometry(two(), frame, {}).buildings).count).toBe(60);
+    });
+  });
 });

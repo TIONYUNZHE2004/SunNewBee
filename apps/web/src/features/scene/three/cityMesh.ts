@@ -156,16 +156,20 @@ function buildFlat(
  * parks and base water. Display only; routing, flood and answers never read it.
  * `toBuildings` already drops MultiPolygons, rings with fewer than 3 distinct points and
  * non-finite coordinates; footprints the mesher still cannot use are skipped here and counted.
+ * `only`: extrude just these building ids (the rest are drawn as instanced archetypes).
  */
 export function buildCityGeometry(
   layer: BuildingsLayer | null | undefined,
   frame: LocalFrame,
+  opts: { only?: ReadonlySet<string> } = {},
 ): CityGeometry {
+  const { only } = opts;
   const { buildings, skipped: dropped } = toBuildings(layer?.buildings, displayHeight);
   let skipped = dropped;
   const mesh = new Mesh();
 
   for (const b of buildings) {
+    if (only && !only.has(b.id)) continue;
     let ring = localRing(b.ring, frame);
     if (ring && signedArea(ring) < 0) ring = ring.reverse();
     const tris = ring ? triangulate(ring, []) : null;

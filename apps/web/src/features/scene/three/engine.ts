@@ -12,6 +12,7 @@ import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
 import type { Tier } from "../cesium/stylised/quality";
 import { ROUTE_STYLE } from "../styles";
+import type { CityInstances } from "./assets/cityInstances";
 import {
   type CameraRig,
   clampPose,
@@ -24,6 +25,7 @@ import {
 } from "./cameraRig";
 import type { CityGeometry } from "./cityMesh";
 import { fitShadowCamera, type LightPreset } from "./lighting";
+import { createLodSchedule } from "./lodSchedule";
 import { THREE_TIERS } from "./quality";
 
 /** Local xz box the camera target may not leave (by more than LIMITS.maxCentreOffsetM). */
@@ -33,13 +35,18 @@ export interface Bounds {
 }
 
 export interface FrameInfo {
+  /** Draw calls this frame, over all passes. */
   calls: number;
+  /** Triangles this frame, over all passes. */
+  tris: number;
   moving: boolean;
 }
 
 export interface Engine {
   readonly frames: number;
   setCity(g: CityGeometry): void;
+  /** Instanced archetypes; replaces and disposes the previous set; null removes it. */
+  setAssets(a: CityInstances | null): void;
   /** Camera bounds before the city arrives (the site extent); setCity replaces them. */
   setBounds(b: Bounds): void;
   setRoute(positions: Float32Array | null): void;
@@ -58,6 +65,8 @@ export interface Engine {
 
 const RAD = Math.PI / 180;
 const MOVING_MS = 300;
+/** LOD re-bucketing while the camera moves: at most this often, plus once after it stops. */
+const LOD_INTERVAL_MS = 250;
 const GROUND_COLOUR = "#d6d0c2";
 const BLOOM = { strength: 0.6, radius: 0.4, threshold: 0.85 };
 
@@ -252,6 +261,17 @@ function build(
     sun.shadow.map?.dispose();
   });
 
+  let assets: CityInstances | null = null;
+  const lod = createLodSchedule(LOD_INTERVAL_MS);
+  let lodTimer: ReturnType<typeof setTimeout> | undefined;
+  const dropAssets = () => {
+    if (!assets) return;
+    scene.remove(assets.group);
+    assets.dispose();
+    assets = null;
+  };
+  undo.push(dropAssets);
+
   let raf = 0;
   let dirty = true;
   let idle = true;
@@ -266,6 +286,7 @@ function build(
     disposed = true;
     cancelAnimationFrame(raf);
     raf = 0;
+    clearTimeout(lodTimer);
   });
 
   const visible = () => document.visibilityState === "visible";
@@ -280,6 +301,7 @@ function build(
   };
   const moved = () => {
     lastMove = performance.now();
+    lod.moved();
     requestRender();
   };
 
@@ -321,6 +343,10 @@ function build(
       sun.shadow.map = null;
     }
     for (const m of [buildingMat, flatMat, groundMat]) m.needsUpdate = true;
+    assets?.group.traverse((o) => {
+      const mat = (o as THREE.Mesh).material as THREE.Material | undefined;
+      if (mat) mat.needsUpdate = true;
+    });
     for (const p of passes) p.dispose();
     composer.dispose();
     const [w, h] = size;
@@ -359,8 +385,12 @@ function build(
     if (disposed) return;
     const now = performance.now();
     const flying = rig.step(now);
-    if (flying) lastMove = now;
+    if (flying) {
+      lastMove = now;
+      lod.moved();
+    }
     const damping = controls.update();
+    if (assets && lod.due(now)) assets.update(camera.position);
     placeLight();
     renderer.info.reset();
     composer.render();
@@ -369,10 +399,19 @@ function build(
     const dt = idle ? 0 : now - last;
     last = now;
     idle = false;
-    const info = { calls: renderer.info.render.calls, moving: now - lastMove < MOVING_MS };
+    // autoReset is off, so calls and triangles add up over every pass of this frame.
+    const info = {
+      calls: renderer.info.render.calls,
+      tris: renderer.info.render.triangles,
+      moving: now - lastMove < MOVING_MS,
+    };
     for (const cb of listeners) cb(dt, info);
     if (flying || damping || dirty) schedule();
     if (!raf) idle = true;
+    // The camera stopped before the last LOD update was due: wake one more frame for it.
+    const wait = assets && !raf ? lod.trailingMs(now) : null;
+    clearTimeout(lodTimer);
+    lodTimer = wait === null ? undefined : setTimeout(requestRender, wait);
   }
 
   const onVisibility = () => {
@@ -419,6 +458,21 @@ function build(
       city.add(ground, parks, water, buildings);
       if (!g.bounds.isEmpty())
         bounds = { min: [g.bounds.min.x, g.bounds.min.z], max: [g.bounds.max.x, g.bounds.max.z] };
+      requestRender();
+    },
+    setAssets(a) {
+      if (disposed) {
+        a?.dispose();
+        return;
+      }
+      if (a === assets) return;
+      dropAssets();
+      if (a) {
+        assets = a;
+        scene.add(a.group);
+        a.update(camera.position);
+        lod.force();
+      }
       requestRender();
     },
     setBounds(b) {
