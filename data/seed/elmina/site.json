@@ -59,6 +59,7 @@
     "trees": "base/trees.geojson",
     "radius_m": 3500,
     "count": 7803,
-    "as_of": "2026-10-16"
+    "as_of": "2026-10-16",
+    "archetypes_as_of": "2026-10-17"
   }
 }
