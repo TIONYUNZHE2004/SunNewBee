@@ -134,21 +134,40 @@ const intersects = (a: Box, b: Box) =>
   a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height;
 
 /** The settings gear's box never overlaps the visible attribution strip (AGENTS.md: always shown). */
-async function expectGearClearOfAttribution(page: Page) {
+async function expectGearClearOfAttribution(page: Page, text: string | RegExp = "Test fixture") {
   const gear = await settledBox(page.getByRole("button", { name: "Map settings" }));
   const attr = await settledBox(
-    page.getByText("Test fixture", { exact: true }).filter({ visible: true }),
+    page.getByText(text, { exact: typeof text === "string" }).filter({ visible: true }),
   );
   expect(intersects(gear, attr), JSON.stringify({ gear, attr })).toBe(false);
   expect(gear.y + gear.height).toBeLessThanOrEqual(attr.y);
+  return attr;
 }
 
-test("desktop: the settings gear sits above the attribution strip", async ({ page }) => {
+/** A multi-source attribution like a real world's (OSM, Copernicus, …); the fixture's is one word. */
+const LONG_ATTRIBUTION = [
+  "Test fixture",
+  "© OpenStreetMap contributors (ODbL)",
+  "Contains modified Copernicus Sentinel data, Copernicus DEM GLO-30 © DLR e.V. 2010-2014 and © Airbus Defence and Space GmbH 2014-2018",
+  "Long attribution line for the wrap check",
+];
+
+test("desktop: the settings gear sits above a long, wrapping attribution strip", async ({
+  page,
+}) => {
+  // Lengthen only this page's /site response; the tiny fixture's data stays as it is.
+  await page.route("**/api/site", async (route) => {
+    const response = await route.fetch();
+    const body = await response.json();
+    await route.fulfill({ response, json: { ...body, attribution: LONG_ATTRIBUTION } });
+  });
   await open(page);
-  await expectGearClearOfAttribution(page);
-  // A narrower desktop window where the strip may wrap.
+  const strip = /Long attribution line for the wrap check/;
+  await expectGearClearOfAttribution(page, strip);
   await page.setViewportSize({ width: 1024, height: 768 });
-  await expectGearClearOfAttribution(page);
+  const attr = await expectGearClearOfAttribution(page, strip);
+  // It really wraps at 1024 (one line of 0.68rem text is ~17 px), so --attr-h is exercised.
+  expect(attr.height).toBeGreaterThan(28);
 });
 
 test("phone 390x844: the sheet sits at the bottom with a usable composer", async ({ page }) => {
