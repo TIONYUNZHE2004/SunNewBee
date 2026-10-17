@@ -80,6 +80,26 @@ describe("makeDecal / indexDecals", () => {
     expect(idx.query(-180, -90, 180, 90)).toHaveLength(4);
   });
 
+  it("a decal straddling two tiles is returned for both", () => {
+    const t = tileAt(17);
+    const mid = t.rect.east; // the shared edge
+    const road = makeDecal(
+      "road",
+      "line",
+      [
+        [
+          [mid - 0.0002, LAT],
+          [mid + 0.0002, LAT],
+        ],
+      ],
+      6,
+    );
+    const idx = indexDecals([road]);
+    const w = t.rect.east - t.rect.west;
+    expect(idx.query(t.rect.west, t.rect.south, t.rect.east, t.rect.north)).toEqual([road]);
+    expect(idx.query(t.rect.east, t.rect.south, t.rect.east + w, t.rect.north)).toEqual([road]);
+  });
+
   it("an empty index has no bounds and answers nothing", () => {
     const idx = indexDecals([]);
     expect(idx.bounds).toBeNull();
@@ -247,6 +267,7 @@ function groundSetup(timers = false) {
   const requestRender = vi.fn();
   const scene = { imageryLayers: layers, requestRender } as unknown as ImageryScene;
   const pending: { cb: () => void; ms: number }[] = [];
+  const cleared: number[] = [];
   const g = buildGroundLayers(
     f.C as unknown as ImageryCesium,
     scene,
@@ -260,12 +281,14 @@ function groundSetup(timers = false) {
               pending.push({ cb, ms });
               return pending.length as unknown as ReturnType<typeof setTimeout>;
             },
-            clearTimer: () => {},
+            clearTimer: (id: ReturnType<typeof setTimeout>) => {
+              cleared.push(id as unknown as number);
+            },
           }
         : {}),
     },
   );
-  return { ...f, layers, requestRender, g, pending };
+  return { ...f, layers, requestRender, g, pending, cleared };
 }
 
 /** A canvas with one recording context. */
@@ -350,6 +373,29 @@ describe("buildGroundLayers", () => {
     expect(layers.list).toEqual([day]);
   });
 
+  it("a new palette while an instant swap is pending finishes that swap first", () => {
+    const { layers, g, imageryLayers, pending, cleared } = groundSetup(true);
+    g.fade(paletteFor("day"), 1); // instant: night lingers on top, timer pending
+    const day = imageryLayers[1]!;
+    g.fade(paletteFor("dusk"), 0);
+    const dusk = imageryLayers[2]!;
+    expect(cleared).toEqual([1]); // the pending timer was cancelled ...
+    expect(layers.list).toEqual([dusk, day]); // ... and night dropped at once
+    expect(day.alpha).toBe(1);
+    g.fade(paletteFor("dusk"), 1);
+    expect(layers.list).toEqual([dusk]);
+    expect(pending).toHaveLength(1);
+  });
+
+  it("destroy cancels a pending instant-swap timer", () => {
+    const { layers, g, pending, cleared } = groundSetup(true);
+    g.fade(paletteFor("day"), 1);
+    expect(pending).toHaveLength(1);
+    g.destroy();
+    expect(cleared).toEqual([1]);
+    expect(layers.list).toEqual([]);
+  });
+
   it("destroy removes every layer and is idempotent; no decals -> no layer", () => {
     const { layers, g } = groundSetup();
     g.fade(paletteFor("day"), 0.5);
@@ -381,8 +427,21 @@ describe("buildPoolLayer", () => {
       [{ lon: LON, lat: LAT }],
       paletteFor(theme),
       canvasOf,
+      {
+        setTimer: (cb: () => void, ms: number) => {
+          pending.push({ cb, ms, live: true });
+          return pending.length as unknown as ReturnType<typeof setTimeout>;
+        },
+        clearTimer: (id) => {
+          pending[(id as unknown as number) - 1]!.live = false;
+        },
+      },
     );
-    return { ...f, layers, pools };
+    const pending: { cb: () => void; ms: number; live: boolean }[] = [];
+    const fire = () => {
+      for (const t of pending.splice(0)) if (t.live) t.cb();
+    };
+    return { ...f, layers, pools, pending, fire };
   }
 
   it("alpha follows glow and the layer hides by day", () => {
@@ -395,33 +454,55 @@ describe("buildPoolLayer", () => {
     expect(l.alpha).toBe(0);
   });
 
-  it("a new pool colour swaps the layer in place (still above the ground layers)", () => {
-    const { pools, imageryLayers, layers } = poolSetup("night");
+  it("a new pool colour loads invisibly under the shown layer, then swaps (no flash)", () => {
+    const { pools, imageryLayers, layers, pending, fire } = poolSetup("night");
     const ground = { alpha: 1, show: true } as Layer;
     layers.list.unshift(ground);
     const night = imageryLayers[0]!;
     const dusk = paletteFor("dusk");
     pools.setPalette(paletteFor("night"), dusk); // fade start: target colour, shown alpha
-    const swapped = imageryLayers[1]!;
-    expect(layers.list).toEqual([ground, swapped]);
+    const next = imageryLayers[1]!;
+    expect(layers.list).toEqual([ground, next, night]); // old still drawn on top
+    expect(next.alpha).toBe(0);
+    expect(night.alpha).toBeCloseTo(POOL_ALPHA * paletteFor("night").glow, 9);
+    expect(pending[0]!.ms).toBe(INSTANT_SWAP_MS);
+    pools.setPalette(dusk, dusk); // fade goes on: the shown layer follows
+    expect(night.alpha).toBeCloseTo(POOL_ALPHA * dusk.glow, 9);
+    fire();
+    expect(layers.list).toEqual([ground, next]);
     expect(layers.remove).toHaveBeenCalledWith(night, true);
-    expect(swapped.alpha).toBeCloseTo(POOL_ALPHA * paletteFor("night").glow, 9);
+    expect(next.alpha).toBeCloseTo(POOL_ALPHA * dusk.glow, 9);
     pools.setPalette(dusk, dusk);
-    expect(imageryLayers).toHaveLength(2); // same colour: no swap
-    expect(swapped.alpha).toBeCloseTo(POOL_ALPHA * dusk.glow, 9);
+    expect(imageryLayers).toHaveLength(2); // same colour: no new layer
+  });
+
+  it("a second colour change while one is loading replaces the loading layer", () => {
+    const { pools, imageryLayers, layers, fire } = poolSetup("night");
+    const night = imageryLayers[0]!;
+    pools.setPalette(paletteFor("night"), paletteFor("dusk"));
+    const dusk = imageryLayers[1]!;
+    pools.setPalette(paletteFor("night"), paletteFor("night"));
+    const back = imageryLayers[2]!;
+    expect(layers.list).toEqual([back, night]);
+    expect(layers.list).not.toContain(dusk);
+    fire(); // the first timer was cancelled; only the second swaps
+    expect(layers.list).toEqual([back]);
   });
 
   it("built by day it keeps a warm colour (never Day's black placeholder) and fades in", async () => {
-    const { pools, imageryLayers } = poolSetup("day");
+    const { pools, imageryLayers, fire } = poolSetup("day");
     expect(imageryLayers[0]!.show).toBe(false);
     pools.setPalette(paletteFor("day"), paletteFor("dusk"));
+    fire();
     const ops = await tileOps(imageryLayers.at(-1)!, 17);
     expect(ops).toContain(`fill:${paletteFor("dusk").lightPool}`);
   });
 
-  it("destroy removes the layer, idempotent", () => {
-    const { pools, layers } = poolSetup("night");
+  it("destroy removes the layer (and a loading one, cancelling its swap), idempotent", () => {
+    const { pools, layers, pending } = poolSetup("night");
+    pools.setPalette(paletteFor("night"), paletteFor("dusk"));
     pools.destroy();
+    expect(pending[0]!.live).toBe(false);
     pools.destroy();
     expect(layers.list).toEqual([]);
     expect(() => pools.setPalette(paletteFor("day"), paletteFor("day"))).not.toThrow();

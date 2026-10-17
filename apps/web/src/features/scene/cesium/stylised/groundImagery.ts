@@ -179,6 +179,7 @@ export function paintTile(
 ): number {
   const sx = size / (rect.east - rect.west);
   const sy = size / (rect.north - rect.south);
+  // Metres per pixel from latitude only: E-W metres differ by cos(lat), under 0.2% at Elmina (3.2 N).
   const mPerPx = ((rect.north - rect.south) * M_PER_DEG) / size;
   const X = (lon: number) => (lon - rect.west) * sx;
   const Y = (lat: number) => (rect.north - lat) * sy;
@@ -442,8 +443,9 @@ export interface PoolLayer {
 
 /**
  * Warm light pools under the street lamps as their own imagery layer above the ground layers: one
- * colour per layer, alpha POOL_ALPHA x glow, hidden at Day. A pool-colour change swaps the layer in
- * place (it happens at the start of a fade, while the pools are faint).
+ * colour per layer, alpha POOL_ALPHA x glow, hidden at Day. A pool-colour change (at the start of a
+ * fade, while the pools are faint) builds the new layer invisibly under the shown one and swaps them
+ * after INSTANT_SWAP_MS, once its tiles are in, so the pools never flash.
  */
 export function buildPoolLayer(
   C: ImageryCesium,
@@ -451,6 +453,13 @@ export function buildPoolLayer(
   lamps: { lon: number; lat: number }[],
   palette: Palette,
   makeCanvas: MakeCanvas = defaultCanvas,
+  {
+    setTimer = (cb: () => void, ms: number) => setTimeout(cb, ms),
+    clearTimer = (id: ReturnType<typeof setTimeout>) => clearTimeout(id),
+  }: {
+    setTimer?: (cb: () => void, ms: number) => ReturnType<typeof setTimeout>;
+    clearTimer?: (id: ReturnType<typeof setTimeout>) => void;
+  } = {},
 ): PoolLayer {
   const layers = scene.imageryLayers;
   const index = indexDecals(
@@ -469,24 +478,47 @@ export function buildPoolLayer(
     l.alpha = POOL_ALPHA * p.glow;
     l.show = p.glow > 0;
   };
+  /** The layer drawn now, and the next-colour layer loading invisibly beneath it. */
   let current: Cesium.ImageryLayer | null = index.decals.length > 0 ? make(colour) : null;
+  let next: Cesium.ImageryLayer | null = null;
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  let shown = palette;
   if (current) style(current, palette);
+  const drop = (l: Cesium.ImageryLayer | null) => {
+    if (l && layers.contains(l)) layers.remove(l, true);
+  };
+  const swap = () => {
+    timer = null;
+    if (!next) return;
+    drop(current);
+    current = next;
+    next = null;
+    style(current, shown);
+    scene.requestRender();
+  };
   return {
     setPalette(p, to) {
       if (!current) return;
+      shown = p;
       const want = colourFor(to, colour);
       if (want !== colour) {
         colour = want;
-        const old = current;
-        current = make(want, layers.indexOf(old) + 1);
-        layers.remove(old, true);
+        if (timer !== null) clearTimer(timer);
+        drop(next);
+        next = make(want, layers.indexOf(current));
+        next.alpha = 0; // loads its tiles, draws nothing until the swap
+        timer = setTimer(swap, INSTANT_SWAP_MS);
       }
       style(current, p);
       scene.requestRender();
     },
     layer: () => current,
     destroy() {
-      if (current && layers.contains(current)) layers.remove(current, true);
+      if (timer !== null) clearTimer(timer);
+      timer = null;
+      drop(next);
+      drop(current);
+      next = null;
       current = null;
     },
   };
