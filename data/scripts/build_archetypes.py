@@ -52,7 +52,7 @@ STOREY_HEIGHT_M = {
     "link_long": 8.5,
     "superlink": 9.0,
     "semi_d": 9.0,
-    "bungalow": 5.5,
+    "bungalow": 9.0,
     "townhouse": 6.0,
     "shop_office": 11.0,
     "school": 14.0,

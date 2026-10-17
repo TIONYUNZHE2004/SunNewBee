@@ -192,13 +192,27 @@ def _link(variant: Variant, lod: int) -> list:
 # --- superlink, semi-d, bungalow, townhouse ----------------------------------------------
 
 SOLAR_TILT = 10.0
-BUNGALOW_PITCH = 20.0
-BUNGALOW_EAVE = 2.95
+BUNGALOW_EAVE = 6.3  # two-storey detached: eaves above the upper windows, hip ridge at h
+TOWNHOUSE_PITCH = 5.0  # low pitch hidden behind the front parapet
+DECK = "metal"  # a light-grey deck: nothing seen from above is a large dark slab
+
+
+def _covered_front(vid: str, w: float, eave: float) -> list:
+    """Wall areas the link-style white frame, brick and screen hide (see `_upper_facade`)."""
+    wu0, wu1, wv0, wv1 = _upper_window(vid, w).rect
+    return [
+        ("front", -w / 2, w / 2, STOREY_M - 0.1, wv0),
+        ("front", -w / 2, w / 2, wv1, eave),
+        ("front", -w / 2, wu0, wv0, wv1),
+        ("front", wu1, w / 2, wv0, wv1),
+    ]
 
 
 def _superlink(variant: Variant, lod: int) -> list:
-    """A two-storey modern house behind a flat parapet roof with rooftop solar panels and a
-    skylight (Elmina Ridge). Car porch at the front, a terrace over it."""
+    """Elmina Ridge 2: a two-storey box with a deep dark flying roof canopy over the centre bay,
+    full-height black-framed glass on both floors, a vertical timber-louvre screen, a timber
+    door, white box gate pillars with a solid white wall and a dark gate. The roof deck is white
+    and carries the rooftop solar panels and a skylight."""
     w, h, d = variant.size
     if lod >= 2:
         return kit.far_block((w, h, d), "flat")
@@ -207,135 +221,163 @@ def _superlink(variant: Variant, lod: int) -> list:
     z_front = d / 2 - porch
     z_main = z_front - main / 2
     eave = h - PARAPET
+    up0, up1 = STOREY_M + 0.3, 7.6
+    louvre = (-5.3, -2.2)
     openings = [
-        Opening("front", -2.5, 0.0, 2.6, 2.3, "window"),
-        Opening("front", w / 2 - 1.3, 0.0, 0.9, 2.2, "door"),
-        Opening("front", -1.5, 4.4, 4.0, 1.5, "window"),
-        Opening("front", w / 2 - 1.8, 4.4, 1.4, 1.5, "window"),
+        Opening("front", -2.0, 0.0, 4.6, 2.7, "window", grid=(5, 1)),
+        Opening("front", 3.2, 0.0, 1.1, 2.6, "door"),  # timber door (accent leaf)
+        Opening("front", 4.9, 0.0, 0.8, 2.6, "window", grid=(1, 3)),
+        Opening("front", 0.5, up0, 4.0, up1 - up0, "window", grid=(4, 2)),  # centre bay
+        Opening("front", 3.6, up0, 0.9, up1 - up0, "window", grid=(1, 3)),
         Opening("right", 1.0, 1.0, 1.2, 1.2, "window"),
         Opening("right", 1.0, 4.4, 1.2, 1.2, "window"),
         Opening("left", -1.0, 4.4, 1.2, 1.2, "window"),
         *_back_ground(w),
         *_back_upper(w),
     ]
-    body = kit.walls(w, main, eave, openings=openings, lod=lod)
-    body += kit.flat_roof(w, main, eave, PARAPET)
-    body += kit.skylight(1.2, 2.4, eave, x=2.2, z=main / 2 - 3.2, lod=lod)
+    covered = [("front", louvre[0], louvre[1], up0, up1)]
+    body = kit.walls(w, main, eave, openings=openings, lod=lod, covered=covered)
+    body += kit.flat_roof(w, main, eave, PARAPET, deck_role="primary", cell=1.6)
+    body += kit.skylight(1.2, 2.4, eave, x=-3.5, z=4.0, lod=lod)
     if lod == 0:  # rooftop solar, tilted towards the sun, inside the parapet
         body += kit.solar_panels(w - 3.0, main - 9.0, eave + 0.1, SOLAR_TILT, x=-0.6, z=-1.0)
     objs = kit.place(body, z=z_main)
     objs += kit.place(kit.car_porch(w, porch, PORCH_H, inset=0.6), z=d / 2)
-    front = kit.panel(-w / 2, -3.9, STOREY_M + 0.3, h, depth=0.08, role="accent")
-    front += kit.balcony(4.0, 1.2, PORCH_H + 0.5, lod=lod)  # a terrace over the porch
-    if lod == 0:
-        front += kit.panel(-3.7, w / 2 - 0.15, 6.2, 6.32, depth=0.5, role="secondary")
+    front = kit.louvre_screen(louvre[0], louvre[1], up0, up1, lod=lod)
+    # the deep dark flying roof over the centre bay: 1.5 m out front, 1.5 m back over the deck
+    front += kit.block(-2.0, 4.4, eave - 0.1, h + 0.05, -1.5, 1.5, "secondary", name="canopy")
+    if lod == 0:  # a dark fascia band at the first-floor line
+        front += kit.panel(
+            -w / 2, w / 2, STOREY_M - 0.15, STOREY_M + 0.15, depth=0.15, role="secondary"
+        )
     objs += kit.place(front, z=z_front)
-    if lod == 0:
-        objs += kit.place(kit.gate_and_fence(w), z=d / 2)
+    if lod == 0:  # white box pillars, a solid white wall segment on the left, a dark gate
+        gw = 8.0
+        gate = kit.gate_and_fence(gw, h=1.6, pillar_role="primary", gate_role="dark")
+        objs += kit.place(gate, x=w / 2 - gw / 2, z=d / 2)
+        objs += kit.block(-w / 2, w / 2 - gw, 0.0, 1.6, d / 2 - 0.3, d / 2, "primary", name="wall")
         objs += kit.place(kit.ac_units(2, "back", w=w, d=main, y=3.2), z=z_main)
     return objs
 
 
 def _semi_d(variant: Variant, lod: int) -> list:
-    """One half of a semi-detached pair. The party wall is on -x and has no openings; a side
-    garden (low wall and hedge) takes the +x part of the plot, inside the size."""
+    """One half of a semi-detached pair, with the link-house treatment (ridge along x, white
+    frame, brick panel, gridded window, breeze-block screen, dark gate, brick pillars). The
+    party wall is on -x: a flush gable end with no overhang and no openings. A side garden
+    (brick low wall and hedge) takes the +x part of the plot, inside the size; the roof's +x
+    end may overhang it."""
     w, h, d = variant.size
-    gable = variant.id == "gable"
-    if lod >= 2:
-        return kit.far_block((w, h, d), "gable" if gable else "flat", pitch_deg=GABLE_PITCH)
+    vid = variant.id
+    gable = vid == "gable"
     garden = 3.0
     bw = w - garden
     cx = -w / 2 + bw / 2  # body centre; its -x face is the party wall at x = -w / 2
     porch, kitchen = 5.5, 5.5
     main = d - porch - kitchen
+    eave = LINK_EAVE[vid]
+    pitch = math.degrees(math.atan((h - eave) / (main / 2))) if gable else MODERN_PITCH
+    if lod >= 2:
+        far = math.degrees(math.atan((h - eave) / (d / 2))) if gable else pitch
+        objs = kit.far_block((bw, h, d), "gable", pitch_deg=far, ridge_axis="x")
+        kit.place(objs, x=cx)
+        return objs + kit.block(w / 2 - 0.1, w / 2, 0.0, 1.2, -d / 2, d / 2, "primary")
     z_front = d / 2 - porch
     z_main = z_front - main / 2
-    eave = h - bw / 2 * math.tan(math.radians(GABLE_PITCH)) if gable else h - PARAPET
-    if gable:
-        front = [
-            Opening("front", -bw / 2 + 1.0, 0.0, 0.9, 2.1, "door"),
-            Opening("front", bw / 2 - 1.8, 0.9, 2.0, 1.4, "window"),
-            Opening("front", -0.4, 4.2, 1.4, 1.4, "window"),
-            Opening("front", 2.4, 4.2, 1.4, 1.4, "window"),
-        ]
-    else:
-        front = [
-            Opening("front", -0.3, 0.0, 2.6, 2.3, "window"),
-            Opening("front", bw / 2 - 0.9, 0.0, 0.9, 2.2, "door"),
-            Opening("front", 0.5, 4.4, 3.0, 1.5, "window"),
-        ]
     side = [  # garden side (+x) only: the -x party wall stays blank
         Opening("right", 1.5, 1.0, 1.4, 1.2, "window"),
         Opening("right", 1.5, 4.3, 1.2, 1.2, "window"),
     ]
-    body = kit.walls(bw, main, eave, openings=front + side + _back_upper(bw), lod=lod)
-    if gable:
-        body += kit.gable_roof(
-            bw, main, eave, GABLE_PITCH, overhang=0.4, ridge_axis="z", across_overhang=(0.0, 0.4)
-        )  # no overhang past the party wall (-x)
-    else:
-        body += kit.flat_roof(bw, main, eave, PARAPET)
+    openings = _front_openings(vid, bw) + side + _back_upper(bw)
+    body = kit.walls(
+        bw, main, eave, openings=openings, lod=lod, covered=_covered_front(vid, bw, eave)
+    )
+    overhang = (EAVE_OVERHANG[0], EAVE_OVERHANG[1] if gable else 0.0)
+    body += kit.gable_roof(
+        bw, main, eave, pitch, ridge_axis="x", across_overhang=overhang, end_overhang=(0.0, 0.4)
+    )
     objs = kit.place(body, x=cx, z=z_main)
     k = kit.walls(
         bw, kitchen, KITCHEN_H, openings=_back_ground(bw), lod=lod, faces=("back", "left", "right")
     )
-    k += kit.flat_roof(bw, kitchen, KITCHEN_H, 0.3)
+    k += kit.flat_roof(bw, kitchen, KITCHEN_H, 0.3, deck_role=DECK, cell=1.6)
     objs += kit.place(k, x=cx, z=-d / 2 + kitchen / 2)
     objs += kit.place(kit.car_porch(bw, porch, PORCH_H, inset=0.6), x=cx, z=d / 2)
-    if not gable:
-        trim = kit.panel(-bw / 2 + 0.3, -bw / 2 + 2.2, STOREY_M + 0.3, h, depth=0.08, role="accent")
-        objs += kit.place(trim, x=cx, z=z_front)
-    # side garden: a low front wall, a hedge along the +x edge
+    objs += kit.place(_upper_facade(vid, bw, h, lod), x=cx, z=z_front)
+    # side garden: a low brick front wall, a hedge along the +x edge
     objs += kit.block(
-        -w / 2 + bw, w / 2, 0.0, 0.9, d / 2 - 0.3, d / 2, "primary", name="garden_wall"
+        -w / 2 + bw, w / 2, 0.0, 0.9, d / 2 - 0.3, d / 2, "accent", name="garden_wall"
     )
     objs += kit.block(
         w / 2 - 0.5, w / 2, 0.0, 1.2, -d / 2 + kitchen, d / 2 - 0.3, "foliage", name="hedge"
     )
-    if lod == 0:
-        objs += kit.place(kit.gate_and_fence(bw), x=cx, z=d / 2)
+    if lod == 0:  # the gate stands 0.15 m in from the party line: nothing flush on the wall
+        gate = kit.gate_and_fence(bw - 0.15, pillar_role="accent", gate_role="dark", low_wall=0.3)
+        objs += kit.place(gate, x=cx + 0.075, z=d / 2)
         ac = kit.ac_units(2, "back", w=bw, d=kitchen, y=1.0)
         objs += kit.place(ac, x=cx, z=-d / 2 + kitchen / 2)
     return objs
 
 
 def _bungalow(variant: Variant, lod: int) -> list:
-    """A single-storey house under a hip roof, with a wide front porch."""
+    """A generous two-storey detached house (the Malaysian bungalow): a hip roof with its ridge
+    along x, a wide portico with a balcony above it, large windows, brick accent panels, a dark
+    gate between brick pillars and a low brick boundary wall."""
     w, h, d = variant.size
-    if lod >= 2:
-        return kit.far_block((w, h, d), "hip", pitch_deg=BUNGALOW_PITCH)
     porch = 4.0
-    main = d - porch
+    main = 11.0  # the rest of the 18 m plot is a rear yard behind a low brick wall
+    pitch = math.degrees(math.atan((h - BUNGALOW_EAVE) / (min(w, main) / 2)))
+    if lod >= 2:
+        return kit.far_block((w, h, d), "hip", pitch_deg=pitch)
     z_front = d / 2 - porch
     z_main = z_front - main / 2
+    panels = [(-7.3, -5.9), (5.9, 7.3)]
+    side = [
+        Opening(f, u, v, 1.6, 1.4, "window")
+        for f in ("left", "right")
+        for u in (0.0,)
+        for v in (0.9, 3.9)
+    ]
     openings = [
-        Opening("front", 0.0, 0.0, 1.0, 2.1, "door"),
-        Opening("front", -3.6, 0.9, 2.2, 1.3, "window"),
-        Opening("front", 3.6, 0.9, 2.2, 1.3, "window"),
-        Opening("right", 0.0, 0.9, 1.6, 1.3, "window"),
-        Opening("left", 0.0, 0.9, 1.6, 1.3, "window"),
+        Opening("front", 0.0, 0.0, 1.4, 2.4, "door"),
+        Opening("front", -4.0, 0.8, 2.6, 1.6, "window", grid=(3, 2)),
+        Opening("front", 4.0, 0.8, 2.6, 1.6, "window", grid=(3, 2)),
+        Opening("front", -4.5, 3.9, 2.6, 1.9, "window", grid=(3, 2)),
+        Opening("front", 0.0, 3.5, 2.6, 2.4, "window", grid=(3, 2)),  # onto the balcony
+        Opening("front", 4.5, 3.9, 2.6, 1.9, "window", grid=(3, 2)),
+        *side,
         Opening("back", -3.0, 0.9, 1.6, 1.3, "window"),
         Opening("back", 3.0, 0.0, 1.0, 2.1, "door"),
+        *([Opening("back", u, 3.9, 1.6, 1.4, "window") for u in (-3.0, 3.0)] if lod == 0 else []),
     ]
-    body = kit.walls(w, main, BUNGALOW_EAVE, openings=openings, lod=lod)
-    body += kit.hip_roof(w, main, BUNGALOW_EAVE, BUNGALOW_PITCH, overhang=0.5)
+    covered = [("front", a, b, 3.6, 6.0) for a, b in panels]
+    body = kit.walls(w, main, BUNGALOW_EAVE, openings=openings, lod=lod, covered=covered)
+    body += kit.hip_roof(w, main, BUNGALOW_EAVE, pitch, overhang=0.5)
     objs = kit.place(body, z=z_main)
-    objs += kit.place(kit.car_porch(10.0, porch - 0.5, 2.55, slab=0.15, inset=0.3), z=d / 2)
+    objs += kit.place(kit.car_porch(10.0, porch - 0.5, STOREY_M, slab=0.2, inset=0.3), z=d / 2)
+    front = kit.balcony(6.0, 1.4, STOREY_M + 0.15, lod=lod)
+    for a, b in panels:  # brick accent panels at the ends of the upper floor
+        front += kit.panel(a, b, 3.6, 6.0, depth=0.05, role="accent")
+    objs += kit.place(front, z=z_front)
     if lod == 0:
-        objs += kit.place(kit.gate_and_fence(w), z=d / 2)
-        objs += kit.place(kit.ac_units(2, "back", w=w, d=main, y=1.2, u=-3.0), z=z_main)
-    return objs
+        gate = kit.gate_and_fence(10.0, pillar_role="accent", gate_role="dark", low_wall=0.3)
+        objs += kit.place(gate, z=d / 2)
+        for x0, x1 in ((-w / 2, -5.0), (5.0, w / 2)):  # low brick boundary wall, both sides
+            objs += kit.block(x0, x1, 0.0, 1.2, d / 2 - 0.3, d / 2 - 0.1, "accent", name="wall")
+        objs += kit.place(kit.ac_units(2, "back", w=w, d=main, y=3.4, u=-3.0), z=z_main)
+    rear = kit.block(-w / 2, w / 2, 0.0, 1.2, -d / 2, -d / 2 + 0.2, "accent", name="rear_wall")
+    return objs + rear
 
 
 def _townhouse(variant: Variant, lod: int) -> list:
     """A two-storey stacked unit with two doors on the front (lower unit and the upper unit's
-    stair door), a balcony and a flat parapet roof."""
+    stair door), a balcony, and a low-pitch light-grey roof (ridge along x) behind a front
+    parapet."""
     w, h, d = variant.size
     if lod >= 2:
-        return kit.far_block((w, h, d), "flat")
+        return kit.far_block((w, h, d), "gable", pitch_deg=TOWNHOUSE_PITCH, ridge_axis="x")
     main = d - 1.0
     z_main = -0.5
-    eave = h - 0.5
+    eave = h - 0.6
     openings = [
         Opening("front", -2.2, 0.0, 0.9, 2.1, "door"),
         Opening("front", 0.2, 0.9, 1.4, 1.3, "window"),
@@ -346,7 +388,17 @@ def _townhouse(variant: Variant, lod: int) -> list:
         Opening("back", 1.5, 4.0, 1.2, 1.2, "window"),
     ]
     body = kit.walls(w, main, eave, openings=openings, lod=lod)
-    body += kit.flat_roof(w, main, eave, 0.5)
+    body += kit.gable_roof(
+        w,
+        main,
+        eave,
+        TOWNHOUSE_PITCH,
+        ridge_axis="x",
+        across_overhang=(0.3, 0.0),
+        end_overhang=0.0,
+        roof_role=DECK,
+    )
+    body += kit.block(-w / 2, w / 2, eave, h, main / 2 - 0.3, main / 2, "primary", name="parapet")
     objs = kit.place(body, z=z_main)
     front = kit.balcony(w - 0.4, 1.0, 3.2, lod=lod)
     if lod == 0:

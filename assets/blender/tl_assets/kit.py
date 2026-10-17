@@ -436,15 +436,16 @@ def gable_roof(
     wall_role: str = "primary",
     across_overhang: tuple[float, float] | None = None,
     roof_role: str = "secondary",
-    end_overhang: float | None = None,
+    end_overhang: float | tuple[float, float] | None = None,
 ) -> list:
     """Two tiled slabs (role `roof_role`, default secondary) over a w × d footprint, plus the
     two gable infills.
 
     The slab tops meet at the ridge, at eave_h + span / 2 * tan(pitch); they overhang the walls
     by `overhang` on every side (`across_overhang` = (neg, pos) overrides the two sides across the
-    ridge, e.g. 0 on a party wall; `end_overhang` overrides the two gable ends, e.g. 0 so a row
-    of link houses reads as one continuous roof). The gable triangles (role `wall_role`) close
+    ridge, e.g. 0 on a party wall; `end_overhang`, a float or (neg, pos) along the ridge,
+    overrides the gable ends, e.g. 0 so a row of link houses reads as one continuous roof).
+    The gable triangles (role `wall_role`) close
     the end walls.
     """
     m = _axis_map(ridge_axis)
@@ -457,8 +458,10 @@ def gable_roof(
         if across_overhang is None
         else dict(zip((-1.0, 1.0), across_overhang, strict=True))
     )
-    eo = o if end_overhang is None else end_overhang
-    l0, l1 = -(length / 2 + eo), length / 2 + eo
+    eo = (o, o) if end_overhang is None else end_overhang
+    if isinstance(eo, int | float):
+        eo = (eo, eo)
+    l0, l1 = -(length / 2 + eo[0]), length / 2 + eo[1]
     roof = _Mesh()
     for s in (-1.0, 1.0):
         so = ov[s]
@@ -528,13 +531,21 @@ def flat_roof(
     *,
     thickness: float = 0.2,
     wall_role: str = "primary",
+    deck_role: str = "secondary",
+    cell: float | None = None,
 ) -> list:
-    """A flat deck (role secondary) at height h, ringed by a parapet up to h + parapet."""
+    """A flat deck (role `deck_role`, default secondary) at height h, ringed by a parapet up to
+    h + parapet. Pass a light role (primary, metal) for a deck seen from above. `cell` splits the
+    deck into about cell x cell quads: a lone quad has four corner vertices in the parapet
+    crevice, so its baked AO is black."""
     deck = _Mesh()
-    deck.face(
-        [(-w / 2, h, -d / 2), (w / 2, h, -d / 2), (w / 2, h, d / 2), (-w / 2, h, d / 2)],
-        (0.0, 1.0, 0.0),
-    )
+    nx = max(1, round(w / cell)) if cell else 1
+    nz = max(1, round(d / cell)) if cell else 1
+    for i in range(nx):
+        for j in range(nz):
+            a, b = -w / 2 + w * i / nx, -w / 2 + w * (i + 1) / nx
+            c, e = -d / 2 + d * j / nz, -d / 2 + d * (j + 1) / nz
+            deck.face([(a, h, c), (b, h, c), (b, h, e), (a, h, e)], (0.0, 1.0, 0.0))
     ring = _Mesh()
     if parapet > 0:
         t, top, base = thickness, h + parapet, h
@@ -543,7 +554,7 @@ def flat_roof(
         ring.box(x0, x1, base, top, z0, z0 + t)  # back
         ring.box(x0, x0 + t, base, top, z0 + t, z1 - t, skip=("bottom", "s0", "s2"))
         ring.box(x1 - t, x1, base, top, z0 + t, z1 - t, skip=("bottom", "s0", "s2"))
-    return _keep(deck.obj("flat_roof", "secondary"), ring.obj("parapet", wall_role))
+    return _keep(deck.obj("flat_roof", deck_role), ring.obj("parapet", wall_role))
 
 
 # --- front-anchored parts ------------------------------------------------------------------
@@ -700,6 +711,36 @@ def screen_block(
         lattice.box(x0 + bar, x1 - bar, y, y + bar, 0.0, depth, skip=("s0", "s1", "s3"))
     backing.face([(x0, y0, 0.01), (x1, y0, 0.01), (x1, y1, 0.01), (x0, y1, 0.01)], (0, 0, 1))
     return _keep(lattice.obj("screen", role), backing.obj("screen_back", "dark"))
+
+
+def louvre_screen(
+    x0: float,
+    x1: float,
+    y0: float,
+    y1: float,
+    *,
+    lod: int,
+    pitch: float = 0.2,
+    bar: float = 0.06,
+    depth: float = 0.1,
+    role: str = "accent",
+):
+    """A vertical timber-louvre screen on the facade (front-anchored, proud by `depth`).
+
+    LOD0: slats about `pitch` apart (role `role`) over a dark backing. LOD1: one flat panel of
+    `role`.
+    """
+    slats = _Mesh()
+    if lod >= 1:
+        slats.box(x0, x1, y0, y1, 0.0, depth, skip=("s0", "bottom"))
+        return _keep(slats.obj("louvre", role))
+    n = max(1, round((x1 - x0 - bar) / pitch))
+    for k in range(n + 1):
+        x = x0 + (x1 - x0 - bar) * k / n
+        slats.box(x, x + bar, y0, y1, 0.0, depth, skip=("s0", "bottom"))
+    backing = _Mesh()
+    backing.face([(x0, y0, 0.01), (x1, y0, 0.01), (x1, y1, 0.01), (x0, y1, 0.01)], (0, 0, 1))
+    return _keep(slats.obj("louvre", role), backing.obj("louvre_back", "dark"))
 
 
 def sign_band(w: float, h: float, y: float, *, depth: float = 0.12):

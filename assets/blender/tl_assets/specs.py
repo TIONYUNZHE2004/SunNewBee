@@ -33,7 +33,7 @@ STOREY_HEIGHT_M: dict[str, float] = {
     "link_long": 8.5,
     "superlink": 9.0,
     "semi_d": 9.0,
-    "bungalow": 5.5,
+    "bungalow": 9.0,
     "townhouse": 6.0,
     "shop_office": 11.0,
     "school": 14.0,  # [?] starting value
@@ -198,7 +198,7 @@ _ARCHETYPE_SPECS = (
         [_bv(v, (12.5, 9.0, 24.0), (7000, 800, 40)) for v in ("gable", "modern")],
         variant_by_group=dict(_MODERN_IN),
     ),
-    _archetype("bungalow", [_bv("hip", (15.0, 5.5, 18.0), (6000, 700, 40))], fit_xz=(0.7, 1.5)),
+    _archetype("bungalow", [_bv("hip", (15.0, 9.0, 18.0), (6000, 700, 40))], fit_xz=(0.7, 1.5)),
     _archetype("townhouse", [_bv("flat", (7.0, 6.0, 13.0), (4000, 500, 30))], repeat="frontage"),
     # five-foot way; blank sign band (role light)
     _archetype(

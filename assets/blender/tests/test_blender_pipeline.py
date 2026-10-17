@@ -98,10 +98,9 @@ def test_ao_is_baked_into_red(built):
 # --- archetypes (Tasks 2-3) -------------------------------------------------------------
 
 LINK_IDS = ("link_intermediate", "link_long")
-# a single-storey roof shades the top of its walls, so its "upper walls" start lower
-# (height fraction, min mean AO); default (0.5, 0.5)
-# measured mean upper-wall AO: school 0.446 (corridor and roof overhang shade the walls)
-UPPER_FROM = {"bungalow": (0.15, 0.4), "school": (0.5, 0.4)}
+# (height fraction, min mean AO); default (0.5, 0.5). Measured mean upper-wall AO: bungalow 0.493
+# (hip eaves and the portico shade the walls), school 0.446 (corridor and roof overhang)
+UPPER_FROM = {"school": (0.5, 0.4), "bungalow": (0.5, 0.4)}
 RESIDENTIAL_IDS = ("superlink", "semi_d", "bungalow", "townhouse")
 NON_RESIDENTIAL_IDS = ("shop_office", "highrise", "school", "mosque", "factory", "mall", "generic")
 
