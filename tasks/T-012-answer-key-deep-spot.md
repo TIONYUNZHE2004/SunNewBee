@@ -20,3 +20,5 @@ The key and the scorer are committed; a mock baseline is recorded; every number 
 ## Log
 
 - 2026-10-17 09:29 UTC · control (claude/sweet-davinci-29v7ne) · Created for scope B (access + flood evacuation, deep spot), assigned to Codex worker.
+
+- 2026-10-17 09:35 UTC · Codex (codex/yunzhe-workflow) · Started. Synced worker to control 95e9e56; preparing approximately 30 EN/BM/Chinese deep-spot cases with recorded real-seed engine outputs, reviewed false, independent scoring and a mock baseline. Live turns used: 0.
