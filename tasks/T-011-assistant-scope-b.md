@@ -20,3 +20,5 @@ In `access_flood`: out-of-scope questions (one per removed feature, EN/BM/中文
 ## Log
 
 - 2026-10-17 09:29 UTC · control (claude/sweet-davinci-29v7ne) · Created for scope B (access + flood evacuation, deep spot), assigned to Codex worker.
+
+- 2026-10-17 11:39 UTC · Codex (codex/yunzhe-workflow) · Started. Fetched and merged control again immediately before work (still 95e9e56; no new mock/template changes there). Plan: ASSISTANT_SCOPE access_flood default/all opt-in; shared nine-tool allowlist for agent/MCP; localized no-tool refusals before demo replay; scoped model instructions; explicit all opt-in for legacy-feature tests. Staff REST/screens and route evaluation unchanged. Live turns 0.
