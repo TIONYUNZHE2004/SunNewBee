@@ -2,8 +2,8 @@
 
 Writes data/seed/elmina/base/landmarks.geojson: the matched building footprint of each named
 landmark, with the bespoke model to draw. A landmark is placed only on a real OSM footprint:
-first a building whose name matches, else an OSM POI whose name matches (containing footprint,
-else the nearest within 30 m). Never invents a footprint: an unplaced landmark gets no feature
+first a building whose name matches, else an OSM POI whose name matches (its point must lie inside
+a footprint; area elements such as landuse=construction never attach). Never invents a footprint: an unplaced landmark gets no feature
 and is reported. Display only: routing, evaluation, flood and answers never read this file.
 Overpass goes through data/scripts/overpass.py (cache, backoff, request cap).
 """
@@ -21,10 +21,9 @@ if str(ROOT) not in sys.path:
 
 from data.scripts import overpass  # noqa: E402
 from data.scripts.build_buildings import _dump, bbox_around  # noqa: E402
-from data.scripts.build_signage import _point, attach  # noqa: E402
+from data.scripts.build_signage import _inside, _point  # noqa: E402
 
 OUT = ROOT / "data" / "seed" / "elmina"
-POI_MAX_M = 30.0
 
 LANDMARKS = [
     {
@@ -60,7 +59,7 @@ def landmark_query(bbox: tuple[float, float, float, float]) -> str:
     )
 
 
-def _result(spec: dict, building: dict, osm: str, as_of: str | None = None) -> dict:
+def _result(spec: dict, building: dict, osm: str, how: str) -> dict:
     kind, oid = osm.split("/")
     return {
         "type": "Feature",
@@ -71,31 +70,61 @@ def _result(spec: dict, building: dict, osm: str, as_of: str | None = None) -> d
             "building_id": building["properties"]["id"],
             "osm": osm,
             "source_url": f"https://www.openstreetmap.org/{kind}/{oid}",
+            "match": how,
             "info_url": spec["info_url"],
-            "as_of": as_of,
+            "as_of": None,
         },
         "geometry": building["geometry"],
     }
 
 
+def _norm(text: str) -> str:
+    return " ".join(text.split()).casefold()
+
+
+def _rank(spec: dict, name: str, key) -> tuple:
+    """Exact (case-insensitive) name first, then the longest name, then the lowest id."""
+    return (_norm(name) != _norm(spec["name"]), -len(_norm(name)), key)
+
+
+def _containing(pt: tuple[float, float], buildings: list[dict]) -> dict | None:
+    for b in buildings:
+        if _inside(pt, b["geometry"]["coordinates"][0]):
+            return b
+    return None
+
+
 def resolve(spec: dict, buildings: list[dict], pois: list[dict]) -> dict | None:
-    """Feature for the landmark, or None. as_of is stamped by build_landmarks."""
+    """Feature for the landmark, or None (as_of is stamped by build_landmarks).
+
+    1) a building whose own name matches; 2) a node, or a building=* way/relation, whose name
+    matches and whose point lies INSIDE a footprint. Area elements (landuse, construction, site)
+    never attach, and there is no nearest-footprint fallback: prefer unplaced over a wrong guess.
+    """
     rx = re.compile(spec["match"], re.I)
-    for b in sorted(buildings, key=lambda b: b["properties"]["id"]):
-        if rx.search(b["properties"].get("name") or ""):
-            bid = b["properties"]["id"]
-            return _result(spec, b, f"way/{bid[1:]}" if bid[:1] == "w" else bid)
-    by_id = {b["properties"]["id"]: b for b in buildings}
-    for el in sorted(pois, key=lambda e: (e.get("id", 0), e.get("type", ""))):
-        if el.get("type") not in ("node", "way", "relation"):
+    named = [b for b in buildings if rx.search(b["properties"].get("name") or "")]
+    if named:
+        b = min(named, key=lambda b: _rank(spec, b["properties"]["name"], b["properties"]["id"]))
+        bid = b["properties"]["id"]
+        return _result(spec, b, f"way/{bid[1:]}" if bid[:1] == "w" else bid, "building_name")
+    cands = []
+    for el in pois:
+        tags = el.get("tags") or {}
+        kind = el.get("type")
+        if kind not in ("node", "way", "relation") or el.get("id") is None:
             continue
-        if not rx.search((el.get("tags") or {}).get("name") or ""):
+        if kind != "node" and not tags.get("building"):
+            continue
+        if not rx.search(tags.get("name") or ""):
             continue
         pt = _point(el)
-        bid = attach(pt, buildings, POI_MAX_M) if pt else None
-        if bid is not None:
-            return _result(spec, by_id[bid], f"{el['type']}/{el['id']}")
-    return None
+        host = _containing(pt, buildings) if pt else None
+        if host is not None:
+            cands.append((_rank(spec, tags["name"], (el["id"], kind)), el, host))
+    if not cands:
+        return None
+    _, el, host = min(cands, key=lambda c: c[0])
+    return _result(spec, host, f"{el['type']}/{el['id']}", "poi_inside")
 
 
 def build_landmarks(

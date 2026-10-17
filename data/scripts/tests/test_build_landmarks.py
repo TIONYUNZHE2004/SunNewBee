@@ -43,6 +43,7 @@ def test_building_name_match_wins_over_poi():
     got = bl.resolve(SPEC, [other, named], [p])
     assert got["properties"]["building_id"] == "w10"
     assert got["properties"]["osm"] == "way/10"
+    assert got["properties"]["match"] == "building_name"
 
 
 def test_poi_only_match_picks_containing_footprint():
@@ -55,16 +56,52 @@ def test_poi_only_match_picks_containing_footprint():
     assert got["geometry"] == b["geometry"]
 
 
-def test_poi_far_from_every_footprint_is_unplaced():
+def test_poi_outside_every_footprint_is_unplaced():
     a = square(LON, LAT, bid="w30")
-    p = poi(8, "Elmina Lakeside Mall", LON + 60 * D, LAT + 60 * D)
+    p = poi(8, "Elmina Lakeside Mall", LON + 5 * D, LAT + 20 * D)  # 10 m outside the edge
     assert bl.resolve(SPEC, [a], [p]) is None
 
 
-def test_poi_near_footprint_uses_nearest_within_30m():
+def test_area_element_never_attaches_even_if_centre_is_inside():
     a = square(LON, LAT, bid="w40")
-    p = poi(9, "Elmina Lakeside Mall", LON + 10 * D, LAT + 30 * D)  # 20 m north of the edge
-    assert bl.resolve(SPEC, [a], [p])["properties"]["building_id"] == "w40"
+    area = {
+        "type": "way",
+        "id": 4,
+        "center": {"lon": LON + 5 * D, "lat": LAT + 5 * D},
+        "tags": {"name": "Elmina Lakeside Mall", "landuse": "construction"},
+    }
+    assert bl.resolve(SPEC, [a], [area]) is None
+
+
+def test_building_tagged_way_attaches_and_records_match():
+    a = square(LON, LAT, bid="w41")
+    el = {
+        "type": "way",
+        "id": 5,
+        "center": {"lon": LON + 5 * D, "lat": LAT + 5 * D},
+        "tags": {"name": "Elmina Lakeside Mall", "building": "retail"},
+    }
+    p = bl.resolve(SPEC, [a], [el])["properties"]
+    assert (p["osm"], p["match"]) == ("way/5", "poi_inside")
+
+
+def test_exact_name_beats_lower_id_partial_match():
+    kan = {**SPEC, "id": "kanopi", "name": "Kanopi Residences", "match": r"kanopi"}
+    a = square(LON, LAT, bid="w50")
+    b = square(LON + 100 * D, LAT, bid="w51")
+    gallery = poi(1, "Kanopi Sales Gallery", LON + 5 * D, LAT + 5 * D)
+    exact = poi(9, "kanopi residences", LON + 105 * D, LAT + 5 * D)
+    got = bl.resolve(kan, [a, b], [gallery, exact])["properties"]
+    assert (got["building_id"], got["osm"]) == ("w51", "node/9")
+
+
+def test_longest_name_wins_without_exact_match():
+    kan = {**SPEC, "match": r"kanopi", "name": "Kanopi Residences"}
+    a = square(LON, LAT, bid="w60")
+    b = square(LON + 100 * D, LAT, bid="w61")
+    short = poi(1, "Kanopi", LON + 5 * D, LAT + 5 * D)
+    long_ = poi(9, "Kanopi Sales Gallery", LON + 105 * D, LAT + 5 * D)
+    assert bl.resolve(kan, [a, b], [short, long_])["properties"]["building_id"] == "w61"
 
 
 def test_unmatched_spec_is_none():
@@ -79,7 +116,7 @@ def test_way_poi_uses_center():
         "type": "way",
         "id": 3,
         "center": {"lon": LON + 5 * D, "lat": LAT + 5 * D},
-        "tags": {"name": "ELMINA LAKESIDE MALL"},
+        "tags": {"name": "ELMINA LAKESIDE MALL", "building": "yes"},
     }
     assert bl.resolve(SPEC, [a], [el])["properties"]["osm"] == "way/3"
 
