@@ -1,0 +1,20 @@
+# T-007 Live OpenRouter smoke test after T-001 to T-003
+
+- **Status:** blocked
+- **Owner:** unassigned
+- **Branch:** —
+- **Priority:** P1 (before open demo)
+- **Lane:** AI
+- **Source:** [Blocked by T-001, T-002, T-003](../../../04-architecture/ai-independent-audit-2026-10-17.md)
+
+## Goal
+
+All post-audit checks are mock-only. The strict number check may cause more rewrites or fallbacks with a real model. The control session can reach OpenRouter (key check returned HTTP 200); Cannon and Codex sessions could not.
+
+## Acceptance
+
+A few live turns on the hero questions with rewrite/fallback counts and cost, run by the control session only when Yunzhe asks (CLAUDE.md cost rules).
+
+## Log
+
+- 2026-10-17 08:39 UTC · control (claude/sweet-davinci-29v7ne) · Created from the independent audit by Codex (`codex/yunzhe-workflow`, merged as PR #4).
