@@ -665,3 +665,55 @@
 - **Result:** Medium and High are both smooth, around 40–60 fps while orbiting. The coordinator's earlier headless check at High read 144 fps / 29 draws during a fly-to on the same GPU. The 30 fps target at Medium is met with margin.
 - **Not measured:** Low tier, Night and the township bookmark. The owner reported only Medium and High at hero-mid. Re-measure in Phase 3, once assets and lights exist.
 - **Setup:** Phase 0 renders the merged footprints (one draw call per layer), PCF shadows, GTAO, bloom, Neutral tone mapping and RoomEnvironment IBL. That is about 28–29 draw calls.
+
+## 2026-10-17 Three.js stylised overhaul: Phase 0–1 complete
+
+- **2026-10-17T17:27:42+08:00** (`date`): Phase 0–1 is complete on `feat/stylised-threejs` (local, not pushed). Plan: `docs/superpowers/plans/2026-10-17-stylised-threejs-phase-0-1.md`. It ran as subagent-driven development in two lane worktrees (`lane/fe` Tasks 1–8, `lane/data` Tasks 9–15). Every task was reviewed, then a final whole-branch review was run with one fix wave and a re-review.
+- **Phase 0 (fe):**
+  - The opt-in `?engine=three` Three.js renderer for the Stylised style: local ENU frame, merged footprints, Neutral tone mapping, PCF shadows, GTAO, bloom and RoomEnvironment IBL.
+  - Camera rig and bookmarks; route and fly-to intents.
+  - An "Experimental 3D engine · Switch back" chip.
+  - Crash fallback to Mapbox or List, with the alert kept.
+  - Owner fps: 40–60 at Medium and High at `hero-mid`, about 28 draws.
+- **Phase 1 (data):**
+  - Land cover: 504 features (OSM 262, ESA WorldCover 242).
+  - Archetypes (63.2% generic): link_intermediate 1754, bungalow 478, factory 417, link_long 104, shop_office 61, semi_d 36, school 9, mosque 8, mall 5, highrise 3.
+  - 318 sourced, text-only signs.
+  - Landmarks: Elmina Lakeside Mall is placed. Kanopi and Masjid Denai Alam are unplaced, because neither has an OSM building footprint; the owner decides in P3.
+  - `GET /layers/buildings` now serves landcover, signage and landmarks. Every `as_of` comes from the OSM base timestamp.
+- **Google height sampling:**
+  - The owner approved the hero run after checking that 3D Tiles bill per root session (1,000 free a month).
+  - About 7,800 tile requests were made over 3 sessions, plus about 180 plan and count requests.
+  - Finding: Google's mesh over Elmina is textured terrain with **no building geometry** (median roof minus ground 0.73 m), so no samples were committed.
+  - Heights: OSM height, else OSM levels, else archetype storey height, else default. `height_m` never holds Google data; the Three.js view reads `display_height_m`.
+  - `sample_heights.py --offline` is ready if Google ever captures Elmina.
+- **Rulings** (the full ledger lives in `.superpowers/sdd/…p01/`):
+  - Three.js stays opt-in until the gate.
+  - The two lanes ran in parallel.
+  - Agents did no Street View spot checks.
+  - NeutralToneMapping is used instead of AgX.
+  - Route framing uses ×4 for the 30° FOV.
+  - Archetype calibration:
+    - link houses 13–23 m deep;
+    - apartments and tall-sample vetoes go generic;
+    - `house` is tried against row shapes before bungalow;
+    - unnamed Muslim places of worship stay generic.
+  - Signage drops `tourism=information` boards and street furniture.
+  - Landmarks attach only to a building name or a POI inside the footprint; the 30 m fallback is gone.
+  - Google heights are kept out of `height_m`.
+  - `as_of` comes from OSM.
+  - The parks rebuild was skipped because Overpass was at capacity; `parks.geojson` is unchanged.
+  - Phase 3 technique budget: keep GTAO, bloom and shadows at Medium.
+- **Final CI at `4340d3c`** (run alone):
+
+  | Check | Result |
+  |---|---|
+  | lint | PASS |
+  | pytest | 1468/1469: one pre-existing, Windows-only path-separator failure in `test_mcp_server` (packages/agent untouched) |
+  | typecheck | PASS |
+  | vitest | 877/879: two untouched Cesium DOM tests timed out under memory load and pass alone (10/10) |
+  | gen | PASS, no drift |
+  | golden | 22/22 (mock) |
+  | e2e | 20/20 (mock, tiny fixture, includes the Three.js SwiftShader smoke test) |
+
+- **Next:** Plan P2 (assets), `docs/superpowers/plans/2026-10-17-stylised-threejs-phase-2-assets.md`, opens with a session handoff.
