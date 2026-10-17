@@ -133,7 +133,7 @@ def _mall(variant: Variant, lod: int) -> list:
         nu = max(1, round(length / 6.0)) if lod == 0 else 1
         for i in range(nu):
             p, q = _lerp(a, b, i / nu), _lerp(a, b, (i + 1) / nu)
-            for y0, y1 in zip(rows, rows[1:]):  # noqa: B905
+            for y0, y1 in zip(rows, rows[1:], strict=False):
                 _strip(walls, p, q, n, y0, y1, 0.0)
         # parapet from the deck up; canopy over the shopfronts; accent band below the parapet
         _slab(parapet, a, b, n, 0.0, -PARAPET_T, WALL_H, WALL_H + PARAPET_H)

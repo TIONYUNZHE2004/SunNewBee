@@ -350,9 +350,11 @@ def test_non_residential(non_residential_built, asset_id):
 # --- landmarks (Task 5) -----------------------------------------------------------------
 
 LANDMARK_IDS = ("lakeside_mall", "kanopi", "masjid_denai_alam")
-# measured mean upper-wall AO; tuned in the landmark task
+# measured mean upper-wall AO (primary walls above half height, from a run with the scaled
+# ground plane): lakeside_mall 0.712, kanopi 0.510, masjid_denai_alam 0.663; each threshold
+# sits about 0.1 under the measurement
 UPPER_FROM.update(
-    {"lakeside_mall": (0.5, 0.5), "kanopi": (0.5, 0.4), "masjid_denai_alam": (0.5, 0.4)}
+    {"lakeside_mall": (0.5, 0.6), "kanopi": (0.5, 0.4), "masjid_denai_alam": (0.5, 0.55)}
 )
 
 
@@ -399,11 +401,21 @@ def test_landmarks(landmarks_built, asset_id):
         assert ys and max(ys) > 16.0, "a main dome"
 
 
-def test_landmark_ao_ground_scales_with_the_asset(landmarks_built):
-    """A 125 m tower must not bake as if standing on a 40 m plane: the base of its walls near
-    the plane edge and beyond would otherwise be lit from below."""
-    raw, _ = landmarks_built["kanopi"]
-    colors = read_attribute(raw, "kanopi__tower__LOD0", "COLOR_0")
-    pos = read_attribute(raw, "kanopi__tower__LOD0", "POSITION")
-    base = [c[0] for c, p in zip(colors, pos, strict=True) if p[1] < 1.0 and c[1] < 0.05]
-    assert base and statistics.fmean(base) < 0.95  # contact shading exists at the footing
+@pytest.mark.parametrize("asset_id", ["kanopi", "masjid_denai_alam"])
+def test_landmark_ao_ground_scales_with_the_asset(landmarks_built, asset_id):
+    """These reach +-20 m, the edge of the old 40 m plane. With ground only out to the wall
+    base, the +-x wall bases baked lit (mean AO measured 0.806 kanopi, 0.64 masjid); with the
+    scaled plane they get contact shading (0.437 and 0.434)."""
+    raw, _ = landmarks_built[asset_id]
+    v = specs.ASSETS[asset_id].variants[0].id
+    name = f"{asset_id}__{v}__LOD0"
+    colors = read_attribute(raw, name, "COLOR_0")
+    pos = read_attribute(raw, name, "POSITION")
+    normals = read_attribute(raw, name, "NORMAL")
+    base = [
+        c[0]
+        for c, p, n in zip(colors, pos, normals, strict=True)
+        if p[1] < 1.0 and c[1] < 0.05 and abs(n[0]) > 0.9
+    ]
+    assert len(base) > 10
+    assert statistics.fmean(base) < 0.55, statistics.fmean(base)

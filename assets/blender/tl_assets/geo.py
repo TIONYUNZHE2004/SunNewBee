@@ -44,7 +44,8 @@ def ring_centroid(ring: list[list[float]]) -> tuple[float, float]:
 
 def outline_ring(landmarks_fc: dict, model: str) -> list[list[float]] | None:
     """Outer ring [[lon, lat], ...] of the landmarks.geojson feature whose `model` is `model`
-    (the largest polygon of a MultiPolygon), or None. A footprint is never invented."""
+    (the polygon with the most outer-ring vertices of a MultiPolygon), or None.
+    A footprint is never invented."""
     for f in (landmarks_fc or {}).get("features", []):
         if (f.get("properties") or {}).get("model") != model:
             continue

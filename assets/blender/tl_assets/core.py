@@ -204,10 +204,11 @@ def tri_count(obj) -> int:
 
 
 def ground_size(obj) -> float:
-    """Side of the temporary AO ground plane: GROUND_SIZE_M, or (when the object reaches past
-    that plane's edge) twice its horizontal reach plus 20 m. Unchanged for small assets."""
+    """Side of the temporary AO ground plane: at least GROUND_SIZE_M, and large enough that
+    every wall base has ground for the 4 m AO ray distance plus a 4 m margin beyond it
+    (2 * reach + 16). Identical to GROUND_SIZE_M for assets with a horizontal reach <= 12 m."""
     half = max(max(abs(c[0]), abs(c[1])) for c in obj.bound_box)
-    return GROUND_SIZE_M if half <= GROUND_SIZE_M / 2 else 2.0 * half + 20.0
+    return max(GROUND_SIZE_M, 2.0 * half + 16.0)
 
 
 def bake_ao(obj, samples: int = 64, distance: float = 4.0) -> None:
