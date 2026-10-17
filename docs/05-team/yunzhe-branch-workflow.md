@@ -2,31 +2,38 @@
 
 > **Personal workflow, not team policy.** It applies only to Yunzhe's branches and AI agents. The team's rules stay in [dev-setup.md § 4](dev-setup.md) and [AGENTS.md](../../AGENTS.md). Where they disagree, the team rules win for `main`.
 
-Several AI agents (Claude, GPT/Codex and others) work in parallel. Each agent works on its own branch. One control branch collects their work, resolves conflicts and sends one tested update to `main`.
+Several AI agents (Claude, GPT/Codex and others) work in parallel. Each agent works on its own branch. One control branch collects their work, resolves conflicts and tests it. It sends an update to `main` **only when Yunzhe says so**. A separate board branch carries the task list and the feedback between agents.
 
 ## Branches
 
 ```
 main                              team branch (Jun Quan, shaoxian04, Yunzhe); changes arrive by PR only
  └── claude/sweet-davinci-29v7ne  CONTROL branch (Yunzhe's lead Claude session)
-      ├── claude/kind-cannon-mormhi   worker: Claude session (AI investigation docs)
-      ├── <agent>/<task>              worker: one branch per agent task
-      └── ...
+      ├── claude/kind-cannon-mormhi   worker: Claude session
+      ├── codex/yunzhe-workflow       worker: Codex session
+      └── <agent>/<branch>            any later worker
+
+yunzhe/agent-board                BOARD branch: tasks and logs only; separate history, never merged anywhere
 ```
 
 | Branch | Role | Who writes to it |
 |---|---|---|
 | `main` | Team trunk. CI runs on every push. | Team, by PR (squash merge, one approval; see dev-setup.md) |
-| `claude/sweet-davinci-29v7ne` | Control: merge, resolve conflicts, test, then PR to `main` | The control session only |
+| `claude/sweet-davinci-29v7ne` | Control: pull `main`, merge workers, resolve conflicts, test. PR to `main` only on Yunzhe's instruction | The control session only |
 | `claude/kind-cannon-mormhi` | Worker | Its own Claude session only |
+| `codex/yunzhe-workflow` | Worker | Its own Codex session only |
+| `yunzhe/agent-board` | Board: `BOARD.md`, `README.md`, `tasks/` | Control edits the board and task headers; every agent appends to task logs. Never merged into control or `main` |
 | `<agent>/<task>` (for example `codex/flood-copy`) | Worker | Its own agent only |
 
 Active workers (keep this table current):
 
 | Branch | Agent | Task | Status |
 |---|---|---|---|
-| `claude/kind-cannon-mormhi` | Claude (other session) | AI investigation, model comparison and failover, road crossings, audit fixes F2–F5 | Merged into control (PR #2) and `main` (PR #3). Behind control: merge control before the next task |
-| `codex/yunzhe-workflow` | Codex | Independent AI audit (findings A1–A8) | Merged into control (PR #4) |
+| `claude/kind-cannon-mormhi` | Claude worker | T-001 → T-003 → T-002 (validator, promise filter, drafts) | Assigned 17 Oct. Earlier work merged (PR #2, #3) |
+| `codex/yunzhe-workflow` | Codex worker | T-004 → T-005, verify Claude's fixes with the audit probes, then T-006 | Assigned 17 Oct. Earlier audit merged (PR #4) |
+| `claude/sweet-davinci-29v7ne` | Control | T-007 live smoke test after T-001 to T-003 | Waits for Yunzhe's instruction |
+
+The board branch holds the current owner and status of every task; this table is only a summary.
 
 ## My scope (who owns what)
 
@@ -46,19 +53,19 @@ An AI feature often needs a small Backend or Frontend change (the road-crossings
 
 ## Flow
 
-1. **Control starts from the team.** Merge `origin/main` into the control branch before work is handed out.
-2. **A worker starts from control.** It creates its branch from `claude/sweet-davinci-29v7ne`, not from `main`.
+1. **Control pulls from the team.** Whenever `main` moves, control merges `origin/main` in. Pulling needs no instruction.
+2. **A worker starts from control.** Before each task it merges `origin/claude/sweet-davinci-29v7ne` into its own branch, not `main`.
 3. **A worker opens a PR into control,** never into `main`. CI runs on every PR, whatever its base (`ci.yml`: `pull_request: {}`).
 4. **Control merges workers one at a time.** After each merge it runs the full checklist (below). It fixes conflicts on the control branch, not on the worker branch.
-5. **Control opens one PR into `main`** when the checklist passes. The team reviews and squash-merges it.
-6. **After that merge,** control merges `origin/main` back in, and workers merge control back in before they continue.
+5. **Control waits for Yunzhe.** It opens a PR into `main` only when Yunzhe says so ("send to main"). It never opens one, or pushes toward `main`, on its own, even when everything is green. Yunzhe merges it.
+6. **After that merge,** control merges `origin/main` back in (step 1), and workers merge control back in before they continue.
 
 ## Files every agent reads first
 
 | File | Who | Why |
 |---|---|---|
 | `docs/05-team/yunzhe-branch-workflow.md` (this file) | Every agent | Branches, flow, rules |
-| `docs/05-team/agent-board/BOARD.md` and your task file in `agent-board/tasks/` | Every agent | Which tasks exist, who owns them, feedback from other branches ([how the board works](agent-board/README.md)) |
+| `BOARD.md`, `README.md` and your task file on branch `yunzhe/agent-board` (`git show origin/yunzhe/agent-board:BOARD.md`) | Every agent | Which tasks exist, who owns them, feedback between branches. The board branch is never merged into control or `main` |
 | `AGENTS.md` | Every agent | Commands, architecture, honesty invariants, conventions |
 | `CLAUDE.md` | Claude only (loads by itself) | Claude workflow, cost guardrails, gotchas |
 | The README of the area you change: `apps/web/`, `apps/api/`, `packages/spatial/`, `packages/agent/`, `data/` | The agent working there | How that area works |
@@ -69,8 +76,8 @@ An AI feature often needs a small Backend or Frontend change (the road-crossings
 Before it does anything else, including answering a question about the code or the branches, the control session:
 
 1. Runs `git fetch origin` (and `git fetch --unshallow origin` once, if the clone is shallow).
-2. Lists every worker branch with commits that control does not have (`git log --oneline HEAD..origin/<branch>`), and reports them, including new task-log entries on the [board](agent-board/README.md).
-3. Merges what Yunzhe approves, runs the checklist, then starts the task.
+2. Lists every worker branch with commits that control does not have (`git log --oneline HEAD..origin/<branch>`), and reports them, including new task-log entries on the board branch `yunzhe/agent-board`.
+3. Merges `origin/main` if it moved, and merges what Yunzhe approves, runs the checklist, then starts the task. It does not send anything to `main` unless Yunzhe asks.
 
 When it reports branch state, it says when it fetched ("as of 14:05 fetch"). A worker's push is invisible to control until the next fetch, so a report without a fetch time may be stale.
 
@@ -90,7 +97,7 @@ Read these before the first change:
 4. Merge, never rebase or force-push, on a branch that another agent uses.
 5. Commit in Conventional style with a scope (`feat(web): …`, `fix(agent): …`, `docs: …`). Commit data regeneration separately from code.
 6. Before you say "done", run the checklist and report each step as PASS / FAIL / BLOCKED / NOT RUN.
-7. Use the mock LLM (`LLM_PROVIDER=mock`). Never print `.env` values.
+7. Use the mock LLM (`LLM_PROVIDER=mock`) by default. OpenRouter is set up in the Claude and Codex environments: use it only when your task needs a live check, keep it to at most 10 live turns per task unless Yunzhe allows more, and log the model and turn count in the task log. Never `--record` the demo cache with a live model. Never print keys or `.env` values.
 8. Keep the honesty invariants true (AGENTS.md table). The validator, mock and template change together.
 
 ## Checklist (same as CI)
@@ -129,9 +136,9 @@ git fetch --unshallow origin
 ## Prompt template for a new agent
 
 ```
-You are a worker agent on TownshipLens. Read docs/05-team/yunzhe-branch-workflow.md, docs/05-team/agent-board/README.md and AGENTS.md first.
-Branch: create <agent>/<task> from origin/claude/sweet-davinci-29v7ne.
-Task: T-<NNN> from docs/05-team/agent-board/BOARD.md (read its task file). Log progress, findings and questions in that task's ## Log as you go, and push.
+You are a worker agent on TownshipLens. Read docs/05-team/yunzhe-branch-workflow.md, AGENTS.md and the board README (git show origin/yunzhe/agent-board:README.md) first.
+Branch: your own branch. Before each task, merge origin/claude/sweet-davinci-29v7ne into it.
+Task: T-<NNN> from the board (git show origin/yunzhe/agent-board:BOARD.md, then its task file). You may push to two branches only: your own code branch and yunzhe/agent-board (log entries only, as its README says). Log progress, findings and questions as you go.
 Scope: you work in Yunzhe's lanes (AI, docs). Read "My scope" in the workflow doc; list any Backend or Frontend file you touch in the PR.
 When done: run the checklist, report PASS/FAIL per step, push your branch and open a PR into claude/sweet-davinci-29v7ne (not main).
 ```
