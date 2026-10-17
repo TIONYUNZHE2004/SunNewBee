@@ -402,23 +402,31 @@ def gable_roof(
     *,
     thickness: float = 0.15,
     wall_role: str = "primary",
+    across_overhang: tuple[float, float] | None = None,
 ) -> list:
     """Two tiled slabs (role secondary) over a w × d footprint, plus the two gable infills.
 
     The slab tops meet at the ridge, at eave_h + span / 2 * tan(pitch); they overhang the walls
-    by `overhang` on every side. The gable triangles (role `wall_role`) close the end walls.
+    by `overhang` on every side (`across_overhang` = (neg, pos) overrides the two sides across the
+    ridge, e.g. 0 on a party wall). The gable triangles (role `wall_role`) close the end walls.
     """
     m = _axis_map(ridge_axis)
     span, length = (w, d) if ridge_axis == "z" else (d, w)
     t = math.tan(math.radians(pitch_deg))
     half, o = span / 2, overhang
     ridge = eave_h + half * t
-    low = eave_h - o * t
+    ov = (
+        {-1.0: o, 1.0: o}
+        if across_overhang is None
+        else dict(zip((-1.0, 1.0), across_overhang, strict=True))
+    )
     l0, l1 = -(length / 2 + o), length / 2 + o
     roof = _Mesh()
     for s in (-1.0, 1.0):
-        top = [(0.0, ridge), (s * (half + o), low)]
-        bot = [(0.0, ridge - thickness), (s * (half + o), low - thickness)]
+        so = ov[s]
+        low = eave_h - so * t
+        top = [(0.0, ridge), (s * (half + so), low)]
+        bot = [(0.0, ridge - thickness), (s * (half + so), low - thickness)]
         ring = [bot[0], bot[1]]
         c = [m(a, y, l0) for a, y in ring] + [m(a, y, l1) for a, y in reversed(ring)]
         c += [m(a, y, l0) for a, y in top] + [m(a, y, l1) for a, y in reversed(top)]

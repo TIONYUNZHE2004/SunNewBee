@@ -201,7 +201,9 @@ def _semi_d(variant: Variant, lod: int) -> list:
     ]
     body = kit.walls(bw, main, eave, openings=front + side + _back_upper(bw), lod=lod)
     if gable:
-        body += kit.gable_roof(bw, main, eave, GABLE_PITCH, overhang=0.4, ridge_axis="z")
+        body += kit.gable_roof(
+            bw, main, eave, GABLE_PITCH, overhang=0.4, ridge_axis="z", across_overhang=(0.0, 0.4)
+        )  # no overhang past the party wall (-x)
     else:
         body += kit.flat_roof(bw, main, eave, PARAPET)
     objs = kit.place(body, x=cx, z=z_main)
@@ -212,7 +214,7 @@ def _semi_d(variant: Variant, lod: int) -> list:
     objs += kit.place(k, x=cx, z=-d / 2 + kitchen / 2)
     objs += kit.place(kit.car_porch(bw, porch, PORCH_H, inset=0.6), x=cx, z=d / 2)
     if not gable:
-        trim = kit.panel(-bw / 2, -bw / 2 + 2.2, STOREY_M + 0.3, h, depth=0.08, role="accent")
+        trim = kit.panel(-bw / 2 + 0.3, -bw / 2 + 2.2, STOREY_M + 0.3, h, depth=0.08, role="accent")
         objs += kit.place(trim, x=cx, z=z_front)
     # side garden: a low front wall, a hedge along the +x edge
     objs += kit.block(

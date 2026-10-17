@@ -96,6 +96,8 @@ def test_ao_is_baked_into_red(built):
 # --- archetypes (Tasks 2-3) -------------------------------------------------------------
 
 LINK_IDS = ("link_intermediate", "link_long")
+# a single-storey roof shades the top of its walls, so its "upper walls" start lower
+UPPER_FROM = {"bungalow": (0.15, 0.4)}  # (height fraction, min mean AO); default (0.5, 0.5)
 RESIDENTIAL_IDS = ("superlink", "semi_d", "bungalow", "townhouse")
 
 
@@ -164,20 +166,21 @@ def check_archetype(raw: Path, packed: Path, asset_id: str) -> dict[str, list]:
         assert 0.3 <= statistics.fmean(reds) <= 1.0, lod0
         pos = read_attribute(raw, lod0, "POSITION")
         assert min(p[1] for p in pos) > -0.01, "nothing below the ground"
-        high = v.size[1] * 0.6  # upper walls are above 60 % of the height (5 m for 8.5 m)
+        frac, min_ao = UPPER_FROM.get(asset_id, (0.5, 0.5))
+        high = v.size[1] * frac  # upper walls start here
         upper_walls = [
             c[0] for c, p in zip(colors, pos, strict=True) if p[1] > high and c[1] < 0.05
         ]
-        if upper_walls:
-            assert statistics.fmean(upper_walls) > 0.5, "upper walls are open (normals outwards)"
+        assert upper_walls, "no upper walls to check"
+        assert statistics.fmean(upper_walls) > min_ao, "upper walls are open (normals outwards)"
         glass_ao = [c[0] for c in colors if round(c[1] * 7) == specs.ROLES.index("glass")]
         assert statistics.fmean(glass_ao) > 0.3, "glass is not baked black"
         roles = _roles(colors)
         assert len(roles) >= 4, (lod0, roles)
         assert {specs.ROLES.index("glass"), specs.ROLES.index("dark")} <= roles, roles
-        glass = [c[2] for c in colors if round(c[1] * 7) == specs.ROLES.index("glass")]
-        assert glass and all(0.0 < g < 1.0 for g in glass), lod0
-        assert len({round(g, 4) for g in glass}) > 1, "window seeds vary per window"
+        seeds = [c[2] for c in colors if round(c[1] * 7) == specs.ROLES.index("glass")]
+        assert seeds and all(0.0 < g < 1.0 for g in seeds), lod0
+        assert len({round(g, 4) for g in seeds}) > 1, "window seeds vary per window"
         # LOD1 keeps glass (inset faces) but drops the dark frames and AC fans
         lod1 = f"{asset_id}__{v.id}__LOD1"
         roles1 = _roles(read_attribute(raw, lod1, "COLOR_0"))
@@ -227,3 +230,14 @@ def test_residential(residential_built, asset_id):
                 if round(c[1] * 7) == glass and n[0] < -0.5
             ]
             assert facing == [], "semi_d party wall has no glass"
+            lo = read_glb(raw).nodes[lod0].bounds[0]
+            assert lo[0] >= -spec.variants[0].size[0] / 2 - 0.01, "nothing past the party wall"
+            plain = {specs.ROLES.index("primary"), specs.ROLES.index("secondary")}
+            bad = [
+                (c, p)
+                for c, n, p in zip(
+                    colors, normals, read_attribute(raw, lod0, "POSITION"), strict=True
+                )
+                if p[0] < -v.size[0] / 2 + 0.01 and n[0] < -0.5 and round(c[1] * 7) not in plain
+            ]
+            assert bad == [], "only the plain party wall faces -x at the boundary"
