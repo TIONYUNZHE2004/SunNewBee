@@ -5,11 +5,13 @@ from pathlib import Path
 
 import pytest
 from tl_assets import specs
+from tl_assets.geo import outline_ring, ring_centroid
 from tl_assets.glbinfo import read_glb
 
 ROOT = Path(__file__).resolve().parents[3]
 CITY = ROOT / "apps" / "web" / "public" / "city"
 MANIFEST = CITY / "manifest.json"
+LANDMARKS = ROOT / "data" / "seed" / "elmina" / "base" / "landmarks.geojson"
 FOLDERS = ("archetypes/", "landmarks/", "kits/")
 
 
@@ -103,3 +105,13 @@ def test_jittered_kit_stays_inside_true_scale(asset_id: str, variant_id: str):
         for k in (1 - j, 1 + j):
             assert rng[0] <= value * k <= rng[1], (variant_id, label, round(value * k, 3), rng)
 
+
+def test_committed_mall_anchor_matches_the_seed():
+    """The committed lakeside_mall anchor is the current seed ring centroid (no stale pack)."""
+    m = _manifest()
+    if m is None or "lakeside_mall" not in m.get("landmarks", {}):
+        pytest.skip("no lakeside_mall anchor committed")
+    ring = outline_ring(json.loads(LANDMARKS.read_text(encoding="utf-8")), "lakeside_mall")
+    assert ring is not None, "seed landmarks.geojson has no lakeside_mall feature"
+    lon, lat = ring_centroid(ring)
+    assert m["landmarks"]["lakeside_mall"]["anchor"] == pytest.approx([lon, lat], abs=1e-7)
