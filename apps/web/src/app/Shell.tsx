@@ -78,9 +78,10 @@ export function Shell() {
   const strip = onTickets ? 0 : reserved;
   const attribution = useAttribution();
   const sheetFull = useBehindFullSheet();
+  const attrHidden = !onTickets && sheetFull;
   const attrRef = useRef<HTMLParagraphElement>(null);
-  // Map controls (camera cluster, settings gear, card stack) sit above the strip: they read --attr-h.
-  const attrH = useElementHeight(attrRef);
+  // Map controls (camera cluster, gear, card stack) sit above the strip: they read --attr-h.
+  const attrH = useElementHeight(attrRef, attrHidden);
   return (
     <div className="relative flex min-h-screen flex-col lg:h-dvh bg-bg text-fg">
       <a
@@ -122,7 +123,7 @@ export function Shell() {
         <p
           ref={attrRef}
           // At full the phone sheet carries the attribution on its own bottom edge.
-          hidden={!onTickets && sheetFull}
+          hidden={attrHidden}
           className="glass pointer-events-auto absolute bottom-2 left-2 z-10 m-0 rounded-md px-2 py-0.5 text-[0.68rem] text-fg-soft"
           style={{
             maxWidth: `calc(100% - ${strip}px - 1rem)`,

@@ -130,6 +130,10 @@ describe("Shell", () => {
         for (const cb of callbacks) cb();
       });
       expect(main.style.getPropertyValue("--attr-h")).toBe("0px");
+      // full -> half re-measures in a layout effect, before the ResizeObserver reports, so no
+      // frame shows the controls at --attr-h 0 over the strip.
+      act(() => usePanel.setState({ sheet: "half" }));
+      expect(main.style.getPropertyValue("--attr-h")).toBe("38px");
     });
   });
 
