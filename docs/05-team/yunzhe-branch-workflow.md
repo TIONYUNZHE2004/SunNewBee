@@ -36,6 +36,28 @@ Active workers (keep this table current):
 5. **Control opens one PR into `main`** when the checklist passes. The team reviews and squash-merges it.
 6. **After that merge,** control merges `origin/main` back in, and workers merge control back in before they continue.
 
+## Files every agent reads first
+
+| File | Who | Why |
+|---|---|---|
+| `docs/05-team/yunzhe-branch-workflow.md` (this file) | Every agent | Branches, flow, rules |
+| `AGENTS.md` | Every agent | Commands, architecture, honesty invariants, conventions |
+| `CLAUDE.md` | Claude only (loads by itself) | Claude workflow, cost guardrails, gotchas |
+| The README of the area you change: `apps/web/`, `apps/api/`, `packages/spatial/`, `packages/agent/`, `data/` | The agent working there | How that area works |
+| `docs/05-team/dev-setup.md` | When setup fails | Local setup and the team's git rules |
+
+## Control session: start of every task
+
+Before it does anything else, the control session:
+
+1. Runs `git fetch origin` (and `git fetch --unshallow origin` once, if the clone is shallow).
+2. Lists every worker branch with commits that control does not have (`git log --oneline HEAD..origin/<branch>`), and reports them.
+3. Merges what Yunzhe approves, runs the checklist, then starts the task.
+
+## When a worker is done
+
+The worker commits, runs the checklist, runs `git push -u origin <its branch>`, and opens a PR into `claude/sweet-davinci-29v7ne`. It then tells Yunzhe the PR link. Nothing reaches control until the control session merges it.
+
 ## Rules for every worker agent
 
 Read these before the first change:
