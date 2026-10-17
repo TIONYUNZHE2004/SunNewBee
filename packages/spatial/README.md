@@ -19,7 +19,7 @@ the LLM never computes routes or flood extents.
   base/parks.geojson           # optional; display only
   base/landcover.geojson       # optional; display only (properties: class, source, osm)
   base/signage.geojson         # optional; display only (Point; text, source_url, as_of all required or the API drops the sign)
-  base/landmarks.geojson       # optional; display only (Point; id, name, model, building_id, source_url, as_of)
+  base/landmarks.geojson       # optional; display only (Polygon: the matched building footprint; id, name, model, building_id, source_url, as_of)
   access/overlay.geojson       # same feature shapes as walk/places; an existing id REPLACES, a new id ADDS
   flood/scenarios.json         # models.FloodBundle
   flood/<scenario_id>.geojson  # water polygons: properties {scenario_id, surface_height_m}

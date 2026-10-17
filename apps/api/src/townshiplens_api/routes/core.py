@@ -190,7 +190,8 @@ class BuildingsLayer(BaseModel):
     attribution: list[str] = []
 
 
-# (buildings mtime_ns, trees mtime_ns, site mtime_ns, data dir) -> (payload, etag)
+# (data dir, mtime_ns of landcover, signage, landmarks, buildings, trees, site, hydrology, parks)
+# -> (payload, etag)
 _buildings_cache: dict[tuple, tuple[BuildingsLayer, str]] = {}
 
 
@@ -225,6 +226,9 @@ def _polygons_only(fc: dict[str, Any]) -> dict[str, Any]:
     return {"type": "FeatureCollection", "features": keep}
 
 
+_SIGN_REQUIRED = ("text", "source_url", "as_of")
+
+
 def _sourced_signs_only(fc: dict[str, Any]) -> dict[str, Any]:
     """Honesty gate (ADR 0013): a sign without text, a source and an as-of date is never served."""
 
@@ -235,9 +239,6 @@ def _sourced_signs_only(fc: dict[str, Any]) -> dict[str, Any]:
         return all(isinstance(props.get(k), str) and props[k].strip() for k in _SIGN_REQUIRED)
 
     return {"type": "FeatureCollection", "features": [f for f in fc["features"] if ok(f)]}
-
-
-_SIGN_REQUIRED = ("text", "source_url", "as_of")
 
 
 @router.get(
