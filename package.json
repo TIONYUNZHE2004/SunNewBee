@@ -14,10 +14,13 @@
     "data:build": "uv run python data/scripts/import_osm.py && uv run python data/scripts/build_overlay.py && uv run python data/scripts/build_flood.py && uv run python data/scripts/build_waste.py",
     "data:city": "uv run python data/scripts/build_buildings.py --max-requests 40 && uv run python data/scripts/build_buildings.py --parks --max-requests 40 && uv run python data/scripts/build_landcover.py --max-requests 40 && uv run python data/scripts/build_archetypes.py --max-requests 10 && uv run python data/scripts/build_frontage.py && uv run python data/scripts/build_signage.py --max-requests 40 && uv run python data/scripts/build_landmarks.py --max-requests 5",
     "golden": "uv run python evals/run_golden.py",
+    "assets:build": "uv run python assets/blender/run.py",
+    "assets:pack": "uv run python assets/blender/pack.py",
     "db:reset": "node -e \"const fs=require('fs');for(const f of fs.existsSync('.data')?fs.readdirSync('.data'):[])if(/\\.db(-wal|-shm)?$/.test(f))fs.rmSync('.data/'+f);console.log('local databases removed (stop the API first)')\""
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.15",
+    "@gltf-transform/cli": "4.1.1",
     "concurrently": "10.0.6",
     "typescript": "5.9.3"
   }
