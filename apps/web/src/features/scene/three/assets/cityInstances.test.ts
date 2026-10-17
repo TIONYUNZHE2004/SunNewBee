@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { describe, expect, it } from "vitest";
-import { createCityInstances, lodFor } from "./cityInstances";
+import { buildingIdOf, createCityInstances, lodFor } from "./cityInstances";
 import type { Placement } from "./fit";
 import type { AssetLibrary } from "./library";
 import type { Manifest } from "./manifest";
@@ -148,6 +148,41 @@ describe("createCityInstances", () => {
     expect(id).toBe("a0");
     expect(am.userData.pick).toEqual({ kind: "building" });
     expect(am.castShadow && am.receiveShadow).toBe(true);
+  });
+
+  it("shadows: kits cast at LOD0 only, archetypes at LOD0 and LOD1, never at LOD2; landmarks cast", () => {
+    const cast = (asset: string) =>
+      meshesOf(createCityInstances(lib(), plan(asset), manifest(), createRoleUniforms())).map(
+        (m) => m.castShadow,
+      );
+    expect(cast("k")).toEqual([true, false, false]);
+    expect(cast("a")).toEqual([true, true, false]);
+    const c = createCityInstances(
+      lib(),
+      plan("a", [pl("lm", 0)]),
+      manifest(),
+      createRoleUniforms(),
+    );
+    const lm = c.group.children.find((o) => o.userData.pick?.kind === "landmark") as THREE.Mesh;
+    expect(lm.castShadow).toBe(true);
+    for (const m of c.group.children) expect(m.receiveShadow).toBe(true);
+  });
+
+  it("aoExcluded lists the LOD2 meshes only (left out of the GTAO normal pass)", () => {
+    const c = createCityInstances(lib(), plan("a"), manifest(), createRoleUniforms());
+    const [m0, m1, m2] = meshesOf(c);
+    expect(c.aoExcluded()).toEqual([]); // nothing visible before the first update
+    c.update(new THREE.Vector3());
+    expect(c.aoExcluded()).toEqual([m2]);
+    expect(c.aoExcluded()).not.toContain(m0);
+    expect(c.aoExcluded()).not.toContain(m1);
+  });
+
+  it("buildingIdOf maps a unit id back to its building id", () => {
+    expect(buildingIdOf("way/42#3")).toBe("way/42");
+    expect(buildingIdOf("way/42")).toBe("way/42");
+    expect(buildingIdOf("a#b")).toBe("a#b");
+    expect(buildingIdOf("a#1#12")).toBe("a#1");
   });
 
   it("adds landmark meshes with a pick payload", () => {

@@ -30,10 +30,28 @@ export function lodFor(
   return (b >= n ? -1 : b) as LodBucket;
 }
 
+/**
+ * The building id of an instance unit id. `fitArchetype` names the units of a row building
+ * `${buildingId}#${i}` (i = 0..n-1) and a single unit by the plain building id, so this strips a
+ * trailing `#<digits>` only.
+ */
+export function buildingIdOf(unitId: string): string {
+  const m = /^(.*)#\d+$/.exec(unitId);
+  return m ? (m[1] as string) : unitId;
+}
+
 export interface CityInstances {
+  /**
+   * One InstancedMesh per (asset, variant, LOD) plus one Mesh per landmark. Each InstancedMesh has
+   * `userData.ids: string[]`, the unit id per instance index (`ids[hit.instanceId]`): a row
+   * building's units are `${buildingId}#${i}`, a single-unit building is its plain id; map back
+   * with `buildingIdOf`. `userData.lod` is the LOD index.
+   */
   group: THREE.Group;
   /** Re-bucket by camera position; rebuilds only the InstancedMeshes whose membership changed. Returns how many. */
   update(camera: THREE.Vector3): number;
+  /** Visible LOD2 meshes, which the engine leaves out of the GTAO normal/depth pass. */
+  aoExcluded(): THREE.Object3D[];
   stats(): { instances: number; meshes: number; visibleMeshes: number; gpuBytes: number };
   dispose(): void;
 }
@@ -118,7 +136,12 @@ export function createCityInstances(
       mesh.visible = false;
       mesh.name = `${asset}__${variant}__LOD${lod}`;
       const archetype = spec.group === "archetype";
-      mesh.castShadow = archetype || lod === 0;
+      // Shadows: LOD0 always; archetype LOD1 too (300 m-1.5 km houses sit inside the fitted shadow
+      // frustum at hero-mid, and dropping them would pop shadows at the 300 m boundary); LOD2
+      // (> 1.5 km blocks) never: their shadow texels are sub-pixel there and they are the most
+      // numerous instances (I3).
+      mesh.castShadow = lod === 0 || (archetype && lod === 1);
+      mesh.userData.lod = lod;
       mesh.receiveShadow = true;
       mesh.userData.ids = [] as string[];
       if (archetype) mesh.userData.pick = { kind: "building" };
@@ -190,8 +213,11 @@ export function createCityInstances(
     b.mesh.boundingBox = null;
   }
 
+  const far = keys.flatMap((k) => (k.buckets[2] ? [k.buckets[2].mesh] : []));
+
   return {
     group,
+    aoExcluded: () => far.filter((m) => m.visible),
     update(camera) {
       let rebuilt = 0;
       for (const key of keys) {

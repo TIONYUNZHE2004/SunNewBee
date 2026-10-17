@@ -5,13 +5,13 @@ import { Line2 } from "three/addons/lines/Line2.js";
 import { LineGeometry } from "three/addons/lines/LineGeometry.js";
 import { LineMaterial } from "three/addons/lines/LineMaterial.js";
 import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
-import { GTAOPass } from "three/addons/postprocessing/GTAOPass.js";
 import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 import type { Pass } from "three/addons/postprocessing/Pass.js";
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
 import type { Tier } from "../cesium/stylised/quality";
 import { ROUTE_STYLE } from "../styles";
+import { CityGTAOPass } from "./aoPass";
 import type { CityInstances } from "./assets/cityInstances";
 import {
   type CameraRig,
@@ -353,7 +353,9 @@ function build(
     composer = new EffectComposer(renderer);
     composer.setPixelRatio(pr);
     passes = [new RenderPass(scene, camera)];
-    if (spec.ao) passes.push(new GTAOPass(scene, camera, w, h));
+    // AO normal/depth pass without the far LOD2 blocks (I3).
+    if (spec.ao)
+      passes.push(new CityGTAOPass(scene, camera, w, h, () => assets?.aoExcluded() ?? []));
     if (spec.bloom)
       passes.push(
         new UnrealBloomPass(new THREE.Vector2(w, h), BLOOM.strength, BLOOM.radius, BLOOM.threshold),
