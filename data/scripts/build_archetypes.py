@@ -326,8 +326,9 @@ def assign(
 ) -> tuple[str, str]:
     """(archetype, method); first matching rule wins, otherwise ("generic", "generic").
 
-    `height` is the OSM tag height. `sample` (a Google height sample) only lets rule 5 call a
-    building a highrise (height_m >= 30 with coverage >= 0.5); it is display-only data."""
+    `height` is the OSM tag height. A valid `sample` (a Google height sample with coverage
+    >= 0.5) can only make a building a highrise (>= 30 m) or veto a residential shape match
+    (> 3x its storey height); it is display-only data."""
     arch = _override(props.get("id", ""), overrides)
     if arch:
         return arch, "override"
@@ -358,12 +359,13 @@ def assign(
         return "factory", "landuse"
     if height is not None and (height >= 30 or (building == "apartments" and height >= 20)):
         return "highrise", "height"
-    if (
+    valid = (
         sample
         and isinstance(sample.get("height_m"), (int, float))
-        and sample["height_m"] >= HIGHRISE_M
         and (sample.get("coverage") or 0) >= MIN_SAMPLE_COVERAGE
-    ):
+    )
+    sample_h = float(sample["height_m"]) if valid else None
+    if sample_h is not None and sample_h >= HIGHRISE_M:
         return "highrise", "height"
     if kind == "commercial" or landuse == "commercial":
         if area >= 4000:
@@ -377,7 +379,8 @@ def assign(
     if kind in ("residential", "other") and landuse == "residential" and fill >= 0.8:
         shaped = _rule8_shape(w, ln, precinct)
         if shaped:
-            too_tall = height is not None and height > OUTLIER_FACTOR * STOREY_HEIGHT_M[shaped[0]]
+            cap = OUTLIER_FACTOR * STOREY_HEIGHT_M[shaped[0]]
+            too_tall = any(h is not None and h > cap for h in (height, sample_h))
             if building == "apartments" or too_tall:
                 return "generic", "generic"
             return shaped

@@ -325,7 +325,10 @@ def _inputs():
             )
         ]
     )
-    samples = {"w2": {"height_m": 28.0, "coverage": 0.9}, "w4": {"height_m": 9.1, "coverage": 0.8}}
+    samples = {
+        "w2": {"height_m": 28.0, "coverage": 0.4},  # too thin to veto the shape match
+        "w4": {"height_m": 9.1, "coverage": 0.8},
+    }
     return feats, precincts, landuse, samples
 
 
@@ -515,7 +518,8 @@ def test_ruling3_highrise_from_a_google_sample():
         "shape",
     )
     low = {"height_m": 29.0, "coverage": 0.9}
-    assert ba.assign(props(), m, None, "residential", None, sample=low)[0] == "link_intermediate"
+    # below 30 m: not a highrise; above 3 x 8.5 m: vetoes the link shape (ruling 2, extended)
+    assert ba.assign(props(), m, None, "residential", None, sample=low) == ("generic", "generic")
 
 
 def test_ruling3_transform_uses_the_sample_for_highrise_but_heights_unchanged():
@@ -574,3 +578,29 @@ def test_main_warns_about_overrides_for_unknown_ids(tmp_path, monkeypatch, capsy
     )
     ba.main(["--dry-run"])
     assert "WARNING: overrides for unknown building ids: ['w999']" in capsys.readouterr().out
+
+
+def test_ruling2_extended_a_valid_tall_sample_vetoes_a_rule8_shape():
+    m = metrics(6.1, 15)
+    slab = {"height_m": 28.0, "coverage": 0.9}  # > 3 x 8.5 m, below the 30 m highrise gate
+    assert ba.assign(props(), m, None, "residential", None, sample=slab) == ("generic", "generic")
+    thin = {"height_m": 28.0, "coverage": 0.4}
+    assert ba.assign(props(), m, None, "residential", None, sample=thin) == (
+        "link_intermediate",
+        "shape",
+    )
+    ok = {"height_m": 9.0, "coverage": 0.9}
+    assert ba.assign(props(), m, None, "residential", None, sample=ok) == (
+        "link_intermediate",
+        "shape",
+    )
+
+
+def test_ruling2_extended_slab_keeps_its_google_height():
+    feats, precincts, landuse, _ = _inputs()
+    out = ba.transform(
+        copy.deepcopy(feats), precincts, landuse, {"w1": {"height_m": 28.0, "coverage": 0.9}}, {}
+    )
+    w1 = out[0]["properties"]
+    assert (w1["archetype"], w1["archetype_method"]) == ("generic", "generic")
+    assert (w1["height_m"], w1["height_source"]) == (28.0, "google_3dtiles")
