@@ -140,6 +140,8 @@ The API (`apps/api`) imports `townshiplens_agent.run.run_turn` lazily and sends 
 | `LLM_PROVIDER` | `mock` without a key, else `openrouter` | Set `mock` to force the scripted model |
 | `LLM_MODEL_DEFAULT` | `anthropic/claude-haiku-5.5` | OpenRouter model id |
 | `LLM_MODEL_ESCALATE` | `anthropic/claude-sonnet-5.5` | Used by `model_for(..., escalate=True)` |
+| `LLM_ESCALATE_ON_REWRITE` | `false` | After the validator sends an answer back, the rewrite (and the rest of the turn) runs on `LLM_MODEL_ESCALATE` (`agent.escalation`, a `SelectModel` capability). Costs more per rewrite; `done.model` names the escalation model |
+| `LLM_MODEL_FALLBACK` | empty | Backup OpenRouter model: on a provider error (`ModelAPIError`) the default model fails over to it (`FallbackModel`). `done.model` names the model that answered |
 | `LLM_OUTPUT_RETRIES` | `2` | Validator retries before the template fallback |
 | `TURN_TIMEOUT_S` | `60` | Whole-turn budget; on expiry: `error` (`agent_timeout`), template answer, `done` |
 | `DEMO_MODE` | `false` | Replay recorded turns from `DEMO_DIR` (default `data/demo`) |
@@ -220,8 +222,6 @@ real spatial tools on the tiny fixture. They make no network calls.
 
 ## What to build next (AI lane)
 
-- **Escalation on retries**: rerun with `model_for(settings, escalate=True)` when the validator
-  exhausts its retries on the default model, before the template fallback.
 - **Multilingual aliases**: BM and Chinese place aliases and nicknames in the seed, plus
   language-aware answer templates.
 - **Promptfoo suite**: a wider red-team and regression set (prompt injection in tool data,

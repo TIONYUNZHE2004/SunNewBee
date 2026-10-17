@@ -13,6 +13,10 @@ class AgentSettings(BaseSettings):
     llm_provider: Literal["openrouter", "mock"] | None = None
     llm_model_default: str = "anthropic/claude-haiku-5.5"
     llm_model_escalate: str = "anthropic/claude-sonnet-5.5"
+    # Backup model when the default one errors (provider down, rate limit). Empty: no backup.
+    llm_model_fallback: str = ""
+    # After the validator sends an answer back, retry on llm_model_escalate (costs more).
+    llm_escalate_on_rewrite: bool = False
     # Elmina Day spotlight residents (Cycle 11): a cheap model, low reasoning effort.
     llm_model_sim: str = "openai/gpt-6-luna"  # benchmark: evals/results/*sim-model-bench.json
     llm_sim_reasoning: str = "low"

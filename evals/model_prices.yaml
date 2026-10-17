@@ -1,0 +1,12 @@
+# OpenRouter list prices used by evals/compare_models.py to estimate cost (US$ per 1M tokens).
+# These are estimates only. Prices change and differ per provider endpoint: check each model's
+# page on openrouter.ai before quoting a cost, and update `as_of` when you change a value.
+# A model missing here is reported with cost "n/a".
+as_of: 2026-10-16
+source: "web-search snapshots of openrouter.ai model pages (not fetched directly)"
+models:
+  anthropic/claude-haiku-5.5: { input: 0.10, output: 0.50 }
+  deepseek/deepseek-v4.1-flash: { input: 0.30, output: 1.20 }
+  openai/gpt-6-luna: { input: 0.10, output: 0.50 }
+  z-ai/glm-5.3-flash: { input: 0.075, output: 0.25 }
+  qwen/qwen3.8-flash: { input: 0.16, output: 0.47 }

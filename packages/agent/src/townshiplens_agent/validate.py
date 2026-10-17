@@ -193,6 +193,24 @@ OPEN_CLAIM = re.compile(
 )
 
 
+TRAFFIC_LIGHTS = re.compile(
+    r"traffic[- ]?(?:lights?|signals?)|signali[sz]ed|lampu isyarat|红绿灯|交通灯|信号灯",
+    re.IGNORECASE,
+)
+_NEGATED_LIGHTS = re.compile(
+    r"(?:\bno|\bnot|\bwithout|\bnever|\btiada|\btanpa|\btidak ada|没有|无)\W+(?:\w+\W+){0,3}$",
+    re.IGNORECASE,
+)
+
+
+def claims_traffic_lights(text: str) -> bool:
+    """True when the text says there are traffic lights ("no traffic lights" does not count)."""
+    return any(
+        not _NEGATED_LIGHTS.search(text[max(0, m.start() - 40) : m.start()])
+        for m in TRAFFIC_LIGHTS.finditer(text)
+    )
+
+
 def _norm_note(text: str) -> str:
     return " ".join(text.lower().rstrip(". ").split())
 
@@ -345,6 +363,22 @@ def validate_answer(ans: FinalAnswer, rec: TurnRecord) -> list[str]:
             "A staff-reported closure must be named in one caveat line, in the form "
             "'Closed (staff report): <name> until <date> \u2014 <reason>' "
             f"(missing: {sorted(set(missing))}). If it blocks the route, say so."
+        )
+    cnote = route.get("crossing_note")
+    if (
+        ans.answer_status != "cannot_answer"
+        and cnote
+        and not any(_norm_note(cnote) in _norm_note(c) for c in ans.caveats)
+    ):
+        errs.append(f"plan_route says: {cnote!r} Add that as a caveat (word for word).")
+    if claims_traffic_lights(_strip_names(" ".join(segments), rec.place_names)) and not any(
+        c.get("crossing") == "traffic_signals"
+        for r in rec.routes.values()
+        for c in r.get("crossings") or []
+    ):
+        errs.append(
+            "No crossing with traffic lights is recorded on a route this turn: do not mention "
+            "traffic lights. Use the plan_route crossing_note if there is one."
         )
     if ans.answer_status != "cannot_answer":
         for note in rec.inferred_notes:

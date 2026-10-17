@@ -346,12 +346,34 @@ def _answer_events(
     return evs
 
 
-def _streams(model) -> bool:
-    """Streaming drafts need a model that streams; a FunctionModel only does with stream_function
-    (the mock has one; ad-hoc test models usually do not)."""
+def _streams(*models) -> bool:
+    """Streaming drafts need every model the turn may use to stream; a FunctionModel only does
+    with stream_function (the mock has one; ad-hoc test models usually do not)."""
+    from pydantic_ai.models.fallback import FallbackModel
     from pydantic_ai.models.function import FunctionModel
 
-    return not isinstance(model, FunctionModel) or model.stream_function is not None
+    def one(m) -> bool:
+        if isinstance(m, FallbackModel):
+            return all(one(x) for x in m.models)
+        return not isinstance(m, FunctionModel) or m.stream_function is not None
+
+    return all(one(m) for m in models if m is not None)
+
+
+def served_model(model, escalate_model, rec: TurnRecord, result) -> str:
+    """The configured model that wrote the final answer: the escalation model once the turn was
+    escalated, else, behind a fallback, the member whose name the last response carries."""
+    from pydantic_ai.models.fallback import FallbackModel
+
+    if rec.escalated and escalate_model is not None:
+        return getattr(escalate_model, "model_name", None) or "unknown"
+    if isinstance(model, FallbackModel):
+        answered = getattr(getattr(result, "response", None), "model_name", None) or ""
+        for m in model.models:
+            if answered.startswith(m.model_name):
+                return m.model_name
+        return answered or model.model_name
+    return getattr(model, "model_name", None) or "unknown"
 
 
 def _scrub(msg: str, settings: AgentSettings) -> str:
@@ -385,13 +407,19 @@ async def run_turn(
     deps = agent_mod.Deps(ctx=ctx, rec=rec, request=req)
     msg_id = uuid.uuid4().hex[:12]
     model_name = "unknown"
+    escalate_model = None
     ans: FinalAnswer | None = None
     failure: Exception | None = None
 
     try:
         model = agent_mod.model_for(settings)
         model_name = getattr(model, "model_name", None) or "unknown"
-        agent = agent_mod.build_agent(model)
+        escalate_model = (
+            agent_mod.model_for(settings, escalate=True)
+            if settings.llm_escalate_on_rewrite
+            else None
+        )
+        agent = agent_mod.build_agent(model, escalate_to=escalate_model)
     except Exception as exc:  # misconfiguration (e.g. no key): still answer from the template
         failure = exc
     else:
@@ -404,7 +432,9 @@ async def run_turn(
                     deps=deps,
                     retries={"output": settings.llm_output_retries},
                     usage=rec.usage,
-                    event_stream_handler=DraftStreamer(deps) if _streams(model) else None,
+                    event_stream_handler=(
+                        DraftStreamer(deps) if _streams(model, escalate_model) else None
+                    ),
                 )
 
         task = asyncio.create_task(bounded_run())
@@ -429,12 +459,16 @@ async def run_turn(
             if not task.done():
                 task.cancel()  # the client went away mid-turn
         try:
-            ans = task.result().output
+            result = task.result()
+            ans = result.output
+            model_name = served_model(model, escalate_model, rec, result)
         except UnexpectedModelBehavior as exc:  # e.g. output retries exhausted by the validator
             log.info("model output rejected, using template: %s", type(exc).__name__)
         except Exception as exc:  # network / provider / tool error
             failure = exc
 
+    if rec.escalated and escalate_model is not None:
+        model_name = getattr(escalate_model, "model_name", None) or model_name
     used = model_name
     if isinstance(failure, TimeoutError):
         log.warning("agent turn timed out after %ss", settings.turn_timeout_s)

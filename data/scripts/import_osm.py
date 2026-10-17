@@ -114,8 +114,32 @@ def _sidewalk_claim(tags: dict) -> dict | None:
     return {**_claim(value), "notes": f"OSM {raw}"}
 
 
+# OSM crossing tags -> the catalogue's crossing type (traffic_signals|marked|unmarked|no).
+_CROSSING = {
+    "traffic_signals": "traffic_signals",
+    "marked": "marked",
+    "zebra": "marked",
+    "uncontrolled": "marked",
+    "unmarked": "unmarked",
+    "informal": "unmarked",
+    "no": "no",
+}
+
+
+def crossing_value(tags: dict) -> str | None:
+    """The crossing type an OSM crossing way or node says, or None when its tags do not say.
+    `crossing:signals=yes` means traffic lights whatever `crossing` says."""
+    if tags.get("crossing:signals") == "yes" or tags.get("highway") == "traffic_signals":
+        return "traffic_signals"
+    if tags.get("crossing_ref") == "zebra":
+        return "marked"
+    return _CROSSING.get(tags.get("crossing", ""))
+
+
 def _claims(tags: dict, seg_type: str) -> dict:
     claims: dict = {}
+    if seg_type == "crossing" and (crossing := crossing_value(tags)):
+        claims["crossing"] = _claim(crossing)
     if seg_type == "major_road":
         sidewalk = _sidewalk_claim(tags)
         if sidewalk:

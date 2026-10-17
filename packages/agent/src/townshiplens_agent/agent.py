@@ -7,12 +7,16 @@ and push ToolCall / ToolResultEvent / VerificationRequested onto the record's qu
 
 import asyncio
 import re
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal, get_args
 
 from pydantic_ai import Agent, ModelRetry, RunContext, ToolOutput
-from pydantic_ai.models import Model
+from pydantic_ai.capabilities import SelectModel
+from pydantic_ai.messages import ModelRequest, RetryPromptPart
+from pydantic_ai.models import Model, ModelSelectionContext
+from pydantic_ai.models.fallback import FallbackModel
 from pydantic_ai.models.openrouter import OpenRouterModel, OpenRouterModelSettings
 from pydantic_ai.providers.openrouter import OpenRouterProvider
 from townshiplens_spatial import tools as sp
@@ -28,7 +32,7 @@ from .events import (
     ToolResultEvent,
     VerificationRequested,
 )
-from .labels import enrich_unknowns
+from .labels import crossing_note, enrich_unknowns
 from .mock import mock_model
 from .record import TurnRecord
 from .settings import AgentSettings
@@ -45,10 +49,19 @@ class Deps:
 
 
 def model_for(settings: AgentSettings, escalate: bool = False) -> Model:
-    """Mock (deterministic, keyless) or OpenRouter. Model names come from settings only."""
+    """Mock (deterministic, keyless) or OpenRouter. Model names come from settings only.
+    With LLM_MODEL_FALLBACK set, the default model fails over to it on a provider error."""
     if settings.provider == "mock":
         return mock_model()
-    name = settings.llm_model_escalate if escalate else settings.llm_model_default
+    if escalate:
+        return _openrouter(settings, settings.llm_model_escalate)
+    primary = _openrouter(settings, settings.llm_model_default)
+    if settings.llm_model_fallback and settings.llm_model_fallback != settings.llm_model_default:
+        return FallbackModel(primary, _openrouter(settings, settings.llm_model_fallback))
+    return primary
+
+
+def _openrouter(settings: AgentSettings, name: str) -> Model:
     provider = OpenRouterProvider(
         api_key=settings.openrouter_api_key or None, app_title="TownshipLens"
     )
@@ -60,6 +73,26 @@ def model_for(settings: AgentSettings, escalate: bool = False) -> Model:
         openrouter_cache_messages=True,
     )
     return OpenRouterModel(name, provider=provider, settings=cache)
+
+
+def answer_rejected(messages: list) -> bool:
+    """True when the request being sent carries the validator's rejection of final_answer."""
+    last = messages[-1] if messages else None
+    return isinstance(last, ModelRequest) and any(
+        isinstance(p, RetryPromptPart) and p.tool_name == "final_answer" for p in last.parts
+    )
+
+
+def escalation(stronger: Model) -> SelectModel:
+    """Send the rewrite after a validator rejection (and every later step) to `stronger`."""
+
+    def select(ctx: ModelSelectionContext[Deps]) -> Model | None:
+        if ctx.deps.rec.escalated or answer_rejected(ctx.messages):
+            ctx.deps.rec.escalated = True
+            return stronger
+        return ctx.model
+
+    return SelectModel(select)
 
 
 async def _emit(deps: Deps, ev) -> None:
@@ -222,7 +255,9 @@ async def call_tool(deps: Deps, name: str, **kwargs: Any) -> dict:
             deps.ctx.world, kwargs.get("profile"), kwargs.get("from_id"), kwargs.get("to_id")
         )
     # Spatial tools are sync (graph search, SQLite): keep the event loop free.
+    t0 = time.perf_counter()
     res: sp.ToolResult = await asyncio.to_thread(sp.TOOLS[name], deps.ctx, **kwargs)
+    rec.tool_seconds[name] = rec.tool_seconds.get(name, 0.0) + time.perf_counter() - t0
     rec.place_names |= _place_names(name, res.data)
     if name == "plan_route" and isinstance(res.data, dict) and kwargs.get("scenario_id"):
         sid = kwargs["scenario_id"]
@@ -232,6 +267,8 @@ async def call_tool(deps: Deps, name: str, **kwargs: Any) -> dict:
     if name == "plan_route" and isinstance(res.data, dict):
         for r in res.data.get("routes", []):
             enrich_unknowns(deps.ctx.world, r)  # readable element labels and notes
+            if note := crossing_note(r):
+                r["crossing_note"] = note  # the model copies it word for word (prompt 5h)
             rec.routes[r["id"]] = r
             rec.route_status[r["id"]] = r["status"]
         for c in res.data.get("closures") or []:
@@ -404,7 +441,40 @@ _MODEL_CAP = {"affected_places": ("likely_place_ids", "possible_place_ids")}
 MODEL_EVIDENCE_CAP = 60  # evidence rows sent to the model; the TurnRecord keeps them all
 
 
+# Centre fields the model never needs (map position, graph node): the UI and TurnRecord keep them.
+_CENTRE_DROP = ("coord", "node_id")
+
+
+def _compact_centres(rows: list) -> tuple[list, str | None]:
+    """list_evacuation_centres as the model sees it: one shared disclaimer instead of one per
+    centre, no map coordinates or graph node ids, no empty fields. Ids, names, source,
+    reachability, route status and closures stay, so answers and plan_route calls still work."""
+    disclaimers = {r.get("disclaimer") for r in rows if isinstance(r, dict)}
+    shared = disclaimers.pop() if len(disclaimers) == 1 else None
+    out = []
+    for r in rows:
+        if not isinstance(r, dict):
+            out.append(r)
+            continue
+        row = {k: v for k, v in r.items() if v is not None and not (shared and k == "disclaimer")}
+        if isinstance(row.get("centre"), dict):
+            row["centre"] = {
+                k: v for k, v in row["centre"].items() if v is not None and k not in _CENTRE_DROP
+            }
+        out.append(row)
+    return out, shared
+
+
 def _for_model(name: str, out: dict) -> dict:
+    if name == "list_evacuation_centres" and isinstance(out.get("data"), list):
+        out["data"], shared = _compact_centres(out["data"])
+        if shared:
+            out["disclaimer"] = shared
+        if isinstance(out.get("evidence"), list):
+            out["evidence"] = [
+                {k: v for k, v in e.items() if v is not None} if isinstance(e, dict) else e
+                for e in out["evidence"]
+            ]
     ev = out.get("evidence")
     if isinstance(ev, list) and len(ev) > MODEL_EVIDENCE_CAP:
         # Scenario-level evidence first, then demo (placeholder) rows and place-level rows (the
@@ -443,12 +513,13 @@ def _without_closure_notes(out: Any) -> Any:
     return out
 
 
-def build_agent(model: Model) -> Agent[Deps, FinalAnswer]:
+def build_agent(model: Model, escalate_to: Model | None = None) -> Agent[Deps, FinalAnswer]:
     agent = Agent(
         model,
         deps_type=Deps,
         output_type=ToolOutput(FinalAnswer, name="final_answer"),
         instructions=SYSTEM,
+        capabilities=[escalation(escalate_to)] if escalate_to is not None else [],
     )
 
     @agent.instructions
