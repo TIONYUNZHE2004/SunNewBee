@@ -1,18 +1,6 @@
-{"meta": {"message": "What happens to residents in the storm rehearsal?", "profile": "default", "scenario_id": null, "world": "elmina", "model": "mock-scripted", "recorded_at": "2026-10-16T20:32:51+00:00"}}
+{"meta": {"message": "What happens to residents in the storm rehearsal?", "profile": "default", "scenario_id": null, "world": "elmina", "model": "mock-scripted", "recorded_at": "2026-10-17T11:20:01+00:00"}}
 {"type": "tool.call", "id": "day_rehearsal-0", "name": "day_rehearsal", "args": {"day": "storm"}}
 {"type": "tool.result", "id": "day_rehearsal-0", "name": "day_rehearsal", "summary": "ok"}
-{"type": "answer.draft", "attempt": 1, "delta": "In "}
-{"type": "answer.draft", "attempt": 1, "delta": "this rehearsal of 5,000 "}
-{"type": "answer.draft", "attempt": 1, "delta": "synthetic residents (Storm "}
-{"type": "answer.draft", "attempt": 1, "delta": "at the school run, with "}
-{"type": "answer.draft", "attempt": 1, "delta": "the river rising to +3 "}
-{"type": "answer.draft", "attempt": 1, "delta": "m), 7,881 trips: 6,169 "}
-{"type": "answer.draft", "attempt": 1, "delta": "on time, 71 late, 1,399 "}
-{"type": "answer.draft", "attempt": 1, "delta": "couldn't go and 79 turned "}
-{"type": "answer.draft", "attempt": 1, "delta": "back; 163 had no mapped "}
-{"type": "answer.draft", "attempt": 1, "delta": "connection (data gap). "}
-{"type": "answer.draft", "attempt": 1, "delta": "It is a rehearsal, not a "}
-{"type": "answer.draft", "attempt": 1, "delta": "forecast."}
 {"type": "answer.check", "attempt": 1, "ok": true, "issues": [], "repairs": 0}
 {"type": "text.delta", "delta": "In this rehearsal of 5,000 synthetic res"}
 {"type": "text.delta", "delta": "idents (Storm at the school run, with th"}
@@ -38,7 +26,7 @@
 {"type": "text.delta", "delta": " real people.\n• This is an indicative sc"}
 {"type": "text.delta", "delta": "enario, not a forecast. Follow official "}
 {"type": "text.delta", "delta": "MBSA / JPS / NADMA guidance."}
-{"type": "scene.intent", "intent": {"kind": "day.show", "place_id": null, "route_id": null, "scenario_id": "stage_p3m", "center": null, "range_m": null, "lens": null, "visible": null, "geojson": null, "day": "storm", "t_min": 445}}
+{"type": "scene.intent", "intent": {"kind": "day.show", "place_id": null, "route_id": null, "scenario_id": "stage_p3m", "center": null, "range_m": null, "lens": null, "visible": null, "geojson": null, "route_status": null, "distance_m": null, "est_minutes": null, "day": "storm", "t_min": 445}}
 {"type": "citation", "ref": 1, "evidence_id": "ev-day-storm", "element_id": "day", "attribute": "storm", "status": "indicative", "verified_at": null, "source_type": "rehearsal", "photo_url": null}
 {"type": "uncertainty", "level": "partial", "items": [{"element_id": "answer", "attribute": "caveat", "note": "Residents are synthetic: a rehearsal on the township model, not a forecast and not real people"}, {"element_id": "answer", "attribute": "caveat", "note": "This is an indicative scenario, not a forecast. Follow official MBSA / JPS / NADMA guidance"}]}
 {"type": "disclaimer", "lens": "flood", "text": "Indicative scenario from a 30 m elevation model (Copernicus GLO-30, height above mapped rivers and lakes), not a forecast. Follow official MBSA / JPS / NADMA guidance. Only the area 101.46–101.56 E, 3.15–3.24 N is assessed; paths outside it are not.", "links": [{"label": "Public InfoBanjir (JPS)", "url": "https://publicinfobanjir.water.gov.my"}, {"label": "MET Malaysia warnings", "url": "https://www.met.gov.my"}]}

@@ -1,4 +1,4 @@
-{"meta": {"message": "Where is the nearest evacuation centre if the water rises 3 m?", "profile": "wheelchair", "scenario_id": "stage_p3m", "world": "elmina", "model": "mock-scripted", "recorded_at": "2026-10-17T04:13:54+00:00"}}
+{"meta": {"message": "Where is the nearest evacuation centre if the water rises 3 m?", "profile": "wheelchair", "scenario_id": "stage_p3m", "world": "elmina", "model": "mock-scripted", "recorded_at": "2026-10-17T11:19:22+00:00"}}
 {"type": "tool.call", "id": "find_place-0", "name": "find_place", "args": {"query": "lakeside mall", "types": null, "limit": 5}}
 {"type": "tool.result", "id": "find_place-0", "name": "find_place", "summary": "2 result(s)"}
 {"type": "tool.call", "id": "list_evacuation_centres-1", "name": "list_evacuation_centres", "args": {"scenario_id": "stage_p3m", "profile": "wheelchair", "near_place": "lakeside-mall"}}
@@ -15,17 +15,8 @@
 {"type": "verification.requested", "request_id": "vr-0009", "element_id": "seg-1346154589-0", "attribute": "width_m", "created": true, "demand": 1, "reason": "unknown"}
 {"type": "verification.requested", "request_id": "vr-0010", "element_id": "seg-1306543745-2", "attribute": "step_count", "created": true, "demand": 1, "reason": "unknown"}
 {"type": "tool.result", "id": "plan_route-2", "name": "plan_route", "summary": "route partly_unverified"}
-{"type": "answer.draft", "attempt": 1, "delta": "In the "}
-{"type": "answer.draft", "attempt": 1, "delta": "River +"}
-{"type": "answer.draft", "attempt": 1, "delta": "3 m indicative scenario, the nearest "}
-{"type": "answer.draft", "attempt": 1, "delta": "reachable centre is SJK (C) "}
-{"type": "answer.draft", "attempt": 1, "delta": "Ladang Regent, Elmina; "}
-{"type": "answer.draft", "attempt": 1, "delta": "source: candidate, not "}
-{"type": "answer.draft", "attempt": 1, "delta": "confirmed as a PPS. This "}
-{"type": "answer.draft", "attempt": 1, "delta": "is not a forecast; "}
-{"type": "answer.draft", "attempt": 1, "delta": "follow official MBSA / JPS / "}
-{"type": "answer.draft", "attempt": 1, "delta": "NADMA "}
-{"type": "answer.draft", "attempt": 1, "delta": "guidance."}
+{"type": "answer.draft", "attempt": 1, "delta": "In the River +3 m indicative scenario, the nearest reachable centre is SJK (C) Ladang Regent, Elmina; source: candidate, not confirmed as a PPS."}
+{"type": "answer.draft", "attempt": 1, "delta": " This is not a forecast; follow official MBSA / JPS / NADMA guidance."}
 {"type": "answer.check", "attempt": 1, "ok": true, "issues": [], "repairs": 0}
 {"type": "text.delta", "delta": "Route status: partly unverified\nIn the R"}
 {"type": "text.delta", "delta": "iver +3 m indicative scenario, the neare"}

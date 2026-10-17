@@ -1,4 +1,4 @@
-{"meta": {"message": "Can I get to the lakeside mall in a wheelchair?", "profile": "wheelchair", "scenario_id": null, "world": "elmina", "model": "mock-scripted", "recorded_at": "2026-10-17T04:14:12+00:00"}}
+{"meta": {"message": "Can I get to the lakeside mall in a wheelchair?", "profile": "wheelchair", "scenario_id": null, "world": "elmina", "model": "mock-scripted", "recorded_at": "2026-10-17T11:21:22+00:00"}}
 {"type": "tool.call", "id": "find_place-0", "name": "find_place", "args": {"query": "car park b", "types": null, "limit": 5}}
 {"type": "tool.result", "id": "find_place-0", "name": "find_place", "summary": "5 result(s)"}
 {"type": "tool.call", "id": "find_place-1", "name": "find_place", "args": {"query": "lakeside mall", "types": null, "limit": 5}}
@@ -12,11 +12,7 @@
 {"type": "verification.requested", "request_id": "vr-0015", "element_id": "seg-1346154591-1", "attribute": "incline_pct", "created": false, "demand": 4, "reason": "unknown"}
 {"type": "verification.requested", "request_id": "vr-0017", "element_id": "seg-1346154591-1", "attribute": "width_m", "created": false, "demand": 3, "reason": "unknown"}
 {"type": "tool.result", "id": "plan_route-2", "name": "plan_route", "summary": "route partly_unverified"}
-{"type": "answer.draft", "attempt": 1, "delta": "Lakeside "}
-{"type": "answer.draft", "attempt": 1, "delta": "Mall Car Park B to "}
-{"type": "answer.draft", "attempt": 1, "delta": "Elmina Lakeside Mall: route "}
-{"type": "answer.draft", "attempt": 1, "delta": "partly unverified, 445.9 "}
-{"type": "answer.draft", "attempt": 1, "delta": "m."}
+{"type": "answer.draft", "attempt": 1, "delta": "Lakeside Mall Car Park B to Elmina Lakeside Mall: route partly unverified, 445.9 m."}
 {"type": "answer.check", "attempt": 1, "ok": true, "issues": [], "repairs": 0}
 {"type": "text.delta", "delta": "Route status: partly unverified\nLakeside"}
 {"type": "text.delta", "delta": " Mall Car Park B to Elmina Lakeside Mall"}
