@@ -448,8 +448,9 @@ export function StylisedCity({ onReady }: { onReady?: (info: StylisedReady) => v
   // Crossfade to the chosen mood. A new theme cancels the running fade and restarts from what is
   // shown. Layers built mid-fade (or after) start from the latest theme's palette, except the light
   // pools, which start from the palette on screen (`shown`) so they never flash; the next frame
-  // carries every layer on, so every path ends on the last choice. The ground decals crossfade by imagery-layer alpha (one layer per
-  // palette); base water recolours once, at the midpoint (never intermediates).
+  // carries every layer on, so every path ends on the last choice. The ground decals crossfade by
+  // imagery-layer alpha (one layer per palette); base water recolours once, at the midpoint (never
+  // intermediates).
   const shownTheme = useRef(useTheme.getState().theme);
   useEffect(() => {
     if (!viewer || viewer.isDestroyed()) return;
