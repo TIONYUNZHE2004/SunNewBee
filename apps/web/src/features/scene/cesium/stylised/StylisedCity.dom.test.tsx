@@ -151,12 +151,24 @@ describe("StylisedCity wiring", () => {
     const from = useTheme.getState().theme;
     const target = from === "day" ? "night" : "day";
     const { useSceneSettings } = await import("../../sceneSettingsStore");
-    await act(async () => useTheme.getState().setChoice(target));
-    await act(async () => {
-      await new Promise((r) => setTimeout(r, 300)); // a few fade frames (2 s fade)
-      useSceneSettings.setState({ quality: "low" });
-    });
-    await act(async () => useSceneSettings.setState({ quality: "medium" }));
+    // Fade frames driven by hand: a queued requestAnimationFrame and a stubbed clock.
+    const frames: FrameRequestCallback[] = [];
+    let clock = 1000;
+    vi.stubGlobal("requestAnimationFrame", (cb: FrameRequestCallback) => frames.push(cb));
+    vi.stubGlobal("cancelAnimationFrame", () => {});
+    const now = vi.spyOn(performance, "now").mockImplementation(() => clock);
+    try {
+      await act(async () => useTheme.getState().setChoice(target));
+      clock += 300; // 300 ms into a 2-3 s fade
+      act(() => {
+        for (const cb of frames.splice(0)) cb(clock);
+      });
+      await act(async () => useSceneSettings.setState({ quality: "low" }));
+      await act(async () => useSceneSettings.setState({ quality: "medium" }));
+    } finally {
+      now.mockRestore();
+      vi.unstubAllGlobals();
+    }
     const built = (buildPoolLayer.mock.calls.at(-1) as unknown[])[3] as { glow: number };
     expect(built).not.toEqual(paletteFor(target));
     expect(built).not.toEqual(paletteFor(from));

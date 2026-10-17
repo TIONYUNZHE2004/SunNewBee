@@ -476,17 +476,25 @@ describe("buildPoolLayer", () => {
     expect(imageryLayers).toHaveLength(2); // same colour: no new layer
   });
 
-  it("a second colour change while one is loading replaces the loading layer", () => {
-    const { pools, imageryLayers, layers, fire } = poolSetup("night");
+  it("returning to the shown colour while a swap is loading just drops the loading layer", () => {
+    const { pools, imageryLayers, layers, pending, fire } = poolSetup("night");
     const night = imageryLayers[0]!;
     pools.setPalette(paletteFor("night"), paletteFor("dusk"));
     const dusk = imageryLayers[1]!;
     pools.setPalette(paletteFor("night"), paletteFor("night"));
-    const back = imageryLayers[2]!;
-    expect(layers.list).toEqual([back, night]);
-    expect(layers.list).not.toContain(dusk);
-    fire(); // the first timer was cancelled; only the second swaps
-    expect(layers.list).toEqual([back]);
+    expect(imageryLayers).toHaveLength(2); // no second layer of the shown colour
+    expect(layers.list).toEqual([night]);
+    expect(layers.remove).toHaveBeenCalledWith(dusk, true);
+    expect(pending[0]!.live).toBe(false); // the swap is cancelled
+    fire();
+    expect(layers.list).toEqual([night]);
+    expect(night.alpha).toBeCloseTo(POOL_ALPHA * paletteFor("night").glow, 9);
+    // A later change away still loads a fresh layer and swaps it in.
+    pools.setPalette(paletteFor("night"), paletteFor("dusk"));
+    const again = imageryLayers[2]!;
+    expect(layers.list).toEqual([again, night]);
+    fire();
+    expect(layers.list).toEqual([again]);
   });
 
   it("built by day it keeps a warm colour (never Day's black placeholder) and fades in", async () => {

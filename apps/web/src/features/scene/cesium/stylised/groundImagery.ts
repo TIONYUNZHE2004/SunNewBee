@@ -466,7 +466,9 @@ export function buildPoolLayer(
     lamps.map((l) => makeDecal("pool", "dot", [[[l.lon, l.lat]]], POOL_DIAMETER_M)),
   );
   const colourFor = (p: Palette, fallback: string) => (p.glow > 0 ? p.lightPool : fallback);
-  let colour = colourFor(palette, POOL_FALLBACK);
+  /** Colour of the layer drawn now, and the colour wanted (the loading layer's, if any). */
+  let shownColour = colourFor(palette, POOL_FALLBACK);
+  let colour = shownColour;
   const make = (css: string, at?: number) => {
     const layer = new C.ImageryLayer(
       decalProvider(C, index, (part) => (part === "pool" ? css : null), makeCanvas),
@@ -492,6 +494,7 @@ export function buildPoolLayer(
     if (!next) return;
     drop(current);
     current = next;
+    shownColour = colour;
     next = null;
     style(current, shown);
     scene.requestRender();
@@ -504,10 +507,15 @@ export function buildPoolLayer(
       if (want !== colour) {
         colour = want;
         if (timer !== null) clearTimer(timer);
+        timer = null;
         drop(next);
-        next = make(want, layers.indexOf(current));
-        next.alpha = 0; // loads its tiles, draws nothing until the swap
-        timer = setTimer(swap, INSTANT_SWAP_MS);
+        next = null;
+        // Back to the colour on screen while a swap was loading: dropping that layer is enough.
+        if (want !== shownColour) {
+          next = make(want, layers.indexOf(current));
+          next.alpha = 0; // loads its tiles, draws nothing until the swap
+          timer = setTimer(swap, INSTANT_SWAP_MS);
+        }
       }
       style(current, p);
       scene.requestRender();
