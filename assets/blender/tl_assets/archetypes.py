@@ -15,30 +15,57 @@ from .specs import Variant
 # --- link houses ------------------------------------------------------------------------
 
 STOREY_M = 3.3  # ground floor height (first-floor slab)
-GABLE_PITCH = 30.0  # [?] charcoal concrete tile roof
+GABLE_PITCH = 30.0  # [?] charcoal concrete tile roof (other archetypes)
 PORCH_H = 3.0  # car porch slab top
-MAIN_MAX_D = 13.0  # two-storey body depth; a longer lot gets a single-storey rear kitchen
+MAIN_MAX_D = 13.0  # two-storey body depth (EG4 A1 upper floor 13.2 m); the rest is a kitchen
 KITCHEN_H = 3.3
-PARAPET = 0.6  # modern flat roof
+PARAPET = 0.6  # flat-roof parapet (other archetypes)
+
+# Owner gate A round 1 (Elmina Green 4 design 3): ridge parallel to the street, gable ends on
+# the party walls with no overhang so a row reads as one roof; the upper floor is a white frame
+# around a brick panel with a gridded dark-framed window and a breeze-block screen beside it.
+LINK_EAVE = {"gable": 6.4, "modern": 7.2}  # front/back wall top
+MODERN_PITCH = 8.0  # low pitch behind the front parapet
+EAVE_OVERHANG = (0.4, 0.6)  # (back, front)
+FRAME_D = 0.3  # white frame proud of the upper-floor wall
+FRAME_JAMB = 0.25
+BRICK_D = 0.05
+SCREEN_W = 1.4  # breeze-block screen width (about a quarter of the frontage)
 
 
 def _porch_depth(d: float) -> float:
     return 5.0 if d < 20.0 else 5.5
 
 
+def _upper_box(variant: str) -> tuple[float, float]:
+    """(bottom, top) of the brick-and-screen field inside the white frame."""
+    if variant == "gable":  # the top band stays under the front eave (0.6 m overhang)
+        return STOREY_M + 0.3, LINK_EAVE["gable"] - 0.75
+    return STOREY_M + 0.3, LINK_EAVE["modern"] - 0.45
+
+
+def _upper_window(variant: str, w: float) -> Opening:
+    """The big gridded upper window, inside the brick panel beside the screen."""
+    yb, yt = _upper_box(variant)
+    inner0, inner1 = -w / 2 + FRAME_JAMB, w / 2 - FRAME_JAMB
+    ww = 2.8 if variant == "gable" else 3.0
+    if variant == "gable":  # screen on the right
+        u1 = inner1 - SCREEN_W - 0.35
+        u0 = u1 - ww
+    else:  # screen on the left
+        u0 = inner0 + SCREEN_W + 0.35
+        u1 = u0 + ww
+    v0, v1 = yb + 0.25, yt - 0.3
+    grid = (4, 2) if variant == "gable" else (3, 1)
+    return Opening("front", (u0 + u1) / 2, v0, ww, v1 - v0, "window", grid=grid)
+
+
 def _front_openings(variant: str, w: float) -> list[Opening]:
-    if variant == "gable":
-        return [
-            Opening("front", -w / 2 + 0.95, 0.0, 0.9, 2.1, "door"),
-            Opening("front", w / 2 - 1.6, 0.9, 2.0, 1.4, "window"),
-            Opening("front", -(w / 4 + 0.05), 4.2, 1.4, 1.4, "window"),
-            Opening("front", w / 4 + 0.05, 4.2, 1.4, 1.4, "window"),
-        ]
-    return [  # modern: a glazed sliding door, a side door and one wide upper window
-        Opening("front", -0.5, 0.0, 2.6, 2.3, "window"),
-        Opening("front", w / 2 - 0.75, 0.0, 0.9, 2.2, "door"),
-        Opening("front", 0.9, 4.4, 3.4, 1.5, "window"),
+    ground = [  # a gridded sliding glass door onto the porch and a solid side door
+        Opening("front", -0.9, 0.0, 3.0, 2.4, "window", grid=(4, 1)),
+        Opening("front", w / 2 - 0.8, 0.0, 0.9, 2.2, "door"),
     ]
+    return [*ground, _upper_window(variant, w)]
 
 
 def _back_ground(face_w: float) -> list[Opening]:
@@ -56,36 +83,84 @@ def _back_upper(w: float) -> list[Opening]:
     ]
 
 
+def _upper_facade(variant: str, w: float, h: float, lod: int) -> list:
+    """The white frame, the brick panel around the window and the breeze-block screen
+    (front-anchored on the body's front wall)."""
+    yb, yt = _upper_box(variant)
+    eave = LINK_EAVE[variant]
+    x0, x1 = -w / 2, w / 2
+    i0, i1 = x0 + FRAME_JAMB, x1 - FRAME_JAMB
+    objs = kit.panel(x0, x1, STOREY_M - 0.1, yb, depth=FRAME_D, role="primary")  # A/C ledge
+    if variant == "gable":  # the top band runs up into the eave slab (its top is hidden)
+        top = eave - 0.15
+        objs += kit.panel(x0, x1, yt, top, depth=FRAME_D, role="primary", hidden=("top",))
+    else:  # the parapet hides the low-pitch roof from the street
+        objs += kit.block(x0, x1, yt, h, 0.0, FRAME_D, "primary", name="parapet")
+    for jx0, jx1 in ((x0, i0), (i1, x1)):  # jambs between the ledge and the band
+        objs += kit.panel(jx0, jx1, yb, yt, depth=FRAME_D, role="primary", hidden=("top", "bottom"))
+    win = _upper_window(variant, w)
+    wu0, wu1, wv0, wv1 = win.rect
+    if variant == "gable":
+        s0, s1, b0, b1 = i1 - SCREEN_W, i1, i0, i1 - SCREEN_W
+    else:
+        s0, s1, b0, b1 = i0, i0 + SCREEN_W, i0 + SCREEN_W, i1
+    for bx0, bx1, by0, by1 in (  # brick around the window hole
+        (b0, wu0, yb, yt),
+        (wu1, b1, yb, yt),
+        (wu0, wu1, yb, wv0),
+        (wu0, wu1, wv1, yt),
+    ):
+        if bx1 - bx0 > 0.01 and by1 - by0 > 0.01:
+            objs += kit.panel(bx0, bx1, by0, by1, depth=BRICK_D, role="accent")
+    objs += kit.screen_block(s0, s1, yb, yt, lod=lod)
+    return objs
+
+
 def _link(variant: Variant, lod: int) -> list:
     """A two-storey link house: car porch at the front, body behind it, optional rear kitchen.
 
-    `gable`: white walls, a charcoal tiled gable roof with its ridge along z, porch slab
-    (Elmina Green / Denai Alam). `modern`: a flat roof behind a parapet, a brick accent panel
-    and clean lines (Elmina Valley 2).
+    Both variants: the ridge runs along x (parallel to the street), the gable ends sit on the
+    party walls with no overhang, and the upper floor is a white frame around a brick panel, a
+    gridded window and a breeze-block screen; brick gate pillars and a dark gate. `gable`: a
+    charcoal tiled roof whose eave overhangs the frame (Elmina Green). `modern`: a low-pitch
+    roof hidden behind a front parapet, the screen on the other side (Elmina Valley 2).
     """
     w, h, d = variant.size
-    gable = variant.id == "gable"
-    if lod >= 2:
-        return kit.far_block((w, h, d), "gable" if gable else "flat", pitch_deg=GABLE_PITCH)
-
+    vid = variant.id
+    eave = LINK_EAVE[vid]
     porch = _porch_depth(d)
     body_d = d - porch
     main = min(body_d, MAIN_MAX_D)
     kitchen = body_d - main if body_d - main > 1.0 else 0.0
     main = body_d - kitchen
+    gable_pitch = math.degrees(math.atan((h - eave) / (main / 2)))  # ridge exactly at h
+    pitch = gable_pitch if vid == "gable" else MODERN_PITCH
+    if lod >= 2:  # same roof form: the gable keeps its eave height, modern its low pitch
+        far_pitch = math.degrees(math.atan((h - eave) / (d / 2))) if vid == "gable" else pitch
+        return kit.far_block((w, h, d), "gable", pitch_deg=far_pitch, ridge_axis="x")
+
     z_front = d / 2 - porch
     z_main = z_front - main / 2
-    eave = h - w / 2 * math.tan(math.radians(GABLE_PITCH)) if gable else h - PARAPET
 
     objs: list = []
-    openings = _front_openings(variant.id, w) + _back_upper(w)
+    openings = _front_openings(vid, w) + _back_upper(w)
     if not kitchen:
         openings += _back_ground(w)
-    body = kit.walls(w, main, eave, openings=openings, lod=lod)
-    if gable:
-        body += kit.gable_roof(w, main, eave, GABLE_PITCH, overhang=0.4, ridge_axis="z")
-    else:
-        body += kit.flat_roof(w, main, eave, PARAPET)
+    # the white frame, brick and screen hide the upper front wall (around the window hole)
+    yb, yt = _upper_box(vid)
+    top = eave  # the gable's top band runs into the eave slab; modern's parapet is above
+    wu0, wu1, wv0, wv1 = _upper_window(vid, w).rect
+    covered = [
+        ("front", -w / 2, w / 2, STOREY_M - 0.1, wv0),
+        ("front", -w / 2, w / 2, wv1, top),
+        ("front", -w / 2, wu0, wv0, wv1),
+        ("front", wu1, w / 2, wv0, wv1),
+    ]
+    body = kit.walls(w, main, eave, openings=openings, lod=lod, covered=covered)
+    overhang = EAVE_OVERHANG if vid == "gable" else (EAVE_OVERHANG[0], 0.0)
+    body += kit.gable_roof(
+        w, main, eave, pitch, ridge_axis="x", across_overhang=overhang, end_overhang=0.0
+    )
     objs += kit.place(body, z=z_main)
 
     if kitchen:
@@ -102,19 +177,13 @@ def _link(variant: Variant, lod: int) -> list:
 
     # columns set back 0.6 m so the LOD0 gate pillars stand in front of them
     objs += kit.place(kit.car_porch(w, porch, PORCH_H, inset=0.6), z=d / 2)
-
-    front: list = []
-    if not gable:  # brick accent panel up the upper floor's left side, to the parapet top
-        front += kit.panel(-w / 2, -1.0, STOREY_M + 0.3, h, depth=0.08, role="accent")
-    if lod == 0:
-        if gable:  # a string course at the first-floor line
-            front += kit.panel(-w / 2, w / 2, STOREY_M - 0.1, STOREY_M + 0.02, role="primary")
-        else:  # a thin canopy fin over the wide upper window
-            front += kit.panel(-0.85, w / 2 - 0.15, 6.0, 6.12, depth=0.5, role="secondary")
-    objs += kit.place(front, z=z_front)
+    objs += kit.place(_upper_facade(vid, w, h, lod), z=z_front)
 
     if lod == 0:
-        objs += kit.place(kit.gate_and_fence(w), z=d / 2)
+        gate = kit.gate_and_fence(w, pillar_role="accent", gate_role="dark", low_wall=0.3)
+        # a low brick wall on one party line (each unit owns its right one: no doubled walls)
+        gate += kit.block(w / 2 - 0.2, w / 2, 0.0, 1.2, -3.0, -0.3, "accent", name="side_wall")
+        objs += kit.place(gate, z=d / 2)
         ac = kit.ac_units(2, "back", w=w, d=main, y=3.7 if kitchen else 3.2)
         objs += kit.place(ac, z=z_main)
     return objs

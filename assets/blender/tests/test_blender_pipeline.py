@@ -209,6 +209,34 @@ def test_link_houses(link_built, asset_id):
     for v in ("gable", "modern"):  # gate, fence and AC are LOD0 only
         lod1 = read_attribute(raw, f"{asset_id}__{v}__LOD1", "COLOR_0")
         assert specs.ROLES.index("metal") not in _roles(lod1)
+    _check_ridge_along_x(raw, asset_id)
+
+
+def _ridge(pos, colors, role: int | None) -> tuple[float, float]:
+    """(x span, z span) of the highest vertices (within 5 cm) of `role` (None = any role)."""
+    pts = [p for c, p in zip(colors, pos, strict=True) if role is None or round(c[1] * 7) == role]
+    top = max(p[1] for p in pts)
+    ridge = [p for p in pts if p[1] >= top - 0.05]
+    xs, zs = [p[0] for p in ridge], [p[2] for p in ridge]
+    return max(xs) - min(xs), max(zs) - min(zs)
+
+
+def _check_ridge_along_x(raw: Path, asset_id: str) -> None:
+    """Owner gate A: the ridge runs parallel to the street (x), on LOD0's roof (secondary) and
+    on the LOD2 block, and the gable ends do not overhang the party walls."""
+    secondary = specs.ROLES.index("secondary")
+    for v in specs.ASSETS[asset_id].variants:
+        w = v.size[0]
+        for lod, role in ((0, secondary), (2, None)):
+            name = f"{asset_id}__{v.id}__LOD{lod}"
+            pos = read_attribute(raw, name, "POSITION")
+            x_span, z_span = _ridge(pos, read_attribute(raw, name, "COLOR_0"), role)
+            # LOD0: the highest roof (secondary) vertices; for modern that is the low-pitch
+            # ridge under the parapet top (the parapet is primary)
+            assert x_span >= 0.8 * w, (name, x_span, w)
+            assert z_span <= 0.3, (name, z_span)
+        lo, hi = read_glb(raw).nodes[f"{asset_id}__{v.id}__LOD0"].bounds
+        assert hi[0] - lo[0] <= w + 0.01, "no eave or gable overhang past the party walls"
 
 
 @pytest.mark.parametrize("asset_id", RESIDENTIAL_IDS)

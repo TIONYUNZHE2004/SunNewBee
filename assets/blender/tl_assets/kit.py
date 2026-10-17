@@ -49,6 +49,7 @@ class Opening:
     w: float
     h: float
     kind: str  # window | door | garage | shopfront
+    grid: tuple[int, int] = (0, 0)  # (cols, rows) of a window's LOD0 bars; (0, 0) = default
 
     def __post_init__(self) -> None:
         if self.face not in FACES:
@@ -277,22 +278,27 @@ def _wall_face(
     lod: int,
     recess: float,
     cell: tuple[float, float] = (1.6, 1.2),
+    covered: Sequence[tuple[float, float, float, float]] = (),
 ) -> None:
-    """The face as a grid of quads around the holes, plus a reveal on each hole's sides."""
+    """The face as a grid of quads around the holes, plus a reveal on each hole's sides.
+
+    Cells inside a `covered` rect (u0, u1, v0, v1) are left out: an applied panel hides them.
+    """
     length = f.length
+    edges = [*rects, *covered]
     us = _breaks(
         -length / 2,
         length / 2,
-        [r[0] for r in rects] + [r[1] for r in rects],
+        [r[0] for r in edges] + [r[1] for r in edges],
         cell[0] if lod == 0 else None,
     )
     vs = _breaks(
-        0.0, h, [r[2] for r in rects] + [r[3] for r in rects], cell[1] if lod == 0 else None
+        0.0, h, [r[2] for r in edges] + [r[3] for r in edges], cell[1] if lod == 0 else None
     )
     for u0, u1 in zip(us, us[1:], strict=False):
         for v0, v1 in zip(vs, vs[1:], strict=False):
             um, vm = (u0 + u1) / 2, (v0 + v1) / 2
-            if any(r[0] < um < r[1] and r[2] < vm < r[3] for r in rects):
+            if any(r[0] < um < r[1] and r[2] < vm < r[3] for r in edges):
                 continue
             mesh.fquad(f, u0, u1, v0, v1, 0.0)
     for u0, u1, v0, v1 in rects:
@@ -331,7 +337,16 @@ def _fill(o: Opening, lod: int, f: _Frame, recess: float) -> list:
         if o.kind != "door":
             frame.fbox(f, u0 + fw, u1 - fw, v0, v0 + fw, back, fd, skip=("s0", "bottom"))
         bar = ("s0", "bottom", "top")
-        if o.kind == "window" and o.w >= 1.2:  # a mullion
+        cols, rows = o.grid
+        if cols or rows:  # an explicit window grid: cols - 1 mullions, rows - 1 transoms
+            for k in range(1, max(cols, 1)):
+                u = u0 + o.w * k / cols
+                frame.fbox(f, u - fw / 2, u + fw / 2, v0 + fw, v1 - fw, back, fd, skip=bar)
+            for k in range(1, max(rows, 1)):
+                v = v0 + o.h * k / rows
+                tb = ("s0", "s1", "s3")
+                frame.fbox(f, u0 + fw, u1 - fw, v - fw / 2, v + fw / 2, back, fd, skip=tb)
+        elif o.kind == "window" and o.w >= 1.2:  # a mullion
             frame.fbox(f, o.u - fw / 2, o.u + fw / 2, v0 + fw, v1 - fw, back, fd, skip=bar)
         if o.kind == "shopfront":
             n = max(1, round(o.w / 1.5))
@@ -372,8 +387,12 @@ def walls(
     role: str = "primary",
     faces: Sequence[str] = FACES,
     cell: tuple[float, float] = (1.6, 1.2),
+    covered: Sequence[tuple[str, float, float, float, float]] = (),
 ) -> list:
     """Four walls of a w × d × h box (no top, no bottom), holes cut for `openings`.
+
+    `covered` lists (face, u0, u1, v0, v1) areas that applied panels hide; no wall is built
+    there (no hidden triangles, no black AO vertices behind the panels).
 
     Each hole gets a reveal and its fill (`window`). LOD0 also subdivides the wall into about
     `cell` (1.6 × 1.2 m) cells so the baked AO has vertices to vary across; big buildings pass
@@ -386,7 +405,8 @@ def walls(
         f = face_frame(face, w, d)
         ops = [o for o in openings if o.face == face]
         _check_openings(face, f.length, h, ops)
-        _wall_face(mesh, f, h, [o.rect for o in ops], lod, recess, cell)
+        cov = [c[1:] for c in covered if c[0] == face]
+        _wall_face(mesh, f, h, [o.rect for o in ops], lod, recess, cell, cov)
         for o in ops:
             fills += _fill(o, lod, f, recess)
     return _keep(mesh.obj("walls", role)) + fills
@@ -416,13 +436,16 @@ def gable_roof(
     wall_role: str = "primary",
     across_overhang: tuple[float, float] | None = None,
     roof_role: str = "secondary",
+    end_overhang: float | None = None,
 ) -> list:
     """Two tiled slabs (role `roof_role`, default secondary) over a w × d footprint, plus the
     two gable infills.
 
     The slab tops meet at the ridge, at eave_h + span / 2 * tan(pitch); they overhang the walls
     by `overhang` on every side (`across_overhang` = (neg, pos) overrides the two sides across the
-    ridge, e.g. 0 on a party wall). The gable triangles (role `wall_role`) close the end walls.
+    ridge, e.g. 0 on a party wall; `end_overhang` overrides the two gable ends, e.g. 0 so a row
+    of link houses reads as one continuous roof). The gable triangles (role `wall_role`) close
+    the end walls.
     """
     m = _axis_map(ridge_axis)
     span, length = (w, d) if ridge_axis == "z" else (d, w)
@@ -434,7 +457,8 @@ def gable_roof(
         if across_overhang is None
         else dict(zip((-1.0, 1.0), across_overhang, strict=True))
     )
-    l0, l1 = -(length / 2 + o), length / 2 + o
+    eo = o if end_overhang is None else end_overhang
+    l0, l1 = -(length / 2 + eo), length / 2 + eo
     roof = _Mesh()
     for s in (-1.0, 1.0):
         so = ov[s]
@@ -591,30 +615,91 @@ def balcony(w: float, depth: float, y: float, *, lod: int = 0, rail_h: float = 1
     return _keep(slab.obj("balcony_slab", "primary"), rail.obj("balcony_parapet", "primary"))
 
 
-def gate_and_fence(w: float, *, h: float = 1.5, walk_gate: float = 1.1, bar: float = 0.25):
-    """The front boundary across x in [-w/2, w/2] at z in [-0.3, 0]: brick pillars (primary) and
-    a barred metal gate (role metal) for the drive plus a pedestrian gate."""
+def gate_and_fence(
+    w: float,
+    *,
+    h: float = 1.5,
+    walk_gate: float = 1.1,
+    bar: float = 0.25,
+    pillar_role: str = "primary",
+    gate_role: str = "metal",
+    low_wall: float = 0.0,
+):
+    """The front boundary across x in [-w/2, w/2] at z in [-0.3, 0]: pillars (`pillar_role`)
+    and a barred gate (`gate_role`) for the drive plus a pedestrian gate. `low_wall` > 0 adds
+    a plinth of that height (`pillar_role`, e.g. brick) under the drive gate's bars."""
     pillars, gate = _Mesh(), _Mesh()
     p = 0.3
     xs = (-w / 2, w / 2 - walk_gate - p, w / 2 - p)
     for x in xs:
         pillars.box(x, x + p, 0.0, h + 0.1, -p, 0.0)
     r, z0, z1 = 0.05, -0.2, -0.15
-    for a, b in ((xs[0] + p, xs[1]), (xs[1] + p, xs[2])):
-        for y0 in (0.1, h - r):
+    for i, (a, b) in enumerate(((xs[0] + p, xs[1]), (xs[1] + p, xs[2]))):
+        base = 0.1
+        if low_wall > 0 and i == 0:
+            pillars.box(a, b, 0.0, low_wall, -0.25, -0.1, skip=("bottom", "s1", "s3"))
+            base = low_wall
+        for y0 in (base, h - r):
             gate.box(a, b, y0, y0 + r, z0, z1, skip=("s1", "s3"))
         n = max(1, round((b - a) / bar))
         for k in range(1, n):
             x = a + (b - a) * k / n
-            gate.box(x - r / 2, x + r / 2, 0.1 + r, h - r, z0, z1, skip=("bottom", "top"))
-    return _keep(pillars.obj("gate_pillars", "primary"), gate.obj("gate", "metal"))
+            gate.box(x - r / 2, x + r / 2, base + r, h - r, z0, z1, skip=("bottom", "top"))
+    return _keep(pillars.obj("gate_pillars", pillar_role), gate.obj("gate", gate_role))
 
 
-def panel(x0: float, x1: float, y0: float, y1: float, *, depth: float = 0.08, role: str = "accent"):
-    """A facade panel proud of the wall by `depth` (brick accent, a ledge or a canopy fin)."""
+def panel(
+    x0: float,
+    x1: float,
+    y0: float,
+    y1: float,
+    *,
+    depth: float = 0.08,
+    role: str = "accent",
+    hidden: Iterable[str] = (),
+):
+    """A facade panel proud of the wall by `depth` (brick accent, a ledge or a canopy fin).
+
+    `hidden` names more faces to leave out ("top", "bottom", "s1" = +x end, "s3" = -x end)
+    where the panel butts against another part.
+    """
     m = _Mesh()
-    m.box(x0, x1, y0, y1, 0.0, depth, skip=("s0",) if y0 > EPS else ("s0", "bottom"))
+    skip = {"s0", *hidden} | ({"bottom"} if y0 <= EPS else set())
+    m.box(x0, x1, y0, y1, 0.0, depth, skip=skip)
     return _keep(m.obj(f"panel_{role}", role))
+
+
+def screen_block(
+    x0: float,
+    x1: float,
+    y0: float,
+    y1: float,
+    *,
+    lod: int,
+    pitch: float = 0.3,
+    bar: float = 0.07,
+    depth: float = 0.15,
+    role: str = "secondary",
+):
+    """A breeze-block screen on the facade (front-anchored, proud by `depth`), geometry only.
+
+    LOD0: a lattice of bars about `pitch` apart (role `role`) over a dark backing, so it reads
+    as perforated. LOD1: one flat panel of `role`.
+    """
+    lattice, backing = _Mesh(), _Mesh()
+    if lod >= 1:
+        lattice.box(x0, x1, y0, y1, 0.0, depth, skip=("s0", "bottom"))
+        return _keep(lattice.obj("screen", role))
+    nx = max(1, round((x1 - x0) / pitch))
+    ny = max(1, round((y1 - y0) / pitch))
+    for k in range(nx + 1):  # vertical bars, full height
+        x = x0 + (x1 - x0 - bar) * k / nx
+        lattice.box(x, x + bar, y0, y1, 0.0, depth, skip=("s0",))
+    for k in range(ny + 1):  # horizontal bars between the verticals
+        y = y0 + (y1 - y0 - bar) * k / ny
+        lattice.box(x0 + bar, x1 - bar, y, y + bar, 0.0, depth, skip=("s0", "s1", "s3"))
+    backing.face([(x0, y0, 0.01), (x1, y0, 0.01), (x1, y1, 0.01), (x0, y1, 0.01)], (0, 0, 1))
+    return _keep(lattice.obj("screen", role), backing.obj("screen_back", "dark"))
 
 
 def sign_band(w: float, h: float, y: float, *, depth: float = 0.12):
