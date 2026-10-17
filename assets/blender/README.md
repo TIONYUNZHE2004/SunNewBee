@@ -35,6 +35,8 @@ TL_BLENDER_TESTS=1 uv run pytest assets/blender/tests -m blender -q   # builds a
 | `tl_assets/manifest.py` | `build_manifest` (schema version 1) (pure) |
 | `tl_assets/core.py` | bpy helpers: `reset_scene`, `box`, `set_role`, `join`, `bake_ao`, `export_glb`, `tri_count` |
 | `tl_assets/build.py` | Blender entry point, `BUILDERS`, `build_asset`, `preview`, and the `calib` builder |
+| `tl_assets/kit.py` | The parametric building kit: `walls` with `Opening`s, `window`, gable/hip/flat roofs, porch, five-foot way, balcony, AC, solar, gate, sign band, `panel`, `far_block` (LOD2), `place` |
+| `tl_assets/archetypes.py` | Archetype builders (`BUILDERS`, merged into `build.py`): `link_intermediate`, `link_long` |
 
 ## Conventions
 

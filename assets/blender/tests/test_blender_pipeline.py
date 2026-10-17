@@ -6,6 +6,7 @@ import sys
 from pathlib import Path
 
 import pytest
+from tl_assets import specs
 from tl_assets.glbinfo import read_attribute, read_glb
 
 ASSETS_DIR = Path(__file__).resolve().parents[1]
@@ -90,3 +91,78 @@ def test_ao_is_baked_into_red(built):
     # role in G: walls primary (0), porch slab secondary (1/7)
     greens = {round(c[1] * 7) for c in colors}
     assert greens == {0, 1}
+
+
+# --- Task 2: link houses ---------------------------------------------------------------
+
+LINK_IDS = ("link_intermediate", "link_long")
+
+
+@pytest.fixture(scope="module")
+def link_built(tmp_path_factory) -> dict[str, tuple[Path, Path]]:
+    """Build both link houses through run.py and pack them into a tmp folder (no manifest)."""
+    cmd = [sys.executable, str(ASSETS_DIR / "run.py")]
+    for a in LINK_IDS:
+        cmd += ["--asset", a]
+    run = subprocess.run(cmd, cwd=ROOT, capture_output=True, text=True, timeout=1200)
+    assert run.returncode == 0, run.stdout[-4000:] + run.stderr[-4000:]
+    out = tmp_path_factory.mktemp("links")
+    pack_cmd = [sys.executable, str(ASSETS_DIR / "pack.py"), "--out", str(out)]
+    for a in LINK_IDS:
+        pack_cmd += ["--only", a]
+    pack = subprocess.run(pack_cmd, cwd=ROOT, capture_output=True, text=True, timeout=300)
+    assert pack.returncode == 0, pack.stdout[-4000:] + pack.stderr[-4000:]
+    assert not (out / "manifest.json").exists()
+    raw_dir = ASSETS_DIR / "out" / "raw"
+    return {a: (raw_dir / specs.ASSETS[a].file, out / specs.ASSETS[a].file) for a in LINK_IDS}
+
+
+@pytest.mark.parametrize("asset_id", LINK_IDS)
+def test_link_houses(link_built, asset_id):
+    raw, packed = link_built[asset_id]
+    spec = specs.ASSETS[asset_id]
+    a, b = read_glb(raw), read_glb(packed)
+    # the committed-asset checks, on the packed file
+    assert packed.stat().st_size <= spec.max_bytes
+    assert b.materials == ["tl_role"]
+    assert b.images == 0
+    assert "EXT_meshopt_compression" in b.extensions_used
+    assert {v.id for v in spec.variants} == {"gable", "modern"}
+    for v in spec.variants:
+        for n, cap in enumerate(v.tris):
+            name = f"{asset_id}__{v.id}__LOD{n}"
+            node = b.nodes[name]
+            assert node.primitives == 1, name
+            assert "COLOR_0" in node.attributes, name
+            assert 0 < node.tris <= cap, (name, node.tris, cap)
+            assert node.tris == a.nodes[name].tris, name
+        assert b.nodes[f"{asset_id}__{v.id}__LOD2"].tris <= 40
+        lod0 = f"{asset_id}__{v.id}__LOD0"
+        assert specs.bounds_errors(v, b.nodes[lod0].bounds) == []
+        # LOD1 is simpler than LOD0, LOD2 simpler than LOD1
+        tris = [a.nodes[f"{asset_id}__{v.id}__LOD{n}"].tris for n in range(3)]
+        assert tris[0] > tris[1] > tris[2], tris
+        # vertex contract on the raw LOD0
+        colors = read_attribute(raw, lod0, "COLOR_0")
+        reds = [c[0] for c in colors]
+        assert statistics.pstdev(reds) > 0.05, lod0  # AO varies
+        assert 0.3 <= statistics.fmean(reds) <= 1.0, lod0
+        pos = read_attribute(raw, lod0, "POSITION")
+        assert min(p[1] for p in pos) > -0.01, "nothing below the ground"
+        upper_walls = [c[0] for c, p in zip(colors, pos, strict=True) if p[1] > 5 and c[1] < 0.05]
+        assert statistics.fmean(upper_walls) > 0.5, "upper walls are open (normals outwards)"
+        glass_ao = [c[0] for c in colors if round(c[1] * 7) == specs.ROLES.index("glass")]
+        assert statistics.fmean(glass_ao) > 0.3, "glass is not baked black"
+        roles = {round(c[1] * 7) for c in colors}
+        assert len(roles) >= 4, (lod0, roles)
+        assert {specs.ROLES.index("glass"), specs.ROLES.index("dark")} <= roles, roles
+        glass = [c[2] for c in colors if round(c[1] * 7) == specs.ROLES.index("glass")]
+        assert glass and all(0.0 < g < 1.0 for g in glass), lod0
+        assert len({round(g, 4) for g in glass}) > 1, "window seeds vary per window"
+        if v.id == "modern":
+            assert specs.ROLES.index("accent") in roles  # brick accent panel
+        # LOD1 keeps glass (inset faces) but drops the dark window frames
+        lod1 = f"{asset_id}__{v.id}__LOD1"
+        roles1 = {round(c[1] * 7) for c in read_attribute(raw, lod1, "COLOR_0")}
+        assert specs.ROLES.index("glass") in roles1
+        assert specs.ROLES.index("metal") not in roles1  # gate, fence and AC are LOD0 only
