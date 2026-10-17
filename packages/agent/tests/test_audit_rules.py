@@ -83,6 +83,24 @@ def test_place_names_are_not_measured_but_refusals_are():
         "Tiada risiko di laluan ini.",
         "这条路没有危险。",
         "我保证没有台阶。",
+        # A4: a negation in an earlier clause does not negate the promise.
+        "No steps, so I guarantee this route is accessible.",
+        "No steps; I guarantee it.",
+        "No steps — guaranteed.",
+        "There are no steps I guarantee it.",
+        "It isn't steep, and I guarantee it.",
+        "Tiada tangga, jadi saya jamin laluan ini sesuai.",
+        "没有台阶，所以我保证可以通行。",
+        "没有台阶我保证。",
+        # A4: paraphrases of "no risk".
+        "There is zero risk on this route.",
+        "Risk is zero here.",
+        "You can go without any risk.",
+        "Nothing to worry about.",
+        "Risiko sifar di laluan ini.",
+        "Sifar risiko.",
+        "这条路零风险。",
+        "不会有任何风险。",
     ],
 )
 def test_overclaims_are_rejected(text):
@@ -97,6 +115,13 @@ def test_overclaims_are_rejected(text):
         "We cannot guarantee the ramp slope.",
         "Kami tidak dapat menjamin cerun tanjakan.",
         "我们无法保证坡度。",
+        "We can't guarantee the slope.",
+        "This does not guarantee access.",
+        "There is no guarantee the lift works.",
+        "Ini bukan jaminan.",
+        "这不是保证。",
+        "我不能做出保证。",
+        "No steps are recorded on this route.",
         "The route is confirmed on demo values.",
     ],
 )

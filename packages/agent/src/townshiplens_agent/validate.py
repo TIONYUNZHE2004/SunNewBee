@@ -378,30 +378,50 @@ def measurement_errors(ans: FinalAnswer, rec: TurnRecord) -> list[str]:
     return errs
 
 
-# Audit F3: promises the data cannot back ("I guarantee", "no risk", "totally accessible"), in
-# English, Bahasa Melayu and Chinese. A negated promise ("not a guarantee", "无法保证") is honest.
+# Audit F3/A4: promises the data cannot back ("I guarantee", "no risk", "zero risk", "totally
+# accessible"), in English, Bahasa Melayu and Chinese. A promise is honest only when a negation
+# in the same clause governs it directly ("not a guarantee", "无法保证"); "No steps, so I
+# guarantee" is still a promise, because the clause ends before it.
 OVERCLAIM = re.compile(
-    r"\bguarantee[ds]?\b|\bno (?:risks?|danger)\b|\brisk[- ]free\b|\bperfectly fine\b"
+    r"\bguarantee[ds]?\b|\b(?:no|zero|nil|0)\s+(?:risks?|danger)\b|\brisk[- ]free\b"
+    r"|\b(?:without|free of) (?:any )?(?:risks?|danger)\b|\brisks? (?:is|are) (?:zero|nil|none)\b"
+    r"|\bnothing to worry about\b|\bno need to worry\b|\bperfectly fine\b"
     r"|\b(?:totally|fully|completely|perfectly|absolutely|entirely|100 ?%) (?:fine|ok(?:ay)?"
     r"|accessible|wheelchair[- ]accessible|step[- ]free|barrier[- ]free|passable)\b"
-    r"|\bdijamin\b|\bmenjamin\b|\bjaminan\b|\b(?:tiada|tanpa|tidak ada|tak ada)\s+"
-    r"(?:sebarang\s+)?(?:risiko|bahaya)\b"
+    r"|\b(?:dijamin|menjamin|jaminan|jamin)\b|\b(?:tiada|tanpa|tidak ada|tak ada|sifar)\s+"
+    r"(?:sebarang\s+|langsung\s+)?(?:risiko|bahaya)\b|\brisiko\s+sifar\b|\btidak berisiko\b"
     r"|\b(?:sepenuhnya|100 ?%)\s+(?:mesra oku|boleh diakses)\b"
-    r"|保证|担保|没有(?:任何)?(?:危险|风险)|无(?:危险|风险)|毫无风险|完全(?:无障碍|没问题|可以通行)"
-    r"|绝对(?:可以|没问题)",
+    r"|保证|担保|没有(?:任何)?(?:危险|风险)|无(?:危险|风险)|毫无风险|零(?:危险|风险)"
+    r"|不会有(?:任何)?(?:危险|风险)|完全(?:无障碍|没问题|可以通行)|绝对(?:可以|没问题)",
     re.IGNORECASE,
 )
-_NEGATED_CLAIM = re.compile(
-    r"(?:\bnot\b|\bcannot\b|\bcan't\b|\bcan not\b|\bnever\b|\bno\b|\btidak\b|\btak\b"
-    r"|\bbukan\b|\bbelum\b|无法|不能|不会|并非|不是|没法|不)[^.;。；]{0,25}$",
+# A clause ends at punctuation or a joining word; a negation before that point negates
+# something else ("No steps, so ...", "没有台阶，所以 ...").
+_CLAUSE_BREAK = re.compile(
+    r"[.;:!?,。；：！？，、\n—–]|\b(?:so|and|but|therefore|thus|because|which|then|jadi|maka|dan"
+    r"|tetapi|tapi|kerana|sebab)\b|所以|因此|但是|但|而且|并且|因为|于是",
     re.IGNORECASE,
 )
+# The negation must govern the promise: only filler words may stand between them.
+_GOVERNS = re.compile(
+    r"(?:\b(?:not|cannot|can not|never|no|tidak|tak|bukan|belum)\b|\b\w+n[’']t\b)"
+    r"(?:\s+(?:a|an|any|the|be|been|is|are|was|can|could|do|does|did|to|really|fully|always"
+    r"|truly|yet|able|offer|give|make|provide|real|absolute|100 ?%|dapat|boleh|akan|mampu"
+    r"|untuk|ada|sebarang|satu|suatu|lagi|pernah|memberi|sebuah))*\s*$"
+    r"|(?:无法|不能|不会|并非|不是|没法|不)(?:能|可以|敢|一定|作|做|出|提供|给|任何|向你|对此)*\s*$",
+    re.IGNORECASE,
+)
+
+
+def _negated(before: str) -> bool:
+    clause = _CLAUSE_BREAK.split(before)[-1]
+    return bool(_GOVERNS.search(clause))
 
 
 def overclaim_errors(text: str, rec: TurnRecord) -> list[str]:
     plain = _strip_names(text, rec.place_names)
     for m in OVERCLAIM.finditer(plain):
-        if not _NEGATED_CLAIM.search(plain[max(0, m.start() - 30) : m.start()]):
+        if not _negated(plain[: m.start()]):
             return [
                 f"Never guarantee or rule out risk ({m.group(0)!r}): the township data can only "
                 "say what is recorded and what is not checked yet."

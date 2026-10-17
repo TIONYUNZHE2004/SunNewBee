@@ -69,6 +69,15 @@ def test_unbound_facts_are_rejected(hero, text):
     assert errors(hero, text), text
 
 
+# A4: promises the data cannot back, even after a nearby "no".
+@pytest.mark.parametrize(
+    "text",
+    ["No steps, so I guarantee this route is accessible.", "There is zero risk on this route."],
+)
+def test_promises_are_rejected(hero, text):
+    assert errors(hero, text), text
+
+
 def test_empty_citations_do_not_let_a_count_through(hero):
     assert errors(hero, "There are 99 steps on this route.", claims=[])
 
@@ -88,6 +97,7 @@ def test_a_refusal_licenses_no_positive_number(hero):
         "Allow about 7 minutes.",  # 6.3 rounded up, with "about"
         "Laluan ini kira-kira 440 m.",
         "路线约440米。",
+        "No staff-reported closure is on record. That is not a guarantee.",
     ],
 )
 def test_honest_controls_pass(hero, text):
