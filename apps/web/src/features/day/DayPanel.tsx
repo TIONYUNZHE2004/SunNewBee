@@ -338,6 +338,9 @@ function Residents({
             {str(sel.name)}, {num(sel.age)} · {str(sel.role)}
           </h3>
           <p className="text-[10px] text-fg-soft">Their whole day</p>
+          {((sel.diary ?? []) as Any[]).length === 0 && (
+            <p className="text-fg">No trips out in this rehearsed day: stayed at home.</p>
+          )}
           <ul className="space-y-1">
             {((sel.diary ?? []) as Any[]).map((l) => (
               <li key={`${str(l.trip)}-${str(l.text).slice(0, 12)}`} className="text-fg">
@@ -437,7 +440,7 @@ function Calibration({ c }: { c: Any }) {
   return (
     <div className="space-y-1">
       <h3 className="text-xs font-semibold uppercase tracking-wide text-fg-soft">
-        Checked against {str(c.area)}, {num(c.year)}
+        Compared with {str(c.area)}, {num(c.year)}
       </h3>
       <table className="w-full text-xs">
         <caption className="sr-only">The synthetic town against official figures</caption>

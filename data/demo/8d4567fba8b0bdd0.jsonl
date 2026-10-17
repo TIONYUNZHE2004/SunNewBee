@@ -1,4 +1,4 @@
-{"meta": {"message": "What happens to residents in the storm rehearsal?", "profile": "default", "scenario_id": null, "world": "elmina", "model": "mock-scripted", "recorded_at": "2026-10-17T05:43:31+00:00"}}
+{"meta": {"message": "What happens to residents in the storm rehearsal?", "profile": "default", "scenario_id": null, "world": "elmina", "model": "mock-scripted", "recorded_at": "2026-10-17T06:11:28+00:00"}}
 {"type": "tool.call", "id": "day_rehearsal-0", "name": "day_rehearsal", "args": {"day": "storm"}}
 {"type": "tool.result", "id": "day_rehearsal-0", "name": "day_rehearsal", "summary": "ok"}
 {"type": "answer.draft", "attempt": 1, "delta": "In "}
@@ -29,7 +29,7 @@
 {"type": "text.delta", "delta": "ey couldn't make, 0 late.\n4. Households "}
 {"type": "text.delta", "delta": "without a car: 134 of 442 had a trip the"}
 {"type": "text.delta", "delta": "y couldn't make, 5 late.\n5. Children (un"}
-{"type": "text.delta", "delta": "der 13): 117 of 1,014 had a trip they co"}
+{"type": "text.delta", "delta": "der 13): 114 of 1,014 had a trip they co"}
 {"type": "text.delta", "delta": "uldn't make, 5 late.\n6. Older residents "}
 {"type": "text.delta", "delta": "(65+): 45 of 464 had a trip they couldn'"}
 {"type": "text.delta", "delta": "t make, 16 late.\nWorth knowing:\n• Reside"}

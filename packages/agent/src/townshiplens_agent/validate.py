@@ -827,8 +827,9 @@ MY_TRIP_ADVICE = re.compile(
 )
 MY_TRIP_OUTCOME = {
     "clear": r"got there|arrived|reached|sampai|tiba|到达|抵达",
-    "longer": r"longer way|longer route|jalan lebih jauh|laluan lebih panjang|绕",
-    "very_long": r"very long way|long way round|sangat jauh|很远|很长",
+    "longer": r"longer way|longer route|lebih (?:jauh|panjang)|绕",
+    # live smoke test C21: "laluan yang sangat panjang", "very long" are the honest BM wording
+    "very_long": r"very long|long way round|sangat (?:jauh|panjang)|jauh lebih panjang|很远|很长",
     "rerouted": r"re-?plan|re-?route|changed (?:its|the) route|tukar laluan|改道|重新规划",
     "turned_back": r"turned back|berpatah balik|折返|返回",
     "stranded": r"\bstuck\b|terkandas|被困",
@@ -893,12 +894,11 @@ def my_trip_errors(ans: FinalAnswer, rec: TurnRecord) -> list[str]:
         re.search(MY_TRIP_OUTCOME[out], x, re.IGNORECASE) for x in said
     ):
         errs.append(
-            f"Say what happened to the trip at {d.get('leave')} in the rehearsal "
-            f"(it {out.replace('_', ' ')}), in the sentence about that time."
+            f"Say what happened to the trip at {d.get('leave')} in the rehearsal (it "
+            f"{_OUTCOME_SAID.get(out, out)}), in the sentence about that time."
         )
-    if out in ("no_way", "very_long", "turned_back", "stranded") and any(
-        _ARRIVED.search(x) for x in said
-    ):
+    # a very long way round does arrive (late); the others never got there
+    if out in ("no_way", "turned_back", "stranded") and any(_ARRIVED.search(x) for x in said):
         errs.append(
             f"The trip at {d.get('leave')} did not get there in the rehearsal: do not say it "
             "arrived."
@@ -935,6 +935,15 @@ def my_trip_errors(ans: FinalAnswer, rec: TurnRecord) -> list[str]:
     return errs
 
 
+_OUTCOME_SAID = {
+    "clear": "got there",
+    "longer": "got there by a longer way round",
+    "very_long": "found only a very long way round",
+    "rerouted": "had to re-plan on the way",
+    "turned_back": "turned back",
+    "stranded": "was stuck on the way",
+    "no_way": "found no way through",
+}
 _SENTENCE = re.compile(r"(?<=[.!?;])\s+|\n")
 _ARRIVED = re.compile(
     r"(?<!not )(?<!n't )(?<!never )\b(?:got there|arrived|reached|sampai|tiba)\b", re.IGNORECASE

@@ -85,6 +85,8 @@ These are smoke tests (6 live turns, one model, Claude Haiku 5.5), not an evalua
 | The same, run 2 | Template fallback | The first best-claim rule also rejected honest negations ("not the best option") |
 | The same, run 3 (drafts captured) | Passed on attempt 3 | Both rejected drafts are now passing tests; the rule reads negation |
 
+The saved live answers (Cycles 15–17) quote the storm day as it was **before the Cycle 21 school-run fix** (7,881 trips, 1,373 pupils); after the fix the same day has 6,710 trips and 818 pupils (see the comparison report). The answers were checked against the numbers of their day, so the honesty result stands; only the figures moved.
+
 On the mock, the golden set is now **22/22**, including three rehearsal questions (weekday in EN, a night event in BM, and testing a change). Each of the 6 smoke-test turns cost a few cents.
 
 ## 3. Where the gate earned its keep (live rewrites)

@@ -5,6 +5,7 @@ import hashlib
 import json
 import re
 import threading
+import uuid
 from collections import OrderedDict
 from dataclasses import dataclass, replace
 
@@ -820,6 +821,17 @@ def wm_idle() -> bool:
         _WM_SLOTS.release()
 
 
+def _world_token(world: World) -> str:
+    """A cache identity for a loaded world. Not id(world): ids are reused after an object is
+    garbage-collected, so a newly loaded world could be served another world's cached results
+    (seen as a flaky test when many worlds are loaded in one run)."""
+    tok = getattr(world, "_wm_token", None)
+    if tok is None:
+        tok = uuid.uuid4().hex
+        world._wm_token = tok  # type: ignore[attr-defined]
+    return tok
+
+
 def _wm_cached(
     world: World,
     kind: str,
@@ -829,7 +841,7 @@ def _wm_cached(
     cache_max: int = _WM_CACHE_MAX,
     wait_s: float = _WM_WAIT_S,
 ) -> ToolResult:
-    key = json.dumps([kind, id(world), world.version, args], sort_keys=True, default=str)
+    key = json.dumps([kind, _world_token(world), world.version, args], sort_keys=True, default=str)
     with _WM_CACHE_LOCK:  # request threads and the warm-up thread share the caches
         hit = cache.get(key)
         if hit is not None:
@@ -1333,7 +1345,7 @@ def _day_result(w: World, scenario_id: str):
     sc, pop, cast = _day_parts(w, scenario_id)
     if sc is None:
         return None, None, None, None
-    key = json.dumps([id(w), w.version, scenario_id, _today()])
+    key = json.dumps([_world_token(w), w.version, scenario_id, _today()])
     with _WM_CACHE_LOCK:
         hit = _DAY_RESULTS.get(key)
     if hit is None:

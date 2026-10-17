@@ -132,7 +132,7 @@ def synthetic(site: Path) -> dict:
     }
 
 
-def main(site: Path, year: int = 2025) -> dict:
+def main(site: Path, year: int = 2025, dest: Path | None = None) -> dict:
     total, bands = petaling_population(year)
     st = petaling_school_stats(year)
     syn = synthetic(site)
@@ -191,12 +191,18 @@ def main(site: Path, year: int = 2025) -> dict:
         {"what": "Teenagers aged 13-17 per 1,000 residents",
          "synthetic": str(per_k["secondary"]["synthetic_secondary_age_per_1000"]),
          "official": f"about {est_13_17} (from 5-year age bands)", "source": src_pop},
-        {"what": "Government-school pupils per 1,000 residents (primary / secondary)",
-         "synthetic": "every school-age resident goes to a mapped school",
+        {"what": "Pupils per 1,000 residents (primary / secondary)",
+         "synthetic": f"{per_k['primary']['synthetic_primary_age_per_1000']} / "
+         f"{per_k['secondary']['synthetic_secondary_age_per_1000']} (every school-age resident "
+         "goes to a mapped school, government or private)",
          "official": f"{per_k['primary']['petaling_government_school_pupils_per_1000']} / "
-         f"{per_k['secondary']['petaling_government_school_pupils_per_1000']}",
+         f"{per_k['secondary']['petaling_government_school_pupils_per_1000']} in government "
+         "schools only",
          "source": src_moe},
     ]  # fmt: skip
+    gap = {r["band"]: r["gap_points"] for r in age_rows}
+    gap_50_64 = round(gap["50-54"] + gap["55-59"] + gap["60-64"], 1)
+    gap_80 = round(gap["80-84"] + gap["85+"], 1)
     out = {
         "generated": date.today().isoformat(),
         "summary_rows": rows,
@@ -222,27 +228,117 @@ def main(site: Path, year: int = 2025) -> dict:
         "age_broad": broad,
         "max_band_gap_points": max(abs(r["gap_points"]) for r in age_rows),
         "school_age_per_1000": per_k,
+        "band_gaps": {"ages_50_64_points": gap_50_64, "ages_80_plus_points": gap_80},
         "notes": [
-            "Enrolment counts government schools only (MOE EMIS); private and international "
-            "schools are not in it, so the district's school-age children are more than its "
-            "government-school pupils.",
-            "The district population includes non-citizens, who are less often in government "
-            "schools.",
-            "The synthetic town is a single new township; a township of young families is "
-            "expected to be younger than the district as a whole.",
+            f"The synthetic town has fewer people aged 50-64 ({gap_50_64:+} points) and more aged "
+            f"80+ ({gap_80:+} points) than Petaling: its household generator makes parents 26-50 "
+            "and adds older grandparents, so there are few older commuters.",
+            "Enrolment counts government schools only (MOE EMIS). Dividing it by the age-band "
+            "estimate gives roughly 75% (7-12) and 65% (13-17) in government schools; the rest "
+            "may be in private, international or religious schools, schooled in another district, "
+            "or non-citizens. These are rough ratios, not facts about children.",
+            "Petaling is a proxy: it is the wider urban district (Petaling Jaya, Subang Jaya, Shah "
+            "Alam), and Elmina is one new township in it, which may be younger.",
+            "The generator's inputs (Malaysia-wide age shares, household size, car ownership) are "
+            "DOSM figures, so they are not checks; only the Petaling comparison is.",
+            f"Years: the district comparison uses {year}, the latest year with enrolment data.",
             "Nothing is fitted to these figures: they measure the gap, and the gap is reported.",
         ],
     }
-    dest = ROOT / "data" / "sim" / site.name / "calibration.json"
+    dest = dest or ROOT / "data" / "sim" / site.name / "calibration.json"
     dest.parent.mkdir(parents=True, exist_ok=True)
-    dest.write_text(json.dumps(out, indent=1, ensure_ascii=False) + "\n", encoding="utf-8")
-    print(f"wrote {dest.relative_to(ROOT)}")
+    dest.write_text(json.dumps(out, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    print(f"wrote {dest}")
     return out
+
+
+def report(c: dict) -> str:
+    """The comparison report (docs/03-product/calibration-report-2026-10.md), from the JSON."""
+    rows = "\n".join(
+        f"| {r['what']} | {r['synthetic']} | {r['official']} |" for r in c["summary_rows"]
+    )
+    bands = "\n".join(
+        f"| {r['band']} | {r['petaling_pct']}% | {r['synthetic_pct']}% | {r['gap_points']:+} |"
+        for r in c["age_bands"]
+    )
+    src = "\n".join(
+        f"| {s['title']} | {s['url']} | {s['bytes']:,} B | {s['licence']} |" for s in c["sources"]
+    )
+    notes = "\n".join(f"- {n}" for n in c["notes"])
+    p, syn = c["petaling"], c["synthetic"]
+    pupils, schools = p["government_school_pupils"], p["government_schools"]
+    script, data = "`data/scripts/calibrate_day.py`", "`data/sim/elmina/calibration.json`"
+    offices = "MOE district offices Petaling Perdana and Petaling Utama"
+    cars = round(100 * syn["car_share"], 1)
+    return f"""# Comparison report: the synthetic town and Petaling district (official open data)
+
+*{c["generated"]}. Generated by {script} from {data}.*
+
+## Why
+
+Elmina Day rehearses a day of **5,000 synthetic residents**. A judge will ask how we know they
+look like Elmina. Elmina's residents are not observed (and their personal data is not wanted),
+but City of Elmina lies in **Petaling district, Selangor**, and the government publishes open data
+for it. This compares the synthetic town with the district. **Nothing is fitted:** the gap is
+measured and reported, here and in the Day panel ("How it was made → Compared with Petaling").
+
+## Sources (CC BY 4.0, cached in `data/cache/opendata/`)
+
+| Dataset | URL | Size | Licence |
+|---|---|---|---|
+{src}
+
+Petaling, {c["year"]}: **{p["population"]:,} people**; **{pupils["primary"]:,}** primary
+and **{pupils["secondary"]:,}** secondary pupils in **{schools["primary"]}** primary and
+**{schools["secondary"]}** secondary government schools ({offices}).
+
+## What the comparison found first: a bug
+
+Before Cycle 21, **every child under 13, toddlers included, went on a primary-school run** and was
+counted as a pupil: 293 of 674 households with children drove to a primary school with no one
+aged 7-12 (Standard 1-6). The storm day reported 1,373 pupils (about 275 per 1,000 residents).
+Fixed: a school run only when a child aged 7-12 lives in the home; under-7s ride along only with
+a parent who is home. The demo numbers were re-measured.
+
+## The synthetic town and Petaling ({c["year"]})
+
+| What | Synthetic town | Petaling district |
+|---|---|---|
+{rows}
+
+Inputs, not checks: household size {syn["household_size"]} (input: DOSM Census 2020, 3.8,
+Malaysia); households with a car {cars}% (input: DOSM household survey 2024, 92.3%, Malaysia).
+
+### By 5-year age band
+
+| Band | Petaling | Synthetic | Gap (points) |
+|---|---|---|---|
+{bands}
+
+## How to read it
+
+{notes}
+
+What has no public figure for Elmina (trip timing, workplaces, how residents choose under a
+flood) stays a stated assumption in the Day panel: the knobs a pilot would replace with SDP's own
+resident data, with consent.
+
+## Reproduce
+
+```bash
+uv sync --all-packages --all-groups   # pyarrow is in the data group
+uv run python data/scripts/calibrate_day.py
+uv run pytest data/scripts/tests/test_calibrate_day.py -q
+```
+"""
 
 
 if __name__ == "__main__":
     site = ROOT / "data" / "seed" / (sys.argv[1] if len(sys.argv) > 1 else "elmina")
     res = main(site)
+    (ROOT / "docs" / "03-product" / "calibration-report-2026-10.md").write_text(
+        report(res), encoding="utf-8"
+    )
     print(
         json.dumps(
             {k: res[k] for k in ("age_broad", "max_band_gap_points", "school_age_per_1000")},

@@ -1,4 +1,4 @@
-{"meta": {"message": "Which change would help most residents in the storm rehearsal?", "profile": "default", "scenario_id": null, "world": "elmina", "model": "mock-scripted", "recorded_at": "2026-10-17T05:56:20+00:00"}}
+{"meta": {"message": "Which change would help most residents in the storm rehearsal?", "profile": "default", "scenario_id": null, "world": "elmina", "model": "mock-scripted", "recorded_at": "2026-10-17T06:11:49+00:00"}}
 {"type": "tool.call", "id": "day_test_change-0", "name": "day_test_change", "args": {"day": "storm", "option": 1}}
 {"type": "tool.result", "id": "day_test_change-0", "name": "day_test_change", "summary": "ok"}
 {"type": "answer.draft", "attempt": 1, "delta": "On "}
@@ -26,7 +26,7 @@
 {"type": "text.delta", "delta": "and 0 worse off (1,640 trips better, 0 w"}
 {"type": "text.delta", "delta": "orse). Not a plan and not a forecast.\n1."}
 {"type": "text.delta", "delta": " Why this change: the day's top suggesti"}
-{"type": "text.delta", "delta": "on, on the usual route of 1112 residents"}
+{"type": "text.delta", "delta": "on, on the usual route of 1111 residents"}
 {"type": "text.delta", "delta": " whose trips the water cut.\n2. Wheelchai"}
 {"type": "text.delta", "delta": "r users: 2 better off, 0 worse off.\n3. H"}
 {"type": "text.delta", "delta": "ouseholds without a car: 80 better off, "}

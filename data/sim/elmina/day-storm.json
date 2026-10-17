@@ -1,6 +1,6 @@
 {
   "scenario": "storm",
-  "recorded_at": "2026-10-17T05:46:35+00:00",
+  "recorded_at": "2026-10-17T06:05:16+00:00",
   "model": "openai/gpt-6-luna",
   "residents": 5000,
   "seed": 11,
@@ -14,7 +14,7 @@
       "group": "older",
       "household": "h01227",
       "home_coord": [101.520886, 3.190837],
-      "voice": "Kok Leong speaks in clear, everyday language.",
+      "voice": "Kok Leong: “I speak plainly about moving through my day in a wheelchair.”",
       "tags": []
     },
     {
@@ -26,7 +26,7 @@
       "group": "adult",
       "household": "h01080",
       "home_coord": [101.483363, 3.201578],
-      "voice": "Hasnah speaks in clear, everyday language.",
+      "voice": "Hasnah: “I speak plainly about moving through my day in a wheelchair.”",
       "tags": []
     },
     {
@@ -38,7 +38,7 @@
       "group": "adult",
       "household": "h00971",
       "home_coord": [101.537085, 3.183661],
-      "voice": "Yusof speaks in clear, everyday language.",
+      "voice": "Yusof: “I speak plainly about moving through my day in a wheelchair.”",
       "tags": []
     },
     {
@@ -50,7 +50,7 @@
       "group": "adult",
       "household": "h00582",
       "home_coord": [101.489231, 3.203856],
-      "voice": "Kavitha speaks in clear, everyday language.",
+      "voice": "Kavitha: “I talk about my day as a parent with a toddler in a stroller.”",
       "tags": []
     },
     {
@@ -62,7 +62,7 @@
       "group": "adult",
       "household": "h00974",
       "home_coord": [101.505788, 3.158209],
-      "voice": "Nurul speaks in clear, everyday language.",
+      "voice": "Nurul: “I talk about my day as a parent with a toddler in a stroller.”",
       "tags": []
     },
     {
@@ -74,7 +74,7 @@
       "group": "adult",
       "household": "h00064",
       "home_coord": [101.515676, 3.176766],
-      "voice": "Arjun speaks in clear, everyday language.",
+      "voice": "Arjun: “I talk about my day as a parent with a toddler in a stroller.”",
       "tags": []
     },
     {
@@ -86,7 +86,7 @@
       "group": "adult",
       "household": "h00087",
       "home_coord": [101.491257, 3.211751],
-      "voice": "Salmah speaks in clear, everyday language.",
+      "voice": "Salmah: “I talk about my day as a parent with a toddler in a stroller.”",
       "tags": []
     },
     {
@@ -98,7 +98,7 @@
       "group": "adult",
       "household": "h00283",
       "home_coord": [101.509005, 3.155766],
-      "voice": "Siti Nur speaks in clear, everyday language.",
+      "voice": "Siti Nur: “I talk about my day as a parent with a toddler in a stroller.”",
       "tags": []
     },
     {
@@ -110,7 +110,7 @@
       "group": "adult",
       "household": "h00259",
       "home_coord": [101.536603, 3.18065],
-      "voice": "Zainab speaks in clear, everyday language.",
+      "voice": "Zainab: “I talk about my day as a parent with a toddler in a stroller.”",
       "tags": []
     },
     {
@@ -122,7 +122,7 @@
       "group": "older",
       "household": "h01283",
       "home_coord": [101.511432, 3.168291],
-      "voice": "Mak Cik Haslinda speaks in clear, everyday language.",
+      "voice": "Mak Cik Haslinda: “I speak calmly about my day and taking rests when I need them.”",
       "tags": []
     },
     {
@@ -134,7 +134,7 @@
       "group": "older",
       "household": "h00096",
       "home_coord": [101.506375, 3.163701],
-      "voice": "Pak Cik Zulkifli speaks in clear, everyday language.",
+      "voice": "Pak Cik Zulkifli: “I speak calmly about my day and taking rests when I need them.”",
       "tags": []
     },
     {
@@ -146,7 +146,7 @@
       "group": "older",
       "household": "h01152",
       "home_coord": [101.51807, 3.170212],
-      "voice": "Pak Cik Kamal speaks in clear, everyday language.",
+      "voice": "Pak Cik Kamal: “I speak calmly about my day and taking rests when I need them.”",
       "tags": []
     },
     {
@@ -158,7 +158,7 @@
       "group": "older",
       "household": "h01005",
       "home_coord": [101.517168, 3.151767],
-      "voice": "Mak Cik Rohani speaks in clear, everyday language.",
+      "voice": "Mak Cik Rohani: “I speak calmly about my day and taking rests when I need them.”",
       "tags": []
     },
     {
@@ -170,7 +170,43 @@
       "group": "older",
       "household": "h00681",
       "home_coord": [101.512045, 3.163726],
-      "voice": "Mak Cik Aminah speaks in clear, everyday language.",
+      "voice": "Mak Cik Aminah: “I speak calmly about my day and taking rests when I need them.”",
+      "tags": []
+    },
+    {
+      "id": "r02500",
+      "name": "Jun Hao",
+      "age": 31,
+      "role": "parent doing the school run",
+      "persona": "default",
+      "group": "adult",
+      "household": "h00665",
+      "home_coord": [101.527924, 3.157355],
+      "voice": "Jun Hao: “I talk about my day as a parent doing the school run.”",
+      "tags": []
+    },
+    {
+      "id": "r04200",
+      "name": "Faizal",
+      "age": 21,
+      "role": "parent doing the school run",
+      "persona": "default",
+      "group": "adult",
+      "household": "h01106",
+      "home_coord": [101.482484, 3.206956],
+      "voice": "Faizal: “I talk about my day as a parent doing the school run.”",
+      "tags": []
+    },
+    {
+      "id": "r04184",
+      "name": "Siew Lan",
+      "age": 38,
+      "role": "parent doing the school run",
+      "persona": "default",
+      "group": "adult",
+      "household": "h01102",
+      "home_coord": [101.529481, 3.16034],
+      "voice": "Siew Lan: “I talk about my day as a parent doing the school run.”",
       "tags": []
     },
     {
@@ -182,7 +218,7 @@
       "group": "adult",
       "household": "h01070",
       "home_coord": [101.512184, 3.170561],
-      "voice": "Shahrul speaks in clear, everyday language.",
+      "voice": "Shahrul: “I talk about my day as a commuter and parent.”",
       "tags": []
     },
     {
@@ -194,7 +230,7 @@
       "group": "adult",
       "household": "h00849",
       "home_coord": [101.497547, 3.20912],
-      "voice": "Hafiz speaks in clear, everyday language.",
+      "voice": "Hafiz: “I talk about my day as a commuter and parent.”",
       "tags": []
     },
     {
@@ -206,7 +242,7 @@
       "group": "adult",
       "household": "h00318",
       "home_coord": [101.494391, 3.209269],
-      "voice": "Faridah speaks in clear, everyday language.",
+      "voice": "Faridah: “I talk about my day as a commuter and parent.”",
       "tags": []
     },
     {
@@ -218,7 +254,7 @@
       "group": "teen",
       "household": "h01161",
       "home_coord": [101.506947, 3.157974],
-      "voice": "Rosnah speaks in clear, everyday language.",
+      "voice": "Rosnah: “I speak about my day as a secondary school student.”",
       "tags": []
     },
     {
@@ -230,7 +266,7 @@
       "group": "teen",
       "household": "h00236",
       "home_coord": [101.524303, 3.191804],
-      "voice": "Normah speaks in clear, everyday language.",
+      "voice": "Normah: “I speak about my day as a secondary school student.”",
       "tags": []
     },
     {
@@ -242,7 +278,7 @@
       "group": "teen",
       "household": "h00157",
       "home_coord": [101.510082, 3.154805],
-      "voice": "Rahim speaks in clear, everyday language.",
+      "voice": "Rahim: “I speak about my day as a secondary school student.”",
       "tags": []
     },
     {
@@ -254,19 +290,7 @@
       "group": "teen",
       "household": "h01216",
       "home_coord": [101.527638, 3.155038],
-      "voice": "Rajesh speaks in clear, everyday language.",
-      "tags": []
-    },
-    {
-      "id": "r01807",
-      "name": "Pei Shan",
-      "age": 22,
-      "role": "commuter and parent",
-      "persona": "default",
-      "group": "adult",
-      "household": "h00485",
-      "home_coord": [101.526997, 3.152579],
-      "voice": "Pei Shan speaks in clear, everyday language.",
+      "voice": "Rajesh: “I speak about my day as a secondary school student.”",
       "tags": []
     },
     {
@@ -278,7 +302,19 @@
       "group": "adult",
       "household": "h00942",
       "home_coord": [101.522391, 3.191313],
-      "voice": "Azman speaks in clear, everyday language.",
+      "voice": "Azman: “I talk about my day working from home.”",
+      "tags": []
+    },
+    {
+      "id": "r01807",
+      "name": "Pei Shan",
+      "age": 22,
+      "role": "commuter and parent",
+      "persona": "default",
+      "group": "adult",
+      "household": "h00485",
+      "home_coord": [101.526997, 3.152579],
+      "voice": "Pei Shan: “I talk about my day as a commuter and parent.”",
       "tags": []
     },
     {
@@ -290,7 +326,7 @@
       "group": "adult",
       "household": "h00075",
       "home_coord": [101.540024, 3.163151],
-      "voice": "Hakim speaks in clear, everyday language.",
+      "voice": "Hakim: “I talk about my day as a commuter and parent.”",
       "tags": []
     },
     {
@@ -302,43 +338,43 @@
       "group": "older",
       "household": "h00211",
       "home_coord": [101.505894, 3.151431],
-      "voice": "Pak Cik Ismail speaks in clear, everyday language.",
+      "voice": "Pak Cik Ismail: “I speak about my day as a retiree.”",
       "tags": []
     },
     {
       "id": "r00385",
       "name": "Ahmad",
       "age": 29,
-      "role": "parent doing the school run",
+      "role": "parent at home with a young child",
       "persona": "default",
       "group": "adult",
       "household": "h00102",
       "home_coord": [101.518455, 3.190833],
-      "voice": "Ahmad speaks in clear, everyday language.",
+      "voice": "Ahmad: “I talk about my day at home with my young child.”",
       "tags": []
     },
     {
       "id": "r03414",
-      "name": "Faizal",
+      "name": "Rosli",
       "age": 48,
       "role": "commuter",
       "persona": "default",
       "group": "adult",
       "household": "h00907",
       "home_coord": [101.52561, 3.153158],
-      "voice": "Faizal speaks in clear, everyday language.",
+      "voice": "Rosli: “I speak about my day as a commuter.”",
       "tags": []
     },
     {
       "id": "r04957",
-      "name": "Rosli",
+      "name": "Ismail E.",
       "age": 33,
       "role": "resident working from home",
       "persona": "default",
       "group": "adult",
       "household": "h01312",
       "home_coord": [101.522487, 3.192208],
-      "voice": "Rosli speaks in clear, everyday language.",
+      "voice": "Ismail E.: “I talk about my day working from home.”",
       "tags": []
     },
     {
@@ -350,31 +386,31 @@
       "group": "adult",
       "household": "h01245",
       "home_coord": [101.508861, 3.167551],
-      "voice": "Ganesh speaks in clear, everyday language.",
+      "voice": "Ganesh: “I talk about my day as a commuter and parent.”",
       "tags": []
     },
     {
       "id": "r03714",
       "name": "Aishah",
       "age": 25,
-      "role": "parent doing the school run",
+      "role": "parent at home with a young child",
       "persona": "default",
       "group": "adult",
       "household": "h00982",
       "home_coord": [101.514956, 3.165478],
-      "voice": "Aishah speaks in clear, everyday language.",
+      "voice": "Aishah: “I talk about my day at home with my young child.”",
       "tags": []
     },
     {
       "id": "r03893",
-      "name": "Kamal E.",
+      "name": "Kamal H.",
       "age": 44,
       "role": "commuter",
       "persona": "default",
       "group": "adult",
       "household": "h01028",
       "home_coord": [101.494391, 3.209269],
-      "voice": "Kamal E. speaks in clear, everyday language.",
+      "voice": "Kamal H.: “I speak about my day as a commuter.”",
       "tags": []
     },
     {
@@ -386,19 +422,19 @@
       "group": "adult",
       "household": "h00923",
       "home_coord": [101.515298, 3.154362],
-      "voice": "Chee Keong speaks in clear, everyday language.",
+      "voice": "Chee Keong: “I talk about my day as a commuter and parent.”",
       "tags": []
     },
     {
       "id": "r00681",
-      "name": "Hasnah G.",
+      "name": "Hasnah J.",
       "age": 43,
       "role": "commuter and parent",
       "persona": "default",
       "group": "adult",
       "household": "h00185",
       "home_coord": [101.508729, 3.168279],
-      "voice": "Hasnah G. speaks in clear, everyday language.",
+      "voice": "Hasnah J.: “I talk about my day as a commuter and parent.”",
       "tags": []
     },
     {
@@ -410,85 +446,50 @@
       "group": "adult",
       "household": "h00563",
       "home_coord": [101.48997, 3.199916],
-      "voice": "Wei Jie speaks in clear, everyday language.",
+      "voice": "Wei Jie: “I speak about my day as a commuter.”",
       "tags": []
     },
     {
       "id": "r01645",
-      "name": "Zulkifli I.",
+      "name": "Zulkifli L.",
       "age": 32,
-      "role": "parent doing the school run",
+      "role": "parent at home with a young child",
       "persona": "default",
       "group": "adult",
       "household": "h00439",
       "home_coord": [101.538628, 3.165264],
-      "voice": "Zulkifli I. speaks in clear, everyday language.",
+      "voice": "Zulkifli L.: “I talk about my day at home with my young child.”",
       "tags": []
     },
     {
       "id": "r02766",
-      "name": "Aminah J.",
+      "name": "Aminah M.",
       "age": 27,
       "role": "commuter and parent",
       "persona": "default",
       "group": "adult",
       "household": "h00733",
       "home_coord": [101.490485, 3.208334],
-      "voice": "Aminah J. speaks in clear, everyday language.",
+      "voice": "Aminah M.: “I talk about my day as a commuter and parent.”",
       "tags": []
     },
     {
       "id": "r01412",
-      "name": "Jun Hao",
+      "name": "Boon Kiat",
       "age": 38,
       "role": "commuter and parent",
       "persona": "default",
       "group": "adult",
       "household": "h00373",
       "home_coord": [101.516069, 3.152692],
-      "voice": "Jun Hao speaks in clear, everyday language.",
-      "tags": []
-    },
-    {
-      "id": "r00678",
-      "name": "Priya",
-      "age": 45,
-      "role": "commuter",
-      "persona": "default",
-      "group": "adult",
-      "household": "h00184",
-      "home_coord": [101.481547, 3.210316],
-      "voice": "Priya speaks in clear, everyday language.",
-      "tags": []
-    },
-    {
-      "id": "r03987",
-      "name": "Rahim M.",
-      "age": 38,
-      "role": "parent doing the school run",
-      "persona": "default",
-      "group": "adult",
-      "household": "h01051",
-      "home_coord": [101.518033, 3.15276],
-      "voice": "Rahim M. speaks in clear, everyday language.",
-      "tags": []
-    },
-    {
-      "id": "r02686",
-      "name": "Haslinda N.",
-      "age": 39,
-      "role": "commuter",
-      "persona": "default",
-      "group": "adult",
-      "household": "h00711",
-      "home_coord": [101.483346, 3.208764],
-      "voice": "Haslinda N. speaks in clear, everyday language.",
+      "voice": "Boon Kiat: “I talk about my day as a commuter and parent.”",
       "tags": []
     }
   ],
   "decisions": {
     "r00867-0-out|school|out|caught_on_the_way": "turn_back",
     "r00285-0-out|school|out|no_way_at_departure": "wait",
+    "r02500-0-out|school|out|no_way_at_departure": "wait",
     "r01412-0-out|work|out|no_way_at_departure": "wait",
     "r03476-0-out|work|out|no_way_at_departure": "wait",
     "r04703-0-out|work|out|no_way_at_departure": "wait",
@@ -496,19 +497,22 @@
     "r00681-0-out|work|out|no_way_at_departure": "wait",
     "r04061-0-out|work|out|no_way_at_departure": "wait",
     "r03414-0-out|work|out|no_way_at_departure": "wait",
-    "r03669-0-out|work|out|no_way_at_departure": "wait"
+    "r03669-0-out|work|out|no_way_at_departure": "wait",
+    "r02500-1-out|shops|out|no_way_at_departure": "cancel"
   },
   "decision_reasons": {
-    "r00867-0-out|school|out|caught_on_the_way": "I turn back because the water cuts the way ahead.",
-    "r00285-0-out|school|out|no_way_at_departure": "I wait at home for a way through before taking my child to school.",
-    "r01412-0-out|work|out|no_way_at_departure": "I’m waiting at home for a way through so I can get to work.",
-    "r03476-0-out|work|out|no_way_at_departure": "I wait at home for a way through because I want to get to work.",
-    "r04703-0-out|work|out|no_way_at_departure": "I wait for a way to open because I need to get to work.",
-    "r01807-0-out|work|out|no_way_at_departure": "I’m waiting at home because there’s no way through right now.",
-    "r00681-0-out|work|out|no_way_at_departure": "I wait at home for a way through before heading to work.",
-    "r04061-0-out|work|out|no_way_at_departure": "I wait for a way through so I can get to work.",
-    "r03414-0-out|work|out|no_way_at_departure": "I wait because I want to get to work.",
-    "r03669-0-out|work|out|no_way_at_departure": "I wait for a way through because I want to get to work."
+    "r00867-0-out|school|out|caught_on_the_way": "I turn back home because the water cuts the way to school.",
+    "r00285-0-out|school|out|no_way_at_departure": "I wait at home with my child because I want to get them to school.",
+    "r02500-0-out|school|out|no_way_at_departure": "I wait because I want to take my two children to school.",
+    "r01412-0-out|work|out|no_way_at_departure": "I wait at home for a way through so I can try to get to work.",
+    "r03476-0-out|work|out|no_way_at_departure": "I wait for a way through because I’m trying to get to work.",
+    "r04703-0-out|work|out|no_way_at_departure": "I wait for a way through so I can get to work.",
+    "r01807-0-out|work|out|no_way_at_departure": "I wait for a way through because I’m trying to get to work.",
+    "r00681-0-out|work|out|no_way_at_departure": "I wait at home for a way through because I want to get to work.",
+    "r04061-0-out|work|out|no_way_at_departure": "I wait for a way through because I need to get to work.",
+    "r03414-0-out|work|out|no_way_at_departure": "I wait at home for a way through, up to 90 minutes.",
+    "r03669-0-out|work|out|no_way_at_departure": "I wait because I want to get to work if a way opens.",
+    "r02500-1-out|shops|out|no_way_at_departure": "I stay home because there is no way through right now."
   },
   "diaries": {
     "r04629": [
@@ -521,19 +525,19 @@
       {
         "trip": "r04629-0-back",
         "status": "on_time",
-        "text": "08:10 — I set off to walk home and got there at 08:18.",
+        "text": "08:10 — I set off to walk home from the park and got there at 08:18.",
         "voice": "ai"
       },
       {
         "trip": "r04629-1-out",
         "status": "on_time",
-        "text": "10:39 — I set off to walk to the Community Centre and got there at 10:56.",
+        "text": "10:39 — I set off to walk to the shops and got there at 10:56.",
         "voice": "ai"
       },
       {
         "trip": "r04629-1-back",
         "status": "on_time",
-        "text": "11:35 — I set off to walk home and got there at 11:52.",
+        "text": "11:35 — I set off to walk home from the shops and got there at 11:52.",
         "voice": "ai"
       }
     ],
@@ -567,7 +571,7 @@
       {
         "trip": "r03669-0-out",
         "status": "cancelled",
-        "text": "07:28 — I planned to drive to work, but there was no way through. I waited at home until 08:58, then gave up.",
+        "text": "07:28 — I planned to drive to work. There was no way through, so I waited at home until 08:58, then gave up.",
         "voice": "ai"
       }
     ],
@@ -576,13 +580,13 @@
       {
         "trip": "r03679-0-out",
         "status": "on_time",
-        "text": "06:59 — I set off walking to SK Denai Alam with my 3 children and got there at 07:34.",
+        "text": "06:59 — I walked to SK Denai Alam with my 3 children and got there at 07:34.",
         "voice": "ai"
       },
       {
         "trip": "r03679-0-back",
         "status": "on_time",
-        "text": "07:34 — I set off walking home and got there at 08:10.",
+        "text": "07:34 — I walked home from SK Denai Alam and got there at 08:10.",
         "voice": "ai"
       },
       {
@@ -600,7 +604,7 @@
       {
         "trip": "r03679-2-out",
         "status": "on_time",
-        "text": "13:14 — I set off walking to SK Denai Alam and got there at 13:49.",
+        "text": "13:14 — I walked to SK Denai Alam and got there at 13:49.",
         "voice": "ai"
       }
     ],
@@ -608,13 +612,13 @@
       {
         "trip": "r00239-0-out",
         "status": "on_time",
-        "text": "10:31 — I set off walking to Dewan Refelsia and got there at 10:58.",
+        "text": "10:31 — I set off on foot to Dewan Refelsia and got there at 10:58.",
         "voice": "ai"
       },
       {
         "trip": "r00239-0-back",
         "status": "on_time",
-        "text": "12:11 — I set off walking home from Dewan Refelsia and got there at 12:37.",
+        "text": "12:11 — I set off on foot for home from Dewan Refelsia and got there at 12:37.",
         "voice": "ai"
       }
     ],
@@ -622,31 +626,31 @@
       {
         "trip": "r00319-0-out",
         "status": "on_time",
-        "text": "06:55 — I drove to school with my 2 children and got there at 06:59.",
+        "text": "06:55 I drove to School (unnamed, OSM) with my 2 children and got there at 06:59.",
         "voice": "ai"
       },
       {
         "trip": "r00319-0-back",
         "status": "on_time",
-        "text": "06:59 — I drove home and got there at 07:03.",
+        "text": "06:59 I drove home and got there at 07:03.",
         "voice": "ai"
       },
       {
         "trip": "r00319-1-out",
         "status": "on_time",
-        "text": "10:49 — I drove to Dewan Saujana Utama and got there at 10:54.",
+        "text": "10:49 I drove to Dewan Saujana Utama and got there at 10:54.",
         "voice": "ai"
       },
       {
         "trip": "r00319-1-back",
         "status": "on_time",
-        "text": "11:24 — I drove home and got there at 11:29.",
+        "text": "11:24 I drove home and got there at 11:29.",
         "voice": "ai"
       },
       {
         "trip": "r00319-2-out",
         "status": "on_time",
-        "text": "13:07 — I drove to school and got there at 13:11.",
+        "text": "13:07 I drove to School (unnamed, OSM) and got there at 13:11.",
         "voice": "ai"
       }
     ],
@@ -660,19 +664,19 @@
       {
         "trip": "r01053-0-back",
         "status": "on_time",
-        "text": "06:54 — I set off walking home and got there at 07:07.",
+        "text": "06:54 — I walked home and got there at 07:07.",
         "voice": "ai"
       },
       {
         "trip": "r01053-1-out",
         "status": "on_time",
-        "text": "10:23 — I set off walking to Dewan Refelsia and got there at 11:09.",
+        "text": "10:23 — I walked to Dewan Refelsia and got there at 11:09.",
         "voice": "ai"
       },
       {
         "trip": "r01053-1-back",
         "status": "on_time",
-        "text": "12:14 — I set off walking home and got there at 13:00.",
+        "text": "12:14 — I walked home and got there at 13:00.",
         "voice": "ai"
       },
       {
@@ -687,25 +691,25 @@
       {
         "trip": "r04850-0-out",
         "status": "on_time",
-        "text": "06:48 I set off walking to the park and got there at 07:30.",
+        "text": "06:48 I set off to walk to Park (unnamed, OSM) and got there at 07:30.",
         "voice": "ai"
       },
       {
         "trip": "r04850-0-back",
         "status": "on_time",
-        "text": "08:19 I set off walking home from the park and got there at 09:01.",
+        "text": "08:19 I set off to walk home and got there at 09:01.",
         "voice": "ai"
       },
       {
         "trip": "r04850-1-out",
         "status": "on_time",
-        "text": "18:55 I set off walking to Surau Lili and got there at 19:09.",
+        "text": "18:55 I set off to walk to Surau Lili and got there at 19:09.",
         "voice": "ai"
       },
       {
         "trip": "r04850-1-back",
         "status": "on_time",
-        "text": "20:02 I set off walking home from Surau Lili and got there at 20:16.",
+        "text": "20:02 I set off to walk home and got there at 20:16.",
         "voice": "ai"
       }
     ],
@@ -713,31 +717,31 @@
       {
         "trip": "r00353-0-out",
         "status": "on_time",
-        "text": "06:58 — I set off on foot to Taman Ferrea Denai Alam and got there at 07:02.",
+        "text": "06:58 I set off walking to Taman Ferrea Denai Alam and got there at 07:02.",
         "voice": "ai"
       },
       {
         "trip": "r00353-0-back",
         "status": "on_time",
-        "text": "07:53 — I set off on foot for home and got there at 07:56.",
+        "text": "07:53 I set off walking home from Taman Ferrea Denai Alam and got there at 07:56.",
         "voice": "ai"
       },
       {
         "trip": "r00353-1-out",
         "status": "on_time",
-        "text": "10:10 — I set off on foot to Dewan Refelsia and got there at 10:55.",
+        "text": "10:10 I set off walking to Dewan Refelsia and got there at 10:55.",
         "voice": "ai"
       },
       {
         "trip": "r00353-1-back",
         "status": "on_time",
-        "text": "11:46 — I set off on foot for home and got there at 12:31.",
+        "text": "11:46 I set off walking home from Dewan Refelsia and got there at 12:31.",
         "voice": "ai"
       },
       {
         "trip": "r00353-2-out",
         "status": "on_time",
-        "text": "18:52 — I set off on foot to Surau SRA Denai Alam and got there at 19:10.",
+        "text": "18:52 I set off walking to Surau SRA Denai Alam and got there at 19:10.",
         "voice": "ai"
       }
     ],
@@ -745,7 +749,7 @@
       {
         "trip": "r04359-0-out",
         "status": "data_gap",
-        "text": "17:35 — I planned to walk to RSA Elmina S, but the map showed no way there.",
+        "text": "17:35 — I planned to walk to RSA Elmina S, but the map shows no way there. That’s a data gap.",
         "voice": "ai"
       }
     ],
@@ -759,7 +763,7 @@
       {
         "trip": "r03799-0-back",
         "status": "on_time",
-        "text": "19:54 — I set off on foot for home from Surau Al Islah and got there at 20:01.",
+        "text": "19:54 — I set off on foot to home from Surau Al Islah and got there at 20:01.",
         "voice": "ai"
       }
     ],
@@ -767,21 +771,55 @@
       {
         "trip": "r02561-0-out",
         "status": "on_time",
-        "text": "06:43 I set off on foot to the park and got there at 06:57.",
+        "text": "06:43 — I set off to walk to Park (unnamed, OSM) and got there at 06:57.",
         "voice": "ai"
       },
       {
         "trip": "r02561-0-back",
         "status": "on_time",
-        "text": "07:50 I set off on foot for home from the park and got there at 08:04.",
+        "text": "07:50 — I set off to walk home from Park (unnamed, OSM) and got there at 08:04.",
         "voice": "ai"
       }
     ],
+    "r02500": [
+      {
+        "trip": "r02500-0-out",
+        "status": "cancelled",
+        "text": "07:00 — I planned to walk to Sekolah Rendah Islam As-Sakinah with my 2 children, but there was no way through. I waited at home until 08:30, then gave up.",
+        "voice": "ai"
+      },
+      {
+        "trip": "r02500-1-out",
+        "status": "cancelled",
+        "text": "10:44 — I planned to walk to Dewan Refelsia, but there was no way through, so I stayed.",
+        "voice": "ai"
+      },
+      {
+        "trip": "r02500-2-out",
+        "status": "on_time",
+        "text": "14:28 — I set off on foot to Sekolah Rendah Islam As-Sakinah and got there at 15:06.",
+        "voice": "ai"
+      },
+      {
+        "trip": "r02500-2-back",
+        "status": "on_time",
+        "text": "15:06 — I set off on foot for home with my 2 children and got there at 15:44.",
+        "voice": "ai"
+      },
+      {
+        "trip": "r02500-3-out",
+        "status": "on_time",
+        "text": "17:54 — I set off on foot to Park (unnamed, OSM) with my 2 children and got there at 18:10.",
+        "voice": "ai"
+      }
+    ],
+    "r04200": [],
+    "r04184": [],
     "r04061": [
       {
         "trip": "r04061-0-out",
         "status": "cancelled",
-        "text": "08:56 — I planned to drive to work at 07:26, but there was no way through. I waited at home until 08:56, then gave up.",
+        "text": "07:26 — I planned to drive to work, but there was no way through. I waited at home until 08:56, then gave up.",
         "voice": "ai"
       }
     ],
@@ -789,13 +827,13 @@
       {
         "trip": "r03209-0-out",
         "status": "on_time",
-        "text": "07:00 — I set off to drive to work and got there at 07:13.",
+        "text": "07:00 I set off by car for work and got there at 07:13.",
         "voice": "ai"
       },
       {
         "trip": "r03209-0-back",
         "status": "on_time",
-        "text": "18:51 — I set off to drive home and got there at 19:04.",
+        "text": "18:51 I set off by car from work for home and got there at 19:04.",
         "voice": "ai"
       }
     ],
@@ -803,25 +841,25 @@
       {
         "trip": "r01198-0-out",
         "status": "on_time",
-        "text": "07:49 I drove to work and got there at 08:02.",
+        "text": "07:49 — I set off by car for work and got there at 08:02.",
         "voice": "ai"
       },
       {
         "trip": "r01198-0-back",
         "status": "on_time",
-        "text": "18:09 I drove home from work and got there at 18:22.",
+        "text": "18:09 — I set off by car for home and got there at 18:22.",
         "voice": "ai"
       },
       {
         "trip": "r01198-1-out",
         "status": "on_time",
-        "text": "19:35 I walked to Elmina Green One Park and got there at 19:41.",
+        "text": "19:35 — I set off on foot for Elmina Green One Park and got there at 19:41.",
         "voice": "ai"
       },
       {
         "trip": "r01198-1-back",
         "status": "on_time",
-        "text": "20:57 I walked home from Elmina Green One Park and got there at 21:02.",
+        "text": "20:57 — I set off on foot for home and got there at 21:02.",
         "voice": "ai"
       }
     ],
@@ -837,7 +875,7 @@
       {
         "trip": "r00867-0-out",
         "status": "turned_back",
-        "text": "06:41 I set off on foot for Al-Amin Darul Musthopa. The water cut the way, so I turned back and was home at 06:48.",
+        "text": "06:41 — I set off on foot for Al-Amin Darul Musthopa. The water cut the way, so I turned back and was home at 06:48.",
         "voice": "ai"
       }
     ],
@@ -847,12 +885,6 @@
         "status": "on_time",
         "text": "06:51: Set off to walk to Seven Skies Islamic School at 06:51 and got there at 07:00.",
         "voice": "template"
-      },
-      {
-        "trip": "r00582-0-back",
-        "status": "on_time",
-        "text": "14:15 I set off on foot for home and got there at 14:24.",
-        "voice": "ai"
       }
     ],
     "r04591": [
@@ -865,10 +897,11 @@
       {
         "trip": "r04591-0-back",
         "status": "on_time",
-        "text": "14:15 — I set off on foot from SMK Subang to home and got there at 14:25.",
+        "text": "14:15 — I set off on foot home from SMK Subang and got there at 14:25.",
         "voice": "ai"
       }
     ],
+    "r03549": [],
     "r01807": [
       {
         "trip": "r01807-0-out",
@@ -877,12 +910,11 @@
         "voice": "ai"
       }
     ],
-    "r03549": [],
     "r00285": [
       {
         "trip": "r00285-0-out",
         "status": "cancelled",
-        "text": "06:49 — I planned to drive to Al-Amin Darul Musthopa with my child. There was no way through, so I waited at home until 08:19, then gave up.",
+        "text": "06:49 — I planned to drive with my child to Al-Amin Darul Musthopa, but there was no way through. I waited at home until 08:19, then gave up.",
         "voice": "ai"
       }
     ],
@@ -890,13 +922,13 @@
       {
         "trip": "r00773-0-out",
         "status": "on_time",
-        "text": "10:11 — I set off by car for Dewan Refelsia and got there at 10:18.",
+        "text": "10:11 — I set off to drive to Dewan Refelsia and got there at 10:18.",
         "voice": "ai"
       },
       {
         "trip": "r00773-0-back",
         "status": "on_time",
-        "text": "10:53 — I set off by car for home and got there at 11:01.",
+        "text": "10:53 — I set off to drive home and got there at 11:01.",
         "voice": "ai"
       }
     ],
@@ -905,7 +937,7 @@
       {
         "trip": "r03414-0-out",
         "status": "cancelled",
-        "text": "07:27 — I planned to drive to work, but there was no way through. I waited at home until 08:57, then gave up.",
+        "text": "07:27 — I planned to drive to work. There was no way through, so I waited at home until 08:57, then gave up.",
         "voice": "ai"
       }
     ],
@@ -913,13 +945,13 @@
       {
         "trip": "r04957-0-out",
         "status": "on_time",
-        "text": "17:56 I set off to walk to Playground (unnamed, OSM) and got there at 18:04.",
+        "text": "17:56 — I set off on foot to the playground and got there at 18:04.",
         "voice": "ai"
       },
       {
         "trip": "r04957-0-back",
         "status": "on_time",
-        "text": "19:24 I set off to walk home and got there at 19:31.",
+        "text": "19:24 — I set off on foot for home and got there at 19:31.",
         "voice": "ai"
       }
     ],
@@ -935,13 +967,13 @@
       {
         "trip": "r03714-0-out",
         "status": "on_time",
-        "text": "10:42 — I set off on foot to Dewan Refelsia and got there at 10:59.",
+        "text": "10:42 I set off on foot to Dewan Refelsia and got there at 10:59.",
         "voice": "ai"
       },
       {
         "trip": "r03714-0-back",
         "status": "on_time",
-        "text": "12:09 — I set off on foot for home and got there at 12:25.",
+        "text": "12:09 I set off on foot for home from Dewan Refelsia and got there at 12:25.",
         "voice": "ai"
       }
     ],
@@ -949,25 +981,25 @@
       {
         "trip": "r03893-0-out",
         "status": "on_time",
-        "text": "07:27 — I set off driving to work and got there at 07:40.",
+        "text": "07:27 — I set off by car for work and got there at 07:40.",
         "voice": "ai"
       },
       {
         "trip": "r03893-0-back",
         "status": "on_time",
-        "text": "17:52 — I set off driving home from work and got there at 18:05.",
+        "text": "17:52 — I set off by car for home and got there at 18:05.",
         "voice": "ai"
       },
       {
         "trip": "r03893-1-out",
         "status": "on_time",
-        "text": "20:00 — I set off walking to Elmina Green One Park and got there at 20:06.",
+        "text": "20:00 — I set off on foot for Elmina Green One Park and got there at 20:06.",
         "voice": "ai"
       },
       {
         "trip": "r03893-1-back",
         "status": "on_time",
-        "text": "20:51 — I set off walking home from Elmina Green One Park and got there at 20:56.",
+        "text": "20:51 — I set off on foot for home and got there at 20:56.",
         "voice": "ai"
       }
     ],
@@ -975,7 +1007,7 @@
       {
         "trip": "r03476-0-out",
         "status": "cancelled",
-        "text": "07:10 — I planned to drive to work, but there was no way through. I waited at home until 08:40, then gave up.",
+        "text": "07:10 — I planned to drive to work. There was no way through, so I waited at home until 08:40, then gave up.",
         "voice": "ai"
       }
     ],
@@ -983,7 +1015,7 @@
       {
         "trip": "r00681-0-out",
         "status": "cancelled",
-        "text": "08:56 — I planned to drive to work at 07:26, but there was no way through. I waited at home, then gave up.",
+        "text": "07:26 — I planned to drive to work, but there was no way through. I waited at home until 08:56, then gave up.",
         "voice": "ai"
       }
     ],
@@ -991,13 +1023,13 @@
       {
         "trip": "r02099-0-out",
         "status": "on_time",
-        "text": "07:52 — I drove to work and got there at 08:03.",
+        "text": "07:52 I set off to drive to work and got there at 08:03.",
         "voice": "ai"
       },
       {
         "trip": "r02099-0-back",
         "status": "on_time",
-        "text": "18:07 — I drove home from work and got there at 18:18.",
+        "text": "18:07 I set off to drive home and got there at 18:18.",
         "voice": "ai"
       }
     ],
@@ -1005,13 +1037,13 @@
       {
         "trip": "r01645-0-out",
         "status": "on_time",
-        "text": "10:46 — I set off by car to Dewan Refelsia and got there at 10:54.",
+        "text": "10:46 — I set off to drive to Dewan Refelsia and got there at 10:54.",
         "voice": "ai"
       },
       {
         "trip": "r01645-0-back",
         "status": "on_time",
-        "text": "11:34 — I set off by car for home from Dewan Refelsia and got there at 11:42.",
+        "text": "11:34 — I set off to drive home and got there at 11:42.",
         "voice": "ai"
       }
     ],
@@ -1019,25 +1051,25 @@
       {
         "trip": "r02766-0-out",
         "status": "on_time",
-        "text": "07:58 — I set off to drive to work and got there at 08:10.",
+        "text": "07:58 I set off to drive to work and got there at 08:10.",
         "voice": "ai"
       },
       {
         "trip": "r02766-0-back",
         "status": "on_time",
-        "text": "18:47 — I set off to drive home and got there at 18:58.",
+        "text": "18:47 I set off to drive home from work and got there at 18:58.",
         "voice": "ai"
       },
       {
         "trip": "r02766-1-out",
         "status": "on_time",
-        "text": "19:56 — I set off to walk to Elmina Green One Park and got there at 20:20.",
+        "text": "19:56 I set off to walk to Elmina Green One Park and got there at 20:20.",
         "voice": "ai"
       },
       {
         "trip": "r02766-1-back",
         "status": "on_time",
-        "text": "21:10 — I set off to walk home and got there at 21:34.",
+        "text": "21:10 I set off to walk home from Elmina Green One Park and got there at 21:34.",
         "voice": "ai"
       }
     ],
@@ -1046,47 +1078,6 @@
         "trip": "r01412-0-out",
         "status": "cancelled",
         "text": "07:10 — I planned to drive to work, but there was no way through. I waited at home until 08:40, then gave up.",
-        "voice": "ai"
-      }
-    ],
-    "r00678": [
-      {
-        "trip": "r00678-0-out",
-        "status": "on_time",
-        "text": "07:06 — I set off by car for work and got there at 07:15.",
-        "voice": "ai"
-      },
-      {
-        "trip": "r00678-0-back",
-        "status": "on_time",
-        "text": "18:34 — I drove home from work and got there at 18:43.",
-        "voice": "ai"
-      },
-      {
-        "trip": "r00678-1-out",
-        "status": "on_time",
-        "text": "19:46 — I walked to Playground (unnamed, OSM) and got there at 20:06.",
-        "voice": "ai"
-      },
-      {
-        "trip": "r00678-1-back",
-        "status": "on_time",
-        "text": "20:57 — I walked home from Playground (unnamed, OSM) and got there at 21:18.",
-        "voice": "ai"
-      }
-    ],
-    "r03987": [],
-    "r02686": [
-      {
-        "trip": "r02686-0-out",
-        "status": "on_time",
-        "text": "07:58 I drove to work and got there at 08:08.",
-        "voice": "ai"
-      },
-      {
-        "trip": "r02686-0-back",
-        "status": "on_time",
-        "text": "18:37 I drove home and got there at 18:46.",
         "voice": "ai"
       }
     ]
@@ -1128,38 +1119,58 @@
       "trip": null,
       "status": null,
       "likes": 0,
-      "replies": [],
+      "replies": [
+        {
+          "author": "r00867",
+          "name": "Normah",
+          "text": "I set off walking to Al-Amin Darul Musthopa at 06:41, but the water cut the way. I turned back and was home at 06:48.",
+          "voice": "ai",
+          "t": 465,
+          "trip": "r00867-0-out"
+        },
+        {
+          "author": "r02500",
+          "name": "Jun Hao",
+          "text": "I planned to walk to Sekolah Rendah Islam As-Sakinah with my 2 children at 07:00. There was no way through, so I waited at home until 08:30 and then gave up.",
+          "voice": "ai",
+          "t": 570,
+          "trip": "r02500-0-out"
+        }
+      ],
       "voice": "engine"
     },
     {
       "id": "p001",
-      "author": "r00867",
-      "name": "Normah",
-      "role": "secondary school student",
-      "t": 465,
-      "text": "I set off on foot to Al-Amin Darul Musthopa at 06:41, but water cut the way. I turned back and was home at 06:48.",
-      "trip": "r00867-0-out",
-      "status": "turned_back",
-      "likes": 0,
-      "replies": [],
-      "voice": "ai"
-    },
-    {
-      "id": "p002",
       "author": "r04061",
       "name": "Shahrul",
       "role": "commuter and parent",
       "t": 570,
-      "text": "I planned to drive to work at 07:26, but there was no way through on a main road out of Elmina. I waited at home until 08:56, then gave up.",
+      "text": "I planned to drive to work at 07:26, but there was no way through on the main road out of Elmina. I waited at home until 08:56, then gave up.",
       "trip": "r04061-0-out",
       "status": "cancelled",
-      "likes": 1,
-      "replies": [],
-      "voice": "ai",
-      "liked_by": ["r00681"]
+      "likes": 0,
+      "replies": [
+        {
+          "author": "r01412",
+          "name": "Boon Kiat",
+          "text": "Same here. I planned to drive to work at 07:10, but there was no way through. I waited at home until 08:40, then gave up.",
+          "voice": "ai",
+          "t": 570,
+          "trip": "r01412-0-out"
+        },
+        {
+          "author": "r03414",
+          "name": "Rosli",
+          "text": "Same here. I planned to drive to work at 07:27, but there was no way through. I waited at home until 08:57, then gave up.",
+          "voice": "ai",
+          "t": 570,
+          "trip": "r03414-0-out"
+        }
+      ],
+      "voice": "ai"
     },
     {
-      "id": "p003",
+      "id": "p002",
       "author": "r00285",
       "name": "Hakim",
       "role": "commuter and parent",
@@ -1172,39 +1183,51 @@
       "voice": "ai"
     },
     {
-      "id": "p004",
-      "author": "r01412",
-      "name": "Jun Hao",
+      "id": "p003",
+      "author": "r00681",
+      "name": "Hasnah J.",
       "role": "commuter and parent",
       "t": 570,
-      "text": "I planned to drive to work at 07:10, but there was no way through. I waited at home until 08:40, then gave up.",
-      "trip": "r01412-0-out",
-      "status": "cancelled",
-      "likes": 1,
-      "replies": [],
-      "voice": "ai",
-      "liked_by": ["r03476"]
-    },
-    {
-      "id": "p005",
-      "author": "r01807",
-      "name": "Pei Shan",
-      "role": "commuter and parent",
-      "t": 570,
-      "text": "I planned to drive to work at 07:24, but there was no way through. I waited at home until 08:54, then gave up.",
-      "trip": "r01807-0-out",
+      "text": "I planned to drive to work at 07:26. There was no way through, so I waited at home until 08:56 and gave up.",
+      "trip": "r00681-0-out",
       "status": "cancelled",
       "likes": 0,
       "replies": [
         {
-          "author": "r03414",
-          "name": "Faizal",
-          "text": "Same here. I planned to drive to work at 07:27, but there was no way through. I waited at home until 08:57, then gave up.",
+          "author": "r01807",
+          "name": "Pei Shan",
+          "text": "Same here. I planned to drive to work at 07:24, but there was no way through. I waited at home until 08:54, then gave up.",
           "voice": "ai",
           "t": 570,
-          "trip": "r03414-0-out"
+          "trip": "r01807-0-out"
         }
       ],
+      "voice": "ai"
+    },
+    {
+      "id": "p004",
+      "author": "r03476",
+      "name": "Chee Keong",
+      "role": "commuter and parent",
+      "t": 570,
+      "text": "I planned to drive to work at 07:10, but there was no way through. I waited at home until 08:40, then gave up.",
+      "trip": "r03476-0-out",
+      "status": "cancelled",
+      "likes": 0,
+      "replies": [],
+      "voice": "ai"
+    },
+    {
+      "id": "p005",
+      "author": "r04703",
+      "name": "Ganesh",
+      "role": "commuter and parent",
+      "t": 570,
+      "text": "I planned to drive to work at 07:18. There was no way through on a main road out of Elmina, so I waited at home until 08:48, then gave up.",
+      "trip": "r04703-0-out",
+      "status": "cancelled",
+      "likes": 0,
+      "replies": [],
       "voice": "ai"
     },
     {
@@ -1213,21 +1236,8 @@
       "name": "Yusof",
       "role": "wheelchair user",
       "t": 570,
-      "text": "I planned to drive to work at 07:28, but there was no way through. I waited at home until 08:58, then gave up.",
+      "text": "I planned to drive to work at 07:28. There was no way through, so I waited at home until 08:58, then gave up.",
       "trip": "r03669-0-out",
-      "status": "cancelled",
-      "likes": 0,
-      "replies": [],
-      "voice": "ai"
-    },
-    {
-      "id": "p007",
-      "author": "r04703",
-      "name": "Ganesh",
-      "role": "commuter and parent",
-      "t": 570,
-      "text": "I planned to drive to work at 07:18. There was no way through on a main road out of Elmina, so I waited at home until 08:48, then gave up.",
-      "trip": "r04703-0-out",
       "status": "cancelled",
       "likes": 0,
       "replies": [],
@@ -1273,12 +1283,25 @@
       "voice": "engine"
     },
     {
+      "id": "p007",
+      "author": "r02500",
+      "name": "Jun Hao",
+      "role": "parent doing the school run",
+      "t": 810,
+      "text": "I planned to walk to Dewan Refelsia at 10:44, but there was no way through, so I stayed.",
+      "trip": "r02500-1-out",
+      "status": "cancelled",
+      "likes": 0,
+      "replies": [],
+      "voice": "ai"
+    },
+    {
       "id": "p008",
       "author": "r04359",
       "name": "Pak Cik Kamal",
       "role": "retiree who needs to rest often",
       "t": 1110,
-      "text": "I planned to walk to RSA Elmina S at 17:35, but the map showed no way there. I need to rest often, so I stopped there.",
+      "text": "I planned to walk to RSA Elmina S at 17:35, but the map showed no way there. I stayed in and had a rest.",
       "trip": "r04359-0-out",
       "status": "data_gap",
       "likes": 0,
@@ -1287,11 +1310,11 @@
     }
   ],
   "stats": {
-    "calls": 82,
+    "calls": 86,
     "failed_calls": 0,
-    "tokens_in": 55508,
-    "tokens_out": 5865,
-    "rejected_lines": 5,
-    "seconds": 47.5
+    "tokens_in": 62446,
+    "tokens_out": 7153,
+    "rejected_lines": 6,
+    "seconds": 53.7
   }
 }

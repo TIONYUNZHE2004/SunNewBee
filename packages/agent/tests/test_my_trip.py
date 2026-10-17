@@ -189,11 +189,13 @@ def test_forecast_wording_is_refused(extra):
 
 
 def test_a_cut_trip_cannot_be_said_to_arrive():
+    no_way = {**CUT, "asked": {**CUT["asked"], "outcome": "no_way", "arrive": None}}
     s = (
-        "In the storm rehearsal, a trip leaving at 07:00 got there at 12:13 although the river cut "
-        "the street on Persiaran Alstonia. It crossed 6 unchecked stretches."
+        "In the storm rehearsal, a trip leaving at 07:00 got there although there was no way "
+        "through: the river cut the street on Persiaran Alstonia. It crossed 6 unchecked "
+        "stretches."
     )
-    errs = validate_answer(_ans(s), _rec())
+    errs = validate_answer(_ans(s), _rec(no_way))
     assert any("did not get there" in e for e in errs), errs
 
 
@@ -224,3 +226,26 @@ def test_the_mock_trip_route_needs_trip_wording(q, hit):
     from townshiplens_agent.mock import _MY_TRIP
 
     assert bool(re.search(_MY_TRIP, q)) == hit
+
+
+@pytest.mark.parametrize(
+    "summary",
+    [
+        # the live model's honest BM drafts (C21 smoke test), rejected by the first rule
+        "Dalam latihan ribut, perjalanan kereta sorong dari Car Park B ke SK Denai Alam pada 07:00 "
+        "menjadi laluan yang sangat panjang. Dalam latihan, anda tiba pada 12:13, kira-kira 313 "
+        "minit, berbanding 64 minit pada hari biasa. Ia melalui 6 bahagian yang belum disemak.",
+        "Pada 07:00 dalam latihan ribut, perjalanan menjadi very long (sangat panjang). Anda tiba "
+        "pada 12:13, kira-kira 313 minit, berbanding 64 minit. 6 bahagian belum disemak.",
+    ],
+)
+def test_honest_bm_very_long_answers_pass(summary):
+    a = FinalAnswer(
+        answer_status="answered",
+        summary=summary,
+        scenario_id="stage_p2m",
+        caveats=["Latihan, bukan ramalan (not a forecast). Ikut panduan rasmi MBSA / JPS / NADMA."],
+        claims=[Claim(text="trip", status="indicative", evidence_ids=["ev-mytrip-storm"])],
+    )
+    errs = validate_answer(a, _rec())
+    assert not any("Say what happened" in e or "did not get there" in e for e in errs), errs

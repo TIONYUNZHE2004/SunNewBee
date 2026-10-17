@@ -20,9 +20,11 @@ def test_age_bands_follow_dosm():
 
 @pytest.mark.skipif(not (CACHED and (SEED / "site.json").exists()), reason="open data not cached")
 def test_calibration_reports_the_gap_without_fitting(tmp_path, monkeypatch):
-    out = cal.main(SEED)
+    out = cal.main(SEED, dest=tmp_path / "calibration.json")  # never rewrites the tracked file
     assert out["petaling"]["population"] > 2_000_000
     assert abs(sum(r["petaling_pct"] for r in out["age_bands"]) - 100) < 1
     assert out["max_band_gap_points"] < 10  # the synthetic town is close, not identical
     assert all(s["licence"] == "CC BY 4.0" for s in out["sources"])
     assert any("government schools only" in n for n in out["notes"])
+    assert out["band_gaps"]["ages_50_64_points"] < 0  # the shortfall is reported, not hidden
+    assert "Nothing is fitted" in cal.report(out)

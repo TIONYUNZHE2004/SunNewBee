@@ -1408,3 +1408,39 @@ Each is recorded in `data/README.md` and `CREDITS.md`.
 - "tap a point" is hidden in the List view.
 
 **Checklist** (mock-backed; the voices were live): lint PASS (after formatting the JSON), pytest 1,299 PASS, typecheck PASS, vitest 801 PASS, gen PASS, golden 23/23 PASS, build PASS, e2e 20 PASS.
+
+### Cycle 21 review (Sonnet) and Cycle 22: demo hardening (17 Oct, 14:16)
+
+**Cycle 21 review: 1 High, 4 Medium, several Low, all fixed:**
+- **High (demo):** all 4 "parent doing the school run" spotlight residents did no school run after the fix, because casting still counted toddlers. Two had empty diaries. Casting now requires a child aged 7–12; other parents are "parent at home with a young child", and a day with no trips shows "No trips out in this rehearsed day: stayed at home." Tested. The cast changed, so the voices were re-recorded again (GPT-6 Luna: 274 calls, 0 failed, 20 lines rejected by the checks). The storm day now has 78 of 82 diary lines and 8 posts AI-written, with 0 dropped as stale.
+- **Medium:**
+  - under-7s ride along only with a parent who is home; otherwise they are minded outside the model, never alone (both now stated assumptions, with after-school care);
+  - the assumptions are reworded (7–12 school runs; under-7s);
+  - household size and car share are marked "inputs, not checks";
+  - the ages 50–64 shortfall (−9.7 points) and 80+ excess (+2.0) are stated, and the "max gap" summary no longer hides them.
+- **Low:**
+  - the 75% / 65% government-school share is hedged, with the other possible causes listed;
+  - Petaling is stated as a proxy, and "may be younger";
+  - "Compared with" instead of "Checked against";
+  - like-for-like pupils per 1,000 in the table;
+  - the test no longer rewrites the tracked JSON;
+  - a year note;
+  - the eval report notes its saved live answers predate the fix.
+- **Generated report:** `calibrate_day.py` now writes the report itself (`report()`), so it is reproducible.
+
+**Flaky test root cause.** The world-model caches keyed on `id(world)`. Python reuses ids after an object is garbage-collected, so a newly loaded world could be served another world's cached what-if. This explains `test_whatif_template_fallback_says_the_same_numbers` failing only in long full runs. The keys now use a per-world token (`_world_token`).
+
+**Cycle 22, demo hardening:**
+- mock replays for "Which change would help most residents in the storm rehearsal?" and the car trip question;
+- lane READMEs (spatial: Elmina Day modules and tools; web: Rehearse my trip and `day.trip`; agent: rule 19);
+- a timed browser run-through of the world-model beats (mock, Stylised):
+  - the day loads in 2.6 s and the numbers match the script;
+  - Test a change answers in 267 ms (pre-computed): 820 better off and 0 worse;
+  - the town hall has 5 AI lines;
+  - the warm-up runs every job, including storm options 1–3.
+- **Live smoke test of the trip question:**
+  - English passed first time.
+  - Bahasa Melayu fell back to the template, because the model's honest wording ("laluan yang sangat panjang") was not accepted and "tiba pada 12:13" was refused although a very long way round does arrive.
+  - Both rules are fixed, and the drafts are kept as passing tests.
+
+**Checklist** (mock-backed; voices and smoke test live): lint PASS, pytest 1,304 PASS, typecheck PASS, vitest 801 PASS, gen PASS, golden 23/23 PASS, build PASS, e2e 20 PASS. OpenRouter spend is about US$2.0 of US$3 (an estimate; the counter lags).

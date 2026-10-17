@@ -474,3 +474,20 @@ def test_only_households_with_a_primary_age_child_do_a_school_run(storm, seed_wo
         and t.planned <= 9 * 60
     )
     assert school(storm)["pupils"] == pupils
+
+
+def test_a_school_run_parent_has_a_child_aged_7_to_12(storm):
+    """Review C21: the cast called parents of toddlers 'doing the school run'."""
+    from townshiplens_spatial.day import spotlight
+    from townshiplens_spatial.day.schedule import PRIMARY_AGE
+
+    pop = storm.day.pop
+    by_house: dict[str, list] = {}
+    for r in pop.residents:
+        by_house.setdefault(r.household, []).append(r)
+    cast = spotlight.choose(pop)
+    runners = [c for c in cast if c.role == "parent doing the school run"]
+    assert runners
+    for c in runners:
+        ages = [r.age for r in by_house[c.household]]
+        assert any(PRIMARY_AGE[0] <= a <= PRIMARY_AGE[1] for a in ages), (c.id, ages)
