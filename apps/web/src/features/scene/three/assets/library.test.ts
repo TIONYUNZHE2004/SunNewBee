@@ -32,7 +32,7 @@ const glbs: Record<string, () => ArrayBuffer> = {
     makeGlb([{ name: "a__v__LOD0", translation: [10, 0, 0] }, { name: "a__v__LOD1" }]),
   "/city/b.glb": () => makeGlb([{ name: "b__v__LOD0" }]),
 };
-const loadGlb = async (url: string) => (glbs[url] as () => ArrayBuffer)();
+const loadGlb = async (url: string) => (glbs[url.split("?")[0]!] as () => ArrayBuffer)();
 
 afterEach(() => vi.restoreAllMocks());
 
@@ -43,6 +43,16 @@ describe("loadAssetLibrary", () => {
     expect(g?.getAttribute("position")).toBeDefined();
     expect(g?.getAttribute("normal")).toBeDefined();
     expect(g?.getAttribute("color")).toBeDefined();
+  });
+  it("versions each glb URL with the manifest as_of and the glb's byte count", async () => {
+    const urls: string[] = [];
+    await loadAssetLibrary(manifest(), {
+      loadGlb: (u) => {
+        urls.push(u);
+        return loadGlb(u);
+      },
+    });
+    expect(urls.sort()).toEqual(["/city/a.glb?v=x-1", "/city/b.glb?v=x-1"]);
   });
   it("bakes the node translation", async () => {
     const lib = await loadAssetLibrary(manifest(), { loadGlb });
@@ -59,7 +69,7 @@ describe("loadAssetLibrary", () => {
   it("drops only the asset whose glb fails and lists it in `failed`, without warning", async () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     const lib = await loadAssetLibrary(manifest(), {
-      loadGlb: (u) => (u.endsWith("a.glb") ? Promise.reject(new Error("404")) : loadGlb(u)),
+      loadGlb: (u) => (u.includes("/a.glb?") ? Promise.reject(new Error("404")) : loadGlb(u)),
     });
     expect(lib.has("a")).toBe(false);
     expect(lib.has("b")).toBe(true);

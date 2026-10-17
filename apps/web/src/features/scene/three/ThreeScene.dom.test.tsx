@@ -470,7 +470,7 @@ describe("ThreeScene", () => {
         if (url.includes("/layers/buildings")) return json(CITY);
         if (url.endsWith("/city/manifest.json"))
           return over.manifest ? over.manifest() : json(MANIFEST);
-        if (url.endsWith("/city/link_intermediate.glb")) return over.glb ? over.glb() : glb();
+        if (url.includes("/city/link_intermediate.glb?")) return over.glb ? over.glb() : glb();
         return json({}, 404);
       });
     }
@@ -533,7 +533,7 @@ describe("ThreeScene", () => {
       const disposed = vi.spyOn(THREE.BufferGeometry.prototype, "dispose");
       const { engine, unmount } = mount();
       await waitFor(() =>
-        expect(fetchFn.mock.calls.some(([u]) => String(u).endsWith(".glb"))).toBe(true),
+        expect(fetchFn.mock.calls.some(([u]) => String(u).includes(".glb?"))).toBe(true),
       );
       expect(screen.getByTestId("three-scene")).toHaveAttribute("data-assets", "loading");
       unmount();
@@ -676,8 +676,9 @@ describe("ThreeScene", () => {
         return stubFetch((url) => {
           if (url.includes("/layers/buildings")) return json(CITY2);
           if (url.endsWith("/city/manifest.json")) return json(MANIFEST2);
-          if (url.endsWith("/city/link_intermediate.glb")) return fail.link ? json({}, 404) : glb();
-          if (url.endsWith("/city/semi_d.glb")) return fail.semi ? json({}, 404) : semiGlb();
+          if (url.includes("/city/link_intermediate.glb?"))
+            return fail.link ? json({}, 404) : glb();
+          if (url.includes("/city/semi_d.glb?")) return fail.semi ? json({}, 404) : semiGlb();
           return json({}, 404);
         });
       }
@@ -716,8 +717,8 @@ describe("ThreeScene", () => {
         stubFetch((url) => {
           if (url.includes("/layers/buildings")) return json(CITY2);
           if (url.endsWith("/city/manifest.json")) return json(MANIFEST2);
-          if (url.endsWith("/city/link_intermediate.glb")) return glb();
-          if (url.endsWith("/city/semi_d.glb"))
+          if (url.includes("/city/link_intermediate.glb?")) return glb();
+          if (url.includes("/city/semi_d.glb?"))
             return new Response(makeGlb([{ name: "semi_d__other__LOD0" }]));
           return json({}, 404);
         });
@@ -745,7 +746,7 @@ describe("ThreeScene", () => {
       stubFetch((url) => {
         if (url.includes("/layers/buildings")) return json({ ...CITY, as_of: `v${n++}` });
         if (url.endsWith("/city/manifest.json")) return json(MANIFEST);
-        if (url.endsWith("/city/link_intermediate.glb")) return glb();
+        if (url.includes("/city/link_intermediate.glb?")) return glb();
         return json({}, 404);
       });
       const disposed = vi.spyOn(THREE.BufferGeometry.prototype, "dispose");

@@ -92,7 +92,8 @@ export async function loadAssetLibrary(m: Manifest, opts: Opts = {}): Promise<As
       const spec = m.assets[id];
       if (!spec || opts.signal?.aborted) return;
       try {
-        const buf = await loadGlb(`${base}${spec.file}`);
+        // Versioned so a regenerated glb is never served from a stale HTTP cache.
+        const buf = await loadGlb(`${base}${spec.file}?v=${m.as_of}-${spec.bytes}`);
         const gltf = await loader.parseAsync(buf, "");
         gltf.scene.updateMatrixWorld(true);
         const found = new Map<string, THREE.BufferGeometry>();
