@@ -15,18 +15,35 @@ import {
 /** A resident's own trip in a rehearsal (Cycle 20): one cell per 10-minute departure, coloured
  * and marked by what happened to that trip in the rehearsal. Tapping a cell rehearses that
  * departure again and plays it on the map. Words are the engine's; nothing here is advice. */
-export function TripStrip({ meta }: { meta: TripMeta }) {
+export interface TripEnds {
+  from_id?: string | null;
+  to_id?: string | null;
+  from_point?: string | null;
+  to_point?: string | null;
+}
+
+export function TripStrip({ meta, ends }: { meta: TripMeta; ends?: TripEnds }) {
   const sweep = meta.sweep ?? [];
-  const [picked, setPicked] = useState<string | null>(meta.leave ?? null);
+  // the departure on the map is the one shown as picked, so every strip agrees (review C20)
+  const shown = useScene((s) => (s.myTrip?.geojson as { meta?: TripMeta } | undefined)?.meta);
+  const sameTrip =
+    shown && shown.from === meta.from && shown.to === meta.to && shown.day === meta.day;
+  const [own, setOwn] = useState<string | null>(meta.leave ?? null);
+  const picked = sameTrip ? (shown?.leave ?? own) : own;
+  const setPicked = setOwn;
   const setMyTrip = useScene((s) => s.setMyTrip);
   const setDay = useScene((s) => s.setDay);
+  const clearWhatIf = useScene((s) => s.clearWhatIf);
+  const body = ends ?? { from_id: meta.from_id ?? null, to_id: meta.to_id ?? null };
   const replay = useMutation({
     mutationFn: async (leave: string) => {
       const r = await api.POST("/day/{scenario_id}/trip", {
         params: { path: { scenario_id: meta.day ?? "storm" } },
         body: {
-          from_id: meta.from_id ?? null,
-          to_id: meta.to_id ?? null,
+          from_id: body.from_id ?? null,
+          to_id: body.to_id ?? null,
+          from_point: body.from_point ?? null,
+          to_point: body.to_point ?? null,
           profile: meta.profile ?? "default",
           leave_at: leave,
         },
@@ -35,13 +52,18 @@ export function TripStrip({ meta }: { meta: TripMeta }) {
       return r.data as unknown as Record<string, unknown>;
     },
     onSuccess: (d, leave) => {
+      clearWhatIf(); // a what-if from another moment never stays beside the trip
       setMyTrip(tripFromApi(d));
       const t = minutesOf(leave);
       setDay({ on: true, playing: false, scenario: meta.day ?? "storm", ...(t ? { t } : {}) });
     },
   });
   if (!sweep.length) return null;
-  const canReplay = !!(meta.from_id && meta.to_id && meta.day);
+  const canReplay = !!(
+    meta.day &&
+    (body.from_id || body.from_point) &&
+    (body.to_id || body.to_point)
+  );
   const sel = sweep.find((c) => c.leave === picked) ?? sweep.find((c) => c.leave === meta.leave);
   const present = [...new Set(sweep.map((c) => c.outcome))];
   const pick = (c: SweepCell) => {
@@ -60,36 +82,58 @@ export function TripStrip({ meta }: { meta: TripMeta }) {
           · {meta.from} → {meta.to} {PROFILE_WORDS[meta.profile ?? "default"] ?? ""}
         </span>
       </p>
-      <fieldset className="flex gap-px overflow-x-auto border-0 p-0 pb-1">
+      <fieldset className="min-w-0 border-0 p-0">
         <legend className="sr-only">Departures in the rehearsal, every 10 minutes</legend>
-        {sweep.map((c) => {
-          const st = OUTCOME_STYLE[c.outcome] ?? OUTCOME_STYLE.no_way;
-          const asked = c.leave === meta.leave;
-          const hour = c.leave.endsWith(":00");
-          return (
-            <div key={c.leave} className="flex shrink-0 flex-col items-center gap-0.5">
-              <button
-                type="button"
-                aria-label={cellSentence(c)}
-                aria-pressed={c.leave === sel?.leave}
-                title={cellSentence(c)}
-                onClick={() => pick(c)}
-                className={`grid h-7 w-4 place-items-center rounded-sm text-[10px] leading-none text-white ${
-                  c.leave === sel?.leave ? "ring-2 ring-fg ring-offset-1 ring-offset-surface" : ""
-                }`}
-                style={{
-                  backgroundColor: st.color,
-                  opacity: asked || c.leave === sel?.leave ? 1 : 0.8,
-                }}
-              >
-                <span aria-hidden="true">{st.glyph}</span>
-              </button>
-              <span aria-hidden="true" className="h-3 text-[9px] text-fg-soft">
-                {hour ? c.leave.slice(0, 2) : asked ? "▲" : ""}
-              </span>
-            </div>
-          );
-        })}
+        <div className="flex gap-px overflow-x-auto pb-1">
+          {sweep.map((c) => {
+            const st = OUTCOME_STYLE[c.outcome] ?? OUTCOME_STYLE.no_way;
+            const asked = c.leave === meta.leave;
+            const hour = c.leave.endsWith(":00");
+            return (
+              <div key={c.leave} className="flex shrink-0 flex-col items-center gap-0.5">
+                <button
+                  type="button"
+                  aria-label={`${cellSentence(c)}${asked ? " The time you asked about." : ""}`}
+                  aria-pressed={c.leave === sel?.leave}
+                  tabIndex={c.leave === sel?.leave ? 0 : -1}
+                  title={cellSentence(c)}
+                  onClick={() => pick(c)}
+                  onKeyDown={(e) => {
+                    // one tab stop for the strip; arrow keys move between departures
+                    const i = sweep.indexOf(c);
+                    const next =
+                      e.key === "ArrowRight"
+                        ? sweep[i + 1]
+                        : e.key === "ArrowLeft"
+                          ? sweep[i - 1]
+                          : undefined;
+                    if (!next) return;
+                    e.preventDefault();
+                    setPicked(next.leave);
+                    const el = (e.currentTarget.parentElement?.parentElement?.querySelectorAll(
+                      "button",
+                    ) ?? [])[i + (e.key === "ArrowRight" ? 1 : -1)] as
+                      | HTMLButtonElement
+                      | undefined;
+                    el?.focus();
+                  }}
+                  className={`grid h-7 w-4 place-items-center rounded-sm text-[10px] leading-none text-white ${
+                    c.leave === sel?.leave ? "ring-2 ring-fg ring-offset-1 ring-offset-surface" : ""
+                  }`}
+                  style={{
+                    backgroundColor: st.color,
+                    opacity: asked || c.leave === sel?.leave ? 1 : 0.8,
+                  }}
+                >
+                  <span aria-hidden="true">{st.glyph}</span>
+                </button>
+                <span aria-hidden="true" className="h-3 text-[9px] text-fg-soft">
+                  {hour ? c.leave.slice(0, 2) : asked ? "▲" : ""}
+                </span>
+              </div>
+            );
+          })}
+        </div>
       </fieldset>
       {sel && (
         <p aria-live="polite" className="text-fg">

@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { useMode } from "../../app/modeStore";
 
 export type TripEnd = "from" | "to";
 export type LonLat = [number, number];
@@ -32,3 +33,9 @@ export const useTripPick = create<{
 
 /** A point as the API expects it ("lon,lat", about 10 cm precision). */
 export const pointText = (p: LonLat) => `${p[0].toFixed(6)},${p[1].toFixed(6)}`;
+
+// The card lives in Resident mode: switching mode closes it, so a map click is never swallowed
+// by a pick the user can no longer see (review C20).
+useMode.subscribe((s, prev) => {
+  if (s.mode !== prev.mode) useTripPick.getState().setOpen(false);
+});

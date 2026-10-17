@@ -44,7 +44,7 @@ describe("TripStrip", () => {
       screen.getByRole("button", { name: "Leaving at 06:40: got there at 06:48 (rehearsal)." }),
     ).toBeVisible();
     const asked = screen.getByRole("button", {
-      name: "Leaving at 07:30: found no way through (rehearsal).",
+      name: "Leaving at 07:30: found no way through (rehearsal). The time you asked about.",
     });
     expect(asked).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByText(/not a forecast/)).toBeVisible();
@@ -88,8 +88,42 @@ describe("TripStrip", () => {
     await waitFor(() => expect(useScene.getState().myTrip).not.toBeNull());
     expect(post).toHaveBeenCalledWith("/day/{scenario_id}/trip", {
       params: { path: { scenario_id: "storm" } },
-      body: { from_id: "park-b", to_id: "sk", profile: "drive", leave_at: "06:40" },
+      body: {
+        from_id: "park-b",
+        to_id: "sk",
+        from_point: null,
+        to_point: null,
+        profile: "drive",
+        leave_at: "06:40",
+      },
     });
     expect(useScene.getState().day).toMatchObject({ on: true, t: 400, scenario: "storm" });
+  });
+
+  it("a trip from a tapped point is rehearsed again with that point", async () => {
+    post.mockResolvedValue({ response: { status: 200 }, data: { status: "rehearsed", sweep: [] } });
+    renderWithClient(
+      <TripStrip
+        meta={{ ...META, from_id: null }}
+        ends={{ from_point: "101.5,3.18", to_id: "sk" }}
+      />,
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Leaving at 06:40: got there at 06:48 (rehearsal)." }),
+    );
+    await waitFor(() => expect(post).toHaveBeenCalled());
+    expect(post.mock.calls[0]?.[1]?.body).toMatchObject({ from_point: "101.5,3.18", to_id: "sk" });
+  });
+
+  it("one tab stop for the strip; arrow keys move between departures", () => {
+    renderWithClient(<TripStrip meta={META} />);
+    const cells = screen.getAllByRole("button", { name: /Leaving at/ });
+    expect(cells.filter((c) => c.tabIndex === 0)).toHaveLength(1);
+    const asked = cells.find((c) => c.getAttribute("aria-pressed") === "true") as HTMLElement;
+    fireEvent.keyDown(asked, { key: "ArrowLeft" });
+    expect(screen.getByRole("button", { name: /Leaving at 07:00/ })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
   });
 });

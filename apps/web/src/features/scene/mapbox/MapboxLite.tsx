@@ -5,7 +5,13 @@ import { useDay, useGaps, useLayer, useScenarioWater, useSite } from "../../../l
 import { ENV } from "../../../lib/env";
 import { useTheme } from "../../../ui/theme";
 import { DAY_STYLE, dotsAt, prepare, type Tracks } from "../../day/dayModel";
-import { parseTrip, TRIP_STYLE, tripPositionAt } from "../../day/tripModel";
+import {
+  parseTrip,
+  TRIP_STYLE,
+  tripCoords,
+  tripIdentity,
+  tripPositionAt,
+} from "../../day/tripModel";
 import { useTripPick } from "../../day/tripPickStore";
 import { GAP_BAND_ORDER, GAP_BANDS, gapLines, gapsActive } from "../../gaps/gapModel";
 import { WHATIF_STYLE } from "../../whatif/whatifModel";
@@ -264,13 +270,21 @@ export default function MapboxLite() {
     fly([mid[0] as number, mid[1] as number], 16.5);
   }, [route, fly]);
 
+  // frame a resident's own rehearsed trip when a new trip arrives (not on every departure)
+  const tripId = tripIdentity(myTrip?.geojson);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: frame once per trip identity
   useEffect(() => {
-    // frame a resident's own rehearsed trip when it arrives (the middle of its usual route)
-    const c = tripParsed?.normal ?? tripParsed?.segs.flatMap((x) => x.coords);
-    if (!c?.length) return;
-    const mid = c[Math.floor(c.length / 2)] as number[];
-    fly([mid[0] as number, mid[1] as number], 15);
-  }, [tripParsed, fly]);
+    const map = mapRef.current;
+    const c = tripCoords(tripParsed);
+    if (!map || !c.length) return;
+    const lons = c.map((x) => x[0] as number);
+    const lats = c.map((x) => x[1] as number);
+    const box: [[number, number], [number, number]] = [
+      [Math.min(...lons), Math.min(...lats)],
+      [Math.max(...lons), Math.max(...lats)],
+    ];
+    map.fitBounds(box, { padding: 80, pitch: 55, duration: prefersReducedMotion() ? 0 : 1600 });
+  }, [tripId]);
 
   useEffect(() => {
     const p = places.find((x) => x.id === focusPlaceId);

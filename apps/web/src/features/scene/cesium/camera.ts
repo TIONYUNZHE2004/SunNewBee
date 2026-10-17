@@ -1,7 +1,7 @@
 import * as Cesium from "cesium";
 import { useEffect } from "react";
 import { useCesium } from "resium";
-import { parseTrip } from "../../day/tripModel";
+import { parseTrip, tripCoords, tripIdentity } from "../../day/tripModel";
 import { diffLines } from "../../whatif/whatifModel";
 import { useScene } from "../sceneStore";
 
@@ -54,10 +54,13 @@ export function useCameraIntents(
         );
         if (pts.length)
           move((v) => go(v, Cesium.BoundingSphere.fromPoints(pts), undefined, pitchDeg));
-      } else if (s.myTrip && s.myTrip !== prev.myTrip) {
-        // Frame a resident's own rehearsed trip (its usual route and the trip) when it arrives.
-        const t = parseTrip(s.myTrip.geojson);
-        const pts = [...(t?.normal ?? []), ...(t?.segs ?? []).flatMap((x) => x.coords)].map((c) =>
+      } else if (
+        s.myTrip &&
+        tripIdentity(s.myTrip.geojson) !== tripIdentity(prev.myTrip?.geojson)
+      ) {
+        // Frame a resident's own rehearsed trip when a new trip arrives (another departure of
+        // the same trip keeps the view the resident is looking at).
+        const pts = tripCoords(parseTrip(s.myTrip.geojson)).map((c) =>
           Cesium.Cartesian3.fromDegrees(c[0] as number, c[1] as number),
         );
         if (pts.length)

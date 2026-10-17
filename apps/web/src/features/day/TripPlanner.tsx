@@ -5,6 +5,7 @@ import { Button } from "../../ui/Button";
 import { Icon } from "../../ui/icons";
 import { InSlot } from "../map-ui/mapSlots";
 import { useScene } from "../scene/sceneStore";
+import { useEffectiveView } from "../scene/useMapStyle";
 import { TripStrip } from "./TripStrip";
 import { minutesOf, PROFILE_WORDS, type TripMeta, tripFromApi } from "./tripModel";
 import { pointText, type TripEnd, useTripPick } from "./tripPickStore";
@@ -26,6 +27,7 @@ function EndField({
   const id = useId();
   const [q, setQ] = useState(place?.name ?? "");
   const picking = useTripPick((s) => s.picking === end);
+  const hasMap = useEffectiveView() !== "list";
   const point = useTripPick((s) => s.points[end]);
   const setPicking = useTripPick((s) => s.setPicking);
   const setPoint = useTripPick((s) => s.setPoint);
@@ -84,14 +86,16 @@ function EndField({
               ))}
             </ul>
           )}
-          <button
-            type="button"
-            aria-pressed={picking}
-            className="min-h-9 text-xs text-fg-soft underline"
-            onClick={() => setPicking(picking ? null : end)}
-          >
-            {picking ? "Tap the map now… (cancel)" : "or tap a point on the map"}
-          </button>
+          {hasMap && (
+            <button
+              type="button"
+              aria-pressed={picking}
+              className="min-h-9 text-xs text-fg-soft underline"
+              onClick={() => setPicking(picking ? null : end)}
+            >
+              {picking ? "Tap the map now… (cancel)" : "or tap a point on the map"}
+            </button>
+          )}
         </>
       )}
     </div>
@@ -111,6 +115,7 @@ export function TripPlanner() {
   const profile = useScene((s) => s.profile);
   const setMyTrip = useScene((s) => s.setMyTrip);
   const setDay = useScene((s) => s.setDay);
+  const clearWhatIf = useScene((s) => s.clearWhatIf);
   const points = useTripPick((s) => s.points);
   const picking = useTripPick((s) => s.picking);
   const days = useDayScenarios(open);
@@ -119,7 +124,9 @@ export function TripPlanner() {
   useEffect(() => {
     if (!picking) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") useTripPick.getState().setPicking(null);
+      if (e.key !== "Escape" || e.defaultPrevented) return; // another popover had it first
+      e.preventDefault();
+      useTripPick.getState().setPicking(null);
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
@@ -145,6 +152,7 @@ export function TripPlanner() {
       return r.data as unknown as Record<string, unknown>;
     },
     onSuccess: (d) => {
+      clearWhatIf(); // a what-if from another moment never stays beside the trip
       const g = tripFromApi(d);
       setMeta(d.status === "rehearsed" ? g.meta : null);
       if (d.status !== "rehearsed") return;
@@ -239,7 +247,17 @@ export function TripPlanner() {
           No mapped connection for this trip: a data gap in the township model, not a closed road.
         </p>
       )}
-      {meta && <TripStrip meta={meta} />}
+      {meta && (
+        <TripStrip
+          meta={meta}
+          ends={{
+            from_id: points.from ? null : (from?.id ?? null),
+            to_id: points.to ? null : (to?.id ?? null),
+            from_point: points.from ? pointText(points.from) : null,
+            to_point: points.to ? pointText(points.to) : null,
+          }}
+        />
+      )}
     </section>
   );
 }

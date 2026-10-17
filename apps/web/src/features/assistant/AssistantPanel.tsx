@@ -77,7 +77,11 @@ export function AssistantPanel({
         <p className="mt-1 text-sm text-fg-soft">{copy.sub}</p>
       </header>
       {/* the peeking phone sheet keeps only the composer: the trip card waits for more room */}
-      {mode === "resident" && !compact && <TripPlanner />}
+      {mode === "resident" && (
+        <div className={compact ? "hidden" : ""}>
+          <TripPlanner />
+        </div>
+      )}
       {mode === "management" && (
         <>
           <DayPanel />

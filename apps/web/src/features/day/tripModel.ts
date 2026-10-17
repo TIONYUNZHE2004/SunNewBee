@@ -223,3 +223,14 @@ export const minutesOf = (hhmm: string | null | undefined): number | null => {
   const m = /^(\d{2}):(\d{2})$/.exec(hhmm ?? "");
   return m ? Number(m[1]) * 60 + Number(m[2]) : null;
 };
+
+/** Which trip this is (day, ends, profile): a new departure of the same trip keeps the view. */
+export function tripIdentity(geojson: unknown): string | null {
+  const m = (geojson as { meta?: TripMeta } | null | undefined)?.meta;
+  return m ? [m.day, m.from, m.to, m.profile].join("|") : null;
+}
+
+/** Every coordinate of a trip, for framing it on the map (usual route, trip and cut pieces). */
+export function tripCoords(t: ParsedTrip | null): number[][] {
+  return t ? [...(t.normal ?? []), ...t.segs.flatMap((x) => x.coords), ...t.cut.flat()] : [];
+}

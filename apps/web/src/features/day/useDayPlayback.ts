@@ -64,6 +64,11 @@ export function useDayPlayback() {
       setDay({ on: false, playing: false });
   }, [on, rolloutOn, mode, hasTrip, setDay]);
 
+  // a resident's trip belongs to its day: whatever ended the day, the trip goes with it
+  useEffect(() => {
+    if (!on && useScene.getState().myTrip) useScene.getState().setMyTrip(null);
+  }, [on]);
+
   // the river follows the clock; a level the user picks meanwhile ends the day
   const stage = stageAt(stages, t);
   useEffect(() => {
