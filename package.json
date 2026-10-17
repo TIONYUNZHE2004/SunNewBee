@@ -12,6 +12,7 @@
     "lint": "uv run ruff check . && uv run ruff format --check . && biome check .",
     "gen": "uv run python -m townshiplens_api.export_openapi packages/api-client/openapi.json && pnpm --filter @tl/api-client gen",
     "data:build": "uv run python data/scripts/import_osm.py && uv run python data/scripts/build_overlay.py && uv run python data/scripts/build_flood.py && uv run python data/scripts/build_waste.py",
+    "data:city": "uv run python data/scripts/build_buildings.py --max-requests 40 && uv run python data/scripts/build_buildings.py --parks --max-requests 40 && uv run python data/scripts/build_landcover.py --max-requests 40 && uv run python data/scripts/build_archetypes.py --max-requests 10 && uv run python data/scripts/build_signage.py --max-requests 40 && uv run python data/scripts/build_landmarks.py --max-requests 5",
     "golden": "uv run python evals/run_golden.py",
     "db:reset": "node -e \"const fs=require('fs');for(const f of fs.existsSync('.data')?fs.readdirSync('.data'):[])if(/\\.db(-wal|-shm)?$/.test(f))fs.rmSync('.data/'+f);console.log('local databases removed (stop the API first)')\""
   },

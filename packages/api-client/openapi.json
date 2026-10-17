@@ -353,6 +353,24 @@
             "title": "Buildings",
             "type": "object"
           },
+          "landcover": {
+            "additionalProperties": true,
+            "default": {
+              "features": [],
+              "type": "FeatureCollection"
+            },
+            "title": "Landcover",
+            "type": "object"
+          },
+          "landmarks": {
+            "additionalProperties": true,
+            "default": {
+              "features": [],
+              "type": "FeatureCollection"
+            },
+            "title": "Landmarks",
+            "type": "object"
+          },
           "parks": {
             "additionalProperties": true,
             "default": {
@@ -360,6 +378,15 @@
               "type": "FeatureCollection"
             },
             "title": "Parks",
+            "type": "object"
+          },
+          "signage": {
+            "additionalProperties": true,
+            "default": {
+              "features": [],
+              "type": "FeatureCollection"
+            },
+            "title": "Signage",
             "type": "object"
           },
           "trees": {

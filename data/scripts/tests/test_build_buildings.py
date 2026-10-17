@@ -203,3 +203,38 @@ def test_build_parks_dedupes_ways_repeated_across_tiles():
     ]
     feats = bb.build_parks(els)
     assert [f["properties"]["id"] for f in feats] == ["way/1", "way/2"]
+
+
+def test_build_features_keeps_the_osm_tag_subset_only():
+    els = [
+        way(
+            1,
+            SQ,
+            building="yes",
+            amenity="place_of_worship",
+            religion="muslim",
+            shop="",
+            **{"building:levels": "2", "addr:street": "Jalan X", "height": "9"},
+            name="Masjid",
+        ),
+        way(2, SQ, building="house"),
+    ]
+    b, _, _ = bb.build_features(els)
+    assert b[0]["properties"]["osm"] == {
+        "building": "yes",
+        "amenity": "place_of_worship",
+        "religion": "muslim",
+        "building:levels": "2",
+    }
+    assert b[1]["properties"]["osm"] == {"building": "house"}
+
+
+def test_building_ids_are_stable_across_reruns_and_tile_order():
+    sq2 = [(x + 0.001, y) for x, y in SQ]
+    els = [way(11, SQ, building="yes"), way(12, sq2, building="house"), way(11, SQ, building="yes")]
+    first, _, _ = bb.build_features(els)
+    again, _, _ = bb.build_features(list(reversed(els)))
+    ids = {f["properties"]["id"] for f in first}
+    assert ids == {"w11", "w12"}  # derived from the OSM way id only
+    assert ids == {f["properties"]["id"] for f in again}
+    assert first == bb.build_features(els)[0]
