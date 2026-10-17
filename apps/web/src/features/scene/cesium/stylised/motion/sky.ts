@@ -34,8 +34,18 @@ void main() {
   vec4 p = czm_computePosition();
   float t = czm_frameNumber / 30.0;
 #ifdef TL_BIRD
-  // st.s: -1 left wing tip, 0 body, +1 right wing tip; st.t: bird index. Local frame: z is up.
-  p.z += abs(st.s) * sin(t * 12.0 + st.t * 1.7) * 0.6;
+  // All flocks share one primitive whose model matrix is the ENU frame at the anchor: position is
+  // the bird's offset in its flock (x forward, z up); the per-instance "flock" attribute holds the
+  // flock's place (east, north, up metres) and heading, written by tick().
+  // st.s: -1 left wing tip, 0 body, +1 right wing tip; st.t: bird index.
+  vec4 fl = czm_batchTable_flock(batchId);
+  vec3 local = position3DHigh + position3DLow;
+  float ch = cos(fl.w);
+  float sh = sin(fl.w);
+  local.xy = vec2(ch * local.x - sh * local.y, sh * local.x + ch * local.y);
+  local.z += abs(st.s) * sin(t * 12.0 + st.t * 1.7) * 0.6;
+  local += fl.xyz;
+  p = vec4(local - czm_encodedCameraPositionMCHigh - czm_encodedCameraPositionMCLow, 1.0);
 #endif
 #ifdef TL_SWAY
   // st.t runs 0 (bottom) to 1 (top) on the canopy ellipsoid: sway grows towards the top.
@@ -71,12 +81,16 @@ export type SkyCesium = Pick<
   | "Matrix4"
   | "Transforms"
   | "ShadowMode"
+  | "GeometryInstanceAttribute"
+  | "GeometryOffsetAttribute"
 >;
 
 export interface SkyViewer {
   scene: {
     primitives: { add(p: Cesium.Primitive): unknown; remove(p: Cesium.Primitive): unknown };
     requestRender(): void;
+    /** Used once: places the clouds on the first frame their primitive is ready. */
+    postRender?: { addEventListener(cb: () => void): () => void };
   };
 }
 
@@ -172,9 +186,12 @@ function birdGeometry(C: SkyCesium, n: number, key: string): Cesium.Geometry {
 }
 
 /**
- * One Primitive per flock (birds flap in the vertex shader; the flock moves along its loop by
- * modelMatrix) and one per cloud (3-5 flattened ellipsoid puffs, translucent, drifting with
- * wrap-around inside `extentM`). Positions are metres east / north / up of `at`.
+ * Two primitives in all (measured at the 2026-10-17 perf gate: one per flock and one per cloud cost
+ * ~50 draw commands at Day/High). Every flock is an instance of ONE bird primitive: the vertex
+ * shader flaps the wings and places each flock from its per-instance "flock" attribute (east,
+ * north, up, heading). Every cloud puff is an instance of ONE translucent cloud primitive and
+ * drifts by Cesium's per-instance `offset` (with wrap-around inside `extentM`). Positions are metres
+ * east / north / up of `at`.
  */
 export function buildSky(
   C: SkyCesium,
@@ -197,29 +214,36 @@ export function buildSky(
 ): Sky {
   const collection = viewer.scene.primitives;
   const base = C.Transforms.eastNorthUpToFixedFrame(C.Cartesian3.fromDegrees(at.lon, at.lat, 0));
-  /** base x translate(e, n, u) x rotateZ(heading), written into `into` when given. */
-  const place = (e: number, n: number, u: number, into?: Cesium.Matrix4, heading?: number) => {
-    const m = C.Matrix4.multiplyByTranslation(
-      base,
-      new C.Cartesian3(e, n, u),
-      into ?? new C.Matrix4(),
-    );
-    if (heading !== undefined) C.Matrix4.multiplyByMatrix3(m, C.Matrix3.fromRotationZ(heading), m);
-    return m;
+  const flockValue = (loop: Loop, t: number) => {
+    const [e, n, u] = loopPoint(loop, t);
+    const [e2, n2] = loopPoint(loop, t + 0.1);
+    return [e, n, u, Math.atan2(n2 - n, e2 - e)];
   };
 
-  const birdMat =
-    loops.length > 0
-      ? C.Material.fromType("Color", { color: C.Color.fromCssColorString(birdColour(palette)) })
-      : null;
-  const flocks = loops.map((loop, i) => ({
-    loop,
-    prim: new C.Primitive({
-      geometryInstances: new C.GeometryInstance({
-        geometry: birdGeometry(C, birdsPerFlock, `bird:${i}`),
-      }),
+  let birdMat: Cesium.Material | null = null;
+  let birds: Cesium.Primitive | null = null;
+  if (loops.length > 0) {
+    birdMat = C.Material.fromType("Color", {
+      color: C.Color.fromCssColorString(birdColour(palette)),
+    });
+    birds = new C.Primitive({
+      geometryInstances: loops.map(
+        (loop, i) =>
+          new C.GeometryInstance({
+            geometry: birdGeometry(C, birdsPerFlock, `bird:${i}`),
+            id: `flock:${i}`,
+            attributes: {
+              flock: new C.GeometryInstanceAttribute({
+                componentDatatype: C.ComponentDatatype.FLOAT,
+                componentsPerAttribute: 4,
+                value: flockValue(loop, 0),
+              }),
+            } as never,
+          }),
+      ),
+      modelMatrix: base,
       appearance: new C.MaterialAppearance({
-        material: birdMat!,
+        material: birdMat,
         materialSupport: C.MaterialAppearance.MaterialSupport.TEXTURED,
         vertexShaderSource: BIRD_VS,
         flat: true,
@@ -229,9 +253,12 @@ export function buildSky(
       asynchronous: false,
       compressVertices: false,
       allowPicking: false,
+      // The shader moves the flocks away from the geometry's bounds: never cull (a few hundred
+      // triangles).
+      cull: false,
       shadows: C.ShadowMode.DISABLED,
-    }),
-  }));
+    });
+  }
 
   let cloudMat: Cesium.Material | null = null;
   const cloudUniforms = (p: Palette) => ({ ...lightUniforms(C, p, at), cloudShadow: 0 });
@@ -244,14 +271,30 @@ export function buildSky(
     stackPartitions: 6,
     slicePartitions: 8,
     vertexFormat: C.MaterialAppearance.MaterialSupport.BASIC.vertexFormat,
+    // Supported by EllipsoidGeometry in 1.146 (adds applyOffset) but missing from its typings.
+    ...({ offsetAttribute: C.GeometryOffsetAttribute.ALL } as object),
   });
-  const cloudPrims = clouds.map((c, i) => {
+  // Cesium's per-instance `offset` (what OffsetGeometryInstanceAttribute builds; that class is
+  // missing from the 1.146 typings): an ECEF vector added to every vertex with applyOffset = 1.
+  const zero = () =>
+    new C.GeometryInstanceAttribute({
+      componentDatatype: C.ComponentDatatype.FLOAT,
+      componentsPerAttribute: 3,
+      value: [0, 0, 0],
+    });
+  const cloudSets = clouds.map((c, i) => {
     const key = `cloud:${i}`;
     const n = 3 + Math.min(2, Math.floor(hashUnit(key, "n") * 3));
-    const instances = Array.from({ length: n }, (_, j) => {
-      const k = `${key}:${j}`;
+    const at0 = C.Matrix4.multiplyByTranslation(
+      base,
+      new C.Cartesian3(c.x, c.y, c.z),
+      new C.Matrix4(),
+    );
+    const ids = Array.from({ length: n }, (_, j) => `${key}:${j}`);
+    const instances = ids.map((k) => {
       const rx = (35 + hashUnit(k, "r") * 25) * c.scale;
-      const offset = C.Matrix4.fromTranslation(
+      const offset = C.Matrix4.multiplyByTranslation(
+        at0,
         new C.Cartesian3(
           (hashUnit(k, "x") - 0.5) * 70 * c.scale,
           (hashUnit(k, "y") - 0.5) * 40 * c.scale,
@@ -261,59 +304,93 @@ export function buildSky(
       );
       return new C.GeometryInstance({
         geometry: puff as unknown as Cesium.Geometry,
+        id: k,
         modelMatrix: C.Matrix4.multiplyByScale(
           offset,
           new C.Cartesian3(rx, rx * (0.6 + hashUnit(k, "w") * 0.3), rx * 0.35),
           new C.Matrix4(),
         ),
+        attributes: { offset: zero() } as never,
       });
     });
-    return {
-      spot: c,
-      prim: new C.Primitive({
-        geometryInstances: instances,
-        appearance: new C.MaterialAppearance({
-          material: cloudMat!,
-          materialSupport: C.MaterialAppearance.MaterialSupport.BASIC,
-          flat: true,
-          translucent: true,
-          closed: true,
-        }),
-        asynchronous: true,
-        releaseGeometryInstances: true,
-        allowPicking: false,
-        shadows: C.ShadowMode.DISABLED,
-      }),
-    };
+    return { spot: c, ids, instances };
   });
-  for (const { prim } of [...flocks, ...cloudPrims]) collection.add(prim);
+  const cloudPrim =
+    cloudSets.length > 0
+      ? new C.Primitive({
+          geometryInstances: cloudSets.flatMap((s) => s.instances),
+          appearance: new C.MaterialAppearance({
+            material: cloudMat!,
+            materialSupport: C.MaterialAppearance.MaterialSupport.BASIC,
+            flat: true,
+            translucent: true,
+            closed: true,
+          }),
+          asynchronous: true,
+          releaseGeometryInstances: true,
+          allowPicking: false,
+          shadows: C.ShadowMode.DISABLED,
+        })
+      : null;
+  const prims = [birds, cloudPrim].filter((p): p is Cesium.Primitive => p !== null);
+  for (const p of prims) collection.add(p);
 
   let night = isNight(palette);
   let birdsOn = true;
   let cloudsOn = true;
   const apply = () => {
-    for (const { prim } of flocks) prim.show = birdsOn && !night;
-    for (const { prim } of cloudPrims) prim.show = cloudsOn && !night;
+    if (birds) birds.show = birdsOn && !night;
+    if (cloudPrim) cloudPrim.show = cloudsOn && !night;
     viewer.scene.requestRender();
   };
 
+  /** Per-instance attributes once the primitive is ready (before that, nothing to write). */
+  const attrs = (p: Cesium.Primitive, id: string) =>
+    p.ready
+      ? (p.getGeometryInstanceAttributes(id) as Record<string, unknown> | undefined)
+      : undefined;
+  /** Last clock time: re-applied once the (asynchronous) clouds become ready. */
+  let lastT = 0;
+  let cloudsPlaced = false;
   const tick = (t: number) => {
-    for (const { loop, prim } of flocks) {
-      const [e, n, u] = loopPoint(loop, t);
-      const [e2, n2] = loopPoint(loop, t + 0.1);
-      prim.modelMatrix = place(e, n, u, prim.modelMatrix, Math.atan2(n2 - n, e2 - e));
-    }
-    const [dx, dy] = cloudOffset(t, 3, extentM);
-    for (const { spot, prim } of cloudPrims) {
-      prim.modelMatrix = place(
-        wrapCentred(spot.x + dx, extentM),
-        wrapCentred(spot.y + dy, extentM),
-        spot.z,
-        prim.modelMatrix,
-      );
+    lastT = t;
+    if (birds)
+      loops.forEach((loop, i) => {
+        const a = attrs(birds as Cesium.Primitive, `flock:${i}`);
+        if (a) a.flock = flockValue(loop, t);
+      });
+    if (cloudPrim?.ready) {
+      cloudsPlaced = true;
+      const [dx, dy] = cloudOffset(t, 3, extentM);
+      for (const { spot, ids } of cloudSets) {
+        const enu = new C.Cartesian3(
+          wrapCentred(spot.x + dx, extentM) - spot.x,
+          wrapCentred(spot.y + dy, extentM) - spot.y,
+          0,
+        );
+        const ecef = C.Matrix4.multiplyByPointAsVector(base, enu, new C.Cartesian3());
+        const value = new Float32Array([ecef.x, ecef.y, ecef.z]);
+        for (const id of ids) {
+          const a = attrs(cloudPrim, id);
+          if (a) a.offset = value;
+        }
+      }
     }
   };
+  /** Place the clouds at the latest time on the first frame they are ready (Motion off: no tick). */
+  const placeWhenReady = () => {
+    if (cloudsPlaced || !cloudPrim) return true;
+    if (!cloudPrim.ready) return false;
+    tick(lastT);
+    viewer.scene.requestRender();
+    return true;
+  };
   tick(0);
+  let stopWatching: (() => void) | undefined = viewer.scene.postRender?.addEventListener(() => {
+    if (!placeWhenReady()) return;
+    stopWatching?.();
+    stopWatching = undefined;
+  });
   apply();
 
   let destroyed = false;
@@ -340,7 +417,9 @@ export function buildSky(
     destroy() {
       if (destroyed) return;
       destroyed = true;
-      for (const { prim } of [...flocks, ...cloudPrims]) {
+      stopWatching?.();
+      stopWatching = undefined;
+      for (const prim of prims) {
         collection.remove(prim); // a scene collection also destroys it
         if (!prim.isDestroyed()) prim.destroy();
       }

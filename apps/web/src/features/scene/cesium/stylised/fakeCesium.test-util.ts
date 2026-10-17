@@ -17,20 +17,22 @@ export function fakeCesium() {
       this.destroyed = true;
     });
     isDestroyed = () => this.destroyed;
+    modelMatrix?: unknown;
     constructor(public options: Record<string, unknown>) {
+      this.modelMatrix = options.modelMatrix;
       primitives.push(this);
     }
-  }
-  class FakeClassificationPrimitive extends FakePrimitive {
-    override kind = "ClassificationPrimitive";
     /** Per-instance attributes by id, like Cesium (only once ready). */
-    attrs = new Map<string, { color?: unknown }>();
+    attrs = new Map<string, Record<string, unknown>>();
     getGeometryInstanceAttributes = vi.fn((id: string) => {
       if (!this.ready) throw new Error("not ready");
       const a = this.attrs.get(id) ?? {};
       this.attrs.set(id, a);
       return a;
     });
+  }
+  class FakeClassificationPrimitive extends FakePrimitive {
+    override kind = "ClassificationPrimitive";
   }
   class FakeGroundPrimitive extends FakePrimitive {
     override kind = "GroundPrimitive";
@@ -85,6 +87,9 @@ export function fakeCesium() {
     static multiplyByScale = (_m: Matrix4, _s: unknown, out = new Matrix4()) => out;
     static multiplyByTranslation = (_m: Matrix4, v: Cartesian3, out = new Matrix4()) =>
       Object.assign(out, { t: [v.x, v.y, v.z] });
+    /** Identity rotation: ENU vectors come back unchanged. */
+    static multiplyByPointAsVector = (_m: Matrix4, v: Cartesian3, out = new Cartesian3()) =>
+      Object.assign(out, { x: v.x, y: v.y, z: v.z });
   }
   class Cartesian3 {
     constructor(
@@ -140,6 +145,8 @@ export function fakeCesium() {
     },
     VertexFormat: { POSITION_ONLY: { position: true } },
     GeometryInstance: Plain,
+    GeometryInstanceAttribute: Plain,
+    GeometryOffsetAttribute: { ALL: 2 },
     CorridorGeometry: geom("corridor"),
     PolygonGeometry: geom("polygon"),
     PolygonHierarchy: Plain,
