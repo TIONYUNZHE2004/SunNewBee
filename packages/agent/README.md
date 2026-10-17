@@ -36,8 +36,10 @@ model is dropped, because the label line already says it.
 **Drafts and checks (Cycle 0, `ai/world-model`):**
 - `answer.draft {attempt, delta}` streams the summary while the model is still writing it. The UI
   shows it muted as "Draft · checking against the township data…".
-- A draft stops at the first forbidden word, water depth or raw id, and never ends in a half
-  word.
+- A draft streams one whole sentence at a time. Each sentence must pass the final answer's
+  content checks (`validate.draft_errors`): wording, promises, numbers and facts bound to tool
+  results, recorded features and route status. The draft stops before the first sentence that
+  fails, so rejected text never reaches the screen or a screen reader (audit A3).
 - `answer.check {attempt, ok, issues, repairs}` is the validator's verdict. `issues` are short
   readable reasons (`validate.issue_labels`). A rejected attempt clears the draft, and the
   rewrite starts a new one.
