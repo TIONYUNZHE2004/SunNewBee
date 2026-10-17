@@ -18,6 +18,7 @@ import { trackHeading } from "./controls/cameraHeadingStore";
 import { type CameraOps, createCameraOps, frameNow } from "./controls/cameraOps";
 import { configureControls } from "./controls/configureControls";
 import { movedInputs } from "./controls/movedInputs";
+import { patchFrustumClone } from "./frustumClone";
 import {
   DEFAULT_FOV_DEG,
   DEFAULT_PITCH_DEG,
@@ -47,6 +48,10 @@ const TIME_OPS: TimeOps = {
 };
 
 const PICK_PX = 8;
+
+// The panel reserve sets frustum.xOffset; without this the camera never equals its (offset-less)
+// clone and requestRenderMode renders every frame (see frustumClone.ts).
+patchFrustumClone(Cesium.PerspectiveFrustum);
 
 // Module-level: resium compares read-only Viewer props by reference and recreates the viewer on a
 // new object, so an inline literal would rebuild the WebGL context on every render.
