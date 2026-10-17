@@ -1,5 +1,7 @@
 # Stylised city enhancement: time-of-day theme, camera, look and motion (Project 3)
 
+> **Superseded for the Stylised view** by [2026-10-17-stylised-city-threejs-overhaul-design.md](2026-10-17-stylised-city-threejs-overhaul-design.md) (ADR 0012/0013). Kept for history.
+
 Status: design approved section by section with the owner on 2026-10-16. Builds on Project 2 (`docs/superpowers/specs/2026-10-16-stylised-city-design.md`, merged on `main`). A separate spec covers the UI-component polish done in the same round.
 
 Owner's intent: the stylised 3D map should look much closer to a hand-built isometric low-poly diorama (reference image shared in the session: dusk light, soft shadows, glowing windows, varied buildings, pavements, lamps, props), in **Day as well as Night**. The theme follows the clock by default and the user can override it. The map gains gentle motion (birds, clouds, ambient). The camera opens close in and is easy to move in 3D with the mouse. Heavier GPU load is acceptable, but keep it as low as reasonably possible.

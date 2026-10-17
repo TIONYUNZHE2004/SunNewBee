@@ -1,5 +1,7 @@
 # Stylised 3D city (Project 2)
 
+> **Superseded for the Stylised view** by [2026-10-17-stylised-city-threejs-overhaul-design.md](2026-10-17-stylised-city-threejs-overhaul-design.md) (ADR 0012/0013). Kept for history.
+
 Status: written 2026-10-16 in the owner's absence (autonomous overnight run, "do not wait for review"). Every judgment call below is also a ledger ruling. Builds on Project 1 (`docs/superpowers/specs/2026-10-16-frontend-redesign-two-screens-design.md`, merged on `feat/redesign-two-screens`).
 
 Owner's decisions, verbatim intent: the 3D city should look like the stylised low-poly isometric night illustration in the redesign handoff (lit windows, trees, props), but on the **real Elmina layout and scale**. Chosen route "B": download real building shapes once, commit them, and draw them with our own renderer inside the existing Cesium viewer. Needs a **Day** look and a **Night** look (Project 1's theme store drives both). Realistic Google tiles stay available as a second view.
