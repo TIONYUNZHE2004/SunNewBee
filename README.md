@@ -59,7 +59,7 @@ Use the real time from `date -u '+%Y-%m-%d %H:%M UTC'`. Feedback on someone else
 | Every agent | Start of every session and before every task | Fetch and read `BOARD.md` and your task file |
 | Worker | Starting a task | Log "started" and push the board |
 | Worker | Finding, blocker or question | Log it and push the board straight away |
-| Worker | Done | Log the result and check results, push the board, open a PR into control for the code |
+| Worker | Done | Run only the local checks that fit the change (workflow doc, "Checks"); push and open or update the PR into control; GitHub CI runs the full 7. Log the PR link and the CI result, push the board |
 | Control | On every fetch | Read new log entries; update headers and `BOARD.md` |
 
 ## Merge conflicts
