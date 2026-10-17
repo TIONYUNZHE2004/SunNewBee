@@ -2,6 +2,8 @@
 
 Writes data/seed/elmina/base/buildings.geojson and trees.geojson and records them in site.json.
 Display data only: heights are OSM tags or deterministic defaults, never derived from Google tiles.
+Each building keeps a small `osm` tag subset for build_archetypes.py. Ids are `w<OSM way id>`, so
+they stay stable across re-runs (signs and landmarks attach to them).
 Overpass goes through data/scripts/overpass.py (cache, backoff, request cap).
 """
 
@@ -126,6 +128,7 @@ def fetch_all(bbox, step: float, max_requests: int | None) -> list[dict]:
 
 
 MAX_HEIGHT_M = 300.0
+OSM_KEYS = ("building", "amenity", "religion", "shop", "building:levels")
 
 
 def _number(text) -> float | None:
@@ -158,6 +161,13 @@ def kind_of(tags: dict) -> str:
     return "other"
 
 
+def default_height(kind: str, id: str) -> float:  # noqa: A002
+    """Deterministic default height for a kind: a point in its range picked by hashing the id."""
+    lo, hi = _HEIGHT_RANGE[kind]
+    frac = int(hashlib.sha1(id.encode()).hexdigest()[:8], 16) / 0xFFFFFFFF
+    return lo + frac * (hi - lo)
+
+
 def infer_height(tags: dict, id: str) -> tuple[float, str, float]:  # noqa: A002
     """(height_m, source, min_height_m). Deterministic: defaults hash the OSM id."""
     h = _number(tags.get("height"))
@@ -168,9 +178,7 @@ def infer_height(tags: dict, id: str) -> tuple[float, str, float]:  # noqa: A002
         if levels is not None and 0 < levels * LEVEL_M <= MAX_HEIGHT_M:
             height, source = levels * LEVEL_M, "osm_levels"
         else:
-            lo, hi = _HEIGHT_RANGE[kind_of(tags)]
-            frac = int(hashlib.sha1(id.encode()).hexdigest()[:8], 16) / 0xFFFFFFFF
-            height, source = lo + frac * (hi - lo), "default"
+            height, source = default_height(kind_of(tags), id), "default"
     height = round(height, 2)
     mn = _number(tags.get("min_height"))
     mn = 0.0 if mn is None or mn < 0 else mn
@@ -256,6 +264,7 @@ def build_features(elements: list[dict]) -> tuple[list[dict], list[dict], dict]:
                 "min_height_m": mn,
                 "kind": kind_of(tags),
                 "height_source": source,
+                "osm": {k: tags[k] for k in OSM_KEYS if tags.get(k)},
             }
             if tags.get("name"):
                 props["name"] = tags["name"]

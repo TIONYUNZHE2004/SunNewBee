@@ -296,6 +296,16 @@ Near the mall, the flagged segments are the Urban Park / Central Park lake-edge 
 - **`height_source`:** `osm_height` (an OSM `height` tag), `osm_levels` (from `building:levels`, 3.2 m per level) or `default` (a deterministic default by building kind).
 - **Skipped:** multipolygon relations are not imported (7 skipped), plus 2 invalid ways; 116 duplicates were dropped.
 - **Current seed (2026-10-16):** 7803 buildings (7330 default, 460 osm_levels, 13 osm_height; heights 3.2 to 35.2 m) and 491 trees.
+- **`osm`:** each building keeps the tags `building`, `amenity`, `religion`, `shop` and `building:levels` (only those present) for the archetype step. Ids are `w<OSM way id>`, so they stay stable across re-runs.
+
+### Archetypes, precincts and final heights (display only)
+
+`uv run python data/scripts/build_archetypes.py --max-requests 10` runs after `build_landcover.py` (last step of `pnpm data:city`). It makes one Overpass query for precincts (named `place=suburb|neighbourhood|quarter` nodes and named `landuse=residential` ways) and writes `base/precincts.geojson`, `base/archetype_coverage.json` (per precinct: counts by archetype and method, and the generic share) and the enriched `base/buildings.geojson`. It also records `site.json` `buildings.archetypes_as_of`. `--dry-run` computes and prints the coverage and writes nothing.
+
+- **Per building:** `precinct` (when any), `archetype`, `archetype_method` (`override`, `osm_tag`, `landuse`, `height`, `osm_tag+size`, `shape`, `shape+precinct` or `generic`) and the final `height_m` / `height_source`.
+- **Rules:** OSM tags, footprint shape (minimum rotated rectangle), OSM land use from `landcover.geojson` and the precinct name, first match wins. A footprint that matches no rule is `generic`, because a wrong guess is worse than no guess. Surau stay generic.
+- **Height precedence:** `google_3dtiles` (from `base/height_samples.json`, when present) > `osm_height` > `osm_levels` > `archetype_storeys` > `default`. A sample over 3× the storey height of a low-rise archetype is rejected as an outlier. Google samples only ever set `height_m`; they never choose an archetype.
+- **Corrections:** `base/archetype_overrides.json` maps a building id to an archetype (`{"w123": {"archetype": "mosque", "note": "…"}}`); it starts as `{}`.
 
 ### Parks (display only)
 
