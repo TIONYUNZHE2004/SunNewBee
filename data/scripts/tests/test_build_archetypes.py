@@ -197,28 +197,63 @@ def test_superlink_size_outside_a_ridge_precinct_is_generic():
 # --- heights ------------------------------------------------------------------------
 
 
-def test_final_height_precedence():
-    sample = {"height_m": 9.4, "coverage": 0.9}
+def test_final_height_precedence_never_uses_google():
     tagged = {**props(), "height_m": 12.8, "height_source": "osm_levels"}
     tagged["osm"]["building:levels"] = "4"
-    assert ba.final_height(tagged, "link_intermediate", sample) == (9.4, "google_3dtiles")
-    assert ba.final_height(tagged, "link_intermediate", None) == (12.8, "osm_levels")
+    assert ba.final_height(tagged, "link_intermediate") == (12.8, "osm_levels")
     tall = {**props(), "height_m": 15.0, "height_source": "osm_height"}
-    assert ba.final_height(tall, "semi_d", None) == (15.0, "osm_height")
-    assert ba.final_height(props(), "link_intermediate", None) == (8.5, "archetype_storeys")
+    assert ba.final_height(tall, "semi_d") == (15.0, "osm_height")
+    assert ba.final_height(props(), "link_intermediate") == (8.5, "archetype_storeys")
     default = {**props(), "height_m": 7.93}
-    assert ba.final_height(default, "generic", None) == (7.93, "default")
-    assert ba.final_height(default, "highrise", None) == (7.93, "default")
+    assert ba.final_height(default, "generic") == (7.93, "default")
+    assert ba.final_height(default, "highrise") == (7.93, "default")
+    # a stale Google-sourced height from an older run is not carried over
+    stale = {**props(), "height_m": 40.0, "height_source": "google_3dtiles"}
+    assert ba.final_height(stale, "link_intermediate") == (8.5, "archetype_storeys")
 
 
-def test_final_height_rejects_low_rise_outliers():
-    assert ba.final_height(props(), "link_intermediate", {"height_m": 40.0}) == (
+def test_display_height_prefers_a_valid_sample():
+    good = {"height_m": 9.4, "coverage": 0.9}
+    assert ba.display_height(12.8, "osm_levels", "link_intermediate", good) == (
+        9.4,
+        "google_3dtiles",
+    )
+    assert ba.display_height(12.8, "osm_levels", "link_intermediate", None) == (12.8, "osm_levels")
+
+
+def test_display_height_rejects_low_rise_outliers():
+    big = {"height_m": 40.0, "coverage": 0.9}
+    assert ba.display_height(8.5, "archetype_storeys", "link_intermediate", big) == (
         8.5,
         "archetype_storeys",
     )
     # not low rise: a tall sample is kept
-    assert ba.final_height(props(), "mosque", {"height_m": 40.0}) == (40.0, "google_3dtiles")
-    assert ba.final_height(props(), "generic", {"height_m": 40.0}) == (40.0, "google_3dtiles")
+    assert ba.display_height(8.0, "default", "mosque", big) == (40.0, "google_3dtiles")
+    assert ba.display_height(8.0, "default", "generic", big) == (40.0, "google_3dtiles")
+
+
+@pytest.mark.parametrize(
+    ("sample", "valid"),
+    [
+        ({"height_m": 9.0, "coverage": 0.5}, True),
+        ({"height_m": 9.0, "coverage": 0.3}, False),
+        ({"height_m": 9.0}, False),
+        ({"height_m": "9", "coverage": 0.9}, False),
+        ({"height_m": None, "coverage": 0.9}, False),
+        ({"height_m": 2.4, "coverage": 0.9}, False),
+        ({"height_m": 2.5, "coverage": 0.9}, True),
+        ({"height_m": 200.0, "coverage": 0.9}, True),
+        ({"height_m": 200.1, "coverage": 0.9}, False),
+        (None, False),
+    ],
+)
+def test_valid_sample_gate(sample, valid):
+    assert ba._valid_sample(sample) is valid
+
+
+def test_display_height_falls_back_on_a_thin_sample():
+    thin = {"height_m": 12.0, "coverage": 0.3}
+    assert ba.display_height(8.0, "default", "generic", thin) == (8.0, "default")
 
 
 def test_low_rise_set():
@@ -345,8 +380,19 @@ def test_transform_assigns_records_and_keeps_ids():
     assert p["w2"]["height_m"] == 8.5 and p["w2"]["height_source"] == "archetype_storeys"
     assert p["w3"]["archetype"] == "factory" and "precinct" not in p["w3"]
     assert p["w4"]["archetype"] == "superlink" and p["w4"]["archetype_method"] == "shape+precinct"
-    assert p["w4"]["height_m"] == 9.1 and p["w4"]["height_source"] == "google_3dtiles"
+    # Google never reaches height_m (the Cesium Stylised view reads it): display fields only
+    assert p["w4"]["height_m"] == 6.0 and p["w4"]["height_source"] == "osm_height"
+    assert p["w4"]["display_height_m"] == 9.1
+    assert p["w4"]["display_height_source"] == "google_3dtiles"
+    assert p["w4"]["sampled_height_m"] == 9.1
+    assert (p["w1"]["display_height_m"], p["w1"]["display_height_source"]) == (
+        8.5,
+        "archetype_storeys",
+    )
+    assert "sampled_height_m" not in p["w1"]
+    assert "sampled_height_m" not in p["w2"]  # coverage 0.4: not a valid sample
     for q in p.values():
+        assert q["height_source"] != "google_3dtiles"
         assert q["archetype"] in ba.ARCHETYPES
 
 
@@ -363,10 +409,12 @@ def test_transform_keeps_osm_height_after_a_sample_goes_away():
     feats, precincts, landuse, samples = _inputs()
     once = ba.transform(copy.deepcopy(feats), precincts, landuse, samples, {})
     w4 = next(f for f in once if f["properties"]["id"] == "w4")["properties"]
-    assert w4["height_source"] == "google_3dtiles"
+    assert w4["display_height_source"] == "google_3dtiles"
     later = ba.transform(copy.deepcopy(once), precincts, landuse, {}, {})
     w4 = next(f for f in later if f["properties"]["id"] == "w4")["properties"]
     assert (w4["height_m"], w4["height_source"]) == (6.0, "osm_height")
+    assert (w4["display_height_m"], w4["display_height_source"]) == (6.0, "osm_height")
+    assert "sampled_height_m" not in w4
 
 
 def test_coverage_counts_per_precinct():
@@ -430,6 +478,7 @@ def test_main_writes_outputs_without_height_samples(tmp_path, monkeypatch, capsy
     feats = json.loads((base / "buildings.geojson").read_text())["features"]
     assert all("archetype" in f["properties"] for f in feats)
     assert not any(f["properties"]["height_source"] == "google_3dtiles" for f in feats)
+    assert not any(f["properties"]["display_height_source"] == "google_3dtiles" for f in feats)
     assert (base / "precincts.geojson").exists()
     cov = json.loads((base / "archetype_coverage.json").read_text())
     assert cov["total"]["count"] == 4
@@ -528,7 +577,8 @@ def test_ruling3_transform_uses_the_sample_for_highrise_but_heights_unchanged():
     out = ba.transform(copy.deepcopy(feats), precincts, landuse, samples, {})
     w1 = out[0]["properties"]
     assert (w1["archetype"], w1["archetype_method"]) == ("highrise", "height")
-    assert (w1["height_m"], w1["height_source"]) == (42.0, "google_3dtiles")
+    assert (w1["display_height_m"], w1["display_height_source"]) == (42.0, "google_3dtiles")
+    assert w1["height_source"] != "google_3dtiles"
 
 
 def test_ruling4_house_tries_rule8_shapes_before_bungalow():
@@ -603,4 +653,5 @@ def test_ruling2_extended_slab_keeps_its_google_height():
     )
     w1 = out[0]["properties"]
     assert (w1["archetype"], w1["archetype_method"]) == ("generic", "generic")
-    assert (w1["height_m"], w1["height_source"]) == (28.0, "google_3dtiles")
+    assert (w1["display_height_m"], w1["display_height_source"]) == (28.0, "google_3dtiles")
+    assert (w1["height_m"], w1["height_source"]) == (7.5, "default")
