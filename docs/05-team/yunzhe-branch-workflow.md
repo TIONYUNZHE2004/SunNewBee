@@ -48,11 +48,15 @@ Active workers (keep this table current):
 
 ## Control session: start of every task
 
-Before it does anything else, the control session:
+Before it does anything else, including answering a question about the code or the branches, the control session:
 
 1. Runs `git fetch origin` (and `git fetch --unshallow origin` once, if the clone is shallow).
 2. Lists every worker branch with commits that control does not have (`git log --oneline HEAD..origin/<branch>`), and reports them.
 3. Merges what Yunzhe approves, runs the checklist, then starts the task.
+
+When it reports branch state, it says when it fetched ("as of 14:05 fetch"). A worker's push is invisible to control until the next fetch, so a report without a fetch time may be stale.
+
+Once a worker has an open PR into control, the control session subscribes to it, so GitHub wakes it on the worker's pushes and CI results.
 
 ## When a worker is done
 
