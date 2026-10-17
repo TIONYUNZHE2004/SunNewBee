@@ -1,0 +1,185 @@
+import { describe, expect, it } from "vitest";
+import type { BuildingsLayer } from "../../../../lib/api";
+import { createFrame } from "../frame";
+import type { AssetSpec, Manifest } from "./manifest";
+import { planCity } from "./plan";
+
+const frame = createFrame([101.5, 3.18]);
+
+function poly(cx: number, cz: number, w: number, l: number): [number, number][] {
+  // l along x, w along z (local metres) -> lon/lat ring
+  const pts: [number, number][] = [
+    [cx - l / 2, cz - w / 2],
+    [cx + l / 2, cz - w / 2],
+    [cx + l / 2, cz + w / 2],
+    [cx - l / 2, cz + w / 2],
+    [cx - l / 2, cz - w / 2],
+  ];
+  return pts.map(([x, z]) => frame.toLonLat(x, z));
+}
+const feat = (props: Record<string, unknown>, ring: [number, number][]) => ({
+  type: "Feature",
+  properties: props,
+  geometry: { type: "Polygon", coordinates: [ring] },
+});
+const layerOf = (buildings: unknown[], landmarks: unknown[] = []) =>
+  ({
+    buildings: { type: "FeatureCollection", features: buildings },
+    landmarks: { type: "FeatureCollection", features: landmarks },
+  }) as unknown as BuildingsLayer;
+
+const spec = (over: Partial<AssetSpec> = {}): AssetSpec => ({
+  group: "archetype",
+  file: "a.glb",
+  bytes: 1,
+  repeat: "frontage",
+  frontage: "short",
+  fit: { xz: [0.75, 1.35], y: [0.6, 1.6] },
+  decorative: false,
+  placement: null,
+  jitter: {},
+  variantByGroup: { default: "gable", valley: "modern" },
+  palettes: {
+    default: [["#111111", "#222222", "#333333"]],
+    valley: [["#aa0000", "#00aa00", "#0000aa"]],
+  },
+  variants: {
+    gable: { size: [6.4, 8.5, 15.5], lods: [{ node: "g", tris: 1, maxM: null }] },
+    modern: { size: [6.4, 8.5, 15.5], lods: [{ node: "m", tris: 1, maxM: null }] },
+  },
+  ...over,
+});
+const manifest = (): Manifest => ({
+  version: 1,
+  as_of: "x",
+  precinctGroups: [["valley", "elmina valley"]],
+  assets: {
+    link_intermediate: spec(),
+    generic: spec({
+      repeat: "none",
+      variantByGroup: { default: "box" },
+      variants: { box: { size: [10, 9, 10], lods: [{ node: "b", tris: 1, maxM: null }] } },
+    }),
+    lakeside_mall: spec({
+      group: "landmark",
+      repeat: "none",
+      placement: "anchor",
+      variantByGroup: {},
+      variants: { main: { size: [100, 20, 100], lods: [{ node: "l", tris: 1, maxM: null }] } },
+    }),
+    kanopi: spec({
+      group: "landmark",
+      repeat: "none",
+      placement: "deferred",
+      variantByGroup: {},
+      variants: { main: { size: [50, 20, 50], lods: [{ node: "k", tris: 1, maxM: null }] } },
+    }),
+  },
+  landmarks: { lakeside_mall: { anchor: [101.51, 3.185] } },
+});
+const all = () => true;
+const link = (id: string, extra: Record<string, unknown> = {}) =>
+  feat({ id, archetype: "link_intermediate", height_m: 8.5, ...extra }, poly(0, 0, 6.4, 15.5));
+
+describe("planCity", () => {
+  it("places a link footprint under asset/variant", () => {
+    const p = planCity(layerOf([link("b1")]), frame, manifest(), all);
+    expect(p.placements.get("link_intermediate/gable")).toHaveLength(1);
+    expect(p.extrude.size).toBe(0);
+    expect(p.stats.placed).toBe(1);
+    expect(p.stats.units).toBe(1);
+  });
+  it("uses the valley variant and palette for Elmina Valley 2", () => {
+    const p = planCity(
+      layerOf([link("b1", { precinct: "Elmina Valley 2" })]),
+      frame,
+      manifest(),
+      all,
+    );
+    const got = p.placements.get("link_intermediate/modern")!;
+    expect(got[0]!.palette).toEqual(["#aa0000", "#00aa00", "#0000aa"]);
+  });
+  it("extrudes an archetype missing from the manifest with reason no_asset", () => {
+    const f = feat({ id: "b2", archetype: "mystery", height_m: 8.5 }, poly(0, 0, 6.4, 15.5));
+    const p = planCity(layerOf([f]), frame, manifest(), all);
+    expect(p.extrude.has("b2")).toBe(true);
+    expect(p.stats.fallback.no_asset).toBe(1);
+  });
+  it("extrudes when the glb did not load (has() false)", () => {
+    const p = planCity(layerOf([link("b1")]), frame, manifest(), (a) => a !== "link_intermediate");
+    expect(p.extrude.has("b1")).toBe(true);
+    expect(p.stats.fallback.no_asset).toBe(1);
+  });
+  it("places generic at fill 0.9 and extrudes it at 0.7", () => {
+    const sq = (id: string, cut: number) => {
+      // 10 x 10 square with a corner notch; notch area fraction = cut
+      const s = Math.sqrt(cut) * 10;
+      const pts: [number, number][] = [
+        [-5, -5],
+        [5, -5],
+        [5, 5 - s],
+        [5 - s, 5 - s],
+        [5 - s, 5],
+        [-5, 5],
+        [-5, -5],
+      ];
+      return feat(
+        { id, archetype: "generic", height_m: 9 },
+        pts.map(([x, z]) => frame.toLonLat(x + (id === "g2" ? 50 : 0), z)),
+      );
+    };
+    const p = planCity(layerOf([sq("g1", 0.1), sq("g2", 0.3)]), frame, manifest(), all);
+    expect(p.placements.get("generic/box")).toHaveLength(1);
+    expect(p.extrude.has("g2")).toBe(true);
+    expect(p.extrude.has("g1")).toBe(false);
+    expect(p.stats.fallback.generic_fill).toBe(1);
+  });
+  it("extrudes a building without an archetype", () => {
+    const f = feat({ id: "b3", height_m: 9 }, poly(0, 0, 6.4, 15.5));
+    const p = planCity(layerOf([f]), frame, manifest(), all);
+    expect(p.extrude.has("b3")).toBe(true);
+    expect(p.stats.fallback.no_archetype).toBe(1);
+  });
+  it("extrudes a footprint the archetype cannot fit", () => {
+    const f = feat(
+      { id: "b4", archetype: "link_intermediate", height_m: 8.5 },
+      poly(0, 0, 6.4, 40),
+    );
+    const p = planCity(layerOf([f]), frame, manifest(), all);
+    expect(p.extrude.has("b4")).toBe(true);
+    expect(p.stats.fallback.no_fit).toBe(1);
+  });
+  it("places a landmark at its anchor and drops its building from both sets", () => {
+    const lm = feat({ id: "lm", model: "lakeside_mall", building_id: "b1" }, poly(0, 0, 60, 60));
+    const p = planCity(layerOf([link("b1"), link("b5")], [lm]), frame, manifest(), all);
+    expect(p.landmarks).toHaveLength(1);
+    const [ax, az] = frame.toLocal(101.51, 3.185);
+    expect(p.landmarks[0]!.x).toBeCloseTo(ax, 6);
+    expect(p.landmarks[0]!.z).toBeCloseTo(az, 6);
+    expect(p.landmarks[0]!.yaw).toBe(0);
+    expect(p.landmarks[0]!.sx).toBe(1);
+    expect(p.extrude.has("b1")).toBe(false);
+    const ids = [...p.placements.values()].flat().map((q) => q.id);
+    expect(ids).not.toContain("b1");
+    expect(ids).toContain("b5");
+  });
+  it("leaves a deferred landmark unplaced and its building in the normal flow", () => {
+    const lm = feat({ id: "k", model: "kanopi", building_id: "b1" }, poly(0, 0, 40, 40));
+    const p = planCity(layerOf([link("b1")], [lm]), frame, manifest(), all);
+    expect(p.landmarks).toHaveLength(0);
+    expect(p.placements.get("link_intermediate/gable")).toHaveLength(1);
+  });
+  it("never invents a landmark when the layer has no landmark features", () => {
+    const p = planCity(layerOf([link("b1")]), frame, manifest(), all);
+    expect(p.landmarks).toHaveLength(0);
+  });
+  it("returns an empty plan for a null or empty layer", () => {
+    for (const l of [null, undefined, layerOf([]), {} as BuildingsLayer]) {
+      const p = planCity(l, frame, manifest(), all);
+      expect(p.placements.size).toBe(0);
+      expect(p.extrude.size).toBe(0);
+      expect(p.landmarks).toHaveLength(0);
+      expect(p.stats.placed).toBe(0);
+    }
+  });
+});
