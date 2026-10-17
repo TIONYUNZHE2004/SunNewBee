@@ -93,41 +93,54 @@ def test_ao_is_baked_into_red(built):
     assert greens == {0, 1}
 
 
-# --- Task 2: link houses ---------------------------------------------------------------
+# --- archetypes (Tasks 2-3) -------------------------------------------------------------
 
 LINK_IDS = ("link_intermediate", "link_long")
+RESIDENTIAL_IDS = ("superlink", "semi_d", "bungalow", "townhouse")
+
+
+def _build_and_pack(ids, tmp_path_factory) -> dict[str, tuple[Path, Path]]:
+    """Build the assets through run.py and pack them into a tmp folder (no manifest)."""
+    cmd = [sys.executable, str(ASSETS_DIR / "run.py")]
+    for a in ids:
+        cmd += ["--asset", a]
+    run = subprocess.run(cmd, cwd=ROOT, capture_output=True, text=True, timeout=1800)
+    assert run.returncode == 0, run.stdout[-4000:] + run.stderr[-4000:]
+    out = tmp_path_factory.mktemp("archetypes")
+    pack_cmd = [sys.executable, str(ASSETS_DIR / "pack.py"), "--out", str(out)]
+    for a in ids:
+        pack_cmd += ["--only", a]
+    pack = subprocess.run(pack_cmd, cwd=ROOT, capture_output=True, text=True, timeout=600)
+    assert pack.returncode == 0, pack.stdout[-4000:] + pack.stderr[-4000:]
+    assert not (out / "manifest.json").exists()
+    raw_dir = ASSETS_DIR / "out" / "raw"
+    return {a: (raw_dir / specs.ASSETS[a].file, out / specs.ASSETS[a].file) for a in ids}
 
 
 @pytest.fixture(scope="module")
 def link_built(tmp_path_factory) -> dict[str, tuple[Path, Path]]:
-    """Build both link houses through run.py and pack them into a tmp folder (no manifest)."""
-    cmd = [sys.executable, str(ASSETS_DIR / "run.py")]
-    for a in LINK_IDS:
-        cmd += ["--asset", a]
-    run = subprocess.run(cmd, cwd=ROOT, capture_output=True, text=True, timeout=1200)
-    assert run.returncode == 0, run.stdout[-4000:] + run.stderr[-4000:]
-    out = tmp_path_factory.mktemp("links")
-    pack_cmd = [sys.executable, str(ASSETS_DIR / "pack.py"), "--out", str(out)]
-    for a in LINK_IDS:
-        pack_cmd += ["--only", a]
-    pack = subprocess.run(pack_cmd, cwd=ROOT, capture_output=True, text=True, timeout=300)
-    assert pack.returncode == 0, pack.stdout[-4000:] + pack.stderr[-4000:]
-    assert not (out / "manifest.json").exists()
-    raw_dir = ASSETS_DIR / "out" / "raw"
-    return {a: (raw_dir / specs.ASSETS[a].file, out / specs.ASSETS[a].file) for a in LINK_IDS}
+    return _build_and_pack(LINK_IDS, tmp_path_factory)
 
 
-@pytest.mark.parametrize("asset_id", LINK_IDS)
-def test_link_houses(link_built, asset_id):
-    raw, packed = link_built[asset_id]
+@pytest.fixture(scope="module")
+def residential_built(tmp_path_factory) -> dict[str, tuple[Path, Path]]:
+    return _build_and_pack(RESIDENTIAL_IDS, tmp_path_factory)
+
+
+def _roles(colors) -> set[int]:
+    return {round(c[1] * 7) for c in colors}
+
+
+def check_archetype(raw: Path, packed: Path, asset_id: str) -> dict[str, list]:
+    """The shared archetype checks (committed-asset checks on the packed file, the vertex
+    contract on the raw LODs). Returns {variant id: raw LOD0 COLOR_0} for asset-specific checks."""
     spec = specs.ASSETS[asset_id]
     a, b = read_glb(raw), read_glb(packed)
-    # the committed-asset checks, on the packed file
     assert packed.stat().st_size <= spec.max_bytes
     assert b.materials == ["tl_role"]
     assert b.images == 0
     assert "EXT_meshopt_compression" in b.extensions_used
-    assert {v.id for v in spec.variants} == {"gable", "modern"}
+    out = {}
     for v in spec.variants:
         for n, cap in enumerate(v.tris):
             name = f"{asset_id}__{v.id}__LOD{n}"
@@ -151,21 +164,66 @@ def test_link_houses(link_built, asset_id):
         assert 0.3 <= statistics.fmean(reds) <= 1.0, lod0
         pos = read_attribute(raw, lod0, "POSITION")
         assert min(p[1] for p in pos) > -0.01, "nothing below the ground"
-        upper_walls = [c[0] for c, p in zip(colors, pos, strict=True) if p[1] > 5 and c[1] < 0.05]
-        assert statistics.fmean(upper_walls) > 0.5, "upper walls are open (normals outwards)"
+        high = v.size[1] * 0.6  # upper walls are above 60 % of the height (5 m for 8.5 m)
+        upper_walls = [
+            c[0] for c, p in zip(colors, pos, strict=True) if p[1] > high and c[1] < 0.05
+        ]
+        if upper_walls:
+            assert statistics.fmean(upper_walls) > 0.5, "upper walls are open (normals outwards)"
         glass_ao = [c[0] for c in colors if round(c[1] * 7) == specs.ROLES.index("glass")]
         assert statistics.fmean(glass_ao) > 0.3, "glass is not baked black"
-        roles = {round(c[1] * 7) for c in colors}
+        roles = _roles(colors)
         assert len(roles) >= 4, (lod0, roles)
         assert {specs.ROLES.index("glass"), specs.ROLES.index("dark")} <= roles, roles
         glass = [c[2] for c in colors if round(c[1] * 7) == specs.ROLES.index("glass")]
         assert glass and all(0.0 < g < 1.0 for g in glass), lod0
         assert len({round(g, 4) for g in glass}) > 1, "window seeds vary per window"
-        if v.id == "modern":
-            assert specs.ROLES.index("accent") in roles  # brick accent panel
         # LOD1 keeps glass (inset faces) but drops the dark frames and AC fans
         lod1 = f"{asset_id}__{v.id}__LOD1"
-        roles1 = {round(c[1] * 7) for c in read_attribute(raw, lod1, "COLOR_0")}
+        roles1 = _roles(read_attribute(raw, lod1, "COLOR_0"))
         assert specs.ROLES.index("glass") in roles1
-        assert specs.ROLES.index("metal") not in roles1  # gate, fence and AC are LOD0 only
         assert specs.ROLES.index("dark") not in roles1
+        out[v.id] = colors
+    return out
+
+
+@pytest.mark.parametrize("asset_id", LINK_IDS)
+def test_link_houses(link_built, asset_id):
+    raw, packed = link_built[asset_id]
+    assert {v.id for v in specs.ASSETS[asset_id].variants} == {"gable", "modern"}
+    colors = check_archetype(raw, packed, asset_id)
+    assert specs.ROLES.index("accent") in _roles(colors["modern"])  # brick accent panel
+    for v in ("gable", "modern"):  # gate, fence and AC are LOD0 only
+        lod1 = read_attribute(raw, f"{asset_id}__{v}__LOD1", "COLOR_0")
+        assert specs.ROLES.index("metal") not in _roles(lod1)
+
+
+@pytest.mark.parametrize("asset_id", RESIDENTIAL_IDS)
+def test_residential(residential_built, asset_id):
+    raw, packed = residential_built[asset_id]
+    spec = specs.ASSETS[asset_id]
+    expected = {
+        "superlink": {"modern"},
+        "semi_d": {"gable", "modern"},
+        "bungalow": {"hip"},
+        "townhouse": {"flat"},
+    }[asset_id]
+    assert {v.id for v in spec.variants} == expected
+    check_archetype(raw, packed, asset_id)
+    metal = specs.ROLES.index("metal")
+    glass = specs.ROLES.index("glass")
+    for v in spec.variants:
+        lod0 = f"{asset_id}__{v.id}__LOD0"
+        colors = read_attribute(raw, lod0, "COLOR_0")
+        normals = read_attribute(raw, lod0, "NORMAL")
+        if asset_id == "superlink":  # rooftop solar panels: metal faces looking up
+            solar = [n for c, n in zip(colors, normals, strict=True) if round(c[1] * 7) == metal]
+            assert any(n[1] > 0.5 for n in solar), "superlink LOD0 has solar panels"
+            assert specs.ROLES.index("glass") in _roles(colors)  # skylight and windows
+        if asset_id == "semi_d":  # the party wall (-x) has no openings
+            facing = [
+                n
+                for c, n in zip(colors, normals, strict=True)
+                if round(c[1] * 7) == glass and n[0] < -0.5
+            ]
+            assert facing == [], "semi_d party wall has no glass"

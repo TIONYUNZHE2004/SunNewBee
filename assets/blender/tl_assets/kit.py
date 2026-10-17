@@ -661,6 +661,42 @@ def solar_panels(
     return _keep(m.obj("solar_panels", "metal"))
 
 
+def block(
+    x0: float,
+    x1: float,
+    y0: float,
+    y1: float,
+    z0: float,
+    z1: float,
+    role: str,
+    *,
+    name: str = "block",
+):
+    """A plain axis-aligned box (no bottom face) with `role`: a low wall, a hedge, a curb."""
+    m = _Mesh()
+    m.box(x0, x1, y0, y1, z0, z1)
+    return _keep(m.obj(name, role))
+
+
+def skylight(w: float, d: float, y: float, *, x: float = 0.0, z: float = 0.0, lod: int = 0):
+    """A roof skylight over w × d centred on (x, z): a dark curb 0.2 m high with a glass top
+    (role glass, one window seed), split into ~0.5 m cells at LOD0 so the AO can vary."""
+    curb, top = _Mesh(), _Mesh()
+    x0, x1, z0, z1, ht = x - w / 2, x + w / 2, z - d / 2, z + d / 2, 0.2
+    curb.box(x0, x1, y, y + ht, z0, z1, skip=("bottom", "top"))
+    nx = max(1, round(w / 0.5)) if lod == 0 else 1
+    nz = max(1, round(d / 0.5)) if lod == 0 else 1
+    for i in range(nx):
+        for j in range(nz):
+            a, b = x0 + w * i / nx, x0 + w * (i + 1) / nx
+            c, e = z0 + d * j / nz, z0 + d * (j + 1) / nz
+            top.face([(a, y + ht, c), (b, y + ht, c), (b, y + ht, e), (a, y + ht, e)], (0, 1, 0))
+    return _keep(
+        curb.obj("skylight_curb", "dark" if lod == 0 else "secondary"),
+        top.obj("skylight_glass", "glass", window_seed()),
+    )
+
+
 def far_block(
     size: tuple[float, float, float], roof: str, *, pitch_deg: float = 30.0, ridge_axis: str = "z"
 ) -> list:
