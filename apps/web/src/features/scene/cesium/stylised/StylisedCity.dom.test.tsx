@@ -119,6 +119,8 @@ async function mount() {
 }
 
 describe("StylisedCity wiring", () => {
+  // The first test pays for the cold import of StylisedCity and Cesium, which can pass the 5 s
+  // default on a loaded machine or a CI runner.
   it("Motion off builds still canopies; Motion on rebuilds them swaying", async () => {
     await mount();
     await waitFor(() => expect(buildProps).toHaveBeenCalled());
@@ -127,7 +129,7 @@ describe("StylisedCity wiring", () => {
     const { useSceneSettings } = await import("../../sceneSettingsStore");
     await act(async () => useSceneSettings.setState({ motion: true }));
     await waitFor(() => expect(last()[1].sway).toBe(true));
-  });
+  }, 30_000);
 
   it("light pools are an imagery layer on the scene, not a prop; none on the Low tier", async () => {
     await mount();

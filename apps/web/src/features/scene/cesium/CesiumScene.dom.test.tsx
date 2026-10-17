@@ -25,12 +25,14 @@ vi.mock("./frustumClone", () => ({
 }));
 
 describe("CesiumScene", () => {
+  // The first test pays for the cold import of the whole Cesium bundle, which can pass the 5 s
+  // default on a loaded machine or a CI runner.
   it("patches Cesium's frustum clone and pick ray when the module loads", async () => {
     const Cesium = await import("cesium");
     await import("./CesiumScene");
     expect(patches.frustum).toEqual([Cesium.PerspectiveFrustum]);
     expect(patches.camera).toEqual([Cesium.Camera]);
-  });
+  }, 30_000);
 
   it("passes read-only Viewer props by stable reference so resium never recreates the viewer", async () => {
     const { default: CesiumScene } = await import("./CesiumScene");
