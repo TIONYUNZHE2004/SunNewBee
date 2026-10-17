@@ -33,7 +33,26 @@ describe("TicketsPage", () => {
       </MemoryRouter>,
     );
     await screen.findByRole("heading", { name: "Gaps to close" });
-    expect(container.firstElementChild).toHaveClass("pb-10");
+    const grid = container.firstElementChild?.firstElementChild;
+    expect(grid).toHaveClass("pb-10");
+  });
+  it("scrolls in a full-width wrapper so the scrollbar sits at the window edge, not mid-page", async () => {
+    stubFetch((url) => json(url.includes("verification-requests") ? [vr("one", 5)] : []));
+    const { container } = renderWithClient(
+      <MemoryRouter>
+        <TicketsPage />
+      </MemoryRouter>,
+    );
+    await screen.findByRole("heading", { name: "Gaps to close" });
+    const scroller = container.firstElementChild as HTMLElement;
+    const scrollerClasses = scroller.className.split(/\s+/);
+    expect(scrollerClasses).toEqual(expect.arrayContaining(["lg:h-full", "lg:overflow-auto"]));
+    expect(scrollerClasses.some((c) => c.startsWith("max-w-") || c === "mx-auto")).toBe(false);
+    const grid = scroller.firstElementChild as HTMLElement;
+    expect(grid.className.split(/\s+/)).toEqual(
+      expect.arrayContaining(["mx-auto", "max-w-6xl", "grid"]),
+    );
+    expect(grid.className).not.toContain("overflow-auto");
   });
   it("keeps the auto-selected ticket after Save instead of jumping to the next", async () => {
     let first: object = vr("one", 5);
