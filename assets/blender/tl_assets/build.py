@@ -25,6 +25,8 @@ if str(ASSETS_DIR) not in sys.path:
     sys.path.insert(0, str(ASSETS_DIR))
 
 import bpy  # noqa: E402
+import mathutils  # noqa: E402
+from bpy_extras.object_utils import world_to_camera_view  # noqa: E402
 
 from tl_assets import core  # noqa: E402
 from tl_assets.specs import Variant, get_spec  # noqa: E402
@@ -91,45 +93,94 @@ def build_asset(asset_id: str, out: Path) -> Path:
     return path
 
 
-def preview(asset_id: str) -> None:
-    """Owner gate: all variants × LODs in a row, sun + sky, camera framed; renders a PNG."""
-    built = _build_objects(asset_id)
-    mat = core.preview_material()
-    x = 0.0
-    gap = 2.0
-    lo_y, hi_y, max_h = math.inf, -math.inf, 0.0
-    for v, _lod, obj in built:
-        w, h, d = v.size
-        obj.data.materials.clear()
-        obj.data.materials.append(mat)
+def _bbox(objs) -> list:
+    """The eight world-space corners of every object's bounding box, together."""
+    bpy.context.view_layer.update()
+    return [o.matrix_world @ mathutils.Vector(c) for o in objs for c in o.bound_box]
+
+
+def _frame_camera(scene, cam, corners, azimuth: float = 35.0, elevation: float = 30.0) -> None:
+    """Perspective 3/4 view from the front-left (frontage is Blender -y, left is -x).
+
+    Looks at the middle of `corners` and backs off until every corner is inside the frame.
+    """
+    lo = mathutils.Vector([min(c[i] for c in corners) for i in range(3)])
+    hi = mathutils.Vector([max(c[i] for c in corners) for i in range(3)])
+    centre = (lo + hi) / 2.0
+    az, el = math.radians(azimuth), math.radians(elevation)
+    direction = mathutils.Vector(
+        (-math.sin(az) * math.cos(el), -math.cos(az) * math.cos(el), math.sin(el))
+    )
+    cam.data.lens = 50.0
+    cam.data.clip_start = 0.1
+    cam.data.clip_end = 5000.0
+    cam.rotation_euler = (-direction).to_track_quat("-Z", "Y").to_euler()
+    margin = 0.04
+
+    def fits(dist: float) -> bool:
+        cam.location = centre + direction * dist
+        bpy.context.view_layer.update()
+        for c in corners:
+            v = world_to_camera_view(scene, cam, c)
+            if v.z <= 0 or not (margin <= v.x <= 1 - margin and margin <= v.y <= 1 - margin):
+                return False
+        return True
+
+    near, far = 1.0, 4000.0
+    for _ in range(40):
+        mid = (near + far) / 2.0
+        near, far = (near, mid) if fits(mid) else (mid, far)
+    cam.location = centre + direction * far
+    bpy.context.view_layer.update()
+
+
+def _layout(items) -> None:
+    """Place objects left to right along +x with a gap, each centred on its footprint."""
+    x, gap = 0.0, 2.0
+    for v, _lod, obj in items:
+        w = v.size[0]
         obj.location.x = x + w / 2
         x += w + gap
-        max_h = max(max_h, h)
-        lo_y, hi_y = min(lo_y, -d / 2), max(hi_y, d / 2)
-    width = x - gap
+
+
+def _render(scene, path: Path, size: tuple[int, int]) -> None:
+    scene.render.resolution_x, scene.render.resolution_y = size
+    scene.render.filepath = str(path)
+    bpy.ops.render.render(write_still=True)
+    print(f"[tl_assets] preview {path}")
+
+
+def preview(asset_id: str) -> None:
+    """Owner gate: renders `<id>.png` (all variants x LODs in a row) and `<id>_lod0.png`
+    (LOD0 variants only, closer), both from a perspective 3/4 view on the front-left."""
+    built = _build_objects(asset_id)
+    mat = core.preview_material()
+    for _v, _lod, obj in built:
+        obj.data.materials.clear()
+        obj.data.materials.append(mat)
     scene = bpy.context.scene
     core.sun_and_sky(scene)
     cam_data = bpy.data.cameras.new("tl_cam")
-    cam_data.type = "ORTHO"
-    cam_data.ortho_scale = max(width, max_h * 3.0) * 1.1
     cam = bpy.data.objects.new("tl_cam", cam_data)
     scene.collection.objects.link(cam)
-    dist = max(width, max_h) * 2.0
-    cam_data.clip_end = max(cam_data.clip_end, dist * 4.0)  # big landmarks sit far from the camera
-    cam.location = (width / 2, lo_y - dist * 0.8, max_h / 2 + dist * 0.45)  # frontage side
-    target = bpy.data.objects.new("tl_target", None)
-    target.location = (width / 2, 0.0, max_h / 2)
-    scene.collection.objects.link(target)
-    track = cam.constraints.new("TRACK_TO")
-    track.target = target
     scene.camera = cam
     core.set_engine(scene, "CYCLES")
-    scene.cycles.samples = 32
-    scene.render.resolution_x, scene.render.resolution_y = 1600, 700
+    scene.cycles.samples = 48
     PREVIEW_DIR.mkdir(parents=True, exist_ok=True)
-    scene.render.filepath = str(PREVIEW_DIR / f"{asset_id}.png")
-    bpy.ops.render.render(write_still=True)
-    print(f"[tl_assets] preview {scene.render.filepath}")
+
+    _layout(built)
+    scene.render.resolution_x, scene.render.resolution_y = 2000, 900
+    _frame_camera(scene, cam, _bbox([o for _, _, o in built]))
+    _render(scene, PREVIEW_DIR / f"{asset_id}.png", (2000, 900))
+
+    lod0 = [b for b in built if b[1] == 0]
+    for _v, lod, obj in built:
+        obj.hide_render = lod != 0
+    _layout(lod0)
+    scene.render.resolution_x, scene.render.resolution_y = 1800, 1200
+    _frame_camera(scene, cam, _bbox([o for _, _, o in lod0]))
+    scene.cycles.samples = 96
+    _render(scene, PREVIEW_DIR / f"{asset_id}_lod0.png", (1800, 1200))
 
 
 def main(argv: list[str]) -> None:

@@ -8,11 +8,13 @@ Vertex contract (`COLOR_0`, corner domain, RGBA): R = baked AO, G = role index /
 B = per-class aux, A = 1. One material, `tl_role`, per asset.
 """
 
+import math
 from collections.abc import Callable
 from pathlib import Path
 
 import bmesh
 import bpy
+import mathutils
 
 from .specs import ROLES
 
@@ -367,17 +369,39 @@ def preview_material():
 
 
 def sun_and_sky(scene) -> None:
-    """A sun lamp and a sky texture world, for previews."""
+    """A low-key sun and a flat sky for previews, on the AgX view transform.
+
+    The sun comes from the front-right and above, so the frontage is lit and the left side
+    (the one the 3/4 camera sees) stays in shade, which gives the form depth. The sky is a flat
+    light blue for lighting only; camera rays see a mid grey backdrop instead.
+    """
+    try:
+        scene.view_settings.view_transform = "AgX"
+    except TypeError:  # older builds name it Filmic
+        scene.view_settings.view_transform = "Filmic"
+    scene.view_settings.look = "None"
+    scene.view_settings.exposure = 0.0
     sun = bpy.data.lights.new("tl_sun", "SUN")
-    sun.energy = 3.0
+    sun.energy = 2.6
+    sun.angle = math.radians(6.0)
     sun_obj = bpy.data.objects.new("tl_sun", sun)
-    sun_obj.rotation_euler = (0.9, 0.0, 0.7)
+    travel = mathutils.Vector((-0.35, 0.6, -0.7))  # glTF +z frontage is Blender -y
+    sun_obj.rotation_euler = travel.to_track_quat("-Z", "Y").to_euler()
     _link(sun_obj)
     world = scene.world or bpy.data.worlds.new("tl_world")
     scene.world = world
     world.use_nodes = True
     nt = world.node_tree
     bg = next(n for n in nt.nodes if n.type == "BACKGROUND")
-    sky = nt.nodes.new("ShaderNodeTexSky")
-    nt.links.new(sky.outputs["Color"], bg.inputs["Color"])
-    bg.inputs["Strength"].default_value = 0.6
+    bg.inputs["Color"].default_value = (0.72, 0.77, 0.85, 1.0)
+    bg.inputs["Strength"].default_value = 0.3
+    ray = nt.nodes.new("ShaderNodeLightPath")
+    backdrop = nt.nodes.new("ShaderNodeBackground")
+    backdrop.inputs["Color"].default_value = (0.27, 0.29, 0.33, 1.0)
+    backdrop.inputs["Strength"].default_value = 1.0
+    mix = nt.nodes.new("ShaderNodeMixShader")
+    out = next(n for n in nt.nodes if n.type == "OUTPUT_WORLD")
+    nt.links.new(ray.outputs["Is Camera Ray"], mix.inputs[0])
+    nt.links.new(bg.outputs["Background"], mix.inputs[1])
+    nt.links.new(backdrop.outputs["Background"], mix.inputs[2])
+    nt.links.new(mix.outputs["Shader"], out.inputs["Surface"])
