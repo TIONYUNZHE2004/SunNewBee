@@ -634,6 +634,55 @@ def test_people_vehicles(people_vehicles_built):
             assert tails and all(b >= 0.5 for b in tails), (name, "tail lights at the rear")
 
 
+# --- construction (Task 8) --------------------------------------------------------------------
+
+
+@pytest.fixture(scope="module")
+def construction_built(tmp_path_factory) -> dict[str, tuple[Path, Path]]:
+    return _build_and_pack(("construction",), tmp_path_factory)
+
+
+def test_construction_has_the_spec_variants():
+    assert [v.id for v in specs.ASSETS["construction"].variants] == [
+        "tower_crane",
+        "mobile_crane",
+        "excavator",
+        "cement_mixer",
+        "site_cabin",
+        "hoarding_6m",
+        "scaffold_bay",
+        "material_stack",
+    ]
+
+
+def test_construction(construction_built):
+    raw, packed = construction_built["construction"]
+    colors = check_kit(raw, packed, "construction")
+    info = read_glb(packed)
+    for v in specs.ASSETS["construction"].variants:
+        assert len(v.tris) == 3, v.id  # every variant keeps LOD2
+        assert info.nodes[f"construction__{v.id}__LOD2"].tris <= 60, v.id
+        roles = _roles(colors[v.id])
+        assert specs.ROLES.index("primary") in roles, v.id  # equipment yellow by palette
+        assert roles <= {specs.ROLES.index(r) for r in ("primary", "metal", "dark", "glass")}, (
+            v.id,
+            roles,
+        )
+    # the tower crane keeps its height and a tiny LOD2 on every distance
+    for lod in (0, 1, 2):
+        lo, hi = info.nodes[f"construction__tower_crane__LOD{lod}"].bounds
+        assert 40.0 <= hi[1] <= 60.0, (lod, hi[1])
+    assert info.nodes["construction__tower_crane__LOD2"].tris <= 60
+    lo, hi = info.nodes["construction__hoarding_6m__LOD0"].bounds
+    assert hi[0] - lo[0] == pytest.approx(6.0, abs=0.1)
+    hoarding = info.nodes["construction__hoarding_6m__LOD0"]
+    assert hoarding.primitives == 1 and b_images(packed) == 0, "a blank panel: no images"
+
+
+def b_images(packed: Path) -> int:
+    return read_glb(packed).images
+
+
 # --- vendor intake (import_vendor, scale_to) on a synthetic source ---------------------------
 
 SYNTH_SOURCE = r"""

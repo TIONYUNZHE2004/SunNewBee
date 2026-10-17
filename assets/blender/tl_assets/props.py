@@ -1,6 +1,7 @@
-"""Kit builders (trees, street furniture) and third-party model intake (imports bpy).
+"""Kit builders (trees, furniture, people, vehicles, construction) and third-party intake (bpy).
 
-Registered into `build.BUILDERS` as `trees` and `furniture`: `(variant, lod) -> [objects]`.
+Registered into `build.BUILDERS` as `trees`, `furniture`, `people`, `vehicles` and `construction`:
+`(variant, lod) -> [objects]`.
 Everything here is decorative (spec flag): never pickable, never a fact about the township.
 
 * Trees are scripted: a tube trunk, clustered low-poly canopy lobes or palm fronds, flowers.
@@ -1454,11 +1455,341 @@ def _vehicle_builder(v: Variant, lod: int) -> list:
     raise KeyError(f"no vehicle builder for {v.id!r}")
 
 
+# --- construction -------------------------------------------------------------------------
+# Equipment is role `primary` (yellow by palette), lattice and rails `metal`, tyres, tracks and
+# counterweights `dark`, cabs `glass`. Aux B is 0 everywhere. Every LOD of a variant spans the
+# same x/z extent and top height, so the bounds hold on all three LODs.
+
+
+def _strut(m: _Mesh, p: Vec, q: Vec, r: float, trim: float, n: int = 4) -> None:
+    """A thin tube p -> q whose ends stop `trim` short, so the cap vertices sit on the chord
+    it joins instead of inside it (buried vertices bake to black AO)."""
+    a, b = Vector(p), Vector(q)
+    d = (b - a).normalized()
+    _tube(m, [tuple(a + d * trim), tuple(b - d * trim)], [r, r], n)
+
+
+def _truss(m: _Mesh, a: Vec, b: Vec, w: float, h: float, step: float, r: float, diag: bool) -> None:
+    """A triangular truss along a -> b (level in y/z): two lower chords at +-w/2 (z) at the
+    level of `a`, one top chord h above, cross rings every `step` m and zig-zag diagonals."""
+    x0, x1 = a[0], b[0]
+    y0, z0 = a[1], a[2]
+    for z in (z0 - w / 2, z0 + w / 2):
+        _tube(m, [(x0, y0, z), (x1, y0, z)], [r, r], 4)
+    _tube(m, [(x0, y0 + h, z0), (x1, y0 + h, z0)], [r, r], 4)
+    n = max(1, round(abs(x1 - x0) / step))
+    t = r * 1.1
+    for i in range(1, n):
+        x = x0 + (x1 - x0) * i / n
+        lo_l, lo_r, top = (x, y0, z0 - w / 2), (x, y0, z0 + w / 2), (x, y0 + h, z0)
+        _strut(m, lo_l, lo_r, r * 0.7, t)
+        _strut(m, lo_l, top, r * 0.6, t)
+        _strut(m, lo_r, top, r * 0.6, t)
+        if diag:
+            xn = x0 + (x1 - x0) * (i + 1) / n
+            for z in (z0 - w / 2, z0 + w / 2):
+                _strut(m, (x, y0, z), (xn, y0 + h, z0), r * 0.5, t)
+
+
+def _tower_crane(v: Variant, lod: int) -> list:
+    P = _Parts(0.0)
+    body, metal, dark, glass = P.m("primary"), P.m("metal"), P.m("dark"), P.m("glass")
+    mx, top, jtip, ctip = -12.0, 50.0, 20.25, -20.25  # mast x; apex; jib tip; counter-jib end
+    h0, h1 = 0.5, 45.0
+    if lod == 2:  # 5 boxes, 50 tris
+        _box(dark, mx - 2.0, mx + 2.0, 0.0, 0.5, -2.0, 2.0)
+        _box(body, mx - 0.9, mx + 0.9, h0, h1, -0.9, 0.9)
+        _box(body, ctip, jtip, 45.8, 47.2, -0.65, 0.65)
+        _box(dark, ctip, ctip + 2.5, 44.7, 46.8, -1.1, 1.1)
+        _box(body, mx - 0.4, mx + 0.4, 47.2, top, -0.4, 0.4)
+        return P.objs("tower_crane")
+    _box(dark, mx - 2.0, mx + 2.0, 0.0, h0, -2.0, 2.0)
+    for sx in (-0.9, 0.9):
+        for sz in (-0.9, 0.9):
+            _tube(body, [(mx + sx, h0, sz), (mx + sx, h1, sz)], [0.09, 0.09], 4)
+    levels = 15 if lod == 0 else 2
+    corners = ((-0.9, -0.9), (0.9, -0.9), (0.9, 0.9), (-0.9, 0.9))
+    for i in range(levels + 1):
+        y = h0 + (h1 - h0 - 0.2) * i / levels
+        for (ax, az), (bx, bz) in zip(corners, corners[1:] + corners[:1], strict=True):
+            _strut(body, (mx + ax, y, az), (mx + bx, y, bz), 0.05, 0.1)
+            if lod == 0 and i < levels:
+                y2 = h0 + (h1 - h0 - 0.2) * (i + 1) / levels
+                _strut(body, (mx + ax, y, az), (mx + bx, y2, bz), 0.045, 0.1)
+    _box(dark, mx - 1.2, mx + 1.2, h1, h1 + 0.8, -1.2, 1.2)  # slewing ring
+    _box(body, mx - 1.2, mx + 1.2, h1 + 0.8, h1 + 1.0, -1.2, 1.2)
+    # operator cab, beside the mast
+    _box(body, mx - 1.3, mx - 0.3, h1 + 0.8, h1 + 2.7, 1.2, 2.0)
+    _box(glass, mx - 1.2, mx - 0.4, h1 + 1.3, h1 + 2.5, 2.0, 2.04, bottom=True)
+    # apex (cathead)
+    for sx in (-0.8, 0.8):
+        for sz in (-0.8, 0.8):
+            _tube(body, [(mx + sx, h1 + 1.0, sz), (mx, top, 0.0)], [0.08, 0.02], 4, cap_top=False)
+    # jib and counter jib
+    jy = h1 + 0.8
+    _truss(
+        body,
+        (mx, jy, 0.0),
+        (jtip - 0.25, jy, 0.0),
+        1.3,
+        1.6,
+        2.25 if lod == 0 else 11.0,
+        0.07,
+        lod == 0,
+    )
+    _truss(
+        body,
+        (ctip + 0.25, jy, 0.0),
+        (mx, jy, 0.0),
+        1.3,
+        1.6,
+        2.0 if lod == 0 else 8.0,
+        0.07,
+        lod == 0,
+    )
+    _box(body, jtip - 0.25, jtip, jy, jy + 1.0, -0.4, 0.4)  # tip plate
+    _box(dark, ctip, ctip + 2.5, jy - 1.1, jy + 1.0, -1.1, 1.1)  # counterweights
+    if lod == 0:
+        for k in range(3):
+            _box(dark, ctip + 2.6 + k * 0.9, ctip + 3.4 + k * 0.9, jy - 0.6, jy + 0.1, -0.6, 0.6)
+    # pendants, trolley, hook
+    for tx in (8.0, 18.0):
+        _tube(metal, [(mx, top - 0.1, 0.0), (tx, jy + 1.6, 0.0)], [0.03, 0.03], 4)
+    _tube(metal, [(mx, top - 0.1, 0.0), (ctip + 2.0, jy + 1.6, 0.0)], [0.03, 0.03], 4)
+    _box(dark, 11.5, 12.5, jy - 0.5, jy, -0.5, 0.5)
+    _tube(metal, [(12.0, jy - 0.5, 0.0), (12.0, 22.0, 0.0)], [0.025, 0.025], 4)
+    _box(dark, 11.7, 12.3, 21.0, 22.0, -0.3, 0.3)
+    return P.objs("tower_crane")
+
+
+def _mobile_crane(v: Variant, lod: int) -> list:
+    P = _Parts(0.0)
+    body, metal, dark, glass = P.m("primary"), P.m("metal"), P.m("dark"), P.m("glass")
+    _box(dark, -1.2, 1.2, 0.55, 1.1, -6.2, 5.9)  # chassis
+    _box(body, -1.4, 1.4, 1.1, 2.0, -6.2, 2.2)  # carrier deck
+    _box(body, -1.3, 1.3, 1.1, 3.0, 3.2, 5.5)  # cab
+    _box(body, -0.6, 0.6, 2.9, 4.0, -6.2, 0.2)  # boom base section
+    _box(body, -0.5, 0.5, 3.0, 3.9, 0.2, 5.4)
+    if lod == 2:
+        _box(dark, -1.0, 1.0, 0.0, 0.55, -5.5, 5.9)  # wheels as one block
+        return P.objs("mobile_crane")
+    _box(glass, -1.15, 1.15, 1.9, 2.8, 5.5, 5.54, bottom=True)
+    _box(body, -0.9, 0.9, 2.0, 2.9, -2.4, -0.6)  # turntable housing
+    n = 16 if lod == 0 else 8
+    for z in (-4.6, -3.4, -2.2, 3.8, 5.0):
+        for s in (1.0, -1.0):
+            _wheel(dark, metal if lod == 0 else None, s * 1.25, 0.55, z, 0.55, 0.3, n)
+    _box(dark, -1.4, 1.4, 0.7, 0.95, -4.0, -3.7)  # stowed outriggers
+    _box(dark, -1.4, 1.4, 0.7, 0.95, 1.4, 1.7)
+    _box(metal, -0.5, 0.5, 3.55, 3.85, 5.4, 5.7)  # boom-head sheave
+    for s in (1.0, -1.0):
+        _sbox(metal, s, 1.0, 1.1, 2.9, 3.3, 5.5, 5.58)  # mirror arm
+    if lod == 0:
+        for k in range(6):  # boom side ribs
+            z = -5.0 + k * 1.0
+            _sbox(metal, 1.0, 0.6, 0.64, 3.0, 3.9, z, z + 0.08)
+            _sbox(metal, -1.0, 0.6, 0.64, 3.0, 3.9, z, z + 0.08)
+        _box(dark, -1.0, 1.0, 0.7, 1.0, 5.5, 5.9)  # front bumper
+        _box(dark, -0.7, 0.7, 4.0, 4.15, -3.0, -1.0)  # hook block stowed on the boom
+    return P.objs("mobile_crane")
+
+
+def _excavator(v: Variant, lod: int) -> list:
+    P = _Parts(0.0)
+    body, metal, dark, glass = P.m("primary"), P.m("metal"), P.m("dark"), P.m("glass")
+    for s in (1.0, -1.0):
+        _sbox(dark, s, 1.0, 1.5, 0.0, 0.9, -2.4, 2.4)  # tracks
+    _box(body, -1.4, 1.4, 1.0, 2.1, -3.3, 1.2)  # house
+    _box(dark, -1.3, 1.3, 1.1, 2.2, -4.5, -3.3)  # counterweight
+    _box(dark, -0.5, 0.5, 0.25, 0.95, 3.9, 4.5)  # bucket
+    if lod == 2:
+        _box(body, -0.25, 0.25, 1.5, 3.17, 0.5, 4.2)  # boom and arm
+        return P.objs("excavator")
+    _box(dark, -1.0, 1.0, 0.7, 1.0, -1.8, 1.8)  # undercarriage
+    _box(body, -1.4, -0.3, 2.1, 3.1, 0.1, 1.2)  # cab
+    _box(glass, -1.3, -0.4, 2.2, 3.0, 1.2, 1.24, bottom=True)
+
+    n = 8 if lod == 0 else 5
+    _tube(
+        body, [(0, 1.7, 0.5), (0, 2.6, 1.8), (0, 2.95, 3.4)], [0.22, 0.22, 0.22], n, cap_bottom=True
+    )
+    _tube(body, [(0, 2.95, 3.4), (0, 1.8, 4.0), (0, 0.9, 4.2)], [0.18, 0.16, 0.14], n)
+    if lod == 0:
+        _tube(metal, [(0.25, 1.4, 0.7), (0.25, 2.5, 2.1)], [0.06, 0.06], 6)  # boom cylinder
+        _tube(metal, [(0.25, 3.2, 2.2), (0.25, 2.9, 3.3)], [0.05, 0.05], 6)
+        _tube(metal, [(0.25, 2.3, 3.6), (0.25, 1.3, 4.1)], [0.05, 0.05], 6)
+        for s in (1.0, -1.0):
+            for z in (-2.0, -1.0, 0.0, 1.0, 2.0):
+                _wheel(metal, None, s * 1.0, 0.3, z, 0.22, 0.12, 8)
+            _sbox(metal, s, 1.0, 1.52, 0.9, 0.98, -2.4, 2.4)  # track guard
+        _box(dark, -0.9, 0.9, 2.1, 2.3, -3.2, -1.4)  # engine hood
+        _box(metal, 0.7, 0.85, 2.1, 3.1, -2.4, -2.3)  # exhaust
+    else:
+        for s in (1.0, -1.0):
+            _sbox(dark, s, 1.0, 1.52, 0.9, 0.98, -2.4, 2.4)
+    return P.objs("excavator")
+
+
+def _cement_mixer(v: Variant, lod: int) -> list:
+    P = _Parts(0.0)
+    body, metal, dark, glass = P.m("primary"), P.m("metal"), P.m("dark"), P.m("glass")
+    _box(dark, -0.9, 0.9, 0.6, 1.2, -4.3, 4.3)  # chassis
+    _box(body, -1.2, 1.2, 1.0, 2.9, 2.5, 4.3)  # cab
+    _box(dark, -1.1, 1.1, 0.6, 1.0, 4.2, 4.35)  # bumper
+    if lod == 2:
+        _box(body, -1.1, 1.1, 1.3, 3.7, -4.0, 1.8)
+        return P.objs("cement_mixer")
+    _box(glass, -1.05, 1.05, 1.7, 2.7, 4.3, 4.34, bottom=True)
+    _box(dark, -1.0, 1.0, 1.2, 1.5, -4.3, -3.6)  # rear support
+    n = 14 if lod == 0 else 8
+    drum = [(0, 1.75, 1.8), (0, 2.2, -0.4), (0, 2.55, -2.2), (0, 2.7, -4.0)]
+    _tube(body, drum, [0.5, 1.15, 1.15, 0.55], n, cap_bottom=True)
+    _tube(metal, [(0, 2.45, -3.9), (0, 1.3, -4.3)], [0.18, 0.18], 6)  # chute
+    wn = 16 if lod == 0 else 8
+    for s in (1.0, -1.0):
+        for z in (3.2, -1.4, -2.7):
+            _wheel(dark, metal if lod == 0 else None, s * 1.0, 0.55, z, 0.55, 0.3, wn)
+    if lod == 0:
+        for z, y in ((0.2, 2.3), (-1.2, 2.42)):  # hoop bands
+            _tube(metal, [(0, y, z), (0, y + 0.02, z - 0.1)], [1.19, 1.19], n, cap_bottom=True)
+        _box(dark, -0.7, 0.7, 1.2, 1.6, -1.0, 0.8)  # drum pedestal
+        for s in (1.0, -1.0):
+            _sbox(metal, s, 1.2, 1.3, 1.9, 2.4, 4.2, 4.28)  # mirror
+            _sbox(metal, s, 0.7, 0.75, 1.4, 3.0, -4.25, -4.15)  # ladder rail
+        for k in range(5):
+            y = 1.5 + k * 0.35
+            _box(metal, -0.7, 0.7, y, y + 0.04, -4.25, -4.15)
+    return P.objs("cement_mixer")
+
+
+def _site_cabin(v: Variant, lod: int) -> list:
+    P = _Parts(0.0)
+    body, metal, dark, glass = P.m("primary"), P.m("metal"), P.m("dark"), P.m("glass")
+    _box(dark, -1.2, 1.2, 0.0, 0.3, -3.0, 3.0)  # skid base
+    _box(body, -1.2, 1.2, 0.3, 2.5, -3.0, 3.0)  # body
+    _box(metal, -1.2, 1.2, 2.5, 2.6, -3.0, 3.0)  # roof
+    if lod == 2:
+        return P.objs("site_cabin")
+    _box(dark, -0.5, 0.5, 0.3, 2.2, 3.0, 3.04)  # door (front +z)
+    for s in (1.0, -1.0):
+        for z in (-1.8, 0.0, 1.8):
+            _sbox(glass, s, 1.2, 1.24, 1.2, 2.0, z - 0.5, z + 0.5, bottom=True)
+    if lod == 0:
+        for s in (1.0, -1.0):
+            for z in (-1.8, 0.0, 1.8):
+                _sbox(dark, s, 1.2, 1.26, 1.15, 1.2, z - 0.55, z + 0.55)  # sills
+        _box(metal, -0.7, 0.7, 0.0, 0.3, 3.0, 3.5)  # steps
+        _box(dark, -0.5, 0.5, 2.6, 2.75, -2.6, -2.2)  # AC unit
+        _box(metal, 0.5, 0.56, 0.3, 1.1, 3.0, 3.6)  # handrail
+    return P.objs("site_cabin")
+
+
+def _hoarding(v: Variant, lod: int) -> list:
+    """A blank 6 m panel segment on posts and feet. No text, no print, no images."""
+    P = _Parts(0.0)
+    body, metal, dark = P.m("primary"), P.m("metal"), P.m("dark")
+    _box(body, -3.0, 3.0, 0.2, 2.4, -0.05, 0.05)
+    _box(dark, -3.0, 3.0, 0.0, 0.2, -0.1, 0.1)  # plinth
+    if lod == 2:
+        return P.objs("hoarding_6m")
+    for x in (-2.9, 2.9) if lod == 1 else (-2.9, -1.0, 1.0, 2.9):
+        _box(metal, x - 0.06, x + 0.06, 0.0, 2.4, 0.05, 0.17)
+    for x in (-2.7, 2.7):
+        _box(dark, x - 0.3, x + 0.3, 0.0, 0.1, -0.3, 0.6)  # feet
+    if lod == 0:
+        _box(metal, -3.0, 3.0, 2.4, 2.46, -0.07, 0.07)  # top rail
+        _box(metal, -3.0, 3.0, 1.1, 1.16, 0.05, 0.12)  # mid rail
+        for x in (-2.7, 2.7):
+            _tube(metal, [(x, 0.1, 0.35), (x, 1.5, 0.15)], [0.03, 0.03], 5)  # prop
+    return P.objs("hoarding_6m")
+
+
+def _scaffold_bay(v: Variant, lod: int) -> list:
+    P = _Parts(0.0)
+    body, metal, dark = P.m("primary"), P.m("metal"), P.m("dark")
+    X, Z, H = 1.25, 0.6, 6.0
+    lifts = (0.4, 2.4, 4.4)
+    if lod == 2:
+        _box(metal, -X, -X + 0.1, 0.0, H, -Z, -Z + 0.1)
+        _box(metal, X - 0.1, X, 0.0, H, Z - 0.1, Z)
+        _box(dark, -X, X, 4.4, 4.5, -Z, Z)
+        _box(body, -X, X, 5.4, 5.5, Z - 0.05, Z)
+        return P.objs("scaffold_bay")
+    n = 6 if lod == 0 else 4
+    for sx in (-X + 0.05, X - 0.05):
+        for sz in (-Z + 0.05, Z - 0.05):
+            _tube(metal, [(sx, 0.0, sz), (sx, H, sz)], [0.024, 0.024], n)
+    for y in lifts:
+        _box(dark, -X, X, y, y + 0.05, -Z, Z)  # deck boards
+    for y in (0.2, 2.2, 4.2, 5.4) if lod == 0 else (2.2, 4.2, 5.4):
+        for sz in (-Z + 0.05, Z - 0.05):
+            _tube(metal, [(-X + 0.05, y, sz), (X - 0.05, y, sz)], [0.02, 0.02], 4)
+        if lod == 0:
+            for sx in (-X + 0.05, X - 0.05):
+                _tube(metal, [(sx, y, -Z + 0.05), (sx, y, Z - 0.05)], [0.02, 0.02], 4)
+    for sz in (-Z + 0.05, Z - 0.05):  # guard rails: top rails are the high-visibility yellow
+        _tube(body, [(-X + 0.05, 5.5, sz), (X - 0.05, 5.5, sz)], [0.028, 0.028], 4)
+    _tube(body, [(-X + 0.05, 3.5, Z - 0.05), (X - 0.05, 3.5, Z - 0.05)], [0.028, 0.028], 4)
+    for y0, y1 in ((0.4, 2.4), (2.4, 4.4)):  # facade braces
+        _tube(metal, [(-X + 0.05, y0, Z - 0.05), (X - 0.05, y1, Z - 0.05)], [0.02, 0.02], 4)
+    if lod == 0:
+        for y in lifts:
+            _box(dark, -X, X, y + 0.05, y + 0.2, Z - 0.05, Z)  # toe boards
+        for k in range(8):
+            y = 0.6 + k * 0.25
+            _tube(metal, [(-0.45, y, Z), (-0.3, y, Z)], [0.012, 0.012], 3)
+        for sx in (-X + 0.05, X - 0.05):
+            _box(dark, sx - 0.08, sx + 0.08, 0.0, 0.03, -Z, Z)  # base plates
+    return P.objs("scaffold_bay")
+
+
+def _material_stack(v: Variant, lod: int) -> list:
+    P = _Parts(0.0)
+    body, metal, dark = P.m("primary"), P.m("metal"), P.m("dark")
+    _box(dark, -1.2, 1.2, 0.0, 0.15, -0.6, 0.6)  # pallet
+    if lod >= 1:
+        _box(body, -1.15, 1.15, 0.15, 1.2, -0.55, 0.55)
+        if lod == 1:
+            _box(metal, -1.17, 1.17, 0.5, 0.56, -0.57, 0.57)
+        return P.objs("material_stack")
+    for layer in range(6):
+        y0 = 0.15 + layer * 0.175
+        off = 0.0 if layer % 2 == 0 else 0.2
+        for i in range(6):
+            x0 = -1.15 + off + i * 0.38
+            if x0 + 0.36 > 1.17:
+                continue
+            for z0 in (-0.55, 0.01):
+                _box(body, x0, x0 + 0.36, y0, y0 + 0.165, z0, z0 + 0.54)
+    for y in (0.5, 0.9):  # strapping
+        _box(metal, -1.17, 1.17, y, y + 0.04, -0.57, 0.57)
+    return P.objs("material_stack")
+
+
+CONSTRUCTION: dict[str, Callable[[Variant, int], list]] = {
+    "tower_crane": _tower_crane,
+    "mobile_crane": _mobile_crane,
+    "excavator": _excavator,
+    "cement_mixer": _cement_mixer,
+    "site_cabin": _site_cabin,
+    "hoarding_6m": _hoarding,
+    "scaffold_bay": _scaffold_bay,
+    "material_stack": _material_stack,
+}
+
+
+def _construction_builder(v: Variant, lod: int) -> list:
+    if v.id not in CONSTRUCTION:
+        raise KeyError(f"no construction builder for {v.id!r}")
+    return CONSTRUCTION[v.id](v, lod)
+
+
 BUILDERS: dict[str, Callable[[Variant, int], list]] = {
     "trees": _tree_builder,
     "furniture": _furniture_builder,
     "people": _people_builder,
     "vehicles": _vehicle_builder,
+    "construction": _construction_builder,
 }
 
 

@@ -41,13 +41,19 @@ def blender_cmd(blender: str, asset_id: str, out: Path, preview: bool = False) -
     return [*cmd, "--preview"] if preview else cmd
 
 
+def _drop_pnpm_separator(argv: list[str]) -> list[str]:
+    """`pnpm assets:build -- --all` hands the script a literal leading `--`; argparse would
+    treat everything after it as positional, so drop it."""
+    return argv[1:] if argv[:1] == ["--"] else argv
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawTextHelpFormatter)
     ap.add_argument("--asset", action="append", default=[], help="asset id (repeatable)")
     ap.add_argument("--all", action="store_true", help="every asset in specs.ASSETS")
     ap.add_argument("--blender", default=os.environ.get("BLENDER") or DEFAULT_BLENDER)
     ap.add_argument("--preview", action="store_true", help="also render out/preview/<id>.png")
-    args = ap.parse_args(argv)
+    args = ap.parse_args(_drop_pnpm_separator(sys.argv[1:] if argv is None else argv))
     ids = list(ASSETS) if args.all else args.asset
     if not ids:
         ap.error("give --asset <id> or --all")

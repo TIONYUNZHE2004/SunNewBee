@@ -50,11 +50,17 @@ def write_manifest(out: Path, packed: dict[str, Path]) -> Path:
     return path
 
 
+def _drop_pnpm_separator(argv: list[str]) -> list[str]:
+    """`pnpm assets:build -- --all` hands the script a literal leading `--`; argparse would
+    treat everything after it as positional, so drop it."""
+    return argv[1:] if argv[:1] == ["--"] else argv
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawTextHelpFormatter)
     ap.add_argument("--only", action="append", default=[], help="asset id (repeatable)")
     ap.add_argument("--out", type=Path, help=f"output folder (default {CITY})")
-    args = ap.parse_args(argv)
+    args = ap.parse_args(_drop_pnpm_separator(sys.argv[1:] if argv is None else argv))
     out = args.out or CITY
     if args.only:
         ids = args.only
