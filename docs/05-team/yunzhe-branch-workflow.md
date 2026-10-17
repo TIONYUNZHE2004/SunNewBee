@@ -27,6 +27,22 @@ Active workers (keep this table current):
 |---|---|---|---|
 | `claude/kind-cannon-mormhi` | Claude (other session) | AI investigation, model comparison and failover, road crossings | Running. Restarted on control at `d583d37` (17 Oct); merge it normally |
 
+## My scope (who owns what)
+
+Team lanes (Yunzhe's ruling, 17 Oct 2026; paths from [dev-setup.md](dev-setup.md)): **Jun Quan = Backend**, **shaoxian04 = Frontend**, **Yunzhe = AI + docs/pitch/research**. Jun Quan also works in the AI lane, so AI changes can clash with his.
+
+| Area | Paths | Owner | What my agents may do |
+|---|---|---|---|
+| **AI** (mine) | `packages/agent/**`, `evals/**`, AI docs (`docs/04-architecture/ai-*`, `docs/02-research/ai-*`) | Yunzhe (Jun Quan also active) | Change freely. First run `git log --oneline -10 origin/main -- packages/agent evals` to see Jun Quan's recent work, and name him in the PR to `main` when you change code he touched |
+| **Docs, pitch, research** (mine) | `docs/02-research/`, `docs/03-product/`, `docs/06-pitch/`, `docs/04-architecture/` | Yunzhe | Change freely |
+| Shared docs | `docs/superpowers/` (plans, logs), `docs/00-overview/decisions/` (ADRs), `README.md`, `AGENTS.md`, `CLAUDE.md` | Everyone | Logs are append-only. Ask Yunzhe before changing team rules (`AGENTS.md`, `CLAUDE.md`) or an ADR |
+| Tool layer | `packages/spatial/src/townshiplens_spatial/tools.py` | Functions: Backend. Tool descriptions and schemas: AI ([roles.md](roles.md)) | Change descriptions freely; keep function changes minimal |
+| **Backend** | `packages/spatial/**`, `apps/api/**`, `data/scripts/**`, `config/profiles/**`, `data/**` (backend merges) | Jun Quan | Only the smallest change an AI feature needs. List it in the PR under "Touches Backend" |
+| **Frontend** | `apps/web/**` | shaoxian04 | Only the smallest change an AI feature needs (for example the mirrored `attributeCatalogue.ts`). List it in the PR under "Touches Frontend" |
+| Generated | `packages/api-client/**` | Nobody edits by hand | Run `pnpm gen` and commit the result |
+
+An AI feature often needs a small Backend or Frontend change (the road-crossings work touched `routing.py`, `models.py`, `import_osm.py` and `attributeCatalogue.ts`). That is allowed. Keep it minimal, keep the mirrored files in step, and list each touched file in the PR so its owner can review it.
+
 ## Flow
 
 1. **Control starts from the team.** Merge `origin/main` into the control branch before work is handed out.
@@ -114,6 +130,7 @@ git fetch --unshallow origin
 You are a worker agent on TownshipLens. Read docs/05-team/yunzhe-branch-workflow.md and AGENTS.md first.
 Branch: create <agent>/<task> from origin/claude/sweet-davinci-29v7ne.
 Task: <one task, one area>.
+Scope: you work in Yunzhe's lanes (AI, docs). Read "My scope" in the workflow doc; list any Backend or Frontend file you touch in the PR.
 When done: run the checklist, report PASS/FAIL per step, push your branch and open a PR into claude/sweet-davinci-29v7ne (not main).
 ```
 
