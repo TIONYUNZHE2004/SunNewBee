@@ -9,6 +9,28 @@ search names, amenity results and route endpoints/rest points. Existing citation
 "Demo value · not surveyed". A provider-failure template also retains the demo caveat when
 only place facts were obtained. This labels provenance; it does not certify that a place exists.
 
+## Resident scope B (T-011)
+
+`ASSISTANT_SCOPE=access_flood` is the default. The resident assistant covers access and
+indicative flood evacuation around Elmina Urban Park + Elmina Lakeside Mall frontage.
+It registers only `find_place`, `get_place_details`, `plan_route`, `nearby_amenities`,
+`get_closures`, `create_verification_request`, `list_flood_scenarios`, `affected_places`
+and `list_evacuation_centres`. Model instructions focus on this deep spot; evacuation
+candidates can be outside it. Spatial calculations and staff screens remain unchanged.
+
+Recognized removed-feature requests and unrelated questions receive a short EN/BM/中文
+refusal before model construction, tool execution, memory retrieval by the model, or demo
+replay. A cached legacy answer cannot bypass this policy. The shared registry restricts
+MCP too; its existing verification-write opt-in (`MCP_ALLOW_VR`) still applies, so it exposes
+eight tools by default and nine when writes are explicitly enabled.
+
+`ASSISTANT_SCOPE=all` opts into the legacy features documented below. Legacy engine/pipeline
+tests and removed-feature golden cases opt in explicitly; `tests/test_scope.py` tests the
+default separately. The existing browser hero suite opts into `all` because it includes
+what-if, rollout and day-assistant turns. This setting does not gate staff REST endpoints.
+`validate.py` and `draft.py` are unchanged by T-011; the deterministic refusal is a
+`cannot_answer` with no unsupported factual content and passes the existing validator.
+
 ## Architecture
 
 ```

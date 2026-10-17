@@ -40,8 +40,9 @@ from .memory import DEFAULT as DEFAULT_MEMORY
 from .memory import SessionMemory
 from .record import TurnRecord
 from .redact import redact
+from .scope import outside_scope
 from .settings import AgentSettings
-from .template import _top_stage, template_answer
+from .template import _top_stage, scope_answer, template_answer
 from .validate import PLACEHOLDER_CAVEAT
 
 log = logging.getLogger(__name__)
@@ -408,6 +409,18 @@ async def run_turn(
     `memory` (default: the process-wide store) gives follow-ups the session's earlier turns."""
     memory = memory if memory is not None else DEFAULT_MEMORY
     settings = settings or AgentSettings()
+    # Redact first, then enforce scope before cache/model construction or tool side effects.
+    question = redact(req.message)
+    if settings.assistant_scope == "access_flood" and outside_scope(
+        question, has_history=bool(memory.history(req.session_id))
+    ):
+        ans = scope_answer(question)
+        memory.add_turn(req.session_id, question, ans.summary)
+        yield TextDelta(delta=ans.summary)
+        yield Done(
+            message_id=uuid.uuid4().hex[:12], answer_status="cannot_answer", model="scope-policy"
+        )
+        return
     # A recording cannot reflect a live closure (R33), so any active closure is a cache miss.
     if settings.demo_mode and not ctx.world.active_closures():
         cached = demo.load(demo.key(req), settings.demo_dir, ctx.world.site.id)
@@ -415,8 +428,6 @@ async def run_turn(
             async for ev in demo.replay(cached, ctx.vrs):
                 yield ev
             return
-    # PDPA (audit F4): IC, phone and email never reach the provider, memory or the template.
-    question = redact(req.message)
     rec = record or TurnRecord()
     rec.queue = asyncio.Queue()
     rec.history_simulated = memory.simulated(req.session_id)
@@ -435,7 +446,9 @@ async def run_turn(
             if settings.llm_escalate_on_rewrite
             else None
         )
-        agent = agent_mod.build_agent(model, escalate_to=escalate_model)
+        agent = agent_mod.build_agent(
+            model, escalate_to=escalate_model, assistant_scope=settings.assistant_scope
+        )
     except Exception as exc:  # misconfiguration (e.g. no key): still answer from the template
         failure = exc
     else:

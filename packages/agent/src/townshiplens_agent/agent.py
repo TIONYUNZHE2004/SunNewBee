@@ -35,6 +35,7 @@ from .events import (
 from .labels import crossing_note, enrich_unknowns
 from .mock import mock_model
 from .record import TurnRecord
+from .scope import ACCESS_FLOOD_TOOLS, scoped_instructions
 from .settings import AgentSettings
 from .validate import issue_labels, payload_measures, repair_answer, validate_answer
 
@@ -516,36 +517,45 @@ def _without_closure_notes(out: Any) -> Any:
     return out
 
 
-def build_agent(model: Model, escalate_to: Model | None = None) -> Agent[Deps, FinalAnswer]:
+def build_agent(
+    model: Model, escalate_to: Model | None = None, assistant_scope: str | None = None
+) -> Agent[Deps, FinalAnswer]:
+    assistant_scope = assistant_scope or AgentSettings().assistant_scope
     agent = Agent(
         model,
         deps_type=Deps,
         output_type=ToolOutput(FinalAnswer, name="final_answer"),
-        instructions=SYSTEM,
+        instructions=scoped_instructions(SYSTEM, assistant_scope),
         capabilities=[escalation(escalate_to)] if escalate_to is not None else [],
     )
+
+    def register_tool(fn):
+        if assistant_scope == "all" or fn.__name__ in ACCESS_FLOOD_TOOLS:
+            return agent.tool(fn)
+        return fn
 
     @agent.instructions
     def ui_context(ctx: RunContext[Deps]) -> str:
         r = ctx.deps.request
         # Only ids that exist in the world are interpolated (never free text from the request).
         return (
-            f"UI context: profile={r.profile}; active_scenario={ui_scenario(ctx.deps) or 'none'}."
+            f"UI context: profile={r.profile}; active_scenario={ui_scenario(ctx.deps) or 'none'}; "
+            f"assistant_scope={assistant_scope}."
         )
 
-    @agent.tool
+    @register_tool
     async def find_place(
         ctx: RunContext[Deps], query: str, types: list[str] | None = None, limit: int = 5
     ) -> dict:
         """Resolve a place name (EN/BM/中文, nicknames) to candidate place ids. Never guess ids."""
         return await call_tool(ctx.deps, "find_place", query=query, types=types, limit=limit)
 
-    @agent.tool
+    @register_tool
     async def get_place_details(ctx: RunContext[Deps], place_id: str) -> dict:
         """All attributes of one place with status, evidence ids and verification dates."""
         return await call_tool(ctx.deps, "get_place_details", place_id=place_id)
 
-    @agent.tool
+    @register_tool
     async def plan_route(
         ctx: RunContext[Deps],
         from_id: str,
@@ -566,7 +576,7 @@ def build_agent(model: Model, escalate_to: Model | None = None) -> Agent[Deps, F
             scenario_id=scenario_id,
         )
 
-    @agent.tool
+    @register_tool
     async def nearby_amenities(
         ctx: RunContext[Deps],
         origin_id: str,
@@ -584,7 +594,7 @@ def build_agent(model: Model, escalate_to: Model | None = None) -> Agent[Deps, F
             profile=profile,
         )
 
-    @agent.tool
+    @register_tool
     async def get_closures(
         ctx: RunContext[Deps], near_place: str | None = None, active_only: bool = True
     ) -> dict:
@@ -596,7 +606,7 @@ def build_agent(model: Model, escalate_to: Model | None = None) -> Agent[Deps, F
             ctx.deps, "get_closures", near_place=near_place, active_only=active_only
         )
 
-    @agent.tool
+    @register_tool
     async def create_verification_request(
         ctx: RunContext[Deps], target_id: str, attribute: str, reason: str, question_summary: str
     ) -> dict:
@@ -613,12 +623,12 @@ def build_agent(model: Model, escalate_to: Model | None = None) -> Agent[Deps, F
             question_summary=question_summary,
         )
 
-    @agent.tool
+    @register_tool
     async def list_flood_scenarios(ctx: RunContext[Deps]) -> dict:
         """Available indicative flood scenarios (river stage +N m) with disclaimers."""
         return await call_tool(ctx.deps, "list_flood_scenarios")
 
-    @agent.tool
+    @register_tool
     async def affected_places(
         ctx: RunContext[Deps], scenario_id: str, kind: str = "all", profile: str = "default"
     ) -> dict:
@@ -630,7 +640,7 @@ def build_agent(model: Model, escalate_to: Model | None = None) -> Agent[Deps, F
             ctx.deps, "affected_places", scenario_id=scenario_id, kind=kind, profile=profile
         )
 
-    @agent.tool
+    @register_tool
     async def list_evacuation_centres(
         ctx: RunContext[Deps],
         scenario_id: str | None = None,
@@ -647,14 +657,14 @@ def build_agent(model: Model, escalate_to: Model | None = None) -> Agent[Deps, F
             near_place=near_place,
         )
 
-    @agent.tool
+    @register_tool
     async def find_waste_points(
         ctx: RunContext[Deps], type: str | None = None, near_place: str | None = None
     ) -> dict:
         """Recycling / e-waste / waste points with verification status."""
         return await call_tool(ctx.deps, "find_waste_points", type=type, near_place=near_place)
 
-    @agent.tool
+    @register_tool
     async def suggest_interventions(
         ctx: RunContext[Deps], profile: str = "wheelchair", near_place: str | None = None
     ) -> dict:
@@ -666,7 +676,7 @@ def build_agent(model: Model, escalate_to: Model | None = None) -> Agent[Deps, F
             ctx.deps, "suggest_interventions", profile=profile, near_place=near_place
         )
 
-    @agent.tool
+    @register_tool
     async def simulate_what_if(
         ctx: RunContext[Deps],
         actions: list[dict],
@@ -695,7 +705,7 @@ def build_agent(model: Model, escalate_to: Model | None = None) -> Agent[Deps, F
             scenario_id=scenario_id,
         )
 
-    @agent.tool
+    @register_tool
     async def plan_verifications(
         ctx: RunContext[Deps],
         profile: str = "wheelchair",
@@ -710,7 +720,7 @@ def build_agent(model: Model, escalate_to: Model | None = None) -> Agent[Deps, F
             ctx.deps, "plan_verifications", profile=profile, scope=scope, budget=budget
         )
 
-    @agent.tool
+    @register_tool
     async def river_tipping_point(
         ctx: RunContext[Deps], from_id: str, profile: str = "default", to_id: str | None = None
     ) -> dict:
@@ -721,7 +731,7 @@ def build_agent(model: Model, escalate_to: Model | None = None) -> Agent[Deps, F
             ctx.deps, "river_tipping_point", from_id=from_id, profile=profile, to_id=to_id
         )
 
-    @agent.tool
+    @register_tool
     async def rising_river_rollout(
         ctx: RunContext[Deps], profiles: list[str] | None = None, n: int = 30
     ) -> dict:
@@ -730,7 +740,7 @@ def build_agent(model: Model, escalate_to: Model | None = None) -> Agent[Deps, F
         first. The app animates it on the map. Indicative simulation, not a forecast."""
         return await call_tool(ctx.deps, "rising_river_rollout", profiles=profiles, n=n)
 
-    @agent.tool
+    @register_tool
     async def day_test_change(
         ctx: RunContext[Deps],
         day: Literal["weekday", "storm", "event", "friday"] = "storm",
@@ -745,7 +755,7 @@ def build_agent(model: Model, escalate_to: Model | None = None) -> Agent[Deps, F
             ctx.deps, "day_test_change", day=str(day).strip().lower(), option=int(option)
         )
 
-    @agent.tool
+    @register_tool
     async def day_rehearsal(
         ctx: RunContext[Deps], day: Literal["weekday", "storm", "event", "friday"] = "storm"
     ) -> dict:
@@ -756,7 +766,7 @@ def build_agent(model: Model, escalate_to: Model | None = None) -> Agent[Deps, F
         and the busiest places. A rehearsal, not a forecast; residents are synthetic."""
         return await call_tool(ctx.deps, "day_rehearsal", day=str(day).strip().lower())
 
-    @agent.tool
+    @register_tool
     async def find_fixes(
         ctx: RunContext[Deps],
         profile: str = "wheelchair",
