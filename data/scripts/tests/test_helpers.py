@@ -1,7 +1,7 @@
 import json
 from pathlib import Path
 
-from data.scripts.build_overlay import drop_duplicates, merge_claims
+from data.scripts.build_overlay import add_existence_provenance, drop_duplicates, merge_claims
 from data.scripts.import_osm import _claims, place_name
 
 SEED = Path(__file__).resolve().parents[2] / "seed" / "elmina"
@@ -40,6 +40,31 @@ def test_merge_claims_keeps_existing():
     assert merged["surface"]["value"] == "asphalt" and merged["step_count"]["value"] == 0
 
 
+def test_existence_regeneration_is_metadata_only_and_keeps_a_real_survey():
+    import copy
+
+    feature = {
+        "properties": {"claims": {"seating": {"value": True}}},
+        "geometry": {"type": "Point", "coordinates": [101.5, 3.18]},
+    }
+    original = copy.deepcopy(feature)
+    assert add_existence_provenance([feature]) == 1
+    existence = feature["properties"]["claims"].pop("existence")
+    assert feature == original
+    assert existence == {
+        "value": True,
+        "status": "unknown",
+        "evidence_type": "team_survey_placeholder",
+    }
+    feature["properties"]["claims"]["existence"] = {
+        "value": True,
+        "status": "verified",
+        "evidence_type": "field_survey",
+    }
+    assert add_existence_provenance([feature]) == 0
+    assert feature["properties"]["claims"]["existence"]["evidence_type"] == "field_survey"
+
+
 def test_seed_single_playground_near_hero():
     places = json.loads((SEED / "base" / "places.geojson").read_text(encoding="utf-8"))["features"]
     places += [
@@ -58,3 +83,20 @@ def test_seed_single_playground_near_hero():
     ]
     assert len(near) == 1
     assert all(p["properties"]["name"] != "Playground" for p in places)
+
+
+def test_real_seed_demo_toilet_keeps_existence_provenance():
+    from townshiplens_spatial import tools
+    from townshiplens_spatial.vr_store import VerificationStore
+    from townshiplens_spatial.world import load_world
+
+    ctx = tools.Ctx(world=load_world(SEED), vrs=VerificationStore(":memory:"))
+    result = tools.nearby_amenities(ctx, "playground", "toilet", 500, "wheelchair")
+    row = next(r for r in result.data if r["id"] == "toilet-urban-park")
+    assert row["walk_m"] == 58.5
+    assert row["via_unverified"] is True
+    assert row["demo_place"] is True
+    assert any(
+        e.element_id == row["id"] and e.source_type == "team_survey_placeholder"
+        for e in result.evidence
+    )

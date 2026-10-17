@@ -16,7 +16,7 @@ from townshiplens_spatial.models import Closure
 from townshiplens_spatial.vr_store import VerificationStore
 from townshiplens_spatial.world import load_world
 
-MOCK = AgentSettings(_env_file=None, llm_provider="mock")
+MOCK = AgentSettings(_env_file=None, llm_provider="mock", assistant_scope="all")
 H = timedelta(hours=1)
 Q = "Can I push a stroller from Car Park B to the playground without stairs?"
 
@@ -404,3 +404,9 @@ async def test_closure_note_never_reaches_the_model(ctx):
         out = await call_tool(deps, name, **kw)
         assert "012-3456789" not in str(out), name
         assert "Contractor" not in str(out), name
+
+
+@pytest.fixture(autouse=True)
+def _legacy_scope(monkeypatch):
+    # Retain legacy recorded flows and synthetic pipeline prompts explicitly.
+    monkeypatch.setenv("ASSISTANT_SCOPE", "all")

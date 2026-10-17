@@ -31,6 +31,7 @@ export default defineConfig({
       WEB_PORT: String(WEB_PORT),
       API_PORT: String(API_PORT),
       LLM_PROVIDER: "mock",
+      ASSISTANT_SCOPE: "all", // this legacy suite explicitly exercises removed assistant features
       TL_DATA_DIR: "packages/spatial/tests/fixtures/tiny",
       DATABASE_URL: "sqlite:///./.data/e2e.db",
       STAFF_TOKEN: "e2e-token",

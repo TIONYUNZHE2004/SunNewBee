@@ -1,0 +1,40 @@
+[
+  {
+    "type": "answer.check",
+    "attempt": 1,
+    "ok": false,
+    "issues": ["stated a number no check returned", "promised more than the data shows"],
+    "repairs": 0
+  },
+  {
+    "type": "answer.draft",
+    "attempt": 2,
+    "delta": "I cannot answer that from the township model yet."
+  },
+  {
+    "type": "answer.check",
+    "attempt": 2,
+    "ok": true,
+    "issues": [],
+    "repairs": 0
+  },
+  {
+    "type": "text.delta",
+    "delta": "I cannot answer that from the township m"
+  },
+  {
+    "type": "text.delta",
+    "delta": "odel yet."
+  },
+  {
+    "type": "uncertainty",
+    "level": "high",
+    "items": []
+  },
+  {
+    "type": "done",
+    "message_id": "bcc2595c655f",
+    "answer_status": "cannot_answer",
+    "model": "function:plain:stream"
+  }
+]

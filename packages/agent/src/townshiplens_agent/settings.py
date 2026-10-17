@@ -11,6 +11,7 @@ class AgentSettings(BaseSettings):
     model_config = SettingsConfigDict(env_file=ROOT / ".env", extra="ignore")
     openrouter_api_key: str = ""
     llm_provider: Literal["openrouter", "mock"] | None = None
+    assistant_scope: Literal["access_flood", "all"] = "access_flood"
     llm_model_default: str = "anthropic/claude-haiku-5.5"
     llm_model_escalate: str = "anthropic/claude-sonnet-5.5"
     # Backup model when the default one errors (provider down, rate limit). Empty: no backup.

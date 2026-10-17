@@ -14,7 +14,7 @@ from townshiplens_spatial import tools
 from townshiplens_spatial.vr_store import VerificationStore
 from townshiplens_spatial.world import load_world
 
-MOCK = AgentSettings(_env_file=None, llm_provider="mock")
+MOCK = AgentSettings(_env_file=None, llm_provider="mock", assistant_scope="all")
 KIOSK_Q = "Can I push a stroller from Car Park B to the kiosk without stairs?"
 
 
