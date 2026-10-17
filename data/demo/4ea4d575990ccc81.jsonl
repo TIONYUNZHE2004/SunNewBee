@@ -1,4 +1,4 @@
-{"meta": {"message": "Where is the nearest evacuation centre if the water rises 3 m?", "profile": "default", "scenario_id": "stage_p3m", "world": "elmina", "model": "mock-scripted", "recorded_at": "2026-10-17T09:50:45+00:00"}}
+{"meta": {"message": "Where is the nearest evacuation centre if the water rises 3 m?", "profile": "default", "scenario_id": "stage_p3m", "world": "elmina", "model": "mock-scripted", "recorded_at": "2026-10-17T11:34:09+00:00"}}
 {"type": "tool.call", "id": "find_place-0", "name": "find_place", "args": {"query": "lakeside mall", "types": null, "limit": 5}}
 {"type": "tool.result", "id": "find_place-0", "name": "find_place", "summary": "2 result(s)"}
 {"type": "tool.call", "id": "list_evacuation_centres-1", "name": "list_evacuation_centres", "args": {"scenario_id": "stage_p3m", "profile": "default", "near_place": "lakeside-mall"}}
@@ -34,6 +34,7 @@
 {"type": "citation", "ref": 1, "evidence_id": "ev-scn-stage_p3m", "element_id": "stage_p3m", "attribute": "scenario", "status": "indicative", "verified_at": null, "source_type": "REM scenario (indicative)", "photo_url": null}
 {"type": "citation", "ref": 2, "evidence_id": "ev-centre-evc-osm-way-1150791981", "element_id": "evc-osm-way-1150791981", "attribute": "source", "status": "unknown", "verified_at": null, "source_type": "OSM candidate", "photo_url": null}
 {"type": "citation", "ref": 3, "evidence_id": "ev-centre-evc-osm-way-1063471271", "element_id": "evc-osm-way-1063471271", "attribute": "source", "status": "unknown", "verified_at": null, "source_type": "OSM candidate", "photo_url": null}
+{"type": "citation", "ref": 4, "evidence_id": "ev-place-lakeside-mall", "element_id": "lakeside-mall", "attribute": "name", "status": "unknown", "verified_at": null, "source_type": "team_survey_placeholder", "photo_url": null}
 {"type": "uncertainty", "level": "partial", "items": [{"element_id": "route", "attribute": "demo_values", "note": "Some segment facts are demo values, not yet surveyed"}, {"element_id": "answer", "attribute": "caveat", "note": "Reachability ends at the nearest mapped path to SJK (C) Ladang Regent, Elmina; its entrance is not mapped"}]}
 {"type": "disclaimer", "lens": "flood", "text": "Indicative scenario from a 30 m elevation model (Copernicus GLO-30, height above mapped rivers and lakes), not a forecast. Follow official MBSA / JPS / NADMA guidance. Only the area 101.46–101.56 E, 3.15–3.24 N is assessed; paths outside it are not.", "links": [{"label": "Public InfoBanjir (JPS)", "url": "https://publicinfobanjir.water.gov.my"}, {"label": "MET Malaysia warnings", "url": "https://www.met.gov.my"}]}
 {"type": "done", "message_id": "demo", "answer_status": "answered", "model": "mock-scripted"}

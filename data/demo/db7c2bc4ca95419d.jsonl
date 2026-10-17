@@ -1,4 +1,4 @@
-{"meta": {"message": "Can I get to the lakeside mall with a stroller?", "profile": "default", "scenario_id": null, "world": "elmina", "model": "mock-scripted", "recorded_at": "2026-10-17T09:51:40+00:00"}}
+{"meta": {"message": "Can I get to the lakeside mall with a stroller?", "profile": "default", "scenario_id": null, "world": "elmina", "model": "mock-scripted", "recorded_at": "2026-10-17T11:34:10+00:00"}}
 {"type": "tool.call", "id": "find_place-0", "name": "find_place", "args": {"query": "car park b", "types": null, "limit": 5}}
 {"type": "tool.result", "id": "find_place-0", "name": "find_place", "summary": "5 result(s)"}
 {"type": "tool.call", "id": "find_place-1", "name": "find_place", "args": {"query": "lakeside mall", "types": null, "limit": 5}}
