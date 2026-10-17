@@ -1,6 +1,6 @@
 # T-008 Invented toilet returned as ordinary evidence (audit A1, Cannon F1)
 
-- **Status:** assigned
+- **Status:** done
 - **Owner:** Codex worker
 - **Branch:** `codex/yunzhe-workflow`
 - **Priority:** P1 (before open demo)
@@ -27,3 +27,4 @@ The exact query exposes demo provenance; UI and assistant keep it. Outside Yunzh
 - 2026-10-17 11:39 UTC · Codex (codex/yunzhe-workflow) · Implementation complete in PR #7; exact real-seed query now 58.5 m, via_unverified true, placeholder source and demo label. Selected-route demo place citations are server-retained even when the model cites only the centre/scenario. Seven-step result: lint PASS, Python full run 1327 PASS + 4 old duplicate-summary assertions FAIL; those assertions were corrected to enforce qualified confirmations and the full in-app module now PASS 41/41. Types PASS; JS PASS 789; gen/no drift PASS; golden PASS 22; E2E PASS 19. Final full Python integration rerun will include T-011. No route-evaluation changes. Code/data separate; all 18 Elmina caches mock-refreshed. Live turns 0.
 
 - 2026-10-17 11:55 UTC · Codex (codex/yunzhe-workflow) · Ready for review in PR #7: https://github.com/TIONYUNZHE2004/SunNewBee/pull/7. Final integrated checklist at e21e92c closes the earlier assertion failures: 1 lint PASS; 2 pytest PASS 1365; 3 types PASS; 4 JS PASS 789; 5 gen/no drift PASS; 6 golden PASS 22/22 with zero fallbacks; 7 E2E PASS 19 using system Chromium. Audit-only artifacts 92c156e also lint PASS. Demo toilet provenance survives all four spatial tools, MCP and selected-route citations; route evaluation/path/distance unchanged. Code and regeneration separate, every Backend file listed for Jun Quan. Live OpenRouter turns 0.
+- 2026-10-17 13:51 UTC · control (claude/sweet-davinci-29v7ne) · Merged into control (PR #7). Demo toilet now carries placeholder provenance; via_unverified true. Backend files listed in PR #7 for Jun Quan. Control re-ran all 7 checks on the combined control head cf251b1 (PR #7 + PR #8): lint PASS (warnings only), pytest 1435 PASS, typecheck PASS, vitest 789 PASS, gen no drift PASS, golden 22/22 PASS, e2e 19/19 PASS (mock LLM).

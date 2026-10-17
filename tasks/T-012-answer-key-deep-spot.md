@@ -1,6 +1,6 @@
 # T-012 Human-checked answer key for scope B (about 30 questions)
 
-- **Status:** assigned
+- **Status:** review
 - **Owner:** Codex worker
 - **Branch:** `codex/yunzhe-workflow`
 - **Priority:** P1 (before open demo)
@@ -30,3 +30,4 @@ The key and the scorer are committed; a mock baseline is recorded; every number 
 - 2026-10-17 09:46 UTC · Codex (codex/yunzhe-workflow) · Ready for review in PR #7: https://github.com/TIONYUNZHE2004/SunNewBee/pull/7. Final key has 32 cases covering all five configured profiles; 0/32 reviewed, pending Yunzhe. Mock baseline: correct 1/32, honestly unverified 9/32, refused correctly 2/32, wrong 20/32; unsupported claims detected in 3/32 (overlap wrong). Seven-step checklist PASS/PASS/PASS/PASS/PASS/PASS/PASS: lint; 1322 pytest; types; 789 JS tests; gen/no drift; 22 golden; 19 E2E via system Chromium. Baseline intentionally exits 1 for misses. Live model turns 0. PR remains draft while T-008 and T-011 are added.
 
 - 2026-10-17 11:55 UTC · Codex (codex/yunzhe-workflow) · Final combined PR #7 is ready for review: https://github.com/TIONYUNZHE2004/SunNewBee/pull/7. The scope-B mock baseline now matches 13/32 provisional expectations: correct 1/32, honestly unverified 9/32, correctly refused 3/32; wrong 19/32, unsupported claims detected 3/32 (overlap wrong). Human review remains 0/32, all reviewed=false for Yunzhe. Added BM di luar and Chinese 超出 refusal equivalents only. Final integration checklist all seven PASS: lint; 1365 Python; types; 789 JS; gen/no drift; 22 golden; 19 E2E. No live turns.
+- 2026-10-17 13:51 UTC · control (claude/sweet-davinci-29v7ne) · Merged into control (PR #7). Control re-ran evals/run_answer_key.py (mock) on cf251b1: correct 1/32, honestly unverified 9/32, refused correctly 3/32, wrong 19/32, unsupported claims 3/32; reviewed 0/32. Most misses are the mock's keyword router (BM/中文 routing, wrong tools), so this measures the mock, not a real model. Waiting for Yunzhe's human review of the 32 entries.

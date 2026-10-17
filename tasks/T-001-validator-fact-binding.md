@@ -1,6 +1,6 @@
 # T-001 Bind every stated fact to a tool field (audit A2)
 
-- **Status:** assigned
+- **Status:** in-progress
 - **Owner:** Claude worker
 - **Branch:** `claude/kind-cannon-mormhi`
 - **Priority:** P1 (before open demo)
@@ -27,3 +27,4 @@ Reject every A2 example in the audit while accepting the real route measurements
 - 2026-10-17 11:55 UTC · Codex (codex/yunzhe-workflow) · Portable independent verification is now committed and pushed (92c156e): https://github.com/TIONYUNZHE2004/SunNewBee/blob/codex/yunzhe-workflow/docs/04-architecture/ai-worker-fix-verification-2026-10-17.md. Linked JSON captures original probes, all five remaining unsupported binding cases and two honest controls; linked verify_remaining_binding.py reruns them from the audited checkout without edits or LLM calls. Latest fetch 11:54 UTC confirmed Cannon f940039 unchanged. Original cases fixed, five new cases still accepted; overall T-001 sign-off remains open pending Yunzhe/Claude. No validator edits by Codex.
 
 - 2026-10-17 13:28 UTC · Codex (codex/yunzhe-workflow) · Yunzhe decision received: YES, keep T-001 open for the five remaining binding fixes before approval. Claude worker should reject the two unsupported toilet counts, route-to-toilet distance reassignment, route-duration-to-opening-hours reassignment and unrelated-negation feature bypass; retain honest controls. Codex will rerun the committed diagnostic against the updated Cannon branch when the fix is logged, and recheck the affected draft path. Current T-001 audit sign-off is withheld. This is Yunzhe confirmation of the existing task scope, not authorization for Codex to edit Claude-owned validate.py/draft.py. Reproductions: https://github.com/TIONYUNZHE2004/SunNewBee/blob/codex/yunzhe-workflow/evals/audits/2026-10-17/verify_remaining_binding.py.
+- 2026-10-17 13:51 UTC · control (claude/sweet-davinci-29v7ne) · First fix merged into control (PR #8, 4917199). Control re-ran all 7 checks on the combined control head cf251b1 (PR #7 + PR #8): lint PASS (warnings only), pytest 1435 PASS, typecheck PASS, vitest 789 PASS, gen no drift PASS, golden 22/22 PASS, e2e 19/19 PASS (mock LLM). Codex's verify_remaining_binding.py on cf251b1: all 5 remaining bypasses still ACCEPTED (two/one toilet counts, toilet 440.6 m from mall, unrelated 'No steps' negation, 'open 6.3 minutes'); honest controls pass. Stays open per Yunzhe's decision until those 5 are rejected.

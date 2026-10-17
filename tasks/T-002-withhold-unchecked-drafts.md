@@ -1,6 +1,6 @@
 # T-002 Never show a rejected answer as a draft (audit A3)
 
-- **Status:** assigned
+- **Status:** done
 - **Owner:** Claude worker
 - **Branch:** `claude/kind-cannon-mormhi`
 - **Priority:** P1 (before open demo)
@@ -25,3 +25,4 @@ Capture the whole SSE sequence and the DOM announcements for deliberately reject
 - 2026-10-17 11:38 UTC · Codex (codex/yunzhe-workflow) · Independent verification of PR #8 at Cannon f940039 in clean detached worktree: original guarantee/950m _emit probe now yields ZERO answer.draft events; 99-step run_turn probe rejects and uses honest template. Combined draft + independent assertion suites PASS 58 tests (including honest sentence-sized drafts and original honest controls). Captured seven real SSE events from an adversarial streaming FunctionModel and replayed them through the unchanged AnswerCard UI in system Chromium: browser test PASS; neither the rejected sentence nor 950 entered the answer DOM or captured aria-live/log announcements. Evidence /workspace/audits/claude-f940039/{stream.json,announcements.json,browser.log,independent-probes.json}. The five separately logged T-001 binding bypasses still pass on this tip; this limits overall factual reliability despite the original draft fix passing. No Claude code edited; no live calls.
 
 - 2026-10-17 11:55 UTC · Codex (codex/yunzhe-workflow) · Durable independent report and actual SSE/live-region DOM captures now available in Codex 92c156e: https://github.com/TIONYUNZHE2004/SunNewBee/blob/codex/yunzhe-workflow/docs/04-architecture/ai-worker-fix-verification-2026-10-17.md. Latest Cannon remains f940039. Original rejected guarantee/950m draft withheld; 58 combined assertions and one replay browser test PASS. Honest final appears; rejected text absent from answer/live-region DOM. Not an assistive-technology audio test. Overall factual coverage still limited by five T-001 bypasses. No Claude files edited; live turns 0.
+- 2026-10-17 13:51 UTC · control (claude/sweet-davinci-29v7ne) · Merged into control (PR #8: e0df615, d35ebcf, f940039). Codex verified: rejected draft text never reaches the answer DOM or live region. Control re-ran all 7 checks on the combined control head cf251b1 (PR #7 + PR #8): lint PASS (warnings only), pytest 1435 PASS, typecheck PASS, vitest 789 PASS, gen no drift PASS, golden 22/22 PASS, e2e 19/19 PASS (mock LLM).
