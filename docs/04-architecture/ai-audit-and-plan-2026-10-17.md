@@ -108,8 +108,8 @@ Verified OK in the audit:
 
 | WP | Fixes | Scope (files) | Acceptance (all mock, no key) | Owner | Status |
 |---|---|---|---|---|---|
-| **A. Honesty gate** | F2, F3 | `validate.py` (+ `test_validate*.py`), `evals/audit_probes.py` as a pytest test | `audit_probes.py` exits 0: 0/10 dishonest accepted, honest control accepted. Golden 22/22. Mock eval suite still has 0 template fallbacks. Mock, template and validator stay consistent. | This session | **In progress** |
-| **B. Privacy + cost guard** | F4, F5 (request cap) | New `packages/agent/.../redact.py`, `run.py` (redact before the model and before memory), `settings.py` (`LLM_REQUEST_LIMIT`, default 12), tests | An IC `123456-12-1234`, a phone `012-345 6789` and an email never reach the model's messages or `memory`. A turn that exceeds the request cap ends with the template + `done`. Existing tests pass. | This session | Planned |
+| **A. Honesty gate** | F2, F3 | `validate.py` (+ `test_validate*.py`), `evals/audit_probes.py` as a pytest test | `audit_probes.py` exits 0: 0/10 dishonest accepted, honest control accepted. Golden 22/22. Mock eval suite still has 0 template fallbacks. Mock, template and validator stay consistent. | This session | **Done** (`ed21fff`): probes 0/10 accepted; mock eval 36/36 first attempt, 0 fallbacks |
+| **B. Privacy + cost guard** | F4, F5 (request cap) | New `packages/agent/.../redact.py`, `run.py` (redact before the model and before memory), `settings.py` (`LLM_REQUEST_LIMIT`, default 12), tests | An IC `123456-12-1234`, a phone `012-345 6789` and an email never reach the model's messages or `memory`. A turn that exceeds the request cap ends with the template + `done`. Existing tests pass. | This session | **Done** (`ba48375`): `redact.py`, `LLM_REQUEST_LIMIT=12` |
 | B2. Rate limit on `/chat` | F5 | `apps/api/.../routes/chat.py` | Per-IP limit (e.g. 20 per minute, in memory) returns 429 | Backend (Jun Quan) or this session with "Touches Backend" | Ask first |
 | **C. Fake places** | F1 | `data/scripts/build_overlay.py` (mark invented places' existence as `team_survey_placeholder`, or remove them), seed regeneration, demo cache re-record | The tool result for the toilet carries placeholder evidence; the answer says "demo values, not yet surveyed"; or the places are gone | **Jun Quan** (Backend); needs his OK | Not started |
 | **D. Live comparison** | F6 | `evals/compare_models.py --models anthropic/claude-haiku-5.5,deepseek/deepseek-v4.1-flash` | Comparison table committed under `evals/results/`; cost under US$1 | Yunzhe (key + network), then any agent | Blocked (§2.5) |
@@ -117,6 +117,20 @@ Verified OK in the audit:
 | F. Corridor mapping | Data | OSM editor (iD) over permitted imagery: footpaths, crossings with type, traffic lights, kerb ramps on Car Park B → mall → park | Re-import shows non-zero crossing types on the demo corridor | Yunzhe (mapping) + Backend (re-import) | Not started |
 
 Rules that apply to every WP: AGENTS.md honesty invariants; the validator, mock and template change together; mock only (`LLM_PROVIDER=mock`); run the 7-step checklist; open a PR into `claude/sweet-davinci-29v7ne` and list any Backend or Frontend file under "Touches Backend/Frontend".
+
+### 4.1 Results of A and B (17 Oct, mock-backed)
+
+| Check | Result |
+|---|---|
+| `evals/audit_probes.py` | 0/10 dishonest probes accepted (was 6/10); honest control accepted |
+| Mock eval suite (36 questions) | 36/36 first attempt, 0 template fallbacks, 0 rewrites (unchanged, so no over-blocking on the mock) |
+| Checklist on `3c06390` | lint PASS · pytest 1,319 PASS · typecheck PASS · vitest 789 PASS · gen PASS · golden 22/22 PASS · e2e 19 PASS (system Chromium workaround, §2.5) |
+| Live model | NOT RUN (no key, network blocked). A live model may now be sent back more often for numbers it rounds unusually; check `answers_rewritten` and `template_fallbacks` in the first live run (auditor items 12–14). |
+
+Design notes for the auditor:
+- **Measurements (F2).** `validate.measurement_errors` reads "N m / km / min / %" (also 米, 公里, 分钟). Each must match a tool number **in the same unit** (keys `*_m`, `*minutes*`, `*_pct`), with rounding: fewer decimals, or a round number within 15 %. Untyped numbers (evidence values, numbers in text) must match exactly. "+3 m" is a stage label and is skipped.
+- **Promises (F3).** `validate.overclaim_errors` rejects guarantees, "no risk / no danger", and intensified accessibility words in EN/BM/中文, unless a negation sits in the 25 characters before the word.
+- **Redaction (F4).** `redact.redact` runs once at the start of `run_turn`. The demo cache key still uses the original question, which is never stored.
 
 ## 5. For the helper agent (continuing the work)
 
