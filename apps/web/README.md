@@ -282,8 +282,10 @@ after it stops.
   archetype cannot fit, and archetypes with no asset, stay extruded.
 - **`?assets=0`:** skip the assets (no manifest fetch); the extruded city only.
 - **`?showroom=1`:** replace the plan with `assets/showroom.ts`: every asset variant once at LOD0,
-  one row per asset, a grid pitch of max(30 m, largest footprint + 5 m) so nothing overlaps, centred
-  on `HERO_CENTRE`, and no extruded buildings. For owner
+  one row per asset (landmarks on the outer rows). Each row spaces its variants max(30 m, widest
+  + 5 m) apart and rows sit max(30 m, half their depths + 5 m) apart, so nothing overlaps and one big
+  landmark never stretches the small rows. The middle row sits on `HERO_CENTRE`. There are no
+  extruded buildings, and the camera frames the whole grid once the assets are ready. For owner
   review of the models.
 - **DOM contract additions:** `data-assets="off|loading|ready|failed"` and `data-instances` (placed
   units plus landmarks).

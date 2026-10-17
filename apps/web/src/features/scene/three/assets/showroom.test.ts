@@ -8,8 +8,8 @@ import { createRoleUniforms } from "./roleMaterial";
 import {
   SHOWROOM_MARGIN_M,
   SHOWROOM_SPACING_M,
+  showroomBounds,
   showroomManifest,
-  showroomPitch,
   showroomPlan,
 } from "./showroom";
 
@@ -85,18 +85,56 @@ describe("showroomPlan", () => {
     }
   });
 
-  it("pitch is max(30 m, largest footprint extent + 5 m)", () => {
+  it("a 285 m landmark does not stretch the small rows: kits stay 30 m apart", () => {
     expect(SHOWROOM_SPACING_M).toBe(30);
     expect(SHOWROOM_MARGIN_M).toBe(5);
-    expect(showroomPitch(manifest())).toBe(125);
-    const small = manifest();
-    delete small.assets.lakeside_mall;
-    expect(showroomPitch(small)).toBe(30);
+    const m = manifest();
+    m.assets.lakeside_mall!.variants.main!.size = [237, 9, 285];
+    const ps = all(showroomPlan(m, CENTRE));
+    const xs = ps
+      .filter((x) => x.asset === "people")
+      .map((x) => x.x)
+      .sort((a, b) => a - b);
+    expect(xs[1]! - xs[0]!).toBeCloseTo(30, 6);
+    expect(xs[2]! - xs[1]!).toBeCloseTo(30, 6);
   });
 
-  it("lays rows and variants one pitch apart, footprints never overlap, centred on the centre", () => {
+  it("an asset sits at the centre (the hero-near view sees models), landmarks on the outer rows", () => {
     const m = manifest();
-    const pitch = showroomPitch(m);
+    m.assets.lakeside_mall!.variants.main!.size = [237, 9, 285];
+    const p = showroomPlan(m, CENTRE);
+    const ps = all(p);
+    const nearest = Math.min(...ps.map((x) => Math.hypot(x.x - CENTRE[0], x.z - CENTRE[1])));
+    expect(nearest).toBeLessThanOrEqual(15 + 1e-6);
+    const zOf = (a: string) => ps.find((x) => x.asset === a)!.z;
+    const zs = ps.map((x) => x.z);
+    expect(zOf("lakeside_mall")).toBe(Math.max(...zs));
+  });
+
+  it("showroomBounds holds every footprint and the centre", () => {
+    const m = manifest();
+    m.assets.lakeside_mall!.variants.main!.size = [237, 9, 285];
+    const p = showroomPlan(m, CENTRE);
+    const b = showroomBounds(p, m);
+    for (const x of all(p)) {
+      const [w, , d] = m.assets[x.asset]!.variants[x.variant]!.size;
+      expect(x.x - w / 2).toBeGreaterThanOrEqual(b.min[0] - 1e-6);
+      expect(x.x + w / 2).toBeLessThanOrEqual(b.max[0] + 1e-6);
+      expect(x.z - d / 2).toBeGreaterThanOrEqual(b.min[1] - 1e-6);
+      expect(x.z + d / 2).toBeLessThanOrEqual(b.max[1] + 1e-6);
+    }
+    expect(CENTRE[0]).toBeGreaterThan(b.min[0]);
+    expect(CENTRE[0]).toBeLessThan(b.max[0]);
+    expect(CENTRE[1]).toBeGreaterThan(b.min[1]);
+    expect(CENTRE[1]).toBeLessThan(b.max[1]);
+    // Compact: well under a kilometre for this fixture.
+    expect(b.max[0] - b.min[0]).toBeLessThan(400);
+    expect(b.max[1] - b.min[1]).toBeLessThan(600);
+  });
+
+  it("footprints never overlap and every pair is at least 30 m apart", () => {
+    const m = manifest();
+    m.assets.lakeside_mall!.variants.main!.size = [237, 9, 285];
     const ps = all(showroomPlan(m, CENTRE));
     const half = (x: Placement) => {
       const [w, , d] = m.assets[x.asset]!.variants[x.variant]!.size;
@@ -108,9 +146,6 @@ describe("showroomPlan", () => {
         const b = ps[j]!;
         const dx = Math.abs(a.x - b.x);
         const dz = Math.abs(a.z - b.z);
-        // On the grid: every offset is a whole number of pitches, at least 30 m apart.
-        expect((dx / pitch) % 1).toBeCloseTo(0, 6);
-        expect((dz / pitch) % 1).toBeCloseTo(0, 6);
         expect(Math.hypot(dx, dz)).toBeGreaterThanOrEqual(30 - 1e-6);
         // Yaw 0: axis-aligned footprints; they must be separated on x or on z.
         const [ax, az] = half(a);
@@ -120,10 +155,9 @@ describe("showroomPlan", () => {
     // One row per asset: the variants of one asset share z.
     const rowZ = (asset: string) => new Set(ps.filter((x) => x.asset === asset).map((x) => x.z));
     expect(rowZ("people").size).toBe(1);
+    // Every row is centred on the centre's x.
     const xs = ps.map((x) => x.x);
-    const zs = ps.map((x) => x.z);
     expect((Math.min(...xs) + Math.max(...xs)) / 2).toBeCloseTo(CENTRE[0], 6);
-    expect((Math.min(...zs) + Math.max(...zs)) / 2).toBeCloseTo(CENTRE[1], 6);
   });
 
   it("showroomManifest keeps LOD0 only (always drawn) and keeps decorative flags", () => {

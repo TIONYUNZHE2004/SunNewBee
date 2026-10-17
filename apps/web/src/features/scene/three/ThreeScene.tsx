@@ -25,9 +25,9 @@ import { type AssetLibrary, loadAssetLibrary } from "./assets/library";
 import { MANIFEST_URL, type Manifest, parseManifest } from "./assets/manifest";
 import { planCity } from "./assets/plan";
 import { createRoleUniforms } from "./assets/roleMaterial";
-import { showroomManifest, showroomPlan } from "./assets/showroom";
+import { showroomBounds, showroomManifest, showroomPlan } from "./assets/showroom";
 import { BOOKMARKS, bookmarkFromSearch, DEFAULT_BOOKMARK, HERO_CENTRE } from "./bookmarks";
-import { createThreeCameraOps, type Pose, type ThreeCameraOps } from "./cameraRig";
+import { createThreeCameraOps, type Pose, type ThreeCameraOps, VFOV_DEG } from "./cameraRig";
 import { buildCityGeometry, type CityGeometry } from "./cityMesh";
 import { createEngine, type Engine } from "./engine";
 import { cesiumEngineHref } from "./engineChoice";
@@ -129,6 +129,18 @@ function describeFailures(
   return parts.join("; ");
 }
 
+const SHOWROOM_MIN_RANGE_M = 150;
+/** A top-down-ish view that fits a local xz box inside the 30 degree vertical field of view. */
+function fitPose(b: { min: [number, number]; max: [number, number] }): Pose {
+  const radius = Math.hypot(b.max[0] - b.min[0], b.max[1] - b.min[1]) / 2;
+  return {
+    target: [(b.min[0] + b.max[0]) / 2, (b.min[1] + b.max[1]) / 2],
+    rangeM: Math.max(SHOWROOM_MIN_RANGE_M, (radius / Math.tan((VFOV_DEG / 2) * RAD)) * 1.1),
+    pitchDeg: WHOLE_PITCH_DEG,
+    headingDeg: 0,
+  };
+}
+
 const geometryBytes = (g: CityGeometry) => {
   let n = 0;
   for (const geo of [g.buildings, g.parks, g.water])
@@ -161,6 +173,8 @@ export default function ThreeScene({
   const roleUniforms = useMemo(createRoleUniforms, []);
   /** True while the engine holds instances built from the current library. */
   const handedOff = useRef(false);
+  /** The engine whose camera already framed the showroom (once, so the owner can then look around). */
+  const showroomFramed = useRef<Engine | null>(null);
 
   const site = useSite().data;
   const buildings = useBuildings().data;
@@ -304,6 +318,10 @@ export default function ThreeScene({
       engine.setCity(g);
       engine.setAssets(inst);
       handedOff.current = true;
+      if (showroom && showroomFramed.current !== engine) {
+        showroomFramed.current = engine;
+        engine.rig.set(fitPose(showroomBounds(plan, m)));
+      }
       setInstances(plan.stats.units + plan.landmarks.length);
       setAssetsState("ready");
       usePerfStats.getState().update({

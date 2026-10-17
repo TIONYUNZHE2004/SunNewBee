@@ -13,7 +13,7 @@ import { usePerfStats } from "../cesium/PerfOverlay";
 import { useScene } from "../sceneStore";
 import type { CityInstances } from "./assets/cityInstances";
 import type { Manifest } from "./assets/manifest";
-import { BOOKMARKS, type BookmarkId, DEFAULT_BOOKMARK } from "./bookmarks";
+import { BOOKMARKS, type BookmarkId, DEFAULT_BOOKMARK, HERO_CENTRE } from "./bookmarks";
 import type { Pose } from "./cameraRig";
 import type { Engine } from "./engine";
 import { createFrame } from "./frame";
@@ -619,6 +619,23 @@ describe("ThreeScene", () => {
       await waitFor(() => expect(s).toHaveAttribute("data-assets", "ready"));
       expect(s).toHaveAttribute("data-instances", "1");
       expect(vertsOf(engine, -1)).toBe(0);
+    });
+
+    it("?showroom=1 frames the showroom grid (centred on HERO_CENTRE) once the assets are ready", async () => {
+      history.replaceState(null, "", "/?showroom=1&bookmark=hero-near");
+      serve({});
+      const { engine } = mount();
+      const s = screen.getByTestId("three-scene");
+      await waitFor(() => expect(s).toHaveAttribute("data-assets", "ready"));
+      await waitFor(() => expect(engine.rig.set.mock.calls.length).toBeGreaterThanOrEqual(2));
+      const p = engine.rig.set.mock.calls.at(-1)?.[0] as Pose;
+      const [hx, hz] = frame.toLocal(HERO_CENTRE[0], HERO_CENTRE[1]);
+      // One 6.4 x 15.5 m model at the hero centre: the camera looks at it, close enough to see it.
+      expect(p.target[0]).toBeCloseTo(hx, 3);
+      expect(p.target[1]).toBeCloseTo(hz, 3);
+      expect(p.rangeM).toBeGreaterThanOrEqual(150);
+      expect(p.rangeM).toBeLessThanOrEqual(200);
+      expect(p.pitchDeg).toBe(-50);
     });
 
     describe("two assets", () => {
