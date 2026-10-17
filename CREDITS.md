@@ -18,6 +18,14 @@ Direct dependencies (pinned in `pyproject.toml` and `package.json` files) carry 
 |---|---|---|---|---|
 | *(none yet)* | | | | |
 
+## Third-party assets
+
+3D models taken from other sources for the Three.js city (`assets/blender/vendor/`, recorded in `assets/blender/vendor/vendor.json`). Only `.glb` sources are committed, never `.blend`. Each is normalised by `tl_assets.props.import_vendor` (materials become vertex roles, images are dropped) and packed into `apps/web/public/city/`.
+
+| Asset | Source URL | Author | Licence | Files | Lives in |
+|---|---|---|---|---|---|
+| *(none yet)* | | | | | |
+
 ## Designs that inspired our code (no code copied)
 
 | Source | Licence | Idea used | Where |

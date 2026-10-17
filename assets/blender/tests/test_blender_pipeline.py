@@ -419,3 +419,302 @@ def test_landmark_ao_ground_scales_with_the_asset(landmarks_built, asset_id):
     ]
     assert len(base) > 10
     assert statistics.fmean(base) < 0.55, statistics.fmean(base)
+
+
+# --- trees and street furniture (Task 6) ----------------------------------------------------
+
+KIT_IDS = ("trees", "furniture")
+
+
+@pytest.fixture(scope="module")
+def kits_built(tmp_path_factory) -> dict[str, tuple[Path, Path]]:
+    return _build_and_pack(KIT_IDS, tmp_path_factory)
+
+
+def check_kit(raw: Path, packed: Path, asset_id: str, lit_top: bool = False) -> dict[str, list]:
+    """The kit counterpart of check_archetype: every mesh is decorative, so there are no
+    window seeds, glass or upper-wall AO checks. Everything else is kept: node names, one
+    primitive, COLOR_0, tris caps per LOD (any LOD count), bounds on every LOD, AO varied on
+    LOD0, no images, meshopt and the byte budget. Returns {variant id: raw LOD0 COLOR_0}."""
+    spec = specs.ASSETS[asset_id]
+    assert spec.group == "kit" and spec.decorative
+    a, b = read_glb(raw), read_glb(packed)
+    assert packed.stat().st_size <= spec.max_bytes
+    assert b.materials == ["tl_role"]
+    assert b.images == 0
+    assert "EXT_meshopt_compression" in b.extensions_used
+    out = {}
+    for v in spec.variants:
+        tris = []
+        for n, cap in enumerate(v.tris):
+            name = f"{asset_id}__{v.id}__LOD{n}"
+            node = b.nodes[name]
+            assert node.primitives == 1, name
+            assert "COLOR_0" in node.attributes, name
+            assert 0 < node.tris <= cap, (name, node.tris, cap)
+            assert node.tris == a.nodes[name].tris, name
+            assert specs.bounds_errors(v, node.bounds) == [], (name, node.bounds)
+            tris.append(node.tris)
+        assert tris == sorted(tris, reverse=True) and len(set(tris)) == len(tris), tris
+        lod0 = f"{asset_id}__{v.id}__LOD0"
+        colors = read_attribute(raw, lod0, "COLOR_0")
+        reds = [c[0] for c in colors]
+        assert statistics.pstdev(reds) > 0.05, (lod0, statistics.pstdev(reds))  # AO varies
+        # dense canopies and shelters hold a lot of enclosed surface (trees measured 0.29,
+        # bus shelter 0.299), so the mean floor is 0.2; the exposed top must be lit instead
+        assert 0.2 <= statistics.fmean(reds) <= 1.0, lod0
+        assert all(c[3] == pytest.approx(1.0) for c in colors), lod0
+        pos = read_attribute(raw, lod0, "POSITION")
+        assert min(p[1] for p in pos) > -0.01, (lod0, "nothing below the ground")
+        if lit_top:  # a tree crown is open to the sky (lowest measured: frangipani 0.454)
+            top = max(p[1] for p in pos)
+            crown = [c[0] for c, p in zip(colors, pos, strict=True) if p[1] > 0.85 * top]
+            assert crown and statistics.fmean(crown) > 0.4, (lod0, statistics.fmean(crown))
+        out[v.id] = colors
+    return out
+
+
+def test_trees_furniture_have_the_spec_variants():
+    assert [v.id for v in specs.ASSETS["trees"].variants] == [
+        "rain_tree",
+        "coconut_palm",
+        "royal_palm",
+        "frangipani",
+        "flame_tree",
+        "oil_palm",
+        "shrub_round",
+        "shrub_hedge",
+    ]
+    assert len(specs.ASSETS["furniture"].variants) == 9
+
+
+def test_trees(kits_built):
+    raw, packed = kits_built["trees"]
+    colors = check_kit(raw, packed, "trees", lit_top=True)
+    info = read_glb(packed)
+    foliage, dark = specs.ROLES.index("foliage"), specs.ROLES.index("dark")
+    accent = specs.ROLES.index("accent")
+    for v in specs.ASSETS["trees"].variants:
+        roles = _roles(colors[v.id])
+        assert {foliage, dark} <= roles, (v.id, roles)  # leaves and trunk
+        if v.id in ("frangipani", "flame_tree"):
+            assert accent in roles, f"{v.id} has flowers"
+        # aux B is the sway weight: 0 at the trunk base, rising to 1 at the canopy top
+        bs = [c[2] for c in colors[v.id]]
+        assert max(bs) > 0.8 and min(bs) < 0.2, (v.id, min(bs), max(bs))
+        pos = read_attribute(raw, f"trees__{v.id}__LOD0", "POSITION")
+        low = [c[2] for c, p in zip(colors[v.id], pos, strict=True) if p[1] < 0.15]
+        high = [c[2] for c, p in zip(colors[v.id], pos, strict=True) if p[1] > v.size[1] * 0.9]
+        assert low and statistics.fmean(low) < 0.15, v.id  # shrubs start at 0.12 m
+        assert high and statistics.fmean(high) > 0.85, v.id
+        # every LOD keeps the foliage role for the shader
+        for n in (1, 2):
+            r = _roles(read_attribute(raw, f"trees__{v.id}__LOD{n}", "COLOR_0"))
+            assert foliage in r, (v.id, n)
+    lo, hi = info.nodes["trees__rain_tree__LOD0"].bounds
+    assert 15.0 <= hi[0] - lo[0] <= 25.0 and 15.0 <= hi[2] - lo[2] <= 25.0
+    assert 12.0 <= hi[1] <= 20.0
+
+
+def test_furniture(kits_built):
+    raw, packed = kits_built["furniture"]
+    colors = check_kit(raw, packed, "furniture")
+    light = specs.ROLES.index("light")
+    for vid in ("lamp_single", "lamp_double"):
+        pos = read_attribute(raw, f"furniture__{vid}__LOD0", "POSITION")
+        heads = [p[1] for c, p in zip(colors[vid], pos, strict=True) if round(c[1] * 7) == light]
+        assert heads and min(heads) > 7.0, (vid, "light faces above 7 m")
+        pos1 = read_attribute(raw, f"furniture__{vid}__LOD1", "POSITION")
+        col1 = read_attribute(raw, f"furniture__{vid}__LOD1", "COLOR_0")
+        assert any(round(c[1] * 7) == light and p[1] > 7.0 for c, p in zip(col1, pos1, strict=True))
+    assert light in _roles(colors["traffic_light"]), "traffic light lamps"
+    solid = {specs.ROLES.index("metal"), specs.ROLES.index("dark"), specs.ROLES.index("secondary")}
+    for vid, cols in colors.items():
+        assert _roles(cols) & solid, vid
+
+
+# --- vendor intake (import_vendor, scale_to) on a synthetic source ---------------------------
+
+SYNTH_SOURCE = r"""
+import sys
+import bpy
+from pathlib import Path
+out = Path(sys.argv[sys.argv.index("--") + 1])
+for o in list(bpy.data.objects):
+    bpy.data.objects.remove(o, do_unlink=True)
+# colormap: 4 x 1 px; px 0 green, px 1 near black, px 2 off-white, px 3 red-brown
+img = bpy.data.images.new("colormap", 4, 1)
+cols = [(0.10, 0.55, 0.12), (0.05, 0.05, 0.06), (0.92, 0.90, 0.85), (0.60, 0.25, 0.12)]
+img.pixels = [c for rgb in cols for c in (*rgb, 1.0)]
+img.pack()
+tex = bpy.data.materials.new("colormap")
+tex.use_nodes = True
+bsdf = next(n for n in tex.node_tree.nodes if n.type == "BSDF_PRINCIPLED")
+node = tex.node_tree.nodes.new("ShaderNodeTexImage")
+node.image = img
+node.interpolation = "Closest"
+tex.node_tree.links.new(node.outputs["Color"], bsdf.inputs["Base Color"])
+plain = bpy.data.materials.new("Trunk")
+plain.diffuse_color = (0.3, 0.2, 0.1, 1.0)
+
+# a 1 x 1 x 3 m trunk with the plain material
+bpy.ops.mesh.primitive_cube_add(size=1.0)
+trunk = bpy.context.active_object
+trunk.name = "trunk"
+trunk.scale = (1.0, 1.0, 3.0)
+trunk.location = (0.0, 0.0, 1.5)
+trunk.data.materials.append(plain)
+# a 4-quad strip whose quads sample px 0 (green), 1 (near black), 2 (off-white), 3 (red-brown)
+mesh = bpy.data.meshes.new("strip")
+verts = [(i, 0.0, 0.0) for i in range(5)] + [(i, 0.0, 1.0) for i in range(5)]
+faces = [(i, i + 1, i + 6, i + 5) for i in range(4)]
+mesh.from_pydata(verts, [], faces)
+uv = mesh.uv_layers.new(name="UVMap")
+for poly in mesh.polygons:
+    u = (poly.index + 0.5) / 4.0
+    for li in poly.loop_indices:
+        uv.data[li].uv = (u, 0.5)
+mesh.materials.append(tex)
+strip = bpy.data.objects.new("strip", mesh)
+bpy.context.scene.collection.objects.link(strip)
+strip.location = (4.0, 0.0, 0.0)
+bpy.ops.object.select_all(action="SELECT")
+bpy.ops.export_scene.gltf(filepath=str(out), export_format="GLB", use_selection=True)
+"""
+
+SYNTH_RUN = r"""
+import json, sys
+from pathlib import Path
+ASSETS = sys.argv[sys.argv.index("--") + 1]
+ROOT = sys.argv[sys.argv.index("--") + 2]
+RESULT = sys.argv[sys.argv.index("--") + 3]
+sys.path.insert(0, ASSETS)
+import bpy
+from tl_assets import props
+from tl_assets.specs import ROLES
+for o in list(bpy.data.objects):
+    bpy.data.objects.remove(o, do_unlink=True)
+for mat in list(bpy.data.materials):
+    bpy.data.materials.remove(mat)
+objs = props.import_vendor("synth", root=Path(ROOT))
+roles = {}
+for o in objs:
+    attr = o.data.color_attributes["COLOR_0"]
+    seq = []
+    for poly in o.data.polygons:  # glTF triangulates: a quad is two polygons in a row
+        c = attr.data[poly.loop_start].color
+        role = ROLES[round(c[1] * 7)]
+        if not seq or seq[-1] != role:
+            seq.append(role)
+    roles[o.name] = seq
+def extent(axis):
+    pts = [o.matrix_world @ v.co for o in objs for v in o.data.vertices]
+    i = {"x": 0, "y": 2, "z": 1}[axis]  # glTF y is Blender z
+    vals = [p[i] for p in pts]
+    return max(vals) - min(vals)
+before = extent("y")
+props.scale_to(objs, "y", 2.0)
+res = {
+    "roles": roles,
+    "images": len(bpy.data.images),
+    "materials": sorted(m.name for m in bpy.data.materials if m.users),
+    "y_before": before,
+    "y_after": extent("y"),
+    "x_after": extent("x"),
+    "min_y": min((o.matrix_world @ v.co)[2] for o in objs for v in o.data.vertices),
+    "uv_layers": sum(len(o.data.uv_layers) for o in objs),
+}
+props.scale_to(objs, "x", 10.0)
+res["x_scaled"] = extent("x")
+res["y_scaled"] = extent("y")
+Path(RESULT).write_text(json.dumps(res))
+"""
+
+
+def _blender(script: Path, *args: str) -> None:
+    from conftest import blender_path
+
+    cmd = [
+        blender_path(),
+        "--background",
+        "--factory-startup",
+        "--disable-autoexec",
+        "--python-exit-code",
+        "1",
+        "--python",
+        str(script),
+        "--",
+        *args,
+    ]
+    run = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
+    assert run.returncode == 0, run.stdout[-3000:] + run.stderr[-3000:]
+
+
+def _synth_vendor(tmp_path: Path, role_map: dict[str, str]) -> Path:
+    """A throwaway vendor root (never under assets/blender/vendor) with one synthetic source."""
+    root = tmp_path / "vendor_root"
+    folder = root / "vendor" / "trees" / "synth"
+    folder.mkdir(parents=True)
+    maker = tmp_path / "make_source.py"
+    maker.write_text(SYNTH_SOURCE, encoding="utf-8")
+    _blender(maker, str(folder / "source.glb"))
+    entry = {
+        "slug": "synth",
+        "kind": "trees",
+        "url": "https://example.invalid/synth",
+        "author": "test",
+        "licence": "CC0",
+        "files": ["vendor/trees/synth/source.glb"],
+        "sha256": {},
+        "role_map": role_map,
+    }
+    (root / "vendor" / "vendor.json").write_text(json.dumps([entry]), encoding="utf-8")
+    return root
+
+
+def _run_synth(tmp_path: Path, role_map: dict[str, str]) -> dict:
+    root = _synth_vendor(tmp_path, role_map)
+    runner = tmp_path / "run_import.py"
+    runner.write_text(SYNTH_RUN, encoding="utf-8")
+    result = tmp_path / "result.json"
+    _blender(runner, str(ASSETS_DIR), str(root), str(result))
+    return json.loads(result.read_text(encoding="utf-8"))
+
+
+def test_import_vendor_maps_materials_by_role_map(tmp_path):
+    """The plain material goes through role_map by name; the colormap material's faces are
+    sampled at their UV centroids and mapped to the nearest role."""
+    res = _run_synth(tmp_path, {"Trunk": "dark"})
+    by_obj = res["roles"]
+    trunk = next(r for k, r in by_obj.items() if "trunk" in k.lower())
+    strip = next(r for k, r in by_obj.items() if "strip" in k.lower())
+    assert set(trunk) == {"dark"}
+    assert strip == ["foliage", "dark", "primary", "accent"], strip
+
+
+def test_import_vendor_uses_a_role_table_for_the_colormap(tmp_path):
+    """A '#rrggbb' key in role_map is a palette role table entry for sampled colours."""
+    res = _run_synth(
+        tmp_path,
+        {
+            "Trunk": "dark",
+            "#1a8c1f": "secondary",  # the green px
+            "#0d0d0f": "metal",
+            "#ebe6d9": "light",
+            "#99401f": "foliage",
+        },
+    )
+    strip = next(r for k, r in res["roles"].items() if "strip" in k.lower())
+    assert strip == ["secondary", "metal", "light", "foliage"]
+
+
+def test_import_vendor_drops_images_and_scale_to_hits_the_target(tmp_path):
+    res = _run_synth(tmp_path, {"Trunk": "dark"})
+    assert res["images"] == 0
+    assert res["uv_layers"] == 0
+    assert res["materials"] == []
+    assert res["min_y"] == pytest.approx(0.0, abs=1e-4)  # seated on the ground
+    assert res["y_before"] == pytest.approx(3.0, abs=1e-4)
+    assert res["y_after"] == pytest.approx(2.0, abs=1e-4)
+    assert res["x_scaled"] == pytest.approx(10.0, abs=1e-4)  # uniform: y scales with it
+    assert res["y_scaled"] == pytest.approx(res["y_after"] * 10.0 / res["x_after"], rel=1e-4)
