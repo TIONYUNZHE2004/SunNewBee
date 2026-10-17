@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import bisect
 import math
+import threading
 from collections import OrderedDict
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime
@@ -179,6 +180,8 @@ class Day:
         self.decisions: dict[str, str] = dict(decisions or {})
         self.points: list[Decision] = []
         self._purpose_places: dict[str, list[tuple[str, int]]] | None = None
+        # routers and distance fields are shared caches: one caller at a time on a cached day
+        self.lock = threading.RLock()
 
     # ---- routing helpers -------------------------------------------------------------------
     def router(self, mode: str, stage: str | None, base: bool = False) -> Router:

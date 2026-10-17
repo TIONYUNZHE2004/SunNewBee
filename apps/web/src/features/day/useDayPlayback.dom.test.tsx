@@ -110,4 +110,26 @@ describe("Elmina Day playback", () => {
     expect(useScene.getState().day.on).toBe(false);
     expect(useScene.getState().scenarioId).toBe("stage_p3m");
   });
+
+  it("a resident's own trip (day.trip) plays in Resident mode; switching mode ends it", () => {
+    useMode.setState({ mode: "resident" });
+    renderWithClient(<Host />, seeded());
+    const geojson = { type: "FeatureCollection", features: [], meta: { leave: "07:30" } };
+    act(() =>
+      useScene.getState().applyIntent({
+        kind: "day.trip",
+        day: "storm",
+        t_min: 450,
+        scenario_id: "stage_p3m",
+        geojson,
+      } as never),
+    );
+    expect(useScene.getState().day).toMatchObject({ on: true, t: 450, scenario: "storm" });
+    expect(useScene.getState().myTrip).not.toBeNull();
+    expect(useScene.getState().scenarioId).toBe("stage_p3m");
+    act(() => useMode.setState({ mode: "management" }));
+    expect(useScene.getState().day.on).toBe(false);
+    expect(useScene.getState().myTrip).toBeNull(); // the trip belonged to that day
+    expect(useScene.getState().scenarioId).toBe("stage_p2m"); // the user's level comes back
+  });
 });

@@ -1,4 +1,5 @@
 import type { ChatEvent, components } from "@tl/api-client";
+import type { TripMeta } from "../day/tripModel";
 
 export type Citation = components["schemas"]["Citation"];
 export type Uncertainty = components["schemas"]["Uncertainty"];
@@ -31,6 +32,8 @@ export interface AssistantMessage {
   answerStatus?: string;
   route?: { id: string; status?: string; distanceM?: number; minutes?: number };
   scenarioId?: string;
+  /** A rehearsed trip's departures and outcome (day.trip intent meta), for the strip. */
+  trip?: TripMeta;
   /** done.model; "...+template" means the checked data was worded without the AI. */
   model?: string;
   done: boolean;
@@ -103,6 +106,11 @@ export function reduceIntent(m: AssistantMessage, i: SceneIntent): AssistantMess
       },
     };
   if (i.kind === "flood.set_level" && i.scenario_id) return { ...m, scenarioId: i.scenario_id };
+  if (i.kind === "day.trip" && i.geojson) {
+    // a resident's own rehearsed trip: the strip shows the engine's departures (Cycle 20)
+    const meta = (i.geojson as { meta?: TripMeta }).meta;
+    if (meta) return { ...m, trip: meta };
+  }
   return m;
 }
 

@@ -5,6 +5,7 @@ import { CitationList } from "../chat/CitationList";
 import { type AssistantMessage, isRefusal, isTemplateFallback } from "../chat/chatReducer";
 import { describeUncertainty } from "../chat/uncertainty";
 import { useElementNames } from "../chat/useElementNames";
+import { TripStrip } from "../day/TripStrip";
 import { RouteSummary } from "./RouteSummary";
 
 export function AnswerCard({ m, onRetry }: { m: AssistantMessage; onRetry: () => void }) {
@@ -81,6 +82,7 @@ export function AnswerCard({ m, onRetry }: { m: AssistantMessage; onRetry: () =>
         </p>
       )}
       {m.text && <RouteSummary m={m} />}
+      {m.text && m.trip && <TripStrip meta={m.trip} />}
       {m.tools.length > 0 &&
         (checksRunning ? (
           checksList

@@ -41,6 +41,7 @@ export function useDayPlayback() {
       const prev = before.current;
       before.current = null;
       useScene.getState().setDay({ before: null });
+      useScene.getState().setMyTrip(null); // the trip belongs to the day that stopped
       lastSet.current = undefined;
       useScene.setState((s) => ({
         scenarioId: prev.scenarioId,
@@ -49,13 +50,19 @@ export function useDayPlayback() {
     }
   }, [on]);
 
-  // leaving Management mode, or the rising-river rollout starting later, ends the day
+  // switching mode, or the rising-river rollout starting later, ends the day; outside
+  // Management mode the day only plays a resident's own trip
   const rolloutWas = useRef(rolloutOn);
+  const modeWas = useRef(mode);
+  const hasTrip = useScene((s) => !!s.myTrip);
   useEffect(() => {
     const started = rolloutOn && !rolloutWas.current;
+    const switched = mode !== modeWas.current;
     rolloutWas.current = rolloutOn;
-    if (on && (started || mode !== "management")) setDay({ on: false, playing: false });
-  }, [on, rolloutOn, mode, setDay]);
+    modeWas.current = mode;
+    if (on && (started || switched || (mode !== "management" && !hasTrip)))
+      setDay({ on: false, playing: false });
+  }, [on, rolloutOn, mode, hasTrip, setDay]);
 
   // the river follows the clock; a level the user picks meanwhile ends the day
   const stage = stageAt(stages, t);

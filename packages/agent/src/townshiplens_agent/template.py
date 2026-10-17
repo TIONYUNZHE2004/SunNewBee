@@ -494,7 +494,11 @@ def my_trip_answer(d: dict, evidence_ids: list[str]) -> dict:
     )
     steps = []
     if d.get("last_ok_leave_before"):
-        steps.append(f"Trips leaving at {d['last_ok_leave_before']} or earlier got there.")
+        steps.append(
+            f"Trips leaving at {d['last_ok_leave_before']} or earlier got there."
+            if d.get("all_earlier_ok")
+            else f"A trip leaving at {d['last_ok_leave_before']} got there."
+        )
     if d.get("next_clear_leave"):
         steps.append(f"The way came back for trips leaving from {d['next_clear_leave']}.")
     if q.get("unchecked"):

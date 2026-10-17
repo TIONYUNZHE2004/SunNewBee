@@ -1313,3 +1313,38 @@ Alignment, asked first (17 Oct, about 13:00):
 - The way came back for departures from 12:30. The mock answer passed the validator on the first attempt.
 
 **Checklist** (mock-backed): lint PASS, pytest 1,270 PASS, typecheck PASS, vitest 789 PASS, gen (client regenerated with the new route and intent), golden 23/23 PASS, e2e 19 PASS. The web UI for the trip comes next (Cycle 20).
+
+### Cycle 19 review (independent Sonnet reviewer) and Cycle 20, part 1: the trip on screen (17 Oct, 13:23)
+
+**Review findings, all fixed (4 Important, 8 Minor):**
+- **Important: false steps.** "…or earlier got there" was printed even when earlier slots were cut. The engine now returns `all_earlier_ok`, and the template says "A trip leaving at X got there" otherwise. "The way came back" is now the first departure after the *last* cut one, so no later slot is cut again. It is shown only when the asked trip did not get there.
+- **Important: advice slipped through.** "better to set off", "aim/plan/try", "go early", "leave … instead", sentence-initial "Leave/Go/Set off", "bertolak sebelum", 早点/提前, "no risk" and "fine to go" are now refused.
+- **Important: forecasts slipped through.** "will be cut/rise/close/passable…" is refused.
+- **Important: outcome contradictions.** The sentence about the asked time must name its outcome. A cut trip is never said to have arrived ("not/never" negation allowed). A bare "cut" no longer counts as "no way".
+- **Minor:**
+  - hours must round the rehearsal's own minutes (±30);
+  - "very long" needs over twice as long *and* 30+ minutes more;
+  - the cut is computed where the trip stopped (turned back or stuck);
+  - two ends snapping to one node are refused, and so is an id plus a point;
+  - each `Day` has its own lock, shared by trips and `compare`;
+  - the mock trip route needs trip wording;
+  - a tapped point is hashed in the in-memory cache key.
+
+**Cycle 20, part 1:**
+- **`tripModel.ts`:** parse the trip, the position at the clock (interpolated along the engine's segments; waiting at a point), an outcome palette with glyphs (never colour alone), `tripFromApi`.
+- **`TripStrip` in the answer card:** one button per 10-minute departure, an hour axis, ▲ at the asked time and a legend. Tapping a time re-rehearses that departure (`POST /day/{id}/trip`) and plays it on the map.
+- **Scene store:** `day.trip` opens the day at the time of leaving in *any* mode, with that minute's stage and `myTrip`. The playback hook now ends the day on a mode *switch*; outside Management mode it plays only a resident's trip, and the trip is cleared with its day.
+- **`MyTripLayer` (Cesium):**
+  - the usual route as white dashes on dark gaps (it was invisible in grey);
+  - the trip in yellow (a plain colour; an outline material is not drawn on ground-clamped lines);
+  - the flooded cut as a red glow;
+  - "You" at the clock ("You · waiting"; "You · no way through" at the start).
+  
+  The camera frames the trip.
+
+**Browser** (mock, Stylised, Resident mode): "In the storm rehearsal, what happens to my trip from Car Park B to SK Denai Alam by car leaving at 7:30?"
+- The answer card shows the strip: ✓ 06:30–06:40, ✕ 06:50–12:20, ✓ from 12:30.
+- The map opens the storm at 07:30 with the trip, the usual route and the cut.
+- The console is clean after a reload. On the way: a debugging session showed that the jsdom tests cannot fetch relative `/api` URLs (the strip test mocks the client's POST).
+
+**Checklist** (mock-backed): lint PASS, pytest 1,296 PASS, typecheck PASS, vitest 796 PASS, gen PASS, golden 23/23 PASS, build PASS, e2e 19 PASS.

@@ -663,7 +663,9 @@ DAY_FORECAST = re.compile(
     r"|\b(?:won't|will not)\s+(?:be able to|get to|reach|make it)\b"
     # review C17: "823 residents will be better off", "this will help 823 residents"
     r"|\bwill\s+(?:be\s+(?:better|worse)|help|benefit|reach|arrive|get to|make it|save)\b"
-    r"|\breal (?:people|residents)\b[^.]*\b(?:will|tomorrow|may|might)\b",
+    r"|\breal (?:people|residents)\b[^.]*\b(?:will|tomorrow|may|might)\b"
+    # review C19: the river or the roads "will" do something
+    r"|\bwill (?:be )?(?:cut|rise|risen|close|closed|open|reopen|passable|clear|blocked)\b",
     re.IGNORECASE,
 )
 # The data gap is named with its count nearby ("163 had no mapped connection (data gap)").
@@ -809,7 +811,18 @@ MY_TRIP_ADVICE = re.compile(
     r"|\bleave (?:by|before|no later than|early)\b|\bbest time\b|\bsafest\b|\bmake sure\b"
     r"|\bi (?:recommend|suggest|advise)\b|\bsebaiknya\b|\bperlu bertolak\b|建议|最好"
     r"|\b(?:will|won't|would)\s+(?:not\s+)?(?:get|arrive|reach|make|be able)\b"
-    r"|\bakan (?:sampai|tiba)\b",
+    r"|\bakan (?:sampai|tiba)\b"
+    # review C19: recommendations and imperatives about when to go, in EN / BM / ZH
+    r"|\b(?:it'?s |it is )?(?:better|best|wiser|safer) to\b"
+    r"|\b(?:aim|plan|try|consider) (?:to |for )"
+    r"|\b(?:set off|go|leave|depart) (?:early|earlier|before|instead|sooner)\b|\bleaving early\b"
+    r"|\bwait until\b[^.]*\bto (?:go|leave)\b|\byou could (?:leave|go|set off)\b"
+    r"|(?:^|[.!?]\s+)(?:leave|go|set off|depart|try)\b"
+    r"|\b(?:leave|go|set off)\b[^.]{0,24}\binstead\b"
+    r"|\bbertolak (?:sebelum|awal|lebih awal)\b|\belakkan\b|早点|提前|之前出发|不要出发"
+    # reassurance a rehearsal cannot give
+    r"|\bno risk\b|\b(?:fine|ok|okay) to (?:go|travel|leave)\b|\bnothing to worry\b"
+    r"|\btiada risiko\b|没问题|没有风险",
     re.IGNORECASE,
 )
 MY_TRIP_OUTCOME = {
@@ -819,7 +832,7 @@ MY_TRIP_OUTCOME = {
     "rerouted": r"re-?plan|re-?route|changed (?:its|the) route|tukar laluan|改道|重新规划",
     "turned_back": r"turned back|berpatah balik|折返|返回",
     "stranded": r"\bstuck\b|terkandas|被困",
-    "no_way": r"no way|no route|\bcut\b|tiada laluan|terputus|没有路|中断",
+    "no_way": r"no way|no route|no mapped way|tiada laluan|没有路",
 }
 UNCHECKED_WORDS = re.compile(r"unchecked|not (?:yet )?checked|belum disemak|未核实|未检查", re.I)
 MY_TRIP_GAP = re.compile(
@@ -873,10 +886,22 @@ def my_trip_errors(ans: FinalAnswer, rec: TurnRecord) -> list[str]:
             errs.append("There is no mapped connection for this trip: call it a data gap.")
         return errs
     out = (d.get("asked") or {}).get("outcome")
-    if out in MY_TRIP_OUTCOME and not re.search(MY_TRIP_OUTCOME[out], text, re.IGNORECASE):
+    # the sentence about the asked time names what happened to it, and never contradicts it
+    leave = _clock_minutes(d.get("leave") or "")
+    said = [x for x in _SENTENCE.split(text) if leave & _clock_minutes(x)]
+    if out in MY_TRIP_OUTCOME and not any(
+        re.search(MY_TRIP_OUTCOME[out], x, re.IGNORECASE) for x in said
+    ):
         errs.append(
             f"Say what happened to the trip at {d.get('leave')} in the rehearsal "
-            f"(it {out.replace('_', ' ')})."
+            f"(it {out.replace('_', ' ')}), in the sentence about that time."
+        )
+    if out in ("no_way", "very_long", "turned_back", "stranded") and any(
+        _ARRIVED.search(x) for x in said
+    ):
+        errs.append(
+            f"The trip at {d.get('leave')} did not get there in the rehearsal: do not say it "
+            "arrived."
         )
     if (d.get("asked") or {}).get("unchecked") and not UNCHECKED_WORDS.search(text):
         errs.append(
@@ -895,13 +920,26 @@ def my_trip_errors(ans: FinalAnswer, rec: TurnRecord) -> list[str]:
     # minutes are not "measurements" here: every trip time must be one the rehearsal produced
     named = _strip_names(text, rec.place_names)
     mins = {int(x) for x in _TRIP_MIN.findall(named)}
-    if bad := sorted(mins - set().union(*(_ints(t) for t in rec.my_trips))):
+    payload = set().union(*(_ints(t) for t in rec.my_trips))
+    if bad := sorted(mins - payload):
         errs.append(
             f"Trip times {bad} minutes do not appear in the rehearsal: quote only its minutes."
         )
+    # hours are fine only as a rounding of the rehearsal's own minutes (review C19)
+    for h in _TRIP_HOURS.findall(named):
+        if not any(abs(float(h) * 60 - m) <= 30 for m in payload if m >= 30):
+            errs.append(
+                f"'{h} hours' does not match the rehearsal's minutes: quote its minutes instead."
+            )
+            break
     return errs
 
 
+_SENTENCE = re.compile(r"(?<=[.!?;])\s+|\n")
+_ARRIVED = re.compile(
+    r"(?<!not )(?<!n't )(?<!never )\b(?:got there|arrived|reached|sampai|tiba)\b", re.IGNORECASE
+)
+_TRIP_HOURS = re.compile(r"(\d+(?:\.\d+)?)\s*(?:hours?|hrs?|h\b|jam)", re.IGNORECASE)
 _TRIP_MIN = re.compile(r"(?<![\d.:])(\d+)\s*(?:min\b|mins\b|minutes?\b|minit\b|分钟)", re.I)
 
 

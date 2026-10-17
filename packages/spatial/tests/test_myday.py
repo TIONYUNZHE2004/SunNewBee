@@ -91,3 +91,48 @@ def test_the_storm_rehearsal_cuts_a_school_run_and_names_the_street():
     assert d["cut_by"], "the flooded street is named"
     assert d["last_ok_leave_before"] < "07:30" < d["next_clear_leave"]
     assert d["stage_at_leave"] == "stage_p3m"
+
+
+def test_a_short_detour_is_longer_not_very_long():
+    from types import SimpleNamespace
+
+    tr = SimpleNamespace(status="arrived", arrive=13.0, rerouted=False, waited=0, unknown=0)
+    assert myday._outcome(tr, 0.0, 3.0)["outcome"] == "longer"  # 13 min vs 3: under 30 more
+    tr.arrive = 120.0
+    assert myday._outcome(tr, 0.0, 40.0)["outcome"] == "very_long"
+
+
+@pytest.mark.parametrize(
+    "kw,why",
+    [
+        ({"from_point": "101.51,3.181"}, "not both"),
+        ({"from_id": None, "from_point": "P", "to_id": None, "to_point": "P2"}, "same place"),
+    ],
+)
+def test_ends_given_twice_or_snapped_together_are_refused(ctx, kw, why):
+    lon, lat = ctx.world.node_coords["n-a"]
+    kw = {
+        k: (f"{lon},{lat}" if v == "P" else f"{lon + 0.00001},{lat}" if v == "P2" else v)
+        for k, v in kw.items()
+    }
+    r = trip(ctx, **kw)
+    assert not r.ok and any(why in w for w in r.warnings), r.warnings
+
+
+@pytest.mark.skipif(not (SEED / "site.json").exists(), reason="Elmina seed not built")
+def test_or_earlier_only_when_every_earlier_departure_got_there():
+    w = load_world(SEED)
+    c = tools.Ctx(world=w, vrs=VerificationStore(":memory:"))
+    school = next(p.id for p in w.places.values() if p.name == "SK Denai Alam")
+    d = tools.TOOLS["rehearse_my_trip"](
+        c, from_id="park-b", to_id=school, profile="drive", leave_at="07:30", day="storm"
+    ).data
+    ok = ("clear", "longer", "rerouted")
+    before = [s for s in d["sweep"] if s["leave"] <= d["last_ok_leave_before"]]
+    assert d["all_earlier_ok"] == all(s["outcome"] in ok for s in before)
+    later = [s for s in d["sweep"] if s["leave"] >= d["next_clear_leave"]]
+    assert all(s["outcome"] in ok for s in later)  # the way stays back once it came back
+    clear = tools.TOOLS["rehearse_my_trip"](
+        c, from_id="park-b", to_id=school, profile="drive", leave_at="06:00", day="storm"
+    ).data
+    assert clear["asked"]["outcome"] == "clear" and clear["next_clear_leave"] is None

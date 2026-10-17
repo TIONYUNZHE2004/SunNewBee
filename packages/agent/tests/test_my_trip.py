@@ -41,6 +41,7 @@ CUT = {
     },
     "cut_by": ["the street on Persiaran Alstonia"],
     "last_ok_leave_before": "06:40",
+    "all_earlier_ok": True,
     "next_clear_leave": "12:30",
     "sweep": [{"leave": "06:40", "outcome": "clear", "arrive": "07:44", "minutes": 64}],
 }
@@ -155,3 +156,71 @@ def test_the_mock_names_the_street_that_cut_a_storm_trip():
 
     out = _for_model("rehearse_my_trip", {"data": dict(rec.my_trips[0])})
     assert not {"track", "normal_route", "cut_lines"} & set(out["data"])
+
+
+# Review C19: advice, reassurance, forecasts, contradictions and hours.
+@pytest.mark.parametrize(
+    "extra",
+    [
+        " It's better to set off before 06:40.",
+        " Aim to leave at 06:40.",
+        " Plan for 06:40.",
+        " Go early.",
+        " Set off earlier.",
+        " Bertolak sebelum 06:40.",
+        " 早点出发比较好。",
+        " Best to go at 06:40.",
+        " Wait until 12:30 to go.",
+        " Leave at 06:40 instead.",
+        " You could leave at 06:40.",
+        " No risk at 06:40.",
+        " It is fine to go at 06:40.",
+    ],
+)
+def test_more_advice_and_reassurance_is_refused(extra):
+    errs = validate_answer(_ans(OK + extra), _rec())
+    assert any("advise" in e for e in errs), errs
+
+
+@pytest.mark.parametrize("extra", [" The river will rise further.", " Roads will be cut."])
+def test_forecast_wording_is_refused(extra):
+    errs = validate_answer(_ans(OK + extra), _rec())
+    assert errs, extra
+
+
+def test_a_cut_trip_cannot_be_said_to_arrive():
+    s = (
+        "In the storm rehearsal, a trip leaving at 07:00 got there at 12:13 although the river cut "
+        "the street on Persiaran Alstonia. It crossed 6 unchecked stretches."
+    )
+    errs = validate_answer(_ans(s), _rec())
+    assert any("did not get there" in e for e in errs), errs
+
+
+@pytest.mark.parametrize(
+    "extra,ok",
+    [
+        (" That is about 5 hours.", True),
+        (" That is about 9 hours.", False),
+        (" The river rose at 06:45 and 07:05.", True),
+    ],
+)
+def test_hours_and_river_times(extra, ok):
+    errs = validate_answer(_ans(OK + extra), _rec())
+    assert (errs == []) == ok, errs
+
+
+@pytest.mark.parametrize(
+    "q,hit",
+    [
+        ("which change helps the storm day, from the clinic to school?", False),
+        ("can i get from car park b to the playground during the storm?", False),
+        ("in the storm rehearsal, my trip from car park b to sk denai alam at 7:30?", True),
+    ],
+)
+def test_the_mock_trip_route_needs_trip_wording(q, hit):
+    import re
+
+    from townshiplens_agent.mock import _MY_TRIP
+
+    assert bool(re.search(_MY_TRIP, q)) == hit

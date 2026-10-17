@@ -64,6 +64,10 @@ interface SceneState {
     before: { scenarioId: string | null; flood: boolean } | null;
   };
   setDay: (d: Partial<SceneState["day"]>) => void;
+  /** A resident's own rehearsed trip (day.trip intent or "Rehearse my trip"): its geojson
+   * (normal route, the trip with minutes, flooded pieces) and meta for the departure strip. */
+  myTrip: { geojson: unknown } | null;
+  setMyTrip: (geojson: unknown | null) => void;
   /** The river level follows the day's clock without clearing routes or what-ifs. */
   setDayStage: (scenarioId: string | null) => void;
   camera: { center: [number, number]; rangeM: number } | null;
@@ -103,6 +107,7 @@ const initial = {
   selectedFloodEdgeId: null as string | null,
   route: null as SceneState["route"],
   whatIf: null as SceneState["whatIf"],
+  myTrip: null as SceneState["myTrip"],
   rollout: { on: false, stage: 0, playing: false } as SceneState["rollout"],
   day: {
     on: false,
@@ -172,6 +177,23 @@ export const useScene = create<SceneState>((set) => ({
             };
           if (i.scenario_id) Object.assign(next, floodLevel(s, i.scenario_id));
           break;
+        case "day.trip":
+          // a resident's own trip: the rehearsal opens at the time they leave (in any mode),
+          // with that minute's river stage, and their trip is drawn
+          next.day = {
+            ...s.day,
+            on: true,
+            playing: false,
+            focus: null,
+            scenario: i.day ?? s.day.scenario,
+            t: typeof i.t_min === "number" ? i.t_min : s.day.t,
+            before: s.day.on
+              ? s.day.before
+              : { scenarioId: s.scenarioId, flood: s.lensVisible.flood },
+          };
+          next.myTrip = i.geojson ? { geojson: i.geojson } : null;
+          Object.assign(next, floodLevel(s, i.scenario_id ?? null));
+          break;
         case "flood.set_level":
           Object.assign(next, floodLevel(s, i.scenario_id ?? null));
           break;
@@ -230,6 +252,7 @@ export const useScene = create<SceneState>((set) => ({
   clearWhatIf: () => set({ whatIf: null }),
   setRollout: (r) => set((s) => ({ rollout: { ...s.rollout, ...r } })),
   setDay: (d) => set((s) => ({ day: { ...s.day, ...d } })),
+  setMyTrip: (geojson) => set({ myTrip: geojson ? { geojson } : null }),
   setDayStage: (scenarioId) =>
     set((s) =>
       s.scenarioId === scenarioId

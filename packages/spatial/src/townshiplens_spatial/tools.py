@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import difflib
+import hashlib
 import json
 import re
 import threading
@@ -1600,6 +1601,8 @@ def rehearse_my_trip(
             return "unknown place id: use find_place first"
         return ({"id": p.id, "name": p.name}, p.node_id, None)
 
+    if (from_id and from_point) or (to_id and to_point):
+        return ToolResult(ok=False, warnings=["give each end as a place id or a point, not both"])
     a, b = end(from_id, from_point, "from"), end(to_id, to_point, "to")
     for x in (a, b):
         if isinstance(x, str):
@@ -1614,7 +1617,7 @@ def rehearse_my_trip(
         nodes, snapped = [], {}
         for which, (_label, node, pt) in (("from", a), ("to", b)):
             if pt is not None:
-                with myday._LOCK:
+                with res.day.lock:
                     hit = myday.nearest_node(res.day, pt[0], pt[1], mode)
                 if hit is None:
                     snapped[which] = None
@@ -1622,6 +1625,10 @@ def rehearse_my_trip(
                 else:
                     node, snapped[which] = hit[0], round(hit[1])
             nodes.append(node)
+        if nodes[0] and nodes[0] == nodes[1]:
+            return ToolResult(
+                ok=False, warnings=["the start and the destination are the same place"]
+            )
         out = myday.rehearse(res.day, nodes[0], nodes[1], mode, t)
         if any(v is None for v in snapped.values()):
             out["reason"] = f"no mapped path within {myday.SNAP_M:.0f} m of the point you chose"
@@ -1643,10 +1650,13 @@ def rehearse_my_trip(
         )
         return ToolResult(ok=True, data=out, evidence=[ev], warnings=[engine_disclaimer()])
 
+    def k(pid, point):  # a tapped point is never kept as text, even in the in-memory cache key
+        return pid or "pt:" + hashlib.sha256(str(point).encode()).hexdigest()[:16]
+
     key = {
         "s": scenario_id,
-        "f": from_id or from_point,
-        "t": to_id or to_point,
+        "f": k(from_id, from_point),
+        "t": k(to_id, to_point),
         "m": mode,
         "at": t,
         "on": _today(),

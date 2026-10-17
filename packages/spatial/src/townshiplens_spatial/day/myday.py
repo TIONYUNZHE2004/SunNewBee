@@ -15,17 +15,14 @@ Rules (stated in the answer):
 
 from __future__ import annotations
 
-import threading
-
 from .. import twm
 from .engine import DAY_END, DAY_START, DRIVE_PACE, LATE_MIN, PACE, Day
 
 STEP = 10  # minutes between rehearsed departures in the sweep
+VERY_LONG_EXTRA = 30  # "only a very long way round": over twice as long AND 30+ minutes more
 OUTCOMES = ("clear", "longer", "very_long", "rerouted", "turned_back", "stranded", "no_way")
 BEFORE, AFTER = 60, 240  # the sweep around the asked time
 MODES = ("default", "stroller", "wheelchair", "older_adult_rest", "drive")
-# Day.travel shares routers and distance fields; one trip at a time on a given day.
-_LOCK = threading.Lock()
 
 
 def hhmm(t: float) -> str:
@@ -90,7 +87,7 @@ def _outcome(tr, t0: float, normal_min: float) -> dict:
             kind = "rerouted"  # the water changed on the way: re-planned or waited
         elif took - normal_min < LATE_MIN:
             kind = "clear"
-        elif took <= 2 * normal_min:
+        elif took <= 2 * normal_min or took - normal_min < VERY_LONG_EXTRA:
             kind = "longer"  # a longer way round the water from the start
         else:
             kind = "very_long"  # only a very long way round was left (counted as cut in the UI)
@@ -155,7 +152,7 @@ def rehearse(
     }
     if src is None or dst is None:
         return {**base, "status": "no_data", "reason": "a place has no mapped entrance node"}
-    with _LOCK:
+    with day.lock:
         normal = day._leg(mode, None, True, src, (dst,))
         if normal is None:
             return {**base, "status": "no_data", "reason": "no mapped connection on a normal day"}
@@ -169,16 +166,36 @@ def rehearse(
         first = day.travel(mode, src, (dst,), leave_at, essential=False)
         asked = _outcome(first, leave_at, normal_min)
         track = _track(day, first)
+        # the water that cut it: at the time of leaving, or where the trip stopped on the way
+        stop = first.ended_at or (first.segments[-1].t1 if first.segments else leave_at)
+        cut_at = leave_at if asked["outcome"] in ("no_way", "very_long") else stop
         lo = max(DAY_START, leave_at - BEFORE)
         # long enough to see the way come back: past the last river change after leaving
         last = max((c for c in day.changes if c > leave_at), default=leave_at)
         hi = min(DAY_END - 30, max(leave_at + AFTER, last + 30))
         sweep = [run(t) for t in range(lo - lo % STEP, hi + 1, STEP) if t >= lo]
     ok = ("clear", "longer", "rerouted")
-    later = [s for s in sweep if minutes(s["leave"]) > leave_at and s["outcome"] == "clear"]
-    earlier = [s for s in sweep if minutes(s["leave"]) < leave_at and s["outcome"] in ok]
-    cut = [] if asked["outcome"] == "clear" else _cut_by(day, normal, leave_at)
-    cut_lines = [] if asked["outcome"] == "clear" else _cut_lines(day, normal, leave_at)
+    asked_ok = asked["outcome"] in ok
+    before = [s for s in sweep if minutes(s["leave"]) < leave_at]
+    after = [s for s in sweep if minutes(s["leave"]) > leave_at]
+    # the last departure before the asked one that got there, and whether every earlier one did
+    # ("or earlier" only then; review C19)
+    earlier_ok = [s for s in before if s["outcome"] in ok]
+    last_ok = earlier_ok[-1]["leave"] if earlier_ok and not asked_ok else None
+    all_before_ok = bool(last_ok) and all(
+        s["outcome"] in ok for s in before if minutes(s["leave"]) <= minutes(last_ok)
+    )
+    # the way came back: the first departure after the last cut one in the sweep (so no later
+    # departure is cut again), only when the asked one did not get there
+    bad = [i for i, s in enumerate(after) if s["outcome"] not in ok]
+    back = (
+        after[bad[-1] + 1]
+        if bad and bad[-1] + 1 < len(after)
+        else (after[0] if after and not bad else None)
+    )
+    next_clear = back["leave"] if back and not asked_ok else None
+    cut = [] if asked["outcome"] == "clear" else _cut_by(day, normal, cut_at)
+    cut_lines = [] if asked["outcome"] == "clear" else _cut_lines(day, normal, cut_at)
     return {
         **base,
         "status": "rehearsed",
@@ -191,8 +208,9 @@ def rehearse(
         "normal_route": _coords(day, normal.nodes),
         "cut_lines": cut_lines,
         "cut_by": cut,
-        "next_clear_leave": later[0]["leave"] if later else None,
-        "last_ok_leave_before": earlier[-1]["leave"] if earlier else None,
+        "next_clear_leave": next_clear,
+        "last_ok_leave_before": last_ok,
+        "all_earlier_ok": all_before_ok,
         "sweep": sweep,
         "sweep_counts": {k: sum(1 for s in sweep if s["outcome"] == k) for k in OUTCOMES},
     }

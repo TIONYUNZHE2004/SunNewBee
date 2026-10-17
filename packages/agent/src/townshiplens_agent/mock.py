@@ -476,7 +476,7 @@ def _day(q: str, rets, info: AgentInfo) -> ModelResponse:
 
 _MY_TRIP = (
     r"(?=.*(?:\brehears|\bstorm\b|\bribut\b|\blatihan\b|\bsimulated day\b))"
-    r"(?=.*(?:\bmy trip\b|\bi leave\b|\bleav(?:e|ing) at\b|\bbertolak\b|\bfrom .+ to ))"
+    r"(?=.*(?:\bmy trip\b|\bi leave\b|\bleav(?:e|ing) at\b|\bbertolak\b))"
 )
 _ENDS = re.compile(r"from (.+?) to (.+?)(?=\s+(?:at|by|with|in|on|leaving|if|during)\b|[?.,]|$)")
 

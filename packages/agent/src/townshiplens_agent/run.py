@@ -406,11 +406,29 @@ def _trip_geojson(t: dict) -> dict | None:
     ]
     if not feats:
         return None
+    asked = t.get("asked") or {}
     meta = {
-        "outcome": (t.get("asked") or {}).get("outcome"),
-        "leave": t.get("leave"),
+        # everything the answer card's departure strip shows, copied from the rehearsal
+        "day": (t.get("scenario") or {}).get("id"),
+        "day_label": (t.get("scenario") or {}).get("label"),
+        "profile": t.get("profile"),
         "from": (t.get("from") or {}).get("name"),
         "to": (t.get("to") or {}).get("name"),
+        "from_id": (t.get("from") or {}).get("id"),
+        "to_id": (t.get("to") or {}).get("id"),
+        "leave": t.get("leave"),
+        "outcome": asked.get("outcome"),
+        "arrive": asked.get("arrive"),
+        "minutes": asked.get("minutes"),
+        "unchecked": asked.get("unchecked"),
+        "normal_minutes": t.get("normal_minutes"),
+        "cut_by": t.get("cut_by") or [],
+        "last_ok_leave_before": t.get("last_ok_leave_before"),
+        "next_clear_leave": t.get("next_clear_leave"),
+        "sweep": [
+            {"leave": x.get("leave"), "outcome": x.get("outcome"), "arrive": x.get("arrive")}
+            for x in t.get("sweep") or []
+        ],
     }
     return {"type": "FeatureCollection", "features": feats, "meta": meta}
 
