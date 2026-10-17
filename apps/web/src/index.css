@@ -113,6 +113,13 @@ body {
     background: var(--c-surface);
   }
 }
+/* Scrolls (wheel, touch, keyboard focus) without drawing a scrollbar: e.g. the suggestion chips row. */
+@utility no-scrollbar {
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
 
 :focus-visible {
   outline: 2px solid var(--c-focus);

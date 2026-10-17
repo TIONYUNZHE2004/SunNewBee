@@ -66,6 +66,24 @@ describe("AssistantPanel", () => {
     expect(await screen.findByText("Where to drop off recycling", { selector: "p" })).toBeVisible();
     expect(fetchFn.mock.calls.some(([u]) => String(u).includes("/chat"))).toBe(true);
   });
+  it("the suggestion chips row scrolls sideways without a visible scrollbar; chips stay tabbable", async () => {
+    stubFetch((url) =>
+      url.includes("/chat")
+        ? sse([{ type: "text.delta", delta: "ok" }, done("answered")])
+        : json([]),
+    );
+    renderWithClient(<AssistantPanel />);
+    fireEvent.click(screen.getByRole("button", { name: /Where to drop off recycling/ }));
+    await screen.findByText("Where to drop off recycling", { selector: "p" });
+    const chip = screen
+      .getAllByRole("button", { name: /Where to drop off recycling/ })
+      .find((b) => b.className.includes("rounded-full")) as HTMLElement;
+    const row = chip.parentElement as HTMLElement;
+    expect(row.className.split(/\s+/)).toEqual(
+      expect.arrayContaining(["overflow-x-auto", "no-scrollbar"]),
+    );
+    expect(chip.tabIndex).toBe(0);
+  });
   describe("Travelling-as keyboard pattern", () => {
     const openChip = () => {
       stubFetch(() => json([]));

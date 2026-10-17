@@ -119,7 +119,7 @@ export function AssistantPanel({
       <footer className="border-t border-edge p-3">
         {messages.length > 0 && (
           <div
-            className={`-mx-1 mb-2 flex gap-2 overflow-x-auto px-1 pb-1 ${compact ? "hidden" : ""}`}
+            className={`-mx-1 mb-2 no-scrollbar flex gap-2 overflow-x-auto px-1 pb-1 ${compact ? "hidden" : ""}`}
           >
             {starters.map((s) => (
               <button
