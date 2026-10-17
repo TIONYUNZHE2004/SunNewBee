@@ -97,9 +97,9 @@ def test_ao_is_baked_into_red(built):
 
 LINK_IDS = ("link_intermediate", "link_long")
 # a single-storey roof shades the top of its walls, so its "upper walls" start lower
-# (height fraction, min mean AO); default (0.5, 0.5). A school's walls sit behind its deep
-# corridor and roof overhang
-UPPER_FROM = {"bungalow": (0.15, 0.4), "school": (0.5, 0.3)}
+# (height fraction, min mean AO); default (0.5, 0.5)
+# measured mean upper-wall AO: school 0.446 (corridor and roof overhang shade the walls)
+UPPER_FROM = {"bungalow": (0.15, 0.4), "school": (0.5, 0.4)}
 RESIDENTIAL_IDS = ("superlink", "semi_d", "bungalow", "townhouse")
 NON_RESIDENTIAL_IDS = ("shop_office", "highrise", "school", "mosque", "factory", "mall", "generic")
 
@@ -251,6 +251,51 @@ def test_residential(residential_built, asset_id):
             assert bad == [], "only the plain party wall faces -x at the boundary"
 
 
+MIN_FEATURE_M, MAX_FEATURE_M = 0.4, 7.0
+
+
+def _widths(items: list[tuple[float, float]]) -> list[float]:
+    """Feature widths from (along, y) vertices of applied quads: at one height a quad has its
+    two edge coordinates, so the sorted coordinates pair up as (left, right)."""
+    by_y: dict[float, set[float]] = {}
+    for u, y in items:
+        by_y.setdefault(round(y, 3), set()).add(round(u, 3))
+    out = []
+    for us in by_y.values():
+        us_sorted = sorted(us)
+        assert len(us_sorted) % 2 == 0, us_sorted
+        out += [b - a for a, b in zip(us_sorted[::2], us_sorted[1::2], strict=True)]
+    return out
+
+
+def _check_scale_proof(colors, normals, pos) -> None:
+    """The loader scales `generic` in x and z by 0.3-4. Proxy for 'reads well': after either
+    scale no glass or dark feature on a side face is narrower than 0.4 m or wider than 7 m (a
+    ribbon window on a 40 m frontage; the 3 m of the brief is unreachable for one geometry over
+    a 13x range), and no vertex sits behind the facade plane (no cut openings)."""
+    glass, dark = specs.ROLES.index("glass"), specs.ROLES.index("dark")
+    half = specs.ASSETS["generic"].variants[0].size[0] / 2
+    for role in (glass, dark):
+        for axis, along in ((0, 2), (2, 0)):  # a face facing +-x is measured along z, and so on
+            for sign in (1.0, -1.0):
+                v = [
+                    (p[along], p[1])
+                    for c, n, p in zip(colors, normals, pos, strict=True)
+                    if round(c[1] * 7) == role and n[axis] * sign > 0.9
+                ]
+                if not v:
+                    continue
+                depth = [
+                    p[axis] * sign
+                    for c, n, p in zip(colors, normals, pos, strict=True)
+                    if round(c[1] * 7) == role and n[axis] * sign > 0.9
+                ]
+                assert min(depth) > half - 0.01, "applied features only, nothing recessed"
+                for width in _widths(v):
+                    assert width * 0.3 >= MIN_FEATURE_M, (role, width)
+                    assert width * 4.0 <= MAX_FEATURE_M, (role, width)
+
+
 @pytest.mark.parametrize("asset_id", NON_RESIDENTIAL_IDS)
 def test_non_residential(non_residential_built, asset_id):
     raw, packed = non_residential_built[asset_id]
@@ -294,5 +339,7 @@ def test_non_residential(non_residential_built, asset_id):
         if asset_id == "highrise":
             assert abs(hi[1] - v.size[1]) <= 1.0
             assert specs.ROLES.index("foliage") in _roles(colors), "planted balconies"
+        if asset_id == "generic":
+            _check_scale_proof(colors, normals, pos)
         if asset_id == "factory":
             assert specs.ROLES.index("metal") in _roles(colors), "metal roof"

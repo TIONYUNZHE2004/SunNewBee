@@ -436,9 +436,11 @@ def _school(variant: Variant, lod: int) -> list:
     body = kit.walls(
         bw, bd, eave, openings=doors, lod=lod, cell=(2.4, 1.5), faces=("front", "back")
     )
-    cols = [c + 1.4 for c in _spread(bw, 4)]
     rows = [k * storey + 1.0 for k in range(4)]
-    for face in ("front", "back"):
+    # front: between the doors; back: one per bay. Every pane stays inside the body wall.
+    for face, cols in (("front", _spread(bw, 4)[:-1]), ("back", _spread(bw, 4))):
+        if face == "front":
+            cols = [c + bw / 8 for c in cols]
         body += kit.window_panes(face, bw, bd, cols=cols, rows=rows, ww=1.6, wh=1.2, lod=lod)
     objs = kit.place(body, z=zb)
     for sx, face in ((-1.0, "left"), (1.0, "right")):
@@ -460,15 +462,19 @@ def _mosque(variant: Variant, lod: int) -> list:
     """A generic prayer hall: a rectangular hall under a flat roof, a central drum and accent
     dome, four small corner domes, a front arcade and one minaret by the front-right corner."""
     w, h, d = variant.size
-    hall_w, hall_d, hall_h = 29.0, 26.0, 9.0
-    zc = -d / 2 + hall_d / 2  # hall z range [-15, 11]
-    dome_r = 6.5
-    mx, mz = 13.6, 13.0  # minaret centre, beside the arcade
+    k = h / 15.0  # vertical proportions are set for the 15 m size
+    hall_w, hall_d, hall_h = w, d - 4.0, 0.6 * h  # a 4 m arcade takes the front
+    zc = -d / 2 + hall_d / 2
+    z_front = zc + hall_d / 2  # the hall's front wall
+    dome_r = hall_d / 4
+    gallery = 2.7  # circumradius of the (45 degree) square gallery; half side = gallery / sqrt 2
+    mx = w / 2 - gallery / math.sqrt(2)  # the gallery's outer edges stay inside w and d
+    mz = d / 2 - gallery / math.sqrt(2)
     segs, rings = (16, 5) if lod == 0 else (8, 2)
     if lod >= 2:
         objs = kit.far_block((w, hall_h + 0.8, d), "flat")
         objs += kit.dome(0.0, zc, dome_r, hall_h + 0.8, "accent", segs=8, rings=2)
-        objs += kit.prism(mx, mz, 1.5, 0.0, 27.0, 4, "primary", name="minaret")
+        objs += kit.prism(mx, mz, 1.5, 0.0, 1.8 * h, 4, "primary", name="minaret", phase_deg=45.0)
         return objs
     walls = kit.walls(
         hall_w,
@@ -487,13 +493,22 @@ def _mosque(variant: Variant, lod: int) -> list:
         )
     walls += kit.flat_roof(hall_w, hall_d, hall_h, 0.8)
     objs = kit.place(walls, z=zc)
-    # front arcade over z in [11, 15]
-    arcade_w, arch_h = 20.0, 4.4
+    # front arcade between the hall's front wall and the front edge, clear of the minaret
+    arcade_w, arch_h = w * 2 / 3, 4.4
     objs += kit.block(
-        -arcade_w / 2, arcade_w / 2, arch_h, arch_h + 0.35, 11.0, 15.0, "secondary", name="arcade"
+        -arcade_w / 2,
+        arcade_w / 2,
+        arch_h,
+        arch_h + 0.35,
+        z_front,
+        d / 2,
+        "secondary",
+        name="arcade",
     )
     for x in _spread(arcade_w - 0.6, 7):
-        objs += kit.block(x - 0.3, x + 0.3, 0.0, arch_h, 14.4, 15.0, "primary", name="column")
+        objs += kit.block(
+            x - 0.3, x + 0.3, 0.0, arch_h, d / 2 - 0.6, d / 2, "primary", name="column"
+        )
     # drum and accent dome with a finial
     base = hall_h + 0.8
     objs += kit.prism(0.0, zc, dome_r, base, base + 2.2, segs, "primary", name="drum", top=False)
@@ -504,16 +519,24 @@ def _mosque(variant: Variant, lod: int) -> list:
         for sx in (-1.0, 1.0):
             for sz in (-1.0, 1.0):
                 objs += kit.dome(
-                    sx * 12.0, zc + sz * 9.0, 1.8, base, "accent", segs=10, rings=3, name="small"
+                    sx * w * 0.4,
+                    zc + sz * hall_d * 0.35,
+                    1.8,
+                    base,
+                    "accent",
+                    segs=10,
+                    rings=3,
+                    name="small",
                 )
     # minaret: square shaft, a gallery, a narrower upper shaft, a domed cap
-    objs += kit.prism(mx, mz, 2.1, 0.0, 18.0, 4, "primary", name="minaret_shaft", phase_deg=45.0)
+    g0, g1, up, cap = 1.2 * h, 1.2 * h + 0.5, 1.53 * h, 1.53 * h  # shaft, gallery, upper, cap
+    objs += kit.prism(mx, mz, 2.1, 0.0, g0, 4, "primary", name="minaret_shaft", phase_deg=45.0)
     objs += kit.prism(
-        mx, mz, 2.7, 18.0, 18.5, 4, "secondary", name="minaret_gallery", phase_deg=45.0
+        mx, mz, gallery, g0, g1, 4, "secondary", name="minaret_gallery", phase_deg=45.0
     )
-    objs += kit.prism(mx, mz, 1.5, 18.5, 23.0, 4, "primary", name="minaret_upper", phase_deg=45.0)
-    objs += kit.dome(mx, mz, 1.3, 23.0, "accent", segs=8, rings=2 if lod else 3, name="cap")
-    objs += kit.prism(mx, mz, 0.12, 24.3, 26.6, 4, "metal", r_top=0.0, name="minaret_finial")
+    objs += kit.prism(mx, mz, 1.5, g1, up, 4, "primary", name="minaret_upper", phase_deg=45.0)
+    objs += kit.dome(mx, mz, 1.3, cap, "accent", segs=8, rings=2 if lod else 3, name="cap")
+    objs += kit.prism(mx, mz, 0.12, cap + 1.3, cap + 3.6 * k, 4, "metal", r_top=0.0, name="finial")
     return objs
 
 
@@ -599,23 +622,18 @@ def _generic(variant: Variant, lod: int) -> list:
         return kit.far_block((w, h, d), "flat")
     parapet = 0.6
     eave = h - parapet
+    # No cut openings: the loader scales this in x and z by 0.3-4, so a cut door would become
+    # a slit or a garage gap. The door is an applied panel, the windows applied glass quads
+    # 1.5 m wide (0.45 m at 0.3x, 6 m at 4x), three columns per face.
     cols = _spread(w - 1.0, 3)
     rows = [0.9, 3.4, 5.9]
-    objs = kit.walls(
-        w,
-        d,
-        eave - 0.4,
-        openings=[Opening("front", 0.0, 0.0, 1.2, 2.3, "door")],
-        lod=lod,
-        cell=(2.5, 2.0),
-    )
+    objs = kit.walls(w, d, eave - 0.4, openings=[], lod=lod, cell=(2.5, 2.0))
+    objs += kit.place(kit.panel(-0.7, 0.7, 0.0, 2.3, depth=0.06, role="accent"), z=d / 2)
     for face in ("front", "back", "left", "right"):
         r = rows[1:] if face == "front" and abs(cols[1]) < 0.1 else rows
-        objs += kit.window_panes(
-            face, w, d, cols=cols, rows=r, ww=1.6, wh=1.5, lod=lod, border=0.14
-        )
+        objs += kit.window_panes(face, w, d, cols=cols, rows=r, ww=1.5, wh=1.5, lod=lod, border=0.1)
     objs += kit.window_panes(
-        "front", w, d, cols=[cols[0], cols[2]], rows=[0.9], ww=1.6, wh=1.5, lod=lod, border=0.14
+        "front", w, d, cols=[cols[0], cols[2]], rows=[0.9], ww=1.5, wh=1.5, lod=lod, border=0.1
     )
     objs += kit.block(
         -w / 2 - 0.2,
