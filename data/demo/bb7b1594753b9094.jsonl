@@ -3,16 +3,7 @@
 {"type": "tool.result", "id": "find_place-0", "name": "find_place", "summary": "2 result(s)"}
 {"type": "tool.call", "id": "river_tipping_point-1", "name": "river_tipping_point", "args": {"from_id": "lakeside-mall", "profile": "default", "to_id": null}}
 {"type": "tool.result", "id": "river_tipping_point-1", "name": "river_tipping_point", "summary": "ok"}
-{"type": "answer.draft", "attempt": 1, "delta": "In "}
-{"type": "answer.draft", "attempt": 1, "delta": "this simulation, the trip "}
-{"type": "answer.draft", "attempt": 1, "delta": "from Elmina Lakeside Mall "}
-{"type": "answer.draft", "attempt": 1, "delta": "to Sri Maha Mariamman "}
-{"type": "answer.draft", "attempt": 1, "delta": "Temple Bukit Subang keeps "}
-{"type": "answer.draft", "attempt": 1, "delta": "a mapped route at every "}
-{"type": "answer.draft", "attempt": 1, "delta": "modelled river level; "}
-{"type": "answer.draft", "attempt": 1, "delta": "indicative scenarios, not "}
-{"type": "answer.draft", "attempt": 1, "delta": "a "}
-{"type": "answer.draft", "attempt": 1, "delta": "forecast."}
+{"type": "answer.draft", "attempt": 1, "delta": "In this simulation, the trip from Elmina Lakeside Mall to Sri Maha Mariamman Temple Bukit Subang keeps a mapped route at every modelled river level; indicative scenarios, not a forecast."}
 {"type": "answer.check", "attempt": 1, "ok": true, "issues": [], "repairs": 0}
 {"type": "text.delta", "delta": "In this simulation, the trip from Elmina"}
 {"type": "text.delta", "delta": " Lakeside Mall to Sri Maha Mariamman Tem"}

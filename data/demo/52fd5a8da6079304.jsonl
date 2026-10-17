@@ -15,19 +15,8 @@
 {"type": "verification.requested", "request_id": "vr-0009", "element_id": "seg-1346154589-0", "attribute": "width_m", "created": true, "demand": 1, "reason": "unknown"}
 {"type": "verification.requested", "request_id": "vr-0010", "element_id": "seg-1306543745-2", "attribute": "step_count", "created": true, "demand": 1, "reason": "unknown"}
 {"type": "tool.result", "id": "plan_route-2", "name": "plan_route", "summary": "route partly_unverified"}
-{"type": "answer.draft", "attempt": 1, "delta": "In the "}
-{"type": "answer.draft", "attempt": 1, "delta": "River +"}
-{"type": "answer.draft", "attempt": 1, "delta": "3 m indicative scenario, the nearest "}
-{"type": "answer.draft", "attempt": 1, "delta": "reachable centre from "}
-{"type": "answer.draft", "attempt": 1, "delta": "Elmina Lakeside Mall (demo "}
-{"type": "answer.draft", "attempt": 1, "delta": "start point) is SJK (C) "}
-{"type": "answer.draft", "attempt": 1, "delta": "Ladang Regent, Elmina; "}
-{"type": "answer.draft", "attempt": 1, "delta": "source: candidate, not "}
-{"type": "answer.draft", "attempt": 1, "delta": "confirmed as a PPS. This is "}
-{"type": "answer.draft", "attempt": 1, "delta": "not a forecast; follow "}
-{"type": "answer.draft", "attempt": 1, "delta": "official MBSA / JPS / "}
-{"type": "answer.draft", "attempt": 1, "delta": "NADMA "}
-{"type": "answer.draft", "attempt": 1, "delta": "guidance."}
+{"type": "answer.draft", "attempt": 1, "delta": "In the River +3 m indicative scenario, the nearest reachable centre from Elmina Lakeside Mall (demo start point) is SJK (C) Ladang Regent, Elmina; source: candidate, not confirmed as a PPS."}
+{"type": "answer.draft", "attempt": 1, "delta": " This is not a forecast; follow official MBSA / JPS / NADMA guidance."}
 {"type": "answer.check", "attempt": 1, "ok": true, "issues": [], "repairs": 0}
 {"type": "text.delta", "delta": "Route status: partly unverified\nIn the R"}
 {"type": "text.delta", "delta": "iver +3 m indicative scenario, the neare"}

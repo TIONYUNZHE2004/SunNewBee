@@ -3,18 +3,6 @@
 {"type": "tool.result", "id": "suggest_interventions-0", "name": "suggest_interventions", "summary": "9 candidate(s)"}
 {"type": "tool.call", "id": "simulate_what_if-1", "name": "simulate_what_if", "args": {"actions": [{"kind": "set_river_stage", "scenario_id": "stage_p3m"}, {"kind": "build_ramp", "element_id": "seg-1346147887-0"}], "profile": "wheelchair", "scope": "evacuation", "from_id": null, "to_id": null, "scenario_id": null}}
 {"type": "tool.result", "id": "simulate_what_if-1", "name": "simulate_what_if", "summary": "what-if: 47 -> 45 of 50 reach"}
-{"type": "answer.draft", "attempt": 1, "delta": "In "}
-{"type": "answer.draft", "attempt": 1, "delta": "this what-if simulation "}
-{"type": "answer.draft", "attempt": 1, "delta": "(River +"}
-{"type": "answer.draft", "attempt": 1, "delta": "3 m (indicative scenario); Build a "}
-{"type": "answer.draft", "attempt": 1, "delta": "step-free ramp at a set of "}
-{"type": "answer.draft", "attempt": 1, "delta": "unnamed steps): with the "}
-{"type": "answer.draft", "attempt": 1, "delta": "river rise alone, 45 of 50 "}
-{"type": "answer.draft", "attempt": 1, "delta": "wheelchair journeys would "}
-{"type": "answer.draft", "attempt": 1, "delta": "reach an evacuation "}
-{"type": "answer.draft", "attempt": 1, "delta": "centre; with the changes "}
-{"type": "answer.draft", "attempt": 1, "delta": "too, 45 would (today: "}
-{"type": "answer.draft", "attempt": 1, "delta": "47)."}
 {"type": "answer.check", "attempt": 1, "ok": true, "issues": [], "repairs": 0}
 {"type": "text.delta", "delta": "In this what-if simulation (River +3 m ("}
 {"type": "text.delta", "delta": "indicative scenario); Build a step-free "}

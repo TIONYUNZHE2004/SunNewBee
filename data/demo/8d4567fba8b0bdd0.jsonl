@@ -1,18 +1,6 @@
 {"meta": {"message": "What happens to residents in the storm rehearsal?", "profile": "default", "scenario_id": null, "world": "elmina", "model": "mock-scripted", "recorded_at": "2026-10-17T09:50:53+00:00"}}
 {"type": "tool.call", "id": "day_rehearsal-0", "name": "day_rehearsal", "args": {"day": "storm"}}
 {"type": "tool.result", "id": "day_rehearsal-0", "name": "day_rehearsal", "summary": "ok"}
-{"type": "answer.draft", "attempt": 1, "delta": "In "}
-{"type": "answer.draft", "attempt": 1, "delta": "this rehearsal of 5,000 "}
-{"type": "answer.draft", "attempt": 1, "delta": "synthetic residents (Storm "}
-{"type": "answer.draft", "attempt": 1, "delta": "at the school run, with "}
-{"type": "answer.draft", "attempt": 1, "delta": "the river rising to +3 "}
-{"type": "answer.draft", "attempt": 1, "delta": "m), 7,881 trips: 6,169 "}
-{"type": "answer.draft", "attempt": 1, "delta": "on time, 71 late, 1,399 "}
-{"type": "answer.draft", "attempt": 1, "delta": "couldn't go and 79 turned "}
-{"type": "answer.draft", "attempt": 1, "delta": "back; 163 had no mapped "}
-{"type": "answer.draft", "attempt": 1, "delta": "connection (data gap). "}
-{"type": "answer.draft", "attempt": 1, "delta": "It is a rehearsal, not a "}
-{"type": "answer.draft", "attempt": 1, "delta": "forecast."}
 {"type": "answer.check", "attempt": 1, "ok": true, "issues": [], "repairs": 0}
 {"type": "text.delta", "delta": "In this rehearsal of 5,000 synthetic res"}
 {"type": "text.delta", "delta": "idents (Storm at the school run, with th"}

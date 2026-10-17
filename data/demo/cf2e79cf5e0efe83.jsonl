@@ -3,16 +3,8 @@
 {"type": "tool.result", "id": "list_flood_scenarios-0", "name": "list_flood_scenarios", "summary": "6 result(s)"}
 {"type": "tool.call", "id": "affected_places-1", "name": "affected_places", "args": {"scenario_id": "stage_p3m", "kind": "all", "profile": "default"}}
 {"type": "tool.result", "id": "affected_places-1", "name": "affected_places", "summary": "23 places and 1353 paths likely, 6 places and 396 paths possible"}
-{"type": "answer.draft", "attempt": 1, "delta": "In "}
-{"type": "answer.draft", "attempt": 1, "delta": "the River +"}
-{"type": "answer.draft", "attempt": 1, "delta": "3 m indicative scenario, 23 places and "}
-{"type": "answer.draft", "attempt": 1, "delta": "1353 path segments are "}
-{"type": "answer.draft", "attempt": 1, "delta": "likely flooded, and 6 "}
-{"type": "answer.draft", "attempt": 1, "delta": "places and 396 path "}
-{"type": "answer.draft", "attempt": 1, "delta": "segments possibly. This is not "}
-{"type": "answer.draft", "attempt": 1, "delta": "a forecast; follow "}
-{"type": "answer.draft", "attempt": 1, "delta": "official MBSA / JPS / NADMA "}
-{"type": "answer.draft", "attempt": 1, "delta": "guidance."}
+{"type": "answer.draft", "attempt": 1, "delta": "In the River +3 m indicative scenario, 23 places and 1353 path segments are likely flooded, and 6 places and 396 path segments possibly."}
+{"type": "answer.draft", "attempt": 1, "delta": " This is not a forecast; follow official MBSA / JPS / NADMA guidance."}
 {"type": "answer.check", "attempt": 1, "ok": true, "issues": [], "repairs": 0}
 {"type": "text.delta", "delta": "In the River +3 m indicative scenario, 2"}
 {"type": "text.delta", "delta": "3 places and 1353 path segments are like"}
