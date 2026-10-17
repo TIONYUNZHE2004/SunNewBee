@@ -15,8 +15,10 @@ export type IntentSlice = Pick<
 
 const MIN_RANGE_M = 300;
 const PLACE_RANGE_M = 400;
+/** Range per metre of radius. Vertical FOV 30° needs 1/tan(15°) ≈ 3.7; 4 adds margin. */
+const BOUNDS_RANGE_FACTOR = 4;
 
-/** Centre of the bounding circle (in the local frame); rangeM = max(radius x 2.5, 300). */
+/** Lon/lat bounding-box centre; rangeM = max(radius x 4, 300), radius measured from that centre in the local frame. */
 export function boundsGoal(points: LonLat[]): CameraGoal | null {
   const pts = points.filter((p) => Number.isFinite(p[0]) && Number.isFinite(p[1]));
   if (!pts.length) return null;
@@ -32,7 +34,7 @@ export function boundsGoal(points: LonLat[]): CameraGoal | null {
     const [x, z] = frame.toLocal(p[0], p[1]);
     radius = Math.max(radius, Math.hypot(x, z));
   }
-  return { centre, rangeM: Math.max(radius * 2.5, MIN_RANGE_M) };
+  return { centre, rangeM: Math.max(radius * BOUNDS_RANGE_FACTOR, MIN_RANGE_M) };
 }
 
 /** Same precedence as cesium/camera.ts: new route, route re-focus, new what-if, new place focus, new camera. */

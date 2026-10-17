@@ -18,12 +18,13 @@ const route = (id: string, coordinates: [number, number][]) => ({
 });
 
 describe("intentGoal", () => {
-  it("frames a new route at its midpoint with range 2.5 x radius", () => {
+  it("frames a new route at its midpoint with range 4 x radius", () => {
+    // Radius from the midpoint is ~500 m, so range is ~2000 m.
     const g = intentGoal({ ...EMPTY, route: route("r1", [A, B]) }, EMPTY, none);
     expect(g).not.toBeNull();
     expect(g?.centre[0]).toBeCloseTo((A[0] + B[0]) / 2, 6);
     expect(g?.centre[1]).toBeCloseTo(3.0, 6);
-    expect(Math.abs((g?.rangeM ?? 0) - 1250)).toBeLessThan(5);
+    expect(Math.abs((g?.rangeM ?? 0) - 2000)).toBeLessThan(5);
   });
 
   it("floors a short route at 300 m", () => {
@@ -61,7 +62,7 @@ describe("intentGoal", () => {
     const r = route("r1", [A, B]);
     const prev = { ...EMPTY, route: r };
     const g = intentGoal({ ...prev, focusRouteRequest: "r1" }, prev, none);
-    expect(Math.abs((g?.rangeM ?? 0) - 1250)).toBeLessThan(5);
+    expect(Math.abs((g?.rangeM ?? 0) - 2000)).toBeLessThan(5);
     expect(intentGoal({ ...prev, focusRouteRequest: "other" }, prev, none)).toBeNull();
   });
 
@@ -80,7 +81,7 @@ describe("intentGoal", () => {
     };
     const g = intentGoal({ ...EMPTY, whatIf }, EMPTY, none);
 
-    expect(Math.abs((g?.rangeM ?? 0) - 1250)).toBeLessThan(5);
+    expect(Math.abs((g?.rangeM ?? 0) - 2000)).toBeLessThan(5);
   });
 });
 
