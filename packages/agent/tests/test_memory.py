@@ -15,7 +15,7 @@ from townshiplens_spatial import tools
 from townshiplens_spatial.vr_store import VerificationStore
 from townshiplens_spatial.world import load_world
 
-MOCK = AgentSettings(_env_file=None, llm_provider="mock")
+MOCK = AgentSettings(_env_file=None, llm_provider="mock", assistant_scope="all")
 SID = "tab-0123456789"
 
 
@@ -139,3 +139,9 @@ async def test_follow_up_cannot_repeat_whatif_numbers_without_resimulating(ctx, 
     evs = [e async for e in run_turn(ctx, follow, MOCK, record=rec, memory=mem)]
     assert any("repeated from memory" in e for errs in rec.validator_errors for e in errs)
     assert evs[-1].model.endswith("+template")
+
+
+@pytest.fixture(autouse=True)
+def _legacy_scope(monkeypatch):
+    # These existing engine/pipeline regressions explicitly retain all legacy features.
+    monkeypatch.setenv("ASSISTANT_SCOPE", "all")

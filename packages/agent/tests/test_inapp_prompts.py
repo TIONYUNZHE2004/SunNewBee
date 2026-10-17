@@ -16,7 +16,7 @@ from townshiplens_spatial.world import load_world
 SEED = ROOT / "data/seed/elmina"
 STARTERS_TS = ROOT / "apps/web/src/features/assistant/starters.ts"
 pytestmark = pytest.mark.skipif(not (SEED / "site.json").exists(), reason="Elmina seed not built")
-MOCK = AgentSettings(_env_file=None, llm_provider="mock")
+MOCK = AgentSettings(_env_file=None, llm_provider="mock", assistant_scope="all")
 
 # (message, profile, scenario_id). The resident starters are copied from
 # apps/web/src/features/assistant/starters.ts; test_resident_starters_match_starters_ts: drift.
@@ -331,3 +331,9 @@ async def test_weak_match_without_a_place_phrase_says_cannot_and_files_nothing(w
     assert evs[-1].answer_status == "cannot_answer"
     assert not [e for e in evs if e.type == "verification.requested"]
     assert "don't have that place" not in _text(evs)
+
+
+@pytest.fixture(autouse=True)
+def _legacy_scope(monkeypatch):
+    # These existing engine/pipeline regressions explicitly retain all legacy features.
+    monkeypatch.setenv("ASSISTANT_SCOPE", "all")

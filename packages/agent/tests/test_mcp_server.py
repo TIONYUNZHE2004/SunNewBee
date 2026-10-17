@@ -9,6 +9,7 @@ from tests_support import TINY
 
 @pytest.fixture
 def server(monkeypatch):
+    monkeypatch.setenv("ASSISTANT_SCOPE", "all")
     monkeypatch.setenv("TL_DATA_DIR", str(TINY))
     monkeypatch.delenv("MCP_ALLOW_VR", raising=False)
     from townshiplens_agent import mcp_server
