@@ -23,6 +23,8 @@ from ..world import World
 from .population import Population, Resident, _xy
 
 # Place types per purpose. "work" is a township exit on a main road (commuters leave Elmina).
+PRIMARY_AGE = (7, 12)  # Standard 1-6
+SECONDARY_AGE = (13, 17)  # Form 1-5
 PURPOSE_TYPES = {
     "school": ("school",),
     "worship": ("place_of_worship",),
@@ -197,7 +199,11 @@ def plan_day(
         for m in members:
             if m.group == "teen":
                 add(m, "school", pl.pick("school_secondary", m), pl.minutes(395, 420), 0, until=855)
-        if kids and carer:
+        # Primary school is Standard 1-6 (ages 7-12 in Malaysia): a school run happens only when
+        # a child of that age lives here. Younger siblings ride along with the carer (and are
+        # never counted as pupils). Calibration (Cycle 21) found every under-13, toddlers
+        # included, doing a school run before this.
+        if carer and any(PRIMARY_AGE[0] <= k.age <= PRIMARY_AGE[1] for k in kids):
             school = pl.pick("school_primary", carer)
             ids = [k.id for k in kids]
             # Drop-off: the children ride out, the carer comes home alone.
