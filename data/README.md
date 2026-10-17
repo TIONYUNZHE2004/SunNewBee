@@ -323,6 +323,10 @@ Near the mall, the flagged segments are the Urban Park / Central Park lake-edge 
 - **Attributions** (in `site.json` `attribution`): OpenStreetMap contributors (ODbL) for buildings, trees, parks, land use, signage and landmarks; "ESA WorldCover 10 m 2021 v200 © ESA WorldCover project, CC-BY 4.0" for the land-cover fill.
 - **Cache:** the layer's ETag changes when any of these files (or buildings, trees, hydrology, parks, `site.json`) changes on disk.
 
+### Building frontage (`build_frontage.py`)
+
+`uv run python data/scripts/build_frontage.py` (step 5 of `pnpm data:city`, no network) adds `front_deg` and `front_source` (`street`) to buildings with a non-generic archetype in `base/buildings.geojson`. `front_deg` is the outward normal, in degrees clockwise from north, of the minimum-rotated-rectangle side whose midpoint is nearest a mapped street (`walk.geojson` type `street`, `major_road` or `pedestrian`; footways are excluded) within 40 m, ties to the longer side. A building with no street within 40 m gets neither field and the Three.js loader treats the front as unknown; it never guesses. Display only. Rerunning gives a byte-identical file. `--dry-run` prints the share per precinct. Precincts outside the mapped walk network (for example Bayu, Mutiara Subang, Subang Bestari) have no frontage.
+
 ### Pipeline order: `pnpm data:city`
 
 ```bash
@@ -331,8 +335,9 @@ pnpm data:city   # runs, in order:
 #  2. build_buildings.py --parks --max-requests 40    parks.geojson
 #  3. build_landcover.py --max-requests 40            landcover.geojson (needs the parks)
 #  4. build_archetypes.py --max-requests 10           precincts, archetype + final heights (needs landcover)
-#  5. build_signage.py --max-requests 40              signage.geojson (needs buildings)
-#  6. build_landmarks.py --max-requests 5             landmarks.geojson (needs buildings)
+#  5. build_frontage.py                               front_deg / front_source on buildings (needs archetypes + walk)
+#  6. build_signage.py --max-requests 40              signage.geojson (needs buildings)
+#  7. build_landmarks.py --max-requests 5             landmarks.geojson (needs buildings)
 ```
 
 All Overpass traffic goes through `overpass.py` (cache, backoff, request cap). Each builder takes `--dry-run`.
