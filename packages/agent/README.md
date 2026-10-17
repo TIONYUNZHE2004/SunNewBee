@@ -4,6 +4,33 @@ The TownshipLens assistant: a PydanticAI agent (pinned `pydantic-ai-slim[openrou
 that answers only from the deterministic spatial tools in `packages/spatial`, and streams its
 work as `ChatEvent`s to the API's `/chat` SSE endpoint.
 
+Demo place existence is retained on tool evidence as `team_survey_placeholder`, including
+search names, amenity results and route endpoints/rest points. Existing citation badges show
+"Demo value · not surveyed". A provider-failure template also retains the demo caveat when
+only place facts were obtained. This labels provenance; it does not certify that a place exists.
+
+## Resident scope B (T-011)
+
+`ASSISTANT_SCOPE=access_flood` is the default. The resident assistant covers access and
+indicative flood evacuation around Elmina Urban Park + Elmina Lakeside Mall frontage.
+It registers only `find_place`, `get_place_details`, `plan_route`, `nearby_amenities`,
+`get_closures`, `create_verification_request`, `list_flood_scenarios`, `affected_places`
+and `list_evacuation_centres`. Model instructions focus on this deep spot; evacuation
+candidates can be outside it. Spatial calculations and staff screens remain unchanged.
+
+Recognized removed-feature requests and unrelated questions receive a short EN/BM/中文
+refusal before model construction, tool execution, memory retrieval by the model, or demo
+replay. A cached legacy answer cannot bypass this policy. The shared registry restricts
+MCP too; its existing verification-write opt-in (`MCP_ALLOW_VR`) still applies, so it exposes
+eight tools by default and nine when writes are explicitly enabled.
+
+`ASSISTANT_SCOPE=all` opts into the legacy features documented below. Legacy engine/pipeline
+tests and removed-feature golden cases opt in explicitly; `tests/test_scope.py` tests the
+default separately. The existing browser hero suite opts into `all` because it includes
+what-if, rollout and day-assistant turns. This setting does not gate staff REST endpoints.
+`validate.py` and `draft.py` are unchanged by T-011; the deterministic refusal is a
+`cannot_answer` with no unsupported factual content and passes the existing validator.
+
 ## Architecture
 
 ```
@@ -36,8 +63,10 @@ model is dropped, because the label line already says it.
 **Drafts and checks (Cycle 0, `ai/world-model`):**
 - `answer.draft {attempt, delta}` streams the summary while the model is still writing it. The UI
   shows it muted as "Draft · checking against the township data…".
-- A draft stops at the first forbidden word, water depth or raw id, and never ends in a half
-  word.
+- A draft streams one whole sentence at a time. Each sentence must pass the final answer's
+  content checks (`validate.draft_errors`): wording, promises, numbers and facts bound to tool
+  results, recorded features and route status. The draft stops before the first sentence that
+  fails, so rejected text never reaches the screen or a screen reader (audit A3).
 - `answer.check {attempt, ok, issues, repairs}` is the validator's verdict. `issues` are short
   readable reasons (`validate.issue_labels`). A rejected attempt clears the draft, and the
   rewrite starts a new one.
@@ -152,7 +181,10 @@ The API (`apps/api`) imports `townshiplens_agent.run.run_turn` lazily and sends 
 | `LLM_PROVIDER` | `mock` without a key, else `openrouter` | Set `mock` to force the scripted model |
 | `LLM_MODEL_DEFAULT` | `anthropic/claude-haiku-5.5` | OpenRouter model id |
 | `LLM_MODEL_ESCALATE` | `anthropic/claude-sonnet-5.5` | Used by `model_for(..., escalate=True)` |
+| `LLM_ESCALATE_ON_REWRITE` | `false` | After the validator sends an answer back, the rewrite (and the rest of the turn) runs on `LLM_MODEL_ESCALATE` (`agent.escalation`, a `SelectModel` capability). Costs more per rewrite; `done.model` names the escalation model |
+| `LLM_MODEL_FALLBACK` | empty | Backup OpenRouter model: on a provider error (`ModelAPIError`) the default model fails over to it (`FallbackModel`). `done.model` names the model that answered |
 | `LLM_OUTPUT_RETRIES` | `2` | Validator retries before the template fallback |
+| `LLM_REQUEST_LIMIT` | `12` | Most model requests per turn (`UsageLimits`); past it: `error` (`agent_limit`), template answer, `done` |
 | `TURN_TIMEOUT_S` | `60` | Whole-turn budget; on expiry: `error` (`agent_timeout`), template answer, `done` |
 | `DEMO_MODE` | `false` | Replay recorded turns from `DEMO_DIR` (default `data/demo`) |
 
@@ -230,10 +262,12 @@ and the metric `answered_without_citations` (turns that were answered/partial bu
 `uv run pytest packages/agent`. The `test_run.py` tests drive `run_turn` with the mock over the
 real spatial tools on the tiny fixture. They make no network calls.
 
+## Privacy
+
+`redact.redact` removes MyKad numbers, Malaysian phone numbers and emails from the question before it reaches the model, session memory, the template or a recorded demo (`run.run_turn`, `demo.make_meta`). Tickets were already sanitised by `agent.safe_vr_args`.
+
 ## What to build next (AI lane)
 
-- **Escalation on retries**: rerun with `model_for(settings, escalate=True)` when the validator
-  exhausts its retries on the default model, before the template fallback.
 - **Multilingual aliases**: BM and Chinese place aliases and nicknames in the seed, plus
   language-aware answer templates.
 - **Promptfoo suite**: a wider red-team and regression set (prompt injection in tool data,

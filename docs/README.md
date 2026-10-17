@@ -22,10 +22,10 @@
 
 | Backend | Frontend | AI |
 |---|---|---|
-| [World-model schema, routing & lenses](04-architecture/world-model-schema.md) | [3D pipeline (Cesium hero)](04-architecture/3d-pipeline.md) | [AI assistant design](04-architecture/ai-assistant-design.md) |
+| [World-model schema, routing & lenses](04-architecture/world-model-schema.md) | [3D pipeline (Cesium hero)](04-architecture/3d-pipeline.md) | [AI assistant design](04-architecture/ai-assistant-design.md) · [AI target design (proposal)](04-architecture/ai-target-design.md) |
 | [API contract](04-architecture/api-contract.md) | [API contract](04-architecture/api-contract.md) (SSE events, scene intents) | [Agent harness research (PydanticAI)](02-research/agent-harness-2026.md) · [ADR 0008](00-overview/decisions/0008-agent-harness-pydantic-ai.md) |
 | [Flood / disaster lens research](02-research/flood-disaster-lens.md) · [ADR 0010](00-overview/decisions/0010-flood-lens-hand-scenarios.md) | [Township 3D engine & data research](02-research/township-3d-engine-and-data.md) · [ADR 0007](00-overview/decisions/0007-3d-engine-cesium.md) | [Resident-agent design](04-architecture/resident-agents-design.md) (incl. flood invariants) |
-| [Accessibility & routing research](02-research/accessibility-and-routing.md) | [3D data & rendering research](02-research/3d-data-and-rendering.md) (older; Google tiles, splats, licensing) | [AI assistant research](02-research/ai-assistant-research.md) |
+| [Accessibility & routing research](02-research/accessibility-and-routing.md) | [3D data & rendering research](02-research/3d-data-and-rendering.md) (older; Google tiles, splats, licensing) | [AI assistant research](02-research/ai-assistant-research.md) · [AI winners & similar products](02-research/ai-winners-and-similar-products.md) |
 | [Field verification guide](03-product/field-verification-guide.md) | [MVP spec](03-product/mvp-spec.md) (R- and S- features) | [Evaluation plan](03-product/evaluation-plan.md) · [Resident-agent research](02-research/resident-agent-simulation.md) |
 | [Stack decision](04-architecture/stack-decision.md) · [Dev setup](05-team/dev-setup.md) | [Stack decision](04-architecture/stack-decision.md) · [Dev setup](05-team/dev-setup.md) | [Stack decision](04-architecture/stack-decision.md) · [Dev setup](05-team/dev-setup.md) |
 
@@ -52,6 +52,7 @@ docs/
 │   ├── world-models-2026.md          ★ world models in 2026; the Township World Model design and ranked features
 │   ├── agent-harness-2026.md         ★ agent frameworks compared; PydanticAI over OpenRouter
 │   ├── ai-assistant-research.md      tool-use LLMs, grounding, spatial limits, evals, PDPA
+│   ├── ai-winners-and-similar-products.md  past winners, comparable products, agent practice (2026-10-15)
 │   ├── accessibility-and-routing.md  OpenSidewalks, OSM tags, routing, unknowns, MY stats
 │   ├── resident-agent-simulation.md  generative agents, synthetic-user limits, design
 │   ├── competitors.md                differentiation matrix
@@ -68,6 +69,7 @@ docs/
 │   ├── api-contract.md               REST + SSE + tool names
 │   ├── world-model-schema.md         entities, claims, profiles, routing algorithm
 │   ├── ai-assistant-design.md        loop, tools, prompt, validator, VR triggers
+│   ├── ai-target-design.md           proposal: coverage gaps, planner tools, memory, evals (2026-10-15)
 │   ├── 3d-pipeline.md                Cesium hero, water, scene intents, fallbacks
 │   └── resident-agents-design.md     persona simulator incl. flood invariants
 ├── 05-team/

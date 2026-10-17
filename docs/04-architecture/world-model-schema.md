@@ -69,6 +69,7 @@ erDiagram
 | `surface` | edge | enum: asphalt, concrete, paving_stones, tiles, gravel, grass, grating, metal | `surface` |
 | `surface_condition` | edge | enum: good, uneven, obstructed | ours |
 | `kerb` | node (crossing ends) | enum: flush, lowered, raised, rolled | `kerb` |
+| `crossing` | crossing segment | enum: traffic_signals, marked, unmarked, no (informative: listed on routes as `crossings`, not used by routing yet) | `crossing`, `crossing:signals`, `crossing_ref` (zebra/uncontrolled → marked, informal → unmarked) |
 | `ramp` | edge, entrance | bool | `ramp` |
 | `handrail` | edge | enum: both, one_side, none | `handrail` |
 | `sidewalk` | edge (`major_road`) | enum: both, one_side, none, separate | `sidewalk`, `sidewalk:both/left/right` (normalised; no tag = no claim) |

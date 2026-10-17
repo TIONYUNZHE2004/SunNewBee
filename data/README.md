@@ -25,6 +25,16 @@ OSM `incline` tags are sparse in Elmina, so most segments have no `incline_pct` 
 `evidence_type: "team_survey_placeholder"` until the field visit replaces it. Do not present them as verified in the real world.
 The unknown ramp and path lengths are listed in `seed/elmina/access/README.md`.
 
+Overlay places also carry `claims.existence` with placeholder source and unknown status.
+This includes the illustrative toilet and benches: a name or coordinate is not a surveyed
+existence claim. Transported name evidence and amenity/route metadata keep this source, so
+clients show **Demo value · not surveyed**. Field-survey replacements keep their own source.
+
+For an older committed overlay, add only the missing existence metadata with
+`uv run python data/scripts/build_overlay.py --provenance-only`. This narrow regeneration
+preserves every coordinate, segment and existing claim, needs no network/DEM, and is idempotent.
+It does not replace the ordered full rebuild below. Commit regenerated seed data separately.
+
 ## Rebuild
 
 ```

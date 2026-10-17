@@ -19,7 +19,7 @@ from townshiplens_spatial.world import load_world
 ROOT = Path(__file__).resolve().parents[3]
 TINY = ROOT / "packages/spatial/tests/fixtures/tiny"
 SEED = ROOT / "data/seed/elmina"
-MOCK = AgentSettings(_env_file=None, llm_provider="mock")
+MOCK = AgentSettings(_env_file=None, llm_provider="mock", assistant_scope="all")
 
 CUT = {
     "status": "rehearsed",
@@ -249,3 +249,23 @@ def test_honest_bm_very_long_answers_pass(summary):
     )
     errs = validate_answer(a, _rec())
     assert not any("Say what happened" in e or "did not get there" in e for e in errs), errs
+
+
+def test_default_scope_refuses_a_trip_rehearsal_without_calling_a_tool():
+    """T-011 (team scope B): the resident assistant covers access and flood evacuation only; a
+    rehearsal question is politely refused, and rehearse_my_trip is not registered."""
+    from townshiplens_agent.agent import build_agent
+    from townshiplens_agent.mock import mock_model
+
+    q = "In the storm rehearsal, what happens to my trip from Car Park B to the playground at 7:30?"
+    ctx = tools.Ctx(world=load_world(TINY), vrs=VerificationStore(":memory:"))
+    s = AgentSettings(_env_file=None, llm_provider="mock", assistant_scope="access_flood")
+
+    async def go():
+        return [e async for e in run_turn(ctx, ChatRequest(message=q), s)]
+
+    evs = asyncio.run(go())
+    assert evs[-1].answer_status == "cannot_answer"
+    assert not [e for e in evs if e.type == "tool.call"]
+    names = set(build_agent(mock_model(), assistant_scope="access_flood")._function_toolset.tools)
+    assert "rehearse_my_trip" not in names and "day_test_change" not in names

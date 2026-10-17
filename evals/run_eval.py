@@ -213,6 +213,10 @@ async def main() -> int:
                 "tools": called,
                 "first_text_s": round(first_draft or 0, 2),
                 "total_s": round(time.perf_counter() - t0, 2),
+                # Engine time (spatial tools) vs the rest (model calls, validation, streaming).
+                "tool_s": round(sum(rec.tool_seconds.values()), 2),
+                "slowest_tool": max(rec.tool_seconds, key=rec.tool_seconds.get, default=None),
+                "model_requests": rec.usage.requests,
                 "input_tokens": rec.usage.input_tokens,
                 "output_tokens": rec.usage.output_tokens,
                 "violations": honesty_violations(text, rec.place_names),
@@ -272,6 +276,8 @@ async def main() -> int:
         "grounded_answers": sum(r["tool_hit"] and r["status"] != "cannot_answer" for r in rows),
         "median_first_text_s": st.median(r["first_text_s"] for r in rows) if rows else None,
         "median_total_s": st.median(r["total_s"] for r in rows) if rows else None,
+        "median_tool_s": st.median(r["tool_s"] for r in rows) if rows else None,
+        "median_model_requests": st.median(r["model_requests"] for r in rows) if rows else None,
         "input_tokens": sum(r["input_tokens"] for r in rows),
         "output_tokens": sum(r["output_tokens"] for r in rows),
     }

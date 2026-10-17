@@ -24,6 +24,7 @@ from .template import (
     my_trip_answer,
     plan_answer,
     rollout_answer,
+    scope_answer,
     tipping_answer,
     whatif_answer,
 )
@@ -101,6 +102,12 @@ def _cannot(
 
 def _unknown_caveats(routes: list, vrs: list[dict] | None = None) -> list[str]:
     return unchecked_caveats([u for r in routes for u in r.get("unknowns") or []], vrs)
+
+
+def _crossing(route: dict | None) -> list[str]:
+    """plan_route's crossing note, word for word (validator: crossing_note)."""
+    note = (route or {}).get("crossing_note")
+    return [note] if note else []
 
 
 def _inferred(ret: dict) -> list[str]:
@@ -544,23 +551,29 @@ def _day_change(q: str, rets, info: AgentInfo) -> ModelResponse:
 
 def _script(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
     q = _prompt(messages).lower()
+    from .scope import outside_scope
+    from .settings import AgentSettings
+
+    scope = _ui(info, "assistant_scope") or AgentSettings().assistant_scope
+    if scope == "access_flood" and outside_scope(q, has_history=len(messages) > 1):
+        return _final(**scope_answer(q).model_dump())
     rets = _returns(messages)
     n = len(rets)
-    if re.search(_MY_TRIP, q):
+    if scope == "all" and re.search(_MY_TRIP, q):
         return _my_trip(q, rets, info)
-    if re.search(_DAY_CHANGE, q):
+    if scope == "all" and re.search(_DAY_CHANGE, q):
         return _day_change(q, rets, info)
-    if re.search(_DAY, q):
+    if scope == "all" and re.search(_DAY, q):
         return _day(q, rets, info)
-    if re.search(_FIXIT, q):
+    if scope == "all" and re.search(_FIXIT, q):
         return _fixit(q, rets, info)
-    if re.search(_ROLLOUT, q):
+    if scope == "all" and re.search(_ROLLOUT, q):
         return _rollout(q, rets, info)
-    if re.search(_TIPPING, q):
+    if scope == "all" and re.search(_TIPPING, q):
         return _tipping(q, rets, info)
-    if re.search(_PLAN, q):
+    if scope == "all" and re.search(_PLAN, q):
         return _plan(q, rets, info)
-    if re.search(_WHATIF, q):
+    if scope == "all" and re.search(_WHATIF, q):
         return _whatif(q, rets, info)
     is_flood = bool(re.search(r"flood|river|banjir|sungai|rises|naik|水", q))
     ui_sid = _ui(info, "active_scenario")
@@ -668,6 +681,7 @@ def _script(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
             flood_cav
             + caveats
             + rest
+            + _crossing(route)
             + closure_caveats(closed)
             + _inferred(rets[-1][1])
             + inferred_caveats([n for n in [centres[0].get("entrance_note")] if n]),
@@ -824,7 +838,12 @@ def _script(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
             caveats = [_status_caveat(status, a.get("name", a["id"]), b.get("name", b["id"]))]
         caveats = _placeholder_caveat(
             rets,
-            flood_cav + caveats + rest + closure_caveats(closed) + _inferred(rets[-1][1]),
+            flood_cav
+            + caveats
+            + rest
+            + _crossing(r0)
+            + closure_caveats(closed)
+            + _inferred(rets[-1][1]),
         )
         gap = r0.get("max_gap_between_rest_m") if r0 else None
         if gap is not None and plan_profile == "older_adult_rest" and not rest:

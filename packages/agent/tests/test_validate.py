@@ -89,7 +89,9 @@ def test_validator_rejects_depth_phrases(text):
 )
 def test_validator_no_false_positives(text):
     a = FinalAnswer(answer_status="answered", summary=text, scenario_id="stage_p3m")
-    assert validate_answer(a, rec(scenarios_used={"stage_p3m"})) == [], text
+    # 1.5 is a width a tool returned (a width the answer may quote).
+    r = rec(scenarios_used={"stage_p3m"}, tool_measures={"width": {1.5}})
+    assert validate_answer(a, r) == [], text
 
 
 @pytest.mark.parametrize("status", ["blocked", "no_data"])
@@ -485,7 +487,7 @@ QUAL = "confirmed (on demo values, not yet surveyed)"
 def _demo_route_rec(demo=True, status="confirmed"):
     r = _ph_rec()
     r.tool_calls = ["plan_route"]
-    r.routes["rt-1"] = {"demo_evidence": demo}
+    r.routes["rt-1"] = {"demo_evidence": demo, "distance_m": 120.0}
     r.route_status["rt-1"] = status
     return r
 

@@ -14,7 +14,7 @@ from townshiplens_spatial import tools
 from townshiplens_spatial.vr_store import VerificationStore
 from townshiplens_spatial.world import load_world
 
-MOCK = AgentSettings(_env_file=None, llm_provider="mock")
+MOCK = AgentSettings(_env_file=None, llm_provider="mock", assistant_scope="all")
 RAMP_Q = "What if we build a ramp at the steps? How many wheelchair journeys would work?"
 FLOOD_Q = "What if the river rises 3 m and we build a ramp: can wheelchair users reach a centre?"
 
@@ -473,3 +473,9 @@ def test_fixit_stopped_early_must_say_inconclusive():
         ["ev-fixit-x"],
     )
     assert "inconclusive" in fields["summary"]
+
+
+@pytest.fixture(autouse=True)
+def _legacy_scope(monkeypatch):
+    # These existing engine/pipeline regressions explicitly retain all legacy features.
+    monkeypatch.setenv("ASSISTANT_SCOPE", "all")

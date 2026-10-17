@@ -102,7 +102,7 @@ def test_the_mock_answers_a_rehearsal_question_end_to_end():
             async for e in run_turn(
                 ctx,
                 ChatRequest(message="What happens on a normal weekday rehearsal?"),
-                AgentSettings(_env_file=None, llm_provider="mock"),
+                AgentSettings(_env_file=None, llm_provider="mock", assistant_scope="all"),
                 record=rec,
             )
         ]
@@ -186,7 +186,7 @@ def test_a_storm_rehearsal_sets_the_map_stage_without_the_model_naming_it():
 
     async def go():
         q = "What happens to residents in the storm rehearsal?"  # the management starter chip
-        s = AgentSettings(_env_file=None, llm_provider="mock")
+        s = AgentSettings(_env_file=None, llm_provider="mock", assistant_scope="all")
         return [e async for e in run_turn(ctx, ChatRequest(message=q), s, record=rec)]
 
     evs = asyncio.run(go())
@@ -317,7 +317,7 @@ def test_the_assistant_tests_a_change_end_to_end_on_the_seed():
 
     async def go():
         q = "Which change would help most residents in the storm rehearsal?"
-        s = AgentSettings(_env_file=None, llm_provider="mock")
+        s = AgentSettings(_env_file=None, llm_provider="mock", assistant_scope="all")
         return [e async for e in run_turn(ctx, ChatRequest(message=q), s, record=rec)]
 
     evs = asyncio.run(go())
@@ -508,3 +508,8 @@ def test_mcp_drops_the_map_only_geometry():
     from townshiplens_agent.mcp_server import MAP_ONLY
 
     assert MAP_ONLY["day_test_change"] == ("changed_geojson",)
+
+
+@pytest.fixture(autouse=True)
+def _legacy_scope(monkeypatch):
+    monkeypatch.setenv("ASSISTANT_SCOPE", "all")

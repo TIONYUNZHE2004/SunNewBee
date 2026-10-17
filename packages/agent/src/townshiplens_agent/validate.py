@@ -3,6 +3,8 @@ import re
 from townshiplens_spatial.attributes import ATTRIBUTE_TYPES
 
 from .answer import FinalAnswer
+from .facts import _matches as _fact_matches
+from .facts import extract_facts, merge, tool_values, unsupported, unsupported_features
 from .labels import (
     CLOSURE_WORDS,
     DEMO_CONFIRMED,
@@ -193,6 +195,24 @@ OPEN_CLAIM = re.compile(
 )
 
 
+TRAFFIC_LIGHTS = re.compile(
+    r"traffic[- ]?(?:lights?|signals?)|signali[sz]ed|lampu isyarat|红绿灯|交通灯|信号灯",
+    re.IGNORECASE,
+)
+_NEGATED_LIGHTS = re.compile(
+    r"(?:\bno|\bnot|\bwithout|\bnever|\btiada|\btanpa|\btidak ada|没有|无)\W+(?:\w+\W+){0,3}$",
+    re.IGNORECASE,
+)
+
+
+def claims_traffic_lights(text: str) -> bool:
+    """True when the text says there are traffic lights ("no traffic lights" does not count)."""
+    return any(
+        not _NEGATED_LIGHTS.search(text[max(0, m.start() - 40) : m.start()])
+        for m in TRAFFIC_LIGHTS.finditer(text)
+    )
+
+
 def _norm_note(text: str) -> str:
     return " ".join(text.lower().rstrip(". ").split())
 
@@ -283,6 +303,198 @@ def _strip_names(text: str, names: set[str]) -> str:
     return text
 
 
+def payload_numbers(payload) -> set[float]:
+    """Every number a tool result shows, whatever it measures (facts.tool_values)."""
+    return set().union(*tool_values(payload).values())
+
+
+_STAGE_ID = re.compile(r"^stage_p(\d+(?:\.\d+)?)m$")
+
+
+def _recorded_values(rec: TurnRecord) -> dict[str, set[float]]:
+    """Typed values the model was shown this turn (call_tool), plus the routes, evidence and
+    results recorded from the same tool calls (so hand-built records in tests count too), the
+    river stages of the scenarios used, and the stages the resident asked about."""
+    stages = {
+        float(m.group(1))
+        for sid in [*rec.scenarios_used, *rec.day_stages]
+        if isinstance(sid, str) and (m := _STAGE_ID.match(sid))
+    }
+    return merge(
+        {"stage": stages | rec.asked_stages},
+        rec.tool_measures,
+        tool_values(
+            {
+                "routes": list(rec.routes.values()),
+                "evidence": [e.model_dump(mode="json") for e in rec.evidence.values()],
+                "what_ifs": rec.what_ifs,
+                "plans": rec.plans,
+                "closures": list(rec.closures.values()),
+                "my_trips": rec.my_trips,
+            }
+        ),
+    )
+
+
+def measurement_errors(ans: FinalAnswer, rec: TurnRecord) -> list[str]:
+    """Audit A2 / F2 (T-001): every fact the answer states must match a tool field of the same
+    kind (facts.py): a distance a distance, a width a width, a step count a step count. This
+    applies to refusals too: cannot_answer licenses no assertion. A claim's steps, width or slope
+    must match the evidence it cites, and a feature ("a baby changing room", "a lift") needs
+    evidence that records it."""
+    parts = [ans.summary, *(_STEP_NUMBER.sub("", s) for s in ans.steps), *ans.caveats]
+    parts += [c.text for c in ans.claims]
+    text = _strip_names(" ".join(parts), rec.place_names)
+    errs: list[str] = []
+    # Rehearsal clock durations ("over 2 hours", "313 min") are checked by day_errors and
+    # my_trip_errors, not here.
+    skip = {"time"} if rec.days or rec.day_changes or rec.my_trips else set()
+    if bad := unsupported(text, _recorded_values(rec), skip=skip):
+        errs.append(
+            f"Facts {sorted(set(bad))} do not match this turn's tool results: state distances, "
+            "times, widths, slopes, step counts and other counts only as a tool returned them "
+            "(round only with 'about'; never 'exactly' a rounded number)."
+        )
+    for c in ans.claims:
+        cited = [
+            rec.evidence[i].model_dump(mode="json") for i in c.evidence_ids if i in rec.evidence
+        ]
+        own = tool_values({"evidence": cited})
+        wrong = [
+            f.raw
+            for f in extract_facts(_strip_names(c.text, rec.place_names))
+            if f.kind in ("steps", "width", "slope")
+            and not any(_fact_matches(f, x) for x in own.get(f.kind, ()))
+        ]
+        if wrong:
+            errs.append(
+                f"Claim {c.text!r} states {sorted(set(wrong))}, which its cited evidence does not "
+                "record: cite the evidence of that attribute, or remove the number."
+            )
+    pairs = [(e.attribute, e.value) for e in rec.evidence.values()]
+    if feats := unsupported_features(text, pairs):
+        errs.append(
+            f"The answer states {feats}, which no tool recorded this turn: describe only "
+            "recorded facts, or say the feature is not recorded."
+        )
+    return errs
+
+
+# Audit F3/A4: promises the data cannot back ("I guarantee", "no risk", "zero risk", "totally
+# accessible"), in English, Bahasa Melayu and Chinese. A promise is honest only when a negation
+# in the same clause governs it directly ("not a guarantee", "无法保证"); "No steps, so I
+# guarantee" is still a promise, because the clause ends before it.
+OVERCLAIM = re.compile(
+    r"\bguarantee[ds]?\b|\b(?:no|zero|nil|0)\s+(?:risks?|danger)\b|\brisk[- ]free\b"
+    r"|\b(?:without|free of) (?:any )?(?:risks?|danger)\b|\brisks? (?:is|are) (?:zero|nil|none)\b"
+    r"|\bnothing to worry about\b|\bno need to worry\b|\bperfectly fine\b"
+    r"|\b(?:totally|fully|completely|perfectly|absolutely|entirely|100 ?%) (?:fine|ok(?:ay)?"
+    r"|accessible|wheelchair[- ]accessible|step[- ]free|barrier[- ]free|passable)\b"
+    r"|\b(?:dijamin|menjamin|jaminan|jamin)\b|\b(?:tiada|tanpa|tidak ada|tak ada|sifar)\s+"
+    r"(?:sebarang\s+|langsung\s+)?(?:risiko|bahaya)\b|\brisiko\s+sifar\b|\btidak berisiko\b"
+    r"|\b(?:sepenuhnya|100 ?%)\s+(?:mesra oku|boleh diakses)\b"
+    r"|保证|担保|没有(?:任何)?(?:危险|风险)|无(?:危险|风险)|毫无风险|零(?:危险|风险)"
+    r"|不会有(?:任何)?(?:危险|风险)|完全(?:无障碍|没问题|可以通行)|绝对(?:可以|没问题)",
+    re.IGNORECASE,
+)
+# A clause ends at punctuation or a joining word; a negation before that point negates
+# something else ("No steps, so ...", "没有台阶，所以 ...").
+_CLAUSE_BREAK = re.compile(
+    r"[.;:!?,。；：！？，、\n—–]|\b(?:so|and|but|therefore|thus|because|which|then|jadi|maka|dan"
+    r"|tetapi|tapi|kerana|sebab)\b|所以|因此|但是|但|而且|并且|因为|于是",
+    re.IGNORECASE,
+)
+# The negation must govern the promise: only filler words may stand between them.
+_GOVERNS = re.compile(
+    r"(?:\b(?:not|cannot|can not|never|no|tidak|tak|bukan|belum)\b|\b\w+n[’']t\b)"
+    r"(?:\s+(?:a|an|any|the|be|been|is|are|was|can|could|do|does|did|to|really|fully|always"
+    r"|truly|yet|able|offer|give|make|provide|real|absolute|100 ?%|dapat|boleh|akan|mampu"
+    r"|untuk|ada|sebarang|satu|suatu|lagi|pernah|memberi|sebuah))*\s*$"
+    r"|(?:无法|不能|不会|并非|不是|没法|不)(?:能|可以|敢|一定|作|做|出|提供|给|任何|向你|对此)*\s*$",
+    re.IGNORECASE,
+)
+
+
+def _negated(before: str) -> bool:
+    clause = _CLAUSE_BREAK.split(before)[-1]
+    return bool(_GOVERNS.search(clause))
+
+
+def overclaim_errors(text: str, rec: TurnRecord) -> list[str]:
+    plain = _strip_names(text, rec.place_names)
+    for m in OVERCLAIM.finditer(plain):
+        if not _negated(plain[: m.start()]):
+            return [
+                f"Never guarantee or rule out risk ({m.group(0)!r}): the township data can only "
+                "say what is recorded and what is not checked yet."
+            ]
+    return []
+
+
+def _status_of(ans: FinalAnswer, rec: TurnRecord) -> str | None:
+    status = rec.route_status.get(ans.route_id) if ans.route_id else None
+    if status is None and len(rec.route_status) == 1:
+        status = next(iter(rec.route_status.values()))  # unambiguous even without route_id
+    return status
+
+
+def status_wording_errors(ans: FinalAnswer, rec: TurnRecord) -> list[str]:
+    """How the text names route status and crossings. Shared with `draft_errors`."""
+    errs: list[str] = []
+    status = _status_of(ans, rec)
+    if status:
+        named = _named_statuses(ans.summary, ans.steps) - {status}
+        if named:
+            errs.append(
+                f"Route status contradiction: the route is {status} but the summary/steps name "
+                f"{sorted(named)}. Use the status the tool returned."
+            )
+    segments = [ans.summary, *ans.steps, *ans.caveats]
+    if claims_traffic_lights(_strip_names(" ".join(segments), rec.place_names)) and not any(
+        c.get("crossing") == "traffic_signals"
+        for r in rec.routes.values()
+        for c in r.get("crossings") or []
+    ):
+        errs.append(
+            "No crossing with traffic lights is recorded on a route this turn: do not mention "
+            "traffic lights. Use the plan_route crossing_note if there is one."
+        )
+    rid = ans.route_id or (next(iter(rec.routes)) if len(rec.routes) == 1 else None)
+    route = rec.routes.get(rid or "") or {}
+    if (
+        ans.answer_status != "cannot_answer"
+        and status == "confirmed"
+        and route.get("demo_evidence")
+        and BARE_CONFIRMED.search(_to_en(" ".join(segments)))
+    ):
+        errs.append(
+            "The route is confirmed only on placeholder (demo) values: say "
+            f"'Route status: {DEMO_CONFIRMED}' in the summary instead of a bare 'confirmed'."
+        )
+    return errs
+
+
+def draft_errors(text: str, rec: TurnRecord) -> list[str]:
+    """The final answer's content checks, applied to draft text (`draft.DraftStreamer`), so a
+    draft never shows what the final check would reject (audit A3). Checks that need the whole
+    answer (citations, a required caveat or route_id) are left to `validate_answer`; a check
+    that wants text the draft does not have yet only holds the draft back, which is safe."""
+    ans = FinalAnswer(answer_status="partial", summary=text)
+    return [
+        *text_errors(text, rec),
+        *overclaim_errors(text, rec),
+        *status_wording_errors(ans, rec),
+        *measurement_errors(ans, rec),
+        *foreign_number_errors(ans, rec),
+        *whatif_errors(ans, rec),
+        *plan_errors(ans, rec),
+        *rollout_errors(ans, rec),
+        *day_errors(ans, rec),
+        *day_change_errors(ans, rec),
+        *affected_errors(ans, rec),
+    ]
+
+
 def validate_answer(ans: FinalAnswer, rec: TurnRecord) -> list[str]:
     errs: list[str] = []
     for c in ans.claims:
@@ -311,13 +523,7 @@ def validate_answer(ans: FinalAnswer, rec: TurnRecord) -> list[str]:
         )
     if status is None and len(rec.route_status) == 1:
         status = next(iter(rec.route_status.values()))  # unambiguous even without route_id
-    if status:
-        named = _named_statuses(ans.summary, ans.steps) - {status}
-        if named:
-            errs.append(
-                f"Route status contradiction: the route is {status} but the summary/steps name "
-                f"{sorted(named)}. Use the status the tool returned."
-            )
+    errs += status_wording_errors(ans, rec)
     partly = status == "partly_unverified" or (
         ans.answer_status == "answered" and "partly_unverified" in rec.route_status.values()
     )
@@ -346,6 +552,13 @@ def validate_answer(ans: FinalAnswer, rec: TurnRecord) -> list[str]:
             "'Closed (staff report): <name> until <date> \u2014 <reason>' "
             f"(missing: {sorted(set(missing))}). If it blocks the route, say so."
         )
+    cnote = route.get("crossing_note")
+    if (
+        ans.answer_status != "cannot_answer"
+        and cnote
+        and not any(_norm_note(cnote) in _norm_note(c) for c in ans.caveats)
+    ):
+        errs.append(f"plan_route says: {cnote!r} Add that as a caveat (word for word).")
     if ans.answer_status != "cannot_answer":
         for note in rec.inferred_notes:
             if not any(_inferred_ok(note, c) for c in ans.caveats):
@@ -386,16 +599,6 @@ def validate_answer(ans: FinalAnswer, rec: TurnRecord) -> list[str]:
                 f"team_survey_placeholder): add a caveat containing the exact phrase "
                 f"'{PLACEHOLDER_CAVEAT}'."
             )
-    if (
-        ans.answer_status != "cannot_answer"
-        and status == "confirmed"
-        and route.get("demo_evidence")
-        and BARE_CONFIRMED.search(_to_en(" ".join([ans.summary, *ans.steps, *ans.caveats])))
-    ):
-        errs.append(
-            "The route is confirmed only on placeholder (demo) values: say "
-            f"'Route status: {DEMO_CONFIRMED}' in the summary instead of a bare 'confirmed'."
-        )
     # a rehearsal's river stage comes from the tool (run.py fills it in), not from the model
     if rec.scenarios_used - rec.day_stages and not ans.scenario_id:
         errs.append("A flood scenario tool was used: set scenario_id.")
@@ -407,8 +610,10 @@ def validate_answer(ans: FinalAnswer, rec: TurnRecord) -> list[str]:
     errs += day_change_errors(ans, rec)
     errs += my_trip_errors(ans, rec)
     errs += affected_errors(ans, rec)
+    errs += measurement_errors(ans, rec)
     # Honesty rules apply to every answer, whether or not a tool ran.
     errs += text_errors(all_text, rec)
+    errs += overclaim_errors(all_text, rec)
     return errs
 
 
@@ -1346,6 +1551,10 @@ _ISSUES = (
         "Confirmed routes in this simulation rest on demo values",
         "left out that values are demo values",
     ),
+    ("do not match this turn's tool results", "stated a number no check returned"),
+    ("which its cited evidence does not", "gave a claim a number its evidence does not record"),
+    ("which no tool recorded this turn", "described a feature no check recorded"),
+    ("Never guarantee or rule out risk", "promised more than the data shows"),
     ("caveat", "left out a required caveat"),
     ("scenario_id", "did not name the flood scenario it used"),
 )

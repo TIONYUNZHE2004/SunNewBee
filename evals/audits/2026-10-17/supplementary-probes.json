@@ -1,0 +1,56 @@
+{
+  "extra_validation": [
+    {
+      "text": "The route is exactly 500 m long.",
+      "errors": []
+    },
+    {
+      "text": "The toilet has a baby changing room.",
+      "errors": []
+    }
+  ],
+  "privacy": {
+    "provider_user_prompts": ["Call +60 (12) 345 6789. My IC is 900101 14 5678."],
+    "memory_user_prompts": ["Call +60 (12) 345 6789. My IC is 900101 14 5678."],
+    "done": {
+      "type": "done",
+      "message_id": "3f74f930d9bd",
+      "answer_status": "cannot_answer",
+      "model": "function:model:"
+    }
+  },
+  "spotlight": {
+    "engine_fact": {
+      "trips": [
+        {
+          "id": "trip-1",
+          "status": "cancelled",
+          "planned": "08:00",
+          "left": null,
+          "arrived": null,
+          "ended": "08:00",
+          "late_by_min": 0,
+          "waited_min": 0,
+          "children_with_them": 0,
+          "direction": "out",
+          "place": "School",
+          "from": "home",
+          "to": "school",
+          "what_happened": "Could not get to school."
+        }
+      ],
+      "decisions": []
+    },
+    "errors": [],
+    "diary_result": {
+      "r1": [
+        {
+          "trip": "trip-1",
+          "status": "cancelled",
+          "text": "08:00: I reached school on time and attended class.",
+          "voice": "ai"
+        }
+      ]
+    }
+  }
+}

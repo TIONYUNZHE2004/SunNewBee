@@ -7,12 +7,16 @@ and push ToolCall / ToolResultEvent / VerificationRequested onto the record's qu
 
 import asyncio
 import re
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal, get_args
 
 from pydantic_ai import Agent, ModelRetry, RunContext, ToolOutput
-from pydantic_ai.models import Model
+from pydantic_ai.capabilities import SelectModel
+from pydantic_ai.messages import ModelRequest, RetryPromptPart
+from pydantic_ai.models import Model, ModelSelectionContext
+from pydantic_ai.models.fallback import FallbackModel
 from pydantic_ai.models.openrouter import OpenRouterModel, OpenRouterModelSettings
 from pydantic_ai.providers.openrouter import OpenRouterProvider
 from townshiplens_spatial import tools as sp
@@ -28,9 +32,11 @@ from .events import (
     ToolResultEvent,
     VerificationRequested,
 )
-from .labels import enrich_unknowns
+from .facts import tool_values
+from .labels import crossing_note, enrich_unknowns
 from .mock import mock_model
 from .record import TurnRecord
+from .scope import ACCESS_FLOOD_TOOLS, scoped_instructions
 from .settings import AgentSettings
 from .validate import issue_labels, repair_answer, validate_answer
 
@@ -45,10 +51,19 @@ class Deps:
 
 
 def model_for(settings: AgentSettings, escalate: bool = False) -> Model:
-    """Mock (deterministic, keyless) or OpenRouter. Model names come from settings only."""
+    """Mock (deterministic, keyless) or OpenRouter. Model names come from settings only.
+    With LLM_MODEL_FALLBACK set, the default model fails over to it on a provider error."""
     if settings.provider == "mock":
         return mock_model()
-    name = settings.llm_model_escalate if escalate else settings.llm_model_default
+    if escalate:
+        return _openrouter(settings, settings.llm_model_escalate)
+    primary = _openrouter(settings, settings.llm_model_default)
+    if settings.llm_model_fallback and settings.llm_model_fallback != settings.llm_model_default:
+        return FallbackModel(primary, _openrouter(settings, settings.llm_model_fallback))
+    return primary
+
+
+def _openrouter(settings: AgentSettings, name: str) -> Model:
     provider = OpenRouterProvider(
         api_key=settings.openrouter_api_key or None, app_title="TownshipLens"
     )
@@ -60,6 +75,26 @@ def model_for(settings: AgentSettings, escalate: bool = False) -> Model:
         openrouter_cache_messages=True,
     )
     return OpenRouterModel(name, provider=provider, settings=cache)
+
+
+def answer_rejected(messages: list) -> bool:
+    """True when the request being sent carries the validator's rejection of final_answer."""
+    last = messages[-1] if messages else None
+    return isinstance(last, ModelRequest) and any(
+        isinstance(p, RetryPromptPart) and p.tool_name == "final_answer" for p in last.parts
+    )
+
+
+def escalation(stronger: Model) -> SelectModel:
+    """Send the rewrite after a validator rejection (and every later step) to `stronger`."""
+
+    def select(ctx: ModelSelectionContext[Deps]) -> Model | None:
+        if ctx.deps.rec.escalated or answer_rejected(ctx.messages):
+            ctx.deps.rec.escalated = True
+            return stronger
+        return ctx.model
+
+    return SelectModel(select)
 
 
 async def _emit(deps: Deps, ev) -> None:
@@ -222,7 +257,9 @@ async def call_tool(deps: Deps, name: str, **kwargs: Any) -> dict:
             deps.ctx.world, kwargs.get("profile"), kwargs.get("from_id"), kwargs.get("to_id")
         )
     # Spatial tools are sync (graph search, SQLite): keep the event loop free.
+    t0 = time.perf_counter()
     res: sp.ToolResult = await asyncio.to_thread(sp.TOOLS[name], deps.ctx, **kwargs)
+    rec.tool_seconds[name] = rec.tool_seconds.get(name, 0.0) + time.perf_counter() - t0
     rec.place_names |= _place_names(name, res.data)
     if name == "plan_route" and isinstance(res.data, dict) and kwargs.get("scenario_id"):
         sid = kwargs["scenario_id"]
@@ -232,6 +269,8 @@ async def call_tool(deps: Deps, name: str, **kwargs: Any) -> dict:
     if name == "plan_route" and isinstance(res.data, dict):
         for r in res.data.get("routes", []):
             enrich_unknowns(deps.ctx.world, r)  # readable element labels and notes
+            if note := crossing_note(r):
+                r["crossing_note"] = note  # the model copies it word for word (prompt 5h)
             rec.routes[r["id"]] = r
             rec.route_status[r["id"]] = r["status"]
         for c in res.data.get("closures") or []:
@@ -402,7 +441,10 @@ async def call_tool(deps: Deps, name: str, **kwargs: Any) -> dict:
     elif name == "list_flood_scenarios" and ui_scenario(deps):
         rec.scenarios_used.add(ui_scenario(deps))
     await _emit(deps, ToolResultEvent(id=call_id, name=name, summary=_summarise(name, res)))
-    return _for_model(name, _without_closure_notes(res.model_dump(mode="json")))
+    out = _for_model(name, _without_closure_notes(res.model_dump(mode="json")))
+    for unit, vals in tool_values(out).items():
+        rec.tool_measures.setdefault(unit, set()).update(vals)
+    return out
 
 
 # Id lists the model never needs: on the Elmina seed affected_places at +5 m lists 2,468 edge ids
@@ -418,7 +460,40 @@ _MODEL_CAP = {"affected_places": ("likely_place_ids", "possible_place_ids")}
 MODEL_EVIDENCE_CAP = 60  # evidence rows sent to the model; the TurnRecord keeps them all
 
 
+# Centre fields the model never needs (map position, graph node): the UI and TurnRecord keep them.
+_CENTRE_DROP = ("coord", "node_id")
+
+
+def _compact_centres(rows: list) -> tuple[list, str | None]:
+    """list_evacuation_centres as the model sees it: one shared disclaimer instead of one per
+    centre, no map coordinates or graph node ids, no empty fields. Ids, names, source,
+    reachability, route status and closures stay, so answers and plan_route calls still work."""
+    disclaimers = {r.get("disclaimer") for r in rows if isinstance(r, dict)}
+    shared = disclaimers.pop() if len(disclaimers) == 1 else None
+    out = []
+    for r in rows:
+        if not isinstance(r, dict):
+            out.append(r)
+            continue
+        row = {k: v for k, v in r.items() if v is not None and not (shared and k == "disclaimer")}
+        if isinstance(row.get("centre"), dict):
+            row["centre"] = {
+                k: v for k, v in row["centre"].items() if v is not None and k not in _CENTRE_DROP
+            }
+        out.append(row)
+    return out, shared
+
+
 def _for_model(name: str, out: dict) -> dict:
+    if name == "list_evacuation_centres" and isinstance(out.get("data"), list):
+        out["data"], shared = _compact_centres(out["data"])
+        if shared:
+            out["disclaimer"] = shared
+        if isinstance(out.get("evidence"), list):
+            out["evidence"] = [
+                {k: v for k, v in e.items() if v is not None} if isinstance(e, dict) else e
+                for e in out["evidence"]
+            ]
     ev = out.get("evidence")
     if isinstance(ev, list) and len(ev) > MODEL_EVIDENCE_CAP:
         # Scenario-level evidence first, then demo (placeholder) rows and place-level rows (the
@@ -457,35 +532,45 @@ def _without_closure_notes(out: Any) -> Any:
     return out
 
 
-def build_agent(model: Model) -> Agent[Deps, FinalAnswer]:
+def build_agent(
+    model: Model, escalate_to: Model | None = None, assistant_scope: str | None = None
+) -> Agent[Deps, FinalAnswer]:
+    assistant_scope = assistant_scope or AgentSettings().assistant_scope
     agent = Agent(
         model,
         deps_type=Deps,
         output_type=ToolOutput(FinalAnswer, name="final_answer"),
-        instructions=SYSTEM,
+        instructions=scoped_instructions(SYSTEM, assistant_scope),
+        capabilities=[escalation(escalate_to)] if escalate_to is not None else [],
     )
+
+    def register_tool(fn):
+        if assistant_scope == "all" or fn.__name__ in ACCESS_FLOOD_TOOLS:
+            return agent.tool(fn)
+        return fn
 
     @agent.instructions
     def ui_context(ctx: RunContext[Deps]) -> str:
         r = ctx.deps.request
         # Only ids that exist in the world are interpolated (never free text from the request).
         return (
-            f"UI context: profile={r.profile}; active_scenario={ui_scenario(ctx.deps) or 'none'}."
+            f"UI context: profile={r.profile}; active_scenario={ui_scenario(ctx.deps) or 'none'}; "
+            f"assistant_scope={assistant_scope}."
         )
 
-    @agent.tool
+    @register_tool
     async def find_place(
         ctx: RunContext[Deps], query: str, types: list[str] | None = None, limit: int = 5
     ) -> dict:
         """Resolve a place name (EN/BM/中文, nicknames) to candidate place ids. Never guess ids."""
         return await call_tool(ctx.deps, "find_place", query=query, types=types, limit=limit)
 
-    @agent.tool
+    @register_tool
     async def get_place_details(ctx: RunContext[Deps], place_id: str) -> dict:
         """All attributes of one place with status, evidence ids and verification dates."""
         return await call_tool(ctx.deps, "get_place_details", place_id=place_id)
 
-    @agent.tool
+    @register_tool
     async def plan_route(
         ctx: RunContext[Deps],
         from_id: str,
@@ -506,7 +591,7 @@ def build_agent(model: Model) -> Agent[Deps, FinalAnswer]:
             scenario_id=scenario_id,
         )
 
-    @agent.tool
+    @register_tool
     async def nearby_amenities(
         ctx: RunContext[Deps],
         origin_id: str,
@@ -524,7 +609,7 @@ def build_agent(model: Model) -> Agent[Deps, FinalAnswer]:
             profile=profile,
         )
 
-    @agent.tool
+    @register_tool
     async def get_closures(
         ctx: RunContext[Deps], near_place: str | None = None, active_only: bool = True
     ) -> dict:
@@ -536,7 +621,7 @@ def build_agent(model: Model) -> Agent[Deps, FinalAnswer]:
             ctx.deps, "get_closures", near_place=near_place, active_only=active_only
         )
 
-    @agent.tool
+    @register_tool
     async def create_verification_request(
         ctx: RunContext[Deps], target_id: str, attribute: str, reason: str, question_summary: str
     ) -> dict:
@@ -553,12 +638,12 @@ def build_agent(model: Model) -> Agent[Deps, FinalAnswer]:
             question_summary=question_summary,
         )
 
-    @agent.tool
+    @register_tool
     async def list_flood_scenarios(ctx: RunContext[Deps]) -> dict:
         """Available indicative flood scenarios (river stage +N m) with disclaimers."""
         return await call_tool(ctx.deps, "list_flood_scenarios")
 
-    @agent.tool
+    @register_tool
     async def affected_places(
         ctx: RunContext[Deps], scenario_id: str, kind: str = "all", profile: str = "default"
     ) -> dict:
@@ -570,7 +655,7 @@ def build_agent(model: Model) -> Agent[Deps, FinalAnswer]:
             ctx.deps, "affected_places", scenario_id=scenario_id, kind=kind, profile=profile
         )
 
-    @agent.tool
+    @register_tool
     async def list_evacuation_centres(
         ctx: RunContext[Deps],
         scenario_id: str | None = None,
@@ -587,14 +672,14 @@ def build_agent(model: Model) -> Agent[Deps, FinalAnswer]:
             near_place=near_place,
         )
 
-    @agent.tool
+    @register_tool
     async def find_waste_points(
         ctx: RunContext[Deps], type: str | None = None, near_place: str | None = None
     ) -> dict:
         """Recycling / e-waste / waste points with verification status."""
         return await call_tool(ctx.deps, "find_waste_points", type=type, near_place=near_place)
 
-    @agent.tool
+    @register_tool
     async def suggest_interventions(
         ctx: RunContext[Deps], profile: str = "wheelchair", near_place: str | None = None
     ) -> dict:
@@ -606,7 +691,7 @@ def build_agent(model: Model) -> Agent[Deps, FinalAnswer]:
             ctx.deps, "suggest_interventions", profile=profile, near_place=near_place
         )
 
-    @agent.tool
+    @register_tool
     async def simulate_what_if(
         ctx: RunContext[Deps],
         actions: list[dict],
@@ -635,7 +720,7 @@ def build_agent(model: Model) -> Agent[Deps, FinalAnswer]:
             scenario_id=scenario_id,
         )
 
-    @agent.tool
+    @register_tool
     async def plan_verifications(
         ctx: RunContext[Deps],
         profile: str = "wheelchair",
@@ -650,7 +735,7 @@ def build_agent(model: Model) -> Agent[Deps, FinalAnswer]:
             ctx.deps, "plan_verifications", profile=profile, scope=scope, budget=budget
         )
 
-    @agent.tool
+    @register_tool
     async def river_tipping_point(
         ctx: RunContext[Deps], from_id: str, profile: str = "default", to_id: str | None = None
     ) -> dict:
@@ -661,7 +746,7 @@ def build_agent(model: Model) -> Agent[Deps, FinalAnswer]:
             ctx.deps, "river_tipping_point", from_id=from_id, profile=profile, to_id=to_id
         )
 
-    @agent.tool
+    @register_tool
     async def rising_river_rollout(
         ctx: RunContext[Deps], profiles: list[str] | None = None, n: int = 30
     ) -> dict:
@@ -670,7 +755,7 @@ def build_agent(model: Model) -> Agent[Deps, FinalAnswer]:
         first. The app animates it on the map. Indicative simulation, not a forecast."""
         return await call_tool(ctx.deps, "rising_river_rollout", profiles=profiles, n=n)
 
-    @agent.tool
+    @register_tool
     async def rehearse_my_trip(
         ctx: RunContext[Deps],
         from_id: str,
@@ -696,7 +781,7 @@ def build_agent(model: Model) -> Agent[Deps, FinalAnswer]:
             day=str(day).strip().lower(),
         )
 
-    @agent.tool
+    @register_tool
     async def day_test_change(
         ctx: RunContext[Deps],
         day: Literal["weekday", "storm", "event", "friday"] = "storm",
@@ -711,7 +796,7 @@ def build_agent(model: Model) -> Agent[Deps, FinalAnswer]:
             ctx.deps, "day_test_change", day=str(day).strip().lower(), option=int(option)
         )
 
-    @agent.tool
+    @register_tool
     async def day_rehearsal(
         ctx: RunContext[Deps], day: Literal["weekday", "storm", "event", "friday"] = "storm"
     ) -> dict:
@@ -722,7 +807,7 @@ def build_agent(model: Model) -> Agent[Deps, FinalAnswer]:
         and the busiest places. A rehearsal, not a forecast; residents are synthetic."""
         return await call_tool(ctx.deps, "day_rehearsal", day=str(day).strip().lower())
 
-    @agent.tool
+    @register_tool
     async def find_fixes(
         ctx: RunContext[Deps],
         profile: str = "wheelchair",

@@ -1,21 +1,6 @@
-{"meta": {"message": "Which change would help most residents in the storm rehearsal?", "profile": "default", "scenario_id": null, "world": "elmina", "model": "mock-scripted", "recorded_at": "2026-10-17T06:11:49+00:00"}}
+{"meta": {"message": "Which change would help most residents in the storm rehearsal?", "profile": "default", "scenario_id": null, "world": "elmina", "model": "mock-scripted", "recorded_at": "2026-10-17T20:13:35+00:00"}}
 {"type": "tool.call", "id": "day_test_change-0", "name": "day_test_change", "args": {"day": "storm", "option": 1}}
 {"type": "tool.result", "id": "day_test_change-0", "name": "day_test_change", "summary": "ok"}
-{"type": "answer.draft", "attempt": 1, "delta": "On "}
-{"type": "answer.draft", "attempt": 1, "delta": "the Storm at the school "}
-{"type": "answer.draft", "attempt": 1, "delta": "run rehearsal of synthetic "}
-{"type": "answer.draft", "attempt": 1, "delta": "residents: Imagine the "}
-{"type": "answer.draft", "attempt": 1, "delta": "flooded stretch on Jalan "}
-{"type": "answer.draft", "attempt": 1, "delta": "Sungai Buloh (about 931 "}
-{"type": "answer.draft", "attempt": 1, "delta": "m) raised so it never "}
-{"type": "answer.draft", "attempt": 1, "delta": "floods in any scenario "}
-{"type": "answer.draft", "attempt": 1, "delta": "(best case). In that "}
-{"type": "answer.draft", "attempt": 1, "delta": "imagined day, 820 residents "}
-{"type": "answer.draft", "attempt": 1, "delta": "would be better off and 0 "}
-{"type": "answer.draft", "attempt": 1, "delta": "worse off (1,640 trips "}
-{"type": "answer.draft", "attempt": 1, "delta": "better, 0 worse). Not a "}
-{"type": "answer.draft", "attempt": 1, "delta": "plan and not a "}
-{"type": "answer.draft", "attempt": 1, "delta": "forecast."}
 {"type": "answer.check", "attempt": 1, "ok": true, "issues": [], "repairs": 0}
 {"type": "text.delta", "delta": "On the Storm at the school run rehearsal"}
 {"type": "text.delta", "delta": " of synthetic residents: Imagine the flo"}

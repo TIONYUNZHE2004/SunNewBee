@@ -1,40 +1,32 @@
-{"meta": {"message": "Where can I go?", "profile": "default", "scenario_id": "stage_p3m", "world": "elmina", "model": "mock-scripted", "recorded_at": "2026-10-17T04:14:06+00:00"}}
+{"meta": {"message": "Where can I go?", "profile": "default", "scenario_id": "stage_p3m", "world": "elmina", "model": "mock-scripted", "recorded_at": "2026-10-17T11:34:10+00:00"}}
 {"type": "tool.call", "id": "find_place-0", "name": "find_place", "args": {"query": "lakeside mall", "types": null, "limit": 5}}
 {"type": "tool.result", "id": "find_place-0", "name": "find_place", "summary": "2 result(s)"}
 {"type": "tool.call", "id": "list_evacuation_centres-1", "name": "list_evacuation_centres", "args": {"scenario_id": "stage_p3m", "profile": "default", "near_place": "lakeside-mall"}}
 {"type": "tool.result", "id": "list_evacuation_centres-1", "name": "list_evacuation_centres", "summary": "72 result(s)"}
 {"type": "tool.call", "id": "plan_route-2", "name": "plan_route", "args": {"from_id": "lakeside-mall", "to_id": "__centre__evc-osm-way-1150791981", "profile": "default", "scenario_id": "stage_p3m"}}
 {"type": "tool.result", "id": "plan_route-2", "name": "plan_route", "summary": "route confirmed"}
-{"type": "answer.draft", "attempt": 1, "delta": "In "}
-{"type": "answer.draft", "attempt": 1, "delta": "the River +"}
-{"type": "answer.draft", "attempt": 1, "delta": "3 m indicative scenario, the nearest "}
-{"type": "answer.draft", "attempt": 1, "delta": "reachable centre from "}
-{"type": "answer.draft", "attempt": 1, "delta": "Elmina Lakeside Mall (demo "}
-{"type": "answer.draft", "attempt": 1, "delta": "start point) is SJK (C) "}
-{"type": "answer.draft", "attempt": 1, "delta": "Ladang Regent, Elmina; "}
-{"type": "answer.draft", "attempt": 1, "delta": "source: candidate, not "}
-{"type": "answer.draft", "attempt": 1, "delta": "confirmed as a PPS. This is "}
-{"type": "answer.draft", "attempt": 1, "delta": "not a forecast; follow "}
-{"type": "answer.draft", "attempt": 1, "delta": "official MBSA / JPS / "}
-{"type": "answer.draft", "attempt": 1, "delta": "NADMA "}
-{"type": "answer.draft", "attempt": 1, "delta": "guidance."}
+{"type": "answer.draft", "attempt": 1, "delta": "In the River +3 m indicative scenario, the nearest reachable centre from Elmina Lakeside Mall (demo start point) is SJK (C) Ladang Regent, Elmina; source: candidate, not confirmed as a PPS."}
+{"type": "answer.draft", "attempt": 1, "delta": " This is not a forecast; follow official MBSA / JPS / NADMA guidance."}
 {"type": "answer.check", "attempt": 1, "ok": true, "issues": [], "repairs": 0}
-{"type": "text.delta", "delta": "Route status: confirmed\nIn the River +3 "}
-{"type": "text.delta", "delta": "m indicative scenario, the nearest reach"}
-{"type": "text.delta", "delta": "able centre from Elmina Lakeside Mall (d"}
-{"type": "text.delta", "delta": "emo start point) is SJK (C) Ladang Regen"}
-{"type": "text.delta", "delta": "t, Elmina; source: candidate, not confir"}
-{"type": "text.delta", "delta": "med as a PPS. This is not a forecast; fo"}
-{"type": "text.delta", "delta": "llow official MBSA / JPS / NADMA guidanc"}
-{"type": "text.delta", "delta": "e.\nWorth knowing:\n• Reachability ends at"}
-{"type": "text.delta", "delta": " the nearest mapped path to SJK (C) Lada"}
-{"type": "text.delta", "delta": "ng Regent, Elmina; its entrance is not m"}
-{"type": "text.delta", "delta": "apped."}
+{"type": "text.delta", "delta": "Route status: confirmed (on demo values,"}
+{"type": "text.delta", "delta": " not yet surveyed)\nIn the River +3 m ind"}
+{"type": "text.delta", "delta": "icative scenario, the nearest reachable "}
+{"type": "text.delta", "delta": "centre from Elmina Lakeside Mall (demo s"}
+{"type": "text.delta", "delta": "tart point) is SJK (C) Ladang Regent, El"}
+{"type": "text.delta", "delta": "mina; source: candidate, not confirmed a"}
+{"type": "text.delta", "delta": "s a PPS. This is not a forecast; follow "}
+{"type": "text.delta", "delta": "official MBSA / JPS / NADMA guidance.\nWo"}
+{"type": "text.delta", "delta": "rth knowing:\n• Reachability ends at the "}
+{"type": "text.delta", "delta": "nearest mapped path to SJK (C) Ladang Re"}
+{"type": "text.delta", "delta": "gent, Elmina; its entrance is not mapped"}
+{"type": "text.delta", "delta": ".\n• Segment facts are demo values, not y"}
+{"type": "text.delta", "delta": "et surveyed."}
 {"type": "scene.intent", "intent": {"kind": "flood.set_level", "place_id": null, "route_id": null, "scenario_id": "stage_p3m", "center": null, "range_m": null, "lens": null, "visible": null, "geojson": null, "route_status": null, "distance_m": null, "est_minutes": null, "day": null, "t_min": null}}
 {"type": "scene.intent", "intent": {"kind": "route.highlight", "place_id": null, "route_id": "rt-69ae518b", "scenario_id": null, "center": null, "range_m": null, "lens": null, "visible": null, "geojson": {"type": "LineString", "coordinates": [[101.510045, 3.18131], [101.510208, 3.18144], [101.510305, 3.181662], [101.510338, 3.181856], [101.51012, 3.182144], [101.51016, 3.18224], [101.510177, 3.182237], [101.510195, 3.182239], [101.510211, 3.182247], [101.510224, 3.182259], [101.510233, 3.182275], [101.510236, 3.182293], [101.510233, 3.182311], [101.510226, 3.182327], [101.510285, 3.182381], [101.510414, 3.18248], [101.510507, 3.18256], [101.510714, 3.182696], [101.510801, 3.182743], [101.510449, 3.183184], [101.51042, 3.183189], [101.510395, 3.183204], [101.510374, 3.183226], [101.510363, 3.183254], [101.51036, 3.183284], [101.510365, 3.183307], [101.510331, 3.183368], [101.510286, 3.183444], [101.510223, 3.183529], [101.510036, 3.183796], [101.509689, 3.184291], [101.509672, 3.184314], [101.509038, 3.185202], [101.508373, 3.186135], [101.50831, 3.186224], [101.50827, 3.186192], [101.508224, 3.186159], [101.507448, 3.185582], [101.507362, 3.1856], [101.507294, 3.185605], [101.507216, 3.185583], [101.506671, 3.185185], [101.505873, 3.186326], [101.505835, 3.186389], [101.505797, 3.186426], [101.505752, 3.18643], [101.505705, 3.186391], [101.505152, 3.185991]]}, "route_status": "confirmed", "distance_m": 1174.6, "est_minutes": 16.8, "day": null, "t_min": null}}
 {"type": "citation", "ref": 1, "evidence_id": "ev-scn-stage_p3m", "element_id": "stage_p3m", "attribute": "scenario", "status": "indicative", "verified_at": null, "source_type": "REM scenario (indicative)", "photo_url": null}
 {"type": "citation", "ref": 2, "evidence_id": "ev-centre-evc-osm-way-1150791981", "element_id": "evc-osm-way-1150791981", "attribute": "source", "status": "unknown", "verified_at": null, "source_type": "OSM candidate", "photo_url": null}
 {"type": "citation", "ref": 3, "evidence_id": "ev-centre-evc-osm-way-1063471271", "element_id": "evc-osm-way-1063471271", "attribute": "source", "status": "unknown", "verified_at": null, "source_type": "OSM candidate", "photo_url": null}
-{"type": "uncertainty", "level": "partial", "items": [{"element_id": "answer", "attribute": "caveat", "note": "Reachability ends at the nearest mapped path to SJK (C) Ladang Regent, Elmina; its entrance is not mapped"}]}
+{"type": "citation", "ref": 4, "evidence_id": "ev-place-lakeside-mall", "element_id": "lakeside-mall", "attribute": "name", "status": "unknown", "verified_at": null, "source_type": "team_survey_placeholder", "photo_url": null}
+{"type": "uncertainty", "level": "partial", "items": [{"element_id": "route", "attribute": "demo_values", "note": "Some segment facts are demo values, not yet surveyed"}, {"element_id": "answer", "attribute": "caveat", "note": "Reachability ends at the nearest mapped path to SJK (C) Ladang Regent, Elmina; its entrance is not mapped"}]}
 {"type": "disclaimer", "lens": "flood", "text": "Indicative scenario from a 30 m elevation model (Copernicus GLO-30, height above mapped rivers and lakes), not a forecast. Follow official MBSA / JPS / NADMA guidance. Only the area 101.46–101.56 E, 3.15–3.24 N is assessed; paths outside it are not.", "links": [{"label": "Public InfoBanjir (JPS)", "url": "https://publicinfobanjir.water.gov.my"}, {"label": "MET Malaysia warnings", "url": "https://www.met.gov.my"}]}
 {"type": "done", "message_id": "demo", "answer_status": "answered", "model": "mock-scripted"}

@@ -107,6 +107,9 @@ async def main() -> int:
     # ignore_cleanup_errors: the stores keep their SQLite files open, which Windows cannot delete.
     with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
         for i, case in enumerate(cases):
+            settings = settings.model_copy(
+                update={"assistant_scope": case.get("assistant_scope", "access_flood")}
+            )
             ctx = tools.Ctx(world=world, vrs=VerificationStore(str(Path(tmp) / f"vr-{i}.db")))
             req = ChatRequest(
                 message=case["message"],
@@ -132,6 +135,7 @@ async def main() -> int:
             report.append(
                 {
                     "id": case["id"],
+                    "assistant_scope": settings.assistant_scope,
                     "pass": not fails,
                     "failures": fails,
                     "status": done.answer_status if done else None,

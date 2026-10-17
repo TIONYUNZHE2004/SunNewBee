@@ -9,11 +9,12 @@ the client gets:
 That gives a fast first sentence and makes the honesty gate visible: a judge can watch a draft
 get rejected and rewritten.
 
-A draft is never final text, and it is guarded with the validator's own wording rules
-(`validate.text_errors`). The draft stops at the first text the final check would reject. It is
-emitted only up to the last whole word, and a number with a unit is held back until three more
-words follow it, so a split word or a depth ("0.5 m of water") cannot slip out before the check
-sees it.
+A draft is never final text, and it must pass the final answer's content checks
+(`validate.draft_errors`: wording, promises, numbers and facts bound to tool results, recorded
+features, route status naming). It is emitted one whole sentence at a time, because a sentence
+can only be judged whole ("confirmed (on demo values ...)", "not a guarantee", "99 steps"), and
+it stops before the first sentence that fails, so rejected text never reaches the screen or a
+screen reader (audit A3).
 """
 
 import re
@@ -31,14 +32,11 @@ from pydantic_ai.messages import (
 from pydantic_core import from_json
 
 from .events import AnswerCheck, AnswerDraft
-from .validate import text_errors
+from .validate import draft_errors
 
 OUTPUT_TOOL = "final_answer"
-# Word boundaries: whitespace, or CJK punctuation (Chinese text has no spaces).
-_BOUNDARY = re.compile(r"[\s，。；、！？：]")
-# A number with a unit near the end of the draft: wait for the words after it.
-_MEASURE = re.compile(r"\d+(?:[.,]\d+)?\s?(?:cm|mm|m|km|厘米|米)\b")
-_HOLD_WORDS = 3
+# Sentence ends: ". " (not "440.6"), or CJK punctuation and newlines (Chinese has no spaces).
+_SENTENCE_END = re.compile(r"[.!?](?=\s)|[。！？\n]")
 FORMAT_ISSUE = "did not fill in the answer form correctly"
 
 
@@ -106,14 +104,10 @@ class DraftStreamer:
             await self._emit(parsed["summary"], final=final)
 
     def _safe_prefix(self, summary: str, final: bool) -> str:
+        """The whole sentences written so far; all of the text once the stream ended."""
         if final:
             return summary
-        cut = max((m.end() for m in _BOUNDARY.finditer(summary)), default=0)
-        candidate = summary[:cut]
-        for m in _MEASURE.finditer(candidate):
-            if len(candidate[m.end() :].split()) < _HOLD_WORDS:
-                return candidate[: m.start()]
-        return candidate
+        return summary[: max((m.end() for m in _SENTENCE_END.finditer(summary)), default=0)]
 
     async def _emit(self, summary: str, final: bool) -> None:
         if self._stopped or not summary.startswith(self._sent):
@@ -121,7 +115,7 @@ class DraftStreamer:
         candidate = self._safe_prefix(summary, final)
         if len(candidate) <= len(self._sent):
             return
-        if text_errors(candidate, self.rec):
+        if draft_errors(candidate, self.rec):
             self._stopped = True  # the validator will send this attempt back anyway
             return
         delta, self._sent = candidate[len(self._sent) :], candidate

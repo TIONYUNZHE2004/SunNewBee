@@ -6,7 +6,8 @@ import re
 import uuid
 from collections.abc import AsyncIterator
 
-from pydantic_ai.exceptions import UnexpectedModelBehavior
+from pydantic_ai.exceptions import UnexpectedModelBehavior, UsageLimitExceeded
+from pydantic_ai.usage import UsageLimits
 from townshiplens_spatial import tools as sp
 
 from . import agent as agent_mod
@@ -25,6 +26,7 @@ from .events import (
     TextDelta,
     Uncertainty,
 )
+from .facts import extract_facts
 from .labels import (
     CLOSURE_WORDS,
     FRAME,
@@ -38,8 +40,10 @@ from .labels import (
 from .memory import DEFAULT as DEFAULT_MEMORY
 from .memory import SessionMemory
 from .record import TurnRecord
+from .redact import redact
+from .scope import outside_scope
 from .settings import AgentSettings
-from .template import _top_stage, template_answer
+from .template import _top_stage, scope_answer, template_answer
 from .validate import PLACEHOLDER_CAVEAT
 
 log = logging.getLogger(__name__)
@@ -297,24 +301,36 @@ def _answer_events(
 
     ref = 0
     cited: set[str] = set()
-    for c in ans.claims:
-        for eid in c.evidence_ids:
-            e = rec.evidence.get(eid)
-            if e and eid not in cited:
-                cited.add(eid)
-                ref += 1
-                evs.append(
-                    Citation(
-                        ref=ref,
-                        evidence_id=eid,
-                        element_id=e.element_id,
-                        attribute=e.attribute,
-                        status=str(e.status),
-                        verified_at=e.verified_at,
-                        source_type=e.source_type,
-                        photo_url=e.photo_url,
-                    )
+    evidence_ids = [eid for c in ans.claims for eid in c.evidence_ids]
+    selected_route = rec.routes.get(ans.route_id or "") or (
+        next(iter(rec.routes.values())) if len(rec.routes) == 1 else {}
+    )
+    # Place existence can qualify the selected route even when the model only cited the
+    # evacuation centre/scenario. Preserve those badges; never cite unrelated search hits.
+    evidence_ids += [
+        eid
+        for eid in selected_route.get("evidence_ids", [])
+        if eid.startswith("ev-place-")
+        and eid in rec.evidence
+        and rec.evidence[eid].source_type == "team_survey_placeholder"
+    ]
+    for eid in evidence_ids:
+        e = rec.evidence.get(eid)
+        if e and eid not in cited:
+            cited.add(eid)
+            ref += 1
+            evs.append(
+                Citation(
+                    ref=ref,
+                    evidence_id=eid,
+                    element_id=e.element_id,
+                    attribute=e.attribute,
+                    status=str(e.status),
+                    verified_at=e.verified_at,
+                    source_type=e.source_type,
+                    photo_url=e.photo_url,
                 )
+            )
 
     unknowns = [u for r in rec.routes.values() for u in r.get("unknowns", [])]
 
@@ -433,12 +449,34 @@ def _trip_geojson(t: dict) -> dict | None:
     return {"type": "FeatureCollection", "features": feats, "meta": meta}
 
 
-def _streams(model) -> bool:
-    """Streaming drafts need a model that streams; a FunctionModel only does with stream_function
-    (the mock has one; ad-hoc test models usually do not)."""
+def _streams(*models) -> bool:
+    """Streaming drafts need every model the turn may use to stream; a FunctionModel only does
+    with stream_function (the mock has one; ad-hoc test models usually do not)."""
+    from pydantic_ai.models.fallback import FallbackModel
     from pydantic_ai.models.function import FunctionModel
 
-    return not isinstance(model, FunctionModel) or model.stream_function is not None
+    def one(m) -> bool:
+        if isinstance(m, FallbackModel):
+            return all(one(x) for x in m.models)
+        return not isinstance(m, FunctionModel) or m.stream_function is not None
+
+    return all(one(m) for m in models if m is not None)
+
+
+def served_model(model, escalate_model, rec: TurnRecord, result) -> str:
+    """The configured model that wrote the final answer: the escalation model once the turn was
+    escalated, else, behind a fallback, the member whose name the last response carries."""
+    from pydantic_ai.models.fallback import FallbackModel
+
+    if rec.escalated and escalate_model is not None:
+        return getattr(escalate_model, "model_name", None) or "unknown"
+    if isinstance(model, FallbackModel):
+        answered = getattr(getattr(result, "response", None), "model_name", None) or ""
+        for m in model.models:
+            if answered.startswith(m.model_name):
+                return m.model_name
+        return answered or model.model_name
+    return getattr(model, "model_name", None) or "unknown"
 
 
 def _scrub(msg: str, settings: AgentSettings) -> str:
@@ -459,6 +497,18 @@ async def run_turn(
     `memory` (default: the process-wide store) gives follow-ups the session's earlier turns."""
     memory = memory if memory is not None else DEFAULT_MEMORY
     settings = settings or AgentSettings()
+    # Redact first, then enforce scope before cache/model construction or tool side effects.
+    question = redact(req.message)
+    if settings.assistant_scope == "access_flood" and outside_scope(
+        question, has_history=bool(memory.history(req.session_id))
+    ):
+        ans = scope_answer(question)
+        memory.add_turn(req.session_id, question, ans.summary)
+        yield TextDelta(delta=ans.summary)
+        yield Done(
+            message_id=uuid.uuid4().hex[:12], answer_status="cannot_answer", model="scope-policy"
+        )
+        return
     # A recording cannot reflect a live closure (R33), so any active closure is a cache miss.
     if settings.demo_mode and not ctx.world.active_closures():
         cached = demo.load(demo.key(req), settings.demo_dir, ctx.world.site.id)
@@ -467,18 +517,30 @@ async def run_turn(
                 yield ev
             return
     rec = record or TurnRecord()
+    # Stages the resident named, and the stages the world has scenarios for ("+1 m to +5 m").
+    rec.asked_stages = {f.value for f in extract_facts(question) if f.kind == "stage"} | {
+        float(s.stage_m) for s in ctx.world.flood.scenarios if s.stage_m is not None
+    }
     rec.queue = asyncio.Queue()
     rec.history_simulated = memory.simulated(req.session_id)
     deps = agent_mod.Deps(ctx=ctx, rec=rec, request=req)
     msg_id = uuid.uuid4().hex[:12]
     model_name = "unknown"
+    escalate_model = None
     ans: FinalAnswer | None = None
     failure: Exception | None = None
 
     try:
         model = agent_mod.model_for(settings)
         model_name = getattr(model, "model_name", None) or "unknown"
-        agent = agent_mod.build_agent(model)
+        escalate_model = (
+            agent_mod.model_for(settings, escalate=True)
+            if settings.llm_escalate_on_rewrite
+            else None
+        )
+        agent = agent_mod.build_agent(
+            model, escalate_to=escalate_model, assistant_scope=settings.assistant_scope
+        )
     except Exception as exc:  # misconfiguration (e.g. no key): still answer from the template
         failure = exc
     else:
@@ -486,12 +548,15 @@ async def run_turn(
         async def bounded_run():
             async with asyncio.timeout(settings.turn_timeout_s):
                 return await agent.run(
-                    req.message,
+                    question,
                     message_history=memory.history(req.session_id) or None,
                     deps=deps,
                     retries={"output": settings.llm_output_retries},
+                    usage_limits=UsageLimits(request_limit=settings.llm_request_limit),
                     usage=rec.usage,
-                    event_stream_handler=DraftStreamer(deps) if _streams(model) else None,
+                    event_stream_handler=(
+                        DraftStreamer(deps) if _streams(model, escalate_model) else None
+                    ),
                 )
 
         task = asyncio.create_task(bounded_run())
@@ -516,14 +581,24 @@ async def run_turn(
             if not task.done():
                 task.cancel()  # the client went away mid-turn
         try:
-            ans = task.result().output
+            result = task.result()
+            ans = result.output
+            model_name = served_model(model, escalate_model, rec, result)
         except UnexpectedModelBehavior as exc:  # e.g. output retries exhausted by the validator
             log.info("model output rejected, using template: %s", type(exc).__name__)
         except Exception as exc:  # network / provider / tool error
             failure = exc
 
+    if rec.escalated and escalate_model is not None:
+        model_name = getattr(escalate_model, "model_name", None) or model_name
     used = model_name
-    if isinstance(failure, TimeoutError):
+    if isinstance(failure, UsageLimitExceeded):
+        log.warning("agent turn hit the request cap (%s)", settings.llm_request_limit)
+        yield ErrorEvent(
+            code="agent_limit",
+            message=f"stopped after {settings.llm_request_limit} model requests",
+        )
+    elif isinstance(failure, TimeoutError):
         log.warning("agent turn timed out after %ss", settings.turn_timeout_s)
         yield ErrorEvent(
             code="agent_timeout", message=f"turn timed out after {settings.turn_timeout_s}s"
@@ -534,7 +609,7 @@ async def run_turn(
     try:
         if ans is None:
             used = model_name + "+template"
-            ans = template_answer(rec, req.message)
+            ans = template_answer(rec, question)
         # The frame (status line, headings) follows the language the answer is written in (a
         # model that answered a BM question in English gets an English frame); template answers
         # (fallbacks) stay English.
@@ -555,7 +630,7 @@ async def run_turn(
     shown = "".join(e.delta for e in events if isinstance(e, TextDelta))
     memory.add_turn(
         req.session_id,
-        req.message,
+        question,
         shown,
         simulated=bool(rec.what_ifs or rec.plans or rec.days or rec.day_changes),
     )

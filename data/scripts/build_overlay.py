@@ -4,6 +4,7 @@
 All facts written here are PLACEHOLDERS (evidence_type "team_survey_placeholder") until the field visit.
 """
 
+import argparse
 import json
 import sys
 from datetime import date
@@ -71,10 +72,39 @@ def _place(pid, ptype, name, lonlat, node_id, claims=None, aliases=None) -> dict
             "aliases": aliases or [],
             "node_id": node_id,
             "entrance_ids": [],
-            "claims": claims or {},
+            # The existence/position of these demo places is not a field observation.
+            # Keep it explicit even when a place has no accessibility attributes.
+            "claims": {
+                "existence": {"value": True, "status": "unknown", "evidence_type": PLACEHOLDER},
+                **(claims or {}),
+            },
         },
         "geometry": {"type": "Point", "coordinates": [round(lonlat[0], 6), round(lonlat[1], 6)]},
     }
+
+
+def add_existence_provenance(features: list[dict]) -> int:
+    """Metadata-only regeneration for an existing overlay; preserve surveyed replacements."""
+    added = 0
+    for feature in features:
+        if feature["geometry"]["type"] != "Point":
+            continue
+        claims = feature["properties"].setdefault("claims", {})
+        if "existence" not in claims:
+            claims["existence"] = {"value": True, "status": "unknown", "evidence_type": PLACEHOLDER}
+            added += 1
+    return added
+
+
+def regenerate_provenance() -> None:
+    """No OSM/network/DEM rebuild: this operation never changes coordinates or graph claims."""
+    path = SEED / "access" / "overlay.geojson"
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    added = add_existence_provenance(payload["features"])
+    path.write_text(
+        json.dumps(payload, ensure_ascii=False, separators=(",", ":")), encoding="utf-8"
+    )
+    print(f"Added placeholder existence provenance to {added} overlay places; geometry unchanged")
 
 
 def main() -> None:
@@ -269,4 +299,14 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--provenance-only",
+        action="store_true",
+        help="regenerate missing place-existence metadata without rebuilding geometry",
+    )
+    args = parser.parse_args()
+    if args.provenance_only:
+        regenerate_provenance()
+    else:
+        main()

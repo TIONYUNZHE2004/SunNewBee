@@ -1472,3 +1472,19 @@ No correctness bugs in the counting: an independent recount matched `reach()` ex
 - **Day:** an unknown day is checked first.
 
 **Checklist** (mock-backed): lint PASS, pytest 1,307 PASS, typecheck PASS, vitest 803 PASS, gen PASS, golden 23/23 PASS, build PASS, e2e 20 PASS.
+
+### Merge of origin/main into ai/world-model-2 (2026-10-18 04:19)
+
+The user asked to pull, merge and push. `origin/main` had 50 new commits. They include **T-011, "Resident scope B"**: `ASSISTANT_SCOPE=access_flood` is now the default. The resident assistant covers access and flood evacuation around Elmina Urban Park and Elmina Lakeside Mall only; what-ifs, rollouts, fix-it, survey plans and **simulated days are politely refused before any tool runs**; `ASSISTANT_SCOPE=all` opts back in. They also include a team workflow in which work reaches `main` only through pull requests with green CI, via the control branch `claude/sweet-davinci-29v7ne`.
+
+**Resolution (4 conflicts):** the team's scope policy is kept as it is.
+- `rehearse_my_trip` uses their `register_tool`, so it is registered only under `all`.
+- The mock's trip and change routes are `all`-only.
+- `run.py` keeps `_trip_geojson` alongside their new `_streams(*models)`.
+- Their new measurement check skips durations on trip turns (`my_trip_errors` checks them) and counts a trip's own values.
+- The new tests and the 4 Elmina Day golden cases opt into `all`, as theirs do, and the replays are re-recorded under `all`.
+- New test: in the default scope, a trip-rehearsal question is refused with no tool call, and the tool isn't registered.
+
+**What this means for the demo:** in the default scope the assistant refuses rehearsal and test-a-change questions. The Day panel, Test a change, "Rehearse my trip" (the REST card) and the ticket reach card are not gated. The demo script's assistant beats need `ASSISTANT_SCOPE=all`, or should use the panels instead.
+
+**Checklist** (mock-backed): lint PASS, pytest 1,500 PASS, typecheck PASS, vitest 803 PASS, gen PASS, golden 23/23 PASS, build PASS, e2e 20 PASS. Pushed to the branch only; not to `main`.

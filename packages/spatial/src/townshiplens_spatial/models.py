@@ -247,6 +247,10 @@ class Route(BaseModel):
     # {place_id, node_id, name, status: verified|unverified}; rest points recorded absent are
     # left out.
     rest_points: list[dict[str, Any]] = Field(default_factory=list)
+    # Crossing segments on the route, in order: {element_id, name, crossing, status}. crossing is a
+    # catalogue value (traffic_signals|marked|unmarked|no) or None when not recorded; status is the
+    # claim status ("unknown" when there is no claim). Informative: routing does not use it.
+    crossings: list[dict[str, Any]] = Field(default_factory=list)
     max_gap_between_rest_m: float | None = None
     # Profiles with max_rest_free_run_m (older_adult_rest): the limit, and whether this route
     # keeps every stretch between rest points within it. None for profiles without a limit.

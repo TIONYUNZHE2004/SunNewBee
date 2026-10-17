@@ -210,6 +210,40 @@ def unchecked_caveats(
     return out
 
 
+CROSSING_WORDS = "road crossing"  # every crossing note contains this (validator)
+_CROSSING_TYPE = {
+    "traffic_signals": "with traffic lights",
+    "marked": "marked, no traffic lights",
+    "unmarked": "unmarked",
+    "no": "where crossing is not allowed",
+}
+
+
+def crossing_note(route: dict) -> str | None:
+    """One readable line for the crossings a route uses, or None when it uses none:
+    "This route uses 2 road crossings: 1 with traffic lights (map data, not checked), 1 with no
+    recorded crossing type." Only verified claims drop the "(map data, not checked)" note."""
+    rows = route.get("crossings") or []
+    if not rows:
+        return None
+    groups: dict[tuple[str | None, bool], int] = {}
+    for r in rows:
+        kind = r.get("crossing") if r.get("crossing") in _CROSSING_TYPE else None
+        checked = kind is not None and r.get("status") == "verified"
+        groups[(kind, checked)] = groups.get((kind, checked), 0) + 1
+    order = [*_CROSSING_TYPE, None]
+    parts = []
+    for (kind, checked), n in sorted(groups.items(), key=lambda g: (order.index(g[0][0]), g[0][1])):
+        if kind is None:
+            parts.append(f"{n} with no recorded crossing type")
+        else:
+            parts.append(
+                f"{n} {_CROSSING_TYPE[kind]}" + ("" if checked else " (map data, not checked)")
+            )
+    n = len(rows)
+    return f"This route uses {n} {CROSSING_WORDS}{'s' if n != 1 else ''}: {', '.join(parts)}."
+
+
 REST_GAP_WORDS = "without a rest point"  # every rest-gap caveat contains this (validator)
 
 

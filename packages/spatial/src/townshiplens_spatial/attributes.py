@@ -28,6 +28,7 @@ ATTRIBUTE_TYPES: dict[str, tuple[str, frozenset[str] | None]] = {
     ),
     "surface_condition": _enum("good", "uneven", "obstructed"),
     "kerb": _enum("flush", "lowered", "raised", "rolled"),
+    "crossing": _enum("traffic_signals", "marked", "unmarked", "no"),  # crossing segments
     "handrail": _enum("both", "one_side", "none"),
     "sidewalk": _enum("both", "one_side", "none", "separate"),  # major_road edges (Task 31)
     "shelter": _enum("covered", "partial", "none"),
@@ -54,6 +55,7 @@ ATTRIBUTE_LABELS: dict[str, str] = {
     "surface_condition": "Surface condition",
     "kerb": "Kerb",
     "handrail": "Handrail",
+    "crossing": "Crossing type",
     "sidewalk": "Sidewalk",
     "shelter": "Shelter",
     "door_type": "Door type",

@@ -31,14 +31,37 @@ class Ctx:
 
 
 def _place_ev(p) -> Evidence:
+    existence = p.claims.get("existence")
     return Evidence(
         id=f"ev-place-{p.id}",
         element_id=p.id,
         attribute="name",
         value=p.name,
-        status="reported",
-        source_type="world_model",
+        status=existence.status if existence else "reported",
+        source_type=existence.evidence_type if existence else "world_model",
+        verified_at=existence.verified_at if existence else None,
     )
+
+
+def _place_provenance(p) -> dict:
+    claim = p.claims.get("existence")
+    if claim is None:
+        return {}
+    return {
+        "existence": claim.model_dump(mode="json", exclude={"notes"}),
+        "demo_place": claim.evidence_type == routing.PLACEHOLDER_SOURCE,
+        "source_label": "Demo value · not surveyed"
+        if claim.evidence_type == routing.PLACEHOLDER_SOURCE
+        else claim.evidence_type,
+    }
+
+
+def _demo_place_warnings(places) -> list[str]:
+    return [
+        f"Demo value · not surveyed: {p.name}; place existence uses demo values, not yet surveyed."
+        for p in places
+        if (c := p.claims.get("existence")) and c.evidence_type == routing.PLACEHOLDER_SOURCE
+    ]
 
 
 _STOPWORDS = {"take", "from", "with", "near", "where", "that", "this", "your", "have"}
@@ -94,10 +117,17 @@ def find_place(ctx: Ctx, query: str, types: list[str] | None = None, limit: int 
     return ToolResult(
         ok=True,
         data=[
-            {"id": p.id, "name": p.name, "type": p.type, "score": round(s, 2)}
+            {
+                "id": p.id,
+                "name": p.name,
+                "type": p.type,
+                "score": round(s, 2),
+                **_place_provenance(p),
+            }
             for s, p in scored[:limit]
         ],
         evidence=[_place_ev(p) for p in top],
+        warnings=_demo_place_warnings(top),
     )
 
 
@@ -279,7 +309,8 @@ def get_place_details(
     live = [c for c in p.closures if c.is_active()]
     data["closures"] = [closure_row(ctx.world, c) for c in live]
     ev += [_closure_ev(ctx.world, c) for c in live]
-    return ToolResult(ok=True, data=data, evidence=ev)
+    data.update(_place_provenance(p))
+    return ToolResult(ok=True, data=data, evidence=ev, warnings=_demo_place_warnings([p]))
 
 
 def _inferred_endpoints(world: World, from_id: str, to_id: str, warnings: list[str]) -> list:
@@ -403,6 +434,30 @@ def plan_route(
     staff queue (final review Minor 2)."""
     rr = routing.plan_route(ctx.world, from_id, to_id, profile, scenario_id)
     evidence: list[Evidence] = []
+    # Transport provenance only: preserve the engine's status, paths and distances.
+    endpoint_ids = [from_id, to_id]
+    place_ids = set(endpoint_ids)
+    for route in rr.routes:
+        ids = set(endpoint_ids) | {r["place_id"] for r in route.rest_points}
+        place_ids |= ids
+        demo_ids = [
+            pid
+            for pid in ids
+            if pid in ctx.world.places
+            and _place_provenance(ctx.world.places[pid]).get("demo_place")
+        ]
+        if demo_ids:
+            route.demo_evidence = True
+            route.evidence_ids = list(
+                dict.fromkeys(
+                    [*route.evidence_ids, *(f"ev-place-{pid}" for pid in sorted(demo_ids))]
+                )
+            )
+    rr.demo_evidence = bool(rr.routes and rr.routes[0].demo_evidence)
+    places = [ctx.world.places[pid] for pid in sorted(place_ids) if pid in ctx.world.places]
+    provenance_places = [p for p in places if p.claims.get("existence")]
+    evidence += [_place_ev(p) for p in provenance_places]
+    rr.warnings += _demo_place_warnings(provenance_places)
     vrs = []
     filed: set[tuple[str, str]] = set()  # one VR per element/attribute per call (alt routes repeat)
     truncated = 0
@@ -452,6 +507,10 @@ def plan_route(
         "verification_requests": vrs,
         "verification_requests_truncated": truncated,
     }
+    if provenance_places:
+        data["place_provenance"] = [
+            {"id": p.id, "name": p.name, **_place_provenance(p)} for p in provenance_places
+        ]
     return ToolResult(ok=True, data=data, evidence=uniq, warnings=rr.warnings)
 
 
@@ -504,11 +563,21 @@ def nearby_amenities(
     return ToolResult(
         ok=True,
         data=[
-            {"id": p.id, "name": p.name, "walk_m": round(d, 1), "via_unverified": unv}
+            {
+                "id": p.id,
+                "name": p.name,
+                "walk_m": round(d, 1),
+                "via_unverified": unv
+                or bool(
+                    (c := p.claims.get("existence"))
+                    and (c.status != "verified" or c.evidence_type == routing.PLACEHOLDER_SOURCE)
+                ),
+                **_place_provenance(p),
+            }
             for d, p, unv in hits
         ],
         evidence=[_place_ev(p) for _, p, _ in hits],
-        warnings=warnings,
+        warnings=warnings + _demo_place_warnings([p for _, p, _ in hits]),
     )
 
 

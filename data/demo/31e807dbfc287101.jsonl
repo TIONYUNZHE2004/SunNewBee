@@ -1,22 +1,12 @@
-{"meta": {"message": "In the storm rehearsal, what happens to my trip from Car Park B to SK Denai Alam by car leaving at 7:30?", "profile": "default", "scenario_id": null, "world": "elmina", "model": "mock-scripted", "recorded_at": "2026-10-17T05:56:28+00:00"}}
+{"meta": {"message": "In the storm rehearsal, what happens to my trip from Car Park B to SK Denai Alam by car leaving at 7:30?", "profile": "default", "scenario_id": null, "world": "elmina", "model": "mock-scripted", "recorded_at": "2026-10-17T20:13:42+00:00"}}
 {"type": "tool.call", "id": "find_place-0", "name": "find_place", "args": {"query": "car park b", "types": null, "limit": 5}}
 {"type": "tool.result", "id": "find_place-0", "name": "find_place", "summary": "5 result(s)"}
 {"type": "tool.call", "id": "find_place-1", "name": "find_place", "args": {"query": "sk denai alam", "types": null, "limit": 5}}
 {"type": "tool.result", "id": "find_place-1", "name": "find_place", "summary": "5 result(s)"}
 {"type": "tool.call", "id": "rehearse_my_trip-2", "name": "rehearse_my_trip", "args": {"from_id": "park-b", "to_id": "osm-way-911429128", "profile": "drive", "leave_at": "07:30", "day": "storm"}}
 {"type": "tool.result", "id": "rehearse_my_trip-2", "name": "rehearse_my_trip", "summary": "ok"}
-{"type": "answer.draft", "attempt": 1, "delta": "In "}
-{"type": "answer.draft", "attempt": 1, "delta": "the Storm at the school "}
-{"type": "answer.draft", "attempt": 1, "delta": "run rehearsal, a trip from "}
-{"type": "answer.draft", "attempt": 1, "delta": "Lakeside Mall Car Park "}
-{"type": "answer.draft", "attempt": 1, "delta": "B to SK Denai Alam by "}
-{"type": "answer.draft", "attempt": 1, "delta": "car leaving at 07:30 found "}
-{"type": "answer.draft", "attempt": 1, "delta": "no way through: the "}
-{"type": "answer.draft", "attempt": 1, "delta": "river at +"}
-{"type": "answer.draft", "attempt": 1, "delta": "3 m cut an unnamed street, the street on "}
-{"type": "answer.draft", "attempt": 1, "delta": "Persiaran Alstonia. A "}
-{"type": "answer.draft", "attempt": 1, "delta": "rehearsal, not a "}
-{"type": "answer.draft", "attempt": 1, "delta": "forecast."}
+{"type": "answer.draft", "attempt": 1, "delta": "In the Storm at the school run rehearsal, a trip from Lakeside Mall Car Park B to SK Denai Alam by car leaving at 07:30 found no way through: the river at +3 m cut an unnamed street, the street on Persiaran Alstonia."}
+{"type": "answer.draft", "attempt": 1, "delta": " A rehearsal, not a forecast."}
 {"type": "answer.check", "attempt": 1, "ok": true, "issues": [], "repairs": 0}
 {"type": "text.delta", "delta": "In the Storm at the school run rehearsal"}
 {"type": "text.delta", "delta": ", a trip from Lakeside Mall Car Park B t"}

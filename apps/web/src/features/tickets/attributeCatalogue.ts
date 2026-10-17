@@ -22,6 +22,7 @@ const ENUMS: Record<string, string[]> = {
   ],
   surface_condition: ["good", "uneven", "obstructed"],
   kerb: ["flush", "lowered", "raised", "rolled"],
+  crossing: ["traffic_signals", "marked", "unmarked", "no"],
   shelter: ["covered", "partial", "none"],
   door_type: ["automatic", "push", "pull", "sliding", "revolving", "none"],
 };

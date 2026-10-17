@@ -4,6 +4,7 @@ import hashlib
 import heapq
 import itertools
 import math
+from typing import Any
 
 import networkx as nx
 
@@ -408,6 +409,7 @@ def _route_from_nodes(world, nodes, keys, from_id, to_id, profile, scenario_id, 
         geometry={"type": "LineString", "coordinates": coords},
     )
     route.max_gap_between_rest_m = _max_rest_gap(world, nodes, keys, {r["node_id"] for r in rest})
+    route.crossings = route_crossings(world, segs)
     ev_list = evidence_for_route(world, route)
     route.evidence_ids = list(dict.fromkeys(ev.id for ev in ev_list))
     route.demo_evidence = any(ev.source_type == PLACEHOLDER_SOURCE for ev in ev_list)
@@ -588,6 +590,25 @@ def _with_rest(result: RouteResult, limit: float, truncated: bool = False) -> Ro
             "rest-point search stopped early; a route with closer rest points may exist"
         )
     return result
+
+
+def route_crossings(world: World, segs: list) -> list[dict[str, Any]]:
+    """The crossing segments a route uses, with their recorded crossing type (None if unknown)."""
+    out = []
+    for s in segs:
+        e = world.edges[s.edge_id]
+        if e.type != "crossing":
+            continue
+        c = e.claims.get("crossing")
+        out.append(
+            {
+                "element_id": e.id,
+                "name": e.name,
+                "crossing": c.value if c is not None else None,
+                "status": c.status if c is not None else "unknown",
+            }
+        )
+    return out
 
 
 def rest_gap_text(gap: float, limit: float) -> str:

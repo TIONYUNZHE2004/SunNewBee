@@ -14,7 +14,7 @@ def ctx(tmp_path):
     return tools.Ctx(world=load_world(TINY), vrs=VerificationStore(str(tmp_path / "vr.db")))
 
 
-MOCK = AgentSettings(_env_file=None, llm_provider="mock")
+MOCK = AgentSettings(_env_file=None, llm_provider="mock", assistant_scope="all")
 ACCESS_Q = "Can I push a stroller from Car Park B to the playground without stairs?"
 
 
@@ -1158,3 +1158,9 @@ def test_frame_follows_the_question_language(ctx):
         e.delta for e in run_mod._answer_events(ans, rec_, ctx, lang="zh") if e.type == "text.delta"
     )
     assert zh.startswith("路线状态: 部分未核实") and "注意事项：" in zh
+
+
+@pytest.fixture(autouse=True)
+def _legacy_scope(monkeypatch):
+    # These existing engine/pipeline regressions explicitly retain all legacy features.
+    monkeypatch.setenv("ASSISTANT_SCOPE", "all")
