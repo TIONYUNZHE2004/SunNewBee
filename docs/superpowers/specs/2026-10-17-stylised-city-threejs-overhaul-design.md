@@ -77,8 +77,8 @@ It must look that way **in every time of day**, not just at night. It must also 
   - Final assets come from **committed Blender Python scripts** run headless (`blender --background --python <script>`), so every archetype and prop can be regenerated.
   - Bake AO and lightmaps where it pays off, and export glTF (`.glb`, Draco or meshopt compressed).
 - **Asset sources and licences are unrestricted for this work** (owner ruling): paid assets, CC-BY, Sketchfab and AI generators are all fine.
-  - Still keep a credits file (`apps/web/public/stylised/CREDITS.md` or similar) listing each third-party asset and its licence. It costs little and keeps attribution honest.
-  - The AGENTS.md dependency rule is waived for this work only. Prefer permissive npm packages anyway.
+  - This matches AGENTS.md since the 2026-10-17 merge from main: any licence is acceptable (ruling W1). Still prefer MIT, Apache-2.0 or BSD for npm packages, and pin exact versions.
+  - Record every third-party asset and copied source in the root [CREDITS.md](../../../CREDITS.md): URL, licence, files, and where they now live.
 
 ### 2.3 Google data exemption (scoped, do not spread)
 - **Allowed for this overhaul only:**
@@ -150,6 +150,8 @@ An unmatched footprint gets the neutral generic, never a guessed archetype. Reco
 - The sun position is computed from Elmina's latitude and longitude and the date.
 - Day, Dusk and Night are **keyframes** with continuous transitions between them, not three hard switches.
 
+**During Elmina Day playback** (`useScene().day.on`), lighting follows the **playback clock** `day.t` (minutes after midnight), not the real clock. Playback becomes "watch Elmina through a day": sunrise at about 07:00 in the simulation, night after about 20:00. When playback stops, lighting returns to auto or the pinned mode, through the normal smooth transition. (Owner ruling Q26, 2026-10-17.)
+
 The user can **pin** Day, Dusk or Night. An accelerated cycle (for example, one day in about 10 minutes) is a possible later option; do not build it now unless it comes cheap.
 
 Each keyframe is art-directed separately:
@@ -177,6 +179,11 @@ Expected techniques (the plan decides the details):
   - **fewer at night, but still clearly present**: the owner said night must not be too empty.
 - Activity clusters near schools, the mall and parks.
 - Also: birds (visible at the camera scale used), tree sway, water shimmer, night window flicker, and drifting cloud shadows by day.
+- **Decorative people and vehicles fade out while Elmina Day or Rollout playback is on** (`useScene().day.on` or `useScene().rollout.on`), and fade back when it stops.
+  - During playback only the simulated residents from `DayLayer` and `RolloutLayer` are on the map. Those are simulation output, coloured by state, and decoration must never be mistaken for them.
+  - Birds, sway, water and window flicker may stay, since they cannot be read as residents.
+  - Restyle the simulated residents to fit the new look, keeping their state colours (yellow walking, blue driving, red waiting for the water).
+  - (Owner ruling Q25, 2026-10-17.)
 - Keep ADR 0011's gating: pause when the tab is hidden or the map is off screen; stop when Motion is off or `prefers-reduced-motion` is set.
 - Animation must use real time, not frame count (0011's Cesium flap and sway sped up with camera motion; do not repeat that).
 
@@ -208,7 +215,14 @@ Expected techniques (the plan decides the details):
   - Recommended: when the style is stylised, mount a new `three/` renderer (for example, `apps/web/src/features/scene/three/ThreeScene.tsx`) **instead of** the Cesium Viewer, keeping one "3D" view and the existing Stylised/Realistic switch.
   - `selectView.ts` (`View = "cesium" | "mapbox" | "list"`) may need a rename or extension. The plan decides, but the user-facing switcher should stay simple.
   - The error-boundary fallback chain must still work: Three.js fails → Mapbox → List.
-- **Overlay layers to port:** Cesium versions live in `cesium/layers.tsx`: `AccessLayer`, `GapsLayer`, `RouteLayer`, `FloodLayer`, `WasteLayer`, plus place markers, the "Why this path?" pick and the place card. Port each to Three.js with the same data sources and semantics. Routes and paths must draw above ground decoration and never be hidden by props or buildings (use depth bias, a slight lift, or an overlay pass).
+- **Overlay layers to port:** Cesium versions live in `cesium/layers.tsx`:
+  - `AccessLayer`, `GapsLayer`, `RouteLayer`, `FloodLayer`, `WasteLayer`;
+  - `WhatIfLayer`: an imagined-change diff from `useScene().whatIf`, never a real route;
+  - `RolloutLayer` (`cesium/RolloutLayer.tsx`): rising-river rollout, synthetic residents per river stage, from `useScene().rollout`;
+  - `DayLayer` (`cesium/DayLayer.tsx`): the Elmina Day playback, synthetic residents moving along engine-computed paths (yellow walking, blue driving, red waiting for the water), clocked by `useScene().day.t`;
+  - place markers, the "Why this path?" pick and the place card.
+
+  The last three arrived from main on 2026-10-17. Re-read `layers.tsx` and `sceneStore.ts` before planning, since the teammate's work keeps moving. Port each to Three.js with the same data sources and semantics. Routes and paths must draw above ground decoration and never be hidden by props or buildings (use depth bias, a slight lift, or an overlay pass).
 - **Data endpoints:**
   - `GET /layers/buildings` (`apps/api/src/townshiplens_api/routes/core.py`) returns buildings, trees, hydrology, parks and `as_of`, with ETag; 404 when the world has none.
   - New seed outputs need endpoint fields or new endpoints, then `pnpm gen` and a committed `packages/api-client`: archetype per building, sampled heights, land cover, signage with sources, landmark placements.
@@ -266,6 +280,7 @@ Put them side by side with the reference image. **The owner decides pass or fail
 **Honesty checks (tests):**
 - decorative layers are not pickable;
 - no sign renders without a source;
+- decorative people and vehicles are hidden while Day or Rollout playback is on;
 - flood draws no water surface or depth;
 - decorative water never touches flood layers;
 - the disclaimer is present.

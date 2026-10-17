@@ -14,6 +14,7 @@ The owner wants a viewer to see Elmina's daily life at a glance, the way SimCity
   - Densities follow the time of day: busy in the day, a commuter rush at dusk, and fewer at night but never empty.
   - They cluster near schools, the mall and parks.
   - They are never pickable, never described by the assistant, and covered by the "illustrative" label.
+  - They fade out while Elmina Day or Rollout playback is on, so they can never be mistaken for simulated residents. These are simulation output, coloured by state.
 - **Variety at true scale.**
   - Each kind (people, vehicles, trees) has several variants plus colour and size jitter, so no two neighbours look the same.
   - People span ages, builds and local dress.
