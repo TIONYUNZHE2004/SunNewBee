@@ -32,11 +32,12 @@ from .events import (
     ToolResultEvent,
     VerificationRequested,
 )
+from .facts import tool_values
 from .labels import crossing_note, enrich_unknowns
 from .mock import mock_model
 from .record import TurnRecord
 from .settings import AgentSettings
-from .validate import issue_labels, payload_measures, repair_answer, validate_answer
+from .validate import issue_labels, repair_answer, validate_answer
 
 SYSTEM = (Path(__file__).parent / "prompts" / "system.md").read_text(encoding="utf-8")
 
@@ -427,7 +428,7 @@ async def call_tool(deps: Deps, name: str, **kwargs: Any) -> dict:
         rec.scenarios_used.add(ui_scenario(deps))
     await _emit(deps, ToolResultEvent(id=call_id, name=name, summary=_summarise(name, res)))
     out = _for_model(name, _without_closure_notes(res.model_dump(mode="json")))
-    for unit, vals in payload_measures(out).items():
+    for unit, vals in tool_values(out).items():
         rec.tool_measures.setdefault(unit, set()).update(vals)
     return out
 

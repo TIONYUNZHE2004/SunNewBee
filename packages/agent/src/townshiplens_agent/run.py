@@ -26,6 +26,7 @@ from .events import (
     TextDelta,
     Uncertainty,
 )
+from .facts import extract_facts
 from .labels import (
     CLOSURE_WORDS,
     FRAME,
@@ -406,6 +407,10 @@ async def run_turn(
     # PDPA (audit F4): IC, phone and email never reach the provider, memory or the template.
     question = redact(req.message)
     rec = record or TurnRecord()
+    # Stages the resident named, and the stages the world has scenarios for ("+1 m to +5 m").
+    rec.asked_stages = {f.value for f in extract_facts(question) if f.kind == "stage"} | {
+        float(s.stage_m) for s in ctx.world.flood.scenarios if s.stage_m is not None
+    }
     rec.queue = asyncio.Queue()
     rec.history_simulated = memory.simulated(req.session_id)
     deps = agent_mod.Deps(ctx=ctx, rec=rec, request=req)

@@ -19,6 +19,7 @@ def rec():
     )
     r.routes["rt-1"] = {"id": "rt-1", "distance_m": 440.6, "est_minutes": 6.3}
     r.route_status["rt-1"] = "confirmed"
+    r.scenarios_used = {"stage_p3m"}  # licenses "+3 m"
     return r
 
 
@@ -60,11 +61,12 @@ def test_engine_numbers_and_their_roundings_pass(text):
 )
 def test_invented_measurements_are_rejected(text):
     errs = measurement_errors(ans(text), rec())
-    assert errs and "do not appear in this turn's tool results" in errs[0]
+    assert errs and "do not match this turn's tool results" in errs[0]
 
 
-def test_cannot_answer_and_place_names_are_not_measured():
-    assert measurement_errors(ans("I can't check 950 m paths.", "cannot_answer"), rec()) == []
+def test_place_names_are_not_measured_but_refusals_are():
+    # T-001: a refusal licenses no assertion (audit A2 "refusal bypass").
+    assert measurement_errors(ans("It is 950 m long.", "cannot_answer"), rec())
     r = rec()
     r.place_names = {"Jalan 3 Km"}
     assert measurement_errors(ans("Route status: confirmed. Via Jalan 3 Km."), r) == []

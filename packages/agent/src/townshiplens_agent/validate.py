@@ -3,6 +3,8 @@ import re
 from townshiplens_spatial.attributes import ATTRIBUTE_TYPES
 
 from .answer import FinalAnswer
+from .facts import _matches as _fact_matches
+from .facts import extract_facts, merge, tool_values, unsupported, unsupported_features
 from .labels import (
     CLOSURE_WORDS,
     DEMO_CONFIRMED,
@@ -301,129 +303,79 @@ def _strip_names(text: str, names: set[str]) -> str:
     return text
 
 
-# Measurements in an answer (audit F2): "440 m", "0.44 km", "6 minutes", "3%", "1.5 metres",
-# "300米", "6分钟". A river stage written "+3 m" is a scenario label, not a measurement.
-_MEASURE = re.compile(
-    r"(?<![A-Za-z0-9_.,/+])(\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+(?:\.\d+)?)\s?"
-    r"(km|kilomet(?:re|er)s?|cm|m|metres?|meters?|meter|mins?|minutes?|minit|%|米|公里|千米|分钟|分)"
-    r"(?![a-z])",
-    re.IGNORECASE,
-)
-_SKIP_KEYS = {"coordinates", "geometry", "bbox", "coord", "lat", "lon", "lng", "diff_geojson"}
-_ID_VALUE = re.compile(r"^[a-z_]+[-:][\w.:-]+$|^[0-9a-f]{8,}$", re.IGNORECASE)
-_NUM_IN_TEXT = re.compile(r"(?<![\w.,/])(\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+(?:\.\d+)?)")
-
-
-def _unit_of_key(key: str) -> str:
-    """The unit a payload key's number is in: metres, minutes, percent, else "any"."""
-    k = key.lower()
-    if k.endswith(("_m", "_metres", "_meters")) or k in ("distance", "length", "walk_m"):
-        return "m"
-    if "minute" in k or k.endswith("_min"):
-        return "min"
-    if k.endswith("_pct") or "percent" in k:
-        return "pct"
-    return "any"
-
-
-def payload_measures(payload) -> dict[str, set[float]]:
-    """Numbers a tool result shows, by unit: {"m", "min", "pct"} from keys such as distance_m,
-    est_minutes or incline_pct, and "any" for the rest (numbers in readable strings such as
-    "River +3 m", evidence values, counts). Ids, keys and geometry are never read."""
-    out: dict[str, set[float]] = {"m": set(), "min": set(), "pct": set(), "any": set()}
-
-    def walk(x, key: str = "") -> None:
-        if key in _SKIP_KEYS or key in ("id", "ids") or key.endswith(("_id", "_ids")):
-            return
-        if isinstance(x, bool):
-            return
-        if isinstance(x, int | float):
-            out[_unit_of_key(key)].add(float(x))
-        elif isinstance(x, str):
-            if not _ID_VALUE.match(x):
-                out["any"].update(float(n.replace(",", "")) for n in _NUM_IN_TEXT.findall(x))
-        elif isinstance(x, dict):
-            for k, val in x.items():
-                walk(val, str(k))
-        elif isinstance(x, list):
-            out["any"].add(float(len(x)))
-            for val in x:
-                walk(val, key)
-
-    walk(payload)
-    return out
-
-
 def payload_numbers(payload) -> set[float]:
-    """Every number a tool result shows, whatever its unit."""
-    return set().union(*payload_measures(payload).values())
+    """Every number a tool result shows, whatever it measures (facts.tool_values)."""
+    return set().union(*tool_values(payload).values())
 
 
-def _exact(x: float, v: float) -> bool:
-    return abs(x - v) < 1e-9 or any(abs(x - round(v, d)) < 1e-9 for d in (2, 1))
+_STAGE_ID = re.compile(r"^stage_p(\d+(?:\.\d+)?)m$")
 
 
-def _close(x: float, v: float) -> bool:
-    """x is v, or v rounded the way people say it: to fewer decimals, or to a nearby round number
-    ("about 440 m", "under 500 m", "a 7-minute walk" for 6.3) within 15 %."""
-    if _exact(x, v) or abs(x - round(v)) < 1e-9:
-        return True
-    if abs(x - v) > 0.15 * abs(v):
-        return False
-    return any(abs(x / s - round(x / s)) < 1e-9 for s in (1, 5, 10, 50, 100))
-
-
-def _measure_unit(unit: str) -> tuple[str, float]:
-    """(unit class, factor to that class) for a unit written in an answer."""
-    u = unit.lower()
-    if u.startswith(("km", "kilomet")) or u in ("公里", "千米"):
-        return "m", 1000.0
-    if u in ("m", "metre", "metres", "meter", "meters", "米"):
-        return "m", 1.0
-    if u.startswith("min") or u in ("分钟", "分"):
-        return "min", 1.0
-    if u == "%":
-        return "pct", 1.0
-    return "any", 1.0  # cm: only an exact number a tool showed
+def _recorded_values(rec: TurnRecord) -> dict[str, set[float]]:
+    """Typed values the model was shown this turn (call_tool), plus the routes, evidence and
+    results recorded from the same tool calls (so hand-built records in tests count too), the
+    river stages of the scenarios used, and the stages the resident asked about."""
+    stages = {
+        float(m.group(1))
+        for sid in [*rec.scenarios_used, *rec.day_stages]
+        if isinstance(sid, str) and (m := _STAGE_ID.match(sid))
+    }
+    return merge(
+        {"stage": stages | rec.asked_stages},
+        rec.tool_measures,
+        tool_values(
+            {
+                "routes": list(rec.routes.values()),
+                "evidence": [e.model_dump(mode="json") for e in rec.evidence.values()],
+                "what_ifs": rec.what_ifs,
+                "plans": rec.plans,
+                "closures": list(rec.closures.values()),
+            }
+        ),
+    )
 
 
 def measurement_errors(ans: FinalAnswer, rec: TurnRecord) -> list[str]:
-    """Audit F2: every distance, time or percentage in the answer must be a number a tool showed
-    this turn in the same unit (or a rounding of one). Numbers whose unit the tool did not state
-    (evidence values, text) must match exactly; kilometres are compared with metres."""
-    if ans.answer_status == "cannot_answer" or not rec.tool_calls:
-        return []
+    """Audit A2 / F2 (T-001): every fact the answer states must match a tool field of the same
+    kind (facts.py): a distance a distance, a width a width, a step count a step count. This
+    applies to refusals too: cannot_answer licenses no assertion. A claim's steps, width or slope
+    must match the evidence it cites, and a feature ("a baby changing room", "a lift") needs
+    evidence that records it."""
     parts = [ans.summary, *(_STEP_NUMBER.sub("", s) for s in ans.steps), *ans.caveats]
     parts += [c.text for c in ans.claims]
     text = _strip_names(" ".join(parts), rec.place_names)
-    # What the model was shown, plus the routes and evidence recorded from the same results.
-    seen = payload_measures(
-        {
-            "routes": list(rec.routes.values()),
-            "evidence": [e.model_dump(mode="json") for e in rec.evidence.values()],
-            "what_ifs": rec.what_ifs,
-            "plans": rec.plans,
-            "closures": list(rec.closures.values()),
-        }
-    )
-    for k, vals in rec.tool_measures.items():
-        seen.setdefault(k, set()).update(vals)
-    bad = []
-    for m in _MEASURE.finditer(text):
-        x = float(m.group(1).replace(",", ""))
-        cls, factor = _measure_unit(m.group(2))
-        xs = x * factor
-        ok = any(_exact(x, v) or _exact(xs, v) for v in seen["any"]) or any(
-            _close(xs, v) or (factor != 1 and _close(x, v / factor)) for v in seen.get(cls, ())
+    errs: list[str] = []
+    # Rehearsal clock durations ("over 2 hours") are checked by day_errors, not here.
+    skip = {"time"} if rec.days or rec.day_changes else set()
+    if bad := unsupported(text, _recorded_values(rec), skip=skip):
+        errs.append(
+            f"Facts {sorted(set(bad))} do not match this turn's tool results: state distances, "
+            "times, widths, slopes, step counts and other counts only as a tool returned them "
+            "(round only with 'about'; never 'exactly' a rounded number)."
         )
-        if not ok:
-            bad.append(m.group(0).strip())
-    if bad:
-        return [
-            f"Measurements {sorted(set(bad))} do not appear in this turn's tool results: quote "
-            "distances, times and slopes only as the tools returned them (rounding is fine)."
+    for c in ans.claims:
+        cited = [
+            rec.evidence[i].model_dump(mode="json") for i in c.evidence_ids if i in rec.evidence
         ]
-    return []
+        own = tool_values({"evidence": cited})
+        wrong = [
+            f.raw
+            for f in extract_facts(_strip_names(c.text, rec.place_names))
+            if f.kind in ("steps", "width", "slope")
+            and not any(_fact_matches(f, x) for x in own.get(f.kind, ()))
+        ]
+        if wrong:
+            errs.append(
+                f"Claim {c.text!r} states {sorted(set(wrong))}, which its cited evidence does not "
+                "record: cite the evidence of that attribute, or remove the number."
+            )
+    pairs = [(e.attribute, e.value) for e in rec.evidence.values()]
+    if feats := unsupported_features(text, pairs):
+        errs.append(
+            f"The answer states {feats}, which no tool recorded this turn: describe only "
+            "recorded facts, or say the feature is not recorded."
+        )
+    return errs
 
 
 # Audit F3: promises the data cannot back ("I guarantee", "no risk", "totally accessible"), in
@@ -1383,7 +1335,9 @@ _ISSUES = (
         "Confirmed routes in this simulation rest on demo values",
         "left out that values are demo values",
     ),
-    ("do not appear in this turn's tool results", "used a distance or time no check returned"),
+    ("do not match this turn's tool results", "stated a number no check returned"),
+    ("which its cited evidence does not", "gave a claim a number its evidence does not record"),
+    ("which no tool recorded this turn", "described a feature no check recorded"),
     ("Never guarantee or rule out risk", "promised more than the data shows"),
     ("caveat", "left out a required caveat"),
     ("scenario_id", "did not name the flood scenario it used"),
