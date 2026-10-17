@@ -281,6 +281,29 @@ def test_residential(residential_built, asset_id):
 
 
 MIN_FEATURE_M, MAX_FEATURE_M = 0.4, 7.0
+WALL_AO_P5 = 0.35  # 5th percentile of the AO of upper primary-wall vertices
+
+
+def _check_light_deck(colors, normals, pos) -> None:
+    """A flat roof deck is a light grey (role metal), subdivided, and not baked black: take the
+    height with the most up-facing metal vertices and require a decent mean AO there."""
+    metal = specs.ROLES.index("metal")
+    deck = [
+        (round(p[1], 2), c[0])
+        for c, n, p in zip(colors, normals, pos, strict=True)
+        if round(c[1] * 7) == metal and n[1] > 0.9
+    ]
+    assert deck, "a light-grey (role metal) roof deck"
+    levels: dict[float, list[float]] = {}
+    for y, ao in deck:
+        levels.setdefault(y, []).append(ao)
+    ys = max(levels, key=lambda k: len(levels[k]))
+    ao = levels[ys]
+    assert len(ao) >= 12, (ys, len(ao))
+    assert statistics.fmean(ao) >= 0.4, (
+        ys,
+        statistics.fmean(ao),
+    )  # measured 0.47 (highrise podium ring) to 0.7+
 
 
 def _widths(items: list[tuple[float, float]]) -> list[float]:
@@ -368,6 +391,15 @@ def test_non_residential(non_residential_built, asset_id):
         if asset_id == "highrise":
             assert abs(hi[1] - v.size[1]) <= 1.0
             assert specs.ROLES.index("foliage") in _roles(colors), "planted balconies"
+        if asset_id in ("generic", "highrise"):  # no black blotches between the windows
+            h = v.size[1]
+            wall = sorted(
+                c[0] for c, p in zip(colors, pos, strict=True) if c[1] < 0.05 and p[1] > h * 0.5
+            )
+            p5 = wall[len(wall) // 20]
+            assert p5 >= WALL_AO_P5, (lod0, p5)  # measured 0.44-0.47; the unfixed build gave 0.0
+        if asset_id in ("shop_office", "highrise", "mosque", "mall", "generic"):
+            _check_light_deck(colors, normals, pos)
         if asset_id == "generic":
             _check_scale_proof(colors, normals, pos)
         if asset_id == "factory":

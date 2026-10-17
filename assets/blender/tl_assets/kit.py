@@ -607,9 +607,17 @@ def five_foot_way(
     )
 
 
-def balcony(w: float, depth: float, y: float, *, lod: int = 0, rail_h: float = 1.0):
+def balcony(
+    w: float,
+    depth: float,
+    y: float,
+    *,
+    lod: int = 0,
+    rail_h: float = 1.0,
+    rail_role: str | None = None,
+):
     """A slab (top at y) projecting over z in [0, depth]; LOD0 adds a metal rail, LOD1 a solid
-    low parapet."""
+    low parapet. `rail_role` recolours the rail (and the LOD1 parapet)."""
     slab, rail = _Mesh(), _Mesh()
     slab.box(-w / 2, w / 2, y - 0.15, y, 0.0, depth, skip=("s0",))
     if lod == 0:
@@ -621,9 +629,13 @@ def balcony(w: float, depth: float, y: float, *, lod: int = 0, rail_h: float = 1
             rail.box(x, x + r, y, y + rail_h - r, depth - r, depth)
         for x in (-w / 2, w / 2 - r):
             rail.box(x, x + r, y + rail_h - r, y + rail_h, 0.0, depth - r, skip=("s0", "s2"))
-        return _keep(slab.obj("balcony_slab", "primary"), rail.obj("balcony_rail", "metal"))
+        return _keep(
+            slab.obj("balcony_slab", "primary"), rail.obj("balcony_rail", rail_role or "metal")
+        )
     rail.box(-w / 2, w / 2, y, y + rail_h * 0.9, depth - 0.1, depth, skip=("bottom", "s0"))
-    return _keep(slab.obj("balcony_slab", "primary"), rail.obj("balcony_parapet", "primary"))
+    return _keep(
+        slab.obj("balcony_slab", "primary"), rail.obj("balcony_parapet", rail_role or "primary")
+    )
 
 
 def gate_and_fence(
@@ -819,10 +831,12 @@ def block(
     role: str,
     *,
     name: str = "block",
+    closed: bool = False,
 ):
-    """A plain axis-aligned box (no bottom face) with `role`: a low wall, a hedge, a curb."""
+    """A plain axis-aligned box (no bottom face unless `closed`) with `role`: a low wall, a
+    hedge, a curb, a slab seen from below."""
     m = _Mesh()
-    m.box(x0, x1, y0, y1, z0, z1)
+    m.box(x0, x1, y0, y1, z0, z1, skip=() if closed else ("bottom",))
     return _keep(m.obj(name, role))
 
 
@@ -883,6 +897,24 @@ def window_panes(
     out = [m.obj(f"panes_{face}_{i}", "glass", seeds[i]) for i, m in enumerate(glass)]
     out.append(frame.obj(f"panes_{face}_frame", "dark"))
     return _keep(*out)
+
+
+def pane_cover(
+    face: str,
+    *,
+    cols: Sequence[float],
+    rows: Sequence[float],
+    ww: float,
+    wh: float,
+    border: float = 0.1,
+) -> list[tuple[str, float, float, float, float]]:
+    """The wall areas `window_panes` (same arguments) hides, for `walls(covered=...)`: building
+    no wall behind a pane avoids the black AO of wall vertices that sit 4 cm under the glass."""
+    return [
+        (face, u - ww / 2 - border, u + ww / 2 + border, v - border, v + wh + border)
+        for u in cols
+        for v in rows
+    ]
 
 
 def prism(

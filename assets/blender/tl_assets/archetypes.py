@@ -413,6 +413,7 @@ def _townhouse(variant: Variant, lod: int) -> list:
 
 FIVE_FOOT = 1.8  # covered walkway depth, inside the shop-office size
 SHOP_STOREY = 3.8  # ground storey (shopfront); the upper floors sit on the five-foot way
+DECK = "metal"  # roof decks seen from above: light grey, never the black of a bare AO deck
 
 
 def _spread(length: float, n: int) -> list[float]:
@@ -420,9 +421,41 @@ def _spread(length: float, n: int) -> list[float]:
     return [(k + 0.5) * length / n - length / 2 for k in range(n)]
 
 
+class _Panes:
+    """Applied windows for one wall volume: the wall is built with `covered()` (no wall behind a
+    pane, so no black AO vertices under the glass) and the glass comes from `build()`."""
+
+    def __init__(self, w: float, d: float) -> None:
+        self.w, self.d = w, d
+        self.specs: list[tuple] = []
+
+    def add(self, face, cols, rows, ww, wh, border=0.1) -> None:
+        self.specs.append((face, list(cols), list(rows), ww, wh, border))
+
+    def covered(self, lod: int, extra=()) -> list:
+        """Wall areas to leave out. Only LOD0 does it for the panes: at LOD1 the walls are a few
+        big quads (corners clear of the glass) and the cuts would cost triangles."""
+        out = list(extra)
+        if lod > 0:
+            return out
+        for face, cols, rows, ww, wh, border in self.specs:
+            out += kit.pane_cover(face, cols=cols, rows=rows, ww=ww, wh=wh, border=border)
+        return out
+
+    def build(self, lod: int) -> list:
+        out: list = []
+        for face, cols, rows, ww, wh, border in self.specs:
+            out += kit.window_panes(
+                face, self.w, self.d, cols=cols, rows=rows, ww=ww, wh=wh, lod=lod, border=border
+            )
+        return out
+
+
 def _shop_office(variant: Variant, lod: int) -> list:
-    """One 22-foot shophouse unit: a shopfront under a covered five-foot way, two floors of large
-    windows above it (cantilevered over the way), a blank sign band, a flat roof with parapet."""
+    """One 22-foot shophouse unit after the Jumpa shop offices: brick (accent) pilasters at the
+    unit edges, two floors of tall dark-framed glass bays between white spandrels, a white
+    parapet and cornice, a blank sign band over the shopfront and a deep canopy in front of the
+    five-foot way. (Ground + two upper floors = 3 storeys in the 11 m size.)"""
     w, h, d = variant.size
     if lod >= 2:
         return kit.far_block((w, h, d), "flat")
@@ -430,6 +463,7 @@ def _shop_office(variant: Variant, lod: int) -> list:
     eave = h - parapet
     up_h = eave - SHOP_STOREY
     gd = d - FIVE_FOOT  # ground block depth; the walkway takes the rest
+    pil = 0.55  # pilaster width
     ground = kit.walls(
         w,
         gd,
@@ -443,18 +477,37 @@ def _shop_office(variant: Variant, lod: int) -> list:
         cell=(1.6, 1.4),
     )
     objs = kit.place(ground, z=-FIVE_FOOT / 2)
-    upper = kit.walls(w, d, up_h, openings=[], lod=lod, cell=(1.6, 1.6))
-    upper += kit.window_panes(
-        "front", w, d, cols=[0.0], rows=[1.1, 4.3], ww=w - 1.4, wh=1.9, lod=lod, border=0.12
+    pn = _Panes(w, d)
+    bay = w - 2 * pil - 0.9
+    pn.add("front", [-bay / 4 - 0.05, bay / 4 + 0.05], [1.15, 3.75], bay / 2 - 0.2, 2.0, 0.15)
+    pn.add("back", [-1.5, 1.5], [1.1, 4.3], 1.6, 1.6)
+    cov = [("front", -w / 2, -w / 2 + pil, 0.0, up_h), ("front", w / 2 - pil, w / 2, 0.0, up_h)]
+    upper = kit.walls(
+        w, d, up_h, openings=[], lod=lod, cell=(1.6, 1.6), covered=pn.covered(lod, cov)
     )
-    upper += kit.window_panes(
-        "back", w, d, cols=[-1.5, 1.5], rows=[1.1, 4.3], ww=1.6, wh=1.6, lod=lod
-    )
-    upper += kit.flat_roof(w, d, up_h, parapet)
+    upper += pn.build(lod)
+    upper += kit.flat_roof(w, d, up_h, parapet, deck_role=DECK, cell=2.0)
     objs += kit.place(upper, y=SHOP_STOREY)
+    front = kit.panel(-w / 2, -w / 2 + pil, 0.0, up_h, depth=0.22, role="accent")
+    front += kit.panel(w / 2 - pil, w / 2, 0.0, up_h, depth=0.22, role="accent")
+    front += kit.panel(-w / 2 + pil, w / 2 - pil, 3.2, 3.55, depth=0.12, role="primary")  # spandrel
+    front += kit.panel(-w / 2, w / 2, up_h - 0.3, up_h + 0.05, depth=0.3, role="primary")  # cornice
+    objs += kit.place(front, y=SHOP_STOREY, z=d / 2)
     objs += kit.place(kit.five_foot_way(w, FIVE_FOOT, SHOP_STOREY), z=d / 2)
-    band = kit.sign_band(w - 0.8, 0.8, SHOP_STOREY + 0.1)  # blank: role light, no text
+    band = kit.sign_band(w - 2 * pil - 0.2, 0.8, SHOP_STOREY + 0.1)  # blank: role light, no text
     objs += kit.place(band, z=d / 2)
+    # a deep canopy over the pavement in front of the five-foot way
+    objs += kit.block(
+        -w / 2 + 0.1,
+        w / 2 - 0.1,
+        3.4,
+        3.6,
+        d / 2,
+        d / 2 + 0.8,
+        "primary",
+        name="canopy",
+        closed=True,
+    )
     if lod == 0:
         objs += kit.place(kit.ac_units(2, "back", w=w, d=d, y=SHOP_STOREY + 1.0, u=1.0))
         objs += kit.block(
@@ -476,6 +529,9 @@ def _highrise(variant: Variant, lod: int) -> list:
     wt, dt = w - 6.0, d - 6.0
     cols = _spread(wt, max(3, int(wt // 3.2)))
     rows = [k * fh + 0.9 for k in range(n)]
+    pp = _Panes(w, d)
+    for face, length in (("back", w), ("left", d), ("right", d)):
+        pp.add(face, _spread(length - 2, 6 if length == w else 4), [4.0], 2.0, 1.8)
     pod = kit.walls(
         w,
         d,
@@ -483,23 +539,29 @@ def _highrise(variant: Variant, lod: int) -> list:
         openings=[Opening("front", 0.0, 0.1, 8.0, 3.8, "shopfront")],
         lod=lod,
         cell=(3.2, 3.5),
+        covered=pp.covered(lod),
     )
-    for face, length in (("back", w), ("left", d), ("right", d)):
-        cs = _spread(length - 2, 6 if length == w else 4)
-        pod += kit.window_panes(face, w, d, cols=cs, rows=[4.0], ww=2.0, wh=1.8, lod=lod)
-    pod += kit.flat_roof(w, d, podium, 0.6)
+    pod += pp.build(lod)
+    pod += kit.flat_roof(w, d, podium, 0.6, deck_role=DECK, cell=3.0)
     objs = pod
-    tower = kit.walls(wt, dt, top - podium, openings=[], lod=lod, cell=(4.0, 4.0))
+    tp = _Panes(wt, dt)
     for face, length in (("front", wt), ("back", wt), ("left", dt), ("right", dt)):
         if lod == 0:
             cs = cols if length == wt else _spread(dt, max(3, int(dt // 3.2)))
-            tower += kit.window_panes(face, wt, dt, cols=cs, rows=rows, ww=2.2, wh=1.7, lod=lod)
+            tp.add(face, cs, rows, 2.2, 1.7)
         else:  # LOD1: one glass ribbon per floor
-            tower += kit.window_panes(
-                face, wt, dt, cols=[0.0], rows=rows, ww=length - 1.2, wh=1.7, lod=lod
-            )
+            tp.add(face, [0.0], rows, length - 1.2, 1.7)
+    bands = []  # a slab edge every storey: the wall is left out behind it
     if lod == 0:
-        for k in range(1, n):  # floor bands: a slab edge every storey
+        for k in range(1, n):
+            for face, length in (("front", wt), ("back", wt), ("left", dt), ("right", dt)):
+                bands.append((face, -length / 2, length / 2, k * fh - 0.14, k * fh + 0.14))
+    tower = kit.walls(
+        wt, dt, top - podium, openings=[], lod=lod, cell=(4.0, 4.0), covered=tp.covered(lod, bands)
+    )
+    tower += tp.build(lod)
+    if lod == 0:
+        for k in range(1, n):
             y = k * fh
             tower += kit.block(
                 -wt / 2 - 0.1,
@@ -511,9 +573,7 @@ def _highrise(variant: Variant, lod: int) -> list:
                 "secondary",
                 name="floor_band",
             )
-        for k in range(1, n):  # planted balconies on the two long faces
-            y = k * fh
-            for c in (cols[1], cols[-2]):
+            for c in (cols[1], cols[-2]):  # planted balconies on the two long faces
                 for s in (1.0, -1.0):
                     z0, z1 = (dt / 2, dt / 2 + 1.2) if s > 0 else (-dt / 2 - 1.2, -dt / 2)
                     tower += kit.block(
@@ -523,7 +583,7 @@ def _highrise(variant: Variant, lod: int) -> list:
                     tower += kit.block(
                         c - 1.2, c + 1.2, y, y + 0.55, zp[0], zp[1], "foliage", name="planter"
                     )
-    tower += kit.flat_roof(wt, dt, top - podium, 1.0)
+    tower += kit.flat_roof(wt, dt, top - podium, 1.0, deck_role=DECK, cell=3.0)
     objs += kit.place(tower, y=podium)
     # crown: plant room, a lift overrun and a water tank
     objs += kit.block(
@@ -538,8 +598,8 @@ def _highrise(variant: Variant, lod: int) -> list:
 
 
 def _school(variant: Variant, lod: int) -> list:
-    """One 20 m bay of a JKR block: four storeys of classrooms, an open corridor with railings on
-    +z, a stair core at each end and a low pitched roof over everything."""
+    """One 20 m bay of a JKR block: four storeys of classrooms, an open corridor with accent
+    railings on +z, a stair core at each end and a low pitched roof with an accent fascia."""
     w, h, d = variant.size
     pitch = 14.9
     if lod >= 2:
@@ -554,28 +614,57 @@ def _school(variant: Variant, lod: int) -> list:
         for u in _spread(bw, 4)
         for v in (0.0, 3.0, 6.0, 9.0)
     ]
-    body = kit.walls(
-        bw, bd, eave, openings=doors, lod=lod, cell=(2.4, 1.5), faces=("front", "back")
-    )
     rows = [k * storey + 1.0 for k in range(4)]
-    # front: between the doors; back: one per bay. Every pane stays inside the body wall.
-    for face, cols in (("front", _spread(bw, 4)[:-1]), ("back", _spread(bw, 4))):
-        if face == "front":
-            cols = [c + bw / 8 for c in cols]
-        body += kit.window_panes(face, bw, bd, cols=cols, rows=rows, ww=1.6, wh=1.2, lod=lod)
+    pn = _Panes(bw, bd)
+    pn.add("front", [c + bw / 8 for c in _spread(bw, 4)[:-1]], rows, 1.6, 1.2)
+    pn.add("back", _spread(bw, 4), rows, 1.6, 1.2)
+    body = kit.walls(
+        bw,
+        bd,
+        eave,
+        openings=doors,
+        lod=lod,
+        cell=(2.4, 1.5),
+        faces=("front", "back"),
+        covered=pn.covered(lod),
+    )
+    body += pn.build(lod)
     objs = kit.place(body, z=zb)
     for sx, face in ((-1.0, "left"), (1.0, "right")):
-        core = kit.walls(
-            core_w, d, eave, openings=[], lod=lod, cell=(1.5, 2.0), faces=("front", "back", face)
-        )
+        cp = _Panes(core_w, d)
         for f in ("front", "back"):
-            core += kit.window_panes(
-                f, core_w, d, cols=[0.0], rows=[1.6], ww=1.0, wh=eave - 3.2, lod=lod, border=0.12
-            )
+            cp.add(f, [0.0], [1.6], 1.0, eave - 3.2, 0.12)
+        core = kit.walls(
+            core_w,
+            d,
+            eave,
+            openings=[],
+            lod=lod,
+            cell=(1.5, 2.0),
+            faces=("front", "back", face),
+            covered=cp.covered(lod),
+        )
+        core += cp.build(lod)
         objs += kit.place(core, x=sx * (w / 2 - core_w / 2))
-    for k in range(1, 4):  # corridor floors with railings, between the cores
-        objs += kit.place(kit.balcony(bw, corridor, k * storey, lod=lod), z=d / 2 - corridor)
+    for k in range(1, 4):  # corridor floors with accent railings, between the cores
+        bal = kit.balcony(bw, corridor, k * storey, lod=lod, rail_role="accent")
+        objs += kit.place(bal, z=d / 2 - corridor)
     objs += kit.gable_roof(w, d, eave, pitch, 0.4, "x")
+    # a coloured fascia board along both long eaves
+    drop = 0.4 * math.tan(math.radians(pitch))
+    for s in (1.0, -1.0):
+        z0, z1 = (d / 2 + 0.4, d / 2 + 0.48) if s > 0 else (-d / 2 - 0.48, -d / 2 - 0.4)
+        objs += kit.block(
+            -w / 2 - 0.4,
+            w / 2 + 0.4,
+            eave - drop - 0.45,
+            eave - drop + 0.05,
+            z0,
+            z1,
+            "accent",
+            name="fascia",
+            closed=True,
+        )
     return objs
 
 
@@ -597,6 +686,12 @@ def _mosque(variant: Variant, lod: int) -> list:
         objs += kit.dome(0.0, zc, dome_r, hall_h + 0.8, "accent", segs=8, rings=2)
         objs += kit.prism(mx, mz, 1.5, 0.0, 1.8 * h, 4, "primary", name="minaret", phase_deg=45.0)
         return objs
+    pn = _Panes(hall_w, hall_d)
+    for face, length in (("front", hall_w), ("back", hall_w), ("left", hall_d), ("right", hall_d)):
+        cs = _spread(length - 2, 6 if length == hall_w else 5)
+        if face == "front":
+            cs = [c for c in cs if abs(c) > 4.0]
+        pn.add(face, cs, [3.2], 1.8, 3.8)
     walls = kit.walls(
         hall_w,
         hall_d,
@@ -604,15 +699,10 @@ def _mosque(variant: Variant, lod: int) -> list:
         openings=[Opening("front", 0.0, 0.0, 3.2, 4.6, "door")],
         lod=lod,
         cell=(3.6, 3.0),
+        covered=pn.covered(lod),
     )
-    for face, length in (("front", hall_w), ("back", hall_w), ("left", hall_d), ("right", hall_d)):
-        cs = _spread(length - 2, 6 if length == hall_w else 5)
-        if face == "front":
-            cs = [c for c in cs if abs(c) > 4.0]
-        walls += kit.window_panes(
-            face, hall_w, hall_d, cols=cs, rows=[3.2], ww=1.8, wh=3.8, lod=lod
-        )
-    walls += kit.flat_roof(hall_w, hall_d, hall_h, 0.8)
+    walls += pn.build(lod)
+    walls += kit.flat_roof(hall_w, hall_d, hall_h, 0.8, deck_role=DECK, cell=3.0)
     objs = kit.place(walls, z=zc)
     # front arcade between the hall's front wall and the front edge, clear of the minaret
     arcade_w, arch_h = w * 2 / 3, 4.4
@@ -650,7 +740,7 @@ def _mosque(variant: Variant, lod: int) -> list:
                     name="small",
                 )
     # minaret: square shaft, a gallery, a narrower upper shaft, a domed cap
-    g0, g1, up, cap = 1.2 * h, 1.2 * h + 0.5, 1.53 * h, 1.53 * h  # shaft, gallery, upper, cap
+    g0, g1, up, cap = 1.2 * h, 1.2 * h + 0.5, 1.53 * h, 1.53 * h
     objs += kit.prism(mx, mz, 2.1, 0.0, g0, 4, "primary", name="minaret_shaft", phase_deg=45.0)
     objs += kit.prism(
         mx, mz, gallery, g0, g1, 4, "secondary", name="minaret_gallery", phase_deg=45.0
@@ -662,47 +752,88 @@ def _mosque(variant: Variant, lod: int) -> list:
 
 
 def _factory(variant: Variant, lod: int) -> list:
-    """A portal-frame shed under a low-pitch metal roof with roller doors, and an office annex
-    on +z."""
+    """After the Elmina Business Park factory: a grey metal-clad shed (metal walls and roof) with
+    a 3-storey office block at the front (+z): a deep timber-look (accent) roof eave, a brick
+    (accent) panel, vertical louvre fins, a glazed entrance and a drive-through loading bay."""
     w, h, d = variant.size
     pitch = 10.0
     if lod >= 2:
         return kit.far_block((w, h, d), "gable", pitch_deg=pitch)
-    annex_d, annex_h, annex_w = 8.0, 6.2, 13.0
-    shed_d = d - annex_d
+    eave_o = 1.6  # the block's roof eave, so it stays within the size
+    bw = 19.8  # block width; the block sits 1.2 m in from the shed's -x end
+    bx = -w / 2 + 1.2 + bw / 2
+    bz1 = d / 2 - eave_o  # block front wall
+    shed_d = d - 14.0
     zs = -d / 2 + shed_d / 2
+    z_join = -d / 2 + shed_d  # shed front wall
+    bd = bz1 - z_join
+    zb = z_join + bd / 2
     eave = h - w / 2 * math.tan(math.radians(pitch))
+    # shed: metal-clad walls and roof, clerestory ribbons, roller doors
+    ps = _Panes(w, shed_d)
+    for face in ("left", "right"):
+        ps.add(face, _spread(shed_d - 4, 7), [eave - 2.0], 2.4, 1.0)
     shed_ops = [
-        Opening("front", 6.0, 0.0, 5.0, 5.0, "garage"),
+        Opening("front", w / 2 - 4.0, 0.0, 5.0, 5.0, "garage"),
         Opening("right", -4.0, 0.0, 4.5, 4.5, "garage"),
         Opening("left", 8.0, 0.0, 0.9, 2.1, "door"),
         Opening("back", 0.0, 0.0, 5.0, 5.0, "garage"),
     ]
-    shed = kit.walls(w, shed_d, eave, openings=shed_ops, lod=lod, cell=(4.0, 2.5))
-    for face in ("left", "right"):
-        cs = _spread(shed_d - 4, 7)
-        shed += kit.window_panes(
-            face, w, shed_d, cols=cs, rows=[eave - 2.0], ww=2.4, wh=1.0, lod=lod
-        )
-    shed += kit.gable_roof(w, shed_d, eave, pitch, 0.4, "z", roof_role="metal")
-    objs = kit.place(shed, z=zs)
-    ops = [
-        Opening("front", -2.0, 0.0, 1.0, 2.2, "door"),
-        Opening("front", 3.2, 1.0, 2.2, 1.3, "window"),
-        Opening("left", 0.0, 1.0, 2.0, 1.3, "window"),
-    ]
-    annex = kit.walls(annex_w, annex_d, annex_h, openings=ops, lod=lod, cell=(3.2, 2.2))
-    annex += kit.window_panes(
-        "front", annex_w, annex_d, cols=[-2.0, 3.2], rows=[3.8], ww=2.2, wh=1.3, lod=lod
+    hidden = [("front", -w / 2, -w / 2 + 1.2 + bw, 0.0, eave)]  # behind the office block
+    shed = kit.walls(
+        w,
+        shed_d,
+        eave,
+        openings=shed_ops,
+        lod=lod,
+        cell=(4.0, 2.5),
+        role="metal",
+        covered=ps.covered(lod, hidden),
     )
-    annex += kit.flat_roof(annex_w, annex_d, annex_h, 0.4)
-    objs += kit.place(annex, x=-w / 2 + annex_w / 2, z=d / 2 - annex_d / 2)
+    shed += ps.build(lod)
+    shed += kit.gable_roof(w, shed_d, eave, pitch, 0.4, "z", roof_role="metal", wall_role="metal")
+    objs = kit.place(shed, z=zs)
+    # office block: ground storey 3.8 m with a drive-through bay, two upper floors
+    gh, up_h = 3.8, 5.6
+    bh = gh + up_h
+    bay0, bay1 = -6.0, -0.2  # drive-through bay, along the block's front
+    pb = _Panes(bw, bd)
+    pb.add("front", [4.4], [gh + 0.4, gh + 3.0], 5.0, 1.6)
+    pb.add("left", _spread(bd - 2, 3), [gh + 0.4, gh + 3.0], 1.6, 1.6)
+    pb.add("right", _spread(bd - 2, 3), [gh + 0.4, gh + 3.0], 1.6, 1.6)
+    brick_u1 = -bw / 2 + 3.7
+    cov = [
+        ("front", bay0, bay1, 0.0, gh),  # the open drive-through
+        ("front", -bw / 2, brick_u1, 0.0, bh),  # under the brick panel
+        ("front", bay0, bay1 + 0.7, gh, bh),  # under the fins
+    ]
+    block = kit.walls(
+        bw,
+        bd,
+        bh,
+        openings=[Opening("front", 4.4, 0.1, 5.4, 3.0, "shopfront")],
+        lod=lod,
+        cell=(3.0, 2.8),
+        covered=pb.covered(lod, cov),
+    )
+    block += pb.build(lod)
+    objs += kit.place(block, x=bx, z=zb)
+    front = kit.panel(-bw / 2, brick_u1, 0.0, bh, depth=0.2, role="accent")
+    front += kit.louvre_screen(bay0, bay1 + 0.7, gh + 0.2, bh - 0.3, lod=lod, role="accent")
+    objs += kit.place(front, x=bx, z=bz1)
+    # the bay's soffit and its two columns, then the deep eave: an accent underside, a grey roof
+    bay = kit.car_porch(bay1 - bay0, bd, gh, slab=0.25, column=0.4)
+    objs += kit.place(bay, x=bx + (bay0 + bay1) / 2, z=bz1)
+    x1 = -w / 2 + 1.2 + bw + eave_o
+    objs += kit.block(-w / 2, x1, bh, bh + 0.2, z_join, d / 2, "accent", name="eave", closed=True)
+    objs += kit.block(-w / 2, x1, bh + 0.2, bh + 0.4, z_join, d / 2, "metal", name="roof")
     return objs
 
 
 def _mall(variant: Variant, lod: int) -> list:
-    """A big-box retail unit: a plain wall with accent stripes, a glazed entrance under a
-    canopy with a blank sign band, loading doors at the back and plant on the roof."""
+    """A big-box retail unit: glazed shopfront bays along the front under a deep white canopy
+    with a blank sign band, accent corner pillars, loading doors at the back, plant on a light
+    roof deck."""
     w, h, d = variant.size
     if lod >= 2:
         return kit.far_block((w, h, d), "flat")
@@ -711,23 +842,31 @@ def _mall(variant: Variant, lod: int) -> list:
     eave = h - parapet
     zb = -d / 2 + bd / 2
     ops = [
-        Opening("front", 0.0, 0.0, 16.0, 4.4, "shopfront"),
-        Opening("front", -23.0, 0.0, 3.0, 2.6, "door"),
+        Opening("front", -14.0, 0.0, 11.0, 4.4, "shopfront"),
+        Opening("front", 0.0, 0.0, 11.0, 4.4, "shopfront"),
+        Opening("front", 14.0, 0.0, 11.0, 4.4, "shopfront"),
+        Opening("front", -25.0, 0.0, 3.0, 2.6, "door"),
         Opening("back", -12.0, 0.0, 4.0, 4.2, "garage"),
         Opening("back", 0.0, 0.0, 4.0, 4.2, "garage"),
         Opening("back", 12.0, 0.0, 4.0, 4.2, "garage"),
     ]
-    body = kit.walls(w, bd, eave, openings=ops, lod=lod, cell=(6.0, 4.0))
-    body += kit.window_panes(
-        "front", w, bd, cols=[-14.0, 14.0, 22.0], rows=[5.0], ww=4.0, wh=1.4, lod=lod
-    )
-    body += kit.flat_roof(w, bd, eave, parapet)
+    pn = _Panes(w, bd)
+    pn.add("front", [c for c in _spread(w - 6, 9) if abs(c) > 8.0], [6.3], 3.4, 1.0)
+    body = kit.walls(w, bd, eave, openings=ops, lod=lod, cell=(6.0, 4.0), covered=pn.covered(lod))
+    body += pn.build(lod)
+    body += kit.flat_roof(w, bd, eave, parapet, deck_role=DECK, cell=4.0)
     objs = kit.place(body, z=zb)
-    objs += kit.place(kit.car_porch(26.0, canopy_d, 5.6, inset=0.6), z=d / 2)
+    # a deep white canopy along the whole front, on columns
+    cw = 46.0
+    objs += kit.place(kit.car_porch(cw, canopy_d, 5.6, inset=0.6), z=d / 2)
+    for x in (-cw / 2 + 11.5, 0.0, cw / 2 - 11.5):
+        objs += kit.block(
+            x - 0.3, x + 0.3, 0.0, 5.4, d / 2 - 1.0, d / 2 - 0.4, "primary", name="col"
+        )
     objs += kit.place(kit.sign_band(14.0, 1.2, 5.8), z=zb + bd / 2)
     stripes = kit.panel(-w / 2, -w / 2 + 1.5, 0.0, eave, depth=0.15, role="accent")
     stripes += kit.panel(w / 2 - 1.5, w / 2, 0.0, eave, depth=0.15, role="accent")
-    stripes += kit.panel(-w / 2, w / 2, eave - 0.9, eave, depth=0.15, role="accent")
+    stripes += kit.panel(-w / 2, w / 2, eave - 0.6, eave, depth=0.15, role="accent")
     objs += kit.place(stripes, z=zb + bd / 2)
     if lod == 0:
         for x in (-18.0, -6.0, 6.0, 18.0):  # rooftop plant
@@ -748,25 +887,27 @@ def _generic(variant: Variant, lod: int) -> list:
     # 1.5 m wide (0.45 m at 0.3x, 6 m at 4x), three columns per face.
     cols = _spread(w - 1.0, 3)
     rows = [0.9, 3.4, 5.9]
-    objs = kit.walls(w, d, eave - 0.4, openings=[], lod=lod, cell=(2.5, 2.0))
-    objs += kit.place(kit.panel(-0.7, 0.7, 0.0, 2.3, depth=0.06, role="accent"), z=d / 2)
+    pn = _Panes(w, d)
     for face in ("front", "back", "left", "right"):
-        r = rows[1:] if face == "front" and abs(cols[1]) < 0.1 else rows
-        objs += kit.window_panes(face, w, d, cols=cols, rows=r, ww=1.5, wh=1.5, lod=lod, border=0.1)
-    objs += kit.window_panes(
-        "front", w, d, cols=[cols[0], cols[2]], rows=[0.9], ww=1.5, wh=1.5, lod=lod, border=0.1
+        pn.add(face, cols, rows[1:] if face == "front" else rows, 1.5, 1.5)
+    pn.add("front", [cols[0], cols[2]], [0.9], 1.5, 1.5)
+    cov = [("front", -0.75, 0.75, 0.0, 2.4)]
+    objs = kit.walls(
+        w, d, eave - 0.4, openings=[], lod=lod, cell=(2.5, 2.0), covered=pn.covered(lod, cov)
     )
+    objs += pn.build(lod)
+    objs += kit.place(kit.panel(-0.7, 0.7, 0.0, 2.3, depth=0.06, role="accent"), z=d / 2)
     objs += kit.block(
         -w / 2 - 0.2,
         w / 2 + 0.2,
         eave - 0.4,
-        eave,
+        eave - 0.03,  # just under the deck, which would otherwise be hidden by this top face
         -d / 2 - 0.2,
         d / 2 + 0.2,
         "secondary",
         name="cornice",
     )
-    objs += kit.flat_roof(w, d, eave, parapet)
+    objs += kit.flat_roof(w, d, eave, parapet, deck_role=DECK, cell=2.0)
     return objs
 
 
