@@ -24,6 +24,7 @@ import { createThreeCameraOps, type Pose, type ThreeCameraOps } from "./cameraRi
 import { buildCityGeometry } from "./cityMesh";
 import { createEngine, type Engine } from "./engine";
 import { createFrame, type LocalFrame } from "./frame";
+import { createFrameStats } from "./frameStats";
 import { boundsGoal, type CameraGoal, intentGoal } from "./intents";
 import { keyLightDir, LIGHT_PRESETS } from "./lighting";
 import { lineToLocal } from "./routeLine";
@@ -31,8 +32,6 @@ import { lineToLocal } from "./routeLine";
 const INTENT_PITCH_DEG = -45;
 const WHOLE_PITCH_DEG = -50;
 const FLY_MS = 1800;
-const FRAMES_PUBLISH_MS = 500;
-const PERF_PUBLISH_MS = 250;
 const RAD = Math.PI / 180;
 
 const goalPose = (g: CameraGoal, frame: LocalFrame, pitchDeg: number): Pose => ({
@@ -219,11 +218,32 @@ export default function ThreeScene({
     engine?.setTier(tier);
   }, [engine, tier]);
 
-  // One frame listener: auto-drop (auto quality only), slow-device banner (Low only), perf stats,
-  // the compass heading and `data-frames` (at most every 500 ms, with a trailing update).
+  // `data-frames` (first frames at once, then at most every 500 ms) and the compass heading follow
+  // every engine frame; separate from the tier listener below so a tier change never drops a count.
   const [frames, setFrames] = useState(0);
+  const tierRef = useRef(tier);
+  tierRef.current = tier;
   useEffect(() => {
     if (!engine) return;
+    const stats = createFrameStats({
+      frames: setFrames,
+      perf: (p) => usePerfStats.getState().update({ ...p, tier: tierRef.current }),
+    });
+    const off = engine.onFrame((dt, info) => {
+      const heading = engine.rig.get().headingDeg * RAD;
+      if (useCameraHeading.getState().heading !== heading) useCameraHeading.setState({ heading });
+      stats.frame(engine.frames, dt, info.calls);
+    });
+    return () => {
+      off();
+      stats.dispose();
+    };
+  }, [engine]);
+
+  // Auto-drop (auto quality only) and the slow-device banner (Low only).
+  useEffect(() => {
+    if (!engine) return;
+    usePerfStats.getState().update({ tier });
     const autoMonitor =
       quality === "auto"
         ? createFrameMonitor(() => setDropped((d) => lowerTier(d ?? detected)))
@@ -233,32 +253,11 @@ export default function ThreeScene({
         ? createFrameMonitor(() => usePerfStats.getState().update({ slow: true }), { minFps: 15 })
         : null;
     if (tier !== "low") usePerfStats.getState().update({ slow: false });
-    const recent: number[] = [];
-    let lastPublish = 0;
-    let framesTimer: ReturnType<typeof setTimeout> | undefined;
-    const off = engine.onFrame((dt, info) => {
+    if (!autoMonitor && !slowMonitor) return;
+    return engine.onFrame((dt, info) => {
       autoMonitor?.sample(dt, info.moving);
       slowMonitor?.sample(dt, info.moving);
-      const heading = engine.rig.get().headingDeg * RAD;
-      if (useCameraHeading.getState().heading !== heading) useCameraHeading.setState({ heading });
-      framesTimer ??= setTimeout(() => {
-        framesTimer = undefined;
-        setFrames(engine.frames);
-      }, FRAMES_PUBLISH_MS);
-      if (dt > 0 && dt <= 500) {
-        recent.push(dt);
-        if (recent.length > 30) recent.shift();
-      }
-      const now = performance.now();
-      if (now - lastPublish < PERF_PUBLISH_MS || recent.length === 0) return;
-      lastPublish = now;
-      const frameMs = recent.reduce((a, b) => a + b, 0) / recent.length;
-      usePerfStats.getState().update({ fps: 1000 / frameMs, frameMs, drawCalls: info.calls, tier });
     });
-    return () => {
-      off();
-      clearTimeout(framesTimer);
-    };
   }, [engine, quality, detected, tier]);
   useEffect(() => () => usePerfStats.getState().update({ slow: false }), []);
 

@@ -6,6 +6,10 @@ describe("LIGHT_PRESETS", () => {
     expect(LIGHT_PRESETS.night.sunIntensity).toBeLessThan(LIGHT_PRESETS.dusk.sunIntensity);
     expect(LIGHT_PRESETS.dusk.sunIntensity).toBeLessThan(LIGHT_PRESETS.day.sunIntensity);
   });
+  it("keeps ambient (hemi + IBL) low so lit surfaces stay under the bloom threshold", () => {
+    for (const p of Object.values(LIGHT_PRESETS))
+      expect(p.hemiIntensity + p.envIntensity).toBeLessThanOrEqual(1);
+  });
   it("lights windows only at dusk and night", () => {
     expect(LIGHT_PRESETS.day.windowEmissive).toBe(0);
     expect(LIGHT_PRESETS.dusk.windowEmissive).toBeGreaterThan(0);

@@ -7,6 +7,7 @@ import { json, newQueryClient, renderWithClient, stubFetch } from "../../../test
 import { useTheme } from "../../../ui/theme";
 import { usePanel } from "../../main/panelStore";
 import { PANEL_INSET_PX, panelWidthPx } from "../../main/viewport";
+import { usePerfStats } from "../cesium/PerfOverlay";
 import { useScene } from "../sceneStore";
 import { BOOKMARKS, type BookmarkId, DEFAULT_BOOKMARK } from "./bookmarks";
 import type { Pose } from "./cameraRig";
@@ -77,7 +78,18 @@ function fakeEngine() {
       pick: vi.fn(() => null),
     },
     requestRender: vi.fn(),
-    onFrame: vi.fn(() => () => {}),
+    frameCbs: new Set<(dt: number, info: { calls: number; moving: boolean }) => void>(),
+    onFrame: vi.fn((cb: (dt: number, info: { calls: number; moving: boolean }) => void) => {
+      e.frameCbs.add(cb);
+      return () => {
+        e.frameCbs.delete(cb);
+      };
+    }),
+    /** Simulates one rendered frame. */
+    tick(dt = 0, calls = 7) {
+      e.frames++;
+      for (const cb of e.frameCbs) cb(dt, { calls, moving: false });
+    },
     fatal: null as ((err: Error) => void) | null,
     onFatal: vi.fn((cb: (err: Error) => void) => {
       e.fatal = cb;
@@ -316,6 +328,18 @@ describe("ThreeScene", () => {
     expect(engine.setViewOffset).toHaveBeenLastCalledWith(
       panelWidthPx(innerWidth) + 2 * PANEL_INSET_PX,
     );
+  });
+
+  it("data-frames reflects the first rendered frames without interaction, and perf gets draw calls", async () => {
+    const { engine } = mount();
+    await waitFor(() => expect(engine.frameCbs.size).toBeGreaterThan(0));
+    act(() => {
+      engine.tick();
+      engine.tick();
+    });
+    const s = screen.getByTestId("three-scene");
+    await waitFor(() => expect(s).toHaveAttribute("data-frames", "2"), { timeout: 1000 });
+    expect(usePerfStats.getState().drawCalls).toBe(7);
   });
 
   it("hands camera ops to onOps and clears them on unmount", async () => {

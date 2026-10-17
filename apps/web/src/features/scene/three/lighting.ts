@@ -15,15 +15,19 @@ export interface LightPreset {
   windowEmissive: number;
 }
 
-/** Starting colours from the reference image; the owner tunes them in Phase 3. */
+/**
+ * Starting colours from the reference image; the owner tunes them in Phase 3. Ambient (hemi + room
+ * IBL) stays low: at hemi 0.9 + IBL 1 every lit surface passed the bloom threshold and the day
+ * scene bloomed into a white blur (Task 7 browser check).
+ */
 export const LIGHT_PRESETS: Record<Theme, LightPreset> = {
   day: {
     sunColor: "#fff1d6",
     sunIntensity: 3,
     hemiSky: "#bfe0ff",
     hemiGround: "#8a7a5a",
-    hemiIntensity: 0.9,
-    envIntensity: 1,
+    hemiIntensity: 0.5,
+    envIntensity: 0.35,
     exposure: 1,
     background: "#bfe0f5",
     fog: { color: "#cfe6f5", near: 600, far: 3500 },
@@ -34,8 +38,8 @@ export const LIGHT_PRESETS: Record<Theme, LightPreset> = {
     sunIntensity: 1.6,
     hemiSky: "#ffb48a",
     hemiGround: "#5a4060",
-    hemiIntensity: 0.6,
-    envIntensity: 0.6,
+    hemiIntensity: 0.4,
+    envIntensity: 0.3,
     exposure: 1,
     background: "#f2a27c",
     fog: { color: "#e8a589", near: 500, far: 3000 },
@@ -46,8 +50,8 @@ export const LIGHT_PRESETS: Record<Theme, LightPreset> = {
     sunIntensity: 0.5,
     hemiSky: "#2a2350",
     hemiGround: "#14122c",
-    hemiIntensity: 0.5,
-    envIntensity: 0.3,
+    hemiIntensity: 0.35,
+    envIntensity: 0.15,
     exposure: 1.1,
     background: "#0d0b24",
     fog: { color: "#1a1640", near: 400, far: 2500 },

@@ -177,7 +177,9 @@ function build(
   undo: (() => void)[],
   release: () => void,
 ): Engine {
-  renderer.toneMapping = THREE.AgXToneMapping;
+  // Neutral, not AgX: AgX desaturated the stylised palette to grey (browser check, Task 7 fix 2);
+  // Khronos PBR Neutral keeps base colours.
+  renderer.toneMapping = THREE.NeutralToneMapping;
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   // three r186 removed PCFSoftShadowMap: it warns once and uses PCFShadowMap. Ask for that directly
   // so the console stays clean.
@@ -284,6 +286,8 @@ function build(
   const controls = new MapControls(camera, canvas);
   controls.enableDamping = true;
   controls.zoomToCursor = true;
+  // 0.95^(speed x |deltaY| / 100) per wheel event: about 26% per 200-unit notch (default: 10%).
+  controls.zoomSpeed = 3;
   controls.minDistance = LIMITS.minRangeM;
   controls.maxDistance = LIMITS.maxRangeM;
   controls.minPolarAngle = (90 + LIMITS.minPitchDeg) * RAD;
