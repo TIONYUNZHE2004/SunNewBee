@@ -8,7 +8,11 @@ import { type Building, COL_M, FLOOR_M, STYLE_LIST } from "./model";
  * share the same st), so st carries no height and cannot place floors (spike, see task-5 report).
  * Here walls get metric texture coordinates instead:
  *   s = window columns along the perimeter (each wall a whole number of columns, so corners land
- *       on cell edges), offset by a per-building seed and by `(tone * 3 + style) * TONE_STRIDE`;
+ *       on cell edges), offset by a per-building seed (< SEED_RANGE) and by
+ *       `(tone * 3 + style) * TONE_STRIDE`, so one primitive can hold every class: the shader
+ *       decodes the class from s. Within a class s stays below the next stride (a wall run that
+ *       would cross it restarts at the seed, on a corner), and the largest s (18 * 1024) keeps
+ *       float32 steps under 0.002 of a window cell;
  *   t = 0 at the base, 1 at the top of the (taller) ground floor, then one unit per upper floor.
  *       Flags: t = -1 roof and setback ledge, t = -2 parapet (outer band, cap and inner face).
  *
@@ -16,7 +20,9 @@ import { type Building, COL_M, FLOOR_M, STYLE_LIST } from "./model";
  * a parapet lip above the roof line, and the roof inset behind the parapet. Round footprints get
  * smooth wall normals so they shade as cylinders rather than facets.
  */
-export const TONE_STRIDE = 10_000;
+export const TONE_STRIDE = 1024;
+/** Per-building window seed range (added to s, below TONE_STRIDE). */
+export const SEED_RANGE = 256;
 export const GROUND_FLOOR_M = 4.2;
 export const PARAPET_M = 0.6;
 export const PARAPET_INSET_M = 0.3;
@@ -290,6 +296,7 @@ export function buildMesh(buildings: Building[], triangulate: Triangulate): Mesh
   let uz = 0;
   let lo = 0;
   let s0 = 0;
+  let sBase = 0;
   let kx = 0;
 
   /** Vertex i of ring terms g at height h with ECEF normal (x, y, z) and st. Returns its index. */
@@ -355,6 +362,7 @@ export function buildMesh(buildings: Building[], triangulate: Triangulate): Mesh
     const t1 = tFlag ?? tAt(h1 - lo);
     const { edge, vert } = nm;
     let s = s0;
+    const sEnd = sBase + TONE_STRIDE - 1; // s must stay inside this building's class
     for (let i = 0; i < n; i++) {
       const j = (i + 1) % n;
       const ee = edge[i * 2]!;
@@ -365,7 +373,11 @@ export function buildMesh(buildings: Building[], triangulate: Triangulate): Mesh
       const jn = vert && !Number.isNaN(vert[j * 2]!) ? vert[j * 2 + 1]! : en;
       const dx = (r[j]![0] - r[i]![0]) * kx;
       const dy = (r[j]![1] - r[i]![1]) * M_PER_DEG;
-      const cols = Math.max(1, Math.round(Math.hypot(dx, dy) / COL_M));
+      const cols = Math.min(
+        TONE_STRIDE - SEED_RANGE - 1,
+        Math.max(1, Math.round(Math.hypot(dx, dy) / COL_M)),
+      );
+      if (s + cols > sEnd) s = s0; // restart on this corner (whole columns, so cells still align)
       const b1 = putH(g, i, h0, ie, inn, dir, s, t0);
       const b2 = putH(g, j, h0, je, jn, dir, s + cols, t0);
       const u2 = putH(g, j, h1, je, jn, dir, s + cols, t1);
@@ -423,7 +435,8 @@ export function buildMesh(buildings: Building[], triangulate: Triangulate): Mesh
     const top = b.height;
     const gf = Math.min(top, lo + GROUND_FLOOR_M);
     const cls = Number(b.tone.slice(1)) * 3 + STYLE_LIST.indexOf(b.style);
-    s0 = cls * TONE_STRIDE + Math.round(b.litSeed * 997);
+    sBase = cls * TONE_STRIDE;
+    s0 = sBase + Math.min(SEED_RANGE - 1, Math.floor(b.litSeed * SEED_RANGE));
 
     // One triangulation of the footprint serves the ledge and the roof: the setback ring is an
     // affine copy and the roof ring a small parallel inset, so the same topology stays valid.

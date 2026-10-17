@@ -9,6 +9,7 @@ import {
   type Mesh,
   meshBudget,
   PARAPET_M,
+  SEED_RANGE,
   SETBACK_AT,
   SETBACK_SCALE,
   shrinkRing,
@@ -174,6 +175,41 @@ describe("buildMesh", () => {
     const m = buildMesh([flat], fan);
     expect(m.positions.length).toBe(0);
     expect(m.indices.length).toBe(0);
+  });
+});
+
+describe("class encoding in st.s", () => {
+  it("every s of a building stays inside its class stride, even for a huge footprint", () => {
+    const d = 0.04; // ~4.4 km sides: more window columns than one stride holds
+    const huge: Building = {
+      ...buildingFixture(),
+      ring: [
+        [101.5, 3.18],
+        [101.5 + d, 3.18],
+        [101.5 + d, 3.18 + d],
+        [101.5, 3.18 + d],
+        [101.5, 3.18],
+      ],
+      tone: "t5",
+      style: "curtain",
+      litSeed: 0.999,
+    };
+    const cls = 5 * 3 + 2;
+    const ss = [...buildMesh([huge], fan).st].filter((_, i) => i % 2 === 0);
+    expect(Math.min(...ss)).toBeGreaterThanOrEqual(cls * TONE_STRIDE);
+    expect(Math.max(...ss)).toBeLessThan((cls + 1) * TONE_STRIDE);
+    // Largest possible s: float32 still resolves 1/256 of a window cell there.
+    expect(Math.fround((cls + 1) * TONE_STRIDE - 0.5 + 1 / 256)).not.toBe(
+      Math.fround((cls + 1) * TONE_STRIDE - 0.5),
+    );
+  });
+
+  it("the per-building seed stays below SEED_RANGE", () => {
+    for (const litSeed of [0, 0.5, 0.999999]) {
+      const b = { ...building(), litSeed, tone: "t0" as const, style: "grid" as const };
+      const ss = [...buildMesh([b], fan).st].filter((_, i) => i % 2 === 0);
+      expect(Math.min(...ss)).toBeLessThan(SEED_RANGE);
+    }
   });
 });
 

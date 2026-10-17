@@ -1,5 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
-import { buildBuildingPrimitives, type CesiumLike, WINDOW_SHADER } from "./buildingsPrimitive";
+import {
+  buildBuildingPrimitives,
+  type CesiumLike,
+  chunkBuildings,
+  WINDOW_SHADER,
+} from "./buildingsPrimitive";
 import { groupByClass, toBuildings } from "./model";
 import { paletteFor } from "./palette";
 
@@ -97,8 +102,8 @@ const twoClasses = () =>
   });
 
 describe("buildBuildingPrimitives", () => {
-  it("creates one primitive per non-empty class and adds each to the collection", () => {
-    const { C, primitives } = fakeCesium();
+  it("puts every class into one primitive with one material (the draw count is not per class)", () => {
+    const { C, primitives, materials } = fakeCesium();
     const classes = twoClasses();
     classes.set("empty", []);
     const add = vi.fn();
@@ -107,9 +112,10 @@ describe("buildBuildingPrimitives", () => {
       remove: vi.fn(),
     });
     expect(classes.size).toBe(3);
-    expect(primitives).toHaveLength(2);
-    expect(out.primitives).toHaveLength(2);
-    expect(add).toHaveBeenCalledTimes(2);
+    expect(primitives).toHaveLength(1);
+    expect(materials).toHaveLength(1);
+    expect(out.primitives).toHaveLength(1);
+    expect(add).toHaveBeenCalledTimes(1);
     for (const p of primitives) {
       // Custom geometry is synchronous-only in Cesium; st carries window units, so no compression.
       expect(p.options).toMatchObject({
@@ -126,12 +132,12 @@ describe("buildBuildingPrimitives", () => {
     const out = buildBuildingPrimitives(C, twoClasses(), paletteFor("night"));
     const n = primitives.length;
     const glowAt = () => materials.map((m) => m.uniforms.glow);
-    expect(glowAt()).toEqual([1, 1]);
+    expect(glowAt()).toEqual([1]);
     out.setPalette(paletteFor("day"), true);
-    expect(glowAt()).toEqual([0, 0]);
+    expect(glowAt()).toEqual([0]);
     expect(materials[0]!.uniforms.wall3).toEqual({ css: paletteFor("day").wall.t3 });
     out.setPalette(paletteFor("night"), true);
-    expect(glowAt()).toEqual([1, 1]);
+    expect(glowAt()).toEqual([1]);
     expect(materials[0]!.uniforms.wall3).toEqual({ css: paletteFor("night").wall.t3 });
     expect(primitives).toHaveLength(n);
     expect(materials).toHaveLength(n);
@@ -141,11 +147,11 @@ describe("buildBuildingPrimitives", () => {
   it("setTime writes the time uniform; a later setPalette keeps it", () => {
     const { C, materials } = fakeCesium();
     const out = buildBuildingPrimitives(C, twoClasses(), paletteFor("day"));
-    expect(materials.map((m) => m.uniforms.time)).toEqual([0, 0]);
+    expect(materials.map((m) => m.uniforms.time)).toEqual([0]);
     out.setTime(42);
-    expect(materials.map((m) => m.uniforms.time)).toEqual([42, 42]);
+    expect(materials.map((m) => m.uniforms.time)).toEqual([42]);
     out.setPalette(paletteFor("dusk"), true);
-    expect(materials.map((m) => m.uniforms.time)).toEqual([42, 42]);
+    expect(materials.map((m) => m.uniforms.time)).toEqual([42]);
     expect(materials[0]!.uniforms.cloudShadow).toBe(0.15);
     out.setPalette(paletteFor("night"), true);
     expect(materials[0]!.uniforms.cloudShadow).toBe(0);
@@ -203,12 +209,29 @@ describe("buildBuildingPrimitives", () => {
     });
     out.destroy();
     out.destroy();
-    expect(remove).toHaveBeenCalledTimes(2);
+    expect(remove).toHaveBeenCalledTimes(1);
     for (const p of primitives) expect(p.destroy).toHaveBeenCalledTimes(1);
     for (const m of materials) expect(m.destroy).toHaveBeenCalledTimes(1);
     expect(out.primitives).toHaveLength(0);
     // setPalette after destroy is a no-op, not a throw.
     expect(() => out.setPalette(paletteFor("night"), true)).not.toThrow();
+  });
+
+  it("splits into more primitives only past the vertex cap, all sharing the one material", () => {
+    const { C, primitives, materials } = fakeCesium();
+    const classes = twoClasses();
+    const all = [...classes.values()].flat();
+    const chunks = chunkBuildings(all, 1); // a cap below one building: one run per building
+    expect(chunks).toHaveLength(3);
+    expect(chunks.flat()).toEqual(all);
+    expect(chunkBuildings(all)).toEqual([all]);
+    buildBuildingPrimitives(C, classes, paletteFor("day"), undefined, 1);
+    expect(primitives).toHaveLength(3);
+    expect(materials).toHaveLength(1);
+    const appearances = primitives.map(
+      (p) => (p.options.appearance as { options: { material: unknown } }).options.material,
+    );
+    expect(new Set(appearances).size).toBe(1);
   });
 
   it("an empty class map yields no primitives and no throw", () => {

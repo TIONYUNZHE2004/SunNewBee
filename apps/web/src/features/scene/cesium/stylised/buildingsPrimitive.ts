@@ -1,5 +1,5 @@
 import type * as Cesium from "cesium";
-import { buildMesh, TONE_STRIDE, type Triangulate } from "./buildingsMesh";
+import { buildMesh, cleanRing, meshBudget, TONE_STRIDE, type Triangulate } from "./buildingsMesh";
 import { LIGHTING_GLSL, lightUniforms, POSITION_WC_GLSL } from "./lighting";
 import { type Building, TONE_LIST } from "./model";
 import type { Palette } from "./palette";
@@ -182,31 +182,61 @@ function uniformsFor(
   };
 }
 
+/** Vertices per building primitive: above this the buildings are split into another primitive
+ * (keeps each vertex buffer under ~90 MB). The Elmina seed (~7.8k buildings) fits in one. */
+export const MAX_CHUNK_VERTICES = 2_000_000;
+
+/** Split buildings, in order, into runs whose mesh stays within `maxVertices` (a building larger
+ * than that gets a run of its own). */
+export function chunkBuildings(buildings: Building[], maxVertices = MAX_CHUNK_VERTICES) {
+  const chunks: Building[][] = [];
+  let cur: Building[] = [];
+  let n = 0;
+  for (const b of buildings) {
+    const ring = cleanRing(b.ring);
+    if (ring.length < 3) continue;
+    const v = meshBudget(ring, b).vertices;
+    if (cur.length > 0 && n + v > maxVertices) {
+      chunks.push(cur);
+      cur = [];
+      n = 0;
+    }
+    cur.push(b);
+    n += v;
+  }
+  if (cur.length > 0) chunks.push(cur);
+  return chunks;
+}
+
 /**
- * One Primitive per non-empty building class, each with its own window Material sharing the
- * shader source (Cesium caches the program). Custom geometry cannot use Cesium's geometry
- * workers, so primitives are synchronous; vertex compression is off because st holds window
- * units (> 1) that the compressor would clamp.
+ * Every building in as few Primitives as possible (one per MAX_CHUNK_VERTICES, so one for the seed)
+ * sharing ONE window Material: the tone and window style are decoded per vertex from st.s (see
+ * buildingsMesh), and the six palette tones are uniforms, so a palette swap is one uniform write and
+ * the draw count no longer grows with the classes (64 class primitives, each drawn again in the
+ * shadow pass, were measured at the 2026-10-17 perf gate). `classes` only groups the input.
+ * Custom geometry cannot use Cesium's geometry workers, so primitives are synchronous; vertex
+ * compression is off because st holds window units (> 1) that the compressor would clamp.
  */
 export function buildBuildingPrimitives(
   C: CesiumLike,
   classes: Map<string, Building[]>,
   palette: Palette,
   collection?: PrimitiveCollectionLike,
+  maxVertices = MAX_CHUNK_VERTICES,
 ): BuildingPrimitives {
   const triangulate: Triangulate = (xy) => {
     const pts: Cesium.Cartesian2[] = [];
     for (let i = 0; i + 1 < xy.length; i += 2) pts.push(new C.Cartesian2(xy[i], xy[i + 1]));
     return C.PolygonPipeline.triangulate(pts);
   };
-  const first = [...classes.values()].find((g) => g.length > 0)?.[0]?.ring[0];
+  const all = [...classes.values()].flat();
+  const first = all[0]?.ring[0];
   const at = { lon: first ? first[0] : 0, lat: first ? first[1] : 0 };
   let primitives: Cesium.Primitive[] = [];
-  let materials: Cesium.Material[] = [];
+  let material: Cesium.Material | null = null;
   let time = 0;
 
-  for (const group of classes.values()) {
-    if (group.length === 0) continue;
+  for (const group of chunkBuildings(all, maxVertices)) {
     const mesh = buildMesh(group, triangulate);
     if (mesh.indices.length === 0) continue;
     const geometry = new C.Geometry({
@@ -231,7 +261,7 @@ export function buildBuildingPrimitives(
       primitiveType: C.PrimitiveType.TRIANGLES,
       boundingSphere: C.BoundingSphere.fromVertices(mesh.positions as unknown as number[]),
     });
-    const material = new C.Material({
+    material ??= new C.Material({
       fabric: {
         uniforms: uniformsFor(C, palette, at, time),
         source: WINDOW_SHADER,
@@ -255,27 +285,25 @@ export function buildBuildingPrimitives(
     });
     collection?.add(primitive);
     primitives.push(primitive);
-    materials.push(material);
   }
 
   const out: BuildingPrimitives = {
     primitives,
     setPalette(p) {
-      const u = uniformsFor(C, p, at, time);
-      for (const m of materials) Object.assign(m.uniforms, u);
+      if (material) Object.assign(material.uniforms, uniformsFor(C, p, at, time));
     },
     setTime(t) {
       time = t;
-      for (const m of materials) m.uniforms.time = t;
+      if (material) material.uniforms.time = t;
     },
     destroy() {
       for (const p of primitives) {
         collection?.remove(p); // a scene collection also destroys it
         if (!p.isDestroyed()) p.destroy();
       }
-      for (const m of materials) if (!m.isDestroyed()) m.destroy();
+      if (material && !material.isDestroyed()) material.destroy();
+      material = null;
       primitives = [];
-      materials = [];
       out.primitives = primitives;
     },
   };
