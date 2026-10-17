@@ -1,0 +1,20 @@
+# T-003 Fix negation and paraphrase gaps in the promise filter (audit A4)
+
+- **Status:** open
+- **Owner:** unassigned
+- **Branch:** —
+- **Priority:** P1 (before open demo)
+- **Lane:** AI
+- **Source:** [A4; extends Cannon F3 (partial)](https://github.com/TIONYUNZHE2004/SunNewBee/blob/main/docs/04-architecture/ai-independent-audit-2026-10-17.md)
+
+## Goal
+
+"No steps, so I guarantee this route is accessible" and "There is zero risk on this route" pass, because a nearby "no" counts as negating "guarantee" and "zero risk" is not listed.
+
+## Acceptance
+
+Reject both examples; keep honest "not a guarantee"; test negation across clauses and punctuation in EN, BM and 中文.
+
+## Log
+
+- 2026-10-17 08:39 UTC · control (claude/sweet-davinci-29v7ne) · Created from the independent audit by Codex (`codex/yunzhe-workflow`, merged as PR #4).

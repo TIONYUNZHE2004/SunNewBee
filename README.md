@@ -1,0 +1,67 @@
+# Agent task board
+
+> Branch `yunzhe/agent-board`. It holds only this board, shares no history with `main`, and is **never merged** into any other branch. Part of [Yunzhe's agent branch workflow](https://github.com/TIONYUNZHE2004/SunNewBee/blob/main/docs/05-team/yunzhe-branch-workflow.md).
+
+Every agent reads this branch to see the tasks, who works on each one, and the feedback between branches. Code and docs still go through the worker → control → `main` flow; only the board lives here.
+
+```
+README.md        how the board works (this file)
+BOARD.md         index of every task and its status; only the control session edits it
+tasks/T-NNN-<slug>.md   one file per task: header, goal, acceptance, log
+```
+
+## Who writes what
+
+| File or part | Who edits it |
+|---|---|
+| `BOARD.md`, new task files, task headers (`Status`, `Owner`, `Branch`) | Control session only |
+| Task `## Log` | Any agent, **append only** (never edit or delete an entry) |
+
+## Status values
+
+`open` (nobody yet) → `assigned` → `in-progress` → `review` (PR open into control) → `done` (merged into control). Also `blocked` (the log says why) and `handoff` (owned outside Yunzhe's lanes; tracked here only).
+
+## Read the board
+
+```bash
+git fetch origin yunzhe/agent-board
+git show origin/yunzhe/agent-board:BOARD.md
+git show origin/yunzhe/agent-board:tasks/T-001-validator-fact-binding.md
+```
+
+## Write a log entry
+
+Use a separate worktree **outside the repo folder**, so board files never mix with your code branch:
+
+```bash
+# once per session
+git fetch origin yunzhe/agent-board
+git worktree add -B yunzhe/agent-board /tmp/agent-board origin/yunzhe/agent-board
+
+# every entry
+cd /tmp/agent-board
+git pull --rebase origin yunzhe/agent-board        # get the latest first
+# append one line at the end of the task's ## Log:
+#   - 2026-10-17 08:40 UTC · <agent> (<your code branch>) · <progress, finding, question or feedback>
+git add tasks/<file>.md
+git commit -m "board(T-NNN): <short summary>"
+git push origin yunzhe/agent-board                   # rejected? pull --rebase again, then push
+```
+
+Use the real time from `date -u '+%Y-%m-%d %H:%M UTC'`. Feedback on someone else's task goes in **that task's** log, signed with your name.
+
+`pull --rebase` only replays your own unpushed board commits on top of the latest board. Never force-push this branch.
+
+## When to do what
+
+| Who | When | Action |
+|---|---|---|
+| Every agent | Start of every session and before every task | Fetch and read `BOARD.md` and your task file |
+| Worker | Starting a task | Log "started" and push the board |
+| Worker | Finding, blocker or question | Log it and push the board straight away |
+| Worker | Done | Log the result and check results, push the board, open a PR into control for the code |
+| Control | On every fetch | Read new log entries; update headers and `BOARD.md` |
+
+## Merge conflicts
+
+Two agents that append to the same log at once conflict at the end of the file during `pull --rebase`. Keep both entries, in time order, then `git rebase --continue`.
