@@ -97,8 +97,11 @@ def test_ao_is_baked_into_red(built):
 
 LINK_IDS = ("link_intermediate", "link_long")
 # a single-storey roof shades the top of its walls, so its "upper walls" start lower
-UPPER_FROM = {"bungalow": (0.15, 0.4)}  # (height fraction, min mean AO); default (0.5, 0.5)
+# (height fraction, min mean AO); default (0.5, 0.5). A school's walls sit behind its deep
+# corridor and roof overhang
+UPPER_FROM = {"bungalow": (0.15, 0.4), "school": (0.5, 0.3)}
 RESIDENTIAL_IDS = ("superlink", "semi_d", "bungalow", "townhouse")
+NON_RESIDENTIAL_IDS = ("shop_office", "highrise", "school", "mosque", "factory", "mall", "generic")
 
 
 def _build_and_pack(ids, tmp_path_factory) -> dict[str, tuple[Path, Path]]:
@@ -129,6 +132,11 @@ def residential_built(tmp_path_factory) -> dict[str, tuple[Path, Path]]:
     return _build_and_pack(RESIDENTIAL_IDS, tmp_path_factory)
 
 
+@pytest.fixture(scope="module")
+def non_residential_built(tmp_path_factory) -> dict[str, tuple[Path, Path]]:
+    return _build_and_pack(NON_RESIDENTIAL_IDS, tmp_path_factory)
+
+
 def _roles(colors) -> set[int]:
     return {round(c[1] * 7) for c in colors}
 
@@ -151,7 +159,7 @@ def check_archetype(raw: Path, packed: Path, asset_id: str) -> dict[str, list]:
             assert "COLOR_0" in node.attributes, name
             assert 0 < node.tris <= cap, (name, node.tris, cap)
             assert node.tris == a.nodes[name].tris, name
-        assert b.nodes[f"{asset_id}__{v.id}__LOD2"].tris <= 40
+        assert b.nodes[f"{asset_id}__{v.id}__LOD2"].tris <= v.tris[2]  # the per-asset LOD2 cap
         lod0 = f"{asset_id}__{v.id}__LOD0"
         for n in range(3):  # every LOD fits the size table, not just LOD0
             node = b.nodes[f"{asset_id}__{v.id}__LOD{n}"]
@@ -241,3 +249,50 @@ def test_residential(residential_built, asset_id):
                 if p[0] < -v.size[0] / 2 + 0.01 and n[0] < -0.5 and round(c[1] * 7) not in plain
             ]
             assert bad == [], "only the plain party wall faces -x at the boundary"
+
+
+@pytest.mark.parametrize("asset_id", NON_RESIDENTIAL_IDS)
+def test_non_residential(non_residential_built, asset_id):
+    raw, packed = non_residential_built[asset_id]
+    spec = specs.ASSETS[asset_id]
+    expected = {
+        "shop_office": {"row"},
+        "highrise": {"mid", "tall"},
+        "school": {"block"},
+        "mosque": {"hall"},
+        "factory": {"shed"},
+        "mall": {"box"},
+        "generic": {"box"},
+    }[asset_id]
+    assert {v.id for v in spec.variants} == expected
+    check_archetype(raw, packed, asset_id)
+    info = read_glb(raw)
+    assert info.images == 0  # no text or logo texture
+    light = specs.ROLES.index("light")
+    for v in spec.variants:
+        lod0 = f"{asset_id}__{v.id}__LOD0"
+        colors = read_attribute(raw, lod0, "COLOR_0")
+        normals = read_attribute(raw, lod0, "NORMAL")
+        pos = read_attribute(raw, lod0, "POSITION")
+        hi = info.nodes[lod0].bounds[1]
+        if asset_id == "shop_office":  # a blank sign band: role light, facing +z, >= 3 m2
+            front = [
+                p
+                for c, n, p in zip(colors, normals, pos, strict=True)
+                if round(c[1] * 7) == light and n[2] > 0.9
+            ]
+            assert front, "sign band faces +z"
+            xs, ys = [p[0] for p in front], [p[1] for p in front]
+            assert (max(xs) - min(xs)) * (max(ys) - min(ys)) >= 3.0
+            five_foot = [p for c, p in zip(colors, pos, strict=True) if p[2] > 10.0 and p[1] < 3.0]
+            assert five_foot, "a covered five-foot way along +z"
+        if asset_id == "mosque":
+            assert 14.0 < hi[1] < 32.0
+            accent = specs.ROLES.index("accent")
+            ys = [p[1] for c, p in zip(colors, pos, strict=True) if round(c[1] * 7) == accent]
+            assert ys and max(ys) > 14.0, "an accent dome"
+        if asset_id == "highrise":
+            assert abs(hi[1] - v.size[1]) <= 1.0
+            assert specs.ROLES.index("foliage") in _roles(colors), "planted balconies"
+        if asset_id == "factory":
+            assert specs.ROLES.index("metal") in _roles(colors), "metal roof"

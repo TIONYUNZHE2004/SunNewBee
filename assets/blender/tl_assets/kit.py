@@ -269,16 +269,26 @@ def _breaks(lo: float, hi: float, edges: Iterable[float], step: float | None) ->
     return sorted(p for p in {round(p, 5) for p in pts} if lo - EPS <= p <= hi + EPS)
 
 
-def _wall_face(mesh: _Mesh, f: _Frame, h: float, rects, lod: int, recess: float) -> None:
+def _wall_face(
+    mesh: _Mesh,
+    f: _Frame,
+    h: float,
+    rects,
+    lod: int,
+    recess: float,
+    cell: tuple[float, float] = (1.6, 1.2),
+) -> None:
     """The face as a grid of quads around the holes, plus a reveal on each hole's sides."""
     length = f.length
     us = _breaks(
         -length / 2,
         length / 2,
         [r[0] for r in rects] + [r[1] for r in rects],
-        1.6 if lod == 0 else None,
+        cell[0] if lod == 0 else None,
     )
-    vs = _breaks(0.0, h, [r[2] for r in rects] + [r[3] for r in rects], 1.2 if lod == 0 else None)
+    vs = _breaks(
+        0.0, h, [r[2] for r in rects] + [r[3] for r in rects], cell[1] if lod == 0 else None
+    )
     for u0, u1 in zip(us, us[1:], strict=False):
         for v0, v1 in zip(vs, vs[1:], strict=False):
             um, vm = (u0 + u1) / 2, (v0 + v1) / 2
@@ -361,11 +371,13 @@ def walls(
     lod: int,
     role: str = "primary",
     faces: Sequence[str] = FACES,
+    cell: tuple[float, float] = (1.6, 1.2),
 ) -> list:
     """Four walls of a w × d × h box (no top, no bottom), holes cut for `openings`.
 
     Each hole gets a reveal and its fill (`window`). LOD0 also subdivides the wall into about
-    1.6 × 1.2 m cells so the baked AO has vertices to vary across.
+    `cell` (1.6 × 1.2 m) cells so the baked AO has vertices to vary across; big buildings pass
+    a coarser cell to stay inside the triangle caps.
     """
     recess = RECESS[min(lod, 1)]
     mesh = _Mesh()
@@ -374,7 +386,7 @@ def walls(
         f = face_frame(face, w, d)
         ops = [o for o in openings if o.face == face]
         _check_openings(face, f.length, h, ops)
-        _wall_face(mesh, f, h, [o.rect for o in ops], lod, recess)
+        _wall_face(mesh, f, h, [o.rect for o in ops], lod, recess, cell)
         for o in ops:
             fills += _fill(o, lod, f, recess)
     return _keep(mesh.obj("walls", role)) + fills
@@ -403,8 +415,10 @@ def gable_roof(
     thickness: float = 0.15,
     wall_role: str = "primary",
     across_overhang: tuple[float, float] | None = None,
+    roof_role: str = "secondary",
 ) -> list:
-    """Two tiled slabs (role secondary) over a w × d footprint, plus the two gable infills.
+    """Two tiled slabs (role `roof_role`, default secondary) over a w × d footprint, plus the
+    two gable infills.
 
     The slab tops meet at the ridge, at eave_h + span / 2 * tan(pitch); they overhang the walls
     by `overhang` on every side (`across_overhang` = (neg, pos) overrides the two sides across the
@@ -438,7 +452,7 @@ def gable_roof(
         ln = s * length / 2
         pts = [m(-half, eave_h, ln), m(half, eave_h, ln), m(0.0, ridge - thickness, ln)]
         gables.face(pts, m(0.0, 0.0, s))
-    return _keep(roof.obj("gable_roof", "secondary"), gables.obj("gable_ends", wall_role))
+    return _keep(roof.obj("gable_roof", roof_role), gables.obj("gable_ends", wall_role))
 
 
 def hip_roof(
@@ -499,7 +513,7 @@ def flat_roof(
     )
     ring = _Mesh()
     if parapet > 0:
-        t, top, base = thickness, h + parapet, h - 0.05
+        t, top, base = thickness, h + parapet, h
         x0, x1, z0, z1 = -w / 2, w / 2, -d / 2, d / 2
         ring.box(x0, x1, base, top, z1 - t, z1)  # front
         ring.box(x0, x1, base, top, z0, z0 + t)  # back
@@ -703,6 +717,122 @@ def skylight(w: float, d: float, y: float, *, x: float = 0.0, z: float = 0.0, lo
         curb.obj("skylight_curb", "dark" if lod == 0 else "secondary"),
         top.obj("skylight_glass", "glass", window_seed()),
     )
+
+
+# --- applied windows, round forms ---------------------------------------------------------
+
+WINDOW_BUCKETS = 6  # window seeds: each pane joins one of this many glass meshes
+
+
+def window_panes(
+    face: str,
+    w: float,
+    d: float,
+    *,
+    cols: Sequence[float],
+    rows: Sequence[float],
+    ww: float,
+    wh: float,
+    lod: int,
+    border: float = 0.1,
+) -> list:
+    """A grid of windows applied to a face (no holes cut, scale-tolerant).
+
+    A glass quad `ww` × `wh` sits 0.04 m proud of the `face` plane of a w × d footprint at every
+    (u in `cols`, v in `rows`); each quad joins one of `WINDOW_BUCKETS` glass meshes with its own
+    window seed. LOD0 adds a dark quad `border` larger on each side just behind it (an inset band
+    instead of fine frames); LOD1 is glass only.
+    """
+    f = face_frame(face, w, d)
+    glass = [_Mesh() for _ in range(WINDOW_BUCKETS)]
+    seeds = [window_seed() for _ in glass]
+    frame = _Mesh()
+    for u in cols:
+        for v in rows:
+            random.choice(glass).fquad(f, u - ww / 2, u + ww / 2, v, v + wh, 0.04)
+            if lod == 0:
+                frame.fquad(
+                    f, u - ww / 2 - border, u + ww / 2 + border, v - border, v + wh + border, 0.015
+                )
+    out = [m.obj(f"panes_{face}_{i}", "glass", seeds[i]) for i, m in enumerate(glass)]
+    out.append(frame.obj(f"panes_{face}_frame", "dark"))
+    return _keep(*out)
+
+
+def prism(
+    cx: float,
+    cz: float,
+    r: float,
+    y0: float,
+    y1: float,
+    n: int,
+    role: str,
+    *,
+    r_top: float | None = None,
+    name: str = "prism",
+    top: bool = True,
+    phase_deg: float = 0.0,
+) -> list:
+    """A regular n-gon prism (a drum, a minaret shaft, a tank); `r_top` makes it a frustum or a
+    cone (0). Vertices start at `phase_deg` (45 turns a 4-gon into an axis-aligned square whose
+    half side is r / sqrt 2)."""
+    rt = r if r_top is None else r_top
+    m = _Mesh()
+    ang = [math.radians(phase_deg) + 2 * math.pi * k / n for k in range(n)]
+    for k in range(n):
+        j = (k + 1) % n
+        a, b = ang[k], ang[j]
+        am = (a + b) / 2
+        nrm = (math.cos(am), 0.0, math.sin(am))
+        pts = [
+            (cx + r * math.cos(a), y0, cz + r * math.sin(a)),
+            (cx + r * math.cos(b), y0, cz + r * math.sin(b)),
+            (cx + rt * math.cos(b), y1, cz + rt * math.sin(b)),
+            (cx + rt * math.cos(a), y1, cz + rt * math.sin(a)),
+        ]
+        if rt <= EPS:
+            pts = [pts[0], pts[1], (cx, y1, cz)]
+        m.face(pts, nrm)
+    if top and rt > EPS:
+        m.face([(cx + rt * math.cos(a), y1, cz + rt * math.sin(a)) for a in ang], (0.0, 1.0, 0.0))
+    return _keep(m.obj(name, role))
+
+
+def dome(
+    cx: float,
+    cz: float,
+    r: float,
+    y0: float,
+    role: str,
+    *,
+    segs: int = 16,
+    rings: int = 5,
+    name: str = "dome",
+) -> list:
+    """A hemisphere of radius r whose rim sits at height y0 (top at y0 + r)."""
+    m = _Mesh()
+    pts = []
+    for i in range(rings + 1):
+        phi = math.pi / 2 * i / rings
+        pts.append(
+            [
+                (
+                    cx + r * math.cos(phi) * math.cos(2 * math.pi * k / segs),
+                    y0 + r * math.sin(phi),
+                    cz + r * math.cos(phi) * math.sin(2 * math.pi * k / segs),
+                )
+                for k in range(segs)
+            ]
+        )
+    centre = (cx, y0, cz)
+    for i in range(rings):
+        for k in range(segs):
+            j = (k + 1) % segs
+            quad = [pts[i][k], pts[i][j], pts[i + 1][j], pts[i + 1][k]]
+            if i == rings - 1:
+                quad = [pts[i][k], pts[i][j], pts[i + 1][0]]
+            m.face(quad, _sub(_mean(quad), centre))
+    return _keep(m.obj(name, role))
 
 
 def far_block(
