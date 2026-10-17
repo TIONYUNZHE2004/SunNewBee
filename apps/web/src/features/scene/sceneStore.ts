@@ -218,7 +218,13 @@ export const useScene = create<SceneState>((set) => ({
   toggleLens: (l) => set((s) => ({ lensVisible: { ...s.lensVisible, [l]: !s.lensVisible[l] } })),
   setGaps: (gapsVisible) => set({ gapsVisible }),
   toggleGaps: () => set((s) => ({ gapsVisible: !s.gapsVisible })),
-  setMapStyle: (mapStyle) => set({ mapStyle, mapStyleChosen: true }),
+  // A new style may mean a new renderer (Three.js crashed -> Realistic tries Cesium again).
+  setMapStyle: (mapStyle) =>
+    set((s) => ({
+      mapStyle,
+      mapStyleChosen: true,
+      ...(s.mapStyle !== mapStyle ? { rendererFailed: false } : {}),
+    })),
   applyDefaultMapStyle: (hasBuildings, hasGoogle) =>
     set((s) => (s.mapStyleChosen ? {} : { mapStyle: defaultMapStyle(hasBuildings, hasGoogle) })),
   requestRouteFocus: (id) => {
