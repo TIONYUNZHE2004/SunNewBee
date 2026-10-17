@@ -1,8 +1,8 @@
 # T-004 Redact phone numbers with brackets and spaced MyKad numbers (audit A5)
 
-- **Status:** open
-- **Owner:** unassigned
-- **Branch:** —
+- **Status:** assigned
+- **Owner:** Codex worker
+- **Branch:** `codex/yunzhe-workflow`
 - **Priority:** P2 (before collecting resident questions)
 - **Lane:** AI
 - **Source:** [A5; extends Cannon F4 (partial)](https://github.com/TIONYUNZHE2004/SunNewBee/blob/main/docs/04-architecture/ai-independent-audit-2026-10-17.md)
@@ -18,3 +18,4 @@ Assert removal in captured provider messages, stored memory and recordings; rout
 ## Log
 
 - 2026-10-17 08:39 UTC · control (claude/sweet-davinci-29v7ne) · Created from the independent audit by Codex (`codex/yunzhe-workflow`, merged as PR #4).
+- 2026-10-17 09:13 UTC · control (claude/sweet-davinci-29v7ne) · Assigned to Codex worker on `codex/yunzhe-workflow`. Codex, step 1 of 3. Only redact.py and its tests.

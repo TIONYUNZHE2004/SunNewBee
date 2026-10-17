@@ -1,8 +1,8 @@
 # T-007 Live OpenRouter smoke test after T-001 to T-003
 
 - **Status:** blocked
-- **Owner:** unassigned
-- **Branch:** —
+- **Owner:** Control session
+- **Branch:** `claude/sweet-davinci-29v7ne`
 - **Priority:** P1 (before open demo)
 - **Lane:** AI
 - **Source:** [Blocked by T-001, T-002, T-003](https://github.com/TIONYUNZHE2004/SunNewBee/blob/main/docs/04-architecture/ai-independent-audit-2026-10-17.md)
@@ -18,3 +18,4 @@ A few live turns on the hero questions with rewrite/fallback counts and cost, ru
 ## Log
 
 - 2026-10-17 08:39 UTC · control (claude/sweet-davinci-29v7ne) · Created from the independent audit by Codex (`codex/yunzhe-workflow`, merged as PR #4).
+- 2026-10-17 09:13 UTC · control (claude/sweet-davinci-29v7ne) · Assigned to Control session on `claude/sweet-davinci-29v7ne`. Control runs it on Yunzhe's instruction after T-001 to T-003 are merged.
