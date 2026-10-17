@@ -22,7 +22,9 @@ export function useWide() {
 /**
  * Going narrow (rotation, window resize) starts the phone sheet at peek. A sheet left at `full`
  * would hide the map controls at once and drop focus from an open settings popover to the body.
- * Reset in the media listener itself, not an effect, so no render ever sees narrow + full.
+ * Reset in the media listener itself, not in an effect: a MainPage effect would run after the
+ * child SettingsPopover's close-on-hidden effect. Here the reset is queued in the same task as the
+ * width change, so React normally commits them together (verified under act() batching only).
  */
 export function useSheetPeekOnNarrow() {
   const setSheet = usePanel((s) => s.setSheet);
