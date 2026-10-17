@@ -398,7 +398,9 @@ _CON_MAX = (300.0, 1500.0, None)
 _CONSTRUCTION = _kit(
     "construction",
     [
-        _kv("tower_crane", (40.0, 50.0, 4.0), _CON_LODS, _CON_MAX, y=(40.0, 60.0)),  # keeps LOD2
+        _kv(
+            "tower_crane", (53.0, 50.0, 4.0), _CON_LODS, _CON_MAX, x=(52.5, 53.5), y=(40.0, 60.0)
+        ),  # keeps LOD2; 42 m jib + 11 m counter jib
         _kv("mobile_crane", (2.8, 4.0, 12.0), _CON_LODS, _CON_MAX),
         _kv("excavator", (3.0, 3.2, 9.0), _CON_LODS, _CON_MAX),
         _kv("cement_mixer", (2.5, 3.6, 8.5), _CON_LODS, _CON_MAX),

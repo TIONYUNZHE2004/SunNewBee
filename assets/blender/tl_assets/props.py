@@ -1494,9 +1494,14 @@ def _truss(m: _Mesh, a: Vec, b: Vec, w: float, h: float, step: float, r: float, 
 def _tower_crane(v: Variant, lod: int) -> list:
     P = _Parts(0.0)
     body, metal, dark, glass = P.m("primary"), P.m("metal"), P.m("dark"), P.m("glass")
-    mx, top, jtip, ctip = -12.0, 50.0, 20.25, -20.25  # mast x; apex; jib tip; counter-jib end
+    mx, top, jtip, ctip = (
+        -15.5,
+        50.0,
+        26.5,
+        -26.5,
+    )  # mast x; apex; jib tip (42 m jib); counter-jib end (11 m)
     h0, h1 = 0.5, 45.0
-    if lod == 2:  # 5 boxes, 50 tris
+    if lod == 2:  # 5 boxes, 50 tris; spans mast to jib tip and counter-jib end
         _box(dark, mx - 2.0, mx + 2.0, 0.0, 0.5, -2.0, 2.0)
         _box(body, mx - 0.9, mx + 0.9, h0, h1, -0.9, 0.9)
         _box(body, ctip, jtip, 45.8, 47.2, -0.65, 0.65)
@@ -1520,7 +1525,7 @@ def _tower_crane(v: Variant, lod: int) -> list:
     _box(body, mx - 1.2, mx + 1.2, h1 + 0.8, h1 + 1.0, -1.2, 1.2)
     # operator cab, beside the mast
     _box(body, mx - 1.3, mx - 0.3, h1 + 0.8, h1 + 2.7, 1.2, 2.0)
-    _box(glass, mx - 1.2, mx - 0.4, h1 + 1.3, h1 + 2.5, 2.0, 2.04, bottom=True)
+    _box(glass, mx - 1.2, mx - 0.4, h1 + 1.3, h1 + 2.5, 1.96, 2.0, bottom=True)
     # apex (cathead)
     for sx in (-0.8, 0.8):
         for sz in (-0.8, 0.8):
@@ -1553,12 +1558,13 @@ def _tower_crane(v: Variant, lod: int) -> list:
         for k in range(3):
             _box(dark, ctip + 2.6 + k * 0.9, ctip + 3.4 + k * 0.9, jy - 0.6, jy + 0.1, -0.6, 0.6)
     # pendants, trolley, hook
-    for tx in (8.0, 18.0):
+    for tx in (mx + 20.0, mx + 38.0):
         _tube(metal, [(mx, top - 0.1, 0.0), (tx, jy + 1.6, 0.0)], [0.03, 0.03], 4)
     _tube(metal, [(mx, top - 0.1, 0.0), (ctip + 2.0, jy + 1.6, 0.0)], [0.03, 0.03], 4)
-    _box(dark, 11.5, 12.5, jy - 0.5, jy, -0.5, 0.5)
-    _tube(metal, [(12.0, jy - 0.5, 0.0), (12.0, 22.0, 0.0)], [0.025, 0.025], 4)
-    _box(dark, 11.7, 12.3, 21.0, 22.0, -0.3, 0.3)
+    tx = mx + 26.0
+    _box(dark, tx - 0.5, tx + 0.5, jy - 0.5, jy, -0.5, 0.5)
+    _tube(metal, [(tx, jy - 0.5, 0.0), (tx, 22.0, 0.0)], [0.025, 0.025], 4)
+    _box(dark, tx - 0.3, tx + 0.3, 21.0, 22.0, -0.3, 0.3)
     return P.objs("tower_crane")
 
 
@@ -1578,7 +1584,7 @@ def _mobile_crane(v: Variant, lod: int) -> list:
     n = 16 if lod == 0 else 8
     for z in (-4.6, -3.4, -2.2, 3.8, 5.0):
         for s in (1.0, -1.0):
-            _wheel(dark, metal if lod == 0 else None, s * 1.25, 0.55, z, 0.55, 0.3, n)
+            _wheel(dark, metal if lod == 0 else None, s * 1.22, 0.55, z, 0.55, 0.3, n)
     _box(dark, -1.4, 1.4, 0.7, 0.95, -4.0, -3.7)  # stowed outriggers
     _box(dark, -1.4, 1.4, 0.7, 0.95, 1.4, 1.7)
     _box(metal, -0.5, 0.5, 3.55, 3.85, 5.4, 5.7)  # boom-head sheave
@@ -1621,12 +1627,12 @@ def _excavator(v: Variant, lod: int) -> list:
         for s in (1.0, -1.0):
             for z in (-2.0, -1.0, 0.0, 1.0, 2.0):
                 _wheel(metal, None, s * 1.0, 0.3, z, 0.22, 0.12, 8)
-            _sbox(metal, s, 1.0, 1.52, 0.9, 0.98, -2.4, 2.4)  # track guard
+            _sbox(metal, s, 1.0, 1.5, 0.9, 0.98, -2.4, 2.4)  # track guard
         _box(dark, -0.9, 0.9, 2.1, 2.3, -3.2, -1.4)  # engine hood
         _box(metal, 0.7, 0.85, 2.1, 3.1, -2.4, -2.3)  # exhaust
     else:
         for s in (1.0, -1.0):
-            _sbox(dark, s, 1.0, 1.52, 0.9, 0.98, -2.4, 2.4)
+            _sbox(dark, s, 1.0, 1.5, 0.9, 0.98, -2.4, 2.4)
     return P.objs("excavator")
 
 
@@ -1644,17 +1650,17 @@ def _cement_mixer(v: Variant, lod: int) -> list:
     n = 14 if lod == 0 else 8
     drum = [(0, 1.75, 1.8), (0, 2.2, -0.4), (0, 2.55, -2.2), (0, 2.7, -4.0)]
     _tube(body, drum, [0.5, 1.15, 1.15, 0.55], n, cap_bottom=True)
-    _tube(metal, [(0, 2.45, -3.9), (0, 1.3, -4.3)], [0.18, 0.18], 6)  # chute
+    _tube(metal, [(0, 2.45, -3.7), (0, 1.3, -4.1)], [0.18, 0.18], 6)  # chute
     wn = 16 if lod == 0 else 8
     for s in (1.0, -1.0):
         for z in (3.2, -1.4, -2.7):
             _wheel(dark, metal if lod == 0 else None, s * 1.0, 0.55, z, 0.55, 0.3, wn)
     if lod == 0:
         for z, y in ((0.2, 2.3), (-1.2, 2.42)):  # hoop bands
-            _tube(metal, [(0, y, z), (0, y + 0.02, z - 0.1)], [1.19, 1.19], n, cap_bottom=True)
+            _tube(metal, [(0, y, z), (0, y + 0.02, z - 0.1)], [1.17, 1.17], n, cap_bottom=True)
         _box(dark, -0.7, 0.7, 1.2, 1.6, -1.0, 0.8)  # drum pedestal
         for s in (1.0, -1.0):
-            _sbox(metal, s, 1.2, 1.3, 1.9, 2.4, 4.2, 4.28)  # mirror
+            _sbox(metal, s, 1.1, 1.2, 1.9, 2.4, 4.2, 4.28)  # mirror
             _sbox(metal, s, 0.7, 0.75, 1.4, 3.0, -4.25, -4.15)  # ladder rail
         for k in range(5):
             y = 1.5 + k * 0.35
@@ -1666,21 +1672,21 @@ def _site_cabin(v: Variant, lod: int) -> list:
     P = _Parts(0.0)
     body, metal, dark, glass = P.m("primary"), P.m("metal"), P.m("dark"), P.m("glass")
     _box(dark, -1.2, 1.2, 0.0, 0.3, -3.0, 3.0)  # skid base
-    _box(body, -1.2, 1.2, 0.3, 2.5, -3.0, 3.0)  # body
+    _box(body, -1.16, 1.16, 0.3, 2.5, -3.0, 2.96)  # body (details sit proud of it)
     _box(metal, -1.2, 1.2, 2.5, 2.6, -3.0, 3.0)  # roof
+    _box(metal, -0.7, 0.7, 0.0, 0.3, 3.0, 3.5)  # steps (part of the shared envelope)
     if lod == 2:
         return P.objs("site_cabin")
-    _box(dark, -0.5, 0.5, 0.3, 2.2, 3.0, 3.04)  # door (front +z)
+    _box(dark, -0.5, 0.5, 0.3, 2.2, 2.96, 3.0)  # door (front +z)
     for s in (1.0, -1.0):
         for z in (-1.8, 0.0, 1.8):
-            _sbox(glass, s, 1.2, 1.24, 1.2, 2.0, z - 0.5, z + 0.5, bottom=True)
+            _sbox(glass, s, 1.16, 1.2, 1.2, 2.0, z - 0.5, z + 0.5, bottom=True)
     if lod == 0:
         for s in (1.0, -1.0):
             for z in (-1.8, 0.0, 1.8):
-                _sbox(dark, s, 1.2, 1.26, 1.15, 1.2, z - 0.55, z + 0.55)  # sills
-        _box(metal, -0.7, 0.7, 0.0, 0.3, 3.0, 3.5)  # steps
+                _sbox(dark, s, 1.14, 1.2, 1.15, 1.2, z - 0.55, z + 0.55)  # sills
         _box(dark, -0.5, 0.5, 2.6, 2.75, -2.6, -2.2)  # AC unit
-        _box(metal, 0.5, 0.56, 0.3, 1.1, 3.0, 3.6)  # handrail
+        _box(metal, 0.5, 0.56, 0.3, 1.1, 3.0, 3.5)  # handrail
     return P.objs("site_cabin")
 
 
@@ -1691,6 +1697,8 @@ def _hoarding(v: Variant, lod: int) -> list:
     _box(body, -3.0, 3.0, 0.2, 2.4, -0.05, 0.05)
     _box(dark, -3.0, 3.0, 0.0, 0.2, -0.1, 0.1)  # plinth
     if lod == 2:
+        for x in (-2.7, 2.7):
+            _box(dark, x - 0.3, x + 0.3, 0.0, 0.1, -0.3, 0.6)  # feet set the shared z envelope
         return P.objs("hoarding_6m")
     for x in (-2.9, 2.9) if lod == 1 else (-2.9, -1.0, 1.0, 2.9):
         _box(metal, x - 0.06, x + 0.06, 0.0, 2.4, 0.05, 0.17)
@@ -1737,9 +1745,9 @@ def _scaffold_bay(v: Variant, lod: int) -> list:
             _box(dark, -X, X, y + 0.05, y + 0.2, Z - 0.05, Z)  # toe boards
         for k in range(8):
             y = 0.6 + k * 0.25
-            _tube(metal, [(-0.45, y, Z), (-0.3, y, Z)], [0.012, 0.012], 3)
+            _tube(metal, [(-0.45, y, Z - 0.02), (-0.3, y, Z - 0.02)], [0.012, 0.012], 3)
         for sx in (-X + 0.05, X - 0.05):
-            _box(dark, sx - 0.08, sx + 0.08, 0.0, 0.03, -Z, Z)  # base plates
+            _box(dark, sx - 0.05, sx + 0.05, 0.0, 0.03, -Z, Z)  # base plates
     return P.objs("scaffold_bay")
 
 

@@ -735,6 +735,20 @@ def test_construction(construction_built):
         lo, hi = info.nodes[f"construction__tower_crane__LOD{lod}"].bounds
         assert 40.0 <= hi[1] <= 60.0, (lod, hi[1])
     assert info.nodes["construction__tower_crane__LOD2"].tris <= 60
+    # the jib arm itself (mast axis to jib tip along x, from the LOD0 geometry) is 40-50 m;
+    # the mast axis is the middle of the base slab (the only geometry below y = 0.4)
+    pos = read_attribute(raw, "construction__tower_crane__LOD0", "POSITION")
+    base = [p[0] for p in pos if p[1] < 0.4]
+    mast_x = (min(base) + max(base)) / 2
+    jib = max(p[0] for p in pos) - mast_x
+    assert 40.0 <= jib <= 50.0, jib
+    # every LOD stays inside the LOD2 x/z envelope (the shared envelope)
+    for v in specs.ASSETS["construction"].variants:
+        lo2, hi2 = info.nodes[f"construction__{v.id}__LOD2"].bounds
+        for lod in (0, 1):
+            lo, hi = info.nodes[f"construction__{v.id}__LOD{lod}"].bounds
+            for a_ in (0, 2):
+                assert lo[a_] >= lo2[a_] - 0.005 and hi[a_] <= hi2[a_] + 0.005, (v.id, lod, a_)
     lo, hi = info.nodes["construction__hoarding_6m__LOD0"].bounds
     assert hi[0] - lo[0] == pytest.approx(6.0, abs=0.1)
     hoarding = info.nodes["construction__hoarding_6m__LOD0"]
