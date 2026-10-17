@@ -1,0 +1,213 @@
+{
+  "route_distance_m": 440.6,
+  "route_minutes": 6.3,
+  "route_measures": {
+    "m": [198.5, 440.6],
+    "min": [6.3],
+    "pct": [],
+    "any": [0.0, 1.0, 1.5, 2.0, 3.0, 10.0, 13.0, 15.0, 39.0, 2026.0]
+  },
+  "validator_cases": [
+    {
+      "label": "honest rounding",
+      "text": "The route is about 440 m.",
+      "expected_reject": false,
+      "accepted": true,
+      "errors": []
+    },
+    {
+      "label": "invented large count",
+      "text": "There are 99 steps on this route.",
+      "expected_reject": true,
+      "accepted": true,
+      "errors": []
+    },
+    {
+      "label": "invented amenity count",
+      "text": "There are 27 wheelchair toilets beside the playground.",
+      "expected_reject": true,
+      "accepted": true,
+      "errors": []
+    },
+    {
+      "label": "borrow slope as time",
+      "text": "The walk takes 3 minutes.",
+      "expected_reject": true,
+      "accepted": true,
+      "errors": []
+    },
+    {
+      "label": "borrow a list count as distance",
+      "text": "The route is 1 km long.",
+      "expected_reject": true,
+      "accepted": true,
+      "errors": []
+    },
+    {
+      "label": "borrow slope as width",
+      "text": "The whole route is 3 m wide.",
+      "expected_reject": true,
+      "accepted": true,
+      "errors": []
+    },
+    {
+      "label": "unmeasured opening hours",
+      "text": "The Urban Park toilet is open 24 hours every day.",
+      "expected_reject": true,
+      "accepted": true,
+      "errors": []
+    },
+    {
+      "label": "unmeasured time written out",
+      "text": "You will arrive in two minutes.",
+      "expected_reject": true,
+      "accepted": true,
+      "errors": []
+    },
+    {
+      "label": "negation scope",
+      "text": "No steps, so I guarantee this route is accessible.",
+      "expected_reject": true,
+      "accepted": true,
+      "errors": []
+    },
+    {
+      "label": "reassurance variant",
+      "text": "There is zero risk on this route.",
+      "expected_reject": true,
+      "accepted": true,
+      "errors": []
+    },
+    {
+      "label": "empty citations",
+      "text": "There are 99 steps on this route.",
+      "expected_reject": true,
+      "accepted": true,
+      "errors": []
+    },
+    {
+      "label": "refusal bypass",
+      "text": "It is 950 m long and takes 2 minutes.",
+      "expected_reject": true,
+      "accepted": true,
+      "errors": []
+    }
+  ],
+  "redaction_cases": [
+    {
+      "input": "Call +60 (12) 345 6789",
+      "output": "Call +60 (12) 345 6789"
+    },
+    {
+      "input": "My IC is 900101 14 5678",
+      "output": "My IC is 900101 14 5678"
+    },
+    {
+      "input": "Email aisyah@example.com or phone 012-345 6789",
+      "output": "Email [email removed] or phone [phone number removed]"
+    }
+  ],
+  "draft_events": [
+    {
+      "type": "answer.draft",
+      "attempt": 1,
+      "delta": "Route status: confirmed (on demo values, not yet surveyed). I guarantee there are no steps. It is 950 m long."
+    }
+  ],
+  "amenity_tool": {
+    "ok": true,
+    "data": [
+      {
+        "id": "toilet-urban-park",
+        "name": "Urban Park toilet",
+        "walk_m": 58.5,
+        "via_unverified": false
+      }
+    ],
+    "evidence": [
+      {
+        "id": "ev-place-toilet-urban-park",
+        "element_id": "toilet-urban-park",
+        "attribute": "name",
+        "value": "Urban Park toilet",
+        "status": "reported",
+        "verified_at": null,
+        "source_type": "world_model",
+        "source_url": null,
+        "photo_url": null
+      }
+    ],
+    "warnings": []
+  },
+  "end_to_end_events": [
+    {
+      "type": "tool.call",
+      "id": "plan_route-0",
+      "name": "plan_route",
+      "args": {
+        "from_id": "park-b",
+        "to_id": "playground",
+        "profile": "stroller",
+        "scenario_id": null
+      }
+    },
+    {
+      "type": "tool.result",
+      "id": "plan_route-0",
+      "name": "plan_route",
+      "summary": "route confirmed"
+    },
+    {
+      "type": "answer.check",
+      "attempt": 1,
+      "ok": true,
+      "issues": [],
+      "repairs": 0
+    },
+    {
+      "type": "text.delta",
+      "delta": "Route status: confirmed (on demo values,"
+    },
+    {
+      "type": "text.delta",
+      "delta": " not yet surveyed)\nThere are 99 steps on"
+    },
+    {
+      "type": "text.delta",
+      "delta": " this route.\nWorth knowing:\n\u2022 demo value"
+    },
+    {
+      "type": "text.delta",
+      "delta": "s, not yet surveyed."
+    },
+    {
+      "type": "citation",
+      "ref": 1,
+      "evidence_id": "ev-seg-1306543769-3.step_count",
+      "element_id": "seg-1306543769-3",
+      "attribute": "step_count",
+      "status": "verified",
+      "verified_at": "2026-10-15",
+      "source_type": "team_survey_placeholder",
+      "photo_url": null
+    },
+    {
+      "type": "uncertainty",
+      "level": "partial",
+      "items": [
+        {
+          "element_id": "route",
+          "attribute": "demo_values",
+          "note": "Some segment facts are demo values, not yet surveyed"
+        }
+      ]
+    },
+    {
+      "type": "done",
+      "message_id": "0a534c09adb6",
+      "answer_status": "answered",
+      "model": "function:model:"
+    }
+  ],
+  "model_calls": 2
+}
