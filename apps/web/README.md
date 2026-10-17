@@ -171,10 +171,13 @@ handle (a 44 px target, with step buttons and keyboard: arrows, Home, End, Escap
 `MainPage`'s root is `absolute inset-0` inside the Shell's `main`, which gives the map area a
 definite height on phones too (below `lg` the Shell is only `min-h-screen`). It publishes
 `--sheet-h` (the height the sheet covers) and `--top-h` (the TopStack's bottom, measured with a
-ResizeObserver); the place/path card stack, the Map settings gear and popover and the camera
-controls sit `--sheet-h` above the bottom. A Playwright test checks the layout at 390×844.
+ResizeObserver). The Shell publishes `--attr-h` on `main` (the attribution strip's measured
+height, 0 when hidden); the place/path card stack, the Map settings gear and popover and the camera
+controls sit `--sheet-h + --attr-h` above the bottom, so they never cover the attribution.
+Playwright checks the layout at 390×844 and that the gear clears the strip on desktop and phone.
 At `full` the map attribution strip is rendered on the sheet's bottom edge, since the map strip
-would be covered (the licence requires it to stay visible). Asking a question from `peek` opens the
+would be covered (the licence requires it to stay visible); the map controls and card stack hide
+(`invisible`). Going narrow (rotation) resets the sheet to `peek`. Asking a question from `peek` opens the
 sheet to `half`. On wide screens, an ask from elsewhere (Tickets "Ask the question again", a place
 card's "Ask about this place") opens a closed assistant panel first. The sheet state lives in `panelStore` (`usePanel().sheet`).
 
