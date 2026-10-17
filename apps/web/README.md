@@ -307,7 +307,8 @@ buildings are one primitive with one material, and flocks and clouds are one pri
 60 fps (the headless vsync cap) with 61 commands at Night and 65 at Day, Low 58. With Motion off
 (or reduced motion) a still scene renders 0 frames: Cesium 1.146's `PerspectiveFrustum.clone`
 dropped the panel-reserve `xOffset`, so the camera never matched its per-frame clone and the scene
-rendered continuously; `cesium/frustumClone.ts` patches the clone.
+rendered continuously; `cesium/frustumClone.ts` patches the clone, and `Camera.getPickRay` so picks
+follow the same off-centre frustum (double-click glide, zoom-to-cursor).
 
 ### Honesty (decorative rules)
 
