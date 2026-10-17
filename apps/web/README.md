@@ -230,9 +230,8 @@ the settings popover.
 - **Honesty:** while Stylised is active the popover says "Decorative details are illustrative."
   Building heights are mostly defaults by building kind, and the parapet adds 0.6 m (display only).
   Everything else is decoration, seeded and never a fact: the six facade tones and window styles,
-  lit windows, rooftop clutter, cars, street trees, lamps and light pools (flat ground decals under
-the route and flood lines), birds, clouds and cloud
-  shadows, parks, pavements, kerbs and markings, and base water. Base water is never a flood
+  lit windows, rooftop clutter, cars, street trees, lamps and light pools (flat ground imagery under
+  the route and flood lines), birds, clouds and cloud shadows, parks, pavements, kerbs and markings, and base water. Base water is never a flood
   scenario. The route, flood and place layers are the same data in both styles. The full rules are
   under "Honesty (decorative rules)" below.
 - **Time of day:** Stylised re-skins itself on theme change (`reskin.ts`: palette, sky, light) with a crossfade.
@@ -299,15 +298,25 @@ type and map size, bloom, the maximum pixel ratio (2 / 1.5 / 1, applied with
 `useBrowserRecommendedResolution = false` plus `resolutionScale`), bird and cloud counts and the
 small-detail range. Ambient occlusion is off at every tier: Cesium's HBAO caused streak artifacts on
 this scene. Buildings, trees and cars cast shadows only (`CAST_ONLY`). Add `?perf=1` to the URL for a
-performance readout.
+performance readout (its "draws" is Cesium's command list, which includes ~40 globe tiles).
+
+Draw budget (2026-10-17, RTX 2050 via ANGLE D3D11, 1440x900, Home view): the decorative ground was
+stencil ClassificationPrimitives and the buildings 64 class primitives, giving High 15 fps / 175
+commands. Now the ground decals and light pools are globe imagery (`groundImagery.ts`), all
+buildings are one primitive with one material, and flocks and clouds are one primitive each: High
+60 fps (the headless vsync cap) with 61 commands at Night and 65 at Day, Low 58. With Motion off
+(or reduced motion) a still scene renders 0 frames: Cesium 1.146's `PerspectiveFrustum.clone`
+dropped the panel-reserve `xOffset`, so the camera never matched its per-frame clone and the scene
+rendered continuously; `cesium/frustumClone.ts` patches the clone.
 
 ### Honesty (decorative rules)
 
 Everything above is display-only and covered by "Decorative details are illustrative." There is no
 moving traffic and there are no invented landmarks or signage. Pavements, kerbs, markings and parks
-are flat, so they never hide route or path-status lines. Light pools are a flat, translucent
-classification band stacked above the ground and below the overlay lines, so they never tint a
-route or flood line, and they show only at Dusk and Night. Parks are display-only and read
+are painted into globe imagery (a tiled canvas `ImageryProvider`, one layer per palette, crossfaded by
+layer alpha), so every route, path-status, gap and flood overlay draws on top and imagery is never
+pickable. Light pools are their own imagery layer above the ground decals (alpha 0.35 x glow), so they
+never tint a route or flood line, and they show only at Dusk and Night. Parks are display-only and read
 `base/parks.geojson`, which the seed does not currently contain (Overpass was blocked); fetch it
 with `uv run python data/scripts/build_buildings.py --parks --max-requests 40`. Water is a
 GroundPrimitive with a shimmer material and is never drawn as a flood scenario. See
@@ -319,10 +328,12 @@ GroundPrimitive with a shimmer material and is never drawn as a flood scenario. 
 model.ts               GeoJSON -> buildings (height, kind, one of six tones, window style grid|strip|curtain, lit seed), grid buckets, trees; hashUnit
 palette.ts             paletteFor("day" | "dusk" | "night"): ground, roads, water, six facade tones, roofs, windows, trees, cars, sky
 buildingsMesh.ts       walls + roof geometry with metric st (window columns x floors; roof t = -1, parapet t = -2); parapet draws 0.6 m above the data height (decorative)
-buildingsPrimitive.ts  one Primitive per grid cell + window Material; setTheme, far-range night boost
-ground.ts              roadsFromWalk (width by road kind); roads, pavements, kerbs, markings and parks are flat
-                       ClassificationPrimitives (so overlay lines are never hidden); decorative water is a
-                       GroundPrimitive with a shimmer material
+buildingsPrimitive.ts  every building in one Primitive (split past 2M vertices) + one window Material; tone and
+                       window style decoded per vertex from st.s (TONE_STRIDE 1024)
+groundImagery.ts       decals -> grid index -> tiled canvas ImageryProvider (whole globe, geographic, ~0.2 m/px
+                       deepest level); ground layers crossfaded per palette; light-pool layer
+ground.ts              roadsFromWalk (width by road kind); groundDecals (roads, pavements, kerbs, markings,
+                       shore, parks) drawn as imagery; decorative water is a GroundPrimitive with a shimmer
 props.ts               kerbCars, streetTrees, streetLamps, instanced primitives (allowPicking: false, CAST_ONLY shadows)
 colour.ts              hex <-> rgb and colour mixing helpers
 lighting.ts            shared shader light model (key, fill, bounce, cloud-shadow `tl_cloud`)
@@ -333,7 +344,8 @@ lines.ts               pure line helpers: dedupe, offsetLine, dashSegments (kerb
 roofs.ts               seeded AC boxes and water tanks on larger flat roofs
 motion/clock.ts        one capped (30 fps) loop for all decorative motion
 motion/flocks.ts       seeded bird loops and cloud spots
-motion/sky.ts          bird and cloud primitives (never pickable, no shadows, hidden at Night)
+motion/sky.ts          one bird and one cloud primitive (per-instance flock / offset attributes; never
+                       pickable, no shadows, hidden at Night)
 reskin.ts              applies a palette to globe, sky, fog, light and every handle
 StylisedCity.tsx       mounts it all inside <Viewer>; roads and props start after the buildings' first frame
 StylisedPreview.tsx    DEV only: /dev/stylised (bare viewer, Day/Night toggle, window.__tlStylised timing hooks)
