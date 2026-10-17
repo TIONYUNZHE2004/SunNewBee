@@ -29,7 +29,7 @@ Active workers (keep this table current):
 
 ## My scope (who owns what)
 
-Team lanes (Yunzhe's ruling, 17 Oct 2026; paths from [dev-setup.md](dev-setup.md)): **Jun Quan = Backend**, **shaoxian04 = Frontend**, **Yunzhe = AI + docs/pitch/research**. Jun Quan also works in the AI lane, so AI changes can clash with his.
+Team lanes as agreed (17 Oct 2026; paths from [dev-setup.md](dev-setup.md)): **Jun Quan = Backend**, **shaoxian04 = Frontend**, **Yunzhe = AI + docs/pitch/research**. Jun Quan also works in the AI lane, so AI changes can clash with his.
 
 | Area | Paths | Owner | What my agents may do |
 |---|---|---|---|
