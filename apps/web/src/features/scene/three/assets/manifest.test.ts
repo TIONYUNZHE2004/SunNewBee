@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseManifest } from "./manifest";
+import { parseManifest, ROLES } from "./manifest";
 
 const asset = () => ({
   group: "archetype",
@@ -26,7 +26,7 @@ const asset = () => ({
 const base = (assets: Record<string, unknown> = { a: asset() }) => ({
   version: 1,
   as_of: "2026-10-17",
-  roles: ["primary"],
+  roles: [...ROLES],
   precinctGroups: [["valley", "elmina valley"]],
   assets,
   landmarks: { lakeside_mall: { anchor: [101.5, 3.18] } },
@@ -38,6 +38,16 @@ describe("parseManifest", () => {
     expect(r.problems).toEqual([]);
     expect(r.manifest?.assets.a?.variants.v?.lods[1]?.maxM).toBeNull();
     expect(r.manifest?.landmarks.lakeside_mall?.anchor).toEqual([101.5, 3.18]);
+  });
+  it("rejects roles that differ from ROLES (order-sensitive); accepts a manifest without roles", () => {
+    const swapped = [ROLES[1], ROLES[0], ...ROLES.slice(2)];
+    for (const roles of [swapped, ["primary"], "primary"]) {
+      const r = parseManifest({ ...base(), roles });
+      expect(r.manifest).toBeNull();
+      expect(r.problems[0]).toContain("roles");
+    }
+    const { roles: _r, ...noRoles } = base();
+    expect(parseManifest(noRoles).manifest).not.toBeNull();
   });
   it("rejects another version", () => {
     expect(parseManifest({ ...base(), version: 2 }).manifest).toBeNull();

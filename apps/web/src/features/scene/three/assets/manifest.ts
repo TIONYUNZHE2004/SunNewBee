@@ -98,6 +98,19 @@ export function parseManifest(json: unknown): { manifest: Manifest | null; probl
   if (!isObj(json)) return { manifest: null, problems: ["manifest is not an object"] };
   if (json.version !== 1)
     return { manifest: null, problems: [`unsupported version ${String(json.version)}`] };
+  // COLOR_0.g encodes the role index, so a different role order would recolour every asset.
+  if (
+    "roles" in json &&
+    !(
+      Array.isArray(json.roles) &&
+      json.roles.length === ROLES.length &&
+      json.roles.every((r, i) => r === ROLES[i])
+    )
+  )
+    return {
+      manifest: null,
+      problems: [`roles ${JSON.stringify(json.roles)} differ from ${ROLES.join(",")}`],
+    };
   if (!isObj(json.assets)) return { manifest: null, problems: ["assets missing"] };
 
   const assets: Record<string, AssetSpec> = {};
