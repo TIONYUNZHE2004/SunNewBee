@@ -14,6 +14,7 @@ dist/
 apps/web/public/cesium/
 playwright-report/
 test-results/
+assets/blender/out/
 
 # --- Local runtime state (SQLite DBs, evidence photos) and data caches
 .data/
