@@ -30,10 +30,19 @@ Active workers (keep this table current):
 | Branch | Agent | Task | Status |
 |---|---|---|---|
 | `claude/kind-cannon-mormhi` | Claude worker | T-001 → T-003 → T-002 (validator, promise filter, drafts) | Assigned 17 Oct. Earlier work merged (PR #2, #3) |
-| `codex/yunzhe-workflow` | Codex worker | T-004 → T-005, verify Claude's fixes with the audit probes, then T-006 | Assigned 17 Oct. Earlier audit merged (PR #4) |
-| `claude/sweet-davinci-29v7ne` | Control | T-007 live smoke test after T-001 to T-003 | Waits for Yunzhe's instruction |
+| `codex/yunzhe-workflow` | Codex worker | T-012 → T-008 → T-011 (answer key, toilet provenance, assistant scope), and checks Claude's fixes with the audit probes | Assigned 17 Oct. Earlier audit merged (PR #4) |
+| `claude/sweet-davinci-29v7ne` | Control | T-010 after T-008; T-007 live test after T-001 to T-003 and T-011 | T-007 waits for Yunzhe's instruction |
 
 The board branch holds the current owner and status of every task; this table is only a summary.
+
+## Product scope: option B (17 Oct 2026)
+
+Small field, highest accuracy. The resident assistant covers only:
+
+- **Access:** step-free routes per profile, place facts, nearby amenities, closures, tickets for gaps.
+- **Flood evacuation:** indicative river stages, affected places, evacuation centres, routes under a stage.
+
+The accuracy target is the **deep spot: Elmina Urban Park + Elmina Lakeside Mall frontage**, measured on a human-checked answer key. Everything else (waste, what-if, tipping point, rising river, fix-it, verify-next planner, Elmina Day) is refused politely by the assistant. That code stays in the repo and in the staff screens, but agents do not extend it unless Yunzhe asks. Tasks outside the scope are `parked` on the board.
 
 ## My scope (who owns what)
 
@@ -45,7 +54,7 @@ Team lanes as agreed (17 Oct 2026; paths from [dev-setup.md](dev-setup.md)): **J
 | **Docs, pitch, research** (mine) | `docs/02-research/`, `docs/03-product/`, `docs/06-pitch/`, `docs/04-architecture/` | Yunzhe | Change freely |
 | Shared docs | `docs/superpowers/` (plans, logs), `docs/00-overview/decisions/` (ADRs), `README.md`, `AGENTS.md`, `CLAUDE.md` | Everyone | Logs are append-only. Ask Yunzhe before changing team rules (`AGENTS.md`, `CLAUDE.md`) or an ADR |
 | Tool layer | `packages/spatial/src/townshiplens_spatial/tools.py` | Functions: Backend. Tool descriptions and schemas: AI ([roles.md](roles.md)) | Change descriptions freely; keep function changes minimal |
-| **Backend** | `packages/spatial/**`, `apps/api/**`, `data/scripts/**`, `config/profiles/**`, `data/**` (backend merges) | Jun Quan | Only the smallest change an AI feature needs. List it in the PR under "Touches Backend" |
+| **Backend** | `packages/spatial/**`, `apps/api/**`, `data/scripts/**`, `config/profiles/**`, `data/**` (backend merges) | Jun Quan | Allowed when a board task needs it (Yunzhe, 17 Oct). Keep it to what the task needs, follow the data-pipeline rules in AGENTS.md, and list every file in the PR under "Touches Backend" so Jun Quan can review it |
 | **Frontend** | `apps/web/**` | shaoxian04 | Only the smallest change an AI feature needs (for example the mirrored `attributeCatalogue.ts`). List it in the PR under "Touches Frontend" |
 | Generated | `packages/api-client/**` | Nobody edits by hand | Run `pnpm gen` and commit the result |
 
@@ -139,7 +148,7 @@ git fetch --unshallow origin
 You are a worker agent on TownshipLens. Read docs/05-team/yunzhe-branch-workflow.md, AGENTS.md and the board README (git show origin/yunzhe/agent-board:README.md) first.
 Branch: your own branch. Before each task, merge origin/claude/sweet-davinci-29v7ne into it.
 Task: T-<NNN> from the board (git show origin/yunzhe/agent-board:BOARD.md, then its task file). You may push to two branches only: your own code branch and yunzhe/agent-board (log entries only, as its README says). Log progress, findings and questions as you go.
-Scope: you work in Yunzhe's lanes (AI, docs). Read "My scope" in the workflow doc; list any Backend or Frontend file you touch in the PR.
+Scope: product scope B (access + flood evacuation, deep spot). Read "Product scope" and "My scope" in the workflow doc; list any Backend or Frontend file you touch in the PR.
 When done: run the checklist, report PASS/FAIL per step, push your branch and open a PR into claude/sweet-davinci-29v7ne (not main).
 ```
 
