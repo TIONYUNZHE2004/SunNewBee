@@ -67,6 +67,26 @@ describe("loadAssetLibrary", () => {
     // The caller aggregates failures into one warning per load (ThreeScene).
     expect(warn).not.toHaveBeenCalled();
   });
+  it("a glb without a manifest variant's LOD0 node is not loaded and lands in `failed`", async () => {
+    const m = manifest();
+    m.assets.a!.variants.w = {
+      size: [1, 1, 1],
+      lods: [{ node: "a__w__LOD0", tris: 1, maxM: null }],
+    };
+    const lib = await loadAssetLibrary(m, { loadGlb });
+    expect(lib.has("a")).toBe(false);
+    expect(lib.has("b")).toBe(true);
+    expect(lib.failed).toEqual([{ asset: "a", reason: "Error: glb has no node a__w__LOD0" }]);
+    // Its baked geometry is released at once, not kept until dispose().
+    expect(lib.geometry("a", "v", 0)).toBeNull();
+  });
+  it("a glb missing only a coarser LOD stays loaded (cityInstances falls back to LOD0)", async () => {
+    const m = manifest();
+    m.assets.b!.variants.v!.lods.push({ node: "b__v__LOD1", tris: 1, maxM: null });
+    const lib = await loadAssetLibrary(m, { loadGlb });
+    expect(lib.has("b")).toBe(true);
+    expect(lib.failed).toEqual([]);
+  });
   it("failed is empty when every glb loads", async () => {
     const lib = await loadAssetLibrary(manifest(), { loadGlb });
     expect(lib.failed).toEqual([]);

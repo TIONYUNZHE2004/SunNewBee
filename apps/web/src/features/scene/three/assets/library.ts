@@ -7,7 +7,10 @@ export interface AssetLibrary {
   /** World-baked geometry of one LOD node (one primitive), shared, do not dispose. null when absent. */
   geometry(asset: string, variant: string, lod: number): THREE.BufferGeometry | null;
   has(asset: string): boolean;
-  /** Assets whose glb failed to load or parse (dropped). The caller reports them, once per load. */
+  /**
+   * Assets whose glb failed to load or parse, or lacks a manifest variant's LOD0 node (dropped).
+   * The caller reports them, once per load.
+   */
   readonly failed: readonly { asset: string; reason: string }[];
   /** Sum of attribute and index byteLength. */
   gpuBytes(): number;
@@ -101,6 +104,20 @@ export async function loadAssetLibrary(m: Manifest, opts: Opts = {}): Promise<As
             all.push(g);
           }
         });
+        // Loaded only if every manifest variant has its LOD0 node: planCity places any variant of
+        // a loaded asset, and createCityInstances draws a variant only with some LOD geometry
+        // (landmarks only with LOD0). Requiring LOD0 covers both, so a placed building is never
+        // drawn by nothing (Review Focus 2); a missing coarser LOD falls back to the nearest one.
+        const missing = Object.values(spec.variants)
+          .map((v) => v.lods[0]?.node)
+          .find((node) => !node || !found.has(node));
+        if (missing !== undefined) {
+          for (const g of found.values()) {
+            g.dispose();
+            all.splice(all.indexOf(g), 1);
+          }
+          throw new Error(`glb has no node ${missing}`);
+        }
         for (const [name, g] of found) nodes.set(`${id}/${name}`, g);
         loaded.add(id);
       } catch (e) {

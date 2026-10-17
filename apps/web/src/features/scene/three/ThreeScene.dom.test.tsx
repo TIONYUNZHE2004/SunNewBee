@@ -711,6 +711,31 @@ describe("ThreeScene", () => {
         expect(msg).toContain("semi_d");
         expect(msg).not.toContain("link_intermediate");
       });
+      it("a glb without the manifest's nodes: its buildings stay extruded, one warning naming it", async () => {
+        // semi_d.glb parses but carries none of the manifest's semi_d__gable__LOD* nodes.
+        stubFetch((url) => {
+          if (url.includes("/layers/buildings")) return json(CITY2);
+          if (url.endsWith("/city/manifest.json")) return json(MANIFEST2);
+          if (url.endsWith("/city/link_intermediate.glb")) return glb();
+          if (url.endsWith("/city/semi_d.glb"))
+            return new Response(makeGlb([{ name: "semi_d__other__LOD0" }]));
+          return json({}, 404);
+        });
+        const { engine } = mount();
+        const s = screen.getByTestId("three-scene");
+        await waitFor(() => expect(s).toHaveAttribute("data-assets", "ready"));
+        // plain + s1 extruded (two boxes), not a hole; l1 and l2 instanced.
+        expect(vertsOf(engine, -1)).toBe(60);
+        expect(s).toHaveAttribute("data-instances", "2");
+        const inst = engine.setAssets.mock.calls[0]?.[0] as CityInstances;
+        const names: string[] = [];
+        inst.group.traverse((o) => names.push(o.name));
+        expect(names.some((n) => n.startsWith("semi_d"))).toBe(false);
+        expect(console.warn).toHaveBeenCalledTimes(1);
+        const msg = String(vi.mocked(console.warn).mock.calls[0]?.[0]);
+        expect(msg).toContain("semi_d__gable__LOD0");
+        expect(msg).not.toContain("link_intermediate");
+      });
     });
 
     it("an instance build error: failed, full city, library disposed, one warning even after a refetch", async () => {
