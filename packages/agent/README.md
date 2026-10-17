@@ -143,6 +143,7 @@ The API (`apps/api`) imports `townshiplens_agent.run.run_turn` lazily and sends 
 | `LLM_ESCALATE_ON_REWRITE` | `false` | After the validator sends an answer back, the rewrite (and the rest of the turn) runs on `LLM_MODEL_ESCALATE` (`agent.escalation`, a `SelectModel` capability). Costs more per rewrite; `done.model` names the escalation model |
 | `LLM_MODEL_FALLBACK` | empty | Backup OpenRouter model: on a provider error (`ModelAPIError`) the default model fails over to it (`FallbackModel`). `done.model` names the model that answered |
 | `LLM_OUTPUT_RETRIES` | `2` | Validator retries before the template fallback |
+| `LLM_REQUEST_LIMIT` | `12` | Most model requests per turn (`UsageLimits`); past it: `error` (`agent_limit`), template answer, `done` |
 | `TURN_TIMEOUT_S` | `60` | Whole-turn budget; on expiry: `error` (`agent_timeout`), template answer, `done` |
 | `DEMO_MODE` | `false` | Replay recorded turns from `DEMO_DIR` (default `data/demo`) |
 
@@ -219,6 +220,10 @@ and the metric `answered_without_citations` (turns that were answered/partial bu
 
 `uv run pytest packages/agent`. The `test_run.py` tests drive `run_turn` with the mock over the
 real spatial tools on the tiny fixture. They make no network calls.
+
+## Privacy
+
+`redact.redact` removes MyKad numbers, Malaysian phone numbers and emails from the question before it reaches the model, session memory, the template or a recorded demo (`run.run_turn`, `demo.make_meta`). Tickets were already sanitised by `agent.safe_vr_args`.
 
 ## What to build next (AI lane)
 
