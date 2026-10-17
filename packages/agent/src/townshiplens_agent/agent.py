@@ -36,7 +36,7 @@ from .labels import crossing_note, enrich_unknowns
 from .mock import mock_model
 from .record import TurnRecord
 from .settings import AgentSettings
-from .validate import issue_labels, repair_answer, validate_answer
+from .validate import issue_labels, payload_measures, repair_answer, validate_answer
 
 SYSTEM = (Path(__file__).parent / "prompts" / "system.md").read_text(encoding="utf-8")
 
@@ -426,7 +426,10 @@ async def call_tool(deps: Deps, name: str, **kwargs: Any) -> dict:
     elif name == "list_flood_scenarios" and ui_scenario(deps):
         rec.scenarios_used.add(ui_scenario(deps))
     await _emit(deps, ToolResultEvent(id=call_id, name=name, summary=_summarise(name, res)))
-    return _for_model(name, _without_closure_notes(res.model_dump(mode="json")))
+    out = _for_model(name, _without_closure_notes(res.model_dump(mode="json")))
+    for unit, vals in payload_measures(out).items():
+        rec.tool_measures.setdefault(unit, set()).update(vals)
+    return out
 
 
 # Id lists the model never needs: on the Elmina seed affected_places at +5 m lists 2,468 edge ids
