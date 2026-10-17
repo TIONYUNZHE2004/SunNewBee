@@ -31,3 +31,65 @@ export function patchFrustumClone(PerspectiveFrustum: FrustumClass): void {
   };
   proto[PATCHED] = true;
 }
+
+type V3 = { x: number; y: number; z: number };
+interface PickCamera {
+  frustum: {
+    xOffset?: number;
+    yOffset?: number;
+    fov?: number;
+    offCenterFrustum?: { left: number; right: number; top: number; bottom: number; near: number };
+  };
+  positionWC: V3;
+  directionWC: V3;
+  rightWC: V3;
+  upWC: V3;
+  _scene: { canvas: { clientWidth: number; clientHeight: number } };
+}
+interface CameraClass {
+  prototype: {
+    getPickRay(
+      this: PickCamera,
+      windowPosition: { x: number; y: number },
+      result?: { origin: V3; direction: V3 },
+    ): { origin: V3; direction: V3 } | undefined;
+  };
+}
+
+const PICK_PATCHED = Symbol.for("tl.cameraPickRayPatched");
+
+/**
+ * Cesium 1.146 `Camera.getPickRay` builds perspective rays from fovy/aspect only and ignores the
+ * frustum's xOffset/yOffset, while rendering (with patchFrustumClone) applies them: double-click
+ * glide, zoom-to-cursor and drag anchors would land about half the panel width from the cursor.
+ * For a perspective frustum with an offset, the ray is rebuilt through the off-centre frustum's
+ * near plane (left/right/top/bottom), the same frustum the projection matrix comes from.
+ * Patched once, idempotently; other frustums keep Cesium's ray.
+ */
+export function patchCameraPickRay(Camera: CameraClass): void {
+  const proto = Camera.prototype as CameraClass["prototype"] & { [PICK_PATCHED]?: true };
+  if (proto[PICK_PATCHED]) return;
+  const getPickRay = proto.getPickRay;
+  proto.getPickRay = function (this: PickCamera, windowPosition, result) {
+    const ray = getPickRay.call(this, windowPosition, result);
+    const f = this.frustum;
+    if (!ray || f.fov === undefined || (!f.xOffset && !f.yOffset)) return ray;
+    const o = f.offCenterFrustum;
+    if (!o) return ray;
+    const { clientWidth: w, clientHeight: h } = this._scene.canvas;
+    const u = windowPosition.x / w; // 0 at left, 1 at right
+    const v = 1 - windowPosition.y / h; // 0 at bottom, 1 at top
+    const sx = o.left + (o.right - o.left) * u;
+    const sy = o.bottom + (o.top - o.bottom) * v;
+    const { directionWC: d, rightWC: r, upWC: up } = this;
+    const x = d.x * o.near + r.x * sx + up.x * sy;
+    const y = d.y * o.near + r.y * sx + up.y * sy;
+    const z = d.z * o.near + r.z * sx + up.z * sy;
+    const len = Math.hypot(x, y, z) || 1;
+    ray.direction.x = x / len;
+    ray.direction.y = y / len;
+    ray.direction.z = z / len;
+    return ray;
+  };
+  proto[PICK_PATCHED] = true;
+}

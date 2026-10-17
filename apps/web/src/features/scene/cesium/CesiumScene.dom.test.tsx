@@ -18,7 +18,20 @@ vi.mock("resium", () => ({
   useCesium: () => ({ viewer: undefined }),
 }));
 
+const patches = vi.hoisted(() => ({ frustum: [] as unknown[], camera: [] as unknown[] }));
+vi.mock("./frustumClone", () => ({
+  patchFrustumClone: (c: unknown) => patches.frustum.push(c),
+  patchCameraPickRay: (c: unknown) => patches.camera.push(c),
+}));
+
 describe("CesiumScene", () => {
+  it("patches Cesium's frustum clone and pick ray when the module loads", async () => {
+    const Cesium = await import("cesium");
+    await import("./CesiumScene");
+    expect(patches.frustum).toEqual([Cesium.PerspectiveFrustum]);
+    expect(patches.camera).toEqual([Cesium.Camera]);
+  });
+
   it("passes read-only Viewer props by stable reference so resium never recreates the viewer", async () => {
     const { default: CesiumScene } = await import("./CesiumScene");
     const r = renderWithClient(<CesiumScene />);
