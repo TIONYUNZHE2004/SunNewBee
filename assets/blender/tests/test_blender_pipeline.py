@@ -138,7 +138,9 @@ def test_link_houses(link_built, asset_id):
             assert node.tris == a.nodes[name].tris, name
         assert b.nodes[f"{asset_id}__{v.id}__LOD2"].tris <= 40
         lod0 = f"{asset_id}__{v.id}__LOD0"
-        assert specs.bounds_errors(v, b.nodes[lod0].bounds) == []
+        for n in range(3):  # every LOD fits the size table, not just LOD0
+            node = b.nodes[f"{asset_id}__{v.id}__LOD{n}"]
+            assert specs.bounds_errors(v, node.bounds) == [], n
         # LOD1 is simpler than LOD0, LOD2 simpler than LOD1
         tris = [a.nodes[f"{asset_id}__{v.id}__LOD{n}"].tris for n in range(3)]
         assert tris[0] > tris[1] > tris[2], tris
@@ -161,8 +163,9 @@ def test_link_houses(link_built, asset_id):
         assert len({round(g, 4) for g in glass}) > 1, "window seeds vary per window"
         if v.id == "modern":
             assert specs.ROLES.index("accent") in roles  # brick accent panel
-        # LOD1 keeps glass (inset faces) but drops the dark window frames
+        # LOD1 keeps glass (inset faces) but drops the dark frames and AC fans
         lod1 = f"{asset_id}__{v.id}__LOD1"
         roles1 = {round(c[1] * 7) for c in read_attribute(raw, lod1, "COLOR_0")}
         assert specs.ROLES.index("glass") in roles1
         assert specs.ROLES.index("metal") not in roles1  # gate, fence and AC are LOD0 only
+        assert specs.ROLES.index("dark") not in roles1

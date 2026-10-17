@@ -422,7 +422,9 @@ def gable_roof(
         ring = [bot[0], bot[1]]
         c = [m(a, y, l0) for a, y in ring] + [m(a, y, l1) for a, y in reversed(ring)]
         c += [m(a, y, l0) for a, y in top] + [m(a, y, l1) for a, y in reversed(top)]
-        roof.hexa(c)
+        # s3 is the vertical face at the ridge: the two slabs' s3 faces coincide with
+        # opposite normals (internal, degenerate AO), so neither is built
+        roof.hexa(c, skip=("s3",))
     gables = _Mesh()
     for s in (-1.0, 1.0):
         ln = s * length / 2
@@ -607,14 +609,17 @@ def ac_units(
     n: int,
     face: str,
     *,
-    w: float = 0.0,
-    d: float = 0.0,
+    w: float,
+    d: float,
     y: float = 3.6,
     u: float = 0.0,
     spacing: float = 1.1,
 ) -> list:
     """`n` wall-mounted AC condensers (metal box, dark fan face) on `face` of a w × d footprint,
-    in a row centred on `u`, bottoms at height y."""
+    in a row centred on `u`, bottoms at height y. `w` and `d` are required (> 0), so the
+    units are never left at the origin."""
+    if w <= 0 or d <= 0:
+        raise ValueError(f"ac_units needs the footprint: w={w}, d={d} must both be > 0")
     f = face_frame(face, w, d)
     body, fan = _Mesh(), _Mesh()
     uw, uh, un = 0.8, 0.55, 0.3
