@@ -49,6 +49,12 @@ describe("createFrameStats", () => {
     expect(perf).toHaveBeenLastCalledWith({ fps: 10, frameMs: 100, drawCalls: 20 });
   });
 
+  it("publishes triangles when the caller reports them", () => {
+    const { perf, s } = setup();
+    s.frame(1, 0, 12, 3400);
+    expect(perf).toHaveBeenLastCalledWith({ drawCalls: 12, tris: 3400 });
+  });
+
   it("dispose flushes a pending count", () => {
     const { frames, s } = setup();
     s.frame(1, 0, 1);

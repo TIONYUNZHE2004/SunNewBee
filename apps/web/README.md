@@ -265,6 +265,35 @@ Mapbox lite and List are unchanged.
 - **Display only:** the same rules as the Cesium Stylised city. Kind tints, default heights, parks
   and base water are illustrative; base water is never a flood scenario.
 
+#### City assets
+
+`ThreeScene` fetches `/city/manifest.json` (`assets/manifest.ts`), loads the meshopt glbs into an
+`AssetLibrary` (aborted on unmount, which also frees its geometry), fits archetypes to footprints
+with `planCity`, extrudes only `plan.extrude` (`buildCityGeometry(layer, frame, { only })`) and hands
+the instanced archetypes to `engine.setAssets` (`assets/cityInstances.ts`, one draw call per asset,
+variant and LOD). The engine re-buckets LODs at most every 250 ms while the camera moves, and once
+after it stops.
+
+- **Never holes:** the full extruded city is drawn until the assets are ready, and stays drawn when
+  they fail (manifest 404, malformed or non-JSON manifest, every glb missing, a build error), with
+  `data-assets="failed"`. If at least one asset loads, the state is `ready` and buildings of failed
+  assets stay extruded. Each load logs at most one console warning, naming every failed glb and
+  dropped manifest entry (the library collects failures in `failed`; it never warns). Footprints an
+  archetype cannot fit, and archetypes with no asset, stay extruded.
+- **`?assets=0`:** skip the assets (no manifest fetch); the extruded city only.
+- **`?showroom=1`:** replace the plan with `assets/showroom.ts`: every asset variant once at LOD0,
+  one row per asset, a grid pitch of max(30 m, largest footprint + 5 m) so nothing overlaps, centred
+  on `HERO_CENTRE`, and no extruded buildings. For owner
+  review of the models.
+- **DOM contract additions:** `data-assets="off|loading|ready|failed"` and `data-instances` (placed
+  units plus landmarks).
+- **`?perf=1` fields:** draw calls and triangles per frame, both summed over every pass
+  (`renderer.info` with `autoReset` off), and an estimate (shown as "≈ MB") of geometry plus
+  instance buffers, from CPU array sizes (extruded city, library and instance attributes). Budgets at `hero-mid` on Medium: 150 draw calls, 2.5 M
+  triangles, 150 MB.
+- The glbs and manifest live in `public/city/` (lane `blender`); `vite build` copies them to
+  `dist/city/`.
+
 ### Theme: Auto, Day, Dusk, Night
 
 The theme menu offers **Auto** (follows the Elmina clock, Asia/Kuala_Lumpur: Day 07:00-18:00, Dusk
