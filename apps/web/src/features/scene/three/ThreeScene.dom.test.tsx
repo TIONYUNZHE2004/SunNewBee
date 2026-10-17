@@ -621,6 +621,33 @@ describe("ThreeScene", () => {
       expect(vertsOf(engine, -1)).toBe(0);
     });
 
+    it('?showroom=1 shows a "Model showroom — not the city" chip; without it, or when assets fail, none', async () => {
+      history.replaceState(null, "", "/?showroom=1");
+      serve({});
+      const first = mount();
+      await waitFor(() =>
+        expect(screen.getByTestId("three-scene")).toHaveAttribute("data-assets", "ready"),
+      );
+      expect(screen.getByRole("note", { name: "Model showroom — not the city" })).toBeVisible();
+      first.unmount();
+
+      history.replaceState(null, "", "/");
+      const plain = mount();
+      await waitFor(() =>
+        expect(screen.getByTestId("three-scene")).toHaveAttribute("data-assets", "ready"),
+      );
+      expect(screen.queryByText("Model showroom — not the city")).toBeNull();
+      plain.unmount();
+
+      history.replaceState(null, "", "/?showroom=1");
+      serve({ manifest: () => json({}, 404) });
+      mount();
+      await waitFor(() =>
+        expect(screen.getByTestId("three-scene")).toHaveAttribute("data-assets", "failed"),
+      );
+      expect(screen.queryByText("Model showroom — not the city")).toBeNull();
+    });
+
     it("?showroom=1 frames the showroom grid (centred on HERO_CENTRE) once the assets are ready", async () => {
       history.replaceState(null, "", "/?showroom=1&bookmark=hero-near");
       serve({});
@@ -743,18 +770,28 @@ describe("ThreeScene", () => {
       instancesFault.on = true;
       // Each buildings fetch returns a new body (structural sharing would keep an equal one).
       let n = 0;
+      // Hold the glb until the full city is drawn, so the setCity count is deterministic.
+      let open: () => void = () => {};
+      const gate = new Promise<void>((r) => (open = r));
       stubFetch((url) => {
         if (url.includes("/layers/buildings")) return json({ ...CITY, as_of: `v${n++}` });
         if (url.endsWith("/city/manifest.json")) return json(MANIFEST);
-        if (url.includes("/city/link_intermediate.glb?")) return glb();
+        if (url.includes("/city/link_intermediate.glb?")) return gate.then(glb);
         return json({}, 404);
       });
       const disposed = vi.spyOn(THREE.BufferGeometry.prototype, "dispose");
       const { engine, qc } = mount();
       const s = screen.getByTestId("three-scene");
+      await waitFor(() => expect(engine.setCity).toHaveBeenCalledTimes(1));
+      open();
       await waitFor(() => expect(s).toHaveAttribute("data-assets", "failed"));
       await waitFor(() => expect(vertsOf(engine, -1)).toBe(90));
       expect(disposed).toHaveBeenCalled();
+      // The full city before the assets, then once more for the fallback (not twice: M6).
+      await act(async () => {
+        await new Promise((r) => setTimeout(r, 20));
+      });
+      expect(engine.setCity).toHaveBeenCalledTimes(2);
       const calls = engine.setCity.mock.calls.length;
       await act(async () => {
         await qc.invalidateQueries();

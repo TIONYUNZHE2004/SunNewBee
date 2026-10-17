@@ -85,6 +85,23 @@ function ExperimentalEngineChip() {
   );
 }
 
+const SHOWROOM_LABEL = "Model showroom — not the city";
+
+/** `?showroom=1` replaces the city with a grid of every model: say so while it is shown. */
+function ShowroomChip() {
+  return (
+    <InSlot name="notes">
+      <p
+        role="note"
+        aria-label={SHOWROOM_LABEL}
+        className="rounded-full border border-edge bg-surface/95 px-3 py-1 text-xs font-medium text-fg shadow-md"
+      >
+        {SHOWROOM_LABEL}
+      </p>
+    </InSlot>
+  );
+}
+
 const asError = (err: unknown) => (err instanceof Error ? err : new Error(String(err)));
 
 type AssetsState = "off" | "loading" | "ready" | "failed";
@@ -333,8 +350,8 @@ export default function ThreeScene({
       if (handedOff.current) engine.setAssets(null);
       handedOff.current = false;
       lib.dispose();
+      // setLoaded(null) re-runs this effect, which draws the full city once (no full() here).
       setLoaded(null);
-      full();
       setAssetsState("failed");
     }
   }, [engine, frame, buildings, loaded, showroom, roleUniforms]);
@@ -509,6 +526,7 @@ export default function ThreeScene({
       <PerfOverlay />
       <SlowBanner />
       <ExperimentalEngineChip />
+      {showroom && (assetsState === "loading" || assetsState === "ready") && <ShowroomChip />}
     </section>
   );
 }
