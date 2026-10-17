@@ -287,9 +287,13 @@ def _matches(f: Fact, v: float) -> bool:
     whole = abs(x - round(shown_v)) < 1e-9 or x in (math.floor(shown_v), math.ceil(shown_v))
     if whole and near:
         return f.kind not in ("steps", "count")  # counts are whole: 3 is never 2.6
-    if not f.approx or not near:
-        return False
     if f.direction == "down" and x < shown_v or f.direction == "up" and x > shown_v:
+        return False
+    # "about 2 minutes" for 1.7 min: the nearest whole number, with "about" (live check T-001)
+    nearest = x == math.floor(shown_v + 0.5) and shown_v >= 1
+    if f.approx and nearest and f.kind not in ("steps", "count"):
+        return True
+    if not f.approx or not near:
         return False
     return any(abs(x / s - round(x / s)) < 1e-9 for s in (5, 10, 50, 100) if s < abs(shown_v))
 

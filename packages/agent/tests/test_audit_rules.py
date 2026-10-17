@@ -43,6 +43,7 @@ def ans(summary, status="answered"):
         "Route status: confirmed. The path is 1.5 m wide.",
         "Route status: confirmed. If the river rises +3 m nothing changes here.",
         "Route status: confirmed. 路线约440米，步行约6分钟。",
+        "Route status: confirmed. It is about 0.4 km.",
     ],
 )
 def test_engine_numbers_and_their_roundings_pass(text):
@@ -147,3 +148,14 @@ def test_payload_numbers_skip_ids_and_geometry():
 def test_the_whole_validator_rejects_an_invented_distance():
     errs = validate_answer(ans("Route status: confirmed. It is 950 m long."), rec())
     assert any("950 m" in e for e in errs)
+
+
+def test_nearest_whole_minute_needs_about():
+    # Live check (T-001): the model wrote "about 2 minutes" for a 1.7 min walk.
+    r = rec()
+    r.routes["rt-1"] = {"id": "rt-1", "distance_m": 119.8, "est_minutes": 1.7}
+    assert measurement_errors(ans("Route status: confirmed. About 2 minutes."), r) == []
+    assert measurement_errors(ans("Route status: confirmed. It takes 2 minutes."), r)
+    assert measurement_errors(ans("Route status: confirmed. Under 2 minutes."), r) == []
+    assert measurement_errors(ans("Route status: confirmed. Over 2 minutes."), r)
+    assert measurement_errors(ans("Route status: confirmed. About 1 km."), r)  # 0.12 km
