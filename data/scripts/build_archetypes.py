@@ -7,9 +7,10 @@ base/archetype_coverage.json, and records site.json["buildings"]["archetypes_as_
 
 Display data only: nothing here feeds routing, evaluation, flood or answers. Archetypes come from
 OSM tags, footprint shape, OSM land use and OSM precinct names; a footprint that matches no rule
-stays `generic` (better than a confident wrong guess). Google 3D-tile samples are used only as
-`height_m` with `height_source` `google_3dtiles`, and to call a building a highrise (a sample
->= 30 m with coverage >= 0.5); they are display-only and never feed any fact.
+stays `generic` (better than a confident wrong guess). Google 3D-tile samples never reach
+`height_m` (the Cesium Stylised view reads it, and AGENTS.md keeps Google heights out of it):
+they only set `display_height_m` / `sampled_height_m` for this overhaul's Three.js renderer, and
+can call a building a highrise. They are display-only and never feed any fact.
 Overpass goes through data/scripts/overpass.py (cache, backoff, request cap).
 """
 
@@ -18,7 +19,6 @@ import json
 import math
 import re
 import sys
-from datetime import date
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -64,6 +64,7 @@ LOW_RISE = set(STOREY_HEIGHT_M) - {"school", "mosque", "mall", "factory"}
 OUTLIER_FACTOR = 3.0
 HIGHRISE_M = 30.0
 MIN_SAMPLE_COVERAGE = 0.5
+SAMPLE_MIN_M, SAMPLE_MAX_M = 2.5, 200.0
 
 _SCHOOL_NAME = re.compile(r"^(SK|SJK|SMK|SMA|Sekolah|Tadika)\b")
 _RIDGE = re.compile(r"ridge", re.IGNORECASE)
@@ -243,12 +244,10 @@ def precinct_of(lon: float, lat: float, precincts: list[dict]) -> str | None:
     return best_name if best_name is not None else nearest_name
 
 
-def fetch_precincts(bbox, step: float, max_requests: int | None) -> list[dict]:
+def fetch_precincts(bbox, step: float, max_requests: int | None) -> tuple[list[dict], str | None]:
+    """Precinct elements and the latest OSM data date across the Overpass answers."""
     overpass.MAX_REQUESTS = max_requests
-    elements: list[dict] = []
-    for tile in bb.tiles(bbox, step):
-        elements.extend(overpass.query(precincts_query(tile)).get("elements", []))
-    return elements
+    return overpass.fetch_elements(precincts_query(t) for t in bb.tiles(bbox, step))
 
 
 # --- land use -----------------------------------------------------------------------
@@ -282,6 +281,16 @@ def landuse_of(lon: float, lat: float, index: list[tuple]) -> str | None:
         if inside and (best is None or (rank, area) < best[0]):
             best = ((rank, area), cls)
     return best[1] if best else None
+
+
+def _valid_sample(s: dict | None) -> bool:
+    """The one gate for a Google height sample: numeric height in [2.5, 200] m, coverage >= 0.5."""
+    if not s:
+        return False
+    h = s.get("height_m")
+    if isinstance(h, bool) or not isinstance(h, (int, float)):
+        return False
+    return (s.get("coverage") or 0) >= MIN_SAMPLE_COVERAGE and SAMPLE_MIN_M <= h <= SAMPLE_MAX_M
 
 
 # --- rules --------------------------------------------------------------------------
@@ -326,9 +335,9 @@ def assign(
 ) -> tuple[str, str]:
     """(archetype, method); first matching rule wins, otherwise ("generic", "generic").
 
-    `height` is the OSM tag height. A valid `sample` (a Google height sample with coverage
-    >= 0.5) can only make a building a highrise (>= 30 m) or veto a residential shape match
-    (> 3x its storey height); it is display-only data."""
+    `height` is the OSM tag height. A valid `sample` (see `_valid_sample`) can only make a
+    building a highrise (>= 30 m) or veto a residential shape match (> 3x its storey height);
+    it is display-only data."""
     arch = _override(props.get("id", ""), overrides)
     if arch:
         return arch, "override"
@@ -359,12 +368,7 @@ def assign(
         return "factory", "landuse"
     if height is not None and (height >= 30 or (building == "apartments" and height >= 20)):
         return "highrise", "height"
-    valid = (
-        sample
-        and isinstance(sample.get("height_m"), (int, float))
-        and (sample.get("coverage") or 0) >= MIN_SAMPLE_COVERAGE
-    )
-    sample_h = float(sample["height_m"]) if valid else None
+    sample_h = float(sample["height_m"]) if sample is not None and _valid_sample(sample) else None
     if sample_h is not None and sample_h >= HIGHRISE_M:
         return "highrise", "height"
     if kind == "commercial" or landuse == "commercial":
@@ -411,20 +415,29 @@ def _default(props: dict) -> float:
     return round(bb.default_height(props.get("kind", "other"), props["id"]), 2)
 
 
-def final_height(props: dict, archetype: str, sample: dict | None) -> tuple[float, str]:
-    """(height_m, height_source): google_3dtiles > osm_height > osm_levels > archetype_storeys >
-    default. A sample over 3x the storey height of a low-rise archetype is an outlier."""
-    if sample and isinstance(sample.get("height_m"), (int, float)):
-        h = float(sample["height_m"])
-        outlier = archetype in LOW_RISE and h > OUTLIER_FACTOR * STOREY_HEIGHT_M[archetype]
-        if not outlier:
-            return round(h, 2), "google_3dtiles"
+def final_height(props: dict, archetype: str) -> tuple[float, str]:
+    """(height_m, height_source): osm_height > osm_levels > archetype_storeys > default.
+    Never Google: the Cesium Stylised view reads `height_m`."""
     tag = _tag_height(props)
     if tag is not None:
         return tag
     if archetype in STOREY_HEIGHT_M:
         return STOREY_HEIGHT_M[archetype], "archetype_storeys"
     return _default(props), "default"
+
+
+def display_height(
+    height: float, source: str, archetype: str, sample: dict | None
+) -> tuple[float, str]:
+    """(display_height_m, display_height_source) for the Three.js renderer: a valid Google sample
+    (`google_3dtiles`), else `height_m` and its source. A sample over 3x the storey height of a
+    low-rise archetype is an outlier."""
+    if sample is not None and _valid_sample(sample):
+        h = float(sample["height_m"])
+        outlier = archetype in LOW_RISE and h > OUTLIER_FACTOR * STOREY_HEIGHT_M[archetype]
+        if not outlier:
+            return round(h, 2), "google_3dtiles"
+    return height, source
 
 
 # --- transform and coverage ---------------------------------------------------------
@@ -461,11 +474,23 @@ def transform(
             overrides=overrides,
             sample=samples.get(p["id"]),
         )
-        h, src = final_height(p, arch, samples.get(p["id"]))
+        sample = samples.get(p["id"])
+        h, src = final_height(p, arch)
+        dh, dsrc = display_height(h, src, arch, sample)
         mn = float(p.get("min_height_m") or 0.0)
-        if mn >= h:
-            p["min_height_m"] = round(max(0.0, h - 0.5), 2)
-        p.update(height_m=h, height_source=src, archetype=arch, archetype_method=method)
+        if mn >= min(h, dh):
+            p["min_height_m"] = round(max(0.0, min(h, dh) - 0.5), 2)
+        p.pop("sampled_height_m", None)
+        if sample is not None and _valid_sample(sample):
+            p["sampled_height_m"] = round(float(sample["height_m"]), 2)
+        p.update(
+            height_m=h,
+            height_source=src,
+            display_height_m=dh,
+            display_height_source=dsrc,
+            archetype=arch,
+            archetype_method=method,
+        )
         out.append({**f, "properties": p})
     return out
 
@@ -548,10 +573,11 @@ def main(argv: list[str] | None = None) -> None:
     home = site["scene"]["home"]
     bbox = bb.bbox_around(home["lon"], home["lat"], site["buildings"]["radius_m"])
     try:
-        precincts = build_precincts(fetch_precincts(bbox, args.step, args.max_requests))
+        elements, as_of = fetch_precincts(bbox, args.step, args.max_requests)
     except overpass.OverpassError as exc:
         print(f"BLOCKED: {exc}; overpass HTTP requests this run: {overpass.REQUESTS_MADE}")
         raise SystemExit(2) from None
+    precincts = build_precincts(elements)
 
     out = transform(buildings, precincts, landcover, samples, overrides)
     if [f["properties"]["id"] for f in out] != ids:  # ids are stable: signs attach to them
@@ -564,20 +590,22 @@ def main(argv: list[str] | None = None) -> None:
     if args.dry_run:
         print("dry run: nothing written")
         return
+    if as_of is None:
+        print("no OSM data date in the Overpass answers; nothing written")
+        raise SystemExit(3)
 
     b_text = bb._dump(out)
     if len(b_text.encode("utf-8")) > bb.MAX_BYTES:
         print(f"buildings.geojson would exceed {bb.MAX_BYTES} bytes; nothing written")
         raise SystemExit(3)
-    today = date.today().isoformat()
     (base / "buildings.geojson").write_text(b_text, encoding="utf-8", newline="\n")
     (base / "precincts.geojson").write_text(bb._dump(precincts), encoding="utf-8", newline="\n")
     (base / "archetype_coverage.json").write_text(
-        json.dumps({"as_of": today, **cov}, ensure_ascii=False, indent=1) + "\n",
+        json.dumps({"as_of": as_of, **cov}, ensure_ascii=False, indent=1) + "\n",
         encoding="utf-8",
         newline="\n",
     )
-    site["buildings"]["archetypes_as_of"] = today
+    site["buildings"]["archetypes_as_of"] = as_of
     site_path.write_text(
         json.dumps(site, ensure_ascii=False, indent=2) + "\n", encoding="utf-8", newline="\n"
     )

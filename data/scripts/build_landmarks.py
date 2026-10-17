@@ -13,7 +13,6 @@ import argparse
 import json
 import re
 import sys
-from datetime import date
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -158,11 +157,14 @@ def main(argv: list[str] | None = None) -> None:
     buildings = json.loads(path.read_text(encoding="utf-8"))["features"]
     overpass.MAX_REQUESTS = args.max_requests
     try:
-        pois = overpass.query(landmark_query(bbox)).get("elements", [])
+        pois, as_of = overpass.fetch_elements([landmark_query(bbox)])
     except overpass.OverpassError as exc:
         print(f"BLOCKED: {exc}; overpass HTTP requests this run: {overpass.REQUESTS_MADE}")
         raise SystemExit(2) from None
-    feats, unplaced = build_landmarks(LANDMARKS, buildings, pois, date.today().isoformat())
+    if as_of is None:
+        print("no OSM data date in the Overpass answers; nothing written")
+        raise SystemExit(3)
+    feats, unplaced = build_landmarks(LANDMARKS, buildings, pois, as_of)
     (OUT / "base" / "landmarks.geojson").write_text(_dump(feats), encoding="utf-8", newline="\n")
     print(f"placed: {[f['properties']['id'] for f in feats]}")
     print(f"unplaced: {unplaced}")

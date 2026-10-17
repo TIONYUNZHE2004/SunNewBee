@@ -4,6 +4,7 @@ import { useTheme } from "../../../ui/theme";
 import { usePanel } from "../../main/panelStore";
 import { isWide } from "../../main/usePanelReserve";
 import { PANEL_INSET_PX, panelWidthPx } from "../../main/viewport";
+import { InSlot } from "../../map-ui/mapSlots";
 import { CameraControls, handleMapKey } from "../cesium/controls/CameraControls";
 import { useCameraHeading } from "../cesium/controls/cameraHeadingStore";
 import { type CameraOps, reducedMotion } from "../cesium/controls/cameraOps";
@@ -23,6 +24,7 @@ import { BOOKMARKS, bookmarkFromSearch, DEFAULT_BOOKMARK } from "./bookmarks";
 import { createThreeCameraOps, type Pose, type ThreeCameraOps } from "./cameraRig";
 import { buildCityGeometry } from "./cityMesh";
 import { createEngine, type Engine } from "./engine";
+import { cesiumEngineHref } from "./engineChoice";
 import { createFrame, type LocalFrame } from "./frame";
 import { createFrameStats } from "./frameStats";
 import { boundsGoal, type CameraGoal, intentGoal } from "./intents";
@@ -59,6 +61,23 @@ const bboxCorners = (b: number[] | undefined): LonLat[] =>
         [b[2] as number, b[3] as number],
       ]
     : [];
+
+/** Bottom-left map note (clear of the camera cluster and the attribution strip). */
+function ExperimentalEngineChip() {
+  return (
+    <InSlot name="notes">
+      <p
+        role="note"
+        className="flex items-center gap-1 rounded-full border border-edge bg-surface/95 px-3 py-1 text-xs text-fg shadow-md"
+      >
+        Experimental 3D engine ·{" "}
+        <a className="font-medium underline" href={cesiumEngineHref(location.href)}>
+          Switch back
+        </a>
+      </p>
+    </InSlot>
+  );
+}
 
 const asError = (err: unknown) => (err instanceof Error ? err : new Error(String(err)));
 
@@ -324,6 +343,7 @@ export default function ThreeScene({
       <CameraControls ops={ops} />
       <PerfOverlay />
       <SlowBanner />
+      <ExperimentalEngineChip />
     </section>
   );
 }

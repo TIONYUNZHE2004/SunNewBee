@@ -50,3 +50,10 @@ export const stylisedEngine = (): StylisedEngine => {
 export function rendererFor(view: View, style: MapStyle, engine: StylisedEngine): Renderer {
   return view === "cesium" && style === "stylised" && engine === "three" ? "three" : view;
 }
+
+/** The same page with `?engine=cesium`: loading it persists Cesium as the stylised engine. */
+export function cesiumEngineHref(href: string): string {
+  const u = new URL(href);
+  u.searchParams.set("engine", "cesium");
+  return `${u.pathname}${u.search}${u.hash}`;
+}

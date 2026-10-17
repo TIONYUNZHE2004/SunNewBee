@@ -13,7 +13,6 @@ import json
 import math
 import re
 import sys
-from datetime import date
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -118,13 +117,11 @@ def query_for(tile: tuple[float, float, float, float]) -> str:
     )
 
 
-def fetch_all(bbox, step: float, max_requests: int | None) -> list[dict]:
-    """Concatenated Overpass elements for every tile (sequential, cached, request-capped)."""
+def fetch_all(bbox, step: float, max_requests: int | None) -> tuple[list[dict], str | None]:
+    """Concatenated Overpass elements for every tile (sequential, cached, request-capped) and
+    the latest OSM data date across the answers."""
     overpass.MAX_REQUESTS = max_requests
-    elements: list[dict] = []
-    for tile in tiles(bbox, step):
-        elements.extend(overpass.query(query_for(tile)).get("elements", []))
-    return elements
+    return overpass.fetch_elements(query_for(t) for t in tiles(bbox, step))
 
 
 MAX_HEIGHT_M = 300.0
@@ -346,9 +343,7 @@ def main(argv: list[str] | None = None) -> None:
     if args.parks:
         overpass.MAX_REQUESTS = args.max_requests
         try:
-            els: list[dict] = []
-            for tile in tiles(bbox, args.step):
-                els.extend(overpass.query(parks_query_for(tile)).get("elements", []))
+            els, _ = overpass.fetch_elements(parks_query_for(t) for t in tiles(bbox, args.step))
         except overpass.OverpassError as exc:
             print(f"BLOCKED: {exc}; overpass HTTP requests this run: {overpass.REQUESTS_MADE}")
             raise SystemExit(2) from None
@@ -360,10 +355,13 @@ def main(argv: list[str] | None = None) -> None:
         print(f"overpass HTTP requests this run: {overpass.REQUESTS_MADE}")
         return
     try:
-        elements = fetch_all(bbox, args.step, args.max_requests)
+        elements, as_of = fetch_all(bbox, args.step, args.max_requests)
     except overpass.OverpassError as exc:
         print(f"BLOCKED: {exc}; overpass HTTP requests this run: {overpass.REQUESTS_MADE}")
         raise SystemExit(2) from None
+    if as_of is None:
+        print("no OSM data date in the Overpass answers; nothing written")
+        raise SystemExit(3)
     buildings, trees, stats = build_features(elements)
     b_text, t_text = _dump(buildings), _dump(trees)
     size = len(b_text.encode("utf-8"))
@@ -381,7 +379,7 @@ def main(argv: list[str] | None = None) -> None:
         "trees": "base/trees.geojson",
         "radius_m": args.radius_m,
         "count": len(buildings),
-        "as_of": date.today().isoformat(),
+        "as_of": as_of,
     }
     site_path.write_text(
         json.dumps(site, ensure_ascii=False, indent=2) + "\n", encoding="utf-8", newline="\n"

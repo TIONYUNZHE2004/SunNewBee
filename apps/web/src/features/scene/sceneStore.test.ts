@@ -108,6 +108,14 @@ describe("map style default", () => {
     useScene.getState().applyDefaultMapStyle(true, true);
     expect(useScene.getState().mapStyle).toBe("realistic");
   });
+  it("changing the map style retries a crashed renderer; re-picking the same one does not", () => {
+    useScene.getState().setMapStyle("stylised");
+    useScene.getState().setRendererFailed(true);
+    useScene.getState().setMapStyle("stylised");
+    expect(useScene.getState().rendererFailed).toBe(true);
+    useScene.getState().setMapStyle("realistic");
+    expect(useScene.getState().rendererFailed).toBe(false);
+  });
   it("reset clears the user's choice", () => {
     useScene.getState().setMapStyle("stylised");
     useScene.getState().reset();
