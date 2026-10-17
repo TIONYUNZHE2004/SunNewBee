@@ -633,3 +633,28 @@
 - **2026-10-17T00:47:19+08:00** (`date`): Task 9 final verification at head `80b1387` plus docs (`apps/web/README.md`, Project 1 spec note). All mock-backed (mock LLM, tiny fixture).
   - lint PASS (0 errors; Biome reports warnings and infos only); pytest PASS (869); typecheck PASS; vitest PASS (`--maxWorkers=2`, 95 files); gen PASS with no drift in `packages/api-client`; golden PASS (13/13, mock); e2e PASS (9/9, mock, tiny fixture, List view).
   - NOT RUN, outstanding: the browser visual checks. Light and Dark at 1440x900 and 390x844 (Stylised and List), a resident route answer (strip, Show on map, collapsed evidence with the demo count, notes visible), a flood question (banner and disclaimer), Management (Tickets count), Tickets (tabs, meter, choice cards, before/after highlight). Also still open from Project 3: the WebGL and performance gate, and the 6 rem TopStack reserve at 390x844. Dev servers were reaped for low memory; the owner must allow a restart. No screenshots were taken, so none are claimed.
+
+## 2026-10-17 Visual and performance gate (Projects 3 and 4) and its fix waves
+
+- **2026-10-17T11:50:08+08:00** (`date`): logged the gate and fix waves on `feat/city-and-ui` (head `762374b`). Everything is mock-backed (mock LLM). The branch is not merged or pushed.
+- **Method:** headless Chromium via Playwright on the RTX 2050 (ANGLE D3D11), 1440x900 plus 1024 and 390x844 layout checks, mock LLM, Elmina seed, built app. Counts are Cesium's command list from `?perf=1` and GL draws per rAF.
+- **Gate result:** Day / Dusk / Night, parks, the stroller route over the ground decals, River +3 m (no shimmer, disclaimer and MBSA/JPS/NADMA banner) and reduced motion PASS. Performance FAIL: High 15 fps / 175 draws, Low 26 fps / 113 draws, GPU-bound on ground ClassificationPrimitives; about 17 fps of idle rendering with Motion off.
+- **Fix wave A** (stylised city):
+  - `9106e30` ground decals as a tiled canvas ImageryProvider (crossfade by layer alpha).
+  - `1a51203` all buildings in one primitive and one material.
+  - `e53e3a7` frustum clone patch: Cesium 1.146 `PerspectiveFrustum.clone` dropped `xOffset`, so requestRenderMode rendered every frame.
+  - `1c94793` flocks and clouds in one primitive each.
+  - Fix round 1: `6acdb82` pick rays follow the off-centre frustum (0 m miss at a marker's pixel), plus pool-layer fixes `a7cf554`, `e1e15ae`.
+  - After: High 54–67 draws, not GPU-bound (rAF 129 Hz), motion clock about 26/30 fps, 0 idle frames with Motion off. Low 26 fps / 113 draws became 58 commands. 60 fps is the headless vsync cap, so headroom above it is unmeasured.
+- **Parks:** `d1dfda1` `base/parks.geojson` (89 outlines, 24 Overpass requests), committed separately.
+- **Fix wave B** (UI):
+  - `a2317e7`, `cbb078d`, `67cb649` map controls clear the attribution strip (`--attr-h`). Measured on Elmina: 1440 controls y801–845 vs strip y854; 1024 y669 vs y722; 390 peek y577 vs y629, half y265 vs y317.
+  - `b2385e9`, `5916c27`, `762374b` chips row: hidden scrollbar, vertical wheel scrolls it, edge fades, Ctrl/Meta/Shift wheels pass through.
+  - `6f3dd21` Tickets scrolls in a full-width wrapper.
+  - `b932ed9`, `2f60a3b` phone full sheet hides the map controls.
+- **Rulings accepted:**
+  - High at 61–65 draws vs the nominal ~60: about 40 are globe tiles that scale with the view, and frames are not GPU-bound. Cost if wrong: re-open the tile budget later.
+  - Theme-switch main-thread cost (max 231 ms task, about 0.75 s total): rare, no visual fault. Cost if wrong: move tile painting to a worker.
+  - Cesium's ion credit under our attribution strip at bottom-left is pre-existing (from main `0b066e2`), not this branch.
+- **Deferred minors:** tile painting off the main thread (OffscreenCanvas worker); vitest timeouts in untouched Cesium tests under memory load (isolated and clean re-runs pass); card and popover space at phone half.
+- **Final CI at `762374b`, 7/7 PASS:** lint; pytest 869; typecheck; vitest 755; gen no drift; golden 13/13 (mock); e2e 11/11 (mock, tiny fixture, List view, so no 3D coverage).
