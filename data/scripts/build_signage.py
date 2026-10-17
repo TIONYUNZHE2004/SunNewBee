@@ -3,8 +3,9 @@
 Writes data/seed/elmina/base/signage.geojson: one Point per real shop / amenity / office name,
 attached to a building by id. Honesty rules (ADR 0013): the text is the OSM `name`, else `brand`,
 verbatim (whitespace collapsed); no logos; every sign carries `source_url` and `as_of`. Mapper
-notes ("Only seen in Google Maps. Not OSV.", "Clinic (unnamed, OSM)", fixme, todo, "?") are never
-signs. Display only: routing, evaluation, flood and answers never read this file.
+notes ("Only seen in Google Maps. Not OSV.", "Clinic (unnamed, OSM)", fixme, todo, "?") and
+tourism=information boards and street furniture are never signs. Display only: routing,
+evaluation, flood and answers never read this file.
 Overpass goes through data/scripts/overpass.py (cache, backoff, request cap).
 """
 
@@ -28,8 +29,23 @@ MAX_PER_BUILDING = 4
 ATTACH_MAX_M = 25.0
 POI_KEYS = "shop|amenity|office|leisure|tourism|craft|healthcare"
 # Mapper notes, never signs. Each alternative is a note marker, not a word a real business uses.
-# "todo" would also reject a shop literally called Todo; accepted to catch "TODO: add name".
-JUNK = re.compile(r"unnamed|not osv|google maps|fixme|todo|\?|^\W*$", re.I)
+# "todo" matches as a whole word only, so names that merely contain those letters survive.
+JUNK = re.compile(r"unnamed|not osv|google maps|fixme|\btodo\b|\?|^\W*$", re.I)
+# Not a business or place name (ADR 0013): boards and street furniture never carry a shop sign.
+NON_BUSINESS = {
+    "amenity": {
+        "parking",
+        "bench",
+        "toilets",
+        "waste_basket",
+        "bicycle_parking",
+        "shelter",
+        "drinking_water",
+        "fountain",
+        "playground",
+    },
+    "leisure": {"pitch", "playground"},
+}
 
 
 def signage_query(tile: tuple[float, float, float, float]) -> str:
@@ -43,7 +59,11 @@ def signage_query(tile: tuple[float, float, float, float]) -> str:
 
 
 def sign_text(tags: dict) -> str | None:
-    """Verbatim OSM name, else brand; None for blank text or a mapper note."""
+    """Verbatim OSM name, else brand; None for blank text, a mapper note or a non-business tag."""
+    if tags.get("tourism") == "information":
+        return None  # boards, guideposts, maps
+    if any(tags.get(k) in vals for k, vals in NON_BUSINESS.items()):
+        return None
     for key in ("name", "brand"):
         raw = tags.get(key)
         if raw is None:

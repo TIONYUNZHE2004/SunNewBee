@@ -146,3 +146,47 @@ def test_signage_query_shape():
         "healthcare",
     ):
         assert k in q
+
+
+def test_information_boards_are_never_signs_whatever_other_tags():
+    assert bs.sign_text({"name": "Selamat Datang", "tourism": "information"}) is None
+    assert bs.sign_text({"name": "Kedai", "shop": "yes", "tourism": "information"}) is None
+    assert bs.sign_text({"name": "Hotel Ria", "tourism": "hotel"}) == "Hotel Ria"
+
+
+@pytest.mark.parametrize(
+    "tags",
+    [
+        {"amenity": v}
+        for v in (
+            "parking",
+            "bench",
+            "toilets",
+            "waste_basket",
+            "bicycle_parking",
+            "shelter",
+            "drinking_water",
+            "fountain",
+        )
+    ]
+    + [{"leisure": v} for v in ("pitch", "playground")],
+)
+def test_non_business_amenity_and_leisure_get_no_sign(tags):
+    assert bs.sign_text({"name": "Car Park B", **tags}) is None
+
+
+def test_business_amenity_still_signs():
+    assert bs.sign_text({"name": "Klinik Sihat", "amenity": "clinic"}) == "Klinik Sihat"
+
+
+def test_non_business_elements_count_as_junk():
+    els = [node(1, "Welcome board", tourism="information"), node(2, "Good")]
+    feats, stats = bs.build_signs(els, [square(LON, LAT)], "2026-10-17")
+    assert [f["properties"]["text"] for f in feats] == ["Good"]
+    assert stats["junk"] == 1
+
+
+def test_todo_only_rejected_as_a_whole_word():
+    assert bs.sign_text({"name": "Mastodon Cafe"}) == "Mastodon Cafe"
+    assert bs.sign_text({"name": "Kedai Todoroki"}) == "Kedai Todoroki"
+    assert bs.sign_text({"name": "TODO name"}) is None
