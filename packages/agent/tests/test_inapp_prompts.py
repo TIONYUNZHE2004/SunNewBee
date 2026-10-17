@@ -146,14 +146,23 @@ async def test_wheelchair_where_can_i_go_is_short(world, tmp_path):
     assert m, text
     # Named lines + "and N more" count items, and the filed count is exact.
     unc = next(e for e in evs if e.type == "uncertainty")
-    # Caveat items (e.g. a centre's unmapped entrance, Task 43) are shown on their own line
-    # and are not "unchecked items".
+    # This sentence counts route-attribute gaps. Place-existence/name provenance (T-008)
+    # and entrance caveats are disclosed separately; they are not additional route checks.
+    separate = {"caveat", "demo_values"}
     items = {
         (i["element_id"], i["attribute"])
         for i in unc.items
-        if i["attribute"] not in ("flood", "caveat")
+        if i["attribute"] not in separate | {"flood"}
     }
-    counted = [i for i in unc.items if i["attribute"] != "caveat"]
+    counted = [i for i in unc.items if i["attribute"] not in separate]
+    assert any(i["attribute"] == "demo_values" for i in unc.items)
+    assert any(
+        e.type == "citation"
+        and e.element_id == "lakeside-mall"
+        and e.source_type == "team_survey_placeholder"
+        for e in evs
+    )
+    assert "demo values, not yet surveyed" in text
     assert int(m.group(1)) == len(counted) - 5
     vrs = {(e.element_id, e.attribute) for e in evs if e.type == "verification.requested"}
     k = len(vrs & items)

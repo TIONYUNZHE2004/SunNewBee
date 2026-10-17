@@ -278,24 +278,36 @@ def _answer_events(
 
     ref = 0
     cited: set[str] = set()
-    for c in ans.claims:
-        for eid in c.evidence_ids:
-            e = rec.evidence.get(eid)
-            if e and eid not in cited:
-                cited.add(eid)
-                ref += 1
-                evs.append(
-                    Citation(
-                        ref=ref,
-                        evidence_id=eid,
-                        element_id=e.element_id,
-                        attribute=e.attribute,
-                        status=str(e.status),
-                        verified_at=e.verified_at,
-                        source_type=e.source_type,
-                        photo_url=e.photo_url,
-                    )
+    evidence_ids = [eid for c in ans.claims for eid in c.evidence_ids]
+    selected_route = rec.routes.get(ans.route_id or "") or (
+        next(iter(rec.routes.values())) if len(rec.routes) == 1 else {}
+    )
+    # Place existence can qualify the selected route even when the model only cited the
+    # evacuation centre/scenario. Preserve those badges; never cite unrelated search hits.
+    evidence_ids += [
+        eid
+        for eid in selected_route.get("evidence_ids", [])
+        if eid.startswith("ev-place-")
+        and eid in rec.evidence
+        and rec.evidence[eid].source_type == "team_survey_placeholder"
+    ]
+    for eid in evidence_ids:
+        e = rec.evidence.get(eid)
+        if e and eid not in cited:
+            cited.add(eid)
+            ref += 1
+            evs.append(
+                Citation(
+                    ref=ref,
+                    evidence_id=eid,
+                    element_id=e.element_id,
+                    attribute=e.attribute,
+                    status=str(e.status),
+                    verified_at=e.verified_at,
+                    source_type=e.source_type,
+                    photo_url=e.photo_url,
                 )
+            )
 
     unknowns = [u for r in rec.routes.values() for u in r.get("unknowns", [])]
 
