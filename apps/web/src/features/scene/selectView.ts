@@ -23,9 +23,14 @@ export function availableViews(env: Env, webglOk: boolean, hasBuildings = false)
   ];
 }
 
-/** The view actually on screen: the chosen one only if available and its renderer has not crashed. */
+/**
+ * The view actually on screen: the chosen one if available and not crashed. A crashed 3D (Cesium)
+ * renderer falls to Mapbox when available, else the list.
+ */
 export function effectiveView(view: View, available: View[], rendererFailed: boolean): View {
-  return !rendererFailed && available.includes(view) ? view : "list";
+  if (!available.includes(view)) return "list";
+  if (!rendererFailed) return view;
+  return view === "cesium" && available.includes("mapbox") ? "mapbox" : "list";
 }
 
 /** The single place the renderer is decided: preferred if available, else the best available. */
