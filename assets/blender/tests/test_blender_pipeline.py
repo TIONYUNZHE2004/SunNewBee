@@ -533,6 +533,107 @@ def test_furniture(kits_built):
         assert _roles(cols) & solid, vid
 
 
+# --- people and vehicles (Task 7) -------------------------------------------------------------
+
+PV_IDS = ("people", "vehicles")
+WALKERS = (
+    "office_man",
+    "office_woman",
+    "tudung_baju_kurung",
+    "older_adult",
+    "jogger",
+    "parent_stroller",
+    "school_boy",
+    "school_girl",
+    "child",
+)
+
+
+@pytest.fixture(scope="module")
+def people_vehicles_built(tmp_path_factory) -> dict[str, tuple[Path, Path]]:
+    return _build_and_pack(PV_IDS, tmp_path_factory)
+
+
+def test_people_vehicles_have_the_spec_variants():
+    assert [v.id for v in specs.ASSETS["people"].variants] == [
+        "office_man",
+        "office_woman",
+        "tudung_baju_kurung",
+        "older_adult",
+        "jogger",
+        "cyclist",
+        "parent_stroller",
+        "school_boy",
+        "school_girl",
+        "child",
+    ]
+    assert [v.id for v in specs.ASSETS["vehicles"].variants] == [
+        "hatchback",
+        "city_car",
+        "sedan",
+        "mpv",
+        "pickup",
+        "motorcycle",
+        "delivery_motorcycle",
+        "bus",
+        "lorry",
+    ]
+
+
+def test_people_vehicles(people_vehicles_built):
+    # people: limb code in B, true heights
+    raw, packed = people_vehicles_built["people"]
+    colors = check_kit(raw, packed, "people")
+    info = read_glb(packed)
+    ok = (0.25, 0.5, 0.75)
+    roles = [specs.ROLES.index(r) for r in ("primary", "secondary", "accent", "dark")]
+    for v in specs.ASSETS["people"].variants:
+        _, hi = (
+            info.nodes[f"people__{v.id}__LOD0"].bounds[0],
+            info.nodes[f"people__{v.id}__LOD0"].bounds[1],
+        )
+        assert v.y_range[0] <= hi[1] <= v.y_range[1], (v.id, hi[1])
+        bs = [c[2] for c in colors[v.id]]
+        assert all(any(abs(b - o) <= 0.02 for o in ok) for b in bs), (v.id, sorted(set(bs)))
+        got = {o for o in ok if any(abs(b - o) <= 0.02 for b in bs)}
+        assert 0.5 in got, v.id
+        if v.id in WALKERS:
+            assert {0.25, 0.75} <= got, (v.id, "limbs swing", got)
+        assert set(roles) <= _roles(colors[v.id]), (v.id, _roles(colors[v.id]))
+        lo1, hi1 = info.nodes[f"people__{v.id}__LOD1"].bounds
+        assert v.y_range[0] <= hi1[1] <= v.y_range[1], (v.id, "LOD1", hi1[1])
+    lo, hi = info.nodes["people__cyclist__LOD0"].bounds
+    assert hi[2] - lo[2] >= 1.5, "the bike is included"
+    lo, hi = info.nodes["people__parent_stroller__LOD0"].bounds
+    assert hi[2] - lo[2] >= 1.3, "the stroller is included"
+    # vehicles: length along z, front at +z, lamps coded in B
+    raw, packed = people_vehicles_built["vehicles"]
+    colors = check_kit(raw, packed, "vehicles")
+    info = read_glb(packed)
+    light = specs.ROLES.index("light")
+    for v in specs.ASSETS["vehicles"].variants:
+        lo, hi = info.nodes[f"vehicles__{v.id}__LOD0"].bounds
+        assert v.z_range[0] <= hi[2] - lo[2] <= v.z_range[1], (v.id, hi[2] - lo[2])
+        if v.id == "hatchback":
+            assert 3.7 <= hi[2] - lo[2] <= 4.0
+        assert {specs.ROLES.index(r) for r in ("primary", "dark", "metal", "light")} <= _roles(
+            colors[v.id]
+        ), v.id
+        if v.id not in ("motorcycle", "delivery_motorcycle"):
+            assert specs.ROLES.index("glass") in _roles(colors[v.id]), v.id
+        for lod in (0, 1):
+            name = f"vehicles__{v.id}__LOD{lod}"
+            cols = colors[v.id] if lod == 0 else read_attribute(raw, name, "COLOR_0")
+            pos = read_attribute(raw, name, "POSITION")
+            lamps = [
+                (c[2], p[2]) for c, p in zip(cols, pos, strict=True) if round(c[1] * 7) == light
+            ]
+            heads = [b for b, z in lamps if z > 0]
+            tails = [b for b, z in lamps if z < 0]
+            assert heads and all(b < 0.5 for b in heads), (name, "headlights at the front")
+            assert tails and all(b >= 0.5 for b in tails), (name, "tail lights at the rear")
+
+
 # --- vendor intake (import_vendor, scale_to) on a synthetic source ---------------------------
 
 SYNTH_SOURCE = r"""
