@@ -717,3 +717,58 @@
   | e2e | 20/20 (mock, tiny fixture, includes the Three.js SwiftShader smoke test) |
 
 - **Next:** Plan P2 (assets), `docs/superpowers/plans/2026-10-17-stylised-threejs-phase-2-assets.md`, opens with a session handoff.
+
+## 2026-10-18 Three.js stylised overhaul: Phase 2 (assets) complete
+
+Logged 2026-10-18 02:05 MPST. The run went from 2026-10-17 about 21:00 to 2026-10-18 02:00. Plan: `docs/superpowers/plans/2026-10-17-stylised-threejs-phase-2-assets.md`, run with subagent-driven development. The ledger is in `.superpowers/sdd/2026-10-17-stylised-threejs-phase-2-assets/`.
+
+- **Branch:** `feat/stylised-threejs`, local only and not pushed. Lanes `blender`, `fe` and `data` were merged `--no-ff`, followed by integration fixes. The plan's per-gate data commits were folded into one data commit of the full asset set (`5ed0ea0`), plus one retune (`31dfb49`).
+- **Assets** (`apps/web/public/city/`, 22 files, 2.0 MB of the 12 MB budget):
+  - 13 archetypes, 3 landmarks and 5 kits: trees 8, furniture 9, people 10, vehicles 9, construction 8.
+  - All are scripted in headless Blender 5.2 with three LODs where specified, meshopt-packed, with `COLOR_0` roles and no images.
+  - A clean build takes 61 s, and rebuilds are byte-identical.
+- **Owner gates A–G passed.** The owner's notes, as applied:
+  - **Link houses:** the ridge runs along the street, the upper floor has a brick panel with a large window, and the gate is dark with brick pillars.
+  - **Superlink:** in the Elmina Ridge 2 style.
+  - **Bungalow:** now a two-storey detached house. `STOREY_HEIGHT_M["bungalow"]` went from 5.5 to 9.0, which changed 409 seed heights.
+  - **Roofs:** no large black flat roofs.
+  - **Shop office:** in the Jumpa style.
+  - **Factory:** in the Elmina Business Park style.
+  - **Mall:** light roof and white canopy.
+  - **Kanopi:** a slab with four modules and a sky pod.
+- **Frontage:** `front_deg` is set on 1,721 of 2,875 non-generic buildings (59.9%). Bayu, Mutiara Subang, Subang Bestari, Aman and Laman Permai have no mapped street within 40 m, so they get no front; this is a data gap, not a guess.
+- **Performance, measured by automation in real Chrome on the owner's laptop** (RTX 2050 via ANGLE D3D11, 1440×900, DPR 1.25, mock LLM, 10 s scripted orbit, after the final fix wave):
+
+  | Bookmark, tier | fps | Draws | Triangles (all passes) | Buffers |
+  |---|---|---|---|---|
+  | hero-mid, Medium | ~127 (121–131) | 54–61 | 1.6–2.2 M | ≈13 MB |
+  | hero-mid, High (before the fix wave) | ~130 | 74–82 | ≤2.42 M | ≈13 MB |
+  | hero-near, Medium (before the fix wave) | ~130 | 76–84 | ≤2.48 M | ≈13 MB |
+  | township, Medium | ~130 | 41 (after) / 70 (before) | 0.25 / 0.51 M | ≈13 MB |
+
+  - fps looks capped by the display refresh.
+  - The gate (≥ 30 fps at Medium, hero-mid) passes by machine measurement. The owner's own 10 s orbit and the visual verdict are still pending.
+- **Final review** (one fix wave):
+  - People heights were retuned so that the ±3% jitter stays within 1.6–1.8 m.
+  - A glb missing a variant's LOD0 node now counts as failed, so those buildings stay extruded rather than leaving a hole.
+  - LOD2 blocks cast no shadows and skip the AO pass, which takes hero-mid from 97% to about 88% of the triangle budget.
+  - The manifest's role order is checked, glb URLs are versioned, the showroom shows a "Model showroom — not the city" chip, and the mall anchor is pinned to the seed.
+- **Final CI** (on the fix-wave head):
+
+  | Check | Result |
+  |---|---|
+  | lint | PASS |
+  | pytest | 1573/1574: one pre-existing, Windows-only failure in `test_mcp_server` |
+  | typecheck | PASS, after the merge fix `a5d800f`: gltf-transform's lock resolves `@types/node`, so two `@ts-expect-error` directives became unused |
+  | vitest | 979 PASS (map keys blanked) |
+  | gen | PASS, no drift |
+  | golden | 22/22 (mock) |
+  | e2e | 21/21 (mock, tiny fixture, includes the real-asset Three.js test) |
+
+- **Known issues and P3 inputs:**
+  - At the `township` bookmark the city is hidden by fog: the camera range is beyond the fog distance. This is Phase 0–1 lighting, and P3 owns keyframe lighting and fog.
+  - People and vehicles need a runtime distance scale-up (about 3× at hero-mid). The owner's ruling keeps the assets at true scale.
+  - Night window glow (`windowEmissive` → `uWindowGlow`) is not wired.
+  - The owner chose to trace Kanopi and Masjid outlines from a public site plan, with the source recorded.
+  - `planCity` fallback counts were not logged in this run.
+- **Next:** Plan P3 (hero district), written with superpowers:writing-plans.
