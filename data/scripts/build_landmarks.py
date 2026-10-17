@@ -4,7 +4,8 @@ Writes data/seed/elmina/base/landmarks.geojson: the matched building footprint o
 landmark, with the bespoke model to draw. A landmark is placed only on a real OSM footprint:
 first a building whose name matches, else an OSM POI whose name matches (its point must lie inside
 a footprint; area elements such as landuse=construction never attach).
-Never invents a footprint: an unplaced landmark gets no feature and is reported. Display only: routing, evaluation, flood and answers never read this file.
+Never invents a footprint: an unplaced landmark gets no feature and is reported.
+Display only: routing, evaluation, flood and answers never read this file.
 Overpass goes through data/scripts/overpass.py (cache, backoff, request cap).
 """
 
