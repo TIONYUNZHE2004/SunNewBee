@@ -58,7 +58,7 @@ An AI feature often needs a small Backend or Frontend change (the road-crossings
 | File | Who | Why |
 |---|---|---|
 | `docs/05-team/yunzhe-branch-workflow.md` (this file) | Every agent | Branches, flow, rules |
-| `docs/05-team/agent-board/BOARD.md` and your task file in `agent-board/tasks/` | Every agent | Which tasks exist, who owns them, feedback from other branches ([how the board works](agent-board/README.md)) |
+| `BOARD.md`, `README.md` and your task file on branch `yunzhe/agent-board` (`git show origin/yunzhe/agent-board:BOARD.md`) | Every agent | Which tasks exist, who owns them, feedback between branches. The board branch is never merged into control or `main` |
 | `AGENTS.md` | Every agent | Commands, architecture, honesty invariants, conventions |
 | `CLAUDE.md` | Claude only (loads by itself) | Claude workflow, cost guardrails, gotchas |
 | The README of the area you change: `apps/web/`, `apps/api/`, `packages/spatial/`, `packages/agent/`, `data/` | The agent working there | How that area works |
@@ -69,7 +69,7 @@ An AI feature often needs a small Backend or Frontend change (the road-crossings
 Before it does anything else, including answering a question about the code or the branches, the control session:
 
 1. Runs `git fetch origin` (and `git fetch --unshallow origin` once, if the clone is shallow).
-2. Lists every worker branch with commits that control does not have (`git log --oneline HEAD..origin/<branch>`), and reports them, including new task-log entries on the [board](agent-board/README.md).
+2. Lists every worker branch with commits that control does not have (`git log --oneline HEAD..origin/<branch>`), and reports them, including new task-log entries on the board branch `yunzhe/agent-board`.
 3. Merges what Yunzhe approves, runs the checklist, then starts the task.
 
 When it reports branch state, it says when it fetched ("as of 14:05 fetch"). A worker's push is invisible to control until the next fetch, so a report without a fetch time may be stale.
@@ -129,9 +129,9 @@ git fetch --unshallow origin
 ## Prompt template for a new agent
 
 ```
-You are a worker agent on TownshipLens. Read docs/05-team/yunzhe-branch-workflow.md, docs/05-team/agent-board/README.md and AGENTS.md first.
+You are a worker agent on TownshipLens. Read docs/05-team/yunzhe-branch-workflow.md, AGENTS.md and the board README (git show origin/yunzhe/agent-board:README.md) first.
 Branch: create <agent>/<task> from origin/claude/sweet-davinci-29v7ne.
-Task: T-<NNN> from docs/05-team/agent-board/BOARD.md (read its task file). Log progress, findings and questions in that task's ## Log as you go, and push.
+Task: T-<NNN> from the board (git show origin/yunzhe/agent-board:BOARD.md, then its task file). You may push to two branches only: your own code branch and yunzhe/agent-board (log entries only, as its README says). Log progress, findings and questions as you go.
 Scope: you work in Yunzhe's lanes (AI, docs). Read "My scope" in the workflow doc; list any Backend or Frontend file you touch in the PR.
 When done: run the checklist, report PASS/FAIL per step, push your branch and open a PR into claude/sweet-davinci-29v7ne (not main).
 ```
