@@ -110,67 +110,115 @@ def _strip(m: _Mesh, p, q, n, y0: float, y1: float, off: float) -> None:
     )
 
 
+def _clip(poly, axis: int, val: float, keep_ge: bool):
+    """Sutherland-Hodgman: `poly` ((x, z) points) against one axis-aligned half-plane."""
+    out = []
+    for p, q in zip(poly, poly[1:] + poly[:1], strict=True):
+        pin = (p[axis] >= val) if keep_ge else (p[axis] <= val)
+        qin = (q[axis] >= val) if keep_ge else (q[axis] <= val)
+        if pin != qin:
+            t = (val - p[axis]) / (q[axis] - p[axis])
+            out.append((p[0] + (q[0] - p[0]) * t, p[1] + (q[1] - p[1]) * t))
+        if qin:
+            out.append(q)
+    return out
+
+
+def _deck(pts: list[tuple[float, float]], y: float, cell: float) -> _Mesh:
+    """The outline as a flat deck split into about cell x cell pieces (the polygon clipped to
+    each grid cell), so the baked AO has interior vertices instead of four crevice corners."""
+    m = _Mesh()
+    xs, zs = [p[0] for p in pts], [p[1] for p in pts]
+    x = math.floor(min(xs) / cell) * cell
+    while x < max(xs):
+        z = math.floor(min(zs) / cell) * cell
+        while z < max(zs):
+            poly = pts
+            for axis, val, ge in (
+                (0, x, True),
+                (0, x + cell, False),
+                (1, z, True),
+                (1, z + cell, False),
+            ):
+                poly = _clip(poly, axis, val, ge) if poly else poly
+            if len(poly) >= 3:
+                m.face([(p[0], y, p[1]) for p in poly], (0.0, 1.0, 0.0))
+            z += cell
+        x += cell
+    return m
+
+
 def _mall(variant: Variant, lod: int) -> list:
-    """Single storey, open-air in character: wall shell with an accent band, a continuous canopy
-    on posts over glazed shopfront bays, a parapet, roof plant boxes and a blank sign band."""
+    """Single storey, open-air in character: wall shell with an accent band, a deep white canopy
+    on posts over glazed shopfront bays, a parapet, a light grey roof deck with plant boxes and a
+    blank sign band. No text, logos or sign tower."""
     pts = mall_outline()
     edges = _edges(pts)
     if lod >= 2:  # simplified massing: one wall quad per edge and the roof
-        walls, roof = _Mesh(), _Mesh()
+        walls = _Mesh()
         for a, b, n, _ in edges:
             _strip(walls, a, b, n, 0.0, WALL_H, 0.0)
-        roof.face([(p[0], WALL_H, p[1]) for p in pts], (0.0, 1.0, 0.0))
-        return _keep(walls.obj("walls", "primary"), roof.obj("roof", "secondary"))
+        return _keep(walls.obj("walls", "primary"), _deck(pts, WALL_H, 30.0).obj("roof", "metal"))
 
-    walls, deck, parapet = _Mesh(), _Mesh(), _Mesh()
+    walls, parapet = _Mesh(), _Mesh()
     canopy, accent, sign, plant = _Mesh(), _Mesh(), _Mesh(), _Mesh()
     posts = _Mesh()
     glass = [_Mesh() for _ in range(kit.WINDOW_BUCKETS)]
     seeds = [kit.window_seed() for _ in glass]
     frame = _Mesh()
-    rows = [0.0, 2.2, 3.8, 6.0, WALL_H] if lod == 0 else [0.0, WALL_H]
     for a, b, n, length in edges:
-        nu = max(1, round(length / 6.0)) if lod == 0 else 1
-        for i in range(nu):
-            p, q = _lerp(a, b, i / nu), _lerp(a, b, (i + 1) / nu)
-            for y0, y1 in zip(rows, rows[1:], strict=False):
+        bays: list[tuple[float, float]] = []
+        if length >= 8.0:
+            nb = max(1, round((length - 2.0) / 6.0)) if lod == 0 else 1
+            for k in range(nb):
+                bays.append((1.0 + (length - 2.0) * k / nb, 1.0 + (length - 2.0) * (k + 0.9) / nb))
+
+        def cells(s: float, e: float, y0: float, y1: float, a=a, b=b, n=n, length=length):
+            nu = max(1, round((e - s) / 6.0)) if lod == 0 else 1
+            for i in range(nu):
+                p = _lerp(a, b, (s + (e - s) * i / nu) / length)
+                q = _lerp(a, b, (s + (e - s) * (i + 1) / nu) / length)
                 _strip(walls, p, q, n, y0, y1, 0.0)
+
+        if lod == 0:
+            # no wall behind the glazed bays (their frames cover 0.2-3.7 m): the wall verts 4 cm
+            # under the glass would bake black. Piers between bays, plinth and upper wall full.
+            cells(0.0, length, 0.0, 0.2)
+            gaps, s = [], 0.0
+            for t0, t1 in bays:
+                gaps.append((s, t0 - 0.1))
+                s = t1 + 0.1
+            gaps.append((s, length))
+            for s, e in gaps:
+                cells(s, e, 0.2, 3.7)
+            for y0, y1 in ((3.7, 6.0), (6.0, WALL_H)):
+                cells(0.0, length, y0, y1)
+        else:
+            cells(0.0, length, 0.0, WALL_H)
         # parapet from the deck up; canopy over the shopfronts; accent band below the parapet
         _slab(parapet, a, b, n, 0.0, -PARAPET_T, WALL_H, WALL_H + PARAPET_H)
         _slab(canopy, a, b, n, 0.0, CANOPY_OUT, CANOPY_Y, CANOPY_Y + CANOPY_T, skip=("s0",))
+        y_lo, y_hi = CANOPY_Y - 0.55, CANOPY_Y + CANOPY_T + 0.3
+        _slab(canopy, a, b, n, CANOPY_OUT - 0.2, CANOPY_OUT, y_lo, y_hi)  # deep white fascia
         if lod == 0:
             _slab(accent, a, b, n, 0.0, 0.1, 7.2, 8.2, skip=("bottom", "s0"))
-        # glazed shopfront bays under the canopy
-        if length >= 8.0:
-            bays = max(1, round((length - 2.0) / 6.0)) if lod == 0 else 1
-            for k in range(bays):
-                t0 = 1.0 + (length - 2.0) * k / bays
-                t1 = 1.0 + (length - 2.0) * (k + 0.9) / bays
-                p, q = _lerp(a, b, t0 / length), _lerp(a, b, t1 / length)
-                _strip(random.choice(glass), p, q, n, 0.3, 3.6, 0.04)
-                if lod == 0:
-                    _strip(frame, p, q, n, 0.2, 3.7, 0.015)
+        for t0, t1 in bays:  # glazed shopfront bays under the canopy
+            p, q = _lerp(a, b, t0 / length), _lerp(a, b, t1 / length)
+            _strip(random.choice(glass), p, q, n, 0.3, 3.6, 0.04)
+            if lod == 0:
+                p, q = _lerp(a, b, (t0 - 0.1) / length), _lerp(a, b, (t1 + 0.1) / length)
+                _strip(frame, p, q, n, 0.2, 3.7, 0.015)
         if lod == 0:  # canopy posts every ~9 m, 0.3 m inside the canopy edge
             m = max(1, round(length / 9.0))
             for k in range(m):
                 c = _off(_lerp(a, b, (k + 0.5) / m), n, CANOPY_OUT - 0.3)
                 posts.box(c[0] - 0.12, c[0] + 0.12, 0.0, CANOPY_Y, c[1] - 0.12, c[1] + 0.12)
-    deck.face([(p[0], WALL_H, p[1]) for p in pts], (0.0, 1.0, 0.0))
 
     # a blank sign band (role light, no text) on the longest edge, above the canopy
     a, b, n, length = max(edges, key=lambda e: e[3])
     half = min(10.0, length / 2 - 1.0) / length
-    _slab(
-        sign,
-        _lerp(a, b, 0.5 - half),
-        _lerp(a, b, 0.5 + half),
-        n,
-        0.0,
-        0.12,
-        4.9,
-        6.5,
-        skip=("bottom", "s0"),
-    )
+    p, q = _lerp(a, b, 0.5 - half), _lerp(a, b, 0.5 + half)
+    _slab(sign, p, q, n, 0.0, 0.12, 4.9, 6.5, skip=("bottom", "s0"))
 
     # roof plant: boxes on a coarse grid, well inside the outline
     xs, zs = [p[0] for p in pts], [p[1] for p in pts]
@@ -188,12 +236,12 @@ def _mall(variant: Variant, lod: int) -> list:
 
     objs = _keep(
         walls.obj("walls", "primary"),
-        deck.obj("roof", "secondary"),
+        _deck(pts, WALL_H, 4.0 if lod == 0 else 12.0).obj("roof", "metal"),
         parapet.obj("parapet", "primary"),
-        canopy.obj("canopy", "secondary"),
+        canopy.obj("canopy", "primary"),
         accent.obj("accent_band", "accent"),
         sign.obj("sign_band", "light"),
-        plant.obj("roof_plant", "metal"),
+        plant.obj("roof_plant", "secondary"),
         posts.obj("canopy_posts", "dark"),
         frame.obj("shopfront_frame", "dark"),
     )
@@ -203,107 +251,156 @@ def _mall(variant: Variant, lod: int) -> list:
 
 # --- kanopi -----------------------------------------------------------------------------
 
-POD_H = 21.5  # podium: levels 1-6; the facilities deck is level 7
-FLOORS = 30  # tower floors above the deck: 36 storeys in all
-INSET = 2.0  # balconies project this far, so the envelope is the nominal footprint
-SKY_FLOORS = (26, 28)
+POD_H = 10.5  # a low podium (3 storeys) with a light deck, the facilities terrace
+FLOORS = 33  # tower floors above the deck: 36 storeys in all
+RECESS_D = 1.4  # depth of the dark balcony strips
+STRIPS = (-10.0, 0.0, 10.0)  # strip centres on the front and back faces
+STRIP_W = 3.6
+POD_FLOOR = 18  # the single Sky Pod: floors 18-19, in the middle strip, on the front face
+
+
+def _modules(w: float) -> list[tuple[float, float]]:
+    """The light module spans (u0, u1) between the dark strips, edge to edge."""
+    edges = [-w / 2]
+    for c in STRIPS:
+        edges += [c - STRIP_W / 2, c + STRIP_W / 2]
+    edges.append(w / 2)
+    return [(edges[i], edges[i + 1]) for i in range(0, len(edges), 2)]
 
 
 def _kanopi(variant: Variant, lod: int) -> list:
-    """A 36-storey tower on a 6-level podium. Level 7 is a facilities deck (a terrace in front
-    of the tower: pool, pavilion, planting); above it staggered planted balconies on every face
-    and glazed Sky Pods near the top; a crown of plant room, lift overrun, tank and mast."""
+    """A 36-storey slab of four light modules separated by three dark recessed balcony strips
+    (thin foliage bands on every floor), one Sky Pod cantilevered at mid height, a low podium
+    whose roof is a light facilities deck (terrace: pool, pavilion, planting) and a crown of
+    plant room, lift overrun, tank and mast. Wider than deep, like the reference render."""
     w, h, d = variant.size
-    bw, bd = w - 2 * INSET, d - 2 * INSET - 6.0  # 6 m more depth leaves the terrace
-    zt = -d / 2 + INSET + bd / 2  # tower centre z (toward the back)
+    bd = 20.0  # tower depth; the podium is the full w x d, the terrace is the 10 m in front
+    zt = -d / 2 + bd / 2
     zf, zb = zt + bd / 2, zt - bd / 2
     body_top = h - 7.5
     fh = (body_top - POD_H) / FLOORS
     tower_h = FLOORS * fh
+    pod_y = POD_H + POD_FLOOR * fh
     if lod >= 2:
-        m, g = _Mesh(), _Mesh()
+        m, g, s = _Mesh(), _Mesh(), _Mesh()
         m.box(-w / 2, w / 2, 0.0, POD_H, -d / 2, d / 2)
-        m.box(-bw / 2, bw / 2, POD_H, body_top, zb, zf)
-        m.box(-bw * 0.3, bw * 0.3, body_top, body_top + 3.5, zt - bd * 0.3, zt + bd * 0.3)
-        for px in (-6.0, 6.0):
-            g.box(px - 4.0, px + 4.0, POD_H + 26 * fh, POD_H + 27 * fh, zf, zf + INSET)
-        return _keep(m.obj("massing", "primary"), g.obj("pods", "glass", 0.5)) + kit.prism(
-            0.0, zt, 0.4, body_top + 3.5, h, 4, "metal", r_top=0.0, name="mast"
-        )
+        m.box(-w / 2, w / 2, POD_H, body_top, zb, zf)
+        m.box(-w * 0.3, w * 0.3, body_top, body_top + 3.5, zt - bd * 0.3, zt + bd * 0.3)
+        for c in STRIPS:  # the dark strips, as quads proud of the front face
+            lo, hi = POD_H + 3, body_top - 1
+            s.face(
+                [(c - 1.8, lo, zf + 0.03), (c + 1.8, lo, zf + 0.03)]
+                + [(c + 1.8, hi, zf + 0.03), (c - 1.8, hi, zf + 0.03)],
+                (0.0, 0.0, 1.0),
+            )
+        g.box(-2.8, 2.8, pod_y, pod_y + 2 * fh, zf - RECESS_D, zf + 2.0)
+        return _keep(
+            m.obj("massing", "primary"), s.obj("strips", "dark"), g.obj("pod", "glass", 0.5)
+        ) + kit.prism(0.0, zt, 0.4, body_top + 3.5, h, 4, "metal", r_top=0.0, name="mast")
 
     cell = (5.0, 3.5) if lod == 0 else (40.0, 40.0)
     objs: list = []
-    # podium: shopfront level, five office levels, a door on +z
-    pod = kit.walls(
-        w, d, POD_H, openings=[Opening("front", 0.0, 0.0, 4.0, 4.5, "door")], lod=lod, cell=cell
-    )
+    # podium: shopfront level and two office levels, a door on +z
+    covered, panes = [], []
     for face, length in (("front", w), ("back", w), ("left", d), ("right", d)):
         cols = _spread(length - 3.0, 6 if length == w else 4)
         if face == "front":
             cols = [c for c in cols if abs(c) > 4.0]
-        pod += kit.window_panes(face, w, d, cols=cols, rows=[0.9], ww=3.2, wh=3.6, lod=lod)
-        rows = [6.3 + 3.2 * k for k in range(5)]
-        pod += kit.window_panes(face, w, d, cols=cols, rows=rows, ww=2.2, wh=1.9, lod=lod)
-    pod += kit.flat_roof(w, d, POD_H, 0.9)
-    objs += pod
-    # tower walls and windows
-    tw = kit.walls(bw, bd, tower_h, openings=[], lod=lod, cell=(6.0, fh) if lod == 0 else cell)
-    for face, length in (("front", bw), ("back", bw), ("left", bd), ("right", bd)):
-        cols = _spread(length - 3.0, 8 if length == bw else 5)
-        rows = [k * fh + 0.8 for k in range(FLOORS)]
-        tw += kit.window_panes(face, bw, bd, cols=cols, rows=rows, ww=2.6, wh=fh - 1.5, lod=lod)
-    tw += kit.flat_roof(bw, bd, tower_h, 0.9)
+        for rows, ww, wh in (([0.9], 3.2, 3.6), ([5.4, 8.4], 2.2, 1.6)):
+            kw = {"cols": cols, "rows": rows, "ww": ww, "wh": wh}
+            panes += kit.window_panes(face, w, d, lod=lod, **kw)
+            if lod == 0:
+                covered += kit.pane_cover(face, **kw)
+    pod = kit.walls(
+        w,
+        d,
+        POD_H,
+        openings=[Opening("front", 0.0, 0.0, 4.0, 4.5, "door")],
+        lod=lod,
+        cell=cell,
+        covered=covered,
+    )
+    objs += pod + panes + kit.flat_roof(w, d, POD_H, 0.9, deck_role="metal", cell=3.0)
+
+    # tower: light modules with applied windows; dark strips recessed behind the face
+    tpanes = []
+    tcover = [  # recessed strips: no wall on the front and back faces
+        (face, c - STRIP_W / 2, c + STRIP_W / 2, 0.0, tower_h)
+        for face in ("front", "back")
+        for c in STRIPS
+    ]
+    rows = [k * fh + 0.9 for k in range(FLOORS)]
+    for face in ("front", "back"):
+        for u0, u1 in _modules(w):
+            c = (u0 + u1) / 2
+            big = u1 - u0 > 7.0
+            kw = {
+                "cols": [c - 2.6, c, c + 2.6] if big else [c - 1.6, c + 1.6],
+                "rows": rows,
+                "ww": 1.8 if big else 2.0,
+                "wh": fh - 1.6,
+            }
+            tpanes += kit.window_panes(face, w, bd, lod=lod, **kw)
+            if lod == 0:
+                tcover += kit.pane_cover(face, **kw)
+    for face in ("left", "right"):
+        kw = {"cols": _spread(bd - 3.0, 4), "rows": rows, "ww": 2.0, "wh": fh - 1.6}
+        tpanes += kit.window_panes(face, w, bd, lod=lod, **kw)
+        if lod == 0:
+            tcover += kit.pane_cover(face, **kw)
+    tcell = (6.0, fh) if lod == 0 else cell
+    tw = kit.walls(w, bd, tower_h, openings=[], lod=lod, cell=tcell, covered=tcover)
+    tw += tpanes + kit.flat_roof(w, bd, tower_h, 0.9, deck_role="metal", cell=3.0)
+    # the recessed strips: dark back wall and side walls, and (LOD0) a balcony slab and a thin
+    # foliage band on every floor; the Sky Pod takes the middle strip's front bay at its floors
+    rear, side, slab, band = _Mesh(), _Mesh(), _Mesh(), _Mesh()
+    for face, sgn in (("front", 1.0), ("back", -1.0)):
+        zface = sgn * bd / 2
+        zrec = zface - sgn * RECESS_D
+        for c in STRIPS:
+            x0, x1 = c - STRIP_W / 2, c + STRIP_W / 2
+            for k in range(FLOORS):
+                if face == "front" and c == 0.0 and POD_FLOOR <= k < POD_FLOOR + 2:
+                    continue
+                y0, y1 = k * fh, (k + 1) * fh
+                rear.face(
+                    [(x0, y0, zrec), (x1, y0, zrec), (x1, y1, zrec), (x0, y1, zrec)],
+                    (0.0, 0.0, sgn),
+                )
+                for xs, nx in ((x0, 1.0), (x1, -1.0)):
+                    side.face(
+                        [(xs, y0, zrec), (xs, y0, zface), (xs, y1, zface), (xs, y1, zrec)],
+                        (nx, 0.0, 0.0),
+                    )
+                if lod == 0:
+                    za, zb2 = sorted((zrec, zface))
+                    slab.box(x0, x1, y0 + 0.9, y0 + 1.1, za, zb2)
+                    za2, zb3 = sorted((zface - sgn * 0.5, zface))
+                    band.box(x0 + 0.15, x1 - 0.15, y0 + 1.1, y0 + 1.45, za2, zb3)
+    role = "dark" if lod == 0 else "secondary"  # LOD1 carries no dark role
+    tw += _keep(rear.obj("strip_back", role), side.obj("strip_sides", role))
+    tw += _keep(slab.obj("strip_slabs", "secondary"), band.obj("strip_foliage", "foliage"))
     objs += kit.place(tw, y=POD_H, z=zt)
 
-    # planted balconies (staggered per floor) and Sky Pods on the front face
-    slab, planter, pod_glass, pod_frame = _Mesh(), _Mesh(), _Mesh(), _Mesh()
-    for k in range(1, FLOORS - 1):
-        y = POD_H + k * fh
-        for face, length in (("front", bw), ("back", bw), ("left", bd), ("right", bd)):
-            n_units = (3 - k % 2) if length == bw else 2
-            cs = _spread(length - 2.0, n_units) if lod == 0 else [0.0]
-            uw = 8.5 if lod == 0 else length * 0.8
-            for c in cs:
-                if face == "front" and k in SKY_FLOORS and abs(c) < 12.0:
-                    continue  # a Sky Pod takes this bay
-                if face == "front":
-                    x0, x1, z0, z1 = c - uw / 2, c + uw / 2, zf, zf + INSET
-                    plant_box = (x0, x1, z1 - 0.6, z1)
-                elif face == "back":
-                    x0, x1, z0, z1 = c - uw / 2, c + uw / 2, zb - INSET, zb
-                    plant_box = (x0, x1, z0, z0 + 0.6)
-                elif face == "right":
-                    x0, x1, z0, z1 = bw / 2, bw / 2 + INSET, zt + c - uw / 2, zt + c + uw / 2
-                    plant_box = (x1 - 0.6, x1, z0, z1)
-                else:
-                    x0, x1, z0, z1 = -bw / 2 - INSET, -bw / 2, zt + c - uw / 2, zt + c + uw / 2
-                    plant_box = (x0, x0 + 0.6, z0, z1)
-                slab.box(x0, x1, y - 0.25, y, z0, z1)
-                if face in ("front", "back"):
-                    planter.box(x0, x1, y, y + 0.8, plant_box[2], plant_box[3])
-                else:
-                    planter.box(plant_box[0], plant_box[1], y, y + 0.8, z0, z1)
-        if k in SKY_FLOORS:  # a glazed Sky Pod cantilevered from the front face
-            for px in (-6.0, 6.0):
-                pod_glass.box(px - 4.0, px + 4.0, y + 0.1, y + fh - 0.4, zf, zf + INSET)
-                pod_frame.box(px - 4.3, px + 4.3, y - 0.3, y + 0.1, zf, zf + INSET)
-                pod_frame.box(px - 4.3, px + 4.3, y + fh - 0.4, y + fh - 0.15, zf, zf + INSET)
+    # the single Sky Pod: a glazed box cantilevered from the middle strip at mid height
+    pg, pf, pp = _Mesh(), _Mesh(), _Mesh()
+    pz0, pz1 = zf - RECESS_D, zf + 2.0
+    pg.box(-2.8, 2.8, pod_y + 0.3, pod_y + 2 * fh - 0.3, pz0, pz1, skip=("bottom",))
+    pf.box(-3.0, 3.0, pod_y, pod_y + 0.3, pz0, pz1, skip=())
+    pf.box(-3.0, 3.0, pod_y + 2 * fh - 0.3, pod_y + 2 * fh, pz0, pz1, skip=())
+    pp.box(-2.6, 2.6, pod_y + 0.3, pod_y + 0.8, zf + 1.4, zf + 1.95)
     objs += _keep(
-        slab.obj("balcony_slabs", "secondary"),
-        planter.obj("balcony_planters", "foliage"),
-        pod_glass.obj("sky_pods", "glass", kit.window_seed()),
-        pod_frame.obj("sky_pod_frames", "accent"),
+        pg.obj("sky_pod", "glass", kit.window_seed()),
+        pf.obj("sky_pod_frame", "accent"),
+        pp.obj("sky_pod_planter", "foliage"),
     )
 
-    # level-7 facilities terrace: a pool, a pavilion on four posts, planting along the edge
-    zc = (zf + INSET + d / 2) / 2
+    # facilities terrace on the light deck: a pool, a pavilion on four posts, planting
+    zc = (zf + d / 2) / 2
     terrace, pool, planting = _Mesh(), _Mesh(), _Mesh()
     y_pool = POD_H + 0.06
-    pool.face(
-        [(-14, y_pool, zc - 1.6), (-2, y_pool, zc - 1.6), (-2, y_pool, zc + 1.6)]
-        + [(-14, y_pool, zc + 1.6)],
-        (0.0, 1.0, 0.0),
-    )
+    pool_pts = [(-14, zc - 1.6), (-2, zc - 1.6), (-2, zc + 1.6), (-14, zc + 1.6)]
+    pool.face([(x, y_pool, z) for x, z in pool_pts], (0.0, 1.0, 0.0))
     terrace.box(-14.4, -1.6, POD_H, POD_H + 0.3, zc - 2.0, zc + 2.0, skip=("bottom", "top"))
     for px in (4.0, 14.0):
         for pz in (zc - 1.6, zc + 1.6):
@@ -312,7 +409,7 @@ def _kanopi(variant: Variant, lod: int) -> list:
     planting.box(-w / 2 + 0.3, w / 2 - 0.3, POD_H, POD_H + 0.7, d / 2 - 1.0, d / 2 - 0.3)
     for sx in (-1.0, 1.0):
         x0, x1 = sorted((sx * (w / 2 - 0.3), sx * (w / 2 - 1.5)))
-        planting.box(x0, x1, POD_H, POD_H + 0.7, zb - INSET, d / 2 - 1.0)
+        planting.box(x0, x1, POD_H, POD_H + 0.7, zf + 0.5, d / 2 - 1.0)
     objs += _keep(
         pool.obj("pool", "glass", kit.window_seed()),
         terrace.obj("terrace", "secondary"),
@@ -322,11 +419,11 @@ def _kanopi(variant: Variant, lod: int) -> list:
     # crown: plant room, lift overrun, cooling units, tank and mast
     crown, crown_m = _Mesh(), _Mesh()
     top = body_top + 0.9
-    crown.box(-bw * 0.3, bw * 0.3, top, top + 3.5, zt - bd * 0.3, zt + bd * 0.3)
+    crown.box(-w * 0.3, w * 0.3, top, top + 3.5, zt - bd * 0.3, zt + bd * 0.3)
     crown.box(-4.0, 4.0, top + 3.5, top + 5.0, zt - 3.0, zt + 3.0)
-    crown_m.box(bw * 0.3 + 0.5, bw * 0.3 + 4.5, top, top + 2.2, zt - 2.0, zt + 2.0)
+    crown_m.box(w * 0.3 + 0.5, w * 0.3 + 4.5, top, top + 2.2, zt - 2.0, zt + 2.0)
     objs += _keep(crown.obj("crown", "secondary"), crown_m.obj("crown_plant", "metal"))
-    objs += kit.prism(-bw * 0.3 - 2.5, zt, 2.2, top, top + 2.8, 10, "metal", name="tank")
+    objs += kit.prism(-w * 0.3 - 2.5, zt, 2.2, top, top + 2.8, 10, "metal", name="tank")
     objs += kit.prism(0.0, zt, 0.4, top + 5.0, h, 6, "metal", r_top=0.0, name="mast")
     return objs
 
@@ -356,6 +453,15 @@ def _masjid(variant: Variant, lod: int) -> list:
             mx, mz, 2.6, 0.0, up_top + 3.5, 4, "primary", name="minaret", phase_deg=45
         )
         return objs
+    covered, panes = [], []
+    for face, length in (("front", hall_w), ("back", hall_w), ("left", hall_d), ("right", hall_d)):
+        cs = _spread(length - 3, 8 if length == hall_w else 6)
+        if face == "front":
+            cs = [c for c in cs if abs(c) > 4.5]
+        kw = {"cols": cs, "rows": [3.4], "ww": 1.8, "wh": 4.2}
+        panes += kit.window_panes(face, hall_w, hall_d, lod=lod, **kw)
+        if lod == 0:  # no wall behind the applied panes (black AO smudges)
+            covered += kit.pane_cover(face, **kw)
     walls = kit.walls(
         hall_w,
         hall_d,
@@ -363,15 +469,10 @@ def _masjid(variant: Variant, lod: int) -> list:
         openings=[Opening("front", 0.0, 0.0, 3.4, 4.8, "door")],
         lod=lod,
         cell=(3.6, 3.0),
+        covered=covered,
     )
-    for face, length in (("front", hall_w), ("back", hall_w), ("left", hall_d), ("right", hall_d)):
-        cs = _spread(length - 3, 8 if length == hall_w else 6)
-        if face == "front":
-            cs = [c for c in cs if abs(c) > 4.5]
-        walls += kit.window_panes(
-            face, hall_w, hall_d, cols=cs, rows=[3.4], ww=1.8, wh=4.2, lod=lod
-        )
-    walls += kit.flat_roof(hall_w, hall_d, hall_h, 0.8)
+    walls += panes
+    walls += kit.flat_roof(hall_w, hall_d, hall_h, 0.8, deck_role="metal", cell=3.0)
     objs = kit.place(walls, z=zc)
     if lod == 0:  # accent band round the hall
         zb = zc - hall_d / 2

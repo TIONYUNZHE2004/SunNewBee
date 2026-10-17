@@ -409,11 +409,10 @@ def test_non_residential(non_residential_built, asset_id):
 # --- landmarks (Task 5) -----------------------------------------------------------------
 
 LANDMARK_IDS = ("lakeside_mall", "kanopi", "masjid_denai_alam")
-# measured mean upper-wall AO (primary walls above half height, from a run with the scaled
-# ground plane): lakeside_mall 0.712, kanopi 0.510, masjid_denai_alam 0.663; each threshold
-# sits about 0.1 under the measurement
+# measured mean upper-wall AO (primary walls above half height, gate D round 1 geometry):
+# lakeside_mall 0.684, kanopi 0.835, masjid_denai_alam 0.715; each threshold sits ~0.1 under
 UPPER_FROM.update(
-    {"lakeside_mall": (0.5, 0.6), "kanopi": (0.5, 0.4), "masjid_denai_alam": (0.5, 0.55)}
+    {"lakeside_mall": (0.5, 0.58), "kanopi": (0.5, 0.7), "masjid_denai_alam": (0.5, 0.6)}
 )
 
 
@@ -432,6 +431,10 @@ def test_landmarks(landmarks_built, asset_id):
     assert info.images <= 1  # none are used
     v = spec.variants[0]
     lo, hi = info.nodes[f"{asset_id}__{v.id}__LOD0"].bounds
+    colors0 = read_attribute(raw, f"{asset_id}__{v.id}__LOD0", "COLOR_0")
+    deck = [c[0] for c in colors0 if round(c[1] * 7) == specs.ROLES.index("metal")]
+    # light grey decks (role metal, split into cells): measured mean AO 0.784 / 0.651 / 0.705
+    assert len(deck) > 12 and statistics.fmean(deck) > 0.5, statistics.fmean(deck)
     if asset_id == "lakeside_mall":
         from tl_assets.geo import outline_local, outline_ring
 
