@@ -277,41 +277,35 @@ def _plan(bbox, fetcher: gtiles.Fetcher, max_error: float, count_leaves: bool = 
     """Tileset JSON only. With count_leaves, external tilesets already at max_error are counted,
     not fetched, and the requests a full run needs are estimated (one glb per leaf tileset, as
     Google's leaf tilesets hold; cached files cost nothing, the fresh root.json costs one)."""
-    json_fetches = 0
-
-    def counting(url: str, fresh: bool = False) -> bytes:
-        nonlocal json_fetches
-        json_fetches += 1
-        return fetcher(url, fresh=fresh)
-
-    def is_cached(url: str) -> bool:
-        return (fetcher.cache / f"{gtiles.cache_key(url)}.bin").exists()
-
     glb, cached, leaves, leaves_cached = 0, 0, 0, 0
     complete = "yes"
     try:
-        for _, url, _ in gtiles.traverse(
-            bbox, counting, max_error, plan_only=True, count_leaves=count_leaves
+        for c in gtiles.traverse(
+            bbox, fetcher, max_error, plan_only=True, count_leaves=count_leaves
         ):
-            if urlparse(url).path.endswith(".json"):
+            hit = fetcher.cached(c.cache_id)
+            if urlparse(c.url).path.endswith(".json"):
                 leaves += 1
-                leaves_cached += is_cached(url)
+                leaves_cached += hit
             else:
                 glb += 1
-                cached += is_cached(url)
+                cached += hit
     except gtiles.TilesBudgetExceeded:
         complete = f"no (request budget of {fetcher.max_requests} reached; counts are partial)"
     print(f"plan for bbox {bbox} at max geometric error {max_error} m:")
     print(f"  JSON requests made: {fetcher.requests_made}")
-    print(f"  tileset JSON read (incl. cache): {json_fetches}")
+    print(f"  tileset JSON read (incl. cache): {fetcher.requests_made + fetcher.cache_hits}")
     if count_leaves:
         leaf_json = leaves - leaves_cached
+        # Cached tilesets hold stale-session URIs: each may need one refresh before a fetch.
+        refresh = fetcher.cache_hits
         estimate = 1 + leaf_json + leaves + (glb - cached)
         print(f"  leaf tilesets counted (not fetched): {leaves} ({leaves_cached} cached)")
         print(f"  direct glb tiles: {glb} ({cached} already cached)")
         print(
             f"  estimated requests for a full run: {estimate} (fresh root 1 + leaf JSON "
-            f"{leaf_json} + leaf glb {leaves}, one per leaf + direct glb {glb - cached})"
+            f"{leaf_json} + leaf glb {leaves}, one per leaf + direct glb {glb - cached}), "
+            f"plus up to {refresh} refreshes of cached tilesets"
         )
     else:
         print(f"  glb tiles needed: {glb} ({cached} already cached, {glb - cached} to fetch)")
@@ -330,13 +324,13 @@ def _sample(bbox, fetcher: gtiles.Fetcher, max_error: float, cell_m: float) -> N
     acc = _empty(extent, cell_m)
     tiles, skipped, read, checked = 0, 0, 0, False
     try:
-        for world, url, glb in gtiles.traverse(bbox, fetcher, max_error):
+        for world, _url, glb, cache_id in gtiles.traverse(bbox, fetcher, max_error):
             read += 1
             try:
                 pts = to_enu(gtiles.glb_positions(glb), world, enu)
             except gtiles.UnsupportedGlb as exc:
                 skipped += 1
-                print(f"WARNING: skipped tile {gtiles.cache_key(url)[:10]}: {exc}")
+                print(f"WARNING: skipped tile {cache_id[:10]}: {exc}")
                 pts = None
             if not checked and pts is not None and len(pts):
                 problem = frame_check(pts, extent)

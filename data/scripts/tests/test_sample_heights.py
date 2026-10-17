@@ -216,7 +216,7 @@ def _sampling_env(tmp_path, monkeypatch, glbs, positions):
     def fake_traverse(bbox, fetch, max_error, plan_only=False, count_leaves=False):
         for i in range(glbs):
             consumed.append(i)
-            yield np.eye(4), f"https://h/{i}.glb", b"glb"
+            yield gtiles.Content(np.eye(4), f"https://h/{i}.glb", b"glb", f"id{i}")
 
     monkeypatch.setattr(sh.gtiles, "traverse", fake_traverse)
     monkeypatch.setattr(sh.gtiles, "glb_positions", positions)

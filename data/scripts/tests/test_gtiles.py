@@ -183,8 +183,8 @@ def test_traverse_skips_far_stops_at_max_error_and_resolves_uris(tmp_path):
     get = FakeGet(routes)
     fetch = gtiles.Fetcher("K", max_requests=50, cache=tmp_path, get=get)
     out = list(gtiles.traverse(BBOX, fetch, max_error=10))
-    assert [(url.split("?")[0], glb) for _, url, glb in out] == [(HOST + FILES + "b.glb", b"B")]
-    transform, url, _ = out[0]
+    assert [(url.split("?")[0], glb) for _, url, glb, _ in out] == [(HOST + FILES + "b.glb", b"B")]
+    transform, url, _, _ = out[0]
     assert parse_qs(urlparse(url).query)["session"] == ["S"]
     assert np.allclose(transform[:3, 3], centre)
     fetched = [c.split("?")[0] for c in get.calls]
@@ -198,7 +198,7 @@ def test_traverse_plan_only_fetches_no_glb(tmp_path):
     get = FakeGet(routes)
     fetch = gtiles.Fetcher("K", max_requests=50, cache=tmp_path, get=get)
     out = list(gtiles.traverse(BBOX, fetch, max_error=10, plan_only=True))
-    assert [glb for _, _, glb in out] == [None]
+    assert [glb for _, _, glb, _ in out] == [None]
     assert not [c for c in get.calls if ".glb" in c]
 
 
@@ -206,7 +206,7 @@ def test_traverse_session_propagates_to_child_without_one(tmp_path):
     routes, _ = _fixture_routes()
     fetch = gtiles.Fetcher("K", max_requests=50, cache=tmp_path, get=FakeGet(routes))
     out = list(gtiles.traverse(BBOX, fetch, max_error=0.5, plan_only=True))
-    urls = [u for _, u, _ in out]
+    urls = [u for _, u, _, _ in out]
     assert urls == [HOST + FILES + "c.glb?session=S"]
 
 
@@ -226,7 +226,7 @@ def test_traverse_fetches_root_fresh_and_overrides_stale_child_sessions(tmp_path
     out = list(gtiles.traverse(BBOX, later, max_error=10, plan_only=True))
     assert [c.split("?")[0] for c in get.calls] == [HOST + "/v1/3dtiles/root.json"]
     assert later.requests_made == 1  # the fresh root counts against the budget
-    assert [parse_qs(urlparse(u).query)["session"] for _, u, _ in out] == [["FRESH"]]
+    assert [parse_qs(urlparse(u).query)["session"] for _, u, _, _ in out] == [["FRESH"]]
 
 
 def test_fetcher_fresh_bypasses_cache_read_and_refreshes_it(tmp_path):
@@ -419,7 +419,7 @@ def test_traverse_skips_tiles_outside_the_rectangle(tmp_path):
     get = FakeGet({HOST + "/v1/3dtiles/root.json": json.dumps(root).encode()})
     fetch = gtiles.Fetcher("K", max_requests=5, cache=tmp_path, get=get)
     out = list(gtiles.traverse(BBOX, fetch, max_error=2, plan_only=True))
-    assert [u.split("?")[0] for _, u, _ in out] == [HOST + FILES + "edge.glb"]
+    assert [u.split("?")[0] for _, u, _, _ in out] == [HOST + FILES + "edge.glb"]
 
 
 def test_traverse_count_leaves_does_not_fetch_leaf_tilesets(tmp_path):
@@ -437,9 +437,90 @@ def test_traverse_count_leaves_does_not_fetch_leaf_tilesets(tmp_path):
     )
     fetch = gtiles.Fetcher("K", max_requests=5, cache=tmp_path, get=get)
     out = list(gtiles.traverse(BBOX, fetch, max_error=2, plan_only=True, count_leaves=True))
-    assert sorted(u.split("?")[0].rsplit("/", 1)[-1] for _, u, _ in out) == [
+    assert sorted(u.split("?")[0].rsplit("/", 1)[-1] for _, u, _, _ in out) == [
         "direct.glb",
         "leaf.json",
     ]
     assert [c.split("?")[0].rsplit("/", 1)[-1] for c in get.calls] == ["root.json", "mid.json"]
-    assert all(glb is None for _, _, glb in out)
+    assert all(glb is None for _, _, glb, _ in out)
+
+
+# --- round 2: session-proof cache ids, tolerance, breadth-first ---------------------
+
+
+def _session_routes(token):
+    """Same tree every session, but Google-style opaque paths that change with the session."""
+    near = _enu_box(BBOX, 0.0, 0.0, 300.0)
+    root = _flat_root([_child(near, f"{FILES}{token}-near.json?session={token}", 50)])
+    inner = {"root": _child(near, f"{token}-a.glb", error=2)}
+    return {
+        HOST + "/v1/3dtiles/root.json": json.dumps(root).encode(),
+        HOST + FILES + f"{token}-near.json": json.dumps(inner).encode(),
+        HOST + FILES + f"{token}-a.glb": b"GLB",
+    }
+
+
+def test_cache_survives_a_new_session_with_new_paths(tmp_path):
+    first = gtiles.Fetcher("K", max_requests=10, cache=tmp_path, get=FakeGet(_session_routes("s1")))
+    out1 = list(gtiles.traverse(BBOX, first, max_error=2))
+    assert [c.glb for c in out1] == [b"GLB"] and first.requests_made == 3
+    get = FakeGet(_session_routes("s2"))
+    later = gtiles.Fetcher("K", max_requests=10, cache=tmp_path, get=get)
+    out2 = list(gtiles.traverse(BBOX, later, max_error=2))
+    assert [c.glb for c in out2] == [b"GLB"]
+    assert [c.split("?")[0] for c in get.calls] == [HOST + "/v1/3dtiles/root.json"]
+    assert out2[0].cache_id == out1[0].cache_id
+
+
+def test_stale_cached_tileset_is_refreshed_before_a_network_fetch(tmp_path):
+    plan = gtiles.Fetcher("K", max_requests=10, cache=tmp_path, get=FakeGet(_session_routes("s1")))
+    list(gtiles.traverse(BBOX, plan, max_error=2, plan_only=True))  # caches s1 tilesets only
+    get = FakeGet(_session_routes("s2"))
+    run = gtiles.Fetcher("K", max_requests=10, cache=tmp_path, get=get)
+    out = list(gtiles.traverse(BBOX, run, max_error=2))
+    assert [c.glb for c in out] == [b"GLB"]
+    # The cached near.json holds s1 paths, so it is re-fetched (fresh) before the glb.
+    names = [c.split("?")[0].rsplit("/", 1)[-1] for c in get.calls]
+    assert names == ["root.json", "s2-near.json", "s2-a.glb"]
+    assert parse_qs(urlparse(get.calls[-1]).query)["session"] == ["s2"]
+
+
+def test_cache_id_changes_with_the_tile():
+    a = gtiles.content_id("p", (0, 1), 0, "glb", {"box": [1.0] * 12})
+    assert a == gtiles.content_id("p", (0, 1), 0, "glb", {"box": [1.0] * 12})
+    assert a != gtiles.content_id("p", (0, 2), 0, "glb", {"box": [1.0] * 12})
+    assert a != gtiles.content_id("p", (0, 1), 0, "glb", {"box": [2.0] * 12})
+    assert a != gtiles.content_id("q", (0, 1), 0, "glb", {"box": [1.0] * 12})
+
+
+def test_max_error_tolerates_googles_level_values(tmp_path):
+    # Google's levels are 2.006..., 4.0127...; --max-error 4.0 must stop at the 4 m level and
+    # count mode must treat a 2.006 m json leaf as a leaf at --max-error 2.0.
+    box = _enu_box(BBOX, 0.0, 0.0, 50.0)
+    four = _child(box, f"{FILES}four.glb?session=S", error=4.012737549616256)
+    four["children"] = [_child(box, f"{FILES}two.json?session=S", error=2.006368774808128)]
+    get = FakeGet({HOST + "/v1/3dtiles/root.json": json.dumps(_flat_root([four])).encode()})
+    fetch = gtiles.Fetcher("K", max_requests=5, cache=tmp_path, get=get)
+    out = list(gtiles.traverse(BBOX, fetch, max_error=4.0, plan_only=True))
+    assert [c.url.split("?")[0].rsplit("/", 1)[-1] for c in out] == ["four.glb"]
+    out = list(gtiles.traverse(BBOX, fetch, max_error=2.0, count_leaves=True))
+    assert [c.url.split("?")[0].rsplit("/", 1)[-1] for c in out] == ["two.json"]
+    assert len(get.calls) == 2  # root.json twice (fresh each run), never two.json
+
+
+def test_traverse_fetches_tilesets_breadth_first(tmp_path):
+    box = _enu_box(BBOX, 0.0, 0.0, 300.0)
+    routes = {
+        HOST + "/v1/3dtiles/root.json": json.dumps(
+            _flat_root([_child(box, f"{FILES}A.json", 50), _child(box, f"{FILES}B.json", 50)])
+        ).encode(),
+        HOST + FILES + "A.json": json.dumps({"root": _child(box, "A1.json", 40)}).encode(),
+        HOST + FILES + "B.json": json.dumps({"root": _child(box, "B1.json", 40)}).encode(),
+        HOST + FILES + "A1.json": json.dumps({"root": _child(box, "a.glb", 1)}).encode(),
+        HOST + FILES + "B1.json": json.dumps({"root": _child(box, "b.glb", 1)}).encode(),
+    }
+    get = FakeGet(routes)
+    fetch = gtiles.Fetcher("K", max_requests=10, cache=tmp_path, get=get)
+    list(gtiles.traverse(BBOX, fetch, max_error=2, plan_only=True))
+    names = [c.split("?")[0].rsplit("/", 1)[-1] for c in get.calls]
+    assert names == ["root.json", "A.json", "B.json", "A1.json", "B1.json"]

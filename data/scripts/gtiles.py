@@ -3,14 +3,16 @@
 Google data exemption (stylised-city overhaul only): these tiles are a building-height source for
 the display layer. Never use them in routing, evaluation, flood, the agent, answers or evidence.
 
-- Fetcher: cache first (data/cache/gtiles/<cache_key>.bin, key and session stripped from the
-  cache key), appends the API key, hard request budget. The key is never printed or logged:
-  error messages pass through redact(). fresh=True skips the cache read (used for root.json).
-- traverse: 3D Tiles 1.1 traversal limited to a lon/lat bbox (sphere pre-filter, then an exact
-  OBB test against the bbox rectangle in ENU) and a target geometric error;
-  composes tile transforms, follows external tilesets (.json) and yields .glb content.
-  root.json is always fetched fresh and its current `session` replaces the session in every
-  child URL, so tileset JSON cached by an earlier run (with an expired session) stays usable.
+- Fetcher: cache first (data/cache/gtiles/<id>.bin), appends the API key, hard request budget.
+  The key is never printed or logged: error messages pass through redact(). fresh=True skips
+  the cache read (root.json, stale tilesets).
+- traverse: 3D Tiles 1.1 traversal, breadth-first over tilesets, limited to a lon/lat bbox
+  (sphere pre-filter, then an exact OBB test against the bbox rectangle in ENU) and a target
+  geometric error (1 % tolerance: Google's levels are 2.006, 4.013 ... m); composes tile
+  transforms, follows external tilesets (.json) and yields .glb content. Google's file paths
+  change with every session, so contents are cached under a session-proof content_id (tree
+  position), root.json is always fetched fresh, and a tileset read from cache is re-fetched
+  once before anything below it is requested, so its URIs carry the current session.
 - glb_positions: vertex positions of a glb (Draco via DracoPy), node transforms applied,
   glTF y-up converted to 3D Tiles z-up. Raises UnsupportedGlb for content it cannot decode
   correctly (unknown required extensions, CESIUM_RTC) instead of returning wrong points.
@@ -18,8 +20,10 @@ the display layer. Never use them in routing, evaluation, flood, the agent, answ
 
 import hashlib
 import json
-from collections.abc import Callable, Iterator
+from collections import deque
+from collections.abc import Iterator
 from pathlib import Path
+from typing import NamedTuple
 from urllib.parse import parse_qsl, urlencode, urljoin, urlparse
 
 import DracoPy
@@ -46,6 +50,9 @@ _SUPPORTED_REQUIRED = {
     "KHR_texture_transform",
 }
 _RECT_PAD_M = 1.0
+# Google's levels sit just above round numbers (2.00637, 4.01274, 8.02548 m ...): a tile counts
+# as "at max_error" within this relative tolerance, so --max-error 2.0 means the 2 m level.
+_ERROR_TOLERANCE = 0.01
 _STRIP_PARAMS = {"key", "session"}
 # glTF is y-up; 3D Tiles is z-up: (x, y, z) -> (x, -z, y).
 _Y_UP_TO_Z_UP = np.array(
@@ -221,6 +228,8 @@ def _with_params(url: str, **params: str) -> str:
 class Fetcher:
     """fetch(url) -> bytes. Cache hits are free; real requests count against max_requests."""
 
+    cache_hits = 0
+
     def __init__(self, key: str, max_requests: int, cache: Path = CACHE, get=requests.get):
         self._key = key
         self.max_requests = max_requests
@@ -228,9 +237,17 @@ class Fetcher:
         self._get = get
         self.requests_made = 0
 
-    def __call__(self, url: str, fresh: bool = False) -> bytes:
-        path = self.cache / f"{cache_key(url)}.bin"
+    def path(self, cache_id: str) -> Path:
+        return self.cache / f"{cache_id}.bin"
+
+    def cached(self, cache_id: str) -> bool:
+        return self.path(cache_id).exists()
+
+    def __call__(self, url: str, fresh: bool = False, cache_id: str | None = None) -> bytes:
+        """cache_id (from traverse) names the cache file; without it the URL's cache_key does."""
+        path = self.path(cache_id or cache_key(url))
         if path.exists() and not fresh:
+            self.cache_hits += 1
             return path.read_bytes()
         shown = redact(_strip(url), self._key)
         if self.requests_made >= self.max_requests:
@@ -294,59 +311,126 @@ def _transform(tile: dict) -> np.ndarray:
     return np.eye(4) if t is None else np.array(t, dtype=np.float64).reshape(4, 4, order="F")
 
 
+class Content(NamedTuple):
+    """One tile content found by traverse."""
+
+    world: np.ndarray  # tile world transform (4x4, to ECEF)
+    url: str  # resolved URL with the current session
+    glb: bytes | None  # None in plan mode (and for counted leaf tilesets)
+    cache_id: str  # session-proof cache name (see content_id)
+
+
+def content_id(parent_id: str, tile_path: tuple[int, ...], index: int, ext: str, volume) -> str:
+    """Session-proof cache name for one content of one tile.
+
+    Google's file paths are opaque tokens that change with every session (the same tiles had
+    different paths in every run), so URLs cannot name the cache. The tree does not change: a
+    content is named by its parent tileset's id, the tile's child-index path inside that
+    tileset, the content index and type, and its bounding volume as a guard.
+    """
+    parts = [parent_id, ".".join(map(str, tile_path)), str(index), ext]
+    parts.append(json.dumps(volume, sort_keys=True))
+    return hashlib.sha1("|".join(parts).encode()).hexdigest()
+
+
+class _Tileset:
+    """A tileset in the traversal: where its reference sits in its parent, and whether its
+    content URIs carry this run's session (fetched now) or an older one (read from cache)."""
+
+    def __init__(self, cache_id, parent, tile_path, index, world, refine, url=None, data=None):
+        self.cache_id, self.parent = cache_id, parent
+        self.tile_path, self.index = tile_path, index
+        self.world, self.refine = world, refine
+        self.url, self.data = url, data
+        self.fresh = data is not None
+
+
+def _tile_at(tileset: dict, path: tuple[int, ...]) -> dict:
+    tile = tileset["root"]
+    for j in path:
+        tile = tile["children"][j]
+    return tile
+
+
 def traverse(
     bbox: tuple[float, float, float, float],
-    fetch: Callable[[str], bytes],
+    fetch: "Fetcher",
     max_error: float,
     plan_only: bool = False,
     count_leaves: bool = False,
-) -> Iterator[tuple[np.ndarray, str, bytes | None]]:
-    """Yield (tile world transform 4x4, content url, glb or None when plan_only) for the tiles
-    covering bbox (w, s, e, n) at geometricError <= max_error (or the finest available).
+) -> Iterator[Content]:
+    """Yield a Content for each tile content covering bbox (w, s, e, n) at geometricError <=
+    max_error (within a 1 % tolerance, see _ERROR_TOLERANCE), or the finest available.
 
     Tiles whose bounding volume misses the bbox (sphere pre-filter, then the ENU rectangle) are
-    skipped. A tile with error above
-    max_error and children is refined (REPLACE: its own content is skipped; ADD: kept).
-    External tilesets (.json content) are fetched and traversed in place.
+    skipped. A tile with error above max_error and children is refined (REPLACE: its own content
+    is skipped; ADD: kept). External tilesets (.json content) are read breadth-first in tree
+    order (deterministic), so a budget-limited plan covers the bbox level by level.
 
-    count_leaves (implies plan_only): an external tileset on a tile already at or below
-    max_error is not fetched; its URL is yielded instead (glb None), so a caller can count the
-    leaf tilesets a full run would still need.
+    Caching: root.json is always fetched fresh. Everything else is cached under a session-proof
+    content_id. Google's file paths change with the session, so a tileset read from cache holds
+    stale URIs: before anything below it is fetched from the network, that tileset is re-fetched
+    (fresh, one request, up its chain of cached parents as needed) to get current URIs.
+
+    count_leaves (implies plan_only): an external tileset on a tile already at max_error is not
+    fetched; it is yielded instead (glb None), so a caller can count the leaf tilesets a full
+    run would still need.
     """
     plan_only = plan_only or count_leaves
+    limit = max_error * (1 + _ERROR_TOLERANCE)
     sphere = bbox_sphere(bbox)
     frame = bbox_frame(bbox)
-    root = json.loads(fetch(ROOT_URL, fresh=True))
-    session = _root_session(root)
+    root_data = json.loads(fetch(ROOT_URL, fresh=True))
+    session = _root_session(root_data)
+    root = _Tileset("root", None, (), 0, np.eye(4), "REPLACE", ROOT_URL, root_data)
 
-    def walk_tileset(url: str, parent: np.ndarray, refine: str, tileset: dict | None = None):
-        tileset = tileset if tileset is not None else json.loads(fetch(url))
-        if "root" in tileset:
-            yield from walk_tile(tileset["root"], url, parent, refine)
+    def ensure_fresh(ts: _Tileset) -> None:
+        if ts.fresh:
+            return
+        ts.url = live_url(ts.parent, ts.tile_path, ts.index)
+        ts.data = json.loads(fetch(ts.url, fresh=True, cache_id=ts.cache_id))
+        ts.fresh = True
 
-    def walk_tile(tile: dict, base: str, parent: np.ndarray, refine: str):
+    def live_url(ts: _Tileset, path: tuple[int, ...], index: int) -> str:
+        ensure_fresh(ts)
+        return _resolve(ts.url, _contents(_tile_at(ts.data, path))[index], session)
+
+    def walk_tile(tile, path, ts: _Tileset, parent, refine):
         world = parent @ _transform(tile)
-        if not _hits(tile.get("boundingVolume", {}), world, sphere, frame):
+        volume = tile.get("boundingVolume", {})
+        if not _hits(volume, world, sphere, frame):
             return
         refine = tile.get("refine", refine).upper()
         children = tile.get("children") or []
         error = float(tile.get("geometricError", 0.0))
-        refining = bool(children) and error > max_error
+        refining = bool(children) and error > limit
         if not refining or refine == "ADD":
-            for uri in _contents(tile):
-                url = _resolve(base, uri, session)
-                if urlparse(url).path.endswith(".json"):
-                    if count_leaves and error <= max_error:
-                        yield world, url, None
-                    else:
-                        yield from walk_tileset(url, world, refine)
+            for i, uri in enumerate(_contents(tile)):
+                url = _resolve(ts.url, uri, session)
+                is_json = urlparse(url).path.endswith(".json")
+                cid = content_id(ts.cache_id, path, i, "json" if is_json else "glb", volume)
+                if is_json and not (count_leaves and error <= limit):
+                    queue.append(_Tileset(cid, ts, path, i, world, refine, url))
+                elif is_json or plan_only:
+                    yield Content(world, url, None, cid)
                 else:
-                    yield world, url, None if plan_only else fetch(url)
+                    if not fetch.cached(cid):
+                        url = live_url(ts, path, i)
+                    yield Content(world, url, fetch(url, cache_id=cid), cid)
         if refining:
-            for child in children:
-                yield from walk_tile(child, base, world, refine)
+            for j, child in enumerate(children):
+                yield from walk_tile(child, (*path, j), ts, world, refine)
 
-    yield from walk_tileset(ROOT_URL, np.eye(4), "REPLACE", root)
+    queue = deque([root])
+    while queue:
+        ts = queue.popleft()
+        if ts.data is None:
+            if fetch.cached(ts.cache_id):
+                ts.data = json.loads(fetch(ts.url, cache_id=ts.cache_id))
+            else:
+                ensure_fresh(ts)
+        if "root" in ts.data:
+            yield from walk_tile(ts.data["root"], (), ts, ts.world, ts.refine)
 
 
 # --- glb ----------------------------------------------------------------------
