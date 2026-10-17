@@ -244,6 +244,27 @@ the settings popover.
   Cesium's horizontal `fov` for the canvas aspect); Realistic keeps -45 degrees and 60. Switching
   style keeps the current camera.
 
+### Three.js Stylised engine (opt-in)
+
+A spike renderer for the Stylised style, in `features/scene/three/`. Realistic stays on Cesium;
+Mapbox lite and List are unchanged.
+
+- **Turning it on:** `?engine=three` (persisted as `tl.engine` in `localStorage`; `?engine=cesium`
+  switches back). It only replaces the Stylised style on the 3D view. If it crashes (no WebGL2,
+  chunk error), the renderer boundary falls back to Mapbox, else List.
+- **`?bookmark=hero-near|hero-mid|township`:** the start view for the gate screenshots
+  (`bookmarks.ts`); without it the camera opens on `hero-mid`.
+- **`?perf=1`:** the fps / frame time / draw calls / tier readout (`PerfOverlay`).
+- **Split:** `engine.ts` owns all WebGL (renderer with AgX tone mapping, soft shadows, room IBL,
+  composer with GTAO and bloom per tier, `MapControls`, render on demand); `ThreeScene.tsx` is the
+  React side (site frame, buildings, intents, lighting per theme, quality tier, panel offset, camera
+  ops). DOM tests inject a fake engine through `createEngineFn`.
+- **DOM contract:** `<section data-testid="three-scene" data-frames data-route="on|off">`, with
+  the same aria-label and keyboard handling as `CesiumScene`. `data-frames` updates at most every
+  500 ms.
+- **Display only:** the same rules as the Cesium Stylised city. Kind tints, default heights, parks
+  and base water are illustrative; base water is never a flood scenario.
+
 ### Theme: Auto, Day, Dusk, Night
 
 The theme menu offers **Auto** (follows the Elmina clock, Asia/Kuala_Lumpur: Day 07:00-18:00, Dusk
