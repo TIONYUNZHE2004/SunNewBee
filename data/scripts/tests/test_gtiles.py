@@ -116,6 +116,7 @@ def test_fetcher_http_error_is_redacted(tmp_path):
     with pytest.raises(gtiles.TilesFetchError) as exc:
         f("https://h/missing.glb")
     assert "SECRET" not in str(exc.value) and "404" in str(exc.value)
+    assert exc.value.status == 404
     assert not list(tmp_path.iterdir())
 
 
@@ -209,6 +210,37 @@ def test_traverse_session_propagates_to_child_without_one(tmp_path):
     assert urls == [HOST + FILES + "c.glb?session=S"]
 
 
+def _with_root_session(routes, session):
+    root = HOST + "/v1/3dtiles/root.json"
+    text = routes[root].decode().replace("session=S", f"session={session}")
+    return {**routes, root: text.encode()}
+
+
+def test_traverse_fetches_root_fresh_and_overrides_stale_child_sessions(tmp_path):
+    routes, _ = _fixture_routes()
+    first = gtiles.Fetcher("K", max_requests=50, cache=tmp_path, get=FakeGet(routes))
+    list(gtiles.traverse(BBOX, first, max_error=10, plan_only=True))
+    # Later run: the cached near.json still carries the expired session S in its URIs.
+    get = FakeGet(_with_root_session(routes, "FRESH"))
+    later = gtiles.Fetcher("K", max_requests=50, cache=tmp_path, get=get)
+    out = list(gtiles.traverse(BBOX, later, max_error=10, plan_only=True))
+    assert [c.split("?")[0] for c in get.calls] == [HOST + "/v1/3dtiles/root.json"]
+    assert later.requests_made == 1  # the fresh root counts against the budget
+    assert [parse_qs(urlparse(u).query)["session"] for _, u, _ in out] == [["FRESH"]]
+
+
+def test_fetcher_fresh_bypasses_cache_read_and_refreshes_it(tmp_path):
+    url = "https://h/root.json"
+    (tmp_path / f"{gtiles.cache_key(url)}.bin").write_bytes(b"stale")
+    get = FakeGet({url: b"new"})
+    f = gtiles.Fetcher("K", max_requests=1, cache=tmp_path, get=get)
+    assert f(url, fresh=True) == b"new"
+    assert f.requests_made == 1
+    assert f(url) == b"new"
+    with pytest.raises(gtiles.TilesBudgetExceeded):
+        f(url, fresh=True)
+
+
 # --- glb ----------------------------------------------------------------------
 
 
@@ -275,3 +307,38 @@ def test_glb_positions_draco():
     got = {tuple(int(round(v)) for v in p) for p in pts}
     assert got == expected
     assert np.abs(pts - np.round(pts)).max() < 1e-3
+
+
+def _plain_glb(used=None, required=None, gltf_extensions=None):
+    blob = TRI.tobytes()
+    acc = pygltflib.Accessor(
+        bufferView=0, componentType=pygltflib.FLOAT, count=3, type=pygltflib.VEC3
+    )
+    view = pygltflib.BufferView(buffer=0, byteOffset=0, byteLength=len(blob))
+    g = pygltflib.GLTF2.load_from_bytes(_glb({"POSITION": 0}, blob, [view], [acc]))
+    if used:
+        g.extensionsUsed = used
+    if required:
+        g.extensionsRequired = required
+    if gltf_extensions:
+        g.extensions = gltf_extensions
+    return b"".join(g.save_to_bytes())
+
+
+def test_glb_positions_accepts_quantization_and_draco_requirements():
+    req = ["KHR_mesh_quantization", "KHR_draco_mesh_compression"]
+    assert gtiles.glb_positions(_plain_glb(used=req, required=req)).shape == (3, 3)
+
+
+def test_glb_positions_refuses_unknown_required_extension():
+    with pytest.raises(gtiles.UnsupportedGlb, match="EXT_meshopt_compression"):
+        gtiles.glb_positions(
+            _plain_glb(used=["EXT_meshopt_compression"], required=["EXT_meshopt_compression"])
+        )
+
+
+def test_glb_positions_refuses_cesium_rtc():
+    with pytest.raises(gtiles.UnsupportedGlb, match="CESIUM_RTC"):
+        gtiles.glb_positions(
+            _plain_glb(used=["CESIUM_RTC"], gltf_extensions={"CESIUM_RTC": {"center": [1, 2, 3]}})
+        )

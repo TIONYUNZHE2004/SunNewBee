@@ -5,11 +5,14 @@ the display layer. Never use them in routing, evaluation, flood, the agent, answ
 
 - Fetcher: cache first (data/cache/gtiles/<cache_key>.bin, key and session stripped from the
   cache key), appends the API key, hard request budget. The key is never printed or logged:
-  error messages pass through redact().
+  error messages pass through redact(). fresh=True skips the cache read (used for root.json).
 - traverse: 3D Tiles 1.1 traversal limited to a lon/lat bbox and a target geometric error;
   composes tile transforms, follows external tilesets (.json) and yields .glb content.
+  root.json is always fetched fresh and its current `session` replaces the session in every
+  child URL, so tileset JSON cached by an earlier run (with an expired session) stays usable.
 - glb_positions: vertex positions of a glb (Draco via DracoPy), node transforms applied,
-  glTF y-up converted to 3D Tiles z-up.
+  glTF y-up converted to 3D Tiles z-up. Raises UnsupportedGlb for content it cannot decode
+  correctly (unknown required extensions, CESIUM_RTC) instead of returning wrong points.
 """
 
 import hashlib
@@ -31,6 +34,7 @@ CACHE = ROOT / "data" / "cache" / "gtiles"
 _WGS84_A = 6378137.0
 _WGS84_E2 = 6.69437999014e-3
 _DRACO = "KHR_draco_mesh_compression"
+_SUPPORTED_REQUIRED = {_DRACO, "KHR_mesh_quantization"}
 _STRIP_PARAMS = {"key", "session"}
 # glTF is y-up; 3D Tiles is z-up: (x, y, z) -> (x, -z, y).
 _Y_UP_TO_Z_UP = np.array(
@@ -44,6 +48,14 @@ class TilesBudgetExceeded(RuntimeError):
 
 class TilesFetchError(RuntimeError):
     """A tile request failed (HTTP status or connection error). Message is key-redacted."""
+
+    def __init__(self, message: str, status: int | None = None):
+        super().__init__(message)
+        self.status = status
+
+
+class UnsupportedGlb(ValueError):
+    """The glb uses something glb_positions cannot decode correctly; its points would be wrong."""
 
 
 # --- geometry -----------------------------------------------------------------
@@ -161,9 +173,9 @@ class Fetcher:
         self._get = get
         self.requests_made = 0
 
-    def __call__(self, url: str) -> bytes:
+    def __call__(self, url: str, fresh: bool = False) -> bytes:
         path = self.cache / f"{cache_key(url)}.bin"
-        if path.exists():
+        if path.exists() and not fresh:
             return path.read_bytes()
         shown = redact(_strip(url), self._key)
         if self.requests_made >= self.max_requests:
@@ -176,7 +188,10 @@ class Fetcher:
         except Exception as exc:  # re-raised with the key redacted
             raise TilesFetchError(redact(f"request failed for {shown}: {exc}", self._key)) from None
         if r.status_code != 200:
-            raise TilesFetchError(f"HTTP {r.status_code} for {shown}")
+            body = redact(bytes(r.content[:300]).decode("utf-8", "replace"), self._key)
+            raise TilesFetchError(
+                f"HTTP {r.status_code} for {shown}: {' '.join(body.split())}", status=r.status_code
+            )
         self.cache.mkdir(parents=True, exist_ok=True)
         tmp = path.with_suffix(".tmp")
         tmp.write_bytes(r.content)
@@ -187,13 +202,30 @@ class Fetcher:
 # --- traversal ----------------------------------------------------------------
 
 
-def _resolve(base: str, uri: str) -> str:
-    """Resolve a content URI against its tileset URL; a missing `session` is inherited."""
+def _session(url: str) -> str | None:
+    return dict(parse_qsl(urlparse(url).query)).get("session")
+
+
+def _resolve(base: str, uri: str, session: str | None = None) -> str:
+    """Resolve a content URI against its tileset URL. `session` (the fresh one from root.json)
+    replaces any session in the URI; without it, a missing session is inherited from base."""
     url = urljoin(base, uri)
-    session = dict(parse_qsl(urlparse(base).query)).get("session")
-    if session and "session" not in dict(parse_qsl(urlparse(url).query)):
+    session = session or _session(base)
+    if session and (session != _session(url)):
         url = _with_params(url, session=session)
     return url
+
+
+def _root_session(tileset: dict) -> str | None:
+    """The first `session` found in a content URI of a (root) tileset."""
+    stack = [tileset.get("root") or {}]
+    while stack:
+        tile = stack.pop()
+        for uri in _contents(tile):
+            if s := _session(urljoin(ROOT_URL, uri)):
+                return s
+        stack.extend(tile.get("children") or [])
+    return None
 
 
 def _contents(tile: dict) -> list[str]:
@@ -221,9 +253,11 @@ def traverse(
     External tilesets (.json content) are fetched and traversed in place.
     """
     sphere = bbox_sphere(bbox)
+    root = json.loads(fetch(ROOT_URL, fresh=True))
+    session = _root_session(root)
 
-    def walk_tileset(url: str, parent: np.ndarray, refine: str):
-        tileset = json.loads(fetch(url))
+    def walk_tileset(url: str, parent: np.ndarray, refine: str, tileset: dict | None = None):
+        tileset = tileset if tileset is not None else json.loads(fetch(url))
         if "root" in tileset:
             yield from walk_tile(tileset["root"], url, parent, refine)
 
@@ -236,7 +270,7 @@ def traverse(
         refining = bool(children) and float(tile.get("geometricError", 0.0)) > max_error
         if not refining or refine == "ADD":
             for uri in _contents(tile):
-                url = _resolve(base, uri)
+                url = _resolve(base, uri, session)
                 if urlparse(url).path.endswith(".json"):
                     yield from walk_tileset(url, world, refine)
                 else:
@@ -245,7 +279,7 @@ def traverse(
             for child in children:
                 yield from walk_tile(child, base, world, refine)
 
-    yield from walk_tileset(ROOT_URL, np.eye(4), "REPLACE")
+    yield from walk_tileset(ROOT_URL, np.eye(4), "REPLACE", root)
 
 
 # --- glb ----------------------------------------------------------------------
@@ -318,6 +352,11 @@ def _primitive_positions(gltf: pygltflib.GLTF2, blob: bytes, prim: pygltflib.Pri
 def glb_positions(glb: bytes) -> np.ndarray:
     """(n, 3) vertex positions in the tile's frame: node transforms applied, glTF y-up -> z-up."""
     gltf = pygltflib.GLTF2.load_from_bytes(glb)
+    unsupported = sorted(set(gltf.extensionsRequired or []) - _SUPPORTED_REQUIRED)
+    if unsupported:
+        raise UnsupportedGlb(f"glb requires unsupported extension(s): {', '.join(unsupported)}")
+    if "CESIUM_RTC" in (gltf.extensionsUsed or []) or "CESIUM_RTC" in (gltf.extensions or {}):
+        raise UnsupportedGlb("glb uses CESIUM_RTC, which glb_positions does not apply")
     blob = gltf.binary_blob() or b""
     scene = gltf.scenes[gltf.scene or 0] if gltf.scenes else None
     roots = scene.nodes if scene else range(len(gltf.nodes))
