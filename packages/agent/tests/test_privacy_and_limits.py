@@ -89,7 +89,9 @@ async def test_a_turn_past_the_request_cap_ends_with_the_template(ctx, monkeypat
         return ModelResponse(parts=[ToolCallPart(tool_name="find_place", args={"query": "park"})])
 
     monkeypatch.setattr(agent_mod, "model_for", lambda s, escalate=False: FunctionModel(looper))
-    settings = AgentSettings(_env_file=None, llm_provider="mock", llm_request_limit=4)
+    settings = AgentSettings(
+        _env_file=None, llm_provider="mock", llm_request_limit=4, assistant_scope="all"
+    )
     evs = [e async for e in run_turn(ctx, ChatRequest(message="loop"), settings)]
     assert len(calls) <= 4
     assert any(e.type == "error" and e.code == "agent_limit" for e in evs)

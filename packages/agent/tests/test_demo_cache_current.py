@@ -16,7 +16,7 @@ from townshiplens_spatial.world import load_world
 
 SEED = ROOT / "data/seed/elmina"
 DEMO = ROOT / "data/demo"
-MOCK = AgentSettings(_env_file=None, llm_provider="mock")
+MOCK = AgentSettings(_env_file=None, llm_provider="mock", assistant_scope="all")
 # Differ between runs by design: replay mints ids and the VR store decides created/demand.
 IGNORED = {"message_id", "request_id", "created", "demand"}
 pytestmark = pytest.mark.skipif(not (SEED / "site.json").exists(), reason="Elmina seed not built")
@@ -60,3 +60,9 @@ async def test_cache_entry_matches_the_current_mock(world, tmp_path, name, rows)
     assert [_norm(r) for r in rows[1:]] == [_norm(r) for r in fresh], (
         f"{name} is stale: re-record it with the mock"
     )
+
+
+@pytest.fixture(autouse=True)
+def _legacy_scope(monkeypatch):
+    # Retain legacy recorded flows and synthetic pipeline prompts explicitly.
+    monkeypatch.setenv("ASSISTANT_SCOPE", "all")

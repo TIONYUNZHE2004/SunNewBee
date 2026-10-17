@@ -6,6 +6,12 @@ centres, waste points, accessibility profiles) and exposes 10 tools that the AI 
 call by name through `townshiplens_spatial.tools.TOOLS`. All answers come from these engines;
 the LLM never computes routes or flood extents.
 
+Place existence has provenance too (`Place.claims.existence`). A placeholder existence claim
+keeps `team_survey_placeholder` on name evidence from search, details and nearby amenities.
+Amenities expose `demo_place`, `existence`, `source_label`, and `via_unverified: true` for demo
+places. Route tool responses retain endpoint/rest-place evidence and demo metadata without
+changing the engine's status, selection or distance. MCP receives the same evidence and warnings.
+
 ## Data-directory contract (used by `load_world()`, the fixtures and the seed)
 
 ```

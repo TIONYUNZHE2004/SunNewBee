@@ -1,0 +1,377 @@
+{
+  "route_distance_m": 440.6,
+  "route_minutes": 6.3,
+  "route_measures": {
+    "count": [0.0, 1.0, 2.0, 13.0, 39.0],
+    "length": [198.5, 440.6],
+    "time": [6.3],
+    "steps": [0.0],
+    "slope": [3.0],
+    "width": [1.5]
+  },
+  "validator_cases": [
+    {
+      "label": "honest rounding",
+      "text": "The route is about 440 m.",
+      "expected_reject": false,
+      "accepted": true,
+      "errors": []
+    },
+    {
+      "label": "invented large count",
+      "text": "There are 99 steps on this route.",
+      "expected_reject": true,
+      "accepted": false,
+      "errors": [
+        "Facts ['99 steps'] do not match this turn's tool results: state distances, times, widths, slopes, step counts and other counts only as a tool returned them (round only with 'about'; never 'exactly' a rounded number)."
+      ]
+    },
+    {
+      "label": "invented amenity count",
+      "text": "There are 27 wheelchair toilets beside the playground.",
+      "expected_reject": true,
+      "accepted": false,
+      "errors": [
+        "Facts ['27 wheelchair toilets'] do not match this turn's tool results: state distances, times, widths, slopes, step counts and other counts only as a tool returned them (round only with 'about'; never 'exactly' a rounded number).",
+        "The answer states ['accessible toilet'], which no tool recorded this turn: describe only recorded facts, or say the feature is not recorded."
+      ]
+    },
+    {
+      "label": "borrow slope as time",
+      "text": "The walk takes 3 minutes.",
+      "expected_reject": true,
+      "accepted": false,
+      "errors": [
+        "Facts ['3 minutes'] do not match this turn's tool results: state distances, times, widths, slopes, step counts and other counts only as a tool returned them (round only with 'about'; never 'exactly' a rounded number)."
+      ]
+    },
+    {
+      "label": "borrow a list count as distance",
+      "text": "The route is 1 km long.",
+      "expected_reject": true,
+      "accepted": false,
+      "errors": [
+        "Facts ['1 km'] do not match this turn's tool results: state distances, times, widths, slopes, step counts and other counts only as a tool returned them (round only with 'about'; never 'exactly' a rounded number)."
+      ]
+    },
+    {
+      "label": "borrow slope as width",
+      "text": "The whole route is 3 m wide.",
+      "expected_reject": true,
+      "accepted": false,
+      "errors": [
+        "Facts ['3 m'] do not match this turn's tool results: state distances, times, widths, slopes, step counts and other counts only as a tool returned them (round only with 'about'; never 'exactly' a rounded number)."
+      ]
+    },
+    {
+      "label": "unmeasured opening hours",
+      "text": "The Urban Park toilet is open 24 hours every day.",
+      "expected_reject": true,
+      "accepted": false,
+      "errors": [
+        "Facts ['24 hours'] do not match this turn's tool results: state distances, times, widths, slopes, step counts and other counts only as a tool returned them (round only with 'about'; never 'exactly' a rounded number).",
+        "The answer states ['24-hour opening'], which no tool recorded this turn: describe only recorded facts, or say the feature is not recorded."
+      ]
+    },
+    {
+      "label": "unmeasured time written out",
+      "text": "You will arrive in two minutes.",
+      "expected_reject": true,
+      "accepted": false,
+      "errors": [
+        "Facts ['two minutes'] do not match this turn's tool results: state distances, times, widths, slopes, step counts and other counts only as a tool returned them (round only with 'about'; never 'exactly' a rounded number)."
+      ]
+    },
+    {
+      "label": "negation scope",
+      "text": "No steps, so I guarantee this route is accessible.",
+      "expected_reject": true,
+      "accepted": false,
+      "errors": [
+        "Never guarantee or rule out risk ('guarantee'): the township data can only say what is recorded and what is not checked yet."
+      ]
+    },
+    {
+      "label": "reassurance variant",
+      "text": "There is zero risk on this route.",
+      "expected_reject": true,
+      "accepted": false,
+      "errors": [
+        "Never guarantee or rule out risk ('zero risk'): the township data can only say what is recorded and what is not checked yet."
+      ]
+    },
+    {
+      "label": "empty citations",
+      "text": "There are 99 steps on this route.",
+      "expected_reject": true,
+      "accepted": false,
+      "errors": [
+        "Facts ['99 steps'] do not match this turn's tool results: state distances, times, widths, slopes, step counts and other counts only as a tool returned them (round only with 'about'; never 'exactly' a rounded number)."
+      ]
+    },
+    {
+      "label": "refusal bypass",
+      "text": "It is 950 m long and takes 2 minutes.",
+      "expected_reject": true,
+      "accepted": false,
+      "errors": [
+        "Facts ['2 minutes', '950 m'] do not match this turn's tool results: state distances, times, widths, slopes, step counts and other counts only as a tool returned them (round only with 'about'; never 'exactly' a rounded number)."
+      ]
+    }
+  ],
+  "redaction_cases": [
+    {
+      "input": "Call +60 (12) 345 6789",
+      "output": "Call +60 (12) 345 6789"
+    },
+    {
+      "input": "My IC is 900101 14 5678",
+      "output": "My IC is 900101 14 5678"
+    },
+    {
+      "input": "Email aisyah@example.com or phone 012-345 6789",
+      "output": "Email [email removed] or phone [phone number removed]"
+    }
+  ],
+  "draft_events": [],
+  "amenity_tool": {
+    "ok": true,
+    "data": [
+      {
+        "id": "toilet-urban-park",
+        "name": "Urban Park toilet",
+        "walk_m": 58.5,
+        "via_unverified": false
+      }
+    ],
+    "evidence": [
+      {
+        "id": "ev-place-toilet-urban-park",
+        "element_id": "toilet-urban-park",
+        "attribute": "name",
+        "value": "Urban Park toilet",
+        "status": "reported",
+        "verified_at": null,
+        "source_type": "world_model",
+        "source_url": null,
+        "photo_url": null
+      }
+    ],
+    "warnings": []
+  },
+  "end_to_end_events": [
+    {
+      "type": "tool.call",
+      "id": "plan_route-0",
+      "name": "plan_route",
+      "args": {
+        "from_id": "park-b",
+        "to_id": "playground",
+        "profile": "stroller",
+        "scenario_id": null
+      }
+    },
+    {
+      "type": "tool.result",
+      "id": "plan_route-0",
+      "name": "plan_route",
+      "summary": "route confirmed"
+    },
+    {
+      "type": "answer.check",
+      "attempt": 1,
+      "ok": false,
+      "issues": ["stated a number no check returned"],
+      "repairs": 0
+    },
+    {
+      "type": "answer.check",
+      "attempt": 2,
+      "ok": false,
+      "issues": ["stated a number no check returned"],
+      "repairs": 0
+    },
+    {
+      "type": "answer.check",
+      "attempt": 3,
+      "ok": false,
+      "issues": ["stated a number no check returned"],
+      "repairs": 0
+    },
+    {
+      "type": "text.delta",
+      "delta": "Route status: confirmed (on demo values,"
+    },
+    {
+      "type": "text.delta",
+      "delta": " not yet surveyed)\nRoute confirmed (on d"
+    },
+    {
+      "type": "text.delta",
+      "delta": "emo values, not yet surveyed), 440.6 m.\n"
+    },
+    {
+      "type": "text.delta",
+      "delta": "Worth knowing:\n\u2022 Some segment facts are "
+    },
+    {
+      "type": "text.delta",
+      "delta": "demo values, not yet surveyed."
+    },
+    {
+      "type": "scene.intent",
+      "intent": {
+        "kind": "route.highlight",
+        "place_id": null,
+        "route_id": "rt-76a05e57",
+        "scenario_id": null,
+        "center": null,
+        "range_m": null,
+        "lens": null,
+        "visible": null,
+        "geojson": {
+          "type": "LineString",
+          "coordinates": [
+            [101.508757, 3.18131],
+            [101.50861, 3.181204],
+            [101.508479, 3.181108],
+            [101.508337, 3.181005],
+            [101.508237, 3.18094],
+            [101.508415, 3.180676],
+            [101.508383, 3.180668],
+            [101.508356, 3.180651],
+            [101.508334, 3.180624],
+            [101.508321, 3.180592],
+            [101.508319, 3.180558],
+            [101.508327, 3.180525],
+            [101.508347, 3.180496],
+            [101.508374, 3.180475],
+            [101.508406, 3.180464],
+            [101.508441, 3.180463],
+            [101.508473, 3.180473],
+            [101.508501, 3.180493],
+            [101.508769, 3.180147],
+            [101.508911, 3.179959],
+            [101.50941, 3.180232],
+            [101.509854, 3.180547],
+            [101.509999, 3.180661],
+            [101.510071, 3.180734],
+            [101.510279, 3.180944],
+            [101.510249, 3.180715]
+          ]
+        },
+        "route_status": "confirmed",
+        "distance_m": 440.6,
+        "est_minutes": 6.3,
+        "day": null,
+        "t_min": null
+      }
+    },
+    {
+      "type": "citation",
+      "ref": 1,
+      "evidence_id": "ev-seg-1306543769-3.step_count",
+      "element_id": "seg-1306543769-3",
+      "attribute": "step_count",
+      "status": "verified",
+      "verified_at": "2026-10-15",
+      "source_type": "team_survey_placeholder",
+      "photo_url": null
+    },
+    {
+      "type": "citation",
+      "ref": 2,
+      "evidence_id": "ev-seg-1306543769-3.incline_pct",
+      "element_id": "seg-1306543769-3",
+      "attribute": "incline_pct",
+      "status": "verified",
+      "verified_at": "2026-10-15",
+      "source_type": "team_survey_placeholder",
+      "photo_url": null
+    },
+    {
+      "type": "citation",
+      "ref": 3,
+      "evidence_id": "ev-seg-1306543769-3.width_m",
+      "element_id": "seg-1306543769-3",
+      "attribute": "width_m",
+      "status": "verified",
+      "verified_at": "2026-10-15",
+      "source_type": "team_survey_placeholder",
+      "photo_url": null
+    },
+    {
+      "type": "citation",
+      "ref": 4,
+      "evidence_id": "ev-seg-1306543769-2.step_count",
+      "element_id": "seg-1306543769-2",
+      "attribute": "step_count",
+      "status": "verified",
+      "verified_at": "2026-10-15",
+      "source_type": "team_survey_placeholder",
+      "photo_url": null
+    },
+    {
+      "type": "citation",
+      "ref": 5,
+      "evidence_id": "ev-seg-1306543769-2.incline_pct",
+      "element_id": "seg-1306543769-2",
+      "attribute": "incline_pct",
+      "status": "verified",
+      "verified_at": "2026-10-15",
+      "source_type": "team_survey_placeholder",
+      "photo_url": null
+    },
+    {
+      "type": "citation",
+      "ref": 6,
+      "evidence_id": "ev-seg-1306543769-2.width_m",
+      "element_id": "seg-1306543769-2",
+      "attribute": "width_m",
+      "status": "verified",
+      "verified_at": "2026-10-15",
+      "source_type": "team_survey_placeholder",
+      "photo_url": null
+    },
+    {
+      "type": "citation",
+      "ref": 7,
+      "evidence_id": "ev-seg-1306543769-1.step_count",
+      "element_id": "seg-1306543769-1",
+      "attribute": "step_count",
+      "status": "verified",
+      "verified_at": "2026-10-15",
+      "source_type": "team_survey_placeholder",
+      "photo_url": null
+    },
+    {
+      "type": "citation",
+      "ref": 8,
+      "evidence_id": "ev-seg-1306543769-1.incline_pct",
+      "element_id": "seg-1306543769-1",
+      "attribute": "incline_pct",
+      "status": "verified",
+      "verified_at": "2026-10-15",
+      "source_type": "team_survey_placeholder",
+      "photo_url": null
+    },
+    {
+      "type": "uncertainty",
+      "level": "partial",
+      "items": [
+        {
+          "element_id": "route",
+          "attribute": "demo_values",
+          "note": "Some segment facts are demo values, not yet surveyed"
+        }
+      ]
+    },
+    {
+      "type": "done",
+      "message_id": "9fb9841697fe",
+      "answer_status": "answered",
+      "model": "function:model:+template"
+    }
+  ],
+  "model_calls": 4
+}

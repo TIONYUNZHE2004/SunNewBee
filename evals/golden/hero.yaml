@@ -28,10 +28,12 @@
   profile: default
   expect: { done_status_in: [cannot_answer] }
 - id: waste-battery
+  assistant_scope: all  # explicit opt-in for legacy-feature regression coverage
   message: "Where can I recycle paper and cans?"
   profile: default
   expect: { tools_include: [find_waste_points], events_include: [citation], done_status_in: [answered], text_includes: ["Recycling bins at Car Park B"] }
 - id: waste-unknown
+  assistant_scope: all  # explicit opt-in for legacy-feature regression coverage
   message: "Where can I drop off e-waste batteries?"
   profile: default
   expect: { tools_include: [find_waste_points], events_include: [citation, uncertainty], done_status_in: [partial], text_includes_any: ["not confirmed yet", "not checked yet", "unverified", "not yet verified"], mock_only: { text_includes: ["not confirmed yet"] } }
@@ -57,38 +59,47 @@
   profile: default
   expect: { tools_include: [get_place_details], events_include: [citation], text_excludes: ["don't have that place"] }
 - id: whatif-ramp
+  assistant_scope: all  # explicit opt-in for legacy-feature regression coverage
   message: "What if we build a ramp at the steps? How many wheelchair journeys would work?"
   profile: wheelchair
   expect: { tools_include: [simulate_what_if], events_include: [scene.intent, citation, disclaimer], done_status_in: [partial, answered], text_includes: ["what-if"], text_excludes: [" is confirmed", "will be built"], mock_only: { text_includes: ["3 of 5 wheelchair journeys"] } }
 - id: whatif-flood-ramp-evacuation
+  assistant_scope: all  # explicit opt-in for legacy-feature regression coverage
   message: "If the river rises 3 m and we build a ramp at the steps, how many wheelchair users can still reach an evacuation centre? What if?"
   profile: wheelchair
   expect: { tools_include: [simulate_what_if], events_include: [disclaimer], text_includes: ["what-if", "not a forecast"], text_excludes: [" safe", "will be built"] }
 - id: verify-next-plan
+  assistant_scope: all  # explicit opt-in for legacy-feature regression coverage
   message: "Which facts should staff verify first so wheelchair users can reach an evacuation centre?"
   profile: wheelchair
   expect: { tools_include: [plan_verifications], events_include: [citation], done_status_in: [partial, answered], text_excludes: ["will be confirmed", "probably"], mock_only: { first_line: "If this check at 1 place passes" } }
 - id: river-tipping-point
+  assistant_scope: all  # explicit opt-in for legacy-feature regression coverage
   message: "At which river level does my route from the playground to the evacuation centre break?"
   profile: default
   expect: { tools_include: [river_tipping_point], events_include: [disclaimer], text_includes: ["not a forecast", "River +3 m"], text_excludes: [" safe", " deep"] }
 - id: river-rollout
+  assistant_scope: all  # explicit opt-in for legacy-feature regression coverage
   message: "What happens to residents as the river rises?"
   profile: wheelchair
   expect: { tools_include: [rising_river_rollout], events_include: [scene.intent, disclaimer], text_includes: ["not a forecast"], text_excludes: [" safe"] }
 - id: fixit-best-changes
+  assistant_scope: all  # explicit opt-in for legacy-feature regression coverage
   message: "Which 2 changes would help wheelchair users most on everyday trips?"
   profile: wheelchair
   expect: { tools_include: [find_fixes], events_include: [citation], text_includes: ["what-if"], text_excludes: ["will be built", " is confirmed"] }
 - id: day-weekday-rehearsal
+  assistant_scope: all  # explicit opt-in for legacy-feature regression coverage
   message: "What happens to residents on a normal weekday rehearsal?"
   profile: default
   expect: { tools_include: [day_rehearsal], events_include: [scene.intent, citation], text_includes: ["synthetic", "not a forecast"], text_excludes: [" safe", "will be stranded", "%"] }
 - id: day-event-rehearsal-bm
+  assistant_scope: all  # explicit opt-in for legacy-feature regression coverage
   message: "Apa yang berlaku kepada penduduk dalam latihan malam acara di taman?"
   profile: default
   expect: { tools_include: [day_rehearsal], events_include: [scene.intent, citation], text_excludes: [" safe", "selamat"], mock_only: { text_includes: ["synthetic", "not a forecast", "night"] } }
 - id: day-test-a-change
+  assistant_scope: all  # explicit opt-in for legacy-feature regression coverage
   message: "Which change should we test in the weekday rehearsal?"
   profile: default
   expect: { tools_include: [day_test_change], events_include: [scene.intent, citation, disclaimer], text_includes: ["imagined", "synthetic", "not a forecast"], text_excludes: ["will be built", " safe", "%"] }

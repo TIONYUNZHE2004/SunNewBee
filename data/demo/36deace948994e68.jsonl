@@ -1,4 +1,4 @@
-{"meta": {"message": "Which facts should staff verify first so wheelchair users can reach a centre?", "profile": "wheelchair", "scenario_id": null, "world": "elmina", "model": "mock-scripted", "recorded_at": "2026-10-16T14:41:11+00:00"}}
+{"meta": {"message": "Which facts should staff verify first so wheelchair users can reach a centre?", "profile": "wheelchair", "scenario_id": null, "world": "elmina", "model": "mock-scripted", "recorded_at": "2026-10-17T09:50:44+00:00"}}
 {"type": "tool.call", "id": "plan_verifications-0", "name": "plan_verifications", "args": {"profile": "wheelchair", "scope": "evacuation", "budget": 15}}
 {"type": "tool.result", "id": "plan_verifications-0", "name": "plan_verifications", "summary": "plan: 15 checks -> 4 confirmed"}
 {"type": "answer.draft", "attempt": 1, "delta": "If "}

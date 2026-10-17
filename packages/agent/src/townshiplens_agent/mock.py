@@ -23,6 +23,7 @@ from .template import (
     fixit_answer,
     plan_answer,
     rollout_answer,
+    scope_answer,
     tipping_answer,
     whatif_answer,
 )
@@ -501,21 +502,27 @@ def _day_change(q: str, rets, info: AgentInfo) -> ModelResponse:
 
 def _script(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
     q = _prompt(messages).lower()
+    from .scope import outside_scope
+    from .settings import AgentSettings
+
+    scope = _ui(info, "assistant_scope") or AgentSettings().assistant_scope
+    if scope == "access_flood" and outside_scope(q, has_history=len(messages) > 1):
+        return _final(**scope_answer(q).model_dump())
     rets = _returns(messages)
     n = len(rets)
-    if re.search(_DAY_CHANGE, q):
+    if scope == "all" and re.search(_DAY_CHANGE, q):
         return _day_change(q, rets, info)
-    if re.search(_DAY, q):
+    if scope == "all" and re.search(_DAY, q):
         return _day(q, rets, info)
-    if re.search(_FIXIT, q):
+    if scope == "all" and re.search(_FIXIT, q):
         return _fixit(q, rets, info)
-    if re.search(_ROLLOUT, q):
+    if scope == "all" and re.search(_ROLLOUT, q):
         return _rollout(q, rets, info)
-    if re.search(_TIPPING, q):
+    if scope == "all" and re.search(_TIPPING, q):
         return _tipping(q, rets, info)
-    if re.search(_PLAN, q):
+    if scope == "all" and re.search(_PLAN, q):
         return _plan(q, rets, info)
-    if re.search(_WHATIF, q):
+    if scope == "all" and re.search(_WHATIF, q):
         return _whatif(q, rets, info)
     is_flood = bool(re.search(r"flood|river|banjir|sungai|rises|naik|水", q))
     ui_sid = _ui(info, "active_scenario")

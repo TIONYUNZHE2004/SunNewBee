@@ -14,7 +14,7 @@ from townshiplens_spatial import tools
 from townshiplens_spatial.vr_store import VerificationStore
 from townshiplens_spatial.world import load_world
 
-MOCK = AgentSettings(_env_file=None, llm_provider="mock")
+MOCK = AgentSettings(_env_file=None, llm_provider="mock", assistant_scope="all")
 KIOSK_Q = "Can I push a stroller from Car Park B to the kiosk without stairs?"
 
 
@@ -154,3 +154,9 @@ async def test_chinese_drafts_stream_before_the_end(ctx, monkeypatch):
     monkeypatch.setattr(agent_mod, "model_for", lambda s, escalate=False: _streaming([zh]))
     evs = await collect(ctx, "你好")
     assert len([d for d in evs if d.type == "answer.draft"]) > 1
+
+
+@pytest.fixture(autouse=True)
+def _legacy_scope(monkeypatch):
+    # These existing engine/pipeline regressions explicitly retain all legacy features.
+    monkeypatch.setenv("ASSISTANT_SCOPE", "all")
