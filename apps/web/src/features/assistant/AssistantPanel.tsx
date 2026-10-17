@@ -4,6 +4,7 @@ import { Icon } from "../../ui/icons";
 import { useChatDraft } from "../chat/chatDraftStore";
 import { useChatStream } from "../chat/useChatStream";
 import { DayPanel } from "../day/DayPanel";
+import { TripChip, TripPlanner } from "../day/TripPlanner";
 import { type Profile, useScene } from "../scene/sceneStore";
 import { RisingRiverPanel } from "../whatif/RisingRiverPanel";
 import { WhatIfLab } from "../whatif/WhatIfLab";
@@ -75,6 +76,8 @@ export function AssistantPanel({
         <h1 className="text-lg font-semibold text-fg">{copy.title}</h1>
         <p className="mt-1 text-sm text-fg-soft">{copy.sub}</p>
       </header>
+      {/* the peeking phone sheet keeps only the composer: the trip card waits for more room */}
+      {mode === "resident" && !compact && <TripPlanner />}
       {mode === "management" && (
         <>
           <DayPanel />
@@ -144,8 +147,9 @@ export function AssistantPanel({
           </ChipRow>
         )}
         {mode === "resident" && (
-          <div className={`mb-2 ${compact ? "hidden" : ""}`}>
+          <div className={`mb-2 flex flex-wrap gap-2 ${compact ? "hidden" : ""}`}>
             <TravelChip />
+            <TripChip />
           </div>
         )}
         <form

@@ -5,6 +5,7 @@ import { type CesiumComponentRef, useCesium, Viewer } from "resium";
 import { useLayer, useSite } from "../../../lib/api";
 import { ENV } from "../../../lib/env";
 import { useTheme } from "../../../ui/theme";
+import { useTripPick } from "../../day/tripPickStore";
 import { usePanel } from "../../main/panelStore";
 import { isWide } from "../../main/usePanelReserve";
 import { frustumXOffset, PANEL_INSET_PX, panelWidthPx } from "../../main/viewport";
@@ -140,6 +141,23 @@ function SceneSetup({
     if (!viewer || viewer.isDestroyed()) return;
     const handler = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas);
     handler.setInputAction((e: { position: Cesium.Cartesian2 }) => {
+      // Choosing a trip end on the map ("Rehearse my trip") takes the click first.
+      const picking = useTripPick.getState().picking;
+      if (picking) {
+        const at =
+          (viewer.scene.pickPositionSupported && viewer.scene.pickPosition(e.position)) ||
+          viewer.camera.pickEllipsoid(e.position);
+        if (at) {
+          const c = Cesium.Cartographic.fromCartesian(at);
+          useTripPick
+            .getState()
+            .setPoint(picking, [
+              Cesium.Math.toDegrees(c.longitude),
+              Cesium.Math.toDegrees(c.latitude),
+            ]);
+        }
+        return;
+      }
       // Thin ground polylines: pick a small window (8 px) so near misses still hit.
       const hits: { id?: unknown }[] = viewer.scene.drillPick(e.position, 5, PICK_PX, PICK_PX);
       for (const h of hits) {

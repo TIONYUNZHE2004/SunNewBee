@@ -1348,3 +1348,20 @@ Alignment, asked first (17 Oct, about 13:00):
 - The console is clean after a reload. On the way: a debugging session showed that the jsdom tests cannot fetch relative `/api` URLs (the strip test mocks the client's POST).
 
 **Checklist** (mock-backed): lint PASS, pytest 1,296 PASS, typecheck PASS, vitest 796 PASS, gen PASS, golden 23/23 PASS, build PASS, e2e 19 PASS.
+
+### Cycle 20, part 2: "Rehearse my trip" in Resident mode, with the fallback views (17 Oct, 13:34)
+
+- **`TripPlanner` card**, opened from a "Rehearse my trip" chip beside "Travelling as" (no extra row).
+  - **From and to:** search a mapped place (`/places?q=`), or "tap a point on the map". A hint appears in the TopStack hint slot, and Esc cancels.
+  - **Inputs:** the leave time, the rehearsed day, and "Travelling as" for the profile.
+  - **Result:** it posts `POST /day/{id}/trip`, plays the trip on the map and shows the same departure strip.
+  - **Data gap:** shown as "No mapped connection … a data gap, not a closed road".
+  - **Privacy:** tapped points stay in the tab and are sent once in a request body ("not saved").
+- **Map taps:** `tripPickStore` sends the next map click (Cesium `pickPosition` or the ellipsoid; Mapbox `lngLat`) to the chosen end, ahead of place cards.
+- **Lite map:** the usual route (white dashes on a dark casing), the trip in yellow, the cut in red and a "You" dot at the clock. The map flies to the trip.
+- **List view:** "Your trip · rehearsal" names the flooded streets and shows the same strip (every departure in words).
+- **Found by the checklist:** the collapsed card row pushed the phone sheet's composer off-screen (888 > 844 px) and left the conversation 101 px at half height. The entry point moved into the "Travelling as" row, and the phone e2e passes again.
+- **Browser** (mock, Stylised): I tapped a point on the map, searched "SK Denai Alam", and rehearsed in a wheelchair at 07:30 on the storm day. The strip showed ✓ 06:30, ↺ 06:40, ✕ 06:50–12:20, ✓ from 12:30. The 3D map framed the trip; Lite map and List showed the same. The console was clean.
+- **e2e (new):** "Rehearse my trip" on the tiny fixture (Car Park B → the playground, weekday, 07:30: the ▲ departure got there; the list heading shows; no advice words).
+
+**Checklist** (mock-backed): lint PASS, pytest 1,296 PASS, typecheck PASS, vitest 796 PASS, gen PASS, golden 23/23 PASS, build PASS, e2e 20 PASS.

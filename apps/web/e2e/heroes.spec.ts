@@ -384,3 +384,30 @@ test("Test a change: the same day with an imagined change, who gains and who los
   await expect(result).toContainText(/\d+ residents would be better off and \d+ worse off/);
   await expect(page.getByRole("note").filter({ hasText: "What-if · not real" })).toBeVisible();
 });
+
+test("Rehearse my trip: a resident's own trip through a rehearsed day, departure by departure", async ({
+  page,
+}) => {
+  await open(page);
+  await page.getByRole("button", { name: "Rehearse my trip" }).click();
+  const card = page.getByRole("region", { name: "Rehearse my trip" });
+  await expect(card).toContainText("not a forecast and not advice");
+  await card.getByRole("textbox", { name: "From" }).fill("Car Park B");
+  await card.getByRole("button", { name: "Car Park B", exact: true }).click();
+  await card.getByRole("textbox", { name: "To" }).fill("playground");
+  await card
+    .getByRole("button", { name: /playground/i })
+    .first()
+    .click();
+  await card.getByRole("combobox", { name: "Rehearsed day" }).selectOption("weekday");
+  await card.getByRole("button", { name: "Rehearse", exact: true }).click();
+  const strip = card.getByRole("region", { name: "Your trip in the rehearsal" });
+  await expect(strip).toContainText("A normal weekday");
+  await expect(strip.getByRole("button", { name: /Leaving at 07:30: got there/ })).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
+  // the list view (no map keys in e2e) spells out the same trip
+  await expect(page.getByRole("heading", { name: "Your trip · rehearsal" })).toBeVisible();
+  await expect(card).not.toContainText(/\b(?:safe|you should|leave by)\b/i);
+});

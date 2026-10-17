@@ -5,6 +5,8 @@ import { useDay, useGaps, useLayer, useScenarioWater, useSite } from "../../../l
 import { ENV } from "../../../lib/env";
 import { useTheme } from "../../../ui/theme";
 import { DAY_STYLE, dotsAt, prepare, type Tracks } from "../../day/dayModel";
+import { parseTrip, TRIP_STYLE, tripPositionAt } from "../../day/tripModel";
+import { useTripPick } from "../../day/tripPickStore";
 import { GAP_BAND_ORDER, GAP_BANDS, gapLines, gapsActive } from "../../gaps/gapModel";
 import { WHATIF_STYLE } from "../../whatif/whatifModel";
 import { homeView, shouldReframe } from "../cesium/home";
@@ -205,6 +207,22 @@ export default function MapboxLite() {
         : null,
     [dayOn, dayStep, dayFocus, dayPrepared],
   );
+  // a resident's own rehearsed trip (Cycle 20): lines from the engine, "you" at the clock
+  const myTrip = useScene((s) => s.myTrip);
+  const tripParsed = useMemo(() => parseTrip(myTrip?.geojson), [myTrip]);
+  const you = useMemo(() => {
+    if (!tripParsed || !dayOn) return null;
+    const here = tripPositionAt(tripParsed.segs, dayStep * 3);
+    const at = here ? [here.lon, here.lat] : tripParsed.normal?.[0];
+    return at
+      ? {
+          type: "FeatureCollection",
+          features: [
+            { type: "Feature", geometry: { type: "Point", coordinates: at }, properties: {} },
+          ],
+        }
+      : null;
+  }, [tripParsed, dayOn, dayStep]);
   const focusPlaceId = useScene((s) => s.focusPlaceId);
   const camera = useScene((s) => s.camera);
   const selectPlace = useScene((s) => s.selectPlace);
@@ -245,6 +263,14 @@ export default function MapboxLite() {
     const mid = c[Math.floor(c.length / 2)] as number[];
     fly([mid[0] as number, mid[1] as number], 16.5);
   }, [route, fly]);
+
+  useEffect(() => {
+    // frame a resident's own rehearsed trip when it arrives (the middle of its usual route)
+    const c = tripParsed?.normal ?? tripParsed?.segs.flatMap((x) => x.coords);
+    if (!c?.length) return;
+    const mid = c[Math.floor(c.length / 2)] as number[];
+    fly([mid[0] as number, mid[1] as number], 15);
+  }, [tripParsed, fly]);
 
   useEffect(() => {
     const p = places.find((x) => x.id === focusPlaceId);
@@ -296,6 +322,11 @@ export default function MapboxLite() {
         interactiveLayerIds={clickable}
         cursor="auto"
         onClick={(e: MapMouseEvent) => {
+          const picking = useTripPick.getState().picking;
+          if (picking) {
+            useTripPick.getState().setPoint(picking, [e.lngLat.lng, e.lngLat.lat]);
+            return;
+          }
           const id = clickedPlaceId(e.features, clickable);
           if (id) selectPlace(id);
         }}
@@ -398,6 +429,56 @@ export default function MapboxLite() {
                 ],
                 "circle-stroke-color": ["case", ["get", "focus"], "#ffffff", "#000000"],
                 "circle-stroke-width": ["case", ["get", "focus"], 2, 0.5],
+              }}
+            />
+          </Source>
+        )}
+        {myTrip && (
+          <Source id="my-trip" type="geojson" data={myTrip.geojson as never}>
+            <Layer
+              id="my-trip-normal-casing"
+              type="line"
+              slot="top"
+              filter={[
+                "all",
+                ["==", ["geometry-type"], "LineString"],
+                ["==", ["get", "kind"], "normal"],
+              ]}
+              layout={{ "line-cap": "round" }}
+              paint={{ "line-color": TRIP_STYLE.normal.gap, "line-width": TRIP_STYLE.normal.width }}
+            />
+            {(["normal", "trip", "cut"] as const).map((kind) => (
+              <Layer
+                key={kind}
+                id={`my-trip-${kind}`}
+                type="line"
+                slot="top"
+                filter={[
+                  "all",
+                  ["==", ["geometry-type"], "LineString"],
+                  ["==", ["get", "kind"], kind],
+                ]}
+                layout={{ "line-cap": "round" }}
+                paint={{
+                  "line-color": TRIP_STYLE[kind].color,
+                  "line-width": TRIP_STYLE[kind].width * (kind === "cut" ? 0.6 : 0.8),
+                  ...(kind === "normal" ? { "line-dasharray": [1.5, 1.2] } : {}),
+                }}
+              />
+            ))}
+          </Source>
+        )}
+        {you && (
+          <Source id="my-trip-you" type="geojson" data={you as never}>
+            <Layer
+              id="my-trip-you"
+              type="circle"
+              slot="top"
+              paint={{
+                "circle-radius": 9,
+                "circle-color": "#ffffff",
+                "circle-stroke-color": TRIP_STYLE.trip.color,
+                "circle-stroke-width": 4,
               }}
             />
           </Source>

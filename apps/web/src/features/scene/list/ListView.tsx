@@ -8,6 +8,7 @@ import { CLOSURE_SOURCE, closureLine } from "./closureModel";
 import { DayListSection } from "./DayListSection";
 import { ListLensSections } from "./LensSections";
 import { groupByType, humanType, parseLayer, routeSteps, withIndicative } from "./listModel";
+import { MyTripListSection } from "./MyTripListSection";
 import { WhatIfListSection } from "./WhatIfListSection";
 
 function StatusBadge({ status }: { status: Parameters<typeof statusStyle>[0] }) {
@@ -148,6 +149,7 @@ export function ListView() {
       </section>
 
       <DayListSection />
+      <MyTripListSection />
 
       <WhatIfListSection />
 
