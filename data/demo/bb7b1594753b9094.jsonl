@@ -1,4 +1,4 @@
-{"meta": {"message": "At which river level does my route from the mall to an evacuation centre break?", "profile": "default", "scenario_id": null, "world": "elmina", "model": "mock-scripted", "recorded_at": "2026-10-16T14:40:50+00:00"}}
+{"meta": {"message": "At which river level does my route from the mall to an evacuation centre break?", "profile": "default", "scenario_id": null, "world": "elmina", "model": "mock-scripted", "recorded_at": "2026-10-17T09:51:18+00:00"}}
 {"type": "tool.call", "id": "find_place-0", "name": "find_place", "args": {"query": "lakeside mall", "types": null, "limit": 5}}
 {"type": "tool.result", "id": "find_place-0", "name": "find_place", "summary": "2 result(s)"}
 {"type": "tool.call", "id": "river_tipping_point-1", "name": "river_tipping_point", "args": {"from_id": "lakeside-mall", "profile": "default", "to_id": null}}
