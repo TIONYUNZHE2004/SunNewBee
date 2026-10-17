@@ -1,6 +1,6 @@
 # Scope-B answer key
 
-`answer_key/deep_spot.json` contains 31 provisional EN, BM and 中文 questions about
+`answer_key/deep_spot.json` contains 32 provisional EN, BM and 中文 questions about
 Elmina Urban Park and Elmina Lakeside Mall frontage. Every entry has `reviewed: false`:
 Yunzhe must inspect the engine call, recorded result, expected facts and wording constraints
 before marking it reviewed. These are engine-derived expectations, not surveyed street facts.

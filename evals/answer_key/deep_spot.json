@@ -3,7 +3,7 @@
   "scope": "access_flood",
   "human_review": "Pending Yunzhe; all entries are provisional engine-derived expectations.",
   "seed_sha256": "193a792d2592a5483876d8b72479003802840c6f12cc54413009806f10aa3c4f",
-  "captured_commit": "95e9e56d4765b1018d93ddf2e6653f081e9704fe",
+  "captured_commit": "9cff54d8c834035f83b5a4bff8b83c7486c3c142",
   "capture_command": "LLM_PROVIDER=mock uv run python evals/build_answer_key.py",
   "cases": [
     {
@@ -5533,7 +5533,7 @@
                   "status": "open",
                   "demand": 1,
                   "question_summary": null,
-                  "created_at": "2026-10-17T09:39:49.102333+00:00",
+                  "created_at": "2026-10-17T09:46:11.545021+00:00",
                   "resolved_at": null,
                   "resolution": null,
                   "created": true
@@ -5546,7 +5546,7 @@
                   "status": "open",
                   "demand": 1,
                   "question_summary": null,
-                  "created_at": "2026-10-17T09:39:49.102646+00:00",
+                  "created_at": "2026-10-17T09:46:11.545144+00:00",
                   "resolved_at": null,
                   "resolution": null,
                   "created": true
@@ -5559,7 +5559,7 @@
                   "status": "open",
                   "demand": 1,
                   "question_summary": null,
-                  "created_at": "2026-10-17T09:39:49.102687+00:00",
+                  "created_at": "2026-10-17T09:46:11.545180+00:00",
                   "resolved_at": null,
                   "resolution": null,
                   "created": true
@@ -5572,7 +5572,7 @@
                   "status": "open",
                   "demand": 1,
                   "question_summary": null,
-                  "created_at": "2026-10-17T09:39:49.102714+00:00",
+                  "created_at": "2026-10-17T09:46:11.545205+00:00",
                   "resolved_at": null,
                   "resolution": null,
                   "created": true
@@ -5585,7 +5585,7 @@
                   "status": "open",
                   "demand": 1,
                   "question_summary": null,
-                  "created_at": "2026-10-17T09:39:49.102735+00:00",
+                  "created_at": "2026-10-17T09:46:11.545226+00:00",
                   "resolved_at": null,
                   "resolution": null,
                   "created": true
@@ -5598,7 +5598,7 @@
                   "status": "open",
                   "demand": 1,
                   "question_summary": null,
-                  "created_at": "2026-10-17T09:39:49.102866+00:00",
+                  "created_at": "2026-10-17T09:46:11.545247+00:00",
                   "resolved_at": null,
                   "resolution": null,
                   "created": true
@@ -5662,6 +5662,116 @@
         ["demo values, not yet surveyed", "demo value", "belum ditinjau", "尚未实地", "未实测"],
         ["unverified", "not checked", "unknown", "belum", "未核实", "未验证"]
       ],
+      "must_not_include": []
+    },
+    {
+      "id": "route-11",
+      "language": "en",
+      "question": "Can I drive from Car Park B to the playground?",
+      "profile": "drive",
+      "reviewed": false,
+      "expected_outcome": "honestly_unverified",
+      "expected_facts": {
+        "status": "partly_unverified",
+        "routes.0.distance_m": 113.2,
+        "routes.0.est_minutes": 0.2,
+        "routes.0.unknowns": [],
+        "routes.0.demo_evidence": false
+      },
+      "engine_calls": [
+        {
+          "tool": "plan_route",
+          "args": {
+            "from_id": "park-b",
+            "to_id": "playground",
+            "profile": "drive"
+          },
+          "result": {
+            "ok": true,
+            "data": {
+              "status": "partly_unverified",
+              "routes": [
+                {
+                  "id": "rt-20c04d83",
+                  "status": "partly_unverified",
+                  "from_place": "park-b",
+                  "to_place": "playground",
+                  "target_node": "n-31809935_1015094421",
+                  "profile": "drive",
+                  "scenario_id": null,
+                  "distance_m": 113.2,
+                  "est_minutes": 0.2,
+                  "segments": [
+                    {
+                      "edge_id": "seg-1306543769-4",
+                      "eval": "PASS",
+                      "flood_class": null
+                    },
+                    {
+                      "edge_id": "seg-1306543778-0",
+                      "eval": "PASS",
+                      "flood_class": null
+                    },
+                    {
+                      "edge_id": "seg-1306543754-4",
+                      "eval": "PASS",
+                      "flood_class": null
+                    },
+                    {
+                      "edge_id": "seg-1306543754-3",
+                      "eval": "PASS",
+                      "flood_class": null
+                    },
+                    {
+                      "edge_id": "seg-1306543781-0",
+                      "eval": "PASS",
+                      "flood_class": null
+                    }
+                  ],
+                  "unknowns": [],
+                  "rest_points": [],
+                  "crossings": [],
+                  "max_gap_between_rest_m": 113.2,
+                  "rest_limit_m": null,
+                  "rest_limit_met": null,
+                  "rest_points_unverified": [],
+                  "geometry": {
+                    "type": "LineString",
+                    "coordinates": [
+                      [101.508757, 3.18131],
+                      [101.508882, 3.181403],
+                      [101.509133, 3.181063],
+                      [101.509283, 3.181165],
+                      [101.509306, 3.18118],
+                      [101.509442, 3.180994]
+                    ]
+                  },
+                  "evidence_ids": [],
+                  "demo_evidence": false
+                }
+              ],
+              "blocked_reasons": [],
+              "closures": [],
+              "warnings": [
+                "Urban Park playground is about 120 m from the nearest mapped road; distance and time stop at the road",
+                "Drive routes: one-way and turn restrictions not modelled; indicative only, never confirmed."
+              ],
+              "max_rest_gap_m": null,
+              "rest_limit_m": null,
+              "rest_search_truncated": false,
+              "demo_evidence": false,
+              "verification_requests": [],
+              "verification_requests_truncated": 0
+            },
+            "evidence": [],
+            "warnings": [
+              "Urban Park playground is about 120 m from the nearest mapped road; distance and time stop at the road",
+              "Drive routes: one-way and turn restrictions not modelled; indicative only, never confirmed."
+            ]
+          }
+        }
+      ],
+      "must_include": [["unverified", "not checked", "unknown", "belum", "未核实", "未验证"]],
       "must_not_include": []
     },
     {

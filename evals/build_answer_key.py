@@ -181,6 +181,9 @@ def build():
             "osm-way-1309457596",
         ),
     ]
+    route_specs.append(
+        ("en", "Can I drive from Car Park B to the playground?", "drive", "park-b", "playground")
+    )
     for i, (lang, q, prof, a, b) in enumerate(route_specs, 1):
         add(
             f"route-{i:02}",

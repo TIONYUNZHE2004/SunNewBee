@@ -4,28 +4,28 @@
   "provisional": true,
   "limitations": "Constraint checks and typed numeric checks, not complete semantic entailment. Human review is required. Unsupported claims counts detected turns and overlaps wrong.",
   "summary": {
-    "turns": 31,
+    "turns": 32,
     "reviewed": 0,
     "metrics": {
       "correct": {
         "numerator": 1,
-        "denominator": 31
+        "denominator": 32
       },
       "honestly_unverified": {
-        "numerator": 8,
-        "denominator": 31
+        "numerator": 9,
+        "denominator": 32
       },
       "refused_correctly": {
         "numerator": 2,
-        "denominator": 31
+        "denominator": 32
       },
       "wrong": {
         "numerator": 20,
-        "denominator": 31
+        "denominator": 32
       },
       "unsupported_claims": {
         "numerator": 3,
-        "denominator": 31
+        "denominator": 32
       }
     },
     "unsupported_claims_overlap_wrong": true,
@@ -35,8 +35,8 @@
         "denominator": 6
       },
       "honestly_unverified": {
-        "matched": 8,
-        "denominator": 17
+        "matched": 9,
+        "denominator": 18
       },
       "refused_correctly": {
         "matched": 2,
@@ -211,6 +211,19 @@
       "answer_status": "cannot_answer",
       "model": "mock-scripted",
       "text": "I can't answer that from the township model yet."
+    },
+    {
+      "id": "route-11",
+      "language": "en",
+      "reviewed": false,
+      "expected_outcome": "honestly_unverified",
+      "outcome": "honestly_unverified",
+      "failures": [],
+      "unsupported_claims": [],
+      "tools": ["find_place", "find_place", "plan_route"],
+      "answer_status": "partial",
+      "model": "mock-scripted",
+      "text": "Route status: partly unverified\nLakeside Mall Car Park B to Urban Park playground: route partly unverified, 113.2 m.\nWorth knowing:\n• Some segments are still unverified."
     },
     {
       "id": "place-mall",
