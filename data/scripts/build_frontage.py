@@ -102,7 +102,7 @@ def front_of(
     tied = [k for k, d in enumerate(dists) if d <= best + TIE_M]
     k = min(tied, key=lambda i: (-_side_length(sides, i), i))
     nx, ny = sides[k][1]
-    return round(math.degrees(math.atan2(nx, ny)) % 360.0, 1), "street"
+    return round(math.degrees(math.atan2(nx, ny)), 1) % 360.0, "street"
 
 
 def transform(features: list[dict], streets: STRtree, geoms: list[LineString]) -> list[dict]:

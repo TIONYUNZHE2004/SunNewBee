@@ -69,8 +69,7 @@ def test_rotated_footprint_gives_rotated_azimuth():
     ring = rect(6.4, 15.5, 30)
     tree, geoms = streets([(-60, -12), (60, -12)])
     deg, _ = bf.front_of(ring, tree, geoms)
-    assert abs(deg - 210) <= 1 or abs(deg - 150) <= 1
-    assert abs(deg - 180) > 5
+    assert abs(deg - 150) <= 1  # south normal turned 30 deg anticlockwise
 
 
 def test_footways_ignored():
@@ -96,3 +95,17 @@ def test_transform_idempotent_and_generic_untouched():
     assert "front_deg" not in once[2]["properties"]
     assert bf.transform(copy.deepcopy(once), tree, geoms) == once
     assert "front_deg" not in feats[0]["properties"]  # input not mutated
+
+
+def test_azimuth_just_below_360_wraps_to_zero():
+    # footprint turned 0.03 deg anticlockwise, street to the north: azimuth 359.97 rounds to 360.0
+    tree, geoms = streets([(-50, 15.5 / 2 + 8), (50, 15.5 / 2 + 8)])
+    deg, _ = bf.front_of(rect(6.4, 15.5, 0.03), tree, geoms)
+    assert deg == 0.0
+
+
+def test_tie_goes_to_the_longer_side():
+    # streets 8 m off the east long side and 8 m off the north short side: equal distances
+    tree, geoms = streets([(3.2 + 8, -50), (3.2 + 8, 50)], [(-50, 7.75 + 8), (50, 7.75 + 8)])
+    deg, _ = bf.front_of(rect(6.4, 15.5), tree, geoms)
+    assert abs(deg - 90) <= 1
