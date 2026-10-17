@@ -19,6 +19,7 @@ def rec():
     )
     r.routes["rt-1"] = {"id": "rt-1", "distance_m": 440.6, "est_minutes": 6.3}
     r.route_status["rt-1"] = "confirmed"
+    r.scenarios_used = {"stage_p3m"}  # licenses "+3 m"
     return r
 
 
@@ -60,11 +61,12 @@ def test_engine_numbers_and_their_roundings_pass(text):
 )
 def test_invented_measurements_are_rejected(text):
     errs = measurement_errors(ans(text), rec())
-    assert errs and "do not appear in this turn's tool results" in errs[0]
+    assert errs and "do not match this turn's tool results" in errs[0]
 
 
-def test_cannot_answer_and_place_names_are_not_measured():
-    assert measurement_errors(ans("I can't check 950 m paths.", "cannot_answer"), rec()) == []
+def test_place_names_are_not_measured_but_refusals_are():
+    # T-001: a refusal licenses no assertion (audit A2 "refusal bypass").
+    assert measurement_errors(ans("It is 950 m long.", "cannot_answer"), rec())
     r = rec()
     r.place_names = {"Jalan 3 Km"}
     assert measurement_errors(ans("Route status: confirmed. Via Jalan 3 Km."), r) == []
@@ -81,6 +83,24 @@ def test_cannot_answer_and_place_names_are_not_measured():
         "Tiada risiko di laluan ini.",
         "这条路没有危险。",
         "我保证没有台阶。",
+        # A4: a negation in an earlier clause does not negate the promise.
+        "No steps, so I guarantee this route is accessible.",
+        "No steps; I guarantee it.",
+        "No steps — guaranteed.",
+        "There are no steps I guarantee it.",
+        "It isn't steep, and I guarantee it.",
+        "Tiada tangga, jadi saya jamin laluan ini sesuai.",
+        "没有台阶，所以我保证可以通行。",
+        "没有台阶我保证。",
+        # A4: paraphrases of "no risk".
+        "There is zero risk on this route.",
+        "Risk is zero here.",
+        "You can go without any risk.",
+        "Nothing to worry about.",
+        "Risiko sifar di laluan ini.",
+        "Sifar risiko.",
+        "这条路零风险。",
+        "不会有任何风险。",
     ],
 )
 def test_overclaims_are_rejected(text):
@@ -95,6 +115,13 @@ def test_overclaims_are_rejected(text):
         "We cannot guarantee the ramp slope.",
         "Kami tidak dapat menjamin cerun tanjakan.",
         "我们无法保证坡度。",
+        "We can't guarantee the slope.",
+        "This does not guarantee access.",
+        "There is no guarantee the lift works.",
+        "Ini bukan jaminan.",
+        "这不是保证。",
+        "我不能做出保证。",
+        "No steps are recorded on this route.",
         "The route is confirmed on demo values.",
     ],
 )

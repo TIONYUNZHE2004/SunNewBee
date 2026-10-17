@@ -1,14 +1,7 @@
-{"meta": {"message": "Which facts should staff verify first so wheelchair users can reach a centre?", "profile": "wheelchair", "scenario_id": null, "world": "elmina", "model": "mock-scripted", "recorded_at": "2026-10-16T14:41:11+00:00"}}
+{"meta": {"message": "Which facts should staff verify first so wheelchair users can reach a centre?", "profile": "wheelchair", "scenario_id": null, "world": "elmina", "model": "mock-scripted", "recorded_at": "2026-10-17T09:50:44+00:00"}}
 {"type": "tool.call", "id": "plan_verifications-0", "name": "plan_verifications", "args": {"profile": "wheelchair", "scope": "evacuation", "budget": 15}}
 {"type": "tool.result", "id": "plan_verifications-0", "name": "plan_verifications", "summary": "plan: 15 checks -> 4 confirmed"}
-{"type": "answer.draft", "attempt": 1, "delta": "If "}
-{"type": "answer.draft", "attempt": 1, "delta": "these 15 checks at 5 places "}
-{"type": "answer.draft", "attempt": 1, "delta": "pass, 4 of 50 sampled "}
-{"type": "answer.draft", "attempt": 1, "delta": "wheelchair journeys would "}
-{"type": "answer.draft", "attempt": 1, "delta": "have a confirmed route "}
-{"type": "answer.draft", "attempt": 1, "delta": "to an evacuation centre "}
-{"type": "answer.draft", "attempt": 1, "delta": "(today: "}
-{"type": "answer.draft", "attempt": 1, "delta": "0)."}
+{"type": "answer.draft", "attempt": 1, "delta": "If these 15 checks at 5 places pass, 4 of 50 sampled wheelchair journeys would have a confirmed route to an evacuation centre (today: 0)."}
 {"type": "answer.check", "attempt": 1, "ok": true, "issues": [], "repairs": 0}
 {"type": "text.delta", "delta": "If these 15 checks at 5 places pass, 4 o"}
 {"type": "text.delta", "delta": "f 50 sampled wheelchair journeys would h"}

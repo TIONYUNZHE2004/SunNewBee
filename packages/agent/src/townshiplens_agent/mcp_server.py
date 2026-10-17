@@ -32,7 +32,8 @@ from townshiplens_spatial.vr_store import VerificationStore
 from townshiplens_spatial.world import load_world
 
 from .agent import _without_closure_notes, route_summary, safe_vr_args
-from .settings import ROOT
+from .scope import ACCESS_FLOOD_TOOLS
+from .settings import ROOT, AgentSettings
 
 INSTRUCTIONS = (
     "TownshipLens: a world model of City of Elmina (Sime Darby Property). Facts come only from "
@@ -106,8 +107,23 @@ def _expose(mcp: FastMCP, name: str, fn) -> None:
 
 
 def build_server() -> FastMCP:
-    mcp = FastMCP("TownshipLens", instructions=INSTRUCTIONS)
+    scope = AgentSettings().assistant_scope
+    instructions = (
+        INSTRUCTIONS
+        if scope == "all"
+        else (
+            "Scope: access and indicative flood evacuation around Elmina Urban Park and "
+            "Elmina Lakeside Mall frontage only. Other features are outside what this server "
+            "can check. Routes and place existence can rest on demo values; preserve "
+            "team_survey_placeholder / Demo value · not surveyed. Flood stages are indicative, "
+            "not forecasts or path depths. Never promise or call a place safe. Staff closures "
+            "and ticket outcomes are as of server start."
+        )
+    )
+    mcp = FastMCP("TownshipLens", instructions=instructions)
     for name, fn in sp.TOOLS.items():
+        if scope == "access_flood" and name not in ACCESS_FLOOD_TOOLS:
+            continue
         if name in EXCLUDED and not allow_vr():
             continue
         _expose(mcp, name, fn)
@@ -115,7 +131,7 @@ def build_server() -> FastMCP:
     @mcp.resource("townshiplens://honesty")
     def honesty() -> str:
         """The rules every answer built on these tools must keep."""
-        return INSTRUCTIONS
+        return instructions
 
     return mcp
 

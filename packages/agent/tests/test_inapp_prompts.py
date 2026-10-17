@@ -16,7 +16,7 @@ from townshiplens_spatial.world import load_world
 SEED = ROOT / "data/seed/elmina"
 STARTERS_TS = ROOT / "apps/web/src/features/assistant/starters.ts"
 pytestmark = pytest.mark.skipif(not (SEED / "site.json").exists(), reason="Elmina seed not built")
-MOCK = AgentSettings(_env_file=None, llm_provider="mock")
+MOCK = AgentSettings(_env_file=None, llm_provider="mock", assistant_scope="all")
 
 # (message, profile, scenario_id). The resident starters are copied from
 # apps/web/src/features/assistant/starters.ts; test_resident_starters_match_starters_ts: drift.
@@ -115,10 +115,13 @@ async def test_inapp_prompt_is_answered_by_the_mock(world, tmp_path, msg, profil
     assert not re.search(r"\bseg-|\bosm-way|[a-z]+_[a-z]+", text), text  # no ids or raw keys
     if any(e.type == "citation" and e.source_type == "team_survey_placeholder" for e in evs):
         assert "demo values, not yet surveyed" in low
-        # Task 54: a confirmed route resting on demo values says so in the status line and summary.
+        # A positive route confirmation is always qualified. Flood summaries may answer
+        # with a centre name instead of repeating the route status from the frame.
         if "Route status: confirmed" in text:
             assert "Route status: confirmed (on demo values, not yet surveyed)" in text, text
-            assert "route confirmed (on demo values, not yet surveyed)" in text, text
+            assert not re.search(
+                r"\broute(?: is)? confirmed(?! \(on demo values, not yet surveyed\))", low
+            ), text
 
 
 async def test_urban_park_route_is_routable_with_entrance_caveat(world, tmp_path):
@@ -146,14 +149,23 @@ async def test_wheelchair_where_can_i_go_is_short(world, tmp_path):
     assert m, text
     # Named lines + "and N more" count items, and the filed count is exact.
     unc = next(e for e in evs if e.type == "uncertainty")
-    # Caveat items (e.g. a centre's unmapped entrance, Task 43) are shown on their own line
-    # and are not "unchecked items".
+    # This sentence counts route-attribute gaps. Place-existence/name provenance (T-008)
+    # and entrance caveats are disclosed separately; they are not additional route checks.
+    separate = {"caveat", "demo_values"}
     items = {
         (i["element_id"], i["attribute"])
         for i in unc.items
-        if i["attribute"] not in ("flood", "caveat")
+        if i["attribute"] not in separate | {"flood"}
     }
-    counted = [i for i in unc.items if i["attribute"] != "caveat"]
+    counted = [i for i in unc.items if i["attribute"] not in separate]
+    assert any(i["attribute"] == "demo_values" for i in unc.items)
+    assert any(
+        e.type == "citation"
+        and e.element_id == "lakeside-mall"
+        and e.source_type == "team_survey_placeholder"
+        for e in evs
+    )
+    assert "demo values, not yet surveyed" in text
     assert int(m.group(1)) == len(counted) - 5
     vrs = {(e.element_id, e.attribute) for e in evs if e.type == "verification.requested"}
     k = len(vrs & items)
@@ -319,3 +331,9 @@ async def test_weak_match_without_a_place_phrase_says_cannot_and_files_nothing(w
     assert evs[-1].answer_status == "cannot_answer"
     assert not [e for e in evs if e.type == "verification.requested"]
     assert "don't have that place" not in _text(evs)
+
+
+@pytest.fixture(autouse=True)
+def _legacy_scope(monkeypatch):
+    # These existing engine/pipeline regressions explicitly retain all legacy features.
+    monkeypatch.setenv("ASSISTANT_SCOPE", "all")

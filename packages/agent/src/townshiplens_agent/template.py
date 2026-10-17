@@ -13,7 +13,13 @@ from .labels import (
     unchecked_caveats,
 )
 from .record import TurnRecord
+from .scope import refusal_text
 from .validate import DEPTH, FORBIDDEN, PLACEHOLDER_CAVEAT, PLACEHOLDER_SOURCE
+
+
+def scope_answer(question: str) -> FinalAnswer:
+    """Server-owned no-fact refusal; never echoes personal text or creates a ticket."""
+    return FinalAnswer(answer_status="cannot_answer", summary=refusal_text(question))
 
 
 def _cannot_summary(rec: TurnRecord, question: str) -> str:
@@ -504,7 +510,14 @@ def template_answer(rec: TurnRecord, question: str) -> FinalAnswer:
             answer_status="cannot_answer",
             summary=_cannot_summary(rec, question),
             scenario_id=scenario_id,
-            caveats=["Answer generated from data without AI wording."],
+            caveats=[
+                *(
+                    [f"Place facts are {PLACEHOLDER_CAVEAT}."]
+                    if any(e.source_type == PLACEHOLDER_SOURCE for e in rec.evidence.values())
+                    else []
+                ),
+                "Answer generated from data without AI wording.",
+            ],
         )
     rid, route = next(iter(rec.routes.items()))
     status = rec.route_status.get(rid, "no_data")

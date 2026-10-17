@@ -128,3 +128,9 @@ async def test_an_escalated_turn_that_still_fails_names_the_escalation_model(ctx
     settings = AgentSettings(_env_file=None, llm_provider="mock", llm_escalate_on_rewrite=True)
     evs = await collect(ctx, settings)
     assert evs[-1].model == "strong+template"
+
+
+@pytest.fixture(autouse=True)
+def _legacy_scope(monkeypatch):
+    # Retain legacy recorded flows and synthetic pipeline prompts explicitly.
+    monkeypatch.setenv("ASSISTANT_SCOPE", "all")

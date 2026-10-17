@@ -89,8 +89,8 @@ def test_validator_rejects_depth_phrases(text):
 )
 def test_validator_no_false_positives(text):
     a = FinalAnswer(answer_status="answered", summary=text, scenario_id="stage_p3m")
-    # 1.5 is a width a tool returned (a measurement the answer may quote).
-    r = rec(scenarios_used={"stage_p3m"}, tool_measures={"any": {1.5}})
+    # 1.5 is a width a tool returned (a width the answer may quote).
+    r = rec(scenarios_used={"stage_p3m"}, tool_measures={"width": {1.5}})
     assert validate_answer(a, r) == [], text
 
 

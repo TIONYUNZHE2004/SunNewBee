@@ -1,0 +1,47 @@
+{
+  "audited_commit": "f9400397870cbd7742d7eaec36baf884827976e7",
+  "rows": [
+    {
+      "text": "There are two toilets beside the playground.",
+      "should_reject": true,
+      "accepted": true,
+      "errors": []
+    },
+    {
+      "text": "There is one toilet beside the playground.",
+      "should_reject": true,
+      "accepted": true,
+      "errors": []
+    },
+    {
+      "text": "The toilet is 440.6 m from the mall.",
+      "should_reject": true,
+      "accepted": true,
+      "errors": []
+    },
+    {
+      "text": "No steps, so the toilet has a baby changing room.",
+      "should_reject": true,
+      "accepted": true,
+      "errors": []
+    },
+    {
+      "text": "The toilet is open 6.3 minutes every day.",
+      "should_reject": true,
+      "accepted": true,
+      "errors": []
+    },
+    {
+      "text": "That is not a guarantee.",
+      "should_reject": false,
+      "accepted": true,
+      "errors": []
+    },
+    {
+      "text": "I cannot guarantee this route.",
+      "should_reject": false,
+      "accepted": true,
+      "errors": []
+    }
+  ]
+}

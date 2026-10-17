@@ -1,16 +1,10 @@
-{"meta": {"message": "Where can I drop off recycling nearby?", "profile": "default", "scenario_id": null, "world": "elmina", "model": "mock-scripted", "recorded_at": "2026-10-17T04:14:05+00:00"}}
+{"meta": {"message": "Where can I drop off recycling nearby?", "profile": "default", "scenario_id": null, "world": "elmina", "model": "mock-scripted", "recorded_at": "2026-10-17T09:50:54+00:00"}}
 {"type": "tool.call", "id": "find_waste_points-0", "name": "find_waste_points", "args": {"type": "recycling_drop_off", "near_place": "lakeside-mall"}}
 {"type": "tool.result", "id": "find_waste_points-0", "name": "find_waste_points", "summary": "0 result(s)"}
 {"type": "tool.call", "id": "find_waste_points-1", "name": "find_waste_points", "args": {"type": null, "near_place": "lakeside-mall"}}
 {"type": "tool.result", "id": "find_waste_points-1", "name": "find_waste_points", "summary": "7 result(s)"}
-{"type": "answer.draft", "attempt": 1, "delta": "No "}
-{"type": "answer.draft", "attempt": 1, "delta": "recycling drop-off is "}
-{"type": "answer.draft", "attempt": 1, "delta": "mapped yet. Nearest waste "}
-{"type": "answer.draft", "attempt": 1, "delta": "points, all unconfirmed: "}
-{"type": "answer.draft", "attempt": 1, "delta": "Waste Basket (unnamed, "}
-{"type": "answer.draft", "attempt": 1, "delta": "OSM), Central Park "}
-{"type": "answer.draft", "attempt": 1, "delta": "community garden (programme "}
-{"type": "answer.draft", "attempt": 1, "delta": "site)."}
+{"type": "answer.draft", "attempt": 1, "delta": "No recycling drop-off is mapped yet."}
+{"type": "answer.draft", "attempt": 1, "delta": " Nearest waste points, all unconfirmed: Waste Basket (unnamed, OSM), Central Park community garden (programme site)."}
 {"type": "answer.check", "attempt": 1, "ok": true, "issues": [], "repairs": 0}
 {"type": "text.delta", "delta": "No recycling drop-off is mapped yet. Nea"}
 {"type": "text.delta", "delta": "rest waste points, all unconfirmed: Wast"}

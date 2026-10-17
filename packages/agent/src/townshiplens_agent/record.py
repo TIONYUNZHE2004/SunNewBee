@@ -22,6 +22,9 @@ class TurnRecord:
     # ids and geometry excluded): an answer may quote a distance, time or slope only if it is one
     # of these, or a rounding of one in the same unit (validate.measurement_errors).
     tool_measures: dict[str, set[float]] = field(default_factory=dict)
+    # River stages the resident named in the question ("if the river rises 10 m"): a refusal may
+    # repeat them ("no scenario for +10 m"); no other fact may come from the question.
+    asked_stages: set[float] = field(default_factory=set)
     # Route endpoints inside a flooded area under the active scenario:
     # place_id -> {"flood_class", "name", "scenario_id"}
     flooded_endpoints: dict[str, dict] = field(default_factory=dict)

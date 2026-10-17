@@ -26,6 +26,7 @@ from .events import (
     TextDelta,
     Uncertainty,
 )
+from .facts import extract_facts
 from .labels import (
     CLOSURE_WORDS,
     FRAME,
@@ -40,8 +41,9 @@ from .memory import DEFAULT as DEFAULT_MEMORY
 from .memory import SessionMemory
 from .record import TurnRecord
 from .redact import redact
+from .scope import outside_scope
 from .settings import AgentSettings
-from .template import _top_stage, template_answer
+from .template import _top_stage, scope_answer, template_answer
 from .validate import PLACEHOLDER_CAVEAT
 
 log = logging.getLogger(__name__)
@@ -278,24 +280,36 @@ def _answer_events(
 
     ref = 0
     cited: set[str] = set()
-    for c in ans.claims:
-        for eid in c.evidence_ids:
-            e = rec.evidence.get(eid)
-            if e and eid not in cited:
-                cited.add(eid)
-                ref += 1
-                evs.append(
-                    Citation(
-                        ref=ref,
-                        evidence_id=eid,
-                        element_id=e.element_id,
-                        attribute=e.attribute,
-                        status=str(e.status),
-                        verified_at=e.verified_at,
-                        source_type=e.source_type,
-                        photo_url=e.photo_url,
-                    )
+    evidence_ids = [eid for c in ans.claims for eid in c.evidence_ids]
+    selected_route = rec.routes.get(ans.route_id or "") or (
+        next(iter(rec.routes.values())) if len(rec.routes) == 1 else {}
+    )
+    # Place existence can qualify the selected route even when the model only cited the
+    # evacuation centre/scenario. Preserve those badges; never cite unrelated search hits.
+    evidence_ids += [
+        eid
+        for eid in selected_route.get("evidence_ids", [])
+        if eid.startswith("ev-place-")
+        and eid in rec.evidence
+        and rec.evidence[eid].source_type == "team_survey_placeholder"
+    ]
+    for eid in evidence_ids:
+        e = rec.evidence.get(eid)
+        if e and eid not in cited:
+            cited.add(eid)
+            ref += 1
+            evs.append(
+                Citation(
+                    ref=ref,
+                    evidence_id=eid,
+                    element_id=e.element_id,
+                    attribute=e.attribute,
+                    status=str(e.status),
+                    verified_at=e.verified_at,
+                    source_type=e.source_type,
+                    photo_url=e.photo_url,
                 )
+            )
 
     unknowns = [u for r in rec.routes.values() for u in r.get("unknowns", [])]
 
@@ -396,6 +410,18 @@ async def run_turn(
     `memory` (default: the process-wide store) gives follow-ups the session's earlier turns."""
     memory = memory if memory is not None else DEFAULT_MEMORY
     settings = settings or AgentSettings()
+    # Redact first, then enforce scope before cache/model construction or tool side effects.
+    question = redact(req.message)
+    if settings.assistant_scope == "access_flood" and outside_scope(
+        question, has_history=bool(memory.history(req.session_id))
+    ):
+        ans = scope_answer(question)
+        memory.add_turn(req.session_id, question, ans.summary)
+        yield TextDelta(delta=ans.summary)
+        yield Done(
+            message_id=uuid.uuid4().hex[:12], answer_status="cannot_answer", model="scope-policy"
+        )
+        return
     # A recording cannot reflect a live closure (R33), so any active closure is a cache miss.
     if settings.demo_mode and not ctx.world.active_closures():
         cached = demo.load(demo.key(req), settings.demo_dir, ctx.world.site.id)
@@ -403,9 +429,11 @@ async def run_turn(
             async for ev in demo.replay(cached, ctx.vrs):
                 yield ev
             return
-    # PDPA (audit F4): IC, phone and email never reach the provider, memory or the template.
-    question = redact(req.message)
     rec = record or TurnRecord()
+    # Stages the resident named, and the stages the world has scenarios for ("+1 m to +5 m").
+    rec.asked_stages = {f.value for f in extract_facts(question) if f.kind == "stage"} | {
+        float(s.stage_m) for s in ctx.world.flood.scenarios if s.stage_m is not None
+    }
     rec.queue = asyncio.Queue()
     rec.history_simulated = memory.simulated(req.session_id)
     deps = agent_mod.Deps(ctx=ctx, rec=rec, request=req)
@@ -423,7 +451,9 @@ async def run_turn(
             if settings.llm_escalate_on_rewrite
             else None
         )
-        agent = agent_mod.build_agent(model, escalate_to=escalate_model)
+        agent = agent_mod.build_agent(
+            model, escalate_to=escalate_model, assistant_scope=settings.assistant_scope
+        )
     except Exception as exc:  # misconfiguration (e.g. no key): still answer from the template
         failure = exc
     else:
