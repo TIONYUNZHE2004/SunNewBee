@@ -2430,6 +2430,14 @@
       },
       "Route": {
         "properties": {
+          "crossings": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Crossings",
+            "type": "array"
+          },
           "demo_evidence": {
             "default": false,
             "title": "Demo Evidence",

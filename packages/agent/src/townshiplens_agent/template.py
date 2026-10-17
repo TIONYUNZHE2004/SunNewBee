@@ -534,6 +534,8 @@ def template_answer(rec: TurnRecord, question: str) -> FinalAnswer:
     ):
         caveats.append("Some segments are still unverified.")
     caveats += rest
+    if note := route.get("crossing_note"):
+        caveats.append(note)
     caveats += closure_caveats(closed)
     caveats += inferred_caveats(rec.inferred_notes)
     if any(getattr(e, "source_type", None) == PLACEHOLDER_SOURCE for e in rec.evidence.values()):

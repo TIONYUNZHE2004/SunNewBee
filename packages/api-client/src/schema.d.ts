@@ -1717,6 +1717,10 @@ export interface components {
         };
         /** Route */
         Route: {
+            /** Crossings */
+            crossings?: {
+                [key: string]: unknown;
+            }[];
             /**
              * Demo Evidence
              * @default false

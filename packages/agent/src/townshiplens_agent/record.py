@@ -13,6 +13,11 @@ class TurnRecord:
     scenarios_used: set[str] = field(default_factory=set)
     vrs: list[dict] = field(default_factory=list)
     tool_calls: list[str] = field(default_factory=list)
+    # True once a validator rejection moved the turn to the escalation model (build_agent).
+    escalated: bool = False
+    # Wall-clock seconds spent inside each spatial tool this turn (summed per tool name), so an
+    # eval can split a slow turn into engine time and model time.
+    tool_seconds: dict[str, float] = field(default_factory=dict)
     # Route endpoints inside a flooded area under the active scenario:
     # place_id -> {"flood_class", "name", "scenario_id"}
     flooded_endpoints: dict[str, dict] = field(default_factory=dict)

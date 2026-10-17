@@ -102,6 +102,12 @@ def _unknown_caveats(routes: list, vrs: list[dict] | None = None) -> list[str]:
     return unchecked_caveats([u for r in routes for u in r.get("unknowns") or []], vrs)
 
 
+def _crossing(route: dict | None) -> list[str]:
+    """plan_route's crossing note, word for word (validator: crossing_note)."""
+    note = (route or {}).get("crossing_note")
+    return [note] if note else []
+
+
 def _inferred(ret: dict) -> list[str]:
     """plan_route warnings about an endpoint whose entrance is not mapped (Task 43)."""
     return inferred_caveats(
@@ -617,6 +623,7 @@ def _script(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
             flood_cav
             + caveats
             + rest
+            + _crossing(route)
             + closure_caveats(closed)
             + _inferred(rets[-1][1])
             + inferred_caveats([n for n in [centres[0].get("entrance_note")] if n]),
@@ -773,7 +780,12 @@ def _script(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
             caveats = [_status_caveat(status, a.get("name", a["id"]), b.get("name", b["id"]))]
         caveats = _placeholder_caveat(
             rets,
-            flood_cav + caveats + rest + closure_caveats(closed) + _inferred(rets[-1][1]),
+            flood_cav
+            + caveats
+            + rest
+            + _crossing(r0)
+            + closure_caveats(closed)
+            + _inferred(rets[-1][1]),
         )
         gap = r0.get("max_gap_between_rest_m") if r0 else None
         if gap is not None and plan_profile == "older_adult_rest" and not rest:
