@@ -1031,12 +1031,14 @@ STRIDE = {
 }
 _KID = dict(hs=1.2, hip=0.47, sh=0.78, sw=0.125)
 
+# Heights H keep H x (1 -+ jitter 0.03) inside the true-scale ranges: adults 1.65-1.747 m
+# for 1.6-1.8, children 1.237-1.408 m for 1.2-1.45 (test_jittered_kit_stays_inside_true_scale).
 PEOPLE: dict[str, dict] = {
-    "office_man": dict(H=1.76, sleeve="long", legs="long", hair="short"),
+    "office_man": dict(H=1.74, sleeve="long", legs="long", hair="short"),
     "office_woman": dict(H=1.66, sleeve="short", legs="skirt", hair="long", hs=0.97),
-    "tudung_baju_kurung": dict(H=1.62, sleeve="long", top="kurung", legs="kain", tudung=True),
+    "tudung_baju_kurung": dict(H=1.655, sleeve="long", top="kurung", legs="kain", tudung=True),
     "older_adult": dict(
-        H=1.62,
+        H=1.66,
         sleeve="long",
         legs="long",
         hair="short",

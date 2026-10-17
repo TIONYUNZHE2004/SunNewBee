@@ -70,3 +70,36 @@ def test_committed_glb(asset_id: str):
             assert lods[n]["node"] == name
             assert lods[n]["tris"] == node.tris, name
         assert specs.bounds_errors(v, info.nodes[f"{asset_id}__{v.id}__LOD0"].bounds) == []
+
+
+def _ranged_kit_variants() -> list[tuple[str, str]]:
+    m = _manifest()
+    if m is None:
+        return []
+    return [
+        (s.id, v.id)
+        for s in specs.ASSETS.values()
+        if s.group == "kit" and s.id in m["assets"]
+        for v in s.variants
+        if v.x_range or v.y_range or v.z_range
+    ]
+
+
+@pytest.mark.parametrize(("asset_id", "variant_id"), _ranged_kit_variants())
+def test_jittered_kit_stays_inside_true_scale(asset_id: str, variant_id: str):
+    """Review Focus 5: LOD0 x (1 -+ jitter scale) stays inside every ranged axis."""
+    spec = specs.ASSETS[asset_id]
+    v = next(v for v in spec.variants if v.id == variant_id)
+    j = spec.jitter.get("scale", 0.0)
+    lo, hi = read_glb(CITY / spec.file).nodes[f"{asset_id}__{variant_id}__LOD0"].bounds
+    measures = (
+        ("x extent", hi[0] - lo[0], v.x_range),
+        ("y max", hi[1], v.y_range),
+        ("z extent", hi[2] - lo[2], v.z_range),
+    )
+    for label, value, rng in measures:
+        if rng is None:
+            continue
+        for k in (1 - j, 1 + j):
+            assert rng[0] <= value * k <= rng[1], (variant_id, label, round(value * k, 3), rng)
+
