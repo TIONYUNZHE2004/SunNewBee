@@ -658,3 +658,10 @@
   - Cesium's ion credit under our attribution strip at bottom-left is pre-existing (from main `0b066e2`), not this branch.
 - **Deferred minors:** tile painting off the main thread (OffscreenCanvas worker); vitest timeouts in untouched Cesium tests under memory load (isolated and clean re-runs pass); card and popover space at phone half.
 - **Final CI at `762374b`, 7/7 PASS:** lint; pytest 869; typecheck; vitest 755; gen no drift; golden 13/13 (mock); e2e 11/11 (mock, tiny fixture, List view, so no 3D coverage).
+
+## 2026-10-17 Three.js stylised spike: Phase 0 measurement
+
+- **2026-10-17T15:23+08:00** (`date`): the owner measured the Three.js Stylised spike on lane/fe (head `f5cbe40`) on their laptop (RTX 2050 4 GB, Ryzen 7 7435HS, 8 GB RAM). The setup was `pnpm dev` with the mock LLM, the URL `/?engine=three&perf=1&bookmark=hero-mid`, and existing OSM footprints only (no archetype assets yet).
+- **Result:** Medium and High are both smooth, around 40–60 fps while orbiting. The coordinator's earlier headless check at High read 144 fps / 29 draws during a fly-to on the same GPU. The 30 fps target at Medium is met with margin.
+- **Not measured:** Low tier, Night and the township bookmark. The owner reported only Medium and High at hero-mid. Re-measure in Phase 3, once assets and lights exist.
+- **Setup:** Phase 0 renders the merged footprints (one draw call per layer), PCF shadows, GTAO, bloom, Neutral tone mapping and RoomEnvironment IBL. That is about 28–29 draw calls.
