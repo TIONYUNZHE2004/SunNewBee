@@ -429,6 +429,70 @@ def overclaim_errors(text: str, rec: TurnRecord) -> list[str]:
     return []
 
 
+def _status_of(ans: FinalAnswer, rec: TurnRecord) -> str | None:
+    status = rec.route_status.get(ans.route_id) if ans.route_id else None
+    if status is None and len(rec.route_status) == 1:
+        status = next(iter(rec.route_status.values()))  # unambiguous even without route_id
+    return status
+
+
+def status_wording_errors(ans: FinalAnswer, rec: TurnRecord) -> list[str]:
+    """How the text names route status and crossings. Shared with `draft_errors`."""
+    errs: list[str] = []
+    status = _status_of(ans, rec)
+    if status:
+        named = _named_statuses(ans.summary, ans.steps) - {status}
+        if named:
+            errs.append(
+                f"Route status contradiction: the route is {status} but the summary/steps name "
+                f"{sorted(named)}. Use the status the tool returned."
+            )
+    segments = [ans.summary, *ans.steps, *ans.caveats]
+    if claims_traffic_lights(_strip_names(" ".join(segments), rec.place_names)) and not any(
+        c.get("crossing") == "traffic_signals"
+        for r in rec.routes.values()
+        for c in r.get("crossings") or []
+    ):
+        errs.append(
+            "No crossing with traffic lights is recorded on a route this turn: do not mention "
+            "traffic lights. Use the plan_route crossing_note if there is one."
+        )
+    rid = ans.route_id or (next(iter(rec.routes)) if len(rec.routes) == 1 else None)
+    route = rec.routes.get(rid or "") or {}
+    if (
+        ans.answer_status != "cannot_answer"
+        and status == "confirmed"
+        and route.get("demo_evidence")
+        and BARE_CONFIRMED.search(_to_en(" ".join(segments)))
+    ):
+        errs.append(
+            "The route is confirmed only on placeholder (demo) values: say "
+            f"'Route status: {DEMO_CONFIRMED}' in the summary instead of a bare 'confirmed'."
+        )
+    return errs
+
+
+def draft_errors(text: str, rec: TurnRecord) -> list[str]:
+    """The final answer's content checks, applied to draft text (`draft.DraftStreamer`), so a
+    draft never shows what the final check would reject (audit A3). Checks that need the whole
+    answer (citations, a required caveat or route_id) are left to `validate_answer`; a check
+    that wants text the draft does not have yet only holds the draft back, which is safe."""
+    ans = FinalAnswer(answer_status="partial", summary=text)
+    return [
+        *text_errors(text, rec),
+        *overclaim_errors(text, rec),
+        *status_wording_errors(ans, rec),
+        *measurement_errors(ans, rec),
+        *foreign_number_errors(ans, rec),
+        *whatif_errors(ans, rec),
+        *plan_errors(ans, rec),
+        *rollout_errors(ans, rec),
+        *day_errors(ans, rec),
+        *day_change_errors(ans, rec),
+        *affected_errors(ans, rec),
+    ]
+
+
 def validate_answer(ans: FinalAnswer, rec: TurnRecord) -> list[str]:
     errs: list[str] = []
     for c in ans.claims:
@@ -457,13 +521,7 @@ def validate_answer(ans: FinalAnswer, rec: TurnRecord) -> list[str]:
         )
     if status is None and len(rec.route_status) == 1:
         status = next(iter(rec.route_status.values()))  # unambiguous even without route_id
-    if status:
-        named = _named_statuses(ans.summary, ans.steps) - {status}
-        if named:
-            errs.append(
-                f"Route status contradiction: the route is {status} but the summary/steps name "
-                f"{sorted(named)}. Use the status the tool returned."
-            )
+    errs += status_wording_errors(ans, rec)
     partly = status == "partly_unverified" or (
         ans.answer_status == "answered" and "partly_unverified" in rec.route_status.values()
     )
@@ -499,15 +557,6 @@ def validate_answer(ans: FinalAnswer, rec: TurnRecord) -> list[str]:
         and not any(_norm_note(cnote) in _norm_note(c) for c in ans.caveats)
     ):
         errs.append(f"plan_route says: {cnote!r} Add that as a caveat (word for word).")
-    if claims_traffic_lights(_strip_names(" ".join(segments), rec.place_names)) and not any(
-        c.get("crossing") == "traffic_signals"
-        for r in rec.routes.values()
-        for c in r.get("crossings") or []
-    ):
-        errs.append(
-            "No crossing with traffic lights is recorded on a route this turn: do not mention "
-            "traffic lights. Use the plan_route crossing_note if there is one."
-        )
     if ans.answer_status != "cannot_answer":
         for note in rec.inferred_notes:
             if not any(_inferred_ok(note, c) for c in ans.caveats):
@@ -548,16 +597,6 @@ def validate_answer(ans: FinalAnswer, rec: TurnRecord) -> list[str]:
                 f"team_survey_placeholder): add a caveat containing the exact phrase "
                 f"'{PLACEHOLDER_CAVEAT}'."
             )
-    if (
-        ans.answer_status != "cannot_answer"
-        and status == "confirmed"
-        and route.get("demo_evidence")
-        and BARE_CONFIRMED.search(_to_en(" ".join([ans.summary, *ans.steps, *ans.caveats])))
-    ):
-        errs.append(
-            "The route is confirmed only on placeholder (demo) values: say "
-            f"'Route status: {DEMO_CONFIRMED}' in the summary instead of a bare 'confirmed'."
-        )
     # a rehearsal's river stage comes from the tool (run.py fills it in), not from the model
     if rec.scenarios_used - rec.day_stages and not ans.scenario_id:
         errs.append("A flood scenario tool was used: set scenario_id.")

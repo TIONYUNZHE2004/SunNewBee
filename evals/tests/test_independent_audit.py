@@ -13,6 +13,7 @@ import pytest
 from pydantic_ai import ModelResponse, ToolCallPart
 from pydantic_ai.models.function import FunctionModel
 from townshiplens_agent import agent as A
+from townshiplens_agent.draft import DraftStreamer
 from townshiplens_agent.events import ChatRequest
 from townshiplens_agent.memory import SessionMemory
 from townshiplens_agent.run import run_turn
@@ -104,6 +105,39 @@ def test_honest_controls_pass(hero, text):
     assert errors(hero, text) == [], text
 
 
+async def _draft_of(rec, summary):
+    rec.queue = asyncio.Queue()
+    draft = DraftStreamer(type("Deps", (), {"rec": rec})())
+    await draft._start_attempt()
+    await draft._emit(summary, final=True)
+    out = []
+    while not rec.queue.empty():
+        out.append(rec.queue.get_nowait())
+    rec.queue, rec.draft_attempt = None, 0
+    return "".join(e.delta for e in out if e.type == "answer.draft")
+
+
+# A3: a draft must pass the same content checks as the final answer.
+@pytest.mark.parametrize(
+    "text, banned",
+    [
+        ("I guarantee there are no steps. It is 950 m long.", "guarantee"),
+        ("It is 950 m long.", "950"),
+        ("There are 99 steps on this route.", "99"),
+        ("There is zero risk on this route.", "zero risk"),
+    ],
+)
+def test_drafts_never_show_rejected_text(hero, text, banned):
+    rec, _, _ = hero
+    assert banned not in asyncio.run(_draft_of(rec, PREFIX + text))
+
+
+def test_drafts_show_checked_sentences(hero):
+    rec, _, _ = hero
+    honest = PREFIX + "The route is about 440 m."
+    assert asyncio.run(_draft_of(rec, honest)) == honest
+
+
 async def collect(stream):
     return [e async for e in stream]
 
@@ -131,7 +165,7 @@ def test_run_turn_never_shows_an_invented_count(hero, tmp_path):
         evs = asyncio.run(collect(run_turn(ctx, req, settings, memory=SessionMemory())))
     finally:
         A.model_for = original
-    shown = "".join(e.delta for e in evs if e.type == "text.delta")
+    shown = "".join(e.delta for e in evs if e.type in ("text.delta", "answer.draft"))
     assert "99" not in shown
     assert any(e.type == "answer.check" and not e.ok for e in evs)
     assert evs[-1].type == "done"

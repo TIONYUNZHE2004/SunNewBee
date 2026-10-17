@@ -32,7 +32,7 @@ async def test_mock_streams_a_draft_before_the_checked_answer(ctx):
     evs = await collect(ctx, KIOSK_Q)
     types = [e.type for e in evs]
     drafts = [e for e in evs if e.type == "answer.draft"]
-    assert len(drafts) > 1, "the summary is streamed in several word-sized deltas"
+    assert drafts, "the checked summary is streamed as a draft"
     first_draft, check, first_text = (
         types.index("answer.draft"),
         types.index("answer.check"),
@@ -154,3 +154,43 @@ async def test_chinese_drafts_stream_before_the_end(ctx, monkeypatch):
     monkeypatch.setattr(agent_mod, "model_for", lambda s, escalate=False: _streaming([zh]))
     evs = await collect(ctx, "你好")
     assert len([d for d in evs if d.type == "answer.draft"]) > 1
+
+
+# Audit A3: a draft must pass the final answer's content checks, sentence by sentence.
+@pytest.mark.parametrize(
+    "summary, banned",
+    [
+        ("I guarantee there are no steps. It is 950 m long.", "guarantee"),
+        ("The kiosk is beside Car Park B. It is 950 m long.", "950"),
+        ("The kiosk is beside Car Park B. There are 99 steps on the way.", "99"),
+        ("The kiosk is beside Car Park B. You will arrive in two minutes.", "two minutes"),
+        ("The kiosk is beside Car Park B. No steps, so I guarantee it.", "guarantee"),
+        ("The kiosk is beside Car Park B. There is zero risk.", "zero risk"),
+        ("The kiosk is beside Car Park B. The toilet has a baby changing room.", "baby"),
+        ("Kiosk itu dekat Car Park B. Terdapat 99 anak tangga.", "99"),
+        ("小卖部在B停车场旁边。路线有99级台阶。", "99"),
+    ],
+)
+async def test_the_whole_sse_stream_never_shows_rejected_text(ctx, monkeypatch, summary, banned):
+    model = _streaming([_final(summary), _final("I can't answer that from the township model.")])
+    monkeypatch.setattr(agent_mod, "model_for", lambda s, escalate=False: model)
+    evs = await collect(ctx, "hello")
+    shown = " ".join(
+        getattr(e, "delta", "") or json.dumps(e.model_dump(), ensure_ascii=False)
+        for e in evs
+        if e.type in ("answer.draft", "text.delta", "uncertainty", "citation", "disclaimer")
+    )
+    assert banned not in shown
+    assert [c.ok for c in evs if c.type == "answer.check"][0] is False
+    first = "".join(d.delta for d in evs if d.type == "answer.draft" and d.attempt == 1)
+    assert summary.startswith(first)  # only the checked sentences before the bad one
+
+
+async def test_drafts_grow_one_whole_sentence_at_a_time(ctx, monkeypatch):
+    text = "I can help with routes. I can help with places. I can also show flood scenarios."
+    model = _streaming([_final(text)])
+    monkeypatch.setattr(agent_mod, "model_for", lambda s, escalate=False: model)
+    evs = await collect(ctx, "hello")
+    deltas = [d.delta for d in evs if d.type == "answer.draft"]
+    assert "".join(deltas) == text
+    assert all(d.rstrip().endswith(".") for d in deltas) and len(deltas) == 3
