@@ -91,9 +91,7 @@ def add_existence_provenance(features: list[dict]) -> int:
             continue
         claims = feature["properties"].setdefault("claims", {})
         if "existence" not in claims:
-            claims["existence"] = {
-                "value": True, "status": "unknown", "evidence_type": PLACEHOLDER
-            }
+            claims["existence"] = {"value": True, "status": "unknown", "evidence_type": PLACEHOLDER}
             added += 1
     return added
 
@@ -103,8 +101,9 @@ def regenerate_provenance() -> None:
     path = SEED / "access" / "overlay.geojson"
     payload = json.loads(path.read_text(encoding="utf-8"))
     added = add_existence_provenance(payload["features"])
-    path.write_text(json.dumps(payload, ensure_ascii=False, separators=(",", ":")),
-                    encoding="utf-8")
+    path.write_text(
+        json.dumps(payload, ensure_ascii=False, separators=(",", ":")), encoding="utf-8"
+    )
     print(f"Added placeholder existence provenance to {added} overlay places; geometry unchanged")
 
 
@@ -301,8 +300,11 @@ def main() -> None:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--provenance-only", action="store_true",
-                        help="regenerate missing place-existence metadata without rebuilding geometry")
+    parser.add_argument(
+        "--provenance-only",
+        action="store_true",
+        help="regenerate missing place-existence metadata without rebuilding geometry",
+    )
     args = parser.parse_args()
     if args.provenance_only:
         regenerate_provenance()
