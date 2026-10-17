@@ -5,6 +5,13 @@ export interface RowBox {
   clientWidth: number;
 }
 
+/** Modifier keys held during the wheel (a subset of WheelEvent). */
+export interface Modifiers {
+  ctrlKey?: boolean;
+  metaKey?: boolean;
+  shiftKey?: boolean;
+}
+
 /** WheelEvent.deltaMode: 0 pixels, 1 lines (Firefox), 2 pages. */
 const LINE_PX = 16;
 
@@ -13,9 +20,18 @@ const maxScroll = (el: RowBox) => Math.max(0, el.scrollWidth - el.clientWidth);
 /**
  * New `scrollLeft` for a mostly-vertical wheel over a horizontal row with a hidden scrollbar, or
  * `null` to let the event through (the panel or page scrolls instead): a horizontal gesture, a row
- * that does not overflow, or a row already at its end in the wheel's direction.
+ * that does not overflow, a row already at its end in the wheel's direction, or a modified wheel.
  */
-export function wheelScrollLeft(el: RowBox, dx: number, dy: number, deltaMode = 0): number | null {
+export function wheelScrollLeft(
+  el: RowBox,
+  dx: number,
+  dy: number,
+  deltaMode = 0,
+  mods: Modifiers = {},
+): number | null {
+  // Ctrl/Meta + wheel is browser zoom (Chromium also sends trackpad pinch as ctrl + wheel), and
+  // Shift + wheel is the native horizontal scroll: never hijack either.
+  if (mods.ctrlKey || mods.metaKey || mods.shiftKey) return null;
   if (Math.abs(dy) <= Math.abs(dx)) return null;
   const max = maxScroll(el);
   if (max <= 0) return null;

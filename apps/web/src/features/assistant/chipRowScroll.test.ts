@@ -23,6 +23,11 @@ describe("wheelScrollLeft", () => {
     expect(wheelScrollLeft(row(300), 0, 100)).toBeNull();
     expect(wheelScrollLeft(row(299.5), 0, 100)).toBeNull();
   });
+  it("passes through zoom (ctrl/meta, incl. trackpad pinch) and shift wheels", () => {
+    expect(wheelScrollLeft(row(0), 0, 100, 0, { ctrlKey: true })).toBeNull();
+    expect(wheelScrollLeft(row(0), 0, 100, 0, { metaKey: true })).toBeNull();
+    expect(wheelScrollLeft(row(0), 0, 100, 0, { shiftKey: true })).toBeNull();
+  });
   it("passes through horizontal gestures and rows that do not overflow", () => {
     expect(wheelScrollLeft(row(0), 50, 20)).toBeNull();
     expect(wheelScrollLeft(row(0, 300, 300), 0, 100)).toBeNull();

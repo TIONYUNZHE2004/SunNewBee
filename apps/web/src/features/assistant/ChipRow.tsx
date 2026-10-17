@@ -4,7 +4,9 @@ import { edgeFades, fadeMask, wheelScrollLeft } from "./chipRowScroll";
 /**
  * A horizontal row of chips with its scrollbar hidden. It still scrolls by touch, trackpad and
  * keyboard focus. A vertical mouse wheel scrolls it sideways while it can still move that way, so
- * at either end the panel keeps scrolling. The ends fade only while chips are hidden past them.
+ * at either end the panel keeps scrolling; zoom (Ctrl/Meta, pinch) and Shift wheels pass through.
+ * The ends fade only while chips are hidden past them; scroll-px-6 keeps a focused chip clear of
+ * the 1.5rem fade.
  */
 export function ChipRow({ children, className = "" }: { children: ReactNode; className?: string }) {
   const ref = useRef<HTMLDivElement>(null);
@@ -19,7 +21,7 @@ export function ChipRow({ children, className = "" }: { children: ReactNode; cla
       });
     // Not React's onWheel: React registers wheel listeners as passive, so preventDefault is ignored.
     const onWheel = (e: WheelEvent) => {
-      const next = wheelScrollLeft(el, e.deltaX, e.deltaY, e.deltaMode);
+      const next = wheelScrollLeft(el, e.deltaX, e.deltaY, e.deltaMode, e);
       if (next === null) return;
       e.preventDefault();
       el.scrollLeft = next;
@@ -40,7 +42,7 @@ export function ChipRow({ children, className = "" }: { children: ReactNode; cla
   return (
     <div
       ref={ref}
-      className={`no-scrollbar -mx-1 mb-2 flex gap-2 overflow-x-auto px-1 pt-1 pb-1 ${className}`}
+      className={`no-scrollbar -mx-1 mb-2 flex gap-2 overflow-x-auto scroll-px-6 px-1 pt-1 pb-1 ${className}`}
       style={mask ? { maskImage: mask, WebkitMaskImage: mask } : undefined}
     >
       {children}

@@ -17,8 +17,8 @@ function geometry(el: HTMLElement, scrollWidth: number, clientWidth: number) {
   });
 }
 
-const wheel = (el: HTMLElement, deltaY: number, deltaX = 0) => {
-  const ev = new WheelEvent("wheel", { deltaY, deltaX, bubbles: true, cancelable: true });
+const wheel = (el: HTMLElement, deltaY: number, deltaX = 0, init: WheelEventInit = {}) => {
+  const ev = new WheelEvent("wheel", { deltaY, deltaX, bubbles: true, cancelable: true, ...init });
   act(() => {
     el.dispatchEvent(ev);
   });
@@ -49,7 +49,7 @@ describe("ChipRow", () => {
   it("hides its scrollbar, keeps room for focus rings, and scrolls sideways", () => {
     const row = setup();
     expect(row.className.split(" ")).toEqual(
-      expect.arrayContaining(["no-scrollbar", "overflow-x-auto", "pt-1", "pb-1"]),
+      expect.arrayContaining(["no-scrollbar", "overflow-x-auto", "pt-1", "pb-1", "scroll-px-6"]),
     );
   });
   it("a vertical mouse wheel scrolls the row sideways and is consumed", () => {
@@ -57,6 +57,15 @@ describe("ChipRow", () => {
     const ev = wheel(row, 120);
     expect(row.scrollLeft).toBe(120);
     expect(ev.defaultPrevented).toBe(true);
+  });
+  it("ctrl/meta wheel (zoom, trackpad pinch) and shift wheel pass through untouched", () => {
+    const row = setup();
+    row.scrollLeft = 100;
+    for (const mod of [{ ctrlKey: true }, { metaKey: true }, { shiftKey: true }]) {
+      const ev = wheel(row, 120, 0, mod);
+      expect(ev.defaultPrevented, JSON.stringify(mod)).toBe(false);
+      expect(row.scrollLeft).toBe(100);
+    }
   });
   it("at the end of the range the wheel passes through to the panel", () => {
     const row = setup();
