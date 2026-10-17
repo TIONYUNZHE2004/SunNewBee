@@ -6,7 +6,7 @@ import { availableViews, effectiveView, selectView, webglSupported } from "../sc
 import { rendererFor, stylisedEngine } from "../scene/three/engineChoice";
 import { useMapStyle } from "../scene/useMapStyle";
 import { LoadingTownship } from "./LoadingTownship";
-import { BottomStack, TopStack } from "./mapSlots";
+import { BottomStack, InSlot, TopStack } from "./mapSlots";
 
 const CesiumScene = lazy(() => import("../scene/cesium/CesiumScene"));
 const ThreeScene = lazy(() => import("../scene/three/ThreeScene"));
@@ -29,6 +29,18 @@ class RendererBoundary extends Component<
   render() {
     return this.state.failed ? this.props.fallback : this.props.children;
   }
+}
+
+const LIST_FALLBACK_TEXT = "The map could not be shown on this device. Showing the list instead.";
+const MAPBOX_FALLBACK_TEXT =
+  "The 3D map could not be shown on this device. Showing the 2D map instead.";
+
+function FailedAlert({ children }: { children: ReactNode }) {
+  return (
+    <p role="alert" className="rounded-lg border border-rose bg-raised px-4 py-3 text-sm text-fg">
+      {children}
+    </p>
+  );
 }
 
 /** The renderer area only; chrome (cards, notes, settings) arrives as children. */
@@ -61,12 +73,13 @@ export function MapStage({ children }: { children?: ReactNode }) {
   const renderer = rendererFor(effective, style, stylisedEngine());
   const listFallback = (
     <div className="h-full space-y-3 overflow-auto p-4 pr-[calc(var(--panel-w,0px)+1rem)]">
-      <p role="alert" className="rounded-lg border border-rose bg-raised px-4 py-3 text-sm text-fg">
-        The map could not be shown on this device. Showing the list instead.
-      </p>
+      <FailedAlert>{LIST_FALLBACK_TEXT}</FailedAlert>
       <ListView />
     </div>
   );
+  // After a crash `effective` changes, so the boundary remounts on the fallback renderer and its
+  // own alert never shows: say why here (not when the user picked the list themselves).
+  const crashed = rendererFailed && view !== "list";
 
   return (
     <div className="relative h-full min-h-72 overflow-hidden bg-surface">
@@ -74,6 +87,7 @@ export function MapStage({ children }: { children?: ReactNode }) {
         <LoadingTownship />
       ) : effective === "list" ? (
         <div className="h-full space-y-3 overflow-auto p-4 pr-[calc(var(--panel-w,0px)+1rem)]">
+          {crashed && <FailedAlert>{LIST_FALLBACK_TEXT}</FailedAlert>}
           {!has3d && (
             <p
               role="status"
@@ -86,21 +100,28 @@ export function MapStage({ children }: { children?: ReactNode }) {
           <ListView />
         </div>
       ) : (
-        <RendererBoundary
-          key={renderer}
-          fallback={listFallback}
-          onFail={() => setRendererFailed(true)}
-        >
-          <Suspense fallback={<LoadingTownship />}>
-            {renderer === "three" ? (
-              <ThreeScene />
-            ) : renderer === "cesium" ? (
-              <CesiumScene />
-            ) : (
-              <MapboxLite />
-            )}
-          </Suspense>
-        </RendererBoundary>
+        <>
+          {crashed && renderer === "mapbox" && (
+            <InSlot name="hint">
+              <FailedAlert>{MAPBOX_FALLBACK_TEXT}</FailedAlert>
+            </InSlot>
+          )}
+          <RendererBoundary
+            key={renderer}
+            fallback={listFallback}
+            onFail={() => setRendererFailed(true)}
+          >
+            <Suspense fallback={<LoadingTownship />}>
+              {renderer === "three" ? (
+                <ThreeScene />
+              ) : renderer === "cesium" ? (
+                <CesiumScene />
+              ) : (
+                <MapboxLite />
+              )}
+            </Suspense>
+          </RendererBoundary>
+        </>
       )}
       <TopStack />
       <BottomStack />
