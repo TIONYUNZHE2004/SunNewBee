@@ -11,7 +11,7 @@ import { SettingsPopover } from "../map-ui/SettingsPopover";
 import { BottomSheet } from "./BottomSheet";
 import { usePanel } from "./panelStore";
 import { useAttribution } from "./useAttribution";
-import { usePanelReserve } from "./usePanelReserve";
+import { usePanelReserve, useSheetPeekOnNarrow } from "./usePanelReserve";
 import { useTopStackHeight } from "./useTopStackHeight";
 
 /** Full-bleed map; the assistant floats over it on the right (bottom sheet on phones, Task 8). */
@@ -23,6 +23,7 @@ export function MainPage() {
   const pendingAsk = useChatDraft((s) => s.pendingAsk);
   const rootRef = useRef<HTMLDivElement>(null);
   const topH = useTopStackHeight(rootRef);
+  useSheetPeekOnNarrow();
   const hideRef = useRef<HTMLButtonElement>(null);
   const showRef = useRef<HTMLButtonElement>(null);
   const moveFocus = useRef(false);

@@ -1,7 +1,8 @@
+import { useRef } from "react";
 import { Link, Outlet, useLocation } from "react-router";
-import { usePanel } from "../features/main/panelStore";
 import { useAttribution } from "../features/main/useAttribution";
-import { usePanelReserve } from "../features/main/usePanelReserve";
+import { useElementHeight } from "../features/main/useElementHeight";
+import { useBehindFullSheet, usePanelReserve } from "../features/main/usePanelReserve";
 import { useOpenTicketCount } from "../features/tickets/useTickets";
 import { useSite } from "../lib/api";
 import { ThemeMenu } from "../ui/ThemeMenu";
@@ -73,10 +74,13 @@ export function Shell() {
   const site = useSite();
   const mode = useMode((s) => s.mode);
   const onTickets = useLocation().pathname.startsWith("/tickets");
-  const { reserved, sheetH, wide } = usePanelReserve();
+  const { reserved, sheetH } = usePanelReserve();
   const strip = onTickets ? 0 : reserved;
   const attribution = useAttribution();
-  const sheetFull = usePanel((s) => s.sheet) === "full" && !wide;
+  const sheetFull = useBehindFullSheet();
+  const attrRef = useRef<HTMLParagraphElement>(null);
+  // Map controls (camera cluster, settings gear, card stack) sit above the strip: they read --attr-h.
+  const attrH = useElementHeight(attrRef);
   return (
     <div className="relative flex min-h-screen flex-col lg:h-dvh bg-bg text-fg">
       <a
@@ -108,9 +112,15 @@ export function Shell() {
           <ThemeMenu />
         </div>
       </header>
-      <main id="main" tabIndex={-1} className="relative min-h-0 flex-1">
+      <main
+        id="main"
+        tabIndex={-1}
+        className="relative min-h-0 flex-1"
+        style={{ ["--attr-h" as string]: `${attrH}px` }}
+      >
         <Outlet />
         <p
+          ref={attrRef}
           // At full the phone sheet carries the attribution on its own bottom edge.
           hidden={!onTickets && sheetFull}
           className="glass pointer-events-auto absolute bottom-2 left-2 z-10 m-0 rounded-md px-2 py-0.5 text-[0.68rem] text-fg-soft"

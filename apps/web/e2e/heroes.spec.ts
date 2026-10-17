@@ -129,6 +129,28 @@ async function settledBox(locator: Locator) {
   return box;
 }
 
+type Box = { x: number; y: number; width: number; height: number };
+const intersects = (a: Box, b: Box) =>
+  a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height;
+
+/** The settings gear's box never overlaps the visible attribution strip (AGENTS.md: always shown). */
+async function expectGearClearOfAttribution(page: Page) {
+  const gear = await settledBox(page.getByRole("button", { name: "Map settings" }));
+  const attr = await settledBox(
+    page.getByText("Test fixture", { exact: true }).filter({ visible: true }),
+  );
+  expect(intersects(gear, attr), JSON.stringify({ gear, attr })).toBe(false);
+  expect(gear.y + gear.height).toBeLessThanOrEqual(attr.y);
+}
+
+test("desktop: the settings gear sits above the attribution strip", async ({ page }) => {
+  await open(page);
+  await expectGearClearOfAttribution(page);
+  // A narrower desktop window where the strip may wrap.
+  await page.setViewportSize({ width: 1024, height: 768 });
+  await expectGearClearOfAttribution(page);
+});
+
 test("phone 390x844: the sheet sits at the bottom with a usable composer", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await open(page);
@@ -148,6 +170,7 @@ test("phone 390x844: the sheet sits at the bottom with a usable composer", async
   if (!attr) throw new Error("no attribution box");
   expect(attr.y).toBeGreaterThanOrEqual(headerBottom);
   expect(attr.y + attr.height).toBeLessThanOrEqual(box.y);
+  await expectGearClearOfAttribution(page);
 
   const expand = page.getByRole("button", { name: "Expand assistant" });
   await expand.click();
@@ -161,6 +184,9 @@ test("phone 390x844: the sheet sits at the bottom with a usable composer", async
   const after = await settledBox(input);
   expect(log.y).toBeGreaterThanOrEqual(headerBottom);
   expect(after.y + after.height).toBeLessThanOrEqual(844);
+  await expectGearClearOfAttribution(page);
+  // Visible at half, so the toBeHidden check at full below cannot pass vacuously.
+  await expect(page.getByRole("button", { name: "Map settings" })).toBeVisible();
 
   // Full: the composer stays on screen, the sheet carries the attribution, and the map controls
   // behind it leave the accessibility tree.

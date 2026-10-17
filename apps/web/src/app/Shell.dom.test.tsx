@@ -91,6 +91,48 @@ describe("Shell", () => {
     });
   });
 
+  describe("attribution strip height", () => {
+    afterEach(() => {
+      vi.unstubAllGlobals();
+      vi.restoreAllMocks();
+      act(() => usePanel.setState({ sheet: "peek" }));
+    });
+    it("is published on main as --attr-h so map controls clear it; 0px once it hides", async () => {
+      vi.stubGlobal("matchMedia", () => ({
+        matches: false,
+        addEventListener() {},
+        removeEventListener() {},
+      }));
+      const callbacks: (() => void)[] = [];
+      vi.stubGlobal(
+        "ResizeObserver",
+        class {
+          constructor(cb: () => void) {
+            callbacks.push(cb);
+          }
+          observe() {}
+          disconnect() {}
+        },
+      );
+      vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (
+        this: HTMLElement,
+      ) {
+        const strip = this.tagName === "P" && /OpenStreetMap/.test(this.textContent ?? "");
+        const height = strip && !this.hidden ? 37.4 : 0;
+        return { height, top: 0, bottom: 0, left: 0, right: 0, width: 0, x: 0, y: 0 } as DOMRect;
+      });
+      setup("/");
+      await screen.findByText(/OpenStreetMap contributors/);
+      const main = screen.getByRole("main");
+      expect(main.style.getPropertyValue("--attr-h")).toBe("38px");
+      act(() => usePanel.setState({ sheet: "full" }));
+      act(() => {
+        for (const cb of callbacks) cb();
+      });
+      expect(main.style.getPropertyValue("--attr-h")).toBe("0px");
+    });
+  });
+
   describe("attribution on phones", () => {
     afterEach(() => vi.unstubAllGlobals());
     const narrow = () =>

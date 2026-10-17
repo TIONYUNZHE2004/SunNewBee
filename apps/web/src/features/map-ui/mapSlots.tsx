@@ -1,6 +1,7 @@
 import { type ReactNode, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { create } from "zustand";
+import { useBehindFullSheet } from "../main/usePanelReserve";
 
 export type SlotName = "route" | "flood" | "hint" | "card" | "notes";
 
@@ -50,12 +51,17 @@ export function TopStack() {
   );
 }
 
-/** Bottom-left: the place or path card, then map notes beneath it; sits above the phone sheet. */
+/**
+ * Bottom-left: the place or path card, then map notes beneath it; sits above the phone sheet and
+ * the attribution strip. Behind the full phone sheet its max-height collapses to ~0, so it hides
+ * (`invisible` also drops the card buttons from the tab order), like the other map controls.
+ */
 export function BottomStack() {
+  const hidden = useBehindFullSheet();
   return (
     <div
       data-testid="bottom-stack"
-      className="pointer-events-none absolute bottom-[calc(var(--sheet-h,0px)+2rem)] left-4 z-20 flex max-h-[max(0px,calc(100%-var(--sheet-h,0px)-6rem))] max-w-[calc(100%-2rem)] flex-col items-start gap-2"
+      className={`pointer-events-none absolute bottom-[calc(var(--sheet-h,0px)+var(--attr-h,0px)+1rem)] left-4 z-20 flex max-h-[max(0px,calc(100%-var(--sheet-h,0px)-var(--attr-h,0px)-5rem))] max-w-[calc(100%-2rem)] flex-col items-start gap-2${hidden ? " invisible" : ""}`}
     >
       <Slot name="card" className="min-h-0 max-w-full overflow-y-auto" />
       <Slot name="notes" className="flex flex-col gap-2" />

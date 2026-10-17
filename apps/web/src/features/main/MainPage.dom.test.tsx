@@ -150,6 +150,33 @@ describe("MainPage", () => {
     fireEvent.click(screen.getByRole("button", { name: "Show assistant" }));
     expect(screen.getByRole("button", { name: "Hide assistant" })).toHaveFocus();
   });
+  it("going wide -> narrow resets the sheet to peek, so an open, focused popover keeps focus", async () => {
+    let matches = true;
+    const listeners = new Set<() => void>();
+    vi.stubGlobal("matchMedia", () => ({
+      get matches() {
+        return matches;
+      },
+      addEventListener: (_: string, l: () => void) => listeners.add(l),
+      removeEventListener: (_: string, l: () => void) => listeners.delete(l),
+    }));
+    // A sheet left at full on a phone, then rotated to a wide layout.
+    usePanel.setState({ sheet: "full" });
+    renderMain();
+    await userEvent.click(screen.getByRole("button", { name: "Map settings" }));
+    const dialog = screen.getByRole("dialog", { name: "Map settings" });
+    expect(dialog).toContainElement(document.activeElement as HTMLElement);
+    matches = false;
+    act(() => {
+      for (const l of listeners) l();
+    });
+    expect(usePanel.getState().sheet).toBe("peek");
+    expect(screen.getByRole("dialog", { name: "Map settings" })).not.toHaveClass("invisible");
+    expect(document.activeElement).not.toBe(document.body);
+    expect(screen.getByRole("dialog", { name: "Map settings" })).toContainElement(
+      document.activeElement as HTMLElement,
+    );
+  });
   describe("narrow screens (bottom sheet)", () => {
     beforeEach(() => stubWide(false));
     it("shows the sheet with the composer at peek and no hide/show buttons", () => {
@@ -169,10 +196,10 @@ describe("MainPage", () => {
       expect(screen.getByRole("log", { name: "Conversation" })).not.toHaveClass("hidden");
       expect(root.style.getPropertyValue("--sheet-h")).toBe("55dvh");
     });
-    it("the place/path card stack sits above the sheet", () => {
+    it("the place/path card stack sits above the sheet and the attribution strip", () => {
       renderMain();
       expect(screen.getByTestId("bottom-stack").className).toContain(
-        "bottom-[calc(var(--sheet-h,0px)+2rem)]",
+        "bottom-[calc(var(--sheet-h,0px)+var(--attr-h,0px)+1rem)]",
       );
     });
     it("a question asked at peek opens the sheet to half", () => {

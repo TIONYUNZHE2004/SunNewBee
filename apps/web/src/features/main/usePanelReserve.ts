@@ -19,6 +19,24 @@ export function useWide() {
   return wide;
 }
 
+/**
+ * Going narrow (rotation, window resize) starts the phone sheet at peek. A sheet left at `full`
+ * would hide the map controls at once and drop focus from an open settings popover to the body.
+ * Reset in the media listener itself, not an effect, so no render ever sees narrow + full.
+ */
+export function useSheetPeekOnNarrow() {
+  const setSheet = usePanel((s) => s.setSheet);
+  useEffect(() => {
+    if (typeof matchMedia !== "function") return;
+    const m = matchMedia(Q);
+    const on = () => {
+      if (!m.matches) setSheet("peek");
+    };
+    m.addEventListener("change", on);
+    return () => m.removeEventListener("change", on);
+  }, [setSheet]);
+}
+
 /** Width of the floating assistant panel and the map width it covers (0 when closed or narrow). */
 export function usePanelReserve() {
   const open = usePanel((s) => s.open);

@@ -33,10 +33,10 @@ describe("CameraControls", () => {
     expect(screen.getByRole("button", { name: "Zoom in (+)" })).toBeInTheDocument();
   });
 
-  it("the camera cluster sits above the phone sheet", () => {
+  it("the camera cluster sits above the phone sheet and the attribution strip", () => {
     render(<CameraControls ops={ops()} />);
     expect(screen.getByRole("group", { name: "Camera" }).className).toContain(
-      "bottom-[calc(var(--sheet-h,0px)+1rem)]",
+      "bottom-[calc(var(--sheet-h,0px)+var(--attr-h,0px)+1rem)]",
     );
   });
 
@@ -176,5 +176,34 @@ describe("CameraControls behind the full phone sheet", () => {
     usePanel.setState({ sheet: "full" });
     render(<CameraControls ops={ops()} />);
     expect(group().className.split(" ")).not.toContain("invisible");
+  });
+  it("follows a rotation (matchMedia change) and a sheet change after the first render", () => {
+    let matches = true;
+    const listeners = new Set<() => void>();
+    vi.stubGlobal("matchMedia", () => ({
+      get matches() {
+        return matches;
+      },
+      addEventListener: (_: string, l: () => void) => listeners.add(l),
+      removeEventListener: (_: string, l: () => void) => listeners.delete(l),
+    }));
+    const rotate = (wide: boolean) => {
+      matches = wide;
+      act(() => {
+        for (const l of listeners) l();
+      });
+    };
+    usePanel.setState({ sheet: "full" });
+    render(<CameraControls ops={ops()} />);
+    const invisible = () => group().className.split(" ").includes("invisible");
+    expect(invisible()).toBe(false); // wide: the sheet is not shown
+    rotate(false);
+    expect(invisible()).toBe(true); // narrow + full
+    act(() => usePanel.setState({ sheet: "half" }));
+    expect(invisible()).toBe(false);
+    act(() => usePanel.setState({ sheet: "full" }));
+    expect(invisible()).toBe(true);
+    rotate(true);
+    expect(invisible()).toBe(false);
   });
 });
