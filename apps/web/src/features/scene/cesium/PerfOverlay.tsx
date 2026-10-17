@@ -9,7 +9,7 @@ interface PerfStats {
   drawCalls: number;
   /** Triangles per frame (three.js engine only; 0 elsewhere). */
   tris: number;
-  /** Geometry + instance buffer MB (three.js engine only; 0 elsewhere). */
+  /** Estimated geometry + instance buffer MB from CPU array sizes (three.js engine only; 0 elsewhere). */
   gpuMB: number;
   tier: Tier;
   /** True while the median stays under 15 fps although the tier is already Low. */
@@ -37,7 +37,7 @@ export function PerfOverlay() {
     <div className="pointer-events-none absolute left-2 top-2 z-30 rounded-md bg-black/70 px-2 py-1 font-mono text-xs text-white">
       {Math.round(s.fps)} fps · {s.frameMs.toFixed(1)} ms · {s.drawCalls} draws
       {s.tris > 0 ? ` · ${(s.tris / 1e6).toFixed(2)} M tris` : ""}
-      {s.gpuMB > 0 ? ` · ${s.gpuMB.toFixed(0)} MB` : ""} · {s.tier}
+      {s.gpuMB > 0 ? ` · ≈${s.gpuMB.toFixed(0)} MB` : ""} · {s.tier}
     </div>
   );
 }

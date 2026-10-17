@@ -5,7 +5,13 @@ import type { Placement } from "./fit";
 import type { AssetLibrary } from "./library";
 import type { AssetSpec, Manifest } from "./manifest";
 import { createRoleUniforms } from "./roleMaterial";
-import { SHOWROOM_SPACING_M, showroomManifest, showroomPlan } from "./showroom";
+import {
+  SHOWROOM_MARGIN_M,
+  SHOWROOM_SPACING_M,
+  showroomManifest,
+  showroomPitch,
+  showroomPlan,
+} from "./showroom";
 
 const lods = (id: string, v: string) => [
   { node: `${id}__${v}__LOD0`, tris: 1, maxM: 300 },
@@ -40,7 +46,10 @@ const manifest = (): Manifest => ({
     link_intermediate: spec("link_intermediate", "archetype", ["gable", "modern"]),
     highrise: spec("highrise", "archetype", ["mid", "tall"]),
     people: spec("people", "kit", ["a", "b", "c"]),
-    lakeside_mall: spec("lakeside_mall", "landmark", ["main"]),
+    lakeside_mall: {
+      ...spec("lakeside_mall", "landmark", ["main"]),
+      variants: { main: { size: [120, 20, 90], lods: lods("lakeside_mall", "main") } },
+    },
   },
   landmarks: { lakeside_mall: { anchor: [101.5, 3.18] } },
 });
@@ -76,19 +85,37 @@ describe("showroomPlan", () => {
     }
   });
 
-  it("lays rows 30 m apart, variants 30 m apart along a row, centred on the centre", () => {
+  it("pitch is max(30 m, largest footprint extent + 5 m)", () => {
     expect(SHOWROOM_SPACING_M).toBe(30);
-    const ps = all(showroomPlan(manifest(), CENTRE));
+    expect(SHOWROOM_MARGIN_M).toBe(5);
+    expect(showroomPitch(manifest())).toBe(125);
+    const small = manifest();
+    delete small.assets.lakeside_mall;
+    expect(showroomPitch(small)).toBe(30);
+  });
+
+  it("lays rows and variants one pitch apart, footprints never overlap, centred on the centre", () => {
+    const m = manifest();
+    const pitch = showroomPitch(m);
+    const ps = all(showroomPlan(m, CENTRE));
+    const half = (x: Placement) => {
+      const [w, , d] = m.assets[x.asset]!.variants[x.variant]!.size;
+      return [w / 2, d / 2] as const;
+    };
     for (let i = 0; i < ps.length; i++)
       for (let j = i + 1; j < ps.length; j++) {
         const a = ps[i]!;
         const b = ps[j]!;
         const dx = Math.abs(a.x - b.x);
         const dz = Math.abs(a.z - b.z);
-        // On a 30 m grid: every offset is a multiple of 30 and no two share a cell.
-        expect((dx / 30) % 1).toBeCloseTo(0, 6);
-        expect((dz / 30) % 1).toBeCloseTo(0, 6);
+        // On the grid: every offset is a whole number of pitches, at least 30 m apart.
+        expect((dx / pitch) % 1).toBeCloseTo(0, 6);
+        expect((dz / pitch) % 1).toBeCloseTo(0, 6);
         expect(Math.hypot(dx, dz)).toBeGreaterThanOrEqual(30 - 1e-6);
+        // Yaw 0: axis-aligned footprints; they must be separated on x or on z.
+        const [ax, az] = half(a);
+        const [bx, bz] = half(b);
+        expect(dx >= ax + bx || dz >= az + bz).toBe(true);
       }
     // One row per asset: the variants of one asset share z.
     const rowZ = (asset: string) => new Set(ps.filter((x) => x.asset === asset).map((x) => x.z));
@@ -123,6 +150,7 @@ describe("showroomPlan", () => {
       geometry: () => geo(),
       has: () => true,
       gpuBytes: () => 0,
+      failed: [],
       dispose: () => {},
     };
     const sm = showroomManifest(m);

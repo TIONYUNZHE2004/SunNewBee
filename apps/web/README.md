@@ -276,17 +276,20 @@ after it stops.
 
 - **Never holes:** the full extruded city is drawn until the assets are ready, and stays drawn when
   they fail (manifest 404, malformed or non-JSON manifest, every glb missing, a build error), with
-  one console warning. Footprints an archetype cannot fit, and archetypes with no asset, stay
-  extruded.
+  `data-assets="failed"`. If at least one asset loads, the state is `ready` and buildings of failed
+  assets stay extruded. Each load logs at most one console warning, naming every failed glb and
+  dropped manifest entry (the library collects failures in `failed`; it never warns). Footprints an
+  archetype cannot fit, and archetypes with no asset, stay extruded.
 - **`?assets=0`:** skip the assets (no manifest fetch); the extruded city only.
 - **`?showroom=1`:** replace the plan with `assets/showroom.ts`: every asset variant once at LOD0,
-  one row per asset, 30 m apart, centred on `HERO_CENTRE`, and no extruded buildings. For owner
+  one row per asset, a grid pitch of max(30 m, largest footprint + 5 m) so nothing overlaps, centred
+  on `HERO_CENTRE`, and no extruded buildings. For owner
   review of the models.
 - **DOM contract additions:** `data-assets="off|loading|ready|failed"` and `data-instances` (placed
   units plus landmarks).
 - **`?perf=1` fields:** draw calls and triangles per frame, both summed over every pass
-  (`renderer.info` with `autoReset` off), and MB of geometry plus instance buffers (extruded city,
-  library and instance attributes). Budgets at `hero-mid` on Medium: 150 draw calls, 2.5 M
+  (`renderer.info` with `autoReset` off), and an estimate (shown as "≈ MB") of geometry plus
+  instance buffers, from CPU array sizes (extruded city, library and instance attributes). Budgets at `hero-mid` on Medium: 150 draw calls, 2.5 M
   triangles, 150 MB.
 - The glbs and manifest live in `public/city/` (lane `blender`); `vite build` copies them to
   `dist/city/`.

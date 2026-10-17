@@ -69,6 +69,7 @@ const lib = (): AssetLibrary => {
     },
     has: () => true,
     gpuBytes: () => 0,
+    failed: [],
     dispose() {},
   };
 };

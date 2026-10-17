@@ -470,7 +470,7 @@ function build(
       if (a) {
         assets = a;
         scene.add(a.group);
-        a.update(camera.position);
+        // The next tick buckets the new instances before it renders.
         lod.force();
       }
       requestRender();

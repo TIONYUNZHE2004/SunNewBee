@@ -92,13 +92,16 @@ interface LoadedAssets {
   manifest: Manifest;
   lib: AssetLibrary;
 }
-/** Already reported (the library warns once per failed glb): fail without a second warning. */
-class Reported extends Error {}
-
 const ASSET_WARN = "TownshipLens 3D: city assets unavailable, drawing the extruded city";
+const PARTIAL_WARN = "TownshipLens 3D: some city assets were dropped and stay extruded";
 
-/** The manifest, or a throw for 404, a body that is not JSON (Vite's index.html) or a bad shape. */
-async function fetchManifest(signal: AbortSignal): Promise<Manifest> {
+/**
+ * The manifest plus its dropped-entry problems, or a throw for 404, a body that is not JSON
+ * (Vite's index.html) or a bad shape. Never warns: the caller sends one warning per load.
+ */
+async function fetchManifest(
+  signal: AbortSignal,
+): Promise<{ manifest: Manifest; problems: string[] }> {
   const r = await fetch(MANIFEST_URL, { signal });
   if (!r.ok) throw new Error(`manifest HTTP ${r.status}`);
   let body: unknown;
@@ -109,10 +112,21 @@ async function fetchManifest(signal: AbortSignal): Promise<Manifest> {
   }
   const { manifest, problems } = parseManifest(body);
   if (!manifest) throw new Error(`manifest rejected: ${problems.join("; ")}`);
-  if (Object.keys(manifest.assets).length === 0) throw new Error("manifest has no assets");
-  if (problems.length > 0)
-    console.warn(`TownshipLens 3D: city manifest entries dropped: ${problems.join("; ")}`);
-  return manifest;
+  if (Object.keys(manifest.assets).length === 0)
+    throw new Error(`manifest has no assets${problems.length ? `: ${problems.join("; ")}` : ""}`);
+  return { manifest, problems };
+}
+
+/** One line naming every failed glb and every dropped manifest entry. */
+function describeFailures(
+  failed: readonly { asset: string; reason: string }[],
+  problems: string[],
+) {
+  const parts: string[] = [];
+  if (failed.length > 0)
+    parts.push(`glbs failed: ${failed.map((f) => `${f.asset} (${f.reason})`).join(", ")}`);
+  if (problems.length > 0) parts.push(`manifest entries dropped: ${problems.join("; ")}`);
+  return parts.join("; ");
 }
 
 const geometryBytes = (g: CityGeometry) => {
@@ -233,18 +247,28 @@ export default function ThreeScene({
     let lib: AssetLibrary | null = null;
     setAssetsState("loading");
     (async () => {
-      const manifest = await fetchManifest(ac.signal);
-      lib = await loadAssetLibrary(manifest, { signal: ac.signal });
-      if (ac.signal.aborted) return;
-      const got = lib;
-      if (!Object.keys(manifest.assets).some((id) => got.has(id)))
-        throw new Reported("no city asset loaded");
+      const { manifest, problems } = await fetchManifest(ac.signal);
+      const got = await loadAssetLibrary(manifest, { signal: ac.signal });
+      // Aborted after the library resolved: the cleanup has already run, so free it here.
+      if (ac.signal.aborted) {
+        got.dispose();
+        return;
+      }
+      lib = got;
+      const why = describeFailures(got.failed, problems);
+      if (!Object.keys(manifest.assets).some((id) => got.has(id))) {
+        got.dispose();
+        lib = null;
+        console.warn(`${ASSET_WARN}: ${why || "no asset loaded"}`);
+        setAssetsState("failed");
+        return;
+      }
+      // Partial: the buildings of failed assets fall back to extrusion through has().
+      if (why) console.warn(`${PARTIAL_WARN}: ${why}`);
       setLoaded({ manifest, lib: got });
     })().catch((err: unknown) => {
       if (ac.signal.aborted) return;
-      lib?.dispose();
-      lib = null;
-      if (!(err instanceof Reported)) console.warn(`${ASSET_WARN}: ${String(err)}`);
+      console.warn(`${ASSET_WARN}: ${String(err)}`);
       setAssetsState("failed");
     });
     return () => {
@@ -286,9 +310,12 @@ export default function ThreeScene({
         gpuMB: (geometryBytes(g) + lib.gpuBytes() + inst.stats().gpuBytes) / MB,
       });
     } catch (err) {
+      // Once per load: drop the library, so later buildings refetches draw the full city silently.
       console.warn(`${ASSET_WARN}: ${String(err)}`);
       if (handedOff.current) engine.setAssets(null);
       handedOff.current = false;
+      lib.dispose();
+      setLoaded(null);
       full();
       setAssetsState("failed");
     }

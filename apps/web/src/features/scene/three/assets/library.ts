@@ -7,6 +7,8 @@ export interface AssetLibrary {
   /** World-baked geometry of one LOD node (one primitive), shared, do not dispose. null when absent. */
   geometry(asset: string, variant: string, lod: number): THREE.BufferGeometry | null;
   has(asset: string): boolean;
+  /** Assets whose glb failed to load or parse (dropped). The caller reports them, once per load. */
+  readonly failed: readonly { asset: string; reason: string }[];
   /** Sum of attribute and index byteLength. */
   gpuBytes(): number;
   dispose(): void;
@@ -72,6 +74,7 @@ export async function loadAssetLibrary(m: Manifest, opts: Opts = {}): Promise<As
 
   const nodes = new Map<string, THREE.BufferGeometry>(); // by node name
   const loaded = new Set<string>();
+  const failed: { asset: string; reason: string }[] = [];
   const all: THREE.BufferGeometry[] = [];
   const disposeAll = () => {
     for (const g of all) g.dispose();
@@ -102,7 +105,7 @@ export async function loadAssetLibrary(m: Manifest, opts: Opts = {}): Promise<As
         loaded.add(id);
       } catch (e) {
         if (opts.signal?.aborted) return;
-        console.warn(`city asset "${id}" failed to load and was dropped: ${String(e)}`);
+        failed.push({ asset: id, reason: String(e) });
       }
     }),
   );
@@ -119,6 +122,7 @@ export async function loadAssetLibrary(m: Manifest, opts: Opts = {}): Promise<As
       return node ? (nodes.get(`${asset}/${node}`) ?? null) : null;
     },
     has: (asset) => loaded.has(asset),
+    failed,
     gpuBytes() {
       let n = 0;
       for (const g of all) {

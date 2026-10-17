@@ -56,15 +56,20 @@ describe("loadAssetLibrary", () => {
     expect(lib.geometry("b", "zz", 0)).toBeNull();
     expect(lib.geometry("nope", "v", 0)).toBeNull();
   });
-  it("drops only the asset whose glb fails, with one warn", async () => {
+  it("drops only the asset whose glb fails and lists it in `failed`, without warning", async () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     const lib = await loadAssetLibrary(manifest(), {
       loadGlb: (u) => (u.endsWith("a.glb") ? Promise.reject(new Error("404")) : loadGlb(u)),
     });
     expect(lib.has("a")).toBe(false);
     expect(lib.has("b")).toBe(true);
-    expect(warn).toHaveBeenCalledTimes(1);
-    expect(String(warn.mock.calls[0]?.[0])).toContain("a");
+    expect(lib.failed).toEqual([{ asset: "a", reason: "Error: 404" }]);
+    // The caller aggregates failures into one warning per load (ThreeScene).
+    expect(warn).not.toHaveBeenCalled();
+  });
+  it("failed is empty when every glb loads", async () => {
+    const lib = await loadAssetLibrary(manifest(), { loadGlb });
+    expect(lib.failed).toEqual([]);
   });
   it("gpuBytes sums attribute byte lengths", async () => {
     const lib = await loadAssetLibrary(manifest(), { loadGlb });

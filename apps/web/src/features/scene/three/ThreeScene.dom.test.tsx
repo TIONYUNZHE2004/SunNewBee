@@ -33,6 +33,30 @@ const frame = createFrame(CENTER);
 // The typed client builds a relative `Request`, which cannot run outside a browser: serve /site and
 // the access layer as query results. `useBuildings` stays real (plain fetch of /api/layers/buildings).
 const ok = (data: unknown) => ({ data, isPending: false, isError: false, isSuccess: true });
+// Lets a test make the instance build throw (Review Focus 2: a build error keeps the full city).
+const instancesFault = vi.hoisted(() => ({ on: false }));
+vi.mock("./assets/cityInstances", async (orig) => {
+  const mod = await orig<typeof import("./assets/cityInstances")>();
+  return {
+    ...mod,
+    createCityInstances: (...a: Parameters<typeof mod.createCityInstances>) => {
+      if (instancesFault.on) throw new Error("instance build failed");
+      return mod.createCityInstances(...a);
+    },
+  };
+});
+// Lets a test hand back a library that ignores the abort signal (resolves after unmount).
+const libraryHook = vi.hoisted(() => ({
+  next: null as null | (() => Promise<import("./assets/library").AssetLibrary>),
+}));
+vi.mock("./assets/library", async (orig) => {
+  const mod = await orig<typeof import("./assets/library")>();
+  return {
+    ...mod,
+    loadAssetLibrary: (...a: Parameters<typeof mod.loadAssetLibrary>) =>
+      libraryHook.next ? libraryHook.next() : mod.loadAssetLibrary(...a),
+  };
+});
 vi.mock("../../../lib/api", async (orig) => ({
   ...(await orig<typeof import("../../../lib/api")>()),
   useSite: () => ok(SITE),
@@ -156,6 +180,8 @@ beforeEach(() => {
   });
   usePanel.setState({ open: false });
   history.replaceState(null, "", "/");
+  instancesFault.on = false;
+  libraryHook.next = null;
 });
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -523,6 +549,31 @@ describe("ThreeScene", () => {
       expect(console.warn).not.toHaveBeenCalled();
     });
 
+    it("a library that resolves after unmount (abort race) is disposed, never handed over", async () => {
+      let resolve: ((l: import("./assets/library").AssetLibrary) => void) | null = null;
+      libraryHook.next = () => new Promise((r) => (resolve = r));
+      const fake = {
+        geometry: () => null,
+        has: () => true,
+        gpuBytes: () => 0,
+        failed: [],
+        dispose: vi.fn(),
+      };
+      serve({});
+      const { engine, unmount } = mount();
+      const s = screen.getByTestId("three-scene");
+      await waitFor(() => expect(engine.setCity).toHaveBeenCalled());
+      expect(s).toHaveAttribute("data-assets", "loading");
+      await waitFor(() => expect(resolve).not.toBeNull());
+      unmount();
+      await act(async () => {
+        resolve?.(fake);
+        await new Promise((r) => setTimeout(r, 0));
+      });
+      expect(fake.dispose).toHaveBeenCalled();
+      expect(engine.setAssets).not.toHaveBeenCalled();
+    });
+
     it("unmount after the assets are ready disposes the library geometries", async () => {
       serve({});
       const disposed: THREE.BufferGeometry[] = [];
@@ -568,6 +619,108 @@ describe("ThreeScene", () => {
       await waitFor(() => expect(s).toHaveAttribute("data-assets", "ready"));
       expect(s).toHaveAttribute("data-instances", "1");
       expect(vertsOf(engine, -1)).toBe(0);
+    });
+
+    describe("two assets", () => {
+      const semiNodes = ["semi_d__gable__LOD0", "semi_d__gable__LOD1"];
+      const linkSpec = MANIFEST.assets.link_intermediate!;
+      const MANIFEST2: Manifest = {
+        ...MANIFEST,
+        assets: {
+          link_intermediate: linkSpec,
+          semi_d: {
+            ...linkSpec,
+            file: "semi_d.glb",
+            variants: {
+              gable: {
+                size: [6.4, 8.5, 15.5],
+                lods: [
+                  { node: semiNodes[0]!, tris: 1, maxM: 300 },
+                  { node: semiNodes[1]!, tris: 1, maxM: null },
+                ],
+              },
+            },
+          },
+        },
+      };
+      const semi = (id: string, cx: number) => {
+        const f = link(id, cx);
+        return { ...f, properties: { ...f.properties, archetype: "semi_d" } };
+      };
+      const CITY2 = {
+        ...CITY,
+        buildings: {
+          ...CITY.buildings,
+          features: [...CITY.buildings.features, semi("s1", 110)],
+        },
+      };
+      const semiGlb = () => new Response(makeGlb(semiNodes.map((name) => ({ name }))));
+      function serve2(fail: { link?: boolean; semi?: boolean }) {
+        return stubFetch((url) => {
+          if (url.includes("/layers/buildings")) return json(CITY2);
+          if (url.endsWith("/city/manifest.json")) return json(MANIFEST2);
+          if (url.endsWith("/city/link_intermediate.glb")) return fail.link ? json({}, 404) : glb();
+          if (url.endsWith("/city/semi_d.glb")) return fail.semi ? json({}, 404) : semiGlb();
+          return json({}, 404);
+        });
+      }
+
+      it('every glb fails: data-assets="failed", full city, exactly one warning', async () => {
+        serve2({ link: true, semi: true });
+        const { engine } = mount();
+        const s = screen.getByTestId("three-scene");
+        await waitFor(() => expect(s).toHaveAttribute("data-assets", "failed"));
+        await waitFor(() => expect(engine.setCity).toHaveBeenCalled());
+        for (let i = 0; i < engine.setCity.mock.calls.length; i++)
+          expect(vertsOf(engine, i)).toBe(120);
+        expect(engine.setAssets).not.toHaveBeenCalled();
+        expect(console.warn).toHaveBeenCalledTimes(1);
+        const msg = String(vi.mocked(console.warn).mock.calls[0]?.[0]);
+        expect(msg).toContain("link_intermediate");
+        expect(msg).toContain("semi_d");
+      });
+
+      it('one of two glbs fails: "ready", its buildings extruded, exactly one warning naming it', async () => {
+        serve2({ semi: true });
+        const { engine } = mount();
+        const s = screen.getByTestId("three-scene");
+        await waitFor(() => expect(s).toHaveAttribute("data-assets", "ready"));
+        // plain + s1 stay extruded (two boxes); l1 and l2 are instanced.
+        expect(vertsOf(engine, -1)).toBe(60);
+        expect(s).toHaveAttribute("data-instances", "2");
+        expect(engine.setAssets).toHaveBeenCalledTimes(1);
+        expect(console.warn).toHaveBeenCalledTimes(1);
+        const msg = String(vi.mocked(console.warn).mock.calls[0]?.[0]);
+        expect(msg).toContain("semi_d");
+        expect(msg).not.toContain("link_intermediate");
+      });
+    });
+
+    it("an instance build error: failed, full city, library disposed, one warning even after a refetch", async () => {
+      instancesFault.on = true;
+      // Each buildings fetch returns a new body (structural sharing would keep an equal one).
+      let n = 0;
+      stubFetch((url) => {
+        if (url.includes("/layers/buildings")) return json({ ...CITY, as_of: `v${n++}` });
+        if (url.endsWith("/city/manifest.json")) return json(MANIFEST);
+        if (url.endsWith("/city/link_intermediate.glb")) return glb();
+        return json({}, 404);
+      });
+      const disposed = vi.spyOn(THREE.BufferGeometry.prototype, "dispose");
+      const { engine, qc } = mount();
+      const s = screen.getByTestId("three-scene");
+      await waitFor(() => expect(s).toHaveAttribute("data-assets", "failed"));
+      await waitFor(() => expect(vertsOf(engine, -1)).toBe(90));
+      expect(disposed).toHaveBeenCalled();
+      const calls = engine.setCity.mock.calls.length;
+      await act(async () => {
+        await qc.invalidateQueries();
+      });
+      await waitFor(() => expect(engine.setCity.mock.calls.length).toBeGreaterThan(calls));
+      expect(vertsOf(engine, -1)).toBe(90);
+      expect(s).toHaveAttribute("data-assets", "failed");
+      expect(engine.setAssets).not.toHaveBeenCalled();
+      expect(console.warn).toHaveBeenCalledTimes(1);
     });
 
     it("frame perf: tris and gpuMB reach usePerfStats", async () => {
