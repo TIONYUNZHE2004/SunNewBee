@@ -524,3 +524,98 @@ def test_traverse_fetches_tilesets_breadth_first(tmp_path):
     list(gtiles.traverse(BBOX, fetch, max_error=2, plan_only=True))
     names = [c.split("?")[0].rsplit("/", 1)[-1] for c in get.calls]
     assert names == ["root.json", "A.json", "B.json", "A1.json", "B1.json"]
+
+
+# --- triangles and offline mode (fix round 3) ---------------------------------------
+# Google's leaf glbs are coarse meshes (17-300 vertices per 38 m tile): a DSM needs the
+# triangles, not just the vertices.
+
+SQUARE = np.array([[0, 0, 0], [4, 0, 0], [4, 0, -4], [0, 0, -4]], dtype=np.float32)  # glTF y-up
+
+
+def _indexed_glb(indices, mode=4):
+    idx = np.asarray(indices, dtype=np.uint16)
+    pos = SQUARE.tobytes()
+    blob = pos + idx.tobytes() + b"\0" * ((-idx.nbytes) % 4)
+    views = [
+        pygltflib.BufferView(buffer=0, byteOffset=0, byteLength=len(pos)),
+        pygltflib.BufferView(buffer=0, byteOffset=len(pos), byteLength=idx.nbytes),
+    ]
+    accessors = [
+        pygltflib.Accessor(
+            bufferView=0, componentType=pygltflib.FLOAT, count=4, type=pygltflib.VEC3
+        ),
+        pygltflib.Accessor(
+            bufferView=1,
+            componentType=pygltflib.UNSIGNED_SHORT,
+            count=len(idx),
+            type=pygltflib.SCALAR,
+        ),
+    ]
+    g = pygltflib.GLTF2.load_from_bytes(_glb({"POSITION": 0}, blob, views, accessors))
+    g.meshes[0].primitives[0].indices = 1
+    g.meshes[0].primitives[0].mode = mode
+    return b"".join(g.save_to_bytes())
+
+
+def test_glb_triangles_indexed_with_node_transform_and_z_up():
+    tris = gtiles.glb_triangles(_indexed_glb([0, 1, 2, 0, 2, 3]))
+    assert tris.shape == (2, 3, 3)
+    # node translation x+10; y-up (x, y, z) -> z-up (x, -z, y)
+    assert np.allclose(tris[0], [[10, 0, 0], [14, 0, 0], [14, 4, 0]])
+    assert np.allclose(tris[1], [[10, 0, 0], [14, 4, 0], [10, 4, 0]])
+
+
+def test_glb_triangles_non_indexed():
+    tris = gtiles.glb_triangles(_plain_glb())
+    assert tris.shape == (1, 3, 3)
+    assert np.allclose(tris[0], [[10, 0, 1], [11, 0, 0], [10, -1, 0]])
+
+
+def test_glb_triangles_draco_uses_its_faces():
+    draco = DracoPy.encode(SQUARE, faces=np.array([[0, 1, 2], [0, 2, 3]], dtype=np.uint32))
+    blob = draco + b"\0" * ((-len(draco)) % 4)
+    glb = _glb(
+        {"POSITION": 0},
+        blob,
+        [pygltflib.BufferView(buffer=0, byteOffset=0, byteLength=len(draco))],
+        [pygltflib.Accessor(componentType=pygltflib.FLOAT, count=4, type=pygltflib.VEC3)],
+        extensions={"KHR_draco_mesh_compression": {"bufferView": 0, "attributes": {"POSITION": 0}}},
+        used=["KHR_draco_mesh_compression"],
+    )
+    tris = gtiles.glb_triangles(glb)
+    assert tris.shape == (2, 3, 3)
+    assert np.allclose(np.sort(tris.reshape(-1, 3)[:, 0]), [10, 10, 10, 14, 14, 14], atol=1e-3)
+
+
+def test_glb_triangles_refuse_non_triangle_modes():
+    with pytest.raises(gtiles.UnsupportedGlb, match="mode"):
+        gtiles.glb_triangles(_indexed_glb([0, 1, 2, 3], mode=5))
+
+
+def test_offline_fetcher_serves_cache_even_when_fresh_and_never_calls_get(tmp_path):
+    url = "https://h/root.json"
+    (tmp_path / f"{gtiles.cache_key(url)}.bin").write_bytes(b"cached-root")
+
+    def boom(*_a, **_k):
+        raise AssertionError("offline: get must never be called")
+
+    f = gtiles.Fetcher("", max_requests=0, cache=tmp_path, get=boom, offline=True)
+    assert f(url, fresh=True) == b"cached-root"
+    with pytest.raises(gtiles.OfflineMiss, match="not cached"):
+        f("https://h/missing.glb")
+    assert f.requests_made == 0
+    assert issubclass(gtiles.OfflineMiss, gtiles.TilesFetchError)
+
+
+def test_offline_traverse_runs_from_the_cache_alone(tmp_path):
+    routes = _session_routes("s1")
+    online = gtiles.Fetcher("K", max_requests=50, cache=tmp_path, get=FakeGet(routes))
+    first = [c.glb for c in gtiles.traverse(BBOX, online, max_error=10)]
+
+    def boom(*_a, **_k):
+        raise AssertionError("offline: get must never be called")
+
+    offline = gtiles.Fetcher("", max_requests=0, cache=tmp_path, get=boom, offline=True)
+    assert [c.glb for c in gtiles.traverse(BBOX, offline, max_error=10)] == first
+    assert offline.requests_made == 0
