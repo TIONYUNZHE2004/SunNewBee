@@ -30,3 +30,12 @@ Direct dependencies (pinned in `pyproject.toml` and `package.json` files) carry 
 | [666ghj/MiroFish](https://github.com/666ghj/MiroFish) | AGPL-3.0 (ideas only, no code) | Spotlight personas with a voice, activity-gated agents per round, a feed of posts and replies, interviews with simulated agents, and a report whose numbers come only from the run's aggregates | `packages/spatial/.../day/spotlight.py`, `voices.py`; `packages/agent/.../day_voice.py` |
 
 Papers behind the design are listed in [docs/02-research/world-models-2026.md](docs/02-research/world-models-2026.md).
+
+## Open data used for calibration (no code copied)
+
+| Data | Publisher and licence | Used in |
+|---|---|---|
+| Population by district, sex, age group and ethnicity (`population_district`, https://storage.dosm.gov.my/population/population_district.parquet) | Department of Statistics Malaysia (DOSM), CC BY 4.0 | `data/scripts/calibrate_day.py`, `data/sim/elmina/calibration.json` |
+| Enrolment in government schools by district (`enrolment_school_district`, via https://api.data.gov.my) | Ministry of Education Malaysia (EMIS) via data.gov.my, CC BY 4.0 | same |
+| Number of government schools by district (`schools_district`, via https://api.data.gov.my) | data.gov.my, CC BY 4.0 | same |
+

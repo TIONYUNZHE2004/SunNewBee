@@ -420,9 +420,58 @@ function About({ d, voice }: { d: Any; voice: Any }) {
           <li key={a}>{a}</li>
         ))}
       </ul>
+      {pop.calibration ? <Calibration c={pop.calibration as Any} /> : null}
       <p className="text-fg-soft">
         {str(voice.note)} Voices: {str(voice.model)}
         {voice.recorded_at ? `, recorded ${str(voice.recorded_at).slice(0, 10)}` : ""}.
+      </p>
+    </div>
+  );
+}
+
+/** The synthetic town checked against official open data for its district (Cycle 21). It
+ * reports the gap; nothing is fitted to it. */
+function Calibration({ c }: { c: Any }) {
+  const rows = (c.rows ?? []) as Any[];
+  if (!rows.length) return null;
+  return (
+    <div className="space-y-1">
+      <h3 className="text-xs font-semibold uppercase tracking-wide text-fg-soft">
+        Checked against {str(c.area)}, {num(c.year)}
+      </h3>
+      <table className="w-full text-xs">
+        <caption className="sr-only">The synthetic town against official figures</caption>
+        <thead>
+          <tr className="text-left text-fg-soft">
+            <th className="py-1 font-medium">What</th>
+            <th className="font-medium">Synthetic town</th>
+            <th className="font-medium">Official</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r) => (
+            <tr key={str(r.what)} className="border-t border-edge align-top text-fg">
+              <td className="py-1 pr-2">{str(r.what)}</td>
+              <td className="pr-2">{str(r.synthetic)}</td>
+              <td>{str(r.official)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <ul className="list-disc space-y-0.5 pl-4 text-fg-soft">
+        {((c.notes ?? []) as string[]).map((n) => (
+          <li key={n}>{n}</li>
+        ))}
+      </ul>
+      <p className="text-fg-soft">
+        Sources:{" "}
+        {((c.sources ?? []) as Any[]).map((s, i) => (
+          <span key={str(s.url)}>
+            {i > 0 && "; "}
+            {str(s.title)} ({str(s.licence)})
+          </span>
+        ))}
+        .
       </p>
     </div>
   );
