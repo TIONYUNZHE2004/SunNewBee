@@ -7,6 +7,7 @@ import {
   type ChatMessage,
   emptyAssistant,
   reduceChatEvent,
+  reduceIntent,
 } from "./chatReducer";
 import { parseSse } from "./parseSse";
 
@@ -70,7 +71,11 @@ export function useChatStream() {
             } catch {
               continue;
             }
-            if (ev.type === "scene.intent") useScene.getState().applyIntent(ev.intent);
+            if (ev.type === "scene.intent") {
+              const { intent } = ev;
+              useScene.getState().applyIntent(intent);
+              patch(aid, (m) => reduceIntent(m, intent));
+            }
             if (ev.type === "verification.requested")
               void queryClient.invalidateQueries({ queryKey: ["tickets"] });
             patch(aid, (m) => reduceChatEvent(m, ev));

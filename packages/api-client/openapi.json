@@ -160,6 +160,15 @@
             "title": "Buildings",
             "type": "object"
           },
+          "parks": {
+            "additionalProperties": true,
+            "default": {
+              "features": [],
+              "type": "FeatureCollection"
+            },
+            "title": "Parks",
+            "type": "object"
+          },
           "trees": {
             "additionalProperties": true,
             "title": "Trees",
@@ -1881,6 +1890,28 @@
             ],
             "title": "Center"
           },
+          "distance_m": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Distance M"
+          },
+          "est_minutes": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Est Minutes"
+          },
           "geojson": {
             "anyOf": [
               {
@@ -1952,6 +1983,23 @@
               }
             ],
             "title": "Route Id"
+          },
+          "route_status": {
+            "anyOf": [
+              {
+                "enum": [
+                  "confirmed",
+                  "partly_unverified",
+                  "blocked",
+                  "no_data"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Route Status"
           },
           "scenario_id": {
             "anyOf": [

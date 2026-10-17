@@ -31,23 +31,29 @@ export function TicketsPage() {
     );
 
   return (
-    <div className="mx-auto grid min-h-0 max-w-6xl lg:h-full lg:overflow-auto gap-6 p-4 lg:grid-cols-[minmax(280px,380px)_minmax(0,1fr)]">
-      <div className={showDetail ? "hidden lg:block" : ""}>
-        <TicketList
-          toCheck={toCheck}
-          checked={checked}
-          selectedId={selected?.id ?? null}
-          onSelect={(id) => {
-            setPicked(id);
-            setShowDetail(true);
-          }}
-        />
-      </div>
-      <div className={showDetail ? "" : "hidden lg:block"}>
-        <Button variant="outline" className="mb-3 lg:hidden" onClick={() => setShowDetail(false)}>
-          Back to list
-        </Button>
-        {selected ? <TicketDetail ticket={selected} /> : null}
+    // The full-width wrapper scrolls, so on wide screens its scrollbar sits at the window edge
+    // rather than beside the centred grid. pb-10 keeps the last card clear of the attribution.
+    <div className="min-h-0 lg:h-full lg:overflow-auto">
+      <div className="mx-auto grid max-w-6xl gap-6 p-4 pb-10 lg:grid-cols-[minmax(280px,380px)_minmax(0,1fr)]">
+        <div
+          className={`${showDetail ? "hidden lg:block" : ""} lg:glass lg:self-start lg:rounded-2xl lg:p-4`}
+        >
+          <TicketList
+            toCheck={toCheck}
+            checked={checked}
+            selectedId={selected?.id ?? null}
+            onSelect={(id) => {
+              setPicked(id);
+              setShowDetail(true);
+            }}
+          />
+        </div>
+        <div className={showDetail ? "" : "hidden lg:block"}>
+          <Button variant="outline" className="mb-3 lg:hidden" onClick={() => setShowDetail(false)}>
+            Back to list
+          </Button>
+          {selected ? <TicketDetail ticket={selected} /> : null}
+        </div>
       </div>
     </div>
   );

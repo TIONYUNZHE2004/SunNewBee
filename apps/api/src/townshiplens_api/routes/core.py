@@ -176,6 +176,8 @@ class BuildingsLayer(BaseModel):
     # Decorative base water (lake/riverbank polygons from OSM hydrology). Display only: this is
     # NOT a flood scenario and says nothing about water depth or extent in any event.
     water: dict[str, Any] = {"type": "FeatureCollection", "features": []}
+    # Display-only park/green outlines (OSM). Never a fact.
+    parks: dict[str, Any] = {"type": "FeatureCollection", "features": []}
     as_of: str | None = None
     attribution: list[str] = []
 
@@ -233,7 +235,15 @@ def buildings_layer(request: Request, response: Response):
         raise HTTPException(404, "no buildings data for this world")
     site_path = data / "site.json"
     h_path = data / "base" / "hydrology.geojson"
-    key = (str(data), _mtime(b_path), _mtime(t_path), _mtime(site_path), _mtime(h_path))
+    p_path = data / "base" / "parks.geojson"
+    key = (
+        str(data),
+        _mtime(b_path),
+        _mtime(t_path),
+        _mtime(site_path),
+        _mtime(h_path),
+        _mtime(p_path),
+    )
     hit = _buildings_cache.get(key)
     if hit is None:
         try:
@@ -244,6 +254,7 @@ def buildings_layer(request: Request, response: Response):
                 buildings=_read_collection(b_path),
                 trees=_read_collection(t_path),
                 water=_polygons_only(_read_collection(h_path)),
+                parks=_polygons_only(_read_collection(p_path)),
                 as_of=(site.get("buildings") or {}).get("as_of"),
                 attribution=list(site.get("attribution") or []),
             )

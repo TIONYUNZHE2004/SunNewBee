@@ -2,6 +2,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { PHOTO_ACCEPT, validatePhoto } from "../../lib/evidence";
 import { Button } from "../../ui/Button";
+import { Icon, type IconName } from "../../ui/icons";
 import { optionLabel, specFor } from "./attributeCatalogue";
 import { parseValue } from "./attributeForm";
 import { ApiError, type ResolveBody, resolveVR, uploadEvidence } from "./manageApi";
@@ -11,6 +12,8 @@ import type { Ticket } from "./ticketModel";
 import { useStaffToken } from "./useStaffToken";
 
 type Outcome = ResolveBody["action"];
+
+const ICONS: Record<Outcome, IconName> = { verify: "check", correct: "pin", reject: "close" };
 
 const DEFAULT_NOTE = "Checked on site";
 const NEEDS_STAFF = "Staff access needed";
@@ -118,28 +121,40 @@ export function OutcomeForm({ ticket, onSaved }: { ticket: Ticket; onSaved?: () 
   return (
     <div>
       {showAccess && <StaffAccess token={token} setToken={setToken} />}
-      <h3 className="text-base font-semibold text-fg">What did you find on site?</h3>
-      <div role="radiogroup" aria-label="Outcome" className="mt-3 grid gap-2 sm:grid-cols-3">
-        {options.map((o) => {
-          const on = outcome === o.id;
-          return (
-            // biome-ignore lint/a11y/useSemanticElements: card-style radio buttons with a description
-            <button
+      <fieldset className="m-0 min-w-0 border-0 p-0">
+        <legend className="text-base font-semibold text-fg">What did you find on site?</legend>
+        <div className="mt-3 grid gap-2 sm:grid-cols-3">
+          {options.map((o) => (
+            <label
               key={o.id}
-              type="button"
-              role="radio"
-              aria-checked={on}
-              onClick={() => choose(o.id)}
-              className={`min-h-16 rounded-lg border p-3 text-left text-sm transition ${
-                on ? "border-accent bg-accent text-on-accent" : "border-edge bg-surface text-fg"
-              }`}
+              className="flex min-h-20 cursor-pointer flex-col gap-1 rounded-xl border border-edge p-3 text-sm text-fg transition has-[:checked]:border-2 has-[:checked]:border-accent has-[:checked]:bg-brand-tint has-[:checked]:p-[11px] has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-focus"
             >
-              <span className="block font-semibold">{o.label}</span>
-              <span className={`block text-xs ${on ? "" : "text-fg-soft"}`}>{o.desc}</span>
-            </button>
-          );
-        })}
-      </div>
+              <input
+                type="radio"
+                name="outcome"
+                value={o.id}
+                checked={outcome === o.id}
+                onChange={() => choose(o.id)}
+                className="sr-only"
+              />
+              <span className="flex items-center gap-2 font-semibold">
+                <Icon name={ICONS[o.id]} className="size-4" />
+                {o.label}
+                {outcome === o.id && (
+                  <span
+                    data-testid="choice-check"
+                    aria-hidden="true"
+                    className="ml-auto text-accent"
+                  >
+                    <Icon name="check" className="size-4" />
+                  </span>
+                )}
+              </span>
+              <span className="text-xs text-fg-soft">{o.desc}</span>
+            </label>
+          ))}
+        </div>
+      </fieldset>
 
       {outcome === "correct" && (
         <div className="mt-3">
@@ -189,12 +204,22 @@ export function OutcomeForm({ ticket, onSaved }: { ticket: Ticket; onSaved?: () 
 
       {outcome !== "reject" && (
         <div className="mt-3">
-          <label
-            htmlFor="outcome-photo"
-            className="inline-flex min-h-11 cursor-pointer items-center rounded-lg border border-edge px-4 text-sm font-semibold text-fg"
-          >
-            {photo ? "Change photo" : "Add photo"}
-          </label>
+          <div className="flex items-center gap-3">
+            <label
+              htmlFor="outcome-photo"
+              className="inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-lg border border-edge px-4 text-sm font-semibold text-fg"
+            >
+              <Icon name="camera" className="size-4" />
+              {photo ? "Change photo" : "Add photo"}
+            </label>
+            {photoUrl && (
+              <img
+                src={photoUrl}
+                alt="Chosen evidence preview"
+                className="size-24 rounded-xl object-cover"
+              />
+            )}
+          </div>
           <input
             id="outcome-photo"
             type="file"
@@ -208,9 +233,6 @@ export function OutcomeForm({ ticket, onSaved }: { ticket: Ticket; onSaved?: () 
             }}
           />
           {photoError && <p className="mt-1 text-sm text-fg">{photoError}</p>}
-          {photoUrl && (
-            <img src={photoUrl} alt="Chosen evidence preview" className="mt-2 h-24 rounded-lg" />
-          )}
           <p className="mt-1 text-xs text-fg-soft">{PHOTO_PRIVACY_NOTE}</p>
         </div>
       )}

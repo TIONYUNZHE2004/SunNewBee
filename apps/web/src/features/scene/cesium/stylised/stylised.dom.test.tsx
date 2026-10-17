@@ -21,9 +21,18 @@ const BUILDINGS = {
 // Just enough viewer for applyStylisedLook (the fake primitives collections are mocked per test).
 const FAKE_VIEWER = {
   isDestroyed: () => false,
+  shadows: false,
+  resolutionScale: 1,
+  camera: { changed: { addEventListener: () => () => {} } },
   scene: {
+    postProcessStages: {
+      fxaa: { enabled: false, uniforms: {} },
+      ambientOcclusion: { enabled: false, uniforms: {} },
+      bloom: { enabled: false, uniforms: {} },
+    },
+    shadowMap: {},
     imageryLayers: { length: 0, get: () => undefined },
-    globe: { baseColor: { clone: () => ({}) } },
+    globe: { baseColor: { clone: () => ({}) }, shadows: 0 },
     backgroundColor: { clone: () => ({}) },
     fog: { density: 0 },
     primitives: {},
@@ -150,9 +159,13 @@ describe("decorative props honesty", () => {
   it("props are never pickable and carry no pick id", () => {
     const f = fakeCesium();
     buildProps(f.C as unknown as PropsCesium, {
-      trees: [{ lon: 101.5, lat: 3.18, h: 8 }],
+      trees: [{ lon: 101.5, lat: 3.18, h: 8, tier2: true }],
+      lamps: [{ lon: 101.5, lat: 3.1801 }],
+      roofItems: [{ lon: 101.5, lat: 3.18, z: 10, kind: "ac", sizeM: 1.2 }],
+      detailRangeM: 1500,
       cars: [{ lon: 101.5, lat: 3.181, headingRad: 0, tone: 0 }],
       palette: paletteFor("night"),
+      at: { lon: 101.5, lat: 3.18 },
     });
     expect(f.primitives.length).toBeGreaterThan(0);
     for (const p of f.primitives) {
@@ -184,7 +197,7 @@ describe("decorative props honesty", () => {
     });
     const baseWater = { type: "FeatureCollection", features: [poly(101.5)] };
     const scenarioWater = { type: "FeatureCollection", features: [poly(101.9)] };
-    const buildGround = vi.fn(() => ({ setTheme: vi.fn(), destroy: vi.fn() }));
+    const buildGround = vi.fn(() => ({ setPalette: vi.fn(), setTime: vi.fn(), destroy: vi.fn() }));
     vi.resetModules();
     vi.doMock("resium", () => ({ useCesium: () => ({ viewer: FAKE_VIEWER }) }));
     vi.doMock("./ground", async (orig) => ({
@@ -192,14 +205,28 @@ describe("decorative props honesty", () => {
       buildGround,
     }));
     vi.doMock("./buildingsPrimitive", () => ({
-      buildBuildingPrimitives: () => ({ primitives: [], setTheme: vi.fn(), destroy: vi.fn() }),
+      buildBuildingPrimitives: () => ({
+        primitives: [],
+        setPalette: vi.fn(),
+        setTime: vi.fn(),
+        destroy: vi.fn(),
+      }),
     }));
     vi.doMock("./props", () => ({
-      buildProps: () => ({ setTheme: vi.fn(), destroy: vi.fn() }),
+      buildProps: () => ({ setPalette: vi.fn(), setTime: vi.fn(), destroy: vi.fn() }),
       kerbCars: () => [],
       streetTrees: () => [],
+      streetLamps: () => [],
     }));
-    vi.doMock("./reskin", () => ({ reskin: vi.fn() }));
+    vi.doMock("./reskin", () => ({ reskin: vi.fn(), reskinPalette: vi.fn() }));
+    vi.doMock("./motion/sky", () => ({
+      buildSky: () => ({
+        setPalette: vi.fn(),
+        tick: vi.fn(),
+        setVisible: vi.fn(),
+        destroy: vi.fn(),
+      }),
+    }));
     const { StylisedCity: City } = await import("./StylisedCity");
     const qc = newQueryClient();
     qc.setQueryData(["buildings"], { ...BUILDINGS, water: baseWater });
@@ -232,5 +259,6 @@ describe("decorative props honesty", () => {
     vi.doUnmock("./buildingsPrimitive");
     vi.doUnmock("./props");
     vi.doUnmock("./reskin");
+    vi.doUnmock("./motion/sky");
   });
 });

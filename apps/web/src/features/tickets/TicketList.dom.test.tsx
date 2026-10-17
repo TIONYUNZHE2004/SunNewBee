@@ -1,10 +1,12 @@
 // @vitest-environment jsdom
-import { screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { createMemoryRouter, RouterProvider } from "react-router";
 import { describe, expect, it } from "vitest";
 import { json, renderWithClient, stubFetch } from "../../test/helpers";
+import { TicketList } from "./TicketList";
 import { TicketsPage } from "./TicketsPage";
+import type { Ticket } from "./ticketModel";
 
 const now = Date.now();
 const iso = (minAgo: number) => new Date(now - minAgo * 60_000).toISOString();
@@ -60,9 +62,8 @@ function setup() {
 describe("TicketsPage list", () => {
   it("groups To check (count) and Checked, most asked first", async () => {
     setup();
-    const toCheck = await screen.findByRole("heading", { name: /To check/ });
-    expect(within(toCheck).getByText("2")).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: /Checked/ })).toBeInTheDocument();
+    const tabs = await screen.findAllByRole("tab");
+    expect(tabs.map((x) => x.textContent)).toEqual(["To check2", "Checked1"]);
     const list = screen.getByRole("region", { name: "Ticket list" });
     const buttons = within(list)
       .getAllByRole("button", { pressed: false })
@@ -86,6 +87,97 @@ describe("TicketsPage list", () => {
     await userEvent.click(row);
     expect(row).toHaveAttribute("aria-pressed", "true");
     expect(await screen.findByRole("heading", { level: 2, name: "Step count" })).toBeVisible();
-    expect(screen.getByRole("radiogroup", { name: "Outcome" })).toBeInTheDocument();
+    expect(screen.getByRole("group", { name: "What did you find on site?" })).toBeInTheDocument();
+  });
+});
+
+const tk = (id: string, over: Partial<Ticket> = {}): Ticket => ({
+  id,
+  attribute: "step_count",
+  fact: `Fact ${id}`,
+  place: `Place ${id}`,
+  reason: "unknown",
+  reasonLabel: "Unknown",
+  kind: "k",
+  asked: 1,
+  ago: "just now",
+  current: null,
+  hasCurrent: false,
+  isOpen: true,
+  isRejected: false,
+  isChecked: false,
+  resolution: null,
+  createdMs: 0,
+  resolvedMs: 0,
+  ...over,
+});
+
+describe("TicketList tabs and meter", () => {
+  const t1 = tk("t1");
+  const t2 = tk("t2");
+  const t3 = tk("t3", { isOpen: false, isChecked: true });
+  it("To check and Checked are tabs with counts", () => {
+    render(<TicketList toCheck={[t1, t2]} checked={[t3]} selectedId={null} onSelect={() => {}} />);
+    const tabs = screen.getAllByRole("tab");
+    expect(tabs.map((t) => t.textContent)).toEqual(["To check2", "Checked1"]);
+    expect(tabs[0]).toHaveAttribute("aria-selected", "true");
+    fireEvent.click(tabs[1] as HTMLElement);
+    expect(screen.getByRole("tabpanel")).toHaveTextContent(t3.fact);
+  });
+  it("opens on Checked when nothing is left to check", () => {
+    render(<TicketList toCheck={[]} checked={[t3]} selectedId={null} onSelect={() => {}} />);
+    expect(screen.getAllByRole("tab")[1]).toHaveAttribute("aria-selected", "true");
+  });
+  it("each open ticket shows how often it was asked as a meter", () => {
+    render(
+      <TicketList
+        toCheck={[
+          { ...t1, asked: 3 },
+          { ...t2, asked: 1 },
+        ]}
+        checked={[]}
+        selectedId={null}
+        onSelect={() => {}}
+      />,
+    );
+    const m = screen.getAllByRole("meter");
+    expect(m[0]).toHaveAttribute("aria-valuenow", "3");
+    expect(m[0]).toHaveAttribute("aria-valuemax", "3");
+    expect(m[0]).toHaveAccessibleName("Asked 3 times");
+    expect(m[1]).toHaveAccessibleName("Asked 1 time");
+  });
+  it("tabs use roving tabindex and arrow, Home and End keys", () => {
+    render(<TicketList toCheck={[t1]} checked={[t3]} selectedId={null} onSelect={() => {}} />);
+    const [a, b] = screen.getAllByRole("tab") as HTMLElement[];
+    expect([a?.tabIndex, b?.tabIndex]).toEqual([0, -1]);
+    fireEvent.keyDown(a as HTMLElement, { key: "ArrowRight" });
+    expect(b).toHaveAttribute("aria-selected", "true");
+    expect(b).toHaveFocus();
+    expect([a?.tabIndex, b?.tabIndex]).toEqual([-1, 0]);
+    fireEvent.keyDown(b as HTMLElement, { key: "ArrowRight" });
+    expect(a).toHaveAttribute("aria-selected", "true");
+    fireEvent.keyDown(a as HTMLElement, { key: "ArrowLeft" });
+    expect(b).toHaveAttribute("aria-selected", "true");
+    fireEvent.keyDown(b as HTMLElement, { key: "Home" });
+    expect(a).toHaveFocus();
+    fireEvent.keyDown(a as HTMLElement, { key: "End" });
+    expect(b).toHaveFocus();
+  });
+  it("follows the selected ticket when it moves to Checked", () => {
+    const p = { selectedId: "t1", onSelect: () => {}, checked: [] as Ticket[] };
+    const { rerender } = render(<TicketList toCheck={[t1]} {...p} />);
+    expect(screen.getAllByRole("tab")[0]).toHaveAttribute("aria-selected", "true");
+    rerender(<TicketList toCheck={[]} {...p} checked={[{ ...t1, isChecked: true }]} />);
+    expect(screen.getAllByRole("tab")[1]).toHaveAttribute("aria-selected", "true");
+  });
+  it("the selected row shows selection with outline and bar, not glass-overridden props", () => {
+    render(<TicketList toCheck={[t1, t2]} checked={[]} selectedId="t2" onSelect={() => {}} />);
+    const rows = screen.getAllByRole("button", { pressed: true });
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toHaveClass("outline-2", "outline-accent");
+    expect(rows[0]?.querySelector('span[aria-hidden="true"]')).toHaveClass("bg-accent");
+    const other = screen.getAllByRole("button", { pressed: false })[0];
+    expect(other).not.toHaveClass("outline-accent");
+    expect(other?.querySelector('span[aria-hidden="true"]')).toBeNull();
   });
 });

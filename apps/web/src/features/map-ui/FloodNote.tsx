@@ -1,5 +1,6 @@
 import { useScenarios } from "../../lib/api";
 import { useScene } from "../scene/sceneStore";
+import { InSlot } from "./mapSlots";
 
 const LINK = "font-medium text-lilac underline underline-offset-2";
 
@@ -11,42 +12,41 @@ export function FloodNote() {
   const sc = data?.find((s) => s.id === scenarioId);
   const label = typeof sc?.stage_m === "number" ? `+${sc.stage_m} m` : (sc?.label ?? scenarioId);
   return (
-    <div
-      role="note"
-      className="absolute bottom-4 left-4 z-10 max-w-[min(24rem,calc(100%-5rem))] rounded-xl border border-flood bg-surface/95 px-3 py-2 text-sm text-fg shadow-md"
-    >
-      <p className="m-0 font-medium">River {label} · indicative scenario, not a forecast</p>
-      <p className="m-0 mt-1">
-        For official guidance see{" "}
-        <a
-          className={LINK}
-          href="https://www.mbsa.gov.my"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          MBSA
-        </a>
-        ,{" "}
-        <a
-          className={LINK}
-          href="https://publicinfobanjir.water.gov.my"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          JPS
-        </a>{" "}
-        and{" "}
-        <a
-          className={LINK}
-          href="https://www.nadma.gov.my"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          NADMA
-        </a>
-        .
-      </p>
-      {sc?.disclaimer && <p className="m-0 mt-1 text-xs text-fg-soft">{sc.disclaimer}</p>}
-    </div>
+    <InSlot name="flood">
+      <div role="note" className="glass rounded-2xl px-4 py-2 text-sm text-fg sm:rounded-full">
+        <p className="m-0">
+          <span className="font-medium">
+            River {label} · Indicative scenario, not a forecast · Official guidance:
+          </span>{" "}
+          <a
+            className={LINK}
+            href="https://www.mbsa.gov.my"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            MBSA
+          </a>
+          {" / "}
+          <a
+            className={LINK}
+            href="https://publicinfobanjir.water.gov.my"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            JPS
+          </a>
+          {" / "}
+          <a
+            className={LINK}
+            href="https://www.nadma.gov.my"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            NADMA
+          </a>
+        </p>
+        {sc?.disclaimer && <p className="m-0 mt-1 text-xs text-fg-soft">{sc.disclaimer}</p>}
+      </div>
+    </InSlot>
   );
 }

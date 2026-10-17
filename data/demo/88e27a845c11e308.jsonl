@@ -1,4 +1,4 @@
-{"meta": {"message": "Is the walk from the urban park to the lakeside mall easy?", "profile": "default", "scenario_id": null, "world": "elmina", "model": "mock-scripted", "recorded_at": "2026-10-15T06:50:42+00:00"}}
+{"meta": {"message": "Is the walk from the urban park to the lakeside mall easy?", "profile": "default", "scenario_id": null, "world": "elmina", "model": "mock-scripted", "recorded_at": "2026-10-16T14:23:01+00:00"}}
 {"type": "tool.call", "id": "find_place-0", "name": "find_place", "args": {"query": "urban park", "types": null, "limit": 5}}
 {"type": "tool.result", "id": "find_place-0", "name": "find_place", "summary": "5 result(s)"}
 {"type": "tool.call", "id": "find_place-1", "name": "find_place", "args": {"query": "lakeside mall", "types": null, "limit": 5}}
@@ -13,7 +13,7 @@
 {"type": "text.delta", "delta": "Elmina Urban Park to Elmina Lakeside Mal"}
 {"type": "text.delta", "delta": "l: route confirmed (on demo values, not "}
 {"type": "text.delta", "delta": "yet surveyed), 119.8 m."}
-{"type": "scene.intent", "intent": {"kind": "route.highlight", "place_id": null, "route_id": "rt-279d8891", "scenario_id": null, "center": null, "range_m": null, "lens": null, "visible": null, "geojson": {"type": "LineString", "coordinates": [[101.509854, 3.180547], [101.509999, 3.180661], [101.510071, 3.180734], [101.50979, 3.181102], [101.510045, 3.18131]]}}}
+{"type": "scene.intent", "intent": {"kind": "route.highlight", "place_id": null, "route_id": "rt-279d8891", "scenario_id": null, "center": null, "range_m": null, "lens": null, "visible": null, "geojson": {"type": "LineString", "coordinates": [[101.509854, 3.180547], [101.509999, 3.180661], [101.510071, 3.180734], [101.50979, 3.181102], [101.510045, 3.18131]]}, "route_status": "confirmed", "distance_m": 119.8, "est_minutes": 1.7}}
 {"type": "citation", "ref": 1, "evidence_id": "ev-place-osm-way-1309457596", "element_id": "osm-way-1309457596", "attribute": "name", "status": "reported", "verified_at": null, "source_type": "world_model", "photo_url": null}
 {"type": "citation", "ref": 2, "evidence_id": "ev-place-lakeside-mall", "element_id": "lakeside-mall", "attribute": "name", "status": "reported", "verified_at": null, "source_type": "world_model", "photo_url": null}
 {"type": "citation", "ref": 3, "evidence_id": "ev-seg-1318133037-2.step_count", "element_id": "seg-1318133037-2", "attribute": "step_count", "status": "verified", "verified_at": "2026-10-15", "source_type": "team_survey_placeholder", "photo_url": null}

@@ -25,6 +25,35 @@ const vr = (id: string, demand: number, over: object = {}) => ({
 beforeEach(() => useStaffTokenStore.setState({ token: "tok" }));
 
 describe("TicketsPage", () => {
+  it("leaves room at the bottom for the attribution strip", async () => {
+    stubFetch((url) => json(url.includes("verification-requests") ? [vr("one", 5)] : []));
+    const { container } = renderWithClient(
+      <MemoryRouter>
+        <TicketsPage />
+      </MemoryRouter>,
+    );
+    await screen.findByRole("heading", { name: "Gaps to close" });
+    const grid = container.firstElementChild?.firstElementChild;
+    expect(grid).toHaveClass("pb-10");
+  });
+  it("scrolls in a full-width wrapper so the scrollbar sits at the window edge, not mid-page", async () => {
+    stubFetch((url) => json(url.includes("verification-requests") ? [vr("one", 5)] : []));
+    const { container } = renderWithClient(
+      <MemoryRouter>
+        <TicketsPage />
+      </MemoryRouter>,
+    );
+    await screen.findByRole("heading", { name: "Gaps to close" });
+    const scroller = container.firstElementChild as HTMLElement;
+    const scrollerClasses = scroller.className.split(/\s+/);
+    expect(scrollerClasses).toEqual(expect.arrayContaining(["lg:h-full", "lg:overflow-auto"]));
+    expect(scrollerClasses.some((c) => c.startsWith("max-w-") || c === "mx-auto")).toBe(false);
+    const grid = scroller.firstElementChild as HTMLElement;
+    expect(grid.className.split(/\s+/)).toEqual(
+      expect.arrayContaining(["mx-auto", "max-w-6xl", "grid"]),
+    );
+    expect(grid.className).not.toContain("overflow-auto");
+  });
   it("keeps the auto-selected ticket after Save instead of jumping to the next", async () => {
     let first: object = vr("one", 5);
     stubFetch((url, init) => {
@@ -45,12 +74,14 @@ describe("TicketsPage", () => {
         <TicketsPage />
       </MemoryRouter>,
     );
-    await screen.findByRole("radiogroup", { name: "Outcome" });
+    await screen.findByRole("group", { name: "What did you find on site?" });
     const user = userEvent.setup();
     await user.click(screen.getByRole("radio", { name: /Record what you found/ }));
     await user.type(screen.getByLabelText("Value found on site"), "2");
     await user.click(screen.getByRole("button", { name: "Save result" }));
     expect(await screen.findByText(/Verified on/)).toBeInTheDocument();
-    expect(screen.queryByRole("radiogroup", { name: "Outcome" })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("group", { name: "What did you find on site?" }),
+    ).not.toBeInTheDocument();
   });
 });

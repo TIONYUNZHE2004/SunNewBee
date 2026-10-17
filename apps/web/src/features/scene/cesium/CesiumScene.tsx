@@ -5,13 +5,35 @@ import { type CesiumComponentRef, useCesium, Viewer } from "resium";
 import { useLayer, useSite } from "../../../lib/api";
 import { ENV } from "../../../lib/env";
 import { useTheme } from "../../../ui/theme";
+import { usePanel } from "../../main/panelStore";
+import { isWide } from "../../main/usePanelReserve";
+import { frustumXOffset, PANEL_INSET_PX, panelWidthPx } from "../../main/viewport";
+import { InSlot } from "../../map-ui/mapSlots";
 import { pickedFloodEdgeId, pointFeatures } from "../geo";
 import { useScene } from "../sceneStore";
 import { useMapStyle } from "../useMapStyle";
 import { useCameraIntents } from "./camera";
-import { type HomeView, homeView, shouldReframe, stylisedHomeView } from "./home";
+import { CameraControls, handleMapKey } from "./controls/CameraControls";
+import { trackHeading } from "./controls/cameraHeadingStore";
+import { type CameraOps, createCameraOps, frameNow } from "./controls/cameraOps";
+import { configureControls } from "./controls/configureControls";
+import { movedInputs } from "./controls/movedInputs";
+import { patchCameraPickRay, patchFrustumClone } from "./frustumClone";
+import {
+  DEFAULT_FOV_DEG,
+  DEFAULT_PITCH_DEG,
+  fovForVertical,
+  framingFor,
+  homeView,
+  STYLISED_FOV_DEG,
+  STYLISED_PITCH_DEG,
+  shouldReframe,
+} from "./home";
 import { AccessLayer, FloodLayer, WasteLayer } from "./layers";
+import { PerfOverlay, SlowBanner } from "./PerfOverlay";
 import { setupRealistic } from "./realistic";
+import { paletteFor } from "./stylised/palette";
+import { skyCss } from "./stylised/postfx";
 import { StylisedCity } from "./stylised/StylisedCity";
 import { applyCesiumTime, cesiumTimeStyle, type TimeOps } from "./timeOfDay";
 
@@ -27,22 +49,25 @@ const TIME_OPS: TimeOps = {
 
 const PICK_PX = 8;
 
-function frameHome(viewer: Cesium.Viewer, { lon, lat, range_m }: HomeView) {
-  viewer.camera.lookAt(
-    Cesium.Cartesian3.fromDegrees(lon, lat, 0),
-    new Cesium.HeadingPitchRange(0, Cesium.Math.toRadians(-45), range_m),
-  );
-  viewer.camera.lookAtTransform(Cesium.Matrix4.IDENTITY);
-  viewer.scene.requestRender();
-}
+// The panel reserve sets frustum.xOffset: without these the camera never equals its (offset-less)
+// clone, so requestRenderMode renders every frame, and pick rays ignore the offset that rendering
+// applies (see frustumClone.ts).
+patchFrustumClone(Cesium.PerspectiveFrustum);
+patchCameraPickRay(Cesium.Camera);
+
+// Module-level: resium compares read-only Viewer props by reference and recreates the viewer on a
+// new object, so an inline literal would rebuild the WebGL context on every render.
+const CONTEXT_OPTIONS = { webgl: { alpha: true } } as const;
 
 /** Child of <Viewer>: mounts only after resium has created the viewer. */
 function SceneSetup({
   onNoDraping,
   onTilesFailed,
+  onOps,
 }: {
   onNoDraping: () => void;
   onTilesFailed: () => void;
+  onOps?: (ops: CameraOps | null) => void;
 }) {
   const { viewer } = useCesium();
   const profile = useScene((s) => s.profile);
@@ -97,21 +122,14 @@ function SceneSetup({
     const onMove = () => {
       framing.current.moved = true;
     };
-    for (const t of [
-      Cesium.ScreenSpaceEventType.LEFT_DOWN,
-      Cesium.ScreenSpaceEventType.RIGHT_DOWN,
-      Cesium.ScreenSpaceEventType.MIDDLE_DOWN,
-      Cesium.ScreenSpaceEventType.WHEEL,
-      Cesium.ScreenSpaceEventType.PINCH_START,
-    ]) {
-      handler.setInputAction(onMove, t);
+    for (const [type, modifier] of movedInputs(Cesium)) {
+      handler.setInputAction(onMove, type, modifier);
     }
     return () => handler.destroy();
   }, [viewer]);
   useEffect(() => {
     if (!viewer || viewer.isDestroyed() || !shouldReframe(framing.current)) return;
-    const home = homeView(siteData);
-    frameHome(viewer, style === "stylised" ? stylisedHomeView(home) : home);
+    frameNow(Cesium, viewer, framingFor(style, homeView(siteData)));
     // Locked once the real inputs are in (site data + the settled default style). After that a
     // style switch keeps whatever the camera shows, e.g. a fly-to the assistant just made.
     if (siteData && settled) framing.current.reframed = true;
@@ -146,19 +164,112 @@ function SceneSetup({
   const onIntentMoved = useCallback(() => {
     framing.current.moved = true;
   }, []);
-  useCameraIntents(focusPoint, onIntentMoved);
+  useCameraIntents(
+    focusPoint,
+    onIntentMoved,
+    style === "stylised" ? STYLISED_PITCH_DEG : DEFAULT_PITCH_DEG,
+  );
+
+  // Vertical field of view per style (Cesium's fov is the horizontal angle on landscape canvases).
+  useEffect(() => {
+    if (!viewer || viewer.isDestroyed()) return;
+    const apply = () => {
+      const f = viewer.camera.frustum;
+      if (!(f instanceof Cesium.PerspectiveFrustum)) return;
+      f.fov =
+        style !== "stylised"
+          ? Cesium.Math.toRadians(DEFAULT_FOV_DEG)
+          : fovForVertical(STYLISED_FOV_DEG, viewer.canvas.clientWidth, viewer.canvas.clientHeight);
+      viewer.scene.requestRender();
+    };
+    apply();
+    const ro = new ResizeObserver(apply);
+    ro.observe(viewer.canvas);
+    return () => ro.disconnect();
+  }, [viewer, style]);
+
+  // Shift the projection so the look point sits in the middle of the map area left of the panel.
+  // Runs after the fov effect above (same `style` dependency), so `f.fov` is current.
+  const panelOpen = usePanel((s) => s.open);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `style` re-runs this after the fov effect changes f.fov
+  useEffect(() => {
+    if (!viewer || viewer.isDestroyed()) return;
+    const apply = () => {
+      const f = viewer.camera.frustum;
+      if (!(f instanceof Cesium.PerspectiveFrustum)) return;
+      const w = viewer.canvas.clientWidth;
+      const h = viewer.canvas.clientHeight;
+      const wide = isWide(); // phones use the sheet, not a side panel
+      const panel = wide && panelOpen ? panelWidthPx(innerWidth) + PANEL_INSET_PX * 2 : 0;
+      f.xOffset = frustumXOffset(panel / 2, w, f.near, f.fov ?? 0, h);
+      viewer.scene.requestRender();
+    };
+    apply();
+    const ro = new ResizeObserver(apply);
+    ro.observe(viewer.canvas);
+    return () => ro.disconnect();
+  }, [viewer, panelOpen, style]);
+
+  // The compass follows the heading through its own store, so camera moves never re-render the
+  // Viewer subtree (only the compass subscribes).
+  useEffect(() => {
+    if (!viewer || viewer.isDestroyed()) return;
+    return trackHeading(viewer.camera);
+  }, [viewer]);
+
+  // Camera actions (buttons, keyboard, double-click) and the mouse/touch mapping with limits.
+  const onOpsRef = useRef(onOps);
+  onOpsRef.current = onOps;
+  const framingRef = useRef(framingFor(style, homeView(siteData)));
+  framingRef.current = framingFor(style, homeView(siteData));
+  const bboxRef = useRef<[number, number, number, number]>([101.46, 3.15, 101.53, 3.24]);
+  if (siteData?.bbox?.length === 4)
+    bboxRef.current = siteData.bbox as [number, number, number, number];
+  useEffect(() => {
+    if (!viewer || viewer.isDestroyed()) return;
+    const ops = createCameraOps(
+      Cesium,
+      viewer,
+      () => framingRef.current,
+      () => bboxRef.current,
+      () => {
+        framing.current.moved = true;
+      },
+    );
+    const undo = configureControls(Cesium, viewer, ops, () => bboxRef.current);
+    onOpsRef.current?.(ops);
+    return () => {
+      onOpsRef.current?.(null);
+      undo();
+    };
+  }, [viewer]);
   return null;
 }
 
-export default function CesiumScene() {
+export default function CesiumScene({ onOps }: { onOps?: (ops: CameraOps | null) => void } = {}) {
   const ref = useRef<CesiumComponentRef<Cesium.Viewer>>(null);
   const [noDraping, setNoDraping] = useState(false);
   const [tilesFailed, setTilesFailed] = useState(false);
   const onTilesFailed = useCallback(() => setTilesFailed(true), []);
   const onNoDraping = useCallback(() => setNoDraping(true), []);
   const { style } = useMapStyle();
+  const theme = useTheme((s) => s.theme);
+  const [ops, setOpsState] = useState<CameraOps | null>(null);
+  const onOpsRef = useRef(onOps);
+  onOpsRef.current = onOps;
+  const setOps = useCallback((o: CameraOps | null) => {
+    setOpsState(o);
+    onOpsRef.current?.(o);
+  }, []);
   return (
-    <section className="relative h-full w-full">
+    <section
+      className="relative h-full w-full"
+      style={style === "stylised" ? { background: skyCss(paletteFor(theme)) } : undefined}
+      // biome-ignore lint/a11y/noNoninteractiveTabindex: the 3D map takes keyboard focus for WASD/QE/RF
+      tabIndex={0}
+      aria-label="3D map. Arrow keys or WASD move, Q and E rotate, R and F tilt, plus and minus zoom, N faces north."
+      onKeyDown={(e) => handleMapKey(e, ops)}
+    >
       {tilesFailed && style === "realistic" && (
         <p
           role="status"
@@ -168,18 +279,18 @@ export default function CesiumScene() {
         </p>
       )}
       {noDraping && (
-        <p
-          role="note"
-          className="absolute bottom-8 left-2 z-10 rounded-md border border-line bg-surface/95 px-2 py-1 text-xs text-fg"
-        >
-          Paths shown without terrain draping
-        </p>
+        <InSlot name="notes">
+          <p role="note" className="glass rounded-md px-2 py-1 text-xs text-fg">
+            Paths shown without terrain draping
+          </p>
+        </InSlot>
       )}
       <Viewer
         ref={ref}
         full={false}
         style={{ width: "100%", height: "100%" }}
         requestRenderMode
+        contextOptions={CONTEXT_OPTIONS}
         onUpdate={() => {
           const v = ref.current?.cesiumElement;
           if (v && !v.isDestroyed()) v.scene.requestRender();
@@ -198,12 +309,15 @@ export default function CesiumScene() {
         selectionIndicator={false}
         fullscreenButton={false}
       >
-        <SceneSetup onNoDraping={onNoDraping} onTilesFailed={onTilesFailed} />
+        <SceneSetup onNoDraping={onNoDraping} onTilesFailed={onTilesFailed} onOps={setOps} />
         {style === "stylised" && <StylisedCity />}
         <AccessLayer />
         <FloodLayer />
         <WasteLayer />
       </Viewer>
+      <CameraControls ops={ops} />
+      <PerfOverlay />
+      <SlowBanner />
     </section>
   );
 }

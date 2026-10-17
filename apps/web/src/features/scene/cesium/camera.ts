@@ -6,10 +6,10 @@ import { useScene } from "../sceneStore";
 export const prefersReducedMotion = () =>
   typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-function go(viewer: Cesium.Viewer, sphere: Cesium.BoundingSphere, rangeM?: number) {
+function go(viewer: Cesium.Viewer, sphere: Cesium.BoundingSphere, rangeM?: number, pitchDeg = -45) {
   const offset = new Cesium.HeadingPitchRange(
     0,
-    Cesium.Math.toRadians(-45),
+    Cesium.Math.toRadians(pitchDeg),
     rangeM ?? Math.max(sphere.radius * 2.5, 300),
   );
   // Reduced motion: jump (viewBoundingSphere is the setView equivalent) instead of flying.
@@ -23,6 +23,8 @@ export function useCameraIntents(
   focusPoint: (id: string) => [number, number] | null,
   /** Called when an intent moved the camera, so the home re-frame rule leaves it alone. */
   onMoved?: () => void,
+  /** Camera pitch for fly-tos: shallower for the stylised city. */
+  pitchDeg = -45,
 ) {
   const { viewer } = useCesium();
   useEffect(() => {
@@ -38,12 +40,28 @@ export function useCameraIntents(
         const pts = s.route.geojson.coordinates.map((c) =>
           Cesium.Cartesian3.fromDegrees(c[0] as number, c[1] as number),
         );
-        if (pts.length) move((v) => go(v, Cesium.BoundingSphere.fromPoints(pts)));
+        if (pts.length)
+          move((v) => go(v, Cesium.BoundingSphere.fromPoints(pts), undefined, pitchDeg));
+      } else if (
+        s.focusRouteRequest &&
+        s.focusRouteRequest !== prev.focusRouteRequest &&
+        s.route?.id === s.focusRouteRequest
+      ) {
+        const pts = s.route.geojson.coordinates.map((c) =>
+          Cesium.Cartesian3.fromDegrees(c[0] as number, c[1] as number),
+        );
+        if (pts.length)
+          move((v) => go(v, Cesium.BoundingSphere.fromPoints(pts), undefined, pitchDeg));
       } else if (s.focusPlaceId && s.focusPlaceId !== prev.focusPlaceId) {
         const c = focusPoint(s.focusPlaceId);
         if (c)
           move((v) =>
-            go(v, new Cesium.BoundingSphere(Cesium.Cartesian3.fromDegrees(c[0], c[1]), 1), 400),
+            go(
+              v,
+              new Cesium.BoundingSphere(Cesium.Cartesian3.fromDegrees(c[0], c[1]), 1),
+              400,
+              pitchDeg,
+            ),
           );
       } else if (s.camera && s.camera !== prev.camera) {
         const cam = s.camera;
@@ -55,9 +73,10 @@ export function useCameraIntents(
               1,
             ),
             cam.rangeM,
+            pitchDeg,
           ),
         );
       }
     });
-  }, [viewer, focusPoint, onMoved]);
+  }, [viewer, focusPoint, onMoved, pitchDeg]);
 }

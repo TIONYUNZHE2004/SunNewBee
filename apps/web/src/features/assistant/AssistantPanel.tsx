@@ -1,13 +1,25 @@
 import { type FormEvent, useEffect, useRef } from "react";
 import { useMode } from "../../app/modeStore";
-import { Button } from "../../ui/Button";
+import { Icon } from "../../ui/icons";
 import { useChatDraft } from "../chat/chatDraftStore";
 import { useChatStream } from "../chat/useChatStream";
 import { type Profile, useScene } from "../scene/sceneStore";
 import { AnswerCard } from "./AnswerCard";
+import { ChipRow } from "./ChipRow";
 import { copyFor, STARTERS, type Starter } from "./starters";
+import { TravelChip } from "./TravelChip";
 
-export function AssistantPanel() {
+/**
+ * `compact` (bottom sheet at peek) hides everything but the composer with `hidden`, keeping the
+ * conversation mounted. `flat` drops the panel's own glass because the sheet already has it.
+ */
+export function AssistantPanel({
+  compact = false,
+  flat = false,
+}: {
+  compact?: boolean;
+  flat?: boolean;
+}) {
   const mode = useMode((s) => s.mode);
   const copy = copyFor(mode);
   const starters = STARTERS[mode];
@@ -54,9 +66,9 @@ export function AssistantPanel() {
   return (
     <aside
       aria-label="Assistant"
-      className="m-2 flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border-2 border-edge bg-surface shadow-sm lg:m-3"
+      className={`flex min-h-0 flex-1 flex-col overflow-hidden ${flat ? "" : "glass rounded-2xl"}`}
     >
-      <header className="border-b border-edge px-4 py-3">
+      <header className={`border-b border-edge px-4 py-3 ${compact ? "hidden" : ""}`}>
         <h1 className="text-lg font-semibold text-fg">{copy.title}</h1>
         <p className="mt-1 text-sm text-fg-soft">{copy.sub}</p>
       </header>
@@ -64,43 +76,50 @@ export function AssistantPanel() {
         role="log"
         aria-live="polite"
         aria-label="Conversation"
-        className="min-h-0 flex-1 space-y-3 overflow-y-auto p-3"
+        className={`min-h-0 flex-1 overflow-y-auto p-3 ${compact ? "hidden" : ""}`}
       >
-        {messages.length === 0 && (
-          <div>
-            <p className="mb-2 text-xs font-semibold tracking-wider text-fg-soft">TRY ASKING</p>
-            <ul className="flex flex-col gap-2">
-              {starters.map((s) => (
-                <li key={s.text}>
-                  <button
-                    type="button"
-                    disabled={streaming}
-                    onClick={() => pick(s)}
-                    className="flex min-h-[52px] w-full items-center justify-between gap-2 rounded-lg border border-edge bg-raised px-3 py-2 text-left text-sm text-fg hover:border-accent disabled:opacity-60"
-                  >
-                    {s.text}
-                    <span aria-hidden="true">→</span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
-        {messages.map((m) =>
-          m.role === "user" ? (
-            <p key={m.id} className="ml-8 rounded-lg bg-accent px-3 py-2 text-sm text-on-accent">
-              <span className="sr-only">You: </span>
-              {m.text}
-            </p>
-          ) : (
-            <AnswerCard key={m.id} m={m} onRetry={retry} />
-          ),
-        )}
-        <div ref={endRef} />
+        <div className="flex flex-col gap-3">
+          {messages.length === 0 && (
+            <div>
+              <p className="mb-2 text-xs font-semibold tracking-wider text-fg-soft">TRY ASKING</p>
+              <ul className="grid grid-cols-2 gap-2">
+                {starters.map((s) => (
+                  <li key={s.text}>
+                    <button
+                      type="button"
+                      disabled={streaming}
+                      onClick={() => pick(s)}
+                      className="flex h-full min-h-24 w-full flex-col items-start gap-2 rounded-xl border border-edge bg-raised p-3 text-left text-sm text-fg hover:border-accent motion-safe:transition motion-safe:hover:-translate-y-px disabled:opacity-60"
+                    >
+                      <span className="grid size-9 place-items-center rounded-lg bg-brand-tint text-accent">
+                        <Icon name={s.icon} />
+                      </span>
+                      {s.text}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {messages.map((m) =>
+            m.role === "user" ? (
+              <p
+                key={m.id}
+                className="ml-10 self-end rounded-2xl rounded-br-md bg-accent px-3 py-2 text-sm text-on-accent"
+              >
+                <span className="sr-only">You: </span>
+                {m.text}
+              </p>
+            ) : (
+              <AnswerCard key={m.id} m={m} onRetry={retry} />
+            ),
+          )}
+          <div ref={endRef} />
+        </div>
       </div>
       <footer className="border-t border-edge p-3">
         {messages.length > 0 && (
-          <div className="-mx-1 mb-2 flex gap-2 overflow-x-auto px-1 pb-1">
+          <ChipRow className={compact ? "hidden" : ""}>
             {starters.map((s) => (
               <button
                 key={s.text}
@@ -112,9 +131,17 @@ export function AssistantPanel() {
                 {s.text}
               </button>
             ))}
+          </ChipRow>
+        )}
+        {mode === "resident" && (
+          <div className={`mb-2 ${compact ? "hidden" : ""}`}>
+            <TravelChip />
           </div>
         )}
-        <form onSubmit={submit} className="flex gap-2">
+        <form
+          onSubmit={submit}
+          className="flex items-center gap-2 rounded-full border border-edge bg-raised p-1 pl-4 focus-within:border-accent"
+        >
           <label htmlFor="chat-input" className="sr-only">
             Your question
           </label>
@@ -124,11 +151,16 @@ export function AssistantPanel() {
             onChange={(e) => setText(e.target.value)}
             placeholder={copy.placeholder}
             autoComplete="off"
-            className="min-h-11 min-w-0 flex-1 rounded-lg border border-edge bg-raised px-3 text-sm text-fg"
+            className="min-h-11 min-w-0 flex-1 bg-transparent text-sm text-fg outline-none placeholder:text-fg-soft"
           />
-          <Button type="submit" disabled={streaming || !text.trim()}>
-            Ask
-          </Button>
+          <button
+            type="submit"
+            aria-label="Ask"
+            disabled={streaming || !text.trim()}
+            className="grid size-11 shrink-0 place-items-center rounded-full bg-accent text-on-accent transition hover:brightness-105 disabled:opacity-50"
+          >
+            <Icon name="send" />
+          </button>
         </form>
       </footer>
     </aside>

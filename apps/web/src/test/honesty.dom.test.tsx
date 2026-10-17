@@ -5,6 +5,7 @@ import { createMemoryRouter, RouterProvider } from "react-router";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { useMode } from "../app/modeStore";
 import { MainPage } from "../features/main/MainPage";
+import { usePanel } from "../features/main/panelStore";
 import { useScene } from "../features/scene/sceneStore";
 import { TicketsPage } from "../features/tickets/TicketsPage";
 import { useStaffTokenStore } from "../features/tickets/useStaffToken";
@@ -78,7 +79,8 @@ const body = () => document.body.textContent ?? "";
 
 describe.each<Theme>(["day", "night"])("honesty and accessibility (%s theme)", (theme) => {
   beforeEach(() => {
-    useTheme.getState().setTheme(theme);
+    usePanel.setState({ open: true });
+    useTheme.getState().setChoice(theme);
     useScene.getState().reset();
     useMode.setState({ mode: "resident" });
     useStaffTokenStore.setState({ token: "tok" });
@@ -267,11 +269,12 @@ describe.each<Theme>(["day", "night"])("honesty and accessibility (%s theme)", (
       initialEntries: ["/tickets"],
     });
     renderWithClient(<RouterProvider router={router} />);
-    await screen.findByRole("radiogroup", { name: "Outcome" });
+    await screen.findByRole("group", { name: "What did you find on site?" });
     await userEvent.click(screen.getByRole("radio", { name: /Correct|Record/ }));
     assertHonest(body());
     assertHonest(body());
     expect(body()).not.toMatch(/not reachable/i);
+    await userEvent.click(screen.getByRole("tab", { name: /Checked/ }));
     expectAccessibleNames();
     // A checked ticket: the Before panel never repeats the post-resolution value.
     await userEvent.click(screen.getByRole("button", { name: /Width \(m\)/ }));

@@ -1,11 +1,13 @@
 // @vitest-environment jsdom
-import { screen, within } from "@testing-library/react";
+import { act, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useMode } from "../../app/modeStore";
 import { ENV } from "../../lib/env";
 import { newQueryClient, renderWithClient } from "../../test/helpers";
 import { useTheme } from "../../ui/theme";
+import { usePanel } from "../main/panelStore";
+import { useSceneSettings } from "../scene/sceneSettingsStore";
 import { useScene } from "../scene/sceneStore";
 import { SettingsPopover } from "./SettingsPopover";
 
@@ -48,6 +50,17 @@ describe("SettingsPopover", () => {
     expect(screen.queryByRole("dialog")).toBeNull();
     await userEvent.click(btn);
     expect(screen.getByRole("dialog", { name: "Map settings" })).toBeVisible();
+  });
+  it("the gear and the popover sit above the phone sheet and the attribution strip, within the space left", async () => {
+    renderWithClient(<SettingsPopover />, seeded());
+    const gear = screen.getByRole("button", { name: "Map settings" });
+    expect(gear.className).toContain("bottom-[calc(var(--sheet-h,0px)+var(--attr-h,0px)+1rem)]");
+    await userEvent.click(gear);
+    const dialog = screen.getByRole("dialog", { name: "Map settings" });
+    expect(dialog.className).toContain("bottom-[calc(var(--sheet-h,0px)+var(--attr-h,0px)+5rem)]");
+    expect(dialog.className).toContain(
+      "max-h-[min(70%,calc(100%-var(--sheet-h,0px)-var(--attr-h,0px)-6rem))]",
+    );
   });
   it("lists the legend with all six statuses incl. Suggested route", async () => {
     renderWithClient(<SettingsPopover />, seeded());
@@ -92,11 +105,16 @@ describe("SettingsPopover", () => {
     await userEvent.click(screen.getByRole("button", { name: "Map settings" }));
     expect(screen.queryByRole("radiogroup", { name: "Travelling as" })).toBeNull();
   });
-  it("Day/Night radiogroup drives the theme", async () => {
+  it("Theme radiogroup offers Auto/Day/Dusk/Night and drives the choice", async () => {
     renderWithClient(<SettingsPopover />, seeded());
     await userEvent.click(screen.getByRole("button", { name: "Map settings" }));
+    for (const name of ["Auto (clock)", "Day", "Dusk", "Night"]) {
+      expect(screen.getByRole("radio", { name })).toBeInTheDocument();
+    }
+    await userEvent.click(screen.getByRole("radio", { name: "Dusk" }));
+    expect(useTheme.getState().choice).toBe("dusk");
     await userEvent.click(screen.getByRole("radio", { name: "Day" }));
-    expect(useTheme.getState().theme).toBe("day");
+    expect(useTheme.getState().choice).toBe("day");
   });
   it("Escape closes and returns focus to the button", async () => {
     renderWithClient(<SettingsPopover />, seeded());
@@ -113,6 +131,24 @@ describe("SettingsPopover", () => {
     ev.preventDefault();
     document.dispatchEvent(ev);
     expect(screen.getByRole("dialog")).toBeVisible();
+  });
+
+  it("orders the groups Theme, Map style, Motion, Quality, Camera controls, Travelling as, River level, Legend", async () => {
+    HTMLCanvasElement.prototype.getContext = (() => ({})) as never;
+    useScene.getState().setView("cesium");
+    renderWithClient(<SettingsPopover />, seeded());
+    await userEvent.click(screen.getByRole("button", { name: "Map settings" }));
+    const heads = screen.getAllByRole("heading", { level: 3 }).map((h) => h.textContent);
+    expect(heads).toEqual([
+      "Theme",
+      "Map style",
+      "Motion",
+      "Quality",
+      "Camera controls",
+      "Travelling as",
+      "River level",
+      "Legend",
+    ]);
   });
 
   describe("Map style", () => {
@@ -163,5 +199,76 @@ describe("SettingsPopover", () => {
       await userEvent.click(within(g).getByRole("radio", { name: "Realistic photos (Google)" }));
       expect(useScene.getState().mapStyleChosen).toBe(false);
     });
+  });
+
+  describe("Motion and Quality (Cesium view)", () => {
+    beforeEach(() => {
+      useSceneSettings.setState({ motion: true, quality: "auto" });
+      HTMLCanvasElement.prototype.getContext = (() => ({})) as never;
+      useScene.getState().setView("cesium");
+    });
+    it("offers Motion On/Off and Quality Auto/High/Medium/Low", async () => {
+      renderWithClient(<SettingsPopover />, seeded());
+      await userEvent.click(screen.getByRole("button", { name: "Map settings" }));
+      const motion = screen.getByRole("radiogroup", { name: "Motion" });
+      expect(within(motion).getByRole("radio", { name: "On" })).toBeInTheDocument();
+      expect(within(motion).getByRole("radio", { name: "Off" })).toBeInTheDocument();
+      const quality = screen.getByRole("radiogroup", { name: "Quality" });
+      for (const name of ["Auto", "High", "Medium", "Low"]) {
+        expect(within(quality).getByRole("radio", { name })).toBeInTheDocument();
+      }
+    });
+    it("Off sets motion to false", async () => {
+      renderWithClient(<SettingsPopover />, seeded());
+      await userEvent.click(screen.getByRole("button", { name: "Map settings" }));
+      await userEvent.click(
+        within(screen.getByRole("radiogroup", { name: "Motion" })).getByRole("radio", {
+          name: "Off",
+        }),
+      );
+      expect(useSceneSettings.getState().motion).toBe(false);
+    });
+  });
+});
+
+describe("SettingsPopover behind the full phone sheet", () => {
+  const media = (wide: boolean) =>
+    vi.stubGlobal("matchMedia", () => ({
+      matches: wide,
+      addEventListener() {},
+      removeEventListener() {},
+    }));
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    act(() => usePanel.setState({ sheet: "peek" }));
+  });
+  const gear = () => screen.getByRole("button", { name: "Map settings" });
+
+  it("hides the gear (out of tab order) on a narrow screen with the sheet at full", () => {
+    media(false);
+    usePanel.setState({ sheet: "full" });
+    renderWithClient(<SettingsPopover />, seeded());
+    expect(gear().className.split(" ")).toContain("invisible");
+  });
+  it("keeps the gear visible on a narrow screen at half, and on a wide screen at full", () => {
+    media(false);
+    usePanel.setState({ sheet: "half" });
+    const { unmount } = renderWithClient(<SettingsPopover />, seeded());
+    expect(gear().className.split(" ")).not.toContain("invisible");
+    unmount();
+    media(true);
+    usePanel.setState({ sheet: "full" });
+    renderWithClient(<SettingsPopover />, seeded());
+    expect(gear().className.split(" ")).not.toContain("invisible");
+  });
+  it("closes an open popover when the narrow sheet goes to full", async () => {
+    media(false);
+    usePanel.setState({ sheet: "half" });
+    renderWithClient(<SettingsPopover />, seeded());
+    await userEvent.click(gear());
+    expect(screen.getByRole("dialog", { name: "Map settings" })).toBeInTheDocument();
+    act(() => usePanel.setState({ sheet: "full" }));
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(gear()).toHaveAttribute("aria-expanded", "false");
   });
 });

@@ -1,6 +1,6 @@
 import type { ChatEvent } from "@tl/api-client";
 import { describe, expect, it } from "vitest";
-import { emptyAssistant, isRefusal, reduceChatEvent } from "./chatReducer";
+import { emptyAssistant, isRefusal, reduceChatEvent, reduceIntent } from "./chatReducer";
 
 const ev = (e: unknown) => e as ChatEvent;
 
@@ -98,5 +98,42 @@ describe("answer status", () => {
     expect(isRefusal({ ...emptyAssistant("b"), error: "x", answerStatus: "cannot_answer" })).toBe(
       false,
     );
+  });
+});
+
+describe("reduceIntent", () => {
+  it("keeps the route summary from a route.highlight intent", () => {
+    const m = reduceIntent(emptyAssistant("a"), {
+      kind: "route.highlight",
+      route_id: "r1",
+      route_status: "partly_unverified",
+      distance_m: 420.5,
+      est_minutes: 6.2,
+    } as never);
+    expect(m.route).toEqual({
+      id: "r1",
+      status: "partly_unverified",
+      distanceM: 420.5,
+      minutes: 6.2,
+    });
+  });
+  it("a legacy intent without the summary still records the route id only", () => {
+    const m = reduceIntent(emptyAssistant("a"), {
+      kind: "route.highlight",
+      route_id: "r1",
+    } as never);
+    expect(m.route).toEqual({
+      id: "r1",
+      status: undefined,
+      distanceM: undefined,
+      minutes: undefined,
+    });
+  });
+  it("keeps the scenario from flood.set_level", () => {
+    const m = reduceIntent(emptyAssistant("a"), {
+      kind: "flood.set_level",
+      scenario_id: "stage_p3m",
+    } as never);
+    expect(m.scenarioId).toBe("stage_p3m");
   });
 });

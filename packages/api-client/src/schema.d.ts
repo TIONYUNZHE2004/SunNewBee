@@ -637,6 +637,16 @@ export interface components {
             buildings: {
                 [key: string]: unknown;
             };
+            /**
+             * Parks
+             * @default {
+             *       "features": [],
+             *       "type": "FeatureCollection"
+             *     }
+             */
+            parks: {
+                [key: string]: unknown;
+            };
             /** Trees */
             trees: {
                 [key: string]: unknown;
@@ -1268,6 +1278,10 @@ export interface components {
         SceneIntent: {
             /** Center */
             center?: number[] | null;
+            /** Distance M */
+            distance_m?: number | null;
+            /** Est Minutes */
+            est_minutes?: number | null;
             /** Geojson */
             geojson?: {
                 [key: string]: unknown;
@@ -1285,6 +1299,8 @@ export interface components {
             range_m?: number | null;
             /** Route Id */
             route_id?: string | null;
+            /** Route Status */
+            route_status?: ("confirmed" | "partly_unverified" | "blocked" | "no_data") | null;
             /** Scenario Id */
             scenario_id?: string | null;
             /** Visible */

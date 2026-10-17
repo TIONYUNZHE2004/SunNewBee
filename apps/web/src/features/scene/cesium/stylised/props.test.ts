@@ -3,7 +3,16 @@ import { fakeCesium, fakeCollection } from "./fakeCesium.test-util";
 import type { Road } from "./ground";
 import { scatterTrees } from "./model";
 import { paletteFor } from "./palette";
-import { buildProps, type Car, kerbCars, type PropsCesium, streetTrees, type Tree } from "./props";
+import {
+  buildProps,
+  type Car,
+  kerbCars,
+  type PropsCesium,
+  streetLamps,
+  streetTrees,
+  type Tree,
+} from "./props";
+import type { RoofItem } from "./roofs";
 
 const M_PER_DEG = 111_320;
 // A 400 m east-west residential street, a 400 m major road and a 400 m footway.
@@ -33,6 +42,18 @@ describe("residential detection uses the road kind, not its width", () => {
   });
 });
 
+describe("streetLamps", () => {
+  it("lamps line residential and major roads only, seeded", () => {
+    const roads = [street("r", 6, 3.18, "residential"), { ...street("f", 2.5, 3.19, "footway") }];
+    const lamps = streetLamps(roads, "s");
+    expect(lamps.length).toBeGreaterThan(8);
+    expect(lamps.every((l) => Math.abs(l.lat - 3.18) * M_PER_DEG < 10)).toBe(true);
+    expect(streetLamps(roads, "s")).toEqual(lamps);
+    expect(streetLamps([street("m", 10, 3.2, "major")], "s").length).toBeGreaterThan(0);
+    expect(streetLamps([street("r", 6, 3.18, "residential")], "s", { max: 3 })).toHaveLength(3);
+  });
+});
+
 describe("kerbCars", () => {
   const roads = [street("res", 6), street("major", 10, 3.19), street("foot", 2.5, 3.2)];
 
@@ -50,7 +71,7 @@ describe("kerbCars", () => {
       const off = Math.abs(c.lat - 3.18) * M_PER_DEG;
       expect(off).toBeGreaterThan(1);
       expect(Math.abs(Math.sin(c.headingRad))).toBeLessThan(1e-6); // east-west street
-      expect([0, 1, 2]).toContain(c.tone);
+      expect([0, 1, 2, 3, 4]).toContain(c.tone);
     }
   });
 
@@ -88,21 +109,41 @@ describe("streetTrees", () => {
 });
 
 const trees: Tree[] = [
-  { lon: 101.5, lat: 3.18, h: 6 },
-  { lon: 101.501, lat: 3.18, h: 5 },
-  { lon: 101.502, lat: 3.18, h: 7 },
+  { lon: 101.5, lat: 3.18, h: 6, tier2: false },
+  { lon: 101.501, lat: 3.18, h: 5, tier2: true },
+  { lon: 101.502, lat: 3.18, h: 7, tier2: false },
 ];
 const cars: Car[] = [
   { lon: 101.5, lat: 3.181, headingRad: 0, tone: 0 },
-  { lon: 101.5, lat: 3.182, headingRad: 1, tone: 2 },
+  { lon: 101.5, lat: 3.182, headingRad: 1, tone: 4 },
 ];
 
-function setup(theme: "day" | "night" = "night") {
+const AT = { lon: 101.5, lat: 3.18 };
+
+const lamps = [
+  { lon: 101.5, lat: 3.1801 },
+  { lon: 101.5005, lat: 3.1801 },
+];
+const roofItems: RoofItem[] = [
+  { lon: 101.5, lat: 3.18, z: 13, kind: "ac", sizeM: 1.2 },
+  { lon: 101.5, lat: 3.18, z: 13, kind: "tank", sizeM: 1.6 },
+];
+
+function setup(theme: "day" | "night" = "night", range = 1500, sway = true) {
   const f = fakeCesium();
   const collection = fakeCollection();
   const out = buildProps(
     f.C as unknown as PropsCesium,
-    { trees, cars, palette: paletteFor(theme) },
+    {
+      trees,
+      cars,
+      lamps,
+      roofItems,
+      palette: paletteFor(theme),
+      at: AT,
+      detailRangeM: range,
+      sway,
+    },
     collection,
   );
   return { ...f, collection, out };
@@ -113,29 +154,129 @@ describe("buildProps", () => {
     const { primitives } = setup();
     expect(primitives.length).toBeGreaterThan(0);
     for (const p of primitives) {
+      // The light pools are ground imagery (groundImagery.buildPoolLayer), never a prop.
       expect(p.kind).toBe("Primitive");
       expect(p.options).toMatchObject({ allowPicking: false, asynchronous: true });
+      expect(p.options.shadows).toBe(2);
     }
+  });
+
+  it("only canopies get the swaying vertex shader and the textured vertex format", () => {
+    const { primitives, geometries } = setup();
+    const vs = (p: (typeof primitives)[number]) =>
+      String(
+        (p.options.appearance as { options?: { vertexShaderSource?: string } })?.options
+          ?.vertexShaderSource ?? "",
+      );
+    const swaying = primitives.filter((p) => vs(p).includes("TL_SWAY"));
+    expect(swaying.length).toBeGreaterThan(0);
+    expect(swaying.length).toBeLessThanOrEqual(3); // one per canopy tone
+    for (const p of swaying) {
+      expect(p.options.appearance).toMatchObject({
+        options: { materialSupport: { vertexFormat: { textured: true } } },
+      });
+    }
+    for (const p of primitives.filter((q) => !swaying.includes(q))) {
+      expect(vs(p)).toBe(""); // trunks, cars, lamps and roof items stay still
+    }
+    expect(geometries.find((g) => g.kind === "ellipsoid")?.options.vertexFormat).toEqual({
+      textured: true,
+    });
+  });
+
+  it("with sway off (Motion off / reduced motion) no canopy gets the swaying shader", () => {
+    const { primitives, geometries } = setup("day", 1500, false);
+    for (const p of primitives) {
+      const vs = (p.options.appearance as { options?: { vertexShaderSource?: string } })?.options
+        ?.vertexShaderSource;
+      expect(String(vs ?? "")).not.toContain("TL_SWAY");
+    }
+    expect(geometries.find((g) => g.kind === "ellipsoid")?.options.vertexFormat).toEqual({
+      basic: true,
+    });
   });
 
   it("instances: two canopies colours + trunks for trees, body + cabin per car", () => {
     const { primitives } = setup();
     const n = primitives.reduce((s, p) => s + (p.options.geometryInstances as unknown[]).length, 0);
-    expect(n).toBe(trees.length * 2 + cars.length * 2);
+    // canopies (+1 tier-2) and trunks, body + cabin per car, post + head per lamp, roof items
+    expect(n).toBe(trees.length * 2 + 1 + cars.length * 2 + lamps.length * 2 + roofItems.length);
   });
 
-  it("setTheme mutates colours in place (before ready) and ends on the latest theme", () => {
+  it("setPalette mutates colours in place (before ready) and ends on the latest theme", () => {
     const { out, primitives, materials } = setup("night");
     const before = primitives.length;
-    out.setTheme("day");
-    out.setTheme("night");
-    out.setTheme("day");
+    out.setPalette(paletteFor("day"), true);
+    out.setPalette(paletteFor("night"), true);
+    out.setPalette(paletteFor("day"), true);
     const day = paletteFor("day");
     const colours = materials.map((m) => (m.uniforms.color as { css: string }).css);
     for (const c of colours) {
-      expect([...day.tree, day.trunk, ...day.car]).toContain(c);
+      expect([
+        ...day.tree,
+        day.trunk,
+        ...day.car,
+        day.lampPost,
+        day.lampHead,
+        day.roofItem,
+      ]).toContain(c);
     }
     expect(primitives).toHaveLength(before);
+  });
+
+  it("uses flat lit materials and setPalette rewrites the light uniforms", () => {
+    const { out, primitives, materials } = setup("night");
+    for (const p of primitives)
+      expect((p.options.appearance as { options: Record<string, unknown> }).options).toMatchObject({
+        flat: true,
+        translucent: false,
+      });
+    out.setPalette(paletteFor("day"), true);
+    const day = paletteFor("day");
+    for (const m of materials.filter((x) => x.type === "fabric")) {
+      expect(m.writes).toEqual(expect.arrayContaining(["color", "keyColor", "horizonColor"]));
+      expect(m.uniforms.keyColor).toEqual({ css: day.light.key });
+      expect(m.uniforms.horizonColor).toEqual({ css: day.horizon });
+    }
+  });
+
+  it("setTime writes the time uniform on every lit material; setPalette keeps it", () => {
+    const { out, materials } = setup("day");
+    const lit = materials.filter((m) => m.type === "fabric");
+    expect(lit.length).toBeGreaterThan(0);
+    out.setTime(7);
+    for (const m of lit) expect(m.uniforms.time).toBe(7);
+    out.setPalette(paletteFor("night"), true);
+    for (const m of lit) {
+      expect(m.uniforms.time).toBe(7);
+      expect(m.uniforms.cloudShadow).toBe(0);
+    }
+  });
+
+  it("lamp heads glow with the palette", () => {
+    const { out, materials } = setup("night");
+    const head = materials.find((m) => "glow" in m.uniforms)!;
+    expect(head.uniforms.glow).toBe(paletteFor("night").glow);
+    out.setPalette(paletteFor("day"), true);
+    expect(head.uniforms.glow).toBe(0);
+    out.setPalette(paletteFor("dusk"), true);
+    expect(head.uniforms.glow).toBe(paletteFor("dusk").glow);
+  });
+
+  it("lamps and roof items carry a distance condition and vanish on the Low tier", () => {
+    const { primitives } = setup("night", 1500);
+    const near = primitives.filter((p) =>
+      (p.options.geometryInstances as { options: { attributes?: unknown } }[]).every(
+        (i) => i.options.attributes,
+      ),
+    );
+    expect(near).toHaveLength(3); // posts, heads, roof items
+    const low = setup("night", 0);
+    const n = low.primitives.reduce(
+      (s, p) => s + (p.options.geometryInstances as unknown[]).length,
+      0,
+    );
+    expect(n).toBe(trees.length * 2 + 1 + cars.length * 2);
   });
 
   it("destroy removes and destroys once, idempotent; empty input creates nothing", () => {
@@ -148,11 +289,15 @@ describe("buildProps", () => {
     const empty = buildProps(f.C as unknown as PropsCesium, {
       trees: [],
       cars: [],
+      lamps: [],
+      roofItems: [],
       palette: paletteFor("day"),
+      at: AT,
+      detailRangeM: 1500,
     });
     expect(f.primitives).toHaveLength(0);
     expect(() => {
-      empty.setTheme("night");
+      empty.setPalette(paletteFor("night"), true);
       empty.destroy();
     }).not.toThrow();
   });

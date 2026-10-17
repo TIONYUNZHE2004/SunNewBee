@@ -131,11 +131,15 @@ def _answer_events(
 
     for it in ans.scene_intents:
         intent = it.model_copy()
+        intent.route_status = intent.distance_m = intent.est_minutes = None
         if intent.kind == "route.highlight":
             route = rec.routes.get(intent.route_id or "")
             if route is None:
                 continue  # nothing to draw: the route was not returned this turn
             intent.geojson = route["geometry"]
+            intent.route_status = route.get("status")
+            intent.distance_m = route.get("distance_m")
+            intent.est_minutes = route.get("est_minutes")
         evs.append(SceneIntentEvent(intent=intent))
 
     ref = 0

@@ -1,8 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import { useMode } from "../../app/modeStore";
 import { useScenarios } from "../../lib/api";
+import { Icon, type IconName } from "../../ui/icons";
 import { useTheme } from "../../ui/theme";
+import { useBehindFullSheet } from "../main/usePanelReserve";
+import { useCameraUi } from "../scene/cesium/controls/cameraUiStore";
 import { StatusLegend } from "../scene/StatusLegend";
+import { useSceneSettings } from "../scene/sceneSettingsStore";
 import { type MapStyle, useScene } from "../scene/sceneStore";
 import type { View } from "../scene/selectView";
 import { useEffectiveView, useMapStyle } from "../scene/useMapStyle";
@@ -71,7 +75,14 @@ function Radio({
   );
 }
 
-const H = "m-0 mb-1 text-xs font-semibold uppercase tracking-wide text-fg-soft";
+function Heading({ icon, children }: { icon: IconName; children: string }) {
+  return (
+    <h3 className="m-0 mb-1 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-fg-soft">
+      <Icon name={icon} className="size-4" />
+      {children}
+    </h3>
+  );
+}
 
 export function SettingsPopover() {
   const [open, setOpen] = useState(false);
@@ -81,9 +92,16 @@ export function SettingsPopover() {
   const { scenarioId, profile, setScenario, setProfile, setMapStyle } = useScene();
   const { style, hasBuildings, hasGoogle, settled } = useMapStyle();
   const effective = useEffectiveView();
-  const { theme, setTheme } = useTheme();
+  const { choice, setChoice } = useTheme();
+  const { alwaysShow, setAlwaysShow } = useCameraUi();
+  const { motion, quality, setMotion, setQuality } = useSceneSettings();
   const scenarios = useScenarios();
   const levels = levelOptions(scenarios.data ?? []);
+  const hidden = useBehindFullSheet();
+
+  useEffect(() => {
+    if (hidden) setOpen(false);
+  }, [hidden]);
 
   useEffect(() => {
     if (!open) return;
@@ -105,52 +123,20 @@ export function SettingsPopover() {
           role="dialog"
           aria-label="Map settings"
           id="map-settings"
-          className="absolute bottom-20 right-4 z-20 max-h-[70%] w-80 max-w-[calc(100%-2rem)] space-y-4 overflow-auto rounded-2xl border border-edge bg-surface p-4 text-fg shadow-lg"
+          className={`glass absolute bottom-[calc(var(--sheet-h,0px)+var(--attr-h,0px)+5rem)] right-[calc(var(--panel-w,0px)+1rem)] z-20 max-h-[min(70%,calc(100%-var(--sheet-h,0px)-var(--attr-h,0px)-6rem))] w-80 max-w-[calc(100%-var(--panel-w,0px)-2rem)] space-y-4 overflow-auto rounded-2xl p-4 text-fg${hidden ? " invisible" : ""}`}
         >
           <div>
-            <h3 className={H}>Legend</h3>
-            <StatusLegend />
-          </div>
-          <div>
-            <h3 className={H}>River level</h3>
-            <div role="radiogroup" aria-label="River level" className="grid grid-cols-3 gap-2">
-              {levels.map((o) => (
-                <Radio
-                  key={o.id ?? "normal"}
-                  checked={scenarioId === o.id || (o.id === null && scenarioId === "baseline")}
-                  onClick={() => setScenario(o.id)}
-                >
-                  {o.label}
+            <Heading icon="compass">Theme</Heading>
+            <div role="radiogroup" aria-label="Theme" className="grid grid-cols-2 gap-2">
+              {(["auto", "day", "dusk", "night"] as const).map((c) => (
+                <Radio key={c} checked={choice === c} onClick={() => setChoice(c)}>
+                  {c === "auto" ? "Auto (clock)" : c[0]!.toUpperCase() + c.slice(1)}
                 </Radio>
               ))}
             </div>
-            <p className="m-0 mt-1 text-xs text-fg-soft">Indicative scenarios, not forecasts.</p>
-          </div>
-          {mode === "resident" && (
-            <div>
-              <h3 className={H}>Travelling as</h3>
-              <div role="radiogroup" aria-label="Travelling as" className="grid grid-cols-2 gap-2">
-                {TRAVEL_ORDER.map((p) => (
-                  <Radio key={p} checked={profile === p} onClick={() => setProfile(p)}>
-                    {TRAVEL_LABELS[p]}
-                  </Radio>
-                ))}
-              </div>
-            </div>
-          )}
-          <div>
-            <h3 className={H}>Theme</h3>
-            <div role="radiogroup" aria-label="Theme" className="grid grid-cols-2 gap-2">
-              <Radio checked={theme === "day"} onClick={() => setTheme("day")}>
-                Day
-              </Radio>
-              <Radio checked={theme === "night"} onClick={() => setTheme("night")}>
-                Night
-              </Radio>
-            </div>
           </div>
           <div>
-            <h3 className={H}>Map style</h3>
+            <Heading icon="pin">Map style</Heading>
             <div role="radiogroup" aria-label="Map style" className="grid grid-cols-2 gap-2">
               {mapStyleOptions(hasBuildings, hasGoogle, effective, settled).map((o) => (
                 <div key={o.style} className="flex flex-col gap-1">
@@ -175,6 +161,83 @@ export function SettingsPopover() {
               <p className="m-0 mt-1 text-xs text-fg-soft">Decorative details are illustrative.</p>
             )}
           </div>
+          {effective === "cesium" && (
+            <>
+              <div>
+                <Heading icon="walk">Motion</Heading>
+                <div role="radiogroup" aria-label="Motion" className="grid grid-cols-2 gap-2">
+                  <Radio checked={motion} onClick={() => setMotion(true)}>
+                    On
+                  </Radio>
+                  <Radio checked={!motion} onClick={() => setMotion(false)}>
+                    Off
+                  </Radio>
+                </div>
+              </div>
+            </>
+          )}
+          {effective === "cesium" && (
+            <>
+              <div>
+                <Heading icon="check">Quality</Heading>
+                <div role="radiogroup" aria-label="Quality" className="grid grid-cols-4 gap-2">
+                  {(["auto", "high", "medium", "low"] as const).map((q) => (
+                    <Radio key={q} checked={quality === q} onClick={() => setQuality(q)}>
+                      {q[0]!.toUpperCase() + q.slice(1)}
+                    </Radio>
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
+          {effective === "cesium" && (
+            <div>
+              <Heading icon="camera">Camera controls</Heading>
+              <div
+                role="radiogroup"
+                aria-label="Camera controls"
+                className="grid grid-cols-2 gap-2"
+              >
+                <Radio checked={!alwaysShow} onClick={() => setAlwaysShow(false)}>
+                  Compass only
+                </Radio>
+                <Radio checked={alwaysShow} onClick={() => setAlwaysShow(true)}>
+                  Always show
+                </Radio>
+              </div>
+            </div>
+          )}
+          {mode === "resident" && (
+            <div>
+              <Heading icon="walk">Travelling as</Heading>
+              <div role="radiogroup" aria-label="Travelling as" className="grid grid-cols-2 gap-2">
+                {TRAVEL_ORDER.map((p) => (
+                  <Radio key={p} checked={profile === p} onClick={() => setProfile(p)}>
+                    {TRAVEL_LABELS[p]}
+                  </Radio>
+                ))}
+              </div>
+            </div>
+          )}
+          <div>
+            <Heading icon="flood">River level</Heading>
+            <div role="radiogroup" aria-label="River level" className="grid grid-cols-3 gap-2">
+              {levels.map((o) => (
+                <Radio
+                  key={o.id ?? "normal"}
+                  checked={scenarioId === o.id || (o.id === null && scenarioId === "baseline")}
+                  onClick={() => setScenario(o.id)}
+                >
+                  {o.label}
+                </Radio>
+              ))}
+            </div>
+            <p className="m-0 mt-1 text-xs text-fg-soft">Indicative scenarios, not forecasts.</p>
+          </div>
+          <div>
+            <Heading icon="route">Legend</Heading>
+            <StatusLegend />
+          </div>
         </div>
       )}
       <button
@@ -184,7 +247,7 @@ export function SettingsPopover() {
         aria-expanded={open}
         aria-controls={open ? "map-settings" : undefined}
         onClick={() => setOpen((o) => !o)}
-        className="absolute bottom-4 right-4 z-20 grid size-11 place-items-center rounded-full border border-edge bg-surface text-fg shadow-md hover:bg-raised"
+        className={`absolute bottom-[calc(var(--sheet-h,0px)+var(--attr-h,0px)+1rem)] right-[calc(var(--panel-w,0px)+1rem)] z-20 grid size-11 place-items-center rounded-full border border-edge bg-surface text-fg shadow-md hover:bg-raised${hidden ? " invisible" : ""}`}
       >
         <svg
           width="20"

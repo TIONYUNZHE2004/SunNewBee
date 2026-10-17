@@ -1,10 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
-import { fakeCesium, fakeCollection, fakeEvent } from "./fakeCesium.test-util";
+import { fakeCesium, fakeCollection, fakeLayers, recorder2d } from "./fakeCesium.test-util";
 import {
   buildGround,
   type GroundCesium,
+  groundDecals,
+  parksFromLayer,
   roadsFromWalk,
-  VOLUME_HALF_M,
   waterFromLayer,
 } from "./ground";
 import { paletteFor } from "./palette";
@@ -92,126 +93,147 @@ const roads = [
   { id: "a", coords: L as [number, number][], widthM: 10, kind: "major" as const },
   { id: "b", coords: L as [number, number][], widthM: 2.5, kind: "footway" as const },
 ];
-const water = [
-  [
-    [
-      [101.5, 3.18],
-      [101.501, 3.18],
-      [101.501, 3.181],
-      [101.5, 3.18],
-    ],
-  ] as [number, number][][],
+const ring: [number, number][] = [
+  [101.5, 3.18],
+  [101.501, 3.18],
+  [101.501, 3.181],
+  [101.5, 3.18],
 ];
+const water = [[ring]];
+
+type Layer = { alpha: number; show: boolean };
 
 function setup(withWater = true) {
   const f = fakeCesium();
   const groundPrimitives = fakeCollection();
-  const postRender = fakeEvent();
+  const imageryLayers = fakeLayers<Layer>();
   const requestRender = vi.fn();
-  const viewer = { scene: { groundPrimitives, postRender, requestRender } };
-  const g = buildGround(f.C as unknown as GroundCesium, viewer, {
-    roads,
-    water: withWater ? water : [],
-    palette: paletteFor("night"),
-  });
-  const prims = f.primitives as unknown as {
-    ready: boolean;
-    attrs: Map<string, { color?: unknown }>;
-    options: Record<string, unknown>;
-  }[];
-  return { ...f, prims, groundPrimitives, postRender, requestRender, g };
+  const viewer = { scene: { groundPrimitives, imageryLayers, requestRender } };
+  const g = buildGround(
+    f.C as unknown as GroundCesium,
+    viewer as unknown as Parameters<typeof buildGround>[1],
+    { roads, water: withWater ? water : [], parks: water, palette: paletteFor("night") },
+    () => {
+      const ctx = recorder2d();
+      return { getContext: () => ctx };
+    },
+  );
+  return { ...f, groundPrimitives, layers: imageryLayers, requestRender, g };
 }
-const colourOf = (css: string) => `rgba:${css}`;
+const waterColours = (materials: { uniforms: Record<string, unknown> }[]) =>
+  [materials[0]?.uniforms.color, materials[0]?.uniforms.shoreColor].map(
+    (c) => (c as { css: string }).css,
+  );
+
+describe("groundDecals", () => {
+  it("pavements, kerbs and marks for residential/major roads, parks with edges, shoreline", () => {
+    const decals = groundDecals({ roads, water, parks: water });
+    const count = (part: string) => decals.filter((d) => d.part === part).length;
+    expect(count("road")).toBe(2);
+    // only the major road gets pavement (2 sides), kerbs and centre marks; the footway none
+    expect(count("pavement")).toBe(2);
+    expect(count("kerb")).toBe(2);
+    expect(count("roadMark")).toBeGreaterThan(0);
+    expect([count("park"), count("parkEdge"), count("shore")]).toEqual([1, 1, 1]);
+    expect(decals.find((d) => d.part === "park")?.shape).toBe("fill");
+    expect(decals.filter((d) => d.part === "road").map((d) => d.widthM)).toEqual([10, 2.5]);
+    for (const d of decals.filter((x) => x.part !== "park")) expect(d.shape).toBe("line");
+  });
+
+  it("drops rings with fewer than three points", () => {
+    const bad = [[[[101.5, 3.18]]]] as [number, number][][][];
+    expect(groundDecals({ roads: [], water: bad, parks: bad })).toEqual([]);
+  });
+});
 
 describe("buildGround", () => {
-  it("draws roads and water as thin, non-pickable classification volumes under the overlays", () => {
-    const { primitives, geometries, groundPrimitives } = setup();
-    expect(primitives.map((p) => p.kind)).toEqual([
-      "ClassificationPrimitive",
-      "ClassificationPrimitive",
-    ]);
-    for (const p of primitives) {
-      expect(p.options).toMatchObject({ allowPicking: false, asynchronous: true });
-    }
-    const corridors = geometries.filter((g) => g.kind === "corridor").map((g) => g.options);
-    expect(corridors.map((o) => o.width)).toEqual([10, 2.5]);
-    for (const o of [
-      ...corridors,
-      ...geometries.filter((g) => g.kind === "polygon").map((g) => g.options),
-    ]) {
-      // Thin volumes around the flat ellipsoid ground (no tall GroundPrimitive volumes).
-      expect([o.height, o.extrudedHeight]).toEqual([-VOLUME_HALF_M, VOLUME_HALF_M]);
-    }
-    expect(geometries.filter((g) => g.kind === "polygon")).toHaveLength(1);
-    expect(groundPrimitives.add).toHaveBeenCalledTimes(2);
-    // Routes / flood lines (GroundPolylinePrimitives) must draw on top of the roads.
-    expect(groundPrimitives.lowerToBottom).toHaveBeenCalledTimes(2);
+  it("decals are globe imagery (no stencil volumes); only base water is a ground primitive", () => {
+    const { primitives, layers, groundPrimitives, g } = setup();
+    expect(primitives.map((p) => p.kind)).toEqual(["GroundPrimitive"]);
+    expect(primitives[0]!.options).toMatchObject({
+      allowPicking: false,
+      asynchronous: true,
+      classificationType: 0,
+    });
+    expect(layers.list).toHaveLength(1);
+    expect(g.layers()).toEqual(layers.list);
+    // Routes / flood lines (GroundPolylinePrimitives) must draw on top of the water.
+    expect(groundPrimitives.lowerToBottom).toHaveBeenCalledWith(primitives[0]);
   });
 
-  it("no water polygons -> no water primitive", () => {
-    const { primitives } = setup(false);
-    expect(primitives).toHaveLength(1);
+  it("only base water shimmers; flood layers are never touched by this module", () => {
+    const { g, primitives, materials } = setup();
+    expect(primitives[0]?.options.appearance).toHaveProperty("options.material.uniforms.time");
+    expect(materials).toHaveLength(1); // the one water material; nothing else is animated
+    g.setTime(5);
+    expect(materials[0]?.uniforms.time).toBe(5);
+    expect(materials[0]?.writes).toEqual(["time"]);
   });
 
-  it("theme toggled before the primitives are ready ends on the latest theme once ready", () => {
-    const { g, prims, primitives, postRender, requestRender } = setup();
-    g.setTheme("day");
-    g.setTheme("night");
-    g.setTheme("day");
-    // Not ready: nothing written yet, one watcher (not one per toggle).
-    expect(prims.every((p) => p.attrs.size === 0)).toBe(true);
-    expect(postRender.listeners.size).toBe(1);
-    postRender.fire();
-    expect(prims.every((p) => p.attrs.size === 0)).toBe(true);
-    for (const p of prims) p.ready = true;
-    postRender.fire();
+  it("parksFromLayer parses polygons like water and tolerates an empty collection", () => {
+    expect(parksFromLayer({ type: "FeatureCollection", features: [] })).toEqual([]);
+    expect(parksFromLayer(undefined)).toEqual([]);
+  });
+
+  it("no water polygons -> no water primitive, decals still drawn", () => {
+    const { primitives, layers } = setup(false);
+    expect(primitives).toHaveLength(0);
+    expect(layers.list).toHaveLength(1);
+  });
+
+  it("water recolours on the final palette only; same palette writes nothing", () => {
+    const { g, materials } = setup();
+    g.setPalette(paletteFor("day"), false);
+    expect(materials[0]!.writes).toEqual([]);
+    g.setPalette(paletteFor("night"), true); // built as night
+    expect(materials[0]!.writes).toEqual([]);
+    g.setPalette(paletteFor("day"), true);
     const day = paletteFor("day");
-    expect(prims[0]!.attrs.get("road:0")?.color).toBe(colourOf(day.road));
-    expect(prims[0]!.attrs.get("road:1")?.color).toBe(colourOf(day.road));
-    expect(prims[1]!.attrs.get("water:0")?.color).toBe(colourOf(day.water));
-    expect(postRender.listeners.size).toBe(0);
-    expect(requestRender).toHaveBeenCalledTimes(1);
-    expect(primitives).toHaveLength(2);
+    expect(waterColours(materials)).toEqual([day.water, day.shore]);
   });
 
-  it("setTheme on ready primitives recolours in place right away; same theme is a no-op", () => {
-    const { g, prims, postRender } = setup();
-    for (const p of prims) p.ready = true;
-    g.setTheme("night"); // built as night: nothing to write
-    expect(prims[0]!.attrs.size).toBe(0);
-    g.setTheme("day");
-    expect(prims[0]!.attrs.get("road:1")?.color).toBe(colourOf(paletteFor("day").road));
-    expect(postRender.listeners.size).toBe(0);
+  it("fade crossfades the decal layers (new palette layer under the shown one)", () => {
+    const { g, layers } = setup();
+    const night = layers.list[0]!;
+    g.fade(paletteFor("day"), 0.5);
+    expect(layers.list).toHaveLength(2);
+    expect(layers.list[1]).toBe(night);
+    expect(night.alpha).toBeCloseTo(0.5, 9);
+    g.fade(paletteFor("day"), 1);
+    expect(layers.list).toHaveLength(1);
+    expect(layers.list[0]).not.toBe(night);
   });
 
-  it("destroy removes every primitive once, stops watching, and is idempotent", () => {
-    const { g, primitives, groundPrimitives, postRender } = setup();
-    g.setTheme("day");
+  it("destroy removes the water and every layer once, and is idempotent", () => {
+    const { g, primitives, groundPrimitives, layers } = setup();
+    g.fade(paletteFor("day"), 0.5);
     g.destroy();
     g.destroy();
-    expect(groundPrimitives.remove).toHaveBeenCalledTimes(2);
+    expect(groundPrimitives.remove).toHaveBeenCalledTimes(1);
     for (const p of primitives) expect(p.destroy).toHaveBeenCalledTimes(1);
-    expect(postRender.listeners.size).toBe(0);
-    expect(() => g.setTheme("night")).not.toThrow();
+    expect(layers.list).toEqual([]);
+    expect(() => {
+      g.setPalette(paletteFor("night"), true);
+      g.fade(paletteFor("night"), 1);
+    }).not.toThrow();
   });
 
   it("no roads and no water -> nothing created, no throw", () => {
     const f = fakeCesium();
+    const layers = fakeLayers<Layer>();
     const viewer = {
-      scene: {
-        groundPrimitives: fakeCollection(),
-        postRender: fakeEvent(),
-        requestRender: vi.fn(),
-      },
+      scene: { groundPrimitives: fakeCollection(), imageryLayers: layers, requestRender: vi.fn() },
     };
-    const g = buildGround(f.C as unknown as GroundCesium, viewer, {
-      roads: [],
-      water: [],
-      palette: paletteFor("day"),
-    });
+    const g = buildGround(
+      f.C as unknown as GroundCesium,
+      viewer as unknown as Parameters<typeof buildGround>[1],
+      { roads: [], water: [], parks: [], palette: paletteFor("day") },
+    );
     expect(f.primitives).toHaveLength(0);
+    expect(layers.list).toHaveLength(0);
     expect(() => {
-      g.setTheme("night");
+      g.setPalette(paletteFor("night"), true);
+      g.fade(paletteFor("night"), 1);
       g.destroy();
     }).not.toThrow();
   });

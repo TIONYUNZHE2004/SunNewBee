@@ -1,0 +1,33 @@
+# 0011. Time-of-day theme and decorative motion in the stylised city
+
+- Status: accepted
+- Date: 2026-10-16
+- Deciders: owner, with Claude Code
+
+## Context
+The owner wants the stylised 3D city to follow the Elmina clock (Day / Dusk / Night) with a manual override, and to show gentle motion (birds, clouds, ambient) so the map feels alive. The product's promise is honesty, so nothing that moves or changes mood may read as data.
+
+## Decision
+- The mood is display-only lighting from `themeAt()` (Asia/Kuala_Lumpur): Day 07:00-18:00, Dusk 18:00-19:30, Night 19:30-07:00. It never changes a fact. UI chrome has two skins (`data-skin` light for Day and Dusk, dark for Night); `data-theme` carries `day|dusk|night`.
+- All motion is decorative, seeded and deterministic, never tied to data: birds, clouds and cloud shadows, canopy sway, base-water ripple, lamp fade, night window flicker.
+- No moving traffic (it could read as live traffic data). No invented landmarks or signage.
+- Water animation is confined to decorative base water and never touches flood-scenario layers (tested).
+- Motion runs from one capped (30 fps) loop that stops when hidden, off-screen, disabled or under `prefers-reduced-motion`. With Motion off the scene is a still frame: birds hidden, canopies built without the sway shader. Flap and sway are clocked by `czm_frameNumber` (a custom appearance vertex shader cannot read material uniforms in Cesium 1.146), so they speed up while the camera moves.
+- Clouds are 50% opaque and hidden while a route is highlighted or a flood scenario is active, so they never cover an answer.
+- Pavements, kerbs, markings, parks and lamp light pools are drawn flat as globe imagery (a tiled canvas `ImageryProvider`, `groundImagery.ts`), so they can never hide or tint route or path-status lines and are never pickable. Light pools are a separate imagery layer above the ground decals. Water is a GroundPrimitive with a shimmer material.
+- Amendment (2026-10-17 perf gate, RTX 2050, 1440x900): the first version drew these decals as stencil ClassificationPrimitives and measured High 15 fps / 175 draw commands; hiding them alone gave 105 fps. Decals moved to imagery (one layer per palette; a theme change adds the new layer underneath and fades the shown one out), buildings to one primitive and one material (64 class primitives before), flocks and clouds to one primitive each. Result: High 60 fps (headless vsync cap), 61-65 commands of which ~40 are globe tiles. A still scene with Motion off now renders 0 frames: the continuous rendering came from Cesium 1.146's `PerspectiveFrustum.clone` dropping `xOffset` (patched in `cesium/frustumClone.ts`).
+- Parks are display-only, and the seed currently has no `parks.geojson` (Overpass was blocked). Fetch with `uv run python data/scripts/build_buildings.py --parks --max-requests 40`.
+
+## Options considered
+- Moving traffic: rejected, it can be mistaken for live traffic data.
+- Cesium ambient occlusion: tried and disabled at every tier. HBAO produced streak artifacts over this flat-ellipsoid scene on a real GPU. Contact darkening comes from shadows plus a bounce term.
+- Buildings with `ShadowMode.ENABLED`: replaced by `CAST_ONLY`, which removes self-shadow acne while buildings still cast onto the ground (the ground receives shadows). Trees, cars and lamps, which are built by one shared loop in `props.ts`, are also `CAST_ONLY`; birds and clouds use `DISABLED`.
+
+## Consequences
+- Extra GPU load, bounded by quality tiers (High / Medium / Low, auto-detected, auto-lowered). Pixel ratio is capped per tier (2 / 1.5 / 1) through `useBrowserRecommendedResolution = false` and `resolutionScale`.
+- Bloom is tuned so only bright windows glow (contrast 119, brightness -0.85, delta 1.0, sigma 2.0, step size 1.0).
+- Props are lifted toward white (`mix(tl_light, 1, 0.35)`) so they are never black at Dusk or Night.
+- Camera bounds clamp the camera position (5 km margin), not the view centre. At low pitch the look target can sit 1-2 km past the margin; Home always recovers.
+- Click versus drag uses Cesium's `ScreenSpaceEventHandler` click tolerance (5 px); the click picks with `scene.drillPick` over an 8 px window, place markers first.
+- Leaving Stylised restores the viewer's own render settings (resolution, FXAA, bloom, AO, shadows).
+- The "Decorative details are illustrative." label covers every addition.

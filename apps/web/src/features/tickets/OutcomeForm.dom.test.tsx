@@ -52,7 +52,7 @@ afterEach(() => {
 describe("OutcomeForm", () => {
   it("offers Confirm only when a value is recorded", () => {
     const { unmount } = setup();
-    expect(screen.getByRole("radiogroup", { name: "Outcome" })).toBeInTheDocument();
+    expect(screen.getByRole("group", { name: "What did you find on site?" })).toBeInTheDocument();
     for (const n of [/Confirm/, /Correct/, /Reject/])
       expect(screen.getByRole("radio", { name: n })).toBeInTheDocument();
     unmount();
@@ -60,6 +60,29 @@ describe("OutcomeForm", () => {
     expect(screen.getByRole("radio", { name: /Record what you found/ })).toBeInTheDocument();
     expect(screen.getByRole("radio", { name: /Reject/ })).toBeInTheDocument();
     expect(screen.queryByRole("radio", { name: /Confirm/ })).not.toBeInTheDocument();
+  });
+
+  it("outcomes are native radios Tab and Space can pick", async () => {
+    const { user } = setup();
+    const group = screen.getByRole("group", { name: "What did you find on site?" });
+    expect(group.querySelectorAll('input[type="radio"]')).toHaveLength(3);
+    await user.tab();
+    await user.keyboard(" ");
+    expect(screen.getByRole("radio", { name: /Confirm/ })).toBeChecked();
+  });
+
+  it("the chosen card shows a check glyph and a 2 px accent border", async () => {
+    const { user } = setup();
+    const card = (name: RegExp) =>
+      screen.getByRole("radio", { name }).closest("label") as HTMLElement;
+    expect(card(/Reject/).querySelector('[data-testid="choice-check"]')).toBeNull();
+    await user.click(screen.getByRole("radio", { name: /Reject/ }));
+    const chosen = card(/Reject/);
+    const check = chosen.querySelector('[data-testid="choice-check"]');
+    expect(check).not.toBeNull();
+    expect(check?.closest("[aria-hidden='true']")).not.toBeNull();
+    expect(chosen.className).toContain("has-[:checked]:border-2");
+    expect(card(/Confirm/).querySelector('[data-testid="choice-check"]')).toBeNull();
   });
 
   it("disables Save until an outcome (and a value for Correct) is chosen", async () => {
@@ -182,7 +205,7 @@ describe("OutcomeForm", () => {
     await user.click(save());
     expect(await screen.findByRole("alert")).toHaveTextContent("Staff access needed");
     expect(screen.getByLabelText("Value found on site")).toHaveValue("10-6");
-    expect(screen.getByRole("radio", { name: /Correct/ })).toHaveAttribute("aria-checked", "true");
+    expect(screen.getByRole("radio", { name: /Correct/ })).toBeChecked();
     expect(onSaved).not.toHaveBeenCalled();
   });
 
@@ -214,6 +237,6 @@ describe("OutcomeForm", () => {
       throw new Error("blocked");
     });
     setup();
-    expect(screen.getByRole("radiogroup", { name: "Outcome" })).toBeInTheDocument();
+    expect(screen.getByRole("group", { name: "What did you find on site?" })).toBeInTheDocument();
   });
 });
