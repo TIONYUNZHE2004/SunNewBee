@@ -147,7 +147,27 @@ def test_reach_counts_who_a_path_matters_to(ctx):
     eid, n = _edge_use(res).most_common(1)[0]
     r = reach.reach(res, eid)
     assert r["kind"] == "path" and r["residents"] > 0 and r["trips"] > 0
+    assert r["on_foot"] + r["by_car"] == r["residents"]
     assert sum(r["by_group"].values()) == r["residents"]
     assert reach.reach(res, "no-such-edge")["residents"] == 0
     place = reach.reach(res, "playground")
     assert place["kind"] == "place"
+
+
+@pytest.mark.skipif(not (SEED / "site.json").exists(), reason="Elmina seed not built")
+def test_reach_counts_twin_paths_between_the_same_junctions():
+    """Review C23: the router keeps one of two parallel paths; a ticket on the other twin was
+    shown 0 residents although the trips walk that same stretch."""
+    from townshiplens_spatial.day import reach
+
+    w = load_world(SEED)
+    sc, _, _, res = tools._day_result(w, "weekday")
+    pairs: dict = {}
+    for e in w.edges.values():
+        pairs.setdefault(frozenset((e.from_node, e.to_node)), []).append(e.id)
+    twins = [ids for ids in pairs.values() if len(ids) > 1]
+    counted = [
+        (reach.reach(res, a)["residents"], reach.reach(res, b)["residents"])
+        for a, b, *_ in twins[:40]
+    ]
+    assert all(x == y for x, y in counted), counted

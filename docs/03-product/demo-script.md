@@ -60,7 +60,7 @@ This segment uses only the current screens. Management mode opens **Simulate a d
 - type "Which change would help most residents in the storm rehearsal?". The assistant runs the same before/after comparison as Test a change ("820 residents would be better off and 0 worse off"). The map flies to the stretch, drawn as an imagined change. Then ask for option 2 (Persiaran Eserina: 262 better off and 2 worse off, among them 105 teenagers and 55 children);
 - the night event at the park: up to 449 residents at once, and 400 met a neighbour from another household;
 - the rising-river and tipping-point views;
-- the ticket impact card on `/tickets`, now with "Who this matters to": how many synthetic residents' trips on a normal weekday cross that unchecked path, and what for (e.g. the busiest Persiaran Eserina segment: 255 residents, 113 of them teenagers, 179 school trips).
+- the ticket impact card on `/tickets`, now with "Whose rehearsed trips use this": how many synthetic residents' trips on a normal weekday use that unchecked path, on foot or by car, and what for (e.g. the busiest Persiaran Eserina segment: 255 residents, 183 on foot and 72 by car, 113 of them teenagers, 179 school trips).
 
 **If asked "is it a real world model?"** Yes, in the functional sense:
 - **an explicit state:** the township's paths, places, flood scenarios and facts;

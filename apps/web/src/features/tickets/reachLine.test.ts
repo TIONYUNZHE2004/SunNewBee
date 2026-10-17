@@ -6,6 +6,8 @@ describe("reachLine", () => {
     const l = reachLine({
       kind: "path",
       residents: 255,
+      on_foot: 240,
+      by_car: 15,
       trips: 461,
       day: { label: "A normal weekday" },
       by_purpose: [
@@ -15,9 +17,9 @@ describe("reachLine", () => {
       ],
       by_group: { child: 58, teen: 113, adult: 68, older: 16 },
     });
-    expect(l?.title).toBe("Who this matters to · A normal weekday (rehearsal)");
+    expect(l?.title).toBe("Whose rehearsed trips use this · A normal weekday");
     expect(l?.text).toBe(
-      "255 synthetic residents' trips cross this path (461 trips: 179 school runs and school trips, 29 park visits).",
+      "255 synthetic residents' trips use this path or road (240 on foot, 15 by car): 461 trips, of which 179 school runs and school trips, 29 park visits, 228 trips home.",
     );
     expect(l?.who).toBe("Among them 58 children and 113 teenagers.");
   });

@@ -77,7 +77,7 @@ function Reach({ ticketId }: { ticketId: string }) {
   if (!l) return null;
   return (
     <section
-      aria-label="Who this check matters to"
+      aria-label="Whose rehearsed trips use this"
       className="mt-3 space-y-1 rounded-lg border border-dashed border-lilac bg-raised p-3 text-sm"
     >
       <h3 className="text-xs font-semibold uppercase tracking-wide text-lilac">{l.title}</h3>

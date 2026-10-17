@@ -1275,6 +1275,8 @@ def ticket_reach(ctx: Ctx, vr_id: str, day: str = "weekday") -> ToolResult:
     if vr is None:
         return ToolResult(ok=False, warnings=[f"unknown verification request {vr_id}"])
     w = ctx.world
+    if not any(s["id"] == day for s in day_scenarios(ctx)):
+        return ToolResult(ok=False, warnings=[f"unknown day scenario {day}"])
     if vr.element_id not in w.edges and vr.element_id not in w.places:
         return ToolResult(ok=True, data={"kind": "other", "residents": 0, "trips": 0})
 
@@ -1358,7 +1360,7 @@ def _day_parts(w: World, scenario_id: str):
     return sc, pop, spot.choose(pop)
 
 
-_DAY_RESULTS: OrderedDict[str, object] = OrderedDict()  # finished rule-based days (2 kept)
+_DAY_RESULTS: OrderedDict[str, object] = OrderedDict()  # finished rule-based days (4 kept)
 
 
 def _day_result(w: World, scenario_id: str):
@@ -1376,7 +1378,7 @@ def _day_result(w: World, scenario_id: str):
         hit = engine.Day(w, sc, pop=pop).run()
         with _WM_CACHE_LOCK:
             _DAY_RESULTS[key] = hit
-            while len(_DAY_RESULTS) > 2:
+            while len(_DAY_RESULTS) > 4:  # the four built-in days (review C23)
                 _DAY_RESULTS.popitem(last=False)
     return sc, hit.day.pop, cast, hit
 

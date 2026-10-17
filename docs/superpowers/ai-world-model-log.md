@@ -1460,3 +1460,15 @@ Each is recorded in `data/README.md` and `CREDITS.md`.
 - **Tests:** reach on the tiny world, the API endpoint (a filed ticket, 404), and the `reachLine` wording.
 
 **Checklist** (mock-backed): lint PASS, pytest 1,306 PASS, typecheck PASS, vitest 803 PASS, gen (client regenerated with the new route), golden 23/23 PASS, build PASS, e2e 20 PASS.
+
+### Cycle 23 review (Sonnet) and fixes (17 Oct, 14:32)
+
+No correctness bugs in the counting: an independent recount matched `reach()` exactly on the 40 busiest paths. Fixed:
+- **Fairness (Medium):** the card implied the count was who a fact "matters to", but it counted car trips and every profile. It now says "Whose rehearsed trips use this" and splits residents on foot and by car (the busiest Persiaran Eserina segment: 255 residents, 183 on foot and 72 by car). The note says that whether a check matters depends on how each resident travels.
+- **Twin paths (Medium):** the router keeps one of two parallel paths between the same junctions, so a ticket on the other twin showed 0 residents (31 such pairs on the seed). Trips now match on the junction pair. Tested on 40 twin pairs.
+- **Refresh (Low–Medium):** resolving a ticket now also refreshes the count, and the note says the count is the day as it is now. `_DAY_RESULTS` keeps all four days, so a ticket's weekday no longer evicts the storm used by the comparisons.
+- **Totals:** trips home are listed in the breakdown, so the parts add up to the total.
+- **Places:** only trips that went to the place and got there are counted.
+- **Day:** an unknown day is checked first.
+
+**Checklist** (mock-backed): lint PASS, pytest 1,307 PASS, typecheck PASS, vitest 803 PASS, gen PASS, golden 23/23 PASS, build PASS, e2e 20 PASS.
