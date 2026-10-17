@@ -115,6 +115,7 @@ def preview(asset_id: str) -> None:
     cam = bpy.data.objects.new("tl_cam", cam_data)
     scene.collection.objects.link(cam)
     dist = max(width, max_h) * 2.0
+    cam_data.clip_end = max(cam_data.clip_end, dist * 4.0)  # big landmarks sit far from the camera
     cam.location = (width / 2, lo_y - dist * 0.8, max_h / 2 + dist * 0.45)  # frontage side
     target = bpy.data.objects.new("tl_target", None)
     target.location = (width / 2, 0.0, max_h / 2)

@@ -40,3 +40,26 @@ def ring_centroid(ring: list[list[float]]) -> tuple[float, float]:
     if abs(a2) < 1e-18:  # degenerate: vertex mean
         return (sum(p[0] for p in pts) / len(pts), sum(p[1] for p in pts) / len(pts))
     return lon0 + cx / (3.0 * a2), lat0 + cy / (3.0 * a2)
+
+
+def outline_ring(landmarks_fc: dict, model: str) -> list[list[float]] | None:
+    """Outer ring [[lon, lat], ...] of the landmarks.geojson feature whose `model` is `model`
+    (the largest polygon of a MultiPolygon), or None. A footprint is never invented."""
+    for f in (landmarks_fc or {}).get("features", []):
+        if (f.get("properties") or {}).get("model") != model:
+            continue
+        geom = f.get("geometry") or {}
+        if geom.get("type") == "Polygon":
+            return geom["coordinates"][0]
+        if geom.get("type") == "MultiPolygon":
+            return max(geom["coordinates"], key=lambda poly: len(poly[0]))[0]
+    return None
+
+
+def outline_local(ring: list[list[float]]) -> list[tuple[float, float]]:
+    """The ring as open (x east, z = -north) metres around its own area centroid."""
+    c = ring_centroid(ring)
+    pts = [to_local(p[0], p[1], c) for p in ring]
+    if len(pts) > 1 and pts[0] == pts[-1]:
+        pts = pts[:-1]
+    return pts

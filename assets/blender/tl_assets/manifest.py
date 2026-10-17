@@ -4,28 +4,23 @@ Only assets that were built (present in `infos`) are listed, in ASSETS order. Te
 (calib) are never listed.
 """
 
-from .geo import ring_centroid
+import logging
+
+from .geo import outline_ring, ring_centroid
 from .glbinfo import GlbInfo
 from .specs import ASSETS, PRECINCT_GROUPS, ROLES, palette_for
 
 VERSION = 1
+log = logging.getLogger(__name__)
 
 
 def _anchor(asset_id: str, landmarks_fc: dict) -> list[float] | None:
     """[lon, lat] ring centroid of the landmarks.geojson feature whose `model` is asset_id."""
-    for f in landmarks_fc.get("features", []):
-        if (f.get("properties") or {}).get("model") != asset_id:
-            continue
-        geom = f.get("geometry") or {}
-        if geom.get("type") == "Polygon":
-            ring = geom["coordinates"][0]
-        elif geom.get("type") == "MultiPolygon":
-            ring = max(geom["coordinates"], key=lambda poly: len(poly[0]))[0]
-        else:
-            continue
-        lon, lat = ring_centroid(ring)
-        return [round(lon, 7), round(lat, 7)]
-    return None
+    ring = outline_ring(landmarks_fc, asset_id)
+    if ring is None:
+        return None
+    lon, lat = ring_centroid(ring)
+    return [round(lon, 7), round(lat, 7)]
 
 
 def build_manifest(infos: dict[str, GlbInfo], as_of: str, landmarks_fc: dict) -> dict:
@@ -61,7 +56,13 @@ def build_manifest(infos: dict[str, GlbInfo], as_of: str, landmarks_fc: dict) ->
         }
         if spec.group == "landmark" and spec.placement == "anchor":
             anchor = _anchor(asset_id, landmarks_fc)
-            if anchor is not None:
+            if anchor is None:
+                log.warning(
+                    "landmark %s unplaced: no landmarks.geojson feature with model=%s",
+                    asset_id,
+                    asset_id,
+                )
+            else:
                 landmarks[asset_id] = {"anchor": anchor}
     return {
         "version": VERSION,

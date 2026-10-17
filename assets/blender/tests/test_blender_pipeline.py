@@ -1,5 +1,6 @@
 """End-to-end: headless Blender builds `calib`, gltf-transform packs it (opt-in, slow)."""
 
+import json
 import statistics
 import subprocess
 import sys
@@ -11,6 +12,7 @@ from tl_assets.glbinfo import read_attribute, read_glb
 
 ASSETS_DIR = Path(__file__).resolve().parents[1]
 ROOT = ASSETS_DIR.parents[1]
+LANDMARKS_GEOJSON = ROOT / "data" / "seed" / "elmina" / "base" / "landmarks.geojson"
 RAW = ASSETS_DIR / "out" / "raw" / "test" / "calib.glb"
 NODES = [f"calib__a__LOD{n}" for n in range(3)]
 
@@ -343,3 +345,65 @@ def test_non_residential(non_residential_built, asset_id):
             _check_scale_proof(colors, normals, pos)
         if asset_id == "factory":
             assert specs.ROLES.index("metal") in _roles(colors), "metal roof"
+
+
+# --- landmarks (Task 5) -----------------------------------------------------------------
+
+LANDMARK_IDS = ("lakeside_mall", "kanopi", "masjid_denai_alam")
+# measured mean upper-wall AO; tuned in the landmark task
+UPPER_FROM.update(
+    {"lakeside_mall": (0.5, 0.5), "kanopi": (0.5, 0.4), "masjid_denai_alam": (0.5, 0.4)}
+)
+
+
+@pytest.fixture(scope="module")
+def landmarks_built(tmp_path_factory) -> dict[str, tuple[Path, Path]]:
+    return _build_and_pack(LANDMARK_IDS, tmp_path_factory)
+
+
+@pytest.mark.parametrize("asset_id", LANDMARK_IDS)
+def test_landmarks(landmarks_built, asset_id):
+    raw, packed = landmarks_built[asset_id]
+    spec = specs.ASSETS[asset_id]
+    check_archetype(raw, packed, asset_id)  # contract, caps, bounds_errors on every LOD
+    assert packed.stat().st_size <= specs.LANDMARK_MAX_BYTES
+    info = read_glb(raw)
+    assert info.images <= 1  # none are used
+    v = spec.variants[0]
+    lo, hi = info.nodes[f"{asset_id}__{v.id}__LOD0"].bounds
+    if asset_id == "lakeside_mall":
+        from tl_assets.geo import outline_local, outline_ring
+
+        fc = json.loads(LANDMARKS_GEOJSON.read_text(encoding="utf-8"))
+        pts = outline_local(outline_ring(fc, "lakeside_mall"))
+        bx = (min(p[0] for p in pts), max(p[0] for p in pts))
+        bz = (min(p[1] for p in pts), max(p[1] for p in pts))
+        # the canopy overhangs the outline bbox by at most 1.5 m a side, never inside it
+        for axis, (a, b) in ((0, bx), (2, bz)):
+            assert a - 1.5 - 0.01 <= lo[axis] <= a + 0.01, (axis, lo[axis], a)
+            assert b - 0.01 <= hi[axis] <= b + 1.5 + 0.01, (axis, hi[axis], b)
+        assert 8.0 <= hi[1] <= 12.0
+        colors = read_attribute(raw, f"{asset_id}__{v.id}__LOD0", "COLOR_0")
+        light = specs.ROLES.index("light")
+        assert light in _roles(colors), "a blank sign band"
+    if asset_id == "kanopi":
+        assert 118.0 < hi[1] < 132.0
+        colors = read_attribute(raw, f"{asset_id}__{v.id}__LOD0", "COLOR_0")
+        assert specs.ROLES.index("foliage") in _roles(colors), "planted balconies"
+    if asset_id == "masjid_denai_alam":
+        assert 16.0 < hi[1] < 34.0
+        colors = read_attribute(raw, f"{asset_id}__{v.id}__LOD0", "COLOR_0")
+        pos = read_attribute(raw, f"{asset_id}__{v.id}__LOD0", "POSITION")
+        accent = specs.ROLES.index("accent")
+        ys = [p[1] for c, p in zip(colors, pos, strict=True) if round(c[1] * 7) == accent]
+        assert ys and max(ys) > 16.0, "a main dome"
+
+
+def test_landmark_ao_ground_scales_with_the_asset(landmarks_built):
+    """A 125 m tower must not bake as if standing on a 40 m plane: the base of its walls near
+    the plane edge and beyond would otherwise be lit from below."""
+    raw, _ = landmarks_built["kanopi"]
+    colors = read_attribute(raw, "kanopi__tower__LOD0", "COLOR_0")
+    pos = read_attribute(raw, "kanopi__tower__LOD0", "POSITION")
+    base = [c[0] for c, p in zip(colors, pos, strict=True) if p[1] < 1.0 and c[1] < 0.05]
+    assert base and statistics.fmean(base) < 0.95  # contact shading exists at the footing

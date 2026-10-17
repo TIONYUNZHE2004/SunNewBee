@@ -249,10 +249,24 @@ def _landmark(aid: str, variant: Variant, placement: str) -> AssetSpec:
     )
 
 
+MALL_BBOX = (237.08, 284.96)  # lakeside_mall outline bbox (x, z), metres; pinned to the seed
+
 _LANDMARK_SPECS = (
-    # From its OSM outline (way/1308938137): OBB about 162 × 321 m, h 9. [?] The landmark
-    # task replaces w and d with the outline's extents in the local frame.
-    _landmark("lakeside_mall", _bv("osm", (162.2, 9.0, 321.3), (80000, 10000, 1500)), "anchor"),
+    # From its OSM outline (way/1308938137). The local bbox (x east, z = -north, around the
+    # ring centroid) is 237.08 x 284.96 m; a test pins these numbers to the seed. The canopy
+    # overhangs the outline by up to 1.5 m a side, so the extent is bbox - 0.1 .. bbox + 3.1.
+    _landmark(
+        "lakeside_mall",
+        _bv(
+            "osm",
+            (MALL_BBOX[0], 9.0, MALL_BBOX[1]),
+            (80000, 10000, 1500),
+            y_range=(8.0, 12.0),
+            x_range=(MALL_BBOX[0] - 0.1, MALL_BBOX[0] + 3.1),
+            z_range=(MALL_BBOX[1] - 0.1, MALL_BBOX[1] + 3.1),
+        ),
+        "anchor",
+    ),
     _landmark(
         "kanopi",
         _bv("tower", (40.0, 125.0, 30.0), (60000, 8000, 600), y_range=(118.0, 132.0)),

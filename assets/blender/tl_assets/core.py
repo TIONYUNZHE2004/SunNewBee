@@ -203,8 +203,15 @@ def tri_count(obj) -> int:
 # --- AO ---------------------------------------------------------------------------------
 
 
+def ground_size(obj) -> float:
+    """Side of the temporary AO ground plane: GROUND_SIZE_M, or (when the object reaches past
+    that plane's edge) twice its horizontal reach plus 20 m. Unchanged for small assets."""
+    half = max(max(abs(c[0]), abs(c[1])) for c in obj.bound_box)
+    return GROUND_SIZE_M if half <= GROUND_SIZE_M / 2 else 2.0 * half + 20.0
+
+
 def bake_ao(obj, samples: int = 64, distance: float = 4.0) -> None:
-    """Bake Cycles AO (with a temporary 40 m ground plane) into COLOR_0.R only.
+    """Bake Cycles AO into COLOR_0.R only (temporary ground plane, see `ground_size`).
 
     Every other mesh is hidden from the render while baking, so LODs and variants that share
     the origin never occlude each other.
@@ -220,7 +227,7 @@ def bake_ao(obj, samples: int = 64, distance: float = 4.0) -> None:
     hidden = {o.name: o.hide_render for o in scene.objects}
     for o in scene.objects:
         o.hide_render = o is not obj
-    ground = _ground("tl_ao_ground", GROUND_SIZE_M)
+    ground = _ground("tl_ao_ground", ground_size(obj))
     mesh = obj.data
     try:
         tmp = _color_attr(mesh, AO_TMP_ATTR)

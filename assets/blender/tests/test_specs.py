@@ -1,6 +1,13 @@
+import json
+import logging
 import re
+from pathlib import Path
 
+import pytest
 from tl_assets import specs
+from tl_assets.geo import ring_centroid, to_local
+from tl_assets.glbinfo import GlbInfo, NodeInfo
+from tl_assets.manifest import build_manifest
 
 from data.scripts import build_archetypes as ba
 
@@ -157,3 +164,60 @@ def test_bounds_errors_size_check_keeps_the_eave_slack():
     mosque = specs.ASSETS["mosque"].variants[0]  # y_range (14, 32)
     assert specs.bounds_errors(mosque, _bounds(30, 30, 30)) == []
     assert specs.bounds_errors(mosque, _bounds(30, 33, 30))
+
+
+SEED = (
+    Path(__file__).resolve().parents[3] / "data" / "seed" / "elmina" / "base" / "landmarks.geojson"
+)
+
+
+def _seed() -> dict:
+    return json.loads(SEED.read_text(encoding="utf-8"))
+
+
+def _info(asset_id: str) -> GlbInfo:
+    spec = specs.get_spec(asset_id)
+    nodes = {
+        f"{asset_id}__{v.id}__LOD{n}": NodeInfo(
+            cap - 1, 1, ((0, 0, 0), (1, 1, 1)), frozenset({"POSITION", "COLOR_0"})
+        )
+        for v in spec.variants
+        for n, cap in enumerate(v.tris)
+    }
+    return GlbInfo(nodes, ["tl_role"], 0, ["EXT_meshopt_compression"], 1000)
+
+
+def test_landmark_anchor_from_seed(caplog):
+    fc = _seed()
+    feat = next(f for f in fc["features"] if f["properties"]["model"] == "lakeside_mall")
+    lon, lat = ring_centroid(feat["geometry"]["coordinates"][0])
+    infos = {a: _info(a) for a in ("lakeside_mall", "kanopi", "masjid_denai_alam")}
+    m = build_manifest(infos, "2026-10-17", fc)
+    assert m["landmarks"]["lakeside_mall"]["anchor"] == pytest.approx([lon, lat], abs=1e-7)
+    assert set(m["landmarks"]) == {"lakeside_mall"}  # deferred landmarks get no anchor
+    for a in ("kanopi", "masjid_denai_alam"):
+        assert m["assets"][a]["placement"] == "deferred"
+    # no lakeside_mall feature (or no file at all): no anchor, and the gap is logged
+    empty = {"type": "FeatureCollection", "features": []}
+    for fc2 in (empty, {}):
+        caplog.clear()
+        with caplog.at_level(logging.WARNING):
+            m2 = build_manifest({"lakeside_mall": _info("lakeside_mall")}, "2026-10-17", fc2)
+        assert m2["landmarks"] == {}
+        assert "lakeside_mall" in caplog.text and "unplaced" in caplog.text
+
+
+def test_lakeside_mall_ranges_are_pinned_to_the_seed_outline():
+    """specs hard-codes the outline's local bbox (no file read in specs); this pins it."""
+    feat = next(f for f in _seed()["features"] if f["properties"]["model"] == "lakeside_mall")
+    ring = feat["geometry"]["coordinates"][0]
+    c = ring_centroid(ring)
+    pts = [to_local(x, y, c) for x, y in ring]
+    bw = max(p[0] for p in pts) - min(p[0] for p in pts)
+    bd = max(p[1] for p in pts) - min(p[1] for p in pts)
+    v = specs.ASSETS["lakeside_mall"].variants[0]
+    assert v.size[0] == pytest.approx(bw, abs=0.05) and v.size[2] == pytest.approx(bd, abs=0.05)
+    # canopy overhang 1.5 m per side: extent within [bbox - 0.1, bbox + 3.0 + 0.1]
+    assert v.x_range == pytest.approx((bw - 0.1, bw + 3.1), abs=0.05)
+    assert v.z_range == pytest.approx((bd - 0.1, bd + 3.1), abs=0.05)
+    assert v.y_range == (8.0, 12.0)
