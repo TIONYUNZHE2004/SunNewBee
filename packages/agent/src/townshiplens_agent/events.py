@@ -15,6 +15,7 @@ IntentKind = Literal[
     "whatif.diff",  # before/after lines of a what-if simulation (geojson attached by the server)
     "river.rollout",  # open and play the rising-river rollout (the client fetches /river-rollout)
     "day.show",  # open an Elmina Day rehearsal on the map, paused at `t_min` (server-added)
+    "day.trip",  # a resident's own rehearsed trip: day.show plus the trip (geojson, server-built)
 ]
 
 

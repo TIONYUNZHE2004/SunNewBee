@@ -405,6 +405,7 @@ def validate_answer(ans: FinalAnswer, rec: TurnRecord) -> list[str]:
     errs += foreign_number_errors(ans, rec)
     errs += day_errors(ans, rec)
     errs += day_change_errors(ans, rec)
+    errs += my_trip_errors(ans, rec)
     errs += affected_errors(ans, rec)
     # Honesty rules apply to every answer, whether or not a tool ran.
     errs += text_errors(all_text, rec)
@@ -741,7 +742,9 @@ def _day_number_errors(text: str, rec: TurnRecord, what: str) -> list[str]:
     # a tested change licenses its headline and group counts only (review C17: every integer in
     # its payload, option numbers and other options' counts included, let invented ones by)
     allowed = set().union(
-        set(), *(_ints(d) for d in rec.days), *map(_change_counts, rec.day_changes)
+        set(),
+        *(_ints(d) for d in [*rec.days, *rec.my_trips]),
+        *map(_change_counts, rec.day_changes),
     )
     plain = _strip_change_context(_DAY_NOT_COUNT.sub(" ", _HHMM.sub(" ", named)), rec)
     spoken = {int(m.group(1).replace(",", "")) for m in _DAY_COUNT.finditer(plain)}
@@ -798,6 +801,108 @@ def _strip_change_context(text: str, rec: TurnRecord) -> str:
         text,
         flags=re.IGNORECASE,
     )
+
+
+# Rehearse my trip (Cycle 19): facts from the rehearsal, never advice.
+MY_TRIP_ADVICE = re.compile(
+    r"\b(?:should|must|need to|have to|better|ought to)\s+(?:leave|go|set off|depart|travel)\b"
+    r"|\bleave (?:by|before|no later than|early)\b|\bbest time\b|\bsafest\b|\bmake sure\b"
+    r"|\bi (?:recommend|suggest|advise)\b|\bsebaiknya\b|\bperlu bertolak\b|建议|最好"
+    r"|\b(?:will|won't|would)\s+(?:not\s+)?(?:get|arrive|reach|make|be able)\b"
+    r"|\bakan (?:sampai|tiba)\b",
+    re.IGNORECASE,
+)
+MY_TRIP_OUTCOME = {
+    "clear": r"got there|arrived|reached|sampai|tiba|到达|抵达",
+    "longer": r"longer way|longer route|jalan lebih jauh|laluan lebih panjang|绕",
+    "very_long": r"very long way|long way round|sangat jauh|很远|很长",
+    "rerouted": r"re-?plan|re-?route|changed (?:its|the) route|tukar laluan|改道|重新规划",
+    "turned_back": r"turned back|berpatah balik|折返|返回",
+    "stranded": r"\bstuck\b|terkandas|被困",
+    "no_way": r"no way|no route|\bcut\b|tiada laluan|terputus|没有路|中断",
+}
+UNCHECKED_WORDS = re.compile(r"unchecked|not (?:yet )?checked|belum disemak|未核实|未检查", re.I)
+MY_TRIP_GAP = re.compile(
+    r"data gap|no mapped connection|jurang data|tiada sambungan|数据缺口", re.IGNORECASE
+)
+_CLOCK = re.compile(r"\b(\d{1,2})[:.](\d{2})\s*(am|pm|a\.m\.|p\.m\.)?(?!\d)", re.IGNORECASE)
+
+
+def _clock_minutes(text: str) -> set[int]:
+    out = set()
+    for h, m, ap in _CLOCK.findall(text):
+        h, m = int(h), int(m)
+        if ap and ap.lower().startswith("p") and h < 12:
+            h += 12
+        if ap and ap.lower().startswith("a") and h == 12:
+            h = 0
+        if h < 24 and m < 60:
+            out.add(h * 60 + m)
+    return out
+
+
+def _payload_times(x) -> set[int]:
+    if isinstance(x, str):
+        return _clock_minutes(x) if re.fullmatch(r"\d{2}:\d{2}", x) else set()
+    if isinstance(x, dict):
+        return set().union(set(), *(_payload_times(v) for v in x.values()))
+    if isinstance(x, list):
+        return set().union(set(), *(_payload_times(v) for v in x))
+    return set()
+
+
+def my_trip_errors(ans: FinalAnswer, rec: TurnRecord) -> list[str]:
+    """A resident's own rehearsed trip: says what happened in the rehearsal (the asked time's
+    outcome, in words), never advice; every clock time and count comes from the rehearsal."""
+    if not rec.my_trips or ans.answer_status == "cannot_answer":
+        return []
+    text = " ".join([ans.summary, *ans.steps, *ans.caveats])
+    d = rec.my_trips[-1]
+    errs = []
+    if not DAY_WORD.search(text):
+        errs.append("Say this is a rehearsal (a simulated day), not what will happen.")
+    if not has_not_forecast(text):
+        errs.append("A rehearsed trip must say it is not a forecast (include 'not a forecast').")
+    if MY_TRIP_ADVICE.search(text) or DAY_FORECAST.search(text):
+        errs.append(
+            "Do not advise when to leave or predict the trip: say what happened in the "
+            "rehearsal (for example 'in the rehearsal, a trip leaving at 06:40 got there')."
+        )
+    if d.get("status") != "rehearsed":
+        if not MY_TRIP_GAP.search(text):
+            errs.append("There is no mapped connection for this trip: call it a data gap.")
+        return errs
+    out = (d.get("asked") or {}).get("outcome")
+    if out in MY_TRIP_OUTCOME and not re.search(MY_TRIP_OUTCOME[out], text, re.IGNORECASE):
+        errs.append(
+            f"Say what happened to the trip at {d.get('leave')} in the rehearsal "
+            f"(it {out.replace('_', ' ')})."
+        )
+    if (d.get("asked") or {}).get("unchecked") and not UNCHECKED_WORDS.search(text):
+        errs.append(
+            "The rehearsal let this trip use unchecked paths: say how many unchecked stretches "
+            "it crossed."
+        )
+    known = set().union(*(_payload_times(t) for t in rec.my_trips))
+    for dd in rec.days:
+        known |= _clock_minutes((dd.get("scenario") or {}).get("summary") or "")
+    if bad := sorted(_clock_minutes(_strip_names(text, rec.place_names)) - known):
+        errs.append(
+            f"Times {[f'{m // 60:02d}:{m % 60:02d}' for m in bad]} are not in the rehearsal: "
+            "quote only its times (leaving, arriving, when the way came back)."
+        )
+    errs += _day_number_errors(text, rec, "minutes, waiting and unchecked stretches")
+    # minutes are not "measurements" here: every trip time must be one the rehearsal produced
+    named = _strip_names(text, rec.place_names)
+    mins = {int(x) for x in _TRIP_MIN.findall(named)}
+    if bad := sorted(mins - set().union(*(_ints(t) for t in rec.my_trips))):
+        errs.append(
+            f"Trip times {bad} minutes do not appear in the rehearsal: quote only its minutes."
+        )
+    return errs
+
+
+_TRIP_MIN = re.compile(r"(?<![\d.:])(\d+)\s*(?:min\b|mins\b|minutes?\b|minit\b|分钟)", re.I)
 
 
 IMAGINED = re.compile(r"\bimagin|\bwhat-if\b|\bbayangkan|\bandaian\b|假设|设想", re.IGNORECASE)
@@ -1166,13 +1271,16 @@ _ISSUES = (
     ("No costs or feasibility are modelled", "made up a cost or feasibility claim"),
     ("cannot be repeated from memory", "repeated earlier what-if numbers without re-checking"),
     ("not percentages", "gave percentages instead of simulated counts"),
-    ("do not appear in the rehearsal", "used numbers the rehearsal did not produce"),
     ("suggested changes were tested", "called an untested change the best"),
     ("must be called imagined", "did not say the change is imagined"),
-    ("must be called a rehearsal", "did not say it is a rehearsal of synthetic residents"),
+    ("Say this is a rehearsal", "did not say it is a rehearsal"),
     ("say so as a data gap", "left out the data gap"),
     ("does not predict what will happen", "predicted what will happen to real residents"),
     ("An imagined change is not a plan", "described an imagined change as a plan"),
+    ("Do not advise when to leave", "gave travel advice instead of the rehearsal's facts"),
+    ("are not in the rehearsal: quote only its times", "used times the rehearsal did not produce"),
+    ("Say what happened to the trip", "did not say what happened to the trip"),
+    ("unchecked paths: say how many", "left out the unchecked stretches"),
     ("with a river stage must say", "did not say the flood scenario is not a forecast"),
     ("rest on demo values", "left out that the imagined routes use demo values"),
     ("A what-if is not a real plan", "described a what-if as a real plan"),

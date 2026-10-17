@@ -21,6 +21,7 @@ from .template import (
     day_answer,
     day_change_answer,
     fixit_answer,
+    my_trip_answer,
     plan_answer,
     rollout_answer,
     tipping_answer,
@@ -473,6 +474,54 @@ def _day(q: str, rets, info: AgentInfo) -> ModelResponse:
     return _final(**day_answer(d, ev))
 
 
+_MY_TRIP = (
+    r"(?=.*(?:\brehears|\bstorm\b|\bribut\b|\blatihan\b|\bsimulated day\b))"
+    r"(?=.*(?:\bmy trip\b|\bi leave\b|\bleav(?:e|ing) at\b|\bbertolak\b|\bfrom .+ to ))"
+)
+_ENDS = re.compile(r"from (.+?) to (.+?)(?=\s+(?:at|by|with|in|on|leaving|if|during)\b|[?.,]|$)")
+
+
+def _leave_at(q: str) -> str:
+    m = re.search(r"\b(\d{1,2})(?:[:.](\d{2}))?\s*(am|pm)\b|\b(\d{1,2})[:.](\d{2})\b", q)
+    if not m:
+        return "07:30"
+    if m.group(3):
+        h, mm = int(m.group(1)), int(m.group(2) or 0)
+        h = h % 12 + (12 if m.group(3) == "pm" else 0)
+    else:
+        h, mm = int(m.group(4)), int(m.group(5))
+    return f"{h:02d}:{mm:02d}"
+
+
+def _my_trip(q: str, rets, info: AgentInfo) -> ModelResponse:
+    m = _ENDS.search(q)
+    if not m:
+        return _cannot("Tell me where your trip starts and ends, and when you leave.")
+    n = len(rets)
+    if n == 0:
+        return _call("find_place", query=m.group(1).strip())
+    if n == 1:
+        return _call("find_place", query=m.group(2).strip())
+    if n == 2:
+        a, b = _data(rets[0][1]), _data(rets[1][1])
+        if not a or not b:
+            return _cannot("I couldn't find one of those places yet.")
+        prof = "drive" if re.search(r"\bby car\b|\bdrive\b|\bkereta\b", q) else None
+        return _call(
+            "rehearse_my_trip",
+            from_id=a[0]["id"],
+            to_id=b[0]["id"],
+            leave_at=_leave_at(q),
+            day=_day_id(q),
+            profile=prof or _profile(q, info, "default"),
+        )
+    d = _data(rets[-1][1])
+    if not isinstance(d, dict):
+        return _cannot("I couldn't rehearse that trip on the township model.")
+    ev = [i for i in _ev_ids(rets) if i.startswith("ev-mytrip-")]
+    return _final(**my_trip_answer(d, ev))
+
+
 _DAY_CHANGE = (
     r"(?=.*(?:\brehears|\bstorm\b|\bribut\b|\blatihan\b|\bsimulated day\b))"
     r"(?=.*(?:\bwhich (?:one )?change\b|\btest (?:a |the |another |option)"
@@ -497,6 +546,8 @@ def _script(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
     q = _prompt(messages).lower()
     rets = _returns(messages)
     n = len(rets)
+    if re.search(_MY_TRIP, q):
+        return _my_trip(q, rets, info)
     if re.search(_DAY_CHANGE, q):
         return _day_change(q, rets, info)
     if re.search(_DAY, q):

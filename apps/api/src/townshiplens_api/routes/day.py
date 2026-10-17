@@ -120,3 +120,73 @@ def day_compare(scenario_id: str, body: DayCompareRequest) -> dict:
     if not res.ok:
         raise _fail(res)
     return res.data
+
+
+class DayTrip(BaseModel):
+    """One resident's own trip through a rehearsed day (Cycle 19). Times are clock text; every
+    outcome comes from the engine. A rehearsal, not a forecast."""
+
+    status: str  # rehearsed | no_data
+    scenario: dict[str, Any]
+    from_: dict[str, Any] = Field(alias="from")
+    to: dict[str, Any]
+    profile: str
+    leave: str
+    stage_at_leave: str | None = None
+    reason: str | None = None
+    mode: str | None = None
+    normal_minutes: int | None = None
+    normal_unchecked: int | None = None
+    asked: dict[str, Any] | None = None
+    cut_by: list[str] = []
+    next_clear_leave: str | None = None
+    last_ok_leave_before: str | None = None
+    track: list[dict[str, Any]] = []
+    normal_route: list[list[float]] = []
+    cut_lines: list[list[list[float]]] = []
+    river_changes: list[list[Any]] = []
+    sweep: list[dict[str, Any]] = []
+    sweep_counts: dict[str, int] = {}
+    disclaimer: str
+
+    model_config = {"populate_by_name": True}
+
+
+class DayTripRequest(BaseModel):
+    """Ends are place ids, or points tapped on the map ("lon,lat"). Points travel in the body,
+    never in the URL, so a resident's home never lands in an access log (PDPA)."""
+
+    from_id: str | None = None
+    to_id: str | None = None
+    from_point: str | None = Field(default=None, max_length=40)
+    to_point: str | None = Field(default=None, max_length=40)
+    profile: str = "default"
+    leave_at: str = "07:30"
+
+
+@router.post(
+    "/day/{scenario_id}/trip",
+    response_model=DayTrip,
+    response_model_by_alias=True,
+    responses={
+        404: {"description": "unknown scenario"},
+        422: {"description": "invalid ends, profile or time"},
+        503: {"description": "busy"},
+    },
+)
+def day_trip(scenario_id: str, body: DayTripRequest) -> dict:
+    """Rehearse my trip: a resident's own trip through the rehearsed day, at the asked time and
+    every 10 minutes around it (when it got through, when it was cut, and by which street)."""
+    res = tools.rehearse_my_trip(
+        state.get_ctx(),
+        from_id=body.from_id,
+        to_id=body.to_id,
+        profile=body.profile,
+        leave_at=body.leave_at,
+        day=scenario_id,
+        from_point=body.from_point,
+        to_point=body.to_point,
+    )
+    if not res.ok:
+        raise _fail(res)
+    return {**res.data, "disclaimer": res.warnings[0] if res.warnings else ""}

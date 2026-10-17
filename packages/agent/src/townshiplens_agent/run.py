@@ -222,18 +222,39 @@ def _answer_events(
     evs += [TextDelta(delta=text[i : i + CHUNK]) for i in range(0, len(text), CHUNK)]
 
     intents = list(ans.scene_intents)
-    intents = [i for i in intents if i.kind != "day.show"]  # only ever built by the server
-    if rec.days or rec.day_changes:
+    # day.show / day.trip are only ever built by the server
+    intents = [i for i in intents if i.kind not in ("day.show", "day.trip")]
+    calls = rec.tool_calls
+
+    def last(name: str) -> int:
+        return max((i for i, n in enumerate(calls) if n == name), default=-1)
+
+    if rec.my_trips and last("rehearse_my_trip") > max(
+        last("day_rehearsal"), last("day_test_change")
+    ):
+        # A resident's own trip: the map opens the rehearsal at the time they leave, with the
+        # river stage of that minute, and draws their trip (Cycle 19).
+        t = rec.my_trips[-1]
+        hh, _, mm = str(t.get("leave") or "").partition(":")
+        intents = [i for i in intents if i.kind != "flood.set_level"]
+        intents.insert(
+            0,
+            SceneIntent(
+                kind="day.trip",
+                day=(t.get("scenario") or {}).get("id"),
+                t_min=int(hh) * 60 + int(mm) if hh.isdigit() and mm.isdigit() else None,
+                scenario_id=t.get("stage_at_leave"),
+                geojson=_trip_geojson(t),
+            ),
+        )
+    elif rec.days or rec.day_changes:
         # The map opens the rehearsal the answer came from, paused at its peak, with that day's
         # own river stage. day.show carries the stage, so no separate flood.set_level is sent
         # (the client remembers what was on screen before the day and restores it on close).
         # the day the turn ended on, by call order (review C17)
-        calls = rec.tool_calls
-        last_change = max((i for i, n in enumerate(calls) if n == "day_test_change"), default=-1)
-        last_day = max((i for i, n in enumerate(calls) if n == "day_rehearsal"), default=-1)
         d = (
             rec.day_changes[-1]
-            if rec.day_changes and last_change > last_day
+            if rec.day_changes and last("day_test_change") > last("day_rehearsal")
             else (rec.days or rec.day_changes)[-1]
         )
         hh, _, mm = str(d.get("show_at") or "").partition(":")
@@ -344,6 +365,54 @@ def _answer_events(
             else Disclaimer(text=DEFAULT_DISCLAIMER)
         )
     return evs
+
+
+def _trip_geojson(t: dict) -> dict | None:
+    """A rehearsed trip for the map: one feature per segment (a wait is a point), with its start
+    and end minute and the asked outcome. Built from the engine's track, never by the model."""
+    feats = []
+    for seg in t.get("track") or []:
+        coords = seg.get("coords") or []
+        if not coords:
+            continue
+        geom = (
+            {"type": "Point", "coordinates": coords[0]}
+            if seg.get("wait") or len(coords) == 1
+            else {"type": "LineString", "coordinates": coords}
+        )
+        props = {
+            "kind": "trip",
+            "t0": seg.get("t0"),
+            "t1": seg.get("t1"),
+            "wait": bool(seg.get("wait")),
+        }
+        feats.append({"type": "Feature", "geometry": geom, "properties": props})
+    if t.get("normal_route"):
+        feats.insert(
+            0,
+            {
+                "type": "Feature",
+                "geometry": {"type": "LineString", "coordinates": t["normal_route"]},
+                "properties": {"kind": "normal"},
+            },
+        )
+    feats += [
+        {
+            "type": "Feature",
+            "geometry": {"type": "LineString", "coordinates": c},
+            "properties": {"kind": "cut"},
+        }
+        for c in t.get("cut_lines") or []
+    ]
+    if not feats:
+        return None
+    meta = {
+        "outcome": (t.get("asked") or {}).get("outcome"),
+        "leave": t.get("leave"),
+        "from": (t.get("from") or {}).get("name"),
+        "to": (t.get("to") or {}).get("name"),
+    }
+    return {"type": "FeatureCollection", "features": feats, "meta": meta}
 
 
 def _streams(model) -> bool:

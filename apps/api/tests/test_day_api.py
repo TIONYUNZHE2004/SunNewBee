@@ -40,3 +40,17 @@ def test_day_changes_and_compare_on_the_tiny_world():
     )
     assert bad.status_code == 422
     assert c.post("/day/weekday/compare", json={"actions": []}).status_code == 422
+
+
+def test_rehearse_my_trip_is_a_post_with_ends_in_the_body():
+    body = {"from_id": "park-b", "to_id": "playground", "profile": "stroller", "leave_at": "07:30"}
+    r = c.post("/day/weekday/trip", json=body)
+    assert r.status_code == 200, r.text
+    d = r.json()
+    assert d["status"] == "rehearsed" and d["from"]["name"] == "Car Park B"
+    assert d["asked"]["outcome"] == "clear" and d["sweep"] and d["track"]
+    assert "not a forecast" in d["disclaimer"]
+    # a home point never travels in the URL: there is no GET form
+    assert c.get("/day/weekday/trip", params={"from_id": "park-b"}).status_code == 405
+    assert c.post("/day/weekday/trip", json={**body, "leave_at": "25:00"}).status_code == 422
+    assert c.post("/day/nope/trip", json=body).status_code == 404

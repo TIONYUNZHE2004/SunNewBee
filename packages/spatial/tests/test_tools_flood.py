@@ -29,6 +29,7 @@ def test_registry_has_the_ten_lookups_and_three_world_model_tools(ctx):
         "find_fixes",
         "day_rehearsal",
         "day_test_change",
+        "rehearse_my_trip",
     }
 
 

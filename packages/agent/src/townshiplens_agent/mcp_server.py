@@ -70,7 +70,10 @@ def _ctx() -> sp.Ctx:
     return sp.Ctx(world=world, vrs=VerificationStore(vr_db(world.site.id)))
 
 
-MAP_ONLY = {"day_test_change": ("changed_geojson",)}
+MAP_ONLY = {
+    "day_test_change": ("changed_geojson",),
+    "rehearse_my_trip": ("track", "normal_route", "cut_lines"),
+}
 
 
 def _expose(mcp: FastMCP, name: str, fn) -> None:

@@ -194,6 +194,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/day/{scenario_id}/trip": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Day Trip
+         * @description Rehearse my trip: a resident's own trip through the rehearsed day, at the asked time and
+         *     every 10 minutes around it (when it got through, when it was cut, and by which street).
+         */
+        post: operations["day_trip_day__scenario_id__trip_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/elements/{element_id}/attributes/{key}": {
         parameters: {
             query?: never;
@@ -1275,6 +1296,117 @@ export interface components {
             /** Summary */
             summary: string;
         };
+        /**
+         * DayTrip
+         * @description One resident's own trip through a rehearsed day (Cycle 19). Times are clock text; every
+         *     outcome comes from the engine. A rehearsal, not a forecast.
+         */
+        DayTrip: {
+            /** Asked */
+            asked?: {
+                [key: string]: unknown;
+            } | null;
+            /**
+             * Cut By
+             * @default []
+             */
+            cut_by: string[];
+            /**
+             * Cut Lines
+             * @default []
+             */
+            cut_lines: number[][][];
+            /** Disclaimer */
+            disclaimer: string;
+            /** From */
+            from: {
+                [key: string]: unknown;
+            };
+            /** Last Ok Leave Before */
+            last_ok_leave_before?: string | null;
+            /** Leave */
+            leave: string;
+            /** Mode */
+            mode?: string | null;
+            /** Next Clear Leave */
+            next_clear_leave?: string | null;
+            /** Normal Minutes */
+            normal_minutes?: number | null;
+            /**
+             * Normal Route
+             * @default []
+             */
+            normal_route: number[][];
+            /** Normal Unchecked */
+            normal_unchecked?: number | null;
+            /** Profile */
+            profile: string;
+            /** Reason */
+            reason?: string | null;
+            /**
+             * River Changes
+             * @default []
+             */
+            river_changes: unknown[][];
+            /** Scenario */
+            scenario: {
+                [key: string]: unknown;
+            };
+            /** Stage At Leave */
+            stage_at_leave?: string | null;
+            /** Status */
+            status: string;
+            /**
+             * Sweep
+             * @default []
+             */
+            sweep: {
+                [key: string]: unknown;
+            }[];
+            /**
+             * Sweep Counts
+             * @default {}
+             */
+            sweep_counts: {
+                [key: string]: number;
+            };
+            /** To */
+            to: {
+                [key: string]: unknown;
+            };
+            /**
+             * Track
+             * @default []
+             */
+            track: {
+                [key: string]: unknown;
+            }[];
+        };
+        /**
+         * DayTripRequest
+         * @description Ends are place ids, or points tapped on the map ("lon,lat"). Points travel in the body,
+         *     never in the URL, so a resident's home never lands in an access log (PDPA).
+         */
+        DayTripRequest: {
+            /** From Id */
+            from_id?: string | null;
+            /** From Point */
+            from_point?: string | null;
+            /**
+             * Leave At
+             * @default 07:30
+             */
+            leave_at: string;
+            /**
+             * Profile
+             * @default default
+             */
+            profile: string;
+            /** To Id */
+            to_id?: string | null;
+            /** To Point */
+            to_point?: string | null;
+        };
         /** DeepSpot */
         DeepSpot: {
             /** Bbox */
@@ -1905,7 +2037,7 @@ export interface components {
              * Kind
              * @enum {string}
              */
-            kind: "camera.fly_to" | "place.focus" | "route.highlight" | "flood.set_level" | "layer.toggle" | "whatif.diff" | "river.rollout" | "day.show";
+            kind: "camera.fly_to" | "place.focus" | "route.highlight" | "flood.set_level" | "layer.toggle" | "whatif.diff" | "river.rollout" | "day.show" | "day.trip";
             /** Lens */
             lens?: ("access" | "flood" | "waste") | null;
             /** Place Id */
@@ -2858,6 +2990,53 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
                 };
+            };
+            /** @description busy */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    day_trip_day__scenario_id__trip_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                scenario_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DayTripRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DayTrip"];
+                };
+            };
+            /** @description unknown scenario */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description invalid ends, profile or time */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description busy */
             503: {

@@ -1271,3 +1271,45 @@ Integration fixes found by the checklist:
 **Flake noted:** one full pytest run failed `test_whatif_template_fallback_says_the_same_numbers` while the dev server's warm-up thread was busy. It passed alone, in its package, and in two later full runs. The likely cause is the world-model wait time under CPU load.
 
 **Checklist on merged main** (mock-backed): lint PASS, pytest 1,243 PASS, typecheck PASS, vitest 789 PASS, gen PASS, golden 22/22 PASS, web build PASS, e2e 19 PASS. In the browser (mock, Stylised) the storm chip opens the day at 07:25: the tag sits in the top stack, clear of the panel, with no sideways scroll and no console errors.
+
+## Overnight session 2 (branch `ai/world-model-2` off main d381c23)
+
+Alignment, asked first (17 Oct, about 13:00):
+- **Focus:** a resident's "rehearse my trip", a calibration report from official open data, and demo hardening for a laptop on a projector.
+- **Wording:** facts from the rehearsal only.
+- **UI:** new components in the existing design language.
+- **Trip start:** a mapped place or a tapped point.
+- **Budget:** the US$3 cap stays (about US$1.1 left).
+- **Git:** commit locally only, no push.
+- **Duration:** loop until told to stop.
+
+### Cycle 19: rehearse my trip, engine to assistant (17 Oct, 13:03)
+
+**Why:** Elmina Day was a staff tool, and the People track is about residents. A resident now asks about *their own* trip, and the same rehearsed day answers it.
+
+**Built** (spec: `docs/superpowers/specs/2026-10-17-rehearse-my-trip-design.md`):
+- **`day/myday.py`:** the resident's trip runs through the cached rule-based day (`Day.travel`). That means the same river stage minute by minute, the same closures and the same re-planning on the way. It is not an essential trip, so no way at the time of leaving means that time had no way.
+  - **Outcomes:** clear, longer (up to twice the normal time), very long (over twice; a 313-minute walk at 07:00 is effectively cut), rerouted, turned back, stranded, no way.
+  - **Sweep:** a departure every 10 minutes from an hour before until 30 minutes after the river's last change, giving "last got through" and "the way came back".
+  - **What cut it:** the flooded streets on the normal-day route at that minute, by name.
+  - **For the map:** the track, the normal-day route and the cut segments. Unchecked stretches are counted.
+- **Tool `rehearse_my_trip`:** ends are place ids or a tapped point (`lon,lat`), snapped to the nearest usable node within 300 m and never echoed. **`POST /day/{id}/trip`:** a POST, so a home point never sits in a URL or an access log (PDPA); the GET form returns 405.
+- **Assistant:**
+  - an agent tool (it uses the UI's "travelling as" profile by default);
+  - `rec.my_trips`, with map-only fields dropped for the model and for MCP;
+  - **validator `my_trip_errors`:**
+    - says rehearsal and not a forecast;
+    - **no advice** ("you should leave", "leave by", "best time", "will get there", "akan sampai", 建议);
+    - names the asked outcome in words (EN/BM/ZH);
+    - every clock time and every minute count comes from the rehearsal;
+    - mentions unchecked stretches;
+    - calls no connection a data gap;
+  - the shared `template.my_trip_answer`, a mock route ("from X to Y … leaving at 7:30", by car, the named day) and prompt rule 19;
+  - a server-built **`day.trip`** intent: day, minute, stage, and the trip as geojson (normal route, trip and cut segments).
+
+**Seed result** (mock engine): by car from Car Park B to SK Denai Alam in the storm rehearsal.
+- Departures up to 06:40 got through.
+- At 07:30 there was no way: the river at +3 m cut Persiaran Alstonia and an unnamed street.
+- The way came back for departures from 12:30. The mock answer passed the validator on the first attempt.
+
+**Checklist** (mock-backed): lint PASS, pytest 1,270 PASS, typecheck PASS, vitest 789 PASS, gen (client regenerated with the new route and intent), golden 23/23 PASS, e2e 19 PASS. The web UI for the trip comes next (Cycle 20).
