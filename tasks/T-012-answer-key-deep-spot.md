@@ -22,3 +22,5 @@ The key and the scorer are committed; a mock baseline is recorded; every number 
 - 2026-10-17 09:29 UTC · control (claude/sweet-davinci-29v7ne) · Created for scope B (access + flood evacuation, deep spot), assigned to Codex worker.
 
 - 2026-10-17 09:35 UTC · Codex (codex/yunzhe-workflow) · Started. Synced worker to control 95e9e56; preparing approximately 30 EN/BM/Chinese deep-spot cases with recorded real-seed engine outputs, reviewed false, independent scoring and a mock baseline. Live turns used: 0.
+
+- 2026-10-17 09:40 UTC · Codex (codex/yunzhe-workflow) · Finding: initial provisional mock baseline is 1/31 correct, 8/31 honestly unverified, 2/31 refused correctly, 20/31 wrong; 3/31 turns have detected unsupported claims (overlaps wrong), 0/31 human-reviewed. Misses include multilingual mock routing, wrong-origin centre answers, missing amenity provenance and scope refusals. This is a mock baseline, not a live-model failure rate. Keeping the misses for later tasks and Yunzhe review.
