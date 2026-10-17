@@ -8,7 +8,8 @@ base/archetype_coverage.json, and records site.json["buildings"]["archetypes_as_
 Display data only: nothing here feeds routing, evaluation, flood or answers. Archetypes come from
 OSM tags, footprint shape, OSM land use and OSM precinct names; a footprint that matches no rule
 stays `generic` (better than a confident wrong guess). Google 3D-tile samples are used only as
-`height_m` with `height_source` `google_3dtiles`, never to choose an archetype.
+`height_m` with `height_source` `google_3dtiles`, and to call a building a highrise (a sample
+>= 30 m with coverage >= 0.5); they are display-only and never feed any fact.
 Overpass goes through data/scripts/overpass.py (cache, backoff, request cap).
 """
 
@@ -61,10 +62,12 @@ STOREY_HEIGHT_M = {
 }  # highrise and generic: none
 LOW_RISE = set(STOREY_HEIGHT_M) - {"school", "mosque", "mall", "factory"}
 OUTLIER_FACTOR = 3.0
+HIGHRISE_M = 30.0
+MIN_SAMPLE_COVERAGE = 0.5
 
 _SCHOOL_NAME = re.compile(r"^(SK|SJK|SMK|SMA|Sekolah|Tadika)\b")
 _RIDGE = re.compile(r"ridge", re.IGNORECASE)
-_DETACHED = {"bungalow", "detached", "house", "villa"}
+_DETACHED = {"bungalow", "detached", "villa"}
 _LANDUSE_CLASSES = {"residential", "commercial", "industrial"}
 
 
@@ -294,6 +297,23 @@ def _override(fid: str, overrides: dict | None) -> str | None:
     return arch
 
 
+def _rule8_shape(w: float, ln: float, precinct: str | None) -> tuple[str, str] | None:
+    """Residential shape bands; length bands are half-open so 23 m matches one band only.
+    Where superlink and semi_d overlap (width 11.5-11.8, length 22-23) the more specific
+    superlink (it also needs a ridge precinct) is tried first."""
+    if 5.5 <= w <= 7.5 and 13 <= ln < 23:
+        return "link_intermediate", "shape"
+    if 5.5 <= w <= 7.5 and 23 <= ln <= 26.5:
+        return "link_long", "shape"
+    if 10.2 <= w <= 11.8 and 19 <= ln <= 23 and precinct and _RIDGE.search(precinct):
+        return "superlink", "shape+precinct"
+    if 11.5 <= w <= 13.5 and 22 <= ln <= 26.5:
+        return "semi_d", "shape"
+    if 18 <= w <= 26 and ln >= 2.5 * w:
+        return ("link_intermediate" if w < 23 else "link_long"), "shape"
+    return None
+
+
 def assign(
     props: dict,
     m: dict,
@@ -302,10 +322,12 @@ def assign(
     height: float | None,
     *,
     overrides: dict | None = None,
+    sample: dict | None = None,
 ) -> tuple[str, str]:
     """(archetype, method); first matching rule wins, otherwise ("generic", "generic").
 
-    `height` is an OSM tag height only (never a Google sample)."""
+    `height` is the OSM tag height. `sample` (a Google height sample) only lets rule 5 call a
+    building a highrise (height_m >= 30 with coverage >= 0.5); it is display-only data."""
     arch = _override(props.get("id", ""), overrides)
     if arch:
         return arch, "override"
@@ -314,12 +336,16 @@ def assign(
     name = (props.get("name") or "").strip()
     building, amenity = osm.get("building"), osm.get("amenity")
     w, ln, area, fill = m["width_m"], m["length_m"], m["area_m2"], m["fill"]
+    bungalow_size = 150 <= area <= 600 and fill >= 0.6
 
-    muslim_pow = amenity == "place_of_worship" and osm.get("religion") == "muslim"
-    if building == "mosque" or muslim_pow:
+    if building == "mosque":
         if name.lower().startswith("surau"):
             return "generic", "generic"  # surau stay generic
         return "mosque", "osm_tag"
+    if amenity == "place_of_worship" and osm.get("religion") == "muslim":
+        if name and not name.lower().startswith("surau"):
+            return "mosque", "osm_tag"
+        return "generic", "generic"  # unnamed or surau
     if (
         building in ("school", "kindergarten")
         or amenity in ("school", "kindergarten")
@@ -332,26 +358,31 @@ def assign(
         return "factory", "landuse"
     if height is not None and (height >= 30 or (building == "apartments" and height >= 20)):
         return "highrise", "height"
+    if (
+        sample
+        and isinstance(sample.get("height_m"), (int, float))
+        and sample["height_m"] >= HIGHRISE_M
+        and (sample.get("coverage") or 0) >= MIN_SAMPLE_COVERAGE
+    ):
+        return "highrise", "height"
     if kind == "commercial" or landuse == "commercial":
         if area >= 4000:
             return "mall", "osm_tag+size"
         if 15 <= w <= 26 and ln >= 2.5 * w and fill >= 0.8:
             return "shop_office", "shape"
-    if building in _DETACHED and 150 <= area <= 600 and fill >= 0.6:
+    if building in _DETACHED and bungalow_size:
         return "bungalow", "osm_tag"
     if building == "townhouse":
         return "townhouse", "osm_tag"
     if kind in ("residential", "other") and landuse == "residential" and fill >= 0.8:
-        if 5.5 <= w <= 7.5 and 18 <= ln <= 23:
-            return "link_intermediate", "shape"
-        if 5.5 <= w <= 7.5 and 23 <= ln <= 26.5:
-            return "link_long", "shape"
-        if 10.2 <= w <= 11.8 and 19 <= ln <= 23 and precinct and _RIDGE.search(precinct):
-            return "superlink", "shape+precinct"
-        if 11.5 <= w <= 13.5 and 22 <= ln <= 26.5:
-            return "semi_d", "shape"
-        if 18 <= w <= 26 and ln >= 2.5 * w:
-            return ("link_intermediate" if w < 23 else "link_long"), "shape"
+        shaped = _rule8_shape(w, ln, precinct)
+        if shaped:
+            too_tall = height is not None and height > OUTLIER_FACTOR * STOREY_HEIGHT_M[shaped[0]]
+            if building == "apartments" or too_tall:
+                return "generic", "generic"
+            return shaped
+    if building == "house" and bungalow_size:
+        return "bungalow", "osm_tag"
     return "generic", "generic"
 
 
@@ -425,6 +456,7 @@ def transform(
             landuse_of(lon, lat, index),
             tag[0] if tag else None,
             overrides=overrides,
+            sample=samples.get(p["id"]),
         )
         h, src = final_height(p, arch, samples.get(p["id"]))
         mn = float(p.get("min_height_m") or 0.0)
@@ -519,7 +551,9 @@ def main(argv: list[str] | None = None) -> None:
         raise SystemExit(2) from None
 
     out = transform(buildings, precincts, landcover, samples, overrides)
-    assert [f["properties"]["id"] for f in out] == ids  # ids are stable: signs attach to them
+    if [f["properties"]["id"] for f in out] != ids:  # ids are stable: signs attach to them
+        print("building ids changed during the transform; nothing written")
+        raise SystemExit(3)
     cov = coverage(out)
     print(f"precincts: {len(precincts)}  height samples: {len(samples)}")
     print(summary(cov))

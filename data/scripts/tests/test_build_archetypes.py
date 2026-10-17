@@ -97,7 +97,8 @@ def test_rule3_school():
     )
     named = props(kind="other", name="SK Elmina")
     assert ba.assign(named, metrics(20, 60), None, None, None) == ("school", "osm_tag")
-    assert ba.assign(props(name="SKY Residence"), metrics(20, 60), None, None, None)[0] != "school"
+    sky = props(name="SKY Residence")
+    assert ba.assign(sky, metrics(20, 60), None, None, None) == ("generic", "generic")
 
 
 def test_rule4_factory():
@@ -118,7 +119,10 @@ def test_rule5_highrise():
     )
     apt = props(building="apartments")
     assert ba.assign(apt, metrics(30, 30), None, None, 21.0) == ("highrise", "height")
-    assert ba.assign(props(kind="other"), metrics(30, 30), None, None, 21.0)[0] != "highrise"
+    assert ba.assign(props(kind="other"), metrics(30, 30), None, None, 21.0) == (
+        "generic",
+        "generic",
+    )
 
 
 def test_rule6_mall_and_shop_office():
@@ -143,7 +147,8 @@ def test_rule7_bungalow_and_townhouse():
         "osm_tag",
     )
     # too big for a bungalow
-    assert ba.assign(props(building="house"), metrics(30, 30), None, None, None)[0] != "bungalow"
+    big = props(building="house")
+    assert ba.assign(big, metrics(30, 30), None, None, None) == ("generic", "generic")
     assert ba.assign(props(building="townhouse"), metrics(8, 20), None, None, None) == (
         "townhouse",
         "osm_tag",
@@ -168,8 +173,9 @@ def test_rule8_residential_shapes(w, l, precinct, expected):  # noqa: E741
 def test_rule8_needs_residential_landuse_and_fill():
     # 6.1 x 21.3 outside residential landuse: prefer generic over a guess
     assert ba.assign(props(), metrics(6.1, 21.3), None, None, None) == ("generic", "generic")
-    assert ba.assign(props(), metrics(6.1, 21.3), None, "commercial", None)[0] != (
-        "link_intermediate"
+    assert ba.assign(props(), metrics(6.1, 21.3), None, "commercial", None) == (
+        "generic",
+        "generic",
     )
     assert ba.assign(props(), metrics(6.1, 21.3, fill=0.7), None, "residential", None) == (
         "generic",
@@ -319,7 +325,7 @@ def _inputs():
             )
         ]
     )
-    samples = {"w2": {"height_m": 40.0, "coverage": 0.9}, "w4": {"height_m": 9.1, "coverage": 0.8}}
+    samples = {"w2": {"height_m": 28.0, "coverage": 0.9}, "w4": {"height_m": 9.1, "coverage": 0.8}}
     return feats, precincts, landuse, samples
 
 
@@ -454,3 +460,117 @@ def test_main_blocked_exit_code_2(tmp_path, monkeypatch):
         ba.main(["--max-requests", "0"])
     assert e.value.code == 2
     assert not (tmp_path / "base" / "archetype_coverage.json").exists()
+
+
+# --- fix round 1 rulings ------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("l", "expected"),
+    [
+        (12.9, "generic"),
+        (13.0, "link_intermediate"),
+        (15.5, "link_intermediate"),  # Elmina Valley built depth
+        (22.99, "link_intermediate"),
+        (23.0, "link_long"),  # bands are half-open: no double match at 23 m
+        (26.5, "link_long"),
+        (26.6, "generic"),
+    ],
+)
+def test_ruling1_link_bands(l, expected):  # noqa: E741
+    assert ba.assign(props(), metrics(6.1, l), None, "residential", None)[0] == expected
+
+
+def test_ruling1_superlink_beats_semi_d_where_bands_overlap():
+    m = metrics(11.6, 22.5)  # inside both the superlink and the semi_d band
+    assert ba.assign(props(), m, "Elmina Ridge", "residential", None) == (
+        "superlink",
+        "shape+precinct",
+    )
+    assert ba.assign(props(), m, "Elmina Green 3", "residential", None) == ("semi_d", "shape")
+
+
+def test_ruling2_apartments_and_tall_tag_heights_stay_generic_in_rule8():
+    apt = props(building="apartments")
+    assert ba.assign(apt, metrics(20, 60), None, "residential", None) == ("generic", "generic")
+    assert ba.assign(apt, metrics(6.1, 15), None, "residential", None) == ("generic", "generic")
+    # 27 m > 3 x 8.5 m: not a link house, and below the 30 m highrise gate
+    assert ba.assign(props(), metrics(6.1, 15), None, "residential", 27.0) == (
+        "generic",
+        "generic",
+    )
+    assert ba.assign(props(), metrics(6.1, 15), None, "residential", 9.6) == (
+        "link_intermediate",
+        "shape",
+    )
+
+
+def test_ruling3_highrise_from_a_google_sample():
+    m = metrics(6.1, 15)
+    good = {"height_m": 35.0, "coverage": 0.6}
+    assert ba.assign(props(), m, None, "residential", None, sample=good) == ("highrise", "height")
+    thin = {"height_m": 35.0, "coverage": 0.4}
+    assert ba.assign(props(), m, None, "residential", None, sample=thin) == (
+        "link_intermediate",
+        "shape",
+    )
+    low = {"height_m": 29.0, "coverage": 0.9}
+    assert ba.assign(props(), m, None, "residential", None, sample=low)[0] == "link_intermediate"
+
+
+def test_ruling3_transform_uses_the_sample_for_highrise_but_heights_unchanged():
+    feats, precincts, landuse, _ = _inputs()
+    samples = {"w1": {"height_m": 42.0, "coverage": 0.9}}
+    out = ba.transform(copy.deepcopy(feats), precincts, landuse, samples, {})
+    w1 = out[0]["properties"]
+    assert (w1["archetype"], w1["archetype_method"]) == ("highrise", "height")
+    assert (w1["height_m"], w1["height_source"]) == (42.0, "google_3dtiles")
+
+
+def test_ruling4_house_tries_rule8_shapes_before_bungalow():
+    house = props(building="house")
+    assert ba.assign(house, metrics(11.6, 24.4), None, "residential", None) == ("semi_d", "shape")
+    assert ba.assign(house, metrics(15, 20), None, "residential", None) == ("bungalow", "osm_tag")
+    assert ba.assign(house, metrics(15, 20), None, None, None) == ("bungalow", "osm_tag")
+    assert ba.assign(house, metrics(15, 20, fill=0.5), None, None, None) == ("generic", "generic")
+    # detached / villa / bungalow tags still win before the shapes
+    for tag in ("detached", "villa", "bungalow"):
+        p = props(building=tag)
+        assert ba.assign(p, metrics(11.6, 24.4), None, "residential", None) == (
+            "bungalow",
+            "osm_tag",
+        )
+
+
+def test_ruling5_unnamed_muslim_place_of_worship_is_generic():
+    p = props(kind="civic", amenity="place_of_worship", religion="muslim")
+    assert ba.assign(p, metrics(30, 30), None, None, None) == ("generic", "generic")
+    assert ba.assign(props(kind="civic", building="mosque"), metrics(30, 30), None, None, None) == (
+        "mosque",
+        "osm_tag",
+    )
+
+
+def test_main_duplicate_ids_exit_3(tmp_path, monkeypatch):
+    monkeypatch.setattr(ba, "OUT", tmp_path)
+    _seed(tmp_path, with_samples=False)
+    _fake_precinct_fetch(monkeypatch)
+    path = tmp_path / "base" / "buildings.geojson"
+    fc = json.loads(path.read_text())
+    fc["features"].append(copy.deepcopy(fc["features"][0]))
+    path.write_text(json.dumps(fc))
+    with pytest.raises(SystemExit) as e:
+        ba.main([])
+    assert e.value.code == 3
+    assert not (tmp_path / "base" / "archetype_coverage.json").exists()
+
+
+def test_main_warns_about_overrides_for_unknown_ids(tmp_path, monkeypatch, capsys):
+    monkeypatch.setattr(ba, "OUT", tmp_path)
+    _seed(tmp_path, with_samples=False)
+    _fake_precinct_fetch(monkeypatch)
+    (tmp_path / "base" / "archetype_overrides.json").write_text(
+        json.dumps({"w999": {"archetype": "mosque", "note": "x"}})
+    )
+    ba.main(["--dry-run"])
+    assert "WARNING: overrides for unknown building ids: ['w999']" in capsys.readouterr().out
