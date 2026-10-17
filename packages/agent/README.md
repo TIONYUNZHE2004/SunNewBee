@@ -95,6 +95,18 @@ model is dropped, because the label line already says it.
 - **Shared wording:** `template.day_change_answer`.
 - **Scene intents:** `day.show` plus `whatif.diff` (the stretch drawn as an imagined change), and the what-if disclaimer.
 
+**Rehearse my trip (Cycles 19–21):**
+- **Tool:** `rehearse_my_trip(from_id, to_id, leave_at, day, profile?)` uses place ids from `find_place`; the profile defaults to the resident's "Travelling as". The map geometry (`track`, `normal_route`, `cut_lines`) is dropped for the model and for MCP.
+- **Validator (`my_trip_errors`):**
+  - the answer says rehearsal and not a forecast;
+  - **no advice** ("you should", "leave by", "best time", "aim to", "better to set off", "will get there", "bertolak sebelum", 早点/提前) and no reassurance ("no risk", "fine to go");
+  - the sentence about the asked time names its outcome and never says a cut trip arrived;
+  - clock times, minutes and hours come from the rehearsal;
+  - unchecked stretches are mentioned;
+  - no connection is called a data gap.
+- **Shared wording:** `template.my_trip_answer`; prompt rule 19.
+- **Scene intent:** `day.trip` (day, leave minute, stage, and geojson with meta for the departure strip).
+
 **Fix-it search and MCP (Cycle 4):**
 - **`find_fixes`:** beam search over imagined fixes on the world model (`townshiplens_spatial.fixit`).
   - The best set is recorded as a what-if, so every what-if validator rule applies.

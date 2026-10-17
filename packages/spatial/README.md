@@ -159,7 +159,24 @@ It is a simulation, not a forecast. Stages are labels, never depths, and departu
 
 On the Elmina seed it takes about 10–15 s, and **no candidate pair changes any sampled evacuation journey**, for any persona, at normal level or at +5 m. The binding constraint there is unverified data, which `planner.py` addresses.
 
-## The tools (10 lookups + 6 world-model tools)
+## Elmina Day (`day/`, Cycles 10–21)
+
+A time-stepped rehearsal of 5,000 synthetic residents on the world model. It is a rehearsal, not a forecast, and the residents are not real people.
+
+| Module | What it does |
+| --- | --- |
+| `population.py` | Residents in real OSM homes, from DOSM shares plus stated assumptions (`SOURCES`) |
+| `schedule.py` | Rule-written daily plans: commutes, school runs (a child aged 7–12; `PRIMARY_AGE`), prayers, the clinic, an event |
+| `router.py` | Fast routing on per-(persona, stage) cost arrays with a shared distance-field LRU |
+| `engine.py` | `Day.run()` moves every trip minute by minute: river stages, closures, re-planning when the water changes on the way, waiting, turning back. `Day.travel()` runs one trip. Each `Day` has a `lock` (its routers are shared caches) |
+| `summary.py` | Groups, school, timeline, places, health, tracks, and the calibration rows shown in the Day panel |
+| `spotlight.py`, `voices.py` | 40 spotlight residents whose recorded AI lines are kept only while they still match their own trip |
+| `compare.py` | Test a change: the same day with an imagined change, trip by trip (better or worse off by group) |
+| `myday.py` | Rehearse my trip: a resident's own trip at a time and every 10 minutes around it (outcome, the flooded street that cut it, when the way came back), from place ids or a tapped point |
+
+Calibration against official open data for Petaling district (DOSM, MOE): `data/scripts/calibrate_day.py` and `docs/03-product/calibration-report-2026-10.md`.
+
+## The tools (10 lookups + 6 world-model tools + 3 Elmina Day tools)
 
 | Tool | Purpose |
 | --- | --- |
@@ -178,6 +195,9 @@ On the Elmina seed it takes about 10–15 s, and **no candidate pair changes any
 | `river_tipping_point` | `(from_id, profile, to_id?)`: the status per river stage and the stage where the trip degrades or breaks |
 | `rising_river_rollout` | `(profiles?, n=30)`: synthetic residents per stage (rollout.py); counts, the first residents cut off, routes |
 | `find_fixes` | `(profile, scope, scenario_id?, budget<=3, proposals?)`: the best set of imagined fixes by beam search on the world model |
+| `day_rehearsal` | `(day)`: one rehearsed day summarised (trips by outcome, residents by group, school, busiest places, `show_at`) |
+| `day_test_change` | `(day, option)`: one of the day's own suggested changes, compared before and after (residents better and worse off by group); the change comes from the server's list |
+| `rehearse_my_trip` | `(from_id\|from_point, to_id\|to_point, profile, leave_at, day)`: a resident's own trip through the rehearsed day, with a departure sweep; tapped points are never stored |
 | `simulate_what_if` | `(actions, profile, scope=journey\|suite\|evacuation, from_id?, to_id?, scenario_id?)`: what-if diff (summary, counts, changed journeys, `diff_geojson`, `ev-whatif-…` evidence, disclaimer). Never changes the real world |
 
 Flood definitions: an island is a connected component of the passable (non-FAIL) graph for the

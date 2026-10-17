@@ -70,6 +70,13 @@ Playwright does.
 - **Honest labels:** `lib/evidence.ts` shows `team_survey_placeholder` facts as "Demo value · not
   surveyed", never as verified, with no checked date. `lib/routeStatus.ts` shows `no_data` as "No
   mapped connection (data gap)", never "Not reachable" or "Blocked".
+- **Rehearse my trip (Cycles 19–21):**
+  - **Entry:** a chip beside "Travelling as" opens a card (`features/day/TripPlanner.tsx`).
+  - **Ends:** search a mapped place, or "tap a point on the map" (`tripPickStore`). Points stay in the tab and are sent once, in a POST body.
+  - **Result:** `POST /day/{id}/trip` plays the trip in the rehearsed day. `TripStrip` shows one cell per 10-minute departure (colour plus glyph, words for screen readers); tapping a cell re-rehearses it.
+  - **Map:** `MyTripLayer` (Cesium) and the Lite map draw the usual route, the trip, the flooded cut and "You" at the clock. The List view repeats the strip.
+  - **From the assistant:** the same answer comes back with a `day.trip` intent.
+  - **Wording:** what happened in the rehearsal, never advice ("leave by") or "safe".
 - **Photo evidence:** a claim's staff-uploaded photo (from `photo_url`, served by the API at
   `/evidence/<id>`, requested under `/api`) renders on evidence cards and the place card. Only
   JPEG or PNG up to 5 MB are accepted for upload.
@@ -389,6 +396,7 @@ POST /chat (SSE) -> parseSse -> useChatStream -> chatReducer   (messages, tool c
                                                               whatif.diff      -> whatIf (imagined diff)
                                                               river.rollout    -> rollout {on, stage, playing}
                                                               day.show         -> day {on, scenario, t} paused (+ its river stage)
+                                                              day.trip         -> day at the leave time (any mode) + myTrip (+ its river stage)
 sceneStore --> Cesium / Mapbox / List renderers (one adapter each) + map overlays + legend
 ```
 

@@ -1,0 +1,50 @@
+{"meta": {"message": "Which change would help most residents in the storm rehearsal?", "profile": "default", "scenario_id": null, "world": "elmina", "model": "mock-scripted", "recorded_at": "2026-10-17T05:56:20+00:00"}}
+{"type": "tool.call", "id": "day_test_change-0", "name": "day_test_change", "args": {"day": "storm", "option": 1}}
+{"type": "tool.result", "id": "day_test_change-0", "name": "day_test_change", "summary": "ok"}
+{"type": "answer.draft", "attempt": 1, "delta": "On "}
+{"type": "answer.draft", "attempt": 1, "delta": "the Storm at the school "}
+{"type": "answer.draft", "attempt": 1, "delta": "run rehearsal of synthetic "}
+{"type": "answer.draft", "attempt": 1, "delta": "residents: Imagine the "}
+{"type": "answer.draft", "attempt": 1, "delta": "flooded stretch on Jalan "}
+{"type": "answer.draft", "attempt": 1, "delta": "Sungai Buloh (about 931 "}
+{"type": "answer.draft", "attempt": 1, "delta": "m) raised so it never "}
+{"type": "answer.draft", "attempt": 1, "delta": "floods in any scenario "}
+{"type": "answer.draft", "attempt": 1, "delta": "(best case). In that "}
+{"type": "answer.draft", "attempt": 1, "delta": "imagined day, 820 residents "}
+{"type": "answer.draft", "attempt": 1, "delta": "would be better off and 0 "}
+{"type": "answer.draft", "attempt": 1, "delta": "worse off (1,640 trips "}
+{"type": "answer.draft", "attempt": 1, "delta": "better, 0 worse). Not a "}
+{"type": "answer.draft", "attempt": 1, "delta": "plan and not a "}
+{"type": "answer.draft", "attempt": 1, "delta": "forecast."}
+{"type": "answer.check", "attempt": 1, "ok": true, "issues": [], "repairs": 0}
+{"type": "text.delta", "delta": "On the Storm at the school run rehearsal"}
+{"type": "text.delta", "delta": " of synthetic residents: Imagine the flo"}
+{"type": "text.delta", "delta": "oded stretch on Jalan Sungai Buloh (abou"}
+{"type": "text.delta", "delta": "t 931 m) raised so it never floods in an"}
+{"type": "text.delta", "delta": "y scenario (best case). In that imagined"}
+{"type": "text.delta", "delta": " day, 820 residents would be better off "}
+{"type": "text.delta", "delta": "and 0 worse off (1,640 trips better, 0 w"}
+{"type": "text.delta", "delta": "orse). Not a plan and not a forecast.\n1."}
+{"type": "text.delta", "delta": " Why this change: the day's top suggesti"}
+{"type": "text.delta", "delta": "on, on the usual route of 1112 residents"}
+{"type": "text.delta", "delta": " whose trips the water cut.\n2. Wheelchai"}
+{"type": "text.delta", "delta": "r users: 2 better off, 0 worse off.\n3. H"}
+{"type": "text.delta", "delta": "ouseholds without a car: 80 better off, "}
+{"type": "text.delta", "delta": "0 worse off.\n4. Another change to test ("}
+{"type": "text.delta", "delta": "option 2): Imagine the flooded stretch o"}
+{"type": "text.delta", "delta": "n Persiaran Eserina (about 906 m) raised"}
+{"type": "text.delta", "delta": " so it never floods in any scenario (bes"}
+{"type": "text.delta", "delta": "t case).\nWorth knowing:\n• Imagined chang"}
+{"type": "text.delta", "delta": "e on a rehearsal of synthetic residents:"}
+{"type": "text.delta", "delta": " not a plan, not a promise and not a for"}
+{"type": "text.delta", "delta": "ecast. The real township is unchanged.\n•"}
+{"type": "text.delta", "delta": " This is an indicative scenario, not a f"}
+{"type": "text.delta", "delta": "orecast. Follow official MBSA / JPS / NA"}
+{"type": "text.delta", "delta": "DMA guidance."}
+{"type": "scene.intent", "intent": {"kind": "day.show", "place_id": null, "route_id": null, "scenario_id": "stage_p3m", "center": null, "range_m": null, "lens": null, "visible": null, "geojson": null, "route_status": null, "distance_m": null, "est_minutes": null, "day": "storm", "t_min": 445}}
+{"type": "scene.intent", "intent": {"kind": "whatif.diff", "place_id": null, "route_id": null, "scenario_id": null, "center": null, "range_m": null, "lens": null, "visible": null, "geojson": {"type": "FeatureCollection", "features": [{"type": "Feature", "geometry": {"type": "LineString", "coordinates": [[101.523057, 3.155083], [101.523087, 3.155187], [101.523102, 3.155233]]}, "properties": {"whatif": true, "side": "touched", "element_id": "seg-1485871811-0", "label": "the major road on Jalan Sungai Buloh"}}, {"type": "Feature", "geometry": {"type": "LineString", "coordinates": [[101.523045, 3.155003], [101.523057, 3.155083]]}, "properties": {"whatif": true, "side": "touched", "element_id": "seg-220202115-0", "label": "the major road on Jalan Sungai Buloh"}}, {"type": "Feature", "geometry": {"type": "LineString", "coordinates": [[101.523102, 3.155233], [101.523165, 3.155431]]}, "properties": {"whatif": true, "side": "touched", "element_id": "seg-1174255005-0", "label": "the major road on Jalan Sungai Buloh"}}, {"type": "Feature", "geometry": {"type": "LineString", "coordinates": [[101.523102, 3.155233], [101.523089, 3.155347], [101.523128, 3.155568]]}, "properties": {"whatif": true, "side": "touched", "element_id": "seg-1030433961-0", "label": "an unnamed major road"}}, {"type": "Feature", "geometry": {"type": "LineString", "coordinates": [[101.522975, 3.15443], [101.523045, 3.155003]]}, "properties": {"whatif": true, "side": "touched", "element_id": "seg-220202113-0", "label": "the major road on Jalan Sungai Buloh"}}, {"type": "Feature", "geometry": {"type": "LineString", "coordinates": [[101.524073, 3.156767], [101.523754, 3.15633], [101.523547, 3.155994], [101.523165, 3.155431]]}, "properties": {"whatif": true, "side": "touched", "element_id": "seg-458522695-0", "label": "an unnamed major road"}}, {"type": "Feature", "geometry": {"type": "LineString", "coordinates": [[101.523165, 3.155431], [101.523225, 3.1556]]}, "properties": {"whatif": true, "side": "touched", "element_id": "seg-458522696-0", "label": "the major road on Jalan Sungai Buloh"}}, {"type": "Feature", "geometry": {"type": "LineString", "coordinates": [[101.523128, 3.155568], [101.52324, 3.155992], [101.52344, 3.156994]]}, "properties": {"whatif": true, "side": "touched", "element_id": "seg-1485871810-0", "label": "an unnamed major road"}}, {"type": "Feature", "geometry": {"type": "LineString", "coordinates": [[101.523796, 3.156942], [101.523999, 3.156854], [101.524038, 3.156826], [101.524073, 3.156767]]}, "properties": {"whatif": true, "side": "touched", "element_id": "seg-1174257061-0", "label": "an unnamed major road"}}, {"type": "Feature", "geometry": {"type": "LineString", "coordinates": [[101.524358, 3.157094], [101.524131, 3.156833], [101.524073, 3.156767]]}, "properties": {"whatif": true, "side": "touched", "element_id": "seg-933079063-0", "label": "the major road on Jalan Sungai Buloh"}}, {"type": "Feature", "geometry": {"type": "LineString", "coordinates": [[101.524073, 3.156767], [101.524011, 3.156772], [101.523958, 3.156779], [101.52344, 3.156994]]}, "properties": {"whatif": true, "side": "touched", "element_id": "seg-1165665873-0", "label": "an unnamed major road"}}, {"type": "Feature", "geometry": {"type": "LineString", "coordinates": [[101.523225, 3.1556], [101.523391, 3.156031], [101.523516, 3.156299], [101.523634, 3.156506]]}, "properties": {"whatif": true, "side": "touched", "element_id": "seg-458522697-0", "label": "the major road on Jalan Sungai Buloh"}}, {"type": "Feature", "geometry": {"type": "LineString", "coordinates": [[101.52344, 3.156994], [101.523303, 3.15705]]}, "properties": {"whatif": true, "side": "touched", "element_id": "seg-1165665873-1", "label": "an unnamed major road"}}, {"type": "Feature", "geometry": {"type": "LineString", "coordinates": [[101.522716, 3.157396], [101.523796, 3.156942]]}, "properties": {"whatif": true, "side": "touched", "element_id": "seg-1174257060-0", "label": "an unnamed major road"}}]}, "route_status": null, "distance_m": null, "est_minutes": null, "day": null, "t_min": null}}
+{"type": "citation", "ref": 1, "evidence_id": "ev-daychange-storm-1", "element_id": "day", "attribute": "storm change 1", "status": "indicative", "verified_at": null, "source_type": "rehearsal", "photo_url": null}
+{"type": "uncertainty", "level": "partial", "items": [{"element_id": "answer", "attribute": "caveat", "note": "Imagined change on a rehearsal of synthetic residents: not a plan, not a promise and not a forecast. The real township is unchanged"}, {"element_id": "answer", "attribute": "caveat", "note": "This is an indicative scenario, not a forecast. Follow official MBSA / JPS / NADMA guidance"}]}
+{"type": "disclaimer", "lens": "whatif", "text": "Imagined change on a rehearsal of synthetic residents: not a plan, not a promise and not a forecast. The real township is unchanged.", "links": []}
+{"type": "disclaimer", "lens": "flood", "text": "Indicative scenario from a 30 m elevation model (Copernicus GLO-30, height above mapped rivers and lakes), not a forecast. Follow official MBSA / JPS / NADMA guidance. Only the area 101.46–101.56 E, 3.15–3.24 N is assessed; paths outside it are not.", "links": [{"label": "Public InfoBanjir (JPS)", "url": "https://publicinfobanjir.water.gov.my"}, {"label": "MET Malaysia warnings", "url": "https://www.met.gov.my"}]}
+{"type": "done", "message_id": "demo", "answer_status": "answered", "model": "mock-scripted"}
