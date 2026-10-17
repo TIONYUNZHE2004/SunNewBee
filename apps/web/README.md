@@ -255,7 +255,7 @@ Mapbox lite and List are unchanged.
 - **`?bookmark=hero-near|hero-mid|township`:** the start view for the gate screenshots
   (`bookmarks.ts`); without it the camera opens on `hero-mid`.
 - **`?perf=1`:** the fps / frame time / draw calls / tier readout (`PerfOverlay`).
-- **Split:** `engine.ts` owns all WebGL (renderer with AgX tone mapping, soft shadows, room IBL,
+- **Split:** `engine.ts` owns all WebGL (renderer with AgX tone mapping, PCF shadows, room IBL,
   composer with GTAO and bloom per tier, `MapControls`, render on demand); `ThreeScene.tsx` is the
   React side (site frame, buildings, intents, lighting per theme, quality tier, panel offset, camera
   ops). DOM tests inject a fake engine through `createEngineFn`.

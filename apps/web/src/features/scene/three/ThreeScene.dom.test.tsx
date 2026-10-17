@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
-import { act, screen, waitFor } from "@testing-library/react";
-import { Component, type ReactNode } from "react";
+import { QueryClientProvider } from "@tanstack/react-query";
+import { act, render, screen, waitFor } from "@testing-library/react";
+import { Component, type ReactNode, StrictMode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { json, renderWithClient, stubFetch } from "../../../test/helpers";
+import { json, newQueryClient, renderWithClient, stubFetch } from "../../../test/helpers";
 import { useTheme } from "../../../ui/theme";
 import { usePanel } from "../../main/panelStore";
 import { PANEL_INSET_PX, panelWidthPx } from "../../main/viewport";
@@ -77,6 +78,13 @@ function fakeEngine() {
     },
     requestRender: vi.fn(),
     onFrame: vi.fn(() => () => {}),
+    fatal: null as ((err: Error) => void) | null,
+    onFatal: vi.fn((cb: (err: Error) => void) => {
+      e.fatal = cb;
+      return () => {
+        e.fatal = null;
+      };
+    }),
     gl: vi.fn(() => ({ getExtension: () => null }) as unknown as WebGL2RenderingContext),
     dispose: vi.fn(),
   };
@@ -98,6 +106,16 @@ function bookmarkPose(id: BookmarkId): Pose {
     pitchDeg: b.pitchDeg,
     headingDeg: b.headingDeg,
   };
+}
+
+class Boundary extends Component<{ children: ReactNode }, { failed: boolean }> {
+  state = { failed: false };
+  static getDerivedStateFromError() {
+    return { failed: true };
+  }
+  render() {
+    return this.state.failed ? <p>renderer failed</p> : this.props.children;
+  }
 }
 
 const route = {
@@ -225,15 +243,6 @@ describe("ThreeScene", () => {
 
   it("createEngineFn throwing propagates to an error boundary", () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
-    class Boundary extends Component<{ children: ReactNode }, { failed: boolean }> {
-      state = { failed: false };
-      static getDerivedStateFromError() {
-        return { failed: true };
-      }
-      render() {
-        return this.state.failed ? <p>renderer failed</p> : this.props.children;
-      }
-    }
     const createEngineFn = vi.fn(() => {
       throw new Error("WebGL2 unavailable");
     });
@@ -243,6 +252,50 @@ describe("ThreeScene", () => {
       </Boundary>,
     );
     expect(screen.getByText("renderer failed")).toBeInTheDocument();
+    // The canvas made for the failed engine is not left behind.
+    expect(document.querySelector("canvas")).toBeNull();
+  });
+
+  it("a runtime fatal error (context lost, shader error) propagates to the error boundary", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const engine = fakeEngine();
+    renderWithClient(
+      <Boundary>
+        <ThreeScene createEngineFn={() => engine as unknown as Engine} />
+      </Boundary>,
+    );
+    await waitFor(() => expect(engine.fatal).toBeTypeOf("function"));
+    act(() => engine.fatal?.(new Error("WebGL context lost")));
+    expect(screen.getByText("renderer failed")).toBeInTheDocument();
+    expect(engine.dispose).toHaveBeenCalledTimes(1);
+  });
+
+  it("StrictMode remount gives each engine its own canvas and disposes each once", async () => {
+    const engines: Fake[] = [];
+    const createEngineFn = vi.fn((_canvas: HTMLCanvasElement) => {
+      const e = fakeEngine();
+      engines.push(e);
+      return e as unknown as Engine;
+    });
+    // StrictMode at the root, as in main.tsx (nested under a non-strict root, React 19 does not
+    // replay effects).
+    const { unmount } = render(
+      <StrictMode>
+        <QueryClientProvider client={newQueryClient()}>
+          <ThreeScene createEngineFn={createEngineFn as never} />
+        </QueryClientProvider>
+      </StrictMode>,
+    );
+    await waitFor(() => expect(createEngineFn).toHaveBeenCalledTimes(2));
+    const [first, second] = createEngineFn.mock.calls.map((c) => c[0]);
+    expect(first).not.toBe(second);
+    expect(first?.isConnected).toBe(false);
+    expect(second?.isConnected).toBe(true);
+    expect(engines[0]?.dispose).toHaveBeenCalledTimes(1);
+    expect(engines[1]?.dispose).not.toHaveBeenCalled();
+    unmount();
+    expect(engines[1]?.dispose).toHaveBeenCalledTimes(1);
+    expect(second?.isConnected).toBe(false);
   });
 
   it("opening the panel calls setViewOffset with panelWidthPx(innerWidth) + 2 × PANEL_INSET_PX on wide screens", async () => {

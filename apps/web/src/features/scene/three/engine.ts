@@ -50,6 +50,8 @@ export interface Engine {
   rig: CameraRig;
   requestRender(): void;
   onFrame(cb: (dtMs: number, info: FrameInfo) => void): () => void;
+  /** Unrecoverable runtime failure (context lost, shader compile/link error): the caller falls back. */
+  onFatal(cb: (err: Error) => void): () => void;
   gl(): WebGL2RenderingContext;
   dispose(): void;
 }
@@ -136,13 +138,45 @@ export function createRig(view: RigView, bounds: () => Bounds): EngineRig {
   };
 }
 
-/** Three.js renderer for the stylised city. Throws when WebGL2 is unavailable. */
+/**
+ * Three.js renderer for the stylised city. Throws when WebGL2 is unavailable; a failure after the
+ * renderer exists releases everything created so far (and the context) before rethrowing.
+ * Each engine needs its own canvas: dispose() forces the context lost.
+ */
 export function createEngine(canvas: HTMLCanvasElement, tier: Tier): Engine {
   const renderer = new THREE.WebGLRenderer({
     canvas,
     antialias: true,
     powerPreference: "high-performance",
   });
+  /** Releases in reverse creation order; filled as things are created. */
+  const undo: (() => void)[] = [];
+  const release = () => {
+    for (const f of undo.splice(0).reverse()) {
+      try {
+        f();
+      } catch {
+        /* keep releasing the rest */
+      }
+    }
+    renderer.dispose();
+    renderer.forceContextLoss();
+  };
+  try {
+    return build(renderer, canvas, tier, undo, release);
+  } catch (err) {
+    release();
+    throw err;
+  }
+}
+
+function build(
+  renderer: THREE.WebGLRenderer,
+  canvas: HTMLCanvasElement,
+  tier: Tier,
+  undo: (() => void)[],
+  release: () => void,
+): Engine {
   renderer.toneMapping = THREE.AgXToneMapping;
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   // three r186 removed PCFSoftShadowMap: it warns once and uses PCFShadowMap. Ask for that directly
@@ -150,12 +184,28 @@ export function createEngine(canvas: HTMLCanvasElement, tier: Tier): Engine {
   renderer.shadowMap.type = THREE.PCFShadowMap;
   renderer.info.autoReset = false;
 
+  let disposed = false;
+  const fatalCbs = new Set<(err: Error) => void>();
+  const fail = (err: Error) => {
+    if (disposed) return;
+    for (const cb of fatalCbs) cb(err);
+  };
+  renderer.debug.onShaderError = (gl, program) => {
+    console.error("TownshipLens 3D: shader failed", gl.getProgramInfoLog(program));
+    fail(new Error("WebGL shader compile or link failed"));
+  };
+  const onContextLost = () => fail(new Error("WebGL context lost"));
+  canvas.addEventListener("webglcontextlost", onContextLost);
+  undo.push(() => canvas.removeEventListener("webglcontextlost", onContextLost));
+
   const scene = new THREE.Scene();
   scene.background = new THREE.Color();
   const pmrem = new THREE.PMREMGenerator(renderer);
+  undo.push(() => pmrem.dispose());
   const room = new RoomEnvironment();
   const envRT = pmrem.fromScene(room, 0.04);
   room.dispose();
+  undo.push(() => envRT.dispose());
   scene.environment = envRT.texture;
 
   const camera = new THREE.PerspectiveCamera(VFOV_DEG, 1, 2, 30000);
@@ -175,6 +225,13 @@ export function createEngine(canvas: HTMLCanvasElement, tier: Tier): Engine {
   });
   const city = new THREE.Group();
   scene.add(city);
+  const disposeCity = () => {
+    for (const o of [...city.children]) {
+      if (o instanceof THREE.Mesh) o.geometry.dispose();
+      city.remove(o);
+    }
+  };
+  undo.push(disposeCity);
 
   const lineMat = new LineMaterial({
     color: new THREE.Color(ROUTE_STYLE.color),
@@ -187,8 +244,12 @@ export function createEngine(canvas: HTMLCanvasElement, tier: Tier): Engine {
   route.frustumCulled = false;
   route.visible = false;
   scene.add(route);
+  undo.push(() => {
+    route.geometry.dispose();
+    for (const m of [buildingMat, flatMat, groundMat, lineMat]) m.dispose();
+    sun.shadow.map?.dispose();
+  });
 
-  let disposed = false;
   let raf = 0;
   let dirty = true;
   let idle = true;
@@ -199,6 +260,11 @@ export function createEngine(canvas: HTMLCanvasElement, tier: Tier): Engine {
   let panelPx = 0;
   let bounds: Bounds = { min: [0, 0], max: [0, 0] };
   const listeners = new Set<(dtMs: number, info: FrameInfo) => void>();
+  undo.push(() => {
+    disposed = true;
+    cancelAnimationFrame(raf);
+    raf = 0;
+  });
 
   const visible = () => document.visibilityState === "visible";
   const schedule = () => {
@@ -223,6 +289,10 @@ export function createEngine(canvas: HTMLCanvasElement, tier: Tier): Engine {
   controls.minPolarAngle = (90 + LIMITS.minPitchDeg) * RAD;
   controls.maxPolarAngle = (90 + LIMITS.maxPitchDeg) * RAD;
   controls.addEventListener("change", moved);
+  undo.push(() => {
+    controls.removeEventListener("change", moved);
+    controls.dispose();
+  });
 
   const rig = createRig(
     { camera, target: controls.target, changed: moved, size: () => size },
@@ -231,6 +301,10 @@ export function createEngine(canvas: HTMLCanvasElement, tier: Tier): Engine {
 
   let composer = new EffectComposer(renderer);
   let passes: Pass[] = [];
+  undo.push(() => {
+    for (const p of passes) p.dispose();
+    composer.dispose();
+  });
   const applyTier = (t: Tier) => {
     const spec = THREE_TIERS[t];
     const pr = Math.min(globalThis.devicePixelRatio || 1, spec.maxPixelRatio);
@@ -307,6 +381,7 @@ export function createEngine(canvas: HTMLCanvasElement, tier: Tier): Engine {
     idle = true;
   };
   document.addEventListener("visibilitychange", onVisibility);
+  undo.push(() => document.removeEventListener("visibilitychange", onVisibility));
 
   const applyViewOffset = () => {
     const [w, h] = size;
@@ -314,13 +389,6 @@ export function createEngine(canvas: HTMLCanvasElement, tier: Tier): Engine {
     if (panelPx > 0) camera.setViewOffset(...viewOffsetFor(w, h, panelPx));
     else camera.clearViewOffset();
     camera.updateProjectionMatrix();
-  };
-
-  const disposeCity = () => {
-    for (const o of [...city.children]) {
-      if (o instanceof THREE.Mesh) o.geometry.dispose();
-      city.remove(o);
-    }
   };
 
   applyTier(tier);
@@ -397,8 +465,14 @@ export function createEngine(canvas: HTMLCanvasElement, tier: Tier): Engine {
       requestRender();
     },
     onFrame(cb) {
+      if (disposed) return () => {};
       listeners.add(cb);
       return () => listeners.delete(cb);
+    },
+    onFatal(cb) {
+      if (disposed) return () => {};
+      fatalCbs.add(cb);
+      return () => fatalCbs.delete(cb);
     },
     gl: () => renderer.getContext() as WebGL2RenderingContext,
     dispose() {
@@ -407,19 +481,8 @@ export function createEngine(canvas: HTMLCanvasElement, tier: Tier): Engine {
       cancelAnimationFrame(raf);
       raf = 0;
       listeners.clear();
-      document.removeEventListener("visibilitychange", onVisibility);
-      controls.removeEventListener("change", moved);
-      controls.dispose();
-      for (const p of passes) p.dispose();
-      composer.dispose();
-      disposeCity();
-      route.geometry.dispose();
-      for (const m of [buildingMat, flatMat, groundMat, lineMat]) m.dispose();
-      sun.shadow.map?.dispose();
-      envRT.dispose();
-      pmrem.dispose();
-      renderer.dispose();
-      renderer.forceContextLoss();
+      fatalCbs.clear();
+      release();
     },
   };
 }

@@ -61,6 +61,8 @@ const bboxCorners = (b: number[] | undefined): LonLat[] =>
       ]
     : [];
 
+const asError = (err: unknown) => (err instanceof Error ? err : new Error(String(err)));
+
 /** Three.js stylised city (opt-in with `?engine=three`). All WebGL lives in `engine.ts`. */
 export default function ThreeScene({
   onOps,
@@ -69,7 +71,7 @@ export default function ThreeScene({
   onOps?: (ops: CameraOps | null) => void;
   createEngineFn?: typeof createEngine;
 } = {}) {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const hostRef = useRef<HTMLDivElement>(null);
   const sectionRef = useRef<HTMLElement>(null);
   const [engine, setEngine] = useState<Engine | null>(null);
   const [failure, setFailure] = useState<Error | null>(null);
@@ -100,20 +102,30 @@ export default function ThreeScene({
 
   // The initial tier: the user's choice, else Medium until the GPU is known.
   const initialTier = useRef<Tier>(quality === "auto" ? "medium" : quality);
+  // A fresh canvas per engine: dispose() forces its context lost, so a remount (StrictMode, HMR)
+  // must never reuse it. Construction and runtime failures (context lost, shader errors) go to the
+  // error boundary through `failure`.
   useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
+    const host = hostRef.current;
+    if (!host) return;
+    const canvas = document.createElement("canvas");
+    canvas.className = "block h-full w-full";
+    host.appendChild(canvas);
     let e: Engine;
     try {
       e = createEngineFn(canvas, initialTier.current);
     } catch (err) {
-      setFailure(err instanceof Error ? err : new Error(String(err)));
+      canvas.remove();
+      setFailure(asError(err));
       return;
     }
+    const offFatal = e.onFatal((err) => setFailure(err));
     setEngine(e);
     return () => {
+      offFatal();
       setEngine(null);
       e.dispose();
+      canvas.remove();
     };
   }, [createEngineFn]);
 
@@ -280,7 +292,15 @@ export default function ThreeScene({
     );
     setOps(o);
     onOpsRef.current?.(o);
+    // Double-click glides in to the ground point under the pointer (as on the Cesium map).
+    const host = hostRef.current;
+    const onDblClick = (e: MouseEvent) => {
+      const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+      o.glideTo({ x: e.clientX - r.left, y: e.clientY - r.top });
+    };
+    host?.addEventListener("dblclick", onDblClick);
     return () => {
+      host?.removeEventListener("dblclick", onDblClick);
       setOps(null);
       onOpsRef.current?.(null);
     };
@@ -301,14 +321,7 @@ export default function ThreeScene({
       aria-label="3D map. Arrow keys or WASD move, Q and E rotate, R and F tilt, plus and minus zoom, N faces north."
       onKeyDown={(e) => handleMapKey(e, ops)}
     >
-      <canvas
-        ref={canvasRef}
-        className="block h-full w-full"
-        onDoubleClick={(e) => {
-          const r = e.currentTarget.getBoundingClientRect();
-          ops?.glideTo({ x: e.clientX - r.left, y: e.clientY - r.top });
-        }}
-      />
+      <div ref={hostRef} className="absolute inset-0" />
       <CameraControls ops={ops} />
       <PerfOverlay />
       <SlowBanner />
