@@ -65,7 +65,7 @@ An AI feature often needs a small Backend or Frontend change (the road-crossings
 1. **Control pulls from the team.** Whenever `main` moves, control merges `origin/main` in. Pulling needs no instruction.
 2. **A worker starts from control.** Before each task it merges `origin/claude/sweet-davinci-29v7ne` into its own branch, not `main`.
 3. **A worker opens a PR into control,** never into `main`. CI runs on every PR, whatever its base (`ci.yml`: `pull_request: {}`).
-4. **Control merges workers one at a time.** After each merge it runs the full checklist (below). It fixes conflicts on the control branch, not on the worker branch.
+4. **Control merges workers one at a time,** only PRs with green CI. It fixes conflicts on the control branch, not on the worker branch, and then runs only the checks that fit the conflict it resolved.
 5. **Control waits for Yunzhe.** It opens a PR into `main` only when Yunzhe says so ("send to main"). It never opens one, or pushes toward `main`, on its own, even when everything is green. Yunzhe merges it.
 6. **After that merge,** control merges `origin/main` back in (step 1), and workers merge control back in before they continue.
 
@@ -170,6 +170,6 @@ When done: run the local checks that fit the change (workflow doc, "Checks"), pu
 ## Why this structure
 
 - **One place to fix conflicts.** Agents do not see each other's work. If each one merged straight into `main`, the team would get the conflicts. Control takes them first.
-- **One tested update for the team.** `main` gets one PR that already passed the full checklist, not many small risky ones.
+- **One tested update for the team.** `main` gets one PR, and GitHub CI runs the full checks on it, not many small risky ones.
 - **Agents stay simple.** Each agent knows one branch, one task and one target (control).
 - **The control session knows everything.** Every worker's change passes through it, so the control session can answer for the whole of Yunzhe's work.
