@@ -22,7 +22,7 @@ const PARK_COLOUR = "#8fbf7a";
 const BASE_WATER_COLOUR = "#7fb6c9";
 
 /** This overhaul's renderer may draw the Google-sampled display height (data/README.md). */
-const displayHeight: HeightOf = (p) => p.display_height_m ?? p.height_m;
+export const displayHeight: HeightOf = (p) => p.display_height_m ?? p.height_m;
 
 export interface CityGeometry {
   buildings: THREE.BufferGeometry;

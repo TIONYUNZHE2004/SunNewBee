@@ -1,5 +1,6 @@
 import type { BuildingsLayer } from "../../../../lib/api";
 import { toBuildings } from "../../cesium/stylised/model";
+import { displayHeight } from "../cityMesh";
 import type { LocalFrame } from "../frame";
 import type { Placement } from "./fit";
 import { fitArchetype, footprintObb, paletteFor, precinctGroupOf, variantFor } from "./fit";
@@ -56,7 +57,7 @@ export function planCity(
     plan.stats.fallback[reason] = (plan.stats.fallback[reason] ?? 0) + 1;
   };
 
-  const { buildings } = toBuildings(layer.buildings);
+  const { buildings } = toBuildings(layer.buildings, displayHeight);
   const propsById = new Map<string, Record<string, unknown>>();
   features(layer.buildings).forEach((f, i) => {
     if (!isRec(f)) return;

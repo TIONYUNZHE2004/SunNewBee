@@ -144,6 +144,13 @@ describe("fitArchetype", () => {
     const r = fitArchetype(obbOf(6.4, 15.5, 0), spec(), "gable", 8.5, 90, "f")![0]!;
     expect(r.yaw).toBeCloseTo(Math.PI / 2, 9);
   });
+  it("snaps yaw to the box normal facing front_deg 100", () => {
+    const r = fitArchetype(obbOf(6.4, 15.5, 0), spec(), "gable", 8.5, 100, "f")![0]!;
+    expect(Math.sin(r.yaw)).toBeCloseTo(1, 9);
+    expect(Math.cos(r.yaw)).toBeCloseTo(0, 9);
+    const w = fitArchetype(obbOf(6.4, 15.5, 0), spec(), "gable", 8.5, 260, "f")![0]!;
+    expect(Math.sin(w.yaw)).toBeCloseTo(-1, 9);
+  });
 });
 
 describe("yawForFront", () => {
@@ -185,7 +192,7 @@ describe("groups, variants and palettes", () => {
   });
   it("chooses the highrise variant nearest the building height", () => {
     const hi = spec({
-      variantByGroup: {},
+      variantByGroup: { default: "mid" },
       variants: {
         mid: { size: [20, 45, 20], lods: [{ node: "m", tris: 1, maxM: null }] },
         tall: { size: [20, 95, 20], lods: [{ node: "t", tris: 1, maxM: null }] },

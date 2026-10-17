@@ -141,8 +141,8 @@ export function precinctGroupOf(precinct: string | undefined, groups: [string, s
 
 export function variantFor(spec: AssetSpec, group: string, heightM: number): string {
   const names = Object.keys(spec.variants);
-  const mapped = spec.variantByGroup[group];
-  if (mapped && spec.variants[mapped]) return mapped;
+  // Variants of different heights (highrise mid/tall): the nearest height wins, because the
+  // manifest gives every asset a `default` mapping that would otherwise always pick the first.
   const heights = new Set(names.map((n) => spec.variants[n]!.size[1]));
   if (names.length > 1 && heights.size > 1) {
     let best = names[0]!;
@@ -156,8 +156,8 @@ export function variantFor(spec: AssetSpec, group: string, heightM: number): str
     }
     return best;
   }
-  const def = spec.variantByGroup.default;
-  if (def && spec.variants[def]) return def;
+  const mapped = spec.variantByGroup[group] ?? spec.variantByGroup.default;
+  if (mapped && spec.variants[mapped]) return mapped;
   return names[0]!;
 }
 
@@ -237,13 +237,14 @@ export function fitArchetype(
   const sy = heightM / sh;
   if (!within(sx, fit.xz) || !within(sz, fit.xz) || !within(sy, fit.y)) return null;
 
-  let yaw: number;
-  if (frontDeg !== null) yaw = yawForFront(frontDeg);
-  else {
-    // Frontage direction is unknown in the data: a deterministic hash picks one of the two normals.
-    const sign = hash01(id, "front") < 0.5 ? 1 : -1;
-    yaw = Math.atan2(sign * -fz, sign * fx);
-  }
+  // Yaw is always the frontage-axis normal, so the model stays aligned with its OBB. With a known
+  // front the sign follows it; otherwise a deterministic hash picks one (the front is unknown).
+  let sign: number;
+  if (frontDeg !== null) {
+    const a = (frontDeg * Math.PI) / 180;
+    sign = Math.sin(a) * -fz + -Math.cos(a) * fx >= 0 ? 1 : -1;
+  } else sign = hash01(id, "front") < 0.5 ? 1 : -1;
+  const yaw = Math.atan2(sign * -fz, sign * fx);
 
   const step = F / n;
   const out: Placement[] = [];

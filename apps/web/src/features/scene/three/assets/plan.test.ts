@@ -163,6 +163,35 @@ describe("planCity", () => {
     expect(ids).not.toContain("b1");
     expect(ids).toContain("b5");
   });
+  it("places an obb landmark at the feature's OBB centre and takes its building", () => {
+    const m = manifest();
+    m.assets.lakeside_mall = { ...m.assets.lakeside_mall!, placement: "obb" };
+    const lm = feat({ id: "lm", model: "lakeside_mall", building_id: "b1" }, poly(20, 10, 60, 60));
+    const b1 = feat(
+      { id: "b1", archetype: "link_intermediate", height_m: 20 },
+      poly(20, 10, 60, 60),
+    );
+    const p = planCity(layerOf([b1], [lm]), frame, m, all);
+    expect(p.landmarks).toHaveLength(1);
+    expect(p.landmarks[0]!.x).toBeCloseTo(20, 1);
+    expect(p.landmarks[0]!.z).toBeCloseTo(10, 1);
+    expect(p.landmarks[0]!.sx).toBeCloseTo(0.6, 1);
+    expect(p.extrude.has("b1")).toBe(false);
+    expect(p.placements.size).toBe(0);
+  });
+  it("reads display_height_m before height_m", () => {
+    const f = feat(
+      { id: "h", archetype: "link_intermediate", height_m: 30, display_height_m: 8.5 },
+      poly(0, 0, 6.4, 15.5),
+    );
+    const p = planCity(layerOf([f]), frame, manifest(), all);
+    expect(p.placements.get("link_intermediate/gable")![0]!.sy).toBeCloseTo(1, 6);
+    const g = feat(
+      { id: "h2", archetype: "link_intermediate", height_m: 8.5, display_height_m: 30 },
+      poly(0, 0, 6.4, 15.5),
+    );
+    expect(planCity(layerOf([g]), frame, manifest(), all).extrude.has("h2")).toBe(true);
+  });
   it("leaves a deferred landmark unplaced and its building in the normal flow", () => {
     const lm = feat({ id: "k", model: "kanopi", building_id: "b1" }, poly(0, 0, 40, 40));
     const p = planCity(layerOf([link("b1")], [lm]), frame, manifest(), all);
