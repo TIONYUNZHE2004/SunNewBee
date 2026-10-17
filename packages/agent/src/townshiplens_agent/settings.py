@@ -21,6 +21,9 @@ class AgentSettings(BaseSettings):
     llm_model_sim: str = "openai/gpt-6-luna"  # benchmark: evals/results/*sim-model-bench.json
     llm_sim_reasoning: str = "low"
     llm_output_retries: int = 2
+    # Most model requests one turn may make (tool steps + answer + rewrites); the library default
+    # is 50. Past the cap the turn ends with the template answer (audit F5).
+    llm_request_limit: int = 12
     turn_timeout_s: float = 60.0
     demo_mode: bool = False
     demo_dir: Path = ROOT / "data/demo"

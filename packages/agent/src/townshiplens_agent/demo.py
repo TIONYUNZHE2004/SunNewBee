@@ -12,6 +12,7 @@ from pathlib import Path
 from pydantic import TypeAdapter
 
 from .events import ChatEvent, ChatRequest, Done, VerificationRequested
+from .redact import redact
 from .settings import AgentSettings
 
 log = logging.getLogger(__name__)
@@ -68,7 +69,7 @@ def save(k: str, events: list[ChatEvent], meta: dict, demo_dir: Path | None = No
 def make_meta(req: ChatRequest, events: list[ChatEvent], world: str = "") -> dict:
     done = events[-1]
     return {
-        "message": req.message,
+        "message": redact(req.message),
         "profile": req.profile,
         "scenario_id": req.scenario_id,
         "world": world,

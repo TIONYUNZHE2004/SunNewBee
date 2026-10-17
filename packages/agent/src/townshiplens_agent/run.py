@@ -6,7 +6,8 @@ import re
 import uuid
 from collections.abc import AsyncIterator
 
-from pydantic_ai.exceptions import UnexpectedModelBehavior
+from pydantic_ai.exceptions import UnexpectedModelBehavior, UsageLimitExceeded
+from pydantic_ai.usage import UsageLimits
 from townshiplens_spatial import tools as sp
 
 from . import agent as agent_mod
@@ -38,6 +39,7 @@ from .labels import (
 from .memory import DEFAULT as DEFAULT_MEMORY
 from .memory import SessionMemory
 from .record import TurnRecord
+from .redact import redact
 from .settings import AgentSettings
 from .template import _top_stage, template_answer
 from .validate import PLACEHOLDER_CAVEAT
@@ -401,6 +403,8 @@ async def run_turn(
             async for ev in demo.replay(cached, ctx.vrs):
                 yield ev
             return
+    # PDPA (audit F4): IC, phone and email never reach the provider, memory or the template.
+    question = redact(req.message)
     rec = record or TurnRecord()
     rec.queue = asyncio.Queue()
     rec.history_simulated = memory.simulated(req.session_id)
@@ -427,10 +431,11 @@ async def run_turn(
         async def bounded_run():
             async with asyncio.timeout(settings.turn_timeout_s):
                 return await agent.run(
-                    req.message,
+                    question,
                     message_history=memory.history(req.session_id) or None,
                     deps=deps,
                     retries={"output": settings.llm_output_retries},
+                    usage_limits=UsageLimits(request_limit=settings.llm_request_limit),
                     usage=rec.usage,
                     event_stream_handler=(
                         DraftStreamer(deps) if _streams(model, escalate_model) else None
@@ -470,7 +475,13 @@ async def run_turn(
     if rec.escalated and escalate_model is not None:
         model_name = getattr(escalate_model, "model_name", None) or model_name
     used = model_name
-    if isinstance(failure, TimeoutError):
+    if isinstance(failure, UsageLimitExceeded):
+        log.warning("agent turn hit the request cap (%s)", settings.llm_request_limit)
+        yield ErrorEvent(
+            code="agent_limit",
+            message=f"stopped after {settings.llm_request_limit} model requests",
+        )
+    elif isinstance(failure, TimeoutError):
         log.warning("agent turn timed out after %ss", settings.turn_timeout_s)
         yield ErrorEvent(
             code="agent_timeout", message=f"turn timed out after {settings.turn_timeout_s}s"
@@ -481,7 +492,7 @@ async def run_turn(
     try:
         if ans is None:
             used = model_name + "+template"
-            ans = template_answer(rec, req.message)
+            ans = template_answer(rec, question)
         # The frame (status line, headings) follows the language the answer is written in (a
         # model that answered a BM question in English gets an English frame); template answers
         # (fallbacks) stay English.
@@ -502,7 +513,7 @@ async def run_turn(
     shown = "".join(e.delta for e in events if isinstance(e, TextDelta))
     memory.add_turn(
         req.session_id,
-        req.message,
+        question,
         shown,
         simulated=bool(rec.what_ifs or rec.plans or rec.days or rec.day_changes),
     )

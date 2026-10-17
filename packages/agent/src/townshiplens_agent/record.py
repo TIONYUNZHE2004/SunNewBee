@@ -18,6 +18,10 @@ class TurnRecord:
     # Wall-clock seconds spent inside each spatial tool this turn (summed per tool name), so an
     # eval can split a slow turn into engine time and model time.
     tool_seconds: dict[str, float] = field(default_factory=dict)
+    # Every number the model was shown by a tool this turn, by unit ("m", "min", "pct", "any";
+    # ids and geometry excluded): an answer may quote a distance, time or slope only if it is one
+    # of these, or a rounding of one in the same unit (validate.measurement_errors).
+    tool_measures: dict[str, set[float]] = field(default_factory=dict)
     # Route endpoints inside a flooded area under the active scenario:
     # place_id -> {"flood_class", "name", "scenario_id"}
     flooded_endpoints: dict[str, dict] = field(default_factory=dict)
