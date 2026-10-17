@@ -54,3 +54,23 @@ def test_rehearse_my_trip_is_a_post_with_ends_in_the_body():
     assert c.get("/day/weekday/trip", params={"from_id": "park-b"}).status_code == 405
     assert c.post("/day/weekday/trip", json={**body, "leave_at": "25:00"}).status_code == 422
     assert c.post("/day/nope/trip", json=body).status_code == 404
+
+
+def test_ticket_reach_says_who_a_path_matters_to():
+    from townshiplens_api import state
+    from townshiplens_spatial import tools as sp
+
+    sp.plan_route(
+        state.get_ctx(),
+        from_id="park-b",
+        to_id="kiosk",
+        profile="stroller",
+        question_summary="stroller route Car Park B -> Park kiosk",
+    )
+    vr = next(v for v in state.get_ctx().vrs.list() if v.element_id == "seg-cf")
+    r = c.get(f"/verification-requests/{vr.id}/reach")
+    assert r.status_code == 200, r.text
+    d = r.json()
+    assert d["kind"] == "path" and d["residents"] >= 0 and "not a forecast" in d["disclaimer"]
+    assert sum(d["by_group"].values()) == d["residents"]
+    assert c.get("/verification-requests/vr-9999/reach").status_code == 404

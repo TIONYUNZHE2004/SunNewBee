@@ -1444,3 +1444,19 @@ Each is recorded in `data/README.md` and `CREDITS.md`.
   - Both rules are fixed, and the drafts are kept as passing tests.
 
 **Checklist** (mock-backed; voices and smoke test live): lint PASS, pytest 1,304 PASS, typecheck PASS, vitest 801 PASS, gen PASS, golden 23/23 PASS, build PASS, e2e 20 PASS. OpenRouter spend is about US$2.0 of US$3 (an estimate; the counter lags).
+
+### Cycle 23: tickets say who they matter to (17 Oct, 14:23)
+
+**Why:** staff resolve tickets one fact at a time. The People-track link is *whose* trips depend on that fact.
+
+**Built:**
+- **`day/reach.py`:**
+  - **for a path:** the distinct synthetic residents (companions included) whose rehearsed trips cross the ticket's path, by purpose and age group;
+  - **for a place:** who goes there;
+  - computed on the cached rule-based weekday, under the day's lock.
+- **Tool and endpoint:** `tools.ticket_reach` and `GET /verification-requests/{id}/reach?day=weekday`, cached by element.
+- **Tickets screen:** the impact card gains "Who this matters to · A normal weekday (rehearsal)", e.g. "6 synthetic residents' trips cross this path (12 trips: 6 shopping trips)". It says plainly that these are synthetic residents, not a forecast, and that their trips may use unchecked paths, which is why the check matters.
+- **Seed example:** the busiest Persiaran Eserina segment is crossed by 255 residents on a normal weekday (113 teenagers and 58 children; 179 school trips).
+- **Tests:** reach on the tiny world, the API endpoint (a filed ticket, 404), and the `reachLine` wording.
+
+**Checklist** (mock-backed): lint PASS, pytest 1,306 PASS, typecheck PASS, vitest 803 PASS, gen (client regenerated with the new route), golden 23/23 PASS, build PASS, e2e 20 PASS.

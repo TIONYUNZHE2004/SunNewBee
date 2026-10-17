@@ -136,3 +136,18 @@ def test_or_earlier_only_when_every_earlier_departure_got_there():
         c, from_id="park-b", to_id=school, profile="drive", leave_at="06:00", day="storm"
     ).data
     assert clear["asked"]["outcome"] == "clear" and clear["next_clear_leave"] is None
+
+
+def test_reach_counts_who_a_path_matters_to(ctx):
+    """Cycle 23: a ticket's path, from the rehearsed day: residents whose trips cross it."""
+    from townshiplens_spatial.day import reach
+    from townshiplens_spatial.day.compare import _edge_use
+
+    sc, _, _, res = tools._day_result(ctx.world, "weekday")
+    eid, n = _edge_use(res).most_common(1)[0]
+    r = reach.reach(res, eid)
+    assert r["kind"] == "path" and r["residents"] > 0 and r["trips"] > 0
+    assert sum(r["by_group"].values()) == r["residents"]
+    assert reach.reach(res, "no-such-edge")["residents"] == 0
+    place = reach.reach(res, "playground")
+    assert place["kind"] == "place"

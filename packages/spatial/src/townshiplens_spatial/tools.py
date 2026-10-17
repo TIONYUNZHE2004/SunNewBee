@@ -1266,6 +1266,30 @@ def ticket_impact(ctx: Ctx, vr_id: str):
     )
 
 
+def ticket_reach(ctx: Ctx, vr_id: str, day: str = "weekday") -> ToolResult:
+    """Who a ticket's path or place matters to (Cycle 23): synthetic residents whose trips in a
+    rehearsed day cross it, by purpose and age group. Staff planning; counts only."""
+    from .day import reach
+
+    vr = ctx.vrs.get(vr_id)
+    if vr is None:
+        return ToolResult(ok=False, warnings=[f"unknown verification request {vr_id}"])
+    w = ctx.world
+    if vr.element_id not in w.edges and vr.element_id not in w.places:
+        return ToolResult(ok=True, data={"kind": "other", "residents": 0, "trips": 0})
+
+    def run() -> ToolResult:
+        sc, _, _, res = _day_result(w, day)
+        if sc is None:
+            return ToolResult(ok=False, warnings=[f"unknown day scenario {day}"])
+        out = reach.reach(res, vr.element_id)
+        out["day"] = {"id": sc.id, "label": sc.label}
+        return ToolResult(ok=True, data=out, warnings=[engine_disclaimer()])
+
+    key = {"e": vr.element_id, "d": day, "on": _today()}
+    return _wm_cached(w, "reach", key, run, cache=_IMPACT_CACHE, cache_max=_IMPACT_CACHE_MAX)
+
+
 # ---- Elmina Day (Cycle 10): synthetic residents living a day on the world model -------------
 DAY_RESIDENTS = 5000
 _DAY_CACHE: OrderedDict[str, ToolResult] = OrderedDict()

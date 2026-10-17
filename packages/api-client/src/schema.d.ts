@@ -689,6 +689,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/verification-requests/{vr_id}/reach": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Ticket Reach
+         * @description Who this ticket's path or place matters to in a rehearsed day: synthetic residents whose
+         *     trips cross it, by purpose and age group (a rehearsal, not a forecast; counts only).
+         */
+        get: operations["ticket_reach_verification_requests__vr_id__reach_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/verification-requests/{vr_id}/resolve": {
         parameters: {
             query?: never;
@@ -3908,6 +3929,55 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["FactImpact"];
+                };
+            };
+            /** @description unknown verification request */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description busy */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    ticket_reach_verification_requests__vr_id__reach_get: {
+        parameters: {
+            query?: {
+                day?: string;
+            };
+            header?: never;
+            path: {
+                vr_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
                 };
             };
             /** @description unknown verification request */
