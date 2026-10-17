@@ -30,14 +30,17 @@ const BUILDINGS = {
   buildings: { type: "FeatureCollection", features: [{ type: "Feature" }] },
   trees: { type: "FeatureCollection", features: [] },
 };
-const savedGoogle = ENV.googleKey;
+// Keys come from the developer's .env through Vite `define`; CI has none. Blank them so every
+// test states the keys it needs and passes the same way locally and in CI.
+const savedEnv = { ...ENV };
 const savedGetContext = HTMLCanvasElement.prototype.getContext;
 afterEach(() => {
   HTMLCanvasElement.prototype.getContext = savedGetContext;
-  ENV.googleKey = savedGoogle;
+  Object.assign(ENV, savedEnv);
 });
 
 beforeEach(() => {
+  Object.assign(ENV, { googleKey: "", cesiumToken: "", mapboxToken: "" });
   useScene.getState().reset();
   useMode.setState({ mode: "resident" });
 });
@@ -136,7 +139,7 @@ describe("SettingsPopover", () => {
   it("orders the groups Theme, Map style, Motion, Quality, Camera controls, Travelling as, River level, Legend", async () => {
     HTMLCanvasElement.prototype.getContext = (() => ({})) as never;
     useScene.getState().setView("cesium");
-    renderWithClient(<SettingsPopover />, seeded());
+    renderWithClient(<SettingsPopover />, seeded(BUILDINGS)); // keyless Cesium needs buildings
     await userEvent.click(screen.getByRole("button", { name: "Map settings" }));
     const heads = screen.getAllByRole("heading", { level: 3 }).map((h) => h.textContent);
     expect(heads).toEqual([
@@ -208,7 +211,7 @@ describe("SettingsPopover", () => {
       useScene.getState().setView("cesium");
     });
     it("offers Motion On/Off and Quality Auto/High/Medium/Low", async () => {
-      renderWithClient(<SettingsPopover />, seeded());
+      renderWithClient(<SettingsPopover />, seeded(BUILDINGS));
       await userEvent.click(screen.getByRole("button", { name: "Map settings" }));
       const motion = screen.getByRole("radiogroup", { name: "Motion" });
       expect(within(motion).getByRole("radio", { name: "On" })).toBeInTheDocument();
@@ -219,7 +222,7 @@ describe("SettingsPopover", () => {
       }
     });
     it("Off sets motion to false", async () => {
-      renderWithClient(<SettingsPopover />, seeded());
+      renderWithClient(<SettingsPopover />, seeded(BUILDINGS));
       await userEvent.click(screen.getByRole("button", { name: "Map settings" }));
       await userEvent.click(
         within(screen.getByRole("radiogroup", { name: "Motion" })).getByRole("radio", {
