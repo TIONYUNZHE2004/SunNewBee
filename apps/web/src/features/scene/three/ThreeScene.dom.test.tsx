@@ -169,6 +169,18 @@ describe("ThreeScene", () => {
     expect(s).toHaveAttribute("data-route", "off");
   });
 
+  it("shows an experimental-engine chip whose link switches back to Cesium on the same page", () => {
+    history.replaceState(null, "", "/?bookmark=hero-near&engine=three#x");
+    mount();
+    expect(screen.getByText(/Experimental 3D engine/)).toHaveTextContent(
+      "Experimental 3D engine · Switch back",
+    );
+    expect(screen.getByRole("link", { name: "Switch back" })).toHaveAttribute(
+      "href",
+      "/?bookmark=hero-near&engine=cesium#x",
+    );
+  });
+
   it("calls setCity once buildings data arrives", async () => {
     const { engine } = mount();
     await waitFor(() => expect(engine.setCity).toHaveBeenCalledTimes(1));
