@@ -127,6 +127,8 @@ export function StylisedCity({ onReady }: { onReady?: (info: StylisedReady) => v
   const ground = useRef<Ground | null>(null);
   const props = useRef<Props | null>(null);
   const pools = useRef<PoolLayer | null>(null);
+  /** The palette on screen now (mid-fade: the blend), kept by the crossfade below. */
+  const shown = useRef(paletteFor(useTheme.getState().theme));
   const sky = useRef<Sky | null>(null);
   const clock = useRef<ReturnType<typeof createMotionClock> | null>(null);
   const onReadyRef = useRef(onReady);
@@ -283,7 +285,7 @@ export function StylisedCity({ onReady }: { onReady?: (info: StylisedReady) => v
       Cesium,
       viewer.scene,
       decor.lamps,
-      paletteFor(useTheme.getState().theme),
+      shown.current, // the palette on screen, so a layer built mid-fade matches the other parts
     );
     pools.current = h;
     viewer.scene.requestRender();
@@ -447,7 +449,6 @@ export function StylisedCity({ onReady }: { onReady?: (info: StylisedReady) => v
   // shown; layers built mid-fade (or after) start from the latest theme's palette, so every path
   // ends on the last choice. The ground decals crossfade by imagery-layer alpha (one layer per
   // palette); base water recolours once, at the midpoint (never intermediates).
-  const shown = useRef(paletteFor(useTheme.getState().theme));
   const shownTheme = useRef(useTheme.getState().theme);
   useEffect(() => {
     if (!viewer || viewer.isDestroyed()) return;

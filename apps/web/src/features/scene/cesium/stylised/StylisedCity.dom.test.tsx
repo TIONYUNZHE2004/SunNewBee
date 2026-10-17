@@ -143,6 +143,25 @@ describe("StylisedCity wiring", () => {
     expect(destroy).toHaveBeenCalled();
   });
 
+  it("a pool layer built mid-fade starts from the palette on screen, not the target", async () => {
+    await mount();
+    await waitFor(() => expect(buildPoolLayer).toHaveBeenCalled());
+    const { useTheme } = await import("../../../../ui/theme");
+    const { paletteFor } = await import("./palette");
+    const from = useTheme.getState().theme;
+    const target = from === "day" ? "night" : "day";
+    const { useSceneSettings } = await import("../../sceneSettingsStore");
+    await act(async () => useTheme.getState().setChoice(target));
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 300)); // a few fade frames (2 s fade)
+      useSceneSettings.setState({ quality: "low" });
+    });
+    await act(async () => useSceneSettings.setState({ quality: "medium" }));
+    const built = (buildPoolLayer.mock.calls.at(-1) as unknown[])[3] as { glow: number };
+    expect(built).not.toEqual(paletteFor(target));
+    expect(built).not.toEqual(paletteFor(from));
+  });
+
   it("a theme change fades the ground decals towards the new palette, ending at t = 1", async () => {
     // Reduced motion: the crossfade applies the target once (no 2 s frame loop in the test).
     vi.stubGlobal("matchMedia", () => ({ matches: true }));
