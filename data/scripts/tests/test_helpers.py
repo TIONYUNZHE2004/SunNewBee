@@ -1,7 +1,7 @@
 import json
 from pathlib import Path
 
-from data.scripts.build_overlay import drop_duplicates, merge_claims
+from data.scripts.build_overlay import add_existence_provenance, drop_duplicates, merge_claims
 from data.scripts.import_osm import _claims, place_name
 
 SEED = Path(__file__).resolve().parents[2] / "seed" / "elmina"
@@ -38,6 +38,31 @@ def test_merge_claims_keeps_existing():
         {"surface": {"value": "asphalt"}, "step_count": {"value": 9}}, {"step_count": {"value": 0}}
     )
     assert merged["surface"]["value"] == "asphalt" and merged["step_count"]["value"] == 0
+
+
+def test_existence_regeneration_is_metadata_only_and_keeps_a_real_survey():
+    import copy
+
+    feature = {
+        "properties": {"claims": {"seating": {"value": True}}},
+        "geometry": {"type": "Point", "coordinates": [101.5, 3.18]},
+    }
+    original = copy.deepcopy(feature)
+    assert add_existence_provenance([feature]) == 1
+    existence = feature["properties"]["claims"].pop("existence")
+    assert feature == original
+    assert existence == {
+        "value": True,
+        "status": "unknown",
+        "evidence_type": "team_survey_placeholder",
+    }
+    feature["properties"]["claims"]["existence"] = {
+        "value": True,
+        "status": "verified",
+        "evidence_type": "field_survey",
+    }
+    assert add_existence_provenance([feature]) == 0
+    assert feature["properties"]["claims"]["existence"]["evidence_type"] == "field_survey"
 
 
 def test_seed_single_playground_near_hero():

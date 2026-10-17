@@ -4,6 +4,11 @@ The TownshipLens assistant: a PydanticAI agent (pinned `pydantic-ai-slim[openrou
 that answers only from the deterministic spatial tools in `packages/spatial`, and streams its
 work as `ChatEvent`s to the API's `/chat` SSE endpoint.
 
+Demo place existence is retained on tool evidence as `team_survey_placeholder`, including
+search names, amenity results and route endpoints/rest points. Existing citation badges show
+"Demo value · not surveyed". A provider-failure template also retains the demo caveat when
+only place facts were obtained. This labels provenance; it does not certify that a place exists.
+
 ## Architecture
 
 ```
