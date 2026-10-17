@@ -2,8 +2,8 @@
   "schema_version": 1,
   "scope": "access_flood",
   "human_review": "Pending Yunzhe; all entries are provisional engine-derived expectations.",
-  "seed_sha256": "193a792d2592a5483876d8b72479003802840c6f12cc54413009806f10aa3c4f",
-  "captured_commit": "9cff54d8c834035f83b5a4bff8b83c7486c3c142",
+  "seed_sha256": "e6ea9e32f8d95ce1e7e0554681bcd0a3b6d97b328683aa2eb27a8ee7e01890d9",
+  "captured_commit": "eab2fbd3d5a962df7907ee263519ed90174c1d59",
   "capture_command": "LLM_PROVIDER=mock uv run python evals/build_answer_key.py",
   "cases": [
     {
@@ -200,22 +200,141 @@
                     "ev-seg-1318133037-3.width_m",
                     "ev-seg-1318133035-2.step_count",
                     "ev-seg-1318133035-2.incline_pct",
-                    "ev-seg-1318133035-2.width_m"
+                    "ev-seg-1318133035-2.width_m",
+                    "ev-place-bench-urban-2",
+                    "ev-place-bench-urban-3",
+                    "ev-place-park-b",
+                    "ev-place-playground"
                   ],
                   "demo_evidence": true
                 }
               ],
               "blocked_reasons": [],
               "closures": [],
-              "warnings": [],
+              "warnings": [
+                "Demo value · not surveyed: Urban Park bench 2; place existence uses demo values, not yet surveyed.",
+                "Demo value · not surveyed: Urban Park bench 3; place existence uses demo values, not yet surveyed.",
+                "Demo value · not surveyed: Lakeside Mall Car Park B; place existence uses demo values, not yet surveyed.",
+                "Demo value · not surveyed: Urban Park playground; place existence uses demo values, not yet surveyed."
+              ],
               "max_rest_gap_m": null,
               "rest_limit_m": null,
               "rest_search_truncated": false,
               "demo_evidence": true,
               "verification_requests": [],
-              "verification_requests_truncated": 0
+              "verification_requests_truncated": 0,
+              "place_provenance": [
+                {
+                  "id": "bench-urban-2",
+                  "name": "Urban Park bench 2",
+                  "existence": {
+                    "value": true,
+                    "status": "unknown",
+                    "evidence_type": "team_survey_placeholder",
+                    "method": null,
+                    "evidence_ids": [],
+                    "verified_by": null,
+                    "verified_at": null,
+                    "ttl_days": null
+                  },
+                  "demo_place": true,
+                  "source_label": "Demo value · not surveyed"
+                },
+                {
+                  "id": "bench-urban-3",
+                  "name": "Urban Park bench 3",
+                  "existence": {
+                    "value": true,
+                    "status": "unknown",
+                    "evidence_type": "team_survey_placeholder",
+                    "method": null,
+                    "evidence_ids": [],
+                    "verified_by": null,
+                    "verified_at": null,
+                    "ttl_days": null
+                  },
+                  "demo_place": true,
+                  "source_label": "Demo value · not surveyed"
+                },
+                {
+                  "id": "park-b",
+                  "name": "Lakeside Mall Car Park B",
+                  "existence": {
+                    "value": true,
+                    "status": "unknown",
+                    "evidence_type": "team_survey_placeholder",
+                    "method": null,
+                    "evidence_ids": [],
+                    "verified_by": null,
+                    "verified_at": null,
+                    "ttl_days": null
+                  },
+                  "demo_place": true,
+                  "source_label": "Demo value · not surveyed"
+                },
+                {
+                  "id": "playground",
+                  "name": "Urban Park playground",
+                  "existence": {
+                    "value": true,
+                    "status": "unknown",
+                    "evidence_type": "team_survey_placeholder",
+                    "method": null,
+                    "evidence_ids": [],
+                    "verified_by": null,
+                    "verified_at": null,
+                    "ttl_days": null
+                  },
+                  "demo_place": true,
+                  "source_label": "Demo value · not surveyed"
+                }
+              ]
             },
             "evidence": [
+              {
+                "id": "ev-place-bench-urban-2",
+                "element_id": "bench-urban-2",
+                "attribute": "name",
+                "value": "Urban Park bench 2",
+                "status": "unknown",
+                "verified_at": null,
+                "source_type": "team_survey_placeholder",
+                "source_url": null,
+                "photo_url": null
+              },
+              {
+                "id": "ev-place-bench-urban-3",
+                "element_id": "bench-urban-3",
+                "attribute": "name",
+                "value": "Urban Park bench 3",
+                "status": "unknown",
+                "verified_at": null,
+                "source_type": "team_survey_placeholder",
+                "source_url": null,
+                "photo_url": null
+              },
+              {
+                "id": "ev-place-park-b",
+                "element_id": "park-b",
+                "attribute": "name",
+                "value": "Lakeside Mall Car Park B",
+                "status": "unknown",
+                "verified_at": null,
+                "source_type": "team_survey_placeholder",
+                "source_url": null,
+                "photo_url": null
+              },
+              {
+                "id": "ev-place-playground",
+                "element_id": "playground",
+                "attribute": "name",
+                "value": "Urban Park playground",
+                "status": "unknown",
+                "verified_at": null,
+                "source_type": "team_survey_placeholder",
+                "source_url": null,
+                "photo_url": null
+              },
               {
                 "id": "ev-seg-1306543769-3.step_count",
                 "element_id": "seg-1306543769-3",
@@ -646,7 +765,12 @@
                 "photo_url": null
               }
             ],
-            "warnings": []
+            "warnings": [
+              "Demo value · not surveyed: Urban Park bench 2; place existence uses demo values, not yet surveyed.",
+              "Demo value · not surveyed: Urban Park bench 3; place existence uses demo values, not yet surveyed.",
+              "Demo value · not surveyed: Lakeside Mall Car Park B; place existence uses demo values, not yet surveyed.",
+              "Demo value · not surveyed: Urban Park playground; place existence uses demo values, not yet surveyed."
+            ]
           }
         }
       ],
@@ -849,22 +973,141 @@
                     "ev-seg-1318133037-3.width_m",
                     "ev-seg-1318133035-2.step_count",
                     "ev-seg-1318133035-2.incline_pct",
-                    "ev-seg-1318133035-2.width_m"
+                    "ev-seg-1318133035-2.width_m",
+                    "ev-place-bench-urban-2",
+                    "ev-place-bench-urban-3",
+                    "ev-place-park-b",
+                    "ev-place-playground"
                   ],
                   "demo_evidence": true
                 }
               ],
               "blocked_reasons": [],
               "closures": [],
-              "warnings": [],
+              "warnings": [
+                "Demo value · not surveyed: Urban Park bench 2; place existence uses demo values, not yet surveyed.",
+                "Demo value · not surveyed: Urban Park bench 3; place existence uses demo values, not yet surveyed.",
+                "Demo value · not surveyed: Lakeside Mall Car Park B; place existence uses demo values, not yet surveyed.",
+                "Demo value · not surveyed: Urban Park playground; place existence uses demo values, not yet surveyed."
+              ],
               "max_rest_gap_m": null,
               "rest_limit_m": null,
               "rest_search_truncated": false,
               "demo_evidence": true,
               "verification_requests": [],
-              "verification_requests_truncated": 0
+              "verification_requests_truncated": 0,
+              "place_provenance": [
+                {
+                  "id": "bench-urban-2",
+                  "name": "Urban Park bench 2",
+                  "existence": {
+                    "value": true,
+                    "status": "unknown",
+                    "evidence_type": "team_survey_placeholder",
+                    "method": null,
+                    "evidence_ids": [],
+                    "verified_by": null,
+                    "verified_at": null,
+                    "ttl_days": null
+                  },
+                  "demo_place": true,
+                  "source_label": "Demo value · not surveyed"
+                },
+                {
+                  "id": "bench-urban-3",
+                  "name": "Urban Park bench 3",
+                  "existence": {
+                    "value": true,
+                    "status": "unknown",
+                    "evidence_type": "team_survey_placeholder",
+                    "method": null,
+                    "evidence_ids": [],
+                    "verified_by": null,
+                    "verified_at": null,
+                    "ttl_days": null
+                  },
+                  "demo_place": true,
+                  "source_label": "Demo value · not surveyed"
+                },
+                {
+                  "id": "park-b",
+                  "name": "Lakeside Mall Car Park B",
+                  "existence": {
+                    "value": true,
+                    "status": "unknown",
+                    "evidence_type": "team_survey_placeholder",
+                    "method": null,
+                    "evidence_ids": [],
+                    "verified_by": null,
+                    "verified_at": null,
+                    "ttl_days": null
+                  },
+                  "demo_place": true,
+                  "source_label": "Demo value · not surveyed"
+                },
+                {
+                  "id": "playground",
+                  "name": "Urban Park playground",
+                  "existence": {
+                    "value": true,
+                    "status": "unknown",
+                    "evidence_type": "team_survey_placeholder",
+                    "method": null,
+                    "evidence_ids": [],
+                    "verified_by": null,
+                    "verified_at": null,
+                    "ttl_days": null
+                  },
+                  "demo_place": true,
+                  "source_label": "Demo value · not surveyed"
+                }
+              ]
             },
             "evidence": [
+              {
+                "id": "ev-place-bench-urban-2",
+                "element_id": "bench-urban-2",
+                "attribute": "name",
+                "value": "Urban Park bench 2",
+                "status": "unknown",
+                "verified_at": null,
+                "source_type": "team_survey_placeholder",
+                "source_url": null,
+                "photo_url": null
+              },
+              {
+                "id": "ev-place-bench-urban-3",
+                "element_id": "bench-urban-3",
+                "attribute": "name",
+                "value": "Urban Park bench 3",
+                "status": "unknown",
+                "verified_at": null,
+                "source_type": "team_survey_placeholder",
+                "source_url": null,
+                "photo_url": null
+              },
+              {
+                "id": "ev-place-park-b",
+                "element_id": "park-b",
+                "attribute": "name",
+                "value": "Lakeside Mall Car Park B",
+                "status": "unknown",
+                "verified_at": null,
+                "source_type": "team_survey_placeholder",
+                "source_url": null,
+                "photo_url": null
+              },
+              {
+                "id": "ev-place-playground",
+                "element_id": "playground",
+                "attribute": "name",
+                "value": "Urban Park playground",
+                "status": "unknown",
+                "verified_at": null,
+                "source_type": "team_survey_placeholder",
+                "source_url": null,
+                "photo_url": null
+              },
               {
                 "id": "ev-seg-1306543769-3.step_count",
                 "element_id": "seg-1306543769-3",
@@ -1295,7 +1538,12 @@
                 "photo_url": null
               }
             ],
-            "warnings": []
+            "warnings": [
+              "Demo value · not surveyed: Urban Park bench 2; place existence uses demo values, not yet surveyed.",
+              "Demo value · not surveyed: Urban Park bench 3; place existence uses demo values, not yet surveyed.",
+              "Demo value · not surveyed: Lakeside Mall Car Park B; place existence uses demo values, not yet surveyed.",
+              "Demo value · not surveyed: Urban Park playground; place existence uses demo values, not yet surveyed."
+            ]
           }
         }
       ],
@@ -1498,22 +1746,141 @@
                     "ev-seg-1318133037-3.width_m",
                     "ev-seg-1318133035-2.step_count",
                     "ev-seg-1318133035-2.incline_pct",
-                    "ev-seg-1318133035-2.width_m"
+                    "ev-seg-1318133035-2.width_m",
+                    "ev-place-bench-urban-2",
+                    "ev-place-bench-urban-3",
+                    "ev-place-park-b",
+                    "ev-place-playground"
                   ],
                   "demo_evidence": true
                 }
               ],
               "blocked_reasons": [],
               "closures": [],
-              "warnings": [],
+              "warnings": [
+                "Demo value · not surveyed: Urban Park bench 2; place existence uses demo values, not yet surveyed.",
+                "Demo value · not surveyed: Urban Park bench 3; place existence uses demo values, not yet surveyed.",
+                "Demo value · not surveyed: Lakeside Mall Car Park B; place existence uses demo values, not yet surveyed.",
+                "Demo value · not surveyed: Urban Park playground; place existence uses demo values, not yet surveyed."
+              ],
               "max_rest_gap_m": null,
               "rest_limit_m": null,
               "rest_search_truncated": false,
               "demo_evidence": true,
               "verification_requests": [],
-              "verification_requests_truncated": 0
+              "verification_requests_truncated": 0,
+              "place_provenance": [
+                {
+                  "id": "bench-urban-2",
+                  "name": "Urban Park bench 2",
+                  "existence": {
+                    "value": true,
+                    "status": "unknown",
+                    "evidence_type": "team_survey_placeholder",
+                    "method": null,
+                    "evidence_ids": [],
+                    "verified_by": null,
+                    "verified_at": null,
+                    "ttl_days": null
+                  },
+                  "demo_place": true,
+                  "source_label": "Demo value · not surveyed"
+                },
+                {
+                  "id": "bench-urban-3",
+                  "name": "Urban Park bench 3",
+                  "existence": {
+                    "value": true,
+                    "status": "unknown",
+                    "evidence_type": "team_survey_placeholder",
+                    "method": null,
+                    "evidence_ids": [],
+                    "verified_by": null,
+                    "verified_at": null,
+                    "ttl_days": null
+                  },
+                  "demo_place": true,
+                  "source_label": "Demo value · not surveyed"
+                },
+                {
+                  "id": "park-b",
+                  "name": "Lakeside Mall Car Park B",
+                  "existence": {
+                    "value": true,
+                    "status": "unknown",
+                    "evidence_type": "team_survey_placeholder",
+                    "method": null,
+                    "evidence_ids": [],
+                    "verified_by": null,
+                    "verified_at": null,
+                    "ttl_days": null
+                  },
+                  "demo_place": true,
+                  "source_label": "Demo value · not surveyed"
+                },
+                {
+                  "id": "playground",
+                  "name": "Urban Park playground",
+                  "existence": {
+                    "value": true,
+                    "status": "unknown",
+                    "evidence_type": "team_survey_placeholder",
+                    "method": null,
+                    "evidence_ids": [],
+                    "verified_by": null,
+                    "verified_at": null,
+                    "ttl_days": null
+                  },
+                  "demo_place": true,
+                  "source_label": "Demo value · not surveyed"
+                }
+              ]
             },
             "evidence": [
+              {
+                "id": "ev-place-bench-urban-2",
+                "element_id": "bench-urban-2",
+                "attribute": "name",
+                "value": "Urban Park bench 2",
+                "status": "unknown",
+                "verified_at": null,
+                "source_type": "team_survey_placeholder",
+                "source_url": null,
+                "photo_url": null
+              },
+              {
+                "id": "ev-place-bench-urban-3",
+                "element_id": "bench-urban-3",
+                "attribute": "name",
+                "value": "Urban Park bench 3",
+                "status": "unknown",
+                "verified_at": null,
+                "source_type": "team_survey_placeholder",
+                "source_url": null,
+                "photo_url": null
+              },
+              {
+                "id": "ev-place-park-b",
+                "element_id": "park-b",
+                "attribute": "name",
+                "value": "Lakeside Mall Car Park B",
+                "status": "unknown",
+                "verified_at": null,
+                "source_type": "team_survey_placeholder",
+                "source_url": null,
+                "photo_url": null
+              },
+              {
+                "id": "ev-place-playground",
+                "element_id": "playground",
+                "attribute": "name",
+                "value": "Urban Park playground",
+                "status": "unknown",
+                "verified_at": null,
+                "source_type": "team_survey_placeholder",
+                "source_url": null,
+                "photo_url": null
+              },
               {
                 "id": "ev-seg-1306543769-3.step_count",
                 "element_id": "seg-1306543769-3",
@@ -1944,7 +2311,12 @@
                 "photo_url": null
               }
             ],
-            "warnings": []
+            "warnings": [
+              "Demo value · not surveyed: Urban Park bench 2; place existence uses demo values, not yet surveyed.",
+              "Demo value · not surveyed: Urban Park bench 3; place existence uses demo values, not yet surveyed.",
+              "Demo value · not surveyed: Lakeside Mall Car Park B; place existence uses demo values, not yet surveyed.",
+              "Demo value · not surveyed: Urban Park playground; place existence uses demo values, not yet surveyed."
+            ]
           }
         }
       ],
@@ -2147,22 +2519,141 @@
                     "ev-seg-1318133037-3.width_m",
                     "ev-seg-1318133035-2.step_count",
                     "ev-seg-1318133035-2.incline_pct",
-                    "ev-seg-1318133035-2.width_m"
+                    "ev-seg-1318133035-2.width_m",
+                    "ev-place-bench-urban-2",
+                    "ev-place-bench-urban-3",
+                    "ev-place-park-b",
+                    "ev-place-playground"
                   ],
                   "demo_evidence": true
                 }
               ],
               "blocked_reasons": [],
               "closures": [],
-              "warnings": [],
+              "warnings": [
+                "Demo value · not surveyed: Urban Park bench 2; place existence uses demo values, not yet surveyed.",
+                "Demo value · not surveyed: Urban Park bench 3; place existence uses demo values, not yet surveyed.",
+                "Demo value · not surveyed: Lakeside Mall Car Park B; place existence uses demo values, not yet surveyed.",
+                "Demo value · not surveyed: Urban Park playground; place existence uses demo values, not yet surveyed."
+              ],
               "max_rest_gap_m": null,
               "rest_limit_m": null,
               "rest_search_truncated": false,
               "demo_evidence": true,
               "verification_requests": [],
-              "verification_requests_truncated": 0
+              "verification_requests_truncated": 0,
+              "place_provenance": [
+                {
+                  "id": "bench-urban-2",
+                  "name": "Urban Park bench 2",
+                  "existence": {
+                    "value": true,
+                    "status": "unknown",
+                    "evidence_type": "team_survey_placeholder",
+                    "method": null,
+                    "evidence_ids": [],
+                    "verified_by": null,
+                    "verified_at": null,
+                    "ttl_days": null
+                  },
+                  "demo_place": true,
+                  "source_label": "Demo value · not surveyed"
+                },
+                {
+                  "id": "bench-urban-3",
+                  "name": "Urban Park bench 3",
+                  "existence": {
+                    "value": true,
+                    "status": "unknown",
+                    "evidence_type": "team_survey_placeholder",
+                    "method": null,
+                    "evidence_ids": [],
+                    "verified_by": null,
+                    "verified_at": null,
+                    "ttl_days": null
+                  },
+                  "demo_place": true,
+                  "source_label": "Demo value · not surveyed"
+                },
+                {
+                  "id": "park-b",
+                  "name": "Lakeside Mall Car Park B",
+                  "existence": {
+                    "value": true,
+                    "status": "unknown",
+                    "evidence_type": "team_survey_placeholder",
+                    "method": null,
+                    "evidence_ids": [],
+                    "verified_by": null,
+                    "verified_at": null,
+                    "ttl_days": null
+                  },
+                  "demo_place": true,
+                  "source_label": "Demo value · not surveyed"
+                },
+                {
+                  "id": "playground",
+                  "name": "Urban Park playground",
+                  "existence": {
+                    "value": true,
+                    "status": "unknown",
+                    "evidence_type": "team_survey_placeholder",
+                    "method": null,
+                    "evidence_ids": [],
+                    "verified_by": null,
+                    "verified_at": null,
+                    "ttl_days": null
+                  },
+                  "demo_place": true,
+                  "source_label": "Demo value · not surveyed"
+                }
+              ]
             },
             "evidence": [
+              {
+                "id": "ev-place-bench-urban-2",
+                "element_id": "bench-urban-2",
+                "attribute": "name",
+                "value": "Urban Park bench 2",
+                "status": "unknown",
+                "verified_at": null,
+                "source_type": "team_survey_placeholder",
+                "source_url": null,
+                "photo_url": null
+              },
+              {
+                "id": "ev-place-bench-urban-3",
+                "element_id": "bench-urban-3",
+                "attribute": "name",
+                "value": "Urban Park bench 3",
+                "status": "unknown",
+                "verified_at": null,
+                "source_type": "team_survey_placeholder",
+                "source_url": null,
+                "photo_url": null
+              },
+              {
+                "id": "ev-place-park-b",
+                "element_id": "park-b",
+                "attribute": "name",
+                "value": "Lakeside Mall Car Park B",
+                "status": "unknown",
+                "verified_at": null,
+                "source_type": "team_survey_placeholder",
+                "source_url": null,
+                "photo_url": null
+              },
+              {
+                "id": "ev-place-playground",
+                "element_id": "playground",
+                "attribute": "name",
+                "value": "Urban Park playground",
+                "status": "unknown",
+                "verified_at": null,
+                "source_type": "team_survey_placeholder",
+                "source_url": null,
+                "photo_url": null
+              },
               {
                 "id": "ev-seg-1306543769-3.step_count",
                 "element_id": "seg-1306543769-3",
@@ -2593,7 +3084,12 @@
                 "photo_url": null
               }
             ],
-            "warnings": []
+            "warnings": [
+              "Demo value · not surveyed: Urban Park bench 2; place existence uses demo values, not yet surveyed.",
+              "Demo value · not surveyed: Urban Park bench 3; place existence uses demo values, not yet surveyed.",
+              "Demo value · not surveyed: Lakeside Mall Car Park B; place existence uses demo values, not yet surveyed.",
+              "Demo value · not surveyed: Urban Park playground; place existence uses demo values, not yet surveyed."
+            ]
           }
         }
       ],
@@ -2796,22 +3292,141 @@
                     "ev-seg-1318133037-3.width_m",
                     "ev-seg-1318133035-2.step_count",
                     "ev-seg-1318133035-2.incline_pct",
-                    "ev-seg-1318133035-2.width_m"
+                    "ev-seg-1318133035-2.width_m",
+                    "ev-place-bench-urban-2",
+                    "ev-place-bench-urban-3",
+                    "ev-place-park-b",
+                    "ev-place-playground"
                   ],
                   "demo_evidence": true
                 }
               ],
               "blocked_reasons": [],
               "closures": [],
-              "warnings": [],
+              "warnings": [
+                "Demo value · not surveyed: Urban Park bench 2; place existence uses demo values, not yet surveyed.",
+                "Demo value · not surveyed: Urban Park bench 3; place existence uses demo values, not yet surveyed.",
+                "Demo value · not surveyed: Lakeside Mall Car Park B; place existence uses demo values, not yet surveyed.",
+                "Demo value · not surveyed: Urban Park playground; place existence uses demo values, not yet surveyed."
+              ],
               "max_rest_gap_m": null,
               "rest_limit_m": null,
               "rest_search_truncated": false,
               "demo_evidence": true,
               "verification_requests": [],
-              "verification_requests_truncated": 0
+              "verification_requests_truncated": 0,
+              "place_provenance": [
+                {
+                  "id": "bench-urban-2",
+                  "name": "Urban Park bench 2",
+                  "existence": {
+                    "value": true,
+                    "status": "unknown",
+                    "evidence_type": "team_survey_placeholder",
+                    "method": null,
+                    "evidence_ids": [],
+                    "verified_by": null,
+                    "verified_at": null,
+                    "ttl_days": null
+                  },
+                  "demo_place": true,
+                  "source_label": "Demo value · not surveyed"
+                },
+                {
+                  "id": "bench-urban-3",
+                  "name": "Urban Park bench 3",
+                  "existence": {
+                    "value": true,
+                    "status": "unknown",
+                    "evidence_type": "team_survey_placeholder",
+                    "method": null,
+                    "evidence_ids": [],
+                    "verified_by": null,
+                    "verified_at": null,
+                    "ttl_days": null
+                  },
+                  "demo_place": true,
+                  "source_label": "Demo value · not surveyed"
+                },
+                {
+                  "id": "park-b",
+                  "name": "Lakeside Mall Car Park B",
+                  "existence": {
+                    "value": true,
+                    "status": "unknown",
+                    "evidence_type": "team_survey_placeholder",
+                    "method": null,
+                    "evidence_ids": [],
+                    "verified_by": null,
+                    "verified_at": null,
+                    "ttl_days": null
+                  },
+                  "demo_place": true,
+                  "source_label": "Demo value · not surveyed"
+                },
+                {
+                  "id": "playground",
+                  "name": "Urban Park playground",
+                  "existence": {
+                    "value": true,
+                    "status": "unknown",
+                    "evidence_type": "team_survey_placeholder",
+                    "method": null,
+                    "evidence_ids": [],
+                    "verified_by": null,
+                    "verified_at": null,
+                    "ttl_days": null
+                  },
+                  "demo_place": true,
+                  "source_label": "Demo value · not surveyed"
+                }
+              ]
             },
             "evidence": [
+              {
+                "id": "ev-place-bench-urban-2",
+                "element_id": "bench-urban-2",
+                "attribute": "name",
+                "value": "Urban Park bench 2",
+                "status": "unknown",
+                "verified_at": null,
+                "source_type": "team_survey_placeholder",
+                "source_url": null,
+                "photo_url": null
+              },
+              {
+                "id": "ev-place-bench-urban-3",
+                "element_id": "bench-urban-3",
+                "attribute": "name",
+                "value": "Urban Park bench 3",
+                "status": "unknown",
+                "verified_at": null,
+                "source_type": "team_survey_placeholder",
+                "source_url": null,
+                "photo_url": null
+              },
+              {
+                "id": "ev-place-park-b",
+                "element_id": "park-b",
+                "attribute": "name",
+                "value": "Lakeside Mall Car Park B",
+                "status": "unknown",
+                "verified_at": null,
+                "source_type": "team_survey_placeholder",
+                "source_url": null,
+                "photo_url": null
+              },
+              {
+                "id": "ev-place-playground",
+                "element_id": "playground",
+                "attribute": "name",
+                "value": "Urban Park playground",
+                "status": "unknown",
+                "verified_at": null,
+                "source_type": "team_survey_placeholder",
+                "source_url": null,
+                "photo_url": null
+              },
               {
                 "id": "ev-seg-1306543769-3.step_count",
                 "element_id": "seg-1306543769-3",
@@ -3242,7 +3857,12 @@
                 "photo_url": null
               }
             ],
-            "warnings": []
+            "warnings": [
+              "Demo value · not surveyed: Urban Park bench 2; place existence uses demo values, not yet surveyed.",
+              "Demo value · not surveyed: Urban Park bench 3; place existence uses demo values, not yet surveyed.",
+              "Demo value · not surveyed: Lakeside Mall Car Park B; place existence uses demo values, not yet surveyed.",
+              "Demo value · not surveyed: Urban Park playground; place existence uses demo values, not yet surveyed."
+            ]
           }
         }
       ],
@@ -3445,22 +4065,141 @@
                     "ev-seg-1318133037-3.width_m",
                     "ev-seg-1318133035-2.step_count",
                     "ev-seg-1318133035-2.incline_pct",
-                    "ev-seg-1318133035-2.width_m"
+                    "ev-seg-1318133035-2.width_m",
+                    "ev-place-bench-urban-2",
+                    "ev-place-bench-urban-3",
+                    "ev-place-park-b",
+                    "ev-place-playground"
                   ],
                   "demo_evidence": true
                 }
               ],
               "blocked_reasons": [],
               "closures": [],
-              "warnings": [],
+              "warnings": [
+                "Demo value · not surveyed: Urban Park bench 2; place existence uses demo values, not yet surveyed.",
+                "Demo value · not surveyed: Urban Park bench 3; place existence uses demo values, not yet surveyed.",
+                "Demo value · not surveyed: Lakeside Mall Car Park B; place existence uses demo values, not yet surveyed.",
+                "Demo value · not surveyed: Urban Park playground; place existence uses demo values, not yet surveyed."
+              ],
               "max_rest_gap_m": null,
               "rest_limit_m": null,
               "rest_search_truncated": false,
               "demo_evidence": true,
               "verification_requests": [],
-              "verification_requests_truncated": 0
+              "verification_requests_truncated": 0,
+              "place_provenance": [
+                {
+                  "id": "bench-urban-2",
+                  "name": "Urban Park bench 2",
+                  "existence": {
+                    "value": true,
+                    "status": "unknown",
+                    "evidence_type": "team_survey_placeholder",
+                    "method": null,
+                    "evidence_ids": [],
+                    "verified_by": null,
+                    "verified_at": null,
+                    "ttl_days": null
+                  },
+                  "demo_place": true,
+                  "source_label": "Demo value · not surveyed"
+                },
+                {
+                  "id": "bench-urban-3",
+                  "name": "Urban Park bench 3",
+                  "existence": {
+                    "value": true,
+                    "status": "unknown",
+                    "evidence_type": "team_survey_placeholder",
+                    "method": null,
+                    "evidence_ids": [],
+                    "verified_by": null,
+                    "verified_at": null,
+                    "ttl_days": null
+                  },
+                  "demo_place": true,
+                  "source_label": "Demo value · not surveyed"
+                },
+                {
+                  "id": "park-b",
+                  "name": "Lakeside Mall Car Park B",
+                  "existence": {
+                    "value": true,
+                    "status": "unknown",
+                    "evidence_type": "team_survey_placeholder",
+                    "method": null,
+                    "evidence_ids": [],
+                    "verified_by": null,
+                    "verified_at": null,
+                    "ttl_days": null
+                  },
+                  "demo_place": true,
+                  "source_label": "Demo value · not surveyed"
+                },
+                {
+                  "id": "playground",
+                  "name": "Urban Park playground",
+                  "existence": {
+                    "value": true,
+                    "status": "unknown",
+                    "evidence_type": "team_survey_placeholder",
+                    "method": null,
+                    "evidence_ids": [],
+                    "verified_by": null,
+                    "verified_at": null,
+                    "ttl_days": null
+                  },
+                  "demo_place": true,
+                  "source_label": "Demo value · not surveyed"
+                }
+              ]
             },
             "evidence": [
+              {
+                "id": "ev-place-bench-urban-2",
+                "element_id": "bench-urban-2",
+                "attribute": "name",
+                "value": "Urban Park bench 2",
+                "status": "unknown",
+                "verified_at": null,
+                "source_type": "team_survey_placeholder",
+                "source_url": null,
+                "photo_url": null
+              },
+              {
+                "id": "ev-place-bench-urban-3",
+                "element_id": "bench-urban-3",
+                "attribute": "name",
+                "value": "Urban Park bench 3",
+                "status": "unknown",
+                "verified_at": null,
+                "source_type": "team_survey_placeholder",
+                "source_url": null,
+                "photo_url": null
+              },
+              {
+                "id": "ev-place-park-b",
+                "element_id": "park-b",
+                "attribute": "name",
+                "value": "Lakeside Mall Car Park B",
+                "status": "unknown",
+                "verified_at": null,
+                "source_type": "team_survey_placeholder",
+                "source_url": null,
+                "photo_url": null
+              },
+              {
+                "id": "ev-place-playground",
+                "element_id": "playground",
+                "attribute": "name",
+                "value": "Urban Park playground",
+                "status": "unknown",
+                "verified_at": null,
+                "source_type": "team_survey_placeholder",
+                "source_url": null,
+                "photo_url": null
+              },
               {
                 "id": "ev-seg-1306543769-3.step_count",
                 "element_id": "seg-1306543769-3",
@@ -3891,7 +4630,12 @@
                 "photo_url": null
               }
             ],
-            "warnings": []
+            "warnings": [
+              "Demo value · not surveyed: Urban Park bench 2; place existence uses demo values, not yet surveyed.",
+              "Demo value · not surveyed: Urban Park bench 3; place existence uses demo values, not yet surveyed.",
+              "Demo value · not surveyed: Lakeside Mall Car Park B; place existence uses demo values, not yet surveyed.",
+              "Demo value · not surveyed: Urban Park playground; place existence uses demo values, not yet surveyed."
+            ]
           }
         }
       ],
@@ -4094,22 +4838,142 @@
                     "ev-seg-1318133037-3.width_m",
                     "ev-seg-1318133035-2.step_count",
                     "ev-seg-1318133035-2.incline_pct",
-                    "ev-seg-1318133035-2.width_m"
+                    "ev-seg-1318133035-2.width_m",
+                    "ev-place-bench-urban-2",
+                    "ev-place-bench-urban-3",
+                    "ev-place-park-b",
+                    "ev-place-playground"
                   ],
                   "demo_evidence": true
                 }
               ],
               "blocked_reasons": [],
               "closures": [],
-              "warnings": ["longest stretch without a rest point is about 200 m (limit 100 m)"],
+              "warnings": [
+                "longest stretch without a rest point is about 200 m (limit 100 m)",
+                "Demo value · not surveyed: Urban Park bench 2; place existence uses demo values, not yet surveyed.",
+                "Demo value · not surveyed: Urban Park bench 3; place existence uses demo values, not yet surveyed.",
+                "Demo value · not surveyed: Lakeside Mall Car Park B; place existence uses demo values, not yet surveyed.",
+                "Demo value · not surveyed: Urban Park playground; place existence uses demo values, not yet surveyed."
+              ],
               "max_rest_gap_m": 198.5,
               "rest_limit_m": 100.0,
               "rest_search_truncated": false,
               "demo_evidence": true,
               "verification_requests": [],
-              "verification_requests_truncated": 0
+              "verification_requests_truncated": 0,
+              "place_provenance": [
+                {
+                  "id": "bench-urban-2",
+                  "name": "Urban Park bench 2",
+                  "existence": {
+                    "value": true,
+                    "status": "unknown",
+                    "evidence_type": "team_survey_placeholder",
+                    "method": null,
+                    "evidence_ids": [],
+                    "verified_by": null,
+                    "verified_at": null,
+                    "ttl_days": null
+                  },
+                  "demo_place": true,
+                  "source_label": "Demo value · not surveyed"
+                },
+                {
+                  "id": "bench-urban-3",
+                  "name": "Urban Park bench 3",
+                  "existence": {
+                    "value": true,
+                    "status": "unknown",
+                    "evidence_type": "team_survey_placeholder",
+                    "method": null,
+                    "evidence_ids": [],
+                    "verified_by": null,
+                    "verified_at": null,
+                    "ttl_days": null
+                  },
+                  "demo_place": true,
+                  "source_label": "Demo value · not surveyed"
+                },
+                {
+                  "id": "park-b",
+                  "name": "Lakeside Mall Car Park B",
+                  "existence": {
+                    "value": true,
+                    "status": "unknown",
+                    "evidence_type": "team_survey_placeholder",
+                    "method": null,
+                    "evidence_ids": [],
+                    "verified_by": null,
+                    "verified_at": null,
+                    "ttl_days": null
+                  },
+                  "demo_place": true,
+                  "source_label": "Demo value · not surveyed"
+                },
+                {
+                  "id": "playground",
+                  "name": "Urban Park playground",
+                  "existence": {
+                    "value": true,
+                    "status": "unknown",
+                    "evidence_type": "team_survey_placeholder",
+                    "method": null,
+                    "evidence_ids": [],
+                    "verified_by": null,
+                    "verified_at": null,
+                    "ttl_days": null
+                  },
+                  "demo_place": true,
+                  "source_label": "Demo value · not surveyed"
+                }
+              ]
             },
             "evidence": [
+              {
+                "id": "ev-place-bench-urban-2",
+                "element_id": "bench-urban-2",
+                "attribute": "name",
+                "value": "Urban Park bench 2",
+                "status": "unknown",
+                "verified_at": null,
+                "source_type": "team_survey_placeholder",
+                "source_url": null,
+                "photo_url": null
+              },
+              {
+                "id": "ev-place-bench-urban-3",
+                "element_id": "bench-urban-3",
+                "attribute": "name",
+                "value": "Urban Park bench 3",
+                "status": "unknown",
+                "verified_at": null,
+                "source_type": "team_survey_placeholder",
+                "source_url": null,
+                "photo_url": null
+              },
+              {
+                "id": "ev-place-park-b",
+                "element_id": "park-b",
+                "attribute": "name",
+                "value": "Lakeside Mall Car Park B",
+                "status": "unknown",
+                "verified_at": null,
+                "source_type": "team_survey_placeholder",
+                "source_url": null,
+                "photo_url": null
+              },
+              {
+                "id": "ev-place-playground",
+                "element_id": "playground",
+                "attribute": "name",
+                "value": "Urban Park playground",
+                "status": "unknown",
+                "verified_at": null,
+                "source_type": "team_survey_placeholder",
+                "source_url": null,
+                "photo_url": null
+              },
               {
                 "id": "ev-seg-1306543769-3.step_count",
                 "element_id": "seg-1306543769-3",
@@ -4540,7 +5404,13 @@
                 "photo_url": null
               }
             ],
-            "warnings": ["longest stretch without a rest point is about 200 m (limit 100 m)"]
+            "warnings": [
+              "longest stretch without a rest point is about 200 m (limit 100 m)",
+              "Demo value · not surveyed: Urban Park bench 2; place existence uses demo values, not yet surveyed.",
+              "Demo value · not surveyed: Urban Park bench 3; place existence uses demo values, not yet surveyed.",
+              "Demo value · not surveyed: Lakeside Mall Car Park B; place existence uses demo values, not yet surveyed.",
+              "Demo value · not surveyed: Urban Park playground; place existence uses demo values, not yet surveyed."
+            ]
           }
         }
       ],
@@ -4744,22 +5614,142 @@
                     "ev-seg-1318133037-3.width_m",
                     "ev-seg-1318133035-2.step_count",
                     "ev-seg-1318133035-2.incline_pct",
-                    "ev-seg-1318133035-2.width_m"
+                    "ev-seg-1318133035-2.width_m",
+                    "ev-place-bench-urban-2",
+                    "ev-place-bench-urban-3",
+                    "ev-place-park-b",
+                    "ev-place-playground"
                   ],
                   "demo_evidence": true
                 }
               ],
               "blocked_reasons": [],
               "closures": [],
-              "warnings": ["longest stretch without a rest point is about 200 m (limit 100 m)"],
+              "warnings": [
+                "longest stretch without a rest point is about 200 m (limit 100 m)",
+                "Demo value · not surveyed: Urban Park bench 2; place existence uses demo values, not yet surveyed.",
+                "Demo value · not surveyed: Urban Park bench 3; place existence uses demo values, not yet surveyed.",
+                "Demo value · not surveyed: Lakeside Mall Car Park B; place existence uses demo values, not yet surveyed.",
+                "Demo value · not surveyed: Urban Park playground; place existence uses demo values, not yet surveyed."
+              ],
               "max_rest_gap_m": 198.5,
               "rest_limit_m": 100.0,
               "rest_search_truncated": false,
               "demo_evidence": true,
               "verification_requests": [],
-              "verification_requests_truncated": 0
+              "verification_requests_truncated": 0,
+              "place_provenance": [
+                {
+                  "id": "bench-urban-2",
+                  "name": "Urban Park bench 2",
+                  "existence": {
+                    "value": true,
+                    "status": "unknown",
+                    "evidence_type": "team_survey_placeholder",
+                    "method": null,
+                    "evidence_ids": [],
+                    "verified_by": null,
+                    "verified_at": null,
+                    "ttl_days": null
+                  },
+                  "demo_place": true,
+                  "source_label": "Demo value · not surveyed"
+                },
+                {
+                  "id": "bench-urban-3",
+                  "name": "Urban Park bench 3",
+                  "existence": {
+                    "value": true,
+                    "status": "unknown",
+                    "evidence_type": "team_survey_placeholder",
+                    "method": null,
+                    "evidence_ids": [],
+                    "verified_by": null,
+                    "verified_at": null,
+                    "ttl_days": null
+                  },
+                  "demo_place": true,
+                  "source_label": "Demo value · not surveyed"
+                },
+                {
+                  "id": "park-b",
+                  "name": "Lakeside Mall Car Park B",
+                  "existence": {
+                    "value": true,
+                    "status": "unknown",
+                    "evidence_type": "team_survey_placeholder",
+                    "method": null,
+                    "evidence_ids": [],
+                    "verified_by": null,
+                    "verified_at": null,
+                    "ttl_days": null
+                  },
+                  "demo_place": true,
+                  "source_label": "Demo value · not surveyed"
+                },
+                {
+                  "id": "playground",
+                  "name": "Urban Park playground",
+                  "existence": {
+                    "value": true,
+                    "status": "unknown",
+                    "evidence_type": "team_survey_placeholder",
+                    "method": null,
+                    "evidence_ids": [],
+                    "verified_by": null,
+                    "verified_at": null,
+                    "ttl_days": null
+                  },
+                  "demo_place": true,
+                  "source_label": "Demo value · not surveyed"
+                }
+              ]
             },
             "evidence": [
+              {
+                "id": "ev-place-bench-urban-2",
+                "element_id": "bench-urban-2",
+                "attribute": "name",
+                "value": "Urban Park bench 2",
+                "status": "unknown",
+                "verified_at": null,
+                "source_type": "team_survey_placeholder",
+                "source_url": null,
+                "photo_url": null
+              },
+              {
+                "id": "ev-place-bench-urban-3",
+                "element_id": "bench-urban-3",
+                "attribute": "name",
+                "value": "Urban Park bench 3",
+                "status": "unknown",
+                "verified_at": null,
+                "source_type": "team_survey_placeholder",
+                "source_url": null,
+                "photo_url": null
+              },
+              {
+                "id": "ev-place-park-b",
+                "element_id": "park-b",
+                "attribute": "name",
+                "value": "Lakeside Mall Car Park B",
+                "status": "unknown",
+                "verified_at": null,
+                "source_type": "team_survey_placeholder",
+                "source_url": null,
+                "photo_url": null
+              },
+              {
+                "id": "ev-place-playground",
+                "element_id": "playground",
+                "attribute": "name",
+                "value": "Urban Park playground",
+                "status": "unknown",
+                "verified_at": null,
+                "source_type": "team_survey_placeholder",
+                "source_url": null,
+                "photo_url": null
+              },
               {
                 "id": "ev-seg-1306543769-3.step_count",
                 "element_id": "seg-1306543769-3",
@@ -5190,7 +6180,13 @@
                 "photo_url": null
               }
             ],
-            "warnings": ["longest stretch without a rest point is about 200 m (limit 100 m)"]
+            "warnings": [
+              "longest stretch without a rest point is about 200 m (limit 100 m)",
+              "Demo value · not surveyed: Urban Park bench 2; place existence uses demo values, not yet surveyed.",
+              "Demo value · not surveyed: Urban Park bench 3; place existence uses demo values, not yet surveyed.",
+              "Demo value · not surveyed: Lakeside Mall Car Park B; place existence uses demo values, not yet surveyed.",
+              "Demo value · not surveyed: Urban Park playground; place existence uses demo values, not yet surveyed."
+            ]
           }
         }
       ],
@@ -5281,7 +6277,9 @@
                   "evidence_ids": [
                     "ev-seg-1318133037-2.step_count",
                     "ev-seg-1318133037-2.incline_pct",
-                    "ev-seg-1318133037-2.width_m"
+                    "ev-seg-1318133037-2.width_m",
+                    "ev-place-bench-urban-3",
+                    "ev-place-lakeside-mall"
                   ],
                   "demo_evidence": true
                 }
@@ -5289,6 +6287,8 @@
               "blocked_reasons": [],
               "closures": [],
               "warnings": [
+                "Demo value · not surveyed: Urban Park bench 3; place existence uses demo values, not yet surveyed.",
+                "Demo value · not surveyed: Elmina Lakeside Mall; place existence uses demo values, not yet surveyed.",
                 "Route ends at the nearest mapped path to Elmina Urban Park; its entrance is not mapped."
               ],
               "max_rest_gap_m": null,
@@ -5296,9 +6296,65 @@
               "rest_search_truncated": false,
               "demo_evidence": true,
               "verification_requests": [],
-              "verification_requests_truncated": 0
+              "verification_requests_truncated": 0,
+              "place_provenance": [
+                {
+                  "id": "bench-urban-3",
+                  "name": "Urban Park bench 3",
+                  "existence": {
+                    "value": true,
+                    "status": "unknown",
+                    "evidence_type": "team_survey_placeholder",
+                    "method": null,
+                    "evidence_ids": [],
+                    "verified_by": null,
+                    "verified_at": null,
+                    "ttl_days": null
+                  },
+                  "demo_place": true,
+                  "source_label": "Demo value · not surveyed"
+                },
+                {
+                  "id": "lakeside-mall",
+                  "name": "Elmina Lakeside Mall",
+                  "existence": {
+                    "value": true,
+                    "status": "unknown",
+                    "evidence_type": "team_survey_placeholder",
+                    "method": null,
+                    "evidence_ids": [],
+                    "verified_by": null,
+                    "verified_at": null,
+                    "ttl_days": null
+                  },
+                  "demo_place": true,
+                  "source_label": "Demo value · not surveyed"
+                }
+              ]
             },
             "evidence": [
+              {
+                "id": "ev-place-bench-urban-3",
+                "element_id": "bench-urban-3",
+                "attribute": "name",
+                "value": "Urban Park bench 3",
+                "status": "unknown",
+                "verified_at": null,
+                "source_type": "team_survey_placeholder",
+                "source_url": null,
+                "photo_url": null
+              },
+              {
+                "id": "ev-place-lakeside-mall",
+                "element_id": "lakeside-mall",
+                "attribute": "name",
+                "value": "Elmina Lakeside Mall",
+                "status": "unknown",
+                "verified_at": null,
+                "source_type": "team_survey_placeholder",
+                "source_url": null,
+                "photo_url": null
+              },
               {
                 "id": "ev-seg-1318133037-2.step_count",
                 "element_id": "seg-1318133037-2",
@@ -5345,6 +6401,8 @@
               }
             ],
             "warnings": [
+              "Demo value · not surveyed: Urban Park bench 3; place existence uses demo values, not yet surveyed.",
+              "Demo value · not surveyed: Elmina Lakeside Mall; place existence uses demo values, not yet surveyed.",
               "Route ends at the nearest mapped path to Elmina Urban Park; its entrance is not mapped."
             ]
           }
@@ -5510,7 +6568,9 @@
                   "evidence_ids": [
                     "ev-seg-1318133037-2.step_count",
                     "ev-seg-1318133037-2.incline_pct",
-                    "ev-seg-1318133037-2.width_m"
+                    "ev-seg-1318133037-2.width_m",
+                    "ev-place-bench-urban-3",
+                    "ev-place-lakeside-mall"
                   ],
                   "demo_evidence": true
                 }
@@ -5518,6 +6578,8 @@
               "blocked_reasons": [],
               "closures": [],
               "warnings": [
+                "Demo value · not surveyed: Urban Park bench 3; place existence uses demo values, not yet surveyed.",
+                "Demo value · not surveyed: Elmina Lakeside Mall; place existence uses demo values, not yet surveyed.",
                 "Route ends at the nearest mapped path to Elmina Urban Park; its entrance is not mapped."
               ],
               "max_rest_gap_m": null,
@@ -5533,7 +6595,7 @@
                   "status": "open",
                   "demand": 1,
                   "question_summary": null,
-                  "created_at": "2026-10-17T09:46:11.545021+00:00",
+                  "created_at": "2026-10-17T09:51:42.039218+00:00",
                   "resolved_at": null,
                   "resolution": null,
                   "created": true
@@ -5546,7 +6608,7 @@
                   "status": "open",
                   "demand": 1,
                   "question_summary": null,
-                  "created_at": "2026-10-17T09:46:11.545144+00:00",
+                  "created_at": "2026-10-17T09:51:42.039346+00:00",
                   "resolved_at": null,
                   "resolution": null,
                   "created": true
@@ -5559,7 +6621,7 @@
                   "status": "open",
                   "demand": 1,
                   "question_summary": null,
-                  "created_at": "2026-10-17T09:46:11.545180+00:00",
+                  "created_at": "2026-10-17T09:51:42.039381+00:00",
                   "resolved_at": null,
                   "resolution": null,
                   "created": true
@@ -5572,7 +6634,7 @@
                   "status": "open",
                   "demand": 1,
                   "question_summary": null,
-                  "created_at": "2026-10-17T09:46:11.545205+00:00",
+                  "created_at": "2026-10-17T09:51:42.039407+00:00",
                   "resolved_at": null,
                   "resolution": null,
                   "created": true
@@ -5585,7 +6647,7 @@
                   "status": "open",
                   "demand": 1,
                   "question_summary": null,
-                  "created_at": "2026-10-17T09:46:11.545226+00:00",
+                  "created_at": "2026-10-17T09:51:42.039429+00:00",
                   "resolved_at": null,
                   "resolution": null,
                   "created": true
@@ -5598,15 +6660,71 @@
                   "status": "open",
                   "demand": 1,
                   "question_summary": null,
-                  "created_at": "2026-10-17T09:46:11.545247+00:00",
+                  "created_at": "2026-10-17T09:51:42.039449+00:00",
                   "resolved_at": null,
                   "resolution": null,
                   "created": true
                 }
               ],
-              "verification_requests_truncated": 0
+              "verification_requests_truncated": 0,
+              "place_provenance": [
+                {
+                  "id": "bench-urban-3",
+                  "name": "Urban Park bench 3",
+                  "existence": {
+                    "value": true,
+                    "status": "unknown",
+                    "evidence_type": "team_survey_placeholder",
+                    "method": null,
+                    "evidence_ids": [],
+                    "verified_by": null,
+                    "verified_at": null,
+                    "ttl_days": null
+                  },
+                  "demo_place": true,
+                  "source_label": "Demo value · not surveyed"
+                },
+                {
+                  "id": "lakeside-mall",
+                  "name": "Elmina Lakeside Mall",
+                  "existence": {
+                    "value": true,
+                    "status": "unknown",
+                    "evidence_type": "team_survey_placeholder",
+                    "method": null,
+                    "evidence_ids": [],
+                    "verified_by": null,
+                    "verified_at": null,
+                    "ttl_days": null
+                  },
+                  "demo_place": true,
+                  "source_label": "Demo value · not surveyed"
+                }
+              ]
             },
             "evidence": [
+              {
+                "id": "ev-place-bench-urban-3",
+                "element_id": "bench-urban-3",
+                "attribute": "name",
+                "value": "Urban Park bench 3",
+                "status": "unknown",
+                "verified_at": null,
+                "source_type": "team_survey_placeholder",
+                "source_url": null,
+                "photo_url": null
+              },
+              {
+                "id": "ev-place-lakeside-mall",
+                "element_id": "lakeside-mall",
+                "attribute": "name",
+                "value": "Elmina Lakeside Mall",
+                "status": "unknown",
+                "verified_at": null,
+                "source_type": "team_survey_placeholder",
+                "source_url": null,
+                "photo_url": null
+              },
               {
                 "id": "ev-seg-1318133037-2.step_count",
                 "element_id": "seg-1318133037-2",
@@ -5653,6 +6771,8 @@
               }
             ],
             "warnings": [
+              "Demo value · not surveyed: Urban Park bench 3; place existence uses demo values, not yet surveyed.",
+              "Demo value · not surveyed: Elmina Lakeside Mall; place existence uses demo values, not yet surveyed.",
               "Route ends at the nearest mapped path to Elmina Urban Park; its entrance is not mapped."
             ]
           }
@@ -5676,7 +6796,7 @@
         "routes.0.distance_m": 113.2,
         "routes.0.est_minutes": 0.2,
         "routes.0.unknowns": [],
-        "routes.0.demo_evidence": false
+        "routes.0.demo_evidence": true
       },
       "engine_calls": [
         {
@@ -5746,32 +6866,96 @@
                       [101.509442, 3.180994]
                     ]
                   },
-                  "evidence_ids": [],
-                  "demo_evidence": false
+                  "evidence_ids": ["ev-place-park-b", "ev-place-playground"],
+                  "demo_evidence": true
                 }
               ],
               "blocked_reasons": [],
               "closures": [],
               "warnings": [
                 "Urban Park playground is about 120 m from the nearest mapped road; distance and time stop at the road",
-                "Drive routes: one-way and turn restrictions not modelled; indicative only, never confirmed."
+                "Drive routes: one-way and turn restrictions not modelled; indicative only, never confirmed.",
+                "Demo value · not surveyed: Lakeside Mall Car Park B; place existence uses demo values, not yet surveyed.",
+                "Demo value · not surveyed: Urban Park playground; place existence uses demo values, not yet surveyed."
               ],
               "max_rest_gap_m": null,
               "rest_limit_m": null,
               "rest_search_truncated": false,
-              "demo_evidence": false,
+              "demo_evidence": true,
               "verification_requests": [],
-              "verification_requests_truncated": 0
+              "verification_requests_truncated": 0,
+              "place_provenance": [
+                {
+                  "id": "park-b",
+                  "name": "Lakeside Mall Car Park B",
+                  "existence": {
+                    "value": true,
+                    "status": "unknown",
+                    "evidence_type": "team_survey_placeholder",
+                    "method": null,
+                    "evidence_ids": [],
+                    "verified_by": null,
+                    "verified_at": null,
+                    "ttl_days": null
+                  },
+                  "demo_place": true,
+                  "source_label": "Demo value · not surveyed"
+                },
+                {
+                  "id": "playground",
+                  "name": "Urban Park playground",
+                  "existence": {
+                    "value": true,
+                    "status": "unknown",
+                    "evidence_type": "team_survey_placeholder",
+                    "method": null,
+                    "evidence_ids": [],
+                    "verified_by": null,
+                    "verified_at": null,
+                    "ttl_days": null
+                  },
+                  "demo_place": true,
+                  "source_label": "Demo value · not surveyed"
+                }
+              ]
             },
-            "evidence": [],
+            "evidence": [
+              {
+                "id": "ev-place-park-b",
+                "element_id": "park-b",
+                "attribute": "name",
+                "value": "Lakeside Mall Car Park B",
+                "status": "unknown",
+                "verified_at": null,
+                "source_type": "team_survey_placeholder",
+                "source_url": null,
+                "photo_url": null
+              },
+              {
+                "id": "ev-place-playground",
+                "element_id": "playground",
+                "attribute": "name",
+                "value": "Urban Park playground",
+                "status": "unknown",
+                "verified_at": null,
+                "source_type": "team_survey_placeholder",
+                "source_url": null,
+                "photo_url": null
+              }
+            ],
             "warnings": [
               "Urban Park playground is about 120 m from the nearest mapped road; distance and time stop at the road",
-              "Drive routes: one-way and turn restrictions not modelled; indicative only, never confirmed."
+              "Drive routes: one-way and turn restrictions not modelled; indicative only, never confirmed.",
+              "Demo value · not surveyed: Lakeside Mall Car Park B; place existence uses demo values, not yet surveyed.",
+              "Demo value · not surveyed: Urban Park playground; place existence uses demo values, not yet surveyed."
             ]
           }
         }
       ],
-      "must_include": [["unverified", "not checked", "unknown", "belum", "未核实", "未验证"]],
+      "must_include": [
+        ["demo values, not yet surveyed", "demo value", "belum ditinjau", "尚未实地", "未实测"],
+        ["unverified", "not checked", "unknown", "belum", "未核实", "未验证"]
+      ],
       "must_not_include": []
     },
     {
@@ -5785,7 +6969,18 @@
         "id": "lakeside-mall",
         "name": "Elmina Lakeside Mall",
         "type": "mall",
-        "claims": {}
+        "claims": {
+          "existence": {
+            "value": true,
+            "status": "unknown",
+            "evidence_type": "team_survey_placeholder",
+            "method": null,
+            "evidence_ids": [],
+            "verified_by": null,
+            "verified_at": null,
+            "ttl_days": null
+          }
+        }
       },
       "engine_calls": [
         {
@@ -5805,8 +7000,31 @@
               "node_id": "n-31813103_1015100446",
               "node_inferred": false,
               "entrance_ids": [],
-              "claims": {},
-              "closures": []
+              "claims": {
+                "existence": {
+                  "value": true,
+                  "status": "unknown",
+                  "evidence_type": "team_survey_placeholder",
+                  "method": null,
+                  "evidence_ids": [],
+                  "verified_by": null,
+                  "verified_at": null,
+                  "ttl_days": null
+                }
+              },
+              "closures": [],
+              "existence": {
+                "value": true,
+                "status": "unknown",
+                "evidence_type": "team_survey_placeholder",
+                "method": null,
+                "evidence_ids": [],
+                "verified_by": null,
+                "verified_at": null,
+                "ttl_days": null
+              },
+              "demo_place": true,
+              "source_label": "Demo value · not surveyed"
             },
             "evidence": [
               {
@@ -5814,14 +7032,27 @@
                 "element_id": "lakeside-mall",
                 "attribute": "name",
                 "value": "Elmina Lakeside Mall",
-                "status": "reported",
+                "status": "unknown",
                 "verified_at": null,
-                "source_type": "world_model",
+                "source_type": "team_survey_placeholder",
+                "source_url": null,
+                "photo_url": null
+              },
+              {
+                "id": "ev-lakeside-mall.existence",
+                "element_id": "lakeside-mall",
+                "attribute": "existence",
+                "value": true,
+                "status": "unknown",
+                "verified_at": null,
+                "source_type": "team_survey_placeholder",
                 "source_url": null,
                 "photo_url": null
               }
             ],
-            "warnings": []
+            "warnings": [
+              "Demo value · not surveyed: Elmina Lakeside Mall; place existence uses demo values, not yet surveyed."
+            ]
           }
         }
       ],
@@ -5839,7 +7070,18 @@
         "id": "playground",
         "name": "Urban Park playground",
         "type": "playground",
-        "claims": {}
+        "claims": {
+          "existence": {
+            "value": true,
+            "status": "unknown",
+            "evidence_type": "team_survey_placeholder",
+            "method": null,
+            "evidence_ids": [],
+            "verified_by": null,
+            "verified_at": null,
+            "ttl_days": null
+          }
+        }
       },
       "engine_calls": [
         {
@@ -5859,8 +7101,31 @@
               "node_id": "n-31807145_1015102486",
               "node_inferred": false,
               "entrance_ids": [],
-              "claims": {},
-              "closures": []
+              "claims": {
+                "existence": {
+                  "value": true,
+                  "status": "unknown",
+                  "evidence_type": "team_survey_placeholder",
+                  "method": null,
+                  "evidence_ids": [],
+                  "verified_by": null,
+                  "verified_at": null,
+                  "ttl_days": null
+                }
+              },
+              "closures": [],
+              "existence": {
+                "value": true,
+                "status": "unknown",
+                "evidence_type": "team_survey_placeholder",
+                "method": null,
+                "evidence_ids": [],
+                "verified_by": null,
+                "verified_at": null,
+                "ttl_days": null
+              },
+              "demo_place": true,
+              "source_label": "Demo value · not surveyed"
             },
             "evidence": [
               {
@@ -5868,14 +7133,27 @@
                 "element_id": "playground",
                 "attribute": "name",
                 "value": "Urban Park playground",
-                "status": "reported",
+                "status": "unknown",
                 "verified_at": null,
-                "source_type": "world_model",
+                "source_type": "team_survey_placeholder",
+                "source_url": null,
+                "photo_url": null
+              },
+              {
+                "id": "ev-playground.existence",
+                "element_id": "playground",
+                "attribute": "existence",
+                "value": true,
+                "status": "unknown",
+                "verified_at": null,
+                "source_type": "team_survey_placeholder",
                 "source_url": null,
                 "photo_url": null
               }
             ],
-            "warnings": []
+            "warnings": [
+              "Demo value · not surveyed: Urban Park playground; place existence uses demo values, not yet surveyed."
+            ]
           }
         }
       ],
@@ -5895,7 +7173,19 @@
             "id": "toilet-urban-park",
             "name": "Urban Park toilet",
             "walk_m": 58.5,
-            "via_unverified": false
+            "via_unverified": true,
+            "existence": {
+              "value": true,
+              "status": "unknown",
+              "evidence_type": "team_survey_placeholder",
+              "method": null,
+              "evidence_ids": [],
+              "verified_by": null,
+              "verified_at": null,
+              "ttl_days": null
+            },
+            "demo_place": true,
+            "source_label": "Demo value · not surveyed"
           }
         ]
       },
@@ -5915,7 +7205,19 @@
                 "id": "toilet-urban-park",
                 "name": "Urban Park toilet",
                 "walk_m": 58.5,
-                "via_unverified": false
+                "via_unverified": true,
+                "existence": {
+                  "value": true,
+                  "status": "unknown",
+                  "evidence_type": "team_survey_placeholder",
+                  "method": null,
+                  "evidence_ids": [],
+                  "verified_by": null,
+                  "verified_at": null,
+                  "ttl_days": null
+                },
+                "demo_place": true,
+                "source_label": "Demo value · not surveyed"
               }
             ],
             "evidence": [
@@ -5924,14 +7226,16 @@
                 "element_id": "toilet-urban-park",
                 "attribute": "name",
                 "value": "Urban Park toilet",
-                "status": "reported",
+                "status": "unknown",
                 "verified_at": null,
-                "source_type": "world_model",
+                "source_type": "team_survey_placeholder",
                 "source_url": null,
                 "photo_url": null
               }
             ],
-            "warnings": []
+            "warnings": [
+              "Demo value · not surveyed: Urban Park toilet; place existence uses demo values, not yet surveyed."
+            ]
           }
         }
       ],
@@ -5954,13 +7258,37 @@
             "id": "bench-urban-3",
             "name": "Urban Park bench 3",
             "walk_m": 90.3,
-            "via_unverified": false
+            "via_unverified": true,
+            "existence": {
+              "value": true,
+              "status": "unknown",
+              "evidence_type": "team_survey_placeholder",
+              "method": null,
+              "evidence_ids": [],
+              "verified_by": null,
+              "verified_at": null,
+              "ttl_days": null
+            },
+            "demo_place": true,
+            "source_label": "Demo value · not surveyed"
           },
           {
             "id": "bench-urban-2",
             "name": "Urban Park bench 2",
             "walk_m": 288.9,
-            "via_unverified": false
+            "via_unverified": true,
+            "existence": {
+              "value": true,
+              "status": "unknown",
+              "evidence_type": "team_survey_placeholder",
+              "method": null,
+              "evidence_ids": [],
+              "verified_by": null,
+              "verified_at": null,
+              "ttl_days": null
+            },
+            "demo_place": true,
+            "source_label": "Demo value · not surveyed"
           }
         ]
       },
@@ -5979,13 +7307,37 @@
                 "id": "bench-urban-3",
                 "name": "Urban Park bench 3",
                 "walk_m": 90.3,
-                "via_unverified": false
+                "via_unverified": true,
+                "existence": {
+                  "value": true,
+                  "status": "unknown",
+                  "evidence_type": "team_survey_placeholder",
+                  "method": null,
+                  "evidence_ids": [],
+                  "verified_by": null,
+                  "verified_at": null,
+                  "ttl_days": null
+                },
+                "demo_place": true,
+                "source_label": "Demo value · not surveyed"
               },
               {
                 "id": "bench-urban-2",
                 "name": "Urban Park bench 2",
                 "walk_m": 288.9,
-                "via_unverified": false
+                "via_unverified": true,
+                "existence": {
+                  "value": true,
+                  "status": "unknown",
+                  "evidence_type": "team_survey_placeholder",
+                  "method": null,
+                  "evidence_ids": [],
+                  "verified_by": null,
+                  "verified_at": null,
+                  "ttl_days": null
+                },
+                "demo_place": true,
+                "source_label": "Demo value · not surveyed"
               }
             ],
             "evidence": [
@@ -5994,9 +7346,9 @@
                 "element_id": "bench-urban-3",
                 "attribute": "name",
                 "value": "Urban Park bench 3",
-                "status": "reported",
+                "status": "unknown",
                 "verified_at": null,
-                "source_type": "world_model",
+                "source_type": "team_survey_placeholder",
                 "source_url": null,
                 "photo_url": null
               },
@@ -6005,14 +7357,18 @@
                 "element_id": "bench-urban-2",
                 "attribute": "name",
                 "value": "Urban Park bench 2",
-                "status": "reported",
+                "status": "unknown",
                 "verified_at": null,
-                "source_type": "world_model",
+                "source_type": "team_survey_placeholder",
                 "source_url": null,
                 "photo_url": null
               }
             ],
-            "warnings": ["default profile applies no accessibility constraints"]
+            "warnings": [
+              "default profile applies no accessibility constraints",
+              "Demo value · not surveyed: Urban Park bench 3; place existence uses demo values, not yet surveyed.",
+              "Demo value · not surveyed: Urban Park bench 2; place existence uses demo values, not yet surveyed."
+            ]
           }
         }
       ],
@@ -15131,16 +16487,52 @@
               "routes": [],
               "blocked_reasons": [],
               "closures": [],
-              "warnings": ["no such place: unknown-moon-observatory"],
+              "warnings": [
+                "no such place: unknown-moon-observatory",
+                "Demo value · not surveyed: Lakeside Mall Car Park B; place existence uses demo values, not yet surveyed."
+              ],
               "max_rest_gap_m": null,
               "rest_limit_m": null,
               "rest_search_truncated": false,
               "demo_evidence": false,
               "verification_requests": [],
-              "verification_requests_truncated": 0
+              "verification_requests_truncated": 0,
+              "place_provenance": [
+                {
+                  "id": "park-b",
+                  "name": "Lakeside Mall Car Park B",
+                  "existence": {
+                    "value": true,
+                    "status": "unknown",
+                    "evidence_type": "team_survey_placeholder",
+                    "method": null,
+                    "evidence_ids": [],
+                    "verified_by": null,
+                    "verified_at": null,
+                    "ttl_days": null
+                  },
+                  "demo_place": true,
+                  "source_label": "Demo value · not surveyed"
+                }
+              ]
             },
-            "evidence": [],
-            "warnings": ["no such place: unknown-moon-observatory"]
+            "evidence": [
+              {
+                "id": "ev-place-park-b",
+                "element_id": "park-b",
+                "attribute": "name",
+                "value": "Lakeside Mall Car Park B",
+                "status": "unknown",
+                "verified_at": null,
+                "source_type": "team_survey_placeholder",
+                "source_url": null,
+                "photo_url": null
+              }
+            ],
+            "warnings": [
+              "no such place: unknown-moon-observatory",
+              "Demo value · not surveyed: Lakeside Mall Car Park B; place existence uses demo values, not yet surveyed."
+            ]
           }
         }
       ],

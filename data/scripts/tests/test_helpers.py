@@ -83,3 +83,20 @@ def test_seed_single_playground_near_hero():
     ]
     assert len(near) == 1
     assert all(p["properties"]["name"] != "Playground" for p in places)
+
+
+def test_real_seed_demo_toilet_keeps_existence_provenance():
+    from townshiplens_spatial import tools
+    from townshiplens_spatial.vr_store import VerificationStore
+    from townshiplens_spatial.world import load_world
+
+    ctx = tools.Ctx(world=load_world(SEED), vrs=VerificationStore(":memory:"))
+    result = tools.nearby_amenities(ctx, "playground", "toilet", 500, "wheelchair")
+    row = next(r for r in result.data if r["id"] == "toilet-urban-park")
+    assert row["walk_m"] == 58.5
+    assert row["via_unverified"] is True
+    assert row["demo_place"] is True
+    assert any(
+        e.element_id == row["id"] and e.source_type == "team_survey_placeholder"
+        for e in result.evidence
+    )
