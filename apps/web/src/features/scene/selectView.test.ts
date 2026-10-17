@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { availableViews, selectView } from "./selectView";
+import { availableViews, effectiveView, selectView } from "./selectView";
 
 describe("selectView", () => {
   it("falls back to list with no keys", () => {
@@ -55,5 +55,17 @@ describe("effectiveView", () => {
     expect(effectiveView("cesium", ["cesium", "list"], false)).toBe("cesium");
     expect(effectiveView("cesium", ["list"], false)).toBe("list");
     expect(effectiveView("cesium", ["cesium", "list"], true)).toBe("list");
+  });
+});
+
+describe("effectiveView on renderer failure", () => {
+  it("cesium falls to mapbox when available", () => {
+    expect(effectiveView("cesium", ["cesium", "mapbox", "list"], true)).toBe("mapbox");
+  });
+  it("cesium falls to list without mapbox", () => {
+    expect(effectiveView("cesium", ["cesium", "list"], true)).toBe("list");
+  });
+  it("mapbox falls to list", () => {
+    expect(effectiveView("mapbox", ["cesium", "mapbox", "list"], true)).toBe("list");
   });
 });

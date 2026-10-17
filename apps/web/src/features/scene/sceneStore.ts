@@ -31,7 +31,7 @@ export function resolveMapStyle(
   return want;
 }
 
-interface SceneState {
+export interface SceneState {
   view: View;
   /** True when the 3D renderer crashed and the list fallback is showing (set by MapStage). */
   rendererFailed: boolean;

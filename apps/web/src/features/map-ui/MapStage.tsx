@@ -3,11 +3,13 @@ import { ENV } from "../../lib/env";
 import { ListView } from "../scene/list/ListView";
 import { useScene } from "../scene/sceneStore";
 import { availableViews, effectiveView, selectView, webglSupported } from "../scene/selectView";
+import { rendererFor, stylisedEngine } from "../scene/three/engineChoice";
 import { useMapStyle } from "../scene/useMapStyle";
 import { LoadingTownship } from "./LoadingTownship";
 import { BottomStack, TopStack } from "./mapSlots";
 
 const CesiumScene = lazy(() => import("../scene/cesium/CesiumScene"));
+const ThreeScene = lazy(() => import("../scene/three/ThreeScene"));
 const MapboxLite = lazy(() => import("../scene/mapbox/MapboxLite"));
 
 let autoSelected = false;
@@ -31,9 +33,9 @@ class RendererBoundary extends Component<
 
 /** The renderer area only; chrome (cards, notes, settings) arrives as children. */
 export function MapStage({ children }: { children?: ReactNode }) {
-  const { view, setView, setRendererFailed } = useScene();
+  const { view, setView, rendererFailed, setRendererFailed } = useScene();
   const applyDefaultMapStyle = useScene((s) => s.applyDefaultMapStyle);
-  const { hasBuildings, hasGoogle, settled } = useMapStyle();
+  const { style, hasBuildings, hasGoogle, settled } = useMapStyle();
   const webglOk = useMemo(webglSupported, []);
   const available = useMemo(
     () => availableViews(ENV, webglOk, hasBuildings),
@@ -55,7 +57,8 @@ export function MapStage({ children }: { children?: ReactNode }) {
   }, [settled, hasBuildings, hasGoogle, applyDefaultMapStyle]);
 
   const has3d = available.some((v) => v !== "list");
-  const effective = effectiveView(view, available, false);
+  const effective = effectiveView(view, available, rendererFailed);
+  const renderer = rendererFor(effective, style, stylisedEngine());
   const listFallback = (
     <div className="h-full space-y-3 overflow-auto p-4 pr-[calc(var(--panel-w,0px)+1rem)]">
       <p role="alert" className="rounded-lg border border-rose bg-raised px-4 py-3 text-sm text-fg">
@@ -84,12 +87,18 @@ export function MapStage({ children }: { children?: ReactNode }) {
         </div>
       ) : (
         <RendererBoundary
-          key={effective}
+          key={renderer}
           fallback={listFallback}
           onFail={() => setRendererFailed(true)}
         >
           <Suspense fallback={<LoadingTownship />}>
-            {effective === "cesium" ? <CesiumScene /> : <MapboxLite />}
+            {renderer === "three" ? (
+              <ThreeScene />
+            ) : renderer === "cesium" ? (
+              <CesiumScene />
+            ) : (
+              <MapboxLite />
+            )}
           </Suspense>
         </RendererBoundary>
       )}
