@@ -421,6 +421,33 @@ TEST_ASSETS: dict[str, AssetSpec] = {
 }
 
 
+EXTENT_SLACK = (-0.1, 1.2)  # size check only: eaves may overhang 0.6 m per side
+HEIGHT_SLACK = 1.0  # size check only: y max within h +- 1
+
+
+def bounds_errors(v: Variant, bounds) -> list[str]:
+    """Why LOD0 `bounds` ((min xyz), (max xyz)) don't fit the variant; empty when they do.
+
+    A given x_range / y_range / z_range replaces the size check exactly (no slack); otherwise
+    the x and z extents must be within [size - 0.1, size + 1.2] and the y max within h +- 1.
+    """
+    lo, hi = bounds
+    errs = []
+    for axis, label, rng in ((0, "x extent", v.x_range), (2, "z extent", v.z_range)):
+        extent = hi[axis] - lo[axis]
+        if rng is not None:
+            if not rng[0] <= extent <= rng[1]:
+                errs.append(f"{v.id}: {label} {extent:.3f} outside range {rng}")
+        elif not v.size[axis] + EXTENT_SLACK[0] <= extent <= v.size[axis] + EXTENT_SLACK[1]:
+            errs.append(f"{v.id}: {label} {extent:.3f} outside size {v.size[axis]} -0.1/+1.2")
+    if v.y_range is not None:
+        if not v.y_range[0] <= hi[1] <= v.y_range[1]:
+            errs.append(f"{v.id}: y max {hi[1]:.3f} outside range {v.y_range}")
+    elif abs(hi[1] - v.size[1]) > HEIGHT_SLACK:
+        errs.append(f"{v.id}: y max {hi[1]:.3f} outside size h {v.size[1]} +-1")
+    return errs
+
+
 def get_spec(asset_id: str) -> AssetSpec:
     """An asset or test asset by id (KeyError names the unknown id)."""
     if asset_id in ASSETS:

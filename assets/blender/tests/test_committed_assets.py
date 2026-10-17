@@ -39,13 +39,6 @@ def test_folder_total_is_within_budget():
     assert total <= specs.MAX_TOTAL_BYTES
 
 
-def _check_extent(name: str, extent: float, size: float, rng) -> None:
-    if rng is not None:
-        assert rng[0] - 0.1 <= extent <= rng[1] + 1.2, (name, extent, rng)
-    else:
-        assert size - 0.1 <= extent <= size + 1.2, (name, extent, size)
-
-
 def _committed_assets() -> list[str]:
     m = _manifest()
     return sorted(m["assets"]) if m else []
@@ -76,10 +69,4 @@ def test_committed_glb(asset_id: str):
             assert "COLOR_0" in node.attributes, name
             assert lods[n]["node"] == name
             assert lods[n]["tris"] == node.tris, name
-        lo, hi = info.nodes[f"{asset_id}__{v.id}__LOD0"].bounds
-        _check_extent(v.id, hi[0] - lo[0], v.size[0], v.x_range)
-        _check_extent(v.id, hi[2] - lo[2], v.size[2], v.z_range)
-        if v.y_range is not None:
-            assert v.y_range[0] <= hi[1] <= v.y_range[1], (v.id, hi[1], v.y_range)
-        else:
-            assert abs(hi[1] - v.size[1]) <= 1.0, (v.id, hi[1], v.size[1])
+        assert specs.bounds_errors(v, info.nodes[f"{asset_id}__{v.id}__LOD0"].bounds) == []

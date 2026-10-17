@@ -23,7 +23,7 @@ sys.path.insert(0, str(HERE))
 
 from tl_assets.glbinfo import read_glb  # noqa: E402
 from tl_assets.manifest import build_manifest  # noqa: E402
-from tl_assets.specs import ASSETS, get_spec  # noqa: E402
+from tl_assets.specs import ASSETS, TEST_ASSETS, get_spec  # noqa: E402
 
 RAW = HERE / "out" / "raw"
 CITY = ROOT / "apps" / "web" / "public" / "city"
@@ -58,6 +58,13 @@ def main(argv: list[str] | None = None) -> int:
     out = args.out or CITY
     if args.only:
         ids = args.only
+        tests = [a for a in ids if a in TEST_ASSETS]
+        if tests and args.out is None:
+            print(
+                f"test assets {tests} never pack into {CITY}; give --out <dir>",
+                file=sys.stderr,
+            )
+            return 2
         for asset_id in ids:
             if not (RAW / get_spec(asset_id).file).exists():
                 print(f"no raw glb for {asset_id}; run run.py --asset {asset_id}", file=sys.stderr)

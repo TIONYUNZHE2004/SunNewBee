@@ -134,3 +134,26 @@ def test_landmark_placements():
 def test_test_assets_are_separate():
     assert "calib" in specs.TEST_ASSETS
     assert specs.TEST_ASSETS.keys().isdisjoint(specs.ASSETS)
+
+
+def _bounds(w: float, h: float, d: float):
+    return ((-w / 2, 0.0, -d / 2), (w / 2, h, d / 2))
+
+
+def test_bounds_errors_ranges_replace_the_size_check_exactly():
+    hatch = _variant("vehicles", "hatchback")
+    assert specs.bounds_errors(hatch, _bounds(1.7, 1.5, 3.85)) == []
+    errs = specs.bounds_errors(hatch, _bounds(1.7, 1.5, 5.2))
+    assert len(errs) == 1 and "z extent" in errs[0]
+    # no slack on a range: 4.1 m is outside (3.7, 4.0) even though size + 1.2 would allow it
+    assert specs.bounds_errors(hatch, _bounds(1.7, 1.5, 4.1))
+
+
+def test_bounds_errors_size_check_keeps_the_eave_slack():
+    link = specs.ASSETS["link_intermediate"].variants[0]  # 6.4 x 8.5 x 15.5
+    assert specs.bounds_errors(link, _bounds(6.4 + 1.2, 8.5, 15.5 - 0.1)) == []
+    assert specs.bounds_errors(link, _bounds(6.4 + 1.3, 8.5, 15.5))
+    assert specs.bounds_errors(link, _bounds(6.4, 10.0, 15.5))  # h outside +-1
+    mosque = specs.ASSETS["mosque"].variants[0]  # y_range (14, 32)
+    assert specs.bounds_errors(mosque, _bounds(30, 30, 30)) == []
+    assert specs.bounds_errors(mosque, _bounds(30, 33, 30))

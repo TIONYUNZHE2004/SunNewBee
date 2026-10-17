@@ -249,6 +249,15 @@ def bake_ao(obj, samples: int = 64, distance: float = 4.0) -> None:
 # --- export -----------------------------------------------------------------------------
 
 
+REQUIRED_EXPORT_PROPS = (
+    "use_selection",
+    "export_apply",
+    "export_yup",
+    "export_vertex_color",
+    "export_all_vertex_colors",
+)
+
+
 def _exporter_props():
     return bpy.ops.export_scene.gltf.get_rna_type().properties
 
@@ -264,6 +273,9 @@ def _enum(props, key: str, wanted: str) -> str:
 def export_glb(objs: list, path: Path) -> None:
     """Export the selection as a y-up .glb, applying modifiers, active colour as COLOR_0."""
     props = _exporter_props()
+    missing = [k for k in REQUIRED_EXPORT_PROPS if k not in props]
+    if missing:
+        raise RuntimeError(f"glTF exporter lacks required properties {missing}")
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     for o in objs:
