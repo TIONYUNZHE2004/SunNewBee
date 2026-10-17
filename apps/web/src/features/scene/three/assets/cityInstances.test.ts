@@ -172,4 +172,36 @@ describe("createCityInstances", () => {
     expect(disposed).toBe(3);
     expect(geoDisposed).toBe(false);
   });
+
+  it("dispose detaches shared attributes so a second city from the same library is intact", () => {
+    const l = lib();
+    const g = l.geometry("a", "v", 0) as THREE.BufferGeometry;
+    const pos = g.getAttribute("position");
+    const c1 = createCityInstances(l, plan("a"), manifest(), createRoleUniforms());
+    const wrapper = meshesOf(c1)[0]?.geometry as THREE.BufferGeometry;
+    expect(wrapper.getAttribute("position")).toBe(pos);
+    c1.dispose();
+    expect(wrapper.getAttribute("position")).toBeUndefined();
+    expect(wrapper.index).toBeNull();
+    const c2 = createCityInstances(l, plan("a"), manifest(), createRoleUniforms());
+    const w2 = meshesOf(c2)[0]?.geometry as THREE.BufferGeometry;
+    expect(w2.getAttribute("position")).toBe(pos);
+    expect(g.getAttribute("position")).toBe(pos);
+    expect(g.index).not.toBeNull();
+  });
+
+  it("a missing LOD geometry falls back to the nearest available LOD", () => {
+    const base = lib();
+    const holey: AssetLibrary = {
+      ...base,
+      geometry: (a, v, lod) => (lod === 0 ? null : base.geometry(a, v, lod)),
+    };
+    const c = createCityInstances(holey, plan("a"), manifest(), createRoleUniforms());
+    c.update(new THREE.Vector3());
+    const ms = meshesOf(c);
+    expect(ms.length).toBe(2); // LOD1 and LOD2 only
+    expect(ms[0]?.count).toBe(8); // near (2) + mid (6) both draw LOD1
+    expect(ms[1]?.count).toBe(2);
+    expect(c.stats().instances).toBe(10);
+  });
 });

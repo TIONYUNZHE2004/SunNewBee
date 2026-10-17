@@ -48,6 +48,10 @@ interface Key {
   lods: { maxM: number | null }[];
   /** Current bucket per placement; UNSET before the first update. */
   cur: Int8Array;
+  /** Raw LOD per placement (hysteresis state); cur is the available bucket it resolves to. */
+  raw: Int8Array;
+  /** Missing LOD geometry resolves to the nearest available LOD (ties go finer). */
+  resolve: number[];
   buckets: Bucket[];
 }
 
@@ -90,6 +94,8 @@ export function createCityInstances(
       list,
       lods: vspec.lods,
       cur: new Int8Array(list.length).fill(UNSET),
+      raw: new Int8Array(list.length).fill(UNSET),
+      resolve: [],
       buckets: [],
     };
     vspec.lods.forEach((_l, lod) => {
@@ -123,7 +129,19 @@ export function createCityInstances(
       group.add(mesh);
       key.buckets[lod] = { mesh, pal, lod };
     });
-    keys.push(key);
+    const avail = key.buckets.flatMap((b, i) => (b ? [i] : []));
+    key.resolve = vspec.lods.map((_l, i) => {
+      let best = -1;
+      for (const a of avail)
+        if (
+          best < 0 ||
+          Math.abs(a - i) < Math.abs(best - i) ||
+          (Math.abs(a - i) === Math.abs(best - i) && a < best)
+        )
+          best = a;
+      return best;
+    });
+    if (avail.length > 0) keys.push(key);
   }
 
   for (const p of plan.landmarks) {
@@ -181,8 +199,11 @@ export function createCityInstances(
         for (let i = 0; i < key.list.length; i++) {
           const p = key.list[i] as Placement;
           const d = Math.hypot(p.x - camera.x, camera.y, p.z - camera.z);
+          const rawPrev = key.raw[i] as number;
+          const raw = lodFor(d, key.lods, rawPrev === UNSET ? undefined : (rawPrev as LodBucket));
+          key.raw[i] = raw;
           const prev = key.cur[i] as number;
-          const next = lodFor(d, key.lods, prev === UNSET ? undefined : (prev as LodBucket));
+          const next = raw < 0 ? -1 : (key.resolve[raw] ?? -1);
           if (next !== prev) {
             key.cur[i] = next;
             dirty.add(prev);
@@ -218,7 +239,13 @@ export function createCityInstances(
       group.traverse((o) => {
         if ((o as THREE.InstancedMesh).isInstancedMesh) (o as THREE.InstancedMesh).dispose();
       });
-      for (const g of wrappers) g.dispose();
+      for (const g of wrappers) {
+        // Detach the library's shared attributes first: dispose() would delete their GPU buffers.
+        for (const name of Object.keys(g.attributes))
+          if (!name.startsWith("iPal")) g.deleteAttribute(name);
+        g.setIndex(null);
+        g.dispose();
+      }
       material.dispose();
       for (const mt of landmarkMaterials) mt.dispose();
       group.clear();
