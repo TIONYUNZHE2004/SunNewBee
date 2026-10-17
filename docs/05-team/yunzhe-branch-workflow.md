@@ -86,7 +86,7 @@ Before it does anything else, including answering a question about the code or t
 
 1. Runs `git fetch origin` (and `git fetch --unshallow origin` once, if the clone is shallow).
 2. Lists every worker branch with commits that control does not have (`git log --oneline HEAD..origin/<branch>`), and reports them, including new task-log entries on the board branch `yunzhe/agent-board`.
-3. Merges `origin/main` if it moved, and merges what Yunzhe approves, runs the checklist, then starts the task. It does not send anything to `main` unless Yunzhe asks.
+3. Merges `origin/main` if it moved, and merges what Yunzhe approves (only PRs with green CI), then starts the task. It does not send anything to `main` unless Yunzhe asks.
 
 When it reports branch state, it says when it fetched ("as of 14:05 fetch"). A worker's push is invisible to control until the next fetch, so a report without a fetch time may be stale.
 
@@ -94,7 +94,7 @@ Once a worker has an open PR into control, the control session subscribes to it,
 
 ## When a worker is done
 
-The worker commits, runs the checklist, runs `git push -u origin <its branch>`, and opens a PR into `claude/sweet-davinci-29v7ne`. It then tells Yunzhe the PR link. Nothing reaches control until the control session merges it.
+The worker commits, runs the local checks that fit the change, runs `git push -u origin <its branch>`, and opens or updates its PR into `claude/sweet-davinci-29v7ne`. GitHub CI then runs the full checks. When CI is green, the worker tells Yunzhe the PR link. Nothing reaches control until it is merged.
 
 ## Rules for every worker agent
 
@@ -105,13 +105,28 @@ Read these before the first change:
 3. Stay in your area (`apps/web`, `apps/api`, `packages/spatial`, `packages/agent`, `data/`, `docs/`). If you must touch another area, say so in the PR.
 4. Merge, never rebase or force-push, on a branch that another agent uses.
 5. Commit in Conventional style with a scope (`feat(web): …`, `fix(agent): …`, `docs: …`). Commit data regeneration separately from code.
-6. Before you say "done", run the checklist and report each step as PASS / FAIL / BLOCKED / NOT RUN.
+6. Before you say "done", run the local checks that fit the change (see "Checks"), open or update the PR, and report the GitHub CI result. Report each check as PASS / FAIL / BLOCKED / NOT RUN.
 7. Use the mock LLM (`LLM_PROVIDER=mock`) by default. OpenRouter is set up in the Claude and Codex environments: use it only when your task needs a live check, keep it to at most 10 live turns per task unless Yunzhe allows more, and log the model and turn count in the task log. Never `--record` the demo cache with a live model. Never print keys or `.env` values.
 8. Keep the honesty invariants true (AGENTS.md table). The validator, mock and template change together.
 
-## Checklist (same as CI)
+## Checks: match them to the change
 
-Run from the repo root with `set -o pipefail`:
+GitHub CI runs all 7 checks below on every PR, on GitHub's machines (`.github/workflows/ci.yml`). That costs no agent time or tokens, so agents do **not** repeat the full list locally.
+
+| Change | Run locally | Full 7 checks |
+|---|---|---|
+| Docs or board only | Nothing | Not needed |
+| While working on code | Only the tests for the files you touched, e.g. `uv run pytest packages/agent/tests/test_validate.py -q` | No |
+| Before opening or updating a PR | Those tests and `pnpm lint`, plus the extra checks that apply (below) | GitHub CI on the PR. Read its result; if it is red, fix it |
+| Control after merging into control | Nothing | CI on the control → `main` PR. Nothing reaches `main` without it passing |
+
+Extra local checks, only when they apply:
+
+- `validate.py`, `mock.py`, `template.py`, `run.py` or prompts changed: `pnpm golden`.
+- An API model or route changed: `pnpm gen && git diff --exit-code packages/api-client`.
+- `apps/web` changed: `pnpm --filter @tl/web exec vitest run <changed test files>` and `pnpm -r --if-present typecheck`; e2e only if a screen changed.
+
+Run the full list locally only when CI cannot (CI is down) or Yunzhe asks. The full list, from the repo root with `set -o pipefail`:
 
 1. `pnpm lint`
 2. `uv run pytest -q`
@@ -149,7 +164,7 @@ You are a worker agent on TownshipLens. Read docs/05-team/yunzhe-branch-workflow
 Branch: your own branch. Before each task, merge origin/claude/sweet-davinci-29v7ne into it.
 Task: T-<NNN> from the board (git show origin/yunzhe/agent-board:BOARD.md, then its task file). You may push to two branches only: your own code branch and yunzhe/agent-board (log entries only, as its README says). Log progress, findings and questions as you go.
 Scope: product scope B (access + flood evacuation, deep spot). Read "Product scope" and "My scope" in the workflow doc; list any Backend or Frontend file you touch in the PR.
-When done: run the checklist, report PASS/FAIL per step, push your branch and open a PR into claude/sweet-davinci-29v7ne (not main).
+When done: run the local checks that fit the change (workflow doc, "Checks"), push your branch, update your PR into claude/sweet-davinci-29v7ne (not main), and report the GitHub CI result.
 ```
 
 ## Why this structure
