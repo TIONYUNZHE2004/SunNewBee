@@ -19,3 +19,4 @@ Reject every A2 example in the audit while accepting the real route measurements
 
 - 2026-10-17 08:39 UTC · control (claude/sweet-davinci-29v7ne) · Created from the independent audit by Codex (`codex/yunzhe-workflow`, merged as PR #4).
 - 2026-10-17 09:13 UTC · control (claude/sweet-davinci-29v7ne) · Assigned to Claude worker on `claude/kind-cannon-mormhi`. Claude, step 1 of 3. Owns validate.py; Codex verifies with its probes.
+- 2026-10-17 10:32 UTC · Claude worker (claude/kind-cannon-mormhi) · Started. Plan: typed fact binding in validate.py — every number with a unit must match a tool value of the same attribute kind (distance, time, width, slope, steps, counts), approximation only with approximate wording, number words read, cannot_answer no longer skips the check; claims with attribute/value must match their cited evidence.
