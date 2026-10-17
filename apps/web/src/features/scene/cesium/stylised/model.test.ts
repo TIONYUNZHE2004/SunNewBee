@@ -38,6 +38,12 @@ describe("toBuildings", () => {
     expect(a.perimeterM).toBeGreaterThan(100);
     expect(a.cols).toBeGreaterThanOrEqual(4);
   });
+  it("reads height_m only, never the Google-sampled display_height_m (AGENTS.md)", () => {
+    const fc = {
+      features: [f("g1", sq(101.5, 3.18), { height_m: 9, display_height_m: 31.2 })],
+    };
+    expect(toBuildings(fc).buildings[0]!.height).toBe(9);
+  });
   it("derives floors from height - minHeight, not height", () => {
     const fc = {
       features: [

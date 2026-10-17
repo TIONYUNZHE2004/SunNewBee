@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import type { BuildingsLayer } from "../../../lib/api";
-import { toBuildings } from "../cesium/stylised/model";
+import { type HeightOf, toBuildings } from "../cesium/stylised/model";
 import { type LonLat, waterPolygons } from "../geo";
 import type { LocalFrame } from "./frame";
 
@@ -20,6 +20,9 @@ export const KIND_COLOUR: Record<string, string> = {
 const PARK_COLOUR = "#8fbf7a";
 /** Decorative base water. Deliberately not the flood scenario WATER_COLOR. */
 const BASE_WATER_COLOUR = "#7fb6c9";
+
+/** This overhaul's renderer may draw the Google-sampled display height (data/README.md). */
+const displayHeight: HeightOf = (p) => p.display_height_m ?? p.height_m;
 
 export interface CityGeometry {
   buildings: THREE.BufferGeometry;
@@ -158,7 +161,7 @@ export function buildCityGeometry(
   layer: BuildingsLayer | null | undefined,
   frame: LocalFrame,
 ): CityGeometry {
-  const { buildings, skipped: dropped } = toBuildings(layer?.buildings);
+  const { buildings, skipped: dropped } = toBuildings(layer?.buildings, displayHeight);
   let skipped = dropped;
   const mesh = new Mesh();
 

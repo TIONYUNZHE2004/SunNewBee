@@ -80,6 +80,22 @@ describe("buildCityGeometry", () => {
     expect(walls).toBe(8);
   });
 
+  it("prefers display_height_m over height_m, and falls back to height_m without it", () => {
+    const g = buildCityGeometry(
+      layer({
+        buildings: fc([
+          feat(poly(square(0, 0)), { height_m: 9, display_height_m: 31.2 }),
+          feat(poly(square(30, 0)), { height_m: 12 }),
+        ]),
+      }),
+      frame,
+    );
+    const p = pos(g.buildings);
+    const tops = new Set<number>();
+    for (let i = 0; i < p.count; i++) tops.add(Math.round(p.getY(i) * 10) / 10);
+    expect([...tops].sort((a, b) => a - b)).toEqual([0, 12, 31.2]);
+  });
+
   it("min_height_m 3 lifts the wall base to y = 3", () => {
     const g = buildCityGeometry(
       layer({ buildings: fc([feat(poly(square(0, 0)), { height_m: 9, min_height_m: 3 })]) }),
