@@ -1,6 +1,7 @@
 import asyncio
 from dataclasses import dataclass, field
 
+from pydantic_ai.usage import RunUsage
 from townshiplens_spatial.models import Evidence
 
 
@@ -27,4 +28,28 @@ class TurnRecord:
     asked_closures: list[dict] = field(default_factory=list)
     # Plan_route warnings about endpoints whose entrance is not mapped (Task 43).
     inferred_notes: list[str] = field(default_factory=list)
+    # simulate_what_if results this turn (tool data, incl. diff_geojson and "imagined").
+    what_ifs: list[dict] = field(default_factory=list)
+    # An earlier turn of this session ran a simulation (from memory): its numbers may not be
+    # repeated unless re-simulated this turn.
+    history_simulated: bool = False
+    # plan_verifications results this turn (survey plans: facts, places, summary).
+    plans: list[dict] = field(default_factory=list)
+    # rising_river_rollout / river_tipping_point results this turn (Cycle 3).
+    rollouts: list[dict] = field(default_factory=list)
+    tippings: list[dict] = field(default_factory=list)
+    fixes: list[dict] = field(default_factory=list)  # find_fixes results (Cycle 4)
+    # day_rehearsal results this turn (Elmina Day, Cycle 14): synthetic residents' simulated day.
+    days: list[dict] = field(default_factory=list)
+    day_stages: set[str] = field(default_factory=set)  # river stages a rehearsal chose
+    day_changes: list[dict] = field(default_factory=list)  # imagined changes tested on a day
+    # affected_places counts this turn: places and path segments apart (Cycles 5-6 review B1).
+    affected: list[dict] = field(default_factory=list)
+    # Diagnostics (never shown to users, never stored): the validator's errors for each rejected
+    # final_answer attempt, and token usage across all model requests of the turn.
+    validator_errors: list[list[str]] = field(default_factory=list)
+    repairs: list[str] = field(default_factory=list)  # validate.repair_answer notes
+    checks: int = 0  # final_answer attempts judged (validator, or a schema failure)
+    draft_attempt: int = 0  # final_answer attempts the draft streamer has started
+    usage: RunUsage = field(default_factory=RunUsage)
     queue: asyncio.Queue | None = None

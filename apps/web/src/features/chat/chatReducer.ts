@@ -5,6 +5,7 @@ export type Uncertainty = components["schemas"]["Uncertainty"];
 export type Disclaimer = components["schemas"]["Disclaimer"];
 export type SceneIntent = components["schemas"]["SceneIntent"];
 export type VerificationRequested = components["schemas"]["VerificationRequested"];
+export type AnswerCheck = components["schemas"]["AnswerCheck"];
 
 export interface ToolChip {
   id: string;
@@ -16,6 +17,11 @@ export interface AssistantMessage {
   role: "assistant";
   id: string;
   text: string;
+  /** Provisional summary while the model writes (answer.draft); replaced by the checked text. */
+  draft: string;
+  draftAttempt: number;
+  /** One validator verdict per answer attempt (answer.check). */
+  checks: AnswerCheck[];
   tools: ToolChip[];
   citations: Citation[];
   uncertainty?: Uncertainty;
@@ -25,6 +31,8 @@ export interface AssistantMessage {
   answerStatus?: string;
   route?: { id: string; status?: string; distanceM?: number; minutes?: number };
   scenarioId?: string;
+  /** done.model; "...+template" means the checked data was worded without the AI. */
+  model?: string;
   done: boolean;
 }
 
@@ -40,6 +48,9 @@ export const emptyAssistant = (id: string): AssistantMessage => ({
   role: "assistant",
   id,
   text: "",
+  draft: "",
+  draftAttempt: 0,
+  checks: [],
   tools: [],
   citations: [],
   vrs: [],
@@ -51,6 +62,13 @@ export function reduceChatEvent(m: AssistantMessage, ev: ChatEvent): AssistantMe
   switch (ev.type) {
     case "text.delta":
       return { ...m, text: m.text + ev.delta };
+    case "answer.draft":
+      // A new attempt (after the validator sent one back) starts a fresh draft.
+      return ev.attempt === m.draftAttempt
+        ? { ...m, draft: m.draft + ev.delta }
+        : { ...m, draft: ev.delta, draftAttempt: ev.attempt };
+    case "answer.check":
+      return { ...m, checks: [...m.checks, ev], draft: ev.ok ? m.draft : "" };
     case "tool.call":
       return { ...m, tools: [...m.tools, { id: ev.id, name: ev.name, done: false }] };
     case "tool.result":
@@ -66,7 +84,7 @@ export function reduceChatEvent(m: AssistantMessage, ev: ChatEvent): AssistantMe
     case "error":
       return { ...m, error: ev.message };
     case "done":
-      return { ...m, done: true, answerStatus: ev.answer_status };
+      return { ...m, done: true, answerStatus: ev.answer_status, model: ev.model };
     default:
       return m;
   }
@@ -91,3 +109,7 @@ export function reduceIntent(m: AssistantMessage, i: SceneIntent): AssistantMess
 /** "I can't answer that yet" is a normal outcome, shown calmly; a transport error is not. */
 export const isRefusal = (m: AssistantMessage): boolean =>
   !m.error && m.answerStatus === "cannot_answer";
+
+/** The AI's answers were all sent back and the reply was built from the checked data alone. */
+export const isTemplateFallback = (m: AssistantMessage): boolean =>
+  m.done && (m.model ?? "").endsWith("+template");

@@ -35,6 +35,16 @@
             "title": "Likely Edge Ids",
             "type": "array"
           },
+          "likely_path_count": {
+            "default": 0,
+            "title": "Likely Path Count",
+            "type": "integer"
+          },
+          "likely_place_count": {
+            "default": 0,
+            "title": "Likely Place Count",
+            "type": "integer"
+          },
           "likely_place_ids": {
             "items": {
               "type": "string"
@@ -61,6 +71,16 @@
             },
             "title": "Possible Edge Ids",
             "type": "array"
+          },
+          "possible_path_count": {
+            "default": 0,
+            "title": "Possible Path Count",
+            "type": "integer"
+          },
+          "possible_place_count": {
+            "default": 0,
+            "title": "Possible Place Count",
+            "type": "integer"
           },
           "possible_place_ids": {
             "items": {
@@ -94,6 +114,97 @@
           "disclaimer"
         ],
         "title": "AffectedResult",
+        "type": "object"
+      },
+      "AnswerCheck": {
+        "description": "The validator's verdict on one answer attempt: accepted, or sent back with readable\nreasons (the model then rewrites it). `repairs` counts fact-free fixes applied first.",
+        "properties": {
+          "attempt": {
+            "title": "Attempt",
+            "type": "integer"
+          },
+          "issues": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Issues",
+            "type": "array"
+          },
+          "ok": {
+            "title": "Ok",
+            "type": "boolean"
+          },
+          "repairs": {
+            "default": 0,
+            "title": "Repairs",
+            "type": "integer"
+          },
+          "type": {
+            "const": "answer.check",
+            "default": "answer.check",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "attempt",
+          "ok"
+        ],
+        "title": "AnswerCheck",
+        "type": "object"
+      },
+      "AnswerDraft": {
+        "description": "Provisional summary text while the model writes its answer. Not checked yet: the client\nshows it as a draft and replaces it with the validated `text.delta` stream.",
+        "properties": {
+          "attempt": {
+            "title": "Attempt",
+            "type": "integer"
+          },
+          "delta": {
+            "title": "Delta",
+            "type": "string"
+          },
+          "type": {
+            "const": "answer.draft",
+            "default": "answer.draft",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "attempt",
+          "delta"
+        ],
+        "title": "AnswerDraft",
+        "type": "object"
+      },
+      "AssumeFact": {
+        "description": "Imagine one recorded fact on a path, e.g. width_m = 1.2.",
+        "properties": {
+          "attribute": {
+            "title": "Attribute",
+            "type": "string"
+          },
+          "element_id": {
+            "title": "Element Id",
+            "type": "string"
+          },
+          "kind": {
+            "const": "assume_fact",
+            "default": "assume_fact",
+            "title": "Kind",
+            "type": "string"
+          },
+          "value": {
+            "title": "Value"
+          }
+        },
+        "required": [
+          "element_id",
+          "attribute",
+          "value"
+        ],
+        "title": "AssumeFact",
         "type": "object"
       },
       "AttributeBody": {
@@ -131,6 +242,88 @@
           "source_type"
         ],
         "title": "AttributeBody",
+        "type": "object"
+      },
+      "BeliefRow": {
+        "properties": {
+          "alpha": {
+            "title": "Alpha",
+            "type": "number"
+          },
+          "attribute": {
+            "title": "Attribute",
+            "type": "string"
+          },
+          "beta": {
+            "title": "Beta",
+            "type": "number"
+          },
+          "edge_type": {
+            "title": "Edge Type",
+            "type": "string"
+          },
+          "q": {
+            "title": "Q",
+            "type": "number"
+          }
+        },
+        "required": [
+          "edge_type",
+          "attribute",
+          "alpha",
+          "beta",
+          "q"
+        ],
+        "title": "BeliefRow",
+        "type": "object"
+      },
+      "BeliefTable": {
+        "properties": {
+          "note": {
+            "title": "Note",
+            "type": "string"
+          },
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/BeliefRow"
+            },
+            "title": "Rows",
+            "type": "array"
+          },
+          "sources": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Sources",
+            "type": "object"
+          }
+        },
+        "required": [
+          "rows",
+          "sources",
+          "note"
+        ],
+        "title": "BeliefTable",
+        "type": "object"
+      },
+      "BuildRamp": {
+        "description": "Imagine a capital work: the path rebuilt step-free (steps become a ramp).",
+        "properties": {
+          "element_id": {
+            "title": "Element Id",
+            "type": "string"
+          },
+          "kind": {
+            "const": "build_ramp",
+            "default": "build_ramp",
+            "title": "Kind",
+            "type": "string"
+          }
+        },
+        "required": [
+          "element_id"
+        ],
+        "title": "BuildRamp",
         "type": "object"
       },
       "BuildingsLayer": {
@@ -189,6 +382,65 @@
           "trees"
         ],
         "title": "BuildingsLayer",
+        "type": "object"
+      },
+      "Candidate": {
+        "properties": {
+          "action": {
+            "discriminator": {
+              "mapping": {
+                "assume_fact": "#/components/schemas/AssumeFact",
+                "build_ramp": "#/components/schemas/BuildRamp",
+                "close_path": "#/components/schemas/ClosePath",
+                "raise_paths": "#/components/schemas/RaisePaths",
+                "set_river_stage": "#/components/schemas/SetRiverStage",
+                "verify_fact": "#/components/schemas/VerifyFact"
+              },
+              "propertyName": "kind"
+            },
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/SetRiverStage"
+              },
+              {
+                "$ref": "#/components/schemas/ClosePath"
+              },
+              {
+                "$ref": "#/components/schemas/BuildRamp"
+              },
+              {
+                "$ref": "#/components/schemas/AssumeFact"
+              },
+              {
+                "$ref": "#/components/schemas/VerifyFact"
+              },
+              {
+                "$ref": "#/components/schemas/RaisePaths"
+              }
+            ],
+            "title": "Action"
+          },
+          "journeys_using_it": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Journeys Using It"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          }
+        },
+        "required": [
+          "action",
+          "label"
+        ],
+        "title": "Candidate",
         "type": "object"
       },
       "CentreReachability": {
@@ -266,6 +518,8 @@
           "event": {
             "discriminator": {
               "mapping": {
+                "answer.check": "#/components/schemas/AnswerCheck",
+                "answer.draft": "#/components/schemas/AnswerDraft",
                 "citation": "#/components/schemas/Citation",
                 "disclaimer": "#/components/schemas/Disclaimer",
                 "done": "#/components/schemas/Done",
@@ -282,6 +536,12 @@
             "oneOf": [
               {
                 "$ref": "#/components/schemas/TextDelta"
+              },
+              {
+                "$ref": "#/components/schemas/AnswerDraft"
+              },
+              {
+                "$ref": "#/components/schemas/AnswerCheck"
               },
               {
                 "$ref": "#/components/schemas/ToolCall"
@@ -355,6 +615,7 @@
           "session_id": {
             "anyOf": [
               {
+                "pattern": "^[A-Za-z0-9_-]{8,64}$",
                 "type": "string"
               },
               {
@@ -534,6 +795,26 @@
           }
         },
         "title": "Claim",
+        "type": "object"
+      },
+      "ClosePath": {
+        "description": "Imagine a path closed (works, an event, a fallen tree).",
+        "properties": {
+          "element_id": {
+            "title": "Element Id",
+            "type": "string"
+          },
+          "kind": {
+            "const": "close_path",
+            "default": "close_path",
+            "title": "Kind",
+            "type": "string"
+          }
+        },
+        "required": [
+          "element_id"
+        ],
+        "title": "ClosePath",
         "type": "object"
       },
       "ClosureOut": {
@@ -719,6 +1000,318 @@
         "title": "CreateVRBody",
         "type": "object"
       },
+      "DayChanges": {
+        "properties": {
+          "candidates": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Candidates",
+            "type": "array"
+          },
+          "scenario": {
+            "title": "Scenario",
+            "type": "string"
+          }
+        },
+        "required": [
+          "scenario",
+          "candidates"
+        ],
+        "title": "DayChanges",
+        "type": "object"
+      },
+      "DayCompare": {
+        "properties": {
+          "actions": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Actions",
+            "type": "array"
+          },
+          "baseline": {
+            "title": "Baseline",
+            "type": "string"
+          },
+          "biggest": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Biggest",
+            "type": "array"
+          },
+          "changed_geojson": {
+            "additionalProperties": true,
+            "title": "Changed Geojson",
+            "type": "object"
+          },
+          "disclaimer": {
+            "title": "Disclaimer",
+            "type": "string"
+          },
+          "groups": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Groups",
+            "type": "array"
+          },
+          "residents_better": {
+            "title": "Residents Better",
+            "type": "integer"
+          },
+          "residents_changed": {
+            "title": "Residents Changed",
+            "type": "integer"
+          },
+          "residents_worse": {
+            "title": "Residents Worse",
+            "type": "integer"
+          },
+          "scenario": {
+            "title": "Scenario",
+            "type": "string"
+          },
+          "town_hall": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Town Hall",
+            "type": "array"
+          },
+          "trips_better": {
+            "title": "Trips Better",
+            "type": "integer"
+          },
+          "trips_changed": {
+            "title": "Trips Changed",
+            "type": "integer"
+          },
+          "trips_worse": {
+            "title": "Trips Worse",
+            "type": "integer"
+          },
+          "voice": {
+            "additionalProperties": true,
+            "title": "Voice",
+            "type": "object"
+          }
+        },
+        "required": [
+          "scenario",
+          "actions",
+          "trips_changed",
+          "residents_changed",
+          "residents_better",
+          "residents_worse",
+          "trips_better",
+          "trips_worse",
+          "baseline",
+          "groups",
+          "biggest",
+          "town_hall",
+          "changed_geojson",
+          "voice",
+          "disclaimer"
+        ],
+        "title": "DayCompare",
+        "type": "object"
+      },
+      "DayCompareRequest": {
+        "properties": {
+          "actions": {
+            "items": {
+              "discriminator": {
+                "mapping": {
+                  "assume_fact": "#/components/schemas/AssumeFact",
+                  "build_ramp": "#/components/schemas/BuildRamp",
+                  "close_path": "#/components/schemas/ClosePath",
+                  "raise_paths": "#/components/schemas/RaisePaths",
+                  "set_river_stage": "#/components/schemas/SetRiverStage",
+                  "verify_fact": "#/components/schemas/VerifyFact"
+                },
+                "propertyName": "kind"
+              },
+              "oneOf": [
+                {
+                  "$ref": "#/components/schemas/SetRiverStage"
+                },
+                {
+                  "$ref": "#/components/schemas/ClosePath"
+                },
+                {
+                  "$ref": "#/components/schemas/BuildRamp"
+                },
+                {
+                  "$ref": "#/components/schemas/AssumeFact"
+                },
+                {
+                  "$ref": "#/components/schemas/VerifyFact"
+                },
+                {
+                  "$ref": "#/components/schemas/RaisePaths"
+                }
+              ]
+            },
+            "maxItems": 4,
+            "minItems": 1,
+            "title": "Actions",
+            "type": "array"
+          }
+        },
+        "required": [
+          "actions"
+        ],
+        "title": "DayCompareRequest",
+        "type": "object"
+      },
+      "DayReport": {
+        "properties": {
+          "assumptions": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Assumptions",
+            "type": "array"
+          },
+          "disclaimer": {
+            "title": "Disclaimer",
+            "type": "string"
+          },
+          "groups": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Groups",
+            "type": "array"
+          },
+          "headline": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Headline",
+            "type": "object"
+          },
+          "health": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Health",
+            "type": "object"
+          },
+          "paces_m_per_min": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "title": "Paces M Per Min",
+            "type": "object"
+          },
+          "places": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Places",
+            "type": "array"
+          },
+          "population": {
+            "additionalProperties": true,
+            "title": "Population",
+            "type": "object"
+          },
+          "scenario": {
+            "additionalProperties": true,
+            "title": "Scenario",
+            "type": "object"
+          },
+          "school": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "School",
+            "type": "object"
+          },
+          "spotlight": {
+            "additionalProperties": true,
+            "title": "Spotlight",
+            "type": "object"
+          },
+          "timeline": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Timeline",
+            "type": "array"
+          },
+          "tracks": {
+            "additionalProperties": true,
+            "title": "Tracks",
+            "type": "object"
+          },
+          "world_version": {
+            "title": "World Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "scenario",
+          "population",
+          "assumptions",
+          "paces_m_per_min",
+          "headline",
+          "groups",
+          "school",
+          "health",
+          "places",
+          "timeline",
+          "tracks",
+          "spotlight",
+          "disclaimer",
+          "world_version"
+        ],
+        "title": "DayReport",
+        "type": "object"
+      },
+      "DayScenario": {
+        "properties": {
+          "day": {
+            "title": "Day",
+            "type": "string"
+          },
+          "hero": {
+            "title": "Hero",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "summary": {
+            "title": "Summary",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "label",
+          "summary",
+          "hero",
+          "day"
+        ],
+        "title": "DayScenario",
+        "type": "object"
+      },
       "DeepSpot": {
         "properties": {
           "bbox": {
@@ -758,8 +1351,11 @@
       "Disclaimer": {
         "properties": {
           "lens": {
-            "const": "flood",
             "default": "flood",
+            "enum": [
+              "flood",
+              "whatif"
+            ],
             "title": "Lens",
             "type": "string"
           },
@@ -1163,6 +1759,107 @@
         "title": "EvidenceUploaded",
         "type": "object"
       },
+      "FactImpact": {
+        "properties": {
+          "attribute": {
+            "title": "Attribute",
+            "type": "string"
+          },
+          "became_confirmed": {
+            "default": 0,
+            "title": "Became Confirmed",
+            "type": "integer"
+          },
+          "belief_q": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Belief Q"
+          },
+          "belief_q_before": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Belief Q Before"
+          },
+          "changed": {
+            "default": 0,
+            "title": "Changed",
+            "type": "integer"
+          },
+          "element_id": {
+            "title": "Element Id",
+            "type": "string"
+          },
+          "lost_route": {
+            "default": 0,
+            "title": "Lost Route",
+            "type": "integer"
+          },
+          "mode": {
+            "title": "Mode",
+            "type": "string"
+          },
+          "note": {
+            "default": "Sampled journeys on the township model; a planning estimate, not a promise. Residents never see these numbers.",
+            "title": "Note",
+            "type": "string"
+          },
+          "own": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OwnJourney"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "own_other_checks": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Own Other Checks"
+          },
+          "profile": {
+            "title": "Profile",
+            "type": "string"
+          },
+          "profile_assumed": {
+            "default": false,
+            "title": "Profile Assumed",
+            "type": "boolean"
+          },
+          "sampled": {
+            "title": "Sampled",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "element_id",
+          "attribute",
+          "mode",
+          "profile",
+          "sampled"
+        ],
+        "title": "FactImpact",
+        "type": "object"
+      },
       "GapFeature": {
         "properties": {
           "geometry": {
@@ -1335,6 +2032,91 @@
         "title": "Kpis",
         "type": "object"
       },
+      "OwnJourney": {
+        "properties": {
+          "demo_values": {
+            "default": false,
+            "title": "Demo Values",
+            "type": "boolean"
+          },
+          "from_name": {
+            "title": "From Name",
+            "type": "string"
+          },
+          "statuses": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Statuses",
+            "type": "object"
+          },
+          "to_name": {
+            "title": "To Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "from_name",
+          "to_name",
+          "statuses"
+        ],
+        "title": "OwnJourney",
+        "type": "object"
+      },
+      "PlanFact": {
+        "properties": {
+          "attribute": {
+            "title": "Attribute",
+            "type": "string"
+          },
+          "check": {
+            "title": "Check",
+            "type": "string"
+          },
+          "element_id": {
+            "title": "Element Id",
+            "type": "string"
+          },
+          "journeys_relying": {
+            "title": "Journeys Relying",
+            "type": "integer"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "path_label": {
+            "title": "Path Label",
+            "type": "string"
+          },
+          "q": {
+            "title": "Q",
+            "type": "number"
+          },
+          "ticket_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ticket Id"
+          }
+        },
+        "required": [
+          "element_id",
+          "attribute",
+          "label",
+          "path_label",
+          "check",
+          "journeys_relying",
+          "q"
+        ],
+        "title": "PlanFact",
+        "type": "object"
+      },
       "ProfileInfo": {
         "description": "Read-only profile parameters, for the 'Assumptions' section. No secrets, no per-user data.",
         "properties": {
@@ -1421,6 +2203,130 @@
         "title": "ProfileInfo",
         "type": "object"
       },
+      "RaisePaths": {
+        "description": "Imagine a capital work against floods: these path segments rebuilt above the township's\nindicative flood levels (they no longer flood in any scenario). Imagined only: the real flood\ndata is never changed, and nothing says the real path is above any water level.",
+        "properties": {
+          "element_ids": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 40,
+            "minItems": 1,
+            "title": "Element Ids",
+            "type": "array"
+          },
+          "kind": {
+            "const": "raise_paths",
+            "default": "raise_paths",
+            "title": "Kind",
+            "type": "string"
+          },
+          "label": {
+            "anyOf": [
+              {
+                "maxLength": 80,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label"
+          }
+        },
+        "required": [
+          "element_ids"
+        ],
+        "title": "RaisePaths",
+        "type": "object"
+      },
+      "Resident": {
+        "properties": {
+          "demo_evidence": {
+            "default": false,
+            "title": "Demo Evidence",
+            "type": "boolean"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "origin_coord": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "number"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Origin Coord"
+          },
+          "origin_id": {
+            "title": "Origin Id",
+            "type": "string"
+          },
+          "origin_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Origin Name"
+          },
+          "profile": {
+            "title": "Profile",
+            "type": "string"
+          },
+          "route_ids": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "title": "Route Ids",
+            "type": "array"
+          },
+          "statuses": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Statuses",
+            "type": "array"
+          },
+          "tipping_stage": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tipping Stage"
+          }
+        },
+        "required": [
+          "id",
+          "profile",
+          "origin_id",
+          "statuses",
+          "route_ids"
+        ],
+        "title": "Resident",
+        "type": "object"
+      },
       "ResolveBody": {
         "properties": {
           "action": {
@@ -1456,6 +2362,70 @@
           "action"
         ],
         "title": "ResolveBody",
+        "type": "object"
+      },
+      "RiverRollout": {
+        "properties": {
+          "counts": {
+            "additionalProperties": {
+              "additionalProperties": {
+                "additionalProperties": {
+                  "type": "integer"
+                },
+                "type": "object"
+              },
+              "type": "object"
+            },
+            "title": "Counts",
+            "type": "object"
+          },
+          "disclaimer": {
+            "default": "Synthetic residents on the township model: an indicative simulation, not a forecast. River stages are scenarios, not water depths; departure times, warnings and crowding are not modelled; animation speed is illustrative. Follow official MBSA / JPS / NADMA guidance.",
+            "title": "Disclaimer",
+            "type": "string"
+          },
+          "evidence_id": {
+            "title": "Evidence Id",
+            "type": "string"
+          },
+          "profiles": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Profiles",
+            "type": "array"
+          },
+          "residents": {
+            "items": {
+              "$ref": "#/components/schemas/Resident"
+            },
+            "title": "Residents",
+            "type": "array"
+          },
+          "routes": {
+            "additionalProperties": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Routes",
+            "type": "object"
+          },
+          "stages": {
+            "items": {
+              "$ref": "#/components/schemas/Stage"
+            },
+            "title": "Stages",
+            "type": "array"
+          }
+        },
+        "required": [
+          "stages",
+          "profiles",
+          "counts",
+          "residents",
+          "evidence_id"
+        ],
+        "title": "RiverRollout",
         "type": "object"
       },
       "Route": {
@@ -1890,6 +2860,17 @@
             ],
             "title": "Center"
           },
+          "day": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Day"
+          },
           "distance_m": {
             "anyOf": [
               {
@@ -1930,7 +2911,10 @@
               "place.focus",
               "route.highlight",
               "flood.set_level",
-              "layer.toggle"
+              "layer.toggle",
+              "whatif.diff",
+              "river.rollout",
+              "day.show"
             ],
             "title": "Kind",
             "type": "string"
@@ -2012,6 +2996,17 @@
             ],
             "title": "Scenario Id"
           },
+          "t_min": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "T Min"
+          },
           "visible": {
             "anyOf": [
               {
@@ -2046,6 +3041,26 @@
           "intent"
         ],
         "title": "SceneIntentEvent",
+        "type": "object"
+      },
+      "SetRiverStage": {
+        "description": "River rise scenario (indicative stages only; a stage never upgrades anything).",
+        "properties": {
+          "kind": {
+            "const": "set_river_stage",
+            "default": "set_river_stage",
+            "title": "Kind",
+            "type": "string"
+          },
+          "scenario_id": {
+            "title": "Scenario Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "scenario_id"
+        ],
+        "title": "SetRiverStage",
         "type": "object"
       },
       "SimAdvisory": {
@@ -2610,6 +3625,53 @@
         "title": "Site",
         "type": "object"
       },
+      "Stage": {
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "label"
+        ],
+        "title": "Stage",
+        "type": "object"
+      },
+      "Suggestions": {
+        "properties": {
+          "candidates": {
+            "items": {
+              "$ref": "#/components/schemas/Candidate"
+            },
+            "title": "Candidates",
+            "type": "array"
+          },
+          "profile": {
+            "title": "Profile",
+            "type": "string"
+          },
+          "river_stages": {
+            "items": {
+              "type": "string"
+            },
+            "title": "River Stages",
+            "type": "array"
+          }
+        },
+        "required": [
+          "profile",
+          "candidates",
+          "river_stages"
+        ],
+        "title": "Suggestions",
+        "type": "object"
+      },
       "TextDelta": {
         "properties": {
           "delta": {
@@ -2887,6 +3949,68 @@
         "title": "ValidationError",
         "type": "object"
       },
+      "VerificationPlan": {
+        "properties": {
+          "belief_sources": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Belief Sources",
+            "type": "object"
+          },
+          "budget": {
+            "title": "Budget",
+            "type": "integer"
+          },
+          "disclaimer": {
+            "default": "Survey plan from the township model: journeys would be confirmed only if they pass when staff check these facts on site. A planning estimate, not a promise.",
+            "title": "Disclaimer",
+            "type": "string"
+          },
+          "evidence_id": {
+            "title": "Evidence Id",
+            "type": "string"
+          },
+          "expected_confirmed": {
+            "title": "Expected Confirmed",
+            "type": "number"
+          },
+          "facts": {
+            "items": {
+              "$ref": "#/components/schemas/PlanFact"
+            },
+            "title": "Facts",
+            "type": "array"
+          },
+          "profile": {
+            "title": "Profile",
+            "type": "string"
+          },
+          "scope": {
+            "title": "Scope",
+            "type": "string"
+          },
+          "summary": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Summary",
+            "type": "object"
+          }
+        },
+        "required": [
+          "profile",
+          "scope",
+          "budget",
+          "facts",
+          "summary",
+          "expected_confirmed",
+          "belief_sources",
+          "evidence_id"
+        ],
+        "title": "VerificationPlan",
+        "type": "object"
+      },
       "VerificationRequest": {
         "properties": {
           "attribute": {
@@ -3028,6 +4152,40 @@
         "title": "VerificationRequested",
         "type": "object"
       },
+      "VerifyFact": {
+        "description": "Imagine staff verifying a fact: it passes every profile's limit, or it fails.",
+        "properties": {
+          "attribute": {
+            "title": "Attribute",
+            "type": "string"
+          },
+          "element_id": {
+            "title": "Element Id",
+            "type": "string"
+          },
+          "kind": {
+            "const": "verify_fact",
+            "default": "verify_fact",
+            "title": "Kind",
+            "type": "string"
+          },
+          "outcome": {
+            "default": "pass",
+            "enum": [
+              "pass",
+              "fail"
+            ],
+            "title": "Outcome",
+            "type": "string"
+          }
+        },
+        "required": [
+          "element_id",
+          "attribute"
+        ],
+        "title": "VerifyFact",
+        "type": "object"
+      },
       "WastePoint": {
         "properties": {
           "accepted_items": {
@@ -3105,6 +4263,243 @@
           "coord"
         ],
         "title": "WastePoint",
+        "type": "object"
+      },
+      "WhatIfRequest": {
+        "properties": {
+          "actions": {
+            "items": {
+              "discriminator": {
+                "mapping": {
+                  "assume_fact": "#/components/schemas/AssumeFact",
+                  "build_ramp": "#/components/schemas/BuildRamp",
+                  "close_path": "#/components/schemas/ClosePath",
+                  "raise_paths": "#/components/schemas/RaisePaths",
+                  "set_river_stage": "#/components/schemas/SetRiverStage",
+                  "verify_fact": "#/components/schemas/VerifyFact"
+                },
+                "propertyName": "kind"
+              },
+              "oneOf": [
+                {
+                  "$ref": "#/components/schemas/SetRiverStage"
+                },
+                {
+                  "$ref": "#/components/schemas/ClosePath"
+                },
+                {
+                  "$ref": "#/components/schemas/BuildRamp"
+                },
+                {
+                  "$ref": "#/components/schemas/AssumeFact"
+                },
+                {
+                  "$ref": "#/components/schemas/VerifyFact"
+                },
+                {
+                  "$ref": "#/components/schemas/RaisePaths"
+                }
+              ]
+            },
+            "maxItems": 8,
+            "title": "Actions",
+            "type": "array"
+          },
+          "from_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "From Id"
+          },
+          "profile": {
+            "default": "wheelchair",
+            "title": "Profile",
+            "type": "string"
+          },
+          "scenario_id": {
+            "anyOf": [
+              {
+                "pattern": "^(baseline|stage_p[1-5]m)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scenario Id"
+          },
+          "scope": {
+            "default": "evacuation",
+            "enum": [
+              "journey",
+              "suite",
+              "evacuation"
+            ],
+            "title": "Scope",
+            "type": "string"
+          },
+          "to_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "To Id"
+          }
+        },
+        "title": "WhatIfRequest",
+        "type": "object"
+      },
+      "WhatIfResponse": {
+        "properties": {
+          "action_labels": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Action Labels",
+            "type": "array"
+          },
+          "actions": {
+            "items": {
+              "discriminator": {
+                "mapping": {
+                  "assume_fact": "#/components/schemas/AssumeFact",
+                  "build_ramp": "#/components/schemas/BuildRamp",
+                  "close_path": "#/components/schemas/ClosePath",
+                  "raise_paths": "#/components/schemas/RaisePaths",
+                  "set_river_stage": "#/components/schemas/SetRiverStage",
+                  "verify_fact": "#/components/schemas/VerifyFact"
+                },
+                "propertyName": "kind"
+              },
+              "oneOf": [
+                {
+                  "$ref": "#/components/schemas/SetRiverStage"
+                },
+                {
+                  "$ref": "#/components/schemas/ClosePath"
+                },
+                {
+                  "$ref": "#/components/schemas/BuildRamp"
+                },
+                {
+                  "$ref": "#/components/schemas/AssumeFact"
+                },
+                {
+                  "$ref": "#/components/schemas/VerifyFact"
+                },
+                {
+                  "$ref": "#/components/schemas/RaisePaths"
+                }
+              ]
+            },
+            "title": "Actions",
+            "type": "array"
+          },
+          "changed": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Changed",
+            "type": "array"
+          },
+          "changed_truncated": {
+            "title": "Changed Truncated",
+            "type": "boolean"
+          },
+          "counts_after": {
+            "additionalProperties": {
+              "additionalProperties": {
+                "type": "integer"
+              },
+              "type": "object"
+            },
+            "title": "Counts After",
+            "type": "object"
+          },
+          "counts_before": {
+            "additionalProperties": {
+              "additionalProperties": {
+                "type": "integer"
+              },
+              "type": "object"
+            },
+            "title": "Counts Before",
+            "type": "object"
+          },
+          "diff_geojson": {
+            "additionalProperties": true,
+            "title": "Diff Geojson",
+            "type": "object"
+          },
+          "disclaimer": {
+            "title": "Disclaimer",
+            "type": "string"
+          },
+          "evidence_id": {
+            "title": "Evidence Id",
+            "type": "string"
+          },
+          "profile": {
+            "title": "Profile",
+            "type": "string"
+          },
+          "scenario_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scenario Id"
+          },
+          "scope": {
+            "title": "Scope",
+            "type": "string"
+          },
+          "summary": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Summary",
+            "type": "object"
+          },
+          "touched": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Touched",
+            "type": "array"
+          }
+        },
+        "required": [
+          "profile",
+          "scope",
+          "scenario_id",
+          "actions",
+          "action_labels",
+          "summary",
+          "counts_before",
+          "counts_after",
+          "changed",
+          "changed_truncated",
+          "touched",
+          "diff_geojson",
+          "evidence_id",
+          "disclaimer"
+        ],
+        "title": "WhatIfResponse",
         "type": "object"
       }
     }
@@ -3190,6 +4585,25 @@
           }
         },
         "summary": "Audit"
+      }
+    },
+    "/belief": {
+      "get": {
+        "description": "The planner's belief over unchecked facts: Beta(alpha, beta) per path type and attribute,\nfrom regional OSM tags (if built) and real staff verifications. Planning only.",
+        "operationId": "belief_table_belief_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BeliefTable"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Belief Table"
       }
     },
     "/briefings/flood": {
@@ -3454,6 +4868,176 @@
           }
         },
         "summary": "End Closure"
+      }
+    },
+    "/day/scenarios": {
+      "get": {
+        "operationId": "day_scenarios_day_scenarios_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/DayScenario"
+                  },
+                  "title": "Response Day Scenarios Day Scenarios Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Day Scenarios"
+      }
+    },
+    "/day/{scenario_id}": {
+      "get": {
+        "description": "One simulated day: 5,000 synthetic residents, counts by group, timeline and map tracks.",
+        "operationId": "day_report_day__scenario_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "scenario_id",
+            "required": true,
+            "schema": {
+              "title": "Scenario Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DayReport"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "description": "unknown scenario"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "503": {
+            "description": "busy"
+          }
+        },
+        "summary": "Day Report"
+      }
+    },
+    "/day/{scenario_id}/changes": {
+      "get": {
+        "description": "Imagined changes worth testing on this day, from its own trips (on a river-rise day the\nflooded stretches the most residents rely on, then busy footways and steps).",
+        "operationId": "day_changes_day__scenario_id__changes_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "scenario_id",
+            "required": true,
+            "schema": {
+              "title": "Scenario Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DayChanges"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "description": "unknown scenario"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "503": {
+            "description": "busy"
+          }
+        },
+        "summary": "Day Changes"
+      }
+    },
+    "/day/{scenario_id}/compare": {
+      "post": {
+        "description": "The same simulated day with and without imagined changes, trip by trip: who gains and\nwho loses, by group, and what the spotlight residents would say. Imagined, never a plan.",
+        "operationId": "day_compare_day__scenario_id__compare_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "scenario_id",
+            "required": true,
+            "schema": {
+              "title": "Scenario Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DayCompareRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DayCompare"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "description": "unknown scenario"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "503": {
+            "description": "busy"
+          }
+        },
+        "summary": "Day Compare"
       }
     },
     "/elements/{element_id}/attributes/{key}": {
@@ -4092,6 +5676,64 @@
         "summary": "Profiles"
       }
     },
+    "/river-rollout": {
+      "get": {
+        "description": "Synthetic residents per persona heading for the nearest evacuation centre at every river\nstage, with routes for the 3D animation. Indicative simulation, not a forecast. Cached by\nworld version (the first call on the seed takes about 15 s).",
+        "operationId": "river_rollout_river_rollout_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "profiles",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Profiles"
+            }
+          },
+          {
+            "in": "query",
+            "name": "n",
+            "required": false,
+            "schema": {
+              "default": 30,
+              "maximum": 50,
+              "minimum": 5,
+              "title": "N",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RiverRollout"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "unknown or non-walking profile"
+          },
+          "503": {
+            "description": "the township model is busy; retry shortly"
+          }
+        },
+        "summary": "River Rollout"
+      }
+    },
     "/routes": {
       "post": {
         "description": "Plan only: this anonymous endpoint never files verification requests (the chat does).",
@@ -4644,6 +6286,52 @@
         "summary": "Create Vr"
       }
     },
+    "/verification-requests/{vr_id}/impact": {
+      "get": {
+        "description": "What this check would change (open) or changed (resolved) on the township model: sampled\njourneys, the ticket's own journey and the belief. Staff planning estimate; counts only.",
+        "operationId": "ticket_impact_verification_requests__vr_id__impact_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "vr_id",
+            "required": true,
+            "schema": {
+              "title": "Vr Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FactImpact"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "description": "unknown verification request"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "503": {
+            "description": "busy"
+          }
+        },
+        "summary": "Ticket Impact"
+      }
+    },
     "/verification-requests/{vr_id}/resolve": {
       "post": {
         "operationId": "resolve_verification_requests__vr_id__resolve_post",
@@ -4707,6 +6395,76 @@
           }
         },
         "summary": "Resolve"
+      }
+    },
+    "/verify-next": {
+      "get": {
+        "description": "Survey plan: which facts to check first so the most sample journeys would be confirmed.\nThe same cached tool the assistant calls (cached per world version and open tickets).",
+        "operationId": "verify_next_verify_next_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "profile",
+            "required": false,
+            "schema": {
+              "default": "wheelchair",
+              "title": "Profile",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "scope",
+            "required": false,
+            "schema": {
+              "default": "evacuation",
+              "enum": [
+                "suite",
+                "evacuation"
+              ],
+              "title": "Scope",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "budget",
+            "required": false,
+            "schema": {
+              "default": 15,
+              "maximum": 40,
+              "minimum": 1,
+              "title": "Budget",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VerificationPlan"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "503": {
+            "description": "busy"
+          }
+        },
+        "summary": "Verify Next"
       }
     },
     "/waste-points": {
@@ -4773,6 +6531,95 @@
           }
         },
         "summary": "Waste"
+      }
+    },
+    "/what-if": {
+      "post": {
+        "description": "Imagine changes on a copy of the township and compare journeys before and after.",
+        "operationId": "what_if_what_if_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WhatIfRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WhatIfResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "illegal or invalid actions"
+          }
+        },
+        "summary": "What If"
+      }
+    },
+    "/what-if/suggestions": {
+      "get": {
+        "description": "Engine-proposed what-if actions with readable labels (ramps, verifications, keystones).",
+        "operationId": "what_if_suggestions_what_if_suggestions_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "profile",
+            "required": false,
+            "schema": {
+              "default": "wheelchair",
+              "title": "Profile",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "near_place",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Near Place"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Suggestions"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "What If Suggestions"
       }
     }
   }

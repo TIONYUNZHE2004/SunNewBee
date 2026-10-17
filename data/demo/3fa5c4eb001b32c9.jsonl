@@ -1,22 +1,37 @@
-{"meta": {"message": "Priya uses a wheelchair at Lakeside Mall. If the river rises 3 m, where can she go?", "profile": "wheelchair", "scenario_id": "stage_p3m", "world": "tiny", "model": "mock-scripted", "recorded_at": "2026-10-14T18:38:34+00:00"}}
+{"meta": {"message": "Priya uses a wheelchair at Lakeside Mall. If the river rises 3 m, where can she go?", "profile": "wheelchair", "scenario_id": "stage_p3m", "world": "tiny", "model": "mock-scripted", "recorded_at": "2026-10-16T13:10:09+00:00"}}
 {"type": "tool.call", "id": "find_place-0", "name": "find_place", "args": {"query": "lakeside mall", "types": null, "limit": 5}}
 {"type": "tool.result", "id": "find_place-0", "name": "find_place", "summary": "1 result(s)"}
 {"type": "tool.call", "id": "list_evacuation_centres-1", "name": "list_evacuation_centres", "args": {"scenario_id": "stage_p3m", "profile": "wheelchair", "near_place": "lakeside-mall"}}
 {"type": "tool.result", "id": "list_evacuation_centres-1", "name": "list_evacuation_centres", "summary": "2 result(s)"}
 {"type": "tool.call", "id": "plan_route-2", "name": "plan_route", "args": {"from_id": "lakeside-mall", "to_id": "__centre__evc-hall", "profile": "wheelchair", "scenario_id": "stage_p3m"}}
 {"type": "tool.result", "id": "plan_route-2", "name": "plan_route", "summary": "route partly_unverified"}
-{"type": "text.delta", "delta": "⚠ seg-bc: possibly flooded in this scena"}
-{"type": "text.delta", "delta": "rio\nIn the River +3 m indicative scenari"}
-{"type": "text.delta", "delta": "o, the nearest reachable centre is Commu"}
-{"type": "text.delta", "delta": "nity hall (candidate); source: candidate"}
-{"type": "text.delta", "delta": ", not confirmed as a PPS. This is not a "}
-{"type": "text.delta", "delta": "forecast; follow official MBSA / JPS / N"}
-{"type": "text.delta", "delta": "ADMA guidance."}
+{"type": "answer.draft", "attempt": 1, "delta": "In the "}
+{"type": "answer.draft", "attempt": 1, "delta": "River +"}
+{"type": "answer.draft", "attempt": 1, "delta": "3 m indicative scenario, the nearest "}
+{"type": "answer.draft", "attempt": 1, "delta": "reachable centre is "}
+{"type": "answer.draft", "attempt": 1, "delta": "Community hall (candidate); "}
+{"type": "answer.draft", "attempt": 1, "delta": "source: candidate, not "}
+{"type": "answer.draft", "attempt": 1, "delta": "confirmed as a PPS. This is "}
+{"type": "answer.draft", "attempt": 1, "delta": "not a forecast; follow "}
+{"type": "answer.draft", "attempt": 1, "delta": "official MBSA / JPS / "}
+{"type": "answer.draft", "attempt": 1, "delta": "NADMA "}
+{"type": "answer.draft", "attempt": 1, "delta": "guidance."}
+{"type": "answer.check", "attempt": 1, "ok": true, "issues": [], "repairs": 0}
+{"type": "text.delta", "delta": "Route status: partly unverified\nIn the R"}
+{"type": "text.delta", "delta": "iver +3 m indicative scenario, the neare"}
+{"type": "text.delta", "delta": "st reachable centre is Community hall (c"}
+{"type": "text.delta", "delta": "andidate); source: candidate, not confir"}
+{"type": "text.delta", "delta": "med as a PPS. This is not a forecast; fo"}
+{"type": "text.delta", "delta": "llow official MBSA / JPS / NADMA guidanc"}
+{"type": "text.delta", "delta": "e.\nWorth knowing:\n• An unnamed footway: "}
+{"type": "text.delta", "delta": "possibly flooded in this indicative scen"}
+{"type": "text.delta", "delta": "ario.\n• Segment facts are demo values, n"}
+{"type": "text.delta", "delta": "ot yet surveyed."}
 {"type": "scene.intent", "intent": {"kind": "flood.set_level", "place_id": null, "route_id": null, "scenario_id": "stage_p3m", "center": null, "range_m": null, "lens": null, "visible": null, "geojson": null}}
 {"type": "scene.intent", "intent": {"kind": "route.highlight", "place_id": null, "route_id": "rt-1d0a211e", "scenario_id": null, "center": null, "range_m": null, "lens": null, "visible": null, "geojson": {"type": "LineString", "coordinates": [[101.5095, 3.181], [101.51, 3.181]]}}}
-{"type": "citation", "ref": 1, "evidence_id": "ev-centre-evc-hall", "element_id": "evc-hall", "attribute": "source", "status": "unknown", "verified_at": null, "source_type": "OSM candidate"}
-{"type": "citation", "ref": 2, "evidence_id": "ev-centre-evc-school", "element_id": "evc-school", "attribute": "source", "status": "reported", "verified_at": null, "source_type": "official PPS report"}
-{"type": "citation", "ref": 3, "evidence_id": "ev-scn-stage_p3m", "element_id": "stage_p3m", "attribute": "scenario", "status": "indicative", "verified_at": null, "source_type": "HAND scenario"}
-{"type": "uncertainty", "level": "partial", "items": [{"element_id": "seg-bc", "attribute": "flood", "note": "possibly flooded in this scenario"}]}
+{"type": "citation", "ref": 1, "evidence_id": "ev-centre-evc-hall", "element_id": "evc-hall", "attribute": "source", "status": "unknown", "verified_at": null, "source_type": "OSM candidate", "photo_url": null}
+{"type": "citation", "ref": 2, "evidence_id": "ev-centre-evc-school", "element_id": "evc-school", "attribute": "source", "status": "reported", "verified_at": null, "source_type": "official PPS report", "photo_url": null}
+{"type": "citation", "ref": 3, "evidence_id": "ev-scn-stage_p3m", "element_id": "stage_p3m", "attribute": "scenario", "status": "indicative", "verified_at": null, "source_type": "HAND scenario (indicative)", "photo_url": null}
+{"type": "uncertainty", "level": "partial", "items": [{"element_id": "seg-bc", "attribute": "flood", "note": "Possibly flooded in this indicative scenario on an unnamed footway"}, {"element_id": "route", "attribute": "demo_values", "note": "Some segment facts are demo values, not yet surveyed"}, {"element_id": "answer", "attribute": "caveat", "note": "An unnamed footway: possibly flooded in this indicative scenario"}]}
 {"type": "disclaimer", "lens": "flood", "text": "Indicative scenario, not a forecast. Follow official MBSA / JPS / NADMA guidance.", "links": []}
 {"type": "done", "message_id": "demo", "answer_status": "partial", "model": "mock-scripted"}

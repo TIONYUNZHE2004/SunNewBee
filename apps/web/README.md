@@ -386,12 +386,38 @@ POST /chat (SSE) -> parseSse -> useChatStream -> chatReducer   (messages, tool c
                                                               flood.set_level  -> scenarioId (+ flood layer on)
                                                               camera.fly_to    -> camera
                                                               layer.toggle     -> lensVisible
+                                                              whatif.diff      -> whatIf (imagined diff)
+                                                              river.rollout    -> rollout {on, stage, playing}
+                                                              day.show         -> day {on, scenario, t} paused (+ its river stage)
 sceneStore --> Cesium / Mapbox / List renderers (one adapter each) + map overlays + legend
 ```
 
 Each renderer reads `useScene` and the REST layers (`/layers/{lens}?profile=&scenario_id=`);
 edge colour comes from `status_for_profile` (`ok | unknown | blocked | flooded_likely |
 flooded_possible`) via `scene/status.ts`, and unknown is drawn dashed and amber, never green.
+
+**What-if (Cycle 1, `ai/world-model`):**
+
+- **The intent.** `whatif.diff` carries a FeatureCollection, and every feature has `whatif: true` and `side: before|after|touched`.
+- **The map.** `features/whatif/whatifModel.diffLines` splits it.
+  - The Cesium `WhatIfLayer` draws today's lines grey and dashed, the imagined lines lilac, and the imagined changes magenta.
+  - The camera frames the diff.
+  - `map-ui/WhatIfTag` shows the "What-if · not real" legend, with a clear button.
+- **Every view (Cycle 8).** The diff also carries a `meta` member: the engine summary, action labels and profile. Before/after features carry `from_name`/`to_name`, and touched features carry `label`.
+  - `MapboxLite` draws the same three line layers. Its filter requires `whatif == true`.
+  - The List view's `scene/list/WhatIfListSection` spells out the diff as text: the imagined changes, today vs what-if counts, and the journeys that change.
+  - The pure helpers are `diffMeta`, `diffJourneys` and `touchedLabels`.
+- **The panel.** `features/whatif/WhatIfLab` (Management mode, top of the assistant panel) calls `GET /what-if/suggestions` and `POST /what-if` without the LLM.
+
+**Rising river (Cycle 3):**
+- **Panel.** `features/whatif/RisingRiverPanel` (Management mode, under the What-if Lab) fetches `GET /river-rollout` through `useRiverRollout`. It has stage buttons and play/pause, which steps one stage every 2.5 s and drives `setScenario` so the flood layer follows. It shows per-persona "N of M still reach a centre" bars.
+- **Map.** `scene/cesium/RolloutLayer` draws the synthetic residents as one `PointPrimitiveCollection` with one `clock.onTick`:
+  - yellow residents walk their engine-computed route for the current stage;
+  - red residents are cut off and stand still;
+  - grey residents have no mapped connection.
+
+  `map-ui/RolloutTag` (top right) always says "simulation, not a forecast".
+- **Pure helpers** are in `whatif/rolloutModel`.
 
 ## File map
 

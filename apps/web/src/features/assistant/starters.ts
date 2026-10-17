@@ -17,16 +17,24 @@ export const STARTERS: Record<Mode, Starter[]> = {
     },
     { icon: "wheelchair", text: "Wheelchair route to the lakeside mall", profile: "wheelchair" },
     { icon: "flood", text: "Nearest evacuation centre if the water rises 3 m" },
-    { icon: "recycle", text: "Where to drop off recycling" },
-  ],
-  management: [
-    { icon: "flood", text: "Which places are cut off if the water rises 3 m?" },
-    { icon: "flood", text: "Which areas are isolated if the water rises 5 m?" },
     {
       icon: "route",
-      text: "Which routes to the lakeside mall are cut off if the water rises 3 m?",
+      text: "At which river level does my route from the mall to an evacuation centre break?",
     },
-    { icon: "pin", text: "Tell me about Elmina Lakeside Mall" },
+  ],
+  management: [
+    {
+      icon: "wheelchair",
+      text: "What if the river rises 3 m and we build a ramp at the steps? Can wheelchair users still reach a centre?",
+      profile: "wheelchair",
+    },
+    { icon: "flood", text: "Which places are cut off if the water rises 3 m?" },
+    {
+      icon: "check",
+      text: "Which facts should staff verify first so wheelchair users can reach a centre?",
+      profile: "wheelchair",
+    },
+    { icon: "walk", text: "What happens to residents in the storm rehearsal?" },
   ],
 };
 

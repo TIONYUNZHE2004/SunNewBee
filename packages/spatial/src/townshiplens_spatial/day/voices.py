@@ -1,0 +1,186 @@
+"""Attach the spotlight residents' voices to a day report (Cycle 11).
+
+A recording (data/sim/<site>/day-<scenario>.json, made by townshiplens_agent.day_voice) holds
+the residents' decisions, diary lines and feed posts. The engine always re-runs the day with
+those decisions on the *current* world, and a recorded line is kept only when it still fits:
+its trip exists with the same outcome, and the line passes `spotlight.check_text` against the
+live facts. Anything else falls back to the template voice, so a resolved ticket or a new
+closure never leaves a resident describing a day that no longer happened.
+"""
+
+from __future__ import annotations
+
+import json
+from dataclasses import asdict
+from pathlib import Path
+
+from . import spotlight as S
+from .summary import SEVERITY
+
+
+def recording_path(world, scenario_id: str) -> Path | None:
+    if world.data_dir is None:
+        return None
+    base = Path(world.data_dir).resolve()
+    return base.parent.parent / "sim" / base.name / f"day-{scenario_id}.json"
+
+
+def load(world, scenario_id: str) -> dict | None:
+    p = recording_path(world, scenario_id)
+    if p is None or not p.exists():
+        return None
+    try:
+        return json.loads(p.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+
+
+def _status_of(f: dict) -> dict[str, str]:
+    return {t["id"]: t["status"] for t in f["trips"]}
+
+
+def template_feed(cast, facts: dict[str, dict]) -> list[dict]:
+    """Deterministic posts from residents whose day went wrong, newest last. Likes are the
+    number of other spotlight residents with a trip of the same kind that went wrong too (a
+    count from the engine, not a guess)."""
+    posts = []
+    for c in cast:
+        f = facts[c.id]
+        bad = [
+            t for t in f["trips"] if t["status"] in ("late", "cancelled", "turned_back", "stranded")
+        ]
+        if not bad:
+            continue
+        t = max(bad, key=lambda x: SEVERITY.get(x["status"], 0))
+        text = S.template_post(f, t)
+        if not text:
+            continue
+        same = sum(
+            1
+            for o in cast
+            if o.id != c.id
+            and any(x["to"] == t["to"] and x["status"] == t["status"] for x in facts[o.id]["trips"])
+        )
+        when = t["arrived"] or t["left"] or t["planned"]
+        h, m = (int(x) for x in when.split(":"))
+        posts.append(
+            {
+                "author": c.id,
+                "name": c.name,
+                "role": c.role,
+                "t": h * 60 + m,
+                "text": text,
+                "trip": t["id"],
+                "status": t["status"],
+                "likes": same,
+                "replies": [],
+                "voice": "template",
+            }
+        )
+    posts.sort(key=lambda p: (p["t"], p["author"]))
+    for i, p in enumerate(posts):
+        p["id"] = f"p{i + 1:03d}"
+    return posts[:16]
+
+
+def attach(res, day, cast: list[S.Spotlight], rec: dict | None) -> dict:
+    facts = S.facts_for(res, day, cast)
+    by_id = {c.id: c for c in cast}
+    if rec:
+        for c in rec.get("cast", []):
+            if c["id"] in by_id and c.get("voice") and not S.BANNED.search(c["voice"]):
+                by_id[c["id"]].voice = c["voice"]
+    dropped = 0
+    people = []
+    rec_diaries = (rec or {}).get("diaries", {})
+    reasons = (rec or {}).get("decision_reasons", {})
+    for c in cast:
+        if S.check_text(c.voice, {"trips": [], "decisions": []}):
+            c.voice = f"Speaks plainly about their own day as a {c.role}."
+        f = facts[c.id]
+        status = _status_of(f)
+        tmpl = {x["trip"]: x for x in S.template_diary(f)}
+        lines = []
+        for ln in rec_diaries.get(c.id, []):
+            # kept only while that trip still happened with the same outcome, and every time
+            # and number in it is that trip's own
+            ok = (
+                ln.get("trip") in status
+                and ln.get("status") == status[ln["trip"]]
+                and not S.check_text(ln.get("text", ""), f, ln["trip"])
+            )
+            if ok and ln.get("voice") == "ai":
+                lines.append(ln)
+            elif ln.get("trip") in tmpl:
+                lines.append({**tmpl[ln["trip"]], "voice": "template"})
+                dropped += ln.get("voice") == "ai"
+        if not lines:
+            lines = [{**x, "voice": "template"} for x in tmpl.values()]
+        decisions = [
+            {**asdict(p), "reason": reasons.get(p.key, "")}
+            for p in day.points
+            if p.resident == c.id
+        ]
+        for d in decisions:
+            if d["reason"] and (S.check_text(d["reason"], f) or len(d["reason"]) > 200):
+                d["reason"] = ""
+        people.append({**asdict(c), "facts": f, "diary": lines, "decisions": decisions})
+    feed = []
+    notices = S.notices(day.scenario, day.world)  # rebuilt from the scenario, never trusted
+    if rec and rec.get("feed"):
+        for p in rec["feed"]:
+            if p.get("author") == "township":
+                continue
+            f = facts.get(p.get("author"))
+            if f is None or _status_of(f).get(p.get("trip")) != p.get("status"):
+                dropped += 1
+                continue
+            # every resident post is checked, whatever voice wrote it
+            if S.check_text(p.get("text", ""), f, p.get("trip")):
+                dropped += 1
+                continue
+            replies = [
+                {**r, "name": by_id[r["author"]].name}
+                for r in p.get("replies", [])
+                if r.get("author") in facts
+                and r.get("trip") in _status_of(facts[r["author"]])
+                and not S.check_text(r.get("text", ""), facts[r["author"]], r.get("trip"))
+            ]
+            # name and role always from the cast, never from the recording
+            c = by_id[p["author"]]
+            feed.append({**p, "name": c.name, "role": c.role, "replies": replies})
+    if not feed:
+        feed = template_feed(cast, facts)
+    feed = sorted(notices + feed, key=lambda p: (p["t"], p["id"]))
+    return {
+        "residents": people,
+        "feed": feed,
+        "voice": {
+            "model": (rec or {}).get("model", "template (no AI)"),
+            "recorded_at": (rec or {}).get("recorded_at"),
+            "dropped_as_stale": dropped,
+            "note": "Synthetic residents. Their words may come from an AI model; every time "
+            "and number in them is checked against their own simulated day.",
+        },
+    }
+
+
+def attach_town_hall(lines: list[dict], rec: dict) -> list[dict]:
+    """Recorded AI town-hall lines, kept only while the resident's before/after is the same and
+    the line passes the check against that trip's own minutes."""
+    from .compare import reaction_facts
+
+    by = {x.get("author"): x for x in rec.get("town_hall", [])}
+    out = []
+    for ln in lines:
+        r = by.get(ln["author"])
+        same = r and r.get("trip") == ln["trip"] and r.get("row") == ln["row"]
+        if (
+            same
+            and r.get("voice") == "ai"
+            and not S.check_text(r.get("text", ""), reaction_facts(ln["row"]), ln["trip"])
+        ):
+            out.append({**ln, "text": r["text"], "voice": "ai"})
+        else:
+            out.append(ln)
+    return out

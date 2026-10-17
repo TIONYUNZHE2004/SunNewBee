@@ -1,6 +1,7 @@
 import * as Cesium from "cesium";
 import { useEffect } from "react";
 import { useCesium } from "resium";
+import { diffLines } from "../../whatif/whatifModel";
 import { useScene } from "../sceneStore";
 
 export const prefersReducedMotion = () =>
@@ -50,6 +51,14 @@ export function useCameraIntents(
         const pts = s.route.geojson.coordinates.map((c) =>
           Cesium.Cartesian3.fromDegrees(c[0] as number, c[1] as number),
         );
+        if (pts.length)
+          move((v) => go(v, Cesium.BoundingSphere.fromPoints(pts), undefined, pitchDeg));
+      } else if (s.whatIf && s.whatIf !== prev.whatIf) {
+        // Frame the imagined diff (changed journeys and imagined changes) when it arrives.
+        const lines = diffLines(s.whatIf.geojson as never);
+        const pts = [...lines.after, ...lines.before, ...lines.touched]
+          .flat()
+          .map((c) => Cesium.Cartesian3.fromDegrees(c[0] as number, c[1] as number));
         if (pts.length)
           move((v) => go(v, Cesium.BoundingSphere.fromPoints(pts), undefined, pitchDeg));
       } else if (s.focusPlaceId && s.focusPlaceId !== prev.focusPlaceId) {

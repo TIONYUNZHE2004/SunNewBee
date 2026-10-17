@@ -1,6 +1,8 @@
 # Golden hero questions. Run: `pnpm golden` (mock) or `GOLDEN_REAL=1 pnpm golden` (OpenRouter).
 # expect keys: tools_include, events_include, done_status_in, text_includes / text_excludes
-# (case-insensitive substrings of the joined text.delta); first_line = required prefix of the first text line.
+# (case-insensitive substrings of the joined text.delta); text_includes_any = at least one of; first_line = required
+# prefix of the first text line; first_line_excludes = substring the first line must not contain;
+# mock_only = expectations on the mock's exact wording, skipped with GOLDEN_REAL=1.
 - id: access-confirmed
   message: "Can I push a stroller from Car Park B to the playground without stairs?"
   profile: stroller
@@ -32,7 +34,7 @@
 - id: waste-unknown
   message: "Where can I drop off e-waste batteries?"
   profile: default
-  expect: { tools_include: [find_waste_points], events_include: [citation, uncertainty], done_status_in: [partial], text_includes: ["not confirmed yet"] }
+  expect: { tools_include: [find_waste_points], events_include: [citation, uncertainty], done_status_in: [partial], text_includes_any: ["not confirmed yet", "not checked yet", "unverified", "not yet verified"], mock_only: { text_includes: ["not confirmed yet"] } }
 - id: flood-islands
   message: "Which places become islands if the river rises 3 m?"
   profile: default
@@ -49,8 +51,44 @@
   message: "Is the playground safe during a flood of +3 m?"
   profile: default
   scenario_id: stage_p3m
-  expect: { first_line: "Route status: ", events_include: [disclaimer], text_excludes: [" is safe"] }
+  expect: { events_include: [disclaimer], text_excludes: [" is safe"], text_includes: ["likely flooded"], first_line_excludes: "⚠", mock_only: { first_line: "Route status: " } }
 - id: place-info-found-place
   message: "Tell me about Elmina Lakeside Mall"
   profile: default
   expect: { tools_include: [get_place_details], events_include: [citation], text_excludes: ["don't have that place"] }
+- id: whatif-ramp
+  message: "What if we build a ramp at the steps? How many wheelchair journeys would work?"
+  profile: wheelchair
+  expect: { tools_include: [simulate_what_if], events_include: [scene.intent, citation, disclaimer], done_status_in: [partial, answered], text_includes: ["what-if"], text_excludes: [" is confirmed", "will be built"], mock_only: { text_includes: ["3 of 5 wheelchair journeys"] } }
+- id: whatif-flood-ramp-evacuation
+  message: "If the river rises 3 m and we build a ramp at the steps, how many wheelchair users can still reach an evacuation centre? What if?"
+  profile: wheelchair
+  expect: { tools_include: [simulate_what_if], events_include: [disclaimer], text_includes: ["what-if", "not a forecast"], text_excludes: [" safe", "will be built"] }
+- id: verify-next-plan
+  message: "Which facts should staff verify first so wheelchair users can reach an evacuation centre?"
+  profile: wheelchair
+  expect: { tools_include: [plan_verifications], events_include: [citation], done_status_in: [partial, answered], text_excludes: ["will be confirmed", "probably"], mock_only: { first_line: "If this check at 1 place passes" } }
+- id: river-tipping-point
+  message: "At which river level does my route from the playground to the evacuation centre break?"
+  profile: default
+  expect: { tools_include: [river_tipping_point], events_include: [disclaimer], text_includes: ["not a forecast", "River +3 m"], text_excludes: [" safe", " deep"] }
+- id: river-rollout
+  message: "What happens to residents as the river rises?"
+  profile: wheelchair
+  expect: { tools_include: [rising_river_rollout], events_include: [scene.intent, disclaimer], text_includes: ["not a forecast"], text_excludes: [" safe"] }
+- id: fixit-best-changes
+  message: "Which 2 changes would help wheelchair users most on everyday trips?"
+  profile: wheelchair
+  expect: { tools_include: [find_fixes], events_include: [citation], text_includes: ["what-if"], text_excludes: ["will be built", " is confirmed"] }
+- id: day-weekday-rehearsal
+  message: "What happens to residents on a normal weekday rehearsal?"
+  profile: default
+  expect: { tools_include: [day_rehearsal], events_include: [scene.intent, citation], text_includes: ["synthetic", "not a forecast"], text_excludes: [" safe", "will be stranded", "%"] }
+- id: day-event-rehearsal-bm
+  message: "Apa yang berlaku kepada penduduk dalam latihan malam acara di taman?"
+  profile: default
+  expect: { tools_include: [day_rehearsal], events_include: [scene.intent, citation], text_excludes: [" safe", "selamat"], mock_only: { text_includes: ["synthetic", "not a forecast", "night"] } }
+- id: day-test-a-change
+  message: "Which change should we test in the weekday rehearsal?"
+  profile: default
+  expect: { tools_include: [day_test_change], events_include: [scene.intent, citation, disclaimer], text_includes: ["imagined", "synthetic", "not a forecast"], text_excludes: ["will be built", " safe", "%"] }

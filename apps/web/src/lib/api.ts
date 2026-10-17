@@ -109,3 +109,32 @@ export const useBuildings = () =>
     retry: false,
     queryFn: () => fetchBuildings(),
   });
+
+/** Rising-river rollout (synthetic residents per persona at every river stage). Deterministic per
+ * world version and cached by the API; the first call on the seed takes about 15 s. */
+export const useRiverRollout = (enabled: boolean) =>
+  useQuery({
+    queryKey: ["river-rollout"],
+    enabled,
+    staleTime: Number.POSITIVE_INFINITY,
+    queryFn: async () => unwrap(await api.GET("/river-rollout", { params: { query: {} } })),
+  });
+
+/** Elmina Day: one simulated day of 5,000 synthetic residents (rehearsal, not a forecast).
+ * Cached by the API per world version; the first call on the seed takes a few seconds. */
+export const useDay = (scenario: string, enabled: boolean) =>
+  useQuery({
+    queryKey: ["day", scenario],
+    enabled,
+    staleTime: Number.POSITIVE_INFINITY,
+    queryFn: async () =>
+      unwrap(await api.GET("/day/{scenario_id}", { params: { path: { scenario_id: scenario } } })),
+  });
+
+export const useDayScenarios = (enabled: boolean) =>
+  useQuery({
+    queryKey: ["day-scenarios"],
+    enabled,
+    staleTime: Number.POSITIVE_INFINITY,
+    queryFn: async () => unwrap(await api.GET("/day/scenarios")),
+  });

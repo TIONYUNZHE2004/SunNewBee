@@ -21,6 +21,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/belief": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Belief Table
+         * @description The planner's belief over unchecked facts: Beta(alpha, beta) per path type and attribute,
+         *     from regional OSM tags (if built) and real staff verifications. Planning only.
+         */
+        get: operations["belief_table_belief_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/briefings/flood": {
         parameters: {
             query?: never;
@@ -88,6 +109,85 @@ export interface paths {
         put?: never;
         /** End Closure */
         post: operations["end_closure_closures__closure_id__end_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/day/scenarios": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Day Scenarios */
+        get: operations["day_scenarios_day_scenarios_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/day/{scenario_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Day Report
+         * @description One simulated day: 5,000 synthetic residents, counts by group, timeline and map tracks.
+         */
+        get: operations["day_report_day__scenario_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/day/{scenario_id}/changes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Day Changes
+         * @description Imagined changes worth testing on this day, from its own trips (on a river-rise day the
+         *     flooded stretches the most residents rely on, then busy footways and steps).
+         */
+        get: operations["day_changes_day__scenario_id__changes_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/day/{scenario_id}/compare": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Day Compare
+         * @description The same simulated day with and without imagined changes, trip by trip: who gains and
+         *     who loses, by group, and what the spotlight residents would say. Imagined, never a plan.
+         */
+        post: operations["day_compare_day__scenario_id__compare_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -331,6 +431,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/river-rollout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * River Rollout
+         * @description Synthetic residents per persona heading for the nearest evacuation centre at every river
+         *     stage, with routes for the 3D animation. Indicative simulation, not a forecast. Cached by
+         *     world version (the first call on the seed takes about 15 s).
+         */
+        get: operations["river_rollout_river_rollout_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/routes": {
         parameters: {
             query?: never;
@@ -525,6 +647,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/verification-requests/{vr_id}/impact": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Ticket Impact
+         * @description What this check would change (open) or changed (resolved) on the township model: sampled
+         *     journeys, the ticket's own journey and the belief. Staff planning estimate; counts only.
+         */
+        get: operations["ticket_impact_verification_requests__vr_id__impact_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/verification-requests/{vr_id}/resolve": {
         parameters: {
             query?: never;
@@ -542,6 +685,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/verify-next": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Verify Next
+         * @description Survey plan: which facts to check first so the most sample journeys would be confirmed.
+         *     The same cached tool the assistant calls (cached per world version and open tickets).
+         */
+        get: operations["verify_next_verify_next_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/waste-points": {
         parameters: {
             query?: never;
@@ -551,6 +715,46 @@ export interface paths {
         };
         /** Waste */
         get: operations["waste_waste_points_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/what-if": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * What If
+         * @description Imagine changes on a copy of the township and compare journeys before and after.
+         */
+        post: operations["what_if_what_if_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/what-if/suggestions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * What If Suggestions
+         * @description Engine-proposed what-if actions with readable labels (ramps, verifications, keystones).
+         */
+        get: operations["what_if_suggestions_what_if_suggestions_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -582,6 +786,16 @@ export interface components {
             }[];
             /** Likely Edge Ids */
             likely_edge_ids?: string[];
+            /**
+             * Likely Path Count
+             * @default 0
+             */
+            likely_path_count: number;
+            /**
+             * Likely Place Count
+             * @default 0
+             */
+            likely_place_count: number;
             /** Likely Place Ids */
             likely_place_ids?: string[];
             /**
@@ -595,6 +809,16 @@ export interface components {
             }[];
             /** Possible Edge Ids */
             possible_edge_ids?: string[];
+            /**
+             * Possible Path Count
+             * @default 0
+             */
+            possible_path_count: number;
+            /**
+             * Possible Place Count
+             * @default 0
+             */
+            possible_place_count: number;
             /** Possible Place Ids */
             possible_place_ids?: string[];
             /**
@@ -606,6 +830,62 @@ export interface components {
             scenario_id: string;
             /** Warnings */
             warnings?: string[];
+        };
+        /**
+         * AnswerCheck
+         * @description The validator's verdict on one answer attempt: accepted, or sent back with readable
+         *     reasons (the model then rewrites it). `repairs` counts fact-free fixes applied first.
+         */
+        AnswerCheck: {
+            /** Attempt */
+            attempt: number;
+            /** Issues */
+            issues?: string[];
+            /** Ok */
+            ok: boolean;
+            /**
+             * Repairs
+             * @default 0
+             */
+            repairs: number;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "answer.check";
+        };
+        /**
+         * AnswerDraft
+         * @description Provisional summary text while the model writes its answer. Not checked yet: the client
+         *     shows it as a draft and replaces it with the validated `text.delta` stream.
+         */
+        AnswerDraft: {
+            /** Attempt */
+            attempt: number;
+            /** Delta */
+            delta: string;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "answer.draft";
+        };
+        /**
+         * AssumeFact
+         * @description Imagine one recorded fact on a path, e.g. width_m = 1.2.
+         */
+        AssumeFact: {
+            /** Attribute */
+            attribute: string;
+            /** Element Id */
+            element_id: string;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "assume_fact";
+            /** Value */
+            value: unknown;
         };
         /** AttributeBody */
         AttributeBody: {
@@ -620,6 +900,43 @@ export interface components {
             status: "verified" | "unknown" | "reported";
             /** Value */
             value?: unknown;
+        };
+        /** BeliefRow */
+        BeliefRow: {
+            /** Alpha */
+            alpha: number;
+            /** Attribute */
+            attribute: string;
+            /** Beta */
+            beta: number;
+            /** Edge Type */
+            edge_type: string;
+            /** Q */
+            q: number;
+        };
+        /** BeliefTable */
+        BeliefTable: {
+            /** Note */
+            note: string;
+            /** Rows */
+            rows: components["schemas"]["BeliefRow"][];
+            /** Sources */
+            sources: {
+                [key: string]: number;
+            };
+        };
+        /**
+         * BuildRamp
+         * @description Imagine a capital work: the path rebuilt step-free (steps become a ramp).
+         */
+        BuildRamp: {
+            /** Element Id */
+            element_id: string;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "build_ramp";
         };
         /**
          * BuildingsLayer
@@ -662,6 +979,15 @@ export interface components {
                 [key: string]: unknown;
             };
         };
+        /** Candidate */
+        Candidate: {
+            /** Action */
+            action: components["schemas"]["SetRiverStage"] | components["schemas"]["ClosePath"] | components["schemas"]["BuildRamp"] | components["schemas"]["AssumeFact"] | components["schemas"]["VerifyFact"] | components["schemas"]["RaisePaths"];
+            /** Journeys Using It */
+            journeys_using_it?: number | null;
+            /** Label */
+            label: string;
+        };
         /** CentreReachability */
         CentreReachability: {
             centre: components["schemas"]["EvacCentre"];
@@ -682,7 +1008,7 @@ export interface components {
          */
         ChatEventDoc: {
             /** Event */
-            event: components["schemas"]["TextDelta"] | components["schemas"]["ToolCall"] | components["schemas"]["ToolResultEvent"] | components["schemas"]["SceneIntentEvent"] | components["schemas"]["Citation"] | components["schemas"]["Uncertainty"] | components["schemas"]["Disclaimer"] | components["schemas"]["VerificationRequested"] | components["schemas"]["ErrorEvent"] | components["schemas"]["Done"];
+            event: components["schemas"]["TextDelta"] | components["schemas"]["AnswerDraft"] | components["schemas"]["AnswerCheck"] | components["schemas"]["ToolCall"] | components["schemas"]["ToolResultEvent"] | components["schemas"]["SceneIntentEvent"] | components["schemas"]["Citation"] | components["schemas"]["Uncertainty"] | components["schemas"]["Disclaimer"] | components["schemas"]["VerificationRequested"] | components["schemas"]["ErrorEvent"] | components["schemas"]["Done"];
         };
         /** ChatRequest */
         ChatRequest: {
@@ -749,6 +1075,19 @@ export interface components {
             verified_by?: string | null;
         };
         /**
+         * ClosePath
+         * @description Imagine a path closed (works, an event, a fallen tree).
+         */
+        ClosePath: {
+            /** Element Id */
+            element_id: string;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "close_path";
+        };
+        /**
          * ClosureOut
          * @description A closure as the public sees it: always a staff report, never a verified fact.
          */
@@ -813,6 +1152,129 @@ export interface components {
             /** Target Id */
             target_id: string;
         };
+        /** DayChanges */
+        DayChanges: {
+            /** Candidates */
+            candidates: {
+                [key: string]: unknown;
+            }[];
+            /** Scenario */
+            scenario: string;
+        };
+        /** DayCompare */
+        DayCompare: {
+            /** Actions */
+            actions: string[];
+            /** Baseline */
+            baseline: string;
+            /** Biggest */
+            biggest: {
+                [key: string]: unknown;
+            }[];
+            /** Changed Geojson */
+            changed_geojson: {
+                [key: string]: unknown;
+            };
+            /** Disclaimer */
+            disclaimer: string;
+            /** Groups */
+            groups: {
+                [key: string]: unknown;
+            }[];
+            /** Residents Better */
+            residents_better: number;
+            /** Residents Changed */
+            residents_changed: number;
+            /** Residents Worse */
+            residents_worse: number;
+            /** Scenario */
+            scenario: string;
+            /** Town Hall */
+            town_hall: {
+                [key: string]: unknown;
+            }[];
+            /** Trips Better */
+            trips_better: number;
+            /** Trips Changed */
+            trips_changed: number;
+            /** Trips Worse */
+            trips_worse: number;
+            /** Voice */
+            voice: {
+                [key: string]: unknown;
+            };
+        };
+        /** DayCompareRequest */
+        DayCompareRequest: {
+            /** Actions */
+            actions: (components["schemas"]["SetRiverStage"] | components["schemas"]["ClosePath"] | components["schemas"]["BuildRamp"] | components["schemas"]["AssumeFact"] | components["schemas"]["VerifyFact"] | components["schemas"]["RaisePaths"])[];
+        };
+        /** DayReport */
+        DayReport: {
+            /** Assumptions */
+            assumptions: string[];
+            /** Disclaimer */
+            disclaimer: string;
+            /** Groups */
+            groups: {
+                [key: string]: unknown;
+            }[];
+            /** Headline */
+            headline: {
+                [key: string]: number;
+            };
+            /** Health */
+            health: {
+                [key: string]: number;
+            };
+            /** Paces M Per Min */
+            paces_m_per_min: {
+                [key: string]: number;
+            };
+            /** Places */
+            places: {
+                [key: string]: unknown;
+            }[];
+            /** Population */
+            population: {
+                [key: string]: unknown;
+            };
+            /** Scenario */
+            scenario: {
+                [key: string]: unknown;
+            };
+            /** School */
+            school: {
+                [key: string]: number;
+            };
+            /** Spotlight */
+            spotlight: {
+                [key: string]: unknown;
+            };
+            /** Timeline */
+            timeline: {
+                [key: string]: unknown;
+            }[];
+            /** Tracks */
+            tracks: {
+                [key: string]: unknown;
+            };
+            /** World Version */
+            world_version: number;
+        };
+        /** DayScenario */
+        DayScenario: {
+            /** Day */
+            day: string;
+            /** Hero */
+            hero: string;
+            /** Id */
+            id: string;
+            /** Label */
+            label: string;
+            /** Summary */
+            summary: string;
+        };
         /** DeepSpot */
         DeepSpot: {
             /** Bbox */
@@ -832,9 +1294,9 @@ export interface components {
             /**
              * Lens
              * @default flood
-             * @constant
+             * @enum {string}
              */
-            lens: "flood";
+            lens: "flood" | "whatif";
             /** Links */
             links?: {
                 [key: string]: string;
@@ -977,6 +1439,51 @@ export interface components {
             /** Photo Url */
             photo_url: string;
         };
+        /** FactImpact */
+        FactImpact: {
+            /** Attribute */
+            attribute: string;
+            /**
+             * Became Confirmed
+             * @default 0
+             */
+            became_confirmed: number;
+            /** Belief Q */
+            belief_q?: number | null;
+            /** Belief Q Before */
+            belief_q_before?: number | null;
+            /**
+             * Changed
+             * @default 0
+             */
+            changed: number;
+            /** Element Id */
+            element_id: string;
+            /**
+             * Lost Route
+             * @default 0
+             */
+            lost_route: number;
+            /** Mode */
+            mode: string;
+            /**
+             * Note
+             * @default Sampled journeys on the township model; a planning estimate, not a promise. Residents never see these numbers.
+             */
+            note: string;
+            own?: components["schemas"]["OwnJourney"] | null;
+            /** Own Other Checks */
+            own_other_checks?: number | null;
+            /** Profile */
+            profile: string;
+            /**
+             * Profile Assumed
+             * @default false
+             */
+            profile_assumed: boolean;
+            /** Sampled */
+            sampled: number;
+        };
         /** GapFeature */
         GapFeature: {
             /** Geometry */
@@ -1046,6 +1553,41 @@ export interface components {
             /** Open Vrs */
             open_vrs: number;
         };
+        /** OwnJourney */
+        OwnJourney: {
+            /**
+             * Demo Values
+             * @default false
+             */
+            demo_values: boolean;
+            /** From Name */
+            from_name: string;
+            /** Statuses */
+            statuses: {
+                [key: string]: string;
+            };
+            /** To Name */
+            to_name: string;
+        };
+        /** PlanFact */
+        PlanFact: {
+            /** Attribute */
+            attribute: string;
+            /** Check */
+            check: string;
+            /** Element Id */
+            element_id: string;
+            /** Journeys Relying */
+            journeys_relying: number;
+            /** Label */
+            label: string;
+            /** Path Label */
+            path_label: string;
+            /** Q */
+            q: number;
+            /** Ticket Id */
+            ticket_id?: string | null;
+        };
         /**
          * ProfileInfo
          * @description Read-only profile parameters, for the 'Assumptions' section. No secrets, no per-user data.
@@ -1085,6 +1627,47 @@ export interface components {
              */
             threshold_basis: string;
         };
+        /**
+         * RaisePaths
+         * @description Imagine a capital work against floods: these path segments rebuilt above the township's
+         *     indicative flood levels (they no longer flood in any scenario). Imagined only: the real flood
+         *     data is never changed, and nothing says the real path is above any water level.
+         */
+        RaisePaths: {
+            /** Element Ids */
+            element_ids: string[];
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "raise_paths";
+            /** Label */
+            label?: string | null;
+        };
+        /** Resident */
+        Resident: {
+            /**
+             * Demo Evidence
+             * @default false
+             */
+            demo_evidence: boolean;
+            /** Id */
+            id: string;
+            /** Origin Coord */
+            origin_coord?: number[] | null;
+            /** Origin Id */
+            origin_id: string;
+            /** Origin Name */
+            origin_name?: string | null;
+            /** Profile */
+            profile: string;
+            /** Route Ids */
+            route_ids: (string | null)[];
+            /** Statuses */
+            statuses: string[];
+            /** Tipping Stage */
+            tipping_stage?: string | null;
+        };
         /** ResolveBody */
         ResolveBody: {
             /**
@@ -1101,6 +1684,36 @@ export interface components {
             note: string;
             /** Value */
             value?: unknown;
+        };
+        /** RiverRollout */
+        RiverRollout: {
+            /** Counts */
+            counts: {
+                [key: string]: {
+                    [key: string]: {
+                        [key: string]: number;
+                    };
+                };
+            };
+            /**
+             * Disclaimer
+             * @default Synthetic residents on the township model: an indicative simulation, not a forecast. River stages are scenarios, not water depths; departure times, warnings and crowding are not modelled; animation speed is illustrative. Follow official MBSA / JPS / NADMA guidance.
+             */
+            disclaimer: string;
+            /** Evidence Id */
+            evidence_id: string;
+            /** Profiles */
+            profiles: string[];
+            /** Residents */
+            residents: components["schemas"]["Resident"][];
+            /** Routes */
+            routes?: {
+                [key: string]: {
+                    [key: string]: unknown;
+                };
+            };
+            /** Stages */
+            stages: components["schemas"]["Stage"][];
         };
         /** Route */
         Route: {
@@ -1278,6 +1891,8 @@ export interface components {
         SceneIntent: {
             /** Center */
             center?: number[] | null;
+            /** Day */
+            day?: string | null;
             /** Distance M */
             distance_m?: number | null;
             /** Est Minutes */
@@ -1290,7 +1905,7 @@ export interface components {
              * Kind
              * @enum {string}
              */
-            kind: "camera.fly_to" | "place.focus" | "route.highlight" | "flood.set_level" | "layer.toggle";
+            kind: "camera.fly_to" | "place.focus" | "route.highlight" | "flood.set_level" | "layer.toggle" | "whatif.diff" | "river.rollout" | "day.show";
             /** Lens */
             lens?: ("access" | "flood" | "waste") | null;
             /** Place Id */
@@ -1303,6 +1918,8 @@ export interface components {
             route_status?: ("confirmed" | "partly_unverified" | "blocked" | "no_data") | null;
             /** Scenario Id */
             scenario_id?: string | null;
+            /** T Min */
+            t_min?: number | null;
             /** Visible */
             visible?: boolean | null;
         };
@@ -1314,6 +1931,19 @@ export interface components {
              * @enum {string}
              */
             type: "scene.intent";
+        };
+        /**
+         * SetRiverStage
+         * @description River rise scenario (indicative stages only; a stage never upgrades anything).
+         */
+        SetRiverStage: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "set_river_stage";
+            /** Scenario Id */
+            scenario_id: string;
         };
         /**
          * SimAdvisory
@@ -1512,6 +2142,22 @@ export interface components {
             /** Township */
             township: string;
         };
+        /** Stage */
+        Stage: {
+            /** Id */
+            id: string;
+            /** Label */
+            label: string;
+        };
+        /** Suggestions */
+        Suggestions: {
+            /** Candidates */
+            candidates: components["schemas"]["Candidate"][];
+            /** Profile */
+            profile: string;
+            /** River Stages */
+            river_stages: string[];
+        };
         /** TextDelta */
         TextDelta: {
             /** Delta */
@@ -1633,6 +2279,34 @@ export interface components {
             /** Error Type */
             type: string;
         };
+        /** VerificationPlan */
+        VerificationPlan: {
+            /** Belief Sources */
+            belief_sources: {
+                [key: string]: number;
+            };
+            /** Budget */
+            budget: number;
+            /**
+             * Disclaimer
+             * @default Survey plan from the township model: journeys would be confirmed only if they pass when staff check these facts on site. A planning estimate, not a promise.
+             */
+            disclaimer: string;
+            /** Evidence Id */
+            evidence_id: string;
+            /** Expected Confirmed */
+            expected_confirmed: number;
+            /** Facts */
+            facts: components["schemas"]["PlanFact"][];
+            /** Profile */
+            profile: string;
+            /** Scope */
+            scope: string;
+            /** Summary */
+            summary: {
+                [key: string]: number;
+            };
+        };
         /** VerificationRequest */
         VerificationRequest: {
             /** Attribute */
@@ -1688,6 +2362,27 @@ export interface components {
              */
             type: "verification.requested";
         };
+        /**
+         * VerifyFact
+         * @description Imagine staff verifying a fact: it passes every profile's limit, or it fails.
+         */
+        VerifyFact: {
+            /** Attribute */
+            attribute: string;
+            /** Element Id */
+            element_id: string;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "verify_fact";
+            /**
+             * Outcome
+             * @default pass
+             * @enum {string}
+             */
+            outcome: "pass" | "fail";
+        };
         /** WastePoint */
         WastePoint: {
             /** Accepted Items */
@@ -1713,6 +2408,73 @@ export interface components {
             type: "bin" | "recycling_drop_off" | "e_waste_drop_off" | "composting_site" | "programme_site";
             /** Verified At */
             verified_at?: string | null;
+        };
+        /** WhatIfRequest */
+        WhatIfRequest: {
+            /** Actions */
+            actions?: (components["schemas"]["SetRiverStage"] | components["schemas"]["ClosePath"] | components["schemas"]["BuildRamp"] | components["schemas"]["AssumeFact"] | components["schemas"]["VerifyFact"] | components["schemas"]["RaisePaths"])[];
+            /** From Id */
+            from_id?: string | null;
+            /**
+             * Profile
+             * @default wheelchair
+             */
+            profile: string;
+            /** Scenario Id */
+            scenario_id?: string | null;
+            /**
+             * Scope
+             * @default evacuation
+             * @enum {string}
+             */
+            scope: "journey" | "suite" | "evacuation";
+            /** To Id */
+            to_id?: string | null;
+        };
+        /** WhatIfResponse */
+        WhatIfResponse: {
+            /** Action Labels */
+            action_labels: string[];
+            /** Actions */
+            actions: (components["schemas"]["SetRiverStage"] | components["schemas"]["ClosePath"] | components["schemas"]["BuildRamp"] | components["schemas"]["AssumeFact"] | components["schemas"]["VerifyFact"] | components["schemas"]["RaisePaths"])[];
+            /** Changed */
+            changed: {
+                [key: string]: unknown;
+            }[];
+            /** Changed Truncated */
+            changed_truncated: boolean;
+            /** Counts After */
+            counts_after: {
+                [key: string]: {
+                    [key: string]: number;
+                };
+            };
+            /** Counts Before */
+            counts_before: {
+                [key: string]: {
+                    [key: string]: number;
+                };
+            };
+            /** Diff Geojson */
+            diff_geojson: {
+                [key: string]: unknown;
+            };
+            /** Disclaimer */
+            disclaimer: string;
+            /** Evidence Id */
+            evidence_id: string;
+            /** Profile */
+            profile: string;
+            /** Scenario Id */
+            scenario_id: string | null;
+            /** Scope */
+            scope: string;
+            /** Summary */
+            summary: {
+                [key: string]: number;
+            };
+            /** Touched */
+            touched: string[];
         };
     };
     responses: never;
@@ -1755,6 +2517,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    belief_table_belief_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BeliefTable"];
                 };
             };
         };
@@ -1924,6 +2706,165 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
                 };
+            };
+        };
+    };
+    day_scenarios_day_scenarios_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DayScenario"][];
+                };
+            };
+        };
+    };
+    day_report_day__scenario_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                scenario_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DayReport"];
+                };
+            };
+            /** @description unknown scenario */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description busy */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    day_changes_day__scenario_id__changes_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                scenario_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DayChanges"];
+                };
+            };
+            /** @description unknown scenario */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description busy */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    day_compare_day__scenario_id__compare_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                scenario_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DayCompareRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DayCompare"];
+                };
+            };
+            /** @description unknown scenario */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description busy */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };
@@ -2357,6 +3298,43 @@ export interface operations {
             };
         };
     };
+    river_rollout_river_rollout_get: {
+        parameters: {
+            query?: {
+                profiles?: string[] | null;
+                n?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RiverRollout"];
+                };
+            };
+            /** @description unknown or non-walking profile */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description the township model is busy; retry shortly */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     routes_routes_post: {
         parameters: {
             query?: never;
@@ -2733,6 +3711,51 @@ export interface operations {
             };
         };
     };
+    ticket_impact_verification_requests__vr_id__impact_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                vr_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FactImpact"];
+                };
+            };
+            /** @description unknown verification request */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description busy */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     resolve_verification_requests__vr_id__resolve_post: {
         parameters: {
             query?: never;
@@ -2770,6 +3793,46 @@ export interface operations {
             };
         };
     };
+    verify_next_verify_next_get: {
+        parameters: {
+            query?: {
+                profile?: string;
+                scope?: "suite" | "evacuation";
+                budget?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VerificationPlan"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description busy */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     waste_waste_points_get: {
         parameters: {
             query?: {
@@ -2789,6 +3852,69 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["WastePoint"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    what_if_what_if_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WhatIfRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WhatIfResponse"];
+                };
+            };
+            /** @description illegal or invalid actions */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    what_if_suggestions_what_if_suggestions_get: {
+        parameters: {
+            query?: {
+                profile?: string;
+                near_place?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Suggestions"];
                 };
             };
             /** @description Validation Error */

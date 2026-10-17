@@ -9,11 +9,11 @@ import asyncio
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, get_args
+from typing import Any, Literal, get_args
 
 from pydantic_ai import Agent, ModelRetry, RunContext, ToolOutput
 from pydantic_ai.models import Model
-from pydantic_ai.models.openrouter import OpenRouterModel
+from pydantic_ai.models.openrouter import OpenRouterModel, OpenRouterModelSettings
 from pydantic_ai.providers.openrouter import OpenRouterProvider
 from townshiplens_spatial import tools as sp
 from townshiplens_spatial.models import Evidence, VerificationRequest
@@ -21,12 +21,18 @@ from townshiplens_spatial.routing import CENTRE_PREFIX
 from townshiplens_spatial.scenario_meta import scenario_source
 
 from .answer import FinalAnswer
-from .events import ChatRequest, ToolCall, ToolResultEvent, VerificationRequested
+from .events import (
+    AnswerCheck,
+    ChatRequest,
+    ToolCall,
+    ToolResultEvent,
+    VerificationRequested,
+)
 from .labels import enrich_unknowns
 from .mock import mock_model
 from .record import TurnRecord
 from .settings import AgentSettings
-from .validate import validate_answer
+from .validate import issue_labels, repair_answer, validate_answer
 
 SYSTEM = (Path(__file__).parent / "prompts" / "system.md").read_text(encoding="utf-8")
 
@@ -46,7 +52,14 @@ def model_for(settings: AgentSettings, escalate: bool = False) -> Model:
     provider = OpenRouterProvider(
         api_key=settings.openrouter_api_key or None, app_title="TownshipLens"
     )
-    return OpenRouterModel(name, provider=provider)
+    # Prompt caching (Anthropic via OpenRouter): the system prompt and the 10 tool schemas are
+    # ~5k tokens resent on every request of a turn; caching them cuts input cost and latency.
+    cache = OpenRouterModelSettings(
+        openrouter_cache_instructions=True,
+        openrouter_cache_tool_definitions=True,
+        openrouter_cache_messages=True,
+    )
+    return OpenRouterModel(name, provider=provider, settings=cache)
 
 
 async def _emit(deps: Deps, ev) -> None:
@@ -61,7 +74,20 @@ def _summarise(name: str, res: sp.ToolResult) -> str:
     if name == "plan_route" and isinstance(d, dict):
         return f"route {d.get('status')}"
     if name == "affected_places" and isinstance(d, dict):
-        return f"{d.get('likely_total', 0)} likely, {d.get('possible_total', 0)} possible"
+        return (
+            f"{d.get('likely_place_count', 0)} places and {d.get('likely_path_count', 0)} paths "
+            f"likely, {d.get('possible_place_count', 0)} places and "
+            f"{d.get('possible_path_count', 0)} paths possible"
+        )
+    if name == "simulate_what_if" and isinstance(d, dict):
+        sm = d.get("summary") or {}
+        before, after, total = sm.get("reach_before"), sm.get("reach_after"), sm.get("total")
+        return f"what-if: {before} -> {after} of {total} reach"
+    if name == "plan_verifications" and isinstance(d, dict):
+        sm = d.get("summary") or {}
+        return f"plan: {len(d.get('facts') or [])} checks -> {sm.get('confirmed_after')} confirmed"
+    if name == "suggest_interventions" and isinstance(d, dict):
+        return f"{len(d.get('candidates') or [])} candidate(s)"
     if isinstance(d, list):
         return f"{len(d)} result(s)"
     return "ok"
@@ -141,7 +167,7 @@ def safe_vr_args(world, kwargs: dict, source: str = "chat") -> dict:
 _safe_vr_args = safe_vr_args  # backwards-compatible alias
 
 
-SCENARIO_TOOLS = ("plan_route", "list_evacuation_centres", "affected_places")
+SCENARIO_TOOLS = ("plan_route", "list_evacuation_centres", "affected_places", "simulate_what_if")
 
 
 def ui_scenario(deps: Deps) -> str | None:
@@ -233,6 +259,127 @@ async def call_tool(deps: Deps, name: str, **kwargs: Any) -> dict:
             rec.closures[c["id"]] = c
             if c.get("active"):
                 rec.asked_closures.append(c)
+    if name == "simulate_what_if" and res.ok and isinstance(res.data, dict):
+        d = res.data
+        stages = [
+            a["scenario_id"] for a in d.get("actions", []) if a.get("kind") == "set_river_stage"
+        ]
+        rec.what_ifs.append(
+            {
+                **{k: d.get(k) for k in ("summary", "counts_before", "counts_after", "scope")},
+                "profile": d.get("profile"),
+                "labels": d.get("action_labels") or [],
+                "scenario_id": d.get("scenario_id"),
+                "base_scenario_id": d.get("base_scenario_id"),
+                "imagined": bool(d.get("imagined")),
+                "diff_geojson": d.pop("diff_geojson", None),
+                "disclaimer": d.get("disclaimer"),
+            }
+        )
+        base = d.get("base_scenario_id")
+        rec.scenarios_used |= {s for s in [*stages, base] if s and s != "baseline"}
+        rec.place_names |= {
+            n
+            for o in d.get("journeys", [])
+            for n in (
+                o.get("from_name"),
+                o["after"].get("target_name"),
+                o["before"].get("target_name"),
+            )
+            if n
+        }
+    if name == "plan_verifications" and res.ok and isinstance(res.data, dict):
+        rec.plans.append(res.data)
+    if name == "affected_places" and res.ok and isinstance(res.data, dict):
+        d = res.data
+        rec.affected.append(
+            {
+                **{
+                    k: int(d.get(k) or 0)
+                    for k in (
+                        "likely_place_count",
+                        "likely_path_count",
+                        "possible_place_count",
+                        "possible_path_count",
+                    )
+                },
+                "likely_listed": sum(1 for i in d.get("likely") or [] if i.get("kind") != "path"),
+                "possible_listed": sum(
+                    1 for i in d.get("possible") or [] if i.get("kind") != "path"
+                ),
+                "isolated_place_count": sum(
+                    int(c.get("place_count") or 0) for c in d.get("isolated_components") or []
+                ),
+            }
+        )
+    if name == "rising_river_rollout" and res.ok and isinstance(res.data, dict):
+        res.data.pop("routes", None)  # geometry and per-resident rows stay out of the prompt
+        res.data.pop("residents", None)
+        rec.rollouts.append(res.data)
+    if name in ("rising_river_rollout", "river_tipping_point") and res.ok:
+        # every stage was simulated: the flood disclaimer and scenario rules apply
+        scs = sorted(deps.ctx.world.flood.scenarios, key=lambda sc: sc.stage_m)
+        rec.scenarios_used |= {sc.id for sc in scs[-1:] if sc.id != "baseline"}
+    if name == "find_fixes" and res.ok and isinstance(res.data, dict):
+        # The best set is a what-if: every what-if rule (label, numbers, conditional) applies.
+        best = res.data["best"]
+        rec.fixes.append(res.data)
+        rec.what_ifs.append(
+            {
+                "summary": best["summary"],
+                "counts_before": {},
+                "counts_after": {},
+                "scope": res.data["scope"],
+                "profile": res.data["profile"],
+                "labels": best["labels"],
+                "scenario_id": res.data.get("stage"),
+                "base_scenario_id": res.data.get("stage"),
+                "imagined": bool(best["actions"]),
+                "diff_geojson": None,
+                "disclaimer": res.data.get("disclaimer"),
+                "fixit": {
+                    "empty": not best["actions"],
+                    "stopped": bool(res.data.get("stopped_early")) and not best["actions"],
+                    "candidates": len(res.data["candidates"]),
+                },
+            }
+        )
+        if res.data.get("stage"):
+            rec.scenarios_used.add(res.data["stage"])
+    if name == "day_rehearsal" and res.ok and isinstance(res.data, dict):
+        rec.days.append(res.data)
+        stages = res.data.get("river_stages") or []
+        if stages:  # a day with a river rise: the flood disclaimer and scenario rules apply
+            by_m = {s.id: s.stage_m for s in deps.ctx.world.flood.scenarios}
+            top = max(stages, key=lambda s: by_m.get(s, 0))
+            rec.scenarios_used.add(top)
+            rec.day_stages.add(top)
+        rec.place_names |= {
+            p["name"] for p in res.data.get("busiest_places") or [] if p.get("name")
+        }
+        # group labels hold digits ("Older residents (65+)"): names, not counts
+        rec.place_names |= {g["label"] for g in res.data.get("groups") or [] if g.get("label")}
+    if name == "day_test_change" and res.ok and isinstance(res.data, dict):
+        rec.day_changes.append(res.data)
+        stages = res.data.get("river_stages") or []
+        if stages:
+            by_m = {s.id: s.stage_m for s in deps.ctx.world.flood.scenarios}
+            top = max(stages, key=lambda s: by_m.get(s, 0))
+            rec.scenarios_used.add(top)
+            rec.day_stages.add(top)
+        # labels are server text with digits ("about 931 m", "of 1129 residents"): names
+        rec.place_names |= {g["label"] for g in res.data.get("groups") or [] if g.get("label")}
+        rec.place_names |= {
+            t
+            for o in [res.data, *(res.data.get("options") or [])]
+            for t in (o.get("change"), o.get("why"))
+            if t
+        }
+    if name == "river_tipping_point" and res.ok and isinstance(res.data, dict):
+        rec.tippings.append(res.data)
+        rec.place_names |= {
+            n for n in (res.data.get("from_name"), res.data.get("target_name")) if n
+        }
     if name == "create_verification_request" and res.ok:
         rec.vrs.append(res.data)
         await _emit(deps, _vr_event(res.data))
@@ -242,7 +389,46 @@ async def call_tool(deps: Deps, name: str, **kwargs: Any) -> dict:
     elif name == "list_flood_scenarios" and ui_scenario(deps):
         rec.scenarios_used.add(ui_scenario(deps))
     await _emit(deps, ToolResultEvent(id=call_id, name=name, summary=_summarise(name, res)))
-    return _without_closure_notes(res.model_dump(mode="json"))
+    return _for_model(name, _without_closure_notes(res.model_dump(mode="json")))
+
+
+# Id lists the model never needs: on the Elmina seed affected_places at +5 m lists 2,468 edge ids
+# (825 KB), which pushed a live turn past its timeout (eval, Cycle 5). Totals stay.
+_MODEL_DROP = {
+    "affected_places": ("likely_edge_ids", "possible_edge_ids"),
+    "day_test_change": ("changed_geojson",),  # for the map only
+}
+_MODEL_CAP = {"affected_places": ("likely_place_ids", "possible_place_ids")}
+
+
+MODEL_EVIDENCE_CAP = 60  # evidence rows sent to the model; the TurnRecord keeps them all
+
+
+def _for_model(name: str, out: dict) -> dict:
+    ev = out.get("evidence")
+    if isinstance(ev, list) and len(ev) > MODEL_EVIDENCE_CAP:
+        # Scenario-level evidence first, then demo (placeholder) rows and place-level rows (the
+        # caveats depend on them), then the rest in order: enough to cite; all stay citable.
+        def rank(e: dict) -> int:
+            i = str(e.get("id", ""))
+            if i.startswith("ev-scn-") and "." not in i:
+                return 0
+            if e.get("source_type") == "team_survey_placeholder":
+                return 1
+            if i.startswith("ev-place-") or e.get("status") in ("unknown", "reported"):
+                return 2
+            return 3
+
+        out["evidence"] = sorted(ev, key=rank)[:MODEL_EVIDENCE_CAP]
+        out["evidence_truncated"] = len(ev) - len(out["evidence"])
+    data = out.get("data")
+    if isinstance(data, dict):
+        for k in _MODEL_DROP.get(name, ()):
+            data.pop(k, None)
+        for k in _MODEL_CAP.get(name, ()):
+            if isinstance(data.get(k), list):
+                data[k] = data[k][:20]
+    return out
 
 
 def _without_closure_notes(out: Any) -> Any:
@@ -363,7 +549,9 @@ def build_agent(model: Model) -> Agent[Deps, FinalAnswer]:
         ctx: RunContext[Deps], scenario_id: str, kind: str = "all", profile: str = "default"
     ) -> dict:
         """What is likely/possibly cut off under a scenario, plus isolated islands.
-        Lists are capped: use likely_total / possible_total for counts."""
+        Lists are capped. For counts use likely_place_count (places) and likely_path_count
+        (path segments), and the possible_* pair: say "N places and M path segments", never
+        likely_total as a number of places (it adds both)."""
         return await call_tool(
             ctx.deps, "affected_places", scenario_id=scenario_id, kind=kind, profile=profile
         )
@@ -392,10 +580,150 @@ def build_agent(model: Model) -> Agent[Deps, FinalAnswer]:
         """Recycling / e-waste / waste points with verification status."""
         return await call_tool(ctx.deps, "find_waste_points", type=type, near_place=near_place)
 
+    @agent.tool
+    async def suggest_interventions(
+        ctx: RunContext[Deps], profile: str = "wheelchair", near_place: str | None = None
+    ) -> dict:
+        """What-if candidates from the township world model, with readable labels: ramps where
+        steps block the profile, facts staff could verify, paths most journeys rely on (to
+        imagine them closed), and the river stages. Use these actions; never invent ids.
+        near_place is a place id from find_place."""
+        return await call_tool(
+            ctx.deps, "suggest_interventions", profile=profile, near_place=near_place
+        )
+
+    @agent.tool
+    async def simulate_what_if(
+        ctx: RunContext[Deps],
+        actions: list[dict],
+        profile: str = "default",
+        scope: str = "journey",
+        from_id: str | None = None,
+        to_id: str | None = None,
+        scenario_id: str | None = None,
+    ) -> dict:
+        """Imagine changes on a copy of the township and compare journeys before and after.
+        actions: [{"kind": "set_river_stage", "scenario_id": "stage_p3m"},
+        {"kind": "build_ramp", "element_id": ...}, {"kind": "close_path", "element_id": ...},
+        {"kind": "verify_fact", "element_id": ..., "attribute": ..., "outcome": "pass"|"fail"},
+        {"kind": "assume_fact", "element_id": ..., "attribute": ..., "value": ...}].
+        scope: journey (from_id -> to_id; to_id may be "nearest_centre"), suite (sample
+        resident journeys) or evacuation (sampled origins -> nearest reachable centre).
+        Never changes the real township. Say only the numbers in summary and counts."""
+        return await call_tool(
+            ctx.deps,
+            "simulate_what_if",
+            actions=actions,
+            profile=profile,
+            scope=scope,
+            from_id=from_id,
+            to_id=to_id,
+            scenario_id=scenario_id,
+        )
+
+    @agent.tool
+    async def plan_verifications(
+        ctx: RunContext[Deps],
+        profile: str = "wheelchair",
+        scope: str = "evacuation",
+        budget: int = 15,
+    ) -> dict:
+        """Survey plan for staff: which unchecked facts to verify first (at most `budget`
+        checks) so the most sample journeys would have a confirmed route if those facts pass.
+        scope: evacuation (sampled origins -> nearest centre) or suite (everyday trips).
+        Say only the numbers in summary, facts and places, always conditional on the checks."""
+        return await call_tool(
+            ctx.deps, "plan_verifications", profile=profile, scope=scope, budget=budget
+        )
+
+    @agent.tool
+    async def river_tipping_point(
+        ctx: RunContext[Deps], from_id: str, profile: str = "default", to_id: str | None = None
+    ) -> dict:
+        """At which river stage does a journey break? One journey (from_id -> to_id, or the
+        nearest evacuation centre when to_id is omitted) across every precomputed stage: the
+        status per stage, degrades_at and breaks_at (stage ids). Indicative, not a forecast."""
+        return await call_tool(
+            ctx.deps, "river_tipping_point", from_id=from_id, profile=profile, to_id=to_id
+        )
+
+    @agent.tool
+    async def rising_river_rollout(
+        ctx: RunContext[Deps], profiles: list[str] | None = None, n: int = 30
+    ) -> dict:
+        """Synthetic residents per persona heading for the nearest evacuation centre at every
+        river stage: counts per stage (reach, confirmed, cut_off, no_data) and who is cut off
+        first. The app animates it on the map. Indicative simulation, not a forecast."""
+        return await call_tool(ctx.deps, "rising_river_rollout", profiles=profiles, n=n)
+
+    @agent.tool
+    async def day_test_change(
+        ctx: RunContext[Deps],
+        day: Literal["weekday", "storm", "event", "friday"] = "storm",
+        option: int = 1,
+    ) -> dict:
+        """Test an imagined change on an Elmina Day rehearsal: the same day of 5,000 synthetic
+        residents is run again with the change, and compared trip by trip (residents better and
+        worse off, by group). Option 1 is the day's top suggestion (on a storm day the flooded
+        stretch the most residents relied on); `options` in the result names them all, so call
+        again with another number to test another. Imagined: never a plan or a forecast."""
+        return await call_tool(
+            ctx.deps, "day_test_change", day=str(day).strip().lower(), option=int(option)
+        )
+
+    @agent.tool
+    async def day_rehearsal(
+        ctx: RunContext[Deps], day: Literal["weekday", "storm", "event", "friday"] = "storm"
+    ) -> dict:
+        """Elmina Day: a simulated day of 5,000 synthetic residents on the township model, in a
+        built-in scenario: weekday, storm (the river rises during the school run), event (a
+        night at the park) or friday (prayers). Trips by outcome, residents by group (children,
+        older, wheelchair users, parents with strollers, households without a car), school
+        and the busiest places. A rehearsal, not a forecast; residents are synthetic."""
+        return await call_tool(ctx.deps, "day_rehearsal", day=str(day).strip().lower())
+
+    @agent.tool
+    async def find_fixes(
+        ctx: RunContext[Deps],
+        profile: str = "wheelchair",
+        scope: str = "evacuation",
+        scenario_id: str | None = None,
+        budget: int = 2,
+        proposals: list[dict] | None = None,
+    ) -> dict:
+        """Fix-it search ("which 2 changes would help wheelchair users most at +3 m?"): beam
+        search over imagined fixes (ramps, verifications) scored on the world model. proposals:
+        extra legal actions you suggest (from suggest_interventions). Report the best set and
+        the numbers in its summary; if best has no actions, say no candidate change helps."""
+        return await call_tool(
+            ctx.deps,
+            "find_fixes",
+            profile=profile,
+            scope=scope,
+            scenario_id=scenario_id,
+            budget=budget,
+            proposals=proposals,
+        )
+
     @agent.output_validator
-    def check(ctx: RunContext[Deps], out: FinalAnswer) -> FinalAnswer:
-        errs = validate_answer(out, ctx.deps.rec)
+    async def check(ctx: RunContext[Deps], out: FinalAnswer) -> FinalAnswer:
+        if ctx.partial_output:  # only whole answers are checked (drafts are guarded in draft.py)
+            return out
+        rec = ctx.deps.rec
+        out, repairs = repair_answer(out, rec)
+        rec.repairs += repairs
+        errs = validate_answer(out, rec)
+        # One verdict per attempt; attempts are numbered as the draft stream numbered them
+        # (a model that does not stream has no drafts: count the checks instead).
+        rec.checks = max(rec.checks + 1, rec.draft_attempt)
+        await _emit(
+            ctx.deps,
+            AnswerCheck(
+                attempt=rec.checks, ok=not errs, issues=issue_labels(errs), repairs=len(repairs)
+            ),
+        )
         if errs:
+            rec.validator_errors.append(errs)
             raise ModelRetry(" ".join(errs))
         return out
 

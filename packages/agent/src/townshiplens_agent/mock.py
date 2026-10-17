@@ -5,7 +5,7 @@ import re
 
 from pydantic_ai import ModelMessage, ModelResponse, ToolCallPart
 from pydantic_ai.messages import ModelRequest, ToolReturnPart, UserPromptPart
-from pydantic_ai.models.function import AgentInfo, FunctionModel
+from pydantic_ai.models.function import AgentInfo, DeltaToolCall, FunctionModel
 
 from .labels import (
     attribute_label,
@@ -17,10 +17,29 @@ from .labels import (
     status_label,
     unchecked_caveats,
 )
+from .template import (
+    day_answer,
+    day_change_answer,
+    fixit_answer,
+    plan_answer,
+    rollout_answer,
+    tipping_answer,
+    whatif_answer,
+)
+
+
+def _current(messages: list[ModelMessage]) -> list[ModelMessage]:
+    """This turn's messages: from the last user prompt on (earlier turns are only history)."""
+    starts = [
+        i
+        for i, m in enumerate(messages)
+        if isinstance(m, ModelRequest) and any(isinstance(p, UserPromptPart) for p in m.parts)
+    ]
+    return messages[starts[-1] :] if starts else messages
 
 
 def _prompt(messages: list[ModelMessage]) -> str:
-    for m in messages:
+    for m in _current(messages):
         if isinstance(m, ModelRequest):
             for p in m.parts:
                 if isinstance(p, UserPromptPart) and isinstance(p.content, str):
@@ -30,10 +49,12 @@ def _prompt(messages: list[ModelMessage]) -> str:
 
 def _returns(messages: list[ModelMessage]) -> list[tuple[str, dict]]:
     out = []
-    for m in messages:
+    for m in _current(messages):
         if isinstance(m, ModelRequest):
             for p in m.parts:
-                if isinstance(p, ToolReturnPart):
+                # The previous turn's final_answer return can share a request with the new
+                # prompt (multi-turn history): it is not a tool result.
+                if isinstance(p, ToolReturnPart) and p.tool_name != "final_answer":
                     c = (
                         p.content
                         if isinstance(p.content, dict)
@@ -307,10 +328,189 @@ def _closure_answer(rets, place_q: str | None) -> ModelResponse:
     )
 
 
+_PLAN = (
+    r"which (?:facts|checks|things)\b|verify (?:first|next)|survey plan"
+    r"|what should (?:staff|we|the team) (?:check|verify)"
+)
+
+
+def _plan(q: str, rets, info: AgentInfo) -> ModelResponse:
+    """Survey-plan flow: one plan_verifications call, then narrate its numbers only."""
+    profile = _profile(q, info, "wheelchair")
+    if not rets:
+        scope = "evacuation" if re.search(r"centre|center|evacuat|pps|shelter", q) else "suite"
+        return _call("plan_verifications", profile=profile, scope=scope, budget=15)
+    d = _data(rets[-1][1])
+    if not isinstance(d, dict):
+        return _cannot("I couldn't build a survey plan from the township model.")
+    ev = [i for i in _ev_ids(rets) if i.startswith("ev-plan-")]
+    return _final(**plan_answer(d, ev))
+
+
+# River-level questions only: a river/flood/water word must appear (review I6).
+_TIPPING = (
+    r"(?=.*\b(?:river|flood|water|banjir|sungai)\b)"
+    r"(?:(?:which|what) (?:river |water )?level|tipping|route (?:to [^?]* )?break"
+    r"|does my (?:route|trip) break)"
+)
+_ROLLOUT = r"rising[- ]river|as the river rises|stage by stage|river rollout"
+
+
+def _tipping(q: str, rets, info: AgentInfo) -> ModelResponse:
+    profile = _profile(q, info, "default")
+    if not rets:
+        return _call("find_place", query=_first(q, ORIGINS, "lakeside mall"))
+    if len(rets) == 1:
+        found = _data(rets[0][1]) or []
+        if not found:
+            return _cannot("I couldn't find where you start in the township model yet.")
+        return _call("river_tipping_point", from_id=found[0]["id"], profile=profile)
+    d = _data(rets[-1][1])
+    if not isinstance(d, dict):
+        return _cannot("I couldn't run the river levels for that trip.")
+    ev = [i for i in _ev_ids(rets) if i.startswith("ev-tip-")]
+    return _final(**tipping_answer(d, ev))
+
+
+def _rollout(q: str, rets, info: AgentInfo) -> ModelResponse:
+    if not rets:
+        return _call("rising_river_rollout")
+    d = _data(rets[-1][1])
+    if not isinstance(d, dict):
+        return _cannot("I couldn't run the rising-river simulation.")
+    ev = [i for i in _ev_ids(rets) if i.startswith("ev-rollout-")]
+    return _final(**rollout_answer(d, ev))
+
+
+_FIXIT = (
+    r"\bwhich (?:\d+ |two |three )?(?:changes|fixes) would\b|\bbest (?:fixes|changes)\b"
+    r"|\bfix-it\b"
+)
+
+
+def _fixit(q: str, rets, info: AgentInfo) -> ModelResponse:
+    profile = _profile(q, info, "wheelchair")
+    if not rets:
+        stage = None
+        if (m := re.search(r"(\d+)\s*m\b", q)) and 1 <= int(m.group(1)) <= 5:
+            stage = f"stage_p{m.group(1)}m"
+        scope = "suite" if re.search(r"trip|journey|everyday", q) else "evacuation"
+        words = {"two": 2, "three": 3, "one": 1}
+        nb = re.search(r"which (\d+|one|two|three) (?:changes|fixes)", q)
+        budget = (int(nb.group(1)) if nb.group(1).isdigit() else words[nb.group(1)]) if nb else 2
+        return _call("find_fixes", profile=profile, scope=scope, scenario_id=stage, budget=budget)
+    d = _data(rets[-1][1])
+    if not isinstance(d, dict):
+        return _cannot("I couldn't run the fix-it search on the township model.")
+    ev = [i for i in _ev_ids(rets) if i.startswith("ev-fixit-")]
+    return _final(**fixit_answer(d, ev))
+
+
+_WHATIF = r"\bwhat[- ]if\b|\bimagine\b|\bif (?:we|you|staff) (?:build|add|close|verify)\b"
+
+
+def _whatif(q: str, rets, info: AgentInfo) -> ModelResponse:
+    """What-if hero flow: engine suggestions -> one simulation -> narrate its summary only."""
+    profile = _profile(q, info, "wheelchair")
+    if not rets:
+        return _call("suggest_interventions", profile=profile)
+    if len(rets) == 1:
+        cands = (_data(rets[0][1]) or {}).get("candidates") or []
+        want = (
+            "build_ramp"
+            if "ramp" in q
+            else "close_path"
+            if "close" in q
+            else "verify_fact"
+            if "verif" in q
+            else None
+        )
+        pick = next((c for c in cands if c["action"]["kind"] == want), cands[0] if cands else None)
+        actions = [pick["action"]] if pick else []
+        if (m := re.search(r"(\d+)\s*m\b", q)) and 1 <= int(m.group(1)) <= 5:
+            stage = {"kind": "set_river_stage", "scenario_id": f"stage_p{m.group(1)}m"}
+            actions.insert(0, stage)
+        if not actions:
+            return _cannot("I couldn't find a change to imagine for that yet.")
+        scope = "evacuation" if re.search(r"centre|center|evacuat|pps|shelter", q) else "suite"
+        return _call("simulate_what_if", actions=actions, profile=profile, scope=scope)
+    d = _data(rets[-1][1])
+    if not isinstance(d, dict):
+        return _cannot("I couldn't run that what-if on the township model.")
+    wi = {**d, "labels": d.get("action_labels") or []}
+    ev = [i for i in _ev_ids(rets) if i.startswith("ev-whatif-")]
+    return _final(**whatif_answer(wi, ev))
+
+
+_DAY = r"\brehears|\bsimulated day\b|\belmina day\b|\ba day in elmina\b|\blatihan\b"
+
+
+def _day_id(q: str) -> str:
+    # a day named in the question wins over flood words ("raise the flooded road in the event
+    # rehearsal", review C17)
+    return (
+        "weekday"
+        if re.search(r"weekday|hari biasa", q)
+        else "friday"
+        if re.search(r"friday|jumaat|jumat|prayer", q)
+        else "event"
+        if re.search(r"\bevent|night|community|acara|malam|taman", q)
+        else "storm"
+        if re.search(r"storm|flood|rain|river|banjir|ribut|水", q)
+        else "event"
+        if re.search(r"\bpark\b", q)
+        else "weekday"
+    )
+
+
+def _day(q: str, rets, info: AgentInfo) -> ModelResponse:
+    if not rets:
+        return _call("day_rehearsal", day=_day_id(q))
+    d = _data(rets[-1][1])
+    if not isinstance(d, dict):
+        return _cannot("I couldn't run the simulated day on the township model.")
+    ev = [i for i in _ev_ids(rets) if i.startswith("ev-day-")]
+    return _final(**day_answer(d, ev))
+
+
+_DAY_CHANGE = (
+    r"(?=.*(?:\brehears|\bstorm\b|\bribut\b|\blatihan\b|\bsimulated day\b))"
+    r"(?=.*(?:\bwhich (?:one )?change\b|\btest (?:a |the |another |option)"
+    r"|\bchange (?:to test|would help|that would)|\braise[ds]?\b|\braising\b|\boption \d\b"
+    r"|\bperubahan\b|\btinggikan\b))"
+)
+
+
+def _day_change(q: str, rets, info: AgentInfo) -> ModelResponse:
+    if not rets:
+        m = re.search(r"\boption (\d)\b|\bpilihan (\d)\b", q)
+        n = int(next(g for g in m.groups() if g)) if m else 1
+        return _call("day_test_change", day=_day_id(q), option=n)
+    d = _data(rets[-1][1])
+    if not isinstance(d, dict):
+        return _cannot("I couldn't test that change on the simulated day.")
+    ev = [i for i in _ev_ids(rets) if i.startswith("ev-daychange-")]
+    return _final(**day_change_answer(d, ev))
+
+
 def _script(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
     q = _prompt(messages).lower()
     rets = _returns(messages)
     n = len(rets)
+    if re.search(_DAY_CHANGE, q):
+        return _day_change(q, rets, info)
+    if re.search(_DAY, q):
+        return _day(q, rets, info)
+    if re.search(_FIXIT, q):
+        return _fixit(q, rets, info)
+    if re.search(_ROLLOUT, q):
+        return _rollout(q, rets, info)
+    if re.search(_TIPPING, q):
+        return _tipping(q, rets, info)
+    if re.search(_PLAN, q):
+        return _plan(q, rets, info)
+    if re.search(_WHATIF, q):
+        return _whatif(q, rets, info)
     is_flood = bool(re.search(r"flood|river|banjir|sungai|rises|naik|水", q))
     ui_sid = _ui(info, "active_scenario")
     ui_sid = None if ui_sid == "none" else ui_sid
@@ -339,17 +539,26 @@ def _script(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
         a = _data(rets[-1][1])
         if not isinstance(a, dict):
             return _cannot()
-        # Lists are capped by the tool: prefer the totals when present.
-        likely = a["likely_total"] if "likely_total" in a else len(a.get("likely") or [])
-        possible = a["possible_total"] if "possible_total" in a else len(a.get("possible") or [])
+
+        # Lists are capped by the tool: use the counts, places and path segments apart.
+        def both(side: str) -> str:
+            if f"{side}_place_count" not in a:
+                return f"{a.get(f'{side}_total', len(a.get(side) or []))} places/paths"
+            pl, pa = a[f"{side}_place_count"], a[f"{side}_path_count"]
+            return (
+                f"{pl} {'place' if pl == 1 else 'places'} and "
+                f"{pa} path {'segment' if pa == 1 else 'segments'}"
+            )
+
+        likely, possible = both("likely"), both("possible")  # a malformed payload raises here
         ev = [i for i in _ev_ids(rets) if i == f"ev-scn-{sid}"]
         if not ev:
             return _cannot()
         return _final(
             answer_status="answered",
             summary=(
-                f"In the {level} indicative scenario, {likely} places/paths are likely "
-                f"cut off and {possible} possibly. {_FLOOD_NOTE}"
+                f"In the {level} indicative scenario, {likely} are likely flooded, "
+                f"and {possible} possibly. {_FLOOD_NOTE}"
             ),
             claims=[{"text": f"Scenario {level}", "status": "indicative", "evidence_ids": ev}],
             scenario_id=sid,
@@ -637,5 +846,20 @@ def _script(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
     return _cannot("I can't answer that from the township model yet.")  # found; no VR was filed
 
 
+STREAM_CHUNK = 24  # characters of tool-call JSON per streamed delta
+
+
+async def _stream_script(messages: list[ModelMessage], info: AgentInfo):
+    """The same scripted response, streamed in small JSON chunks like a real provider, so the
+    draft stream (`answer.draft`) is exercised keylessly in tests and e2e."""
+    resp = _script(messages, info)
+    for i, part in enumerate(resp.parts):
+        args = part.args if isinstance(part.args, str) else json.dumps(part.args)
+        call_id = f"mock-{i}"
+        yield {i: DeltaToolCall(name=part.tool_name, json_args="", tool_call_id=call_id)}
+        for k in range(0, len(args), STREAM_CHUNK):
+            yield {i: DeltaToolCall(json_args=args[k : k + STREAM_CHUNK], tool_call_id=call_id)}
+
+
 def mock_model() -> FunctionModel:
-    return FunctionModel(_script, model_name="mock-scripted")
+    return FunctionModel(_script, stream_function=_stream_script, model_name="mock-scripted")

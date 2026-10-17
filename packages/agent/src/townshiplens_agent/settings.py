@@ -13,6 +13,9 @@ class AgentSettings(BaseSettings):
     llm_provider: Literal["openrouter", "mock"] | None = None
     llm_model_default: str = "anthropic/claude-haiku-5.5"
     llm_model_escalate: str = "anthropic/claude-sonnet-5.5"
+    # Elmina Day spotlight residents (Cycle 11): a cheap model, low reasoning effort.
+    llm_model_sim: str = "openai/gpt-6-luna"  # benchmark: evals/results/*sim-model-bench.json
+    llm_sim_reasoning: str = "low"
     llm_output_retries: int = 2
     turn_timeout_s: float = 60.0
     demo_mode: bool = False

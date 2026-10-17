@@ -35,7 +35,10 @@ def healthz():
     except Exception:  # noqa: BLE001 - any load failure means not healthy
         log.exception("world failed to load")
         return JSONResponse({"status": "error"}, status_code=503)
-    return {"status": "ok"}
+    from .. import warm
+
+    # "warm": the world-model screens' default requests are cached (instant on stage).
+    return {"status": "ok", "world_model": warm.public_status()}
 
 
 @router.get("/site", response_model=Site)

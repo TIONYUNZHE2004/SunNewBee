@@ -18,7 +18,7 @@ With no seed data present the API falls back to the tiny test fixture.
 
 | Method | Path | Notes |
 |---|---|---|
-| GET | `/healthz` | liveness |
+| GET | `/healthz` | liveness, plus `world_model`: the background warm-up's state (`warming` / `warm`), timings and world version |
 | GET | `/site` | site config |
 | GET | `/profiles` | read-only profile parameters (hard/soft limits, allowed types, speed, `stub`) for the "Assumptions" view |
 | GET | `/layers/{lens}` | `access`, `flood`, `waste`; `?profile=&scenario_id=`; LineStrings carry `status_for_profile` (ok, unknown, blocked, flooded_likely, flooded_possible); 404 unknown lens. Sends `ETag` and `Cache-Control: private, max-age=0, must-revalidate`; a matching `If-None-Match` gets 304. The ETag changes when a claim changes (`world.version`) and on API restart |
@@ -50,6 +50,11 @@ With no seed data present the API falls back to the tiny test fixture.
 | GET | `/simulations/{run_id}` | `{run_id, status: queued\|running\|done\|failed\|cancelled\|timeout, progress, error, report}`; `report` only when `done`, persisted in the per-world SQLite store (a run active at a restart is marked `failed`). The report holds (counts, results, ranked data gaps, invariant violations, one `rest_advisories` entry per older-adult journey over the rest limit, `rest_limit_m`, `rest_long_segments` = distinct segments longer than the limit on those routes, and `evacuation`: a profile x river-stage table of results from a seeded sample of 50 origins to the nearest reachable evacuation centre, centres themselves excluded from the origins and counted in `origins_excluded_centres`, with E1 and E2 violations, also listed in `invariant_violations`. E1: a journey blocked at a lower river stage is never confirmed at a higher one, and a stage with no confirmed or no reachable centre never gains one at the next; the nearest-centre result itself may improve when a nearer centre floods. E2: baseline equals no scenario. `blocked_by_flood` means a known FAIL cuts every path: a flood class, or at baseline a known barrier. The run works on a snapshot taken at its start (claims, closures and the clock frozen); the report records `world_version` and `closure_hash`. Interrupted runs are marked failed once at app startup); 404 |
 | POST | `/chat` | SSE; streams `townshiplens_agent.run.run_turn` events (`LLM_PROVIDER=mock` gives the deterministic assistant); if the agent cannot load it emits `error` + `done` |
 | GET | `/schema/chat-event` | docs-only, exports the ChatEvent union |
+| POST | `/what-if` | public; `{actions, profile, scope: journey\|suite\|evacuation, from_id?, to_id?, scenario_id?}`. A Township World Model diff on a copy of the world: `summary`, `counts_before` / `counts_after`, `changed`, `diff_geojson` (all features tagged `whatif`), `evidence_id`, `disclaimer`. 422 for illegal or invented actions. Nothing is stored |
+| GET | `/verify-next` | public; `?profile=&scope=suite\|evacuation&budget=1..40`. A survey plan (planner.py): which unchecked facts to verify first, with the engine-verified count of journeys that would be confirmed if they pass, and open tickets linked |
+| GET | `/belief` | public; the planner's Beta belief per (path type, attribute), with its sources (OSM prior observations, real staff verifications). Planning only |
+| GET | `/river-rollout` | public; `?profiles=&n=5..50`. Synthetic residents per persona at every river stage, with routes for the 3D animation; cached by world version (the first call on the seed takes about 15 s). A simulation, not a forecast |
+| GET | `/what-if/suggestions` | public; `?profile=&near_place=`. Engine-proposed legal actions with readable labels, plus the river stages; 422 unknown profile or place |
 
 ## Environment (repo-root `.env`)
 
@@ -59,3 +64,14 @@ With no seed data present the API falls back to the tiny test fixture.
 
 - Real staff auth (replace the shared token)
 - Deploy to Cloud Run with a persistent database
+
+## World-model warm-up (Cycle 9)
+
+`warm.py` starts one daemon thread from the lifespan (`WARM_WORLD_MODEL=true`, the default; tests set it to false). The thread computes the screens' default requests through the same cached tool functions as the endpoints, so the cache keys match:
+
+- `GET /river-rollout`;
+- `GET /what-if/suggestions` for wheelchair;
+- `GET /verify-next` with wheelchair / evacuation / 15.
+
+It warms again whenever `world.version` changes (it polls every 10 s). It takes the same two solver slots as requests, and a failing job is logged and skipped. `/verify-next` now goes through the cached `tools.plan_verifications`, so a busy solver returns 503.
+

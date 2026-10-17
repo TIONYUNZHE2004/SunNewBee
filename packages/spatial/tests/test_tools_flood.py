@@ -9,7 +9,7 @@ def ctx(world, tmp_path):
     return tools.Ctx(world=world, vrs=VerificationStore(str(tmp_path / "vr.db")))
 
 
-def test_registry_has_exactly_ten(ctx):
+def test_registry_has_the_ten_lookups_and_three_world_model_tools(ctx):
     assert set(tools.TOOLS) == {
         "find_place",
         "get_place_details",
@@ -21,6 +21,14 @@ def test_registry_has_exactly_ten(ctx):
         "affected_places",
         "list_evacuation_centres",
         "find_waste_points",
+        "suggest_interventions",
+        "simulate_what_if",
+        "plan_verifications",
+        "river_tipping_point",
+        "rising_river_rollout",
+        "find_fixes",
+        "day_rehearsal",
+        "day_test_change",
     }
 
 

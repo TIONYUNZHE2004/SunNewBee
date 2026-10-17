@@ -57,7 +57,7 @@ export function MapStage({ children }: { children?: ReactNode }) {
   const has3d = available.some((v) => v !== "list");
   const effective = effectiveView(view, available, false);
   const listFallback = (
-    <div className="h-full space-y-3 overflow-auto p-4">
+    <div className="h-full space-y-3 overflow-auto p-4 pr-[calc(var(--panel-w,0px)+1rem)]">
       <p role="alert" className="rounded-lg border border-rose bg-raised px-4 py-3 text-sm text-fg">
         The map could not be shown on this device. Showing the list instead.
       </p>
@@ -70,7 +70,7 @@ export function MapStage({ children }: { children?: ReactNode }) {
       {waiting ? (
         <LoadingTownship />
       ) : effective === "list" ? (
-        <div className="h-full space-y-3 overflow-auto p-4">
+        <div className="h-full space-y-3 overflow-auto p-4 pr-[calc(var(--panel-w,0px)+1rem)]">
           {!has3d && (
             <p
               role="status"

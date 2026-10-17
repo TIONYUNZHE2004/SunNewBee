@@ -26,6 +26,9 @@ const msg = (over: Partial<AssistantMessage> = {}): AssistantMessage => ({
   role: "assistant",
   id: "a",
   text: "Route found.",
+  draft: "",
+  draftAttempt: 0,
+  checks: [],
   done: true,
   vrs: [],
   tools: [

@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 import difflib
+import json
 import re
+import threading
+from collections import OrderedDict
 from dataclasses import dataclass, replace
 
 import networkx as nx
@@ -780,3 +783,772 @@ TOOLS = {
         find_waste_points,
     )
 }
+
+
+# ---- Township World Model tools (Cycle 1): what-if rollouts ----------------------------------
+SCOPES = ("journey", "suite", "evacuation")
+SUITE_SAMPLE = 60  # journeys per what-if in chat (deterministic prefix of the suite)
+# World-model runs are CPU-bound (seconds each): at most 2 at once per process, and identical
+# requests on the same world version are answered from a small cache (the engine is
+# deterministic), so a public endpoint or a looping model cannot stall chat for everyone.
+_WM_SLOTS = threading.BoundedSemaphore(2)
+_WM_WAIT_S = 20.0
+_WM_CACHE: OrderedDict[str, ToolResult] = OrderedDict()
+_WM_CACHE_MAX = 32
+_WM_CACHE_LOCK = threading.Lock()
+
+
+# Ticket impact (staff board) has its own, larger cache of small results keyed by the fact, not
+# the ticket id, and waits briefly for a slot: cycling through ticket ids cannot evict chat
+# what-ifs or queue threads behind the solver for long.
+_IMPACT_CACHE: OrderedDict[str, ToolResult] = OrderedDict()
+_IMPACT_CACHE_MAX = 512
+_IMPACT_WAIT_S = 2.0
+
+
+def wm_idle() -> bool:
+    """No world-model request is running (both solver slots free)."""
+    if not _WM_SLOTS.acquire(blocking=False):
+        return False
+    try:
+        if not _WM_SLOTS.acquire(blocking=False):
+            return False
+        _WM_SLOTS.release()
+        return True
+    finally:
+        _WM_SLOTS.release()
+
+
+def _wm_cached(
+    world: World,
+    kind: str,
+    args: dict,
+    run,
+    cache: OrderedDict[str, ToolResult] = _WM_CACHE,
+    cache_max: int = _WM_CACHE_MAX,
+    wait_s: float = _WM_WAIT_S,
+) -> ToolResult:
+    key = json.dumps([kind, id(world), world.version, args], sort_keys=True, default=str)
+    with _WM_CACHE_LOCK:  # request threads and the warm-up thread share the caches
+        hit = cache.get(key)
+        if hit is not None:
+            cache.move_to_end(key)
+            return hit.model_copy(deep=True)
+    if not _WM_SLOTS.acquire(timeout=wait_s):
+        return ToolResult(ok=False, warnings=["the township model is busy; try again shortly"])
+    try:
+        res = run()
+    finally:
+        _WM_SLOTS.release()
+    if res.ok and not (isinstance(res.data, dict) and res.data.get("stopped_early")):
+        with _WM_CACHE_LOCK:
+            cache[key] = res.model_copy(deep=True)  # a stopped (partial) search is not cached
+            while len(cache) > cache_max:
+                cache.popitem(last=False)
+    return res
+
+
+def _walking(world: World, profile: str) -> str | None:
+    from . import twm
+
+    if profile not in world.profiles or profile not in twm.WALKING:
+        return f"what-ifs cover walking profiles only ({', '.join(twm.WALKING)})"
+    return None
+
+
+def suggest_interventions(ctx: Ctx, profile: str = "wheelchair", near_place: str | None = None):
+    """Legal what-if actions proposed by the engine, with readable labels: ramps where steps
+    block `profile`, facts staff could verify, and the paths most journeys rely on (to imagine
+    them closed)."""
+
+    w = ctx.world
+    if err := _walking(w, profile):
+        return ToolResult(ok=False, warnings=[err])
+    if (
+        near_place
+        and near_place not in w.places
+        and not near_place.startswith(routing.CENTRE_PREFIX)
+    ):
+        return ToolResult(ok=False, warnings=[f"unknown place {near_place}"])
+    return _wm_cached(
+        w,
+        "suggest",
+        {"profile": profile, "near_place": near_place},
+        lambda: _suggest(w, profile, near_place),
+    )
+
+
+def _suggest(w: World, profile: str, near_place: str | None) -> ToolResult:
+    from . import twm
+
+    out = [
+        {"action": a.model_dump(), "label": twm.describe(w, a)}
+        for a in twm.suggest_actions(w, profile, near_place=near_place)
+    ]
+    out += [
+        {
+            "action": a.model_dump(),
+            "label": twm.describe(w, a),
+            "journeys_using_it": n,
+        }
+        for a, n in twm.keystone_paths(w, profile, near_place)
+    ]
+    stages = [s.id for s in w.flood.scenarios]
+    return ToolResult(ok=True, data={"candidates": out, "river_stages": stages})
+
+
+def simulate_what_if(
+    ctx: Ctx,
+    actions: list[dict],
+    profile: str = "default",
+    scope: str = "journey",
+    from_id: str | None = None,
+    to_id: str | None = None,
+    scenario_id: str | None = None,
+):
+    """Imagine `actions` on a copy of the township and compare journeys before and after.
+
+    scope journey: from_id -> to_id (to_id may be "__centre__<id>" or "nearest_centre");
+    suite: sample resident journeys; evacuation: sampled origins -> nearest reachable centre.
+    `scenario_id` is the stage already on screen (the "before" state). Never changes the real
+    world; the result is labelled what-if."""
+    from pydantic import TypeAdapter, ValidationError
+
+    from . import twm
+
+    w = ctx.world
+    if err := _walking(w, profile):
+        return ToolResult(ok=False, warnings=[err])
+    if scenario_id and scenario_id not in {s.id for s in w.flood.scenarios}:
+        return ToolResult(ok=False, warnings=[f"unknown scenario {scenario_id}"])
+    if len(actions or []) > twm.MAX_ACTIONS:
+        return ToolResult(ok=False, warnings=[f"at most {twm.MAX_ACTIONS} actions"])
+    if scope not in SCOPES:
+        return ToolResult(ok=False, warnings=[f"scope must be one of {', '.join(SCOPES)}"])
+    try:
+        acts = TypeAdapter(list[twm.Action]).validate_python(actions or [])
+    except ValidationError as exc:
+        return ToolResult(ok=False, warnings=[f"invalid actions: {exc.errors()[0]['msg']}"])
+    if illegal := [r for a in acts if (r := twm.legal(w, a))]:
+        return ToolResult(ok=False, warnings=[f"illegal action: {r}" for r in illegal])
+    if scope == "journey":
+        if not from_id or not to_id:
+            return ToolResult(ok=False, warnings=["scope journey needs from_id and to_id"])
+        dest = twm.NEAREST_CENTRE if to_id in ("nearest_centre", twm.NEAREST_CENTRE) else to_id
+        journeys = [twm.Journey(from_id=from_id, to_id=dest, profile=profile)]
+    elif scope == "suite":
+        journeys = twm.suite_journeys(w, profile)[:SUITE_SAMPLE]
+    else:
+        journeys = twm.evacuation_journeys(w, profile)
+    base = scenario_id if scenario_id and scenario_id != "baseline" else None
+    args = {
+        "actions": [a.model_dump(mode="json") for a in acts],
+        "profile": profile,
+        "journeys": [j.model_dump() for j in journeys],
+        "base": base,
+    }
+    return _wm_cached(w, "whatif", args, lambda: _simulate(w, acts, journeys, base, scope, profile))
+
+
+def _simulate(w: World, acts, journeys, base, scope: str, profile: str) -> ToolResult:
+    from . import twm
+
+    res = twm.compare(w, acts, journeys, base_scenario_id=base)
+    data = res.model_dump(mode="json")
+    data["action_labels"] = [twm.describe(w, a) for a in acts]
+    data["diff_geojson"] = _diff_geojson(w, res, data["action_labels"], scope, profile)
+    data["scope"] = scope
+    data["profile"] = profile
+    data["imagined"] = bool(res.touched)  # any non-stage change: outcomes are "would be"
+    for o in data["journeys"]:
+        for side in ("before", "after"):
+            o[side].pop("geometry", None)  # the agent gets geometry from the record, not here
+        o["from_name"] = _place_name(w, o["journey"]["from_id"])
+    data["changed"] = [o for o in data["journeys"] if o["before"]["status"] != o["after"]["status"]]
+    data["journeys"] = data["journeys"][:10] if scope != "journey" else data["journeys"]
+    data["changed"] = data["changed"][:10]
+    data["changed_truncated"] = res.summary["changed"] > 10
+    return ToolResult(ok=True, data=data, evidence=[res.evidence], warnings=[res.disclaimer])
+
+
+def _diff_geojson(world: World, res, labels: list[str], scope: str, profile: str) -> dict:
+    """Before/after lines of the journeys that changed, plus the imagined paths, for the map.
+    Every feature is tagged `whatif` so a renderer can never draw it as a real route. The `meta`
+    member (a GeoJSON foreign member) carries the engine's summary and readable names, so the
+    lite map and the list view can show the same what-if without recomputing anything."""
+    from . import twm
+
+    feats = []
+    changed = []
+    for i, o in enumerate(res.changed[:20]):
+        names = {
+            "from_name": twm._name(world, o.journey.from_id) or "a mapped place",
+            "to_name": o.after.target_name
+            or o.before.target_name
+            or twm._name(world, o.journey.to_id)
+            or "a mapped place",
+        }
+        # Both statuses, whether or not a side has a line (a cut route has no "after" geometry).
+        changed.append({**names, "before": o.before.status, "after": o.after.status})
+        for side in ("before", "after"):
+            st = getattr(o, side)
+            if st.geometry:
+                feats.append(
+                    {
+                        "type": "Feature",
+                        "geometry": st.geometry,
+                        "properties": {
+                            "whatif": True,
+                            "side": side,
+                            "status": st.status,
+                            "journey": i,
+                            **names,
+                        },
+                    }
+                )
+    for eid in res.touched:
+        e = world.edges.get(eid)
+        if e is not None:
+            feats.append(
+                {
+                    "type": "Feature",
+                    "geometry": {"type": "LineString", "coordinates": e.coords},
+                    "properties": {
+                        "whatif": True,
+                        "side": "touched",
+                        "element_id": eid,
+                        "label": twm.path_label(world, eid),
+                    },
+                }
+            )
+    meta = {
+        "summary": res.summary,
+        "actions": labels,
+        "profile": profile,
+        "scope": scope,
+        "imagined": bool(res.touched),
+        "base_scenario_id": res.base_scenario_id,
+        "scenario_id": res.scenario_id,
+        "changed_shown": len(changed),
+        "changed": changed,
+    }
+    return {"type": "FeatureCollection", "features": feats, "meta": meta}
+
+
+def _place_name(world: World, pid: str) -> str | None:
+    p = world.places.get(pid)
+    return p.name if p else None
+
+
+TOOLS["suggest_interventions"] = suggest_interventions
+TOOLS["simulate_what_if"] = simulate_what_if
+
+
+def plan_verifications(
+    ctx: Ctx, profile: str = "wheelchair", scope: str = "evacuation", budget: int = 15
+):
+    """Survey plan (staff): which unchecked facts to verify first so the most sample journeys
+    would be confirmed, if those facts pass. Verified on the world model; open tickets linked."""
+    from . import belief
+
+    w = ctx.world
+    if err := _walking(w, profile):
+        return ToolResult(ok=False, warnings=[err])
+    if scope not in ("suite", "evacuation"):
+        return ToolResult(ok=False, warnings=["scope must be suite or evacuation"])
+    tickets: dict[tuple[str, str], str] = {}
+    for status in ("open", "in_progress"):
+        for vr in ctx.vrs.list(status=status):
+            tickets.setdefault((vr.element_id, vr.attribute), vr.id)
+    prior = belief.load_prior(w.data_dir / "belief_prior.json") if w.data_dir else {}
+    args = {
+        "profile": profile,
+        "scope": scope,
+        "budget": int(budget),
+        "tickets": sorted(tickets.items()),
+    }
+    return _wm_cached(
+        w, "plan", args, lambda: _plan(w, profile, scope, int(budget), tickets, prior)
+    )
+
+
+def _plan(w: World, profile, scope, budget, tickets, prior) -> ToolResult:
+    from . import planner
+
+    plan = planner.plan_verifications(w, profile, scope, budget, tickets, prior=prior)
+    data = plan.model_dump(mode="json")
+    data["places"] = len({f["element_id"] for f in data["facts"]})
+    ev = Evidence(
+        id=plan.evidence_id,
+        element_id="plan",
+        attribute="verify_next",
+        value={"facts": len(plan.facts)},
+        status="indicative",
+        source_type="whatif",
+    )
+    return ToolResult(ok=True, data=data, evidence=[ev], warnings=[plan.disclaimer])
+
+
+TOOLS["plan_verifications"] = plan_verifications
+
+
+def river_tipping_point(ctx: Ctx, from_id: str, profile: str = "default", to_id: str | None = None):
+    """One journey across every river stage (to a place, or the nearest evacuation centre):
+    the status per stage and the first stage where it degrades or breaks. Indicative."""
+    from . import rollout
+
+    w = ctx.world
+    if err := _walking(w, profile):
+        return ToolResult(ok=False, warnings=[err])
+    if from_id not in w.places or (to_id and to_id not in w.places):
+        return ToolResult(ok=False, warnings=["unknown place: use ids from find_place"])
+    tp = rollout.tipping_point(w, from_id, profile, to_id)
+    data = tp.model_dump(mode="json")
+    p = w.places.get(from_id)
+    data["from_name"] = p.name if p else None
+    if to_id:
+        data["target_name"] = w.places[to_id].name
+    ev = Evidence(
+        id=tp.evidence_id,
+        element_id=from_id,
+        attribute="tipping_point",
+        value=tp.breaks_at,
+        status="indicative",
+        source_type=scenario_source(w, "stage_p3m") if w.flood.scenarios else None,
+    )
+    return ToolResult(ok=True, data=data, evidence=[ev], warnings=[tp.disclaimer])
+
+
+def rising_river_rollout(ctx: Ctx, profiles: list[str] | None = None, n: int = 30):
+    """Synthetic residents per persona heading for the nearest evacuation centre at every river
+    stage: counts per stage and who is cut off first. Indicative simulation, not a forecast."""
+    from . import rollout
+
+    w = ctx.world
+    for p in set(profiles or []):
+        if err := _walking(w, p):
+            return ToolResult(ok=False, warnings=[err])
+    # Deduplicated, ordered and capped, so repeats or permutations neither cost nor bust the cache.
+    profs = rollout.normalise_profiles(profiles)
+    n = max(5, min(int(n), 50))
+    return _wm_cached(w, "rollout", {"profiles": profs, "n": n}, lambda: _rollout(w, profs, n))
+
+
+def _rollout(w: World, profs: list[str], n: int) -> ToolResult:
+    from . import rollout
+
+    r = rollout.river_rollout(w, profs, n)
+    data = r.model_dump(mode="json")
+    stage_label = {s.id: s.label for s in r.stages}
+    data["first_cut_off"] = [
+        {
+            "origin_name": res.origin_name,
+            "profile": res.profile,
+            "stage": res.tipping_stage,
+            "stage_label": stage_label.get(res.tipping_stage or ""),
+        }
+        for res in sorted(
+            (x for x in r.residents if x.tipping_stage),
+            key=lambda x: ([s.id for s in r.stages].index(x.tipping_stage), x.id),
+        )
+    ][:10]
+    ev = Evidence(
+        id=r.evidence_id,
+        element_id="rollout",
+        attribute="river_rollout",
+        value={"residents": len(r.residents)},
+        status="indicative",
+        source_type="whatif",
+    )
+    return ToolResult(ok=True, data=data, evidence=[ev], warnings=[r.disclaimer])
+
+
+TOOLS["river_tipping_point"] = river_tipping_point
+TOOLS["rising_river_rollout"] = rising_river_rollout
+
+
+def find_fixes(
+    ctx: Ctx,
+    profile: str = "wheelchair",
+    scope: str = "evacuation",
+    scenario_id: str | None = None,
+    budget: int = 2,
+    proposals: list[dict] | None = None,
+):
+    """Fix-it search: the best set of up to `budget` imagined fixes (ramps, verifications) for
+    `profile` under an optional river stage, scored by rolling each set out on the world model.
+    `proposals` are extra legal actions the assistant suggests (illegal ones are rejected)."""
+
+    w = ctx.world
+    if err := _walking(w, profile):
+        return ToolResult(ok=False, warnings=[err])
+    if scenario_id and scenario_id not in {s.id for s in w.flood.scenarios}:
+        return ToolResult(ok=False, warnings=[f"unknown scenario {scenario_id}"])
+    if scope not in ("suite", "evacuation"):
+        return ToolResult(ok=False, warnings=["scope must be suite or evacuation"])
+    from . import fixit as _fx
+
+    props = sorted(json.dumps(p, sort_keys=True, default=str) for p in (proposals or [])[:10])
+    args = {
+        "profile": profile,
+        "scope": scope,
+        "stage": None if scenario_id in (None, "", "baseline") else scenario_id,
+        "budget": max(1, min(int(budget), _fx.MAX_BUDGET)),
+        "proposals": [json.loads(p) for p in props],
+    }
+    return _wm_cached(w, "fixit", args, lambda: _fixes(w, args))
+
+
+def _fixes(w: World, a: dict) -> ToolResult:
+    from . import fixit
+
+    r = fixit.find_fixes(
+        w, a["profile"], a["scope"], a["stage"], a["budget"], extra_actions=a["proposals"]
+    )
+    data = r.model_dump(mode="json")
+    ev = Evidence(
+        id=r.evidence_id,
+        element_id="fixit",
+        attribute="find_fixes",
+        value={"rollouts": r.rollouts},
+        status="indicative",
+        source_type="whatif",
+    )
+    return ToolResult(ok=True, data=data, evidence=[ev], warnings=[r.disclaimer])
+
+
+TOOLS["find_fixes"] = find_fixes
+
+
+def ticket_impact(ctx: Ctx, vr_id: str):
+    """What one verification ticket would change (open) or changed (resolved) on the world
+    model: sampled journeys, the ticket's own journey, and the belief. Staff planning only."""
+    from . import belief, impact
+
+    vr = ctx.vrs.get(vr_id)
+    if vr is None:
+        return ToolResult(ok=False, warnings=[f"unknown verification request {vr_id}"])
+    w = ctx.world
+    prior = belief.load_prior(w.data_dir / "belief_prior.json") if w.data_dir else {}
+    status = "resolved" if vr.status == "resolved" else "open"
+    args = {
+        "element": vr.element_id,
+        "attr": vr.attribute,
+        "status": status,
+        "summary": vr.question_summary,
+    }
+    return _wm_cached(
+        w,
+        "impact",
+        args,
+        lambda: ToolResult(
+            ok=True,
+            data=impact.fact_impact(
+                w, vr.element_id, vr.attribute, vr.question_summary, prior, status
+            ).model_dump(mode="json"),
+        ),
+        cache=_IMPACT_CACHE,
+        cache_max=_IMPACT_CACHE_MAX,
+        wait_s=_IMPACT_WAIT_S,
+    )
+
+
+# ---- Elmina Day (Cycle 10): synthetic residents living a day on the world model -------------
+DAY_RESIDENTS = 5000
+_DAY_CACHE: OrderedDict[str, ToolResult] = OrderedDict()
+
+
+def day_scenarios(ctx: Ctx) -> list[dict]:
+    from .day.scenarios import scenarios
+
+    return [
+        {"id": s.id, "label": s.label, "summary": s.summary, "hero": s.hero, "day": s.day}
+        for s in scenarios(ctx.world).values()
+    ]
+
+
+def _today() -> str:
+    from datetime import date
+
+    return date.today().isoformat()
+
+
+def day_rehearsal(ctx: Ctx, scenario_id: str = "weekday") -> ToolResult:
+    """A simulated day of 5,000 synthetic residents in one built-in scenario: counts by group,
+    a timeline, busy places, map tracks and the spotlight residents' voices. A rehearsal on the
+    township model, not a forecast. Cached per world version (about 6 s on the seed when cold)."""
+    from .day import engine, summary, voices
+    from .day import spotlight as spot
+    from .day.population import synthesize
+    from .day.scenarios import scenarios
+
+    w = ctx.world
+    sc = scenarios(w)
+    if scenario_id not in sc:
+        return ToolResult(ok=False, warnings=[f"unknown day scenario {scenario_id}"])
+
+    def run() -> ToolResult:
+        rec = voices.load(w, scenario_id)
+        pop = synthesize(w, DAY_RESIDENTS)
+        cast = spot.choose(pop)
+        ids = {c.id for c in cast}
+        d = engine.Day(
+            w, sc[scenario_id], pop=pop, spotlight=ids, decisions=(rec or {}).get("decisions")
+        )
+        res = d.run()
+        data = summary.report(res, keep=ids)
+        data["spotlight"] = voices.attach(res, d, cast, rec)
+        return ToolResult(ok=True, data=data)
+
+    return _wm_cached(
+        w,
+        "day",
+        # the rehearsal date is in the key: closures are evaluated on that day
+        {"s": scenario_id, "n": DAY_RESIDENTS, "on": _today()},
+        run,
+        cache=_DAY_CACHE,
+        cache_max=16,
+    )
+
+
+def _day_parts(w: World, scenario_id: str):
+    from .day import spotlight as spot
+    from .day.population import synthesize
+    from .day.scenarios import scenarios
+
+    sc = scenarios(w).get(scenario_id)
+    pop = synthesize(w, DAY_RESIDENTS)
+    return sc, pop, spot.choose(pop)
+
+
+_DAY_RESULTS: OrderedDict[str, object] = OrderedDict()  # finished rule-based days (2 kept)
+
+
+def _day_result(w: World, scenario_id: str):
+    """The rule-based day (no spotlight decisions) for comparisons, kept for the two latest
+    scenarios: suggestions and every comparison share one run instead of re-simulating."""
+    from .day import engine
+
+    sc, pop, cast = _day_parts(w, scenario_id)
+    if sc is None:
+        return None, None, None, None
+    key = json.dumps([id(w), w.version, scenario_id, _today()])
+    with _WM_CACHE_LOCK:
+        hit = _DAY_RESULTS.get(key)
+    if hit is None:
+        hit = engine.Day(w, sc, pop=pop).run()
+        with _WM_CACHE_LOCK:
+            _DAY_RESULTS[key] = hit
+            while len(_DAY_RESULTS) > 2:
+                _DAY_RESULTS.popitem(last=False)
+    return sc, hit.day.pop, cast, hit
+
+
+def day_changes(ctx: Ctx, scenario_id: str = "weekday") -> ToolResult:
+    """Imagined changes worth testing on a day, from its own trips: on a river-rise day the
+    flooded stretches the most residents rely on, then the busiest footways and busy steps."""
+    from .day import compare
+
+    w = ctx.world
+
+    def run() -> ToolResult:
+        sc, _, _, res = _day_result(w, scenario_id)
+        if sc is None:
+            return ToolResult(ok=False, warnings=[f"unknown day scenario {scenario_id}"])
+        return ToolResult(
+            ok=True, data={"scenario": scenario_id, "candidates": compare.candidates(res)}
+        )
+
+    return _wm_cached(
+        w, "day_changes", {"s": scenario_id, "on": _today()}, run, cache=_DAY_CACHE, cache_max=16
+    )
+
+
+def day_compare(ctx: Ctx, scenario_id: str, actions: list) -> ToolResult:
+    """The same simulated day with and without imagined changes, trip by trip: who gains and
+    who loses, by group. A rehearsal of an imagined change, never a plan or a forecast."""
+    from pydantic import TypeAdapter
+
+    from . import twm
+    from .day import compare
+    from .day import voices as dv
+
+    w = ctx.world
+    try:
+        acts = TypeAdapter(list[twm.Action]).validate_python(actions or [])
+    except Exception as exc:  # noqa: BLE001 - a malformed action is a 422, not a crash
+        return ToolResult(ok=False, warnings=[f"invalid action: {exc.__class__.__name__}"])
+    if not acts or len(acts) > 4:
+        return ToolResult(ok=False, warnings=["give 1 to 4 imagined changes"])
+    if any(isinstance(a, twm.SetRiverStage) for a in acts):
+        return ToolResult(ok=False, warnings=["the day's river levels come from its scenario"])
+    if any(isinstance(a, twm.AssumeFact | twm.VerifyFact) for a in acts):
+        return ToolResult(ok=False, warnings=["compare a change to the township, not a fact"])
+    raised = [e for a in acts if isinstance(a, twm.RaisePaths) for e in a.element_ids]
+    if len(raised) > 40:
+        return ToolResult(ok=False, warnings=["raise at most 40 path segments at once"])
+    # labels are built here from the street names, never taken from the request
+    acts = [
+        a.model_copy(update={"label": compare.stretch_label(w, a.element_ids)})
+        if isinstance(a, twm.RaisePaths)
+        else a
+        for a in acts
+    ]
+    for a in acts:
+        if reason := twm.legal(w, a):
+            return ToolResult(ok=False, warnings=[reason])
+
+    def run() -> ToolResult:
+        sc, pop, cast, before = _day_result(w, scenario_id)
+        if sc is None:
+            return ToolResult(ok=False, warnings=[f"unknown day scenario {scenario_id}"])
+        data = compare.compare(w, sc, acts, pop, cast, before=before)
+        data["scenario"] = scenario_id
+        data["changed_geojson"] = compare.touched_geojson(w, acts)
+        rec = dv.load(w, f"{scenario_id}-compare")
+        if rec and rec.get("actions") == [a.model_dump(mode="json") for a in acts]:
+            data["town_hall"] = dv.attach_town_hall(data["town_hall"], rec)
+            data["voice"] = {"model": rec.get("model"), "recorded_at": rec.get("recorded_at")}
+        else:
+            data["voice"] = {"model": "template (no AI)", "recorded_at": None}
+        return ToolResult(ok=True, data=data)
+
+    key = {"s": scenario_id, "a": [a.model_dump(mode="json") for a in acts], "on": _today()}
+    return _wm_cached(w, "day_compare", key, run, cache=_DAY_CACHE, cache_max=16)
+
+
+def _day_show_at(ctx: Ctx, sc: dict, places: list[dict]) -> str | None:
+    by_m = {s.id: s.stage_m for s in ctx.world.flood.scenarios}
+    stages = [(m, sid) for m, sid in sc.get("stages", []) if sid]
+    if stages:
+        top = max(by_m.get(sid, 0) for _, sid in stages)
+        t = min(m for m, sid in stages if by_m.get(sid, 0) == top)
+    elif places and isinstance(places[0].get("peak_at"), int):
+        t = places[0]["peak_at"]
+    else:
+        return None
+    return f"{int(t) // 60:02d}:{int(t) % 60:02d}"
+
+
+def day_rehearsal_summary(ctx: Ctx, day: str = "storm") -> ToolResult:
+    """For the assistant: a simulated day of 5,000 synthetic residents (Elmina Day) in one
+    built-in scenario (weekday | storm | event | friday), summarised: trips by outcome, residents
+    by group, school, the busiest places. A rehearsal, not a forecast; residents are synthetic."""
+    scenario_id = str(day).strip().lower()
+    full = day_rehearsal(ctx, scenario_id)
+    if not full.ok:
+        return full
+    d = full.data
+    sc = d["scenario"]
+    keep = ("on_time", "late", "cancelled", "turned_back", "stranded", "data_gap", "stayed_home")
+    data = {
+        "scenario": {k: sc.get(k) for k in ("id", "label", "summary")},
+        "residents": d["headline"]["residents"],
+        "trips": d["headline"]["trips"],
+        "outcomes": {k: d["headline"].get(k, 0) for k in keep if k != "stayed_home"},
+        "groups": [
+            {
+                **{k: g[k] for k in ("label", "residents", *keep)},
+                # residents with a trip they could not make (cancelled, turned back or stuck)
+                "could_not_make_a_trip": g["cancelled"] + g["turned_back"] + g["stranded"],
+            }
+            for g in d["groups"]
+            if g["id"] != "everyone"
+        ],
+        "school": d["school"],
+        "busiest_places": [
+            {"name": p["name"], "peak": p["peak"], "visits": p["visits"]} for p in d["places"][:3]
+        ],
+        "river_stages": [s for _, s in sc.get("stages", []) if s],
+        # when the map should open this day: the river's peak, else the busiest moment (a clock
+        # time as text, so it is never read as a count)
+        "show_at": _day_show_at(ctx, sc, d["places"]),
+    }
+    ev = Evidence(
+        id=f"ev-day-{scenario_id}",
+        element_id="day",
+        attribute=scenario_id,
+        value={"residents": data["residents"], "trips": data["trips"]},
+        status="indicative",
+        source_type="rehearsal",
+    )
+    return ToolResult(ok=True, data=data, evidence=[ev], warnings=[d["disclaimer"]])
+
+
+TOOLS["day_rehearsal"] = day_rehearsal_summary
+
+
+def day_test_change(ctx: Ctx, day: str = "storm", option: int = 1) -> ToolResult:
+    """For the assistant: run one of the day's own suggested changes (option 1 is the top
+    suggestion; `options` names them all) on the same simulated day, before and after: residents
+    better and worse off, by group. An imagined change on a rehearsal of synthetic residents:
+    never a plan, a promise or a forecast. The change comes from the server's list, never from
+    the model."""
+    scenario_id = str(day).strip().lower()
+    ch = day_changes(ctx, scenario_id)
+    if not ch.ok:
+        return ch
+    cands = ch.data["candidates"]
+    if not cands:
+        return ToolResult(ok=False, warnings=["no change to test on this day"])
+    try:
+        n = int(option)
+    except (TypeError, ValueError):
+        n = 1
+    if not 1 <= n <= len(cands):
+        return ToolResult(ok=False, warnings=[f"option must be 1 to {len(cands)}"])
+    pick = cands[n - 1]
+    res = day_compare(ctx, scenario_id, [pick["action"]])
+    if not res.ok:
+        return res
+    d = res.data
+    full = day_rehearsal(ctx, scenario_id)
+    sc = (full.data or {}).get("scenario", {}) if full.ok else {}
+    data = {
+        "scenario": {k: sc.get(k) for k in ("id", "label")},
+        "option": n,
+        "change": pick["label"],
+        "why": pick["why"],
+        # what the count in each option's reason means: on a river day the residents whose cut
+        # trips used the stretch, otherwise the trips walked over it (review C17)
+        "options": [
+            {
+                "option": i + 1,
+                "change": c["label"],
+                "why": c["why"],
+                **(
+                    {"residents_relying": c.get("count")}
+                    if c["action"].get("kind") == "raise_paths"
+                    else {"trips_walked": c.get("count")}
+                ),
+            }
+            for i, c in enumerate(cands)
+        ],
+        "residents_better": d["residents_better"],
+        "residents_worse": d["residents_worse"],
+        "trips_better": d["trips_better"],
+        "trips_worse": d["trips_worse"],
+        "groups": [
+            {k: g[k] for k in ("label", "residents", "better_off", "worse_off")}
+            for g in d["groups"]
+            if g["id"] != "everyone" and (g["better_off"] or g["worse_off"])
+        ],
+        "baseline": d["baseline"],
+        "disclaimer": d["disclaimer"],
+        "river_stages": [s for _, s in sc.get("stages", []) if s],
+        "show_at": _day_show_at(ctx, sc, (full.data or {}).get("places", [])) if full.ok else None,
+        # for the map only (the agent drops it before the model sees the result)
+        "changed_geojson": d.get("changed_geojson"),
+    }
+    ev = Evidence(
+        id=f"ev-daychange-{scenario_id}-{n}",
+        element_id="day",
+        attribute=f"{scenario_id} change {n}",
+        value={"better": data["residents_better"], "worse": data["residents_worse"]},
+        status="indicative",
+        source_type="rehearsal",
+    )
+    return ToolResult(ok=True, data=data, evidence=[ev], warnings=[d["disclaimer"]])
+
+
+TOOLS["day_test_change"] = day_test_change

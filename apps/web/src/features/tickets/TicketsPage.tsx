@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Button } from "../../ui/Button";
+import { VerifyNextBoard } from "../whatif/VerifyNextBoard";
 import { TicketDetail } from "./TicketDetail";
 import { TicketList } from "./TicketList";
 import { groupTickets } from "./ticketModel";
@@ -38,6 +39,12 @@ export function TicketsPage() {
         <div
           className={`${showDetail ? "hidden lg:block" : ""} lg:glass lg:self-start lg:rounded-2xl lg:p-4`}
         >
+          <VerifyNextBoard
+            onTicket={(id) => {
+              setPicked(id);
+              setShowDetail(true);
+            }}
+          />
           <TicketList
             toCheck={toCheck}
             checked={checked}

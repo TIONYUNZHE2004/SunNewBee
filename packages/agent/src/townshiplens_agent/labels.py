@@ -5,6 +5,7 @@ The structured values (route_status, element_id, attribute) stay unchanged in ev
 """
 
 import re
+from collections.abc import Iterable
 from datetime import datetime
 
 from townshiplens_spatial.attributes import ATTRIBUTE_LABELS
@@ -293,3 +294,56 @@ def closure_summary_tail(rows: list[dict], status: str, route: dict | None = Non
 def inferred_caveats(notes: list[str]) -> list[str]:
     """Entrance-not-mapped lines (plan_route warnings), no repeats."""
     return list(dict.fromkeys(notes))
+
+
+# ---- answer language (Cycle 6): the frame around the model's text follows the question -------
+_CJK = re.compile(r"[\u4e00-\u9fff]")
+# Bahasa Melayu function words. Place-like nouns ("pusat", "sungai", "laluan", "tangga") are left
+# out on purpose: they appear in Elmina's place names inside English text.
+_BM = re.compile(
+    r"\b(?:boleh|saya|dari|tanpa|jika|kalau|bagaimana|berapa|adakah|apakah|di mana|ke mana|"
+    r"untuk|dengan|ke|nak|tak|ini|itu|ada|akan|dalam|daripada|yang|tidak|belum|macam mana|"
+    r"kerusi roda|kereta sorong|atau|juga|sahaja|tiada|sudah|telah|mahu|hendak)\b",
+    re.IGNORECASE,
+)
+FRAME = {
+    "en": {"status": "Route status", "worth": "Worth knowing:"},
+    "ms": {"status": "Status laluan", "worth": "Perlu diketahui:"},
+    "zh": {"status": "路线状态", "worth": "注意事项："},
+}
+STATUS_WORDS = {
+    "ms": {
+        "confirmed": "disahkan",
+        "partly_unverified": "sebahagian belum disahkan",
+        "blocked": "tersekat",
+        "no_data": "tiada sambungan dipetakan (jurang data)",
+        "demo": "disahkan (pada nilai demo, belum ditinjau)",
+    },
+    "zh": {
+        "confirmed": "已确认",
+        "partly_unverified": "部分未核实",
+        "blocked": "受阻",
+        "no_data": "无已绘制的连接（数据缺口）",
+        "demo": "已确认（基于演示数据，尚未实地调查）",
+    },
+}
+
+
+def detect_language(text: str, names: Iterable[str] = ()) -> str:
+    """'zh' for Chinese characters, 'ms' for Bahasa Melayu (two or more common words), else 'en'.
+    Place names are removed first, so "Pusat Pemindahan …" or "Sungai Buloh" in an English
+    question does not make it Malay."""
+    text = text or ""
+    for n in sorted((n for n in names if n), key=len, reverse=True):
+        text = re.sub(re.escape(n), " ", text, flags=re.IGNORECASE)
+    if _CJK.search(text):
+        return "zh"
+    return "ms" if len(_BM.findall(text)) >= 2 else "en"
+
+
+def route_status_line(status: str, route: dict | None, lang: str = "en") -> str:
+    words = STATUS_WORDS.get(lang)
+    if not words:
+        return f"{FRAME['en']['status']}: {route_status_text(status, route)}"
+    demo = status == "confirmed" and route and route.get("demo_evidence")
+    return f"{FRAME[lang]['status']}: {words['demo'] if demo else words.get(status, status)}"

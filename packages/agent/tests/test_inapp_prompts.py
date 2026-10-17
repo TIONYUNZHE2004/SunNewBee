@@ -50,7 +50,11 @@ STARTERS = [
     ("Stroller route from Car Park B to the playground", "stroller", None),
     ("Wheelchair route to the lakeside mall", "wheelchair", None),
     ("Nearest evacuation centre if the water rises 3 m", "default", None),
-    ("Where to drop off recycling", "default", None),
+    (
+        "At which river level does my route from the mall to an evacuation centre break?",
+        "default",
+        None,
+    ),
 ]
 ALL = ACCESS + FLOOD + WASTE + WHERE + STARTERS
 
@@ -225,6 +229,13 @@ def _parse_resident_starters(src: str) -> list[tuple[str, str | None]]:
         pr = re.search(r'profile:\s*"([^"]+)"', item)
         out.append((t.group(1), pr.group(1) if pr else None))
     return out
+
+
+def test_management_starters_include_the_rehearsal_chip():
+    """The storm rehearsal chip is answered end to end on the seed in test_day_agent."""
+    src = STARTERS_TS.read_text(encoding="utf-8")
+    block = re.search(r"management:\s*\[(.*?)\n  \],", src, re.S).group(1)
+    assert '"What happens to residents in the storm rehearsal?"' in block
 
 
 def test_resident_starters_match_starters_ts():

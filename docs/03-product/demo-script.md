@@ -41,12 +41,44 @@ Two ways to run it. **Walkthrough:** open `/?demo=hero` and step through the 8 c
 
 **Not in the live demo** (and not claimed): re-asking after a staff fix, and the journey-test before/after numbers. With `DEMO_MODE` on, a repeated chip replays the cached answer, so a fix does not change it. Journey tests ("Journey tests" tab: simulated residents across profiles and scenarios, with outcome matrix and rest-gap advisories for older adults) take about 90 s to run (measured 15 Oct 2026 on the seed: about 33 s journeys and 58 s evacuation) and need the staff token; the console shows "No run yet" until one is run. Run it before the demo and quote only what the screen shows.
 
+## World-model segment: Elmina Day (about 3:00, current two-screen UI, `ai/world-model`)
+
+This segment uses only the current screens. Management mode opens **Simulate a day**. The caches warm themselves: check `GET /api/healthz` → `world_model.state: "warm"` before going on stage. The numbers below are from the Elmina seed on 17 Oct; they change if the data changes, so read them off the screen.
+
+| Time | On screen | Say (presenter) |
+|---|---|---|
+| 0:00 | **Management → Simulate a day → Storm at the school run → Play on the map.** The clock runs from 06:00. At 06:45 the river rises to +1 m, then +2 m and +3 m (the flood layer follows the clock). Yellow dots walk, blue dots drive, and red dots wait for a way through | "This is a rehearsal of tomorrow morning in City of Elmina. 5,000 synthetic residents live in real Elmina homes, in proportions from DOSM statistics: the school run, commutes, prayers, the clinic. Then the river rises during the school run. Every dot follows its own path on the real map, and every count is the world model's." |
+| 0:45 | **Overview tab:** the groups table (every resident is in one column, data gaps included) and the school line ("1,373 pupils… 261 couldn't get there") | "It doesn't say 'the town flooded'. It says *who*. 261 children couldn't get to school. Teenagers are hit hardest, because they walk to school on their own: 151 of 362 couldn't go or turned back. Households without a car come next: 149 of 442 couldn't go at all. And where the map has no connection, it says 'data gap' instead of guessing. That is the People track: every resident, by group." |
+| 1:10 | **Residents tab:** pick a parent with a stroller or a wheelchair user; the camera flies to them; their diary is marked "AI voice, checked" | "Forty of them have a voice. A cheap AI model writes their diary and makes their choices, and only from options the engine offers: wait, stay home, ask a neighbour for a lift, turn back. Every time and number they say is checked against their own simulated day before it's shown." |
+| 1:35 | **Feed tab** while the clock plays: the township's river notices, then "I planned to drive to work at 07:07, but there was no way through…" with a "Same here" reply | "This is MiroFish-style social simulation, except these residents walk on real data. The feed fills up as the morning goes on. It is a rehearsal of what people will be dealing with, not a poll and not a forecast." |
+| 2:00 | **Test a change → "Imagine the flooded stretch on Jalan Sungai Buloh … raised" → Compare the day.** "823 residents would be better off and 0 worse off"; the town hall; the stretch drawn on the map | "Now the planner's question: what if we raise this one kilometre of road above the flood levels? Same day, same residents, run again: 823 residents would be better off, and nobody worse off. On Persiaran Eserina, it's a hundred children who'd get to school. A world model lets you test a change *before* you build it." |
+| 2:35 | **Ask the assistant:** "What happens to residents in the storm rehearsal?" → the checked answer (school first, then the groups hit hardest), and the map jumps to the rehearsal at 07:25 with the river at +3 m | "And the assistant answers from the same rehearsal, through the same honesty gate: synthetic residents, not a forecast, only the engine's counts, data gaps named. Then it shows you the moment it's talking about." |
+| 2:50 | Slide: the evaluation table from [ai-eval-report-2026-10.md](ai-eval-report-2026-10.md) | "Underneath, the same rule as everywhere in TownshipLens: the AI never invents a fact, and every gap is shown as a gap." |
+
+**Backup beats:**
+- type "Which change would help most residents in the storm rehearsal?". The assistant runs the same before/after comparison as Test a change ("823 residents would be better off and 0 worse off"). The map flies to the stretch, drawn as an imagined change. Then ask for option 2 (Persiaran Eserina: 101 children better off);
+- the night event at the park: up to 479 residents at once, and 393 met a neighbour from another household;
+- the rising-river and tipping-point views;
+- the ticket impact card on `/tickets`.
+
+**If asked "is it a real world model?"** Yes, in the functional sense:
+- **an explicit state:** the township's paths, places, flood scenarios and facts;
+- **a closed set of actions:** close a path, build a ramp, raise a flooded stretch, verify a fact;
+- **a transition function** that applies them to a copy;
+- **simulation and planning on top:** 5,000 agents living a day, comparisons before and after, survey and fix-it planners.
+
+The township dynamics are engineered from open data, not learned. What is learned or generated is kept separate and checked:
+- the model's belief about unchecked facts (from OpenStreetMap tags and staff checks);
+- the spotlight residents' words and choices (an LLM, limited to what the engine offers).
+
+See [world-models-2026.md](../02-research/world-models-2026.md) §8 and the [Elmina Day design](../superpowers/specs/2026-10-17-elmina-day-design.md).
+
 ## What can go wrong → recovery
 
 | Failure | Recovery line + action |
 |---|---|
 | Wi-Fi or API down | "Let me show you the recorded run" → switch to the video at the same timestamp. `DEMO_MODE` answers need no LLM, but the app still needs its own API running locally |
-| Google 3D tiles don't load or look poor | Click **Lite map** or **List**. *"Works on any phone. 3D is a layer, not a dependency."* The List view needs no map keys |
+| Google 3D tiles don't load or look poor | **Map settings → Map view → Lite map** or **List (text)**. *"Works on any phone. 3D is a layer, not a dependency."* The List view needs no map keys and spells out what-ifs as text |
 | Water drawn above or below the mesh (datum offset) | Use Lite map, where the flood layer is drawn flat. Say: "we calibrate the water against the elevation model, not the picture". At low stages part of the water is hidden under the 3D surface; the list and 2D layers are authoritative |
 | A typed question gets a different answer | It missed the replay cache and ran the live mock. Use the chips. *"This is why every answer shows its evidence."* |
 | Scenario answer lacks the banner or says anything like "safe" | Stop: "That's exactly what our validator is there to block." Show the golden-set result, then the video |

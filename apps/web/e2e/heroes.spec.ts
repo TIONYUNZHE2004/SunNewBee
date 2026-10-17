@@ -60,6 +60,18 @@ test("settings popover sets a river level and shows the flood note", async ({ pa
   await expect(page.getByRole("note")).toContainText(/indicative scenario, not a forecast/i);
 });
 
+test("map view switch: the list view is always offered (demo recovery)", async ({ page }) => {
+  await open(page);
+  await page.getByRole("button", { name: "Map settings" }).click();
+  const views = page.getByRole("radiogroup", { name: "Map view" });
+  // e2e runs keyless on the tiny fixture: no buildings, no keys, so the list is the only view.
+  await expect(views.getByRole("radio", { name: "List (text)" })).toHaveAttribute(
+    "aria-checked",
+    "true",
+  );
+  await expect(views.getByRole("radio", { name: "3D" })).toBeDisabled();
+});
+
 test("Escape closes the settings popover and returns focus to its button", async ({ page }) => {
   await open(page);
   const btn = page.getByRole("button", { name: "Map settings" });
@@ -261,4 +273,114 @@ test("management: a gap becomes a ticket, staff resolve it, before/after shows",
   const again = await lastAnswer(page);
   await expect(again).toContainText(/Route status: confirmed/);
   await expect(again).not.toContainText(/partly unverified/);
+});
+
+test("what-if hero: the assistant imagines a ramp and the answer is labelled not real", async ({
+  page,
+}) => {
+  await open(page);
+  await ask(page, "What if we build a ramp at the steps? How many wheelchair journeys would work?");
+  const last = await lastAnswer(page);
+  await expect(last).toContainText(/In this what-if simulation/);
+  await expect(last).toContainText(/Imagined changes are not real/);
+  await expect(last).toContainText(/Answer checked against the township data/);
+  await expect(last).not.toContainText(/ is confirmed|will be built/);
+  // The list view (no WebGL, no keys) spells out the same diff the 3D map draws (Cycle 8).
+  const diff = page.getByRole("region", { name: "What-if · not real" });
+  await expect(diff).toContainText("Imagined changes");
+  await expect(diff).toContainText(/today \d+, what-if \d+ \(of \d+\)/);
+  // Earlier tests change the shared world, so the imagined change varies; the row never ends empty.
+  await expect(diff).toContainText(
+    /→ would be (confirmed|partly unverified|blocked|no mapped connection)/,
+  );
+  await diff.getByRole("button", { name: "Clear what-if" }).click();
+  await expect(diff).toHaveCount(0);
+});
+
+test("What-if Lab: staff run a river rise plus a suggested change on a copy of the township", async ({
+  page,
+}) => {
+  await open(page);
+  await page.getByRole("radio", { name: "Management" }).click();
+  await page.getByRole("button", { name: "Open What-if Lab" }).click();
+  const lab = page.getByRole("region", { name: "What-if Lab" });
+  // Earlier tests resolve tickets on the shared world, so take whatever the model suggests first.
+  await lab.getByRole("checkbox").first().check();
+  await lab.getByRole("button", { name: "Run what-if" }).click();
+  const note = lab.getByRole("note");
+  await expect(note).toContainText("What-if · not real");
+  await expect(note).toContainText(/River \+3 m \(indicative scenario\)/);
+  await expect(note).toContainText(/Reach a centre \(river rise only\)/);
+  await expect(note).toContainText(/not a forecast/);
+});
+
+test("Rising river: synthetic residents per stage, labelled a simulation", async ({ page }) => {
+  await open(page);
+  await page.getByRole("radio", { name: "Management" }).click();
+  await page.getByRole("button", { name: "Rising river" }).click();
+  const panel = page.getByRole("region", { name: "Rising river" });
+  await expect(panel.getByRole("note")).toContainText(/not a forecast/);
+  await panel.getByRole("button", { name: "River +5 m" }).click();
+  await expect(panel.getByRole("list", { name: "At River +5 m" })).toContainText(
+    /of \d+ still reach a centre/,
+  );
+});
+
+test("tipping point: the assistant names the river level where a trip breaks", async ({ page }) => {
+  await open(page);
+  await ask(
+    page,
+    "At which river level does my route from the playground to the evacuation centre break?",
+  );
+  const last = await lastAnswer(page);
+  await expect(last).toContainText(/River \+3 m/);
+  await expect(last).toContainText(/not a forecast/);
+});
+
+test("ticket impact: the world model says what one check would change", async ({ page }) => {
+  await open(page);
+  await ask(page, "Can I push a stroller from Car Park B to the kiosk without stairs?");
+  await lastAnswer(page);
+  await page.goto("/tickets");
+  const card = page.getByRole("region", { name: "What this check changes" });
+  await expect(card).toContainText(/would become confirmed|changed/);
+  await expect(card).toContainText(/planning estimate/);
+});
+
+test("Elmina Day: synthetic residents live a day; the clock drives the list and the feed", async ({
+  page,
+}) => {
+  await open(page);
+  await page.getByRole("radio", { name: "Management" }).click();
+  await page.getByRole("button", { name: "Simulate a day" }).click();
+  const panel = page.getByRole("region", { name: "Simulate a day" });
+  await expect(panel).toContainText("not a forecast");
+  await panel.getByRole("button", { name: "A normal weekday" }).click();
+  await expect(panel.getByRole("button", { name: "Play on the map" })).toBeVisible();
+  await panel.getByRole("slider", { name: "Time of day" }).fill("480");
+  await expect(panel).toContainText(/At 08:00: \d+ walking, \d+ driving, \d+ waiting/);
+  // the list view spells out the same moment
+  await expect(page.getByRole("heading", { name: /A normal weekday · 08:00/ })).toBeVisible();
+  await panel.getByRole("tab", { name: "Overview" }).click();
+  await expect(panel.getByRole("table")).toContainText("Wheelchair users");
+  await panel.getByRole("tab", { name: "How it was made" }).click();
+  await expect(panel).toContainText("DOSM");
+  await panel.getByRole("button", { name: "Close" }).first().click();
+  await expect(page.getByRole("region", { name: "Simulate a day" })).toHaveCount(0);
+});
+
+test("Test a change: the same day with an imagined change, who gains and who loses", async ({
+  page,
+}) => {
+  await open(page);
+  await page.getByRole("radio", { name: "Management" }).click();
+  await page.getByRole("button", { name: "Simulate a day" }).click();
+  const panel = page.getByRole("region", { name: "Simulate a day" });
+  await panel.getByRole("button", { name: "A normal weekday" }).click();
+  await panel.getByRole("tab", { name: "Test a change" }).click();
+  await panel.getByRole("button", { name: "Compare the day" }).click();
+  const result = panel.getByRole("region", { name: "Before and after" });
+  await expect(result).toContainText("not a plan");
+  await expect(result).toContainText(/\d+ residents would be better off and \d+ worse off/);
+  await expect(page.getByRole("note").filter({ hasText: "What-if · not real" })).toBeVisible();
 });

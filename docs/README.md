@@ -49,6 +49,7 @@ docs/
 │   ├── 3d-data-and-rendering.md      Google 3D Tiles, renderers, splats, licensing
 │   ├── township-3d-engine-and-data.md ★ Cesium decision, whole-Elmina data, waste lens, data architecture
 │   ├── flood-disaster-lens.md        ★ Lens 2: HAND scenarios, DEM, thresholds, evacuation, MY context
+│   ├── world-models-2026.md          ★ world models in 2026; the Township World Model design and ranked features
 │   ├── agent-harness-2026.md         ★ agent frameworks compared; PydanticAI over OpenRouter
 │   ├── ai-assistant-research.md      tool-use LLMs, grounding, spatial limits, evals, PDPA
 │   ├── accessibility-and-routing.md  OpenSidewalks, OSM tags, routing, unknowns, MY stats
