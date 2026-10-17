@@ -25,7 +25,7 @@ Active workers (keep this table current):
 
 | Branch | Agent | Task | Status |
 |---|---|---|---|
-| `claude/kind-cannon-mormhi` | Claude (other session) | AI investigation, model comparison and failover, road crossings | Running. Carries old history; pull with `--squash` only (see below). Last pulled: `79eb6ef` (17 Oct) |
+| `claude/kind-cannon-mormhi` | Claude (other session) | AI investigation, model comparison and failover, road crossings | Running. Restarted on control at `d583d37` (17 Oct); merge it normally |
 
 ## Flow
 
@@ -71,21 +71,16 @@ Run from the repo root with `set -o pipefail`:
 | `data/seed/**` | Never merge by hand. Rebuild with the data scripts (AGENTS.md "Data pipeline") |
 | Same logic changed on both sides | Stop and ask Yunzhe if either choice loses behaviour |
 
-## Old history: pull `kind-cannon` with `--squash`
+## Before comparing branch history
 
-`main` was restarted on 16 Oct 2026 with new history. It shares no commit with `backup/main-2026-10-16`. The old history holds about 166 MiB of files that are not in `main`, including about 127 MiB of research PDFs (`reference/papers/**/*.pdf`, now in `.gitignore`).
-
-`claude/kind-cannon-mormhi` contains that old history. A normal merge would bring all of it back into control and then into `main`. So control takes its **content only**:
+Cloud sessions clone the repo **shallow** (recent commits only). Ahead/behind counts, root commits and "shared history" checks are wrong on a shallow clone. Run this first:
 
 ```bash
-git fetch origin claude/kind-cannon-mormhi
-git merge --squash origin/claude/kind-cannon-mormhi   # stages the changes, adds no old commits
-git commit -m "docs(ai): bring in kind-cannon work (squashed)"
+git rev-parse --is-shallow-repository   # true means: fetch the full history first
+git fetch --unshallow origin
 ```
 
-Repeat the same command for later updates. Content that is already on control usually merges cleanly, because both sides hold the same change.
-
-To fix this permanently, the `kind-cannon` session can restart its branch from `origin/main` and copy its own files across. New workers that start from control never have this problem.
+(17 Oct: a shallow clone made `main` look restarted on 16 Oct. It was not. `backup/main-2026-10-16` is an older `main` and is fully inside `main`.)
 
 ## Prompt template for a new agent
 
