@@ -1,4 +1,4 @@
-{"meta": {"message": "Can I get to the lakeside mall in a wheelchair?", "profile": "wheelchair", "scenario_id": null, "world": "elmina", "model": "mock-scripted", "recorded_at": "2026-10-16T14:23:20+00:00"}}
+{"meta": {"message": "Can I get to the lakeside mall in a wheelchair?", "profile": "wheelchair", "scenario_id": null, "world": "elmina", "model": "mock-scripted", "recorded_at": "2026-10-17T04:14:12+00:00"}}
 {"type": "tool.call", "id": "find_place-0", "name": "find_place", "args": {"query": "car park b", "types": null, "limit": 5}}
 {"type": "tool.result", "id": "find_place-0", "name": "find_place", "summary": "5 result(s)"}
 {"type": "tool.call", "id": "find_place-1", "name": "find_place", "args": {"query": "lakeside mall", "types": null, "limit": 5}}
@@ -12,19 +12,25 @@
 {"type": "verification.requested", "request_id": "vr-0015", "element_id": "seg-1346154591-1", "attribute": "incline_pct", "created": false, "demand": 4, "reason": "unknown"}
 {"type": "verification.requested", "request_id": "vr-0017", "element_id": "seg-1346154591-1", "attribute": "width_m", "created": false, "demand": 3, "reason": "unknown"}
 {"type": "tool.result", "id": "plan_route-2", "name": "plan_route", "summary": "route partly_unverified"}
-{"type": "text.delta", "delta": "Route status: partly unverified\n⚠ Not ch"}
-{"type": "text.delta", "delta": "ecked yet: Incline (%) on an unnamed ram"}
-{"type": "text.delta", "delta": "p; Not checked yet: Steps on an unnamed "}
-{"type": "text.delta", "delta": "footway (x2); Not checked yet: Incline ("}
-{"type": "text.delta", "delta": "%) on an unnamed footway; Not checked ye"}
-{"type": "text.delta", "delta": "t: Width (m) on an unnamed footway; and "}
-{"type": "text.delta", "delta": "2 more unchecked items; Asked the townsh"}
-{"type": "text.delta", "delta": "ip team to check all 7 unchecked items; "}
-{"type": "text.delta", "delta": "Segment facts are demo values, not yet s"}
-{"type": "text.delta", "delta": "urveyed.\nLakeside Mall Car Park B to Elm"}
-{"type": "text.delta", "delta": "ina Lakeside Mall: route partly unverifi"}
-{"type": "text.delta", "delta": "ed, 445.9 m."}
-{"type": "scene.intent", "intent": {"kind": "route.highlight", "place_id": null, "route_id": "rt-91c6ad3e", "scenario_id": null, "center": null, "range_m": null, "lens": null, "visible": null, "geojson": {"type": "LineString", "coordinates": [[101.508757, 3.18131], [101.50861, 3.181204], [101.508479, 3.181108], [101.508671, 3.180834], [101.508715, 3.180769], [101.508515, 3.180628], [101.508527, 3.180603], [101.508533, 3.180575], [101.50853, 3.180546], [101.508521, 3.180519], [101.508501, 3.180493], [101.508769, 3.180147], [101.508911, 3.179959], [101.50941, 3.180232], [101.509854, 3.180547], [101.509999, 3.180661], [101.510071, 3.180734], [101.50979, 3.181102], [101.510045, 3.18131]]}, "route_status": "partly_unverified", "distance_m": 445.9, "est_minutes": 6.4}}
+{"type": "answer.draft", "attempt": 1, "delta": "Lakeside "}
+{"type": "answer.draft", "attempt": 1, "delta": "Mall Car Park B to "}
+{"type": "answer.draft", "attempt": 1, "delta": "Elmina Lakeside Mall: route "}
+{"type": "answer.draft", "attempt": 1, "delta": "partly unverified, 445.9 "}
+{"type": "answer.draft", "attempt": 1, "delta": "m."}
+{"type": "answer.check", "attempt": 1, "ok": true, "issues": [], "repairs": 0}
+{"type": "text.delta", "delta": "Route status: partly unverified\nLakeside"}
+{"type": "text.delta", "delta": " Mall Car Park B to Elmina Lakeside Mall"}
+{"type": "text.delta", "delta": ": route partly unverified, 445.9 m.\nWort"}
+{"type": "text.delta", "delta": "h knowing:\n• Not checked yet: Incline (%"}
+{"type": "text.delta", "delta": ") on an unnamed ramp.\n• Not checked yet:"}
+{"type": "text.delta", "delta": " Steps on an unnamed footway (x2).\n• Not"}
+{"type": "text.delta", "delta": " checked yet: Incline (%) on an unnamed "}
+{"type": "text.delta", "delta": "footway.\n• Not checked yet: Width (m) on"}
+{"type": "text.delta", "delta": " an unnamed footway; and 2 more unchecke"}
+{"type": "text.delta", "delta": "d items.\n• Asked the township team to ch"}
+{"type": "text.delta", "delta": "eck all 7 unchecked items.\n• Segment fac"}
+{"type": "text.delta", "delta": "ts are demo values, not yet surveyed."}
+{"type": "scene.intent", "intent": {"kind": "route.highlight", "place_id": null, "route_id": "rt-91c6ad3e", "scenario_id": null, "center": null, "range_m": null, "lens": null, "visible": null, "geojson": {"type": "LineString", "coordinates": [[101.508757, 3.18131], [101.50861, 3.181204], [101.508479, 3.181108], [101.508671, 3.180834], [101.508715, 3.180769], [101.508515, 3.180628], [101.508527, 3.180603], [101.508533, 3.180575], [101.50853, 3.180546], [101.508521, 3.180519], [101.508501, 3.180493], [101.508769, 3.180147], [101.508911, 3.179959], [101.50941, 3.180232], [101.509854, 3.180547], [101.509999, 3.180661], [101.510071, 3.180734], [101.50979, 3.181102], [101.510045, 3.18131]]}, "route_status": "partly_unverified", "distance_m": 445.9, "est_minutes": 6.4, "day": null, "t_min": null}}
 {"type": "citation", "ref": 1, "evidence_id": "ev-place-park-b", "element_id": "park-b", "attribute": "name", "status": "reported", "verified_at": null, "source_type": "world_model", "photo_url": null}
 {"type": "citation", "ref": 2, "evidence_id": "ev-place-lakeside-mall", "element_id": "lakeside-mall", "attribute": "name", "status": "reported", "verified_at": null, "source_type": "world_model", "photo_url": null}
 {"type": "citation", "ref": 3, "evidence_id": "ev-seg-1306543769-3.step_count", "element_id": "seg-1306543769-3", "attribute": "step_count", "status": "verified", "verified_at": "2026-10-15", "source_type": "team_survey_placeholder", "photo_url": null}

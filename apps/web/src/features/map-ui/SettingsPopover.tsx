@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useMode } from "../../app/modeStore";
 import { useScenarios } from "../../lib/api";
+import { ENV } from "../../lib/env";
 import { Icon, type IconName } from "../../ui/icons";
 import { useTheme } from "../../ui/theme";
 import { useBehindFullSheet } from "../main/usePanelReserve";
@@ -8,7 +9,7 @@ import { useCameraUi } from "../scene/cesium/controls/cameraUiStore";
 import { StatusLegend } from "../scene/StatusLegend";
 import { useSceneSettings } from "../scene/sceneSettingsStore";
 import { type MapStyle, useScene } from "../scene/sceneStore";
-import type { View } from "../scene/selectView";
+import { availableViews, type View, webglSupported } from "../scene/selectView";
 import { useEffectiveView, useMapStyle } from "../scene/useMapStyle";
 import { TRAVEL_LABELS, TRAVEL_ORDER } from "./TravelLabels";
 
@@ -18,6 +19,22 @@ export function levelOptions(scenarios: { id: string; label: string; stage_m?: n
     .sort((a, b) => (a.stage_m as number) - (b.stage_m as number))
     .map((s) => ({ id: s.id as string | null, label: `+${s.stage_m} m` }));
   return [{ id: null as string | null, label: "Normal" }, ...stages];
+}
+
+/** Map view options (3D, lite map, list) with the reason a view cannot be used. The list view
+ * always works: it is the accessible, keyless fallback and shows everything as text. */
+export function viewOptions(available: View[]) {
+  const reason = (v: View) =>
+    available.includes(v)
+      ? null
+      : v === "cesium"
+        ? "Needs a 3D-capable device and building data or a map key"
+        : "Needs a Mapbox token";
+  return [
+    { view: "cesium" as View, label: "3D", reason: reason("cesium") },
+    { view: "mapbox" as View, label: "Lite map", reason: reason("mapbox") },
+    { view: "list" as View, label: "List (text)", reason: null },
+  ];
 }
 
 /** Map style options with the reason an option cannot be used (shown, and read as its description). */
@@ -89,12 +106,16 @@ export function SettingsPopover() {
   const btnRef = useRef<HTMLButtonElement>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
   const mode = useMode((s) => s.mode);
-  const { scenarioId, profile, setScenario, setProfile, setMapStyle } = useScene();
+  const { scenarioId, profile, setScenario, setProfile, setMapStyle, setView } = useScene();
   const { style, hasBuildings, hasGoogle, settled } = useMapStyle();
   const effective = useEffectiveView();
   const { choice, setChoice } = useTheme();
   const { alwaysShow, setAlwaysShow } = useCameraUi();
   const { motion, quality, setMotion, setQuality } = useSceneSettings();
+  const available = useMemo(
+    () => availableViews(ENV, webglSupported(), hasBuildings),
+    [hasBuildings],
+  );
   const scenarios = useScenarios();
   const levels = levelOptions(scenarios.data ?? []);
   const hidden = useBehindFullSheet();
@@ -132,6 +153,28 @@ export function SettingsPopover() {
                 <Radio key={c} checked={choice === c} onClick={() => setChoice(c)}>
                   {c === "auto" ? "Auto (clock)" : c[0]!.toUpperCase() + c.slice(1)}
                 </Radio>
+              ))}
+            </div>
+          </div>
+          <div>
+            <Heading icon="compass">Map view</Heading>
+            <div role="radiogroup" aria-label="Map view" className="grid grid-cols-3 gap-2">
+              {viewOptions(available).map((o) => (
+                <div key={o.view} className="flex flex-col gap-1">
+                  <Radio
+                    checked={effective === o.view}
+                    disabled={!!o.reason}
+                    describedBy={o.reason ? `map-view-${o.view}-reason` : undefined}
+                    onClick={() => setView(o.view)}
+                  >
+                    {o.label}
+                  </Radio>
+                  {o.reason && (
+                    <span id={`map-view-${o.view}-reason`} className="text-xs text-fg-soft">
+                      {o.reason}
+                    </span>
+                  )}
+                </div>
               ))}
             </div>
           </div>

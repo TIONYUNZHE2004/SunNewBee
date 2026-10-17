@@ -18,6 +18,7 @@ import {
   gapsActive,
   parseGaps,
 } from "../../gaps/gapModel";
+import { diffLines, WHATIF_STYLE } from "../../whatif/whatifModel";
 import {
   floodEdgePickId,
   groupEdgesByStatus,
@@ -29,7 +30,9 @@ import {
 import { useScene } from "../sceneStore";
 import { CESIUM_DASH, type EdgeStatus, ROUTE_STYLE, statusStyle, WATER_COLOR } from "../styles";
 import { useMapStyle } from "../useMapStyle";
+import { DayLayer } from "./DayLayer";
 import { heightRefFor, type MapStyle } from "./heightRef";
+import { RolloutLayer } from "./RolloutLayer";
 
 /** Stylised draws on the flat ellipsoid: clamp to ground there, to Google tiles only when realistic. */
 const heightRef = (style: MapStyle) => heightRefFor(style, !!ENV.googleKey, Cesium.HeightReference);
@@ -182,6 +185,9 @@ export function AccessLayer() {
           </Entity>
         ))}
       <RouteLayer />
+      <WhatIfLayer />
+      <RolloutLayer />
+      <DayLayer />
     </>
   );
 }
@@ -202,6 +208,44 @@ function GapsLayer() {
   }, [q.data, on]);
   useRenderOn(groups, on);
   return <StatusLines groups={groups} styleOf={gapLine} />;
+}
+
+/** A what-if diff: today's lines (grey, dashed), imagined lines (lilac) and imagined changes
+ * (magenta). Drawn only from features tagged `whatif`, so nothing here reads as a real route. */
+function WhatIfLayer() {
+  const whatIf = useScene((s) => s.whatIf);
+  const lines = useMemo(() => diffLines(whatIf?.geojson as never), [whatIf]);
+  const mats = useMemo(
+    () => ({
+      before: new Cesium.PolylineDashMaterialProperty({
+        color: Cesium.Color.fromCssColorString(WHATIF_STYLE.before.color),
+        dashLength: 16,
+      }),
+      after: Cesium.Color.fromCssColorString(WHATIF_STYLE.after.color),
+      touched: Cesium.Color.fromCssColorString(WHATIF_STYLE.touched.color),
+    }),
+    [],
+  );
+  useRenderOn(whatIf);
+  if (!whatIf) return null;
+  return (
+    <>
+      {(["before", "after", "touched"] as const).flatMap((side) =>
+        lines[side].map((coords, i) => (
+          // biome-ignore lint/suspicious/noArrayIndexKey: lines are static per diff
+          <Entity key={`${side}-${i}`}>
+            <PolylineGraphics
+              positions={Cesium.Cartesian3.fromDegreesArray(flat(coords))}
+              width={WHATIF_STYLE[side].width}
+              clampToGround
+              classificationType={Cesium.ClassificationType.BOTH}
+              material={mats[side]}
+            />
+          </Entity>
+        )),
+      )}
+    </>
+  );
 }
 
 function RouteLayer() {

@@ -3,7 +3,10 @@ import { useMode } from "../../app/modeStore";
 import { Icon } from "../../ui/icons";
 import { useChatDraft } from "../chat/chatDraftStore";
 import { useChatStream } from "../chat/useChatStream";
+import { DayPanel } from "../day/DayPanel";
 import { type Profile, useScene } from "../scene/sceneStore";
+import { RisingRiverPanel } from "../whatif/RisingRiverPanel";
+import { WhatIfLab } from "../whatif/WhatIfLab";
 import { AnswerCard } from "./AnswerCard";
 import { ChipRow } from "./ChipRow";
 import { copyFor, STARTERS, type Starter } from "./starters";
@@ -72,6 +75,13 @@ export function AssistantPanel({
         <h1 className="text-lg font-semibold text-fg">{copy.title}</h1>
         <p className="mt-1 text-sm text-fg-soft">{copy.sub}</p>
       </header>
+      {mode === "management" && (
+        <>
+          <DayPanel />
+          <WhatIfLab />
+          <RisingRiverPanel />
+        </>
+      )}
       <div
         role="log"
         aria-live="polite"

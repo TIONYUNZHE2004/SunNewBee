@@ -1,0 +1,91 @@
+[
+  {
+    "id": "whatif-ramp",
+    "pass": true,
+    "failures": [],
+    "status": "answered",
+    "model": "anthropic/claude-haiku-5.5",
+    "fallback": false,
+    "rejected_attempts": 1,
+    "validator_errors": [
+      [
+        "Numbers [5] do not appear in the what-if result for what they describe: 'reach' numbers come from reach_*, 'confirmed' numbers from confirmed_* (or their changes)."
+      ]
+    ],
+    "seconds": 16.4,
+    "first_text_s": 16.4,
+    "first_draft_s": 9.2,
+    "repairs": [],
+    "checks": [
+      {
+        "ok": false,
+        "issues": ["used numbers the simulation did not produce"]
+      },
+      {
+        "ok": true,
+        "issues": []
+      }
+    ],
+    "requests": 4,
+    "cache_read_tokens": 26634,
+    "cache_write_tokens": 11540,
+    "input_tokens": 38184,
+    "output_tokens": 2335,
+    "tools": ["suggest_interventions", "simulate_what_if"],
+    "text": "In this what-if simulation, a ramp at an unnamed set of steps would raise the number of confirmed wheelchair journeys from 1 to 3 across the 5 sampled journeys. The number that reach a destination stays at 3 (reach before 3, reach after 3).\nWorth knowing:\n• What-if simulation, not a forecast or a plan. Imagined changes are not real; unverified facts stay unverified.\n• Segment facts are demo values, not yet surveyed.\n• The Island hut trip and the unmapped destination from Car Park B still have no mapped connection (data gap), with or without the ramp."
+  },
+  {
+    "id": "river-tipping-point",
+    "pass": true,
+    "failures": [],
+    "status": "answered",
+    "model": "anthropic/claude-haiku-5.5",
+    "fallback": false,
+    "rejected_attempts": 0,
+    "validator_errors": [],
+    "seconds": 9.97,
+    "first_text_s": 9.97,
+    "first_draft_s": 7.4,
+    "repairs": ["set scenario_id for a river-stage simulation"],
+    "checks": [
+      {
+        "ok": true,
+        "issues": []
+      }
+    ],
+    "requests": 3,
+    "cache_read_tokens": 23758,
+    "cache_write_tokens": 1226,
+    "input_tokens": 24992,
+    "output_tokens": 1312,
+    "tools": ["find_place", "river_tipping_point"],
+    "text": "The indicative model marks River +3 m as the level where your trip from Urban Park playground to the nearest evacuation centre breaks. At normal level and River +1 m the route is reached. From River +3 m the start point is likely flooded, so the trip breaks there. The nearest centre is a community hall that is only a candidate, not an official PPS. This is an indicative scenario, not a forecast.\nWorth knowing:\n• Indicative scenario, not a forecast; River stages are not water depths.\n• The start point (Urban Park playground) is likely flooded from River +3 m, which is why the trip breaks there.\n• Route data are demo values, not yet surveyed.\n• The nearest centre is a candidate (not an official PPS). Follow official MBSA / JPS / NADMA guidance."
+  },
+  {
+    "id": "river-rollout",
+    "pass": true,
+    "failures": [],
+    "status": "answered",
+    "model": "anthropic/claude-haiku-5.5",
+    "fallback": false,
+    "rejected_attempts": 0,
+    "validator_errors": [],
+    "seconds": 8.67,
+    "first_text_s": 8.67,
+    "first_draft_s": 5.92,
+    "repairs": ["set scenario_id for a river-stage simulation"],
+    "checks": [
+      {
+        "ok": true,
+        "issues": []
+      }
+    ],
+    "requests": 2,
+    "cache_read_tokens": 15605,
+    "cache_write_tokens": 1873,
+    "input_tokens": 17484,
+    "output_tokens": 1438,
+    "tools": ["rising_river_rollout"],
+    "text": "In this indicative simulation, residents reaching the nearest evacuation centre drop from 4 of 5 origins at normal level to 3 at River +3 m and 1 at River +5 m. The same pattern applies to the stroller, wheelchair and older-adult profiles, with 5 sample origins each. Urban Park playground is the first origin cut off, at River +3 m.\nWorth knowing:\n• Indicative simulation, not a forecast. River stages are scenarios, not water depths.\n• Departure times, warnings and crowding are not modelled.\n• Route confirmations rest on demo values, not yet surveyed.\n• Follow official MBSA / JPS / NADMA guidance."
+  }
+]

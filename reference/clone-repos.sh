@@ -2,7 +2,7 @@
 # Shallow-clone the reference repos into reference/repos/<category>/<name>.
 # reference/repos/ is gitignored: re-run this script on any machine to recreate it.
 # Usage: bash reference/clone-repos.sh            (all)
-#        bash reference/clone-repos.sh 3d ai      (only some categories: 3d access ai flood stack)
+#        bash reference/clone-repos.sh 3d ai      (only some categories: 3d access ai flood stack world-models simulation)
 set -u
 cd "$(dirname "$0")/repos"
 
@@ -44,6 +44,15 @@ REPOS=(
   "stack|https://github.com/fastapi/full-stack-fastapi-template"
   "stack|https://github.com/assistant-ui/assistant-ui"
   "stack|https://github.com/hey-api/openapi-ts"
+  # --- World models (2026-10-16): notes/world-models-repos.md
+  # --- Agent-based township simulation (Elmina Day, 17 Oct 2026): MiroFish-style swarm + city-scale LLM agents
+  "simulation|https://github.com/666ghj/MiroFish"
+  "simulation|https://github.com/tsinghua-fib-lab/AgentSociety"
+  "simulation|https://github.com/camel-ai/oasis"
+  "world-models|https://github.com/projectmesa/mesa"
+  "world-models|https://github.com/projectmesa/mesa-geo"
+  "world-models|https://github.com/maitrix-org/llm-reasoners"
+  "world-models|https://github.com/PrefectHQ/fastmcp"
 )
 
 want=("$@")

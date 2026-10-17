@@ -1,0 +1,80 @@
+{
+ "source": "OpenStreetMap (ODbL), Overpass tags-only query",
+ "attribution": "\u00a9 OpenStreetMap contributors (ODbL)",
+ "bbox_swne": [
+  2.85,
+  101.35,
+  3.35,
+  101.85
+ ],
+ "query_sha1": "84ff989b2eb20143aa547b159f0e63a74ba1681c",
+ "built_at": "2026-10-16T14:10:52+00:00",
+ "profile_limits": {
+  "max_incline_pct": 8.3,
+  "min_width_m": 0.9
+ },
+ "ways_with_observations": 2832,
+ "counts": {
+  "wheelchair": {
+   "pedestrian": {
+    "pass": 2,
+    "fail": 0
+   },
+   "footway": {
+    "pass": 766,
+    "fail": 31
+   },
+   "path": {
+    "pass": 27,
+    "fail": 10
+   },
+   "steps": {
+    "pass": 18,
+    "fail": 47
+   }
+  },
+  "width_m": {
+   "footway": {
+    "pass": 139,
+    "fail": 5
+   },
+   "path": {
+    "pass": 168,
+    "fail": 5
+   },
+   "pedestrian": {
+    "pass": 6,
+    "fail": 0
+   },
+   "steps": {
+    "pass": 26,
+    "fail": 1
+   }
+  },
+  "step_count": {
+   "steps": {
+    "pass": 0,
+    "fail": 1524
+   },
+   "footway": {
+    "pass": 0,
+    "fail": 1
+   }
+  },
+  "incline_pct": {
+   "pedestrian": {
+    "pass": 6,
+    "fail": 8
+   },
+   "footway": {
+    "pass": 155,
+    "fail": 0
+   },
+   "path": {
+    "pass": 28,
+    "fail": 11
+   }
+  }
+ },
+ "use": "planning prior only (which facts to verify first); never an edge evaluation"
+}

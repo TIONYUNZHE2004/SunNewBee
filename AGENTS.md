@@ -71,7 +71,7 @@ apps/api POST /chat (SSE) ──► apps/web: parseSse → useChatStream → cha
   - A route crossing UNKNOWN edges is at best `partly_unverified`.
 - **Flood scenarios** (`baseline`, `stage_p1m` … `stage_p5m`) are precomputed by `data/scripts/build_flood.py`. The method is REM, relative elevation above mapped OSM drainage, on Copernicus GLO-30 (ADR 0010 + amendment). Classes are `likely_flooded` (FAIL) and `possible` (UNKNOWN). A scenario can only add FAIL/UNKNOWN; it never upgrades anything to PASS.
 - **Agent ↔ UI contract:**
-  - SSE event types: `text.delta`, `tool.call`, `tool.result`, `scene.intent`, `citation`, `uncertainty`, `disclaimer`, `verification.requested`, `error`, `done`.
+  - SSE event types: `text.delta`, `answer.draft` (provisional summary, replaced by the checked text), `answer.check` (validator verdict per attempt), `tool.call`, `tool.result`, `scene.intent`, `citation`, `uncertainty`, `disclaimer`, `verification.requested`, `error`, `done`.
   - Scene intents: `camera.fly_to`, `place.focus`, `route.highlight`, `flood.set_level`, `layer.toggle`.
   - The agent never touches the scene directly. Each renderer adapts intents from the zustand `sceneStore`.
 - **Model choice is `.env` only:**
@@ -117,7 +117,10 @@ When changing the agent, the mock answers and `template.py` must still pass the 
   - vitest runs in the `node` environment by default. Interaction tests (clicks, focus, keyboard) opt in per file with `// @vitest-environment jsdom` and use Testing Library (`*.dom.test.tsx`; helpers in `apps/web/src/test/`). Other component tests render with `react-dom/server`, and side effects are extracted into pure, testable functions (see `features/tickets/resolveForm.ts`).
   - Playwright uses dedicated ports 5273/8100, so a running dev server on 5173/8000 is never reused. It runs with the tiny fixture, mock LLM, `STAFF_TOKEN=e2e-token` and no map keys (list view).
 - **Commits:** Conventional style with a scope, e.g. `feat(web): …`, `fix(api): …`, `fix(agent): …`, `data: …`, `docs: …`. Data regeneration is committed separately from code.
-- **Dependencies:** only MIT, Apache-2.0 or BSD licences. No GPL/AGPL/LGPL, non-commercial, source-available or unknown licences. This rules out Pillow (HPND); images are stripped with the stdlib (`apps/api/.../imagestrip`). Pin exact versions.
+- **Dependencies and copied code:** for this hackathon the team lead's ruling (16 Oct 2026, ruling W1 in `docs/superpowers/ai-world-model-log.md`; supersedes R25's MIT/Apache/BSD-only rule) is that any licence is acceptable, for dependencies and for code copied from other repositories.
+  - Record every copied source in [CREDITS.md](CREDITS.md): URL, licence, files copied, and where the code now lives. Keep the original copyright header in copied files.
+  - Prefer MIT, Apache-2.0 or BSD when there is a choice, because a pilot after the hackathon may need a stricter licence review (e.g. GPL or AGPL code would have to be replaced). The stdlib image stripper (`apps/api/.../imagestrip`) stays as it is.
+  - Pin exact versions.
 - **Docs:**
   - Decisions are ADRs in `docs/00-overview/decisions/`.
   - Specs and plans are in `docs/superpowers/{specs,plans}/`.

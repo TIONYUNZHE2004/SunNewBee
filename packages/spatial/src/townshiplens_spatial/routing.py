@@ -1,3 +1,5 @@
+import contextlib
+import contextvars
 import hashlib
 import heapq
 import itertools
@@ -158,10 +160,48 @@ def _flood_class(world: World, scenario_id: str | None, edge_id: str):
     return world.flood.edge_classes.get(scenario_id or "", {}).get(edge_id) if scenario_id else None
 
 
+# Batch memo of edge evaluations (twm rollouts route hundreds of journeys over one state).
+# Keyed by the Edge object itself: an imagined world (twm.apply) copies only the edges its
+# actions touch, so every untouched edge is the same object in the real and the imagined world
+# and its evaluation is shared, while a touched edge is a new object and is evaluated afresh.
+# Only set inside `eval_memo()`; a single plan_route call is unchanged.
+_EVAL_MEMO: contextvars.ContextVar[dict | None] = contextvars.ContextVar("eval_memo", default=None)
+
+
+@contextlib.contextmanager
+def eval_memo():
+    """Within this block, each (edge object, profile, scenario) is evaluated once. Re-entrant:
+    an inner block shares the outer memo (e.g. many what-ifs inside one fix-it search)."""
+    if _EVAL_MEMO.get() is not None:
+        yield
+        return
+    token = _EVAL_MEMO.set({})
+    try:
+        yield
+    finally:
+        _EVAL_MEMO.reset(token)
+
+
+def _evaluate(world, profile, scenario_id, key):
+    edge = world.edges[key]
+    memo = _EVAL_MEMO.get()
+    if memo is None:
+        return evaluate_edge(edge, profile, _flood_class(world, scenario_id, key))
+    # The memo holds the edge, so its id() cannot be reused by another object meanwhile. The key
+    # leaves out the world: imagined worlds (twm.apply) share the real world's flood classes
+    # and profiles, and a scenario's flood class is part of the key through `scenario_id`.
+    # Blocks are short (one batch): World.refresh_claim / set_closures mutate edges in place.
+    k = (id(edge), profile.id, scenario_id)
+    hit = memo.get(k)
+    if hit is None:
+        hit = memo[k] = (edge, evaluate_edge(edge, profile, _flood_class(world, scenario_id, key)))
+    return hit[1]
+
+
 def _edge_cost(world, profile, scenario_id, allow_unknown, key, evals=None) -> float | None:
     """Search cost of one edge for this profile, or None when the search must not use it."""
     e = world.edges[key]
-    res, why = evaluate_edge(e, profile, _flood_class(world, scenario_id, key))
+    res, why = _evaluate(world, profile, scenario_id, key)
     if evals is not None:
         evals[key] = (res, why)
     if res == "FAIL" or (res == "UNKNOWN" and not allow_unknown):

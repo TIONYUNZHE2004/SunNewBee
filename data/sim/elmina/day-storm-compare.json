@@ -1,0 +1,151 @@
+{
+  "scenario": "storm-compare",
+  "recorded_at": "2026-10-16T19:58:28+00:00",
+  "model": "openai/gpt-6-luna",
+  "actions": [
+    {
+      "kind": "raise_paths",
+      "element_ids": [
+        "seg-1485871811-0",
+        "seg-220202115-0",
+        "seg-1174255005-0",
+        "seg-1030433961-0",
+        "seg-220202113-0",
+        "seg-458522695-0",
+        "seg-458522696-0",
+        "seg-1485871810-0",
+        "seg-1174257061-0",
+        "seg-933079063-0",
+        "seg-1165665873-0",
+        "seg-458522697-0",
+        "seg-1165665873-1",
+        "seg-1174257060-0"
+      ],
+      "label": "the flooded stretch on Jalan Sungai Buloh"
+    }
+  ],
+  "town_hall": [
+    {
+      "author": "r00681",
+      "name": "Hasnah G.",
+      "role": "commuter and parent",
+      "trip": "r00681-0-out",
+      "row": {
+        "trip": "r00681-0-out",
+        "resident": "r00681",
+        "purpose": "work",
+        "to": "work",
+        "direction": "out",
+        "before": "cancelled",
+        "after": "on_time",
+        "minutes_before": null,
+        "minutes_after": 8,
+        "change_min": null,
+        "companions": 0,
+        "with": [],
+        "verdict": 1
+      },
+      "text": "In this imagined day, I could get to work on time instead of having my trip cancelled. It would take 8 minutes.",
+      "voice": "ai"
+    },
+    {
+      "author": "r01412",
+      "name": "Jun Hao",
+      "role": "commuter and parent",
+      "trip": "r01412-0-out",
+      "row": {
+        "trip": "r01412-0-out",
+        "resident": "r01412",
+        "purpose": "work",
+        "to": "work",
+        "direction": "out",
+        "before": "cancelled",
+        "after": "on_time",
+        "minutes_before": null,
+        "minutes_after": 8,
+        "change_min": null,
+        "companions": 0,
+        "with": [],
+        "verdict": 1
+      },
+      "text": "In this imagined scenario, I could make it to work instead of having my trip cancelled. I’d arrive 8 minutes after leaving.",
+      "voice": "ai"
+    },
+    {
+      "author": "r03476",
+      "name": "Chee Keong",
+      "role": "commuter and parent",
+      "trip": "r03476-0-out",
+      "row": {
+        "trip": "r03476-0-out",
+        "resident": "r03476",
+        "purpose": "work",
+        "to": "work",
+        "direction": "out",
+        "before": "cancelled",
+        "after": "on_time",
+        "minutes_before": null,
+        "minutes_after": 8,
+        "change_min": null,
+        "companions": 0,
+        "with": [],
+        "verdict": 1
+      },
+      "text": "In this imagined change, I could get to work on time in 8 minutes. Before, my trip was cancelled.",
+      "voice": "ai"
+    },
+    {
+      "author": "r04061",
+      "name": "Shahrul",
+      "role": "commuter and parent",
+      "trip": "r04061-0-out",
+      "row": {
+        "trip": "r04061-0-out",
+        "resident": "r04061",
+        "purpose": "work",
+        "to": "work",
+        "direction": "out",
+        "before": "cancelled",
+        "after": "on_time",
+        "minutes_before": null,
+        "minutes_after": 8,
+        "change_min": null,
+        "companions": 0,
+        "with": [],
+        "verdict": 1
+      },
+      "text": "In this imagined day, I could get to work in 8 minutes instead of having my trip cancelled. It’s not a promise.",
+      "voice": "ai"
+    },
+    {
+      "author": "r04703",
+      "name": "Ganesh",
+      "role": "commuter and parent",
+      "trip": "r04703-0-out",
+      "row": {
+        "trip": "r04703-0-out",
+        "resident": "r04703",
+        "purpose": "work",
+        "to": "work",
+        "direction": "out",
+        "before": "cancelled",
+        "after": "on_time",
+        "minutes_before": null,
+        "minutes_after": 8,
+        "change_min": null,
+        "companions": 0,
+        "with": [],
+        "verdict": 1
+      },
+      "text": "In this imagined change, I could make my trip to work instead of having it cancelled. I’d arrive on time after 8 minutes.",
+      "voice": "ai"
+    }
+  ],
+  "stats": {
+    "calls": 5,
+    "failed_calls": 0,
+    "tokens_in": 1674,
+    "tokens_out": 217,
+    "rejected_lines": 0
+  }
+}

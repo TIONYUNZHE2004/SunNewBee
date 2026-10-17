@@ -86,6 +86,7 @@ export function OutcomeForm({ ticket, onSaved }: { ticket: Ticket; onSaved?: () 
       if (file) body.evidence_id = (await uploadEvidence(file, token)).evidence_id;
       await resolveVR(ticket.id, body, token);
       await qc.invalidateQueries({ queryKey: ["tickets"] });
+      void qc.invalidateQueries({ queryKey: ["ticket-impact", ticket.id] });
       onSaved?.();
     } catch (e) {
       const status = e instanceof ApiError ? e.status : undefined;

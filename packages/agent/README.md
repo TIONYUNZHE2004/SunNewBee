@@ -15,19 +15,105 @@ user message ─► Agent (instructions = prompts/system.md + UI context)
                   │         scenarios used, VRs)                                 verification.requested
                   │
                   └─ final_answer (forced output tool, FinalAnswer)
-                        └─ output_validator = validate.validate_answer(answer, TurnRecord)
+                        └─ output_validator: validate.repair_answer (fact-free fixes), then
+                           validate.validate_answer(answer, TurnRecord) → answer.check event
                               ├─ ok ─────────────► answer
                               └─ errors ─► ModelRetry (LLM_OUTPUT_RETRIES times)
                                                 └─ still bad ─► template.template_answer
-run.run_turn: streams tool events while the agent runs, then text.delta, scene.intent
+run.run_turn: streams tool events while the agent runs, answer.draft deltas while the model
+writes final_answer (draft.DraftStreamer), one answer.check per attempt, then text.delta, scene.intent
 (route geometry attached server-side), citation, uncertainty, disclaimer (whenever a flood
 scenario was used), and always ends with done. Provider/network/config errors emit `error`,
 then the template answer, then `done`.
 ```
 
 The streamed text always starts with a `Route status: <status>` line (from the tool's status for
-the answer's route, else the first route returned this turn) when a route was planned, then the
-caveat line (`⚠ ...`), then the summary and steps.
+the answer's route, else the first route returned this turn) when a route was planned. The
+summary and numbered steps follow (answer first). Then the caveats, as a `Worth knowing:` list
+with one `•` line each (`run.answer_text`). A repeated "Route status: …" sentence written by the
+model is dropped, because the label line already says it.
+
+**Drafts and checks (Cycle 0, `ai/world-model`):**
+- `answer.draft {attempt, delta}` streams the summary while the model is still writing it. The UI
+  shows it muted as "Draft · checking against the township data…".
+- A draft stops at the first forbidden word, water depth or raw id, and never ends in a half
+  word.
+- `answer.check {attempt, ok, issues, repairs}` is the validator's verdict. `issues` are short
+  readable reasons (`validate.issue_labels`). A rejected attempt clears the draft, and the
+  rewrite starts a new one.
+- The validated `text.delta` stream replaces the draft.
+- With the mock, drafts stream too (`mock._stream_script`), so tests and e2e exercise them
+  without a key.
+
+**What-ifs and memory (Cycle 1):**
+
+- **Tools.** The agent exposes all 12 engine tools. The two world-model tools are:
+  - `suggest_interventions`, which returns legal candidate actions with readable labels;
+  - `simulate_what_if`, which runs a Township World Model diff (`townshiplens_spatial.twm`).
+
+  `call_tool` keeps each what-if in `TurnRecord.what_ifs`, including `diff_geojson` for the `whatif.diff` scene intent, which is added automatically. Geometry never goes to the model.
+- **Validator (`validate.whatif_errors`).** A what-if answer must:
+  - say "what-if";
+  - quote only numbers from the result: summary and counts, the change of each measure, and total minus a count;
+  - keep imagined outcomes conditional ("would be confirmed", never "is confirmed");
+  - never call a what-if a real plan ("will be built").
+- **Shared wording.** `template.whatif_answer` is shared by the mock (`_whatif` flow, triggered by "what if / imagine / if we build…") and the template fallback.
+- **Rendering.** `run.py` adds an uncertainty note and a `Disclaimer(lens="whatif")`, which comes before any flood disclaimer.
+- **Multi-turn memory (`memory.py`).**
+  - `ChatRequest.session_id` (8–64 chars `[A-Za-z0-9_-]`; the web client mints one per page load) keys an in-process store: at most 6 turns, 200 sessions and 30 min idle.
+  - It is never written to disk and never put in a verification request (PDPA).
+  - Evidence rules stay per turn, so follow-ups re-run their tools.
+  - The mock reads only the current turn (`mock._current`).
+  - `evals/run_followups.py` runs a two-turn live smoke.
+
+**Verify-next, tipping points and the rising river (Cycles 2–3):**
+- **Tools:** `plan_verifications`, `river_tipping_point` and `rising_river_rollout`.
+- **Validator:**
+  - `plan_errors`: the answer is conditional ("if … pass") and uses the plan's numbers only.
+  - `rollout_errors`: the answer says "not a forecast", names only modelled stages, names the breaking stage, and uses only rollout counts.
+- **Shared wording:** `template.plan_answer`, `tipping_answer` and `rollout_answer` are shared by the mock and the template.
+- **Scene intent:** a rollout adds `river.rollout`, so the map plays it. The geometry stays out of the prompt.
+- **Repair:** it fills `scenario_id` for river-stage simulations.
+
+**Elmina Day rehearsals (Cycles 14–16):**
+- **Tool:** `day_rehearsal(day)`, one of weekday | storm | event | friday. It returns trips by outcome, residents by group, school, busiest places and `show_at` (a clock time).
+- **Validator (`day_errors`):**
+  - the answer says "rehearsal of synthetic residents" and "not a forecast";
+  - it names the data gap when there is one;
+  - it gives counts as digits, from the rehearsal only: no percentages or number words; a sum or difference only where it is written out ("464 - 400 = 64"); clock times, ages under 100 with no count noun, and hours are not counts;
+  - it makes no predictions about real people.
+- **Shared wording:** `template.day_answer` (school first, then groups by share hit).
+- **Scene intent (server-built):** `day.show` (the day, `t_min`, the day's own peak stage). The map opens the rehearsal at the moment the answer is about, and the client restores what was on screen when the day closes. In Resident mode only the stage is shown. A model-written `day.show` or `flood.set_level` is dropped for a rehearsal turn, and the model is never asked for `scenario_id`.
+
+**Testing a change on a rehearsal (Cycle 17):**
+- **Tool:** `day_test_change(day, option)`. It runs one of the day's own suggested changes, so the model never writes an action: option 1 is the top suggestion, and `options` lists the rest by number. The same day is run again with the change and compared trip by trip, giving residents better and worse off by group.
+- **What the model sees:** `changed_geojson` is dropped; it is for the map only.
+- **Validator (`day_change_errors`):**
+  - the answer says "imagined", "synthetic" and "not a forecast";
+  - no plan wording ("will be built") and no forecasts;
+  - counts only from the result, under the same digit rules as `day_errors`.
+- **Shared wording:** `template.day_change_answer`.
+- **Scene intents:** `day.show` plus `whatif.diff` (the stretch drawn as an imagined change), and the what-if disclaimer.
+
+**Fix-it search and MCP (Cycle 4):**
+- **`find_fixes`:** beam search over imagined fixes on the world model (`townshiplens_spatial.fixit`).
+  - The best set is recorded as a what-if, so every what-if validator rule applies.
+  - A "no change helps" result may not be spun as a fix.
+- **MCP server:** `mcp_server.py` serves every engine tool over the Model Context Protocol (FastMCP 4.0.9, Apache-2.0).
+  - Run it with `uv run python -m townshiplens_agent.mcp_server`, over stdio.
+  - Verification requests from MCP clients stay in memory, and `create_verification_request` is hidden unless `MCP_ALLOW_VR=true`.
+  - `TL_DATA_DIR` picks the world.
+  - Claude Desktop config:
+
+  ```json
+  {"mcpServers": {"townshiplens": {"command": "uv",
+    "args": ["--directory", "/path/to/SunNiuBi", "run", "python", "-m", "townshiplens_agent.mcp_server"]}}}
+  ```
+
+**Live cost and latency:**
+- OpenRouter prompt caching is on (system prompt, tool schemas and the last message).
+- On the 13 golden turns this cut spend from about US$0.035 to about US$0.006.
+- The median first visible text went from 12.0 s to 5.7 s (Haiku 5.5; `evals/results/`).
 
 | Module | Role |
 | --- | --- |

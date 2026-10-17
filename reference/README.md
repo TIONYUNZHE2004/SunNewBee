@@ -186,3 +186,12 @@ You can also clone one or more categories: `bash reference/clone-repos.sh flood 
 | [flood-sources.md](notes/flood-sources.md) | Flood lens research track | repos, papers and datasets for the flood lens (priority-marked) |
 
 > Items marked "(unverified)" in the notes could not be confirmed from a fetched page. Check them before quoting.
+
+---
+
+## World models (16 Oct 2026, `ai/world-model` research sprint)
+
+- **Brief:** [docs/02-research/world-models-2026.md](../docs/02-research/world-models-2026.md).
+- **Notes:** [notes/world-models-ml.md](notes/world-models-ml.md) (ML world models), [notes/world-models-llm.md](notes/world-models-llm.md) (LLMs as or with world models), [notes/world-models-urban.md](notes/world-models-urban.md) (urban LLMs, evacuation, value of information) and [notes/world-models-repos.md](notes/world-models-repos.md) (reusable code).
+- **Papers:** `papers/world-models/`, 30 PDFs. The category is `world-models` in `download-papers.sh`.
+- **Repos:** `repos/world-models/` (mesa, mesa-geo, llm-reasoners, fastmcp). Recreate them with `bash reference/clone-repos.sh world-models`.

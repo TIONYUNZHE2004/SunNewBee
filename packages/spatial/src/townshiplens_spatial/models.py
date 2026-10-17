@@ -85,8 +85,10 @@ class Closure(BaseModel):
     starts_at: datetime
     ends_at: datetime | None = None  # None = until further notice
     note: str | None = None
-    created_by: Literal["staff"] = "staff"
-    source: Literal["staff_report"] = "staff_report"
+    created_by: Literal["staff", "whatif"] = "staff"
+    # "whatif": imagined by the township world model (twm.ClosePath); never stored or shown as
+    # a staff report.
+    source: Literal["staff_report", "whatif"] = "staff_report"
     created_at: datetime | None = None
 
     _norm = field_validator("starts_at", "ends_at", "created_at", mode="before")(_utc)
@@ -97,6 +99,8 @@ class Closure(BaseModel):
 
     def label(self, tz: str | None = None) -> str:
         """ "Closed: works until 20 Oct 2026" with the date in the site's time zone."""
+        if self.source == "whatif":
+            return "Closed in this what-if (not a real closure)"
         until = fmt_day(self.ends_at, tz) if self.ends_at else "further notice"
         return f"Closed: {self.reason} until {until}"
 
@@ -313,6 +317,11 @@ class AffectedResult(BaseModel):
     likely_total: int = 0  # underlying elements (places + path edges), before grouping/capping
     possible_total: int = 0
     isolated_total: int = 0
+    # The same totals split: places and path segments are never counted together as "places".
+    likely_place_count: int = 0
+    likely_path_count: int = 0
+    possible_place_count: int = 0
+    possible_path_count: int = 0
     likely_place_ids: list[str] = Field(default_factory=list)  # full id lists for evidence / map
     possible_place_ids: list[str] = Field(default_factory=list)
     likely_edge_ids: list[str] = Field(default_factory=list)

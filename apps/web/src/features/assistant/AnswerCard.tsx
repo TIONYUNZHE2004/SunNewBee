@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Button } from "../../ui/Button";
 import { Icon } from "../../ui/icons";
 import { CitationList } from "../chat/CitationList";
-import { type AssistantMessage, isRefusal } from "../chat/chatReducer";
+import { type AssistantMessage, isRefusal, isTemplateFallback } from "../chat/chatReducer";
 import { describeUncertainty } from "../chat/uncertainty";
 import { useElementNames } from "../chat/useElementNames";
 import { RouteSummary } from "./RouteSummary";
@@ -11,7 +11,8 @@ export function AnswerCard({ m, onRetry }: { m: AssistantMessage; onRetry: () =>
   const names = useElementNames();
   const [checksOpen, setChecksOpen] = useState(false);
   const checksRunning = m.tools.some((t) => !t.done);
-  const thinking = !m.done && !m.text && !m.error;
+  const drafting = !m.text && !m.error && m.draft.length > 0;
+  const thinking = !m.done && !m.text && !m.error && !drafting;
   const refusal = isRefusal(m);
   const tone = m.error
     ? "border-rose bg-danger-tint"
@@ -55,6 +56,12 @@ export function AnswerCard({ m, onRetry }: { m: AssistantMessage; onRetry: () =>
           Can't answer that yet
         </p>
       )}
+      {drafting && (
+        <div aria-live="polite" className="space-y-1">
+          <p className="text-xs text-fg-soft">Draft · checking against the township data…</p>
+          <p className="whitespace-pre-wrap italic text-fg-soft">{m.draft}</p>
+        </div>
+      )}
       {thinking && (
         <p className="text-fg-soft">
           Checking the data<span aria-hidden="true">…</span>
@@ -95,6 +102,26 @@ export function AnswerCard({ m, onRetry }: { m: AssistantMessage; onRetry: () =>
             {checksOpen && checksList}
           </div>
         ))}
+      {(m.checks.length > 0 || isTemplateFallback(m)) && (
+        <ol aria-label="Answer checks" className="space-y-1 text-xs text-fg-soft">
+          {m.checks.map((c) => (
+            <li key={c.attempt} className="flex items-start gap-1.5">
+              <span aria-hidden="true">{c.ok ? "✓" : "↺"}</span>
+              <span>
+                {c.ok
+                  ? "Answer checked against the township data"
+                  : `Sent back for a rewrite: ${(c.issues ?? []).join("; ")}`}
+              </span>
+            </li>
+          ))}
+          {isTemplateFallback(m) && (
+            <li className="flex items-start gap-1.5">
+              <span aria-hidden="true">✓</span>
+              <span>Answer built from the checked data without AI wording</span>
+            </li>
+          )}
+        </ol>
+      )}
       {uncertain.length > 0 && (
         <div
           role="note"

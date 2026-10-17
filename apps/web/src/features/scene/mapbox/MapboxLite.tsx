@@ -1,10 +1,12 @@
 import "mapbox-gl/dist/mapbox-gl.css";
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import MapGL, { Layer, type MapMouseEvent, type MapRef, Source } from "react-map-gl/mapbox";
-import { useGaps, useLayer, useScenarioWater, useSite } from "../../../lib/api";
+import { useDay, useGaps, useLayer, useScenarioWater, useSite } from "../../../lib/api";
 import { ENV } from "../../../lib/env";
 import { useTheme } from "../../../ui/theme";
+import { DAY_STYLE, dotsAt, prepare, type Tracks } from "../../day/dayModel";
 import { GAP_BAND_ORDER, GAP_BANDS, gapLines, gapsActive } from "../../gaps/gapModel";
+import { WHATIF_STYLE } from "../../whatif/whatifModel";
 import { homeView, shouldReframe } from "../cesium/home";
 import { mapboxLightPreset } from "../cesium/timeOfDay";
 import { clickedPlaceId, normalizeLayer, pointFeatures } from "../geo";
@@ -99,7 +101,7 @@ function StatusLines({
                 ["in", ["get", "status_for_profile"], ["literal", statuses]],
               ] as never
             }
-            layout={pt.layout as never}
+            layout={(pt.layout ?? {}) as never}
             paint={{ "line-color": COLOR, "line-width": WIDTH(extraWidth), ...pt.paint } as never}
           />
         );
@@ -178,6 +180,31 @@ export default function MapboxLite() {
   const scenarioId = useScene((s) => s.scenarioId);
   const lensVisible = useScene((s) => s.lensVisible);
   const route = useScene((s) => s.route);
+  const whatIf = useScene((s) => s.whatIf);
+  const dayOn = useScene((s) => s.day.on);
+  const dayScenario = useScene((s) => s.day.scenario);
+  const dayFocus = useScene((s) => s.day.focus);
+  // about 5 updates a second at most: the lite map redraws its source on every change
+  const dayStep = useScene((s) => Math.floor(s.day.t / 3));
+  const dayQ = useDay(dayScenario, dayOn);
+  const dayPrepared = useMemo(
+    () => prepare((dayQ.data as { tracks?: Tracks } | undefined)?.tracks),
+    [dayQ.data],
+  );
+  const dayDots = useMemo(
+    () =>
+      dayOn
+        ? {
+            type: "FeatureCollection",
+            features: dotsAt(dayPrepared, dayStep * 3).map((d) => ({
+              type: "Feature",
+              geometry: { type: "Point", coordinates: [d.lon, d.lat] },
+              properties: { state: d.state, focus: d.r === dayFocus },
+            })),
+          }
+        : null,
+    [dayOn, dayStep, dayFocus, dayPrepared],
+  );
   const focusPlaceId = useScene((s) => s.focusPlaceId);
   const camera = useScene((s) => s.camera);
   const selectPlace = useScene((s) => s.selectPlace);
@@ -328,6 +355,49 @@ export default function MapboxLite() {
                 "circle-color": "#6B46C1",
                 "circle-stroke-color": "#fff",
                 "circle-stroke-width": 2,
+              }}
+            />
+          </Source>
+        )}
+        {whatIf && (
+          <Source id="whatif" type="geojson" data={whatIf.geojson as never}>
+            {(["before", "after", "touched"] as const).map((side) => (
+              <Layer
+                key={side}
+                id={`whatif-${side}`}
+                type="line"
+                slot="top"
+                // Only features the engine tagged as imagined: a real route is never drawn here.
+                filter={["all", ["==", ["get", "whatif"], true], ["==", ["get", "side"], side]]}
+                paint={{
+                  "line-color": WHATIF_STYLE[side].color,
+                  "line-width": WHATIF_STYLE[side].width,
+                  "line-opacity": side === "before" ? 0.7 : 0.95,
+                  ...(side === "before" ? { "line-dasharray": [2, 1.5] } : {}),
+                }}
+              />
+            ))}
+          </Source>
+        )}
+        {dayDots && (
+          <Source id="day" type="geojson" data={dayDots as never}>
+            <Layer
+              id="day-residents"
+              type="circle"
+              slot="top"
+              paint={{
+                "circle-radius": ["case", ["get", "focus"], 8, 4],
+                "circle-color": [
+                  "match",
+                  ["get", "state"],
+                  "drive",
+                  DAY_STYLE.drive.color,
+                  "wait",
+                  DAY_STYLE.wait.color,
+                  DAY_STYLE.walk.color,
+                ],
+                "circle-stroke-color": ["case", ["get", "focus"], "#ffffff", "#000000"],
+                "circle-stroke-width": ["case", ["get", "focus"], 2, 0.5],
               }}
             />
           </Source>

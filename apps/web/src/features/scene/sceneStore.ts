@@ -1,5 +1,6 @@
 import type { SceneIntent } from "@tl/api-client";
 import { create } from "zustand";
+import { useMode } from "../../app/modeStore";
 import { loadProfile, saveProfile } from "../../lib/profileStore";
 import type { View } from "./selectView";
 
@@ -46,6 +47,25 @@ interface SceneState {
   selectedPlaceId: string | null;
   selectedFloodEdgeId: string | null;
   route: { id: string; geojson: GeoJSON.LineString } | null;
+  /** A what-if diff (imagined, never a real route): before/after lines and imagined changes. */
+  whatIf: { geojson: { type: string; features: unknown[] } } | null;
+  /** Rising-river rollout playback: synthetic residents on the map (simulation, not a forecast). */
+  rollout: { on: boolean; stage: number; playing: boolean };
+  setRollout: (r: Partial<SceneState["rollout"]>) => void;
+  /** Elmina Day playback: synthetic residents living a day (a rehearsal, not a forecast).
+   * `t` is the clock in minutes after midnight; `focus` a spotlight resident; `before` what was
+   * on screen when the assistant opened the day (day.show), restored when it stops. */
+  day: {
+    on: boolean;
+    scenario: string;
+    t: number;
+    playing: boolean;
+    focus: string | null;
+    before: { scenarioId: string | null; flood: boolean } | null;
+  };
+  setDay: (d: Partial<SceneState["day"]>) => void;
+  /** The river level follows the day's clock without clearing routes or what-ifs. */
+  setDayStage: (scenarioId: string | null) => void;
   camera: { center: [number, number]; rangeM: number } | null;
   intents: SceneIntent[];
   applyIntent: (i: SceneIntent) => void;
@@ -66,6 +86,7 @@ interface SceneState {
   /** Apply `defaultMapStyle` once buildings data has settled, unless the user chose. */
   applyDefaultMapStyle: (hasBuildings: boolean, hasGoogle: boolean) => void;
   clearRoute: () => void;
+  clearWhatIf: () => void;
   reset: () => void;
 }
 
@@ -81,11 +102,33 @@ const initial = {
   selectedPlaceId: null as string | null,
   selectedFloodEdgeId: null as string | null,
   route: null as SceneState["route"],
+  whatIf: null as SceneState["whatIf"],
+  rollout: { on: false, stage: 0, playing: false } as SceneState["rollout"],
+  day: {
+    on: false,
+    scenario: "storm",
+    t: 6 * 60,
+    playing: false,
+    focus: null,
+    before: null,
+  } as SceneState["day"],
   camera: null as SceneState["camera"],
   intents: [] as SceneIntent[],
   mapStyle: "realistic" as MapStyle,
   mapStyleChosen: false,
 };
+
+/** A river level from an intent; a what-if diff compared at another level no longer matches. */
+function floodLevel(s: SceneState, scenarioId: string | null): Partial<SceneState> {
+  const out: Partial<SceneState> = {
+    scenarioId,
+    lensVisible: { ...s.lensVisible, flood: true },
+  };
+  const m = (s.whatIf?.geojson as { meta?: Record<string, unknown> } | undefined)?.meta;
+  const stages = [m?.scenario_id, m?.base_scenario_id].filter(Boolean);
+  if (s.whatIf && !stages.includes(scenarioId ?? undefined)) out.whatIf = null;
+  return out;
+}
 
 export const useScene = create<SceneState>((set) => ({
   ...initial,
@@ -94,15 +137,43 @@ export const useScene = create<SceneState>((set) => ({
       const next: Partial<SceneState> = { intents: [...s.intents, i] };
       switch (i.kind) {
         case "route.highlight":
-          if (i.route_id && i.geojson)
+          if (i.route_id && i.geojson) {
             next.route = { id: i.route_id, geojson: i.geojson as unknown as GeoJSON.LineString };
+            next.whatIf = null; // a real route is never drawn under an older imagined diff
+          }
+          break;
+        case "whatif.diff":
+          if (i.geojson)
+            next.whatIf = {
+              geojson: i.geojson as unknown as { type: string; features: unknown[] },
+            };
+          break;
+        case "river.rollout":
+          next.rollout = { on: true, stage: 0, playing: true };
           break;
         case "place.focus":
           next.focusPlaceId = i.place_id ?? null;
           break;
+        case "day.show":
+          // the rehearsal an answer came from, paused at its peak, with its river stage; the
+          // day lives in Management mode, so elsewhere only the river stage is shown
+          if (useMode.getState().mode === "management")
+            next.day = {
+              ...s.day,
+              on: true,
+              playing: false,
+              focus: null,
+              scenario: i.day ?? s.day.scenario,
+              t: typeof i.t_min === "number" ? i.t_min : s.day.t,
+              // what is on screen now comes back when the day stops (not the day's own stage)
+              before: s.day.on
+                ? s.day.before
+                : { scenarioId: s.scenarioId, flood: s.lensVisible.flood },
+            };
+          if (i.scenario_id) Object.assign(next, floodLevel(s, i.scenario_id));
+          break;
         case "flood.set_level":
-          next.scenarioId = i.scenario_id ?? null;
-          next.lensVisible = { ...s.lensVisible, flood: true };
+          Object.assign(next, floodLevel(s, i.scenario_id ?? null));
           break;
         case "camera.fly_to":
           if (i.center && i.center.length >= 2)
@@ -134,12 +205,13 @@ export const useScene = create<SceneState>((set) => ({
   setProfile: (profile) => {
     saveProfile(profile);
     // A highlighted route was planned for the previous persona; do not show it as this one's.
-    set({ profile, route: null });
+    set({ profile, route: null, whatIf: null });
   },
   setScenario: (scenarioId) =>
     set((s) => ({
       scenarioId,
       route: null, // planned under the previous scenario
+      whatIf: null, // compared against the previous scenario
       selectedFloodEdgeId: null,
       lensVisible: { ...s.lensVisible, flood: !!scenarioId || s.lensVisible.flood },
     })),
@@ -155,5 +227,14 @@ export const useScene = create<SceneState>((set) => ({
     set({ focusRouteRequest: id });
   },
   clearRoute: () => set({ route: null }),
+  clearWhatIf: () => set({ whatIf: null }),
+  setRollout: (r) => set((s) => ({ rollout: { ...s.rollout, ...r } })),
+  setDay: (d) => set((s) => ({ day: { ...s.day, ...d } })),
+  setDayStage: (scenarioId) =>
+    set((s) =>
+      s.scenarioId === scenarioId
+        ? {}
+        : { scenarioId, lensVisible: { ...s.lensVisible, flood: true } },
+    ),
   reset: () => set(initial),
 }));

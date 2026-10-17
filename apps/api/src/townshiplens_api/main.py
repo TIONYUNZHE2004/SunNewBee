@@ -4,14 +4,18 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 
-from .routes import chat, closures, core, evidence, flood, manage, sim
+from . import warm
+from .routes import chat, closures, core, day, evidence, flood, manage, plan, sim, whatif
 from .settings import ApiSettings
 
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     sim.recover_interrupted_runs()  # once per process, before any request starts a run
+    if ApiSettings().warm_world_model:
+        warm.start()  # background thread; requests are served meanwhile
     yield
+    warm.stop()
 
 
 app = FastAPI(title="TownshipLens API", version="0.2.0", lifespan=lifespan)
@@ -30,5 +34,8 @@ for r in (
     chat.router,
     sim.router,
     closures.router,
+    whatif.router,
+    plan.router,
+    day.router,
 ):
     app.include_router(r)

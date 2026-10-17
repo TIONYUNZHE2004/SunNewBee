@@ -1,0 +1,77 @@
+[
+  {
+    "id": "river-tipping-point",
+    "pass": true,
+    "failures": [],
+    "status": "answered",
+    "model": "anthropic/claude-haiku-5.5",
+    "fallback": false,
+    "rejected_attempts": 1,
+    "validator_errors": [["A flood scenario tool was used: set scenario_id."]],
+    "seconds": 13.71,
+    "first_text_s": 13.71,
+    "first_draft_s": 7.25,
+    "repairs": [],
+    "checks": [
+      {
+        "ok": false,
+        "issues": ["did not name the flood scenario it used"]
+      },
+      {
+        "ok": true,
+        "issues": []
+      }
+    ],
+    "requests": 4,
+    "cache_read_tokens": 24767,
+    "cache_write_tokens": 10049,
+    "input_tokens": 34826,
+    "output_tokens": 2449,
+    "tools": ["find_place", "river_tipping_point"],
+    "text": "Your trip from Urban Park playground to the nearest evacuation centre breaks at River +3 m in this indicative scenario. Up to River +1 m the route is confirmed, and at River +3 m the destination is likely flooded.\nWorth knowing:\n• Indicative scenario, not a forecast. River stages are scenarios, not water depths.\n• The destination is a candidate centre, not an official PPS centre.\n• Follow official MBSA / JPS / NADMA guidance."
+  },
+  {
+    "id": "river-rollout",
+    "pass": true,
+    "failures": [],
+    "status": "answered",
+    "model": "anthropic/claude-haiku-5.5",
+    "fallback": false,
+    "rejected_attempts": 2,
+    "validator_errors": [
+      [
+        "A flood scenario tool was used: set scenario_id.",
+        "Numbers [15] do not appear in the rollout counts: use only counts per stage."
+      ],
+      ["A flood scenario tool was used: set scenario_id."]
+    ],
+    "seconds": 17.5,
+    "first_text_s": 17.5,
+    "first_draft_s": 5.52,
+    "repairs": [],
+    "checks": [
+      {
+        "ok": false,
+        "issues": [
+          "did not name the flood scenario it used",
+          "used numbers the rollout did not produce"
+        ]
+      },
+      {
+        "ok": false,
+        "issues": ["did not name the flood scenario it used"]
+      },
+      {
+        "ok": true,
+        "issues": []
+      }
+    ],
+    "requests": 4,
+    "cache_read_tokens": 35905,
+    "cache_write_tokens": 4262,
+    "input_tokens": 40177,
+    "output_tokens": 3786,
+    "tools": ["rising_river_rollout"],
+    "text": "In this indicative simulation, synthetic residents for each profile (wheelchair, stroller, older-adult rest) head for their nearest evacuation centre. Up to River +3 m, 4 of 5 per profile still reach a centre. At River +5 m, 2 of 5 per profile are cut off and 2 of 5 still reach a centre. This is an indicative scenario, not a forecast.\nWorth knowing:\n• Indicative simulation, not a forecast. River stages are scenarios, not water depths.\n• Confirmed counts rest on demo values, not yet surveyed.\n• Departure times, warnings and crowding are not modelled.\n• Follow official MBSA, JPS and NADMA guidance."
+  }
+]

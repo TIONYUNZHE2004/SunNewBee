@@ -1,0 +1,42 @@
+{"meta": {"message": "What happens to residents as the river rises?", "profile": "wheelchair", "scenario_id": null, "world": "elmina", "model": "mock-scripted", "recorded_at": "2026-10-16T14:41:27+00:00"}}
+{"type": "tool.call", "id": "rising_river_rollout-0", "name": "rising_river_rollout", "args": {"profiles": null, "n": 30}}
+{"type": "tool.result", "id": "rising_river_rollout-0", "name": "rising_river_rollout", "summary": "ok"}
+{"type": "answer.draft", "attempt": 1, "delta": "In "}
+{"type": "answer.draft", "attempt": 1, "delta": "this rising-river "}
+{"type": "answer.draft", "attempt": 1, "delta": "simulation, synthetic residents "}
+{"type": "answer.draft", "attempt": 1, "delta": "heading for the nearest "}
+{"type": "answer.draft", "attempt": 1, "delta": "evacuation centre: at "}
+{"type": "answer.draft", "attempt": 1, "delta": "River +5 m, 27 of 30 "}
+{"type": "answer.draft", "attempt": 1, "delta": "stroller residents (at normal "}
+{"type": "answer.draft", "attempt": 1, "delta": "level: 29); 27 of 30 "}
+{"type": "answer.draft", "attempt": 1, "delta": "wheelchair residents (at "}
+{"type": "answer.draft", "attempt": 1, "delta": "normal level: 29); 27 of "}
+{"type": "answer.draft", "attempt": 1, "delta": "30 older adult residents "}
+{"type": "answer.draft", "attempt": 1, "delta": "(at normal level: 29) "}
+{"type": "answer.draft", "attempt": 1, "delta": "would still reach "}
+{"type": "answer.draft", "attempt": 1, "delta": "one."}
+{"type": "answer.check", "attempt": 1, "ok": true, "issues": [], "repairs": 0}
+{"type": "text.delta", "delta": "In this rising-river simulation, synthet"}
+{"type": "text.delta", "delta": "ic residents heading for the nearest eva"}
+{"type": "text.delta", "delta": "cuation centre: at River +5 m, 27 of 30 "}
+{"type": "text.delta", "delta": "stroller residents (at normal level: 29)"}
+{"type": "text.delta", "delta": "; 27 of 30 wheelchair residents (at norm"}
+{"type": "text.delta", "delta": "al level: 29); 27 of 30 older adult resi"}
+{"type": "text.delta", "delta": "dents (at normal level: 29) would still "}
+{"type": "text.delta", "delta": "reach one.\n1. River +1 m: sampled reside"}
+{"type": "text.delta", "delta": "nts starting at Park (unnamed, OSM) are "}
+{"type": "text.delta", "delta": "cut off first (older adult, stroller, wh"}
+{"type": "text.delta", "delta": "eelchair)\n2. River +2 m: sampled residen"}
+{"type": "text.delta", "delta": "ts starting at Parking (unnamed, OSM) ar"}
+{"type": "text.delta", "delta": "e cut off first (older adult, stroller, "}
+{"type": "text.delta", "delta": "wheelchair)\nWorth knowing:\n• Indicative "}
+{"type": "text.delta", "delta": "simulation with synthetic residents, not"}
+{"type": "text.delta", "delta": " a forecast; follow official MBSA / JPS "}
+{"type": "text.delta", "delta": "/ NADMA guidance.\n• No departure times, "}
+{"type": "text.delta", "delta": "warnings or crowding are modelled; anima"}
+{"type": "text.delta", "delta": "tion speed is illustrative."}
+{"type": "scene.intent", "intent": {"kind": "river.rollout", "place_id": null, "route_id": null, "scenario_id": null, "center": null, "range_m": null, "lens": null, "visible": null, "geojson": null}}
+{"type": "citation", "ref": 1, "evidence_id": "ev-rollout-ef7a704efa", "element_id": "rollout", "attribute": "river_rollout", "status": "indicative", "verified_at": null, "source_type": "whatif", "photo_url": null}
+{"type": "uncertainty", "level": "partial", "items": [{"element_id": "answer", "attribute": "caveat", "note": "Indicative simulation with synthetic residents, not a forecast; follow official MBSA / JPS / NADMA guidance"}, {"element_id": "answer", "attribute": "caveat", "note": "No departure times, warnings or crowding are modelled; animation speed is illustrative"}]}
+{"type": "disclaimer", "lens": "flood", "text": "Indicative scenario from a 30 m elevation model (Copernicus GLO-30, height above mapped rivers and lakes), not a forecast. Follow official MBSA / JPS / NADMA guidance. Only the area 101.46–101.56 E, 3.15–3.24 N is assessed; paths outside it are not.", "links": [{"label": "Public InfoBanjir (JPS)", "url": "https://publicinfobanjir.water.gov.my"}, {"label": "MET Malaysia warnings", "url": "https://www.met.gov.my"}]}
+{"type": "done", "message_id": "demo", "answer_status": "partial", "model": "mock-scripted"}

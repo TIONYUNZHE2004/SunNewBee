@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+import re
 import uuid
 from collections.abc import AsyncIterator
 
@@ -11,6 +12,7 @@ from townshiplens_spatial import tools as sp
 from . import agent as agent_mod
 from . import demo
 from .answer import FinalAnswer
+from .draft import DraftStreamer
 from .events import (
     ChatEvent,
     ChatRequest,
@@ -18,25 +20,38 @@ from .events import (
     Disclaimer,
     Done,
     ErrorEvent,
+    SceneIntent,
     SceneIntentEvent,
     TextDelta,
     Uncertainty,
 )
-from .labels import closure_line, element_label, rest_caveats, route_status_text, unknown_note
+from .labels import (
+    CLOSURE_WORDS,
+    FRAME,
+    closure_line,
+    detect_language,
+    element_label,
+    rest_caveats,
+    route_status_line,
+    unknown_note,
+)
+from .memory import DEFAULT as DEFAULT_MEMORY
+from .memory import SessionMemory
 from .record import TurnRecord
 from .settings import AgentSettings
-from .template import template_answer
+from .template import _top_stage, template_answer
 from .validate import PLACEHOLDER_CAVEAT
 
 log = logging.getLogger(__name__)
 
 CHUNK = 40
+WHATIF_NOTE = "What-if simulation: imagined changes are not real; unverified facts stay unverified"
 DEFAULT_DISCLAIMER = (
     "Indicative scenario, not a forecast. Follow official MBSA / JPS / NADMA guidance."
 )
 
 
-def _route_status_line(ans: FinalAnswer, rec: TurnRecord) -> str | None:
+def _route_status_line(ans: FinalAnswer, rec: TurnRecord, lang: str = "en") -> str | None:
     # Same route the validator checked: the named one, else the only one. With several routes and
     # no route_id the label would name a route nobody verified, so it is left out.
     if ans.route_id in rec.routes:
@@ -45,9 +60,7 @@ def _route_status_line(ans: FinalAnswer, rec: TurnRecord) -> str | None:
         rid = next(iter(rec.routes))
     else:
         return None
-    return (
-        f"Route status: {route_status_text(rec.route_status.get(rid, 'no_data'), rec.routes[rid])}"
-    )
+    return route_status_line(rec.route_status.get(rid, "no_data"), rec.routes[rid], lang)
 
 
 _UNKNOWN_LINES = (
@@ -115,21 +128,134 @@ def _caveat_items(rec: TurnRecord, ans: FinalAnswer) -> list[dict[str, str]]:
     return out
 
 
+CAVEAT_HEAD = "Worth knowing:"
+URGENT_MARK = "⚠"
+
+
+def _strip_label(text: str, label: str | None) -> str:
+    """Remove an exact leading copy of the status label ("Route status: blocked." / "Route
+    status: blocked —") and nothing else. Returns "" only when the text was just the label."""
+    text = text.strip()
+    if not label:
+        return text
+    m = re.match(rf"\s*{re.escape(label)}\s*(?:[.;,:\u2014\u2013-]\s*)?", text, re.IGNORECASE)
+    if not m:
+        return text
+    rest = text[m.end() :].strip()
+    if rest.startswith("(") and rest.endswith(")") and rest.count("(") == 1:
+        rest = rest[1:-1].strip()
+    return rest[:1].upper() + rest[1:]
+
+
+# "flooded" in the three answer languages (Cycles 5-6 review A9).
+FLOOD_WORDS = ("flooded", "dinaiki air", "dilanda air", "banjir", "被淹", "受淹", "淹没")
+
+
+def _urgent(caveat: str, rec: TurnRecord | None) -> bool:
+    """Caveats that change whether to go at all: a staff-reported closure, or the start or
+    destination being flooded in the scenario. They are pinned above the summary."""
+    if rec is None:
+        return False
+    low = caveat.lower()
+    if CLOSURE_WORDS.lower() in low:
+        return True
+    names = {str(i.get("name", "")).lower() for i in rec.flooded_endpoints.values()}
+    names |= {p.lower() for p in rec.flooded_endpoints}
+    flooded = any(w in low for w in FLOOD_WORDS)
+    return flooded and any(n and n in low for n in names)
+
+
+def answer_text(
+    ans: FinalAnswer, label: str | None, rec: TurnRecord | None = None, lang: str = "en"
+) -> str:
+    """Resident-facing text, answer first:
+
+    1. the route status label (when a route was checked);
+    2. urgent caveats (closures, a flooded start or destination), each on a "⚠" line;
+    3. the summary and numbered steps;
+    4. every other caveat under "Worth knowing:", one "•" line each.
+
+    Presentation only: every caveat is printed in full (an exact copy of the label is the only
+    text ever removed), so whatever the validator required is still in the text."""
+    summary = _strip_label(ans.summary, label) or ans.summary
+    urgent: list[str] = []
+    rest: list[str] = []
+    seen: set[str] = set()
+    for raw in ans.caveats:
+        c = _strip_label(raw, label)
+        key = _norm(c)
+        if not c or key in seen:
+            continue  # empty only when the caveat was just the label, which line 1 says
+        if key in _norm(summary) and not _urgent(c, rec):
+            continue  # already said in the summary
+        seen.add(key)
+        if _urgent(c, rec):
+            urgent.append(c)
+        elif rest and c.startswith("and ") and rest[-1].lower().startswith("not checked yet"):
+            rest[-1] = rest[-1].rstrip(".") + "; " + c  # "and N more unchecked items"
+        else:
+            rest.append(c)
+
+    def dot(c: str) -> str:
+        return c if c.endswith((".", "!", "?", "。", "！", "？")) else c + "."
+
+    parts = [label] if label else []
+    parts += [f"{URGENT_MARK} {dot(c)}" for c in urgent]
+    parts.append(summary)
+    if ans.steps:
+        parts.append("\n".join(f"{i}. {s}" for i, s in enumerate(ans.steps, 1)))
+    if rest:
+        head = FRAME.get(lang, FRAME["en"])["worth"]
+        parts.append(head + "\n" + "\n".join(f"• {dot(c)}" for c in rest))
+    return "\n".join(parts)
+
+
 def _answer_events(
-    ans: FinalAnswer, rec: TurnRecord, ctx: sp.Ctx, ui_scenario_id: str | None = None
+    ans: FinalAnswer,
+    rec: TurnRecord,
+    ctx: sp.Ctx,
+    ui_scenario_id: str | None = None,
+    lang: str = "en",
 ) -> list[ChatEvent]:
     evs: list[ChatEvent] = []
-    text = ans.summary
-    if ans.steps:
-        text += "\n" + "\n".join(f"{i}. {s}" for i, s in enumerate(ans.steps, 1))
-    if ans.caveats:
-        text = "⚠ " + "; ".join(c.rstrip(". ") for c in ans.caveats) + ".\n" + text
-    # Fixed order: status label, then the caveat line, then the summary and steps.
-    if label := _route_status_line(ans, rec):
-        text = label + "\n" + text
+    text = answer_text(ans, _route_status_line(ans, rec, lang), rec, lang)
     evs += [TextDelta(delta=text[i : i + CHUNK]) for i in range(0, len(text), CHUNK)]
 
-    for it in ans.scene_intents:
+    intents = list(ans.scene_intents)
+    intents = [i for i in intents if i.kind != "day.show"]  # only ever built by the server
+    if rec.days or rec.day_changes:
+        # The map opens the rehearsal the answer came from, paused at its peak, with that day's
+        # own river stage. day.show carries the stage, so no separate flood.set_level is sent
+        # (the client remembers what was on screen before the day and restores it on close).
+        # the day the turn ended on, by call order (review C17)
+        calls = rec.tool_calls
+        last_change = max((i for i, n in enumerate(calls) if n == "day_test_change"), default=-1)
+        last_day = max((i for i, n in enumerate(calls) if n == "day_rehearsal"), default=-1)
+        d = (
+            rec.day_changes[-1]
+            if rec.day_changes and last_change > last_day
+            else (rec.days or rec.day_changes)[-1]
+        )
+        hh, _, mm = str(d.get("show_at") or "").partition(":")
+        intents = [i for i in intents if i.kind != "flood.set_level"]
+        # first: it sets the day's river level, which would clear a what-if diff drawn before it
+        intents.insert(
+            0,
+            SceneIntent(
+                kind="day.show",
+                day=(d.get("scenario") or {}).get("id"),
+                t_min=int(hh) * 60 + int(mm) if hh.isdigit() and mm.isdigit() else None,
+                scenario_id=_top_stage(d.get("river_stages") or []),
+            ),
+        )
+    diff = next((w["diff_geojson"] for w in reversed(rec.what_ifs) if w.get("diff_geojson")), None)
+    if rec.day_changes and rec.day_changes[-1].get("changed_geojson"):
+        diff = rec.day_changes[-1]["changed_geojson"]  # the imagined change, drawn on the map
+    if diff and not any(i.kind == "whatif.diff" for i in intents):
+        intents.append(SceneIntent(kind="whatif.diff"))  # a what-if is always drawn as a diff
+    if rec.rollouts and not any(i.kind == "river.rollout" for i in intents):
+        intents.append(SceneIntent(kind="river.rollout"))  # the map plays the rollout
+    for it in intents:
         intent = it.model_copy()
         intent.route_status = intent.distance_m = intent.est_minutes = None
         if intent.kind == "route.highlight":
@@ -140,6 +266,12 @@ def _answer_events(
             intent.route_status = route.get("status")
             intent.distance_m = route.get("distance_m")
             intent.est_minutes = route.get("est_minutes")
+        if intent.kind == "river.rollout" and not rec.rollouts:
+            continue  # nothing was simulated this turn
+        if intent.kind == "whatif.diff":
+            if diff is None:
+                continue  # no simulation ran this turn
+            intent.geojson = diff
         evs.append(SceneIntentEvent(intent=intent))
 
     ref = 0
@@ -183,12 +315,17 @@ def _answer_events(
         for c in ans.caveats
         if not _covered(c, items, bool(unknowns))
     ]
+    if rec.what_ifs:
+        items.append({"element_id": "whatif", "attribute": "whatif", "note": WHATIF_NOTE})
     # Partial whenever the answer carries any caveat (not only unchecked segments).
     level = "partial" if unknowns or items or ans.caveats else "none"
     if ans.answer_status == "cannot_answer":
         level = "high"
     evs.append(Uncertainty(level=level, items=items))
 
+    if rec.what_ifs or rec.day_changes:  # before the flood disclaimer, the last word
+        last = (rec.day_changes or rec.what_ifs)[-1]
+        evs.append(Disclaimer(lens="whatif", text=last.get("disclaimer") or WHATIF_NOTE))
     if (
         rec.scenarios_used
         or ans.scenario_id
@@ -209,6 +346,14 @@ def _answer_events(
     return evs
 
 
+def _streams(model) -> bool:
+    """Streaming drafts need a model that streams; a FunctionModel only does with stream_function
+    (the mock has one; ad-hoc test models usually do not)."""
+    from pydantic_ai.models.function import FunctionModel
+
+    return not isinstance(model, FunctionModel) or model.stream_function is not None
+
+
 def _scrub(msg: str, settings: AgentSettings) -> str:
     key = settings.openrouter_api_key
     if key:
@@ -217,8 +362,15 @@ def _scrub(msg: str, settings: AgentSettings) -> str:
 
 
 async def run_turn(
-    ctx: sp.Ctx, req: ChatRequest, settings: AgentSettings | None = None
+    ctx: sp.Ctx,
+    req: ChatRequest,
+    settings: AgentSettings | None = None,
+    record: TurnRecord | None = None,
+    memory: SessionMemory | None = None,
 ) -> AsyncIterator[ChatEvent]:
+    """`record` lets an eval harness inspect the turn afterwards (validator errors, usage).
+    `memory` (default: the process-wide store) gives follow-ups the session's earlier turns."""
+    memory = memory if memory is not None else DEFAULT_MEMORY
     settings = settings or AgentSettings()
     # A recording cannot reflect a live closure (R33), so any active closure is a cache miss.
     if settings.demo_mode and not ctx.world.active_closures():
@@ -227,7 +379,9 @@ async def run_turn(
             async for ev in demo.replay(cached, ctx.vrs):
                 yield ev
             return
-    rec = TurnRecord(queue=asyncio.Queue())
+    rec = record or TurnRecord()
+    rec.queue = asyncio.Queue()
+    rec.history_simulated = memory.simulated(req.session_id)
     deps = agent_mod.Deps(ctx=ctx, rec=rec, request=req)
     msg_id = uuid.uuid4().hex[:12]
     model_name = "unknown"
@@ -245,7 +399,12 @@ async def run_turn(
         async def bounded_run():
             async with asyncio.timeout(settings.turn_timeout_s):
                 return await agent.run(
-                    req.message, deps=deps, retries={"output": settings.llm_output_retries}
+                    req.message,
+                    message_history=memory.history(req.session_id) or None,
+                    deps=deps,
+                    retries={"output": settings.llm_output_retries},
+                    usage=rec.usage,
+                    event_stream_handler=DraftStreamer(deps) if _streams(model) else None,
                 )
 
         task = asyncio.create_task(bounded_run())
@@ -289,7 +448,15 @@ async def run_turn(
         if ans is None:
             used = model_name + "+template"
             ans = template_answer(rec, req.message)
-        events = _answer_events(ans, rec, ctx, req.scenario_id)
+        # The frame (status line, headings) follows the language the answer is written in (a
+        # model that answered a BM question in English gets an English frame); template answers
+        # (fallbacks) stay English.
+        lang = (
+            "en"
+            if used.endswith("+template")
+            else detect_language(" ".join([ans.summary, *ans.caveats]), rec.place_names)
+        )
+        events = _answer_events(ans, rec, ctx, req.scenario_id, lang)
     except Exception as exc:  # last resort: never leave the client without done
         log.warning("answer rendering failed: %s", type(exc).__name__)
         if rec.scenarios_used:
@@ -297,6 +464,14 @@ async def run_turn(
         yield ErrorEvent(code="internal", message="could not build the answer")
         yield Done(message_id=msg_id, answer_status="cannot_answer", model=used)
         return
+    # Follow-up context: the question and the answer as shown (template fallbacks included).
+    shown = "".join(e.delta for e in events if isinstance(e, TextDelta))
+    memory.add_turn(
+        req.session_id,
+        req.message,
+        shown,
+        simulated=bool(rec.what_ifs or rec.plans or rec.days or rec.day_changes),
+    )
     for ev in events:
         yield ev
     yield Done(message_id=msg_id, answer_status=ans.answer_status, model=used)

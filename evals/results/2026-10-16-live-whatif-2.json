@@ -1,0 +1,79 @@
+[
+  {
+    "id": "whatif-ramp",
+    "pass": true,
+    "failures": [],
+    "status": "answered",
+    "model": "anthropic/claude-haiku-5.5",
+    "fallback": false,
+    "rejected_attempts": 1,
+    "validator_errors": [
+      [
+        "Imagined outcomes are conditional: say 'would be confirmed' / 'would reach', never 'is confirmed' or 'can now reach'."
+      ]
+    ],
+    "seconds": 14.64,
+    "first_text_s": 14.64,
+    "first_draft_s": 8.15,
+    "repairs": [],
+    "checks": [
+      {
+        "ok": false,
+        "issues": ["stated an imagined outcome as fact"]
+      },
+      {
+        "ok": true,
+        "issues": []
+      }
+    ],
+    "requests": 4,
+    "cache_read_tokens": 28796,
+    "cache_write_tokens": 7533,
+    "input_tokens": 36339,
+    "output_tokens": 2825,
+    "tools": ["suggest_interventions", "simulate_what_if"],
+    "text": "This is a what-if simulation. If a ramp were built at the unnamed steps, 3 of the 5 sampled wheelchair journeys would be confirmed, up from 1 today. The number of journeys that would reach their destination stays at 3, so the change is in how confident the routes are, not in which places can be reached.\nWorth knowing:\n• Imagined changes are not real; unverified facts stay unverified.\n• Segment facts are demo values, not yet surveyed.\n• Two of the 5 sampled journeys have no mapped connection (data gap) and would stay that way in this simulation.\n• The steps are an unnamed set in the township data, so this does not identify a specific location."
+  },
+  {
+    "id": "whatif-flood-ramp-evacuation",
+    "pass": true,
+    "failures": [],
+    "status": "partial",
+    "model": "anthropic/claude-haiku-5.5",
+    "fallback": false,
+    "rejected_attempts": 2,
+    "validator_errors": [
+      [
+        "Imagined outcomes are conditional: say 'would be confirmed' / 'would reach', never 'is confirmed' or 'can now reach'."
+      ],
+      [
+        "Imagined outcomes are conditional: say 'would be confirmed' / 'would reach', never 'is confirmed' or 'can now reach'."
+      ]
+    ],
+    "seconds": 20.52,
+    "first_text_s": 20.52,
+    "first_draft_s": 8.05,
+    "repairs": [],
+    "checks": [
+      {
+        "ok": false,
+        "issues": ["stated an imagined outcome as fact"]
+      },
+      {
+        "ok": false,
+        "issues": ["stated an imagined outcome as fact"]
+      },
+      {
+        "ok": true,
+        "issues": []
+      }
+    ],
+    "requests": 5,
+    "cache_read_tokens": 46443,
+    "cache_write_tokens": 6533,
+    "input_tokens": 52988,
+    "output_tokens": 4468,
+    "tools": ["suggest_interventions", "list_flood_scenarios", "simulate_what_if"],
+    "text": "This is a what-if simulation. Before the imagined ramp, at River +3 m (indicative scenario, not a forecast), 4 of the 5 sampled origins would reach an evacuation centre by wheelchair. With the imagined ramp, the same 4 of 5 would reach a centre, so the ramp would change none of these journeys. These counts cover only the 5 sampled origins, not all wheelchair users in Elmina.\nWorth knowing:\n• Imagined changes are not real; unverified facts stay unverified.\n• Segment facts are demo values, not yet surveyed.\n• Indicative scenario, not a forecast. Follow official MBSA / JPS / NADMA guidance."
+  }
+]

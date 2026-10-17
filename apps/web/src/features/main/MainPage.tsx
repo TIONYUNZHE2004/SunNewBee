@@ -2,12 +2,17 @@ import { useEffect, useRef } from "react";
 import { Icon } from "../../ui/icons";
 import { AssistantPanel } from "../assistant/AssistantPanel";
 import { useChatDraft } from "../chat/chatDraftStore";
+import { useDayPlayback } from "../day/useDayPlayback";
+import { DayTag } from "../map-ui/DayTag";
 import { FloodNote } from "../map-ui/FloodNote";
 import { MapStage } from "../map-ui/MapStage";
 import { PathOverlay } from "../map-ui/PathOverlay";
 import { PlaceOverlay } from "../map-ui/PlaceOverlay";
+import { RolloutTag } from "../map-ui/RolloutTag";
 import { RouteTag } from "../map-ui/RouteTag";
 import { SettingsPopover } from "../map-ui/SettingsPopover";
+import { WhatIfTag } from "../map-ui/WhatIfTag";
+import { useRolloutPlayback } from "../whatif/useRolloutPlayback";
 import { BottomSheet } from "./BottomSheet";
 import { usePanel } from "./panelStore";
 import { useAttribution } from "./useAttribution";
@@ -46,6 +51,8 @@ export function MainPage() {
     setOpen(v);
   };
 
+  useRolloutPlayback();
+  useDayPlayback();
   return (
     // `absolute inset-0`, not `h-full`: below lg the Shell has no definite height, so `h-full`
     // would collapse to 0 px (all children are absolute) and push the sheet under the header.
@@ -61,6 +68,9 @@ export function MainPage() {
       <section aria-label="3D map of City of Elmina" className="absolute inset-0">
         <MapStage>
           <RouteTag />
+          <WhatIfTag />
+          <RolloutTag />
+          <DayTag />
           <FloodNote />
           <SettingsPopover />
           <PlaceOverlay />

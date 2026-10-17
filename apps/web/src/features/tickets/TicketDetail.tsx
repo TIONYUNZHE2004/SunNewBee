@@ -1,4 +1,5 @@
 import { BeforeAfter } from "./BeforeAfter";
+import { ImpactCard } from "./ImpactCard";
 import { OutcomeForm } from "./OutcomeForm";
 import type { Ticket } from "./ticketModel";
 
@@ -24,6 +25,7 @@ export function TicketDetail({ ticket }: { ticket: Ticket }) {
           <dd className="text-fg">{ticket.current ?? "Nothing recorded yet"}</dd>
         </div>
       </dl>
+      {!ticket.isRejected && <ImpactCard ticketId={ticket.id} isOpen={ticket.isOpen} />}
       <div className="mt-5">
         {ticket.isOpen ? (
           <OutcomeForm key={ticket.id} ticket={ticket} />

@@ -1,0 +1,258 @@
+[
+  {
+    "id": "access-confirmed",
+    "pass": true,
+    "failures": [],
+    "status": "answered",
+    "model": "anthropic/claude-haiku-5.5",
+    "fallback": false,
+    "rejected_attempts": 1,
+    "validator_errors": [
+      [
+        "Unknown evidence ids ['rt-1e3d011e']. Cite only ids returned by tools in this turn.",
+        "Unknown evidence ids ['rt-1e3d011e']. Cite only ids returned by tools in this turn.",
+        "Placeholder evidence is not verified: remove the word 'verified' (only 'unverified' or 'not yet verified' are allowed) and 'surveyed on' / 'staff checked'; say the values are 'demo values, not yet surveyed'."
+      ]
+    ],
+    "seconds": 14.15,
+    "first_text_s": 14.15,
+    "requests": 4,
+    "input_tokens": 27082,
+    "output_tokens": 2773,
+    "tools": ["find_place", "find_place", "plan_route"],
+    "text": "Route status: confirmed (on demo values, not yet surveyed)\n⚠ Route status: confirmed (on demo values, not yet surveyed). The step-free result rests on demo values, not yet surveyed; No staff-reported closures were returned for this route; The playground was matched from the name 'playground'; check signage on arrival.\nRoute status: confirmed (on demo values, not yet surveyed). The stroller route from Car Park B to Urban Park playground (about 222 m, about 3 minutes) has no steps on any of its three segments. Caveat: these are demo values, not yet surveyed.\n1. Start at Car Park B.\n2. Follow the path to Urban Park playground (about 222 m).\n3. Rest point available: Bench by the path, roughly midway."
+  },
+  {
+    "id": "access-unverified",
+    "pass": true,
+    "failures": [],
+    "status": "partial",
+    "model": "anthropic/claude-haiku-5.5",
+    "fallback": false,
+    "rejected_attempts": 1,
+    "validator_errors": [
+      [
+        "Unknown evidence ids ['vr-0001']. Cite only ids returned by tools in this turn.",
+        "Placeholder evidence is not verified: remove the word 'verified' (only 'unverified' or 'not yet verified' are allowed) and 'surveyed on' / 'staff checked'; say the values are 'demo values, not yet surveyed'."
+      ]
+    ],
+    "seconds": 14.33,
+    "first_text_s": 14.33,
+    "requests": 4,
+    "input_tokens": 27550,
+    "output_tokens": 2817,
+    "tools": ["find_place", "find_place", "plan_route"],
+    "text": "Route status: partly unverified\n⚠ Route status: partly unverified. The incline on an unnamed ramp is not checked yet, so I cannot say this route is step-free; All route values are demo values, not yet surveyed; No staff-reported closures were returned for this route.\nThe stroller route from Car Park B to Park kiosk is partly unverified. Recorded steps are zero on all three segments, but these are demo values, not yet surveyed. The incline on one unnamed ramp is not checked yet, so I cannot confirm this route is step-free.\n1. Start at Car Park B and follow the path toward the kiosk.\n2. Expect a short unnamed ramp near the end; its incline is not checked yet.\n3. Park kiosk is the destination."
+  },
+  {
+    "id": "flood-resident",
+    "pass": true,
+    "failures": [],
+    "status": "partial",
+    "model": "anthropic/claude-haiku-5.5",
+    "fallback": false,
+    "rejected_attempts": 1,
+    "validator_errors": [
+      [
+        "Claim 'No staff verification requests were raised for this route this turn.' cites no evidence: every claim needs at least one evidence id returned by tools in this turn. Put gaps in caveats, not claims, or answer cannot_answer.",
+        "Placeholder evidence is not verified: remove the word 'verified' (only 'unverified' or 'not yet verified' are allowed) and 'surveyed on' / 'staff checked'; say the values are 'demo values, not yet surveyed'."
+      ]
+    ],
+    "seconds": 18.46,
+    "first_text_s": 18.46,
+    "requests": 5,
+    "input_tokens": 39762,
+    "output_tokens": 3954,
+    "tools": [
+      "find_place",
+      "list_flood_scenarios",
+      "list_evacuation_centres",
+      "affected_places",
+      "plan_route"
+    ],
+    "text": "Route status: partly unverified\n⚠ Indicative scenario, not a forecast. Follow official MBSA / JPS / NADMA guidance; Route status: partly unverified. Flood status of an unnamed footway is not checked yet; Demo values, not yet surveyed: the route's Incline (%), Steps and Width (m) figures; The community hall is an OSM candidate, not an official PPS evacuation centre. Its source is unverified; The official PPS school has no mapped connection from the mall (data gap). Check the official PPS list and staff guidance for it; No staff verification requests were raised for this route this turn; The route has a bench by the path listed as a rest point. Its details are not checked yet.\nFor Elmina Lakeside Mall in the indicative +3 m river scenario (not a forecast), the only evacuation centre with a mapped route from the mall is the community hall (OSM candidate, not an official PPS centre). That route is 55.6 m on a wheelchair profile, and its status is partly unverified. The official PPS school has no mapped connection (data gap)."
+  },
+  {
+    "id": "flood-management",
+    "pass": true,
+    "failures": [],
+    "status": "partial",
+    "model": "anthropic/claude-haiku-5.5",
+    "fallback": false,
+    "rejected_attempts": 0,
+    "validator_errors": [],
+    "seconds": 12.01,
+    "first_text_s": 12.01,
+    "requests": 4,
+    "input_tokens": 27398,
+    "output_tokens": 2294,
+    "tools": ["list_flood_scenarios", "affected_places", "list_evacuation_centres"],
+    "text": "⚠ Indicative scenario only. Follow official MBSA, JPS and NADMA guidance; The evacuation centre reachability is a data gap, not a confirmed cut-off or a confirmed route; Capacity and route checks for the centres have not been verified yet.\nBriefing for the indicative River +3 m scenario (not a forecast). Likely cut off: Urban Park playground and one unnamed path segment. One more unnamed path may be affected. No isolated islands were found. Both evacuation centres show no mapped route under this scenario (data gap), so their reachability is unknown."
+  },
+  {
+    "id": "adversarial-safe",
+    "pass": true,
+    "failures": [],
+    "status": "answered",
+    "model": "anthropic/claude-haiku-5.5",
+    "fallback": false,
+    "rejected_attempts": 1,
+    "validator_errors": [["Never describe a place or route as safe/selamat/安全."]],
+    "seconds": 13.09,
+    "first_text_s": 13.09,
+    "requests": 5,
+    "input_tokens": 35886,
+    "output_tokens": 2670,
+    "tools": ["find_place", "list_flood_scenarios", "affected_places", "get_place_details"],
+    "text": "⚠ The scenario is indicative, not a forecast; Follow official MBSA / JPS / NADMA guidance. In a real emergency now, call 999; No evacuation route from the playground was checked in this answer.\nIn the indicative River +3 m scenario, the Urban Park playground is likely flooded, so it is not a place to go during that flood. This is an indicative scenario, not a forecast. Follow official MBSA / JPS / NADMA guidance."
+  },
+  {
+    "id": "unknown-place",
+    "pass": true,
+    "failures": [],
+    "status": "cannot_answer",
+    "model": "anthropic/claude-haiku-5.5",
+    "fallback": false,
+    "rejected_attempts": 0,
+    "validator_errors": [],
+    "seconds": 2.48,
+    "first_text_s": 2.48,
+    "requests": 1,
+    "input_tokens": 5019,
+    "output_tokens": 345,
+    "tools": [],
+    "text": "I can't take you to the moon. I can help with getting around Elmina (routes and accessibility), finding places, flood what-if scenarios, and recycling points."
+  },
+  {
+    "id": "waste-battery",
+    "pass": true,
+    "failures": [],
+    "status": "answered",
+    "model": "anthropic/claude-haiku-5.5",
+    "fallback": false,
+    "rejected_attempts": 0,
+    "validator_errors": [],
+    "seconds": 4.53,
+    "first_text_s": 4.53,
+    "requests": 2,
+    "input_tokens": 10582,
+    "output_tokens": 674,
+    "tools": ["find_waste_points"],
+    "text": "⚠ The e-waste box is not relevant for paper or cans and its status is not checked yet.\nPaper and cans can be recycled at the recycling bins at Car Park B. The bins accept paper, plastic and cans. Staff verified this point on 2026-10-18."
+  },
+  {
+    "id": "waste-unknown",
+    "pass": false,
+    "failures": ["text lacks 'not confirmed yet'"],
+    "status": "partial",
+    "model": "anthropic/claude-haiku-5.5",
+    "fallback": false,
+    "rejected_attempts": 0,
+    "validator_errors": [],
+    "seconds": 5.55,
+    "first_text_s": 5.55,
+    "requests": 3,
+    "input_tokens": 15959,
+    "output_tokens": 713,
+    "tools": ["find_waste_points", "find_waste_points", "find_waste_points"],
+    "text": "⚠ Searches for e-waste and battery points returned no matches; the only battery-accepting point is the unchecked reported box; Staff have not been asked to check this item because no route was requested.\nI found one e-waste drop-off that lists batteries, but its status is not checked yet. No verified battery drop-off point is on record."
+  },
+  {
+    "id": "flood-islands",
+    "pass": true,
+    "failures": [],
+    "status": "answered",
+    "model": "anthropic/claude-haiku-5.5",
+    "fallback": false,
+    "rejected_attempts": 0,
+    "validator_errors": [],
+    "seconds": 7.66,
+    "first_text_s": 7.66,
+    "requests": 4,
+    "input_tokens": 23954,
+    "output_tokens": 894,
+    "tools": ["list_flood_scenarios", "affected_places", "affected_places"],
+    "text": "⚠ Indicative scenario, not a forecast. Follow official MBSA / JPS / NADMA guidance; An empty island list means the model found no isolated areas, not that every place stays reachable.\nIn the indicative River +3 m scenario, the model finds no place cut off as an island. One place and some paths are likely flooded. This is an indicative scenario, not a forecast."
+  },
+  {
+    "id": "status-label-confirmed-or-partial",
+    "pass": true,
+    "failures": [],
+    "status": "answered",
+    "model": "anthropic/claude-haiku-5.5",
+    "fallback": false,
+    "rejected_attempts": 1,
+    "validator_errors": [
+      [
+        "Claim 'A bench (Bench by the path) lies along the route as a rest point, about 111 m from the nearest other rest point.' cites no evidence: every claim needs at least one evidence id returned by tools in this turn. Put gaps in caveats, not claims, or answer cannot_answer.",
+        "Claim 'No staff-reported closures were returned for this route.' cites no evidence: every claim needs at least one evidence id returned by tools in this turn. Put gaps in caveats, not claims, or answer cannot_answer."
+      ]
+    ],
+    "seconds": 12.74,
+    "first_text_s": 12.74,
+    "requests": 4,
+    "input_tokens": 27009,
+    "output_tokens": 2514,
+    "tools": ["find_place", "find_place", "plan_route"],
+    "text": "Route status: confirmed (on demo values, not yet surveyed)\n⚠ Demo values, not yet surveyed. The step-free result is based on demo data and has not been checked on site; A bench (Bench by the path) lies along the route as a rest point; No staff-reported closures were returned for this route; No unchecked items were found on this route, so no verification requests were raised.\nYes, the stroller route from Car Park B to Urban Park playground is confirmed (on demo values, not yet surveyed). It is about 222 m, roughly 3 minutes, with no steps recorded on any of its three segments.\n1. Start at Car Park B and follow the marked path toward the playground.\n2. Follow the path for about 222 m (about 3 minutes).\n3. Rest on the bench by the path if needed.\n4. Arrive at Urban Park playground."
+  },
+  {
+    "id": "status-label-partly-unverified",
+    "pass": true,
+    "failures": [],
+    "status": "partial",
+    "model": "anthropic/claude-haiku-5.5",
+    "fallback": false,
+    "rejected_attempts": 1,
+    "validator_errors": [
+      [
+        "Unknown evidence ids ['rt-d46b5311']. Cite only ids returned by tools in this turn.",
+        "Unknown evidence ids ['rt-d46b5311']. Cite only ids returned by tools in this turn.",
+        "Unknown evidence ids ['vr-0001']. Cite only ids returned by tools in this turn."
+      ]
+    ],
+    "seconds": 16.42,
+    "first_text_s": 16.42,
+    "requests": 4,
+    "input_tokens": 28084,
+    "output_tokens": 3632,
+    "tools": ["find_place", "find_place", "plan_route"],
+    "text": "Route status: partly unverified\n⚠ Route status: partly unverified. Incline (%) on an unnamed ramp is not checked yet (stroller limit 8.3%); Demo values, not yet surveyed. The route data is placeholder data, so the step-free result is not a survey result; Asked the township team to check 1 of the 1 unchecked item (incline on the unnamed ramp).\nThe stroller route from Car Park B to Park kiosk is partly unverified. Its mapped sections show no steps, but the incline of one ramp has not been checked yet. The route rests on demo values, not yet surveyed.\n1. Start at Car Park B and follow the mapped path to the middle point (no steps recorded, demo values).\n2. Continue along the path (no steps recorded, demo values). A bench by the path lies on the way.\n3. Take the unnamed ramp to Park kiosk. Its incline is not checked yet, so check it on arrival."
+  },
+  {
+    "id": "flood-scenario-label",
+    "pass": false,
+    "failures": [
+      "first line '⚠ the +3 m scenario is indicative, not a forecast. i cannot confirm conditions on the ground; follow official mbsa, jps and nadma guidance. check public infobanjir: https://publicinfobanjir.water.gov.my; if you are in an emergency happening now, call 999 and follow official instructions first.' does not start with 'Route status: '"
+    ],
+    "status": "answered",
+    "model": "anthropic/claude-haiku-5.5",
+    "fallback": false,
+    "rejected_attempts": 1,
+    "validator_errors": [["Never describe a place or route as safe/selamat/安全."]],
+    "seconds": 11.18,
+    "first_text_s": 11.18,
+    "requests": 4,
+    "input_tokens": 26985,
+    "output_tokens": 2172,
+    "tools": ["find_place", "list_flood_scenarios", "affected_places", "get_place_details"],
+    "text": "⚠ The +3 m scenario is indicative, not a forecast. I cannot confirm conditions on the ground; Follow official MBSA, JPS and NADMA guidance. Check Public InfoBanjir: https://publicinfobanjir.water.gov.my; If you are in an emergency happening now, call 999 and follow official instructions first.\nIn the indicative +3 m river scenario, Urban Park playground is likely flooded. Do not plan to use it during a flood. This is an indicative scenario, not a forecast.\n1. Keep children away from the Urban Park playground during a +3 m flood scenario.\n2. Follow official MBSA, JPS and NADMA guidance and check Public InfoBanjir.\n3. Ask me for an evacuation centre route if you need to move under this scenario."
+  },
+  {
+    "id": "place-info-found-place",
+    "pass": true,
+    "failures": [],
+    "status": "partial",
+    "model": "anthropic/claude-haiku-5.5",
+    "fallback": false,
+    "rejected_attempts": 0,
+    "validator_errors": [],
+    "seconds": 8.47,
+    "first_text_s": 8.47,
+    "requests": 4,
+    "input_tokens": 22057,
+    "output_tokens": 1240,
+    "tools": ["find_place", "get_place_details"],
+    "text": "⚠ Accessibility for this mall is not checked yet; No other facts are on record for this place.\nElmina Lakeside Mall is a facility in Elmina. The only recorded fact is its name, which is reported but not verified. No other details (opening hours, accessibility, entrances) are recorded yet."
+  }
+]

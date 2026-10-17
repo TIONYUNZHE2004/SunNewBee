@@ -7,7 +7,14 @@ from typing import Annotated, Any, Literal
 from pydantic import BaseModel, Field
 
 IntentKind = Literal[
-    "camera.fly_to", "place.focus", "route.highlight", "flood.set_level", "layer.toggle"
+    "camera.fly_to",
+    "place.focus",
+    "route.highlight",
+    "flood.set_level",
+    "layer.toggle",
+    "whatif.diff",  # before/after lines of a what-if simulation (geojson attached by the server)
+    "river.rollout",  # open and play the rising-river rollout (the client fetches /river-rollout)
+    "day.show",  # open an Elmina Day rehearsal on the map, paused at `t_min` (server-added)
 ]
 
 
@@ -26,11 +33,33 @@ class SceneIntent(BaseModel):
     route_status: Literal["confirmed", "partly_unverified", "blocked", "no_data"] | None = None
     distance_m: float | None = None
     est_minutes: float | None = None
+    day: str | None = None  # day.show: weekday | storm | event | friday
+    t_min: int | None = None  # day.show: the rehearsal clock, minutes after midnight
 
 
 class TextDelta(BaseModel):
     type: Literal["text.delta"] = "text.delta"
     delta: str
+
+
+class AnswerDraft(BaseModel):
+    """Provisional summary text while the model writes its answer. Not checked yet: the client
+    shows it as a draft and replaces it with the validated `text.delta` stream."""
+
+    type: Literal["answer.draft"] = "answer.draft"
+    attempt: int
+    delta: str
+
+
+class AnswerCheck(BaseModel):
+    """The validator's verdict on one answer attempt: accepted, or sent back with readable
+    reasons (the model then rewrites it). `repairs` counts fact-free fixes applied first."""
+
+    type: Literal["answer.check"] = "answer.check"
+    attempt: int
+    ok: bool
+    issues: list[str] = Field(default_factory=list)
+    repairs: int = 0
 
 
 class ToolCall(BaseModel):
@@ -72,7 +101,7 @@ class Uncertainty(BaseModel):
 
 class Disclaimer(BaseModel):
     type: Literal["disclaimer"] = "disclaimer"
-    lens: Literal["flood"] = "flood"
+    lens: Literal["flood", "whatif"] = "flood"
     text: str
     links: list[dict[str, str]] = Field(default_factory=list)
 
@@ -103,6 +132,8 @@ class Done(BaseModel):
 
 ChatEvent = Annotated[
     TextDelta
+    | AnswerDraft
+    | AnswerCheck
     | ToolCall
     | ToolResultEvent
     | SceneIntentEvent
@@ -127,4 +158,5 @@ class ChatRequest(BaseModel):
     profile: Literal["default", "stroller", "wheelchair", "older_adult_rest", "drive"] = "default"
     # Constrained: it is interpolated into the agent's instructions (prompt-injection guard).
     scenario_id: str | None = Field(default=None, pattern=r"^(baseline|stage_p[1-5]m)$")
-    session_id: str | None = None
+    # A random per-tab id (the web client mints it) keying short in-memory follow-up context.
+    session_id: str | None = Field(default=None, pattern=r"^[A-Za-z0-9_-]{8,64}$")

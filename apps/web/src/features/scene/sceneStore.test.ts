@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
+import { useMode } from "../../app/modeStore";
 import { defaultMapStyle, resolveMapStyle, useScene } from "./sceneStore";
 
 describe("sceneStore.applyIntent", () => {
@@ -30,6 +31,16 @@ describe("sceneStore.applyIntent", () => {
     useScene.getState().setScenario("stage_p3m");
     expect(useScene.getState().route).toBeNull();
   });
+  it("day.show opens that rehearsal paused at its minute, with its river level", () => {
+    useMode.setState({ mode: "management" });
+    useScene
+      .getState()
+      .applyIntent({ kind: "day.show", day: "event", t_min: 1230, scenario_id: null } as never);
+    const s = useScene.getState();
+    expect(s.day).toMatchObject({ on: true, scenario: "event", t: 1230, playing: false });
+    expect(s.scenarioId).toBe(null);
+  });
+
   it("flood.set_level sets scenario and shows the flood lens", () => {
     useScene.getState().applyIntent({ kind: "flood.set_level", scenario_id: "stage_p3m" } as never);
     expect(useScene.getState().scenarioId).toBe("stage_p3m");
@@ -117,5 +128,57 @@ describe("map style default", () => {
     // Chosen but impossible.
     expect(resolveMapStyle(s("stylised", true), false, true)).toBe("realistic");
     expect(resolveMapStyle(s("realistic", true), true, false)).toBe("stylised");
+  });
+});
+
+describe("what-if diff", () => {
+  it("flood.set_level keeps a diff simulated at that level and clears one from another level", () => {
+    const at = (sid: string) => ({
+      type: "FeatureCollection",
+      features: [],
+      meta: { scenario_id: sid, summary: {} },
+    });
+    useScene.getState().applyIntent({ kind: "whatif.diff", geojson: at("stage_p3m") } as never);
+    useScene.getState().applyIntent({ kind: "flood.set_level", scenario_id: "stage_p3m" } as never);
+    expect(useScene.getState().whatIf).not.toBeNull();
+    useScene.getState().applyIntent({ kind: "flood.set_level", scenario_id: "stage_p5m" } as never);
+    expect(useScene.getState().whatIf).toBeNull();
+  });
+
+  it("whatif.diff stores the imagined diff; a persona change or clear removes it", () => {
+    const fc = { type: "FeatureCollection", features: [] };
+    useScene.getState().reset();
+    useScene.getState().applyIntent({ kind: "whatif.diff", geojson: fc } as never);
+    expect(useScene.getState().whatIf?.geojson).toEqual(fc);
+    useScene.getState().setProfile("stroller");
+    expect(useScene.getState().whatIf).toBeNull();
+    useScene.getState().applyIntent({ kind: "whatif.diff", geojson: fc } as never);
+    useScene.getState().clearWhatIf();
+    expect(useScene.getState().whatIf).toBeNull();
+    useScene.getState().applyIntent({ kind: "whatif.diff" } as never);
+    expect(useScene.getState().whatIf).toBeNull(); // nothing to draw without geometry
+  });
+});
+
+describe("what-if diff is never left under newer state", () => {
+  it("a new route or a scenario change clears the old diff", () => {
+    const fc = { type: "FeatureCollection", features: [] };
+    useScene.getState().reset();
+    useScene.getState().applyIntent({ kind: "whatif.diff", geojson: fc } as never);
+    useScene.getState().applyIntent({
+      kind: "route.highlight",
+      route_id: "rt-1",
+      geojson: {
+        type: "LineString",
+        coordinates: [
+          [1, 2],
+          [3, 4],
+        ],
+      },
+    } as never);
+    expect(useScene.getState().whatIf).toBeNull();
+    useScene.getState().applyIntent({ kind: "whatif.diff", geojson: fc } as never);
+    useScene.getState().setScenario("stage_p3m");
+    expect(useScene.getState().whatIf).toBeNull();
   });
 });

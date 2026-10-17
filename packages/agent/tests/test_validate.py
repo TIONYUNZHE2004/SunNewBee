@@ -1,6 +1,7 @@
+import pytest
 from townshiplens_agent.answer import Claim, FinalAnswer
 from townshiplens_agent.record import TurnRecord
-from townshiplens_agent.validate import validate_answer
+from townshiplens_agent.validate import validate_answer, whatif_errors
 from townshiplens_spatial.models import Evidence
 
 
@@ -63,9 +64,6 @@ def test_validator_requires_caveat_for_partly_unverified():
 def test_validator_rejects_unknown_route_id():
     a = FinalAnswer(answer_status="answered", summary="x", route_id="rt-nope")
     assert validate_answer(a, rec())
-
-
-import pytest  # noqa: E402
 
 
 @pytest.mark.parametrize(
@@ -522,3 +520,272 @@ def test_qualifier_not_required_without_demo_evidence_or_when_not_confirmed():
         ["Not checked yet: Width.", "Segment facts are demo values, not yet surveyed."],
     )
     assert validate_answer(partly, _demo_route_rec(status="partly_unverified")) == []
+
+
+# ---- repair_answer: deterministic, fact-free fixes applied before validation (Cycle 0) -------
+
+
+def test_repair_strips_route_and_request_ids_from_evidence():
+    from townshiplens_agent.validate import repair_answer
+
+    r = rec(routes={"rt-1": {"id": "rt-1"}}, vrs=[{"id": "vr-0001"}])
+    a = FinalAnswer(
+        answer_status="answered",
+        summary="Route found.",
+        claims=[
+            Claim(
+                text="No steps",
+                status="verified",
+                evidence_ids=["rt-1", "ev-seg-ab.step_count", "vr-0001"],
+            )
+        ],
+    )
+    fixed, notes = repair_answer(a, r)
+    assert fixed.claims[0].evidence_ids == ["ev-seg-ab.step_count"]
+    assert notes and validate_answer(fixed, r) == []
+
+
+def test_repair_drops_claims_left_without_evidence():
+    from townshiplens_agent.validate import repair_answer
+
+    r = rec(routes={"rt-1": {"id": "rt-1"}})
+    a = FinalAnswer(
+        answer_status="partial",
+        summary="Route found.",
+        claims=[
+            Claim(text="No closures were returned", status="unknown"),
+            Claim(text="Route exists", status="unverified", evidence_ids=["rt-1"]),
+            Claim(text="No steps", status="verified", evidence_ids=["ev-seg-ab.step_count"]),
+        ],
+    )
+    fixed, notes = repair_answer(a, r)
+    assert [c.text for c in fixed.claims] == ["No steps"]
+    assert len(notes) == 3  # one id strip, two dropped claims
+
+
+def test_repair_never_leaves_an_answer_without_evidence():
+    """Review fix 3: if every claim would be uncited, nothing is dropped and validation fails."""
+    from townshiplens_agent.validate import repair_answer
+
+    r = rec(routes={"rt-1": {"id": "rt-1"}})
+    a = FinalAnswer(
+        answer_status="answered",
+        summary="Route found.",
+        claims=[
+            Claim(text="Route exists", status="unverified", evidence_ids=["rt-1"]),
+            Claim(text="It is fine", status="unknown"),
+        ],
+    )
+    fixed, _ = repair_answer(a, r)
+    assert len(fixed.claims) == 2
+    errs = validate_answer(fixed, r)
+    assert any("cites no evidence" in e for e in errs)
+
+
+def test_repair_never_hides_invented_evidence():
+    from townshiplens_agent.validate import repair_answer
+
+    a = FinalAnswer(
+        answer_status="answered",
+        summary="x",
+        claims=[Claim(text="ramp ok", status="verified", evidence_ids=["ev-made-up"])],
+    )
+    fixed, _ = repair_answer(a, rec())
+    assert any("ev-made-up" in e for e in validate_answer(fixed, rec()))
+
+
+def test_repair_keeps_cannot_answer_claims_untouched():
+    from townshiplens_agent.validate import repair_answer
+
+    a = FinalAnswer(
+        answer_status="cannot_answer",
+        summary="Which place do you mean?",
+        claims=[Claim(text="Two places match", status="unknown")],
+    )
+    fixed, notes = repair_answer(a, rec())
+    assert fixed == a and notes == []
+
+
+def test_validator_rejects_guesses_and_reassurance():
+    for text in [
+        "Probably, but not confirmed yet.",
+        "It should be fine for a stroller.",
+        "You'll be fine.",
+        "No problem getting there.",
+    ]:
+        a = FinalAnswer(answer_status="partial", summary=text)
+        assert any("reassure" in e for e in validate_answer(a, rec())), text
+    ok = FinalAnswer(answer_status="partial", summary="The playground is likely flooded here.")
+    assert not any("reassure" in e for e in validate_answer(ok, rec()))
+
+
+# ---- what-if answers (Cycle 1) ---------------------------------------------------------------
+def _whatif_rec(**kw):
+    r = rec(**kw)
+    r.tool_calls.append("simulate_what_if")
+    r.evidence["ev-whatif-abc"] = Evidence(
+        id="ev-whatif-abc", element_id="whatif", attribute="whatif", status="indicative"
+    )
+    r.what_ifs.append(
+        {
+            "summary": {
+                "total": 50,
+                "reach_before": 47,
+                "reach_after": 45,
+                "confirmed_before": 0,
+                "confirmed_after": 3,
+                "changed": 5,
+            },
+            "counts_before": {"wheelchair": {"partly_unverified": 47, "no_data": 3}},
+            "counts_after": {"wheelchair": {"partly_unverified": 42, "confirmed": 3, "no_data": 5}},
+            "imagined": True,
+        }
+    )
+    return r
+
+
+def _wa(summary, caveats=()):
+    return FinalAnswer(
+        answer_status="partial",
+        summary=summary,
+        caveats=list(caveats),
+        claims=[Claim(text="what-if", status="indicative", evidence_ids=["ev-whatif-abc"])],
+    )
+
+
+def test_whatif_answer_with_matching_numbers_passes():
+    a = _wa(
+        "In this what-if simulation, 45 of 50 wheelchair journeys would still reach a centre "
+        "(47 today), and 3 would be confirmed."
+    )
+    assert validate_answer(a, _whatif_rec()) == []
+
+
+def test_whatif_answer_must_say_what_if():
+    a = _wa("45 of 50 wheelchair journeys would still reach a centre.")
+    assert any("what-if" in e for e in validate_answer(a, _whatif_rec()))
+
+
+def test_whatif_numbers_must_come_from_the_simulation():
+    a = _wa("In this what-if simulation, 46 of 50 wheelchair journeys would reach a centre.")
+    assert any("46" in e for e in validate_answer(a, _whatif_rec()))
+
+
+def test_whatif_imagined_outcomes_are_conditional():
+    for text in [
+        "In this what-if, the route is confirmed once the ramp is built.",
+        "In this what-if, 3 journeys are now confirmed.",
+        "In this what-if, the ramp will be built next year.",
+    ]:
+        assert any(
+            "would" in e or "real" in e for e in validate_answer(_wa(text), _whatif_rec())
+        ), text
+
+
+# ---- Cycle 1 review fixes (I4 false positives, I5 false negatives, I2 demo) -------------------
+@pytest.mark.parametrize(
+    "summary",
+    [
+        "In this what-if simulation, 45 of 50 wheelchair journeys would become reachable.",
+        "In this what-if simulation, today the route is confirmed and 45 of 50 would reach it.",
+        "In this what-if simulation, a 400 m route: 45 of 50 wheelchair journeys would reach.",
+        "Dalam simulasi andaian ini, 45 daripada 50 perjalanan boleh sampai.",
+        "在这个假设模拟中，50 次行程中有 45 次可以到达。",
+    ],
+)
+def test_whatif_correct_answers_are_not_rejected(summary):
+    assert whatif_errors(_wa(summary), _whatif_rec()) == [], summary
+
+
+@pytest.mark.parametrize(
+    "summary, needle",
+    [
+        ("In this what-if simulation, 45 of 50 wheelchair journeys would be confirmed.", "45"),
+        ("In this what-if simulation, 90% of wheelchair journeys would reach a centre.", "percent"),
+        ("In this what-if simulation, residents can now reach the hall.", "conditional"),
+        ("In this what-if simulation, the council plans to build the ramp.", "real plan"),
+    ],
+)
+def test_whatif_lies_are_rejected(summary, needle):
+    errs = " ".join(whatif_errors(_wa(summary), _whatif_rec()))
+    assert needle in errs, (summary, errs)
+
+
+def test_whatif_on_demo_values_needs_the_caveat():
+    r = _whatif_rec()
+    r.what_ifs[0]["summary"]["confirmed_on_demo_after"] = 3
+    a = _wa("In this what-if simulation, 3 would be confirmed (today: 0).")
+    assert any("demo values" in e for e in whatif_errors(a, r))
+    ok = _wa(
+        "In this what-if simulation, 3 would be confirmed (today: 0).",
+        caveats=["Segment facts are demo values, not yet surveyed."],
+    )
+    assert whatif_errors(ok, r) == []
+
+
+def test_real_staff_closure_wording_is_not_a_what_if_plan():
+    r = _whatif_rec()
+    a = _wa("In this what-if simulation, 45 of 50 would reach. The path has been closed by staff.")
+    assert whatif_errors(a, r) == []
+
+
+def test_whatif_label_only_in_a_caveat_is_not_enough():
+    a = _wa("45 of 50 wheelchair journeys would reach a centre.", caveats=["This is a what-if."])
+    assert any("in the summary" in e for e in whatif_errors(a, _whatif_rec()))
+
+
+def test_staged_whatif_must_say_not_a_forecast():
+    r = _whatif_rec()
+    r.what_ifs[0]["scenario_id"] = "stage_p3m"
+    a = _wa("In this what-if simulation at River +3 m (indicative), 45 of 50 would reach.")
+    assert any("not a forecast" in e for e in whatif_errors(a, r))
+    ok = _wa("In this what-if simulation, 45 of 50 would reach.", caveats=["Not a forecast."])
+    assert whatif_errors(ok, r) == []
+
+
+def test_repair_names_the_stage_of_a_river_simulation():
+    from townshiplens_agent.validate import repair_answer
+
+    r = rec(scenarios_used={"stage_p5m"})
+    r.rollouts.append({"stages": []})
+    a = FinalAnswer(answer_status="partial", summary="x", claims=[])
+    fixed, notes = repair_answer(a, r)
+    assert fixed.scenario_id == "stage_p5m" and notes
+
+
+# ---- Cycle 6: Bahasa Melayu and Chinese answers ----------------------------------------------
+def test_demo_caveat_accepted_in_bm_and_zh():
+    from townshiplens_spatial.models import Evidence
+
+    r = rec(routes={"rt-1": {"id": "rt-1"}})
+    r.evidence["ev-x"] = Evidence(
+        id="ev-x",
+        element_id="seg-ab",
+        attribute="step_count",
+        value=0,
+        status="verified",
+        source_type="team_survey_placeholder",
+    )
+    for cav in ["Nilai demo, belum ditinjau.", "这些是演示数据，尚未实地调查。"]:
+        a = FinalAnswer(answer_status="partial", summary="Laluan dijumpai.", caveats=[cav])
+        assert not any("placeholder data" in e for e in validate_answer(a, r)), cav
+
+
+def test_bm_and_zh_reassurance_is_rejected_but_possibly_flooded_is_fine():
+    for text in ["Jangan risau, laluan itu ok.", "应该没问题，可以走。"]:
+        a = FinalAnswer(answer_status="partial", summary=text)
+        assert any("reassure" in e for e in validate_answer(a, rec())), text
+    for text in ["Taman itu mungkin dinaiki air.", "公园可能被淹。"]:
+        a = FinalAnswer(answer_status="partial", summary=text)
+        assert not any("reassure" in e for e in validate_answer(a, rec())), text
+
+
+def test_translated_entrance_note_is_accepted():
+    note = "Route ends at the nearest mapped path to Elmina Urban Park; its entrance is not mapped."
+    r = rec(inferred_notes=[note])
+    zh = FinalAnswer(
+        answer_status="partial",
+        summary="路线找到了。",
+        caveats=["路线终点是离 Elmina Urban Park 最近的已绘制步行道；公园入口尚未在地图上标注。"],
+    )
+    assert not any("plan_route warned" in e for e in validate_answer(zh, r))

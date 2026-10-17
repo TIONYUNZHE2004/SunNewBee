@@ -136,7 +136,7 @@ describe("SettingsPopover", () => {
     expect(screen.getByRole("dialog")).toBeVisible();
   });
 
-  it("orders the groups Theme, Map style, Motion, Quality, Camera controls, Travelling as, River level, Legend", async () => {
+  it("orders the groups Theme, Map view, Map style, Motion, Quality, Camera controls, Travelling as, River level, Legend", async () => {
     HTMLCanvasElement.prototype.getContext = (() => ({})) as never;
     useScene.getState().setView("cesium");
     renderWithClient(<SettingsPopover />, seeded(BUILDINGS)); // keyless Cesium needs buildings
@@ -144,6 +144,7 @@ describe("SettingsPopover", () => {
     const heads = screen.getAllByRole("heading", { level: 3 }).map((h) => h.textContent);
     expect(heads).toEqual([
       "Theme",
+      "Map view",
       "Map style",
       "Motion",
       "Quality",
@@ -273,5 +274,20 @@ describe("SettingsPopover behind the full phone sheet", () => {
     act(() => usePanel.setState({ sheet: "full" }));
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(gear()).toHaveAttribute("aria-expanded", "false");
+  });
+});
+
+describe("Map view (demo recovery: 3D → lite → list)", () => {
+  it("always offers the list view, and disables views the device cannot show, with a reason", async () => {
+    renderWithClient(<SettingsPopover />, seeded());
+    await userEvent.click(screen.getByRole("button", { name: "Map settings" }));
+    const group = screen.getByRole("radiogroup", { name: "Map view" });
+    const list = within(group).getByRole("radio", { name: "List (text)" });
+    expect(list).toBeEnabled();
+    const three = within(group).getByRole("radio", { name: "3D" });
+    expect(three).toBeDisabled(); // jsdom: no WebGL
+    expect(three).toHaveAccessibleDescription(/3D-capable device/);
+    await userEvent.click(list);
+    expect(useScene.getState().view).toBe("list");
   });
 });

@@ -1,0 +1,43 @@
+[
+ {
+  "question": "What if the river rises 3 m and we build a ramp at the steps? Can wheelchair users still reach an evacuation centre?",
+  "model": "anthropic/claude-haiku-5.5",
+  "tools": [
+   "list_flood_scenarios",
+   "suggest_interventions",
+   "simulate_what_if"
+  ],
+  "stages": [
+   "stage_p3m"
+  ],
+  "checks": [
+   [
+    true,
+    []
+   ]
+  ],
+  "text": "In this what-if simulation, 4 of the 5 sampled wheelchair journeys would still reach an evacuation centre at River +3 m with a ramp built at the unnamed steps. The ramp does not change that count. It does lower confidence: the 3 journeys that were confirmed before would become partly unverified, and none would be confirmed.\nWorth knowing:\n• Imagined changes are not real; unverified facts stay unverified.\n• Segment facts are demo values, not yet surveyed.\n• The imagined ramp would itself need a staff survey before any route through it could be confirmed.\n• Community hall (candidate) is an OpenStreetMap candidate, not an official PPS evacuation centre. Follow official MBSA / JPS / NADMA guidance."
+ },
+ {
+  "question": "And what if it rises another 2 metres?",
+  "model": "anthropic/claude-haiku-5.5",
+  "tools": [
+   "list_flood_scenarios",
+   "suggest_interventions",
+   "simulate_what_if",
+   "simulate_what_if"
+  ],
+  "stages": [
+   "stage_p5m",
+   "stage_p5m"
+  ],
+  "checks": [
+   [
+    true,
+    []
+   ]
+  ],
+  "text": "This is a what-if simulation. River +5 m is the indicative scenario for the rise you describe (+3 m plus 2 m). On its own, it leaves 2 of the 5 sampled wheelchair journeys able to reach an evacuation centre, down from 4 at normal river level. With the imagined ramp at the unnamed steps, 4 of 5 would reach a centre, but none would be confirmed.\nWorth knowing:\n• Indicative scenario, not a forecast. Follow official MBSA / JPS / NADMA guidance.\n• Imagined changes are not real; unverified facts stay unverified.\n• Segment facts are demo values, not yet surveyed.\n• Community hall (candidate) is an OpenStreetMap candidate, not an official PPS evacuation centre.\n• The +3 m figures from my previous answer were not re-run in this check, so use the +5 m numbers here."
+ }
+]
+followups: PASS (openrouter)

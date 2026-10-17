@@ -18,4 +18,9 @@ describe("chatRequestBody", () => {
     });
     expect(chatRequestBody("q", "wheelchair", "stage_p3m").scenario_id).toBe("stage_p3m");
   });
+  it("sends one stable session id that matches the server's pattern", () => {
+    const a = chatRequestBody("q").session_id;
+    expect(a).toBe(chatRequestBody("other").session_id);
+    expect(a).toMatch(/^[A-Za-z0-9_-]{8,64}$/);
+  });
 });

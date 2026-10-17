@@ -11,6 +11,18 @@ import {
 } from "./chatReducer";
 import { parseSse } from "./parseSse";
 
+/** One id per page load: the server keeps a few earlier turns in memory for follow-ups
+ * ("and if it rises another metre?"); a reload starts a fresh conversation. */
+export const CHAT_SESSION_ID = newSessionId();
+
+function newSessionId(): string {
+  // getRandomValues works outside secure contexts too (randomUUID needs https or localhost).
+  const bytes = new Uint8Array(16);
+  globalThis.crypto?.getRandomValues?.(bytes);
+  const hex = Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+  return `tab-${hex === "0".repeat(32) ? `${Date.now()}${Math.floor(Math.random() * 1e9)}` : hex}`;
+}
+
 /** Request body; an explicit profile wins over the store so a chip's persona is never stale. */
 export function chatRequestBody(message: string, profile?: Profile, scenarioId?: string | null) {
   const s = useScene.getState();
@@ -18,6 +30,7 @@ export function chatRequestBody(message: string, profile?: Profile, scenarioId?:
     message,
     profile: profile ?? s.profile,
     scenario_id: scenarioId === undefined ? s.scenarioId : scenarioId,
+    session_id: CHAT_SESSION_ID,
   };
 }
 
