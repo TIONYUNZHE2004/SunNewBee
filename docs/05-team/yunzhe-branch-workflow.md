@@ -25,7 +25,7 @@ Active workers (keep this table current):
 
 | Branch | Agent | Task | Status |
 |---|---|---|---|
-| `claude/kind-cannon-mormhi` | Claude (other session) | AI investigation: question catalogue, winners research, target design | Running. Carries old history; pull with `--squash` only (see below) |
+| `claude/kind-cannon-mormhi` | Claude (other session) | AI investigation, model comparison and failover, road crossings | Running. Carries old history; pull with `--squash` only (see below). Last pulled: `79eb6ef` (17 Oct) |
 
 ## Flow
 
