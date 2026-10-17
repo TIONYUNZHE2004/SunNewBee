@@ -115,10 +115,13 @@ async def test_inapp_prompt_is_answered_by_the_mock(world, tmp_path, msg, profil
     assert not re.search(r"\bseg-|\bosm-way|[a-z]+_[a-z]+", text), text  # no ids or raw keys
     if any(e.type == "citation" and e.source_type == "team_survey_placeholder" for e in evs):
         assert "demo values, not yet surveyed" in low
-        # Task 54: a confirmed route resting on demo values says so in the status line and summary.
+        # A positive route confirmation is always qualified. Flood summaries may answer
+        # with a centre name instead of repeating the route status from the frame.
         if "Route status: confirmed" in text:
             assert "Route status: confirmed (on demo values, not yet surveyed)" in text, text
-            assert "route confirmed (on demo values, not yet surveyed)" in text, text
+            assert not re.search(
+                r"\broute(?: is)? confirmed(?! \(on demo values, not yet surveyed\))", low
+            ), text
 
 
 async def test_urban_park_route_is_routable_with_entrance_caveat(world, tmp_path):
