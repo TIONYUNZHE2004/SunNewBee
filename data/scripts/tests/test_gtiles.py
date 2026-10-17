@@ -342,3 +342,104 @@ def test_glb_positions_refuses_cesium_rtc():
         gtiles.glb_positions(
             _plain_glb(used=["CESIUM_RTC"], gltf_extensions={"CESIUM_RTC": {"center": [1, 2, 3]}})
         )
+
+
+def test_glb_positions_accepts_texture_and_material_only_requirements():
+    req = ["KHR_texture_basisu", "EXT_texture_webp", "KHR_materials_unlit", "KHR_texture_transform"]
+    assert gtiles.glb_positions(_plain_glb(used=req, required=req)).shape == (3, 3)
+
+
+# --- bbox rectangle cull ------------------------------------------------------------
+
+
+def _enu_box(bbox, east, north, half, angle_deg=0.0, half_up=50.0):
+    """A world OBB (ECEF) centred at (east, north) metres from the bbox centre, axes rotated
+    by angle_deg in the horizontal plane."""
+    lon0, lat0 = (bbox[0] + bbox[2]) / 2, (bbox[1] + bbox[3]) / 2
+    r = gtiles.enu_matrix(lon0, lat0)[:3, :3]  # rows: east, north, up in ECEF
+    a = np.radians(angle_deg)
+    centre = gtiles.ecef(lon0, lat0) + r.T @ np.array([east, north, 0.0])
+    ax1 = r.T @ np.array([np.cos(a), np.sin(a), 0.0]) * half
+    ax2 = r.T @ np.array([-np.sin(a), np.cos(a), 0.0]) * half
+    ax3 = r.T @ np.array([0.0, 0.0, 1.0]) * half_up
+    return [*centre, *ax1, *ax2, *ax3]
+
+
+def test_bbox_frame_rect_matches_bbox_size():
+    _, rect = gtiles.bbox_frame(BBOX)
+    assert rect[0] == pytest.approx(-1111, abs=3) and rect[2] == pytest.approx(1111, abs=3)
+    assert rect[1] == pytest.approx(-1106, abs=3) and rect[3] == pytest.approx(1106, abs=3)
+
+
+def test_rect_cull_skips_circle_corner_region_and_keeps_edge_overlap():
+    sphere = gtiles.bbox_sphere(BBOX)
+    enu, rect = gtiles.bbox_frame(BBOX)
+    outside = _enu_box(BBOX, 0.0, 1400.0, 100.0)  # beyond the north edge, inside the circle
+    assert gtiles.box_hits_sphere(outside, sphere)
+    assert not gtiles.box_hits_rect(outside, enu, rect)
+    edge = _enu_box(BBOX, 0.0, 1150.0, 100.0)  # straddles the north edge
+    assert gtiles.box_hits_rect(edge, enu, rect)
+    inside = _enu_box(BBOX, 0.0, 0.0, 10.0)
+    assert gtiles.box_hits_rect(inside, enu, rect)
+    huge = _enu_box(BBOX, 0.0, 0.0, 1e6)  # contains the whole rectangle
+    assert gtiles.box_hits_rect(huge, enu, rect)
+
+
+def test_rect_cull_uses_the_box_axes_near_a_corner():
+    enu, rect = gtiles.bbox_frame(BBOX)
+    x, y = rect[2] + 60.0, rect[3] + 60.0
+    # A 45-degree diamond whose axis-aligned bounds overlap the corner but which does not.
+    diamond = _enu_box(BBOX, x, y, 50.0, angle_deg=45.0)
+    assert not gtiles.box_hits_rect(diamond, enu, rect)
+    touching = _enu_box(BBOX, rect[2] + 30.0, rect[3] + 30.0, 50.0, angle_deg=45.0)
+    assert gtiles.box_hits_rect(touching, enu, rect)
+
+
+def _flat_root(children):
+    return {
+        "root": {
+            "boundingVolume": {"box": _enu_box(BBOX, 0.0, 0.0, 5000.0)},
+            "geometricError": 100,
+            "children": children,
+        }
+    }
+
+
+def _child(box, uri, error=1):
+    return {"boundingVolume": {"box": box}, "geometricError": error, "content": {"uri": uri}}
+
+
+def test_traverse_skips_tiles_outside_the_rectangle(tmp_path):
+    root = _flat_root(
+        [
+            _child(_enu_box(BBOX, 0.0, 1400.0, 100.0), f"{FILES}corner.glb?session=S"),
+            _child(_enu_box(BBOX, 0.0, 1150.0, 100.0), f"{FILES}edge.glb?session=S"),
+        ]
+    )
+    get = FakeGet({HOST + "/v1/3dtiles/root.json": json.dumps(root).encode()})
+    fetch = gtiles.Fetcher("K", max_requests=5, cache=tmp_path, get=get)
+    out = list(gtiles.traverse(BBOX, fetch, max_error=2, plan_only=True))
+    assert [u.split("?")[0] for _, u, _ in out] == [HOST + FILES + "edge.glb"]
+
+
+def test_traverse_count_leaves_does_not_fetch_leaf_tilesets(tmp_path):
+    inner = {"root": _child(_enu_box(BBOX, 0.0, 0.0, 300.0), "x.glb", error=30)}
+    inner["root"]["children"] = [
+        _child(_enu_box(BBOX, 0.0, 0.0, 30.0), "leaf.json"),  # at max error: counted only
+        _child(_enu_box(BBOX, 100.0, 0.0, 30.0), "direct.glb"),
+    ]
+    root = _flat_root([_child(_enu_box(BBOX, 0.0, 0.0, 300.0), f"{FILES}mid.json?session=S", 50)])
+    get = FakeGet(
+        {
+            HOST + "/v1/3dtiles/root.json": json.dumps(root).encode(),
+            HOST + FILES + "mid.json": json.dumps(inner).encode(),
+        }
+    )
+    fetch = gtiles.Fetcher("K", max_requests=5, cache=tmp_path, get=get)
+    out = list(gtiles.traverse(BBOX, fetch, max_error=2, plan_only=True, count_leaves=True))
+    assert sorted(u.split("?")[0].rsplit("/", 1)[-1] for _, u, _ in out) == [
+        "direct.glb",
+        "leaf.json",
+    ]
+    assert [c.split("?")[0].rsplit("/", 1)[-1] for c in get.calls] == ["root.json", "mid.json"]
+    assert all(glb is None for _, _, glb in out)

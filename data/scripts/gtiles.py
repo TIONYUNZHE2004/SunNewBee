@@ -6,7 +6,8 @@ the display layer. Never use them in routing, evaluation, flood, the agent, answ
 - Fetcher: cache first (data/cache/gtiles/<cache_key>.bin, key and session stripped from the
   cache key), appends the API key, hard request budget. The key is never printed or logged:
   error messages pass through redact(). fresh=True skips the cache read (used for root.json).
-- traverse: 3D Tiles 1.1 traversal limited to a lon/lat bbox and a target geometric error;
+- traverse: 3D Tiles 1.1 traversal limited to a lon/lat bbox (sphere pre-filter, then an exact
+  OBB test against the bbox rectangle in ENU) and a target geometric error;
   composes tile transforms, follows external tilesets (.json) and yields .glb content.
   root.json is always fetched fresh and its current `session` replaces the session in every
   child URL, so tileset JSON cached by an earlier run (with an expired session) stays usable.
@@ -34,7 +35,17 @@ CACHE = ROOT / "data" / "cache" / "gtiles"
 _WGS84_A = 6378137.0
 _WGS84_E2 = 6.69437999014e-3
 _DRACO = "KHR_draco_mesh_compression"
-_SUPPORTED_REQUIRED = {_DRACO, "KHR_mesh_quantization"}
+# Required extensions glb_positions handles, plus texture/material-only ones that cannot change
+# vertex positions. Anything else raises UnsupportedGlb.
+_SUPPORTED_REQUIRED = {
+    _DRACO,
+    "KHR_mesh_quantization",
+    "KHR_texture_basisu",
+    "EXT_texture_webp",
+    "KHR_materials_unlit",
+    "KHR_texture_transform",
+}
+_RECT_PAD_M = 1.0
 _STRIP_PARAMS = {"key", "session"}
 # glTF is y-up; 3D Tiles is z-up: (x, y, z) -> (x, -z, y).
 _Y_UP_TO_Z_UP = np.array(
@@ -120,6 +131,47 @@ def box_hits_sphere(box: list[float], sphere: tuple[np.ndarray, float]) -> bool:
     return closest_sq <= radius**2
 
 
+def bbox_frame(
+    bbox: tuple[float, float, float, float],
+) -> tuple[np.ndarray, tuple[float, float, float, float]]:
+    """ENU matrix at the bbox centre and the bbox as an ENU rectangle (xmin, ymin, xmax, ymax),
+    from its corners and edge midpoints, padded by 1 m so the cull stays conservative."""
+    w, s, e, n = bbox
+    enu = enu_matrix((w + e) / 2, (s + n) / 2)
+    lons, lats = (w, (w + e) / 2, e), (s, (s + n) / 2, n)
+    pts = np.array([(enu @ np.append(ecef(x, y), 1.0))[:2] for x in lons for y in lats])
+    lo, hi = pts.min(axis=0) - _RECT_PAD_M, pts.max(axis=0) + _RECT_PAD_M
+    return enu, (float(lo[0]), float(lo[1]), float(hi[0]), float(hi[1]))
+
+
+def box_hits_rect(
+    box: list[float], enu: np.ndarray, rect: tuple[float, float, float, float]
+) -> bool:
+    """World OBB (ECEF) intersects the vertical prism over an ENU rectangle.
+
+    Exact separating-axis test in the horizontal plane: the box's footprint is the zonotope of
+    its three half-axes projected to (east, north), so the candidate axes are east, north and
+    the normals of the projected half-axes. A box that touches the prism is never dropped.
+    """
+    b = np.asarray(box, dtype=np.float64)
+    r = enu[:3, :3]
+    c = (r @ b[:3] + enu[:3, 3])[:2]
+    axes = [(r @ b[i : i + 3])[:2] for i in (3, 6, 9)]
+    rc = np.array([(rect[0] + rect[2]) / 2, (rect[1] + rect[3]) / 2])
+    half = np.array([(rect[2] - rect[0]) / 2, (rect[3] - rect[1]) / 2])
+    candidates = [np.array([1.0, 0.0]), np.array([0.0, 1.0])]
+    for a in axes:
+        length = float(np.linalg.norm(a))
+        if length > 0.0:
+            candidates.append(np.array([-a[1], a[0]]) / length)
+    for u in candidates:
+        box_r = sum(abs(float(a @ u)) for a in axes)
+        rect_r = float(half @ np.abs(u))
+        if abs(float((c - rc) @ u)) > box_r + rect_r:
+            return False
+    return True
+
+
 def _world_box(box: list[float], world: np.ndarray) -> list[float]:
     b = np.asarray(box, dtype=np.float64)
     c = world[:3, :3] @ b[:3] + world[:3, 3]
@@ -127,9 +179,12 @@ def _world_box(box: list[float], world: np.ndarray) -> list[float]:
     return [*c, *axes[0], *axes[1], *axes[2]]
 
 
-def _hits(volume: dict, world: np.ndarray, sphere: tuple[np.ndarray, float]) -> bool:
+def _hits(volume: dict, world: np.ndarray, sphere: tuple[np.ndarray, float], frame) -> bool:
+    """Bounding volume vs the bbox: a box must pass the cheap sphere pre-filter and then the
+    ENU rectangle test (frame = bbox_frame(bbox)); a sphere volume uses the sphere test."""
     if "box" in volume:
-        return box_hits_sphere(_world_box(volume["box"], world), sphere)
+        box = _world_box(volume["box"], world)
+        return box_hits_sphere(box, sphere) and box_hits_rect(box, *frame)
     if "sphere" in volume:
         cx, cy, cz, r = volume["sphere"]
         c = world[:3, :3] @ np.array([cx, cy, cz]) + world[:3, 3]
@@ -244,15 +299,23 @@ def traverse(
     fetch: Callable[[str], bytes],
     max_error: float,
     plan_only: bool = False,
+    count_leaves: bool = False,
 ) -> Iterator[tuple[np.ndarray, str, bytes | None]]:
     """Yield (tile world transform 4x4, content url, glb or None when plan_only) for the tiles
     covering bbox (w, s, e, n) at geometricError <= max_error (or the finest available).
 
-    Tiles whose bounding volume misses the bbox sphere are skipped. A tile with error above
+    Tiles whose bounding volume misses the bbox (sphere pre-filter, then the ENU rectangle) are
+    skipped. A tile with error above
     max_error and children is refined (REPLACE: its own content is skipped; ADD: kept).
     External tilesets (.json content) are fetched and traversed in place.
+
+    count_leaves (implies plan_only): an external tileset on a tile already at or below
+    max_error is not fetched; its URL is yielded instead (glb None), so a caller can count the
+    leaf tilesets a full run would still need.
     """
+    plan_only = plan_only or count_leaves
     sphere = bbox_sphere(bbox)
+    frame = bbox_frame(bbox)
     root = json.loads(fetch(ROOT_URL, fresh=True))
     session = _root_session(root)
 
@@ -263,16 +326,20 @@ def traverse(
 
     def walk_tile(tile: dict, base: str, parent: np.ndarray, refine: str):
         world = parent @ _transform(tile)
-        if not _hits(tile.get("boundingVolume", {}), world, sphere):
+        if not _hits(tile.get("boundingVolume", {}), world, sphere, frame):
             return
         refine = tile.get("refine", refine).upper()
         children = tile.get("children") or []
-        refining = bool(children) and float(tile.get("geometricError", 0.0)) > max_error
+        error = float(tile.get("geometricError", 0.0))
+        refining = bool(children) and error > max_error
         if not refining or refine == "ADD":
             for uri in _contents(tile):
                 url = _resolve(base, uri, session)
                 if urlparse(url).path.endswith(".json"):
-                    yield from walk_tileset(url, world, refine)
+                    if count_leaves and error <= max_error:
+                        yield world, url, None
+                    else:
+                        yield from walk_tileset(url, world, refine)
                 else:
                     yield world, url, None if plan_only else fetch(url)
         if refining:

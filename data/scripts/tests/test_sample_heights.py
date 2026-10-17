@@ -193,3 +193,122 @@ def test_main_plan_counts_json_and_glb(tmp_path, monkeypatch, capsys):
     assert "JSON requests made: 1" in out
     assert "glb tiles needed: 2" in out
     assert "complete: yes" in out
+
+
+# --- sampling run guards (fake traversal, no network) -------------------------------
+
+
+class _NoFetch:
+    requests_made = 0
+    max_requests = 10
+
+
+def _sampling_env(tmp_path, monkeypatch, glbs, positions):
+    """main() in sampling mode over a fake traversal of `glbs` tiles; positions(glb) stands in
+    for gtiles.glb_positions. Returns the list of tiles the run consumed."""
+    out = tmp_path / "height_samples.json"
+    monkeypatch.setattr(sh, "OUT", out)
+    monkeypatch.setattr(sh, "load_key", lambda: "K")
+    monkeypatch.setattr(sh, "make_fetcher", lambda key, n: _NoFetch())
+    monkeypatch.setattr(sh, "_footprints", lambda bbox: [])
+    consumed = []
+
+    def fake_traverse(bbox, fetch, max_error, plan_only=False, count_leaves=False):
+        for i in range(glbs):
+            consumed.append(i)
+            yield np.eye(4), f"https://h/{i}.glb", b"glb"
+
+    monkeypatch.setattr(sh.gtiles, "traverse", fake_traverse)
+    monkeypatch.setattr(sh.gtiles, "glb_positions", positions)
+    return out, consumed
+
+
+def _unsupported(_glb):
+    raise gtiles.UnsupportedGlb("glb requires unsupported extension(s): EXT_meshopt_compression")
+
+
+def test_sampling_aborts_early_when_first_glbs_are_unsupported(tmp_path, monkeypatch, capsys):
+    out, consumed = _sampling_env(tmp_path, monkeypatch, 50, _unsupported)
+    with pytest.raises(SystemExit) as exc:
+        sh.main(["--bbox", "hero"])
+    assert exc.value.code == 4
+    assert len(consumed) == sh.FIRST_TILES_CHECK
+    assert "FRAME CHECK NOT RUN" in capsys.readouterr().out
+    assert not out.exists()
+
+
+def test_sampling_aborts_early_when_first_glbs_have_no_points(tmp_path, monkeypatch, capsys):
+    out, consumed = _sampling_env(tmp_path, monkeypatch, 50, lambda _g: np.zeros((0, 3)))
+    with pytest.raises(SystemExit) as exc:
+        sh.main(["--bbox", "hero"])
+    assert exc.value.code == 4 and len(consumed) == sh.FIRST_TILES_CHECK
+    assert not out.exists()
+
+
+def test_sampling_without_frame_check_writes_nothing(tmp_path, monkeypatch, capsys):
+    out, consumed = _sampling_env(tmp_path, monkeypatch, 1, lambda _g: np.zeros((0, 3)))
+    with pytest.raises(SystemExit) as exc:
+        sh.main(["--bbox", "hero"])
+    assert exc.value.code == 4 and consumed == [0]
+    assert "FRAME CHECK NOT RUN" in capsys.readouterr().out
+    assert not out.exists()
+
+
+def test_sampling_reads_inputs_before_traversal(tmp_path, monkeypatch):
+    out, consumed = _sampling_env(tmp_path, monkeypatch, 5, _unsupported)
+    out.write_text("{not json", encoding="utf-8")
+    with pytest.raises(json.JSONDecodeError):
+        sh.main(["--bbox", "hero"])
+    assert consumed == []
+
+
+def test_plan_count_leaves_estimates_a_full_run(tmp_path, monkeypatch, capsys):
+    host = "https://tile.googleapis.com"
+    files = "/v1/3dtiles/datasets/D/files/"
+    c = gtiles.ecef(101.51, 3.181)
+    box = [*c, 50, 0, 0, 0, 50, 0, 0, 0, 50]
+    root = {
+        "root": {
+            "boundingVolume": {"box": box},
+            "geometricError": 100,
+            "children": [
+                {"boundingVolume": {"box": box}, "geometricError": 2, "content": {"uri": u}}
+                for u in (
+                    f"{files}leaf1.json?session=S",
+                    f"{files}leaf2.json?session=S",
+                    f"{files}direct.glb?session=S",
+                )
+            ],
+        }
+    }
+    routes = {host + "/v1/3dtiles/root.json": json.dumps(root).encode()}
+
+    class Ok:
+        status_code = 200
+
+        def __init__(self, body):
+            self.content = body
+
+    def get(url, timeout=None):
+        assert "root.json" in url, f"only root.json may be fetched, got {url}"
+        return Ok(routes[url.split("?")[0]])
+
+    monkeypatch.setattr(sh, "load_key", lambda: "K")
+    monkeypatch.setattr(
+        sh, "make_fetcher", lambda key, n: gtiles.Fetcher(key, n, cache=tmp_path, get=get)
+    )
+    sh.main(["--bbox", "hero", "--plan", "--count-leaves", "--max-requests", "5"])
+    out = capsys.readouterr().out
+    assert "JSON requests made: 1" in out
+    assert "leaf tilesets counted (not fetched): 2" in out
+    assert "direct glb tiles: 1" in out
+    # fresh root 1 + leaf JSON 2 + leaf glb 2 (one per leaf) + direct glb 1
+    assert "estimated requests for a full run: 6" in out
+    assert "complete: yes" in out
+
+
+def test_count_leaves_needs_plan(monkeypatch):
+    monkeypatch.setattr(sh, "load_key", lambda: "K")
+    with pytest.raises(SystemExit) as exc:
+        sh.main(["--bbox", "hero", "--count-leaves"])
+    assert exc.value.code == 2

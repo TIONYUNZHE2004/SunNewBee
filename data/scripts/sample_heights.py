@@ -14,7 +14,9 @@ Usage:
   uv run python data/scripts/sample_heights.py --bbox hero --plan --max-requests 60
   uv run python data/scripts/sample_heights.py --bbox hero --max-requests <approved>
 
---plan fetches tileset JSON only (no glb) and prints the request counts. The key comes from
+--plan fetches tileset JSON only (no glb) and prints the request counts. --plan --count-leaves
+stops one level early: leaf tilesets at max-error are counted, not fetched, and the requests a
+full run needs are estimated. The key comes from
 GOOGLE_MAPS_API_KEY (environment or the repo-root .env, read like the API settings); it is never
 printed. HTTP 401/403 exits 2 with `BLOCKED: ...`; no Referer header is ever sent.
 """
@@ -24,6 +26,7 @@ import json
 import sys
 from datetime import date
 from pathlib import Path
+from urllib.parse import urlparse
 
 import numpy as np
 from scipy.ndimage import distance_transform_edt
@@ -48,6 +51,9 @@ HEIGHT_RANGE = (2.5, 200.0)
 # terrain height (the ENU origin is on the ellipsoid; Elmina is a few tens of metres above it).
 FRAME_PAD_M = 1000.0
 FRAME_Z = (-100.0, 500.0)
+# Stop before spending the budget if none of the first glbs can be frame-checked (unsupported
+# content or no points).
+FIRST_TILES_CHECK = 3
 
 
 # --- DSM and footprints -------------------------------------------------------------
@@ -267,7 +273,10 @@ def _extent(bbox, enu: np.ndarray) -> tuple[float, float, float, float]:
 # --- runs ---------------------------------------------------------------------------
 
 
-def _plan(bbox, fetcher: gtiles.Fetcher, max_error: float) -> None:
+def _plan(bbox, fetcher: gtiles.Fetcher, max_error: float, count_leaves: bool = False) -> None:
+    """Tileset JSON only. With count_leaves, external tilesets already at max_error are counted,
+    not fetched, and the requests a full run needs are estimated (one glb per leaf tileset, as
+    Google's leaf tilesets hold; cached files cost nothing, the fresh root.json costs one)."""
     json_fetches = 0
 
     def counting(url: str, fresh: bool = False) -> bytes:
@@ -275,18 +284,37 @@ def _plan(bbox, fetcher: gtiles.Fetcher, max_error: float) -> None:
         json_fetches += 1
         return fetcher(url, fresh=fresh)
 
-    glb, cached = 0, 0
+    def is_cached(url: str) -> bool:
+        return (fetcher.cache / f"{gtiles.cache_key(url)}.bin").exists()
+
+    glb, cached, leaves, leaves_cached = 0, 0, 0, 0
     complete = "yes"
     try:
-        for _, url, _ in gtiles.traverse(bbox, counting, max_error, plan_only=True):
-            glb += 1
-            cached += (fetcher.cache / f"{gtiles.cache_key(url)}.bin").exists()
+        for _, url, _ in gtiles.traverse(
+            bbox, counting, max_error, plan_only=True, count_leaves=count_leaves
+        ):
+            if urlparse(url).path.endswith(".json"):
+                leaves += 1
+                leaves_cached += is_cached(url)
+            else:
+                glb += 1
+                cached += is_cached(url)
     except gtiles.TilesBudgetExceeded:
         complete = f"no (request budget of {fetcher.max_requests} reached; counts are partial)"
     print(f"plan for bbox {bbox} at max geometric error {max_error} m:")
     print(f"  JSON requests made: {fetcher.requests_made}")
     print(f"  tileset JSON read (incl. cache): {json_fetches}")
-    print(f"  glb tiles needed: {glb} ({cached} already cached, {glb - cached} to fetch)")
+    if count_leaves:
+        leaf_json = leaves - leaves_cached
+        estimate = 1 + leaf_json + leaves + (glb - cached)
+        print(f"  leaf tilesets counted (not fetched): {leaves} ({leaves_cached} cached)")
+        print(f"  direct glb tiles: {glb} ({cached} already cached)")
+        print(
+            f"  estimated requests for a full run: {estimate} (fresh root 1 + leaf JSON "
+            f"{leaf_json} + leaf glb {leaves}, one per leaf + direct glb {glb - cached})"
+        )
+    else:
+        print(f"  glb tiles needed: {glb} ({cached} already cached, {glb - cached} to fetch)")
     print(f"  complete: {complete}")
     if complete != "yes":
         raise SystemExit(3)
@@ -296,23 +324,34 @@ def _sample(bbox, fetcher: gtiles.Fetcher, max_error: float, cell_m: float) -> N
     lon0, lat0 = (bbox[0] + bbox[2]) / 2, (bbox[1] + bbox[3]) / 2
     enu = gtiles.enu_matrix(lon0, lat0)
     extent = _extent(bbox, enu)
+    # Read the inputs first so a late crash cannot waste the request budget.
+    existing = json.loads(OUT.read_text(encoding="utf-8")) if OUT.exists() else None
+    feats = _footprints(bbox)
     acc = _empty(extent, cell_m)
-    tiles, skipped, checked = 0, 0, False
+    tiles, skipped, read, checked = 0, 0, 0, False
     try:
         for world, url, glb in gtiles.traverse(bbox, fetcher, max_error):
+            read += 1
             try:
-                pts = gtiles.glb_positions(glb)
+                pts = to_enu(gtiles.glb_positions(glb), world, enu)
             except gtiles.UnsupportedGlb as exc:
                 skipped += 1
                 print(f"WARNING: skipped tile {gtiles.cache_key(url)[:10]}: {exc}")
-                continue
-            pts = to_enu(pts, world, enu)
-            if not checked and len(pts):
+                pts = None
+            if not checked and pts is not None and len(pts):
                 problem = frame_check(pts, extent)
                 if problem:
                     print(f"FRAME CHECK FAILED on the first tile: {problem}; nothing written")
                     raise SystemExit(4)
                 checked = True
+            if not checked and read >= FIRST_TILES_CHECK:
+                print(
+                    f"FRAME CHECK NOT RUN: none of the first {read} glb tiles decoded to points "
+                    f"({skipped} unsupported); stopping early, nothing written"
+                )
+                raise SystemExit(4)
+            if pts is None:
+                continue
             _accumulate(acc, pts, extent, cell_m)
             tiles += 1
             if tiles % 50 == 0:
@@ -320,9 +359,11 @@ def _sample(bbox, fetcher: gtiles.Fetcher, max_error: float, cell_m: float) -> N
     except gtiles.TilesBudgetExceeded as exc:
         print(f"STOPPED: {exc}; {tiles} tiles read, nothing written (fetched tiles stay cached)")
         raise SystemExit(3) from None
+    if not checked:
+        print(f"FRAME CHECK NOT RUN: no glb tile with points among {read}; nothing written")
+        raise SystemExit(4)
 
     dsm = _finish(acc)
-    feats = _footprints(bbox)
     rings = {
         fid: to_enu(np.array([gtiles.ecef(x, y) for x, y in ring]), np.eye(4), enu)[:, :2]
         for fid, ring in feats
@@ -336,7 +377,6 @@ def _sample(bbox, fetcher: gtiles.Fetcher, max_error: float, cell_m: float) -> N
         s = footprint_sample(ring, dsm, extent, footprints)
         if s is not None:
             samples[fid] = s
-    existing = json.loads(OUT.read_text(encoding="utf-8")) if OUT.exists() else None
     doc = merge(existing, samples, date.today().isoformat())
     OUT.write_text(json.dumps(doc, indent=1, sort_keys=True) + "\n", encoding="utf-8", newline="\n")
     share = len(samples) / len(rings) if rings else 0.0
@@ -353,8 +393,16 @@ def main(argv: list[str] | None = None) -> None:
     ap.add_argument("--max-error", type=float, default=2.0, help="target geometric error (m)")
     ap.add_argument("--max-requests", type=int, default=300, help="hard cap on real requests")
     ap.add_argument("--plan", action="store_true", help="tileset JSON only; count glb tiles")
+    ap.add_argument(
+        "--count-leaves",
+        action="store_true",
+        help="with --plan: count leaf tilesets at max-error without fetching them and\n"
+        "estimate the requests a full run needs",
+    )
     ap.add_argument("--cell-m", type=float, default=1.0, help="DSM cell size (m)")
     args = ap.parse_args(argv)
+    if args.count_leaves and not args.plan:
+        ap.error("--count-leaves needs --plan")
 
     key = load_key()
     if not key:
@@ -367,7 +415,7 @@ def main(argv: list[str] | None = None) -> None:
     fetcher = make_fetcher(key, args.max_requests)
     try:
         if args.plan:
-            _plan(bbox, fetcher, args.max_error)
+            _plan(bbox, fetcher, args.max_error, args.count_leaves)
         else:
             _sample(bbox, fetcher, args.max_error, args.cell_m)
     except gtiles.TilesFetchError as exc:
