@@ -102,6 +102,8 @@ def build():
         "can't",
         "couldn't",
         "outside what",
+        "di luar",
+        "超出",
         "don't have",
         "tidak",
         "belum",

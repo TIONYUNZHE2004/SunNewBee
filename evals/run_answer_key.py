@@ -260,7 +260,9 @@ async def main(argv=None):
         parser.error("no cases selected")
     if args.provider == "openrouter" and (not args.only or len(cases) > 10):
         parser.error("live checks require explicit --only and at most 10 turns")
-    settings = AgentSettings(llm_provider=args.provider, demo_mode=False)
+    settings = AgentSettings(
+        llm_provider=args.provider, demo_mode=False, assistant_scope=doc["scope"]
+    )
     world = load_world(ROOT / "data/seed/elmina")
     rows = []
     pydantic_ai.BANNER_ENABLED = False

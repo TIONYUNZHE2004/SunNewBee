@@ -30,6 +30,11 @@ The default is always mock, even when an OpenRouter key is available. Exit 1 mea
 case missed its expectations. Keep failures in the report; do not soften the key to match the
 mock. The initial committed baseline is `results/2026-10-17-answer-key-mock.json`.
 
+The answer-key runner takes `ASSISTANT_SCOPE` from the key's `scope` (`access_flood`), so an
+environment configured for legacy tests cannot silently widen the accuracy target. The
+general golden suite tags removed-feature cases with `assistant_scope: all`; in-scope golden
+cases run with the default restricted registry.
+
 `correct`, `honestly_unverified`, `refused_correctly` and `wrong` partition the tested turns.
 `unsupported_claims` counts turns with a detected unsupported assertion and overlaps `wrong`.
 All metrics show numerator/denominator; expected-outcome strata have separate denominators.
