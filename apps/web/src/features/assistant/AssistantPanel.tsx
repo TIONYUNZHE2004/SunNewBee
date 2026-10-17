@@ -5,6 +5,7 @@ import { useChatDraft } from "../chat/chatDraftStore";
 import { useChatStream } from "../chat/useChatStream";
 import { type Profile, useScene } from "../scene/sceneStore";
 import { AnswerCard } from "./AnswerCard";
+import { ChipRow } from "./ChipRow";
 import { copyFor, STARTERS, type Starter } from "./starters";
 import { TravelChip } from "./TravelChip";
 
@@ -118,9 +119,7 @@ export function AssistantPanel({
       </div>
       <footer className="border-t border-edge p-3">
         {messages.length > 0 && (
-          <div
-            className={`-mx-1 mb-2 no-scrollbar flex gap-2 overflow-x-auto px-1 pb-1 ${compact ? "hidden" : ""}`}
-          >
+          <ChipRow className={compact ? "hidden" : ""}>
             {starters.map((s) => (
               <button
                 key={s.text}
@@ -132,7 +131,7 @@ export function AssistantPanel({
                 {s.text}
               </button>
             ))}
-          </div>
+          </ChipRow>
         )}
         {mode === "resident" && (
           <div className={`mb-2 ${compact ? "hidden" : ""}`}>
