@@ -1,5 +1,5 @@
-import { describe, expect, it, vi } from "vitest";
-import { fakeCesium, fakeCollection, fakeEvent } from "./fakeCesium.test-util";
+import { describe, expect, it } from "vitest";
+import { fakeCesium, fakeCollection } from "./fakeCesium.test-util";
 import type { Road } from "./ground";
 import { scatterTrees } from "./model";
 import { paletteFor } from "./palette";
@@ -7,9 +7,7 @@ import {
   buildProps,
   type Car,
   kerbCars,
-  POOL_ALPHA,
   type PropsCesium,
-  type PropsGroundScene,
   streetLamps,
   streetTrees,
   type Tree,
@@ -131,21 +129,9 @@ const roofItems: RoofItem[] = [
   { lon: 101.5, lat: 3.18, z: 13, kind: "tank", sizeM: 1.6 },
 ];
 
-const isPool = (p: { kind: string }) => p.kind === "ClassificationPrimitive";
-
 function setup(theme: "day" | "night" = "night", range = 1500, sway = true) {
   const f = fakeCesium();
-  // Keep the colour object (with its alpha) as the attribute value so tests can read it.
-  Object.assign(f.C.ColorGeometryInstanceAttribute, {
-    fromColor: (c: unknown) => ({ value: c }),
-    toValue: (c: unknown) => c,
-  });
   const collection = fakeCollection();
-  const ground = {
-    groundPrimitives: fakeCollection(),
-    postRender: fakeEvent(),
-    requestRender: vi.fn(),
-  };
   const out = buildProps(
     f.C as unknown as PropsCesium,
     {
@@ -159,9 +145,8 @@ function setup(theme: "day" | "night" = "night", range = 1500, sway = true) {
       sway,
     },
     collection,
-    ground as unknown as PropsGroundScene,
   );
-  return { ...f, collection, ground, out };
+  return { ...f, collection, out };
 }
 
 describe("buildProps", () => {
@@ -169,10 +154,10 @@ describe("buildProps", () => {
     const { primitives } = setup();
     expect(primitives.length).toBeGreaterThan(0);
     for (const p of primitives) {
-      expect(p.kind).toBe(isPool(p) ? "ClassificationPrimitive" : "Primitive");
+      // The light pools are ground imagery (groundImagery.buildPoolLayer), never a prop.
+      expect(p.kind).toBe("Primitive");
       expect(p.options).toMatchObject({ allowPicking: false, asynchronous: true });
-      // Solid props cast shadows; the light pool is a flat ground decal.
-      if (!isPool(p)) expect(p.options.shadows).toBe(2);
+      expect(p.options.shadows).toBe(2);
     }
   });
 
@@ -192,7 +177,7 @@ describe("buildProps", () => {
       });
     }
     for (const p of primitives.filter((q) => !swaying.includes(q))) {
-      expect(vs(p)).toBe(""); // trunks, cars, lamps, pools and roof items stay still
+      expect(vs(p)).toBe(""); // trunks, cars, lamps and roof items stay still
     }
     expect(geometries.find((g) => g.kind === "ellipsoid")?.options.vertexFormat).toEqual({
       textured: true,
@@ -214,8 +199,8 @@ describe("buildProps", () => {
   it("instances: two canopies colours + trunks for trees, body + cabin per car", () => {
     const { primitives } = setup();
     const n = primitives.reduce((s, p) => s + (p.options.geometryInstances as unknown[]).length, 0);
-    // canopies (+1 tier-2) and trunks, body + cabin per car, post + head per lamp, pools, roof items
-    expect(n).toBe(trees.length * 2 + 1 + cars.length * 2 + lamps.length * 3 + roofItems.length);
+    // canopies (+1 tier-2) and trunks, body + cabin per car, post + head per lamp, roof items
+    expect(n).toBe(trees.length * 2 + 1 + cars.length * 2 + lamps.length * 2 + roofItems.length);
   });
 
   it("setPalette mutates colours in place (before ready) and ends on the latest theme", () => {
@@ -233,7 +218,6 @@ describe("buildProps", () => {
         ...day.car,
         day.lampPost,
         day.lampHead,
-        day.lightPool,
         day.roofItem,
       ]).toContain(c);
     }
@@ -242,7 +226,7 @@ describe("buildProps", () => {
 
   it("uses flat lit materials and setPalette rewrites the light uniforms", () => {
     const { out, primitives, materials } = setup("night");
-    for (const p of primitives.filter((q) => !isPool(q)))
+    for (const p of primitives)
       expect((p.options.appearance as { options: Record<string, unknown> }).options).toMatchObject({
         flat: true,
         translucent: false,
@@ -267,66 +251,27 @@ describe("buildProps", () => {
       expect(m.uniforms.time).toBe(7);
       expect(m.uniforms.cloudShadow).toBe(0);
     }
-    // The light pool (plain Color material) has no time uniform.
-    for (const m of materials.filter((x) => x.type !== "fabric"))
-      expect(m.uniforms).not.toHaveProperty("time");
   });
 
-  it("pools are one flat classification band in groundPrimitives, lowered under the overlays", () => {
-    const { primitives, ground, collection } = setup("night");
-    const pools = primitives.filter(isPool);
-    expect(pools).toHaveLength(1);
-    const pool = pools[0]!;
-    expect(ground.groundPrimitives.add).toHaveBeenCalledWith(pool);
-    expect(ground.groundPrimitives.lowerToBottom).toHaveBeenCalledWith(pool);
-    expect(collection.add).not.toHaveBeenCalledWith(pool);
-    expect(pool.options.appearance).toMatchObject({ options: { flat: true, translucent: true } });
-    const instances = pool.options.geometryInstances as {
-      options: { attributes: { color: { value: { css: string; alpha: number } } } };
-    }[];
-    const night = paletteFor("night");
-    for (const i of instances)
-      expect(i.options.attributes.color.value).toEqual({
-        css: night.lightPool,
-        alpha: POOL_ALPHA * night.glow,
-      });
-  });
-
-  it("lamp heads glow, pools fade with the palette and hide by day", () => {
-    const { out, primitives, materials, ground } = setup("night");
-    const pool = primitives.find(isPool) as (typeof primitives)[number] & {
-      attrs: Map<string, { color?: unknown }>;
-    };
-    expect(pool.show).toBe(true);
+  it("lamp heads glow with the palette", () => {
+    const { out, materials } = setup("night");
     const head = materials.find((m) => "glow" in m.uniforms)!;
     expect(head.uniforms.glow).toBe(paletteFor("night").glow);
     out.setPalette(paletteFor("day"), true);
     expect(head.uniforms.glow).toBe(0);
-    expect(pool.show).toBe(false);
-    // Not ready yet: the colour lands once it is.
-    pool.ready = true;
-    ground.postRender.fire();
-    expect(pool.attrs.get("pool:0")?.color).toEqual({ css: paletteFor("day").lightPool, alpha: 0 });
-    expect(ground.postRender.listeners.size).toBe(0);
-    const dusk = paletteFor("dusk");
-    out.setPalette(dusk, true);
-    expect(pool.show).toBe(true);
-    expect(pool.attrs.get("pool:1")?.color).toEqual({
-      css: dusk.lightPool,
-      alpha: POOL_ALPHA * dusk.glow,
-    });
+    out.setPalette(paletteFor("dusk"), true);
+    expect(head.uniforms.glow).toBe(paletteFor("dusk").glow);
   });
 
-  it("lamps, pools and roof items carry a distance condition and vanish on the Low tier", () => {
+  it("lamps and roof items carry a distance condition and vanish on the Low tier", () => {
     const { primitives } = setup("night", 1500);
     const near = primitives.filter((p) =>
       (p.options.geometryInstances as { options: { attributes?: unknown } }[]).every(
         (i) => i.options.attributes,
       ),
     );
-    expect(near).toHaveLength(4); // posts, heads, roof items, pools
+    expect(near).toHaveLength(3); // posts, heads, roof items
     const low = setup("night", 0);
-    expect(low.primitives.some(isPool)).toBe(false);
     const n = low.primitives.reduce(
       (s, p) => s + (p.options.geometryInstances as unknown[]).length,
       0,
@@ -335,11 +280,10 @@ describe("buildProps", () => {
   });
 
   it("destroy removes and destroys once, idempotent; empty input creates nothing", () => {
-    const { out, primitives, collection, ground } = setup();
+    const { out, primitives, collection } = setup();
     out.destroy();
     out.destroy();
-    expect(collection.remove).toHaveBeenCalledTimes(primitives.length - 1);
-    expect(ground.groundPrimitives.remove).toHaveBeenCalledTimes(1);
+    expect(collection.remove).toHaveBeenCalledTimes(primitives.length);
     for (const p of primitives) expect(p.destroy).toHaveBeenCalledTimes(1);
     const f = fakeCesium();
     const empty = buildProps(f.C as unknown as PropsCesium, {

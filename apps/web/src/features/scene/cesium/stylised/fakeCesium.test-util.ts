@@ -95,7 +95,41 @@ export function fakeCesium() {
     static fromDegreesArray = (a: number[]) => a.map((v) => ({ deg: v }));
     static fromDegrees = (lon: number, lat: number, h = 0) => ({ lon, lat, h });
   }
+  const imageryLayers: FakeImageryLayer[] = [];
+  /** ImageryLayer: records its provider; alpha and show like Cesium's defaults. */
+  class FakeImageryLayer {
+    alpha = 1;
+    show = true;
+    constructor(public provider: FakeProvider) {
+      imageryLayers.push(this);
+    }
+  }
+  const RAD = Math.PI / 180;
+  /** Geographic tiling like Cesium's: level 0 is two 180-degree tiles; rectangles in radians. */
+  class GeographicTilingScheme {
+    rectangle = { deg: [-180, -90, 180, 90] };
+    tileXYToRectangle(x: number, y: number, level: number) {
+      const d = 180 / 2 ** level;
+      return {
+        west: (-180 + x * d) * RAD,
+        east: (-180 + (x + 1) * d) * RAD,
+        north: (90 - y * d) * RAD,
+        south: (90 - (y + 1) * d) * RAD,
+      };
+    }
+  }
   const C = {
+    ImageryLayer: FakeImageryLayer,
+    GeographicTilingScheme,
+    Rectangle: {
+      fromDegrees: (west: number, south: number, east: number, north: number) => ({
+        deg: [west, south, east, north],
+      }),
+    },
+    Event: class {
+      listeners = [];
+    },
+    Math: { toDegrees: (r: number) => r / RAD },
     Primitive: FakePrimitive,
     ClassificationPrimitive: FakeClassificationPrimitive,
     GroundPrimitive: FakeGroundPrimitive,
@@ -151,7 +185,59 @@ export function fakeCesium() {
     Matrix3: { fromRotationZ: () => ({}) },
     Transforms: { eastNorthUpToFixedFrame: () => ({}) },
   };
-  return { C, primitives, materials, geometries };
+  return { C, primitives, materials, geometries, imageryLayers };
+}
+
+/** What decalProvider returns, as far as tests read it. */
+export interface FakeProvider {
+  maximumLevel: number;
+  hasAlphaChannel: boolean;
+  rectangle: { deg: number[] };
+  requestImage(x: number, y: number, level: number): Promise<unknown> | undefined;
+}
+
+/** Fake scene.imageryLayers: an ordered list with Cesium's add(layer, index) / remove semantics. */
+export function fakeLayers<L>() {
+  const list: L[] = [];
+  return {
+    list,
+    add: vi.fn((l: L, index?: number) => {
+      list.splice(index ?? list.length, 0, l);
+    }),
+    remove: vi.fn((l: L, _destroy?: boolean) => {
+      const i = list.indexOf(l);
+      if (i >= 0) list.splice(i, 1);
+      return i >= 0;
+    }),
+    indexOf: (l: L) => list.indexOf(l),
+    contains: (l: L) => list.includes(l),
+  };
+}
+
+/** A CanvasRenderingContext2D recorder: every call and style assignment, in order. */
+export function recorder2d() {
+  const ops: string[] = [];
+  const ctx = {
+    ops,
+    fillStyle: "" as unknown,
+    strokeStyle: "" as unknown,
+    lineWidth: 1,
+    lineCap: "butt",
+    lineJoin: "miter",
+    beginPath: () => ops.push("begin"),
+    moveTo: (x: number, y: number) => ops.push(`M${x.toFixed(1)},${y.toFixed(1)}`),
+    lineTo: (x: number, y: number) => ops.push(`L${x.toFixed(1)},${y.toFixed(1)}`),
+    closePath: () => ops.push("close"),
+    arc: (x: number, y: number, r: number) =>
+      ops.push(`arc${x.toFixed(1)},${y.toFixed(1)},${r.toFixed(2)}`),
+    fill(rule?: string) {
+      ops.push(`fill:${String(this.fillStyle)}${rule ? `:${rule}` : ""}`);
+    },
+    stroke() {
+      ops.push(`stroke:${String(this.strokeStyle)}@${this.lineWidth.toFixed(2)}`);
+    },
+  };
+  return ctx;
 }
 
 /** Fake scene.postRender: `fire()` runs every live listener once. */

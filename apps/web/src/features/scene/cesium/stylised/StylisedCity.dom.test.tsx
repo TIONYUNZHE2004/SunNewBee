@@ -45,13 +45,15 @@ function fakeViewer() {
 
 let viewer = fakeViewer();
 const buildProps = vi.fn();
-const restack = vi.fn();
+const fade = vi.fn();
+const buildPoolLayer = vi.fn();
 const setVisible = vi.fn();
 const reskinPalette = vi.fn();
 
 beforeEach(async () => {
   viewer = fakeViewer();
-  for (const m of [buildProps, restack, setVisible, reskinPalette]) m.mockReset();
+  for (const m of [buildProps, fade, buildPoolLayer, setVisible, reskinPalette]) m.mockReset();
+  buildPoolLayer.mockImplementation(() => ({ setPalette: vi.fn(), destroy: vi.fn() }));
   buildProps.mockImplementation(() => ({
     setPalette: vi.fn(),
     setTime: vi.fn(),
@@ -61,7 +63,7 @@ beforeEach(async () => {
   vi.doMock("resium", () => ({ useCesium: () => ({ viewer }) }));
   vi.doMock("./ground", async (orig) => ({
     ...(await orig<typeof import("./ground")>()),
-    buildGround: () => ({ setPalette: vi.fn(), setTime: vi.fn(), restack, destroy: vi.fn() }),
+    buildGround: () => ({ setPalette: vi.fn(), setTime: vi.fn(), fade, destroy: vi.fn() }),
     roadsFromWalk: () => [{ id: "r", coords: [], widthM: 6, kind: "residential" }],
   }));
   vi.doMock("./buildingsPrimitive", () => ({
@@ -76,8 +78,9 @@ beforeEach(async () => {
     buildProps,
     kerbCars: () => [],
     streetTrees: () => [{ lon: 101.5, lat: 3.18, h: 6, tier2: false }],
-    streetLamps: () => [],
+    streetLamps: () => [{ lon: 101.5, lat: 3.18 }],
   }));
+  vi.doMock("./groundImagery", () => ({ buildPoolLayer }));
   vi.doMock("./reskin", () => ({ reskinPalette }));
   vi.doMock("./motion/sky", () => ({
     buildSky: () => ({ setPalette: vi.fn(), tick: vi.fn(), setVisible, destroy: vi.fn() }),
@@ -93,6 +96,7 @@ afterEach(() => {
     "./ground",
     "./buildingsPrimitive",
     "./props",
+    "./groundImagery",
     "./reskin",
     "./motion/sky",
   ])
@@ -125,12 +129,35 @@ describe("StylisedCity wiring", () => {
     await waitFor(() => expect(last()[1].sway).toBe(true));
   });
 
-  it("light pools go to the scene's ground collection and the ground is restacked under them", async () => {
+  it("light pools are an imagery layer on the scene, not a prop; none on the Low tier", async () => {
     await mount();
-    await waitFor(() => expect(buildProps).toHaveBeenCalled());
-    const call = buildProps.mock.calls.at(-1) as unknown[];
-    expect(call[3]).toBe(viewer.scene);
-    expect(restack).toHaveBeenCalled();
+    await waitFor(() => expect(buildPoolLayer).toHaveBeenCalled());
+    const call = buildPoolLayer.mock.calls.at(-1) as unknown[];
+    expect(call[1]).toBe(viewer.scene);
+    expect(call[2]).toEqual([{ lon: 101.5, lat: 3.18 }]);
+    expect(buildProps.mock.calls.at(-1)).toHaveLength(3); // (Cesium, options, primitives)
+    const { useSceneSettings } = await import("../../sceneSettingsStore");
+    const last = buildPoolLayer.mock.results.at(-1);
+    const destroy = (last!.value as { destroy: () => void }).destroy;
+    await act(async () => useSceneSettings.setState({ quality: "low" }));
+    expect(destroy).toHaveBeenCalled();
+  });
+
+  it("a theme change fades the ground decals towards the new palette, ending at t = 1", async () => {
+    // Reduced motion: the crossfade applies the target once (no 2 s frame loop in the test).
+    vi.stubGlobal("matchMedia", () => ({ matches: true }));
+    try {
+      await mount();
+      await waitFor(() => expect(buildProps).toHaveBeenCalled()); // ground and props are built
+      const { useTheme } = await import("../../../../ui/theme");
+      const target = useTheme.getState().theme === "day" ? "night" : "day";
+      fade.mockClear();
+      await act(async () => useTheme.getState().setChoice(target));
+      const { paletteFor } = await import("./palette");
+      expect(fade.mock.calls).toEqual([[paletteFor(target), 1]]);
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it("clouds hide while a flood scenario or a route is shown", async () => {

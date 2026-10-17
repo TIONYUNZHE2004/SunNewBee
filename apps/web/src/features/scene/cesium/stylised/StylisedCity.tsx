@@ -17,6 +17,7 @@ import {
   type WaterPolygon,
   waterFromLayer,
 } from "./ground";
+import { buildPoolLayer, type PoolLayer } from "./groundImagery";
 import { groupByClass, toBuildings, treesToPoints } from "./model";
 import { createMotionClock, motionActive } from "./motion/clock";
 import { cloudSpots, flockLoops } from "./motion/flocks";
@@ -125,6 +126,7 @@ export function StylisedCity({ onReady }: { onReady?: (info: StylisedReady) => v
   const buildings = useRef<BuildingPrimitives | null>(null);
   const ground = useRef<Ground | null>(null);
   const props = useRef<Props | null>(null);
+  const pools = useRef<PoolLayer | null>(null);
   const sky = useRef<Sky | null>(null);
   const clock = useRef<ReturnType<typeof createMotionClock> | null>(null);
   const onReadyRef = useRef(onReady);
@@ -203,8 +205,8 @@ export function StylisedCity({ onReady }: { onReady?: (info: StylisedReady) => v
 
   useEffect(() => {
     if (!viewer || viewer.isDestroyed() || roads.length === 0) return;
-    // Roads are ClassificationPrimitives (thin volumes around height 0): they only show on the
-    // flat ellipsoid ground that resolveMapStyle guarantees for the stylised style (no terrain,
+    // Roads and the other decals are globe imagery and base water a GroundPrimitive: both assume
+    // the flat ellipsoid ground that resolveMapStyle guarantees for the stylised style (no terrain,
     // no tiles). Do not mount StylisedCity over terrain.
     const h = buildGround(Cesium, viewer, {
       roads,
@@ -261,11 +263,8 @@ export function StylisedCity({ onReady }: { onReady?: (info: StylisedReady) => v
         sway,
       },
       viewer.scene.primitives,
-      viewer.scene,
     );
     props.current = h;
-    // The light pools were lowered to the bottom: put the ground parts back under them.
-    ground.current?.restack();
     viewer.scene.requestRender();
     return () => {
       props.current = null;
@@ -274,6 +273,27 @@ export function StylisedCity({ onReady }: { onReady?: (info: StylisedReady) => v
       viewer.scene.requestRender();
     };
   }, [viewer, decor, details, home, tier, sway]);
+
+  // Light pools under the lamps: an imagery layer above the ground decals (fine detail, so not on
+  // the Low tier, like the lamps).
+  const poolsOn = TIERS[tier].detailRangeM > 0;
+  useEffect(() => {
+    if (!viewer || viewer.isDestroyed() || !details || !poolsOn || decor.lamps.length === 0) return;
+    const h = buildPoolLayer(
+      Cesium,
+      viewer.scene,
+      decor.lamps,
+      paletteFor(useTheme.getState().theme),
+    );
+    pools.current = h;
+    viewer.scene.requestRender();
+    return () => {
+      pools.current = null;
+      if (viewer.isDestroyed()) return;
+      h.destroy();
+      viewer.scene.requestRender();
+    };
+  }, [viewer, decor.lamps, details, poolsOn]);
 
   // Decorative birds and clouds, after the details like the props. Counts follow the tier.
   useEffect(() => {
@@ -425,7 +445,8 @@ export function StylisedCity({ onReady }: { onReady?: (info: StylisedReady) => v
 
   // Crossfade to the chosen mood. A new theme cancels the running fade and restarts from what is
   // shown; layers built mid-fade (or after) start from the latest theme's palette, so every path
-  // ends on the last choice. The ground recolours once, at the midpoint (never intermediates).
+  // ends on the last choice. The ground decals crossfade by imagery-layer alpha (one layer per
+  // palette); base water recolours once, at the midpoint (never intermediates).
   const shown = useRef(paletteFor(useTheme.getState().theme));
   const shownTheme = useRef(useTheme.getState().theme);
   useEffect(() => {
@@ -451,6 +472,8 @@ export function StylisedCity({ onReady }: { onReady?: (info: StylisedReady) => v
           home,
           t >= 1,
         );
+        ground.current?.fade(to, t);
+        pools.current?.setPalette(p, to);
         if (!groundDone && t >= 0.5) {
           groundDone = true;
           ground.current?.setPalette(to, true);
