@@ -408,9 +408,9 @@ export function buildSky(
     tick(t) {
       if (!destroyed) tick(t);
     },
-    setVisible(birds, cloudsVisible) {
+    setVisible(birdsVisible, cloudsVisible) {
       if (destroyed) return;
-      birdsOn = birds;
+      birdsOn = birdsVisible;
       cloudsOn = cloudsVisible;
       apply();
     },
