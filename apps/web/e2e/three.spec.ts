@@ -3,7 +3,8 @@ import { expect, test } from "@playwright/test";
 // Headless Chromium no longer falls back to SwiftShader on its own.
 test.use({ launchOptions: { args: ["--use-angle=swiftshader", "--enable-unsafe-swiftshader"] } });
 
-// CI is always cold: Vite compiles three.js on the first request, so scene waits get a long timeout.
+// CI is always cold (Vite compiles three.js on the first request) and software WebGL starves the main
+// thread, so every wait on the scene, or on UI that waits behind it, gets a long timeout.
 const COLD = { timeout: 30_000 };
 
 const ring = (x: number, y: number, d = 0.0001) => [
@@ -43,7 +44,7 @@ test("three.js stylised scene mounts, renders and draws a highlighted route", as
     .getByRole("textbox", { name: "Your question" })
     .fill("Can I push a stroller from Car Park B to the playground without stairs?");
   await page.getByRole("button", { name: "Ask", exact: true }).click();
-  await expect(scene).toHaveAttribute("data-route", "on");
+  await expect(scene).toHaveAttribute("data-route", "on", COLD);
   // The frame loop is still running with the route drawn.
   await expect
     .poll(async () => Number(await scene.getAttribute("data-frames")), COLD)
@@ -60,7 +61,7 @@ test("the decorative disclaimer is visible in the three.js scene", async ({ page
   await expect
     .poll(async () => Number(await scene.getAttribute("data-frames")), COLD)
     .toBeGreaterThan(0);
-  await expect(page.getByText(NOTE)).toBeVisible();
+  await expect(page.getByText(NOTE)).toBeVisible(COLD);
 });
 
 test("clicking a stubbed place marker opens the place card", async ({ page }) => {
@@ -86,7 +87,7 @@ test("clicking a stubbed place marker opens the place card", async ({ page }) =>
   const hide = page.getByRole("button", { name: "Hide assistant" });
   await expect(hide).toBeVisible(COLD);
   await hide.click();
-  await expect(page.getByRole("button", { name: "Show assistant" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Show assistant" })).toBeVisible(COLD);
   // The marker is built from the stubbed access layer (data-markers) and a frame has drawn since.
   await expect(scene).toHaveAttribute("data-markers", "1", COLD);
   const frames = Number(await scene.getAttribute("data-frames"));
