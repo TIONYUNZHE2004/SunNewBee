@@ -8,8 +8,8 @@ import { area, cleanRing, MIN_ROOF_AREA_M2, type RoofBuilding } from "../facade/
 import { type FallbackColours, fallbackColours, propsByBuildingId } from "../fallbackStyle";
 import type { LocalFrame } from "../frame";
 import type { Placement } from "./fit";
-import { fitArchetype, footprintObb, paletteFor, precinctGroupOf, variantFor } from "./fit";
-import type { Manifest } from "./manifest";
+import { fitArchetype, footprintObb, hash01, paletteFor, precinctGroupOf, variantFor } from "./fit";
+import type { AssetSpec, Manifest } from "./manifest";
 
 export interface CityPlan {
   /** Key `${asset}/${variant}`. */
@@ -59,6 +59,26 @@ function emptyPlan(): CityPlan {
     landmarks: [],
     stats: { placed: 0, units: 0, fallback: {} },
   };
+}
+
+/**
+ * Per-unit colours for a `repeat: frontage` row (shop office, link): each placed unit takes the
+ * precinct palette entry `hash01(placementId, "palette")` picks, and a unit that would repeat its
+ * left neighbour's entry moves to the next one, so neighbours differ whenever the list has more
+ * than one entry. Deterministic per placement id. Decorative colour only. Pure.
+ */
+export function unitPalettes(units: Placement[], spec: AssetSpec, group: string): Placement[] {
+  if (spec.repeat !== "frontage" || units.length < 2) return units;
+  const own = spec.palettes[group];
+  const list = own && own.length > 0 ? own : (spec.palettes.default ?? []);
+  if (list.length < 2) return units;
+  let prev = -1;
+  return units.map((u) => {
+    let k = Math.min(list.length - 1, Math.floor(hash01(u.id, "palette") * list.length));
+    if (k === prev) k = (k + 1) % list.length;
+    prev = k;
+    return { ...u, palette: list[k]! };
+  });
 }
 
 /** Which buildings get an archetype (and how many row units), and which stay extruded. Pure. */
@@ -177,9 +197,10 @@ export function planCity(
       typeof props.front_deg === "number" && Number.isFinite(props.front_deg)
         ? props.front_deg
         : null;
-    const units = fitArchetype(obb, spec, variant, b.height, front, b.id, group, {
+    const fitted = fitArchetype(obb, spec, variant, b.height, front, b.id, group, {
       minFill: asset === GENERIC ? GENERIC_MIN_FILL : 0.75,
     });
+    const units = fitted && unitPalettes(fitted, spec, group);
     if (!units) {
       plan.extrude.add(b.id);
       fb("no_fit");

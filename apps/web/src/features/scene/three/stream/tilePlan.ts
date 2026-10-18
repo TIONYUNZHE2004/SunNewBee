@@ -172,6 +172,7 @@ export function planTileVerges(
     inp.frame,
     shrubCap,
     cap * VERGE_PIECES_PER_CAP,
+    { parks: inp.buildings?.parks, water: inp.buildings?.water },
   );
 }
 // --- end Task 9 ------------------------------------------------------------------------------------

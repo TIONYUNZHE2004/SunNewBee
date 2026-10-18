@@ -1,6 +1,10 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
+import type { BuildingsLayer } from "../../../../lib/api";
+import { roofInputs } from "../assets/plan";
+import { buildCityGeometry } from "../cityMesh";
 import { NEUTRAL_COLOURS } from "../fallbackStyle";
+import { createFrame } from "../frame";
 import { largeRoofTint, ROOF_TINTS, type RoofBuilding, roofDressing } from "./roofPlan";
 
 const rect = (w: number, d: number, x0 = 0): Array<[number, number]> => [
@@ -180,4 +184,32 @@ describe("largeRoofTint (owner's P3 note: flat grey roofs)", () => {
     expect(largeRoofTint("s", rect(24, 24))).toBeNull();
     expect(largeRoofTint("s", [])).toBeNull();
   });
+});
+
+describe("roof units are seated on their own building (P5 Task 6, Elmina seed sample)", () => {
+  it("every unit and skylight base y equals its building's heightM, +-0.01", () => {
+    const seed = (p: string) =>
+      JSON.parse(
+        readFileSync(
+          new URL(`../../../../../../../data/seed/elmina/${p}`, import.meta.url),
+          "utf8",
+        ),
+      );
+    const frame = createFrame(seed("site.json").center);
+    const layer = { buildings: seed("base/buildings.geojson") } as unknown as BuildingsLayer;
+    const g = buildCityGeometry(layer, frame);
+    const heights = new Map(g.footprints.map((f) => [f.id, f.heightM]));
+    const inputs = roofInputs(g.footprints, layer, null, frame);
+    let n = 0;
+    for (let i = 0; i < inputs.length; i += 2) {
+      const { b, palette } = inputs[i]!;
+      expect(b.heightM).toBeCloseTo(heights.get(b.id) ?? b.heightM, 2);
+      const d = roofDressing(b, palette);
+      for (const m of [...mats(d.units), ...mats(d.skylights)]) {
+        n++;
+        expect(Math.abs(m[13]! - b.heightM)).toBeLessThanOrEqual(0.01);
+      }
+    }
+    expect(n).toBeGreaterThan(100);
+  }, 60_000);
 });

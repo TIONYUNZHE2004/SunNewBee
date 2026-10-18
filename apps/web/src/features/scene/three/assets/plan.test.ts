@@ -95,6 +95,29 @@ describe("planCity", () => {
     expect(p.stats.placed).toBe(1);
     expect(p.stats.units).toBe(1);
   });
+  it("each unit of a frontage row takes its own palette; neighbours differ (deterministic per id)", () => {
+    const PAL3: [string, string, string][] = [
+      ["#111111", "#222222", "#333333"],
+      ["#aa0000", "#00aa00", "#0000aa"],
+      ["#ffee00", "#00ffee", "#ee00ff"],
+    ];
+    const m = manifest();
+    m.assets.link_intermediate = spec({ palettes: { default: PAL3 } });
+    const row = (id: string) =>
+      feat({ id, archetype: "link_intermediate", height_m: 8.5 }, poly(0, 0, 15.5, 64));
+    for (const id of ["r1", "r2", "r3", "r4", "r5", "r6"]) {
+      const a = planCity(layerOf([row(id)]), frame, m, all).placements.get(
+        "link_intermediate/gable",
+      )!;
+      expect(a.length).toBeGreaterThan(4);
+      for (let i = 1; i < a.length; i++) expect(a[i]!.palette).not.toEqual(a[i - 1]!.palette);
+      for (const u of a) expect(PAL3).toContainEqual(u.palette);
+      const b = planCity(layerOf([row(id)]), frame, m, all).placements.get(
+        "link_intermediate/gable",
+      )!;
+      expect(b.map((u) => u.palette)).toEqual(a.map((u) => u.palette));
+    }
+  });
   it("uses the valley variant and palette for Elmina Valley 2", () => {
     const p = planCity(
       layerOf([link("b1", { precinct: "Elmina Valley 2" })]),

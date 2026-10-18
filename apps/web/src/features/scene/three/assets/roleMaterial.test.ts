@@ -115,6 +115,17 @@ describe("createRoleMaterial motion and kit kinds", () => {
     );
   });
 
+  it("parked: light-role faces take the vehicle body colour (primary palette), not the lamp colour", () => {
+    const { shader } = compile(true, { kind: "parked" });
+    const base = compile(true).shader;
+    expect(shader.fragmentShader).toContain("else if (tlRole >= 7) tlBase = vPal0;");
+    expect(base.fragmentShader).not.toContain("tlRole >= 7) tlBase = vPal0");
+    // The single-mesh program reads the body colour from its uniform.
+    expect(compile(false, { kind: "parked" }).shader.fragmentShader).toContain(
+      "else if (tlRole >= 7) tlBase = uPal0;",
+    );
+  });
+
   it("tree, person and vehicle use distinct program cache keys", () => {
     const k = (kind: "tree" | "person" | "vehicle" | "static") =>
       compile(true, { kind }).mat.customProgramCacheKey();

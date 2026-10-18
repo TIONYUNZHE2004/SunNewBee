@@ -38,6 +38,25 @@ describe("createRoofLayer", () => {
     layer.dispose();
   });
 
+  it("skylights glow at most uWindowGlow x 0.6 at night (softer than the windows)", () => {
+    const layer = createRoofLayer(items, createRoleUniforms(), "medium");
+    const sky = layer.group.children.find(
+      (c) => c.name === "roof_skylights",
+    ) as THREE.InstancedMesh;
+    const mat = sky.material as THREE.MeshStandardMaterial;
+    const shader = {
+      vertexShader: THREE.ShaderLib.standard.vertexShader,
+      fragmentShader: THREE.ShaderLib.standard.fragmentShader,
+      uniforms: {} as Record<string, { value: unknown }>,
+    };
+    // biome-ignore lint/suspicious/noExplicitAny: shader stub
+    (mat.onBeforeCompile as any)(shader, null);
+    const m = /\* uWindowGlow \* ([\d.]+)/.exec(shader.fragmentShader);
+    expect(m).not.toBeNull();
+    expect(Number(m![1])).toBeLessThanOrEqual(0.6);
+    layer.dispose();
+  });
+
   it("is decorative and its raycast returns nothing", () => {
     const layer = createRoofLayer(items, createRoleUniforms(), "high");
     expect(layer.group.userData.decorative).toBe(true);

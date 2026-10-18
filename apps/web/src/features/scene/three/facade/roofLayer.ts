@@ -8,6 +8,8 @@ import type { RoofDressing } from "./roofPlan";
 const NOOP = () => {};
 /** Role 3 (glass) in COLOR_0.g, decoded by the role material as floor(g * 7 + 0.5). */
 const GLASS_G = 3 / 7;
+/** Skylight night glow relative to a lit window (`uWindowGlow` x 0.6): the owner saw them too bright. */
+const SKYLIGHT_GLOW = 0.6;
 const UNIT_GREY = "#8d9297";
 
 export interface RoofItem {
@@ -118,7 +120,7 @@ export function createRoofLayer(
     "roof_skylights",
     (it, i) => [1, 1, hash01(it.id, `roof:lit${i}`)],
     skyGeo,
-    createRoleMaterial({ instanced: true, uniforms }),
+    createRoleMaterial({ instanced: true, uniforms, glassGlow: SKYLIGHT_GLOW }),
     (it) => it.dressing.skylights,
   );
 

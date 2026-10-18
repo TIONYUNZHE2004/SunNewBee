@@ -171,6 +171,47 @@ const footprintsOf = (buildings: unknown, frame: LocalFrame): Footprint[] =>
     return out;
   });
 
+interface Area {
+  outer: Ring;
+  holes: Ring[];
+  bb: [number, number, number, number];
+}
+const areaCache = new WeakMap<object, WeakMap<object, Area[]>>();
+
+/** Polygon areas (park or base water) in local metres: outer ring, holes, bounds. */
+const areasOf = (fc: unknown, frame: LocalFrame): Area[] =>
+  perLayer(areaCache, fc, frame, () => {
+    const out: Area[] = [];
+    const ringOf = (r: unknown): Ring | null => {
+      if (!Array.isArray(r)) return null;
+      const ring: Ring = [];
+      for (const c of r) {
+        const q = toLocal(c, frame);
+        if (!q) return null;
+        ring.push(q);
+      }
+      return ring.length >= 4 ? ring : null;
+    };
+    for (const f of featuresOf(fc)) {
+      const g = isRec(f) && isRec(f.geometry) ? f.geometry : null;
+      if (!g || !Array.isArray(g.coordinates)) continue;
+      const polys: unknown[] =
+        g.type === "Polygon" ? [g.coordinates] : g.type === "MultiPolygon" ? g.coordinates : [];
+      for (const p of polys) {
+        if (!Array.isArray(p)) continue;
+        const outer = ringOf(p[0]);
+        if (!outer) continue;
+        const holes: Ring[] = [];
+        for (const h of p.slice(1)) {
+          const hr = ringOf(h);
+          if (hr) holes.push(hr);
+        }
+        out.push({ outer, holes, bb: boundsOf(outer) });
+      }
+    }
+    return out;
+  });
+
 /** Every ribbon segment (all walk lines are drawn ribbons), gridded by its bounds plus half width. */
 const segGridOf = (walk: unknown, frame: LocalFrame): Grid<Seg> =>
   perLayer(segGridCache, walk, frame, () => {
@@ -245,7 +286,8 @@ function distToRing(x: number, z: number, ring: Ring): number {
  * `cap` limits the shrubs and `pieceCap` the 2 m strip pieces (two triangles each), both nearest
  * the tile centre first (the stream sets both from the tile's `verges` cap). Pieces whose
  * corners fall on a ribbon (a footway or street crossing) or inside a footprint are dropped, so a
- * verge never lies on a ribbon or under a building. Shrubs use the `trees` kit variants
+ * verge never lies on a ribbon or under a building. Nothing is planned inside a `keepOut` park or
+ * base-water polygon (the verge was hidden there anyway). Shrubs use the `trees` kit variants
  * `shrub_round` and `shrub_hedge`.
  */
 export function planVerges(
@@ -255,11 +297,21 @@ export function planVerges(
   frame: LocalFrame,
   cap: number,
   pieceCap = Number.POSITIVE_INFINITY,
+  keepOut: { parks?: unknown; water?: unknown } = {},
 ): { strips: Float32Array; shrubs: Placement[] } {
   const box = tile.box;
   const lines = linesOf(walk, frame);
   const segGrid = segGridOf(walk, frame);
   const footGrid = footGridOf(buildings, frame);
+  const areas = [...areasOf(keepOut.parks, frame), ...areasOf(keepOut.water, frame)];
+  const inKeepOut = (x: number, z: number): boolean => {
+    for (const a of areas) {
+      const b = a.bb;
+      if (x < b[0] || x > b[2] || z < b[1] || z > b[3]) continue;
+      if (inRing(x, z, a.outer) && !a.holes.some((h) => inRing(x, z, h))) return true;
+    }
+    return false;
+  };
 
   // `extra` is at most SEG_PAD_M and `within` at most FOOT_PAD_M (the grid padding).
   const onRibbon = (x: number, z: number, extra: number): boolean => {
@@ -325,7 +377,7 @@ export function planVerges(
             a[1] + uz * t + nz * side * d,
           ];
           const m = at((t0 + t1) / 2, mid);
-          if (!inBox(box, m[0], m[1])) continue;
+          if (!inBox(box, m[0], m[1]) || inKeepOut(m[0], m[1])) continue;
           const c00 = at(t0, inner);
           const c01 = at(t0, outer);
           const c10 = at(t1, inner);
@@ -376,7 +428,7 @@ export function planVerges(
           const off = mid + (2 * hash01(id, "across") - 1) * SHRUB_LATERAL_M;
           const x = a[0] + ux * t + nx * side * off;
           const z = a[1] + uz * t + nz * side * off;
-          if (!inBox(box, x, z)) continue;
+          if (!inBox(box, x, z) || inKeepOut(x, z)) continue;
           if (onRibbon(x, z, RIBBON_CLEAR_M)) continue;
           if (nearFootprint(x, z, SHRUB_CLEAR_M)) continue;
           // Driveway: a footprint within 3 m of the kerb point abreast of this shrub.
