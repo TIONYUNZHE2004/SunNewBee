@@ -18,7 +18,7 @@ from .closure_store import ClosureStore
 from .evaluate import evaluate_edge
 from .geo import haversine_m
 from .models import Claim, Closure, Evidence, ToolResult, photo_url
-from .scenario_meta import scenario_source
+from .scenario_meta import scenario_source, selection_error
 from .vr_store import VerificationStore
 from .world import World
 
@@ -282,6 +282,8 @@ def get_place_details(
     profile: str = "default",
     near: str | None = None,
 ) -> ToolResult:
+    if error := selection_error(ctx.world, profile, scenario_id):
+        return ToolResult(ok=False, warnings=[error])
     p = ctx.world.places.get(place_id)
     if p is None:
         r = _centre_details(ctx, place_id, scenario_id, profile, near) or _waste_details(
@@ -432,8 +434,14 @@ def plan_route(
 ) -> ToolResult:
     """`file_vrs=False` plans without writing: the anonymous REST route must not inflate the
     staff queue (final review Minor 2)."""
+    if error := selection_error(ctx.world, profile, scenario_id):
+        return ToolResult(ok=False, warnings=[error])
     rr = routing.plan_route(ctx.world, from_id, to_id, profile, scenario_id)
-    evidence: list[Evidence] = []
+    evidence = [
+        ev
+        for pid in dict.fromkeys((from_id, to_id))
+        for ev in routing.flood_evidence(ctx.world, pid, scenario_id)
+    ]
     # Transport provenance only: preserve the engine's status, paths and distances.
     endpoint_ids = [from_id, to_id]
     place_ids = set(endpoint_ids)
@@ -466,7 +474,7 @@ def plan_route(
         for u in r.unknowns:
             if (
                 not file_vrs
-                or u["attribute"] == "flood"
+                or u["attribute"] in ("flood", "flood_coverage")
                 or (u["element_id"], u["attribute"]) in filed
             ):
                 continue
@@ -544,12 +552,18 @@ def nearby_amenities(
     strict = _reach(w, src, prof, max_walk_m, allow_unknown=False)
     lenient = _reach(w, src, prof, max_walk_m, allow_unknown=True)
     hits = []
+    closed_hits = []
     for p in w.places.values():
         if p.type != amenity or not p.node_id:
             continue
         nodes = [p.node_id] if prof.allowed_types is None else routing._targets(w, p.id, prof)
         s_d = [strict[n] for n in nodes if n in strict]
         l_d = [lenient[n] for n in nodes if n in lenient]
+        if s_d or l_d:
+            live = _m.active_closures(p.closures)
+            if live:
+                closed_hits.append((p, live))
+                continue
         if s_d:
             hits.append((min(s_d), p, False))
         elif l_d:
@@ -560,6 +574,12 @@ def nearby_amenities(
         warnings.append("default profile applies no accessibility constraints")
     if prof.standing_warning:
         warnings.append(prof.standing_warning)
+    for p, closures in closed_hits:
+        warnings.extend(
+            f"{CLOSURE_SOURCE_LABEL}: {p.name}. {closure.label(ctx.world.site.timezone)}. "
+            "Excluded from nearby amenities."
+            for closure in closures
+        )
     return ToolResult(
         ok=True,
         data=[
@@ -576,7 +596,8 @@ def nearby_amenities(
             }
             for d, p, unv in hits
         ],
-        evidence=[_place_ev(p) for _, p, _ in hits],
+        evidence=[_place_ev(p) for _, p, _ in hits]
+        + [_closure_ev(ctx.world, c) for _, closures in closed_hits for c in closures],
         warnings=warnings + _demo_place_warnings([p for _, p, _ in hits]),
     )
 
@@ -740,6 +761,8 @@ def list_evacuation_centres(
     profile: str = "default",
     near_place: str | None = None,
 ) -> ToolResult:
+    if error := selection_error(ctx.world, profile, scenario_id):
+        return ToolResult(ok=False, warnings=[error])
     res = _flood.centres_reachability(ctx.world, scenario_id, profile, near_place)
     warnings = []
     prof = ctx.world.profiles.get(profile)
@@ -776,6 +799,12 @@ def list_evacuation_centres(
         for r in res
     ]
     data = [r.model_dump(mode="json") for r in res]
+    for pid in [
+        *([near_place] if near_place else []),
+        *(f"{routing.CENTRE_PREFIX}{r.centre.id}" for r in res),
+    ]:
+        ev += routing.flood_evidence(ctx.world, pid, scenario_id)
+        warnings.extend(routing.endpoint_flood_warnings(ctx.world, pid, prof, scenario_id))
     n_inferred = 0
     for r, d in zip(res, data, strict=True):
         note = _centre_entrance_note(ctx.world, r.centre) if r.reachable else None

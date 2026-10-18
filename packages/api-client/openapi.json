@@ -2740,6 +2740,58 @@
         "title": "RiverRollout",
         "type": "object"
       },
+      "RoadSection": {
+        "properties": {
+          "element_id": {
+            "title": "Element Id",
+            "type": "string"
+          },
+          "length_m": {
+            "title": "Length M",
+            "type": "number"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "sidewalk": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sidewalk"
+          },
+          "sidewalk_status": {
+            "default": "unknown",
+            "enum": [
+              "unknown",
+              "reported",
+              "verified",
+              "stale",
+              "contested"
+            ],
+            "title": "Sidewalk Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "element_id",
+          "length_m"
+        ],
+        "title": "RoadSection",
+        "type": "object"
+      },
       "Route": {
         "properties": {
           "crossings": {
@@ -2842,6 +2894,23 @@
             "title": "Rest Points Unverified",
             "type": "array"
           },
+          "road_m": {
+            "default": 0.0,
+            "title": "Road M",
+            "type": "number"
+          },
+          "road_sections": {
+            "items": {
+              "$ref": "#/components/schemas/RoadSection"
+            },
+            "title": "Road Sections",
+            "type": "array"
+          },
+          "road_without_mapped_sidewalk_m": {
+            "default": 0.0,
+            "title": "Road Without Mapped Sidewalk M",
+            "type": "number"
+          },
           "scenario_id": {
             "anyOf": [
               {
@@ -2859,6 +2928,11 @@
             },
             "title": "Segments",
             "type": "array"
+          },
+          "sidewalk_m": {
+            "default": 0.0,
+            "title": "Sidewalk M",
+            "type": "number"
           },
           "status": {
             "enum": [

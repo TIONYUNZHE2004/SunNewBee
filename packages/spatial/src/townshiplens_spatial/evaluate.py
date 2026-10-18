@@ -79,12 +79,54 @@ def _sidewalk_check(edge: Edge, profile: Profile, today: date) -> tuple[EvalResu
     }
 
 
+def evaluate_flood(
+    element_id: str,
+    profile: Profile,
+    flood_class: FloodClass | None,
+    coverage: str | None = None,
+) -> tuple[EvalResult, list[dict]]:
+    """The same scenario rules for paths and endpoints. Coverage gaps never imply flooding."""
+    if flood_class == "likely_flooded" or (
+        flood_class == "possible" and profile.flood.get("possible_is") == "FAIL"
+    ):
+        return "FAIL", [
+            {
+                "element_id": element_id,
+                "attribute": "flood",
+                "reason": "unknown",
+                "why": "likely flooded in this scenario"
+                if flood_class == "likely_flooded"
+                else f"possibly flooded; not passable for {profile.id}",
+            }
+        ]
+    why = []
+    if flood_class == "possible":
+        why.append(
+            {
+                "element_id": element_id,
+                "attribute": "flood",
+                "why": "possibly flooded in this scenario",
+            }
+        )
+    if coverage:
+        why.append(
+            {
+                "element_id": element_id,
+                "attribute": "flood_coverage",
+                "reason": "unknown",
+                "why": f"flood assessment has {coverage} raster coverage; unassessed data gap",
+            }
+        )
+    return ("UNKNOWN" if why else "PASS"), why
+
+
 def evaluate_edge(
     edge: Edge,
     profile: Profile,
     flood_class: FloodClass | None = None,
     today: date | None = None,
     now: datetime | None = None,
+    flood_coverage: str | None = None,
 ) -> tuple[EvalResult, list[dict]]:
     today = today or date.today()
     why: list[dict] = []
@@ -111,24 +153,9 @@ def evaluate_edge(
                 "why": f"{edge.type} edges are not usable for {profile.id}",
             }
         ]
-    if flood_class == "likely_flooded":
-        return "FAIL", [
-            {
-                "element_id": edge.id,
-                "attribute": "flood",
-                "reason": "unknown",
-                "why": "likely flooded in this scenario",
-            }
-        ]
-    if flood_class == "possible" and profile.flood.get("possible_is") == "FAIL":
-        return "FAIL", [
-            {
-                "element_id": edge.id,
-                "attribute": "flood",
-                "reason": "unknown",
-                "why": f"possibly flooded; not passable for {profile.id}",
-            }
-        ]
+    flood_result, flood_why = evaluate_flood(edge.id, profile, flood_class, flood_coverage)
+    if flood_result == "FAIL":
+        return flood_result, flood_why
     # profile.max_rest_free_run_m is a path property, enforced by routing._rest_search.
     result: EvalResult = "PASS"
     side = _sidewalk_check(edge, profile, today)
@@ -168,15 +195,9 @@ def evaluate_edge(
                     "why": f"{profile.id} needs {attr} {op} {limit}; not verified",
                 }
             )
-    if flood_class == "possible":
+    if flood_result == "UNKNOWN":
         result = "UNKNOWN"
-        why.append(
-            {
-                "element_id": edge.id,
-                "attribute": "flood",
-                "why": "possibly flooded in this scenario",
-            }
-        )
+        why.extend(flood_why)
     return result, why
 
 

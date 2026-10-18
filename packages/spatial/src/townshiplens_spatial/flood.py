@@ -14,16 +14,19 @@ from __future__ import annotations
 
 import networkx as nx
 
-from .evaluate import evaluate_edge
 from .models import AffectedResult, CentreReachability, Scenario
 from .routing import (
     CENTRE_PREFIX,
     _caveat,
     _disconnected,
+    _evaluate,
     _targets,
+    endpoint_flood,
     make_weight,
+    origin_flood,
     plan_route,
 )
+from .scenario_meta import selection_error
 from .world import World
 
 TOP_ROUTES = 3
@@ -37,9 +40,8 @@ def _passable_graph(world: World, scenario_id: str, profile_id: str) -> nx.Graph
     prof = world.profiles.get(profile_id) or world.profiles["default"]
     g = nx.Graph()
     g.add_nodes_from(world.graph.nodes)
-    classes = world.flood.edge_classes.get(scenario_id, {})
     for eid, e in world.edges.items():
-        res, _ = evaluate_edge(e, prof, classes.get(eid))
+        res, _ = _evaluate(world, prof, scenario_id or None, eid)
         if res != "FAIL":
             g.add_edge(e.from_node, e.to_node)
     return g
@@ -95,9 +97,16 @@ def affected(
     lp, le = ids("likely_flooded")
     pp, pe = ids("possible")
 
-    centre_nodes = {c.node_id for c in world.centres.values() if c.node_id}
+    prof = world.profiles[profile_id]
+    base_centres = {c.node_id for c in world.centres.values() if c.node_id}
+    centre_nodes = {
+        c.node_id
+        for c in world.centres.values()
+        if c.node_id
+        and endpoint_flood(world, f"{CENTRE_PREFIX}{c.id}", prof, scenario_id)[0] != "FAIL"
+    }
     g = _passable_graph(world, scenario_id, profile_id)
-    base_ok = _centre_connected(_passable_graph(world, "", profile_id), centre_nodes)
+    base_ok = _centre_connected(_passable_graph(world, "", profile_id), base_centres)
     cands = []
     for comp in nx.connected_components(g):
         if comp & centre_nodes or not (comp & base_ok):
@@ -162,6 +171,8 @@ def centres_reachability(
 ) -> list[CentreReachability]:
     """One strict and one lenient multi-source Dijkstra from the origin, costed by the same
     edge rules as routing. Full Route objects are built only for the nearest TOP_ROUTES centres."""
+    if scenario_id is not None and selection_error(world, profile_id, scenario_id):
+        return []
     profile = world.profiles.get(profile_id)
     sources = _targets(world, near_place, profile) if near_place and profile else []
     no_data = [
@@ -172,6 +183,7 @@ def centres_reachability(
     ]
     if not sources:
         return no_data
+    origin_state = origin_flood(world, near_place, profile, scenario_id)[0]
     strict = nx.multi_source_dijkstra_path_length(
         world.graph, sources, weight=make_weight(world, profile, scenario_id, False)
     )
@@ -185,6 +197,7 @@ def centres_reachability(
             rows.append((3, 0.0, _closed_row(c, closure)))
             continue
         ts = _targets(world, f"{CENTRE_PREFIX}{c.id}", profile)
+        centre_state = endpoint_flood(world, f"{CENTRE_PREFIX}{c.id}", profile, scenario_id)[0]
         inf = float("inf")
         n = min(
             ts, key=lambda t: (t not in strict, strict.get(t, lenient.get(t, inf)), t), default=None
@@ -193,13 +206,29 @@ def centres_reachability(
             rows.append(
                 (2, 0.0, CentreReachability(centre=c, reachable=False, route_status="no_data"))
             )
+        elif "FAIL" in (origin_state, centre_state):
+            status = "no_data" if _disconnected(world, profile, sources, ts) else "blocked"
+            rows.append(
+                (
+                    2 if status == "no_data" else 1,
+                    0.0,
+                    CentreReachability(centre=c, reachable=False, route_status=status),
+                )
+            )
         elif n in strict:
             rows.append(
                 (
                     0,
                     strict[n],
                     CentreReachability(
-                        centre=c, reachable=True, route_status=_caveat(profile, "confirmed")
+                        centre=c,
+                        reachable=True,
+                        route_status=_caveat(
+                            profile,
+                            "partly_unverified"
+                            if "UNKNOWN" in (origin_state, centre_state)
+                            else "confirmed",
+                        ),
                     ),
                 )
             )

@@ -133,12 +133,63 @@ pruning, bounded by `MAX_REST_LABELS` (deterministic, not wall-clock).
 | `blocked` | The endpoints are connected in the unfiltered graph, but every path is cut by a known FAIL |
 | `no_data` | The endpoints are in different graph components (for `drive`: no connecting road, or a place with no mapped road within the snap distance), or a place or profile is unknown. A data gap, never "not reachable" |
 
+Flood-scenario routing checks the destination as well as paths. A likely flooded
+destination blocks a connected journey; a possible destination makes a walking route at most
+`partly_unverified` (it blocks driving). Origin flood classes remain evidence and named
+warnings so a resident can ask about leaving a flooded place. They do not block or cap a
+route on their own. Explicit raster coverage gaps at either endpoint still cap scenario
+certainty at UNKNOWN. Disconnected endpoints remain `no_data`. These checks
+also apply to every evacuation-centre row, including zero-distance journeys and centres
+outside the nearest three route previews.
+
+`load_world()` reads explicit `uncovered_edges`, `partial_edges` and `uncovered_places` from
+`flood/coverage.json` into `world.flood.coverage`. Under a river-stage scenario, those elements
+are UNKNOWN unless another rule already makes them FAIL. Baseline is unchanged. Coverage
+evidence uses `attribute: flood_coverage`, `value: uncovered|partial`, and `status: unknown`;
+it never invents a flood class or files a survey ticket. Route `unknowns` can refer to endpoint
+places as well as segments. Known origin and destination flood classes have their own scenario evidence.
+
+Unknown scenario/profile selections are rejected by the resident tools (`ok: false`, no data,
+evidence or ticket writes). Direct `routing.plan_route` returns `no_data` with an explicit
+selection error and no route. A nonexistent scenario is never treated as baseline.
+
 A route whose facts include `team_survey_placeholder` evidence carries `demo_evidence: true`
 (also on `RouteResult` for `routes[0]`). The status is not downgraded: `confirmed` stays
 `confirmed`, and the UI and agent say "confirmed on demo values, not yet surveyed".
 
+`nearby_amenities` excludes candidates with active staff-reported place closures and
+returns their named closure warnings and reported closure evidence. Expired or upcoming
+closures do not remove a candidate. Staff free-text notes never reach the tool output.
+
 `plan_route` files at most 10 verification requests per call (`MAX_ROUTE_VRS`); the overflow is
 counted in `verification_requests_truncated`. Flood unknowns never file a VR.
+
+## Sidewalks and road geometry (T-014)
+
+The importer preserves `highway=footway, footway=sidewalk` as edge type `sidewalk`,
+and reads explicit `sidewalk=*` claims on both ordinary streets and major roads.
+These remain reported OSM data. A sidewalk's type alone never verifies width, steps,
+incline or access. Road and sidewalk lines connect only at their mapped graph nodes;
+proximity never invents a connection or a road-sidewalk association.
+
+Walking searches multiply street/major-road costs by 1.25 to prefer a modestly longer
+mapped walking path. This preference applies within each strict/lenient search; a
+confirmed route still wins over a route needing unknown facts. Distance and time use
+actual segment lengths, and driving costs and evaluation rules are unchanged.
+
+Each route exposes `sidewalk_m` (separate sidewalk edges), `road_m` (street/major-road
+edges), and `road_without_mapped_sidewalk_m` (road edges without a fresh reported or
+verified positive sidewalk claim). All are metres, rounded to 0.1 m. An explicit
+`none`, missing, stale or contested claim contributes to the last count. A positive
+`separate` tag records a sidewalk elsewhere; it does not imply the route uses it.
+`road_sections` lists each traversed road segment's id, name, length, sidewalk value
+and claim status. Road distance is counted per traversal, including repeated edges.
+
+Walking route warnings highlight road distance without a mapped sidewalk. These are
+geometry caveats, not a passability upgrade, downgrade or new survey ticket. Derived
+`route_walkways` evidence carries the composition and road sections with status
+`reported` and source `mapped walk graph (not a sidewalk survey)`. Resident answers
+should name these road stretches and retain their uncertainty even on a confirmed route.
 
 ## Tests
 
