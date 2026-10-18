@@ -57,6 +57,20 @@ vi.mock("./assets/library", async (orig) => {
       libraryHook.next ? libraryHook.next() : mod.loadAssetLibrary(...a),
   };
 });
+// Captures the role uniforms the scene creates, so a test can read the glow values.
+const uniformSpy = vi.hoisted(() => ({
+  last: null as null | import("./assets/roleMaterial").RoleUniforms,
+}));
+vi.mock("./assets/roleMaterial", async (orig) => {
+  const mod = await orig<typeof import("./assets/roleMaterial")>();
+  return {
+    ...mod,
+    createRoleUniforms: () => {
+      uniformSpy.last = mod.createRoleUniforms();
+      return uniformSpy.last;
+    },
+  };
+});
 vi.mock("../../../lib/api", async (orig) => ({
   ...(await orig<typeof import("../../../lib/api")>()),
   useSite: () => ok(SITE),
@@ -95,6 +109,7 @@ function fakeEngine() {
     setBounds: vi.fn(),
     setRoute: vi.fn(),
     setLighting: vi.fn(),
+    setFogRange: vi.fn(),
     setTier: vi.fn(),
     setViewOffset: vi.fn(),
     resize: vi.fn(),
@@ -131,6 +146,12 @@ function fakeEngine() {
   };
   return e;
 }
+const reducedMq = () => ({
+  matches: true,
+  addEventListener: () => {},
+  removeEventListener: () => {},
+});
+
 type Fake = ReturnType<typeof fakeEngine>;
 
 function mount(engine: Fake = fakeEngine(), onOps?: (o: unknown) => void) {
@@ -280,15 +301,63 @@ describe("ThreeScene", () => {
     expect(b.engine.rig.set.mock.calls[0]?.[0]?.rangeM).toBe(bookmarkPose(DEFAULT_BOOKMARK).rangeM);
   });
 
-  it("theme change calls setLighting with LIGHT_PRESETS[theme]", async () => {
-    act(() => useTheme.setState({ theme: "day" }));
+  it("a pinned theme change calls setLighting with that keyframe (reduced motion: at once)", async () => {
+    vi.stubGlobal("matchMedia", reducedMq);
+    act(() => useTheme.setState({ choice: "day", theme: "day" }));
     const { engine } = mount();
     await waitFor(() => expect(engine.setLighting).toHaveBeenCalled());
     expect(engine.setLighting.mock.calls.at(-1)?.[0]).toBe(LIGHT_PRESETS.day);
-    act(() => useTheme.setState({ theme: "night" }));
+    act(() => useTheme.setState({ choice: "night", theme: "night" }));
     expect(engine.setLighting.mock.calls.at(-1)?.[0]).toBe(LIGHT_PRESETS.night);
     const dir = engine.setLighting.mock.calls.at(-1)?.[1] as unknown as number[];
     expect(Math.hypot(...dir)).toBeCloseTo(1);
+    vi.unstubAllGlobals();
+  });
+
+  it("Elmina Day playback drives the light even with the theme pinned to day", async () => {
+    vi.stubGlobal("matchMedia", reducedMq);
+    act(() => useTheme.setState({ choice: "day", theme: "day" }));
+    const { engine } = mount();
+    await waitFor(() => expect(engine.setLighting).toHaveBeenCalled());
+    act(() => useScene.setState({ day: { ...useScene.getState().day, on: true, t: 21 * 60 } }));
+    const p = engine.setLighting.mock.calls.at(-1)?.[0] as unknown as typeof LIGHT_PRESETS.night;
+    expect(p).toBe(LIGHT_PRESETS.night);
+    act(() => useScene.setState({ day: { ...useScene.getState().day, on: false } }));
+    vi.unstubAllGlobals();
+  });
+
+  it("role uniforms follow glowFor", async () => {
+    vi.stubGlobal("matchMedia", reducedMq);
+    act(() => useTheme.setState({ choice: "night", theme: "night" }));
+    const { engine } = mount();
+    await waitFor(() => expect(engine.setLighting).toHaveBeenCalled());
+    expect(uniformSpy.last?.uWindowGlow.value).toBe(1.6);
+    expect(uniformSpy.last?.uLitShare.value).toBeCloseTo(0.58);
+    expect(uniformSpy.last?.uLightGlow.value).toBe(1);
+    act(() => useTheme.setState({ choice: "day", theme: "day" }));
+    expect(uniformSpy.last?.uWindowGlow.value).toBe(0);
+    expect(uniformSpy.last?.uLitShare.value).toBeCloseTo(0.35);
+    vi.unstubAllGlobals();
+  });
+
+  it("the sources crossfade over several frames when motion is allowed", async () => {
+    vi.useFakeTimers({ toFake: ["requestAnimationFrame", "cancelAnimationFrame", "performance"] });
+    act(() => useTheme.setState({ choice: "day", theme: "day" }));
+    const { engine } = mount();
+    await vi.waitFor(() => expect(engine.setLighting).toHaveBeenCalled());
+    act(() => useTheme.setState({ choice: "night", theme: "night" }));
+    expect(engine.setLighting.mock.calls.at(-1)?.[0]).toBe(LIGHT_PRESETS.day);
+    await act(async () => {
+      vi.advanceTimersByTime(1000);
+    });
+    const mid = engine.setLighting.mock.calls.at(-1)?.[0] as unknown as typeof LIGHT_PRESETS.day;
+    expect(mid.sunIntensity).toBeLessThan(LIGHT_PRESETS.day.sunIntensity);
+    expect(mid.sunIntensity).toBeGreaterThan(LIGHT_PRESETS.night.sunIntensity);
+    await act(async () => {
+      vi.advanceTimersByTime(1500);
+    });
+    expect(engine.setLighting.mock.calls.at(-1)?.[0]).toBe(LIGHT_PRESETS.night);
+    vi.useRealTimers();
   });
 
   it("unmount calls dispose exactly once", async () => {

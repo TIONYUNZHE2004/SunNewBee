@@ -35,12 +35,26 @@ import { fallbackColourFn } from "./fallbackStyle";
 import { createFrame, type LocalFrame } from "./frame";
 import { createFrameStats } from "./frameStats";
 import { boundsGoal, type CameraGoal, intentGoal } from "./intents";
-import { keyLightDir, LIGHT_PRESETS } from "./lighting";
+import { LIGHT_PRESETS } from "./lighting";
+import {
+  dominant,
+  glowFor,
+  type MoodSource,
+  type MoodWeights,
+  mixWeights,
+  moodKeyDir,
+  moodPreset,
+  moodSource,
+  moodWeights,
+} from "./mood";
 import { lineToLocal } from "./routeLine";
 
 const INTENT_PITCH_DEG = -45;
 const WHOLE_PITCH_DEG = -50;
 const FLY_MS = 1800;
+/** Mood crossfade on a source change: day to dusk, and any other pair. */
+const DAY_DUSK_FADE_MS = 3000;
+const FADE_MS = 2000;
 const RAD = Math.PI / 180;
 
 const goalPose = (g: CameraGoal, frame: LocalFrame, pitchDeg: number): Pose => ({
@@ -405,12 +419,89 @@ export default function ThreeScene({
     });
   }, [engine, frame, focusPoint]);
 
-  // Lighting per mood; the key light follows the real sun by day (display only).
+  // Lighting follows the mood clock: Elmina Day playback, else a pinned theme, else the real
+  // Kuala Lumpur clock. A source change crossfades (reduced motion applies at once). Display only.
   const home = homeView(site);
   useEffect(() => {
     if (!engine) return;
-    engine.setLighting(LIGHT_PRESETS[theme], keyLightDir(theme, new Date(), home.lat, home.lon));
-  }, [engine, theme, home.lat, home.lon]);
+    let shown: MoodWeights | null = null;
+    let key = "";
+    let fade: { from: MoodWeights; start: number; dur: number } | null = null;
+    let raf = 0;
+    const source = () => {
+      const day = useScene.getState().day;
+      return moodSource({
+        dayOn: day.on,
+        dayT: day.t,
+        choice: useTheme.getState().choice,
+        now: new Date(),
+      });
+    };
+    const apply = (w: MoodWeights, src: MoodSource) => {
+      shown = w;
+      const g = glowFor(w);
+      roleUniforms.uWindowGlow.value = g.uWindowGlow;
+      roleUniforms.uLitShare.value = g.uLitShare;
+      roleUniforms.uLightGlow.value = g.uLightGlow;
+      engine.setLighting(moodPreset(w), moodKeyDir(src, w, new Date(), home.lat, home.lon));
+    };
+    const step = () => {
+      raf = 0;
+      if (!fade) return;
+      const src = source();
+      const k = Math.min(1, (performance.now() - fade.start) / fade.dur);
+      const to = moodWeights(src);
+      apply(k >= 1 ? to : mixWeights(fade.from, to, k), src);
+      if (k >= 1) fade = null;
+      else raf = requestAnimationFrame(step);
+    };
+    const evaluate = () => {
+      const src = source();
+      const to = moodWeights(src);
+      const k = src.kind === "pinned" ? `p:${src.theme}` : src.kind;
+      const changed = shown !== null && k !== key;
+      key = k;
+      if (changed && shown && !reducedMotion()) {
+        const pair = new Set([dominant(shown), dominant(to)]);
+        const dayDusk = pair.size === 2 && pair.has("day") && pair.has("dusk");
+        fade = {
+          from: shown,
+          start: performance.now(),
+          dur: dayDusk ? DAY_DUSK_FADE_MS : FADE_MS,
+        };
+        if (!raf) raf = requestAnimationFrame(step);
+        return;
+      }
+      if (fade) return; // the running crossfade follows the new target by itself
+      apply(to, src);
+    };
+    engine.setFogRange(engine.rig.get().rangeM);
+    evaluate();
+    const offTheme = useTheme.subscribe(evaluate);
+    const offDay = useScene.subscribe((s, prev) => {
+      if (s.day.on !== prev.day.on || s.day.t !== prev.day.t) evaluate();
+    });
+    const timer = setInterval(evaluate, 60_000);
+    return () => {
+      offTheme();
+      offDay();
+      clearInterval(timer);
+      if (raf) cancelAnimationFrame(raf);
+    };
+  }, [engine, roleUniforms, home.lat, home.lon]);
+
+  // Fog follows the camera range (only when it moves by more than 10 %).
+  useEffect(() => {
+    if (!engine) return;
+    let last = engine.rig.get().rangeM;
+    return engine.onFrame(() => {
+      const r = engine.rig.get().rangeM;
+      if (Math.abs(r - last) > 0.1 * last) {
+        last = r;
+        engine.setFogRange(r);
+      }
+    });
+  }, [engine]);
 
   // Look point in the middle of the map area left of the side panel (phones use the sheet).
   useEffect(() => {

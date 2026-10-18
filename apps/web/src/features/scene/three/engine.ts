@@ -26,6 +26,7 @@ import {
 import type { CityGeometry } from "./cityMesh";
 import { fitShadowCamera, type LightPreset } from "./lighting";
 import { createLodSchedule } from "./lodSchedule";
+import { applyFog } from "./mood";
 import { THREE_TIERS } from "./quality";
 
 /** Local xz box the camera target may not leave (by more than LIMITS.maxCentreOffsetM). */
@@ -51,6 +52,8 @@ export interface Engine {
   setBounds(b: Bounds): void;
   setRoute(positions: Float32Array | null): void;
   setLighting(p: LightPreset, keyDir: [number, number, number]): void;
+  /** Camera range in metres: fog distances scale with it so the township view is never fogged out. */
+  setFogRange(rangeM: number): void;
   setTier(t: Tier): void;
   setViewOffset(panelPx: number): void;
   resize(w: number, h: number): void;
@@ -224,6 +227,8 @@ function build(
   const hemi = new THREE.HemisphereLight();
   scene.add(sun, sun.target, hemi);
   let keyDir: [number, number, number] = [0, 1, 0];
+  let lastPreset: LightPreset | null = null;
+  let fogRange = 0;
 
   const buildingMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85 });
   const flatMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95 });
@@ -503,8 +508,17 @@ function build(
       scene.environmentIntensity = p.envIntensity;
       renderer.toneMappingExposure = p.exposure;
       (scene.background as THREE.Color).set(p.background);
-      scene.fog = new THREE.Fog(p.fog.color, p.fog.near, p.fog.far);
+      lastPreset = p;
+      applyFog(scene, p, fogRange);
       requestRender();
+    },
+    setFogRange(rangeM) {
+      if (disposed) return;
+      fogRange = rangeM;
+      if (lastPreset) {
+        applyFog(scene, lastPreset, rangeM);
+        requestRender();
+      }
     },
     setTier(t) {
       if (!disposed) applyTier(t);

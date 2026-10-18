@@ -1,3 +1,4 @@
+import * as THREE from "three";
 import type { Theme } from "../../../ui/theme";
 import { sunPosition, sunVector } from "./sun";
 
@@ -100,5 +101,33 @@ export function fitShadowCamera(
     halfSize: radiusM,
     near: 1,
     far: dist + radiusM * 2,
+  };
+}
+
+const mixColour = (a: string, b: string, k: number): string => {
+  const c = new THREE.Color(a);
+  return `#${c.lerp(new THREE.Color(b), k).getHexString()}`;
+};
+const mix = (a: number, b: number, k: number) => a + (b - a) * k;
+
+/** Lerp every field; colours mix in linear space (THREE.Color working space). k <= 0 gives a, k >= 1 gives b. */
+export function blendPresets(a: LightPreset, b: LightPreset, k: number): LightPreset {
+  if (k <= 0) return a;
+  if (k >= 1) return b;
+  return {
+    sunColor: mixColour(a.sunColor, b.sunColor, k),
+    sunIntensity: mix(a.sunIntensity, b.sunIntensity, k),
+    hemiSky: mixColour(a.hemiSky, b.hemiSky, k),
+    hemiGround: mixColour(a.hemiGround, b.hemiGround, k),
+    hemiIntensity: mix(a.hemiIntensity, b.hemiIntensity, k),
+    envIntensity: mix(a.envIntensity, b.envIntensity, k),
+    exposure: mix(a.exposure, b.exposure, k),
+    background: mixColour(a.background, b.background, k),
+    fog: {
+      color: mixColour(a.fog.color, b.fog.color, k),
+      near: mix(a.fog.near, b.fog.near, k),
+      far: mix(a.fog.far, b.fog.far, k),
+    },
+    windowEmissive: mix(a.windowEmissive, b.windowEmissive, k),
   };
 }

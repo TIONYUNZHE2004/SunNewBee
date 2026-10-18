@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { fitShadowCamera, keyLightDir, LIGHT_PRESETS } from "./lighting";
+import { blendPresets, fitShadowCamera, keyLightDir, LIGHT_PRESETS } from "./lighting";
 
 describe("LIGHT_PRESETS", () => {
   it("orders sun intensity night < dusk < day", () => {
@@ -42,5 +42,17 @@ describe("fitShadowCamera", () => {
     for (const [i, x] of v.entries()) expect(x / len).toBeCloseTo(d[i] as number, 6);
     expect(c.halfSize).toBeGreaterThanOrEqual(400);
     expect(c.far).toBeGreaterThan(c.near);
+  });
+});
+
+describe("blendPresets", () => {
+  it("keeps hemi + IBL <= 1 for every pair at 0.25, 0.5 and 0.75", () => {
+    const all = Object.values(LIGHT_PRESETS);
+    for (const a of all)
+      for (const b of all)
+        for (const k of [0.25, 0.5, 0.75]) {
+          const p = blendPresets(a, b, k);
+          expect(p.hemiIntensity + p.envIntensity).toBeLessThanOrEqual(1);
+        }
   });
 });
