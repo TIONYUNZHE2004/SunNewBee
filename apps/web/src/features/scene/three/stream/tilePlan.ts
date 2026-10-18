@@ -14,6 +14,7 @@ import { planProps } from "../props/propsPlan";
 import { planSigns } from "../signs/signPlan";
 import { type PlanArea, seedFor } from "./area";
 import { tileCap, VERGE_PIECES_PER_CAP, VERGE_SHRUBS_PER_CAP } from "./caps";
+import { lotKits, planTileLots, warmLots } from "./lotsPlan";
 import type { Ring, TileContent } from "./streamer";
 import { type Tile, type TileKey, tileAt } from "./tiles";
 
@@ -29,6 +30,8 @@ export interface TileInputs {
   facades: Map<TileKey, FacadeBuilding[]> | null;
   /** Roof inputs by tile (`bucketRoofs`); absent or null: no roof dressing. */
   roofs?: Map<TileKey, RoofInput[]> | null;
+  /** Task 10: the mood night weight (0..1) read at plan time (parked-car share); absent: day. */
+  night?: () => number;
 }
 
 /** Per-planner seed salt: the seed is `hash01(tileKey, salt)` (`seedFor`), never visit order. */
@@ -84,7 +87,7 @@ export function planTile(inp: TileInputs, tile: Tile, ring: Ring, tier: Tier): T
   const { frame, walk, buildings, manifest } = inp;
   const cap = (kind: Parameters<typeof tileCap>[2]) => tileCap(tier, ring, kind, tile, frame);
   const rich = tier !== "low";
-  const kits =
+  const propKits =
     rich && manifest && buildings
       ? planProps({
           walk,
@@ -100,11 +103,14 @@ export function planTile(inp: TileInputs, tile: Tile, ring: Ring, tier: Tier): T
             trees: cap("trees"),
             lamps: cap("lamps"),
             furniture: cap("furniture"),
-            construction: cap("construction"),
+            // Task 10: construction is streamed by `planTileLots` (by area, with tracks); 0 here, or it is placed twice.
+            construction: 0,
           },
           m: manifest,
         }).kits
       : NO_KITS;
+  const lots = planTileLots(inp, tile, ring, tier); // Task 10: parking lots and construction land
+  const kits = lotKits(propKits, lots);
   const vehicles = cap("vehicles");
   const people = cap("people");
   const signCap = cap("signs");
@@ -140,6 +146,7 @@ export function planTile(inp: TileInputs, tile: Tile, ring: Ring, tier: Tier): T
     facades: rich && ring <= 1 ? (inp.facades?.get(tile.key) ?? NO_FACADES) : undefined,
     roofs: rich && ring <= 1 && inp.roofs ? planRoofs(inp.roofs.get(tile.key)) : undefined,
     verges: planTileVerges(inp, tile, ring, tier),
+    ...lots.content, // Task 10: parking, tracks, gravel
   };
 }
 
@@ -192,6 +199,7 @@ export function warmPlanners(inp: TileInputs): void {
   if (inp.buildings) planSigns(inp.buildings.signage, inp.buildings.buildings, inp.walk, inp.frame);
   // The roof planner's first call pays its JIT cost: pay it here on a throwaway roof.
   if (inp.roofs) planRoofs([WARM_ROOF]);
+  warmLots(inp); // Task 10: every parking-lot and construction-site layout
 }
 
 const WARM_ROOF: RoofInput = {
