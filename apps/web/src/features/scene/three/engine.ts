@@ -22,7 +22,8 @@ import {
 } from "./cameraRig";
 import type { CityGeometry } from "./cityMesh";
 import { cullFrustum, shadowPadM } from "./cull";
-import { GROUND_BANDS, groundMaterial } from "./ground/bands";
+import { groundMaterial } from "./ground/bands";
+import { cityGroundMeshes } from "./ground/cityGround";
 import type { GroundLayer } from "./ground/groundLayer";
 import { shimmerMaterial } from "./ground/landcover";
 import { BLOOM, fitShadowCamera, type LightPreset } from "./lighting";
@@ -719,10 +720,7 @@ function build(
       // The extruded (fallback) buildings are pickable buildings: the picker names one by face.
       buildings.userData.pick = { kind: "building" };
       buildings.userData.faces = g.faces;
-      const parks = new THREE.Mesh(g.parks, parksMat);
-      parks.renderOrder = GROUND_BANDS.parks.order;
-      const water = new THREE.Mesh(g.water, waterMat);
-      water.renderOrder = GROUND_BANDS.water.order;
+      const { parks, water } = cityGroundMeshes(g.parks, g.water, parksMat, waterMat);
       const plane = new THREE.PlaneGeometry(g.ground.size[0], g.ground.size[1]);
       plane.rotateX(-Math.PI / 2);
       const ground = new THREE.Mesh(plane, groundMat);

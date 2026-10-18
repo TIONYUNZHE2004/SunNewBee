@@ -318,6 +318,15 @@ hero district.
   under the Kanopi tower gets a podium deck instead (planters, a pool in base-water `#7fb6c9`, a
   pergola; `facade/podiumDeck.ts`) and stays pickable. Large extruded roofs whose palette roof is
   grey take one of four `ROOF_TINTS` (warm concrete, terracotta, sand, cool membrane) at every tier.
+- **Ground decor, verges and lots (decorative):** `planTileVerges` plans grass verge strips (ring
+  ≤ 1; Medium ring 0 only, ruling P4-Z: hitch budget) and ring 0 shrubs; `planTileLots`
+  (`stream/lotsPlan.ts`) plans parking stalls and parked cars only on land-cover `parking`
+  polygons, plus construction sites (gravel tint, earth tracks, by-area kit props). Verges and the
+  construction ground share one ground-decor mesh (`useGroundDecor`, the `ground-decor` slot,
+  `ground/groundDecor.ts`); stall lines ride the road-markings mesh (`useRoads`). The ground stays at
+  6 draws (`ground/bands.ts`). Parked cars are their own stream kind `parked` (costed per car at
+  the worst variant), ride the static kit buckets, and never move or fade with Day / Rollout.
+  None of it at Low or beyond 1500 m.
 - **Culling:** `CityInstances.update` gets the view frustum padded by the shadow extent (`cull.ts`),
   so an off-screen shadow caster is never left stale.
 - **Probe views:** `scripts/measure-probes.mjs` records draws, tris and MB at the six probe views

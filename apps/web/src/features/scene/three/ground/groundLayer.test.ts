@@ -1,7 +1,10 @@
 import * as THREE from "three";
 import { describe, expect, it } from "vitest";
 import { GROUND_BANDS } from "./bands";
+import { cityGroundMeshes } from "./cityGround";
+import { createGroundDecorLayer } from "./groundDecor";
 import { createGroundLayer } from "./groundLayer";
+import { STALL_COLOUR } from "./lotLayer";
 import type { Ribbon } from "./ribbons";
 
 const ribbon = (kind: Ribbon["kind"], marking = false): Ribbon => ({
@@ -99,14 +102,72 @@ describe("createGroundLayer", () => {
     expect(land.customProgramCacheKey()).toContain("_groundDetail");
   });
 
-  it("ground draws stay <= 6: one mesh per band, six bands (land cover, parks, water, verges, roads, markings)", () => {
+  it("exactly 6 ground draws: land cover, ground decor, parks, water, roads, markings (ruling P4-X)", () => {
     expect(Object.keys(GROUND_BANDS)).toHaveLength(6);
-    const layer = createGroundLayer(
+    // Streamed: land cover (1), road surface + markings with the stall lines folded in (2).
+    const land = createGroundLayer([], lc(), "high");
+    const roads = createGroundLayer(
       [ribbon("major"), ribbon("footway"), ribbon("major", true), ribbon("other", true)],
-      lc(),
+      new THREE.BufferGeometry(),
       "high",
+      undefined,
+      [new Float32Array([5, 5, 0, 15, 5, Math.PI / 2])],
     );
-    const orders = meshes(layer.group).map((m) => m.renderOrder);
-    expect(new Set(orders).size).toBe(orders.length);
+    // Verges and construction ground (tracks + gravel tint) in ONE ground-decor mesh.
+    const decor = createGroundDecorLayer({
+      strips: [new Float32Array([0, 0.07, 0, 0, 0.07, 1, 1, 0.07, 0])],
+      tracks: [new Float32Array([0, 20, 40, 20])],
+      gravel: [
+        {
+          id: "s",
+          poly: [
+            [
+              [0, 10],
+              [50, 10],
+              [50, 40],
+              [0, 40],
+            ],
+          ],
+        },
+      ],
+    })!;
+    const streamed = [land, roads, decor].flatMap((l) => meshes(l.group));
+    expect(streamed).toHaveLength(4);
+    // The engine's city-level parks and base-water meshes (one each, engine.setCity) make the other two.
+    const city = cityGroundMeshes(
+      new THREE.BufferGeometry(),
+      new THREE.BufferGeometry(),
+      new THREE.MeshBasicMaterial(),
+      new THREE.MeshBasicMaterial(),
+    );
+    const orders = [...streamed, city.parks, city.water].map((m) => m.renderOrder);
+    expect(orders).toHaveLength(6);
+    expect(new Set(orders)).toEqual(new Set(Object.values(GROUND_BANDS).map((b) => b.order)));
+  });
+
+  it("stall lines ride the road-markings mesh (same band, own colour); no stalls, no change", () => {
+    const stalls = new Float32Array([5, 5, 0, 15, 5, Math.PI / 2]);
+    const plain = createGroundLayer([ribbon("major", true)], lc(), "high");
+    const withStalls = createGroundLayer([ribbon("major", true)], lc(), "high", undefined, [
+      stalls,
+    ]);
+    expect(meshes(withStalls.group)).toHaveLength(meshes(plain.group).length);
+    const marks = meshes(withStalls.group).find(
+      (m) => m.renderOrder === GROUND_BANDS.markings.order,
+    )!;
+    // 1 dashed-mark triangle + 2 stalls x 6 stall-line triangles.
+    expect(marks.geometry.index!.count / 3).toBe(1 + 12);
+    const c = marks.geometry.getAttribute("color");
+    const stallC = new THREE.Color(STALL_COLOUR);
+    expect([c.getX(3), c.getY(3), c.getZ(3)]).toEqual(
+      [stallC.r, stallC.g, stallC.b].map(Math.fround),
+    );
+    // Stalls only, no road markings: the markings mesh still exists (stalls are markings).
+    const only = createGroundLayer([], new THREE.BufferGeometry(), "high", undefined, [stalls]);
+    expect(meshes(only.group).map((m) => m.renderOrder)).toEqual([GROUND_BANDS.markings.order]);
+    // Low draws no markings, stall lines included.
+    expect(
+      meshes(createGroundLayer([], new THREE.BufferGeometry(), "low", undefined, [stalls]).group),
+    ).toHaveLength(0);
   });
 });

@@ -287,7 +287,7 @@ describe("planTile verges (Task 9: grass verges and shrub rows)", () => {
     expect(pieces(c)).toBe(cap * VERGE_PIECES_PER_CAP);
   });
 
-  it("ring 1: strips only (shrubs are ring 0 detail); Medium ring 1, ring 2 and Low: none", () => {
+  it("ring 1: strips only (shrubs are ring 0 detail); Medium ring 1 (ruling P4-Z), ring 2 and Low: none", () => {
     const r1 = planTile(inputs(), t00, 1, "high");
     expect(pieces(r1)).toBeGreaterThan(0);
     expect(r1.verges!.shrubs).toEqual([]);

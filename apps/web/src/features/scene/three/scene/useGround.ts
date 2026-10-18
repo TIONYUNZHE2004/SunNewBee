@@ -81,8 +81,10 @@ export function useGround({
 
 /**
  * Road surfaces and (above Low) markings of the active tiles, merged into one road layer of at most
- * two draws in the `roads` decor slot (with the land cover: at most 3 ground draws). Rebuilt only
- * when the active set changes. Display only: a road's look says nothing about access.
+ * two draws in the `roads` decor slot (with the land cover: at most 3 ground draws). The markings
+ * mesh also carries the parking-stall lines (Task 10, folded in by ruling P4-X: six ground draws in
+ * all). Rebuilt only when the active set changes. Display only: a road's look says nothing about
+ * access; stall lines are decorative.
  */
 export function useRoads({
   engine,
@@ -94,10 +96,23 @@ export function useRoads({
   tier: Tier;
 }) {
   const roads = useMemo<Ribbon[]>(() => active.flatMap((a) => a.content.ribbons), [active]);
+  const stalls = useMemo<Float32Array[]>(
+    () =>
+      tier === "low"
+        ? []
+        : active.flatMap((a) => {
+            const s = a.content.parking?.stalls;
+            return s && s.length > 0 ? [s] : [];
+          }),
+    [active, tier],
+  );
   useEffect(() => {
-    if (!engine || roads.length === 0) return;
-    engine.setDecor(ROADS_SLOT, createGroundLayer(roads, new THREE.BufferGeometry(), tier));
+    if (!engine || roads.length + stalls.length === 0) return;
+    engine.setDecor(
+      ROADS_SLOT,
+      createGroundLayer(roads, new THREE.BufferGeometry(), tier, undefined, stalls),
+    );
     return () => engine.setDecor(ROADS_SLOT, null);
-  }, [engine, roads, tier]);
-  return { roads };
+  }, [engine, roads, stalls, tier]);
+  return { roads, stalls };
 }

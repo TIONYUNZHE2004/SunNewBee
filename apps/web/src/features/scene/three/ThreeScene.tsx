@@ -1,4 +1,4 @@
-import { useMemo, useRef } from "react";
+import { useCallback, useMemo, useRef } from "react";
 import { useBuildings, useLayer, useSite } from "../../../lib/api";
 import { InSlot } from "../../map-ui/mapSlots";
 import { CameraControls, handleMapKey } from "../cesium/controls/CameraControls";
@@ -18,13 +18,13 @@ import { useDecor } from "./scene/useDecor";
 import { useEngine } from "./scene/useEngine";
 import { useFacades } from "./scene/useFacades";
 import { useGround, useRoads } from "./scene/useGround";
+import { useGroundDecor } from "./scene/useGroundDecor";
 import { useMood } from "./scene/useMood";
 import { useMotion } from "./scene/useMotion";
 import { useOverlays } from "./scene/useOverlays";
 import { usePicking } from "./scene/usePicking";
 import { useRoofs } from "./scene/useRoofs";
 import { useMergeMeasure, useStream } from "./scene/useStream";
-import { useVerges } from "./scene/useVerges";
 
 /** Bottom-left map note (clear of the camera cluster and the attribution strip). */
 function ExperimentalEngineChip() {
@@ -150,6 +150,8 @@ export default function ThreeScene({
     accessData: access.data,
     tier,
   });
+  // Parked-car share follows the mood at plan time (Task 10); stable, so it never re-keys the stream.
+  const night = useCallback(() => bus.getState().mood.night, [bus]);
   // Township streaming: the 250 m tiles around the camera target feed every decorative layer.
   const { active, centre, mergeStart } = useStream({
     engine,
@@ -162,9 +164,11 @@ export default function ThreeScene({
     showroom,
     facadeSrc: city.facadeSrc,
     roofSrc: city.roofSrc,
+    night,
   });
-  const { roads } = useRoads({ engine, active, tier });
-  const { vergesOn } = useVerges({ engine, active, tier });
+  const { roads, stalls } = useRoads({ engine, active, tier });
+  // Verges and construction ground: one ground-decor mesh (stall lines ride the road markings).
+  const { decorOn } = useGroundDecor({ engine, active, tier });
   const { facadesOn } = useFacades({
     engine,
     active,
@@ -208,13 +212,15 @@ export default function ThreeScene({
   const { initialBackground } = useMood({ engine, roleUniforms, sectionRef, home, bus });
   usePicking({ engine, hostRef, places });
 
-  // Any decorative layer in the scene: city assets (kits, decorative landmarks), facades, roofs, verges, props,
-  // agents, the ground layer (land-cover tints, road surfaces) or the ambient birds and clouds.
+  // Any decorative layer in the scene: city assets (kits, decorative landmarks), facades, roofs, ground
+  // decor (verges, construction ground), stall lines, props, agents, the ground layer (land-cover
+  // tints, road surfaces) or the ambient birds and clouds.
   const decorativeShown =
     city.decorAssets ||
     facadesOn ||
     roofsOn ||
-    vergesOn ||
+    decorOn ||
+    (!!engine && stalls.length > 0) ||
     kits.size > 0 ||
     agents.length > 0 ||
     (!!engine && (roads.length > 0 || !!landcover?.getAttribute("position")?.count)) ||
