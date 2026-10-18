@@ -16,7 +16,8 @@
       "!packages/api-client/openapi.json",
       "!packages/spatial/tests/fixtures",
       "!apps/web/public/city",
-      "!.superpowers"
+      "!.superpowers",
+      "!docs/03-product/prototypes"
     ]
   },
   "css": { "parser": { "tailwindDirectives": true } },

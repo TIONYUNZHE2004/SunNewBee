@@ -2,6 +2,7 @@
 
 > Status: concept, 18 Oct 2026. Not built. The questions to settle before a spec and a plan are listed under "Open questions".
 > Scope: how a resident's question becomes a simulated walk that the 3D map plays from behind one virtual resident. It does not cover the demo story or the pitch.
+> **Visual prototype (19 Oct 2026):** [prototypes/resident-journey/](prototypes/resident-journey/README.md) is a standalone Three.js page that plays the chosen demo route (Harmoni 1 → Lakeside Mall Car Park B, `older_adult_rest`) in the clay style, with follow camera, event cards, HUD and mini-map. Use it as the visual reference when building this feature; its README lists the route's events and the gaps against the target look.
 
 ## The idea
 
