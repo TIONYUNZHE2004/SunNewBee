@@ -106,3 +106,61 @@ export async function decodePng(page: Page, png: Buffer): Promise<RGBAImage> {
   }, png.toString("base64"));
   return { width: r.width, height: r.height, data: new Uint8Array(Buffer.from(r.b64, "base64")) };
 }
+
+/** The map area of a capture: the canvas, less everything drawn over it. */
+export interface MapArea {
+  /** `width * height` bytes, 1 = a canvas pixel not under DOM chrome. */
+  mask: Uint8Array;
+  /** Included pixels. */
+  pixels: number;
+  /** The canvas rect in page pixels. */
+  canvas: { x: number; y: number; w: number; h: number };
+}
+
+/**
+ * Per-pixel map-area mask for a `width`×`height` page capture: inside the three.js canvas and not
+ * under any DOM element (controls, chips, attribution, notes), probed with `elementFromPoint` on a
+ * `step`-pixel grid (each probe covers its step×step block). Whole-image metrics use it so UI text
+ * (e.g. the amber "Not checked yet" in a panel) never counts as map.
+ */
+export async function mapArea(
+  page: Page,
+  width: number,
+  height: number,
+  step = 4,
+): Promise<MapArea> {
+  const r = await page.evaluate(
+    ({ width, height, step }) => {
+      const canvas = document.querySelector('[data-testid="three-scene"] canvas');
+      if (!canvas) throw new Error("no three.js canvas");
+      const rect = canvas.getBoundingClientRect();
+      const cols = Math.ceil(width / step);
+      const rows = Math.ceil(height / step);
+      let bits = "";
+      for (let row = 0; row < rows; row++)
+        for (let col = 0; col < cols; col++) {
+          const x = Math.min(width - 1, col * step + step / 2);
+          const y = Math.min(height - 1, row * step + step / 2);
+          const inside = x >= rect.left && x < rect.right && y >= rect.top && y < rect.bottom;
+          bits += inside && document.elementFromPoint(x, y) === canvas ? "1" : "0";
+        }
+      return {
+        cols,
+        bits,
+        canvas: { x: rect.left, y: rect.top, w: rect.width, h: rect.height },
+      };
+    },
+    { width, height, step },
+  );
+  const mask = new Uint8Array(width * height);
+  let pixels = 0;
+  for (let y = 0; y < height; y++) {
+    const row = Math.floor(y / step) * r.cols;
+    for (let x = 0; x < width; x++)
+      if (r.bits.charCodeAt(row + Math.floor(x / step)) === 49) {
+        mask[y * width + x] = 1;
+        pixels++;
+      }
+  }
+  return { mask, pixels, canvas: r.canvas };
+}

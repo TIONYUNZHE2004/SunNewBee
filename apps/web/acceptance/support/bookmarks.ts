@@ -41,14 +41,16 @@ export const ACCEPTANCE_BOOKMARKS: Record<BookmarkName, AcceptanceBookmark> = {
     note: "Mid-range over the hero district (the `hero-mid` gate bookmark).",
   },
   street: {
-    // A walk.geojson vertex mid-way along Persiaran Tamarind, which runs NW (101.5053, 3.1877) to
-    // SE (101.5129, 3.1810): bearing about 131 degrees, so the camera looks down the street.
-    centre: [101.509689, 3.184291],
-    rangeM: 60,
-    pitchDeg: -15,
-    headingDeg: 131,
+    // Mid-point of a 128 m straight of Persiaran Tamarind (walk.geojson seg-1346155031-0, bearing
+    // 144), looking south-east along it. The street is lined with trees, so the camera stays under
+    // the canopies: eye height about 3 m (range 30 at pitch -6). Chosen from 16 points along the
+    // street x 5 poses (A-T0 fix round 1): road share 0.35, road pixels showing asphalt 0.96.
+    centre: [101.50877, 3.185719],
+    rangeM: 30,
+    pitchDeg: -6,
+    headingDeg: 144,
     theme: "day",
-    note: "Street level on Persiaran Tamarind, looking south-east along it.",
+    note: "Street level on Persiaran Tamarind, under the street trees, looking south-east along it.",
   },
   "link-low": {
     // Mean centroid of the link_intermediate / link_long buildings of Elmina Valley 1 and 2, the
@@ -70,6 +72,13 @@ export const ACCEPTANCE_BOOKMARKS: Record<BookmarkName, AcceptanceBookmark> = {
   },
 };
 
+/**
+ * The street bookmark must show the street: the road share of the map-area pick samples, and the
+ * share of road samples that show asphalt (grey, saturation <= 0.18, luminance <= 0.35) rather than
+ * canopy drawn over them or bare ground where roads have not streamed in.
+ */
+export const STREET_CHECK = { minRoadShare: 0.2, minAsphalt: 0.6, maxSat: 0.18, maxLuma: 0.35 };
+
 /** The page URL: `?acceptance=1` exposes the test hook even in a production build. */
 export const bookmarkUrl = (): string => "/?acceptance=1";
 
@@ -78,16 +87,40 @@ export const HOOK = "__tlAcceptance";
 
 const SCENE = '[data-testid="three-scene"]';
 
+/** WebGL renderers that are software rasterisers: frame times from them say nothing about a GPU. */
+export const SOFTWARE_GPU = /SwiftShader|llvmpipe|Basic Render/i;
+
+export interface Gpu {
+  vendor: string;
+  renderer: string;
+}
+
+/** The scene's unmasked WebGL vendor / renderer (from the engine's own context). */
+export async function sceneGpu(page: Page): Promise<Gpu> {
+  return page.evaluate((h) => {
+    const api = (window as unknown as Record<string, { gpu(): Gpu } | undefined>)[h];
+    if (!api) throw new Error(`${h} missing: load the map with ?acceptance=1`);
+    return api.gpu();
+  }, HOOK);
+}
+
 /**
- * Loads the map with High quality forced (`tl.quality=high`) and the given theme (`tl.theme`), and
- * waits for the Three.js stylised scene and the acceptance hook. Init scripts run in order on every
- * navigation, so a later call's theme wins.
+ * Loads the map for a capture and returns the GPU it renders on:
+ * - High quality forced (`tl.quality=high`) and the given theme (`tl.theme`);
+ * - the assistant panel closed (`tl.panel.open=false`) and the camera tips dismissed
+ *   (`tl.camera.hint=dismissed`), so the map fills the frame; the map's own notes (e.g.
+ *   "Decorative details are illustrative.") stay;
+ * - waits for the Three.js stylised scene and the acceptance hook;
+ * - throws on a software renderer (SwiftShader, llvmpipe, Microsoft Basic Render).
+ * Init scripts run in order on every navigation, so a later call's theme wins.
  */
-export async function openScene(page: Page, theme: Theme): Promise<void> {
+export async function openScene(page: Page, theme: Theme): Promise<Gpu> {
   await page.addInitScript((t: string) => {
     try {
       localStorage.setItem("tl.quality", "high");
       localStorage.setItem("tl.theme", t);
+      localStorage.setItem("tl.panel.open", "false");
+      localStorage.setItem("tl.camera.hint", "dismissed");
     } catch {
       /* storage unavailable: the harness fails on the quality check below */
     }
@@ -103,6 +136,12 @@ export async function openScene(page: Page, theme: Theme): Promise<void> {
   await page.waitForFunction((h) => h in window, HOOK, { timeout: 60_000 });
   const theme0 = await page.evaluate(() => document.documentElement.dataset.theme);
   if (theme0 !== theme) throw new Error(`theme is ${theme0}, expected ${theme}`);
+  const tips = page.getByRole("button", { name: "Dismiss camera tips" });
+  if (await tips.isVisible()) await tips.click();
+  const gpu = await sceneGpu(page);
+  if (SOFTWARE_GPU.test(gpu.renderer))
+    throw new Error(`software WebGL renderer (${gpu.renderer}): frame times would be meaningless`);
+  return gpu;
 }
 
 /** The theme each page was loaded with. */
@@ -136,16 +175,23 @@ export async function gotoBookmark(page: Page, name: BookmarkName): Promise<Acce
 }
 
 /**
- * Waits until streaming is quiet: the scene's tile / asset / instance attributes unchanged for
+ * Waits until streaming is quiet: the scene's tile / asset / instance attributes and the road
+ * layer's vertex count unchanged for
  * `quietMs` (max `timeoutMs`), then two animation frames.
  */
 export async function settle(page: Page, quietMs = 2500, timeoutMs = 45_000): Promise<void> {
   const scene = page.locator(SCENE);
   const snap = () =>
-    scene.evaluate((el) =>
-      ["data-tiles", "data-assets", "data-instances", "data-fallback", "data-markers"]
-        .map((a) => el.getAttribute(a))
-        .join("|"),
+    scene.evaluate(
+      (el, h) =>
+        [
+          ...["data-tiles", "data-assets", "data-instances", "data-fallback", "data-markers"].map(
+            (a) => el.getAttribute(a),
+          ),
+          // The road layer streams in after the tiles (idle merge queue).
+          (window as unknown as Record<string, { roadVertices(): number }>)[h]?.roadVertices(),
+        ].join("|"),
+      HOOK,
     );
   const t0 = Date.now();
   let last = await snap();

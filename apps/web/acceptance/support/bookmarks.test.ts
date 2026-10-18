@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { ACCEPTANCE_BOOKMARKS, BOOKMARK_NAMES, bookmarkUrl } from "./bookmarks";
+import {
+  ACCEPTANCE_BOOKMARKS,
+  BOOKMARK_NAMES,
+  bookmarkUrl,
+  SOFTWARE_GPU,
+  STREET_CHECK,
+} from "./bookmarks";
 
 describe("acceptance bookmarks (spec §3: the five evaluation bookmarks)", () => {
   it("has exactly the five poses, in spec order", () => {
@@ -29,5 +35,23 @@ describe("acceptance bookmarks (spec §3: the five evaluation bookmarks)", () =>
   });
   it("the load URL carries the explicit acceptance flag", () => {
     expect(bookmarkUrl()).toBe("/?acceptance=1");
+  });
+  it("the street pose is at street level (eye height under 5 m) and has a road check", () => {
+    const s = ACCEPTANCE_BOOKMARKS.street;
+    const eye = s.rangeM * Math.sin((-s.pitchDeg * Math.PI) / 180);
+    expect(eye).toBeLessThan(5);
+    expect(STREET_CHECK.minRoadShare).toBeGreaterThan(0);
+    expect(STREET_CHECK.minAsphalt).toBeGreaterThan(0.5);
+  });
+  it("software rasterisers are recognised", () => {
+    for (const r of [
+      "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero)), SwiftShader driver)",
+      "llvmpipe (LLVM 15.0.7, 256 bits)",
+      "ANGLE (Microsoft, Microsoft Basic Render Driver Direct3D11 vs_5_0 ps_5_0, D3D11)",
+    ])
+      expect(r).toMatch(SOFTWARE_GPU);
+    expect(
+      "ANGLE (NVIDIA, NVIDIA GeForce RTX 2050 (0x000025AD) Direct3D11 vs_5_0 ps_5_0, D3D11)",
+    ).not.toMatch(SOFTWARE_GPU);
   });
 });

@@ -644,21 +644,26 @@ CI: it needs a real GPU and the Elmina seed.
 
 - Start a server yourself (`LLM_PROVIDER=mock pnpm dev`, Stylised map), then run
   `ACCEPTANCE_BASE_URL=http://localhost:5173 pnpm --filter @tl/web acceptance -g baseline`.
-  No webServer; 1440x900 at DPR 1; hardware WebGL flags.
+  No webServer; 1440x900 at DPR 1; ANGLE D3D11 on the high-performance GPU with vsync and the frame
+  limit off (the renderer string is recorded; a software renderer fails the run).
 - Specs are `*.accept.ts`, so neither `e2e` nor vitest picks them up. The pure helpers' unit tests
   (`acceptance/support/*.test.ts`) do run in vitest.
 - `support/bookmarks.ts`: the five evaluation bookmarks (`overview`, `hero-mid`, `street`,
   `link-low`, `night-mid`) and `gotoBookmark(page, name)`, which forces `tl.quality=high` and the
-  bookmark's `tl.theme`, sets the pose and waits for streaming to settle.
+  bookmark's `tl.theme`, closes the assistant panel and the camera tips (map notes stay), sets the
+  pose and waits for streaming (tiles, assets, road layer) to settle.
 - `support/scene.ts`: `pickGrid` / `pickMask(page, kind)` (building, ground, road, sky; cells under UI
   chrome are left out) and `decodePng`. `support/pixels.ts`: `lumaHistogram`, `fractionBelow`,
-  `countColour(img, hex, tol)`, `laplacianVariance(img, box)`. `support/frames.ts`:
-  `captureFrameStats(page, seconds)` (orbiting). `support/journey.ts`: `journey.seek/play/pause`
+  `countColour(img, hex, tol)`, `laplacianVariance(img, box)`, `greyShare`; all take a box, points or
+  a per-pixel mask (`mapArea`: the canvas less UI chrome). `support/frames.ts`:
+  `captureFrameStats(page, seconds)`: display-paced orbit fps plus uncapped frame time
+  (`engine.renderNow` + `gl.finish`) for headroom. `support/journey.ts`: `journey.seek/play/pause`
   over `window.__journey` (Phase D; throws "not available" until then).
 - `baseline.accept.ts` writes five PNGs and `metrics.json` to `ACCEPTANCE_OUT` (default: the
   journey-sim ledger folder `.superpowers/sdd/journey-sim/acceptance/baseline`).
 - The app side is `window.__tlAcceptance` (`three/scene/useAcceptanceHook.ts`): `setPose`, `getPose`,
-  `size`, `frames`, `pickGrid(step)`, `measure(seconds, orbitDegPerSec)`. It is installed only in
+  `size`, `frames`, `pickGrid(step)`, `measure(seconds, orbitDegPerSec)`,
+  `measureUncapped(frames, degPerFrame)`, `roadVertices`, `gpu`. It is installed only in
   dev builds (`import.meta.env.DEV`) or when the page is loaded with `?acceptance=1`; it moves the
   camera and reads the scene, never data or settings.
 
