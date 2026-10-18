@@ -592,7 +592,9 @@ def hydrology_features(elements: list[dict]) -> list[dict]:
     return feats
 
 
-def site_json(today: str, major_missing: list[tuple] | None = None) -> dict:
+def site_json(
+    today: str, major_missing: list[tuple] | None = None, previous: dict | None = None
+) -> dict:
     site = {
         "id": "elmina",
         "name": "City of Elmina",
@@ -626,6 +628,14 @@ def site_json(today: str, major_missing: list[tuple] | None = None) -> dict:
     if major_missing:
         # Coverage note: major roads (Task 31) not imported here; [w, s, e, n] like `bbox`.
         site["major_roads_missing_bbox"] = [[w, s, e, n] for s, w, n, e in major_missing]
+    if previous:
+        # A walk/places rebuild does not rebuild the display assets or their datum/licences.
+        if "buildings" in previous:
+            site["buildings"] = previous["buildings"]
+        site["scene"].update(previous.get("scene", {}))
+        site["attribution"] = list(
+            dict.fromkeys([*site["attribution"], *previous.get("attribution", [])])
+        )
     return site
 
 
@@ -681,8 +691,14 @@ def main(argv: list[str] | None = None) -> None:
     write_geojson(OUT / "base" / "walk.geojson", [seg_feature(s) for s in segs])
     write_geojson(OUT / "base" / "places.geojson", [place_feature(p) for p in places])
     write_geojson(OUT / "base" / "hydrology.geojson", hydro)
-    (OUT / "site.json").write_text(
-        json.dumps(site_json(date.today().isoformat(), major_missing), ensure_ascii=False, indent=2)
+    site_path = OUT / "site.json"
+    previous = json.loads(site_path.read_text(encoding="utf-8")) if site_path.exists() else None
+    site_path.write_text(
+        json.dumps(
+            site_json(date.today().isoformat(), major_missing, previous),
+            ensure_ascii=False,
+            indent=2,
+        )
         + "\n",
         encoding="utf-8",
     )
