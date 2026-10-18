@@ -1476,9 +1476,9 @@
     "kanopi": {
       "group": "landmark",
       "file": "landmarks/kanopi.glb",
-      "bytes": 235612,
+      "bytes": 383912,
       "repeat": "none",
-      "frontage": "short",
+      "frontage": "long",
       "fit": {
         "xz": [
           0.75,
@@ -1490,7 +1490,7 @@
         ]
       },
       "decorative": false,
-      "placement": "deferred",
+      "placement": "obb",
       "jitter": {},
       "variantByGroup": {
         "default": "tower"
@@ -1517,29 +1517,31 @@
       "variants": {
         "tower": {
           "size": [
-            40.0,
-            125.0,
-            30.0
+            88.9,
+            130.0,
+            27.8
           ],
           "lods": [
             {
               "node": "kanopi__tower__LOD0",
-              "tris": 24446,
+              "tris": 40728,
               "maxM": 300.0
             },
             {
               "node": "kanopi__tower__LOD1",
-              "tris": 3886,
+              "tris": 6496,
               "maxM": 1500.0
             },
             {
               "node": "kanopi__tower__LOD2",
-              "tris": 50,
+              "tris": 54,
               "maxM": null
             }
           ]
         }
-      }
+      },
+      "designStoreys": 36,
+      "heightBasis": "design height (36 storeys, Sime Darby Property), under construction; 36 x 3.2 m tower on an 8.7 m podium"
     },
     "masjid_denai_alam": {
       "group": "landmark",

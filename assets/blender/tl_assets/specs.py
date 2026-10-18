@@ -75,6 +75,8 @@ class AssetSpec:
     decorative: bool = False
     placement: str | None = None  # landmarks: "anchor" | "obb" | "deferred"
     jitter: dict[str, float] = field(default_factory=dict)  # {"scale": 0.04, "hue": 0.05}
+    design_storeys: int | None = None  # a design (not surveyed) storey count, shown as such
+    height_basis: str | None = None  # where the modelled height comes from
 
 
 # --- precincts and palettes -----------------------------------------------------------
@@ -237,7 +239,7 @@ _ARCHETYPE_SPECS = (
 )
 
 
-def _landmark(aid: str, variant: Variant, placement: str) -> AssetSpec:
+def _landmark(aid: str, variant: Variant, placement: str, **extra) -> AssetSpec:
     return AssetSpec(
         aid,
         "landmark",
@@ -246,9 +248,11 @@ def _landmark(aid: str, variant: Variant, placement: str) -> AssetSpec:
         LANDMARK_MAX_BYTES,
         variant_by_group={"default": variant.id},
         placement=placement,
+        **extra,
     )
 
 
+KANOPI_OBB = (88.88, 27.79)  # OBB (long, short) of the traced outline, metres
 MALL_BBOX = (237.08, 284.96)  # lakeside_mall outline bbox (x, z), metres; pinned to the seed
 
 _LANDMARK_SPECS = (
@@ -267,11 +271,31 @@ _LANDMARK_SPECS = (
         ),
         "anchor",
     ),
+    # Placed on its traced tower outline (landmarks.geojson match "traced_outline", from
+    # data/seed/elmina/sources/landmark_outlines.geojson).
+    # A residential slab on a podium; its footprint is the OBB of the traced outline
+    # (KANOPI_OBB, 88.88 x 27.79 m), so the web fit lands at sx, sz ~ 1. The 36 storeys are the
+    # developer's design height, not a survey: 36 x 3.2 m = 115.2 m of tower on an 8.7 m podium
+    # (OSM way 1545153991, 8.71 m), plus a thin crown, 130 m in all.
     _landmark(
         "kanopi",
-        _bv("tower", (40.0, 125.0, 30.0), (60000, 8000, 600), y_range=(118.0, 132.0)),
-        "deferred",
+        _bv(
+            "tower",
+            (88.9, 130.0, 27.8),
+            (50000, 8000, 600),
+            y_range=(126.0, 132.0),
+            x_range=(KANOPI_OBB[0] * 0.96, KANOPI_OBB[0] * 1.04),
+            z_range=(KANOPI_OBB[1] * 0.96, KANOPI_OBB[1] * 1.04),
+        ),
+        "obb",
+        frontage="long",
+        design_storeys=36,
+        height_basis=(
+            "design height (36 storeys, Sime Darby Property), under construction; "
+            "36 x 3.2 m tower on an 8.7 m podium"
+        ),
     ),
+    # No public drawing; outside the hero radius. Deferred to P4.
     _landmark(
         "masjid_denai_alam",
         _bv("main", (40.0, 18.0, 40.0), (40000, 5000, 400), y_range=(16.0, 34.0)),

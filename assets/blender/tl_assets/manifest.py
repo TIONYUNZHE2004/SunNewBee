@@ -54,6 +54,9 @@ def build_manifest(infos: dict[str, GlbInfo], as_of: str, landmarks_fc: dict) ->
             "palettes": {g: [list(e) for e in es] for g, es in palette_for(asset_id).items()},
             "variants": variants,
         }
+        if spec.design_storeys is not None:
+            assets[asset_id]["designStoreys"] = spec.design_storeys
+            assets[asset_id]["heightBasis"] = spec.height_basis
         if spec.group == "landmark" and spec.placement == "anchor":
             anchor = _anchor(asset_id, landmarks_fc)
             if anchor is None:
