@@ -1490,7 +1490,7 @@
         ]
       },
       "decorative": false,
-      "placement": "deferred",
+      "placement": "obb",
       "jitter": {},
       "variantByGroup": {
         "default": "tower"
