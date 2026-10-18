@@ -59,7 +59,45 @@ function fakeEngine() {
   return e;
 }
 
-function mount(engine = fakeEngine(), over: { showroom?: boolean; tier?: Tier } = {}) {
+/** A fake planning Worker: replies to each `plan` on a later task with a trivial tile. */
+function fakeWorker() {
+  const w = {
+    plans: [] as { key: string; ring: number; tier: string }[],
+    inits: 0,
+    onmessage: null as ((e: MessageEvent) => void) | null,
+    onerror: null as ((e: Event) => void) | null,
+    postMessage(m: { type: string; key: string; ring: number; tier: string; seq: number }) {
+      if (m.type === "init") {
+        w.inits++;
+        return;
+      }
+      w.plans.push({ key: m.key, ring: m.ring, tier: m.tier });
+      setTimeout(() =>
+        w.onmessage?.({
+          data: {
+            seq: m.seq,
+            ms: 1,
+            content: {
+              kits: new Map(),
+              lamps: [],
+              agents: [],
+              signs: [],
+              ribbons: [],
+              facades: false,
+            },
+          },
+        } as MessageEvent),
+      );
+    },
+    terminate() {},
+  };
+  return w;
+}
+
+function mount(
+  engine = fakeEngine(),
+  over: { showroom?: boolean; tier?: Tier; planWorker?: () => Worker | null } = {},
+) {
   const r = renderHook(
     (p: { tier: Tier; showroom: boolean }) =>
       useStream({
@@ -72,6 +110,7 @@ function mount(engine = fakeEngine(), over: { showroom?: boolean; tier?: Tier } 
         loaded: null,
         showroom: p.showroom,
         facadeSrc: null,
+        planWorker: over.planWorker,
       }),
     { initialProps: { tier: over.tier ?? "medium", showroom: over.showroom ?? false } },
   );
@@ -168,6 +207,24 @@ describe("useStream", () => {
     expect(
       shouldMerge({ pending: true, ring0Changed: false, sinceLastMs: MERGE_INTERVAL_MS }),
     ).toBe(true);
+  });
+
+  it("with a Worker: init once, no main-thread warm-up or plan, one plan in flight, results shown on later ticks", async () => {
+    reset();
+    const w = fakeWorker();
+    const { engine, result } = mount(fakeEngine(), { planWorker: () => w as unknown as Worker });
+    await waitFor(() => expect(engine.cbs.size).toBe(1));
+    expect(w.inits).toBe(1);
+    for (let i = 0; i < 60 && result.current.active.length < 9; i++) {
+      engine.tick(10, 10, 2000);
+      // At most one plan posted and unanswered at a time.
+      await new Promise((r) => setTimeout(r, 1));
+    }
+    expect(result.current.active).toHaveLength(9);
+    expect(result.current.active[0]?.key).toBe("0,0");
+    expect(w.plans.length).toBe(9);
+    expect(spy.warms).toBe(0);
+    expect(spy.plans).toHaveLength(0);
   });
 
   it("the showroom streams nothing", async () => {

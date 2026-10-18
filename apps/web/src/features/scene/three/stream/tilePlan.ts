@@ -6,7 +6,7 @@ import type { RoofInput } from "../assets/plan";
 import type { FacadeBuilding } from "../facade/facadeLayer";
 import type { RoofItem, TileRoofs } from "../facade/roofLayer";
 import { roofDressing } from "../facade/roofPlan";
-import type { LocalFrame } from "../frame";
+import { createFrame, type LocalFrame } from "../frame";
 import { ribbonsFromWalk } from "../ground/ribbons";
 import { planVerges } from "../ground/verges";
 import { planAgents } from "../motion/agents";
@@ -16,7 +16,7 @@ import { type PlanArea, seedFor } from "./area";
 import { tileCap, VERGE_PIECES_PER_CAP, VERGE_SHRUBS_PER_CAP } from "./caps";
 import { lotKits, planTileLots, warmLots } from "./lotsPlan";
 import type { Ring, TileContent } from "./streamer";
-import { type Tile, type TileKey, tileAt } from "./tiles";
+import { TILE_M, type Tile, type TileKey, tileAt } from "./tiles";
 
 /** What every tile is planned from. All of it is static per world (the walk is latched). */
 export interface TileInputs {
@@ -32,15 +32,32 @@ export interface TileInputs {
   roofs?: Map<TileKey, RoofInput[]> | null;
 }
 
+/**
+ * `TileInputs` as a structured-clone payload (the planning Worker's `init` message): everything but
+ * the frame is plain data (GeoJSON, the manifest, Maps of plain records and Float32Arrays); the
+ * frame is sent as its origin and rebuilt with `createFrame` on the other side.
+ */
+export type WireInputs = Omit<TileInputs, "frame"> & { origin: LocalFrame["origin"] };
+
+export function toWire(inp: TileInputs): WireInputs {
+  const { frame, ...rest } = inp;
+  return { ...rest, origin: frame.origin };
+}
+
+export function fromWire(w: WireInputs): TileInputs {
+  const { origin, ...rest } = w;
+  return { ...rest, frame: createFrame(origin) };
+}
+
 /** Per-planner seed salt: the seed is `hash01(tileKey, salt)` (`seedFor`), never visit order. */
 const SALT = { props: "props", motion: "motion", signs: "signs", roads: "roads" } as const;
 const LAMP_KITS = ["furniture/lamp_single", "furniture/lamp_double"];
 const NO_KITS: Map<string, Placement[]> = new Map();
 /** One shared empty list: a re-plan of a tile without facades keeps its identity (no facade rebuild). */
-const NO_FACADES: FacadeBuilding[] = Object.freeze([]) as unknown as FacadeBuilding[];
+export const NO_FACADES: FacadeBuilding[] = Object.freeze([]) as unknown as FacadeBuilding[];
 
 /** One shared empty roof plan: a tile without large roofs keeps its identity across re-plans. */
-const NO_ROOFS: TileRoofs = Object.freeze({
+export const NO_ROOFS: TileRoofs = Object.freeze({
   items: Object.freeze([]) as unknown as RoofItem[],
   decks: Object.freeze([]) as unknown as TileRoofs["decks"],
 });
@@ -251,3 +268,63 @@ export function bucketFacades(list: readonly FacadeBuilding[]): Map<TileKey, Fac
 export function bucketRoofs(list: readonly RoofInput[]): Map<TileKey, RoofInput[]> {
   return bucketByFootprint(list, (r) => r.b.ring);
 }
+
+// --- Task 5: the planning Worker's wire format (shared by plan.worker.ts and planClient.ts) ------
+/** Worker protocol (main -> worker). `init` is posted once, before any `plan`. */
+export type PlanRequest =
+  | { type: "init"; inputs: WireInputs }
+  | { type: "plan"; key: TileKey; ring: Ring; tier: Tier; seq: number };
+/** Worker protocol (worker -> main): one reply per `plan`. */
+export type PlanReply =
+  | { seq: number; content: WireContent; ms: number }
+  | { seq: number; error: string };
+
+/**
+ * A planned tile on the wire: the facade list is not sent back (it is the tile's own entry in the
+ * inputs, which the main thread already holds); `facades` says whether the plan carried it.
+ */
+export type WireContent = Omit<TileContent, "facades" | "dispose"> & { facades: boolean };
+
+/** The tile with key "i,j" (the same squares as `tiles.ts`). */
+export function tileFromKey(key: TileKey): Tile {
+  const [i, j] = key.split(",").map(Number) as [number, number];
+  return {
+    key,
+    i,
+    j,
+    box: { x0: i * TILE_M, z0: j * TILE_M, x1: (i + 1) * TILE_M, z1: (j + 1) * TILE_M },
+  };
+}
+
+const isTyped = (v: unknown): v is Float32Array | Uint32Array =>
+  v instanceof Float32Array || v instanceof Uint32Array;
+
+/** Every typed-array buffer reachable from `v` (arrays, Maps and plain objects), each once. */
+function buffers(v: unknown, out: Set<ArrayBuffer>): void {
+  if (isTyped(v)) {
+    out.add(v.buffer as ArrayBuffer);
+    return;
+  }
+  if (Array.isArray(v)) for (const x of v) buffers(x, out);
+  else if (v instanceof Map) for (const x of v.values()) buffers(x, out);
+  else if (v && typeof v === "object") for (const x of Object.values(v)) buffers(x, out);
+}
+
+/**
+ * The Worker's reply for one plan, with its transfer list. The content is deep-copied first (in the
+ * Worker), so the planners' cached arrays are never detached and the main thread receives the
+ * copies' Float32Array / Uint32Array buffers without another copy.
+ */
+export function packReply(
+  seq: number,
+  content: TileContent,
+  ms: number,
+): { reply: PlanReply; transfer: ArrayBuffer[] } {
+  const { facades, dispose: _d, ...rest } = content;
+  const copy = structuredClone(rest) as Omit<TileContent, "facades" | "dispose">;
+  const out = new Set<ArrayBuffer>();
+  buffers(copy, out);
+  return { reply: { seq, content: { ...copy, facades: !!facades }, ms }, transfer: [...out] };
+}
+
+// --- end Task 5 ----------------------------------------------------------------------------------

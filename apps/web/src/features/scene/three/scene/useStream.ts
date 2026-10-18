@@ -5,6 +5,7 @@ import type { RoofInput } from "../assets/plan";
 import type { Engine } from "../engine";
 import type { FacadeBuilding } from "../facade/facadeLayer";
 import type { LocalFrame } from "../frame";
+import { createPlanClient, type PlanClient } from "../stream/planClient";
 import {
   type ActiveTile,
   createStreamer,
@@ -12,6 +13,7 @@ import {
   measure,
   type Streamer,
   type TileContent,
+  timed,
 } from "../stream/streamer";
 import {
   bucketFacades,
@@ -21,11 +23,15 @@ import {
   warmPlanners,
 } from "../stream/tilePlan";
 import { TILE_M, tileAt } from "../stream/tiles";
-import { whenIdle } from "./idle";
+import { mergeQueueOf, whenIdle } from "./idle";
 import type { LoadedAssets } from "./useCityAssets";
 import type { LayerData } from "./useGround";
 
 const NONE: ActiveTile[] = [];
+/** The engine behind a `mergeStart` ref (so `useMergeMeasure` can reach the scene's merge queue). */
+const mergeOwners = new WeakMap<object, Engine>();
+/** User Timing name of one streamer update on the LOD tick (apply a result, rebuild the active list). */
+export const UPDATE_MEASURE = "tl:stream-update";
 
 /**
  * While the streamer is still filling (`pending`), the merged layers (kits, lamp pools, signs,
@@ -50,8 +56,10 @@ export function shouldMerge(s: {
  * come back as React state whenever they change. The hooks that draw props, lamp pools, signs,
  * agents, roads and facades merge `active` into their layers.
  *
- * The planners' layer caches are warmed once per input set in an idle callback before the first
- * streamed tick, so no tick pays their cold cost. A tier change or new input data (the manifest,
+ * Planning runs in a module Worker (`plan.worker.ts`, via `createPlanClient`) where `Worker` exists,
+ * one tile in flight, its result applied on a later tick; otherwise synchronously in the tick. The
+ * planners' layer caches are warmed once per input set (in the Worker on its `init`, else here in an
+ * idle callback) before the first streamed tick, so no tick pays their cold cost. A tier change or new input data (the manifest,
  * the facade inputs) invalidates every tile; the old content stays drawn until each re-plan.
  */
 export function useStream({
@@ -65,6 +73,7 @@ export function useStream({
   showroom,
   facadeSrc,
   roofSrc = null,
+  planWorker,
 }: {
   engine: Engine | null;
   frame: LocalFrame | null;
@@ -77,6 +86,11 @@ export function useStream({
   facadeSrc: FacadeBuilding[] | null;
   /** Roof inputs (Task 8); null or absent: no roof dressing. */
   roofSrc?: RoofInput[] | null;
+  /**
+   * The planning Worker factory (tests). Absent: the bundled `plan.worker.ts` where `Worker` exists;
+   * without `Worker` (and no factory) tiles are planned synchronously on the main thread (P4 path).
+   */
+  planWorker?: () => Worker | null;
 }) {
   const facades = useMemo(() => (facadeSrc ? bucketFacades(facadeSrc) : null), [facadeSrc]);
   const roofs = useMemo(() => (roofSrc ? bucketRoofs(roofSrc) : null), [roofSrc]);
@@ -99,12 +113,31 @@ export function useStream({
   /** The input set whose planner caches are warm; the streamer ticks only for it. */
   const [warm, setWarm] = useState<TileInputs | null>(null);
   const streamerRef = useRef<Streamer | null>(null);
+  /** Worker path: the plan client of the warm input set (one per input set). */
+  const clientRef = useRef<PlanClient | null>(null);
+  const planWorkerRef = useRef(planWorker);
+  planWorkerRef.current = planWorker;
+  /** Plans go to a Worker when one can exist; otherwise synchronously here (fixed per mount). */
+  const [viaWorker] = useState(() => !!planWorker || typeof Worker !== "undefined");
 
-  // One streamer per engine. It plans from the live inputs (a ref): new inputs invalidate it.
+  // One streamer per engine. It plans from the live inputs (a ref, or the client of the warm
+  // inputs): new inputs invalidate it.
   useEffect(() => {
     if (!engine) return;
+    const viaClient: PlanClient = {
+      get mode() {
+        return clientRef.current?.mode ?? "main";
+      },
+      plan: (tile, ring, t) =>
+        clientRef.current
+          ? clientRef.current.plan(tile, ring, t)
+          : Promise.reject(Object.assign(new Error("no client"), { name: "Superseded" })),
+      dispose() {},
+    };
     const s = createStreamer(
-      (tile, ring, t) => planTile(inputsRef.current as TileInputs, tile, ring, t),
+      viaWorker
+        ? viaClient
+        : (tile, ring, t) => planTile(inputsRef.current as TileInputs, tile, ring, t),
       { initialTier: tierRef.current },
     );
     streamerRef.current = s;
@@ -114,19 +147,32 @@ export function useStream({
       setActive(NONE);
       setCentre(null);
     };
-  }, [engine]);
+  }, [engine, viaWorker]);
 
-  // Warm the planners' layer caches once per input set, outside any streamed frame.
+  // Warm the planners' layer caches once per input set, outside any streamed frame: in the Worker
+  // (on its `init`), or here when planning stays on the main thread.
   useEffect(() => {
     if (!inputs) {
       setWarm(null);
       return;
     }
-    return whenIdle(() => {
-      warmPlanners(inputs);
+    let client: PlanClient | null = null;
+    const cancel = whenIdle(() => {
+      if (viaWorker) {
+        client = createPlanClient(inputs, { worker: planWorkerRef.current });
+        clientRef.current = client;
+        if (client.mode === "main") warmPlanners(inputs);
+      } else warmPlanners(inputs);
       setWarm(inputs);
     });
-  }, [inputs]);
+    return () => {
+      cancel();
+      if (client) {
+        if (clientRef.current === client) clientRef.current = null;
+        client.dispose();
+      }
+    };
+  }, [inputs, viaWorker]);
 
   // New inputs or a tier change: every tile is re-planned (old content shows until then).
   useEffect(() => {
@@ -148,7 +194,7 @@ export function useStream({
     return engine.onLodTick((t) => {
       const s = streamerRef.current;
       if (!s || inputsRef.current !== warm) return false;
-      const r = s.update(t.target, t.rangeM);
+      const r = timed(UPDATE_MEASURE, () => s.update(t.target, t.rangeM));
       if (r.changed) dirty = true;
       if (dirty) {
         const next = s.active();
@@ -163,7 +209,6 @@ export function useStream({
           dirty = false;
           lastMerge = t.nowMs;
           mergedRing0 = ring0;
-          mergeStart.current = performance.now();
           setActive(next);
         }
       }
@@ -178,13 +223,22 @@ export function useStream({
 
   // Streaming off (showroom, no walk yet): nothing is drawn from it.
   const shown = inputs ? active : NONE;
+  // The merge starts here: this is the first passive effect of the commit that publishes `shown`
+  // (useStream runs before the hooks that merge it), and `useMergeMeasure` ends it after theirs.
+  useEffect(() => {
+    if (shown.length === 0) return;
+    mergeStart.current = performance.now();
+    if (engine) mergeOwners.set(mergeStart, engine);
+  }, [shown, engine]);
   return { active: shown, centre, mergeStart };
 }
 
 /**
- * Times one merge of the streamed layers as the User Timing measure `tl:stream-merge`: from the
- * LOD tick that published the active tiles to the end of the effects that rebuilt the layers. Call
- * it after the hooks that merge `active` (effects run in declaration order).
+ * Times one merge of the streamed layers as the User Timing measure `tl:stream-merge`: the passive
+ * effects of the commit that published the active tiles, from useStream's to this one (one
+ * main-thread task's share; once sliced, the layer builds themselves run later as
+ * `tl:stream-slice`). Call it after the hooks that merge `active` (effects run in declaration
+ * order). A merge above the slice budget switches the scene to sliced rebuilds.
  */
 export function useMergeMeasure(active: ActiveTile[], mergeStart: RefObject<number | null>) {
   // biome-ignore lint/correctness/useExhaustiveDependencies: `active` is the trigger
@@ -193,5 +247,8 @@ export function useMergeMeasure(active: ActiveTile[], mergeStart: RefObject<numb
     if (t0 === null) return;
     mergeStart.current = null;
     measure(MERGE_MEASURE, t0);
+    // A slow merge switches the scene to sliced rebuilds (`mergeQueueOf`).
+    const engine = mergeOwners.get(mergeStart);
+    if (engine) mergeQueueOf(engine).note(performance.now() - t0);
   }, [active, mergeStart]);
 }

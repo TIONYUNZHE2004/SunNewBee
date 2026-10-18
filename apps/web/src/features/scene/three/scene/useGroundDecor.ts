@@ -3,7 +3,8 @@ import type { Tier } from "../../shared/quality";
 import type { Engine } from "../engine";
 import { createGroundDecorLayer, type GroundDecorParts } from "../ground/groundDecor";
 import type { Site } from "../props/construction";
-import type { ActiveTile } from "../stream/streamer";
+import { type ActiveTile, timed } from "../stream/streamer";
+import { mergeQueueOf } from "./idle";
 
 /** The engine decor slot holding the streamed ground decor (verges + construction ground, one mesh). */
 export const GROUND_DECOR_SLOT = "ground-decor";
@@ -65,11 +66,23 @@ export function useGroundDecor({
   const parts = kept.current;
 
   useEffect(() => {
-    if (!engine || !parts) return;
-    // setDecor disposes the replaced layer and requests a render.
-    engine.setDecor(GROUND_DECOR_SLOT, createGroundDecorLayer(parts, engine.motion.uTime));
-    return () => engine.setDecor(GROUND_DECOR_SLOT, null);
+    if (!engine) return;
+    if (!parts) {
+      engine.setDecor(GROUND_DECOR_SLOT, null);
+      return;
+    }
+    // setDecor disposes the replaced layer and requests a render; sliced once merges are slow.
+    return mergeQueueOf(engine).run(GROUND_DECOR_SLOT, () =>
+      engine.setDecor(
+        GROUND_DECOR_SLOT,
+        timed("tl:stream-ground-decor", () => createGroundDecorLayer(parts, engine.motion.uTime)),
+      ),
+    );
   }, [engine, parts]);
+  useEffect(() => {
+    if (!engine) return;
+    return () => engine.setDecor(GROUND_DECOR_SLOT, null);
+  }, [engine]);
 
   return { decorOn: !!engine && !!parts };
 }
