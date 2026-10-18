@@ -13,6 +13,18 @@ function unwrap<T>(r: { data?: T; error?: unknown }): T {
 export const useSite = () =>
   useQuery({ queryKey: ["site"], queryFn: async () => unwrap(await api.GET("/site")) });
 
+/** What the resident assistant covers (T-011). Features outside access and flood, such as
+ * Rehearse my trip, show in the resident screen only under "all"; until the answer arrives the
+ * screen keeps to the default scope. */
+export const useAssistantScope = () =>
+  useQuery({
+    queryKey: ["assistant-scope"],
+    queryFn: async () => unwrap(await api.GET("/assistant/scope")).scope,
+    staleTime: Number.POSITIVE_INFINITY,
+  });
+
+export const showsResidentTrip = (scope: string | undefined) => scope === "all";
+
 export const useLayer = (lens: Lens, profile: Profile, scenarioId: string | null, enabled = true) =>
   useQuery({
     enabled,

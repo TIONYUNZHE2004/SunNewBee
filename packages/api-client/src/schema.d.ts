@@ -4,6 +4,23 @@
  */
 
 export interface paths {
+    "/assistant/scope": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Assistant Scope */
+        get: operations["assistant_scope_assistant_scope_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/audit": {
         parameters: {
             query?: never;
@@ -911,6 +928,19 @@ export interface components {
              * @enum {string}
              */
             type: "answer.draft";
+        };
+        /**
+         * AssistantScope
+         * @description What the resident assistant covers (T-011): `access_flood` (the default) or `all`. The
+         *     resident screen shows features outside access and flood, such as Rehearse my trip, only
+         *     under `all`, so the screen and the assistant agree on what residents can ask about.
+         */
+        AssistantScope: {
+            /**
+             * Scope
+             * @enum {string}
+             */
+            scope: "access_flood" | "all";
         };
         /**
          * AssumeFact
@@ -2672,6 +2702,26 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    assistant_scope_assistant_scope_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AssistantScope"];
+                };
+            };
+        };
+    };
     audit_audit_get: {
         parameters: {
             query?: {

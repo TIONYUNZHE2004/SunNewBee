@@ -1488,3 +1488,8 @@ The user asked to pull, merge and push. `origin/main` had 50 new commits. They i
 **What this means for the demo:** in the default scope the assistant refuses rehearsal and test-a-change questions. The Day panel, Test a change, "Rehearse my trip" (the REST card) and the ticket reach card are not gated. The demo script's assistant beats need `ASSISTANT_SCOPE=all`, or should use the panels instead.
 
 **Checklist** (mock-backed): lint PASS, pytest 1,500 PASS, typecheck PASS, vitest 803 PASS, gen PASS, golden 23/23 PASS, build PASS, e2e 20 PASS. Pushed to the branch only; not to `main`.
+
+## 2026-10-18 17:27 +08 · Merge of main (three.js city) and the scope flag for the resident trip card
+
+- Merged `origin/main` (148 commits: shaoxian04's three.js stylised city, phases 0–3, opt-in `?engine=three`). Conflicts in `pyproject.toml` (kept `pyarrow` and the team's `dracopy`/`pygltflib`), `data/README.md` (kept both sections) and `uv.lock` (taken from main, then `uv lock`). After the merge: lint PASS, typecheck PASS, pytest PASS (1846 passed, 32 skipped, mock). Vitest, golden and e2e NOT RUN on the merge (stopped by the user).
+- **Ruling: the resident "Rehearse my trip" chip and card sit behind the scope flag** (what: shown only when `GET /assistant/scope` says `all`, i.e. `ASSISTANT_SCOPE=all`; default scope B hides them — why: the user chose Yunzhe's scope B first, and the resident screen should not offer what the resident assistant refuses; one switch turns the whole world-model resident experience on — cost if wrong: a demo run under the default scope shows no trip card; set `ASSISTANT_SCOPE=all` for the 2:25 beat). Staff screens (Day panel, Test a change, ticket reach) are unchanged. e2e already runs with `ASSISTANT_SCOPE=all`.

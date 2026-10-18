@@ -72,6 +72,7 @@ Playwright does.
   mapped connection (data gap)", never "Not reachable" or "Blocked".
 - **Rehearse my trip (Cycles 19–21):**
   - **Entry:** a chip beside "Travelling as" opens a card (`features/day/TripPlanner.tsx`).
+  - **Scope:** the chip and card show only when `GET /assistant/scope` says `all` (`ASSISTANT_SCOPE=all`). Under the default scope B (T-011, access and flood only) the resident screen hides them, so it offers nothing the assistant would refuse. The staff screens are unchanged.
   - **Ends:** search a mapped place, or "tap a point on the map" (`tripPickStore`). Points stay in the tab and are sent once, in a POST body.
   - **Result:** `POST /day/{id}/trip` plays the trip in the rehearsed day. `TripStrip` shows one cell per 10-minute departure (colour plus glyph, words for screen readers); tapping a cell re-rehearses it.
   - **Map:** `MyTripLayer` (Cesium) and the Lite map draw the usual route, the trip, the flooded cut and "You" at the clock. The List view repeats the strip.

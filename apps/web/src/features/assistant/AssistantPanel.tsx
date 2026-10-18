@@ -1,5 +1,6 @@
 import { type FormEvent, useEffect, useRef } from "react";
 import { useMode } from "../../app/modeStore";
+import { showsResidentTrip, useAssistantScope } from "../../lib/api";
 import { Icon } from "../../ui/icons";
 import { useChatDraft } from "../chat/chatDraftStore";
 import { useChatStream } from "../chat/useChatStream";
@@ -25,6 +26,7 @@ export function AssistantPanel({
   flat?: boolean;
 }) {
   const mode = useMode((s) => s.mode);
+  const residentTrip = showsResidentTrip(useAssistantScope().data);
   const copy = copyFor(mode);
   const starters = STARTERS[mode];
   const { messages, send, retry, streaming } = useChatStream();
@@ -76,8 +78,9 @@ export function AssistantPanel({
         <h1 className="text-lg font-semibold text-fg">{copy.title}</h1>
         <p className="mt-1 text-sm text-fg-soft">{copy.sub}</p>
       </header>
-      {/* the peeking phone sheet keeps only the composer: the trip card waits for more room */}
-      {mode === "resident" && (
+      {/* the peeking phone sheet keeps only the composer: the trip card waits for more room.
+          Scope B (T-011): the trip card shows only when the assistant covers everything. */}
+      {mode === "resident" && residentTrip && (
         <div className={compact ? "hidden" : ""}>
           <TripPlanner />
         </div>
@@ -153,7 +156,7 @@ export function AssistantPanel({
         {mode === "resident" && (
           <div className={`mb-2 flex flex-wrap gap-2 ${compact ? "hidden" : ""}`}>
             <TravelChip />
-            <TripChip />
+            {residentTrip && <TripChip />}
           </div>
         )}
         <form

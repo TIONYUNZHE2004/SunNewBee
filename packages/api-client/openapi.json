@@ -178,6 +178,24 @@
         "title": "AnswerDraft",
         "type": "object"
       },
+      "AssistantScope": {
+        "description": "What the resident assistant covers (T-011): `access_flood` (the default) or `all`. The\nresident screen shows features outside access and flood, such as Rehearse my trip, only\nunder `all`, so the screen and the assistant agree on what residents can ask about.",
+        "properties": {
+          "scope": {
+            "enum": [
+              "access_flood",
+              "all"
+            ],
+            "title": "Scope",
+            "type": "string"
+          }
+        },
+        "required": [
+          "scope"
+        ],
+        "title": "AssistantScope",
+        "type": "object"
+      },
       "AssumeFact": {
         "description": "Imagine one recorded fact on a path, e.g. width_m = 1.2.",
         "properties": {
@@ -4813,6 +4831,24 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/assistant/scope": {
+      "get": {
+        "operationId": "assistant_scope_assistant_scope_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssistantScope"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Assistant Scope"
+      }
+    },
     "/audit": {
       "get": {
         "operationId": "audit_audit_get",
