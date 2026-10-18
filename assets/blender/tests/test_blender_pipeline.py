@@ -270,7 +270,16 @@ DETAIL_PARTS: dict[str, dict[int, tuple[str, ...]]] = {
     "superlink": {0: FACADE_DEPTH},
     "townhouse": {0: FACADE_DEPTH},
     "shop_office": {
-        0: (*FACADE_DEPTH, "ffw_columns*", "ffw_soffit*", "sign_band*", "*roller_shutter*")
+        0: (
+            *FACADE_DEPTH,
+            "ffw_columns*",
+            "ffw_soffit*",
+            "ffw_beam*",
+            "ffw_arch*",
+            "sign_band*",
+            "*roller_shutter*",
+            "awning*",
+        )
     },
     "highrise": {
         0: (*FACADE_DEPTH, "balcony*", "balustrade*", "crown*"),
@@ -283,11 +292,31 @@ DETAIL_PARTS: dict[str, dict[int, tuple[str, ...]]] = {
         1: ("roof_unit*",),
     },
     "mall": {
-        0: (*FACADE_DEPTH, "skylight_strip*", "roof_unit*", "canopy*", "entrance*"),
-        1: ("roof_unit*", "canopy*"),
+        0: (
+            *FACADE_DEPTH,
+            "skylight_strip*",
+            "roof_unit*",
+            "canopy*",
+            "entrance*",
+            "pavilion*",
+            "bigbox*",
+            "forecourt*",
+        ),
+        1: ("roof_unit*", "canopy*", "pavilion*", "bigbox*"),
     },
     "generic": {0: FACADE_DEPTH},
-    "kanopi": {0: ("deck_planter*", "pool_water*", "pool_basin*", "pergola*")},
+    "kanopi": {
+        0: (
+            "deck_planter*",
+            "deck_pool_water*",
+            "deck_pool_basin*",
+            "deck_pergola*",
+            "deck_tree*",
+            "deck_timber*",
+            "balcony_planter*",
+        ),
+        1: ("deck_pool_water*", "deck_planter*"),
+    },
 }
 # roles each LOD0 must carry (on top of check_archetype's glass and dark)
 DETAIL_ROLES: dict[str, tuple[str, ...]] = {
@@ -298,7 +327,7 @@ DETAIL_ROLES: dict[str, tuple[str, ...]] = {
     "shop_office": ("primary", "secondary", "accent", "glass", "dark", "metal", "light"),
     "highrise": ("primary", "secondary", "accent", "glass", "dark", "metal", "foliage"),
     "factory": ("primary", "secondary", "accent", "glass", "dark", "metal"),
-    "mall": ("primary", "secondary", "accent", "glass", "dark", "metal", "light"),
+    "mall": ("primary", "secondary", "accent", "glass", "dark", "metal", "light", "foliage"),
     "kanopi": ("primary", "secondary", "accent", "glass", "dark", "metal", "foliage"),
 }
 # night lit share: glass vertices with COLOR_0.b under uLitShare.
@@ -505,16 +534,17 @@ WALL_AO_P5 = 0.35  # 5th percentile of the AO of upper primary-wall vertices
 WALL_AO_P5_BY_ID = {"generic": 0.2, "highrise": 0.2}
 
 
-def _check_light_deck(colors, normals, pos) -> None:
-    """A flat roof deck is a light grey (role metal), subdivided, and not baked black: take the
-    height with the most up-facing metal vertices and require a decent mean AO there."""
-    metal = specs.ROLES.index("metal")
+def _check_light_deck(colors, normals, pos, role: str = "metal") -> None:
+    """A flat roof deck is light (role metal, or a primary membrane), subdivided, and not baked
+    black: take the height with the most up-facing `role` vertices and require a decent mean AO
+    there."""
+    metal = specs.ROLES.index(role)
     deck = [
         (round(p[1], 2), c[0])
         for c, n, p in zip(colors, normals, pos, strict=True)
         if round(c[1] * 7) == metal and n[1] > 0.9
     ]
-    assert deck, "a light-grey (role metal) roof deck"
+    assert deck, f"a light (role {role}) roof deck"
     levels: dict[float, list[float]] = {}
     for y, ao in deck:
         levels.setdefault(y, []).append(ao)
@@ -525,6 +555,28 @@ def _check_light_deck(colors, normals, pos) -> None:
         ys,
         statistics.fmean(ao),
     )  # measured 0.47 (highrise podium ring) to 0.7+
+
+
+# owner gate P4 round 1: no grey roofs on these; decks are a light primary membrane (school and
+# factory roofs are terracotta accent and primary membrane)
+DECK_ROLE = {"mall": "primary", "lakeside_mall": "primary"}
+WARM_ROOF_IDS = ("mall", "factory", "school", "lakeside_mall")
+GREY_ROLES = ("secondary", "dark", "metal")
+
+
+def _check_warm_roof(colors, normals, pos, h: float) -> None:
+    """Up-facing faces in the top quarter of the building (the roofs, above the window sills)
+    are mostly not grey: under 25 % of the vertices carry a grey role (roof units, curbs and
+    fans are allowed)."""
+    grey = {specs.ROLES.index(r) for r in GREY_ROLES}
+    roof = [
+        round(c[1] * 7)
+        for c, n, p in zip(colors, normals, pos, strict=True)
+        if n[1] > 0.5 and p[1] > 0.75 * h
+    ]
+    assert len(roof) > 20, len(roof)
+    share = sum(r in grey for r in roof) / len(roof)
+    assert share < 0.25, share
 
 
 def _widths(items: list[tuple[float, float]]) -> list[float]:
@@ -621,11 +673,13 @@ def test_non_residential(non_residential_built, asset_id):
             # measured 0.44-0.47 before the reveals; the unfixed build gave 0.0
             assert p5 >= WALL_AO_P5_BY_ID.get(asset_id, WALL_AO_P5), (lod0, p5)
         if asset_id in ("shop_office", "highrise", "mosque", "mall", "generic"):
-            _check_light_deck(colors, normals, pos)
+            _check_light_deck(colors, normals, pos, DECK_ROLE.get(asset_id, "metal"))
         if asset_id == "generic":
             _check_scale_proof(colors, normals, pos)
         if asset_id == "factory":
-            assert specs.ROLES.index("metal") in _roles(colors), "metal roof"
+            assert specs.ROLES.index("metal") in _roles(colors), "metal-clad walls"
+        if asset_id in WARM_ROOF_IDS:
+            _check_warm_roof(colors, normals, pos, v.size[1])
 
 
 # --- landmarks (Task 5) -----------------------------------------------------------------
@@ -654,9 +708,22 @@ def test_landmarks(landmarks_built, asset_id):
     v = spec.variants[0]
     lo, hi = info.nodes[f"{asset_id}__{v.id}__LOD0"].bounds
     colors0 = read_attribute(raw, f"{asset_id}__{v.id}__LOD0", "COLOR_0")
-    deck = [c[0] for c in colors0 if round(c[1] * 7) == specs.ROLES.index("metal")]
-    # light grey decks (role metal, split into cells): measured mean AO 0.784 / 0.651 / 0.705
+    normals0 = read_attribute(raw, f"{asset_id}__{v.id}__LOD0", "NORMAL")
+    role = specs.ROLES.index(DECK_ROLE.get(asset_id, "metal"))
+    deck = [
+        c[0]
+        for c, n in zip(colors0, normals0, strict=True)
+        if round(c[1] * 7) == role and n[1] > 0.9
+    ]
+    # light decks split into cells (metal; the mall's primary membrane): mean AO well above 0.5
     assert len(deck) > 12 and statistics.fmean(deck) > 0.5, statistics.fmean(deck)
+    if asset_id in WARM_ROOF_IDS:
+        _check_warm_roof(
+            colors0,
+            normals0,
+            read_attribute(raw, f"{asset_id}__{v.id}__LOD0", "POSITION"),
+            v.size[1],
+        )
     if asset_id == "lakeside_mall":
         from tl_assets.geo import outline_local, outline_ring
 

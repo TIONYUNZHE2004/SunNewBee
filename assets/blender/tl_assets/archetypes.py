@@ -518,10 +518,12 @@ class _Panes:
 
 
 def _shop_office(variant: Variant, lod: int) -> list:
-    """One 22-foot shophouse unit after the Jumpa shop offices: brick (accent) pilasters at the
-    unit edges, two floors of tall dark-framed glass bays between white spandrels, a white
-    parapet and cornice, a blank sign band over the shopfront and a deep canopy in front of the
-    five-foot way. (Ground + two upper floors = 3 storeys in the 11 m size.)"""
+    """One 22-foot shophouse unit after the Jumpa shop offices: pilasters (secondary) at the
+    unit edges, two floors of tall dark-framed glass bays under fabric awnings (accent), the
+    facade banded in three palette tones (primary field and cornice, secondary pilasters and
+    spandrel, an accent parapet band), a blank sign band over the shopfront, a deep canopy and
+    a five-foot way arcade of deep columns with a beam and arch haunches. (Ground + two upper
+    floors = 3 storeys in the 11 m size.)"""
     w, h, d = variant.size
     if lod >= 2:
         return kit.far_block((w, h, d), "flat")
@@ -556,12 +558,31 @@ def _shop_office(variant: Variant, lod: int) -> list:
     upper += pn.build(lod)
     upper += kit.flat_roof(w, d, up_h, parapet, deck_role=DECK, cell=2.0)
     objs += kit.place(upper, y=SHOP_STOREY)
-    front = kit.panel(-w / 2, -w / 2 + pil, 0.0, up_h, depth=0.22, role="accent")
-    front += kit.panel(w / 2 - pil, w / 2, 0.0, up_h, depth=0.22, role="accent")
-    front += kit.panel(-w / 2 + pil, w / 2 - pil, 3.2, 3.55, depth=0.12, role="primary")  # spandrel
+    # three-tone banding: secondary pilasters and spandrel, primary cornice, accent parapet band
+    front = kit.panel(-w / 2, -w / 2 + pil, 0.0, up_h, depth=0.22, role="secondary")
+    front += kit.panel(w / 2 - pil, w / 2, 0.0, up_h, depth=0.22, role="secondary")
+    front += kit.panel(-w / 2 + pil, w / 2 - pil, 3.3, 3.6, depth=0.12, role="secondary")
     front += kit.panel(-w / 2, w / 2, up_h - 0.3, up_h + 0.05, depth=0.3, role="primary")  # cornice
+    front += kit.panel(-w / 2, w / 2, up_h + 0.05, up_h + parapet, depth=0.1, role="accent")
+    if lod == 0:  # fabric awnings over the upper windows
+        aw = _awnings([-bay / 4 - 0.05, bay / 4 + 0.05], [3.3, 5.9], bay / 2 + 0.1, 0.7, 0.45)
+        front += aw
     objs += kit.place(front, y=SHOP_STOREY, z=d / 2)
-    objs += kit.place(kit.five_foot_way(w, FIVE_FOOT, SHOP_STOREY), z=d / 2)
+    col = 0.55  # deep arcade columns with a beam and arch haunches
+    objs += kit.place(kit.five_foot_way(w, FIVE_FOOT, SHOP_STOREY, column=col), z=d / 2)
+    objs += kit.block(
+        -w / 2,
+        w / 2,
+        SHOP_STOREY - 0.45,
+        SHOP_STOREY,
+        d / 2 - col,
+        d / 2,
+        "primary",
+        name="ffw_beam",
+        closed=True,
+    )
+    if lod == 0:
+        objs += _arch_haunches(w, col, SHOP_STOREY - 0.45, d / 2)
     band = kit.sign_band(w - 2 * pil - 0.2, 0.8, SHOP_STOREY + 0.1)  # blank: role light, no text
     objs += kit.place(band, z=d / 2)
     # a deep canopy over the pavement in front of the five-foot way
@@ -582,6 +603,45 @@ def _shop_office(variant: Variant, lod: int) -> list:
             -0.8, 0.8, eave, eave + 0.7, -d / 2 + 2.0, -d / 2 + 3.6, "metal", name="tank"
         )
     return objs
+
+
+def _awnings(cols, tops, width: float, out: float, drop: float) -> list:
+    """Fabric awnings (role accent) on a front-anchored facade (z = 0 outward): one sloped slab
+    per (col, top), from the wall at `top` to `out` metres out and `drop` lower."""
+    m = kit._Mesh()
+    t = 0.05
+    for c in cols:
+        for y in tops:
+            x0, x1 = c - width / 2, c + width / 2
+            bot = [
+                (x0, y - t, 0.0),
+                (x1, y - t, 0.0),
+                (x1, y - drop - t, out),
+                (x0, y - drop - t, out),
+            ]
+            top = [(x0, y, 0.0), (x1, y, 0.0), (x1, y - drop, out), (x0, y - drop, out)]
+            m.hexa(bot + top, skip=("s0",))  # s0 is the edge against the wall
+    return kit._keep(m.obj("awning", "accent"))
+
+
+def _arch_haunches(w: float, col: float, y: float, z1: float) -> list:
+    """Arch haunches (role primary) under the arcade beam: a 0.6 m triangular wedge each side
+    of every five-foot-way column (the same column spacing as `kit.five_foot_way`)."""
+    m = kit._Mesh()
+    n = max(1, math.ceil((w - col) / 4.0))
+    xs = [-w / 2 + (w - col) * k / n for k in range(n + 1)]
+    z0, r = z1 - col, 0.6
+    for x in xs:
+        for a, b in ((x, x - r), (x + col, x + col + r)):  # column face, then outwards
+            if min(a, b) < -w / 2 - 1e-6 or max(a, b) > w / 2 + 1e-6:
+                continue
+            for zz, nz in ((z1, 1.0), (z0, -1.0)):
+                m.face([(a, y, zz), (b, y, zz), (a, y - r, zz)], (0.0, 0.0, nz))
+            m.face(
+                [(b, y, z0), (b, y, z1), (a, y - r, z1), (a, y - r, z0)],
+                (1.0 if b > a else -1.0, -1.0, 0.0),
+            )
+    return kit._keep(m.obj("ffw_arch", "primary"))
 
 
 SPANDREL_D = 0.21  # highrise spandrel bands stand this far proud of the tower wall
@@ -821,8 +881,8 @@ def _school(variant: Variant, lod: int) -> list:
     for k in range(1, 4):  # corridor floors with accent railings, between the cores
         bal = kit.balcony(bw, corridor, k * storey, lod=lod, rail_role="accent")
         objs += kit.place(bal, z=d / 2 - corridor)
-    objs += kit.gable_roof(w, d, eave, pitch, 0.4, "x")
-    # a coloured fascia board along both long eaves
+    objs += kit.gable_roof(w, d, eave, pitch, 0.4, "x", roof_role="accent")  # terracotta
+    # a white fascia board along both long eaves
     drop = 0.4 * math.tan(math.radians(pitch))
     for s in (1.0, -1.0):
         z0, z1 = (d / 2 + 0.4, d / 2 + 0.48) if s > 0 else (-d / 2 - 0.48, -d / 2 - 0.4)
@@ -833,7 +893,7 @@ def _school(variant: Variant, lod: int) -> list:
             eave - drop + 0.05,
             z0,
             z1,
-            "accent",
+            "primary",
             name="fascia",
             closed=True,
         )
@@ -965,7 +1025,8 @@ def _factory(variant: Variant, lod: int) -> list:
         plinth=kit.FACES,
     )
     shed += ps.build(lod)
-    shed += kit.gable_roof(w, shed_d, eave, pitch, 0.4, "z", roof_role="metal", wall_role="metal")
+    # a light (primary) membrane roof over metal-clad walls
+    shed += kit.gable_roof(w, shed_d, eave, pitch, 0.4, "z", roof_role="primary", wall_role="metal")
     shed += _shed_roof_detail(w, shed_d, h, pitch, lod)
     objs = kit.place(shed, z=zs)
     # office block: ground storey 3.8 m with a drive-through bay, two upper floors
@@ -1002,7 +1063,7 @@ def _factory(variant: Variant, lod: int) -> list:
     objs += kit.place(bay, x=bx + (bay0 + bay1) / 2, z=bz1)
     x1 = -w / 2 + 1.2 + bw + eave_o
     objs += kit.block(-w / 2, x1, bh, bh + 0.2, z_join, d / 2, "accent", name="eave", closed=True)
-    objs += kit.block(-w / 2, x1, bh + 0.2, bh + 0.4, z_join, d / 2, "metal", name="roof")
+    objs += kit.block(-w / 2, x1, bh + 0.2, bh + 0.4, z_join, d / 2, "primary", name="roof")
     if lod == 0:  # a loading bay at the shed's front roller door: a canopy and dock bumpers
         gx = w / 2 - 4.0
         objs += kit.block(
@@ -1063,81 +1124,212 @@ def _shed_roof_detail(w: float, d: float, h: float, pitch_deg: float, lod: int) 
     return kit._keep(units.obj("roof_unit", "metal"), fans.obj("roof_unit_fan", "dark"), *sky)
 
 
+MALL_STRIP_H = 5.5  # single-level shop strip wall top (parapet 0.6 above)
+MALL_BOX_H = 8.2  # big-box wall top (parapet 0.6 above)
+MALL_PAV_H = 9.0  # glazed entrance pavilion; its roof slab tops out at 9.4
+MALL_FRONT = 20.0  # the strip's shopfront line (z); canopy walkway to 24, forecourt to 30
+MALL_BACK = 6.0  # the strip's back = the big boxes' front facade
+
+
+def _named(prefix: str, objs: list) -> list:
+    """Prefix the part names (for the node-name checks)."""
+    for o in objs:
+        o.name = f"{prefix}_{o.name}"
+        o.data.name = o.name
+    return objs
+
+
 def _mall(variant: Variant, lod: int) -> list:
-    """A big-box retail unit: glazed shopfront bays along the front under a deep white canopy
-    with a blank sign band, accent corner pillars, loading doors at the back, plant on a light
-    roof deck."""
+    """A neighbourhood mall after Elmina Lakeside Mall (single level, open-air, big-box units):
+    a single-level strip of shop units along the front (glazed shopfronts, a blank sign band
+    each) under a continuous canopy walkway; a taller glazed entrance pavilion in the middle
+    with a tall blank sign band; two big-box units behind with taller facades, blank sign bands,
+    loading doors and roof plant; a landscaped forecourt edge (planters and small trees). Light
+    (primary) membrane roofs. Everything stays in the 60 x 60 m footprint box, 9.4 m high."""
     w, h, d = variant.size
     if lod >= 2:
         return kit.far_block((w, h, d), "flat")
-    canopy_d, parapet = 6.0, 0.8
-    bd = d - canopy_d
-    eave = h - parapet
-    zb = -d / 2 + bd / 2
-    ops = [
-        Opening("front", -14.0, 0.0, 11.0, 4.4, "shopfront"),
-        Opening("front", 0.0, 0.0, 11.0, 4.4, "shopfront"),
-        Opening("front", 14.0, 0.0, 11.0, 4.4, "shopfront"),
-        Opening("front", -25.0, 0.0, 3.0, 2.6, "door"),
-        Opening("back", -12.0, 0.0, 4.0, 4.2, "garage"),
-        Opening("back", 0.0, 0.0, 4.0, 4.2, "garage"),
-        Opening("back", 12.0, 0.0, 4.0, 4.2, "garage"),
-    ]
-    pn = _Panes(w, bd)
-    pn.add("front", [c for c in _spread(w - 6, 9) if abs(c) > 8.0], [6.3], 3.4, 1.0, reveal=True)
-    body = kit.walls(
-        w,
-        bd,
-        eave,
-        openings=ops,
-        lod=lod,
-        cell=(6.0, 4.0),
-        covered=pn.covered(lod),
-        plinth=kit.FACES,
-    )
-    body += pn.build(lod)
-    body += kit.flat_roof(w, bd, eave, parapet, deck_role=DECK, cell=4.0)
-    objs = kit.place(body, z=zb)
-    # a deep white canopy along the whole front, on columns
-    cw = 46.0
-    objs += kit.place(kit.car_porch(cw, canopy_d, 5.6, inset=0.6, name="canopy"), z=d / 2)
-    for x in (-cw / 2 + 11.5, 0.0, cw / 2 - 11.5):
-        objs += kit.block(
-            x - 0.3, x + 0.3, 0.0, 5.4, d / 2 - 1.0, d / 2 - 0.4, "primary", name="canopy_col"
-        )
-    zf = zb + bd / 2  # the shopfront wall
-    if lod == 0:  # entrance portals (accent) round the two outer glazed bays, over the canopy
-        for x in (-14.0, 14.0):
-            for px in (x - 6.1, x + 5.5):
-                objs += kit.block(
-                    px, px + 0.6, 0.0, 6.0, zf, zf + 0.6, "accent", name="entrance_portal"
-                )
-            objs += kit.block(
-                x - 5.5, x + 5.5, 5.6, 6.0, zf, zf + 0.6, "accent", name="entrance_portal_head"
-            )
-    objs += kit.place(kit.sign_band(14.0, 1.2, 5.8), z=zb + bd / 2)
-    stripes = kit.panel(-w / 2, -w / 2 + 1.5, 0.0, eave, depth=0.15, role="accent")
-    stripes += kit.panel(w / 2 - 1.5, w / 2, 0.0, eave, depth=0.15, role="accent")
-    stripes += kit.panel(-w / 2, w / 2, eave - 0.6, eave, depth=0.15, role="accent")
-    objs += kit.place(stripes, z=zb + bd / 2)
+    objs: list = []
+    # big boxes: two units behind the strip, z from the back edge to MALL_BACK
+    bdep = MALL_BACK + d / 2
+    zbc = -d / 2 + bdep / 2
     fans = kit._Mesh()
-    for x in (-18.0, -6.0, 6.0, 18.0):  # rooftop units (LOD1 keeps them as boxes)
-        objs += kit.block(x - 2.0, x + 2.0, eave, eave + 1.2, -6.0, -1.0, "metal", name="roof_unit")
-        for fx in (x - 1.0, x + 1.0):
-            y = eave + 1.205
+    for sx in (-1.0, 1.0):
+        bw, cx = w / 2, sx * w / 4
+        outer = "left" if sx < 0 else "right"
+        pn = _Panes(bw, bdep)
+        pn.add(outer, _spread(bdep - 8, 4), [5.8], 3.0, 1.2, reveal=True)  # clerestory
+        hidden = [("front", -bw / 2, bw / 2, 0.0, MALL_STRIP_H)]  # behind the strip
+        box = kit.walls(
+            bw,
+            bdep,
+            MALL_BOX_H,
+            openings=[Opening("back", 0.0, 0.0, 5.0, 4.6, "garage")],
+            lod=lod,
+            faces=("front", "back", outer),
+            cell=(6.0, 4.0),
+            covered=pn.covered(lod, hidden),
+            plinth=("back", outer),
+        )
+        box += pn.build(lod)
+        box += kit.flat_roof(bw, bdep, MALL_BOX_H, 0.6, deck_role="primary", cell=4.0)
+        # the facade over the strip roof: accent cladding and a blank sign band
+        face = kit.panel(
+            -bw / 2 + 2.0,
+            bw / 2 - 2.0,
+            MALL_STRIP_H + 0.6,
+            MALL_BOX_H + 0.6,
+            depth=0.1,
+            role="accent",
+        )
+        face += kit.sign_band(12.0, 1.4, MALL_STRIP_H + 1.1, depth=0.25)
+        box += kit.place(face, z=bdep / 2)
+        objs += _named("bigbox", kit.place(box, x=cx, z=zbc))
+        for ux in (cx - 6.0, cx + 6.0):  # roof units (LOD1 keeps them as boxes)
+            y = MALL_BOX_H
+            objs += kit.block(
+                ux - 2.0, ux + 2.0, y, y + 1.0, -22.0, -18.0, "metal", name="roof_unit"
+            )
             fans.face(
-                [
-                    (fx - 0.6, y, -4.1),
-                    (fx + 0.6, y, -4.1),
-                    (fx + 0.6, y, -2.9),
-                    (fx - 0.6, y, -2.9),
-                ],
+                [(ux - 1.2, y + 1.005, -21.2), (ux + 1.2, y + 1.005, -21.2)]
+                + [(ux + 1.2, y + 1.005, -18.8), (ux - 1.2, y + 1.005, -18.8)],
                 (0.0, 1.0, 0.0),
             )
+        if lod == 0:
+            objs += kit.place(_roof_monitors(MALL_BOX_H, (-10.0, -2.0), 10.0), x=cx)
     if lod == 0:
         objs += kit._keep(fans.obj("roof_unit_fan", "dark"))
-        objs += _roof_monitors(eave, (-18.0, 12.0), 24.0)
+
+    # the strip: shop units either side of the pavilion, z from MALL_BACK to MALL_FRONT
+    sd = MALL_FRONT - MALL_BACK
+    zs = MALL_BACK + sd / 2
+    unit = (w / 2 - 5.0) / 4  # 4 units each side, between x = +-5 and +-30
+    centres = [sx * (5.0 + unit * (k + 0.5)) for sx in (-1.0, 1.0) for k in range(4)]
+    ops = [Opening("front", c, 0.1, unit - 1.1, 3.1, "shopfront") for c in centres]
+    strip = kit.walls(
+        w,
+        sd,
+        MALL_STRIP_H,
+        openings=ops,
+        lod=lod,
+        faces=("front", "left", "right"),
+        cell=(3.2, 2.8),
+        covered=[("front", -5.0, 5.0, 0.0, MALL_STRIP_H)],  # the pavilion stands there
+        plinth=("front", "left", "right"),
+    )
+    strip += kit.flat_roof(w, sd, MALL_STRIP_H, 0.6, deck_role="primary", cell=3.0)
+    objs += kit.place(strip, z=zs)
+    signs: list = []
+    for c in centres:  # a blank sign band per unit, over the canopy
+        signs += kit.place(kit.sign_band(unit - 1.3, 0.9, 3.95), x=c)
+    objs += kit.place(signs, z=MALL_FRONT)
+
+    # the continuous canopy walkway along the frontage (either side of the pavilion)
+    cz0, cz1 = MALL_FRONT, MALL_FRONT + 4.0
+    slab, cols = kit._Mesh(), kit._Mesh()
+    for x0, x1 in ((-w / 2, -5.0), (5.0, w / 2)):
+        slab.box(x0, x1, 3.5, 3.75, cz0, cz1 - (0.15 if lod == 0 else 0.0), skip=())
+        if lod == 0:
+            slab.box(x0, x1, 3.2, 3.95, cz1 - 0.15, cz1, skip=())  # fascia
+        n = max(1, round((x1 - x0) / unit))
+        for k in range(n + 1):
+            x = x0 + 0.15 + (x1 - x0 - 0.3) * k / n
+            cols.box(x - 0.15, x + 0.15, 0.0, 3.5, cz1 - 0.6, cz1 - 0.3)
+    objs += kit._keep(slab.obj("canopy_walkway", "primary"), cols.obj("canopy_columns", "primary"))
+
+    # the glazed entrance pavilion: taller than the strip, a tall blank sign band, glass doors
+    objs += _pavilion(10.0, MALL_FRONT - 6.0, cz1, lod)
+
+    # the landscaped forecourt edge: a kerbed planter strip and small trees, clear of the path
+    if lod == 0:
+        kerb, plant = kit._Mesh(), kit._Mesh()
+        fz0, fz1 = d / 2 - 1.6, d / 2 - 0.4
+        for x0, x1 in ((-w / 2 + 0.5, -6.0), (6.0, w / 2 - 0.5)):
+            kerb.box(x0, x1, 0.0, 0.45, fz0, fz1)
+            plant.box(x0 + 0.15, x1 - 0.15, 0.45, 0.9, fz0 + 0.15, fz1 - 0.15)
+        objs += kit._keep(
+            kerb.obj("forecourt_kerb", "accent"), plant.obj("forecourt_planter", "foliage")
+        )
+        for x in (-25.0, -17.0, -9.0, 9.0, 17.0, 25.0):
+            zc = (fz0 + fz1) / 2
+            objs += kit.prism(x, zc, 0.15, 0.9, 2.6, 6, "dark", name="forecourt_tree_trunk")
+            objs += kit.dome(x, zc, 1.2, 2.4, "foliage", segs=8, rings=3, name="forecourt_tree")
+    else:
+        objs += kit.block(
+            -w / 2 + 0.5,
+            w / 2 - 0.5,
+            0.0,
+            0.9,
+            d / 2 - 1.6,
+            d / 2,
+            "foliage",
+            name="forecourt_planter",
+        )
     return objs
+
+
+def _pavilion(pw: float, z0: float, z1: float, lod: int) -> list:
+    """The mall's glazed entrance pavilion over x in [-pw/2, pw/2], z in [z0, z1]: glass panels
+    in ~2.5 m bays (one seeded part each, dark mullions at LOD0), glass entrance doors, a tall
+    blank sign band (role light) on the front, a roof slab with an overhang. Only the faces seen
+    from outside are built (the sides below the strip roof are inside the strip)."""
+    hp = MALL_PAV_H
+    panels: list = []  # (face frame, u0, u1, v0, v1)
+    frames = []
+    fr = kit.face_frame("front", pw, z1 - z0)
+    sb = (-2.5, 2.5, 4.2, 8.6)  # the tall sign band (u0, u1, v0, v1)
+    door = (-2.0, 2.0, 0.0, 2.8)
+    for u0, u1 in ((-pw / 2, -2.5), (2.5, pw / 2)):  # front: glass either side of the band
+        for v0, v1 in ((0.0, 4.2), (4.2, hp)):
+            panels.append((fr, u0, u1, v0, v1))
+    panels.append((fr, -2.5, 2.5, door[3], sb[2]))  # over the doors
+    panels.append((fr, -2.5, 2.5, sb[3], hp))  # over the sign band
+    panels += [(fr, -2.5, -2.0, 0.0, door[3]), (fr, 2.0, 2.5, 0.0, door[3])]
+    frames.append(fr)
+    depth = z1 - z0
+    for face in ("left", "right"):
+        f = kit.face_frame(face, pw, depth)
+        frames.append(f)
+        # left faces: u runs towards +z; the front 4 m is outside the strip
+        front_u = (depth / 2 - (z1 - MALL_FRONT), depth / 2)
+        lo, hi = front_u if face == "left" else (-front_u[1], -front_u[0])
+        panels.append((f, lo, hi, 0.0, MALL_STRIP_H))
+        for k in range(4):
+            u0 = -depth / 2 + depth * k / 4
+            panels.append((f, u0, u0 + depth / 4, MALL_STRIP_H, hp))
+    fb = kit.face_frame("back", pw, depth)
+    for k in range(4):
+        u0 = -pw / 2 + pw * k / 4
+        panels.append((fb, u0, u0 + pw / 4, MALL_STRIP_H + 0.6, hp))
+    glass = []
+    mull, done = kit._Mesh(), set()
+    for f, u0, u1, v0, v1 in panels:
+        m = kit._Mesh()
+        m.fgrid(f, u0, u1, v0, v1, 0.0, 1.2 if lod == 0 else None)
+        glass.append(m.obj("pavilion_glass", "glass", kit.SEED))
+        if lod == 0:
+            for u in (u0, u1):
+                key = (id(f), round(u, 3), v0, v1)
+                if key not in done:
+                    done.add(key)
+                    mull.fbox(f, u - 0.05, u + 0.05, v0, v1, 0.0, 0.08, skip=("s0",))
+    doors = kit._Mesh()
+    doors.fgrid(fr, door[0], 0.0, door[2], door[3], 0.02, 1.0 if lod == 0 else None)
+    doors2 = kit._Mesh()
+    doors2.fgrid(fr, 0.0, door[1], door[2], door[3], 0.02, 1.0 if lod == 0 else None)
+    band = kit._Mesh()
+    band.fbox(fr, sb[0], sb[1], sb[2], sb[3], 0.0, 0.2, skip=("s0",))
+    roof = kit._Mesh()
+    roof.box(-pw / 2 - 0.6, pw / 2 + 0.6, hp, hp + 0.4, -depth / 2 - 0.6, depth / 2 + 0.6, skip=())
+    out = kit._keep(
+        *glass,
+        doors.obj("entrance_doors", "glass", kit.SEED),
+        doors2.obj("entrance_doors", "glass", kit.SEED),
+        band.obj("pavilion_sign_band", "light"),
+        roof.obj("pavilion_roof", "primary"),
+        mull.obj("pavilion_mullions", "dark"),
+    )
+    return kit.place(out, z=(z0 + z1) / 2)
 
 
 def _roof_monitors(y: float, zs, half: float) -> list:
