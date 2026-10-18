@@ -41,8 +41,10 @@ export const LANDCOVER_ORDER = [
 
 /** Lifts span 0.00 to 0.04 m: parks (0.05) and base water (0.06) sit above, roads at 0.08 m. */
 const MAX_LIFT_M = LANDCOVER_MAX_Y;
+/** Paint rank: an unknown class (-1) first, then LANDCOVER_ORDER. */
+const rank = (cls: string) => (LANDCOVER_ORDER as readonly string[]).indexOf(cls);
 const lift = (cls: string) => {
-  const i = (LANDCOVER_ORDER as readonly string[]).indexOf(cls);
+  const i = rank(cls);
   return i < 0 ? 0 : (MAX_LIFT_M * i) / (LANDCOVER_ORDER.length - 1);
 };
 
@@ -54,15 +56,17 @@ function polygonsOf(g: GeoJSON.Geometry | null | undefined): unknown[][] {
 
 /**
  * One non-indexed, vertex-coloured, upward-facing triangle mesh of every land-cover polygon, each
- * flat at its class lift. A polygon that cannot be triangulated faithfully is skipped. Display
- * only: nothing here is read by routing, flood or answers.
+ * flat at its class lift. Triangles are emitted grouped by class in LANDCOVER_ORDER: the mesh is
+ * drawn without depth writes (see groundLayer), so this order is the paint order and overlapping
+ * classes never z-fight across their millimetre lifts (township-range stripes). A polygon that
+ * cannot be triangulated faithfully is skipped. Display only: nothing here is read by routing,
+ * flood or answers.
  */
 export function landcoverMesh(
   fc: GeoJSON.FeatureCollection,
   frame: LocalFrame,
 ): THREE.BufferGeometry {
-  const pos: number[] = [];
-  const col: number[] = [];
+  const buckets = new Map<number, { pos: number[]; col: number[] }>();
   const features = Array.isArray(fc?.features) ? fc.features : [];
   const colours = new Map<string, number[]>();
   const rgb = (cls: string) => {
@@ -78,6 +82,13 @@ export function landcoverMesh(
     const cls = typeof raw === "string" ? raw : "";
     const y = lift(cls);
     const c = rgb(cls);
+    const r = rank(cls);
+    let b = buckets.get(r);
+    if (!b) {
+      b = { pos: [], col: [] };
+      buckets.set(r, b);
+    }
+    const { pos, col } = b;
     for (const rings of polygonsOf(f?.geometry)) {
       const local = (rings as unknown[]).map((r) =>
         Array.isArray(r) ? localRing(r as [number, number][], frame) : null,
@@ -93,6 +104,13 @@ export function landcoverMesh(
           col.push(c[0]!, c[1]!, c[2]!);
         }
     }
+  }
+  const pos: number[] = [];
+  const col: number[] = [];
+  for (const r of [...buckets.keys()].sort((a, b) => a - b)) {
+    const b = buckets.get(r)!;
+    for (const v of b.pos) pos.push(v);
+    for (const v of b.col) col.push(v);
   }
   const g = new THREE.BufferGeometry();
   g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));

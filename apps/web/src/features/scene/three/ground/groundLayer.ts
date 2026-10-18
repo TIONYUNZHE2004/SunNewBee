@@ -72,6 +72,10 @@ export function createGroundLayer(
   const materials: THREE.Material[] = [];
   const add = (geo: THREE.BufferGeometry, band: GroundBand) => {
     const mat = groundMaterial(band);
+    // Land cover paints in triangle order (classes sorted in landcoverMesh) and writes no depth, so
+    // its classes never z-fight; it still depth-tests against buildings and the base plane, and
+    // the parks, water and road bands above it draw after it (renderOrder).
+    if (band === "landcover") mat.depthWrite = false;
     if (uTime && band === "landcover") shimmerMaterial(mat, uTime, "water-only");
     const mesh = new THREE.Mesh(geo, mat);
     mesh.renderOrder = GROUND_BANDS[band].order;

@@ -147,6 +147,32 @@ describe("landcover", () => {
     }
   });
 
+  // Final fix D: one mesh, ~3.6 mm lifts between classes -> stripes at township range. The mesh is
+  // drawn without depth writes, so triangle order is the paint order: it must follow LANDCOVER_ORDER.
+  it("emits triangles grouped in LANDCOVER_ORDER whatever the feature order (unknown first)", () => {
+    const g = landcoverMesh(
+      fc(
+        sq("water"),
+        sq("forest", 200),
+        sq("lava", 400),
+        sq("residential", 600),
+        sq("farmland", 800),
+      ),
+      frame,
+    );
+    const p = g.getAttribute("position");
+    const ys: number[] = [];
+    for (let t = 0; t < p.count; t += 3) ys.push(p.getY(t));
+    expect(ys.length).toBe(10);
+    for (let i = 1; i < ys.length; i++) expect(ys[i]!).toBeGreaterThanOrEqual(ys[i - 1]!);
+    // The unknown class (lift 0) comes before farmland (also lift 0), then forest, residential, water.
+    const c = g.getAttribute("color");
+    const lava = new THREE.Color("#d8d3c8");
+    expect(c.getX(0)).toBeCloseTo(lava.r, 4);
+    const water = new THREE.Color(LANDCOVER_COLOURS.water!);
+    expect(c.getX(p.count - 1)).toBeCloseTo(water.r, 4);
+  });
+
   it("skips malformed features without throwing", () => {
     const bad: GeoJSON.Feature = {
       type: "Feature",
