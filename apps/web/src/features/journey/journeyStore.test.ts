@@ -105,4 +105,14 @@ describe("journeyStore", () => {
     j().advance(1);
     expect(j()).toMatchObject({ t: 0, playing: false });
   });
+  it("noteVr remembers each element once, for the session (clear and load keep it)", () => {
+    useJourney.setState({ vrElements: [] });
+    j().noteVr("seg-1");
+    j().noteVr("seg-1");
+    j().noteVr("seg-2");
+    expect(j().vrElements).toEqual(["seg-1", "seg-2"]);
+    j().load(plan);
+    j().clear();
+    expect(j().vrElements).toEqual(["seg-1", "seg-2"]);
+  });
 });

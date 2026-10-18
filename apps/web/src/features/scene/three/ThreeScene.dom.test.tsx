@@ -7,6 +7,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { makeGlb } from "../../../test/glbFixture";
 import { json, newQueryClient, renderWithClient, stubFetch } from "../../../test/helpers";
 import { useTheme } from "../../../ui/theme";
+import demoJourney from "../../journey/fixtures/demoPlan.json";
+import type { JourneyPlan } from "../../journey/timeline";
 import { usePanel } from "../../main/panelStore";
 import { usePerfStats } from "../cesium/PerfOverlay";
 import { useSceneSettings } from "../sceneSettingsStore";
@@ -21,7 +23,7 @@ import type { Engine, LodTick } from "./engine";
 import { createFrame } from "./frame";
 import { LIGHT_PRESETS } from "./lighting";
 import type { PickHit } from "./pick";
-import ThreeScene from "./ThreeScene";
+import ThreeScene, { DECORATIVE_NOTE } from "./ThreeScene";
 
 const CENTER: [number, number] = [101.5099, 3.1813];
 const SITE = {
@@ -268,6 +270,7 @@ function fakeEngine() {
     motion: createMotionUniforms(),
     setBounds: vi.fn(),
     setOverlays: vi.fn(),
+    setJourney: vi.fn(),
     setLighting: vi.fn(),
     setFogRange: vi.fn(),
     setTier: vi.fn(),
@@ -343,6 +346,7 @@ const reducedMq = () => ({
 });
 
 type Fake = ReturnType<typeof fakeEngine>;
+const journeyPlan = demoJourney as unknown as JourneyPlan;
 
 function mount(engine: Fake = fakeEngine(), onOps?: (o: unknown) => void) {
   const createEngineFn = vi.fn(() => engine as unknown as Engine);
@@ -506,6 +510,50 @@ describe("ThreeScene", () => {
     act(() => useScene.getState().clearRoute());
     await waitFor(() => expect(s).toHaveAttribute("data-route", "off"));
     expect(routeLines()).toEqual([]);
+  });
+
+  it("journey.play (D-T7): ribbon layer set, the blue route steps aside, label shown, decorative note kept", async () => {
+    const { engine } = mount();
+    await waitFor(() => expect(engine.setCity).toHaveBeenCalled());
+    act(() =>
+      useScene.getState().applyIntent({
+        kind: "route.highlight",
+        route_id: "r1",
+        geojson: route,
+      } as never),
+    );
+    const s = screen.getByTestId("three-scene");
+    await waitFor(() => expect(s).toHaveAttribute("data-route", "on"));
+    const layer = engine.setOverlays.mock.calls.find((c: unknown[]) => c[0])?.[0];
+    const routeBatches = () => {
+      let n = 0;
+      layer.group.traverse((o: { isLineSegments2?: boolean; renderOrder: number }) => {
+        if (o.isLineSegments2 && o.renderOrder === 13) n++;
+      });
+      return n;
+    };
+    expect(routeBatches()).toBe(1);
+    const decorBefore = screen.queryByRole("note", { name: DECORATIVE_NOTE }) !== null;
+    act(() =>
+      useScene.getState().applyIntent({
+        kind: "journey.play",
+        route_id: journeyPlan.route_id,
+        start_time: journeyPlan.start_time,
+        journey: journeyPlan,
+      } as never),
+    );
+    await waitFor(() =>
+      expect(engine.setJourney).toHaveBeenCalledWith(
+        expect.objectContaining({ ribbon: expect.anything(), markers: expect.anything() }),
+      ),
+    );
+    expect(
+      screen.getByRole("note", { name: "Simulation · indicative times, not a prediction" }),
+    ).toBeInTheDocument();
+    await waitFor(() => expect(routeBatches()).toBe(0));
+    expect(screen.queryByRole("note", { name: DECORATIVE_NOTE }) !== null).toBe(decorBefore);
+    act(() => useScene.getState().reset());
+    await waitFor(() => expect(engine.setJourney).toHaveBeenLastCalledWith(null));
   });
 
   it("camera.fly_to calls rig.flyTo with the goal converted to a Pose (pitch -45, range from the intent)", async () => {

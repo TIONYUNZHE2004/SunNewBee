@@ -1,6 +1,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import type { ChatEvent } from "@tl/api-client";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useJourney } from "../journey/journeyStore";
 import { type Profile, useScene } from "../scene/sceneStore";
 import {
   type AssistantMessage,
@@ -89,8 +90,11 @@ export function useChatStream() {
               useScene.getState().applyIntent(intent);
               patch(aid, (m) => reduceIntent(m, intent));
             }
-            if (ev.type === "verification.requested")
+            if (ev.type === "verification.requested") {
               void queryClient.invalidateQueries({ queryKey: ["tickets"] });
+              // journey cards say "verification request filed" only for these elements
+              useJourney.getState().noteVr(ev.element_id);
+            }
             patch(aid, (m) => reduceChatEvent(m, ev));
           }
         };

@@ -29,6 +29,9 @@ export function useOverlays({
   running: boolean;
 }) {
   const route = useScene((s) => s.route);
+  // While a journey plays, its own ribbon (features/journey) draws the trip's route by status; the
+  // blue overlay line would sit on top of it (overlay pass), so it steps aside.
+  const journeyOn = useScene((s) => !!s.journey);
   const profile = useScene((s) => s.profile);
   const scenarioId = useScene((s) => s.scenarioId);
   const accessVisible = useScene((s) => s.lensVisible.access);
@@ -72,7 +75,7 @@ export function useOverlays({
       accessVisible,
       gaps: gapsQ.data ?? null,
       gapsOn,
-      route: routeOn ? (route?.geojson ?? null) : null,
+      route: routeOn && !journeyOn ? (route?.geojson ?? null) : null,
       whatIf,
       water: waterQ.data ?? null,
       floodEdges: floodQ.data ?? null,
@@ -92,6 +95,7 @@ export function useOverlays({
     gapsQ.data,
     gapsOn,
     routeOn,
+    journeyOn,
     route,
     whatIf,
     waterQ.data,
