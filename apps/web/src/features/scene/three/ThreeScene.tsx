@@ -12,7 +12,7 @@ import { useTheme } from "../../../ui/theme";
 import { gapsActive } from "../../gaps/gapModel";
 import { usePanel } from "../../main/panelStore";
 import { isWide } from "../../main/usePanelReserve";
-import { PANEL_INSET_PX, panelWidthPx } from "../../main/viewport";
+import { mapPanelOverlapPx } from "../../main/viewport";
 import { InSlot } from "../../map-ui/mapSlots";
 import { CameraControls, handleMapKey } from "../cesium/controls/CameraControls";
 import { useCameraHeading } from "../cesium/controls/cameraHeadingStore";
@@ -928,7 +928,7 @@ export default function ThreeScene({
   // Look point in the middle of the map area left of the side panel (phones use the sheet).
   useEffect(() => {
     if (!engine) return;
-    const panel = isWide() && panelOpen ? panelWidthPx(innerWidth) + PANEL_INSET_PX * 2 : 0;
+    const panel = mapPanelOverlapPx(panelOpen, isWide(), innerWidth);
     engine.setViewOffset(panel);
   }, [engine, panelOpen]);
 

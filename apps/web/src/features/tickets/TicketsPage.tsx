@@ -34,10 +34,10 @@ export function TicketsPage() {
   return (
     // The full-width wrapper scrolls, so on wide screens its scrollbar sits at the window edge
     // rather than beside the centred grid. pb-10 keeps the last card clear of the attribution.
-    <div className="min-h-0 lg:h-full lg:overflow-auto">
-      <div className="mx-auto grid max-w-6xl gap-6 p-4 pb-10 lg:grid-cols-[minmax(280px,380px)_minmax(0,1fr)]">
+    <div className="min-h-0 lg:flex-1 lg:overflow-auto">
+      <div className="mx-auto grid max-w-6xl gap-3 p-4 pb-10 lg:grid-cols-[minmax(300px,380px)_minmax(0,1fr)] lg:p-0 lg:pb-8">
         <div
-          className={`${showDetail ? "hidden lg:block" : ""} lg:glass lg:self-start lg:rounded-2xl lg:p-4`}
+          className={`${showDetail ? "hidden lg:block" : ""} lg:self-start lg:rounded-3xl lg:border lg:border-edge lg:bg-surface lg:p-5 lg:shadow-[var(--c-shadow)]`}
         >
           <VerifyNextBoard
             onTicket={(id) => {

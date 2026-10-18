@@ -1,4 +1,6 @@
 import { useEffect, useRef } from "react";
+import { ModeSwitch } from "../../app/ModeSwitch";
+import { useSite } from "../../lib/api";
 import { Icon } from "../../ui/icons";
 import { AssistantPanel } from "../assistant/AssistantPanel";
 import { useChatDraft } from "../chat/chatDraftStore";
@@ -7,6 +9,7 @@ import { BuildingCard } from "../map-ui/BuildingCard";
 import { DayTag } from "../map-ui/DayTag";
 import { FloodNote } from "../map-ui/FloodNote";
 import { MapStage } from "../map-ui/MapStage";
+import { InSlot } from "../map-ui/mapSlots";
 import { PathOverlay } from "../map-ui/PathOverlay";
 import { PlaceOverlay } from "../map-ui/PlaceOverlay";
 import { RolloutTag } from "../map-ui/RolloutTag";
@@ -21,7 +24,24 @@ import { useAttribution } from "./useAttribution";
 import { usePanelReserve, useSheetPeekOnNarrow } from "./usePanelReserve";
 import { useTopStackHeight } from "./useTopStackHeight";
 
-/** Full-bleed map; the assistant floats over it on the right (bottom sheet on phones, Task 8). */
+/** Top-left of the map card: wordmark and site on one line, then the perspective switch. */
+function MapPill() {
+  const site = useSite();
+  return (
+    <div className="glass flex items-center gap-3 rounded-full py-1 pl-4 pr-1">
+      <p className="m-0 whitespace-nowrap text-sm">
+        <span className="font-semibold tracking-tight">TownshipLens</span>
+        {site.data && <span className="text-fg-soft"> · {site.data.name}</span>}
+      </p>
+      <ModeSwitch size="sm" />
+    </div>
+  );
+}
+
+/**
+ * Wide screens: the map is a rounded card and the assistant docks beside it as its own card (it
+ * never covers the map). Phones: full-bleed map with the assistant in a bottom sheet (Task 8).
+ */
 export function MainPage() {
   const { open, setOpen, sheet, setSheet } = usePanel();
   const { wide, panelW, reserved, sheetH } = usePanelReserve();
@@ -67,55 +87,68 @@ export function MainPage() {
         ...(topH === null ? {} : { ["--top-h" as string]: `${topH}px` }),
       }}
     >
-      <section aria-label="3D map of City of Elmina" className="absolute inset-0">
-        <MapStage>
-          <RouteTag />
-          <WhatIfTag />
-          <RolloutTag />
-          <DayTag />
-          <FloodNote />
-          <SettingsPopover />
-          <PlaceOverlay />
-          <PathOverlay />
-          <SignCard />
-          <BuildingCard />
-        </MapStage>
-      </section>
-      {wide ? (
-        <>
-          <div
-            className={`absolute bottom-4 right-4 top-4 z-20 flex flex-col transition-transform duration-200 ease-[cubic-bezier(.2,.7,.2,1)] motion-reduce:transition-none ${
-              open ? "translate-x-0" : "translate-x-[calc(100%+2rem)]"
-            }`}
-            style={{ width: panelW }}
-            aria-hidden={!open}
-            inert={!open}
-          >
-            <AssistantPanel />
-            <button
-              type="button"
-              aria-label="Hide assistant"
-              ref={hideRef}
-              onClick={() => toggle(false)}
-              className="glass absolute -left-11 top-4 grid size-11 place-items-center rounded-l-xl text-fg"
-            >
-              <Icon name="chevron" />
-            </button>
-          </div>
-          {!open && (
+      <div className={`flex h-full ${wide ? "gap-3" : ""}`}>
+        <section
+          aria-label="3D map of City of Elmina"
+          className={`relative min-w-0 flex-1 overflow-hidden ${
+            wide ? "rounded-3xl border border-edge bg-surface shadow-[var(--c-shadow)]" : ""
+          }`}
+        >
+          <MapStage>
+            {wide && (
+              <InSlot name="brand">
+                <MapPill />
+              </InSlot>
+            )}
+            <RouteTag />
+            <WhatIfTag />
+            <RolloutTag />
+            <DayTag />
+            <FloodNote />
+            <SettingsPopover />
+            <PlaceOverlay />
+            <PathOverlay />
+            <SignCard />
+            <BuildingCard />
+          </MapStage>
+          {wide && !open && (
             <button
               type="button"
               aria-label="Show assistant"
               ref={showRef}
               onClick={() => toggle(true)}
-              className="glass absolute right-4 top-4 z-20 flex min-h-11 items-center gap-2 rounded-xl px-4 text-sm font-semibold text-fg"
+              className="glass absolute right-3 top-3 z-20 flex min-h-11 items-center gap-2 rounded-full pl-3 pr-4 text-sm font-medium text-fg"
             >
-              <Icon name="chevron" className="size-5 rotate-180" />
+              <Icon name="chat" className="size-5" />
               Assistant
             </button>
           )}
-        </>
-      ) : (
+        </section>
+        {wide && (
+          <div
+            className={`relative flex shrink-0 flex-col overflow-hidden transition-[width,opacity] duration-200 ease-[cubic-bezier(.2,.7,.2,1)] motion-reduce:transition-none ${
+              open ? "opacity-100" : "opacity-0"
+            }`}
+            style={{ width: open ? panelW : 0 }}
+            aria-hidden={!open}
+            inert={!open}
+          >
+            <div className="flex h-full min-h-0 flex-col" style={{ width: panelW }}>
+              <AssistantPanel />
+            </div>
+            <button
+              type="button"
+              aria-label="Hide assistant"
+              ref={hideRef}
+              onClick={() => toggle(false)}
+              className="absolute right-3 top-3 grid size-9 place-items-center rounded-full text-fg-soft transition-colors hover:bg-fg/5 hover:text-fg"
+            >
+              <Icon name="close" className="size-4" />
+            </button>
+          </div>
+        )}
+      </div>
+      {!wide && (
         <BottomSheet attribution={attribution}>
           <AssistantPanel compact={sheet === "peek"} flat />
         </BottomSheet>

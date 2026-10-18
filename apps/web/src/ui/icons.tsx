@@ -14,7 +14,9 @@ export type IconName =
   | "chevron"
   | "send"
   | "camera"
-  | "close";
+  | "close"
+  | "map"
+  | "chat";
 
 const PATHS: Record<IconName, string> = {
   walk: "M13 4a1.5 1.5 0 1 0 0 .01M10 21l2-6 3 3v3M9 12l2-3 3 1 2 3M8 9l3-1",
@@ -37,6 +39,8 @@ const PATHS: Record<IconName, string> = {
   send: "M4 12l16-8-6 16-2-6z",
   camera: "M4 8h4l2-2h4l2 2h4v11H4zM12 16a3 3 0 1 0 0-6 3 3 0 0 0 0 6z",
   close: "M6 6l12 12M18 6 6 18",
+  map: "M9 4 3 6.5v13.5L9 17.5l6 2.5 6-2.5V4l-6 2.5zM9 4v13.5M15 6.5V20",
+  chat: "M5 5h14a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1h-8l-4 3.5V16H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1zM8.5 10.5h.01M12 10.5h.01M15.5 10.5h.01",
 };
 
 export function Icon({ name, className = "size-5" }: { name: IconName; className?: string }) {

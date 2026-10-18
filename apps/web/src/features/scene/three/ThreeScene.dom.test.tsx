@@ -8,7 +8,6 @@ import { makeGlb } from "../../../test/glbFixture";
 import { json, newQueryClient, renderWithClient, stubFetch } from "../../../test/helpers";
 import { useTheme } from "../../../ui/theme";
 import { usePanel } from "../../main/panelStore";
-import { PANEL_INSET_PX, panelWidthPx } from "../../main/viewport";
 import { usePerfStats } from "../cesium/PerfOverlay";
 import { useSceneSettings } from "../sceneSettingsStore";
 import { useScene } from "../sceneStore";
@@ -765,7 +764,7 @@ describe("ThreeScene", () => {
     expect(second?.isConnected).toBe(false);
   });
 
-  it("opening the panel calls setViewOffset with panelWidthPx(innerWidth) + 2 × PANEL_INSET_PX on wide screens", async () => {
+  it("the docked assistant never shifts the look point, open or closed, on wide screens", async () => {
     vi.stubGlobal(
       "matchMedia",
       (q: string) =>
@@ -780,9 +779,7 @@ describe("ThreeScene", () => {
     await waitFor(() => expect(engine.setViewOffset).toHaveBeenCalled());
     expect(engine.setViewOffset).toHaveBeenLastCalledWith(0);
     act(() => usePanel.setState({ open: true }));
-    expect(engine.setViewOffset).toHaveBeenLastCalledWith(
-      panelWidthPx(innerWidth) + 2 * PANEL_INSET_PX,
-    );
+    expect(engine.setViewOffset).toHaveBeenLastCalledWith(0);
   });
 
   it("data-frames reflects the first rendered frames without interaction, and perf gets draw calls", async () => {

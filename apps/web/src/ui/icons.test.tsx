@@ -19,6 +19,8 @@ const ALL: IconName[] = [
   "send",
   "camera",
   "close",
+  "map",
+  "chat",
 ];
 
 describe("Icon", () => {

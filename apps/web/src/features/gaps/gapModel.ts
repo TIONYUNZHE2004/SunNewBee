@@ -239,21 +239,29 @@ const PROFILE_WORDS: Record<string, string> = {
   older_adult_rest: "older-adult",
 };
 
+/** Path counts behind the coverage line and bar: paths with a fact that matters for the profile,
+ * how many still have a fact not yet checked, and how many rest on demo values. */
+export function gapCoverage(items: GapItem[]): { paths: number; open: number; demo: number } {
+  const paths = items.filter((i) => i.kind === "segment" && i.relevant > 0);
+  return {
+    paths: paths.length,
+    open: paths.filter((i) => i.unknown > 0).length,
+    demo: paths.filter((i) => i.demo > 0).length,
+  };
+}
+
 /** One plain sentence with the computed numbers for the active profile, so a near-uniform map
  * reads as a finding. Empty when no path has a fact that matters for the profile. */
 export function gapSummaryLine(items: GapItem[], profile: string): string {
-  const paths = items.filter((i) => i.kind === "segment" && i.relevant > 0);
-  if (paths.length === 0) return "";
-  const open = paths.filter((i) => i.unknown > 0).length;
+  const { paths, open, demo } = gapCoverage(items);
+  if (paths === 0) return "";
   const n = (v: number) => v.toLocaleString("en-US");
   const who = PROFILE_WORDS[profile] ?? profile;
-  const demo = paths.filter((i) => i.demo > 0).length;
   const demoNote = demo > 0 ? ` ${n(demo)} of them rest on demo values, not yet surveyed.` : "";
-  if (open === 0)
-    return `Every path has its facts checked for ${who} travel (${n(paths.length)} paths).`;
-  if (open / paths.length > 0.5)
-    return `Most paths are not yet checked: ${n(open)} of ${n(paths.length)} for ${who} travel.${demoNote}`;
-  return `${n(open)} of ${n(paths.length)} paths have facts not yet checked for ${who} travel.${demoNote}`;
+  if (open === 0) return `Every path has its facts checked for ${who} travel (${n(paths)} paths).`;
+  if (open / paths > 0.5)
+    return `Most paths are not yet checked: ${n(open)} of ${n(paths)} for ${who} travel.${demoNote}`;
+  return `${n(open)} of ${n(paths)} paths have facts not yet checked for ${who} travel.${demoNote}`;
 }
 
 export const attributeNames = (attrs: string[]): string => attrs.map(optionLabel).join(", ");

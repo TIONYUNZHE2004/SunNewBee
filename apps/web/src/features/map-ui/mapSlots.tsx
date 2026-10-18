@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 import { create } from "zustand";
 import { useBehindFullSheet } from "../main/usePanelReserve";
 
-export type SlotName = "route" | "sim" | "flood" | "hint" | "card" | "notes";
+export type SlotName = "brand" | "route" | "sim" | "flood" | "hint" | "card" | "notes";
 
 const useSlots = create<{
   els: Partial<Record<SlotName, HTMLElement>>;
@@ -37,14 +37,15 @@ function Slot({ name, className }: { name: SlotName; className: string }) {
   );
 }
 
-/** Top of the visible map: route tag, simulation tags, flood banner, camera hint, stacked so they
- * never overlap. */
+/** Top of the visible map: brand pill (wide screens), route tag, simulation tags, flood banner,
+ * camera hint, stacked so they never overlap. */
 export function TopStack() {
   return (
     <div
       data-testid="top-stack"
       className="pointer-events-none absolute left-4 right-[calc(var(--panel-w,0px)+1rem)] top-4 z-20 flex flex-col gap-2"
     >
+      <Slot name="brand" className="self-start" />
       <Slot name="route" className="self-start" />
       {/* what-if, rising-river and Elmina Day tags: simulations, labelled not real */}
       <Slot name="sim" className="flex max-w-full flex-col items-start gap-2" />
