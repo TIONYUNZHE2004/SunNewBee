@@ -244,7 +244,8 @@ the settings popover.
 ### Stylised (Three.js)
 
 The Stylised renderer, in `features/scene/three/`. Realistic stays on Cesium; Mapbox lite and List
-are unchanged. The old Cesium Stylised code and the `/dev/stylised` route are gone.
+are unchanged. The old Cesium Stylised code and the `/dev/stylised` route are gone. Stylised never falls back to Cesium:
+a Three.js crash goes to Mapbox lite, else List.
 
 - **Selection:** `rendererFor(view, style)` (`three/engineChoice.ts`) returns `"three"` for the 3D view
   with Stylised; there is no `?engine=` parameter. `clearLegacyEngineChoice` removes a stale
@@ -317,9 +318,10 @@ hero district.
   shopfront quads (`facade/facadePlan.ts`, `facade/facadeLayer.ts`; at most 5 draws) 0.05 m out
   from the walls of the extruded buildings in ring ≤ 1 tiles. Window storeys come from the displayed
   height ÷ 3.2 m, including `default` heights (their card already says "Default estimate"). A facade
-  never changes a footprint or a height and never rises above the roof; shopfront palettes are chosen per unit, and facades and roofs rebuild only when the tier moves between Low and not-Low; the building under it stays
+  never changes a footprint or a height and never rises above the roof; the building under it stays
   pickable as the same building. Farther tiles, and every tile at Low, show the plain palette
-  extrusion.
+  extrusion. Shopfront palettes are chosen per unit, and facades and roofs rebuild only when
+  the tier moves between Low and not-Low.
 - **Roofs (decorative):** `useRoofs` (the `roofs` decor slot) draws rooftop units, skylights and an
   edge band on the extruded roofs of 600 m² or more in ring ≤ 1 tiles (`facade/roofPlan.ts`,
   `facade/roofLayer.ts`; no shadows, none at Low). Landmark buildings get none. The OSM podium
@@ -468,7 +470,12 @@ cesium/PerfOverlay.tsx ?perf=1 readout (frame time, tier)
 ```
 
 `cesium/realistic.ts` sets up and cleans up the Google/Ion tiles and imagery, and `cesium/home.ts`
-has `homeView`, `framingFor` and `shouldReframe`. The decorative motion, quality tiers and honesty
+has `homeView`, `framingFor` and `shouldReframe`. `cesium/heightRef.ts` picks the height reference for
+markers and labels (clamp to Google tiles when configured, else to the ground). `cesium/frustumClone.ts`
+patches Cesium 1.146's `PerspectiveFrustum.clone`, which dropped the panel-reserve `xOffset` (so the
+camera never matched its per-frame clone and a still scene rendered continuously under
+`requestRenderMode`), and `Camera.getPickRay`, so picks follow the same off-centre frustum
+(double-click glide, zoom-to-cursor). The decorative motion, quality tiers and honesty
 rules for Stylised are under "Stylised (Three.js)" above; see also
 [ADR 0011](../../docs/00-overview/decisions/0011-time-of-day-theme-and-decorative-motion.md) and
 [the quality report](../../docs/03-product/stylised-city-quality-report.md) (historical Cesium numbers).
