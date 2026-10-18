@@ -1,42 +1,59 @@
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
-import type { BuildingsLayer } from "../../../../lib/api";
 import type { Tier } from "../../cesium/stylised/quality";
 import { useScene } from "../../sceneStore";
 import { createAmbient } from "../ambient/ambient";
 import type { Placement } from "../assets/fit";
 import type { RoleUniforms } from "../assets/roleMaterial";
-import { HERO_CENTRE, HERO_RADIUS_M } from "../bookmarks";
 import type { Engine } from "../engine";
 import type { LocalFrame } from "../frame";
-import { PROP_CAPS } from "../props/caps";
 import { createLampPools } from "../props/lampPools";
-import { planProps } from "../props/propsPlan";
 import { createSignLayer } from "../signs/signLayer";
-import { planSigns } from "../signs/signPlan";
-import { boxAround } from "../stream/area";
+import type { SignPlacement } from "../signs/signPlan";
+import type { ActiveTile } from "../stream/streamer";
 import type { SceneBus } from "./sceneBus";
-import type { LoadedAssets } from "./useCityAssets";
-import type { LayerData } from "./useGround";
 
-/** The square box covering the P3 hero circle: the planners' area until Task 4 streams tiles. */
-export const heroBox = (frame: LocalFrame) => {
-  const [x, z] = frame.toLocal(HERO_CENTRE[0], HERO_CENTRE[1]);
-  return boxAround(x, z, HERO_RADIUS_M);
-};
+/** Every list of `pick` over the active tiles, deduplicated by id (each tile owns its items). */
+function unionById<T extends { id: string }>(active: ActiveTile[], pick: (a: ActiveTile) => T[]) {
+  const seen = new Set<string>();
+  const out: T[] = [];
+  for (const a of active)
+    for (const v of pick(a)) {
+      if (seen.has(v.id)) continue;
+      seen.add(v.id);
+      out.push(v);
+    }
+  return out;
+}
+
+/** The union of the active tiles' kit placements, per kit key, deduplicated by placement id. */
+function unionKits(active: ActiveTile[]): Map<string, Placement[]> {
+  const out = new Map<string, Placement[]>();
+  const seen = new Set<string>();
+  for (const a of active)
+    for (const [k, l] of a.content.kits)
+      for (const p of l) {
+        if (seen.has(p.id)) continue;
+        seen.add(p.id);
+        const cur = out.get(k);
+        if (cur) cur.push(p);
+        else out.set(k, [p]);
+      }
+  return out;
+}
 
 /**
- * Decorative detail: the hero district's props (handed to the city instances through `setKits`),
- * lamp light pools, sourced shop signs, and the ambient birds and cloud shadows.
+ * Decorative detail from the streamed tiles: their props (the union handed to the city instances
+ * through `setKits`, rebuilt only when the active set changes), lamp light pools, sourced shop
+ * signs (one batched layer), and the ambient birds and cloud shadows, which follow the tile under
+ * the camera target. Low draws none of it.
  */
 export function useDecor({
   engine,
   frame,
   tier,
-  detailsOn,
-  walk,
-  buildings,
-  loaded,
+  active,
+  centre,
   showroom,
   roleUniforms,
   setKits,
@@ -45,104 +62,102 @@ export function useDecor({
   engine: Engine | null;
   frame: LocalFrame | null;
   tier: Tier;
-  detailsOn: boolean;
-  walk: LayerData | undefined;
-  buildings: BuildingsLayer | null | undefined;
-  loaded: LoadedAssets | null;
+  active: ActiveTile[];
+  /** Local centre of the tile under the camera target (null before the first LOD tick). */
+  centre: [number, number] | null;
   showroom: boolean;
   roleUniforms: RoleUniforms;
   setKits: (kits: Map<string, Placement[]> | null) => void;
   bus: SceneBus;
 }) {
-  // Seeded static props (trees, lamps, furniture, construction) for the hero district. Planned once
-  // the buildings, land cover and walk are all in, from data that does not depend on profile or
-  // scenario, and re-planned when the quality tier changes (PROP_CAPS[tier]; none at Low).
-  // Decorative only.
-  const propsPlan = useMemo(
-    () =>
-      frame && detailsOn && walk && buildings && loaded && !showroom
-        ? planProps({
-            walk,
-            landcover: buildings.landcover,
-            buildings: buildings.buildings,
-            parks: buildings.parks,
-            trees: buildings.trees,
-            places: walk,
-            frame,
-            // Until the streamer plans per tile (Task 4): one box covering the P3 hero circle,
-            // with the P3 hero totals as caps.
-            area: { box: heroBox(frame), seed: "props" },
-            tier,
-            caps: PROP_CAPS[tier],
-            m: loaded.manifest,
-          })
-        : null,
-    [frame, detailsOn, walk, buildings, loaded, showroom, tier],
+  const rich = tier !== "low";
+  // Stale content can outlive a switch to Low for a few ticks (until its re-plan): gate it here.
+  const kits = useMemo(
+    () => (rich ? unionKits(active) : new Map<string, Placement[]>()),
+    [active, rich],
   );
 
-  // Props arrive after the city's first frame, and are re-planned on a tier change: only the kit
-  // buckets of the city instances are rebuilt (the city mesh and the archetypes are kept).
+  // Only the kit buckets of the city instances are rebuilt (the city mesh and archetypes are kept).
   useEffect(() => {
-    if (propsPlan) setKits(propsPlan.kits);
-  }, [propsPlan, setKits]);
+    if (!showroom) setKits(kits);
+  }, [kits, setKits, showroom]);
 
-  // Lamp light pools (one instanced draw, from the planned lamps). Decorative; the engine slot
-  // disposes them when the props are re-planned or the scene goes away.
+  // Lamp light pools (one instanced draw, from the active tiles' lamps). Decorative.
+  const lamps = useMemo(
+    () => (rich ? unionById(active, (a) => a.content.lamps) : []),
+    [active, rich],
+  );
   useEffect(() => {
-    if (!engine || !propsPlan) return;
-    const lamps = [
-      ...(propsPlan.kits.get("furniture/lamp_single") ?? []),
-      ...(propsPlan.kits.get("furniture/lamp_double") ?? []),
-    ];
-    if (lamps.length === 0) return;
+    if (!engine || lamps.length === 0) return;
     const pools = createLampPools(lamps, roleUniforms);
     const group = new THREE.Group();
     group.name = "lamp-pools";
     group.add(pools.mesh);
     engine.setDecor("lamp-pools", { group, dispose: pools.dispose });
     return () => engine.setDecor("lamp-pools", null);
-  }, [engine, propsPlan, roleUniforms]);
+  }, [engine, lamps, roleUniforms]);
 
   // Sourced, text-only shop signs: a sign without text, source_url and as_of never reaches the
-  // client (the API filters) and is dropped again in the plan. Planned once the walk is in, for the hero district only and none at Low.
-  // Keyed on "not Low", not the tier: a Medium <-> High change must not rebuild the signs (and
-  // close an open sign card).
-  const signsOn = tier !== "low";
-  const signPlan = useMemo(
-    () =>
-      frame && detailsOn && walk && buildings && !showroom && signsOn
-        ? planSigns(buildings.signage, buildings.buildings, walk, frame, {
-            area: { box: heroBox(frame), seed: "signs" },
-          })
-        : null,
-    [frame, detailsOn, walk, buildings, showroom, signsOn],
+  // client (the API filters) and is dropped again in the plan. The layer is rebuilt only when the
+  // set of sign ids changes (a re-plan with the same signs, e.g. Medium <-> High, keeps it).
+  const signList = useMemo(
+    () => (rich ? unionById<SignPlacement>(active, (a) => a.content.signs) : []),
+    [active, rich],
   );
+  const signKey = signList.map((s) => s.id).join("\n");
+  // biome-ignore lint/correctness/useExhaustiveDependencies: keyed on the ids, not the array
+  const signs = useMemo(() => signList, [signKey]);
   useEffect(() => {
-    if (!engine || !signPlan || signPlan.signs.length === 0) return;
-    const layer = createSignLayer(signPlan.signs, roleUniforms);
+    if (!engine || signs.length === 0) {
+      // No signs drawn: no card either.
+      if (useScene.getState().selectedSignId !== null) useScene.getState().selectSign(null);
+      return;
+    }
+    const layer = createSignLayer(signs, roleUniforms);
     engine.setDecor("signs", layer);
     engine.requestRender();
-    return () => {
-      engine.setDecor("signs", null);
-      // A card must not outlive its signs.
+    // A card must not outlive its sign: close it if the sign left the active tiles.
+    const open = useScene.getState().selectedSignId;
+    if (open !== null && !signs.some((s) => s.id === open)) useScene.getState().selectSign(null);
+    return () => engine.setDecor("signs", null);
+  }, [engine, signs, roleUniforms]);
+  // Unmount (or engine switch): no card without the scene.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `engine` is the trigger (an engine switch closes the card)
+  useEffect(
+    () => () => {
       useScene.getState().selectSign(null);
-    };
-  }, [engine, signPlan, roleUniforms]);
+    },
+    [engine],
+  );
 
-  // Birds and cloud shadows. The motion clock ticks them; while it is stopped the driver re-ticks
-  // them at the frozen time on each mood change, so their day/night visibility stays right.
+  // Birds and cloud shadows, built around the frame origin and moved with the tile under the
+  // camera target. The motion clock ticks them; while it is stopped the driver re-ticks them at
+  // the frozen time on each mood change, so their day/night visibility stays right.
+  const centreRef = useRef(centre);
+  centreRef.current = centre;
+  const ambientRef = useRef<ReturnType<typeof createAmbient> | null>(null);
   useEffect(() => {
     // None at Low (Review Focus 5); counts follow the tier.
     if (!engine || !frame || showroom || tier === "low") return;
-    const ambient = createAmbient(tier, frame, HERO_CENTRE, "ambient");
+    const ambient = createAmbient(tier, frame, frame.toLonLat(0, 0), "ambient");
+    const c = centreRef.current;
+    if (c) ambient.group.position.set(c[0], 0, c[1]);
     ambient.tick(performance.now(), bus.getState().mood);
+    ambientRef.current = ambient;
     bus.setState({ ambient });
     engine.setDecor("ambient", ambient);
     return () => {
+      ambientRef.current = null;
       bus.setState({ ambient: null });
       engine.setDecor("ambient", null);
     };
   }, [engine, frame, showroom, tier, bus]);
+  useEffect(() => {
+    const ambient = ambientRef.current;
+    if (!engine || !ambient || !centre) return;
+    ambient.group.position.set(centre[0], 0, centre[1]);
+    engine.requestRender();
+  }, [engine, centre]);
 
-  return { propsPlan };
+  return { kits };
 }

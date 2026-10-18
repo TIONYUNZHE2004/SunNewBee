@@ -4,27 +4,23 @@ import { prefersReducedMotion, useSceneSettings } from "../../sceneSettingsStore
 import { useScene } from "../../sceneStore";
 import type { RoleUniforms } from "../assets/roleMaterial";
 import type { Engine } from "../engine";
-import type { LocalFrame } from "../frame";
-import { planAgents } from "../motion/agents";
+import type { Agent } from "../motion/agents";
 import { createMotionDriver, type MotionDriver, motionRunning } from "../motion/motionClock";
 import { createMotionLayer } from "../motion/motionLayer";
-import { capFor } from "../props/caps";
+import type { ActiveTile } from "../stream/streamer";
 import type { SceneBus } from "./sceneBus";
 import type { LoadedAssets } from "./useCityAssets";
-import { heroBox } from "./useDecor";
-import type { LayerData } from "./useGround";
 
 /**
  * The motion clock (decorative traffic, pedestrians, birds, sway, shimmer, flicker): its gates
  * (Motion setting, reduced motion, tab visible, map on screen), the driver, the Day / Rollout fade
- * and the seeded agents.
+ * and the agents of the streamed tiles (one motion layer for their union, rebuilt only when the
+ * set of agents changes).
  */
 export function useMotion({
   engine,
-  frame,
   tier,
-  detailsOn,
-  walk,
+  active,
   loaded,
   showroom,
   roleUniforms,
@@ -32,10 +28,8 @@ export function useMotion({
   bus,
 }: {
   engine: Engine | null;
-  frame: LocalFrame | null;
   tier: Tier;
-  detailsOn: boolean;
-  walk: LayerData | undefined;
+  active: ActiveTile[];
   loaded: LoadedAssets | null;
   showroom: boolean;
   roleUniforms: RoleUniforms;
@@ -111,23 +105,22 @@ export function useMotion({
       engine.requestRender();
     });
   }, [engine, driver]);
-  // Seeded agents on the hero district's walk edges (decorative, like the props).
-  const agents = useMemo(
-    () =>
-      frame && detailsOn && walk && loaded && !showroom
-        ? planAgents({
-            walk,
-            places: walk,
-            frame,
-            // Until the streamer plans per tile (Task 4): the P3 hero box and totals.
-            area: { box: heroBox(frame), seed: "motion" },
-            tier,
-            caps: { vehicles: capFor(tier, "vehicles"), people: capFor(tier, "people") },
-            m: loaded.manifest,
-          })
-        : null,
-    [frame, detailsOn, walk, loaded, showroom, tier],
-  );
+  // The active tiles' agents (decorative, like the props); none at Low, even from stale content.
+  const agentList = useMemo(() => {
+    if (showroom || tier === "low") return [];
+    const seen = new Set<string>();
+    const out: Agent[] = [];
+    for (const t of active)
+      for (const a of t.content.agents)
+        if (!seen.has(a.id)) {
+          seen.add(a.id);
+          out.push(a);
+        }
+    return out;
+  }, [active, showroom, tier]);
+  const agentKey = agentList.map((a) => a.id).join("\n");
+  // biome-ignore lint/correctness/useExhaustiveDependencies: keyed on the ids, not the array
+  const agents = useMemo(() => agentList, [agentKey]);
   useEffect(() => {
     if (!engine || !driver || !loaded || !agents || agents.length === 0) return;
     driver.setAgents(
