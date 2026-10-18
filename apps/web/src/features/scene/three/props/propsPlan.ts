@@ -83,10 +83,12 @@ const GRID_M = 32;
 /** A street or verge tree may be moved outward by up to this far to clear a footway. */
 const TREE_MOVE_M = 4;
 const TREE_MOVE_STEP_M = 0.5;
+/** Canopy used for a tree variant the manifest lacks: the widest known (rain tree). */
+const DEFAULT_CANOPY_M = 20;
 /** A canopy may reach this far past a footway or path centreline (at y < 3 m). */
 const CANOPY_OVERHANG_M = 1;
-/** Footway segments are indexed this far out: the widest canopy radius (7 m) stays inside. */
-const FOOT_REACH_M = 8;
+/** Footway segments are indexed this far out: the widest canopy radius (11 m) stays inside. */
+const FOOT_REACH_M = 12;
 /**
  * The furthest a kerb prop stands from its road's centre line: half the widest road plus the
  * larger kerb offset. A road this far outside the box can still put a tree or lamp inside it.
@@ -556,10 +558,12 @@ export function planProps(input: PropsInput): PropsPlan {
         ? "forest"
         : "park";
   /**
-   * Roadside trees (street, median, and OSM points within reach of a footway) use the small
-   * bands, and their canopy (manifest size x scale / 2) may overhang a footway or path centreline
-   * by at most 1 m: a tree that does is moved outward along (dx, dz), a step at a time, or dropped.
-   * The decision depends only on the tree and the walk layer, never on the planned box.
+   * Every tree's canopy (manifest size x scale / 2) may overhang a footway or path centreline by
+   * at most 1 m. At a tree's position the scale is shrunk within its band (down to the band
+   * minimum) until it clears; street trees that still do not clear are moved outward along
+   * (dx, dz) a step at a time; otherwise the tree is dropped. Roadside trees (street, median, and
+   * OSM points within reach of a footway) use the small bands. The decision depends only on the
+   * tree and the walk layer, never on the planned box.
    */
   const tree = (
     id: string,
@@ -573,29 +577,25 @@ export function planProps(input: PropsInput): PropsPlan {
     let ctx = treeCtx(src);
     if (src === "osm" && footDist(x, z) < FOOT_REACH_M) ctx = "verge";
     const sc = scaleOf(ctx, v, id);
-    if (ctx === "street" || ctx === "verge") {
-      const size = m.assets.trees?.variants[v]?.size;
-      const need = ((size?.[0] ?? 0) * sc) / 2 - CANOPY_OVERHANG_M;
-      let moved = false;
-      if (need > 0) {
-        const steps = dir ? Math.round(TREE_MOVE_M / TREE_MOVE_STEP_M) : 0;
-        for (let k = 0; k <= steps; k++) {
-          const t = k * TREE_MOVE_STEP_M;
-          const px = x + (dir ? dir[0] * t : 0);
-          const pz = z + (dir ? dir[1] * t : 0);
-          if (footDist(px, pz) >= need) {
-            x = px;
-            z = pz;
-            moved = true;
-            break;
-          }
-        }
-        if (!moved) {
-          return false;
-        }
-      }
+    const lo = (TREE_SCALE[ctx][v as TreeVariant] ?? [0.8, 1.1])[0];
+    // A variant missing from the manifest is checked against the widest canopy (the rain tree's
+    // 20 m), never skipped.
+    const size = m.assets.trees?.variants[v]?.size[0] ?? DEFAULT_CANOPY_M;
+    const steps = dir ? Math.round(TREE_MOVE_M / TREE_MOVE_STEP_M) : 0;
+    for (let k = 0; k <= steps; k++) {
+      const t = k * TREE_MOVE_STEP_M;
+      const px = x + (dir ? dir[0] * t : 0);
+      const pz = z + (dir ? dir[1] * t : 0);
+      // The largest scale whose radius stays within the allowed overhang.
+      const fit = ((footDist(px, pz) + CANOPY_OVERHANG_M) * 2) / size;
+      if (fit < lo - 1e-9) continue;
+      return push("trees", `trees/${v}`, id, px, pz, undefined, {
+        src,
+        sc: Math.min(sc, fit),
+        ribbon,
+      });
     }
-    return push("trees", `trees/${v}`, id, x, z, undefined, { src, sc, ribbon });
+    return false;
   };
 
   // Street trees, lamps and median palms.
@@ -731,9 +731,10 @@ export function planProps(input: PropsInput): PropsPlan {
     let near = Number.POSITIVE_INFINITY;
     for (const p of polys) {
       const b = bboxOf(p[0]!);
+      // Chebyshev distance, to match the square rings (the Euclidean one skips near corner cells).
       near = Math.min(
         near,
-        Math.hypot(Math.max(b[0] - cx, 0, cx - b[2]), Math.max(b[1] - cz, 0, cz - b[3])),
+        Math.max(Math.max(b[0] - cx, 0, cx - b[2]), Math.max(b[1] - cz, 0, cz - b[3])),
       );
     }
     const r0 = Math.max(0, Math.floor(near / cell) - 2);

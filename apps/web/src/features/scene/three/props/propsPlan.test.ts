@@ -492,8 +492,28 @@ describe("tree scale and footway clearance", () => {
         ],
         "p1",
       ),
+      line(
+        "major_road",
+        [
+          [-200, -120],
+          [200, -120],
+        ],
+        "m1",
+      ),
+      line(
+        "footway",
+        [
+          [120, 40],
+          [120, 200],
+        ],
+        "f2",
+      ),
     ),
-    landcover: fc(poly({ class: "grass" }, 60, 60, 120, 120)),
+    landcover: fc(
+      poly({ class: "grass" }, 60, 60, 120, 120),
+      poly({ class: "forest" }, 100, -230, 100, 80),
+      poly({ class: "oil_palm" }, -230, 100, 100, 100),
+    ),
     parks: fc(poly({ id: "p1" }, 60, 60, 120, 120)),
     trees: fc(point({ id: "t1" }, 10, 8), point({ id: "t2" }, 150, -150)),
   };
@@ -529,11 +549,12 @@ describe("tree scale and footway clearance", () => {
     }
   });
 
-  it("no street or verge canopy reaches more than 1 m over a footway centreline", () => {
-    const trees = ofAsset(run(), "trees").filter(
-      (t) => t.id.startsWith("st:") || t.id.startsWith("ot:"),
-    );
+  it("no tree canopy reaches more than 1 m over a footway centreline", () => {
+    const trees = ofAsset(run(), "trees");
     expect(trees.length).toBeGreaterThan(5);
+    const prefixes = new Set(trees.map((t) => t.id.split(":")[0]));
+    for (const pre of ["st", "ot", "mt"]) expect(prefixes.has(pre)).toBe(true);
+    expect(prefixes.size).toBeGreaterThan(3);
     const centrelines = [
       [
         [-240, 6],
@@ -546,6 +567,10 @@ describe("tree scale and footway clearance", () => {
       [
         [-100, -200],
         [100, 200],
+      ],
+      [
+        [120, 40],
+        [120, 200],
       ],
     ] as const;
     const dist = (px: number, pz: number, a: readonly number[], b: readonly number[]) => {
