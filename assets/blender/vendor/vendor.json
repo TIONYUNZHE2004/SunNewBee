@@ -1,1 +1,121 @@
-[]
+[
+  {
+    "slug": "mini-female-a",
+    "kind": "people",
+    "url": "https://kenney.nl/assets/mini-characters",
+    "author": "Kenney (www.kenney.nl)",
+    "licence": "CC0-1.0",
+    "version": "Mini Characters 1.0",
+    "source_file": "Models/GLB format/character-female-a.glb",
+    "downloaded": "2026-10-19",
+    "files": [
+      "vendor/people/mini-female-a/source.glb"
+    ],
+    "sha256": {
+      "vendor/people/mini-female-a/source.glb": "8cfcff43460da8b421f2a7fdfb43ec177321cad2746db9497cbf128d5806e2a8"
+    },
+    "role_map": {}
+  },
+  {
+    "slug": "mini-female-b",
+    "kind": "people",
+    "url": "https://kenney.nl/assets/mini-characters",
+    "author": "Kenney (www.kenney.nl)",
+    "licence": "CC0-1.0",
+    "version": "Mini Characters 1.0",
+    "source_file": "Models/GLB format/character-female-b.glb",
+    "downloaded": "2026-10-19",
+    "files": [
+      "vendor/people/mini-female-b/source.glb"
+    ],
+    "sha256": {
+      "vendor/people/mini-female-b/source.glb": "2288438e7baf9acc91a870c82dc00d66710bb486592cfc3474ef8ed93a03863a"
+    },
+    "role_map": {}
+  },
+  {
+    "slug": "mini-female-c",
+    "kind": "people",
+    "url": "https://kenney.nl/assets/mini-characters",
+    "author": "Kenney (www.kenney.nl)",
+    "licence": "CC0-1.0",
+    "version": "Mini Characters 1.0",
+    "source_file": "Models/GLB format/character-female-c.glb",
+    "downloaded": "2026-10-19",
+    "files": [
+      "vendor/people/mini-female-c/source.glb"
+    ],
+    "sha256": {
+      "vendor/people/mini-female-c/source.glb": "3cd9e1b5d6409fce0ba1af617d9e008c3069493185a4c100f49fb99a2626a055"
+    },
+    "role_map": {}
+  },
+  {
+    "slug": "mini-male-a",
+    "kind": "people",
+    "url": "https://kenney.nl/assets/mini-characters",
+    "author": "Kenney (www.kenney.nl)",
+    "licence": "CC0-1.0",
+    "version": "Mini Characters 1.0",
+    "source_file": "Models/GLB format/character-male-a.glb",
+    "downloaded": "2026-10-19",
+    "files": [
+      "vendor/people/mini-male-a/source.glb"
+    ],
+    "sha256": {
+      "vendor/people/mini-male-a/source.glb": "77572792bfe2773b715b8cd8e18644b52b3e1f155fe10450254b50f9c364382a"
+    },
+    "role_map": {}
+  },
+  {
+    "slug": "mini-male-b",
+    "kind": "people",
+    "url": "https://kenney.nl/assets/mini-characters",
+    "author": "Kenney (www.kenney.nl)",
+    "licence": "CC0-1.0",
+    "version": "Mini Characters 1.0",
+    "source_file": "Models/GLB format/character-male-b.glb",
+    "downloaded": "2026-10-19",
+    "files": [
+      "vendor/people/mini-male-b/source.glb"
+    ],
+    "sha256": {
+      "vendor/people/mini-male-b/source.glb": "791fc0c203924c175c0a3d5b60d030daf36797b039506689cf7cd01ef5253b3c"
+    },
+    "role_map": {}
+  },
+  {
+    "slug": "mini-male-c",
+    "kind": "people",
+    "url": "https://kenney.nl/assets/mini-characters",
+    "author": "Kenney (www.kenney.nl)",
+    "licence": "CC0-1.0",
+    "version": "Mini Characters 1.0",
+    "source_file": "Models/GLB format/character-male-c.glb",
+    "downloaded": "2026-10-19",
+    "files": [
+      "vendor/people/mini-male-c/source.glb"
+    ],
+    "sha256": {
+      "vendor/people/mini-male-c/source.glb": "672a6506f7475bbd655da1d7ff712c1729a430f134c62385a4e5d3c1378acb40"
+    },
+    "role_map": {}
+  },
+  {
+    "slug": "mini-wheelchair",
+    "kind": "people",
+    "url": "https://kenney.nl/assets/mini-characters",
+    "author": "Kenney (www.kenney.nl)",
+    "licence": "CC0-1.0",
+    "version": "Mini Characters 1.0",
+    "source_file": "Models/GLB format/wheelchair.glb",
+    "downloaded": "2026-10-19",
+    "files": [
+      "vendor/people/mini-wheelchair/source.glb"
+    ],
+    "sha256": {
+      "vendor/people/mini-wheelchair/source.glb": "cb7b6cbebc7bbe238ae926b26305661eb66e17659fafa8fa0c098f5e7955fabe"
+    },
+    "role_map": {}
+  }
+]
