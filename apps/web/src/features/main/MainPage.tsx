@@ -11,6 +11,7 @@ import { PlaceOverlay } from "../map-ui/PlaceOverlay";
 import { RolloutTag } from "../map-ui/RolloutTag";
 import { RouteTag } from "../map-ui/RouteTag";
 import { SettingsPopover } from "../map-ui/SettingsPopover";
+import { SignCard } from "../map-ui/SignCard";
 import { WhatIfTag } from "../map-ui/WhatIfTag";
 import { useRolloutPlayback } from "../whatif/useRolloutPlayback";
 import { BottomSheet } from "./BottomSheet";
@@ -75,6 +76,7 @@ export function MainPage() {
           <SettingsPopover />
           <PlaceOverlay />
           <PathOverlay />
+          <SignCard />
         </MapStage>
       </section>
       {wide ? (

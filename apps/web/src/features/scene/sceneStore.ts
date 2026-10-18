@@ -46,6 +46,8 @@ export interface SceneState {
   focusRouteRequest: string | null;
   selectedPlaceId: string | null;
   selectedFloodEdgeId: string | null;
+  /** A shop sign picked in the Three.js city; its source card is shown. */
+  selectedSignId: string | null;
   route: { id: string; geojson: GeoJSON.LineString } | null;
   /** A what-if diff (imagined, never a real route): before/after lines and imagined changes. */
   whatIf: { geojson: { type: string; features: unknown[] } } | null;
@@ -72,6 +74,7 @@ export interface SceneState {
   requestRouteFocus: (id: string) => void;
   selectPlace: (id: string | null) => void;
   selectFloodEdge: (id: string | null) => void;
+  selectSign: (id: string | null) => void;
   setView: (v: View) => void;
   setProfile: (p: Profile) => void;
   setScenario: (s: string | null) => void;
@@ -101,6 +104,7 @@ const initial = {
   focusRouteRequest: null as string | null,
   selectedPlaceId: null as string | null,
   selectedFloodEdgeId: null as string | null,
+  selectedSignId: null as string | null,
   route: null as SceneState["route"],
   whatIf: null as SceneState["whatIf"],
   rollout: { on: false, stage: 0, playing: false } as SceneState["rollout"],
@@ -189,16 +193,24 @@ export const useScene = create<SceneState>((set) => ({
       }
       return next;
     }),
-  // One detail panel at a time: opening either closes the other.
+  // One detail panel at a time: opening any of the three closes the others.
   selectPlace: (selectedPlaceId) =>
     set((s) => ({
       selectedPlaceId,
       selectedFloodEdgeId: selectedPlaceId ? null : s.selectedFloodEdgeId,
+      selectedSignId: selectedPlaceId ? null : s.selectedSignId,
     })),
   selectFloodEdge: (selectedFloodEdgeId) =>
     set((s) => ({
       selectedFloodEdgeId,
       selectedPlaceId: selectedFloodEdgeId ? null : s.selectedPlaceId,
+      selectedSignId: selectedFloodEdgeId ? null : s.selectedSignId,
+    })),
+  selectSign: (selectedSignId) =>
+    set((s) => ({
+      selectedSignId,
+      selectedPlaceId: selectedSignId ? null : s.selectedPlaceId,
+      selectedFloodEdgeId: selectedSignId ? null : s.selectedFloodEdgeId,
     })),
   setView: (view) => set({ view, rendererFailed: false }),
   setRendererFailed: (rendererFailed) => set({ rendererFailed }),

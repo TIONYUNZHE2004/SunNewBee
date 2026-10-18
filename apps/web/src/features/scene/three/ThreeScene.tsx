@@ -66,6 +66,8 @@ import { KIT_LOD_SCALE } from "./props/caps";
 import { createLampPools } from "./props/lampPools";
 import { planProps } from "./props/propsPlan";
 import { lineToLocal } from "./routeLine";
+import { createSignLayer } from "./signs/signLayer";
+import { planSigns } from "./signs/signPlan";
 
 const EMPTY_FC = { type: "FeatureCollection", features: [] };
 const INTENT_PITCH_DEG = -45;
@@ -509,6 +511,23 @@ export default function ThreeScene({
     engine.setDecor("lamp-pools", { group, dispose: pools.dispose });
     return () => engine.setDecor("lamp-pools", null);
   }, [engine, propsPlan, roleUniforms]);
+
+  // Sourced, text-only shop signs: a sign without text, source_url and as_of never reaches the
+  // client (the API filters) and is dropped again in the plan. Planned once the walk is in.
+  const signPlan = useMemo(
+    () =>
+      frame && detailsOn && walk && buildings && !showroom
+        ? planSigns(buildings.signage, buildings.buildings, walk, frame)
+        : null,
+    [frame, detailsOn, walk, buildings, showroom],
+  );
+  useEffect(() => {
+    if (!engine || !signPlan || signPlan.signs.length === 0) return;
+    const layer = createSignLayer(signPlan.signs, roleUniforms);
+    engine.setDecor("signs", layer);
+    engine.requestRender();
+    return () => engine.setDecor("signs", null);
+  }, [engine, signPlan, roleUniforms]);
 
   // Birds and cloud shadows. The motion clock ticks them; while it is stopped the driver re-ticks
   // them at the frozen time on each mood change, so their day/night visibility stays right.
