@@ -104,7 +104,7 @@ export function createFloodLayer(
       polygonOffsetFactor: FLOOD_POLYGON_OFFSET,
       polygonOffsetUnits: FLOOD_POLYGON_OFFSET,
       side: THREE.DoubleSide,
-      toneMapped: false,
+      // Overlay colours go through the composer's OutputPass tone mapping (ruling: accepted for P3).
     });
     const mesh = new THREE.Mesh(geo, mat);
     mesh.name = "flood-fill";

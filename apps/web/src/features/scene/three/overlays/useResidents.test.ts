@@ -18,10 +18,22 @@ describe("rollout playback driver", () => {
     expect(request).toHaveBeenCalledTimes(n);
   });
 
-  it("runs only while on, loaded, someone is walking and the tab is visible", () => {
-    const base = { on: true, loaded: true, walking: true, visible: true };
+  it("runs only while on, loaded, someone is walking, the tab is visible and the map on screen", () => {
+    const base = {
+      on: true,
+      loaded: true,
+      walking: true,
+      visible: true,
+      onScreen: true,
+      clockRunning: false,
+    };
     expect(playbackActive(base)).toBe(true);
-    for (const k of ["on", "loaded", "walking", "visible"] as const)
+    for (const k of ["on", "loaded", "walking", "visible", "onScreen"] as const)
       expect(playbackActive({ ...base, [k]: false })).toBe(false);
+  });
+
+  it("yields to the motion clock: no second timer while it already renders at ~30 fps", () => {
+    const base = { on: true, loaded: true, walking: true, visible: true, onScreen: true };
+    expect(playbackActive({ ...base, clockRunning: true })).toBe(false);
   });
 });

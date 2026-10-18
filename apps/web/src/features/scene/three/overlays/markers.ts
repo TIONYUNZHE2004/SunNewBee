@@ -224,7 +224,7 @@ export function createMarkers(
       transparent: true,
       depthTest: false,
       depthWrite: false,
-      toneMapped: false,
+      // Overlay colours go through the composer's OutputPass tone mapping (ruling: accepted for P3).
     });
     const s = new THREE.Sprite(mat);
     s.center.set(0.5, -0.6); // the label floats above its marker

@@ -87,7 +87,8 @@ export function createResidents(frame: LocalFrame): Residents {
   group.name = "residents";
   group.visible = false;
   const geo = capsule();
-  const basic = { depthTest: false, depthWrite: false, toneMapped: false } as const;
+  // Overlay colours go through the composer's OutputPass tone mapping (ruling: accepted for P3).
+  const basic = { depthTest: false, depthWrite: false } as const;
   const fillMat = new THREE.MeshBasicMaterial({ ...basic });
   const outlineMat = new THREE.MeshBasicMaterial({
     ...basic,
@@ -186,11 +187,13 @@ export function createResidents(frame: LocalFrame): Residents {
   };
 
   const NEUTRAL = new THREE.Color(RESIDENT_STYLE.noData.color);
-  const dayColours: Record<string, THREE.Color> = Object.fromEntries(
-    Object.entries(DAY_STYLE).map(([k, v]) => [k, new THREE.Color(v.color)]),
+  // Maps, not plain objects: a state like "constructor" must fall back to NEUTRAL, not hit the
+  // prototype.
+  const dayColours = new Map(
+    Object.entries(DAY_STYLE).map(([k, v]) => [k, new THREE.Color(v.color)] as const),
   );
-  const rolloutColours: Record<string, THREE.Color> = Object.fromEntries(
-    Object.entries(RESIDENT_STYLE).map(([k, v]) => [k, new THREE.Color(v.color)]),
+  const rolloutColours = new Map(
+    Object.entries(RESIDENT_STYLE).map(([k, v]) => [k, new THREE.Color(v.color)] as const),
   );
 
   const walkerXZ = (w: NonNullable<Item["walk"]>, nowMs: number): [number, number] => {
@@ -208,7 +211,7 @@ export function createResidents(frame: LocalFrame): Residents {
           id: d.r,
           x,
           z,
-          colour: dayColours[d.state] ?? NEUTRAL,
+          colour: dayColours.get(d.state) ?? NEUTRAL,
           focused: d.r === focus,
         };
       });
@@ -228,7 +231,7 @@ export function createResidents(frame: LocalFrame): Residents {
             id: p.id,
             x,
             z,
-            colour: rolloutColours[p.kind] ?? NEUTRAL,
+            colour: rolloutColours.get(p.kind) ?? NEUTRAL,
             focused: false,
             walk,
           };

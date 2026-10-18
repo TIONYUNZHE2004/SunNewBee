@@ -19,6 +19,9 @@ export function useResidents(
   engine: Engine | null,
   overlay: OverlayLayer | null,
   frame: LocalFrame | null,
+  /** The map is on screen, and whether the decorative motion clock is running (it already renders
+   * every motion frame, so the playback timer stands down). */
+  gate: { onScreen: boolean; clockRunning: boolean } = { onScreen: true, clockRunning: false },
 ) {
   const day = useScene((s) => s.day);
   const rollout = useScene((s) => s.rollout);
@@ -74,6 +77,8 @@ export function useResidents(
     loaded: !!rolloutData && !!residents,
     walking,
     visible,
+    onScreen: gate.onScreen,
+    clockRunning: gate.clockRunning,
   });
   useEffect(() => {
     if (!engine || !playing) return;
@@ -84,19 +89,21 @@ export function useResidents(
 /** Frame cadence of the rollout playback: the same ~30 fps as the decorative motion clock. */
 export const PLAYBACK_MS = MOTION_FRAME_MS;
 
-/** Rollout playback is simulation, not decoration: it plays whatever the Motion setting says. */
+/** Rollout playback is simulation, not decoration: it plays whatever the Motion setting says. It
+ * pauses with a hidden tab or the map off screen, and needs no timer of its own while the motion
+ * clock runs (that clock renders every ~33 ms and the walkers move on each rendered frame). */
 export function playbackActive(s: {
   on: boolean;
   loaded: boolean;
   walking: boolean;
   visible: boolean;
+  onScreen: boolean;
+  clockRunning: boolean;
 }): boolean {
-  return s.on && s.loaded && s.walking && s.visible;
+  return s.on && s.loaded && s.walking && s.visible && s.onScreen && !s.clockRunning;
 }
 
-/** Asks for a render every PLAYBACK_MS until the returned stop is called. requestRender is
- * idempotent (it sets the dirty flag and schedules at most one animation frame), so this never
- * double-schedules with the decorative motion clock. */
+/** Asks for a render every PLAYBACK_MS until the returned stop is called. */
 export function startPlayback(requestRender: () => void): () => void {
   const id = setInterval(requestRender, PLAYBACK_MS);
   return () => clearInterval(id);
