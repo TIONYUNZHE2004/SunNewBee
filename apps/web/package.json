@@ -15,6 +15,7 @@
     "@tl/api-client": "workspace:*",
     "cesium": "1.146.0",
     "mapbox-gl": "3.33.0",
+    "polygon-clipping": "0.15.7",
     "react": "19.3.0",
     "react-dom": "19.3.0",
     "react-map-gl": "8.1.3",

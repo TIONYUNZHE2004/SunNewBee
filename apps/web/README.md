@@ -323,6 +323,27 @@ after it stops.
 - The glbs and manifest live in `public/city/` (lane `blender`); `vite build` copies them to
   `dist/city/`.
 
+#### Elmina outline and diorama slab (Three.js, A-T4)
+
+When `/site` serves `boundary.geometry` (the display-only Elmina outline, `base/boundary.geojson`),
+the stylised city is clipped to it and sits on a diorama slab. Display only: routing, evaluation,
+the API data and the data overlays (access lines, markers, flood tint) are never clipped.
+
+- `ground/boundary.ts`: the outline in the local frame and the pure helpers (`insideBoundary`,
+  `outsideBy`, `clipToBoundary`, `clipLine`, `clipPolygon` via `polygon-clipping`).
+- `ground/clipLayer.ts`: applied once in `ThreeScene` to the `/layers/buildings` payload and the
+  latched walk copy the planners read. Buildings and landmark outlines are kept only when every
+  footprint vertex lies within 5 m of the inside (never cut; on the seed 1283 of 7803 are kept);
+  land cover, parks and base water are cut geometrically; trees and signs are kept inside; walk
+  lines are cut to their inside runs.
+- `stream/clipTile.ts`: every planned tile's vertex guard (props, lamps, signs, shrubs, cars and
+  stalls inside; road and verge triangles and tracks within 5 m); `planAgents` drops agents whose
+  path leaves the outline; ambient birds and cloud shadows outside it are hidden.
+- `ground/slab.ts` (`engine.setSlab`, `useSlab`): the slab top is the outline (it replaces the
+  rectangular base plane) and its cut edge is a cream crust over three soil bands that step down
+  and out at about 20 degrees, so the section faces the camera on every side at the overview. The
+  edge material takes 0.55 of the scene fog. A world without an outline keeps the base plane.
+
 #### Streaming (Three.js)
 
 Decorative content is planned per 250 m tile around the camera target (`stream/`), not for a fixed
@@ -663,7 +684,8 @@ CI: it needs a real GPU and the Elmina seed.
   journey-sim ledger folder `.superpowers/sdd/journey-sim/acceptance/baseline`).
 - The app side is `window.__tlAcceptance` (`three/scene/useAcceptanceHook.ts`): `setPose`, `getPose`,
   `size`, `frames`, `pickGrid(step)`, `measure(seconds, orbitDegPerSec)`,
-  `measureUncapped(frames, degPerFrame)`, `roadVertices`, `gpu`. It is installed only in
+  `measureUncapped(frames, degPerFrame)`, `roadVertices`, `gpu`, `slabOutline`, `displayAudit`
+  (A-T4; with a slab, `pickGrid` codes the plane beyond the outline as sky). It is installed only in
   dev builds (`import.meta.env.DEV`) or when the page is loaded with `?acceptance=1`; it moves the
   camera and reads the scene, never data or settings.
 

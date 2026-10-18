@@ -2,6 +2,7 @@ import * as THREE from "three";
 import { describe, expect, it } from "vitest";
 import { TIERS, type Tier } from "../../shared/quality";
 import { createFrame } from "../frame";
+import { boundaryOf } from "../ground/boundary";
 import { BIRD_FLAP_HZ, BIRD_MAX_BANK, birdBank, createAmbient } from "./ambient";
 
 const frame = createFrame([101.5, 3.18]);
@@ -177,3 +178,50 @@ function birdOrbitCentre(a: ReturnType<typeof make>, i: number): [number, number
   if (!c) throw new Error("no orbit");
   return c;
 }
+
+describe("createAmbient with the Elmina outline (A-T4)", () => {
+  // A 400 m square outline around the frame origin.
+  const ll = (x: number, z: number) => frame.toLonLat(x, z);
+  const b = boundaryOf(
+    {
+      type: "Polygon",
+      coordinates: [[ll(-200, -200), ll(200, -200), ll(200, 200), ll(-200, 200), ll(-200, -200)]],
+    },
+    frame,
+  )!;
+  const scales = (m: THREE.InstancedMesh) => {
+    const mat = new THREE.Matrix4();
+    const p = new THREE.Vector3();
+    const q = new THREE.Quaternion();
+    const s = new THREE.Vector3();
+    const out: { x: number; z: number; s: number }[] = [];
+    for (let i = 0; i < m.count; i++) {
+      m.getMatrixAt(i, mat);
+      mat.decompose(p, q, s);
+      // Column length, not decompose's scale (three resets a singular matrix's scale to 1).
+      const e = mat.elements;
+      out.push({ x: p.x, z: p.z, s: Math.hypot(e[0]!, e[1]!, e[2]!) });
+    }
+    return out;
+  };
+
+  it("hides birds outside and cloud shadows not wholly inside; refresh redoes it after a move", () => {
+    const a = createAmbient("high", frame, frame.toLonLat(0, 0), "s", b);
+    a.tick(1000, DAY);
+    const { birds, clouds } = parts(a);
+    for (const r of scales(birds as THREE.InstancedMesh)) {
+      const inside = Math.abs(r.x) < 200 && Math.abs(r.z) < 200;
+      expect(r.s === 0, JSON.stringify(r)).toBe(!inside);
+    }
+    for (const r of scales(clouds as THREE.InstancedMesh))
+      if (r.s > 0) {
+        expect(Math.abs(r.x) + r.s / 2).toBeLessThanOrEqual(200.001);
+        expect(Math.abs(r.z) + r.s / 2).toBeLessThanOrEqual(200.001);
+      }
+    // Move the group 10 km away: everything is outside after a refresh.
+    a.group.position.set(10000, 0, 0);
+    a.refresh();
+    for (const r of scales(birds as THREE.InstancedMesh)) expect(r.s).toBe(0);
+    for (const r of scales(clouds as THREE.InstancedMesh)) expect(r.s).toBe(0);
+  });
+});

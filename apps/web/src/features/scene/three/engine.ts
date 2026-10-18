@@ -23,9 +23,11 @@ import {
 import type { CityGeometry } from "./cityMesh";
 import { cullFrustum, shadowPadM } from "./cull";
 import { applyGroundGrade, GROUND_GRADE, groundMaterial } from "./ground/bands";
+import type { Boundary } from "./ground/boundary";
 import { cityGroundMeshes } from "./ground/cityGround";
 import type { GroundLayer } from "./ground/groundLayer";
 import { shimmerMaterial } from "./ground/landcover";
+import { createSlab, type SlabLayerObject } from "./ground/slab";
 import { BLOOM, fitShadowCamera, type LightPreset } from "./lighting";
 import { createLodSchedule } from "./lodSchedule";
 import { applyFog } from "./mood";
@@ -64,6 +66,11 @@ export interface Engine {
   setAssets(a: CityInstances | null): void;
   /** Land cover, roads and markings; replaces and disposes the previous layer; null removes it. */
   setGround(g: GroundLayer | null): void;
+  /**
+   * The diorama slab (A-T4): its top (the Elmina outline) replaces the rectangular base plane and
+   * its layered soil edge closes the map. null removes it and shows the base plane again.
+   */
+  setSlab(b: Boundary | null): void;
   /**
    * Decorative extras (lamp pools, birds, cloud shadows) by slot name: replaces and disposes the
    * slot's previous content; null clears it. The group is added to the scene as is.
@@ -307,6 +314,16 @@ function build(
   applyGroundGrade(groundMat);
   const city = new THREE.Group();
   scene.add(city);
+  /** The rectangular base plane of the last setCity (hidden while a slab is set). */
+  let basePlane: THREE.Mesh | null = null;
+  let slab: SlabLayerObject | null = null;
+  const dropSlab = () => {
+    if (!slab) return;
+    scene.remove(slab.group);
+    slab.dispose();
+    slab = null;
+    if (basePlane) basePlane.visible = true;
+  };
   const disposeCity = () => {
     for (const o of [...city.children]) {
       if (o instanceof THREE.Mesh) o.geometry.dispose();
@@ -314,6 +331,7 @@ function build(
     }
   };
   undo.push(disposeCity);
+  undo.push(dropSlab);
 
   /** Overlay lines (data, not decoration): a scene of their own, see setOverlays. */
   const overlayScene = new THREE.Scene();
@@ -849,6 +867,9 @@ function build(
       const ground = new THREE.Mesh(plane, groundMat);
       ground.position.set(g.ground.center[0], 0, g.ground.center[1]);
       for (const m of [parks, water, ground]) m.receiveShadow = true;
+      ground.name = "base-plane";
+      ground.visible = !slab;
+      basePlane = ground;
       city.add(ground, parks, water, buildings);
       if (!g.bounds.isEmpty())
         bounds = { min: [g.bounds.min.x, g.bounds.min.z], max: [g.bounds.max.x, g.bounds.max.z] };
@@ -879,6 +900,16 @@ function build(
       if (g) {
         groundLayer = g;
         scene.add(g.group);
+      }
+      requestRender();
+    },
+    setSlab(b) {
+      if (disposed) return;
+      dropSlab();
+      if (b) {
+        slab = createSlab(b, groundMat);
+        scene.add(slab.group);
+        if (basePlane) basePlane.visible = false;
       }
       requestRender();
     },
