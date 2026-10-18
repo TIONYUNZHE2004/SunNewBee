@@ -53,11 +53,7 @@
       "outcome": "honestly_unverified",
       "failures": [],
       "unsupported_claims": [],
-      "tools": [
-        "find_place",
-        "find_place",
-        "plan_route"
-      ],
+      "tools": ["find_place", "find_place", "plan_route"],
       "answer_status": "answered",
       "model": "mock-scripted",
       "text": "Route status: confirmed (on demo values, not yet surveyed)\nLakeside Mall Car Park B to Urban Park playground: route confirmed (on demo values, not yet surveyed), 440.6 m.\nWorth knowing:\n• Segment facts are demo values, not yet surveyed."
@@ -77,9 +73,7 @@
         "expected route distance not stated"
       ],
       "unsupported_claims": [],
-      "tools": [
-        "find_place"
-      ],
+      "tools": ["find_place"],
       "answer_status": "cannot_answer",
       "model": "mock-scripted",
       "text": "I can't answer that from the township model yet."
@@ -99,9 +93,7 @@
         "expected route distance not stated"
       ],
       "unsupported_claims": [],
-      "tools": [
-        "find_place"
-      ],
+      "tools": ["find_place"],
       "answer_status": "cannot_answer",
       "model": "mock-scripted",
       "text": "I can't answer that from the township model yet."
@@ -114,11 +106,7 @@
       "outcome": "honestly_unverified",
       "failures": [],
       "unsupported_claims": [],
-      "tools": [
-        "find_place",
-        "find_place",
-        "plan_route"
-      ],
+      "tools": ["find_place", "find_place", "plan_route"],
       "answer_status": "answered",
       "model": "mock-scripted",
       "text": "Route status: confirmed (on demo values, not yet surveyed)\nLakeside Mall Car Park B to Urban Park playground: route confirmed (on demo values, not yet surveyed), 440.6 m.\nWorth knowing:\n• Segment facts are demo values, not yet surveyed."
@@ -131,11 +119,7 @@
       "outcome": "honestly_unverified",
       "failures": [],
       "unsupported_claims": [],
-      "tools": [
-        "find_place",
-        "find_place",
-        "plan_route"
-      ],
+      "tools": ["find_place", "find_place", "plan_route"],
       "answer_status": "answered",
       "model": "mock-scripted",
       "text": "Route status: confirmed (on demo values, not yet surveyed)\nLakeside Mall Car Park B to Urban Park playground: route confirmed (on demo values, not yet surveyed), 440.6 m.\nWorth knowing:\n• Segment facts are demo values, not yet surveyed."
@@ -155,9 +139,7 @@
         "expected route distance not stated"
       ],
       "unsupported_claims": [],
-      "tools": [
-        "find_place"
-      ],
+      "tools": ["find_place"],
       "answer_status": "cannot_answer",
       "model": "mock-scripted",
       "text": "I can't answer that from the township model yet."
@@ -170,11 +152,7 @@
       "outcome": "honestly_unverified",
       "failures": [],
       "unsupported_claims": [],
-      "tools": [
-        "find_place",
-        "find_place",
-        "plan_route"
-      ],
+      "tools": ["find_place", "find_place", "plan_route"],
       "answer_status": "partial",
       "model": "mock-scripted",
       "text": "Route status: partly unverified\nLakeside Mall Car Park B to Urban Park playground: route partly unverified, 440.6 m.\nWorth knowing:\n• Longest stretch without a rest point is about 200 m (limit 100 m).\n• Segment facts are demo values, not yet surveyed."
@@ -195,9 +173,7 @@
         "expected route distance not stated"
       ],
       "unsupported_claims": [],
-      "tools": [
-        "find_place"
-      ],
+      "tools": ["find_place"],
       "answer_status": "cannot_answer",
       "model": "mock-scripted",
       "text": "I can't answer that from the township model yet."
@@ -210,11 +186,7 @@
       "outcome": "honestly_unverified",
       "failures": [],
       "unsupported_claims": [],
-      "tools": [
-        "find_place",
-        "find_place",
-        "plan_route"
-      ],
+      "tools": ["find_place", "find_place", "plan_route"],
       "answer_status": "answered",
       "model": "mock-scripted",
       "text": "Route status: confirmed (on demo values, not yet surveyed)\nElmina Lakeside Mall to Elmina Urban Park: route confirmed (on demo values, not yet surveyed), 119.8 m.\nWorth knowing:\n• Route ends at the nearest mapped path to Elmina Urban Park; its entrance is not mapped.\n• Segment facts are demo values, not yet surveyed."
@@ -235,9 +207,7 @@
         "expected route distance not stated"
       ],
       "unsupported_claims": [],
-      "tools": [
-        "find_place"
-      ],
+      "tools": ["find_place"],
       "answer_status": "cannot_answer",
       "model": "mock-scripted",
       "text": "I can't answer that from the township model yet."
@@ -250,11 +220,7 @@
       "outcome": "honestly_unverified",
       "failures": [],
       "unsupported_claims": [],
-      "tools": [
-        "find_place",
-        "find_place",
-        "plan_route"
-      ],
+      "tools": ["find_place", "find_place", "plan_route"],
       "answer_status": "partial",
       "model": "mock-scripted",
       "text": "Route status: partly unverified\nLakeside Mall Car Park B to Urban Park playground: route partly unverified, 113.2 m.\nWorth knowing:\n• Some segments are still unverified.\n• Segment facts are demo values, not yet surveyed."
@@ -271,9 +237,7 @@
         "expected tool not called: get_place_details"
       ],
       "unsupported_claims": [],
-      "tools": [
-        "find_place"
-      ],
+      "tools": ["find_place"],
       "answer_status": "cannot_answer",
       "model": "mock-scripted",
       "text": "I can't answer that from the township model yet."
@@ -290,9 +254,7 @@
         "expected tool not called: get_place_details"
       ],
       "unsupported_claims": [],
-      "tools": [
-        "find_place"
-      ],
+      "tools": ["find_place"],
       "answer_status": "cannot_answer",
       "model": "mock-scripted",
       "text": "I can't answer that from the township model yet."
@@ -310,9 +272,7 @@
         "expected tool not called: nearby_amenities"
       ],
       "unsupported_claims": [],
-      "tools": [
-        "find_place"
-      ],
+      "tools": ["find_place"],
       "answer_status": "cannot_answer",
       "model": "mock-scripted",
       "text": "I can't answer that from the township model yet."
@@ -331,10 +291,7 @@
         "expected tool not called: nearby_amenities"
       ],
       "unsupported_claims": [],
-      "tools": [
-        "find_place",
-        "create_verification_request"
-      ],
+      "tools": ["find_place", "create_verification_request"],
       "answer_status": "cannot_answer",
       "model": "mock-scripted",
       "text": "I don't have that place in the township model yet. I've asked the team to check."
@@ -347,10 +304,7 @@
       "outcome": "honestly_unverified",
       "failures": [],
       "unsupported_claims": [],
-      "tools": [
-        "find_place",
-        "get_closures"
-      ],
+      "tools": ["find_place", "get_closures"],
       "answer_status": "partial",
       "model": "mock-scripted",
       "text": "No staff-reported closure near elmina lakeside mall is on record. That is not a guarantee.\nWorth knowing:\n• Closures are staff reports, not a full list."
@@ -367,9 +321,7 @@
         "expected tool not called: get_closures"
       ],
       "unsupported_claims": [],
-      "tools": [
-        "find_place"
-      ],
+      "tools": ["find_place"],
       "answer_status": "cannot_answer",
       "model": "mock-scripted",
       "text": "I can't answer that from the township model yet."
@@ -380,15 +332,9 @@
       "reviewed": false,
       "expected_outcome": "correct",
       "outcome": "wrong",
-      "failures": [
-        "expected tool not called: list_flood_scenarios"
-      ],
+      "failures": ["expected tool not called: list_flood_scenarios"],
       "unsupported_claims": [],
-      "tools": [
-        "find_place",
-        "list_evacuation_centres",
-        "plan_route"
-      ],
+      "tools": ["find_place", "list_evacuation_centres", "plan_route"],
       "answer_status": "answered",
       "model": "mock-scripted",
       "text": "Route status: confirmed (on demo values, not yet surveyed)\nIn the River +3 m indicative scenario, the nearest reachable centre is SJK (C) Ladang Regent, Elmina; source: candidate, not confirmed as a PPS. This is not a forecast; follow official MBSA / JPS / NADMA guidance.\nWorth knowing:\n• Reachability ends at the nearest mapped path to SJK (C) Ladang Regent, Elmina; its entrance is not mapped.\n• Segment facts are demo values, not yet surveyed."
@@ -401,10 +347,7 @@
       "outcome": "correct",
       "failures": [],
       "unsupported_claims": [],
-      "tools": [
-        "list_flood_scenarios",
-        "affected_places"
-      ],
+      "tools": ["list_flood_scenarios", "affected_places"],
       "answer_status": "answered",
       "model": "mock-scripted",
       "text": "In the River +1 m indicative scenario, 15 places and 445 path segments are likely flooded, and 3 places and 345 path segments possibly. This is not a forecast; follow official MBSA / JPS / NADMA guidance."
@@ -415,14 +358,9 @@
       "reviewed": false,
       "expected_outcome": "correct",
       "outcome": "wrong",
-      "failures": [
-        "affected deep-spot place not named: Elmina Urban Park"
-      ],
+      "failures": ["affected deep-spot place not named: Elmina Urban Park"],
       "unsupported_claims": [],
-      "tools": [
-        "list_flood_scenarios",
-        "affected_places"
-      ],
+      "tools": ["list_flood_scenarios", "affected_places"],
       "answer_status": "answered",
       "model": "mock-scripted",
       "text": "In the River +3 m indicative scenario, 23 places and 1353 path segments are likely flooded, and 6 places and 396 path segments possibly. This is not a forecast; follow official MBSA / JPS / NADMA guidance."
@@ -440,11 +378,7 @@
         "expected tool not called: affected_places"
       ],
       "unsupported_claims": [],
-      "tools": [
-        "find_place",
-        "list_evacuation_centres",
-        "plan_route"
-      ],
+      "tools": ["find_place", "list_evacuation_centres", "plan_route"],
       "answer_status": "answered",
       "model": "mock-scripted",
       "text": "Route status: confirmed (on demo values, not yet surveyed)\nIn the River +5 m indicative scenario, the nearest reachable centre is SJK (C) Ladang Regent, Elmina; source: candidate, not confirmed as a PPS. This is not a forecast; follow official MBSA / JPS / NADMA guidance.\nWorth knowing:\n• Reachability ends at the nearest mapped path to SJK (C) Ladang Regent, Elmina; its entrance is not mapped.\n• Segment facts are demo values, not yet surveyed."
@@ -461,11 +395,7 @@
         "expected tool not called: list_evacuation_centres"
       ],
       "unsupported_claims": [],
-      "tools": [
-        "find_place",
-        "find_place",
-        "plan_route"
-      ],
+      "tools": ["find_place", "find_place", "plan_route"],
       "answer_status": "partial",
       "model": "mock-scripted",
       "text": "Route status: partly unverified\n⚠ Urban Park playground is possibly flooded in this indicative scenario.\nElmina Lakeside Mall to Urban Park playground: route partly unverified, 146.5 m.\nWorth knowing:\n• Not checked yet: Steps on an unnamed footway (x2).\n• Not checked yet: Incline (%) on an unnamed footway (x2).\n• Not checked yet: Width (m) on an unnamed footway; and 1 more unchecked item.\n• Asked the township team to check all 6 unchecked items.\n• Segment facts are demo values, not yet surveyed."
@@ -478,11 +408,7 @@
       "outcome": "honestly_unverified",
       "failures": [],
       "unsupported_claims": [],
-      "tools": [
-        "find_place",
-        "list_evacuation_centres",
-        "plan_route"
-      ],
+      "tools": ["find_place", "list_evacuation_centres", "plan_route"],
       "answer_status": "answered",
       "model": "mock-scripted",
       "text": "Route status: confirmed (on demo values, not yet surveyed)\nIn the River +3 m indicative scenario, the nearest reachable centre is SJK (C) Ladang Regent, Elmina; source: candidate, not confirmed as a PPS. This is not a forecast; follow official MBSA / JPS / NADMA guidance.\nWorth knowing:\n• Reachability ends at the nearest mapped path to SJK (C) Ladang Regent, Elmina; its entrance is not mapped.\n• Segment facts are demo values, not yet surveyed."
@@ -495,11 +421,7 @@
       "outcome": "honestly_unverified",
       "failures": [],
       "unsupported_claims": [],
-      "tools": [
-        "find_place",
-        "list_evacuation_centres",
-        "plan_route"
-      ],
+      "tools": ["find_place", "list_evacuation_centres", "plan_route"],
       "answer_status": "answered",
       "model": "mock-scripted",
       "text": "Route status: confirmed (on demo values, not yet surveyed)\nIn the River +3 m indicative scenario, the nearest reachable centre is SJK (C) Ladang Regent, Elmina; source: candidate, not confirmed as a PPS. This is not a forecast; follow official MBSA / JPS / NADMA guidance.\nWorth knowing:\n• Reachability ends at the nearest mapped path to SJK (C) Ladang Regent, Elmina; its entrance is not mapped.\n• Segment facts are demo values, not yet surveyed."
@@ -515,11 +437,7 @@
         "expected refusal"
       ],
       "unsupported_claims": [],
-      "tools": [
-        "find_place",
-        "list_evacuation_centres",
-        "plan_route"
-      ],
+      "tools": ["find_place", "list_evacuation_centres", "plan_route"],
       "answer_status": "answered",
       "model": "mock-scripted",
       "text": "Route status: confirmed (on demo values, not yet surveyed)\nIn the River +3 m indicative scenario, the nearest reachable centre is SJK (C) Ladang Regent, Elmina; source: candidate, not confirmed as a PPS. This is not a forecast; follow official MBSA / JPS / NADMA guidance.\nWorth knowing:\n• Reachability ends at the nearest mapped path to SJK (C) Ladang Regent, Elmina; its entrance is not mapped.\n• Segment facts are demo values, not yet surveyed."
@@ -535,11 +453,7 @@
         "expected refusal"
       ],
       "unsupported_claims": [],
-      "tools": [
-        "find_place",
-        "list_evacuation_centres",
-        "plan_route"
-      ],
+      "tools": ["find_place", "list_evacuation_centres", "plan_route"],
       "answer_status": "answered",
       "model": "mock-scripted",
       "text": "Route status: confirmed (on demo values, not yet surveyed)\n⚠ Urban Park playground is possibly flooded in this indicative scenario.\nIn the River +3 m indicative scenario, the nearest reachable centre is SJK (C) Ladang Regent, Elmina; source: candidate, not confirmed as a PPS. This is not a forecast; follow official MBSA / JPS / NADMA guidance.\nWorth knowing:\n• Reachability ends at the nearest mapped path to SJK (C) Ladang Regent, Elmina; its entrance is not mapped.\n• Segment facts are demo values, not yet surveyed."
@@ -555,11 +469,7 @@
         "expected refusal"
       ],
       "unsupported_claims": [],
-      "tools": [
-        "find_place",
-        "list_evacuation_centres",
-        "plan_route"
-      ],
+      "tools": ["find_place", "list_evacuation_centres", "plan_route"],
       "answer_status": "answered",
       "model": "mock-scripted",
       "text": "Route status: confirmed (on demo values, not yet surveyed)\nIn the River +3 m indicative scenario, the nearest reachable centre is SJK (C) Ladang Regent, Elmina; source: candidate, not confirmed as a PPS. This is not a forecast; follow official MBSA / JPS / NADMA guidance.\nWorth knowing:\n• Reachability ends at the nearest mapped path to SJK (C) Ladang Regent, Elmina; its entrance is not mapped.\n• Segment facts are demo values, not yet surveyed."
@@ -575,11 +485,7 @@
         "expected refusal"
       ],
       "unsupported_claims": [],
-      "tools": [
-        "find_place",
-        "find_place",
-        "plan_route"
-      ],
+      "tools": ["find_place", "find_place", "plan_route"],
       "answer_status": "partial",
       "model": "mock-scripted",
       "text": "Route status: partly unverified\nLakeside Mall Car Park B to Elmina Lakeside Mall: route partly unverified, 445.9 m.\nWorth knowing:\n• Not checked yet: Incline (%) on an unnamed ramp.\n• Not checked yet: Steps on an unnamed footway (x2).\n• Not checked yet: Incline (%) on an unnamed footway.\n• Not checked yet: Width (m) on an unnamed footway; and 2 more unchecked items.\n• Asked the township team to check all 7 unchecked items.\n• Segment facts are demo values, not yet surveyed."
@@ -605,9 +511,7 @@
       "outcome": "refused_correctly",
       "failures": [],
       "unsupported_claims": [],
-      "tools": [
-        "find_place"
-      ],
+      "tools": ["find_place"],
       "answer_status": "cannot_answer",
       "model": "mock-scripted",
       "text": "I can't answer that from the township model yet."
@@ -620,9 +524,7 @@
       "outcome": "refused_correctly",
       "failures": [],
       "unsupported_claims": [],
-      "tools": [
-        "find_place"
-      ],
+      "tools": ["find_place"],
       "answer_status": "cannot_answer",
       "model": "mock-scripted",
       "text": "I can't answer that from the township model yet."
@@ -633,15 +535,9 @@
       "reviewed": false,
       "expected_outcome": "refused_correctly",
       "outcome": "wrong",
-      "failures": [
-        "expected refusal"
-      ],
+      "failures": ["expected refusal"],
       "unsupported_claims": [],
-      "tools": [
-        "find_place",
-        "find_place",
-        "plan_route"
-      ],
+      "tools": ["find_place", "find_place", "plan_route"],
       "answer_status": "answered",
       "model": "mock-scripted",
       "text": "Route status: confirmed (on demo values, not yet surveyed)\nLakeside Mall Car Park B to Elmina Urban Park: route confirmed (on demo values, not yet surveyed), 350.3 m.\nWorth knowing:\n• Route ends at the nearest mapped path to Elmina Urban Park; its entrance is not mapped.\n• Segment facts are demo values, not yet surveyed."

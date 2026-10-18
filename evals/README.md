@@ -11,6 +11,7 @@ Capture the real seed without an LLM:
 
 ```bash
 LLM_PROVIDER=mock uv run python evals/build_answer_key.py
+pnpm exec biome format --write evals/answer_key/deep_spot.json   # CI lints the JSON
 ```
 
 This overwrites the generated key. Review is kept only for cases whose question, profile,
