@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { BuildingsLayer, useLayer } from "../../../../lib/api";
 import type { Tier } from "../../cesium/stylised/quality";
-import { HERO_CENTRE, HERO_RADIUS_M } from "../bookmarks";
 import type { Engine } from "../engine";
 import type { LocalFrame } from "../frame";
 import { createGroundLayer } from "../ground/groundLayer";
 import { landcoverMesh } from "../ground/landcover";
 import { ribbonsFromWalk } from "../ground/ribbons";
+import { heroBox } from "./useDecor";
 
 const EMPTY_FC = { type: "FeatureCollection", features: [] };
 /** A `/layers/{lens}` payload (the access layer: walk LineStrings and place points). */
@@ -67,8 +67,8 @@ export function useGround({
     () =>
       frame && detailsOn && walk
         ? ribbonsFromWalk(walk as unknown as GeoJSON.FeatureCollection, frame, {
-            clipCentre: HERO_CENTRE,
-            clipRadiusM: HERO_RADIUS_M,
+            // Until the streamer plans per tile (Task 4): the box covering the P3 hero circle.
+            area: { box: heroBox(frame), seed: "roads" },
           })
         : [],
     [frame, detailsOn, walk],

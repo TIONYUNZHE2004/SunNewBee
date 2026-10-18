@@ -3,10 +3,10 @@ import type { Tier } from "../../cesium/stylised/quality";
 import { hash01 } from "../assets/fit";
 import type { Manifest } from "../assets/manifest";
 import type { LocalFrame } from "../frame";
-import { capFor } from "../props/caps";
+import { growBox, inBox, type PlanArea, perLayer, touchesBox } from "../stream/area";
 
 /**
- * DECORATIVE traffic and pedestrians for the hero district. Agents loop along walk edges as
+ * DECORATIVE traffic and pedestrians for one planning box. Agents loop along walk edges as
  * polylines from a seeded start offset, with no routing and no collision (ruling: cars may pass
  * through each other at junctions). Nothing here is a fact about the township: no counts, no
  * flows, no speeds are measured. Pure: the same input always gives the same agents.
@@ -154,102 +154,197 @@ function offsetLeft(pts: P[], d: number): P[] {
 }
 
 /**
- * Vehicles on street/major_road edges (speed 8–11 m/s, major 12–16), people on footway/path/pedestrian
- * (1.2–1.5 m/s, jogger 2.5, cyclist 4.5); spawn weight ×3 within 150 m of places of type
- * school|mall|park. Count = cap × densityFor(weights); without weights, the peak (dusk) density,
- * so a layer can thin the plan by mood without replanning.
+ * Longest agent path (m). A walk line longer than this is cut into equal chunks; each chunk is
+ * owned by the box that holds its arc midpoint, so a path reaches at most half a chunk past its
+ * box and adjacent boxes never share an agent. (Most Elmina walk edges are shorter: median 47 m.)
  */
-export function planAgents(input: {
+export const AGENT_CHUNK_M = 120;
+/** One candidate agent per this many metres of spawn weight (chunk length x busy weight). */
+const SPAWN_SPACING_M = 25;
+
+export interface AgentsInput {
   walk: unknown;
   places: unknown;
   frame: LocalFrame;
-  centre: [number, number];
-  radiusM: number;
+  /** The box to plan (half-open, by chunk midpoint) and its tile seed. */
+  area: PlanArea;
+  /** Low plans nothing, whatever the caps say. */
   tier: Tier;
+  /** Agents for this box at density 1: `tileCap(tier, ring, "vehicles" | "people", tile, frame)`. */
+  caps: { vehicles: number; people: number };
   m: Manifest;
-  seed: string;
   weights?: MoodMix;
-}): Agent[] {
-  const { frame, radiusM, m, seed } = input;
-  const density = input.weights ? densityFor(input.weights) : DENSITY_PEAK;
-  const [cx, cz] = frame.toLocal(input.centre[0], input.centre[1]);
-  const inside = (p: P) => Math.hypot(p[0] - cx, p[1] - cz) <= radiusM;
+}
 
-  const busy: P[] = [];
-  for (const f of featuresOf(input.places)) {
-    const g = f.geometry;
-    if (!isRec(g) || g.type !== "Point" || !Array.isArray(g.coordinates)) continue;
-    const [lon, lat] = g.coordinates as number[];
-    if (!Number.isFinite(lon) || !Number.isFinite(lat)) continue;
-    if (BUSY_PLACES.has(String(propsOf(f).type))) busy.push(frame.toLocal(lon!, lat!));
+interface Cand {
+  id: string;
+  edge: Edge;
+  prio: number;
+}
+
+/** One run of valid vertices of an eligible walk line, in local metres. */
+interface Run {
+  fid: string;
+  ri: number;
+  kind: Agent["kind"];
+  type: string;
+  pts: P[];
+  length: number;
+  bb: [number, number, number, number];
+}
+const runsCache = new WeakMap<object, WeakMap<object, Run[]>>();
+const busyCache = new WeakMap<object, WeakMap<object, P[]>>();
+
+/** The vehicle and people lines of the walk layer, built once per layer and frame. */
+const runsOf = (walk: unknown, frame: LocalFrame): Run[] =>
+  perLayer(runsCache, walk, frame, () => {
+    const out: Run[] = [];
+    featuresOf(walk).forEach((f, fi) => {
+      const g = f.geometry;
+      if (!isRec(g) || g.type !== "LineString" || !Array.isArray(g.coordinates)) return;
+      const p = propsOf(f);
+      const type = String(p.type ?? "");
+      const kind: Agent["kind"] | null = VEHICLE_TYPES.has(type)
+        ? "vehicle"
+        : PEOPLE_TYPES.has(type)
+          ? "person"
+          : null;
+      if (!kind) return;
+      const fid = String(p.id ?? `w${fi}`);
+      // Runs of consecutive valid vertices (an invalid coordinate breaks the line).
+      const runs: P[][] = [[]];
+      for (const c of g.coordinates) {
+        const run = runs[runs.length - 1]!;
+        if (!Array.isArray(c) || !Number.isFinite(c[0]) || !Number.isFinite(c[1])) {
+          if (run.length > 0) runs.push([]);
+          continue;
+        }
+        const q = frame.toLocal(c[0] as number, c[1] as number);
+        const last = run[run.length - 1];
+        if (!last || last[0] !== q[0] || last[1] !== q[1]) run.push(q);
+      }
+      runs.forEach((pts, ri) => {
+        if (pts.length < 2) return;
+        let x0 = Number.POSITIVE_INFINITY;
+        let z0 = Number.POSITIVE_INFINITY;
+        let x1 = Number.NEGATIVE_INFINITY;
+        let z1 = Number.NEGATIVE_INFINITY;
+        for (const [x, z] of pts) {
+          x0 = Math.min(x0, x);
+          z0 = Math.min(z0, z);
+          x1 = Math.max(x1, x);
+          z1 = Math.max(z1, z);
+        }
+        out.push({ fid, ri, kind, type, pts, length: polyLength(pts), bb: [x0, z0, x1, z1] });
+      });
+    });
+    return out;
+  });
+
+/** Points of the places that triple the spawn weight (school, mall, park). */
+const busyOf = (places: unknown, frame: LocalFrame): P[] =>
+  perLayer(busyCache, places, frame, () => {
+    const busy: P[] = [];
+    for (const f of featuresOf(places)) {
+      const g = f.geometry;
+      if (!isRec(g) || g.type !== "Point" || !Array.isArray(g.coordinates)) continue;
+      const [lon, lat] = g.coordinates as number[];
+      if (!Number.isFinite(lon) || !Number.isFinite(lat)) continue;
+      if (BUSY_PLACES.has(String(propsOf(f).type))) busy.push(frame.toLocal(lon!, lat!));
+    }
+    return busy;
+  });
+
+/** The sub-polyline of `pts` between arc lengths s0 and s1. */
+function slice(pts: P[], s0: number, s1: number): P[] {
+  const out: P[] = [];
+  let walked = 0;
+  for (let i = 0; i < pts.length - 1; i++) {
+    const a = pts[i]!;
+    const b = pts[i + 1]!;
+    const l = Math.hypot(b[0] - a[0], b[1] - a[1]);
+    const at = (s: number): P => {
+      const t = l === 0 ? 0 : (s - walked) / l;
+      return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t];
+    };
+    if (out.length === 0 && s0 <= walked + l) out.push(at(Math.max(s0, walked)));
+    if (out.length > 0) {
+      if (s1 <= walked + l + 1e-9) {
+        out.push(at(Math.min(s1, walked + l)));
+        return out;
+      }
+      out.push(b);
+    }
+    walked += l;
   }
+  return out;
+}
+
+/** The point at arc length s along `pts`. */
+function pointAt(pts: P[], s: number): P {
+  let walked = 0;
+  for (let i = 0; i < pts.length - 1; i++) {
+    const a = pts[i]!;
+    const b = pts[i + 1]!;
+    const l = Math.hypot(b[0] - a[0], b[1] - a[1]);
+    if (s <= walked + l && l > 0) {
+      const t = (s - walked) / l;
+      return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t];
+    }
+    walked += l;
+  }
+  return pts[pts.length - 1]!;
+}
+
+/**
+ * Vehicles on street/major_road edges (speed 8–11 m/s, major 12–16), people on footway/path/pedestrian
+ * (1.2–1.5 m/s, jogger 2.5, cyclist 4.5); spawn weight ×3 within 150 m of places of type
+ * school|mall|park. Every walk line is cut into chunks of at most AGENT_CHUNK_M; a chunk belongs to
+ * the box holding its arc midpoint and seeds about one candidate per 25 m of spawn weight, keyed by
+ * the chunk (never by the box). Count = cap × densityFor(weights), picked from the candidates in
+ * the order of a hash salted with the tile seed; without weights, the peak (dusk) density, so a
+ * layer can thin the plan by mood without replanning (the plan is in pick order).
+ */
+export function planAgents(input: AgentsInput): Agent[] {
+  const { frame, m, area } = input;
+  if (input.tier === "low") return [];
+  const box = area.box;
+  const reach = growBox(box, AGENT_CHUNK_M);
+  const density = input.weights ? densityFor(input.weights) : DENSITY_PEAK;
+
+  const busy = busyOf(input.places, frame);
   const nearBusy = (pts: P[]) =>
     pts.some((p) => busy.some((b) => Math.hypot(p[0] - b[0], p[1] - b[1]) <= BUSY_RANGE_M));
 
-  const vehicleEdges: Edge[] = [];
-  const peopleEdges: Edge[] = [];
-  for (const f of featuresOf(input.walk)) {
-    const g = f.geometry;
-    if (!isRec(g) || g.type !== "LineString" || !Array.isArray(g.coordinates)) continue;
-    const type = String(propsOf(f).type ?? "");
-    const list = VEHICLE_TYPES.has(type)
-      ? vehicleEdges
-      : PEOPLE_TYPES.has(type)
-        ? peopleEdges
-        : null;
-    if (!list) continue;
-    // Runs of consecutive vertices inside the radius; each run long enough is one edge.
-    let run: P[] = [];
-    const flush = () => {
-      const length = polyLength(run);
-      if (run.length >= 2 && length >= MIN_EDGE_M)
-        list.push({
-          pts: run,
-          length,
-          type,
-          weight: length * (nearBusy(run) ? BUSY_WEIGHT : 1),
-        });
-      run = [];
-    };
-    for (const c of g.coordinates) {
-      if (!Array.isArray(c) || !Number.isFinite(c[0]) || !Number.isFinite(c[1])) {
-        flush();
-        continue;
+  const cands: Record<Agent["kind"], Cand[]> = { vehicle: [], person: [] };
+  for (const { fid, ri, kind, type, pts: run, length, bb } of runsOf(input.walk, frame)) {
+    if (!touchesBox(reach, bb[0], bb[1], bb[2], bb[3])) continue;
+    if (length < MIN_EDGE_M) continue;
+    const n = Math.ceil(length / AGENT_CHUNK_M);
+    const cl = length / n;
+    for (let c = 0; c < n; c++) {
+      const mid = pointAt(run, (c + 0.5) * cl);
+      if (!inBox(box, mid[0], mid[1])) continue;
+      const pts = slice(run, c * cl, (c + 1) * cl);
+      const chunk = `${fid}:${ri}:${c}`;
+      const weight = cl * (nearBusy(pts) ? BUSY_WEIGHT : 1);
+      const edge: Edge = { pts, length: cl, type, weight };
+      const k = Math.floor(weight / SPAWN_SPACING_M + hash01(chunk, `spawn:${kind}`));
+      for (let j = 0; j < k; j++) {
+        const id = `${kind}:${chunk}:${j}`;
+        cands[kind].push({ id, edge, prio: hash01(id, area.seed) });
       }
-      const q = frame.toLocal(c[0] as number, c[1] as number);
-      if (!inside(q)) {
-        flush();
-        continue;
-      }
-      const last = run[run.length - 1];
-      if (!last || last[0] !== q[0] || last[1] !== q[1]) run.push(q);
     }
-    flush();
   }
 
   const out: Agent[] = [];
-  const plan = (kind: Agent["kind"], edges: Edge[], cap: number, asset: string) => {
+  const plan = (kind: Agent["kind"], list: Cand[], cap: number, asset: string) => {
     const variants = Object.keys(m.assets[asset]?.variants ?? {});
-    const n = Math.floor(cap * density);
-    if (n <= 0 || edges.length === 0 || variants.length === 0) return;
-    const cum: number[] = [];
-    let total = 0;
-    for (const e of edges) {
-      total += e.weight;
-      cum.push(total);
-    }
+    const n = Math.floor(Math.max(0, cap) * density);
+    if (n <= 0 || list.length === 0 || variants.length === 0) return;
+    list.sort((a, b) => a.prio - b.prio || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
     const light = variants.filter((v) => !MAJOR_ONLY.has(v));
-    for (let i = 0; i < n; i++) {
-      const id = `${seed}:${kind}:${i}`;
-      const r = hash01(id, "edge") * total;
-      let lo = 0;
-      let hi = cum.length - 1;
-      while (lo < hi) {
-        const mid = (lo + hi) >> 1;
-        if ((cum[mid] as number) > r) hi = mid;
-        else lo = mid + 1;
-      }
-      const e = edges[lo] as Edge;
+    for (const { id, edge: e } of list.slice(0, n)) {
       const major = e.type === "major_road";
       const pool = kind === "vehicle" && !major && light.length > 0 ? light : variants;
       const variant = pool[Math.floor(hash01(id, "variant") * pool.length)] as string;
@@ -283,7 +378,7 @@ export function planAgents(input: {
       });
     }
   };
-  plan("vehicle", vehicleEdges, capFor(input.tier, "vehicles"), "vehicles");
-  plan("person", peopleEdges, capFor(input.tier, "people"), "people");
+  plan("vehicle", cands.vehicle, input.caps.vehicles, "vehicles");
+  plan("person", cands.person, input.caps.people, "people");
   return out;
 }
