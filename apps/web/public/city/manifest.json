@@ -41,7 +41,7 @@
     "link_intermediate": {
       "group": "archetype",
       "file": "archetypes/link_intermediate.glb",
-      "bytes": 55288,
+      "bytes": 55336,
       "repeat": "frontage",
       "frontage": "short",
       "fit": {
@@ -155,12 +155,12 @@
           "lods": [
             {
               "node": "link_intermediate__gable__LOD0",
-              "tris": 1576,
+              "tris": 1558,
               "maxM": 300.0
             },
             {
               "node": "link_intermediate__gable__LOD1",
-              "tris": 378,
+              "tris": 366,
               "maxM": 1500.0
             },
             {
@@ -179,12 +179,12 @@
           "lods": [
             {
               "node": "link_intermediate__modern__LOD0",
-              "tris": 1682,
+              "tris": 1642,
               "maxM": 300.0
             },
             {
               "node": "link_intermediate__modern__LOD1",
-              "tris": 372,
+              "tris": 358,
               "maxM": 1500.0
             },
             {
@@ -199,7 +199,7 @@
     "link_long": {
       "group": "archetype",
       "file": "archetypes/link_long.glb",
-      "bytes": 58080,
+      "bytes": 58248,
       "repeat": "frontage",
       "frontage": "short",
       "fit": {
@@ -313,12 +313,12 @@
           "lods": [
             {
               "node": "link_long__gable__LOD0",
-              "tris": 1668,
+              "tris": 1650,
               "maxM": 300.0
             },
             {
               "node": "link_long__gable__LOD1",
-              "tris": 394,
+              "tris": 382,
               "maxM": 1500.0
             },
             {
@@ -337,12 +337,12 @@
           "lods": [
             {
               "node": "link_long__modern__LOD0",
-              "tris": 1766,
+              "tris": 1726,
               "maxM": 300.0
             },
             {
               "node": "link_long__modern__LOD1",
-              "tris": 388,
+              "tris": 374,
               "maxM": 1500.0
             },
             {
@@ -357,7 +357,7 @@
     "superlink": {
       "group": "archetype",
       "file": "archetypes/superlink.glb",
-      "bytes": 45924,
+      "bytes": 45496,
       "repeat": "none",
       "frontage": "short",
       "fit": {
@@ -468,12 +468,12 @@
           "lods": [
             {
               "node": "superlink__modern__LOD0",
-              "tris": 3270,
+              "tris": 3216,
               "maxM": 300.0
             },
             {
               "node": "superlink__modern__LOD1",
-              "tris": 710,
+              "tris": 644,
               "maxM": 1500.0
             },
             {
@@ -488,7 +488,7 @@
     "semi_d": {
       "group": "archetype",
       "file": "archetypes/semi_d.glb",
-      "bytes": 70312,
+      "bytes": 70604,
       "repeat": "none",
       "frontage": "short",
       "fit": {
@@ -602,12 +602,12 @@
           "lods": [
             {
               "node": "semi_d__gable__LOD0",
-              "tris": 2134,
+              "tris": 2110,
               "maxM": 300.0
             },
             {
               "node": "semi_d__gable__LOD1",
-              "tris": 520,
+              "tris": 500,
               "maxM": 1500.0
             },
             {
@@ -626,12 +626,12 @@
           "lods": [
             {
               "node": "semi_d__modern__LOD0",
-              "tris": 2240,
+              "tris": 2194,
               "maxM": 300.0
             },
             {
               "node": "semi_d__modern__LOD1",
-              "tris": 514,
+              "tris": 492,
               "maxM": 1500.0
             },
             {
@@ -646,7 +646,7 @@
     "bungalow": {
       "group": "archetype",
       "file": "archetypes/bungalow.glb",
-      "bytes": 45808,
+      "bytes": 45160,
       "repeat": "none",
       "frontage": "short",
       "fit": {
@@ -757,12 +757,12 @@
           "lods": [
             {
               "node": "bungalow__hip__LOD0",
-              "tris": 3228,
+              "tris": 3040,
               "maxM": 300.0
             },
             {
               "node": "bungalow__hip__LOD1",
-              "tris": 642,
+              "tris": 626,
               "maxM": 1500.0
             },
             {
@@ -777,7 +777,7 @@
     "townhouse": {
       "group": "archetype",
       "file": "archetypes/townhouse.glb",
-      "bytes": 21808,
+      "bytes": 21800,
       "repeat": "frontage",
       "frontage": "short",
       "fit": {
@@ -888,12 +888,12 @@
           "lods": [
             {
               "node": "townhouse__flat__LOD0",
-              "tris": 1204,
+              "tris": 1192,
               "maxM": 300.0
             },
             {
               "node": "townhouse__flat__LOD1",
-              "tris": 346,
+              "tris": 326,
               "maxM": 1500.0
             },
             {
@@ -908,7 +908,7 @@
     "shop_office": {
       "group": "archetype",
       "file": "archetypes/shop_office.glb",
-      "bytes": 22772,
+      "bytes": 22576,
       "repeat": "frontage",
       "frontage": "long",
       "fit": {
@@ -956,12 +956,12 @@
           "lods": [
             {
               "node": "shop_office__row__LOD0",
-              "tris": 1416,
+              "tris": 1392,
               "maxM": 300.0
             },
             {
               "node": "shop_office__row__LOD1",
-              "tris": 342,
+              "tris": 336,
               "maxM": 1500.0
             },
             {
@@ -976,7 +976,7 @@
     "highrise": {
       "group": "archetype",
       "file": "archetypes/highrise.glb",
-      "bytes": 220748,
+      "bytes": 219068,
       "repeat": "none",
       "frontage": "short",
       "fit": {
@@ -1024,12 +1024,12 @@
           "lods": [
             {
               "node": "highrise__mid__LOD0",
-              "tris": 4974,
+              "tris": 4824,
               "maxM": 300.0
             },
             {
               "node": "highrise__mid__LOD1",
-              "tris": 806,
+              "tris": 800,
               "maxM": 1500.0
             },
             {
@@ -1048,12 +1048,12 @@
           "lods": [
             {
               "node": "highrise__tall__LOD0",
-              "tris": 11372,
+              "tris": 11222,
               "maxM": 300.0
             },
             {
               "node": "highrise__tall__LOD1",
-              "tris": 1798,
+              "tris": 1792,
               "maxM": 1500.0
             },
             {
@@ -1136,7 +1136,7 @@
     "mosque": {
       "group": "archetype",
       "file": "archetypes/mosque.glb",
-      "bytes": 40436,
+      "bytes": 40444,
       "repeat": "none",
       "frontage": "short",
       "fit": {
@@ -1204,7 +1204,7 @@
     "factory": {
       "group": "archetype",
       "file": "archetypes/factory.glb",
-      "bytes": 48560,
+      "bytes": 48528,
       "repeat": "none",
       "frontage": "short",
       "fit": {
@@ -1252,12 +1252,12 @@
           "lods": [
             {
               "node": "factory__shed__LOD0",
-              "tris": 3628,
+              "tris": 3596,
               "maxM": 300.0
             },
             {
               "node": "factory__shed__LOD1",
-              "tris": 328,
+              "tris": 320,
               "maxM": 1500.0
             },
             {
@@ -1272,7 +1272,7 @@
     "mall": {
       "group": "archetype",
       "file": "archetypes/mall.glb",
-      "bytes": 53820,
+      "bytes": 50684,
       "repeat": "none",
       "frontage": "short",
       "fit": {
@@ -1320,12 +1320,12 @@
           "lods": [
             {
               "node": "mall__box__LOD0",
-              "tris": 5152,
+              "tris": 4438,
               "maxM": 300.0
             },
             {
               "node": "mall__box__LOD1",
-              "tris": 802,
+              "tris": 784,
               "maxM": 1500.0
             },
             {
@@ -1340,7 +1340,7 @@
     "generic": {
       "group": "archetype",
       "file": "archetypes/generic.glb",
-      "bytes": 31504,
+      "bytes": 31508,
       "repeat": "none",
       "frontage": "short",
       "fit": {
@@ -1408,7 +1408,7 @@
     "lakeside_mall": {
       "group": "landmark",
       "file": "landmarks/lakeside_mall.glb",
-      "bytes": 87196,
+      "bytes": 87288,
       "repeat": "none",
       "frontage": "short",
       "fit": {
@@ -1476,7 +1476,7 @@
     "kanopi": {
       "group": "landmark",
       "file": "landmarks/kanopi.glb",
-      "bytes": 395380,
+      "bytes": 395252,
       "repeat": "none",
       "frontage": "long",
       "fit": {
@@ -1546,7 +1546,7 @@
     "masjid_denai_alam": {
       "group": "landmark",
       "file": "landmarks/masjid_denai_alam.glb",
-      "bytes": 44508,
+      "bytes": 44500,
       "repeat": "none",
       "frontage": "short",
       "fit": {
