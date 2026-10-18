@@ -446,6 +446,30 @@ def test_kanopi_pool_is_water_on_the_podium_roof(landmarks_built):
     assert all(abs(p[1] - (8.7 + 1.2)) <= 0.02 for p in water), {round(p[1], 3) for p in water}
 
 
+POD_TOP = 8.7  # the Kanopi podium roof
+
+
+def test_kanopi_lod1_keeps_end_ledge_planting(landmarks_built):
+    """P4 lost the end-ledge planting at LOD1: foliage past the slab ends, beside the pools."""
+    raw, _ = landmarks_built["kanopi"]
+    name = "kanopi__tower__LOD1"
+    colors = read_attribute(raw, name, "COLOR_0")
+    pos = read_attribute(raw, name, "POSITION")
+    foliage = specs.ROLES.index("foliage")
+    w, _h, d = specs.ASSETS["kanopi"].variants[0].size
+    tw, bd = w - 2.0, d - 2.0  # kanopi INSET = 1 m
+    ends = [
+        p
+        for c, p in zip(colors, pos, strict=True)
+        if round(c[1] * 7) == foliage
+        and abs(p[0]) > tw / 2
+        and 9.4 < abs(p[2]) < bd / 2
+        and POD_TOP <= p[1] <= POD_TOP + 0.8
+    ]
+    assert len(ends) >= 16, len(ends)
+    assert {p[0] > 0 for p in ends} == {True, False}
+
+
 @pytest.mark.parametrize("asset_id", LINK_IDS)
 def test_link_houses(link_built, asset_id):
     raw, packed = link_built[asset_id]
