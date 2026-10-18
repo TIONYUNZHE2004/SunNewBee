@@ -4,10 +4,12 @@ import { parseManifest } from "../assets/manifest";
 import { createFrame } from "../frame";
 import { boxAround } from "../stream/area";
 import { tileAt } from "../stream/tiles";
-import { PROP_CAPS } from "./caps";
 import { planConstruction, TRACK_STRIDE, TRACK_WIDTH_M } from "./construction";
 import { inPoly, type Poly, polygonsOf } from "./polyGeom";
 import { planProps } from "./propsPlan";
+
+/** Cap-agnostic tests: generous caps (the old whole-scene High numbers) so a per-tile cap never bites. */
+const UNCAPPED = { trees: 6000, lamps: 1500, furniture: 600, construction: 300 };
 
 const manifest = parseManifest(
   JSON.parse(
@@ -51,8 +53,8 @@ describe("construction.ts (split out of propsPlan)", () => {
       m: manifest,
     };
     for (const [name, caps] of [
-      ["big", PROP_CAPS.high],
-      ["tight", { ...PROP_CAPS.high, construction: 6 }],
+      ["big", UNCAPPED],
+      ["tight", { ...UNCAPPED, construction: 6 }],
     ] as const) {
       const p = planProps({ ...input, area: { box: boxAround(0, 0, 1200), seed: "t" }, caps });
       const after = [...p.kits].filter(([k]) => k.startsWith("construction/"));

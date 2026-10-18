@@ -56,6 +56,8 @@ export function useFacades({
   /** The city's GPU bytes without the facade layer (for the perf line). */
   baseBytes: RefObject<number>;
 }) {
+  // The layers only read `tier` to draw nothing on Low, so Medium <-> High must not rebuild them.
+  const drawTier: Tier = tier === "low" ? "low" : "high";
   const listsRef = useRef<FacadeBuilding[][]>([]);
   const next = tier === "low" ? [] : nearFacades(active);
   if (!sameLists(next, listsRef.current)) listsRef.current = next;
@@ -76,7 +78,7 @@ export function useFacades({
       let layer: ReturnType<typeof createFacadeLayer>;
       const t0 = performance.now();
       try {
-        layer = createFacadeLayer(lists.flat(), roleUniforms, tier, engine.motion);
+        layer = createFacadeLayer(lists.flat(), roleUniforms, drawTier, engine.motion);
         measure(FACADE_MEASURE, t0);
       } catch (err) {
         // Decorative only: the palette extrusion stays drawn without it.
@@ -91,7 +93,7 @@ export function useFacades({
         .getState()
         .update({ gpuMB: (baseBytes.current + facadeBytes(layer.group)) / MB });
     });
-  }, [engine, lists, tier, roleUniforms, baseBytes]);
+  }, [engine, lists, drawTier, roleUniforms, baseBytes]);
   // An engine switch or unmount clears the slot.
   useEffect(() => {
     if (!engine) return;

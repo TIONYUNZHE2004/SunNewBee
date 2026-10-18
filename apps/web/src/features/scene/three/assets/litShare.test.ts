@@ -34,25 +34,23 @@ const ASSETS = ["highrise", "link_intermediate", "shop_office", "kanopi", "mall"
 
 describe("night lit-window share per glass archetype (packed glbs)", () => {
   it("is in [0.35, 0.65] at the night uLitShare", async () => {
-    expect(manifest).not.toBeNull();
+    if (!manifest) throw new Error("manifest did not parse");
     const threshold = glowFor({ day: 0, dusk: 0, night: 1 }).uLitShare;
-    const lib = await loadAssetLibrary(manifest!, { loadGlb: readGlb, assets: ASSETS });
+    const lib = await loadAssetLibrary(manifest, { loadGlb: readGlb, assets: ASSETS });
     expect(lib.failed).toEqual([]);
-    const rows: string[] = [];
     for (const id of ASSETS) {
-      const spec = manifest!.assets[id]!;
+      const spec = manifest.assets[id];
+      if (!spec) throw new Error(`no manifest asset ${id}`);
       for (const variant of Object.keys(spec.variants)) {
         const g = lib.geometry(id, variant, 0);
         const col = g?.getAttribute("color");
-        expect(col, `${id}/${variant} has colour`).toBeDefined();
+        expect(col, `${id}/${variant} has colour`).toBeTruthy();
         const r = litShare(col as never, threshold);
-        rows.push(`${id}/${variant} glass=${r.glass} share=${r.share.toFixed(3)}`);
         expect(r.glass, `${id}/${variant} has glass`).toBeGreaterThan(0);
         expect(r.share, `${id}/${variant}`).toBeGreaterThanOrEqual(0.35);
         expect(r.share, `${id}/${variant}`).toBeLessThanOrEqual(0.65);
       }
     }
-    console.log(rows.join("\n"));
     lib.dispose();
   });
 });

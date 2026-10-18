@@ -117,4 +117,17 @@ describe("useFacades (P4-H: facades stream per tile, ring <= 1)", () => {
     unmount();
     expect(slotCalls(engine).at(-1)).toBeNull();
   });
+
+  it("a Medium <-> High tier change does not rebuild; Medium -> Low clears", async () => {
+    const { engine, rerender } = mount([tile(10, 0, c0)]);
+    await waitFor(() => expect(built(engine)).toHaveLength(1));
+    rerender({ active: [tile(10, 0, c0)], tier: "high" });
+    await new Promise((r) => setTimeout(r, 10));
+    expect(built(engine)).toHaveLength(1);
+    rerender({ active: [tile(10, 0, c0)], tier: "medium" });
+    await new Promise((r) => setTimeout(r, 10));
+    expect(built(engine)).toHaveLength(1);
+    rerender({ active: [tile(10, 0, c0)], tier: "low" });
+    await waitFor(() => expect(slotCalls(engine).at(-1)).toBeNull());
+  });
 });

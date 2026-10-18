@@ -889,6 +889,12 @@ describe("honesty 8: every overlay draws above every decor object", () => {
     expect(maxDecor).toBeLessThan(10);
 
     const l = overlay();
+    // The exclusion above is only valid while the birds stay out of the overlay scene.
+    const birds = decorativeLayers().ambient;
+    const inOverlay = new Set<THREE.Object3D>();
+    l.group.traverse((o) => inOverlay.add(o));
+    birds.traverse((o) => expect(inOverlay.has(o), `bird object ${o.name}`).toBe(false));
+    expect(inOverlay.has(birds)).toBe(false);
     const all: THREE.Object3D[] = [];
     l.group.traverse((o) => {
       if ((o as THREE.Mesh).material) all.push(o);
