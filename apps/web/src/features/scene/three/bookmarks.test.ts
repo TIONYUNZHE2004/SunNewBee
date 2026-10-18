@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { BOOKMARKS, bookmarkFromSearch, DEFAULT_BOOKMARK } from "./bookmarks";
+import {
+  BOOKMARKS,
+  bookmarkFromSearch,
+  DEFAULT_BOOKMARK,
+  HERO_CENTRE,
+  HERO_RADIUS_M,
+} from "./bookmarks";
 
 describe("bookmarks", () => {
   it("parses the bookmark query param", () => {
@@ -16,5 +22,15 @@ describe("bookmarks", () => {
       pitchDeg: -55,
     });
     expect(DEFAULT_BOOKMARK).toBe("hero-mid");
+  });
+  it("has four non-hero probe views at mid range", () => {
+    for (const id of ["probe-a", "probe-b", "probe-c", "probe-d"] as const) {
+      expect(bookmarkFromSearch(`?bookmark=${id}`)).toBe(id);
+      const b = BOOKMARKS[id];
+      expect(b.rangeM).toBe(800);
+      const dx = (b.centre[0] - HERO_CENTRE[0]) * 111320;
+      const dy = (b.centre[1] - HERO_CENTRE[1]) * 110574;
+      expect(Math.hypot(dx, dy)).toBeGreaterThan(HERO_RADIUS_M);
+    }
   });
 });
