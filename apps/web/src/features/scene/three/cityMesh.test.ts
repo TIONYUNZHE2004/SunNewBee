@@ -177,6 +177,65 @@ describe("buildCityGeometry", () => {
     expect(g.buildings.boundingBox!.max.y).toBeCloseTo(9, 6);
   });
 
+  it("walls get UVs per storey (v = storeys above the base, u = perimeter metres / 3.2); the roof stays at 0", () => {
+    const colours = { wall: "#ff0000", roof: "#00ff00", trim: "#0000ff" };
+    const g = buildCityGeometry(
+      layer({
+        buildings: fc([feat(poly(square(0, 0)), { height_m: 9.6, min_height_m: 3.2 })]),
+      }),
+      frame,
+      { colours: () => colours },
+    );
+    const p = pos(g.buildings);
+    const n = g.buildings.getAttribute("normal");
+    const uv = g.buildings.getAttribute("uv");
+    expect(uv).toBeDefined();
+    expect(uv.count).toBe(p.count);
+    let maxU = 0;
+    for (let i = 0; i < p.count; i++) {
+      if (Math.abs(n.getY(i)) > 0.5) {
+        // roof cap
+        expect(uv.getX(i)).toBe(0);
+        expect(uv.getY(i)).toBe(0);
+        continue;
+      }
+      // walls and the parapet band: one v unit per 3.2 m storey above the base
+      expect(uv.getY(i)).toBeCloseTo((p.getY(i) - 3.2) / 3.2, 4);
+      maxU = Math.max(maxU, uv.getX(i));
+    }
+    // a 10 m square has a 40 m perimeter
+    expect(maxU).toBeCloseTo(40 / 3.2, 2);
+    // the wall top (9.6 m on a 3.2 m base) is exactly 2 storeys
+    let topV = 0;
+    for (let i = 0; i < uv.count; i++) topV = Math.max(topV, uv.getY(i));
+    expect(topV).toBeCloseTo(2, 4);
+  });
+
+  it("lists the drawn footprints (local ring, display height, base) for the facade layer", () => {
+    const g = buildCityGeometry(
+      layer({
+        buildings: fc([
+          feat(poly(square(0, 0)), { id: "a", height_m: 9, display_height_m: 12, kind: "retail" }),
+          feat(poly(square(50, 0)), { id: "b", height_m: 6, min_height_m: 2 }),
+          feat(poly([frame.toLonLat(0, 0), frame.toLonLat(5, 0), frame.toLonLat(0, 0)]), {
+            id: "bad",
+          }),
+        ]),
+      }),
+      frame,
+      { only: new Set(["a", "b", "bad"]) },
+    );
+    expect(g.footprints.map((f) => f.id)).toEqual(["a", "b"]);
+    const [a, b] = g.footprints;
+    expect(a).toMatchObject({ id: "a", kind: "retail", heightM: 12, minHeightM: 0 });
+    expect(b).toMatchObject({ id: "b", heightM: 6, minHeightM: 2 });
+    expect(a!.ring).toHaveLength(4);
+    for (const [x, z] of a!.ring) {
+      expect(Math.abs(x) < 1e-3 || Math.abs(x - 10) < 1e-3).toBe(true);
+      expect(Math.abs(z) < 1e-3 || Math.abs(z - 10) < 1e-3).toBe(true);
+    }
+  });
+
   it("MultiPolygon, 2-point ring and non-finite coordinates are skipped and counted", () => {
     const good = feat(poly(square(0, 0)), { height_m: 9 });
     const multi = feat({ type: "MultiPolygon", coordinates: [[square(20, 0)]] });

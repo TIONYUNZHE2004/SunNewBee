@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import type { InstancedMesh } from "three";
 import type { BuildingsLayer } from "../../../../lib/api";
 import { usePerfStats } from "../../cesium/PerfOverlay";
 import type { Tier } from "../../cesium/stylised/quality";
@@ -7,13 +8,14 @@ import { type CityInstances, createCityInstances } from "../assets/cityInstances
 import type { Placement } from "../assets/fit";
 import { type AssetLibrary, loadAssetLibrary } from "../assets/library";
 import { MANIFEST_URL, type Manifest, parseManifest } from "../assets/manifest";
-import { type CityPlan, planCity } from "../assets/plan";
+import { type CityPlan, facadeInputs, planCity } from "../assets/plan";
 import type { RoleUniforms } from "../assets/roleMaterial";
 import { showroomBounds, showroomManifest, showroomPlan } from "../assets/showroom";
 import { HERO_CENTRE } from "../bookmarks";
 import { useCityInfo } from "../cityInfo";
 import { buildCityGeometry, type CityGeometry } from "../cityMesh";
 import type { Engine } from "../engine";
+import { createFacadeLayer, type FacadeBuilding } from "../facade/facadeLayer";
 import { fallbackColourFn } from "../fallbackStyle";
 import type { LocalFrame } from "../frame";
 import { KIT_LOD_SCALE } from "../props/caps";
@@ -63,9 +65,13 @@ function describeFailures(
 
 export type FallbackCounts = [number, number, number, number];
 const NO_FALLBACK: FallbackCounts = [0, 0, 0, 0];
-/** no_fit, generic_fill, no_archetype, no_asset (the order of `data-fallback` and `fb` on the perf line). */
+/**
+ * no_fit, generic_fill, no_archetype, no_asset (the order of `data-fallback` and `fb` on the perf
+ * line). A `generic_stretch` (a generic box that would be stretched, extruded with a facade) counts
+ * as no_fit: the asset cannot fit without stretching.
+ */
 const fallbackCounts = (f: Record<string, number>): FallbackCounts => [
-  f.no_fit ?? 0,
+  (f.no_fit ?? 0) + (f.generic_stretch ?? 0),
   f.generic_fill ?? 0,
   f.no_archetype ?? 0,
   f.no_asset ?? 0,
@@ -78,6 +84,30 @@ const geometryBytes = (g: CityGeometry) => {
   return n;
 };
 const MB = 1024 * 1024;
+/** Runs `fn` when the main thread is idle (at most 500 ms later); returns a cancel function. */
+function whenIdle(fn: () => void): () => void {
+  const w = globalThis as typeof globalThis & {
+    requestIdleCallback?: (cb: () => void, o?: { timeout: number }) => number;
+    cancelIdleCallback?: (h: number) => void;
+  };
+  if (w.requestIdleCallback && w.cancelIdleCallback) {
+    const h = w.requestIdleCallback(fn, { timeout: 500 });
+    return () => w.cancelIdleCallback?.(h);
+  }
+  const t = setTimeout(fn, 0);
+  return () => clearTimeout(t);
+}
+/** The engine decor slot that holds the procedural facade layer. */
+export const FACADE_SLOT = "facades";
+/** Instance buffers (matrix + colour) of the facade layer's meshes. */
+const facadeBytes = (group: { children: unknown[] }) => {
+  let n = 0;
+  for (const c of group.children) {
+    const m = c as Partial<Pick<InstancedMesh, "instanceMatrix" | "instanceColor">>;
+    n += (m.instanceMatrix?.array.byteLength ?? 0) + (m.instanceColor?.array.byteLength ?? 0);
+  }
+  return n;
+};
 
 type Kits = Map<string, Placement[]> | null;
 
@@ -87,6 +117,11 @@ type Kits = Map<string, Placement[]> | null;
  *
  * Single build: the instances are created once per (plan, tier) and kits (props) are applied with
  * `setKits`, which rebuilds only the kit buckets. Kits set before the build go into it.
+ *
+ * Procedural facades (decorative): one township-wide layer for every drawn extrusion (fallbacks and
+ * stretched generics), in the engine's `FACADE_SLOT` decor slot. It is built once per (plan, tier),
+ * never on camera moves, with the live role and motion uniforms (mood and flicker reach it without
+ * a rebuild); Low draws none (the P3 palette extrusion). Per-tile facade streaming is Task 4's.
  */
 export function useCityAssets({
   engine,
@@ -114,6 +149,12 @@ export function useCityAssets({
   /** True when the placed city assets include decorative kits or decorative landmarks. */
   const [decorAssets, setDecorAssets] = useState(false);
   const [fallback, setFallback] = useState<FallbackCounts>(NO_FALLBACK);
+  /** The facade layer's input for the current plan (null: no facades, e.g. no assets or showroom). */
+  const [facadeSrc, setFacadeSrc] = useState<FacadeBuilding[] | null>(null);
+  /** True while a non-empty facade layer is in the engine. */
+  const [facadesOn, setFacadesOn] = useState(false);
+  /** The city's GPU bytes without the facade layer (the facade effect adds its own). */
+  const baseBytes = useRef(0);
   /** True while the engine holds instances built from the current library. */
   const handedOff = useRef(false);
   /** The instances now in the engine (null while it holds none). */
@@ -133,6 +174,8 @@ export function useCityAssets({
     handedOff.current = false;
     instRef.current = null;
     applied.current = null;
+    // Kits were planned against this library's manifest: the next build waits for a fresh setKits.
+    kitsRef.current = null;
   };
 
   // City assets: manifest, then the glb library (aborted on unmount). Any failure leaves the full
@@ -188,7 +231,9 @@ export function useCityAssets({
       setInstances(0);
       setDecorAssets(false);
       setFallback(NO_FALLBACK);
-      usePerfStats.getState().update({ gpuMB: geometryBytes(g) / MB, fallback: NO_FALLBACK });
+      setFacadeSrc(null);
+      baseBytes.current = geometryBytes(g);
+      usePerfStats.getState().update({ gpuMB: baseBytes.current / MB, fallback: NO_FALLBACK });
     };
     if (!loaded) {
       full();
@@ -234,20 +279,55 @@ export function useCityAssets({
       setAssetsState("ready");
       const fb = fallbackCounts(plan.stats.fallback);
       setFallback(fb);
-      usePerfStats.getState().update({
-        fallback: fb,
-        gpuMB: (geometryBytes(g) + lib.gpuBytes() + inst.stats().gpuBytes) / MB,
-      });
+      baseBytes.current = geometryBytes(g) + lib.gpuBytes() + inst.stats().gpuBytes;
+      usePerfStats.getState().update({ fallback: fb, gpuMB: baseBytes.current / MB });
+      // The showroom has no township: no facades there.
+      setFacadeSrc(showroom ? null : facadeInputs(g.footprints, buildings, m));
     } catch (err) {
       // Once per load: drop the library, so later buildings refetches draw the full city silently.
       console.warn(`${ASSET_WARN}: ${String(err)}`);
       dropInstances();
       lib.dispose();
+      setFacadeSrc(null);
       // setLoaded(null) re-runs this effect, which draws the full city once (no full() here).
       setLoaded(null);
       setAssetsState("failed");
     }
   }, [engine, frame, buildings, loaded, showroom, roleUniforms]);
+
+  // Facades: one layer per (plan, tier), handed to the engine's decor slot (which disposes the old
+  // one). Low tier draws none. The cleanup clears the slot on a rebuild, an engine switch or unmount.
+  useEffect(() => {
+    if (!engine || !facadeSrc || facadeSrc.length === 0 || tier === "low") {
+      setFacadesOn(false);
+      usePerfStats.getState().update({ gpuMB: baseBytes.current / MB });
+      return;
+    }
+    // Built when the main thread is idle, after the city's first frame (about 0.1 s for the whole
+    // township in node; see the Task 6b report), so the palette extrusion shows first.
+    let built = false;
+    const cancel = whenIdle(() => {
+      let layer: ReturnType<typeof createFacadeLayer>;
+      try {
+        layer = createFacadeLayer(facadeSrc, roleUniforms, tier, engine.motion);
+      } catch (err) {
+        // Decorative only: the palette extrusion stays drawn without it.
+        console.warn(`${ASSET_WARN}: facades: ${String(err)}`);
+        setFacadesOn(false);
+        return;
+      }
+      built = true;
+      engine.setDecor(FACADE_SLOT, layer);
+      setFacadesOn(layer.group.children.length > 0);
+      usePerfStats
+        .getState()
+        .update({ gpuMB: (baseBytes.current + facadeBytes(layer.group)) / MB });
+    });
+    return () => {
+      cancel();
+      if (built) engine.setDecor(FACADE_SLOT, null);
+    };
+  }, [engine, facadeSrc, tier, roleUniforms]);
 
   /** Hands the latest kits to the instances in the engine, unless they already hold them. */
   // biome-ignore lint/correctness/useExhaustiveDependencies: kitLodScale reads the live tier and `showroom`, a dependency
@@ -297,5 +377,13 @@ export function useCityAssets({
     [],
   );
 
-  return { assetsState, loaded, plan, setKits, decorAssets, instances, fallback };
+  return {
+    assetsState,
+    loaded,
+    plan,
+    setKits,
+    decorAssets: decorAssets || facadesOn,
+    instances,
+    fallback,
+  };
 }
