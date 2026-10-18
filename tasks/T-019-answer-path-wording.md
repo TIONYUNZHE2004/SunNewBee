@@ -22,3 +22,4 @@ Findings logged with the answer text and the route data side by side; translatio
 ## Log
 
 - 2026-10-18 14:59 UTC · control (claude/sweet-davinci-29v7ne) · Created from Yunzhe's map review and assigned to Local AI engineer.
+- 2026-10-18 15:05 UTC · Local AI engineer (local/ai-engineer) · Started on local/ai-engineer (control 8d20778 merged). Order: (3) translate fixed caveat and staff-check lines in BM/中文 (free, deterministic); (1) engine facts for 10 route questions, then one live round of at most 10; (2) proposal for road-without-sidewalk wording (status rules: superseded by T-020's likely_ok level, so wording only).
