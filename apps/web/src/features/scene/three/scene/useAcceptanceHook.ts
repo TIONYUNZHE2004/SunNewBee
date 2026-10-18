@@ -96,8 +96,37 @@ export interface AcceptanceApi {
    * can measure the surface under them. Display only; the lines' own fade is A-T2's.
    */
   setOverlaysVisible(visible: boolean): void;
+  /**
+   * Decorative agents that currently have instance matrices (inside the frustum plus the layer's
+   * 50 m margin): one row per instance with its kit, variant, LOD bucket, distance, display scale,
+   * projected head and feet (canvas CSS pixels) and whether a pickable surface (building, tree)
+   * lies between the camera and the head. `planned` counts the agents the layer was built with.
+   */
+  crowd(): CrowdReport;
   /** The unmasked WebGL vendor and renderer (WEBGL_debug_renderer_info), else the masked ones. */
   gpu(): { vendor: string; renderer: string };
+}
+
+export interface CrowdRow {
+  kind: "person" | "vehicle";
+  variant: string;
+  lod: number;
+  distM: number;
+  scale: number;
+  /** Model height (m) from the manifest times the display scale. */
+  heightM: number;
+  head: { x: number; y: number } | null;
+  feet: { x: number; y: number } | null;
+  /** Head to feet in canvas pixels; null when behind the camera. */
+  heightPx: number | null;
+  inCanvas: boolean;
+  /** A raycast camera -> head hits a non-decorative surface before the head. */
+  occluded: boolean;
+}
+
+export interface CrowdReport {
+  planned: { person: number; vehicle: number };
+  rows: CrowdRow[];
 }
 
 export interface UncappedMeasurement {
@@ -122,6 +151,87 @@ export function uncappedSummary(ms: readonly number[]): UncappedMeasurement {
 }
 
 const _ray = new THREE.Raycaster();
+const _cm = new THREE.Matrix4();
+const _cp = new THREE.Vector3();
+const _cs = new THREE.Vector3();
+const _cq = new THREE.Quaternion();
+const _ch = new THREE.Vector3();
+
+/** Kit model heights (m) by `kind/variant`, from the manifest-sized geometry bounding boxes. */
+function modelHeight(mesh: THREE.InstancedMesh): number {
+  const g = mesh.geometry;
+  if (!g.boundingBox) g.computeBoundingBox();
+  const bb = g.boundingBox;
+  return bb ? bb.max.y - bb.min.y : 0;
+}
+
+function crowdReport(engine: Engine): CrowdReport {
+  const v = engine.pickView();
+  const [w, h] = v.size;
+  const planned = { person: 0, vehicle: 0 };
+  const rows: CrowdRow[] = [];
+  const blockers: THREE.Object3D[] = [];
+  const visit = (o: THREE.Object3D) => {
+    if (o.userData.decorative) return;
+    // Fat lines (access / flood overlays) are not surfaces and their raycast needs a camera.
+    if (
+      (o as THREE.Mesh).isMesh &&
+      o.visible &&
+      !(o as { isLineSegments2?: boolean }).isLineSegments2
+    )
+      blockers.push(o);
+    for (const c of o.children) visit(c);
+  };
+  for (const r of v.roots) visit(r);
+  const seenVariant = new Set<string>();
+  const proj = (p: THREE.Vector3) => {
+    const q = _ch.copy(p).project(v.camera);
+    if (q.z < -1 || q.z > 1) return null;
+    return { x: ((q.x + 1) / 2) * w, y: ((1 - q.y) / 2) * h };
+  };
+  const walk = (o: THREE.Object3D) => {
+    const im = o as THREE.InstancedMesh;
+    if (im.isInstancedMesh && o.name.startsWith("motion__")) {
+      const [, asset, variant, lodTag] = o.name.split("__") as [string, string, string, string];
+      const kind = asset === "people" ? "person" : "vehicle";
+      const lod = Number(lodTag.replace("LOD", ""));
+      const key = `${kind}/${variant}`;
+      if (!seenVariant.has(key)) {
+        seenVariant.add(key);
+        planned[kind] += im.instanceMatrix.count;
+      }
+      const hM = modelHeight(im);
+      for (let i = 0; i < im.count; i++) {
+        im.getMatrixAt(i, _cm);
+        _cm.decompose(_cp, _cq, _cs);
+        const feet = proj(_cp);
+        const headW = _cp.clone().setY(_cp.y + hM * _cs.y);
+        const head = proj(headW);
+        const dist = v.camera.position.distanceTo(headW);
+        _ray.set(v.camera.position, headW.clone().sub(v.camera.position).normalize());
+        _ray.far = dist - 0.3;
+        _ray.camera = v.camera;
+        const occluded = _ray.intersectObjects(blockers, false).length > 0;
+        rows.push({
+          kind,
+          variant,
+          lod,
+          distM: dist,
+          scale: _cs.y,
+          heightM: hM * _cs.y,
+          head,
+          feet,
+          heightPx: head && feet ? Math.abs(feet.y - head.y) : null,
+          inCanvas: !!head && head.x >= 0 && head.x <= w && head.y >= 0 && head.y <= h,
+          occluded,
+        });
+      }
+    }
+    for (const c of o.children) walk(c);
+  };
+  for (const r of v.roots) walk(r);
+  return { planned, rows };
+}
 const _ndc = new THREE.Vector2();
 
 /** Road surface meshes (decorative, so the scene picker skips them). */
@@ -242,6 +352,9 @@ export function createAcceptanceApi(engine: Engine, frame: LocalFrame): Acceptan
         out.push({ x: ((p.x + 1) / 2) * w, y: ((1 - p.y) / 2) * h });
       }
       return out;
+    },
+    crowd() {
+      return crowdReport(engine);
     },
     gpu() {
       const gl = engine.gl();
