@@ -161,6 +161,7 @@ describe("planCity", () => {
     expect(p.landmarks[0]!.z).toBeCloseTo(az, 6);
     expect(p.landmarks[0]!.yaw).toBe(0);
     expect(p.landmarks[0]!.sx).toBe(1);
+    expect(p.landmarks[0]!.depthYield).toBeUndefined();
     expect(p.extrude.has("b1")).toBe(false);
     const ids = [...p.placements.values()].flat().map((q) => q.id);
     expect(ids).not.toContain("b1");
@@ -216,7 +217,11 @@ describe("planCity", () => {
     expect(p.landmarks[0]!.sy).toBeCloseTo(1, 6);
     expect(p.landmarks[0]!.sx).toBeCloseTo(1, 2);
     expect(p.landmarks[0]!.sz).toBeCloseTo(1, 2);
-    expect(p.extrude.has("pod")).toBe(false);
+    // the OSM podium is real and stays: drawn (placed or extruded), counted and pickable
+    const placedIds = [...p.placements.values()].flat().map((u) => u.id);
+    expect(p.extrude.has("pod") || placedIds.includes("pod")).toBe(true);
+    // the slab yields where it is coplanar with the podium roof (no z-fighting)
+    expect(p.landmarks[0]!.depthYield).toBe(true);
     // the same footprint matched by building name keeps the building's height (8.71 / 130 is
     // outside the 0.5..2 band, so nothing is placed and the podium stays in the normal flow)
     const named = { ...traced, match: "building_name" };
@@ -235,11 +240,11 @@ describe("planCity", () => {
     expect(spec.frontage).toBe("long");
     expect(spec.designStoreys).toBe(36);
     const f = createFrame(site.center);
-    const podium = {
-      type: "Feature",
-      properties: { id: kanopi.properties.building_id, archetype: "generic", height_m: 8.71 },
-      geometry: kanopi.geometry,
-    };
+    const osm = readJson("../../../../../../../data/seed/elmina/base/buildings.geojson");
+    const podium = osm.features.find(
+      (b: { properties: { id?: string } }) => b.properties.id === kanopi.properties.building_id,
+    );
+    expect(podium.properties.height_m).toBeCloseTo(8.71, 2);
     const p = planCity(layerOf([podium], [kanopi]), f, real!, all);
     expect(p.landmarks).toHaveLength(1);
     const k = p.landmarks[0]!;
@@ -249,7 +254,9 @@ describe("planCity", () => {
       expect(v).toBeLessThanOrEqual(LANDMARK_FIT.xz[1]);
       expect(Math.abs(v - 1)).toBeLessThan(0.1);
     }
-    expect(p.extrude.has(kanopi.properties.building_id)).toBe(false);
+    const bid = kanopi.properties.building_id;
+    const placedIds = [...p.placements.values()].flat().map((u) => u.id);
+    expect(p.extrude.has(bid) || placedIds.includes(bid)).toBe(true);
   });
   it("never invents a landmark when the layer has no landmark features", () => {
     const p = planCity(layerOf([link("b1")]), frame, manifest(), all);

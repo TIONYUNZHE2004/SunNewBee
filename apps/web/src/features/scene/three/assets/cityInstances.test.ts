@@ -294,6 +294,28 @@ describe("createCityInstances", () => {
     expect(mesh?.userData.pick.id).toBe("lm0");
   });
 
+  it("a depth-yielding landmark (traced outline over its OSM podium) is polygon-offset back", () => {
+    const yielding = { ...pl("lm", 0), depthYield: true };
+    const plain = pl("lm", 1);
+    const c = createCityInstances(
+      lib(),
+      plan("a", [yielding, plain]),
+      manifest(),
+      createRoleUniforms(),
+    );
+    const meshes = c.group.children.filter(
+      (o) => o.userData.pick?.kind === "landmark",
+    ) as THREE.Mesh[];
+    const mat = (id: string) =>
+      meshes.find((m) => m.userData.pick.id === id)?.material as THREE.Material;
+    expect(mat("lm0").polygonOffset).toBe(true);
+    expect(mat("lm0").polygonOffsetFactor).toBeGreaterThan(0);
+    expect(mat("lm0").polygonOffsetUnits).toBeGreaterThan(0);
+    expect(mat("lm1").polygonOffset).toBe(false);
+    // the drawn position is untouched (the card's OSM height is never changed either)
+    expect(meshes.find((m) => m.userData.pick.id === "lm0")!.position.y).toBe(0);
+  });
+
   it("gpuBytes counts instance buffers; dispose leaves library geometry", () => {
     const l = lib();
     const g = l.geometry("a", "v", 0) as THREE.BufferGeometry;

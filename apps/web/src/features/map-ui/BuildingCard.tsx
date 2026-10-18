@@ -41,23 +41,26 @@ const MATCH_LABELS: Record<string, string> = {
  */
 export function designHeightText(spec: AssetSpec | undefined): string | null {
   const basis = spec?.heightBasis?.split(";")[0]?.trim();
-  if (basis) {
-    const parts: string[] = [];
-    let depth = 0;
-    let cur = "";
-    for (const ch of basis) {
-      if (ch === "(") depth++;
-      if (ch === ")") depth = Math.max(0, depth - 1);
-      if (ch === "," && depth === 0) {
-        parts.push(cur.trim());
-        cur = "";
-      } else cur += ch;
-    }
-    parts.push(cur.trim());
-    return parts.filter(Boolean).join(" · ");
-  }
+  if (basis) return clauses(basis).join(" · ");
   const n = spec?.designStoreys;
   return typeof n === "number" && n > 0 ? `design height (${n} storeys)` : null;
+}
+
+/** Comma-separated clauses of a text, ignoring commas inside parentheses; empty ones dropped. */
+function clauses(text: string): string[] {
+  const parts: string[] = [];
+  let depth = 0;
+  let cur = "";
+  for (const ch of text.split(";")[0] ?? "") {
+    if (ch === "(") depth++;
+    if (ch === ")") depth = Math.max(0, depth - 1);
+    if (ch === "," && depth === 0) {
+      parts.push(cur.trim());
+      cur = "";
+    } else cur += ch;
+  }
+  parts.push(cur.trim());
+  return parts.filter(Boolean);
 }
 
 type Props = Record<string, unknown>;
@@ -73,54 +76,84 @@ function propsById(fc: unknown, id: string): Props | null {
   return null;
 }
 
+interface Line {
+  text: string;
+  /** The full text when `text` is shortened. */
+  title?: string;
+}
 interface Facts {
   title: string;
-  lines: string[];
+  lines: Line[];
   link: string | null;
+}
+
+/** A source label longer than this shows only its first clause (the full text in a title). */
+export const SOURCE_LABEL_MAX = 60;
+
+/** The building's own lines: type (unclassified without an archetype), OSM source, height basis. */
+function buildingLines(layer: BuildingsLayer, p: Props, fallback: boolean): Line[] {
+  const arch = str(p.archetype);
+  const type = arch ? (ARCHETYPE_LABELS[arch] ?? "unclassified") : "unclassified";
+  const asOf = str(layer.as_of);
+  const height = HEIGHT_LABELS[str(p.display_height_source) ?? ""];
+  return [
+    { text: `Building type: ${type}${fallback ? " (shown as a simple block)" : ""}` },
+    { text: asOf ? `Source: OSM · as of ${asOf}` : "Source: OSM" },
+    ...(height ? [{ text: `Height: ${height}` }] : []),
+  ];
 }
 
 function buildingFacts(layer: BuildingsLayer, id: string, fallback: boolean): Facts | null {
   const p = propsById(layer.buildings, id);
   if (!p) return null;
-  const arch = str(p.archetype);
-  const type = (arch && ARCHETYPE_LABELS[arch]) ?? "Building (no specific type)";
-  const asOf = str(layer.as_of);
-  const height = HEIGHT_LABELS[str(p.display_height_source) ?? ""];
-  return {
-    title: "Building",
-    lines: [
-      `Building type: ${type}${fallback ? " (shown as a simple block)" : ""}`,
-      asOf ? `Source: OSM · as of ${asOf}` : "Source: OSM",
-      ...(height ? [`Height: ${height}`] : []),
-    ],
-    link: null,
-  };
+  return { title: "Building", lines: buildingLines(layer, p, fallback), link: null };
 }
 
+/**
+ * A building-name landmark is its OSM building drawn with a model: the building's lines, then the
+ * method and the OSM link. Only a traced landmark names its own source (its outline and design
+ * height come from that source, not OSM), linking its project page when it has one.
+ */
 function landmarkFacts(layer: BuildingsLayer, p: Props, spec: AssetSpec | undefined): Facts | null {
   const name = str(p.name);
   if (!name) return null;
   const match = MATCH_LABELS[str(p.match) ?? ""];
-  // A traced outline is drawn at the model's design height; a building-name match at its building's.
-  const bid = str(p.building_id);
-  const own = bid ? propsById(layer.buildings, bid) : null;
-  const height =
-    p.match === "traced_outline"
-      ? designHeightText(spec)
-      : own
-        ? (HEIGHT_LABELS[str(own.display_height_source) ?? ""] ?? null)
-        : null;
+  const method: Line = { text: match ? `Landmark · matched by ${match}` : "Landmark" };
   const url = str(p.source_url);
-  const label = str(p.source_label) ?? (url ? hostOf(url) : null);
+  if (p.match !== "traced_outline") {
+    const bid = str(p.building_id);
+    const own = bid ? propsById(layer.buildings, bid) : null;
+    return {
+      title: name,
+      lines: [method, ...(own ? buildingLines(layer, own, false) : [])],
+      link: url ? httpUrl(url) : null,
+    };
+  }
+  const height = designHeightText(spec);
+  const full = str(p.source_label) ?? (url ? hostOf(url) : null);
+  const label = full && full.length > SOURCE_LABEL_MAX ? (clauses(full)[0] ?? full) : full;
   const asOf = str(p.as_of);
+  const page = [p.info_url, p.source_page, p.source_url]
+    .map((u) => {
+      const v = str(u);
+      return v ? httpUrl(v) : null;
+    })
+    .find((u) => u);
   return {
     title: name,
     lines: [
-      match ? `Landmark · matched by ${match}` : "Landmark",
-      ...(height ? [`Height: ${height}`] : []),
-      ...(label ? [`Source: ${label}${asOf ? `, as of ${asOf}` : ""}`] : []),
+      method,
+      ...(height ? [{ text: `Height: ${height}` }] : []),
+      ...(label
+        ? [
+            {
+              text: `Source: ${label}${asOf ? `, as of ${asOf}` : ""}`,
+              ...(label !== full && full ? { title: full } : {}),
+            },
+          ]
+        : []),
     ],
-    link: url ? httpUrl(url) : null,
+    link: page ?? null,
   };
 }
 
@@ -172,7 +205,9 @@ function BuildingCardInner({ id }: { id: string }) {
         </div>
         <div className="mt-2 grid gap-1 text-sm text-fg-soft">
           {facts.lines.map((l) => (
-            <p key={l}>{l}</p>
+            <p key={l.text} title={l.title}>
+              {l.text}
+            </p>
           ))}
         </div>
         {facts.link && (

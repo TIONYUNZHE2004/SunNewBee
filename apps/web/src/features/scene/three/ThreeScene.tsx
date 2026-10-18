@@ -946,12 +946,13 @@ export default function ThreeScene({
 
   // Click to pick (one shared picker, fixed priority). Only a primary-button press released within
   // CLICK_DRAG_PX is a click; a drag orbits (MapControls) and a second finger cancels the click.
+  // Each primary press starts afresh, so a press released outside the map never goes stale.
   useEffect(() => {
     const host = hostRef.current;
     if (!engine || !host) return;
     let down: { x: number; y: number } | null = null;
     const onDown = (e: PointerEvent) => {
-      down = e.isPrimary && e.button === 0 && !down ? { x: e.clientX, y: e.clientY } : null;
+      down = e.isPrimary && e.button === 0 ? { x: e.clientX, y: e.clientY } : null;
     };
     const onUp = (e: PointerEvent) => {
       const d = down;

@@ -120,6 +120,11 @@ export interface Placement {
   sy: number;
   sz: number;
   palette: [string, string, string];
+  /**
+   * Landmarks only: drawn a hair behind coplanar surfaces (positive polygon offset), so the OSM
+   * building it overlaps (a traced tower's podium) wins where their roofs meet: no z-fighting.
+   */
+  depthYield?: boolean;
 }
 
 /** FNV-1a (murmur-finalised) of `${salt}:${id}` in [0, 1). */

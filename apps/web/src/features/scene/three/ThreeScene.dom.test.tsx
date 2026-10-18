@@ -1339,6 +1339,16 @@ describe("ThreeScene", () => {
       ]);
     });
 
+    it("a press released outside the map does not swallow the next click", () => {
+      mount();
+      pickStub.hit = { kind: "place", id: "p1" };
+      // pressed on the map, released elsewhere (no pointerup reaches the host)
+      fireEvent.pointerDown(host(), { button: 0, isPrimary: true, clientX: 300, clientY: 300 });
+      act(() => click([10, 10], [10, 10]));
+      expect(pickStub.calls).toHaveLength(1);
+      expect(useScene.getState().selectedPlaceId).toBe("p1");
+    });
+
     it("a secondary-button click or a second finger never picks", () => {
       mount();
       pickStub.hit = { kind: "place", id: "p1" };

@@ -23,6 +23,7 @@ const layer = {
       building("b-lvl", { archetype: "bungalow", display_height_source: "osm_levels" }),
       building("b-arch", { archetype: "shop_office", display_height_source: "archetype_storeys" }),
       building("b-def", { archetype: "generic", display_height_source: "default" }),
+      building("b-none", { display_height_source: "default" }),
       building("w1545153991", { archetype: "generic", display_height_source: "default" }),
       building("w1308938137", { archetype: "mall", display_height_source: "osm_levels" }),
     ],
@@ -39,7 +40,9 @@ const layer = {
           model: "kanopi",
           building_id: "w1545153991",
           source_url: "https://imagedelivery.net/x/plan/1920",
-          source_label: "Sime Darby Property, Kanopi Residences facility plan",
+          source_label:
+            "Sime Darby Property, Kanopi Residences facility plan (Level 7 deck), project page marketing image; tower floor plate traced, image not redistributed",
+          info_url: "https://www.simedarbyproperty.com/kanopi-residences/",
           match: "traced_outline",
           as_of: "2026-10-18",
         },
@@ -149,26 +152,51 @@ describe("BuildingCard", () => {
     // never the podium's OSM default height, and never "Source: OSM" for a traced plan
     expect(screen.queryByText(/Default estimate/)).toBeNull();
     expect(screen.queryByText(/Source: OSM/)).toBeNull();
-    expect(
-      screen.getByText(
-        "Source: Sime Darby Property, Kanopi Residences facility plan, as of 2026-10-18",
-      ),
-    ).toBeInTheDocument();
+    // a long label is trimmed to its first clause; the full text stays in the title
+    const src = screen.getByText("Source: Sime Darby Property, as of 2026-10-18");
+    expect(src).toHaveAttribute(
+      "title",
+      expect.stringMatching(/^Sime Darby Property, Kanopi .*redistributed$/),
+    );
+    // the project page, not the raw image CDN
     const link = screen.getByRole("link", { name: /Open source/ });
-    expect(link).toHaveAttribute("href", "https://imagedelivery.net/x/plan/1920");
+    expect(link).toHaveAttribute("href", "https://www.simedarbyproperty.com/kanopi-residences/");
     expect(link).toHaveAttribute("rel", "noopener noreferrer");
     expect(link).toHaveAttribute("target", "_blank");
   });
 
-  it("a building-name landmark says so and keeps its building's height label", () => {
+  it("a building-name landmark keeps its building's lines, then its name, method and OSM link", () => {
     show("elmina-lakeside-mall");
     expect(screen.getByRole("heading", { name: "Elmina Lakeside Mall" })).toBeInTheDocument();
     expect(screen.getByText("Landmark · matched by building name")).toBeInTheDocument();
+    expect(screen.getByText("Building type: Mall")).toBeInTheDocument();
+    expect(screen.getByText("Source: OSM · as of 2026-10-17")).toBeInTheDocument();
     expect(screen.getByText("Height: OSM building levels")).toBeInTheDocument();
-    expect(screen.getByText("Source: www.openstreetmap.org, as of 2026-10-17")).toBeInTheDocument();
+    // only traced landmarks name their own source
+    expect(screen.queryByText(/openstreetmap\.org/)).toBeNull();
     expect(screen.getByRole("link", { name: /Open source/ })).toHaveAttribute(
       "href",
       "https://www.openstreetmap.org/way/1308938137",
+    );
+  });
+
+  it("a missing archetype is unclassified (a simple block), not the generic label", () => {
+    show("b-none", new Set(["b-none"]));
+    expect(screen.getByText("Building type: unclassified (shown as a simple block)")).toBeVisible();
+  });
+
+  it("a traced landmark without a project page links its source_url", () => {
+    const qc = newQueryClient();
+    const l = structuredClone(layer);
+    const props = l.landmarks.features[0]!.properties as Record<string, unknown>;
+    props.info_url = "javascript:alert(1)";
+    qc.setQueryData(["buildings"], l);
+    useCityInfo.setState({ manifest, extruded: new Set() });
+    useScene.getState().selectBuilding("kanopi-residences");
+    renderWithClient(<BuildingCard />, qc);
+    expect(screen.getByRole("link", { name: /Open source/ })).toHaveAttribute(
+      "href",
+      "https://imagedelivery.net/x/plan/1920",
     );
   });
 

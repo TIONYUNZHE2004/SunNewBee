@@ -87,6 +87,8 @@ interface Key {
 }
 
 const UNSET = -2;
+/** Polygon offset (factor and units) of a depth-yielding landmark; positive pushes it back. */
+export const LANDMARK_YIELD_OFFSET = 2;
 const NOOP = () => {};
 const _m = new THREE.Matrix4();
 const _q = new THREE.Quaternion();
@@ -212,6 +214,13 @@ export function createCityInstances(
     if (!spec || !geo) continue;
     const mat = createRoleMaterial({ instanced: false, uniforms, palette: p.palette });
     landmarkMaterials.push(mat);
+    if (p.depthYield) {
+      // Behind coplanar surfaces: the OSM podium roof (8.71 m) wins over the slab's own podium
+      // (8.7 m) where they overlap, deterministically and without moving the model.
+      mat.polygonOffset = true;
+      mat.polygonOffsetFactor = LANDMARK_YIELD_OFFSET;
+      mat.polygonOffsetUnits = LANDMARK_YIELD_OFFSET;
+    }
     const mesh = new THREE.Mesh(geo, mat);
     mesh.name = `${p.asset}__${p.variant}__LOD0`;
     mesh.position.set(p.x, 0, p.z);
