@@ -966,7 +966,8 @@ describe("ThreeScene", () => {
         await waitFor(() => expect(lastDecor("lamp-pools")).toBeNull());
         expect(kitCount()).toBe(0);
         expect(lastDecor("ambient")).toBeNull();
-        expect(driver()?.group.children).toHaveLength(0);
+        // Low: motion off (ruling P4-S), no driver at all.
+        expect(driver()).toBeNull();
         expect(tierFakes.layers[0]?.disposed).toBe(1);
         expect(tierFakes.groundTiers.at(-1)).toBe("low");
         // The city mesh is never rebuilt for a tier change.

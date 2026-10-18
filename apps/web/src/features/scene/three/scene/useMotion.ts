@@ -68,8 +68,16 @@ export function useMotion({
   const runningRef = useRef(running);
   runningRef.current = running;
   const [driver, setDriver] = useState<MotionDriver | null>(null);
+  // At Low motion is off (ruling P4-S): no driver at all, so no motion frame, timer or flicker.
+  // Sway, limbs and shimmer hold their rest pose (the engine rests uSway / uLimb with no layer).
+  const low = tier === "low";
   useEffect(() => {
     if (!engine) return;
+    if (low) {
+      roleUniforms.uFlicker.value = 0;
+      engine.setMotion(null, () => false);
+      return;
+    }
     const d = createMotionDriver({
       role: roleUniforms,
       ambient: () => bus.getState().ambient,
@@ -86,7 +94,7 @@ export function useMotion({
       setDriver(null);
       engine.setMotion(null, () => false);
     };
-  }, [engine, roleUniforms, bus]);
+  }, [engine, roleUniforms, bus, low]);
   // Start: one frame starts the clock. Stop: static pose, then one final frame.
   useEffect(() => {
     if (!engine || !driver) return;

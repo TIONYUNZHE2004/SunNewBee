@@ -70,7 +70,7 @@ export interface Engine {
   readonly motion: MotionUniforms;
   /**
    * The motion layer and its gate. While running() the loop ticks it once per rAF at High/Medium
-   * (display rate; 30 fps at Low or after the session's slow-device fallback); otherwise no frame
+   * (display rate; 30 fps after the session's slow-device fallback; never at Low); otherwise no frame
    * is scheduled for motion (render on demand), and the frames that do render tick it at the frozen
    * motion time so its culling follows the camera. Motion time excludes stopped spans, so a resume
    * never jumps. Replaces and disposes the previous layer; null removes it. The caller requests a
@@ -327,14 +327,14 @@ function build(
   let motionLayer: MotionLayer | null = null;
   let motionRunning: () => boolean = () => false;
   /**
-   * The motion scheduler (Task 12): display rate at High/Medium, the P3 30 fps cadence at Low and
-   * after the session's < 45 fps fallback, which the clock measures itself from live frame gaps (the
-   * one frame monitor for motion; the tier monitor in useEngine is separate). Its `at` is the layers'
-   * clock: motion time, frozen while stopped.
+   * The motion scheduler (Task 12): display rate at High/Medium, the P3 30 fps cadence after the
+   * session's < 45 fps fallback, which the clock measures itself from live frame gaps (the one frame
+   * monitor for motion; the tier monitor in useEngine is separate). Its `at` is the layers' clock:
+   * motion time, frozen while stopped.
    */
-  const clockMode = (t: Tier): MotionMode => motionModeFor(t) ?? "30fps";
-  let clockTier: MotionMode = clockMode(tier);
-  let clock = createMotionClock({ mode: clockTier });
+  const clock = createMotionClock();
+  /** null at Low: motion is off (ruling P4-S), so no frame is ever live and nothing is scheduled. */
+  let motionMode: MotionMode | null = motionModeFor(tier);
   /**
    * Motion time = performance.now() - motionOffset. Each resume (Motion on again, tab visible, map
    * back on screen) re-anchors the offset so motion time continues from the frozen `at`: agents
@@ -484,14 +484,8 @@ function build(
   });
   const applyTier = (t: Tier) => {
     const spec = THREE_TIERS[t];
-    if (clockMode(t) !== clockTier) {
-      // Low <-> High/Medium: a clock of the new rate, continuing at the same motion time. (After
-      // the session fallback the new clock is 30 fps whatever the tier.)
-      clockTier = clockMode(t);
-      const at = clock.at;
-      clock = createMotionClock({ mode: clockTier });
-      clock.restart(at);
-    }
+    // Low: motion off. The next frame is not live, so it rests the pose and schedules nothing.
+    motionMode = motionModeFor(t);
     const pr = Math.min(globalThis.devicePixelRatio || 1, spec.maxPixelRatio);
     renderer.setPixelRatio(pr);
     pixelRatio = pr;
@@ -576,7 +570,7 @@ function build(
     const damping = controls.update();
     clearTimeout(motionTimer);
     motionTimer = undefined;
-    const live = !!motionLayer && motionRunning();
+    const live = motionMode !== null && !!motionLayer && motionRunning();
     // Resuming: motion time continues from the frozen clock, excluding the stopped span.
     if (live && !liveBefore) motionOffset = now - clock.at;
     liveBefore = live;
@@ -636,13 +630,15 @@ function build(
     };
     for (const cb of listeners) cb(dt, info);
     if (flying || damping || dirty) schedule();
+    // Motion-only frames stay "idle" (dt 0 to onFrame listeners, ruling P4-T).
     if (!raf) idle = true;
-    // The camera stopped before the last LOD update was due: wake one more frame for it.
+    // The motion clock: the next rAF (display rate) or the 30 fps timer; nothing while stopped.
+    wakeMotion(performance.now(), live);
+    // The camera stopped before the last LOD update was due: wake one more frame for it (display
+    // rate already renders the next frame, which runs the LOD tick when due).
     const wait = lodWanted() && !raf ? lod.trailingMs(now) : null;
     clearTimeout(lodTimer);
     lodTimer = wait === null ? undefined : setTimeout(requestRender, wait);
-    // The motion clock: the next rAF (display rate) or the 30 fps timer; nothing while stopped.
-    wakeMotion(performance.now(), live);
   }
 
   const onVisibility = () => {

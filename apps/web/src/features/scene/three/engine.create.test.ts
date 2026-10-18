@@ -1,6 +1,11 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { MOTION_FRAME_MS, MOTION_SLACK_MS, resetMotionSession } from "./motion/motionClock";
+import {
+  createMotionClock,
+  MOTION_FRAME_MS,
+  MOTION_SLACK_MS,
+  resetMotionSession,
+} from "./motion/motionClock";
 
 // No WebGL here: a fake renderer, and a PMREM generator that fails part-way through construction.
 const spy = vi.hoisted(() => ({
@@ -135,11 +140,17 @@ describe("createEngine", () => {
 });
 
 // Review Focus 3: no rAF loop survives while motion is not running. While it runs, the motion clock
-// ticks once per rAF at High/Medium (display rate, P4), and at most 30 times a second at Low or after
-// the slow-device fallback. Fake timers and a hand-pumped rAF queue.
+// ticks once per rAF at High/Medium (display rate, P4), and at most 30 times a second after the
+// slow-device fallback. At Low motion is off (ruling P4-S). Fake timers and a hand-pumped rAF queue.
 describe("engine motion clock", () => {
   // The 45 fps fallback is per page session (module level): every test starts at display rate.
   beforeEach(() => resetMotionSession());
+  /** Forces the session's 30 fps fallback: 3.5 s of live frames at 33 fps through a motion clock. */
+  const force30fps = () => {
+    const c = createMotionClock();
+    for (let t = 0; t <= 3500; t += 30) c.frame(t, true);
+    expect(c.mode).toBe("30fps");
+  };
   type Frame = { id: number; cb: FrameRequestCallback };
   let queue: Frame[] = [];
   let requested = 0;
@@ -218,9 +229,10 @@ describe("engine motion clock", () => {
     }
   });
 
-  it("running() true at Low (the 30 fps path): motion frames are at least 33 ms apart, uTime is the clock in seconds", async () => {
+  it("running() true in 30 fps mode (forced fallback): motion frames are at least 33 ms apart, uTime is the clock in seconds", async () => {
+    force30fps();
     const running = { on: false };
-    const { e, ticks } = await setup(running);
+    const { e, ticks } = await setup(running, "medium");
     try {
       settle();
       running.on = true;
@@ -269,9 +281,10 @@ describe("engine motion clock", () => {
     }
   });
 
-  it("vsync jitter at Low (the 30 fps path): one render per motion tick, every ~2 vsyncs (about 30 fps)", async () => {
+  it("vsync jitter in 30 fps mode (forced fallback): one render per motion tick, every ~2 vsyncs (about 30 fps)", async () => {
+    force30fps();
     const running = { on: false };
-    const { e, ticks } = await setup(running);
+    const { e, ticks } = await setup(running, "medium");
     try {
       settle();
       running.on = true;
@@ -473,10 +486,46 @@ describe("engine motion clock", () => {
     }
   });
 
-  it("setMotion(null) stops the clock and disposes the layer", async () => {
-    const { e, layer } = await setup({ on: true });
+  it("Low: motion is off (ruling P4-S), so running() true schedules no rAF and no timer", async () => {
+    const running = { on: true };
+    const { e, layer } = await setup(running, "low");
     try {
       settle();
+      const frames = e.frames;
+      const after = requested;
+      e.requestRender(); // one frame on demand, then idle again
+      vsyncs(30);
+      expect(e.frames).toBe(frames + 1);
+      expect(requested).toBe(after + 1);
+      expect(queue).toHaveLength(0);
+      expect(vi.getTimerCount()).toBe(0);
+      expect(e.motion.uSway.value).toBe(0);
+      expect(e.motion.uLimb.value).toBe(0);
+      expect(new Set(layer.tick.mock.calls.map((c) => c[0])).size).toBe(1);
+      // Medium turns it on (display rate); back to Low stops it after one frame.
+      e.setTier("medium");
+      e.requestRender();
+      vsyncs(10);
+      expect(queue).toHaveLength(1);
+      expect(e.motion.uSway.value).toBe(1);
+      e.setTier("low");
+      vsyncs(3);
+      const n = e.frames;
+      vsyncs(20);
+      expect(e.frames).toBe(n);
+      expect(queue).toHaveLength(0);
+      expect(vi.getTimerCount()).toBe(0);
+      expect(e.motion.uSway.value).toBe(0);
+    } finally {
+      teardown(e);
+    }
+  });
+
+  it("setMotion(null) stops the clock and disposes the layer", async () => {
+    const { e, layer } = await setup({ on: true }, "medium");
+    try {
+      vsyncs(10); // display rate: the loop is running
+      expect(queue).toHaveLength(1);
       e.setMotion(null, () => true);
       expect(layer.dispose).toHaveBeenCalledTimes(1);
       pump();

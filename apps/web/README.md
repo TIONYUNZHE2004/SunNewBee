@@ -321,9 +321,10 @@ hero district.
 
 Decorative traffic and pedestrians (`motion/`), plus the birds, cloud shadows, tree sway, water
 shimmer and window flicker, all move on one motion clock (`motion/motionClock.ts`, driven by
-`engine.ts`). It runs on real time: one tick per rAF (display rate) at High and Medium, 30 fps at
-Low, and 30 fps for the rest of the page session once the clock measures a median below 45 fps
-during motion. It runs only while Motion is on, `prefers-reduced-motion` is off, the tab is visible
+`engine.ts`). It runs on real time: one tick per rAF (display rate) at High and Medium, and 30 fps
+for the rest of the page session once the clock measures a median below 45 fps during motion. At
+Low, motion is off: there is no motion driver, no motion frame or timer, and sway, shimmer and
+flicker hold their rest pose. It runs only while Motion is on, `prefers-reduced-motion` is off, the tab is visible
 and the map is on screen (`IntersectionObserver`). Otherwise no frame is scheduled: the engine idles
 at render on demand and holds a still pose. Motion time excludes stopped spans, so agents resume
 where they stopped instead of jumping. Every rebuilt agent layer shares one smoothed-yaw memory.
