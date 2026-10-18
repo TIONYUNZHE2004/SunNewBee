@@ -1,7 +1,16 @@
 import * as THREE from "three";
 import { describe, expect, it } from "vitest";
 import { blendPresets, LIGHT_PRESETS } from "./lighting";
-import { applyFog, fogFor, glowFor, lightDate, moodPreset, moodSource, moodWeights } from "./mood";
+import {
+  applyFog,
+  fogFor,
+  glowFor,
+  lightDate,
+  moodKeyDir,
+  moodPreset,
+  moodSource,
+  moodWeights,
+} from "./mood";
 
 const NOW = new Date("2026-03-20T05:00:00Z"); // 13:00 KL
 const at = (t: number) => moodWeights({ kind: "day", t });
@@ -86,3 +95,25 @@ describe("moodPreset, glowFor, fogFor", () => {
     expect(d.toISOString()).toBe("2026-03-20T13:00:00.000Z");
   });
 });
+
+describe("moodKeyDir", () => {
+  it("never snaps while the day clock is scrubbed", () => {
+    const angle = (a: number[], b: number[]) =>
+      (Math.acos(Math.min(1, Math.max(-1, a[0]! * b[0]! + a[1]! * b[1]! + a[2]! * b[2]!))) * 180) /
+      Math.PI;
+    let prev: number[] | null = null;
+    let worst = 0;
+    for (let t = 5 * 60; t <= 23 * 60; t++) {
+      const src = { kind: "day", t } as const;
+      const d = moodKeyDir(src, moodWeights(src), NOW, 3.1813, 101.5099);
+      expect(Math.hypot(...d)).toBeCloseTo(1, 6);
+      if (prev) worst = Math.max(worst, angle(prev, d));
+      prev = d;
+    }
+    // The old dominant-keyframe switch jumped ~100 degrees in one minute. The dusk-to-night blend
+    // swings the light from the western sky to the moon over 45 minutes, so a few degrees a minute
+    // is expected; BOUND is about 2x the measured worst step (5.5 degrees per minute).
+    expect(worst).toBeLessThanOrEqual(BOUND_DEG_PER_MIN);
+  });
+});
+const BOUND_DEG_PER_MIN = 10;

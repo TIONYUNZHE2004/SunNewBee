@@ -326,6 +326,24 @@ describe("ThreeScene", () => {
     vi.unstubAllGlobals();
   });
 
+  it("the container background follows the blended preset during Day playback", async () => {
+    vi.stubGlobal("matchMedia", reducedMq);
+    act(() => useTheme.setState({ choice: "day", theme: "day" }));
+    const { engine } = mount();
+    await waitFor(() => expect(engine.setLighting).toHaveBeenCalled());
+    const el = screen.getByTestId("three-scene");
+    const toRgb = (hex: string) => {
+      const c = document.createElement("div");
+      c.style.background = hex;
+      return c.style.background;
+    };
+    expect(el.style.background).toBe(toRgb(LIGHT_PRESETS.day.background));
+    act(() => useScene.setState({ day: { ...useScene.getState().day, on: true, t: 21 * 60 } }));
+    expect(el.style.background).toBe(toRgb(LIGHT_PRESETS.night.background));
+    act(() => useScene.setState({ day: { ...useScene.getState().day, on: false } }));
+    vi.unstubAllGlobals();
+  });
+
   it("role uniforms follow glowFor", async () => {
     vi.stubGlobal("matchMedia", reducedMq);
     act(() => useTheme.setState({ choice: "night", theme: "night" }));

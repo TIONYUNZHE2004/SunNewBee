@@ -222,6 +222,8 @@ export default function ThreeScene({
   const site = useSite().data;
   const buildings = useBuildings().data;
   const theme = useTheme((s) => s.theme);
+  // Constant for React; the mood loop then drives the live (blended) colour on the element.
+  const [initialBackground] = useState(() => LIGHT_PRESETS[theme].background);
   const quality = useSceneSettings((s) => s.quality);
   const panelOpen = usePanel((s) => s.open);
   const route = useScene((s) => s.route);
@@ -443,7 +445,9 @@ export default function ThreeScene({
       roleUniforms.uWindowGlow.value = g.uWindowGlow;
       roleUniforms.uLitShare.value = g.uLitShare;
       roleUniforms.uLightGlow.value = g.uLightGlow;
-      engine.setLighting(moodPreset(w), moodKeyDir(src, w, new Date(), home.lat, home.lon));
+      const preset = moodPreset(w);
+      if (sectionRef.current) sectionRef.current.style.background = preset.background;
+      engine.setLighting(preset, moodKeyDir(src, w, new Date(), home.lat, home.lon));
     };
     const step = () => {
       raf = 0;
@@ -626,7 +630,7 @@ export default function ThreeScene({
       data-instances={instances}
       data-fallback={fallback.join(",")}
       className="relative h-full w-full"
-      style={{ background: LIGHT_PRESETS[theme].background }}
+      style={{ background: initialBackground }}
       // biome-ignore lint/a11y/noNoninteractiveTabindex: the 3D map takes keyboard focus for WASD/QE/RF
       tabIndex={0}
       aria-label="3D map. Arrow keys or WASD move, Q and E rotate, R and F tilt, plus and minus zoom, N faces north."

@@ -115,7 +115,11 @@ export function lightDate(src: MoodSource, now: Date): Date {
   return new Date(midnightKl + src.t * 60000);
 }
 
-/** Key light direction of the dominant keyframe (the real sun by day). */
+/**
+ * Key light direction: the normalised weighted sum of the three keyframe directions (day = the
+ * real sun, or the day clock on today's date), so it never snaps when the dominant keyframe flips.
+ * A near-zero sum (opposed directions) falls back to the dominant keyframe.
+ */
 export function moodKeyDir(
   src: MoodSource,
   w: MoodWeights,
@@ -123,7 +127,16 @@ export function moodKeyDir(
   lat: number,
   lon: number,
 ): [number, number, number] {
-  return keyLightDir(dominant(w), lightDate(src, now), lat, lon);
+  const when = lightDate(src, now);
+  const sum: [number, number, number] = [0, 0, 0];
+  for (const t of THEMES) {
+    if (w[t] <= 0) continue;
+    const d = keyLightDir(t, when, lat, lon);
+    for (let i = 0; i < 3; i++) sum[i] = (sum[i] as number) + w[t] * (d[i] as number);
+  }
+  const len = Math.hypot(...sum);
+  if (len < 0.2) return keyLightDir(dominant(w), when, lat, lon);
+  return [sum[0] / len, sum[1] / len, sum[2] / len];
 }
 
 /** Mutates the scene's one Fog (creating it once). */
