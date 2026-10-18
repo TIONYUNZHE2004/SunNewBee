@@ -17,7 +17,8 @@ import { GAP_BAND_ORDER, GAP_BANDS, gapLines, gapsActive } from "../../gaps/gapM
 import { WHATIF_STYLE } from "../../whatif/whatifModel";
 import { homeView, shouldReframe } from "../cesium/home";
 import { mapboxLightPreset } from "../cesium/timeOfDay";
-import { clickedPlaceId, normalizeLayer, pointFeatures } from "../geo";
+import { accessLineData, clickedPlaceId, normalizeLayer, pointFeatures } from "../geo";
+import { useSceneSettings } from "../sceneSettingsStore";
 import { useScene } from "../sceneStore";
 import { ROUTE_STYLE, statusStyle, WATER_COLOR } from "../styles";
 
@@ -163,9 +164,6 @@ function GapLines({ data }: { data: GeoJSON.FeatureCollection }) {
   );
 }
 
-const pointsOnly = (fc: GeoJSON.FeatureCollection) =>
-  fc.features.filter((f) => f.geometry.type === "Point");
-
 export default function MapboxLite() {
   const mapRef = useRef<MapRef>(null);
   const theme = useTheme((s) => s.theme);
@@ -233,6 +231,7 @@ export default function MapboxLite() {
   const camera = useScene((s) => s.camera);
   const selectPlace = useScene((s) => s.selectPlace);
   const gapsOn = useScene((s) => gapsActive(s.gapsVisible, s.profile));
+  const pathStatus = useSceneSettings((s) => s.pathStatus);
   const access = useLayer("access", profile, scenarioId);
   const gaps = useGaps(profile, gapsOn);
   const gapData = useMemo(() => gapLines(gaps.data), [gaps.data]);
@@ -358,9 +357,7 @@ export default function MapboxLite() {
         {showAccess && (
           <StatusLines
             id="access"
-            data={
-              gapsOn ? { type: "FeatureCollection", features: pointsOnly(accessData) } : accessData
-            }
+            data={accessLineData(accessData, gapsOn, pathStatus)}
             withPlaces
           />
         )}

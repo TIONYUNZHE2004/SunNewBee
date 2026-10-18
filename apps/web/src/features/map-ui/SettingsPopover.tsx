@@ -111,7 +111,7 @@ export function SettingsPopover() {
   const effective = useEffectiveView();
   const { choice, setChoice } = useTheme();
   const { alwaysShow, setAlwaysShow } = useCameraUi();
-  const { motion, quality, setMotion, setQuality } = useSceneSettings();
+  const { motion, quality, pathStatus, setMotion, setQuality, setPathStatus } = useSceneSettings();
   const available = useMemo(
     () => availableViews(ENV, webglSupported(), hasBuildings),
     [hasBuildings],
@@ -279,6 +279,14 @@ export function SettingsPopover() {
           </div>
           <div>
             <Heading icon="route">Legend</Heading>
+            <div role="radiogroup" aria-label="Path status" className="mb-1 grid grid-cols-2 gap-2">
+              <Radio checked={!pathStatus} onClick={() => setPathStatus(false)}>
+                Path status off
+              </Radio>
+              <Radio checked={pathStatus} onClick={() => setPathStatus(true)}>
+                Path status on
+              </Radio>
+            </div>
             <StatusLegend />
           </div>
         </div>

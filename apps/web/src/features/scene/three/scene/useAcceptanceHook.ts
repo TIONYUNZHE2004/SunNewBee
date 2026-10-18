@@ -103,6 +103,11 @@ export interface AcceptanceApi {
    * lies between the camera and the head. `planned` counts the agents the layer was built with.
    */
   crowd(): CrowdReport;
+  /**
+   * Test-only: draws the line batches of `renderOrder` always on top (depthTest false) or restores
+   * depth testing. Returns the batches changed. For on-top vs depth-tested comparisons.
+   */
+  linesOnTop(renderOrder: number, on: boolean): number;
   /** The unmasked WebGL vendor and renderer (WEBGL_debug_renderer_info), else the masked ones. */
   gpu(): { vendor: string; renderer: string };
 }
@@ -355,6 +360,25 @@ export function createAcceptanceApi(engine: Engine, frame: LocalFrame): Acceptan
     },
     crowd() {
       return crowdReport(engine);
+    },
+    linesOnTop(renderOrder, on) {
+      let n = 0;
+      const visit = (o: THREE.Object3D) => {
+        const m = (o as THREE.Mesh).material as THREE.Material | undefined;
+        if (
+          (o as { isLineSegments2?: boolean }).isLineSegments2 &&
+          o.renderOrder === renderOrder &&
+          m
+        ) {
+          m.depthTest = !on;
+          m.needsUpdate = true;
+          n++;
+        }
+        for (const c of o.children) visit(c);
+      };
+      for (const r of engine.pickView().roots) visit(r);
+      engine.requestRender();
+      return n;
     },
     gpu() {
       const gl = engine.gl();

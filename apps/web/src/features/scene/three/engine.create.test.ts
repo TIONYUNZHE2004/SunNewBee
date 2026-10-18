@@ -16,6 +16,7 @@ const spy = vi.hoisted(() => ({
   scenes: [] as unknown[],
   composerRender: vi.fn(),
   blooms: [] as { strength: number; enabled: boolean }[],
+  aoSkips: [] as (() => readonly unknown[])[],
   /** The last fake renderer built (its `info.programs` stands in for three's program cache). */
   renderer: null as null | { info: { programs?: { usedTimes: number }[] } },
 }));
@@ -83,7 +84,15 @@ vi.mock("three/addons/postprocessing/UnrealBloomPass.js", () => ({
     }
   },
 }));
-vi.mock("./aoPass", () => ({ CityGTAOPass: stubPass() }));
+vi.mock("./aoPass", () => ({
+  CityGTAOPass: class {
+    dispose = vi.fn();
+    setSize = vi.fn();
+    constructor(_s: unknown, _c: unknown, _w: number, _h: number, skip: () => readonly unknown[]) {
+      spy.aoSkips.push(skip);
+    }
+  },
+}));
 
 describe("createEngine", () => {
   it("a failure after the renderer exists releases what was made, loses the context and rethrows", async () => {
@@ -563,12 +572,14 @@ describe("engine motion clock", () => {
     }
   });
 
-  it("setOverlays: lines in the overlay scene, ground tint in the main scene, pixel ratio pushed", async () => {
-    const { e } = await setup({ on: false });
+  it("setOverlays: markers in the overlay scene; lines and ground tint in the main scene (AO-skipped); pixel ratio pushed", async () => {
+    spy.aoSkips.length = 0;
+    const { e } = await setup({ on: false }, "medium");
     try {
       const THREE = await import("three");
       const layer = {
         group: new THREE.Group(),
+        lineGroup: new THREE.Group(),
         groundGroup: new THREE.Group(),
         update: vi.fn(),
         setMetresPerPixel: vi.fn(),
@@ -584,10 +595,18 @@ describe("engine motion clock", () => {
       const main = scenes.find((sc) => sc.children.includes(layer.groundGroup));
       expect(main).toBeTruthy();
       expect(main?.children.includes(layer.group)).toBe(false);
+      expect(main?.children.includes(layer.lineGroup)).toBe(true);
       expect(scenes.some((sc) => sc.children.includes(layer.group))).toBe(true);
       expect(layer.setPixelRatio).toHaveBeenCalled();
+      // The AO G-buffer leaves out the line batches and the flood tint.
+      const skip = spy.aoSkips.at(-1);
+      expect(skip).toBeTruthy();
+      const skipped = skip?.() ?? [];
+      expect(skipped).toContain(layer.lineGroup);
+      expect(skipped).toContain(layer.groundGroup);
       e.setOverlays(null);
       expect(layer.groundGroup.parent).toBeNull();
+      expect(layer.lineGroup.parent).toBeNull();
       expect(layer.dispose).toHaveBeenCalledTimes(1);
     } finally {
       teardown(e);
@@ -753,6 +772,7 @@ describe("engine motion clock", () => {
       const THREE = await import("three");
       const overlay = {
         group: new THREE.Group(),
+        lineGroup: new THREE.Group(),
         groundGroup: new THREE.Group(),
         update: vi.fn(),
         setMetresPerPixel: vi.fn(),
