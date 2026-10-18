@@ -1,14 +1,14 @@
-{"meta": {"message": "Can I get to the lakeside mall if I am an older adult who needs to rest?", "profile": "older_adult_rest", "scenario_id": null, "world": "elmina", "model": "mock-scripted", "recorded_at": "2026-10-18T20:33:19+00:00"}}
+{"meta": {"message": "Can I get to the lakeside mall if I am an older adult who needs to rest?", "profile": "older_adult_rest", "scenario_id": null, "world": "elmina", "model": "mock-scripted", "recorded_at": "2026-10-18T21:05:46+00:00"}}
 {"type": "tool.call", "id": "find_place-0", "name": "find_place", "args": {"query": "car park b", "types": null, "limit": 5}}
 {"type": "tool.result", "id": "find_place-0", "name": "find_place", "summary": "5 result(s)"}
 {"type": "tool.call", "id": "find_place-1", "name": "find_place", "args": {"query": "lakeside mall", "types": null, "limit": 5}}
 {"type": "tool.result", "id": "find_place-1", "name": "find_place", "summary": "2 result(s)"}
 {"type": "tool.call", "id": "plan_route-2", "name": "plan_route", "args": {"from_id": "park-b", "to_id": "lakeside-mall", "profile": "older_adult_rest", "scenario_id": null}}
-{"type": "verification.requested", "request_id": "vr-0001", "element_id": "seg-1306543755-2", "attribute": "incline_pct", "created": false, "demand": 2, "reason": "unknown"}
-{"type": "verification.requested", "request_id": "vr-0002", "element_id": "seg-1450679024-0", "attribute": "step_count", "created": false, "demand": 2, "reason": "unknown"}
-{"type": "verification.requested", "request_id": "vr-0003", "element_id": "seg-1450679024-0", "attribute": "incline_pct", "created": false, "demand": 2, "reason": "unknown"}
-{"type": "verification.requested", "request_id": "vr-0004", "element_id": "seg-1346154591-1", "attribute": "step_count", "created": false, "demand": 2, "reason": "unknown"}
-{"type": "verification.requested", "request_id": "vr-0005", "element_id": "seg-1346154591-1", "attribute": "incline_pct", "created": false, "demand": 2, "reason": "unknown"}
+{"type": "verification.requested", "request_id": "vr-0001", "element_id": "seg-1306543755-2", "attribute": "incline_pct", "created": true, "demand": 1, "reason": "unknown"}
+{"type": "verification.requested", "request_id": "vr-0002", "element_id": "seg-1450679024-0", "attribute": "step_count", "created": true, "demand": 1, "reason": "unknown"}
+{"type": "verification.requested", "request_id": "vr-0003", "element_id": "seg-1450679024-0", "attribute": "incline_pct", "created": true, "demand": 1, "reason": "unknown"}
+{"type": "verification.requested", "request_id": "vr-0004", "element_id": "seg-1346154591-1", "attribute": "step_count", "created": true, "demand": 1, "reason": "unknown"}
+{"type": "verification.requested", "request_id": "vr-0005", "element_id": "seg-1346154591-1", "attribute": "incline_pct", "created": true, "demand": 1, "reason": "unknown"}
 {"type": "tool.result", "id": "plan_route-2", "name": "plan_route", "summary": "route partly_unverified"}
 {"type": "answer.draft", "attempt": 1, "delta": "Lakeside Mall Car Park B to Elmina Lakeside Mall: route partly unverified."}
 {"type": "answer.draft", "attempt": 1, "delta": " There is a mapped walking route of about 446 m, about 6.4 min at this pace plus rests."}
