@@ -22,7 +22,7 @@ export const KIND_COLOUR: Record<string, string> = {
 };
 const PARK_COLOUR = "#8fbf7a";
 /** Decorative base water. Deliberately not the flood scenario WATER_COLOR. */
-const BASE_WATER_COLOUR = "#7fb6c9";
+export const BASE_WATER_COLOUR = "#7fb6c9";
 
 /** This overhaul's renderer may draw the Google-sampled display height (data/README.md). */
 export const displayHeight: HeightOf = (p) => p.display_height_m ?? p.height_m;
