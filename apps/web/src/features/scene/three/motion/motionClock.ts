@@ -5,6 +5,12 @@ import type { MotionLayer } from "./motionLayer";
 
 /** The single motion clock runs at most 30 fps, on real time (never by frame count). */
 export const MOTION_FRAME_MS = 1000 / 30;
+/**
+ * A motion frame is due this much early: rAF lands on vsync, so a frame meant for 33.3 ms often
+ * arrives at 32.x. Without slack it would miss and the update slips a whole vsync (~20 fps). At
+ * 60/120/144 Hz the frames still land 2/4/5 vsyncs apart, never above 30 fps.
+ */
+export const MOTION_SLACK_MS = 4;
 /** Decorative people and vehicles fade over this long when Day or Rollout playback starts or ends. */
 export const DECOR_FADE_MS = 1000;
 /** Lit windows flicker only once the night weight is above this, and only while motion runs. */
@@ -48,7 +54,7 @@ export interface MotionDriver extends MotionLayer {
   setWeights(w: MoodMix): void;
   /** Replaces (and disposes) the agent layer; null removes it. */
   setAgents(l: AgentLayer | null): void;
-  /** Motion stopped: static pose (no flicker). The caller then asks for one final render. */
+  /** Motion stopped: static pose (no flicker), a running fade snaps to its target. The caller then asks for one final render. */
   rest(): void;
 }
 
@@ -85,7 +91,11 @@ export function createMotionDriver(opts: {
     tick(nowMs, camera, frustum) {
       const dt = last === null ? 0 : nowMs - last;
       last = nowMs;
-      if (opacity !== target) show(decorativeOpacity(opacity, target, dt));
+      // Stopped frames carry a frozen clock (dt 0): a fade caught mid-way applies at once instead
+      // of freezing half-visible (ruling: with motion stopped the fade applies at once).
+      if (!opts.running()) {
+        if (opacity !== target) show(target);
+      } else if (opacity !== target) show(decorativeOpacity(opacity, target, dt));
       agents?.tick(nowMs, camera, frustum);
       opts.ambient()?.tick(nowMs, weights);
       flicker();
@@ -118,6 +128,7 @@ export function createMotionDriver(opts: {
     },
     rest() {
       opts.role.uFlicker.value = 0;
+      if (opacity !== target) show(target);
     },
     dispose() {
       if (agents) {

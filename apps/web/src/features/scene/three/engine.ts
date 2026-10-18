@@ -31,7 +31,7 @@ import { shimmerMaterial } from "./ground/landcover";
 import { fitShadowCamera, type LightPreset } from "./lighting";
 import { createLodSchedule } from "./lodSchedule";
 import { applyFog } from "./mood";
-import { MOTION_FRAME_MS } from "./motion/motionClock";
+import { MOTION_FRAME_MS, MOTION_SLACK_MS } from "./motion/motionClock";
 import type { MotionLayer } from "./motion/motionLayer";
 import { THREE_TIERS } from "./quality";
 
@@ -297,6 +297,20 @@ function build(
   let motionAt = 0;
   let motionTimer: ReturnType<typeof setTimeout> | undefined;
   let wasLive = false;
+  /** Reused every frame by the GTAO pass's skip list. */
+  const aoSkip: THREE.Object3D[] = [];
+  /** The motion timer wakes a frame without marking the scene dirty (see tick). */
+  const motionWake = () => {
+    motionTimer = undefined;
+    schedule();
+  };
+  const armMotion = (now: number) => {
+    clearTimeout(motionTimer);
+    motionTimer = setTimeout(
+      motionWake,
+      Math.max(0, motionAt + MOTION_FRAME_MS - MOTION_SLACK_MS - now),
+    );
+  };
   const frustum = new THREE.Frustum();
   const viewProj = new THREE.Matrix4();
   const rest = () => {
@@ -430,10 +444,12 @@ function build(
     if (spec.ao)
       // Agents too: small and moving, their AO is invisible and their draws would double.
       passes.push(
-        new CityGTAOPass(scene, camera, w, h, () => [
-          ...(assets?.aoExcluded() ?? []),
-          ...(motionLayer ? [motionLayer.group] : []),
-        ]),
+        new CityGTAOPass(scene, camera, w, h, () => {
+          aoSkip.length = 0;
+          if (assets) for (const o of assets.aoExcluded()) aoSkip.push(o);
+          if (motionLayer) aoSkip.push(motionLayer.group);
+          return aoSkip;
+        }),
       );
     if (spec.bloom)
       passes.push(
@@ -471,13 +487,20 @@ function build(
       lod.moved();
     }
     const damping = controls.update();
-    if (assets && lod.due(now)) assets.update(camera.position);
     clearTimeout(motionTimer);
     motionTimer = undefined;
     const live = !!motionLayer && motionRunning();
+    // A (re)start is due at once; then one motion frame per MOTION_FRAME_MS, with a few ms of slack
+    // for vsync jitter (a frame due at 33.3 ms often lands at 32.x).
+    const due = live && (!wasLive || now - motionAt >= MOTION_FRAME_MS - MOTION_SLACK_MS);
+    if (live && !due && !dirty && !flying && !damping) {
+      // Woken only by the motion timer, and too early: render nothing, wait for the due time.
+      armMotion(now);
+      return;
+    }
+    if (assets && lod.due(now)) assets.update(camera.position);
     if (motionLayer) {
-      // A (re)start is due at once; then one motion frame per MOTION_FRAME_MS at most.
-      if (live && (!wasLive || now - motionAt >= MOTION_FRAME_MS)) {
+      if (due) {
         motionAt = now;
         motion.uTime.value = now / 1000;
         motion.uSway.value = 1;
@@ -511,12 +534,8 @@ function build(
     const wait = assets && !raf ? lod.trailingMs(now) : null;
     clearTimeout(lodTimer);
     lodTimer = wait === null ? undefined : setTimeout(requestRender, wait);
-    // The motion clock: the next frame no sooner than MOTION_FRAME_MS after this one (<= 30 fps).
-    if (live && !raf)
-      motionTimer = setTimeout(
-        requestRender,
-        Math.max(0, motionAt + MOTION_FRAME_MS - performance.now()),
-      );
+    // The motion clock: the next motion frame about MOTION_FRAME_MS after this one (<= 30 fps).
+    if (live && !raf) armMotion(performance.now());
   }
 
   const onVisibility = () => {

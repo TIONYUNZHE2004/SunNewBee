@@ -4,7 +4,7 @@ import type { AssetLibrary } from "../assets/library";
 import type { Manifest } from "../assets/manifest";
 import { createMotionUniforms, createRoleUniforms } from "../assets/roleMaterial";
 import type { Agent } from "./agents";
-import { createMotionLayer } from "./motionLayer";
+import { AGENT_VISIBLE_M, agentLods, createMotionLayer } from "./motionLayer";
 
 const kit = (lods: { node: string; tris: number; maxM: number | null }[]) => ({
   group: "kit" as const,
@@ -153,15 +153,40 @@ describe("createMotionLayer", () => {
     }
   });
 
-  it("LOD by camera distance; beyond the last LOD's maxM an agent is hidden", () => {
+  it("LOD by camera distance; the last LOD stays visible to AGENT_VISIBLE_M, then hides", () => {
     const layer = make([agent("a", "person", 0, 0)]);
     layer.tick(0, cam(0, 30, 0));
     const lodOf = () => meshes(layer.group).find((m) => m.visible && m.count > 0)?.userData.lod;
     expect(lodOf()).toBe(0);
     layer.tick(0, cam(0, 200, 0));
     expect(lodOf()).toBe(1);
+    // Past the kit's own 300 m, still on LOD1 (owner ruling P2: legible at hero-mid).
     layer.tick(0, cam(0, 600, 0));
+    expect(lodOf()).toBe(1);
+    layer.tick(0, cam(0, 1000, 0));
     expect(drawn(layer.group)).toBe(0);
+  });
+
+  it("a person 800 m away is visible at 3x; at 950 m hidden", () => {
+    expect(AGENT_VISIBLE_M).toBe(900);
+    const near = make([agent("a", "person", 0, 0)]);
+    near.tick(0, cam(0, 800, 0));
+    const m = meshes(near.group).find((x) => x.visible && x.count > 0)!;
+    expect(m.userData.lod).toBe(1);
+    const mat = new THREE.Matrix4();
+    m.getMatrixAt(0, mat);
+    const s = new THREE.Vector3();
+    mat.decompose(new THREE.Vector3(), new THREE.Quaternion(), s);
+    expect(s.y).toBeCloseTo(3, 2);
+    const far = make([agent("b", "person", 0, 0)]);
+    far.tick(0, cam(0, 950, 0));
+    expect(drawn(far.group)).toBe(0);
+  });
+
+  it("agentLods stretches only the last band, never shortens one, keeps null", () => {
+    expect(agentLods([{ maxM: 80 }, { maxM: 300 }])).toEqual([{ maxM: 80 }, { maxM: 900 }]);
+    expect(agentLods([{ maxM: 150 }, { maxM: 1500 }])).toEqual([{ maxM: 150 }, { maxM: 1500 }]);
+    expect(agentLods([{ maxM: 150 }, { maxM: null }])).toEqual([{ maxM: 150 }, { maxM: null }]);
   });
 
   it("frustum: only agents within the view (plus a 50 m margin) get matrices", () => {

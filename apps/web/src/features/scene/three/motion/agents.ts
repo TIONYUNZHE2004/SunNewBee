@@ -51,11 +51,26 @@ export function displayScale(distanceM: number): number {
   return 1 + ((SCALE_MAX - 1) * (distanceM - SCALE_NEAR_M)) / (SCALE_FAR_M - SCALE_NEAR_M);
 }
 
-/** Loops along the path; yaw turns the model's +z (its front) onto the tangent. */
-export function poseAt(a: Agent, tSec: number): { x: number; z: number; yaw: number } {
+export interface Pose2 {
+  x: number;
+  z: number;
+  yaw: number;
+}
+const setPose = (out: Pose2, x: number, z: number, yaw: number) => {
+  out.x = x;
+  out.z = z;
+  out.yaw = yaw;
+  return out;
+};
+
+/**
+ * Loops along the path; yaw turns the model's +z (its front) onto the tangent. Writes into `out`
+ * when given (the motion layer reuses one object per tick) and returns it.
+ */
+export function poseAt(a: Agent, tSec: number, out: Pose2 = { x: 0, z: 0, yaw: 0 }): Pose2 {
   const p = a.path;
   const n = p.length / 2;
-  if (n < 2 || !(a.length > 0)) return { x: p[0] ?? 0, z: p[1] ?? 0, yaw: 0 };
+  if (n < 2 || !(a.length > 0)) return setPose(out, p[0] ?? 0, p[1] ?? 0, 0);
   let s = (a.offset + a.speed * tSec) % a.length;
   if (s < 0) s += a.length;
   for (let i = 0; i < n - 1; i++) {
@@ -67,11 +82,11 @@ export function poseAt(a: Agent, tSec: number): { x: number; z: number; yaw: num
     if (l === 0) continue;
     if (s <= l || i === n - 2) {
       const t = Math.min(1, s / l);
-      return { x: ax + dx * t, z: az + dz * t, yaw: Math.atan2(dx, dz) };
+      return setPose(out, ax + dx * t, az + dz * t, Math.atan2(dx, dz));
     }
     s -= l;
   }
-  return { x: p[0] as number, z: p[1] as number, yaw: 0 };
+  return setPose(out, p[0] as number, p[1] as number, 0);
 }
 
 const VEHICLE_TYPES = new Set(["street", "major_road"]);

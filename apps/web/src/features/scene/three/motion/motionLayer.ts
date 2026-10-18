@@ -9,7 +9,15 @@ import {
   type RoleKind,
   type RoleUniforms,
 } from "../assets/roleMaterial";
-import { type Agent, DENSITY_PEAK, densityFor, displayScale, type MoodMix, poseAt } from "./agents";
+import {
+  type Agent,
+  DENSITY_PEAK,
+  densityFor,
+  displayScale,
+  type MoodMix,
+  type Pose2,
+  poseAt,
+} from "./agents";
 
 export interface MotionLayer {
   group: THREE.Group;
@@ -24,6 +32,20 @@ const FRUSTUM_MARGIN_M = 50;
 /** On the road ribbons (0.08 m) rather than in them. */
 const AGENT_LIFT_M = 0.08;
 const NOOP = () => {};
+/**
+ * Agents stay visible (on their last LOD, scaled up by displayScale) out to this distance, or the
+ * kit's own last maxM when that is larger, then hide. Owner ruling P2: decorative people and
+ * vehicles read "1x near, rising to about 3x at hero-mid", and hero-mid's camera is > 565 m away,
+ * beyond the people kit's 300 m LOD1.
+ */
+export const AGENT_VISIBLE_M = 900;
+
+/** The kit's LOD bands with the last one stretched to AGENT_VISIBLE_M (never shortened). */
+export function agentLods(lods: readonly { maxM: number | null }[]): { maxM: number | null }[] {
+  return lods.map((l, i) =>
+    i === lods.length - 1 && l.maxM !== null ? { maxM: Math.max(l.maxM, AGENT_VISIBLE_M) } : l,
+  );
+}
 const ASSET: Record<Agent["kind"], string> = { person: "people", vehicle: "vehicles" };
 const KIND: Record<Agent["kind"], RoleKind> = { person: "person", vehicle: "vehicle" };
 
@@ -140,6 +162,7 @@ export function createMotionLayer(
   const rankOf = new Map<Agent["kind"], number>();
   const total: Record<Agent["kind"], number> = { person: 0, vehicle: 0 };
   const slots: Slot[] = [];
+  const lodsByVariant = new Map<string, { maxM: number | null }[]>();
   for (const a of agents) {
     const asset = ASSET[a.kind];
     const spec = m.assets[asset];
@@ -151,10 +174,16 @@ export function createMotionLayer(
     rankOf.set(a.kind, rank + 1);
     total[a.kind]++;
     const pal = paletteFor(spec, "default", a.id);
+    const lk = `${a.kind}/${a.variant}`;
+    let lods = lodsByVariant.get(lk);
+    if (!lods) {
+      lods = agentLods(vspec.lods);
+      lodsByVariant.set(lk, lods);
+    }
     slots.push({
       agent: a,
       rank,
-      lods: vspec.lods,
+      lods,
       buckets,
       resolve,
       raw: undefined,
@@ -165,6 +194,7 @@ export function createMotionLayer(
     v.buckets.filter((b): b is Bucket => !!b),
   );
   const active: Record<Agent["kind"], number> = { ...total };
+  const pose: Pose2 = { x: 0, z: 0, yaw: 0 };
 
   return {
     group,
@@ -178,7 +208,7 @@ export function createMotionLayer(
       for (const b of allBuckets) b.n = 0;
       for (const s of slots) {
         if (s.rank >= active[s.agent.kind]) continue;
-        const pose = poseAt(s.agent, t);
+        poseAt(s.agent, t, pose);
         const d = Math.hypot(pose.x - camera.x, camera.y, pose.z - camera.z);
         const raw = lodFor(d, s.lods, s.raw);
         s.raw = raw;

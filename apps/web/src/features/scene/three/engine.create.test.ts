@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from "vitest";
+import { MOTION_FRAME_MS, MOTION_SLACK_MS } from "./motion/motionClock";
 
 // No WebGL here: a fake renderer, and a PMREM generator that fails part-way through construction.
 const spy = vi.hoisted(() => ({
@@ -8,6 +9,7 @@ const spy = vi.hoisted(() => ({
   pmremDispose: vi.fn(),
   pmremFails: true,
   scenes: [] as unknown[],
+  composerRender: vi.fn(),
 }));
 vi.mock("three", async (orig) => {
   const t = await orig<typeof import("three")>();
@@ -46,7 +48,7 @@ vi.mock("three/addons/postprocessing/EffectComposer.js", () => ({
     setPixelRatio = vi.fn();
     addPass = vi.fn();
     setSize = vi.fn();
-    render = vi.fn();
+    render = spy.composerRender;
     dispose = vi.fn();
   },
 }));
@@ -194,7 +196,7 @@ describe("engine motion clock", () => {
       expect(frameTimes.length).toBeGreaterThan(15);
       for (let i = 1; i < frameTimes.length; i++)
         expect((frameTimes[i] as number) - (frameTimes[i - 1] as number)).toBeGreaterThanOrEqual(
-          33,
+          MOTION_FRAME_MS - MOTION_SLACK_MS,
         );
       expect(new Set(ticks).size).toBeGreaterThan(15);
       expect(e.motion.uTime.value).toBeCloseTo((ticks.at(-1) as number) / 1000, 5);
@@ -224,6 +226,39 @@ describe("engine motion clock", () => {
         vi.advanceTimersByTime(4);
       }
       expect(e.frames).toBeGreaterThan(n + 3);
+    } finally {
+      teardown(e);
+    }
+  });
+
+  it("vsync jitter: one render per motion tick, every ~2 vsyncs (about 30 fps)", async () => {
+    const running = { on: false };
+    const { e, ticks } = await setup(running);
+    try {
+      settle();
+      running.on = true;
+      e.requestRender();
+      spy.composerRender.mockClear();
+      ticks.length = 0;
+      // rAF callbacks run only at vsyncs: 16.7 ms apart, jittered by up to 1.5 ms either way.
+      const start = performance.now();
+      for (let k = 1; k <= 180; k++) {
+        const at = start + k * (1000 / 60) + Math.sin(k * 12.9898) * 1.5;
+        vi.advanceTimersByTime(Math.max(0, at - performance.now()));
+        pump();
+      }
+      const motionTicks = new Set(ticks);
+      expect(motionTicks.size).toBe(ticks.length);
+      expect(spy.composerRender).toHaveBeenCalledTimes(ticks.length);
+      const times = [...motionTicks];
+      const gaps = times.slice(1).map((t, i) => t - (times[i] as number));
+      for (const g of gaps) {
+        expect(g).toBeGreaterThan(29);
+        expect(g).toBeLessThan(38);
+      }
+      // 3 s of vsyncs: about 90 motion frames (30 fps), not ~60 (20 fps with two renders each).
+      expect(times.length).toBeGreaterThan(85);
+      expect(times.length).toBeLessThanOrEqual(92);
     } finally {
       teardown(e);
     }

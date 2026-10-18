@@ -1,5 +1,7 @@
 import * as THREE from "three";
 import { describe, expect, it, vi } from "vitest";
+import type { AssetLibrary } from "../assets/library";
+import type { Manifest } from "../assets/manifest";
 import { createMotionUniforms, createRoleUniforms } from "../assets/roleMaterial";
 import {
   createMotionDriver,
@@ -8,6 +10,7 @@ import {
   MOTION_FRAME_MS,
   motionRunning,
 } from "./motionClock";
+import { createMotionLayer } from "./motionLayer";
 
 describe("motionRunning", () => {
   it("runs only when enabled, not reduced, visible and on screen (full truth table)", () => {
@@ -103,6 +106,105 @@ describe("createMotionDriver", () => {
     expect(agents.setOpacity).toHaveBeenLastCalledWith(0);
     d.setWeights(night);
     expect(ambient.tick).toHaveBeenLastCalledWith(700, night);
+  });
+
+  it("motion stopping mid-fade snaps to the target (no half-visible agents while stopped)", () => {
+    const { d, agents, state } = setup();
+    d.tick(0, cam);
+    d.setTarget(0);
+    d.tick(500, cam);
+    expect(d.opacity).toBeCloseTo(0.5);
+    state.running = false;
+    d.rest();
+    expect(d.opacity).toBe(0);
+    expect(agents.setOpacity).toHaveBeenLastCalledWith(0);
+    // The stopped frames that still render (frozen clock) keep it there.
+    d.tick(500, cam);
+    expect(d.opacity).toBe(0);
+  });
+
+  it("the reverse: a fade-in caught by a stop shows the agents fully", () => {
+    const { d, state } = setup();
+    d.tick(0, cam);
+    d.setTarget(0);
+    d.tick(1000, cam);
+    expect(d.opacity).toBe(0);
+    d.setTarget(1);
+    d.tick(1400, cam);
+    expect(d.opacity).toBeCloseTo(0.4);
+    state.running = false;
+    // A stopped frame alone (before rest) also settles it.
+    d.tick(1400, cam);
+    expect(d.opacity).toBe(1);
+  });
+
+  it("with a real agent layer: stop mid-fade hides the agent meshes", () => {
+    const state = { running: true };
+    const d = createMotionDriver({
+      role: createRoleUniforms(),
+      ambient: () => null,
+      running: () => state.running,
+    });
+    const lib: AssetLibrary = {
+      geometry: () => new THREE.BoxGeometry(1, 1.7, 1),
+      has: () => true,
+      gpuBytes: () => 0,
+      failed: [],
+      dispose() {},
+    };
+    const spec = {
+      group: "kit" as const,
+      file: "x.glb",
+      bytes: 1,
+      repeat: "none" as const,
+      frontage: "long" as const,
+      fit: { xz: [0.5, 2], y: [0.5, 2] } as { xz: [number, number]; y: [number, number] },
+      decorative: true,
+      placement: null,
+      jitter: {},
+      variantByGroup: {},
+      palettes: {},
+      variants: {
+        v: {
+          size: [1, 1.7, 1] as [number, number, number],
+          lods: [{ node: "n", tris: 12, maxM: 300 }],
+        },
+      },
+    };
+    const m: Manifest = {
+      version: 1,
+      as_of: "",
+      precinctGroups: [],
+      assets: { people: spec },
+      landmarks: {},
+    };
+    const layer = createMotionLayer(
+      [
+        {
+          id: "a",
+          kind: "person",
+          variant: "v",
+          path: new Float32Array([0, 0, 10, 0]),
+          length: 10,
+          speed: 1,
+          offset: 0,
+        },
+      ],
+      lib,
+      m,
+      createRoleUniforms(),
+      createMotionUniforms(),
+    );
+    d.setAgents(layer);
+    const c = new THREE.Vector3(0, 20, 0);
+    d.tick(0, c);
+    d.setTarget(0);
+    d.tick(500, c);
+    expect(layer.group.visible).toBe(true);
+    state.running = false;
+    d.rest();
+    expect(d.opacity).toBe(0);
+    expect(layer.group.visible).toBe(false);
   });
 
   it("density follows the mood weights; setAgents replaces and disposes", () => {
