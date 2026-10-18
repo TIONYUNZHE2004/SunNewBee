@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
-import type { Tier } from "../../cesium/stylised/quality";
 import { useScene } from "../../sceneStore";
+import type { Tier } from "../../shared/quality";
 import { createAmbient } from "../ambient/ambient";
 import type { Placement } from "../assets/fit";
 import type { RoleUniforms } from "../assets/roleMaterial";

@@ -1,6 +1,6 @@
 import * as THREE from "three";
-import { hashUnit } from "../../cesium/stylised/model";
-import { TIERS, type Tier } from "../../cesium/stylised/quality";
+import { hashUnit } from "../../shared/model";
+import { TIERS, type Tier } from "../../shared/quality";
 import type { LocalFrame } from "../frame";
 
 export const CLOUD_SHADOW_Y = 0.11;

@@ -1,7 +1,7 @@
 import { type RefObject, useEffect, useRef, useState } from "react";
 import type { InstancedMesh } from "three";
 import { usePerfStats } from "../../cesium/PerfOverlay";
-import type { Tier } from "../../cesium/stylised/quality";
+import type { Tier } from "../../shared/quality";
 import type { RoleUniforms } from "../assets/roleMaterial";
 import type { Engine } from "../engine";
 import { createFacadeLayer, type FacadeBuilding } from "../facade/facadeLayer";

@@ -2,7 +2,7 @@
 import { renderHook } from "@testing-library/react";
 import type * as THREE from "three";
 import { describe, expect, it, vi } from "vitest";
-import type { Tier } from "../../cesium/stylised/quality";
+import type { Tier } from "../../shared/quality";
 import { createMotionUniforms } from "../assets/roleMaterial";
 import type { Engine } from "../engine";
 import { GROUND_BANDS, VERGE_Y } from "../ground/bands";

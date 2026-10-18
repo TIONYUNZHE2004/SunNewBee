@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import type { Tier } from "../../cesium/stylised/quality";
+import type { Tier } from "../../shared/quality";
 import type { Engine, LodTick } from "../engine";
 import { createFrame } from "../frame";
 import { TILE_M } from "../stream/tiles";

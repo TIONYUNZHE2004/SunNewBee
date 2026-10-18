@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import type { BuildingsLayer } from "../../../lib/api";
-import { type HeightOf, toBuildings } from "../cesium/stylised/model";
 import { type LonLat, waterPolygons } from "../geo";
+import { type HeightOf, toBuildings } from "../shared/model";
 import { STOREY_M } from "./facade/facadePlan";
 import type { FallbackColours } from "./fallbackStyle";
 import type { LocalFrame } from "./frame";

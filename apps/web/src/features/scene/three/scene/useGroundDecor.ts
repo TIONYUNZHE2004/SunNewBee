@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef } from "react";
-import type { Tier } from "../../cesium/stylised/quality";
+import type { Tier } from "../../shared/quality";
 import type { Engine } from "../engine";
 import { createGroundDecorLayer, type GroundDecorParts } from "../ground/groundDecor";
 import type { Site } from "../props/construction";

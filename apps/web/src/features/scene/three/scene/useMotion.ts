@@ -1,7 +1,7 @@
 import { type RefObject, useEffect, useMemo, useRef, useState } from "react";
-import type { Tier } from "../../cesium/stylised/quality";
 import { prefersReducedMotion, useSceneSettings } from "../../sceneSettingsStore";
 import { useScene } from "../../sceneStore";
+import type { Tier } from "../../shared/quality";
 import type { RoleUniforms } from "../assets/roleMaterial";
 import type { Engine } from "../engine";
 import { createMotionDriver, type MotionDriver, motionRunning } from "../motion/motionClock";

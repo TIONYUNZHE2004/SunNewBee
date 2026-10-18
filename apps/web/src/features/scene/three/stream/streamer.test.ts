@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { Tier } from "../../cesium/stylised/quality";
+import type { Tier } from "../../shared/quality";
 import type { Placement } from "../assets/fit";
 import { createStreamer, farView, PLAN_MEASURE, type Ring, type TileContent } from "./streamer";
 import { activeTiles, TILE_M, type Tile } from "./tiles";

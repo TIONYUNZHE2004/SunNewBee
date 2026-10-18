@@ -1,9 +1,4 @@
-import {
-  KIND_BY_TYPE,
-  ROAD_WIDTH_UNKNOWN,
-  type RoadKind,
-  WIDTH_BY_TYPE,
-} from "../../cesium/stylised/ground";
+import { KIND_BY_TYPE, ROAD_WIDTH_UNKNOWN, type RoadKind, WIDTH_BY_TYPE } from "../../shared/roads";
 import type { LocalFrame } from "../frame";
 import { type Box, inBox, type PlanArea, perLayer, touchesBox } from "../stream/area";
 import { MARKING_Y, ROAD_Y } from "./bands";

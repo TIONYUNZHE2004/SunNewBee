@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { BuildingsLayer } from "../../../../lib/api";
 import { usePerfStats } from "../../cesium/PerfOverlay";
-import type { Tier } from "../../cesium/stylised/quality";
 import { useScene } from "../../sceneStore";
+import type { Tier } from "../../shared/quality";
 import { type CityInstances, createCityInstances } from "../assets/cityInstances";
 import type { Placement } from "../assets/fit";
 import { type AssetLibrary, loadAssetLibrary } from "../assets/library";

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import type { BuildingsLayer, useLayer } from "../../../../lib/api";
-import type { Tier } from "../../cesium/stylised/quality";
+import type { Tier } from "../../shared/quality";
 import type { Engine } from "../engine";
 import type { LocalFrame } from "../frame";
 import { createGroundLayer } from "../ground/groundLayer";

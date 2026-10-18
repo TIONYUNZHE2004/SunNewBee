@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import type { Tier } from "../../cesium/stylised/quality";
+import type { Tier } from "../../shared/quality";
 import { hash01 } from "../assets/fit";
 import { createRoleMaterial, type RoleUniforms } from "../assets/roleMaterial";
 import { DECK_POOL_COLOUR, type PodiumDeck } from "./podiumDeck";
