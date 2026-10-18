@@ -49,6 +49,10 @@ def _layer(
                 "name": e.name,
                 "status_for_profile": status,
             }
+            if e.type in ("street", "major_road"):
+                sidewalk = e.claims.get("sidewalk")
+                props["sidewalk"] = sidewalk.value if sidewalk else None
+                props["sidewalk_status"] = sidewalk.status if sidewalk else "unknown"
             if live:  # Task 46: staff-reported, shown as "Reported closure (staff)"
                 props["closed"] = True
                 props["closure_label"] = live[0].label(world.site.timezone)

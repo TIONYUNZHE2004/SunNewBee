@@ -237,6 +237,14 @@ class RouteSegment(BaseModel):
     flood_class: FloodClass | None = None
 
 
+class RoadSection(BaseModel):
+    element_id: str
+    name: str | None = None
+    length_m: float
+    sidewalk: str | None = None
+    sidewalk_status: ClaimStatus = "unknown"
+
+
 class Route(BaseModel):
     id: str  # "rt-<hash>"
     status: RouteStatus
@@ -256,6 +264,11 @@ class Route(BaseModel):
     # catalogue value (traffic_signals|marked|unmarked|no) or None when not recorded; status is the
     # claim status ("unknown" when there is no claim). Informative: routing does not use it.
     crossings: list[dict[str, Any]] = Field(default_factory=list)
+    # Mapped geometry only: neither a sidewalk type nor an OSM sidewalk tag verifies access.
+    sidewalk_m: float = 0.0
+    road_m: float = 0.0
+    road_without_mapped_sidewalk_m: float = 0.0
+    road_sections: list[RoadSection] = Field(default_factory=list)
     max_gap_between_rest_m: float | None = None
     # Profiles with max_rest_free_run_m (older_adult_rest): the limit, and whether this route
     # keeps every stretch between rest points within it. None for profiles without a limit.

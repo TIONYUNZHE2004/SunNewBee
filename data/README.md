@@ -110,6 +110,21 @@ The vintages are mixed, as they are for the walk cache. Re-running `import_osm.p
 
 **Segment renumbering.** 101+ existing `seg-<way>-<k>` ids now carry new geometry, because their ways are re-split at major-road junctions. None of the ids referenced in this README, `access/README.md`, `data/demo/*.jsonl`, e2e tests or golden changed. The overlay (P1/P2, ramp `seg-1306543755-2`) is identical. The 4 Elmina demo-cache entries were re-recorded with the mock.
 
+## Sidewalk identity (T-014)
+
+`import_osm.py` retains `highway=footway` + `footway=sidewalk` as `type: sidewalk`.
+Other footways stay `footway`, and crossing footways stay `crossing`. Explicit
+`sidewalk=*` tags are read on ordinary streets as well as major roads, using the same
+normalisation and reported OSM provenance above. Missing or ambiguous tags never
+create a claim. Separate sidewalk lines join roads only at mapped shared nodes;
+the importer does not infer links from parallel geometry.
+
+Walking routes report separate-sidewalk metres and road-centre-line metres, including
+the road distance with no usable positive mapped sidewalk claim. These geometry
+descriptions and the modest routing cost preference do not change PASS/FAIL/UNKNOWN.
+Rebuild sidewalks and crossing claims together through the cached Overpass pipeline,
+then overlay → flood → waste. Commit rebuilt data separately from code.
+
 ## Area places (Task 43)
 
 17 of 231 seed places have no `node_id`. Among them are 11 parks, 3 schools and the hero "Elmina Urban Park" (`osm-way-1309457596`). The old rule snaps an area's *centre* to a walk node within 60 m, which misses large areas.

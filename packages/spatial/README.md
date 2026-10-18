@@ -157,6 +157,33 @@ A route whose facts include `team_survey_placeholder` evidence carries `demo_evi
 `plan_route` files at most 10 verification requests per call (`MAX_ROUTE_VRS`); the overflow is
 counted in `verification_requests_truncated`. Flood unknowns never file a VR.
 
+## Sidewalks and road geometry (T-014)
+
+The importer preserves `highway=footway, footway=sidewalk` as edge type `sidewalk`,
+and reads explicit `sidewalk=*` claims on both ordinary streets and major roads.
+These remain reported OSM data. A sidewalk's type alone never verifies width, steps,
+incline or access. Road and sidewalk lines connect only at their mapped graph nodes;
+proximity never invents a connection or a road-sidewalk association.
+
+Walking searches multiply street/major-road costs by 1.25 to prefer a modestly longer
+mapped walking path. This preference applies within each strict/lenient search; a
+confirmed route still wins over a route needing unknown facts. Distance and time use
+actual segment lengths, and driving costs and evaluation rules are unchanged.
+
+Each route exposes `sidewalk_m` (separate sidewalk edges), `road_m` (street/major-road
+edges), and `road_without_mapped_sidewalk_m` (road edges without a fresh reported or
+verified positive sidewalk claim). All are metres, rounded to 0.1 m. An explicit
+`none`, missing, stale or contested claim contributes to the last count. A positive
+`separate` tag records a sidewalk elsewhere; it does not imply the route uses it.
+`road_sections` lists each traversed road segment's id, name, length, sidewalk value
+and claim status. Road distance is counted per traversal, including repeated edges.
+
+Walking route warnings highlight road distance without a mapped sidewalk. These are
+geometry caveats, not a passability upgrade, downgrade or new survey ticket. Derived
+`route_walkways` evidence carries the composition and road sections with status
+`reported` and source `mapped walk graph (not a sidewalk survey)`. Resident answers
+should name these road stretches and retain their uncertainty even on a confirmed route.
+
 ## Tests
 
 ```

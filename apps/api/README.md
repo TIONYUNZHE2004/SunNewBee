@@ -67,6 +67,15 @@ river-stage routes at `partly_unverified`, while baseline remains unchanged. Acc
 LineStrings expose `flood_coverage: uncovered|partial` with unknown status where applicable;
 coverage gaps do not create a flood class.
 
+Routes also report mapped walking geometry: `sidewalk_m`, `road_m` (street/major-road
+centre lines), `road_without_mapped_sidewalk_m`, and `road_sections` (segment id,
+name, metres and sidewalk claim/status). A missing, stale, contested or explicitly
+absent sidewalk claim contributes to the last count. These fields describe the mapped
+route, not verified sidewalk access, and do not change the route's passability status.
+The access layer preserves `type: sidewalk` and includes `sidewalk`/`sidewalk_status`
+on street/major-road lines. Walking searches prefer mapped walking paths within each
+strict/lenient search; returned distance/time remain based on physical length.
+
 ## Environment (repo-root `.env`)
 
 `TL_DATA_DIR` (default `data/seed/elmina`, falls back to the tiny fixture), `DATABASE_URL` (sqlite; default `.data/<site id>.db`, one file per world, shared by the VR, audit and simulation stores), `EVIDENCE_DIR` (default `.data/evidence`, flat directory of random-hex photo files), `SIM_TIME_BUDGET_S` (default 600, total seconds before a simulation run ends as `timeout`), `STAFF_TOKEN` (default `change-me`, which staff endpoints refuse with 503; set it), `LLM_PROVIDER`, `OPENROUTER_API_KEY` and model settings (used by the agent). A relative `DATABASE_URL` path is resolved against the repo root. Rows in an old `.data/townshiplens.db` (the pre-per-world default) are not read any more; copy or delete the file. `pnpm db:reset` deletes the local `.db` files (stop the API first).

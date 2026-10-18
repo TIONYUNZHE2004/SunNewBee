@@ -4,13 +4,14 @@ import hashlib
 import heapq
 import itertools
 import math
+from datetime import date
 from typing import Any
 
 import networkx as nx
 
-from .evaluate import evaluate_edge, evaluate_flood, rest_point_state
+from .evaluate import SIDEWALK_PRESENT, _is_stale, evaluate_edge, evaluate_flood, rest_point_state
 from .geo import haversine_m
-from .models import Evidence, Route, RouteResult, RouteSegment, photo_url
+from .models import Evidence, RoadSection, Route, RouteResult, RouteSegment, photo_url
 from .scenario_meta import scenario_source, selection_error
 from .world import World
 
@@ -23,6 +24,9 @@ PLACEHOLDER_SOURCE = "team_survey_placeholder"  # demo values (see Route.demo_ev
 REST_TYPES = frozenset({"seating", "shelter"})
 # Deterministic bound on the rest-constrained search (labels created, not wall-clock time).
 MAX_REST_LABELS = 200_000
+ROAD_TYPES = frozenset({"street", "major_road"})
+# A preference within each strict/lenient search, never a change to passability or distance.
+WALK_ROAD_MULTIPLIER = 1.25
 
 
 def _pace_m_per_min(profile) -> float:
@@ -275,6 +279,8 @@ def _edge_cost(world, profile, scenario_id, allow_unknown, key, evals=None) -> f
     w = e.length_m * (UNKNOWN_WEIGHT if res == "UNKNOWN" else 1.0)
     if e.type == "steps":
         w *= profile.soft.get("steps_multiplier", 1.0)
+    if profile.allowed_types is None and e.type in ROAD_TYPES:
+        w *= WALK_ROAD_MULTIPLIER
     return w
 
 
@@ -475,6 +481,20 @@ def _route_from_nodes(world, nodes, keys, from_id, to_id, profile, scenario_id, 
     )
     route.max_gap_between_rest_m = _max_rest_gap(world, nodes, keys, {r["node_id"] for r in rest})
     route.crossings = route_crossings(world, segs)
+    route.sidewalk_m = round(
+        sum(world.edges[k].length_m for k in keys if world.edges[k].type == "sidewalk"), 1
+    )
+    route.road_sections = route_road_sections(world, keys)
+    route.road_m = round(sum(s.length_m for s in route.road_sections), 1)
+    route.road_without_mapped_sidewalk_m = round(
+        sum(
+            s.length_m
+            for s in route.road_sections
+            if s.sidewalk not in SIDEWALK_PRESENT
+            or s.sidewalk_status not in ("reported", "verified")
+        ),
+        1,
+    )
     ev_list = evidence_for_route(world, route)
     route.evidence_ids = list(dict.fromkeys(ev.id for ev in ev_list))
     route.demo_evidence = any(ev.source_type == PLACEHOLDER_SOURCE for ev in ev_list)
@@ -494,6 +514,28 @@ def _route_from_nodes(world, nodes, keys, from_id, to_id, profile, scenario_id, 
         ):
             route.status = "partly_unverified"
     return route
+
+
+def route_road_sections(world: World, keys: list[str]) -> list[RoadSection]:
+    sections = []
+    for key in keys:
+        edge = world.edges[key]
+        if edge.type not in ROAD_TYPES:
+            continue
+        claim = edge.claims.get("sidewalk")
+        status = claim.status if claim else "unknown"
+        if claim and _is_stale(claim, "sidewalk", date.today()):
+            status = "stale"
+        sections.append(
+            RoadSection(
+                element_id=key,
+                name=edge.name,
+                length_m=edge.length_m,
+                sidewalk=claim.value if claim else None,
+                sidewalk_status=status,
+            )
+        )
+    return sections
 
 
 def _max_rest_gap(world, nodes, keys, rest_nodes) -> float:
@@ -527,6 +569,21 @@ def evidence_for_route(world: World, route: Route) -> list[Evidence]:
                 )
             )
         out.extend(flood_evidence(world, e.id, route.scenario_id))
+    out.append(
+        Evidence(
+            id=f"ev-{route.id}.walkways",
+            element_id=route.id,
+            attribute="route_walkways",
+            value={
+                "sidewalk_m": route.sidewalk_m,
+                "road_m": route.road_m,
+                "road_without_mapped_sidewalk_m": route.road_without_mapped_sidewalk_m,
+                "road_sections": [s.model_dump(mode="json") for s in route.road_sections],
+            },
+            status="reported",
+            source_type="mapped walk graph (not a sidewalk survey)",
+        )
+    )
     return out
 
 
@@ -551,6 +608,12 @@ def plan_route(
     if result.routes:
         result.status = result.routes[0].status
         result.warnings.extend(dict.fromkeys(u["why"] for u in endpoint_unknowns))
+        route = result.routes[0]
+        if profile.allowed_types is None and route.road_without_mapped_sidewalk_m:
+            result.warnings.append(
+                f"About {route.road_without_mapped_sidewalk_m:.0f} m follows road centre lines "
+                "without a mapped sidewalk; sidewalk access is not verified"
+            )
     if profile.allowed_types is not None and result.routes:
         for pid in (from_id, to_id):
             if note := _snap_warning(world, pid, profile):

@@ -140,7 +140,7 @@ def _claims(tags: dict, seg_type: str) -> dict:
     claims: dict = {}
     if seg_type == "crossing" and (crossing := crossing_value(tags)):
         claims["crossing"] = _claim(crossing)
-    if seg_type == "major_road":
+    if seg_type in ("street", "major_road"):
         sidewalk = _sidewalk_claim(tags)
         if sidewalk:
             claims["sidewalk"] = sidewalk
@@ -177,6 +177,8 @@ def _seg_type(tags: dict) -> str:
         return "steps"
     if hw == "footway" and tags.get("footway") == "crossing":
         return "crossing"
+    if hw == "footway" and tags.get("footway") == "sidewalk":
+        return "sidewalk"
     if hw == "crossing":
         return "crossing"
     if hw in MAJOR_HIGHWAYS:
