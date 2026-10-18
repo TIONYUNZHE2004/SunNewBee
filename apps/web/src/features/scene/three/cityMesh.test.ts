@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { BuildingsLayer } from "../../../lib/api";
 import { WATER_COLOR } from "../styles";
 import { buildCityGeometry, faceBuildingId, KIND_COLOUR, PARK_Y, WATER_Y } from "./cityMesh";
+import { largeRoofTint } from "./facade/roofPlan";
 import { createFrame } from "./frame";
 
 const frame = createFrame([101.5, 3.0]);
@@ -137,6 +138,42 @@ describe("buildCityGeometry", () => {
       }
     }
     expect(seen).toEqual({ roof: 2, trim: 8, wall: 8 });
+  });
+
+  it("roofTint recolours the roof cap of a large roof only (P4 Task 8: no flat grey big roofs)", () => {
+    const colours = { wall: "#ff0000", roof: "#4a4e55", trim: "#0000ff" };
+    const g = buildCityGeometry(
+      layer({
+        buildings: fc([
+          feat(poly(square(0, 0, 40)), { id: "big", height_m: 9 }), // 1600 m2
+          feat(poly(square(100, 0, 10)), { id: "small", height_m: 9 }), // 100 m2
+        ]),
+      }),
+      frame,
+      { colours: () => colours, roofTint: largeRoofTint },
+    );
+    const p = pos(g.buildings);
+    const col = g.buildings.getAttribute("color");
+    const nor = g.buildings.getAttribute("normal");
+    const lin = (h: string) => new THREE.Color(h).toArray();
+    const near = (i: number, c: string) =>
+      lin(c).every((v, k) => Math.abs(v - [col.getX(i), col.getY(i), col.getZ(i)][k]!) < 1e-5);
+    const tint = largeRoofTint("big", g.footprints[0]!.ring, colours.roof)!;
+    expect(tint).not.toBeNull();
+    let big = 0;
+    let small = 0;
+    for (let i = 0; i < p.count; i += 3) {
+      if (nor.getY(i) !== 1 || p.getY(i) !== 9) continue;
+      if (p.getX(i) < 50) {
+        expect(near(i, tint)).toBe(true);
+        big++;
+      } else {
+        expect(near(i, colours.roof)).toBe(true);
+        small++;
+      }
+    }
+    expect(big).toBeGreaterThan(0);
+    expect(small).toBeGreaterThan(0);
   });
 
   it("without colours keeps the kind tan and the 30 vertices", () => {

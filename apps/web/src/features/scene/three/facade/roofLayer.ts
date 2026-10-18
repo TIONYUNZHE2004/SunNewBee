@@ -2,6 +2,7 @@ import * as THREE from "three";
 import type { Tier } from "../../cesium/stylised/quality";
 import { hash01 } from "../assets/fit";
 import { createRoleMaterial, type RoleUniforms } from "../assets/roleMaterial";
+import { DECK_POOL_COLOUR, type PodiumDeck } from "./podiumDeck";
 import type { RoofDressing } from "./roofPlan";
 
 const NOOP = () => {};
@@ -15,6 +16,12 @@ export interface RoofItem {
   dressing: RoofDressing;
 }
 
+/** One tile's planned roofs: the dressed roofs and the podium decks in it. */
+export interface TileRoofs {
+  items: RoofItem[];
+  decks: PodiumDeck[];
+}
+
 /** A box with its base at y = 0 (so a matrix y of the roof height sits it on the roof). */
 function baseBox(): THREE.BufferGeometry {
   const g = new THREE.BoxGeometry(1, 1, 1);
@@ -23,7 +30,9 @@ function baseBox(): THREE.BufferGeometry {
 }
 
 /**
- * Roof layer: at most 3 InstancedMesh draws (rooftop units, skylight strips, roof-edge band).
+ * Roof layer: at most 3 InstancedMesh draws (rooftop units, skylight strips, roof-edge band), plus
+ * a `roof_deck` group of 2 draws (deck boxes, pool plane) when `decks` are given (the Kanopi
+ * podium deck, ruling P4-M; the pool is base water #7fb6c9, never the flood blue).
  * Decorative only (never picked, never cited, no shadows). Skylights use the shared role material
  * on the glass role so they glow at night with the windows. At Low, or with nothing to draw, the
  * layer is empty and the buildings keep the P3 palette roofs.
@@ -32,12 +41,13 @@ export function createRoofLayer(
   items: RoofItem[],
   uniforms: RoleUniforms,
   tier: Tier,
+  decks: readonly PodiumDeck[] = [],
 ): { group: THREE.Group; dispose(): void } {
   const group = new THREE.Group();
   group.name = "roofs";
   group.userData.decorative = true;
   group.raycast = NOOP;
-  if (tier === "low" || items.length === 0) return { group, dispose: NOOP };
+  if (tier === "low" || (items.length === 0 && decks.length === 0)) return { group, dispose: NOOP };
 
   const disposables: Array<{ dispose(): void }> = [];
   const meshes: THREE.InstancedMesh[] = [];
@@ -128,6 +138,54 @@ export function createRoofLayer(
     new THREE.MeshStandardMaterial({ roughness: 0.9, metalness: 0 }),
     (it) => it.dressing.band,
   );
+
+  if (decks.length > 0) {
+    const deck = new THREE.Group();
+    deck.name = "roof_deck";
+    deck.userData.decorative = true;
+    deck.raycast = NOOP;
+    const add = (mesh: THREE.InstancedMesh, geo: THREE.BufferGeometry, mat: THREE.Material) => {
+      mesh.instanceMatrix.needsUpdate = true;
+      mesh.computeBoundingSphere();
+      mesh.castShadow = false;
+      mesh.receiveShadow = false;
+      mesh.raycast = NOOP;
+      mesh.userData.decorative = true;
+      disposables.push(geo, mat);
+      meshes.push(mesh);
+      deck.add(mesh);
+    };
+    const nBoxes = decks.reduce((n, d) => n + d.boxes.length / 16, 0);
+    if (nBoxes > 0) {
+      const geo = baseBox();
+      const mat = new THREE.MeshStandardMaterial({ roughness: 0.85, metalness: 0 });
+      const mesh = new THREE.InstancedMesh(geo, mat, nBoxes);
+      const col = new Float32Array(nBoxes * 3);
+      let n = 0;
+      for (const d of decks) {
+        mesh.instanceMatrix.array.set(d.boxes, n * 16);
+        col.set(d.colours, n * 3);
+        n += d.boxes.length / 16;
+      }
+      mesh.instanceColor = new THREE.InstancedBufferAttribute(col, 3);
+      mesh.name = "roof_deck_boxes";
+      add(mesh, geo, mat);
+    }
+    const plane = new THREE.PlaneGeometry(1, 1);
+    plane.rotateX(-Math.PI / 2);
+    const water = new THREE.MeshStandardMaterial({
+      color: DECK_POOL_COLOUR,
+      roughness: 0.25,
+      metalness: 0,
+    });
+    const pool = new THREE.InstancedMesh(plane, water, decks.length);
+    decks.forEach((d, i) => {
+      pool.instanceMatrix.array.set(d.pool, i * 16);
+    });
+    pool.name = "roof_deck_pool";
+    add(pool, plane, water);
+    group.add(deck);
+  }
 
   return {
     dispose() {

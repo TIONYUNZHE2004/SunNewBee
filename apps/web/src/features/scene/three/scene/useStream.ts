@@ -1,6 +1,7 @@
 import { type RefObject, useEffect, useMemo, useRef, useState } from "react";
 import type { BuildingsLayer } from "../../../../lib/api";
 import type { Tier } from "../../cesium/stylised/quality";
+import type { RoofInput } from "../assets/plan";
 import type { Engine } from "../engine";
 import type { FacadeBuilding } from "../facade/facadeLayer";
 import type { LocalFrame } from "../frame";
@@ -12,7 +13,13 @@ import {
   type Streamer,
   type TileContent,
 } from "../stream/streamer";
-import { bucketFacades, planTile, type TileInputs, warmPlanners } from "../stream/tilePlan";
+import {
+  bucketFacades,
+  bucketRoofs,
+  planTile,
+  type TileInputs,
+  warmPlanners,
+} from "../stream/tilePlan";
 import { TILE_M, tileAt } from "../stream/tiles";
 import { whenIdle } from "./idle";
 import type { LoadedAssets } from "./useCityAssets";
@@ -22,7 +29,7 @@ const NONE: ActiveTile[] = [];
 
 /**
  * While the streamer is still filling (`pending`), the merged layers (kits, lamp pools, signs,
- * agents, roads, facades) are rebuilt at most this often: each rebuild walks every active tile, so
+ * agents, roads, facades, roofs) are rebuilt at most this often: each rebuild walks every active tile, so
  * one per planned tile would be main-thread work proportional to the tile count on every tick. A
  * new ring-0 plan and the end of a fill are published at once; outside a fill every change is.
  */
@@ -57,6 +64,7 @@ export function useStream({
   loaded,
   showroom,
   facadeSrc,
+  roofSrc = null,
 }: {
   engine: Engine | null;
   frame: LocalFrame | null;
@@ -67,15 +75,18 @@ export function useStream({
   loaded: LoadedAssets | null;
   showroom: boolean;
   facadeSrc: FacadeBuilding[] | null;
+  /** Roof inputs (Task 8); null or absent: no roof dressing. */
+  roofSrc?: RoofInput[] | null;
 }) {
   const facades = useMemo(() => (facadeSrc ? bucketFacades(facadeSrc) : null), [facadeSrc]);
+  const roofs = useMemo(() => (roofSrc ? bucketRoofs(roofSrc) : null), [roofSrc]);
   const manifest = loaded?.manifest ?? null;
   const inputs = useMemo<TileInputs | null>(
     () =>
       frame && detailsOn && walk && !showroom
-        ? { frame, walk, buildings, manifest, facades }
+        ? { frame, walk, buildings, manifest, facades, roofs }
         : null,
-    [frame, detailsOn, walk, showroom, buildings, manifest, facades],
+    [frame, detailsOn, walk, showroom, buildings, manifest, facades, roofs],
   );
   const inputsRef = useRef(inputs);
   inputsRef.current = inputs;

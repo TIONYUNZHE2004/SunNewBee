@@ -22,6 +22,7 @@ import { useMood } from "./scene/useMood";
 import { useMotion } from "./scene/useMotion";
 import { useOverlays } from "./scene/useOverlays";
 import { usePicking } from "./scene/usePicking";
+import { useRoofs } from "./scene/useRoofs";
 import { useMergeMeasure, useStream } from "./scene/useStream";
 
 /** Bottom-left map note (clear of the camera cluster and the attribution strip). */
@@ -159,6 +160,7 @@ export default function ThreeScene({
     loaded,
     showroom,
     facadeSrc: city.facadeSrc,
+    roofSrc: city.roofSrc,
   });
   const { roads } = useRoads({ engine, active, tier });
   const { facadesOn } = useFacades({
@@ -168,6 +170,7 @@ export default function ThreeScene({
     roleUniforms,
     baseBytes: city.baseBytes,
   });
+  const { roofsOn } = useRoofs({ engine, active, tier, roleUniforms });
   const { kits } = useDecor({
     engine,
     frame,
@@ -203,11 +206,12 @@ export default function ThreeScene({
   const { initialBackground } = useMood({ engine, roleUniforms, sectionRef, home, bus });
   usePicking({ engine, hostRef, places });
 
-  // Any decorative layer in the scene: city assets (kits, decorative landmarks), facades, props,
+  // Any decorative layer in the scene: city assets (kits, decorative landmarks), facades, roofs, props,
   // agents, the ground layer (land-cover tints, road surfaces) or the ambient birds and clouds.
   const decorativeShown =
     city.decorAssets ||
     facadesOn ||
+    roofsOn ||
     kits.size > 0 ||
     agents.length > 0 ||
     (!!engine && (roads.length > 0 || !!landcover?.getAttribute("position")?.count)) ||

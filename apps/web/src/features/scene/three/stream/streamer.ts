@@ -1,6 +1,7 @@
 import type { Tier } from "../../cesium/stylised/quality";
 import type { Placement } from "../assets/fit";
 import type { FacadeBuilding } from "../facade/facadeLayer";
+import type { TileRoofs } from "../facade/roofLayer";
 import type { Ribbon } from "../ground/ribbons";
 import type { Agent } from "../motion/agents";
 import type { SignPlacement } from "../signs/signPlan";
@@ -22,6 +23,8 @@ export interface TileContent {
   tracks?: Float32Array; // Task 10 construction tracks
   /** Procedural facade inputs of the extrusions in this tile; planned for rings 0-1 only (P4-H). */
   facades?: FacadeBuilding[];
+  /** Dressed roofs and podium decks of the large roofs in this tile; rings 0-1 only (Task 8). */
+  roofs?: TileRoofs;
   dispose?(): void;
 }
 
@@ -92,7 +95,7 @@ const isTreeKit = (k: string) => k.startsWith("trees/");
 const farViews = new WeakMap<TileContent, TileContent>();
 /**
  * Beyond RING2_MAX_RANGE_M only trees and roads show: the same content without lamps, furniture,
- * construction, agents, signs, facades or (later) verges and parking. Memoised per content, so
+ * construction, agents, signs, facades, roofs or (later) verges and parking. Memoised per content, so
  * the active list keeps its identity between updates.
  */
 export function farView(c: TileContent): TileContent {

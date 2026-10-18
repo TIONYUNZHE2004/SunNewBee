@@ -3,9 +3,10 @@ import { describe, expect, it } from "vitest";
 import type { BuildingsLayer } from "../../../../lib/api";
 import { buildCityGeometry } from "../cityMesh";
 import { facadeFor } from "../facade/facadePlan";
+import { fallbackColours } from "../fallbackStyle";
 import { createFrame } from "../frame";
 import { type AssetSpec, type Manifest, parseManifest } from "./manifest";
-import { facadeInputs, GENERIC_UNSTRETCHED, LANDMARK_FIT, planCity } from "./plan";
+import { facadeInputs, GENERIC_UNSTRETCHED, LANDMARK_FIT, planCity, roofInputs } from "./plan";
 
 const readJson = (rel: string) => JSON.parse(readFileSync(new URL(rel, import.meta.url), "utf8"));
 
@@ -342,6 +343,54 @@ describe("planCity", () => {
         ),
       );
       expect(b!.spec.storeys).toBe(3);
+    });
+  });
+
+  describe("roofInputs (Task 8: roofs the roof layer may dress)", () => {
+    const m = manifest();
+    const big = (id: string, cx: number, extra: Record<string, unknown> = {}) =>
+      feat({ id, height_m: 12, kind: "industrial", ...extra }, poly(cx, 0, 30, 50)); // 1500 m2
+    const podium = feat({ id: "pod", archetype: "generic", height_m: 8.71 }, poly(300, 0, 60, 100));
+    const tower = { id: "k", model: "kanopi", building_id: "pod", match: "traced_outline" };
+    const mall = { id: "lm", model: "lakeside_mall", building_id: "mallb" };
+    const layer = layerOf(
+      [big("f1", 0), big("mallb", 100, { archetype: "mall" }), link("small"), podium],
+      [feat(tower, poly(280, 0, 15, 50)), feat(mall, poly(100, 0, 30, 50))],
+    );
+
+    it("lists the large extrusions with their ring, height and palette; marks landmarks", () => {
+      const g = buildCityGeometry(layer, frame, { only: new Set(["f1", "mallb", "small"]) });
+      const list = roofInputs(g.footprints, layer, m, frame);
+      const ids = list.map((r) => r.b.id);
+      expect(ids).toContain("f1");
+      expect(ids).not.toContain("small"); // under 600 m2
+      const f1 = list.find((r) => r.b.id === "f1")!;
+      expect(f1.b.ring).toEqual(g.footprints.find((f) => f.id === "f1")!.ring);
+      expect(f1.b.heightM).toBe(12);
+      expect(f1.b.isLandmark).toBe(false);
+      expect(f1.palette).toEqual(
+        fallbackColours({ id: "f1", kind: "industrial" }, m, m.precinctGroups),
+      );
+      expect(list.find((r) => r.b.id === "mallb")!.b.isLandmark).toBe(true);
+    });
+
+    it("gives the podium under a traced tower a deck with the tower plate, even when it is not extruded", () => {
+      const g = buildCityGeometry(layer, frame, { only: new Set(["f1"]) });
+      const pod = roofInputs(g.footprints, layer, m, frame).find((r) => r.b.id === "pod")!;
+      expect(pod.b.isLandmark).toBe(true);
+      expect(pod.b.heightM).toBeCloseTo(8.71, 6);
+      expect(pod.deck!.parts.planters).toBeGreaterThan(0);
+      expect(pod.deck!.parts.pergola).toBeGreaterThan(0);
+      // Planned around the tower plate (x 255..305, z -7.5..7.5): no item centre on it.
+      const b = pod.deck!.boxes;
+      for (let i = 0; i < b.length; i += 16) {
+        const x = b[i + 12]!;
+        const z = b[i + 14]!;
+        expect(x > 255 && x < 305 && z > -7.5 && z < 7.5).toBe(false);
+      }
+      expect(
+        roofInputs(g.footprints, layer, m, frame).find((r) => r.b.id === "f1")!.deck,
+      ).toBeUndefined();
     });
   });
 });

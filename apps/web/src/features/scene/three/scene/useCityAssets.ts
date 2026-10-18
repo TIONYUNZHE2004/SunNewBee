@@ -7,7 +7,7 @@ import { type CityInstances, createCityInstances } from "../assets/cityInstances
 import type { Placement } from "../assets/fit";
 import { type AssetLibrary, loadAssetLibrary } from "../assets/library";
 import { MANIFEST_URL, type Manifest, parseManifest } from "../assets/manifest";
-import { type CityPlan, facadeInputs, planCity } from "../assets/plan";
+import { type CityPlan, facadeInputs, planCity, type RoofInput, roofInputs } from "../assets/plan";
 import type { RoleUniforms } from "../assets/roleMaterial";
 import { showroomBounds, showroomManifest, showroomPlan } from "../assets/showroom";
 import { HERO_CENTRE } from "../bookmarks";
@@ -15,6 +15,7 @@ import { useCityInfo } from "../cityInfo";
 import { buildCityGeometry, type CityGeometry } from "../cityMesh";
 import type { Engine } from "../engine";
 import type { FacadeBuilding } from "../facade/facadeLayer";
+import { largeRoofTint } from "../facade/roofPlan";
 import { fallbackColourFn } from "../fallbackStyle";
 import type { LocalFrame } from "../frame";
 import { KIT_LOD_SCALE } from "../props/caps";
@@ -96,6 +97,10 @@ type Kits = Map<string, Placement[]> | null;
  * Procedural facades (decorative): `facadeSrc` is the facade input of every drawn extrusion
  * (fallbacks and stretched generics). The streamer buckets it by tile and `useFacades` draws the
  * buckets of rings 0-1 (P4-H). `baseBytes` is the city's GPU bytes without the facade layer.
+ *
+ * Roofs (Task 8, decorative): large styled roof caps take `largeRoofTint` instead of the grey
+ * palette roof, and `roofSrc` (large extrusions plus landmark podiums) is streamed the same way
+ * and drawn by `useRoofs`.
  */
 export function useCityAssets({
   engine,
@@ -125,6 +130,8 @@ export function useCityAssets({
   const [fallback, setFallback] = useState<FallbackCounts>(NO_FALLBACK);
   /** The facade layer's input for the current plan (null: no facades, e.g. no assets or showroom). */
   const [facadeSrc, setFacadeSrc] = useState<FacadeBuilding[] | null>(null);
+  /** The roof layer's input for the current plan (null: no roofs, e.g. no assets or showroom). */
+  const [roofSrc, setRoofSrc] = useState<RoofInput[] | null>(null);
   /** The city's GPU bytes without the facade layer (the facade effect adds its own). */
   const baseBytes = useRef(0);
   /** True while the engine holds instances built from the current library. */
@@ -204,6 +211,7 @@ export function useCityAssets({
       setDecorAssets(false);
       setFallback(NO_FALLBACK);
       setFacadeSrc(null);
+      setRoofSrc(null);
       baseBytes.current = geometryBytes(g);
       usePerfStats.getState().update({ gpuMB: baseBytes.current / MB, fallback: NO_FALLBACK });
     };
@@ -227,6 +235,7 @@ export function useCityAssets({
       const g = buildCityGeometry(buildings, frame, {
         only: plan.extrude,
         colours: showroom ? undefined : fallbackColourFn(buildings.buildings, m),
+        roofTint: showroom ? undefined : largeRoofTint,
       });
       engine.setCity(g);
       engine.setAssets(inst);
@@ -255,12 +264,14 @@ export function useCityAssets({
       usePerfStats.getState().update({ fallback: fb, gpuMB: baseBytes.current / MB });
       // The showroom has no township: no facades there.
       setFacadeSrc(showroom ? null : facadeInputs(g.footprints, buildings, m));
+      setRoofSrc(showroom ? null : roofInputs(g.footprints, buildings, m, frame));
     } catch (err) {
       // Once per load: drop the library, so later buildings refetches draw the full city silently.
       console.warn(`${ASSET_WARN}: ${String(err)}`);
       dropInstances();
       lib.dispose();
       setFacadeSrc(null);
+      setRoofSrc(null);
       // setLoaded(null) re-runs this effect, which draws the full city once (no full() here).
       setLoaded(null);
       setAssetsState("failed");
@@ -324,6 +335,7 @@ export function useCityAssets({
     instances,
     fallback,
     facadeSrc,
+    roofSrc,
     baseBytes,
   };
 }

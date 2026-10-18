@@ -1,6 +1,7 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { NEUTRAL_COLOURS } from "../fallbackStyle";
-import { type RoofBuilding, roofDressing } from "./roofPlan";
+import { largeRoofTint, ROOF_TINTS, type RoofBuilding, roofDressing } from "./roofPlan";
 
 const rect = (w: number, d: number, x0 = 0): Array<[number, number]> => [
   [x0, 0],
@@ -113,7 +114,7 @@ describe("roofDressing", () => {
     expect(Math.hypot(m[0]![8]!, m[0]![10]!)).toBeCloseTo(1.5, 5);
   });
 
-  it("adds a 0.4 m edge band just inside the roof and uses the palette colours", () => {
+  it("adds a 0.4 m edge band just inside the roof, the large-roof tint and the palette trim", () => {
     const ring = rect(60, 30);
     const r = roofDressing(big(), NEUTRAL_COLOURS);
     expect(r.band.length / 16).toBe(4);
@@ -122,12 +123,61 @@ describe("roofDressing", () => {
       expect(inside(ring, m[12]!, m[14]!)).toBe(true);
       expect(edgeDist(ring, m[12]!, m[14]!)).toBeCloseTo(0.2, 5);
     }
-    expect(r.tint).toBe(NEUTRAL_COLOURS.roof);
+    expect(r.tint).toBe(largeRoofTint("big1", ring));
     expect(r.edge).toBe(NEUTRAL_COLOURS.trim);
   });
 
   it("survives bad input", () => {
     expect(roofDressing(big({ ring: [] }), NEUTRAL_COLOURS).units.length).toBe(0);
     expect(roofDressing(big({ heightM: Number.NaN }), NEUTRAL_COLOURS).units.length).toBe(0);
+  });
+});
+
+/** HSL saturation of a #rrggbb colour (0 grey .. 1 pure hue). */
+function saturation(hex: string): number {
+  const n = Number.parseInt(hex.slice(1), 16);
+  const c = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map((v) => v / 255);
+  const hi = Math.max(...c);
+  const lo = Math.min(...c);
+  const l = (hi + lo) / 2;
+  const d = hi - lo;
+  return d === 0 ? 0 : d / (1 - Math.abs(2 * l - 1));
+}
+
+describe("largeRoofTint (owner's P3 note: flat grey roofs)", () => {
+  const manifest = JSON.parse(
+    readFileSync(new URL("../../../../../public/city/manifest.json", import.meta.url), "utf8"),
+  ) as { assets: Record<string, { palettes: Record<string, string[][]> }> };
+
+  it("the palette roofs of the big-building archetypes are greys (before)", () => {
+    const roofs = new Set<string>([NEUTRAL_COLOURS.roof]);
+    for (const k of ["generic", "factory", "mall", "school", "shop_office", "highrise", "mosque"])
+      for (const list of Object.values(manifest.assets[k]!.palettes))
+        for (const p of list) roofs.add(p[1]!);
+    for (const c of roofs) expect(saturation(c)).toBeLessThan(0.12);
+  });
+
+  it("keeps a palette roof that is already coloured (Denai Alam terracotta)", () => {
+    expect(largeRoofTint("b1", rect(60, 30), "#8a4b35")).toBeNull();
+    expect(largeRoofTint("b1", rect(60, 30), "#4a4e55")).toBe(largeRoofTint("b1", rect(60, 30)));
+  });
+
+  it("gives every roof of 600 m2 or more a non-grey tint from the documented set, deterministic per id", () => {
+    const seen = new Set<string>();
+    for (let i = 0; i < 40; i++) {
+      const t = largeRoofTint(`b${i}`, rect(60, 30));
+      expect(t).not.toBeNull();
+      expect(ROOF_TINTS).toContain(t);
+      expect(saturation(t!)).toBeGreaterThan(0.15);
+      expect(largeRoofTint(`b${i}`, [...rect(60, 30)].reverse())).toBe(t);
+      seen.add(t!);
+    }
+    expect(seen.size).toBeGreaterThan(1);
+    for (const c of ROOF_TINTS) expect(c).not.toBe("#7fb6c9"); // never reads as base water
+  });
+
+  it("leaves small roofs (under 600 m2) and bad rings alone", () => {
+    expect(largeRoofTint("s", rect(24, 24))).toBeNull();
+    expect(largeRoofTint("s", [])).toBeNull();
   });
 });

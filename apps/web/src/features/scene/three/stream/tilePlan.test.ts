@@ -2,11 +2,21 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import type { BuildingsLayer } from "../../../../lib/api";
 import { parseManifest } from "../assets/manifest";
+import type { RoofInput } from "../assets/plan";
 import type { FacadeBuilding } from "../facade/facadeLayer";
+import { podiumDeck } from "../facade/podiumDeck";
+import { NEUTRAL_COLOURS } from "../fallbackStyle";
 import { createFrame } from "../frame";
 import { perLayerStats } from "./area";
 import { TILE_CAPS } from "./caps";
-import { bucketFacades, planTile, type TileInputs, warmPlanners } from "./tilePlan";
+import {
+  bucketFacades,
+  bucketRoofs,
+  planRoofs,
+  planTile,
+  type TileInputs,
+  warmPlanners,
+} from "./tilePlan";
 import { tileAt } from "./tiles";
 
 const manifest = parseManifest(
@@ -184,5 +194,61 @@ describe("bucketFacades", () => {
     // b spans 245..255: centre 250 belongs to tile 1 (the higher index); c's centre is 245.
     expect(m.get("0,0")?.map((f) => f.spec.buildingId)).toEqual(["a", "c"]);
     expect(m.get("1,0")?.map((f) => f.spec.buildingId)).toEqual(["b"]);
+  });
+});
+
+describe("planTile roofs (Task 8: dressed roofs at ring <= 1)", () => {
+  const roof = (
+    id: string,
+    x: number,
+    z: number,
+    over: Partial<RoofInput["b"]> = {},
+  ): RoofInput => ({
+    b: {
+      id,
+      ring: [
+        [x, z],
+        [x + 50, z],
+        [x + 50, z + 30],
+        [x, z + 30],
+      ],
+      heightM: 12,
+      kind: "industrial",
+      ...over,
+    },
+    palette: NEUTRAL_COLOURS,
+  });
+  const roofs = bucketRoofs([
+    roof("r1", 40, 30),
+    roof("mall", 140, 30, { isLandmark: true }),
+    roof("r2", 300, 30),
+  ]);
+
+  it("ring 0 and ring 1 plan the tile's large roofs (one shared plan); landmarks get none", () => {
+    const a = planTile(inputs({ roofs }), t00, 0, "medium").roofs!;
+    expect(a.items.map((i) => i.id)).toEqual(["r1"]);
+    expect(a.items[0]!.dressing.units.length).toBeGreaterThan(0);
+    expect(planTile(inputs({ roofs }), t00, 1, "high").roofs).toBe(a);
+    expect(planTile(inputs({ roofs }), t10, 1, "medium").roofs!.items.map((i) => i.id)).toEqual([
+      "r2",
+    ]);
+  });
+
+  it("ring 2, Low and no roof inputs plan none; a tile without large roofs shares one empty plan", () => {
+    expect(planTile(inputs({ roofs }), t00, 2, "medium").roofs).toBeUndefined();
+    expect(planTile(inputs({ roofs }), t00, 0, "low").roofs).toBeUndefined();
+    expect(planTile(inputs(), t00, 0, "medium").roofs).toBeUndefined();
+    const empty = tileAt(1010, 1010);
+    const e = planTile(inputs({ roofs }), empty, 0, "medium").roofs!;
+    expect(e).toEqual({ items: [], decks: [] });
+    expect(planTile(inputs({ roofs }), empty, 1, "high").roofs).toBe(e);
+  });
+
+  it("a landmark podium carries its deck into the tile plan, with no rooftop units", () => {
+    const r = roof("pod", 0, 0, { isLandmark: true });
+    const d = podiumDeck(r.b, [])!;
+    const plan = planRoofs([{ ...r, deck: d }]);
+    expect(plan.items).toEqual([]);
+    expect(plan.decks).toEqual([d]);
   });
 });
