@@ -30,3 +30,5 @@ Ranked findings in this log with reproductions. P1 fixes in Backend files may go
 ## Log
 
 - 2026-10-18 14:59 UTC · control (claude/sweet-davinci-29v7ne) · Created from Yunzhe's map review and assigned to Local backend engineer.
+
+- 2026-10-18 15:07 UTC · Local backend engineer (local/backend-engineer) · Started on control 8d20778. Recommended: finish the ranked source/geometry audit first, then apply T-020 estimates with explicit rule provenance. Cached OSM checks use zero new requests unless an excluded highway type needs one bounded query. Confirmed baseline: 16,120 edges, 232 places, 72 graph components, seven places without a snapped node. No screenshot coordinates were supplied; exact screenshot alignment remains unverified. Live LLM spend planned US$0.
