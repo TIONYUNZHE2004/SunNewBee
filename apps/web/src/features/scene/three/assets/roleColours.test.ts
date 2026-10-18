@@ -3,7 +3,7 @@ import * as THREE from "three";
 import { MeshoptDecoder } from "three/addons/libs/meshopt_decoder.module.js";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { describe, expect, it } from "vitest";
-import { BAKED_AO_FLOOR, FIXED_ROLE_COLOURS } from "./roleMaterial";
+import { AO_FLOOR, FIXED_ROLE_COLOURS } from "./roleMaterial";
 
 /** AC-A9 (A-T8): no archetype material renders pure black. Relative luminance as the acceptance harness measures it. */
 const MIN_LUMINANCE = 0.08;
@@ -16,7 +16,7 @@ const luminance = (hex: string): number => {
 };
 
 describe("AC-A9: archetype role colours are not near black", () => {
-  it("every fixed role colour is at least 0.08 luminance (except the emissive-light role, which is pale)", () => {
+  it("every fixed role colour (glass, dark, metal, foliage, light) is at least 0.08 luminance", () => {
     for (const [role, hex] of Object.entries(FIXED_ROLE_COLOURS))
       expect(luminance(hex), `${role} ${hex}`).toBeGreaterThanOrEqual(MIN_LUMINANCE);
   });
@@ -38,6 +38,16 @@ describe("AC-A9: archetype role colours are not near black", () => {
  * The root cause of the black strips: the per-vertex AO bake wrote exact zeros (corners whose smoothed
  * normal points into the ground or body), and role colour x 0 = black. Reads the committed glbs.
  */
+describe("AO floor", () => {
+  it("the shader floor equals the build clamp in core.py", () => {
+    const core = readFileSync(
+      new URL("../../../../../../../assets/blender/tl_assets/core.py", import.meta.url),
+      "utf8",
+    );
+    expect(Number(/^AO_FLOOR = ([\d.]+)/m.exec(core)?.[1])).toBe(AO_FLOOR);
+  });
+});
+
 describe("AC-A9: baked AO has no black corners in the committed archetypes", () => {
   const loader = new GLTFLoader();
   loader.setMeshoptDecoder(MeshoptDecoder);
@@ -63,7 +73,7 @@ describe("AC-A9: baked AO has no black corners in the committed archetypes", () 
         verts += col.count;
       });
       expect(verts).toBeGreaterThan(0);
-      expect(min).toBeGreaterThanOrEqual(BAKED_AO_FLOOR - 0.01);
+      expect(min).toBeGreaterThanOrEqual(AO_FLOOR - 0.01);
     });
   }
 });

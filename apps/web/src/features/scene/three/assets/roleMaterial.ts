@@ -12,22 +12,23 @@ export interface RoleUniforms {
 /** sRGB hex; THREE.Color converts to linear working space on construction. */
 export const FIXED_ROLE_COLOURS: Record<"glass" | "dark" | "metal" | "foliage" | "light", string> =
   {
-    glass: "#9db8cc",
-    dark: "#7a7e85",
+    glass: "#6f8aa0",
+    dark: "#54575d",
     metal: "#9aa1a8",
     foliage: "#5f8f4e",
     light: "#fff1c9",
   };
 
 /**
- * Baked AO (COLOR_0.r) floors (A-T8). The per-vertex bake leaves exact zeros at corners whose
- * smoothed normal points into the ground or the body, and a zero multiplies the role colour to
- * pure black. `BAKED_AO_FLOOR` mirrors `AO_FLOOR` in assets/blender/tl_assets/core.py (what the
- * build clamps to); `AO_FLOOR` is what the shader applies, a little higher: with the day ambient on
- * shade-side facades, recessed brick, screens and glass still fell under 0.03 luminance at 0.4.
+ * Floor for the baked AO (COLOR_0.r), A-T8. The per-vertex bake leaves exact zeros at corners whose
+ * smoothed normal points into the ground or the body, and a zero multiplies the role colour to pure
+ * black. The build clamps to this value (`AO_FLOOR` in assets/blender/tl_assets/core.py; a test
+ * checks they match); the shader applies it too as a safety net for older glbs.
  */
-export const BAKED_AO_FLOOR = 0.4;
-export const AO_FLOOR = 0.6;
+export const AO_FLOOR = 0.4;
+
+/** Daylight sky reflection on glass: a share of its own colour added as emissive (fades out as windows light up). */
+export const GLASS_SKY = 0.12;
 
 /** Shared by every kit material; driven by the motion clock (Task 8). */
 export interface MotionUniforms {
@@ -163,6 +164,7 @@ diffuseColor.rgb = tlBase * tlAo;`,
     fs = fs.replace(
       "#include <emissivemap_fragment>",
       `#include <emissivemap_fragment>
+if (tlRole == 3) totalEmissiveRadiance += tlBase * ${GLASS_SKY.toFixed(2)} * (1.0 - clamp(uWindowGlow, 0.0, 1.0));
 if (tlRole == 3 && vColor.b < uLitShare) totalEmissiveRadiance += vec3(1.0, 0.78, 0.45) * uWindowGlow${glassGlow === 1 ? "" : ` * ${glassGlow.toFixed(2)}`}${
         flicker
           ? " * mix(1.0, 0.9 + 0.1 * step(0.97, fract(sin(vColor.b * 9301.0 + floor(uTime * 0.5)) * 43758.0)), uFlicker)"
