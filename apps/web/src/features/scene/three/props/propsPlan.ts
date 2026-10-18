@@ -33,6 +33,8 @@ export interface PropsInput {
   centre: [number, number];
   radiusM: number;
   tier: Tier;
+  /** Tests only: replaces the tier's cap for a kind. */
+  capsOverride?: Partial<Record<PropKind, number>>;
   m: Manifest;
 }
 
@@ -248,8 +250,9 @@ const STREET_SPECIES: [string, number][] = [
 export function planProps(input: PropsInput): PropsPlan {
   const { frame, tier, m, radiusM } = input;
   const plan: PropsPlan = { kits: new Map(), stats: {} };
+  const capOf = (k: PropKind) => input.capsOverride?.[k] ?? capFor(tier, k);
   const kinds: PropKind[] = ["trees", "lamps", "furniture", "construction"];
-  if (kinds.every((k) => capFor(tier, k) === 0)) return plan;
+  if (kinds.every((k) => capOf(k) === 0)) return plan;
 
   const [cx, cz] = frame.toLocal(input.centre[0], input.centre[1]);
   const dist = (x: number, z: number) => Math.hypot(x - cx, z - cz);
@@ -587,7 +590,7 @@ export function planProps(input: PropsInput): PropsPlan {
       }
     }
   };
-  const treeCap = capFor(tier, "trees");
+  const treeCap = capOf("trees");
   const jitterAt =
     (cell: number) =>
     (id: string, i: number, j: number): [number, number] => [
@@ -770,7 +773,7 @@ export function planProps(input: PropsInput): PropsPlan {
     return true;
   };
   const emit = (kind: PropKind, list: Cand[]) => {
-    const cap = capFor(tier, kind);
+    const cap = capOf(kind);
     list.sort(cmp);
     let n = 0;
     for (const c of list) {
@@ -781,7 +784,7 @@ export function planProps(input: PropsInput): PropsPlan {
   };
 
   const emitTrees = () => {
-    const cap = capFor(tier, "trees");
+    const cap = capOf("trees");
     const bySrc = new Map<TreeSource, Cand[]>();
     for (const c of cands.trees) {
       const k = c.src ?? "street";

@@ -240,26 +240,24 @@ describe("planProps", () => {
   });
 
   it("avoids a long road segment whose midpoint is outside the radius", () => {
-    // 6 m street from x=-1800..2400 at z=1100: midpoint (300,1100) is 1140 m out, inside+200,
-    // so use a far midpoint instead: x=-3000..4200 puts the midpoint at 600 m east, z=1190.
+    // A 5 km footway at z=1150 from x=-1500 to 3500: its midpoint (1000, 1150) is 1523 m from
+    // the centre, beyond radius + 200, yet the segment crosses the disc (|x| < 343 at z=1150).
     const p = plan({
       radiusM: 1200,
       walk: fc(
         line("footway", [
-          [-4000, 1190],
-          [4000, 1190],
-        ]),
-        line("street", [
-          [-4000, 0],
-          [-3999, 0],
+          [-1500, 1150],
+          [3500, 1150],
         ]),
       ),
-      landcover: fc(poly({ class: "forest" }, -800, 1150, 1600, 100)),
+      landcover: fc(poly({ class: "forest" }, -300, 1100, 600, 100)),
     });
     const trees = ofAsset(p, "trees");
     expect(trees.length).toBeGreaterThan(20);
-    // the footway ribbon (2.5 m wide) at z=1190 must stay clear
-    for (const t of trees) expect(Math.abs(t.z - 1190)).toBeGreaterThanOrEqual(1.25);
+    // a footway ribbon is 2.5 m wide: no tree may sit inside it
+    for (const t of trees) expect(Math.abs(t.z - 1150)).toBeGreaterThanOrEqual(1.25);
+    // and the forest does reach the ribbon's neighbourhood, so the check is not vacuous
+    expect(trees.some((t) => Math.abs(t.z - 1150) < 4)).toBe(true);
   });
 
   it("samples a polygon listed as both a park and grass once", () => {
@@ -269,26 +267,23 @@ describe("planProps", () => {
     expect(ofAsset(twice, "trees").length).toBe(ofAsset(once, "trees").length);
   });
 
-  it("gives every construction site its cabin before any site gets extra machines", () => {
-    const p = plan({
-      tier: "medium",
-      landcover: fc(
-        poly({ class: "construction" }, 100, 100, 95, 95),
-        poly({ class: "construction" }, -300, 100, 95, 95),
-        poly({ class: "construction" }, 500, 500, 95, 95),
-      ),
-    });
-    const all6 = ofAsset(p, "construction");
-    expect(all6.length).toBeLessThanOrEqual(capFor("medium", "construction"));
-    expect(count(p, "construction/site_cabin")).toBe(3);
-    const at = (x0: number, z0: number) =>
-      all6.filter((q) => q.x >= x0 - 2 && q.x <= x0 + 97 && q.z >= z0 - 2 && q.z <= z0 + 97);
-    for (const [x0, z0] of [
+  it("under a tight cap every site keeps its cabin before any site gets extra machines", () => {
+    const sites: [number, number][] = [
       [100, 100],
       [-300, 100],
       [500, 500],
-    ] as const)
-      expect(at(x0, z0).length).toBeGreaterThanOrEqual(1);
+    ];
+    const p = plan({
+      capsOverride: { construction: 3 },
+      landcover: fc(...sites.map(([x, z]) => poly({ class: "construction" }, x, z, 95, 95))),
+    });
+    const built = ofAsset(p, "construction");
+    expect(built).toHaveLength(3);
+    expect(count(p, "construction/site_cabin")).toBe(3);
+    for (const [x0, z0] of sites)
+      expect(
+        built.filter((q) => q.x >= x0 - 2 && q.x <= x0 + 97 && q.z >= z0 - 2 && q.z <= z0 + 97),
+      ).toHaveLength(1);
   });
 
   it("rings the entrances of a mall with bollards", () => {
