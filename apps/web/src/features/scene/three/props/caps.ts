@@ -1,4 +1,4 @@
-import type { Tier } from "../../cesium/stylised/quality";
+import type { Tier } from "../../shared/quality";
 
 export type PropKind = "trees" | "lamps" | "furniture" | "construction" | "people" | "vehicles";
 

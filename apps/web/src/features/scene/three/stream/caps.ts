@@ -1,4 +1,4 @@
-import type { Tier } from "../../cesium/stylised/quality";
+import type { Tier } from "../../shared/quality";
 import { HERO_CENTRE, HERO_RADIUS_M } from "../bookmarks";
 import type { LocalFrame } from "../frame";
 import type { Tile } from "./tiles";

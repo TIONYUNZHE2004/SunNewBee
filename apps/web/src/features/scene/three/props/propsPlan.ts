@@ -1,5 +1,5 @@
-import { KIND_BY_TYPE, ROAD_WIDTH_UNKNOWN, WIDTH_BY_TYPE } from "../../cesium/stylised/ground";
-import type { Tier } from "../../cesium/stylised/quality";
+import type { Tier } from "../../shared/quality";
+import { KIND_BY_TYPE, ROAD_WIDTH_UNKNOWN, WIDTH_BY_TYPE } from "../../shared/roads";
 import { hash01, jitterFor, type Placement, paletteFor } from "../assets/fit";
 import type { Manifest } from "../assets/manifest";
 import type { LocalFrame } from "../frame";

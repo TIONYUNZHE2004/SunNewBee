@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { describe, expect, it } from "vitest";
-import { TIERS, type Tier } from "../../cesium/stylised/quality";
+import { TIERS, type Tier } from "../../shared/quality";
 import { createFrame } from "../frame";
 import { BIRD_FLAP_HZ, BIRD_MAX_BANK, birdBank, createAmbient } from "./ambient";
 

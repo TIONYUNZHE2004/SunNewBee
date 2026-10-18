@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { InSlot } from "../../map-ui/mapSlots";
 import { useScene } from "../sceneStore";
-import type { Tier } from "./stylised/quality";
+import type { Tier } from "../shared/quality";
 
 interface PerfStats {
   fps: number;

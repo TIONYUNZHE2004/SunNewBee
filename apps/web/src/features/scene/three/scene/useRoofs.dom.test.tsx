@@ -2,7 +2,7 @@
 import { renderHook, waitFor } from "@testing-library/react";
 import type * as THREE from "three";
 import { describe, expect, it, vi } from "vitest";
-import type { Tier } from "../../cesium/stylised/quality";
+import type { Tier } from "../../shared/quality";
 import type { RoofInput } from "../assets/plan";
 import { createRoleUniforms } from "../assets/roleMaterial";
 import type { Engine } from "../engine";

@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import type { Tier } from "../../cesium/stylised/quality";
+import type { Tier } from "../../shared/quality";
 import type { RoleUniforms } from "../assets/roleMaterial";
 import type { MoodMix } from "./agents";
 import type { MotionLayer } from "./motionLayer";

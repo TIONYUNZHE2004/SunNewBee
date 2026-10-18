@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import type { Tier } from "../../cesium/stylised/quality";
+import type { Tier } from "../../shared/quality";
 import { GROUND_BANDS, type GroundBand, groundMaterial } from "./bands";
 import { applyGroundDetail } from "./groundDetail";
 import { shimmerMaterial } from "./landcover";

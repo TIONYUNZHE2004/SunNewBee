@@ -1,4 +1,4 @@
-import type { Tier } from "../../cesium/stylised/quality";
+import type { Tier } from "../../shared/quality";
 import { hash01, type Placement } from "../assets/fit";
 import type { LocalFrame } from "../frame";
 import { planParking } from "../ground/parking";

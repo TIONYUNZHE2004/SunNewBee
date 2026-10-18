@@ -1,14 +1,8 @@
 import { type RefObject, useEffect, useMemo, useRef, useState } from "react";
 import { useCameraHeading } from "../../cesium/controls/cameraHeadingStore";
 import { usePerfStats } from "../../cesium/PerfOverlay";
-import {
-  createFrameMonitor,
-  gpuName,
-  lowerTier,
-  pickTier,
-  type Tier,
-} from "../../cesium/stylised/quality";
 import { useSceneSettings } from "../../sceneSettingsStore";
+import { createFrameMonitor, gpuName, lowerTier, pickTier, type Tier } from "../../shared/quality";
 import { createEngine, type Engine } from "../engine";
 import type { LocalFrame } from "../frame";
 import { createFrameStats } from "../frameStats";

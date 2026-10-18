@@ -1,4 +1,4 @@
-import { toBuildings } from "../../cesium/stylised/model";
+import { toBuildings } from "../../shared/model";
 import { displayHeight, localRing } from "../cityMesh";
 import type { LocalFrame } from "../frame";
 import { boxCentre, inBox, type PlanArea, perLayer } from "../stream/area";

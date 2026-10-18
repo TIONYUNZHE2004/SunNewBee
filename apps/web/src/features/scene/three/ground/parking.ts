@@ -1,4 +1,4 @@
-import { ROAD_WIDTH_UNKNOWN, WIDTH_BY_TYPE } from "../../cesium/stylised/ground";
+import { ROAD_WIDTH_UNKNOWN, WIDTH_BY_TYPE } from "../../shared/roads";
 import { footprintObb, hash01, jitterFor, type Placement, paletteFor } from "../assets/fit";
 import type { Manifest } from "../assets/manifest";
 import type { LocalFrame } from "../frame";

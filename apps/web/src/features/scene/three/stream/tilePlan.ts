@@ -1,5 +1,5 @@
 import type { BuildingsLayer } from "../../../../lib/api";
-import type { Tier } from "../../cesium/stylised/quality";
+import type { Tier } from "../../shared/quality";
 import type { Placement } from "../assets/fit";
 import type { Manifest } from "../assets/manifest";
 import type { RoofInput } from "../assets/plan";

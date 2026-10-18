@@ -9,7 +9,6 @@ import { type LonLat, pointFeatures } from "../geo";
 import { useScene } from "../sceneStore";
 import { createRoleUniforms } from "./assets/roleMaterial";
 import { createEngine } from "./engine";
-import { cesiumEngineHref } from "./engineChoice";
 import { createFrame } from "./frame";
 import { useSceneBus } from "./scene/sceneBus";
 import { useCameraOps } from "./scene/useCameraOps";
@@ -25,23 +24,6 @@ import { useOverlays } from "./scene/useOverlays";
 import { usePicking } from "./scene/usePicking";
 import { useRoofs } from "./scene/useRoofs";
 import { useMergeMeasure, useStream } from "./scene/useStream";
-
-/** Bottom-left map note (clear of the camera cluster and the attribution strip). */
-function ExperimentalEngineChip() {
-  return (
-    <InSlot name="notes">
-      <p
-        role="note"
-        className="flex items-center gap-1 rounded-full border border-edge bg-surface/95 px-3 py-1 text-xs text-fg shadow-md"
-      >
-        Experimental 3D engine ·{" "}
-        <a className="font-medium underline" href={cesiumEngineHref(location.href)}>
-          Switch back
-        </a>
-      </p>
-    </InSlot>
-  );
-}
 
 export const DECORATIVE_NOTE = "Decorative details are illustrative.";
 
@@ -81,7 +63,7 @@ function ShowroomChip() {
 }
 
 /**
- * Three.js stylised city (opt-in with `?engine=three`). All WebGL lives in `engine.ts`; each concern
+ * Three.js stylised city (the default Stylised renderer). All WebGL lives in `engine.ts`; each concern
  * is a hook in `scene/`. Cross-hook data passes through hook return values, except the mood /
  * ambient / driver cycle, which shares one per-view `useSceneBus()` store.
  */
@@ -247,7 +229,6 @@ export default function ThreeScene({
       <CameraControls ops={ops} />
       <PerfOverlay />
       <SlowBanner />
-      <ExperimentalEngineChip />
       {decorativeShown && <DecorativeChip />}
       {showroom && (assetsState === "loading" || assetsState === "ready") && <ShowroomChip />}
     </section>

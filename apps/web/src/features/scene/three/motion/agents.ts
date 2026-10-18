@@ -1,5 +1,5 @@
-import { WIDTH_BY_TYPE } from "../../cesium/stylised/ground";
-import type { Tier } from "../../cesium/stylised/quality";
+import type { Tier } from "../../shared/quality";
+import { WIDTH_BY_TYPE } from "../../shared/roads";
 import { hash01 } from "../assets/fit";
 import type { Manifest } from "../assets/manifest";
 import type { LocalFrame } from "../frame";

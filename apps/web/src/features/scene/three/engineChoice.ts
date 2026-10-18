@@ -1,59 +1,20 @@
 import type { MapStyle } from "../sceneStore";
 import type { View } from "../selectView";
 
-export type StylisedEngine = "three" | "cesium";
-export type Renderer = "three" | "cesium" | "mapbox" | "list";
+export type Renderer = "three" | View;
 
-const KEY = "tl.engine";
-const isEngine = (v: unknown): v is StylisedEngine => v === "three" || v === "cesium";
+const LEGACY_KEY = "tl.engine";
 
-/** `?engine=three|cesium` wins and is persisted as `tl.engine`; else the stored value; else "cesium". */
-export function readStylisedEngine(
-  search: string,
-  store?: Pick<Storage, "getItem" | "setItem">,
-): StylisedEngine {
-  const asked = new URLSearchParams(search).get("engine");
-  if (isEngine(asked)) {
-    try {
-      store?.setItem(KEY, asked);
-    } catch {
-      /* per-viewer convenience only */
-    }
-    return asked;
-  }
-  try {
-    const stored = store?.getItem(KEY);
-    if (isEngine(stored)) return stored;
-  } catch {
-    /* unavailable storage: default */
-  }
-  return "cesium";
+/** Three.js draws the Stylised style on the 3D view; everything else is unchanged. */
+export function rendererFor(view: View, style: MapStyle): Renderer {
+  return view === "cesium" && style === "stylised" ? "three" : view;
 }
 
-let memo: StylisedEngine | undefined;
-
-/** Read once per page load (location.search + localStorage). */
-export const stylisedEngine = (): StylisedEngine => {
-  if (memo) return memo;
-  let store: Storage | undefined;
+/** Removes the retired `tl.engine` choice (the `?engine=` switch no longer exists). */
+export function clearLegacyEngineChoice(store: Pick<Storage, "removeItem"> | null): void {
   try {
-    store = typeof localStorage === "undefined" ? undefined : localStorage;
+    store?.removeItem(LEGACY_KEY);
   } catch {
-    store = undefined;
+    /* per-viewer convenience only */
   }
-  const search = typeof location === "undefined" ? "" : location.search;
-  memo = readStylisedEngine(search, store);
-  return memo;
-};
-
-/** Three.js only draws the Stylised style on the Cesium view; everything else is unchanged. */
-export function rendererFor(view: View, style: MapStyle, engine: StylisedEngine): Renderer {
-  return view === "cesium" && style === "stylised" && engine === "three" ? "three" : view;
-}
-
-/** The same page with `?engine=cesium`: loading it persists Cesium as the stylised engine. */
-export function cesiumEngineHref(href: string): string {
-  const u = new URL(href);
-  u.searchParams.set("engine", "cesium");
-  return `${u.pathname}${u.search}${u.hash}`;
 }

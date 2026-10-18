@@ -1,4 +1,4 @@
-import type { Tier } from "../../cesium/stylised/quality";
+import type { Tier } from "../../shared/quality";
 import type { Placement } from "../assets/fit";
 import type { FacadeBuilding } from "../facade/facadeLayer";
 import type { TileRoofs } from "../facade/roofLayer";

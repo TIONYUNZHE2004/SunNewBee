@@ -3,7 +3,7 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import * as THREE from "three";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { json, stubFetch } from "../../../../test/helpers";
-import type { Tier } from "../../cesium/stylised/quality";
+import type { Tier } from "../../shared/quality";
 import type { CityInstances } from "../assets/cityInstances";
 import type { Placement } from "../assets/fit";
 import type { AssetLibrary } from "../assets/library";

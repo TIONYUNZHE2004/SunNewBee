@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import type { Tier } from "../../cesium/stylised/quality";
+import type { Tier } from "../../shared/quality";
 import { hash01 } from "../assets/fit";
 import { createRoleMaterial, type MotionUniforms, type RoleUniforms } from "../assets/roleMaterial";
 import { type FacadeSpec, facadeInstances, type WindowStyle } from "./facadePlan";

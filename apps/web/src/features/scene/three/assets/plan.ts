@@ -1,5 +1,5 @@
 import type { BuildingsLayer } from "../../../../lib/api";
-import { toBuildings } from "../../cesium/stylised/model";
+import { toBuildings } from "../../shared/model";
 import { displayHeight, type Footprint, localRing } from "../cityMesh";
 import type { FacadeBuilding } from "../facade/facadeLayer";
 import { facadeFor } from "../facade/facadePlan";

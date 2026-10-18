@@ -1,6 +1,6 @@
 import { type RefObject, useEffect, useMemo, useRef, useState } from "react";
 import type { BuildingsLayer } from "../../../../lib/api";
-import type { Tier } from "../../cesium/stylised/quality";
+import type { Tier } from "../../shared/quality";
 import type { RoofInput } from "../assets/plan";
 import type { Engine } from "../engine";
 import type { FacadeBuilding } from "../facade/facadeLayer";

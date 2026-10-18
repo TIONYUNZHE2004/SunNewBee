@@ -4,10 +4,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { newQueryClient, renderWithClient } from "../../test/helpers";
 
 // The 3D renderer crashes on mount; the integration under test is what MapStage shows next.
-vi.mock("../scene/cesium/CesiumScene", () => ({
+vi.mock("../scene/three/ThreeScene", () => ({
   default: () => {
+    if (globalThis.__threeOk) return <div data-testid="three-scene" />;
     throw new Error("WebGL context lost");
   },
+}));
+vi.mock("../scene/cesium/CesiumScene", () => ({
+  default: () => <div data-testid="cesium-scene" />,
 }));
 vi.mock("../scene/mapbox/MapboxLite", () => ({ default: () => <div data-testid="mapbox" /> }));
 vi.mock("../scene/list/ListView", () => ({ ListView: () => <div data-testid="list-view" /> }));
@@ -18,6 +22,10 @@ const BUILDINGS = {
   trees: { type: "FeatureCollection", features: [] },
 };
 
+declare global {
+  var __threeOk: boolean | undefined;
+}
+
 const realGetContext = HTMLCanvasElement.prototype.getContext;
 beforeEach(() => {
   // MapStage keeps a once-per-page auto-select flag at module level: fresh modules per test.
@@ -26,7 +34,9 @@ beforeEach(() => {
   HTMLCanvasElement.prototype.getContext = vi.fn((kind: string) =>
     kind === "webgl2" ? ({} as never) : null,
   ) as never;
+  globalThis.__threeOk = false;
   history.replaceState(null, "", "/");
+  localStorage.clear();
 });
 afterEach(() => {
   HTMLCanvasElement.prototype.getContext = realGetContext;
@@ -66,5 +76,19 @@ describe("MapStage renderer crash", () => {
     expect(screen.getByRole("alert")).toHaveTextContent(
       "The map could not be shown on this device. Showing the list instead.",
     );
+  });
+});
+
+describe("MapStage Stylised renderer", () => {
+  it("ignores a stale tl.engine=cesium and ?engine=cesium: renders Three.js and drops the key", async () => {
+    globalThis.__threeOk = true;
+    localStorage.setItem("tl.engine", "cesium");
+    history.replaceState(null, "", "/?engine=cesium");
+    await mount("");
+    expect(await screen.findByTestId("three-scene")).toBeInTheDocument();
+    expect(screen.queryByTestId("cesium-scene")).toBeNull();
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(screen.queryByText(/Experimental 3D engine/)).toBeNull();
+    expect(localStorage.getItem("tl.engine")).toBeNull();
   });
 });

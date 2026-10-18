@@ -1,4 +1,4 @@
-import { hashUnit } from "../../cesium/stylised/model";
+import { hashUnit } from "../../shared/model";
 import type { AssetSpec } from "./manifest";
 
 /** Min-area rectangle of a footprint in local xz. w <= l; angle is the direction of the l axis

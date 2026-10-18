@@ -1,4 +1,4 @@
-import { ROAD_WIDTH_UNKNOWN, WIDTH_BY_TYPE } from "../../cesium/stylised/ground";
+import { ROAD_WIDTH_UNKNOWN, WIDTH_BY_TYPE } from "../../shared/roads";
 import { hash01, type Placement } from "../assets/fit";
 import type { LocalFrame } from "../frame";
 import { inBox, perLayer, touchesBox } from "../stream/area";
