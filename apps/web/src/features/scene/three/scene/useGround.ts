@@ -114,5 +114,5 @@ export function useRoads({
     );
     return () => engine.setDecor(ROADS_SLOT, null);
   }, [engine, roads, stalls, tier]);
-  return { roads };
+  return { roads, stalls };
 }

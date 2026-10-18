@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { describe, expect, it } from "vitest";
 import { GROUND_BANDS } from "./bands";
+import { cityGroundMeshes } from "./cityGround";
 import { createGroundDecorLayer } from "./groundDecor";
 import { createGroundLayer } from "./groundLayer";
 import { STALL_COLOUR } from "./lotLayer";
@@ -132,12 +133,14 @@ describe("createGroundLayer", () => {
     })!;
     const streamed = [land, roads, decor].flatMap((l) => meshes(l.group));
     expect(streamed).toHaveLength(4);
-    // The engine's city-level parks and base-water meshes (one each, engine.ts) make the other two.
-    const orders = [
-      ...streamed.map((m) => m.renderOrder),
-      GROUND_BANDS.parks.order,
-      GROUND_BANDS.water.order,
-    ];
+    // The engine's city-level parks and base-water meshes (one each, engine.setCity) make the other two.
+    const city = cityGroundMeshes(
+      new THREE.BufferGeometry(),
+      new THREE.BufferGeometry(),
+      new THREE.MeshBasicMaterial(),
+      new THREE.MeshBasicMaterial(),
+    );
+    const orders = [...streamed, city.parks, city.water].map((m) => m.renderOrder);
     expect(orders).toHaveLength(6);
     expect(new Set(orders)).toEqual(new Set(Object.values(GROUND_BANDS).map((b) => b.order)));
   });

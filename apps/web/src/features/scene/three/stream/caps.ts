@@ -74,9 +74,10 @@ const NONE: Record<StreamKind, number> = {
  * Sized so the stream stays inside its ~0.5 M tri slice of the 2.5 M Medium budget at any
  * position (tiles.test.ts); Task 15 tunes them by measurement. Low draws nothing.
  * Wave 4b (ruling P4-X): one budget counts verges and parked cars too. Room came from trees only
- * (smaller since Task 11, the largest consumer): Medium trees 70/55 -> 60/40, High 160/110 ->
- * 145/100, buying Medium parked cars 6 -> 20 at ring 0 (>= 25 % of hero-mid ring 0's stalls) and
- * Medium ring 1 verges 0 -> 20 (1,000 strip pieces; 1,600 boosted, a whole hero ring 1 tile).
+ * (smaller since Task 11, the largest consumer): Medium trees 70/55 -> 60/48, High 160/110 ->
+ * 145/100, buying Medium parked cars 6 -> 20 at ring 0 (>= 25 % of hero-mid ring 0's stalls).
+ * Medium ring 1 verges stay 0 (ruling P4-Z): planning them pushed a ring 1 tile past the 8 ms
+ * hitch budget (p95 ~12 ms); High keeps them.
  */
 export const TILE_CAPS: Record<Tier, Record<0 | 1 | 2, Record<StreamKind, number>>> = {
   high: {
@@ -120,14 +121,14 @@ export const TILE_CAPS: Record<Tier, Record<0 | 1 | 2, Record<StreamKind, number
       parked: 20,
     },
     1: {
-      trees: 40,
+      trees: 48,
       lamps: 36,
       furniture: 18,
       construction: 3,
       people: 8,
       vehicles: 5,
       signs: 20,
-      verges: 20,
+      verges: 0,
       parking: 60,
       parked: 1,
     },

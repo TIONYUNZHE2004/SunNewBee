@@ -352,15 +352,15 @@ describe("hero-mid on the Elmina seed, Medium (wave 4b budget)", () => {
     }
   });
 
-  it("verges show on ring 0 and on ring 1", () => {
-    for (const ring of [0, 1] as const) {
-      const pieces = active
+  it("verges show on ring 0; none on ring 1 at Medium (ruling P4-Z: hitch budget)", () => {
+    const pieces = (ring: 0 | 1) =>
+      active
         .filter((a) => a.ring === ring)
         .reduce(
           (n, a) => n + (planTile(seed, a.tile, ring, "medium").verges?.strips.length ?? 0) / 18,
           0,
         );
-      expect(pieces).toBeGreaterThan(500);
-    }
+    expect(pieces(0)).toBeGreaterThan(500);
+    expect(pieces(1)).toBe(0);
   });
 });

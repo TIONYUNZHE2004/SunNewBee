@@ -11,6 +11,7 @@ import * as THREE from "three";
  *     triangle order (gravel, tracks, verges) without depth writes, like land cover, and draws right
  *     after it, so the parks, base water and roads drawn later always paint over it whatever its
  *     lift: a park or pond inside a construction site still shows, and a verge never covers water;
+ *     it writes no depth, so AO and other depth reads see the base plane below it (a few cm off);
  *  3. `parks` (0.05 m) and 4. `water` (0.06 m): the engine's city-level meshes;
  *  5. `roads` (0.08 m) and 6. `markings` (0.10 m): dashed road marks and the parking-stall lines in
  *     one mesh.

@@ -166,7 +166,7 @@ export default function ThreeScene({
     roofSrc: city.roofSrc,
     night,
   });
-  const { roads } = useRoads({ engine, active, tier });
+  const { roads, stalls } = useRoads({ engine, active, tier });
   // Verges and construction ground: one ground-decor mesh (stall lines ride the road markings).
   const { decorOn } = useGroundDecor({ engine, active, tier });
   const { facadesOn } = useFacades({
@@ -212,13 +212,15 @@ export default function ThreeScene({
   const { initialBackground } = useMood({ engine, roleUniforms, sectionRef, home, bus });
   usePicking({ engine, hostRef, places });
 
-  // Any decorative layer in the scene: city assets (kits, decorative landmarks), facades, roofs, verges, props,
-  // agents, the ground layer (land-cover tints, road surfaces) or the ambient birds and clouds.
+  // Any decorative layer in the scene: city assets (kits, decorative landmarks), facades, roofs, ground
+  // decor (verges, construction ground), stall lines, props, agents, the ground layer (land-cover
+  // tints, road surfaces) or the ambient birds and clouds.
   const decorativeShown =
     city.decorAssets ||
     facadesOn ||
     roofsOn ||
     decorOn ||
+    (!!engine && stalls.length > 0) ||
     kits.size > 0 ||
     agents.length > 0 ||
     (!!engine && (roads.length > 0 || !!landcover?.getAttribute("position")?.count)) ||
