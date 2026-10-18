@@ -29,9 +29,9 @@ Active workers (keep this table current):
 
 | Branch | Agent | Task | Status |
 |---|---|---|---|
-| `claude/kind-cannon-mormhi` | Cloud Claude worker | Finish T-001, then stop | T-002, T-003 merged (PR #8) |
-| `codex/yunzhe-workflow` | Cloud Codex worker | T-015 answer-key refresh; checks other agents' PRs; no product code | T-008, T-011, T-012 merged (PR #7) |
-| `local/ai-engineer` | Local Claude (`sophist-purring-aurora`) | T-013 scope gate, T-017 AI audit | Started 18 Oct |
+| `claude/kind-cannon-mormhi` | Cloud Claude worker | Stopped 18 Oct; T-001 moved to the local AI engineer | T-002, T-003 merged (PR #8) |
+| `codex/yunzhe-workflow` | Cloud Codex worker | Stopped 18 Oct; T-015 moved to the local AI engineer | T-008, T-011, T-012 merged (PR #7); verification report (PR #10) |
+| `local/ai-engineer` | Local Claude | T-013 scope gate, T-001 fact binding, T-015 answer key, T-017 AI audit | Started 18 Oct |
 | `local/backend-engineer` | Local Codex | T-016 backend audit, T-014 sidewalk vs road (with T-010) | Started 18 Oct |
 | `claude/sweet-davinci-29v7ne` | Control | Merge green PRs, keep the board; T-007 on Yunzhe's instruction | — |
 
