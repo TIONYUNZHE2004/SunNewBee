@@ -1442,6 +1442,172 @@ describe("ThreeScene", () => {
       await waitFor(() => expect(usePerfStats.getState().tris).toBe(1234));
       expect(usePerfStats.getState().gpuMB).toBeGreaterThan(0);
     });
+
+    it("Task 14: every streamed decor slot is decorative and unpickable; every overlay draws above it", async () => {
+      // A street (verges), a parking lot (stall lines), a construction site (tracks, gravel), the
+      // extruded `plain` building (facades) and a 900 m2 hall (a dressed roof), around the target.
+      const rect = (
+        props: Record<string, unknown>,
+        x0: number,
+        z0: number,
+        x1: number,
+        z1: number,
+      ) => ({
+        type: "Feature",
+        properties: props,
+        geometry: {
+          type: "Polygon",
+          coordinates: local([
+            [x0, z0],
+            [x1, z0],
+            [x1, z1],
+            [x0, z1],
+          ]),
+        },
+      });
+      const WORLD = {
+        ...CITY,
+        buildings: {
+          ...CITY.buildings,
+          features: [
+            ...CITY.buildings.features,
+            rect({ id: "hall", kind: "industrial", height_m: 12 }, -80, -80, -50, -50),
+          ],
+        },
+        landcover: {
+          type: "FeatureCollection",
+          features: [
+            rect({ class: "parking" }, 40, -120, 140, -40),
+            rect({ class: "construction" }, -200, 40, -100, 140),
+          ],
+        },
+      };
+      accessLayer.data = {
+        type: "FeatureCollection",
+        features: [
+          {
+            type: "Feature",
+            properties: { id: "s1", type: "street" },
+            geometry: {
+              type: "LineString",
+              coordinates: [frame.toLonLat(-200, 30), frame.toLonLat(200, 30)],
+            },
+          },
+        ],
+      };
+      act(() => useSceneSettings.setState({ quality: "medium" }));
+      try {
+        stubFetch((url) => {
+          if (url.includes("/layers/buildings")) return json(WORLD);
+          if (url.endsWith("/city/manifest.json")) return json(MANIFEST);
+          if (url.includes("/city/link_intermediate.glb?")) return glb();
+          return json({}, 404);
+        });
+        const { engine } = mount();
+        const s = screen.getByTestId("three-scene");
+        await waitFor(() => expect(s).toHaveAttribute("data-assets", "ready"));
+        act(() => engine.tick());
+        const slots = () => {
+          const last = new Map<string, { group: THREE.Object3D } | null>();
+          for (const [slot, d] of engine.setDecor.mock.calls) last.set(slot as string, d);
+          return last;
+        };
+        await waitFor(() => {
+          const l = slots();
+          for (const k of ["facades", "roofs", "ground-decor", "roads"])
+            expect(l.get(k), k).toBeTruthy();
+        });
+        const drawn = (root: THREE.Object3D) => {
+          const out: THREE.Object3D[] = [];
+          root.traverse((o) => {
+            if ((o as THREE.Mesh).isMesh || (o as THREE.Points).isPoints) out.push(o);
+          });
+          return out;
+        };
+        const PROTO = new Set<unknown>([
+          THREE.Mesh.prototype.raycast,
+          THREE.InstancedMesh.prototype.raycast,
+          THREE.Points.prototype.raycast,
+        ]);
+        let maxDecor = Number.NEGATIVE_INFINITY;
+        const names = new Set<string>();
+        for (const [slot, d] of slots()) {
+          if (!d) continue;
+          for (const o of drawn(d.group)) {
+            names.add(o.name);
+            expect(o.userData.decorative, `${slot}/${o.name}`).toBe(true);
+            expect(PROTO.has(o.raycast), `${slot}/${o.name} raycast`).toBe(false);
+            expect(o.userData.pick, `${slot}/${o.name}`).toBeUndefined();
+            // The ambient birds sit at 12 in the MAIN scene; the overlay pass is drawn after it.
+            if (o.name !== "ambient-birds") maxDecor = Math.max(maxDecor, o.renderOrder);
+          }
+        }
+        expect([...names].some((n) => n.startsWith("facade_windows_"))).toBe(true);
+        for (const n of ["roof_units", "ground-decor"]) expect(names, n).toContain(n);
+        expect(maxDecor).toBeLessThan(10);
+        // The stall lines ride the road markings: the white stall colour is in the markings mesh.
+        const roads = slots().get("roads")!.group;
+        const marks = drawn(roads).find((o) => (o as THREE.Mesh).renderOrder === 5) as
+          | THREE.Mesh
+          | undefined;
+        expect(marks).toBeDefined();
+        const col = marks!.geometry.getAttribute("color");
+        const stall = new THREE.Color("#f2f1ec");
+        let white = 0;
+        for (let i = 0; i < col.count; i++)
+          if (new THREE.Color(col.getX(i), col.getY(i), col.getZ(i)).getHex() === stall.getHex())
+            white++;
+        expect(white).toBeGreaterThan(0);
+        expect(
+          screen.getByRole("note", { name: "Decorative details are illustrative." }),
+        ).toBeVisible();
+
+        // The overlay layer handed to the engine: lines, flood edges and markers draw on top.
+        const overlay = engine.setOverlays.mock.calls.filter((c) => c[0]).at(-1)?.[0] as {
+          group: THREE.Group;
+          update(s: unknown): void;
+        };
+        expect(overlay).toBeDefined();
+        const line = (id: string, status: string, z: number) => ({
+          type: "Feature",
+          properties: { id, status },
+          geometry: {
+            type: "LineString",
+            coordinates: [frame.toLonLat(0, z), frame.toLonLat(80, z)],
+          },
+        });
+        act(() =>
+          overlay.update({
+            access: {
+              type: "FeatureCollection",
+              features: [line("a", "blocked", 0), line("b", "unknown", 10)],
+            },
+            accessVisible: true,
+            gaps: null,
+            gapsOn: false,
+            route: {
+              type: "LineString",
+              coordinates: [frame.toLonLat(0, 0), frame.toLonLat(90, 9)],
+            },
+            whatIf: null,
+            floodEdges: { type: "FeatureCollection", features: [line("f", "flooded_likely", 20)] },
+            floodOn: true,
+          }),
+        );
+        const overlayDrawn = drawn(overlay.group);
+        expect(overlayDrawn.length).toBeGreaterThanOrEqual(4);
+        for (const o of overlayDrawn) {
+          const mats = (o as THREE.Mesh).material;
+          for (const m of Array.isArray(mats) ? mats : [mats])
+            expect((m as THREE.Material).depthTest, o.name).toBe(false);
+          expect(o.renderOrder, o.name).toBeGreaterThanOrEqual(10);
+          expect(o.renderOrder, o.name).toBeGreaterThan(maxDecor);
+        }
+      } finally {
+        accessLayer.data = { type: "FeatureCollection", features: [] };
+        act(() => useSceneSettings.setState({ quality: "auto" }));
+      }
+    });
   });
   describe("picking", () => {
     const host = () => screen.getByTestId("three-scene").firstElementChild as HTMLElement;
