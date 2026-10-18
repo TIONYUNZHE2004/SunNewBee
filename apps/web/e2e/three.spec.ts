@@ -154,3 +154,20 @@ test("three.js city draws instanced archetypes from the real public/city assets"
     .poll(async () => Number(await scene.getAttribute("data-frames")), COLD)
     .toBeGreaterThan(0);
 });
+
+test("a probe bookmark streams tiles: data-tiles > 0 and frames render at probe-a", async ({
+  page,
+}) => {
+  // probe-a (Elmina Valley 3) lies ~1.5 km south of the tiny fixture: the rig clamps the target
+  // near the world bounds, and the streamer still activates the tiles around it.
+  await page.route("**/api/layers/buildings", (r) => r.fulfill({ json: BUILDINGS }));
+  await page.goto("/?engine=three&bookmark=probe-a");
+  const scene = page.getByTestId("three-scene");
+  await expect(scene).toBeVisible(COLD);
+  await expect
+    .poll(async () => Number(await scene.getAttribute("data-frames")), COLD)
+    .toBeGreaterThan(0);
+  await expect
+    .poll(async () => Number(await scene.getAttribute("data-tiles")), COLD)
+    .toBeGreaterThan(0);
+});

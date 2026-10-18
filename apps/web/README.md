@@ -312,6 +312,13 @@ hero district.
 - **Merging:** `useDecor` (kits via `setKits`, lamp pools, signs), `useMotion` (agents), `useRoads`
   (the `roads` decor slot) and `useFacades` (facades for ring ≤ 1 tiles only, no shadows) rebuild
   only when the active tiles change. The scene's `data-tiles` attribute is the active tile count.
+- **Facades (decorative):** `useFacades` (the `facades` decor slot) lays procedural window and
+  shopfront quads (`facade/facadePlan.ts`, `facade/facadeLayer.ts`; at most 5 draws) 0.05 m out
+  from the walls of the extruded buildings in ring ≤ 1 tiles. Window storeys come from the displayed
+  height ÷ 3.2 m, including `default` heights (their card already says "Default estimate"). A facade
+  never changes a footprint or a height and never rises above the roof; the building under it stays
+  pickable as the same building. Farther tiles, and every tile at Low, show the plain palette
+  extrusion.
 - **Roofs (decorative):** `useRoofs` (the `roofs` decor slot) draws rooftop units, skylights and an
   edge band on the extruded roofs of 600 m² or more in ring ≤ 1 tiles (`facade/roofPlan.ts`,
   `facade/roofLayer.ts`; no shadows, none at Low). Landmark buildings get none. The OSM podium
@@ -329,8 +336,13 @@ hero district.
   None of it at Low or beyond 1500 m.
 - **Culling:** `CityInstances.update` gets the view frustum padded by the shadow extent (`cull.ts`),
   so an off-screen shadow caster is never left stale.
-- **Probe views:** `scripts/measure-probes.mjs` records draws, tris and MB at the six probe views
-  (`pnpm --filter @tl/web exec node scripts/measure-probes.mjs`, with a mock dev server running).
+- **Probe views:** `probe-a`…`probe-d` in `bookmarks.ts` are 800 m views over four non-hero
+  precincts (Elmina Valley 3, Elmina Green, Subang Galaksi, Seksyen U16); with `hero-mid` and
+  `township` they are the six views the any-position budget holds at Medium. Open one with
+  `?engine=three&bookmark=probe-a`. `scripts/measure-probes.mjs` records draws, tris and MB at all
+  six (`pnpm --filter @tl/web exec node scripts/measure-probes.mjs`, with a mock dev server running).
+- **Per tier:** High and Medium stream everything above (Medium draws verges at ring 0 only); Low
+  plans roads only: no facade detail, roof dressing, verges, shrubs, lots, props, agents or signs.
 
 #### Motion (Three.js)
 
@@ -363,13 +375,22 @@ where they stopped instead of jumping. Every rebuilt agent layer shares one smoo
 described by the assistant or the cards): the ground layer (land-cover tints, road surfaces,
 markings, water shimmer), the prop kits (trees, lamps, street furniture, construction), lamp light
 pools, people and vehicles (motion layer), birds and cloud shadows (ambient), window flicker, and any
-landmark the manifest marks `decorative`. The stylised fallback building is *not* decorative: it is a
+landmark the manifest marks `decorative`; and the P4 decor: procedural facades, rooftop units,
+skylights and roof bands, the Kanopi podium deck, grass verges, verge shrubs, parked cars, parking
+stall lines and the construction ground (gravel tint, earth tracks). The stylised fallback building is *not* decorative: it is a
 real, pickable OSM building, and only its colours are display styling (derived from the manifest
 palette; its card says "(shown as a simple block)"). While any decorative layer is drawn the map shows
 the note **"Decorative details are illustrative."** (`DecorativeChip`, `notes` slot).
 `honesty.test.ts` guards the spec section 5 list: decorative tags and no-op raycasts, signs only with a
 source, the 1 s Day/Rollout fade, flat matte flood water at 0.30 m, and no land-cover or base-water
-colour (`#7fb6c9`) equal to a flood colour (`#C53030`, `#DD6B20`, `#1e6fb8`).
+colour (`#7fb6c9`) equal to a flood colour (`#C53030`, `#DD6B20`, `#1e6fb8`). For the streamed
+decor it also checks (on a really planned tile and the Elmina seed): every new layer is decorative
+and raycasts to nothing; the building under a facade, and the Kanopi podium (`w1545153991`) under its
+deck, still pick as themselves; parked cars (`pk:` ids) are never agents and keep their opacity
+through the Day/Rollout fade; facades never rise above a building's height or leave its walls; no
+decor colour (stalls, gravel, tracks, verges, deck pool, roof tints, kit palettes) equals a flood
+colour; and every overlay keeps `depthTest` off and a `renderOrder` ≥ 10, above every decor object
+(the ambient birds sit at 12 inside the main scene, which the overlay pass draws over).
 
 **Query params:**
 
@@ -377,7 +398,7 @@ colour (`#7fb6c9`) equal to a flood colour (`#C53030`, `#DD6B20`, `#1e6fb8`).
 |---|---|
 | `?engine=three` | Use this engine (`?engine=cesium` switches back). |
 | `?perf=1` | Show the perf line. |
-| `?bookmark=hero-near\|hero-mid\|township` | Start view (default `hero-mid`). |
+| `?bookmark=hero-near\|hero-mid\|township\|probe-a\|probe-b\|probe-c\|probe-d` | Start view (default `hero-mid`). |
 | `?assets=0` | Extruded city only, no manifest fetch. |
 | `?showroom=1` | Model showroom grid instead of the city. |
 
@@ -617,6 +638,10 @@ before each run), `STAFF_TOKEN=e2e-token`, and all three map keys empty (list vi
 `e2e/heroes.spec.ts` covers the two-screen flow: the access and flood questions (route status,
 honest demo evidence, "not a forecast", never "safe"), a gap that becomes a ticket, resolving a
 ticket with the staff token, and the assistant's answer changing after the ticket is resolved.
+`e2e/three.spec.ts` covers the opt-in Three.js engine (`?engine=three`): frames, a route, the
+decorative note, a place pick, the real city assets, and tile streaming at `probe-a` (`data-tiles` >
+0; the tiny fixture lies ~1.5 km away, so the rig clamps the target near the world bounds and the
+tiles around it stream).
 Playwright uses its own ports (web 5273, API 8100) and waits for `/api/site`, so a dev server on
 :5173/:8000 is never reused (a leftover e2e server on :5273 is reused locally, never in CI). First
 run: `pnpm --filter @tl/web exec playwright install chromium`.
