@@ -18,14 +18,13 @@ import { useDecor } from "./scene/useDecor";
 import { useEngine } from "./scene/useEngine";
 import { useFacades } from "./scene/useFacades";
 import { useGround, useRoads } from "./scene/useGround";
-import { useLots } from "./scene/useLots";
+import { useGroundDecor } from "./scene/useGroundDecor";
 import { useMood } from "./scene/useMood";
 import { useMotion } from "./scene/useMotion";
 import { useOverlays } from "./scene/useOverlays";
 import { usePicking } from "./scene/usePicking";
 import { useRoofs } from "./scene/useRoofs";
 import { useMergeMeasure, useStream } from "./scene/useStream";
-import { useVerges } from "./scene/useVerges";
 
 /** Bottom-left map note (clear of the camera cluster and the attribution strip). */
 function ExperimentalEngineChip() {
@@ -168,8 +167,8 @@ export default function ThreeScene({
     night,
   });
   const { roads } = useRoads({ engine, active, tier });
-  const { vergesOn } = useVerges({ engine, active, tier });
-  const { lotsOn } = useLots({ engine, active, tier });
+  // Verges and construction ground: one ground-decor mesh (stall lines ride the road markings).
+  const { decorOn } = useGroundDecor({ engine, active, tier });
   const { facadesOn } = useFacades({
     engine,
     active,
@@ -219,8 +218,7 @@ export default function ThreeScene({
     city.decorAssets ||
     facadesOn ||
     roofsOn ||
-    vergesOn ||
-    lotsOn ||
+    decorOn ||
     kits.size > 0 ||
     agents.length > 0 ||
     (!!engine && (roads.length > 0 || !!landcover?.getAttribute("position")?.count)) ||

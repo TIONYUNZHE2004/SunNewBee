@@ -7,35 +7,22 @@ import {
   TRACK_STRIDE,
   TRACK_WIDTH_M,
 } from "../props/construction";
-import { CONSTRUCTION_Y, GROUND_BANDS, type GroundBand, groundMaterial } from "./bands";
+import { CONSTRUCTION_Y } from "./bands";
 import { STALL_D_M, STALL_LIFT_Y, STALL_LINE_M, STALL_STRIDE, STALL_W_M } from "./parking";
 
 /**
- * Task 10: the streamed parking-lot and construction-land ground, at most two draws:
- * - `construction` band (CONSTRUCTION_Y, between land cover and parks): the gravel tint of every
- *   site (whole polygon, deduplicated by the caller) and the 4 m earth tracks, painted in that
- *   order without depth writes (like land cover), so they never z-fight each other;
- * - `markings` band (STALL_LIFT_Y = 0.10 m): white stall lines (two sides and the back of each
- *   stall, open toward the aisle the car's nose points to).
- * DECORATIVE: never picked (no-op raycast), never cited; receives shadows, casts none.
+ * Task 10: the parking-lot and construction-land ground, as plain triangle builders. Wave 4b
+ * (ruling P4-X) folds them into existing ground draws instead of a layer of their own:
+ * - `stallLines`: white stall lines (two sides and the back of each stall, open toward the aisle
+ *   the car's nose points to) at STALL_LIFT_Y = 0.10 m, merged into the road-markings mesh
+ *   (`createGroundLayer`);
+ * - `constructionGround`: the gravel tint of every site (whole polygon, deduplicated by the caller)
+ *   then the 4 m earth tracks at CONSTRUCTION_Y, merged into the ground-decor mesh
+ *   (`createGroundDecorLayer`), which paints in triangle order so tracks never z-fight the gravel.
+ * DECORATIVE: the meshes they land in are never picked (no-op raycast) and never cited.
  */
 
-export interface LotParts {
-  /** Per tile `TileContent.parking.stalls` (STALL_STRIDE floats per stall: x, z, yaw). */
-  stalls: Float32Array[];
-  /** Per tile `TileContent.tracks` (TRACK_STRIDE floats per segment: x0, z0, x1, z1). */
-  tracks: Float32Array[];
-  /** Construction sites to tint gravel, each once. */
-  gravel: Site[];
-}
-
-export interface LotLayer {
-  group: THREE.Group;
-  dispose(): void;
-}
-
 export const STALL_COLOUR = "#f2f1ec";
-const noRaycast = () => {};
 
 class Builder {
   pos: number[] = [];
@@ -64,16 +51,6 @@ class Builder {
     const p3z = z - uz * a + vz * b;
     this.tri(p0x, p0z, p1x, p1z, p2x, p2z, c);
     this.tri(p0x, p0z, p2x, p2z, p3x, p3z, c);
-  }
-  geometry(): THREE.BufferGeometry | null {
-    if (this.pos.length === 0) return null;
-    const g = new THREE.BufferGeometry();
-    g.setAttribute("position", new THREE.Float32BufferAttribute(this.pos, 3));
-    g.setAttribute("color", new THREE.Float32BufferAttribute(this.col, 3));
-    const n = new Float32Array(this.pos.length);
-    for (let i = 1; i < n.length; i += 3) n[i] = 1;
-    g.setAttribute("normal", new THREE.BufferAttribute(n, 3));
-    return g;
   }
 }
 
@@ -119,36 +96,31 @@ function addStalls(b: Builder, stalls: Float32Array, c: THREE.Color) {
   }
 }
 
-export function createLotLayer(parts: LotParts): LotLayer {
-  const group = new THREE.Group();
-  group.name = "lots-layer";
-  const geometries: THREE.BufferGeometry[] = [];
-  const materials: THREE.Material[] = [];
-  const add = (geo: THREE.BufferGeometry | null, band: GroundBand, depthWrite: boolean) => {
-    if (!geo) return;
-    const mat = groundMaterial(band);
-    mat.depthWrite = depthWrite;
-    const mesh = new THREE.Mesh(geo, mat);
-    mesh.name = `lots-${band}`;
-    mesh.renderOrder = GROUND_BANDS[band].order;
-    mesh.receiveShadow = true;
-    mesh.castShadow = false;
-    mesh.userData.decorative = true;
-    mesh.raycast = noRaycast;
-    group.add(mesh);
-    geometries.push(geo);
-    materials.push(mat);
-  };
+/** Stall-line triangles (x y z per vertex, 9 floats per triangle, upward facing) of the stall lists. */
+export function stallLines(stalls: readonly Float32Array[]): Float32Array {
+  const b = new Builder(STALL_LIFT_Y);
+  const white = new THREE.Color(STALL_COLOUR);
+  for (const list of stalls) addStalls(b, list, white);
+  return new Float32Array(b.pos);
+}
 
+/**
+ * Construction-ground triangles (gravel tint of each site, then the earth tracks), upward facing at
+ * CONSTRUCTION_Y, with per-vertex colours. Painted in this order (no depth writes) by its mesh.
+ */
+export function constructionGround(
+  tracks: readonly Float32Array[],
+  gravel: readonly Site[],
+): { pos: Float32Array; col: Float32Array } {
   const ground = new Builder(CONSTRUCTION_Y);
-  const gravel = new THREE.Color(GRAVEL_TINT);
-  for (const site of parts.gravel) {
+  const tint = new THREE.Color(GRAVEL_TINT);
+  for (const site of gravel) {
     const t = trianglesOf(site);
     for (let i = 0; i + 5 < t.length; i += 6)
-      ground.tri(t[i]!, t[i + 1]!, t[i + 2]!, t[i + 3]!, t[i + 4]!, t[i + 5]!, gravel);
+      ground.tri(t[i]!, t[i + 1]!, t[i + 2]!, t[i + 3]!, t[i + 4]!, t[i + 5]!, tint);
   }
   const track = new THREE.Color(TRACK_COLOUR);
-  for (const list of parts.tracks)
+  for (const list of tracks)
     for (let i = 0; i + TRACK_STRIDE - 1 < list.length; i += TRACK_STRIDE) {
       const dx = list[i + 2]! - list[i]!;
       const dz = list[i + 3]! - list[i + 1]!;
@@ -158,20 +130,5 @@ export function createLotLayer(parts: LotParts): LotLayer {
       const mz = (list[i + 1]! + list[i + 3]!) / 2;
       ground.quad(mx, mz, dx / l, dz / l, l / 2, TRACK_WIDTH_M / 2, track);
     }
-  // Painted in triangle order without depth writes (gravel, then tracks), like land cover.
-  add(ground.geometry(), "construction", false);
-
-  const marks = new Builder(STALL_LIFT_Y);
-  const white = new THREE.Color(STALL_COLOUR);
-  for (const list of parts.stalls) addStalls(marks, list, white);
-  add(marks.geometry(), "markings", true);
-
-  return {
-    group,
-    dispose() {
-      for (const g of geometries) g.dispose();
-      for (const m of materials) m.dispose();
-      group.clear();
-    },
-  };
+  return { pos: new Float32Array(ground.pos), col: new Float32Array(ground.col) };
 }

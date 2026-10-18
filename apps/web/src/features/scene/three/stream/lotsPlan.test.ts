@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import type { BuildingsLayer } from "../../../../lib/api";
 import type { Placement } from "../assets/fit";
 import { parseManifest } from "../assets/manifest";
+import { BOOKMARKS } from "../bookmarks";
 import { createFrame } from "../frame";
 import { CARS_DAY, STALL_D_M, STALL_STRIDE, STALL_W_M } from "../ground/parking";
 import { planConstructionSites, sitesOf, TRACK_STRIDE } from "../props/construction";
@@ -12,7 +13,7 @@ import { TILE_CAPS, TRIS_PER, tileCap } from "./caps";
 import { capCars, planTileLots } from "./lotsPlan";
 import { farView } from "./streamer";
 import { planTile, type TileInputs, warmPlanners } from "./tilePlan";
-import { tileAt } from "./tiles";
+import { activeTiles, tileAt } from "./tiles";
 
 const MANIFEST_URL = new URL("../../../../../public/city/manifest.json", import.meta.url);
 const manifest = parseManifest(JSON.parse(readFileSync(MANIFEST_URL, "utf8"))).manifest!;
@@ -315,5 +316,51 @@ describe("planTile lots: Low, far view, no manifest, determinism, warm caches", 
     planTile(inp, t10, 1, "high");
     planTile(inp, t01, 0, "medium");
     expect(perLayerStats.builds).toBe(warm);
+  });
+});
+
+// Wave 4b (ruling P4-X): one stream budget with verges and parked cars both counted must still show
+// them where it matters. Measured on the committed Elmina seed at the hero-mid bookmark, Medium.
+describe("hero-mid on the Elmina seed, Medium (wave 4b budget)", () => {
+  const SEED = "../../../../../../../data/seed/elmina/";
+  const rj = (p: string) => JSON.parse(readFileSync(new URL(p, import.meta.url), "utf8"));
+  const site = rj(`${SEED}site.json`);
+  const seedFrame = createFrame(site.center);
+  const seed: TileInputs = {
+    frame: seedFrame,
+    walk: rj(`${SEED}base/walk.geojson`),
+    buildings: {
+      ...layers(),
+      buildings: rj(`${SEED}base/buildings.geojson`),
+      landcover: rj(`${SEED}base/landcover.geojson`),
+    } as unknown as BuildingsLayer,
+    manifest,
+    facades: null,
+  };
+  const b = BOOKMARKS["hero-mid"];
+  const [x, z] = seedFrame.toLocal(b.centre[0], b.centre[1]);
+  const active = activeTiles({ x, z }, b.rangeM);
+
+  it("parked cars fill at least 25 % of ring 0's stalls, by day and by night", () => {
+    const ring0 = active.filter((a) => a.ring === 0);
+    expect(ring0).toHaveLength(1);
+    for (const night of [0, 1]) {
+      const p = planTile({ ...seed, night: () => night }, ring0[0]!.tile, 0, "medium").parking!;
+      const stalls = p.stalls.length / STALL_STRIDE;
+      expect(stalls).toBeGreaterThan(50);
+      expect(p.cars.length / stalls).toBeGreaterThanOrEqual(0.25);
+    }
+  });
+
+  it("verges show on ring 0 and on ring 1", () => {
+    for (const ring of [0, 1] as const) {
+      const pieces = active
+        .filter((a) => a.ring === ring)
+        .reduce(
+          (n, a) => n + (planTile(seed, a.tile, ring, "medium").verges?.strips.length ?? 0) / 18,
+          0,
+        );
+      expect(pieces).toBeGreaterThan(500);
+    }
   });
 });

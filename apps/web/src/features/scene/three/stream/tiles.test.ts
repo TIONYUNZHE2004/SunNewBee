@@ -116,6 +116,18 @@ describe("stream tri budget", () => {
           if (tier === "medium") expect(BASELINE_MEDIUM + tris).toBeLessThanOrEqual(BUDGET_MEDIUM);
         }
       });
+  it("counts verges and parked cars in the Medium sum (ruling P4-X: one budget for both lanes)", () => {
+    const hero = { x: 0, z: 0 };
+    const kindTris = (k: StreamKind, ring: 0 | 1) =>
+      activeTiles(hero, 800)
+        .filter((a) => a.ring === ring)
+        .reduce((n, a) => n + tileCap("medium", ring, k, a.tile, frame) * TRIS_PER[k][ring], 0);
+    expect(KINDS).toEqual(expect.arrayContaining(["verges", "parking", "parked"]));
+    for (const ring of [0, 1] as const) {
+      expect(kindTris("verges", ring)).toBeGreaterThan(0);
+      expect(kindTris("parked", ring)).toBeGreaterThan(0);
+    }
+  });
   it("does not gut Medium (the worst case uses at least 30 percent of its slice)", () => {
     expect(streamTris("medium", { x: 0, z: 0 }, 800)).toBeGreaterThan(0.3 * SLICE.medium);
   });
