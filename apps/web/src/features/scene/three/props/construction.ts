@@ -158,7 +158,6 @@ function buildLayout({ poly, id: ci }: Site, byArea: boolean): Layout {
       start.set(spots, byGap);
     }
     let i = byGap.get(gap) ?? 0;
-    const leading = true;
     for (; i < spots.length; i++) {
       const s = spots[i]!;
       if (s.r < minR) break;
@@ -166,8 +165,8 @@ function buildLayout({ poly, id: ci }: Site, byArea: boolean): Layout {
         taken.push([s.x, s.z]);
         return s;
       }
-      // Refused: it stays refused for this gap, so it can be skipped next time if the run is unbroken.
-      if (leading) byGap.set(gap, i + 1);
+      // Refused: it stays refused for this gap, so the next scan starts after it.
+      byGap.set(gap, i + 1);
     }
     return null;
   };

@@ -6,6 +6,18 @@ import type { LocalFrame } from "../frame";
 import { boxCentre, growBox, inBox, type PlanArea, perLayer, touchesBox } from "../stream/area";
 import type { PropKind } from "./caps";
 import { planConstructionSites } from "./construction";
+import {
+  type BBox,
+  bboxOf,
+  distSeg,
+  distToRing,
+  inPoly,
+  inRing,
+  type P,
+  type Poly,
+  polygonsOf,
+  type Ring,
+} from "./polyGeom";
 
 /**
  * Seeded, static, DECORATIVE props for one planning box (a streaming tile, or a union of tiles):
@@ -50,11 +62,6 @@ export interface PropsInput {
 /** The kinds this planner places (people and vehicles are the motion planner's). */
 export type PlannedPropKind = Extract<PropKind, "trees" | "lamps" | "furniture" | "construction">;
 
-type P = [number, number];
-type Ring = P[];
-/** Outer ring first, then holes. */
-type Poly = Ring[];
-
 const TREE_CLEAR_M = 1.5;
 const TREE_MIN_GAP_M = 2.5;
 const STREET_TREE_SPACING = 18;
@@ -94,48 +101,6 @@ const featuresOf = (fc: unknown): Record<string, unknown>[] =>
 const propsOf = (f: Record<string, unknown>): Record<string, unknown> =>
   isRec(f.properties) ? f.properties : {};
 
-function localRing(ring: unknown, frame: LocalFrame): Ring | null {
-  if (!Array.isArray(ring)) return null;
-  const out: Ring = [];
-  for (const c of ring) {
-    if (!Array.isArray(c) || !Number.isFinite(c[0]) || !Number.isFinite(c[1])) return null;
-    out.push(frame.toLocal(c[0] as number, c[1] as number));
-  }
-  const a = out[0];
-  const b = out[out.length - 1];
-  if (out.length > 1 && a && b && a[0] === b[0] && a[1] === b[1]) out.pop();
-  return out.length >= 3 ? out : null;
-}
-
-function polygonsOf(geom: unknown, frame: LocalFrame): Poly[] {
-  if (!isRec(geom) || !Array.isArray(geom.coordinates)) return [];
-  const sets: unknown[] =
-    geom.type === "Polygon"
-      ? [geom.coordinates]
-      : geom.type === "MultiPolygon"
-        ? geom.coordinates
-        : [];
-  const out: Poly[] = [];
-  for (const s of sets) {
-    if (!Array.isArray(s)) continue;
-    const rings = s.map((r) => localRing(r, frame));
-    if (rings[0] && rings.every(Boolean)) out.push(rings as Poly);
-  }
-  return out;
-}
-
-function inRing(x: number, z: number, ring: Ring): boolean {
-  let inside = false;
-  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
-    const [xi, zi] = ring[i]!;
-    const [xj, zj] = ring[j]!;
-    if (zi > z !== zj > z && x < ((xj - xi) * (z - zi)) / (zj - zi) + xi) inside = !inside;
-  }
-  return inside;
-}
-const inPoly = (x: number, z: number, p: Poly): boolean =>
-  inRing(x, z, p[0]!) && !p.slice(1).some((h) => inRing(x, z, h));
-
 /** A ring with its edges bucketed by z slab, so a point test only walks the edges at its own z. */
 interface SlabRing {
   z0: number;
@@ -171,35 +136,6 @@ function inSlabRing(x: number, z: number, sr: SlabRing): boolean {
   return inside;
 }
 
-function distSeg(px: number, pz: number, a: P, b: P): number {
-  const dx = b[0] - a[0];
-  const dz = b[1] - a[1];
-  const l2 = dx * dx + dz * dz;
-  const t = l2 === 0 ? 0 : Math.max(0, Math.min(1, ((px - a[0]) * dx + (pz - a[1]) * dz) / l2));
-  return Math.hypot(px - (a[0] + t * dx), pz - (a[1] + t * dz));
-}
-
-function distToRing(x: number, z: number, ring: Ring): number {
-  let d = Number.POSITIVE_INFINITY;
-  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++)
-    d = Math.min(d, distSeg(x, z, ring[j]!, ring[i]!));
-  return d;
-}
-
-function bboxOf(ring: Ring): [number, number, number, number] {
-  let x0 = Number.POSITIVE_INFINITY;
-  let z0 = Number.POSITIVE_INFINITY;
-  let x1 = Number.NEGATIVE_INFINITY;
-  let z1 = Number.NEGATIVE_INFINITY;
-  for (const [x, z] of ring) {
-    if (x < x0) x0 = x;
-    if (x > x1) x1 = x;
-    if (z < z0) z0 = z;
-    if (z > z1) z1 = z;
-  }
-  return [x0, z0, x1, z1];
-}
-
 /** Uniform grid of item indices by bounding box. */
 class Grid {
   private cells = new Map<string, number[]>();
@@ -225,7 +161,6 @@ interface Road {
   width: number;
   bb: BBox;
 }
-type BBox = [number, number, number, number];
 
 /*
  * Local-frame copies of the layers, with bounds, built once per layer object and frame
