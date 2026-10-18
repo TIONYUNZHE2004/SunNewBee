@@ -3,16 +3,16 @@
 > Shared by every agent. Append one row after **every** live round, then push. Never edit old rows.
 > Get the cost from OpenRouter's reported usage (or `evals/spend.py`); never guess.
 
-**Total budget: US$4.00** (Yunzhe, 18 Oct 2026). Set as the key's credit limit on openrouter.ai.
+**Total budget: US\$15.00 for about 4 days** (Yunzhe, 18 Oct 2026, replaces the US\$4 plan). Set as the key's credit limit on openrouter.ai.
 
 | Agent | Daily cap | Total cap |
 |---|---|---|
-| Local AI engineer | US$1.00 | US$2.50 |
-| Local backend engineer | US$0.25 | US$0.50 |
-| Control (T-007 final live test) | — | US$0.50 (reserved) |
-| Cloud Codex worker (already spent 18 Oct) | — | US$0.01 |
+| Local AI engineer | US\$3.00 | US\$10.00 |
+| Local backend engineer | US\$0.50 | US\$1.50 |
+| Control (T-007 final live test, comparisons) | — | US\$1.50 (reserved) |
+| Buffer (Yunzhe's own testing on the site) | — | US\$2.00 |
 
-**Hard stop:** when the running total reaches **US$3.50**, nobody makes live calls except control's reserved T-007 run. Mock and engine checks stay free.
+**Hard stop:** when the running total reaches **US\$13.00**, nobody makes live calls except control's reserved run. Yunzhe's own site testing also spends from this key: control adds a row for it when Yunzhe reports it.
 
 | Time (UTC) | Agent | Task | Model | Live questions | Cost (US$) | Running total (US$) |
 |---|---|---|---|---|---|---|

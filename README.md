@@ -78,7 +78,7 @@ Agents work in **rounds**. A timer starts each round; a round can be cut off by 
 - Group failures by cause and fix the whole group **before** any re-test.
 - Re-test only the failed questions plus 3-5 that passed. Check validator changes against saved answer logs first.
 - A full answer-key live run happens only when Yunzhe asks.
-- Append every live round to `SPEND.md`. At a running total of US$3.50, stop live calls.
+- Append every live round to `SPEND.md`. At the hard stop in `SPEND.md`, stop live calls.
 
 ## Merge conflicts
 
