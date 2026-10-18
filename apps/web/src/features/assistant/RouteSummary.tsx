@@ -31,24 +31,45 @@ export function RouteSummary({ m }: { m: AssistantMessage }) {
   const isCurrent = useScene((s) => s.route?.id) === r?.id;
   const in3d = useEffectiveView() === "cesium";
   if (!chip && !flood && !demo) return null;
+  const meters = chip && typeof r?.distanceM === "number" ? Math.round(r.distanceM) : null;
+  const minutes =
+    chip && typeof r?.minutes === "number" ? Math.max(1, Math.round(r.minutes)) : null;
   return (
-    <div className="flex flex-wrap items-center gap-2 rounded-xl bg-brand-tint px-3 py-2">
-      {chip && <StatusChip status={chip.status} label={chip.label} />}
-      {demo && <StatusChip status="demo" />}
-      {chip && typeof r?.distanceM === "number" && (
-        <span className="text-xs font-semibold text-fg">{Math.round(r.distanceM)} m</span>
+    <div className="space-y-3 rounded-2xl border border-edge bg-raised p-3.5">
+      <div className="flex flex-wrap items-center gap-1.5">
+        {chip && <StatusChip status={chip.status} label={chip.label} />}
+        {demo && <StatusChip status="demo" />}
+        {flood && <StatusChip status="likely" label={flood} />}
+      </div>
+      {(meters !== null || minutes !== null) && (
+        <dl className="m-0 grid grid-cols-2 gap-3">
+          {meters !== null && (
+            <div>
+              <dt className="font-mono text-[0.68rem] uppercase tracking-[0.12em] text-fg-soft">
+                Distance
+              </dt>
+              <dd className="m-0 text-2xl font-semibold tracking-tight text-fg tabular-nums">
+                {meters.toLocaleString("en-US")} m
+              </dd>
+            </div>
+          )}
+          {minutes !== null && (
+            <div>
+              <dt className="font-mono text-[0.68rem] uppercase tracking-[0.12em] text-fg-soft">
+                Walk
+              </dt>
+              <dd className="m-0 text-2xl font-semibold tracking-tight text-fg tabular-nums">
+                {minutes} min
+              </dd>
+            </div>
+          )}
+        </dl>
       )}
-      {chip && typeof r?.minutes === "number" && (
-        <span className="text-xs font-semibold text-fg">
-          {Math.max(1, Math.round(r.minutes))} min
-        </span>
-      )}
-      {flood && <StatusChip status="likely" label={flood} />}
       {chip && r && isCurrent && in3d && (
         <button
           type="button"
           onClick={() => useScene.getState().requestRouteFocus(r.id)}
-          className="ml-auto inline-flex min-h-11 items-center gap-1.5 rounded-full border border-edge px-3 text-xs font-semibold text-fg hover:border-accent"
+          className="inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-xl bg-accent px-3 text-sm font-medium text-on-accent transition hover:opacity-90"
         >
           <Icon name="route" className="size-4" />
           Show on map
