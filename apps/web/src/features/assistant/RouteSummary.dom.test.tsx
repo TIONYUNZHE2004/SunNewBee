@@ -87,4 +87,24 @@ describe("RouteSummary", () => {
     expect(screen.getByText("No known barrier")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Show on map" })).toBeNull();
   });
+
+  it("draws the route sketch from the message's own line; on the current route it flies the map", () => {
+    const coords: [number, number][] = [
+      [101.5, 3.1],
+      [101.502, 3.103],
+    ];
+    const m = { ...base, route: { id: "r1", status: "confirmed", coords } };
+    const first = renderWithClient(<RouteSummary m={m} />);
+    expect(screen.getByRole("img", { name: "Route sketch" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Route sketch/ })).toBeNull();
+    first.unmount();
+    useScene.setState({ route: line("r1"), focusRouteRequest: null });
+    renderWithClient(<RouteSummary m={m} />);
+    screen.getByRole("button", { name: "Route sketch. Show on map" }).click();
+    expect(useScene.getState().focusRouteRequest).toBe("r1");
+  });
+  it("no sketch without a route line", () => {
+    renderWithClient(<RouteSummary m={{ ...base, route: { id: "r1", status: "confirmed" } }} />);
+    expect(screen.queryByRole("img", { name: /Route sketch/ })).toBeNull();
+  });
 });
