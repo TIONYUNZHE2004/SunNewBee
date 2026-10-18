@@ -399,6 +399,14 @@ pnpm data:city   # runs, in order:
 
 All Overpass traffic goes through `overpass.py` (cache, backoff, request cap). Each builder takes `--dry-run`.
 
+### Street furniture (`build_street_furniture.py`, not in `data:city`)
+
+`uv run python data/scripts/build_street_furniture.py --max-requests 6` makes one Overpass query (nodes and ways, `out center`, over the bounding box of `base/boundary.geojson`) through `overpass.py` and writes `base/street_furniture.geojson`, recorded under `street_furniture` in `site.json` (`file`, `count`, `counts`, `as_of`). Needs `base/boundary.geojson` (`build_boundary.py`).
+
+- **Kinds:** `traffic_signals` (`highway=traffic_signals`), `bus_stop` (`highway=bus_stop` or `public_transport=platform`), `shelter` (`amenity=shelter`), `bench` (`amenity=bench`), `picnic_table` (`leisure=picnic_table`).
+- **Features:** one Point each, only inside the boundary, sorted by id. Properties: `id` (`osm-node-<id>`, or `osm-way-<id>` for a way, reduced to its centre point), `kind`, optional `name`, and `osm_tags` (a fixed subset of tags). Crossings are not here; they come from `walk.geojson` `crossing` edges.
+- **Display only.** Routing, evaluation, flood and answers never read it, and the spatial World does not load it. The stylised view draws one prop per feature (AC-B7). `union_dedup()` in the script gives the list to draw: OSM features plus the seed places of type `shelter` / `seating` that coincide with none of them (same id, or within 10 m of an OSM feature of a compatible kind).
+
 ### Height sampling (`sample_heights.py`, billable, not in `data:city`)
 
 `data/scripts/sample_heights.py` samples per-footprint building heights from Google Photorealistic 3D Tiles into `base/height_samples.json`, which `build_archetypes.py` reads (precedence in the archetypes section). It is **not** part of `pnpm data:city` because it costs money: Google bills per root tileset request / session (sessions last about 3 hours); individual tile requests are not billed separately, but the key must still be treated as metered.
