@@ -62,6 +62,7 @@ const route = {
 const base: OverlayState = {
   access: null,
   accessVisible: true,
+  pathStatus: true,
   gaps: null,
   gapsOn: false,
   route: null,
@@ -127,6 +128,19 @@ describe("createOverlayLayer", () => {
     expect(after.every((b) => b.renderOrder === 10)).toBe(true);
   });
 
+  it("AC-A1: Path status off builds no status lines; the route and what-if still draw", () => {
+    const l = createOverlayLayer(frame);
+    l.update({ ...base, pathStatus: false, access, route, whatIf });
+    const bs = visibleBatches(l.group);
+    expect(bs.some((b) => b.renderOrder === 10)).toBe(false);
+    expect(bs.filter((b) => b.renderOrder === 13).length).toBe(1);
+    expect(bs.some((b) => b.renderOrder === 12)).toBe(true);
+    l.update({ ...base, pathStatus: true, access, route, whatIf });
+    expect(visibleBatches(l.group).filter((b) => b.renderOrder === 10).length).toBe(3);
+    l.update({ ...base, pathStatus: false, access, route, whatIf });
+    expect(visibleBatches(l.group).some((b) => b.renderOrder === 10)).toBe(false);
+  });
+
   it("hides the access lines when the access lens is off", () => {
     const l = createOverlayLayer(frame);
     l.update({ ...base, access, gaps, gapsOn: true, accessVisible: false });
@@ -165,7 +179,7 @@ describe("createOverlayLayer", () => {
 
   it("Review Focus 1: every overlay draws on top (depthTest false, renderOrder > 0)", () => {
     const l = createOverlayLayer(frame);
-    const all = { access, accessVisible: true, gaps, route, whatIf };
+    const all = { access, accessVisible: true, pathStatus: true, gaps, route, whatIf };
     l.update({ ...all, gapsOn: true });
     l.update({ ...all, gapsOn: false });
     const bs = batches(l.group);

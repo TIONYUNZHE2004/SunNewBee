@@ -1,3 +1,4 @@
+import { useSceneSettings } from "./sceneSettingsStore";
 import { type EdgeStatus, ROUTE_STYLE, statusStyle } from "./styles";
 
 /** Dash pattern per border style, ; butt caps so gaps stay visible at the sample width. */
@@ -6,13 +7,22 @@ const DASH = { solid: undefined, dashed: "6 4", dotted: "2 3" } as const;
 const ORDER: EdgeStatus[] = ["ok", "unknown", "blocked", "flooded_likely", "flooded_possible"];
 
 /** Compact text legend: patterns plus words, so status is never colour alone. */
-export function StatusLegend({ className = "" }: { className?: string }) {
+export function StatusLegend({
+  className = "",
+  showStatus,
+}: {
+  className?: string;
+  /** Override for tests; defaults to the "Path status" setting. */
+  showStatus?: boolean;
+}) {
+  const setting = useSceneSettings((s) => s.pathStatus);
+  const pathStatus = showStatus ?? setting;
   return (
     <ul
       aria-label="Path status legend"
       className={`m-0 list-none space-y-0.5 text-fg px-2 py-1.5 text-xs ${className}`}
     >
-      {ORDER.map((s) => {
+      {(pathStatus ? ORDER : []).map((s) => {
         const st = statusStyle(s);
         return (
           <li key={s} className="flex items-center gap-2">

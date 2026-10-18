@@ -390,6 +390,7 @@ beforeEach(() => {
     focusRouteRequest: null,
   });
   usePanel.setState({ open: false });
+  useSceneSettings.setState({ pathStatus: false });
   history.replaceState(null, "", "/");
   instancesFault.on = false;
   libraryHook.next = null;
@@ -468,6 +469,54 @@ describe("ThreeScene", () => {
       buildings: { getAttribute(n: string): unknown };
     };
     expect(g.buildings.getAttribute("position")).toBeTruthy();
+  });
+
+  it("AC-A1: Path status off builds no status-line objects but the route highlight still draws; on draws them", async () => {
+    const home = frame.toLonLat(0, 0);
+    const east = frame.toLonLat(80, 0);
+    accessLayer.data = {
+      type: "FeatureCollection",
+      features: [
+        {
+          type: "Feature",
+          properties: { id: "e1", type: "street", status: "unknown" },
+          geometry: { type: "LineString", coordinates: [home, east] },
+        },
+      ],
+    };
+    try {
+      const { engine } = mount();
+      await waitFor(() => expect(engine.setCity).toHaveBeenCalled());
+      act(() =>
+        useScene.getState().applyIntent({
+          kind: "route.highlight",
+          route_id: "r1",
+          geojson: route,
+        } as never),
+      );
+      await waitFor(() =>
+        expect(screen.getByTestId("three-scene")).toHaveAttribute("data-route", "on"),
+      );
+      const layer = engine.setOverlays.mock.calls.filter((c: unknown[]) => c[0]).at(-1)?.[0];
+      // status lines are renderOrder 10, the route 13; count what is in the scene graph
+      const count = (order: number) => {
+        let n = 0;
+        layer.group.traverse((o: { isLineSegments2?: boolean; renderOrder: number }) => {
+          if (o.isLineSegments2 && o.renderOrder === order) n++;
+        });
+        return n;
+      };
+      expect(count(10)).toBe(0);
+      expect(count(13)).toBe(1);
+      act(() => useSceneSettings.getState().setPathStatus(true));
+      await waitFor(() => expect(count(10)).toBeGreaterThan(0));
+      expect(count(13)).toBe(1);
+      act(() => useSceneSettings.getState().setPathStatus(false));
+      await waitFor(() => expect(count(10)).toBe(0));
+      expect(count(13)).toBe(1);
+    } finally {
+      accessLayer.data = { type: "FeatureCollection", features: [] };
+    }
   });
 
   it('route.highlight sets a route (data-route="on") and clearRoute removes it ("off"); the line is drawn by the overlay layer', async () => {
@@ -1573,6 +1622,7 @@ describe("ThreeScene", () => {
               features: [line("a", "blocked", 0), line("b", "unknown", 10)],
             },
             accessVisible: true,
+            pathStatus: true,
             gaps: null,
             gapsOn: false,
             route: {

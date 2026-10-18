@@ -831,6 +831,7 @@ describe("honesty 8: every overlay draws above every decor object", () => {
         point("p1", 5),
       ),
       accessVisible: true,
+      pathStatus: true,
       gaps: ffc(line("a", { unknown_count: 1, relevant_count: 2 }, 0)),
       gapsOn: false,
       route: { type: "LineString", coordinates: [fll(0, 0), fll(100, 50)] },

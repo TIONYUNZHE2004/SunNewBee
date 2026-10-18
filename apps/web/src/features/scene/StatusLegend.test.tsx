@@ -10,7 +10,14 @@ const lineFor = (html: string, label: string) => {
 };
 
 describe("StatusLegend", () => {
-  const html = renderToStaticMarkup(<StatusLegend />);
+  const html = renderToStaticMarkup(<StatusLegend showStatus />);
+  it("hides the status rows (keeps the route row) while Path status is off", () => {
+    const off = renderToStaticMarkup(<StatusLegend showStatus={false} />);
+    expect(renderToStaticMarkup(<StatusLegend />)).toBe(off); // default setting is off
+    expect(off).not.toContain("Not checked yet");
+    expect(off).not.toContain("No known barrier");
+    expect(off).toContain("Suggested route");
+  });
   it("lists the statuses", () => {
     expect(html).toContain("No known barrier");
     expect(html).toContain("Not checked yet");

@@ -20,6 +20,8 @@ export interface OverlayState {
   access: AccessData | null;
   /** The Access lens. Also gates the gap bands, which replace the status lines. */
   accessVisible: boolean;
+  /** The "Path status" setting: the per-edge status lines exist only while true. */
+  pathStatus: boolean;
   gaps: GapsData | null;
   /** `gapsActive(...)`: the gap bands replace the status lines while true. */
   gapsOn: boolean;
@@ -114,8 +116,9 @@ export function createOverlayLayer(frame: LocalFrame): OverlayLayer {
   };
 
   function update(s: OverlayState) {
-    const accessChanged = s.access !== last.access;
-    if (accessChanged) fill(status, s.access ? statusBatches(s.access, frame) : []);
+    const statusSrc = s.pathStatus ? s.access : null;
+    if (statusSrc !== (last.pathStatus ? last.access : null))
+      fill(status, statusSrc ? statusBatches(statusSrc, frame) : []);
     if (s.gaps !== last.gaps) fill(gapsGroup, s.gaps ? gapBatches(s.gaps, frame) : []);
     if (s.whatIf !== last.whatIf) fill(whatIfGroup, s.whatIf ? whatIfBatches(s.whatIf, frame) : []);
     if (s.route !== last.route) fill(routeGroup, s.route ? routeBatches(s.route, frame) : []);
