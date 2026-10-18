@@ -1,0 +1,147 @@
+{
+  "site": "elmina",
+  "baseline": "8d20778",
+  "edges": 16120,
+  "method": "same geometry/claims; before omits OSM tags; after applies access rules",
+  "limitations": "Map-derived estimates, not field surveys; urban context is a 60 m vertex proxy",
+  "profiles": {
+    "default": {
+      "before_eval_counts": {
+        "PASS": 15220,
+        "UNKNOWN": 900
+      },
+      "after_access_counts": {
+        "likely_ok": 13334,
+        "unknown": 2757,
+        "barrier": 29
+      },
+      "after_access_metres": {
+        "likely_ok": 914608.7,
+        "unknown": 273590.0,
+        "barrier": 2020.1
+      },
+      "rules": {
+        "local_road_walking_v1": 9692,
+        "no_estimate_rule_v1": 314,
+        "restricted_access_v1": 1543,
+        "mapped_path_walking_v1": 2625,
+        "known_barrier_v1": 29,
+        "pedestrian_infrastructure_v1": 1014,
+        "road_sidewalk_missing_v1": 900,
+        "mapped_steps_walking_v1": 3
+      }
+    },
+    "drive": {
+      "before_eval_counts": {
+        "PASS": 12473,
+        "FAIL": 3647
+      },
+      "after_access_counts": {
+        "likely_ok": 10583,
+        "unknown": 1867,
+        "not_a_road": 3647,
+        "barrier": 23
+      },
+      "after_access_metres": {
+        "likely_ok": 769818.1,
+        "unknown": 189735.3,
+        "not_a_road": 229278.9,
+        "barrier": 1386.4
+      },
+      "rules": {
+        "mapped_road_driving_v1": 10583,
+        "restricted_access_v1": 1556,
+        "driving_track_surface_unknown_v1": 311,
+        "driving_nonroad_v1": 3647,
+        "known_barrier_v1": 23
+      }
+    },
+    "older_adult_rest": {
+      "before_eval_counts": {
+        "UNKNOWN": 16100,
+        "PASS": 17,
+        "FAIL": 3
+      },
+      "after_access_counts": {
+        "unknown": 13159,
+        "barrier": 32,
+        "likely_ok": 2929
+      },
+      "after_access_metres": {
+        "unknown": 1019568.4,
+        "barrier": 2048.5,
+        "likely_ok": 168601.8
+      },
+      "rules": {
+        "road_sidewalk_missing_v1": 10563,
+        "surface_not_suitable_for_estimate_v1": 38,
+        "no_estimate_rule_v1": 1015,
+        "restricted_access_v1": 1543,
+        "known_barrier_v1": 32,
+        "pedestrian_infrastructure_v1": 1014,
+        "paved_path_v1": 131,
+        "urban_footway_v1": 1781,
+        "osm_wheelchair_yes_v1": 1,
+        "mapped_road_sidewalk_v1": 2
+      }
+    },
+    "stroller": {
+      "before_eval_counts": {
+        "UNKNOWN": 16100,
+        "PASS": 17,
+        "FAIL": 3
+      },
+      "after_access_counts": {
+        "unknown": 13159,
+        "barrier": 32,
+        "likely_ok": 2929
+      },
+      "after_access_metres": {
+        "unknown": 1019568.4,
+        "barrier": 2048.5,
+        "likely_ok": 168601.8
+      },
+      "rules": {
+        "road_sidewalk_missing_v1": 10563,
+        "surface_not_suitable_for_estimate_v1": 38,
+        "no_estimate_rule_v1": 1015,
+        "restricted_access_v1": 1543,
+        "known_barrier_v1": 32,
+        "pedestrian_infrastructure_v1": 1014,
+        "paved_path_v1": 131,
+        "urban_footway_v1": 1781,
+        "osm_wheelchair_yes_v1": 1,
+        "mapped_road_sidewalk_v1": 2
+      }
+    },
+    "wheelchair": {
+      "before_eval_counts": {
+        "UNKNOWN": 16100,
+        "PASS": 17,
+        "FAIL": 3
+      },
+      "after_access_counts": {
+        "unknown": 13159,
+        "barrier": 32,
+        "likely_ok": 2929
+      },
+      "after_access_metres": {
+        "unknown": 1019568.4,
+        "barrier": 2048.5,
+        "likely_ok": 168601.8
+      },
+      "rules": {
+        "road_sidewalk_missing_v1": 10563,
+        "surface_not_suitable_for_estimate_v1": 38,
+        "no_estimate_rule_v1": 1015,
+        "restricted_access_v1": 1543,
+        "known_barrier_v1": 32,
+        "pedestrian_infrastructure_v1": 1014,
+        "paved_path_v1": 131,
+        "urban_footway_v1": 1781,
+        "osm_wheelchair_yes_v1": 1,
+        "mapped_road_sidewalk_v1": 2
+      }
+    }
+  }
+}
