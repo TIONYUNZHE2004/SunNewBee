@@ -1,4 +1,4 @@
-import { type RefObject, useEffect, useState } from "react";
+import { type RefObject, useCallback, useEffect, useRef, useState } from "react";
 import { usePanel } from "../main/panelStore";
 import type { CardViewport } from "./cardPlacement";
 
@@ -42,18 +42,22 @@ export function measureMapArea(host: HTMLElement): CardViewport {
 
 /**
  * The card area for the map at `hostRef`, kept current with a ResizeObserver on the map, the top
- * stack and the mini-map, and re-measured when the side panel opens or closes (`--panel-w` is a
- * CSS variable, invisible to the observer). Nothing is read during render.
+ * stack and the mini-map (attached through `miniMapRef` whenever the mini-map mounts), and
+ * re-measured when the side panel opens or closes, both at once and after its CSS transition ends
+ * (`--panel-w` is a CSS variable, invisible to the observer). Nothing is read during render.
  */
 export function useMapInsets(
   hostRef: RefObject<HTMLElement | null> | undefined,
   active: boolean,
   fallback: () => [number, number],
-): CardViewport {
+): { viewport: CardViewport; miniMapRef: (el: HTMLElement | null) => void } {
   const [vp, setVp] = useState<CardViewport>(() => {
     const [w, h] = fallback();
     return { w, h, top: 0, avoid: [] };
   });
+  const measureRef = useRef<() => void>(() => {});
+  const roRef = useRef<ResizeObserver | null>(null);
+  const miniRef = useRef<HTMLElement | null>(null);
   const panelOpen = usePanel((s) => s.open);
   // biome-ignore lint/correctness/useExhaustiveDependencies: panelOpen re-measures (CSS variable change)
   useEffect(() => {
@@ -63,16 +67,32 @@ export function useMapInsets(
       const next = measureMapArea(host);
       setVp((v) => (same(v, next) ? v : next));
     };
+    measureRef.current = measure;
     measure();
-    if (typeof ResizeObserver !== "function") return;
-    const ro = new ResizeObserver(measure);
-    ro.observe(host);
+    // The panel slides: measure again once any transition (the panel's) has finished.
     const doc = host.ownerDocument;
-    for (const sel of ['[data-testid="top-stack"]', '[data-testid="journey-minimap"]']) {
-      const el = doc.querySelector(sel);
-      if (el) ro.observe(el);
+    doc.addEventListener("transitionend", measure, true);
+    let ro: ResizeObserver | null = null;
+    if (typeof ResizeObserver === "function") {
+      ro = new ResizeObserver(measure);
+      roRef.current = ro;
+      ro.observe(host);
+      const stack = doc.querySelector('[data-testid="top-stack"]');
+      if (stack) ro.observe(stack);
+      if (miniRef.current) ro.observe(miniRef.current);
     }
-    return () => ro.disconnect();
+    return () => {
+      doc.removeEventListener("transitionend", measure, true);
+      ro?.disconnect();
+      roRef.current = null;
+      measureRef.current = () => {};
+    };
   }, [hostRef, active, panelOpen]);
-  return vp;
+  const miniMapRef = useCallback((el: HTMLElement | null) => {
+    if (miniRef.current) roRef.current?.unobserve(miniRef.current);
+    miniRef.current = el;
+    if (el) roRef.current?.observe(el);
+    measureRef.current();
+  }, []);
+  return { viewport: vp, miniMapRef };
 }

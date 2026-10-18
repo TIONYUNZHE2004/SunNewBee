@@ -14,6 +14,7 @@ import {
 } from "../../day/tripModel";
 import { useTripPick } from "../../day/tripPickStore";
 import { GAP_BAND_ORDER, GAP_BANDS, gapLines, gapsActive } from "../../gaps/gapModel";
+import { useJourney } from "../../journey/journeyStore";
 import { WHATIF_STYLE } from "../../whatif/whatifModel";
 import { homeView, shouldReframe } from "../cesium/home";
 import { mapboxLightPreset } from "../cesium/timeOfDay";
@@ -189,7 +190,7 @@ export default function MapboxLite() {
   const scenarioId = useScene((s) => s.scenarioId);
   const lensVisible = useScene((s) => s.lensVisible);
   const route = useScene((s) => s.route);
-  const journey = useScene((s) => s.journey);
+  const journey = useJourney((s) => s.plan); // the trip being shown (see JourneyMount)
   const whatIf = useScene((s) => s.whatIf);
   const dayOn = useScene((s) => s.day.on);
   const dayScenario = useScene((s) => s.day.scenario);

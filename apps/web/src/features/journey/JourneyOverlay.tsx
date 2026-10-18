@@ -22,11 +22,14 @@ export function JourneyOverlay({
   project,
   viewport,
   subscribeFrame,
+  miniMapRef,
 }: {
   project: (eventIndex: number) => { x: number; y: number } | null;
   /** The map area cards may use, CSS px: `top` is a band kept clear, `avoid` the mini-map. */
   viewport: CardViewport;
   subscribeFrame?: (cb: () => void) => () => void;
+  /** Called with the mini-map element when it mounts (the card area measures it). */
+  miniMapRef?: (el: HTMLElement | null) => void;
 }) {
   const timeline = useJourney((s) => s.timeline);
   const t = useJourney((s) => s.t);
@@ -51,7 +54,7 @@ export function JourneyOverlay({
         </div>
       </InSlot>
       <div className="pointer-events-none absolute right-[calc(var(--panel-w,0px)+1rem)] top-4 z-20">
-        <JourneyMiniMap plan={timeline.plan} distanceM={st.distance_m} />
+        <JourneyMiniMap plan={timeline.plan} distanceM={st.distance_m} figureRef={miniMapRef} />
       </div>
       {ev && (
         <EventCard

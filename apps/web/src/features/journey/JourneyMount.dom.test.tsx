@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import * as THREE from "three";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useScene } from "../scene/sceneStore";
@@ -11,6 +11,7 @@ import { useJourney } from "./journeyStore";
 import { SIM_LABEL } from "./SimulationLabel";
 import type { JourneyLayer } from "./three/journeyLayer";
 import { buildTimeline, type JourneyPlan } from "./timeline";
+import { WatchTripButton } from "./WatchTripButton";
 
 const plan = demoPlan as unknown as JourneyPlan;
 const frame = createFrame([101.5135, 3.18]);
@@ -45,13 +46,24 @@ function fakeEngine() {
   };
 }
 
-const playIntent = () =>
+const playIntent = (p: JourneyPlan = plan) =>
   useScene.getState().applyIntent({
     kind: "journey.play",
-    route_id: plan.route_id,
-    start_time: plan.start_time,
-    journey: plan,
+    route_id: p.route_id,
+    start_time: p.start_time,
+    journey: p,
   } as never);
+/** A second, shorter trip (an older answer): the first 3 events, ending at the third. */
+const older: JourneyPlan = (() => {
+  const events = plan.events.slice(0, 3);
+  const end = (events.at(-1) as JourneyPlan["events"][number]).at_m + 20;
+  return {
+    ...plan,
+    route_id: "rt-older",
+    events,
+    spans: plan.spans.filter((sp) => sp[0] < end).map((sp) => [sp[0], Math.min(sp[1], end), sp[2]]),
+  } as JourneyPlan;
+})();
 
 beforeEach(() => {
   useScene.getState().reset();
@@ -80,6 +92,59 @@ describe("JourneyMount", () => {
     expect(f.layer()?.ribbon.children.length).toBeGreaterThan(0);
     expect(f.layer()?.markers.children).toHaveLength(plan.events.length);
     expect(useJourney.getState().playing).toBe(false);
+  });
+
+  it("Clear route, then Watch the trip: ribbon, markers, label and HUD come back with the trip", () => {
+    const f = fakeEngine();
+    render(
+      <>
+        <JourneyMount engine={f.engine} frame={frame} />
+        <WatchTripButton plan={plan} />
+      </>,
+    );
+    act(() => playIntent());
+    act(() => useScene.getState().clearRoute());
+    expect(screen.queryByRole("note", { name: SIM_LABEL })).toBeNull();
+    expect(f.layer()).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Watch the trip" }));
+    expect(useJourney.getState().playing).toBe(true);
+    expect(screen.getByRole("note", { name: SIM_LABEL })).toBeInTheDocument();
+    expect(screen.getByTestId("journey-hud")).toBeInTheDocument();
+    expect(f.layer()?.markers.children).toHaveLength(plan.events.length);
+    expect(f.layer()?.ribbon.children.length).toBeGreaterThan(0);
+  });
+
+  it("watching an older answer's trip shows that trip everywhere (ribbon, markers, mini-map, HUD, cards)", () => {
+    const f = fakeEngine();
+    render(
+      <>
+        <JourneyMount engine={f.engine} frame={frame} />
+        <WatchTripButton plan={older} />
+      </>,
+    );
+    act(() => playIntent(older));
+    act(() => playIntent(plan)); // the newest answer
+    expect(f.layer()?.markers.children).toHaveLength(plan.events.length);
+    fireEvent.click(screen.getByRole("button", { name: "Watch the trip" }));
+    act(() => useJourney.getState().pause());
+    // ribbon and markers: the older plan
+    expect(f.layer()?.markers.children).toHaveLength(older.events.length);
+    expect(f.layer()?.path.planLength).toBe(older.spans.at(-1)?.[1]);
+    // mini-map: one event dot per older event (plus the hero dot)
+    const mini = screen.getByTestId("journey-minimap");
+    expect(mini.querySelectorAll("circle")).toHaveLength(older.events.length + 1);
+    // cards: the older plan's events, in order
+    const tl = buildTimeline(older);
+    for (const p of tl.phases.filter((ph) => ph.kind === "event")) {
+      act(() => useJourney.getState().seek((p.t0 + p.t1) / 2));
+      expect(within(screen.getByTestId("journey-card")).getByRole("heading")).toHaveTextContent(
+        p.event?.title as string,
+      );
+    }
+    // HUD: the older plan's end state
+    act(() => useJourney.getState().seek(tl.total));
+    const end = tl.phases.at(-1) as (typeof tl.phases)[0];
+    expect(screen.getByTestId("hud-walked")).toHaveTextContent(`${Math.round(end.m1)} m`);
   });
 
   it("the ribbon stays while the Path status (access) lens is off", () => {

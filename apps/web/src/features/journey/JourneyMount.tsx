@@ -1,5 +1,4 @@
 import { type RefObject, useCallback, useEffect, useState } from "react";
-import { useScene } from "../scene/sceneStore";
 import type { Engine } from "../scene/three/engine";
 import type { LocalFrame } from "../scene/three/frame";
 import { JourneyOverlay } from "./JourneyOverlay";
@@ -27,7 +26,9 @@ export function JourneyMount({
   /** The map element: the side panel and phone sheet sizes are read from its CSS variables. */
   hostRef?: RefObject<HTMLElement | null>;
 }) {
-  const plan = useScene((s) => s.journey);
+  // The one "plan being shown": the player's loaded plan (an intent, Watch the trip, or nothing
+  // after Clear route / a profile or scenario change), never sceneStore.journey.
+  const plan = useJourney((s) => s.plan);
   const [layer, setLayer] = useState<JourneyLayer | null>(null);
 
   useEffect(() => {
@@ -75,10 +76,17 @@ export function JourneyMount({
     (cb: () => void) => (engine ? engine.onFrame(() => cb()) : () => {}),
     [engine],
   );
-  const viewport = useMapInsets(hostRef, !!plan && !!engine, () =>
+  const { viewport, miniMapRef } = useMapInsets(hostRef, !!plan && !!engine, () =>
     engine ? engine.pickView().size : [1, 1],
   );
 
   if (!plan || !engine) return null;
-  return <JourneyOverlay project={project} viewport={viewport} subscribeFrame={subscribeFrame} />;
+  return (
+    <JourneyOverlay
+      project={project}
+      viewport={viewport}
+      subscribeFrame={subscribeFrame}
+      miniMapRef={miniMapRef}
+    />
+  );
 }

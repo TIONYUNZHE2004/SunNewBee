@@ -19,7 +19,15 @@ const SPAN: Record<SpanEval, { color: string; dash?: string }> = {
  * the hero dot at `distanceM` (`data-testid="journey-minimap-hero"`; AC-D12 compares it with the
  * hero). Same route maths as the 3D hero (`routePath.ts`).
  */
-export function JourneyMiniMap({ plan, distanceM }: { plan: JourneyPlan; distanceM: number }) {
+export function JourneyMiniMap({
+  plan,
+  distanceM,
+  figureRef,
+}: {
+  plan: JourneyPlan;
+  distanceM: number;
+  figureRef?: (el: HTMLElement | null) => void;
+}) {
   const mm = useMemo(() => miniMapLayout(plan, MINIMAP_W, PAD), [plan]);
   // The route, event dots and frame never change for a plan: built once, so a moving hero only
   // updates the dot (the overlay re-renders as t moves).
@@ -60,6 +68,7 @@ export function JourneyMiniMap({ plan, distanceM }: { plan: JourneyPlan; distanc
   const [hx, hy] = mm.heroAt(distanceM);
   return (
     <figure
+      ref={figureRef}
       data-testid="journey-minimap"
       className="glass m-0 w-[min(220px,40vw)] rounded-2xl p-2 text-fg"
     >

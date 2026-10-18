@@ -1,3 +1,4 @@
+import { useJourney } from "../journey/journeyStore";
 import { useScene } from "../scene/sceneStore";
 import { ROUTE_STYLE, statusStyle } from "../scene/styles";
 import { InSlot } from "./mapSlots";
@@ -44,7 +45,7 @@ function RibbonLegend() {
 
 export function RouteTag() {
   const route = useScene((s) => s.route);
-  const journey = useScene((s) => s.journey);
+  const journey = useJourney((s) => s.plan); // the trip being shown
   const clearRoute = useScene((s) => s.clearRoute);
   if (!route && !journey) return null;
   return (

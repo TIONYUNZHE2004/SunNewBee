@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { useClosures, useLayer, useScenarios } from "../../../lib/api";
 import { GapsLensSection } from "../../gaps/GapsSection";
 import { gapsApplicable } from "../../gaps/gapModel";
+import { useJourney } from "../../journey/journeyStore";
 import { useScene } from "../sceneStore";
 import { statusStyle } from "../styles";
 import { CLOSURE_SOURCE, closureLine } from "./closureModel";
@@ -64,13 +65,13 @@ export function ListView() {
     profile,
     scenarioId,
     route,
-    journey,
     focusPlaceId,
     lensVisible,
     gapsVisible,
     selectPlace,
     selectFloodEdge,
   } = useScene();
+  const journey = useJourney((s) => s.plan); // the trip being shown (see JourneyMount)
   const layer = useLayer("access", profile, scenarioId);
   const scenarios = useScenarios();
   const parsed = useMemo(() => parseLayer(layer.data), [layer.data]);

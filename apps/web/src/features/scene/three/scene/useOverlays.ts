@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useEvacCentres, useGaps, useLayer, useScenarioWater } from "../../../../lib/api";
 import { gapsActive } from "../../../gaps/gapModel";
+import { useJourney } from "../../../journey/journeyStore";
 import { type LonLat, pointFeatures } from "../../geo";
 import { useScene } from "../../sceneStore";
 import type { Engine } from "../engine";
@@ -31,7 +32,7 @@ export function useOverlays({
   const route = useScene((s) => s.route);
   // While a journey plays, its own ribbon (features/journey) draws the trip's route by status; the
   // blue overlay line would sit on top of it (overlay pass), so it steps aside.
-  const journeyOn = useScene((s) => !!s.journey);
+  const journeyOn = useJourney((s) => !!s.plan);
   const profile = useScene((s) => s.profile);
   const scenarioId = useScene((s) => s.scenarioId);
   const accessVisible = useScene((s) => s.lensVisible.access);
