@@ -2,7 +2,7 @@
 
 > Only the control session edits this file. Workers report in their task's `## Log`. Rules: [README.md](README.md).
 
-Last updated: 2026-10-18 10:00 UTC by control (claude/sweet-davinci-29v7ne)
+Last updated: 2026-10-18 10:12 UTC by control (claude/sweet-davinci-29v7ne)
 
 ## Scope B+ (Yunzhe, 17-18 Oct 2026)
 
@@ -10,7 +10,7 @@ The resident assistant covers **access** (routes, places, amenities, closures, t
 
 | Task | Title | Status | Priority | Owner |
 |---|---|---|---|---|
-| [T-001](tasks/T-001-validator-fact-binding.md) | Bind every stated fact to a tool field (audit A2) | in-progress | P1 | Claude worker |
+| [T-001](tasks/T-001-validator-fact-binding.md) | Bind every stated fact to a tool field (audit A2) | in-progress | P1 | Local AI engineer |
 | [T-002](tasks/T-002-withhold-unchecked-drafts.md) | Never show a rejected answer as a draft (audit A3) | done | P1 | Claude worker |
 | [T-003](tasks/T-003-certainty-filter-negation.md) | Fix negation and paraphrase gaps in the promise filter (audit A4) | done | P1 | Claude worker |
 | [T-004](tasks/T-004-redaction-coverage.md) | Redact phone numbers with brackets and spaced MyKad numbers (audit A5) | parked | P2 | unassigned |
@@ -24,7 +24,7 @@ The resident assistant covers **access** (routes, places, amenities, closures, t
 | [T-012](tasks/T-012-answer-key-deep-spot.md) | Human-checked answer key for scope B (about 30 questions) | review | P1 | Codex worker |
 | [T-013](tasks/T-013-scope-gate-routes-places.md) | Stop keyword blocking; answer routes and places anywhere in Elmina | assigned | P1 | Local AI engineer |
 | [T-014](tasks/T-014-sidewalk-vs-road.md) | Tell sidewalks from roads in data, routing and answers | assigned | P1 | Local backend engineer |
-| [T-015](tasks/T-015-answer-key-refresh.md) | Refresh the answer key for the new seed and fix scorer false positives | assigned | P1 | Codex worker (cloud) |
+| [T-015](tasks/T-015-answer-key-refresh.md) | Refresh the answer key for the new seed and fix scorer false positives | assigned | P1 | Local AI engineer |
 | [T-016](tasks/T-016-backend-audit.md) | Backend engineer: ranked audit of routing, places, flood and data | assigned | P1 | Local backend engineer |
 | [T-017](tasks/T-017-ai-audit.md) | AI engineer: ranked audit of answers with a small live budget | assigned | P1 | Local AI engineer |
 
@@ -32,11 +32,11 @@ The resident assistant covers **access** (routes, places, amenities, closures, t
 
 | Agent | Where | Tasks |
 |---|---|---|
-| Local AI engineer (Claude, Yunzhe's computer) | `local/ai-engineer` worktree | T-013 → T-017 |
-| Local backend engineer (Codex, Yunzhe's computer) | `local/backend-engineer` worktree | T-016 → T-014 (with T-010) |
-| Cloud Claude worker | `claude/kind-cannon-mormhi` | Finish T-001, then stop |
-| Cloud Codex worker | `codex/yunzhe-workflow` | T-015; checks other agents' PRs with its probes; no product code |
-| Control | `claude/sweet-davinci-29v7ne` | Merge green PRs, keep this board, T-007 on Yunzhe's instruction |
+| Local AI engineer (Claude, Yunzhe's computer) | `local/ai-engineer` worktree | T-013 → T-001 → T-015 → T-017 |
+| Local backend engineer (Codex, Yunzhe's computer) | `local/backend-engineer` worktree | T-016 → T-014 (with T-010); cross-checks the AI engineer's PRs |
+| Control | `claude/sweet-davinci-29v7ne` | Merge green PRs, keep this board, run Codex's audit probes on AI PRs before merging, T-007 on Yunzhe's instruction |
+
+Cloud Claude and cloud Codex workers: stopped by Yunzhe on 18 Oct; their open tasks moved to the local AI engineer.
 
 Priorities: P1 before the 23 Oct proposal, P2 before collecting resident questions, P3 before claiming whole-system validation.
 

@@ -1,8 +1,8 @@
 # T-001 Bind every stated fact to a tool field (audit A2)
 
 - **Status:** in-progress
-- **Owner:** Claude worker
-- **Branch:** `claude/kind-cannon-mormhi`
+- **Owner:** Local AI engineer
+- **Branch:** `local/ai-engineer`
 - **Priority:** P1 (before open demo)
 - **Lane:** AI
 - **Source:** [A2; extends Cannon F2 (partial)](https://github.com/TIONYUNZHE2004/SunNewBee/blob/main/docs/04-architecture/ai-independent-audit-2026-10-17.md)
@@ -32,3 +32,4 @@ Reject every A2 example in the audit while accepting the real route measurements
 
 - 2026-10-18 09:40 UTC · Codex (codex/yunzhe-workflow) · Reverified for Yunzhe whole-repository check on 18 Oct: latest Davinci d469ca3 and clean detached Cannon a460d4c both still ACCEPT all five remaining dishonest probes; both honest negated-guarantee controls pass. The Cannon nearest-whole rounding change does not close entity/attribute binding gaps. T-001 remains open with audit approval withheld, per Yunzhe. Portable diagnostic outputs /workspace/audits/repo-2026-10-18-binding-{davinci,cannon}.json; 0 live turns in these checks; no Claude files edited.
 - 2026-10-18 10:00 UTC · control (claude/sweet-davinci-29v7ne) · Cloud Claude worker finishes T-001 (the five binding bypasses) and then stops; it owns validate.py fact binding until merged. Local AI engineer does not edit the fact-binding code in validate.py until then.
+- 2026-10-18 10:12 UTC · control (claude/sweet-davinci-29v7ne) · Reassigned by Yunzhe (18 Oct): the cloud Claude worker stops. The local AI engineer finishes T-001. The cloud worker's unmerged commit 14361d4 (nearest whole number with "about") is on origin/claude/kind-cannon-mormhi: reuse it if it still fits after Jun Quan's validate.py changes, otherwise redo it. The five open bypasses are listed above; reproduce them with evals/audits/2026-10-17/verify_remaining_binding.py.

@@ -1,8 +1,8 @@
 # T-015 Refresh the answer key for the new seed and fix scorer false positives
 
 - **Status:** assigned
-- **Owner:** Codex worker (cloud)
-- **Branch:** `codex/yunzhe-workflow`
+- **Owner:** Local AI engineer
+- **Branch:** `local/ai-engineer`
 - **Priority:** P1
 - **Lane:** AI / evaluation (`evals/` only)
 - **Source:** Codex PR #10 / board T-012 log
@@ -18,3 +18,4 @@ Key regenerated for the current seed (reviewed flags kept where the facts did no
 ## Log
 
 - 2026-10-18 10:00 UTC · control (claude/sweet-davinci-29v7ne) · Created and assigned to Codex worker (cloud) (Yunzhe, 18 Oct: scope B+, two local engineers).
+- 2026-10-18 10:12 UTC · control (claude/sweet-davinci-29v7ne) · Reassigned by Yunzhe (18 Oct): the cloud Codex worker stops; the local AI engineer owns evals/ and takes T-015.
