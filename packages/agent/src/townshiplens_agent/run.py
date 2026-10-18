@@ -41,9 +41,9 @@ from .memory import DEFAULT as DEFAULT_MEMORY
 from .memory import SessionMemory
 from .record import TurnRecord
 from .redact import redact
-from .scope import outside_scope
+from .scope import is_greeting, outside_scope
 from .settings import AgentSettings
-from .template import _top_stage, scope_answer, template_answer
+from .template import _top_stage, greeting_answer, scope_answer, template_answer
 from .validate import PLACEHOLDER_CAVEAT
 
 log = logging.getLogger(__name__)
@@ -130,6 +130,39 @@ def _caveat_items(rec: TurnRecord, ans: FinalAnswer) -> list[dict[str, str]]:
             }
         )
     return out
+
+
+# Scope B+ (T-013): routes and places anywhere in Elmina are answered; outside the access deep
+# spot (the detailed study area) the facts are OpenStreetMap's only. Server-added after the
+# check, so no model can forget or reword it.
+OUTSIDE_NOTE = {
+    "en": "Outside the detailed study area ({name}), path and place facts come from "
+    "OpenStreetMap only",
+    "ms": "Di luar kawasan kajian terperinci ({name}), maklumat laluan dan tempat hanya "
+    "daripada OpenStreetMap",
+    "zh": "重点研究区域（{name}）以外的路线和地点信息仅来自 OpenStreetMap",
+}
+
+
+def outside_note(ans: FinalAnswer, rec: TurnRecord, world, lang: str = "en") -> str | None:
+    """The caveat when the answered route (else every route this turn) or a cited place lies
+    outside the access deep spot; None inside it, or when the world defines no such spot."""
+    spots = [d for d in world.site.deep_spots if d.lens == "access"]
+    if not spots:
+        return None
+    routes = [rec.routes[ans.route_id]] if ans.route_id in rec.routes else rec.routes.values()
+    points = [c for r in routes for c in (r.get("geometry") or {}).get("coordinates") or []]
+    for eid in (i for c in ans.claims for i in c.evidence_ids):
+        ev = rec.evidence.get(eid)
+        if ev is not None and (place := world.places.get(ev.element_id)) is not None:
+            points.append(place.coord)
+
+    def inside(pt) -> bool:
+        return any(w <= pt[0] <= e and s <= pt[1] <= n for w, s, e, n in (d.bbox for d in spots))
+
+    if all(inside(pt) for pt in points):
+        return None
+    return OUTSIDE_NOTE.get(lang, OUTSIDE_NOTE["en"]).format(name=spots[0].name)
 
 
 CAVEAT_HEAD = "Worth knowing:"
@@ -222,6 +255,8 @@ def _answer_events(
     lang: str = "en",
 ) -> list[ChatEvent]:
     evs: list[ChatEvent] = []
+    if note := outside_note(ans, rec, ctx.world, lang):
+        ans = ans.model_copy(update={"caveats": [*ans.caveats, note]})
     text = answer_text(ans, _route_status_line(ans, rec, lang), rec, lang)
     evs += [TextDelta(delta=text[i : i + CHUNK]) for i in range(0, len(text), CHUNK)]
 
@@ -499,10 +534,12 @@ async def run_turn(
     settings = settings or AgentSettings()
     # Redact first, then enforce scope before cache/model construction or tool side effects.
     question = redact(req.message)
-    if settings.assistant_scope == "access_flood" and outside_scope(
-        question, has_history=bool(memory.history(req.session_id))
-    ):
-        ans = scope_answer(question)
+    # Scope B+: a bare greeting or thanks gets a fixed hello and what the assistant can do, and
+    # only clearly removed features are refused; neither reaches the model or a tool.
+    scoped = settings.assistant_scope == "access_flood"
+    greeting = scoped and is_greeting(question)
+    if greeting or (scoped and outside_scope(question)):
+        ans = greeting_answer(question) if greeting else scope_answer(question)
         memory.add_turn(req.session_id, question, ans.summary)
         yield TextDelta(delta=ans.summary)
         yield Done(

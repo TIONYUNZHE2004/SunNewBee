@@ -7,17 +7,20 @@ from pydantic_ai.models.function import FunctionModel
 from tests_support import TINY
 from townshiplens_agent import agent as A
 from townshiplens_agent import mcp_server
+from townshiplens_agent.answer import FinalAnswer
 from townshiplens_agent.events import ChatRequest
 from townshiplens_agent.memory import SessionMemory
 from townshiplens_agent.record import TurnRecord
-from townshiplens_agent.run import run_turn
-from townshiplens_agent.scope import ACCESS_FLOOD_TOOLS, outside_scope
-from townshiplens_agent.settings import AgentSettings
-from townshiplens_agent.template import scope_answer
+from townshiplens_agent.run import outside_note, run_turn
+from townshiplens_agent.scope import ACCESS_FLOOD_TOOLS, is_greeting, outside_scope
+from townshiplens_agent.settings import ROOT, AgentSettings
+from townshiplens_agent.template import greeting_answer, scope_answer
 from townshiplens_agent.validate import validate_answer
 from townshiplens_spatial import tools
 from townshiplens_spatial.vr_store import VerificationStore
 from townshiplens_spatial.world import load_world
+
+SEED = ROOT / "data/seed/elmina"
 
 REMOVED_QUESTIONS = [
     ("Where can I recycle batteries near the mall?", "outside what I can check"),
@@ -32,9 +35,12 @@ REMOVED_QUESTIONS = [
     ("At which river level does the route break?", "outside what I can check"),
     ("Pada paras sungai berapakah laluan terputus?", "di luar"),
     ("哪个水位让路线中断？", "超出"),
-    ("What happens to residents as the river rises?", "outside what I can check"),
+    (
+        "Show what happens to residents stage by stage as the river rises.",
+        "outside what I can check",
+    ),
     ("Apa yang berlaku kepada penduduk pada setiap paras sungai?", "di luar"),
-    ("随着河水上涨，居民会怎样？", "超出"),
+    ("每个水位下居民会怎样？", "超出"),
     ("Which changes would help wheelchair users most?", "outside what I can check"),
     ("Perubahan terbaik untuk membantu kerusi roda?", "di luar"),
     ("哪些改造帮助最多居民？", "超出"),
@@ -42,6 +48,8 @@ REMOVED_QUESTIONS = [
     ("Simulasi hari biasa penduduk.", "di luar"),
     ("模拟居民的一天。", "超出"),
     ("Give me a nasi lemak recipe.", "outside what I can check"),
+    ("What if the council closes the footbridge?", "outside what I can check"),
+    ("Pada paras sungai berapa laluan ke mall terputus?", "di luar"),
 ]
 
 
@@ -77,20 +85,194 @@ async def test_removed_features_refuse_before_model_cache_and_tools(
     assert validate_answer(scope_answer(question), TurnRecord()) == []
 
 
+# T-013 (scope B+): a route or place question is never refused for its wording, and a question
+# with no access keyword is no longer refused before the model.
+ALLOWED = [
+    "Can I push a stroller from Car Park B to the playground?",
+    "Which places are affected if the river rises 3 m?",
+    "What if the river rises 3 m: where can I evacuate?",
+    "Adakah laluan ke tandas ditutup?",
+    "我推婴儿车去公园，有什么未核实的入口信息？",
+    "Di mana pusat pemindahan terdekat?",
+    "B停车场的通道有扶手吗？",
+    # the phrasings T-013 reported as refused
+    "I am in Surau Al Mahdi, how can I go to Surau At Taqwa",
+    "Can my grandmother get to the clinic?",
+    "Saya di Surau Al Mahdi, macam mana nak pergi Surau At Taqwa?",
+    "怎么去",
+    "我在Surau Al Mahdi，怎么去Surau At Taqwa？",
+    # narrowed removed phrases: real access / evacuation questions
+    "How do I get to the town hall?",
+    "What happens to residents near the park if the river rises 2 m?",
+    "随着河水上涨，居民应该去哪里疏散？",
+    "What if the path is closed, how do I get to the mall?",
+    "Bagaimana jika jalan ditutup, macam mana nak ke mall?",
+    "如果路封闭了，怎么去商场？",
+    "At what river level is the playground flooded?",
+    # new route / place phrasings (EN / BM / 中文)
+    "Is Surau At Taqwa far from Surau Al Mahdi?",
+    "My mum uses a walker. Getting from the mall to the surau, any stairs?",
+    "Where is Anadia Clinic?",
+    "Anything to sit on near the lake?",
+    "Nak ke Anadia Clinic dari Car Park B, ikut mana?",
+    "Klinik paling dekat dengan mall di mana?",
+    "Boleh bawa nenek ke surau naik kerusi roda?",
+    "从停车场到诊所要走多久？",
+    "附近有没有诊所？",
+    "Anadia Clinic在哪里？",
+    "Tell me about Surau At Taqwa.",
+    "Hi, how do I get to the playground?",
+]
+
+
+@pytest.mark.parametrize("question", ALLOWED)
+def test_access_and_place_questions_are_never_refused_for_wording(question):
+    assert not outside_scope(question)
+    assert not is_greeting(question)
+
+
+GREETINGS = [
+    ("Hi", "Hello!"),
+    ("hello!", "Hello!"),
+    ("Hey there", "Hello!"),
+    ("Good morning", "Hello!"),
+    ("Thanks!", "You're welcome!"),
+    ("Hai", "Hai!"),
+    ("Selamat pagi", "Hai!"),
+    ("Terima kasih", "Sama-sama!"),
+    ("你好", "你好！"),
+    ("谢谢！", "不客气！"),
+]
+
+
+@pytest.mark.parametrize("question,head", GREETINGS)
+async def test_greeting_gets_a_hello_not_a_refusal(ctx, monkeypatch, question, head):
+    def forbidden(*args, **kwargs):
+        raise AssertionError("a greeting must not call the model or the demo cache")
+
+    monkeypatch.setattr(A, "model_for", forbidden)
+    monkeypatch.setattr("townshiplens_agent.run.demo.load", forbidden)
+    rec = TurnRecord()
+    evs = [
+        e
+        async for e in run_turn(
+            ctx,
+            ChatRequest(message=question),
+            AgentSettings(llm_provider="mock", assistant_scope="access_flood", demo_mode=True),
+            record=rec,
+            memory=SessionMemory(),
+        )
+    ]
+    assert [e.type for e in evs] == ["text.delta", "done"]
+    assert evs[0].delta.startswith(head)
+    assert "outside" not in evs[0].delta and "di luar" not in evs[0].delta
+    assert rec.tool_calls == [] and ctx.vrs.list(status="all") == []
+    assert validate_answer(greeting_answer(question), TurnRecord()) == []
+
+
+SURAU_A, SURAU_B = "osm-way-910405528", "osm-way-910378231"  # Surau Al Mahdi, Surau At Taqwa
+
+
+def _route_model(from_id: str, to_id: str, profile: str):
+    """A model that plans one route and answers with the route's own evidence and warnings."""
+
+    def model(messages, info):
+        rets = [
+            p
+            for m in messages
+            for p in getattr(m, "parts", [])
+            if getattr(p, "part_kind", "") == "tool-return"
+        ]
+        if not rets:
+            return ModelResponse(
+                parts=[
+                    ToolCallPart(
+                        "plan_route", {"from_id": from_id, "to_id": to_id, "profile": profile}
+                    )
+                ]
+            )
+        data = rets[-1].content
+        r = data["data"]["routes"][0]
+        caveats = [w for w in data.get("warnings", []) if "entrance is not mapped" in w]
+        if r.get("crossing_note"):
+            caveats.append(r["crossing_note"])
+        if r.get("demo_evidence"):
+            caveats.append("Segment facts are demo values, not yet surveyed.")
+        ans = {
+            "answer_status": "answered",
+            "summary": f"There is a mapped route, about {round(r['distance_m'])} m.",
+            "claims": [
+                {
+                    "text": "Route",
+                    "status": "unverified",
+                    "evidence_ids": (r["evidence_ids"] or [e["id"] for e in data["evidence"]])[:3],
+                }
+            ],
+            "route_id": r["id"],
+            "caveats": caveats,
+        }
+        return ModelResponse(parts=[ToolCallPart("final_answer", ans)])
+
+    return model
+
+
+@pytest.mark.skipif(not (SEED / "site.json").exists(), reason="Elmina seed not built")
 @pytest.mark.parametrize(
-    "question",
+    "from_id,to_id,profile,outside",
+    [(SURAU_A, SURAU_B, "default", True), ("park-b", "playground", "stroller", False)],
+)
+async def test_outside_deep_spot_caveat_only_outside(monkeypatch, from_id, to_id, profile, outside):
+    ctx = tools.Ctx(world=load_world(SEED), vrs=VerificationStore(":memory:"))
+    monkeypatch.setattr(
+        A, "model_for", lambda *a, **k: FunctionModel(_route_model(from_id, to_id, profile))
+    )
+    rec = TurnRecord()
+    evs = [
+        e
+        async for e in run_turn(
+            ctx,
+            ChatRequest(message="How do I get there?", profile=profile),
+            AgentSettings(_env_file=None, llm_provider="mock", assistant_scope="access_flood"),
+            record=rec,
+            memory=SessionMemory(),
+        )
+    ]
+    text = "".join(e.delta for e in evs if e.type == "text.delta")
+    assert rec.validator_errors == []  # the model's own answer was shown, not the template
+    assert ("Outside the detailed study area" in text) is outside
+    assert ("OpenStreetMap only" in text) is outside
+
+
+@pytest.mark.skipif(not (SEED / "site.json").exists(), reason="Elmina seed not built")
+@pytest.mark.parametrize(
+    "lang,phrase",
     [
-        "Can I push a stroller from Car Park B to the playground?",
-        "Which places are affected if the river rises 3 m?",
-        "What if the river rises 3 m: where can I evacuate?",
-        "Adakah laluan ke tandas ditutup?",
-        "我推婴儿车去公园，有什么未核实的入口信息？",
-        "Di mana pusat pemindahan terdekat?",
-        "B停车场的通道有扶手吗？",
+        ("en", "OpenStreetMap only"),
+        ("ms", "hanya daripada OpenStreetMap"),
+        ("zh", "仅来自 OpenStreetMap"),
     ],
 )
-def test_access_and_fixed_stage_questions_remain_in_scope(question):
-    assert not outside_scope(question)
+def test_outside_note_follows_answer_language(lang, phrase):
+    ctx = tools.Ctx(world=load_world(SEED), vrs=VerificationStore(":memory:"))
+    res = tools.plan_route(ctx, SURAU_A, SURAU_B, "default", file_vrs=False)
+    r = res.data["routes"][0]
+    rec = TurnRecord(routes={r["id"]: r})
+    ans = FinalAnswer(answer_status="answered", summary="x", route_id=r["id"])
+    assert phrase in outside_note(ans, rec, ctx.world, lang)
+    # a place cited without a route counts too
+    rec = TurnRecord(evidence={e.id: e for e in res.evidence})
+    eid = next(e.id for e in res.evidence if e.element_id == SURAU_B)
+    cited = FinalAnswer(
+        answer_status="answered",
+        summary="x",
+        claims=[{"text": "Surau", "status": "unverified", "evidence_ids": [eid]}],
+    )
+    assert phrase in outside_note(cited, rec, ctx.world, lang)
+
+
+def test_outside_note_absent_on_tiny_fixture_and_without_facts(ctx):
+    ans = FinalAnswer(answer_status="cannot_answer", summary="x")
+    assert outside_note(ans, TurnRecord(), ctx.world) is None
 
 
 @pytest.mark.parametrize("scope", ["access_flood", "all"])
