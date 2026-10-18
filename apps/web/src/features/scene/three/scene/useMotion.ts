@@ -5,7 +5,7 @@ import { useScene } from "../../sceneStore";
 import type { RoleUniforms } from "../assets/roleMaterial";
 import type { Engine } from "../engine";
 import { createMotionDriver, type MotionDriver, motionRunning } from "../motion/motionClock";
-import { createMotionLayer } from "../motion/motionLayer";
+import { createMotionLayer, type YawMemory } from "../motion/motionLayer";
 import type { ActiveTile } from "../stream/streamer";
 import type { SceneBus } from "./sceneBus";
 import { unionById } from "./union";
@@ -68,8 +68,16 @@ export function useMotion({
   const runningRef = useRef(running);
   runningRef.current = running;
   const [driver, setDriver] = useState<MotionDriver | null>(null);
+  // At Low motion is off (ruling P4-S): no driver at all, so no motion frame, timer or flicker.
+  // Sway, limbs and shimmer hold their rest pose (the engine rests uSway / uLimb with no layer).
+  const low = tier === "low";
   useEffect(() => {
     if (!engine) return;
+    if (low) {
+      roleUniforms.uFlicker.value = 0;
+      engine.setMotion(null, () => false);
+      return;
+    }
     const d = createMotionDriver({
       role: roleUniforms,
       ambient: () => bus.getState().ambient,
@@ -86,7 +94,7 @@ export function useMotion({
       setDriver(null);
       engine.setMotion(null, () => false);
     };
-  }, [engine, roleUniforms, bus]);
+  }, [engine, roleUniforms, bus, low]);
   // Start: one frame starts the clock. Stop: static pose, then one final frame.
   useEffect(() => {
     if (!engine || !driver) return;
@@ -113,14 +121,17 @@ export function useMotion({
   const agentKey = agentList.map((a) => a.id).join("\n");
   // biome-ignore lint/correctness/useExhaustiveDependencies: keyed on the ids, not the array
   const agents = useMemo(() => agentList, [agentKey]);
+  // One smoothed-yaw memory for the scene's lifetime, shared by every rebuilt layer: streamed agents
+  // arriving or leaving never reset the others' yaw (each rebuild prunes it to the new agent set).
+  const [yaw] = useState<YawMemory>(() => new Map());
   useEffect(() => {
     if (!engine || !driver || !loaded || !agents || agents.length === 0) return;
     driver.setAgents(
-      createMotionLayer(agents, loaded.lib, loaded.manifest, roleUniforms, engine.motion),
+      createMotionLayer(agents, loaded.lib, loaded.manifest, roleUniforms, engine.motion, { yaw }),
     );
     engine.requestRender();
     return () => driver.setAgents(null);
-  }, [engine, driver, loaded, agents, roleUniforms]);
+  }, [engine, driver, loaded, agents, roleUniforms, yaw]);
 
   return { running, onScreen, agents };
 }

@@ -80,6 +80,15 @@ const PLACE_FURNITURE_RANGE = 15;
 const BOLLARD_SPACING = 1.5;
 const BOLLARDS_PER_ENTRANCE = 5;
 const GRID_M = 32;
+/** A street or verge tree may be moved outward by up to this far to clear a footway. */
+const TREE_MOVE_M = 4;
+const TREE_MOVE_STEP_M = 0.5;
+/** Canopy used for a tree variant the manifest lacks: the widest known (rain tree). */
+const DEFAULT_CANOPY_M = 20;
+/** A canopy may reach this far past a footway or path centreline (at y < 3 m). */
+const CANOPY_OVERHANG_M = 1;
+/** Footway segments are indexed this far out: the widest canopy radius (11 m) stays inside. */
+const FOOT_REACH_M = 12;
 /**
  * The furthest a kerb prop stands from its road's centre line: half the widest road plus the
  * larger kerb offset. A road this far outside the box can still put a tree or lamp inside it.
@@ -91,7 +100,7 @@ const KERB_REACH_M =
  * Walk points (and roads) this far outside the box are still walked for kerb props: the kerb reach
  * past the tree pad (the spacing rule needs the trees in the pad too), plus a metre of slack.
  */
-const ALONG_MARGIN_M = TREE_MIN_GAP_M + KERB_REACH_M + 1;
+const ALONG_MARGIN_M = TREE_MIN_GAP_M + KERB_REACH_M + TREE_MOVE_M + 1;
 /** Places this far outside the box can still put furniture or bollards inside it. */
 const PLACE_MARGIN_M = 20;
 
@@ -249,10 +258,57 @@ interface Cand {
   d: number;
   /** Tree source (stratified caps). */
   src?: TreeSource;
+  /** Tree display scale (from `TREE_SCALE`). */
+  sc?: number;
   /** Construction: lower ranks survive a tight cap first, then nearer sites first (`sd`). */
   rank?: number;
   sd?: number;
 }
+
+export type TreeContext = "street" | "verge" | "park" | "forest";
+export type TreeVariant =
+  | "rain_tree"
+  | "coconut_palm"
+  | "royal_palm"
+  | "frangipani"
+  | "flame_tree"
+  | "oil_palm"
+  | "shrub_round"
+  | "shrub_hedge";
+const band = (lo: number, hi: number): [number, number] => [lo, hi];
+const BIG = band(0.8, 1.1);
+const SMALL = band(0.8, 1);
+const roadside = (): Record<TreeVariant, [number, number]> => ({
+  rain_tree: band(0.55, 0.7),
+  coconut_palm: SMALL,
+  royal_palm: SMALL,
+  frangipani: SMALL,
+  flame_tree: SMALL,
+  oil_palm: SMALL,
+  shrub_round: SMALL,
+  shrub_hedge: SMALL,
+});
+const open = (): Record<TreeVariant, [number, number]> => ({
+  rain_tree: BIG,
+  coconut_palm: BIG,
+  royal_palm: BIG,
+  frangipani: BIG,
+  flame_tree: BIG,
+  oil_palm: BIG,
+  shrub_round: BIG,
+  shrub_hedge: BIG,
+});
+/**
+ * Display scale bands per tree context (owner override of true scale, P3 gate): street and verge
+ * trees are smaller so they do not hide paths; park and forest trees keep 0.8-1.1. A tree's scale
+ * is a hash of its id within its band, so it is deterministic.
+ */
+export const TREE_SCALE: Record<TreeContext, Record<TreeVariant, [number, number]>> = {
+  street: roadside(),
+  verge: roadside(),
+  park: open(),
+  forest: open(),
+};
 
 type TreeSource = "osm" | "street" | "median" | "park" | "forest" | "oil";
 /**
@@ -357,6 +413,31 @@ export function planProps(input: PropsInput): PropsPlan {
     return false;
   };
 
+  // Footway and path centrelines, for the canopy clearance. Indexed over the box grown by the
+  // furthest a kerb tree can start, plus its move and canopy reach, whatever box is planned.
+  const footBox = growBox(box, ALONG_MARGIN_M + FOOT_REACH_M);
+  const footGrid = new Grid();
+  const footSegs: { a: P; b: P }[] = [];
+  for (const r of roads) {
+    if (r.kind !== "footway" || !touchesBox(footBox, ...r.bb)) continue;
+    for (let i = 0; i < r.pts.length - 1; i++) {
+      const a = r.pts[i]!;
+      const b = r.pts[i + 1]!;
+      const x0 = Math.min(a[0], b[0]) - FOOT_REACH_M;
+      const z0 = Math.min(a[1], b[1]) - FOOT_REACH_M;
+      const x1 = Math.max(a[0], b[0]) + FOOT_REACH_M;
+      const z1 = Math.max(a[1], b[1]) + FOOT_REACH_M;
+      if (!touchesBox(footBox, x0, z0, x1, z1)) continue;
+      footGrid.add(footSegs.push({ a, b }) - 1, x0, z0, x1, z1);
+    }
+  }
+  const footDist = (x: number, z: number): number => {
+    let d = Number.POSITIVE_INFINITY;
+    for (const i of footGrid.at(x, z))
+      d = Math.min(d, distSeg(x, z, footSegs[i]!.a, footSegs[i]!.b));
+    return d;
+  };
+
   const bRings: Ring[] = [];
   const bGrid = new Grid();
   for (const { ring, bb: b } of buildingRingsOf(input.buildings, frame)) {
@@ -407,6 +488,7 @@ export function planProps(input: PropsInput): PropsPlan {
       ribbon?: boolean;
       building?: boolean;
       src?: TreeSource;
+      sc?: number;
       rank?: number;
       sd?: number;
     } = {},
@@ -423,6 +505,7 @@ export function planProps(input: PropsInput): PropsPlan {
       yaw: yaw ?? hash01(id, "yaw") * Math.PI * 2,
       d: dist(x, z),
       src: opts.src,
+      sc: opts.sc,
       rank: opts.rank,
       sd: opts.sd,
     });
@@ -462,8 +545,58 @@ export function planProps(input: PropsInput): PropsPlan {
     }
     return opts[opts.length - 1]![0];
   };
-  const tree = (id: string, x: number, z: number, v: string, src: TreeSource): boolean =>
-    push("trees", `trees/${v}`, id, x, z, undefined, { src });
+  const scaleOf = (ctx: TreeContext, v: string, id: string): number => {
+    const [lo, hi] = TREE_SCALE[ctx][v as TreeVariant] ?? [0.8, 1.1];
+    return lo + (hi - lo) * hash01(id, "tscale");
+  };
+  const treeCtx = (src: TreeSource): TreeContext =>
+    src === "street" || src === "median"
+      ? src === "street"
+        ? "street"
+        : "verge"
+      : src === "forest" || src === "oil"
+        ? "forest"
+        : "park";
+  /**
+   * Every tree's canopy (manifest size x scale / 2) may overhang a footway or path centreline by
+   * at most 1 m. At a tree's position the scale is shrunk within its band (down to the band
+   * minimum) until it clears; street trees that still do not clear are moved outward along
+   * (dx, dz) a step at a time; otherwise the tree is dropped. Roadside trees (street, median, and
+   * OSM points within reach of a footway) use the small bands. The decision depends only on the
+   * tree and the walk layer, never on the planned box.
+   */
+  const tree = (
+    id: string,
+    x: number,
+    z: number,
+    v: string,
+    src: TreeSource,
+    dir?: [number, number],
+    ribbon?: boolean,
+  ): boolean => {
+    let ctx = treeCtx(src);
+    if (src === "osm" && footDist(x, z) < FOOT_REACH_M) ctx = "verge";
+    const sc = scaleOf(ctx, v, id);
+    const lo = (TREE_SCALE[ctx][v as TreeVariant] ?? [0.8, 1.1])[0];
+    // A variant missing from the manifest is checked against the widest canopy (the rain tree's
+    // 20 m), never skipped.
+    const size = m.assets.trees?.variants[v]?.size[0] ?? DEFAULT_CANOPY_M;
+    const steps = dir ? Math.round(TREE_MOVE_M / TREE_MOVE_STEP_M) : 0;
+    for (let k = 0; k <= steps; k++) {
+      const t = k * TREE_MOVE_STEP_M;
+      const px = x + (dir ? dir[0] * t : 0);
+      const pz = z + (dir ? dir[1] * t : 0);
+      // The largest scale whose radius stays within the allowed overhang.
+      const fit = ((footDist(px, pz) + CANOPY_OVERHANG_M) * 2) / size;
+      if (fit < lo - 1e-9) continue;
+      return push("trees", `trees/${v}`, id, px, pz, undefined, {
+        src,
+        sc: Math.min(sc, fit),
+        ribbon,
+      });
+    }
+    return false;
+  };
 
   // Street trees, lamps and median palms.
   for (const r of roads) {
@@ -480,7 +613,10 @@ export function planProps(input: PropsInput): PropsPlan {
           const id = `st:${r.id}:${side}:${p.s.toFixed(1)}`;
           const x = p.x + p.tz * off * side;
           const z = p.z - p.tx * off * side;
-          tree(id, x, z, pick(id, "species", STREET_SPECIES), "street");
+          tree(id, x, z, pick(id, "species", STREET_SPECIES), "street", [
+            p.tz * side,
+            -p.tx * side,
+          ]);
         }
       }
       const lampOff = r.width / 2 + STREET_LAMP_EXTRA;
@@ -497,10 +633,7 @@ export function planProps(input: PropsInput): PropsPlan {
     } else {
       for (const p of along(r.pts, MEDIAN_TREE_SPACING)) {
         const id = `mt:${r.id}:${p.s.toFixed(1)}`;
-        push("trees", "trees/royal_palm", id, p.x, p.z, undefined, {
-          ribbon: false,
-          src: "median",
-        });
+        tree(id, p.x, p.z, "royal_palm", "median", undefined, false);
       }
       for (const p of along(r.pts, MEDIAN_LAMP_SPACING, MEDIAN_LAMP_SPACING / 2)) {
         const yaw = Math.atan2(p.tx, -p.tz);
@@ -598,9 +731,10 @@ export function planProps(input: PropsInput): PropsPlan {
     let near = Number.POSITIVE_INFINITY;
     for (const p of polys) {
       const b = bboxOf(p[0]!);
+      // Chebyshev distance, to match the square rings (the Euclidean one skips near corner cells).
       near = Math.min(
         near,
-        Math.hypot(Math.max(b[0] - cx, 0, cx - b[2]), Math.max(b[1] - cz, 0, cz - b[3])),
+        Math.max(Math.max(b[0] - cx, 0, cx - b[2]), Math.max(b[1] - cz, 0, cz - b[3])),
       );
     }
     const r0 = Math.max(0, Math.floor(near / cell) - 2);
@@ -717,7 +851,7 @@ export function planProps(input: PropsInput): PropsPlan {
     const variant = c.key.slice(slash + 1);
     const spec = m.assets[asset];
     if (!spec?.variants[variant]) return false;
-    const s = jitterFor(spec, c.id).scale;
+    const s = c.sc ?? jitterFor(spec, c.id).scale;
     const pl: Placement = {
       id: c.id,
       asset,

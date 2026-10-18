@@ -28,7 +28,7 @@ import { shimmerMaterial } from "./ground/landcover";
 import { BLOOM, fitShadowCamera, type LightPreset } from "./lighting";
 import { createLodSchedule } from "./lodSchedule";
 import { applyFog } from "./mood";
-import { MOTION_FRAME_MS, MOTION_SLACK_MS } from "./motion/motionClock";
+import { createMotionClock, type MotionMode, motionModeFor } from "./motion/motionClock";
 import type { MotionLayer } from "./motion/motionLayer";
 import type { OverlayLayer } from "./overlays/accessLayers";
 import { THREE_TIERS } from "./quality";
@@ -69,10 +69,12 @@ export interface Engine {
   /** Shared motion clock uniforms: uTime (clock seconds), uSway and uLimb (1 running, 0 at rest). */
   readonly motion: MotionUniforms;
   /**
-   * The motion layer and its gate. While running() the loop schedules frames at <= 30 fps and calls
-   * l.tick on each; otherwise no frame is scheduled for motion (render on demand), and the frames
-   * that do render tick it at the frozen clock so its culling follows the camera. Replaces and
-   * disposes the previous layer; null removes it. The caller requests a render when running() flips.
+   * The motion layer and its gate. While running() the loop ticks it once per rAF at High/Medium
+   * (display rate; 30 fps after the session's slow-device fallback; never at Low); otherwise no frame
+   * is scheduled for motion (render on demand), and the frames that do render tick it at the frozen
+   * motion time so its culling follows the camera. Motion time excludes stopped spans, so a resume
+   * never jumps. Replaces and disposes the previous layer; null removes it. The caller requests a
+   * render when running() flips.
    */
   setMotion(l: MotionLayer | null, running: () => boolean): void;
   /** Camera bounds before the city arrives (the site extent); setCity replaces them. */
@@ -324,10 +326,25 @@ function build(
 
   let motionLayer: MotionLayer | null = null;
   let motionRunning: () => boolean = () => false;
-  /** performance.now() of the last motion frame; the layer's frozen clock while stopped. */
-  let motionAt = 0;
+  /**
+   * The motion scheduler (Task 12): display rate at High/Medium, the P3 30 fps cadence after the
+   * session's < 45 fps fallback, which the clock measures itself from live frame gaps (the one frame
+   * monitor for motion; the tier monitor in useEngine is separate). Its `at` is the layers' clock:
+   * motion time, frozen while stopped.
+   */
+  const clock = createMotionClock();
+  /** null at Low: motion is off (ruling P4-S), so no frame is ever live and nothing is scheduled. */
+  let motionMode: MotionMode | null = motionModeFor(tier);
+  /**
+   * Motion time = performance.now() - motionOffset. Each resume (Motion on again, tab visible, map
+   * back on screen) re-anchors the offset so motion time continues from the frozen `at`: agents
+   * never jump by the stopped wall time, and while running motion time is real time.
+   */
+  let motionOffset = 0;
+  /** The last rendered frame was a live motion frame (the engine's view, for the re-anchor). */
+  let liveBefore = false;
+  const motionNow = (now: number) => now - motionOffset;
   let motionTimer: ReturnType<typeof setTimeout> | undefined;
-  let wasLive = false;
   /** Reused every frame by the GTAO pass's skip list. */
   const aoSkip: THREE.Object3D[] = [];
   /** The motion timer wakes a frame without marking the scene dirty (see tick). */
@@ -335,12 +352,16 @@ function build(
     motionTimer = undefined;
     schedule();
   };
-  const armMotion = (now: number) => {
+  /**
+   * After a frame: display mode asks for the next rAF (without marking the scene dirty); 30 fps mode
+   * arms the timer (the P3 path); a stopped or paused clock schedules nothing (Review Focus 3).
+   */
+  const wakeMotion = (now: number, live: boolean) => {
     clearTimeout(motionTimer);
-    motionTimer = setTimeout(
-      motionWake,
-      Math.max(0, motionAt + MOTION_FRAME_MS - MOTION_SLACK_MS - now),
-    );
+    motionTimer = undefined;
+    const wake = clock.nextWakeMs(motionNow(now), live);
+    if (wake === 0) schedule();
+    else if (wake !== null && !raf) motionTimer = setTimeout(motionWake, wake);
   };
   const frustum = new THREE.Frustum();
   const viewProj = new THREE.Matrix4();
@@ -463,6 +484,8 @@ function build(
   });
   const applyTier = (t: Tier) => {
     const spec = THREE_TIERS[t];
+    // Low: motion off. The next frame is not live, so it rests the pose and schedules nothing.
+    motionMode = motionModeFor(t);
     const pr = Math.min(globalThis.devicePixelRatio || 1, spec.maxPixelRatio);
     renderer.setPixelRatio(pr);
     pixelRatio = pr;
@@ -547,13 +570,16 @@ function build(
     const damping = controls.update();
     clearTimeout(motionTimer);
     motionTimer = undefined;
-    const live = !!motionLayer && motionRunning();
-    // A (re)start is due at once; then one motion frame per MOTION_FRAME_MS, with a few ms of slack
-    // for vsync jitter (a frame due at 33.3 ms often lands at 32.x).
-    const due = live && (!wasLive || now - motionAt >= MOTION_FRAME_MS - MOTION_SLACK_MS);
+    const live = motionMode !== null && !!motionLayer && motionRunning();
+    // Resuming: motion time continues from the frozen clock, excluding the stopped span.
+    if (live && !liveBefore) motionOffset = now - clock.at;
+    liveBefore = live;
+    // display: every live frame is a motion tick; 30 fps: a (re)start at once, then one per
+    // MOTION_FRAME_MS with a few ms of slack for vsync jitter.
+    const due = clock.frame(motionNow(now), live);
     if (live && !due && !dirty && !flying && !damping) {
-      // Woken only by the motion timer, and too early: render nothing, wait for the due time.
-      armMotion(now);
+      // 30 fps only: woken by the motion timer too early. Render nothing, wait for the due time.
+      wakeMotion(now, live);
       return;
     }
     if (lodWanted() && lod.due(now)) {
@@ -575,8 +601,7 @@ function build(
     }
     if (motionLayer) {
       if (due) {
-        motionAt = now;
-        motion.uTime.value = now / 1000;
+        motion.uTime.value = clock.at / 1000;
         motion.uSway.value = 1;
         motion.uLimb.value = 1;
       } else if (!live) rest();
@@ -584,9 +609,8 @@ function build(
       frustum.setFromProjectionMatrix(
         viewProj.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse),
       );
-      motionLayer.tick(motionAt, camera.position, frustum);
+      motionLayer.tick(clock.at, camera.position, frustum);
     }
-    wasLive = live;
     placeLight();
     renderer.info.reset();
     syncDashes();
@@ -606,13 +630,15 @@ function build(
     };
     for (const cb of listeners) cb(dt, info);
     if (flying || damping || dirty) schedule();
+    // Motion-only frames stay "idle" (dt 0 to onFrame listeners, ruling P4-T).
     if (!raf) idle = true;
-    // The camera stopped before the last LOD update was due: wake one more frame for it.
+    // The motion clock: the next rAF (display rate) or the 30 fps timer; nothing while stopped.
+    wakeMotion(performance.now(), live);
+    // The camera stopped before the last LOD update was due: wake one more frame for it (display
+    // rate already renders the next frame, which runs the LOD tick when due).
     const wait = lodWanted() && !raf ? lod.trailingMs(now) : null;
     clearTimeout(lodTimer);
     lodTimer = wait === null ? undefined : setTimeout(requestRender, wait);
-    // The motion clock: the next motion frame about MOTION_FRAME_MS after this one (<= 30 fps).
-    if (live && !raf) armMotion(performance.now());
   }
 
   const onVisibility = () => {
@@ -625,6 +651,10 @@ function build(
     clearTimeout(motionTimer);
     motionTimer = undefined;
     idle = true;
+    // Paused: the hidden span is neither motion time nor a slow frame for the fallback monitor,
+    // even if running() only turns false later (the React gate may lag this event).
+    clock.frame(motionNow(performance.now()), false);
+    liveBefore = false;
   };
   document.addEventListener("visibilitychange", onVisibility);
   undo.push(() => document.removeEventListener("visibilitychange", onVisibility));
@@ -669,7 +699,8 @@ function build(
         dropMotion();
         if (l) {
           motionLayer = l;
-          motionAt = performance.now();
+          // Running: it starts now; stopped: at the frozen motion time (no jump on resume).
+          clock.restart(liveBefore ? motionNow(performance.now()) : clock.at);
           scene.add(l.group);
         } else {
           clearTimeout(motionTimer);

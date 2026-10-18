@@ -1,6 +1,11 @@
 // @vitest-environment jsdom
-import { describe, expect, it, vi } from "vitest";
-import { MOTION_FRAME_MS, MOTION_SLACK_MS } from "./motion/motionClock";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  createMotionClock,
+  MOTION_FRAME_MS,
+  MOTION_SLACK_MS,
+  resetMotionSession,
+} from "./motion/motionClock";
 
 // No WebGL here: a fake renderer, and a PMREM generator that fails part-way through construction.
 const spy = vi.hoisted(() => ({
@@ -134,9 +139,18 @@ describe("createEngine", () => {
   });
 });
 
-// Review Focus 3: no rAF loop survives while motion is not running; while it runs, the motion clock
-// renders at most 30 frames a second. Fake timers and a hand-pumped rAF queue.
+// Review Focus 3: no rAF loop survives while motion is not running. While it runs, the motion clock
+// ticks once per rAF at High/Medium (display rate, P4), and at most 30 times a second after the
+// slow-device fallback. At Low motion is off (ruling P4-S). Fake timers and a hand-pumped rAF queue.
 describe("engine motion clock", () => {
+  // The 45 fps fallback is per page session (module level): every test starts at display rate.
+  beforeEach(() => resetMotionSession());
+  /** Forces the session's 30 fps fallback: 3.5 s of live frames at 33 fps through a motion clock. */
+  const force30fps = () => {
+    const c = createMotionClock();
+    for (let t = 0; t <= 3500; t += 30) c.frame(t, true);
+    expect(c.mode).toBe("30fps");
+  };
   type Frame = { id: number; cb: FrameRequestCallback };
   let queue: Frame[] = [];
   let requested = 0;
@@ -215,9 +229,10 @@ describe("engine motion clock", () => {
     }
   });
 
-  it("running() true: motion frames are at least 33 ms apart, uTime is the clock in seconds", async () => {
+  it("running() true in 30 fps mode (forced fallback): motion frames are at least 33 ms apart, uTime is the clock in seconds", async () => {
+    force30fps();
     const running = { on: false };
-    const { e, ticks } = await setup(running);
+    const { e, ticks } = await setup(running, "medium");
     try {
       settle();
       running.on = true;
@@ -266,9 +281,10 @@ describe("engine motion clock", () => {
     }
   });
 
-  it("vsync jitter: one render per motion tick, every ~2 vsyncs (about 30 fps)", async () => {
+  it("vsync jitter in 30 fps mode (forced fallback): one render per motion tick, every ~2 vsyncs (about 30 fps)", async () => {
+    force30fps();
     const running = { on: false };
-    const { e, ticks } = await setup(running);
+    const { e, ticks } = await setup(running, "medium");
     try {
       settle();
       running.on = true;
@@ -299,10 +315,217 @@ describe("engine motion clock", () => {
     }
   });
 
-  it("setMotion(null) stops the clock and disposes the layer", async () => {
-    const { e, layer } = await setup({ on: true });
+  /** Pumps `n` vsyncs `stepMs` apart (one rAF callback each). */
+  const vsyncs = (n: number, stepMs = 1000 / 60) => {
+    for (let k = 0; k < n; k++) {
+      vi.advanceTimersByTime(stepMs);
+      pump();
+    }
+  };
+  const setVisibility = (state: "visible" | "hidden") => {
+    Object.defineProperty(document, "visibilityState", { configurable: true, get: () => state });
+    document.dispatchEvent(new Event("visibilitychange"));
+  };
+
+  it("display mode (Medium): one motion tick and one render per rAF, no motion timer, real-time ticks", async () => {
+    const running = { on: false };
+    const { e, ticks } = await setup(running, "medium");
     try {
       settle();
+      running.on = true;
+      e.requestRender();
+      pump(); // the restart frame
+      spy.composerRender.mockClear();
+      ticks.length = 0;
+      let rafs = 0;
+      for (let k = 0; k < 120; k++) {
+        vi.advanceTimersByTime(1000 / 60);
+        expect(queue).toHaveLength(1); // exactly one rAF pending: the next motion tick
+        expect(vi.getTimerCount()).toBe(0); // display mode never arms the 30 fps timer
+        rafs++;
+        pump();
+      }
+      expect(ticks).toHaveLength(rafs);
+      expect(new Set(ticks).size).toBe(rafs);
+      expect(spy.composerRender).toHaveBeenCalledTimes(rafs);
+      // Real time, not frame count: tick gaps are the vsync gaps.
+      for (let i = 1; i < ticks.length; i++)
+        expect((ticks[i] as number) - (ticks[i - 1] as number)).toBeCloseTo(1000 / 60, 3);
+      expect(e.motion.uTime.value).toBeCloseTo((ticks.at(-1) as number) / 1000, 5);
+      expect(e.motion.uSway.value).toBe(1);
+
+      // Stop: one final frame, then no rAF and no timer.
+      running.on = false;
+      e.requestRender();
+      vsyncs(5);
+      const n = e.frames;
+      const after = requested;
+      vsyncs(30);
+      expect(e.frames).toBe(n);
+      expect(requested).toBe(after);
+      expect(queue).toHaveLength(0);
+      expect(vi.getTimerCount()).toBe(0);
+      expect(e.motion.uSway.value).toBe(0);
+    } finally {
+      teardown(e);
+    }
+  });
+
+  it("forced fallback: a < 45 fps median during motion switches to the 30 fps cadence for the session", async () => {
+    const running = { on: false };
+    const first = await setup(running, "medium");
+    try {
+      settle();
+      running.on = true;
+      first.e.requestRender();
+      // 3.5 s of live frames 30 ms apart (33 fps): below the 45 fps fallback.
+      vsyncs(117, 30);
+      const frameTimes: number[] = [];
+      first.e.onFrame(() => frameTimes.push(performance.now()));
+      for (let i = 0; i < 200; i++) {
+        pump();
+        vi.advanceTimersByTime(4);
+      }
+      expect(frameTimes.length).toBeGreaterThan(15);
+      for (let i = 1; i < frameTimes.length; i++)
+        expect((frameTimes[i] as number) - (frameTimes[i - 1] as number)).toBeGreaterThanOrEqual(
+          MOTION_FRAME_MS - MOTION_SLACK_MS,
+        );
+    } finally {
+      teardown(first.e);
+    }
+    // The session fell back: a new engine (still Medium) starts at 30 fps.
+    const again = { on: false };
+    const second = await setup(again, "medium");
+    try {
+      settle();
+      again.on = true;
+      second.e.requestRender();
+      second.ticks.length = 0;
+      vsyncs(60); // 1 s of 60 Hz vsyncs
+      expect(second.ticks.length).toBeGreaterThan(25);
+      expect(second.ticks.length).toBeLessThanOrEqual(32);
+    } finally {
+      teardown(second.e);
+    }
+  });
+
+  it("resume after a stop or a hidden tab: agents continue where they stopped, no jump by the stopped time", async () => {
+    const running = { on: false };
+    const { e, ticks } = await setup(running, "medium");
+    try {
+      settle();
+      running.on = true;
+      e.requestRender();
+      vsyncs(60);
+      const beforeStop = ticks.at(-1) as number;
+
+      // Motion toggled off for 10 s, then on again.
+      running.on = false;
+      e.requestRender();
+      vsyncs(5);
+      vi.advanceTimersByTime(10_000);
+      running.on = true;
+      e.requestRender();
+      ticks.length = 0;
+      vsyncs(30);
+      // The resumed clock starts where it stopped (within one vsync), then runs in real time.
+      expect((ticks[0] as number) - beforeStop).toBeLessThan(1000 / 60 + 1);
+      expect((ticks.at(-1) as number) - (ticks[0] as number)).toBeCloseTo(
+        (ticks.length - 1) * (1000 / 60),
+        3,
+      );
+      expect(e.motion.uTime.value).toBeCloseTo((ticks.at(-1) as number) / 1000, 5);
+
+      // Tab hidden for 20 s with running() still true (the React gate may lag the event).
+      const beforeHide = ticks.at(-1) as number;
+      setVisibility("hidden");
+      expect(queue).toHaveLength(0);
+      expect(vi.getTimerCount()).toBe(0);
+      vi.advanceTimersByTime(20_000);
+      setVisibility("visible");
+      ticks.length = 0;
+      vsyncs(10);
+      expect((ticks[0] as number) - beforeHide).toBeLessThan(1000 / 60 + 1);
+    } finally {
+      setVisibility("visible");
+      teardown(e);
+    }
+  });
+
+  it("a new motion layer while stopped keeps the motion time: no jump when motion resumes", async () => {
+    const running = { on: false };
+    const { e, ticks } = await setup(running, "medium");
+    try {
+      settle();
+      running.on = true;
+      e.requestRender();
+      vsyncs(30);
+      const beforeStop = ticks.at(-1) as number;
+      running.on = false;
+      e.requestRender();
+      vsyncs(3);
+      vi.advanceTimersByTime(5_000);
+      const THREE = await import("three");
+      const next: number[] = [];
+      const layer = {
+        group: new THREE.Group(),
+        tick: vi.fn((now: number) => next.push(now)),
+        setOpacity: vi.fn(),
+        dispose: vi.fn(),
+      };
+      e.setMotion(layer, () => running.on);
+      vsyncs(3);
+      running.on = true;
+      e.requestRender();
+      next.length = 0;
+      vsyncs(10);
+      expect((next[0] as number) - beforeStop).toBeLessThan(1000 / 60 + 1);
+    } finally {
+      teardown(e);
+    }
+  });
+
+  it("Low: motion is off (ruling P4-S), so running() true schedules no rAF and no timer", async () => {
+    const running = { on: true };
+    const { e, layer } = await setup(running, "low");
+    try {
+      settle();
+      const frames = e.frames;
+      const after = requested;
+      e.requestRender(); // one frame on demand, then idle again
+      vsyncs(30);
+      expect(e.frames).toBe(frames + 1);
+      expect(requested).toBe(after + 1);
+      expect(queue).toHaveLength(0);
+      expect(vi.getTimerCount()).toBe(0);
+      expect(e.motion.uSway.value).toBe(0);
+      expect(e.motion.uLimb.value).toBe(0);
+      expect(new Set(layer.tick.mock.calls.map((c) => c[0])).size).toBe(1);
+      // Medium turns it on (display rate); back to Low stops it after one frame.
+      e.setTier("medium");
+      e.requestRender();
+      vsyncs(10);
+      expect(queue).toHaveLength(1);
+      expect(e.motion.uSway.value).toBe(1);
+      e.setTier("low");
+      vsyncs(3);
+      const n = e.frames;
+      vsyncs(20);
+      expect(e.frames).toBe(n);
+      expect(queue).toHaveLength(0);
+      expect(vi.getTimerCount()).toBe(0);
+      expect(e.motion.uSway.value).toBe(0);
+    } finally {
+      teardown(e);
+    }
+  });
+
+  it("setMotion(null) stops the clock and disposes the layer", async () => {
+    const { e, layer } = await setup({ on: true }, "medium");
+    try {
+      vsyncs(10); // display rate: the loop is running
+      expect(queue).toHaveLength(1);
       e.setMotion(null, () => true);
       expect(layer.dispose).toHaveBeenCalledTimes(1);
       pump();
