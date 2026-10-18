@@ -10,6 +10,7 @@ const spy = vi.hoisted(() => ({
   pmremFails: true,
   scenes: [] as unknown[],
   composerRender: vi.fn(),
+  blooms: [] as { strength: number; enabled: boolean }[],
 }));
 vi.mock("three", async (orig) => {
   const t = await orig<typeof import("three")>();
@@ -60,7 +61,17 @@ const stubPass = () =>
 vi.mock("three/addons/postprocessing/RenderPass.js", () => ({ RenderPass: stubPass() }));
 vi.mock("three/addons/postprocessing/OutputPass.js", () => ({ OutputPass: stubPass() }));
 vi.mock("three/addons/postprocessing/UnrealBloomPass.js", () => ({
-  UnrealBloomPass: stubPass(),
+  UnrealBloomPass: class {
+    enabled = true;
+    dispose = vi.fn();
+    setSize = vi.fn();
+    constructor(
+      _res: unknown,
+      public strength: number,
+    ) {
+      spy.blooms.push(this);
+    }
+  },
 }));
 vi.mock("./aoPass", () => ({ CityGTAOPass: stubPass() }));
 
@@ -92,6 +103,30 @@ describe("createEngine", () => {
       e.setFogRange(7000);
       expect(scene.fog).toBe(fog);
       expect(fog.far).toBeGreaterThanOrEqual(15400);
+      e.dispose();
+    } finally {
+      spy.pmremFails = true;
+    }
+  });
+
+  it("bloom follows the mood: off by day (no noon wash), on at night, kept across a tier change", async () => {
+    spy.pmremFails = false;
+    spy.blooms.length = 0;
+    try {
+      const { createEngine } = await import("./engine");
+      const { LIGHT_PRESETS } = await import("./lighting");
+      const e = createEngine(document.createElement("canvas"), "medium");
+      e.setLighting(LIGHT_PRESETS.day, [0, 1, 0]);
+      const day = spy.blooms.at(-1);
+      expect(day?.enabled).toBe(false);
+      expect(day?.strength).toBe(0);
+      e.setLighting(LIGHT_PRESETS.night, [0, 1, 0]);
+      expect(spy.blooms.at(-1)?.enabled).toBe(true);
+      expect(spy.blooms.at(-1)?.strength).toBe(LIGHT_PRESETS.night.bloom);
+      e.setTier("high");
+      expect(spy.blooms.at(-1)).not.toBe(day);
+      expect(spy.blooms.at(-1)?.strength).toBe(LIGHT_PRESETS.night.bloom);
+      expect(spy.blooms.at(-1)?.enabled).toBe(true);
       e.dispose();
     } finally {
       spy.pmremFails = true;

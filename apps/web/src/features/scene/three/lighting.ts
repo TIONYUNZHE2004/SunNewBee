@@ -14,7 +14,16 @@ export interface LightPreset {
   fog: { color: string; near: number; far: number };
   /** 0 by day, > 0 at dusk and night. */
   windowEmissive: number;
+  /** Bloom strength; 0 turns the pass off. Off by day: see BLOOM. */
+  bloom: number;
 }
+
+/**
+ * Bloom is for lit windows and lamps. At noon the real sun is near the zenith and a pale sunlit
+ * surface reaches ~1.4 linear luminance (sun 3/pi + hemi 0.5/pi + IBL 0.35), well over the
+ * threshold, so a day bloom washed the whole scene to cream (final fix A; morning checks missed it).
+ */
+export const BLOOM = { radius: 0.4, threshold: 0.85 };
 
 /**
  * Starting colours from the reference image; the owner tunes them in Phase 3. Ambient (hemi + room
@@ -33,6 +42,7 @@ export const LIGHT_PRESETS: Record<Theme, LightPreset> = {
     background: "#bfe0f5",
     fog: { color: "#cfe6f5", near: 600, far: 3500 },
     windowEmissive: 0,
+    bloom: 0,
   },
   dusk: {
     sunColor: "#ff9a6a",
@@ -45,6 +55,7 @@ export const LIGHT_PRESETS: Record<Theme, LightPreset> = {
     background: "#f2a27c",
     fog: { color: "#e8a589", near: 500, far: 3000 },
     windowEmissive: 0.8,
+    bloom: 0.6,
   },
   night: {
     sunColor: "#9fb4ff",
@@ -57,6 +68,7 @@ export const LIGHT_PRESETS: Record<Theme, LightPreset> = {
     background: "#0d0b24",
     fog: { color: "#1a1640", near: 400, far: 2500 },
     windowEmissive: 1.6,
+    bloom: 0.6,
   },
 };
 
@@ -129,5 +141,6 @@ export function blendPresets(a: LightPreset, b: LightPreset, k: number): LightPr
       far: mix(a.fog.far, b.fog.far, k),
     },
     windowEmissive: mix(a.windowEmissive, b.windowEmissive, k),
+    bloom: mix(a.bloom, b.bloom, k),
   };
 }

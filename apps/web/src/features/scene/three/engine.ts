@@ -24,7 +24,7 @@ import type { CityGeometry } from "./cityMesh";
 import { GROUND_BANDS, groundMaterial } from "./ground/bands";
 import type { GroundLayer } from "./ground/groundLayer";
 import { shimmerMaterial } from "./ground/landcover";
-import { fitShadowCamera, type LightPreset } from "./lighting";
+import { BLOOM, fitShadowCamera, type LightPreset } from "./lighting";
 import { createLodSchedule } from "./lodSchedule";
 import { applyFog } from "./mood";
 import { MOTION_FRAME_MS, MOTION_SLACK_MS } from "./motion/motionClock";
@@ -97,7 +97,6 @@ const MOVING_MS = 300;
 /** LOD re-bucketing while the camera moves: at most this often, plus once after it stops. */
 const LOD_INTERVAL_MS = 250;
 const GROUND_COLOUR = "#d6d0c2";
-const BLOOM = { strength: 0.6, radius: 0.4, threshold: 0.85 };
 
 export interface RigView {
   camera: THREE.PerspectiveCamera;
@@ -429,6 +428,13 @@ function build(
 
   let composer = new EffectComposer(renderer);
   let passes: Pass[] = [];
+  let bloomPass: UnrealBloomPass | null = null;
+  /** Strength from the mood preset; the pass is skipped while it is 0 (day). */
+  const syncBloom = () => {
+    if (!bloomPass) return;
+    bloomPass.strength = lastPreset?.bloom ?? 0;
+    bloomPass.enabled = bloomPass.strength > 0;
+  };
   undo.push(() => {
     for (const p of passes) p.dispose();
     composer.dispose();
@@ -474,10 +480,17 @@ function build(
     overlayPass = new RenderPass(overlayScene, camera);
     overlayPass.clear = false;
     passes.push(overlayPass);
-    if (spec.bloom)
-      passes.push(
-        new UnrealBloomPass(new THREE.Vector2(w, h), BLOOM.strength, BLOOM.radius, BLOOM.threshold),
+    bloomPass = null;
+    if (spec.bloom) {
+      bloomPass = new UnrealBloomPass(
+        new THREE.Vector2(w, h),
+        lastPreset?.bloom ?? 0,
+        BLOOM.radius,
+        BLOOM.threshold,
       );
+      syncBloom();
+      passes.push(bloomPass);
+    }
     passes.push(new OutputPass());
     for (const p of passes) composer.addPass(p);
     composer.setSize(w, h);
@@ -709,6 +722,7 @@ function build(
       renderer.toneMappingExposure = p.exposure;
       (scene.background as THREE.Color).set(p.background);
       lastPreset = p;
+      syncBloom();
       applyFog(scene, p, fogRange);
       requestRender();
     },
