@@ -689,6 +689,46 @@ describe("engine motion clock", () => {
     }
   });
 
+  it("a compileAsync that throws still shows the layer, and warns once", async () => {
+    const { e } = await setup({ on: false });
+    const THREE = await import("three");
+    const proto = THREE.WebGLRenderer.prototype as unknown as {
+      compileAsync?: unknown;
+      getRenderTarget?: unknown;
+      setRenderTarget?: unknown;
+    };
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      settle();
+      const scenes = spy.scenes as import("three").Scene[];
+      const holds = (g: import("three").Object3D) => scenes.some((sc) => sc.children.includes(g));
+      proto.compileAsync = vi.fn(() => {
+        throw new Error("boom");
+      });
+      proto.getRenderTarget = () => null;
+      const targets: unknown[] = [];
+      proto.setRenderTarget = (t: unknown) => targets.push(t);
+      const a = { group: new THREE.Group(), dispose: vi.fn() };
+      e.setDecor("roads", a);
+      await Promise.resolve();
+      await Promise.resolve();
+      expect(holds(a.group)).toBe(true);
+      expect(targets[targets.length - 1]).toBeNull();
+      const b = { group: new THREE.Group(), dispose: vi.fn() };
+      e.setDecor("roads", b);
+      await Promise.resolve();
+      await Promise.resolve();
+      expect(holds(b.group)).toBe(true);
+      expect(warn).toHaveBeenCalledTimes(1);
+    } finally {
+      warn.mockRestore();
+      delete proto.compileAsync;
+      delete proto.getRenderTarget;
+      delete proto.setRenderTarget;
+      teardown(e);
+    }
+  });
+
   it("setDecor('ambient'): the birds go into the main scene, never the overlay scene", async () => {
     const { e } = await setup({ on: false });
     try {
