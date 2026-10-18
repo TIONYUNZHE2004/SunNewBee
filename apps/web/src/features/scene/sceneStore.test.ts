@@ -1,6 +1,11 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { useMode } from "../../app/modeStore";
+import demo from "../journey/fixtures/demoPlan.json";
+import { useJourney } from "../journey/journeyStore";
+import type { JourneyPlan } from "../journey/timeline";
 import { defaultMapStyle, resolveMapStyle, useScene } from "./sceneStore";
+
+const demoPlan = demo as unknown as JourneyPlan;
 
 describe("sceneStore.applyIntent", () => {
   beforeEach(() => useScene.getState().reset());
@@ -188,5 +193,38 @@ describe("what-if diff is never left under newer state", () => {
     useScene.getState().applyIntent({ kind: "whatif.diff", geojson: fc } as never);
     useScene.getState().setScenario("stage_p3m");
     expect(useScene.getState().whatIf).toBeNull();
+  });
+});
+
+describe("sceneStore journey.play", () => {
+  beforeEach(() => {
+    useScene.getState().reset();
+    useJourney.getState().clear();
+  });
+  const intent = { kind: "journey.play", route_id: demoPlan.route_id, start_time: "09:00" };
+
+  it("stores the plan and loads the journey player, paused at the start", () => {
+    useScene.getState().applyIntent({ ...intent, journey: demoPlan } as never);
+    expect(useScene.getState().journey).toBe(demoPlan);
+    expect(useJourney.getState()).toMatchObject({ plan: demoPlan, t: 0, playing: false });
+  });
+
+  it("ignores a journey.play without a plan", () => {
+    useScene.getState().applyIntent({ ...intent, journey: null } as never);
+    expect(useScene.getState().journey).toBeNull();
+    expect(useJourney.getState().plan).toBeNull();
+  });
+
+  it("drops the journey when the profile or scenario changes, and on reset", () => {
+    for (const change of [
+      () => useScene.getState().setProfile("wheelchair"),
+      () => useScene.getState().setScenario("stage_p3m"),
+      () => useScene.getState().reset(),
+    ]) {
+      useScene.getState().applyIntent({ ...intent, journey: demoPlan } as never);
+      change();
+      expect(useScene.getState().journey).toBeNull();
+      expect(useJourney.getState().plan).toBeNull();
+    }
   });
 });

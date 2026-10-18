@@ -2,6 +2,8 @@ import type { SceneIntent } from "@tl/api-client";
 import { create } from "zustand";
 import { useMode } from "../../app/modeStore";
 import { loadProfile, saveProfile } from "../../lib/profileStore";
+import { useJourney } from "../journey/journeyStore";
+import type { JourneyPlan } from "../journey/timeline";
 import type { View } from "./selectView";
 
 export type Profile = "default" | "stroller" | "wheelchair" | "older_adult_rest" | "drive";
@@ -76,6 +78,8 @@ export interface SceneState {
   /** The river level follows the day's clock without clearing routes or what-ifs. */
   setDayStage: (scenarioId: string | null) => void;
   camera: { center: [number, number]; rangeM: number } | null;
+  /** The trip plan of the latest journey.play intent (spec §6.2); the journey store plays it. */
+  journey: JourneyPlan | null;
   intents: SceneIntent[];
   applyIntent: (i: SceneIntent) => void;
   requestRouteFocus: (id: string) => void;
@@ -127,6 +131,7 @@ const initial = {
     before: null,
   } as SceneState["day"],
   camera: null as SceneState["camera"],
+  journey: null as JourneyPlan | null,
   intents: [] as SceneIntent[],
   mapStyle: "realistic" as MapStyle,
   mapStyleChosen: false,
@@ -164,7 +169,7 @@ function only(s: SceneState, key: Selection, id: string | null): Partial<SceneSt
 
 export const useScene = create<SceneState>((set) => ({
   ...initial,
-  applyIntent: (i) =>
+  applyIntent: (i) => {
     set((s) => {
       const next: Partial<SceneState> = { intents: [...s.intents, i] };
       switch (i.kind) {
@@ -235,9 +240,15 @@ export const useScene = create<SceneState>((set) => ({
           if (i.lens)
             next.lensVisible = { ...s.lensVisible, [i.lens]: i.visible ?? !s.lensVisible[i.lens] };
           break;
+        case "journey.play":
+          if (i.journey) next.journey = i.journey;
+          break;
       }
       return next;
-    }),
+    });
+    // loaded paused: auto-play is the caller's choice (demo preset; "Watch the trip" button)
+    if (i.kind === "journey.play" && i.journey) useJourney.getState().load(i.journey);
+  },
   // One detail panel at a time: opening any of the four closes the others.
   selectPlace: (selectedPlaceId) => set((s) => only(s, "selectedPlaceId", selectedPlaceId)),
   selectFloodEdge: (id) => set((s) => only(s, "selectedFloodEdgeId", id)),
@@ -248,16 +259,20 @@ export const useScene = create<SceneState>((set) => ({
   setProfile: (profile) => {
     saveProfile(profile);
     // A highlighted route was planned for the previous persona; do not show it as this one's.
-    set({ profile, route: null, whatIf: null });
+    set({ profile, route: null, whatIf: null, journey: null });
+    useJourney.getState().clear();
   },
-  setScenario: (scenarioId) =>
+  setScenario: (scenarioId) => {
+    useJourney.getState().clear(); // its trip was planned under the previous scenario
     set((s) => ({
       scenarioId,
       route: null, // planned under the previous scenario
+      journey: null,
       whatIf: null, // compared against the previous scenario
       selectedFloodEdgeId: null,
       lensVisible: { ...s.lensVisible, flood: !!scenarioId || s.lensVisible.flood },
-    })),
+    }));
+  },
   toggleLens: (l) => set((s) => ({ lensVisible: { ...s.lensVisible, [l]: !s.lensVisible[l] } })),
   setGaps: (gapsVisible) => set({ gapsVisible }),
   toggleGaps: () => set((s) => ({ gapsVisible: !s.gapsVisible })),
@@ -286,5 +301,8 @@ export const useScene = create<SceneState>((set) => ({
         ? {}
         : { scenarioId, lensVisible: { ...s.lensVisible, flood: true } },
     ),
-  reset: () => set(initial),
+  reset: () => {
+    useJourney.getState().clear();
+    set(initial);
+  },
 }));

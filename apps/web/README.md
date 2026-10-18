@@ -561,6 +561,7 @@ POST /chat (SSE) -> parseSse -> useChatStream -> chatReducer   (messages, tool c
                                                               river.rollout    -> rollout {on, stage, playing}
                                                               day.show         -> day {on, scenario, t} paused (+ its river stage)
                                                               day.trip         -> day at the leave time (any mode) + myTrip (+ its river stage)
+                                                              journey.play     -> journey (the JourneyPlan) + useJourney.load (paused at t = 0)
 sceneStore --> Cesium / Mapbox / List renderers (one adapter each) + map overlays + legend
 ```
 
@@ -590,6 +591,12 @@ flooded_possible`) via `scene/status.ts`, and unknown is drawn dashed and amber,
 
   `map-ui/RolloutTag` (top right) always says "simulation, not a forecast".
 - **Pure helpers** are in `whatif/rolloutModel`.
+
+**Resident journey (D-T4, spec 2026-10-19 §6.2 and §6.4):**
+- **Contract.** `journey.play` carries the backend's `JourneyPlan` (`intent.journey`). `sceneStore.applyIntent` stores it as `journey` and loads `features/journey/journeyStore` paused at the start; `chatReducer` notes `journey: {routeId, startTime}` on the answer. Changing the profile or scenario, or `reset`, drops the journey.
+- **Timeline.** `features/journey/timeline.ts` is pure: `buildTimeline(plan)` gives phases (`dive` 4 s, `walk` at 20x, one `event` hold per plan event with the screen time from `HOLD_SCREEN_S` and the plan's `hold_s` as simulated time, `pull` 5 s); `stateAt(timeline, t)` gives distance, simulated seconds, the "HH:MM" clock, rests taken and minutes outdoors (paused on the covered event's span). Holds never move the hero along the route, so the HUD at each event start equals the plan.
+- **Store.** `journeyStore` (zustand): `plan`, `timeline`, `t`, `playing`, `camMode` (`follow|overview|free`); `load`, `play`, `pause`, `seek`, `restart`, `setCam`, `advance(dt)` (the player's frame tick), `clear`. `journeyStateOf(store)` reads the HUD state. No rendering yet; auto-play is not here.
+- **Fixture.** `features/journey/fixtures/demoPlan.json` is the real `POST /journeys` plan for the §2 demo route (09:00). Regenerate with `uv run python apps/web/scripts/build-journey-fixture.py` (needs the Elmina seed; excluded from Biome as generated data).
 
 ## File map
 

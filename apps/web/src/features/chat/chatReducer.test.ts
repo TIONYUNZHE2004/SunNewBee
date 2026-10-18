@@ -202,3 +202,38 @@ describe("template fallback", () => {
     expect(isTemplateFallback(done("anthropic/claude-haiku-5.5"))).toBe(false);
   });
 });
+
+describe("journey.play", () => {
+  const play = {
+    kind: "journey.play",
+    route_id: "r1",
+    start_time: "09:00",
+    journey: { route_id: "r1", start_time: "09:00", events: [] },
+  } as never;
+
+  it("passes through like other scene intents: the route summary stays, the trip is noted", () => {
+    let m = reduceIntent(emptyAssistant("a"), {
+      kind: "route.highlight",
+      route_id: "r1",
+      distance_m: 963.5,
+    } as never);
+    m = reduceIntent(m, play);
+    expect(m.route).toMatchObject({ id: "r1", distanceM: 963.5 });
+    expect(m.journey).toEqual({ routeId: "r1", startTime: "09:00" });
+  });
+
+  it("a journey.play without a plan notes nothing", () => {
+    const m = reduceIntent(emptyAssistant("a"), {
+      kind: "journey.play",
+      route_id: "r1",
+      start_time: "09:00",
+      journey: null,
+    } as never);
+    expect(m.journey).toBeUndefined();
+  });
+
+  it("the scene.intent chat event itself leaves the message unchanged", () => {
+    const m = emptyAssistant("a");
+    expect(reduceChatEvent(m, ev({ type: "scene.intent", intent: play }))).toBe(m);
+  });
+});
