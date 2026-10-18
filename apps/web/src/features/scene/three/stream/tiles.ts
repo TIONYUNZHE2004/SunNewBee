@@ -16,7 +16,8 @@ export interface Tile {
 /** Ring 2 applies only while the camera range is at most this (metres). */
 export const RING2_MAX_RANGE_M = 1500;
 
-function tileOf(i: number, j: number): Tile {
+/** The tile at grid index (i, j). */
+export function tileOf(i: number, j: number): Tile {
   return {
     key: `${i},${j}`,
     i,

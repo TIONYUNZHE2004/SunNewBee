@@ -16,7 +16,7 @@ import { type PlanArea, seedFor } from "./area";
 import { tileCap, VERGE_PIECES_PER_CAP, VERGE_SHRUBS_PER_CAP } from "./caps";
 import { lotKits, planTileLots, warmLots } from "./lotsPlan";
 import type { Ring, TileContent } from "./streamer";
-import { TILE_M, type Tile, type TileKey, tileAt } from "./tiles";
+import { type Tile, type TileKey, tileAt, tileOf } from "./tiles";
 
 /** What every tile is planned from. All of it is static per world (the walk is latched). */
 export interface TileInputs {
@@ -285,15 +285,10 @@ export type PlanReply =
  */
 export type WireContent = Omit<TileContent, "facades" | "dispose"> & { facades: boolean };
 
-/** The tile with key "i,j" (the same squares as `tiles.ts`). */
+/** The tile with key "i,j" (`tiles.ts` keys). */
 export function tileFromKey(key: TileKey): Tile {
   const [i, j] = key.split(",").map(Number) as [number, number];
-  return {
-    key,
-    i,
-    j,
-    box: { x0: i * TILE_M, z0: j * TILE_M, x1: (i + 1) * TILE_M, z1: (j + 1) * TILE_M },
-  };
+  return tileOf(i, j);
 }
 
 const isTyped = (v: unknown): v is Float32Array | Uint32Array =>

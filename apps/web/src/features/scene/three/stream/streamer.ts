@@ -100,6 +100,10 @@ const idOf = (key: TileKey, ring: Ring) => `${key}|${ring}`;
 /** User Timing names for the browser run: one tile plan, and one merge of the streamed layers. */
 export const PLAN_MEASURE = "tl:stream-plan";
 export const MERGE_MEASURE = "tl:stream-merge";
+/** User Timing name of a render-phase union of the active tiles' content (one merged list). */
+export const UNION_MEASURE = "tl:stream-union";
+/** User Timing name of the first render after a streamed layer swap (its GPU uploads). */
+export const UPLOAD_MEASURE = "tl:stream-upload";
 /** `performance.measure(name)` from `startMs` to now, where User Timing exists (never throws). */
 export function measure(name: string, startMs: number): void {
   try {

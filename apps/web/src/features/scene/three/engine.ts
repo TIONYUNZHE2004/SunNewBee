@@ -33,6 +33,7 @@ import { createMotionClock, type MotionMode, motionModeFor } from "./motion/moti
 import type { MotionLayer } from "./motion/motionLayer";
 import type { OverlayLayer } from "./overlays/accessLayers";
 import { THREE_TIERS } from "./quality";
+import { measure, UPLOAD_MEASURE } from "./stream/streamer";
 
 /** Local xz box the camera target may not leave (by more than LIMITS.maxCentreOffsetM). */
 export interface Bounds {
@@ -67,6 +68,11 @@ export interface Engine {
    * slot's previous content; null clears it. The group is added to the scene as is.
    */
   setDecor(slot: string, d: { group: THREE.Object3D; dispose(): void } | null): void;
+  /**
+   * A streamed layer was swapped in outside `setDecor` (the kit buckets): the next frame's render,
+   * which uploads its buffers, is timed as `tl:stream-upload` (as after every `setDecor` swap).
+   */
+  markSwap(): void;
   /** Shared motion clock uniforms: uTime (clock seconds), uSway and uLimb (1 running, 0 at rest). */
   readonly motion: MotionUniforms;
   /**
@@ -116,6 +122,8 @@ const RAD = Math.PI / 180;
 const MOVING_MS = 300;
 /** LOD re-bucketing while the camera moves: at most this often, plus once after it stops. */
 const LOD_INTERVAL_MS = 250;
+/** A bound on pinned shader programs (the scene uses about 32; see `pinPrograms`). */
+const MAX_PINNED_PROGRAMS = 96;
 const GROUND_COLOUR = "#d6d0c2";
 
 export interface RigView {
@@ -405,19 +413,57 @@ function build(
   undo.push(dropGround);
 
   const decor = new Map<string, { group: THREE.Object3D; dispose(): void }>();
-  const dropDecor = (slot: string) => {
+  /**
+   * Replaced decor is disposed after the next render, not at once: its replacement has acquired
+   * the same shader programs by then, so three keeps them (a program whose last user is disposed is
+   * deleted, and the replacement would compile and link it again in its first render: 50-120 ms
+   * of main-thread stall per streamed swap, measured in P5 Task 5).
+   */
+  let retired: Array<() => void> = [];
+  /**
+   * Shader programs are pinned once compiled: three deletes a program when its last material is
+   * disposed, and streamed layers come and go (beyond 1500 m only trees and roads show, so signs,
+   * lamp pools, facades, roofs and agents are dropped on every high fly), which made each reappearance
+   * compile and link its programs again on the main thread (40-120 ms, P5 Task 5 trace). The
+   * program set is small and fixed by the material cache keys (about 32 programs), so keeping them
+   * costs little; the renderer's dispose releases them.
+   */
+  const pinned = new Set<object>();
+  const pinPrograms = () => {
+    const programs = renderer.info.programs as Array<{ usedTimes: number }> | null;
+    if (!programs || programs.length === pinned.size) return;
+    for (const p of programs)
+      if (!pinned.has(p) && pinned.size < MAX_PINNED_PROGRAMS) {
+        pinned.add(p);
+        p.usedTimes++;
+      }
+  };
+  const flushRetired = () => {
+    const list = retired;
+    retired = [];
+    for (const dispose of list) dispose();
+  };
+  /** Layers waiting for their shader programs before they are shown (see `setDecor`). */
+  const compiling = new Map<string, { group: THREE.Object3D; dispose(): void }>();
+  const dropDecor = (slot: string, later = false) => {
     const d = decor.get(slot);
     if (!d) return;
     scene.remove(d.group);
-    d.dispose();
+    if (later) retired.push(() => d.dispose());
+    else d.dispose();
     decor.delete(slot);
   };
   undo.push(() => {
     for (const slot of [...decor.keys()]) dropDecor(slot);
+    for (const d of compiling.values()) d.dispose();
+    compiling.clear();
+    flushRetired();
   });
 
   let raf = 0;
   let dirty = true;
+  /** A streamed layer was swapped in since the last render: time that render (its uploads). */
+  let swapped = false;
   let idle = true;
   let last = 0;
   let lastMove = Number.NEGATIVE_INFINITY;
@@ -617,7 +663,14 @@ function build(
     syncDashes();
     overlays?.setView(camera.position, camera.fov);
     if (overlayPass) overlayPass.enabled = !!overlays?.hasVisible();
+    const tRender = performance.now();
     composer.render();
+    if (swapped) {
+      swapped = false;
+      measure(UPLOAD_MEASURE, tRender);
+    }
+    pinPrograms();
+    flushRetired();
     dirty = false;
     frames++;
     const dt = idle ? 0 : now - last;
@@ -682,12 +735,54 @@ function build(
         d?.dispose();
         return;
       }
-      if (d && decor.get(slot) === d) return;
-      dropDecor(slot);
-      if (d) {
+      if (d && (decor.get(slot) === d || compiling.get(slot) === d)) return;
+      // A newer layer (or a clear) supersedes one still compiling: it is never shown.
+      const waiting = compiling.get(slot);
+      if (waiting) {
+        compiling.delete(slot);
+        waiting.dispose();
+      }
+      if (!d) {
+        dropDecor(slot);
+        requestRender();
+        return;
+      }
+      const show = () => {
+        // A replacement keeps the old layer's programs alive until it has rendered once.
+        dropDecor(slot, true);
         decor.set(slot, d);
         scene.add(d.group);
+        swapped = true;
+        requestRender();
+      };
+      // Shader programs the layer needs that are not compiled yet are compiled in parallel
+      // (KHR_parallel_shader_compile) before it is shown, so its first render never waits on a
+      // link (40-130 ms on the main thread, P5 Task 5); the old layer stays drawn meanwhile.
+      if (typeof renderer.compileAsync !== "function") {
+        show();
+        return;
       }
+      compiling.set(slot, d);
+      const ready = () => {
+        if (disposed || compiling.get(slot) !== d) return;
+        compiling.delete(slot);
+        show();
+      };
+      // Compile for the render target the scene pass draws into (linear, no tone mapping), not the
+      // screen: the program variant must be the one the composer's render will use.
+      const prev = renderer.getRenderTarget();
+      renderer.setRenderTarget(composer.readBuffer);
+      let compiled: Promise<unknown>;
+      try {
+        compiled = renderer.compileAsync(d.group, camera, scene);
+      } finally {
+        renderer.setRenderTarget(prev);
+      }
+      compiled.then(ready, ready);
+    },
+    markSwap() {
+      if (disposed) return;
+      swapped = true;
       requestRender();
     },
     setMotion(l, running) {

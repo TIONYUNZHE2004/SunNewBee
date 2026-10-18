@@ -7,7 +7,7 @@ import type { LocalFrame } from "../frame";
 import { createGroundLayer } from "../ground/groundLayer";
 import { landcoverMesh } from "../ground/landcover";
 import type { Ribbon } from "../ground/ribbons";
-import { type ActiveTile, timed } from "../stream/streamer";
+import { type ActiveTile, timed, UNION_MEASURE } from "../stream/streamer";
 import { mergeQueueOf } from "./idle";
 
 const EMPTY_FC = { type: "FeatureCollection", features: [] };
@@ -96,7 +96,10 @@ export function useRoads({
   active: ActiveTile[];
   tier: Tier;
 }) {
-  const roads = useMemo<Ribbon[]>(() => active.flatMap((a) => a.content.ribbons), [active]);
+  const roads = useMemo<Ribbon[]>(
+    () => timed(UNION_MEASURE, () => active.flatMap((a) => a.content.ribbons)),
+    [active],
+  );
   const stalls = useMemo<Float32Array[]>(
     () =>
       tier === "low"

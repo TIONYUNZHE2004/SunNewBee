@@ -19,6 +19,7 @@ import { largeRoofTint } from "../facade/roofPlan";
 import { fallbackColourFn } from "../fallbackStyle";
 import type { LocalFrame } from "../frame";
 import { KIT_LOD_SCALE } from "../props/caps";
+import type { SliceJob } from "./idle";
 import { fitPose } from "./useCameraOps";
 
 export type AssetsState = "off" | "loading" | "ready" | "failed";
@@ -311,7 +312,7 @@ export function useCityAssets({
     try {
       inst.setKits(kits, scale);
       applied.current = { kits, scale };
-      engine.requestRender();
+      engine.markSwap();
     } catch (err) {
       console.warn(`${ASSET_WARN}: props: ${String(err)}`);
     }
@@ -324,6 +325,41 @@ export function useCityAssets({
       applyKits();
     },
     [applyKits],
+  );
+
+  /**
+   * `setKits` as a time-sliced job (Task 5): one step per kit key, built hidden, swapped in by
+   * `done`. Null when the instances already hold these kits (or are not built yet: the build
+   * picks the kits up).
+   */
+  // biome-ignore lint/correctness/useExhaustiveDependencies: kitLodScale reads the live tier and `showroom`, a dependency
+  const kitJob = useCallback(
+    (kits: Kits): SliceJob | null => {
+      kitsRef.current = kits;
+      const inst = instRef.current;
+      if (!engine || !inst) return null;
+      const scale = kitLodScale();
+      if (applied.current?.kits === kits && applied.current.scale === scale) return null;
+      const b = inst.kitSteps(kits, scale);
+      return {
+        steps: b.steps,
+        done() {
+          if (instRef.current !== inst) {
+            b.cancel();
+            return;
+          }
+          try {
+            b.commit();
+            applied.current = { kits, scale };
+            engine.markSwap();
+          } catch (err) {
+            console.warn(`${ASSET_WARN}: props: ${String(err)}`);
+          }
+        },
+        cancel: b.cancel,
+      };
+    },
+    [engine, showroom],
   );
 
   // A tier change rescales the kit LOD distances. Deferred to a microtask so a props re-plan for the
@@ -353,6 +389,7 @@ export function useCityAssets({
     loaded,
     plan,
     setKits,
+    kitJob,
     decorAssets,
     instances,
     fallback,

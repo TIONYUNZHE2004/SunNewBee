@@ -105,6 +105,52 @@ describe("mergeQueueOf", () => {
     expect(log).toEqual([2]);
   });
 
+  it("runSteps: a sliced rebuild spreads its steps over frames (budget + one step) and swaps in only at the end", () => {
+    const e = fakeEnv();
+    const q = mergeQueueOf({}, 8, e.env);
+    q.note(20);
+    const log: number[] = [];
+    const steps = Array.from({ length: 10 }, (_, i) => e.work(3, log, i));
+    const done = vi.fn();
+    q.runSteps("signs", { steps, done });
+    let frames = 0;
+    while (e.pending() > 0 && frames < 50) {
+      const before = log.length;
+      const ms = e.step();
+      frames++;
+      // At most the budget plus one 3 ms step.
+      expect(ms).toBeLessThanOrEqual(8 + 3);
+      if (log.length < 10) expect(done).not.toHaveBeenCalled();
+      expect(log.length - before).toBeLessThanOrEqual(3);
+    }
+    expect(log).toEqual(steps.map((_, i) => i));
+    expect(done).toHaveBeenCalledTimes(1);
+    expect(frames).toBeGreaterThanOrEqual(4);
+  });
+
+  it("runSteps: a newer job for the slot cancels the half-built one; cheap merges run whole at once", () => {
+    const e = fakeEnv();
+    const q = mergeQueueOf({}, 8, e.env);
+    const now: number[] = [];
+    q.runSteps("kits", { steps: [e.work(1, now, 1), e.work(1, now, 2)], done: e.work(0, now, 3) });
+    expect(now).toEqual([1, 2, 3]);
+    q.note(9);
+    const log: number[] = [];
+    const cancelled = vi.fn();
+    const first = {
+      steps: Array.from({ length: 6 }, (_, i) => e.work(3, log, i)),
+      done: vi.fn(),
+      cancel: cancelled,
+    };
+    q.runSteps("kits", first);
+    e.step(); // 3 of 6 steps
+    q.runSteps("kits", { steps: [e.work(1, log, 10)], done: e.work(0, log, 11) });
+    expect(cancelled).toHaveBeenCalledTimes(1);
+    while (e.pending() > 0) e.step();
+    expect(first.done).not.toHaveBeenCalled();
+    expect(log).toEqual([0, 1, 2, 10, 11]);
+  });
+
   it("is one queue per owner", () => {
     const owner = {};
     expect(mergeQueueOf(owner)).toBe(mergeQueueOf(owner));

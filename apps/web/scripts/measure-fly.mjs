@@ -214,7 +214,9 @@ try {
           over16: l.filter((e) => e.d > 16).length,
         };
       }
-      const stream = ms.filter((e) => e.n.startsWith("tl:stream-"));
+      // The gate: every main-thread streaming task during the fly (ruling P5-15: the load-time
+      // tl:stream-init and the cold first merge happen before this window and are not gated).
+      const stream = ms.filter((e) => e.n.startsWith("tl:stream-") && e.n !== "tl:stream-init");
       // The worst streaming tasks, each with the measures nested in it (what it spent its time on).
       const worst = [...stream]
         .sort((a, b) => b.d - a.d)
@@ -232,6 +234,8 @@ try {
         streamMax: mx(stream),
         worstStream: worst,
         pass16: mx(stream) <= 16,
+        passScope:
+          "max of tl:stream-* measures recorded during the 3 fly loops (after the first settle at hero-mid); load-time tl:stream-init and the cold first merge are outside the gate (ruling P5-15)",
         planP95: p95(plans),
         planMax: mx(plans),
         maxFrameWithStream: Math.max(
@@ -254,6 +258,9 @@ try {
     );
     results.push({ at: "stats", stats, beforeFlyWorst: loads, errors });
     console.log(JSON.stringify(stats), errors.length);
+    console.log(
+      `fly gate (${stats.passScope}): max ${stats.streamMax.toFixed(1)} ms -> ${stats.pass16 ? "PASS" : "FAIL"} (<= 16 ms)`,
+    );
     save();
     await context.close();
   }

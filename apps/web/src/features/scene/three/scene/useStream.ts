@@ -5,6 +5,7 @@ import type { RoofInput } from "../assets/plan";
 import type { Engine } from "../engine";
 import type { FacadeBuilding } from "../facade/facadeLayer";
 import type { LocalFrame } from "../frame";
+import { warmSignFont } from "../signs/signLayer";
 import { createPlanClient, type PlanClient } from "../stream/planClient";
 import {
   type ActiveTile,
@@ -28,6 +29,17 @@ import type { LoadedAssets } from "./useCityAssets";
 import type { LayerData } from "./useGround";
 
 const NONE: ActiveTile[] = [];
+
+/** The texts of the layer's signage (the sign planner drops signs without one). */
+function signTexts(buildings: BuildingsLayer | null | undefined): string[] {
+  const feats = (
+    buildings?.signage as { features?: { properties?: { text?: unknown } }[] } | undefined
+  )?.features;
+  const out: string[] = [];
+  for (const f of feats ?? [])
+    if (typeof f.properties?.text === "string") out.push(f.properties.text);
+  return out;
+}
 /** The engine behind a `mergeStart` ref (so `useMergeMeasure` can reach the scene's merge queue). */
 const mergeOwners = new WeakMap<object, Engine>();
 /** User Timing name of one streamer update on the LOD tick (apply a result, rebuild the active list). */
@@ -162,6 +174,9 @@ export function useStream({
         client = createPlanClient(inputs, { worker: planWorkerRef.current });
         clientRef.current = client;
         if (client.mode === "main") warmPlanners(inputs);
+        // The sign font too (browser only: the Worker path): a cold glyph would stall a sign rebuild.
+        const texts = signTexts(inputs.buildings);
+        if (texts.length > 0) warmSignFont(texts);
       } else warmPlanners(inputs);
       setWarm(inputs);
     });

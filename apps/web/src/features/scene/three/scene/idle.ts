@@ -103,16 +103,28 @@ export function sliceWork(
   return drain(next, budgetMs, opts.env ?? frameEnv);
 }
 
+/** A layer rebuild in steps: `done` swaps the layer in after the last step; `cancel` drops it. */
+export interface SliceJob {
+  steps: ReadonlyArray<() => void>;
+  done: () => void;
+  cancel?: () => void;
+}
+
 /** Merged-layer rebuilds of one scene (see `mergeQueueOf`). */
 export interface MergeQueue {
   /** True once a measured merge or layer build took more than the budget: rebuilds are sliced. */
   readonly sliced: boolean;
   /**
    * Rebuilds the layer in `slot` with `build` (which builds and swaps the layer in): at once while
-   * the merges are cheap, else on a later frame within the slice budget, replacing any rebuild of
-   * that slot still waiting. Returns a cancel function (for the effect cleanup).
+   * the merges are cheap, else as one item on a later frame. Returns a cancel function.
    */
   run(slot: string, build: () => void): () => void;
+  /**
+   * Rebuilds the layer in `slot` from `job`'s steps: at once while the merges are cheap, else
+   * spread over frames (within the slice budget), `done` swapping it in when complete. A newer job
+   * for the slot replaces a waiting one (its `cancel` runs). Returns a cancel function.
+   */
+  runSteps(slot: string, job: SliceJob): () => void;
   /** A measured merge or build time: above the budget, later rebuilds are sliced. */
   note(ms: number): void;
 }
@@ -122,45 +134,68 @@ const queues = new WeakMap<object, MergeQueue>();
 /**
  * The scene's merge queue (one per engine): the streamed layers' rebuilds (roads, ground decor,
  * kits, lamp pools, signs) after a published `active` list. The first measured run above
- * `budgetMs` (in practice the cold first merge) switches the session to sliced rebuilds: each
- * layer's rebuild becomes one item drained by `drain`, at most `budgetMs` (plus one item) a frame,
- * and each layer swaps in when its own build completes (the old one stays drawn until then).
+ * `budgetMs` (in practice the cold first merge) switches the session to sliced rebuilds: a layer's
+ * rebuild becomes its steps (kits: one key each; signs: a few signs each), drained at most
+ * `budgetMs` (plus one step) a frame, and the layer swaps in when its last step completes (the old
+ * one stays drawn until then).
  */
 export function mergeQueueOf(owner: object, budgetMs = 8, env: FrameEnv = frameEnv): MergeQueue {
   let q = queues.get(owner);
   if (q) return q;
   let sliced = false;
-  const pending = new Map<string, () => void>();
-  let stop: (() => void) | null = null;
-  const next = () => {
+  interface Live extends SliceJob {
+    i: number;
+  }
+  const pending = new Map<string, Live>();
+  let draining = false;
+  const next = (): (() => void) | undefined => {
     const first = pending.entries().next();
     if (first.done) return undefined;
-    pending.delete(first.value[0]);
-    return first.value[1];
+    const [slot, job] = first.value;
+    if (job.i < job.steps.length) {
+      const step = job.steps[job.i++] as () => void;
+      return step;
+    }
+    pending.delete(slot);
+    return job.done;
+  };
+  const note = (ms: number) => {
+    if (ms > budgetMs) sliced = true;
+  };
+  const runSteps = (slot: string, job: SliceJob) => {
+    if (!sliced) {
+      const t0 = env.now();
+      for (const step of job.steps) step();
+      job.done();
+      note(env.now() - t0);
+      return () => {};
+    }
+    const old = pending.get(slot);
+    if (old) {
+      pending.delete(slot);
+      old.cancel?.();
+    }
+    const live: Live = { ...job, i: 0 };
+    pending.set(slot, live);
+    if (!draining) {
+      draining = true;
+      drain(next, budgetMs, env, () => {
+        draining = false;
+      });
+    }
+    return () => {
+      if (pending.get(slot) !== live) return;
+      pending.delete(slot);
+      live.cancel?.();
+    };
   };
   q = {
     get sliced() {
       return sliced;
     },
-    note(ms) {
-      if (ms > budgetMs) sliced = true;
-    },
-    run(slot, build) {
-      if (!sliced) {
-        const t0 = env.now();
-        build();
-        q?.note(env.now() - t0);
-        return () => {};
-      }
-      pending.delete(slot);
-      pending.set(slot, build);
-      stop ??= drain(next, budgetMs, env, () => {
-        stop = null;
-      });
-      return () => {
-        if (pending.get(slot) === build) pending.delete(slot);
-      };
-    },
+    note,
+    runSteps,
+    run: (slot, build) => runSteps(slot, { steps: [], done: build }),
   };
   queues.set(owner, q);
   return q;

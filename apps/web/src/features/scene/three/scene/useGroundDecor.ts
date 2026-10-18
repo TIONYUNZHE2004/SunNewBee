@@ -3,7 +3,7 @@ import type { Tier } from "../../shared/quality";
 import type { Engine } from "../engine";
 import { createGroundDecorLayer, type GroundDecorParts } from "../ground/groundDecor";
 import type { Site } from "../props/construction";
-import { type ActiveTile, timed } from "../stream/streamer";
+import { type ActiveTile, timed, UNION_MEASURE } from "../stream/streamer";
 import { mergeQueueOf } from "./idle";
 
 /** The engine decor slot holding the streamed ground decor (verges + construction ground, one mesh). */
@@ -60,7 +60,10 @@ export function useGroundDecor({
   active: ActiveTile[];
   tier: Tier;
 }) {
-  const fresh = useMemo(() => groundDecorPartsOf(active, tier), [active, tier]);
+  const fresh = useMemo(
+    () => timed(UNION_MEASURE, () => groundDecorPartsOf(active, tier)),
+    [active, tier],
+  );
   const kept = useRef<Parts | null>(null);
   if (!sameParts(kept.current, fresh)) kept.current = fresh;
   const parts = kept.current;

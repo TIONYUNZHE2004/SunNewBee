@@ -4,7 +4,7 @@ import type { BuildingsLayer } from "../../../../lib/api";
 import { parseManifest } from "../assets/manifest";
 import type { FacadeBuilding } from "../facade/facadeLayer";
 import { createFrame } from "../frame";
-import { createPlanClient, Superseded } from "./planClient";
+import { createPlanClient, REPLY_MEASURE, Superseded } from "./planClient";
 import type { TileContent } from "./streamer";
 import {
   bucketFacades,
@@ -19,6 +19,23 @@ import {
   toWire,
 } from "./tilePlan";
 import { tileAt } from "./tiles";
+
+// Spies on the main thread's warm-up and plans (the real planners underneath).
+const order = vi.hoisted(() => [] as string[]);
+vi.mock("./tilePlan", async (orig) => {
+  const mod = await orig<typeof import("./tilePlan")>();
+  return {
+    ...mod,
+    warmPlanners: (...a: Parameters<typeof mod.warmPlanners>) => {
+      order.push("warm");
+      return mod.warmPlanners(...a);
+    },
+    planTile: (...a: Parameters<typeof mod.planTile>) => {
+      order.push(`plan ${a[1].key}`);
+      return mod.planTile(...a);
+    },
+  };
+});
 
 const manifest = parseManifest(
   JSON.parse(
@@ -192,19 +209,50 @@ describe("createPlanClient (Worker protocol)", () => {
     expect(got).toHaveBeenCalledTimes(1);
   });
 
-  it("a Worker error switches the session to main and the pending tile completes there", async () => {
+  it("a Worker error switches the session to main, warms the main planners first, then completes the pending tile", async () => {
     vi.spyOn(console, "warn").mockImplementation(() => {});
     const { w, make } = fake();
     const c = createPlanClient(inputs, { worker: make });
     const p = c.plan(t00, 0, "medium");
+    order.length = 0;
     w.fail();
     expect(c.mode).toBe("main");
     expect(w.terminated).toBe(true);
-    const content = await p;
-    expect(content).toEqual(planTile(inputs, t00, 0, "medium"));
-    // Later plans stay on the main thread.
-    await expect(c.plan(t10, 0, "medium")).resolves.toBeDefined();
+    // Not planned in the error task: the cold planners are warmed in an idle callback first.
+    expect(order).toEqual([]);
+    // A newer request while warming supersedes the pending one.
+    const p2 = c.plan(t10, 0, "medium");
+    await expect(p).rejects.toBeInstanceOf(Superseded);
+    const content = await p2;
+    expect(order).toEqual(["warm", "plan 1,0"]);
+    expect(content).toEqual(planTile(inputs, t10, 0, "medium"));
+    // Later plans run on the main thread at once.
+    order.length = 0;
+    await expect(c.plan(t00, 0, "medium")).resolves.toBeDefined();
+    expect(order).toEqual(["plan 0,0"]);
     expect(w.plans()).toHaveLength(1);
+  });
+
+  it("an unreadable reply (messageerror) also falls back to the main thread", async () => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    const { w, make } = fake();
+    const c = createPlanClient(inputs, { worker: make });
+    const p = c.plan(t00, 0, "medium");
+    (w as unknown as { onmessageerror: (e: Event) => void }).onmessageerror(
+      new Event("messageerror"),
+    );
+    expect(c.mode).toBe("main");
+    await expect(p).resolves.toEqual(planTile(inputs, t00, 0, "medium"));
+  });
+
+  it("times each reply's handling on the main thread as tl:stream-reply", async () => {
+    performance.clearMeasures(REPLY_MEASURE);
+    const { w, make } = fake();
+    const c = createPlanClient(inputs, { worker: make });
+    const p = c.plan(t00, 0, "medium");
+    w.answer();
+    await p;
+    expect(performance.getEntriesByName(REPLY_MEASURE)).toHaveLength(1);
   });
 
   it("main mode without Worker, or when construction throws", async () => {

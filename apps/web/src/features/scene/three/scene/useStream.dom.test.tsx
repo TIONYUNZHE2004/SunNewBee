@@ -64,6 +64,9 @@ function fakeWorker() {
   const w = {
     plans: [] as { key: string; ring: number; tier: string }[],
     inits: 0,
+    /** Plans posted and not yet answered, and the most ever at once. */
+    open: 0,
+    maxOpen: 0,
     onmessage: null as ((e: MessageEvent) => void) | null,
     onerror: null as ((e: Event) => void) | null,
     postMessage(m: { type: string; key: string; ring: number; tier: string; seq: number }) {
@@ -72,7 +75,10 @@ function fakeWorker() {
         return;
       }
       w.plans.push({ key: m.key, ring: m.ring, tier: m.tier });
-      setTimeout(() =>
+      w.open++;
+      w.maxOpen = Math.max(w.maxOpen, w.open);
+      setTimeout(() => {
+        w.open--;
         w.onmessage?.({
           data: {
             seq: m.seq,
@@ -86,8 +92,8 @@ function fakeWorker() {
               facades: false,
             },
           },
-        } as MessageEvent),
-      );
+        } as MessageEvent);
+      });
     },
     terminate() {},
   };
@@ -223,6 +229,7 @@ describe("useStream", () => {
     expect(result.current.active).toHaveLength(9);
     expect(result.current.active[0]?.key).toBe("0,0");
     expect(w.plans.length).toBe(9);
+    expect(w.maxOpen).toBe(1);
     expect(spy.warms).toBe(0);
     expect(spy.plans).toHaveLength(0);
   });

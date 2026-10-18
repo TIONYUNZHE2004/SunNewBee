@@ -1,6 +1,7 @@
 import type { Tier } from "../../shared/quality";
 import type { TileRoofs } from "../facade/roofLayer";
-import { measure, PLAN_MEASURE, type Ring, type TileContent } from "./streamer";
+import { whenIdle } from "../scene/idle";
+import { measure, PLAN_MEASURE, type Ring, type TileContent, timed } from "./streamer";
 import {
   NO_FACADES,
   NO_ROOFS,
@@ -10,6 +11,7 @@ import {
   type TileInputs,
   toWire,
   type WireContent,
+  warmPlanners,
 } from "./tilePlan";
 import type { Tile, TileKey } from "./tiles";
 
@@ -34,6 +36,8 @@ export class Superseded extends Error {
 
 /** User Timing name of the Worker's plan time (not a main-thread task: no `tl:stream-` prefix). */
 export const WORKER_PLAN_MEASURE = "tl:worker-plan";
+/** User Timing name of handling one Worker reply on the main thread (decode and unpack). */
+export const REPLY_MEASURE = "tl:stream-reply";
 /** User Timing name of the one-off `init` post (the inputs' structured clone, at world load). */
 export const INIT_MEASURE = "tl:stream-init";
 
@@ -104,6 +108,9 @@ export function createPlanClient(
   /** The newest request, waiting for the in-flight one's reply (it supersedes it). */
   let queued: Req | null = null;
   const roofsByKey = new Map<TileKey, TileRoofs>();
+  /** After a Worker failure: the main thread's planners are being warmed (plans wait in `queued`). */
+  let warming = false;
+  let cancelWarm: (() => void) | null = null;
 
   const planMain = (r: Req) => {
     try {
@@ -130,37 +137,70 @@ export function createPlanClient(
     if (!worker) return;
     worker.onmessage = null;
     worker.onerror = null;
+    worker.onmessageerror = null;
     worker.terminate();
     worker = null;
   };
+  /**
+   * The Worker failed: plan on the main thread for the rest of the session. Its planners are cold
+   * (the Worker warmed its own), so they are warmed first in an idle callback, outside any streamed
+   * frame; then the pending tile (the newest live request) is planned there.
+   */
   const toMain = () => {
+    if (mode === "main") return;
     stopWorker();
     mode = "main";
-    // The pending tile completes on the main thread: the newest live request.
-    const r = queued ?? (inflight && !inflight.superseded ? inflight : null);
+    queued ??= inflight && !inflight.superseded ? inflight : null;
     inflight = null;
-    queued = null;
-    if (r && !disposed) planMain(r);
+    warming = true;
+    cancelWarm = whenIdle(() => {
+      cancelWarm = null;
+      if (disposed) return;
+      warmPlanners(inputs);
+      warming = false;
+      const r = queued;
+      queued = null;
+      if (r) planMain(r);
+    });
   };
 
   if (worker) {
     const w = worker;
+    // One reply on the main thread, timed as `tl:stream-reply`: reading `e.data` decodes the
+    // structured clone (lazily, here), then the content is unpacked.
     w.onmessage = (e: MessageEvent<PlanReply>) => {
-      const reply = e.data;
-      const r = inflight;
-      if (!r || reply.seq !== r.seq) return;
-      inflight = null;
-      if (!r.superseded) {
-        if ("error" in reply) r.reject(new Error(reply.error));
-        else {
-          const t0 = performance.now();
-          performance.measure?.(WORKER_PLAN_MEASURE, { start: t0 - reply.ms, end: t0 });
-          r.resolve(unpackContent(reply.content, r.tile.key, inputs, roofsByKey));
+      const t0 = performance.now();
+      const planMs = timed(REPLY_MEASURE, () => {
+        const reply = e.data;
+        const r = inflight;
+        if (!r || reply.seq !== r.seq) return null;
+        inflight = null;
+        let ms: number | null = null;
+        if (!r.superseded) {
+          if ("error" in reply) r.reject(new Error(reply.error));
+          else {
+            ms = reply.ms;
+            r.resolve(unpackContent(reply.content, r.tile.key, inputs, roofsByKey));
+          }
+        }
+        const next = queued;
+        queued = null;
+        if (next && !disposed) post(next);
+        return ms;
+      });
+      // The Worker's own plan time, for the fly report (outside the reply's main-thread measure).
+      if (planMs !== null) {
+        try {
+          performance.measure?.(WORKER_PLAN_MEASURE, { start: t0 - planMs, end: t0 });
+        } catch {
+          /* User Timing unavailable */
         }
       }
-      const next = queued;
-      queued = null;
-      if (next && !disposed) post(next);
+    };
+    // A reply that cannot be decoded: like a Worker error.
+    w.onmessageerror = () => {
+      console.warn("city: plan worker reply unreadable; planning on the main thread");
+      toMain();
     };
     w.onerror = (e: Event) => {
       e.preventDefault?.();
@@ -187,13 +227,18 @@ export function createPlanClient(
       if (disposed) return Promise.reject(new Superseded("disposed"));
       return new Promise<TileContent>((resolve, reject) => {
         const r: Req = { seq: ++seq, tile, ring, tier, resolve, reject, superseded: false };
-        if (mode === "main") {
+        if (mode === "main" && !warming) {
           planMain(r);
           return;
         }
         if (queued) {
           queued.superseded = true;
           queued.reject(new Superseded());
+        }
+        if (mode === "main") {
+          // Warming after a Worker failure: the newest request waits for the warm planners.
+          queued = r;
+          return;
         }
         if (inflight) {
           if (!inflight.superseded) {
@@ -209,6 +254,8 @@ export function createPlanClient(
     dispose() {
       if (disposed) return;
       disposed = true;
+      cancelWarm?.();
+      cancelWarm = null;
       stopWorker();
       for (const r of [inflight, queued]) {
         if (r && !r.superseded) {
