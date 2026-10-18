@@ -46,6 +46,18 @@ what-if, rollout and day-assistant turns. This setting does not gate staff REST 
 `validate.py` and `draft.py` are unchanged by T-011; the deterministic refusal is a
 `cannot_answer` with no unsupported factual content and passes the existing validator.
 
+**Fact binding (T-001, `facts.py`).** Every number an answer states must match a tool value of the
+same kind (length, width, stage, time, slope, steps, count), with rounding only under "about". A
+fact is also bound to what it is about: a count of a noun ("two toilets") must match a count of
+that thing this turn (distinct rows of that category, a route's `crossings`, "2 road crossings"
+in tool text), and a length or time whose clause names place categories ("the toilet is 440.6 m
+from the mall") must match a value tagged with all of them (routes are tagged with both
+endpoints' types and names in `call_tool`, amenity rows with the amenity and its origin, centre
+rows as centres). Place names are replaced by their category words before the check, so a name
+cannot hide the subject. A feature ("baby changing room", "lift") is hedged only by a negation in
+its own clause or after it ("No steps, so the toilet has a changing room" is rejected). Chinese
+counts read only the classifiers 个间张处级座条部 ("两段…的台阶" counts segments, not steps).
+
 ## Architecture
 
 ```

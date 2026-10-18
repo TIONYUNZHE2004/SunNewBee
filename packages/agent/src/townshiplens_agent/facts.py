@@ -17,8 +17,17 @@ it is. A coarser round number (nearest 5, 10, 50 or 100, within 15 %) needs appr
 ("about", "kira-kira", "约"), and "under" / "over" must point the right way. "exactly" allows no
 rounding. Number words ("two minutes", "dua minit", "两分钟") are read like digits.
 
+Subjects (T-001 follow-up): a fact is also bound to what it is about. A count of a noun ("two
+toilets", "3 road crossings") must match a count of that same thing (a list of toilet results,
+a route's crossings, "2 road crossings" in tool text); a list of anything else is not a count of
+toilets. A length or time whose clause names places ("the toilet is 440.6 m from the mall")
+must match a value tagged with every category named there: a route is tagged with its two
+endpoints' types and names, an amenity result with its own type and its origin, a centre row as
+a centre. Clauses that name no category keep the plain kind rule.
+
 Features without a number ("a baby changing room", "a lift", "open 24 hours", "handrails") pass
-only when evidence this turn records them positively, unless the sentence is negated or hedged.
+only when evidence this turn records them positively, unless the feature's own clause is negated
+or hedged ("No steps, so the toilet has a changing room" states a changing room).
 """
 
 import math
@@ -104,17 +113,73 @@ _ZH_PERCENT = re.compile(rf"百分之({_ZH_NUM}|{_NUM})")
 
 _STEP_NOUN = r"steps?|stairs?|anak tangga|tangga|台阶|阶梯|楼梯|级台阶"
 _COUNT_NOUN = (
-    r"toilets?|restrooms?|washrooms?|benches?|seats?|crossings?|ramps?|lifts?|elevators?"
+    r"toilets?|restrooms?|washrooms?|bench(?:es)?|seats?|crossings?|ramps?|lifts?|elevators?"
     r"|entrances?|shelters?|kerbs?|curbs?|tandas|bangku|tempat duduk|lintasan|tanjakan|lif"
     r"|pintu masuk|厕所|洗手间|长椅|座位|过街|斑马线|坡道|电梯|入口"
 )
 _COUNTED = re.compile(
     rf"(?<![A-Za-z0-9_.,/])({_NUM}|{_WORD_ALT}|{_ZH_NUM})\s?(?:个|间|张|处|级|座|条|部)?"
-    rf"(?:\s?[^\d\s.,;:!?。，；]{{1,14}}){{0,2}}?\s?({_STEP_NOUN}|{_COUNT_NOUN})(?![A-Za-z])",
+    rf"(?:\s?[^\d\s.,;:!?。，；？！：、（）()]{{1,14}}){{0,2}}?\s?({_STEP_NOUN}|{_COUNT_NOUN})"
+    r"(?![A-Za-z])",
     re.IGNORECASE,
 )
 
 _CLAUSE_END = re.compile(r"[.;:!?。；：！？\n]|,\s")
+_CJK = re.compile(r"[\u3400-\u9fff]")
+_ZH_CLASSIFIERS = set("个间张处级座条部")  # the measure words a counted noun may take
+
+# What a fact can be about. Canonical words (the first of each) re-match their own pattern, so a
+# place name can be replaced by its categories before checking (validate._names_to_categories).
+CATEGORIES: tuple[tuple[str, str, re.Pattern[str]], ...] = tuple(
+    (cat, word, re.compile(rf"(?<![A-Za-z])(?:{pat})(?![A-Za-z])", re.IGNORECASE))
+    for cat, word, pat in (
+        ("toilet", "toilet", r"toilets?|restrooms?|washrooms?|tandas|厕所|洗手间|卫生间"),
+        ("bench", "bench", r"bench(?:es)?|seats?|bangku|tempat duduk|长椅|座椅|座位"),
+        ("crossing", "crossing", r"crossings?|lintasan|过街|斑马线|人行横道"),
+        ("ramp", "ramp", r"ramps?|tanjakan|坡道"),
+        ("lift", "lift", r"lifts?|elevators?|lif|电梯"),
+        ("entrance", "entrance", r"entrances?|pintu masuk|入口"),
+        ("shelter", "shelter", r"shelters?|teduhan|避雨处"),
+        ("playground", "playground", r"playgrounds?|taman permainan|游乐场|儿童乐园"),
+        ("parking", "parking", r"car ?parks?|parking|tempat letak kereta|停车场"),
+        ("mall", "mall", r"malls?|pusat beli-belah|商场"),
+        ("kiosk", "kiosk", r"kiosks?|小卖部|报亭"),
+        ("clinic", "clinic", r"clinics?|klinik|诊所"),
+        (
+            "worship",
+            "surau",
+            r"surau|mosques?|masjid|churche?s?|temples?|place of worship|清真寺|祈祷室|教堂|寺庙",
+        ),
+        ("school", "school", r"schools?|sekolah|学校"),
+        (
+            "centre",
+            "evacuation centre",
+            r"evacuation cent(?:re|er)s?|relief cent(?:re|er)s?|pps|pusat pemindahan"
+            r"|疏散中心|避难所|安置中心|疏散点",
+        ),
+    )
+)
+
+
+def categories(text: str) -> set[str]:
+    """The place categories a text names ("the toilet near Car Park B" -> toilet, parking)."""
+    text = (text or "").replace("_", " ")
+    return {cat for cat, _, pat in CATEGORIES if pat.search(text)}
+
+
+def category_words(text: str) -> str:
+    """A name replaced by the canonical words of its categories ("Urban Park toilet" ->
+    "toilet"), so stripping a name keeps what it is."""
+    words = [w for cat, w, pat in CATEGORIES if pat.search((text or "").replace("_", " "))]
+    return " " + " ".join(words) + " "
+
+
+def _clause(text: str, start: int, end: int) -> str:
+    before = _CLAUSE_END.split(text[:start])[-1]
+    after = _CLAUSE_END.split(text[end:], maxsplit=1)[0]
+    return before + text[start:end] + after
+
+
 _WIDTH_CTX = re.compile(r"\bwide\b|\bwidth\b|\blebar\b|宽", re.IGNORECASE)
 _STAGE_CTX = re.compile(
     r"\briver\b|\bstage\b|\brises?\b|\brising\b|\bsungai\b|\bnaik\b|\bparas\b|河|水位|上涨|上升",
@@ -126,6 +191,9 @@ _APPROX = re.compile(
     r"|~|\bkira-kira|\blebih kurang|\bsekitar|\bhampir|\bkurang (?:daripada|dari)"
     r"|\blebih (?:daripada|dari)|约|大约|大概|将近|差不多|不到|超过|接近)\W{0,3}$",
     re.IGNORECASE,
+)
+_LIMIT = re.compile(
+    r"(?:\blimit|\bhad|\bmaximum|\bmax\.?|\bat most|上限|最大|限制|限值)\W{0,3}$", re.IGNORECASE
 )
 _APPROX_AFTER = re.compile(r"^\s?(?:左右|多|or so|ish)", re.IGNORECASE)
 _DOWN = re.compile(
@@ -148,6 +216,9 @@ class Fact:
     approx: bool = False
     exact: bool = False
     direction: str = ""  # "down" (under), "up" (over) or ""
+    noun: str = ""  # counts: the category counted ("toilet"), "" for an uncategorised noun
+    limit: bool = False  # a profile limit ("limit 8.3%", "had 100 m"), not a recorded value
+    subjects: frozenset[str] = frozenset()  # lengths/times: categories named in the clause
 
 
 def _context(text: str, start: int, end: int) -> tuple[bool, bool, str]:
@@ -182,8 +253,24 @@ def extract_facts(text: str) -> list[Fact]:
         else:
             kind = {"min": "time", "pct": "slope"}[base]
         approx, exact, direction = _context(text, m.start(), m.end())
+        subjects = (
+            frozenset(categories(_clause(text, m.start(), m.end())))
+            if kind in ("length", "time")
+            else frozenset()
+        )
         facts.append(
-            Fact(kind, n * factor, n, factor, m.group(0).strip(), approx, exact, direction)
+            Fact(
+                kind,
+                n * factor,
+                n,
+                factor,
+                m.group(0).strip(),
+                approx,
+                exact,
+                direction,
+                subjects=subjects,
+                limit=bool(_LIMIT.search(text[max(0, m.start() - 14) : m.start()])),
+            )
         )
         taken.append(m.span())
     for m in _ZH_PERCENT.finditer(text):
@@ -195,12 +282,23 @@ def extract_facts(text: str) -> list[Fact]:
     for m in _COUNTED.finditer(text):
         if any(a <= m.start(1) < b for a, b in taken):
             continue  # "6 minutes" is a time, not a count
+        filler = m.group(0)[len(m.group(1)) : m.start(2) - m.start(0)]
+        if len(_CJK.findall(filler)) > 5:
+            continue  # "一个游乐场的路线、台阶": too far apart to be "1 step" (live T-017 q10)
+        nxt = text[m.end(1) : m.end(1) + 1]
+        if (
+            _CJK.match(nxt)
+            and nxt not in _ZH_CLASSIFIERS
+            and not m.group(0)[len(m.group(1)) :].lstrip().startswith(m.group(2))
+        ):
+            continue  # "两段…的台阶": the number counts segments (段), not steps
         n = _value(m.group(1))
         if n is None or n != int(n):
             continue
         kind = "steps" if re.fullmatch(_STEP_NOUN, m.group(2), re.IGNORECASE) else "count"
         approx, exact, direction = _context(text, m.start(), m.end())
-        facts.append(Fact(kind, n, n, 1.0, m.group(0).strip(), approx, exact, direction))
+        noun = next(iter(sorted(categories(m.group(2)))), "") if kind == "count" else ""
+        facts.append(Fact(kind, n, n, 1.0, m.group(0).strip(), approx, exact, direction, noun=noun))
     return facts
 
 
@@ -229,17 +327,39 @@ def kind_of_key(key: str) -> str | None:
     return None
 
 
-def tool_values(payload) -> dict[str, set[float]]:
+_LABEL_KEYS = ("type", "kind", "amenity", "category", "name", "label", "element_label")
+
+
+def tool_values(payload, resolve=None, subject: set[str] | None = None) -> dict[str, set[float]]:
     """Typed values a tool result shows: numeric fields by key, evidence values by attribute,
     list lengths as counts, and the facts written inside readable strings ("about 110 m",
-    "River +3 m", "uses 2 road crossings"). Ids, keys and geometry are never read."""
+    "River +3 m", "uses 2 road crossings"). Ids, keys and geometry are never read.
+
+    Subject-tagged values ("length:toilet", "count:toilet") record what a value is about: the
+    categories of the dict it sits in (its type/name fields; a route's endpoints through
+    `resolve(place_id) -> categories`), with `subject` added for the rows of a top-level "data"
+    list (the amenity asked for and its origin)."""
     out: dict[str, set[float]] = {}
 
     def add(kind: str | None, v: float) -> None:
         if kind:
             out.setdefault(kind, set()).add(float(v))
 
-    def walk(x, key: str = "") -> None:
+    def cats_of(x: dict) -> set[str]:
+        cats: set[str] = set()
+        for k in _LABEL_KEYS:
+            v = x.get(k)
+            if isinstance(v, str) and not _ID_VALUE.match(v):
+                cats |= categories(v)
+        if isinstance(x.get("centre"), dict) or str(x.get("id", "")).startswith("evc-"):
+            cats.add("centre")
+        if resolve is not None:
+            for k in ("from_place", "to_place"):
+                if isinstance(x.get(k), str):
+                    cats |= resolve(x[k])
+        return cats
+
+    def walk(x, key: str = "", extra: frozenset[str] = frozenset()) -> None:
         if key in _SKIP_KEYS or key in ("id", "ids") or key.endswith(("_id", "_ids")):
             return
         if isinstance(x, bool):
@@ -248,21 +368,48 @@ def tool_values(payload) -> dict[str, set[float]]:
             add(kind_of_key(key), x)
         elif isinstance(x, str):
             if not _ID_VALUE.match(x):
+                named = categories(x)
                 for f in extract_facts(x):
                     add(f.kind, f.value)
+                    if f.kind == "count" and f.noun:
+                        add(f"count:{f.noun}", f.value)
+                    if f.kind in ("length", "time"):
+                        for c in named:
+                            add(f"{f.kind}:{c}", f.value)
         elif isinstance(x, dict):
             attr, val = x.get("attribute"), x.get("value")
             if isinstance(attr, str) and isinstance(val, int | float) and not isinstance(val, bool):
                 add(kind_of_key(attr), val)
+            cats = cats_of(x) | extra
             for k, v in x.items():
                 if k != "value" or not isinstance(attr, str):
                     walk(v, str(k))
+                kind = kind_of_key(str(k))
+                if kind in ("length", "time") and isinstance(v, int | float | bool):
+                    for c in cats if not isinstance(v, bool) else ():
+                        add(f"{kind}:{c}", v)
         elif isinstance(x, list):
             add("count", len(x))
+            for c in categories(key):  # "crossings": [...] counts crossings
+                add(f"count:{c}", len(x))
+            # Distinct things per category: a route's unknowns list one row per attribute, so
+            # three unchecked facts on one ramp are still "one ramp".
+            things: dict[str, set] = {}
+            for i, v in enumerate(x):
+                if isinstance(v, dict):
+                    ident = v.get("element_id") or v.get("id") or i
+                    for c in cats_of(v) | extra:
+                        things.setdefault(c, set()).add(str(ident))
+            for c, ids in things.items():
+                add(f"count:{c}", len(ids))
             for v in x:
-                walk(v, key)
+                walk(v, key, extra)
 
-    walk(payload)
+    if subject and isinstance(payload, dict):
+        walk({k: v for k, v in payload.items() if k != "data"})
+        walk(payload.get("data"), "data", frozenset(subject))
+    else:
+        walk(payload)
     return out
 
 
@@ -287,22 +434,37 @@ def _matches(f: Fact, v: float) -> bool:
     whole = abs(x - round(shown_v)) < 1e-9 or x in (math.floor(shown_v), math.ceil(shown_v))
     if whole and near:
         return f.kind not in ("steps", "count")  # counts are whole: 3 is never 2.6
-    if not f.approx or not near:
-        return False
     if f.direction == "down" and x < shown_v or f.direction == "up" and x > shown_v:
         return False
+    # "about 2 minutes" for 1.7 min: the nearest whole number, with "about" (live check T-001)
+    nearest = x == math.floor(shown_v + 0.5) and shown_v >= 1
+    if f.approx and nearest and f.kind not in ("steps", "count"):
+        return True
+    if not f.approx or not near:
+        return False
     return any(abs(x / s - round(x / s)) < 1e-9 for s in (5, 10, 50, 100) if s < abs(shown_v))
+
+
+def _candidates(f: Fact, values: dict[str, set[float]]) -> set[float]:
+    """The tool values a fact may match: counts of the same noun; lengths and times tagged with
+    every category its clause names; otherwise every value of its kind."""
+    if f.kind == "count" and f.noun:
+        return values.get(f"count:{f.noun}", set())
+    if f.kind in ("length", "time") and f.subjects:
+        tagged = [values.get(f"{f.kind}:{c}", set()) for c in sorted(f.subjects)]
+        return set.intersection(*tagged)
+    return values.get(f.kind, set())
 
 
 def unsupported(
     text: str, values: dict[str, set[float]], skip: set[str] | frozenset[str] = frozenset()
 ) -> list[str]:
-    """Raw phrases of facts in the text that no tool value of the same kind supports (kinds in
-    `skip` are checked elsewhere)."""
+    """Raw phrases of facts in the text that no tool value of the same kind (and subject)
+    supports (kinds in `skip` are checked elsewhere)."""
     return [
         f.raw
         for f in extract_facts(text)
-        if f.kind not in skip and not any(_matches(f, v) for v in values.get(f.kind, ()))
+        if f.kind not in skip and not any(_matches(f, v) for v in _candidates(f, values))
     ]
 
 
@@ -368,16 +530,33 @@ FEATURES: tuple[tuple[str, re.Pattern[str], frozenset[str], object], ...] = (
 )
 
 
+# Clause breaks for feature hedges: commas and joining words ("No steps, so ...", "没有台阶，所以").
+_FEATURE_CLAUSE = re.compile(
+    r"[,，、]|\b(?:so|and|but|therefore|thus|hence|because|then|jadi|maka|dan|tetapi|tapi"
+    r"|kerana|sebab)\b|所以|因此|但是|而且|并且|因为|于是",
+    re.IGNORECASE,
+)
+
+
+def _hedged(sentence: str, start: int) -> bool:
+    """A hedge governs a feature when it stands in the feature's own clause, before it, or
+    anywhere after it in the sentence ("There is a lift, but it is not checked yet")."""
+    own = _FEATURE_CLAUSE.split(sentence[:start])[-1]
+    return bool(_HEDGE.search(own) or _HEDGE.search(sentence[start:]))
+
+
 def unsupported_features(text: str, evidence: list[tuple[str, object]]) -> list[str]:
     """Features a sentence states positively that no evidence this turn records positively.
-    `evidence` holds (attribute, value) pairs. Negated or hedged sentences ("no lift recorded",
-    "ask staff whether there is a changing room") state nothing and pass."""
+    `evidence` holds (attribute, value) pairs. Hedged mentions ("no lift recorded", "ask staff
+    whether there is a changing room") state nothing and pass; a negation in another clause
+    ("No steps, so the toilet has a baby changing room") does not hedge the feature."""
     bad = []
     for sentence in _SENTENCE.split(text):
-        if not sentence or _HEDGE.search(sentence):
+        if not sentence:
             continue
         for label, pattern, attrs, test in FEATURES:
-            if not pattern.search(sentence):
+            mentions = [m for m in pattern.finditer(sentence) if not _hedged(sentence, m.start())]
+            if not mentions:
                 continue
             ok = any(
                 a in attrs and (test(v) if test else isinstance(v, str | bool) and v in _POSITIVE)
