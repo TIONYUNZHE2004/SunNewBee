@@ -29,6 +29,7 @@ import bpy
 from mathutils import Matrix
 
 from . import core
+from .specs import WATER_AUX  # noqa: F401  (re-exported for the builders)
 
 FACES = ("front", "back", "left", "right")
 KINDS = ("window", "door", "garage", "shopfront")
@@ -36,6 +37,10 @@ ROOFS = ("gable", "hip", "flat", "mono")
 
 FRAME_W = 0.06  # window and door frame bar width
 RECESS = (0.15, 0.12)  # reveal depth per LOD (LOD2 has no openings)
+PLINTH_H, PLINTH_D = 0.45, 0.05  # LOD0 plinth band at the wall base (role secondary)
+PANE_REVEAL = 0.15  # applied panes: depth from the surround face to the glass
+SURROUND_T = 0.1  # applied panes: width of the surround (head, jambs) round the dark band
+SLAT_H = 0.25  # roller-shutter slat height (LOD0 bands, metal and secondary in turn)
 EPS = 1e-6
 
 Vec = tuple[float, float, float]
@@ -215,10 +220,19 @@ class _Mesh:
                 c, e = v0 + (v1 - v0) * j / nv, v0 + (v1 - v0) * (j + 1) / nv
                 self.fquad(f, a, b, c, e, n)
 
-    def obj(self, name: str, role: str, aux: float = 0.0):
-        """The collected faces as one linked Blender object with `role` (None if empty)."""
+    def obj(self, name: str, role: str, aux=0.0):
+        """The collected faces as one linked Blender object with `role` (None if empty).
+
+        Glass counts towards the node's night lit share: `aux=SEED` draws a balanced window
+        seed (see `balanced_seed`); a fixed aux is tallied as lit (< 0.5) or unlit.
+        """
         if not self.faces:
             return None
+        loops = sum(len(f) for f in self.faces)  # the export keeps about one vertex per corner
+        if role == "glass" and aux is SEED:
+            aux = balanced_seed(loops)
+        elif role == "glass" and not callable(aux):
+            _tally(loops, float(aux))
         me = bpy.data.meshes.new(name)
         me.from_pydata([core.to_blender(*p) for p in self.verts], [], self.faces)
         me.update()
@@ -232,9 +246,42 @@ def _keep(*objs) -> list:
     return [o for o in objs if o is not None]
 
 
-def window_seed() -> float:
-    """A per-window aux value strictly inside (0, 1) (from the build's seeded `random`)."""
-    return 0.02 + 0.96 * random.random()
+# Night lit share. The role material lights a glass face when COLOR_0.b < uLitShare (0.6 by
+# default). Window seeds come in two bands, lit (LIT_SEEDS) and unlit (UNLIT_SEEDS), and every
+# glass part a node adds is weighed (by vertex count) so the node's lit share stays near
+# LIT_TARGET for any uLitShare between the bands.
+LIT_TARGET = 0.5
+LIT_SEEDS = (0.04, 0.32)
+UNLIT_SEEDS = (0.70, 0.96)
+UNLIT_AUX = 0.98  # glass that never lights: balustrades
+SEED = object()  # aux sentinel for `_Mesh.obj`: a balanced window seed
+_LIT = {"lit": 0.0, "total": 0.0}
+
+
+def reset_lit_balance() -> None:
+    """Start a new node's lit-share tally (called by `build` before every builder call)."""
+    _LIT["lit"] = _LIT["total"] = 0.0
+
+
+def balanced_seed(weight: float) -> float:
+    """A window seed for a glass part of `weight` vertices: lit when that keeps the node's lit
+    share closer to LIT_TARGET (ties broken by the seeded `random`)."""
+    lit, total = _LIT["lit"], _LIT["total"] + weight
+    on = abs((lit + weight) / total - LIT_TARGET)
+    off = abs(lit / total - LIT_TARGET)
+    light = on < off or (on == off and random.random() < 0.5)
+    _LIT["total"] = total
+    if light:
+        _LIT["lit"] = lit + weight
+        return random.uniform(*LIT_SEEDS)
+    return random.uniform(*UNLIT_SEEDS)
+
+
+def _tally(weight: float, aux: float) -> None:
+    """Count a glass part with a fixed aux (lit below 0.5) into the node's lit share."""
+    _LIT["total"] += weight
+    if aux < 0.5:
+        _LIT["lit"] += weight
 
 
 def place(objs: list, x: float = 0.0, y: float = 0.0, z: float = 0.0, rot_y_deg: float = 0.0):
@@ -279,11 +326,14 @@ def _wall_face(
     recess: float,
     cell: tuple[float, float] = (1.6, 1.2),
     covered: Sequence[tuple[float, float, float, float]] = (),
+    reveal: "_Mesh | None" = None,
 ) -> None:
-    """The face as a grid of quads around the holes, plus a reveal on each hole's sides.
+    """The face as a grid of quads around the holes, plus a reveal on each hole's sides
+    (into `reveal` when given, else into `mesh`).
 
     Cells inside a `covered` rect (u0, u1, v0, v1) are left out: an applied panel hides them.
     """
+    rv = mesh if reveal is None else reveal
     length = f.length
     edges = [*rects, *covered]
     us = _breaks(
@@ -304,17 +354,17 @@ def _wall_face(
     for u0, u1, v0, v1 in rects:
         n0, n1 = -recess, 0.0
         if v0 > EPS:  # sill side (a door at ground level has none)
-            mesh.face(
+            rv.face(
                 [f.p(u0, v0, n0), f.p(u1, v0, n0), f.p(u1, v0, n1), f.p(u0, v0, n1)],
                 (0.0, 1.0, 0.0),
             )
-        mesh.face(
+        rv.face(
             [f.p(u0, v1, n0), f.p(u1, v1, n0), f.p(u1, v1, n1), f.p(u0, v1, n1)], (0.0, -1.0, 0.0)
         )
-        mesh.face(
+        rv.face(
             [f.p(u0, v0, n0), f.p(u0, v1, n0), f.p(u0, v1, n1), f.p(u0, v0, n1)], f.vec(1, 0, 0)
         )
-        mesh.face(
+        rv.face(
             [f.p(u1, v0, n0), f.p(u1, v1, n0), f.p(u1, v1, n1), f.p(u1, v0, n1)], f.vec(-1, 0, 0)
         )
 
@@ -325,10 +375,31 @@ def _fill(o: Opening, lod: int, f: _Frame, recess: float) -> list:
     back = -recess
     tag = f"{o.kind}_{o.face}"
     pane, frame, sill = _Mesh(), _Mesh(), _Mesh()
+    if o.kind == "garage" and lod == 0:  # a closed roller shutter in a dark frame
+        return roller_shutter(f, u0, u1, v0, v1, back, tag) + _garage_frame(o, f, back, tag)
     # LOD0 panes are split into ~0.35 m cells and LOD1 into 2 × 2, so the AO bake has interior
     # vertices: a pane's four corners all sit in the reveal or frame crevice (AO near 0).
     cells = max(2, round(min(o.w, o.h) / 0.35)) if lod == 0 else 2
-    pane.fgrid(f, u0, u1, v0, v1, back, min(o.w, o.h) / cells)
+    lights: list[_Mesh] = []  # a LOD0 shopfront lights bay by bay (and its transom on its own)
+    if o.kind == "shopfront" and lod == 0:
+        nb = max(1, round(o.w / 1.5))
+        vt = v1 - 0.6 if o.h > 2.8 else v1
+        for k in range(nb):
+            for va, vb in ((v0, vt), (vt, v1)):
+                if vb - va > EPS:
+                    m = _Mesh()
+                    m.fgrid(
+                        f,
+                        u0 + o.w * k / nb,
+                        u0 + o.w * (k + 1) / nb,
+                        va,
+                        vb,
+                        back,
+                        min(o.w, o.h) / cells,
+                    )
+                    lights.append(m)
+    else:
+        pane.fgrid(f, u0, u1, v0, v1, back, min(o.w, o.h) / cells)
     fw, fd = FRAME_W, back + 0.07
     if lod == 0:  # frame bars drop the faces that lie against the pane or the reveal
         frame.fbox(f, u0, u1, v1 - fw, v1, back, fd, skip=("s0", "top", "s1", "s3"))  # head
@@ -358,13 +429,49 @@ def _fill(o: Opening, lod: int, f: _Frame, recess: float) -> list:
                 frame.fbox(f, u0 + fw, u1 - fw, tv, tv + fw, back, fd, skip=("s0", "s1", "s3"))
         if o.kind == "window" and v0 >= 0.3:  # no sill on full-height glazing
             sill.fbox(f, u0 - 0.08, u1 + 0.08, v0 - 0.06, v0, back, 0.1, skip=("s0",))
+    if lights:
+        return _keep(
+            *(m.obj(f"{tag}_glass", "glass", SEED) for m in lights),
+            frame.obj(f"{tag}_frame", "dark"),
+            sill.obj(f"{tag}_sill", "secondary"),
+        )
     if o.kind in ("window", "shopfront"):
-        glass = pane.obj(f"{tag}_glass", "glass", window_seed())
+        glass = pane.obj(f"{tag}_glass", "glass", SEED)
     elif o.kind == "door":
         glass = pane.obj(f"{tag}_leaf", "accent")
     else:
         glass = pane.obj(f"{tag}_shutter", "metal")
     return _keep(glass, frame.obj(f"{tag}_frame", "dark"), sill.obj(f"{tag}_sill", "secondary"))
+
+
+def _garage_frame(o: Opening, f: _Frame, back: float, tag: str) -> list:
+    """A garage's LOD0 dark frame: head and jambs (no bottom bar), like a door's."""
+    u0, u1, v0, v1 = o.rect
+    fw, fd = FRAME_W, back + 0.07
+    frame = _Mesh()
+    frame.fbox(f, u0, u1, v1 - fw, v1, back, fd, skip=("s0", "top", "s1", "s3"))
+    frame.fbox(f, u0, u0 + fw, v0, v1 - fw, back, fd, skip=("s0", "s3", "bottom", "top"))
+    frame.fbox(f, u1 - fw, u1, v0, v1 - fw, back, fd, skip=("s0", "s1", "bottom", "top"))
+    return _keep(frame.obj(f"{tag}_frame", "dark"))
+
+
+def roller_shutter(
+    f: _Frame, u0: float, u1: float, v0: float, v1: float, n: float, tag: str = "bay"
+) -> list:
+    """A closed roller shutter over (u0..u1, v0..v1) at offset n on frame `f`: horizontal slats
+    about SLAT_H high, in turn metal and secondary (the COLOR_0 banding), each split into
+    ~0.7 m cells along u so the AO bake has interior vertices."""
+    a, b = _Mesh(), _Mesh()
+    ns = max(2, round((v1 - v0) / SLAT_H))
+    nu = max(1, round((u1 - u0) / 0.7))
+    for k in range(ns):
+        y0, y1 = v0 + (v1 - v0) * k / ns, v0 + (v1 - v0) * (k + 1) / ns
+        m = a if k % 2 == 0 else b
+        for i in range(nu):
+            m.fquad(f, u0 + (u1 - u0) * i / nu, u0 + (u1 - u0) * (i + 1) / nu, y0, y1, n)
+    return _keep(
+        a.obj(f"{tag}_roller_shutter", "metal"), b.obj(f"{tag}_roller_shutter_band", "secondary")
+    )
 
 
 def window(o: Opening, lod: int) -> list:
@@ -388,6 +495,7 @@ def walls(
     faces: Sequence[str] = FACES,
     cell: tuple[float, float] = (1.6, 1.2),
     covered: Sequence[tuple[str, float, float, float, float]] = (),
+    plinth: Sequence[str] = (),
 ) -> list:
     """Four walls of a w × d × h box (no top, no bottom), holes cut for `openings`.
 
@@ -396,20 +504,58 @@ def walls(
 
     Each hole gets a reveal and its fill (`window`). LOD0 also subdivides the wall into about
     `cell` (1.6 × 1.2 m) cells so the baked AO has vertices to vary across; big buildings pass
-    a coarser cell to stay inside the triangle caps.
+    a coarser cell to stay inside the triangle caps. The opening reveals are their own part
+    (`reveal`, same role). `plinth` names the faces (of `faces`) that get a LOD0 plinth band,
+    broken at ground-level openings and covered areas; leave party walls out of it.
     """
     recess = RECESS[min(lod, 1)]
-    mesh = _Mesh()
+    mesh, reveal = _Mesh(), _Mesh()
     fills: list = []
     for face in faces:
         f = face_frame(face, w, d)
         ops = [o for o in openings if o.face == face]
         _check_openings(face, f.length, h, ops)
         cov = [c[1:] for c in covered if c[0] == face]
-        _wall_face(mesh, f, h, [o.rect for o in ops], lod, recess, cell, cov)
+        _wall_face(mesh, f, h, [o.rect for o in ops], lod, recess, cell, cov, reveal)
         for o in ops:
             fills += _fill(o, lod, f, recess)
-    return _keep(mesh.obj("walls", role)) + fills
+    out = _keep(mesh.obj("walls", role), reveal.obj("reveal", role))
+    if lod == 0 and plinth:
+        out += _plinth(w, d, [p for p in plinth if p in faces], openings, covered)
+    return out + fills
+
+
+# the faces met at a face's (-u end, +u end), for closing plinth corners
+_NEIGHBOURS = {
+    "front": ("left", "right"),
+    "back": ("right", "left"),
+    "right": ("front", "back"),
+    "left": ("back", "front"),
+}
+
+
+def _plinth(w: float, d: float, faces: Sequence[str], openings, covered) -> list:
+    """A PLINTH_H band PLINTH_D proud of the wall base on `faces` (role secondary). It breaks
+    at openings and covered areas that start below its top, and turns a corner only when the
+    neighbouring face has a plinth too (never past a party wall)."""
+    m = _Mesh()
+    for face in faces:
+        f = face_frame(face, w, d)
+        half = f.length / 2
+        lo_n, hi_n = _NEIGHBOURS[face]
+        u_lo = -half - (PLINTH_D if lo_n in faces else 0.0)
+        u_hi = half + (PLINTH_D if hi_n in faces else 0.0)
+        gaps = sorted(
+            [(o.rect[0], o.rect[1]) for o in openings if o.face == face and o.rect[2] < PLINTH_H]
+            + [(c[1], c[2]) for c in covered if c[0] == face and c[3] < PLINTH_H]
+        )
+        s = u_lo
+        for g0, g1 in [*gaps, (u_hi, u_hi)]:
+            e = min(g0, u_hi)
+            if e - s > 0.05:
+                m.fbox(f, s, e, 0.0, PLINTH_H, 0.0, PLINTH_D, skip=("s0", "bottom"))
+            s = max(s, g1)
+    return _keep(m.obj("plinth", "secondary"))
 
 
 # --- roofs --------------------------------------------------------------------------------
@@ -568,16 +714,18 @@ def car_porch(
     slab: float = 0.2,
     column: float = 0.25,
     inset: float = 0.0,
+    name: str = "porch",
 ):
     """A flat slab at height h over z in [-depth, 0], on two columns at the front corners.
 
-    `inset` sets the columns back from the slab edge (to clear a gate's pillars).
+    `inset` sets the columns back from the slab edge (to clear a gate's pillars). The parts
+    are `<name>_slab` and `<name>_columns`.
     """
     s, c = _Mesh(), _Mesh()
     s.box(-w / 2, w / 2, h - slab, h, -depth, 0.0, skip=())
     for x in (-w / 2, w / 2 - column):
         c.box(x, x + column, 0.0, h - slab, -inset - column, -inset)
-    return _keep(s.obj("porch_slab", "primary"), c.obj("porch_columns", "primary"))
+    return _keep(s.obj(f"{name}_slab", "primary"), c.obj(f"{name}_columns", "primary"))
 
 
 def five_foot_way(
@@ -787,7 +935,7 @@ def ac_units(
         c = u + (k - (n - 1) / 2) * spacing
         body.fbox(f, c - uw / 2, c + uw / 2, y, y + uh, 0.0, un, skip=("s0",))
         fan.fquad(f, c - 0.3, c + 0.1, y + 0.08, y + uh - 0.08, un + 0.005)
-    return _keep(body.obj(f"ac_{face}", "metal"), fan.obj(f"ac_fan_{face}", "dark"))
+    return _keep(body.obj(f"ac_unit_{face}", "metal"), fan.obj(f"ac_unit_fan_{face}", "dark"))
 
 
 def solar_panels(
@@ -855,7 +1003,7 @@ def skylight(w: float, d: float, y: float, *, x: float = 0.0, z: float = 0.0, lo
             top.face([(a, y + ht, c), (b, y + ht, c), (b, y + ht, e), (a, y + ht, e)], (0, 1, 0))
     return _keep(
         curb.obj("skylight_curb", "dark" if lod == 0 else "secondary"),
-        top.obj("skylight_glass", "glass", window_seed()),
+        top.obj("skylight_glass", "glass", SEED),
     )
 
 
@@ -875,27 +1023,42 @@ def window_panes(
     wh: float,
     lod: int,
     border: float = 0.1,
+    reveal: bool = False,
 ) -> list:
     """A grid of windows applied to a face (no holes cut, scale-tolerant).
 
     A glass quad `ww` × `wh` sits 0.04 m proud of the `face` plane of a w × d footprint at every
     (u in `cols`, v in `rows`); each quad joins one of `WINDOW_BUCKETS` glass meshes with its own
-    window seed. LOD0 adds a dark quad `border` larger on each side just behind it (an inset band
-    instead of fine frames); LOD1 is glass only.
+    balanced window seed. LOD0 adds a dark quad `border` larger on each side just behind it (an
+    inset band instead of fine frames); LOD1 is glass only. `reveal` (LOD0) adds a surround (head
+    and jambs, role primary) standing PANE_REVEAL in front of the glass, and a projecting sill
+    (role secondary); pass the same flag to `pane_cover`.
     """
     f = face_frame(face, w, d)
     glass = [_Mesh() for _ in range(WINDOW_BUCKETS)]
-    seeds = [window_seed() for _ in glass]
-    frame = _Mesh()
+    frame, rv, sill = _Mesh(), _Mesh(), _Mesh()
+    t, n1 = SURROUND_T, 0.04 + PANE_REVEAL
     for u in cols:
         for v in rows:
             random.choice(glass).fquad(f, u - ww / 2, u + ww / 2, v, v + wh, 0.04)
-            if lod == 0:
-                frame.fquad(
-                    f, u - ww / 2 - border, u + ww / 2 + border, v - border, v + wh + border, 0.015
+            if lod > 0:
+                continue
+            a0, a1 = u - ww / 2 - border, u + ww / 2 + border
+            c0, c1 = v - border, v + wh + border
+            frame.fquad(f, a0, a1, c0, c1, 0.015)
+            if reveal:
+                # the head (its underside only between the jambs: no enclosed AO corners)
+                rv.fbox(f, a0 - t, a1 + t, c1, c1 + t, 0.0, n1, skip=("s0", "bottom"))
+                rv.face(
+                    [f.p(a0, c1, 0.0), f.p(a1, c1, 0.0), f.p(a1, c1, n1), f.p(a0, c1, n1)],
+                    (0, -1, 0),
                 )
-    out = [m.obj(f"panes_{face}_{i}", "glass", seeds[i]) for i, m in enumerate(glass)]
+                for x0, x1 in ((a0 - t, a0), (a1, a1 + t)):  # jambs
+                    rv.fbox(f, x0, x1, c0, c1, 0.0, n1, skip=("s0", "top", "bottom"))
+                sill.fbox(f, a0 - t, a1 + t, c0 - 0.08, c0, 0.0, n1 + 0.05, skip=("s0",))
+    out = [m.obj(f"panes_{face}_{i}", "glass", SEED) for i, m in enumerate(glass)]
     out.append(frame.obj(f"panes_{face}_frame", "dark"))
+    out += [rv.obj(f"pane_reveal_{face}", "primary"), sill.obj(f"pane_sill_{face}", "secondary")]
     return _keep(*out)
 
 
@@ -907,13 +1070,15 @@ def pane_cover(
     ww: float,
     wh: float,
     border: float = 0.1,
+    reveal: bool = False,
 ) -> list[tuple[str, float, float, float, float]]:
     """The wall areas `window_panes` (same arguments) hides, for `walls(covered=...)`: building
-    no wall behind a pane avoids the black AO of wall vertices that sit 4 cm under the glass."""
+    no wall behind a pane avoids the black AO of wall vertices that sit 4 cm under the glass.
+    With `reveal` the surround and the sill are left out too."""
+    t = border + (SURROUND_T if reveal else 0.0)
+    below = border + (0.08 if reveal else 0.0)
     return [
-        (face, u - ww / 2 - border, u + ww / 2 + border, v - border, v + wh + border)
-        for u in cols
-        for v in rows
+        (face, u - ww / 2 - t, u + ww / 2 + t, v - below, v + wh + t) for u in cols for v in rows
     ]
 
 
@@ -991,6 +1156,38 @@ def dome(
                 quad = [pts[i][k], pts[i][j], pts[i + 1][0]]
             m.face(quad, _sub(_mean(quad), centre))
     return _keep(m.obj(name, role))
+
+
+def water_tank(x: float, z: float, y: float, *, r: float = 0.55, h: float = 1.1) -> list:
+    """A rooftop water tank: an octagonal drum (role metal) from y to y + h at (x, z), set into
+    the roof behind the ridge (its base may sit below the roof surface)."""
+    return prism(x, z, r, y, y + h, 8, "metal", name="water_tank")
+
+
+def fence_posts(
+    p0: tuple[float, float],
+    p1: tuple[float, float],
+    y0: float,
+    h: float,
+    *,
+    step: float = 0.9,
+    post: float = 0.1,
+    role: str = "dark",
+) -> list:
+    """Slim fence posts from y0 to y0 + h every ~`step` along an axis-aligned line (x, z)
+    p0-p1 (on a low wall), with a top rail; all role `role`."""
+    (xa, za), (xb, zb) = p0, p1
+    length = max(abs(xb - xa), abs(zb - za))
+    n = max(1, round(length / step))
+    posts, rail = _Mesh(), _Mesh()
+    r = post / 2
+    for k in range(n + 1):
+        x, z = xa + (xb - xa) * k / n, za + (zb - za) * k / n
+        posts.box(x - r, x + r, y0, y0 + h - 0.05, z - r, z + r)
+    x0, x1 = sorted((xa, xb))
+    z0, z1 = sorted((za, zb))
+    rail.box(x0 - r, x1 + r, y0 + h - 0.05, y0 + h, z0 - r, z1 + r, skip=())
+    return _keep(posts.obj("fence_posts", role), rail.obj("fence_posts_rail", role))
 
 
 def far_block(

@@ -61,7 +61,7 @@ geometry (each builder seeds `random` from the asset id).
 | `tl_assets/core.py` | bpy helpers: `reset_scene`, `box`, `set_role`, `join`, `bake_ao`, `export_glb`, `tri_count` |
 | `tl_assets/build.py` | Blender entry point, `BUILDERS`, `build_asset`, `preview`, and the `calib` builder |
 | `tl_assets/kit.py` | The parametric building kit: `walls` with `Opening`s (optional window `grid`, `covered` areas), `window`, gable/hip/flat roofs, porch, five-foot way, balcony, AC, solar, gate, sign band, `panel`, `screen_block` (breeze-block screen), `far_block` (LOD2), `place` |
-| `tl_assets/archetypes.py` | Archetype builders (`BUILDERS`, merged into `build.py`): `link_intermediate`, `link_long` |
+| `tl_assets/archetypes.py` | Archetype builders (`BUILDERS`, merged into `build.py`): every archetype in `specs.ARCHETYPES` |
 | `tl_assets/landmarks.py` | Landmark builders (mall, mosque, school, ...) |
 | `tl_assets/props.py` | Kit builders `trees`, `furniture`, `people`, `vehicles`, `construction` (scripted), and the vendor intake `import_vendor` / `scale_to` |
 
@@ -82,6 +82,32 @@ geometry (each builder seeds `random` from the asset id).
   nodes are found by `type`; the render engine is set inside `try/except TypeError`.
 - Decorative: every kit, plus archetype facade detail. No text, logos or brand marks; sign
   bands are blank (role `light`). No Google pixels or geometry in any asset.
+- Glass aux B is the window seed: the role material lights glass where B < `uLitShare`
+  (0.6 by default). Seeds come in a lit band (0.04-0.32) and an unlit band (0.70-0.96), and
+  `kit.balanced_seed` weighs every glass part of a node (by corner count) so each LOD keeps a
+  night lit share near 0.5 for any `uLitShare` between the bands. Glass that never lights:
+  balustrades (`kit.UNLIT_AUX` 0.98) and decorative water (`specs.WATER_AUX` 0.995; the role
+  contract has no water role, so the Kanopi deck pool is glass with this aux).
+- `build_asset` writes `<raw glb>.parts.json` beside each raw glb (raw output only): the part
+  names of every node before the join, for the tests' node-name checks (`ac_unit*`,
+  `balcony*`, ...).
+
+## Detail pass (P4 Task 7)
+
+LOD0 of every archetype has facade depth: a 0.45 m plinth (`walls(plinth=faces)`, never on a
+party wall), 0.15 m window reveals (cut openings: `reveal`; applied panes:
+`window_panes(reveal=True)` adds a surround and a sill, `pane_cover(reveal=True)` leaves the
+wall out behind them) and sills. Link, semi-D and bungalow: gate pillars and fence posts,
+car-porch columns, AC condensers (semi-D and bungalow on a side wall; link houses have party
+walls both sides, so theirs sit on the front A/C ledge and the back wall) and a water tank set
+into the back roof slope. Shop office: a closed side bay with a roller shutter banded metal and
+secondary (`kit.roller_shutter`, also every garage door at LOD0). Highrise: spandrels and piers
+round every window, a balcony with a never-lit glass balustrade on every storey of the front
+and back faces, an open crown on the parapet. Factory: skylight strips, rooftop units, a loading
+bay at the front roller door. Mall: entrance portals, a canopy, roof monitors, rooftop units.
+Kanopi: a decorative deck on the podium ledge (raised pool 1.2 m above the podium roof, planters,
+a pergola). LOD1 keeps the highrise balconies and crown, and the factory and mall roof units, as
+boxes; LOD2 is unchanged. Every LOD0 stays within 2 % of its P3 bounds (pinned in the tests).
 
 ## Kits and LODs
 

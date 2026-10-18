@@ -39,6 +39,10 @@ def test_folder_total_is_within_budget():
         pytest.skip("no manifest committed yet")
     total = sum(p.stat().st_size for p in CITY.rglob("*") if p.is_file())
     assert total <= specs.MAX_TOTAL_BYTES
+    assert total <= P4_TOTAL_BYTES, total
+
+
+P4_TOTAL_BYTES = 4_000_000  # P4 Task 7: the detail pass keeps the whole city folder under 4 MB
 
 
 def _committed_assets() -> list[str]:

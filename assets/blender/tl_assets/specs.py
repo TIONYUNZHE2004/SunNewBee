@@ -10,6 +10,10 @@ import re
 from dataclasses import dataclass, field
 
 ROLES = ("primary", "secondary", "accent", "glass", "dark", "metal", "foliage", "light")
+# The role contract has no "water" role: decorative water inside a building asset (the Kanopi
+# podium pool) is role glass with this aux. The role material lights glass only below
+# uLitShare (< 1), so it never glows; the tests look it up by this value.
+WATER_AUX = 0.995
 
 # Same names and order as data/scripts/build_archetypes.py (tested).
 ARCHETYPES: tuple[str, ...] = (

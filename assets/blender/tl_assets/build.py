@@ -14,8 +14,10 @@ tasks (`tl_assets.archetypes`, `tl_assets.landmarks`, `tl_assets.props`) expose 
 import argparse
 import importlib
 import importlib.util
+import json
 import math
 import random
+import re
 import sys
 from collections.abc import Callable
 from pathlib import Path
@@ -28,7 +30,7 @@ import bpy  # noqa: E402
 import mathutils  # noqa: E402
 from bpy_extras.object_utils import world_to_camera_view  # noqa: E402
 
-from tl_assets import core  # noqa: E402
+from tl_assets import core, kit  # noqa: E402
 from tl_assets.specs import Variant, get_spec  # noqa: E402
 
 PREVIEW_DIR = ASSETS_DIR / "out" / "preview"
@@ -61,8 +63,23 @@ def _load_builders() -> None:
 # --- build ------------------------------------------------------------------------------
 
 
-def _build_objects(asset_id: str, bake: bool = True) -> list[tuple[Variant, int, object]]:
-    """Every (variant, lod) of the asset as one joined, AO-baked object, checked against caps."""
+_SUFFIX = re.compile(r"\.\d{3,}$")
+
+
+def part_names(objs) -> list[str]:
+    """The sorted, de-duplicated names of the parts before the join (Blender's `.001`
+    suffixes dropped)."""
+    return sorted({_SUFFIX.sub("", o.name) for o in objs})
+
+
+def _build_objects(
+    asset_id: str, bake: bool = True, parts: dict[str, list[str]] | None = None
+) -> list[tuple[Variant, int, object]]:
+    """Every (variant, lod) of the asset as one joined, AO-baked object, checked against caps.
+
+    `parts`, when given, collects {node name: part names before the join} (the node-name check
+    of the tests: the join keeps one node per LOD, so the parts are recorded beside the glb).
+    """
     _load_builders()
     if asset_id not in BUILDERS:
         raise KeyError(f"no builder for asset {asset_id!r}")
@@ -73,7 +90,11 @@ def _build_objects(asset_id: str, bake: bool = True) -> list[tuple[Variant, int,
     for v in spec.variants:
         for lod, cap in enumerate(v.tris):
             name = f"{asset_id}__{v.id}__LOD{lod}"
-            obj = core.join(BUILDERS[asset_id](v, lod), name)
+            kit.reset_lit_balance()  # each node balances its own lit-window share
+            built = BUILDERS[asset_id](v, lod)
+            if parts is not None:
+                parts[name] = part_names(built)
+            obj = core.join(built, name)
             tris = core.tri_count(obj)
             if tris > cap:
                 raise ValueError(f"{name}: {tris} triangles over the cap {cap}")
@@ -87,10 +108,17 @@ def _build_objects(asset_id: str, bake: bool = True) -> list[tuple[Variant, int,
 def build_asset(asset_id: str, out: Path) -> Path:
     """Build `asset_id` and export it to `out / spec.file`; returns the glb path."""
     path = Path(out) / get_spec(asset_id).file
-    objs = [o for _, _, o in _build_objects(asset_id)]
+    parts: dict[str, list[str]] = {}
+    objs = [o for _, _, o in _build_objects(asset_id, parts=parts)]
     core.export_glb(objs, path)
+    parts_path(path).write_text(json.dumps(parts, indent=1) + "\n", encoding="utf-8")
     print(f"[tl_assets] wrote {path}")
     return path
+
+
+def parts_path(glb: Path) -> Path:
+    """The part-name sidecar of a raw glb: `<name>.parts.json` beside it (raw output only)."""
+    return Path(glb).with_suffix(".parts.json")
 
 
 def _bbox(objs) -> list:

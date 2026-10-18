@@ -101,6 +101,10 @@ LINK_IDS = ("link_intermediate", "link_long")
 # (height fraction, min mean AO); default (0.5, 0.5). Measured mean upper-wall AO: bungalow 0.493
 # (hip eaves and the portico shade the walls), school 0.446 (corridor and roof overhang)
 UPPER_FROM = {"school": (0.5, 0.4), "bungalow": (0.5, 0.4)}
+# P4 detail pass: the 0.15 m window reveals (pane surrounds, highrise spandrels and fins) put
+# primary vertices in real crevices. Measured upper-wall AO: highrise 0.467, mall 0.464; an
+# open (inside-out) wall still bakes near 0, far under 0.42.
+UPPER_FROM.update({"highrise": (0.5, 0.42), "mall": (0.5, 0.42)})
 RESIDENTIAL_IDS = ("superlink", "semi_d", "bungalow", "townhouse")
 NON_RESIDENTIAL_IDS = ("shop_office", "highrise", "school", "mosque", "factory", "mall", "generic")
 
@@ -196,7 +200,221 @@ def check_archetype(raw: Path, packed: Path, asset_id: str) -> dict[str, list]:
         assert specs.ROLES.index("glass") in roles1
         assert specs.ROLES.index("dark") not in roles1
         out[v.id] = colors
+    check_detail(raw, asset_id)
     return out
+
+
+# --- P4 Task 7: the archetype detail pass ---------------------------------------------------
+
+# LOD0 bounds of the P3 glbs (apps/web/public/city at dfc0e92); the detail pass keeps every
+# min and max within BOUNDS_TOL of that axis' P3 extent, so the web fit is unchanged.
+P3_LOD0_BOUNDS = {
+    ("link_intermediate", "gable"): ((-3.200, 0.0, -8.150), (3.200, 8.500, 7.750)),
+    ("link_intermediate", "modern"): ((-3.200, 0.0, -8.150), (3.200, 8.500, 7.750)),
+    ("link_long", "gable"): ((-3.350, 0.0, -12.100), (3.350, 8.500, 12.000)),
+    ("link_long", "modern"): ((-3.350, 0.0, -12.100), (3.350, 8.500, 12.000)),
+    ("superlink", "modern"): ((-5.600, 0.001, -10.805), (5.600, 9.049, 10.500)),
+    ("semi_d", "gable"): ((-6.251, 0.0, -12.305), (6.251, 9.000, 12.000)),
+    ("semi_d", "modern"): ((-6.251, 0.0, -12.305), (6.251, 9.000, 12.000)),
+    ("bungalow", "hip"): ((-8.000, -0.001, -9.000), (8.000, 9.001, 9.000)),
+    ("townhouse", "flat"): ((-3.500, 0.0, -6.805), (3.500, 6.000, 6.500)),
+    ("shop_office", "row"): ((-3.350, 0.0, -11.305), (3.350, 11.000, 11.800)),
+    ("highrise", "mid"): ((-12.541, 0.0, -12.541), (12.541, 40.000, 12.501)),
+    ("highrise", "tall"): ((-15.041, 0.0, -15.043), (15.041, 100.000, 15.003)),
+    ("school", "block"): ((-10.400, 0.0, -7.980), (10.400, 14.000, 7.980)),
+    ("mosque", "hall"): ((-15.040, -0.001, -15.040), (15.040, 26.551, 15.000)),
+    ("factory", "shed"): ((-15.401, 0.002, -20.400), (15.401, 9.998, 20.000)),
+    ("mall", "box"): ((-30.000, 0.001, -30.000), (30.000, 9.399, 30.000)),
+    ("generic", "box"): ((-5.200, 0.0, -5.200), (5.200, 9.000, 5.200)),
+    ("lakeside_mall", "osm"): ((-130.300, -0.001, -115.652), (109.377, 11.540, 171.695)),
+    ("kanopi", "tower"): ((-44.487, 0.0, -13.941), (44.487, 130.000, 13.941)),
+    ("masjid_denai_alam", "main"): ((-20.060, 0.001, -20.061), (20.060, 31.099, 20.001)),
+}
+BOUNDS_TOL = 0.02
+# LOD2 is unchanged by the detail pass (P3 triangle counts)
+P3_LOD2_TRIS = {
+    "link_intermediate": 14,
+    "link_long": 14,
+    "superlink": 10,
+    "semi_d": 24,
+    "bungalow": 14,
+    "townhouse": 14,
+    "shop_office": 10,
+    "highrise": 10,
+    "school": 14,
+    "mosque": 44,
+    "factory": 14,
+    "mall": 10,
+    "generic": 10,
+    "lakeside_mall": 173,
+    "kanopi": 54,
+    "masjid_denai_alam": 44,
+}
+
+# Every new feature is a named part before the join (`<raw>.parts.json`): fnmatch patterns per
+# LOD. Facade depth (window reveals, sills, a plinth) is on every archetype's LOD0.
+FACADE_DEPTH = ("plinth*", "*reveal*", "*sill*")
+_RESIDENTIAL_DETAIL = (
+    *FACADE_DEPTH,
+    "gate_pillars*",
+    "fence_posts*",
+    "porch_columns*",
+    "ac_unit*",
+    "water_tank*",
+)
+DETAIL_PARTS: dict[str, dict[int, tuple[str, ...]]] = {
+    "link_intermediate": {0: _RESIDENTIAL_DETAIL},
+    "link_long": {0: _RESIDENTIAL_DETAIL},
+    "semi_d": {0: _RESIDENTIAL_DETAIL},
+    "bungalow": {0: _RESIDENTIAL_DETAIL},
+    "superlink": {0: FACADE_DEPTH},
+    "townhouse": {0: FACADE_DEPTH},
+    "shop_office": {
+        0: (*FACADE_DEPTH, "ffw_columns*", "ffw_soffit*", "sign_band*", "*roller_shutter*")
+    },
+    "highrise": {
+        0: (*FACADE_DEPTH, "balcony*", "balustrade*", "crown*"),
+        1: ("balcony*", "crown*", "plant_room*"),
+    },
+    "school": {0: FACADE_DEPTH},
+    "mosque": {0: FACADE_DEPTH},
+    "factory": {
+        0: (*FACADE_DEPTH, "skylight_strip*", "roof_unit*", "loading_bay*", "*roller_shutter*"),
+        1: ("roof_unit*",),
+    },
+    "mall": {
+        0: (*FACADE_DEPTH, "skylight_strip*", "roof_unit*", "canopy*", "entrance*"),
+        1: ("roof_unit*", "canopy*"),
+    },
+    "generic": {0: FACADE_DEPTH},
+    "kanopi": {0: ("deck_planter*", "pool_water*", "pool_basin*", "pergola*")},
+}
+# roles each LOD0 must carry (on top of check_archetype's glass and dark)
+DETAIL_ROLES: dict[str, tuple[str, ...]] = {
+    "link_intermediate": ("primary", "secondary", "accent", "glass", "dark", "metal"),
+    "link_long": ("primary", "secondary", "accent", "glass", "dark", "metal"),
+    "semi_d": ("primary", "secondary", "accent", "glass", "dark", "metal", "foliage"),
+    "bungalow": ("primary", "secondary", "accent", "glass", "dark", "metal"),
+    "shop_office": ("primary", "secondary", "accent", "glass", "dark", "metal", "light"),
+    "highrise": ("primary", "secondary", "accent", "glass", "dark", "metal", "foliage"),
+    "factory": ("primary", "secondary", "accent", "glass", "dark", "metal"),
+    "mall": ("primary", "secondary", "accent", "glass", "dark", "metal", "light"),
+    "kanopi": ("primary", "secondary", "accent", "glass", "dark", "metal", "foliage"),
+}
+# night lit share: glass vertices with COLOR_0.b under uLitShare (0.6 by default, and either
+# side of it), on LOD0 and LOD1; Task 13 checks the packed highrise, link and shop office
+LIT_SHARE_IDS = ("link_intermediate", "link_long", "shop_office", "highrise", "kanopi")
+LIT_RANGE = (0.35, 0.65)
+LIT_THRESHOLDS = (0.45, 0.6, 0.65)
+NEVER_LIT = 0.97  # balustrades and the pool: glass that stays dark at night
+
+
+def read_parts(raw: Path) -> dict[str, list[str]]:
+    path = raw.with_suffix(".parts.json")
+    assert path.exists(), f"no part-name sidecar {path}"
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def lit_share(colors, threshold: float) -> float:
+    """Share of glass vertices that light at night (COLOR_0.b < uLitShare)."""
+    glass = [c[2] for c in colors if round(c[1] * 7) == specs.ROLES.index("glass")]
+    assert glass, "no glass"
+    return sum(b < threshold for b in glass) / len(glass)
+
+
+def check_detail(raw: Path, asset_id: str) -> None:
+    """Task 7 checks: P3 LOD0 bounds kept within 2 %, LOD2 unchanged, named detail parts per
+    LOD, the roles present, and the night lit share."""
+    from fnmatch import fnmatch
+
+    spec = specs.ASSETS[asset_id]
+    info = read_glb(raw)
+    parts = read_parts(raw)
+    for v in spec.variants:
+        lo, hi = info.nodes[f"{asset_id}__{v.id}__LOD0"].bounds
+        plo, phi = P3_LOD0_BOUNDS[(asset_id, v.id)]
+        for axis in range(3):
+            tol = BOUNDS_TOL * (phi[axis] - plo[axis])
+            assert abs(lo[axis] - plo[axis]) <= tol, (asset_id, v.id, "min", axis, lo, plo)
+            assert abs(hi[axis] - phi[axis]) <= tol, (asset_id, v.id, "max", axis, hi, phi)
+        assert info.nodes[f"{asset_id}__{v.id}__LOD2"].tris == P3_LOD2_TRIS[asset_id], v.id
+        for lod, patterns in DETAIL_PARTS.get(asset_id, {}).items():
+            names = parts[f"{asset_id}__{v.id}__LOD{lod}"]
+            missing = [p for p in patterns if not any(fnmatch(n, p) for n in names)]
+            assert not missing, (asset_id, v.id, lod, missing, names)
+        colors = read_attribute(raw, f"{asset_id}__{v.id}__LOD0", "COLOR_0")
+        want = {specs.ROLES.index(r) for r in DETAIL_ROLES.get(asset_id, ())}
+        assert want <= _roles(colors), (asset_id, v.id, want - _roles(colors))
+        if asset_id in LIT_SHARE_IDS:
+            for lod in (0, 1):
+                cols = read_attribute(raw, f"{asset_id}__{v.id}__LOD{lod}", "COLOR_0")
+                for t in LIT_THRESHOLDS:
+                    share = lit_share(cols, t)
+                    assert LIT_RANGE[0] <= share <= LIT_RANGE[1], (asset_id, v.id, lod, t, share)
+
+
+def test_shop_office_roller_shutter_is_banded(non_residential_built):
+    """The closed bay's roller shutter is COLOR_0 banding: metal and secondary slats in turn."""
+    raw, _ = non_residential_built["shop_office"]
+    v = specs.ASSETS["shop_office"].variants[0]
+    name = f"shop_office__{v.id}__LOD0"
+    colors = read_attribute(raw, name, "COLOR_0")
+    normals = read_attribute(raw, name, "NORMAL")
+    pos = read_attribute(raw, name, "POSITION")
+    metal, secondary = specs.ROLES.index("metal"), specs.ROLES.index("secondary")
+    w = v.size[0]
+    slats = sorted(
+        (round(p[1], 3), round(c[1] * 7))
+        for c, n, p in zip(colors, normals, pos, strict=True)
+        if n[2] > 0.9
+        and p[0] > w / 2 - 1.4
+        and p[1] < 3.0
+        and round(c[1] * 7) in (metal, secondary)
+    )
+    levels = {y for y, _ in slats}
+    roles_by_y = [r for _y, r in sorted({(y, r) for y, r in slats})]
+    assert len(levels) >= 10, levels
+    assert {metal, secondary} <= set(roles_by_y)
+    changes = sum(1 for a, b in zip(roles_by_y, roles_by_y[1:], strict=False) if a != b)
+    assert changes >= 8, changes
+
+
+def test_highrise_balconies_every_storey(non_residential_built):
+    """Never-lit glass balustrades on every storey above the podium, inside the P3 bounds."""
+    raw, _ = non_residential_built["highrise"]
+    for v in specs.ASSETS["highrise"].variants:
+        name = f"highrise__{v.id}__LOD0"
+        colors = read_attribute(raw, name, "COLOR_0")
+        pos = read_attribute(raw, name, "POSITION")
+        glass = specs.ROLES.index("glass")
+        rails = [
+            p[1]
+            for c, p in zip(colors, pos, strict=True)
+            if round(c[1] * 7) == glass and c[2] >= NEVER_LIT
+        ]
+        podium = 7.0 if v.size[1] < 60 else 8.0
+        floors = round((v.size[1] - 2.2 - podium) / 3.3)
+        levels = {round(y, 1) for y in rails}  # each balustrade has a bottom and a top edge
+        assert len(levels) >= 2 * (floors - 1), (v.id, len(levels), floors)
+        lo, hi = read_glb(raw).nodes[name].bounds
+        assert hi[1] <= v.size[1] + 0.01, "the crown stays under the size height"
+
+
+def test_kanopi_pool_is_water_on_the_podium_roof(landmarks_built):
+    """A decorative pool plane (glass role, never-lit aux) 1.2 m above the 8.7 m podium roof."""
+    raw, _ = landmarks_built["kanopi"]
+    name = "kanopi__tower__LOD0"
+    colors = read_attribute(raw, name, "COLOR_0")
+    normals = read_attribute(raw, name, "NORMAL")
+    pos = read_attribute(raw, name, "POSITION")
+    glass = specs.ROLES.index("glass")
+    water = [
+        p
+        for c, n, p in zip(colors, normals, pos, strict=True)
+        if round(c[1] * 7) == glass and c[2] >= 0.99 and n[1] > 0.9
+    ]
+    assert len(water) >= 8
+    assert all(abs(p[1] - (8.7 + 1.2)) <= 0.02 for p in water), {round(p[1], 3) for p in water}
 
 
 @pytest.mark.parametrize("asset_id", LINK_IDS)
@@ -282,6 +500,10 @@ def test_residential(residential_built, asset_id):
 
 MIN_FEATURE_M, MAX_FEATURE_M = 0.4, 7.0
 WALL_AO_P5 = 0.35  # 5th percentile of the AO of upper primary-wall vertices
+# P4 detail pass: reveal corners (generic: jamb, soffit and the dark band meet) and the open
+# crown over the highrise parapet are real crevices. Measured p5: generic 0.266, highrise mid
+# 0.25 and tall 0.28, against 0.0 for walls left behind the glass
+WALL_AO_P5_BY_ID = {"generic": 0.2, "highrise": 0.2}
 
 
 def _check_light_deck(colors, normals, pos) -> None:
@@ -397,7 +619,8 @@ def test_non_residential(non_residential_built, asset_id):
                 c[0] for c, p in zip(colors, pos, strict=True) if c[1] < 0.05 and p[1] > h * 0.5
             )
             p5 = wall[len(wall) // 20]
-            assert p5 >= WALL_AO_P5, (lod0, p5)  # measured 0.44-0.47; the unfixed build gave 0.0
+            # measured 0.44-0.47 before the reveals; the unfixed build gave 0.0
+            assert p5 >= WALL_AO_P5_BY_ID.get(asset_id, WALL_AO_P5), (lod0, p5)
         if asset_id in ("shop_office", "highrise", "mosque", "mall", "generic"):
             _check_light_deck(colors, normals, pos)
         if asset_id == "generic":
