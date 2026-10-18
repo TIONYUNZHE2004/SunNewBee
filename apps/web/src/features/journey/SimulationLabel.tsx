@@ -1,5 +1,7 @@
+import { SIMULATION_LABEL } from "./cardContent";
+
 /** Spec §6.4 / §7: always on screen while a journey is loaded. */
-export const SIM_LABEL = "Simulation · indicative times, not a prediction";
+export const SIM_LABEL = SIMULATION_LABEL;
 
 export function SimulationLabel() {
   return (

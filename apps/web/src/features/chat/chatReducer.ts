@@ -1,5 +1,6 @@
 import type { ChatEvent, components } from "@tl/api-client";
 import type { TripMeta } from "../day/tripModel";
+import type { JourneyPlan } from "../journey/timeline";
 
 export type Citation = components["schemas"]["Citation"];
 export type Uncertainty = components["schemas"]["Uncertainty"];
@@ -43,8 +44,8 @@ export interface AssistantMessage {
   scenarioId?: string;
   /** A rehearsed trip's departures and outcome (day.trip intent meta), for the strip. */
   trip?: TripMeta;
-  /** The answer came with a playable trip (journey.play); the plan itself is in the scene store. */
-  journey?: { routeId: string; startTime: string };
+  /** The answer came with a playable trip (journey.play); `plan` is this answer's own trip, so its Watch button never plays another answer's. */
+  journey?: { routeId: string; startTime: string; plan: JourneyPlan };
   /** done.model; "...+template" means the checked data was worded without the AI. */
   model?: string;
   done: boolean;
@@ -139,7 +140,14 @@ export function reduceIntent(m: AssistantMessage, i: SceneIntent): AssistantMess
     };
   if (i.kind === "flood.set_level" && i.scenario_id) return { ...m, scenarioId: i.scenario_id };
   if (i.kind === "journey.play" && i.journey)
-    return { ...m, journey: { routeId: i.journey.route_id, startTime: i.journey.start_time } };
+    return {
+      ...m,
+      journey: {
+        routeId: i.journey.route_id,
+        startTime: i.journey.start_time,
+        plan: i.journey,
+      },
+    };
   if (i.kind === "day.trip" && i.geojson) {
     // a resident's own rehearsed trip: the strip shows the engine's departures (Cycle 20)
     const meta = (i.geojson as { meta?: TripMeta }).meta;

@@ -6,6 +6,7 @@ import { useScene } from "../sceneStore";
 import { statusStyle } from "../styles";
 import { CLOSURE_SOURCE, closureLine } from "./closureModel";
 import { DayListSection } from "./DayListSection";
+import { JourneyStepList } from "./JourneyStepList";
 import { ListLensSections } from "./LensSections";
 import { groupByType, humanType, parseLayer, routeSteps, withIndicative } from "./listModel";
 import { MyTripListSection } from "./MyTripListSection";
@@ -63,6 +64,7 @@ export function ListView() {
     profile,
     scenarioId,
     route,
+    journey,
     focusPlaceId,
     lensVisible,
     gapsVisible,
@@ -147,6 +149,8 @@ export function ListView() {
           </ol>
         )}
       </section>
+
+      {journey && <JourneyStepList plan={journey} />}
 
       <DayListSection />
       <MyTripListSection />
