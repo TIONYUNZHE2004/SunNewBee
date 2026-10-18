@@ -233,10 +233,18 @@ never invents events.
 | Arrival | `arrive` "<destination name>" | `ev-place-<id>`, else walkways |
 
 Events sort by `at_m`, ties in the rule order above (the ramp before the bench at its foot).
-More than `MAX_EVENTS` (12) events: rest points are thinned evenly. Wording follows the
+More than `MAX_EVENTS` (12) events: rest points are thinned evenly along the route (by `at_m`).
+An event whose evidence is not in the route's evidence raises `JourneyEvidenceError` (event kind,
+element id, evidence id), never a bare `KeyError`; `POST /journeys` turns it into a named 500
+and the chat drops the `journey.play` intent. Wording follows the
 honesty invariants: UNKNOWN says "Not checked yet" (the UI and answer add "verification request
 filed"; `build_journey` files nothing), placeholder facts say "Demo value · not surveyed." and
-never "Verified", and no card says safe, blocked or a water depth.
+never "Verified", and no card says safe, blocked or a water depth. A covered claim that is
+stale or contested is worded by its status; rest cards are neutral ("Rest stop: …"); the gap card
+drops "about N m" when the rest stop is under 10 m ahead.
+
+Served by `POST /journeys` (apps/api) and attached to the chat's `journey.play` scene intent
+(packages/agent `run.py`); both build from the same `plan_route` route (AC-D4).
 
 ## Tests
 

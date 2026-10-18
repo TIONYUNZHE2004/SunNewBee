@@ -27,6 +27,7 @@ With no seed data present the API falls back to the tiny test fixture.
 | GET | `/places?q=` | find_place |
 | GET | `/places/{id}` | `?scenario_id=&profile=&near=`; 404 if the place or scenario is unknown, 422 for an unknown profile |
 | POST | `/routes` | `{from, to, profile, scenario_id}`; plans only, never files verification requests (the chat and staff do) |
+| POST | `/journeys` | `{from_id, to_id, profile, start_time, scenario_id?}` → `JourneyPlan` (spatial `build_journey`) for the recommended route, planned per request like `/routes` (no route store; files no verification requests). Equals the plan the chat attaches to `journey.play` for the same endpoints, profile, scenario and start time (AC-D4). 422 unknown profile or bad `start_time` (`HH:MM`); 404 unknown place or scenario; 409 `{detail: {route_status, message, warnings}}` when there is no route: `no_data` → "No mapped connection (data gap)" (never "blocked"), `blocked` → a known barrier cuts every path; 500 with a named message when an event lacks route evidence (`JourneyEvidenceError`) |
 | GET | `/scenarios` | flood scenarios |
 | GET | `/scenarios/{id}` | water polygons, `surface_height_m` shifted by `site.scene.datum_offset_m`; 404 |
 | GET | `/scenarios/{id}/affected` | `?profile=`; 404 unknown scenario |

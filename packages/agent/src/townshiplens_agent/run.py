@@ -9,12 +9,15 @@ from collections.abc import AsyncIterator
 from pydantic_ai.exceptions import UnexpectedModelBehavior, UsageLimitExceeded
 from pydantic_ai.usage import UsageLimits
 from townshiplens_spatial import tools as sp
+from townshiplens_spatial.journey import JourneyEvidenceError, build_journey
+from townshiplens_spatial.models import Route
 
 from . import agent as agent_mod
 from . import demo
 from .answer import FinalAnswer
 from .draft import DraftStreamer
 from .events import (
+    AnswerSceneIntent,
     ChatEvent,
     ChatRequest,
     Citation,
@@ -316,7 +319,8 @@ def _answer_events(
     if rec.rollouts and not any(i.kind == "river.rollout" for i in intents):
         intents.append(SceneIntent(kind="river.rollout"))  # the map plays the rollout
     for it in intents:
-        intent = it.model_copy()
+        # Only what the model may write; every server-attached field is rebuilt below.
+        intent = SceneIntent(**it.model_dump(include=set(AnswerSceneIntent.model_fields)))
         intent.route_status = intent.distance_m = intent.est_minutes = None
         if intent.kind == "route.highlight":
             route = rec.routes.get(intent.route_id or "")
@@ -326,6 +330,10 @@ def _answer_events(
             intent.route_status = route.get("status")
             intent.distance_m = route.get("distance_m")
             intent.est_minutes = route.get("est_minutes")
+        if intent.kind == "journey.play":
+            intent.journey = _journey(ctx, rec, intent)
+            if intent.journey is None:
+                continue  # no route returned this turn, no start time, or a plan bug (logged)
         if intent.kind == "river.rollout" and not rec.rollouts:
             continue  # nothing was simulated this turn
         if intent.kind == "whatif.diff":
@@ -416,6 +424,20 @@ def _answer_events(
             else Disclaimer(text=DEFAULT_DISCLAIMER)
         )
     return evs
+
+
+def _journey(ctx: sp.Ctx, rec: TurnRecord, intent: SceneIntent):
+    """The JourneyPlan for a journey.play intent, built from the route plan_route returned this
+    turn (the same route POST /journeys plans for the same endpoints, profile and scenario)."""
+    route = rec.routes.get(intent.route_id or "")
+    if route is None or intent.start_time is None:
+        return None
+    try:
+        r = Route.model_validate(route)
+        return build_journey(ctx.world, r, r.profile, intent.start_time)
+    except (JourneyEvidenceError, ValueError) as e:
+        log.error("journey.play dropped for %s: %s", intent.route_id, e)
+        return None
 
 
 def _trip_geojson(t: dict) -> dict | None:

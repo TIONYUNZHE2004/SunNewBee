@@ -11,7 +11,8 @@ from fastapi import APIRouter, HTTPException, Query, Request, Response
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field
 from townshiplens_spatial import tools
-from townshiplens_spatial.models import RouteResult, Site, ToolResult
+from townshiplens_spatial.journey import JourneyEvidenceError, build_journey
+from townshiplens_spatial.models import JourneyPlan, Route, RouteResult, Site, ToolResult
 
 from .. import geojson, state
 from ..selection import require_selection
@@ -27,6 +28,29 @@ class RouteRequest(BaseModel):
     to: str
     profile: str = "default"
     scenario_id: str | None = None
+
+
+class JourneyRequest(BaseModel):
+    from_id: str = Field(max_length=200)
+    to_id: str = Field(max_length=200)
+    profile: str
+    start_time: str = Field(pattern=r"^([01]\d|2[0-3]):[0-5]\d$")  # local "HH:MM"
+    scenario_id: str | None = None
+
+
+class NoJourney(BaseModel):
+    """Why there is no journey to play: the route status and a plain message."""
+
+    route_status: Literal["blocked", "no_data"]
+    message: str
+    warnings: list[str] = Field(default_factory=list)
+
+
+# no_data is a data gap, never "blocked" or "not reachable" (AGENTS.md honesty invariants).
+_NO_JOURNEY = {
+    "no_data": "No mapped connection (data gap)",
+    "blocked": "Every mapped path is cut by a known barrier",
+}
 
 
 @router.get("/healthz", responses={503: {"description": "the world did not load"}})
@@ -383,3 +407,41 @@ def routes(req: RouteRequest) -> RouteResult:
     data.setdefault("warnings", [])
     data["warnings"] = list(data["warnings"]) + [w for w in r.warnings if w not in data["warnings"]]
     return RouteResult.model_validate(data)
+
+
+@router.post(
+    "/journeys",
+    response_model=JourneyPlan,
+    responses={
+        404: {"description": "unknown place or scenario"},
+        409: {"model": NoJourney, "description": "no route to play (route status and why)"},
+        422: {"description": "unknown profile or bad start time"},
+        500: {"description": "a journey event without route evidence (a data or rule bug)"},
+    },
+)
+def journeys(req: JourneyRequest) -> JourneyPlan:
+    """The journey for the recommended route between two places (spec 2026-10-19 §6.2).
+
+    Planned per request, like POST /routes (no route store, no verification requests filed).
+    The chat attaches the same plan to `journey.play` for the same endpoints, profile, scenario
+    and start time."""
+    ctx = state.get_ctx()
+    require_selection(ctx.world, req.profile, req.scenario_id)
+    r = tools.plan_route(ctx, req.from_id, req.to_id, req.profile, req.scenario_id, file_vrs=False)
+    data = r.data if isinstance(r.data, dict) else {}
+    warnings = list(dict.fromkeys([*data.get("warnings", []), *r.warnings]))
+    for pid in (req.from_id, req.to_id):
+        if f"no such place: {pid}" in warnings:
+            raise HTTPException(404, f"unknown place {pid}")
+    routes = data.get("routes") or []
+    if not routes:
+        status = data.get("status", "no_data")
+        status = status if status in _NO_JOURNEY else "no_data"
+        body = NoJourney(route_status=status, message=_NO_JOURNEY[status], warnings=warnings)
+        raise HTTPException(409, body.model_dump())
+    route = Route.model_validate(routes[0])
+    try:
+        return build_journey(ctx.world, route, req.profile, req.start_time)
+    except JourneyEvidenceError as e:
+        log.error("journey for %s failed: %s", route.id, e)
+        raise HTTPException(500, f"Journey could not be built: {e}") from e
