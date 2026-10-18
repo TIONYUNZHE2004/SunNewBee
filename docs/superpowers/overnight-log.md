@@ -855,3 +855,25 @@ Logged 2026-10-18 14:10 MPST. The run went from 2026-10-18 about 08:00 to 14:10.
     - Overlay colours pass through OutputPass tone mapping.
   - **Data:** the Masjid Denai Alam outline, and a project-page `info_url` for landmarks.
 - **Next:** Plan P4 (township rollout), to be written now that the gate has passed.
+
+## 2026-10-18 Three.js stylised overhaul: Phase 4 (township rollout and quality) complete
+
+Logged 2026-10-18 22:05 MPST. The run went from 2026-10-18 about 16:50 to 22:05. Plan: `docs/superpowers/plans/2026-10-18-stylised-threejs-phase-4-township.md`, run with subagent-driven development in parallel waves (two fe lanes plus a blender lane). The ledger, with every ruling (P4-A to P4-AG), is in `.superpowers/sdd/2026-10-18-stylised-threejs-phase-4-township/` (gitignored).
+
+- **Branch:** `feat/stylised-threejs-p4`, local only and not pushed; final head `bae9f96`. `?engine=three` is still opt-in (P5 flips it). `origin/main` has moved on since `eb750e0` and must be merged in before P4/P5 reach `main`.
+- **Owner gate: PASS** (2026-10-18). The Task 7 archetype previews passed at owner round 1 (mall as an open-air strip, shop-office facelift, Kanopi planting at its traced depth, non-grey roofs).
+- **Streaming:**
+  - 250 m tiles, rings 0–2 (ring 2 only at ≤ 1500 m range), 64-tile LRU, `HERO_BOOST` 1.6.
+  - One tile planned per 250 ms LOD tick; merged-layer rebuilds coalesced to at most once per second while filling.
+  - Worker not needed by the node measurement (per-tile p95 props 4.3 ms, agents 1.1, signs 0.5, ribbons 0.7), but the browser fly test shows 17 of 258 plans over 8 ms (max 15.7 ms). Accepted for this gate (ruling P4-AA) and carried to P5.
+  - Probe views: Elmina Valley 3, Elmina Green, Subang Galaksi, Seksyen U16 (800 m).
+- **Buildings:**
+  - Procedural facades on 5,474 extruded and stretched-generic buildings (storeys = display height / 3.2 m), streamed at ring ≤ 1, decorative, unpickable; the building beneath keeps its card.
+  - Big roofs (≥ 600 m²) get rooftop units, skylights and a non-grey tint; Kanopi's OSM podium gets a decorative landscape deck with a `#7fb6c9` pool.
+  - Blender detail pass on every archetype; lit-window share tracks the mood (about 58 % at full night on every glass archetype).
+- **Ground:** textured land cover, grass verges and shrubs (Medium: camera tile only, for the hitch budget), parking lots with stall lines and parked cars (13 OSM parking areas, fixed 70 % occupancy, never moving or fading), and construction sites dressed by area. Six ground draws.
+- **Motion and life:** traffic and people at display rate (30 fps fallback below a 45 fps median); no path-end teleports; cars loop out and back in their own left lane; smoothed yaw; no motion at Low. Street trees smaller (rain tree 0.55–0.7) and no canopy overhangs a footway. Residents at least 6 px tall at any range, with a 1 px outline.
+- **Budgets** (headless Chromium on an RTX 2050, indicative; the owner's laptop fps is binding and not yet measured): all seven Medium views pass, worst hero-near 117 draws / 2.26 M tris. Fly test: no planning frame over 50 ms; memory flat over three loops.
+- **CI checklist** (final head): lint PASS; typecheck PASS; gen PASS; build PASS; golden 22/22 and e2e 24 (mock-backed); vitest green, with three Cesium/seed tests that time out only under full-suite load (seed honesty tests now have a 60 s timeout); pytest 1 failure, the pre-existing Windows path-separator test (no Python changed in P4).
+- **Carried to P5:** default engine and Cesium Stylised retirement; the hitch budget (planning Worker); per-unit shop colours, parked-car lamps, bright night skylights, a floating roof unit, verges inside parks, Kanopi LOD1 planting; the mosque guard; code cleanup (unused wall UVs, dead P3 caps, identical Medium↔High rebuilds).
+- **Next:** Plan P5, `docs/superpowers/plans/2026-10-18-stylised-threejs-phase-5-default-and-cleanup.md`.
