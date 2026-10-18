@@ -2,9 +2,9 @@
 
 The TownshipLens browser app: a Vite + React 19 SPA with two screens and a time-of-day theme (Day / Dusk / Night).
 
-- `/` **Main** (`features/main/MainPage.tsx`): a full-bleed map (`MapStage`: Cesium 3D, Mapbox
-  lite or the List view) with a floating glass **assistant** panel over its right edge (a bottom
-  sheet on phones). Overlays sit in map slots (route tag, flood banner, settings popover, place
+- `/` **Main** (`features/main/MainPage.tsx`): on wide screens a stone frame holds a slim rail
+  (`app/Rail.tsx`), the map (`MapStage`: Cesium 3D, three.js, Mapbox lite or the List view) as a
+  rounded card, and the **assistant** docked beside it as its own card (a bottom sheet on phones). Overlays sit in map slots (route tag, flood banner, settings popover, place
   and path overlays). The assistant has modes with starter questions (`features/assistant/starters.ts`),
   answer cards with a summary strip, collapsed evidence and uncertainty banners, and a Gaps section
   of unverified facts. See "Layout", "Answers" and "Phone bottom sheet" below.
@@ -126,7 +126,13 @@ mood: Stylised re-lights per mood, Realistic Cesium night is a dark sky with dim
 (`scene/cesium/timeOfDay.ts`; Google tiles cannot be relit), Mapbox uses its light presets, and the
 List view follows the page.
 
-## Skins and glass (Project 4)
+## Skins and glass (Project 4, restyled Oct 2026)
+
+The Oct 2026 redesign (`docs/superpowers/specs/2026-10-18-ui-redesign-design.md`) replaced the
+lavender palette: Light is warm stone and ink, Dark is charcoal, type is Geist / Geist Mono, and
+Sime Darby Property red (`--c-brand-red`) appears only on the logo mark (`ui/Logo.tsx`). Status
+tones follow the map legend hues in `scene/styles.ts` (`--c-ok` green, amber not checked, red not
+passable and likely flooded, orange possibly flooded), tuned per skin for AA text contrast.
 
 Two skins, set on `<html data-skin>` by `ui/theme.ts`: **Light** (Day and Dusk) and **Dark** (Night).
 `index.css` defines the palette as `--c-*` custom properties per skin (`--c-bg`, `--c-surface`,
@@ -139,16 +145,22 @@ contrast of the text tokens in both skins.
 `.glass` and `.glass-strong` are Tailwind 4 `@utility` definitions (layered, so variants such as
 `lg:glass` work and utilities can override them): a translucent `--c-glass` background, a blur and
 saturate `backdrop-filter`, and a hairline border and shadow. An `@supports not (backdrop-filter)`
-rule swaps in the opaque `--c-surface`. Because `.glass` owns the border and shadow, **selection
-states use `outline`** (not border or ring), for example the selected ticket row.
+rule swaps in the opaque `--c-surface`. Glass is now kept for small pills floating over the map
+(brand pill, tags, attribution); cards use `bg-surface` with `border-edge`, and a selected ticket
+row shows an ink border and lift.
 
-## Layout (Project 4)
+## Layout (Project 4, framed Oct 2026)
 
-- **Full-bleed map:** the map section fills the area under the header (`absolute inset-0`); nothing
-  is laid out beside it.
-- **Floating panel (lg and up):** `AssistantPanel` is a glass card inset 16 px from the top, right
-  and bottom, with a width of 30% of the viewport clamped to 360-440 px (`panelWidthPx`). A tab on
-  its left edge hides it (focus moves to the show button, and back). The open state persists in
+- **Frame (lg and up):** `Shell` lays out the rail and the page with a 12 px padding and gap
+  (`FRAME_GAP_PX`). The rail has the logo, Map, Assistant (toggle), Tickets (Management, or on
+  Tickets) and the theme menu. Below lg a compact header replaces the rail.
+- **Map card:** the map section is a rounded card that fills the space left of the assistant. Its
+  top-left brand pill (wordmark, site, Resident / Management) renders into the `brand` map slot,
+  first in the `TopStack`, so the other top tags stack below it.
+- **Docked panel (lg and up):** `AssistantPanel` is a card beside the map, 28% of the viewport
+  clamped to 360-420 px (`panelWidthPx`). It never covers the map, so `--panel-w` is 0 on wide
+  screens and `mapPanelOverlapPx()` gives the renderers no look-point offset. The close button in
+  its corner hides it (focus moves to the show button on the map card, and back). The open state persists in
   `localStorage` (`tl.panel.open`, try/catch). Narrow screens start with the panel closed and
   ignore the stored choice.
 - **`--panel-w`:** `MainPage` sets `--panel-w` (the width the panel covers, 0 when closed or on a

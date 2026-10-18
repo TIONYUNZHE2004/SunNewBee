@@ -112,7 +112,8 @@ export function Shell() {
           ref={attrRef}
           // At full the phone sheet carries the attribution on its own bottom edge.
           hidden={attrHidden}
-          className={`pointer-events-auto absolute z-10 m-0 truncate rounded-full px-2.5 py-0.5 text-[0.65rem] text-fg-soft ${
+          // Wraps, never truncates: the attribution is a licence requirement (ODbL, Copernicus).
+          className={`pointer-events-auto absolute z-10 m-0 rounded-lg px-2.5 py-0.5 text-[0.65rem] text-fg-soft ${
             onTickets ? "bottom-0 left-1 bg-transparent" : "glass bottom-2 left-2"
           }`}
           style={{
