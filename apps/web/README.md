@@ -266,6 +266,10 @@ the settings popover.
   intent standing in `sceneStore` (route, then what-if, then focused place, then the last
   `camera.fly_to`; Realistic also frames a rehearsed trip), else to its start view (Three.js: the
   `hero-mid` bookmark; Cesium: the site home). Ruling P5-14: no camera-pose hand-off.
+- **Building clearance (Three.js, A-T7):** `three/clearance.ts` keeps the camera at least 2 m above
+  any roof it is over, ramping the floor down by 1.5 m per metre outside a footprint, and lifts it
+  when the camera-to-target line crosses a building. The engine applies it every frame after every
+  input, before the render; the journey follow camera reuses it.
 
 ### Stylised (Three.js)
 
@@ -666,11 +670,15 @@ CI: it needs a real GPU and the Elmina seed.
   `captureFrameStats(page, seconds)`: display-paced orbit fps plus uncapped frame time
   (`engine.renderNow` + `gl.finish`) for headroom. `support/journey.ts`: `journey.seek/play/pause`
   over `window.__journey` (Phase D; throws "not available" until then).
+- `clearance.accept.ts` (AC-A8): 300 seeded random wheel, drag and rotate operations over the hero
+  district; every rendered frame's camera is checked against `footprintTop`. Writes
+  `acceptance/A-T7/metrics.json` in the ledger.
 - `baseline.accept.ts` writes five PNGs and `metrics.json` to `ACCEPTANCE_OUT` (default: the
   journey-sim ledger folder `.superpowers/sdd/journey-sim/acceptance/baseline`).
 - The app side is `window.__tlAcceptance` (`three/scene/useAcceptanceHook.ts`): `setPose`, `getPose`,
   `size`, `frames`, `pickGrid(step)`, `measure(seconds, orbitDegPerSec)`,
-  `measureUncapped(frames, degPerFrame)`, `roadVertices`, `gpu`. It is installed only in
+  `measureUncapped(frames, degPerFrame)`, `roadVertices`, `gpu`, and for AC-A8 `clearance`,
+  `footprintTop(x, z)`, `cameraLocal`, `startCameraLog` / `stopCameraLog`. It is installed only in
   dev builds (`import.meta.env.DEV`) or when the page is loaded with `?acceptance=1`; it moves the
   camera and reads the scene, never data or settings.
 
