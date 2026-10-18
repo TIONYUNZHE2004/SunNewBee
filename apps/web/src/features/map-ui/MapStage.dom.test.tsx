@@ -58,7 +58,7 @@ async function mount(mapboxToken: string) {
   return useScene;
 }
 
-describe("MapStage renderer crash", () => {
+describe("MapStage renderer crash (Stylised, Three.js crashes)", () => {
   it("with Mapbox: falls back to Mapbox and says why", async () => {
     const useScene = await mount("pk.test");
     expect(await screen.findByTestId("mapbox")).toBeInTheDocument();
@@ -67,6 +67,8 @@ describe("MapStage renderer crash", () => {
       "The 3D map could not be shown on this device. Showing the 2D map instead.",
     );
     expect(screen.queryByTestId("list-view")).toBeNull();
+    // Review Focus 2: a Three.js crash never falls back to Cesium Stylised.
+    expect(screen.queryByTestId("cesium-scene")).toBeNull();
   });
 
   it("without Mapbox: falls back to the list and says why", async () => {
@@ -76,6 +78,8 @@ describe("MapStage renderer crash", () => {
     expect(screen.getByRole("alert")).toHaveTextContent(
       "The map could not be shown on this device. Showing the list instead.",
     );
+    expect(screen.queryByTestId("cesium-scene")).toBeNull();
+    expect(screen.queryByTestId("mapbox")).toBeNull();
   });
 });
 

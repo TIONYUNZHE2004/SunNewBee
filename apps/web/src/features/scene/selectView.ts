@@ -11,8 +11,9 @@ export type View = "cesium" | "mapbox" | "list";
 type Env = { googleKey: string; cesiumToken: string; mapboxToken: string };
 
 /**
- * Which views can be chosen (used to disable switcher buttons). Cesium needs WebGL plus something
- * to draw: Google/Ion tiles (a key) or the keyless stylised city (the world has buildings data).
+ * Which views can be chosen (used to disable switcher buttons). The 3D view (id "cesium") needs
+ * WebGL plus something to draw: Google/Ion tiles for Realistic on Cesium (a key), or buildings
+ * data for the keyless Stylised city drawn by Three.js.
  */
 export function availableViews(env: Env, webglOk: boolean, hasBuildings = false): View[] {
   if (!webglOk) return ["list"];
@@ -24,8 +25,8 @@ export function availableViews(env: Env, webglOk: boolean, hasBuildings = false)
 }
 
 /**
- * The view actually on screen: the chosen one if available and not crashed. A crashed 3D (Cesium)
- * renderer falls to Mapbox when available, else the list.
+ * The view actually on screen: the chosen one if available and not crashed. A crashed 3D renderer
+ * (Three.js for Stylised, Cesium for Realistic) falls to Mapbox when available, else the list.
  */
 export function effectiveView(view: View, available: View[], rendererFailed: boolean): View {
   if (!available.includes(view)) return "list";

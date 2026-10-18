@@ -1,4 +1,4 @@
-/** Pure camera maths for the stylised/realistic 3D map (no Cesium import; unit-tested). */
+/** Pure camera maths for the 3D map (Cesium Realistic; STEP is shared with Three.js) (no Cesium import; unit-tested). */
 const RAD = Math.PI / 180;
 const M_PER_DEG = 111_320;
 const TAU = Math.PI * 2;
