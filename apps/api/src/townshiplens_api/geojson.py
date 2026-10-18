@@ -32,11 +32,17 @@ def _layer(
         classes = world.flood.edge_classes.get(scenario_id or "", {})
         for e in world.edges.values():
             fc = classes.get(e.id)
-            if lens == "flood" and fc not in _FLOOD:
+            coverage = world.flood.coverage_for(scenario_id, e.id)
+            if lens == "flood" and fc not in _FLOOD and not coverage:
                 continue
             live = active_closures(e.closures, now)
             # A reported closure is shown as Not passable even where a flood class also applies.
-            status = "blocked" if live else _FLOOD.get(fc or "") or _MAP[evaluate_edge(e, prof)[0]]
+            status = (
+                "blocked"
+                if live
+                else _FLOOD.get(fc or "")
+                or _MAP[evaluate_edge(e, prof, fc, flood_coverage=coverage)[0]]
+            )
             props = {
                 "id": e.id,
                 "type": e.type,
@@ -48,6 +54,9 @@ def _layer(
                 props["closure_label"] = live[0].label(world.site.timezone)
             if fc in _FLOOD:  # class + scenario only; never a depth
                 props["flood_class"] = fc
+                props["scenario_id"] = scenario_id
+            if coverage:
+                props["flood_coverage"] = coverage
                 props["scenario_id"] = scenario_id
             feats.append(
                 {
