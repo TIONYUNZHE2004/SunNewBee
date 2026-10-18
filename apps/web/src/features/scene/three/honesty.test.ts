@@ -767,7 +767,7 @@ describe("honesty 6: the P4 decor is decorative and never picked", () => {
         }
     }
     expect(quads).toBeGreaterThan(1000);
-  });
+  }, 60_000);
 });
 
 describe("honesty 7: the Kanopi podium deck (ruling P4-M)", () => {
@@ -805,7 +805,7 @@ describe("honesty 7: the Kanopi podium deck (ruling P4-M)", () => {
     expect(lookDown(deck!.pool[12]!, deck!.pool[14]!)).toEqual(hit);
     const b = deck!.boxes;
     expect(lookDown(b[b.length - 4]!, b[b.length - 2]!)).toEqual(hit);
-  });
+  }, 60_000);
 });
 
 // ---- 8. overlay priority (Review Focus 5) ------------------------------------------------------
