@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import type { Tier } from "../../cesium/stylised/quality";
 import { GROUND_BANDS, type GroundBand, groundMaterial } from "./bands";
+import { applyGroundDetail } from "./groundDetail";
 import { shimmerMaterial } from "./landcover";
 import type { Ribbon } from "./ribbons";
 
@@ -76,7 +77,11 @@ export function createGroundLayer(
     // its classes never z-fight; it still depth-tests against buildings and the base plane, and
     // the parks, water and road bands above it draw after it (renderOrder).
     if (band === "landcover") mat.depthWrite = false;
-    if (uTime && band === "landcover") shimmerMaterial(mat, uTime, "water-only");
+    if (uTime && band === "landcover") {
+      shimmerMaterial(mat, uTime, "water-only");
+      // Value-noise brightness and speckle (Task 9). Kept at Low: a shader term, no geometry.
+      applyGroundDetail(mat, { uTime });
+    }
     const mesh = new THREE.Mesh(geo, mat);
     mesh.renderOrder = GROUND_BANDS[band].order;
     mesh.receiveShadow = true;

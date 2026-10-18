@@ -1,8 +1,17 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import type { Tier } from "../../cesium/stylised/quality";
 import { HERO_CENTRE } from "../bookmarks";
 import { createFrame } from "../frame";
-import { HERO_BOOST, type StreamKind, TILE_CAPS, TRIS_PER, tileCap } from "./caps";
+import {
+  HERO_BOOST,
+  type StreamKind,
+  TILE_CAPS,
+  TRIS_PER,
+  tileCap,
+  VERGE_PIECES_PER_CAP,
+  VERGE_SHRUBS_PER_CAP,
+} from "./caps";
 import { activeTiles, TILE_M, tileAt } from "./tiles";
 
 const frame = createFrame(HERO_CENTRE);
@@ -109,5 +118,21 @@ describe("stream tri budget", () => {
       });
   it("does not gut Medium (the worst case uses at least 30 percent of its slice)", () => {
     expect(streamTris("medium", { x: 0, z: 0 }, 800)).toBeGreaterThan(0.3 * SLICE.medium);
+  });
+});
+
+// 9a review: the verges cap must price what planTileVerges really draws per cap unit.
+describe("verge accounting", () => {
+  const manifest = JSON.parse(
+    readFileSync(new URL("../../../../../public/city/manifest.json", import.meta.url), "utf8"),
+  );
+  const lod0 = (v: string) => manifest.assets.trees.variants[v].lods[0].tris as number;
+  it("one cap unit = VERGE_PIECES_PER_CAP strip pieces (2 tris) plus, at ring 0, VERGE_SHRUBS_PER_CAP LOD0 shrubs", () => {
+    const strips = 2 * VERGE_PIECES_PER_CAP;
+    // planVerges' mix: 30 % hedges, 70 % round bushes.
+    const shrub = 0.7 * lod0("shrub_round") + 0.3 * lod0("shrub_hedge");
+    expect(TRIS_PER.verges[0]).toBeGreaterThanOrEqual(strips + VERGE_SHRUBS_PER_CAP * shrub);
+    expect(TRIS_PER.verges[1]).toBeGreaterThanOrEqual(strips);
+    expect(TRIS_PER.verges[2]).toBeGreaterThanOrEqual(strips);
   });
 });

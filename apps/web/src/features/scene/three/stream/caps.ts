@@ -26,8 +26,11 @@ export const HERO_BOOST = 1.6;
  *  - people: 598 / 201 / 201     - vehicles: 658 / 349 / 349 (no coarser LOD)
  *  - lamps: 144 / 79 / 79 (lamp_single and lamp_double)
  *  - furniture: 97 / 41 / 41
- * Kinds without a kit asset are flat batches: signs (a quad plus a post box) 12, verges (a strip
- * segment) 8, parking (a stall marking quad) 2.
+ * Kinds without a kit asset are flat batches: signs (a quad plus a post box) 12, parking (a stall
+ * marking quad) 2.
+ * verges: one cap unit is VERGE_PIECES_PER_CAP grass strip pieces of 2 triangles each (100), plus
+ * at ring 0 VERGE_SHRUBS_PER_CAP shrubs (`trees` kit LOD0, shrub_round 70 % / shrub_hedge 30 %:
+ * 424 each, so 212). Shrubs are ring 0 only; `planTileVerges` caps both.
  */
 export const TRIS_PER: Record<StreamKind, Record<0 | 1 | 2, number>> = {
   trees: { 0: 1090, 1: 224, 2: 42 },
@@ -37,9 +40,14 @@ export const TRIS_PER: Record<StreamKind, Record<0 | 1 | 2, number>> = {
   people: { 0: 598, 1: 201, 2: 201 },
   vehicles: { 0: 658, 1: 349, 2: 349 },
   signs: { 0: 12, 1: 12, 2: 12 },
-  verges: { 0: 8, 1: 8, 2: 8 },
+  verges: { 0: 212 + 100, 1: 100, 2: 100 },
   parking: { 0: 2, 1: 2, 2: 2 },
 };
+
+/** Grass strip pieces (2 m, 2 triangles) per unit of the `verges` cap. */
+export const VERGE_PIECES_PER_CAP = 50;
+/** Shrubs per unit of the `verges` cap, ring 0 only (strips read from afar, shrubs only up close). */
+export const VERGE_SHRUBS_PER_CAP = 0.5;
 
 const NONE: Record<StreamKind, number> = {
   trees: 0,
@@ -70,7 +78,7 @@ export const TILE_CAPS: Record<Tier, Record<0 | 1 | 2, Record<StreamKind, number
       people: 24,
       vehicles: 16,
       signs: 60,
-      verges: 40,
+      verges: 50,
       parking: 200,
     },
     1: {
@@ -81,7 +89,7 @@ export const TILE_CAPS: Record<Tier, Record<0 | 1 | 2, Record<StreamKind, number
       people: 12,
       vehicles: 9,
       signs: 30,
-      verges: 28,
+      verges: 40,
       parking: 100,
     },
     2: { ...NONE, trees: 60 },
@@ -95,7 +103,7 @@ export const TILE_CAPS: Record<Tier, Record<0 | 1 | 2, Record<StreamKind, number
       people: 14,
       vehicles: 10,
       signs: 40,
-      verges: 30,
+      verges: 37,
       parking: 120,
     },
     1: {
@@ -106,7 +114,7 @@ export const TILE_CAPS: Record<Tier, Record<0 | 1 | 2, Record<StreamKind, number
       people: 8,
       vehicles: 5,
       signs: 20,
-      verges: 20,
+      verges: 0,
       parking: 60,
     },
     2: { ...NONE, trees: 40 },

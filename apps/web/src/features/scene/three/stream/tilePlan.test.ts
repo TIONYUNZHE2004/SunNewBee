@@ -8,7 +8,8 @@ import { podiumDeck } from "../facade/podiumDeck";
 import { NEUTRAL_COLOURS } from "../fallbackStyle";
 import { createFrame } from "../frame";
 import { perLayerStats } from "./area";
-import { TILE_CAPS } from "./caps";
+import { TILE_CAPS, tileCap, VERGE_PIECES_PER_CAP, VERGE_SHRUBS_PER_CAP } from "./caps";
+import { farView } from "./streamer";
 import {
   bucketFacades,
   bucketRoofs,
@@ -250,5 +251,57 @@ describe("planTile roofs (Task 8: dressed roofs at ring <= 1)", () => {
     const plan = planRoofs([{ ...r, deck: d }]);
     expect(plan.items).toEqual([]);
     expect(plan.decks).toEqual([d]);
+  });
+});
+
+describe("planTile verges (Task 9: grass verges and shrub rows)", () => {
+  const pieces = (c: ReturnType<typeof planTile>) => (c.verges?.strips.length ?? 0) / 18;
+
+  it("ring 0: strips and shrubs within the tile's verges cap (x VERGE_PIECES_PER_CAP / VERGE_SHRUBS_PER_CAP)", () => {
+    const c = planTile(inputs(), t00, 0, "medium");
+    const cap = tileCap("medium", 0, "verges", t00, frame);
+    expect(pieces(c)).toBeGreaterThan(0);
+    expect(pieces(c)).toBeLessThanOrEqual(cap * VERGE_PIECES_PER_CAP);
+    // 6 streets of shrub rows: the shrub cap binds.
+    expect(c.verges!.shrubs.length).toBe(Math.floor(cap * VERGE_SHRUBS_PER_CAP));
+    for (const s of c.verges!.shrubs) {
+      expect(s.asset).toBe("trees");
+      expect(["shrub_round", "shrub_hedge"]).toContain(s.variant);
+    }
+    // Shrubs ride the kit union (unionKits), not the tile's own kits (farView keeps trees/* kits).
+    expect(count(c, "trees/shrub_")).toBe(0);
+  });
+
+  it("caps the strip pieces when the tile holds more verge than its cap", () => {
+    // 20 streets 10 m apart (both kerbs, ~240 m each) are far over a ring 0 cap.
+    const dense = fc(
+      ...Array.from({ length: 20 }, (_, n) =>
+        line(`d${n}`, "street", [
+          [2, 25 + 10 * n],
+          [248, 25 + 10 * n],
+        ]),
+      ),
+    );
+    const c = planTile(inputs({ walk: dense }), t00, 0, "medium");
+    const cap = tileCap("medium", 0, "verges", t00, frame);
+    expect(pieces(c)).toBe(cap * VERGE_PIECES_PER_CAP);
+  });
+
+  it("ring 1: strips only (shrubs are ring 0 detail); Medium ring 1, ring 2 and Low: none", () => {
+    const r1 = planTile(inputs(), t00, 1, "high");
+    expect(pieces(r1)).toBeGreaterThan(0);
+    expect(r1.verges!.shrubs).toEqual([]);
+    expect(planTile(inputs(), t00, 1, "medium").verges).toBeUndefined();
+    expect(planTile(inputs(), t00, 2, "high").verges).toBeUndefined();
+    expect(planTile(inputs(), t00, 0, "low").verges).toBeUndefined();
+  });
+
+  it("is deterministic per tile key, and beyond 1500 m (farView) shows no verges", () => {
+    const a = planTile(inputs(), t10, 0, "medium");
+    planTile(inputs(), t00, 0, "high");
+    const b = planTile(inputs(), t10, 0, "medium");
+    expect(Array.from(b.verges!.strips)).toEqual(Array.from(a.verges!.strips));
+    expect(b.verges!.shrubs.map((s) => s.id)).toEqual(a.verges!.shrubs.map((s) => s.id));
+    expect(farView(a).verges).toBeUndefined();
   });
 });

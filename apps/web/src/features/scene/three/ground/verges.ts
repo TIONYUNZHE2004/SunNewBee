@@ -1,7 +1,7 @@
 import { ROAD_WIDTH_UNKNOWN, WIDTH_BY_TYPE } from "../../cesium/stylised/ground";
 import { hash01, type Placement } from "../assets/fit";
 import type { LocalFrame } from "../frame";
-import { growBox, inBox, perLayer, touchesBox } from "../stream/area";
+import { inBox, perLayer, touchesBox } from "../stream/area";
 import type { Tile } from "../stream/tiles";
 import { VERGE_Y } from "./bands";
 
@@ -37,8 +37,11 @@ const HEDGE_SHARE = 0.3;
 const VERGE_TYPES = new Set(["street", "residential", "service"]);
 /** The kit's own default palette (manifest `trees.palettes.default`); 9b may repaint per precinct. */
 const SHRUB_PALETTE: [string, string, string] = ["#d8d6d0", "#3d4147", "#8a8f96"];
-/** How far past the tile we look for ribbons and footprints that could cover a piece or shrub. */
-const NEAR_M = 12;
+/** Spatial grid cell (m) for the ribbon and footprint lookups (each query reads one cell). */
+const GRID_M = 16;
+/** The widest ribbon query margin (`RIBBON_CLEAR_M`) and footprint query distance (`DRIVEWAY_GAP_M`). */
+const SEG_PAD_M = 0.3;
+const FOOT_PAD_M = 3;
 
 interface Line {
   idx: number;
@@ -79,6 +82,30 @@ const featuresOf = (fc: unknown): unknown[] =>
 
 const linesCache = new WeakMap<object, WeakMap<object, Line[]>>();
 const footCache = new WeakMap<object, WeakMap<object, Footprint[]>>();
+const segGridCache = new WeakMap<object, WeakMap<object, Grid<Seg>>>();
+const footGridCache = new WeakMap<object, WeakMap<object, Grid<Footprint>>>();
+
+interface Seg {
+  a: P;
+  b: P;
+  half: number;
+}
+/** Items by grid cell; an item sits in every cell its padded bounds touch, so a point query reads one cell. */
+type Grid<T> = Map<number, T[]>;
+const cellOf = (v: number) => Math.floor(v / GRID_M);
+const cellKey = (i: number, j: number) => (i + 0x8000) * 0x10000 + (j + 0x8000);
+function gridAdd<T>(g: Grid<T>, item: T, x0: number, z0: number, x1: number, z1: number): void {
+  for (let i = cellOf(x0); i <= cellOf(x1); i++)
+    for (let j = cellOf(z0); j <= cellOf(z1); j++) {
+      const k = cellKey(i, j);
+      const l = g.get(k);
+      if (l) l.push(item);
+      else g.set(k, [item]);
+    }
+}
+const NO_ITEMS: never[] = [];
+const gridAt = <T>(g: Grid<T>, x: number, z: number): T[] =>
+  g.get(cellKey(cellOf(x), cellOf(z))) ?? NO_ITEMS;
 
 /** Every walk LineString in local metres (all are drawn ribbons), with its feature index. */
 const linesOf = (walk: unknown, frame: LocalFrame): Line[] =>
@@ -144,12 +171,54 @@ const footprintsOf = (buildings: unknown, frame: LocalFrame): Footprint[] =>
     return out;
   });
 
-function distSeg(px: number, pz: number, a: P, b: P): number {
+/** Every ribbon segment (all walk lines are drawn ribbons), gridded by its bounds plus half width. */
+const segGridOf = (walk: unknown, frame: LocalFrame): Grid<Seg> =>
+  perLayer(segGridCache, walk, frame, () => {
+    const g: Grid<Seg> = new Map();
+    for (const l of linesOf(walk, frame)) {
+      const half = l.width / 2;
+      const r = half + SEG_PAD_M;
+      for (let i = 0; i < l.pts.length - 1; i++) {
+        const a = l.pts[i]!;
+        const b = l.pts[i + 1]!;
+        gridAdd(
+          g,
+          { a, b, half },
+          Math.min(a[0], b[0]) - r,
+          Math.min(a[1], b[1]) - r,
+          Math.max(a[0], b[0]) + r,
+          Math.max(a[1], b[1]) + r,
+        );
+      }
+    }
+    return g;
+  });
+
+/** Footprints gridded by their bounds plus the widest query distance. */
+const footGridOf = (buildings: unknown, frame: LocalFrame): Grid<Footprint> =>
+  perLayer(footGridCache, buildings, frame, () => {
+    const g: Grid<Footprint> = new Map();
+    for (const f of footprintsOf(buildings, frame))
+      gridAdd(
+        g,
+        f,
+        f.bb[0] - FOOT_PAD_M,
+        f.bb[1] - FOOT_PAD_M,
+        f.bb[2] + FOOT_PAD_M,
+        f.bb[3] + FOOT_PAD_M,
+      );
+    return g;
+  });
+
+/** Squared distance from a point to a segment (no `Math.hypot`: this is the planner's hot loop). */
+function distSeg2(px: number, pz: number, a: P, b: P): number {
   const dx = b[0] - a[0];
   const dz = b[1] - a[1];
   const l2 = dx * dx + dz * dz;
   const t = l2 === 0 ? 0 : Math.max(0, Math.min(1, ((px - a[0]) * dx + (pz - a[1]) * dz) / l2));
-  return Math.hypot(px - (a[0] + t * dx), pz - (a[1] + t * dz));
+  const ex = px - (a[0] + t * dx);
+  const ez = pz - (a[1] + t * dz);
+  return ex * ex + ez * ez;
 }
 
 function inRing(x: number, z: number, ring: Ring): boolean {
@@ -165,15 +234,16 @@ function inRing(x: number, z: number, ring: Ring): boolean {
 function distToRing(x: number, z: number, ring: Ring): number {
   let d = Number.POSITIVE_INFINITY;
   for (let i = 0, j = ring.length - 1; i < ring.length; j = i++)
-    d = Math.min(d, distSeg(x, z, ring[j]!, ring[i]!));
-  return d;
+    d = Math.min(d, distSeg2(x, z, ring[j]!, ring[i]!));
+  return Math.sqrt(d);
 }
 
 /**
  * Verge strips (flat triangles at the verge lift, `x y z` per vertex, 9 floats per triangle, two
  * triangles per 2 m piece) and shrub placements for one tile.
  *
- * `cap` limits the shrubs (nearest the tile centre kept first); strips are not capped. Pieces whose
+ * `cap` limits the shrubs and `pieceCap` the 2 m strip pieces (two triangles each), both nearest
+ * the tile centre first (the stream sets both from the tile's `verges` cap). Pieces whose
  * corners fall on a ribbon (a footway or street crossing) or inside a footprint are dropped, so a
  * verge never lies on a ribbon or under a building. Shrubs use the `trees` kit variants
  * `shrub_round` and `shrub_hedge`.
@@ -184,29 +254,23 @@ export function planVerges(
   tile: Tile,
   frame: LocalFrame,
   cap: number,
+  pieceCap = Number.POSITIVE_INFINITY,
 ): { strips: Float32Array; shrubs: Placement[] } {
   const box = tile.box;
-  const pad = growBox(box, NEAR_M);
   const lines = linesOf(walk, frame);
+  const segGrid = segGridOf(walk, frame);
+  const footGrid = footGridOf(buildings, frame);
 
-  // Ribbon segments (every walk line) and footprints near this tile.
-  const segs: { a: P; b: P; half: number }[] = [];
-  for (const l of lines) {
-    const h = l.width / 2 + NEAR_M;
-    if (!touchesBox(pad, l.bb[0] - h, l.bb[1] - h, l.bb[2] + h, l.bb[3] + h)) continue;
-    for (let i = 0; i < l.pts.length - 1; i++)
-      segs.push({ a: l.pts[i]!, b: l.pts[i + 1]!, half: l.width / 2 });
-  }
-  const feet = footprintsOf(buildings, frame).filter((f) =>
-    touchesBox(pad, f.bb[0], f.bb[1], f.bb[2], f.bb[3]),
-  );
-
+  // `extra` is at most SEG_PAD_M and `within` at most FOOT_PAD_M (the grid padding).
   const onRibbon = (x: number, z: number, extra: number): boolean => {
-    for (const s of segs) if (distSeg(x, z, s.a, s.b) < s.half + extra) return true;
+    for (const s of gridAt(segGrid, x, z)) {
+      const r = s.half + extra;
+      if (r > 0 && distSeg2(x, z, s.a, s.b) < r * r) return true;
+    }
     return false;
   };
   const nearFootprint = (x: number, z: number, within: number): boolean => {
-    for (const f of feet) {
+    for (const f of gridAt(footGrid, x, z)) {
       const b = f.bb;
       if (x < b[0] - within || x > b[2] + within || z < b[1] - within || z > b[3] + within)
         continue;
@@ -215,7 +279,7 @@ export function planVerges(
     return false;
   };
 
-  const tri: number[] = [];
+  const pieces: { d: number; quad: P[] }[] = [];
   const shrubs: { pl: Placement; d: number }[] = [];
   const cx = (box.x0 + box.x1) / 2;
   const cz = (box.z0 + box.z1) / 2;
@@ -229,13 +293,24 @@ export function planVerges(
     const reach = outer + 2;
     if (!touchesBox(box, l.bb[0] - reach, l.bb[1] - reach, l.bb[2] + reach, l.bb[3] + reach))
       continue;
-    const total = l.cum[l.cum.length - 1]!;
+    // A segment whose bounds plus `reach` miss the tile holds none of its pieces or shrubs.
+    const near = (s: number): boolean => {
+      const a = l.pts[s]!;
+      const b = l.pts[s + 1]!;
+      return touchesBox(
+        box,
+        Math.min(a[0], b[0]) - reach,
+        Math.min(a[1], b[1]) - reach,
+        Math.max(a[0], b[0]) + reach,
+        Math.max(a[1], b[1]) + reach,
+      );
+    };
 
     for (let s = 0; s < l.pts.length - 1; s++) {
       const a = l.pts[s]!;
       const b = l.pts[s + 1]!;
       const len = l.cum[s + 1]! - l.cum[s]!;
-      if (len < 0.1) continue;
+      if (len < 0.1 || !near(s)) continue;
       const ux = (b[0] - a[0]) / len;
       const uz = (b[1] - a[1]) / len;
       const nx = uz; // left of travel, viewed from above (x east, z south)
@@ -265,65 +340,84 @@ export function planVerges(
           if (bad) continue;
           // Wound to face +y, like the road ribbons.
           const quad = side === 1 ? [c00, c10, c01, c10, c11, c01] : [c00, c01, c10, c01, c11, c10];
-          for (const p of quad) tri.push(p[0], VERGE_Y, p[1]);
+          pieces.push({ d: Math.hypot(m[0] - cx, m[1] - cz), quad });
         }
       }
     }
 
     // Shrub rows: one position per SHRUB_SPACING_M of arc length along the whole line, each side.
-    for (const side of [1, -1]) {
-      for (let k = 0; ; k++) {
-        const id = `vg${l.idx}.${side > 0 ? "L" : "R"}.${k}`;
-        const arc =
-          SHRUB_SPACING_M * k +
-          SHRUB_SPACING_M / 2 +
-          (2 * hash01(id, "along") - 1) * SHRUB_JITTER_M;
-        if (arc >= total) break;
-        let si = 0;
-        while (si < l.pts.length - 2 && l.cum[si + 1]! <= arc) si++;
-        const a = l.pts[si]!;
-        const b = l.pts[si + 1]!;
-        const len = l.cum[si + 1]! - l.cum[si]!;
-        if (len < 0.1) continue;
-        const ux = (b[0] - a[0]) / len;
-        const uz = (b[1] - a[1]) / len;
-        const nx = uz;
-        const nz = -ux;
-        const t = arc - l.cum[si]!;
-        const off = mid + (2 * hash01(id, "across") - 1) * SHRUB_LATERAL_M;
-        const x = a[0] + ux * t + nx * side * off;
-        const z = a[1] + uz * t + nz * side * off;
-        if (!inBox(box, x, z)) continue;
-        if (onRibbon(x, z, RIBBON_CLEAR_M)) continue;
-        if (nearFootprint(x, z, SHRUB_CLEAR_M)) continue;
-        // Driveway: a footprint within 3 m of the kerb point abreast of this shrub.
-        const kx = a[0] + ux * t + nx * side * inner;
-        const kz = a[1] + uz * t + nz * side * inner;
-        if (nearFootprint(kx, kz, DRIVEWAY_GAP_M)) continue;
-        const hedge = hash01(id, "kind") < HEDGE_SHARE;
-        const sc = 0.9 + 0.2 * hash01(id, "scale");
-        shrubs.push({
-          pl: {
-            id,
-            asset: "trees",
-            variant: hedge ? "shrub_hedge" : "shrub_round",
-            x,
-            z,
-            yaw: hedge ? Math.atan2(-uz, ux) : hash01(id, "yaw") * Math.PI * 2,
-            sx: sc,
-            sy: sc,
-            sz: sc,
-            palette: SHRUB_PALETTE,
-          },
-          d: Math.hypot(x - cx, z - cz),
-        });
-      }
+    // Position k belongs to the segment whose half-open arc range holds it; only segments near the
+    // tile are visited (a shrub of a far segment lies outside the box anyway).
+    for (let si = 0; si < l.pts.length - 1; si++) {
+      const lo = l.cum[si]!;
+      const hi = l.cum[si + 1]!;
+      const len = hi - lo;
+      if (len < 0.1 || !near(si)) continue;
+      const a = l.pts[si]!;
+      const b = l.pts[si + 1]!;
+      const kLo = Math.max(
+        0,
+        Math.ceil((lo - SHRUB_SPACING_M / 2 - SHRUB_JITTER_M) / SHRUB_SPACING_M),
+      );
+      const kHi = Math.floor((hi - SHRUB_SPACING_M / 2 + SHRUB_JITTER_M) / SHRUB_SPACING_M);
+      for (const side of [1, -1])
+        for (let k = kLo; k <= kHi; k++) {
+          const id = `vg${l.idx}.${side > 0 ? "L" : "R"}.${k}`;
+          const arc =
+            SHRUB_SPACING_M * k +
+            SHRUB_SPACING_M / 2 +
+            (2 * hash01(id, "along") - 1) * SHRUB_JITTER_M;
+          if (arc < lo || arc >= hi) continue;
+          const ux = (b[0] - a[0]) / len;
+          const uz = (b[1] - a[1]) / len;
+          const nx = uz;
+          const nz = -ux;
+          const t = arc - lo;
+          const off = mid + (2 * hash01(id, "across") - 1) * SHRUB_LATERAL_M;
+          const x = a[0] + ux * t + nx * side * off;
+          const z = a[1] + uz * t + nz * side * off;
+          if (!inBox(box, x, z)) continue;
+          if (onRibbon(x, z, RIBBON_CLEAR_M)) continue;
+          if (nearFootprint(x, z, SHRUB_CLEAR_M)) continue;
+          // Driveway: a footprint within 3 m of the kerb point abreast of this shrub.
+          const kx = a[0] + ux * t + nx * side * inner;
+          const kz = a[1] + uz * t + nz * side * inner;
+          if (nearFootprint(kx, kz, DRIVEWAY_GAP_M)) continue;
+          const hedge = hash01(id, "kind") < HEDGE_SHARE;
+          const sc = 0.9 + 0.2 * hash01(id, "scale");
+          shrubs.push({
+            pl: {
+              id,
+              asset: "trees",
+              variant: hedge ? "shrub_hedge" : "shrub_round",
+              x,
+              z,
+              yaw: hedge ? Math.atan2(-uz, ux) : hash01(id, "yaw") * Math.PI * 2,
+              sx: sc,
+              sy: sc,
+              sz: sc,
+              palette: SHRUB_PALETTE,
+            },
+            d: Math.hypot(x - cx, z - cz),
+          });
+        }
     }
   }
 
   shrubs.sort((p, q) => p.d - q.d || (p.pl.id < q.pl.id ? -1 : p.pl.id > q.pl.id ? 1 : 0));
+  // Piece cap: nearest the tile centre first (a stable sort keeps the planning order on ties).
+  const keep = Math.max(0, Math.floor(pieceCap));
+  if (pieces.length > keep) pieces.sort((p, q) => p.d - q.d);
+  const n = Math.min(pieces.length, keep);
+  const strips = new Float32Array(n * 18);
+  for (let i = 0, o = 0; i < n; i++)
+    for (const p of pieces[i]!.quad) {
+      strips[o++] = p[0];
+      strips[o++] = VERGE_Y;
+      strips[o++] = p[1];
+    }
   return {
-    strips: Float32Array.from(tri),
+    strips,
     shrubs: shrubs.slice(0, Math.max(0, Math.floor(cap))).map((s) => s.pl),
   };
 }
