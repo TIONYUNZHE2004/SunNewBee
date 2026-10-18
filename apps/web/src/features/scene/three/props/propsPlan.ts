@@ -58,6 +58,8 @@ const TREE_CLEAR_M = 1.5;
 const TREE_MIN_GAP_M = 2.5;
 const STREET_TREE_SPACING = 18;
 const STREET_TREE_EXTRA = 1.5;
+/** A street lamp stands this far beyond the kerb. */
+const STREET_LAMP_EXTRA = 0.8;
 const MEDIAN_TREE_SPACING = 14;
 const STREET_LAMP_SPACING = 30;
 const STREET_LAMP_START = 9;
@@ -73,8 +75,18 @@ const CRANE_MIN_M2 = 8000;
 const BOLLARD_SPACING = 1.5;
 const BOLLARDS_PER_ENTRANCE = 5;
 const GRID_M = 32;
-/** Walk points this far outside the box can still put a prop inside it (kerb offsets). */
-const ALONG_MARGIN_M = 20;
+/**
+ * The furthest a kerb prop stands from its road's centre line: half the widest road plus the
+ * larger kerb offset. A road this far outside the box can still put a tree or lamp inside it.
+ */
+const KERB_REACH_M =
+  Math.max(ROAD_WIDTH_UNKNOWN, ...Object.values(WIDTH_BY_TYPE)) / 2 +
+  Math.max(STREET_TREE_EXTRA, STREET_LAMP_EXTRA);
+/**
+ * Walk points (and roads) this far outside the box are still walked for kerb props: the kerb reach
+ * past the tree pad (the spacing rule needs the trees in the pad too), plus a metre of slack.
+ */
+const ALONG_MARGIN_M = TREE_MIN_GAP_M + KERB_REACH_M + 1;
 /** Places this far outside the box can still put furniture or bollards inside it. */
 const PLACE_MARGIN_M = 20;
 
@@ -532,7 +544,9 @@ export function planProps(input: PropsInput): PropsPlan {
     const kindStreet = r.kind === "residential";
     const major = r.type === "major_road";
     if (!kindStreet && !major) continue;
-    if (!overlapsClip(r.bb)) continue;
+    // Against the box grown by the kerb reach, not the tree pad: a street just outside the box
+    // still puts its near-kerb trees and lamps inside it.
+    if (!touchesBox(alongBox, r.bb[0], r.bb[1], r.bb[2], r.bb[3])) continue;
     if (kindStreet) {
       const off = r.width / 2 + STREET_TREE_EXTRA;
       for (const p of along(r.pts, STREET_TREE_SPACING)) {
@@ -543,7 +557,7 @@ export function planProps(input: PropsInput): PropsPlan {
           tree(id, x, z, pick(id, "species", STREET_SPECIES), "street");
         }
       }
-      const lampOff = r.width / 2 + 0.8;
+      const lampOff = r.width / 2 + STREET_LAMP_EXTRA;
       for (const p of along(r.pts, STREET_LAMP_SPACING, STREET_LAMP_START)) {
         // Alternate sides by the lamp's index along the whole road (not within the box).
         const i = Math.round((p.s - STREET_LAMP_START) / STREET_LAMP_SPACING);

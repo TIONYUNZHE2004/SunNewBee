@@ -402,6 +402,49 @@ describe("planProps per tile box", () => {
     expect(all(first).length).toBeGreaterThan(20);
   });
 
+  it("streets just outside a shared edge still put their kerb trees and lamps across it", () => {
+    // Streets parallel to the shared edges, 3–6 m outside them: their far-kerb trees (4.5 m off
+    // the centre line) and lamps (3.8 m) land in the neighbouring tile.
+    const seam: Partial<In> = {
+      walk: fc(
+        ...[3, -4.5, 6].map((x, i) =>
+          line(
+            "street",
+            [
+              [x, -240],
+              [x, 240],
+            ],
+            `sx${i}`,
+          ),
+        ),
+        ...[-3, 5].map((z, i) =>
+          line(
+            "street",
+            [
+              [-240, z],
+              [240, z],
+            ],
+            `sz${i}`,
+          ),
+        ),
+      ),
+    };
+    const kerb = (box: Box) =>
+      byId(
+        all(plan({ ...seam, caps: BIG, area: { box, seed: "t" } })).filter(
+          (q) => q.asset === "trees" || q.variant.startsWith("lamp"),
+        ),
+      );
+    const parts = Q.flatMap((b) => kerb(b));
+    const union = kerb(U);
+    expect(new Set(parts.map((q) => q.id)).size).toBe(parts.length);
+    expect(byId(parts)).toEqual(union);
+    // Not vacuous: the x = 3 street's west-kerb trees and lamps sit in the west tiles.
+    const west = union.filter((q) => q.id.includes(":sx0:") && q.x < 0);
+    expect(west.some((q) => q.asset === "trees")).toBe(true);
+    expect(west.some((q) => q.variant.startsWith("lamp"))).toBe(true);
+  });
+
   it("each tile keeps only points inside its own half-open box, edge points included", () => {
     // The major road's median palms and lamps run along x = 0, the shared edge.
     let onEdge = 0;
