@@ -153,6 +153,33 @@ describe("fitArchetype", () => {
   });
 });
 
+describe("fitArchetype shallow-front swap", () => {
+  it("fits a narrow plot facing a long wall as one unit with the front on the short wall", () => {
+    // long axis along x; front_deg 20 faces the long wall (+z side) but is nearer +x than -x
+    const r = fitArchetype(obbOf(6.4, 15.5, 0), spec(), "gable", 8.5, 20, "sw");
+    expect(r).toHaveLength(1);
+    expect(r![0]!.sx).toBeCloseTo(1, 2);
+    expect(r![0]!.sz).toBeCloseTo(1, 2);
+    expect(Math.sin(r![0]!.yaw)).toBeCloseTo(1, 9);
+    expect(Math.cos(r![0]!.yaw)).toBeCloseTo(0, 9);
+    const w = fitArchetype(obbOf(6.4, 15.5, 0), spec(), "gable", 8.5, 200, "sw")!;
+    expect(Math.sin(w[0]!.yaw)).toBeCloseTo(-1, 9);
+  });
+  it("is unchanged when front_deg already faces a short wall", () => {
+    const r = fitArchetype(obbOf(6.4, 15.5, 0), spec(), "gable", 8.5, 90, "f")!;
+    expect(r).toHaveLength(1);
+    expect(r[0]!.yaw).toBeCloseTo(Math.PI / 2, 9);
+    expect(r[0]!.sx).toBeCloseTo(1, 2);
+  });
+  it("does not rescue a 6.4 x 40 m footprint", () => {
+    expect(fitArchetype(obbOf(6.4, 40, 0), spec(), "gable", 8.5, 20, "deep")).toBeNull();
+  });
+  it("does not swap a non-frontage archetype", () => {
+    const s = spec({ repeat: "none" as AssetSpec["repeat"] });
+    expect(fitArchetype(obbOf(6.4, 15.5, 0), s, "gable", 8.5, 20, "nf")).toBeNull();
+  });
+});
+
 describe("yawForFront", () => {
   it("maps azimuths to yaw", () => {
     expect(yawForFront(180)).toBeCloseTo(0, 12);
