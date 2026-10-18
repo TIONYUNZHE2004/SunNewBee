@@ -450,3 +450,35 @@ test("route answer lists every journey event as numbered steps in the list view 
   }
   await expect(steps).not.toContainText(/(?<![a-z])safe(?![a-z])/i);
 });
+
+test("route answer offers Watch the trip and working player controls (AC-D13)", async ({
+  page,
+}) => {
+  await open(page);
+  await ask(page, "Can I push a stroller from Car Park B to the playground without stairs?");
+  await lastAnswer(page);
+  type Hook = {
+    total: number;
+    phases: unknown[];
+    state: () => { t: number; playing: boolean; camMode: string } | null;
+  };
+  const state = () =>
+    page.evaluate(() => (window as unknown as { __journey: Hook }).__journey.state());
+  const watch = page.getByRole("button", { name: "Watch the trip" });
+  await expect(watch).toBeVisible();
+  expect(
+    await page.evaluate(() => (window as unknown as { __journey: Hook }).__journey.total),
+  ).toBeGreaterThan(0);
+  expect(await state()).toMatchObject({ t: 0, playing: false });
+  await watch.click();
+  expect((await state())?.playing).toBe(true);
+  const controls = page.getByTestId("journey-controls");
+  await controls.getByRole("button", { name: "Pause" }).click();
+  expect((await state())?.playing).toBe(false);
+  await controls.getByRole("button", { name: "Overview" }).click();
+  expect((await state())?.camMode).toBe("overview");
+  await controls.getByRole("slider", { name: "Trip position" }).fill("10");
+  expect((await state())?.t).toBe(10);
+  await controls.getByRole("button", { name: "Restart" }).click();
+  expect((await state())?.playing).toBe(true);
+});
