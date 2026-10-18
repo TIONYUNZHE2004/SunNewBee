@@ -29,20 +29,36 @@ Active workers (keep this table current):
 
 | Branch | Agent | Task | Status |
 |---|---|---|---|
-| `claude/kind-cannon-mormhi` | Claude worker | T-001 → T-003 → T-002 (validator, promise filter, drafts) | Assigned 17 Oct. Earlier work merged (PR #2, #3) |
-| `codex/yunzhe-workflow` | Codex worker | T-012 → T-008 → T-011 (answer key, toilet provenance, assistant scope), and checks Claude's fixes with the audit probes | Assigned 17 Oct. Earlier audit merged (PR #4) |
-| `claude/sweet-davinci-29v7ne` | Control | T-010 after T-008; T-007 live test after T-001 to T-003 and T-011 | T-007 waits for Yunzhe's instruction |
+| `claude/kind-cannon-mormhi` | Cloud Claude worker | Finish T-001, then stop | T-002, T-003 merged (PR #8) |
+| `codex/yunzhe-workflow` | Cloud Codex worker | T-015 answer-key refresh; checks other agents' PRs; no product code | T-008, T-011, T-012 merged (PR #7) |
+| `local/ai-engineer` | Local Claude (`sophist-purring-aurora`) | T-013 scope gate, T-017 AI audit | Started 18 Oct |
+| `local/backend-engineer` | Local Codex | T-016 backend audit, T-014 sidewalk vs road (with T-010) | Started 18 Oct |
+| `claude/sweet-davinci-29v7ne` | Control | Merge green PRs, keep the board; T-007 on Yunzhe's instruction | — |
 
 The board branch holds the current owner and status of every task; this table is only a summary.
 
-## Product scope: option B (17 Oct 2026)
+## Product scope: B+ (17-18 Oct 2026)
 
-Small field, highest accuracy. The resident assistant covers only:
+Small field, highest accuracy. The resident assistant covers:
 
-- **Access:** step-free routes per profile, place facts, nearby amenities, closures, tickets for gaps.
+- **Access:** routes, place facts, nearby amenities, closures, tickets for gaps.
 - **Flood evacuation:** indicative river stages, affected places, evacuation centres, routes under a stage.
 
-The accuracy target is the **deep spot: Elmina Urban Park + Elmina Lakeside Mall frontage**, measured on a human-checked answer key. Everything else (waste, what-if, tipping point, rising river, fix-it, verify-next planner, Elmina Day) is refused politely by the assistant. That code stays in the repo and in the staff screens, but agents do not extend it unless Yunzhe asks. Tasks outside the scope are `parked` on the board.
+It never refuses a question because of its wording. Routes and places anywhere in Elmina are answered; outside the **deep spot (Elmina Urban Park + Elmina Lakeside Mall frontage)** the answer says the facts come from OpenStreetMap only. The deep spot stays the accuracy target, measured on a human-checked answer key. Only clearly removed topics (waste, what-if, tipping point, rising river, fix-it, verify-next planner, Elmina Day) are refused. That code stays in the repo and the staff screens; agents do not extend it unless Yunzhe asks.
+
+## Local agents on Yunzhe's computer
+
+Each local agent works in its own git worktree, so agents never edit the same folder and Yunzhe's own folder keeps running `pnpm dev`.
+
+| Agent | Folder | Branch | Its own ports |
+|---|---|---|---|
+| Local AI engineer (Claude) | `../SunNewBee-ai` | `local/ai-engineer` | `API_PORT=8011 WEB_PORT=5181` |
+| Local backend engineer (Codex) | `../SunNewBee-backend` | `local/backend-engineer` | `API_PORT=8021 WEB_PORT=5191` |
+
+- Each worktree has its own `.env` copy, `pnpm install` and `uv sync --all-packages --all-groups`.
+- The worktree branches were created tracking control. Before the first push, run `git branch --unset-upstream`, then always push with `git push -u origin <own branch>`.
+- Local agents do not run e2e (fixed ports 5273/8100 would clash); GitHub CI runs it on their PRs.
+- Live OpenRouter budget per day: AI engineer up to US$2, backend engineer up to US$0.50. Rounds of at most 10 live questions; log model, turns and cost per round on the board.
 
 ## My scope (who owns what)
 
