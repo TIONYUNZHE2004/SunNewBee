@@ -90,6 +90,8 @@ const tierFakes = vi.hoisted(() => ({
   kits: [] as (Map<string, unknown[]> | undefined)[],
   groundTiers: [] as string[],
   layers: [] as { disposed: number }[],
+  /** The YawMemory handed to each rebuilt motion layer (T12b: one map for the scene's lifetime). */
+  yaws: [] as unknown[],
 }));
 vi.mock("./props/propsPlan", async (orig) => {
   const mod = await orig<typeof import("./props/propsPlan")>();
@@ -182,6 +184,7 @@ vi.mock("./motion/motionLayer", async (orig) => {
     ...mod,
     createMotionLayer: (...a: Parameters<typeof mod.createMotionLayer>) => {
       if (!tierFakes.on) return mod.createMotionLayer(...a);
+      tierFakes.yaws.push(a[5]?.yaw);
       const layer = {
         group: new T.Group(),
         tick: () => {},
@@ -936,6 +939,7 @@ describe("ThreeScene", () => {
       tierFakes.kits.length = 0;
       tierFakes.groundTiers.length = 0;
       tierFakes.layers.length = 0;
+      tierFakes.yaws.length = 0;
       act(() => useSceneSettings.setState({ quality: "medium" }));
       try {
         serve({});
@@ -975,6 +979,10 @@ describe("ThreeScene", () => {
         expect(driver()?.group.children).toHaveLength(1);
         expect(tierFakes.groundTiers.at(-1)).toBe("medium");
         expect(engine.setCity.mock.calls.length).toBe(cityCalls);
+        // Every rebuilt motion layer shares one YawMemory, so a rebuild never resets agents' yaw.
+        expect(tierFakes.yaws.length).toBeGreaterThanOrEqual(2);
+        expect(tierFakes.yaws[0]).toBeInstanceOf(Map);
+        for (const y of tierFakes.yaws) expect(y).toBe(tierFakes.yaws[0]);
       } finally {
         tierFakes.on = false;
         act(() => useSceneSettings.setState({ quality: "auto" }));

@@ -320,10 +320,13 @@ hero district.
 #### Motion (Three.js)
 
 Decorative traffic and pedestrians (`motion/`), plus the birds, cloud shadows, tree sway, water
-shimmer and window flicker, all move on one motion clock in `engine.ts`. It runs on real time at
-30 fps at most. It runs only while Motion is on, `prefers-reduced-motion` is off, the tab is visible
+shimmer and window flicker, all move on one motion clock (`motion/motionClock.ts`, driven by
+`engine.ts`). It runs on real time: one tick per rAF (display rate) at High and Medium, 30 fps at
+Low, and 30 fps for the rest of the page session once the clock measures a median below 45 fps
+during motion. It runs only while Motion is on, `prefers-reduced-motion` is off, the tab is visible
 and the map is on screen (`IntersectionObserver`). Otherwise no frame is scheduled: the engine idles
-at render on demand and holds a still pose.
+at render on demand and holds a still pose. Motion time excludes stopped spans, so agents resume
+where they stopped instead of jumping. Every rebuilt agent layer shares one smoothed-yaw memory.
 
 - **Agents:** `planAgents` puts seeded vehicles on `street`/`major_road` edges and people on
   `footway`/`path`/`pedestrian` edges of each streamed tile, weighted ×3 near schools, malls and

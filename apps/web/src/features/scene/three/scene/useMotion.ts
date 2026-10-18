@@ -5,7 +5,7 @@ import { useScene } from "../../sceneStore";
 import type { RoleUniforms } from "../assets/roleMaterial";
 import type { Engine } from "../engine";
 import { createMotionDriver, type MotionDriver, motionRunning } from "../motion/motionClock";
-import { createMotionLayer } from "../motion/motionLayer";
+import { createMotionLayer, type YawMemory } from "../motion/motionLayer";
 import type { ActiveTile } from "../stream/streamer";
 import type { SceneBus } from "./sceneBus";
 import { unionById } from "./union";
@@ -113,14 +113,17 @@ export function useMotion({
   const agentKey = agentList.map((a) => a.id).join("\n");
   // biome-ignore lint/correctness/useExhaustiveDependencies: keyed on the ids, not the array
   const agents = useMemo(() => agentList, [agentKey]);
+  // One smoothed-yaw memory for the scene's lifetime, shared by every rebuilt layer: streamed agents
+  // arriving or leaving never reset the others' yaw (each rebuild prunes it to the new agent set).
+  const [yaw] = useState<YawMemory>(() => new Map());
   useEffect(() => {
     if (!engine || !driver || !loaded || !agents || agents.length === 0) return;
     driver.setAgents(
-      createMotionLayer(agents, loaded.lib, loaded.manifest, roleUniforms, engine.motion),
+      createMotionLayer(agents, loaded.lib, loaded.manifest, roleUniforms, engine.motion, { yaw }),
     );
     engine.requestRender();
     return () => driver.setAgents(null);
-  }, [engine, driver, loaded, agents, roleUniforms]);
+  }, [engine, driver, loaded, agents, roleUniforms, yaw]);
 
   return { running, onScreen, agents };
 }
