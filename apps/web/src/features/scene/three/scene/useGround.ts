@@ -7,7 +7,8 @@ import type { LocalFrame } from "../frame";
 import { createGroundLayer } from "../ground/groundLayer";
 import { landcoverMesh } from "../ground/landcover";
 import type { Ribbon } from "../ground/ribbons";
-import type { ActiveTile } from "../stream/streamer";
+import { type ActiveTile, timed, UNION_MEASURE } from "../stream/streamer";
+import { mergeQueueOf } from "./idle";
 
 const EMPTY_FC = { type: "FeatureCollection", features: [] };
 /** A `/layers/{lens}` payload (the access layer: walk LineStrings and place points). */
@@ -95,7 +96,10 @@ export function useRoads({
   active: ActiveTile[];
   tier: Tier;
 }) {
-  const roads = useMemo<Ribbon[]>(() => active.flatMap((a) => a.content.ribbons), [active]);
+  const roads = useMemo<Ribbon[]>(
+    () => timed(UNION_MEASURE, () => active.flatMap((a) => a.content.ribbons)),
+    [active],
+  );
   const stalls = useMemo<Float32Array[]>(
     () =>
       tier === "low"
@@ -106,13 +110,26 @@ export function useRoads({
           }),
     [active, tier],
   );
+  // The old layer stays drawn until the new one replaces it (setDecor disposes it); sliced once the
+  // merges are slow (`mergeQueueOf`).
   useEffect(() => {
-    if (!engine || roads.length + stalls.length === 0) return;
-    engine.setDecor(
-      ROADS_SLOT,
-      createGroundLayer(roads, new THREE.BufferGeometry(), tier, undefined, stalls),
+    if (!engine) return;
+    if (roads.length + stalls.length === 0) {
+      engine.setDecor(ROADS_SLOT, null);
+      return;
+    }
+    return mergeQueueOf(engine).run(ROADS_SLOT, () =>
+      engine.setDecor(
+        ROADS_SLOT,
+        timed("tl:stream-roads", () =>
+          createGroundLayer(roads, new THREE.BufferGeometry(), tier, undefined, stalls),
+        ),
+      ),
     );
-    return () => engine.setDecor(ROADS_SLOT, null);
   }, [engine, roads, stalls, tier]);
+  useEffect(() => {
+    if (!engine) return;
+    return () => engine.setDecor(ROADS_SLOT, null);
+  }, [engine]);
   return { roads, stalls };
 }

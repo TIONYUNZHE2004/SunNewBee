@@ -91,6 +91,15 @@ export interface CityInstances {
    * disposed. New kits are bucketed at the last camera seen by `update`, if any.
    */
   setKits(kits: Map<string, Placement[]> | null | undefined, kitLodScale?: number): void;
+  /**
+   * `setKits` in small steps, for a time-sliced rebuild: each step builds one kit key's buckets
+   * (hidden, nothing drawn); `commit` then swaps them in for the old kits in one go. `cancel`
+   * releases a build that will not be committed. The result equals `setKits`.
+   */
+  kitSteps(
+    kits: Map<string, Placement[]> | null | undefined,
+    kitLodScale?: number,
+  ): { steps: Array<() => void>; commit(): void; cancel(): void };
   dispose(): void;
 }
 
@@ -289,6 +298,16 @@ export function createCityInstances(
     return avail.length > 0 ? key : null;
   }
 
+  /** Removes keys' meshes from the group and releases their buckets. */
+  const releaseKeys = (list: Key[]) => {
+    for (const key of list)
+      for (const b of key.buckets) {
+        if (!b) continue;
+        group.remove(b.mesh);
+        releaseBucket(b);
+      }
+  };
+
   const buildKeys = (entries: Iterable<[string, Placement[]]>, kitLodScale: number) => {
     const out: Key[] = [];
     try {
@@ -456,16 +475,40 @@ export function createCityInstances(
       // Forget the old kits first: if building the new ones throws, nothing may point at released buckets.
       kitKeys = [];
       far = farOf();
-      for (const key of old)
-        for (const b of key.buckets) {
-          if (!b) continue;
-          group.remove(b.mesh);
-          releaseBucket(b);
-        }
+      releaseKeys(old);
       kitKeys = buildKeys(kits ?? [], kitLodScale);
       far = farOf();
       visited = 0;
       if (lastCamera) for (const key of kitKeys) updateKey(key, lastCamera);
+    },
+    kitSteps(kits, kitLodScale = 1) {
+      const built: Key[] = [];
+      let open = true;
+      const steps = [...(kits ?? [])].map(([keyStr, list]) => () => {
+        if (!open) return;
+        // A built key's meshes join the group hidden (count 0) until commit buckets them.
+        const key = buildKey(keyStr, list, kitLodScale);
+        if (key) built.push(key);
+      });
+      return {
+        steps,
+        commit() {
+          if (!open) return;
+          open = false;
+          const old = kitKeys;
+          kitKeys = [];
+          releaseKeys(old);
+          kitKeys = built;
+          far = farOf();
+          visited = 0;
+          if (lastCamera) for (const key of kitKeys) updateKey(key, lastCamera);
+        },
+        cancel() {
+          if (!open) return;
+          open = false;
+          releaseKeys(built);
+        },
+      };
     },
     stats() {
       let instances = landmarkMeshes;

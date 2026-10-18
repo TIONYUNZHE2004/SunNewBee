@@ -8,9 +8,10 @@ import type { RoleUniforms } from "../assets/roleMaterial";
 import type { Engine } from "../engine";
 import type { LocalFrame } from "../frame";
 import { createLampPools } from "../props/lampPools";
-import { createSignLayer } from "../signs/signLayer";
+import { createSignLayer, signLayerSteps } from "../signs/signLayer";
 import type { SignPlacement } from "../signs/signPlan";
-import type { ActiveTile } from "../stream/streamer";
+import { type ActiveTile, timed, UNION_MEASURE } from "../stream/streamer";
+import { mergeQueueOf, type SliceJob } from "./idle";
 import type { SceneBus } from "./sceneBus";
 import { unionById, unionKits } from "./union";
 
@@ -29,6 +30,7 @@ export function useDecor({
   showroom,
   roleUniforms,
   setKits,
+  kitJob,
   bus,
 }: {
   engine: Engine | null;
@@ -40,40 +42,61 @@ export function useDecor({
   showroom: boolean;
   roleUniforms: RoleUniforms;
   setKits: (kits: Map<string, Placement[]> | null) => void;
+  /** `setKits` as a time-sliced job (one step per kit key); absent: sliced rebuilds use `setKits` whole. */
+  kitJob?: (kits: Map<string, Placement[]> | null) => SliceJob | null;
   bus: SceneBus;
 }) {
   const rich = tier !== "low";
   // Stale content can outlive a switch to Low for a few ticks (until its re-plan): gate it here.
   const kits = useMemo(
-    () => (rich ? unionKits(active) : new Map<string, Placement[]>()),
+    () => (rich ? timed(UNION_MEASURE, () => unionKits(active)) : new Map<string, Placement[]>()),
     [active, rich],
   );
 
   // Only the kit buckets of the city instances are rebuilt (the city mesh and archetypes are kept).
+  // Like every merged layer, sliced once the merges are slow (`mergeQueueOf`).
   useEffect(() => {
-    if (!showroom) setKits(kits);
-  }, [kits, setKits, showroom]);
+    if (showroom) return;
+    const apply = () => timed("tl:stream-kits", () => setKits(kits));
+    if (!engine) {
+      apply();
+      return;
+    }
+    const q = mergeQueueOf(engine);
+    if (!q.sliced || !kitJob) return q.run("kits", apply);
+    // Sliced: one kit key a step, swapped in when every key is built.
+    const job = kitJob(kits);
+    return job ? q.runSteps("kits", job) : undefined;
+  }, [engine, kits, setKits, kitJob, showroom]);
 
   // Lamp light pools (one instanced draw, from the active tiles' lamps). Decorative.
   const lamps = useMemo(
-    () => (rich ? unionById(active, (a) => a.content.lamps) : []),
+    () => (rich ? timed(UNION_MEASURE, () => unionById(active, (a) => a.content.lamps)) : []),
     [active, rich],
   );
   useEffect(() => {
-    if (!engine || lamps.length === 0) return;
-    const pools = createLampPools(lamps, roleUniforms);
-    const group = new THREE.Group();
-    group.name = "lamp-pools";
-    group.add(pools.mesh);
-    engine.setDecor("lamp-pools", { group, dispose: pools.dispose });
-    return () => engine.setDecor("lamp-pools", null);
+    if (!engine) return;
+    if (lamps.length === 0) {
+      engine.setDecor("lamp-pools", null);
+      return;
+    }
+    return mergeQueueOf(engine).run("lamp-pools", () => {
+      const pools = timed("tl:stream-lamps", () => createLampPools(lamps, roleUniforms));
+      const group = new THREE.Group();
+      group.name = "lamp-pools";
+      group.add(pools.mesh);
+      engine.setDecor("lamp-pools", { group, dispose: pools.dispose });
+    });
   }, [engine, lamps, roleUniforms]);
 
   // Sourced, text-only shop signs: a sign without text, source_url and as_of never reaches the
   // client (the API filters) and is dropped again in the plan. The layer is rebuilt only when the
   // set of sign ids changes (a re-plan with the same signs, e.g. Medium <-> High, keeps it).
   const signList = useMemo(
-    () => (rich ? unionById<SignPlacement>(active, (a) => a.content.signs) : []),
+    () =>
+      rich
+        ? timed(UNION_MEASURE, () => unionById<SignPlacement>(active, (a) => a.content.signs))
+        : [],
     [active, rich],
   );
   const signKey = signList.map((s) => s.id).join("\n");
@@ -81,18 +104,39 @@ export function useDecor({
   const signs = useMemo(() => signList, [signKey]);
   useEffect(() => {
     if (!engine || signs.length === 0) {
+      engine?.setDecor("signs", null);
       // No signs drawn: no card either.
       if (useScene.getState().selectedSignId !== null) useScene.getState().selectSign(null);
       return;
     }
-    const layer = createSignLayer(signs, roleUniforms);
-    engine.setDecor("signs", layer);
-    engine.requestRender();
-    // A card must not outlive its sign: close it if the sign left the active tiles.
-    const open = useScene.getState().selectedSignId;
-    if (open !== null && !signs.some((s) => s.id === open)) useScene.getState().selectSign(null);
-    return () => engine.setDecor("signs", null);
+    const show = (layer: { group: THREE.Group; dispose(): void }) => {
+      engine.setDecor("signs", layer);
+      engine.requestRender();
+      // A card must not outlive its sign: close it if the sign left the active tiles.
+      const open = useScene.getState().selectedSignId;
+      if (open !== null && !signs.some((s) => s.id === open)) useScene.getState().selectSign(null);
+    };
+    const q = mergeQueueOf(engine);
+    if (!q.sliced)
+      return q.run("signs", () =>
+        show(timed("tl:stream-signs", () => createSignLayer(signs, roleUniforms))),
+      );
+    // Sliced: a few signs a step (text and quads), the layer swapped in when complete.
+    const build = signLayerSteps(signs, roleUniforms);
+    return q.runSteps("signs", {
+      steps: build.steps,
+      done: () => show(build.layer),
+      cancel: () => build.layer.dispose(),
+    });
   }, [engine, signs, roleUniforms]);
+  // An engine switch or unmount clears the merged slots (a rebuild replaces a layer in place).
+  useEffect(() => {
+    if (!engine) return;
+    return () => {
+      engine.setDecor("lamp-pools", null);
+      engine.setDecor("signs", null);
+    };
+  }, [engine]);
   // Unmount (or engine switch): no card without the scene.
   // biome-ignore lint/correctness/useExhaustiveDependencies: `engine` is the trigger (an engine switch closes the card)
   useEffect(

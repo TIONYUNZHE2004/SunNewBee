@@ -16,6 +16,8 @@ const spy = vi.hoisted(() => ({
   scenes: [] as unknown[],
   composerRender: vi.fn(),
   blooms: [] as { strength: number; enabled: boolean }[],
+  /** The last fake renderer built (its `info.programs` stands in for three's program cache). */
+  renderer: null as null | { info: { programs?: { usedTimes: number }[] } },
 }));
 vi.mock("three", async (orig) => {
   const t = await orig<typeof import("three")>();
@@ -31,6 +33,9 @@ vi.mock("three", async (orig) => {
     getContext = vi.fn(() => ({}));
     dispose = spy.rendererDispose;
     forceContextLoss = spy.contextLoss;
+    constructor() {
+      spy.renderer = this as unknown as { info: { programs?: { usedTimes: number }[] } };
+    }
   }
   class FailingPmrem {
     fromScene() {
@@ -570,6 +575,120 @@ describe("engine motion clock", () => {
       teardown(e);
     }
   });
+  it("times the first render after a streamed layer swap as tl:stream-upload, once per swap", async () => {
+    const { e } = await setup({ on: false });
+    try {
+      const THREE = await import("three");
+      settle();
+      const p = performance as Performance & { measure: (...a: unknown[]) => unknown };
+      const measure = vi.fn();
+      const orig = p.measure;
+      p.measure = measure;
+      const uploads = () => measure.mock.calls.filter(([n]) => n === "tl:stream-upload").length;
+      try {
+        e.setDecor("roads", { group: new THREE.Group(), dispose: vi.fn() });
+        settle();
+        expect(uploads()).toBe(1);
+        e.requestRender();
+        settle();
+        expect(uploads()).toBe(1);
+        e.markSwap();
+        settle();
+        expect(uploads()).toBe(2);
+        // Clearing a slot uploads nothing.
+        e.setDecor("roads", null);
+        settle();
+        expect(uploads()).toBe(2);
+      } finally {
+        p.measure = orig;
+      }
+    } finally {
+      teardown(e);
+    }
+  });
+
+  it("pins every compiled shader program once, so a streamed layer's programs outlive its disposal", async () => {
+    const { e } = await setup({ on: false });
+    try {
+      const info = spy.renderer?.info as { programs?: { usedTimes: number }[] };
+      const p1 = { usedTimes: 1 };
+      const p2 = { usedTimes: 2 };
+      info.programs = [p1];
+      e.requestRender();
+      settle();
+      expect(p1.usedTimes).toBe(2);
+      info.programs = [p1, p2];
+      e.requestRender();
+      settle();
+      e.requestRender();
+      settle();
+      // Each pinned exactly once.
+      expect(p1.usedTimes).toBe(2);
+      expect(p2.usedTimes).toBe(3);
+    } finally {
+      teardown(e);
+    }
+  });
+
+  it("a replaced decor layer is disposed only after the next render; a layer waits for compileAsync before it shows", async () => {
+    const { e } = await setup({ on: false });
+    const THREE = await import("three");
+    const proto = THREE.WebGLRenderer.prototype as unknown as {
+      compileAsync?: unknown;
+      getRenderTarget?: unknown;
+      setRenderTarget?: unknown;
+    };
+    try {
+      settle();
+      const scenes = spy.scenes as import("three").Scene[];
+      const holds = (g: import("three").Object3D) => scenes.some((sc) => sc.children.includes(g));
+      const a = { group: new THREE.Group(), dispose: vi.fn() };
+      e.setDecor("roads", a);
+      expect(holds(a.group)).toBe(true);
+      const b = { group: new THREE.Group(), dispose: vi.fn() };
+      e.setDecor("roads", b);
+      // Swapped at once (no compileAsync on this renderer), the old one disposed after a render.
+      expect(holds(a.group)).toBe(false);
+      expect(a.dispose).not.toHaveBeenCalled();
+      settle();
+      expect(a.dispose).toHaveBeenCalledTimes(1);
+      // With compileAsync: shown when its programs are ready; the old layer stays until then.
+      let resolve: () => void = () => {};
+      proto.compileAsync = vi.fn(() => new Promise<void>((r) => (resolve = r)));
+      proto.getRenderTarget = () => null;
+      const targets: unknown[] = [];
+      proto.setRenderTarget = (t: unknown) => targets.push(t);
+      const c = { group: new THREE.Group(), dispose: vi.fn() };
+      e.setDecor("roads", c);
+      expect(holds(c.group)).toBe(false);
+      expect(holds(b.group)).toBe(true);
+      // Compiled for the composer's buffer (the scene pass target), then the target restored.
+      expect(targets).toHaveLength(2);
+      expect(targets[0]).not.toBeNull();
+      expect(targets[1]).toBeNull();
+      // A newer layer supersedes the waiting one, which is disposed and never shown.
+      const first = resolve;
+      const d = { group: new THREE.Group(), dispose: vi.fn() };
+      e.setDecor("roads", d);
+      expect(c.dispose).toHaveBeenCalledTimes(1);
+      first();
+      resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+      expect(holds(c.group)).toBe(false);
+      expect(holds(d.group)).toBe(true);
+      expect(holds(b.group)).toBe(false);
+      settle();
+      expect(b.dispose).toHaveBeenCalledTimes(1);
+      expect(d.dispose).not.toHaveBeenCalled();
+    } finally {
+      delete proto.compileAsync;
+      delete proto.getRenderTarget;
+      delete proto.setRenderTarget;
+      teardown(e);
+    }
+  });
+
   it("setDecor('ambient'): the birds go into the main scene, never the overlay scene", async () => {
     const { e } = await setup({ on: false });
     try {
@@ -678,6 +797,7 @@ describe("engine motion clock", () => {
             visitedPerTick: 0,
           }),
           setKits: vi.fn(),
+          kitSteps: () => ({ steps: [], commit: vi.fn(), cancel: vi.fn() }),
           dispose: vi.fn(),
         });
         settle();

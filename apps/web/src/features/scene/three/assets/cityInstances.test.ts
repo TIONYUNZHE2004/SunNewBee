@@ -439,6 +439,53 @@ describe("setKits", () => {
     expect(c.aoExcluded()).toEqual([]);
     expect(c.stats().instances).toBe(0);
   });
+
+  it("kitSteps (Task 5): one step per kit key, nothing new drawn before commit, then the same as setKits", () => {
+    const mk = () => {
+      const c = createCityInstances(lib(), plan("a"), manifest(), createRoleUniforms(), {
+        kits: kitsOf("k", 2),
+      });
+      c.update(new THREE.Vector3());
+      return c;
+    };
+    const kits = new Map([...kitsOf("trees", 3), ...kitsOf("people", 2)]);
+    const ref = mk();
+    ref.setKits(kits, 0.5);
+    const c = mk();
+    const before = c.stats().instances;
+    const b = c.kitSteps(kits, 0.5);
+    expect(b.steps).toHaveLength(2);
+    for (const step of b.steps) {
+      step();
+      // Built hidden: the old kits are still the ones drawn.
+      expect(c.stats().instances).toBe(before);
+      expect(named(c, "k__")).toHaveLength(3);
+    }
+    b.commit();
+    expect(named(c, "k__")).toHaveLength(0);
+    expect(c.stats()).toEqual(ref.stats());
+    expect(meshesOf(c).map((m) => [m.name, m.visible, (m as THREE.InstancedMesh).count])).toEqual(
+      meshesOf(ref).map((m) => [m.name, m.visible, (m as THREE.InstancedMesh).count]),
+    );
+  });
+
+  it("a cancelled kitSteps build releases its hidden buckets and leaves the old kits", () => {
+    const c = createCityInstances(lib(), plan("none"), manifest(), createRoleUniforms(), {
+      kits: kitsOf("k", 2),
+    });
+    c.update(new THREE.Vector3());
+    const b = c.kitSteps(kitsOf("trees", 3));
+    let disposed = 0;
+    b.steps[0]?.();
+    for (const m of named(c, "trees__")) m.addEventListener("dispose", () => disposed++);
+    expect(named(c, "trees__")).toHaveLength(3);
+    b.cancel();
+    expect(named(c, "trees__")).toHaveLength(0);
+    expect(disposed).toBe(3);
+    expect(named(c, "k__")).toHaveLength(3);
+    b.commit(); // after cancel: no-op
+    expect(named(c, "k__")).toHaveLength(3);
+  });
 });
 
 describe("tile-bucketed LOD updates", () => {

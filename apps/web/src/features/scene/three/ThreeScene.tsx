@@ -165,6 +165,7 @@ export default function ThreeScene({
     showroom,
     roleUniforms,
     setKits: city.setKits,
+    kitJob: city.kitJob,
     bus,
   });
   const { running, onScreen, agents } = useMotion({

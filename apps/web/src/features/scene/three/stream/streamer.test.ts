@@ -213,3 +213,136 @@ describe("createStreamer (Review Focus 1)", () => {
     expect(farView(near!.content)).toBe(farView(near!.content));
   });
 });
+
+/** A fake async plan client: each plan waits until `resolveNext()`; superseding as PlanClient does. */
+function fakeClient() {
+  const f = fakePlanner();
+  const waiting: {
+    tile: Tile;
+    ring: Ring;
+    tier: Tier;
+    resolve: (c: TileContent) => void;
+    reject: (e: Error) => void;
+  }[] = [];
+  const client = {
+    mode: "worker" as const,
+    plan(tile: Tile, ring: Ring, tier: Tier) {
+      return new Promise<TileContent>((resolve, reject) => {
+        for (const w of waiting.splice(0)) {
+          const e = new Error("superseded");
+          e.name = "Superseded";
+          w.reject(e);
+        }
+        waiting.push({ tile, ring, tier, resolve, reject });
+      });
+    },
+    dispose() {},
+  };
+  /** Completes the waiting plan with the fake planner's content (late results included). */
+  const resolveWith = (w: (typeof waiting)[number]) => w.resolve(f.plan(w.tile, w.ring, w.tier));
+  return { f, client, waiting, resolveWith };
+}
+const flush = () => new Promise((r) => setTimeout(r, 0));
+
+describe("createStreamer with an async plan client (Review Focus 4)", () => {
+  it("keeps one plan in flight and applies its result on a later update", async () => {
+    const { f, client, waiting, resolveWith } = fakeClient();
+    const ready = vi.fn();
+    const s = createStreamer(client, { onReady: ready });
+    expect(s.update(at(0, 0), MID)).toEqual({ changed: false, pending: true });
+    s.update(at(0, 0), MID);
+    expect(waiting).toHaveLength(1);
+    expect(waiting[0]?.tile.key).toBe("0,0");
+    resolveWith(waiting.splice(0)[0]!);
+    await flush();
+    expect(ready).toHaveBeenCalledTimes(1);
+    const r = s.update(at(0, 0), MID);
+    expect(r.changed).toBe(true);
+    expect(s.active()[0]?.key).toBe("0,0");
+    expect(f.calls).toHaveLength(1);
+    expect(waiting).toHaveLength(1); // the next tile is in flight
+  });
+
+  it("never applies a result whose tile left the active set (and disposes it once)", async () => {
+    const { f, client, waiting, resolveWith } = fakeClient();
+    const s = createStreamer(client);
+    s.update(at(0, 0), FAR);
+    const w = waiting[0]!;
+    expect(w.tile.key).toBe("0,0");
+    // The result lands, then the camera flies 10 tiles away before the next update applies it.
+    resolveWith(waiting.splice(0)[0] ?? w);
+    await flush();
+    s.update(at(10, 0), FAR);
+    s.update(at(10, 0), FAR);
+    expect(s.active().some((a) => a.key === "0,0")).toBe(false);
+    const stale = f.made[0]!;
+    expect(f.disposed.get(stale)).toBe(1);
+    s.dispose();
+    expect(f.disposed.get(stale)).toBe(1);
+  });
+
+  it("never applies a result planned for a tier that changed meanwhile", async () => {
+    const { f, client, waiting, resolveWith } = fakeClient();
+    const s = createStreamer(client);
+    s.update(at(0, 0), FAR);
+    const w = waiting.splice(0)[0]!;
+    s.setTier("high");
+    resolveWith(w);
+    await flush();
+    s.update(at(0, 0), FAR);
+    expect(s.active()).toHaveLength(0);
+    expect(f.disposed.get(f.made[0]!)).toBe(1);
+    // The re-plan is at the new tier.
+    expect(waiting.at(-1)?.tier).toBe("high");
+  });
+
+  it("a superseded in-flight plan is replaced by the current job (tier change)", async () => {
+    const { client, waiting } = fakeClient();
+    const s = createStreamer(client);
+    s.update(at(0, 0), FAR);
+    const first = waiting[0]!;
+    s.setTier("high");
+    s.update(at(0, 0), FAR);
+    expect(waiting).toHaveLength(1);
+    expect(waiting[0]).not.toBe(first);
+    expect(waiting[0]?.tier).toBe("high");
+  });
+
+  it("fills all 9 tiles one plan at a time; LRU eviction disposes each content exactly once", async () => {
+    const { f, client, waiting, resolveWith } = fakeClient();
+    const s = createStreamer(client, { lru: 9 });
+    const fill = async (x: number) => {
+      for (let i = 0; i < 40; i++) {
+        s.update(at(x, 0), FAR);
+        expect(waiting.length).toBeLessThanOrEqual(1);
+        const w = waiting.splice(0)[0];
+        if (!w) break;
+        resolveWith(w);
+        await flush();
+      }
+      s.update(at(x, 0), FAR);
+    };
+    await fill(0);
+    expect(s.active()).toHaveLength(9);
+    await fill(5);
+    expect(s.active()).toHaveLength(9);
+    for (const n of f.disposed.values()) expect(n).toBe(1);
+    // The first fill's 9 tiles were all evicted (none overlaps the second).
+    expect(f.made.slice(0, 9).every((c) => f.disposed.get(c) === 1)).toBe(true);
+    s.dispose();
+    for (const c of f.made) expect(f.disposed.get(c)).toBe(1);
+  });
+
+  it("a failed plan shows nothing for that tile instead of re-planning forever", async () => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    const { client, waiting } = fakeClient();
+    const s = createStreamer(client);
+    s.update(at(0, 0), FAR);
+    waiting.splice(0)[0]!.reject(new Error("boom"));
+    await flush();
+    s.update(at(0, 0), FAR);
+    expect(s.active()[0]?.key).toBe("0,0");
+    expect(s.active()[0]?.content.ribbons).toEqual([]);
+    expect(waiting[0]?.tile.key).not.toBe("0,0");
+  });
+});
