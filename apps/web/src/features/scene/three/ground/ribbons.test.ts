@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createFrame } from "../frame";
-import { ribbonsFromWalk } from "./ribbons";
+import { type Box, boxAround } from "../stream/area";
+import { RIBBON_MARGIN_M, ribbonsFromWalk } from "./ribbons";
 
 const frame = createFrame([101.5, 3.18]);
 const lonAt = (eastM: number) => frame.toLonLat(eastM, 0)[0];
@@ -154,7 +155,7 @@ describe("ribbonsFromWalk", () => {
     expect(Math.max(...vx) - 50).toBeLessThanOrEqual(12);
   });
 
-  it("clipRadiusM drops segments outside the radius", () => {
+  it("an area drops segments outside its box (the P3 circle as a 2,400 m box)", () => {
     const near = line("street", [
       [0, 0],
       [100, 0],
@@ -163,15 +164,94 @@ describe("ribbonsFromWalk", () => {
       [5000, 0],
       [5100, 0],
     ]);
-    const centre = frame.toLonLat(50, 0);
-    const kept = road(
-      ribbonsFromWalk(fc(near, far), frame, { clipCentre: centre, clipRadiusM: 1200 }),
-    );
+    const [cx, cz] = frame.toLocal(...frame.toLonLat(50, 0));
+    const area = { box: boxAround(cx, cz, 1200), seed: "t" };
+    const kept = road(ribbonsFromWalk(fc(near, far), frame, { area }));
     expect(kept).toHaveLength(1);
     expect(extent(kept[0]!.positions, 0)).toBeCloseTo(100, 1);
-    expect(
-      road(ribbonsFromWalk(fc(far), frame, { clipCentre: centre, clipRadiusM: 1200 })),
-    ).toHaveLength(0);
+    expect(road(ribbonsFromWalk(fc(far), frame, { area }))).toHaveLength(0);
+  });
+
+  describe("per tile box", () => {
+    /** Centre of every strip quad (l0, r0, l1, r1), rounded to 1 cm, and its centreline length. */
+    const quads = (rs: R) => {
+      const out: { key: string; len: number }[] = [];
+      for (const r of rs) {
+        const p = r.positions;
+        const v = (i: number) => [p[i * 3]!, p[i * 3 + 2]!] as const;
+        for (let t = 0; t < r.indices.length; t += 6) {
+          const [l0, r0, l1] = [r.indices[t]!, r.indices[t + 1]!, r.indices[t + 2]!];
+          const r1 = r.indices[t + 4]!;
+          const pts = [v(l0), v(r0), v(l1), v(r1)];
+          const cx = pts.reduce((a, q) => a + q[0], 0) / 4;
+          const cz = pts.reduce((a, q) => a + q[1], 0) / 4;
+          const a = [(pts[0]![0] + pts[1]![0]) / 2, (pts[0]![1] + pts[1]![1]) / 2];
+          const b = [(pts[2]![0] + pts[3]![0]) / 2, (pts[2]![1] + pts[3]![1]) / 2];
+          out.push({
+            key: `${r.kind}:${!!r.marking}:${cx.toFixed(2)},${cz.toFixed(2)}`,
+            len: Math.hypot(b[0]! - a[0]!, b[1]! - a[1]!),
+          });
+        }
+      }
+      return out;
+    };
+    // A long major road crossing the shared edge x = 0 in one 400 m segment, a bent street
+    // crossing both edges, and a footway lying exactly on the edge z = 0.
+    const walk = fc(
+      line("major_road", [
+        [-200, 37],
+        [200, 41],
+      ]),
+      line("street", [
+        [-180, -150],
+        [-3, -2],
+        [4, 3],
+        [150, 190],
+      ]),
+      line("footway", [
+        [-100, 0],
+        [100, 0],
+      ]),
+    );
+    const Q: Box[] = [
+      { x0: -250, z0: -250, x1: 0, z1: 0 },
+      { x0: 0, z0: -250, x1: 250, z1: 0 },
+      { x0: -250, z0: 0, x1: 0, z1: 250 },
+      { x0: 0, z0: 0, x1: 250, z1: 250 },
+    ];
+    const tiles = Q.map((box) => ribbonsFromWalk(walk, frame, { area: { box, seed: "t" } }));
+
+    it("adjacent tiles never draw the same segment", () => {
+      const keys = tiles.flatMap((t) => quads(t).map((q) => q.key));
+      expect(keys.length).toBeGreaterThan(10);
+      expect(new Set(keys).size).toBe(keys.length);
+    });
+
+    it("and leave no gap: the tiles' road length is the whole road length", () => {
+      const roadLen = (rs: R[]) => rs.flatMap((t) => quads(road(t))).reduce((a, q) => a + q.len, 0);
+      const whole = roadLen([ribbonsFromWalk(walk, frame)]);
+      expect(roadLen(tiles)).toBeCloseTo(whole, 0);
+      const markLen = (rs: R[]) =>
+        rs.flatMap((t) => quads(t.filter((x) => x.marking))).reduce((a, q) => a + q.len, 0);
+      expect(markLen(tiles)).toBeCloseTo(markLen([ribbonsFromWalk(walk, frame)]), 0);
+    });
+
+    it(`a tile's ribbons reach at most ${RIBBON_MARGIN_M} m past its box (plus the half width)`, () => {
+      tiles.forEach((t, i) => {
+        const b = Q[i]!;
+        const m = RIBBON_MARGIN_M + 5 * 2; // margin plus a capped mitre of the 10 m major road
+        for (const r of t)
+          for (let k = 0; k < r.positions.length; k += 3) {
+            const x = r.positions[k]!;
+            const z = r.positions[k + 2]!;
+            expect(x >= b.x0 - m && x <= b.x1 + m && z >= b.z0 - m && z <= b.z1 + m).toBe(true);
+          }
+      });
+      // Not vacuous: the 400 m major road segment (local z about -40) is split, so the west and
+      // the east tile both draw a part of it.
+      const [w, e] = [tiles[0]!, tiles[1]!].map((t) => t.some((r) => r.kind === "major"));
+      expect(w && e).toBe(true);
+    });
   });
 
   it("ignores non-lines and degenerate lines", () => {

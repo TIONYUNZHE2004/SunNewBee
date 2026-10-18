@@ -2,8 +2,9 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { parseManifest } from "../assets/manifest";
 import { createFrame } from "../frame";
-import { capFor } from "../props/caps";
-import { type Agent, densityFor, displayScale, planAgents, poseAt } from "./agents";
+import { type Box, boxAround, seedFor } from "../stream/area";
+import { tileAt } from "../stream/tiles";
+import { AGENT_CHUNK_M, type Agent, densityFor, displayScale, planAgents, poseAt } from "./agents";
 
 const manifest = parseManifest(
   JSON.parse(
@@ -64,11 +65,11 @@ const base = {
   walk,
   places: fc(),
   frame,
-  centre: O,
-  radiusM: 1200,
+  // The P3 hero circle fixture (r = 1200 m) becomes a single 2,400 m box.
+  area: { box: boxAround(0, 0, 1200), seed: "t" },
   tier: "medium" as const,
+  caps: { vehicles: 20, people: 30 },
   m: manifest,
-  seed: "t",
 };
 type In = Parameters<typeof planAgents>[0];
 const plan = (over: Partial<In> = {}) => planAgents({ ...base, ...over });
@@ -112,7 +113,7 @@ describe("planAgents", () => {
     const b = plan();
     expect(a.length).toBeGreaterThan(0);
     expect(b).toEqual(a);
-    expect(plan({ seed: "other" })).not.toEqual(a);
+    expect(plan({ area: { ...base.area, seed: "other" } })).not.toEqual(a);
   });
 
   it("vehicles only on street or major_road, people only on footway, path or pedestrian", () => {
@@ -159,8 +160,8 @@ describe("planAgents", () => {
       const agents = plan({ weights: w });
       const d = densityFor(w);
       for (const [kind, cap] of [
-        ["person", capFor("medium", "people")],
-        ["vehicle", capFor("medium", "vehicles")],
+        ["person", base.caps.people],
+        ["vehicle", base.caps.vehicles],
       ] as const) {
         const n = ofKind(agents, kind).length;
         expect(n).toBeLessThanOrEqual(cap * d);
@@ -168,6 +169,7 @@ describe("planAgents", () => {
       }
     }
     expect(plan({ tier: "low" })).toEqual([]);
+    expect(plan({ caps: { vehicles: 0, people: 0 } })).toEqual([]);
   });
 
   it("without weights it plans for the peak density (dusk), so the layer can thin it by mood", () => {
@@ -196,7 +198,11 @@ describe("planAgents", () => {
     );
     const share = (type: string) => {
       const people = ofKind(
-        plan({ walk: w2, places: fc(point({ id: "p", type }, -400, 60)) }),
+        plan({
+          walk: w2,
+          places: fc(point({ id: "p", type }, -400, 60)),
+          caps: { vehicles: 0, people: 1e6 },
+        }),
         "person",
       );
       return people.filter((a) => (a.path[0] as number) < 0).length / people.length;
@@ -208,10 +214,69 @@ describe("planAgents", () => {
     expect(share("clinic")).toBeLessThan(0.62);
   });
 
-  it("stays inside the radius", () => {
-    for (const a of plan({ radiusM: 150 }))
-      for (let i = 0; i < a.path.length; i += 2)
-        expect(Math.hypot(a.path[i]!, a.path[i + 1]!)).toBeLessThanOrEqual(153);
+  it("each agent's path is a chunk of at most AGENT_CHUNK_M owned by its midpoint", () => {
+    const box: Box = { x0: -150, z0: -150, x1: 150, z1: 150 };
+    const agents = plan({ area: { box, seed: "t" }, caps: { vehicles: 1e6, people: 1e6 } });
+    expect(agents.length).toBeGreaterThan(5);
+    const m = AGENT_CHUNK_M / 2 + 3; // half a chunk past the box, plus the lane offset
+    for (const a of agents) {
+      expect(a.length).toBeLessThanOrEqual(AGENT_CHUNK_M + 1);
+      for (let i = 0; i < a.path.length; i += 2) {
+        expect(a.path[i]! >= box.x0 - m && a.path[i]! <= box.x1 + m).toBe(true);
+        expect(a.path[i + 1]! >= box.z0 - m && a.path[i + 1]! <= box.z1 + m).toBe(true);
+      }
+    }
+  });
+});
+
+describe("planAgents per tile box", () => {
+  const BIG = { vehicles: 1e6, people: 1e6 };
+  const Q: Box[] = [
+    { x0: -500, z0: -500, x1: 0, z1: 0 },
+    { x0: 0, z0: -500, x1: 500, z1: 0 },
+    { x0: -500, z0: 0, x1: 0, z1: 500 },
+    { x0: 0, z0: 0, x1: 500, z1: 500 },
+  ];
+  const U: Box = { x0: -500, z0: -500, x1: 500, z1: 500 };
+  const byId = (l: Agent[]) => [...l].sort((a, b) => (a.id < b.id ? -1 : 1));
+  // Lines that cross both shared edges (x = 0 and z = 0), plus the parallel set.
+  const cross = fc(
+    ...Object.entries(LINES).map(([type, pts]) => line(type, pts, type)),
+    line(
+      "street",
+      [
+        [-20, -400],
+        [10, -5],
+        [-10, 400],
+      ],
+      "x1",
+    ),
+    line(
+      "footway",
+      [
+        [5, -300],
+        [5, 300],
+      ],
+      "x2",
+    ),
+  );
+
+  it("four tiles planned separately give exactly the agents of their union", () => {
+    const parts = Q.map((box, i) => plan({ walk: cross, caps: BIG, area: { box, seed: `q${i}` } }));
+    const union = plan({ walk: cross, caps: BIG, area: { box: U, seed: "u" } });
+    expect(union.length).toBeGreaterThan(40);
+    const ids = parts.flat().map((a) => a.id);
+    expect(new Set(ids).size).toBe(ids.length);
+    expect(byId(parts.flat())).toEqual(byId(union));
+  });
+
+  it("is deterministic per tile key, whatever was planned before", () => {
+    const tile = tileAt(10, 10);
+    const area = { box: tile.box, seed: seedFor(tile.key, "agents") };
+    const first = plan({ walk: cross, area, caps: { vehicles: 3, people: 3 } });
+    plan({ walk: cross, area: { box: Q[0]!, seed: "x" } });
+    expect(plan({ walk: cross, area, caps: { vehicles: 3, people: 3 } })).toEqual(first);
+    expect(first.length).toBeGreaterThan(0);
   });
 });
 

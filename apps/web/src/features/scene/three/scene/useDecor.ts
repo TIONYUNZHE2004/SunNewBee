@@ -9,13 +9,21 @@ import type { RoleUniforms } from "../assets/roleMaterial";
 import { HERO_CENTRE, HERO_RADIUS_M } from "../bookmarks";
 import type { Engine } from "../engine";
 import type { LocalFrame } from "../frame";
+import { PROP_CAPS } from "../props/caps";
 import { createLampPools } from "../props/lampPools";
 import { planProps } from "../props/propsPlan";
 import { createSignLayer } from "../signs/signLayer";
 import { planSigns } from "../signs/signPlan";
+import { boxAround } from "../stream/area";
 import type { SceneBus } from "./sceneBus";
 import type { LoadedAssets } from "./useCityAssets";
 import type { LayerData } from "./useGround";
+
+/** The square box covering the P3 hero circle: the planners' area until Task 4 streams tiles. */
+export const heroBox = (frame: LocalFrame) => {
+  const [x, z] = frame.toLocal(HERO_CENTRE[0], HERO_CENTRE[1]);
+  return boxAround(x, z, HERO_RADIUS_M);
+};
 
 /**
  * Decorative detail: the hero district's props (handed to the city instances through `setKits`),
@@ -61,9 +69,11 @@ export function useDecor({
             trees: buildings.trees,
             places: walk,
             frame,
-            centre: HERO_CENTRE,
-            radiusM: HERO_RADIUS_M,
+            // Until the streamer plans per tile (Task 4): one box covering the P3 hero circle,
+            // with the P3 hero totals as caps.
+            area: { box: heroBox(frame), seed: "props" },
             tier,
+            caps: PROP_CAPS[tier],
             m: loaded.manifest,
           })
         : null,
@@ -102,8 +112,7 @@ export function useDecor({
     () =>
       frame && detailsOn && walk && buildings && !showroom && signsOn
         ? planSigns(buildings.signage, buildings.buildings, walk, frame, {
-            centre: HERO_CENTRE,
-            radiusM: HERO_RADIUS_M,
+            area: { box: heroBox(frame), seed: "signs" },
           })
         : null,
     [frame, detailsOn, walk, buildings, showroom, signsOn],

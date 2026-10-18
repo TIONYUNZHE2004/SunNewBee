@@ -3,12 +3,16 @@ import type { Tier } from "../../cesium/stylised/quality";
 import { hash01, jitterFor, type Placement, paletteFor } from "../assets/fit";
 import type { Manifest } from "../assets/manifest";
 import type { LocalFrame } from "../frame";
-import { capFor, type PropKind } from "./caps";
+import { boxCentre, growBox, inBox, type PlanArea, perLayer, touchesBox } from "../stream/area";
+import type { PropKind } from "./caps";
 
 /**
- * Seeded, static, DECORATIVE props for the hero district: trees, lamps, street furniture and
- * construction sites. Pure: the same input always gives the same output. Nothing here is a fact
- * about the township; the scene labels the details as illustrative.
+ * Seeded, static, DECORATIVE props for one planning box (a streaming tile, or a union of tiles):
+ * trees, lamps, street furniture and construction sites. Pure: the same input always gives the
+ * same output. Every candidate is keyed by global ids (feature ids, arc positions, frame-aligned
+ * lattice cells), so planning two adjacent boxes separately gives exactly the placements of
+ * planning their union (with caps that do not bite). Nothing here is a fact about the township;
+ * the scene labels the details as illustrative.
  */
 export interface PropsPlan {
   /** Key `${asset}/${variant}`, as in the city plan. */
@@ -30,13 +34,20 @@ export interface PropsInput {
   /** Place points (`type`, optional `entrance_ids`), e.g. the access layer. */
   places: unknown;
   frame: LocalFrame;
-  centre: [number, number];
-  radiusM: number;
+  /** The box to plan (half-open) and its tile seed. */
+  area: PlanArea;
+  /** Low plans nothing, whatever the caps say. */
   tier: Tier;
-  /** Tests only: replaces the tier's cap for a kind. */
-  capsOverride?: Partial<Record<PropKind, number>>;
+  /**
+   * Instances per kind for this box: `tileCap(tier, ring, kind, tile, frame)` for a streamed tile
+   * (the hero boost lives there, not here).
+   */
+  caps: Record<PlannedPropKind, number>;
   m: Manifest;
 }
+
+/** The kinds this planner places (people and vehicles are the motion planner's). */
+export type PlannedPropKind = Extract<PropKind, "trees" | "lamps" | "furniture" | "construction">;
 
 type P = [number, number];
 type Ring = P[];
@@ -62,6 +73,10 @@ const CRANE_MIN_M2 = 8000;
 const BOLLARD_SPACING = 1.5;
 const BOLLARDS_PER_ENTRANCE = 5;
 const GRID_M = 32;
+/** Walk points this far outside the box can still put a prop inside it (kerb offsets). */
+const ALONG_MARGIN_M = 20;
+/** Places this far outside the box can still put furniture or bollards inside it. */
+const PLACE_MARGIN_M = 20;
 
 const isRec = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null;
 const featuresOf = (fc: unknown): Record<string, unknown>[] =>
@@ -205,7 +220,86 @@ interface Road {
   type: string;
   kind: string;
   width: number;
+  bb: BBox;
 }
+type BBox = [number, number, number, number];
+
+/*
+ * Local-frame copies of the layers, with bounds, built once per layer object and frame
+ * (`perLayer`): planning a tile only filters them by its box.
+ */
+type Cache<T> = WeakMap<object, WeakMap<object, T>>;
+const roadsCache: Cache<Road[]> = new WeakMap();
+const ringsCache: Cache<{ ring: Ring; bb: BBox }[]> = new WeakMap();
+const polysCache: Cache<{ poly: Poly; id: string; cls: unknown; bb: BBox }[]> = new WeakMap();
+const pointsCache: Cache<
+  { p: Record<string, unknown>; fid: unknown; i: number; x: number; z: number }[]
+> = new WeakMap();
+
+/** Every walk LineString (each one is a drawn ribbon). */
+const roadsOf = (walk: unknown, frame: LocalFrame): Road[] =>
+  perLayer(roadsCache, walk, frame, () => {
+    const roads: Road[] = [];
+    featuresOf(walk).forEach((f, i) => {
+      const g = f.geometry;
+      if (!isRec(g) || g.type !== "LineString" || !Array.isArray(g.coordinates)) return;
+      const pts: P[] = [];
+      for (const c of g.coordinates) {
+        if (!Array.isArray(c) || !Number.isFinite(c[0]) || !Number.isFinite(c[1])) return;
+        const q = frame.toLocal(c[0] as number, c[1] as number);
+        const last = pts[pts.length - 1];
+        if (!last || last[0] !== q[0] || last[1] !== q[1]) pts.push(q);
+      }
+      if (pts.length < 2) return;
+      const p = propsOf(f);
+      const type = typeof p.type === "string" ? p.type : "";
+      roads.push({
+        id: String(p.id ?? `r${i}`),
+        pts,
+        type,
+        kind: KIND_BY_TYPE[type] ?? "other",
+        width: WIDTH_BY_TYPE[type] ?? ROAD_WIDTH_UNKNOWN,
+        bb: bboxOf(pts),
+      });
+    });
+    return roads;
+  });
+
+/** Outer rings of every building polygon. */
+const buildingRingsOf = (buildings: unknown, frame: LocalFrame) =>
+  perLayer(ringsCache, buildings, frame, () =>
+    featuresOf(buildings).flatMap((f) =>
+      polygonsOf(f.geometry, frame).map((poly) => ({ ring: poly[0]!, bb: bboxOf(poly[0]!) })),
+    ),
+  );
+
+/** Every polygon with its global index (`feature.polygon`) and the feature's `class`. */
+const polysOf = (fc: unknown, frame: LocalFrame) =>
+  perLayer(polysCache, fc, frame, () =>
+    featuresOf(fc).flatMap((f, fi) =>
+      polygonsOf(f.geometry, frame).map((poly, k) => ({
+        poly,
+        id: `${fi}.${k}`,
+        cls: propsOf(f).class,
+        bb: bboxOf(poly[0]!),
+      })),
+    ),
+  );
+
+/** Every Point feature in local metres, with its properties, feature id and index. */
+const pointsOf = (fc: unknown, frame: LocalFrame) =>
+  perLayer(pointsCache, fc, frame, () => {
+    const out: { p: Record<string, unknown>; fid: unknown; i: number; x: number; z: number }[] = [];
+    featuresOf(fc).forEach((f, i) => {
+      const g = f.geometry;
+      if (!isRec(g) || g.type !== "Point" || !Array.isArray(g.coordinates)) return;
+      const [lon, lat] = g.coordinates as number[];
+      if (!Number.isFinite(lon) || !Number.isFinite(lat)) return;
+      const [x, z] = frame.toLocal(lon!, lat!);
+      out.push({ p: propsOf(f), fid: f.id, i, x, z });
+    });
+    return out;
+  });
 
 interface Cand {
   /** Kit key. */
@@ -247,54 +341,64 @@ const STREET_SPECIES: [string, number][] = [
   ["royal_palm", 0.2],
 ];
 
+/** Tree source priority for the spacing rule (lower wins a 2.5 m cell). */
+const SRC_RANK: Record<TreeSource, number> = {
+  osm: 0,
+  street: 1,
+  median: 2,
+  park: 3,
+  forest: 4,
+  oil: 5,
+};
+
 export function planProps(input: PropsInput): PropsPlan {
-  const { frame, tier, m, radiusM } = input;
+  const { frame, tier, m, area } = input;
   const plan: PropsPlan = { kits: new Map(), stats: {} };
-  const capOf = (k: PropKind) => input.capsOverride?.[k] ?? capFor(tier, k);
-  const kinds: PropKind[] = ["trees", "lamps", "furniture", "construction"];
+  const capOf = (k: PlannedPropKind) =>
+    tier === "low" ? 0 : Math.max(0, Math.floor(input.caps[k] ?? 0));
+  const kinds: PlannedPropKind[] = ["trees", "lamps", "furniture", "construction"];
   if (kinds.every((k) => capOf(k) === 0)) return plan;
 
-  const [cx, cz] = frame.toLocal(input.centre[0], input.centre[1]);
+  const box = area.box;
+  // Distances (the nearest-first order under a cap) are from the box centre.
+  const [cx, cz] = boxCentre(box);
   const dist = (x: number, z: number) => Math.hypot(x - cx, z - cz);
-  const inside = (x: number, z: number) => dist(x, z) <= radiusM;
-  const clipBox = [cx - radiusM, cz - radiusM, cx + radiusM, cz + radiusM] as const;
+  const inside = (x: number, z: number) => inBox(box, x, z);
+  // Tree candidates are gathered over the box grown by the tree gap, so the spacing rule sees the
+  // neighbours across an edge exactly as the neighbouring tile does; only points inside the box
+  // itself are placed.
+  const pad = growBox(box, TREE_MIN_GAP_M);
+  const inPad = (x: number, z: number) => inBox(pad, x, z);
+  const clipBox = [pad.x0, pad.z0, pad.x1, pad.z1] as const;
   const overlapsClip = (b: [number, number, number, number]) =>
-    b[2] >= clipBox[0] && b[0] <= clipBox[2] && b[3] >= clipBox[1] && b[1] <= clipBox[3];
+    touchesBox(pad, b[0], b[1], b[2], b[3]);
+  const alongBox = growBox(box, ALONG_MARGIN_M);
+  const placeBox = growBox(box, PLACE_MARGIN_M);
 
   // Roads (every walk LineString is a drawn ribbon) and places.
-  const roads: Road[] = [];
-  featuresOf(input.walk).forEach((f, i) => {
-    const g = f.geometry;
-    if (!isRec(g) || g.type !== "LineString" || !Array.isArray(g.coordinates)) return;
-    const pts: P[] = [];
-    for (const c of g.coordinates) {
-      if (!Array.isArray(c) || !Number.isFinite(c[0]) || !Number.isFinite(c[1])) return;
-      const q = frame.toLocal(c[0] as number, c[1] as number);
-      const last = pts[pts.length - 1];
-      if (!last || last[0] !== q[0] || last[1] !== q[1]) pts.push(q);
-    }
-    if (pts.length < 2) return;
-    const p = propsOf(f);
-    const type = typeof p.type === "string" ? p.type : "";
-    roads.push({
-      id: String(p.id ?? `r${i}`),
-      pts,
-      type,
-      kind: KIND_BY_TYPE[type] ?? "other",
-      width: WIDTH_BY_TYPE[type] ?? ROAD_WIDTH_UNKNOWN,
-    });
-  });
+  const roads = roadsOf(input.walk, frame);
 
   const roadGrid = new Grid();
   const segs: { a: P; b: P; half: number }[] = [];
   for (const r of roads) {
+    const h = r.width / 2 + 1;
+    if (!touchesBox(pad, r.bb[0] - h, r.bb[1] - h, r.bb[2] + h, r.bb[3] + h)) continue;
     for (let i = 0; i < r.pts.length - 1; i++) {
       const a = r.pts[i]!;
       const b = r.pts[i + 1]!;
       const half = r.width / 2;
-      // By the segment's distance to the centre, not its midpoint: a long segment crossing the
-      // radius must still be avoided.
-      if (distSeg(cx, cz, a, b) > radiusM + half + 1) continue;
+      // By the segment's bounds, not its midpoint: a long segment crossing the box must still be
+      // avoided.
+      if (
+        !touchesBox(
+          pad,
+          Math.min(a[0], b[0]) - half - 1,
+          Math.min(a[1], b[1]) - half - 1,
+          Math.max(a[0], b[0]) + half + 1,
+          Math.max(a[1], b[1]) + half + 1,
+        )
+      )
+        continue;
       const idx = segs.push({ a, b, half }) - 1;
       roadGrid.add(
         idx,
@@ -317,20 +421,17 @@ export function planProps(input: PropsInput): PropsPlan {
 
   const bRings: Ring[] = [];
   const bGrid = new Grid();
-  for (const f of featuresOf(input.buildings))
-    for (const poly of polygonsOf(f.geometry, frame)) {
-      const ring = poly[0]!;
-      const b = bboxOf(ring);
-      if (!overlapsClip([b[0] - 5, b[1] - 5, b[2] + 5, b[3] + 5])) continue;
-      const idx = bRings.push(ring) - 1;
-      bGrid.add(
-        idx,
-        b[0] - TREE_CLEAR_M,
-        b[1] - TREE_CLEAR_M,
-        b[2] + TREE_CLEAR_M,
-        b[3] + TREE_CLEAR_M,
-      );
-    }
+  for (const { ring, bb: b } of buildingRingsOf(input.buildings, frame)) {
+    if (!overlapsClip([b[0] - 5, b[1] - 5, b[2] + 5, b[3] + 5])) continue;
+    const idx = bRings.push(ring) - 1;
+    bGrid.add(
+      idx,
+      b[0] - TREE_CLEAR_M,
+      b[1] - TREE_CLEAR_M,
+      b[2] + TREE_CLEAR_M,
+      b[3] + TREE_CLEAR_M,
+    );
+  }
   const nearBuilding = (x: number, z: number): boolean => {
     for (const i of bGrid.at(x, z)) {
       const r = bRings[i]!;
@@ -339,23 +440,15 @@ export function planProps(input: PropsInput): PropsPlan {
     return false;
   };
 
-  const placesOf = featuresOf(input.places)
-    .map((f) => {
-      const g = f.geometry;
-      if (!isRec(g) || g.type !== "Point" || !Array.isArray(g.coordinates)) return null;
-      const [lon, lat] = g.coordinates as number[];
-      if (!Number.isFinite(lon) || !Number.isFinite(lat)) return null;
-      const p = propsOf(f);
-      const [x, z] = frame.toLocal(lon!, lat!);
-      return {
-        id: String(p.id ?? `pl${x.toFixed(0)}_${z.toFixed(0)}`),
-        type: typeof p.type === "string" ? p.type : "",
-        entrances: Array.isArray(p.entrance_ids) ? p.entrance_ids.map(String) : [],
-        x,
-        z,
-      };
-    })
-    .filter((p): p is NonNullable<typeof p> => p !== null && inside(p.x, p.z));
+  const placesOf = pointsOf(input.places, frame)
+    .filter(({ x, z }) => inBox(placeBox, x, z))
+    .map(({ p, x, z }) => ({
+      id: String(p.id ?? `pl${x.toFixed(0)}_${z.toFixed(0)}`),
+      type: typeof p.type === "string" ? p.type : "",
+      entrances: Array.isArray(p.entrance_ids) ? p.entrance_ids.map(String) : [],
+      x,
+      z,
+    }));
 
   const cands: Record<PropKind, Cand[]> = {
     trees: [],
@@ -380,7 +473,8 @@ export function planProps(input: PropsInput): PropsPlan {
       sd?: number;
     } = {},
   ): boolean => {
-    if (!inside(x, z)) return false;
+    // Trees: the padded box (the spacing rule needs the edge neighbours); the rest: the box.
+    if (kind === "trees" ? !inPad(x, z) : !inside(x, z)) return false;
     if (opts.building !== false && nearBuilding(x, z)) return false;
     if (opts.ribbon !== false && onRibbon(x, z)) return false;
     cands[kind].push({
@@ -413,8 +507,8 @@ export function planProps(input: PropsInput): PropsPlan {
         const t = next - walked;
         const x = a[0] + tx * t;
         const z = a[1] + tz * t;
-        // Points well outside the radius can never be placed: skip them before any id is built.
-        if (dist(x, z) <= radiusM + 20) out.push({ x, z, tx, tz, s: next });
+        // Points well outside the box can never be placed: skip them before any id is built.
+        if (inBox(alongBox, x, z)) out.push({ x, z, tx, tz, s: next });
         next += step;
       }
       walked += l;
@@ -438,7 +532,7 @@ export function planProps(input: PropsInput): PropsPlan {
     const kindStreet = r.kind === "residential";
     const major = r.type === "major_road";
     if (!kindStreet && !major) continue;
-    if (!overlapsClip(bboxOf(r.pts))) continue;
+    if (!overlapsClip(r.bb)) continue;
     if (kindStreet) {
       const off = r.width / 2 + STREET_TREE_EXTRA;
       for (const p of along(r.pts, STREET_TREE_SPACING)) {
@@ -450,14 +544,16 @@ export function planProps(input: PropsInput): PropsPlan {
         }
       }
       const lampOff = r.width / 2 + 0.8;
-      along(r.pts, STREET_LAMP_SPACING, STREET_LAMP_START).forEach((p, i) => {
+      for (const p of along(r.pts, STREET_LAMP_SPACING, STREET_LAMP_START)) {
+        // Alternate sides by the lamp's index along the whole road (not within the box).
+        const i = Math.round((p.s - STREET_LAMP_START) / STREET_LAMP_SPACING);
         const side = i % 2 === 0 ? 1 : -1;
         const x = p.x + p.tz * lampOff * side;
         const z = p.z - p.tx * lampOff * side;
         // The lamp arm faces the road (model +z toward the centre line).
         const yaw = Math.atan2(-p.tz * side, p.tx * side);
         push("lamps", "furniture/lamp_single", `ls:${r.id}:${p.s.toFixed(1)}`, x, z, yaw);
-      });
+      }
     } else {
       for (const p of along(r.pts, MEDIAN_TREE_SPACING)) {
         const id = `mt:${r.id}:${p.s.toFixed(1)}`;
@@ -476,39 +572,31 @@ export function planProps(input: PropsInput): PropsPlan {
   }
 
   // OSM tree points.
-  featuresOf(input.trees).forEach((f, i) => {
-    const g = f.geometry;
-    if (!isRec(g) || g.type !== "Point" || !Array.isArray(g.coordinates)) return;
-    const [lon, lat] = g.coordinates as number[];
-    if (!Number.isFinite(lon) || !Number.isFinite(lat)) return;
-    const id = `ot:${String(propsOf(f).id ?? f.id ?? i)}`;
-    const [x, z] = frame.toLocal(lon!, lat!);
+  for (const { p, fid, i, x, z } of pointsOf(input.trees, frame)) {
+    if (!inPad(x, z)) continue;
+    const id = `ot:${String(p.id ?? fid ?? i)}`;
     tree(id, x, z, hash01(id, "species") < 0.7 ? "rain_tree" : "flame_tree", "osm");
-  });
+  }
 
-  const parkPolys: Poly[] = featuresOf(input.parks)
-    .flatMap((f) => polygonsOf(f.geometry, frame))
-    .filter((p) => overlapsClip(bboxOf(p[0]!)));
-  const area: Record<"park" | "forest" | "oil", Poly[]> = {
-    park: [...parkPolys],
+  // Polygons carry their global index (`feature.polygon`), so ids never depend on the box.
+  const parkPolys = polysOf(input.parks, frame).filter((p) => overlapsClip(p.bb));
+  const lands: Record<"park" | "forest" | "oil", Poly[]> = {
+    park: parkPolys.map((p) => p.poly),
     forest: [],
     oil: [],
   };
-  const constructionPolys: Poly[] = [];
-  for (const f of featuresOf(input.landcover)) {
-    const cls = propsOf(f).class;
-    for (const poly of polygonsOf(f.geometry, frame)) {
-      if (!overlapsClip(bboxOf(poly[0]!))) continue;
-      // Grass joins the park pool: one lattice over the union, so a polygon listed as both a park
-      // and grass is sampled once (no doubled density).
-      if (cls === "grass") area.park.push(poly);
-      else if (cls === "forest") area.forest.push(poly);
-      else if (cls === "oil_palm") area.oil.push(poly);
-      else if (cls === "construction") constructionPolys.push(poly);
-    }
+  const constructionPolys: { poly: Poly; id: string }[] = [];
+  for (const { poly, id, cls, bb } of polysOf(input.landcover, frame)) {
+    if (!overlapsClip(bb)) continue;
+    // Grass joins the park pool: one lattice over the union, so a polygon listed as both a park
+    // and grass is sampled once (no doubled density).
+    if (cls === "grass") lands.park.push(poly);
+    else if (cls === "forest") lands.forest.push(poly);
+    else if (cls === "oil_palm") lands.oil.push(poly);
+    else if (cls === "construction") constructionPolys.push({ poly, id });
   }
 
-  /** Membership test over a set of polygons (bbox grid, clipped to the radius). */
+  /** Membership test over a set of polygons (bbox grid, clipped to the padded box). */
   const polyTest = (polys: Poly[]) => {
     const g = new Grid();
     const boxes = polys.map((p) => bboxOf(p[0]!));
@@ -539,9 +627,9 @@ export function planProps(input: PropsInput): PropsPlan {
   };
 
   /**
-   * Lattice samples (one seeded candidate per cell) inside `polys`, generated nearest-first in
-   * square rings around the centre and stopped once `limit` were accepted, so the cost follows the
-   * cap and not the polygon area.
+   * Lattice samples (one seeded candidate per frame-aligned cell) inside `polys`, generated
+   * nearest-first in square rings around the box centre and stopped once `limit` were accepted, so
+   * the cost follows the cap and not the polygon area.
    */
   const lattice = (
     polys: Poly[],
@@ -555,13 +643,13 @@ export function planProps(input: PropsInput): PropsPlan {
     const { test, maybe } = polyTest(polys);
     const ci = Math.floor(cx / cell);
     const cj = Math.floor(cz / cell);
-    const maxR = Math.ceil(radiusM / cell) + 1;
+    const maxR = Math.ceil(Math.hypot(pad.x1 - cx, pad.z1 - cz) / cell) + 1;
     const ds: number[] = [];
     const visit = (i: number, j: number) => {
       if (!maybe(i * cell, j * cell, (i + 1) * cell, (j + 1) * cell)) return;
       const id = `${tag}:${i}:${j}`;
       const [x, z] = at(id, i, j);
-      if (inside(x, z) && test(x, z) && fn(id, x, z)) ds.push(dist(x, z));
+      if (inPad(x, z) && test(x, z) && fn(id, x, z)) ds.push(dist(x, z));
     };
     // Unseen cells lie beyond (r - 1) cells, so stop once the limit-th nearest accepted is inside that.
     const done = (r: number) =>
@@ -598,15 +686,15 @@ export function planProps(input: PropsInput): PropsPlan {
       (j + hash01(id, "jz")) * cell,
     ];
   const parkCell = PARK_TREE_RADIUS / Math.SQRT2;
-  lattice(area.park, parkCell, "pk", jitterAt(parkCell), treeCap, (id, x, z) =>
+  lattice(lands.park, parkCell, "pk", jitterAt(parkCell), treeCap, (id, x, z) =>
     tree(id, x, z, pick(id, "species", PARK_SPECIES), "park"),
   );
   const forestCell = FOREST_SPACING / Math.SQRT2;
-  lattice(area.forest, forestCell, "fo", jitterAt(forestCell), treeCap, (id, x, z) =>
+  lattice(lands.forest, forestCell, "fo", jitterAt(forestCell), treeCap, (id, x, z) =>
     tree(id, x, z, hash01(id, "species") < 0.75 ? "rain_tree" : "coconut_palm", "forest"),
   );
   lattice(
-    area.oil,
+    lands.oil,
     OIL_PALM_SPACING,
     "op",
     (id, i, j): [number, number] => [
@@ -627,7 +715,7 @@ export function planProps(input: PropsInput): PropsPlan {
       ribbon: false,
     });
   };
-  parkPolys.forEach((poly, pi) => {
+  for (const { poly, id: pid } of parkPolys) {
     const ring = poly[0]!;
     const pts = [...ring, ring[0]!];
     // Edge point inward normal by probing both sides.
@@ -639,9 +727,9 @@ export function planProps(input: PropsInput): PropsPlan {
       const z = p.z + nz * inward * 1.5;
       if (onRibbon(x, z)) continue;
       // Model +z faces the park interior, away from the edge.
-      pair(`pe${pi}:${p.s.toFixed(1)}`, x, z, Math.atan2(nx * inward, nz * inward));
+      pair(`pe${pid}:${p.s.toFixed(1)}`, x, z, Math.atan2(nx * inward, nz * inward));
     }
-  });
+  }
   for (const pl of placesOf) {
     if (pl.type === "park" || pl.type === "playground" || pl.type === "shelter") {
       const a = hash01(pl.id, "furn") * Math.PI * 2;
@@ -677,7 +765,7 @@ export function planProps(input: PropsInput): PropsPlan {
   }
 
   // Construction sites.
-  constructionPolys.forEach((poly, ci) => {
+  for (const { poly, id: ci } of constructionPolys) {
     const ring = poly[0]!;
     const b = bboxOf(ring);
     const area = areaOf(ring) - poly.slice(1).reduce((s, h) => s + areaOf(h), 0);
@@ -686,8 +774,13 @@ export function planProps(input: PropsInput): PropsPlan {
     // Per-site quota under a tight cap, nearest site first (`sd`): rank 0 cabin, 1 two hoardings,
     // 2 crane, 3 excavator, 4 stacks, 5 the remaining hoardings.
     const sd = dist((b[0] + b[2]) / 2, (b[1] + b[3]) / 2);
-    const hoardings = along(closed, HOARDING_M, HOARDING_M / 2);
-    hoardings.forEach((p, i) => {
+    // Indexed along the whole boundary (`along` only returns the spans near the box).
+    let perimeter = 0;
+    for (let k = 0; k < closed.length - 1; k++)
+      perimeter += Math.hypot(closed[k + 1]![0] - closed[k]![0], closed[k + 1]![1] - closed[k]![1]);
+    const spans = Math.floor((perimeter - HOARDING_M / 2) / HOARDING_M + 1e-9) + 1;
+    for (const p of along(closed, HOARDING_M, HOARDING_M / 2)) {
+      const i = Math.round((p.s - HOARDING_M / 2) / HOARDING_M);
       const n: P = [p.tz, -p.tx];
       const outward = inPoly(p.x + n[0] * 0.5, p.z + n[1] * 0.5, poly) ? -1 : 1;
       push(
@@ -700,11 +793,11 @@ export function planProps(input: PropsInput): PropsPlan {
         {
           ribbon: false,
           building: false,
-          rank: i === 0 || i === Math.floor(hoardings.length / 2) ? 1 : 5,
+          rank: i === 0 || i === Math.floor(spans / 2) ? 1 : 5,
           sd,
         },
       );
-    });
+    }
     // Interior spots, roomiest first (distance to the boundary), deterministic.
     const spots: { x: number; z: number; r: number }[] = [];
     const step = Math.max(2, Math.min(b[2] - b[0], b[3] - b[1]) / 12);
@@ -739,10 +832,10 @@ export function planProps(input: PropsInput): PropsPlan {
     place("construction/material_stack", "ms0_", 2, 6, 4);
     place("construction/material_stack", "ms1_", 2, 6, 4);
     if (area > EXCAVATOR_MIN_M2) place("construction/excavator", "ex", 3, 8, 3);
-  });
+  }
 
-  // Caps. Trees are stratified by source (TREE_SHARES) with a minimum gap, so one dense patch cannot
-  // starve the rest; construction ranks by per-site quota; everything else is nearest-first.
+  // Caps. Trees are stratified by source (TREE_SHARES) after the spacing rule, so one dense patch
+  // cannot starve the rest; construction ranks by per-site quota; everything else is nearest-first.
   const cmp = (a: Cand, b: Cand) =>
     (a.rank ?? 0) - (b.rank ?? 0) ||
     (a.sd ?? a.d) - (b.sd ?? b.d) ||
@@ -772,7 +865,7 @@ export function planProps(input: PropsInput): PropsPlan {
     else plan.kits.set(c.key, [pl]);
     return true;
   };
-  const emit = (kind: PropKind, list: Cand[]) => {
+  const emit = (kind: PlannedPropKind, list: Cand[]) => {
     const cap = capOf(kind);
     list.sort(cmp);
     let n = 0;
@@ -783,10 +876,49 @@ export function planProps(input: PropsInput): PropsPlan {
     plan.stats[kind] = n;
   };
 
+  /**
+   * The tree spacing rule, decided the same way whatever the box: one tree per 2.5 m cell (cells
+   * are aligned to the frame origin, so tile edges are cell edges), the cell's winner chosen by a
+   * fixed priority (source, then id); a winner also yields to a higher-priority winner within
+   * 2.5 m in a neighbouring cell. No chain of greedy picks, so adjacent tiles agree at their edge
+   * and no two trees end up closer than the gap.
+   */
+  const spacedTrees = (): Cand[] => {
+    const prio = (a: Cand, b: Cand) =>
+      SRC_RANK[a.src ?? "street"] - SRC_RANK[b.src ?? "street"] ||
+      (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+    const cellOf = (c: Cand): [number, number] => [
+      Math.floor(c.x / TREE_MIN_GAP_M),
+      Math.floor(c.z / TREE_MIN_GAP_M),
+    ];
+    const winners = new Map<string, Cand>();
+    for (const c of cands.trees) {
+      const [i, j] = cellOf(c);
+      const k = `${i},${j}`;
+      const w = winners.get(k);
+      if (!w || prio(c, w) < 0) winners.set(k, c);
+    }
+    const out: Cand[] = [];
+    for (const c of winners.values()) {
+      if (!inside(c.x, c.z)) continue;
+      const [i, j] = cellOf(c);
+      let ok = true;
+      for (let di = -1; di <= 1 && ok; di++)
+        for (let dj = -1; dj <= 1 && ok; dj++) {
+          if (di === 0 && dj === 0) continue;
+          const w = winners.get(`${i + di},${j + dj}`);
+          if (w && prio(w, c) < 0 && Math.hypot(w.x - c.x, w.z - c.z) < TREE_MIN_GAP_M) ok = false;
+        }
+      if (ok) out.push(c);
+    }
+    return out;
+  };
+
+  // Trees are stratified by source (TREE_SHARES), nearest-first within a source.
   const emitTrees = () => {
     const cap = capOf("trees");
     const bySrc = new Map<TreeSource, Cand[]>();
-    for (const c of cands.trees) {
+    for (const c of spacedTrees()) {
       const k = c.src ?? "street";
       const l = bySrc.get(k);
       if (l) l.push(c);
@@ -794,17 +926,6 @@ export function planProps(input: PropsInput): PropsPlan {
     }
     for (const l of bySrc.values()) l.sort(cmp);
     const ptr = new Map<TreeSource, number>();
-    const taken = new Map<string, P[]>();
-    const clash = (c: Cand) => {
-      for (let i = -1; i <= 1; i++)
-        for (let j = -1; j <= 1; j++) {
-          const near = taken.get(
-            `${Math.floor(c.x / TREE_MIN_GAP_M) + i},${Math.floor(c.z / TREE_MIN_GAP_M) + j}`,
-          );
-          if (near?.some((q) => Math.hypot(q[0] - c.x, q[1] - c.z) < TREE_MIN_GAP_M)) return true;
-        }
-      return false;
-    };
     const stat: Record<string, number> = {};
     let n = 0;
     while (n < cap) {
@@ -812,25 +933,18 @@ export function planProps(input: PropsInput): PropsPlan {
       if (active.length === 0) break;
       const share = active.reduce((a, [k]) => a + TREE_SHARES[k], 0);
       const left = cap - n;
-      let progressed = false;
       for (const [k, l] of active) {
         let quota = Math.max(1, Math.round((left * TREE_SHARES[k]) / share));
         let p = ptr.get(k) ?? 0;
         while (quota > 0 && p < l.length && n < cap) {
           const c = l[p++]!;
-          if (clash(c) || !add(c)) continue;
-          const key = `${Math.floor(c.x / TREE_MIN_GAP_M)},${Math.floor(c.z / TREE_MIN_GAP_M)}`;
-          const t = taken.get(key);
-          if (t) t.push([c.x, c.z]);
-          else taken.set(key, [[c.x, c.z]]);
+          if (!add(c)) continue;
           quota--;
           n++;
           stat[k] = (stat[k] ?? 0) + 1;
-          progressed = true;
         }
         ptr.set(k, p);
       }
-      if (!progressed && active.every(([k, l]) => (ptr.get(k) ?? 0) >= l.length)) break;
     }
     plan.stats.trees = n;
     for (const [k, v] of Object.entries(stat)) plan.stats[`trees.${k}`] = v;

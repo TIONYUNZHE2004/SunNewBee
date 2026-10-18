@@ -2,7 +2,9 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { parseManifest } from "../assets/manifest";
 import { createFrame } from "../frame";
-import { capFor } from "./caps";
+import { type Box, boxAround, seedFor } from "../stream/area";
+import { tileAt } from "../stream/tiles";
+import { capFor, PROP_CAPS } from "./caps";
 import { planProps } from "./propsPlan";
 
 const manifest = parseManifest(
@@ -42,9 +44,10 @@ const base = {
   trees: fc(),
   places: fc(),
   frame,
-  centre: O,
-  radiusM: 1200,
+  // The P3 hero circle fixture (r = 1200 m) becomes a single 2,400 m box.
+  area: { box: boxAround(0, 0, 1200), seed: "t" },
   tier: "high" as const,
+  caps: PROP_CAPS.high,
   m: manifest,
 };
 type In = Parameters<typeof planProps>[0];
@@ -103,19 +106,20 @@ describe("planProps", () => {
         poly({ class: "oil_palm" }, 0, 0, 900, 900),
       ),
     };
-    const med = plan({ ...dense, tier: "medium" });
+    const med = plan({ ...dense, tier: "medium", caps: PROP_CAPS.medium });
     expect(ofAsset(med, "trees")).toHaveLength(capFor("medium", "trees"));
     const lamps = count(med, "furniture/lamp_single") + count(med, "furniture/lamp_double");
     expect(lamps).toBeLessThanOrEqual(capFor("medium", "lamps"));
     expect(all(plan({ ...dense, tier: "low" }))).toEqual([]);
+    expect(all(plan({ ...dense, caps: PROP_CAPS.low }))).toEqual([]);
   });
 
   it("keeps the nearest props when a cap bites", () => {
     const dense: Partial<In> = {
       landcover: fc(poly({ class: "forest" }, -500, -500, 1000, 1000)),
     };
-    const kept = ofAsset(plan({ ...dense, tier: "medium" }), "trees");
-    const full = ofAsset(plan({ ...dense, tier: "high" }), "trees");
+    const kept = ofAsset(plan({ ...dense, caps: PROP_CAPS.medium }), "trees");
+    const full = ofAsset(plan({ ...dense, caps: PROP_CAPS.high }), "trees");
     expect(kept.length).toBeLessThan(full.length);
     const far = Math.max(...kept.map((t) => Math.hypot(t.x, t.z)));
     const dropped = full.filter((t) => !kept.some((k) => k.id === t.id));
@@ -186,10 +190,12 @@ describe("planProps", () => {
     for (const o of oil) expect(o.x >= 100 && o.x <= 180 && o.z >= 100 && o.z <= 180).toBe(true);
   });
 
-  it("keeps everything inside the radius", () => {
-    const p = plan({ ...scene, radiusM: 150 });
+  it("keeps everything inside the box, half-open", () => {
+    const box: Box = { x0: -150, z0: -150, x1: 150, z1: 150 };
+    const p = plan({ ...scene, area: { box, seed: "t" } });
     expect(all(p).length).toBeGreaterThan(10);
-    for (const q of all(p)) expect(Math.hypot(q.x, q.z)).toBeLessThanOrEqual(150 + 1e-6);
+    for (const q of all(p))
+      expect(q.x >= box.x0 && q.x < box.x1 && q.z >= box.z0 && q.z < box.z1).toBe(true);
   });
 
   it("only uses kit keys that exist in the manifest", () => {
@@ -216,7 +222,7 @@ describe("planProps", () => {
 
   it("a dense forest at the centre does not starve street, OSM or park trees", () => {
     const p = plan({
-      tier: "medium",
+      caps: PROP_CAPS.medium,
       landcover: fc(
         poly({ class: "forest" }, -400, -400, 800, 800),
         poly({ class: "oil_palm" }, 400, -400, 400, 800),
@@ -243,7 +249,6 @@ describe("planProps", () => {
     // A 5 km footway at z=1150 from x=-1500 to 3500: its midpoint (1000, 1150) is 1523 m from
     // the centre, beyond radius + 200, yet the segment crosses the disc (|x| < 343 at z=1150).
     const p = plan({
-      radiusM: 1200,
       walk: fc(
         line("footway", [
           [-1500, 1150],
@@ -274,7 +279,7 @@ describe("planProps", () => {
       [500, 500],
     ];
     const p = plan({
-      capsOverride: { construction: 3 },
+      caps: { ...PROP_CAPS.high, construction: 3 },
       landcover: fc(...sites.map(([x, z]) => poly({ class: "construction" }, x, z, 95, 95))),
     });
     const built = ofAsset(p, "construction");
@@ -293,5 +298,118 @@ describe("planProps", () => {
       ),
     });
     expect(count(p, "furniture/bollard")).toBe(15);
+  });
+
+  it("keeps trees at least 2.5 m apart", () => {
+    const trees = ofAsset(plan(edgeScene), "trees");
+    expect(trees.length).toBeGreaterThan(200);
+    for (let i = 0; i < trees.length; i++)
+      for (let j = i + 1; j < trees.length; j++)
+        expect(
+          Math.hypot(trees[i]!.x - trees[j]!.x, trees[i]!.z - trees[j]!.z),
+        ).toBeGreaterThanOrEqual(2.5 - 1e-9);
+  });
+});
+
+/** Everything crosses the shared edges x = 0 and z = 0 of the four quadrant tiles. */
+const edgeScene: Partial<In> = {
+  walk: fc(
+    line(
+      "street",
+      [
+        [-240, 1],
+        [240, -1],
+      ],
+      "s1",
+    ),
+    line(
+      "major_road",
+      [
+        [0, -240],
+        [0, 240],
+      ],
+      "m1",
+    ),
+    line(
+      "street",
+      [
+        [-120, -240],
+        [-118, 240],
+      ],
+      "s2",
+    ),
+  ),
+  landcover: fc(
+    poly({ class: "grass" }, 20, 20, 120, 120),
+    poly({ class: "forest" }, -90, -90, 120, 70),
+    poly({ class: "oil_palm" }, -200, 60, 230, 100),
+    poly({ class: "construction" }, 30, -150, 95, 95),
+    poly({ class: "construction" }, -60, -230, 120, 60),
+  ),
+  buildings: fc(poly({ id: "b1" }, -40, 10, 30, 30), poly({ id: "b2" }, 5, -40, 30, 20)),
+  parks: fc(poly({ id: "p1" }, -60, 100, 120, 80)),
+  trees: fc(point({ id: "t1" }, 0, -60), point({ id: "t2" }, -0.5, -80), point({ id: "t3" }, 1, 1)),
+  places: fc(
+    point({ id: "pl1", type: "shelter", name: "x" }, 1, 20),
+    point({ id: "pl2", type: "playground", name: "y" }, -2, 120),
+    point({ id: "pl3", type: "school", name: "z", entrance_ids: ["e1", "e2"] }, 3, -3),
+  ),
+};
+const BIG = { trees: 1e6, lamps: 1e6, furniture: 1e6, construction: 1e6 };
+const Q: Box[] = [
+  { x0: -250, z0: -250, x1: 0, z1: 0 },
+  { x0: 0, z0: -250, x1: 250, z1: 0 },
+  { x0: -250, z0: 0, x1: 0, z1: 250 },
+  { x0: 0, z0: 0, x1: 250, z1: 250 },
+];
+const U: Box = { x0: -250, z0: -250, x1: 250, z1: 250 };
+const byId = <T extends { id: string }>(l: T[]) => [...l].sort((a, b) => (a.id < b.id ? -1 : 1));
+const placements = (p: Out) => byId(all(p));
+
+describe("planProps per tile box", () => {
+  const at = (box: Box, seed = "t") => plan({ ...edgeScene, caps: BIG, area: { box, seed } });
+
+  it("four tiles planned separately give exactly the placements of their union", () => {
+    const parts = Q.map((b, i) => placements(at(b, `q${i}`)));
+    const union = placements(at(U, "u"));
+    expect(union.length).toBeGreaterThan(300);
+    // No duplicates: every id is placed by one tile only.
+    const ids = parts.flat().map((q) => q.id);
+    expect(new Set(ids).size).toBe(ids.length);
+    // No gaps: the same set, placement for placement.
+    expect(byId(parts.flat())).toEqual(union);
+    // Not vacuous: props sit on both sides of the shared edges.
+    for (const s of [1, -1]) {
+      expect(union.some((q) => s * q.x >= 0 && Math.abs(q.x) < 3)).toBe(true);
+      expect(union.some((q) => s * q.z >= 0 && Math.abs(q.z) < 3)).toBe(true);
+    }
+  });
+
+  it("each kit bucket splits the same way (the kits, not just the ids)", () => {
+    const union = at(U);
+    for (const [key, list] of union.kits) {
+      const split = Q.flatMap((b) => at(b).kits.get(key) ?? []);
+      expect(byId(split), key).toEqual(byId(list));
+    }
+  });
+
+  it("is deterministic per tile key, whatever was planned before", () => {
+    const tile = tileAt(10, 10);
+    const area = { box: tile.box, seed: seedFor(tile.key, "props") };
+    const first = plan({ ...edgeScene, area, caps: PROP_CAPS.medium });
+    plan({ ...edgeScene, area: { box: Q[0]!, seed: "x" }, caps: PROP_CAPS.medium });
+    expect(plan({ ...edgeScene, area, caps: PROP_CAPS.medium })).toEqual(first);
+    expect(all(first).length).toBeGreaterThan(20);
+  });
+
+  it("each tile keeps only points inside its own half-open box, edge points included", () => {
+    // The major road's median palms and lamps run along x = 0, the shared edge.
+    let onEdge = 0;
+    for (const box of Q)
+      for (const q of all(at(box))) {
+        expect(q.x >= box.x0 && q.x < box.x1 && q.z >= box.z0 && q.z < box.z1).toBe(true);
+        if (Math.abs(q.x) < 1e-6) onEdge++;
+      }
+    expect(onEdge).toBeGreaterThan(5);
   });
 });

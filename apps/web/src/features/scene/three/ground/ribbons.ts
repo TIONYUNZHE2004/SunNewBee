@@ -4,8 +4,8 @@ import {
   type RoadKind,
   WIDTH_BY_TYPE,
 } from "../../cesium/stylised/ground";
-import type { LonLat } from "../../geo";
 import type { LocalFrame } from "../frame";
+import { type Box, inBox, type PlanArea, perLayer, touchesBox } from "../stream/area";
 import { MARKING_Y, ROAD_Y } from "./bands";
 
 /** Road surface lift above the ground plane (metres): above land cover (<= 0.06), below markings. */
@@ -103,26 +103,82 @@ function localLine(coords: unknown, frame: LocalFrame): P[] | null {
   return out.length >= 2 ? out : null;
 }
 
-/** Runs of consecutive segments whose midpoint is inside the clip circle (all, with no clip). */
-function clipRuns(pts: P[], clip: { c: P; r: number } | null): P[][] {
-  if (!clip) return [pts];
+/**
+ * How far a box's ribbons may reach past the box (m). A segment that is not wholly inside the box
+ * is cut into equal pieces of at most twice this, the same cut whichever box looks at it, and each
+ * piece belongs to the box holding its midpoint: adjacent boxes never draw the same piece and
+ * leave no gap between them.
+ */
+export const RIBBON_MARGIN_M = 20;
+
+/** Runs of consecutive pieces whose midpoint is in the box (the whole line, with no box). */
+function clipRuns(pts: P[], box: Box | null): P[][] {
+  if (!box) return [pts];
   const runs: P[][] = [];
   let cur: P[] = [];
-  for (let i = 0; i < pts.length - 1; i++) {
-    const a = pts[i]!;
-    const b = pts[i + 1]!;
-    const inside =
-      Math.hypot((a[0] + b[0]) / 2 - clip.c[0], (a[1] + b[1]) / 2 - clip.c[1]) <= clip.r;
-    if (inside) {
+  const piece = (a: P, b: P) => {
+    if (inBox(box, (a[0] + b[0]) / 2, (a[1] + b[1]) / 2)) {
       if (cur.length === 0) cur.push(a);
       cur.push(b);
     } else if (cur.length > 0) {
       runs.push(cur);
       cur = [];
     }
+  };
+  for (let i = 0; i < pts.length - 1; i++) {
+    const a = pts[i]!;
+    const b = pts[i + 1]!;
+    const whole =
+      inBox(box, Math.min(a[0], b[0]), Math.min(a[1], b[1])) &&
+      inBox(box, Math.max(a[0], b[0]), Math.max(a[1], b[1]));
+    const n = whole ? 1 : Math.ceil(Math.hypot(b[0] - a[0], b[1] - a[1]) / (2 * RIBBON_MARGIN_M));
+    let prev = a;
+    for (let k = 1; k <= n; k++) {
+      const next: P =
+        k === n ? b : [a[0] + ((b[0] - a[0]) * k) / n, a[1] + ((b[1] - a[1]) * k) / n];
+      piece(prev, next);
+      prev = next;
+    }
   }
   if (cur.length > 0) runs.push(cur);
   return runs;
+}
+
+interface Line {
+  pts: P[];
+  type: string;
+  bb: [number, number, number, number];
+}
+const linesCache = new WeakMap<object, WeakMap<object, Line[]>>();
+
+/** The walk LineStrings in local metres with their bounds, built once per layer and frame. */
+const linesOf = (fc: GeoJSON.FeatureCollection | null | undefined, frame: LocalFrame): Line[] =>
+  perLayer(linesCache, fc, frame, () => {
+    const out: Line[] = [];
+    const features = Array.isArray(fc?.features) ? fc.features : [];
+    for (const f of features) {
+      if (f?.geometry?.type !== "LineString") continue;
+      const pts = localLine(f.geometry.coordinates, frame);
+      if (!pts) continue;
+      const type = typeof f.properties?.type === "string" ? f.properties.type : "";
+      out.push({ pts, type, bb: bounds(pts) });
+    }
+    return out;
+  });
+
+/** Bounds of a polyline. */
+function bounds(pts: P[]): [number, number, number, number] {
+  let x0 = Number.POSITIVE_INFINITY;
+  let z0 = Number.POSITIVE_INFINITY;
+  let x1 = Number.NEGATIVE_INFINITY;
+  let z1 = Number.NEGATIVE_INFINITY;
+  for (const [x, z] of pts) {
+    x0 = Math.min(x0, x);
+    z0 = Math.min(z0, z);
+    x1 = Math.max(x1, x);
+    z1 = Math.max(z1, z);
+  }
+  return [x0, z0, x1, z1];
 }
 
 /** Dashes along a polyline, the on/off phase carried across vertices; each dash is straight. */
@@ -156,26 +212,20 @@ function dashes(pts: P[]): P[][] {
  * Triangle-strip ribbons around the walk network's LineStrings (width by segment `type`, shared
  * with the Cesium stylised ground), mitred with the offset capped at 2 half-widths, merged per
  * kind, at the road lift. Major roads also get dashed centre marks (a separate ribbon, one lift
- * higher). With `clipCentre`/`clipRadiusM`, only segments whose midpoint is inside the circle are
- * kept. Pure.
+ * higher). With an `area`, only the pieces whose midpoint is in its box are kept (see
+ * RIBBON_MARGIN_M), and only the dashes whose midpoint is: the dash phase runs along the whole
+ * line, so adjacent boxes agree. Pure.
  */
 export function ribbonsFromWalk(
   fc: GeoJSON.FeatureCollection | null | undefined,
   frame: LocalFrame,
-  opts: { clipCentre?: LonLat; clipRadiusM?: number } = {},
+  opts: { area?: PlanArea } = {},
 ): Ribbon[] {
-  const clip =
-    opts.clipCentre && opts.clipRadiusM !== undefined
-      ? { c: frame.toLocal(opts.clipCentre[0], opts.clipCentre[1]), r: opts.clipRadiusM }
-      : null;
+  const box = opts.area?.box ?? null;
   const kinds = new Map<RoadKind, Builder>();
   const marks = new Builder(MARKING_Y);
-  const features = Array.isArray(fc?.features) ? fc.features : [];
-  for (const f of features) {
-    if (f?.geometry?.type !== "LineString") continue;
-    const pts = localLine(f.geometry.coordinates, frame);
-    if (!pts) continue;
-    const type = typeof f.properties?.type === "string" ? f.properties.type : "";
+  for (const { pts, type, bb } of linesOf(fc, frame)) {
+    if (box && !touchesBox(box, bb[0], bb[1], bb[2], bb[3])) continue;
     const kind = KIND_BY_TYPE[type] ?? "other";
     const half = (WIDTH_BY_TYPE[type] ?? ROAD_WIDTH_UNKNOWN) / 2;
     let b = kinds.get(kind);
@@ -183,10 +233,13 @@ export function ribbonsFromWalk(
       b = new Builder(ROAD_Y);
       kinds.set(kind, b);
     }
-    for (const run of clipRuns(pts, clip)) {
-      b.strip(run, half);
-      if (kind === "major") for (const d of dashes(run)) marks.strip(d, MARK_WIDTH_M / 2);
-    }
+    for (const run of clipRuns(pts, box)) b.strip(run, half);
+    if (kind === "major")
+      for (const d of dashes(pts)) {
+        const [a, c] = [d[0]!, d[d.length - 1]!];
+        if (!box || inBox(box, (a[0] + c[0]) / 2, (a[1] + c[1]) / 2))
+          marks.strip(d, MARK_WIDTH_M / 2);
+      }
   }
   const out: Ribbon[] = [];
   for (const [kind, b] of kinds) if (!b.empty) out.push(b.done(kind));

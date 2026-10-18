@@ -3,14 +3,15 @@ import type { Tier } from "../../cesium/stylised/quality";
 import { prefersReducedMotion, useSceneSettings } from "../../sceneSettingsStore";
 import { useScene } from "../../sceneStore";
 import type { RoleUniforms } from "../assets/roleMaterial";
-import { HERO_CENTRE, HERO_RADIUS_M } from "../bookmarks";
 import type { Engine } from "../engine";
 import type { LocalFrame } from "../frame";
 import { planAgents } from "../motion/agents";
 import { createMotionDriver, type MotionDriver, motionRunning } from "../motion/motionClock";
 import { createMotionLayer } from "../motion/motionLayer";
+import { capFor } from "../props/caps";
 import type { SceneBus } from "./sceneBus";
 import type { LoadedAssets } from "./useCityAssets";
+import { heroBox } from "./useDecor";
 import type { LayerData } from "./useGround";
 
 /**
@@ -118,11 +119,11 @@ export function useMotion({
             walk,
             places: walk,
             frame,
-            centre: HERO_CENTRE,
-            radiusM: HERO_RADIUS_M,
+            // Until the streamer plans per tile (Task 4): the P3 hero box and totals.
+            area: { box: heroBox(frame), seed: "motion" },
             tier,
+            caps: { vehicles: capFor(tier, "vehicles"), people: capFor(tier, "people") },
             m: loaded.manifest,
-            seed: "motion",
           })
         : null,
     [frame, detailsOn, walk, loaded, showroom, tier],
