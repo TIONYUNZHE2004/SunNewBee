@@ -29,6 +29,13 @@ describe("createLineBatch", () => {
     expect(mat(b).linewidth).toBe(5);
   });
 
+  it("uses scene fog (lines are in the main scene)", () => {
+    expect(mat(createLineBatch([line], { color: "#fff", widthPx: 3 }, 0.4, 10)).fog).toBe(true);
+    expect(
+      mat(createLineBatch([line], { color: "#fff", widthPx: 3 }, 0.4, 10, undefined, true)).fog,
+    ).toBe(true);
+  });
+
   it("lifts every vertex to liftM", () => {
     const b = createLineBatch([line], { color: "#fff", widthPx: 2 }, 0.4, 10) as LineSegments2;
     const start = attr(b, "instanceStart");

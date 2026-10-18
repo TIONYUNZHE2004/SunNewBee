@@ -24,11 +24,11 @@ export function distanceFade(distM: number, near = FADE_NEAR_M, far = FADE_FAR_M
  * camera, screen position unchanged). The ground bands use a large polygonOffset factor, which on
  * an oblique plane at range moves them metres toward the camera (about 1% of the distance at the
  * hero bookmark), so a fixed 0.4 m lift loses to the roads at 800 m: lines would vanish. A line
- * quad is screen-aligned (no depth slope), so a polygonOffset does nothing for it. 0.2% of the
- * distance (1.6 m at 800 m, 0.6 m at 300 m) was enough to show lines on roads in the acceptance
+ * quad is screen-aligned (no depth slope), so a polygonOffset does nothing for it. 0.15% of the
+ * distance (1.2 m at 800 m, 0.5 m at 300 m) was enough to show lines on roads in the acceptance
  * renders and stays below a storey, so a roof or wall still hides a line behind it.
  */
-export const LINE_DEPTH_BIAS = 0.004;
+export const LINE_DEPTH_BIAS = 0.0015;
 
 /**
  * Patches LineMaterial's shaders: a view-distance depth bias (always) and, with `fade`, a
@@ -155,6 +155,9 @@ export function createLineBatch(
     polygonOffset: true,
     polygonOffsetFactor: -2,
     polygonOffsetUnits: -2,
+    // Lines are in the main scene now: fog them like the ground, or they read as a crisp
+    // wireframe over fogged terrain at the overview.
+    fog: true,
   });
   patchLineShaders(material, fade);
   if (style.dash) {
