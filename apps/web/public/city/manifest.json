@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "as_of": "2026-10-18",
+  "as_of": "2026-10-19",
   "roles": [
     "primary",
     "secondary",
@@ -41,7 +41,7 @@
     "link_intermediate": {
       "group": "archetype",
       "file": "archetypes/link_intermediate.glb",
-      "bytes": 55336,
+      "bytes": 53240,
       "repeat": "frontage",
       "frontage": "short",
       "fit": {
@@ -67,63 +67,63 @@
         "default": [
           [
             "#f2efe8",
-            "#3d4147",
+            "#6e7278",
             "#8a8f96"
           ],
           [
             "#e9e4da",
-            "#4a4e55",
+            "#7b6b5d",
             "#a07a55"
           ],
           [
             "#dfe2e4",
-            "#33373d",
+            "#656a70",
             "#6d737a"
           ]
         ],
         "green": [
           [
             "#f4f0e6",
-            "#3a3d42",
+            "#6a6d72",
             "#9b7350"
           ],
           [
             "#ece6d8",
-            "#45484e",
+            "#7d6b5a",
             "#b08a62"
           ],
           [
             "#f7f5ef",
-            "#2f3236",
+            "#5f6368",
             "#7d6a58"
           ]
         ],
         "valley": [
           [
             "#e6e7e8",
-            "#50545a",
+            "#74787e",
             "#a0563f"
           ],
           [
             "#f1f1ef",
-            "#3e4247",
+            "#686c72",
             "#8c4a36"
           ],
           [
             "#d9dbdd",
-            "#2e3135",
+            "#5f6368",
             "#b06a4f"
           ]
         ],
         "ridge": [
           [
             "#f5f5f3",
-            "#2b2e33",
-            "#3f444b"
+            "#5d6167",
+            "#6d737a"
           ],
           [
             "#e4e6e3",
-            "#383c41",
+            "#6b6f74",
             "#6b7b6e"
           ]
         ],
@@ -199,7 +199,7 @@
     "link_long": {
       "group": "archetype",
       "file": "archetypes/link_long.glb",
-      "bytes": 58248,
+      "bytes": 55508,
       "repeat": "frontage",
       "frontage": "short",
       "fit": {
@@ -225,63 +225,63 @@
         "default": [
           [
             "#f2efe8",
-            "#3d4147",
+            "#6e7278",
             "#8a8f96"
           ],
           [
             "#e9e4da",
-            "#4a4e55",
+            "#7b6b5d",
             "#a07a55"
           ],
           [
             "#dfe2e4",
-            "#33373d",
+            "#656a70",
             "#6d737a"
           ]
         ],
         "green": [
           [
             "#f4f0e6",
-            "#3a3d42",
+            "#6a6d72",
             "#9b7350"
           ],
           [
             "#ece6d8",
-            "#45484e",
+            "#7d6b5a",
             "#b08a62"
           ],
           [
             "#f7f5ef",
-            "#2f3236",
+            "#5f6368",
             "#7d6a58"
           ]
         ],
         "valley": [
           [
             "#e6e7e8",
-            "#50545a",
+            "#74787e",
             "#a0563f"
           ],
           [
             "#f1f1ef",
-            "#3e4247",
+            "#686c72",
             "#8c4a36"
           ],
           [
             "#d9dbdd",
-            "#2e3135",
+            "#5f6368",
             "#b06a4f"
           ]
         ],
         "ridge": [
           [
             "#f5f5f3",
-            "#2b2e33",
-            "#3f444b"
+            "#5d6167",
+            "#6d737a"
           ],
           [
             "#e4e6e3",
-            "#383c41",
+            "#6b6f74",
             "#6b7b6e"
           ]
         ],
@@ -357,7 +357,7 @@
     "superlink": {
       "group": "archetype",
       "file": "archetypes/superlink.glb",
-      "bytes": 45496,
+      "bytes": 43904,
       "repeat": "none",
       "frontage": "short",
       "fit": {
@@ -380,63 +380,63 @@
         "default": [
           [
             "#f2efe8",
-            "#3d4147",
+            "#6e7278",
             "#8a8f96"
           ],
           [
             "#e9e4da",
-            "#4a4e55",
+            "#7b6b5d",
             "#a07a55"
           ],
           [
             "#dfe2e4",
-            "#33373d",
+            "#656a70",
             "#6d737a"
           ]
         ],
         "green": [
           [
             "#f4f0e6",
-            "#3a3d42",
+            "#6a6d72",
             "#9b7350"
           ],
           [
             "#ece6d8",
-            "#45484e",
+            "#7d6b5a",
             "#b08a62"
           ],
           [
             "#f7f5ef",
-            "#2f3236",
+            "#5f6368",
             "#7d6a58"
           ]
         ],
         "valley": [
           [
             "#e6e7e8",
-            "#50545a",
+            "#74787e",
             "#a0563f"
           ],
           [
             "#f1f1ef",
-            "#3e4247",
+            "#686c72",
             "#8c4a36"
           ],
           [
             "#d9dbdd",
-            "#2e3135",
+            "#5f6368",
             "#b06a4f"
           ]
         ],
         "ridge": [
           [
             "#f5f5f3",
-            "#2b2e33",
-            "#3f444b"
+            "#5d6167",
+            "#6d737a"
           ],
           [
             "#e4e6e3",
-            "#383c41",
+            "#6b6f74",
             "#6b7b6e"
           ]
         ],
@@ -488,7 +488,7 @@
     "semi_d": {
       "group": "archetype",
       "file": "archetypes/semi_d.glb",
-      "bytes": 70604,
+      "bytes": 67408,
       "repeat": "none",
       "frontage": "short",
       "fit": {
@@ -514,63 +514,63 @@
         "default": [
           [
             "#f2efe8",
-            "#3d4147",
+            "#6e7278",
             "#8a8f96"
           ],
           [
             "#e9e4da",
-            "#4a4e55",
+            "#7b6b5d",
             "#a07a55"
           ],
           [
             "#dfe2e4",
-            "#33373d",
+            "#656a70",
             "#6d737a"
           ]
         ],
         "green": [
           [
             "#f4f0e6",
-            "#3a3d42",
+            "#6a6d72",
             "#9b7350"
           ],
           [
             "#ece6d8",
-            "#45484e",
+            "#7d6b5a",
             "#b08a62"
           ],
           [
             "#f7f5ef",
-            "#2f3236",
+            "#5f6368",
             "#7d6a58"
           ]
         ],
         "valley": [
           [
             "#e6e7e8",
-            "#50545a",
+            "#74787e",
             "#a0563f"
           ],
           [
             "#f1f1ef",
-            "#3e4247",
+            "#686c72",
             "#8c4a36"
           ],
           [
             "#d9dbdd",
-            "#2e3135",
+            "#5f6368",
             "#b06a4f"
           ]
         ],
         "ridge": [
           [
             "#f5f5f3",
-            "#2b2e33",
-            "#3f444b"
+            "#5d6167",
+            "#6d737a"
           ],
           [
             "#e4e6e3",
-            "#383c41",
+            "#6b6f74",
             "#6b7b6e"
           ]
         ],
@@ -646,7 +646,7 @@
     "bungalow": {
       "group": "archetype",
       "file": "archetypes/bungalow.glb",
-      "bytes": 45160,
+      "bytes": 43300,
       "repeat": "none",
       "frontage": "short",
       "fit": {
@@ -669,63 +669,63 @@
         "default": [
           [
             "#f2efe8",
-            "#3d4147",
+            "#6e7278",
             "#8a8f96"
           ],
           [
             "#e9e4da",
-            "#4a4e55",
+            "#7b6b5d",
             "#a07a55"
           ],
           [
             "#dfe2e4",
-            "#33373d",
+            "#656a70",
             "#6d737a"
           ]
         ],
         "green": [
           [
             "#f4f0e6",
-            "#3a3d42",
+            "#6a6d72",
             "#9b7350"
           ],
           [
             "#ece6d8",
-            "#45484e",
+            "#7d6b5a",
             "#b08a62"
           ],
           [
             "#f7f5ef",
-            "#2f3236",
+            "#5f6368",
             "#7d6a58"
           ]
         ],
         "valley": [
           [
             "#e6e7e8",
-            "#50545a",
+            "#74787e",
             "#a0563f"
           ],
           [
             "#f1f1ef",
-            "#3e4247",
+            "#686c72",
             "#8c4a36"
           ],
           [
             "#d9dbdd",
-            "#2e3135",
+            "#5f6368",
             "#b06a4f"
           ]
         ],
         "ridge": [
           [
             "#f5f5f3",
-            "#2b2e33",
-            "#3f444b"
+            "#5d6167",
+            "#6d737a"
           ],
           [
             "#e4e6e3",
-            "#383c41",
+            "#6b6f74",
             "#6b7b6e"
           ]
         ],
@@ -777,7 +777,7 @@
     "townhouse": {
       "group": "archetype",
       "file": "archetypes/townhouse.glb",
-      "bytes": 21800,
+      "bytes": 21200,
       "repeat": "frontage",
       "frontage": "short",
       "fit": {
@@ -800,63 +800,63 @@
         "default": [
           [
             "#f2efe8",
-            "#3d4147",
+            "#6e7278",
             "#8a8f96"
           ],
           [
             "#e9e4da",
-            "#4a4e55",
+            "#7b6b5d",
             "#a07a55"
           ],
           [
             "#dfe2e4",
-            "#33373d",
+            "#656a70",
             "#6d737a"
           ]
         ],
         "green": [
           [
             "#f4f0e6",
-            "#3a3d42",
+            "#6a6d72",
             "#9b7350"
           ],
           [
             "#ece6d8",
-            "#45484e",
+            "#7d6b5a",
             "#b08a62"
           ],
           [
             "#f7f5ef",
-            "#2f3236",
+            "#5f6368",
             "#7d6a58"
           ]
         ],
         "valley": [
           [
             "#e6e7e8",
-            "#50545a",
+            "#74787e",
             "#a0563f"
           ],
           [
             "#f1f1ef",
-            "#3e4247",
+            "#686c72",
             "#8c4a36"
           ],
           [
             "#d9dbdd",
-            "#2e3135",
+            "#5f6368",
             "#b06a4f"
           ]
         ],
         "ridge": [
           [
             "#f5f5f3",
-            "#2b2e33",
-            "#3f444b"
+            "#5d6167",
+            "#6d737a"
           ],
           [
             "#e4e6e3",
-            "#383c41",
+            "#6b6f74",
             "#6b7b6e"
           ]
         ],
@@ -908,7 +908,7 @@
     "shop_office": {
       "group": "archetype",
       "file": "archetypes/shop_office.glb",
-      "bytes": 24248,
+      "bytes": 23220,
       "repeat": "frontage",
       "frontage": "long",
       "fit": {
@@ -931,12 +931,12 @@
         "default": [
           [
             "#ece6da",
-            "#4a4e55",
+            "#6a6e75",
             "#b8704f"
           ],
           [
             "#e2dacb",
-            "#3a3e44",
+            "#62666c",
             "#b49a6e"
           ],
           [
@@ -976,7 +976,7 @@
     "highrise": {
       "group": "archetype",
       "file": "archetypes/highrise.glb",
-      "bytes": 219068,
+      "bytes": 213976,
       "repeat": "none",
       "frontage": "short",
       "fit": {
@@ -999,12 +999,12 @@
         "default": [
           [
             "#ece6da",
-            "#4a4e55",
+            "#6a6e75",
             "#b8704f"
           ],
           [
             "#e2dacb",
-            "#3a3e44",
+            "#62666c",
             "#b49a6e"
           ],
           [
@@ -1068,7 +1068,7 @@
     "school": {
       "group": "archetype",
       "file": "archetypes/school.glb",
-      "bytes": 59104,
+      "bytes": 53636,
       "repeat": "frontage",
       "frontage": "long",
       "fit": {
@@ -1091,12 +1091,12 @@
         "default": [
           [
             "#ece6da",
-            "#4a4e55",
+            "#6a6e75",
             "#b8704f"
           ],
           [
             "#e2dacb",
-            "#3a3e44",
+            "#62666c",
             "#b49a6e"
           ],
           [
@@ -1136,7 +1136,7 @@
     "mosque": {
       "group": "archetype",
       "file": "archetypes/mosque.glb",
-      "bytes": 40444,
+      "bytes": 40204,
       "repeat": "none",
       "frontage": "short",
       "fit": {
@@ -1159,12 +1159,12 @@
         "default": [
           [
             "#ece6da",
-            "#4a4e55",
+            "#6a6e75",
             "#b8704f"
           ],
           [
             "#e2dacb",
-            "#3a3e44",
+            "#62666c",
             "#b49a6e"
           ],
           [
@@ -1204,7 +1204,7 @@
     "factory": {
       "group": "archetype",
       "file": "archetypes/factory.glb",
-      "bytes": 48528,
+      "bytes": 47604,
       "repeat": "none",
       "frontage": "short",
       "fit": {
@@ -1227,12 +1227,12 @@
         "default": [
           [
             "#ece6da",
-            "#4a4e55",
+            "#6a6e75",
             "#b8704f"
           ],
           [
             "#e2dacb",
-            "#3a3e44",
+            "#62666c",
             "#b49a6e"
           ],
           [
@@ -1272,7 +1272,7 @@
     "mall": {
       "group": "archetype",
       "file": "archetypes/mall.glb",
-      "bytes": 74472,
+      "bytes": 71404,
       "repeat": "none",
       "frontage": "short",
       "fit": {
@@ -1295,12 +1295,12 @@
         "default": [
           [
             "#ece6da",
-            "#4a4e55",
+            "#6a6e75",
             "#b8704f"
           ],
           [
             "#e2dacb",
-            "#3a3e44",
+            "#62666c",
             "#b49a6e"
           ],
           [
@@ -1340,7 +1340,7 @@
     "generic": {
       "group": "archetype",
       "file": "archetypes/generic.glb",
-      "bytes": 31508,
+      "bytes": 30844,
       "repeat": "none",
       "frontage": "short",
       "fit": {
@@ -1363,12 +1363,12 @@
         "default": [
           [
             "#ece6da",
-            "#4a4e55",
+            "#6a6e75",
             "#b8704f"
           ],
           [
             "#e2dacb",
-            "#3a3e44",
+            "#62666c",
             "#b49a6e"
           ],
           [
@@ -1408,7 +1408,7 @@
     "lakeside_mall": {
       "group": "landmark",
       "file": "landmarks/lakeside_mall.glb",
-      "bytes": 87264,
+      "bytes": 83900,
       "repeat": "none",
       "frontage": "short",
       "fit": {
@@ -1431,12 +1431,12 @@
         "default": [
           [
             "#ece6da",
-            "#4a4e55",
+            "#6a6e75",
             "#b8704f"
           ],
           [
             "#e2dacb",
-            "#3a3e44",
+            "#62666c",
             "#b49a6e"
           ],
           [
@@ -1476,7 +1476,7 @@
     "kanopi": {
       "group": "landmark",
       "file": "landmarks/kanopi.glb",
-      "bytes": 447684,
+      "bytes": 435964,
       "repeat": "none",
       "frontage": "long",
       "fit": {
@@ -1499,12 +1499,12 @@
         "default": [
           [
             "#ece6da",
-            "#4a4e55",
+            "#6a6e75",
             "#b8704f"
           ],
           [
             "#e2dacb",
-            "#3a3e44",
+            "#62666c",
             "#b49a6e"
           ],
           [
@@ -1546,7 +1546,7 @@
     "masjid_denai_alam": {
       "group": "landmark",
       "file": "landmarks/masjid_denai_alam.glb",
-      "bytes": 44500,
+      "bytes": 44344,
       "repeat": "none",
       "frontage": "short",
       "fit": {
@@ -1569,12 +1569,12 @@
         "default": [
           [
             "#ece6da",
-            "#4a4e55",
+            "#6a6e75",
             "#b8704f"
           ],
           [
             "#e2dacb",
-            "#3a3e44",
+            "#62666c",
             "#b49a6e"
           ],
           [
@@ -1614,7 +1614,7 @@
     "people": {
       "group": "kit",
       "file": "kits/people.glb",
-      "bytes": 185680,
+      "bytes": 182180,
       "repeat": "none",
       "frontage": "short",
       "fit": {
@@ -1639,7 +1639,7 @@
         "default": [
           [
             "#d8d6d0",
-            "#3d4147",
+            "#62666c",
             "#8a8f96"
           ]
         ]
@@ -1840,7 +1840,7 @@
     "vehicles": {
       "group": "kit",
       "file": "kits/vehicles.glb",
-      "bytes": 159176,
+      "bytes": 154476,
       "repeat": "none",
       "frontage": "short",
       "fit": {
@@ -1865,7 +1865,7 @@
         "default": [
           [
             "#d8d6d0",
-            "#3d4147",
+            "#62666c",
             "#8a8f96"
           ]
         ]
@@ -2047,7 +2047,7 @@
     "trees": {
       "group": "kit",
       "file": "kits/trees.glb",
-      "bytes": 297096,
+      "bytes": 294588,
       "repeat": "none",
       "frontage": "short",
       "fit": {
@@ -2072,7 +2072,7 @@
         "default": [
           [
             "#d8d6d0",
-            "#3d4147",
+            "#62666c",
             "#8a8f96"
           ]
         ]
@@ -2275,7 +2275,7 @@
     "furniture": {
       "group": "kit",
       "file": "kits/furniture.glb",
-      "bytes": 46472,
+      "bytes": 46312,
       "repeat": "none",
       "frontage": "short",
       "fit": {
@@ -2298,7 +2298,7 @@
         "default": [
           [
             "#d8d6d0",
-            "#3d4147",
+            "#62666c",
             "#8a8f96"
           ]
         ]
@@ -2480,7 +2480,7 @@
     "construction": {
       "group": "kit",
       "file": "kits/construction.glb",
-      "bytes": 171688,
+      "bytes": 168232,
       "repeat": "none",
       "frontage": "short",
       "fit": {
@@ -2503,7 +2503,7 @@
         "default": [
           [
             "#d8d6d0",
-            "#3d4147",
+            "#62666c",
             "#8a8f96"
           ]
         ]
