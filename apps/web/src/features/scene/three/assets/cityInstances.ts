@@ -3,7 +3,20 @@ import type { Placement } from "./fit";
 import type { AssetLibrary } from "./library";
 import type { Manifest } from "./manifest";
 import type { CityPlan } from "./plan";
-import { createRoleMaterial, type RoleUniforms } from "./roleMaterial";
+import {
+  createMotionUniforms,
+  createRoleMaterial,
+  type MotionUniforms,
+  type RoleKind,
+  type RoleUniforms,
+} from "./roleMaterial";
+
+/** Kit asset name -> shader kind; other kits are static. */
+const KIT_KIND: Record<string, RoleKind> = {
+  trees: "tree",
+  people: "person",
+  vehicles: "vehicle",
+};
 
 export type LodBucket = 0 | 1 | 2 | -1;
 
@@ -92,16 +105,29 @@ export function createCityInstances(
   plan: CityPlan,
   m: Manifest,
   uniforms: RoleUniforms,
+  extra?: { kits?: Map<string, Placement[]>; motion?: MotionUniforms },
 ): CityInstances {
   const group = new THREE.Group();
   group.name = "city-instances";
   const material = createRoleMaterial({ instanced: true, uniforms });
+  const motion = extra?.motion ?? createMotionUniforms();
+  const kitMaterials = new Map<RoleKind, THREE.MeshStandardMaterial>();
+  const kitMaterial = (asset: string) => {
+    const kind = KIT_KIND[asset] ?? "static";
+    let mt = kitMaterials.get(kind);
+    if (!mt) {
+      mt = createRoleMaterial({ instanced: true, uniforms, motion, kind });
+      kitMaterials.set(kind, mt);
+    }
+    return mt;
+  };
   const landmarkMaterials: THREE.Material[] = [];
   const keys: Key[] = [];
   const wrappers: THREE.BufferGeometry[] = [];
   let landmarkMeshes = 0;
 
-  for (const [keyStr, list] of plan.placements) {
+  const entries = [...plan.placements, ...(extra?.kits ?? [])];
+  for (const [keyStr, list] of entries) {
     const slash = keyStr.indexOf("/");
     const asset = keyStr.slice(0, slash);
     const variant = keyStr.slice(slash + 1);
@@ -130,7 +156,8 @@ export function createCityInstances(
       });
       for (const [i, a] of pal.entries()) geo.setAttribute(`iPal${i}`, a);
       wrappers.push(geo);
-      const mesh = new THREE.InstancedMesh(geo, material, list.length);
+      const kit = spec.group === "kit";
+      const mesh = new THREE.InstancedMesh(geo, kit ? kitMaterial(asset) : material, list.length);
       mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
       mesh.count = 0;
       mesh.visible = false;
@@ -145,7 +172,7 @@ export function createCityInstances(
       mesh.receiveShadow = true;
       mesh.userData.ids = [] as string[];
       if (archetype) mesh.userData.pick = { kind: "building" };
-      if (spec.decorative) {
+      if (spec.decorative || kit) {
         mesh.raycast = NOOP;
         mesh.userData.decorative = true;
       }
@@ -273,6 +300,7 @@ export function createCityInstances(
         g.dispose();
       }
       material.dispose();
+      for (const mt of kitMaterials.values()) mt.dispose();
       for (const mt of landmarkMaterials) mt.dispose();
       group.clear();
     },

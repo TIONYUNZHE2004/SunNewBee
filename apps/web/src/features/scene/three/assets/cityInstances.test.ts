@@ -5,7 +5,7 @@ import type { Placement } from "./fit";
 import type { AssetLibrary } from "./library";
 import type { Manifest } from "./manifest";
 import type { CityPlan } from "./plan";
-import { createRoleUniforms } from "./roleMaterial";
+import { createMotionUniforms, createRoleUniforms } from "./roleMaterial";
 
 const L = [{ maxM: 300 }, { maxM: 1500 }, { maxM: null }];
 
@@ -51,7 +51,14 @@ const manifest = (): Manifest => ({
   version: 1,
   as_of: "",
   precinctGroups: [],
-  assets: { a: spec("archetype", false), k: spec("kit", true), lm: spec("landmark", false) },
+  assets: {
+    a: spec("archetype", false),
+    k: spec("kit", true),
+    lm: spec("landmark", false),
+    trees: spec("kit", true),
+    people: spec("kit", true),
+    vehicles: spec("kit", true),
+  },
   landmarks: {},
 });
 const box = () => {
@@ -93,6 +100,74 @@ const plan = (asset: string, landmarks: Placement[] = []): CityPlan => ({
 });
 const meshesOf = (c: ReturnType<typeof createCityInstances>) =>
   c.group.children as THREE.InstancedMesh[];
+
+describe("createCityInstances kits", () => {
+  const kits = (asset: string) => new Map([[`${asset}/v`, [pl(asset, 0), pl(asset, 1)]]]);
+  const empty = (): CityPlan => ({
+    placements: new Map(),
+    extrude: new Set(),
+    landmarks: [],
+    stats: { placed: 0, units: 0, fallback: {} },
+  });
+
+  it("kit placements create decorative, unpickable buckets", () => {
+    const c = createCityInstances(lib(), empty(), manifest(), createRoleUniforms(), {
+      kits: kits("trees"),
+      motion: createMotionUniforms(),
+    });
+    c.update(new THREE.Vector3());
+    const ms = meshesOf(c);
+    expect(ms.length).toBe(3);
+    const ray = new THREE.Raycaster(new THREE.Vector3(0, 10, 0), new THREE.Vector3(0, -1, 0));
+    for (const m of ms) {
+      expect(m.userData.decorative).toBe(true);
+      m.updateMatrixWorld(true);
+      expect(ray.intersectObject(m)).toEqual([]);
+    }
+  });
+
+  it("people and vehicles do not cast shadows at LOD1", () => {
+    for (const a of ["people", "vehicles"]) {
+      const c = createCityInstances(lib(), empty(), manifest(), createRoleUniforms(), {
+        kits: kits(a),
+      });
+      const ms = meshesOf(c);
+      expect(ms[0]?.castShadow).toBe(true);
+      expect(ms[1]?.castShadow).toBe(false);
+    }
+  });
+
+  it("stats().instances counts kits; distant kits drop to cheaper LODs then hide", () => {
+    const m = manifest();
+    const people = m.assets.people;
+    if (people?.variants.v)
+      people.variants.v.lods = [
+        { node: "people__v__LOD0", tris: 12, maxM: 80 },
+        { node: "people__v__LOD1", tris: 12, maxM: 300 },
+      ];
+    const c = createCityInstances(lib(), plan("a"), m, createRoleUniforms(), {
+      kits: kits("people"),
+    });
+    c.update(new THREE.Vector3());
+    expect(c.stats().instances).toBe(12);
+    c.update(new THREE.Vector3(100000, 0, 0));
+    expect(c.stats().instances).toBe(10); // the 10 archetypes (LOD2); both kit people are hidden
+  });
+
+  it("kit buckets use kind-specific role materials; archetypes keep the plain one", () => {
+    const motion = createMotionUniforms();
+    const c = createCityInstances(lib(), plan("a"), manifest(), createRoleUniforms(), {
+      kits: new Map([...kits("trees"), ...kits("people")]),
+      motion,
+    });
+    const keyOf = (name: string) =>
+      (
+        (meshesOf(c).find((m) => m.name.startsWith(name)) as THREE.InstancedMesh)
+          .material as THREE.Material
+      ).customProgramCacheKey();
+    expect(new Set([keyOf("a__"), keyOf("trees__"), keyOf("people__")]).size).toBe(3);
+  });
+});
 
 describe("createCityInstances", () => {
   it("buckets by distance and rebuilds only on change", () => {

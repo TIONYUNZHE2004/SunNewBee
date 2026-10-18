@@ -17,6 +17,22 @@ export const FIXED_ROLE_COLOURS: Record<"glass" | "dark" | "metal" | "foliage" |
     light: "#fff1c9",
   };
 
+/** Shared by every kit material; driven by the motion clock (Task 8). */
+export interface MotionUniforms {
+  uTime: { value: number };
+  uSway: { value: number };
+  uLimb: { value: number };
+}
+
+export function createMotionUniforms(): MotionUniforms {
+  return { uTime: { value: 0 }, uSway: { value: 1 }, uLimb: { value: 1 } };
+}
+
+export type RoleKind = "tree" | "person" | "vehicle" | "static";
+
+const HEADLIGHT = "#fff4d6";
+const TAILLIGHT = "#ff3b30";
+
 export function createRoleUniforms(): RoleUniforms {
   return {
     uWindowGlow: { value: 0 },
@@ -42,13 +58,20 @@ const DEFAULT_PALETTE: [string, string, string] = ["#c9c2b4", "#9a8f80", "#b5654
 export function createRoleMaterial(opts: {
   instanced: boolean;
   uniforms: RoleUniforms;
+  motion?: MotionUniforms;
+  kind?: RoleKind;
   palette?: [string, string, string];
 }): THREE.MeshStandardMaterial {
   const { instanced, uniforms } = opts;
   const palette = opts.palette ?? DEFAULT_PALETTE;
+  const kind = opts.kind;
+  // Only tree, person and vehicle change the program; "static" or no kind is the Phase 2 shader.
+  const moving = kind === "tree" || kind === "person" || kind === "vehicle";
+  const motion = moving ? (opts.motion ?? createMotionUniforms()) : undefined;
   const mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85, metalness: 0 });
   mat.name = "tl_role";
-  mat.customProgramCacheKey = () => (instanced ? "tl_role_i" : "tl_role_s");
+  const baseKey = instanced ? "tl_role_i" : "tl_role_s";
+  mat.customProgramCacheKey = () => (moving ? `${baseKey}_${kind}` : baseKey);
 
   mat.onBeforeCompile = (shader) => {
     shader.uniforms.uWindowGlow = uniforms.uWindowGlow;
@@ -114,6 +137,92 @@ if (tlRole >= 7) totalEmissiveRadiance += ${vec3Of(FIXED_ROLE_COLOURS.light)} * 
     );
     shader.vertexShader = vs;
     shader.fragmentShader = fs;
+    if (motion) applyKind(shader, kind as RoleKind, motion, instanced);
   };
   return mat;
+}
+
+/** Instance phase from the matrix translation (0 for a single mesh). */
+const phaseOf = (instanced: boolean) =>
+  instanced
+    ? "float tlPhase = instanceMatrix[3].x * 0.37 + instanceMatrix[3].z * 0.53;"
+    : "float tlPhase = 0.0;";
+
+function applyKind(
+  shader: { vertexShader: string; fragmentShader: string; uniforms: Record<string, unknown> },
+  kind: RoleKind,
+  motion: MotionUniforms,
+  instanced: boolean,
+) {
+  const decl = (u: string) => {
+    shader.vertexShader = shader.vertexShader.replace("void main() {", `${u}\nvoid main() {`);
+  };
+  const phase = phaseOf(instanced);
+  if (kind === "tree") {
+    shader.uniforms.uTime = motion.uTime;
+    shader.uniforms.uSway = motion.uSway;
+    decl("uniform float uTime;\nuniform float uSway;");
+    // COLOR_0.b = sway weight (0 at the trunk base, rising to the crown).
+    shader.vertexShader = shader.vertexShader.replace(
+      "#include <begin_vertex>",
+      `#include <begin_vertex>
+{
+${phase}
+float tlSw = sin(uTime * 1.3 + tlPhase) * 0.25 * color.b * uSway;
+transformed.x += tlSw;
+transformed.z += tlSw;
+}`,
+    );
+  } else if (kind === "person") {
+    shader.uniforms.uTime = motion.uTime;
+    shader.uniforms.uLimb = motion.uLimb;
+    // COLOR_0.b limb code: 0.25 swings +, 0.75 swings -, 0.5 stays. Legs (y < 0.95 m) pivot at the
+    // hip (0.9 m), arms at the shoulder (1.35 m); local metres, so the instance scale applies after.
+    decl(`uniform float uTime;
+uniform float uLimb;
+// x = swing angle (rad), y = pivot height (0 = not a swinging part)
+vec2 tlLimb(vec3 pos, float code) {
+  if (abs(code - 0.5) < 0.1) return vec2(0.0, 0.0);
+  float piv = pos.y < 0.95 ? 0.9 : 1.35;
+  float sgn = code < 0.5 ? 1.0 : -1.0;
+  ${phase}
+  return vec2(sgn * 0.45 * sin(uTime * 6.0 + tlPhase) * uLimb, piv);
+}`);
+    shader.vertexShader = shader.vertexShader
+      .replace(
+        "#include <beginnormal_vertex>",
+        `#include <beginnormal_vertex>
+{
+vec2 tlL = tlLimb(position, color.b);
+float tlC = cos(tlL.x);
+float tlS = sin(tlL.x);
+objectNormal = vec3(objectNormal.x, objectNormal.y * tlC - objectNormal.z * tlS, objectNormal.z * tlC + objectNormal.y * tlS);
+}`,
+      )
+      .replace(
+        "#include <begin_vertex>",
+        `#include <begin_vertex>
+{
+vec2 tlL = tlLimb(position, color.b);
+float tlC = cos(tlL.x);
+float tlS = sin(tlL.x);
+float tlDy = transformed.y - tlL.y;
+if (tlL.y > 0.0) transformed.yz = vec2(tlL.y + tlDy * tlC - transformed.z * tlS, transformed.z * tlC + tlDy * tlS);
+}`,
+      );
+  } else {
+    // Vehicle: the light role splits by COLOR_0.b (0.25 headlight, 0.75 tail light).
+    const head = vec3Of(HEADLIGHT);
+    const tail = vec3Of(TAILLIGHT);
+    shader.fragmentShader = shader.fragmentShader
+      .replace(
+        "diffuseColor.rgb = tlBase * tlAo;",
+        `if (tlRole >= 7) tlBase = vColor.b < 0.5 ? ${head} : ${tail};
+diffuseColor.rgb = tlBase * tlAo;`,
+      )
+      .replace(
+        `if (tlRole >= 7) totalEmissiveRadiance += ${vec3Of(FIXED_ROLE_COLOURS.light)} * uLightGlow;`,
+        `if (tlRole >= 7) totalEmissiveRadiance += vColor.b < 0.5 ? ${head} * max(uLightGlow, 0.15) : ${tail} * uLightGlow;`,
+      );
+  }
 }

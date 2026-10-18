@@ -1,10 +1,18 @@
 import * as THREE from "three";
 import { describe, expect, it } from "vitest";
-import { createRoleMaterial, createRoleUniforms } from "./roleMaterial";
+import {
+  createMotionUniforms,
+  createRoleMaterial,
+  createRoleUniforms,
+  type MotionUniforms,
+} from "./roleMaterial";
 
-function compile(instanced: boolean) {
+function compile(
+  instanced: boolean,
+  extra: { kind?: "tree" | "person" | "vehicle" | "static"; motion?: MotionUniforms } = {},
+) {
   const uniforms = createRoleUniforms();
-  const mat = createRoleMaterial({ instanced, uniforms });
+  const mat = createRoleMaterial({ instanced, uniforms, ...extra });
   const shader = {
     vertexShader: THREE.ShaderLib.standard.vertexShader,
     fragmentShader: THREE.ShaderLib.standard.fragmentShader,
@@ -44,5 +52,65 @@ describe("createRoleMaterial", () => {
       u.uLightGlow.value,
       u.uAoStrength.value,
     ]).toEqual([0, 0.6, 0, 1]);
+  });
+});
+
+describe("createRoleMaterial motion and kit kinds", () => {
+  it("motion uniform defaults are 0, 1, 1", () => {
+    const m = createMotionUniforms();
+    expect([m.uTime.value, m.uSway.value, m.uLimb.value]).toEqual([0, 1, 1]);
+  });
+
+  it("tree injects uSway and the sway term, with shared motion uniforms", () => {
+    const motion = createMotionUniforms();
+    const { shader } = compile(true, { kind: "tree", motion });
+    expect(shader.uniforms.uTime).toBe(motion.uTime);
+    expect(shader.uniforms.uSway).toBe(motion.uSway);
+    expect(shader.vertexShader).toContain("uniform float uSway");
+    expect(shader.vertexShader).toContain("uTime * 1.3");
+    expect(shader.vertexShader).toContain("0.25");
+    expect(shader.vertexShader).toContain("color.b");
+    expect(shader.vertexShader).toContain("instanceMatrix[3]");
+  });
+
+  it("person injects uLimb and the leg and arm pivots", () => {
+    const motion = createMotionUniforms();
+    const { shader } = compile(true, { kind: "person", motion });
+    expect(shader.uniforms.uLimb).toBe(motion.uLimb);
+    expect(shader.vertexShader).toContain("uniform float uLimb");
+    expect(shader.vertexShader).toContain("0.9");
+    expect(shader.vertexShader).toContain("1.35");
+    expect(shader.vertexShader).toContain("0.95");
+    expect(shader.vertexShader).toContain("0.45");
+    expect(shader.vertexShader).toContain("uTime * 6.0");
+  });
+
+  it("vehicle carries both light colours and a 0.15 headlight floor", () => {
+    const { shader } = compile(true, { kind: "vehicle" });
+    const c = (h: string) => {
+      const k = new THREE.Color(h);
+      return `vec3(${k.r.toFixed(5)}, ${k.g.toFixed(5)}, ${k.b.toFixed(5)})`;
+    };
+    expect(shader.fragmentShader).toContain(c("#fff4d6"));
+    expect(shader.fragmentShader).toContain(c("#ff3b30"));
+    expect(shader.fragmentShader).toContain("max(uLightGlow, 0.15)");
+  });
+
+  it("tree, person and vehicle use distinct program cache keys", () => {
+    const k = (kind: "tree" | "person" | "vehicle" | "static") =>
+      compile(true, { kind }).mat.customProgramCacheKey();
+    expect(new Set([k("tree"), k("person"), k("vehicle")]).size).toBe(3);
+  });
+
+  it("without motion or kind the Phase 2 shader is unchanged", () => {
+    const base = compile(true);
+    for (const extra of [{ kind: "static" as const }, { kind: undefined }]) {
+      const o = compile(true, extra);
+      expect(o.shader.vertexShader).toBe(base.shader.vertexShader);
+      expect(o.shader.fragmentShader).toBe(base.shader.fragmentShader);
+      expect(o.mat.customProgramCacheKey()).toBe(base.mat.customProgramCacheKey());
+    }
+    expect(base.shader.vertexShader).not.toContain("uSway");
+    expect(base.shader.uniforms.uTime).toBeUndefined();
   });
 });
