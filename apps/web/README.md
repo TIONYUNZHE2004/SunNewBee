@@ -21,6 +21,7 @@ The TownshipLens browser app: a Vite + React 19 SPA with two screens and a time-
 pnpm dev                     # from the repo root: API on :8000 + web on :5173 (/api is proxied)
 pnpm --filter @tl/web test   # vitest
 pnpm --filter @tl/web e2e    # Playwright smoke on ports 5273/8100 (see below)
+pnpm --filter @tl/web acceptance -g baseline  # visual/perf harness against a running server (see below)
 pnpm --filter @tl/web build  # tsc + vite build + Cesium asset check
 ```
 
@@ -634,6 +635,32 @@ tiles around it stream).
 Playwright uses its own ports (web 5273, API 8100) and waits for `/api/site`, so a dev server on
 :5173/:8000 is never reused (a leftover e2e server on :5273 is reused locally, never in CI). First
 run: `pnpm --filter @tl/web exec playwright install chromium`.
+
+## Acceptance harness (resident journey)
+
+`acceptance/` holds the visual and performance checks of the resident-journey work (spec
+`docs/superpowers/specs/2026-10-19-resident-journey-simulation-design.md` §3, §9). It is not part of
+CI: it needs a real GPU and the Elmina seed.
+
+- Start a server yourself (`LLM_PROVIDER=mock pnpm dev`, Stylised map), then run
+  `ACCEPTANCE_BASE_URL=http://localhost:5173 pnpm --filter @tl/web acceptance -g baseline`.
+  No webServer; 1440x900 at DPR 1; hardware WebGL flags.
+- Specs are `*.accept.ts`, so neither `e2e` nor vitest picks them up. The pure helpers' unit tests
+  (`acceptance/support/*.test.ts`) do run in vitest.
+- `support/bookmarks.ts`: the five evaluation bookmarks (`overview`, `hero-mid`, `street`,
+  `link-low`, `night-mid`) and `gotoBookmark(page, name)`, which forces `tl.quality=high` and the
+  bookmark's `tl.theme`, sets the pose and waits for streaming to settle.
+- `support/scene.ts`: `pickGrid` / `pickMask(page, kind)` (building, ground, road, sky; cells under UI
+  chrome are left out) and `decodePng`. `support/pixels.ts`: `lumaHistogram`, `fractionBelow`,
+  `countColour(img, hex, tol)`, `laplacianVariance(img, box)`. `support/frames.ts`:
+  `captureFrameStats(page, seconds)` (orbiting). `support/journey.ts`: `journey.seek/play/pause`
+  over `window.__journey` (Phase D; throws "not available" until then).
+- `baseline.accept.ts` writes five PNGs and `metrics.json` to `ACCEPTANCE_OUT` (default: the
+  journey-sim ledger folder `.superpowers/sdd/journey-sim/acceptance/baseline`).
+- The app side is `window.__tlAcceptance` (`three/scene/useAcceptanceHook.ts`): `setPose`, `getPose`,
+  `size`, `frames`, `pickGrid(step)`, `measure(seconds, orbitDegPerSec)`. It is installed only in
+  dev builds (`import.meta.env.DEV`) or when the page is loaded with `?acceptance=1`; it moves the
+  camera and reads the scene, never data or settings.
 
 ## What to build next
 
