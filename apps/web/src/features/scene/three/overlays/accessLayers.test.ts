@@ -208,4 +208,27 @@ describe("createOverlayLayer", () => {
     l.update({ ...base, route });
     expect(batches(l.group)[0]).toBe(before);
   });
+
+  it("setMetresPerPixel rescales dashed batches now and for batches built later", () => {
+    const l = createOverlayLayer(frame);
+    l.update({ ...base, access });
+    const blocked = () =>
+      batches(l.group).find(
+        (b) => colour(b) === lower(statusStyle("blocked").color),
+      ) as LineSegments2;
+    const at1 = mat(blocked()).dashSize;
+    l.setMetresPerPixel(4);
+    expect(mat(blocked()).dashSize).toBeCloseTo(4 * at1, 6);
+    l.update({ ...base, access: { ...access }, route });
+    expect(mat(blocked()).dashSize).toBeCloseTo(4 * at1, 6);
+  });
+
+  it("hasVisible is false with nothing to draw", () => {
+    const l = createOverlayLayer(frame);
+    expect(l.hasVisible()).toBe(false);
+    l.update({ ...base, route });
+    expect(l.hasVisible()).toBe(true);
+    l.update({ ...base, access, accessVisible: false });
+    expect(l.hasVisible()).toBe(false);
+  });
 });

@@ -12,17 +12,20 @@ export interface LineStyle {
 }
 
 /**
- * Line2 dashes run in world metres, Cesium's in screen pixels. One nominal px is this many
- * metres, so the pattern keeps its proportions and reads at the township camera range.
+ * Line2 dashes run in world metres, Cesium's in screen pixels. The layer keeps them screen-constant
+ * by scaling the dash by the current metres per pixel (`setDashScale`); a new batch assumes 1.
  */
-export const DASH_M_PER_PX = 1;
-
 /** Cesium dash params (`dashLength` px, `dashPattern` mask) as a LineStyle dash. */
 export const dashFromCesium = (d: { dashLength: number; dashPattern: number }) => ({
   sizePx: d.dashLength,
   pattern: d.dashPattern,
 });
 
+/**
+ * Number of set bits in the 16-bit mask. Only the duty cycle (on-fraction) of the pattern is kept:
+ * Line2 has one dash and one gap per cycle. CESIUM_DASH / GAP_CESIUM_DASH / the what-if mask are
+ * all a single contiguous run of ones (0xf000, 0xfff0, 0xff00, 0x00ff), so nothing is lost.
+ */
 const bits = (n: number) => {
   let c = 0;
   for (let v = n & 0xffff; v; v &= v - 1) c++;
@@ -78,13 +81,24 @@ export function createLineBatch(
     depthWrite: false,
   });
   if (style.dash) {
-    const on = (bits(style.dash.pattern) / 16) * style.dash.sizePx * DASH_M_PER_PX;
     material.dashed = true;
-    material.dashSize = on;
-    material.gapSize = style.dash.sizePx * DASH_M_PER_PX - on;
+    material.userData.dashPx = {
+      on: (bits(style.dash.pattern) / 16) * style.dash.sizePx,
+      cycle: style.dash.sizePx,
+    };
   }
   const batch = new LineSegments2(geometry, material);
   batch.renderOrder = renderOrder;
   batch.frustumCulled = false;
+  setDashScale(batch, 1);
   return batch;
+}
+
+/** Dash sizes in metres for `mpp` metres per screen pixel, so a dash keeps its length in pixels. */
+export function setDashScale(batch: THREE.Object3D, mpp: number): void {
+  const m = (batch as LineSegments2).material as LineMaterial | undefined;
+  const d = m?.userData.dashPx as { on: number; cycle: number } | undefined;
+  if (!m || !d) return;
+  m.dashSize = d.on * mpp;
+  m.gapSize = (d.cycle - d.on) * mpp;
 }

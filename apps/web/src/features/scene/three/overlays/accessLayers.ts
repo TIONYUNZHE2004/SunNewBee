@@ -6,7 +6,7 @@ import { groupEdgesByStatus, type LonLat, lineFeatures } from "../../geo";
 import { CESIUM_DASH, type EdgeStatus, ROUTE_STYLE, statusStyle } from "../../styles";
 import type { LocalFrame } from "../frame";
 import { lineToLocal, ROUTE_LIFT_M } from "../routeLine";
-import { createLineBatch, dashFromCesium, type LineStyle } from "./lines";
+import { createLineBatch, dashFromCesium, type LineStyle, setDashScale } from "./lines";
 
 /** GET /layers/access payload (a GeoJSON FeatureCollection), as the query returns it. */
 export type AccessData = unknown;
@@ -28,6 +28,10 @@ export interface OverlayState {
 export interface OverlayLayer {
   group: THREE.Group;
   update(state: OverlayState): void;
+  /** Dashes are screen-constant: the engine passes the metres per pixel at the camera target. */
+  setMetresPerPixel(mpp: number): void;
+  /** True when any batch would draw (the engine skips the overlay pass otherwise). */
+  hasVisible(): boolean;
   /** Line2 widths are in pixels: the engine passes the viewport on every resize. */
   setResolution(w: number, h: number): void;
   dispose(): void;
@@ -39,7 +43,8 @@ export const ORDER = { status: 10, gaps: 11, whatIf: 12, route: 13 } as const;
 export const LIFT = { status: 0.4, gaps: 0.4, whatIf: 0.5, route: ROUTE_LIFT_M } as const;
 
 type Coords = number[][];
-const local = (c: Coords, f: LocalFrame, lift: number) => lineToLocal(c as LonLat[], f, lift);
+/** Lon/lat to local xyz; createLineBatch sets Y to the batch lift, so none is applied here. */
+const local = (c: Coords, f: LocalFrame) => lineToLocal(c as LonLat[], f, 0);
 
 export function createOverlayLayer(frame: LocalFrame): OverlayLayer {
   const group = new THREE.Group();
@@ -50,12 +55,14 @@ export function createOverlayLayer(frame: LocalFrame): OverlayLayer {
   const routeGroup = new THREE.Group();
   group.add(status, gapsGroup, whatIfGroup, routeGroup);
   let res: [number, number] = [1, 1];
+  let mpp = 1;
   let last: Partial<OverlayState> = {};
 
   const fill = (into: THREE.Group, batches: THREE.Object3D[]) => {
     drop(into);
     for (const b of batches) {
       ((b as THREE.Mesh).material as LineMaterial).resolution.set(res[0], res[1]);
+      setDashScale(b, mpp);
       into.add(b);
     }
   };
@@ -74,6 +81,16 @@ export function createOverlayLayer(frame: LocalFrame): OverlayLayer {
   return {
     group,
     update,
+    setMetresPerPixel(m) {
+      if (!(m > 0) || !Number.isFinite(m)) return;
+      mpp = m;
+      group.traverse((o) => setDashScale(o, m));
+    },
+    hasVisible() {
+      return [status, gapsGroup, whatIfGroup, routeGroup].some(
+        (g) => g.visible && g.children.length > 0,
+      );
+    },
     setResolution(w, h) {
       res = [w, h];
       group.traverse((o) => {
@@ -113,7 +130,7 @@ function statusBatches(access: AccessData, f: LocalFrame): THREE.Object3D[] {
   for (const [st, edges] of groupEdgesByStatus(lineFeatures(access)))
     out.push(
       createLineBatch(
-        edges.map((e) => local(e.coords, f, LIFT.status)),
+        edges.map((e) => local(e.coords, f)),
         statusStyleOf(st),
         LIFT.status,
         ORDER.status,
@@ -126,7 +143,7 @@ function gapBatches(gaps: GapsData, f: LocalFrame): THREE.Object3D[] {
   const by = new Map<GapBand, Float32Array[]>();
   for (const i of parseGaps(gaps)) {
     if (i.kind !== "segment" || !i.band || i.coords.length < 2) continue;
-    by.set(i.band, [...(by.get(i.band) ?? []), local(i.coords, f, LIFT.gaps)]);
+    by.set(i.band, [...(by.get(i.band) ?? []), local(i.coords, f)]);
   }
   return [...by].map(([band, lines]) => {
     const b = GAP_BANDS[band];
@@ -151,7 +168,7 @@ function whatIfBatches(w: WhatIf, f: LocalFrame): THREE.Object3D[] {
     .filter((side) => lines[side].length > 0)
     .map((side) =>
       createLineBatch(
-        lines[side].map((c) => local(c, f, LIFT.whatIf)),
+        lines[side].map((c) => local(c, f)),
         {
           color: WHATIF_STYLE[side].color,
           widthPx: WHATIF_STYLE[side].width,
@@ -165,7 +182,7 @@ function whatIfBatches(w: WhatIf, f: LocalFrame): THREE.Object3D[] {
 }
 
 function routeBatches(route: GeoJSON.LineString, f: LocalFrame): THREE.Object3D[] {
-  const line = local(route.coordinates as Coords, f, LIFT.route);
+  const line = local(route.coordinates as Coords, f);
   if (line.length < 6) return [];
   return [
     createLineBatch(

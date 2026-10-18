@@ -279,6 +279,17 @@ function build(
   /** Overlay lines (data, not decoration): a scene of their own, see setOverlays. */
   const overlayScene = new THREE.Scene();
   let overlays: OverlayLayer | null = null;
+  let overlayPass: RenderPass | null = null;
+  let lastMpp = 0;
+  /** Metres per screen pixel at the camera target; dashes follow it (re-set on a > 5 % change). */
+  const syncDashes = (force = false) => {
+    if (!overlays) return;
+    const dist = camera.position.distanceTo(controls.target);
+    const mpp = (2 * dist * Math.tan((camera.fov * RAD) / 2)) / Math.max(1, size[1]);
+    if (!force && Math.abs(mpp / lastMpp - 1) <= 0.05) return;
+    lastMpp = mpp;
+    overlays.setMetresPerPixel(mpp);
+  };
   const dropOverlays = () => {
     if (!overlays) return;
     overlayScene.remove(overlays.group);
@@ -452,7 +463,7 @@ function build(
         }),
       );
     // Overlays after the AO pass and before bloom/tone mapping: no occlusion on them, drawn on top.
-    const overlayPass = new RenderPass(overlayScene, camera);
+    overlayPass = new RenderPass(overlayScene, camera);
     overlayPass.clear = false;
     passes.push(overlayPass);
     if (spec.bloom)
@@ -519,6 +530,8 @@ function build(
     wasLive = live;
     placeLight();
     renderer.info.reset();
+    syncDashes();
+    if (overlayPass) overlayPass.enabled = !!overlays?.hasVisible();
     composer.render();
     dirty = false;
     frames++;
@@ -665,6 +678,7 @@ function build(
       if (o) {
         overlays = o;
         o.setResolution(size[0], size[1]);
+        syncDashes(true);
         overlayScene.add(o.group);
       }
       requestRender();
@@ -707,6 +721,7 @@ function build(
       renderer.setSize(w, h, false);
       composer.setSize(w, h);
       overlays?.setResolution(w, h);
+      syncDashes(true);
       applyViewOffset();
       requestRender();
     },

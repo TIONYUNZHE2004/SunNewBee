@@ -2,7 +2,7 @@ import type * as THREE from "three";
 import type { LineMaterial } from "three/addons/lines/LineMaterial.js";
 import type { LineSegments2 } from "three/addons/lines/LineSegments2.js";
 import { describe, expect, it } from "vitest";
-import { createLineBatch, DASH_M_PER_PX, dashFromCesium } from "./lines";
+import { createLineBatch, dashFromCesium, setDashScale } from "./lines";
 
 const attr = (b: unknown, n: string) =>
   (b as LineSegments2).geometry.getAttribute(n) as THREE.BufferAttribute;
@@ -51,8 +51,8 @@ describe("createLineBatch", () => {
     expect(d).toEqual({ sizePx: 12, pattern: 0xf000 });
     const b = createLineBatch([line], { color: "#fff", widthPx: 4, dash: d }, 0.4, 10);
     expect(mat(b).dashed).toBe(true);
-    expect(mat(b).dashSize).toBeCloseTo(3 * DASH_M_PER_PX, 6);
-    expect(mat(b).gapSize).toBeCloseTo(9 * DASH_M_PER_PX, 6);
+    expect(mat(b).dashSize).toBeCloseTo(3, 6);
+    expect(mat(b).gapSize).toBeCloseTo(9, 6);
   });
 
   it("applies opacity and skips lines under two points", () => {
@@ -64,5 +64,16 @@ describe("createLineBatch", () => {
     ) as LineSegments2;
     expect(mat(b).opacity).toBe(0.6);
     expect(attr(b, "instanceStart").count).toBe(2);
+  });
+
+  it("dashes are screen-constant: size scales with metres per pixel (mpp 4 is 4x mpp 1)", () => {
+    const d = { sizePx: 12, pattern: 0xf000 };
+    const b = createLineBatch([line], { color: "#fff", widthPx: 4, dash: d }, 0.4, 10);
+    setDashScale(b, 1);
+    const [on1, gap1] = [mat(b).dashSize, mat(b).gapSize];
+    setDashScale(b, 4);
+    expect(mat(b).dashSize).toBeCloseTo(4 * on1, 6);
+    expect(mat(b).gapSize).toBeCloseTo(4 * gap1, 6);
+    expect(mat(b).dashSize + mat(b).gapSize).toBeCloseTo(12 * 4, 6);
   });
 });
