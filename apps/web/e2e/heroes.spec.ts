@@ -412,3 +412,20 @@ test("Rehearse my trip: a resident's own trip through a rehearsed day, departure
   await expect(page.getByRole("heading", { name: "Your trip · rehearsal" })).toBeVisible();
   await expect(card).not.toContainText(/\b(?:safe|you should|leave by)\b/i);
 });
+
+test("route answer lists the walk as numbered steps in the list view (AC-D14)", async ({
+  page,
+}) => {
+  await open(page);
+  await ask(page, "Can I push a stroller from Car Park B to the playground without stairs?");
+  await lastAnswer(page);
+  const steps = page.getByTestId("journey-steps");
+  await expect(steps).toBeVisible();
+  await expect(steps).toContainText("Simulation · indicative times, not a prediction");
+  const items = steps.getByRole("listitem");
+  const n = await items.count();
+  expect(n).toBeGreaterThan(0);
+  await expect(items.first()).toContainText("1.");
+  await expect(items.last()).toContainText(/Source: /);
+  await expect(steps).not.toContainText(/(?<![a-z])safe(?![a-z])/i);
+});
