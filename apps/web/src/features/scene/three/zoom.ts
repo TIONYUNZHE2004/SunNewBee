@@ -4,6 +4,8 @@
  * several frames. Pure functions plus a small wheel adapter; the engine owns the camera.
  */
 
+import { LIMITS } from "./cameraRig";
+
 /** Largest share of the range one notch may change (zoom in: range x 0.8). */
 export const MAX_NOTCH_CHANGE = 0.2;
 /** Range multiplier for one full notch zooming in. */
@@ -14,7 +16,11 @@ export const NOTCH_DELTA = 100;
 export const SMOOTH_FRAMES = 6;
 
 /** Normalises deltaY to pixel units: 3 lines or one page is about one notch. */
-export function normaliseDelta(deltaY: number, deltaMode = 0): number {
+/** Trackpad pinch arrives as ctrl+wheel with tiny deltas (about 1-10 px): scale to feel like a wheel. */
+export const PINCH_GAIN = 10;
+
+export function normaliseDelta(deltaY: number, deltaMode = 0, pinch = false): number {
+  if (pinch) return deltaY * PINCH_GAIN;
   if (deltaMode === 1) return deltaY * (NOTCH_DELTA / 3);
   if (deltaMode === 2) return deltaY * NOTCH_DELTA;
   return deltaY;
@@ -26,7 +32,12 @@ export function normaliseDelta(deltaY: number, deltaMode = 0): number {
  * trackpad delta cannot jump; small trackpad deltas move proportionally less. Clamped to
  * [minM, maxM].
  */
-export function zoomStep(range: number, deltaY: number, minM = 30, maxM = 9000): number {
+export function zoomStep(
+  range: number,
+  deltaY: number,
+  minM: number = LIMITS.minRangeM,
+  maxM: number = LIMITS.maxRangeM,
+): number {
   const notches = Math.min(1, Math.abs(deltaY) / NOTCH_DELTA);
   // Zoom out is the exact inverse of zoom in, so in-then-out returns to the start.
   const f = NOTCH_FACTOR ** notches;
@@ -129,12 +140,12 @@ export function attachWheelZoom(d: WheelZoomDeps): () => void {
     if (own.has(e)) return;
     e.preventDefault();
     e.stopPropagation();
-    const dy = normaliseDelta(e.deltaY, e.deltaMode);
+    const dy = normaliseDelta(e.deltaY, e.deltaMode, e.ctrlKey);
     if (!dy) return;
     at = { x: e.clientX, y: e.clientY };
     const reduced = d.reducedMotion();
     const target = d.range() * tween.pending;
-    const next = zoomStep(target, dy, d.minM, d.maxM);
+    const next = zoomStep(target, dy, d.minM ?? LIMITS.minRangeM, d.maxM ?? LIMITS.maxRangeM);
     tween.push(next / target, reduced ? 1 : SMOOTH_FRAMES);
     if (reduced) {
       pump();

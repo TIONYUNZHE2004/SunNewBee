@@ -1,21 +1,20 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { expect, test } from "@playwright/test";
+import { LIMITS } from "../src/features/scene/three/cameraRig";
 import { HOOK, openScene } from "./support/bookmarks";
 
 /**
- * AC-A7 (task A-T6): real wheel events (deltaY 100, one notch) take the camera from max range to
- * street level in 15-25 notches, no notch changes the range by more than 20%, and one notch is
- * smoothed over >= 4 frames. "Street level" = within 20% of the range floor (the 20% cap makes the
- * exact floor take 26 notches: 9000 x 0.8^25 = 34 m). The pure maths is `three/zoom.test.ts`.
+ * AC-A7 (task A-T6): real wheel events (deltaY 100, one notch) take the camera from the max range
+ * to the exact min range (cameraRig LIMITS) in 15-25 notches, no notch changes the range by more
+ * than 20%, and one notch is smoothed over >= 4 frames. The pure maths is `three/zoom.test.ts`.
  * Output: ACCEPTANCE_OUT (default: the journey-sim ledger folder `acceptance/A-T6`).
  */
 const OUT =
   process.env.ACCEPTANCE_OUT ??
   "C:/Users/shaoxian04/Documents/SunNewBee/.superpowers/sdd/journey-sim/acceptance/A-T6";
-const MIN = 30;
-const MAX = 9000;
-const STREET = MIN * 1.2;
+const MIN = LIMITS.minRangeM;
+const MAX = LIMITS.maxRangeM;
 
 type Api = { setPose(p: unknown): void; getPose(): { rangeM: number } };
 
@@ -76,9 +75,8 @@ test("AC-A7: proportional, smoothed wheel zoom", async ({ page }) => {
   const ranges: number[] = [await range()];
   const afterSmoothNotch = ranges[0] as number;
   let notches = 1;
-  let exactNotches = 0;
   let worst = Math.abs(afterSmoothNotch - start) / start;
-  let reachedStreet = afterSmoothNotch <= STREET ? 1 : 0;
+  let exactNotches = afterSmoothNotch <= MIN + 0.01 ? 1 : 0;
   for (let i = 0; i < 40 && !exactNotches; i++) {
     const before = (ranges[ranges.length - 1] as number) ?? start;
     await page.mouse.wheel(0, -100);
@@ -92,7 +90,6 @@ test("AC-A7: proportional, smoothed wheel zoom", async ({ page }) => {
     ranges.push(r);
     notches++;
     worst = Math.max(worst, Math.abs(r - before) / before);
-    if (!reachedStreet && r <= STREET) reachedStreet = notches;
     if (r <= MIN + 0.01) exactNotches = notches;
   }
 
@@ -101,8 +98,6 @@ test("AC-A7: proportional, smoothed wheel zoom", async ({ page }) => {
     capturedAt: new Date().toISOString(),
     startRangeM: start,
     minRangeM: MIN,
-    streetThresholdM: STREET,
-    notchesToStreet: reachedStreet,
     notchesToExactFloor: exactNotches,
     worstNotchChange: worst,
     framesChangingForOneNotch: changing,
@@ -112,9 +107,9 @@ test("AC-A7: proportional, smoothed wheel zoom", async ({ page }) => {
   };
   writeFileSync(join(OUT, "metrics.json"), `${JSON.stringify(metrics, null, 2)}\n`);
 
-  expect(start).toBeGreaterThan(MAX * 0.99);
-  expect(reachedStreet).toBeGreaterThanOrEqual(15);
-  expect(reachedStreet).toBeLessThanOrEqual(25);
+  expect(start).toBeCloseTo(MAX, 0);
+  expect(exactNotches).toBeGreaterThanOrEqual(15);
+  expect(exactNotches).toBeLessThanOrEqual(25);
   expect(worst).toBeLessThanOrEqual(0.2 + 0.005);
   expect(changing).toBeGreaterThanOrEqual(4);
 });

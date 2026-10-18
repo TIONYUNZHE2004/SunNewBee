@@ -5,6 +5,7 @@ import {
   createZoomTween,
   MAX_NOTCH_CHANGE,
   normaliseDelta,
+  PINCH_GAIN,
   SMOOTH_FRAMES,
   zoomStep,
 } from "./zoom";
@@ -25,17 +26,14 @@ function notchesIn(from: number, stop: (r: number) => boolean, dy: number) {
 }
 
 describe("zoomStep (AC-A7)", () => {
-  it("takes 15-25 notches from max range to street level, each at most 20%", () => {
-    // 9000 m -> 30 m is a 300x span: 0.8^25 = 1/265, so the exact floor needs 26 notches at 20%.
-    // Street level = within 20% of the floor (36 m): 25 notches.
-    const near = notchesIn(MAX, (r) => r <= MIN * 1.2, -100);
-    expect(near.n).toBeGreaterThanOrEqual(15);
-    expect(near.n).toBeLessThanOrEqual(25);
-    expect(near.worst).toBeLessThanOrEqual(MAX_NOTCH_CHANGE + 1e-9);
+  it("takes 15-25 notches from max range to the exact floor, each at most 20%", () => {
     const exact = notchesIn(MAX, (r) => r <= MIN, -100);
-    expect(exact.n).toBe(26);
+    expect(exact.n).toBeGreaterThanOrEqual(15);
+    expect(exact.n).toBeLessThanOrEqual(25);
     expect(exact.r).toBe(MIN);
     expect(exact.worst).toBeLessThanOrEqual(MAX_NOTCH_CHANGE + 1e-9);
+    // Zooming out from the floor is as many notches back.
+    expect(notchesIn(MIN, (r) => r >= MAX, 100).n).toBe(exact.n);
   });
 
   it("is exponential: the step is proportional to the current range", () => {
@@ -62,13 +60,17 @@ describe("zoomStep (AC-A7)", () => {
     expect(zoomStep(1000, 5000)).toBeCloseTo(1250, 9);
     expect(zoomStep(MIN, -100)).toBe(MIN);
     expect(zoomStep(MAX, 100)).toBe(MAX);
-    expect(zoomStep(8000, 100)).toBe(MAX);
+    expect(zoomStep(MAX * 0.9, 100)).toBe(MAX);
   });
 
   it("handles trackpad deltas: ten 10 px events about equal one notch", () => {
     let r = 1000;
     for (let i = 0; i < 10; i++) r = zoomStep(r, -10);
     expect(r).toBeCloseTo(800, 6);
+  });
+
+  it("scales pinch (ctrl+wheel) deltas up", () => {
+    expect(normaliseDelta(-4, 0, true)).toBe(-4 * PINCH_GAIN);
   });
 
   it("normalises line and page delta modes", () => {
