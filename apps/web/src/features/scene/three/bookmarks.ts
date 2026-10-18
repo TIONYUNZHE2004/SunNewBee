@@ -5,6 +5,9 @@ export type BookmarkId = "hero-near" | "hero-mid" | "township";
 /** Elmina City Centre / Urban Park, Persiaran Garcinia. */
 export const HERO_CENTRE: LonLat = [101.5095, 3.1805];
 
+/** Hero district radius (metres) around HERO_CENTRE: road ribbons and props are drawn within it. */
+export const HERO_RADIUS_M = 1200;
+
 /** Gate camera bookmarks. Heading 0 faces north. */
 export const BOOKMARKS: Record<
   BookmarkId,

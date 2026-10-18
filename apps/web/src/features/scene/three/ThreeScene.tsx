@@ -26,7 +26,13 @@ import { MANIFEST_URL, type Manifest, parseManifest } from "./assets/manifest";
 import { planCity } from "./assets/plan";
 import { createRoleUniforms } from "./assets/roleMaterial";
 import { showroomBounds, showroomManifest, showroomPlan } from "./assets/showroom";
-import { BOOKMARKS, bookmarkFromSearch, DEFAULT_BOOKMARK, HERO_CENTRE } from "./bookmarks";
+import {
+  BOOKMARKS,
+  bookmarkFromSearch,
+  DEFAULT_BOOKMARK,
+  HERO_CENTRE,
+  HERO_RADIUS_M,
+} from "./bookmarks";
 import { createThreeCameraOps, type Pose, type ThreeCameraOps, VFOV_DEG } from "./cameraRig";
 import { buildCityGeometry, type CityGeometry } from "./cityMesh";
 import { createEngine, type Engine } from "./engine";
@@ -34,6 +40,9 @@ import { cesiumEngineHref } from "./engineChoice";
 import { fallbackColourFn } from "./fallbackStyle";
 import { createFrame, type LocalFrame } from "./frame";
 import { createFrameStats } from "./frameStats";
+import { createGroundLayer } from "./ground/groundLayer";
+import { landcoverMesh } from "./ground/landcover";
+import { ribbonsFromWalk } from "./ground/ribbons";
 import { boundsGoal, type CameraGoal, intentGoal } from "./intents";
 import { LIGHT_PRESETS } from "./lighting";
 import {
@@ -220,7 +229,8 @@ export default function ThreeScene({
   const showroomFramed = useRef<Engine | null>(null);
 
   const site = useSite().data;
-  const buildings = useBuildings().data;
+  const buildingsQ = useBuildings();
+  const buildings = buildingsQ.data;
   const theme = useTheme((s) => s.theme);
   // Constant for React; the mood loop then drives the live (blended) colour on the element.
   const [initialBackground] = useState(() => LIGHT_PRESETS[theme].background);
@@ -230,6 +240,11 @@ export default function ThreeScene({
   const profile = useScene((s) => s.profile);
   const scenarioId = useScene((s) => s.scenarioId);
   const access = useLayer("access", profile, scenarioId);
+  // The walk network (~5 MB) is fetched only after the first frame with the buildings (or at once
+  // when the world has none), so it never delays the city's first frame. Same sequencing as Cesium.
+  const [cityShown, setCityShown] = useState(false);
+  const detailsOn = cityShown || buildingsQ.isError || (buildingsQ.isSuccess && !buildings);
+  const walk = useLayer("access", "default", null, detailsOn).data;
 
   const center = site?.center;
   const frame = useMemo(
@@ -390,6 +405,42 @@ export default function ThreeScene({
       setAssetsState("failed");
     }
   }, [engine, frame, buildings, loaded, showroom, roleUniforms]);
+
+  // First frame after the city is set: the ground details may now load.
+  useEffect(() => {
+    if (!engine || !buildings || cityShown) return;
+    const off = engine.onFrame(() => {
+      off();
+      setCityShown(true);
+    });
+    return off;
+  }, [engine, buildings, cityShown]);
+
+  // Land cover covers the whole township; roads are clipped to the hero radius (display only).
+  const landcover = useMemo(
+    () =>
+      frame && buildings?.landcover
+        ? landcoverMesh(buildings.landcover as unknown as GeoJSON.FeatureCollection, frame)
+        : null,
+    [frame, buildings],
+  );
+  const roads = useMemo(
+    () =>
+      frame && detailsOn && walk
+        ? ribbonsFromWalk(walk as unknown as GeoJSON.FeatureCollection, frame, {
+            clipCentre: HERO_CENTRE,
+            clipRadiusM: HERO_RADIUS_M,
+          })
+        : [],
+    [frame, detailsOn, walk],
+  );
+  useEffect(() => {
+    if (!engine || !landcover) return;
+    // The layer owns (and disposes) its land-cover geometry, so each layer gets a clone.
+    engine.setGround(createGroundLayer(roads, landcover.clone(), initialTier.current));
+    return () => engine.setGround(null);
+  }, [engine, landcover, roads]);
+  useEffect(() => () => landcover?.dispose(), [landcover]);
 
   // Frame the start view once per engine, as soon as the local frame exists.
   const framed = useRef<Engine | null>(null);

@@ -106,6 +106,7 @@ function fakeEngine() {
     frames: 0,
     setCity: vi.fn(),
     setAssets: vi.fn(),
+    setGround: vi.fn(),
     setBounds: vi.fn(),
     setRoute: vi.fn(),
     setLighting: vi.fn(),

@@ -24,6 +24,7 @@ import {
   viewOffsetFor,
 } from "./cameraRig";
 import type { CityGeometry } from "./cityMesh";
+import type { GroundLayer } from "./ground/groundLayer";
 import { fitShadowCamera, type LightPreset } from "./lighting";
 import { createLodSchedule } from "./lodSchedule";
 import { applyFog } from "./mood";
@@ -48,6 +49,8 @@ export interface Engine {
   setCity(g: CityGeometry): void;
   /** Instanced archetypes; replaces and disposes the previous set; null removes it. */
   setAssets(a: CityInstances | null): void;
+  /** Land cover, roads and markings; replaces and disposes the previous layer; null removes it. */
+  setGround(g: GroundLayer | null): void;
   /** Camera bounds before the city arrives (the site extent); setCity replaces them. */
   setBounds(b: Bounds): void;
   setRoute(positions: Float32Array | null): void;
@@ -277,6 +280,15 @@ function build(
   };
   undo.push(dropAssets);
 
+  let groundLayer: GroundLayer | null = null;
+  const dropGround = () => {
+    if (!groundLayer) return;
+    scene.remove(groundLayer.group);
+    groundLayer.dispose();
+    groundLayer = null;
+  };
+  undo.push(dropGround);
+
   let raf = 0;
   let dirty = true;
   let idle = true;
@@ -479,6 +491,19 @@ function build(
         scene.add(a.group);
         // The next tick buckets the new instances before it renders.
         lod.force();
+      }
+      requestRender();
+    },
+    setGround(g) {
+      if (disposed) {
+        g?.dispose();
+        return;
+      }
+      if (g === groundLayer) return;
+      dropGround();
+      if (g) {
+        groundLayer = g;
+        scene.add(g.group);
       }
       requestRender();
     },

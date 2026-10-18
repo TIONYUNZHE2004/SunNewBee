@@ -67,7 +67,7 @@ export function waterFromLayer(fc: unknown): WaterPolygon[] {
 /** Park polygons from the buildings payload's `parks`: DECORATIVE outlines, parsed like water. */
 export const parksFromLayer = waterFromLayer;
 
-const WIDTH_BY_TYPE: Record<string, number> = {
+export const WIDTH_BY_TYPE: Record<string, number> = {
   major_road: 10,
   residential: 6,
   service: 6,
@@ -78,7 +78,7 @@ const WIDTH_BY_TYPE: Record<string, number> = {
   steps: 2.5,
   crossing: 2.5,
 };
-const KIND_BY_TYPE: Record<string, RoadKind> = {
+export const KIND_BY_TYPE: Record<string, RoadKind> = {
   major_road: "major",
   residential: "residential",
   service: "residential",

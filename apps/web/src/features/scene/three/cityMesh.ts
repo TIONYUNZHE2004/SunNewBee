@@ -73,7 +73,7 @@ function signedArea(ring: Pt[]): number {
 }
 
 /** Local ring without the closing point or consecutive duplicates; null if any coordinate is bad. */
-function localRing(ring: readonly LonLat[], frame: LocalFrame): Pt[] | null {
+export function localRing(ring: readonly LonLat[], frame: LocalFrame): Pt[] | null {
   const out: Pt[] = [];
   for (const p of ring) {
     if (!Array.isArray(p) || !Number.isFinite(p[0]) || !Number.isFinite(p[1])) return null;
@@ -91,7 +91,7 @@ function localRing(ring: readonly LonLat[], frame: LocalFrame): Pt[] | null {
  * Triangles (index triples into contour ++ holes) facing +y, or null when the ring cannot be
  * triangulated faithfully (degenerate, or the triangles do not add up to the polygon area).
  */
-function triangulate(contour: Pt[], holes: Pt[][]): [number, number, number][] | null {
+export function triangulate(contour: Pt[], holes: Pt[][]): [number, number, number][] | null {
   if (contour.length < 3) return null;
   const v2 = (r: Pt[]) => r.map((p) => new THREE.Vector2(p[0], p[1]));
   const idx = THREE.ShapeUtils.triangulateShape(v2(contour), holes.map(v2));
