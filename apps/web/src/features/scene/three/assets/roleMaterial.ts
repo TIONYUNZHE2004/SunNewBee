@@ -13,11 +13,19 @@ export interface RoleUniforms {
 export const FIXED_ROLE_COLOURS: Record<"glass" | "dark" | "metal" | "foliage" | "light", string> =
   {
     glass: "#6f8aa0",
-    dark: "#2b2d31",
+    dark: "#54575d",
     metal: "#9aa1a8",
     foliage: "#5f8f4e",
     light: "#fff1c9",
   };
+
+/**
+ * Floor for the baked AO (COLOR_0.r), mirrored by `AO_FLOOR` in assets/blender/tl_assets/core.py.
+ * The per-vertex bake leaves exact zeros at corners whose smoothed normal points into the ground or
+ * the body; a zero multiplies the role colour to pure black (A-T8). Applied here as well so glbs
+ * baked before the floor existed render the same.
+ */
+export const AO_FLOOR = 0.4;
 
 /** Shared by every kit material; driven by the motion clock (Task 8). */
 export interface MotionUniforms {
@@ -138,7 +146,7 @@ void main() {`,
     );
     fs = fs.replace(
       "#include <color_fragment>",
-      `float tlAo = mix(1.0, vColor.r, uAoStrength);
+      `float tlAo = mix(1.0, max(vColor.r, ${AO_FLOOR.toFixed(2)}), uAoStrength);
 int tlRole = int(floor(vColor.g * 7.0 + 0.5));
 vec3 tlBase = ${p(0)};
 if (tlRole == 1) tlBase = ${p(1)};

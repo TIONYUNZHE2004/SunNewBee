@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { describe, expect, it } from "vitest";
 import {
+  AO_FLOOR,
   createMotionUniforms,
   createRoleMaterial,
   createRoleUniforms,
@@ -38,6 +39,11 @@ describe("createRoleMaterial", () => {
     expect(shader.uniforms.uLightGlow).toBe(uniforms.uLightGlow);
     expect(shader.uniforms.uAoStrength).toBe(uniforms.uAoStrength);
     expect(mat.vertexColors).toBe(true);
+  });
+
+  it("floors the baked AO so a zero corner never multiplies the role colour to black (A-T8)", () => {
+    const { shader } = compile(true);
+    expect(shader.fragmentShader).toContain(`max(vColor.r, ${AO_FLOOR.toFixed(2)})`);
   });
 
   it("single mesh: uniform palette, no instanced attributes", () => {

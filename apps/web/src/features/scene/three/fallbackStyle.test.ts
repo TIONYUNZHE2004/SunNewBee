@@ -73,7 +73,7 @@ describe("fallbackColours", () => {
   it("returns the neutral colours without a manifest", () => {
     expect(fallbackColours({ id: "x" }, null, [])).toEqual({
       wall: "#ece8df",
-      roof: "#3d4147",
+      roof: "#62666c",
       trim: "#d8d3c8",
     });
   });

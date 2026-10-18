@@ -10,7 +10,7 @@ export interface FallbackColours {
 /** No manifest: a neutral warm white wall, dark roof and a slightly darker parapet. */
 export const NEUTRAL_COLOURS: FallbackColours = {
   wall: "#ece8df",
-  roof: "#3d4147",
+  roof: "#62666c",
   trim: "#d8d3c8",
 };
 
