@@ -12,20 +12,22 @@ export interface RoleUniforms {
 /** sRGB hex; THREE.Color converts to linear working space on construction. */
 export const FIXED_ROLE_COLOURS: Record<"glass" | "dark" | "metal" | "foliage" | "light", string> =
   {
-    glass: "#6f8aa0",
-    dark: "#54575d",
+    glass: "#9db8cc",
+    dark: "#7a7e85",
     metal: "#9aa1a8",
     foliage: "#5f8f4e",
     light: "#fff1c9",
   };
 
 /**
- * Floor for the baked AO (COLOR_0.r), mirrored by `AO_FLOOR` in assets/blender/tl_assets/core.py.
- * The per-vertex bake leaves exact zeros at corners whose smoothed normal points into the ground or
- * the body; a zero multiplies the role colour to pure black (A-T8). Applied here as well so glbs
- * baked before the floor existed render the same.
+ * Baked AO (COLOR_0.r) floors (A-T8). The per-vertex bake leaves exact zeros at corners whose
+ * smoothed normal points into the ground or the body, and a zero multiplies the role colour to
+ * pure black. `BAKED_AO_FLOOR` mirrors `AO_FLOOR` in assets/blender/tl_assets/core.py (what the
+ * build clamps to); `AO_FLOOR` is what the shader applies, a little higher: with the day ambient on
+ * shade-side facades, recessed brick, screens and glass still fell under 0.03 luminance at 0.4.
  */
-export const AO_FLOOR = 0.4;
+export const BAKED_AO_FLOOR = 0.4;
+export const AO_FLOOR = 0.6;
 
 /** Shared by every kit material; driven by the motion clock (Task 8). */
 export interface MotionUniforms {

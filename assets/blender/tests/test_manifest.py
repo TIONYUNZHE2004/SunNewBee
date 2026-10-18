@@ -42,7 +42,7 @@ def test_manifest_lists_only_built_assets_and_never_calib():
     assert link["repeat"] == "frontage"
     assert link["fit"] == {"xz": [0.75, 1.35], "y": [0.6, 1.6]}
     assert link["variantByGroup"]["default"] == "gable"
-    assert link["palettes"]["valley"][0] == ["#e6e7e8", "#74787e", "#a0563f"]
+    assert link["palettes"]["valley"][0] == ["#e6e7e8", "#74787e", "#c06a50"]
     lods = link["variants"]["gable"]["lods"]
     assert lods[0] == {"node": "link_intermediate__gable__LOD0", "tris": 5999, "maxM": 300.0}
     assert lods[2]["maxM"] is None

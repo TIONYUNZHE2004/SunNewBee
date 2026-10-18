@@ -3,7 +3,7 @@ import * as THREE from "three";
 import { MeshoptDecoder } from "three/addons/libs/meshopt_decoder.module.js";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { describe, expect, it } from "vitest";
-import { AO_FLOOR, FIXED_ROLE_COLOURS } from "./roleMaterial";
+import { BAKED_AO_FLOOR, FIXED_ROLE_COLOURS } from "./roleMaterial";
 
 /** AC-A9 (A-T8): no archetype material renders pure black. Relative luminance as the acceptance harness measures it. */
 const MIN_LUMINANCE = 0.08;
@@ -49,7 +49,7 @@ describe("AC-A9: baked AO has no black corners in the committed archetypes", () 
   });
 
   for (const file of files) {
-    it(`${file}: COLOR_0.r (AO) never below the floor`, async () => {
+    it(`${file}: COLOR_0.r (AO) never below the bake floor`, async () => {
       const buf = readFileSync(url(`archetypes/${file}`));
       const ab = buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength) as ArrayBuffer;
       const gltf = await loader.parseAsync(ab, "");
@@ -63,7 +63,7 @@ describe("AC-A9: baked AO has no black corners in the committed archetypes", () 
         verts += col.count;
       });
       expect(verts).toBeGreaterThan(0);
-      expect(min).toBeGreaterThanOrEqual(AO_FLOOR - 0.01);
+      expect(min).toBeGreaterThanOrEqual(BAKED_AO_FLOOR - 0.01);
     });
   }
 });
