@@ -13,13 +13,18 @@ from .labels import (
     unchecked_caveats,
 )
 from .record import TurnRecord
-from .scope import refusal_text
+from .scope import greeting_text, refusal_text
 from .validate import DEPTH, FORBIDDEN, PLACEHOLDER_CAVEAT, PLACEHOLDER_SOURCE
 
 
 def scope_answer(question: str) -> FinalAnswer:
     """Server-owned no-fact refusal; never echoes personal text or creates a ticket."""
     return FinalAnswer(answer_status="cannot_answer", summary=refusal_text(question))
+
+
+def greeting_answer(question: str) -> FinalAnswer:
+    """Server-owned hello: what the assistant can help with; no facts, no tools, no ticket."""
+    return FinalAnswer(answer_status="cannot_answer", summary=greeting_text(question))
 
 
 def _cannot_summary(rec: TurnRecord, question: str) -> str:
