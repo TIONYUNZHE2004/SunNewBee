@@ -997,6 +997,26 @@ export interface components {
                 [key: string]: unknown;
             };
             /**
+             * Landcover
+             * @default {
+             *       "features": [],
+             *       "type": "FeatureCollection"
+             *     }
+             */
+            landcover: {
+                [key: string]: unknown;
+            };
+            /**
+             * Landmarks
+             * @default {
+             *       "features": [],
+             *       "type": "FeatureCollection"
+             *     }
+             */
+            landmarks: {
+                [key: string]: unknown;
+            };
+            /**
              * Parks
              * @default {
              *       "features": [],
@@ -1004,6 +1024,16 @@ export interface components {
              *     }
              */
             parks: {
+                [key: string]: unknown;
+            };
+            /**
+             * Signage
+             * @default {
+             *       "features": [],
+             *       "type": "FeatureCollection"
+             *     }
+             */
+            signage: {
                 [key: string]: unknown;
             };
             /** Trees */

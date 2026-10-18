@@ -19,8 +19,11 @@ data = [
     "requests==2.34.2",
     "numpy>=2",
     "pyarrow==26.0.0",
+    "dracopy==2.2.0",
+    "pygltflib==1.16.5",
 ]
 
 [tool.pytest.ini_options]
-testpaths = ["packages/spatial/tests", "packages/agent/tests", "apps/api/tests", "data/scripts/tests", "evals/tests"]
+testpaths = ["packages/spatial/tests", "packages/agent/tests", "apps/api/tests", "data/scripts/tests", "evals/tests", "assets/blender/tests"]
+markers = ["blender: runs headless Blender (TL_BLENDER_TESTS=1)"]
 asyncio_mode = "auto"

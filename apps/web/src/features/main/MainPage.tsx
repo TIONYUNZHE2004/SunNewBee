@@ -3,6 +3,7 @@ import { Icon } from "../../ui/icons";
 import { AssistantPanel } from "../assistant/AssistantPanel";
 import { useChatDraft } from "../chat/chatDraftStore";
 import { useDayPlayback } from "../day/useDayPlayback";
+import { BuildingCard } from "../map-ui/BuildingCard";
 import { DayTag } from "../map-ui/DayTag";
 import { FloodNote } from "../map-ui/FloodNote";
 import { MapStage } from "../map-ui/MapStage";
@@ -11,6 +12,7 @@ import { PlaceOverlay } from "../map-ui/PlaceOverlay";
 import { RolloutTag } from "../map-ui/RolloutTag";
 import { RouteTag } from "../map-ui/RouteTag";
 import { SettingsPopover } from "../map-ui/SettingsPopover";
+import { SignCard } from "../map-ui/SignCard";
 import { WhatIfTag } from "../map-ui/WhatIfTag";
 import { useRolloutPlayback } from "../whatif/useRolloutPlayback";
 import { BottomSheet } from "./BottomSheet";
@@ -75,6 +77,8 @@ export function MainPage() {
           <SettingsPopover />
           <PlaceOverlay />
           <PathOverlay />
+          <SignCard />
+          <BuildingCard />
         </MapStage>
       </section>
       {wide ? (

@@ -1,0 +1,97 @@
+import { describe, expect, it } from "vitest";
+import { parseManifest, ROLES } from "./manifest";
+
+const asset = () => ({
+  group: "archetype",
+  file: "archetypes/a.glb",
+  bytes: 10,
+  repeat: "none",
+  frontage: "short",
+  fit: { xz: [0.75, 1.35], y: [0.6, 1.6] },
+  decorative: false,
+  placement: null,
+  jitter: {},
+  variantByGroup: { default: "v" },
+  palettes: { default: [["#f2efe8", "#3d4147", "#8a8f96"]] },
+  variants: {
+    v: {
+      size: [1, 2, 3],
+      lods: [
+        { node: "a__v__LOD0", tris: 100, maxM: 300 },
+        { node: "a__v__LOD1", tris: 10, maxM: null },
+      ],
+    },
+  },
+});
+const base = (assets: Record<string, unknown> = { a: asset() }) => ({
+  version: 1,
+  as_of: "2026-10-17",
+  roles: [...ROLES],
+  precinctGroups: [["valley", "elmina valley"]],
+  assets,
+  landmarks: { lakeside_mall: { anchor: [101.5, 3.18] } },
+});
+
+describe("parseManifest", () => {
+  it("keeps the optional designStoreys and heightBasis of a landmark", () => {
+    const k = { ...asset(), group: "landmark", designStoreys: 36, heightBasis: "design height" };
+    const r = parseManifest(base({ k }));
+    expect(r.problems).toEqual([]);
+    expect(r.manifest?.assets.k?.designStoreys).toBe(36);
+    expect(r.manifest?.assets.k?.heightBasis).toBe("design height");
+    expect(parseManifest(base()).manifest?.assets.a?.designStoreys).toBeUndefined();
+  });
+  it("drops an asset whose designStoreys or heightBasis has the wrong type", () => {
+    const r = parseManifest(
+      base({
+        s: { ...asset(), designStoreys: "36" },
+        h: { ...asset(), heightBasis: 36 },
+        n: { ...asset(), designStoreys: -1 },
+      }),
+    );
+    expect(Object.keys(r.manifest?.assets ?? {})).toEqual([]);
+    expect(r.problems).toEqual([
+      "asset s: designStoreys",
+      "asset h: heightBasis",
+      "asset n: designStoreys",
+    ]);
+  });
+
+  it("parses a minimal valid manifest", () => {
+    const r = parseManifest(base());
+    expect(r.problems).toEqual([]);
+    expect(r.manifest?.assets.a?.variants.v?.lods[1]?.maxM).toBeNull();
+    expect(r.manifest?.landmarks.lakeside_mall?.anchor).toEqual([101.5, 3.18]);
+  });
+  it("rejects roles that differ from ROLES (order-sensitive); accepts a manifest without roles", () => {
+    const swapped = [ROLES[1], ROLES[0], ...ROLES.slice(2)];
+    for (const roles of [swapped, ["primary"], "primary"]) {
+      const r = parseManifest({ ...base(), roles });
+      expect(r.manifest).toBeNull();
+      expect(r.problems[0]).toContain("roles");
+    }
+    const { roles: _r, ...noRoles } = base();
+    expect(parseManifest(noRoles).manifest).not.toBeNull();
+  });
+  it("rejects another version", () => {
+    expect(parseManifest({ ...base(), version: 2 }).manifest).toBeNull();
+  });
+  it("drops a bad asset and names it", () => {
+    const bad = asset();
+    (bad.variants.v.lods[0] as { tris: unknown }).tris = "many";
+    const r = parseManifest(base({ a: asset(), b: bad }));
+    expect(Object.keys(r.manifest?.assets ?? {})).toEqual(["a"]);
+    expect(r.problems.some((p) => p.includes("b"))).toBe(true);
+  });
+  it("returns null for null or a string without throwing", () => {
+    expect(parseManifest(null).manifest).toBeNull();
+    expect(parseManifest("x").manifest).toBeNull();
+  });
+  it("treats a non #rrggbb palette colour as a problem", () => {
+    const bad = asset();
+    bad.palettes = { default: [["red", "#000000", "#ffffff"]] };
+    const r = parseManifest(base({ a: asset(), bad }));
+    expect(r.manifest?.assets.bad).toBeUndefined();
+    expect(r.problems.some((p) => p.includes("bad"))).toBe(true);
+  });
+});

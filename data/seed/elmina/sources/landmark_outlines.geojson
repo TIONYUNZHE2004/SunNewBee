@@ -1,0 +1,286 @@
+{
+ "type": "FeatureCollection",
+ "features": [
+  {
+   "type": "Feature",
+   "properties": {
+    "model": "kanopi",
+    "name": "Kanopi Residences",
+    "source_url": "https://imagedelivery.net/TdjZsXzzZt_je48pBzV3SA/b66d3b49-c666-4188-709e-8823aa93c200/1920",
+    "source_page": "https://www.simedarbyproperty.com/city-of-elmina/elmina-city-centre/kanopi-residences/",
+    "source_label": "Sime Darby Property, Kanopi Residences facility plan (Level 7 deck), project page marketing image; tower floor plate traced, image not redistributed",
+    "traced_by": "coordinator",
+    "traced_on": "2026-10-18",
+    "method": "traced from a georeferenced public site plan",
+    "georef": "affine, image px (1288 x 1080) to lon/lat, least squares on 6 fit control points (plot corners where the rounded plan corners meet the straight sides), 2 check points under tree canopy",
+    "control_points": [
+     {
+      "id": "P0",
+      "label": "P0 W corner, SW-side end",
+      "osm": "way/1314193194 node",
+      "lonlat": [
+       101.5040267,
+       3.1798977
+      ],
+      "px": [
+       20,
+       213
+      ],
+      "role": "fit"
+     },
+     {
+      "id": "P1",
+      "label": "P1 W corner, NW-side end",
+      "osm": "way/1314193194 node",
+      "lonlat": [
+       101.5040453,
+       3.180093
+      ],
+      "px": [
+       145,
+       55
+      ],
+      "role": "fit"
+     },
+     {
+      "id": "P2",
+      "label": "P2 N corner, NW-side end",
+      "osm": "way/1314193194 node",
+      "lonlat": [
+       101.5048589,
+       3.1806822
+      ],
+      "px": [
+       1107,
+       55
+      ],
+      "role": "fit"
+     },
+     {
+      "id": "P3",
+      "label": "P3 N corner, NE-side end",
+      "osm": "way/1314193194 node",
+      "lonlat": [
+       101.5050639,
+       3.1806201
+      ],
+      "px": [
+       1266,
+       213
+      ],
+      "role": "fit"
+     },
+     {
+      "id": "P4",
+      "label": "P4 E corner, NE-side end",
+      "osm": "way/1314193194 node",
+      "lonlat": [
+       101.5055142,
+       3.179969
+      ],
+      "px": [
+       1266,
+       790
+      ],
+      "role": "check"
+     },
+     {
+      "id": "P5",
+      "label": "P5 E corner, SE-side end",
+      "osm": "way/1314193194 node",
+      "lonlat": [
+       101.5054987,
+       3.1798326
+      ],
+      "px": [
+       1107,
+       947
+      ],
+      "role": "check"
+     },
+     {
+      "id": "P6",
+      "label": "P6 S corner, SE-side end",
+      "osm": "way/1314193194 node",
+      "lonlat": [
+       101.5046291,
+       3.1792341
+      ],
+      "px": [
+       175,
+       947
+      ],
+      "role": "fit"
+     },
+     {
+      "id": "P7",
+      "label": "P7 S corner, SW-side end",
+      "osm": "way/1314193194 node",
+      "lonlat": [
+       101.5044614,
+       3.1792713
+      ],
+      "px": [
+       20,
+       790
+      ],
+      "role": "fit"
+     }
+    ],
+    "residuals_m": [
+     3.29,
+     1.76,
+     1.99,
+     1.39,
+     9.76,
+     9.91,
+     3.1,
+     4.68
+    ],
+    "residual_rms_m": 2.92,
+    "traced_px": [
+     [
+      140,
+      195
+     ],
+     [
+      887,
+      195
+     ],
+     [
+      887,
+      257
+     ],
+     [
+      852,
+      257
+     ],
+     [
+      852,
+      297
+     ],
+     [
+      904,
+      297
+     ],
+     [
+      904,
+      402
+     ],
+     [
+      722,
+      402
+     ],
+     [
+      722,
+      373
+     ],
+     [
+      488,
+      373
+     ],
+     [
+      488,
+      403
+     ],
+     [
+      125,
+      403
+     ],
+     [
+      125,
+      297
+     ],
+     [
+      175,
+      297
+     ],
+     [
+      175,
+      260
+     ],
+     [
+      140,
+      260
+     ]
+    ],
+    "note": "Tower floor plate above the podium (units 01-16, core, corridor), generalised to 16 vertices. Marketing plans may be illustrative; display only."
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       101.5041324,
+       3.1799641
+      ],
+      [
+       101.504175,
+       3.1798983
+      ],
+      [
+       101.504204,
+       3.1799192
+      ],
+      [
+       101.5042283,
+       3.1798817
+      ],
+      [
+       101.5041869,
+       3.1798518
+      ],
+      [
+       101.5042565,
+       3.1797445
+      ],
+      [
+       101.504557,
+       3.1799613
+      ],
+      [
+       101.5045373,
+       3.1799917
+      ],
+      [
+       101.504731,
+       3.1801315
+      ],
+      [
+       101.50475,
+       3.1801022
+      ],
+      [
+       101.5049007,
+       3.1802109
+      ],
+      [
+       101.5048318,
+       3.1803172
+      ],
+      [
+       101.5047887,
+       3.1802862
+      ],
+      [
+       101.5047625,
+       3.1803267
+      ],
+      [
+       101.5047915,
+       3.1803476
+      ],
+      [
+       101.5047508,
+       3.1804104
+      ],
+      [
+       101.5041324,
+       3.1799641
+      ]
+     ]
+    ]
+   }
+  }
+ ]
+}

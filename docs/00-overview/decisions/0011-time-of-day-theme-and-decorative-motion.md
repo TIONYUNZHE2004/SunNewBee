@@ -1,6 +1,6 @@
 # 0011. Time-of-day theme and decorative motion in the stylised city
 
-- Status: accepted
+- Status: partly superseded by [0013](0013-living-township-traffic-people-and-sourced-signage.md) (traffic, landmarks, signage)
 - Date: 2026-10-16
 - Deciders: owner, with Claude Code
 

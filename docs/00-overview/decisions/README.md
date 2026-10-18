@@ -39,4 +39,6 @@ What gets easier, what gets harder, what we must watch.
 | [0008](0008-agent-harness-pydantic-ai.md) | Agent harness: PydanticAI over OpenRouter (model from env) | accepted |
 | [0009](0009-township-world-model-platform.md) | **Township World Model platform: whole-Elmina 3D, 2 deep lenses (accessibility, flood), People track** | accepted |
 | [0010](0010-flood-lens-hand-scenarios.md) | Flood lens: precomputed HAND river-stage scenarios, indicative, Elmina + downstream corridor | accepted |
-| [0011](0011-time-of-day-theme-and-decorative-motion.md) | Time-of-day theme (Day / Dusk / Night) and decorative-only motion in the stylised city | accepted |
+| [0011](0011-time-of-day-theme-and-decorative-motion.md) | Time-of-day theme (Day / Dusk / Night) and decorative-only motion in the stylised city | partly superseded by 0013 |
+| [0012](0012-stylised-city-on-threejs-with-blender-assets.md) | Stylised city on Three.js with Blender-made assets; Realistic stays on Cesium (amends 0007) | accepted |
+| [0013](0013-living-township-traffic-people-and-sourced-signage.md) | Living township: decorative traffic and people, real landmarks, sourced text-only signage | accepted |

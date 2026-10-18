@@ -1,0 +1,2715 @@
+{
+  "version": 1,
+  "as_of": "2026-10-18",
+  "roles": [
+    "primary",
+    "secondary",
+    "accent",
+    "glass",
+    "dark",
+    "metal",
+    "foliage",
+    "light"
+  ],
+  "precinctGroups": [
+    [
+      "green",
+      "elmina green"
+    ],
+    [
+      "ridge",
+      "ridge"
+    ],
+    [
+      "valley",
+      "valley"
+    ],
+    [
+      "denai_alam",
+      "denai alam"
+    ],
+    [
+      "city_centre",
+      "city centre|lakeside|kanopi"
+    ],
+    [
+      "business_park",
+      "business park"
+    ]
+  ],
+  "assets": {
+    "link_intermediate": {
+      "group": "archetype",
+      "file": "archetypes/link_intermediate.glb",
+      "bytes": 51840,
+      "repeat": "frontage",
+      "frontage": "short",
+      "fit": {
+        "xz": [
+          0.75,
+          1.35
+        ],
+        "y": [
+          0.6,
+          1.6
+        ]
+      },
+      "decorative": false,
+      "placement": null,
+      "jitter": {},
+      "variantByGroup": {
+        "valley": "modern",
+        "ridge": "modern",
+        "city_centre": "modern",
+        "default": "gable"
+      },
+      "palettes": {
+        "default": [
+          [
+            "#f2efe8",
+            "#3d4147",
+            "#8a8f96"
+          ],
+          [
+            "#e9e4da",
+            "#4a4e55",
+            "#a07a55"
+          ],
+          [
+            "#dfe2e4",
+            "#33373d",
+            "#6d737a"
+          ]
+        ],
+        "green": [
+          [
+            "#f4f0e6",
+            "#3a3d42",
+            "#9b7350"
+          ],
+          [
+            "#ece6d8",
+            "#45484e",
+            "#b08a62"
+          ],
+          [
+            "#f7f5ef",
+            "#2f3236",
+            "#7d6a58"
+          ]
+        ],
+        "valley": [
+          [
+            "#e6e7e8",
+            "#50545a",
+            "#a0563f"
+          ],
+          [
+            "#f1f1ef",
+            "#3e4247",
+            "#8c4a36"
+          ],
+          [
+            "#d9dbdd",
+            "#2e3135",
+            "#b06a4f"
+          ]
+        ],
+        "ridge": [
+          [
+            "#f5f5f3",
+            "#2b2e33",
+            "#3f444b"
+          ],
+          [
+            "#e4e6e3",
+            "#383c41",
+            "#6b7b6e"
+          ]
+        ],
+        "denai_alam": [
+          [
+            "#efe6d2",
+            "#8a4b35",
+            "#b9a27f"
+          ],
+          [
+            "#e8dcc6",
+            "#7a4332",
+            "#9e8a6c"
+          ],
+          [
+            "#f0ece2",
+            "#5b5f66",
+            "#a89878"
+          ]
+        ]
+      },
+      "variants": {
+        "gable": {
+          "size": [
+            6.4,
+            8.5,
+            15.5
+          ],
+          "lods": [
+            {
+              "node": "link_intermediate__gable__LOD0",
+              "tris": 1450,
+              "maxM": 300.0
+            },
+            {
+              "node": "link_intermediate__gable__LOD1",
+              "tris": 378,
+              "maxM": 1500.0
+            },
+            {
+              "node": "link_intermediate__gable__LOD2",
+              "tris": 14,
+              "maxM": null
+            }
+          ]
+        },
+        "modern": {
+          "size": [
+            6.4,
+            8.5,
+            15.5
+          ],
+          "lods": [
+            {
+              "node": "link_intermediate__modern__LOD0",
+              "tris": 1556,
+              "maxM": 300.0
+            },
+            {
+              "node": "link_intermediate__modern__LOD1",
+              "tris": 372,
+              "maxM": 1500.0
+            },
+            {
+              "node": "link_intermediate__modern__LOD2",
+              "tris": 14,
+              "maxM": null
+            }
+          ]
+        }
+      }
+    },
+    "link_long": {
+      "group": "archetype",
+      "file": "archetypes/link_long.glb",
+      "bytes": 54292,
+      "repeat": "frontage",
+      "frontage": "short",
+      "fit": {
+        "xz": [
+          0.75,
+          1.35
+        ],
+        "y": [
+          0.6,
+          1.6
+        ]
+      },
+      "decorative": false,
+      "placement": null,
+      "jitter": {},
+      "variantByGroup": {
+        "valley": "modern",
+        "ridge": "modern",
+        "city_centre": "modern",
+        "default": "gable"
+      },
+      "palettes": {
+        "default": [
+          [
+            "#f2efe8",
+            "#3d4147",
+            "#8a8f96"
+          ],
+          [
+            "#e9e4da",
+            "#4a4e55",
+            "#a07a55"
+          ],
+          [
+            "#dfe2e4",
+            "#33373d",
+            "#6d737a"
+          ]
+        ],
+        "green": [
+          [
+            "#f4f0e6",
+            "#3a3d42",
+            "#9b7350"
+          ],
+          [
+            "#ece6d8",
+            "#45484e",
+            "#b08a62"
+          ],
+          [
+            "#f7f5ef",
+            "#2f3236",
+            "#7d6a58"
+          ]
+        ],
+        "valley": [
+          [
+            "#e6e7e8",
+            "#50545a",
+            "#a0563f"
+          ],
+          [
+            "#f1f1ef",
+            "#3e4247",
+            "#8c4a36"
+          ],
+          [
+            "#d9dbdd",
+            "#2e3135",
+            "#b06a4f"
+          ]
+        ],
+        "ridge": [
+          [
+            "#f5f5f3",
+            "#2b2e33",
+            "#3f444b"
+          ],
+          [
+            "#e4e6e3",
+            "#383c41",
+            "#6b7b6e"
+          ]
+        ],
+        "denai_alam": [
+          [
+            "#efe6d2",
+            "#8a4b35",
+            "#b9a27f"
+          ],
+          [
+            "#e8dcc6",
+            "#7a4332",
+            "#9e8a6c"
+          ],
+          [
+            "#f0ece2",
+            "#5b5f66",
+            "#a89878"
+          ]
+        ]
+      },
+      "variants": {
+        "gable": {
+          "size": [
+            6.7,
+            8.5,
+            24.0
+          ],
+          "lods": [
+            {
+              "node": "link_long__gable__LOD0",
+              "tris": 1534,
+              "maxM": 300.0
+            },
+            {
+              "node": "link_long__gable__LOD1",
+              "tris": 394,
+              "maxM": 1500.0
+            },
+            {
+              "node": "link_long__gable__LOD2",
+              "tris": 14,
+              "maxM": null
+            }
+          ]
+        },
+        "modern": {
+          "size": [
+            6.7,
+            8.5,
+            24.0
+          ],
+          "lods": [
+            {
+              "node": "link_long__modern__LOD0",
+              "tris": 1632,
+              "maxM": 300.0
+            },
+            {
+              "node": "link_long__modern__LOD1",
+              "tris": 388,
+              "maxM": 1500.0
+            },
+            {
+              "node": "link_long__modern__LOD2",
+              "tris": 14,
+              "maxM": null
+            }
+          ]
+        }
+      }
+    },
+    "superlink": {
+      "group": "archetype",
+      "file": "archetypes/superlink.glb",
+      "bytes": 44992,
+      "repeat": "none",
+      "frontage": "short",
+      "fit": {
+        "xz": [
+          0.75,
+          1.35
+        ],
+        "y": [
+          0.6,
+          1.6
+        ]
+      },
+      "decorative": false,
+      "placement": null,
+      "jitter": {},
+      "variantByGroup": {
+        "default": "modern"
+      },
+      "palettes": {
+        "default": [
+          [
+            "#f2efe8",
+            "#3d4147",
+            "#8a8f96"
+          ],
+          [
+            "#e9e4da",
+            "#4a4e55",
+            "#a07a55"
+          ],
+          [
+            "#dfe2e4",
+            "#33373d",
+            "#6d737a"
+          ]
+        ],
+        "green": [
+          [
+            "#f4f0e6",
+            "#3a3d42",
+            "#9b7350"
+          ],
+          [
+            "#ece6d8",
+            "#45484e",
+            "#b08a62"
+          ],
+          [
+            "#f7f5ef",
+            "#2f3236",
+            "#7d6a58"
+          ]
+        ],
+        "valley": [
+          [
+            "#e6e7e8",
+            "#50545a",
+            "#a0563f"
+          ],
+          [
+            "#f1f1ef",
+            "#3e4247",
+            "#8c4a36"
+          ],
+          [
+            "#d9dbdd",
+            "#2e3135",
+            "#b06a4f"
+          ]
+        ],
+        "ridge": [
+          [
+            "#f5f5f3",
+            "#2b2e33",
+            "#3f444b"
+          ],
+          [
+            "#e4e6e3",
+            "#383c41",
+            "#6b7b6e"
+          ]
+        ],
+        "denai_alam": [
+          [
+            "#efe6d2",
+            "#8a4b35",
+            "#b9a27f"
+          ],
+          [
+            "#e8dcc6",
+            "#7a4332",
+            "#9e8a6c"
+          ],
+          [
+            "#f0ece2",
+            "#5b5f66",
+            "#a89878"
+          ]
+        ]
+      },
+      "variants": {
+        "modern": {
+          "size": [
+            11.0,
+            9.0,
+            21.0
+          ],
+          "lods": [
+            {
+              "node": "superlink__modern__LOD0",
+              "tris": 3206,
+              "maxM": 300.0
+            },
+            {
+              "node": "superlink__modern__LOD1",
+              "tris": 710,
+              "maxM": 1500.0
+            },
+            {
+              "node": "superlink__modern__LOD2",
+              "tris": 10,
+              "maxM": null
+            }
+          ]
+        }
+      }
+    },
+    "semi_d": {
+      "group": "archetype",
+      "file": "archetypes/semi_d.glb",
+      "bytes": 66264,
+      "repeat": "none",
+      "frontage": "short",
+      "fit": {
+        "xz": [
+          0.75,
+          1.35
+        ],
+        "y": [
+          0.6,
+          1.6
+        ]
+      },
+      "decorative": false,
+      "placement": null,
+      "jitter": {},
+      "variantByGroup": {
+        "valley": "modern",
+        "ridge": "modern",
+        "city_centre": "modern",
+        "default": "gable"
+      },
+      "palettes": {
+        "default": [
+          [
+            "#f2efe8",
+            "#3d4147",
+            "#8a8f96"
+          ],
+          [
+            "#e9e4da",
+            "#4a4e55",
+            "#a07a55"
+          ],
+          [
+            "#dfe2e4",
+            "#33373d",
+            "#6d737a"
+          ]
+        ],
+        "green": [
+          [
+            "#f4f0e6",
+            "#3a3d42",
+            "#9b7350"
+          ],
+          [
+            "#ece6d8",
+            "#45484e",
+            "#b08a62"
+          ],
+          [
+            "#f7f5ef",
+            "#2f3236",
+            "#7d6a58"
+          ]
+        ],
+        "valley": [
+          [
+            "#e6e7e8",
+            "#50545a",
+            "#a0563f"
+          ],
+          [
+            "#f1f1ef",
+            "#3e4247",
+            "#8c4a36"
+          ],
+          [
+            "#d9dbdd",
+            "#2e3135",
+            "#b06a4f"
+          ]
+        ],
+        "ridge": [
+          [
+            "#f5f5f3",
+            "#2b2e33",
+            "#3f444b"
+          ],
+          [
+            "#e4e6e3",
+            "#383c41",
+            "#6b7b6e"
+          ]
+        ],
+        "denai_alam": [
+          [
+            "#efe6d2",
+            "#8a4b35",
+            "#b9a27f"
+          ],
+          [
+            "#e8dcc6",
+            "#7a4332",
+            "#9e8a6c"
+          ],
+          [
+            "#f0ece2",
+            "#5b5f66",
+            "#a89878"
+          ]
+        ]
+      },
+      "variants": {
+        "gable": {
+          "size": [
+            12.5,
+            9.0,
+            24.0
+          ],
+          "lods": [
+            {
+              "node": "semi_d__gable__LOD0",
+              "tris": 1972,
+              "maxM": 300.0
+            },
+            {
+              "node": "semi_d__gable__LOD1",
+              "tris": 520,
+              "maxM": 1500.0
+            },
+            {
+              "node": "semi_d__gable__LOD2",
+              "tris": 24,
+              "maxM": null
+            }
+          ]
+        },
+        "modern": {
+          "size": [
+            12.5,
+            9.0,
+            24.0
+          ],
+          "lods": [
+            {
+              "node": "semi_d__modern__LOD0",
+              "tris": 2078,
+              "maxM": 300.0
+            },
+            {
+              "node": "semi_d__modern__LOD1",
+              "tris": 514,
+              "maxM": 1500.0
+            },
+            {
+              "node": "semi_d__modern__LOD2",
+              "tris": 24,
+              "maxM": null
+            }
+          ]
+        }
+      }
+    },
+    "bungalow": {
+      "group": "archetype",
+      "file": "archetypes/bungalow.glb",
+      "bytes": 43016,
+      "repeat": "none",
+      "frontage": "short",
+      "fit": {
+        "xz": [
+          0.7,
+          1.5
+        ],
+        "y": [
+          0.6,
+          1.6
+        ]
+      },
+      "decorative": false,
+      "placement": null,
+      "jitter": {},
+      "variantByGroup": {
+        "default": "hip"
+      },
+      "palettes": {
+        "default": [
+          [
+            "#f2efe8",
+            "#3d4147",
+            "#8a8f96"
+          ],
+          [
+            "#e9e4da",
+            "#4a4e55",
+            "#a07a55"
+          ],
+          [
+            "#dfe2e4",
+            "#33373d",
+            "#6d737a"
+          ]
+        ],
+        "green": [
+          [
+            "#f4f0e6",
+            "#3a3d42",
+            "#9b7350"
+          ],
+          [
+            "#ece6d8",
+            "#45484e",
+            "#b08a62"
+          ],
+          [
+            "#f7f5ef",
+            "#2f3236",
+            "#7d6a58"
+          ]
+        ],
+        "valley": [
+          [
+            "#e6e7e8",
+            "#50545a",
+            "#a0563f"
+          ],
+          [
+            "#f1f1ef",
+            "#3e4247",
+            "#8c4a36"
+          ],
+          [
+            "#d9dbdd",
+            "#2e3135",
+            "#b06a4f"
+          ]
+        ],
+        "ridge": [
+          [
+            "#f5f5f3",
+            "#2b2e33",
+            "#3f444b"
+          ],
+          [
+            "#e4e6e3",
+            "#383c41",
+            "#6b7b6e"
+          ]
+        ],
+        "denai_alam": [
+          [
+            "#efe6d2",
+            "#8a4b35",
+            "#b9a27f"
+          ],
+          [
+            "#e8dcc6",
+            "#7a4332",
+            "#9e8a6c"
+          ],
+          [
+            "#f0ece2",
+            "#5b5f66",
+            "#a89878"
+          ]
+        ]
+      },
+      "variants": {
+        "hip": {
+          "size": [
+            15.0,
+            9.0,
+            18.0
+          ],
+          "lods": [
+            {
+              "node": "bungalow__hip__LOD0",
+              "tris": 3006,
+              "maxM": 300.0
+            },
+            {
+              "node": "bungalow__hip__LOD1",
+              "tris": 642,
+              "maxM": 1500.0
+            },
+            {
+              "node": "bungalow__hip__LOD2",
+              "tris": 14,
+              "maxM": null
+            }
+          ]
+        }
+      }
+    },
+    "townhouse": {
+      "group": "archetype",
+      "file": "archetypes/townhouse.glb",
+      "bytes": 21420,
+      "repeat": "frontage",
+      "frontage": "short",
+      "fit": {
+        "xz": [
+          0.75,
+          1.35
+        ],
+        "y": [
+          0.6,
+          1.6
+        ]
+      },
+      "decorative": false,
+      "placement": null,
+      "jitter": {},
+      "variantByGroup": {
+        "default": "flat"
+      },
+      "palettes": {
+        "default": [
+          [
+            "#f2efe8",
+            "#3d4147",
+            "#8a8f96"
+          ],
+          [
+            "#e9e4da",
+            "#4a4e55",
+            "#a07a55"
+          ],
+          [
+            "#dfe2e4",
+            "#33373d",
+            "#6d737a"
+          ]
+        ],
+        "green": [
+          [
+            "#f4f0e6",
+            "#3a3d42",
+            "#9b7350"
+          ],
+          [
+            "#ece6d8",
+            "#45484e",
+            "#b08a62"
+          ],
+          [
+            "#f7f5ef",
+            "#2f3236",
+            "#7d6a58"
+          ]
+        ],
+        "valley": [
+          [
+            "#e6e7e8",
+            "#50545a",
+            "#a0563f"
+          ],
+          [
+            "#f1f1ef",
+            "#3e4247",
+            "#8c4a36"
+          ],
+          [
+            "#d9dbdd",
+            "#2e3135",
+            "#b06a4f"
+          ]
+        ],
+        "ridge": [
+          [
+            "#f5f5f3",
+            "#2b2e33",
+            "#3f444b"
+          ],
+          [
+            "#e4e6e3",
+            "#383c41",
+            "#6b7b6e"
+          ]
+        ],
+        "denai_alam": [
+          [
+            "#efe6d2",
+            "#8a4b35",
+            "#b9a27f"
+          ],
+          [
+            "#e8dcc6",
+            "#7a4332",
+            "#9e8a6c"
+          ],
+          [
+            "#f0ece2",
+            "#5b5f66",
+            "#a89878"
+          ]
+        ]
+      },
+      "variants": {
+        "flat": {
+          "size": [
+            7.0,
+            6.0,
+            13.0
+          ],
+          "lods": [
+            {
+              "node": "townhouse__flat__LOD0",
+              "tris": 1172,
+              "maxM": 300.0
+            },
+            {
+              "node": "townhouse__flat__LOD1",
+              "tris": 346,
+              "maxM": 1500.0
+            },
+            {
+              "node": "townhouse__flat__LOD2",
+              "tris": 14,
+              "maxM": null
+            }
+          ]
+        }
+      }
+    },
+    "shop_office": {
+      "group": "archetype",
+      "file": "archetypes/shop_office.glb",
+      "bytes": 20732,
+      "repeat": "frontage",
+      "frontage": "long",
+      "fit": {
+        "xz": [
+          0.75,
+          1.35
+        ],
+        "y": [
+          0.6,
+          1.6
+        ]
+      },
+      "decorative": false,
+      "placement": null,
+      "jitter": {},
+      "variantByGroup": {
+        "default": "row"
+      },
+      "palettes": {
+        "default": [
+          [
+            "#e8e6e1",
+            "#4a4e55",
+            "#9aa3ab"
+          ],
+          [
+            "#dcdad4",
+            "#3a3e44",
+            "#b49a6e"
+          ],
+          [
+            "#f0eee9",
+            "#5a5f66",
+            "#7f8a94"
+          ]
+        ]
+      },
+      "variants": {
+        "row": {
+          "size": [
+            6.7,
+            11.0,
+            22.0
+          ],
+          "lods": [
+            {
+              "node": "shop_office__row__LOD0",
+              "tris": 1294,
+              "maxM": 300.0
+            },
+            {
+              "node": "shop_office__row__LOD1",
+              "tris": 342,
+              "maxM": 1500.0
+            },
+            {
+              "node": "shop_office__row__LOD2",
+              "tris": 10,
+              "maxM": null
+            }
+          ]
+        }
+      }
+    },
+    "highrise": {
+      "group": "archetype",
+      "file": "archetypes/highrise.glb",
+      "bytes": 251268,
+      "repeat": "none",
+      "frontage": "short",
+      "fit": {
+        "xz": [
+          0.75,
+          1.35
+        ],
+        "y": [
+          0.6,
+          1.5
+        ]
+      },
+      "decorative": false,
+      "placement": null,
+      "jitter": {},
+      "variantByGroup": {
+        "default": "mid"
+      },
+      "palettes": {
+        "default": [
+          [
+            "#e8e6e1",
+            "#4a4e55",
+            "#9aa3ab"
+          ],
+          [
+            "#dcdad4",
+            "#3a3e44",
+            "#b49a6e"
+          ],
+          [
+            "#f0eee9",
+            "#5a5f66",
+            "#7f8a94"
+          ]
+        ]
+      },
+      "variants": {
+        "mid": {
+          "size": [
+            25.0,
+            40.0,
+            25.0
+          ],
+          "lods": [
+            {
+              "node": "highrise__mid__LOD0",
+              "tris": 6386,
+              "maxM": 300.0
+            },
+            {
+              "node": "highrise__mid__LOD1",
+              "tris": 446,
+              "maxM": 1500.0
+            },
+            {
+              "node": "highrise__mid__LOD2",
+              "tris": 10,
+              "maxM": null
+            }
+          ]
+        },
+        "tall": {
+          "size": [
+            30.0,
+            100.0,
+            30.0
+          ],
+          "lods": [
+            {
+              "node": "highrise__tall__LOD0",
+              "tris": 19476,
+              "maxM": 300.0
+            },
+            {
+              "node": "highrise__tall__LOD1",
+              "tris": 718,
+              "maxM": 1500.0
+            },
+            {
+              "node": "highrise__tall__LOD2",
+              "tris": 10,
+              "maxM": null
+            }
+          ]
+        }
+      }
+    },
+    "school": {
+      "group": "archetype",
+      "file": "archetypes/school.glb",
+      "bytes": 43228,
+      "repeat": "frontage",
+      "frontage": "long",
+      "fit": {
+        "xz": [
+          0.75,
+          1.35
+        ],
+        "y": [
+          0.6,
+          1.6
+        ]
+      },
+      "decorative": false,
+      "placement": null,
+      "jitter": {},
+      "variantByGroup": {
+        "default": "block"
+      },
+      "palettes": {
+        "default": [
+          [
+            "#e8e6e1",
+            "#4a4e55",
+            "#9aa3ab"
+          ],
+          [
+            "#dcdad4",
+            "#3a3e44",
+            "#b49a6e"
+          ],
+          [
+            "#f0eee9",
+            "#5a5f66",
+            "#7f8a94"
+          ]
+        ]
+      },
+      "variants": {
+        "block": {
+          "size": [
+            20.0,
+            14.0,
+            15.0
+          ],
+          "lods": [
+            {
+              "node": "school__block__LOD0",
+              "tris": 3044,
+              "maxM": 300.0
+            },
+            {
+              "node": "school__block__LOD1",
+              "tris": 666,
+              "maxM": 1500.0
+            },
+            {
+              "node": "school__block__LOD2",
+              "tris": 14,
+              "maxM": null
+            }
+          ]
+        }
+      }
+    },
+    "mosque": {
+      "group": "archetype",
+      "file": "archetypes/mosque.glb",
+      "bytes": 31464,
+      "repeat": "none",
+      "frontage": "short",
+      "fit": {
+        "xz": [
+          0.75,
+          1.35
+        ],
+        "y": [
+          0.6,
+          1.6
+        ]
+      },
+      "decorative": false,
+      "placement": null,
+      "jitter": {},
+      "variantByGroup": {
+        "default": "hall"
+      },
+      "palettes": {
+        "default": [
+          [
+            "#e8e6e1",
+            "#4a4e55",
+            "#9aa3ab"
+          ],
+          [
+            "#dcdad4",
+            "#3a3e44",
+            "#b49a6e"
+          ],
+          [
+            "#f0eee9",
+            "#5a5f66",
+            "#7f8a94"
+          ]
+        ]
+      },
+      "variants": {
+        "hall": {
+          "size": [
+            30.0,
+            15.0,
+            30.0
+          ],
+          "lods": [
+            {
+              "node": "mosque__hall__LOD0",
+              "tris": 1664,
+              "maxM": 300.0
+            },
+            {
+              "node": "mosque__hall__LOD1",
+              "tris": 470,
+              "maxM": 1500.0
+            },
+            {
+              "node": "mosque__hall__LOD2",
+              "tris": 44,
+              "maxM": null
+            }
+          ]
+        }
+      }
+    },
+    "factory": {
+      "group": "archetype",
+      "file": "archetypes/factory.glb",
+      "bytes": 35000,
+      "repeat": "none",
+      "frontage": "short",
+      "fit": {
+        "xz": [
+          0.5,
+          2.0
+        ],
+        "y": [
+          0.6,
+          1.6
+        ]
+      },
+      "decorative": false,
+      "placement": null,
+      "jitter": {},
+      "variantByGroup": {
+        "default": "shed"
+      },
+      "palettes": {
+        "default": [
+          [
+            "#e8e6e1",
+            "#4a4e55",
+            "#9aa3ab"
+          ],
+          [
+            "#dcdad4",
+            "#3a3e44",
+            "#b49a6e"
+          ],
+          [
+            "#f0eee9",
+            "#5a5f66",
+            "#7f8a94"
+          ]
+        ]
+      },
+      "variants": {
+        "shed": {
+          "size": [
+            30.0,
+            10.0,
+            40.0
+          ],
+          "lods": [
+            {
+              "node": "factory__shed__LOD0",
+              "tris": 2932,
+              "maxM": 300.0
+            },
+            {
+              "node": "factory__shed__LOD1",
+              "tris": 298,
+              "maxM": 1500.0
+            },
+            {
+              "node": "factory__shed__LOD2",
+              "tris": 14,
+              "maxM": null
+            }
+          ]
+        }
+      }
+    },
+    "mall": {
+      "group": "archetype",
+      "file": "archetypes/mall.glb",
+      "bytes": 46780,
+      "repeat": "none",
+      "frontage": "short",
+      "fit": {
+        "xz": [
+          0.4,
+          3.0
+        ],
+        "y": [
+          0.6,
+          1.6
+        ]
+      },
+      "decorative": false,
+      "placement": null,
+      "jitter": {},
+      "variantByGroup": {
+        "default": "box"
+      },
+      "palettes": {
+        "default": [
+          [
+            "#e8e6e1",
+            "#4a4e55",
+            "#9aa3ab"
+          ],
+          [
+            "#dcdad4",
+            "#3a3e44",
+            "#b49a6e"
+          ],
+          [
+            "#f0eee9",
+            "#5a5f66",
+            "#7f8a94"
+          ]
+        ]
+      },
+      "variants": {
+        "box": {
+          "size": [
+            60.0,
+            9.0,
+            60.0
+          ],
+          "lods": [
+            {
+              "node": "mall__box__LOD0",
+              "tris": 4698,
+              "maxM": 300.0
+            },
+            {
+              "node": "mall__box__LOD1",
+              "tris": 762,
+              "maxM": 1500.0
+            },
+            {
+              "node": "mall__box__LOD2",
+              "tris": 10,
+              "maxM": null
+            }
+          ]
+        }
+      }
+    },
+    "generic": {
+      "group": "archetype",
+      "file": "archetypes/generic.glb",
+      "bytes": 14980,
+      "repeat": "none",
+      "frontage": "short",
+      "fit": {
+        "xz": [
+          0.3,
+          4.0
+        ],
+        "y": [
+          0.6,
+          1.6
+        ]
+      },
+      "decorative": false,
+      "placement": null,
+      "jitter": {},
+      "variantByGroup": {
+        "default": "box"
+      },
+      "palettes": {
+        "default": [
+          [
+            "#e8e6e1",
+            "#4a4e55",
+            "#9aa3ab"
+          ],
+          [
+            "#dcdad4",
+            "#3a3e44",
+            "#b49a6e"
+          ],
+          [
+            "#f0eee9",
+            "#5a5f66",
+            "#7f8a94"
+          ]
+        ]
+      },
+      "variants": {
+        "box": {
+          "size": [
+            10.0,
+            9.0,
+            10.0
+          ],
+          "lods": [
+            {
+              "node": "generic__box__LOD0",
+              "tris": 788,
+              "maxM": 300.0
+            },
+            {
+              "node": "generic__box__LOD1",
+              "tris": 186,
+              "maxM": 1500.0
+            },
+            {
+              "node": "generic__box__LOD2",
+              "tris": 10,
+              "maxM": null
+            }
+          ]
+        }
+      }
+    },
+    "lakeside_mall": {
+      "group": "landmark",
+      "file": "landmarks/lakeside_mall.glb",
+      "bytes": 86796,
+      "repeat": "none",
+      "frontage": "short",
+      "fit": {
+        "xz": [
+          0.75,
+          1.35
+        ],
+        "y": [
+          0.6,
+          1.6
+        ]
+      },
+      "decorative": false,
+      "placement": "anchor",
+      "jitter": {},
+      "variantByGroup": {
+        "default": "osm"
+      },
+      "palettes": {
+        "default": [
+          [
+            "#e8e6e1",
+            "#4a4e55",
+            "#9aa3ab"
+          ],
+          [
+            "#dcdad4",
+            "#3a3e44",
+            "#b49a6e"
+          ],
+          [
+            "#f0eee9",
+            "#5a5f66",
+            "#7f8a94"
+          ]
+        ]
+      },
+      "variants": {
+        "osm": {
+          "size": [
+            237.08,
+            9.0,
+            284.96
+          ],
+          "lods": [
+            {
+              "node": "lakeside_mall__osm__LOD0",
+              "tris": 7329,
+              "maxM": 300.0
+            },
+            {
+              "node": "lakeside_mall__osm__LOD1",
+              "tris": 1261,
+              "maxM": 1500.0
+            },
+            {
+              "node": "lakeside_mall__osm__LOD2",
+              "tris": 173,
+              "maxM": null
+            }
+          ]
+        }
+      }
+    },
+    "kanopi": {
+      "group": "landmark",
+      "file": "landmarks/kanopi.glb",
+      "bytes": 383912,
+      "repeat": "none",
+      "frontage": "long",
+      "fit": {
+        "xz": [
+          0.75,
+          1.35
+        ],
+        "y": [
+          0.6,
+          1.6
+        ]
+      },
+      "decorative": false,
+      "placement": "obb",
+      "jitter": {},
+      "variantByGroup": {
+        "default": "tower"
+      },
+      "palettes": {
+        "default": [
+          [
+            "#e8e6e1",
+            "#4a4e55",
+            "#9aa3ab"
+          ],
+          [
+            "#dcdad4",
+            "#3a3e44",
+            "#b49a6e"
+          ],
+          [
+            "#f0eee9",
+            "#5a5f66",
+            "#7f8a94"
+          ]
+        ]
+      },
+      "variants": {
+        "tower": {
+          "size": [
+            88.9,
+            130.0,
+            27.8
+          ],
+          "lods": [
+            {
+              "node": "kanopi__tower__LOD0",
+              "tris": 40728,
+              "maxM": 300.0
+            },
+            {
+              "node": "kanopi__tower__LOD1",
+              "tris": 6496,
+              "maxM": 1500.0
+            },
+            {
+              "node": "kanopi__tower__LOD2",
+              "tris": 54,
+              "maxM": null
+            }
+          ]
+        }
+      },
+      "designStoreys": 36,
+      "heightBasis": "design height (36 storeys, Sime Darby Property), under construction; 36 x 3.2 m tower on an 8.7 m podium"
+    },
+    "masjid_denai_alam": {
+      "group": "landmark",
+      "file": "landmarks/masjid_denai_alam.glb",
+      "bytes": 44600,
+      "repeat": "none",
+      "frontage": "short",
+      "fit": {
+        "xz": [
+          0.75,
+          1.35
+        ],
+        "y": [
+          0.6,
+          1.6
+        ]
+      },
+      "decorative": false,
+      "placement": "deferred",
+      "jitter": {},
+      "variantByGroup": {
+        "default": "main"
+      },
+      "palettes": {
+        "default": [
+          [
+            "#e8e6e1",
+            "#4a4e55",
+            "#9aa3ab"
+          ],
+          [
+            "#dcdad4",
+            "#3a3e44",
+            "#b49a6e"
+          ],
+          [
+            "#f0eee9",
+            "#5a5f66",
+            "#7f8a94"
+          ]
+        ]
+      },
+      "variants": {
+        "main": {
+          "size": [
+            40.0,
+            18.0,
+            40.0
+          ],
+          "lods": [
+            {
+              "node": "masjid_denai_alam__main__LOD0",
+              "tris": 2706,
+              "maxM": 300.0
+            },
+            {
+              "node": "masjid_denai_alam__main__LOD1",
+              "tris": 646,
+              "maxM": 1500.0
+            },
+            {
+              "node": "masjid_denai_alam__main__LOD2",
+              "tris": 44,
+              "maxM": null
+            }
+          ]
+        }
+      }
+    },
+    "people": {
+      "group": "kit",
+      "file": "kits/people.glb",
+      "bytes": 185680,
+      "repeat": "none",
+      "frontage": "short",
+      "fit": {
+        "xz": [
+          0.75,
+          1.35
+        ],
+        "y": [
+          0.6,
+          1.6
+        ]
+      },
+      "decorative": true,
+      "placement": null,
+      "jitter": {
+        "scale": 0.03
+      },
+      "variantByGroup": {
+        "default": "office_man"
+      },
+      "palettes": {
+        "default": [
+          [
+            "#d8d6d0",
+            "#3d4147",
+            "#8a8f96"
+          ]
+        ]
+      },
+      "variants": {
+        "office_man": {
+          "size": [
+            0.5,
+            1.7,
+            0.3
+          ],
+          "lods": [
+            {
+              "node": "people__office_man__LOD0",
+              "tris": 512,
+              "maxM": 80.0
+            },
+            {
+              "node": "people__office_man__LOD1",
+              "tris": 176,
+              "maxM": 300.0
+            }
+          ]
+        },
+        "office_woman": {
+          "size": [
+            0.5,
+            1.7,
+            0.3
+          ],
+          "lods": [
+            {
+              "node": "people__office_woman__LOD0",
+              "tris": 608,
+              "maxM": 80.0
+            },
+            {
+              "node": "people__office_woman__LOD1",
+              "tris": 196,
+              "maxM": 300.0
+            }
+          ]
+        },
+        "tudung_baju_kurung": {
+          "size": [
+            0.5,
+            1.7,
+            0.35
+          ],
+          "lods": [
+            {
+              "node": "people__tudung_baju_kurung__LOD0",
+              "tris": 576,
+              "maxM": 80.0
+            },
+            {
+              "node": "people__tudung_baju_kurung__LOD1",
+              "tris": 216,
+              "maxM": 300.0
+            }
+          ]
+        },
+        "older_adult": {
+          "size": [
+            0.5,
+            1.7,
+            0.35
+          ],
+          "lods": [
+            {
+              "node": "people__older_adult__LOD0",
+              "tris": 525,
+              "maxM": 80.0
+            },
+            {
+              "node": "people__older_adult__LOD1",
+              "tris": 189,
+              "maxM": 300.0
+            }
+          ]
+        },
+        "jogger": {
+          "size": [
+            0.5,
+            1.7,
+            0.5
+          ],
+          "lods": [
+            {
+              "node": "people__jogger__LOD0",
+              "tris": 512,
+              "maxM": 80.0
+            },
+            {
+              "node": "people__jogger__LOD1",
+              "tris": 176,
+              "maxM": 300.0
+            }
+          ]
+        },
+        "cyclist": {
+          "size": [
+            0.6,
+            1.7,
+            1.7
+          ],
+          "lods": [
+            {
+              "node": "people__cyclist__LOD0",
+              "tris": 771,
+              "maxM": 80.0
+            },
+            {
+              "node": "people__cyclist__LOD1",
+              "tris": 244,
+              "maxM": 300.0
+            }
+          ]
+        },
+        "parent_stroller": {
+          "size": [
+            0.6,
+            1.7,
+            1.4
+          ],
+          "lods": [
+            {
+              "node": "people__parent_stroller__LOD0",
+              "tris": 864,
+              "maxM": 80.0
+            },
+            {
+              "node": "people__parent_stroller__LOD1",
+              "tris": 237,
+              "maxM": 300.0
+            }
+          ]
+        },
+        "school_boy": {
+          "size": [
+            0.4,
+            1.32,
+            0.3
+          ],
+          "lods": [
+            {
+              "node": "people__school_boy__LOD0",
+              "tris": 522,
+              "maxM": 80.0
+            },
+            {
+              "node": "people__school_boy__LOD1",
+              "tris": 186,
+              "maxM": 300.0
+            }
+          ]
+        },
+        "school_girl": {
+          "size": [
+            0.4,
+            1.32,
+            0.3
+          ],
+          "lods": [
+            {
+              "node": "people__school_girl__LOD0",
+              "tris": 576,
+              "maxM": 80.0
+            },
+            {
+              "node": "people__school_girl__LOD1",
+              "tris": 216,
+              "maxM": 300.0
+            }
+          ]
+        },
+        "child": {
+          "size": [
+            0.4,
+            1.32,
+            0.3
+          ],
+          "lods": [
+            {
+              "node": "people__child__LOD0",
+              "tris": 512,
+              "maxM": 80.0
+            },
+            {
+              "node": "people__child__LOD1",
+              "tris": 176,
+              "maxM": 300.0
+            }
+          ]
+        }
+      }
+    },
+    "vehicles": {
+      "group": "kit",
+      "file": "kits/vehicles.glb",
+      "bytes": 159176,
+      "repeat": "none",
+      "frontage": "short",
+      "fit": {
+        "xz": [
+          0.75,
+          1.35
+        ],
+        "y": [
+          0.6,
+          1.6
+        ]
+      },
+      "decorative": true,
+      "placement": null,
+      "jitter": {
+        "scale": 0.02
+      },
+      "variantByGroup": {
+        "default": "hatchback"
+      },
+      "palettes": {
+        "default": [
+          [
+            "#d8d6d0",
+            "#3d4147",
+            "#8a8f96"
+          ]
+        ]
+      },
+      "variants": {
+        "hatchback": {
+          "size": [
+            1.7,
+            1.5,
+            3.85
+          ],
+          "lods": [
+            {
+              "node": "vehicles__hatchback__LOD0",
+              "tris": 676,
+              "maxM": 150.0
+            },
+            {
+              "node": "vehicles__hatchback__LOD1",
+              "tris": 352,
+              "maxM": 1500.0
+            }
+          ]
+        },
+        "city_car": {
+          "size": [
+            1.6,
+            1.5,
+            3.7
+          ],
+          "lods": [
+            {
+              "node": "vehicles__city_car__LOD0",
+              "tris": 676,
+              "maxM": 150.0
+            },
+            {
+              "node": "vehicles__city_car__LOD1",
+              "tris": 352,
+              "maxM": 1500.0
+            }
+          ]
+        },
+        "sedan": {
+          "size": [
+            1.8,
+            1.45,
+            4.6
+          ],
+          "lods": [
+            {
+              "node": "vehicles__sedan__LOD0",
+              "tris": 676,
+              "maxM": 150.0
+            },
+            {
+              "node": "vehicles__sedan__LOD1",
+              "tris": 352,
+              "maxM": 1500.0
+            }
+          ]
+        },
+        "mpv": {
+          "size": [
+            1.8,
+            1.7,
+            4.7
+          ],
+          "lods": [
+            {
+              "node": "vehicles__mpv__LOD0",
+              "tris": 696,
+              "maxM": 150.0
+            },
+            {
+              "node": "vehicles__mpv__LOD1",
+              "tris": 352,
+              "maxM": 1500.0
+            }
+          ]
+        },
+        "pickup": {
+          "size": [
+            1.85,
+            1.8,
+            5.25
+          ],
+          "lods": [
+            {
+              "node": "vehicles__pickup__LOD0",
+              "tris": 704,
+              "maxM": 150.0
+            },
+            {
+              "node": "vehicles__pickup__LOD1",
+              "tris": 386,
+              "maxM": 1500.0
+            }
+          ]
+        },
+        "motorcycle": {
+          "size": [
+            0.75,
+            1.1,
+            1.95
+          ],
+          "lods": [
+            {
+              "node": "vehicles__motorcycle__LOD0",
+              "tris": 327,
+              "maxM": 150.0
+            },
+            {
+              "node": "vehicles__motorcycle__LOD1",
+              "tris": 235,
+              "maxM": 1500.0
+            }
+          ]
+        },
+        "delivery_motorcycle": {
+          "size": [
+            0.75,
+            1.3,
+            2.0
+          ],
+          "lods": [
+            {
+              "node": "vehicles__delivery_motorcycle__LOD0",
+              "tris": 357,
+              "maxM": 150.0
+            },
+            {
+              "node": "vehicles__delivery_motorcycle__LOD1",
+              "tris": 265,
+              "maxM": 1500.0
+            }
+          ]
+        },
+        "bus": {
+          "size": [
+            2.5,
+            3.2,
+            11.5
+          ],
+          "lods": [
+            {
+              "node": "vehicles__bus__LOD0",
+              "tris": 858,
+              "maxM": 150.0
+            },
+            {
+              "node": "vehicles__bus__LOD1",
+              "tris": 414,
+              "maxM": 1500.0
+            }
+          ]
+        },
+        "lorry": {
+          "size": [
+            2.4,
+            3.2,
+            8.0
+          ],
+          "lods": [
+            {
+              "node": "vehicles__lorry__LOD0",
+              "tris": 956,
+              "maxM": 150.0
+            },
+            {
+              "node": "vehicles__lorry__LOD1",
+              "tris": 436,
+              "maxM": 1500.0
+            }
+          ]
+        }
+      }
+    },
+    "trees": {
+      "group": "kit",
+      "file": "kits/trees.glb",
+      "bytes": 297096,
+      "repeat": "none",
+      "frontage": "short",
+      "fit": {
+        "xz": [
+          0.75,
+          1.35
+        ],
+        "y": [
+          0.6,
+          1.6
+        ]
+      },
+      "decorative": true,
+      "placement": null,
+      "jitter": {
+        "scale": 0.12
+      },
+      "variantByGroup": {
+        "default": "rain_tree"
+      },
+      "palettes": {
+        "default": [
+          [
+            "#d8d6d0",
+            "#3d4147",
+            "#8a8f96"
+          ]
+        ]
+      },
+      "variants": {
+        "rain_tree": {
+          "size": [
+            20.0,
+            16.0,
+            20.0
+          ],
+          "lods": [
+            {
+              "node": "trees__rain_tree__LOD0",
+              "tris": 2878,
+              "maxM": 300.0
+            },
+            {
+              "node": "trees__rain_tree__LOD1",
+              "tris": 397,
+              "maxM": 1500.0
+            },
+            {
+              "node": "trees__rain_tree__LOD2",
+              "tris": 42,
+              "maxM": null
+            }
+          ]
+        },
+        "coconut_palm": {
+          "size": [
+            6.0,
+            15.0,
+            6.0
+          ],
+          "lods": [
+            {
+              "node": "trees__coconut_palm__LOD0",
+              "tris": 590,
+              "maxM": 300.0
+            },
+            {
+              "node": "trees__coconut_palm__LOD1",
+              "tris": 127,
+              "maxM": 1500.0
+            },
+            {
+              "node": "trees__coconut_palm__LOD2",
+              "tris": 42,
+              "maxM": null
+            }
+          ]
+        },
+        "royal_palm": {
+          "size": [
+            5.0,
+            16.0,
+            5.0
+          ],
+          "lods": [
+            {
+              "node": "trees__royal_palm__LOD0",
+              "tris": 569,
+              "maxM": 300.0
+            },
+            {
+              "node": "trees__royal_palm__LOD1",
+              "tris": 119,
+              "maxM": 1500.0
+            },
+            {
+              "node": "trees__royal_palm__LOD2",
+              "tris": 42,
+              "maxM": null
+            }
+          ]
+        },
+        "frangipani": {
+          "size": [
+            4.5,
+            4.5,
+            4.5
+          ],
+          "lods": [
+            {
+              "node": "trees__frangipani__LOD0",
+              "tris": 902,
+              "maxM": 300.0
+            },
+            {
+              "node": "trees__frangipani__LOD1",
+              "tris": 269,
+              "maxM": 1500.0
+            },
+            {
+              "node": "trees__frangipani__LOD2",
+              "tris": 42,
+              "maxM": null
+            }
+          ]
+        },
+        "flame_tree": {
+          "size": [
+            11.0,
+            9.0,
+            11.0
+          ],
+          "lods": [
+            {
+              "node": "trees__flame_tree__LOD0",
+              "tris": 1890,
+              "maxM": 300.0
+            },
+            {
+              "node": "trees__flame_tree__LOD1",
+              "tris": 387,
+              "maxM": 1500.0
+            },
+            {
+              "node": "trees__flame_tree__LOD2",
+              "tris": 42,
+              "maxM": null
+            }
+          ]
+        },
+        "oil_palm": {
+          "size": [
+            8.5,
+            9.0,
+            8.5
+          ],
+          "lods": [
+            {
+              "node": "trees__oil_palm__LOD0",
+              "tris": 934,
+              "maxM": 300.0
+            },
+            {
+              "node": "trees__oil_palm__LOD1",
+              "tris": 199,
+              "maxM": 1500.0
+            },
+            {
+              "node": "trees__oil_palm__LOD2",
+              "tris": 42,
+              "maxM": null
+            }
+          ]
+        },
+        "shrub_round": {
+          "size": [
+            1.2,
+            1.05,
+            1.2
+          ],
+          "lods": [
+            {
+              "node": "trees__shrub_round__LOD0",
+              "tris": 338,
+              "maxM": 300.0
+            },
+            {
+              "node": "trees__shrub_round__LOD1",
+              "tris": 131,
+              "maxM": 1500.0
+            },
+            {
+              "node": "trees__shrub_round__LOD2",
+              "tris": 42,
+              "maxM": null
+            }
+          ]
+        },
+        "shrub_hedge": {
+          "size": [
+            2.0,
+            1.05,
+            0.8
+          ],
+          "lods": [
+            {
+              "node": "trees__shrub_hedge__LOD0",
+              "tris": 622,
+              "maxM": 300.0
+            },
+            {
+              "node": "trees__shrub_hedge__LOD1",
+              "tris": 161,
+              "maxM": 1500.0
+            },
+            {
+              "node": "trees__shrub_hedge__LOD2",
+              "tris": 42,
+              "maxM": null
+            }
+          ]
+        }
+      }
+    },
+    "furniture": {
+      "group": "kit",
+      "file": "kits/furniture.glb",
+      "bytes": 46472,
+      "repeat": "none",
+      "frontage": "short",
+      "fit": {
+        "xz": [
+          0.75,
+          1.35
+        ],
+        "y": [
+          0.6,
+          1.6
+        ]
+      },
+      "decorative": true,
+      "placement": null,
+      "jitter": {},
+      "variantByGroup": {
+        "default": "lamp_single"
+      },
+      "palettes": {
+        "default": [
+          [
+            "#d8d6d0",
+            "#3d4147",
+            "#8a8f96"
+          ]
+        ]
+      },
+      "variants": {
+        "lamp_single": {
+          "size": [
+            1.5,
+            9.0,
+            0.4
+          ],
+          "lods": [
+            {
+              "node": "furniture__lamp_single__LOD0",
+              "tris": 121,
+              "maxM": 150.0
+            },
+            {
+              "node": "furniture__lamp_single__LOD1",
+              "tris": 64,
+              "maxM": 300.0
+            }
+          ]
+        },
+        "lamp_double": {
+          "size": [
+            3.0,
+            9.0,
+            0.4
+          ],
+          "lods": [
+            {
+              "node": "furniture__lamp_double__LOD0",
+              "tris": 166,
+              "maxM": 150.0
+            },
+            {
+              "node": "furniture__lamp_double__LOD1",
+              "tris": 94,
+              "maxM": 300.0
+            }
+          ]
+        },
+        "bench": {
+          "size": [
+            1.8,
+            0.85,
+            0.6
+          ],
+          "lods": [
+            {
+              "node": "furniture__bench__LOD0",
+              "tris": 130,
+              "maxM": 150.0
+            },
+            {
+              "node": "furniture__bench__LOD1",
+              "tris": 40,
+              "maxM": 300.0
+            }
+          ]
+        },
+        "bus_shelter": {
+          "size": [
+            6.0,
+            2.8,
+            2.0
+          ],
+          "lods": [
+            {
+              "node": "furniture__bus_shelter__LOD0",
+              "tris": 112,
+              "maxM": 150.0
+            },
+            {
+              "node": "furniture__bus_shelter__LOD1",
+              "tris": 42,
+              "maxM": 300.0
+            }
+          ]
+        },
+        "bollard": {
+          "size": [
+            0.25,
+            1.0,
+            0.25
+          ],
+          "lods": [
+            {
+              "node": "furniture__bollard__LOD0",
+              "tris": 86,
+              "maxM": 150.0
+            },
+            {
+              "node": "furniture__bollard__LOD1",
+              "tris": 13,
+              "maxM": 300.0
+            }
+          ]
+        },
+        "bin": {
+          "size": [
+            0.6,
+            1.0,
+            0.6
+          ],
+          "lods": [
+            {
+              "node": "furniture__bin__LOD0",
+              "tris": 38,
+              "maxM": 150.0
+            },
+            {
+              "node": "furniture__bin__LOD1",
+              "tris": 23,
+              "maxM": 300.0
+            }
+          ]
+        },
+        "traffic_light": {
+          "size": [
+            0.6,
+            4.5,
+            0.6
+          ],
+          "lods": [
+            {
+              "node": "furniture__traffic_light__LOD0",
+              "tris": 84,
+              "maxM": 150.0
+            },
+            {
+              "node": "furniture__traffic_light__LOD1",
+              "tris": 35,
+              "maxM": 300.0
+            }
+          ]
+        },
+        "sign_post_blank": {
+          "size": [
+            0.8,
+            2.6,
+            0.1
+          ],
+          "lods": [
+            {
+              "node": "furniture__sign_post_blank__LOD0",
+              "tris": 28,
+              "maxM": 150.0
+            },
+            {
+              "node": "furniture__sign_post_blank__LOD1",
+              "tris": 22,
+              "maxM": 300.0
+            }
+          ]
+        },
+        "railing_2m": {
+          "size": [
+            2.0,
+            1.1,
+            0.1
+          ],
+          "lods": [
+            {
+              "node": "furniture__railing_2m__LOD0",
+              "tris": 110,
+              "maxM": 150.0
+            },
+            {
+              "node": "furniture__railing_2m__LOD1",
+              "tris": 40,
+              "maxM": 300.0
+            }
+          ]
+        }
+      }
+    },
+    "construction": {
+      "group": "kit",
+      "file": "kits/construction.glb",
+      "bytes": 171688,
+      "repeat": "none",
+      "frontage": "short",
+      "fit": {
+        "xz": [
+          0.75,
+          1.35
+        ],
+        "y": [
+          0.6,
+          1.6
+        ]
+      },
+      "decorative": true,
+      "placement": null,
+      "jitter": {},
+      "variantByGroup": {
+        "default": "tower_crane"
+      },
+      "palettes": {
+        "default": [
+          [
+            "#d8d6d0",
+            "#3d4147",
+            "#8a8f96"
+          ]
+        ]
+      },
+      "variants": {
+        "tower_crane": {
+          "size": [
+            53.0,
+            50.0,
+            4.0
+          ],
+          "lods": [
+            {
+              "node": "construction__tower_crane__LOD0",
+              "tris": 2634,
+              "maxM": 300.0
+            },
+            {
+              "node": "construction__tower_crane__LOD1",
+              "tris": 474,
+              "maxM": 1500.0
+            },
+            {
+              "node": "construction__tower_crane__LOD2",
+              "tris": 50,
+              "maxM": null
+            }
+          ]
+        },
+        "mobile_crane": {
+          "size": [
+            2.8,
+            4.0,
+            12.0
+          ],
+          "lods": [
+            {
+              "node": "construction__mobile_crane__LOD0",
+              "tris": 1462,
+              "maxM": 300.0
+            },
+            {
+              "node": "construction__mobile_crane__LOD1",
+              "tris": 402,
+              "maxM": 1500.0
+            },
+            {
+              "node": "construction__mobile_crane__LOD2",
+              "tris": 60,
+              "maxM": null
+            }
+          ]
+        },
+        "excavator": {
+          "size": [
+            3.0,
+            3.2,
+            9.0
+          ],
+          "lods": [
+            {
+              "node": "construction__excavator__LOD0",
+              "tris": 532,
+              "maxM": 300.0
+            },
+            {
+              "node": "construction__excavator__LOD1",
+              "tris": 151,
+              "maxM": 1500.0
+            },
+            {
+              "node": "construction__excavator__LOD2",
+              "tris": 60,
+              "maxM": null
+            }
+          ]
+        },
+        "cement_mixer": {
+          "size": [
+            2.5,
+            3.6,
+            8.5
+          ],
+          "lods": [
+            {
+              "node": "construction__cement_mixer__LOD0",
+              "tris": 1100,
+              "maxM": 300.0
+            },
+            {
+              "node": "construction__cement_mixer__LOD1",
+              "tris": 296,
+              "maxM": 1500.0
+            },
+            {
+              "node": "construction__cement_mixer__LOD2",
+              "tris": 40,
+              "maxM": null
+            }
+          ]
+        },
+        "site_cabin": {
+          "size": [
+            2.4,
+            2.6,
+            6.0
+          ],
+          "lods": [
+            {
+              "node": "construction__site_cabin__LOD0",
+              "tris": 202,
+              "maxM": 300.0
+            },
+            {
+              "node": "construction__site_cabin__LOD1",
+              "tris": 122,
+              "maxM": 1500.0
+            },
+            {
+              "node": "construction__site_cabin__LOD2",
+              "tris": 40,
+              "maxM": null
+            }
+          ]
+        },
+        "hoarding_6m": {
+          "size": [
+            6.0,
+            2.4,
+            0.2
+          ],
+          "lods": [
+            {
+              "node": "construction__hoarding_6m__LOD0",
+              "tris": 126,
+              "maxM": 300.0
+            },
+            {
+              "node": "construction__hoarding_6m__LOD1",
+              "tris": 60,
+              "maxM": 1500.0
+            },
+            {
+              "node": "construction__hoarding_6m__LOD2",
+              "tris": 40,
+              "maxM": null
+            }
+          ]
+        },
+        "scaffold_bay": {
+          "size": [
+            2.5,
+            6.0,
+            1.2
+          ],
+          "lods": [
+            {
+              "node": "construction__scaffold_bay__LOD0",
+              "tris": 410,
+              "maxM": 300.0
+            },
+            {
+              "node": "construction__scaffold_bay__LOD1",
+              "tris": 180,
+              "maxM": 1500.0
+            },
+            {
+              "node": "construction__scaffold_bay__LOD2",
+              "tris": 40,
+              "maxM": null
+            }
+          ]
+        },
+        "material_stack": {
+          "size": [
+            2.4,
+            1.2,
+            1.2
+          ],
+          "lods": [
+            {
+              "node": "construction__material_stack__LOD0",
+              "tris": 690,
+              "maxM": 300.0
+            },
+            {
+              "node": "construction__material_stack__LOD1",
+              "tris": 30,
+              "maxM": 1500.0
+            },
+            {
+              "node": "construction__material_stack__LOD2",
+              "tris": 20,
+              "maxM": null
+            }
+          ]
+        }
+      }
+    }
+  },
+  "landmarks": {
+    "lakeside_mall": {
+      "anchor": [
+        101.5099967,
+        3.181584
+      ]
+    }
+  }
+}

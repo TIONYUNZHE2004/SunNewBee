@@ -2,6 +2,7 @@ import copy
 import hashlib
 import json
 import logging
+import re
 import secrets
 import sqlite3
 from typing import Any, Literal
@@ -181,11 +182,17 @@ class BuildingsLayer(BaseModel):
     water: dict[str, Any] = {"type": "FeatureCollection", "features": []}
     # Display-only park/green outlines (OSM). Never a fact.
     parks: dict[str, Any] = {"type": "FeatureCollection", "features": []}
+    # Display-only land cover (ESA WorldCover / OSM), signage text and landmark markers. Signs
+    # are filtered server-side: no text, source_url or as_of means the sign is never served.
+    landcover: dict[str, Any] = {"type": "FeatureCollection", "features": []}
+    signage: dict[str, Any] = {"type": "FeatureCollection", "features": []}
+    landmarks: dict[str, Any] = {"type": "FeatureCollection", "features": []}
     as_of: str | None = None
     attribution: list[str] = []
 
 
-# (buildings mtime_ns, trees mtime_ns, site mtime_ns, data dir) -> (payload, etag)
+# (data dir, mtime_ns of landcover, signage, landmarks, buildings, trees, site, hydrology, parks)
+# -> (payload, etag)
 _buildings_cache: dict[tuple, tuple[BuildingsLayer, str]] = {}
 
 
@@ -220,6 +227,27 @@ def _polygons_only(fc: dict[str, Any]) -> dict[str, Any]:
     return {"type": "FeatureCollection", "features": keep}
 
 
+_SIGN_REQUIRED = ("text", "source_url", "as_of")
+# Mapper notes and placeholders are never sign text. Duplicated from data/scripts/build_signage.py
+# JUNK (the API does not import data/scripts); a test in data/scripts/tests keeps them equal.
+SIGN_JUNK = re.compile(r"unnamed|not osv|google maps|fixme|\btodo\b|\?|^\W*$", re.I)
+
+
+def _sourced_signs_only(fc: dict[str, Any]) -> dict[str, Any]:
+    """Honesty gate (ADR 0013): a sign without text, a source and an as-of date, or whose text is
+    a mapper note (SIGN_JUNK), is never served."""
+
+    def ok(f: Any) -> bool:
+        props = f.get("properties") if isinstance(f, dict) else None
+        if not isinstance(props, dict):
+            return False
+        if not all(isinstance(props.get(k), str) and props[k].strip() for k in _SIGN_REQUIRED):
+            return False
+        return not SIGN_JUNK.search(props["text"].strip())
+
+    return {"type": "FeatureCollection", "features": [f for f in fc["features"] if ok(f)]}
+
+
 @router.get(
     "/layers/buildings",
     response_model=BuildingsLayer,
@@ -239,8 +267,14 @@ def buildings_layer(request: Request, response: Response):
     site_path = data / "site.json"
     h_path = data / "base" / "hydrology.geojson"
     p_path = data / "base" / "parks.geojson"
+    lc_path = data / "base" / "landcover.geojson"
+    sg_path = data / "base" / "signage.geojson"
+    lm_path = data / "base" / "landmarks.geojson"
     key = (
         str(data),
+        _mtime(lc_path),
+        _mtime(sg_path),
+        _mtime(lm_path),
         _mtime(b_path),
         _mtime(t_path),
         _mtime(site_path),
@@ -258,6 +292,9 @@ def buildings_layer(request: Request, response: Response):
                 trees=_read_collection(t_path),
                 water=_polygons_only(_read_collection(h_path)),
                 parks=_polygons_only(_read_collection(p_path)),
+                landcover=_read_collection(lc_path),
+                signage=_sourced_signs_only(_read_collection(sg_path)),
+                landmarks=_read_collection(lm_path),
                 as_of=(site.get("buildings") or {}).get("as_of"),
                 attribution=list(site.get("attribution") or []),
             )
