@@ -2,10 +2,13 @@ import * as THREE from "three";
 import type { BuildingsLayer } from "../../../lib/api";
 import { type HeightOf, toBuildings } from "../cesium/stylised/model";
 import { type LonLat, waterPolygons } from "../geo";
+import type { FallbackColours } from "./fallbackStyle";
 import type { LocalFrame } from "./frame";
 
 export const PARK_Y = 0.05;
 export const WATER_Y = 0.08;
+/** Height of the trim (parapet) band at the top of a styled fallback building. */
+export const PARAPET_M = 0.6;
 const GROUND_MARGIN_M = 500;
 
 /** Display-only tints per OSM building kind. Illustrative, not facts about the buildings. */
@@ -157,13 +160,19 @@ function buildFlat(
  * `toBuildings` already drops MultiPolygons, rings with fewer than 3 distinct points and
  * non-finite coordinates; footprints the mesher still cannot use are skipped here and counted.
  * `only`: extrude just these building ids (the rest are drawn as instanced archetypes).
+ * `colours`: styled fallback (walls, roof cap, a PARAPET_M trim band). Each ring edge then adds
+ * one wall quad, so a building has 6 + 12 * edges vertices (30 + 6 * edges without it). Without
+ * `colours` the display-only KIND_COLOUR tan stays (no manifest).
  */
 export function buildCityGeometry(
   layer: BuildingsLayer | null | undefined,
   frame: LocalFrame,
-  opts: { only?: ReadonlySet<string> } = {},
+  opts: {
+    only?: ReadonlySet<string>;
+    colours?: (b: { id: string; kind: string }) => FallbackColours;
+  } = {},
 ): CityGeometry {
-  const { only } = opts;
+  const { only, colours } = opts;
   const { buildings, skipped: dropped } = toBuildings(layer?.buildings, displayHeight);
   let skipped = dropped;
   const mesh = new Mesh();
@@ -177,11 +186,16 @@ export function buildCityGeometry(
       skipped++;
       continue;
     }
-    const rgb = rgbOf(KIND_COLOUR[b.kind] ?? KIND_COLOUR.building!);
+    const styled = colours?.(b);
+    const rgb = rgbOf(styled?.wall ?? KIND_COLOUR[b.kind] ?? KIND_COLOUR.building!);
+    const roofRgb = styled ? rgbOf(styled.roof) : rgb;
+    const trimRgb = styled ? rgbOf(styled.trim) : rgb;
     const y0 = b.minHeight;
     const y1 = b.height;
+    // The band never takes more than half of a low wall.
+    const yb = styled ? y1 - Math.min(PARAPET_M, (y1 - y0) / 2) : y1;
     const roof = (n: number) => [ring[n]![0], y1, ring[n]![1]];
-    for (const [i, j, k] of tris) mesh.tri(roof(i), roof(j), roof(k), [0, 1, 0], rgb);
+    for (const [i, j, k] of tris) mesh.tri(roof(i), roof(j), roof(k), [0, 1, 0], roofRgb);
     for (let i = 0; i < ring.length; i++) {
       const [ax, az] = ring[i]!;
       const [bx, bz] = ring[(i + 1) % ring.length]!;
@@ -189,8 +203,12 @@ export function buildCityGeometry(
       if (len === 0) continue;
       // Counter-clockwise in (east, north): the outward side is to the right of the edge.
       const n = [-(bz - az) / len, 0, (bx - ax) / len];
-      mesh.tri([ax, y0, az], [bx, y0, bz], [bx, y1, bz], n, rgb);
-      mesh.tri([ax, y0, az], [bx, y1, bz], [ax, y1, az], n, rgb);
+      mesh.tri([ax, y0, az], [bx, y0, bz], [bx, yb, bz], n, rgb);
+      mesh.tri([ax, y0, az], [bx, yb, bz], [ax, yb, az], n, rgb);
+      if (yb < y1) {
+        mesh.tri([ax, yb, az], [bx, yb, bz], [bx, y1, bz], n, trimRgb);
+        mesh.tri([ax, yb, az], [bx, y1, bz], [ax, y1, az], n, trimRgb);
+      }
     }
   }
 

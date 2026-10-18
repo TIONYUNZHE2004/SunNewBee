@@ -492,7 +492,8 @@ describe("ThreeScene", () => {
       expect(engine.setAssets).toHaveBeenCalledTimes(1);
       // The full city first (no holes while loading), then only the plain building (one box).
       expect(vertsOf(engine, 0)).toBe(90);
-      expect(vertsOf(engine, -1)).toBe(30);
+      // 30 plus the styled fallback's trim band (6 per ring edge).
+      expect(vertsOf(engine, -1)).toBe(54);
       const inst = engine.setAssets.mock.calls[0]?.[0] as CityInstances;
       expect(inst.group).toBeInstanceOf(THREE.Group);
       expect(console.warn).not.toHaveBeenCalled();
@@ -504,6 +505,17 @@ describe("ThreeScene", () => {
       const s = screen.getByTestId("three-scene");
       await waitFor(() => expect(s).toHaveAttribute("data-assets", "ready"));
       expect(s).toHaveAttribute("data-instances", "2");
+    });
+
+    it("data-fallback is no_fit,generic_fill,no_archetype,no_asset from plan.stats.fallback", async () => {
+      serve({});
+      mount();
+      const s = screen.getByTestId("three-scene");
+      expect(s).toHaveAttribute("data-fallback", "0,0,0,0");
+      await waitFor(() => expect(s).toHaveAttribute("data-assets", "ready"));
+      // The plain building has no archetype; both links are placed.
+      expect(s).toHaveAttribute("data-fallback", "0,0,1,0");
+      expect(usePerfStats.getState().fallback).toEqual([0, 0, 1, 0]);
     });
 
     it.each([
@@ -730,8 +742,8 @@ describe("ThreeScene", () => {
         const { engine } = mount();
         const s = screen.getByTestId("three-scene");
         await waitFor(() => expect(s).toHaveAttribute("data-assets", "ready"));
-        // plain + s1 stay extruded (two boxes); l1 and l2 are instanced.
-        expect(vertsOf(engine, -1)).toBe(60);
+        // plain + s1 stay extruded (two boxes, 54 vertices each with the trim band); l1 and l2 are instanced.
+        expect(vertsOf(engine, -1)).toBe(108);
         expect(s).toHaveAttribute("data-instances", "2");
         expect(engine.setAssets).toHaveBeenCalledTimes(1);
         expect(console.warn).toHaveBeenCalledTimes(1);
@@ -752,8 +764,8 @@ describe("ThreeScene", () => {
         const { engine } = mount();
         const s = screen.getByTestId("three-scene");
         await waitFor(() => expect(s).toHaveAttribute("data-assets", "ready"));
-        // plain + s1 extruded (two boxes), not a hole; l1 and l2 instanced.
-        expect(vertsOf(engine, -1)).toBe(60);
+        // plain + s1 extruded (two boxes, 54 vertices each), not a hole; l1 and l2 instanced.
+        expect(vertsOf(engine, -1)).toBe(108);
         expect(s).toHaveAttribute("data-instances", "2");
         const inst = engine.setAssets.mock.calls[0]?.[0] as CityInstances;
         const names: string[] = [];

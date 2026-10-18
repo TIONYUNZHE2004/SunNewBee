@@ -80,6 +80,54 @@ describe("buildCityGeometry", () => {
     expect(walls).toBe(8);
   });
 
+  it("with colours: wall, roof cap and a 0.6 m trim band, 24 more vertices for a square", () => {
+    const colours = { wall: "#ff0000", roof: "#00ff00", trim: "#0000ff" };
+    const g = buildCityGeometry(
+      layer({ buildings: fc([feat(poly(square(0, 0)), { height_m: 9 })]) }),
+      frame,
+      { colours: () => colours },
+    );
+    const p = pos(g.buildings);
+    // Vertices = roof 2 tris (6) + per ring edge: wall quad + trim quad = 2 * 6 = 12 -> 6 + 12 * 4 = 54,
+    // i.e. the 30 of today plus 6 per ring edge (24 for a square).
+    expect(p.count).toBe(54);
+    const col = g.buildings.getAttribute("color");
+    const lin = (h: string) => new THREE.Color(h).toArray();
+    const seen = { wall: 0, roof: 0, trim: 0 };
+    for (let i = 0; i < p.count; i += 3) {
+      const rgb = [col.getX(i), col.getY(i), col.getZ(i)];
+      const y = [p.getY(i), p.getY(i + 1), p.getY(i + 2)];
+      const near = (c: string) => lin(c).every((v, k) => Math.abs(v - rgb[k]!) < 1e-5);
+      if (
+        y.every((v) => v === 9) &&
+        p.getY(i) === 9 &&
+        g.buildings.getAttribute("normal").getY(i) === 1
+      ) {
+        expect(near(colours.roof)).toBe(true);
+        seen.roof++;
+      } else if (Math.min(...y) >= 8.4 - 1e-6) {
+        expect(near(colours.trim)).toBe(true);
+        seen.trim++;
+      } else {
+        expect(near(colours.wall)).toBe(true);
+        seen.wall++;
+      }
+    }
+    expect(seen).toEqual({ roof: 2, trim: 8, wall: 8 });
+  });
+
+  it("without colours keeps the kind tan and the 30 vertices", () => {
+    const g = buildCityGeometry(
+      layer({ buildings: fc([feat(poly(square(0, 0)), { height_m: 9, kind: "commercial" })]) }),
+      frame,
+    );
+    expect(pos(g.buildings).count).toBe(30);
+    const col = g.buildings.getAttribute("color");
+    expect(new THREE.Color().fromBufferAttribute(col, 0).getHexString()).toBe(
+      new THREE.Color(KIND_COLOUR.commercial).getHexString(),
+    );
+  });
+
   it("prefers display_height_m over height_m, and falls back to height_m without it", () => {
     const g = buildCityGeometry(
       layer({

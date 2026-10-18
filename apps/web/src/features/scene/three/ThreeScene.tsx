@@ -31,6 +31,7 @@ import { createThreeCameraOps, type Pose, type ThreeCameraOps, VFOV_DEG } from "
 import { buildCityGeometry, type CityGeometry } from "./cityMesh";
 import { createEngine, type Engine } from "./engine";
 import { cesiumEngineHref } from "./engineChoice";
+import { fallbackColourFn } from "./fallbackStyle";
 import { createFrame, type LocalFrame } from "./frame";
 import { createFrameStats } from "./frameStats";
 import { boundsGoal, type CameraGoal, intentGoal } from "./intents";
@@ -158,6 +159,16 @@ function fitPose(b: { min: [number, number]; max: [number, number] }): Pose {
   };
 }
 
+type FallbackCounts = [number, number, number, number];
+const NO_FALLBACK: FallbackCounts = [0, 0, 0, 0];
+/** no_fit, generic_fill, no_archetype, no_asset (the order of `data-fallback` and `fb` on the perf line). */
+const fallbackCounts = (f: Record<string, number>): FallbackCounts => [
+  f.no_fit ?? 0,
+  f.generic_fill ?? 0,
+  f.no_archetype ?? 0,
+  f.no_asset ?? 0,
+];
+
 const geometryBytes = (g: CityGeometry) => {
   let n = 0;
   for (const geo of [g.buildings, g.parks, g.water])
@@ -187,6 +198,7 @@ export default function ThreeScene({
   const [assetsState, setAssetsState] = useState<AssetsState>(assetsOn ? "loading" : "off");
   const [loaded, setLoaded] = useState<LoadedAssets | null>(null);
   const [instances, setInstances] = useState(0);
+  const [fallback, setFallback] = useState<FallbackCounts>(NO_FALLBACK);
   const roleUniforms = useMemo(createRoleUniforms, []);
   /** True while the engine holds instances built from the current library. */
   const handedOff = useRef(false);
@@ -318,7 +330,8 @@ export default function ThreeScene({
       const g = buildCityGeometry(buildings, frame);
       engine.setCity(g);
       setInstances(0);
-      usePerfStats.getState().update({ gpuMB: geometryBytes(g) / MB });
+      setFallback(NO_FALLBACK);
+      usePerfStats.getState().update({ gpuMB: geometryBytes(g) / MB, fallback: NO_FALLBACK });
     };
     if (!loaded) {
       full();
@@ -331,7 +344,10 @@ export default function ThreeScene({
         ? showroomPlan(m, frame.toLocal(HERO_CENTRE[0], HERO_CENTRE[1]))
         : planCity(buildings, frame, manifest, lib.has);
       const inst = createCityInstances(lib, plan, m, roleUniforms);
-      const g = buildCityGeometry(buildings, frame, { only: plan.extrude });
+      const g = buildCityGeometry(buildings, frame, {
+        only: plan.extrude,
+        colours: showroom ? undefined : fallbackColourFn(buildings.buildings, m),
+      });
       engine.setCity(g);
       engine.setAssets(inst);
       handedOff.current = true;
@@ -341,7 +357,10 @@ export default function ThreeScene({
       }
       setInstances(plan.stats.units + plan.landmarks.length);
       setAssetsState("ready");
+      const fb = fallbackCounts(plan.stats.fallback);
+      setFallback(fb);
       usePerfStats.getState().update({
+        fallback: fb,
         gpuMB: (geometryBytes(g) + lib.gpuBytes() + inst.stats().gpuBytes) / MB,
       });
     } catch (err) {
@@ -514,6 +533,7 @@ export default function ThreeScene({
       data-route={routeOn ? "on" : "off"}
       data-assets={assetsState}
       data-instances={instances}
+      data-fallback={fallback.join(",")}
       className="relative h-full w-full"
       style={{ background: LIGHT_PRESETS[theme].background }}
       // biome-ignore lint/a11y/noNoninteractiveTabindex: the 3D map takes keyboard focus for WASD/QE/RF
