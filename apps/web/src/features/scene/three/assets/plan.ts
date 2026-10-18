@@ -1,6 +1,9 @@
 import type { BuildingsLayer } from "../../../../lib/api";
 import { toBuildings } from "../../cesium/stylised/model";
-import { displayHeight } from "../cityMesh";
+import { displayHeight, type Footprint } from "../cityMesh";
+import type { FacadeBuilding } from "../facade/facadeLayer";
+import { facadeFor } from "../facade/facadePlan";
+import { propsByBuildingId } from "../fallbackStyle";
 import type { LocalFrame } from "../frame";
 import type { Placement } from "./fit";
 import { fitArchetype, footprintObb, paletteFor, precinctGroupOf, variantFor } from "./fit";
@@ -9,7 +12,10 @@ import type { Manifest } from "./manifest";
 export interface CityPlan {
   /** Key `${asset}/${variant}`. */
   placements: Map<string, Placement[]>;
-  /** Building ids that stay extruded. */
+  /**
+   * Building ids that stay extruded. Every one of them gets a procedural facade (decorative; Low
+   * tier draws none), including `generic` placements that would have been stretched.
+   */
   extrude: Set<string>;
   landmarks: Placement[];
   stats: { placed: number; units: number; fallback: Record<string, number> };
@@ -17,6 +23,12 @@ export interface CityPlan {
 
 const GENERIC = "generic";
 const GENERIC_MIN_FILL = 0.85;
+/**
+ * A `generic` box is only placed when neither horizontal scale leaves this band. Outside it the
+ * box would read as stretched, so the building is extruded with a facade instead (`generic_stretch`).
+ */
+export const GENERIC_UNSTRETCHED: [number, number] = [0.8, 1.25];
+const unstretched = (s: number) => s >= GENERIC_UNSTRETCHED[0] && s <= GENERIC_UNSTRETCHED[1];
 export const LANDMARK_FIT = { xz: [0.5, 2], y: [0.5, 2] } as {
   xz: [number, number];
   y: [number, number];
@@ -171,6 +183,11 @@ export function planCity(
       fb("no_fit");
       continue;
     }
+    if (asset === GENERIC && units.some((u) => !unstretched(u.sx) || !unstretched(u.sz))) {
+      plan.extrude.add(b.id);
+      fb("generic_stretch");
+      continue;
+    }
     const key = `${asset}/${variant}`;
     const list = plan.placements.get(key) ?? [];
     for (const u of units) list.push({ ...u, asset });
@@ -179,4 +196,36 @@ export function planCity(
     plan.stats.units += units.length;
   }
   return plan;
+}
+
+/**
+ * The facade layer's input for the drawn extrusions (`buildCityGeometry(...).footprints`): the same
+ * local ring, display height and base the extrusion uses, plus `facadeFor` with the feature's
+ * archetype and precinct. Pure. Decorative only: nothing here changes a footprint or a height.
+ */
+export function facadeInputs(
+  footprints: readonly Footprint[],
+  layer: BuildingsLayer | null | undefined,
+  m: Manifest | null,
+): FacadeBuilding[] {
+  const props = propsByBuildingId(layer?.buildings);
+  const str = (v: unknown) => (typeof v === "string" && v ? v : undefined);
+  return footprints.map((f) => {
+    const p = props.get(f.id);
+    return {
+      ring: f.ring,
+      heightM: f.heightM,
+      minHeightM: f.minHeightM,
+      spec: facadeFor(
+        {
+          id: f.id,
+          heightM: f.heightM,
+          kind: f.kind,
+          archetype: str(p?.archetype),
+          precinct: str(p?.precinct),
+        },
+        m,
+      ),
+    };
+  });
 }

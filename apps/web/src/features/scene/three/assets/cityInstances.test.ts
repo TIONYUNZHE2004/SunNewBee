@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { describe, expect, it, vi } from "vitest";
-import { buildingIdOf, createCityInstances, lodFor } from "./cityInstances";
+import { buildingIdOf, createCityInstances, type LodBucket, lodFor } from "./cityInstances";
 import type { Placement } from "./fit";
 import type { AssetLibrary } from "./library";
 import type { Manifest } from "./manifest";
@@ -412,5 +412,193 @@ describe("setKits", () => {
     expect(named(c, "k__")).toHaveLength(0);
     expect(c.aoExcluded()).toEqual([]);
     expect(c.stats().instances).toBe(0);
+  });
+});
+
+describe("tile-bucketed LOD updates", () => {
+  // A seeded synthetic township: 4 km square, ~15% archetypes, the rest kits with finite last LODs.
+  const rng = (seed: number) => () => {
+    seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+    return seed / 2 ** 32;
+  };
+  const synth = () => {
+    const r = rng(7);
+    const mk = (asset: string, n: number): [string, Placement[]] => [
+      `${asset}/v`,
+      Array.from({ length: n }, (_, i) => ({
+        ...pl(asset, i),
+        x: (r() - 0.5) * 4000,
+        z: (r() - 0.5) * 4000,
+      })),
+    ];
+    const m = manifest();
+    for (const k of ["k", "trees", "people", "vehicles"])
+      (m.assets[k] as ReturnType<typeof spec>).variants.v.lods = [
+        { node: "k__v__LOD0", tris: 12, maxM: 80 },
+        { node: "k__v__LOD1", tris: 12, maxM: 300 },
+      ];
+    const archetypes = mk("a", 1200);
+    const kits = new Map([mk("trees", 3000), mk("people", 1800), mk("vehicles", 2000)]);
+    const all = [archetypes, ...kits];
+    const city = (): CityPlan => ({
+      placements: new Map([archetypes]),
+      extrude: new Set(),
+      landmarks: [],
+      stats: { placed: 1200, units: 1200, fallback: {} },
+    });
+    return { m, city, kits, all, total: 8000 };
+  };
+  const lodsById = (c: ReturnType<typeof createCityInstances>) => {
+    const out = new Map<string, number>();
+    for (const mesh of meshesOf(c)) {
+      const ids = mesh.userData.ids as string[];
+      for (let i = 0; i < mesh.count; i++)
+        out.set(`${mesh.name.split("__")[0]}:${ids[i]}`, mesh.userData.lod);
+    }
+    return out;
+  };
+  const TOWNSHIP = new THREE.Vector3(0, 1400, 1400);
+  const HERO_NEAR = new THREE.Vector3(-300, 120, 200);
+
+  it("visitedPerTick stays under 25% at the township view and 10% at hero-near", () => {
+    const s = synth();
+    const c = createCityInstances(lib(), s.city(), s.m, createRoleUniforms(), {
+      kits: s.kits,
+      motion: createMotionUniforms(),
+    });
+    c.update(TOWNSHIP);
+    expect(c.stats().visitedPerTick).toBe(s.total); // the first tick sets everything
+    c.update(TOWNSHIP);
+    const township = c.stats().visitedPerTick / s.total;
+    c.update(HERO_NEAR);
+    c.update(HERO_NEAR);
+    const hero = c.stats().visitedPerTick / s.total;
+    expect(township).toBeLessThan(0.25);
+    expect(hero).toBeLessThan(0.1);
+  });
+
+  it("LOD results equal the old full loop for 500 sampled placements along a camera path", () => {
+    const s = synth();
+    const c = createCityInstances(lib(), s.city(), s.m, createRoleUniforms(), {
+      kits: s.kits,
+      motion: createMotionUniforms(),
+    });
+    const r = rng(11);
+    const sample: [string, Placement][] = [];
+    const flat = s.all.flatMap(([k, l]) =>
+      l.map((p) => [k.split("/")[0] as string, p] as [string, Placement]),
+    );
+    while (sample.length < 500)
+      sample.push(flat[Math.floor(r() * flat.length)] as [string, Placement]);
+    const lodsOf = (asset: string) =>
+      (s.m.assets[asset] as ReturnType<typeof spec>).variants.v.lods;
+    const prev = new Map<string, LodBucket | undefined>();
+    const path = [
+      TOWNSHIP,
+      HERO_NEAR,
+      new THREE.Vector3(-290, 120, 210),
+      new THREE.Vector3(900, 60, -400),
+      new THREE.Vector3(895, 400, -380),
+      TOWNSHIP,
+      new THREE.Vector3(-1800, 30, 1700),
+      HERO_NEAR,
+    ];
+    for (const cam of path) {
+      c.update(cam);
+      const got = lodsById(c);
+      for (const [asset, p] of sample) {
+        const id = `${asset}:${p.id}`;
+        const d = Math.hypot(p.x - cam.x, cam.y, p.z - cam.z);
+        const ref = lodFor(d, lodsOf(asset), prev.get(id));
+        prev.set(id, ref);
+        expect(got.get(id) ?? -1).toBe(ref);
+      }
+    }
+  });
+
+  it("a frustum skips tiles outside it without changing draw counts, and they catch up when seen", () => {
+    const s = synth();
+    const c = createCityInstances(lib(), s.city(), s.m, createRoleUniforms(), {
+      kits: s.kits,
+      motion: createMotionUniforms(),
+    });
+    c.update(TOWNSHIP);
+    const meshes = c.stats().meshes;
+    const cam = new THREE.PerspectiveCamera(50, 1.5, 1, 6000);
+    cam.position.copy(HERO_NEAR);
+    cam.lookAt(-300, 0, -2000);
+    cam.updateMatrixWorld(true);
+    const f = new THREE.Frustum().setFromProjectionMatrix(
+      new THREE.Matrix4().multiplyMatrices(cam.projectionMatrix, cam.matrixWorldInverse),
+    );
+    c.update(HERO_NEAR, f);
+    const culled = c.stats();
+    expect(culled.meshes).toBe(meshes);
+    c.update(HERO_NEAR);
+    const full = c.stats();
+    expect(full.meshes).toBe(meshes);
+    const ref = createCityInstances(lib(), s.city(), s.m, createRoleUniforms(), {
+      kits: s.kits,
+      motion: createMotionUniforms(),
+    });
+    ref.update(TOWNSHIP);
+    ref.update(HERO_NEAR);
+    expect(culled.visitedPerTick).toBeLessThan(ref.stats().visitedPerTick);
+    expect(lodsById(c)).toEqual(lodsById(ref));
+  });
+
+  it("setKits applies to the tile buckets too, at the last camera", () => {
+    const s = synth();
+    const c = createCityInstances(lib(), s.city(), s.m, createRoleUniforms(), {
+      motion: createMotionUniforms(),
+    });
+    c.update(HERO_NEAR);
+    c.setKits(s.kits);
+    c.update(HERO_NEAR);
+    const near = c.stats().visitedPerTick;
+    expect(near).toBeLessThan(800);
+    const ref = createCityInstances(lib(), s.city(), s.m, createRoleUniforms(), {
+      kits: s.kits,
+      motion: createMotionUniforms(),
+    });
+    ref.update(HERO_NEAR);
+    expect(lodsById(c)).toEqual(lodsById(ref));
+  });
+});
+
+describe("setKits failure", () => {
+  it("a throw while building the new kits leaves no stale kit state behind", () => {
+    const base = lib();
+    let boom = false;
+    const l: AssetLibrary = {
+      ...base,
+      geometry(a, v, lod) {
+        if (boom && a === "people") throw new Error("boom");
+        return base.geometry(a, v, lod);
+      },
+    };
+    const mk = (a: string) => new Map([[`${a}/v`, [pl(a, 0), pl(a, 1)]]]);
+    const c = createCityInstances(l, plan("a"), manifest(), createRoleUniforms(), {
+      kits: mk("k"),
+      motion: createMotionUniforms(),
+    });
+    c.update(new THREE.Vector3());
+    const oldKits = meshesOf(c).filter((m) => m.name.startsWith("k__"));
+    let disposed = 0;
+    for (const m of oldKits) m.addEventListener("dispose", () => disposed++);
+    boom = true;
+    expect(() => c.setKits(mk("people"))).toThrow("boom");
+    expect(disposed).toBe(oldKits.length);
+    expect(meshesOf(c).some((m) => m.name.startsWith("k__"))).toBe(false);
+    expect(c.aoExcluded().some((m) => m.name.startsWith("k__"))).toBe(false);
+    // Nothing writes to or re-releases the old kits; a later setKits and dispose are clean.
+    expect(() => c.update(new THREE.Vector3(5, 0, 0))).not.toThrow();
+    expect(c.stats().instances).toBe(10);
+    boom = false;
+    c.setKits(mk("trees"));
+    expect(meshesOf(c).filter((m) => m.name.startsWith("trees__"))).toHaveLength(3);
+    expect(disposed).toBe(oldKits.length);
+    c.dispose();
+    expect(disposed).toBe(oldKits.length);
   });
 });

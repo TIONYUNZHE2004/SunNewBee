@@ -61,10 +61,24 @@ const link = (id: string, cx: number) => ({
     precinct: "Elmina Valley 2",
   },
 });
+/** A 12 m square with no archetype: always extruded, so it gets a procedural facade. */
+const block = (id: string) => ({
+  type: "Feature",
+  geometry: {
+    type: "Polygon",
+    coordinates: local([
+      [0, 200],
+      [12, 200],
+      [12, 212],
+      [0, 212],
+    ]),
+  },
+  properties: { id, kind: "commercial", height_m: 9.6 },
+});
 const fc = (features: unknown[] = []) => ({ type: "FeatureCollection", features });
 const CITY = {
   attribution: [],
-  buildings: fc([link("l1", 50), link("l2", 80)]),
+  buildings: fc([link("l1", 50), link("l2", 80), block("x1")]),
   parks: fc(),
   water: fc(),
   trees: fc(),
@@ -145,6 +159,7 @@ function fakeEngine() {
   return {
     setCity: vi.fn(),
     setAssets: vi.fn(),
+    setDecor: vi.fn(),
     requestRender: vi.fn(),
     motion: createMotionUniforms(),
     rig: { set: vi.fn() },
@@ -224,5 +239,82 @@ describe("useCityAssets: one city build", () => {
     // No archetype bucket was rebuilt: no archetype geometry lookups, the same mesh objects.
     expect(geometry.mock.calls.some(([a]) => a === "link_intermediate")).toBe(false);
     expect(archetypes()).toEqual(before);
+  });
+});
+
+type Decor = { group: THREE.Object3D; dispose(): void } | null;
+const facadeCalls = (engine: ReturnType<typeof fakeEngine>): Decor[] =>
+  engine.setDecor.mock.calls.filter(([slot]) => slot === "facades").map(([, d]) => d as Decor);
+
+describe("useCityAssets: procedural facades", () => {
+  it("hands one facade layer for the extruded buildings to the 'facades' slot; tier rebuilds, Low and unmount clear", async () => {
+    const { lib } = boxLibrary();
+    libSpy.lib = lib;
+    const engine = fakeEngine();
+    const { result, rerender, unmount } = mount(engine, "medium");
+    await waitFor(() => expect(result.current.assetsState).toBe("ready"));
+    await waitFor(() => expect(facadeCalls(engine).some((d) => d !== null)).toBe(true));
+    const first = facadeCalls(engine).filter((d) => d !== null);
+    expect(first).toHaveLength(1);
+    const layer = first[0]!;
+    expect(layer.group.userData.decorative).toBe(true);
+    expect(layer.group.children.length).toBeGreaterThan(0);
+    // Facades are decorative: the scene's "Decorative details are illustrative." chip must show.
+    expect(result.current.decorAssets).toBe(true);
+    expect(result.current.plan?.extrude.has("x1")).toBe(true);
+    // A kits change never rebuilds the facades.
+    act(() => result.current.setKits(kitsOf("a")));
+    expect(facadeCalls(engine).filter((d) => d !== null)).toHaveLength(1);
+
+    rerender({ tier: "high" });
+    await waitFor(() => expect(facadeCalls(engine).filter((d) => d !== null)).toHaveLength(2));
+    const high = facadeCalls(engine).at(-1);
+    expect(high).not.toBe(layer);
+    expect(built.calls).toBe(1);
+
+    rerender({ tier: "low" });
+    await waitFor(() => expect(facadeCalls(engine).at(-1)).toBeNull());
+    expect(result.current.decorAssets).toBe(false);
+    expect(facadeCalls(engine).filter((d) => d !== null)).toHaveLength(2);
+
+    rerender({ tier: "medium" });
+    await waitFor(() => expect(facadeCalls(engine).filter((d) => d !== null)).toHaveLength(3));
+    unmount();
+    expect(facadeCalls(engine).at(-1)).toBeNull();
+  });
+
+  it("an engine switch drops the previous kits: the next build has none until setKits again", async () => {
+    const { lib } = boxLibrary();
+    libSpy.lib = lib;
+    const a = fakeEngine();
+    const b = fakeEngine();
+    const { result, rerender } = renderHook(
+      (p: { engine: ReturnType<typeof fakeEngine> }) =>
+        useCityAssets({
+          engine: p.engine as unknown as Engine,
+          frame,
+          buildings: CITY as never,
+          tier: "medium",
+          assetsOn: true,
+          showroom: false,
+          roleUniforms,
+        }),
+      { initialProps: { engine: a } },
+    );
+    act(() => result.current.setKits(kitsOf("a")));
+    await waitFor(() => expect(result.current.assetsState).toBe("ready"));
+    const furniture = (inst: CityInstances | null) =>
+      !!inst?.group.children.some((m) => m.name.startsWith("furniture__"));
+    expect(furniture(built.last)).toBe(true);
+
+    rerender({ engine: b });
+    await waitFor(() => expect(b.setAssets).toHaveBeenCalled());
+    // React runs the old library's cleanup before the new engine's build effect, so every build
+    // for the new engine starts without the old kits.
+    expect(built.calls).toBeGreaterThanOrEqual(2);
+    expect(furniture(built.last)).toBe(false);
+    // The old engine's facades were cleared, the new engine got its own.
+    expect(facadeCalls(a).at(-1)).toBeNull();
+    await waitFor(() => expect(facadeCalls(b).some((d) => d !== null)).toBe(true));
   });
 });

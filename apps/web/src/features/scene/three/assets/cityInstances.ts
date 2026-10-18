@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { tileAt } from "../stream/tiles";
 import type { Placement } from "./fit";
 import type { AssetLibrary } from "./library";
 import type { Manifest } from "./manifest";
@@ -20,12 +21,15 @@ const KIT_KIND: Record<string, RoleKind> = {
 
 export type LodBucket = 0 | 1 | 2 | -1;
 
+/** Hysteresis fraction of `lodFor`. */
+const LOD_HYSTERESIS = 0.1;
+
 /** LOD for a distance with hysteresis: out needs d > maxM*(1+h), back in needs d < maxM*(1-h). -1 = hidden. */
 export function lodFor(
   d: number,
   lods: { maxM: number | null }[],
   prev: LodBucket | undefined,
-  h = 0.1,
+  h = LOD_HYSTERESIS,
 ): LodBucket {
   const n = lods.length;
   let b = prev === undefined ? 0 : prev < 0 ? n : prev;
@@ -61,11 +65,23 @@ export interface CityInstances {
    * with `buildingIdOf`. `userData.lod` is the LOD index.
    */
   group: THREE.Group;
-  /** Re-bucket by camera position; rebuilds only the InstancedMeshes whose membership changed. Returns how many. */
-  update(camera: THREE.Vector3): number;
+  /**
+   * Re-bucket by camera position; rebuilds only the InstancedMeshes whose membership changed. Returns how many.
+   * Placements are bucketed into the 250 m tiles: a tile whose LOD cannot change at this camera is not
+   * visited. With `frustum`, tiles wholly outside it are not visited either (their instance writes wait
+   * until they are seen again); no mesh is removed from the scene, so draw counts do not change.
+   */
+  update(camera: THREE.Vector3, frustum?: THREE.Frustum): number;
   /** Visible LOD2 meshes, which the engine leaves out of the GTAO normal/depth pass. */
   aoExcluded(): THREE.Object3D[];
-  stats(): { instances: number; meshes: number; visibleMeshes: number; gpuBytes: number };
+  stats(): {
+    instances: number;
+    meshes: number;
+    visibleMeshes: number;
+    gpuBytes: number;
+    /** Placements looped over by the last `update` (tile-skipped ones are not counted). */
+    visitedPerTick: number;
+  };
   /**
    * Replaces the kit buckets (props) with `kits`, their LOD distances scaled by `kitLodScale`
    * (default 1). Archetype and landmark meshes are kept as they are; the old kit meshes are
@@ -80,8 +96,21 @@ interface Bucket {
   pal: THREE.InstancedBufferAttribute[];
   lod: number;
 }
+/** The placements of one key inside one 250 m tile. */
+interface KeyTile {
+  x0: number;
+  z0: number;
+  x1: number;
+  z1: number;
+  idx: Int32Array;
+  /** Raw LOD every placement had after the last visit, or UNSET when mixed or never visited. */
+  uni: number;
+}
 interface Key {
   list: Placement[];
+  tiles: KeyTile[];
+  /** Per raw LOD (index = raw, hidden = lods.length): the distance band in which it cannot change. */
+  stay: { lo: number; hi: number }[];
   lods: { maxM: number | null }[];
   /** Current bucket per placement; UNSET before the first update. */
   cur: Int8Array;
@@ -107,6 +136,49 @@ function compose(p: Placement, out: THREE.Matrix4) {
   _q.setFromAxisAngle(_y, p.yaw);
   return out.compose(_p.set(p.x, 0, p.z), _q, _s.set(p.sx, p.sy, p.sz));
 }
+
+/** Placements grouped by 250 m tile (x, z only). */
+function tilesOf(list: Placement[]): KeyTile[] {
+  const by = new Map<string, { t: ReturnType<typeof tileAt>; idx: number[] }>();
+  for (let i = 0; i < list.length; i++) {
+    const p = list[i] as Placement;
+    const t = tileAt(p.x, p.z);
+    const e = by.get(t.key);
+    if (e) e.idx.push(i);
+    else by.set(t.key, { t, idx: [i] });
+  }
+  return [...by.values()].map(({ t, idx }) => ({
+    ...t.box,
+    idx: Int32Array.from(idx),
+    uni: UNSET,
+  }));
+}
+
+/**
+ * For a placement whose raw LOD is `b` (hidden = lods.length), the camera distances at which `lodFor`
+ * returns `b` again: both of its hysteresis loops stop at once.
+ */
+function stayBands(lods: { maxM: number | null }[], h = LOD_HYSTERESIS) {
+  const n = lods.length;
+  const out: { lo: number; hi: number }[] = [];
+  for (let b = 0; b <= n; b++) {
+    const mb = b < n ? lods[b]?.maxM : null;
+    const mp = b > 0 ? lods[b - 1]?.maxM : null;
+    out.push({
+      lo: mp == null ? 0 : mp * (1 - h),
+      hi: b >= n || mb == null ? Number.POSITIVE_INFINITY : mb * (1 + h),
+    });
+  }
+  return out;
+}
+
+/** Margin so float rounding in hypot can never let a tile skip when a placement would change. */
+const SKIP_EPS = 1e-6;
+const _box = new THREE.Box3();
+const _bmin = new THREE.Vector3();
+const _bmax = new THREE.Vector3();
+/** Instances are at most this tall (m) for the tile frustum test. */
+const TILE_TOP_M = 250;
 
 export function createCityInstances(
   lib: AssetLibrary,
@@ -151,12 +223,15 @@ export function createCityInstances(
     const vspec = spec?.variants[variant];
     if (!spec || !vspec || list.length === 0) return null;
     const lodScale = spec.group === "kit" ? kitLodScale : 1;
+    const lods =
+      lodScale === 1
+        ? vspec.lods
+        : vspec.lods.map((l) => ({ ...l, maxM: l.maxM == null ? null : l.maxM * lodScale }));
     const key: Key = {
       list,
-      lods:
-        lodScale === 1
-          ? vspec.lods
-          : vspec.lods.map((l) => ({ ...l, maxM: l.maxM == null ? null : l.maxM * lodScale })),
+      lods,
+      tiles: tilesOf(list),
+      stay: stayBands(lods),
       cur: new Int8Array(list.length).fill(UNSET),
       raw: new Int8Array(list.length).fill(UNSET),
       resolve: [],
@@ -213,9 +288,20 @@ export function createCityInstances(
 
   const buildKeys = (entries: Iterable<[string, Placement[]]>, kitLodScale: number) => {
     const out: Key[] = [];
-    for (const [keyStr, list] of entries) {
-      const key = buildKey(keyStr, list, kitLodScale);
-      if (key) out.push(key);
+    try {
+      for (const [keyStr, list] of entries) {
+        const key = buildKey(keyStr, list, kitLodScale);
+        if (key) out.push(key);
+      }
+    } catch (e) {
+      // Do not leave the keys built so far in the group, unowned.
+      for (const key of out)
+        for (const b of key.buckets)
+          if (b) {
+            group.remove(b.mesh);
+            releaseBucket(b);
+          }
+      throw e;
     }
     return out;
   };
@@ -278,23 +364,48 @@ export function createCityInstances(
     b.mesh.boundingBox = null;
   }
 
-  /** One key's re-bucketing for a camera position; returns how many meshes it rebuilt. */
-  function updateKey(key: Key, camera: THREE.Vector3) {
+  /** One key's re-bucketing for a camera position; visits only the tiles whose LOD can change. */
+  function updateKey(key: Key, camera: THREE.Vector3, frustum?: THREE.Frustum) {
     let rebuilt = 0;
     const dirty = new Set<number>();
-    for (let i = 0; i < key.list.length; i++) {
-      const p = key.list[i] as Placement;
-      const d = Math.hypot(p.x - camera.x, camera.y, p.z - camera.z);
-      const rawPrev = key.raw[i] as number;
-      const raw = lodFor(d, key.lods, rawPrev === UNSET ? undefined : (rawPrev as LodBucket));
-      key.raw[i] = raw;
-      const prev = key.cur[i] as number;
-      const next = raw < 0 ? -1 : (key.resolve[raw] ?? -1);
-      if (next !== prev) {
-        key.cur[i] = next;
-        dirty.add(prev);
-        dirty.add(next);
+    for (const t of key.tiles) {
+      const dxMin = Math.max(t.x0 - camera.x, 0, camera.x - t.x1);
+      const dzMin = Math.max(t.z0 - camera.z, 0, camera.z - t.z1);
+      if (t.uni !== UNSET) {
+        const dxMax = Math.max(Math.abs(camera.x - t.x0), Math.abs(camera.x - t.x1));
+        const dzMax = Math.max(Math.abs(camera.z - t.z0), Math.abs(camera.z - t.z1));
+        const band = key.stay[t.uni < 0 ? key.lods.length : t.uni] as { lo: number; hi: number };
+        const dMin = Math.hypot(dxMin, camera.y, dzMin);
+        const dMax = Math.hypot(dxMax, camera.y, dzMax);
+        if (dMin >= band.lo + SKIP_EPS && dMax <= band.hi - SKIP_EPS) continue;
       }
+      if (
+        frustum &&
+        !frustum.intersectsBox(
+          _box.set(_bmin.set(t.x0, -1, t.z0), _bmax.set(t.x1, TILE_TOP_M, t.z1)),
+        )
+      )
+        continue;
+      visited += t.idx.length;
+      let uni = UNSET as number;
+      let mixed = false;
+      for (const i of t.idx) {
+        const p = key.list[i] as Placement;
+        const d = Math.hypot(p.x - camera.x, camera.y, p.z - camera.z);
+        const rawPrev = key.raw[i] as number;
+        const raw = lodFor(d, key.lods, rawPrev === UNSET ? undefined : (rawPrev as LodBucket));
+        key.raw[i] = raw;
+        if (uni === UNSET) uni = raw;
+        else if (uni !== raw) mixed = true;
+        const prev = key.cur[i] as number;
+        const next = raw < 0 ? -1 : (key.resolve[raw] ?? -1);
+        if (next !== prev) {
+          key.cur[i] = next;
+          dirty.add(prev);
+          dirty.add(next);
+        }
+      }
+      t.uni = mixed ? UNSET : uni;
     }
     for (const lod of dirty) {
       const b = key.buckets[lod];
@@ -316,6 +427,9 @@ export function createCityInstances(
     g.dispose();
   }
 
+  /** Placements looped over in the current / last `update`. */
+  let visited = 0;
+  let lastVisited = 0;
   const farOf = () =>
     [...keys, ...kitKeys].flatMap((k) => (k.buckets[2] ? [k.buckets[2].mesh] : []));
   let far = farOf();
@@ -325,15 +439,21 @@ export function createCityInstances(
   return {
     group,
     aoExcluded: () => far.filter((m) => m.visible),
-    update(camera) {
+    update(camera, frustum) {
       lastCamera = (lastCamera ?? new THREE.Vector3()).copy(camera);
       let rebuilt = 0;
-      for (const key of keys) rebuilt += updateKey(key, camera);
-      for (const key of kitKeys) rebuilt += updateKey(key, camera);
+      visited = 0;
+      for (const key of keys) rebuilt += updateKey(key, camera, frustum);
+      for (const key of kitKeys) rebuilt += updateKey(key, camera, frustum);
+      lastVisited = visited;
       return rebuilt;
     },
     setKits(kits, kitLodScale = 1) {
-      for (const key of kitKeys)
+      const old = kitKeys;
+      // Forget the old kits first: if building the new ones throws, nothing may point at released buckets.
+      kitKeys = [];
+      far = farOf();
+      for (const key of old)
         for (const b of key.buckets) {
           if (!b) continue;
           group.remove(b.mesh);
@@ -341,6 +461,7 @@ export function createCityInstances(
         }
       kitKeys = buildKeys(kits ?? [], kitLodScale);
       far = farOf();
+      visited = 0;
       if (lastCamera) for (const key of kitKeys) updateKey(key, lastCamera);
     },
     stats() {
@@ -357,7 +478,7 @@ export function createCityInstances(
           gpuBytes += b.mesh.instanceMatrix.array.byteLength;
           for (const a of b.pal) gpuBytes += a.array.byteLength;
         }
-      return { instances, meshes, visibleMeshes, gpuBytes };
+      return { instances, meshes, visibleMeshes, gpuBytes, visitedPerTick: lastVisited };
     },
     dispose() {
       for (const key of [...keys, ...kitKeys]) for (const b of key.buckets) if (b) releaseBucket(b);

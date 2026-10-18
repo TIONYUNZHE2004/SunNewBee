@@ -1,9 +1,11 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import type { BuildingsLayer } from "../../../../lib/api";
+import { buildCityGeometry } from "../cityMesh";
+import { facadeFor } from "../facade/facadePlan";
 import { createFrame } from "../frame";
 import { type AssetSpec, type Manifest, parseManifest } from "./manifest";
-import { LANDMARK_FIT, planCity } from "./plan";
+import { facadeInputs, GENERIC_UNSTRETCHED, LANDMARK_FIT, planCity } from "./plan";
 
 const readJson = (rel: string) => JSON.parse(readFileSync(new URL(rel, import.meta.url), "utf8"));
 
@@ -270,5 +272,76 @@ describe("planCity", () => {
       expect(p.landmarks).toHaveLength(0);
       expect(p.stats.placed).toBe(0);
     }
+  });
+
+  describe("generic placements that would be stretched become extrusions with a facade", () => {
+    // The real manifest's generic band (0.3..4) accepts a 2x stretch; the facade path takes it instead.
+    const wide = (): Manifest => {
+      const m = manifest();
+      m.assets.generic = { ...m.assets.generic!, fit: { xz: [0.3, 4], y: [0.6, 1.6] } };
+      return m;
+    };
+    const generic = (id: string, w: number, l: number, cx = 0) =>
+      feat({ id, archetype: "generic", height_m: 9, kind: "commercial" }, poly(cx, 0, w, l));
+
+    it("the unstretched band is 0.8..1.25", () => {
+      expect(GENERIC_UNSTRETCHED).toEqual([0.8, 1.25]);
+    });
+    it("a generic with sz 2.0 is extruded (generic_stretch), not placed as a stretched box", () => {
+      // 10 m frontage (short side) x 20 m deep on the 10 x 10 box: sx 1.0, sz 2.0
+      const p = planCity(layerOf([generic("g20", 10, 20)]), frame, wide(), all);
+      expect(p.placements.get("generic/box") ?? []).toHaveLength(0);
+      expect(p.extrude.has("g20")).toBe(true);
+      expect(p.stats.fallback.generic_stretch).toBe(1);
+      expect(p.stats.placed).toBe(0);
+    });
+    it("keeps placing a generic inside the band, and extrudes one with sx outside it", () => {
+      const p = planCity(
+        layerOf([generic("ok", 11, 12), generic("sx", 5, 10.5, 60)]),
+        frame,
+        wide(),
+        all,
+      );
+      const placed = (p.placements.get("generic/box") ?? []).map((u) => u.id);
+      expect(placed).toEqual(["ok"]);
+      expect(p.extrude.has("sx")).toBe(true);
+      expect(p.stats.fallback.generic_stretch).toBe(1);
+    });
+    it("facadeInputs gives each drawn extruded building its local ring, heights and facadeFor spec", () => {
+      const f = feat(
+        {
+          id: "g20",
+          archetype: "generic",
+          height_m: 9,
+          display_height_m: 9.6,
+          kind: "commercial",
+          precinct: "Elmina Valley 2",
+        },
+        poly(0, 0, 10, 20),
+      );
+      const layer = layerOf([f, link("b1")]);
+      const m = wide();
+      const p = planCity(layer, frame, m, all);
+      const g = buildCityGeometry(layer, frame, { only: p.extrude });
+      const list = facadeInputs(g.footprints, layer, m);
+      expect(list).toHaveLength(1);
+      const [b] = list;
+      expect(b!.heightM).toBeCloseTo(9.6, 6);
+      expect(b!.minHeightM).toBe(0);
+      expect(b!.ring).toEqual(g.footprints[0]!.ring);
+      expect(b!.spec).toEqual(
+        facadeFor(
+          {
+            id: "g20",
+            heightM: 9.6,
+            kind: "commercial",
+            archetype: "generic",
+            precinct: "Elmina Valley 2",
+          },
+          m,
+        ),
+      );
+      expect(b!.spec.storeys).toBe(3);
+    });
   });
 });
