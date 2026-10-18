@@ -772,3 +772,86 @@ Logged 2026-10-18 02:05 MPST. The run went from 2026-10-17 about 21:00 to 2026-1
   - The owner chose to trace Kanopi and Masjid outlines from a public site plan, with the source recorded.
   - `planCity` fallback counts were not logged in this run.
 - **Next:** Plan P3 (hero district), written with superpowers:writing-plans.
+
+## 2026-10-18 Three.js stylised overhaul: Phase 3 (hero district) complete
+
+Logged 2026-10-18 14:10 MPST. The run went from 2026-10-18 about 08:00 to 14:10. Plan: `docs/superpowers/plans/2026-10-18-stylised-threejs-phase-3-hero-district.md`, run with subagent-driven development. The ledger, with every ruling, is in `.superpowers/sdd/2026-10-18-stylised-threejs-phase-3-hero-district/` (gitignored).
+
+- **Branch:** `feat/stylised-threejs`, local only and not pushed. Lanes `data`, `blender` and `fe` were merged `--no-ff`; the final head is `6b48ee9`. `?engine=three` is still opt-in.
+- **Owner gate: PASS** (2026-10-18). Notes go to P4. Kanopi's traced outline and slab model were approved as they are. Decorative traffic keeps hiding whenever the Day panel is open.
+- **Fallback buildings** (`no_fit / generic_fill / no_archetype / no_asset`, from `planCity` on the Elmina seed):
+  - Whole city: 1825/325/0/0 before, 1740/325/0/0 after.
+  - Hero district (882 buildings within 1200 m): 117/24 before, 65/24 after.
+  - The `link_corner` variant was not needed: 0 of the 74 hero link fallbacks were row-end width failures. The gain came from a fit rule instead: a narrow link plot whose `front_deg` faces a long wall is fitted with its front on the short wall.
+  - Fallback extrusions now take the archetype palette, with a parapet band in trim.
+- **Lighting:**
+  - Lighting blends continuously between the Day, Dusk and Night keyframes on the mood clock. The precedence is Elmina Day playback, then a pinned theme, then the Asia/Kuala_Lumpur clock.
+  - The key-light direction is weight-blended, so scrubbing never jumps.
+  - Fog scales with camera range, so the township view is no longer fogged out.
+  - Window glow and lit share follow the mood.
+  - Bloom is off by day. The noon sun had washed hero-mid and township out to cream; bloom stays on at dusk and night.
+- **Ground:**
+  - Road ribbons are drawn from walk LineStrings, clipped to the 1200 m hero radius.
+  - Land cover is drawn for the whole township, in class order.
+  - Parks and base water sit in the ground band. Base water stays `#7fb6c9`.
+- **Props and motion:**
+  - Medium caps are trees 2300, lamps 900, furniture 350 and construction 200. The plan's 3500 trees were lowered as budget lever 1.
+  - LOD1+ archetypes cast no shadows, kits cast shadows only at LOD0, and a Medium kit LOD scale of 0.5 applies.
+  - Medium agents peak at dusk: 252 people and 161 vehicles, enlarged up to 3× with distance and visible out to 900 m (owner ruling).
+  - Low tier has no props, agents, birds or clouds.
+  - Motion runs on one clock at ≤ 30 fps and idles at render-on-demand.
+- **Signs:**
+  - 318 OSM signs are sourced; 28 lie in the hero radius and are drawn in 1 batch. None were dropped (0 `no_source`, 0 `no_building`).
+  - Non-http(s) source URLs are dropped as having no source.
+  - The CanvasTexture text was kept. troika was not adopted, and readability was judged at the gate.
+- **Landmarks:**
+  - **Kanopi:** traced from the Sime Darby Property Level 7 facility plan, by a 6-point affine fit on the OSM plot corners. RMS 2.9 m, max 4.7 m, 2,251 m². The image is not redistributed.
+  - Kanopi is re-modelled as a slab: 88.9 × 27.8 m, an 8.7 m podium plus 36 × 3.2 m storeys. Its card reads "design height (36 storeys, Sime Darby Property) · under construction". The OSM podium (w1545153991) stays drawn and pickable.
+  - **Masjid Denai Alam:** deferred to P4 by the owner. No public drawing exists, and it lies outside the hero radius.
+- **Overlays and picking:**
+  - Access, gaps, what-if and route lines draw in an overlay pass, depth test off, with screen-constant dashes.
+  - The flood fill is draped in the main scene, so buildings hide it. Flood edges, markers, evacuation centres and residents draw on top.
+  - Picking is one pipeline with a fixed priority. Decorative objects are never hit. Building, landmark and sign cards are in place.
+  - "Decorative details are illustrative." shows in the scene whenever decor is drawn.
+- **Budgets** (hero-mid Medium, all passes, headless Chromium with SwiftShader; fps is not meaningful there, and the owner passed the gate):
+
+  | View | Draws | Triangles |
+  |---|---|---|
+  | hero-mid Medium, Day | 100 | 2.36 M |
+  | hero-mid Medium, Dusk | 111 | 2.36 M |
+  | hero-mid Medium, Night | 107 | 2.35 M |
+  | hero-mid Medium, Elmina Day 19:30 | 95 | 2.34 M |
+  | hero-near Medium | 113 | 3.07 M |
+  | township Medium | 60 | 0.93 M |
+  | hero-mid High | 100 | 4.38 M |
+
+  The pass condition is ≤ 150 draws and ≤ 2.5 M triangles. Hero-near and High have no budget.
+- **Final CI** on `6b48ee9`:
+
+  | Check | Result |
+  |---|---|
+  | lint | PASS (warnings only) |
+  | pytest | 1588/1589: the same pre-existing, Windows-only `test_mcp_server` path failure |
+  | typecheck | PASS |
+  | vitest | 1286 PASS (map keys blanked) |
+  | gen | PASS, no drift |
+  | golden | 22/22 (mock) |
+  | e2e | 23/23 (mock, tiny fixture) |
+  | web build | PASS |
+
+- **Process notes:**
+  - The browser MCP servers were lost mid-run when a check killed every node and python process. Later checks used scripted Playwright instead.
+  - The 8 GB machine allowed only one heavy process at a time.
+- **Inputs for P4 (owner notes and open items):**
+  - **Visuals:**
+    - Flat grey OSM roofs, including the Lakeside Mall.
+    - Oversized tree canopies that hide the paths.
+    - A busy flood + route view, where the flood banner overlaps the route legend.
+    - Kanopi's empty podium roof.
+    - Residents are hard to see at hero-mid.
+    - Towers without lit windows at night.
+  - **Code:**
+    - Decompose `ThreeScene.tsx` (now 1,103 lines) into `useCityAssets`, `useMotion`, `useMood`, `useOverlays` and `usePicking` first, before streaming.
+    - Overlay colours pass through OutputPass tone mapping.
+  - **Data:** the Masjid Denai Alam outline, and a project-page `info_url` for landmarks.
+- **Next:** Plan P4 (township rollout), to be written now that the gate has passed.

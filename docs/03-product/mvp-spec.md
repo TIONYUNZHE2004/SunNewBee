@@ -8,6 +8,8 @@
 >
 > **Status (2026-10-16, stylised city):** the 3D map now opens on a keyless **Stylised** city by default. It has Day and Night looks and lit windows at night, and it is drawn from committed OSM buildings and trees (7,803 buildings, 94% with default heights, display only). **Realistic photos (Google)** stays selectable under Map style when a Google key is set. Branch `feat/stylised-city`. Measurements and limits: [stylised-city quality report](stylised-city-quality-report.md).
 
+> **Status (2026-10-18, Three.js stylised view):** the opt-in `?engine=three` view now covers the hero district (Lakeside Mall, Elmina Valley 1–2): keyframe lighting on the Elmina clock, roads and land cover, trees and street furniture, decorative traffic and pedestrians, sourced shop signs, the Kanopi landmark on its traced outline, the ported overlays (route, access, gaps, what-if, flood, markers, residents), picking with building, landmark and sign cards, and the spec §5 honesty tests. The owner passed the P3 gate; Cesium stays the default. Branch `feat/stylised-threejs` (local). Log: [overnight log, 2026-10-18 P3](../superpowers/overnight-log.md).
+
 ## How the product is organised
 
 ```
