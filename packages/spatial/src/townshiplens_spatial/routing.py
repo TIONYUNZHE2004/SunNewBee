@@ -184,6 +184,25 @@ def endpoint_flood(world: World, place_id: str, profile, scenario_id: str | None
     )
 
 
+def endpoint_flood_warnings(world: World, place_id: str, profile, scenario_id: str | None):
+    """Name the assessed endpoint, including when its flood FAIL leaves no route geometry."""
+    eid = endpoint_id(world, place_id)
+    place = world.places.get(eid)
+    centre = world.centres.get(place_id.removeprefix(CENTRE_PREFIX))
+    name = place.name if place else centre.name if centre else eid
+    _, reasons = endpoint_flood(world, place_id, profile, scenario_id)
+    return [f"{name}: {reason['why']}" for reason in reasons]
+
+
+def origin_flood(world: World, place_id: str, profile, scenario_id: str | None):
+    """Origin flood classes are caveats: evacuation starts where the resident is.
+
+    Explicitly unassessed raster coverage still prevents a confirmed scenario result.
+    """
+    eid = endpoint_id(world, place_id)
+    return evaluate_flood(eid, profile, None, world.flood.coverage_for(scenario_id, eid))
+
+
 def flood_evidence(world: World, element_id: str, scenario_id: str | None) -> list[Evidence]:
     """Keep coverage evidence distinct from a modelled flood class."""
     if scenario_id is None:
@@ -597,7 +616,11 @@ def plan_route(
     endpoint_unknowns = [
         why
         for pid in dict.fromkeys((from_id, to_id))
-        for state, reasons in [endpoint_flood(world, pid, profile, scenario_id)]
+        for state, reasons in [
+            endpoint_flood(world, pid, profile, scenario_id)
+            if pid == to_id
+            else origin_flood(world, pid, profile, scenario_id)
+        ]
         if state == "UNKNOWN"
         for why in reasons
     ]
@@ -607,13 +630,17 @@ def plan_route(
             route.status = "partly_unverified"
     if result.routes:
         result.status = result.routes[0].status
-        result.warnings.extend(dict.fromkeys(u["why"] for u in endpoint_unknowns))
         route = result.routes[0]
         if profile.allowed_types is None and route.road_without_mapped_sidewalk_m:
             result.warnings.append(
                 f"About {route.road_without_mapped_sidewalk_m:.0f} m follows road centre lines "
                 "without a mapped sidewalk; sidewalk access is not verified"
             )
+    result.warnings.extend(
+        note
+        for pid in dict.fromkeys((from_id, to_id))
+        for note in endpoint_flood_warnings(world, pid, profile, scenario_id)
+    )
     if profile.allowed_types is not None and result.routes:
         for pid in (from_id, to_id):
             if note := _snap_warning(world, pid, profile):
@@ -640,8 +667,7 @@ def _plan(world, from_id, to_id, profile, scenario_id) -> RouteResult:
         return RouteResult(status="no_data", routes=[], warnings=warnings)
     endpoint_failures = [
         why
-        for pid in dict.fromkeys((from_id, to_id))
-        for state, reasons in [endpoint_flood(world, pid, profile, scenario_id)]
+        for state, reasons in [endpoint_flood(world, to_id, profile, scenario_id)]
         if state == "FAIL"
         for why in reasons
     ]

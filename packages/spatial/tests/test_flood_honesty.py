@@ -24,13 +24,16 @@ def ctx(world):
 def test_endpoint_flood_applies_even_when_all_edges_pass(world, endpoint, classification, expected):
     world.flood.edge_classes["stage_p1m"] = {}
     world.flood.place_classes["stage_p1m"][endpoint] = classification
+    if endpoint == "park-b":
+        expected = "confirmed"  # Origin flood is a caveat, not a barrier to leaving.
     rr = plan_route(world, "park-b", "playground", "stroller", "stage_p1m")
     assert rr.status == expected
-    if rr.routes:
+    assert any(world.places[endpoint].name in warning for warning in rr.warnings)
+    if rr.routes and endpoint == "playground":
         assert any(
             u["element_id"] == endpoint and u["attribute"] == "flood" for u in rr.routes[0].unknowns
         )
-    else:
+    elif not rr.routes:
         assert rr.blocked_reasons[0]["element_id"] == endpoint
     assert plan_route(world, "park-b", "playground", "stroller").status == "confirmed"
 
@@ -77,6 +80,24 @@ def test_uncovered_endpoint_including_zero_length_route_is_unverified(ctx):
     assert ctx.vrs.list("all") == []
 
 
+def test_flooded_origin_can_leave_with_named_warning_and_evidence(ctx):
+    w = ctx.world
+    w.flood.edge_classes["stage_p3m"] = {}
+    w.flood.place_classes["stage_p3m"]["playground"] = "likely_flooded"
+    route = tools.plan_route(ctx, "playground", "park-b", "default", "stage_p3m")
+    centres = tools.list_evacuation_centres(ctx, "stage_p3m", "default", "playground")
+    assert route.data["status"] == "confirmed" and route.data["routes"]
+    assert any(row["reachable"] for row in centres.data)
+    for result in (route, centres):
+        assert any(
+            "Urban Park playground" in warning and "likely flooded" in warning
+            for warning in result.warnings
+        )
+        assert any(
+            ev.element_id == "playground" and ev.value == "likely_flooded" for ev in result.evidence
+        )
+
+
 @pytest.mark.parametrize(
     "gap,expected",
     [
@@ -103,6 +124,8 @@ def test_every_centre_row_checks_endpoints_not_just_top_three(world, gap, expect
         w.flood.coverage[pid] = gap
     else:
         w.flood.place_classes["stage_p1m"][pid] = gap
+    if at_origin and gap != "uncovered":
+        expected = "confirmed"
     rows = flood.centres_reachability(w, "stage_p1m", "default", "park-b", top_routes=0)
     rows = [r for r in rows if r.centre.id.startswith("extra-")]
     assert len(rows) == 5

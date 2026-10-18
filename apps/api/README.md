@@ -60,9 +60,11 @@ Scenario/profile selections on routes, access/flood layers, the graph alias, pla
 evacuation centres and flood briefings are validated before calculation: unknown scenarios
 return 404; unknown profiles return 422. A malformed selection never falls back to baseline.
 
-Route results and evacuation reachability include endpoint flood checks. Likely flooded
-endpoints block a connected journey; possible endpoints cap walking at `partly_unverified`
-and block driving. Disconnected data remains `no_data`. Explicit raster coverage gaps cap
+Route results and evacuation reachability include destination flood checks. Likely flooded
+destinations block a connected journey; possible destinations cap walking at `partly_unverified`
+and block driving. Flood at the origin is named in warnings and evidence so a resident can
+ask about leaving; it does not independently block or cap the route. Disconnected data
+remains `no_data`. Explicit raster coverage gaps at either endpoint or on paths cap
 river-stage routes at `partly_unverified`, while baseline remains unchanged. Access/flood
 LineStrings expose `flood_coverage: uncovered|partial` with unknown status where applicable;
 coverage gaps do not create a flood class.

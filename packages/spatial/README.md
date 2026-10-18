@@ -133,9 +133,12 @@ pruning, bounded by `MAX_REST_LABELS` (deterministic, not wall-clock).
 | `blocked` | The endpoints are connected in the unfiltered graph, but every path is cut by a known FAIL |
 | `no_data` | The endpoints are in different graph components (for `drive`: no connecting road, or a place with no mapped road within the snap distance), or a place or profile is unknown. A data gap, never "not reachable" |
 
-Flood-scenario routing checks the start and destination as well as paths. A likely flooded
-endpoint blocks a connected journey; a possible endpoint makes a walking route at most
-`partly_unverified` (it blocks driving). Disconnected endpoints remain `no_data`. These checks
+Flood-scenario routing checks the destination as well as paths. A likely flooded
+destination blocks a connected journey; a possible destination makes a walking route at most
+`partly_unverified` (it blocks driving). Origin flood classes remain evidence and named
+warnings so a resident can ask about leaving a flooded place. They do not block or cap a
+route on their own. Explicit raster coverage gaps at either endpoint still cap scenario
+certainty at UNKNOWN. Disconnected endpoints remain `no_data`. These checks
 also apply to every evacuation-centre row, including zero-distance journeys and centres
 outside the nearest three route previews.
 
@@ -144,7 +147,7 @@ outside the nearest three route previews.
 are UNKNOWN unless another rule already makes them FAIL. Baseline is unchanged. Coverage
 evidence uses `attribute: flood_coverage`, `value: uncovered|partial`, and `status: unknown`;
 it never invents a flood class or files a survey ticket. Route `unknowns` can refer to endpoint
-places as well as segments. Known endpoint flood classes have their own scenario evidence.
+places as well as segments. Known origin and destination flood classes have their own scenario evidence.
 
 Unknown scenario/profile selections are rejected by the resident tools (`ok: false`, no data,
 evidence or ticket writes). Direct `routing.plan_route` returns `no_data` with an explicit

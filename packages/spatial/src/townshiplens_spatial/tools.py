@@ -791,8 +791,7 @@ def list_evacuation_centres(
         *(f"{routing.CENTRE_PREFIX}{r.centre.id}" for r in res),
     ]:
         ev += routing.flood_evidence(ctx.world, pid, scenario_id)
-        _, reasons = routing.endpoint_flood(ctx.world, pid, prof, scenario_id)
-        warnings.extend(reason["why"] for reason in reasons)
+        warnings.extend(routing.endpoint_flood_warnings(ctx.world, pid, prof, scenario_id))
     n_inferred = 0
     for r, d in zip(res, data, strict=True):
         note = _centre_entrance_note(ctx.world, r.centre) if r.reachable else None
