@@ -1,16 +1,12 @@
 import * as THREE from "three";
 import { MapControls } from "three/addons/controls/MapControls.js";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
-import { Line2 } from "three/addons/lines/Line2.js";
-import { LineGeometry } from "three/addons/lines/LineGeometry.js";
-import { LineMaterial } from "three/addons/lines/LineMaterial.js";
 import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
 import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 import type { Pass } from "three/addons/postprocessing/Pass.js";
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
 import type { Tier } from "../cesium/stylised/quality";
-import { ROUTE_STYLE } from "../styles";
 import { CityGTAOPass } from "./aoPass";
 import type { CityInstances } from "./assets/cityInstances";
 import { createMotionUniforms, type MotionUniforms } from "./assets/roleMaterial";
@@ -33,6 +29,7 @@ import { createLodSchedule } from "./lodSchedule";
 import { applyFog } from "./mood";
 import { MOTION_FRAME_MS, MOTION_SLACK_MS } from "./motion/motionClock";
 import type { MotionLayer } from "./motion/motionLayer";
+import type { OverlayLayer } from "./overlays/accessLayers";
 import { THREE_TIERS } from "./quality";
 
 /** Local xz box the camera target may not leave (by more than LIMITS.maxCentreOffsetM). */
@@ -72,7 +69,12 @@ export interface Engine {
   setMotion(l: MotionLayer | null, running: () => boolean): void;
   /** Camera bounds before the city arrives (the site extent); setCity replaces them. */
   setBounds(b: Bounds): void;
-  setRoute(positions: Float32Array | null): void;
+  /**
+   * Access / gaps / route / what-if lines. They live in their own scene, drawn by a pass after the
+   * AO pass, so ambient occlusion never darkens them and they sit above every prop. Replaces and
+   * disposes the previous layer; null removes it.
+   */
+  setOverlays(o: OverlayLayer | null): void;
   setLighting(p: LightPreset, keyDir: [number, number, number]): void;
   /** Camera range in metres: fog distances scale with it so the township view is never fogged out. */
   setFogRange(rangeM: number): void;
@@ -274,20 +276,18 @@ function build(
   };
   undo.push(disposeCity);
 
-  const lineMat = new LineMaterial({
-    color: new THREE.Color(ROUTE_STYLE.color),
-    linewidth: ROUTE_STYLE.width,
-    depthTest: false,
-    transparent: true,
-  });
-  const route = new Line2(new LineGeometry(), lineMat);
-  route.renderOrder = 10;
-  route.frustumCulled = false;
-  route.visible = false;
-  scene.add(route);
+  /** Overlay lines (data, not decoration): a scene of their own, see setOverlays. */
+  const overlayScene = new THREE.Scene();
+  let overlays: OverlayLayer | null = null;
+  const dropOverlays = () => {
+    if (!overlays) return;
+    overlayScene.remove(overlays.group);
+    overlays.dispose();
+    overlays = null;
+  };
   undo.push(() => {
-    route.geometry.dispose();
-    for (const m of [buildingMat, parksMat, waterMat, groundMat, lineMat]) m.dispose();
+    dropOverlays();
+    for (const m of [buildingMat, parksMat, waterMat, groundMat]) m.dispose();
     sun.shadow.map?.dispose();
   });
 
@@ -451,6 +451,10 @@ function build(
           return aoSkip;
         }),
       );
+    // Overlays after the AO pass and before bloom/tone mapping: no occlusion on them, drawn on top.
+    const overlayPass = new RenderPass(overlayScene, camera);
+    overlayPass.clear = false;
+    passes.push(overlayPass);
     if (spec.bloom)
       passes.push(
         new UnrealBloomPass(new THREE.Vector2(w, h), BLOOM.strength, BLOOM.radius, BLOOM.threshold),
@@ -654,14 +658,14 @@ function build(
       if (disposed) return;
       bounds = b;
     },
-    setRoute(positions) {
+    setOverlays(o) {
       if (disposed) return;
-      if (!positions || positions.length < 6) {
-        route.visible = false;
-      } else {
-        route.geometry.dispose();
-        route.geometry = new LineGeometry().setPositions(positions);
-        route.visible = true;
+      if (o === overlays) return;
+      dropOverlays();
+      if (o) {
+        overlays = o;
+        o.setResolution(size[0], size[1]);
+        overlayScene.add(o.group);
       }
       requestRender();
     },
@@ -702,7 +706,7 @@ function build(
       size = [w, h];
       renderer.setSize(w, h, false);
       composer.setSize(w, h);
-      lineMat.resolution.set(w, h);
+      overlays?.setResolution(w, h);
       applyViewOffset();
       requestRender();
     },

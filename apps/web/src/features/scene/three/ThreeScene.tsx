@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
-import { useBuildings, useLayer, useSite } from "../../../lib/api";
+import { useBuildings, useGaps, useLayer, useSite } from "../../../lib/api";
 import { useTheme } from "../../../ui/theme";
+import { gapsActive } from "../../gaps/gapModel";
 import { usePanel } from "../../main/panelStore";
 import { isWide } from "../../main/usePanelReserve";
 import { PANEL_INSET_PX, panelWidthPx } from "../../main/viewport";
@@ -62,6 +63,7 @@ import {
 import { planAgents } from "./motion/agents";
 import { createMotionDriver, type MotionDriver, motionRunning } from "./motion/motionClock";
 import { createMotionLayer } from "./motion/motionLayer";
+import { createOverlayLayer, type OverlayLayer } from "./overlays/accessLayers";
 import { KIT_LOD_SCALE } from "./props/caps";
 import { createLampPools } from "./props/lampPools";
 import { planProps } from "./props/propsPlan";
@@ -252,6 +254,10 @@ export default function ThreeScene({
   const profile = useScene((s) => s.profile);
   const scenarioId = useScene((s) => s.scenarioId);
   const access = useLayer("access", profile, scenarioId);
+  const accessVisible = useScene((s) => s.lensVisible.access);
+  const gapsOn = useScene((s) => gapsActive(s.gapsVisible, s.profile));
+  const whatIf = useScene((s) => s.whatIf);
+  const gapsQ = useGaps(profile, gapsOn && accessVisible);
   // Roads are built only after the first frame with the buildings (or at once when the world has
   // none), so their build never delays the city's first frame. The ribbons need only the walk
   // LineStrings and their `type`, which do not depend on profile or scenario: reuse this query's
@@ -702,10 +708,31 @@ export default function ThreeScene({
     [route, frame],
   );
   const routeOn = !!engine && !!routePositions && routePositions.length >= 6;
+
+  // Access / gaps / route / what-if lines: one layer per engine and frame, owned by the engine.
+  const [overlay, setOverlay] = useState<OverlayLayer | null>(null);
   useEffect(() => {
-    if (!engine) return;
-    engine.setRoute(routeOn ? routePositions : null);
-  }, [engine, routeOn, routePositions]);
+    if (!engine || !frame) return;
+    const layer = createOverlayLayer(frame);
+    engine.setOverlays(layer);
+    setOverlay(layer);
+    return () => {
+      engine.setOverlays(null); // disposes the layer
+      setOverlay(null);
+    };
+  }, [engine, frame]);
+  useEffect(() => {
+    if (!engine || !overlay) return;
+    overlay.update({
+      access: access.data ?? null,
+      accessVisible,
+      gaps: gapsQ.data ?? null,
+      gapsOn,
+      route: routeOn ? (route?.geojson ?? null) : null,
+      whatIf,
+    });
+    engine.requestRender();
+  }, [engine, overlay, access.data, accessVisible, gapsQ.data, gapsOn, routeOn, route, whatIf]);
 
   // Scene intents to camera moves (same precedence as cesium/camera.ts).
   useEffect(() => {

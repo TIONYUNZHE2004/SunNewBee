@@ -204,7 +204,7 @@ function fakeEngine() {
     setMotion: vi.fn(),
     motion: createMotionUniforms(),
     setBounds: vi.fn(),
-    setRoute: vi.fn(),
+    setOverlays: vi.fn(),
     setLighting: vi.fn(),
     setFogRange: vi.fn(),
     setTier: vi.fn(),
@@ -371,7 +371,7 @@ describe("ThreeScene", () => {
     expect(g.buildings.getAttribute("position")).toBeTruthy();
   });
 
-  it('route.highlight sets a route (data-route="on") and clearRoute removes it (setRoute(null), "off")', async () => {
+  it('route.highlight sets a route (data-route="on") and clearRoute removes it ("off"); the line is drawn by the overlay layer', async () => {
     const { engine } = mount();
     await waitFor(() => expect(engine.setCity).toHaveBeenCalled());
     act(() =>
@@ -383,12 +383,30 @@ describe("ThreeScene", () => {
     );
     const s = screen.getByTestId("three-scene");
     await waitFor(() => expect(s).toHaveAttribute("data-route", "on"));
-    const pos = engine.setRoute.mock.calls.at(-1)?.[0] as Float32Array;
-    expect(pos).toBeInstanceOf(Float32Array);
-    expect(pos.length).toBe(6);
+    const layer = engine.setOverlays.mock.calls.find((c: unknown[]) => c[0])?.[0];
+    expect(layer).toBeTruthy();
+    const routeLines = () => {
+      const out: { renderOrder: number; count: number }[] = [];
+      layer.group.traverse(
+        (o: {
+          renderOrder: number;
+          isLineSegments2?: boolean;
+          visible: boolean;
+          geometry: { attributes: { instanceStart: { count: number } } };
+        }) => {
+          if (o.isLineSegments2 && o.renderOrder === 13)
+            out.push({
+              renderOrder: o.renderOrder,
+              count: o.geometry.attributes.instanceStart.count,
+            });
+        },
+      );
+      return out;
+    };
+    expect(routeLines()).toEqual([{ renderOrder: 13, count: 1 }]);
     act(() => useScene.getState().clearRoute());
     await waitFor(() => expect(s).toHaveAttribute("data-route", "off"));
-    expect(engine.setRoute).toHaveBeenLastCalledWith(null);
+    expect(routeLines()).toEqual([]);
   });
 
   it("camera.fly_to calls rig.flyTo with the goal converted to a Pose (pitch -45, range from the intent)", async () => {
