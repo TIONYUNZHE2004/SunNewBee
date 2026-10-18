@@ -1,8 +1,11 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import type { BuildingsLayer } from "../../../../lib/api";
 import { createFrame } from "../frame";
-import type { AssetSpec, Manifest } from "./manifest";
-import { planCity } from "./plan";
+import { type AssetSpec, type Manifest, parseManifest } from "./manifest";
+import { LANDMARK_FIT, planCity } from "./plan";
+
+const readJson = (rel: string) => JSON.parse(readFileSync(new URL(rel, import.meta.url), "utf8"));
 
 const frame = createFrame([101.5, 3.18]);
 
@@ -197,6 +200,56 @@ describe("planCity", () => {
     const p = planCity(layerOf([link("b1")], [lm]), frame, manifest(), all);
     expect(p.landmarks).toHaveLength(0);
     expect(p.placements.get("link_intermediate/gable")).toHaveLength(1);
+  });
+  it("a traced_outline landmark takes the model's design height, not its building's OSM height", () => {
+    const m = manifest();
+    m.assets.kanopi = {
+      ...m.assets.kanopi!,
+      placement: "obb",
+      frontage: "long",
+      variants: { tower: { size: [40, 130, 20], lods: [{ node: "k", tris: 1, maxM: null }] } },
+    };
+    const podium = feat({ id: "pod", archetype: "generic", height_m: 8.71 }, poly(0, 0, 20, 40));
+    const traced = { id: "k", model: "kanopi", building_id: "pod", match: "traced_outline" };
+    const p = planCity(layerOf([podium], [feat(traced, poly(0, 0, 20, 40))]), frame, m, all);
+    expect(p.landmarks).toHaveLength(1);
+    expect(p.landmarks[0]!.sy).toBeCloseTo(1, 6);
+    expect(p.landmarks[0]!.sx).toBeCloseTo(1, 2);
+    expect(p.landmarks[0]!.sz).toBeCloseTo(1, 2);
+    expect(p.extrude.has("pod")).toBe(false);
+    // the same footprint matched by building name keeps the building's height (8.71 / 130 is
+    // outside the 0.5..2 band, so nothing is placed and the podium stays in the normal flow)
+    const named = { ...traced, match: "building_name" };
+    const q = planCity(layerOf([podium], [feat(named, poly(0, 0, 20, 40))]), frame, m, all);
+    expect(q.landmarks).toHaveLength(0);
+  });
+  it("the real Kanopi traced outline fits the real slab inside LANDMARK_FIT at its design height", () => {
+    const site = readJson("../../../../../../../data/seed/elmina/site.json");
+    const fc = readJson("../../../../../../../data/seed/elmina/base/landmarks.geojson");
+    const kanopi = fc.features.find(
+      (f: { properties: { model?: string } }) => f.properties.model === "kanopi",
+    );
+    expect(kanopi.properties.match).toBe("traced_outline");
+    const { manifest: real } = parseManifest(readJson("../../../../../public/city/manifest.json"));
+    const spec = real!.assets.kanopi!;
+    expect(spec.frontage).toBe("long");
+    expect(spec.designStoreys).toBe(36);
+    const f = createFrame(site.center);
+    const podium = {
+      type: "Feature",
+      properties: { id: kanopi.properties.building_id, archetype: "generic", height_m: 8.71 },
+      geometry: kanopi.geometry,
+    };
+    const p = planCity(layerOf([podium], [kanopi]), f, real!, all);
+    expect(p.landmarks).toHaveLength(1);
+    const k = p.landmarks[0]!;
+    expect(k.sy).toBeCloseTo(1, 6);
+    for (const v of [k.sx, k.sz]) {
+      expect(v).toBeGreaterThanOrEqual(LANDMARK_FIT.xz[0]);
+      expect(v).toBeLessThanOrEqual(LANDMARK_FIT.xz[1]);
+      expect(Math.abs(v - 1)).toBeLessThan(0.1);
+    }
+    expect(p.extrude.has(kanopi.properties.building_id)).toBe(false);
   });
   it("never invents a landmark when the layer has no landmark features", () => {
     const p = planCity(layerOf([link("b1")]), frame, manifest(), all);

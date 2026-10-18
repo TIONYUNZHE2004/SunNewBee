@@ -17,7 +17,10 @@ export interface CityPlan {
 
 const GENERIC = "generic";
 const GENERIC_MIN_FILL = 0.85;
-const LANDMARK_FIT = { xz: [0.5, 2], y: [0.5, 2] } as { xz: [number, number]; y: [number, number] };
+export const LANDMARK_FIT = { xz: [0.5, 2], y: [0.5, 2] } as {
+  xz: [number, number];
+  y: [number, number];
+};
 
 const isRec = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null;
 const features = (fc: unknown): unknown[] =>
@@ -101,7 +104,12 @@ export function planCity(
       const ring = ringOf(f.geometry)?.map(([lon, lat]) => frame.toLocal(lon, lat));
       const obb = ring ? footprintObb(ring) : null;
       if (obb) {
-        const h = (bid && heightById.get(bid)) || spec.variants[variant]!.size[1];
+        // A traced outline is the tower's own floor plate (its building_id is the OSM podium or
+        // site): the model is drawn at its own (design) height. A building-name match keeps the
+        // OSM building's height.
+        const modelH = spec.variants[variant]!.size[1];
+        const h =
+          f.properties.match === "traced_outline" ? modelH : (bid && heightById.get(bid)) || modelH;
         // A landmark is the real footprint's OBB, so it is not fill-gated; the 0.5..2 band still is.
         const fit = fitArchetype(obb, spec, variant, h, null, id, "default", {
           minFill: 0,

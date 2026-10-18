@@ -31,6 +31,10 @@ export interface AssetSpec {
   variantByGroup: Record<string, string>;
   palettes: Record<string, [string, string, string][]>;
   variants: Record<string, VariantSpec>;
+  /** Landmarks drawn at a design height (not an OSM one): storeys in the developer's design. */
+  designStoreys?: number;
+  /** Where a landmark's height comes from, e.g. "design height (36 storeys, Sime Darby Property), under construction; ...". */
+  heightBasis?: string;
 }
 export interface Manifest {
   version: 1;
@@ -89,6 +93,15 @@ function parseAsset(a: unknown): AssetSpec {
         `variant ${v} lod`,
       );
   }
+  need(
+    a.designStoreys === undefined ||
+      (isNum(a.designStoreys) && a.designStoreys > 0 && Number.isInteger(a.designStoreys)),
+    "designStoreys",
+  );
+  need(
+    a.heightBasis === undefined || (isStr(a.heightBasis) && a.heightBasis.trim() !== ""),
+    "heightBasis",
+  );
   return a as unknown as AssetSpec;
 }
 
