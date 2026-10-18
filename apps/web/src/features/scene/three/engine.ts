@@ -531,6 +531,7 @@ function build(
     placeLight();
     renderer.info.reset();
     syncDashes();
+    overlays?.setView(camera.position, camera.fov);
     if (overlayPass) overlayPass.enabled = !!overlays?.hasVisible();
     composer.render();
     dirty = false;

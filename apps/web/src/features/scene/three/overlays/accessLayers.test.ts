@@ -231,4 +231,127 @@ describe("createOverlayLayer", () => {
     l.update({ ...base, access, accessVisible: false });
     expect(l.hasVisible()).toBe(false);
   });
+
+  describe("flood, waste, places and evacuation centres", () => {
+    const sq = (x: number) => [
+      [x, 3.0],
+      [x + 1e-3, 3.0],
+      [x + 1e-3, 3.001],
+      [x, 3.0],
+    ];
+    const water = {
+      type: "FeatureCollection",
+      features: [
+        {
+          type: "Feature",
+          properties: {},
+          geometry: { type: "Polygon", coordinates: [sq(101.5)] },
+        },
+      ],
+    };
+    const floodEdges = {
+      type: "FeatureCollection",
+      features: [seg("f", 0, { status: "flooded_likely" })],
+    };
+    const pt = (id: string, dx: number) => ({
+      type: "Feature",
+      geometry: { type: "Point", coordinates: [101.5 + dx * 1e-5, 3.0] },
+      properties: { id, name: id, type: "park" },
+    });
+    const withPlaces = { ...access, features: [...access.features, pt("p1", 0), pt("p2", 9)] };
+    const wasteData = { type: "FeatureCollection", features: [pt("w1", 5)] };
+    const evac = [
+      {
+        centre: { id: "e1", name: "Hall", coord: [101.5, 3.0] },
+        reachable: true,
+        route_status: "confirmed",
+      },
+    ];
+    const names = (l: ReturnType<typeof createOverlayLayer>) => {
+      const out: string[] = [];
+      l.group.traverse((o) => {
+        for (let p: THREE.Object3D | null = o; p; p = p.parent) if (!p.visible) return;
+        if (o.name) out.push(o.name);
+      });
+      return out;
+    };
+
+    it("draws the flood fill and edges only while the flood lens is on", () => {
+      const l = createOverlayLayer(frame);
+      l.update({ ...base, accessVisible: false, water, floodEdges, floodOn: false });
+      expect(l.hasVisible()).toBe(false);
+      l.update({ ...base, accessVisible: false, water, floodEdges, floodOn: true });
+      expect(names(l)).toContain("flood-fill");
+      expect(l.hasVisible()).toBe(true);
+      expect(visibleBatches(l.group)).toHaveLength(1);
+      expect(visibleBatches(l.group)[0]?.renderOrder).toBe(12);
+    });
+
+    it("flood does not rebuild when unrelated state changes", () => {
+      const l = createOverlayLayer(frame);
+      l.update({ ...base, water, floodEdges, floodOn: true });
+      const fill = names(l).length;
+      const before = l.group.getObjectByName("flood-fill");
+      l.update({ ...base, water, floodEdges, floodOn: true, route });
+      expect(l.group.getObjectByName("flood-fill")).toBe(before);
+      expect(fill).toBeGreaterThan(0);
+    });
+
+    it("place markers follow the access lens; waste and evacuation centres their own lenses", () => {
+      const l = createOverlayLayer(frame);
+      l.update({ ...base, access: withPlaces, accessVisible: true });
+      expect(names(l)).toContain("markers-place");
+      expect(names(l)).not.toContain("markers-waste");
+      expect(names(l)).not.toContain("markers-evac");
+      l.update({ ...base, access: withPlaces, accessVisible: false });
+      expect(names(l)).not.toContain("markers-place");
+      l.update({
+        ...base,
+        accessVisible: false,
+        waste: wasteData,
+        wasteOn: true,
+        evac,
+        floodOn: true,
+      });
+      expect(names(l)).toEqual(expect.arrayContaining(["markers-waste", "markers-evac"]));
+      l.update({
+        ...base,
+        accessVisible: false,
+        waste: wasteData,
+        wasteOn: false,
+        evac,
+        floodOn: false,
+      });
+      expect(l.hasVisible()).toBe(false);
+    });
+
+    it("focus grows a place marker without rebuilding the markers", () => {
+      const l = createOverlayLayer(frame);
+      l.update({ ...base, access: withPlaces });
+      const before = l.group.getObjectByName("markers-place");
+      l.update({ ...base, access: withPlaces, focusPlaceId: "p2" });
+      expect(l.group.getObjectByName("markers-place")).toBe(before);
+      const sizes: number[] = [];
+      l.group.traverse((o) => {
+        if ((o as THREE.Points).isPoints)
+          sizes.push(((o as THREE.Points).material as THREE.ShaderMaterial).uniforms.uSize?.value);
+      });
+      expect(sizes.sort((a, b) => a - b)).toEqual([9, 16]);
+    });
+
+    it("dispose leaves nothing behind", () => {
+      const l = createOverlayLayer(frame);
+      l.update({
+        ...base,
+        access: withPlaces,
+        water,
+        floodEdges,
+        floodOn: true,
+        waste: wasteData,
+        wasteOn: true,
+      });
+      l.dispose();
+      expect(l.group.children.every((c) => c.children.length === 0)).toBe(true);
+    });
+  });
 });

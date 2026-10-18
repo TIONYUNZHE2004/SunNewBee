@@ -2,11 +2,13 @@ import * as THREE from "three";
 import type { LineMaterial } from "three/addons/lines/LineMaterial.js";
 import { GAP_BANDS, GAP_CESIUM_DASH, type GapBand, parseGaps } from "../../../gaps/gapModel";
 import { diffLines, WHATIF_STYLE } from "../../../whatif/whatifModel";
-import { groupEdgesByStatus, type LonLat, lineFeatures } from "../../geo";
-import { CESIUM_DASH, type EdgeStatus, ROUTE_STYLE, statusStyle } from "../../styles";
+import { groupEdgesByStatus, type LonLat, lineFeatures, pointFeatures } from "../../geo";
+import { ROUTE_STYLE } from "../../styles";
 import type { LocalFrame } from "../frame";
 import { lineToLocal, ROUTE_LIFT_M } from "../routeLine";
-import { createLineBatch, dashFromCesium, type LineStyle, setDashScale } from "./lines";
+import { createFloodLayer } from "./floodLayer";
+import { createLineBatch, dashFromCesium, setDashScale, statusLineStyle } from "./lines";
+import { createMarkers, type EvacMarkerRow, type Markers } from "./markers";
 
 /** GET /layers/access payload (a GeoJSON FeatureCollection), as the query returns it. */
 export type AccessData = unknown;
@@ -23,6 +25,17 @@ export interface OverlayState {
   gapsOn: boolean;
   route: GeoJSON.LineString | null;
   whatIf: WhatIf | null;
+  /** GET /scenarios/{id}: the draped water polygons. Drawn only while `floodOn`. */
+  water?: unknown;
+  /** GET /layers/flood: the flooded edges (flooded_likely, flooded_possible). */
+  floodEdges?: unknown;
+  /** A scenario is chosen and the flood lens is on. Also gates the evacuation centres. */
+  floodOn?: boolean;
+  /** GET /layers/waste (points) and the waste lens. */
+  waste?: unknown;
+  wasteOn?: boolean;
+  evac?: readonly EvacMarkerRow[] | null;
+  focusPlaceId?: string | null;
 }
 
 export interface OverlayLayer {
@@ -34,6 +47,8 @@ export interface OverlayLayer {
   hasVisible(): boolean;
   /** Line2 widths are in pixels: the engine passes the viewport on every resize. */
   setResolution(w: number, h: number): void;
+  /** Camera position and vertical fov (degrees): marker labels show near the camera only. */
+  setView(cam: { x: number; y: number; z: number }, fovDeg: number): void;
   dispose(): void;
 }
 
@@ -53,7 +68,14 @@ export function createOverlayLayer(frame: LocalFrame): OverlayLayer {
   const gapsGroup = new THREE.Group();
   const whatIfGroup = new THREE.Group();
   const routeGroup = new THREE.Group();
-  group.add(status, gapsGroup, whatIfGroup, routeGroup);
+  const floodGroup = new THREE.Group();
+  const markerGroup = new THREE.Group();
+  group.add(floodGroup, status, gapsGroup, whatIfGroup, routeGroup, markerGroup);
+  let flood: { dispose(): void } | null = null;
+  let markers: Markers | null = null;
+  let markerKey: unknown[] | null = null;
+  let cam: { x: number; y: number; z: number } | null = null;
+  let fov = 40;
   let res: [number, number] = [1, 1];
   let mpp = 1;
   let last: Partial<OverlayState> = {};
@@ -75,7 +97,55 @@ export function createOverlayLayer(frame: LocalFrame): OverlayLayer {
     if (s.route !== last.route) fill(routeGroup, s.route ? routeBatches(s.route, frame) : []);
     status.visible = s.accessVisible && !s.gapsOn;
     gapsGroup.visible = s.accessVisible && s.gapsOn;
+    updateFlood(s);
+    updateMarkers(s);
     last = s;
+  }
+
+  /** Scenario water and flood edges: rebuilt only when their inputs change, shown by the lens. */
+  function updateFlood(s: OverlayState) {
+    if (s.water !== last.water || s.floodEdges !== last.floodEdges) {
+      flood?.dispose();
+      flood = null;
+      floodGroup.clear();
+      if (s.water || s.floodEdges) {
+        const f = createFloodLayer(s.water, s.floodEdges, frame);
+        flood = f;
+        f.group.traverse((o) => {
+          ((o as THREE.Mesh).material as LineMaterial | undefined)?.resolution?.set(res[0], res[1]);
+          setDashScale(o, mpp);
+        });
+        floodGroup.add(f.group);
+      }
+    }
+    floodGroup.visible = !!s.floodOn;
+  }
+
+  /** Place, waste and evacuation markers: one rebuild when their inputs or lenses change. */
+  function updateMarkers(s: OverlayState) {
+    const places = s.accessVisible ? s.access : null;
+    const waste = s.wasteOn ? s.waste : null;
+    const evac = s.floodOn ? (s.evac ?? null) : null;
+    const key = [places, waste, evac];
+    if (!markerKey || key.some((k, i) => k !== markerKey?.[i])) {
+      markerKey = key;
+      markers?.dispose();
+      markers = null;
+      markerGroup.clear();
+      if (places || waste || evac) {
+        markers = createMarkers(
+          {
+            places: places ? pointFeatures(places) : [],
+            waste: waste ? pointFeatures(waste) : [],
+            evac: evac ?? [],
+          },
+          frame,
+        );
+        markerGroup.add(markers.group);
+        if (cam) markers.setView(cam, fov, res[1]);
+      }
+    }
+    markers?.setFocus(s.focusPlaceId ?? null);
   }
 
   return {
@@ -87,22 +157,41 @@ export function createOverlayLayer(frame: LocalFrame): OverlayLayer {
       group.traverse((o) => setDashScale(o, m));
     },
     hasVisible() {
-      return [status, gapsGroup, whatIfGroup, routeGroup].some(
-        (g) => g.visible && g.children.length > 0,
-      );
+      return [status, gapsGroup, whatIfGroup, routeGroup, floodGroup, markerGroup].some(drawable);
     },
     setResolution(w, h) {
       res = [w, h];
+      if (cam) markers?.setView(cam, fov, h);
       group.traverse((o) => {
         const m = (o as THREE.Mesh).material as LineMaterial | undefined;
         if (m?.resolution) m.resolution.set(w, h);
       });
     },
+    setView(c, fovDeg) {
+      // The engine calls this every frame: relabel only when the camera moved.
+      if (cam && cam.x === c.x && cam.y === c.y && cam.z === c.z && fov === fovDeg) return;
+      cam = { x: c.x, y: c.y, z: c.z };
+      fov = fovDeg;
+      markers?.setView(c, fovDeg, res[1]);
+    },
     dispose() {
+      flood?.dispose();
+      markers?.dispose();
+      flood = markers = null;
+      floodGroup.clear();
+      markerGroup.clear();
       for (const g of [status, gapsGroup, whatIfGroup, routeGroup]) drop(g);
       group.removeFromParent();
     },
   };
+}
+
+/** True when the group is visible and holds something that draws (mesh, line, points, sprite). */
+function drawable(g: THREE.Object3D): boolean {
+  if (!g.visible) return false;
+  const o = g as THREE.Mesh;
+  if (o.isMesh || (g as THREE.Points).isPoints || (g as THREE.Sprite).isSprite) return true;
+  return g.children.some(drawable);
 }
 
 function drop(g: THREE.Group) {
@@ -114,24 +203,13 @@ function drop(g: THREE.Group) {
   }
 }
 
-function statusStyleOf(st: EdgeStatus): LineStyle {
-  const s = statusStyle(st);
-  const d = CESIUM_DASH[st];
-  return {
-    color: s.color,
-    widthPx: s.width,
-    opacity: s.alpha,
-    dash: d ? dashFromCesium(d) : undefined,
-  };
-}
-
 function statusBatches(access: AccessData, f: LocalFrame): THREE.Object3D[] {
   const out: THREE.Object3D[] = [];
   for (const [st, edges] of groupEdgesByStatus(lineFeatures(access)))
     out.push(
       createLineBatch(
         edges.map((e) => local(e.coords, f)),
-        statusStyleOf(st),
+        statusLineStyle(st),
         LIFT.status,
         ORDER.status,
       ),

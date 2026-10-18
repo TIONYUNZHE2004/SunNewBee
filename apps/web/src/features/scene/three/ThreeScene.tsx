@@ -1,6 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
-import { useBuildings, useGaps, useLayer, useSite } from "../../../lib/api";
+import {
+  useBuildings,
+  useEvacCentres,
+  useGaps,
+  useLayer,
+  useScenarioWater,
+  useSite,
+} from "../../../lib/api";
 import { useTheme } from "../../../ui/theme";
 import { gapsActive } from "../../gaps/gapModel";
 import { usePanel } from "../../main/panelStore";
@@ -258,6 +265,15 @@ export default function ThreeScene({
   const gapsOn = useScene((s) => gapsActive(s.gapsVisible, s.profile));
   const whatIf = useScene((s) => s.whatIf);
   const gapsQ = useGaps(profile, gapsOn && accessVisible);
+  // Flood tint, waste points, place markers and evacuation centres share the overlay pass.
+  const floodLens = useScene((s) => s.lensVisible.flood);
+  const wasteLens = useScene((s) => s.lensVisible.waste);
+  const focusPlaceId = useScene((s) => s.focusPlaceId);
+  const floodOn = !!scenarioId && floodLens;
+  const waterQ = useScenarioWater(floodOn ? scenarioId : null);
+  const floodQ = useLayer("flood", profile, scenarioId, floodOn);
+  const wasteQ = useLayer("waste", profile, scenarioId, wasteLens);
+  const evacQ = useEvacCentres(floodOn ? scenarioId : null, profile);
   // Roads are built only after the first frame with the buildings (or at once when the world has
   // none), so their build never delays the city's first frame. The ribbons need only the walk
   // LineStrings and their `type`, which do not depend on profile or scenario: reuse this query's
@@ -730,9 +746,33 @@ export default function ThreeScene({
       gapsOn,
       route: routeOn ? (route?.geojson ?? null) : null,
       whatIf,
+      water: waterQ.data ?? null,
+      floodEdges: floodQ.data ?? null,
+      floodOn,
+      waste: wasteQ.data ?? null,
+      wasteOn: wasteLens,
+      evac: evacQ.data ?? null,
+      focusPlaceId,
     });
     engine.requestRender();
-  }, [engine, overlay, access.data, accessVisible, gapsQ.data, gapsOn, routeOn, route, whatIf]);
+  }, [
+    engine,
+    overlay,
+    access.data,
+    accessVisible,
+    gapsQ.data,
+    gapsOn,
+    routeOn,
+    route,
+    whatIf,
+    waterQ.data,
+    floodQ.data,
+    floodOn,
+    wasteQ.data,
+    wasteLens,
+    evacQ.data,
+    focusPlaceId,
+  ]);
 
   // Scene intents to camera moves (same precedence as cesium/camera.ts).
   useEffect(() => {

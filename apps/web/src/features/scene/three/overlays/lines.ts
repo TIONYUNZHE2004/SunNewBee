@@ -2,6 +2,7 @@ import * as THREE from "three";
 import { LineMaterial } from "three/addons/lines/LineMaterial.js";
 import { LineSegments2 } from "three/addons/lines/LineSegments2.js";
 import { LineSegmentsGeometry } from "three/addons/lines/LineSegmentsGeometry.js";
+import { CESIUM_DASH, type EdgeStatus, statusStyle } from "../../styles";
 
 export interface LineStyle {
   color: string;
@@ -101,4 +102,16 @@ export function setDashScale(batch: THREE.Object3D, mpp: number): void {
   if (!m || !d) return;
   m.dashSize = d.on * mpp;
   m.gapSize = (d.cycle - d.on) * mpp;
+}
+
+/** An edge status as a line style (colour, width, alpha and dash pattern from styles.ts). */
+export function statusLineStyle(st: EdgeStatus, extraWidthPx = 0): LineStyle {
+  const s = statusStyle(st);
+  const d = CESIUM_DASH[st];
+  return {
+    color: s.color,
+    widthPx: s.width + extraWidthPx,
+    opacity: s.alpha,
+    dash: d ? dashFromCesium(d) : undefined,
+  };
 }
