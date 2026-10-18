@@ -106,27 +106,25 @@ def rule(pattern: str):
     return wrap
 
 
-@rule(r"Asked the township team to check this item\.?")
+@rule(r"Asked the township team to check this item(?=[.;,]|$)")
 def _ask_one(m, lang):
-    return (
-        "Pasukan township diminta menyemak item ini." if lang == "ms" else "已请社区团队核查此项。"
-    )
+    return "Pasukan township diminta menyemak item ini" if lang == "ms" else "已请社区团队核查此项"
 
 
-@rule(r"Asked the township team to check all (\d+) unchecked items\.?")
+@rule(r"Asked the township team to check all (\d+) unchecked items(?=[.;,]|\s|$)")
 def _ask_all(m, lang):
     k = m.group(1)
     if lang == "ms":
-        return f"Pasukan township diminta menyemak kesemua {k} item yang belum disemak."
-    return f"已请社区团队核查全部{k}项未核实的项目。"
+        return f"Pasukan township diminta menyemak kesemua {k} item yang belum disemak"
+    return f"已请社区团队核查全部{k}项未核实的项目"
 
 
-@rule(r"Asked the township team to check (\d+) of the (\d+) unchecked items\.?")
+@rule(r"Asked the township team to check (\d+) of the (\d+) unchecked items(?=[.;,]|\s|$)")
 def _ask_some(m, lang):
     k, n = m.group(1), m.group(2)
     if lang == "ms":
-        return f"Pasukan township diminta menyemak {k} daripada {n} item yang belum disemak."
-    return f"已请社区团队核查{n}项未核实项目中的{k}项。"
+        return f"Pasukan township diminta menyemak {k} daripada {n} item yang belum disemak"
+    return f"已请社区团队核查{n}项未核实项目中的{k}项"
 
 
 @rule(r"This route uses (\d+) road crossings?: (.+?)\.(?=\s|$)")
@@ -201,8 +199,8 @@ def _rest_point(m, lang):
 
 
 @rule(
-    r"About (\d+) m follows road centre lines without a mapped sidewalk; "
-    r"sidewalk access is not verified"
+    r"About (\d+) m follows road centre lines without a mapped sidewalk[;.] "
+    r"[Ss]idewalk access is not (?:verified|checked yet)"
 )
 def _road(m, lang):
     n = m.group(1)
@@ -232,6 +230,11 @@ def _demo_confirmed(m, lang):
     return ("路线" if m.group(1) else "") + "已确认（基于演示数据，尚未实地调查）"
 
 
+@rule(r"^demo values, not yet surveyed(?=[.;]?$)")
+def _demo_only(m, lang):
+    return "Nilai demo, belum ditinjau" if lang == "ms" else "演示数据，尚未实地调查"
+
+
 def localize(text: str, lang: str) -> str:
     """`text` with every known fixed English sentence in `lang` ("ms" or "zh"); English and
     unknown languages pass through unchanged."""
@@ -239,4 +242,7 @@ def localize(text: str, lang: str) -> str:
         return text
     for pattern, fn in RULES:
         text = pattern.sub(lambda m, fn=fn: fn(m, lang), text)
+    if lang == "zh":  # Chinese punctuation after Chinese text
+        text = re.sub(r"(?<=[\u3400-\u9fff）])\.(?=\s|$)", "。", text)
+        text = re.sub(r"(?<=[\u3400-\u9fff）]); ", "；", text)
     return text

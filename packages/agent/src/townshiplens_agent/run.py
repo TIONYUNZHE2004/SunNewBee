@@ -236,7 +236,9 @@ def answer_text(
 
     def dot(c: str) -> str:
         c = localize(c, lang)  # fixed English lines in the answer's language (T-019)
-        return c if c.endswith((".", "!", "?", "。", "！", "？")) else c + "."
+        if c.endswith((".", "!", "?", "。", "！", "？")):
+            return c
+        return c + ("。" if lang == "zh" and re.search(r"[\u3400-\u9fff）]$", c) else ".")
 
     parts = [label] if label else []
     parts += [f"{URGENT_MARK} {dot(c)}" for c in urgent]

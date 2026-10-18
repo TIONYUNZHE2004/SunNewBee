@@ -67,7 +67,7 @@ CASES = [
     (
         "Route: route confirmed (on demo values, not yet surveyed).",
         "Route: laluan disahkan (pada nilai demo, belum ditinjau).",
-        "Route: 路线已确认（基于演示数据，尚未实地调查）.",
+        "Route: 路线已确认（基于演示数据，尚未实地调查）。",
     ),
 ]
 
@@ -191,3 +191,39 @@ def test_crossing_sub_counts_are_crossing_counts():
     v = tool_values({"routes": [{"crossing_note": CROSS, "crossings": [{}] * 8}]})
     assert unsupported("此路线经过8处过街：5处为无标线过街，3处没有记录过街类型。", v) == []
     assert unsupported("There are 4 unmarked crossings.", v) == ["4 unmarked crossings"]
+
+
+@pytest.mark.parametrize(
+    "en,ms,zh",
+    [
+        (  # the model's own ending (live T-019 r03)
+            "About 152 m follows road centre lines without a mapped sidewalk; sidewalk access "
+            "is not checked yet.",
+            "Kira-kira 152 m mengikut garis tengah jalan tanpa laluan pejalan kaki dipetakan; "
+            "akses laluan pejalan kaki belum disahkan.",
+            "约152米沿道路中线而行，没有已绘制的人行道；人行道通行情况未核实。",
+        ),
+        (
+            "demo values, not yet surveyed.",
+            "Nilai demo, belum ditinjau.",
+            "演示数据，尚未实地调查。",
+        ),
+        (  # joined lines (live T-019 r02)
+            "Asked the township team to check 10 of the 27 unchecked items; and 17 more "
+            "unchecked items.",
+            "Pasukan township diminta menyemak 10 daripada 27 item yang belum disemak; dan 17 "
+            "item lagi belum disemak.",
+            "已请社区团队核查27项未核实项目中的10项；另有17项未核实。",
+        ),
+    ],
+)
+def test_live_variants(en, ms, zh):
+    assert localize(en, "ms") == ms and localize(en, "zh") == zh
+
+
+def test_profile_limits_in_tool_text_are_values():
+    from townshiplens_agent.facts import tool_values, unsupported
+
+    v = tool_values({"unknowns": [{"why": "wheelchair needs width_m ≥ 0.9; not verified"}]})
+    assert unsupported("宽度至少0.9米。", v) == []  # live T-019 r10
+    assert unsupported("The path is 0.7 m wide.", v) == ["0.7 m"]
