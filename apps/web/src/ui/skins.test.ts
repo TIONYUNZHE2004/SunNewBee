@@ -33,21 +33,37 @@ describe("skins", () => {
     expect(Object.keys(light).sort()).toEqual(Object.keys(dark).sort());
     for (const k of ["c-glass", "c-glass-edge", "c-shadow"]) expect(light[k]).toBeDefined();
   });
-  it("light skin is the Kamui daylight palette", () => {
-    expect(light["c-bg"]).toBe("#f5f2fa");
-    expect(light["c-fg"]).toBe("#241c42");
-    expect(light["c-accent"]).toBe("#5b45a0");
+  it("light skin is warm stone and ink, with brand red kept for the logo", () => {
+    expect(light["c-bg"]).toBe("#efece6");
+    expect(light["c-fg"]).toBe("#1c1b19");
+    expect(light["c-accent"]).toBe("#1c1b19");
+    expect(light["c-brand-red"]).toBe("#ee3033");
+  });
+  it("no purple left in either skin", () => {
+    for (const s of [light, dark])
+      for (const v of Object.values(s)) expect(v).not.toMatch(/#(5b45a0|241c42|c9b5ea|1f1838)/i);
   });
   it.each([
     ["light", light, "#ffffff"],
-    ["dark", dark, "#241c42"],
+    ["dark", dark, "#1a1a1c"],
   ])("%s: body text, soft text and status tones pass AA on the surface", (_n, s, surface) => {
-    for (const k of ["c-fg", "c-fg-soft", "c-lantern", "c-lilac", "c-flood", "c-rose", "c-peach"]) {
+    for (const k of [
+      "c-fg",
+      "c-fg-soft",
+      "c-lantern",
+      "c-lilac",
+      "c-flood",
+      "c-rose",
+      "c-peach",
+      "c-ok",
+    ]) {
       const v = s[k]!;
       if (!v.startsWith("#")) continue; // rgba soft text on dark is checked by eye
       expect(contrast(v, surface), k).toBeGreaterThanOrEqual(4.5);
     }
     expect(contrast(s["c-on-accent"]!, s["c-accent"]!)).toBeGreaterThanOrEqual(4.5);
+    for (const k of ["c-ok", "c-rose"])
+      expect(contrast(s["c-on-status"]!, s[k]!), k).toBeGreaterThanOrEqual(4.5);
   });
   it("glass has an opaque fallback when backdrop-filter is unsupported", () => {
     expect(css).toMatch(/@supports not \(backdrop-filter: blur\(1px\)\)/);

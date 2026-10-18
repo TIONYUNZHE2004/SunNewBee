@@ -8,7 +8,7 @@ import { useTheme } from "../../../ui/theme";
 import { useTripPick } from "../../day/tripPickStore";
 import { usePanel } from "../../main/panelStore";
 import { isWide } from "../../main/usePanelReserve";
-import { frustumXOffset, PANEL_INSET_PX, panelWidthPx } from "../../main/viewport";
+import { frustumXOffset, mapPanelOverlapPx } from "../../main/viewport";
 import { InSlot } from "../../map-ui/mapSlots";
 import { pickedFloodEdgeId, pointFeatures } from "../geo";
 import { useScene } from "../sceneStore";
@@ -217,8 +217,7 @@ function SceneSetup({
       if (!(f instanceof Cesium.PerspectiveFrustum)) return;
       const w = viewer.canvas.clientWidth;
       const h = viewer.canvas.clientHeight;
-      const wide = isWide(); // phones use the sheet, not a side panel
-      const panel = wide && panelOpen ? panelWidthPx(innerWidth) + PANEL_INSET_PX * 2 : 0;
+      const panel = mapPanelOverlapPx(panelOpen, isWide(), innerWidth); // phones use the sheet
       f.xOffset = frustumXOffset(panel / 2, w, f.near, f.fov ?? 0, h);
       viewer.scene.requestRender();
     };

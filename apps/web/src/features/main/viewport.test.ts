@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { frustumXOffset, panelWidthPx, visibleViewport } from "./viewport";
+import { frustumXOffset, mapPanelOverlapPx, panelWidthPx, visibleViewport } from "./viewport";
 
 describe("viewport", () => {
-  it("panel width is clamp(360, 30vw, 440)", () => {
+  it("panel width is clamp(360, 28vw, 420)", () => {
     expect(panelWidthPx(1000)).toBe(360);
-    expect(panelWidthPx(1300)).toBe(390);
-    expect(panelWidthPx(2000)).toBe(440);
+    expect(panelWidthPx(1300)).toBe(364);
+    expect(panelWidthPx(2000)).toBe(420);
   });
   it("visible map area excludes the open panel and its inset", () => {
     expect(visibleViewport(1440, 432, true)).toEqual({
@@ -20,5 +20,13 @@ describe("viewport", () => {
     const a = frustumXOffset(100, 1440, 1, Math.PI / 3, 900);
     const b = frustumXOffset(200, 1440, 1, Math.PI / 3, 900);
     expect(b).toBeCloseTo(a * 2);
+  });
+});
+
+describe("mapPanelOverlapPx", () => {
+  it("is 0 because the assistant docks beside the map card", () => {
+    expect(mapPanelOverlapPx(true, true, 1440)).toBe(0);
+    expect(mapPanelOverlapPx(false, true, 1440)).toBe(0);
+    expect(mapPanelOverlapPx(true, false, 390)).toBe(0);
   });
 });

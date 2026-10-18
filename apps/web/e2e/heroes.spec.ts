@@ -98,14 +98,15 @@ test("theme menu switches the app theme", async ({ page }) => {
   expect(await attrs()).toEqual({ theme: "day", skin: "light" });
 });
 
-test("Tickets is reachable by keyboard Tab order from the header", async ({ page }) => {
+test("Tickets is reachable by keyboard Tab order from the rail", async ({ page }) => {
   await open(page);
   await page.getByRole("radio", { name: "Management" }).click();
   const tickets = page.getByRole("link", { name: /Tickets/ });
   await expect(tickets).toBeVisible();
-  await page.getByRole("radio", { name: "Management" }).focus();
+  // The rail comes first in the page: skip link, home, Map, Assistant, then Tickets.
+  await page.getByRole("link", { name: "Skip to content" }).focus();
   let reached = false;
-  for (let i = 0; i < 6 && !reached; i++) {
+  for (let i = 0; i < 8 && !reached; i++) {
     await page.keyboard.press("Tab");
     reached = await tickets.evaluate((el) => el === document.activeElement);
   }

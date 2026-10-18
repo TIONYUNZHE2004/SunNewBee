@@ -81,8 +81,8 @@ describe("Shell", () => {
     it("excludes the open panel on the map route", async () => {
       setup("/");
       await screen.findByText(/OpenStreetMap contributors/);
-      // panel = clamp(360, 360, 440) = 360, plus 2 x 16 inset
-      expect(strip().style.maxWidth).toContain("392px");
+      // panel = clamp(360, 336, 420) = 360, docked beside the map card plus the 12 px frame gap
+      expect(strip().style.maxWidth).toContain("372px");
     });
     it("uses the full width on /tickets", async () => {
       setup("/tickets");

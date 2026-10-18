@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useDay, useDayScenarios } from "../../lib/api";
 import { Button } from "../../ui/Button";
+import { LaunchRow } from "../../ui/LaunchRow";
 import { useScene } from "../scene/sceneStore";
 import {
   binAt,
@@ -75,13 +76,14 @@ export function DayPanel() {
 
   if (!shown)
     return (
-      <div className="border-b border-edge px-4 py-2">
-        <Button ref={opener} variant="outline" onClick={() => setOpen(true)}>
-          Simulate a day
-        </Button>
-        <span className="ml-2 text-xs text-fg-soft">
-          5,000 synthetic residents live a day on Elmina's map
-        </span>
+      <div className="px-3 py-1">
+        <LaunchRow
+          ref={opener}
+          icon="walk"
+          title="Simulate a day"
+          subtitle="5,000 synthetic residents live a day on Elmina's map"
+          onClick={() => setOpen(true)}
+        />
       </div>
     );
 
