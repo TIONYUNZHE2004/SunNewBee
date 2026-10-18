@@ -11,6 +11,7 @@ import { createRoleUniforms } from "./assets/roleMaterial";
 import { createEngine } from "./engine";
 import { createFrame } from "./frame";
 import { useSceneBus } from "./scene/sceneBus";
+import { useAcceptanceHook } from "./scene/useAcceptanceHook";
 import { useCameraOps } from "./scene/useCameraOps";
 import { useCityAssets } from "./scene/useCityAssets";
 import { useDecor } from "./scene/useDecor";
@@ -191,6 +192,8 @@ export default function ThreeScene({
   const home = homeView(site);
   const { initialBackground } = useMood({ engine, roleUniforms, sectionRef, home, bus });
   usePicking({ engine, hostRef, places });
+  // Test-only camera / pick / frame-stats hook (dev builds or `?acceptance=1`).
+  useAcceptanceHook(engine, frame);
 
   // Any decorative layer in the scene: city assets (kits, decorative landmarks), facades, roofs, ground
   // decor (verges, construction ground), stall lines, props, agents, the ground layer (land-cover

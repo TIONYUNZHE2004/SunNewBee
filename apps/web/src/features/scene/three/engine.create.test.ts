@@ -209,6 +209,24 @@ describe("engine motion clock", () => {
     spy.pmremFails = true;
   };
 
+  it("renderNow renders one frame synchronously and cancels the pending one (test-only)", async () => {
+    const { e } = await setup({ on: false });
+    try {
+      settle();
+      const n = e.frames;
+      const seen: number[] = [];
+      e.onFrame(() => seen.push(e.frames));
+      e.requestRender();
+      expect(queue).toHaveLength(1);
+      e.renderNow?.();
+      expect(e.frames).toBe(n + 1);
+      expect(seen).toEqual([n + 1]);
+      expect(queue).toHaveLength(0);
+    } finally {
+      teardown(e);
+    }
+  });
+
   it("running() false: after the initial frame no rAF and no timer is scheduled", async () => {
     const { e, layer } = await setup({ on: false });
     try {

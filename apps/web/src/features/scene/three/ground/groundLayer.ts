@@ -109,6 +109,8 @@ export function createGroundLayer(
     mesh.receiveShadow = true;
     mesh.castShadow = false;
     mesh.userData.decorative = true;
+    // Names the band for the acceptance harness's road pick mask (it raycasts roads directly).
+    mesh.userData.groundBand = band;
     mesh.raycast = noRaycast;
     group.add(mesh);
     geometries.push(geo);
