@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import type { BuildingsLayer } from "../../../lib/api";
-import { type HeightOf, toBuildings } from "../cesium/stylised/model";
 import { type LonLat, waterPolygons } from "../geo";
+import { type HeightOf, toBuildings } from "../shared/model";
 import type { FallbackColours } from "./fallbackStyle";
 import type { LocalFrame } from "./frame";
 import { PARK_Y, WATER_Y } from "./ground/bands";
@@ -36,6 +36,17 @@ export interface CityGeometry {
   skipped: number;
   /** Which building each `buildings` triangle belongs to (see `faceBuildingId`). */
   faces: FaceTable;
+  /** The extruded buildings actually drawn, in `faces` order: the facade layer's input. */
+  footprints: Footprint[];
+}
+
+/** A drawn extrusion: its local `[x, z]` ring (counter-clockwise from above), display height and base. */
+export interface Footprint {
+  id: string;
+  kind: string;
+  ring: Pt[];
+  heightM: number;
+  minHeightM: number;
 }
 
 /** Building ids in triangle order: building i owns triangles starts[i] .. starts[i + 1] - 1. */
@@ -188,8 +199,10 @@ function buildFlat(
  * parks and base water. Display only; routing, flood and answers never read it.
  * `toBuildings` already drops MultiPolygons, rings with fewer than 3 distinct points and
  * non-finite coordinates; footprints the mesher still cannot use are skipped here and counted.
+ * `footprints` lists every drawn building (local ring, display height, base) for the facade layer.
  * `only`: extrude just these building ids (the rest are drawn as instanced archetypes).
- * `colours`: styled fallback (walls, roof cap, a PARAPET_M trim band). Each ring edge then adds
+ * `colours`: styled fallback (walls, roof cap, a PARAPET_M trim band); `roofTint` may recolour
+ * the roof cap of a styled building (large flat roofs). Each ring edge then adds
  * one wall quad, so a building has 6 + 12 * edges vertices (30 + 6 * edges without it). Without
  * `colours` the display-only KIND_COLOUR tan stays (no manifest).
  */
@@ -199,13 +212,19 @@ export function buildCityGeometry(
   opts: {
     only?: ReadonlySet<string>;
     colours?: (b: { id: string; kind: string }) => FallbackColours;
+    /**
+     * Styled roofs only: a roof cap colour from the local ring and the palette roof, or null to
+     * keep the palette roof (`largeRoofTint`: large flat roofs are not flat grey).
+     */
+    roofTint?: (id: string, ring: Pt[], paletteRoof: string) => string | null;
   } = {},
 ): CityGeometry {
-  const { only, colours } = opts;
+  const { only, colours, roofTint } = opts;
   const { buildings, skipped: dropped } = toBuildings(layer?.buildings, displayHeight);
   let skipped = dropped;
   const mesh = new Mesh();
   const faces: FaceTable = { ids: [], starts: [] };
+  const footprints: Footprint[] = [];
 
   for (const b of buildings) {
     if (only && !only.has(b.id)) continue;
@@ -218,9 +237,10 @@ export function buildCityGeometry(
     }
     faces.ids.push(b.id);
     faces.starts.push(mesh.triangles);
+    footprints.push({ id: b.id, kind: b.kind, ring, heightM: b.height, minHeightM: b.minHeight });
     const styled = colours?.(b);
     const rgb = rgbOf(styled?.wall ?? KIND_COLOUR[b.kind] ?? KIND_COLOUR.building!);
-    const roofRgb = styled ? rgbOf(styled.roof) : rgb;
+    const roofRgb = styled ? rgbOf(roofTint?.(b.id, ring, styled.roof) ?? styled.roof) : rgb;
     const trimRgb = styled ? rgbOf(styled.trim) : rgb;
     const y0 = b.minHeight;
     const y1 = b.height;
@@ -269,5 +289,5 @@ export function buildCityGeometry(
           base.max.z - base.min.z + 2 * GROUND_MARGIN_M,
         ],
       };
-  return { buildings: buildingsGeo, parks, water, ground, bounds, skipped, faces };
+  return { buildings: buildingsGeo, parks, water, ground, bounds, skipped, faces, footprints };
 }

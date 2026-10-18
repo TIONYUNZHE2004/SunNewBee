@@ -17,7 +17,7 @@ import { createMotionUniforms } from "./assets/roleMaterial";
 import { BOOKMARKS, type BookmarkId, DEFAULT_BOOKMARK, HERO_CENTRE } from "./bookmarks";
 import type { Pose } from "./cameraRig";
 import { useCityInfo } from "./cityInfo";
-import type { Engine } from "./engine";
+import type { Engine, LodTick } from "./engine";
 import { createFrame } from "./frame";
 import { LIGHT_PRESETS } from "./lighting";
 import type { PickHit } from "./pick";
@@ -45,7 +45,14 @@ vi.mock("./assets/cityInstances", async (orig) => {
     createCityInstances: (...a: Parameters<typeof mod.createCityInstances>) => {
       if (instancesFault.on) throw new Error("instance build failed");
       tierFakes.kits.push(a[4]?.kits);
-      return mod.createCityInstances(...a);
+      const inst = mod.createCityInstances(...a);
+      // One build per city: later kits (props) reach the same instances through setKits.
+      const setKits = inst.setKits;
+      inst.setKits = (kits, scale) => {
+        tierFakes.kits.push(kits ?? undefined);
+        setKits(kits, scale);
+      };
+      return inst;
     },
   };
 });
@@ -82,6 +89,8 @@ const tierFakes = vi.hoisted(() => ({
   kits: [] as (Map<string, unknown[]> | undefined)[],
   groundTiers: [] as string[],
   layers: [] as { disposed: number }[],
+  /** The YawMemory handed to each rebuilt motion layer (T12b: one map for the scene's lifetime). */
+  yaws: [] as unknown[],
 }));
 vi.mock("./props/propsPlan", async (orig) => {
   const mod = await orig<typeof import("./props/propsPlan")>();
@@ -174,6 +183,7 @@ vi.mock("./motion/motionLayer", async (orig) => {
     ...mod,
     createMotionLayer: (...a: Parameters<typeof mod.createMotionLayer>) => {
       if (!tierFakes.on) return mod.createMotionLayer(...a);
+      tierFakes.yaws.push(a[5]?.yaw);
       const layer = {
         group: new T.Group(),
         tick: () => {},
@@ -284,6 +294,31 @@ function fakeEngine() {
       e.frames++;
       for (const cb of e.frameCbs) cb(dt, { calls, moving: false });
     },
+    // The LOD schedule (Task 4): a requested tick runs on a 0 ms timer; a listener that reports
+    // more work gets another one, like the engine's trailing LOD wake.
+    lodCbs: new Set<(t: LodTick) => boolean | undefined>(),
+    lodTimer: null as ReturnType<typeof setTimeout> | null,
+    onLodTick: vi.fn((cb: (t: LodTick) => boolean | undefined) => {
+      e.lodCbs.add(cb);
+      e.requestLodTick();
+      return () => {
+        e.lodCbs.delete(cb);
+      };
+    }),
+    requestLodTick: vi.fn(() => {
+      if (e.lodTimer) return;
+      e.lodTimer = setTimeout(() => {
+        e.lodTimer = null;
+        e.lodTick();
+      }, 0);
+    }),
+    /** One LOD tick at the rig's pose. */
+    lodTick() {
+      let more = false;
+      const t = { target: { x: pose.target[0], z: pose.target[1] }, rangeM: pose.rangeM, nowMs: 0 };
+      for (const cb of [...e.lodCbs]) if (cb(t)) more = true;
+      if (more) e.requestLodTick();
+    },
     fatal: null as ((err: Error) => void) | null,
     onFatal: vi.fn((cb: (err: Error) => void) => {
       e.fatal = cb;
@@ -380,16 +415,9 @@ describe("ThreeScene", () => {
     expect(s).toHaveAttribute("data-route", "off");
   });
 
-  it("shows an experimental-engine chip whose link switches back to Cesium on the same page", () => {
-    history.replaceState(null, "", "/?bookmark=hero-near&engine=three#x");
+  it("renders no experimental-engine chip", () => {
     mount();
-    expect(screen.getByText(/Experimental 3D engine/)).toHaveTextContent(
-      "Experimental 3D engine · Switch back",
-    );
-    expect(screen.getByRole("link", { name: "Switch back" })).toHaveAttribute(
-      "href",
-      "/?bookmark=hero-near&engine=cesium#x",
-    );
+    expect(screen.queryByText(/Experimental 3D engine/)).toBeNull();
   });
 
   it("draws the roads after the first frame even when the world has no land cover", async () => {
@@ -409,8 +437,9 @@ describe("ThreeScene", () => {
       const { engine } = mount();
       await waitFor(() => expect(engine.setCity).toHaveBeenCalled());
       act(() => engine.tick());
+      // Roads are streamed per tile into their own decor slot (Task 4).
       await waitFor(() => {
-        const last = engine.setGround.mock.calls.at(-1)?.[0] as
+        const last = engine.setDecor.mock.calls.filter((c) => c[0] === "roads").at(-1)?.[1] as
           | { group: { children: { geometry: { getAttribute(n: string): { count: number } } }[] } }
           | null
           | undefined;
@@ -420,6 +449,16 @@ describe("ThreeScene", () => {
     } finally {
       accessLayer.data = { type: "FeatureCollection", features: [] };
     }
+  });
+
+  it("data-tiles is the streamer's active tile count (25 at the 800 m default view)", async () => {
+    const { engine } = mount();
+    const s = screen.getByTestId("three-scene");
+    expect(s).toHaveAttribute("data-tiles", "0");
+    await waitFor(() => expect(engine.setCity).toHaveBeenCalled());
+    act(() => engine.tick());
+    await waitFor(() => expect(s).toHaveAttribute("data-tiles", "25"));
+    expect(engine.onLodTick).toHaveBeenCalled();
   });
 
   it("calls setCity once buildings data arrives", async () => {
@@ -890,6 +929,7 @@ describe("ThreeScene", () => {
       tierFakes.kits.length = 0;
       tierFakes.groundTiers.length = 0;
       tierFakes.layers.length = 0;
+      tierFakes.yaws.length = 0;
       act(() => useSceneSettings.setState({ quality: "medium" }));
       try {
         serve({});
@@ -916,7 +956,8 @@ describe("ThreeScene", () => {
         await waitFor(() => expect(lastDecor("lamp-pools")).toBeNull());
         expect(kitCount()).toBe(0);
         expect(lastDecor("ambient")).toBeNull();
-        expect(driver()?.group.children).toHaveLength(0);
+        // Low: motion off (ruling P4-S), no driver at all.
+        expect(driver()).toBeNull();
         expect(tierFakes.layers[0]?.disposed).toBe(1);
         expect(tierFakes.groundTiers.at(-1)).toBe("low");
         // The city mesh is never rebuilt for a tier change.
@@ -929,6 +970,10 @@ describe("ThreeScene", () => {
         expect(driver()?.group.children).toHaveLength(1);
         expect(tierFakes.groundTiers.at(-1)).toBe("medium");
         expect(engine.setCity.mock.calls.length).toBe(cityCalls);
+        // Every rebuilt motion layer shares one YawMemory, so a rebuild never resets agents' yaw.
+        expect(tierFakes.yaws.length).toBeGreaterThanOrEqual(2);
+        expect(tierFakes.yaws[0]).toBeInstanceOf(Map);
+        for (const y of tierFakes.yaws) expect(y).toBe(tierFakes.yaws[0]);
       } finally {
         tierFakes.on = false;
         act(() => useSceneSettings.setState({ quality: "auto" }));
@@ -1386,6 +1431,172 @@ describe("ThreeScene", () => {
       });
       await waitFor(() => expect(usePerfStats.getState().tris).toBe(1234));
       expect(usePerfStats.getState().gpuMB).toBeGreaterThan(0);
+    });
+
+    it("Task 14: every streamed decor slot is decorative and unpickable; every overlay draws above it", async () => {
+      // A street (verges), a parking lot (stall lines), a construction site (tracks, gravel), the
+      // extruded `plain` building (facades) and a 900 m2 hall (a dressed roof), around the target.
+      const rect = (
+        props: Record<string, unknown>,
+        x0: number,
+        z0: number,
+        x1: number,
+        z1: number,
+      ) => ({
+        type: "Feature",
+        properties: props,
+        geometry: {
+          type: "Polygon",
+          coordinates: local([
+            [x0, z0],
+            [x1, z0],
+            [x1, z1],
+            [x0, z1],
+          ]),
+        },
+      });
+      const WORLD = {
+        ...CITY,
+        buildings: {
+          ...CITY.buildings,
+          features: [
+            ...CITY.buildings.features,
+            rect({ id: "hall", kind: "industrial", height_m: 12 }, -80, -80, -50, -50),
+          ],
+        },
+        landcover: {
+          type: "FeatureCollection",
+          features: [
+            rect({ class: "parking" }, 40, -120, 140, -40),
+            rect({ class: "construction" }, -200, 40, -100, 140),
+          ],
+        },
+      };
+      accessLayer.data = {
+        type: "FeatureCollection",
+        features: [
+          {
+            type: "Feature",
+            properties: { id: "s1", type: "street" },
+            geometry: {
+              type: "LineString",
+              coordinates: [frame.toLonLat(-200, 30), frame.toLonLat(200, 30)],
+            },
+          },
+        ],
+      };
+      act(() => useSceneSettings.setState({ quality: "medium" }));
+      try {
+        stubFetch((url) => {
+          if (url.includes("/layers/buildings")) return json(WORLD);
+          if (url.endsWith("/city/manifest.json")) return json(MANIFEST);
+          if (url.includes("/city/link_intermediate.glb?")) return glb();
+          return json({}, 404);
+        });
+        const { engine } = mount();
+        const s = screen.getByTestId("three-scene");
+        await waitFor(() => expect(s).toHaveAttribute("data-assets", "ready"));
+        act(() => engine.tick());
+        const slots = () => {
+          const last = new Map<string, { group: THREE.Object3D } | null>();
+          for (const [slot, d] of engine.setDecor.mock.calls) last.set(slot as string, d);
+          return last;
+        };
+        await waitFor(() => {
+          const l = slots();
+          for (const k of ["facades", "roofs", "ground-decor", "roads"])
+            expect(l.get(k), k).toBeTruthy();
+        });
+        const drawn = (root: THREE.Object3D) => {
+          const out: THREE.Object3D[] = [];
+          root.traverse((o) => {
+            if ((o as THREE.Mesh).isMesh || (o as THREE.Points).isPoints) out.push(o);
+          });
+          return out;
+        };
+        const PROTO = new Set<unknown>([
+          THREE.Mesh.prototype.raycast,
+          THREE.InstancedMesh.prototype.raycast,
+          THREE.Points.prototype.raycast,
+        ]);
+        let maxDecor = Number.NEGATIVE_INFINITY;
+        const names = new Set<string>();
+        for (const [slot, d] of slots()) {
+          if (!d) continue;
+          for (const o of drawn(d.group)) {
+            names.add(o.name);
+            expect(o.userData.decorative, `${slot}/${o.name}`).toBe(true);
+            expect(PROTO.has(o.raycast), `${slot}/${o.name} raycast`).toBe(false);
+            expect(o.userData.pick, `${slot}/${o.name}`).toBeUndefined();
+            // The ambient birds sit at 12 in the MAIN scene; the overlay pass is drawn after it.
+            if (o.name !== "ambient-birds") maxDecor = Math.max(maxDecor, o.renderOrder);
+          }
+        }
+        expect([...names].some((n) => n.startsWith("facade_windows_"))).toBe(true);
+        for (const n of ["roof_units", "ground-decor"]) expect(names, n).toContain(n);
+        expect(maxDecor).toBeLessThan(10);
+        // The stall lines ride the road markings: the white stall colour is in the markings mesh.
+        const roads = slots().get("roads")!.group;
+        const marks = drawn(roads).find((o) => (o as THREE.Mesh).renderOrder === 5) as
+          | THREE.Mesh
+          | undefined;
+        expect(marks).toBeDefined();
+        const col = marks!.geometry.getAttribute("color");
+        const stall = new THREE.Color("#f2f1ec");
+        let white = 0;
+        for (let i = 0; i < col.count; i++)
+          if (new THREE.Color(col.getX(i), col.getY(i), col.getZ(i)).getHex() === stall.getHex())
+            white++;
+        expect(white).toBeGreaterThan(0);
+        expect(
+          screen.getByRole("note", { name: "Decorative details are illustrative." }),
+        ).toBeVisible();
+
+        // The overlay layer handed to the engine: lines, flood edges and markers draw on top.
+        const overlay = engine.setOverlays.mock.calls.filter((c) => c[0]).at(-1)?.[0] as {
+          group: THREE.Group;
+          update(s: unknown): void;
+        };
+        expect(overlay).toBeDefined();
+        const line = (id: string, status: string, z: number) => ({
+          type: "Feature",
+          properties: { id, status },
+          geometry: {
+            type: "LineString",
+            coordinates: [frame.toLonLat(0, z), frame.toLonLat(80, z)],
+          },
+        });
+        act(() =>
+          overlay.update({
+            access: {
+              type: "FeatureCollection",
+              features: [line("a", "blocked", 0), line("b", "unknown", 10)],
+            },
+            accessVisible: true,
+            gaps: null,
+            gapsOn: false,
+            route: {
+              type: "LineString",
+              coordinates: [frame.toLonLat(0, 0), frame.toLonLat(90, 9)],
+            },
+            whatIf: null,
+            floodEdges: { type: "FeatureCollection", features: [line("f", "flooded_likely", 20)] },
+            floodOn: true,
+          }),
+        );
+        const overlayDrawn = drawn(overlay.group);
+        expect(overlayDrawn.length).toBeGreaterThanOrEqual(4);
+        for (const o of overlayDrawn) {
+          const mats = (o as THREE.Mesh).material;
+          for (const m of Array.isArray(mats) ? mats : [mats])
+            expect((m as THREE.Material).depthTest, o.name).toBe(false);
+          expect(o.renderOrder, o.name).toBeGreaterThanOrEqual(10);
+          expect(o.renderOrder, o.name).toBeGreaterThan(maxDecor);
+        }
+      } finally {
+        accessLayer.data = { type: "FeatureCollection", features: [] };
+        act(() => useSceneSettings.setState({ quality: "auto" }));
+      }
     });
   });
   describe("picking", () => {

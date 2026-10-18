@@ -15,7 +15,8 @@
       "!**/*.geojson",
       "!packages/api-client/openapi.json",
       "!packages/spatial/tests/fixtures",
-      "!apps/web/public/city"
+      "!apps/web/public/city",
+      "!.superpowers"
     ]
   },
   "css": { "parser": { "tailwindDirectives": true } },

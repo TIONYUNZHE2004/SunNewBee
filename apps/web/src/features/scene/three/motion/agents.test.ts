@@ -2,8 +2,24 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { parseManifest } from "../assets/manifest";
 import { createFrame } from "../frame";
-import { capFor } from "../props/caps";
-import { type Agent, densityFor, displayScale, planAgents, poseAt } from "./agents";
+import { type Box, boxAround, seedFor } from "../stream/area";
+import { tileAt } from "../stream/tiles";
+import {
+  AGENT_CHUNK_M,
+  type Agent,
+  CLOSED_LOOP_M,
+  densityFor,
+  displayScale,
+  EASE_AMP,
+  EASE_PERIOD_S,
+  easedDistance,
+  planAgents,
+  poseAt,
+  slerpAngle,
+  smoothYaw,
+  TURN_S,
+  YAW_TAU_S,
+} from "./agents";
 
 const manifest = parseManifest(
   JSON.parse(
@@ -64,11 +80,11 @@ const base = {
   walk,
   places: fc(),
   frame,
-  centre: O,
-  radiusM: 1200,
+  // The P3 hero circle fixture (r = 1200 m) becomes a single 2,400 m box.
+  area: { box: boxAround(0, 0, 1200), seed: "t" },
   tier: "medium" as const,
+  caps: { vehicles: 20, people: 30 },
   m: manifest,
-  seed: "t",
 };
 type In = Parameters<typeof planAgents>[0];
 const plan = (over: Partial<In> = {}) => planAgents({ ...base, ...over });
@@ -112,7 +128,7 @@ describe("planAgents", () => {
     const b = plan();
     expect(a.length).toBeGreaterThan(0);
     expect(b).toEqual(a);
-    expect(plan({ seed: "other" })).not.toEqual(a);
+    expect(plan({ area: { ...base.area, seed: "other" } })).not.toEqual(a);
   });
 
   it("vehicles only on street or major_road, people only on footway, path or pedestrian", () => {
@@ -159,8 +175,8 @@ describe("planAgents", () => {
       const agents = plan({ weights: w });
       const d = densityFor(w);
       for (const [kind, cap] of [
-        ["person", capFor("medium", "people")],
-        ["vehicle", capFor("medium", "vehicles")],
+        ["person", base.caps.people],
+        ["vehicle", base.caps.vehicles],
       ] as const) {
         const n = ofKind(agents, kind).length;
         expect(n).toBeLessThanOrEqual(cap * d);
@@ -168,6 +184,7 @@ describe("planAgents", () => {
       }
     }
     expect(plan({ tier: "low" })).toEqual([]);
+    expect(plan({ caps: { vehicles: 0, people: 0 } })).toEqual([]);
   });
 
   it("without weights it plans for the peak density (dusk), so the layer can thin it by mood", () => {
@@ -196,7 +213,11 @@ describe("planAgents", () => {
     );
     const share = (type: string) => {
       const people = ofKind(
-        plan({ walk: w2, places: fc(point({ id: "p", type }, -400, 60)) }),
+        plan({
+          walk: w2,
+          places: fc(point({ id: "p", type }, -400, 60)),
+          caps: { vehicles: 0, people: 1e6 },
+        }),
         "person",
       );
       return people.filter((a) => (a.path[0] as number) < 0).length / people.length;
@@ -208,10 +229,133 @@ describe("planAgents", () => {
     expect(share("clinic")).toBeLessThan(0.62);
   });
 
-  it("stays inside the radius", () => {
-    for (const a of plan({ radiusM: 150 }))
-      for (let i = 0; i < a.path.length; i += 2)
-        expect(Math.hypot(a.path[i]!, a.path[i + 1]!)).toBeLessThanOrEqual(153);
+  it("each agent's path is a chunk of at most AGENT_CHUNK_M owned by its midpoint", () => {
+    const box: Box = { x0: -150, z0: -150, x1: 150, z1: 150 };
+    const agents = plan({ area: { box, seed: "t" }, caps: { vehicles: 1e6, people: 1e6 } });
+    expect(agents.length).toBeGreaterThan(5);
+    const m = AGENT_CHUNK_M / 2 + 3; // half a chunk past the box, plus the lane offset
+    for (const a of agents) {
+      // A vehicle drives its chunk out and back (ruling P4-O): two legs plus two lane-change
+      // U-turns of at most 2 x 2.5 m each (major road, quarter of 10 m either side).
+      if (a.kind === "vehicle") expect(a.length).toBeLessThanOrEqual(2 * (AGENT_CHUNK_M + 1) + 10);
+      else expect(a.length).toBeLessThanOrEqual(AGENT_CHUNK_M + 1);
+      for (let i = 0; i < a.path.length; i += 2) {
+        expect(a.path[i]! >= box.x0 - m && a.path[i]! <= box.x1 + m).toBe(true);
+        expect(a.path[i + 1]! >= box.z0 - m && a.path[i + 1]! <= box.z1 + m).toBe(true);
+      }
+    }
+  });
+});
+
+describe("planAgents per tile box", () => {
+  const BIG = { vehicles: 1e6, people: 1e6 };
+  const Q: Box[] = [
+    { x0: -500, z0: -500, x1: 0, z1: 0 },
+    { x0: 0, z0: -500, x1: 500, z1: 0 },
+    { x0: -500, z0: 0, x1: 0, z1: 500 },
+    { x0: 0, z0: 0, x1: 500, z1: 500 },
+  ];
+  const U: Box = { x0: -500, z0: -500, x1: 500, z1: 500 };
+  const byId = (l: Agent[]) => [...l].sort((a, b) => (a.id < b.id ? -1 : 1));
+  // Lines that cross both shared edges (x = 0 and z = 0), plus the parallel set.
+  const cross = fc(
+    ...Object.entries(LINES).map(([type, pts]) => line(type, pts, type)),
+    line(
+      "street",
+      [
+        [-20, -400],
+        [10, -5],
+        [-10, 400],
+      ],
+      "x1",
+    ),
+    line(
+      "footway",
+      [
+        [5, -300],
+        [5, 300],
+      ],
+      "x2",
+    ),
+  );
+
+  it("four tiles planned separately give exactly the agents of their union", () => {
+    const parts = Q.map((box, i) => plan({ walk: cross, caps: BIG, area: { box, seed: `q${i}` } }));
+    const union = plan({ walk: cross, caps: BIG, area: { box: U, seed: "u" } });
+    expect(union.length).toBeGreaterThan(40);
+    const ids = parts.flat().map((a) => a.id);
+    expect(new Set(ids).size).toBe(ids.length);
+    expect(byId(parts.flat())).toEqual(byId(union));
+  });
+
+  it("is deterministic per tile key, whatever was planned before", () => {
+    const tile = tileAt(10, 10);
+    const area = { box: tile.box, seed: seedFor(tile.key, "agents") };
+    const first = plan({ walk: cross, area, caps: { vehicles: 3, people: 3 } });
+    plan({ walk: cross, area: { box: Q[0]!, seed: "x" } });
+    expect(plan({ walk: cross, area, caps: { vehicles: 3, people: 3 } })).toEqual(first);
+    expect(first.length).toBeGreaterThan(0);
+  });
+});
+
+describe("planAgents vehicles loop out and back on their own lane (ruling P4-O)", () => {
+  it("every vehicle path is closed (first point within CLOSED_LOOP_M of the last); people stay open", () => {
+    const agents = plan({ caps: { vehicles: 1e6, people: 1e6 } });
+    const cars = ofKind(agents, "vehicle");
+    expect(cars.length).toBeGreaterThan(5);
+    for (const a of cars) {
+      const n = a.path.length;
+      const gap = Math.hypot(a.path[n - 2]! - a.path[0]!, a.path[n - 1]! - a.path[1]!);
+      expect(gap).toBeLessThanOrEqual(CLOSED_LOOP_M);
+    }
+    for (const a of ofKind(agents, "person")) {
+      const n = a.path.length;
+      expect(Math.hypot(a.path[n - 2]! - a.path[0]!, a.path[n - 1]! - a.path[1]!)).toBeGreaterThan(
+        CLOSED_LOOP_M,
+      );
+    }
+  });
+
+  it("a car keeps left of its direction of travel on both halves, relative to the source edge", () => {
+    // One straight 100 m street along x (a single chunk), centre line z = 0.
+    const street = fc(
+      line(
+        "street",
+        [
+          [-50, 0],
+          [50, 0],
+        ],
+        "s",
+      ),
+    );
+    const cars = ofKind(
+      plan({
+        walk: street,
+        area: { box: boxAround(0, 0, 200), seed: "t" },
+        caps: { vehicles: 1e6, people: 0 },
+      }),
+      "vehicle",
+    );
+    expect(cars.length).toBeGreaterThan(0);
+    let east = 0;
+    let west = 0;
+    for (const a of cars) {
+      const lap = a.length / a.speed;
+      for (let i = 0; i < 400; i++) {
+        const p = poseAt(a, (i / 400) * lap * 1.3);
+        if (Math.abs(p.x) > 40) continue; // away from the lane-change U-turns at the ends
+        const dx = Math.sin(p.yaw);
+        const dz = Math.cos(p.yaw);
+        if (Math.abs(dx) < 0.99) continue; // mid U-turn
+        // Left of travel with y up is (dz, -dx); the offset from the centre line is (0, p.z).
+        const left = p.z * -dx;
+        expect(left).toBeGreaterThan(1); // a quarter of the 6 m street = 1.5 m
+        if (dx > 0) east++;
+        else west++;
+      }
+    }
+    expect(east).toBeGreaterThan(10);
+    expect(west).toBeGreaterThan(10); // the return half was sampled
   });
 });
 
@@ -234,24 +378,192 @@ describe("poseAt", () => {
     speed: 1.3,
     offset: 3,
   };
-  it("loops: t and t + length/speed are the same pose", () => {
-    for (const t of [0, 1.7, 9.2, 123.4]) {
-      const p = poseAt(a, t);
-      const q = poseAt(a, t + a.length / a.speed);
-      expect(q.x).toBeCloseTo(p.x, 3);
-      expect(q.z).toBeCloseTo(p.z, 3);
-      expect(q.yaw).toBeCloseTo(p.yaw, 5);
+  /** The time at which the agent has travelled `d` metres (bisection on the monotone distance). */
+  const timeFor = (ag: Agent, d: number) => {
+    let lo = 0;
+    let hi = (d / ag.speed) * 2 + 1;
+    for (let i = 0; i < 80; i++) {
+      const mid = (lo + hi) / 2;
+      if (easedDistance(ag, mid) < d) lo = mid;
+      else hi = mid;
     }
-  });
-  it("walks the path at its speed, yaw from the tangent (+z forward)", () => {
+    return (lo + hi) / 2;
+  };
+  const wrap = (v: number) => Math.atan2(Math.sin(v), Math.cos(v));
+
+  it("walks the path at its (eased) speed, yaw from the tangent (+z forward)", () => {
     const p = poseAt(a, 0);
     expect(p.x).toBeCloseTo(3);
     expect(p.z).toBeCloseTo(0);
     expect(p.yaw).toBeCloseTo(Math.PI / 2); // heading +x
-    const q = poseAt(a, 10 / 1.3);
-    expect(q.x).toBeCloseTo(10);
-    expect(q.z).toBeCloseTo(-3);
+    const q = poseAt(a, timeFor(a, 10));
+    expect(q.x).toBeCloseTo(10, 3);
+    expect(q.z).toBeCloseTo(-3, 3);
     expect(Math.abs(q.yaw)).toBeCloseTo(Math.PI); // heading -z
+  });
+
+  it("speed eases +-15 % on a hashed sine with a 20-40 s period; agents differ", () => {
+    expect(EASE_AMP).toBe(0.15);
+    expect(EASE_PERIOD_S).toEqual([20, 40]);
+    const rates = (ag: Agent) => {
+      const out: number[] = [];
+      for (let t = 0; t < 80; t += 0.25)
+        out.push((easedDistance(ag, t + 0.01) - easedDistance(ag, t)) / 0.01 / ag.speed);
+      return out;
+    };
+    const r = rates(a);
+    expect(Math.min(...r)).toBeGreaterThanOrEqual(0.85 - 1e-6);
+    expect(Math.max(...r)).toBeLessThanOrEqual(1.15 + 1e-6);
+    expect(Math.min(...r)).toBeLessThan(0.87);
+    expect(Math.max(...r)).toBeGreaterThan(1.13);
+    expect(easedDistance(a, 0)).toBe(0);
+    // Two agents with the same speed are not in lockstep.
+    const b = { ...a, id: "b" };
+    expect(rates(b)).not.toEqual(r);
+  });
+
+  it("an open path ping-pongs: no jump at the end, turns in place over 1.5 s, walks back", () => {
+    expect(TURN_S).toBe(1.5);
+    const atEnd = poseAt(a, timeFor(a, 17));
+    expect(atEnd.x).toBeCloseTo(10, 3);
+    expect(atEnd.z).toBeCloseTo(-10, 3);
+    // The turn holds the end point and swings the yaw by pi.
+    const mid = poseAt(a, timeFor(a, 17 + (TURN_S * a.speed) / 2));
+    expect(mid.x).toBeCloseTo(10, 3);
+    expect(mid.z).toBeCloseTo(-10, 3);
+    expect(Math.abs(wrap(mid.yaw - atEnd.yaw))).toBeCloseTo(Math.PI / 2, 3);
+    const after = poseAt(a, timeFor(a, 17 + TURN_S * a.speed));
+    expect(Math.abs(wrap(after.yaw - atEnd.yaw))).toBeCloseTo(Math.PI, 3);
+    // Then back along the path: 4 m later it is 4 m from the end, heading +z.
+    const back = poseAt(a, timeFor(a, 17 + TURN_S * a.speed + 4));
+    expect(back.x).toBeCloseTo(10, 3);
+    expect(back.z).toBeCloseTo(-6, 3);
+    expect(wrap(back.yaw)).toBeCloseTo(0, 3);
+    // Never teleports to the start (the P3 defect): one cycle is 2 L + 2 turns.
+    const cycle = 2 * 20 + 2 * TURN_S * a.speed;
+    const c = poseAt(a, timeFor(a, cycle));
+    expect(c.x).toBeCloseTo(3, 3);
+    expect(c.z).toBeCloseTo(0, 3);
+    expect(wrap(c.yaw)).toBeCloseTo(Math.PI / 2, 3);
+  });
+
+  it("a closed loop (ends within 1 m) keeps looping, across the closing gap without a jump", () => {
+    expect(CLOSED_LOOP_M).toBe(1);
+    // A 40 m square whose last point stops 0.5 m short of the first.
+    const sq: Agent = {
+      id: "loop",
+      kind: "vehicle",
+      variant: "car",
+      path: new Float32Array([0, 0, 10, 0, 10, 10, 0, 10, 0, 0.5]),
+      length: 39.5,
+      speed: 9,
+      offset: 0,
+    };
+    const p = poseAt(sq, timeFor(sq, 39.75));
+    expect(p.x).toBeCloseTo(0, 3);
+    expect(p.z).toBeCloseTo(0.25, 3);
+    const q = poseAt(sq, timeFor(sq, 40 + 5));
+    expect(q.x).toBeCloseTo(5, 3);
+    expect(q.z).toBeCloseTo(0, 3);
+    expect(q.yaw).toBeCloseTo(Math.PI / 2, 3); // still heading +x: looped, not reversed
+  });
+
+  it("degenerate paths stay put", () => {
+    const one: Agent = { ...a, id: "one", path: new Float32Array([4, 5]), length: 0 };
+    expect(poseAt(one, 12)).toEqual({ x: 4, z: 5, yaw: 0 });
+    const zero: Agent = { ...a, id: "zero", path: new Float32Array([4, 5, 4, 5]), length: 0 };
+    const z = poseAt(zero, 12);
+    expect([z.x, z.z]).toEqual([4, 5]);
+  });
+});
+
+describe("slerpAngle / smoothYaw", () => {
+  it("takes the short way round and never overshoots", () => {
+    expect(slerpAngle(0, Math.PI / 2, 0.5)).toBeCloseTo(Math.PI / 4);
+    // From 170 deg to -170 deg is +20 deg, not -340.
+    const mid = slerpAngle((170 * Math.PI) / 180, (-170 * Math.PI) / 180, 0.5);
+    expect(Math.abs(Math.atan2(Math.sin(mid), Math.cos(mid)))).toBeCloseTo(Math.PI, 5);
+    expect(slerpAngle(1, 2, 0)).toBeCloseTo(1);
+    expect(slerpAngle(1, 2, 1)).toBeCloseTo(2);
+  });
+  it("smoothYaw uses 1 - exp(-dt / 0.25 s)", () => {
+    expect(YAW_TAU_S).toBe(0.25);
+    expect(smoothYaw(0, 1, 0.25)).toBeCloseTo(1 - Math.exp(-1));
+    expect(smoothYaw(0, 1, 0)).toBe(0);
+  });
+});
+
+// Review Focus 4: no visible jumps. Seeded agents on short open and closed paths (so 33 s covers
+// several path ends and turns), stepped at 60 Hz.
+describe("Review Focus 4: continuity over 200 seeded agents x 2,000 steps of 16.7 ms", () => {
+  const rng = (seed: number) => () => {
+    seed = (seed + 0x6d2b79f5) | 0;
+    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+  const r = rng(12);
+  const agents: Agent[] = Array.from({ length: 200 }, (_, i) => {
+    const n = 2 + Math.floor(r() * 6);
+    const pts: number[] = [r() * 50, r() * 50];
+    for (let k = 1; k < n; k++) {
+      // Some repeated vertices (zero-length segments) and sharp corners.
+      const rep = r() < 0.1;
+      const lx = pts[pts.length - 2] as number;
+      const lz = pts[pts.length - 1] as number;
+      pts.push(rep ? lx : lx + (r() - 0.5) * 20, rep ? lz : lz + (r() - 0.5) * 20);
+    }
+    // A third are closed loops whose ends meet within 1 m.
+    if (i % 3 === 0 && n >= 3)
+      pts.push((pts[0] as number) + r() * 0.6, (pts[1] as number) + r() * 0.6);
+    const path = new Float32Array(pts);
+    let length = 0;
+    for (let k = 0; k + 3 < path.length; k += 2)
+      length += Math.hypot(path[k + 2]! - path[k]!, path[k + 3]! - path[k + 1]!);
+    const vehicle = r() < 0.5;
+    return {
+      id: `rf4:${i}`,
+      kind: vehicle ? "vehicle" : "person",
+      variant: "v",
+      path,
+      length,
+      speed: vehicle ? 8 + r() * 8 : 1.2 + r() * 3.3,
+      offset: r() * length,
+    };
+  });
+  const DT = 0.0167;
+  const STEPS = 2000;
+
+  it("positions never jump more than speed x 1.2 x dt + 0.01 m; smoothed yaw turns at most 2 pi dt / 0.5 s", () => {
+    const yawStep = (2 * Math.PI * DT) / 0.5;
+    let worstPos = Number.NEGATIVE_INFINITY;
+    let worstYaw = Number.NEGATIVE_INFINITY;
+    let ends = 0;
+    for (const ag of agents) {
+      const t0 = r() * 500;
+      const p = poseAt(ag, t0);
+      let px = p.x;
+      let pz = p.z;
+      let yaw = p.yaw;
+      let raw = p.yaw;
+      for (let s = 1; s <= STEPS; s++) {
+        const q = poseAt(ag, t0 + s * DT);
+        const d = Math.hypot(q.x - px, q.z - pz);
+        worstPos = Math.max(worstPos, d - (ag.speed * 1.2 * DT + 0.01));
+        const next = smoothYaw(yaw, q.yaw, DT);
+        const dy = Math.abs(Math.atan2(Math.sin(next - yaw), Math.cos(next - yaw)));
+        worstYaw = Math.max(worstYaw, dy - yawStep);
+        // A step with no movement but a turning tangent: the agent is turning at a path end.
+        if (d < 1e-9 && Math.abs(q.yaw - raw) > 1e-6) ends++;
+        px = q.x;
+        pz = q.z;
+        yaw = next;
+        raw = q.yaw;
+      }
+    }
+    expect(worstPos).toBeLessThanOrEqual(1e-9);
+    expect(worstYaw).toBeLessThanOrEqual(1e-9);
+    expect(ends).toBeGreaterThan(1000); // the run really covers path ends
   });
 });
 

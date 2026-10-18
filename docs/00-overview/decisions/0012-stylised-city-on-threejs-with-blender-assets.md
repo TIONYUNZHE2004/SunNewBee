@@ -30,6 +30,7 @@ Elmina is a few kilometres across, so the Stylised view needs nothing from a glo
 
 ## Consequences
 - Two 3D engines live side by side. Routes, flood overlays and place markers are implemented once per renderer.
+- Update (P5, 2026-10-18): Three.js became the default Stylised renderer and the Cesium Stylised code (`scene/cesium/stylised/`, `/dev/stylised`) was retired. Cesium now draws Realistic only, so the "side by side" cost is one engine per map style.
 - Buildings use one archetype per real Elmina building type, at true scale. Heights are sampled per footprint, falling back to the archetype's storey count.
 - Flood stays a tinted, hatched ground overlay, never a realistic water surface, so no water depth is implied.
 - Quality tiers stay. The gate is the owner's side-by-side screenshot review against the reference, plus 30 fps or more at the default view on Medium on the owner's laptop.

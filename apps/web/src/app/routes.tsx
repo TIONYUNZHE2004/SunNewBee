@@ -1,4 +1,3 @@
-import { lazy, Suspense } from "react";
 import { createBrowserRouter, Link, type RouteObject } from "react-router";
 import { MainPage } from "../features/main/MainPage";
 import { TicketsPage } from "../features/tickets/TicketsPage";
@@ -19,26 +18,7 @@ function NotFound() {
   );
 }
 
-// DEV-only stylised-city preview (no keys, no billable tiles). The constant DEV check lets the
-// production build drop the import entirely.
-const StylisedPreview = import.meta.env.DEV
-  ? lazy(() => import("../features/scene/cesium/stylised/StylisedPreview"))
-  : null;
-const devRoutes: RouteObject[] = StylisedPreview
-  ? [
-      {
-        path: "/dev/stylised",
-        element: (
-          <Suspense fallback={null}>
-            <StylisedPreview />
-          </Suspense>
-        ),
-      },
-    ]
-  : [];
-
 export const routes: RouteObject[] = [
-  ...devRoutes,
   {
     element: <Shell />,
     children: [

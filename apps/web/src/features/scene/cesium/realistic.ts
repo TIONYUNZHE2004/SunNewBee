@@ -17,10 +17,10 @@ export interface RealisticCallbacks {
 
 /**
  * The "Realistic photos (Google)" scene: Ion world imagery on the globe, Google Photorealistic 3D
- * tiles (else Ion world terrain + Cesium OSM Buildings). Only ever called for the realistic style;
- * the stylised city never calls it, so it makes no billable tile requests. Returns a cleanup that
+ * tiles (else Ion world terrain + Cesium OSM Buildings). Only ever called for the realistic style
+ * (Stylised is drawn by Three.js and makes no billable tile requests). Returns a cleanup that
  * removes everything it added (imagery, terrain, tileset, listeners) and restores the globe, so a
- * switch to the stylised city leaves no stale primitive behind. Display only: no height sampling,
+ * re-setup or unmount leaves no stale primitive behind. Display only: no height sampling,
  * tracing or caching of Google tiles.
  */
 export function setupRealistic(
@@ -36,7 +36,7 @@ export function setupRealistic(
   if (!env.googleKey && !env.cesiumToken) return () => {};
 
   if (env.cesiumToken) C.Ion.defaultAccessToken = env.cesiumToken;
-  // The Viewer is created without a base layer (no Ion request in the stylised view); add it here.
+  // The Viewer is created without a base layer (no Ion request until Realistic is set up); add it here.
   const base = C.ImageryLayer.fromWorldImagery({});
   viewer.imageryLayers.add(base, 0);
   let terrainSet = false;
@@ -99,7 +99,7 @@ export function setupRealistic(
     tiles = undefined;
     scene.globe.show = true;
     viewer.imageryLayers.remove(base, true);
-    // Back to the flat ellipsoid: the stylised buildings sit at height 0 and would be buried.
+    // Back to the flat ellipsoid the Viewer was created with.
     if (terrainSet)
       scene.setTerrain(new C.Terrain(Promise.resolve(new C.EllipsoidTerrainProvider())));
     scene.requestRender();

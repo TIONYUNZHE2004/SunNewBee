@@ -61,7 +61,7 @@ geometry (each builder seeds `random` from the asset id).
 | `tl_assets/core.py` | bpy helpers: `reset_scene`, `box`, `set_role`, `join`, `bake_ao`, `export_glb`, `tri_count` |
 | `tl_assets/build.py` | Blender entry point, `BUILDERS`, `build_asset`, `preview`, and the `calib` builder |
 | `tl_assets/kit.py` | The parametric building kit: `walls` with `Opening`s (optional window `grid`, `covered` areas), `window`, gable/hip/flat roofs, porch, five-foot way, balcony, AC, solar, gate, sign band, `panel`, `screen_block` (breeze-block screen), `far_block` (LOD2), `place` |
-| `tl_assets/archetypes.py` | Archetype builders (`BUILDERS`, merged into `build.py`): `link_intermediate`, `link_long` |
+| `tl_assets/archetypes.py` | Archetype builders (`BUILDERS`, merged into `build.py`): every archetype in `specs.ARCHETYPES` |
 | `tl_assets/landmarks.py` | Landmark builders (mall, mosque, school, ...) |
 | `tl_assets/props.py` | Kit builders `trees`, `furniture`, `people`, `vehicles`, `construction` (scripted), and the vendor intake `import_vendor` / `scale_to` |
 
@@ -82,6 +82,42 @@ geometry (each builder seeds `random` from the asset id).
   nodes are found by `type`; the render engine is set inside `try/except TypeError`.
 - Decorative: every kit, plus archetype facade detail. No text, logos or brand marks; sign
   bands are blank (role `light`). No Google pixels or geometry in any asset.
+- Glass aux B is the window seed: the role material lights glass where B < `uLitShare` (the
+  web mood ramps it from 0.35 at dusk to 0.58 at night). Seeds are stratified per node over
+  0.02-0.98: `kit.finalize_seeds` (run by every `kit.lit_node` builder when it returns) gives
+  each seeded glass part the quantile of its cumulative weight (corner count) in the best of
+  256 seeded orders, so a node's lit share tracks the threshold (share(t) ~= t) and the
+  dusk-to-night ramp lights more windows as it goes. Big openings light by part (shopfront bays
+  and transoms, grid panes, mullion halves) to keep the steps small. Glass that never lights:
+  balustrades (`kit.UNLIT_AUX` 0.98) and decorative water (`specs.WATER_AUX` 0.995; the role
+  contract has no water role, so the Kanopi deck pool is glass with this aux).
+- `build_asset` writes `<raw glb>.parts.json` beside each raw glb (raw output only): the part
+  names of every node before the join, for the tests' node-name checks (`ac_unit*`,
+  `balcony*`, ...).
+
+## Detail pass (P4 Task 7)
+
+LOD0 of every archetype has facade depth: a 0.45 m plinth (`walls(plinth=faces)`, never on a
+party wall), 0.15 m window reveals (cut openings: `reveal`; applied panes:
+`window_panes(reveal=True)` adds a surround and a sill, `pane_cover(reveal=True)` leaves the
+wall out behind them) and sills. Link, semi-D and bungalow: gate pillars and fence posts,
+car-porch columns, AC condensers (semi-D and bungalow on a side wall; link houses have party
+walls both sides, so theirs sit on the front A/C ledge and the back wall) and a water tank set
+into the back roof slope. Shop office: a closed side bay with a roller shutter banded metal and
+secondary (`kit.roller_shutter`, also every garage door at LOD0). Highrise: spandrels and piers
+round every window, a balcony with a never-lit glass balustrade on every storey of the front
+and back faces, an open crown on the parapet. Factory: skylight strips, rooftop units, a loading
+bay at the front roller door. Owner gate round 1: the mall archetype is a single-level shop
+strip (a blank sign band per unit) under a continuous canopy walkway, a taller glazed entrance
+pavilion with a tall blank sign band, two big-box units behind with their own facades and roof
+plant, and a landscaped forecourt edge; the shop office has three-tone facade banding, fabric
+awnings and an arcade of deep columns with a beam and arch haunches; mall, factory, school and
+Lakeside Mall roofs are a light membrane (primary) or terracotta (accent), never grey. Kanopi:
+planter boxes up the tower and a level-7 deck on the 1 m podium ledge round the slab, which
+keeps its traced depth (raised end-ledge pools 1.2 m above the podium roof, a front-ledge
+pergola on a timber strip, shrubs, planters); the web dresses the larger OSM podium roof. LOD2
+roofs take the same role as LOD0 (`far_block(roof_role=...)`). LOD1 keeps the highrise balconies and crown, and the factory and mall roof units, as
+boxes; LOD2 is unchanged. Every LOD0 stays within 2 % of its P3 bounds (pinned in the tests).
 
 ## Kits and LODs
 

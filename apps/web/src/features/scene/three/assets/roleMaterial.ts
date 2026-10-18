@@ -30,7 +30,12 @@ export function createMotionUniforms(): MotionUniforms {
   return { uTime: { value: 0 }, uSway: { value: 1 }, uLimb: { value: 1 } };
 }
 
-export type RoleKind = "tree" | "person" | "vehicle" | "static";
+/**
+ * `vehicle`: moving traffic (motion layer), headlights and tail lights glow. `parked`: a static
+ * parked car (the `vehicles` kit in the city instances), its lights stay off at every mood and its
+ * light-role faces take the body colour (primary palette), not the pale lamp colour.
+ */
+export type RoleKind = "tree" | "person" | "vehicle" | "parked" | "static";
 
 const HEADLIGHT = "#fff4d6";
 const TAILLIGHT = "#ff3b30";
@@ -66,19 +71,24 @@ export function createRoleMaterial(opts: {
   palette?: [string, string, string];
   /** Opt in to lit-window flicker (needs `motion.uTime`, gated at run time by `uniforms.uFlicker`). */
   flicker?: boolean;
+  /** Scales the lit-glass night glow (default 1; roof skylights use 0.6, softer than the windows). */
+  glassGlow?: number;
 }): THREE.MeshStandardMaterial {
   const { instanced, uniforms } = opts;
   const palette = opts.palette ?? DEFAULT_PALETTE;
   const kind = opts.kind;
   // Only tree, person and vehicle change the program; "static" or no kind is the Phase 2 shader.
   const moving = kind === "tree" || kind === "person" || kind === "vehicle";
+  // Parked: the static program without the light-role glow (lights off, never read as traffic).
+  const parked = kind === "parked";
   const flicker = opts.flicker === true;
+  const glassGlow = opts.glassGlow ?? 1;
   const motion = moving || flicker ? (opts.motion ?? createMotionUniforms()) : undefined;
   const mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85, metalness: 0 });
   mat.name = "tl_role";
   const baseKey = instanced ? "tl_role_i" : "tl_role_s";
   mat.customProgramCacheKey = () =>
-    `${moving ? `${baseKey}_${kind}` : baseKey}${flicker ? "_fl" : ""}`;
+    `${moving || parked ? `${baseKey}_${kind}` : baseKey}${flicker ? "_fl" : ""}${glassGlow === 1 ? "" : `_g${glassGlow}`}`;
 
   mat.onBeforeCompile = (shader) => {
     shader.uniforms.uWindowGlow = uniforms.uWindowGlow;
@@ -137,18 +147,18 @@ else if (tlRole == 3) tlBase = ${vec3Of(FIXED_ROLE_COLOURS.glass)};
 else if (tlRole == 4) tlBase = ${vec3Of(FIXED_ROLE_COLOURS.dark)};
 else if (tlRole == 5) tlBase = ${vec3Of(FIXED_ROLE_COLOURS.metal)};
 else if (tlRole == 6) tlBase = ${vec3Of(FIXED_ROLE_COLOURS.foliage)};
-else if (tlRole >= 7) tlBase = ${vec3Of(FIXED_ROLE_COLOURS.light)};
+else if (tlRole >= 7) tlBase = ${parked ? p(0) : vec3Of(FIXED_ROLE_COLOURS.light)};
 diffuseColor.rgb = tlBase * tlAo;`,
     );
     fs = fs.replace(
       "#include <emissivemap_fragment>",
       `#include <emissivemap_fragment>
-if (tlRole == 3 && vColor.b < uLitShare) totalEmissiveRadiance += vec3(1.0, 0.78, 0.45) * uWindowGlow${
+if (tlRole == 3 && vColor.b < uLitShare) totalEmissiveRadiance += vec3(1.0, 0.78, 0.45) * uWindowGlow${glassGlow === 1 ? "" : ` * ${glassGlow.toFixed(2)}`}${
         flicker
           ? " * mix(1.0, 0.9 + 0.1 * step(0.97, fract(sin(vColor.b * 9301.0 + floor(uTime * 0.5)) * 43758.0)), uFlicker)"
           : ""
       };
-if (tlRole >= 7) totalEmissiveRadiance += ${vec3Of(FIXED_ROLE_COLOURS.light)} * uLightGlow;`,
+${parked ? "" : `if (tlRole >= 7) totalEmissiveRadiance += ${vec3Of(FIXED_ROLE_COLOURS.light)} * uLightGlow;`}`,
     );
     shader.vertexShader = vs;
     shader.fragmentShader = fs;

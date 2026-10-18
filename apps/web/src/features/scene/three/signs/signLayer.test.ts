@@ -1,7 +1,14 @@
 import type * as THREE from "three";
 import { describe, expect, it } from "vitest";
 import { createRoleUniforms } from "../assets/roleMaterial";
-import { createSignLayer, SIGNS_PER_PAGE, signIdAt } from "./signLayer";
+import {
+  createSignLayer,
+  SIGNS_PER_PAGE,
+  SIGNS_PER_STEP,
+  signIdAt,
+  signLayerSteps,
+  warmSignFont,
+} from "./signLayer";
 import type { SignPlacement } from "./signPlan";
 
 const sign = (i: number): SignPlacement => ({
@@ -139,5 +146,56 @@ describe("createSignLayer", () => {
     tex.addEventListener("dispose", () => freed++);
     layer.dispose();
     expect(freed).toBe(2);
+  });
+});
+
+describe("signLayerSteps (Task 5: time-sliced sign rebuild)", () => {
+  it("small steps that build exactly createSignLayer's layer, the meshes only after their page's last step", () => {
+    const n = SIGNS_PER_PAGE + 20;
+    const signs = Array.from({ length: n }, (_, i) => sign(i));
+    const drawnA: string[] = [];
+    const whole = createSignLayer(signs, createRoleUniforms(), () => fakeCanvas(drawnA));
+    const drawnB: string[] = [];
+    const b = signLayerSteps(signs, createRoleUniforms(), () => fakeCanvas(drawnB));
+    // Per page: setup, ceil(signs / SIGNS_PER_STEP) text steps, mesh step.
+    const perPage = (k: number) => 2 + Math.ceil(k / SIGNS_PER_STEP);
+    expect(b.steps).toHaveLength(perPage(SIGNS_PER_PAGE) + perPage(20));
+    let maxSigns = 0;
+    for (const step of b.steps) {
+      const before = drawnB.length;
+      step();
+      maxSigns = Math.max(maxSigns, drawnB.length - before);
+    }
+    expect(maxSigns).toBeLessThanOrEqual(SIGNS_PER_STEP);
+    expect(drawnB).toEqual(drawnA);
+    const pos = (g: THREE.Group) =>
+      (g.children as THREE.Mesh[]).map((m) => [
+        m.name,
+        [...(m.geometry.getAttribute("position").array as Float32Array)],
+        [...(m.geometry.getAttribute("uv").array as Float32Array)],
+        m.userData.signIds,
+      ]);
+    expect(pos(b.layer.group)).toEqual(pos(whole.group));
+    whole.dispose();
+    b.layer.dispose();
+  });
+
+  it("a page's mesh joins the group only at its last step; a partial build disposes cleanly", () => {
+    const b = signLayerSteps([sign(0), sign(1)], createRoleUniforms(), () => fakeCanvas([]));
+    b.steps[0]?.();
+    b.steps[1]?.();
+    expect(b.layer.group.children).toHaveLength(0);
+    b.layer.dispose();
+    expect(b.layer.group.children).toHaveLength(0);
+  });
+});
+
+describe("warmSignFont", () => {
+  it("draws each distinct sign text once on a scratch canvas, then releases it", () => {
+    const drawn: string[] = [];
+    const c = fakeCanvas(drawn);
+    warmSignFont(["Shop A", "Shop B", "Shop A"], () => c);
+    expect(drawn).toEqual(["Shop A", "Shop B"]);
+    expect(c.width).toBe(1);
   });
 });

@@ -2,10 +2,12 @@ import * as THREE from "three";
 import { describe, expect, it } from "vitest";
 import { DAY_STYLE } from "../../../day/dayModel";
 import { RESIDENT_STYLE } from "../../../whatif/rolloutModel";
+import { VFOV_DEG } from "../cameraRig";
 import { createFrame } from "../frame";
 import {
   createResidents,
   FOCUS_SCALE,
+  MIN_HEIGHT_PX,
   RESIDENT_HEIGHT_M,
   RESIDENT_ORDER,
   RESIDENT_WIDTH_M,
@@ -125,6 +127,80 @@ describe("Day residents", () => {
     expect(scaleAt(fill(r.group), 0)).toBeCloseTo(3, 5);
     r.setView({ x: 0, y: 10, z: 0 });
     expect(scaleAt(fill(r.group), 0)).toBeCloseTo(1, 5);
+  });
+});
+
+describe("legibility at range", () => {
+  // 1440x900, the engine's vertical fov, camera looking straight down the z axis at the resident.
+  const camera = new THREE.PerspectiveCamera(VFOV_DEG, 1440 / 900, 2, 30000);
+  const px = (m: THREE.InstancedMesh, i: number, dist: number) => {
+    camera.position.set(0, RESIDENT_HEIGHT_M / 2, dist);
+    camera.lookAt(0, RESIDENT_HEIGHT_M / 2, 0);
+    camera.updateMatrixWorld(true);
+    camera.updateProjectionMatrix();
+    const mat = new THREE.Matrix4();
+    m.getMatrixAt(i, mat);
+    const s = new THREE.Vector3().setFromMatrixScale(mat).y;
+    const top = new THREE.Vector3(0, RESIDENT_HEIGHT_M * s, 0).project(camera);
+    const bot = new THREE.Vector3(0, 0, 0).project(camera);
+    return ((top.y - bot.y) / 2) * 900;
+  };
+  const place = (dist: number) => {
+    const r = createResidents(frame);
+    r.setDay([dot("a", "walk")], null);
+    r.setView({ x: 0, y: 0, z: dist });
+    return r;
+  };
+
+  it("projects at least 6 px tall at 800 m and beyond (1440x900)", () => {
+    for (const d of [800, 1500, 4000]) {
+      const r = place(d);
+      expect(px(fill(r.group), 0, d), `${d} m`).toBeGreaterThanOrEqual(MIN_HEIGHT_PX - 1e-6);
+    }
+  });
+
+  it("keeps displayScale when it is already big enough (near)", () => {
+    const r = place(10);
+    expect(scaleAt(fill(r.group), 0)).toBeCloseTo(1, 5);
+  });
+
+  it("the outline is 1 px thick in projected width and height, dark, colours unchanged", () => {
+    for (const d of [300, 3000]) {
+      const r = place(d);
+      const f = fill(r.group);
+      const o = r.group.getObjectByName("residents-outline") as THREE.InstancedMesh;
+      const extent = (m: THREE.InstancedMesh) => {
+        camera.position.set(0, RESIDENT_HEIGHT_M / 2, d);
+        camera.lookAt(0, RESIDENT_HEIGHT_M / 2, 0);
+        camera.updateMatrixWorld(true);
+        camera.updateProjectionMatrix();
+        const box = new THREE.Box3();
+        const mat = new THREE.Matrix4();
+        m.getMatrixAt(0, mat);
+        box.copy(
+          m.geometry.boundingBox ?? (m.geometry.computeBoundingBox(), m.geometry.boundingBox!),
+        );
+        box.applyMatrix4(mat);
+        const lo = box.min.clone().setZ(0).project(camera);
+        const hi = box.max.clone().setZ(0).project(camera);
+        return [((hi.x - lo.x) / 2) * 1440, ((hi.y - lo.y) / 2) * 900] as [number, number];
+      };
+      const [fw, fh] = extent(f);
+      const [ow, oh] = extent(o);
+      expect((ow - fw) / 2, `${d} m width`).toBeCloseTo(1, 1);
+      expect((oh - fh) / 2, `${d} m height`).toBeCloseTo(1, 1);
+      expect((o.material as THREE.MeshBasicMaterial).color.getHex()).toBe(0x000000);
+      expect(colourAt(f, 0)).toBe(new THREE.Color(DAY_STYLE.walk.color).getHex());
+    }
+  });
+
+  it("stays in the overlay pass and pickable", () => {
+    const r = place(3000);
+    const f = fill(r.group);
+    expect((f.material as THREE.Material).depthTest).toBe(false);
+    expect(f.renderOrder).toBeGreaterThanOrEqual(10);
+    expect(f.renderOrder).toBeLessThanOrEqual(15);
+    expect(residentIdAt(f, 0)).toBe("a");
   });
 });
 

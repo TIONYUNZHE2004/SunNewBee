@@ -3,6 +3,7 @@
 - Status: accepted
 - Date: 2026-10-17
 - Deciders: owner, with Claude Code
+- Status note (P5, 2026-10-18): applies to the Three.js Stylised renderer, which is now the only Stylised renderer; the Cesium Stylised view that ADR 0011 described is retired.
 - Supersedes in part: [0011](0011-time-of-day-theme-and-decorative-motion.md) (its "no moving traffic" and "no invented landmarks or signage" rules)
 
 ## Context

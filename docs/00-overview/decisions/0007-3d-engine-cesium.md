@@ -2,6 +2,7 @@
 
 - Status: **accepted** (confirm with the Day-1 spike: Google tile quality over Elmina + water rendering + a mid-range Android test)
 - Date: 2026-10-15
+- Amended by [0012](0012-stylised-city-on-threejs-with-blender-assets.md): the Stylised map style moved to Three.js (Cesium Stylised retired in P5); Cesium stays the engine for Realistic.
 - Supersedes: "R3F + 3d-tiles-renderer primary" ([3d-pipeline](../../04-architecture/3d-pipeline.md), first version) and "Mapbox Standard main view" (scaffold spec draft 1)
 
 ## Context
