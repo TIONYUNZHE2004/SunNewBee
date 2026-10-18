@@ -998,6 +998,22 @@ export interface components {
             };
         };
         /**
+         * BoundaryRef
+         * @description Display-only Elmina outline (base/boundary.geojson); routing and answers never read it.
+         */
+        BoundaryRef: {
+            /** Area Km2 */
+            area_km2: number;
+            /** As Of */
+            as_of: string;
+            /** File */
+            file: string;
+            /** Method */
+            method: string;
+            /** Source */
+            source: string;
+        };
+        /**
          * BuildRamp
          * @description Imagine a capital work: the path rebuilt step-free (steps become a ramp).
          */
@@ -2370,6 +2386,7 @@ export interface components {
             attribution?: string[];
             /** Bbox */
             bbox: number[];
+            boundary?: components["schemas"]["BoundaryRef"] | null;
             /** Center */
             center: number[];
             /** Data As Of */
