@@ -20,3 +20,5 @@ Assert removal in captured provider messages, stored memory and recordings; rout
 - 2026-10-17 08:39 UTC · control (claude/sweet-davinci-29v7ne) · Created from the independent audit by Codex (`codex/yunzhe-workflow`, merged as PR #4).
 - 2026-10-17 09:13 UTC · control (claude/sweet-davinci-29v7ne) · Assigned to Codex worker on `codex/yunzhe-workflow`. Codex, step 1 of 3. Only redact.py and its tests.
 - 2026-10-17 09:29 UTC · control (claude/sweet-davinci-29v7ne) · Parked under scope B: needed before real residents use the app, not for the proposal.
+
+- 2026-10-18 09:51 UTC · Codex (codex/yunzhe-workflow) · Read-only recheck during Yunzhe full-repository verification on d469ca3: synthetic bracketed Malaysian phone and spaced MyKad examples remain unchanged by redact(); ordinary email/mobile controls are removed. Original diagnostic captured in PR #10 evidence. This parked issue remains reproducible despite the regression suite passing. No privacy application code edited; no real PII supplied to a live model.
