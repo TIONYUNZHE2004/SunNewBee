@@ -12,11 +12,14 @@ import {
   type RoleUniforms,
 } from "./roleMaterial";
 
-/** Kit asset name -> shader kind; other kits are static. */
-const KIT_KIND: Record<string, RoleKind> = {
+/**
+ * Kit asset name -> shader kind; other kits are static. The `vehicles` kit here only carries parked
+ * cars (`pk:` ids; moving traffic is the motion layer's own `vehicle` material), so its lights stay off.
+ */
+export const KIT_KIND: Record<string, RoleKind> = {
   trees: "tree",
   people: "person",
-  vehicles: "vehicle",
+  vehicles: "parked",
 };
 
 export type LodBucket = 0 | 1 | 2 | -1;

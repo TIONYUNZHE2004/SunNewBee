@@ -1,6 +1,12 @@
 import * as THREE from "three";
 import { describe, expect, it, vi } from "vitest";
-import { buildingIdOf, createCityInstances, type LodBucket, lodFor } from "./cityInstances";
+import {
+  buildingIdOf,
+  createCityInstances,
+  KIT_KIND,
+  type LodBucket,
+  lodFor,
+} from "./cityInstances";
 import type { Placement } from "./fit";
 import type { AssetLibrary } from "./library";
 import type { Manifest } from "./manifest";
@@ -134,6 +140,26 @@ describe("createCityInstances kits", () => {
       const ms = meshesOf(c);
       expect(ms[0]?.castShadow).toBe(true);
       expect(ms[1]?.castShadow).toBe(false);
+    }
+  });
+
+  it("the vehicles kit (parked cars) uses the parked material: lights off, unlike moving traffic", () => {
+    expect(KIT_KIND.vehicles).toBe("parked");
+    const c = createCityInstances(lib(), empty(), manifest(), createRoleUniforms(), {
+      kits: kits("vehicles"),
+    });
+    const ms = meshesOf(c);
+    expect(ms.length).toBeGreaterThan(0);
+    for (const m of ms) {
+      const mat = m.material as THREE.MeshStandardMaterial;
+      expect(mat.customProgramCacheKey()).toContain("_parked");
+      const shader = {
+        vertexShader: THREE.ShaderLib.standard.vertexShader,
+        fragmentShader: THREE.ShaderLib.standard.fragmentShader,
+        uniforms: {} as Record<string, unknown>,
+      };
+      mat.onBeforeCompile(shader as never, undefined as never);
+      expect(shader.fragmentShader).not.toContain("tlRole >= 7) totalEmissiveRadiance");
     }
   });
 

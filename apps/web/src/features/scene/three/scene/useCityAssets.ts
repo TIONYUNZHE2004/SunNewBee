@@ -27,6 +27,7 @@ export interface LoadedAssets {
   lib: AssetLibrary;
 }
 export const ASSET_WARN = "TownshipLens 3D: city assets unavailable, drawing the extruded city";
+export const DECOR_WARN = "TownshipLens 3D: decorative facade or roof detail skipped";
 const PARTIAL_WARN = "TownshipLens 3D: some city assets were dropped and stay extruded";
 
 /**
@@ -143,6 +144,8 @@ export function useCityAssets({
   const applied = useRef<{ kits: Kits; scale: number } | null>(null);
   /** The engine whose camera already framed the showroom (once, so the owner can then look around). */
   const showroomFramed = useRef<Engine | null>(null);
+  /** The decorative-inputs warning is logged once per scene. */
+  const decorWarned = useRef(false);
   /** The live tier for code that must not re-run on a tier change (the city mesh build). */
   const tierRef = useRef(tier);
   tierRef.current = tier;
@@ -220,6 +223,7 @@ export function useCityAssets({
       return;
     }
     const { manifest, lib } = loaded;
+    let built: { g: CityGeometry; m: Manifest } | null = null;
     try {
       const m = showroom ? showroomManifest(manifest) : manifest;
       const plan = showroom
@@ -262,9 +266,7 @@ export function useCityAssets({
       setFallback(fb);
       baseBytes.current = geometryBytes(g) + lib.gpuBytes() + inst.stats().gpuBytes;
       usePerfStats.getState().update({ fallback: fb, gpuMB: baseBytes.current / MB });
-      // The showroom has no township: no facades there.
-      setFacadeSrc(showroom ? null : facadeInputs(g.footprints, buildings, m));
-      setRoofSrc(showroom ? null : roofInputs(g.footprints, buildings, m, frame));
+      built = { g, m };
     } catch (err) {
       // Once per load: drop the library, so later buildings refetches draw the full city silently.
       console.warn(`${ASSET_WARN}: ${String(err)}`);
@@ -275,7 +277,27 @@ export function useCityAssets({
       // setLoaded(null) re-runs this effect, which draws the full city once (no full() here).
       setLoaded(null);
       setAssetsState("failed");
+      return;
     }
+    // Decorative inputs (facades, roofs and the podium deck) run apart from the city build: a throw
+    // there empties their slot and never drops the archetype city to plain extrusions.
+    // The showroom has no township: no facades or roof dressing there.
+    const decor = <T>(what: string, run: () => T): T | null => {
+      if (showroom) return null;
+      try {
+        return run();
+      } catch (err) {
+        if (!decorWarned.current) {
+          decorWarned.current = true;
+          console.warn(`${DECOR_WARN}: ${what}: ${String(err)}`);
+        }
+        return null;
+      }
+    };
+    if (!built) return;
+    const { g, m } = built;
+    setFacadeSrc(decor("facades", () => facadeInputs(g.footprints, buildings, m)));
+    setRoofSrc(decor("roofs", () => roofInputs(g.footprints, buildings, m, frame)));
   }, [engine, frame, buildings, loaded, showroom, roleUniforms]);
 
   /** Hands the latest kits to the instances in the engine, unless they already hold them. */

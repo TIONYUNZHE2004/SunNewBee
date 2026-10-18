@@ -75,16 +75,16 @@ describe("createStreamer (Review Focus 1)", () => {
   it("plans at most one tile per update, ring 0 first, until all 25 are planned", () => {
     const f = fakePlanner();
     const s = createStreamer(f.plan);
-    const r1 = s.update(at(0, 0), MID, 0);
+    const r1 = s.update(at(0, 0), MID);
     expect(f.calls).toHaveLength(1);
     expect(f.calls[0]).toEqual({ key: "0,0", ring: 0, tier: "medium" });
     expect(r1).toEqual({ changed: true, pending: true });
     expect(s.active()).toHaveLength(1);
     for (let n = 2; n <= 25; n++) {
-      s.update(at(0, 0), MID, n);
+      s.update(at(0, 0), MID);
       expect(f.calls).toHaveLength(n);
     }
-    const done = s.update(at(0, 0), MID, 99);
+    const done = s.update(at(0, 0), MID);
     expect(f.calls).toHaveLength(25);
     expect(done).toEqual({ changed: false, pending: false });
     expect(s.active()).toHaveLength(25);
@@ -97,8 +97,8 @@ describe("createStreamer (Review Focus 1)", () => {
   it("each plan is a User Timing measure (tl:stream-plan) for the browser run", () => {
     performance.clearMeasures?.(PLAN_MEASURE);
     const s = createStreamer(fakePlanner().plan);
-    s.update(at(0, 0), MID, 0);
-    s.update(at(0, 0), MID, 1);
+    s.update(at(0, 0), MID);
+    s.update(at(0, 0), MID);
     expect(performance.getEntriesByName(PLAN_MEASURE, "measure")).toHaveLength(2);
   });
 
@@ -107,7 +107,7 @@ describe("createStreamer (Review Focus 1)", () => {
     const f = fakePlanner(50);
     const s = createStreamer(f.plan, { budgetMs: 8 });
     for (let n = 1; n <= 5; n++) {
-      s.update(at(3, 3), MID, n);
+      s.update(at(3, 3), MID);
       expect(f.calls).toHaveLength(n);
     }
     expect(s.stats().overBudget).toBe(5);
@@ -117,13 +117,13 @@ describe("createStreamer (Review Focus 1)", () => {
   it("leaving and returning reuses the cache: no re-plan", () => {
     const f = fakePlanner();
     const s = createStreamer(f.plan);
-    for (let n = 0; n < 30; n++) s.update(at(0, 0), FAR, n);
+    for (let n = 0; n < 30; n++) s.update(at(0, 0), FAR);
     expect(f.calls).toHaveLength(9);
     const before = s.active().map((a) => a.content);
     // Away by 3 tiles: 9 new tiles (no overlap with the first 3 x 3).
-    for (let n = 0; n < 30; n++) s.update(at(3, 0), FAR, n);
+    for (let n = 0; n < 30; n++) s.update(at(3, 0), FAR);
     expect(f.calls).toHaveLength(18);
-    const r = s.update(at(0, 0), FAR, 100);
+    const r = s.update(at(0, 0), FAR);
     expect(f.calls).toHaveLength(18);
     expect(r).toEqual({ changed: true, pending: false });
     expect(s.active().map((a) => a.content.ribbons)).toEqual(before.map((c) => c.ribbons));
@@ -132,7 +132,7 @@ describe("createStreamer (Review Focus 1)", () => {
   it("exceeding the LRU disposes each evicted content exactly once; shown content is never evicted", () => {
     const f = fakePlanner();
     const s = createStreamer(f.plan, { lru: 12 });
-    for (const i of [0, 3, 6, 9]) for (let n = 0; n < 12; n++) s.update(at(i, 0), FAR, n);
+    for (const i of [0, 3, 6, 9]) for (let n = 0; n < 12; n++) s.update(at(i, 0), FAR);
     expect(f.made).toHaveLength(36);
     // 36 planned, 12 kept: 24 evicted, each disposed once; the 9 shown are not disposed.
     expect([...f.disposed.values()].every((n) => n === 1)).toBe(true);
@@ -148,29 +148,29 @@ describe("createStreamer (Review Focus 1)", () => {
   it("setTier invalidates every tile and re-plans it; the old content shows until replaced, then is disposed once", () => {
     const f = fakePlanner();
     const s = createStreamer(f.plan);
-    for (let n = 0; n < 12; n++) s.update(at(0, 0), FAR, n);
+    for (let n = 0; n < 12; n++) s.update(at(0, 0), FAR);
     const medium = s.active().map((a) => f.orig(a.content));
     s.setTier("high");
-    const r = s.update(at(0, 0), FAR, 20);
+    const r = s.update(at(0, 0), FAR);
     expect(f.calls.at(-1)).toEqual({ key: "0,0", ring: 0, tier: "high" });
     expect(r.pending).toBe(true);
     // Still 9 tiles shown: 1 re-planned, 8 stale.
     expect(s.active()).toHaveLength(9);
     expect(f.disposed.get(medium[0] as TileContent)).toBe(1);
-    for (let n = 0; n < 12; n++) s.update(at(0, 0), FAR, 30 + n);
+    for (let n = 0; n < 12; n++) s.update(at(0, 0), FAR);
     expect(f.calls.filter((c) => c.tier === "high")).toHaveLength(9);
     for (const c of medium) expect(f.disposed.get(c)).toBe(1);
     // Same tier again: nothing to do.
     s.setTier("high");
-    expect(s.update(at(0, 0), FAR, 99)).toEqual({ changed: false, pending: false });
+    expect(s.update(at(0, 0), FAR)).toEqual({ changed: false, pending: false });
   });
 
   it("invalidate re-plans like a tier change, at the same tier", () => {
     const f = fakePlanner();
     const s = createStreamer(f.plan);
-    for (let n = 0; n < 12; n++) s.update(at(0, 0), FAR, n);
+    for (let n = 0; n < 12; n++) s.update(at(0, 0), FAR);
     s.invalidate();
-    for (let n = 0; n < 12; n++) s.update(at(0, 0), FAR, n);
+    for (let n = 0; n < 12; n++) s.update(at(0, 0), FAR);
     expect(f.calls).toHaveLength(18);
     expect(f.calls.slice(9).every((c) => c.tier === "medium")).toBe(true);
   });
@@ -178,8 +178,8 @@ describe("createStreamer (Review Focus 1)", () => {
   it("a one-tile pan plans the new ring-0 tile first and keeps every overlapping tile shown", () => {
     const f = fakePlanner();
     const s = createStreamer(f.plan);
-    for (let n = 0; n < 30; n++) s.update(at(0, 0), MID, n);
-    s.update(at(1, 0), MID, 100);
+    for (let n = 0; n < 30; n++) s.update(at(0, 0), MID);
+    s.update(at(1, 0), MID);
     // Near detail first: the new target tile (shown with its old ring-1 plan) is upgraded before
     // the five new ring-2 tiles that have nothing to show yet.
     expect(f.calls.at(-1)).toEqual({ key: "1,0", ring: 0, tier: "medium" });
@@ -192,7 +192,7 @@ describe("createStreamer (Review Focus 1)", () => {
   it("beyond 1500 m: rings 0-1 only, and only trees and roads", () => {
     const f = fakePlanner();
     const s = createStreamer(f.plan);
-    for (let n = 0; n < 12; n++) s.update(at(0, 0), FAR, n);
+    for (let n = 0; n < 12; n++) s.update(at(0, 0), FAR);
     const act = s.active();
     expect(act).toHaveLength(9);
     expect(Math.max(...act.map((a) => a.ring))).toBe(1);
@@ -206,7 +206,7 @@ describe("createStreamer (Review Focus 1)", () => {
     }
     // Closer than 1500 m the same plans show in full (no re-plan), and the far view is memoised.
     const before = f.calls.length;
-    s.update(at(0, 0), 1400, 50);
+    s.update(at(0, 0), 1400);
     expect(f.calls.length).toBe(before + 1);
     const near = s.active().find((a) => a.key === "0,0");
     expect(near?.content.lamps).toHaveLength(1);

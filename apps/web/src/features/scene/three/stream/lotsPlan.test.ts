@@ -6,8 +6,9 @@ import type { Placement } from "../assets/fit";
 import { parseManifest } from "../assets/manifest";
 import { BOOKMARKS } from "../bookmarks";
 import { createFrame } from "../frame";
-import { CARS_DAY, STALL_D_M, STALL_STRIDE, STALL_W_M } from "../ground/parking";
+import { CARS_SHARE, STALL_D_M, STALL_STRIDE, STALL_W_M } from "../ground/parking";
 import { planConstructionSites, sitesOf, TRACK_STRIDE } from "../props/construction";
+import { createSceneBus } from "../scene/sceneBus";
 import { perLayerStats } from "./area";
 import { TILE_CAPS, TRIS_PER, tileCap } from "./caps";
 import { capCars, planTileLots } from "./lotsPlan";
@@ -126,16 +127,20 @@ describe("planTile parking (Task 10b)", () => {
     expect(TILE_CAPS.medium[2].parked).toBe(0);
   });
 
-  it("the night weight is read at plan time: night parks fewer cars than day, within the share bounds", () => {
-    const day = planTile(inputs({ night: () => 0 }), t01, 0, "high").parking!;
-    const night = planTile(inputs({ night: () => 1 }), t01, 0, "high").parking!;
+  it("parks a fixed share of stalls, whatever the mood (ruling P4-AF: content depends only on key, tier, data)", () => {
+    const bus = createSceneBus();
+    bus.setState({ mood: { day: 1, dusk: 0, night: 0 } });
+    const day = planTile(inputs(), t01, 0, "high").parking!;
+    bus.setState({ mood: { day: 0, dusk: 0, night: 1 } });
+    const night = planTile(inputs(), t01, 0, "high").parking!;
+    expect(night.cars).toEqual(day.cars);
+    expect(night.stalls).toEqual(day.stalls);
     const n = day.stalls.length / STALL_STRIDE;
     expect(n).toBeGreaterThan(10);
     expect(day.cars.length).toBeLessThan(tileCap("high", 0, "parked", t01, frame)); // not cap-bound
-    expect(night.cars.length).toBeLessThan(day.cars.length);
     expect(day.cars.length / n).toBeGreaterThan(0.45);
-    expect(day.cars.length / n).toBeLessThanOrEqual(CARS_DAY + 0.2);
-    expect(night.cars.length / n).toBeLessThan(0.6);
+    expect(day.cars.length / n).toBeLessThanOrEqual(CARS_SHARE + 0.2);
+    expect("night" in inputs()).toBe(false);
   });
 
   it("parked cars sit in their stalls: the kit yaw turns model +z (the cars' long axis) along the stall depth", () => {
@@ -341,15 +346,13 @@ describe("hero-mid on the Elmina seed, Medium (wave 4b budget)", () => {
   const [x, z] = seedFrame.toLocal(b.centre[0], b.centre[1]);
   const active = activeTiles({ x, z }, b.rangeM);
 
-  it("parked cars fill at least 25 % of ring 0's stalls, by day and by night", () => {
+  it("parked cars fill at least 25 % of ring 0's stalls", () => {
     const ring0 = active.filter((a) => a.ring === 0);
     expect(ring0).toHaveLength(1);
-    for (const night of [0, 1]) {
-      const p = planTile({ ...seed, night: () => night }, ring0[0]!.tile, 0, "medium").parking!;
-      const stalls = p.stalls.length / STALL_STRIDE;
-      expect(stalls).toBeGreaterThan(50);
-      expect(p.cars.length / stalls).toBeGreaterThanOrEqual(0.25);
-    }
+    const p = planTile(seed, ring0[0]!.tile, 0, "medium").parking!;
+    const stalls = p.stalls.length / STALL_STRIDE;
+    expect(stalls).toBeGreaterThan(50);
+    expect(p.cars.length / stalls).toBeGreaterThanOrEqual(0.25);
   });
 
   it("verges show on ring 0; none on ring 1 at Medium (ruling P4-Z: hitch budget)", () => {

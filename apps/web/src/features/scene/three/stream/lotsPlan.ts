@@ -82,7 +82,7 @@ export function capCars(cars: Placement[], cap: number): Placement[] {
   return cars.filter((c) => keep.has(c));
 }
 
-/** Parking and construction for one tile (pure apart from the night weight read at plan time). */
+/** Parking and construction for one tile (pure: depends only on the tile, ring, tier and data). */
 export function planTileLots(inp: TileInputs, tile: Tile, ring: Ring, tier: Tier): TileLots {
   const { frame, buildings, manifest } = inp;
   if (tier === "low" || !buildings || !manifest) return NO_LOTS;
@@ -101,12 +101,7 @@ export function planTileLots(inp: TileInputs, tile: Tile, ring: Ring, tier: Tier
   // Parking: stall markings (capped per tile) and parked cars (their own cap).
   const stallCap = cap("parking");
   if (stallCap > 0 && layers.parking.length > 0) {
-    const night = inp.night?.() ?? 0;
-    const p = planParking(layers.parking, tile, frame, stallCap, {
-      m: manifest,
-      night,
-      roads: inp.walk,
-    });
+    const p = planParking(layers.parking, tile, frame, stallCap, { m: manifest, roads: inp.walk });
     const cars = capCars(p.cars, cap("parked"));
     if (p.stalls.length > 0) content.parking = { stalls: p.stalls, cars };
     for (const c of cars) add(`${c.asset}/${c.variant}`, [c]);

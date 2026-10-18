@@ -54,11 +54,7 @@ export interface Streamer {
    * Plans at most one tile, then rebuilds the active list. `changed`: the active list differs
    * (tiles, rings or content). `pending`: tiles still wait for a plan (call again on a later tick).
    */
-  update(
-    target: { x: number; z: number },
-    rangeM: number,
-    nowMs: number,
-  ): { changed: boolean; pending: boolean };
+  update(target: { x: number; z: number }, rangeM: number): { changed: boolean; pending: boolean };
   /** Tiles with content, ring 0 first (near content appears first). */
   active(): ActiveTile[];
   /** Invalidates every tile; each is re-planned on later updates (its old content shows until then). */

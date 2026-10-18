@@ -6,7 +6,7 @@ import { distSeg, distToPoly, inPoly, type P, type Poly, polygonsOf } from "../p
 import { tileAt } from "../stream/tiles";
 import {
   AISLE_M,
-  carShare,
+  CARS_SHARE,
   LOT_INSET_M,
   planParking,
   STALL_D_M,
@@ -121,27 +121,13 @@ describe("planParking", () => {
     for (const c of cars) expect(distSeg(c.x, c.z, a, b)).toBeGreaterThan(half);
   });
 
-  it("holds a car in 70 percent of stalls by day and 40 percent at night, nested", () => {
-    const share = (night: number) => {
-      const { stalls, cars } = planParking([BIG], tile, frame, 100000, { m: manifest, night });
-      return { n: stalls.length / STALL_STRIDE, cars };
-    };
-    const day = share(0);
-    const dusk = share(0.5);
-    const night = share(1);
-    expect(day.n).toBeGreaterThan(800);
-    expect(day.cars.length / day.n).toBeGreaterThan(0.65);
-    expect(day.cars.length / day.n).toBeLessThan(0.75);
-    expect(night.cars.length / night.n).toBeGreaterThan(0.35);
-    expect(night.cars.length / night.n).toBeLessThan(0.45);
-    expect(dusk.cars.length).toBeGreaterThan(night.cars.length);
-    expect(dusk.cars.length).toBeLessThan(day.cars.length);
-    const dayIds = new Set(day.cars.map((c) => c.id));
-    for (const c of night.cars) expect(dayIds.has(c.id)).toBe(true);
-    expect(carShare(0)).toBeCloseTo(0.7);
-    expect(carShare(1)).toBeCloseTo(0.4);
-    expect(carShare(5)).toBeCloseTo(0.4);
-    expect(carShare(-1)).toBeCloseTo(0.7);
+  it("holds a car in a fixed share of stalls (ruling P4-AF: never mood-dependent)", () => {
+    const { stalls, cars } = planParking([BIG], tile, frame, 100000, opts);
+    const n = stalls.length / STALL_STRIDE;
+    expect(n).toBeGreaterThan(800);
+    expect(cars.length / n).toBeGreaterThan(CARS_SHARE - 0.05);
+    expect(cars.length / n).toBeLessThan(CARS_SHARE + 0.05);
+    expect(CARS_SHARE).toBeCloseTo(0.7);
   });
 
   it("parks hatchbacks, sedans and MPVs of the vehicles kit, all decorative", () => {
