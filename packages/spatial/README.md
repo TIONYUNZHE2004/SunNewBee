@@ -157,6 +157,10 @@ A route whose facts include `team_survey_placeholder` evidence carries `demo_evi
 (also on `RouteResult` for `routes[0]`). The status is not downgraded: `confirmed` stays
 `confirmed`, and the UI and agent say "confirmed on demo values, not yet surveyed".
 
+`nearby_amenities` excludes candidates with active staff-reported place closures and
+returns their named closure warnings and reported closure evidence. Expired or upcoming
+closures do not remove a candidate. Staff free-text notes never reach the tool output.
+
 `plan_route` files at most 10 verification requests per call (`MAX_ROUTE_VRS`); the overflow is
 counted in `verification_requests_truncated`. Flood unknowns never file a VR.
 

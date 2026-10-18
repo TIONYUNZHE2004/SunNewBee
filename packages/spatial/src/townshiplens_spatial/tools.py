@@ -552,12 +552,18 @@ def nearby_amenities(
     strict = _reach(w, src, prof, max_walk_m, allow_unknown=False)
     lenient = _reach(w, src, prof, max_walk_m, allow_unknown=True)
     hits = []
+    closed_hits = []
     for p in w.places.values():
         if p.type != amenity or not p.node_id:
             continue
         nodes = [p.node_id] if prof.allowed_types is None else routing._targets(w, p.id, prof)
         s_d = [strict[n] for n in nodes if n in strict]
         l_d = [lenient[n] for n in nodes if n in lenient]
+        if s_d or l_d:
+            live = _m.active_closures(p.closures)
+            if live:
+                closed_hits.append((p, live))
+                continue
         if s_d:
             hits.append((min(s_d), p, False))
         elif l_d:
@@ -568,6 +574,12 @@ def nearby_amenities(
         warnings.append("default profile applies no accessibility constraints")
     if prof.standing_warning:
         warnings.append(prof.standing_warning)
+    for p, closures in closed_hits:
+        warnings.extend(
+            f"{CLOSURE_SOURCE_LABEL}: {p.name}. {closure.label(ctx.world.site.timezone)}. "
+            "Excluded from nearby amenities."
+            for closure in closures
+        )
     return ToolResult(
         ok=True,
         data=[
@@ -584,7 +596,8 @@ def nearby_amenities(
             }
             for d, p, unv in hits
         ],
-        evidence=[_place_ev(p) for _, p, _ in hits],
+        evidence=[_place_ev(p) for _, p, _ in hits]
+        + [_closure_ev(ctx.world, c) for _, closures in closed_hits for c in closures],
         warnings=warnings + _demo_place_warnings([p for _, p, _ in hits]),
     )
 
