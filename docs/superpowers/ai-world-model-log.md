@@ -1271,3 +1271,225 @@ Integration fixes found by the checklist:
 **Flake noted:** one full pytest run failed `test_whatif_template_fallback_says_the_same_numbers` while the dev server's warm-up thread was busy. It passed alone, in its package, and in two later full runs. The likely cause is the world-model wait time under CPU load.
 
 **Checklist on merged main** (mock-backed): lint PASS, pytest 1,243 PASS, typecheck PASS, vitest 789 PASS, gen PASS, golden 22/22 PASS, web build PASS, e2e 19 PASS. In the browser (mock, Stylised) the storm chip opens the day at 07:25: the tag sits in the top stack, clear of the panel, with no sideways scroll and no console errors.
+
+## Overnight session 2 (branch `ai/world-model-2` off main d381c23)
+
+Alignment, asked first (17 Oct, about 13:00):
+- **Focus:** a resident's "rehearse my trip", a calibration report from official open data, and demo hardening for a laptop on a projector.
+- **Wording:** facts from the rehearsal only.
+- **UI:** new components in the existing design language.
+- **Trip start:** a mapped place or a tapped point.
+- **Budget:** the US$3 cap stays (about US$1.1 left).
+- **Git:** commit locally only, no push.
+- **Duration:** loop until told to stop.
+
+### Cycle 19: rehearse my trip, engine to assistant (17 Oct, 13:03)
+
+**Why:** Elmina Day was a staff tool, and the People track is about residents. A resident now asks about *their own* trip, and the same rehearsed day answers it.
+
+**Built** (spec: `docs/superpowers/specs/2026-10-17-rehearse-my-trip-design.md`):
+- **`day/myday.py`:** the resident's trip runs through the cached rule-based day (`Day.travel`). That means the same river stage minute by minute, the same closures and the same re-planning on the way. It is not an essential trip, so no way at the time of leaving means that time had no way.
+  - **Outcomes:** clear, longer (up to twice the normal time), very long (over twice; a 313-minute walk at 07:00 is effectively cut), rerouted, turned back, stranded, no way.
+  - **Sweep:** a departure every 10 minutes from an hour before until 30 minutes after the river's last change, giving "last got through" and "the way came back".
+  - **What cut it:** the flooded streets on the normal-day route at that minute, by name.
+  - **For the map:** the track, the normal-day route and the cut segments. Unchecked stretches are counted.
+- **Tool `rehearse_my_trip`:** ends are place ids or a tapped point (`lon,lat`), snapped to the nearest usable node within 300 m and never echoed. **`POST /day/{id}/trip`:** a POST, so a home point never sits in a URL or an access log (PDPA); the GET form returns 405.
+- **Assistant:**
+  - an agent tool (it uses the UI's "travelling as" profile by default);
+  - `rec.my_trips`, with map-only fields dropped for the model and for MCP;
+  - **validator `my_trip_errors`:**
+    - says rehearsal and not a forecast;
+    - **no advice** ("you should leave", "leave by", "best time", "will get there", "akan sampai", 建议);
+    - names the asked outcome in words (EN/BM/ZH);
+    - every clock time and every minute count comes from the rehearsal;
+    - mentions unchecked stretches;
+    - calls no connection a data gap;
+  - the shared `template.my_trip_answer`, a mock route ("from X to Y … leaving at 7:30", by car, the named day) and prompt rule 19;
+  - a server-built **`day.trip`** intent: day, minute, stage, and the trip as geojson (normal route, trip and cut segments).
+
+**Seed result** (mock engine): by car from Car Park B to SK Denai Alam in the storm rehearsal.
+- Departures up to 06:40 got through.
+- At 07:30 there was no way: the river at +3 m cut Persiaran Alstonia and an unnamed street.
+- The way came back for departures from 12:30. The mock answer passed the validator on the first attempt.
+
+**Checklist** (mock-backed): lint PASS, pytest 1,270 PASS, typecheck PASS, vitest 789 PASS, gen (client regenerated with the new route and intent), golden 23/23 PASS, e2e 19 PASS. The web UI for the trip comes next (Cycle 20).
+
+### Cycle 19 review (independent Sonnet reviewer) and Cycle 20, part 1: the trip on screen (17 Oct, 13:23)
+
+**Review findings, all fixed (4 Important, 8 Minor):**
+- **Important: false steps.** "…or earlier got there" was printed even when earlier slots were cut. The engine now returns `all_earlier_ok`, and the template says "A trip leaving at X got there" otherwise. "The way came back" is now the first departure after the *last* cut one, so no later slot is cut again. It is shown only when the asked trip did not get there.
+- **Important: advice slipped through.** "better to set off", "aim/plan/try", "go early", "leave … instead", sentence-initial "Leave/Go/Set off", "bertolak sebelum", 早点/提前, "no risk" and "fine to go" are now refused.
+- **Important: forecasts slipped through.** "will be cut/rise/close/passable…" is refused.
+- **Important: outcome contradictions.** The sentence about the asked time must name its outcome. A cut trip is never said to have arrived ("not/never" negation allowed). A bare "cut" no longer counts as "no way".
+- **Minor:**
+  - hours must round the rehearsal's own minutes (±30);
+  - "very long" needs over twice as long *and* 30+ minutes more;
+  - the cut is computed where the trip stopped (turned back or stuck);
+  - two ends snapping to one node are refused, and so is an id plus a point;
+  - each `Day` has its own lock, shared by trips and `compare`;
+  - the mock trip route needs trip wording;
+  - a tapped point is hashed in the in-memory cache key.
+
+**Cycle 20, part 1:**
+- **`tripModel.ts`:** parse the trip, the position at the clock (interpolated along the engine's segments; waiting at a point), an outcome palette with glyphs (never colour alone), `tripFromApi`.
+- **`TripStrip` in the answer card:** one button per 10-minute departure, an hour axis, ▲ at the asked time and a legend. Tapping a time re-rehearses that departure (`POST /day/{id}/trip`) and plays it on the map.
+- **Scene store:** `day.trip` opens the day at the time of leaving in *any* mode, with that minute's stage and `myTrip`. The playback hook now ends the day on a mode *switch*; outside Management mode it plays only a resident's trip, and the trip is cleared with its day.
+- **`MyTripLayer` (Cesium):**
+  - the usual route as white dashes on dark gaps (it was invisible in grey);
+  - the trip in yellow (a plain colour; an outline material is not drawn on ground-clamped lines);
+  - the flooded cut as a red glow;
+  - "You" at the clock ("You · waiting"; "You · no way through" at the start).
+  
+  The camera frames the trip.
+
+**Browser** (mock, Stylised, Resident mode): "In the storm rehearsal, what happens to my trip from Car Park B to SK Denai Alam by car leaving at 7:30?"
+- The answer card shows the strip: ✓ 06:30–06:40, ✕ 06:50–12:20, ✓ from 12:30.
+- The map opens the storm at 07:30 with the trip, the usual route and the cut.
+- The console is clean after a reload. On the way: a debugging session showed that the jsdom tests cannot fetch relative `/api` URLs (the strip test mocks the client's POST).
+
+**Checklist** (mock-backed): lint PASS, pytest 1,296 PASS, typecheck PASS, vitest 796 PASS, gen PASS, golden 23/23 PASS, build PASS, e2e 19 PASS.
+
+### Cycle 20, part 2: "Rehearse my trip" in Resident mode, with the fallback views (17 Oct, 13:34)
+
+- **`TripPlanner` card**, opened from a "Rehearse my trip" chip beside "Travelling as" (no extra row).
+  - **From and to:** search a mapped place (`/places?q=`), or "tap a point on the map". A hint appears in the TopStack hint slot, and Esc cancels.
+  - **Inputs:** the leave time, the rehearsed day, and "Travelling as" for the profile.
+  - **Result:** it posts `POST /day/{id}/trip`, plays the trip on the map and shows the same departure strip.
+  - **Data gap:** shown as "No mapped connection … a data gap, not a closed road".
+  - **Privacy:** tapped points stay in the tab and are sent once in a request body ("not saved").
+- **Map taps:** `tripPickStore` sends the next map click (Cesium `pickPosition` or the ellipsoid; Mapbox `lngLat`) to the chosen end, ahead of place cards.
+- **Lite map:** the usual route (white dashes on a dark casing), the trip in yellow, the cut in red and a "You" dot at the clock. The map flies to the trip.
+- **List view:** "Your trip · rehearsal" names the flooded streets and shows the same strip (every departure in words).
+- **Found by the checklist:** the collapsed card row pushed the phone sheet's composer off-screen (888 > 844 px) and left the conversation 101 px at half height. The entry point moved into the "Travelling as" row, and the phone e2e passes again.
+- **Browser** (mock, Stylised): I tapped a point on the map, searched "SK Denai Alam", and rehearsed in a wheelchair at 07:30 on the storm day. The strip showed ✓ 06:30, ↺ 06:40, ✕ 06:50–12:20, ✓ from 12:30. The 3D map framed the trip; Lite map and List showed the same. The console was clean.
+- **e2e (new):** "Rehearse my trip" on the tiny fixture (Car Park B → the playground, weekday, 07:30: the ▲ departure got there; the list heading shows; no advice words).
+
+**Checklist** (mock-backed): lint PASS, pytest 1,296 PASS, typecheck PASS, vitest 796 PASS, gen PASS, golden 23/23 PASS, build PASS, e2e 20 PASS.
+
+### Cycle 21: calibration against official open data, and the bug it found (17 Oct, 13:55)
+
+**Data** (approved by the user; official, CC BY 4.0; about 400 KB in all, cached in `data/cache/opendata/`):
+- DOSM `population_district` (the parquet, 265 KB; the 24.6 MB CSV was avoided, and `pyarrow==26.0.0` was added to the `data` group to read it);
+- the Selangor rows of MOE EMIS `enrolment_school_district` and `schools_district` from the data.gov.my API (100 KB and 37 KB).
+
+Each is recorded in `data/README.md` and `CREDITS.md`.
+
+**The bug calibration found.** Every under-13, toddlers included, went on a primary-school run and was counted as a pupil. 293 of 674 households with children drove to a primary school with no one aged 7–12. The storm day reported 1,373 pupils (275 per 1,000), against 105 government-school pupils per 1,000 in Petaling.
+- **Fix:** a school run only when a child aged 7–12 (Standard 1–6) lives there. Younger siblings ride along and are not counted. `PRIMARY_AGE` and `SECONDARY_AGE` are now in `schedule.py`. Tested.
+- **Storm day now:** 6,710 trips, 818 pupils, 188 couldn't get to school and 61 turned back. Teenagers are hit hardest (160 of 362), then households without a car (130 of 442 couldn't go).
+- **Test a change:** option 1 gives 820 better off and 0 worse; option 2 (Persiaran Eserina) gives 262 better off and 2 worse, among them 105 teenagers and 55 children.
+- **Event:** 449 at the park at once, and 400 met a neighbour.
+- The demo script is re-measured and updated.
+
+**Calibration** (`data/scripts/calibrate_day.py` → `data/sim/elmina/calibration.json`; report `docs/03-product/calibration-report-2026-10.md`; shown in the Day panel under "How it was made → Checked against Petaling district"):
+- **Ages:** 0–14 23.3% vs 19.1%; 15–64 67.4% vs 71.8%; 65+ 9.2% vs 9.0%. The largest 5-year gap is 4.8 points (ages 25–29: the household generator makes parents 26–50).
+- **School-age children:** 92 per 1,000 aged 7–12 vs about 83 in Petaling (estimated from DOSM bands); 72 aged 13–17 vs about 66.
+- **Government-school pupils:** 62 and 43 per 1,000. About 75% and 65% of Petaling's school-age children are in government schools; the rest are in private or international schools, or are non-citizens.
+- **Household size and cars:** 3.77 people (cited 3.8); 91.5% with a car (cited 92.3%).
+- **Nothing is fitted.** The gap is measured and reported.
+
+**Voices re-recorded** after the fix: most recorded lines no longer matched their trips and had fallen back to template wording.
+- GPT-6 Luna, 4 days: 269 calls, 0 failed, about 165k tokens in and 22k out (a few cents).
+- 17 lines were rejected by the checks and fall back to template wording.
+- The storm town hall's 5 AI lines still match and were kept.
+
+**Cycle 20 review (Sonnet; 5 Important, 5 Minor), fixed:**
+- picking is reset when the mode switches (a module-level subscription);
+- the trip card stays mounted (hidden) in the peeking phone sheet, so its state survives;
+- the trip is cleared whenever its day ends, including when the user picks a river level;
+- **Play/Pause and Stop** on the rehearsal tag, so a resident can play their trip;
+- `MyTripLayer` builds its lines once per trip, and only "You" follows the clock;
+- a re-rehearsed departure clears any what-if;
+- Escape respects other popovers;
+- the strip follows the trip on the map, has one tab stop with arrow keys, and labels the asked cell "The time you asked about";
+- the camera frames once per trip (cut pieces included; Lite map uses `fitBounds`);
+- the strip scrolls inside its card;
+- trips from tapped points can be re-rehearsed (the card passes its points);
+- "tap a point" is hidden in the List view.
+
+**Checklist** (mock-backed; the voices were live): lint PASS (after formatting the JSON), pytest 1,299 PASS, typecheck PASS, vitest 801 PASS, gen PASS, golden 23/23 PASS, build PASS, e2e 20 PASS.
+
+### Cycle 21 review (Sonnet) and Cycle 22: demo hardening (17 Oct, 14:16)
+
+**Cycle 21 review: 1 High, 4 Medium, several Low, all fixed:**
+- **High (demo):** all 4 "parent doing the school run" spotlight residents did no school run after the fix, because casting still counted toddlers. Two had empty diaries. Casting now requires a child aged 7–12; other parents are "parent at home with a young child", and a day with no trips shows "No trips out in this rehearsed day: stayed at home." Tested. The cast changed, so the voices were re-recorded again (GPT-6 Luna: 274 calls, 0 failed, 20 lines rejected by the checks). The storm day now has 78 of 82 diary lines and 8 posts AI-written, with 0 dropped as stale.
+- **Medium:**
+  - under-7s ride along only with a parent who is home; otherwise they are minded outside the model, never alone (both now stated assumptions, with after-school care);
+  - the assumptions are reworded (7–12 school runs; under-7s);
+  - household size and car share are marked "inputs, not checks";
+  - the ages 50–64 shortfall (−9.7 points) and 80+ excess (+2.0) are stated, and the "max gap" summary no longer hides them.
+- **Low:**
+  - the 75% / 65% government-school share is hedged, with the other possible causes listed;
+  - Petaling is stated as a proxy, and "may be younger";
+  - "Compared with" instead of "Checked against";
+  - like-for-like pupils per 1,000 in the table;
+  - the test no longer rewrites the tracked JSON;
+  - a year note;
+  - the eval report notes its saved live answers predate the fix.
+- **Generated report:** `calibrate_day.py` now writes the report itself (`report()`), so it is reproducible.
+
+**Flaky test root cause.** The world-model caches keyed on `id(world)`. Python reuses ids after an object is garbage-collected, so a newly loaded world could be served another world's cached what-if. This explains `test_whatif_template_fallback_says_the_same_numbers` failing only in long full runs. The keys now use a per-world token (`_world_token`).
+
+**Cycle 22, demo hardening:**
+- mock replays for "Which change would help most residents in the storm rehearsal?" and the car trip question;
+- lane READMEs (spatial: Elmina Day modules and tools; web: Rehearse my trip and `day.trip`; agent: rule 19);
+- a timed browser run-through of the world-model beats (mock, Stylised):
+  - the day loads in 2.6 s and the numbers match the script;
+  - Test a change answers in 267 ms (pre-computed): 820 better off and 0 worse;
+  - the town hall has 5 AI lines;
+  - the warm-up runs every job, including storm options 1–3.
+- **Live smoke test of the trip question:**
+  - English passed first time.
+  - Bahasa Melayu fell back to the template, because the model's honest wording ("laluan yang sangat panjang") was not accepted and "tiba pada 12:13" was refused although a very long way round does arrive.
+  - Both rules are fixed, and the drafts are kept as passing tests.
+
+**Checklist** (mock-backed; voices and smoke test live): lint PASS, pytest 1,304 PASS, typecheck PASS, vitest 801 PASS, gen PASS, golden 23/23 PASS, build PASS, e2e 20 PASS. OpenRouter spend is about US$2.0 of US$3 (an estimate; the counter lags).
+
+### Cycle 23: tickets say who they matter to (17 Oct, 14:23)
+
+**Why:** staff resolve tickets one fact at a time. The People-track link is *whose* trips depend on that fact.
+
+**Built:**
+- **`day/reach.py`:**
+  - **for a path:** the distinct synthetic residents (companions included) whose rehearsed trips cross the ticket's path, by purpose and age group;
+  - **for a place:** who goes there;
+  - computed on the cached rule-based weekday, under the day's lock.
+- **Tool and endpoint:** `tools.ticket_reach` and `GET /verification-requests/{id}/reach?day=weekday`, cached by element.
+- **Tickets screen:** the impact card gains "Who this matters to · A normal weekday (rehearsal)", e.g. "6 synthetic residents' trips cross this path (12 trips: 6 shopping trips)". It says plainly that these are synthetic residents, not a forecast, and that their trips may use unchecked paths, which is why the check matters.
+- **Seed example:** the busiest Persiaran Eserina segment is crossed by 255 residents on a normal weekday (113 teenagers and 58 children; 179 school trips).
+- **Tests:** reach on the tiny world, the API endpoint (a filed ticket, 404), and the `reachLine` wording.
+
+**Checklist** (mock-backed): lint PASS, pytest 1,306 PASS, typecheck PASS, vitest 803 PASS, gen (client regenerated with the new route), golden 23/23 PASS, build PASS, e2e 20 PASS.
+
+### Cycle 23 review (Sonnet) and fixes (17 Oct, 14:32)
+
+No correctness bugs in the counting: an independent recount matched `reach()` exactly on the 40 busiest paths. Fixed:
+- **Fairness (Medium):** the card implied the count was who a fact "matters to", but it counted car trips and every profile. It now says "Whose rehearsed trips use this" and splits residents on foot and by car (the busiest Persiaran Eserina segment: 255 residents, 183 on foot and 72 by car). The note says that whether a check matters depends on how each resident travels.
+- **Twin paths (Medium):** the router keeps one of two parallel paths between the same junctions, so a ticket on the other twin showed 0 residents (31 such pairs on the seed). Trips now match on the junction pair. Tested on 40 twin pairs.
+- **Refresh (Low–Medium):** resolving a ticket now also refreshes the count, and the note says the count is the day as it is now. `_DAY_RESULTS` keeps all four days, so a ticket's weekday no longer evicts the storm used by the comparisons.
+- **Totals:** trips home are listed in the breakdown, so the parts add up to the total.
+- **Places:** only trips that went to the place and got there are counted.
+- **Day:** an unknown day is checked first.
+
+**Checklist** (mock-backed): lint PASS, pytest 1,307 PASS, typecheck PASS, vitest 803 PASS, gen PASS, golden 23/23 PASS, build PASS, e2e 20 PASS.
+
+### Merge of origin/main into ai/world-model-2 (2026-10-18 04:19)
+
+The user asked to pull, merge and push. `origin/main` had 50 new commits. They include **T-011, "Resident scope B"**: `ASSISTANT_SCOPE=access_flood` is now the default. The resident assistant covers access and flood evacuation around Elmina Urban Park and Elmina Lakeside Mall only; what-ifs, rollouts, fix-it, survey plans and **simulated days are politely refused before any tool runs**; `ASSISTANT_SCOPE=all` opts back in. They also include a team workflow in which work reaches `main` only through pull requests with green CI, via the control branch `claude/sweet-davinci-29v7ne`.
+
+**Resolution (4 conflicts):** the team's scope policy is kept as it is.
+- `rehearse_my_trip` uses their `register_tool`, so it is registered only under `all`.
+- The mock's trip and change routes are `all`-only.
+- `run.py` keeps `_trip_geojson` alongside their new `_streams(*models)`.
+- Their new measurement check skips durations on trip turns (`my_trip_errors` checks them) and counts a trip's own values.
+- The new tests and the 4 Elmina Day golden cases opt into `all`, as theirs do, and the replays are re-recorded under `all`.
+- New test: in the default scope, a trip-rehearsal question is refused with no tool call, and the tool isn't registered.
+
+**What this means for the demo:** in the default scope the assistant refuses rehearsal and test-a-change questions. The Day panel, Test a change, "Rehearse my trip" (the REST card) and the ticket reach card are not gated. The demo script's assistant beats need `ASSISTANT_SCOPE=all`, or should use the panels instead.
+
+**Checklist** (mock-backed): lint PASS, pytest 1,500 PASS, typecheck PASS, vitest 803 PASS, gen PASS, golden 23/23 PASS, build PASS, e2e 20 PASS. Pushed to the branch only; not to `main`.
+
+## 2026-10-18 17:27 +08 · Merge of main (three.js city) and the scope flag for the resident trip card
+
+- Merged `origin/main` (148 commits: shaoxian04's three.js stylised city, phases 0–3, opt-in `?engine=three`). Conflicts in `pyproject.toml` (kept `pyarrow` and the team's `dracopy`/`pygltflib`), `data/README.md` (kept both sections) and `uv.lock` (taken from main, then `uv lock`). After the merge: lint PASS, typecheck PASS, pytest PASS (1846 passed, 32 skipped, mock). Vitest, golden and e2e NOT RUN on the merge (stopped by the user).
+- **Ruling: the resident "Rehearse my trip" chip and card sit behind the scope flag** (what: shown only when `GET /assistant/scope` says `all`, i.e. `ASSISTANT_SCOPE=all`; default scope B hides them — why: the user chose Yunzhe's scope B first, and the resident screen should not offer what the resident assistant refuses; one switch turns the whole world-model resident experience on — cost if wrong: a demo run under the default scope shows no trip card; set `ASSISTANT_SCOPE=all` for the 2:25 beat). Staff screens (Day panel, Test a change, ticket reach) are unchanged. e2e already runs with `ASSISTANT_SCOPE=all`.

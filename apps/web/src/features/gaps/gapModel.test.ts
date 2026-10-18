@@ -3,6 +3,7 @@ import {
   GAP_BANDS,
   type GapItem,
   gapBand,
+  gapCoverage,
   gapLines,
   gapRows,
   gapSummary,
@@ -264,5 +265,18 @@ describe("reported facts", () => {
     expect(gapSummary(item({ unknown: 2, reported: 1 }))).toBe(
       "2 facts not yet checked, 1 only reported",
     );
+  });
+});
+
+describe("gapCoverage", () => {
+  it("counts relevant paths, those with an unchecked fact and those on demo values", () => {
+    const seg = (unknown: number, demo = 0, relevant = 3) =>
+      ({ kind: "segment", relevant, unknown, demo }) as unknown as GapItem;
+    const place = { kind: "place", relevant: 2, unknown: 2, demo: 0 } as unknown as GapItem;
+    expect(gapCoverage([seg(0), seg(2, 1), seg(1), seg(0, 0, 0), place])).toEqual({
+      paths: 3,
+      open: 2,
+      demo: 1,
+    });
   });
 });

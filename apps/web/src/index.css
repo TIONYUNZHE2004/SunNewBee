@@ -1,52 +1,60 @@
 @import "tailwindcss";
 
-/* Two chrome skins (Project 4). Light = Day + Dusk ("Kamui daylight"); Dark = Night. */
+/* Two chrome skins. Light = Day + Dusk (warm stone + ink); Dark = Night (charcoal). The 3D city is
+ * the only strong colour on screen: status hues follow the map legend (scene/styles.ts), tuned per
+ * skin for AA text contrast, and Sime Darby Property red appears only on the logo mark. */
 :root,
 :root[data-skin="dark"] {
   color-scheme: dark;
-  --c-bg: #1f1838;
-  --c-surface: #241c42;
-  --c-raised: #2e2552;
-  --c-fg: #ffffff;
-  --c-fg-soft: rgba(255, 255, 255, 0.82);
-  --c-edge: rgba(255, 255, 255, 0.14);
-  --c-accent: #fdf0ea;
-  --c-on-accent: #3d2f6b;
-  --c-focus: #f6a94a;
-  --c-lantern: #f6a94a;
-  --c-lilac: #c9b5ea;
-  --c-flood: #bcd7f7;
-  --c-rose: #f08aa3;
-  --c-peach: #f8cdb0;
-  --c-warn-tint: rgba(246, 169, 74, 0.12);
-  --c-danger-tint: rgba(194, 74, 104, 0.18);
+  --c-bg: #0f0f10;
+  --c-surface: #1a1a1c;
+  --c-raised: #232326;
+  --c-fg: #f2f0eb;
+  --c-fg-soft: #a29d95;
+  --c-edge: rgba(255, 255, 255, 0.09);
+  --c-accent: #f2f0eb;
+  --c-on-accent: #1a1a1c;
+  --c-focus: #f2f0eb;
+  --c-lantern: #e2a54a;
+  --c-lilac: #e2a54a;
+  --c-flood: #f0904f;
+  --c-rose: #f07a7a;
+  --c-peach: #c9b49c;
+  --c-ok: #5cc27e;
+  --c-on-status: #1a1a1c;
+  --c-brand-red: #ee3033;
+  --c-warn-tint: rgba(226, 165, 74, 0.12);
+  --c-danger-tint: rgba(240, 122, 122, 0.14);
   --c-brand-tint: rgba(255, 255, 255, 0.06);
-  --c-glass: rgba(36, 28, 66, 0.82);
-  --c-glass-edge: rgba(255, 255, 255, 0.12);
-  --c-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
+  --c-glass: rgba(26, 26, 28, 0.88);
+  --c-glass-edge: rgba(255, 255, 255, 0.08);
+  --c-shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px rgba(0, 0, 0, 0.35);
 }
 :root[data-skin="light"] {
   color-scheme: light;
-  --c-bg: #f5f2fa;
+  --c-bg: #efece6;
   --c-surface: #ffffff;
-  --c-raised: #f8f6fc;
-  --c-fg: #241c42;
-  --c-fg-soft: #5a5078;
-  --c-edge: rgba(36, 28, 66, 0.12);
-  --c-accent: #5b45a0;
+  --c-raised: #f7f5f1;
+  --c-fg: #1c1b19;
+  --c-fg-soft: #6b6760;
+  --c-edge: #e3dfd7;
+  --c-accent: #1c1b19;
   --c-on-accent: #ffffff;
-  --c-focus: #b4610a;
-  --c-lantern: #8a4b00;
-  --c-lilac: #5b4390;
-  --c-flood: #1d4f91;
-  --c-rose: #a8324f;
-  --c-peach: #7a4a2a;
-  --c-warn-tint: #fdf0dc;
-  --c-danger-tint: #fbe4e9;
-  --c-brand-tint: rgba(91, 69, 160, 0.08);
-  --c-glass: rgba(255, 255, 255, 0.8);
-  --c-glass-edge: rgba(255, 255, 255, 0.9);
-  --c-shadow: 0 8px 32px rgba(91, 69, 160, 0.18);
+  --c-focus: #1c1b19;
+  --c-lantern: #8c5a12;
+  --c-lilac: #8c5a12;
+  --c-flood: #b0490f;
+  --c-rose: #b42828;
+  --c-peach: #75624f;
+  --c-ok: #1b7a3a;
+  --c-on-status: #ffffff;
+  --c-brand-red: #ee3033;
+  --c-warn-tint: #fbf3e4;
+  --c-danger-tint: #fbeaea;
+  --c-brand-tint: rgba(28, 27, 25, 0.05);
+  --c-glass: rgba(255, 255, 255, 0.9);
+  --c-glass-edge: rgba(28, 27, 25, 0.08);
+  --c-shadow: 0 1px 2px rgba(28, 27, 25, 0.06), 0 8px 24px rgba(28, 27, 25, 0.08);
 }
 
 @theme inline {
@@ -64,6 +72,9 @@
   --color-flood: var(--c-flood);
   --color-rose: var(--c-rose);
   --color-peach: var(--c-peach);
+  --color-ok: var(--c-ok);
+  --color-on-status: var(--c-on-status);
+  --color-brand-red: var(--c-brand-red);
   --color-glass: var(--c-glass);
   --color-glass-edge: var(--c-glass-edge);
   /* legacy names used by kept components, re-pointed at the semantic variables */
@@ -78,8 +89,9 @@
   --color-warn-tint: var(--c-warn-tint);
   --color-danger-tint: var(--c-danger-tint);
   --color-danger: var(--c-rose);
-  --font-display: "Marcellus", "Optima", serif;
-  --font-sans: "Jost", "Helvetica Neue", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Geist", "Helvetica Neue", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Geist", "Helvetica Neue", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "Geist Mono", ui-monospace, "SF Mono", Menlo, monospace;
 }
 
 body {
@@ -89,6 +101,7 @@ body {
   font-family: var(--font-sans);
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
+  font-feature-settings: "ss01", "cv11";
   transition:
     background-color 300ms cubic-bezier(0.2, 0.7, 0.2, 1),
     color 300ms cubic-bezier(0.2, 0.7, 0.2, 1);
@@ -134,7 +147,7 @@ body {
   padding: 0.15rem 0.6rem;
   border-radius: 999px;
   border-width: 1px;
-  font: 600 0.72rem / 1.3 var(--font-sans);
+  font: 500 0.72rem / 1.3 var(--font-sans);
 }
 .chip-solid {
   border-style: solid;
@@ -146,9 +159,13 @@ body {
   border-style: dotted;
 }
 .chip-cream {
-  background: var(--c-accent);
-  color: var(--c-on-accent);
-  border-color: var(--c-accent);
+  background: var(--c-ok);
+  color: var(--c-on-status);
+  border-color: var(--c-ok);
+}
+.chip-ok {
+  color: var(--c-ok);
+  border-color: var(--c-ok);
 }
 .chip-amber {
   color: var(--c-lantern);
@@ -164,17 +181,13 @@ body {
 }
 .chip-rose {
   background: var(--c-rose);
-  color: #fff;
+  color: var(--c-on-status);
   border-color: var(--c-rose);
-}
-:root[data-skin="dark"] .chip-rose {
-  background: #c24a68;
-  border-color: #c24a68;
 }
 .chip-flood {
   color: var(--c-flood);
   border-color: var(--c-flood);
-  background: color-mix(in srgb, var(--c-flood) 14%, transparent);
+  background: color-mix(in srgb, var(--c-flood) 10%, transparent);
 }
 .chip-peach {
   color: var(--c-peach);
@@ -203,6 +216,17 @@ body {
   from {
     opacity: 0;
     transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
   }
   to {
     opacity: 1;

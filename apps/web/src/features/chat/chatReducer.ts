@@ -1,4 +1,5 @@
 import type { ChatEvent, components } from "@tl/api-client";
+import type { TripMeta } from "../day/tripModel";
 
 export type Citation = components["schemas"]["Citation"];
 export type Uncertainty = components["schemas"]["Uncertainty"];
@@ -11,6 +12,8 @@ export interface ToolChip {
   id: string;
   name: string;
   done: boolean;
+  /** tool.call args, for the plain-words step label (ids and queries only). */
+  args?: Record<string, unknown>;
 }
 
 export interface AssistantMessage {
@@ -29,8 +32,17 @@ export interface AssistantMessage {
   vrs: VerificationRequested[];
   error?: string;
   answerStatus?: string;
-  route?: { id: string; status?: string; distanceM?: number; minutes?: number };
+  route?: {
+    id: string;
+    status?: string;
+    distanceM?: number;
+    minutes?: number;
+    /** The route line ([lon, lat] pairs) the server attached, for the answer's route sketch. */
+    coords?: [number, number][];
+  };
   scenarioId?: string;
+  /** A rehearsed trip's departures and outcome (day.trip intent meta), for the strip. */
+  trip?: TripMeta;
   /** done.model; "...+template" means the checked data was worded without the AI. */
   model?: string;
   done: boolean;
@@ -70,7 +82,10 @@ export function reduceChatEvent(m: AssistantMessage, ev: ChatEvent): AssistantMe
     case "answer.check":
       return { ...m, checks: [...m.checks, ev], draft: ev.ok ? m.draft : "" };
     case "tool.call":
-      return { ...m, tools: [...m.tools, { id: ev.id, name: ev.name, done: false }] };
+      return {
+        ...m,
+        tools: [...m.tools, { id: ev.id, name: ev.name, done: false, args: ev.args ?? {} }],
+      };
     case "tool.result":
       return { ...m, tools: m.tools.map((t) => (t.id === ev.id ? { ...t, done: true } : t)) };
     case "citation":
@@ -90,6 +105,23 @@ export function reduceChatEvent(m: AssistantMessage, ev: ChatEvent): AssistantMe
   }
 }
 
+/** [lon, lat] pairs of a LineString (or the first line of a MultiLineString); undefined otherwise. */
+export function lineCoords(g: unknown): [number, number][] | undefined {
+  const geo = g as { type?: string; coordinates?: unknown } | null | undefined;
+  const raw =
+    geo?.type === "LineString"
+      ? geo.coordinates
+      : geo?.type === "MultiLineString"
+        ? (geo.coordinates as unknown[] | undefined)?.[0]
+        : undefined;
+  if (!Array.isArray(raw)) return undefined;
+  const pts = raw.filter(
+    (p): p is [number, number] =>
+      Array.isArray(p) && Number.isFinite(p[0]) && Number.isFinite(p[1]),
+  );
+  return pts.length >= 2 ? pts.map(([x, y]) => [x, y]) : undefined;
+}
+
 /** Fold a scene intent into the message: the route summary and scenario the answer is about. */
 export function reduceIntent(m: AssistantMessage, i: SceneIntent): AssistantMessage {
   if (i.kind === "route.highlight" && i.route_id)
@@ -100,9 +132,15 @@ export function reduceIntent(m: AssistantMessage, i: SceneIntent): AssistantMess
         status: i.route_status ?? undefined,
         distanceM: i.distance_m ?? undefined,
         minutes: i.est_minutes ?? undefined,
+        coords: lineCoords(i.geojson),
       },
     };
   if (i.kind === "flood.set_level" && i.scenario_id) return { ...m, scenarioId: i.scenario_id };
+  if (i.kind === "day.trip" && i.geojson) {
+    // a resident's own rehearsed trip: the strip shows the engine's departures (Cycle 20)
+    const meta = (i.geojson as { meta?: TripMeta }).meta;
+    if (meta) return { ...m, trip: meta };
+  }
   return m;
 }
 

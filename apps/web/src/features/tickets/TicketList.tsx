@@ -26,13 +26,12 @@ function Row({
         type="button"
         aria-pressed={selected}
         onClick={() => onSelect(t.id)}
-        className={`glass relative flex w-full flex-col overflow-hidden gap-1 rounded-xl border p-3 text-left ${
-          selected ? "outline-2 -outline-offset-2 outline-accent" : ""
+        className={`relative flex w-full flex-col gap-1.5 overflow-hidden rounded-2xl border p-3.5 text-left transition-colors ${
+          selected
+            ? "border-fg bg-surface shadow-[var(--c-shadow)]"
+            : "border-edge bg-raised hover:border-fg/25"
         }`}
       >
-        {selected && (
-          <span aria-hidden="true" className="absolute inset-y-0 left-0 w-1.5 bg-accent" />
-        )}
         <span className="flex items-baseline justify-between gap-2">
           <strong className="text-fg">{t.fact}</strong>
           <span className="text-xs text-fg-soft">{t.ago}</span>
@@ -46,10 +45,10 @@ function Row({
             aria-valuenow={t.asked}
             aria-valuemax={maxAsked}
             aria-label={`Asked ${t.asked} ${t.asked === 1 ? "time" : "times"}`}
-            className="block h-1.5 w-full overflow-hidden rounded-full bg-fg/10"
+            className="block h-1 w-full overflow-hidden rounded-full bg-fg/10"
           >
             <span
-              className="block h-full rounded-full bg-accent"
+              className="block h-full rounded-full bg-fg/70"
               style={{ width: `${(t.asked / Math.max(1, maxAsked)) * 100}%` }}
             />
           </span>
@@ -122,7 +121,7 @@ export function TicketList({ toCheck, checked, selectedId, onSelect }: Props) {
   return (
     <section aria-label="Ticket list" className="flex flex-col gap-4">
       <header>
-        <h1 className="text-2xl font-semibold text-fg">Gaps to close</h1>
+        <h1 className="text-xl font-semibold tracking-tight text-fg">Gaps to close</h1>
         <p className="text-sm text-fg-soft">
           Residents' questions that hit something nobody has checked yet. Tickets hold only the fact
           and the place, never what a resident wrote (PDPA).
@@ -143,12 +142,18 @@ export function TicketList({ toCheck, checked, selectedId, onSelect }: Props) {
             }}
             onKeyDown={(e) => onTabKey(e, i)}
             onClick={() => setTab(x.id)}
-            className={`flex min-h-11 items-center gap-2 rounded-full border px-4 text-sm font-semibold ${
-              tab === x.id ? "border-accent bg-brand-tint text-fg" : "border-edge text-fg-soft"
+            className={`flex min-h-10 items-center gap-2 rounded-full border px-4 text-sm font-medium transition-colors ${
+              tab === x.id
+                ? "border-accent bg-accent text-on-accent"
+                : "border-edge text-fg-soft hover:text-fg"
             }`}
           >
             {x.label}
-            <span className="rounded-full bg-accent px-2 text-xs text-on-accent">
+            <span
+              className={`rounded-full px-2 text-xs tabular-nums ${
+                tab === x.id ? "bg-on-accent/15 text-on-accent" : "bg-fg/10 text-fg"
+              }`}
+            >
               {x.items.length}
             </span>
           </button>

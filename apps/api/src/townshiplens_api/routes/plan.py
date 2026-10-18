@@ -88,3 +88,19 @@ def ticket_impact(vr_id: str) -> dict:
         busy = any("busy" in w for w in res.warnings)
         raise HTTPException(status_code=503 if busy else 404, detail="; ".join(res.warnings))
     return res.data
+
+
+@router.get(
+    "/verification-requests/{vr_id}/reach",
+    responses={404: {"description": "unknown verification request"}, 503: {"description": "busy"}},
+)
+def ticket_reach(vr_id: str, day: str = "weekday") -> dict:
+    """Who this ticket's path or place matters to in a rehearsed day: synthetic residents whose
+    trips cross it, by purpose and age group (a rehearsal, not a forecast; counts only)."""
+    from townshiplens_spatial import tools
+
+    res = tools.ticket_reach(state.get_ctx(), vr_id, day)
+    if not res.ok:
+        busy = any("busy" in w for w in res.warnings)
+        raise HTTPException(status_code=503 if busy else 404, detail="; ".join(res.warnings))
+    return {**res.data, "disclaimer": res.warnings[0] if res.warnings else ""}

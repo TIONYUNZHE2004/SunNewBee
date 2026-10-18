@@ -10,7 +10,8 @@ const LABEL: Record<ThemeChoice, string> = {
 const ICON: Record<Theme, string> = { day: "☀", dusk: "◐", night: "☾" };
 const ORDER: ThemeChoice[] = ["auto", "day", "dusk", "night"];
 
-export function ThemeMenu() {
+/** `rail`: the menu opens to the right of a bottom-of-rail button instead of below it. */
+export function ThemeMenu({ placement = "down" }: { placement?: "down" | "rail" }) {
   const { choice, theme, setChoice } = useTheme();
   const [open, setOpen] = useState(false);
   const btn = useRef<HTMLButtonElement>(null);
@@ -46,7 +47,7 @@ export function ThemeMenu() {
         aria-haspopup="menu"
         aria-expanded={open}
         onClick={() => setOpen((o) => !o)}
-        className="relative inline-flex size-11 items-center justify-center rounded-full border border-edge text-fg hover:bg-fg/10"
+        className="relative inline-flex size-11 items-center justify-center rounded-full border border-edge text-fg transition-colors hover:bg-fg/5"
       >
         <span aria-hidden="true">{ICON[theme]}</span>
         {choice === "auto" && (
@@ -63,7 +64,9 @@ export function ThemeMenu() {
           ref={menu}
           role="menu"
           aria-label="Theme"
-          className="absolute right-0 z-30 mt-2 w-40 rounded-xl border border-edge bg-surface p-1 shadow-lg"
+          className={`absolute z-40 w-40 rounded-xl border border-edge bg-surface p-1 shadow-lg ${
+            placement === "rail" ? "bottom-0 left-full ml-3" : "right-0 mt-2"
+          }`}
         >
           {ORDER.map((c) => (
             <button

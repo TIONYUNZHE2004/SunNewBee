@@ -18,6 +18,12 @@
       "runtimeExecutable": "env",
       "runtimeArgs": ["LLM_PROVIDER=mock", "DEMO_MODE=true", "pnpm", "dev"],
       "port": 5173
+    },
+    {
+      "name": "townshiplens-dev-mock-alt",
+      "runtimeExecutable": "env",
+      "runtimeArgs": ["LLM_PROVIDER=mock", "API_PORT=8005", "WEB_PORT=5175", "pnpm", "dev"],
+      "port": 5175
     }
   ]
 }

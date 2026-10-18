@@ -23,6 +23,8 @@ from ..world import World
 from .population import Population, Resident, _xy
 
 # Place types per purpose. "work" is a township exit on a main road (commuters leave Elmina).
+PRIMARY_AGE = (7, 12)  # Standard 1-6
+SECONDARY_AGE = (13, 17)  # Form 1-5
 PURPOSE_TYPES = {
     "school": ("school",),
     "worship": ("place_of_worship",),
@@ -38,15 +40,18 @@ PRAYER = {
     "maghrib": 19 * 60 + 10,
 }
 ASSUMPTIONS = [
-    "School starts about 07:30; children under 13 are collected at 13:30 and teenagers leave "
-    "at 14:15.",
+    "School starts about 07:30. Children aged 7-12 are taken to primary school and, when a parent "
+    "is home, collected at 13:30; teenagers leave at 14:15. After-school care for children of "
+    "commuting parents is not modelled.",
+    "Children under 7 have no trips of their own: they ride along with a parent who is home, "
+    "and are otherwise minded by someone outside the model (never alone).",
     "Commuters leave between 07:00 and 08:00 and set off home between 17:30 and 19:00; those "
     "without a car take a ride-hail or a lift (the driving profile).",
     "Friday prayers: Muslim men aged 15 to 74 who are in the township that day.",
     "Prayer times are approximate for Shah Alam in October (JAKIM e-Solat).",
     "Walking paces: 75 m/min, 65 with a stroller, 60 in a wheelchair, 50 for older residents "
     "who need rests; driving 500 m/min (30 km/h, the drive profile).",
-    "Children under 13 travel with a carer; teenagers walk on their own.",
+    "Children under 13 travel with a carer; teenagers walk or ride on their own.",
 ]
 
 
@@ -197,9 +202,19 @@ def plan_day(
         for m in members:
             if m.group == "teen":
                 add(m, "school", pl.pick("school_secondary", m), pl.minutes(395, 420), 0, until=855)
-        if kids and carer:
+        # Primary school is Standard 1-6 (ages 7-12 in Malaysia): a school run happens only when
+        # a child of that age lives here. Younger siblings ride along with the carer (and are
+        # never counted as pupils). Calibration (Cycle 21) found every under-13, toddlers
+        # included, doing a school run before this.
+        if carer and any(PRIMARY_AGE[0] <= k.age <= PRIMARY_AGE[1] for k in kids):
             school = pl.pick("school_primary", carer)
-            ids = [k.id for k in kids]
+            # under-7s ride along only with a carer who is home to bring them back (a commuting
+            # carer drops the pupils and goes to work; review C21)
+            ids = [
+                k.id
+                for k in kids
+                if PRIMARY_AGE[0] <= k.age <= PRIMARY_AGE[1] or not carer.commuter
+            ]
             # Drop-off: the children ride out, the carer comes home alone.
             add(
                 carer, "school", school, pl.minutes(400, 430), 0, ids, "school run", kids_back=False

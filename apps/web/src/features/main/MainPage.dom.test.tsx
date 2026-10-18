@@ -41,12 +41,16 @@ function renderMain() {
 }
 
 describe("MainPage", () => {
-  it("shows the map region and the assistant, with only the settings button as map chrome", () => {
+  it("shows the map region and the assistant; map chrome is the brand pill and the settings button", () => {
     renderMain();
     const map = screen.getByRole("region", { name: "3D map of City of Elmina" });
     expect(screen.getByRole("complementary", { name: "Assistant" })).toBeVisible();
     expect(within(map).getByRole("button", { name: "Map settings" })).toBeVisible();
-    expect(within(map).queryByRole("radiogroup")).toBeNull();
+    expect(
+      within(map)
+        .getAllByRole("radiogroup")
+        .map((g) => g.getAttribute("aria-label")),
+    ).toEqual(["Perspective"]);
     expect(within(map).queryByRole("list", { name: "Path status legend" })).toBeNull();
     expect(within(map).getByText(/3D map couldn't load/)).toBeVisible();
     const list = within(map).queryByRole("list");
@@ -57,10 +61,11 @@ describe("MainPage", () => {
       "Map settings",
     ]);
   });
-  it("the panel slide is off under reduced motion", () => {
+  it("the docked panel's collapse animation is off under reduced motion", () => {
     renderMain();
-    const panel = screen.getByRole("complementary", { name: "Assistant" }).parentElement;
-    expect(panel).toHaveClass("transition-transform", "motion-reduce:transition-none");
+    const panel = screen.getByRole("complementary", { name: "Assistant" }).parentElement
+      ?.parentElement;
+    expect(panel).toHaveClass("transition-[width,opacity]", "motion-reduce:transition-none");
   });
   it("collapsing hides the panel visually but keeps the conversation mounted", () => {
     renderMain();

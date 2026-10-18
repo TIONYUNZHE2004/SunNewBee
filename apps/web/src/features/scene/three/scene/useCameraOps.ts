@@ -1,7 +1,7 @@
 import { type RefObject, useCallback, useEffect, useRef, useState } from "react";
 import { usePanel } from "../../../main/panelStore";
 import { isWide } from "../../../main/usePanelReserve";
-import { PANEL_INSET_PX, panelWidthPx } from "../../../main/viewport";
+import { mapPanelOverlapPx } from "../../../main/viewport";
 import { type CameraOps, reducedMotion } from "../../cesium/controls/cameraOps";
 import type { LonLat } from "../../geo";
 import { useScene } from "../../sceneStore";
@@ -101,7 +101,7 @@ export function useCameraOps({
   // Look point in the middle of the map area left of the side panel (phones use the sheet).
   useEffect(() => {
     if (!engine) return;
-    const panel = isWide() && panelOpen ? panelWidthPx(innerWidth) + PANEL_INSET_PX * 2 : 0;
+    const panel = mapPanelOverlapPx(panelOpen, isWide(), innerWidth);
     engine.setViewOffset(panel);
   }, [engine, panelOpen]);
 

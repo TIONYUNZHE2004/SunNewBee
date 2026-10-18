@@ -10,6 +10,8 @@ Seed data for TownshipLens (City of Elmina, Shah Alam). Contract: see `docs/04-a
 | Copernicus DEM GLO-30 | terrain for the flood lens (REM scenarios, Task 10) | Copernicus licence, © DLR/Airbus, provided under COPERNICUS by the EU and ESA |
 | OSM rivers / streams / canals + lakes (same OSM licence) | drainage for the flood REM (Task 10) | ODbL |
 | HAND (ASF) | comparison only (`build_flood.py --method hand`), not in the seed | CC0 |
+| DOSM population by district, sex and age (`population_district`) | Elmina Day calibration (`calibrate_day.py`), compared only, never fitted | CC BY 4.0, Department of Statistics Malaysia |
+| MOE EMIS enrolment and school counts by district (data.gov.my `enrolment_school_district`, `schools_district`) | Elmina Day calibration | CC BY 4.0, Ministry of Education Malaysia / data.gov.my |
 
 ## Licence note
 
@@ -321,6 +323,16 @@ Near the mall, the flagged segments are the Urban Park / Central Park lake-edge 
 ### Parks (display only)
 
 `uv run python data/scripts/build_buildings.py --parks --max-requests 40` fetches OSM `leisure=park|garden|playground` and `landuse=grass|recreation_ground` closed ways (one query per tile, through `overpass.py`) into `base/parks.geojson`. It is not part of `pnpm data:build`, and parks are never used for routing, evaluation, flood or answers. The API serves an empty collection when the file is absent.
+
+## Calibration of Elmina Day (Cycle 21: `data/scripts/calibrate_day.py`)
+
+Compares the 5,000 synthetic residents with Petaling district (where City of Elmina lies) using
+official open data, fetched once into `data/cache/opendata/` (gitignored; about 400 KB in all:
+the population parquet, and the Selangor rows of the enrolment and school tables from the
+data.gov.my API). Writes `data/sim/elmina/calibration.json`, shown in the Day panel ("How it was
+made"), and the report `docs/03-product/calibration-report-2026-10.md`. It measures the gap and
+fits nothing. Reading the parquet needs `pyarrow` (in the `data` dependency group).
+
 
 ### Land cover, signage and landmarks (display only)
 

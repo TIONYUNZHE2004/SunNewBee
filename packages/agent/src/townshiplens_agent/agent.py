@@ -398,6 +398,19 @@ async def call_tool(deps: Deps, name: str, **kwargs: Any) -> dict:
         }
         # group labels hold digits ("Older residents (65+)"): names, not counts
         rec.place_names |= {g["label"] for g in res.data.get("groups") or [] if g.get("label")}
+    if name == "rehearse_my_trip" and res.ok and isinstance(res.data, dict):
+        rec.my_trips.append(res.data)
+        stage = res.data.get("stage_at_leave")
+        if stage:  # the river stage at the time of leaving: flood disclaimer and guidance apply
+            rec.scenarios_used.add(stage)
+            rec.day_stages.add(stage)
+        d = res.data
+        # place names and street labels hold digits ("Jalan Hopea U15/17D"): names, not counts
+        rec.place_names |= {x.get("name") for x in (d.get("from") or {}, d.get("to") or {})} - {
+            None
+        }
+        rec.place_names |= set(d.get("cut_by") or [])
+        rec.place_names |= {(d.get("scenario") or {}).get("label") or ""} - {""}
     if name == "day_test_change" and res.ok and isinstance(res.data, dict):
         rec.day_changes.append(res.data)
         stages = res.data.get("river_stages") or []
@@ -439,6 +452,7 @@ async def call_tool(deps: Deps, name: str, **kwargs: Any) -> dict:
 _MODEL_DROP = {
     "affected_places": ("likely_edge_ids", "possible_edge_ids"),
     "day_test_change": ("changed_geojson",),  # for the map only
+    "rehearse_my_trip": ("track", "normal_route", "cut_lines"),  # for the map only
 }
 _MODEL_CAP = {"affected_places": ("likely_place_ids", "possible_place_ids")}
 
@@ -740,6 +754,32 @@ def build_agent(
         river stage: counts per stage (reach, confirmed, cut_off, no_data) and who is cut off
         first. The app animates it on the map. Indicative simulation, not a forecast."""
         return await call_tool(ctx.deps, "rising_river_rollout", profiles=profiles, n=n)
+
+    @register_tool
+    async def rehearse_my_trip(
+        ctx: RunContext[Deps],
+        from_id: str,
+        to_id: str,
+        leave_at: str,
+        day: Literal["weekday", "storm", "event", "friday"] = "storm",
+        profile: str | None = None,
+    ) -> dict:
+        """A resident's own trip through an Elmina Day rehearsal: the same rehearsed day as the
+        synthetic residents (river stage minute by minute, closures, re-planning on the way), at
+        leave_at (HH:MM) and every 10 minutes around it. Says what happened to that trip in the
+        rehearsal: got through, a longer way, only a very long way round, turned back, or no way,
+        which flooded street cut it, and when the way came back. Place ids from find_place.
+        profile: default|stroller|wheelchair|older_adult_rest|drive (default: the resident's)."""
+        prof = profile or ctx.deps.request.profile or "default"
+        return await call_tool(
+            ctx.deps,
+            "rehearse_my_trip",
+            from_id=from_id,
+            to_id=to_id,
+            profile=prof,
+            leave_at=str(leave_at).strip(),
+            day=str(day).strip().lower(),
+        )
 
     @register_tool
     async def day_test_change(

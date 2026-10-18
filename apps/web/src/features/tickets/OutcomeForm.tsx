@@ -87,6 +87,7 @@ export function OutcomeForm({ ticket, onSaved }: { ticket: Ticket; onSaved?: () 
       await resolveVR(ticket.id, body, token);
       await qc.invalidateQueries({ queryKey: ["tickets"] });
       void qc.invalidateQueries({ queryKey: ["ticket-impact", ticket.id] });
+      void qc.invalidateQueries({ queryKey: ["ticket-reach", ticket.id] }); // the day changed too
       onSaved?.();
     } catch (e) {
       const status = e instanceof ApiError ? e.status : undefined;

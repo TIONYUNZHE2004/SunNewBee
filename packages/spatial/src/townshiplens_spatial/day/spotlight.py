@@ -77,7 +77,7 @@ def _h(s: str) -> int:
     return int(hashlib.sha1(s.encode()).hexdigest()[:8], 16)
 
 
-def _role(r: Resident, kids: int) -> str:
+def _role(r: Resident, kids: int, school_kids: int = 0) -> str:
     if r.wheelchair:
         return "wheelchair user"
     if r.toddler:
@@ -88,8 +88,10 @@ def _role(r: Resident, kids: int) -> str:
         return "retiree" + (" who needs to rest often" if r.persona == "older_adult_rest" else "")
     if r.commuter:
         return "commuter" + (" and parent" if kids else "")
-    if kids:
+    if school_kids:
         return "parent doing the school run"
+    if kids:
+        return "parent at home with a young child"
     return "resident working from home"
 
 
@@ -97,17 +99,22 @@ def choose(pop: Population, n: int = N_SPOTLIGHT) -> list[Spotlight]:
     """A deterministic, varied cast: every wheelchair user (up to 3), parents with strollers,
     older residents, school-run parents, commuters, teenagers, households without a car."""
     rs = pop.residents
+    from .schedule import PRIMARY_AGE
+
     kids_of: dict[str, int] = {}
+    school_of: dict[str, int] = {}  # children aged 7-12: the ones on a school run (review C21)
     for r in rs:
         if r.group == "child":
             kids_of[r.household] = kids_of.get(r.household, 0) + 1
+            if PRIMARY_AGE[0] <= r.age <= PRIMARY_AGE[1]:
+                school_of[r.household] = school_of.get(r.household, 0) + 1
     order = sorted(rs, key=lambda r: _h(r.id))
     quotas = [
         (lambda r: r.wheelchair, 3),
         (lambda r: r.toddler, 6),
         (lambda r: r.persona == "older_adult_rest", 5),
         (lambda r: r.group == "older" and r.muslim, 4),
-        (lambda r: r.group == "adult" and not r.commuter and kids_of.get(r.household), 6),
+        (lambda r: r.group == "adult" and not r.commuter and school_of.get(r.household), 6),
         (lambda r: r.commuter, 5),
         (lambda r: r.group == "teen", 4),
         (lambda r: not r.car and r.group in ("adult", "older"), 4),
@@ -151,7 +158,7 @@ def choose(pop: Population, n: int = N_SPOTLIGHT) -> list[Spotlight]:
                 id=r.id,
                 name=name,
                 age=r.age,
-                role=_role(r, kids_of.get(r.household, 0)),
+                role=_role(r, kids_of.get(r.household, 0), school_of.get(r.household, 0)),
                 persona=r.persona,
                 group=r.group,
                 household=r.household,

@@ -178,6 +178,24 @@
         "title": "AnswerDraft",
         "type": "object"
       },
+      "AssistantScope": {
+        "description": "What the resident assistant covers (T-011): `access_flood` (the default) or `all`. The\nresident screen shows features outside access and flood, such as Rehearse my trip, only\nunder `all`, so the screen and the assistant agree on what residents can ask about.",
+        "properties": {
+          "scope": {
+            "enum": [
+              "access_flood",
+              "all"
+            ],
+            "title": "Scope",
+            "type": "string"
+          }
+        },
+        "required": [
+          "scope"
+        ],
+        "title": "AssistantScope",
+        "type": "object"
+      },
       "AssumeFact": {
         "description": "Imagine one recorded fact on a path, e.g. width_m = 1.2.",
         "properties": {
@@ -1337,6 +1355,273 @@
           "day"
         ],
         "title": "DayScenario",
+        "type": "object"
+      },
+      "DayTrip": {
+        "description": "One resident's own trip through a rehearsed day (Cycle 19). Times are clock text; every\noutcome comes from the engine. A rehearsal, not a forecast.",
+        "properties": {
+          "asked": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Asked"
+          },
+          "cut_by": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Cut By",
+            "type": "array"
+          },
+          "cut_lines": {
+            "default": [],
+            "items": {
+              "items": {
+                "items": {
+                  "type": "number"
+                },
+                "type": "array"
+              },
+              "type": "array"
+            },
+            "title": "Cut Lines",
+            "type": "array"
+          },
+          "disclaimer": {
+            "title": "Disclaimer",
+            "type": "string"
+          },
+          "from": {
+            "additionalProperties": true,
+            "title": "From",
+            "type": "object"
+          },
+          "last_ok_leave_before": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Ok Leave Before"
+          },
+          "leave": {
+            "title": "Leave",
+            "type": "string"
+          },
+          "mode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mode"
+          },
+          "next_clear_leave": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Clear Leave"
+          },
+          "normal_minutes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Normal Minutes"
+          },
+          "normal_route": {
+            "default": [],
+            "items": {
+              "items": {
+                "type": "number"
+              },
+              "type": "array"
+            },
+            "title": "Normal Route",
+            "type": "array"
+          },
+          "normal_unchecked": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Normal Unchecked"
+          },
+          "profile": {
+            "title": "Profile",
+            "type": "string"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "river_changes": {
+            "default": [],
+            "items": {
+              "items": {},
+              "type": "array"
+            },
+            "title": "River Changes",
+            "type": "array"
+          },
+          "scenario": {
+            "additionalProperties": true,
+            "title": "Scenario",
+            "type": "object"
+          },
+          "stage_at_leave": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stage At Leave"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "sweep": {
+            "default": [],
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Sweep",
+            "type": "array"
+          },
+          "sweep_counts": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "default": {},
+            "title": "Sweep Counts",
+            "type": "object"
+          },
+          "to": {
+            "additionalProperties": true,
+            "title": "To",
+            "type": "object"
+          },
+          "track": {
+            "default": [],
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Track",
+            "type": "array"
+          }
+        },
+        "required": [
+          "status",
+          "scenario",
+          "from",
+          "to",
+          "profile",
+          "leave",
+          "disclaimer"
+        ],
+        "title": "DayTrip",
+        "type": "object"
+      },
+      "DayTripRequest": {
+        "description": "Ends are place ids, or points tapped on the map (\"lon,lat\"). Points travel in the body,\nnever in the URL, so a resident's home never lands in an access log (PDPA).",
+        "properties": {
+          "from_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "From Id"
+          },
+          "from_point": {
+            "anyOf": [
+              {
+                "maxLength": 40,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "From Point"
+          },
+          "leave_at": {
+            "default": "07:30",
+            "title": "Leave At",
+            "type": "string"
+          },
+          "profile": {
+            "default": "default",
+            "title": "Profile",
+            "type": "string"
+          },
+          "to_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "To Id"
+          },
+          "to_point": {
+            "anyOf": [
+              {
+                "maxLength": 40,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "To Point"
+          }
+        },
+        "title": "DayTripRequest",
         "type": "object"
       },
       "DeepSpot": {
@@ -2949,7 +3234,8 @@
               "layer.toggle",
               "whatif.diff",
               "river.rollout",
-              "day.show"
+              "day.show",
+              "day.trip"
             ],
             "title": "Kind",
             "type": "string"
@@ -4545,6 +4831,24 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/assistant/scope": {
+      "get": {
+        "operationId": "assistant_scope_assistant_scope_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssistantScope"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Assistant Scope"
+      }
+    },
     "/audit": {
       "get": {
         "operationId": "audit_audit_get",
@@ -5073,6 +5377,55 @@
           }
         },
         "summary": "Day Compare"
+      }
+    },
+    "/day/{scenario_id}/trip": {
+      "post": {
+        "description": "Rehearse my trip: a resident's own trip through the rehearsed day, at the asked time and\nevery 10 minutes around it (when it got through, when it was cut, and by which street).",
+        "operationId": "day_trip_day__scenario_id__trip_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "scenario_id",
+            "required": true,
+            "schema": {
+              "title": "Scenario Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DayTripRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DayTrip"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "description": "unknown scenario"
+          },
+          "422": {
+            "description": "invalid ends, profile or time"
+          },
+          "503": {
+            "description": "busy"
+          }
+        },
+        "summary": "Day Trip"
       }
     },
     "/elements/{element_id}/attributes/{key}": {
@@ -6365,6 +6718,64 @@
           }
         },
         "summary": "Ticket Impact"
+      }
+    },
+    "/verification-requests/{vr_id}/reach": {
+      "get": {
+        "description": "Who this ticket's path or place matters to in a rehearsed day: synthetic residents whose\ntrips cross it, by purpose and age group (a rehearsal, not a forecast; counts only).",
+        "operationId": "ticket_reach_verification_requests__vr_id__reach_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "vr_id",
+            "required": true,
+            "schema": {
+              "title": "Vr Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "day",
+            "required": false,
+            "schema": {
+              "default": "weekday",
+              "title": "Day",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Ticket Reach Verification Requests  Vr Id  Reach Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "description": "unknown verification request"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "503": {
+            "description": "busy"
+          }
+        },
+        "summary": "Ticket Reach"
       }
     },
     "/verification-requests/{vr_id}/resolve": {

@@ -31,6 +31,7 @@ import { useScene } from "../sceneStore";
 import { CESIUM_DASH, type EdgeStatus, ROUTE_STYLE, statusStyle, WATER_COLOR } from "../styles";
 import { DayLayer } from "./DayLayer";
 import { heightRefFor } from "./heightRef";
+import { MyTripLayer } from "./MyTripLayer";
 import { RolloutLayer } from "./RolloutLayer";
 
 /** Clamp to Google tiles when configured, else to the ground (Ion terrain). */
@@ -186,6 +187,7 @@ export function AccessLayer() {
       <WhatIfLayer />
       <RolloutLayer />
       <DayLayer />
+      <MyTripLayer />
     </>
   );
 }

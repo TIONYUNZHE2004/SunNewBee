@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useRiverRollout } from "../../lib/api";
 import { Button } from "../../ui/Button";
+import { LaunchRow } from "../../ui/LaunchRow";
 import { useScene } from "../scene/sceneStore";
 import { ROLLOUT_LEGEND, stageRows } from "./rolloutModel";
 import { pct } from "./whatifModel";
@@ -27,11 +28,13 @@ export function RisingRiverPanel() {
 
   if (!shown)
     return (
-      <div className="border-b border-edge px-4 py-2">
-        <Button variant="outline" onClick={() => setOpen(true)}>
-          Rising river
-        </Button>
-        <span className="ml-2 text-xs text-fg-soft">Who loses their route as the water rises?</span>
+      <div className="px-3 py-1">
+        <LaunchRow
+          icon="flood"
+          title="Rising river"
+          subtitle="Who loses their route as the water rises?"
+          onClick={() => setOpen(true)}
+        />
       </div>
     );
 

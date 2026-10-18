@@ -1,6 +1,8 @@
 import logging
+from typing import Literal
 
 from fastapi import APIRouter
+from pydantic import BaseModel
 from sse_starlette.sse import EventSourceResponse
 from townshiplens_agent.events import ChatEventDoc, ChatRequest, Done, ErrorEvent
 
@@ -16,6 +18,21 @@ def chat_event_schema() -> ChatEventDoc:
     return ChatEventDoc(
         event={"type": "done", "message_id": "doc", "answer_status": "answered", "model": "doc"}
     )
+
+
+class AssistantScope(BaseModel):
+    """What the resident assistant covers (T-011): `access_flood` (the default) or `all`. The
+    resident screen shows features outside access and flood, such as Rehearse my trip, only
+    under `all`, so the screen and the assistant agree on what residents can ask about."""
+
+    scope: Literal["access_flood", "all"]
+
+
+@router.get("/assistant/scope", response_model=AssistantScope)
+def assistant_scope() -> AssistantScope:
+    from townshiplens_agent.settings import AgentSettings
+
+    return AssistantScope(scope=AgentSettings().assistant_scope)
 
 
 @router.post("/chat")
