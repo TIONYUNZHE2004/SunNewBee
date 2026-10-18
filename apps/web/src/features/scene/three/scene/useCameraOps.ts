@@ -9,12 +9,21 @@ import { BOOKMARKS, bookmarkFromSearch, DEFAULT_BOOKMARK } from "../bookmarks";
 import { createThreeCameraOps, type Pose, type ThreeCameraOps, VFOV_DEG } from "../cameraRig";
 import type { Engine } from "../engine";
 import type { LocalFrame } from "../frame";
-import { boundsGoal, type CameraGoal, intentGoal } from "../intents";
+import { boundsGoal, type CameraGoal, type IntentSlice, intentGoal } from "../intents";
 
 const INTENT_PITCH_DEG = -45;
 const WHOLE_PITCH_DEG = -50;
 const FLY_MS = 1800;
 const RAD = Math.PI / 180;
+
+/** No intent at all: diffing against it yields the intent standing in the store. */
+const NO_INTENT: IntentSlice = {
+  route: null,
+  focusRouteRequest: null,
+  whatIf: null,
+  focusPlaceId: null,
+  camera: null,
+};
 
 const goalPose = (g: CameraGoal, frame: LocalFrame, pitchDeg: number): Pose => ({
   target: frame.toLocal(g.centre[0], g.centre[1]),
@@ -55,8 +64,9 @@ export function fitPose(b: { min: [number, number]; max: [number, number] }): Po
 }
 
 /**
- * The camera: the start view (once per engine), scene intents to camera moves, the look point left
- * of the side panel, and the camera actions (buttons, keyboard, double-click) handed to `onOps`.
+ * The camera: the standing intent else the start view (once per engine), scene intents to camera
+ * moves, the look point left of the side panel, and the camera actions (buttons, keyboard,
+ * double-click) handed to `onOps`.
  */
 export function useCameraOps({
   engine,
@@ -78,13 +88,15 @@ export function useCameraOps({
   placesRef.current = places;
   const focusPoint = useCallback((id: string) => placesRef.current.get(id) ?? null, []);
 
-  // Frame the start view once per engine, as soon as the local frame exists.
+  // Frame once per engine, as soon as the local frame exists: on the intent standing in the store
+  // (e.g. a route drawn before a style switch), else the start view.
   const framed = useRef<Engine | null>(null);
   useEffect(() => {
     if (!engine || !frame || framed.current === engine) return;
     framed.current = engine;
-    engine.rig.set(startPose(frame));
-  }, [engine, frame]);
+    const standing = intentGoal(useScene.getState(), NO_INTENT, focusPoint);
+    engine.rig.set(standing ? goalPose(standing, frame, INTENT_PITCH_DEG) : startPose(frame));
+  }, [engine, frame, focusPoint]);
 
   // Scene intents to camera moves (same precedence as cesium/camera.ts).
   useEffect(() => {
