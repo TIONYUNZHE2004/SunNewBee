@@ -1,6 +1,10 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
+import type { BuildingsLayer } from "../../../../lib/api";
+import { roofInputs } from "../assets/plan";
+import { buildCityGeometry } from "../cityMesh";
 import { NEUTRAL_COLOURS } from "../fallbackStyle";
+import { createFrame } from "../frame";
 import { largeRoofTint, ROOF_TINTS, type RoofBuilding, roofDressing } from "./roofPlan";
 
 const rect = (w: number, d: number, x0 = 0): Array<[number, number]> => [
@@ -180,4 +184,61 @@ describe("largeRoofTint (owner's P3 note: flat grey roofs)", () => {
     expect(largeRoofTint("s", rect(24, 24))).toBeNull();
     expect(largeRoofTint("s", [])).toBeNull();
   });
+});
+
+describe("roof units are seated on the rendered roof (P5 Task 6, whole Elmina seed)", () => {
+  it("every unit and skylight base sits on the top of its building's drawn extrusion, over no other footprint", () => {
+    const seed = (p: string) =>
+      JSON.parse(
+        readFileSync(
+          new URL(`../../../../../../../data/seed/elmina/${p}`, import.meta.url),
+          "utf8",
+        ),
+      );
+    const frame = createFrame(seed("site.json").center);
+    const layer = { buildings: seed("base/buildings.geojson") } as unknown as BuildingsLayer;
+    const g = buildCityGeometry(layer, frame);
+    // The rendered top of each building: the highest vertex of the triangles it owns.
+    const pos = g.buildings.getAttribute("position");
+    const index = g.buildings.index;
+    const vert = (t: number, k: number) => (index ? index.getX(t * 3 + k) : t * 3 + k);
+    const top = new Map<string, number>();
+    g.faces.ids.forEach((id, bi) => {
+      const end = g.faces.starts[bi + 1] ?? (index ? index.count : pos.count) / 3;
+      let y = Number.NEGATIVE_INFINITY;
+      for (let t = g.faces.starts[bi]!; t < end; t++)
+        for (let k = 0; k < 3; k++) y = Math.max(y, pos.getY(vert(t, k)));
+      top.set(id, y);
+    });
+    const feet = g.footprints.map((f) => ({
+      id: f.id,
+      ring: f.ring as Array<[number, number]>,
+      bb: [
+        Math.min(...f.ring.map((p) => p[0])),
+        Math.min(...f.ring.map((p) => p[1])),
+        Math.max(...f.ring.map((p) => p[0])),
+        Math.max(...f.ring.map((p) => p[1])),
+      ],
+    }));
+    let n = 0;
+    for (const { b, palette } of roofInputs(g.footprints, layer, null, frame)) {
+      const d = roofDressing(b, palette);
+      for (const m of [...mats(d.units), ...mats(d.skylights)]) {
+        n++;
+        expect(Math.abs(m[13]! - top.get(b.id)!)).toBeLessThanOrEqual(0.01);
+        const [x, z] = [m[12]!, m[14]!];
+        const over = feet.filter(
+          (f) =>
+            f.id !== b.id &&
+            x >= f.bb[0] &&
+            x <= f.bb[2] &&
+            z >= f.bb[1] &&
+            z <= f.bb[3] &&
+            inside(f.ring, x, z),
+        );
+        expect(over.map((f) => f.id)).toEqual([]);
+      }
+    }
+    expect(n).toBeGreaterThan(1000);
+  }, 120_000);
 });

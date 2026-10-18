@@ -101,6 +101,24 @@ describe("planVerges", () => {
     }
   });
 
+  it("plans no verge piece or shrub inside a park or base-water polygon", () => {
+    const park = fc(rect(40, -10, 80, 10)); // straddles the street near x 40..80
+    const water = fc(rect(120, -10, 150, 10));
+    const base = planVerges(fc(street), none, tile, frame, 1000);
+    const { strips, shrubs } = planVerges(fc(street), none, tile, frame, 1000, undefined, {
+      parks: park,
+      water,
+    });
+    const inArea = (x: number) => (x >= 40 && x <= 80) || (x >= 120 && x <= 150);
+    // Reference run: pieces and shrubs do exist in those spans without the keep-out.
+    expect(centroids(base.strips).some(([x]) => inArea(x))).toBe(true);
+    expect(base.shrubs.some((s) => inArea(s.x))).toBe(true);
+    expect(strips.length).toBeGreaterThan(0);
+    for (const [x] of centroids(strips)) expect(inArea(x)).toBe(false);
+    expect(shrubs.length).toBeGreaterThan(0);
+    for (const s of shrubs) expect(inArea(s.x)).toBe(false);
+  });
+
   it("leaves driveway gaps where a footprint is within 3 m of the kerb", () => {
     const b = fc(rect(100, 4, 120, 12)); // 1 m from the kerb at z = -3
     const { shrubs } = planVerges(fc(street), b, tile, frame, 1000);
