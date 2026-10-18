@@ -135,6 +135,26 @@ function ExperimentalEngineChip() {
   );
 }
 
+export const DECORATIVE_NOTE = "Decorative details are illustrative.";
+
+/**
+ * Shown whenever any decorative layer is drawn (props, people, vehicles, birds, cloud shadows,
+ * lamp pools, ground tints, decorative landmarks): none of it is data.
+ */
+function DecorativeChip() {
+  return (
+    <InSlot name="notes">
+      <p
+        role="note"
+        aria-label={DECORATIVE_NOTE}
+        className="rounded-full border border-edge bg-surface/95 px-3 py-1 text-xs text-fg shadow-md"
+      >
+        {DECORATIVE_NOTE}
+      </p>
+    </InSlot>
+  );
+}
+
 const SHOWROOM_LABEL = "Model showroom — not the city";
 
 /** `?showroom=1` replaces the city with a grid of every model: say so while it is shown. */
@@ -1029,6 +1049,15 @@ export default function ThreeScene({
     };
   }, [engine]);
 
+  // Any decorative layer in the scene: city assets (kits, decorative landmarks), props, agents,
+  // the ground layer (land-cover tints, road surfaces) or the ambient birds and cloud shadows.
+  const decorativeShown =
+    assetsState === "ready" ||
+    (propsPlan ? [...propsPlan.kits.values()].some((l) => l.length > 0) : false) ||
+    (agents?.length ?? 0) > 0 ||
+    (!!engine && (roads.length > 0 || !!landcover?.getAttribute("position")?.count)) ||
+    (!!engine && !!frame && !showroom && tier !== "low");
+
   // To the renderer error boundary (MapStage falls back to Mapbox or List).
   if (failure) throw failure;
   return (
@@ -1052,6 +1081,7 @@ export default function ThreeScene({
       <PerfOverlay />
       <SlowBanner />
       <ExperimentalEngineChip />
+      {decorativeShown && <DecorativeChip />}
       {showroom && (assetsState === "loading" || assetsState === "ready") && <ShowroomChip />}
     </section>
   );

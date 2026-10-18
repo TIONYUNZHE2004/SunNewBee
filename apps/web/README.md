@@ -317,6 +317,54 @@ at render on demand and holds a still pose.
   is on, and fade back in when both are off.
 - **Honesty:** decorative only (`userData.decorative`, no-op raycast), never picked or described.
 
+#### Decorative content, tiers, picking and honesty (Three.js)
+
+**What is decorative** (`userData.decorative = true`, a no-op `raycast`, skipped by `pickAt`; never
+described by the assistant or the cards): the ground layer (land-cover tints, road surfaces,
+markings, water shimmer), the prop kits (trees, lamps, street furniture, construction), lamp light
+pools, people and vehicles (motion layer), birds and cloud shadows (ambient), window flicker, and any
+landmark the manifest marks `decorative`. The stylised fallback building is *not* decorative: it is a
+real, pickable OSM building, and only its colours are display styling (derived from the manifest
+palette; its card says "(shown as a simple block)"). While any decorative layer is drawn the map shows
+the note **"Decorative details are illustrative."** (`DecorativeChip`, `notes` slot).
+`honesty.test.ts` guards the spec section 5 list: decorative tags and no-op raycasts, signs only with a
+source, the 1 s Day/Rollout fade, flat matte flood water at 0.30 m, and no land-cover or base-water
+colour (`#7fb6c9`) equal to a flood colour (`#C53030`, `#DD6B20`, `#1e6fb8`).
+
+**Query params:**
+
+| Param | Effect |
+|---|---|
+| `?engine=three` | Use this engine (`?engine=cesium` switches back). |
+| `?perf=1` | Show the perf line. |
+| `?bookmark=hero-near\|hero-mid\|township` | Start view (default `hero-mid`). |
+| `?assets=0` | Extruded city only, no manifest fetch. |
+| `?showroom=1` | Model showroom grid instead of the city. |
+
+**Perf fields** (`?perf=1`): `fps`, frame ms, draw calls, triangles, `≈ MB` (geometry estimate), the
+tier, and `fb nf/gf/na/ns` when buildings fall back to a block: `nf` no_fit, `gf` generic_fill, `na`
+no_archetype, `ns` no_asset (the same counts as `data-fallback`).
+
+**Tiers** (Auto picks from the GPU and drops one tier when frames run slow; or choose one in Map
+settings):
+
+- `PROP_CAPS[tier]` (`props/caps.ts`) caps each kit: High 6000 trees / 1500 lamps / 600 furniture /
+  300 construction / 400 people / 250 vehicles; Medium 3500 / 900 / 350 / 200 / 220 / 140.
+- `KIT_LOD_SCALE` multiplies kit LOD distances at run time (High 0.75, Medium 0.5, Low 1); archetypes
+  are not scaled.
+- **Low draws no props and no agents** (no lamps, people, vehicles, birds or clouds), and no signs.
+
+**Picking priority** (one shared `pickAt`, first match wins): place, evac, waste, sign, landmark,
+resident, flood edge (within 8 px), then building. Markers, residents and flood edges live in the
+overlay pass, so a building never hides them; a sign or landmark behind a nearer building is
+occluded. Batched meshes resolve to ids through lookup tables (`markerIdAt`, `signIdAt`,
+`residentIdAt`).
+
+**Sources:** a shop sign is drawn only with text, `source_url` and `as_of` (the buildings layer's
+`signage`; anything else is dropped and never shown), and its card links the source. A landmark is
+its OSM building drawn with a model; the card names the match method, and a traced outline or design
+height names its own source from the manifest.
+
 ### Theme: Auto, Day, Dusk, Night
 
 The theme menu offers **Auto** (follows the Elmina clock, Asia/Kuala_Lumpur: Day 07:00-18:00, Dusk

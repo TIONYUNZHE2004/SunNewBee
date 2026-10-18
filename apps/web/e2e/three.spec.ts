@@ -39,6 +39,47 @@ test("three.js stylised scene mounts, renders and draws a highlighted route", as
     .fill("Can I push a stroller from Car Park B to the playground without stairs?");
   await page.getByRole("button", { name: "Ask", exact: true }).click();
   await expect(scene).toHaveAttribute("data-route", "on");
+  // The frame loop is still running with the route drawn.
+  await expect.poll(async () => Number(await scene.getAttribute("data-frames"))).toBeGreaterThan(0);
+});
+
+const NOTE = "Decorative details are illustrative.";
+
+test("the decorative disclaimer is visible in the three.js scene", async ({ page }) => {
+  await page.route("**/api/layers/buildings", (r) => r.fulfill({ json: BUILDINGS }));
+  await page.goto("/?engine=three");
+  const scene = page.getByTestId("three-scene");
+  await expect(scene).toBeVisible();
+  await expect.poll(async () => Number(await scene.getAttribute("data-frames"))).toBeGreaterThan(0);
+  await expect(page.getByText(NOTE)).toBeVisible();
+});
+
+test("clicking a stubbed place marker opens the place card", async ({ page }) => {
+  // One place exactly at the bookmark target (HERO_CENTRE): with the assistant panel hidden the
+  // camera target is the canvas centre, so the screen-space marker sits there (no test hook needed).
+  const ACCESS = {
+    type: "FeatureCollection",
+    features: [
+      {
+        type: "Feature",
+        properties: { id: "stub-place", name: "Stub Park", type: "park" },
+        geometry: { type: "Point", coordinates: [101.5095, 3.1805] },
+      },
+    ],
+  };
+  await page.route("**/api/layers/buildings", (r) => r.fulfill({ json: BUILDINGS }));
+  await page.route("**/api/layers/access*", (r) => r.fulfill({ json: ACCESS }));
+  await page.goto("/?engine=three&bookmark=hero-near");
+  const scene = page.getByTestId("three-scene");
+  await expect(scene).toBeVisible();
+  const hide = page.getByRole("button", { name: "Hide assistant" });
+  if (await hide.isVisible()) await hide.click();
+  await expect.poll(async () => Number(await scene.getAttribute("data-frames"))).toBeGreaterThan(2);
+  const box = await scene.boundingBox();
+  if (!box) throw new Error("no scene box");
+  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+  const card = page.getByRole("dialog");
+  await expect(card.getByRole("button", { name: "Close place details" })).toBeVisible();
 });
 
 // Three adjacent link houses (6.4 m frontage east-west, 15.5 m deep north-south) near HERO_CENTRE.
