@@ -216,6 +216,7 @@ export default function ThreeScene({
       ref={sectionRef}
       data-testid="three-scene"
       data-frames={frames}
+      data-tier={tier}
       data-route={routeOn ? "on" : "off"}
       data-assets={assetsState}
       data-instances={city.instances}
