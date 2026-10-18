@@ -38,9 +38,11 @@ export const STALL_LINE_M = 0.1;
 export const STALL_LIFT_Y = 0.1;
 /** Floats per stall in `stalls`: centre x, centre z, heading yaw (the direction a car nose points). */
 export const STALL_STRIDE = 3;
-/** Share of stalls holding a car: 70 % by day, 40 % at night, lerped by the mood night weight. */
-export const CARS_DAY = 0.7;
-export const CARS_NIGHT = 0.4;
+/**
+ * Share of stalls holding a car: fixed (ruling P4-AF). Parked cars never depend on the mood or Day
+ * playback, so a tile's content depends only on its key, the tier and the data.
+ */
+export const CARS_SHARE = 0.7;
 /** Stalls stay this clear (beyond the ribbon half-width) of a drawn road: the stall's half-diagonal. */
 const RIBBON_CLEAR_M = Math.hypot(STALL_W_M, STALL_D_M) / 2;
 /** Parked variants of the vehicles kit and their shares (hatchback, sedan, MPV). */
@@ -49,11 +51,6 @@ const VARIANTS: [string, number][] = [
   ["sedan", 0.8],
   ["mpv", 1],
 ];
-
-export const carShare = (night: number): number => {
-  const w = Math.min(1, Math.max(0, Number.isFinite(night) ? night : 0));
-  return CARS_DAY + (CARS_NIGHT - CARS_DAY) * w;
-};
 
 interface Stall {
   id: string;
@@ -180,11 +177,9 @@ function layoutLot(poly: Poly, id: string, ribbons: Ribbon[]): Lot {
   return { stalls, bb };
 }
 
-/** What 10b passes: the asset manifest, the mood night weight and the drawn walk network. */
+/** What 10b passes: the asset manifest and the drawn walk network. */
 export interface ParkingOptions {
   m: Manifest;
-  /** Mood night weight 0..1 at plan time (0 = day: 70 % of stalls hold a car; 1 = night: 40 %). */
-  night?: number;
   /** `/layers/access` FeatureCollection: stalls keep clear of every LineString ribbon. */
   roads?: unknown;
 }
@@ -232,7 +227,7 @@ export function planParking(
   });
 
   const spec = opts.m.assets.vehicles;
-  const share = carShare(opts.night ?? 0);
+  const share = CARS_SHARE;
   const cars: Placement[] = [];
   if (spec) {
     for (const s of kept) {

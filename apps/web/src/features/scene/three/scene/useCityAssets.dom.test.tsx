@@ -12,7 +12,7 @@ import { createMotionUniforms, createRoleUniforms } from "../assets/roleMaterial
 import type { Engine } from "../engine";
 import { createFrame } from "../frame";
 import { KIT_LOD_SCALE } from "../props/caps";
-import { useCityAssets } from "./useCityAssets";
+import { ASSET_WARN, DECOR_WARN, useCityAssets } from "./useCityAssets";
 
 // Every city build goes through this spy; each instance's setKits is spied too.
 const built = vi.hoisted(() => ({ calls: 0, last: null as null | CityInstances }));
@@ -34,6 +34,23 @@ const libSpy = vi.hoisted(() => ({ lib: null as null | AssetLibrary }));
 vi.mock("../assets/library", async (orig) => {
   const mod = await orig<typeof import("../assets/library")>();
   return { ...mod, loadAssetLibrary: async () => libSpy.lib as AssetLibrary };
+});
+
+// Decorative inputs can be made to throw (the facade / roof inputs run apart from the city build).
+const throwing = vi.hoisted(() => ({ facades: false, roofs: false }));
+vi.mock("../assets/plan", async (orig) => {
+  const mod = await orig<typeof import("../assets/plan")>();
+  return {
+    ...mod,
+    facadeInputs: (...a: Parameters<typeof mod.facadeInputs>) => {
+      if (throwing.facades) throw new Error("facade boom");
+      return mod.facadeInputs(...a);
+    },
+    roofInputs: (...a: Parameters<typeof mod.roofInputs>) => {
+      if (throwing.roofs) throw new Error("roof boom");
+      return mod.roofInputs(...a);
+    },
+  };
 });
 
 const CENTER: [number, number] = [101.5099, 3.1813];
@@ -185,6 +202,8 @@ function mount(engine = fakeEngine(), tier: Tier = "medium") {
 }
 
 beforeEach(() => {
+  throwing.facades = false;
+  throwing.roofs = false;
   built.calls = 0;
   built.last = null;
   stubFetch((url) => (url.endsWith("/city/manifest.json") ? json(MANIFEST) : json({}, 404)));
@@ -258,6 +277,26 @@ describe("useCityAssets: procedural facade inputs", () => {
     const src = result.current.facadeSrc;
     act(() => result.current.setKits(kitsOf("a")));
     expect(result.current.facadeSrc).toBe(src);
+  });
+
+  it("a throwing facade or roof input leaves the archetype city built and only empties its slot", async () => {
+    throwing.facades = true;
+    throwing.roofs = true;
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const { lib } = boxLibrary();
+    libSpy.lib = lib;
+    const engine = fakeEngine();
+    const { result } = mount(engine, "medium");
+    await waitFor(() => expect(result.current.assetsState).toBe("ready"));
+    expect(built.calls).toBe(1);
+    expect(engine.setAssets).toHaveBeenCalledTimes(1);
+    expect(result.current.plan?.placements.get("link_intermediate/gable")?.length).toBe(2);
+    expect(result.current.facadeSrc).toBeNull();
+    expect(result.current.roofSrc).toBeNull();
+    expect(lib.dispose).not.toHaveBeenCalled();
+    const decorWarns = warn.mock.calls.filter(([m]) => String(m).includes(DECOR_WARN));
+    expect(decorWarns).toHaveLength(1);
+    expect(warn.mock.calls.some(([m]) => String(m).includes(ASSET_WARN))).toBe(false);
   });
 
   it("an engine switch drops the previous kits: the next build has none until setKits again", async () => {

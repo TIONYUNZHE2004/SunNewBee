@@ -30,8 +30,6 @@ export interface TileInputs {
   facades: Map<TileKey, FacadeBuilding[]> | null;
   /** Roof inputs by tile (`bucketRoofs`); absent or null: no roof dressing. */
   roofs?: Map<TileKey, RoofInput[]> | null;
-  /** Task 10: the mood night weight (0..1) read at plan time (parked-car share); absent: day. */
-  night?: () => number;
 }
 
 /** Per-planner seed salt: the seed is `hash01(tileKey, salt)` (`seedFor`), never visit order. */

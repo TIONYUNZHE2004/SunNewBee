@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef } from "react";
+import { useMemo, useRef } from "react";
 import { useBuildings, useLayer, useSite } from "../../../lib/api";
 import { InSlot } from "../../map-ui/mapSlots";
 import { CameraControls, handleMapKey } from "../cesium/controls/CameraControls";
@@ -150,8 +150,6 @@ export default function ThreeScene({
     accessData: access.data,
     tier,
   });
-  // Parked-car share follows the mood at plan time (Task 10); stable, so it never re-keys the stream.
-  const night = useCallback(() => bus.getState().mood.night, [bus]);
   // Township streaming: the 250 m tiles around the camera target feed every decorative layer.
   const { active, centre, mergeStart } = useStream({
     engine,
@@ -164,7 +162,6 @@ export default function ThreeScene({
     showroom,
     facadeSrc: city.facadeSrc,
     roofSrc: city.roofSrc,
-    night,
   });
   const { roads, stalls } = useRoads({ engine, active, tier });
   // Verges and construction ground: one ground-decor mesh (stall lines ride the road markings).

@@ -304,7 +304,8 @@ hero district.
 - **Tiles and rings:** ring 0 is the target tile, ring 1 the 8 around it, ring 2 two tiles out (only
   while the camera range is ≤ 1500 m). Beyond 1500 m only rings 0–1 show, and only trees and roads.
   Caps per tile come from `tileCap` (`TILE_CAPS[tier][ring]`, ×1.6 in the hero district); seeds come
-  from the tile key, so a tile's content never depends on visit order.
+  from the tile key, so a tile's content depends only on its key, the tier and the data, never on
+  visit order, the mood or Day playback.
 - **Streamer:** `createStreamer` runs on the engine's 250 ms LOD tick (`engine.onLodTick`) and plans
   at most one tile per tick (the hitch budget). Plans are kept in an LRU of 64 (tile × ring); a tile
   whose ring or tier changed keeps its old content until its re-plan. `warmPlanners` builds the
@@ -332,7 +333,9 @@ hero district.
   construction ground share one ground-decor mesh (`useGroundDecor`, the `ground-decor` slot,
   `ground/groundDecor.ts`); stall lines ride the road-markings mesh (`useRoads`). The ground stays at
   6 draws (`ground/bands.ts`). Parked cars are their own stream kind `parked` (costed per car at
-  the worst variant), ride the static kit buckets, and never move or fade with Day / Rollout.
+  the worst variant), ride the static kit buckets with the `parked` material (lights off at every
+  mood, unlike moving traffic), fill a fixed 70 % of the stalls (`CARS_SHARE`, ruling P4-AF: never
+  mood-dependent), and never move or fade with Day / Rollout.
   None of it at Low or beyond 1500 m.
 - **Culling:** `CityInstances.update` gets the view frustum padded by the shadow extent (`cull.ts`),
   so an off-screen shadow caster is never left stale.

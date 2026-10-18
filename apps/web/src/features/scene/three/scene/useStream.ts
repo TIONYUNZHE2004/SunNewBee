@@ -65,7 +65,6 @@ export function useStream({
   showroom,
   facadeSrc,
   roofSrc = null,
-  night,
 }: {
   engine: Engine | null;
   frame: LocalFrame | null;
@@ -78,8 +77,6 @@ export function useStream({
   facadeSrc: FacadeBuilding[] | null;
   /** Roof inputs (Task 8); null or absent: no roof dressing. */
   roofSrc?: RoofInput[] | null;
-  /** Task 10: the mood night weight, read at plan time (parked-car share); keep it stable. */
-  night?: () => number;
 }) {
   const facades = useMemo(() => (facadeSrc ? bucketFacades(facadeSrc) : null), [facadeSrc]);
   const roofs = useMemo(() => (roofSrc ? bucketRoofs(roofSrc) : null), [roofSrc]);
@@ -87,9 +84,9 @@ export function useStream({
   const inputs = useMemo<TileInputs | null>(
     () =>
       frame && detailsOn && walk && !showroom
-        ? { frame, walk, buildings, manifest, facades, roofs, night }
+        ? { frame, walk, buildings, manifest, facades, roofs }
         : null,
-    [frame, detailsOn, walk, showroom, buildings, manifest, facades, roofs, night],
+    [frame, detailsOn, walk, showroom, buildings, manifest, facades, roofs],
   );
   const inputsRef = useRef(inputs);
   inputsRef.current = inputs;
@@ -151,7 +148,7 @@ export function useStream({
     return engine.onLodTick((t) => {
       const s = streamerRef.current;
       if (!s || inputsRef.current !== warm) return false;
-      const r = s.update(t.target, t.rangeM, t.nowMs);
+      const r = s.update(t.target, t.rangeM);
       if (r.changed) dirty = true;
       if (dirty) {
         const next = s.active();

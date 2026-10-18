@@ -613,7 +613,7 @@ describe("engine motion clock", () => {
           planned++;
           return { kits: new Map(), lamps: [], agents: [], signs: [], ribbons: [] };
         });
-        e.onLodTick((t) => s.update(t.target, t.rangeM, t.nowMs).pending);
+        e.onLodTick((t) => s.update(t.target, t.rangeM).pending);
         const perFrame: number[] = [];
         e.onFrame(() => {
           perFrame.push(planned);
