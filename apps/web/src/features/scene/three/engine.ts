@@ -87,6 +87,8 @@ export interface Engine {
   /** Unrecoverable runtime failure (context lost, shader compile/link error): the caller falls back. */
   onFatal(cb: (err: Error) => void): () => void;
   gl(): WebGL2RenderingContext;
+  /** What the shared picker needs: the camera, the overlay and main scenes, the canvas CSS size. */
+  pickView(): { camera: THREE.Camera; roots: THREE.Object3D[]; size: [number, number] };
   dispose(): void;
 }
 
@@ -632,6 +634,9 @@ function build(
       const buildings = new THREE.Mesh(g.buildings, buildingMat);
       buildings.castShadow = true;
       buildings.receiveShadow = true;
+      // The extruded (fallback) buildings are pickable buildings: the picker names one by face.
+      buildings.userData.pick = { kind: "building" };
+      buildings.userData.faces = g.faces;
       const parks = new THREE.Mesh(g.parks, parksMat);
       parks.renderOrder = GROUND_BANDS.parks.order;
       const water = new THREE.Mesh(g.water, waterMat);
@@ -745,6 +750,7 @@ function build(
       return () => fatalCbs.delete(cb);
     },
     gl: () => renderer.getContext() as WebGL2RenderingContext,
+    pickView: () => ({ camera, roots: [overlayScene, scene], size: [size[0], size[1]] }),
     dispose() {
       if (disposed) return;
       disposed = true;

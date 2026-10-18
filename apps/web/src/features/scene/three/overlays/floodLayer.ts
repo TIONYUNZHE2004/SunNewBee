@@ -115,15 +115,18 @@ export function createFloodLayer(
 
   if (floodEdges)
     for (const [status, edges] of groupEdgesByStatus(lineFeatures(floodEdges)))
-      if (FLOODED.includes(status))
-        group.add(
-          createLineBatch(
-            edges.map((e) => lineToLocal(e.coords, frame, 0)),
-            statusLineStyle(status, 2),
-            FLOOD_LIFT_M,
-            FLOOD_ORDER.edges,
-          ),
+      if (FLOODED.includes(status)) {
+        const batch = createLineBatch(
+          edges.map((e) => lineToLocal(e.coords, frame, 0)),
+          statusLineStyle(status, 2),
+          FLOOD_LIFT_M,
+          FLOOD_ORDER.edges,
+          edges.map((e) => e.id),
         );
+        // Data: the shared picker names the edge by segment (within 8 px of the line).
+        batch.userData.pick = { kind: "floodEdge" };
+        group.add(batch);
+      }
 
   return {
     group,

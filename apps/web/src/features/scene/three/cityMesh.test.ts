@@ -2,7 +2,7 @@ import * as THREE from "three";
 import { describe, expect, it } from "vitest";
 import type { BuildingsLayer } from "../../../lib/api";
 import { WATER_COLOR } from "../styles";
-import { buildCityGeometry, KIND_COLOUR, PARK_Y, WATER_Y } from "./cityMesh";
+import { buildCityGeometry, faceBuildingId, KIND_COLOUR, PARK_Y, WATER_Y } from "./cityMesh";
 import { createFrame } from "./frame";
 
 const frame = createFrame([101.5, 3.0]);
@@ -42,6 +42,29 @@ function layer(over: Partial<Record<"buildings" | "parks" | "water", unknown>> =
 const pos = (g: THREE.BufferGeometry) => g.getAttribute("position");
 
 describe("buildCityGeometry", () => {
+  it("records which building owns each triangle, for picking", () => {
+    const g = buildCityGeometry(
+      layer({
+        buildings: fc([
+          feat(poly(square(0, 0)), { id: "a", height_m: 9 }),
+          feat(poly(square(50, 0)), { id: "skip", height_m: 9 }),
+          feat(poly(square(100, 0)), { id: "b", height_m: 9 }),
+        ]),
+      }),
+      frame,
+      { only: new Set(["a", "b"]) },
+    );
+    // a square is 2 roof + 8 wall triangles
+    expect(g.faces).toEqual({ ids: ["a", "b"], starts: [0, 10] });
+    expect(pos(g.buildings).count).toBe(60);
+    expect(faceBuildingId(g.faces, 0)).toBe("a");
+    expect(faceBuildingId(g.faces, 9)).toBe("a");
+    expect(faceBuildingId(g.faces, 10)).toBe("b");
+    expect(faceBuildingId(g.faces, 19)).toBe("b");
+    expect(faceBuildingId(g.faces, -1)).toBeNull();
+    expect(faceBuildingId(undefined, 3)).toBeNull();
+  });
+
   it("one square building, height 9, is 30 vertices from y 0 to 9", () => {
     const g = buildCityGeometry(
       layer({ buildings: fc([feat(poly(square(0, 0)), { height_m: 9 })]) }),

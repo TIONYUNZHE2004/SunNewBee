@@ -48,6 +48,8 @@ export interface SceneState {
   selectedFloodEdgeId: string | null;
   /** A shop sign picked in the Three.js city; its source card is shown. */
   selectedSignId: string | null;
+  /** A building or landmark picked in the Three.js city (a building id or a landmark feature id). */
+  selectedBuildingId: string | null;
   route: { id: string; geojson: GeoJSON.LineString } | null;
   /** A what-if diff (imagined, never a real route): before/after lines and imagined changes. */
   whatIf: { geojson: { type: string; features: unknown[] } } | null;
@@ -75,6 +77,7 @@ export interface SceneState {
   selectPlace: (id: string | null) => void;
   selectFloodEdge: (id: string | null) => void;
   selectSign: (id: string | null) => void;
+  selectBuilding: (id: string | null) => void;
   setView: (v: View) => void;
   setProfile: (p: Profile) => void;
   setScenario: (s: string | null) => void;
@@ -105,6 +108,7 @@ const initial = {
   selectedPlaceId: null as string | null,
   selectedFloodEdgeId: null as string | null,
   selectedSignId: null as string | null,
+  selectedBuildingId: null as string | null,
   route: null as SceneState["route"],
   whatIf: null as SceneState["whatIf"],
   rollout: { on: false, stage: 0, playing: false } as SceneState["rollout"],
@@ -131,6 +135,24 @@ function floodLevel(s: SceneState, scenarioId: string | null): Partial<SceneStat
   const m = (s.whatIf?.geojson as { meta?: Record<string, unknown> } | undefined)?.meta;
   const stages = [m?.scenario_id, m?.base_scenario_id].filter(Boolean);
   if (s.whatIf && !stages.includes(scenarioId ?? undefined)) out.whatIf = null;
+  return out;
+}
+
+type Selection =
+  | "selectedPlaceId"
+  | "selectedFloodEdgeId"
+  | "selectedSignId"
+  | "selectedBuildingId";
+const SELECTIONS: Selection[] = [
+  "selectedPlaceId",
+  "selectedFloodEdgeId",
+  "selectedSignId",
+  "selectedBuildingId",
+];
+/** Sets one selection; a non-null one clears the other three (a null one leaves them). */
+function only(s: SceneState, key: Selection, id: string | null): Partial<SceneState> {
+  const out: Partial<SceneState> = { [key]: id };
+  for (const k of SELECTIONS) if (k !== key) out[k] = id ? null : s[k];
   return out;
 }
 
@@ -193,25 +215,11 @@ export const useScene = create<SceneState>((set) => ({
       }
       return next;
     }),
-  // One detail panel at a time: opening any of the three closes the others.
-  selectPlace: (selectedPlaceId) =>
-    set((s) => ({
-      selectedPlaceId,
-      selectedFloodEdgeId: selectedPlaceId ? null : s.selectedFloodEdgeId,
-      selectedSignId: selectedPlaceId ? null : s.selectedSignId,
-    })),
-  selectFloodEdge: (selectedFloodEdgeId) =>
-    set((s) => ({
-      selectedFloodEdgeId,
-      selectedPlaceId: selectedFloodEdgeId ? null : s.selectedPlaceId,
-      selectedSignId: selectedFloodEdgeId ? null : s.selectedSignId,
-    })),
-  selectSign: (selectedSignId) =>
-    set((s) => ({
-      selectedSignId,
-      selectedPlaceId: selectedSignId ? null : s.selectedPlaceId,
-      selectedFloodEdgeId: selectedSignId ? null : s.selectedFloodEdgeId,
-    })),
+  // One detail panel at a time: opening any of the four closes the others.
+  selectPlace: (selectedPlaceId) => set((s) => only(s, "selectedPlaceId", selectedPlaceId)),
+  selectFloodEdge: (id) => set((s) => only(s, "selectedFloodEdgeId", id)),
+  selectSign: (id) => set((s) => only(s, "selectedSignId", id)),
+  selectBuilding: (id) => set((s) => only(s, "selectedBuildingId", id)),
   setView: (view) => set({ view, rendererFailed: false }),
   setRendererFailed: (rendererFailed) => set({ rendererFailed }),
   setProfile: (profile) => {

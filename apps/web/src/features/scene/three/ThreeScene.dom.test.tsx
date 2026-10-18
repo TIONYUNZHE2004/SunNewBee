@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { QueryClientProvider } from "@tanstack/react-query";
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { Component, type ReactNode, StrictMode } from "react";
 import * as THREE from "three";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -17,9 +17,11 @@ import type { Manifest } from "./assets/manifest";
 import { createMotionUniforms } from "./assets/roleMaterial";
 import { BOOKMARKS, type BookmarkId, DEFAULT_BOOKMARK, HERO_CENTRE } from "./bookmarks";
 import type { Pose } from "./cameraRig";
+import { useCityInfo } from "./cityInfo";
 import type { Engine } from "./engine";
 import { createFrame } from "./frame";
 import { LIGHT_PRESETS } from "./lighting";
+import type { PickHit } from "./pick";
 import ThreeScene from "./ThreeScene";
 
 const CENTER: [number, number] = [101.5099, 3.1813];
@@ -161,6 +163,21 @@ vi.mock("./ground/groundLayer", async (orig) => {
     },
   };
 });
+// The picker is stubbed: these tests cover the click handling and the dispatch, pick.test.ts the rays.
+const pickStub = vi.hoisted(() => ({
+  hit: null as null | import("./pick").PickHit,
+  calls: [] as unknown[][],
+}));
+vi.mock("./pick", async (orig) => {
+  const mod = await orig<typeof import("./pick")>();
+  return {
+    ...mod,
+    pickAt: (...a: unknown[]) => {
+      pickStub.calls.push(a);
+      return pickStub.hit;
+    },
+  };
+});
 const accessLayer = vi.hoisted(() => ({
   data: { type: "FeatureCollection", features: [] } as unknown,
 }));
@@ -239,6 +256,11 @@ function fakeEngine() {
       };
     }),
     gl: vi.fn(() => ({ getExtension: () => null }) as unknown as WebGL2RenderingContext),
+    pickView: vi.fn(() => ({
+      camera: new THREE.PerspectiveCamera(),
+      roots: [] as THREE.Object3D[],
+      size: [800, 600] as [number, number],
+    })),
     dispose: vi.fn(),
   };
   return e;
@@ -300,6 +322,8 @@ beforeEach(() => {
   history.replaceState(null, "", "/");
   instancesFault.on = false;
   libraryHook.next = null;
+  pickStub.hit = null;
+  pickStub.calls = [];
 });
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -1203,6 +1227,16 @@ describe("ThreeScene", () => {
       expect(console.warn).toHaveBeenCalledTimes(1);
     });
 
+    it("with assets ready, the building card learns the manifest and the extruded fallbacks", async () => {
+      serve({});
+      mount();
+      const s = screen.getByTestId("three-scene");
+      await waitFor(() => expect(s).toHaveAttribute("data-assets", "ready"));
+      const info = useCityInfo.getState();
+      expect(info.manifest).not.toBeNull();
+      expect(info.extruded).toBeInstanceOf(Set);
+    });
+
     it("frame perf: tris and gpuMB reach usePerfStats", async () => {
       serve({});
       const { engine } = mount();
@@ -1215,6 +1249,118 @@ describe("ThreeScene", () => {
       });
       await waitFor(() => expect(usePerfStats.getState().tris).toBe(1234));
       expect(usePerfStats.getState().gpuMB).toBeGreaterThan(0);
+    });
+  });
+  describe("picking", () => {
+    const host = () => screen.getByTestId("three-scene").firstElementChild as HTMLElement;
+    const click = (from: [number, number], to: [number, number]) => {
+      vi.spyOn(host(), "getBoundingClientRect").mockReturnValue(
+        DOMRect.fromRect({ x: 0, y: 0, width: 800, height: 600 }),
+      );
+      fireEvent.pointerDown(host(), {
+        button: 0,
+        isPrimary: true,
+        clientX: from[0],
+        clientY: from[1],
+      });
+      fireEvent.pointerUp(host(), { button: 0, isPrimary: true, clientX: to[0], clientY: to[1] });
+    };
+    const placeData = {
+      type: "FeatureCollection",
+      features: [
+        {
+          type: "Feature",
+          properties: { id: "p1", name: "Playground", type: "park" },
+          geometry: { type: "Point", coordinates: CENTER },
+        },
+      ],
+    };
+    beforeEach(() => {
+      useScene.getState().reset();
+      accessLayer.data = placeData;
+    });
+    afterEach(() => {
+      accessLayer.data = { type: "FeatureCollection", features: [] };
+    });
+
+    it("a click within 4 px picks at the pointer's NDC and dispatches selectPlace for a place hit", () => {
+      mount();
+      pickStub.hit = { kind: "place", id: "p1" };
+      act(() => click([200, 150], [203, 152]));
+      expect(pickStub.calls).toHaveLength(1);
+      const [ndc, , , linePx, view] = pickStub.calls[0] as [
+        { x: number; y: number },
+        unknown,
+        unknown,
+        number,
+        { width: number; height: number },
+      ];
+      expect(ndc.x).toBeCloseTo((203 / 800) * 2 - 1, 6);
+      expect(ndc.y).toBeCloseTo(-(152 / 600) * 2 + 1, 6);
+      expect(linePx).toBe(8);
+      expect(view).toEqual({ width: 800, height: 600 });
+      expect(useScene.getState().selectedPlaceId).toBe("p1");
+    });
+
+    it("a drag over 4 px dispatches nothing (the camera rig orbits)", async () => {
+      mount();
+      pickStub.hit = { kind: "place", id: "p1" };
+      act(() => click([200, 150], [205, 150]));
+      expect(pickStub.calls).toHaveLength(0);
+      expect(useScene.getState().selectedPlaceId).toBeNull();
+    });
+
+    it.each<[PickHit, () => unknown]>([
+      [{ kind: "floodEdge", id: "e1" }, () => useScene.getState().selectedFloodEdgeId],
+      [{ kind: "sign", id: "s1" }, () => useScene.getState().selectedSignId],
+      [{ kind: "building", id: "b1" }, () => useScene.getState().selectedBuildingId],
+      [{ kind: "landmark", id: "kanopi-residences" }, () => useScene.getState().selectedBuildingId],
+      [{ kind: "resident", id: "r1" }, () => useScene.getState().day.focus],
+      [{ kind: "evac", id: "p1" }, () => useScene.getState().selectedPlaceId],
+      [{ kind: "waste", id: "p1" }, () => useScene.getState().selectedPlaceId],
+    ])("dispatches %o", (hit, read) => {
+      mount();
+      pickStub.hit = hit;
+      act(() => click([10, 10], [10, 10]));
+      expect(read()).toBe(hit.id);
+    });
+
+    it("an evac or waste hit that is not a place opens nothing", () => {
+      mount();
+      for (const kind of ["evac", "waste"] as const) {
+        pickStub.hit = { kind, id: "c9" };
+        act(() => click([10, 10], [10, 10]));
+      }
+      const st = useScene.getState();
+      expect([st.selectedPlaceId, st.selectedBuildingId, st.selectedSignId]).toEqual([
+        null,
+        null,
+        null,
+      ]);
+    });
+
+    it("a secondary-button click or a second finger never picks", () => {
+      mount();
+      pickStub.hit = { kind: "place", id: "p1" };
+      fireEvent.pointerDown(host(), { button: 2, isPrimary: true, clientX: 5, clientY: 5 });
+      fireEvent.pointerUp(host(), { button: 2, isPrimary: true, clientX: 5, clientY: 5 });
+      fireEvent.pointerDown(host(), { button: 0, isPrimary: true, clientX: 5, clientY: 5 });
+      fireEvent.pointerDown(host(), { button: 0, isPrimary: false, clientX: 50, clientY: 5 });
+      fireEvent.pointerUp(host(), { button: 0, isPrimary: true, clientX: 5, clientY: 5 });
+      expect(pickStub.calls).toHaveLength(0);
+    });
+
+    it("publishes the extruded city for the building card, and a picked building closes on unmount", async () => {
+      useCityInfo.setState({ manifest: null, extruded: new Set(["x"]) });
+      const { engine, unmount } = mount();
+      await waitFor(() => expect(engine.setCity).toHaveBeenCalled());
+      // no manifest (404): every building is a simple block
+      await waitFor(() => expect(useCityInfo.getState().extruded).toBeNull());
+      pickStub.hit = { kind: "building", id: "b1" };
+      act(() => click([10, 10], [10, 10]));
+      expect(useScene.getState().selectedBuildingId).toBe("b1");
+      unmount();
+      expect(useScene.getState().selectedBuildingId).toBeNull();
     });
   });
 });

@@ -45,6 +45,7 @@ import {
   HERO_RADIUS_M,
 } from "./bookmarks";
 import { createThreeCameraOps, type Pose, type ThreeCameraOps, VFOV_DEG } from "./cameraRig";
+import { useCityInfo } from "./cityInfo";
 import { buildCityGeometry, type CityGeometry } from "./cityMesh";
 import { createEngine, type Engine } from "./engine";
 import { cesiumEngineHref } from "./engineChoice";
@@ -72,6 +73,7 @@ import { createMotionDriver, type MotionDriver, motionRunning } from "./motion/m
 import { createMotionLayer } from "./motion/motionLayer";
 import { createOverlayLayer, type OverlayLayer } from "./overlays/accessLayers";
 import { useResidents } from "./overlays/useResidents";
+import { applyPick, LINE_PICK_PX, pickAt } from "./pick";
 import { KIT_LOD_SCALE } from "./props/caps";
 import { createLampPools } from "./props/lampPools";
 import { planProps } from "./props/propsPlan";
@@ -87,6 +89,8 @@ const FLY_MS = 1800;
 const DAY_DUSK_FADE_MS = 3000;
 const FADE_MS = 2000;
 const RAD = Math.PI / 180;
+/** A pointer that moves further than this between down and up is a drag (the camera rig), not a click. */
+const CLICK_DRAG_PX = 4;
 
 const goalPose = (g: CameraGoal, frame: LocalFrame, pitchDeg: number): Pose => ({
   target: frame.toLocal(g.centre[0], g.centre[1]),
@@ -445,6 +449,7 @@ export default function ThreeScene({
     const full = () => {
       const g = buildCityGeometry(buildings, frame);
       engine.setCity(g);
+      useCityInfo.setState({ manifest: null, extruded: null });
       setInstances(0);
       setFallback(NO_FALLBACK);
       usePerfStats.getState().update({ gpuMB: geometryBytes(g) / MB, fallback: NO_FALLBACK });
@@ -472,6 +477,7 @@ export default function ThreeScene({
       engine.setCity(g);
       engine.setAssets(inst);
       handedOff.current = true;
+      useCityInfo.setState({ manifest: m, extruded: plan.extrude });
       if (showroom && showroomFramed.current !== engine) {
         showroomFramed.current = engine;
         engine.rig.set(fitPose(showroomBounds(plan, m)));
@@ -928,6 +934,55 @@ export default function ThreeScene({
     });
   }, [engine, quality, detected, tier]);
   useEffect(() => () => usePerfStats.getState().update({ slow: false }), []);
+
+  // The building card describes what this city draws; neither outlives the scene.
+  useEffect(
+    () => () => {
+      useCityInfo.setState({ manifest: null, extruded: null });
+      useScene.getState().selectBuilding(null);
+    },
+    [],
+  );
+
+  // Click to pick (one shared picker, fixed priority). Only a primary-button press released within
+  // CLICK_DRAG_PX is a click; a drag orbits (MapControls) and a second finger cancels the click.
+  useEffect(() => {
+    const host = hostRef.current;
+    if (!engine || !host) return;
+    let down: { x: number; y: number } | null = null;
+    const onDown = (e: PointerEvent) => {
+      down = e.isPrimary && e.button === 0 && !down ? { x: e.clientX, y: e.clientY } : null;
+    };
+    const onUp = (e: PointerEvent) => {
+      const d = down;
+      down = null;
+      if (!d || !e.isPrimary || e.button !== 0) return;
+      if (Math.hypot(e.clientX - d.x, e.clientY - d.y) > CLICK_DRAG_PX) return;
+      const r = host.getBoundingClientRect();
+      if (!(r.width > 0 && r.height > 0)) return;
+      const ndc = {
+        x: ((e.clientX - r.left) / r.width) * 2 - 1,
+        y: -((e.clientY - r.top) / r.height) * 2 + 1,
+      };
+      const v = engine.pickView();
+      const hit = pickAt(ndc, v.camera, v.roots, LINE_PICK_PX, {
+        width: v.size[0],
+        height: v.size[1],
+      });
+      if (hit) applyPick(hit, useScene.getState(), (id) => placesRef.current.has(id));
+    };
+    const onCancel = () => {
+      down = null;
+    };
+    host.addEventListener("pointerdown", onDown);
+    host.addEventListener("pointerup", onUp);
+    host.addEventListener("pointercancel", onCancel);
+    return () => {
+      host.removeEventListener("pointerdown", onDown);
+      host.removeEventListener("pointerup", onUp);
+      host.removeEventListener("pointercancel", onCancel);
+    };
+  }, [engine]);
 
   // Camera actions (buttons, keyboard, double-click).
   const startRef = useRef<() => Pose>(() => ({

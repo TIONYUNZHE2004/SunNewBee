@@ -34,6 +34,32 @@ export interface CityGeometry {
   ground: { center: [number, number]; size: [number, number] };
   bounds: THREE.Box3;
   skipped: number;
+  /** Which building each `buildings` triangle belongs to (see `faceBuildingId`). */
+  faces: FaceTable;
+}
+
+/** Building ids in triangle order: building i owns triangles starts[i] .. starts[i + 1] - 1. */
+export interface FaceTable {
+  ids: string[];
+  starts: number[];
+}
+
+/** The building id of a triangle (a raycast's `faceIndex`) through a FaceTable, else null. */
+export function faceBuildingId(
+  table: unknown,
+  faceIndex: number | null | undefined,
+): string | null {
+  const t = table as FaceTable | undefined;
+  if (!t || !Array.isArray(t.starts) || faceIndex == null || faceIndex < 0) return null;
+  let lo = 0;
+  let hi = t.starts.length - 1;
+  if (hi < 0 || faceIndex < (t.starts[0] as number)) return null;
+  while (lo < hi) {
+    const mid = (lo + hi + 1) >> 1;
+    if ((t.starts[mid] as number) <= faceIndex) lo = mid;
+    else hi = mid - 1;
+  }
+  return t.ids[lo] ?? null;
 }
 
 type Pt = [number, number];
@@ -41,6 +67,9 @@ type Pt = [number, number];
 /** Accumulates non-indexed triangles as position / normal / color. */
 class Mesh {
   pos: number[] = [];
+  get triangles() {
+    return this.pos.length / 9;
+  }
   nor: number[] = [];
   col: number[] = [];
 
@@ -176,6 +205,7 @@ export function buildCityGeometry(
   const { buildings, skipped: dropped } = toBuildings(layer?.buildings, displayHeight);
   let skipped = dropped;
   const mesh = new Mesh();
+  const faces: FaceTable = { ids: [], starts: [] };
 
   for (const b of buildings) {
     if (only && !only.has(b.id)) continue;
@@ -186,6 +216,8 @@ export function buildCityGeometry(
       skipped++;
       continue;
     }
+    faces.ids.push(b.id);
+    faces.starts.push(mesh.triangles);
     const styled = colours?.(b);
     const rgb = rgbOf(styled?.wall ?? KIND_COLOUR[b.kind] ?? KIND_COLOUR.building!);
     const roofRgb = styled ? rgbOf(styled.roof) : rgb;
@@ -237,5 +269,5 @@ export function buildCityGeometry(
           base.max.z - base.min.z + 2 * GROUND_MARGIN_M,
         ],
       };
-  return { buildings: buildingsGeo, parks, water, ground, bounds, skipped };
+  return { buildings: buildingsGeo, parks, water, ground, bounds, skipped, faces };
 }

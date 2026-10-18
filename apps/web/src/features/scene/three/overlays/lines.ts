@@ -37,21 +37,25 @@ const bits = (n: number) => {
  * One batched Line2 (LineSegments2, one draw call) for many polylines at a constant lift. Each
  * input is xyz triplets (y is replaced by `liftM`); lines under two points are skipped.
  * Overlay pass: depthTest false, depthWrite false, `renderOrder` >= 10 so it always draws on top.
- * Not decorative and no raycast override: picking is the shared picker's job.
+ * Not decorative and no raycast override: picking is the shared picker's job. With `ids` (one per
+ * input line) the batch keeps `userData.segPos` (the segment endpoints, 6 floats each) and
+ * `userData.segIds` (the line id per segment), so the picker can name the line under the cursor.
  */
 export function createLineBatch(
   lines: Float32Array[],
   style: LineStyle,
   liftM: number,
   renderOrder: number,
+  ids?: readonly string[],
 ): THREE.Object3D {
-  const usable = lines.filter((l) => l.length >= 6);
+  const usable = lines.flatMap((l, i) => (l.length >= 6 ? [{ l, id: ids?.[i] ?? "" }] : []));
   let segs = 0;
-  for (const l of usable) segs += l.length / 3 - 1;
+  for (const { l } of usable) segs += l.length / 3 - 1;
   const pos = new Float32Array(segs * 6);
   const dist = new Float32Array(segs * 2);
+  const segIds: string[] = [];
   let s = 0;
-  for (const l of usable) {
+  for (const { l, id } of usable) {
     const n = l.length / 3;
     let d = 0; // the dash runs on across vertices; it restarts only per polyline
     for (let i = 0; i < n - 1; i++, s++) {
@@ -62,6 +66,7 @@ export function createLineBatch(
         (l[a + 3] as number) - (l[a] as number),
         (l[a + 5] as number) - (l[a + 2] as number),
       );
+      if (ids) segIds.push(id);
       dist[s * 2] = d;
       dist[s * 2 + 1] = d += len;
     }
@@ -92,6 +97,10 @@ export function createLineBatch(
   batch.renderOrder = renderOrder;
   batch.frustumCulled = false;
   setDashScale(batch, 1);
+  if (ids) {
+    batch.userData.segPos = pos;
+    batch.userData.segIds = segIds;
+  }
   return batch;
 }
 
