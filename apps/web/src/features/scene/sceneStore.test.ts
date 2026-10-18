@@ -215,7 +215,16 @@ describe("sceneStore journey.play", () => {
     expect(useJourney.getState().plan).toBeNull();
   });
 
+  it("keeps the journey when the same profile is picked again", () => {
+    useScene.getState().setProfile("older_adult_rest");
+    useScene.getState().applyIntent({ ...intent, journey: demoPlan } as never);
+    useScene.getState().setProfile("older_adult_rest");
+    expect(useScene.getState().journey).toBe(demoPlan);
+    expect(useJourney.getState().plan).toBe(demoPlan);
+  });
+
   it("drops the journey when the profile or scenario changes, and on reset", () => {
+    useScene.getState().setProfile("older_adult_rest");
     for (const change of [
       () => useScene.getState().setProfile("wheelchair"),
       () => useScene.getState().setScenario("stage_p3m"),

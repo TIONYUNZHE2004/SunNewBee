@@ -259,8 +259,11 @@ export const useScene = create<SceneState>((set) => ({
   setProfile: (profile) => {
     saveProfile(profile);
     // A highlighted route was planned for the previous persona; do not show it as this one's.
-    set({ profile, route: null, whatIf: null, journey: null });
-    useJourney.getState().clear();
+    set((s) => {
+      if (s.profile === profile) return { profile, route: null, whatIf: null };
+      useJourney.getState().clear(); // the trip was planned for the previous persona
+      return { profile, route: null, whatIf: null, journey: null };
+    });
   },
   setScenario: (scenarioId) => {
     useJourney.getState().clear(); // its trip was planned under the previous scenario

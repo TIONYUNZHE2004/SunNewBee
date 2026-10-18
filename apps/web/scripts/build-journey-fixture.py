@@ -27,15 +27,23 @@ def main() -> int:
     if not (SEED / "site.json").exists():
         print(f"Elmina seed not found at {SEED}", file=sys.stderr)
         return 1
-    os.environ["TL_DATA_DIR"] = str(SEED)
     # A throwaway store: POST /journeys files no verification requests, but keep .data/ untouched.
-    os.environ["DATABASE_URL"] = f"sqlite:///{Path(tempfile.mkdtemp()) / 'fixture.db'}"
+    # ignore_cleanup_errors: on Windows the API may still hold the SQLite file open at exit.
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+        return _build(Path(tmp) / "fixture.db")
+
+
+def _build(db: Path) -> int:
+    os.environ["TL_DATA_DIR"] = str(SEED)
+    os.environ["DATABASE_URL"] = f"sqlite:///{db}"
     from fastapi.testclient import TestClient
     from townshiplens_api import state
     from townshiplens_api.main import app
 
     state.reset()
-    r = TestClient(app).post("/journeys", json=BODY)
+    with TestClient(app) as client:
+        r = client.post("/journeys", json=BODY)
+    state.reset()
     if r.status_code != 200:
         print(f"POST /journeys -> {r.status_code}: {r.text}", file=sys.stderr)
         return 1

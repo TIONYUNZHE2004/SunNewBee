@@ -66,6 +66,32 @@ describe("journeyStore", () => {
     expect(journeyStateOf(j())?.distance_m).toBeCloseTo(seeked?.distance_m as number, 6);
   });
 
+  it("seek(t) gives the same JourneyState as a straight 10 Hz play to t (AC-D13)", () => {
+    j().load(plan);
+    const total = j().timeline?.total as number;
+    // mid-phase times, so float drift in the play cannot cross a boundary
+    const targets = (j().timeline?.phases ?? []).map((p) => (p.t0 + p.t1) / 2);
+    expect(targets.length).toBeGreaterThan(10);
+    for (const target of targets) {
+      j().seek(target);
+      const want = journeyStateOf(j());
+      j().restart();
+      while (j().t + 0.1 < target) j().advance(0.1);
+      j().advance(target - j().t);
+      j().pause();
+      const got = journeyStateOf(j());
+      if (!want || !got) throw new Error("no state");
+      const { u, distance_m, simSeconds, outdoorsSeconds, ...exact } = got;
+      const { u: u2, distance_m: d2, simSeconds: s2, outdoorsSeconds: o2, ...exact2 } = want;
+      expect(exact).toEqual(exact2); // phase, phaseIndex, clock, rests, minutes outdoors, event
+      expect(u).toBeCloseTo(u2, 9);
+      expect(distance_m).toBeCloseTo(d2, 9);
+      expect(simSeconds).toBeCloseTo(s2, 9);
+      expect(outdoorsSeconds).toBeCloseTo(o2, 9);
+    }
+    expect(total).toBeGreaterThan(80);
+  });
+
   it("setCam switches follow / overview / free", () => {
     for (const m of ["overview", "free", "follow"] as const) {
       j().setCam(m);

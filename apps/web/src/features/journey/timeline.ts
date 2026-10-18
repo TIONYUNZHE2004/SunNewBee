@@ -6,7 +6,8 @@
  * only plays this; it never invents events, distances or times. Ported from the prototype's
  * `phases` / `stateAt` (docs/03-product/prototypes/resident-journey/index.html). Coordinator rulings
  * (D-T4 review): during verified / gap / covered holds she keeps walking at her pace (capped at
- * the next event and the route end), unknown / rest / arrive holds stand still; arrive adds no
+ * the next event and the route end; a trimmed hold's simulated time is the time to walk what it
+ * walked, so the HUD at the next event stays exact), unknown / rest / arrive holds stand still; arrive adds no
  * simulated time; minutes outdoors pause only under a covered span whose claim is verified, taken
  * from the plan span under that event (not the prototype's hard-coded 8 m).
  */
@@ -60,13 +61,21 @@ export interface Phase {
   rests0: number;
 }
 
+/** A stretch under a verified roof. `demo` is the covered event's flag: a placeholder roof must be
+ * labelled "Demo value · not surveyed" wherever the pause is explained, never "Verified". */
+export interface CoveredSpan {
+  from_m: number;
+  to_m: number;
+  demo: boolean;
+}
+
 export interface Timeline {
   plan: JourneyPlan;
   phases: Phase[];
   /** Screen seconds: the sum of the phases. */
   total: number;
   /** Route intervals [from_m, to_m) under a verified covered event (minutes outdoors pause there). */
-  covered: [number, number][];
+  covered: CoveredSpan[];
 }
 
 export interface JourneyState {
@@ -97,35 +106,32 @@ export function clockAt(startTime: string, simSeconds: number): string {
 
 /** The plan span starting where each covered event starts: the stretch under that roof. Only a
  * verified roof counts: a reported, stale or contested one is not a checked fact (honesty). */
-export function coveredIntervals(plan: JourneyPlan): [number, number][] {
-  const out: [number, number][] = [];
+export function coveredIntervals(plan: JourneyPlan): CoveredSpan[] {
+  const out: CoveredSpan[] = [];
   for (const e of plan.events) {
     if (e.kind !== "covered" || e.status !== "verified") continue;
     const span = plan.spans.find(([a, b]) => Math.abs(a - e.at_m) < 0.05 && b > a);
-    if (span) out.push([span[0], span[1]]);
+    if (span) out.push({ from_m: span[0], to_m: span[1], demo: e.demo });
   }
   return out;
 }
 
-const isCovered = (cov: [number, number][], m: number) => cov.some(([a, b]) => m >= a && m < b);
+const isCovered = (cov: CoveredSpan[], m: number) => cov.some((c) => m >= c.from_m && m < c.to_m);
 
 /** Metres of [a, b] under cover. */
-function coveredLength(cov: [number, number][], a: number, b: number): number {
+function coveredLength(cov: CoveredSpan[], a: number, b: number): number {
   let s = 0;
-  for (const [c0, c1] of cov) s += Math.max(0, Math.min(b, c1) - Math.max(a, c0));
+  for (const c of cov) s += Math.max(0, Math.min(b, c.to_m) - Math.max(a, c.from_m));
   return s;
 }
 
 /** Simulated outdoor seconds gained over part of a phase, from its start to progress u. */
-function outdoorsIn(p: Phase, u: number, cov: [number, number][], pace: number): number {
+function outdoorsIn(p: Phase, u: number, cov: CoveredSpan[], pace: number): number {
   const sim = (p.sim1 - p.sim0) * u;
   if (p.m1 > p.m0) {
-    // moving at pace: walks, and walking holds (a capped hold walks slower, so share by metres)
+    // moving at her pace (walks and walking holds): the metres under a roof are not outdoors
     const m = p.m0 + (p.m1 - p.m0) * u;
-    const under = coveredLength(cov, p.m0, m);
-    return p.kind === "walk"
-      ? sim - under / pace
-      : sim - (p.sim1 - p.sim0) * (under / (p.m1 - p.m0));
+    return sim - coveredLength(cov, p.m0, m) / pace;
   }
   return isCovered(cov, p.m0) ? 0 : sim;
 }
@@ -160,12 +166,14 @@ export function buildTimeline(plan: JourneyPlan): Timeline {
   plan.events.forEach((event, eventIndex) => {
     walkTo(event.at_m);
     const at = Math.max(m, event.at_m);
-    const hold = holdSimSeconds(event);
+    const walks = HOLD_MOVES.has(event.kind);
     // a walking hold never passes the next event or the route end
     const next = plan.events[eventIndex + 1]?.at_m ?? end;
-    const moved = HOLD_MOVES.has(event.kind)
-      ? Math.max(0, Math.min(pace * hold, next - at, end - at))
+    const moved = walks
+      ? Math.max(0, Math.min(pace * holdSimSeconds(event), next - at, end - at))
       : 0;
+    // a walking hold lasts as long as its walk (shorter when capped); a stop lasts its hold_s
+    const hold = walks ? moved / pace : holdSimSeconds(event);
     push(
       { kind: "event", sim0: sim, sim1: sim + hold, m0: at, m1: at + moved, event, eventIndex },
       HOLD_SCREEN_S[event.kind],

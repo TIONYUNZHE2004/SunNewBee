@@ -210,6 +210,27 @@ describe("stateAt", () => {
     }
   });
 
+  it("steps exactly onto every phase boundary: each phase starts at its own t0", () => {
+    tl.phases.forEach((p, i) => {
+      const s = stateAt(tl, p.t0);
+      expect(s.phaseIndex).toBe(i);
+      expect(s.phase).toBe(p);
+      expect(s.u).toBe(0);
+      expect(s.distance_m).toBe(p.m0);
+      expect(s.simSeconds).toBe(p.sim0);
+      expect(s.outdoorsSeconds).toBeCloseTo(p.out0, 9);
+      // the end of the previous phase meets the start of this one
+      const prev = tl.phases[i - 1];
+      if (prev) {
+        expect(prev.m1).toBeCloseTo(p.m0, 9);
+        expect(prev.sim1).toBeCloseTo(p.sim0, 9);
+      }
+    });
+    const end = stateAt(tl, tl.total);
+    expect(end.phaseIndex).toBe(tl.phases.length - 1);
+    expect(end.u).toBe(1);
+  });
+
   it("interpolates inside a walk phase", () => {
     const w = tl.phases.find((p) => p.kind === "walk");
     if (!w) throw new Error("no walk");
@@ -285,7 +306,7 @@ describe("buildTimeline on small plans", () => {
     // covered at 20 m on span [20, 100): only 0-20 m (20 s) is outdoors; the walking hold, the
     // rest at 60 m and the walks after it are under the roof; arrive adds no time
     const tl = buildTimeline(roofed("verified"));
-    expect(tl.covered).toEqual([[20, 100]]);
+    expect(tl.covered).toEqual([{ from_m: 20, to_m: 100, demo: false }]);
     const end = stateAt(tl, tl.total);
     expect(end.simSeconds).toBeCloseTo(100 + 60, 9);
     expect(end.outdoorsSeconds).toBeCloseTo(20, 9);
@@ -327,11 +348,27 @@ describe("buildTimeline on small plans", () => {
       "event",
       "pull",
     ]);
-    const unknown = holds[1];
-    if (!unknown) throw new Error("no unknown");
-    expect(stateAt(tl, unknown.t0).distance_m).toBe(11);
+    const [verified, unknown] = holds;
+    if (!verified || !unknown) throw new Error("no holds");
+    // the trimmed hold's simulated time is the time to walk its 1 m (screen hold unchanged)
+    expect(verified.sim1 - verified.sim0).toBeCloseTo(1, 9);
+    expect(verified.t1 - verified.t0).toBeCloseTo(3.2, 9);
+    // so the HUD at the next event start is exactly the plan's: 11 m at 1 m/s = 11 s
+    const s = stateAt(tl, unknown.t0);
+    expect(s.distance_m).toBe(11);
+    expect(s.simSeconds).toBeCloseTo(11, 9);
+    expect(s.outdoorsSeconds).toBeCloseTo(11, 9);
+    expect(s.clock).toBe("09:00");
+    // and the gap at 50 m: 50 s walking + the unknown's 8 s stop
+    expect(stateAt(tl, (holds[2] as (typeof holds)[number]).t0).simSeconds).toBeCloseTo(58, 9);
     // the walk after the gap hold starts where she got to
     expect(tl.phases[6]).toMatchObject({ kind: "walk", m0: 53, m1: 100 });
+  });
+
+  it("a verified covered span keeps its demo flag, so the HUD can say it is a demo value", () => {
+    // D-T7 labels a demo roof "Demo value · not surveyed", never "Verified"
+    const p = tiny([{ ...ev("covered", 20, 3), status: "verified", demo: true }]);
+    expect(buildTimeline(p).covered).toEqual([{ from_m: 20, to_m: 100, demo: true }]);
   });
 
   it("arrive stops the clock whatever the plan's hold_s", () => {
