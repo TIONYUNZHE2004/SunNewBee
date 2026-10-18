@@ -62,6 +62,24 @@ Use the real time from `date -u '+%Y-%m-%d %H:%M UTC'`. Feedback on someone else
 | Worker | Done | Run only the local checks that fit the change (workflow doc, "Checks"); push and open or update the PR into control; GitHub CI runs the full 7. Log the PR link and the CI result, push the board |
 | Control | On every fetch | Read new log entries; update headers and `BOARD.md` |
 
+## Rounds (so work survives usage limits)
+
+Agents work in **rounds**. A timer starts each round; a round can be cut off by a usage limit at any time, so all state lives here, not in the agent's memory.
+
+1. **Start:** `git fetch origin`, merge control into your branch, read `BOARD.md`, `SPEND.md` and your task logs (newest entries last).
+2. **Work:** take the highest open item in your own tasks. One theme per round, about 45 minutes.
+3. **End:** append `Round end: done <what>; next: <exact next step>; spend this round: US$<x>` to the task log, commit, push the board and your branch.
+4. **Nothing left** in your tasks: append `Idle: waiting for <what>` and stop until the next round.
+
+## Testing without burning money
+
+- Never "run 100 questions, fix one, run 100 again".
+- Check facts with the engine first (free). Live rounds have **at most 10 questions**.
+- Group failures by cause and fix the whole group **before** any re-test.
+- Re-test only the failed questions plus 3-5 that passed. Check validator changes against saved answer logs first.
+- A full answer-key live run happens only when Yunzhe asks.
+- Append every live round to `SPEND.md`. At a running total of US$3.50, stop live calls.
+
 ## Merge conflicts
 
 Two agents that append to the same log at once conflict at the end of the file during `pull --rebase`. Keep both entries, in time order, then `git rebase --continue`.
