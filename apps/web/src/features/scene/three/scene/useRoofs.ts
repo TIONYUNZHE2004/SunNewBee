@@ -43,6 +43,8 @@ export function useRoofs({
   tier: Tier;
   roleUniforms: RoleUniforms;
 }) {
+  // The layers only read `tier` to draw nothing on Low, so Medium <-> High must not rebuild them.
+  const drawTier: Tier = tier === "low" ? "low" : "high";
   const plansRef = useRef<TileRoofs[]>([]);
   const next = tier === "low" ? [] : nearRoofs(active);
   if (!samePlans(next, plansRef.current)) plansRef.current = next;
@@ -63,7 +65,7 @@ export function useRoofs({
         layer = createRoofLayer(
           plans.flatMap((p) => p.items),
           roleUniforms,
-          tier,
+          drawTier,
           plans.flatMap((p) => p.decks),
         );
         measure(ROOF_MEASURE, t0);
@@ -77,7 +79,7 @@ export function useRoofs({
       engine.setDecor(ROOF_SLOT, layer);
       setRoofsOn(layer.group.children.length > 0);
     });
-  }, [engine, plans, tier, roleUniforms]);
+  }, [engine, plans, drawTier, roleUniforms]);
   // An engine switch or unmount clears the slot.
   useEffect(() => {
     if (!engine) return;

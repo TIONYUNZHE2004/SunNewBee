@@ -2,7 +2,6 @@ import * as THREE from "three";
 import type { BuildingsLayer } from "../../../lib/api";
 import { type LonLat, waterPolygons } from "../geo";
 import { type HeightOf, toBuildings } from "../shared/model";
-import { STOREY_M } from "./facade/facadePlan";
 import type { FallbackColours } from "./fallbackStyle";
 import type { LocalFrame } from "./frame";
 import { PARK_Y, WATER_Y } from "./ground/bands";
@@ -76,9 +75,7 @@ export function faceBuildingId(
 
 type Pt = [number, number];
 
-const NO_UV = [0, 0, 0, 0, 0, 0];
-
-/** Accumulates non-indexed triangles as position / normal / color (and uv when `withUv`). */
+/** Accumulates non-indexed triangles as position / normal / color. */
 class Mesh {
   pos: number[] = [];
   get triangles() {
@@ -86,17 +83,13 @@ class Mesh {
   }
   nor: number[] = [];
   col: number[] = [];
-  uv: number[] = [];
-  constructor(readonly withUv = false) {}
 
-  /** `uv`: [u0, v0, u1, v1, u2, v2], zeros when omitted. */
-  tri(a: number[], b: number[], c: number[], n: number[], rgb: number[], uv = NO_UV) {
+  tri(a: number[], b: number[], c: number[], n: number[], rgb: number[]) {
     for (const p of [a, b, c]) {
       this.pos.push(p[0]!, p[1]!, p[2]!);
       this.nor.push(n[0]!, n[1]!, n[2]!);
       this.col.push(rgb[0]!, rgb[1]!, rgb[2]!);
     }
-    if (this.withUv) this.uv.push(...uv);
   }
 
   geometry(): THREE.BufferGeometry {
@@ -104,7 +97,6 @@ class Mesh {
     g.setAttribute("position", new THREE.Float32BufferAttribute(this.pos, 3));
     g.setAttribute("normal", new THREE.Float32BufferAttribute(this.nor, 3));
     g.setAttribute("color", new THREE.Float32BufferAttribute(this.col, 3));
-    if (this.withUv) g.setAttribute("uv", new THREE.Float32BufferAttribute(this.uv, 2));
     return g;
   }
 }
@@ -207,8 +199,6 @@ function buildFlat(
  * parks and base water. Display only; routing, flood and answers never read it.
  * `toBuildings` already drops MultiPolygons, rings with fewer than 3 distinct points and
  * non-finite coordinates; footprints the mesher still cannot use are skipped here and counted.
- * Walls (and the parapet band) carry UVs per storey: u = metres along the perimeter / STOREY_M,
- * v = (y − base) / STOREY_M, so one UV unit is one 3.2 m storey; the roof cap's UVs are 0.
  * `footprints` lists every drawn building (local ring, display height, base) for the facade layer.
  * `only`: extrude just these building ids (the rest are drawn as instanced archetypes).
  * `colours`: styled fallback (walls, roof cap, a PARAPET_M trim band); `roofTint` may recolour
@@ -232,7 +222,7 @@ export function buildCityGeometry(
   const { only, colours, roofTint } = opts;
   const { buildings, skipped: dropped } = toBuildings(layer?.buildings, displayHeight);
   let skipped = dropped;
-  const mesh = new Mesh(true);
+  const mesh = new Mesh();
   const faces: FaceTable = { ids: [], starts: [] };
   const footprints: Footprint[] = [];
 
@@ -258,25 +248,18 @@ export function buildCityGeometry(
     const yb = styled ? y1 - Math.min(PARAPET_M, (y1 - y0) / 2) : y1;
     const roof = (n: number) => [ring[n]![0], y1, ring[n]![1]];
     for (const [i, j, k] of tris) mesh.tri(roof(i), roof(j), roof(k), [0, 1, 0], roofRgb);
-    // Per-storey wall UVs: u runs along the perimeter, v counts storeys above the base.
-    const vb = (yb - y0) / STOREY_M;
-    const v1 = (y1 - y0) / STOREY_M;
-    let along = 0;
     for (let i = 0; i < ring.length; i++) {
       const [ax, az] = ring[i]!;
       const [bx, bz] = ring[(i + 1) % ring.length]!;
       const len = Math.hypot(bx - ax, bz - az);
       if (len === 0) continue;
-      const ua = along / STOREY_M;
-      along += len;
-      const ub = along / STOREY_M;
       // Counter-clockwise in (east, north): the outward side is to the right of the edge.
       const n = [-(bz - az) / len, 0, (bx - ax) / len];
-      mesh.tri([ax, y0, az], [bx, y0, bz], [bx, yb, bz], n, rgb, [ua, 0, ub, 0, ub, vb]);
-      mesh.tri([ax, y0, az], [bx, yb, bz], [ax, yb, az], n, rgb, [ua, 0, ub, vb, ua, vb]);
+      mesh.tri([ax, y0, az], [bx, y0, bz], [bx, yb, bz], n, rgb);
+      mesh.tri([ax, y0, az], [bx, yb, bz], [ax, yb, az], n, rgb);
       if (yb < y1) {
-        mesh.tri([ax, yb, az], [bx, yb, bz], [bx, y1, bz], n, trimRgb, [ua, vb, ub, vb, ub, v1]);
-        mesh.tri([ax, yb, az], [bx, y1, bz], [ax, y1, az], n, trimRgb, [ua, vb, ub, v1, ua, v1]);
+        mesh.tri([ax, yb, az], [bx, yb, bz], [bx, y1, bz], n, trimRgb);
+        mesh.tri([ax, yb, az], [bx, y1, bz], [ax, y1, az], n, trimRgb);
       }
     }
   }

@@ -570,6 +570,36 @@ describe("engine motion clock", () => {
       teardown(e);
     }
   });
+  it("setDecor('ambient'): the birds go into the main scene, never the overlay scene", async () => {
+    const { e } = await setup({ on: false });
+    try {
+      const THREE = await import("three");
+      const overlay = {
+        group: new THREE.Group(),
+        groundGroup: new THREE.Group(),
+        update: vi.fn(),
+        setMetresPerPixel: vi.fn(),
+        hasVisible: () => false,
+        setResolution: vi.fn(),
+        setPixelRatio: vi.fn(),
+        setView: vi.fn(),
+        attach: vi.fn(() => () => {}),
+        dispose: vi.fn(),
+      };
+      const birds = { group: new THREE.Group(), dispose: vi.fn() };
+      e.setOverlays(overlay);
+      e.setDecor("ambient", birds);
+      const scenes = spy.scenes as import("three").Scene[];
+      const overlayScene = scenes.find((sc) => sc.children.includes(overlay.group));
+      const mainScene = scenes.find((sc) => sc.children.includes(overlay.groundGroup));
+      expect(overlayScene).toBeTruthy();
+      expect(mainScene).toBeTruthy();
+      expect(mainScene?.children.includes(birds.group)).toBe(true);
+      expect(overlayScene?.children.includes(birds.group)).toBe(false);
+    } finally {
+      teardown(e);
+    }
+  });
   describe("LOD ticks (Task 4)", () => {
     it("onLodTick fires on the next frame with the orbit target and range; 'more' keeps ticking 250 ms apart, then stops", async () => {
       const { e } = await setup({ on: false });
@@ -658,7 +688,7 @@ describe("engine motion clock", () => {
         ];
         expect(cam).toBeInstanceOf(THREE.Vector3);
         expect(f).toBeInstanceOf(THREE.Frustum);
-        // 1.5 km behind the camera is outside the view but inside the shadow pad (800 m x 1.2 x
+        // 500 m behind the camera is outside the view but inside the shadow pad (800 m x 1.2 x
         // sqrt 2 + 250 m = 1.6 km); 5 km behind is culled.
         const back = cam.clone().normalize();
         expect(f.containsPoint(cam.clone().add(back.clone().multiplyScalar(500)))).toBe(true);

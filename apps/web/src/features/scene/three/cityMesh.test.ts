@@ -214,38 +214,13 @@ describe("buildCityGeometry", () => {
     expect(g.buildings.boundingBox!.max.y).toBeCloseTo(9, 6);
   });
 
-  it("walls get UVs per storey (v = storeys above the base, u = perimeter metres / 3.2); the roof stays at 0", () => {
-    const colours = { wall: "#ff0000", roof: "#00ff00", trim: "#0000ff" };
+  it("emits position, normal and colour only: no uv attribute (nothing samples wall UVs)", () => {
     const g = buildCityGeometry(
-      layer({
-        buildings: fc([feat(poly(square(0, 0)), { height_m: 9.6, min_height_m: 3.2 })]),
-      }),
+      layer({ buildings: fc([feat(poly(square(0, 0)), { height_m: 9.6, min_height_m: 3.2 })]) }),
       frame,
-      { colours: () => colours },
+      { colours: () => ({ wall: "#ff0000", roof: "#00ff00", trim: "#0000ff" }) },
     );
-    const p = pos(g.buildings);
-    const n = g.buildings.getAttribute("normal");
-    const uv = g.buildings.getAttribute("uv");
-    expect(uv).toBeDefined();
-    expect(uv.count).toBe(p.count);
-    let maxU = 0;
-    for (let i = 0; i < p.count; i++) {
-      if (Math.abs(n.getY(i)) > 0.5) {
-        // roof cap
-        expect(uv.getX(i)).toBe(0);
-        expect(uv.getY(i)).toBe(0);
-        continue;
-      }
-      // walls and the parapet band: one v unit per 3.2 m storey above the base
-      expect(uv.getY(i)).toBeCloseTo((p.getY(i) - 3.2) / 3.2, 4);
-      maxU = Math.max(maxU, uv.getX(i));
-    }
-    // a 10 m square has a 40 m perimeter
-    expect(maxU).toBeCloseTo(40 / 3.2, 2);
-    // the wall top (9.6 m on a 3.2 m base) is exactly 2 storeys
-    let topV = 0;
-    for (let i = 0; i < uv.count; i++) topV = Math.max(topV, uv.getY(i));
-    expect(topV).toBeCloseTo(2, 4);
+    expect(Object.keys(g.buildings.attributes).sort()).toEqual(["color", "normal", "position"]);
   });
 
   it("lists the drawn footprints (local ring, display height, base) for the facade layer", () => {

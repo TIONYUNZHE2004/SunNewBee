@@ -3,9 +3,12 @@ import { describe, expect, it } from "vitest";
 import { parseManifest } from "../assets/manifest";
 import { createFrame } from "../frame";
 import { type Box, boxAround, seedFor } from "../stream/area";
+import { TILE_CAPS } from "../stream/caps";
 import { tileAt } from "../stream/tiles";
-import { capFor, PROP_CAPS } from "./caps";
 import { planProps, TREE_SCALE } from "./propsPlan";
+
+/** Cap-agnostic tests: generous caps (the old whole-scene High numbers) so a per-tile cap never bites. */
+const UNCAPPED = { trees: 6000, lamps: 1500, furniture: 600, construction: 300 };
 
 const manifest = parseManifest(
   JSON.parse(
@@ -47,7 +50,7 @@ const base = {
   // The P3 hero circle fixture (r = 1200 m) becomes a single 2,400 m box.
   area: { box: boxAround(0, 0, 1200), seed: "t" },
   tier: "high" as const,
-  caps: PROP_CAPS.high,
+  caps: UNCAPPED,
   m: manifest,
 };
 type In = Parameters<typeof planProps>[0];
@@ -106,20 +109,20 @@ describe("planProps", () => {
         poly({ class: "oil_palm" }, 0, 0, 900, 900),
       ),
     };
-    const med = plan({ ...dense, tier: "medium", caps: PROP_CAPS.medium });
-    expect(ofAsset(med, "trees")).toHaveLength(capFor("medium", "trees"));
+    const med = plan({ ...dense, tier: "medium", caps: TILE_CAPS.medium[0] });
+    expect(ofAsset(med, "trees")).toHaveLength(TILE_CAPS.medium[0].trees);
     const lamps = count(med, "furniture/lamp_single") + count(med, "furniture/lamp_double");
-    expect(lamps).toBeLessThanOrEqual(capFor("medium", "lamps"));
+    expect(lamps).toBeLessThanOrEqual(TILE_CAPS.medium[0].lamps);
     expect(all(plan({ ...dense, tier: "low" }))).toEqual([]);
-    expect(all(plan({ ...dense, caps: PROP_CAPS.low }))).toEqual([]);
+    expect(all(plan({ ...dense, caps: TILE_CAPS.low[0] }))).toEqual([]);
   });
 
   it("keeps the nearest props when a cap bites", () => {
     const dense: Partial<In> = {
       landcover: fc(poly({ class: "forest" }, -500, -500, 1000, 1000)),
     };
-    const kept = ofAsset(plan({ ...dense, caps: PROP_CAPS.medium }), "trees");
-    const full = ofAsset(plan({ ...dense, caps: PROP_CAPS.high }), "trees");
+    const kept = ofAsset(plan({ ...dense, caps: TILE_CAPS.medium[0] }), "trees");
+    const full = ofAsset(plan({ ...dense, caps: UNCAPPED }), "trees");
     expect(kept.length).toBeLessThan(full.length);
     const far = Math.max(...kept.map((t) => Math.hypot(t.x, t.z)));
     const dropped = full.filter((t) => !kept.some((k) => k.id === t.id));
@@ -222,7 +225,7 @@ describe("planProps", () => {
 
   it("a dense forest at the centre does not starve street, OSM or park trees", () => {
     const p = plan({
-      caps: PROP_CAPS.medium,
+      caps: TILE_CAPS.medium[0],
       landcover: fc(
         poly({ class: "forest" }, -400, -400, 800, 800),
         poly({ class: "oil_palm" }, 400, -400, 400, 800),
@@ -237,7 +240,7 @@ describe("planProps", () => {
       parks: fc(poly({ id: "pk" }, 500, 600, 200, 200)),
     });
     const trees = ofAsset(p, "trees");
-    expect(trees).toHaveLength(capFor("medium", "trees"));
+    expect(trees).toHaveLength(TILE_CAPS.medium[0].trees);
     const near = (t: { id: string }, pre: string) => t.id.startsWith(pre);
     expect(trees.filter((t) => near(t, "st:")).length).toBeGreaterThan(5);
     expect(trees.filter((t) => near(t, "ot:"))).toHaveLength(2);
@@ -279,7 +282,7 @@ describe("planProps", () => {
       [500, 500],
     ];
     const p = plan({
-      caps: { ...PROP_CAPS.high, construction: 3 },
+      caps: { ...UNCAPPED, construction: 3 },
       landcover: fc(...sites.map(([x, z]) => poly({ class: "construction" }, x, z, 95, 95))),
     });
     const built = ofAsset(p, "construction");
@@ -396,9 +399,9 @@ describe("planProps per tile box", () => {
   it("is deterministic per tile key, whatever was planned before", () => {
     const tile = tileAt(10, 10);
     const area = { box: tile.box, seed: seedFor(tile.key, "props") };
-    const first = plan({ ...edgeScene, area, caps: PROP_CAPS.medium });
-    plan({ ...edgeScene, area: { box: Q[0]!, seed: "x" }, caps: PROP_CAPS.medium });
-    expect(plan({ ...edgeScene, area, caps: PROP_CAPS.medium })).toEqual(first);
+    const first = plan({ ...edgeScene, area, caps: TILE_CAPS.medium[0] });
+    plan({ ...edgeScene, area: { box: Q[0]!, seed: "x" }, caps: TILE_CAPS.medium[0] });
+    expect(plan({ ...edgeScene, area, caps: TILE_CAPS.medium[0] })).toEqual(first);
     expect(all(first).length).toBeGreaterThan(20);
   });
 
