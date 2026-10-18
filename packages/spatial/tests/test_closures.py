@@ -11,6 +11,31 @@ NOW = datetime(2026, 10, 15, 12, 0, tzinfo=UTC)
 H = timedelta(hours=1)
 
 
+@pytest.mark.parametrize("active", [True, False])
+def test_nearby_amenity_excludes_only_active_place_closures(ctx, monkeypatch, active):
+    from townshiplens_spatial import models
+
+    monkeypatch.setattr(models, "utcnow", lambda: NOW)
+    before = tools.nearby_amenities(ctx, "park-b", "playground", 1000, "default")
+    assert any(p["id"] == "playground" for p in before.data)
+    closure = _cl("playground", start=NOW - H if active else NOW + H, end=NOW + 2 * H)
+    closure.note = "Unpublished staff note"
+    ctx.world.set_closures([closure])
+    result = tools.nearby_amenities(ctx, "park-b", "playground", 1000, "default")
+    assert (not any(p["id"] == "playground" for p in result.data)) == active
+    if active:
+        assert any(
+            "Urban Park playground" in w and "Reported closure (staff)" in w
+            for w in result.warnings
+        )
+        evidence = next(e for e in result.evidence if e.attribute == "closure")
+        assert evidence.status == "reported" and evidence.element_id == "playground"
+        assert "Unpublished staff note" not in result.model_dump_json()
+    else:
+        assert result.data == before.data
+        assert not any(e.attribute == "closure" for e in result.evidence)
+
+
 def _cl(el="seg-ab", start=NOW - H, end=NOW + 24 * H, reason="works", cid="cl-0001"):
     return Closure(id=cid, element_id=el, reason=reason, starts_at=start, ends_at=end)
 

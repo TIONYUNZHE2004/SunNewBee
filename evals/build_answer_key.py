@@ -1,6 +1,8 @@
 """Capture scope-B answer-key facts from the real seed. Never calls an LLM.
 
-Run from the repo root. Regeneration resets human review; never auto-approve entries.
+Run from the repo root. Regeneration keeps a case's human review only when its question,
+expected outcome and expected facts are unchanged (T-015); any change resets it to unreviewed.
+Never auto-approve entries.
 """
 
 import hashlib
@@ -382,9 +384,29 @@ def build():
         "capture_command": "LLM_PROVIDER=mock uv run python evals/build_answer_key.py",
         "cases": cases,
     }
+    kept = keep_reviews(cases, DEST)
     DEST.parent.mkdir(parents=True, exist_ok=True)
     DEST.write_text(json.dumps(doc, indent=2, ensure_ascii=False) + "\n")
-    print(f"Captured {len(cases)} cases; reviewed: 0/{len(cases)}; {DEST}")
+    print(f"Captured {len(cases)} cases; reviewed (kept, facts unchanged): {kept}; {DEST}")
+
+
+REVIEW_KEYS = ("question", "profile", "scenario_id", "expected_outcome", "expected_facts")
+
+
+def keep_reviews(cases: list[dict], old_path) -> int:
+    """Carry `reviewed` over from the previous key for cases whose question and expected facts
+    did not change; a changed case goes back to unreviewed."""
+    try:
+        old = {c["id"]: c for c in json.loads(old_path.read_text())["cases"]}
+    except (FileNotFoundError, KeyError, ValueError):
+        return 0
+    kept = 0
+    for c in cases:
+        prev = old.get(c["id"])
+        if prev and prev.get("reviewed") and all(prev.get(k) == c.get(k) for k in REVIEW_KEYS):
+            c["reviewed"] = True
+            kept += 1
+    return kept
 
 
 if __name__ == "__main__":

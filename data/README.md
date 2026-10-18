@@ -110,6 +110,29 @@ The vintages are mixed, as they are for the walk cache. Re-running `import_osm.p
 
 **Segment renumbering.** 101+ existing `seg-<way>-<k>` ids now carry new geometry, because their ways are re-split at major-road junctions. None of the ids referenced in this README, `access/README.md`, `data/demo/*.jsonl`, e2e tests or golden changed. The overlay (P1/P2, ramp `seg-1306543755-2`) is identical. The 4 Elmina demo-cache entries were re-recorded with the mock.
 
+## Sidewalk identity (T-014)
+
+`import_osm.py` retains `highway=footway` + `footway=sidewalk` as `type: sidewalk`.
+Other footways stay `footway`, and crossing footways stay `crossing`. Explicit
+`sidewalk=*` tags are read on ordinary streets as well as major roads, using the same
+normalisation and reported OSM provenance above. Missing or ambiguous tags never
+create a claim. Separate sidewalk lines join roads only at mapped shared nodes;
+the importer does not infer links from parallel geometry.
+
+Walking routes report separate-sidewalk metres and road-centre-line metres, including
+the road distance with no usable positive mapped sidewalk claim. These geometry
+descriptions and the modest routing cost preference do not change PASS/FAIL/UNKNOWN.
+Rebuild sidewalks and crossing claims together through the cached Overpass pipeline,
+then overlay → flood → waste. Commit rebuilt data separately from code.
+
+The 18 Oct rebuild has 860 sidewalk segments and 21 crossing-type claims (all reported
+OSM data). SRII Huffaz → Klinik Bahiah uses 76.8 m of explicitly mapped sidewalk.
+The two pinned routes still have no explicit sidewalk edges: Car Park B → playground
+is 440.6 m with 151.8 m on road centre lines lacking a mapped sidewalk; Surau Al Mahdi →
+Surau At Taqwa is 363.8 m with 352.0 m in that category. Their other footways are not
+relabeled as sidewalks without the OSM subtag. The walk import preserves existing
+building metadata, scene datum and external attribution when rebuilding `site.json`.
+
 ## Area places (Task 43)
 
 17 of 231 seed places have no `node_id`. Among them are 11 parks, 3 schools and the hero "Elmina Urban Park" (`osm-way-1309457596`). The old rule snaps an area's *centre* to a walk node within 60 m, which misses large areas.
@@ -193,7 +216,7 @@ This replaced ASF HAND on 15 Oct 2026, by coordinator ruling.
    - On this seed there is **no exact or fuzzy match**: the best is "Dewan Saujana Utama" at 0.58. The research's candidate "Dewan Bunga Matahari" (3.1799, 101.5414) lies east of the OSM import envelope (lon ≤ 101.530), so it is not in `base/places.geojson`.
 8. **Coverage** `flood/coverage.json`.
    - The walk graph extends past `AREA` (lon 101.434–101.542, lat 3.138–3.248). Widening `AREA` needs a new DEM read, which this review round did without network.
-   - **61 edges and 3 places lie wholly outside the raster.** They get no flood class, so they read as "unlikely". **209 edges are only partly covered** and are classified on their covered samples.
+   - **61 edges and 3 places lie wholly outside the raster.** They get no flood class. **209 edges are only partly covered** and are classified on their covered samples. The loader reads these explicit gaps from `coverage.json`: river-stage routing treats uncovered/partial elements as UNKNOWN (unless a known barrier already makes them FAIL), never as an assessed "unlikely" result. Baseline is unchanged.
    - The ids are listed in `coverage.json`. The 3 places are `osm-way-377999794`, `osm-way-691513797` and `osm-way-691513809`.
    - Follow-up: widen `AREA` to `(101.430, 3.135, 101.560, 3.250)` (still DEM tile N03E101) and re-run.
 

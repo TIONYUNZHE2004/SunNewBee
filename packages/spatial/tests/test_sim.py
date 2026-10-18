@@ -189,7 +189,7 @@ def test_report_without_older_adults_has_no_rest_limit(world):
 
 # island-hut shares the school centre's node, so it is excluded (a 0 m journey is not a journey)
 EVAC_P5 = {
-    "reachable_partly_unverified": 2,  # playground, kiosk
+    "reachable_partly_unverified": 2,  # playground, kiosk (origin flood is a caveat)
     "blocked_by_flood": 2,  # park-b, lakeside-mall
     "no_mapped_connection": 1,  # moon-base has no mapped path
 }

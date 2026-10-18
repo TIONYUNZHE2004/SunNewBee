@@ -240,7 +240,10 @@ def run_suite(
                 continue
             # Cheap pre-check: the flip must make this edge PASS for the profile/scenario.
             res, _ = evaluate_edge(
-                w2.edges[eid], w2.profiles[prof], _flood_class(w2, t["scenario_id"], eid)
+                w2.edges[eid],
+                w2.profiles[prof],
+                _flood_class(w2, t["scenario_id"], eid),
+                flood_coverage=w2.flood.coverage_for(t["scenario_id"], eid),
             )
             if res != "PASS":
                 continue

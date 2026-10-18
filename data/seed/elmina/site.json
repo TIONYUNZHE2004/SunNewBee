@@ -53,7 +53,7 @@
     "Flood scenarios: relative elevation above mapped OSM drainage (indicative)",
     "ESA WorldCover 10 m 2021 v200 © ESA WorldCover project, CC-BY 4.0"
   ],
-  "data_as_of": "2026-10-15",
+  "data_as_of": "2026-10-18",
   "buildings": {
     "file": "base/buildings.geojson",
     "trees": "base/trees.geojson",

@@ -56,6 +56,28 @@ With no seed data present the API falls back to the tiny test fixture.
 | GET | `/river-rollout` | public; `?profiles=&n=5..50`. Synthetic residents per persona at every river stage, with routes for the 3D animation; cached by world version (the first call on the seed takes about 15 s). A simulation, not a forecast |
 | GET | `/what-if/suggestions` | public; `?profile=&near_place=`. Engine-proposed legal actions with readable labels, plus the river stages; 422 unknown profile or place |
 
+Scenario/profile selections on routes, access/flood layers, the graph alias, place details,
+evacuation centres and flood briefings are validated before calculation: unknown scenarios
+return 404; unknown profiles return 422. A malformed selection never falls back to baseline.
+
+Route results and evacuation reachability include destination flood checks. Likely flooded
+destinations block a connected journey; possible destinations cap walking at `partly_unverified`
+and block driving. Flood at the origin is named in warnings and evidence so a resident can
+ask about leaving; it does not independently block or cap the route. Disconnected data
+remains `no_data`. Explicit raster coverage gaps at either endpoint or on paths cap
+river-stage routes at `partly_unverified`, while baseline remains unchanged. Access/flood
+LineStrings expose `flood_coverage: uncovered|partial` with unknown status where applicable;
+coverage gaps do not create a flood class.
+
+Routes also report mapped walking geometry: `sidewalk_m`, `road_m` (street/major-road
+centre lines), `road_without_mapped_sidewalk_m`, and `road_sections` (segment id,
+name, metres and sidewalk claim/status). A missing, stale, contested or explicitly
+absent sidewalk claim contributes to the last count. These fields describe the mapped
+route, not verified sidewalk access, and do not change the route's passability status.
+The access layer preserves `type: sidewalk` and includes `sidewalk`/`sidewalk_status`
+on street/major-road lines. Walking searches prefer mapped walking paths within each
+strict/lenient search; returned distance/time remain based on physical length.
+
 ## Environment (repo-root `.env`)
 
 `TL_DATA_DIR` (default `data/seed/elmina`, falls back to the tiny fixture), `DATABASE_URL` (sqlite; default `.data/<site id>.db`, one file per world, shared by the VR, audit and simulation stores), `EVIDENCE_DIR` (default `.data/evidence`, flat directory of random-hex photo files), `SIM_TIME_BUDGET_S` (default 600, total seconds before a simulation run ends as `timeout`), `STAFF_TOKEN` (default `change-me`, which staff endpoints refuse with 503; set it), `LLM_PROVIDER`, `OPENROUTER_API_KEY` and model settings (used by the agent). A relative `DATABASE_URL` path is resolved against the repo root. Rows in an old `.data/townshiplens.db` (the pre-per-world default) are not read any more; copy or delete the file. `pnpm db:reset` deletes the local `.db` files (stop the API first).

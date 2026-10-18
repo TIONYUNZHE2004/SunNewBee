@@ -1,5 +1,9 @@
 """Run the provisional deep-spot key through run_turn; no shared validator scoring.
 
+The scorer finds numbers with its own patterns and reads values with its own walker; only the
+rounding rule is the validator's (facts._matches), so "about 440 m" for 440.6 m is judged the
+same way the validator judges it (T-015).
+
 uv run python evals/run_answer_key.py --output evals/results/answer-key-mock.json
 Live: --provider openrouter --only id1,id2 (at most ten turns).
 These constraint checks are not semantic entailment or a replacement for human review.
@@ -17,6 +21,8 @@ from pathlib import Path
 
 import pydantic_ai
 from townshiplens_agent.events import ChatRequest
+from townshiplens_agent.facts import _matches as fact_matches
+from townshiplens_agent.facts import extract_facts
 from townshiplens_agent.memory import SessionMemory
 from townshiplens_agent.record import TurnRecord
 from townshiplens_agent.run import run_turn
@@ -50,8 +56,12 @@ def seed_fingerprint(seed):
     return digest.hexdigest()
 
 
-def measure_values(case):
-    """Only typed engine fields supply measurements; never ids, dates or arbitrary numbers."""
+def measure_values(case, rec=None):
+    """Only typed engine fields supply measurements; never ids, dates or arbitrary numbers.
+
+    Values come from the key's captured engine calls and from what the tools actually returned
+    this turn (routes and evidence): an answer may quote the centre route the assistant really
+    planned, even if the key captured only the centre list (T-015)."""
     out = {"m": set(), "min": set(), "%": set()}
 
     def walk(value, key=""):
@@ -76,33 +86,39 @@ def measure_values(case):
 
     for call in case["engine_calls"]:
         walk(call["result"]["data"])
+    if rec is not None:
+        walk({"routes": list(rec.routes.values())})
+        for e in rec.evidence.values():
+            if isinstance(e.value, (int, float)) and not isinstance(e.value, bool):
+                walk({e.attribute: e.value})
     return out
 
 
-def unsupported_claims(text, case):
+def _rounds_to(text, m, x, v):
+    """The validator's rounding rule (facts._matches): exact, decimal rounding, whole number,
+    or a coarser round number with "about" / "kira-kira" / "约"; "under"/"over" must point the
+    right way; "exactly" allows no rounding. Compared in the unit written."""
+    stated = next(iter(extract_facts(text[max(0, m.start() - 30) : m.end()])[-1:]), None)
+    if stated is None:
+        return math.isclose(x, v, abs_tol=0.051)
+    return fact_matches(stated, v)
+
+
+def unsupported_claims(text, case, rec=None):
     errors = []
     for match in PROMISE.finditer(text):
         if not re.search(
             r"not |cannot |can't ", text[max(0, match.start() - 15) : match.start()], re.I
         ):
             errors.append("unsupported assurance: " + match.group())
-    values = measure_values(case)
+    values = measure_values(case, rec)
     for m in MEASURE.finditer(text):
         x = float(m[1].replace(",", ""))
         unit = m[2].lower()
         if unit in ("km", "公里"):
             x *= 1000
         cls = "min" if unit.startswith("min") or unit == "分钟" else "%" if unit == "%" else "m"
-        # Exact or conventional rounding only, in the same unit. No 15% tolerance.
-        if not any(
-            math.isclose(x, v, abs_tol=0.051)
-            or math.isclose(x, round(v), abs_tol=0.001)
-            or (
-                "about" in text[max(0, m.start() - 8) : m.start()].lower()
-                and math.isclose(x, round(v / 10) * 10, abs_tol=0.001)
-            )
-            for v in values[cls]
-        ):
+        if not any(_rounds_to(text, m, x, v) for v in values[cls]):
             errors.append("unsupported measurement: " + m.group())
     for m in COUNT.finditer(text):
         noun = m[2].lower()
@@ -197,7 +213,7 @@ def score(case, events, rec):
                 v = facts["routes.0.distance_m"]
                 if not any(s in folded for s in (str(v), str(round(v)), f"{v / 1000:g}")):
                     fails.append("expected route distance not stated")
-    unsupported = unsupported_claims(text, case)
+    unsupported = unsupported_claims(text, case, rec)
     fails.extend(unsupported)
     return {
         "id": case["id"],

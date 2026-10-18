@@ -1928,6 +1928,23 @@ export interface components {
             /** Stages */
             stages: components["schemas"]["Stage"][];
         };
+        /** RoadSection */
+        RoadSection: {
+            /** Element Id */
+            element_id: string;
+            /** Length M */
+            length_m: number;
+            /** Name */
+            name?: string | null;
+            /** Sidewalk */
+            sidewalk?: string | null;
+            /**
+             * Sidewalk Status
+             * @default unknown
+             * @enum {string}
+             */
+            sidewalk_status: "unknown" | "reported" | "verified" | "stale" | "contested";
+        };
         /** Route */
         Route: {
             /** Crossings */
@@ -1970,10 +1987,27 @@ export interface components {
             }[];
             /** Rest Points Unverified */
             rest_points_unverified?: string[];
+            /**
+             * Road M
+             * @default 0
+             */
+            road_m: number;
+            /** Road Sections */
+            road_sections?: components["schemas"]["RoadSection"][];
+            /**
+             * Road Without Mapped Sidewalk M
+             * @default 0
+             */
+            road_without_mapped_sidewalk_m: number;
             /** Scenario Id */
             scenario_id?: string | null;
             /** Segments */
             segments: components["schemas"]["RouteSegment"][];
+            /**
+             * Sidewalk M
+             * @default 0
+             */
+            sidewalk_m: number;
             /**
              * Status
              * @enum {string}
