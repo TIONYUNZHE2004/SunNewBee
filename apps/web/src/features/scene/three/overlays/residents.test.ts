@@ -67,6 +67,15 @@ describe("Day residents", () => {
     expect(colourAt(m, 2)).toBe(new THREE.Color(DAY_STYLE.wait.color).getHex());
   });
 
+  it("a state named like an Object.prototype key falls back to the neutral colour", () => {
+    const r = createResidents(frame);
+    const odd = (id: string, state: string) => ({ ...dot(id, "walk"), state }) as never;
+    r.setDay([odd("a", "constructor"), odd("b", "toString"), odd("c", "__proto__")], null);
+    const m = fill(r.group);
+    const neutral = new THREE.Color(RESIDENT_STYLE.noData.color).getHex();
+    for (const i of [0, 1, 2]) expect(colourAt(m, i)).toBe(neutral);
+  });
+
   it("places an instance at the projected position, y = 0", () => {
     const r = createResidents(frame);
     r.setDay([dot("a", "walk", 100)], null);
@@ -136,6 +145,18 @@ describe("rollout residents", () => {
     expect(colourAt(m, 0)).toBe(new THREE.Color(RESIDENT_STYLE.reach.color).getHex());
     expect(colourAt(m, 1)).toBe(new THREE.Color(RESIDENT_STYLE.cutOff.color).getHex());
     expect(colourAt(m, 2)).toBe(new THREE.Color(RESIDENT_STYLE.noData.color).getHex());
+  });
+
+  it("a kind named like an Object.prototype key falls back to the neutral colour", () => {
+    const r = createResidents(frame);
+    r.setRollout([
+      { id: "x", kind: "hasOwnProperty" as never, coords: line, moving: false, offset: 0 },
+      { id: "y", kind: "__proto__" as never, coords: line, moving: false, offset: 0 },
+    ]);
+    const m = fill(r.group);
+    const neutral = new THREE.Color(RESIDENT_STYLE.noData.color).getHex();
+    expect(colourAt(m, 0)).toBe(neutral);
+    expect(colourAt(m, 1)).toBe(neutral);
   });
 
   it("walkers move along their route over time; the cut off stand still; no route is hidden", () => {

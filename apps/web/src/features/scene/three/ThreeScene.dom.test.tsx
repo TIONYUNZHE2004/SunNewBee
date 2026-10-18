@@ -109,6 +109,43 @@ vi.mock("./props/propsPlan", async (orig) => {
     },
   };
 });
+// Final fix E4: counts pointFeatures calls (the place lookup must not rebuild on every render).
+const geoCalls = vi.hoisted(() => ({ points: 0 }));
+vi.mock("../geo", async (orig) => {
+  const mod = await orig<typeof import("../geo")>();
+  return {
+    ...mod,
+    pointFeatures: (...args: Parameters<typeof mod.pointFeatures>) => {
+      geoCalls.points++;
+      return mod.pointFeatures(...args);
+    },
+  };
+});
+// Final fix E1: a fake sign plan and layer, counted, so a tier change's effect on signs is visible.
+const signFakes = vi.hoisted(() => ({ on: false, plans: 0 }));
+vi.mock("./signs/signPlan", async (orig) => {
+  const mod = await orig<typeof import("./signs/signPlan")>();
+  return {
+    ...mod,
+    planSigns: (...args: Parameters<typeof mod.planSigns>) => {
+      if (!signFakes.on) return mod.planSigns(...args);
+      signFakes.plans++;
+      return { signs: [{ id: "s1" }], dropped: { no_source: 0, no_building: 0 }, outside: 0 };
+    },
+  };
+});
+vi.mock("./signs/signLayer", async (orig) => {
+  const mod = await orig<typeof import("./signs/signLayer")>();
+  return {
+    ...mod,
+    createSignLayer: (...args: Parameters<typeof mod.createSignLayer>) =>
+      signFakes.on
+        ? ({ group: new THREE.Group(), dispose: () => {} } as unknown as ReturnType<
+            typeof mod.createSignLayer
+          >)
+        : mod.createSignLayer(...args),
+  };
+});
 vi.mock("./motion/agents", async (orig) => {
   const mod = await orig<typeof import("./motion/agents")>();
   return {
@@ -493,6 +530,17 @@ describe("ThreeScene", () => {
     expect(p).toBe(LIGHT_PRESETS.night);
     act(() => useScene.setState({ day: { ...useScene.getState().day, on: false } }));
     vi.unstubAllGlobals();
+  });
+
+  it("Day playback re-renders do not rebuild the place lookup (memoised on the access data)", async () => {
+    const { engine } = mount();
+    await waitFor(() => expect(engine.setCity).toHaveBeenCalled());
+    act(() => useScene.setState({ day: { ...useScene.getState().day, on: true, t: 600 } }));
+    const before = geoCalls.points;
+    for (const t of [601, 602, 603, 604, 605])
+      act(() => useScene.setState({ day: { ...useScene.getState().day, t } }));
+    expect(geoCalls.points).toBe(before);
+    act(() => useScene.setState({ day: { ...useScene.getState().day, on: false } }));
   });
 
   it("the container background follows the blended preset during Day playback", async () => {
@@ -886,6 +934,37 @@ describe("ThreeScene", () => {
         expect(engine.setCity.mock.calls.length).toBe(cityCalls);
       } finally {
         tierFakes.on = false;
+        act(() => useSceneSettings.setState({ quality: "auto" }));
+      }
+    });
+
+    it("a Medium to High change keeps the signs and an open sign card; Low drops both", async () => {
+      signFakes.on = true;
+      act(() => useSceneSettings.setState({ quality: "medium" }));
+      try {
+        serve({});
+        const { engine } = mount();
+        await waitFor(() =>
+          expect(screen.getByTestId("three-scene")).toHaveAttribute("data-assets", "ready"),
+        );
+        act(() => engine.tick());
+        const lastSigns = () =>
+          engine.setDecor.mock.calls.filter((c) => c[0] === "signs").at(-1)?.[1];
+        await waitFor(() => expect(lastSigns()).toBeTruthy());
+        const plans = signFakes.plans;
+        const layer = lastSigns();
+        act(() => useScene.getState().selectSign("s1"));
+        act(() => useSceneSettings.setState({ quality: "high" }));
+        act(() => engine.tick());
+        expect(useScene.getState().selectedSignId).toBe("s1");
+        expect(signFakes.plans).toBe(plans);
+        expect(lastSigns()).toBe(layer);
+        act(() => useSceneSettings.setState({ quality: "low" }));
+        await waitFor(() => expect(lastSigns()).toBeNull());
+        expect(useScene.getState().selectedSignId).toBeNull();
+      } finally {
+        signFakes.on = false;
+        act(() => useScene.getState().selectSign(null));
         act(() => useSceneSettings.setState({ quality: "auto" }));
       }
     });

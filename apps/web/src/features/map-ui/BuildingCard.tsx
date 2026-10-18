@@ -16,12 +16,14 @@ export const HEIGHT_LABELS: Record<string, string> = {
 };
 
 /** Display names of the archetypes (the model family a building is drawn with). */
-const ARCHETYPE_LABELS: Record<string, string> = {
+export const ARCHETYPE_LABELS: Record<string, string> = {
   generic: "Building (no specific type)",
   link_intermediate: "Link house",
   link_long: "Long link house",
+  superlink: "Superlink house",
   bungalow: "Bungalow",
   semi_d: "Semi-detached house",
+  townhouse: "Townhouse",
   shop_office: "Shop office",
   factory: "Factory",
   school: "School",
@@ -93,7 +95,10 @@ export const SOURCE_LABEL_MAX = 60;
 /** The building's own lines: type (unclassified without an archetype), OSM source, height basis. */
 function buildingLines(layer: BuildingsLayer, p: Props, fallback: boolean): Line[] {
   const arch = str(p.archetype);
-  const type = arch ? (ARCHETYPE_LABELS[arch] ?? "unclassified") : "unclassified";
+  const type =
+    arch && Object.hasOwn(ARCHETYPE_LABELS, arch)
+      ? (ARCHETYPE_LABELS[arch] as string)
+      : "unclassified";
   const asOf = str(layer.as_of);
   const height = HEIGHT_LABELS[str(p.display_height_source) ?? ""];
   return [

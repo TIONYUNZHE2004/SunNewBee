@@ -2,11 +2,12 @@
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it } from "vitest";
+import manifestJson from "../../../public/city/manifest.json";
 import { newQueryClient, renderWithClient } from "../../test/helpers";
 import { useScene } from "../scene/sceneStore";
 import type { AssetSpec, Manifest } from "../scene/three/assets/manifest";
 import { useCityInfo } from "../scene/three/cityInfo";
-import { BuildingCard, designHeightText, HEIGHT_LABELS } from "./BuildingCard";
+import { ARCHETYPE_LABELS, BuildingCard, designHeightText, HEIGHT_LABELS } from "./BuildingCard";
 
 const building = (id: string, props: Record<string, unknown>) => ({
   type: "Feature",
@@ -24,6 +25,8 @@ const layer = {
       building("b-arch", { archetype: "shop_office", display_height_source: "archetype_storeys" }),
       building("b-def", { archetype: "generic", display_height_source: "default" }),
       building("b-none", { display_height_source: "default" }),
+      building("b-super", { archetype: "superlink", display_height_source: "archetype_storeys" }),
+      building("b-town", { archetype: "townhouse", display_height_source: "osm_levels" }),
       building("w1545153991", { archetype: "generic", display_height_source: "default" }),
       building("w1308938137", { archetype: "mall", display_height_source: "osm_levels" }),
     ],
@@ -112,6 +115,8 @@ describe("BuildingCard", () => {
     ["b-lvl", "OSM building levels", "Bungalow"],
     ["b-arch", "Typical storeys for this type", "Shop office"],
     ["b-def", "Default estimate", "Building (no specific type)"],
+    ["b-super", "Typical storeys for this type", "Superlink house"],
+    ["b-town", "OSM building levels", "Townhouse"],
   ])("%s: type, source and height label %s", (id, height, type) => {
     show(id);
     expect(screen.getByRole("heading", { name: "Building" })).toHaveFocus();
@@ -119,6 +124,15 @@ describe("BuildingCard", () => {
     expect(screen.getByText("Source: OSM · as of 2026-10-17")).toBeInTheDocument();
     expect(screen.getByText(`Height: ${height}`)).toBeInTheDocument();
     expect(screen.queryByText(/simple block/)).toBeNull();
+  });
+
+  it("every archetype in the shipped manifest has a label (none falls back to unclassified)", () => {
+    const assets = (manifestJson as { assets: Record<string, { group: string }> }).assets;
+    const archetypes = Object.entries(assets)
+      .filter(([, a]) => a.group === "archetype")
+      .map(([k]) => k);
+    expect(archetypes.length).toBeGreaterThan(0);
+    for (const a of archetypes) expect(Object.hasOwn(ARCHETYPE_LABELS, a), a).toBe(true);
   });
 
   it("the four height labels are fixed", () => {

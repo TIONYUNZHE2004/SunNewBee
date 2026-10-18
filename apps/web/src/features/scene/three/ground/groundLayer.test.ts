@@ -48,6 +48,15 @@ describe("createGroundLayer", () => {
     expect(meshes(layer.group)).toHaveLength(3);
   });
 
+  it("land cover paints in triangle order: no depth write (no class z-fight); roads still write depth", () => {
+    const layer = createGroundLayer([ribbon("major"), ribbon("major", true)], lc(), "high");
+    const [land, roads, marks] = meshes(layer.group).map((m) => m.material as THREE.Material);
+    expect(land!.depthWrite).toBe(false);
+    expect(land!.depthTest).toBe(true);
+    expect(roads!.depthWrite).toBe(true);
+    expect(marks!.depthWrite).toBe(true);
+  });
+
   it("the low tier skips the dashed markings", () => {
     const layer = createGroundLayer([ribbon("major"), ribbon("major", true)], lc(), "low");
     expect(meshes(layer.group)).toHaveLength(2);

@@ -324,8 +324,13 @@ export default function ThreeScene({
   );
 
   // Same place lookup as CesiumScene: place ids to coordinates from the access layer.
-  const placesRef = useRef(new Map<string, LonLat>());
-  placesRef.current = new Map(pointFeatures(access.data).map((p) => [p.id, p.coord]));
+  // Memoised on the data: Day playback re-renders this component at ~10 Hz.
+  const places = useMemo(
+    () => new Map<string, LonLat>(pointFeatures(access.data).map((p) => [p.id, p.coord])),
+    [access.data],
+  );
+  const placesRef = useRef(places);
+  placesRef.current = places;
   const focusPoint = useCallback((id: string) => placesRef.current.get(id) ?? null, []);
 
   // The initial tier: the user's choice, else Medium until the GPU is known.
@@ -576,15 +581,18 @@ export default function ThreeScene({
 
   // Sourced, text-only shop signs: a sign without text, source_url and as_of never reaches the
   // client (the API filters) and is dropped again in the plan. Planned once the walk is in, for the hero district only and none at Low.
+  // Keyed on "not Low", not the tier: a Medium <-> High change must not rebuild the signs (and
+  // close an open sign card).
+  const signsOn = tier !== "low";
   const signPlan = useMemo(
     () =>
-      frame && detailsOn && walk && buildings && !showroom && tier !== "low"
+      frame && detailsOn && walk && buildings && !showroom && signsOn
         ? planSigns(buildings.signage, buildings.buildings, walk, frame, {
             centre: HERO_CENTRE,
             radiusM: HERO_RADIUS_M,
           })
         : null,
-    [frame, detailsOn, walk, buildings, showroom, tier],
+    [frame, detailsOn, walk, buildings, showroom, signsOn],
   );
   useEffect(() => {
     if (!engine || !signPlan || signPlan.signs.length === 0) return;
@@ -815,7 +823,7 @@ export default function ThreeScene({
     focusPlaceId,
   ]);
   // Elmina Day and rollout residents ride the same overlay layer.
-  useResidents(engine, overlay, frame);
+  useResidents(engine, overlay, frame, { onScreen, clockRunning: running });
 
   // Scene intents to camera moves (same precedence as cesium/camera.ts).
   useEffect(() => {

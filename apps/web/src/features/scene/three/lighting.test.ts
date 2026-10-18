@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { blendPresets, fitShadowCamera, keyLightDir, LIGHT_PRESETS } from "./lighting";
+import { BLOOM, blendPresets, fitShadowCamera, keyLightDir, LIGHT_PRESETS } from "./lighting";
 
 describe("LIGHT_PRESETS", () => {
   it("orders sun intensity night < dusk < day", () => {
@@ -9,6 +9,24 @@ describe("LIGHT_PRESETS", () => {
   it("keeps ambient (hemi + IBL) low so lit surfaces stay under the bloom threshold", () => {
     for (const p of Object.values(LIGHT_PRESETS))
       expect(p.hemiIntensity + p.envIntensity).toBeLessThanOrEqual(1);
+  });
+  // Haze regression (final fix A): at noon the real sun is near the zenith and a pale lit surface
+  // reaches ~1.4 linear luminance (sun 3/pi + hemi 0.5/pi + IBL 0.35), far over the 0.85 bloom
+  // threshold, so the whole day scene bloomed into a cream wash. Morning checks (sun ~20 degrees)
+  // never saw it. Bloom is for lit windows and lamps: it is off by day.
+  it("blooms only where a sunlit white surface stays under the threshold (no day wash at noon)", () => {
+    const maxElevationDeg = { day: 90, dusk: 8, night: 40 } as const;
+    for (const [theme, p] of Object.entries(LIGHT_PRESETS)) {
+      const el = (maxElevationDeg[theme as keyof typeof maxElevationDeg] * Math.PI) / 180;
+      // Upper bound for a white Lambert surface in three.js units; the room IBL irradiance is <= 1.
+      const white =
+        p.exposure *
+        ((p.sunIntensity * Math.sin(el)) / Math.PI + p.hemiIntensity / Math.PI + p.envIntensity);
+      if (p.bloom > 0) expect(white, theme).toBeLessThan(BLOOM.threshold);
+    }
+    expect(LIGHT_PRESETS.day.bloom).toBe(0);
+    expect(LIGHT_PRESETS.dusk.bloom).toBeGreaterThan(0);
+    expect(LIGHT_PRESETS.night.bloom).toBeGreaterThan(0);
   });
   it("lights windows only at dusk and night", () => {
     expect(LIGHT_PRESETS.day.windowEmissive).toBe(0);
@@ -54,5 +72,9 @@ describe("blendPresets", () => {
           const p = blendPresets(a, b, k);
           expect(p.hemiIntensity + p.envIntensity).toBeLessThanOrEqual(1);
         }
+  });
+  it("fades bloom in continuously from day to night", () => {
+    const p = blendPresets(LIGHT_PRESETS.day, LIGHT_PRESETS.night, 0.5);
+    expect(p.bloom).toBeCloseTo(LIGHT_PRESETS.night.bloom / 2, 6);
   });
 });
