@@ -46,7 +46,7 @@ describe("TicketsPage", () => {
     await screen.findByRole("heading", { name: "Gaps to close" });
     const scroller = container.firstElementChild as HTMLElement;
     const scrollerClasses = scroller.className.split(/\s+/);
-    expect(scrollerClasses).toEqual(expect.arrayContaining(["lg:h-full", "lg:overflow-auto"]));
+    expect(scrollerClasses).toEqual(expect.arrayContaining(["lg:flex-1", "lg:overflow-auto"]));
     expect(scrollerClasses.some((c) => c.startsWith("max-w-") || c === "mx-auto")).toBe(false);
     const grid = scroller.firstElementChild as HTMLElement;
     expect(grid.className.split(/\s+/)).toEqual(

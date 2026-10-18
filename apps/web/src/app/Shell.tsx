@@ -91,7 +91,7 @@ export function Shell() {
       <main
         id="main"
         tabIndex={-1}
-        className="relative min-h-0 min-w-0 flex-1"
+        className={`relative min-h-0 min-w-0 flex-1 ${onTickets ? "flex flex-col" : ""}`}
         style={{ ["--attr-h" as string]: `${attrH}px` }}
       >
         {wide && onTickets && (

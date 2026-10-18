@@ -28,7 +28,8 @@ function RailIcon({ name, active }: { name: IconName; active: boolean }) {
   return <Icon name={name} className={`size-5 ${active ? "" : "opacity-90"}`} />;
 }
 
-/** Wide-screen navigation: logo, Map, Assistant, Tickets (Management only), theme at the bottom.
+/** Wide-screen navigation: logo, Map, Assistant, Tickets (Management, or while on Tickets), theme at
+ * the bottom.
  * Only features that exist get an item. */
 export function Rail() {
   const path = useLocation().pathname;
@@ -62,7 +63,7 @@ export function Rail() {
           <Tip>{open ? "Hide assistant" : "Show assistant"}</Tip>
         </button>
       )}
-      {mode === "management" && (
+      {(mode === "management" || onTickets) && (
         <Link
           to="/tickets"
           aria-label={`Tickets, ${tickets} open`}
