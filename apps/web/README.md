@@ -332,13 +332,44 @@ hero district.
   Caps per tile come from `tileCap` (`TILE_CAPS[tier][ring]`, ×1.6 in the hero district); seeds come
   from the tile key, so a tile's content depends only on its key, the tier and the data, never on
   visit order, the mood or Day playback.
-- **Streamer:** `createStreamer` runs on the engine's 250 ms LOD tick (`engine.onLodTick`) and plans
-  at most one tile per tick (the hitch budget). Plans are kept in an LRU of 64 (tile × ring); a tile
-  whose ring or tier changed keeps its old content until its re-plan. `warmPlanners` builds the
-  planners' layer caches in an idle callback at world load, so no tick pays their cold cost.
+- **Streamer:** `createStreamer` runs on the engine's 250 ms LOD tick (`engine.onLodTick`) and asks
+  for at most one tile per tick. Plans are kept in an LRU of 64 (tile × ring); a tile whose ring or
+  tier changed keeps its old content until its re-plan.
+- **Planning in a Worker:** `planClient.ts` posts the inputs once (`init`) to a module Worker
+  (`stream/plan.worker.ts`) and then one `plan` at a time; the result is applied on a later tick.
+  At most one plan is in flight: a newer request supersedes a waiting one (its promise rejects with
+  `Superseded`) and a stale reply is dropped. Without `Worker`, or if constructing it throws, planning
+  runs on the main thread, one tile per call. A Worker `error` switches the session to the main
+  thread and re-plans the pending tile there. Determinism is the same on both paths (the planners
+  are pure and seeded by tile key). The planners' layer caches are warmed once per input set: in the
+  Worker on `init`, and on the main thread (`warmPlanners`, idle callback) only in the fallback. The
+  sign font is warmed once per sign set (`warmSignFont`) so a cold glyph does not stall a sign
+  rebuild.
 - **Merging:** `useDecor` (kits via `setKits`, lamp pools, signs), `useMotion` (agents), `useRoads`
   (the `roads` decor slot) and `useFacades` (facades for ring ≤ 1 tiles only, no shadows) rebuild
   only when the active tiles change. The scene's `data-tiles` attribute is the active tile count.
+- **Sliced rebuilds:** when a merge or layer build exceeds 8 ms, merged layers (kits, lamps, signs,
+  roads, ground decor) are rebuilt in steps by `sliceWork` (`scene/idle.ts`), at most 8 ms of steps
+  per frame. A layer swaps in only when complete (`onDone`); a newer job replaces a pending one.
+  Facades and roofs keep their own idle task.
+- **Shaders and swaps:** before a replaced decor layer is shown, `engine.ts` runs
+  `renderer.compileAsync` against the scene pass target (the old layer stays drawn meanwhile; if it
+  throws, the layer is shown anyway and compiles on first render, with one console warning).
+  Compiled shader programs are pinned (`pinPrograms`) so a layer that disappears (beyond 1500 m) and
+  returns does not link again. Replaced layers are disposed after the next render.
+- **Measures:** User Timing `tl:stream-plan` (main-thread plan), `tl:stream-reply` (one Worker
+  reply), `tl:stream-init` (one-off `init` post), `tl:stream-merge` (only the passive-effects share
+  of a merge, so not comparable with P4), `tl:stream-slice` (one sliced frame), per-layer
+  `tl:stream-{kits,lamps,signs,roads,ground,facades,roofs,union}`, and `tl:stream-upload` (the first
+  render after a swap). `tl:worker-plan` is the Worker's own time and is not a main-thread task.
+- **Fly measurement:** `scripts/measure-fly.mjs` (a mock dev server running) flies hero-mid, probe-c,
+  probe-a, hero-mid three times at Medium and reports every `tl:*` measure. Its gate is no
+  `tl:stream-*` measure above 16 ms during the fly loops; load-time `tl:stream-init` and the cold
+  first merge are outside it (ruling P5-15). `--no-worker` A/Bs the main-thread path. Numbers are
+  indicative (one machine, GPU).
+- **Status (honest):** on the final code the 16 ms gate passed in 1 of 3 runs. The residual spikes
+  are GC pauses and unattributed time around 19-20 ms, plus facade idle builds up to 18.5 ms. Owner
+  ruling P5-19 accepted this for P5; it is logged for P6.
 - **Facades (decorative):** `useFacades` (the `facades` decor slot) lays procedural window and
   shopfront quads (`facade/facadePlan.ts`, `facade/facadeLayer.ts`; at most 5 draws) 0.05 m out
   from the walls of the extruded buildings in ring ≤ 1 tiles. Window storeys come from the displayed
