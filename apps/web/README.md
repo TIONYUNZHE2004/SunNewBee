@@ -260,7 +260,11 @@ the settings popover.
 - **Time of day:** Stylised re-lights per theme mood (palette, sky, light) in `ThreeScene`.
   Realistic uses `cesium/timeOfDay.ts`.
 - **Camera:** each renderer has its own camera rig (`three/cameraRig.ts`, `cesium/camera.ts`).
-  Switching style keeps the current camera.
+  Each style is its own renderer, so a style switch remounts it and the camera does not carry
+  over. Instead the new renderer re-frames the view on the current focus: on mount it jumps to the
+  intent standing in `sceneStore` (route, then what-if, then focused place, then the last
+  `camera.fly_to`; Realistic also frames a rehearsed trip), else to its start view (Three.js: the
+  `hero-mid` bookmark; Cesium: the site home). Ruling P5-14: no camera-pose hand-off.
 
 ### Stylised (Three.js)
 
@@ -434,8 +438,14 @@ no_archetype, `ns` no_asset (the same counts as `data-fallback`).
 **Tiers** (Auto picks from the GPU and drops one tier when frames run slow; or choose one in Map
 settings):
 
-- `PROP_CAPS[tier]` (`props/caps.ts`) caps each kit: High 6000 trees / 1500 lamps / 600 furniture /
-  300 construction / 400 people / 250 vehicles; Medium 3500 / 900 / 350 / 200 / 220 / 140.
+- Props are capped per streamed tile, not per city: `TILE_CAPS[tier][ring][kind]`
+  (`three/stream/caps.ts`), read through `tileCap`, which multiplies by `HERO_BOOST` (×1.6) when
+  the tile centre is in the hero district. Ring 0 caps (before the boost), High / Medium: trees
+  145 / 60, lamps 80 / 60, furniture 50 / 36, construction 12 / 6, people 24 / 14, vehicles
+  16 / 10, signs 60 / 40, verges 50 / 37, parking stalls 200 / 120, parked cars 24 / 20. Ring 1
+  is roughly half that (Medium ring 1 has no verges, ruling P4-Z), and ring 2 draws trees only
+  (High 60, Medium 40). Low caps everything at 0. `caps.ts` is the source of truth; its comments
+  give the triangle budget the caps are sized for.
 - `KIT_LOD_SCALE` multiplies kit LOD distances at run time (High 0.75, Medium 0.5, Low 1); archetypes
   are not scaled.
 - **Low draws no props and no agents** (no lamps, people, vehicles, birds or clouds), and no signs.
