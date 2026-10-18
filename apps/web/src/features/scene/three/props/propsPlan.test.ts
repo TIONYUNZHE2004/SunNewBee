@@ -213,4 +213,90 @@ describe("planProps", () => {
     expect(count(p, "furniture/bin")).toBe(count(p, "furniture/bench"));
     expect(count(p, "furniture/bollard")).toBe(10);
   });
+
+  it("a dense forest at the centre does not starve street, OSM or park trees", () => {
+    const p = plan({
+      tier: "medium",
+      landcover: fc(
+        poly({ class: "forest" }, -400, -400, 800, 800),
+        poly({ class: "oil_palm" }, 400, -400, 400, 800),
+      ),
+      walk: fc(
+        line("street", [
+          [-1000, 500],
+          [1000, 500],
+        ]),
+      ),
+      trees: fc(point({ id: "o1" }, 700, 700), point({ id: "o2" }, 710, 700)),
+      parks: fc(poly({ id: "pk" }, 500, 600, 200, 200)),
+    });
+    const trees = ofAsset(p, "trees");
+    expect(trees).toHaveLength(capFor("medium", "trees"));
+    const near = (t: { id: string }, pre: string) => t.id.startsWith(pre);
+    expect(trees.filter((t) => near(t, "st:")).length).toBeGreaterThan(5);
+    expect(trees.filter((t) => near(t, "ot:"))).toHaveLength(2);
+    expect(trees.filter((t) => near(t, "pk:")).length).toBeGreaterThan(2);
+    expect(trees.filter((t) => near(t, "fo:")).length).toBeGreaterThan(2);
+  });
+
+  it("avoids a long road segment whose midpoint is outside the radius", () => {
+    // 6 m street from x=-1800..2400 at z=1100: midpoint (300,1100) is 1140 m out, inside+200,
+    // so use a far midpoint instead: x=-3000..4200 puts the midpoint at 600 m east, z=1190.
+    const p = plan({
+      radiusM: 1200,
+      walk: fc(
+        line("footway", [
+          [-4000, 1190],
+          [4000, 1190],
+        ]),
+        line("street", [
+          [-4000, 0],
+          [-3999, 0],
+        ]),
+      ),
+      landcover: fc(poly({ class: "forest" }, -800, 1150, 1600, 100)),
+    });
+    const trees = ofAsset(p, "trees");
+    expect(trees.length).toBeGreaterThan(20);
+    // the footway ribbon (2.5 m wide) at z=1190 must stay clear
+    for (const t of trees) expect(Math.abs(t.z - 1190)).toBeGreaterThanOrEqual(1.25);
+  });
+
+  it("samples a polygon listed as both a park and grass once", () => {
+    const land = fc(poly({ class: "grass" }, 40, 40, 150, 150));
+    const once = plan({ landcover: land });
+    const twice = plan({ landcover: land, parks: fc(poly({ id: "p" }, 40, 40, 150, 150)) });
+    expect(ofAsset(twice, "trees").length).toBe(ofAsset(once, "trees").length);
+  });
+
+  it("gives every construction site its cabin before any site gets extra machines", () => {
+    const p = plan({
+      tier: "medium",
+      landcover: fc(
+        poly({ class: "construction" }, 100, 100, 95, 95),
+        poly({ class: "construction" }, -300, 100, 95, 95),
+        poly({ class: "construction" }, 500, 500, 95, 95),
+      ),
+    });
+    const all6 = ofAsset(p, "construction");
+    expect(all6.length).toBeLessThanOrEqual(capFor("medium", "construction"));
+    expect(count(p, "construction/site_cabin")).toBe(3);
+    const at = (x0: number, z0: number) =>
+      all6.filter((q) => q.x >= x0 - 2 && q.x <= x0 + 97 && q.z >= z0 - 2 && q.z <= z0 + 97);
+    for (const [x0, z0] of [
+      [100, 100],
+      [-300, 100],
+      [500, 500],
+    ] as const)
+      expect(at(x0, z0).length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("rings the entrances of a mall with bollards", () => {
+    const p = plan({
+      places: fc(
+        point({ id: "ml", type: "mall", name: "m", entrance_ids: ["e1", "e2", "e3"] }, 50, 50),
+      ),
+    });
+    expect(count(p, "furniture/bollard")).toBe(15);
+  });
 });

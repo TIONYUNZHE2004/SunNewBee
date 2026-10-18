@@ -109,6 +109,41 @@ function inRing(x: number, z: number, ring: Ring): boolean {
 const inPoly = (x: number, z: number, p: Poly): boolean =>
   inRing(x, z, p[0]!) && !p.slice(1).some((h) => inRing(x, z, h));
 
+/** A ring with its edges bucketed by z slab, so a point test only walks the edges at its own z. */
+interface SlabRing {
+  z0: number;
+  dz: number;
+  ring: Ring;
+  slabs: number[][];
+}
+function slabRing(ring: Ring): SlabRing {
+  const b = bboxOf(ring);
+  const n = Math.min(256, Math.max(1, Math.floor(ring.length / 6)));
+  const dz = (b[3] - b[1]) / n || 1;
+  const slabs: number[][] = Array.from({ length: n }, () => []);
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const zi = ring[i]![1];
+    const zj = ring[j]![1];
+    const lo = Math.max(0, Math.min(n - 1, Math.floor((Math.min(zi, zj) - b[1]) / dz)));
+    const hi = Math.max(0, Math.min(n - 1, Math.floor((Math.max(zi, zj) - b[1]) / dz)));
+    for (let k = lo; k <= hi; k++) slabs[k]!.push(i);
+  }
+  return { z0: b[1], dz, ring, slabs };
+}
+function inSlabRing(x: number, z: number, sr: SlabRing): boolean {
+  const n = sr.slabs.length;
+  const idx = Math.max(0, Math.min(n - 1, Math.floor((z - sr.z0) / sr.dz)));
+  const ring = sr.ring;
+  let inside = false;
+  for (const i of sr.slabs[idx]!) {
+    const j = i === 0 ? ring.length - 1 : i - 1;
+    const [xi, zi] = ring[i]!;
+    const [xj, zj] = ring[j]!;
+    if (zi > z !== zj > z && x < ((xj - xi) * (z - zi)) / (zj - zi) + xi) inside = !inside;
+  }
+  return inside;
+}
+
 function distSeg(px: number, pz: number, a: P, b: P): number {
   const dx = b[0] - a[0];
   const dz = b[1] - a[1];
@@ -178,7 +213,37 @@ interface Cand {
   z: number;
   yaw: number;
   d: number;
+  /** Tree source (stratified caps). */
+  src?: TreeSource;
+  /** Construction: lower ranks survive a tight cap first, then nearer sites first (`sd`). */
+  rank?: number;
+  sd?: number;
 }
+
+type TreeSource = "osm" | "street" | "median" | "park" | "forest" | "oil";
+/**
+ * Share of the tree cap each source may take first (nearest-first within a source). Street and
+ * OSM trees read best at hero-near/mid, so they get the most; whatever a source cannot use (too few
+ * candidates) is redistributed to the others by the same shares.
+ */
+export const TREE_SHARES: Record<TreeSource, number> = {
+  street: 0.35,
+  osm: 0.25,
+  park: 0.15,
+  forest: 0.12,
+  oil: 0.08,
+  median: 0.05,
+};
+const PARK_SPECIES: [string, number][] = [
+  ["rain_tree", 0.45],
+  ["flame_tree", 0.3],
+  ["shrub_round", 0.25],
+];
+const STREET_SPECIES: [string, number][] = [
+  ["rain_tree", 0.5],
+  ["frangipani", 0.3],
+  ["royal_palm", 0.2],
+];
 
 export function planProps(input: PropsInput): PropsPlan {
   const { frame, tier, m, radiusM } = input;
@@ -223,10 +288,10 @@ export function planProps(input: PropsInput): PropsPlan {
     for (let i = 0; i < r.pts.length - 1; i++) {
       const a = r.pts[i]!;
       const b = r.pts[i + 1]!;
-      const mx = (a[0] + b[0]) / 2;
-      const mz = (a[1] + b[1]) / 2;
-      if (dist(mx, mz) > radiusM + 200) continue;
       const half = r.width / 2;
+      // By the segment's distance to the centre, not its midpoint: a long segment crossing the
+      // radius must still be avoided.
+      if (distSeg(cx, cz, a, b) > radiusM + half + 1) continue;
       const idx = segs.push({ a, b, half }) - 1;
       roadGrid.add(
         idx,
@@ -304,11 +369,17 @@ export function planProps(input: PropsInput): PropsPlan {
     x: number,
     z: number,
     yaw?: number,
-    opts: { ribbon?: boolean; building?: boolean } = {},
-  ) => {
-    if (!inside(x, z)) return;
-    if (opts.building !== false && nearBuilding(x, z)) return;
-    if (opts.ribbon !== false && onRibbon(x, z)) return;
+    opts: {
+      ribbon?: boolean;
+      building?: boolean;
+      src?: TreeSource;
+      rank?: number;
+      sd?: number;
+    } = {},
+  ): boolean => {
+    if (!inside(x, z)) return false;
+    if (opts.building !== false && nearBuilding(x, z)) return false;
+    if (opts.ribbon !== false && onRibbon(x, z)) return false;
     cands[kind].push({
       key,
       id,
@@ -316,7 +387,11 @@ export function planProps(input: PropsInput): PropsPlan {
       z,
       yaw: yaw ?? hash01(id, "yaw") * Math.PI * 2,
       d: dist(x, z),
+      src: opts.src,
+      rank: opts.rank,
+      sd: opts.sd,
     });
+    return true;
   };
 
   /** Points every `step` metres along a polyline, inclusive of the start, with unit tangent. */
@@ -333,7 +408,10 @@ export function planProps(input: PropsInput): PropsPlan {
       const tz = (b[1] - a[1]) / l;
       while (next <= walked + l + 1e-9) {
         const t = next - walked;
-        out.push({ x: a[0] + tx * t, z: a[1] + tz * t, tx, tz, s: next });
+        const x = a[0] + tx * t;
+        const z = a[1] + tz * t;
+        // Points well outside the radius can never be placed: skip them before any id is built.
+        if (dist(x, z) <= radiusM + 20) out.push({ x, z, tx, tz, s: next });
         next += step;
       }
       walked += l;
@@ -349,14 +427,15 @@ export function planProps(input: PropsInput): PropsPlan {
     }
     return opts[opts.length - 1]![0];
   };
-  const tree = (id: string, x: number, z: number, v: string) =>
-    push("trees", `trees/${v}`, id, x, z);
+  const tree = (id: string, x: number, z: number, v: string, src: TreeSource): boolean =>
+    push("trees", `trees/${v}`, id, x, z, undefined, { src });
 
   // Street trees, lamps and median palms.
   for (const r of roads) {
     const kindStreet = r.kind === "residential";
     const major = r.type === "major_road";
     if (!kindStreet && !major) continue;
+    if (!overlapsClip(bboxOf(r.pts))) continue;
     if (kindStreet) {
       const off = r.width / 2 + STREET_TREE_EXTRA;
       for (const p of along(r.pts, STREET_TREE_SPACING)) {
@@ -364,16 +443,7 @@ export function planProps(input: PropsInput): PropsPlan {
           const id = `st:${r.id}:${side}:${p.s.toFixed(1)}`;
           const x = p.x + p.tz * off * side;
           const z = p.z - p.tx * off * side;
-          tree(
-            id,
-            x,
-            z,
-            pick(id, "species", [
-              ["rain_tree", 0.5],
-              ["frangipani", 0.3],
-              ["royal_palm", 0.2],
-            ]),
-          );
+          tree(id, x, z, pick(id, "species", STREET_SPECIES), "street");
         }
       }
       const lampOff = r.width / 2 + 0.8;
@@ -388,7 +458,10 @@ export function planProps(input: PropsInput): PropsPlan {
     } else {
       for (const p of along(r.pts, MEDIAN_TREE_SPACING)) {
         const id = `mt:${r.id}:${p.s.toFixed(1)}`;
-        push("trees", "trees/royal_palm", id, p.x, p.z, undefined, { ribbon: false });
+        push("trees", "trees/royal_palm", id, p.x, p.z, undefined, {
+          ribbon: false,
+          src: "median",
+        });
       }
       for (const p of along(r.pts, MEDIAN_LAMP_SPACING, MEDIAN_LAMP_SPACING / 2)) {
         const yaw = Math.atan2(p.tx, -p.tz);
@@ -407,87 +480,139 @@ export function planProps(input: PropsInput): PropsPlan {
     if (!Number.isFinite(lon) || !Number.isFinite(lat)) return;
     const id = `ot:${String(propsOf(f).id ?? f.id ?? i)}`;
     const [x, z] = frame.toLocal(lon!, lat!);
-    tree(id, x, z, hash01(id, "species") < 0.7 ? "rain_tree" : "flame_tree");
+    tree(id, x, z, hash01(id, "species") < 0.7 ? "rain_tree" : "flame_tree", "osm");
   });
 
-  /** Seeded grid-jitter samples (cell = spacing / sqrt 2, one candidate per cell) inside a polygon. */
-  const sample = (
-    poly: Poly,
-    spacing: number,
-    tag: string,
-    fn: (id: string, x: number, z: number) => void,
-  ) => {
-    const b = bboxOf(poly[0]!);
-    if (!overlapsClip(b)) return;
-    const cell = spacing / Math.SQRT2;
-    const x0 = Math.max(b[0], clipBox[0]);
-    const x1 = Math.min(b[2], clipBox[2]);
-    const z0 = Math.max(b[1], clipBox[1]);
-    const z1 = Math.min(b[3], clipBox[3]);
-    for (let i = Math.floor(x0 / cell); i <= Math.floor(x1 / cell); i++)
-      for (let j = Math.floor(z0 / cell); j <= Math.floor(z1 / cell); j++) {
-        const id = `${tag}:${i}:${j}`;
-        const x = (i + hash01(id, "jx")) * cell;
-        const z = (j + hash01(id, "jz")) * cell;
-        if (inPoly(x, z, poly)) fn(id, x, z);
-      }
+  const parkPolys: Poly[] = featuresOf(input.parks)
+    .flatMap((f) => polygonsOf(f.geometry, frame))
+    .filter((p) => overlapsClip(bboxOf(p[0]!)));
+  const area: Record<"park" | "forest" | "oil", Poly[]> = {
+    park: [...parkPolys],
+    forest: [],
+    oil: [],
+  };
+  const constructionPolys: Poly[] = [];
+  for (const f of featuresOf(input.landcover)) {
+    const cls = propsOf(f).class;
+    for (const poly of polygonsOf(f.geometry, frame)) {
+      if (!overlapsClip(bboxOf(poly[0]!))) continue;
+      // Grass joins the park pool: one lattice over the union, so a polygon listed as both a park
+      // and grass is sampled once (no doubled density).
+      if (cls === "grass") area.park.push(poly);
+      else if (cls === "forest") area.forest.push(poly);
+      else if (cls === "oil_palm") area.oil.push(poly);
+      else if (cls === "construction") constructionPolys.push(poly);
+    }
+  }
+
+  /** Membership test over a set of polygons (bbox grid, clipped to the radius). */
+  const polyTest = (polys: Poly[]) => {
+    const g = new Grid();
+    const boxes = polys.map((p) => bboxOf(p[0]!));
+    const slabs = polys.map((p) => p.map(slabRing));
+    boxes.forEach((b, i) => {
+      g.add(
+        i,
+        Math.max(b[0], clipBox[0]),
+        Math.max(b[1], clipBox[1]),
+        Math.min(b[2], clipBox[2]),
+        Math.min(b[3], clipBox[3]),
+      );
+    });
+    const test = (x: number, z: number) =>
+      g.at(x, z).some((i) => {
+        const b = boxes[i]!;
+        if (!(x >= b[0] && x <= b[2] && z >= b[1] && z <= b[3])) return false;
+        const sp = slabs[i]!;
+        return inSlabRing(x, z, sp[0]!) && !sp.slice(1).some((h) => inSlabRing(x, z, h));
+      });
+    /** Cheap reject: no polygon box touches any grid bucket the lattice cell [x0,x1]x[z0,z1] overlaps. */
+    const maybe = (x0: number, z0: number, x1: number, z1: number) =>
+      g.at(x0, z0).length > 0 ||
+      g.at(x1, z0).length > 0 ||
+      g.at(x0, z1).length > 0 ||
+      g.at(x1, z1).length > 0;
+    return { test, maybe };
   };
 
-  const parkPolys: Poly[] = featuresOf(input.parks).flatMap((f) => polygonsOf(f.geometry, frame));
-  parkPolys.forEach((poly, pi) => {
-    sample(poly, PARK_TREE_RADIUS, `pk${pi}`, (id, x, z) =>
-      tree(
-        id,
-        x,
-        z,
-        pick(id, "species", [
-          ["rain_tree", 0.45],
-          ["flame_tree", 0.3],
-          ["shrub_round", 0.25],
-        ]),
-      ),
-    );
-  });
-
-  const constructionPolys: Poly[] = [];
-  featuresOf(input.landcover).forEach((f, fi) => {
-    const cls = propsOf(f).class;
-    for (const [pi, poly] of polygonsOf(f.geometry, frame).entries()) {
-      const tag = `lc${fi}_${pi}`;
-      if (cls === "grass")
-        sample(poly, PARK_TREE_RADIUS, tag, (id, x, z) =>
-          tree(
-            id,
-            x,
-            z,
-            pick(id, "species", [
-              ["rain_tree", 0.45],
-              ["flame_tree", 0.3],
-              ["shrub_round", 0.25],
-            ]),
-          ),
-        );
-      else if (cls === "forest")
-        sample(poly, FOREST_SPACING, tag, (id, x, z) =>
-          tree(id, x, z, hash01(id, "species") < 0.75 ? "rain_tree" : "coconut_palm"),
-        );
-      else if (cls === "oil_palm") {
-        const b = bboxOf(poly[0]!);
-        if (!overlapsClip(b)) continue;
-        const gx0 = Math.floor(Math.max(b[0], clipBox[0]) / OIL_PALM_SPACING);
-        const gx1 = Math.floor(Math.min(b[2], clipBox[2]) / OIL_PALM_SPACING);
-        const gz0 = Math.floor(Math.max(b[1], clipBox[1]) / OIL_PALM_SPACING);
-        const gz1 = Math.floor(Math.min(b[3], clipBox[3]) / OIL_PALM_SPACING);
-        for (let i = gx0; i <= gx1; i++)
-          for (let j = gz0; j <= gz1; j++) {
-            const id = `${tag}:${i}:${j}`;
-            const x = (i + 0.5) * OIL_PALM_SPACING + (hash01(id, "jx") - 0.5) * 0.6;
-            const z = (j + 0.5) * OIL_PALM_SPACING + (hash01(id, "jz") - 0.5) * 0.6;
-            if (inPoly(x, z, poly)) tree(id, x, z, "oil_palm");
-          }
-      } else if (cls === "construction") constructionPolys.push(poly);
+  /**
+   * Lattice samples (one seeded candidate per cell) inside `polys`, generated nearest-first in
+   * square rings around the centre and stopped once `limit` were accepted, so the cost follows the
+   * cap and not the polygon area.
+   */
+  const lattice = (
+    polys: Poly[],
+    cell: number,
+    tag: string,
+    at: (id: string, i: number, j: number) => [number, number],
+    limit: number,
+    fn: (id: string, x: number, z: number) => boolean,
+  ) => {
+    if (polys.length === 0 || limit <= 0) return;
+    const { test, maybe } = polyTest(polys);
+    const ci = Math.floor(cx / cell);
+    const cj = Math.floor(cz / cell);
+    const maxR = Math.ceil(radiusM / cell) + 1;
+    const ds: number[] = [];
+    const visit = (i: number, j: number) => {
+      if (!maybe(i * cell, j * cell, (i + 1) * cell, (j + 1) * cell)) return;
+      const id = `${tag}:${i}:${j}`;
+      const [x, z] = at(id, i, j);
+      if (inside(x, z) && test(x, z) && fn(id, x, z)) ds.push(dist(x, z));
+    };
+    // Unseen cells lie beyond (r - 1) cells, so stop once the limit-th nearest accepted is inside that.
+    const done = (r: number) =>
+      ds.length >= limit && ds.sort((a, b) => a - b)[limit - 1]! <= (r - 1) * cell;
+    // Start at the nearest polygon box: rings inside that distance hold no polygon.
+    let near = Number.POSITIVE_INFINITY;
+    for (const p of polys) {
+      const b = bboxOf(p[0]!);
+      near = Math.min(
+        near,
+        Math.hypot(Math.max(b[0] - cx, 0, cx - b[2]), Math.max(b[1] - cz, 0, cz - b[3])),
+      );
     }
-  });
+    const r0 = Math.max(0, Math.floor(near / cell) - 2);
+    for (let r = r0; r <= maxR && !done(r - 1); r++) {
+      if (r === 0) visit(ci, cj);
+      else {
+        for (let k = -r; k <= r; k++) {
+          visit(ci + k, cj - r);
+          visit(ci + k, cj + r);
+        }
+        for (let k = -r + 1; k <= r - 1; k++) {
+          visit(ci - r, cj + k);
+          visit(ci + r, cj + k);
+        }
+      }
+    }
+  };
+  const treeCap = capFor(tier, "trees");
+  const jitterAt =
+    (cell: number) =>
+    (id: string, i: number, j: number): [number, number] => [
+      (i + hash01(id, "jx")) * cell,
+      (j + hash01(id, "jz")) * cell,
+    ];
+  const parkCell = PARK_TREE_RADIUS / Math.SQRT2;
+  lattice(area.park, parkCell, "pk", jitterAt(parkCell), treeCap, (id, x, z) =>
+    tree(id, x, z, pick(id, "species", PARK_SPECIES), "park"),
+  );
+  const forestCell = FOREST_SPACING / Math.SQRT2;
+  lattice(area.forest, forestCell, "fo", jitterAt(forestCell), treeCap, (id, x, z) =>
+    tree(id, x, z, hash01(id, "species") < 0.75 ? "rain_tree" : "coconut_palm", "forest"),
+  );
+  lattice(
+    area.oil,
+    OIL_PALM_SPACING,
+    "op",
+    (id, i, j): [number, number] => [
+      (i + 0.5) * OIL_PALM_SPACING + (hash01(id, "jx") - 0.5) * 0.6,
+      (j + 0.5) * OIL_PALM_SPACING + (hash01(id, "jz") - 0.5) * 0.6,
+    ],
+    treeCap,
+    (id, x, z) => tree(id, x, z, "oil_palm", "oil"),
+  );
 
   // Park edge and place furniture: bench and bin pairs, bus shelters, entrance bollards.
   const pair = (id: string, x: number, z: number, yaw: number, building = true) => {
@@ -555,7 +680,11 @@ export function planProps(input: PropsInput): PropsPlan {
     const area = areaOf(ring) - poly.slice(1).reduce((s, h) => s + areaOf(h), 0);
     // Hoardings: every 6 m along the boundary, midpoint of each span, facing outward.
     const closed = [...ring, ring[0]!];
-    along(closed, HOARDING_M, HOARDING_M / 2).forEach((p, i) => {
+    // Per-site quota under a tight cap, nearest site first (`sd`): rank 0 cabin, 1 two hoardings,
+    // 2 crane, 3 excavator, 4 stacks, 5 the remaining hoardings.
+    const sd = dist((b[0] + b[2]) / 2, (b[1] + b[3]) / 2);
+    const hoardings = along(closed, HOARDING_M, HOARDING_M / 2);
+    hoardings.forEach((p, i) => {
       const n: P = [p.tz, -p.tx];
       const outward = inPoly(p.x + n[0] * 0.5, p.z + n[1] * 0.5, poly) ? -1 : 1;
       push(
@@ -568,6 +697,8 @@ export function planProps(input: PropsInput): PropsPlan {
         {
           ribbon: false,
           building: false,
+          rank: i === 0 || i === Math.floor(hoardings.length / 2) ? 1 : 5,
+          sd,
         },
       );
     });
@@ -590,74 +721,118 @@ export function planProps(input: PropsInput): PropsPlan {
       }
       return null;
     };
-    const place = (key: string, tag: string, minR: number, gap: number) => {
+    const place = (key: string, tag: string, minR: number, gap: number, rank: number) => {
       const s = take(minR, gap);
       if (s)
         push("construction", key, `${tag}${ci}`, s.x, s.z, undefined, {
           ribbon: false,
           building: false,
+          rank,
+          sd,
         });
     };
-    if (area > CRANE_MIN_M2) place("construction/tower_crane", "tc", 0, 0);
-    place("construction/site_cabin", "sc", 2, 8);
-    place("construction/material_stack", "ms0_", 2, 6);
-    place("construction/material_stack", "ms1_", 2, 6);
-    if (area > EXCAVATOR_MIN_M2) place("construction/excavator", "ex", 3, 8);
+    if (area > CRANE_MIN_M2) place("construction/tower_crane", "tc", 0, 0, 2);
+    place("construction/site_cabin", "sc", 2, 8, 0);
+    place("construction/material_stack", "ms0_", 2, 6, 4);
+    place("construction/material_stack", "ms1_", 2, 6, 4);
+    if (area > EXCAVATOR_MIN_M2) place("construction/excavator", "ex", 3, 8, 3);
   });
 
-  // Apply caps nearest-to-centre first. Trees also keep a minimum gap, so jittered cells never stack.
-  const byDist = (a: Cand, b: Cand) => a.d - b.d || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+  // Caps. Trees are stratified by source (TREE_SHARES) with a minimum gap, so one dense patch cannot
+  // starve the rest; construction ranks by per-site quota; everything else is nearest-first.
+  const cmp = (a: Cand, b: Cand) =>
+    (a.rank ?? 0) - (b.rank ?? 0) ||
+    (a.sd ?? a.d) - (b.sd ?? b.d) ||
+    a.d - b.d ||
+    (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+  const add = (c: Cand) => {
+    const slash = c.key.indexOf("/");
+    const asset = c.key.slice(0, slash);
+    const variant = c.key.slice(slash + 1);
+    const spec = m.assets[asset];
+    if (!spec?.variants[variant]) return false;
+    const s = jitterFor(spec, c.id).scale;
+    const pl: Placement = {
+      id: c.id,
+      asset,
+      variant,
+      x: c.x,
+      z: c.z,
+      yaw: c.yaw,
+      sx: s,
+      sy: s,
+      sz: s,
+      palette: paletteFor(spec, "default", c.id),
+    };
+    const l = plan.kits.get(c.key);
+    if (l) l.push(pl);
+    else plan.kits.set(c.key, [pl]);
+    return true;
+  };
   const emit = (kind: PropKind, list: Cand[]) => {
     const cap = capFor(tier, kind);
-    // Under a tight cap a site keeps its crane, cabin, stacks and excavator before its hoardings.
-    const rank = (c: Cand) => (c.key === "construction/hoarding_6m" ? 1 : 0);
-    list.sort((p, q) => rank(p) - rank(q) || byDist(p, q));
-    const gap = kind === "trees" ? new Map<string, P[]>() : null;
+    list.sort(cmp);
     let n = 0;
     for (const c of list) {
       if (n >= cap) break;
-      if (gap) {
-        const k = `${Math.floor(c.x / TREE_MIN_GAP_M)},${Math.floor(c.z / TREE_MIN_GAP_M)}`;
-        let clash = false;
-        for (let i = -1; i <= 1 && !clash; i++)
-          for (let j = -1; j <= 1 && !clash; j++) {
-            const near = gap.get(
-              `${Math.floor(c.x / TREE_MIN_GAP_M) + i},${Math.floor(c.z / TREE_MIN_GAP_M) + j}`,
-            );
-            if (near?.some((q) => Math.hypot(q[0] - c.x, q[1] - c.z) < TREE_MIN_GAP_M))
-              clash = true;
-          }
-        if (clash) continue;
-        const l = gap.get(k);
-        if (l) l.push([c.x, c.z]);
-        else gap.set(k, [[c.x, c.z]]);
-      }
-      const slash = c.key.indexOf("/");
-      const asset = c.key.slice(0, slash);
-      const variant = c.key.slice(slash + 1);
-      const spec = m.assets[asset];
-      if (!spec?.variants[variant]) continue;
-      const s = jitterFor(spec, c.id).scale;
-      const pl: Placement = {
-        id: c.id,
-        asset,
-        variant,
-        x: c.x,
-        z: c.z,
-        yaw: c.yaw,
-        sx: s,
-        sy: s,
-        sz: s,
-        palette: paletteFor(spec, "default", c.id),
-      };
-      const l = plan.kits.get(c.key);
-      if (l) l.push(pl);
-      else plan.kits.set(c.key, [pl]);
-      n++;
+      if (add(c)) n++;
     }
     plan.stats[kind] = n;
   };
-  emit("trees", cands.trees);
+
+  const emitTrees = () => {
+    const cap = capFor(tier, "trees");
+    const bySrc = new Map<TreeSource, Cand[]>();
+    for (const c of cands.trees) {
+      const k = c.src ?? "street";
+      const l = bySrc.get(k);
+      if (l) l.push(c);
+      else bySrc.set(k, [c]);
+    }
+    for (const l of bySrc.values()) l.sort(cmp);
+    const ptr = new Map<TreeSource, number>();
+    const taken = new Map<string, P[]>();
+    const clash = (c: Cand) => {
+      for (let i = -1; i <= 1; i++)
+        for (let j = -1; j <= 1; j++) {
+          const near = taken.get(
+            `${Math.floor(c.x / TREE_MIN_GAP_M) + i},${Math.floor(c.z / TREE_MIN_GAP_M) + j}`,
+          );
+          if (near?.some((q) => Math.hypot(q[0] - c.x, q[1] - c.z) < TREE_MIN_GAP_M)) return true;
+        }
+      return false;
+    };
+    const stat: Record<string, number> = {};
+    let n = 0;
+    while (n < cap) {
+      const active = [...bySrc].filter(([k, l]) => (ptr.get(k) ?? 0) < l.length);
+      if (active.length === 0) break;
+      const share = active.reduce((a, [k]) => a + TREE_SHARES[k], 0);
+      const left = cap - n;
+      let progressed = false;
+      for (const [k, l] of active) {
+        let quota = Math.max(1, Math.round((left * TREE_SHARES[k]) / share));
+        let p = ptr.get(k) ?? 0;
+        while (quota > 0 && p < l.length && n < cap) {
+          const c = l[p++]!;
+          if (clash(c) || !add(c)) continue;
+          const key = `${Math.floor(c.x / TREE_MIN_GAP_M)},${Math.floor(c.z / TREE_MIN_GAP_M)}`;
+          const t = taken.get(key);
+          if (t) t.push([c.x, c.z]);
+          else taken.set(key, [[c.x, c.z]]);
+          quota--;
+          n++;
+          stat[k] = (stat[k] ?? 0) + 1;
+          progressed = true;
+        }
+        ptr.set(k, p);
+      }
+      if (!progressed && active.every(([k, l]) => (ptr.get(k) ?? 0) >= l.length)) break;
+    }
+    plan.stats.trees = n;
+    for (const [k, v] of Object.entries(stat)) plan.stats[`trees.${k}`] = v;
+  };
+  emitTrees();
   emit("lamps", cands.lamps);
   emit("furniture", cands.furniture);
   emit("construction", cands.construction);
