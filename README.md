@@ -10,6 +10,10 @@ BOARD.md         index of every task and its status; only the control session ed
 tasks/T-NNN-<slug>.md   one file per task: header, goal, acceptance, log
 ```
 
+## Talking to Yunzhe
+
+Every reply and log entry follows "How to talk to Yunzhe" in `docs/05-team/yunzhe-branch-workflow.md`: answer first, short, about 70% ASD-STE100, one recommended option with its reason, label what is not verified.
+
 ## Who writes what
 
 | File or part | Who edits it |
