@@ -1,7 +1,13 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { expect, test } from "@playwright/test";
-import { ACCEPTANCE_BOOKMARKS, BOOKMARK_NAMES, gotoBookmark, HOOK } from "./support/bookmarks";
+import {
+  ACCEPTANCE_BOOKMARKS,
+  BOOKMARK_NAMES,
+  type BookmarkName,
+  gotoBookmark,
+  HOOK,
+} from "./support/bookmarks";
 import { captureFrameStats } from "./support/frames";
 import { countColour, fractionBelow, laplacianVariance, lumaHistogram } from "./support/pixels";
 import { decodePng, maskOf, pickGrid } from "./support/scene";
@@ -29,7 +35,8 @@ test("baseline: five bookmarks, screenshots and metrics", async ({ page, browser
   });
 
   const metrics: Record<string, unknown> = {};
-  for (const name of BOOKMARK_NAMES) {
+  const reloads: string[] = [];
+  const capture = async (name: BookmarkName) => {
     const t0 = Date.now();
     const b = await gotoBookmark(page, name);
     const tSettled = Date.now();
@@ -78,6 +85,17 @@ test("baseline: five bookmarks, screenshots and metrics", async ({ page, browser
       orbit: fps,
       timingsMs: { settle: tSettled - t0, pickGrid: tPicked - tPick },
     };
+  };
+  for (const name of BOOKMARK_NAMES) {
+    try {
+      await capture(name);
+    } catch (err) {
+      // A dev-server reload (HMR after a file change in the worktree) destroys the page context:
+      // retry the bookmark once, which reopens the scene.
+      if (!String(err).includes("Execution context was destroyed")) throw err;
+      reloads.push(name);
+      await capture(name);
+    }
   }
 
   writeFileSync(
@@ -91,6 +109,7 @@ test("baseline: five bookmarks, screenshots and metrics", async ({ page, browser
         viewport: { width: 1440, height: 900, deviceScaleFactor: 1 },
         bookmarks: ACCEPTANCE_BOOKMARKS,
         consoleErrors,
+        reloads,
         metrics,
       },
       null,
