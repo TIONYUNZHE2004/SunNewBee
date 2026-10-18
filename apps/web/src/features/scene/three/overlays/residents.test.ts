@@ -164,20 +164,34 @@ describe("legibility at range", () => {
     expect(scaleAt(fill(r.group), 0)).toBeCloseTo(1, 5);
   });
 
-  it("the outline is 1 px thick at any range, dark, and the colours are unchanged", () => {
-    const r = place(3000);
-    r.setViewport(900, VFOV_DEG);
-    const f = fill(r.group);
-    const o = r.group.getObjectByName("residents-outline") as THREE.InstancedMesh;
-    const radius = (m: THREE.InstancedMesh) => {
-      const mat = new THREE.Matrix4();
-      m.getMatrixAt(0, mat);
-      return (new THREE.Vector3().setFromMatrixScale(mat).x * RESIDENT_WIDTH_M) / 2;
-    };
-    const mpp = (2 * 3000 * Math.tan((VFOV_DEG * Math.PI) / 360)) / 900;
-    expect(radius(o) - radius(f)).toBeCloseTo(mpp, 5);
-    expect((o.material as THREE.MeshBasicMaterial).color.getHex()).toBe(0x000000);
-    expect(colourAt(f, 0)).toBe(new THREE.Color(DAY_STYLE.walk.color).getHex());
+  it("the outline is 1 px thick in projected width and height, dark, colours unchanged", () => {
+    for (const d of [300, 3000]) {
+      const r = place(d);
+      const f = fill(r.group);
+      const o = r.group.getObjectByName("residents-outline") as THREE.InstancedMesh;
+      const extent = (m: THREE.InstancedMesh) => {
+        camera.position.set(0, RESIDENT_HEIGHT_M / 2, d);
+        camera.lookAt(0, RESIDENT_HEIGHT_M / 2, 0);
+        camera.updateMatrixWorld(true);
+        camera.updateProjectionMatrix();
+        const box = new THREE.Box3();
+        const mat = new THREE.Matrix4();
+        m.getMatrixAt(0, mat);
+        box.copy(
+          m.geometry.boundingBox ?? (m.geometry.computeBoundingBox(), m.geometry.boundingBox!),
+        );
+        box.applyMatrix4(mat);
+        const lo = box.min.clone().setZ(0).project(camera);
+        const hi = box.max.clone().setZ(0).project(camera);
+        return [((hi.x - lo.x) / 2) * 1440, ((hi.y - lo.y) / 2) * 900] as [number, number];
+      };
+      const [fw, fh] = extent(f);
+      const [ow, oh] = extent(o);
+      expect((ow - fw) / 2, `${d} m width`).toBeCloseTo(1, 1);
+      expect((oh - fh) / 2, `${d} m height`).toBeCloseTo(1, 1);
+      expect((o.material as THREE.MeshBasicMaterial).color.getHex()).toBe(0x000000);
+      expect(colourAt(f, 0)).toBe(new THREE.Color(DAY_STYLE.walk.color).getHex());
+    }
   });
 
   it("stays in the overlay pass and pickable", () => {
