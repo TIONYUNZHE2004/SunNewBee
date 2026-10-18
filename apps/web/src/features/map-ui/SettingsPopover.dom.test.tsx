@@ -86,6 +86,7 @@ describe("SettingsPopover", () => {
   });
   it("lists the legend with all six statuses incl. Suggested route", async () => {
     useSceneSettings.setState({ pathStatus: true });
+    useScene.getState().setScenario("stage_p1m");
     renderWithClient(<SettingsPopover />, seeded());
     await userEvent.click(screen.getByRole("button", { name: "Map settings" }));
     const legend = screen.getByRole("list", { name: "Path status legend" });
