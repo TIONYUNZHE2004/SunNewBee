@@ -2,7 +2,7 @@
 
 > Only the control session edits this file. Workers report in their task's `## Log`. Rules: [README.md](README.md).
 
-Last updated: 2026-10-18 10:12 UTC by control (claude/sweet-davinci-29v7ne)
+Last updated: 2026-10-18 14:59 UTC by control (claude/sweet-davinci-29v7ne)
 
 ## Scope B+ (Yunzhe, 17-18 Oct 2026)
 
@@ -27,6 +27,9 @@ The resident assistant covers **access** (routes, places, amenities, closures, t
 | [T-015](tasks/T-015-answer-key-refresh.md) | Refresh the answer key for the new seed and fix scorer false positives | assigned | P1 | Local AI engineer |
 | [T-016](tasks/T-016-backend-audit.md) | Backend engineer: ranked audit of routing, places, flood and data | assigned | P1 | Local backend engineer |
 | [T-017](tasks/T-017-ai-audit.md) | AI engineer: ranked audit of answers with a small live budget | assigned | P1 | Local AI engineer |
+| [T-018](tasks/T-018-path-map-audit.md) | Audit paths and roads on the map: missing paths, wrong types, misleading colours | assigned | P1 | Local backend engineer |
+| [T-019](tasks/T-019-answer-path-wording.md) | Audit route answers against the path data; fix overclaiming wording | assigned | P1 | Local AI engineer |
+
 
 ## Who does what
 
