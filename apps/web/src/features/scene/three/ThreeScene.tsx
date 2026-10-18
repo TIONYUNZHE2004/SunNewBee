@@ -1,4 +1,4 @@
-import { useMemo, useRef } from "react";
+import { useCallback, useMemo, useRef } from "react";
 import { useBuildings, useLayer, useSite } from "../../../lib/api";
 import { InSlot } from "../../map-ui/mapSlots";
 import { CameraControls, handleMapKey } from "../cesium/controls/CameraControls";
@@ -18,6 +18,7 @@ import { useDecor } from "./scene/useDecor";
 import { useEngine } from "./scene/useEngine";
 import { useFacades } from "./scene/useFacades";
 import { useGround, useRoads } from "./scene/useGround";
+import { useLots } from "./scene/useLots";
 import { useMood } from "./scene/useMood";
 import { useMotion } from "./scene/useMotion";
 import { useOverlays } from "./scene/useOverlays";
@@ -149,6 +150,8 @@ export default function ThreeScene({
     accessData: access.data,
     tier,
   });
+  // Parked-car share follows the mood at plan time (Task 10); stable, so it never re-keys the stream.
+  const night = useCallback(() => bus.getState().mood.night, [bus]);
   // Township streaming: the 250 m tiles around the camera target feed every decorative layer.
   const { active, centre, mergeStart } = useStream({
     engine,
@@ -161,8 +164,10 @@ export default function ThreeScene({
     showroom,
     facadeSrc: city.facadeSrc,
     roofSrc: city.roofSrc,
+    night,
   });
   const { roads } = useRoads({ engine, active, tier });
+  const { lotsOn } = useLots({ engine, active, tier });
   const { facadesOn } = useFacades({
     engine,
     active,
@@ -212,6 +217,7 @@ export default function ThreeScene({
     city.decorAssets ||
     facadesOn ||
     roofsOn ||
+    lotsOn ||
     kits.size > 0 ||
     agents.length > 0 ||
     (!!engine && (roads.length > 0 || !!landcover?.getAttribute("position")?.count)) ||

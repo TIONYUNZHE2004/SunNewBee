@@ -65,6 +65,7 @@ export function useStream({
   showroom,
   facadeSrc,
   roofSrc = null,
+  night,
 }: {
   engine: Engine | null;
   frame: LocalFrame | null;
@@ -77,6 +78,8 @@ export function useStream({
   facadeSrc: FacadeBuilding[] | null;
   /** Roof inputs (Task 8); null or absent: no roof dressing. */
   roofSrc?: RoofInput[] | null;
+  /** Task 10: the mood night weight, read at plan time (parked-car share); keep it stable. */
+  night?: () => number;
 }) {
   const facades = useMemo(() => (facadeSrc ? bucketFacades(facadeSrc) : null), [facadeSrc]);
   const roofs = useMemo(() => (roofSrc ? bucketRoofs(roofSrc) : null), [roofSrc]);
@@ -84,9 +87,9 @@ export function useStream({
   const inputs = useMemo<TileInputs | null>(
     () =>
       frame && detailsOn && walk && !showroom
-        ? { frame, walk, buildings, manifest, facades, roofs }
+        ? { frame, walk, buildings, manifest, facades, roofs, night }
         : null,
-    [frame, detailsOn, walk, showroom, buildings, manifest, facades, roofs],
+    [frame, detailsOn, walk, showroom, buildings, manifest, facades, roofs, night],
   );
   const inputsRef = useRef(inputs);
   inputsRef.current = inputs;

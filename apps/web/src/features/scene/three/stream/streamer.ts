@@ -4,6 +4,7 @@ import type { FacadeBuilding } from "../facade/facadeLayer";
 import type { TileRoofs } from "../facade/roofLayer";
 import type { Ribbon } from "../ground/ribbons";
 import type { Agent } from "../motion/agents";
+import type { Site } from "../props/construction";
 import type { SignPlacement } from "../signs/signPlan";
 import { activeTiles, RING2_MAX_RANGE_M, type Tile, type TileKey } from "./tiles";
 
@@ -21,6 +22,8 @@ export interface TileContent {
   verges?: { strips: Float32Array; shrubs: Placement[] }; // Task 9
   parking?: { stalls: Float32Array; cars: Placement[] }; // Task 10
   tracks?: Float32Array; // Task 10 construction tracks
+  /** Task 10: the construction sites touching this tile, tinted gravel whole (deduplicated by id). */
+  gravel?: Site[];
   /** Procedural facade inputs of the extrusions in this tile; planned for rings 0-1 only (P4-H). */
   facades?: FacadeBuilding[];
   /** Dressed roofs and podium decks of the large roofs in this tile; rings 0-1 only (Task 8). */

@@ -12,7 +12,8 @@ export type StreamKind =
   | "vehicles"
   | "signs"
   | "verges"
-  | "parking";
+  | "parking"
+  | "parked";
 
 /** Per-tile instance multiplier inside the hero district (its tiles are the dense ones). */
 export const HERO_BOOST = 1.6;
@@ -27,7 +28,10 @@ export const HERO_BOOST = 1.6;
  *  - lamps: 144 / 79 / 79 (lamp_single and lamp_double)
  *  - furniture: 97 / 41 / 41
  * Kinds without a kit asset are flat batches: signs (a quad plus a post box) 12, verges (a strip
- * segment) 8, parking (a stall marking quad) 2.
+ * segment) 8, parking (a stall's three marking lines, a quad each) 6.
+ * Parked cars (`parked`, Task 10) are vehicles-kit instances of the parked variants (hatchback,
+ * sedan, mpv): the worst of the three per LOD, 696 / 352 (mpv), counted per car (they are capped
+ * per tile on their own, not as a share of the stalls).
  */
 export const TRIS_PER: Record<StreamKind, Record<0 | 1 | 2, number>> = {
   trees: { 0: 1090, 1: 224, 2: 42 },
@@ -38,7 +42,8 @@ export const TRIS_PER: Record<StreamKind, Record<0 | 1 | 2, number>> = {
   vehicles: { 0: 658, 1: 349, 2: 349 },
   signs: { 0: 12, 1: 12, 2: 12 },
   verges: { 0: 8, 1: 8, 2: 8 },
-  parking: { 0: 2, 1: 2, 2: 2 },
+  parking: { 0: 6, 1: 6, 2: 6 },
+  parked: { 0: 696, 1: 352, 2: 352 },
 };
 
 const NONE: Record<StreamKind, number> = {
@@ -51,6 +56,7 @@ const NONE: Record<StreamKind, number> = {
   signs: 0,
   verges: 0,
   parking: 0,
+  parked: 0,
 };
 
 /**
@@ -72,6 +78,7 @@ export const TILE_CAPS: Record<Tier, Record<0 | 1 | 2, Record<StreamKind, number
       signs: 60,
       verges: 40,
       parking: 200,
+      parked: 24,
     },
     1: {
       trees: 110,
@@ -83,6 +90,7 @@ export const TILE_CAPS: Record<Tier, Record<0 | 1 | 2, Record<StreamKind, number
       signs: 30,
       verges: 28,
       parking: 100,
+      parked: 6,
     },
     2: { ...NONE, trees: 60 },
   },
@@ -97,6 +105,7 @@ export const TILE_CAPS: Record<Tier, Record<0 | 1 | 2, Record<StreamKind, number
       signs: 40,
       verges: 30,
       parking: 120,
+      parked: 6,
     },
     1: {
       trees: 55,
@@ -108,6 +117,7 @@ export const TILE_CAPS: Record<Tier, Record<0 | 1 | 2, Record<StreamKind, number
       signs: 20,
       verges: 20,
       parking: 60,
+      parked: 1,
     },
     2: { ...NONE, trees: 40 },
   },
