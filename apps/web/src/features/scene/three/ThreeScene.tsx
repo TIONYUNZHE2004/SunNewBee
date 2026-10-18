@@ -267,6 +267,10 @@ export default function ThreeScene({
   const [assetsState, setAssetsState] = useState<AssetsState>(assetsOn ? "loading" : "off");
   const [loaded, setLoaded] = useState<LoadedAssets | null>(null);
   const [instances, setInstances] = useState(0);
+  /** True when the placed city assets include decorative kits or decorative landmarks. */
+  const [decorAssets, setDecorAssets] = useState(false);
+  /** Place markers built into the overlay (honest count of the access layer's points). */
+  const [markerCount, setMarkerCount] = useState(0);
   const [fallback, setFallback] = useState<FallbackCounts>(NO_FALLBACK);
   const roleUniforms = useMemo(createRoleUniforms, []);
   /** True while the engine holds instances built from the current library. */
@@ -471,6 +475,7 @@ export default function ThreeScene({
       engine.setCity(g);
       useCityInfo.setState({ manifest: null, extruded: null });
       setInstances(0);
+      setDecorAssets(false);
       setFallback(NO_FALLBACK);
       usePerfStats.getState().update({ gpuMB: geometryBytes(g) / MB, fallback: NO_FALLBACK });
     };
@@ -503,6 +508,14 @@ export default function ThreeScene({
         engine.rig.set(fitPose(showroomBounds(plan, m)));
       }
       setInstances(plan.stats.units + plan.landmarks.length);
+      const decorative = (asset: string) => {
+        const a = m.assets[asset];
+        return !!a && (a.decorative || a.group === "kit");
+      };
+      setDecorAssets(
+        plan.landmarks.some((l) => decorative(l.asset)) ||
+          [...plan.placements].some(([k, l]) => l.length > 0 && decorative(k.split("/")[0] ?? "")),
+      );
       setAssetsState("ready");
       const fb = fallbackCounts(plan.stats.fallback);
       setFallback(fb);
@@ -781,6 +794,7 @@ export default function ThreeScene({
       evac: evacQ.data ?? null,
       focusPlaceId,
     });
+    setMarkerCount(accessVisible ? pointFeatures(access.data).length : 0);
     engine.requestRender();
   }, [
     engine,
@@ -1052,7 +1066,7 @@ export default function ThreeScene({
   // Any decorative layer in the scene: city assets (kits, decorative landmarks), props, agents,
   // the ground layer (land-cover tints, road surfaces) or the ambient birds and cloud shadows.
   const decorativeShown =
-    assetsState === "ready" ||
+    decorAssets ||
     (propsPlan ? [...propsPlan.kits.values()].some((l) => l.length > 0) : false) ||
     (agents?.length ?? 0) > 0 ||
     (!!engine && (roads.length > 0 || !!landcover?.getAttribute("position")?.count)) ||
@@ -1068,6 +1082,7 @@ export default function ThreeScene({
       data-route={routeOn ? "on" : "off"}
       data-assets={assetsState}
       data-instances={instances}
+      data-markers={markerCount}
       data-fallback={fallback.join(",")}
       className="relative h-full w-full"
       style={{ background: initialBackground }}

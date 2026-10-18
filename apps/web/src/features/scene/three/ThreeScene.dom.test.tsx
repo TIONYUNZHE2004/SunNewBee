@@ -1072,19 +1072,36 @@ describe("ThreeScene", () => {
       expect(screen.queryByText("Model showroom — not the city")).toBeNull();
     });
 
-    it('shows "Decorative details are illustrative." whenever a decorative layer is drawn', async () => {
+    it('shows "Decorative details are illustrative." only when a decorative layer is drawn', async () => {
       const NOTE = "Decorative details are illustrative.";
-      // Low draws no props, agents, birds or clouds; this world has no land cover or roads, so only
-      // the ready city assets (decorative kits and landmarks) are left to trigger the note.
+      // Low draws no props, agents, birds or clouds; this world has no land cover or roads.
       useSceneSettings.setState({ quality: "low" });
       try {
+        // Ready assets with nothing decorative (archetypes only): no note.
         serve({});
-        const ready = mount();
+        const plain = mount();
         await waitFor(() =>
           expect(screen.getByTestId("three-scene")).toHaveAttribute("data-assets", "ready"),
         );
-        expect(screen.getByRole("note", { name: NOTE })).toBeVisible();
-        ready.unmount();
+        expect(screen.queryByText(NOTE)).toBeNull();
+        plain.unmount();
+
+        // Ready assets that include a decorative model: note.
+        serve({
+          manifest: () =>
+            json({
+              ...MANIFEST,
+              assets: {
+                link_intermediate: { ...MANIFEST.assets.link_intermediate, decorative: true },
+              },
+            }),
+        });
+        const decor = mount();
+        await waitFor(() =>
+          expect(screen.getByTestId("three-scene")).toHaveAttribute("data-assets", "ready"),
+        );
+        await waitFor(() => expect(screen.getByRole("note", { name: NOTE })).toBeVisible());
+        decor.unmount();
 
         history.replaceState(null, "", "/?assets=0");
         serve({});
