@@ -10,6 +10,8 @@ import * as THREE from "three";
 export const LANDCOVER_MAX_Y = 0.04;
 export const PARK_Y = 0.05;
 export const WATER_Y = 0.06;
+/** Grass verges: between base water (0.06) and roads (0.08). */
+export const VERGE_Y = 0.07;
 export const ROAD_Y = 0.08;
 export const MARKING_Y = 0.1;
 
@@ -17,6 +19,8 @@ export const GROUND_BANDS = {
   landcover: { offset: -1, order: 1 },
   parks: { offset: -2, order: 2 },
   water: { offset: -3, order: 3 },
+  // Fractional so the existing roads (4) and markings (5) orders, and the 6-8 overlays above, stay put.
+  verges: { offset: -3.5, order: 3.5 },
   roads: { offset: -4, order: 4 },
   markings: { offset: -5, order: 5 },
 } as const;
