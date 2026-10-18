@@ -22,7 +22,7 @@ import {
 } from "./cameraRig";
 import type { CityGeometry } from "./cityMesh";
 import { cullFrustum, shadowPadM } from "./cull";
-import { groundMaterial } from "./ground/bands";
+import { applyGroundGrade, GROUND_GRADE, groundMaterial } from "./ground/bands";
 import { cityGroundMeshes } from "./ground/cityGround";
 import type { GroundLayer } from "./ground/groundLayer";
 import { shimmerMaterial } from "./ground/landcover";
@@ -33,6 +33,7 @@ import { createMotionClock, type MotionMode, motionModeFor } from "./motion/moti
 import type { MotionLayer } from "./motion/motionLayer";
 import type { OverlayLayer } from "./overlays/accessLayers";
 import { THREE_TIERS } from "./quality";
+import { createSky } from "./sky";
 import { measure, UPLOAD_MEASURE } from "./stream/streamer";
 
 /** Local xz box the camera target may not leave (by more than LIMITS.maxCentreOffsetM). */
@@ -272,6 +273,9 @@ function build(
 
   const scene = new THREE.Scene();
   scene.background = new THREE.Color();
+  const sky = createSky();
+  scene.add(sky.mesh);
+  undo.push(() => sky.dispose());
   const pmrem = new THREE.PMREMGenerator(renderer);
   undo.push(() => pmrem.dispose());
   const room = new RoomEnvironment();
@@ -300,6 +304,7 @@ function build(
     polygonOffsetFactor: 1,
     polygonOffsetUnits: 1,
   });
+  applyGroundGrade(groundMat);
   const city = new THREE.Group();
   scene.add(city);
   const disposeCity = () => {
@@ -909,6 +914,8 @@ function build(
       scene.environmentIntensity = p.envIntensity;
       renderer.toneMappingExposure = p.exposure;
       (scene.background as THREE.Color).set(p.background);
+      sky.setPreset(p);
+      GROUND_GRADE.value = p.groundGrade;
       lastPreset = p;
       syncBloom();
       applyFog(scene, p, fogRange);

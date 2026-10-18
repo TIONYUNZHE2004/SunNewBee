@@ -347,6 +347,15 @@ Near the mall, the flagged segments are the Urban Park / Central Park lake-edge 
 
 `uv run python data/scripts/build_buildings.py --parks --max-requests 40` fetches OSM `leisure=park|garden|playground` and `landuse=grass|recreation_ground` closed ways (one query per tile, through `overpass.py`) into `base/parks.geojson`. It is not part of `pnpm data:build`, and parks are never used for routing, evaluation, flood or answers. The API serves an empty collection when the file is absent.
 
+## Elmina boundary (display only: `data/scripts/build_boundary.py`)
+
+`base/boundary.geojson` is one Polygon (City of Elmina outline) that the stylised map is clipped to; `site.json` `boundary` records `file`, `source`, `method`, `area_km2` and `as_of`. Routing, evaluation, flood, the agent and answers never read it.
+
+- **Source:** one cached Overpass query (through `overpass.py`) for boundary, place and landuse relations named like Elmina. OSM has no `City of Elmina` administrative or place relation (only landuse patches), so `source` is `fallback_union`: the Elmina-named precinct polygons (including the large `Elmina` residential area), the Urban Park / Lakeside Mall / Harmoni area, and a 100 m disc around each deep-spot centre (so the Subang corridor centre is inside), smoothed with a 200 m morphological close then open (no notches, slivers or feet), buffered 60 m, holes dropped, simplified to about 20 m. Area is about 13.4 km2.
+- **Tests:** `data/scripts/tests/test_boundary.py` (AC-A4): contains Harmoni 1, Lakeside Mall, Car Park B, Elmina Urban Park, every node of the Harmoni 1 to Car Park B `older_adult_rest` route and both deep-spot centres; excludes the centroids of every Subang precinct; area 6 to 15 km2; valid single polygon. Skipped when the seed is missing.
+- **Owner sign-off** of the outline is required before the renderer uses it.
+- Run: `uv run python data/scripts/build_boundary.py` (no network once cached).
+
 ## Calibration of Elmina Day (Cycle 21: `data/scripts/calibrate_day.py`)
 
 Compares the 5,000 synthetic residents with Petaling district (where City of Elmina lies) using
@@ -389,6 +398,14 @@ pnpm data:city   # runs, in order:
 ```
 
 All Overpass traffic goes through `overpass.py` (cache, backoff, request cap). Each builder takes `--dry-run`.
+
+### Street furniture (`build_street_furniture.py`, not in `data:city`)
+
+`uv run python data/scripts/build_street_furniture.py --max-requests 6` makes one Overpass query (nodes and ways, `out center`, over the bounding box of `base/boundary.geojson`) through `overpass.py` and writes `base/street_furniture.geojson`, recorded under `street_furniture` in `site.json` (`file`, `count`, `counts`, `as_of`). Needs `base/boundary.geojson` (`build_boundary.py`).
+
+- **Kinds:** `traffic_signals` (`highway=traffic_signals`), `bus_stop` (`highway=bus_stop` or `public_transport=platform`), `shelter` (`amenity=shelter`), `bench` (`amenity=bench`), `picnic_table` (`leisure=picnic_table`).
+- **Features:** one Point each, only inside the boundary, sorted by id. Properties: `id` (`osm-node-<id>`, or `osm-way-<id>` for a way, reduced to its centre point), `kind`, optional `name`, and `osm_tags` (a fixed subset of tags). Crossings are not here; they come from `walk.geojson` `crossing` edges.
+- **Display only.** Routing, evaluation, flood and answers never read it, and the spatial World does not load it. The stylised view draws one prop per feature (AC-B7). `union_dedup()` in the script gives the list to draw: OSM features plus the seed places of type `shelter` / `seating` that coincide with none of them (same id, or within 10 m of an OSM feature of a compatible kind).
 
 ### Height sampling (`sample_heights.py`, billable, not in `data:city`)
 

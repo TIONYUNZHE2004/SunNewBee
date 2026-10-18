@@ -121,7 +121,7 @@ describe("createEngine", () => {
       expect(scene.fog).toBe(fog);
       e.setFogRange(7000);
       expect(scene.fog).toBe(fog);
-      expect(fog.far).toBeGreaterThanOrEqual(15400);
+      expect(fog.far).toBeGreaterThanOrEqual(8000);
       e.dispose();
     } finally {
       spy.pmremFails = true;

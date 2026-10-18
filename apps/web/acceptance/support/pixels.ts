@@ -220,3 +220,28 @@ export function greyShare(
   });
   return n > 0 ? grey / n : 0;
 }
+
+/** CIE L*a*b* (D65) of an sRGB byte triple. */
+export function labOf(r: number, g: number, b: number): [number, number, number] {
+  const lr = LINEAR[r & 255] as number;
+  const lg = LINEAR[g & 255] as number;
+  const lb = LINEAR[b & 255] as number;
+  const x = (0.4124564 * lr + 0.3575761 * lg + 0.1804375 * lb) / 0.95047;
+  const y = 0.2126729 * lr + 0.7151522 * lg + 0.072175 * lb;
+  const z = (0.0193339 * lr + 0.119192 * lg + 0.9503041 * lb) / 1.08883;
+  const f = (t: number) => (t > 216 / 24389 ? Math.cbrt(t) : (24389 / 27 / 116) * t + 16 / 116);
+  const fx = f(x);
+  const fy = f(y);
+  const fz = f(z);
+  return [116 * fy - 16, 500 * (fx - fy), 200 * (fy - fz)];
+}
+
+/** CIE76 colour difference (ΔE*ab) between two sRGB byte triples. */
+export function deltaE(
+  a: readonly [number, number, number],
+  b: readonly [number, number, number],
+): number {
+  const la = labOf(a[0], a[1], a[2]);
+  const lb = labOf(b[0], b[1], b[2]);
+  return Math.hypot(la[0] - lb[0], la[1] - lb[1], la[2] - lb[2]);
+}

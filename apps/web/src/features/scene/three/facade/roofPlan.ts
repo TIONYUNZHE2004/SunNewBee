@@ -59,10 +59,10 @@ type Pt = [number, number];
  * Large-roof tints (owner's P3 note: big flat roofs read as flat grey). The palette roof colours of
  * the big-building archetypes (generic, factory, mall, school, shop_office, highrise) are dark
  * greys, so a roof of MIN_ROOF_AREA_M2 or more takes one of these instead, picked by
- * hash01(id, "roof:tint"): warm concrete, terracotta, sand membrane, cool membrane. Display only;
+ * hash01(id, "roof:tint"): warm concrete, terracotta, sand membrane, sage-green membrane (the former cool blue read as water, A-T9). Display only;
  * none is the base-water or a flood colour.
  */
-export const ROOF_TINTS = ["#c2a385", "#b8735a", "#cdb98f", "#8fa7b4"] as const;
+export const ROOF_TINTS = ["#c2a385", "#b8735a", "#cdb98f", "#8fae8a"] as const;
 /** A palette roof below this HSL saturation counts as grey (and is replaced on a large roof). */
 const GREY_SATURATION = 0.12;
 

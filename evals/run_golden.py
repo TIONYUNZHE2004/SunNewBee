@@ -5,6 +5,9 @@ GOLDEN_REAL=1 pnpm golden    # OpenRouter, model from .env (costs money; manual 
 GOLDEN_ONLY=id1,id2          # run only these cases
 GOLDEN_REPORT=path.json      # write per-case diagnostics (latency, validator errors, tokens)
 
+Cases run on the tiny fixture, except `world: elmina` cases (the committed Elmina seed, e.g. the
+journey demo question, whose places exist only there); they are skipped when the seed is absent.
+
 A live run also prints, per case, how many final_answer attempts the validator rejected and
 whether the turn fell back to the template answer (model "...+template").
 """
@@ -29,6 +32,7 @@ from townshiplens_spatial.world import load_world
 
 GOLDEN = Path(__file__).parent / "golden" / "hero.yaml"
 TINY = ROOT / "packages/spatial/tests/fixtures/tiny"
+WORLDS = {"tiny": TINY, "elmina": ROOT / "data/seed/elmina"}
 KNOWN = {
     "tools_include",
     "events_include",
@@ -38,6 +42,7 @@ KNOWN = {
     "first_line",
     "text_includes_any",
     "first_line_excludes",
+    "intents_include",
 }
 # `mock_only: {...}` holds expectations on the mock's exact wording; a live model phrases the
 # same facts differently, so they are skipped in GOLDEN_REAL runs.
@@ -60,6 +65,11 @@ def check(expect: dict, evs: list, real: bool = False) -> list[str]:
         f"tool {t} not called" for t in expect.get("tools_include", []) if t not in tool_names
     ]
     fails += [f"no {t} event" for t in expect.get("events_include", []) if t not in types]
+    intents = [e.intent.kind for e in evs if e.type == "scene.intent"]
+    want = expect.get("intents_include", [])
+    fails += [f"no {k} scene intent" for k in want if k not in intents]
+    if want and [k for k in intents if k in want] != [k for k in want if k in intents]:
+        fails.append(f"scene intents {intents} not in the order {want}")
     allowed = expect.get("done_status_in")
     if allowed and (done is None or done.answer_status not in allowed):
         fails.append(f"done status {done and done.answer_status} not in {allowed}")
@@ -102,7 +112,7 @@ async def main() -> int:
     if only:
         cases = [c for c in cases if c["id"] in only]
     report: list[dict] = []
-    world = load_world(TINY)
+    worlds: dict[str, object] = {}
     rows, failed, uncited = [], 0, 0
     # ignore_cleanup_errors: the stores keep their SQLite files open, which Windows cannot delete.
     with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
@@ -110,6 +120,22 @@ async def main() -> int:
             settings = settings.model_copy(
                 update={"assistant_scope": case.get("assistant_scope", "access_flood")}
             )
+            wname = case.get("world", "tiny")
+            if wname not in WORLDS:  # a typo in hero.yaml fails the case, never silently skips
+                why = f"unknown world {wname!r} (known: {', '.join(WORLDS)})"
+                rows.append((case["id"], "FAIL", "-", "-", "-", why))
+                failed += 1
+                report.append(
+                    {"id": case["id"], "pass": False, "failures": [why], "fallback": False}
+                    | {"rejected_attempts": 0}
+                )
+                continue
+            if not (WORLDS[wname] / "site.json").exists():
+                rows.append((case["id"], "SKIP", "-", "-", "-", f"{wname} world not built"))
+                continue
+            if wname not in worlds:
+                worlds[wname] = load_world(WORLDS[wname])
+            world = worlds[wname]
             ctx = tools.Ctx(world=world, vrs=VerificationStore(str(Path(tmp) / f"vr-{i}.db")))
             req = ChatRequest(
                 message=case["message"],
@@ -179,7 +205,9 @@ async def main() -> int:
     print(f"template_fallbacks: {fallbacks}  rejected_attempts: {rejected}")
     if path := os.environ.get("GOLDEN_REPORT"):
         Path(path).write_text(json.dumps(report, indent=1, ensure_ascii=False), encoding="utf-8")
-    print(f"golden: {len(rows) - failed}/{len(rows)} passed ({'openrouter' if real else 'mock'})")
+    skipped = sum(r[1] == "SKIP" for r in rows)
+    ran = len(rows) - skipped
+    print(f"golden: {ran - failed}/{ran} passed ({'openrouter' if real else 'mock'})")
     return 1 if failed or (uncited and not real) else 0
 
 

@@ -2,7 +2,7 @@ import asyncio
 from dataclasses import dataclass, field
 
 from pydantic_ai.usage import RunUsage
-from townshiplens_spatial.models import Evidence
+from townshiplens_spatial.models import Evidence, JourneyPlan
 
 
 @dataclass
@@ -10,6 +10,10 @@ class TurnRecord:
     evidence: dict[str, Evidence] = field(default_factory=dict)
     routes: dict[str, dict] = field(default_factory=dict)
     route_status: dict[str, str] = field(default_factory=dict)
+    # The journey plan of each route above (journeys.plan_for, built in call_tool from the world
+    # and the tool's route): the validator checks journey.play and the answer's rest and
+    # unchecked-place counts against it, never against model text. Missing when it can't be built.
+    journeys: dict[str, JourneyPlan] = field(default_factory=dict)
     scenarios_used: set[str] = field(default_factory=set)
     vrs: list[dict] = field(default_factory=list)
     tool_calls: list[str] = field(default_factory=list)
