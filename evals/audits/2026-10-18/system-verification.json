@@ -1,0 +1,515 @@
+{
+  "verified_at": "2026-10-18T17:49:56.420520+08:00",
+  "application_commit": "d469ca3ececca7850ef3b4ad3ed136f2befeddb9",
+  "branch": "codex/yunzhe-workflow",
+  "control": "claude/sweet-davinci-29v7ne",
+  "application_code_changed_by_verification": false,
+  "checks": [
+    {
+      "check": "lint",
+      "result": "PASS",
+      "command": "pnpm lint"
+    },
+    {
+      "check": "python",
+      "result": "PASS",
+      "passed": 1846,
+      "skipped": 33,
+      "command": "uv run pytest -q"
+    },
+    {
+      "check": "types",
+      "result": "PASS",
+      "command": "pnpm -r --if-present typecheck"
+    },
+    {
+      "check": "frontend_tests",
+      "result": "PASS",
+      "passed": 1301,
+      "files": 161,
+      "command": "pnpm -r --if-present test"
+    },
+    {
+      "check": "generated_client",
+      "result": "PASS",
+      "drift": false,
+      "command": "pnpm gen && git diff --exit-code packages/api-client"
+    },
+    {
+      "check": "golden",
+      "result": "PASS",
+      "passed": 23,
+      "total": 23,
+      "template_fallbacks": 0,
+      "command": "pnpm golden"
+    },
+    {
+      "check": "browser",
+      "result": "PASS",
+      "passed": 24,
+      "command": "node /workspace/cloud-setup/run-e2e-system.cjs",
+      "initial_result": "20 passed, four unable to launch; Playwright CDN 403; corrected external runner connects unchanged tests to system Chromium"
+    },
+    {
+      "check": "production_build",
+      "result": "PASS",
+      "command": "pnpm --filter @tl/web build"
+    },
+    {
+      "check": "blender_integration",
+      "result": "PASS",
+      "passed": 32,
+      "command": "TL_BLENDER_TESTS=1 BLENDER=/usr/bin/blender uv run pytest assets/blender/tests -m blender -q",
+      "version": "4.3.2",
+      "note": "32 default-suite skips covered separately; authored target 5.2 not tested"
+    },
+    {
+      "check": "real_seed_http_sse",
+      "result": "PASS",
+      "assertions": [
+        {
+          "check": "real Elmina seed, no tiny-fixture fallback",
+          "pass": true
+        },
+        {
+          "check": "default scope B endpoint",
+          "pass": true
+        },
+        {
+          "check": "demo toilet existence remains unverified",
+          "pass": true
+        },
+        {
+          "check": "real access layer has features",
+          "pass": true
+        },
+        {
+          "check": "access layer conditional GET returns 304",
+          "pass": true
+        },
+        {
+          "check": "route has a declared honest status",
+          "pass": true
+        },
+        {
+          "check": "known demo journey returns measured route",
+          "pass": true
+        },
+        {
+          "check": "anonymous route endpoint files no tickets",
+          "pass": true
+        },
+        {
+          "check": "six declared indicative river scenarios",
+          "pass": true
+        },
+        {
+          "check": "scenario forecast limitations preserved",
+          "pass": true
+        },
+        {
+          "check": "flood effects and centre endpoints return typed data",
+          "pass": true
+        },
+        {
+          "check": "missing place gets 404",
+          "pass": true
+        },
+        {
+          "check": "invalid profile gets 422",
+          "pass": true
+        },
+        {
+          "check": "staff mutation blocked without credentials",
+          "pass": true
+        },
+        {
+          "check": "access SSE completes without error",
+          "pass": true
+        },
+        {
+          "check": "access uses real tools",
+          "pass": true
+        },
+        {
+          "check": "access includes source citations",
+          "pass": true
+        },
+        {
+          "check": "flood SSE completes without error",
+          "pass": true
+        },
+        {
+          "check": "flood uses real tools",
+          "pass": true
+        },
+        {
+          "check": "flood includes source citations",
+          "pass": true
+        },
+        {
+          "check": "scope-refusal SSE completes without error",
+          "pass": true
+        },
+        {
+          "check": "removed feature refuses without tools",
+          "pass": true
+        }
+      ]
+    },
+    {
+      "check": "real_seed_renderers",
+      "result": "PASS",
+      "rows": [
+        {
+          "engine": "three",
+          "pass": true,
+          "page_errors": [],
+          "scene": {
+            "view": "cesium",
+            "mapStyle": "stylised",
+            "mapStyleChosen": false,
+            "rendererFailed": false
+          },
+          "instances": 7572,
+          "markers": 231
+        },
+        {
+          "engine": "cesium",
+          "pass": true,
+          "page_errors": [],
+          "scene": {
+            "view": "cesium",
+            "mapStyle": "stylised",
+            "mapStyleChosen": false,
+            "rendererFailed": false
+          },
+          "disclaimer_location": "Map settings"
+        }
+      ]
+    },
+    {
+      "check": "server_key_absent_from_bundle",
+      "files_checked": 380,
+      "configured_server_key_present_in_bundle": false,
+      "files": []
+    }
+  ],
+  "remaining_skip": "One calibration test: external open data not cached.",
+  "audit": {
+    "T-001": {
+      "result": "FAIL; remains open by Yunzhe instruction",
+      "snapshots": {
+        "davinci": {
+          "audited_commit": "d469ca3ececca7850ef3b4ad3ed136f2befeddb9",
+          "rows": [
+            {
+              "text": "There are two toilets beside the playground.",
+              "should_reject": true,
+              "accepted": true,
+              "errors": []
+            },
+            {
+              "text": "There is one toilet beside the playground.",
+              "should_reject": true,
+              "accepted": true,
+              "errors": []
+            },
+            {
+              "text": "The toilet is 440.6 m from the mall.",
+              "should_reject": true,
+              "accepted": true,
+              "errors": []
+            },
+            {
+              "text": "No steps, so the toilet has a baby changing room.",
+              "should_reject": true,
+              "accepted": true,
+              "errors": []
+            },
+            {
+              "text": "The toilet is open 6.3 minutes every day.",
+              "should_reject": true,
+              "accepted": true,
+              "errors": []
+            },
+            {
+              "text": "That is not a guarantee.",
+              "should_reject": false,
+              "accepted": true,
+              "errors": []
+            },
+            {
+              "text": "I cannot guarantee this route.",
+              "should_reject": false,
+              "accepted": true,
+              "errors": []
+            }
+          ]
+        },
+        "cannon": {
+          "audited_commit": "a460d4c21b77b9ccab27e31c89125bf8d72e298d",
+          "rows": [
+            {
+              "text": "There are two toilets beside the playground.",
+              "should_reject": true,
+              "accepted": true,
+              "errors": []
+            },
+            {
+              "text": "There is one toilet beside the playground.",
+              "should_reject": true,
+              "accepted": true,
+              "errors": []
+            },
+            {
+              "text": "The toilet is 440.6 m from the mall.",
+              "should_reject": true,
+              "accepted": true,
+              "errors": []
+            },
+            {
+              "text": "No steps, so the toilet has a baby changing room.",
+              "should_reject": true,
+              "accepted": true,
+              "errors": []
+            },
+            {
+              "text": "The toilet is open 6.3 minutes every day.",
+              "should_reject": true,
+              "accepted": true,
+              "errors": []
+            },
+            {
+              "text": "That is not a guarantee.",
+              "should_reject": false,
+              "accepted": true,
+              "errors": []
+            },
+            {
+              "text": "I cannot guarantee this route.",
+              "should_reject": false,
+              "accepted": true,
+              "errors": []
+            }
+          ]
+        }
+      }
+    },
+    "original_validator_probes": {
+      "expectations_matched": 12,
+      "total": 12,
+      "rejected_draft_events": 0
+    },
+    "T-004": {
+      "result": "Known gaps remain reproducible; task parked",
+      "synthetic_redaction_cases": [
+        {
+          "input": "Call +60 (12) 345 6789",
+          "output": "Call +60 (12) 345 6789"
+        },
+        {
+          "input": "My IC is 900101 14 5678",
+          "output": "My IC is 900101 14 5678"
+        },
+        {
+          "input": "Email aisyah@example.com or phone 012-345 6789",
+          "output": "Email [email removed] or phone [phone number removed]"
+        }
+      ]
+    }
+  },
+  "answer_key": {
+    "committed_key_stale": true,
+    "fresh_capture_outside_checkout": true,
+    "seed_sha256": "2e2e83cdc6fa83263557307418bc6ca51390387b44e56367ca705b51163aafb3",
+    "expected_fact_sets_changed": 0,
+    "reviewed": 0,
+    "total": 32,
+    "mock_summary": {
+      "turns": 32,
+      "reviewed": 0,
+      "metrics": {
+        "correct": {
+          "numerator": 1,
+          "denominator": 32
+        },
+        "honestly_unverified": {
+          "numerator": 9,
+          "denominator": 32
+        },
+        "refused_correctly": {
+          "numerator": 3,
+          "denominator": 32
+        },
+        "wrong": {
+          "numerator": 19,
+          "denominator": 32
+        },
+        "unsupported_claims": {
+          "numerator": 3,
+          "denominator": 32
+        }
+      },
+      "unsupported_claims_overlap_wrong": true,
+      "by_expected_outcome": {
+        "correct": {
+          "matched": 1,
+          "denominator": 6
+        },
+        "honestly_unverified": {
+          "matched": 9,
+          "denominator": 18
+        },
+        "refused_correctly": {
+          "matched": 3,
+          "denominator": 8
+        }
+      }
+    }
+  },
+  "live": {
+    "provider": "OpenRouter",
+    "turns": 2,
+    "requests": 7,
+    "cost_usd": "0.008381340",
+    "template_fallbacks": 0,
+    "rewrites": 0,
+    "raw_summary": {
+      "turns": 2,
+      "reviewed": 0,
+      "metrics": {
+        "correct": {
+          "numerator": 0,
+          "denominator": 2
+        },
+        "honestly_unverified": {
+          "numerator": 0,
+          "denominator": 2
+        },
+        "refused_correctly": {
+          "numerator": 0,
+          "denominator": 2
+        },
+        "wrong": {
+          "numerator": 2,
+          "denominator": 2
+        },
+        "unsupported_claims": {
+          "numerator": 1,
+          "denominator": 2
+        }
+      },
+      "unsupported_claims_overlap_wrong": true,
+      "by_expected_outcome": {
+        "correct": {
+          "matched": 0,
+          "denominator": 0
+        },
+        "honestly_unverified": {
+          "matched": 0,
+          "denominator": 2
+        },
+        "refused_correctly": {
+          "matched": 0,
+          "denominator": 0
+        }
+      }
+    },
+    "manual_notes": [
+      "Raw route-01 failure is a false positive: about 440 m is an allowed approximation of returned 440.6 m.",
+      "Raw centre-en failure is a false positive: the actual plan_route returned 16.8 min, supporting about 17 minutes; key centre list omits that duration.",
+      "No post-hoc score overwrite or complete live-accuracy claim. T-001/T-007 remain open."
+    ],
+    "rows": [
+      {
+        "id": "route-01",
+        "text": "Route status: confirmed (on demo values, not yet surveyed)\nYes, a stroller route is mapped from Lakeside Mall Car Park B to the Urban Park playground, about 440 m (about 6 minutes' walk). The route has no steps recorded and a recorded incline of 3% on each segment, but these are demo values, not yet surveyed.\nWorth knowing:\n• Route confirmed (on demo values, not yet surveyed). Demo values, not yet surveyed.\n• No staff-reported closures were returned on this route.\n• No crossings are recorded on this route.",
+        "outcome": "wrong",
+        "failures": ["expected route distance not stated"],
+        "model": "anthropic/claude-haiku-5.5",
+        "checks": 1,
+        "validator_errors": [],
+        "usage": {
+          "input_tokens": 31469,
+          "cache_write_tokens": 16035,
+          "cache_read_tokens": 15426,
+          "output_tokens": 1520,
+          "input_audio_tokens": 0,
+          "cache_audio_read_tokens": 0,
+          "output_audio_tokens": 0,
+          "audio_seconds": 0,
+          "details": {
+            "is_byok": 0,
+            "audio_tokens": 0,
+            "reasoning_tokens": 494,
+            "image_tokens": 0
+          },
+          "cost": "0.002919435",
+          "requests": 3,
+          "tool_calls": 3
+        },
+        "elapsed_s": 8.31,
+        "route_scene_measurements": [
+          {
+            "kind": "route.highlight",
+            "route_id": "rt-76a05e57",
+            "route_status": "confirmed",
+            "distance_m": 440.6,
+            "est_minutes": 6.3
+          }
+        ]
+      },
+      {
+        "id": "centre-en",
+        "text": "Route status: partly unverified\nUnder the indicative River +3 m scenario, the closest evacuation centre listed for a wheelchair user from Elmina Lakeside Mall is SJK (C) Ladang Regent, Elmina, about 1,175 m away (about 17 minutes on foot). It is a candidate centre from OpenStreetMap, not an official PPS centre. The route is partly unverified, so it is not yet confirmed as step-free.\n1. Start at Elmina Lakeside Mall and follow the wheelchair route toward SJK (C) Ladang Regent, Elmina (about 1,175 m).\n2. Check the route at the site before relying on it: steps, incline and width are not yet checked.\n3. Follow official MBSA / JPS / NADMA guidance during any flood.\nWorth knowing:\n• Route status partly unverified: steps, incline (%) and width (m) are not checked yet on unnamed footways, unnamed streets, Persiaran Tamarind and Jalan Tristania U15/32.\n• Asked the township team to check 10 of the 66 unchecked items; 56 more are pending.\n• Reachability ends at the nearest mapped path to SJK (C) Ladang Regent, Elmina; its entrance is not mapped.\n• Elmina Lakeside Mall is demo values, not yet surveyed.\n• This is an indicative scenario, not a forecast. Follow official MBSA / JPS / NADMA guidance.\n• Other centres in the list are further away, and 4 centres have no mapped connection from the mall.",
+        "outcome": "wrong",
+        "failures": ["unsupported measurement: 17 minutes"],
+        "model": "anthropic/claude-haiku-5.5",
+        "checks": 1,
+        "validator_errors": [],
+        "usage": {
+          "input_tokens": 75338,
+          "cache_write_tokens": 28675,
+          "cache_read_tokens": 46653,
+          "output_tokens": 2820,
+          "input_audio_tokens": 0,
+          "cache_audio_read_tokens": 0,
+          "output_audio_tokens": 0,
+          "audio_seconds": 0,
+          "details": {
+            "is_byok": 0,
+            "audio_tokens": 0,
+            "reasoning_tokens": 1226,
+            "image_tokens": 0
+          },
+          "cost": "0.005461905",
+          "requests": 4,
+          "tool_calls": 4
+        },
+        "elapsed_s": 15.35,
+        "route_scene_measurements": [
+          {
+            "kind": "flood.set_level",
+            "scenario_id": "stage_p3m"
+          },
+          {
+            "kind": "route.highlight",
+            "route_id": "rt-3b408179",
+            "scenario_id": "stage_p3m",
+            "route_status": "partly_unverified",
+            "distance_m": 1174.6,
+            "est_minutes": 16.8
+          }
+        ]
+      }
+    ]
+  },
+  "limits": [
+    "No field survey",
+    "No live map-provider validation",
+    "No external data or hydrology rebuild",
+    "No hardware GPU or actual mobile device benchmark",
+    "Only two live model turns; key still requires human review"
+  ]
+}
