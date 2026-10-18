@@ -47,6 +47,7 @@ function FailedAlert({ children }: { children: ReactNode }) {
 export function MapStage({ children }: { children?: ReactNode }) {
   const { view, setView, rendererFailed, setRendererFailed } = useScene();
   const applyDefaultMapStyle = useScene((s) => s.applyDefaultMapStyle);
+  const mapStyleChosen = useScene((s) => s.mapStyleChosen);
   const { style, hasBuildings, hasGoogle, settled } = useMapStyle();
   const webglOk = useMemo(webglSupported, []);
   const available = useMemo(
@@ -82,6 +83,10 @@ export function MapStage({ children }: { children?: ReactNode }) {
   const has3d = available.some((v) => v !== "list");
   const effective = effectiveView(view, available, rendererFailed);
   const renderer = rendererFor(effective, style);
+  // With a key the 3D view is available before /layers/buildings settles, while the unchosen style
+  // still reads Realistic: wait for the default style instead of mounting (and discarding) Cesium.
+  // A style the user chose is already known, so it goes straight to its renderer.
+  const styleUnknown = effective === "cesium" && !settled && !mapStyleChosen;
   const listFallback = (
     <div className="h-full space-y-3 overflow-auto p-4 pr-[calc(var(--panel-w,0px)+1rem)]">
       <FailedAlert>{LIST_FALLBACK_TEXT}</FailedAlert>
@@ -94,7 +99,7 @@ export function MapStage({ children }: { children?: ReactNode }) {
 
   return (
     <div className="relative h-full min-h-72 overflow-hidden bg-surface">
-      {waiting ? (
+      {waiting || styleUnknown ? (
         <LoadingTownship />
       ) : effective === "list" ? (
         <div className="h-full space-y-3 overflow-auto p-4 pr-[calc(var(--panel-w,0px)+1rem)]">
