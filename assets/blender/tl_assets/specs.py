@@ -267,11 +267,14 @@ _LANDMARK_SPECS = (
         ),
         "anchor",
     ),
+    # Placed on its traced tower outline (landmarks.geojson match "traced_outline", from
+    # data/seed/elmina/sources/landmark_outlines.geojson).
     _landmark(
         "kanopi",
         _bv("tower", (40.0, 125.0, 30.0), (60000, 8000, 600), y_range=(118.0, 132.0)),
-        "deferred",
+        "obb",
     ),
+    # No public drawing; outside the hero radius. Deferred to P4.
     _landmark(
         "masjid_denai_alam",
         _bv("main", (40.0, 18.0, 40.0), (40000, 5000, 400), y_range=(16.0, 34.0)),

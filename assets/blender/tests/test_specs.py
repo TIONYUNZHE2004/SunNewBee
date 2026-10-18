@@ -134,7 +134,9 @@ def test_files_and_budgets():
 
 def test_landmark_placements():
     assert specs.ASSETS["lakeside_mall"].placement == "anchor"
-    assert specs.ASSETS["kanopi"].placement == "deferred"
+    # kanopi stands on its traced outline (data/seed/elmina/sources/landmark_outlines.geojson);
+    # the masjid has no public drawing and stays deferred until P4.
+    assert specs.ASSETS["kanopi"].placement == "obb"
     assert specs.ASSETS["masjid_denai_alam"].placement == "deferred"
 
 
@@ -194,9 +196,9 @@ def test_landmark_anchor_from_seed(caplog):
     infos = {a: _info(a) for a in ("lakeside_mall", "kanopi", "masjid_denai_alam")}
     m = build_manifest(infos, "2026-10-17", fc)
     assert m["landmarks"]["lakeside_mall"]["anchor"] == pytest.approx([lon, lat], abs=1e-7)
-    assert set(m["landmarks"]) == {"lakeside_mall"}  # deferred landmarks get no anchor
-    for a in ("kanopi", "masjid_denai_alam"):
-        assert m["assets"][a]["placement"] == "deferred"
+    assert set(m["landmarks"]) == {"lakeside_mall"}  # obb and deferred landmarks get no anchor
+    assert m["assets"]["kanopi"]["placement"] == "obb"
+    assert m["assets"]["masjid_denai_alam"]["placement"] == "deferred"
     # no lakeside_mall feature (or no file at all): no anchor, and the gap is logged
     empty = {"type": "FeatureCollection", "features": []}
     for fc2 in (empty, {}):
