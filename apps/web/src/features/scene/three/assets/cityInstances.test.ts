@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { buildingIdOf, createCityInstances, lodFor } from "./cityInstances";
 import type { Placement } from "./fit";
 import type { AssetLibrary } from "./library";
@@ -362,5 +362,55 @@ describe("createCityInstances", () => {
     expect(ms[0]?.count).toBe(8); // near (2) + mid (6) both draw LOD1
     expect(ms[1]?.count).toBe(2);
     expect(c.stats().instances).toBe(10);
+  });
+});
+
+describe("setKits", () => {
+  const kitsOf = (a: string, n: number) =>
+    new Map([[`${a}/v`, Array.from({ length: n }, (_, i) => pl(a, i))]]);
+  const named = (c: ReturnType<typeof createCityInstances>, prefix: string) =>
+    meshesOf(c).filter((m) => m.name.startsWith(prefix));
+
+  it("replaces only the kit buckets: archetype meshes are the same objects, old kits disposed", () => {
+    const l = lib();
+    const geometry = vi.spyOn(l, "geometry");
+    const c = createCityInstances(l, plan("a"), manifest(), createRoleUniforms(), {
+      kits: kitsOf("k", 2),
+      motion: createMotionUniforms(),
+    });
+    c.update(new THREE.Vector3());
+    const arch = named(c, "a__");
+    const oldKits = named(c, "k__");
+    expect(arch).toHaveLength(3);
+    expect(oldKits).toHaveLength(3);
+    let disposed = 0;
+    for (const m of oldKits) m.addEventListener("dispose", () => disposed++);
+    geometry.mockClear();
+
+    c.setKits(kitsOf("trees", 3), 0.5);
+
+    expect(named(c, "a__")).toEqual(arch);
+    expect(named(c, "k__")).toHaveLength(0);
+    expect(named(c, "trees__")).toHaveLength(3);
+    expect(disposed).toBe(3);
+    // Only the new kit's buckets were built (one geometry lookup per kit LOD).
+    expect(geometry.mock.calls.every(([a]) => a === "trees")).toBe(true);
+    expect(geometry).toHaveBeenCalledTimes(3);
+    // Bucketed at once at the last camera: 10 archetypes plus 3 trees drawn.
+    expect(c.stats().instances).toBe(13);
+  });
+
+  it("null clears the kits; the LOD scale applies to the new kits; aoExcluded follows", () => {
+    const c = createCityInstances(lib(), plan("none"), manifest(), createRoleUniforms());
+    c.update(new THREE.Vector3(200, 0, 0));
+    c.setKits(kitsOf("k", 1), 0.5);
+    // 200 m from the kit at x=0: a 0.5 scale puts it in LOD1 (as at creation).
+    expect(named(c, "k__").findIndex((m) => m.visible)).toBe(1);
+    c.update(new THREE.Vector3(5000, 0, 0));
+    expect(c.aoExcluded().map((m) => m.name)).toEqual(["k__v__LOD2"]);
+    c.setKits(null);
+    expect(named(c, "k__")).toHaveLength(0);
+    expect(c.aoExcluded()).toEqual([]);
+    expect(c.stats().instances).toBe(0);
   });
 });

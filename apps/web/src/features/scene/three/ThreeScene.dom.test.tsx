@@ -46,7 +46,14 @@ vi.mock("./assets/cityInstances", async (orig) => {
     createCityInstances: (...a: Parameters<typeof mod.createCityInstances>) => {
       if (instancesFault.on) throw new Error("instance build failed");
       tierFakes.kits.push(a[4]?.kits);
-      return mod.createCityInstances(...a);
+      const inst = mod.createCityInstances(...a);
+      // One build per city: later kits (props) reach the same instances through setKits.
+      const setKits = inst.setKits;
+      inst.setKits = (kits, scale) => {
+        tierFakes.kits.push(kits ?? undefined);
+        setKits(kits, scale);
+      };
+      return inst;
     },
   };
 });

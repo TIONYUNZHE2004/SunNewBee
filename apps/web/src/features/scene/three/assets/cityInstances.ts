@@ -66,6 +66,12 @@ export interface CityInstances {
   /** Visible LOD2 meshes, which the engine leaves out of the GTAO normal/depth pass. */
   aoExcluded(): THREE.Object3D[];
   stats(): { instances: number; meshes: number; visibleMeshes: number; gpuBytes: number };
+  /**
+   * Replaces the kit buckets (props) with `kits`, their LOD distances scaled by `kitLodScale`
+   * (default 1). Archetype and landmark meshes are kept as they are; the old kit meshes are
+   * disposed. New kits are bucketed at the last camera seen by `update`, if any.
+   */
+  setKits(kits: Map<string, Placement[]> | null | undefined, kitLodScale?: number): void;
   dispose(): void;
 }
 
@@ -134,19 +140,17 @@ export function createCityInstances(
     return mt;
   };
   const landmarkMaterials: THREE.Material[] = [];
-  const keys: Key[] = [];
-  const wrappers: THREE.BufferGeometry[] = [];
   let landmarkMeshes = 0;
 
-  const entries = [...plan.placements, ...(extra?.kits ?? [])];
-  for (const [keyStr, list] of entries) {
+  /** The buckets of one (asset, variant) placement list; null when nothing of it can be drawn. */
+  function buildKey(keyStr: string, list: Placement[], kitLodScale: number): Key | null {
     const slash = keyStr.indexOf("/");
     const asset = keyStr.slice(0, slash);
     const variant = keyStr.slice(slash + 1);
     const spec = m.assets[asset];
     const vspec = spec?.variants[variant];
-    if (!spec || !vspec || list.length === 0) continue;
-    const lodScale = spec.group === "kit" ? (extra?.kitLodScale ?? 1) : 1;
+    if (!spec || !vspec || list.length === 0) return null;
+    const lodScale = spec.group === "kit" ? kitLodScale : 1;
     const key: Key = {
       list,
       lods:
@@ -171,7 +175,6 @@ export function createCityInstances(
         return a;
       });
       for (const [i, a] of pal.entries()) geo.setAttribute(`iPal${i}`, a);
-      wrappers.push(geo);
       const kit = spec.group === "kit";
       const mesh = new THREE.InstancedMesh(geo, kit ? kitMaterial(asset) : material, list.length);
       mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
@@ -205,8 +208,22 @@ export function createCityInstances(
           best = a;
       return best;
     });
-    if (avail.length > 0) keys.push(key);
+    return avail.length > 0 ? key : null;
   }
+
+  const buildKeys = (entries: Iterable<[string, Placement[]]>, kitLodScale: number) => {
+    const out: Key[] = [];
+    for (const [keyStr, list] of entries) {
+      const key = buildKey(keyStr, list, kitLodScale);
+      if (key) out.push(key);
+    }
+    return out;
+  };
+
+  /** The city's own placements (archetypes, and every variant in the showroom): built once. */
+  const keys = buildKeys(plan.placements, extra?.kitLodScale ?? 1);
+  /** The props: rebuilt by setKits, leaving `keys` alone. */
+  let kitKeys = buildKeys(extra?.kits ?? [], extra?.kitLodScale ?? 1);
 
   for (const p of plan.landmarks) {
     const spec = m.assets[p.asset];
@@ -261,44 +278,77 @@ export function createCityInstances(
     b.mesh.boundingBox = null;
   }
 
-  const far = keys.flatMap((k) => (k.buckets[2] ? [k.buckets[2].mesh] : []));
+  /** One key's re-bucketing for a camera position; returns how many meshes it rebuilt. */
+  function updateKey(key: Key, camera: THREE.Vector3) {
+    let rebuilt = 0;
+    const dirty = new Set<number>();
+    for (let i = 0; i < key.list.length; i++) {
+      const p = key.list[i] as Placement;
+      const d = Math.hypot(p.x - camera.x, camera.y, p.z - camera.z);
+      const rawPrev = key.raw[i] as number;
+      const raw = lodFor(d, key.lods, rawPrev === UNSET ? undefined : (rawPrev as LodBucket));
+      key.raw[i] = raw;
+      const prev = key.cur[i] as number;
+      const next = raw < 0 ? -1 : (key.resolve[raw] ?? -1);
+      if (next !== prev) {
+        key.cur[i] = next;
+        dirty.add(prev);
+        dirty.add(next);
+      }
+    }
+    for (const lod of dirty) {
+      const b = key.buckets[lod];
+      if (!b) continue;
+      rebuild(key, b);
+      rebuilt++;
+    }
+    return rebuilt;
+  }
+
+  /** Frees one bucket's instance buffers and wrapper geometry; the library's geometry stays. */
+  function releaseBucket(b: Bucket) {
+    b.mesh.dispose();
+    const g = b.mesh.geometry;
+    // Detach the library's shared attributes first: dispose() would delete their GPU buffers.
+    for (const name of Object.keys(g.attributes))
+      if (!name.startsWith("iPal")) g.deleteAttribute(name);
+    g.setIndex(null);
+    g.dispose();
+  }
+
+  const farOf = () =>
+    [...keys, ...kitKeys].flatMap((k) => (k.buckets[2] ? [k.buckets[2].mesh] : []));
+  let far = farOf();
+  /** The last camera position seen by update, so new kits can be bucketed at once. */
+  let lastCamera: THREE.Vector3 | null = null;
 
   return {
     group,
     aoExcluded: () => far.filter((m) => m.visible),
     update(camera) {
+      lastCamera = (lastCamera ?? new THREE.Vector3()).copy(camera);
       let rebuilt = 0;
-      for (const key of keys) {
-        const dirty = new Set<number>();
-        for (let i = 0; i < key.list.length; i++) {
-          const p = key.list[i] as Placement;
-          const d = Math.hypot(p.x - camera.x, camera.y, p.z - camera.z);
-          const rawPrev = key.raw[i] as number;
-          const raw = lodFor(d, key.lods, rawPrev === UNSET ? undefined : (rawPrev as LodBucket));
-          key.raw[i] = raw;
-          const prev = key.cur[i] as number;
-          const next = raw < 0 ? -1 : (key.resolve[raw] ?? -1);
-          if (next !== prev) {
-            key.cur[i] = next;
-            dirty.add(prev);
-            dirty.add(next);
-          }
-        }
-        for (const lod of dirty) {
-          const b = key.buckets[lod];
-          if (!b) continue;
-          rebuild(key, b);
-          rebuilt++;
-        }
-      }
+      for (const key of keys) rebuilt += updateKey(key, camera);
+      for (const key of kitKeys) rebuilt += updateKey(key, camera);
       return rebuilt;
+    },
+    setKits(kits, kitLodScale = 1) {
+      for (const key of kitKeys)
+        for (const b of key.buckets) {
+          if (!b) continue;
+          group.remove(b.mesh);
+          releaseBucket(b);
+        }
+      kitKeys = buildKeys(kits ?? [], kitLodScale);
+      far = farOf();
+      if (lastCamera) for (const key of kitKeys) updateKey(key, lastCamera);
     },
     stats() {
       let instances = landmarkMeshes;
       let meshes = landmarkMeshes;
       let visibleMeshes = landmarkMeshes;
       let gpuBytes = 0; // instance buffers only; shared geometry is counted by the library
-      for (const key of keys)
+      for (const key of [...keys, ...kitKeys])
         for (const b of key.buckets) {
           if (!b) continue;
           meshes++;
@@ -310,16 +360,7 @@ export function createCityInstances(
       return { instances, meshes, visibleMeshes, gpuBytes };
     },
     dispose() {
-      group.traverse((o) => {
-        if ((o as THREE.InstancedMesh).isInstancedMesh) (o as THREE.InstancedMesh).dispose();
-      });
-      for (const g of wrappers) {
-        // Detach the library's shared attributes first: dispose() would delete their GPU buffers.
-        for (const name of Object.keys(g.attributes))
-          if (!name.startsWith("iPal")) g.deleteAttribute(name);
-        g.setIndex(null);
-        g.dispose();
-      }
+      for (const key of [...keys, ...kitKeys]) for (const b of key.buckets) if (b) releaseBucket(b);
       material.dispose();
       for (const mt of kitMaterials.values()) mt.dispose();
       for (const mt of landmarkMaterials) mt.dispose();
