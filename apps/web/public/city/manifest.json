@@ -908,7 +908,7 @@
     "shop_office": {
       "group": "archetype",
       "file": "archetypes/shop_office.glb",
-      "bytes": 22576,
+      "bytes": 24248,
       "repeat": "frontage",
       "frontage": "long",
       "fit": {
@@ -930,19 +930,19 @@
       "palettes": {
         "default": [
           [
-            "#e8e6e1",
+            "#ece6da",
             "#4a4e55",
-            "#9aa3ab"
+            "#b8704f"
           ],
           [
-            "#dcdad4",
+            "#e2dacb",
             "#3a3e44",
             "#b49a6e"
           ],
           [
-            "#f0eee9",
+            "#f1ebe1",
             "#5a5f66",
-            "#7f8a94"
+            "#c4855e"
           ]
         ]
       },
@@ -956,12 +956,12 @@
           "lods": [
             {
               "node": "shop_office__row__LOD0",
-              "tris": 1392,
+              "tris": 1466,
               "maxM": 300.0
             },
             {
               "node": "shop_office__row__LOD1",
-              "tris": 336,
+              "tris": 358,
               "maxM": 1500.0
             },
             {
@@ -998,19 +998,19 @@
       "palettes": {
         "default": [
           [
-            "#e8e6e1",
+            "#ece6da",
             "#4a4e55",
-            "#9aa3ab"
+            "#b8704f"
           ],
           [
-            "#dcdad4",
+            "#e2dacb",
             "#3a3e44",
             "#b49a6e"
           ],
           [
-            "#f0eee9",
+            "#f1ebe1",
             "#5a5f66",
-            "#7f8a94"
+            "#c4855e"
           ]
         ]
       },
@@ -1068,7 +1068,7 @@
     "school": {
       "group": "archetype",
       "file": "archetypes/school.glb",
-      "bytes": 59120,
+      "bytes": 59104,
       "repeat": "frontage",
       "frontage": "long",
       "fit": {
@@ -1090,19 +1090,19 @@
       "palettes": {
         "default": [
           [
-            "#e8e6e1",
+            "#ece6da",
             "#4a4e55",
-            "#9aa3ab"
+            "#b8704f"
           ],
           [
-            "#dcdad4",
+            "#e2dacb",
             "#3a3e44",
             "#b49a6e"
           ],
           [
-            "#f0eee9",
+            "#f1ebe1",
             "#5a5f66",
-            "#7f8a94"
+            "#c4855e"
           ]
         ]
       },
@@ -1158,19 +1158,19 @@
       "palettes": {
         "default": [
           [
-            "#e8e6e1",
+            "#ece6da",
             "#4a4e55",
-            "#9aa3ab"
+            "#b8704f"
           ],
           [
-            "#dcdad4",
+            "#e2dacb",
             "#3a3e44",
             "#b49a6e"
           ],
           [
-            "#f0eee9",
+            "#f1ebe1",
             "#5a5f66",
-            "#7f8a94"
+            "#c4855e"
           ]
         ]
       },
@@ -1204,7 +1204,7 @@
     "factory": {
       "group": "archetype",
       "file": "archetypes/factory.glb",
-      "bytes": 48528,
+      "bytes": 48532,
       "repeat": "none",
       "frontage": "short",
       "fit": {
@@ -1226,19 +1226,19 @@
       "palettes": {
         "default": [
           [
-            "#e8e6e1",
+            "#ece6da",
             "#4a4e55",
-            "#9aa3ab"
+            "#b8704f"
           ],
           [
-            "#dcdad4",
+            "#e2dacb",
             "#3a3e44",
             "#b49a6e"
           ],
           [
-            "#f0eee9",
+            "#f1ebe1",
             "#5a5f66",
-            "#7f8a94"
+            "#c4855e"
           ]
         ]
       },
@@ -1272,7 +1272,7 @@
     "mall": {
       "group": "archetype",
       "file": "archetypes/mall.glb",
-      "bytes": 50684,
+      "bytes": 74480,
       "repeat": "none",
       "frontage": "short",
       "fit": {
@@ -1294,19 +1294,19 @@
       "palettes": {
         "default": [
           [
-            "#e8e6e1",
+            "#ece6da",
             "#4a4e55",
-            "#9aa3ab"
+            "#b8704f"
           ],
           [
-            "#dcdad4",
+            "#e2dacb",
             "#3a3e44",
             "#b49a6e"
           ],
           [
-            "#f0eee9",
+            "#f1ebe1",
             "#5a5f66",
-            "#7f8a94"
+            "#c4855e"
           ]
         ]
       },
@@ -1320,12 +1320,12 @@
           "lods": [
             {
               "node": "mall__box__LOD0",
-              "tris": 4438,
+              "tris": 5756,
               "maxM": 300.0
             },
             {
               "node": "mall__box__LOD1",
-              "tris": 784,
+              "tris": 1228,
               "maxM": 1500.0
             },
             {
@@ -1362,19 +1362,19 @@
       "palettes": {
         "default": [
           [
-            "#e8e6e1",
+            "#ece6da",
             "#4a4e55",
-            "#9aa3ab"
+            "#b8704f"
           ],
           [
-            "#dcdad4",
+            "#e2dacb",
             "#3a3e44",
             "#b49a6e"
           ],
           [
-            "#f0eee9",
+            "#f1ebe1",
             "#5a5f66",
-            "#7f8a94"
+            "#c4855e"
           ]
         ]
       },
@@ -1408,7 +1408,7 @@
     "lakeside_mall": {
       "group": "landmark",
       "file": "landmarks/lakeside_mall.glb",
-      "bytes": 87288,
+      "bytes": 87268,
       "repeat": "none",
       "frontage": "short",
       "fit": {
@@ -1430,19 +1430,19 @@
       "palettes": {
         "default": [
           [
-            "#e8e6e1",
+            "#ece6da",
             "#4a4e55",
-            "#9aa3ab"
+            "#b8704f"
           ],
           [
-            "#dcdad4",
+            "#e2dacb",
             "#3a3e44",
             "#b49a6e"
           ],
           [
-            "#f0eee9",
+            "#f1ebe1",
             "#5a5f66",
-            "#7f8a94"
+            "#c4855e"
           ]
         ]
       },
@@ -1476,7 +1476,7 @@
     "kanopi": {
       "group": "landmark",
       "file": "landmarks/kanopi.glb",
-      "bytes": 395252,
+      "bytes": 446300,
       "repeat": "none",
       "frontage": "long",
       "fit": {
@@ -1498,19 +1498,19 @@
       "palettes": {
         "default": [
           [
-            "#e8e6e1",
+            "#ece6da",
             "#4a4e55",
-            "#9aa3ab"
+            "#b8704f"
           ],
           [
-            "#dcdad4",
+            "#e2dacb",
             "#3a3e44",
             "#b49a6e"
           ],
           [
-            "#f0eee9",
+            "#f1ebe1",
             "#5a5f66",
-            "#7f8a94"
+            "#c4855e"
           ]
         ]
       },
@@ -1524,12 +1524,12 @@
           "lods": [
             {
               "node": "kanopi__tower__LOD0",
-              "tris": 41658,
+              "tris": 43452,
               "maxM": 300.0
             },
             {
               "node": "kanopi__tower__LOD1",
-              "tris": 6496,
+              "tris": 6370,
               "maxM": 1500.0
             },
             {
@@ -1568,19 +1568,19 @@
       "palettes": {
         "default": [
           [
-            "#e8e6e1",
+            "#ece6da",
             "#4a4e55",
-            "#9aa3ab"
+            "#b8704f"
           ],
           [
-            "#dcdad4",
+            "#e2dacb",
             "#3a3e44",
             "#b49a6e"
           ],
           [
-            "#f0eee9",
+            "#f1ebe1",
             "#5a5f66",
-            "#7f8a94"
+            "#c4855e"
           ]
         ]
       },
