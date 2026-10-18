@@ -43,7 +43,8 @@ LineString define a node and its position. Coordinates are WGS84 `[lon, lat]`.
 `flood` (affected places, islands, evacuation reachability), `vr_store` (SQLite verification
 requests), `attributes` (attribute catalogue and value validation), `sim` (resident-agent batch
 runner that ranks data gaps), `twm` (the Township World Model: actions, the pure transition
-`apply`, journey rollouts and what-if diffs), `tools` (tool functions and the `TOOLS` registry).
+`apply`, journey rollouts and what-if diffs), `journey` (`build_journey`: a planned route as
+ordered journey events for the 3D player), `tools` (tool functions and the `TOOLS` registry).
 
 ## Township World Model (`twm.py`, Cycle 1 of `ai/world-model`)
 
@@ -161,6 +162,13 @@ A route whose facts include `team_survey_placeholder` evidence carries `demo_evi
 returns their named closure warnings and reported closure evidence. Expired or upcoming
 closures do not remove a candidate. Staff free-text notes never reach the tool output.
 
+Route evidence (`routing.evidence_for_route`) also cites the destination place
+(`ev-place-<id>`, the same record the tools emit) and, for profiles with a rest rule
+(`max_rest_free_run_m`), each rest point's own rest claims (`ev-<place>.seating` /
+`ev-<place>.shelter`, or `ev-place-<id>` when it has none) and the route-level
+`ev-<route>.rest_gap` (`max_gap_between_rest_m`, the limit and the rest point ids). Placeholder
+bench claims therefore set `demo_evidence` on rest-profile routes.
+
 `plan_route` files at most 10 verification requests per call (`MAX_ROUTE_VRS`); the overflow is
 counted in `verification_requests_truncated`. Flood unknowns never file a VR.
 
@@ -191,13 +199,54 @@ geometry caveats, not a passability upgrade, downgrade or new survey ticket. Der
 `reported` and source `mapped walk graph (not a sidewalk survey)`. Resident answers
 should name these road stretches and retain their uncertainty even on a confirmed route.
 
+## Journey plans (`journey.py`, spec 2026-10-19 §6.1)
+
+`build_journey(world, route, profile, start_time) -> JourneyPlan` turns a planned route into the
+trip the 3D player animates. It is deterministic and reads world-model data only; the player
+never invents events.
+
+- `JourneyPlan`: `route_id`, `profile`, `start_time` (local `HH:MM`), `pace_m_per_s`
+  (`routing._pace_m_per_min(profile) / 60`, the same pace as `Route.est_minutes`), `polyline`
+  (travel order, chained by graph node so reversed edges and out-and-back spurs are oriented),
+  `spans` (`[from_m, to_m, eval]`, one per route segment), `events`, `conditions: []` (seam).
+- Distances (`at_m`, `spans`) are metres along the polyline in a local WGS84 tangent plane,
+  the frame the Three.js scene uses, so the hero is at the element when its event fires. They
+  differ from `Route.distance_m` (haversine) by well under 1% (Elmina demo: 963.5 vs 965.5 m).
+- `JourneyEvent`: `kind`, `at_m`, `element_id`, `source`, `attributes`, `status`, `demo`,
+  `evidence_id`, `title`, `body`, `hold_s` (`HOLD_S`: rest 60, unknown 8, others 3 simulated s).
+  Every event has an `element_id` (edge, rest place or destination place) or a named
+  route-level `source`: `route.max_gap_between_rest_m` (gap) or `route.to_place` (arrive, which
+  also carries the destination id). Route-level events have `status: "route"`; rest points use
+  `verified|unverified`; edge events carry the cited claim's status.
+- Every `evidence_id` is in `routing.evidence_for_route(world, route)`. `demo` is true exactly
+  when that evidence is `team_survey_placeholder`.
+
+| Rule | Kind / title | Evidence |
+| --- | --- | --- |
+| First edge with a `covered` claim (yes, not `unknown`) | `covered` "Covered walkway" | `ev-<edge>.covered` |
+| First UNKNOWN `major_road` | `unknown` "Crossing <name>" | the edge's unknown claim, else `ev-<route>.walkways` |
+| Longest stretch without a rest point, when over the limit; fires `limit` m into it | `gap` "No mapped rest stop ahead" | `ev-<route>.rest_gap` |
+| Longest run of adjacent UNKNOWN `street` edges with one name | `unknown` "<street name>" | as main road |
+| First PASS edge with verified claims (OSM passability never counts) | `verified` "Step-free path" | the edge's verified claim |
+| UNKNOWN ramps, adjacent ramp edges as one, at most 2 | `unknown` "Ramp" | the unknown claim |
+| Each rest point after the start, rest-rule profiles only | `rest` "<place name>" | the place's rest claim |
+| Arrival | `arrive` "<destination name>" | `ev-place-<id>`, else walkways |
+
+Events sort by `at_m`, ties in the rule order above (the ramp before the bench at its foot).
+More than `MAX_EVENTS` (12) events: rest points are thinned evenly. Wording follows the
+honesty invariants: UNKNOWN says "Not checked yet" (the UI and answer add "verification request
+filed"; `build_journey` files nothing), placeholder facts say "Demo value · not surveyed." and
+never "Verified", and no card says safe, blocked or a water depth.
+
 ## Tests
 
 ```
 uv run pytest packages/spatial -q
 ```
 
-Tests run against the tiny fixture world in `tests/fixtures/tiny`.
+Tests run against the tiny fixture world in `tests/fixtures/tiny`. `test_journey.py` also checks
+the spec §2 demo table and hypothesis properties (200 seed place pairs, routes ≤ 2 km) on the
+Elmina seed; those skip when the seed is missing.
 
 ## Rising river (`rollout.py`, Cycle 3)
 

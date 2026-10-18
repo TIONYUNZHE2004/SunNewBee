@@ -380,3 +380,43 @@ class Profile(BaseModel):
     # Walking profiles on a `major_road` edge whose sidewalk claim is "none": FAIL (cannot use the
     # carriageway) or UNKNOWN. A missing sidewalk claim is always UNKNOWN.
     no_sidewalk_is: Literal["FAIL", "UNKNOWN"] = "UNKNOWN"
+
+
+JourneyEventKind = Literal["covered", "unknown", "gap", "verified", "rest", "arrive"]
+# Claim statuses for element events; "unverified" for a rest point without a verified claim
+# (Route.rest_points vocabulary); "route" for route-level events (gap, arrive).
+JourneyEventStatus = Literal[
+    "unknown", "reported", "verified", "stale", "contested", "unverified", "route"
+]
+# Route-level sources: the Route field an event without its own element comes from.
+JourneySource = Literal["route.max_gap_between_rest_m", "route.to_place"]
+
+
+class JourneyEvent(BaseModel):
+    """One stop of a journey (spec §6.1), derived by journey.build_journey from world data only."""
+
+    kind: JourneyEventKind
+    at_m: float  # metres along JourneyPlan.polyline (local WGS84 tangent plane)
+    element_id: str | None = None  # edge id, rest place id or destination place id
+    # Named route-level source; set when the event is about the route, not one element.
+    source: JourneySource | None = None
+    attributes: list[str] = Field(default_factory=list)  # claim attributes the event rests on
+    status: JourneyEventStatus
+    demo: bool = False  # cited evidence is team_survey_placeholder: "Demo value · not surveyed"
+    evidence_id: str  # always one of routing.evidence_for_route(world, route)
+    title: str
+    body: str
+    hold_s: float  # simulated seconds the player holds on this event
+
+
+class JourneyPlan(BaseModel):
+    """A planned route turned into a deterministic trip the 3D player animates (spec §6.1)."""
+
+    route_id: str
+    profile: ProfileId
+    start_time: str = Field(pattern=r"^([01]\d|2[0-3]):[0-5]\d$")  # local "HH:MM" at the site
+    pace_m_per_s: float
+    polyline: list[LonLat]  # route coordinates in travel order, oriented and chained
+    spans: list[tuple[float, float, EvalResult]]  # [from_m, to_m, eval], one per route segment
+    events: list[JourneyEvent]
+    conditions: list[dict[str, Any]] = Field(default_factory=list)  # seam for later (P4)
