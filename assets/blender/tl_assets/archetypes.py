@@ -1032,7 +1032,8 @@ def _shed_roof_detail(w: float, d: float, h: float, pitch_deg: float, lod: int) 
     def roof_y(a: float) -> float:
         return h - abs(a) * t
 
-    units, fans, sky = kit._Mesh(), kit._Mesh(), kit._Mesh()
+    units, fans = kit._Mesh(), kit._Mesh()
+    sky: list = []  # one seeded part per strip sheet
     a0, a1 = w / 2 - 5.6, w / 2 - 4.4  # units 1.2 m across the slope, clear of the eave
     for zc in (-d / 4, 0.0, d / 4):
         y0 = roof_y(a1) - 0.05
@@ -1056,12 +1057,10 @@ def _shed_roof_detail(w: float, d: float, h: float, pitch_deg: float, lod: int) 
                     (s * sb, roof_y(sb) + 0.03, z1),
                     (s * sa, roof_y(sa) + 0.03, z1),
                 ]
-                sky.face(pts, (s * t, 1.0, 0.0))
-    return kit._keep(
-        units.obj("roof_unit", "metal"),
-        fans.obj("roof_unit_fan", "dark"),
-        sky.obj("skylight_strip", "glass", kit.SEED),
-    )
+                sheet = kit._Mesh()
+                sheet.face(pts, (s * t, 1.0, 0.0))
+                sky.append(sheet.obj("skylight_strip", "glass", kit.SEED))
+    return kit._keep(units.obj("roof_unit", "metal"), fans.obj("roof_unit_fan", "dark"), *sky)
 
 
 def _mall(variant: Variant, lod: int) -> list:
@@ -1144,21 +1143,21 @@ def _mall(variant: Variant, lod: int) -> list:
 def _roof_monitors(y: float, zs, half: float) -> list:
     """Glazed roof monitors (skylight strips): low ridges along x at each z in `zs`, over
     x in [-half, half], 2.4 m wide and 0.7 m high, glass slopes in 6 m bays, primary ends."""
-    sky, ends = kit._Mesh(), kit._Mesh()
+    sky, ends = [], kit._Mesh()  # one seeded glass part per bay
     hw, rise = 1.2, 0.7
     n = max(1, round(2 * half / 6.0))
     for zc in zs:
         for i in range(n):
             xa, xb = -half + 2 * half * i / n, -half + 2 * half * (i + 1) / n
+            bay = kit._Mesh()
             for s in (1.0, -1.0):
                 pts = [(xa, y, zc + s * hw), (xb, y, zc + s * hw)]
                 pts += [(xb, y + rise, zc), (xa, y + rise, zc)]
-                sky.face(pts, (0.0, 1.0, s * rise / hw))
+                bay.face(pts, (0.0, 1.0, s * rise / hw))
+            sky.append(bay.obj("skylight_strip", "glass", kit.SEED))
         for xe, nx in ((-half, -1.0), (half, 1.0)):
             ends.face([(xe, y, zc - hw), (xe, y, zc + hw), (xe, y + rise, zc)], (nx, 0.0, 0.0))
-    return kit._keep(
-        sky.obj("skylight_strip", "glass", kit.SEED), ends.obj("skylight_strip_ends", "primary")
-    )
+    return kit._keep(*sky, ends.obj("skylight_strip_ends", "primary"))
 
 
 def _generic(variant: Variant, lod: int) -> list:
@@ -1206,17 +1205,17 @@ def _generic(variant: Variant, lod: int) -> list:
 
 
 BUILDERS: dict[str, Callable[[Variant, int], list]] = {
-    "link_intermediate": _link,
-    "link_long": _link,
-    "superlink": _superlink,
-    "semi_d": _semi_d,
-    "bungalow": _bungalow,
-    "townhouse": _townhouse,
-    "shop_office": _shop_office,
-    "highrise": _highrise,
-    "school": _school,
-    "mosque": _mosque,
-    "factory": _factory,
-    "mall": _mall,
-    "generic": _generic,
+    "link_intermediate": kit.lit_node(_link),
+    "link_long": kit.lit_node(_link),
+    "superlink": kit.lit_node(_superlink),
+    "semi_d": kit.lit_node(_semi_d),
+    "bungalow": kit.lit_node(_bungalow),
+    "townhouse": kit.lit_node(_townhouse),
+    "shop_office": kit.lit_node(_shop_office),
+    "highrise": kit.lit_node(_highrise),
+    "school": kit.lit_node(_school),
+    "mosque": kit.lit_node(_mosque),
+    "factory": kit.lit_node(_factory),
+    "mall": kit.lit_node(_mall),
+    "generic": kit.lit_node(_generic),
 }

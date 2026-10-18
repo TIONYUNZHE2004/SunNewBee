@@ -92,6 +92,7 @@ def _build_objects(
             name = f"{asset_id}__{v.id}__LOD{lod}"
             kit.reset_lit_balance()  # each node balances its own lit-window share
             built = BUILDERS[asset_id](v, lod)
+            kit.finalize_seeds()  # no-op after a `kit.lit_node` builder
             if parts is not None:
                 parts[name] = part_names(built)
             obj = core.join(built, name)

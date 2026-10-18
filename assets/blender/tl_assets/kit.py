@@ -223,22 +223,26 @@ class _Mesh:
     def obj(self, name: str, role: str, aux=0.0):
         """The collected faces as one linked Blender object with `role` (None if empty).
 
-        Glass counts towards the node's night lit share: `aux=SEED` draws a balanced window
-        seed (see `balanced_seed`); a fixed aux is tallied as lit (< 0.5) or unlit.
+        Glass counts towards the node's night lit share: `aux=SEED` gets a stratified window
+        seed when the builder returns (`finalize_seeds`); never-lit glass (aux >= UNLIT_AUX)
+        is counted at the top of the range.
         """
         if not self.faces:
             return None
         loops = sum(len(f) for f in self.faces)  # the export keeps about one vertex per corner
-        if role == "glass" and aux is SEED:
-            aux = balanced_seed(loops)
-        elif role == "glass" and not callable(aux):
-            _tally(loops, float(aux))
+        seeded = role == "glass" and aux is SEED
+        if seeded:
+            aux = 0.5  # placeholder until `finalize_seeds`
+        elif role == "glass" and not callable(aux) and float(aux) >= UNLIT_AUX:
+            _FIXED[0] += loops
         me = bpy.data.meshes.new(name)
         me.from_pydata([core.to_blender(*p) for p in self.verts], [], self.faces)
         me.update()
         ob = bpy.data.objects.new(name, me)
         bpy.context.scene.collection.objects.link(ob)
         core.set_role(ob, role, aux)
+        if seeded:
+            _PENDING.append((ob, loops))
         return ob
 
 
@@ -246,42 +250,76 @@ def _keep(*objs) -> list:
     return [o for o in objs if o is not None]
 
 
-# Night lit share. The role material lights a glass face when COLOR_0.b < uLitShare (0.6 by
-# default). Window seeds come in two bands, lit (LIT_SEEDS) and unlit (UNLIT_SEEDS), and every
-# glass part a node adds is weighed (by vertex count) so the node's lit share stays near
-# LIT_TARGET for any uLitShare between the bands.
-LIT_TARGET = 0.5
-LIT_SEEDS = (0.04, 0.32)
-UNLIT_SEEDS = (0.70, 0.96)
+# Night lit share. The role material lights a glass face when COLOR_0.b < uLitShare (the web
+# mood ramps it from 0.35 at dusk to 0.58 at night). Seeds are stratified per node: every
+# seeded glass part (aux SEED) is collected with its weight (corner count), and when the node's
+# builder returns, `finalize_seeds` shuffles them (seeded `random`) and gives each the quantile
+# of its cumulative weight midpoint, mapped onto SEED_RANGE (of SHUFFLES seeded orders, the
+# one whose share tracks TRACK_THRESHOLDS best). Never-lit glass (balustrades, water) counts
+# as the top of that range. So the weighted share of glass under any threshold t
+# is about (t - 0.02) / 0.96, i.e. share(t) ~= t, and the dusk-to-night ramp lights more windows
+# as it goes. Large windows are split into panes or bays (see `_fill`) to keep the steps small.
+SEED_RANGE = (0.02, 0.98)
 UNLIT_AUX = 0.98  # glass that never lights: balustrades
-SEED = object()  # aux sentinel for `_Mesh.obj`: a balanced window seed
-_LIT = {"lit": 0.0, "total": 0.0}
+SEED = object()  # aux sentinel for `_Mesh.obj`: a stratified window seed
+TRACK_THRESHOLDS = (0.35, 0.465, 0.58)  # dusk, between, night (web mood uLitShare)
+SHUFFLES = 256
+_PENDING: list = []  # (object, weight) of the node's seeded glass parts
+_FIXED = [0.0]  # weight of the node's never-lit glass
 
 
 def reset_lit_balance() -> None:
-    """Start a new node's lit-share tally (called by `build` before every builder call)."""
-    _LIT["lit"] = _LIT["total"] = 0.0
+    """Start a new node's seed tally (every builder in `BUILDERS` does it on entry, through
+    `lit_node`; `build` also does it before each call)."""
+    _PENDING.clear()
+    _FIXED[0] = 0.0
 
 
-def balanced_seed(weight: float) -> float:
-    """A window seed for a glass part of `weight` vertices: lit when that keeps the node's lit
-    share closer to LIT_TARGET (ties broken by the seeded `random`)."""
-    lit, total = _LIT["lit"], _LIT["total"] + weight
-    on = abs((lit + weight) / total - LIT_TARGET)
-    off = abs(lit / total - LIT_TARGET)
-    light = on < off or (on == off and random.random() < 0.5)
-    _LIT["total"] = total
-    if light:
-        _LIT["lit"] = lit + weight
-        return random.uniform(*LIT_SEEDS)
-    return random.uniform(*UNLIT_SEEDS)
+def finalize_seeds() -> None:
+    """Give the node's seeded glass parts their stratified seeds (see the note above)."""
+    if not _PENDING:
+        return
+    total = sum(w for _, w in _PENDING) + _FIXED[0]
+    lo, hi = SEED_RANGE
+
+    def seeds(parts):
+        acc, out = 0.0, []
+        for _ob, w in parts:
+            out.append(lo + (hi - lo) * (acc + w / 2) / total)
+            acc += w
+        return out
+
+    def error(parts) -> float:  # worst |share(t) - t| over the thresholds the web uses
+        pairs = list(zip(seeds(parts), (w for _, w in parts), strict=True))
+        return max(
+            abs(sum(w for b, w in pairs if b < t) / total - (t - lo) / (hi - lo))
+            for t in TRACK_THRESHOLDS
+        )
+
+    best, best_err = None, math.inf
+    for _ in range(SHUFFLES):  # seeded shuffles; keep the one that tracks best
+        parts = list(_PENDING)
+        random.shuffle(parts)
+        err = error(parts)
+        if err < best_err:
+            best, best_err = parts, err
+    for (ob, _w), b in zip(best, seeds(best), strict=True):
+        core.set_role(ob, "glass", b)
+    _PENDING.clear()
 
 
-def _tally(weight: float, aux: float) -> None:
-    """Count a glass part with a fixed aux (lit below 0.5) into the node's lit share."""
-    _LIT["total"] += weight
-    if aux < 0.5:
-        _LIT["lit"] += weight
+def lit_node(fn):
+    """Wrap a `(variant, lod) -> objects` builder so each call stratifies its own seeds."""
+
+    def wrapper(variant, lod):
+        reset_lit_balance()
+        out = fn(variant, lod)
+        finalize_seeds()
+        return out
+
+    wrapper.__name__ = getattr(fn, "__name__", "builder")
+    wrapper.__doc__ = fn.__doc__
+    return wrapper
 
 
 def place(objs: list, x: float = 0.0, y: float = 0.0, z: float = 0.0, rot_y_deg: float = 0.0):
@@ -369,6 +407,51 @@ def _wall_face(
         )
 
 
+def _light_parts(o: Opening, lod: int) -> list[tuple[float, float, float, float]]:
+    """The glass of a window or shopfront as separately seeded parts (u0, u1, v0, v1), so a big
+    opening lights pane by pane and the node's seed quantiles stay fine-grained: a shopfront by
+    mullion bay (and, at LOD0, its transom), a gridded window by grid pane, a window with a
+    mullion (w >= 1.2) by half. LOD0 parts stop at the frame bars (no glass vertex sits under a
+    bar, which would bake black). Empty for anything else: one pane, one seed."""
+    u0, u1, v0, v1 = o.rect
+    cols, rows = o.grid
+    if o.kind == "shopfront":
+        nb = max(1, round(o.w / 1.5))  # the mullion bays
+        us = [u0 + o.w * k / nb for k in range(nb + 1)]
+        if o.h > 2.8 and lod == 0:  # the transom, and the tall bays halved (no bar there)
+            tv = v1 - 0.6
+            vs = [v0, (v0 + tv) / 2, tv, v1]
+        else:
+            vs = [v0, v1]
+    elif o.kind == "window" and (cols or rows):
+        us = [u0 + o.w * k / max(cols, 1) for k in range(max(cols, 1) + 1)]
+        vs = [v0 + o.h * k / max(rows, 1) for k in range(max(rows, 1) + 1)]
+    elif o.kind == "window" and o.w >= 1.2:
+        us, vs = [u0, o.u, u1], [v0, v1]
+    else:
+        return []
+    if len(us) == 2 and len(vs) == 2:
+        return []
+    fw = FRAME_W if lod == 0 else 0.0
+    out = []
+    for i, (ua, ub) in enumerate(zip(us, us[1:], strict=False)):
+        ua += fw if i == 0 else fw / 2
+        ub -= fw if i == len(us) - 2 else fw / 2
+        for j, (va, vb) in enumerate(zip(vs, vs[1:], strict=False)):
+            # split bars: a grid's transoms are centred on the split; a shopfront's single
+            # transom sits on top of the split below it, and its halving split has no bar
+            if o.kind == "shopfront":
+                below = (0.0, 0.0, fw)  # bar at the bottom of part j (0 = the sill bar)
+                above = (0.0, 0.0)  # bar at the top of part j below the head
+                va += fw if j == 0 else below[j]
+                vb -= fw if j == len(vs) - 2 else above[j]
+            else:
+                va += fw if j == 0 else fw / 2
+                vb -= fw if j == len(vs) - 2 else fw / 2
+            out.append((ua, ub, va, vb))
+    return out
+
+
 def _fill(o: Opening, lod: int, f: _Frame, recess: float) -> list:
     """What sits in an opening, on frame `f`, recessed by `recess` behind the facade plane."""
     u0, u1, v0, v1 = o.rect
@@ -380,25 +463,12 @@ def _fill(o: Opening, lod: int, f: _Frame, recess: float) -> list:
     # LOD0 panes are split into ~0.35 m cells and LOD1 into 2 × 2, so the AO bake has interior
     # vertices: a pane's four corners all sit in the reveal or frame crevice (AO near 0).
     cells = max(2, round(min(o.w, o.h) / 0.35)) if lod == 0 else 2
-    lights: list[_Mesh] = []  # a LOD0 shopfront lights bay by bay (and its transom on its own)
-    if o.kind == "shopfront" and lod == 0:
-        nb = max(1, round(o.w / 1.5))
-        vt = v1 - 0.6 if o.h > 2.8 else v1
-        for k in range(nb):
-            for va, vb in ((v0, vt), (vt, v1)):
-                if vb - va > EPS:
-                    m = _Mesh()
-                    m.fgrid(
-                        f,
-                        u0 + o.w * k / nb,
-                        u0 + o.w * (k + 1) / nb,
-                        va,
-                        vb,
-                        back,
-                        min(o.w, o.h) / cells,
-                    )
-                    lights.append(m)
-    else:
+    lights: list[_Mesh] = []
+    for ua, ub, va, vb in _light_parts(o, lod):
+        m = _Mesh()
+        m.fgrid(f, ua, ub, va, vb, back, min(o.w, o.h) / cells if lod == 0 else None)
+        lights.append(m)
+    if not lights:
         pane.fgrid(f, u0, u1, v0, v1, back, min(o.w, o.h) / cells)
     fw, fd = FRAME_W, back + 0.07
     if lod == 0:  # frame bars drop the faces that lie against the pane or the reveal

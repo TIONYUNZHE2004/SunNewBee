@@ -301,11 +301,11 @@ DETAIL_ROLES: dict[str, tuple[str, ...]] = {
     "mall": ("primary", "secondary", "accent", "glass", "dark", "metal", "light"),
     "kanopi": ("primary", "secondary", "accent", "glass", "dark", "metal", "foliage"),
 }
-# night lit share: glass vertices with COLOR_0.b under uLitShare (0.6 by default, and either
-# side of it), on LOD0 and LOD1; Task 13 checks the packed highrise, link and shop office
-LIT_SHARE_IDS = ("link_intermediate", "link_long", "shop_office", "highrise", "kanopi")
-LIT_RANGE = (0.35, 0.65)
-LIT_THRESHOLDS = (0.45, 0.6, 0.65)
+# night lit share: glass vertices with COLOR_0.b under uLitShare.
+# The web mood ramps uLitShare from 0.35 (dusk) to 0.58 (night), so on every glass-bearing
+# asset the share tracks the threshold: share(t) ~= t on LOD0 and LOD1 (Task 13 checks the
+# night share in [0.35, 0.65] at 0.58).
+LIT_TRACKING = ((0.35, (0.28, 0.42)), (0.58, (0.51, 0.65)))
 NEVER_LIT = 0.97  # balustrades and the pool: glass that stays dark at night
 
 
@@ -345,12 +345,11 @@ def check_detail(raw: Path, asset_id: str) -> None:
         colors = read_attribute(raw, f"{asset_id}__{v.id}__LOD0", "COLOR_0")
         want = {specs.ROLES.index(r) for r in DETAIL_ROLES.get(asset_id, ())}
         assert want <= _roles(colors), (asset_id, v.id, want - _roles(colors))
-        if asset_id in LIT_SHARE_IDS:
-            for lod in (0, 1):
-                cols = read_attribute(raw, f"{asset_id}__{v.id}__LOD{lod}", "COLOR_0")
-                for t in LIT_THRESHOLDS:
-                    share = lit_share(cols, t)
-                    assert LIT_RANGE[0] <= share <= LIT_RANGE[1], (asset_id, v.id, lod, t, share)
+        for lod in (0, 1):
+            cols = read_attribute(raw, f"{asset_id}__{v.id}__LOD{lod}", "COLOR_0")
+            for t, (lo_s, hi_s) in LIT_TRACKING:
+                share = lit_share(cols, t)
+                assert lo_s <= share <= hi_s, (asset_id, v.id, lod, t, round(share, 3))
 
 
 def test_shop_office_roller_shutter_is_banded(non_residential_built):

@@ -569,7 +569,7 @@ def _masjid(variant: Variant, lod: int) -> list:
 
 
 BUILDERS = {
-    "lakeside_mall": _mall,
-    "kanopi": _kanopi,
-    "masjid_denai_alam": _masjid,
+    "lakeside_mall": kit.lit_node(_mall),
+    "kanopi": kit.lit_node(_kanopi),
+    "masjid_denai_alam": kit.lit_node(_masjid),
 }

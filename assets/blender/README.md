@@ -82,10 +82,13 @@ geometry (each builder seeds `random` from the asset id).
   nodes are found by `type`; the render engine is set inside `try/except TypeError`.
 - Decorative: every kit, plus archetype facade detail. No text, logos or brand marks; sign
   bands are blank (role `light`). No Google pixels or geometry in any asset.
-- Glass aux B is the window seed: the role material lights glass where B < `uLitShare`
-  (0.6 by default). Seeds come in a lit band (0.04-0.32) and an unlit band (0.70-0.96), and
-  `kit.balanced_seed` weighs every glass part of a node (by corner count) so each LOD keeps a
-  night lit share near 0.5 for any `uLitShare` between the bands. Glass that never lights:
+- Glass aux B is the window seed: the role material lights glass where B < `uLitShare` (the
+  web mood ramps it from 0.35 at dusk to 0.58 at night). Seeds are stratified per node over
+  0.02-0.98: `kit.finalize_seeds` (run by every `kit.lit_node` builder when it returns) gives
+  each seeded glass part the quantile of its cumulative weight (corner count) in the best of
+  256 seeded orders, so a node's lit share tracks the threshold (share(t) ~= t) and the
+  dusk-to-night ramp lights more windows as it goes. Big openings light by part (shopfront bays
+  and transoms, grid panes, mullion halves) to keep the steps small. Glass that never lights:
   balustrades (`kit.UNLIT_AUX` 0.98) and decorative water (`specs.WATER_AUX` 0.995; the role
   contract has no water role, so the Kanopi deck pool is glass with this aux).
 - `build_asset` writes `<raw glb>.parts.json` beside each raw glb (raw output only): the part
