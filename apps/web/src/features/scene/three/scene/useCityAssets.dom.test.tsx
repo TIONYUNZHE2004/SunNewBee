@@ -242,45 +242,22 @@ describe("useCityAssets: one city build", () => {
   });
 });
 
-type Decor = { group: THREE.Object3D; dispose(): void } | null;
-const facadeCalls = (engine: ReturnType<typeof fakeEngine>): Decor[] =>
-  engine.setDecor.mock.calls.filter(([slot]) => slot === "facades").map(([, d]) => d as Decor);
-
-describe("useCityAssets: procedural facades", () => {
-  it("hands one facade layer for the extruded buildings to the 'facades' slot; tier rebuilds, Low and unmount clear", async () => {
+describe("useCityAssets: procedural facade inputs", () => {
+  it("exposes the facade inputs of the extruded buildings; drawing them is useFacades' (streamed per tile)", async () => {
     const { lib } = boxLibrary();
     libSpy.lib = lib;
     const engine = fakeEngine();
-    const { result, rerender, unmount } = mount(engine, "medium");
+    const { result } = mount(engine, "medium");
     await waitFor(() => expect(result.current.assetsState).toBe("ready"));
-    await waitFor(() => expect(facadeCalls(engine).some((d) => d !== null)).toBe(true));
-    const first = facadeCalls(engine).filter((d) => d !== null);
-    expect(first).toHaveLength(1);
-    const layer = first[0]!;
-    expect(layer.group.userData.decorative).toBe(true);
-    expect(layer.group.children.length).toBeGreaterThan(0);
-    // Facades are decorative: the scene's "Decorative details are illustrative." chip must show.
-    expect(result.current.decorAssets).toBe(true);
     expect(result.current.plan?.extrude.has("x1")).toBe(true);
-    // A kits change never rebuilds the facades.
+    expect(result.current.facadeSrc?.map((f) => f.spec.buildingId)).toEqual(["x1"]);
+    expect(result.current.baseBytes.current).toBeGreaterThanOrEqual(0);
+    // No township-wide facade layer any more.
+    expect(engine.setDecor.mock.calls.some(([slot]) => slot === "facades")).toBe(false);
+    // A kits change keeps the same inputs (no re-plan of the facades).
+    const src = result.current.facadeSrc;
     act(() => result.current.setKits(kitsOf("a")));
-    expect(facadeCalls(engine).filter((d) => d !== null)).toHaveLength(1);
-
-    rerender({ tier: "high" });
-    await waitFor(() => expect(facadeCalls(engine).filter((d) => d !== null)).toHaveLength(2));
-    const high = facadeCalls(engine).at(-1);
-    expect(high).not.toBe(layer);
-    expect(built.calls).toBe(1);
-
-    rerender({ tier: "low" });
-    await waitFor(() => expect(facadeCalls(engine).at(-1)).toBeNull());
-    expect(result.current.decorAssets).toBe(false);
-    expect(facadeCalls(engine).filter((d) => d !== null)).toHaveLength(2);
-
-    rerender({ tier: "medium" });
-    await waitFor(() => expect(facadeCalls(engine).filter((d) => d !== null)).toHaveLength(3));
-    unmount();
-    expect(facadeCalls(engine).at(-1)).toBeNull();
+    expect(result.current.facadeSrc).toBe(src);
   });
 
   it("an engine switch drops the previous kits: the next build has none until setKits again", async () => {
@@ -313,8 +290,7 @@ describe("useCityAssets: procedural facades", () => {
     // for the new engine starts without the old kits.
     expect(built.calls).toBeGreaterThanOrEqual(2);
     expect(furniture(built.last)).toBe(false);
-    // The old engine's facades were cleared, the new engine got its own.
-    expect(facadeCalls(a).at(-1)).toBeNull();
-    await waitFor(() => expect(facadeCalls(b).some((d) => d !== null)).toBe(true));
+    // The new engine's build has its own facade inputs.
+    await waitFor(() => expect(result.current.facadeSrc?.length).toBe(1));
   });
 });

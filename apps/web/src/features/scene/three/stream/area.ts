@@ -32,6 +32,9 @@ export const touchesBox = (b: Box, x0: number, z0: number, x1: number, z1: numbe
 /** The seed of one tile for one planner: `hash01(tileKey, salt)`, as a string. */
 export const seedFor = (key: TileKey, salt: string): string => String(hash01(key, salt));
 
+/** How many layer caches `perLayer` has built (a cold first call): the streamer's warm-up proof. */
+export const perLayerStats = { builds: 0 };
+
 /**
  * `build()` memoised per layer object and frame, both held weakly. A planner keeps the local-frame
  * copy of a layer (points, bounds) here, so planning many tiles converts each layer once and a
@@ -52,6 +55,7 @@ export function perLayer<T>(
   }
   let v = byFrame.get(frame);
   if (v === undefined) {
+    perLayerStats.builds++;
     v = build();
     byFrame.set(frame, v);
   }

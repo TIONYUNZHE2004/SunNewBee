@@ -1,21 +1,25 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import * as THREE from "three";
 import type { BuildingsLayer, useLayer } from "../../../../lib/api";
 import type { Tier } from "../../cesium/stylised/quality";
 import type { Engine } from "../engine";
 import type { LocalFrame } from "../frame";
 import { createGroundLayer } from "../ground/groundLayer";
 import { landcoverMesh } from "../ground/landcover";
-import { ribbonsFromWalk } from "../ground/ribbons";
-import { heroBox } from "./useDecor";
+import type { Ribbon } from "../ground/ribbons";
+import type { ActiveTile } from "../stream/streamer";
 
 const EMPTY_FC = { type: "FeatureCollection", features: [] };
 /** A `/layers/{lens}` payload (the access layer: walk LineStrings and place points). */
 export type LayerData = ReturnType<typeof useLayer>["data"];
 
+/** The engine decor slot holding the streamed road surfaces and markings. */
+export const ROADS_SLOT = "roads";
+
 /**
- * The ground: land cover over the whole township and road ribbons clipped to the hero radius
- * (display only), plus the gate the other details wait on (`detailsOn`, the city's first frame)
- * and the latched walk LineStrings they are planned from.
+ * The ground: land cover over the whole township (display only), plus the gate the other details
+ * wait on (`detailsOn`, the city's first frame) and the latched walk LineStrings they are planned
+ * from. Road ribbons are streamed per tile (`useRoads`).
  */
 export function useGround({
   engine,
@@ -52,7 +56,7 @@ export function useGround({
     return off;
   }, [engine, buildings, cityShown]);
 
-  // Land cover covers the whole township; roads are clipped to the hero radius (display only).
+  // Land cover covers the whole township (display only).
   const landcover = useMemo(
     () =>
       frame
@@ -63,23 +67,37 @@ export function useGround({
         : null,
     [frame, buildings],
   );
-  const roads = useMemo(
-    () =>
-      frame && detailsOn && walk
-        ? ribbonsFromWalk(walk as unknown as GeoJSON.FeatureCollection, frame, {
-            // Until the streamer plans per tile (Task 4): the box covering the P3 hero circle.
-            area: { box: heroBox(frame), seed: "roads" },
-          })
-        : [],
-    [frame, detailsOn, walk],
-  );
   useEffect(() => {
     if (!engine || !landcover) return;
-    // The layer owns (and disposes) its land-cover geometry, so each layer gets a clone.
-    engine.setGround(createGroundLayer(roads, landcover.clone(), tier, engine.motion.uTime));
+    // The layer owns (and disposes) its land-cover geometry, so each layer gets a clone. Built once
+    // per land cover and tier: streamed roads never rebuild it.
+    engine.setGround(createGroundLayer([], landcover.clone(), tier, engine.motion.uTime));
     return () => engine.setGround(null);
-  }, [engine, landcover, roads, tier]);
+  }, [engine, landcover, tier]);
   useEffect(() => () => landcover?.dispose(), [landcover]);
 
-  return { detailsOn, walk, roads, landcover };
+  return { detailsOn, walk, landcover };
+}
+
+/**
+ * Road surfaces and (above Low) markings of the active tiles, merged into one road layer of at most
+ * two draws in the `roads` decor slot (with the land cover: at most 3 ground draws). Rebuilt only
+ * when the active set changes. Display only: a road's look says nothing about access.
+ */
+export function useRoads({
+  engine,
+  active,
+  tier,
+}: {
+  engine: Engine | null;
+  active: ActiveTile[];
+  tier: Tier;
+}) {
+  const roads = useMemo<Ribbon[]>(() => active.flatMap((a) => a.content.ribbons), [active]);
+  useEffect(() => {
+    if (!engine || roads.length === 0) return;
+    engine.setDecor(ROADS_SLOT, createGroundLayer(roads, new THREE.BufferGeometry(), tier));
+    return () => engine.setDecor(ROADS_SLOT, null);
+  }, [engine, roads, tier]);
+  return { roads };
 }

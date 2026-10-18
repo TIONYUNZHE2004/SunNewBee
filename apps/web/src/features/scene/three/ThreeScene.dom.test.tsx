@@ -18,7 +18,7 @@ import { createMotionUniforms } from "./assets/roleMaterial";
 import { BOOKMARKS, type BookmarkId, DEFAULT_BOOKMARK, HERO_CENTRE } from "./bookmarks";
 import type { Pose } from "./cameraRig";
 import { useCityInfo } from "./cityInfo";
-import type { Engine } from "./engine";
+import type { Engine, LodTick } from "./engine";
 import { createFrame } from "./frame";
 import { LIGHT_PRESETS } from "./lighting";
 import type { PickHit } from "./pick";
@@ -292,6 +292,31 @@ function fakeEngine() {
       e.frames++;
       for (const cb of e.frameCbs) cb(dt, { calls, moving: false });
     },
+    // The LOD schedule (Task 4): a requested tick runs on a 0 ms timer; a listener that reports
+    // more work gets another one, like the engine's trailing LOD wake.
+    lodCbs: new Set<(t: LodTick) => boolean | undefined>(),
+    lodTimer: null as ReturnType<typeof setTimeout> | null,
+    onLodTick: vi.fn((cb: (t: LodTick) => boolean | undefined) => {
+      e.lodCbs.add(cb);
+      e.requestLodTick();
+      return () => {
+        e.lodCbs.delete(cb);
+      };
+    }),
+    requestLodTick: vi.fn(() => {
+      if (e.lodTimer) return;
+      e.lodTimer = setTimeout(() => {
+        e.lodTimer = null;
+        e.lodTick();
+      }, 0);
+    }),
+    /** One LOD tick at the rig's pose. */
+    lodTick() {
+      let more = false;
+      const t = { target: { x: pose.target[0], z: pose.target[1] }, rangeM: pose.rangeM, nowMs: 0 };
+      for (const cb of [...e.lodCbs]) if (cb(t)) more = true;
+      if (more) e.requestLodTick();
+    },
     fatal: null as ((err: Error) => void) | null,
     onFatal: vi.fn((cb: (err: Error) => void) => {
       e.fatal = cb;
@@ -417,8 +442,9 @@ describe("ThreeScene", () => {
       const { engine } = mount();
       await waitFor(() => expect(engine.setCity).toHaveBeenCalled());
       act(() => engine.tick());
+      // Roads are streamed per tile into their own decor slot (Task 4).
       await waitFor(() => {
-        const last = engine.setGround.mock.calls.at(-1)?.[0] as
+        const last = engine.setDecor.mock.calls.filter((c) => c[0] === "roads").at(-1)?.[1] as
           | { group: { children: { geometry: { getAttribute(n: string): { count: number } } }[] } }
           | null
           | undefined;
@@ -428,6 +454,16 @@ describe("ThreeScene", () => {
     } finally {
       accessLayer.data = { type: "FeatureCollection", features: [] };
     }
+  });
+
+  it("data-tiles is the streamer's active tile count (25 at the 800 m default view)", async () => {
+    const { engine } = mount();
+    const s = screen.getByTestId("three-scene");
+    expect(s).toHaveAttribute("data-tiles", "0");
+    await waitFor(() => expect(engine.setCity).toHaveBeenCalled());
+    act(() => engine.tick());
+    await waitFor(() => expect(s).toHaveAttribute("data-tiles", "25"));
+    expect(engine.onLodTick).toHaveBeenCalled();
   });
 
   it("calls setCity once buildings data arrives", async () => {

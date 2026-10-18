@@ -296,6 +296,27 @@ after it stops.
 - The glbs and manifest live in `public/city/` (lane `blender`); `vite build` copies them to
   `dist/city/`.
 
+#### Streaming (Three.js)
+
+Decorative content is planned per 250 m tile around the camera target (`stream/`), not for a fixed
+hero district.
+
+- **Tiles and rings:** ring 0 is the target tile, ring 1 the 8 around it, ring 2 two tiles out (only
+  while the camera range is ≤ 1500 m). Beyond 1500 m only rings 0–1 show, and only trees and roads.
+  Caps per tile come from `tileCap` (`TILE_CAPS[tier][ring]`, ×1.6 in the hero district); seeds come
+  from the tile key, so a tile's content never depends on visit order.
+- **Streamer:** `createStreamer` runs on the engine's 250 ms LOD tick (`engine.onLodTick`) and plans
+  at most one tile per tick (the hitch budget). Plans are kept in an LRU of 64 (tile × ring); a tile
+  whose ring or tier changed keeps its old content until its re-plan. `warmPlanners` builds the
+  planners' layer caches in an idle callback at world load, so no tick pays their cold cost.
+- **Merging:** `useDecor` (kits via `setKits`, lamp pools, signs), `useMotion` (agents), `useRoads`
+  (the `roads` decor slot) and `useFacades` (facades for ring ≤ 1 tiles only, no shadows) rebuild
+  only when the active tiles change. The scene's `data-tiles` attribute is the active tile count.
+- **Culling:** `CityInstances.update` gets the view frustum padded by the shadow extent (`cull.ts`),
+  so an off-screen shadow caster is never left stale.
+- **Probe views:** `scripts/measure-probes.mjs` records draws, tris and MB at the six probe views
+  (`pnpm --filter @tl/web exec node scripts/measure-probes.mjs`, with a mock dev server running).
+
 #### Motion (Three.js)
 
 Decorative traffic and pedestrians (`motion/`), plus the birds, cloud shadows, tree sway, water
@@ -305,8 +326,8 @@ and the map is on screen (`IntersectionObserver`). Otherwise no frame is schedul
 at render on demand and holds a still pose.
 
 - **Agents:** `planAgents` puts seeded vehicles on `street`/`major_road` edges and people on
-  `footway`/`path`/`pedestrian` edges in the hero district, weighted ×3 near schools, malls and parks.
-  The count is `PROP_CAPS` × mood density (day 1.0, dusk 1.15, night 0.45). Agents loop along the
+  `footway`/`path`/`pedestrian` edges of each streamed tile, weighted ×3 near schools, malls and
+  parks. The count is the tile's cap × mood density (day 1.0, dusk 1.15, night 0.45). Agents loop along the
   edges with no routing or collision, so cars can pass through each other.
 - **Drawing:** `motionLayer` uses one InstancedMesh per kit, variant and LOD. Matrices are rewritten
   each tick, but only for agents in view (with a 50 m margin). Agents beyond their last LOD's `maxM`
