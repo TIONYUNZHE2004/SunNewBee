@@ -54,6 +54,18 @@ export interface OverlayLayer {
   setPixelRatio(pr: number): void;
   /** Camera position and vertical fov (degrees): marker labels show near the camera only. */
   setView(cam: { x: number; y: number; z: number }, fovDeg: number): void;
+  /**
+   * Adds a batch of its own to the overlay pass (e.g. the Day residents). The layer forwards the
+   * camera and clock each frame, counts it in hasVisible and disposes it. Returns the detach.
+   */
+  attach(child: OverlayChild): () => void;
+  dispose(): void;
+}
+
+/** A batch the overlay layer draws and feeds the per-frame view. */
+export interface OverlayChild {
+  group: THREE.Group;
+  setView?(cam: { x: number; y: number; z: number }, nowMs: number): void;
   dispose(): void;
 }
 
@@ -87,6 +99,7 @@ export function createOverlayLayer(frame: LocalFrame): OverlayLayer {
   let res: [number, number] = [1, 1];
   let mpp = 1;
   let last: Partial<OverlayState> = {};
+  const children = new Set<OverlayChild>();
 
   const fill = (into: THREE.Group, batches: THREE.Object3D[]) => {
     drop(into);
@@ -170,7 +183,8 @@ export function createOverlayLayer(frame: LocalFrame): OverlayLayer {
       group.traverse((o) => setDashScale(o, m));
     },
     hasVisible() {
-      return [status, gapsGroup, whatIfGroup, routeGroup, floodGroup, markerGroup].some(drawable);
+      const own = [status, gapsGroup, whatIfGroup, routeGroup, floodGroup, markerGroup];
+      return [...own, ...[...children].map((c) => c.group)].some(drawable);
     },
     setResolution(w, h) {
       res = [w, h];
@@ -184,7 +198,19 @@ export function createOverlayLayer(frame: LocalFrame): OverlayLayer {
       pixelRatio = pr;
       markers?.setPixelRatio(pr);
     },
+    attach(child) {
+      children.add(child);
+      group.add(child.group);
+      if (cam) child.setView?.(cam, performance.now());
+      return () => {
+        if (!children.delete(child)) return;
+        child.group.removeFromParent();
+        child.dispose();
+      };
+    },
     setView(c, fovDeg) {
+      // Attached batches also follow the clock, so they are fed before the camera-moved early return.
+      for (const ch of children) ch.setView?.(c, performance.now());
       // The engine calls this every frame: relabel only when the camera moved.
       if (cam && cam.x === c.x && cam.y === c.y && cam.z === c.z && fov === fovDeg) return;
       cam = { x: c.x, y: c.y, z: c.z };
@@ -195,6 +221,8 @@ export function createOverlayLayer(frame: LocalFrame): OverlayLayer {
       flood?.dispose();
       markers?.dispose();
       flood = markers = null;
+      for (const ch of children) ch.dispose();
+      children.clear();
       floodGroup.clear();
       groundGroup.clear();
       groundGroup.removeFromParent();

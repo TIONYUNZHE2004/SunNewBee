@@ -71,6 +71,7 @@ import { planAgents } from "./motion/agents";
 import { createMotionDriver, type MotionDriver, motionRunning } from "./motion/motionClock";
 import { createMotionLayer } from "./motion/motionLayer";
 import { createOverlayLayer, type OverlayLayer } from "./overlays/accessLayers";
+import { useResidents } from "./overlays/useResidents";
 import { KIT_LOD_SCALE } from "./props/caps";
 import { createLampPools } from "./props/lampPools";
 import { planProps } from "./props/propsPlan";
@@ -773,6 +774,8 @@ export default function ThreeScene({
     evacQ.data,
     focusPlaceId,
   ]);
+  // Elmina Day and rollout residents ride the same overlay layer.
+  useResidents(engine, overlay, frame);
 
   // Scene intents to camera moves (same precedence as cesium/camera.ts).
   useEffect(() => {

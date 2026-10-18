@@ -295,6 +295,7 @@ describe("engine motion clock", () => {
         setResolution: vi.fn(),
         setPixelRatio: vi.fn(),
         setView: vi.fn(),
+        attach: vi.fn(() => () => {}),
         dispose: vi.fn(),
       };
       e.setOverlays(layer);

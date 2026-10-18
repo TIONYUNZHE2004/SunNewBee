@@ -383,3 +383,32 @@ describe("createOverlayLayer", () => {
     });
   });
 });
+
+describe("attach", () => {
+  it("adds a child batch, counts it in hasVisible, feeds it the view and disposes it", async () => {
+    const T = await import("three");
+    const layer = createOverlayLayer(frame);
+    const g = new T.Group();
+    const mesh = new T.Mesh(new T.BoxGeometry(), new T.MeshBasicMaterial());
+    g.add(mesh);
+    const views: number[] = [];
+    let disposed = 0;
+    expect(layer.hasVisible()).toBe(false);
+    const detach = layer.attach({
+      group: g,
+      setView: (c) => views.push(c.x),
+      dispose: () => disposed++,
+    });
+    expect(layer.group.children).toContain(g);
+    expect(layer.hasVisible()).toBe(true);
+    layer.setView({ x: 1, y: 2, z: 3 }, 40);
+    layer.setView({ x: 1, y: 2, z: 3 }, 40);
+    expect(views).toEqual([1, 1]); // every frame, even when the camera has not moved
+    detach();
+    expect(disposed).toBe(1);
+    expect(layer.group.children).not.toContain(g);
+    layer.attach({ group: new T.Group(), dispose: () => disposed++ });
+    layer.dispose();
+    expect(disposed).toBe(2);
+  });
+});
