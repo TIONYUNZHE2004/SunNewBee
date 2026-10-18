@@ -8,6 +8,23 @@ c = TestClient(app)
 OK = {"X-Staff-Token": "test-token"}
 
 
+def test_reported_place_closure_removes_nearby_recommendation_until_ended():
+    from townshiplens_spatial import tools
+
+    ctx = state.get_ctx()
+    before = tools.nearby_amenities(ctx, "park-b", "playground", 1000)
+    assert any(p["id"] == "playground" for p in before.data)
+    reported = _create(element_id="playground", note="Private staff detail")
+    assert reported.status_code == 201
+    place = c.get("/places/playground").json()["data"]
+    assert place["closures"][0]["active"] and place["closures"][0]["note"] is None
+    during = tools.nearby_amenities(ctx, "park-b", "playground", 1000)
+    assert not during.data and any(e.attribute == "closure" for e in during.evidence)
+    assert "Private staff detail" not in during.model_dump_json()
+    assert c.post(f"/closures/{reported.json()['id']}/end", headers=OK).status_code == 200
+    assert tools.nearby_amenities(ctx, "park-b", "playground", 1000).data == before.data
+
+
 def _iso(delta: timedelta) -> str:
     return (datetime.now(UTC) + delta).isoformat()
 

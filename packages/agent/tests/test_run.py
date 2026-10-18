@@ -375,7 +375,9 @@ async def test_access_with_ui_scenario_mentions_flooded_destination(ctx):
 
 
 async def test_ui_scenario_applied_to_routing(ctx):
-    evs = await collect(ctx, ACCESS_Q, scenario="stage_p3m")
+    # A destination that is not flooded at +3 m (T-016: a likely-flooded destination is blocked).
+    q = "Can I push a stroller from Car Park B to the lakeside mall without stairs?"
+    evs = await collect(ctx, q, scenario="stage_p3m")
     call = next(e for e in evs if e.type == "tool.call" and e.name == "plan_route")
     assert call.args["scenario_id"] == "stage_p3m"  # injected before the ToolCall event
     hl = next(e for e in evs if e.type == "scene.intent" and e.intent.kind == "route.highlight")
@@ -385,15 +387,23 @@ async def test_ui_scenario_applied_to_routing(ctx):
 
 
 async def test_ui_scenario_route_avoids_likely_flooded_edge(ctx):
+    """T-016 flood contract: you evacuate from where you are, so a likely-flooded start only
+    warns and its route avoids the flooded edge; a likely-flooded destination is blocked."""
     from townshiplens_agent.agent import call_tool
 
     deps = _deps(ctx, scenario="stage_p3m")
     out = await call_tool(
-        deps, "plan_route", from_id="park-b", to_id="playground", profile="stroller"
+        deps, "plan_route", from_id="playground", to_id="park-b", profile="stroller"
     )
     edges = [s["edge_id"] for r in out["data"]["routes"] for s in r["segments"]]
-    assert edges and "seg-cd" not in edges
+    assert edges and "seg-cd" not in edges  # the baseline route uses seg-cd
+    assert any("likely flooded" in w for w in out["warnings"])
     assert deps.rec.scenarios_used == {"stage_p3m"}
+    out = await call_tool(
+        deps, "plan_route", from_id="park-b", to_id="playground", profile="stroller"
+    )
+    assert out["data"]["status"] == "blocked" and out["data"]["routes"] == []
+    assert [b["element_id"] for b in out["data"]["blocked_reasons"]] == ["playground"]
 
 
 @pytest.mark.parametrize(

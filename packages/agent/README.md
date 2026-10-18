@@ -12,17 +12,32 @@ only place facts were obtained. This labels provenance; it does not certify that
 ## Resident scope B (T-011)
 
 `ASSISTANT_SCOPE=access_flood` is the default. The resident assistant covers access and
-indicative flood evacuation around Elmina Urban Park + Elmina Lakeside Mall frontage.
+indicative flood evacuation anywhere in Elmina; Elmina Urban Park + Elmina Lakeside Mall
+frontage is the detailed study area (the accuracy target).
 It registers only `find_place`, `get_place_details`, `plan_route`, `nearby_amenities`,
 `get_closures`, `create_verification_request`, `list_flood_scenarios`, `affected_places`
-and `list_evacuation_centres`. Model instructions focus on this deep spot; evacuation
-candidates can be outside it. Spatial calculations and staff screens remain unchanged.
+and `list_evacuation_centres`. Spatial calculations and staff screens remain unchanged.
 
-Recognized removed-feature requests and unrelated questions receive a short EN/BM/中文
-refusal before model construction, tool execution, memory retrieval by the model, or demo
-replay. A cached legacy answer cannot bypass this policy. The shared registry restricts
-MCP too; its existing verification-write opt-in (`MCP_ALLOW_VR`) still applies, so it exposes
-eight tools by default and nine when writes are explicitly enabled.
+**Scope B+ (T-013).** Routes and places anywhere in Elmina are answered, however the question is
+worded: there is no "access keyword" rule. Only clearly removed features (waste and recycling,
+what-if changes, tipping points, stage-by-stage rollouts, fix-it, verify-next, Elmina Day,
+recipes) get a short EN/BM/中文 refusal (`scope.REMOVED`), before model construction, tool
+execution, memory retrieval by the model, or demo replay. A cached legacy answer cannot bypass
+this policy. Removed phrases are kept narrow so real questions pass ("the town hall", "what
+happens to residents if the river rises 2 m?", "what if the path is closed, how do I get to the
+mall?"). A bare greeting or thanks ("Hi", "Selamat pagi", "谢谢") gets a fixed hello listing what
+the assistant can do (`scope.greeting_text`), also without the model or a tool. Other off-topic
+questions reach the model, which declines them (prompt rule 10).
+
+Outside the access deep spot (`site.json` `deep_spots`, lens `access`), the answer gets one
+server-added caveat after the validator: "Outside the detailed study area (Elmina Urban Park +
+Lakeside Mall frontage), path and place facts come from OpenStreetMap only" (EN/BM/中文,
+`run.outside_note`). It is triggered by the answered route's geometry (else every route this
+turn) or a cited place lying outside the box; evacuation centres alone do not trigger it. The
+deep spot is called the "detailed study area", not "surveyed", because its facts are still demo
+values, not yet surveyed. The registry restricts MCP too; its existing verification-write opt-in
+(`MCP_ALLOW_VR`) still applies, so it exposes eight tools by default and nine when writes are
+explicitly enabled.
 
 `ASSISTANT_SCOPE=all` opts into the legacy features documented below. Legacy engine/pipeline
 tests and removed-feature golden cases opt in explicitly; `tests/test_scope.py` tests the
@@ -30,6 +45,18 @@ default separately. The existing browser hero suite opts into `all` because it i
 what-if, rollout and day-assistant turns. This setting does not gate staff REST endpoints.
 `validate.py` and `draft.py` are unchanged by T-011; the deterministic refusal is a
 `cannot_answer` with no unsupported factual content and passes the existing validator.
+
+**Fact binding (T-001, `facts.py`).** Every number an answer states must match a tool value of the
+same kind (length, width, stage, time, slope, steps, count), with rounding only under "about". A
+fact is also bound to what it is about: a count of a noun ("two toilets") must match a count of
+that thing this turn (distinct rows of that category, a route's `crossings`, "2 road crossings"
+in tool text), and a length or time whose clause names place categories ("the toilet is 440.6 m
+from the mall") must match a value tagged with all of them (routes are tagged with both
+endpoints' types and names in `call_tool`, amenity rows with the amenity and its origin, centre
+rows as centres). Place names are replaced by their category words before the check, so a name
+cannot hide the subject. A feature ("baby changing room", "lift") is hedged only by a negation in
+its own clause or after it ("No steps, so the toilet has a changing room" is rejected). Chinese
+counts read only the classifiers 个间张处级座条部 ("两段…的台阶" counts segments, not steps).
 
 ## Architecture
 

@@ -155,7 +155,9 @@ def test_report_carries_the_evacuation_table(run_sim):
     assert {r["profile"] for r in ev["rows"]} == {"stroller"}
     assert [r["scenario_id"] for r in ev["rows"]] == list(sim_core.EVAC_SCENARIOS)
     p5 = next(r for r in ev["rows"] if r["scenario_id"] == "stage_p5m")
+    # Origin flood is a caveat; only destination flooding blocks evacuation (T-016).
     assert p5["counts"]["blocked_by_flood"] == 2 and p5["total"] == 5
+    assert p5["counts"]["reachable_partly_unverified"] == 2
     assert ev["violations"] == [] and not [
         v for v in rep["invariant_violations"] if v["invariant"] in ("E1", "E2")
     ]

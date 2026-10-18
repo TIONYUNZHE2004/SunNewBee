@@ -212,6 +212,25 @@ def test_site_json_records_missing_major_road_bboxes_as_wsen():
     assert site["major_roads_missing_bbox"] == [[101.495, 3.2175, 101.5125, 3.24]]
 
 
+def test_walk_rebuild_keeps_display_assets_datum_and_external_attribution():
+    from data.scripts.import_osm import site_json
+
+    previous = {
+        "data_as_of": "2026-09-01",
+        "buildings": {"file": "base/buildings.geojson", "count": 12},
+        "scene": {"datum_offset_m": -3.74},
+        "attribution": ["© OpenStreetMap contributors (ODbL)", "ESA WorldCover licence"],
+        "major_roads_missing_bbox": [[1, 2, 3, 4]],
+    }
+    site = site_json("2026-10-18", previous=previous)
+    assert site["buildings"] == previous["buildings"]
+    assert site["scene"]["datum_offset_m"] == -3.74
+    assert site["attribution"].count("© OpenStreetMap contributors (ODbL)") == 1
+    assert "ESA WorldCover licence" in site["attribution"]
+    assert site["data_as_of"] == "2026-10-18"
+    assert "major_roads_missing_bbox" not in site
+
+
 def test_overpass_endpoints_override_moves_on_only_after_connection_errors(monkeypatch, tmp_path):
     import json
 

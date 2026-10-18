@@ -2,6 +2,7 @@
 
 import pytest
 from townshiplens_agent.answer import Claim, FinalAnswer
+from townshiplens_agent.facts import extract_facts, tool_values, unsupported
 from townshiplens_agent.record import TurnRecord
 from townshiplens_agent.validate import (
     measurement_errors,
@@ -43,6 +44,7 @@ def ans(summary, status="answered"):
         "Route status: confirmed. The path is 1.5 m wide.",
         "Route status: confirmed. If the river rises +3 m nothing changes here.",
         "Route status: confirmed. 路线约440米，步行约6分钟。",
+        "Route status: confirmed. It is about 0.4 km.",
     ],
 )
 def test_engine_numbers_and_their_roundings_pass(text):
@@ -147,3 +149,78 @@ def test_payload_numbers_skip_ids_and_geometry():
 def test_the_whole_validator_rejects_an_invented_distance():
     errs = validate_answer(ans("Route status: confirmed. It is 950 m long."), rec())
     assert any("950 m" in e for e in errs)
+
+
+def test_nearest_whole_minute_needs_about():
+    # Live check (T-001): the model wrote "about 2 minutes" for a 1.7 min walk.
+    r = rec()
+    r.routes["rt-1"] = {"id": "rt-1", "distance_m": 119.8, "est_minutes": 1.7}
+    assert measurement_errors(ans("Route status: confirmed. About 2 minutes."), r) == []
+    assert measurement_errors(ans("Route status: confirmed. It takes 2 minutes."), r)
+    assert measurement_errors(ans("Route status: confirmed. Under 2 minutes."), r) == []
+    assert measurement_errors(ans("Route status: confirmed. Over 2 minutes."), r)
+    assert measurement_errors(ans("Route status: confirmed. About 1 km."), r)  # 0.12 km
+
+
+# T-001 subject binding (facts.py "Subjects").
+def test_zh_segment_counts_are_not_step_counts():
+    assert extract_facts("两段无名人行道的台阶未核实。") == []
+    assert [(f.kind, f.value) for f in extract_facts("路线有99级台阶。")] == [("steps", 99.0)]
+    assert [(f.noun, f.value) for f in extract_facts("有两个厕所。")] == [("toilet", 2.0)]
+    assert [(f.noun, f.value) for f in extract_facts("There is one bench.")] == [("bench", 1.0)]
+
+
+def test_counts_are_of_distinct_things_and_tagged_by_subject():
+    unknowns = [
+        {"element_id": "seg-1", "attribute": a, "element_label": "an unnamed ramp"}
+        for a in ("step_count", "incline_pct", "width_m")
+    ]
+    v = tool_values({"unknowns": unknowns, "crossings": [{"id": "x"}, {"id": "y"}]})
+    assert v["count:ramp"] == {1.0}  # three unchecked facts on one ramp
+    assert v["count:crossing"] == {2.0}
+    route = {"from_place": "a", "to_place": "b", "distance_m": 440.6, "est_minutes": 6.3}
+    tagged = tool_values(route, resolve=lambda pid: {"a": {"parking"}, "b": {"playground"}}[pid])
+    assert tagged["length:parking"] == tagged["length:playground"] == {440.6}
+    assert "length:toilet" not in tagged
+    rows = tool_values({"data": [{"name": "x", "walk_m": 58.5}]}, subject={"toilet"})
+    assert rows["count:toilet"] == {1.0} and rows["length:toilet"] == {58.5}
+
+
+def test_subject_rule_needs_every_named_category():
+    values = {"length": {440.6}, "length:parking": {440.6}, "length:playground": {440.6}}
+    assert unsupported("From the car park to the playground: 440.6 m.", values) == []
+    assert unsupported("The toilet is 440.6 m from the car park.", values) == ["440.6 m"]
+    assert unsupported("It is 440.6 m.", values) == []  # no subject named: plain kind rule
+
+
+# T-017 round 1 validator false positives (live answers, evals/audits/2026-10-18-t017).
+def test_zh_clarifying_question_is_not_a_step_count():
+    q10 = "请告诉我您指的是哪一个游乐场？确定后我再查从B停车场到该游乐场的路线、台阶和设施。"
+    assert extract_facts(q10) == []
+    assert [(f.noun, f.value) for f in extract_facts("有两个无障碍厕所。")] == [("toilet", 2.0)]
+
+
+def test_a_profile_limit_in_a_claim_is_not_a_recorded_slope():
+    r = rec()
+    ok = FinalAnswer(
+        answer_status="partial",
+        summary="Route status: confirmed.",
+        route_id="rt-1",
+        claims=[
+            Claim(
+                text="Incline (%) on an unnamed ramp is not checked yet (limit 8.3%).",
+                status="unverified",
+                evidence_ids=["ev-1"],
+            )
+        ],
+    )
+    r.tool_measures["slope"] = {8.3}  # the unknown note's "(limit 8.3%)"
+    assert not [e for e in measurement_errors(ok, r) if "8.3" in e]
+    bad = ok.model_copy(
+        update={
+            "claims": [
+                Claim(text="The ramp is 8.3% steep.", status="unverified", evidence_ids=["ev-1"])
+            ]
+        }
+    )
+    assert [e for e in measurement_errors(bad, r) if "8.3" in e]

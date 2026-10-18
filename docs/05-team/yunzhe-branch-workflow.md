@@ -29,20 +29,76 @@ Active workers (keep this table current):
 
 | Branch | Agent | Task | Status |
 |---|---|---|---|
-| `claude/kind-cannon-mormhi` | Claude worker | T-001 → T-003 → T-002 (validator, promise filter, drafts) | Assigned 17 Oct. Earlier work merged (PR #2, #3) |
-| `codex/yunzhe-workflow` | Codex worker | T-012 → T-008 → T-011 (answer key, toilet provenance, assistant scope), and checks Claude's fixes with the audit probes | Assigned 17 Oct. Earlier audit merged (PR #4) |
-| `claude/sweet-davinci-29v7ne` | Control | T-010 after T-008; T-007 live test after T-001 to T-003 and T-011 | T-007 waits for Yunzhe's instruction |
+| `claude/kind-cannon-mormhi` | Cloud Claude worker | Stopped 18 Oct; T-001 moved to the local AI engineer | T-002, T-003 merged (PR #8) |
+| `codex/yunzhe-workflow` | Cloud Codex worker | Stopped 18 Oct; T-015 moved to the local AI engineer | T-008, T-011, T-012 merged (PR #7); verification report (PR #10) |
+| `local/ai-engineer` | Local Claude | T-013 scope gate, T-001 fact binding, T-015 answer key, T-017 AI audit | Started 18 Oct |
+| `local/backend-engineer` | Local Codex | T-016 backend audit, T-014 sidewalk vs road (with T-010) | Started 18 Oct |
+| `claude/sweet-davinci-29v7ne` | Control | Merge green PRs, keep the board; T-007 on Yunzhe's instruction | — |
 
 The board branch holds the current owner and status of every task; this table is only a summary.
 
-## Product scope: option B (17 Oct 2026)
+## Product scope: B+ (17-18 Oct 2026)
 
-Small field, highest accuracy. The resident assistant covers only:
+Small field, highest accuracy. The resident assistant covers:
 
-- **Access:** step-free routes per profile, place facts, nearby amenities, closures, tickets for gaps.
+- **Access:** routes, place facts, nearby amenities, closures, tickets for gaps.
 - **Flood evacuation:** indicative river stages, affected places, evacuation centres, routes under a stage.
 
-The accuracy target is the **deep spot: Elmina Urban Park + Elmina Lakeside Mall frontage**, measured on a human-checked answer key. Everything else (waste, what-if, tipping point, rising river, fix-it, verify-next planner, Elmina Day) is refused politely by the assistant. That code stays in the repo and in the staff screens, but agents do not extend it unless Yunzhe asks. Tasks outside the scope are `parked` on the board.
+It never refuses a question because of its wording. Routes and places anywhere in Elmina are answered; outside the **deep spot (Elmina Urban Park + Elmina Lakeside Mall frontage)** the answer says the facts come from OpenStreetMap only. The deep spot stays the accuracy target, measured on a human-checked answer key. Only clearly removed topics (waste, what-if, tipping point, rising river, fix-it, verify-next planner, Elmina Day) are refused. That code stays in the repo and the staff screens; agents do not extend it unless Yunzhe asks.
+
+## Local agents on Yunzhe's computer
+
+Each local agent works in its own git worktree, so agents never edit the same folder and Yunzhe's own folder keeps running `pnpm dev`.
+
+| Agent | Folder | Branch | Its own ports |
+|---|---|---|---|
+| Local AI engineer (Claude) | `../SunNewBee-ai` | `local/ai-engineer` | `API_PORT=8011 WEB_PORT=5181` |
+| Local backend engineer (Codex) | `../SunNewBee-backend` | `local/backend-engineer` | `API_PORT=8021 WEB_PORT=5191` |
+
+- Each worktree has its own `.env` copy, `pnpm install` and `uv sync --all-packages --all-groups`.
+- The worktree branches were created tracking control. Before the first push, run `git branch --unset-upstream`, then always push with `git push -u origin <own branch>`.
+- Local agents do not run e2e (fixed ports 5273/8100 would clash); GitHub CI runs it on their PRs.
+- Live OpenRouter budget: **US$15 for about 4 days**, tracked in `SPEND.md` on the board branch (AI engineer up to US$3 a day and US$10 in total, backend engineer up to US$0.50 a day and US$1.50 in total, US$1.50 reserved for control, US$2 for Yunzhe's own testing). At a running total of US$13, live calls stop. Rounds of at most 10 live questions.
+- Agents work in **resumable rounds** (board README, "Rounds"): each round ends by logging the exact next step and pushing, so a usage limit pauses work without losing it. A timer on Yunzhe's computer starts the next round.
+
+## How to talk to Yunzhe (every agent)
+
+Yunzhe reads replies in a chat or terminal. Every agent follows these rules in every reply and board entry:
+
+1. **Lead with the answer** in the first line. Most replies stay under 15 lines.
+2. **Write about 70% ASD-STE100:** sentences of 20 words or fewer, active voice, no filler.
+3. **Always recommend one option** and say why in one or two lines. Mark it "Recommended". List the other options briefly. Ask only when a wrong guess is costly or cannot be undone.
+4. **Answer the real question.** If Yunzhe asks "will route questions still be refused?", show what the app does now, not a list of finished tasks.
+5. **Label what you did not verify** as *inference* or *assumption*. Never claim done without evidence (time, commit, test result).
+6. **Steps:** number them, say where to run each one and what output to expect, and stop at the first step that depends on a result.
+7. **Format by shape:** a comparison is a table, a flow is a diagram, long detail goes in a file or on the board with its path.
+8. **Simplest correct solution.** No side notes unless they change a decision.
+
+## How the two local engineers work together
+
+The AI engineer (local Claude) and the backend engineer (local Codex) refine one product together. The engine computes the facts; the assistant only phrases them. Most real problems sit on the line between the two.
+
+**What each may decide alone**
+
+| Engineer | Decides alone |
+|---|---|
+| Backend | How the data, evaluation, routing and API work inside `packages/spatial`, `apps/api`, `data/`, `config/profiles` (within the AGENTS.md data rules) |
+| AI | How the assistant uses the tools, words answers and checks them inside `packages/agent`, `evals/` |
+| Both, together | Any change to what a tool returns (a new field, a renamed field, a changed meaning), and which of the two fixes a problem that crosses the line |
+| Yunzhe | Scope changes, anything that weakens an honesty rule in AGENTS.md, changes in `apps/web` (shaoxian04's lane), going over the live budget, sending anything to `main` |
+
+**Talking to each other: the board**
+
+They work in different tools, so the board branch is their shared channel. Every message is a signed, timed entry in a task log.
+
+- **Contract note (before merging):** the backend engineer writes one entry in its task log for every change to tool output: field name, meaning, unit, example value, and which answers should use it. The AI engineer replies in the same log ("seen, will use in T-0xx") before control merges the backend PR.
+- **Hand-off:** when a problem's cause is in the other lane, the finder writes a hand-off entry in the other engineer's audit task (T-016 or T-017) with the reproduction. The receiver accepts or argues in the same log within one working session.
+- **Cross-check:** each engineer reads the other's PR description and adds one log entry: "checked from the <AI|backend> side: OK" or the problem it found. This is a read, not a code review of every line.
+- **Disagreement:** each writes its case in two or three lines in the task log; Yunzhe decides.
+
+**Order of merges.** When AI work depends on a backend change, the backend PR goes into control first; the AI engineer then merges control into its branch and builds on it. Control merges only PRs with green CI.
+
+**Yunzhe's test site.** Yunzhe's own folder (`~/hackathon/SunNewBee`) stays on the control branch and runs `pnpm dev` on the default ports. After control merges a PR: `git pull`, restart `pnpm dev`, test in the browser, and write what looks wrong on the board (any task log, signed "Yunzhe").
 
 ## My scope (who owns what)
 
