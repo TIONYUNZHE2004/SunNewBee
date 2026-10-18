@@ -150,6 +150,16 @@ describe("planTile", () => {
   });
 });
 
+describe("planTile facades identity", () => {
+  it("a tile without facades gets one shared empty list, so its re-plans keep the identity", () => {
+    const empty = tileAt(1010, 1010);
+    const a = planTile(inputs(), empty, 0, "medium").facades;
+    const b = planTile(inputs(), empty, 1, "high").facades;
+    expect(a).toEqual([]);
+    expect(b).toBe(a);
+  });
+});
+
 describe("warmPlanners (scope 4: cold caches)", () => {
   it("builds every planner's layer cache once; a later tile plan builds none", () => {
     // Fresh layer objects, so nothing is cached yet.

@@ -22,7 +22,7 @@ import { useMood } from "./scene/useMood";
 import { useMotion } from "./scene/useMotion";
 import { useOverlays } from "./scene/useOverlays";
 import { usePicking } from "./scene/usePicking";
-import { useStream } from "./scene/useStream";
+import { useMergeMeasure, useStream } from "./scene/useStream";
 
 /** Bottom-left map note (clear of the camera cluster and the attribution strip). */
 function ExperimentalEngineChip() {
@@ -149,7 +149,7 @@ export default function ThreeScene({
     tier,
   });
   // Township streaming: the 250 m tiles around the camera target feed every decorative layer.
-  const { active, centre } = useStream({
+  const { active, centre, mergeStart } = useStream({
     engine,
     frame,
     tier,
@@ -189,6 +189,8 @@ export default function ThreeScene({
     sectionRef,
     bus,
   });
+  // After every hook that merges `active`: times the merge (`tl:stream-merge`).
+  useMergeMeasure(active, mergeStart);
   const { ops } = useCameraOps({ engine, frame, bbox, places, hostRef, onOps });
   const { routeOn, markerCount } = useOverlays({
     engine,

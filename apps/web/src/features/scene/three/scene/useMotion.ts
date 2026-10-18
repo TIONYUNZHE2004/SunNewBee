@@ -4,11 +4,11 @@ import { prefersReducedMotion, useSceneSettings } from "../../sceneSettingsStore
 import { useScene } from "../../sceneStore";
 import type { RoleUniforms } from "../assets/roleMaterial";
 import type { Engine } from "../engine";
-import type { Agent } from "../motion/agents";
 import { createMotionDriver, type MotionDriver, motionRunning } from "../motion/motionClock";
 import { createMotionLayer } from "../motion/motionLayer";
 import type { ActiveTile } from "../stream/streamer";
 import type { SceneBus } from "./sceneBus";
+import { unionById } from "./union";
 import type { LoadedAssets } from "./useCityAssets";
 
 /**
@@ -106,18 +106,10 @@ export function useMotion({
     });
   }, [engine, driver]);
   // The active tiles' agents (decorative, like the props); none at Low, even from stale content.
-  const agentList = useMemo(() => {
-    if (showroom || tier === "low") return [];
-    const seen = new Set<string>();
-    const out: Agent[] = [];
-    for (const t of active)
-      for (const a of t.content.agents)
-        if (!seen.has(a.id)) {
-          seen.add(a.id);
-          out.push(a);
-        }
-    return out;
-  }, [active, showroom, tier]);
+  const agentList = useMemo(
+    () => (showroom || tier === "low" ? [] : unionById(active, (t) => t.content.agents)),
+    [active, showroom, tier],
+  );
   const agentKey = agentList.map((a) => a.id).join("\n");
   // biome-ignore lint/correctness/useExhaustiveDependencies: keyed on the ids, not the array
   const agents = useMemo(() => agentList, [agentKey]);

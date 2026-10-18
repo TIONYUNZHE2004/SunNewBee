@@ -5,26 +5,15 @@ import type { Tier } from "../../cesium/stylised/quality";
 import type { RoleUniforms } from "../assets/roleMaterial";
 import type { Engine } from "../engine";
 import { createFacadeLayer, type FacadeBuilding } from "../facade/facadeLayer";
-import type { ActiveTile } from "../stream/streamer";
+import { type ActiveTile, measure } from "../stream/streamer";
+import { whenIdle } from "./idle";
 import { ASSET_WARN } from "./useCityAssets";
 
 /** The engine decor slot that holds the procedural facade layer. */
 export const FACADE_SLOT = "facades";
 const MB = 1024 * 1024;
-
-/** Runs `fn` when the main thread is idle (at most 500 ms later); returns a cancel function. */
-function whenIdle(fn: () => void): () => void {
-  const w = globalThis as typeof globalThis & {
-    requestIdleCallback?: (cb: () => void, o?: { timeout: number }) => number;
-    cancelIdleCallback?: (h: number) => void;
-  };
-  if (w.requestIdleCallback && w.cancelIdleCallback) {
-    const h = w.requestIdleCallback(fn, { timeout: 500 });
-    return () => w.cancelIdleCallback?.(h);
-  }
-  const t = setTimeout(fn, 0);
-  return () => clearTimeout(t);
-}
+/** User Timing name of one facade layer build (idle callback, after a ring 0-1 change). */
+export const FACADE_MEASURE = "tl:stream-facades";
 
 /** Instance buffers (matrix + colour) of the facade layer's meshes. */
 const facadeBytes = (group: { children: unknown[] }) => {
@@ -85,8 +74,10 @@ export function useFacades({
     // The previous layer stays drawn until this one replaces it (the slot disposes it): no flash.
     return whenIdle(() => {
       let layer: ReturnType<typeof createFacadeLayer>;
+      const t0 = performance.now();
       try {
         layer = createFacadeLayer(lists.flat(), roleUniforms, tier, engine.motion);
+        measure(FACADE_MEASURE, t0);
       } catch (err) {
         // Decorative only: the palette extrusion stays drawn without it.
         console.warn(`${ASSET_WARN}: facades: ${String(err)}`);

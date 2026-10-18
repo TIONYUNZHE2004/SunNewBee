@@ -74,6 +74,17 @@ interface Entry {
 }
 
 const idOf = (key: TileKey, ring: Ring) => `${key}|${ring}`;
+/** User Timing names for the browser run: one tile plan, and one merge of the streamed layers. */
+export const PLAN_MEASURE = "tl:stream-plan";
+export const MERGE_MEASURE = "tl:stream-merge";
+/** `performance.measure(name)` from `startMs` to now, where User Timing exists (never throws). */
+export function measure(name: string, startMs: number): void {
+  try {
+    performance.measure?.(name, { start: startMs, end: performance.now() });
+  } catch {
+    /* User Timing unavailable: timing only */
+  }
+}
 const RINGS: Ring[] = [0, 1, 2];
 /** Kits drawn beyond RING2_MAX_RANGE_M: trees only (the global "trees and roads only" rule). */
 const isTreeKit = (k: string) => k.startsWith("trees/");
@@ -159,21 +170,27 @@ export function createStreamer(
       if (disposed) return { changed: false, pending: false };
       const far = rangeM > RING2_MAX_RANGE_M;
       const want = activeTiles(target, rangeM);
-      // One plan: a tile with nothing to show first, else a tile showing stale / other-ring content.
-      let empty: { tile: Tile; ring: Ring } | undefined;
-      let stale: { tile: Tile; ring: Ring } | undefined;
+      // One plan, nearest ring first (near detail first); within a ring, a tile with nothing to
+      // show before a tile showing stale / other-ring content.
+      const empty: ({ tile: Tile; ring: Ring } | undefined)[] = [];
+      const stale: ({ tile: Tile; ring: Ring } | undefined)[] = [];
       let missing = 0;
       for (const w of want) {
         if (fresh(cache.get(idOf(w.tile.key, w.ring)))) continue;
         missing++;
-        if (best(w.tile.key, w.ring)) stale ??= w;
-        else empty ??= w;
+        if (best(w.tile.key, w.ring)) stale[w.ring] ??= w;
+        else empty[w.ring] ??= w;
       }
-      const job = empty ?? stale;
+      let job: { tile: Tile; ring: Ring } | undefined;
+      for (const r of RINGS) {
+        job = empty[r] ?? stale[r];
+        if (job) break;
+      }
       if (job) {
         const t0 = performance.now();
         const content = plan(job.tile, job.ring, tier);
         const ms = performance.now() - t0;
+        measure(PLAN_MEASURE, t0);
         stats.planned++;
         stats.lastMs = ms;
         stats.maxMs = Math.max(stats.maxMs, ms);

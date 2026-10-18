@@ -6,7 +6,7 @@ import type { Engine, LodTick } from "../engine";
 import { createFrame } from "../frame";
 import { TILE_M } from "../stream/tiles";
 import type { LayerData } from "./useGround";
-import { useStream } from "./useStream";
+import { MERGE_INTERVAL_MS, shouldMerge, useStream } from "./useStream";
 
 // Counts plans and warm-ups; a plan is trivial content tagged with its tile, ring and tier.
 const spy = vi.hoisted(() => ({
@@ -43,11 +43,15 @@ function fakeEngine() {
         e.cbs.delete(cb);
       };
     }),
+    /** The LOD clock: each tick is one 250 ms LOD interval later. */
+    clock: 0,
     /** One LOD tick; returns whether a listener has more work. */
     tick(x: number, z: number, rangeM = 800) {
       let more = false;
+      e.clock += 250;
+      const nowMs = e.clock;
       act(() => {
-        for (const cb of e.cbs) if (cb({ target: { x, z }, rangeM, nowMs: 0 })) more = true;
+        for (const cb of e.cbs) if (cb({ target: { x, z }, rangeM, nowMs })) more = true;
       });
       return more;
     },
@@ -125,6 +129,45 @@ describe("useStream", () => {
     expect(result.current.active).toHaveLength(9);
     for (let i = 0; i < 12; i++) engine.tick(10, 10, 2000);
     expect(spy.plans.filter((p) => p.tier === "high")).toHaveLength(9);
+  });
+
+  it("filling 25 tiles publishes a bounded number of merges: first ring 0 at once, then at most one per MERGE_INTERVAL_MS, then the end", async () => {
+    reset();
+    const { engine, result } = mount();
+    await waitFor(() => expect(engine.cbs.size).toBe(1));
+    const published: number[] = [];
+    let last = result.current.active;
+    let ticks = 0;
+    let more = true;
+    while (more && ticks < 100) {
+      more = engine.tick(10, 10);
+      ticks++;
+      if (result.current.active !== last) {
+        last = result.current.active;
+        published.push(last.length);
+      }
+    }
+    expect(ticks).toBe(25);
+    // The first tick (the ring-0 tile) is merged at once; the last state is merged when the fill ends.
+    expect(published[0]).toBe(1);
+    expect(published.at(-1)).toBe(25);
+    const fillMs = ticks * 250;
+    expect(published.length).toBeLessThanOrEqual(1 + Math.ceil(fillMs / MERGE_INTERVAL_MS) + 1);
+    expect(published.length).toBeLessThan(25);
+    // Not filling: every change merges at once (a one-tile pan's ring-0 upgrade).
+    const n = published.length;
+    engine.tick(10 + TILE_M, 10);
+    expect(result.current.active).not.toBe(last);
+    expect(n).toBeGreaterThan(1);
+  });
+
+  it("shouldMerge: always when not filling or on a new ring-0 plan, else once per interval", () => {
+    expect(shouldMerge({ pending: false, ring0Changed: false, sinceLastMs: 0 })).toBe(true);
+    expect(shouldMerge({ pending: true, ring0Changed: true, sinceLastMs: 0 })).toBe(true);
+    expect(shouldMerge({ pending: true, ring0Changed: false, sinceLastMs: 999 })).toBe(false);
+    expect(
+      shouldMerge({ pending: true, ring0Changed: false, sinceLastMs: MERGE_INTERVAL_MS }),
+    ).toBe(true);
   });
 
   it("the showroom streams nothing", async () => {

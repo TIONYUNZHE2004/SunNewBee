@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Tier } from "../../cesium/stylised/quality";
 import type { Placement } from "../assets/fit";
-import { createStreamer, farView, type Ring, type TileContent } from "./streamer";
+import { createStreamer, farView, PLAN_MEASURE, type Ring, type TileContent } from "./streamer";
 import { activeTiles, TILE_M, type Tile } from "./tiles";
 
 const pl = (id: string, asset: string, variant: string): Placement => ({
@@ -94,6 +94,14 @@ describe("createStreamer (Review Focus 1)", () => {
     expect(s.active().map((a) => a.ring)).toEqual(want.map((w) => w.ring));
   });
 
+  it("each plan is a User Timing measure (tl:stream-plan) for the browser run", () => {
+    performance.clearMeasures?.(PLAN_MEASURE);
+    const s = createStreamer(fakePlanner().plan);
+    s.update(at(0, 0), MID, 0);
+    s.update(at(0, 0), MID, 1);
+    expect(performance.getEntriesByName(PLAN_MEASURE, "measure")).toHaveLength(2);
+  });
+
   it("a planner slower than budgetMs still plans only one tile per call (and is counted)", () => {
     vi.useFakeTimers({ toFake: ["performance"] });
     const f = fakePlanner(50);
@@ -167,13 +175,16 @@ describe("createStreamer (Review Focus 1)", () => {
     expect(f.calls.slice(9).every((c) => c.tier === "medium")).toBe(true);
   });
 
-  it("a one-tile pan keeps every overlapping tile shown while rings re-plan (no blanks)", () => {
+  it("a one-tile pan plans the new ring-0 tile first and keeps every overlapping tile shown", () => {
     const f = fakePlanner();
     const s = createStreamer(f.plan);
     for (let n = 0; n < 30; n++) s.update(at(0, 0), MID, n);
     s.update(at(1, 0), MID, 100);
-    // 20 of the 25 new tiles overlap the old set; the one planned tile adds one more.
-    expect(s.active().length).toBeGreaterThanOrEqual(21);
+    // Near detail first: the new target tile (shown with its old ring-1 plan) is upgraded before
+    // the five new ring-2 tiles that have nothing to show yet.
+    expect(f.calls.at(-1)).toEqual({ key: "1,0", ring: 0, tier: "medium" });
+    // The 20 tiles of the new set that overlap the old one all stay shown.
+    expect(s.active().length).toBe(20);
     const rings = s.active().map((a) => a.ring);
     expect([...rings].sort()).toEqual(rings);
   });

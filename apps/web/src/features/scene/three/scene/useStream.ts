@@ -1,29 +1,40 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { type RefObject, useEffect, useMemo, useRef, useState } from "react";
 import type { BuildingsLayer } from "../../../../lib/api";
 import type { Tier } from "../../cesium/stylised/quality";
 import type { Engine } from "../engine";
 import type { FacadeBuilding } from "../facade/facadeLayer";
 import type { LocalFrame } from "../frame";
-import { type ActiveTile, createStreamer, type Streamer } from "../stream/streamer";
+import {
+  type ActiveTile,
+  createStreamer,
+  MERGE_MEASURE,
+  measure,
+  type Streamer,
+  type TileContent,
+} from "../stream/streamer";
 import { bucketFacades, planTile, type TileInputs, warmPlanners } from "../stream/tilePlan";
 import { TILE_M, tileAt } from "../stream/tiles";
+import { whenIdle } from "./idle";
 import type { LoadedAssets } from "./useCityAssets";
 import type { LayerData } from "./useGround";
 
 const NONE: ActiveTile[] = [];
 
-/** Runs `fn` when the main thread is idle (at most 500 ms later); returns a cancel function. */
-function whenIdle(fn: () => void): () => void {
-  const w = globalThis as typeof globalThis & {
-    requestIdleCallback?: (cb: () => void, o?: { timeout: number }) => number;
-    cancelIdleCallback?: (h: number) => void;
-  };
-  if (w.requestIdleCallback && w.cancelIdleCallback) {
-    const h = w.requestIdleCallback(fn, { timeout: 500 });
-    return () => w.cancelIdleCallback?.(h);
-  }
-  const t = setTimeout(fn, 0);
-  return () => clearTimeout(t);
+/**
+ * While the streamer is still filling (`pending`), the merged layers (kits, lamp pools, signs,
+ * agents, roads, facades) are rebuilt at most this often: each rebuild walks every active tile, so
+ * one per planned tile would be main-thread work proportional to the tile count on every tick. A
+ * new ring-0 plan and the end of a fill are published at once; outside a fill every change is.
+ */
+export const MERGE_INTERVAL_MS = 1000;
+
+/** Whether a streamed change is handed to the merged layers now (see MERGE_INTERVAL_MS). */
+export function shouldMerge(s: {
+  pending: boolean;
+  ring0Changed: boolean;
+  sinceLastMs: number;
+}): boolean {
+  return !s.pending || s.ring0Changed || s.sinceLastMs >= MERGE_INTERVAL_MS;
 }
 
 /**
@@ -115,25 +126,61 @@ export function useStream({
     engine.requestLodTick();
   }, [engine, warm, tier]);
 
-  // The LOD tick: at most one tile per call.
+  // The LOD tick: at most one tile per call; merged-layer rebuilds coalesced while filling.
+  const mergeStart = useRef<number | null>(null);
   useEffect(() => {
     if (!engine || !warm) return;
     let centreKey = "";
+    let dirty = false;
+    let lastMerge = Number.NEGATIVE_INFINITY;
+    let mergedRing0: TileContent | null = null;
     return engine.onLodTick((t) => {
       const s = streamerRef.current;
       if (!s || inputsRef.current !== warm) return false;
       const r = s.update(t.target, t.rangeM, t.nowMs);
-      if (r.changed) setActive(s.active());
+      if (r.changed) dirty = true;
+      if (dirty) {
+        const next = s.active();
+        const ring0 = next[0]?.ring === 0 ? next[0].content : null;
+        if (
+          shouldMerge({
+            pending: r.pending,
+            ring0Changed: ring0 !== mergedRing0,
+            sinceLastMs: t.nowMs - lastMerge,
+          })
+        ) {
+          dirty = false;
+          lastMerge = t.nowMs;
+          mergedRing0 = ring0;
+          mergeStart.current = performance.now();
+          setActive(next);
+        }
+      }
       const c = tileAt(t.target.x, t.target.z);
       if (c.key !== centreKey) {
         centreKey = c.key;
         setCentre([(c.i + 0.5) * TILE_M, (c.j + 0.5) * TILE_M]);
       }
-      return r.pending;
+      return r.pending || dirty;
     });
   }, [engine, warm]);
 
   // Streaming off (showroom, no walk yet): nothing is drawn from it.
   const shown = inputs ? active : NONE;
-  return { active: shown, centre };
+  return { active: shown, centre, mergeStart };
+}
+
+/**
+ * Times one merge of the streamed layers as the User Timing measure `tl:stream-merge`: from the
+ * LOD tick that published the active tiles to the end of the effects that rebuilt the layers. Call
+ * it after the hooks that merge `active` (effects run in declaration order).
+ */
+export function useMergeMeasure(active: ActiveTile[], mergeStart: RefObject<number | null>) {
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `active` is the trigger
+  useEffect(() => {
+    const t0 = mergeStart.current;
+    if (t0 === null) return;
+    mergeStart.current = null;
+    measure(MERGE_MEASURE, t0);
+  }, [active, mergeStart]);
 }

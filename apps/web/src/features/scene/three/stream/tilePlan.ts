@@ -29,6 +29,8 @@ export interface TileInputs {
 const SALT = { props: "props", motion: "motion", signs: "signs", roads: "roads" } as const;
 const LAMP_KITS = ["furniture/lamp_single", "furniture/lamp_double"];
 const NO_KITS: Map<string, Placement[]> = new Map();
+/** One shared empty list: a re-plan of a tile without facades keeps its identity (no facade rebuild). */
+const NO_FACADES: FacadeBuilding[] = Object.freeze([]) as unknown as FacadeBuilding[];
 
 const areaOf = (tile: Tile, salt: string): PlanArea => ({
   box: tile.box,
@@ -97,7 +99,7 @@ export function planTile(inp: TileInputs, tile: Tile, ring: Ring, tier: Tier): T
     agents,
     signs,
     ribbons,
-    facades: rich && ring <= 1 ? (inp.facades?.get(tile.key) ?? []) : undefined,
+    facades: rich && ring <= 1 ? (inp.facades?.get(tile.key) ?? NO_FACADES) : undefined,
   };
 }
 
