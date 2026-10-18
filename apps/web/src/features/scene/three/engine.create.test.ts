@@ -569,6 +569,7 @@ describe("engine motion clock", () => {
       const THREE = await import("three");
       const layer = {
         group: new THREE.Group(),
+        lineGroup: new THREE.Group(),
         groundGroup: new THREE.Group(),
         update: vi.fn(),
         setMetresPerPixel: vi.fn(),
@@ -753,6 +754,7 @@ describe("engine motion clock", () => {
       const THREE = await import("three");
       const overlay = {
         group: new THREE.Group(),
+        lineGroup: new THREE.Group(),
         groundGroup: new THREE.Group(),
         update: vi.fn(),
         setMetresPerPixel: vi.fn(),

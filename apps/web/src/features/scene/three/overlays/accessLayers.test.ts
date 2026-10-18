@@ -88,7 +88,7 @@ describe("createOverlayLayer", () => {
   it("makes one batch per status in the statusStyle colour, order 10, lift 0.4", () => {
     const l = createOverlayLayer(frame);
     l.update({ ...base, access });
-    const bs = visibleBatches(l.group);
+    const bs = visibleBatches(l.lineGroup);
     expect(bs.length).toBe(3);
     expect(bs.map(colour).sort()).toEqual(
       [statusStyle("blocked"), statusStyle("unknown"), statusStyle("ok")]
@@ -107,14 +107,14 @@ describe("createOverlayLayer", () => {
   it("the no-known-barrier network is translucent", () => {
     const l = createOverlayLayer(frame);
     l.update({ ...base, access });
-    const ok = batches(l.group).find((b) => colour(b) === lower(statusStyle("ok").color));
+    const ok = batches(l.lineGroup).find((b) => colour(b) === lower(statusStyle("ok").color));
     expect(mat(ok as LineSegments2).opacity).toBe(0.6);
   });
 
   it("gapsOn hides the status batches and shows the gap batches", () => {
     const l = createOverlayLayer(frame);
     l.update({ ...base, access, gaps, gapsOn: true });
-    const bs = visibleBatches(l.group);
+    const bs = visibleBatches(l.lineGroup);
     expect(bs.length).toBe(3);
     expect(bs.map(colour).sort()).toEqual(
       Object.values(GAP_BANDS)
@@ -123,7 +123,7 @@ describe("createOverlayLayer", () => {
     );
     for (const b of bs) expect(b.renderOrder).toBe(11);
     l.update({ ...base, access, gaps, gapsOn: false });
-    const after = visibleBatches(l.group);
+    const after = visibleBatches(l.lineGroup);
     expect(after.length).toBe(3);
     expect(after.every((b) => b.renderOrder === 10)).toBe(true);
   });
@@ -131,26 +131,26 @@ describe("createOverlayLayer", () => {
   it("AC-A1: Path status off builds no status lines; the route and what-if still draw", () => {
     const l = createOverlayLayer(frame);
     l.update({ ...base, pathStatus: false, access, route, whatIf });
-    const bs = visibleBatches(l.group);
+    const bs = visibleBatches(l.lineGroup);
     expect(bs.some((b) => b.renderOrder === 10)).toBe(false);
     expect(bs.filter((b) => b.renderOrder === 13).length).toBe(1);
     expect(bs.some((b) => b.renderOrder === 12)).toBe(true);
     l.update({ ...base, pathStatus: true, access, route, whatIf });
-    expect(visibleBatches(l.group).filter((b) => b.renderOrder === 10).length).toBe(3);
+    expect(visibleBatches(l.lineGroup).filter((b) => b.renderOrder === 10).length).toBe(3);
     l.update({ ...base, pathStatus: false, access, route, whatIf });
-    expect(visibleBatches(l.group).some((b) => b.renderOrder === 10)).toBe(false);
+    expect(visibleBatches(l.lineGroup).some((b) => b.renderOrder === 10)).toBe(false);
   });
 
   it("hides the access lines when the access lens is off", () => {
     const l = createOverlayLayer(frame);
     l.update({ ...base, access, gaps, gapsOn: true, accessVisible: false });
-    expect(visibleBatches(l.group).length).toBe(0);
+    expect(visibleBatches(l.lineGroup).length).toBe(0);
   });
 
   it("route is #2B6CB0 at 8 px, order 13, lift 0.6", () => {
     const l = createOverlayLayer(frame);
     l.update({ ...base, route });
-    const bs = visibleBatches(l.group);
+    const bs = visibleBatches(l.lineGroup);
     expect(bs.length).toBe(1);
     const b = bs[0] as LineSegments2;
     expect(colour(b)).toBe("#2b6cb0");
@@ -159,13 +159,13 @@ describe("createOverlayLayer", () => {
     expect(b.renderOrder).toBe(13);
     expect(attr(b, "instanceStart").getY(0)).toBeCloseTo(0.6, 6);
     l.update({ ...base, route: null });
-    expect(visibleBatches(l.group).length).toBe(0);
+    expect(visibleBatches(l.lineGroup).length).toBe(0);
   });
 
   it("what-if sides follow WHATIF_STYLE, order 12; before is dashed", () => {
     const l = createOverlayLayer(frame);
     l.update({ ...base, whatIf });
-    const bs = visibleBatches(l.group);
+    const bs = visibleBatches(l.lineGroup);
     expect(bs.length).toBe(3);
     const by = (side: keyof typeof WHATIF_STYLE) =>
       bs.find((b) => colour(b) === lower(WHATIF_STYLE[side].color)) as LineSegments2;
@@ -177,15 +177,16 @@ describe("createOverlayLayer", () => {
     expect(mat(by("after")).dashed).toBe(false);
   });
 
-  it("Review Focus 1: every overlay draws on top (depthTest false, renderOrder > 0)", () => {
+  it("every overlay line depth-tests against buildings (AC-A2) and draws after the ground (renderOrder >= 10)", () => {
     const l = createOverlayLayer(frame);
     const all = { access, accessVisible: true, pathStatus: true, gaps, route, whatIf };
     l.update({ ...all, gapsOn: true });
     l.update({ ...all, gapsOn: false });
-    const bs = batches(l.group);
+    const bs = batches(l.lineGroup);
     expect(bs.length).toBeGreaterThan(6);
     for (const b of bs) {
-      expect(mat(b).depthTest).toBe(false);
+      expect(mat(b).depthTest).toBe(true);
+      expect(mat(b).depthWrite).toBe(false);
       expect(b.renderOrder).toBeGreaterThanOrEqual(10);
     }
   });
@@ -193,7 +194,7 @@ describe("createOverlayLayer", () => {
   it("leaves raycast alone (picking is Task 14) and is not decorative", () => {
     const l = createOverlayLayer(frame);
     l.update({ ...base, access, route });
-    for (const b of batches(l.group)) {
+    for (const b of batches(l.lineGroup)) {
       expect(Object.hasOwn(b, "raycast")).toBe(false);
       expect(b.userData.decorative).toBeUndefined();
     }
@@ -204,30 +205,30 @@ describe("createOverlayLayer", () => {
     l.update({ ...base, route });
     l.setResolution(800, 600);
     l.update({ ...base, route, access });
-    for (const b of batches(l.group)) {
+    for (const b of batches(l.lineGroup)) {
       const r = mat(b).resolution;
       expect([r.x, r.y]).toEqual([800, 600]);
     }
     let disposed = 0;
-    for (const b of batches(l.group)) b.geometry.addEventListener("dispose", () => disposed++);
+    for (const b of batches(l.lineGroup)) b.geometry.addEventListener("dispose", () => disposed++);
     l.dispose();
     expect(disposed).toBeGreaterThan(0);
-    expect(batches(l.group).length).toBe(0);
+    expect(batches(l.lineGroup).length).toBe(0);
   });
 
   it("an unchanged state rebuilds nothing", () => {
     const l = createOverlayLayer(frame);
     l.update({ ...base, route });
-    const before = batches(l.group)[0];
+    const before = batches(l.lineGroup)[0];
     l.update({ ...base, route });
-    expect(batches(l.group)[0]).toBe(before);
+    expect(batches(l.lineGroup)[0]).toBe(before);
   });
 
   it("setMetresPerPixel rescales dashed batches now and for batches built later", () => {
     const l = createOverlayLayer(frame);
     l.update({ ...base, access });
     const blocked = () =>
-      batches(l.group).find(
+      batches(l.lineGroup).find(
         (b) => colour(b) === lower(statusStyle("blocked").color),
       ) as LineSegments2;
     const at1 = mat(blocked()).dashSize;
@@ -240,9 +241,24 @@ describe("createOverlayLayer", () => {
   it("hasVisible is false with nothing to draw", () => {
     const l = createOverlayLayer(frame);
     expect(l.hasVisible()).toBe(false);
+    // Lines draw in the main pass (lineGroup), so the overlay pass is for markers only.
     l.update({ ...base, route });
+    expect(l.hasVisible()).toBe(false);
+    expect(visibleBatches(l.lineGroup).length).toBe(1);
+    const withPlace = {
+      ...access,
+      features: [
+        ...access.features,
+        {
+          type: "Feature",
+          geometry: { type: "Point", coordinates: [101.5, 3.0] },
+          properties: { id: "p1", name: "p1", type: "park" },
+        },
+      ],
+    };
+    l.update({ ...base, access: withPlace });
     expect(l.hasVisible()).toBe(true);
-    l.update({ ...base, access, accessVisible: false });
+    l.update({ ...base, access: withPlace, accessVisible: false });
     expect(l.hasVisible()).toBe(false);
   });
 
@@ -296,9 +312,8 @@ describe("createOverlayLayer", () => {
       expect(l.hasVisible()).toBe(false);
       l.update({ ...base, accessVisible: false, water, floodEdges, floodOn: true });
       expect(l.groundGroup.getObjectByName("flood-fill")).toBeTruthy();
-      expect(l.hasVisible()).toBe(true);
-      expect(visibleBatches(l.group)).toHaveLength(1);
-      expect(visibleBatches(l.group)[0]?.renderOrder).toBe(12);
+      expect(visibleBatches(l.lineGroup)).toHaveLength(1);
+      expect(visibleBatches(l.lineGroup)[0]?.renderOrder).toBe(12);
     });
 
     it("flood does not rebuild when unrelated state changes", () => {

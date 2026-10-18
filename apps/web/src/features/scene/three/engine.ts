@@ -329,6 +329,7 @@ function build(
     if (!overlays) return;
     overlayScene.remove(overlays.group);
     scene.remove(overlays.groundGroup);
+    scene.remove(overlays.lineGroup);
     overlays.dispose();
     overlays = null;
   };
@@ -575,11 +576,12 @@ function build(
           if (assets) for (const o of assets.aoExcluded()) aoSkip.push(o);
           if (motionLayer) aoSkip.push(motionLayer.group);
           // The flood tint is data on the ground: AO must not darken it.
-          if (overlays) aoSkip.push(overlays.groundGroup);
+          if (overlays) aoSkip.push(overlays.groundGroup, overlays.lineGroup);
           return aoSkip;
         }),
       );
-    // Overlays after the AO pass and before bloom/tone mapping: no occlusion on them, drawn on top.
+    // Markers and residents after the AO pass and before bloom/tone mapping: no occlusion on them,
+    // drawn on top. Overlay lines are not here: they draw in the main pass (lineGroup) to depth-test.
     overlayPass = new RenderPass(overlayScene, camera);
     overlayPass.clear = false;
     passes.push(overlayPass);
@@ -892,6 +894,7 @@ function build(
         syncDashes(true);
         overlayScene.add(o.group);
         scene.add(o.groundGroup);
+        scene.add(o.lineGroup);
       }
       requestRender();
     },

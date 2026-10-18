@@ -866,7 +866,7 @@ describe("honesty 8: every overlay draws above every decor object", () => {
     return l;
   };
 
-  it("overlay drawables: depthTest false and renderOrder >= 10, above every decor renderOrder", () => {
+  it("overlay drawables: lines depth-test, markers do not, renderOrder >= 10, above every decor renderOrder", () => {
     const L = p4Layers();
     // The P3 ambient birds keep renderOrder 12 inside the MAIN scene, which the separate overlay
     // pass (its own scene, drawn after it) always covers; every other decor sits below 10.
@@ -897,14 +897,19 @@ describe("honesty 8: every overlay draws above every decor object", () => {
     birds.traverse((o) => expect(inOverlay.has(o), `bird object ${o.name}`).toBe(false));
     expect(inOverlay.has(birds)).toBe(false);
     const all: THREE.Object3D[] = [];
-    l.group.traverse((o) => {
-      if ((o as THREE.Mesh).material) all.push(o);
-    });
+    for (const g of [l.group, l.lineGroup])
+      g.traverse((o) => {
+        if ((o as THREE.Mesh).material) all.push(o);
+      });
     // Status, what-if, route, flood edges, place / waste / evac markers, residents.
     expect(all.length).toBeGreaterThan(8);
     const orders = new Set<number>();
     for (const o of all) {
-      for (const m of meshMaterials(o)) expect(m.depthTest, `${o.name} depthTest`).toBe(false);
+      // Lines depth-test (A-T2, AC-A2: no line over a roof); markers and residents stay on top.
+      for (const m of meshMaterials(o))
+        expect(m.depthTest, `${o.name} depthTest`).toBe(
+          !!(m as { isLineMaterial?: boolean }).isLineMaterial,
+        );
       expect(o.renderOrder, o.name).toBeGreaterThanOrEqual(10);
       expect(o.renderOrder, o.name).toBeGreaterThan(maxDecor);
       orders.add(Math.floor(o.renderOrder));

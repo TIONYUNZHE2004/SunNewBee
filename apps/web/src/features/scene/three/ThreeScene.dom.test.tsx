@@ -501,7 +501,7 @@ describe("ThreeScene", () => {
       // status lines are renderOrder 10, the route 13; count what is in the scene graph
       const count = (order: number) => {
         let n = 0;
-        layer.group.traverse((o: { isLineSegments2?: boolean; renderOrder: number }) => {
+        layer.lineGroup.traverse((o: { isLineSegments2?: boolean; renderOrder: number }) => {
           if (o.isLineSegments2 && o.renderOrder === order) n++;
         });
         return n;
@@ -535,7 +535,7 @@ describe("ThreeScene", () => {
     expect(layer).toBeTruthy();
     const routeLines = () => {
       const out: { renderOrder: number; count: number }[] = [];
-      layer.group.traverse(
+      layer.lineGroup.traverse(
         (o: {
           renderOrder: number;
           isLineSegments2?: boolean;
@@ -1604,6 +1604,7 @@ describe("ThreeScene", () => {
         // The overlay layer handed to the engine: lines, flood edges and markers draw on top.
         const overlay = engine.setOverlays.mock.calls.filter((c) => c[0]).at(-1)?.[0] as {
           group: THREE.Group;
+          lineGroup: THREE.Group;
           update(s: unknown): void;
         };
         expect(overlay).toBeDefined();
@@ -1634,12 +1635,14 @@ describe("ThreeScene", () => {
             floodOn: true,
           }),
         );
-        const overlayDrawn = drawn(overlay.group);
+        const overlayDrawn = [...drawn(overlay.group), ...drawn(overlay.lineGroup)];
         expect(overlayDrawn.length).toBeGreaterThanOrEqual(4);
         for (const o of overlayDrawn) {
           const mats = (o as THREE.Mesh).material;
           for (const m of Array.isArray(mats) ? mats : [mats])
-            expect((m as THREE.Material).depthTest, o.name).toBe(false);
+            expect((m as THREE.Material).depthTest, o.name).toBe(
+              !!(m as { isLineMaterial?: boolean }).isLineMaterial,
+            );
           expect(o.renderOrder, o.name).toBeGreaterThanOrEqual(10);
           expect(o.renderOrder, o.name).toBeGreaterThan(maxDecor);
         }
