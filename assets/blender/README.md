@@ -107,9 +107,15 @@ into the back roof slope. Shop office: a closed side bay with a roller shutter b
 secondary (`kit.roller_shutter`, also every garage door at LOD0). Highrise: spandrels and piers
 round every window, a balcony with a never-lit glass balustrade on every storey of the front
 and back faces, an open crown on the parapet. Factory: skylight strips, rooftop units, a loading
-bay at the front roller door. Mall: entrance portals, a canopy, roof monitors, rooftop units.
-Kanopi: a decorative deck on the podium ledge (raised pool 1.2 m above the podium roof, planters,
-a pergola). LOD1 keeps the highrise balconies and crown, and the factory and mall roof units, as
+bay at the front roller door. Owner gate round 1: the mall archetype is a single-level shop
+strip (a blank sign band per unit) under a continuous canopy walkway, a taller glazed entrance
+pavilion with a tall blank sign band, two big-box units behind with their own facades and roof
+plant, and a landscaped forecourt edge; the shop office has three-tone facade banding, fabric
+awnings and an arcade of deep columns with a beam and arch haunches; mall, factory, school and
+Lakeside Mall roofs are a light membrane (primary) or terracotta (accent), never grey. Kanopi:
+planter boxes up the tower and a 6 m level-7 facilities deck in front of the slab (raised pool
+1.2 m above the podium roof, timber pergola and deck, small trees, planters); the slab stands
+1 m in from the podium's back and ends and 6 m behind its front. LOD1 keeps the highrise balconies and crown, and the factory and mall roof units, as
 boxes; LOD2 is unchanged. Every LOD0 stays within 2 % of its P3 bounds (pinned in the tests).
 
 ## Kits and LODs
