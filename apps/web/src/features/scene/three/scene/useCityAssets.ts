@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { InstancedMesh } from "three";
 import type { BuildingsLayer } from "../../../../lib/api";
 import { usePerfStats } from "../../cesium/PerfOverlay";
 import type { Tier } from "../../cesium/stylised/quality";
@@ -15,7 +14,7 @@ import { HERO_CENTRE } from "../bookmarks";
 import { useCityInfo } from "../cityInfo";
 import { buildCityGeometry, type CityGeometry } from "../cityMesh";
 import type { Engine } from "../engine";
-import { createFacadeLayer, type FacadeBuilding } from "../facade/facadeLayer";
+import type { FacadeBuilding } from "../facade/facadeLayer";
 import { fallbackColourFn } from "../fallbackStyle";
 import type { LocalFrame } from "../frame";
 import { KIT_LOD_SCALE } from "../props/caps";
@@ -84,30 +83,6 @@ const geometryBytes = (g: CityGeometry) => {
   return n;
 };
 const MB = 1024 * 1024;
-/** Runs `fn` when the main thread is idle (at most 500 ms later); returns a cancel function. */
-function whenIdle(fn: () => void): () => void {
-  const w = globalThis as typeof globalThis & {
-    requestIdleCallback?: (cb: () => void, o?: { timeout: number }) => number;
-    cancelIdleCallback?: (h: number) => void;
-  };
-  if (w.requestIdleCallback && w.cancelIdleCallback) {
-    const h = w.requestIdleCallback(fn, { timeout: 500 });
-    return () => w.cancelIdleCallback?.(h);
-  }
-  const t = setTimeout(fn, 0);
-  return () => clearTimeout(t);
-}
-/** The engine decor slot that holds the procedural facade layer. */
-export const FACADE_SLOT = "facades";
-/** Instance buffers (matrix + colour) of the facade layer's meshes. */
-const facadeBytes = (group: { children: unknown[] }) => {
-  let n = 0;
-  for (const c of group.children) {
-    const m = c as Partial<Pick<InstancedMesh, "instanceMatrix" | "instanceColor">>;
-    n += (m.instanceMatrix?.array.byteLength ?? 0) + (m.instanceColor?.array.byteLength ?? 0);
-  }
-  return n;
-};
 
 type Kits = Map<string, Placement[]> | null;
 
@@ -118,10 +93,9 @@ type Kits = Map<string, Placement[]> | null;
  * Single build: the instances are created once per (plan, tier) and kits (props) are applied with
  * `setKits`, which rebuilds only the kit buckets. Kits set before the build go into it.
  *
- * Procedural facades (decorative): one township-wide layer for every drawn extrusion (fallbacks and
- * stretched generics), in the engine's `FACADE_SLOT` decor slot. It is built once per (plan, tier),
- * never on camera moves, with the live role and motion uniforms (mood and flicker reach it without
- * a rebuild); Low draws none (the P3 palette extrusion). Per-tile facade streaming is Task 4's.
+ * Procedural facades (decorative): `facadeSrc` is the facade input of every drawn extrusion
+ * (fallbacks and stretched generics). The streamer buckets it by tile and `useFacades` draws the
+ * buckets of rings 0-1 (P4-H). `baseBytes` is the city's GPU bytes without the facade layer.
  */
 export function useCityAssets({
   engine,
@@ -151,8 +125,6 @@ export function useCityAssets({
   const [fallback, setFallback] = useState<FallbackCounts>(NO_FALLBACK);
   /** The facade layer's input for the current plan (null: no facades, e.g. no assets or showroom). */
   const [facadeSrc, setFacadeSrc] = useState<FacadeBuilding[] | null>(null);
-  /** True while a non-empty facade layer is in the engine. */
-  const [facadesOn, setFacadesOn] = useState(false);
   /** The city's GPU bytes without the facade layer (the facade effect adds its own). */
   const baseBytes = useRef(0);
   /** True while the engine holds instances built from the current library. */
@@ -295,40 +267,6 @@ export function useCityAssets({
     }
   }, [engine, frame, buildings, loaded, showroom, roleUniforms]);
 
-  // Facades: one layer per (plan, tier), handed to the engine's decor slot (which disposes the old
-  // one). Low tier draws none. The cleanup clears the slot on a rebuild, an engine switch or unmount.
-  useEffect(() => {
-    if (!engine || !facadeSrc || facadeSrc.length === 0 || tier === "low") {
-      setFacadesOn(false);
-      usePerfStats.getState().update({ gpuMB: baseBytes.current / MB });
-      return;
-    }
-    // Built when the main thread is idle, after the city's first frame (about 0.1 s for the whole
-    // township in node; see the Task 6b report), so the palette extrusion shows first.
-    let built = false;
-    const cancel = whenIdle(() => {
-      let layer: ReturnType<typeof createFacadeLayer>;
-      try {
-        layer = createFacadeLayer(facadeSrc, roleUniforms, tier, engine.motion);
-      } catch (err) {
-        // Decorative only: the palette extrusion stays drawn without it.
-        console.warn(`${ASSET_WARN}: facades: ${String(err)}`);
-        setFacadesOn(false);
-        return;
-      }
-      built = true;
-      engine.setDecor(FACADE_SLOT, layer);
-      setFacadesOn(layer.group.children.length > 0);
-      usePerfStats
-        .getState()
-        .update({ gpuMB: (baseBytes.current + facadeBytes(layer.group)) / MB });
-    });
-    return () => {
-      cancel();
-      if (built) engine.setDecor(FACADE_SLOT, null);
-    };
-  }, [engine, facadeSrc, tier, roleUniforms]);
-
   /** Hands the latest kits to the instances in the engine, unless they already hold them. */
   // biome-ignore lint/correctness/useExhaustiveDependencies: kitLodScale reads the live tier and `showroom`, a dependency
   const applyKits = useCallback(() => {
@@ -382,8 +320,10 @@ export function useCityAssets({
     loaded,
     plan,
     setKits,
-    decorAssets: decorAssets || facadesOn,
+    decorAssets,
     instances,
     fallback,
+    facadeSrc,
+    baseBytes,
   };
 }

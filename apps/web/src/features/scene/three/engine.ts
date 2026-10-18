@@ -21,6 +21,7 @@ import {
   viewOffsetFor,
 } from "./cameraRig";
 import type { CityGeometry } from "./cityMesh";
+import { cullFrustum, shadowPadM } from "./cull";
 import { GROUND_BANDS, groundMaterial } from "./ground/bands";
 import type { GroundLayer } from "./ground/groundLayer";
 import { shimmerMaterial } from "./ground/landcover";
@@ -44,6 +45,13 @@ export interface FrameInfo {
   /** Triangles this frame, over all passes. */
   tris: number;
   moving: boolean;
+}
+
+/** What an LOD tick hands its listeners: the orbit target (local xz) and the camera range (m). */
+export interface LodTick {
+  target: { x: number; z: number };
+  rangeM: number;
+  nowMs: number;
 }
 
 export interface Engine {
@@ -84,6 +92,15 @@ export interface Engine {
   rig: CameraRig;
   requestRender(): void;
   onFrame(cb: (dtMs: number, info: FrameInfo) => void): () => void;
+  /**
+   * Runs `cb` on the instanced-LOD schedule (at most every 250 ms while the camera moves, plus once
+   * after it stops), before that frame renders. A listener returns true while it has more work
+   * (tiles still to plan): the engine then wakes one more LOD tick an interval later, even with the
+   * camera still. Registering asks for a tick at once.
+   */
+  onLodTick(cb: (t: LodTick) => boolean | undefined): () => void;
+  /** Asks for an LOD tick on the next frame (new streaming input, a tier change). */
+  requestLodTick(): void;
   /** Unrecoverable runtime failure (context lost, shader compile/link error): the caller falls back. */
   onFatal(cb: (err: Error) => void): () => void;
   gl(): WebGL2RenderingContext;
@@ -342,6 +359,11 @@ function build(
 
   let assets: CityInstances | null = null;
   const lod = createLodSchedule(LOD_INTERVAL_MS);
+  const lodCbs = new Set<(t: LodTick) => boolean | undefined>();
+  /** The instance-culling frustum: the view, padded for shadow casters (P4-I). */
+  const cull = new THREE.Frustum();
+  const lodTick: LodTick = { target: { x: 0, z: 0 }, rangeM: 0, nowMs: 0 };
+  const lodWanted = () => !!assets || lodCbs.size > 0;
   let lodTimer: ReturnType<typeof setTimeout> | undefined;
   const dropAssets = () => {
     if (!assets) return;
@@ -534,7 +556,23 @@ function build(
       armMotion(now);
       return;
     }
-    if (assets && lod.due(now)) assets.update(camera.position);
+    if (lodWanted() && lod.due(now)) {
+      const rangeM = camera.position.distanceTo(controls.target);
+      // The shadow box half size is fitShadowCamera's radius (placeLight: range x 1.2).
+      if (assets)
+        assets.update(
+          camera.position,
+          cullFrustum(camera, shadowPadM(sun.castShadow, rangeM * 1.2), cull, viewProj),
+        );
+      lodTick.target.x = controls.target.x;
+      lodTick.target.z = controls.target.z;
+      lodTick.rangeM = rangeM;
+      lodTick.nowMs = now;
+      let more = false;
+      for (const cb of lodCbs) if (cb(lodTick)) more = true;
+      // More tiles to plan: one more LOD tick an interval later (the trailing timer wakes it).
+      if (more) lod.moved();
+    }
     if (motionLayer) {
       if (due) {
         motionAt = now;
@@ -570,7 +608,7 @@ function build(
     if (flying || damping || dirty) schedule();
     if (!raf) idle = true;
     // The camera stopped before the last LOD update was due: wake one more frame for it.
-    const wait = assets && !raf ? lod.trailingMs(now) : null;
+    const wait = lodWanted() && !raf ? lod.trailingMs(now) : null;
     clearTimeout(lodTimer);
     lodTimer = wait === null ? undefined : setTimeout(requestRender, wait);
     // The motion clock: the next motion frame about MOTION_FRAME_MS after this one (<= 30 fps).
@@ -758,6 +796,18 @@ function build(
       listeners.add(cb);
       return () => listeners.delete(cb);
     },
+    onLodTick(cb) {
+      if (disposed) return () => {};
+      lodCbs.add(cb);
+      lod.force();
+      requestRender();
+      return () => lodCbs.delete(cb);
+    },
+    requestLodTick() {
+      if (disposed) return;
+      lod.force();
+      requestRender();
+    },
     onFatal(cb) {
       if (disposed) return () => {};
       fatalCbs.add(cb);
@@ -771,6 +821,7 @@ function build(
       cancelAnimationFrame(raf);
       raf = 0;
       listeners.clear();
+      lodCbs.clear();
       fatalCbs.clear();
       release();
     },

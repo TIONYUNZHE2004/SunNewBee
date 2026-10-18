@@ -16,11 +16,13 @@ import { useCameraOps } from "./scene/useCameraOps";
 import { useCityAssets } from "./scene/useCityAssets";
 import { useDecor } from "./scene/useDecor";
 import { useEngine } from "./scene/useEngine";
-import { useGround } from "./scene/useGround";
+import { useFacades } from "./scene/useFacades";
+import { useGround, useRoads } from "./scene/useGround";
 import { useMood } from "./scene/useMood";
 import { useMotion } from "./scene/useMotion";
 import { useOverlays } from "./scene/useOverlays";
 import { usePicking } from "./scene/usePicking";
+import { useMergeMeasure, useStream } from "./scene/useStream";
 
 /** Bottom-left map note (clear of the camera cluster and the attribution strip). */
 function ExperimentalEngineChip() {
@@ -139,11 +141,56 @@ export default function ThreeScene({
     roleUniforms,
   });
   const { assetsState, loaded } = city;
-  const ground = useGround({ engine, frame, buildingsQ, accessData: access.data, tier });
-  const { detailsOn, walk, roads, landcover } = ground;
-  const details = { engine, frame, tier, detailsOn, walk, loaded, showroom, roleUniforms, bus };
-  const { propsPlan } = useDecor({ ...details, buildings, setKits: city.setKits });
-  const { running, onScreen, agents } = useMotion({ ...details, sectionRef });
+  const { detailsOn, walk, landcover } = useGround({
+    engine,
+    frame,
+    buildingsQ,
+    accessData: access.data,
+    tier,
+  });
+  // Township streaming: the 250 m tiles around the camera target feed every decorative layer.
+  const { active, centre, mergeStart } = useStream({
+    engine,
+    frame,
+    tier,
+    detailsOn,
+    walk,
+    buildings,
+    loaded,
+    showroom,
+    facadeSrc: city.facadeSrc,
+  });
+  const { roads } = useRoads({ engine, active, tier });
+  const { facadesOn } = useFacades({
+    engine,
+    active,
+    tier,
+    roleUniforms,
+    baseBytes: city.baseBytes,
+  });
+  const { kits } = useDecor({
+    engine,
+    frame,
+    tier,
+    active,
+    centre,
+    showroom,
+    roleUniforms,
+    setKits: city.setKits,
+    bus,
+  });
+  const { running, onScreen, agents } = useMotion({
+    engine,
+    tier,
+    active,
+    loaded,
+    showroom,
+    roleUniforms,
+    sectionRef,
+    bus,
+  });
+  // After every hook that merges `active`: times the merge (`tl:stream-merge`).
+  useMergeMeasure(active, mergeStart);
   const { ops } = useCameraOps({ engine, frame, bbox, places, hostRef, onOps });
   const { routeOn, markerCount } = useOverlays({
     engine,
@@ -156,12 +203,13 @@ export default function ThreeScene({
   const { initialBackground } = useMood({ engine, roleUniforms, sectionRef, home, bus });
   usePicking({ engine, hostRef, places });
 
-  // Any decorative layer in the scene: city assets (kits, decorative landmarks), props, agents,
-  // the ground layer (land-cover tints, road surfaces) or the ambient birds and cloud shadows.
+  // Any decorative layer in the scene: city assets (kits, decorative landmarks), facades, props,
+  // agents, the ground layer (land-cover tints, road surfaces) or the ambient birds and clouds.
   const decorativeShown =
     city.decorAssets ||
-    (propsPlan ? [...propsPlan.kits.values()].some((l) => l.length > 0) : false) ||
-    (agents?.length ?? 0) > 0 ||
+    facadesOn ||
+    kits.size > 0 ||
+    agents.length > 0 ||
     (!!engine && (roads.length > 0 || !!landcover?.getAttribute("position")?.count)) ||
     (!!engine && !!frame && !showroom && tier !== "low");
 
@@ -176,6 +224,7 @@ export default function ThreeScene({
       data-assets={assetsState}
       data-instances={city.instances}
       data-markers={markerCount}
+      data-tiles={active.length}
       data-fallback={city.fallback.join(",")}
       className="relative h-full w-full"
       style={{ background: initialBackground }}
