@@ -6,9 +6,9 @@ import type { LocalFrame } from "../frame";
 import { growBox, inBox, type PlanArea, perLayer, touchesBox } from "../stream/area";
 
 /**
- * DECORATIVE traffic and pedestrians for one planning box. Agents loop along walk edges as
- * polylines from a seeded start offset, with no routing and no collision (ruling: cars may pass
- * through each other at junctions). Nothing here is a fact about the township: no counts, no
+ * DECORATIVE traffic and pedestrians for one planning box. Agents walk walk-edge polylines from a
+ * seeded start offset (ping-pong on open paths, looping on closed ones; see poseAt), with no
+ * routing and no collision (ruling: cars may pass through each other at junctions). Nothing here is a fact about the township: no counts, no
  * flows, no speeds are measured. Pure: the same input always gives the same agents.
  */
 export interface Agent {
@@ -56,6 +56,7 @@ export interface Pose2 {
   z: number;
   yaw: number;
 }
+const lerp = (r: readonly [number, number], u: number) => r[0] + (r[1] - r[0]) * u;
 const setPose = (out: Pose2, x: number, z: number, yaw: number) => {
   out.x = x;
   out.z = z;
@@ -63,16 +64,92 @@ const setPose = (out: Pose2, x: number, z: number, yaw: number) => {
   return out;
 };
 
-/**
- * Loops along the path; yaw turns the model's +z (its front) onto the tangent. Writes into `out`
- * when given (the motion layer reuses one object per tick) and returns it.
- */
-export function poseAt(a: Agent, tSec: number, out: Pose2 = { x: 0, z: 0, yaw: 0 }): Pose2 {
+/** An open path's agent turns around in place at each end over this long (at its nominal speed). */
+export const TURN_S = 1.5;
+/** A path whose first and last points are this close is a closed loop: agents keep looping. */
+export const CLOSED_LOOP_M = 1;
+/** Speed eases by this share either way, per agent, on a slow sine (no lockstep traffic). */
+export const EASE_AMP = 0.15;
+/** The easing sine's period range (s), picked per agent by hash. */
+export const EASE_PERIOD_S: readonly [number, number] = [20, 40];
+/** Time constant (s) of the motion layer's yaw smoothing. */
+export const YAW_TAU_S = 0.25;
+
+const TAU = Math.PI * 2;
+const wrapPi = (v: number) => v - TAU * Math.floor((v + Math.PI) / TAU);
+
+/** `from` turned toward `to` by share `t` the short way round (result in [-pi, pi)). */
+export function slerpAngle(from: number, to: number, t: number): number {
+  return wrapPi(from + wrapPi(to - from) * t);
+}
+
+/** One smoothing step: `yaw = slerpAngle(prev, tangent, 1 - exp(-dt / 0.25 s))`. */
+export function smoothYaw(prev: number, tangent: number, dtSec: number): number {
+  if (!(dtSec > 0)) return prev;
+  return slerpAngle(prev, tangent, 1 - Math.exp(-dtSec / YAW_TAU_S));
+}
+
+/** Per-agent constants for poseAt, derived once from the path and id. */
+interface Track {
+  /** Arc length of the polyline itself (m). */
+  len: number;
+  /** Closed loops add the closing gap (last -> first point) to the lap; 0 when open. */
+  gap: number;
+  closed: boolean;
+  /** Angular frequency (rad/s) and phase of the speed easing. */
+  w: number;
+  phase: number;
+  cos0: number;
+}
+const tracks = new WeakMap<Agent, Track>();
+function trackOf(a: Agent): Track {
+  const hit = tracks.get(a);
+  if (hit) return hit;
   const p = a.path;
   const n = p.length / 2;
-  if (n < 2 || !(a.length > 0)) return setPose(out, p[0] ?? 0, p[1] ?? 0, 0);
-  let s = (a.offset + a.speed * tSec) % a.length;
-  if (s < 0) s += a.length;
+  let len = 0;
+  for (let i = 0; i < n - 1; i++)
+    len += Math.hypot(
+      (p[2 * i + 2] as number) - (p[2 * i] as number),
+      (p[2 * i + 3] as number) - (p[2 * i + 1] as number),
+    );
+  const gap =
+    n >= 3
+      ? Math.hypot(
+          (p[2 * n - 2] as number) - (p[0] as number),
+          (p[2 * n - 1] as number) - (p[1] as number),
+        )
+      : Number.POSITIVE_INFINITY;
+  const closed = gap <= CLOSED_LOOP_M && len > 0;
+  const period = lerp(EASE_PERIOD_S, hash01(a.id, "ease-period"));
+  const phase = hash01(a.id, "ease-phase") * TAU;
+  const t: Track = {
+    len,
+    gap: closed ? gap : 0,
+    closed,
+    w: TAU / period,
+    phase,
+    cos0: Math.cos(phase),
+  };
+  tracks.set(a, t);
+  return t;
+}
+
+/**
+ * Metres travelled after `tSec`: the integral of speed x (1 + 0.15 sin(w t + phase)), so the eased
+ * speed stays within +-15 % and the distance is exact at any time (no per-frame accumulation).
+ */
+export function easedDistance(a: Agent, tSec: number): number {
+  const k = trackOf(a);
+  return a.speed * (tSec + (EASE_AMP / k.w) * (k.cos0 - Math.cos(k.w * tSec + k.phase)));
+}
+
+/** Point and tangent yaw at arc length s along the polyline (zero-length segments skipped). */
+function along(p: Float32Array, s: number, out: Pose2): Pose2 {
+  const n = p.length / 2;
+  let lastYaw = 0;
+  let lx = p[0] as number;
+  let lz = p[1] as number;
   for (let i = 0; i < n - 1; i++) {
     const ax = p[2 * i] as number;
     const az = p[2 * i + 1] as number;
@@ -80,13 +157,70 @@ export function poseAt(a: Agent, tSec: number, out: Pose2 = { x: 0, z: 0, yaw: 0
     const dz = (p[2 * i + 3] as number) - az;
     const l = Math.hypot(dx, dz);
     if (l === 0) continue;
-    if (s <= l || i === n - 2) {
-      const t = Math.min(1, s / l);
-      return setPose(out, ax + dx * t, az + dz * t, Math.atan2(dx, dz));
+    lastYaw = Math.atan2(dx, dz);
+    lx = ax + dx;
+    lz = az + dz;
+    if (s <= l) {
+      const t = Math.max(0, s / l);
+      return setPose(out, ax + dx * t, az + dz * t, lastYaw);
     }
     s -= l;
   }
-  return setPose(out, p[0] as number, p[1] as number, 0);
+  return setPose(out, lx, lz, lastYaw);
+}
+
+/** Tangent yaw of the first non-degenerate segment (the heading when leaving the start). */
+function startYaw(p: Float32Array): number {
+  for (let i = 0; i + 3 < p.length; i += 2) {
+    const dx = (p[i + 2] as number) - (p[i] as number);
+    const dz = (p[i + 3] as number) - (p[i + 1] as number);
+    if (dx !== 0 || dz !== 0) return Math.atan2(dx, dz);
+  }
+  return 0;
+}
+
+/**
+ * The agent's pose at `tSec` (real time). Yaw turns the model's +z (its front) onto the tangent.
+ * Continuous by construction (Review Focus 4):
+ * - closed loops (ends within 1 m) keep looping, crossing the closing gap as one more segment;
+ * - open paths ping-pong: walk to the end, turn around in place over 1.5 s (yaw sweeps by pi),
+ *   walk back, turn again at the start. A turn is TURN_S x speed metres of the cycle, so it takes
+ *   1.5 s at the nominal speed (the +-15 % easing stretches it slightly).
+ * The yaw here still follows each segment's tangent; the motion layer smooths it per agent.
+ * Writes into `out` when given (the motion layer reuses one object per tick) and returns it.
+ */
+export function poseAt(a: Agent, tSec: number, out: Pose2 = { x: 0, z: 0, yaw: 0 }): Pose2 {
+  const p = a.path;
+  const n = p.length / 2;
+  const k = n >= 2 ? trackOf(a) : null;
+  if (!k || !(k.len > 0)) return setPose(out, p[0] ?? 0, p[1] ?? 0, 0);
+  const d = a.offset + easedDistance(a, tSec);
+  if (k.closed) {
+    const lap = k.len + k.gap;
+    const s = d - lap * Math.floor(d / lap);
+    if (s <= k.len || k.gap === 0) return along(p, s, out);
+    // On the closing gap: last point -> first point.
+    const lx = p[2 * n - 2] as number;
+    const lz = p[2 * n - 1] as number;
+    const dx = (p[0] as number) - lx;
+    const dz = (p[1] as number) - lz;
+    const t = (s - k.len) / k.gap;
+    return setPose(out, lx + dx * t, lz + dz * t, Math.atan2(dx, dz));
+  }
+  const turn = TURN_S * a.speed;
+  const cycle = 2 * k.len + 2 * turn;
+  const u = d - cycle * Math.floor(d / cycle);
+  if (u < k.len) return along(p, u, out);
+  if (u < k.len + turn) {
+    along(p, k.len, out);
+    return setPose(out, out.x, out.z, wrapPi(out.yaw + (Math.PI * (u - k.len)) / turn));
+  }
+  if (u < 2 * k.len + turn) {
+    along(p, k.len - (u - k.len - turn), out);
+    return setPose(out, out.x, out.z, wrapPi(out.yaw + Math.PI));
+  }
+  const yaw = startYaw(p) + Math.PI + (Math.PI * (u - 2 * k.len - turn)) / turn;
+  return setPose(out, p[0] as number, p[1] as number, wrapPi(yaw));
 }
 
 const VEHICLE_TYPES = new Set(["street", "major_road"]);
@@ -121,7 +255,6 @@ const featuresOf = (fc: unknown): Record<string, unknown>[] =>
   isRec(fc) && Array.isArray(fc.features) ? fc.features.filter(isRec) : [];
 const propsOf = (f: Record<string, unknown>): Record<string, unknown> =>
   isRec(f.properties) ? f.properties : {};
-const lerp = (r: readonly [number, number], u: number) => r[0] + (r[1] - r[0]) * u;
 
 const polyLength = (pts: P[]) => {
   let l = 0;
@@ -365,7 +498,14 @@ export function planAgents(input: AgentsInput): Agent[] {
               ? SPEED.cyclist
               : lerp(SPEED.walk, hash01(id, "speed"));
       }
-      const lane = offsetLeft(pts, lateral);
+      // Vehicles (ruling P4-O): a closed out-and-back loop, each leg in its own left lane, joined
+      // by lane-change U-turns and closed on the first point, so poseAt loops it and the return
+      // leg never drives on the right. People keep the single pavement line and ping-pong.
+      const lane =
+        kind === "vehicle"
+          ? [...offsetLeft(pts, lateral), ...offsetLeft([...pts].reverse(), lateral)]
+          : offsetLeft(pts, lateral);
+      if (kind === "vehicle") lane.push(lane[0] as P);
       const length = polyLength(lane);
       out.push({
         id,

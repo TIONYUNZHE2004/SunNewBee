@@ -8,13 +8,14 @@ import {
   MARKING_Y,
   PARK_Y,
   ROAD_Y,
+  VERGE_Y,
   WATER_Y,
 } from "./bands";
 import { createGroundLayer } from "./groundLayer";
 import { LANDCOVER_ORDER, landcoverMesh } from "./landcover";
 import type { Ribbon } from "./ribbons";
 
-const ORDER = ["landcover", "parks", "water", "roads", "markings"] as const;
+const ORDER = ["landcover", "parks", "water", "verges", "roads", "markings"] as const;
 
 describe("ground bands", () => {
   it("ground, land cover, parks and base water stay within 0.06 m, below the 0.08 m road lift", () => {
@@ -27,8 +28,9 @@ describe("ground bands", () => {
     expect(MARKING_Y).toBeGreaterThan(ROAD_Y);
   });
 
-  it("lifts rise land cover < parks < base water < roads < markings", () => {
-    const ys = [LANDCOVER_MAX_Y, PARK_Y, WATER_Y, ROAD_Y, MARKING_Y];
+  it("lifts rise land cover < parks < base water < verges < roads < markings", () => {
+    expect(VERGE_Y).toBe(0.07);
+    const ys = [LANDCOVER_MAX_Y, PARK_Y, WATER_Y, VERGE_Y, ROAD_Y, MARKING_Y];
     for (let i = 1; i < ys.length; i++) expect(ys[i]!).toBeGreaterThan(ys[i - 1]!);
   });
 

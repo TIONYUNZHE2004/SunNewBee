@@ -5,6 +5,19 @@ import type { Manifest } from "../assets/manifest";
 import type { LocalFrame } from "../frame";
 import { boxCentre, growBox, inBox, type PlanArea, perLayer, touchesBox } from "../stream/area";
 import type { PropKind } from "./caps";
+import { planConstructionSites } from "./construction";
+import {
+  type BBox,
+  bboxOf,
+  distSeg,
+  distToRing,
+  inPoly,
+  inRing,
+  type P,
+  type Poly,
+  polygonsOf,
+  type Ring,
+} from "./polyGeom";
 
 /**
  * Seeded, static, DECORATIVE props for one planning box (a streaming tile, or a union of tiles):
@@ -49,11 +62,6 @@ export interface PropsInput {
 /** The kinds this planner places (people and vehicles are the motion planner's). */
 export type PlannedPropKind = Extract<PropKind, "trees" | "lamps" | "furniture" | "construction">;
 
-type P = [number, number];
-type Ring = P[];
-/** Outer ring first, then holes. */
-type Poly = Ring[];
-
 const TREE_CLEAR_M = 1.5;
 const TREE_MIN_GAP_M = 2.5;
 const STREET_TREE_SPACING = 18;
@@ -69,9 +77,6 @@ const FOREST_SPACING = 9;
 const OIL_PALM_SPACING = 8;
 const FURNITURE_EDGE_SPACING = 25;
 const PLACE_FURNITURE_RANGE = 15;
-const HOARDING_M = 6;
-const EXCAVATOR_MIN_M2 = 2000;
-const CRANE_MIN_M2 = 8000;
 const BOLLARD_SPACING = 1.5;
 const BOLLARDS_PER_ENTRANCE = 5;
 const GRID_M = 32;
@@ -95,48 +100,6 @@ const featuresOf = (fc: unknown): Record<string, unknown>[] =>
   isRec(fc) && Array.isArray(fc.features) ? fc.features.filter(isRec) : [];
 const propsOf = (f: Record<string, unknown>): Record<string, unknown> =>
   isRec(f.properties) ? f.properties : {};
-
-function localRing(ring: unknown, frame: LocalFrame): Ring | null {
-  if (!Array.isArray(ring)) return null;
-  const out: Ring = [];
-  for (const c of ring) {
-    if (!Array.isArray(c) || !Number.isFinite(c[0]) || !Number.isFinite(c[1])) return null;
-    out.push(frame.toLocal(c[0] as number, c[1] as number));
-  }
-  const a = out[0];
-  const b = out[out.length - 1];
-  if (out.length > 1 && a && b && a[0] === b[0] && a[1] === b[1]) out.pop();
-  return out.length >= 3 ? out : null;
-}
-
-function polygonsOf(geom: unknown, frame: LocalFrame): Poly[] {
-  if (!isRec(geom) || !Array.isArray(geom.coordinates)) return [];
-  const sets: unknown[] =
-    geom.type === "Polygon"
-      ? [geom.coordinates]
-      : geom.type === "MultiPolygon"
-        ? geom.coordinates
-        : [];
-  const out: Poly[] = [];
-  for (const s of sets) {
-    if (!Array.isArray(s)) continue;
-    const rings = s.map((r) => localRing(r, frame));
-    if (rings[0] && rings.every(Boolean)) out.push(rings as Poly);
-  }
-  return out;
-}
-
-function inRing(x: number, z: number, ring: Ring): boolean {
-  let inside = false;
-  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
-    const [xi, zi] = ring[i]!;
-    const [xj, zj] = ring[j]!;
-    if (zi > z !== zj > z && x < ((xj - xi) * (z - zi)) / (zj - zi) + xi) inside = !inside;
-  }
-  return inside;
-}
-const inPoly = (x: number, z: number, p: Poly): boolean =>
-  inRing(x, z, p[0]!) && !p.slice(1).some((h) => inRing(x, z, h));
 
 /** A ring with its edges bucketed by z slab, so a point test only walks the edges at its own z. */
 interface SlabRing {
@@ -173,42 +136,6 @@ function inSlabRing(x: number, z: number, sr: SlabRing): boolean {
   return inside;
 }
 
-function distSeg(px: number, pz: number, a: P, b: P): number {
-  const dx = b[0] - a[0];
-  const dz = b[1] - a[1];
-  const l2 = dx * dx + dz * dz;
-  const t = l2 === 0 ? 0 : Math.max(0, Math.min(1, ((px - a[0]) * dx + (pz - a[1]) * dz) / l2));
-  return Math.hypot(px - (a[0] + t * dx), pz - (a[1] + t * dz));
-}
-
-function distToRing(x: number, z: number, ring: Ring): number {
-  let d = Number.POSITIVE_INFINITY;
-  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++)
-    d = Math.min(d, distSeg(x, z, ring[j]!, ring[i]!));
-  return d;
-}
-
-function areaOf(ring: Ring): number {
-  let a = 0;
-  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++)
-    a += ring[j]![0] * ring[i]![1] - ring[i]![0] * ring[j]![1];
-  return Math.abs(a / 2);
-}
-
-function bboxOf(ring: Ring): [number, number, number, number] {
-  let x0 = Number.POSITIVE_INFINITY;
-  let z0 = Number.POSITIVE_INFINITY;
-  let x1 = Number.NEGATIVE_INFINITY;
-  let z1 = Number.NEGATIVE_INFINITY;
-  for (const [x, z] of ring) {
-    if (x < x0) x0 = x;
-    if (x > x1) x1 = x;
-    if (z < z0) z0 = z;
-    if (z > z1) z1 = z;
-  }
-  return [x0, z0, x1, z1];
-}
-
 /** Uniform grid of item indices by bounding box. */
 class Grid {
   private cells = new Map<string, number[]>();
@@ -234,7 +161,6 @@ interface Road {
   width: number;
   bb: BBox;
 }
-type BBox = [number, number, number, number];
 
 /*
  * Local-frame copies of the layers, with bounds, built once per layer object and frame
@@ -778,76 +704,6 @@ export function planProps(input: PropsInput): PropsPlan {
       });
   }
 
-  // Construction sites.
-  for (const { poly, id: ci } of constructionPolys) {
-    const ring = poly[0]!;
-    const b = bboxOf(ring);
-    const area = areaOf(ring) - poly.slice(1).reduce((s, h) => s + areaOf(h), 0);
-    // Hoardings: every 6 m along the boundary, midpoint of each span, facing outward.
-    const closed = [...ring, ring[0]!];
-    // Per-site quota under a tight cap, nearest site first (`sd`): rank 0 cabin, 1 two hoardings,
-    // 2 crane, 3 excavator, 4 stacks, 5 the remaining hoardings.
-    const sd = dist((b[0] + b[2]) / 2, (b[1] + b[3]) / 2);
-    // Indexed along the whole boundary (`along` only returns the spans near the box).
-    let perimeter = 0;
-    for (let k = 0; k < closed.length - 1; k++)
-      perimeter += Math.hypot(closed[k + 1]![0] - closed[k]![0], closed[k + 1]![1] - closed[k]![1]);
-    const spans = Math.floor((perimeter - HOARDING_M / 2) / HOARDING_M + 1e-9) + 1;
-    for (const p of along(closed, HOARDING_M, HOARDING_M / 2)) {
-      const i = Math.round((p.s - HOARDING_M / 2) / HOARDING_M);
-      const n: P = [p.tz, -p.tx];
-      const outward = inPoly(p.x + n[0] * 0.5, p.z + n[1] * 0.5, poly) ? -1 : 1;
-      push(
-        "construction",
-        "construction/hoarding_6m",
-        `hd${ci}:${i}`,
-        p.x,
-        p.z,
-        Math.atan2(n[0] * outward, n[1] * outward),
-        {
-          ribbon: false,
-          building: false,
-          rank: i === 0 || i === Math.floor(spans / 2) ? 1 : 5,
-          sd,
-        },
-      );
-    }
-    // Interior spots, roomiest first (distance to the boundary), deterministic.
-    const spots: { x: number; z: number; r: number }[] = [];
-    const step = Math.max(2, Math.min(b[2] - b[0], b[3] - b[1]) / 12);
-    for (let x = b[0] + step / 2; x < b[2]; x += step)
-      for (let z = b[1] + step / 2; z < b[3]; z += step)
-        if (inPoly(x, z, poly))
-          spots.push({ x, z, r: Math.min(...poly.map((rg) => distToRing(x, z, rg))) });
-    spots.sort((p, q) => q.r - p.r || p.x - q.x || p.z - q.z);
-    const taken: P[] = [];
-    const take = (minR: number, gap: number): { x: number; z: number } | null => {
-      for (const s of spots) {
-        if (s.r < minR) break;
-        if (taken.every((t) => Math.hypot(t[0] - s.x, t[1] - s.z) >= gap)) {
-          taken.push([s.x, s.z]);
-          return s;
-        }
-      }
-      return null;
-    };
-    const place = (key: string, tag: string, minR: number, gap: number, rank: number) => {
-      const s = take(minR, gap);
-      if (s)
-        push("construction", key, `${tag}${ci}`, s.x, s.z, undefined, {
-          ribbon: false,
-          building: false,
-          rank,
-          sd,
-        });
-    };
-    if (area > CRANE_MIN_M2) place("construction/tower_crane", "tc", 0, 0, 2);
-    place("construction/site_cabin", "sc", 2, 8, 0);
-    place("construction/material_stack", "ms0_", 2, 6, 4);
-    place("construction/material_stack", "ms1_", 2, 6, 4);
-    if (area > EXCAVATOR_MIN_M2) place("construction/excavator", "ex", 3, 8, 3);
-  }
-
   // Caps. Trees are stratified by source (TREE_SHARES) after the spacing rule, so one dense patch
   // cannot starve the rest; construction ranks by per-site quota; everything else is nearest-first.
   const cmp = (a: Cand, b: Cand) =>
@@ -966,6 +822,13 @@ export function planProps(input: PropsInput): PropsPlan {
   emitTrees();
   emit("lamps", cands.lamps);
   emit("furniture", cands.furniture);
-  emit("construction", cands.construction);
+  // Construction sites come from `construction.ts` (the P3 set: hoardings, a cabin, two stacks,
+  // an excavator, a crane); the by-area dressing is `planConstruction`'s, used by the streamer.
+  const cap = capOf("construction");
+  if (cap > 0) {
+    const built = planConstructionSites(constructionPolys, box, cap, m, false);
+    for (const [k, l] of built.kits) plan.kits.set(k, l);
+    plan.stats.construction = built.count;
+  } else plan.stats.construction = 0;
   return plan;
 }
