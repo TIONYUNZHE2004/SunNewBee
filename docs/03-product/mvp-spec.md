@@ -8,7 +8,7 @@
 >
 > **Status (2026-10-16, stylised city):** the 3D map now opens on a keyless **Stylised** city by default. It has Day and Night looks and lit windows at night, and it is drawn from committed OSM buildings and trees (7,803 buildings, 94% with default heights, display only). **Realistic photos (Google)** stays selectable under Map style when a Google key is set. Branch `feat/stylised-city`. Measurements and limits: [stylised-city quality report](stylised-city-quality-report.md).
 
-> **Status (2026-10-18, Three.js stylised view):** the opt-in `?engine=three` view now covers the whole township: tiles stream rich content around the camera (hero district richest), buildings get procedural facades, dressed roofs and lit windows at night, the ground gets verges, parking lots and dressed construction land, and traffic and people move smoothly at display rate. The owner passed the P4 gate; Cesium stays the default until P5. Branch `feat/stylised-threejs-p4` (local). Log: [overnight log, 2026-10-18 P4](../superpowers/overnight-log.md).
+> **Status (2026-10-18, Three.js stylised view):** the Three.js Stylised view now covers the whole township: tiles stream rich content around the camera (hero district richest), buildings get procedural facades, dressed roofs and lit windows at night, the ground gets verges, parking lots and dressed construction land, and traffic and people move smoothly at display rate. The owner passed the P4 gate. In P5 Three.js became the default (and only) Stylised renderer and the Cesium Stylised code was retired; Cesium now draws Realistic only. Branch `feat/stylised-threejs-p5` (local). Log: [overnight log, 2026-10-18 P4](../superpowers/overnight-log.md).
 
 ## How the product is organised
 

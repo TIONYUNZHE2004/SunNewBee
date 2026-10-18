@@ -79,10 +79,10 @@ apps/api POST /chat (SSE) ──► apps/web: parseSse → useChatStream → cha
   - `LLM_MODEL_DEFAULT` / `LLM_MODEL_ESCALATE` are OpenRouter ids.
   - No model names live in code.
   - The deterministic mock (`packages/agent/.../mock.py`) is the default for tests, CI and keyless development.
-- **Web renderers** degrade in order: Cesium 3D, then Mapbox lite, then the List view. The choice is made in `features/scene/selectView.ts` behind an error boundary. Only three public browser keys reach the bundle (mapped via `define` in `vite.config.ts`; `envPrefix` is `TL_PUBLIC_`).
-  - Cesium has two **map styles**. **Stylised** is the default whenever the world has buildings, and it needs no key. It is a low-poly city drawn from `GET /layers/buildings` (OSM buildings, trees and base water; 404 when the world has none). **Realistic** uses Google Photorealistic tiles, else Cesium OSM Buildings via Ion.
-  - Cesium is available when WebGL works and there are buildings, a Google key or an Ion token. So a keyless run with the Elmina seed shows Stylised. The tiny fixture has no buildings, so e2e stays on the List view.
-  - Code: `scene/cesium/stylised/`, `cesium/realistic.ts`, and `sceneStore` (`mapStyle`, `mapStyleChosen`, `resolveMapStyle`). See `apps/web/README.md`.
+- **Web renderers** degrade in order: 3D (Three.js for Stylised, Cesium for Realistic), then Mapbox lite, then the List view. The choice is made in `features/scene/selectView.ts` and `scene/three/engineChoice.ts` (`rendererFor`) behind `RendererBoundary`. Only three public browser keys reach the bundle (mapped via `define` in `vite.config.ts`; `envPrefix` is `TL_PUBLIC_`).
+  - The 3D view has two **map styles**. **Stylised** is drawn by Three.js, is the default whenever the world has buildings, and needs no key. It is a low-poly city drawn from `GET /layers/buildings` (OSM buildings, trees and base water; 404 when the world has none). **Realistic** is drawn by Cesium: Google Photorealistic tiles, else Cesium OSM Buildings via Ion.
+  - 3D is available when WebGL works and there are buildings, a Google key or an Ion token. So a keyless run with the Elmina seed shows Stylised. The tiny fixture has no buildings, so e2e stays on the List view.
+  - Code: `scene/three/` (Stylised), `scene/shared/` (tiers, building model, road tables), `scene/cesium/realistic.ts`, and `sceneStore` (`mapStyle`, `mapStyleChosen`, `resolveMapStyle`). See `apps/web/README.md`.
 - **Web screens:** two routes, `/` (map plus assistant) and `/tickets` (verification queue; staff enter a token in the outcome form, kept in `sessionStorage`). Day/night is owned by the `useTheme` store in `apps/web/src/ui/theme.ts` (not the scene store); `useScene().mapStyle` (`realistic|stylised`) selects the map style. See `apps/web/README.md`.
 - **State:**
   - Verification requests, the audit log and sim runs live in SQLite at `.data/<site id>.db`, one file per world unless `DATABASE_URL` is set.
