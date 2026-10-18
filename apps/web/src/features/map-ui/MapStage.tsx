@@ -3,7 +3,7 @@ import { ENV } from "../../lib/env";
 import { ListView } from "../scene/list/ListView";
 import { useScene } from "../scene/sceneStore";
 import { availableViews, effectiveView, selectView, webglSupported } from "../scene/selectView";
-import { rendererFor, stylisedEngine } from "../scene/three/engineChoice";
+import { clearLegacyEngineChoice, rendererFor } from "../scene/three/engineChoice";
 import { useMapStyle } from "../scene/useMapStyle";
 import { LoadingTownship } from "./LoadingTownship";
 import { BottomStack, InSlot, TopStack } from "./mapSlots";
@@ -56,6 +56,17 @@ export function MapStage({ children }: { children?: ReactNode }) {
   // Keyless worlds can still get the 3D (stylised) city once buildings data arrives: wait for it.
   const waiting = !autoSelected && !settled && webglOk && !available.includes("cesium");
 
+  // A stale `tl.engine` from the retired engine switch is dropped once; Stylised is always Three.js.
+  useEffect(() => {
+    let store: Storage | null = null;
+    try {
+      store = localStorage;
+    } catch {
+      /* blocked storage */
+    }
+    clearLegacyEngineChoice(store);
+  }, []);
+
   // Auto-select once per page load; never overwrite a view the user chose before a remount.
   useEffect(() => {
     if (autoSelected || waiting) return;
@@ -70,7 +81,7 @@ export function MapStage({ children }: { children?: ReactNode }) {
 
   const has3d = available.some((v) => v !== "list");
   const effective = effectiveView(view, available, rendererFailed);
-  const renderer = rendererFor(effective, style, stylisedEngine());
+  const renderer = rendererFor(effective, style);
   const listFallback = (
     <div className="h-full space-y-3 overflow-auto p-4 pr-[calc(var(--panel-w,0px)+1rem)]">
       <FailedAlert>{LIST_FALLBACK_TEXT}</FailedAlert>

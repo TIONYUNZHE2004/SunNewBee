@@ -416,16 +416,9 @@ describe("ThreeScene", () => {
     expect(s).toHaveAttribute("data-route", "off");
   });
 
-  it("shows an experimental-engine chip whose link switches back to Cesium on the same page", () => {
-    history.replaceState(null, "", "/?bookmark=hero-near&engine=three#x");
+  it("renders no experimental-engine chip", () => {
     mount();
-    expect(screen.getByText(/Experimental 3D engine/)).toHaveTextContent(
-      "Experimental 3D engine · Switch back",
-    );
-    expect(screen.getByRole("link", { name: "Switch back" })).toHaveAttribute(
-      "href",
-      "/?bookmark=hero-near&engine=cesium#x",
-    );
+    expect(screen.queryByText(/Experimental 3D engine/)).toBeNull();
   });
 
   it("draws the roads after the first frame even when the world has no land cover", async () => {

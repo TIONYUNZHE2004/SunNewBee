@@ -52,7 +52,7 @@ try {
       }
     });
     const page = await context.newPage();
-    await page.goto(`${BASE}/?engine=three&bookmark=${view}&perf=1`);
+    await page.goto(`${BASE}/?bookmark=${view}&perf=1`);
     const scene = page.getByTestId("three-scene");
     await scene.waitFor({ state: "visible", timeout: 60_000 });
     await page.waitForFunction(
