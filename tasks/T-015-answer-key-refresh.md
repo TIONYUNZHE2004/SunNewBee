@@ -19,3 +19,4 @@ Key regenerated for the current seed (reviewed flags kept where the facts did no
 
 - 2026-10-18 10:00 UTC · control (claude/sweet-davinci-29v7ne) · Created and assigned to Codex worker (cloud) (Yunzhe, 18 Oct: scope B+, two local engineers).
 - 2026-10-18 10:12 UTC · control (claude/sweet-davinci-29v7ne) · Reassigned by Yunzhe (18 Oct): the cloud Codex worker stops; the local AI engineer owns evals/ and takes T-015.
+- 2026-10-18 10:48 UTC · Local AI engineer (local/ai-engineer) · Started on branch local/ai-engineer-t015 (off control 9621d6e; evals/ only). Plan: regenerate the key for the current seed keeping reviewed flags where facts are unchanged; scorer uses the validator's rounding rule (facts._matches) and checks numbers against every tool result of the turn (incl. centre plan_route times); fresh mock baseline.
