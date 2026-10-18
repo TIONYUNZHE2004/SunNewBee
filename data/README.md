@@ -125,6 +125,14 @@ descriptions and the modest routing cost preference do not change PASS/FAIL/UNKN
 Rebuild sidewalks and crossing claims together through the cached Overpass pipeline,
 then overlay → flood → waste. Commit rebuilt data separately from code.
 
+The 18 Oct rebuild has 860 sidewalk segments and 21 crossing-type claims (all reported
+OSM data). SRII Huffaz → Klinik Bahiah uses 76.8 m of explicitly mapped sidewalk.
+The two pinned routes still have no explicit sidewalk edges: Car Park B → playground
+is 440.6 m with 151.8 m on road centre lines lacking a mapped sidewalk; Surau Al Mahdi →
+Surau At Taqwa is 363.8 m with 352.0 m in that category. Their other footways are not
+relabeled as sidewalks without the OSM subtag. The walk import preserves existing
+building metadata, scene datum and external attribution when rebuilding `site.json`.
+
 ## Area places (Task 43)
 
 17 of 231 seed places have no `node_id`. Among them are 11 parks, 3 schools and the hero "Elmina Urban Park" (`osm-way-1309457596`). The old rule snaps an area's *centre* to a walk node within 60 m, which misses large areas.
