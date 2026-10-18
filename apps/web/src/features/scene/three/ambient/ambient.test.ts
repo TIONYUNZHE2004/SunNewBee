@@ -2,7 +2,7 @@ import * as THREE from "three";
 import { describe, expect, it } from "vitest";
 import { TIERS, type Tier } from "../../cesium/stylised/quality";
 import { createFrame } from "../frame";
-import { createAmbient } from "./ambient";
+import { BIRD_FLAP_HZ, BIRD_MAX_BANK, birdBank, createAmbient } from "./ambient";
 
 const frame = createFrame([101.5, 3.18]);
 const DAY = { day: 1, dusk: 0, night: 0 };
@@ -109,4 +109,71 @@ describe("createAmbient", () => {
     a.dispose();
     expect(n).toBeGreaterThanOrEqual(4);
   });
+
+  it("birds flap: the material injects a uTime wing-flap vertex term, uTime follows real time", () => {
+    expect(BIRD_FLAP_HZ).toBeGreaterThan(0);
+    const a = make("high");
+    const { birds } = parts(a);
+    const mat = (birds as THREE.InstancedMesh).material as THREE.MeshBasicMaterial;
+    const shader = {
+      uniforms: {} as Record<string, THREE.IUniform>,
+      vertexShader: THREE.ShaderLib.basic.vertexShader,
+      fragmentShader: THREE.ShaderLib.basic.fragmentShader,
+    };
+    mat.onBeforeCompile(
+      shader as unknown as THREE.WebGLProgramParametersWithUniforms,
+      {} as THREE.WebGLRenderer,
+    );
+    expect(shader.vertexShader).toContain("uniform float uTime;");
+    expect(shader.vertexShader).toMatch(/sin\(\s*uTime/);
+    expect(shader.vertexShader).toContain("transformed.y +=");
+    expect(mat.customProgramCacheKey()).toContain("bird-flap");
+    a.tick(12_345, DAY);
+    expect(shader.uniforms.uTime?.value).toBeCloseTo(12.345, 6);
+  });
+
+  it("birds bank into their turns, bounded by BIRD_MAX_BANK; the inner wing dips", () => {
+    expect(BIRD_MAX_BANK).toBeLessThanOrEqual(Math.PI / 4);
+    for (const v of [0, 3, 6, 10, 40])
+      for (const w of [-2, -0.05, -0.01, 0, 0.01, 0.05, 2]) {
+        const b = birdBank(v, w);
+        expect(Math.abs(b)).toBeLessThanOrEqual(BIRD_MAX_BANK + 1e-12);
+        expect(Math.sign(b)).toBe(v * w === 0 ? 0 : Math.sign(w));
+      }
+    expect(birdBank(8, 8 / 300)).toBeGreaterThan(0.01);
+
+    const a = make("high", "bank");
+    a.tick(4000, DAY);
+    const birds = parts(a).birds as THREE.InstancedMesh;
+    const geo = birds.geometry;
+    const pos = geo.getAttribute("position");
+    // The two wing tips are the vertices with the largest |z|.
+    const tips: THREE.Vector3[] = [];
+    for (let i = 0; i < pos.count; i++)
+      if (Math.abs(pos.getZ(i)) > 1) tips.push(new THREE.Vector3().fromBufferAttribute(pos, i));
+    const mat = new THREE.Matrix4();
+    for (let i = 0; i < birds.count; i++) {
+      birds.getMatrixAt(i, mat);
+      const q = new THREE.Quaternion();
+      const centre = new THREE.Vector3();
+      mat.decompose(centre, q, new THREE.Vector3());
+      // Roll: the body's up vector tilts from world up by the bank angle.
+      const upv = new THREE.Vector3(0, 1, 0).applyQuaternion(q);
+      expect(Math.acos(Math.min(1, upv.y))).toBeLessThanOrEqual(BIRD_MAX_BANK + 1e-6);
+      expect(Math.acos(Math.min(1, upv.y))).toBeGreaterThan(1e-4);
+      const w = tips.map((t) => t.clone().applyMatrix4(mat));
+      const orbit = birdOrbitCentre(a, i);
+      const d = w.map((t) => Math.hypot(t.x - orbit[0], t.z - orbit[1]));
+      const inner = d[0]! < d[1]! ? w[0]! : w[1]!;
+      const outer = d[0]! < d[1]! ? w[1]! : w[0]!;
+      expect(inner.y).toBeLessThan(outer.y);
+    }
+  });
 });
+
+/** The orbit centre of bird i (the ambient exposes it for tests). */
+function birdOrbitCentre(a: ReturnType<typeof make>, i: number): [number, number] {
+  const c = a.birdOrbits?.[i];
+  if (!c) throw new Error("no orbit");
+  return c;
+}

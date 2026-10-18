@@ -17,7 +17,15 @@ import {
   type MoodMix,
   type Pose2,
   poseAt,
+  smoothYaw,
 } from "./agents";
+
+/**
+ * Smoothed yaw per agent id, with the motion time (ms) it was last updated. Keyed by id (not by
+ * slot) so a layer rebuilt from a different union of tiles keeps every surviving agent turning
+ * smoothly: pass the same map to each rebuild. Bounded by the deterministic agent ids of the world.
+ */
+export type YawMemory = Map<string, { yaw: number; at: number }>;
 
 export interface MotionLayer {
   group: THREE.Group;
@@ -85,7 +93,9 @@ export function createMotionLayer(
   m: Manifest,
   uniforms: RoleUniforms,
   motion: MotionUniforms,
+  opts: { yaw?: YawMemory } = {},
 ): MotionLayer & { setDensity(w: MoodMix): void } {
+  const yawMemory: YawMemory = opts.yaw ?? new Map();
   const group = new THREE.Group();
   group.name = "motion-agents";
   group.userData.decorative = true;
@@ -216,9 +226,19 @@ export function createMotionLayer(
         const b = s.buckets[s.resolve[raw] ?? -1];
         if (!b) continue;
         _p.set(pose.x, AGENT_LIFT_M, pose.z);
+        // Smooth the tangent yaw before the frustum test, so an agent panning into view has
+        // already turned. A long gap (hidden, out of range) settles at once (k -> 1).
+        const mem = yawMemory.get(s.agent.id);
+        let yaw = pose.yaw;
+        if (!mem) yawMemory.set(s.agent.id, { yaw, at: nowMs });
+        else {
+          yaw = smoothYaw(mem.yaw, pose.yaw, Math.max(0, nowMs - mem.at) / 1000);
+          mem.yaw = yaw;
+          mem.at = nowMs;
+        }
         if (frustum && !frustum.intersectsSphere(_sphere.set(_p, FRUSTUM_MARGIN_M))) continue;
         const k = displayScale(d);
-        _q.setFromAxisAngle(_y, pose.yaw);
+        _q.setFromAxisAngle(_y, yaw);
         b.mesh.setMatrixAt(b.n, _m.compose(_p, _q, _s.set(k, k, k)));
         for (let i = 0; i < 3; i++) {
           const c = s.palette[i] as THREE.Color;

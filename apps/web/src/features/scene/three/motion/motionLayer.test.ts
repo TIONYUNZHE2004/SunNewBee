@@ -3,8 +3,8 @@ import { describe, expect, it } from "vitest";
 import type { AssetLibrary } from "../assets/library";
 import type { Manifest } from "../assets/manifest";
 import { createMotionUniforms, createRoleUniforms } from "../assets/roleMaterial";
-import type { Agent } from "./agents";
-import { AGENT_VISIBLE_M, agentLods, createMotionLayer } from "./motionLayer";
+import { type Agent, easedDistance, poseAt, smoothYaw } from "./agents";
+import { AGENT_VISIBLE_M, agentLods, createMotionLayer, type YawMemory } from "./motionLayer";
 
 const kit = (lods: { node: string; tris: number; maxM: number | null }[]) => ({
   group: "kit" as const,
@@ -88,8 +88,8 @@ const translationOf = (m: THREE.InstancedMesh, i: number) => {
   m.getMatrixAt(i, mat);
   return new THREE.Vector3().setFromMatrixPosition(mat);
 };
-const make = (agents: Agent[], l = lib()) =>
-  createMotionLayer(agents, l, manifest(), createRoleUniforms(), createMotionUniforms());
+const make = (agents: Agent[], l = lib(), yaw?: YawMemory) =>
+  createMotionLayer(agents, l, manifest(), createRoleUniforms(), createMotionUniforms(), { yaw });
 const cam = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z);
 
 describe("createMotionLayer", () => {
@@ -100,7 +100,11 @@ describe("createMotionLayer", () => {
     const p0 = translationOf(m, 0);
     layer.tick(2000, cam(0, 30, 0));
     const p1 = translationOf(m, 0);
-    expect(p1.x - p0.x).toBeCloseTo(2.6, 3);
+    const a = agent("a", "person", 0, 0);
+    expect(p1.x - p0.x).toBeCloseTo(easedDistance(a, 2) - easedDistance(a, 0), 3);
+    // About 1.3 m/s, eased by at most 15 %.
+    expect(p1.x - p0.x).toBeGreaterThan(2.6 * 0.85);
+    expect(p1.x - p0.x).toBeLessThan(2.6 * 1.15);
     // The same time gives the same pose, however many ticks ran in between.
     layer.tick(2000, cam(0, 30, 0));
     expect(translationOf(m, 0).x).toBeCloseTo(p1.x, 5);
@@ -221,5 +225,68 @@ describe("createMotionLayer", () => {
     layer.tick(0, cam(0, 30, 0));
     layer.dispose();
     for (const g of l.geos) expect(g.getAttribute("position")).toBeTruthy();
+  });
+
+  it("yaw is smoothed across a corner (no snap), carried per agent id", () => {
+    // Heading +x, then a right-angle corner to -z at (10, 0).
+    const a: Agent = {
+      id: "corner",
+      kind: "person",
+      variant: "v",
+      path: new Float32Array([0, 0, 10, 0, 10, -10]),
+      length: 20,
+      speed: 1.3,
+      offset: 9.5,
+    };
+    const layer = make([a]);
+    const yawOf = () => {
+      const m = meshes(layer.group).find((x) => x.visible && x.count > 0)!;
+      const mat = new THREE.Matrix4();
+      m.getMatrixAt(0, mat);
+      const q = new THREE.Quaternion();
+      mat.decompose(new THREE.Vector3(), q, new THREE.Vector3());
+      return 2 * Math.atan2(q.y, q.w);
+    };
+    const wrap = (v: number) => Math.atan2(Math.sin(v), Math.cos(v));
+    let prev: number | null = null;
+    let expected = 0;
+    let lagged = false;
+    for (let i = 0; i <= 120; i++) {
+      const t = i * 16.7;
+      layer.tick(t, cam(0, 30, 0));
+      const y = yawOf();
+      const raw = poseAt(a, t / 1000).yaw;
+      expected = i === 0 ? raw : smoothYaw(expected, raw, 0.0167);
+      expect(wrap(y - expected)).toBeCloseTo(0, 4);
+      if (prev !== null)
+        expect(Math.abs(wrap(y - prev))).toBeLessThanOrEqual((2 * Math.PI * 0.0167) / 0.5);
+      if (Math.abs(wrap(raw - y)) > 0.3) lagged = true;
+      prev = y;
+    }
+    expect(lagged).toBe(true);
+  });
+
+  it("a shared YawMemory keeps an agent's smoothed yaw when the layer is rebuilt with other agents", () => {
+    const a: Agent = {
+      id: "keep",
+      kind: "person",
+      variant: "v",
+      path: new Float32Array([0, 0, 10, 0, 10, -10]),
+      length: 20,
+      speed: 1.3,
+      offset: 9.9,
+    };
+    const memory: YawMemory = new Map();
+    const one = make([a], lib(), memory);
+    one.tick(0, cam(0, 30, 0));
+    one.tick(300, cam(0, 30, 0));
+    const kept = { ...memory.get("keep")! };
+    // Task 4 rebuilds the union of active tiles: a new agent arrives, "keep" continues smoothly.
+    const two = make([agent("new", "person", 50, 50), a], lib(), memory);
+    two.tick(316.7, cam(0, 30, 0));
+    const after = memory.get("keep")!;
+    const raw = poseAt(a, 0.3167).yaw;
+    expect(after.yaw).toBeCloseTo(smoothYaw(kept.yaw, raw, 0.0167), 6);
+    expect(memory.get("new")).toBeDefined();
   });
 });
