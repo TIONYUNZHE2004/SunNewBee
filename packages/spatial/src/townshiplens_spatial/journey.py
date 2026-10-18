@@ -13,6 +13,7 @@ the hero is at an event's element when the event fires. They differ from the rou
 from __future__ import annotations
 
 import math
+from types import SimpleNamespace
 
 from . import routing
 from .evaluate import _YES, SIDEWALK_PRESENT
@@ -32,8 +33,19 @@ HOLD_S: dict[str, float] = {
 DEMO_NOTE = "Demo value · not surveyed."
 MAX_EVENTS = 12  # AC-D3: a route of up to 2 km stays readable
 MAX_RAMP_EVENTS = 2
-# Tie-break for events at the same distance: the order the rules are listed in the spec.
-_RULE_ORDER = ("covered", "major_road", "gap", "street", "verified", "ramp", "rest", "arrive")
+# The rules, in the order the spec lists them; that order is also the tie-break for events at
+# the same distance. Each takes the trip (world, route, prof, segs, node_at, evidence, total).
+_RULES = {
+    "covered": lambda t: _covered(t.world, t.segs, t.evidence),
+    "major_road": lambda t: _major_road(t.world, t.route, t.segs, t.evidence),
+    "gap": lambda t: _gap(t.world, t.route, t.segs, t.node_at, t.evidence),
+    "street": lambda t: _street_run(t.world, t.route, t.segs, t.evidence),
+    "verified": lambda t: _verified(t.segs, t.evidence),
+    "ramp": lambda t: _ramps(t.route, t.segs, t.evidence),
+    "rest": lambda t: _rests(t.world, t.route, t.prof, t.node_at, t.evidence),
+    "arrive": lambda t: [_arrive(t.world, t.route, t.total, t.evidence)],
+}
+_RULE_ORDER = tuple(_RULES)
 # Covered-claim wording by status (not verified, not placeholder).
 _COVERED_BY_STATUS = {
     "reported": "Someone reported a roof here.",
@@ -95,18 +107,16 @@ def build_journey(
     evidence = {ev.id: ev for ev in routing.evidence_for_route(world, route)}
     total = segs[-1].end if segs else 0.0
 
-    rules: tuple[tuple[str, list[JourneyEvent]], ...] = (
-        ("covered", _covered(world, segs, evidence)),
-        ("major_road", _major_road(world, route, segs, evidence)),
-        ("gap", _gap(world, route, segs, node_at, evidence)),
-        ("street", _street_run(world, route, segs, evidence)),
-        ("verified", _verified(segs, evidence)),
-        ("ramp", _ramps(route, segs, evidence)),
-        ("rest", _rests(world, route, prof, node_at, evidence)),
-        ("arrive", [_arrive(world, route, total, evidence)]),
+    trip = SimpleNamespace(
+        world=world,
+        route=route,
+        prof=prof,
+        segs=segs,
+        node_at=node_at,
+        evidence=evidence,
+        total=total,
     )
-    assert tuple(name for name, _ in rules) == _RULE_ORDER
-    found = [(rule, e) for rule, events in rules for e in events]
+    found = [(rule, e) for rule, build in _RULES.items() for e in build(trip)]
     found = _thin_rests(found)
     found.sort(key=lambda re: (re[1].at_m, _RULE_ORDER.index(re[0])))
     return JourneyPlan(

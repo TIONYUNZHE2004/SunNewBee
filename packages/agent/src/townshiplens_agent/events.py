@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, Field
-from townshiplens_spatial.models import JourneyPlan
+from townshiplens_spatial.models import HHMM_PATTERN, JourneyPlan
 
 IntentKind = Literal[
     "camera.fly_to",
@@ -43,7 +43,7 @@ class AnswerSceneIntent(BaseModel):
     day: str | None = None  # day.show: weekday | storm | event | friday
     t_min: int | None = None  # day.show: the rehearsal clock, minutes after midnight
     # journey.play: the local time the walk starts ("HH:MM"), with route_id from plan_route.
-    start_time: str | None = Field(default=None, pattern=r"^([01]\d|2[0-3]):[0-5]\d$")
+    start_time: str | None = Field(default=None, pattern=HHMM_PATTERN)
 
 
 class SceneIntent(AnswerSceneIntent):

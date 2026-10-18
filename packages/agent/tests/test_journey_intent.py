@@ -58,13 +58,16 @@ async def test_journey_play_gets_the_server_built_plan(ctx):
     assert [e.kind for e in play.journey.events] == ["verified", "rest", "gap", "arrive"]
 
 
-async def test_journey_play_needs_a_route_returned_this_turn_and_a_start_time(ctx):
+async def test_journey_play_needs_a_route_returned_this_turn_and_a_start_time(ctx, caplog):
     rec, rid = await _planned(ctx)
     ans = _answer(
         {"kind": "journey.play", "route_id": "rt-not-this-turn", "start_time": "15:20"},
         {"kind": "journey.play", "route_id": rid},
     )
-    assert _intents(ans, rec, ctx) == []
+    with caplog.at_level("WARNING", logger="townshiplens_agent.run"):
+        assert _intents(ans, rec, ctx) == []
+    assert "rt-not-this-turn" in caplog.text and "was not returned this turn" in caplog.text
+    assert "no start_time" in caplog.text
 
 
 def test_start_time_is_local_hh_mm():

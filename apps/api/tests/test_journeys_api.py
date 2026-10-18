@@ -65,7 +65,8 @@ def test_post_journeys_rejects_bad_input(body, code, words):
 def test_no_route_is_a_data_gap_not_blocked(dest):
     r = TestClient(app).post("/journeys", json=_body(b=dest, profile="stroller"))
     assert r.status_code == 409, r.text
-    detail = r.json()["detail"]
+    detail = r.json()  # top level, as the generated NoJourney type declares (no "detail")
+    assert set(detail) == {"route_status", "message", "warnings"}
     assert detail["route_status"] == "no_data"
     assert detail["message"] == "No mapped connection (data gap)"
     assert "blocked" not in json.dumps(detail).lower()
@@ -77,7 +78,7 @@ def test_blocked_route_says_its_status():
     body = _body(b="playground", profile="stroller", scenario_id="stage_p3m")
     r = TestClient(app).post("/journeys", json=body)
     assert r.status_code == 409, r.text
-    assert r.json()["detail"]["route_status"] == "blocked"
+    assert r.json()["route_status"] == "blocked" and "detail" not in r.json()
 
 
 def test_a_journey_evidence_bug_is_a_named_500(monkeypatch):
@@ -113,18 +114,20 @@ def _play_after_highlight(monkeypatch, start="15:20"):
     monkeypatch.setattr(mock, "_final", final)
 
 
-def _sse(client, msg, profile):
+def _sse(client, msg, profile, scenario_id=None):
     data = []
-    with client.stream("POST", "/chat", json={"message": msg, "profile": profile}) as r:
+    body = {"message": msg, "profile": profile, "scenario_id": scenario_id}
+    with client.stream("POST", "/chat", json=body) as r:
         assert r.status_code == 200
         data = [json.loads(line[6:]) for line in r.iter_lines() if line.startswith("data: ")]
     return data
 
 
-def test_sse_journey_equals_post_journeys_tiny(monkeypatch):  # AC-D4
+@pytest.mark.parametrize("scenario_id", [None, "stage_p3m"])
+def test_sse_journey_equals_post_journeys_tiny(monkeypatch, scenario_id):  # AC-D4
     _play_after_highlight(monkeypatch)
     c = TestClient(app)
-    data = _sse(c, KIOSK, "stroller")
+    data = _sse(c, KIOSK, "stroller", scenario_id)
     call = next(d for d in data if d["type"] == "tool.call" and d["name"] == "plan_route")
     intents = [d["intent"] for d in data if d["type"] == "scene.intent"]
     play = next(i for i in intents if i["kind"] == "journey.play")
@@ -132,6 +135,7 @@ def test_sse_journey_equals_post_journeys_tiny(monkeypatch):  # AC-D4
     assert play["route_id"] == hl["route_id"] and play["start_time"] == "15:20"
     assert play["journey"]["route_id"] == play["route_id"]
     a = call["args"]
+    assert a["scenario_id"] == scenario_id  # a UI scenario is injected into plan_route
     rest = c.post(
         "/journeys",
         json=_body(a["from_id"], a["to_id"], a["profile"], "15:20", scenario_id=a["scenario_id"]),
@@ -139,6 +143,9 @@ def test_sse_journey_equals_post_journeys_tiny(monkeypatch):  # AC-D4
     assert rest.status_code == 200, rest.text
     assert play["journey"] == rest.json()
     assert [e["kind"] for e in rest.json()["events"]] == ["verified", "unknown", "arrive"]
+    if scenario_id:  # the scenario's own route, not the baseline one
+        base = c.post("/journeys", json=_body(a["from_id"], a["to_id"], a["profile"], "15:20"))
+        assert base.json()["route_id"] != rest.json()["route_id"]
 
 
 @pytest.mark.skipif(not (SEED / "site.json").exists(), reason="Elmina seed not built")

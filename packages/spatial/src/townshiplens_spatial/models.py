@@ -392,6 +392,10 @@ JourneyEventStatus = Literal[
 JourneySource = Literal["route.max_gap_between_rest_m", "route.to_place"]
 
 
+# Local wall-clock time "HH:MM" (journeys; reused by the agent intent and POST /journeys).
+HHMM_PATTERN = r"^([01]\d|2[0-3]):[0-5]\d$"
+
+
 class JourneyEvent(BaseModel):
     """One stop of a journey (spec §6.1), derived by journey.build_journey from world data only."""
 
@@ -414,7 +418,7 @@ class JourneyPlan(BaseModel):
 
     route_id: str
     profile: ProfileId
-    start_time: str = Field(pattern=r"^([01]\d|2[0-3]):[0-5]\d$")  # local "HH:MM" at the site
+    start_time: str = Field(pattern=HHMM_PATTERN)  # local "HH:MM" at the site
     pace_m_per_s: float
     polyline: list[LonLat]  # route coordinates in travel order, oriented and chained
     spans: list[tuple[float, float, EvalResult]]  # [from_m, to_m, eval], one per route segment

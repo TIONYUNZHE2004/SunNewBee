@@ -430,7 +430,11 @@ def _journey(ctx: sp.Ctx, rec: TurnRecord, intent: SceneIntent):
     """The JourneyPlan for a journey.play intent, built from the route plan_route returned this
     turn (the same route POST /journeys plans for the same endpoints, profile and scenario)."""
     route = rec.routes.get(intent.route_id or "")
-    if route is None or intent.start_time is None:
+    if route is None:
+        log.warning("journey.play dropped: route %r was not returned this turn", intent.route_id)
+        return None
+    if intent.start_time is None:
+        log.warning("journey.play dropped: no start_time for route %s", intent.route_id)
         return None
     try:
         r = Route.model_validate(route)

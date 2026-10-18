@@ -319,6 +319,12 @@ def test_missing_route_evidence_raises_a_named_error(world, monkeypatch):  # rev
     assert "unknown" in str(err.value) and "seg-cf" in str(err.value)
 
 
+def test_every_rule_is_built_once_in_the_tie_break_order():  # review minor #4 (round 1)
+    names = tuple(journey_mod._RULES)
+    assert names == journey_mod._RULE_ORDER
+    assert names == ("covered", "major_road", "gap", "street", "verified", "ramp", "rest", "arrive")
+
+
 def test_rest_body_is_neutral(world):  # review minor #8
     _, plan = _plan(world, "park-b", "kiosk", "older_adult_rest")
     rest = next(e for e in plan.events if e.kind == "rest")

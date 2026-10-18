@@ -167,7 +167,7 @@ model is dropped, because the label line already says it.
 
 - The model (D-T3: also the mock and template) writes `{kind: "journey.play", route_id, start_time}` with a `route_id` from this turn's `plan_route` and a local `HH:MM` start time.
 - `run.py` attaches `journey`: `build_journey(world, route, route.profile, start_time)` from the route recorded in `TurnRecord.routes`, the same way `route.highlight` gets its geometry. A model-written `journey` is discarded.
-- The intent is dropped when the route was not returned this turn, when `start_time` is missing, or when the plan cannot be built (`JourneyEvidenceError`, logged). The turn continues.
+- The intent is dropped when the route was not returned this turn, when `start_time` is missing, or when the plan cannot be built (`JourneyEvidenceError`). Every drop is logged. The turn continues. The validator does not reject these yet (D-T3, AC-D5).
 - The plan equals `POST /journeys` for the same endpoints, profile, scenario and start time (AC-D4, `apps/api/tests/test_journeys_api.py`).
 
 **Fix-it search and MCP (Cycle 4):**
