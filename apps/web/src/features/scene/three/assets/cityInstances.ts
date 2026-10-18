@@ -3,7 +3,20 @@ import type { Placement } from "./fit";
 import type { AssetLibrary } from "./library";
 import type { Manifest } from "./manifest";
 import type { CityPlan } from "./plan";
-import { createRoleMaterial, type RoleUniforms } from "./roleMaterial";
+import {
+  createMotionUniforms,
+  createRoleMaterial,
+  type MotionUniforms,
+  type RoleKind,
+  type RoleUniforms,
+} from "./roleMaterial";
+
+/** Kit asset name -> shader kind; other kits are static. */
+const KIT_KIND: Record<string, RoleKind> = {
+  trees: "tree",
+  people: "person",
+  vehicles: "vehicle",
+};
 
 export type LodBucket = 0 | 1 | 2 | -1;
 
@@ -74,6 +87,8 @@ interface Key {
 }
 
 const UNSET = -2;
+/** Polygon offset (factor and units) of a depth-yielding landmark; positive pushes it back. */
+export const LANDMARK_YIELD_OFFSET = 2;
 const NOOP = () => {};
 const _m = new THREE.Matrix4();
 const _q = new THREE.Quaternion();
@@ -92,25 +107,52 @@ export function createCityInstances(
   plan: CityPlan,
   m: Manifest,
   uniforms: RoleUniforms,
+  extra?: {
+    kits?: Map<string, Placement[]>;
+    motion?: MotionUniforms;
+    /** Multiplies every kit LOD distance (maxM); archetypes are untouched. Default 1. */
+    kitLodScale?: number;
+  },
 ): CityInstances {
   const group = new THREE.Group();
   group.name = "city-instances";
-  const material = createRoleMaterial({ instanced: true, uniforms });
+  const motion = extra?.motion ?? createMotionUniforms();
+  // Lit-window flicker is opt-in: only when the caller owns the motion clock (Task 8 drives uFlicker).
+  const material = createRoleMaterial({
+    instanced: true,
+    uniforms,
+    ...(extra?.motion ? { motion, flicker: true } : {}),
+  });
+  const kitMaterials = new Map<RoleKind, THREE.MeshStandardMaterial>();
+  const kitMaterial = (asset: string) => {
+    const kind = KIT_KIND[asset] ?? "static";
+    let mt = kitMaterials.get(kind);
+    if (!mt) {
+      mt = createRoleMaterial({ instanced: true, uniforms, motion, kind });
+      kitMaterials.set(kind, mt);
+    }
+    return mt;
+  };
   const landmarkMaterials: THREE.Material[] = [];
   const keys: Key[] = [];
   const wrappers: THREE.BufferGeometry[] = [];
   let landmarkMeshes = 0;
 
-  for (const [keyStr, list] of plan.placements) {
+  const entries = [...plan.placements, ...(extra?.kits ?? [])];
+  for (const [keyStr, list] of entries) {
     const slash = keyStr.indexOf("/");
     const asset = keyStr.slice(0, slash);
     const variant = keyStr.slice(slash + 1);
     const spec = m.assets[asset];
     const vspec = spec?.variants[variant];
     if (!spec || !vspec || list.length === 0) continue;
+    const lodScale = spec.group === "kit" ? (extra?.kitLodScale ?? 1) : 1;
     const key: Key = {
       list,
-      lods: vspec.lods,
+      lods:
+        lodScale === 1
+          ? vspec.lods
+          : vspec.lods.map((l) => ({ ...l, maxM: l.maxM == null ? null : l.maxM * lodScale })),
       cur: new Int8Array(list.length).fill(UNSET),
       raw: new Int8Array(list.length).fill(UNSET),
       resolve: [],
@@ -130,22 +172,21 @@ export function createCityInstances(
       });
       for (const [i, a] of pal.entries()) geo.setAttribute(`iPal${i}`, a);
       wrappers.push(geo);
-      const mesh = new THREE.InstancedMesh(geo, material, list.length);
+      const kit = spec.group === "kit";
+      const mesh = new THREE.InstancedMesh(geo, kit ? kitMaterial(asset) : material, list.length);
       mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
       mesh.count = 0;
       mesh.visible = false;
       mesh.name = `${asset}__${variant}__LOD${lod}`;
       const archetype = spec.group === "archetype";
-      // Shadows: LOD0 always; archetype LOD1 too (300 m-1.5 km houses sit inside the fitted shadow
-      // frustum at hero-mid, and dropping them would pop shadows at the 300 m boundary); LOD2
-      // (> 1.5 km blocks) never: their shadow texels are sub-pixel there and they are the most
-      // numerous instances (I3).
-      mesh.castShadow = lod === 0 || (archetype && lod === 1);
+      // Shadows: LOD0 only (archetype and kit alike). Beyond 300 m the texels are tiny at hero-mid and
+      // the shadow pass re-draws every caster, so LOD1 and LOD2 never cast (budget lever, Task 6).
+      mesh.castShadow = lod === 0;
       mesh.userData.lod = lod;
       mesh.receiveShadow = true;
       mesh.userData.ids = [] as string[];
       if (archetype) mesh.userData.pick = { kind: "building" };
-      if (spec.decorative) {
+      if (spec.decorative || kit) {
         mesh.raycast = NOOP;
         mesh.userData.decorative = true;
       }
@@ -173,6 +214,13 @@ export function createCityInstances(
     if (!spec || !geo) continue;
     const mat = createRoleMaterial({ instanced: false, uniforms, palette: p.palette });
     landmarkMaterials.push(mat);
+    if (p.depthYield) {
+      // Behind coplanar surfaces: the OSM podium roof (8.71 m) wins over the slab's own podium
+      // (8.7 m) where they overlap, deterministically and without moving the model.
+      mat.polygonOffset = true;
+      mat.polygonOffsetFactor = LANDMARK_YIELD_OFFSET;
+      mat.polygonOffsetUnits = LANDMARK_YIELD_OFFSET;
+    }
     const mesh = new THREE.Mesh(geo, mat);
     mesh.name = `${p.asset}__${p.variant}__LOD0`;
     mesh.position.set(p.x, 0, p.z);
@@ -273,6 +321,7 @@ export function createCityInstances(
         g.dispose();
       }
       material.dispose();
+      for (const mt of kitMaterials.values()) mt.dispose();
       for (const mt of landmarkMaterials) mt.dispose();
       group.clear();
     },

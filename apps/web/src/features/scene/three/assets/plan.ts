@@ -17,7 +17,10 @@ export interface CityPlan {
 
 const GENERIC = "generic";
 const GENERIC_MIN_FILL = 0.85;
-const LANDMARK_FIT = { xz: [0.5, 2], y: [0.5, 2] } as { xz: [number, number]; y: [number, number] };
+export const LANDMARK_FIT = { xz: [0.5, 2], y: [0.5, 2] } as {
+  xz: [number, number];
+  y: [number, number];
+};
 
 const isRec = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null;
 const features = (fc: unknown): unknown[] =>
@@ -79,6 +82,9 @@ export function planCity(
     if (!variant) continue;
     const bid = typeof f.properties.building_id === "string" ? f.properties.building_id : null;
     const id = String(f.properties.id ?? model);
+    // A traced outline is the tower's own floor plate drawn over a real OSM building (its podium):
+    // that building is not taken, so it stays drawn, counted and pickable at its OSM height.
+    const traced = f.properties.match === "traced_outline";
     let placed: Placement | null = null;
     if (spec.placement === "anchor") {
       const a = m.landmarks[model]?.anchor;
@@ -101,18 +107,24 @@ export function planCity(
       const ring = ringOf(f.geometry)?.map(([lon, lat]) => frame.toLocal(lon, lat));
       const obb = ring ? footprintObb(ring) : null;
       if (obb) {
-        const h = (bid && heightById.get(bid)) || spec.variants[variant]!.size[1];
+        // A traced outline is drawn at the model's own (design) height; a building-name match at
+        // the OSM building's height.
+        const modelH = spec.variants[variant]!.size[1];
+        const h = traced ? modelH : (bid && heightById.get(bid)) || modelH;
         // A landmark is the real footprint's OBB, so it is not fill-gated; the 0.5..2 band still is.
         const fit = fitArchetype(obb, spec, variant, h, null, id, "default", {
           minFill: 0,
           fit: LANDMARK_FIT,
         });
-        if (fit?.[0]) placed = { ...fit[0], asset: model, id };
+        if (fit?.[0])
+          placed = traced
+            ? { ...fit[0], asset: model, id, depthYield: true }
+            : { ...fit[0], asset: model, id };
       }
     }
     if (!placed) continue;
     plan.landmarks.push(placed);
-    if (bid) taken.add(bid);
+    if (bid && !traced) taken.add(bid);
   }
 
   for (const b of buildings) {

@@ -120,6 +120,11 @@ export interface Placement {
   sy: number;
   sz: number;
   palette: [string, string, string];
+  /**
+   * Landmarks only: drawn a hair behind coplanar surfaces (positive polygon offset), so the OSM
+   * building it overlaps (a traced tower's podium) wins where their roofs meet: no z-fighting.
+   */
+  depthYield?: boolean;
 }
 
 /** FNV-1a (murmur-finalised) of `${salt}:${id}` in [0, 1). */
@@ -226,16 +231,41 @@ export function fitArchetype(
   } else {
     frontLong = spec.frontage === "long";
   }
-  const F = frontLong ? obb.l : obb.w;
-  const D = frontLong ? obb.w : obb.l;
-  const fx = frontLong ? ux : vx;
-  const fz = frontLong ? uz : vz;
-
-  const n = spec.repeat === "frontage" ? Math.max(1, Math.round(F / sw)) : 1;
-  const sx = F / (n * sw);
-  const sz = D / sd;
-  const sy = heightM / sh;
-  if (!within(sx, fit.xz) || !within(sz, fit.xz) || !within(sy, fit.y)) return null;
+  // sz is the only band the front choice can break: a narrow link plot whose front_deg faces a LONG
+  // wall gets F = obb.l, D = obb.w and fails sz. Frontage specs retry once with the front on the
+  // SHORT wall (F = obb.w, D = obb.l); on a second failure the original null stands.
+  const bands = (F: number, D: number) => {
+    const n = spec.repeat === "frontage" ? Math.max(1, Math.round(F / sw)) : 1;
+    const sx = F / (n * sw);
+    const sz = D / sd;
+    const sy = heightM / sh;
+    return { n, sx, sz, sy, ok: within(sx, fit.xz) && within(sz, fit.xz) && within(sy, fit.y) };
+  };
+  let F = frontLong ? obb.l : obb.w;
+  let D = frontLong ? obb.w : obb.l;
+  let fx = frontLong ? ux : vx;
+  let fz = frontLong ? uz : vz;
+  let r = bands(F, D);
+  if (
+    !r.ok &&
+    !within(r.sz, fit.xz) &&
+    spec.repeat === "frontage" &&
+    frontDeg !== null &&
+    frontLong
+  ) {
+    const sF = obb.w;
+    const sD = obb.l;
+    const t = bands(sF, sD);
+    if (t.ok) {
+      r = t;
+      F = sF;
+      D = sD;
+      fx = vx;
+      fz = vz;
+    }
+  }
+  if (!r.ok) return null;
+  const { n, sx, sy, sz } = r;
 
   // Yaw is always the frontage-axis normal, so the model stays aligned with its OBB. With a known
   // front the sign follows it; otherwise a deterministic hash picks one (the front is unknown).

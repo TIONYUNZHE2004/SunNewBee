@@ -3,6 +3,9 @@ import { expect, test } from "@playwright/test";
 // Headless Chromium no longer falls back to SwiftShader on its own.
 test.use({ launchOptions: { args: ["--use-angle=swiftshader", "--enable-unsafe-swiftshader"] } });
 
+// CI is always cold: Vite compiles three.js on the first request, so scene waits get a long timeout.
+const COLD = { timeout: 30_000 };
+
 const ring = (x: number, y: number, d = 0.0001) => [
   [
     [x, y],
@@ -30,8 +33,10 @@ test("three.js stylised scene mounts, renders and draws a highlighted route", as
   await page.route("**/api/layers/buildings", (r) => r.fulfill({ json: BUILDINGS }));
   await page.goto("/?engine=three");
   const scene = page.getByTestId("three-scene");
-  await expect(scene).toBeVisible();
-  await expect.poll(async () => Number(await scene.getAttribute("data-frames"))).toBeGreaterThan(0);
+  await expect(scene).toBeVisible(COLD);
+  await expect
+    .poll(async () => Number(await scene.getAttribute("data-frames")), COLD)
+    .toBeGreaterThan(0);
   const show = page.getByRole("button", { name: "Show assistant" });
   if (await show.isVisible()) await show.click();
   await page
@@ -39,6 +44,63 @@ test("three.js stylised scene mounts, renders and draws a highlighted route", as
     .fill("Can I push a stroller from Car Park B to the playground without stairs?");
   await page.getByRole("button", { name: "Ask", exact: true }).click();
   await expect(scene).toHaveAttribute("data-route", "on");
+  // The frame loop is still running with the route drawn.
+  await expect
+    .poll(async () => Number(await scene.getAttribute("data-frames")), COLD)
+    .toBeGreaterThan(0);
+});
+
+const NOTE = "Decorative details are illustrative.";
+
+test("the decorative disclaimer is visible in the three.js scene", async ({ page }) => {
+  await page.route("**/api/layers/buildings", (r) => r.fulfill({ json: BUILDINGS }));
+  await page.goto("/?engine=three");
+  const scene = page.getByTestId("three-scene");
+  await expect(scene).toBeVisible(COLD);
+  await expect
+    .poll(async () => Number(await scene.getAttribute("data-frames")), COLD)
+    .toBeGreaterThan(0);
+  await expect(page.getByText(NOTE)).toBeVisible();
+});
+
+test("clicking a stubbed place marker opens the place card", async ({ page }) => {
+  // One place exactly at the bookmark target (HERO_CENTRE): with the assistant panel hidden the
+  // camera target is the canvas centre, so the screen-space marker sits there (no test hook needed).
+  const ACCESS = {
+    type: "FeatureCollection",
+    features: [
+      {
+        type: "Feature",
+        properties: { id: "stub-place", name: "Stub Park", type: "park" },
+        geometry: { type: "Point", coordinates: [101.5095, 3.1805] },
+      },
+    ],
+  };
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.route("**/api/layers/buildings", (r) => r.fulfill({ json: BUILDINGS }));
+  await page.route("**/api/layers/access*", (r) => r.fulfill({ json: ACCESS }));
+  await page.goto("/?engine=three&bookmark=hero-near");
+  const scene = page.getByTestId("three-scene");
+  await expect(scene).toBeVisible(COLD);
+  // The panel offset shifts the look point: hide the assistant and wait until it is gone.
+  const hide = page.getByRole("button", { name: "Hide assistant" });
+  await expect(hide).toBeVisible(COLD);
+  await hide.click();
+  await expect(page.getByRole("button", { name: "Show assistant" })).toBeVisible();
+  // The marker is built from the stubbed access layer (data-markers) and a frame has drawn since.
+  await expect(scene).toHaveAttribute("data-markers", "1", COLD);
+  const frames = Number(await scene.getAttribute("data-frames"));
+  await expect
+    .poll(async () => Number(await scene.getAttribute("data-frames")), COLD)
+    .toBeGreaterThan(frames);
+  const box = await scene.boundingBox();
+  if (!box) throw new Error("no scene box");
+  const card = page.getByRole("dialog").getByRole("button", { name: "Close place details" });
+  // A click that lands before the view offset settles misses the 9.5 px pick radius: retry.
+  await expect(async () => {
+    await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+    await expect(card).toBeVisible({ timeout: 2_000 });
+  }).toPass({ timeout: 20_000 });
 });
 
 // Three adjacent link houses (6.4 m frontage east-west, 15.5 m deep north-south) near HERO_CENTRE.
@@ -84,8 +146,10 @@ test("three.js city draws instanced archetypes from the real public/city assets"
   await page.route("**/api/layers/buildings", (r) => r.fulfill({ json: LINK_ROW }));
   await page.goto("/?engine=three&bookmark=hero-near");
   const scene = page.getByTestId("three-scene");
-  await expect(scene).toBeVisible();
+  await expect(scene).toBeVisible(COLD);
   await expect(scene).toHaveAttribute("data-assets", "ready", { timeout: 20_000 });
   await expect(scene).toHaveAttribute("data-instances", "3");
-  await expect.poll(async () => Number(await scene.getAttribute("data-frames"))).toBeGreaterThan(0);
+  await expect
+    .poll(async () => Number(await scene.getAttribute("data-frames")), COLD)
+    .toBeGreaterThan(0);
 });

@@ -33,6 +33,30 @@ const base = (assets: Record<string, unknown> = { a: asset() }) => ({
 });
 
 describe("parseManifest", () => {
+  it("keeps the optional designStoreys and heightBasis of a landmark", () => {
+    const k = { ...asset(), group: "landmark", designStoreys: 36, heightBasis: "design height" };
+    const r = parseManifest(base({ k }));
+    expect(r.problems).toEqual([]);
+    expect(r.manifest?.assets.k?.designStoreys).toBe(36);
+    expect(r.manifest?.assets.k?.heightBasis).toBe("design height");
+    expect(parseManifest(base()).manifest?.assets.a?.designStoreys).toBeUndefined();
+  });
+  it("drops an asset whose designStoreys or heightBasis has the wrong type", () => {
+    const r = parseManifest(
+      base({
+        s: { ...asset(), designStoreys: "36" },
+        h: { ...asset(), heightBasis: 36 },
+        n: { ...asset(), designStoreys: -1 },
+      }),
+    );
+    expect(Object.keys(r.manifest?.assets ?? {})).toEqual([]);
+    expect(r.problems).toEqual([
+      "asset s: designStoreys",
+      "asset h: heightBasis",
+      "asset n: designStoreys",
+    ]);
+  });
+
   it("parses a minimal valid manifest", () => {
     const r = parseManifest(base());
     expect(r.problems).toEqual([]);

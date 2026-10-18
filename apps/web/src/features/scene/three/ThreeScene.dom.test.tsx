@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { QueryClientProvider } from "@tanstack/react-query";
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { Component, type ReactNode, StrictMode } from "react";
 import * as THREE from "three";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -10,14 +10,18 @@ import { useTheme } from "../../../ui/theme";
 import { usePanel } from "../../main/panelStore";
 import { PANEL_INSET_PX, panelWidthPx } from "../../main/viewport";
 import { usePerfStats } from "../cesium/PerfOverlay";
+import { useSceneSettings } from "../sceneSettingsStore";
 import { useScene } from "../sceneStore";
 import type { CityInstances } from "./assets/cityInstances";
 import type { Manifest } from "./assets/manifest";
+import { createMotionUniforms } from "./assets/roleMaterial";
 import { BOOKMARKS, type BookmarkId, DEFAULT_BOOKMARK, HERO_CENTRE } from "./bookmarks";
 import type { Pose } from "./cameraRig";
+import { useCityInfo } from "./cityInfo";
 import type { Engine } from "./engine";
 import { createFrame } from "./frame";
 import { LIGHT_PRESETS } from "./lighting";
+import type { PickHit } from "./pick";
 import ThreeScene from "./ThreeScene";
 
 const CENTER: [number, number] = [101.5099, 3.1813];
@@ -41,6 +45,7 @@ vi.mock("./assets/cityInstances", async (orig) => {
     ...mod,
     createCityInstances: (...a: Parameters<typeof mod.createCityInstances>) => {
       if (instancesFault.on) throw new Error("instance build failed");
+      tierFakes.kits.push(a[4]?.kits);
       return mod.createCityInstances(...a);
     },
   };
@@ -57,10 +62,129 @@ vi.mock("./assets/library", async (orig) => {
       libraryHook.next ? libraryHook.next() : mod.loadAssetLibrary(...a),
   };
 });
+// Captures the role uniforms the scene creates, so a test can read the glow values.
+const uniformSpy = vi.hoisted(() => ({
+  last: null as null | import("./assets/roleMaterial").RoleUniforms,
+}));
+vi.mock("./assets/roleMaterial", async (orig) => {
+  const mod = await orig<typeof import("./assets/roleMaterial")>();
+  return {
+    ...mod,
+    createRoleUniforms: () => {
+      uniformSpy.last = mod.createRoleUniforms();
+      return uniformSpy.last;
+    },
+  };
+});
+// Task 8b: a test can swap in tier-aware fakes for the props and agent planners, and record the
+// kits handed to createCityInstances and the tier handed to the ground layer.
+const tierFakes = vi.hoisted(() => ({
+  on: false,
+  kits: [] as (Map<string, unknown[]> | undefined)[],
+  groundTiers: [] as string[],
+  layers: [] as { disposed: number }[],
+}));
+vi.mock("./props/propsPlan", async (orig) => {
+  const mod = await orig<typeof import("./props/propsPlan")>();
+  return {
+    ...mod,
+    planProps: (input: Parameters<typeof mod.planProps>[0]) => {
+      if (!tierFakes.on) return mod.planProps(input);
+      const lamp = {
+        id: "lamp1",
+        asset: "furniture",
+        variant: "lamp_single",
+        x: 0,
+        z: 0,
+        yaw: 0,
+        sx: 1,
+        sy: 1,
+        sz: 1,
+        palette: ["#111111", "#222222", "#333333"],
+      };
+      return {
+        kits: input.tier === "low" ? new Map() : new Map([["furniture/lamp_single", [lamp]]]),
+        stats: {},
+      };
+    },
+  };
+});
+vi.mock("./motion/agents", async (orig) => {
+  const mod = await orig<typeof import("./motion/agents")>();
+  return {
+    ...mod,
+    planAgents: (input: Parameters<typeof mod.planAgents>[0]) => {
+      if (!tierFakes.on) return mod.planAgents(input);
+      return input.tier === "low"
+        ? []
+        : [
+            {
+              id: "a",
+              kind: "person" as const,
+              variant: "v",
+              path: new Float32Array([0, 0, 10, 0]),
+              length: 10,
+              speed: 1,
+              offset: 0,
+            },
+          ];
+    },
+  };
+});
+vi.mock("./motion/motionLayer", async (orig) => {
+  const mod = await orig<typeof import("./motion/motionLayer")>();
+  const T = await import("three");
+  return {
+    ...mod,
+    createMotionLayer: (...a: Parameters<typeof mod.createMotionLayer>) => {
+      if (!tierFakes.on) return mod.createMotionLayer(...a);
+      const layer = {
+        group: new T.Group(),
+        tick: () => {},
+        setOpacity: () => {},
+        setDensity: () => {},
+        disposed: 0,
+        dispose() {
+          layer.disposed++;
+        },
+      };
+      tierFakes.layers.push(layer);
+      return layer;
+    },
+  };
+});
+vi.mock("./ground/groundLayer", async (orig) => {
+  const mod = await orig<typeof import("./ground/groundLayer")>();
+  return {
+    ...mod,
+    createGroundLayer: (...a: Parameters<typeof mod.createGroundLayer>) => {
+      tierFakes.groundTiers.push(a[2]);
+      return mod.createGroundLayer(...a);
+    },
+  };
+});
+// The picker is stubbed: these tests cover the click handling and the dispatch, pick.test.ts the rays.
+const pickStub = vi.hoisted(() => ({
+  hit: null as null | import("./pick").PickHit,
+  calls: [] as unknown[][],
+}));
+vi.mock("./pick", async (orig) => {
+  const mod = await orig<typeof import("./pick")>();
+  return {
+    ...mod,
+    pickAt: (...a: unknown[]) => {
+      pickStub.calls.push(a);
+      return pickStub.hit;
+    },
+  };
+});
+const accessLayer = vi.hoisted(() => ({
+  data: { type: "FeatureCollection", features: [] } as unknown,
+}));
 vi.mock("../../../lib/api", async (orig) => ({
   ...(await orig<typeof import("../../../lib/api")>()),
   useSite: () => ok(SITE),
-  useLayer: () => ok({ type: "FeatureCollection", features: [] }),
+  useLayer: () => ok(accessLayer.data),
 }));
 const ring = [
   [0, 0],
@@ -92,9 +216,14 @@ function fakeEngine() {
     frames: 0,
     setCity: vi.fn(),
     setAssets: vi.fn(),
+    setGround: vi.fn(),
+    setDecor: vi.fn(),
+    setMotion: vi.fn(),
+    motion: createMotionUniforms(),
     setBounds: vi.fn(),
-    setRoute: vi.fn(),
+    setOverlays: vi.fn(),
     setLighting: vi.fn(),
+    setFogRange: vi.fn(),
     setTier: vi.fn(),
     setViewOffset: vi.fn(),
     resize: vi.fn(),
@@ -127,10 +256,21 @@ function fakeEngine() {
       };
     }),
     gl: vi.fn(() => ({ getExtension: () => null }) as unknown as WebGL2RenderingContext),
+    pickView: vi.fn(() => ({
+      camera: new THREE.PerspectiveCamera(),
+      roots: [] as THREE.Object3D[],
+      size: [800, 600] as [number, number],
+    })),
     dispose: vi.fn(),
   };
   return e;
 }
+const reducedMq = () => ({
+  matches: true,
+  addEventListener: () => {},
+  removeEventListener: () => {},
+});
+
 type Fake = ReturnType<typeof fakeEngine>;
 
 function mount(engine: Fake = fakeEngine(), onOps?: (o: unknown) => void) {
@@ -182,6 +322,8 @@ beforeEach(() => {
   history.replaceState(null, "", "/");
   instancesFault.on = false;
   libraryHook.next = null;
+  pickStub.hit = null;
+  pickStub.calls = [];
 });
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -214,6 +356,36 @@ describe("ThreeScene", () => {
     );
   });
 
+  it("draws the roads after the first frame even when the world has no land cover", async () => {
+    const home = frame.toLonLat(0, 0);
+    const east = frame.toLonLat(80, 0);
+    accessLayer.data = {
+      type: "FeatureCollection",
+      features: [
+        {
+          type: "Feature",
+          properties: { type: "street" },
+          geometry: { type: "LineString", coordinates: [home, east] },
+        },
+      ],
+    };
+    try {
+      const { engine } = mount();
+      await waitFor(() => expect(engine.setCity).toHaveBeenCalled());
+      act(() => engine.tick());
+      await waitFor(() => {
+        const last = engine.setGround.mock.calls.at(-1)?.[0] as
+          | { group: { children: { geometry: { getAttribute(n: string): { count: number } } }[] } }
+          | null
+          | undefined;
+        expect(last?.group.children.length).toBeGreaterThanOrEqual(1);
+        expect(last?.group.children[0]?.geometry.getAttribute("position").count).toBeGreaterThan(0);
+      });
+    } finally {
+      accessLayer.data = { type: "FeatureCollection", features: [] };
+    }
+  });
+
   it("calls setCity once buildings data arrives", async () => {
     const { engine } = mount();
     await waitFor(() => expect(engine.setCity).toHaveBeenCalledTimes(1));
@@ -223,7 +395,7 @@ describe("ThreeScene", () => {
     expect(g.buildings.getAttribute("position")).toBeTruthy();
   });
 
-  it('route.highlight sets a route (data-route="on") and clearRoute removes it (setRoute(null), "off")', async () => {
+  it('route.highlight sets a route (data-route="on") and clearRoute removes it ("off"); the line is drawn by the overlay layer', async () => {
     const { engine } = mount();
     await waitFor(() => expect(engine.setCity).toHaveBeenCalled());
     act(() =>
@@ -235,12 +407,30 @@ describe("ThreeScene", () => {
     );
     const s = screen.getByTestId("three-scene");
     await waitFor(() => expect(s).toHaveAttribute("data-route", "on"));
-    const pos = engine.setRoute.mock.calls.at(-1)?.[0] as Float32Array;
-    expect(pos).toBeInstanceOf(Float32Array);
-    expect(pos.length).toBe(6);
+    const layer = engine.setOverlays.mock.calls.find((c: unknown[]) => c[0])?.[0];
+    expect(layer).toBeTruthy();
+    const routeLines = () => {
+      const out: { renderOrder: number; count: number }[] = [];
+      layer.group.traverse(
+        (o: {
+          renderOrder: number;
+          isLineSegments2?: boolean;
+          visible: boolean;
+          geometry: { attributes: { instanceStart: { count: number } } };
+        }) => {
+          if (o.isLineSegments2 && o.renderOrder === 13)
+            out.push({
+              renderOrder: o.renderOrder,
+              count: o.geometry.attributes.instanceStart.count,
+            });
+        },
+      );
+      return out;
+    };
+    expect(routeLines()).toEqual([{ renderOrder: 13, count: 1 }]);
     act(() => useScene.getState().clearRoute());
     await waitFor(() => expect(s).toHaveAttribute("data-route", "off"));
-    expect(engine.setRoute).toHaveBeenLastCalledWith(null);
+    expect(routeLines()).toEqual([]);
   });
 
   it("camera.fly_to calls rig.flyTo with the goal converted to a Pose (pitch -45, range from the intent)", async () => {
@@ -280,15 +470,187 @@ describe("ThreeScene", () => {
     expect(b.engine.rig.set.mock.calls[0]?.[0]?.rangeM).toBe(bookmarkPose(DEFAULT_BOOKMARK).rangeM);
   });
 
-  it("theme change calls setLighting with LIGHT_PRESETS[theme]", async () => {
-    act(() => useTheme.setState({ theme: "day" }));
+  it("a pinned theme change calls setLighting with that keyframe (reduced motion: at once)", async () => {
+    vi.stubGlobal("matchMedia", reducedMq);
+    act(() => useTheme.setState({ choice: "day", theme: "day" }));
     const { engine } = mount();
     await waitFor(() => expect(engine.setLighting).toHaveBeenCalled());
     expect(engine.setLighting.mock.calls.at(-1)?.[0]).toBe(LIGHT_PRESETS.day);
-    act(() => useTheme.setState({ theme: "night" }));
+    act(() => useTheme.setState({ choice: "night", theme: "night" }));
     expect(engine.setLighting.mock.calls.at(-1)?.[0]).toBe(LIGHT_PRESETS.night);
     const dir = engine.setLighting.mock.calls.at(-1)?.[1] as unknown as number[];
     expect(Math.hypot(...dir)).toBeCloseTo(1);
+    vi.unstubAllGlobals();
+  });
+
+  it("Elmina Day playback drives the light even with the theme pinned to day", async () => {
+    vi.stubGlobal("matchMedia", reducedMq);
+    act(() => useTheme.setState({ choice: "day", theme: "day" }));
+    const { engine } = mount();
+    await waitFor(() => expect(engine.setLighting).toHaveBeenCalled());
+    act(() => useScene.setState({ day: { ...useScene.getState().day, on: true, t: 21 * 60 } }));
+    const p = engine.setLighting.mock.calls.at(-1)?.[0] as unknown as typeof LIGHT_PRESETS.night;
+    expect(p).toBe(LIGHT_PRESETS.night);
+    act(() => useScene.setState({ day: { ...useScene.getState().day, on: false } }));
+    vi.unstubAllGlobals();
+  });
+
+  it("the container background follows the blended preset during Day playback", async () => {
+    vi.stubGlobal("matchMedia", reducedMq);
+    act(() => useTheme.setState({ choice: "day", theme: "day" }));
+    const { engine } = mount();
+    await waitFor(() => expect(engine.setLighting).toHaveBeenCalled());
+    const el = screen.getByTestId("three-scene");
+    const toRgb = (hex: string) => {
+      const c = document.createElement("div");
+      c.style.background = hex;
+      return c.style.background;
+    };
+    expect(el.style.background).toBe(toRgb(LIGHT_PRESETS.day.background));
+    act(() => useScene.setState({ day: { ...useScene.getState().day, on: true, t: 21 * 60 } }));
+    expect(el.style.background).toBe(toRgb(LIGHT_PRESETS.night.background));
+    act(() => useScene.setState({ day: { ...useScene.getState().day, on: false } }));
+    vi.unstubAllGlobals();
+  });
+
+  it("role uniforms follow glowFor", async () => {
+    vi.stubGlobal("matchMedia", reducedMq);
+    act(() => useTheme.setState({ choice: "night", theme: "night" }));
+    const { engine } = mount();
+    await waitFor(() => expect(engine.setLighting).toHaveBeenCalled());
+    expect(uniformSpy.last?.uWindowGlow.value).toBe(1.6);
+    expect(uniformSpy.last?.uLitShare.value).toBeCloseTo(0.58);
+    expect(uniformSpy.last?.uLightGlow.value).toBe(1);
+    act(() => useTheme.setState({ choice: "day", theme: "day" }));
+    expect(uniformSpy.last?.uWindowGlow.value).toBe(0);
+    expect(uniformSpy.last?.uLitShare.value).toBeCloseTo(0.35);
+    vi.unstubAllGlobals();
+  });
+
+  it("the sources crossfade over several frames when motion is allowed", async () => {
+    vi.useFakeTimers({ toFake: ["requestAnimationFrame", "cancelAnimationFrame", "performance"] });
+    act(() => useTheme.setState({ choice: "day", theme: "day" }));
+    const { engine } = mount();
+    await vi.waitFor(() => expect(engine.setLighting).toHaveBeenCalled());
+    act(() => useTheme.setState({ choice: "night", theme: "night" }));
+    expect(engine.setLighting.mock.calls.at(-1)?.[0]).toBe(LIGHT_PRESETS.day);
+    await act(async () => {
+      vi.advanceTimersByTime(1000);
+    });
+    const mid = engine.setLighting.mock.calls.at(-1)?.[0] as unknown as typeof LIGHT_PRESETS.day;
+    expect(mid.sunIntensity).toBeLessThan(LIGHT_PRESETS.day.sunIntensity);
+    expect(mid.sunIntensity).toBeGreaterThan(LIGHT_PRESETS.night.sunIntensity);
+    await act(async () => {
+      vi.advanceTimersByTime(1500);
+    });
+    expect(engine.setLighting.mock.calls.at(-1)?.[0]).toBe(LIGHT_PRESETS.night);
+    vi.useRealTimers();
+  });
+
+  describe("motion", () => {
+    type Driver = import("./motion/motionClock").MotionDriver;
+    const driverOf = (e: Fake) => e.setMotion.mock.calls.at(-1)?.[0] as Driver | null;
+    const runningOf = (e: Fake) => e.setMotion.mock.calls.at(-1)?.[1] as () => boolean;
+    const cam = new THREE.Vector3();
+    afterEach(() => {
+      act(() => {
+        useScene.setState({ day: { ...useScene.getState().day, on: false } });
+        useScene.setState({ rollout: { ...useScene.getState().rollout, on: false } });
+        useSceneSettings.setState({ motion: true });
+      });
+    });
+
+    it("hands the engine one motion driver, gated by Motion, and clears it on unmount", async () => {
+      act(() => useSceneSettings.setState({ motion: true }));
+      const { engine, unmount } = mount();
+      await waitFor(() => expect(driverOf(engine)).toBeTruthy());
+      expect(runningOf(engine)()).toBe(true);
+      const renders = engine.requestRender.mock.calls.length;
+      act(() => useSceneSettings.setState({ motion: false }));
+      expect(runningOf(engine)()).toBe(false);
+      // One final frame at the static pose.
+      expect(engine.requestRender.mock.calls.length).toBeGreaterThan(renders);
+      unmount();
+      expect(engine.setMotion).toHaveBeenLastCalledWith(null, expect.any(Function));
+    });
+
+    it("reduced motion stops the clock", async () => {
+      vi.stubGlobal("matchMedia", reducedMq);
+      const { engine } = mount();
+      await waitFor(() => expect(driverOf(engine)).toBeTruthy());
+      expect(runningOf(engine)()).toBe(false);
+    });
+
+    it("day.on fades people and vehicles toward 0 over 1 s, and back once it ends", async () => {
+      const { engine } = mount();
+      await waitFor(() => expect(driverOf(engine)).toBeTruthy());
+      const d = driverOf(engine) as Driver;
+      d.tick(0, cam);
+      expect(d.opacity).toBe(1);
+      act(() => useScene.setState({ day: { ...useScene.getState().day, on: true } }));
+      expect(d.target).toBe(0);
+      d.tick(500, cam);
+      expect(d.opacity).toBeGreaterThan(0);
+      expect(d.opacity).toBeLessThan(1);
+      d.tick(1100, cam);
+      expect(d.opacity).toBe(0);
+      act(() => useScene.setState({ day: { ...useScene.getState().day, on: false } }));
+      expect(d.target).toBe(1);
+    });
+
+    it("rollout.on does the same, and the fade holds until both playbacks end", async () => {
+      const { engine } = mount();
+      await waitFor(() => expect(driverOf(engine)).toBeTruthy());
+      const d = driverOf(engine) as Driver;
+      act(() => useScene.setState({ rollout: { ...useScene.getState().rollout, on: true } }));
+      expect(d.target).toBe(0);
+      act(() => useScene.setState({ day: { ...useScene.getState().day, on: true } }));
+      act(() => useScene.setState({ rollout: { ...useScene.getState().rollout, on: false } }));
+      expect(d.target).toBe(0);
+      act(() => useScene.setState({ day: { ...useScene.getState().day, on: false } }));
+      expect(d.target).toBe(1);
+    });
+
+    it("a hidden tab pauses the clock", async () => {
+      const { engine } = mount();
+      await waitFor(() => expect(driverOf(engine)).toBeTruthy());
+      expect(runningOf(engine)()).toBe(true);
+      const vis = vi.spyOn(document, "visibilityState", "get").mockReturnValue("hidden");
+      act(() => {
+        document.dispatchEvent(new Event("visibilitychange"));
+      });
+      expect(runningOf(engine)()).toBe(false);
+      vis.mockReturnValue("visible");
+      act(() => {
+        document.dispatchEvent(new Event("visibilitychange"));
+      });
+      expect(runningOf(engine)()).toBe(true);
+    });
+
+    it("the map off screen pauses the clock (IntersectionObserver)", async () => {
+      const observers: ((e: { isIntersecting: boolean }[]) => void)[] = [];
+      vi.stubGlobal(
+        "IntersectionObserver",
+        class {
+          constructor(cb: (e: { isIntersecting: boolean }[]) => void) {
+            observers.push(cb);
+          }
+          observe() {}
+          disconnect() {}
+        },
+      );
+      const { engine } = mount();
+      await waitFor(() => expect(driverOf(engine)).toBeTruthy());
+      expect(observers.length).toBeGreaterThan(0);
+      act(() => {
+        for (const cb of observers) cb([{ isIntersecting: false }]);
+      });
+      expect(runningOf(engine)()).toBe(false);
+      act(() => {
+        for (const cb of observers) cb([{ isIntersecting: true }]);
+      });
+      expect(runningOf(engine)()).toBe(true);
+    });
   });
 
   it("unmount calls dispose exactly once", async () => {
@@ -478,6 +840,56 @@ describe("ThreeScene", () => {
     const vertsOf = (engine: Fake, call: number) =>
       (engine.setCity.mock.calls.at(call)![0] as Geo).buildings.getAttribute("position").count;
 
+    it("a runtime switch to Low drops kits, lamp pools, agents, birds and markings; Medium restores them", async () => {
+      tierFakes.on = true;
+      tierFakes.kits.length = 0;
+      tierFakes.groundTiers.length = 0;
+      tierFakes.layers.length = 0;
+      act(() => useSceneSettings.setState({ quality: "medium" }));
+      try {
+        serve({});
+        const { engine } = mount();
+        const s = screen.getByTestId("three-scene");
+        await waitFor(() => expect(s).toHaveAttribute("data-assets", "ready"));
+        act(() => engine.tick());
+        const lastDecor = (slot: string) =>
+          engine.setDecor.mock.calls.filter((c) => c[0] === slot).at(-1)?.[1];
+        const driver = () =>
+          engine.setMotion.mock.calls.at(-1)?.[0] as { group: THREE.Group } | null;
+        const kitCount = () => {
+          const k = tierFakes.kits.at(-1);
+          return k ? [...k.values()].reduce((n, l) => n + l.length, 0) : 0;
+        };
+        await waitFor(() => expect(lastDecor("lamp-pools")).toBeTruthy());
+        expect(kitCount()).toBe(1);
+        expect(lastDecor("ambient")).toBeTruthy();
+        expect(driver()?.group.children).toHaveLength(1);
+        expect(tierFakes.groundTiers.at(-1)).toBe("medium");
+        const cityCalls = engine.setCity.mock.calls.length;
+
+        act(() => useSceneSettings.setState({ quality: "low" }));
+        await waitFor(() => expect(lastDecor("lamp-pools")).toBeNull());
+        expect(kitCount()).toBe(0);
+        expect(lastDecor("ambient")).toBeNull();
+        expect(driver()?.group.children).toHaveLength(0);
+        expect(tierFakes.layers[0]?.disposed).toBe(1);
+        expect(tierFakes.groundTiers.at(-1)).toBe("low");
+        // The city mesh is never rebuilt for a tier change.
+        expect(engine.setCity.mock.calls.length).toBe(cityCalls);
+
+        act(() => useSceneSettings.setState({ quality: "medium" }));
+        await waitFor(() => expect(lastDecor("lamp-pools")).toBeTruthy());
+        expect(kitCount()).toBe(1);
+        expect(lastDecor("ambient")).toBeTruthy();
+        expect(driver()?.group.children).toHaveLength(1);
+        expect(tierFakes.groundTiers.at(-1)).toBe("medium");
+        expect(engine.setCity.mock.calls.length).toBe(cityCalls);
+      } finally {
+        tierFakes.on = false;
+        act(() => useSceneSettings.setState({ quality: "auto" }));
+      }
+    });
+
     it('assets load: setCity with only plan.extrude, setAssets once, data-assets="ready"', async () => {
       // Hold the glb until the buildings are drawn, so the order is deterministic.
       let open: () => void = () => {};
@@ -492,7 +904,8 @@ describe("ThreeScene", () => {
       expect(engine.setAssets).toHaveBeenCalledTimes(1);
       // The full city first (no holes while loading), then only the plain building (one box).
       expect(vertsOf(engine, 0)).toBe(90);
-      expect(vertsOf(engine, -1)).toBe(30);
+      // 30 plus the styled fallback's trim band (6 per ring edge).
+      expect(vertsOf(engine, -1)).toBe(54);
       const inst = engine.setAssets.mock.calls[0]?.[0] as CityInstances;
       expect(inst.group).toBeInstanceOf(THREE.Group);
       expect(console.warn).not.toHaveBeenCalled();
@@ -504,6 +917,17 @@ describe("ThreeScene", () => {
       const s = screen.getByTestId("three-scene");
       await waitFor(() => expect(s).toHaveAttribute("data-assets", "ready"));
       expect(s).toHaveAttribute("data-instances", "2");
+    });
+
+    it("data-fallback is no_fit,generic_fill,no_archetype,no_asset from plan.stats.fallback", async () => {
+      serve({});
+      mount();
+      const s = screen.getByTestId("three-scene");
+      expect(s).toHaveAttribute("data-fallback", "0,0,0,0");
+      await waitFor(() => expect(s).toHaveAttribute("data-assets", "ready"));
+      // The plain building has no archetype; both links are placed.
+      expect(s).toHaveAttribute("data-fallback", "0,0,1,0");
+      expect(usePerfStats.getState().fallback).toEqual([0, 0, 1, 0]);
     });
 
     it.each([
@@ -648,6 +1072,67 @@ describe("ThreeScene", () => {
       expect(screen.queryByText("Model showroom — not the city")).toBeNull();
     });
 
+    it('shows "Decorative details are illustrative." only when a decorative layer is drawn', async () => {
+      const NOTE = "Decorative details are illustrative.";
+      // Low draws no props, agents, birds or clouds; this world has no land cover or roads.
+      useSceneSettings.setState({ quality: "low" });
+      try {
+        // Ready assets with nothing decorative (archetypes only): no note.
+        serve({});
+        const plain = mount();
+        await waitFor(() =>
+          expect(screen.getByTestId("three-scene")).toHaveAttribute("data-assets", "ready"),
+        );
+        expect(screen.queryByText(NOTE)).toBeNull();
+        plain.unmount();
+
+        // Ready assets that include a decorative model: note.
+        serve({
+          manifest: () =>
+            json({
+              ...MANIFEST,
+              assets: {
+                link_intermediate: { ...MANIFEST.assets.link_intermediate, decorative: true },
+              },
+            }),
+        });
+        const decor = mount();
+        await waitFor(() =>
+          expect(screen.getByTestId("three-scene")).toHaveAttribute("data-assets", "ready"),
+        );
+        await waitFor(() => expect(screen.getByRole("note", { name: NOTE })).toBeVisible());
+        decor.unmount();
+
+        history.replaceState(null, "", "/?assets=0");
+        serve({});
+        const off = mount();
+        await waitFor(() => expect(off.engine.setCity).toHaveBeenCalled());
+        expect(screen.getByTestId("three-scene")).toHaveAttribute("data-assets", "off");
+        expect(screen.queryByText(NOTE)).toBeNull();
+        off.unmount();
+
+        history.replaceState(null, "", "/");
+        serve({ manifest: () => json({}, 404) });
+        mount();
+        await waitFor(() =>
+          expect(screen.getByTestId("three-scene")).toHaveAttribute("data-assets", "failed"),
+        );
+        expect(screen.queryByText(NOTE)).toBeNull();
+      } finally {
+        useSceneSettings.setState({ quality: "auto" });
+      }
+    });
+
+    it("the note shows with ambient birds and cloud shadows alone (assets off, Medium tier)", async () => {
+      history.replaceState(null, "", "/?assets=0");
+      serve({});
+      const { engine } = mount();
+      await waitFor(() => expect(engine.setCity).toHaveBeenCalled());
+      expect(
+        screen.getByRole("note", { name: "Decorative details are illustrative." }),
+      ).toBeVisible();
+    });
+
     it("?showroom=1 frames the showroom grid (centred on HERO_CENTRE) once the assets are ready", async () => {
       history.replaceState(null, "", "/?showroom=1&bookmark=hero-near");
       serve({});
@@ -730,8 +1215,8 @@ describe("ThreeScene", () => {
         const { engine } = mount();
         const s = screen.getByTestId("three-scene");
         await waitFor(() => expect(s).toHaveAttribute("data-assets", "ready"));
-        // plain + s1 stay extruded (two boxes); l1 and l2 are instanced.
-        expect(vertsOf(engine, -1)).toBe(60);
+        // plain + s1 stay extruded (two boxes, 54 vertices each with the trim band); l1 and l2 are instanced.
+        expect(vertsOf(engine, -1)).toBe(108);
         expect(s).toHaveAttribute("data-instances", "2");
         expect(engine.setAssets).toHaveBeenCalledTimes(1);
         expect(console.warn).toHaveBeenCalledTimes(1);
@@ -752,8 +1237,8 @@ describe("ThreeScene", () => {
         const { engine } = mount();
         const s = screen.getByTestId("three-scene");
         await waitFor(() => expect(s).toHaveAttribute("data-assets", "ready"));
-        // plain + s1 extruded (two boxes), not a hole; l1 and l2 instanced.
-        expect(vertsOf(engine, -1)).toBe(60);
+        // plain + s1 extruded (two boxes, 54 vertices each), not a hole; l1 and l2 instanced.
+        expect(vertsOf(engine, -1)).toBe(108);
         expect(s).toHaveAttribute("data-instances", "2");
         const inst = engine.setAssets.mock.calls[0]?.[0] as CityInstances;
         const names: string[] = [];
@@ -803,6 +1288,16 @@ describe("ThreeScene", () => {
       expect(console.warn).toHaveBeenCalledTimes(1);
     });
 
+    it("with assets ready, the building card learns the manifest and the extruded fallbacks", async () => {
+      serve({});
+      mount();
+      const s = screen.getByTestId("three-scene");
+      await waitFor(() => expect(s).toHaveAttribute("data-assets", "ready"));
+      const info = useCityInfo.getState();
+      expect(info.manifest).not.toBeNull();
+      expect(info.extruded).toBeInstanceOf(Set);
+    });
+
     it("frame perf: tris and gpuMB reach usePerfStats", async () => {
       serve({});
       const { engine } = mount();
@@ -815,6 +1310,128 @@ describe("ThreeScene", () => {
       });
       await waitFor(() => expect(usePerfStats.getState().tris).toBe(1234));
       expect(usePerfStats.getState().gpuMB).toBeGreaterThan(0);
+    });
+  });
+  describe("picking", () => {
+    const host = () => screen.getByTestId("three-scene").firstElementChild as HTMLElement;
+    const click = (from: [number, number], to: [number, number]) => {
+      vi.spyOn(host(), "getBoundingClientRect").mockReturnValue(
+        DOMRect.fromRect({ x: 0, y: 0, width: 800, height: 600 }),
+      );
+      fireEvent.pointerDown(host(), {
+        button: 0,
+        isPrimary: true,
+        clientX: from[0],
+        clientY: from[1],
+      });
+      fireEvent.pointerUp(host(), { button: 0, isPrimary: true, clientX: to[0], clientY: to[1] });
+    };
+    const placeData = {
+      type: "FeatureCollection",
+      features: [
+        {
+          type: "Feature",
+          properties: { id: "p1", name: "Playground", type: "park" },
+          geometry: { type: "Point", coordinates: CENTER },
+        },
+      ],
+    };
+    beforeEach(() => {
+      useScene.getState().reset();
+      accessLayer.data = placeData;
+    });
+    afterEach(() => {
+      accessLayer.data = { type: "FeatureCollection", features: [] };
+    });
+
+    it("a click within 4 px picks at the pointer's NDC and dispatches selectPlace for a place hit", () => {
+      mount();
+      pickStub.hit = { kind: "place", id: "p1" };
+      act(() => click([200, 150], [203, 152]));
+      expect(pickStub.calls).toHaveLength(1);
+      const [ndc, , , linePx, view] = pickStub.calls[0] as [
+        { x: number; y: number },
+        unknown,
+        unknown,
+        number,
+        { width: number; height: number },
+      ];
+      expect(ndc.x).toBeCloseTo((203 / 800) * 2 - 1, 6);
+      expect(ndc.y).toBeCloseTo(-(152 / 600) * 2 + 1, 6);
+      expect(linePx).toBe(8);
+      expect(view).toEqual({ width: 800, height: 600 });
+      expect(useScene.getState().selectedPlaceId).toBe("p1");
+    });
+
+    it("a drag over 4 px dispatches nothing (the camera rig orbits)", async () => {
+      mount();
+      pickStub.hit = { kind: "place", id: "p1" };
+      act(() => click([200, 150], [205, 150]));
+      expect(pickStub.calls).toHaveLength(0);
+      expect(useScene.getState().selectedPlaceId).toBeNull();
+    });
+
+    it.each<[PickHit, () => unknown]>([
+      [{ kind: "floodEdge", id: "e1" }, () => useScene.getState().selectedFloodEdgeId],
+      [{ kind: "sign", id: "s1" }, () => useScene.getState().selectedSignId],
+      [{ kind: "building", id: "b1" }, () => useScene.getState().selectedBuildingId],
+      [{ kind: "landmark", id: "kanopi-residences" }, () => useScene.getState().selectedBuildingId],
+      [{ kind: "resident", id: "r1" }, () => useScene.getState().day.focus],
+      [{ kind: "evac", id: "p1" }, () => useScene.getState().selectedPlaceId],
+      [{ kind: "waste", id: "p1" }, () => useScene.getState().selectedPlaceId],
+    ])("dispatches %o", (hit, read) => {
+      mount();
+      pickStub.hit = hit;
+      act(() => click([10, 10], [10, 10]));
+      expect(read()).toBe(hit.id);
+    });
+
+    it("an evac or waste hit that is not a place opens nothing", () => {
+      mount();
+      for (const kind of ["evac", "waste"] as const) {
+        pickStub.hit = { kind, id: "c9" };
+        act(() => click([10, 10], [10, 10]));
+      }
+      const st = useScene.getState();
+      expect([st.selectedPlaceId, st.selectedBuildingId, st.selectedSignId]).toEqual([
+        null,
+        null,
+        null,
+      ]);
+    });
+
+    it("a press released outside the map does not swallow the next click", () => {
+      mount();
+      pickStub.hit = { kind: "place", id: "p1" };
+      // pressed on the map, released elsewhere (no pointerup reaches the host)
+      fireEvent.pointerDown(host(), { button: 0, isPrimary: true, clientX: 300, clientY: 300 });
+      act(() => click([10, 10], [10, 10]));
+      expect(pickStub.calls).toHaveLength(1);
+      expect(useScene.getState().selectedPlaceId).toBe("p1");
+    });
+
+    it("a secondary-button click or a second finger never picks", () => {
+      mount();
+      pickStub.hit = { kind: "place", id: "p1" };
+      fireEvent.pointerDown(host(), { button: 2, isPrimary: true, clientX: 5, clientY: 5 });
+      fireEvent.pointerUp(host(), { button: 2, isPrimary: true, clientX: 5, clientY: 5 });
+      fireEvent.pointerDown(host(), { button: 0, isPrimary: true, clientX: 5, clientY: 5 });
+      fireEvent.pointerDown(host(), { button: 0, isPrimary: false, clientX: 50, clientY: 5 });
+      fireEvent.pointerUp(host(), { button: 0, isPrimary: true, clientX: 5, clientY: 5 });
+      expect(pickStub.calls).toHaveLength(0);
+    });
+
+    it("publishes the extruded city for the building card, and a picked building closes on unmount", async () => {
+      useCityInfo.setState({ manifest: null, extruded: new Set(["x"]) });
+      const { engine, unmount } = mount();
+      await waitFor(() => expect(engine.setCity).toHaveBeenCalled());
+      // no manifest (404): every building is a simple block
+      await waitFor(() => expect(useCityInfo.getState().extruded).toBeNull());
+      pickStub.hit = { kind: "building", id: "b1" };
+      act(() => click([10, 10], [10, 10]));
+      expect(useScene.getState().selectedBuildingId).toBe("b1");
+      unmount();
+      expect(useScene.getState().selectedBuildingId).toBeNull();
     });
   });
 });

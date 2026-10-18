@@ -12,6 +12,8 @@ interface PerfStats {
   /** Estimated geometry + instance buffer MB from CPU array sizes (three.js engine only; 0 elsewhere). */
   gpuMB: number;
   tier: Tier;
+  /** Buildings drawn as extrusions, by reason: no_fit / generic_fill / no_archetype / no_asset. */
+  fallback: [number, number, number, number];
   /** True while the median stays under 15 fps although the tier is already Low. */
   slow: boolean;
   update: (p: Partial<Omit<PerfStats, "update">>) => void;
@@ -24,6 +26,7 @@ export const usePerfStats = create<PerfStats>((set) => ({
   tris: 0,
   gpuMB: 0,
   tier: "medium",
+  fallback: [0, 0, 0, 0],
   slow: false,
   update: (p) => set(p),
 }));
@@ -38,6 +41,7 @@ export function PerfOverlay() {
       {Math.round(s.fps)} fps · {s.frameMs.toFixed(1)} ms · {s.drawCalls} draws
       {s.tris > 0 ? ` · ${(s.tris / 1e6).toFixed(2)} M tris` : ""}
       {s.gpuMB > 0 ? ` · ≈${s.gpuMB.toFixed(0)} MB` : ""} · {s.tier}
+      {s.fallback.some((n) => n > 0) ? ` · fb ${s.fallback.join("/")}` : ""}
     </div>
   );
 }
