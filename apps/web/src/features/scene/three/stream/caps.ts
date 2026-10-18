@@ -1,0 +1,131 @@
+import type { Tier } from "../../cesium/stylised/quality";
+import { HERO_CENTRE, HERO_RADIUS_M } from "../bookmarks";
+import type { LocalFrame } from "../frame";
+import type { Tile } from "./tiles";
+
+export type StreamKind =
+  | "trees"
+  | "lamps"
+  | "furniture"
+  | "construction"
+  | "people"
+  | "vehicles"
+  | "signs"
+  | "verges"
+  | "parking";
+
+/** Per-tile instance multiplier inside the hero district (its tiles are the dense ones). */
+export const HERO_BOOST = 1.6;
+
+/**
+ * Triangles per instance at ring distance, an upper bound. Means over the manifest kit variants:
+ * ring 0 uses LOD0 (the camera can be within 150 m), ring 1 LOD1, ring 2 the last LOD (the
+ * KIT_LOD_SCALE-shortened ranges put ring 2 at the coarsest LOD). Measured from
+ * `public/city/manifest.json` (P3 kits, as_of 2026-10).
+ *  - trees: 1090 / 224 / 42      - construction: 894 / 214 / 44
+ *  - people: 598 / 201 / 201     - vehicles: 658 / 349 / 349 (no coarser LOD)
+ *  - lamps: 144 / 79 / 79 (lamp_single and lamp_double)
+ *  - furniture: 97 / 41 / 41
+ * Kinds without a kit asset are flat batches: signs (a quad plus a post box) 12, verges (a strip
+ * segment) 8, parking (a stall marking quad) 2.
+ */
+export const TRIS_PER: Record<StreamKind, Record<0 | 1 | 2, number>> = {
+  trees: { 0: 1090, 1: 224, 2: 42 },
+  lamps: { 0: 144, 1: 79, 2: 79 },
+  furniture: { 0: 97, 1: 41, 2: 41 },
+  construction: { 0: 894, 1: 214, 2: 44 },
+  people: { 0: 598, 1: 201, 2: 201 },
+  vehicles: { 0: 658, 1: 349, 2: 349 },
+  signs: { 0: 12, 1: 12, 2: 12 },
+  verges: { 0: 8, 1: 8, 2: 8 },
+  parking: { 0: 2, 1: 2, 2: 2 },
+};
+
+const NONE: Record<StreamKind, number> = {
+  trees: 0,
+  lamps: 0,
+  furniture: 0,
+  construction: 0,
+  people: 0,
+  vehicles: 0,
+  signs: 0,
+  verges: 0,
+  parking: 0,
+};
+
+/**
+ * Instance caps per tier, ring and kind, before HERO_BOOST. Starting point: P3's hero totals
+ * (Medium 2300 trees / 900 lamps / 350 furniture / 200 construction / 220 people / 140 vehicles)
+ * spread over the ~23 hero tiles, ring 0 dense, ring 2 trees only (roads are not instanced here).
+ * Sized so the stream stays inside its ~0.5 M tri slice of the 2.5 M Medium budget at any
+ * position (tiles.test.ts); Task 15 tunes them by measurement. Low draws nothing.
+ */
+export const TILE_CAPS: Record<Tier, Record<0 | 1 | 2, Record<StreamKind, number>>> = {
+  high: {
+    0: {
+      trees: 160,
+      lamps: 80,
+      furniture: 50,
+      construction: 12,
+      people: 24,
+      vehicles: 16,
+      signs: 60,
+      verges: 40,
+      parking: 200,
+    },
+    1: {
+      trees: 110,
+      lamps: 50,
+      furniture: 28,
+      construction: 6,
+      people: 12,
+      vehicles: 9,
+      signs: 30,
+      verges: 28,
+      parking: 100,
+    },
+    2: { ...NONE, trees: 60 },
+  },
+  medium: {
+    0: {
+      trees: 70,
+      lamps: 60,
+      furniture: 36,
+      construction: 6,
+      people: 14,
+      vehicles: 10,
+      signs: 40,
+      verges: 30,
+      parking: 120,
+    },
+    1: {
+      trees: 55,
+      lamps: 36,
+      furniture: 18,
+      construction: 3,
+      people: 8,
+      vehicles: 5,
+      signs: 20,
+      verges: 20,
+      parking: 60,
+    },
+    2: { ...NONE, trees: 40 },
+  },
+  low: { 0: { ...NONE }, 1: { ...NONE }, 2: { ...NONE } },
+};
+
+/** The cap for one tile: the ring cap, times HERO_BOOST when the tile centre is in the hero district. */
+export function tileCap(
+  tier: Tier,
+  ring: 0 | 1 | 2,
+  kind: StreamKind,
+  tile: Tile,
+  frame: LocalFrame,
+): number {
+  const base = TILE_CAPS[tier][ring][kind];
+  if (base === 0) return 0;
+  const [hx, hz] = frame.toLocal(HERO_CENTRE[0], HERO_CENTRE[1]);
+  const cx = (tile.box.x0 + tile.box.x1) / 2;
+  const cz = (tile.box.z0 + tile.box.z1) / 2;
+  return Math.hypot(cx - hx, cz - hz) <= HERO_RADIUS_M ? Math.round(base * HERO_BOOST) : base;
+}
