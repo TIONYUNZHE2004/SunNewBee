@@ -13,7 +13,7 @@ describe("JourneyStepList", () => {
     expect(lis).toHaveLength(plan.events.length);
     plan.events.forEach((e, i) => {
       expect(lis[i] ?? "").toContain(`${i + 1}.`);
-      expect(lis[i] ?? "").toContain(e.title.replace("&", "&amp;"));
+      expect(lis[i] ?? "").toContain(e.title.replace(/&/g, "&amp;").replace(/</g, "&lt;"));
       if (e.element_id ?? e.source)
         expect(lis[i] ?? "").toContain(String(e.element_id ?? e.source));
     });

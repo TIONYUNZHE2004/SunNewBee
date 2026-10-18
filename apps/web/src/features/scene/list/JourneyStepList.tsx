@@ -22,7 +22,8 @@ export function JourneyStepList({ plan, className }: { plan: JourneyPlan; classN
           const c = journeyCardContent(e);
           return (
             <li
-              key={`${e.kind}-${e.at_m}-${e.element_id ?? e.source ?? i}`}
+              // biome-ignore lint/suspicious/noArrayIndexKey: fixed event order; index + kind + at_m is stable
+              key={`${i}-${e.kind}-${e.at_m}`}
               className="rounded-lg border border-line bg-card px-4 py-3"
             >
               <p className="font-semibold">
