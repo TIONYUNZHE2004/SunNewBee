@@ -4,6 +4,9 @@ Writes data/seed/elmina/base/landmarks.geojson: the matched building footprint o
 landmark, with the bespoke model to draw. A landmark is placed only on a real OSM footprint:
 first a building whose name matches, else an OSM POI whose name matches (its point must lie inside
 a footprint; area elements such as landuse=construction never attach).
+A traced outline in data/seed/elmina/sources/landmark_outlines.geojson (hand-traced from a
+georeferenced public site plan, with its source recorded) wins over an OSM match for its model:
+it is placed with match "traced_outline" and the most-overlapping OSM building as building_id.
 Never invents a footprint: an unplaced landmark gets no feature and is reported.
 Display only: routing, evaluation, flood and answers never read this file.
 Overpass goes through data/scripts/overpass.py (cache, backoff, request cap).
@@ -15,6 +18,8 @@ import re
 import sys
 from pathlib import Path
 
+from shapely.geometry import shape
+
 ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
@@ -24,6 +29,7 @@ from data.scripts.build_buildings import _dump, bbox_around  # noqa: E402
 from data.scripts.build_signage import _inside, _point  # noqa: E402
 
 OUT = ROOT / "data" / "seed" / "elmina"
+OUTLINES = Path("sources") / "landmark_outlines.geojson"  # relative to OUT
 
 LANDMARKS = [
     {
@@ -127,11 +133,54 @@ def resolve(spec: dict, buildings: list[dict], pois: list[dict]) -> dict | None:
     return _result(spec, host, f"{el['type']}/{el['id']}", "poi_inside")
 
 
+def _overlapping(geom: dict, buildings: list[dict]) -> str | None:
+    """Id of the OSM building with the largest overlap with the outline, or None."""
+    poly = shape(geom)
+    best = None
+    for b in buildings:
+        area = poly.intersection(shape(b["geometry"])).area
+        if area > 0 and (best is None or (-area, b["properties"]["id"]) < best[0]):
+            best = ((-area, b["properties"]["id"]), b["properties"]["id"])
+    return best[1] if best else None
+
+
+def traced(spec: dict, outline: dict, buildings: list[dict]) -> dict:
+    """Feature for a landmark from its traced outline; as_of is the tracing date."""
+    o = outline["properties"]
+    return {
+        "type": "Feature",
+        "properties": {
+            "id": spec["id"],
+            "name": spec["name"],
+            "model": spec["model"],
+            "building_id": _overlapping(outline["geometry"], buildings),
+            "osm": None,
+            "source_url": o["source_url"],
+            "source_label": o["source_label"],
+            "match": "traced_outline",
+            "info_url": spec["info_url"],
+            "as_of": o["traced_on"],
+            "traced_by": o["traced_by"],
+            "traced_on": o["traced_on"],
+            "method": o["method"],
+        },
+        "geometry": outline["geometry"],
+    }
+
+
 def build_landmarks(
-    specs: list[dict], buildings: list[dict], pois: list[dict], as_of: str
+    specs: list[dict],
+    buildings: list[dict],
+    pois: list[dict],
+    as_of: str,
+    outlines: list[dict] | None = None,
 ) -> tuple[list[dict], list[str]]:
+    by_model = {o["properties"]["model"]: o for o in outlines or []}
     feats, unplaced = [], []
     for spec in specs:
+        if spec["model"] in by_model:
+            feats.append(traced(spec, by_model[spec["model"]], buildings))
+            continue
         f = resolve(spec, buildings, pois)
         if f is None:
             unplaced.append(spec["id"])
@@ -164,9 +213,11 @@ def main(argv: list[str] | None = None) -> None:
     if as_of is None:
         print("no OSM data date in the Overpass answers; nothing written")
         raise SystemExit(3)
-    feats, unplaced = build_landmarks(LANDMARKS, buildings, pois, as_of)
+    src = OUT / OUTLINES
+    outlines = json.loads(src.read_text(encoding="utf-8"))["features"] if src.exists() else []
+    feats, unplaced = build_landmarks(LANDMARKS, buildings, pois, as_of, outlines)
     (OUT / "base" / "landmarks.geojson").write_text(_dump(feats), encoding="utf-8", newline="\n")
-    print(f"placed: {[f['properties']['id'] for f in feats]}")
+    print(f"placed: {[(f['properties']['id'], f['properties']['match']) for f in feats]}")
     print(f"unplaced: {unplaced}")
     print(f"overpass HTTP requests this run: {overpass.REQUESTS_MADE}")
 
