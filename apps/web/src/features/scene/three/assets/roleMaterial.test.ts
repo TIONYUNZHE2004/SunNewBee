@@ -141,4 +141,15 @@ describe("createRoleMaterial window flicker", () => {
     );
     expect(mat.customProgramCacheKey()).not.toBe(compile(true).mat.customProgramCacheKey());
   });
+
+  it("an archetype material with flicker and motion has no vehicle branch and differs from Phase 2 only by the flicker term", () => {
+    const base = compile(true);
+    const f = compile(true, { flicker: true, motion: createMotionUniforms() });
+    expect(f.shader.fragmentShader).not.toContain("max(uLightGlow, 0.15)");
+    expect(f.shader.vertexShader).toBe(base.shader.vertexShader);
+    const strip = f.shader.fragmentShader
+      .replace("uniform float uTime;\nuniform float uFlicker;\n", "")
+      .replace(/ \* mix\(1\.0, 0\.9[^;]*uFlicker\)/, "");
+    expect(strip).toBe(base.shader.fragmentShader);
+  });
 });

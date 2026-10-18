@@ -110,9 +110,13 @@ export function landcoverMesh(
 /** Brightness modulation of base water, +-4 %. Hue never moves, so it cannot read as flood blue. */
 export const SHIMMER_AMPLITUDE = 0.04;
 
+/** Wave constants shared by the CPU mirror and the GLSL chunk: [t1, x1, z1, t2, z2, x2]. */
+const SHIMMER_WAVES = [0.8, 0.045, 0.031, 1.3, 0.057, 0] as const;
+
 /** CPU mirror of the shader factor: 1 +- 0.04, a sum of two travelling waves. */
 export function shimmerFactor(t: number, x: number, z: number): number {
-  const w = 0.5 * Math.sin(t * 0.8 + x * 0.045 + z * 0.031) + 0.5 * Math.sin(t * 1.3 - z * 0.057);
+  const [a, b, c, d, e, f] = SHIMMER_WAVES;
+  const w = 0.5 * Math.sin(t * a + x * b + z * c) + 0.5 * Math.sin(t * d - z * e + x * f);
   return 1 + SHIMMER_AMPLITUDE * w;
 }
 
@@ -129,6 +133,7 @@ export function shimmerMaterial(
   const w = new THREE.Color(LANDCOVER_COLOURS.water);
   const prevKey = mat.customProgramCacheKey.bind(mat);
   mat.customProgramCacheKey = () => `${prevKey()}_shimmer_${scope}`;
+  const g = (i: number) => SHIMMER_WAVES[i]!.toFixed(4);
   const prev = mat.onBeforeCompile;
   mat.onBeforeCompile = (shader, renderer) => {
     prev?.call(mat, shader, renderer);
@@ -145,7 +150,7 @@ export function shimmerMaterial(
       .replace(
         "#include <color_fragment>",
         `#include <color_fragment>
-${gate}diffuseColor.rgb *= 1.0 + 0.04 * (0.5 * sin(uTime * 0.8 + vShimXZ.x * 0.045 + vShimXZ.y * 0.031) + 0.5 * sin(uTime * 1.3 - vShimXZ.y * 0.057));`,
+${gate}diffuseColor.rgb *= 1.0 + ${SHIMMER_AMPLITUDE} * (0.5 * sin(uTime * ${g(0)} + vShimXZ.x * ${g(1)} + vShimXZ.y * ${g(2)}) + 0.5 * sin(uTime * ${g(3)} - vShimXZ.y * ${g(4)} + vShimXZ.x * ${g(5)}));`,
       );
   };
 }

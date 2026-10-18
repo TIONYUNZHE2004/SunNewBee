@@ -7,7 +7,6 @@ export const LAMP_POOL_SIZE_M = 14;
 export const LAMP_POOL_Y = 0.12;
 /** After the ground bands (1 to 5), before overlays (10 and up). */
 export const LAMP_POOL_RENDER_ORDER = 6;
-const GLOW_AT_FULL = 1.6;
 const WARM = "#ffcf8a";
 const TEX = 64;
 
@@ -37,7 +36,7 @@ function gradientTexture(): THREE.DataTexture {
 const noRaycast = () => {};
 
 /**
- * One instanced additive ground quad per lamp: a warm pool of light. Opacity is `uLightGlow / 1.6`
+ * One instanced additive ground quad per lamp: a warm pool of light. Opacity is `clamp(uLightGlow, 0, 1)`
  * read from the shared role uniforms, so it is 0 by day and rises with the night glow. Display only.
  */
 export function createLampPools(
@@ -64,7 +63,7 @@ export function createLampPools(
       .replace("void main() {", "uniform float uLightGlow;\nvoid main() {")
       .replace(
         "#include <map_fragment>",
-        "#include <map_fragment>\ndiffuseColor.a *= clamp(uLightGlow / 1.6, 0.0, 1.0);",
+        "#include <map_fragment>\ndiffuseColor.a *= clamp(uLightGlow, 0.0, 1.0);",
       );
   };
   const mesh = new THREE.InstancedMesh(geo, mat, lamps.length);
@@ -80,7 +79,7 @@ export function createLampPools(
   mesh.raycast = noRaycast;
   return {
     mesh,
-    opacity: () => Math.min(1, Math.max(0, uniforms.uLightGlow.value / GLOW_AT_FULL)),
+    opacity: () => Math.min(1, Math.max(0, uniforms.uLightGlow.value)),
     dispose() {
       geo.dispose();
       mat.dispose();

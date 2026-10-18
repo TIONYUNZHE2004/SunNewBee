@@ -2,6 +2,7 @@ import * as THREE from "three";
 import { describe, expect, it } from "vitest";
 import type { Placement } from "../assets/fit";
 import { createRoleUniforms } from "../assets/roleMaterial";
+import { glowFor } from "../mood";
 import { createLampPools, LAMP_POOL_SIZE_M, LAMP_POOL_Y } from "./lampPools";
 
 const lamp = (i: number): Placement => ({
@@ -37,14 +38,14 @@ describe("createLampPools", () => {
     pools.dispose();
   });
 
-  it("opacity follows uLightGlow / 1.6: 0 by day, 1 at full glow", () => {
+  it("opacity follows glowFor: 0 by day, 1 at night", () => {
     const u = createRoleUniforms();
     const pools = createLampPools([lamp(0)], u);
-    u.uLightGlow.value = 0;
+    u.uLightGlow.value = glowFor({ day: 1, dusk: 0, night: 0 }).uLightGlow;
     expect(pools.opacity()).toBe(0);
-    u.uLightGlow.value = 1.6;
+    u.uLightGlow.value = glowFor({ day: 0, dusk: 0, night: 1 }).uLightGlow;
     expect(pools.opacity()).toBe(1);
-    u.uLightGlow.value = 0.8;
+    u.uLightGlow.value = 0.5;
     expect(pools.opacity()).toBeCloseTo(0.5, 9);
     const mat = pools.mesh.material as THREE.MeshBasicMaterial;
     const shader = {
@@ -55,7 +56,7 @@ describe("createLampPools", () => {
     // biome-ignore lint/suspicious/noExplicitAny: shader stub
     (mat.onBeforeCompile as any)(shader, null);
     expect(shader.uniforms.uLightGlow).toBe(u.uLightGlow);
-    expect(shader.fragmentShader).toContain("uLightGlow / 1.6");
+    expect(shader.fragmentShader).toContain("clamp(uLightGlow, 0.0, 1.0)");
     pools.dispose();
   });
 

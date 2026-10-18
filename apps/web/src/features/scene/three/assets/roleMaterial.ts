@@ -152,7 +152,7 @@ if (tlRole >= 7) totalEmissiveRadiance += ${vec3Of(FIXED_ROLE_COLOURS.light)} * 
     );
     shader.vertexShader = vs;
     shader.fragmentShader = fs;
-    if (motion) applyKind(shader, kind as RoleKind, motion, instanced);
+    if (motion && moving) applyKind(shader, kind as RoleKind, motion, instanced);
   };
   return mat;
 }
@@ -225,7 +225,7 @@ float tlDy = transformed.y - tlL.y;
 if (tlL.y > 0.0) transformed.yz = vec2(tlL.y + tlDy * tlC - transformed.z * tlS, transformed.z * tlC + tlDy * tlS);
 }`,
       );
-  } else {
+  } else if (kind === "vehicle") {
     // Vehicle: the light role splits by COLOR_0.b (0.25 headlight, 0.75 tail light).
     const head = vec3Of(HEADLIGHT);
     const tail = vec3Of(TAILLIGHT);
