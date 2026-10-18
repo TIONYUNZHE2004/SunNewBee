@@ -165,10 +165,13 @@ model is dropped, because the label line already says it.
 
 ### Journey playback (`journey.play`, spec 2026-10-19 §6.2)
 
-- The model (D-T3: also the mock and template) writes `{kind: "journey.play", route_id, start_time}` with a `route_id` from this turn's `plan_route` and a local `HH:MM` start time.
+- The model, the mock and the template write `{kind: "journey.play", route_id, start_time}` after `route.highlight`, with a `route_id` from this turn's `plan_route` and a local `HH:MM` start time. The mock and template use the time in the question, else `journeys.JOURNEY_START` (`"09:00"`, the fixed demo value). They play confirmed and partly unverified routes of route questions only (not evacuation routes, not routes with a reported closure).
+- `call_tool` (`agent.py`) builds a plan for every `plan_route` route (`journeys.plan_for`, the same `build_journey`) into `TurnRecord.journeys`, and adds `route["journey"]` for the model: `rest_stops`, `unchecked_places`, `unchecked_place_names`, `checked_stretch`, demo flags (`journeys.journey_facts`). Events do not depend on the start time.
 - `run.py` attaches `journey`: `build_journey(world, route, route.profile, start_time)` from the route recorded in `TurnRecord.routes`, the same way `route.highlight` gets its geometry. A model-written `journey` is discarded.
-- The intent is dropped when the route was not returned this turn, when `start_time` is missing, or when the plan cannot be built (`JourneyEvidenceError`). Every drop is logged. The turn continues. The validator does not reject these yet (D-T3, AC-D5).
-- The plan equals `POST /journeys` for the same endpoints, profile, scenario and start time (AC-D4, `apps/api/tests/test_journeys_api.py`).
+- The intent is dropped when the route was not returned this turn, when `start_time` is missing, or when the plan cannot be built (`JourneyEvidenceError`). Every drop is logged. The turn continues.
+- **Validator** (`validate.journey_errors`, AC-D5): rejects a `journey.play` whose route was not returned this turn, has no plan, or has no `start_time`; rejects rest-stop or unchecked-place counts that differ from the plan (extraction rules in the comment above `journey_errors`); with a played demo plan, requires "demo values, not yet surveyed"; when nothing on the plan is staff-verified, rejects "verified".
+- **Answer lines** (`journeys.journey_steps`, shared by the mock and template, after the prototype chat bubble): "No known barrier on the step-free path, with 3 rest stops on the way (demo values, not yet surveyed)." and "Not checked yet: 3 places on the way, including the Persiaran Elmina crossing, Persiaran Tamarind and a ramp."
+- The plan equals `POST /journeys` for the same endpoints, profile, scenario and start time (AC-D4, `apps/api/tests/test_journeys_api.py`). Tests: `tests/test_journey_intent.py`, `tests/test_journey_answer.py` (AC-D5, AC-D6 wording scan); golden case `journey-demo-walker` (`world: elmina`).
 
 **Fix-it search and MCP (Cycle 4):**
 - **`find_fixes`:** beam search over imagined fixes on the world model (`townshiplens_spatial.fixit`).

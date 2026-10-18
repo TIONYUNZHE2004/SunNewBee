@@ -509,6 +509,7 @@ def draft_errors(text: str, rec: TurnRecord) -> list[str]:
         *day_errors(ans, rec),
         *day_change_errors(ans, rec),
         *affected_errors(ans, rec),
+        *journey_errors(ans, rec),
     ]
 
 
@@ -628,6 +629,7 @@ def validate_answer(ans: FinalAnswer, rec: TurnRecord) -> list[str]:
     errs += my_trip_errors(ans, rec)
     errs += affected_errors(ans, rec)
     errs += measurement_errors(ans, rec)
+    errs += journey_errors(ans, rec)
     # Honesty rules apply to every answer, whether or not a tool ran.
     errs += text_errors(all_text, rec)
     errs += overclaim_errors(all_text, rec)
@@ -1465,6 +1467,108 @@ def rollout_errors(ans: FinalAnswer, rec: TurnRecord) -> list[str]:
     return errs
 
 
+# Journey answers (spec 2026-10-19 §6.3, AC-D5). The plan is TurnRecord.journeys (built in
+# call_tool from the world and the route plan_route returned), never the model's text. Counts are
+# read per sentence of the summary, steps (list numbers dropped), caveats and claim texts, with
+# place names and event titles removed first ("Urban Park bench 3" is a name, not a count):
+# - rest count: a number (digits or one..twelve) before "rest stop(s) / rest point(s) / bench(es)
+#   / places to rest" (BM "tempat rehat", "bangku"; zh "长椅", "休息点"), or after "rest stops
+#   ...:" ("Rest stops mapped on this route: 3"). Allowed: the plan's rest events, or the route's
+#   own rest_points count (the plan leaves out a rest point at the start and thins rests past 12
+#   events).
+# - unchecked-place count: in a sentence that says "not checked" / "unchecked" (BM, zh too), a
+#   number before "place(s) / spot(s) / location(s)" ("tempat", "lokasi"; zh "个地方", "处").
+#   Allowed: the plan's unknown events. "Items" (verification items) are a different unit.
+_NUM_WORDS = {
+    w: i
+    for i, w in enumerate(
+        "zero one two three four five six seven eight nine ten eleven twelve".split()  # noqa: SIM905
+    )
+}
+_JCNT = r"(\d+|zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)"
+REST_COUNT = re.compile(
+    rf"(?<![\w.,]){_JCNT}\s+(?:(?:more|mapped|verified|demo|other)\s+)*"
+    r"(?:rest[- ](?:stops?|points?|places?)|benche?s?|places? to rest|tempat rehat|bangku)\b"
+    rf"|\brest[- ](?:stops?|points?)\b[^.;:\n]{{0,30}}:\s*{_JCNT}\b"
+    r"|(\d+)\s*(?:张|个)?(?:长椅|休息点)",
+    re.IGNORECASE,
+)
+UNCHECKED_PLACES = re.compile(
+    rf"(?<![\w.,]){_JCNT}\s+(?:(?:more|unchecked|other)\s+)*"
+    r"(?:places?|spots?|locations?|tempat|lokasi)\b|(\d+)\s*(?:个地方|个地点|处)",
+    re.IGNORECASE,
+)
+_JSENT = re.compile(r"(?<=[.!?;。！？；])\s*|\n")
+
+
+def _count(groups) -> int:
+    g = next(x for x in groups if x)
+    return int(g) if g.isdigit() else _NUM_WORDS[g.lower()]
+
+
+def _answer_plan(ans: FinalAnswer, rec: TurnRecord):
+    """The plan the answer is about: its route_id, else the only route, else the route of its
+    first journey.play. None when no plan was built for it."""
+    rid = ans.route_id or (next(iter(rec.routes)) if len(rec.routes) == 1 else None)
+    if rid is None:
+        rid = next((i.route_id for i in ans.scene_intents if i.kind == "journey.play"), None)
+    return rid, rec.journeys.get(rid or "")
+
+
+def journey_errors(ans: FinalAnswer, rec: TurnRecord) -> list[str]:
+    errs: list[str] = []
+    plays = [i for i in ans.scene_intents if i.kind == "journey.play"]
+    for it in plays:
+        if not it.route_id or it.route_id not in rec.routes:
+            errs.append(
+                f"journey.play names route {it.route_id!r}, which plan_route did not return "
+                "this turn: use the route_id of a route from this turn."
+            )
+        elif it.route_id not in rec.journeys:
+            errs.append(f"No journey can be built for route {it.route_id}: leave journey.play out.")
+        if not it.start_time:
+            errs.append('journey.play needs start_time ("HH:MM", e.g. "09:00").')
+    rid, plan = _answer_plan(ans, rec)
+    if plan is None:
+        return errs
+    names = rec.place_names | {e.title for e in plan.events}
+    parts = [ans.summary, *(_STEP_NUMBER.sub("", s) for s in ans.steps), *ans.caveats]
+    parts += [c.text for c in ans.claims]
+    text = _strip_names("\n".join(parts), names)
+    rests = sum(e.kind == "rest" for e in plan.events)
+    allowed_rests = {rests, len(rec.routes.get(rid or "", {}).get("rest_points") or [])}
+    unknown = sum(e.kind == "unknown" for e in plan.events)
+    said_rests, said_unknown = set(), set()
+    for sent in _JSENT.split(text):
+        said_rests |= {_count(m.groups()) for m in REST_COUNT.finditer(sent)}
+        if UNCHECKED_WORDS.search(sent):
+            said_unknown |= {_count(m.groups()) for m in UNCHECKED_PLACES.finditer(sent)}
+    if bad := sorted(said_rests - allowed_rests):
+        errs.append(
+            f"The answer says {bad} rest stops, but the walk for this route has {rests}: "
+            "use the route's journey.rest_stops."
+        )
+    if bad := sorted(said_unknown - {unknown}):
+        errs.append(
+            f"The answer says {bad} unchecked places, but the walk for this route shows "
+            f"{unknown}: use the route's journey.unchecked_places."
+        )
+    if any(i.route_id == rid for i in plays):
+        all_text = " ".join(parts)
+        if any(e.demo for e in plan.events) and not has_demo_phrase(all_text):
+            errs.append(
+                "The journey shows demo facts (team_survey_placeholder): add a caveat with the "
+                f"exact phrase '{PLACEHOLDER_CAVEAT}'."
+            )
+        checked = any(e.status == "verified" and not e.demo for e in plan.events)
+        if not checked and _claims_verified(_strip_names(all_text, names)):
+            errs.append(
+                "Nothing on this journey is verified by staff: never say 'verified' (say 'No "
+                "known barrier' or 'not checked yet')."
+            )
+    return errs
+
+
 def repair_answer(ans: FinalAnswer, rec: TurnRecord) -> tuple[FinalAnswer, list[str]]:
     """Fact-free fixes applied before `validate_answer`, so a live model is not sent back for them.
 
@@ -1506,6 +1610,14 @@ def repair_answer(ans: FinalAnswer, rec: TurnRecord) -> tuple[FinalAnswer, list[
 
 # Readable reasons for an answer.check event (shown under "How the AI checked this").
 _ISSUES = (
+    # journey answers first: their messages also mention "route_id" and "caveat"
+    ("journey.play names route", "played a walk for a route that was not checked"),
+    ("No journey can be built", "played a walk the township data cannot show"),
+    ("journey.play needs start_time", "played a walk without a start time"),
+    ("rest stops, but the walk", "gave a rest-stop count the walk does not show"),
+    ("unchecked places, but the walk", "gave an unchecked-place count the walk does not show"),
+    ("The journey shows demo facts", "left out that values are demo values, not yet surveyed"),
+    ("Nothing on this journey is verified", "called unchecked facts verified"),
     (
         "Never describe a place or route as safe",
         "used a reassurance word that flood answers never use",
