@@ -24,6 +24,7 @@ import { useOverlays } from "./scene/useOverlays";
 import { usePicking } from "./scene/usePicking";
 import { useRoofs } from "./scene/useRoofs";
 import { useMergeMeasure, useStream } from "./scene/useStream";
+import { useVerges } from "./scene/useVerges";
 
 /** Bottom-left map note (clear of the camera cluster and the attribution strip). */
 function ExperimentalEngineChip() {
@@ -163,6 +164,7 @@ export default function ThreeScene({
     roofSrc: city.roofSrc,
   });
   const { roads } = useRoads({ engine, active, tier });
+  const { vergesOn } = useVerges({ engine, active, tier });
   const { facadesOn } = useFacades({
     engine,
     active,
@@ -206,12 +208,13 @@ export default function ThreeScene({
   const { initialBackground } = useMood({ engine, roleUniforms, sectionRef, home, bus });
   usePicking({ engine, hostRef, places });
 
-  // Any decorative layer in the scene: city assets (kits, decorative landmarks), facades, roofs, props,
+  // Any decorative layer in the scene: city assets (kits, decorative landmarks), facades, roofs, verges, props,
   // agents, the ground layer (land-cover tints, road surfaces) or the ambient birds and clouds.
   const decorativeShown =
     city.decorAssets ||
     facadesOn ||
     roofsOn ||
+    vergesOn ||
     kits.size > 0 ||
     agents.length > 0 ||
     (!!engine && (roads.length > 0 || !!landcover?.getAttribute("position")?.count)) ||

@@ -8,11 +8,12 @@ import type { RoofItem, TileRoofs } from "../facade/roofLayer";
 import { roofDressing } from "../facade/roofPlan";
 import type { LocalFrame } from "../frame";
 import { ribbonsFromWalk } from "../ground/ribbons";
+import { planVerges } from "../ground/verges";
 import { planAgents } from "../motion/agents";
 import { planProps } from "../props/propsPlan";
 import { planSigns } from "../signs/signPlan";
 import { type PlanArea, seedFor } from "./area";
-import { tileCap } from "./caps";
+import { tileCap, VERGE_PIECES_PER_CAP, VERGE_SHRUBS_PER_CAP } from "./caps";
 import type { Ring, TileContent } from "./streamer";
 import { type Tile, type TileKey, tileAt } from "./tiles";
 
@@ -138,8 +139,37 @@ export function planTile(inp: TileInputs, tile: Tile, ring: Ring, tier: Tier): T
     ribbons,
     facades: rich && ring <= 1 ? (inp.facades?.get(tile.key) ?? NO_FACADES) : undefined,
     roofs: rich && ring <= 1 && inp.roofs ? planRoofs(inp.roofs.get(tile.key)) : undefined,
+    verges: planTileVerges(inp, tile, ring, tier),
   };
 }
+
+// --- Task 9: grass verges and shrub rows (self-contained) ---------------------------------------
+/**
+ * One tile's grass verge strips and shrub rows (decorative). The `verges` cap counts units of
+ * VERGE_PIECES_PER_CAP strip pieces plus, at ring 0 only, VERGE_SHRUBS_PER_CAP shrubs
+ * (TRIS_PER.verges prices the same unit). A 0 cap (Low, ring 2, Medium ring 1): none. Shrubs need the kit manifest; they are `trees`
+ * kit variants and join the kit union (`unionKits`), not this tile's `kits` (so `farView`, which keeps
+ * tree kits beyond 1500 m, drops them with the strips).
+ */
+export function planTileVerges(
+  inp: TileInputs,
+  tile: Tile,
+  ring: Ring,
+  tier: Tier,
+): TileContent["verges"] {
+  const cap = tileCap(tier, ring, "verges", tile, inp.frame);
+  if (cap <= 0) return undefined;
+  const shrubCap = ring === 0 && inp.manifest ? Math.floor(cap * VERGE_SHRUBS_PER_CAP) : 0;
+  return planVerges(
+    inp.walk,
+    inp.buildings?.buildings ?? null,
+    tile,
+    inp.frame,
+    shrubCap,
+    cap * VERGE_PIECES_PER_CAP,
+  );
+}
+// --- end Task 9 ------------------------------------------------------------------------------------
 
 /** A box no data reaches: planning it builds every planner's layer cache and places nothing. */
 const NOWHERE: Tile = {

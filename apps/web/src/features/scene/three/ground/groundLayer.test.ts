@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { describe, expect, it } from "vitest";
+import { GROUND_BANDS } from "./bands";
 import { createGroundLayer } from "./groundLayer";
 import type { Ribbon } from "./ribbons";
 
@@ -73,5 +74,39 @@ describe("createGroundLayer", () => {
     layer.dispose();
     expect(geo).toBe(1);
     expect(mat).toBe(ms.length);
+  });
+
+  it("land cover takes the ground detail (after the shimmer, on the shared clock); roads do not", () => {
+    const uTime = { value: 0 };
+    const layer = createGroundLayer([ribbon("major")], lc(), "medium", uTime);
+    const [land, roads] = meshes(layer.group).map((m) => m.material as THREE.Material);
+    expect(land!.customProgramCacheKey()).toMatch(/_shimmer_water-only_groundDetail$/);
+    expect(roads!.customProgramCacheKey()).not.toContain("_groundDetail");
+    // The patch binds the shared clock.
+    const shader = {
+      uniforms: {} as Record<string, { value: unknown }>,
+      vertexShader: ["void main() {", "#include <begin_vertex>", "}"].join("\n"),
+      fragmentShader: ["void main() {", "#include <color_fragment>", "}"].join("\n"),
+    };
+    land!.onBeforeCompile(shader as never, {} as never);
+    expect(shader.uniforms.uTime).toBe(uTime);
+    expect(shader.fragmentShader).toContain("tlVNoise");
+  });
+
+  it("keeps the detail at Low too (a shader term, no geometry)", () => {
+    const layer = createGroundLayer([], lc(), "low", { value: 0 });
+    const land = meshes(layer.group)[0]!.material as THREE.Material;
+    expect(land.customProgramCacheKey()).toContain("_groundDetail");
+  });
+
+  it("ground draws stay <= 6: one mesh per band, six bands (land cover, parks, water, verges, roads, markings)", () => {
+    expect(Object.keys(GROUND_BANDS)).toHaveLength(6);
+    const layer = createGroundLayer(
+      [ribbon("major"), ribbon("footway"), ribbon("major", true), ribbon("other", true)],
+      lc(),
+      "high",
+    );
+    const orders = meshes(layer.group).map((m) => m.renderOrder);
+    expect(new Set(orders).size).toBe(orders.length);
   });
 });
