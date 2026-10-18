@@ -5,6 +5,7 @@ import type { Manifest } from "../assets/manifest";
 import type { LocalFrame } from "../frame";
 import { boxCentre, growBox, inBox, type PlanArea, perLayer, touchesBox } from "../stream/area";
 import type { PropKind } from "./caps";
+import { planConstructionSites } from "./construction";
 
 /**
  * Seeded, static, DECORATIVE props for one planning box (a streaming tile, or a union of tiles):
@@ -69,9 +70,6 @@ const FOREST_SPACING = 9;
 const OIL_PALM_SPACING = 8;
 const FURNITURE_EDGE_SPACING = 25;
 const PLACE_FURNITURE_RANGE = 15;
-const HOARDING_M = 6;
-const EXCAVATOR_MIN_M2 = 2000;
-const CRANE_MIN_M2 = 8000;
 const BOLLARD_SPACING = 1.5;
 const BOLLARDS_PER_ENTRANCE = 5;
 const GRID_M = 32;
@@ -186,13 +184,6 @@ function distToRing(x: number, z: number, ring: Ring): number {
   for (let i = 0, j = ring.length - 1; i < ring.length; j = i++)
     d = Math.min(d, distSeg(x, z, ring[j]!, ring[i]!));
   return d;
-}
-
-function areaOf(ring: Ring): number {
-  let a = 0;
-  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++)
-    a += ring[j]![0] * ring[i]![1] - ring[i]![0] * ring[j]![1];
-  return Math.abs(a / 2);
 }
 
 function bboxOf(ring: Ring): [number, number, number, number] {
@@ -778,76 +769,6 @@ export function planProps(input: PropsInput): PropsPlan {
       });
   }
 
-  // Construction sites.
-  for (const { poly, id: ci } of constructionPolys) {
-    const ring = poly[0]!;
-    const b = bboxOf(ring);
-    const area = areaOf(ring) - poly.slice(1).reduce((s, h) => s + areaOf(h), 0);
-    // Hoardings: every 6 m along the boundary, midpoint of each span, facing outward.
-    const closed = [...ring, ring[0]!];
-    // Per-site quota under a tight cap, nearest site first (`sd`): rank 0 cabin, 1 two hoardings,
-    // 2 crane, 3 excavator, 4 stacks, 5 the remaining hoardings.
-    const sd = dist((b[0] + b[2]) / 2, (b[1] + b[3]) / 2);
-    // Indexed along the whole boundary (`along` only returns the spans near the box).
-    let perimeter = 0;
-    for (let k = 0; k < closed.length - 1; k++)
-      perimeter += Math.hypot(closed[k + 1]![0] - closed[k]![0], closed[k + 1]![1] - closed[k]![1]);
-    const spans = Math.floor((perimeter - HOARDING_M / 2) / HOARDING_M + 1e-9) + 1;
-    for (const p of along(closed, HOARDING_M, HOARDING_M / 2)) {
-      const i = Math.round((p.s - HOARDING_M / 2) / HOARDING_M);
-      const n: P = [p.tz, -p.tx];
-      const outward = inPoly(p.x + n[0] * 0.5, p.z + n[1] * 0.5, poly) ? -1 : 1;
-      push(
-        "construction",
-        "construction/hoarding_6m",
-        `hd${ci}:${i}`,
-        p.x,
-        p.z,
-        Math.atan2(n[0] * outward, n[1] * outward),
-        {
-          ribbon: false,
-          building: false,
-          rank: i === 0 || i === Math.floor(spans / 2) ? 1 : 5,
-          sd,
-        },
-      );
-    }
-    // Interior spots, roomiest first (distance to the boundary), deterministic.
-    const spots: { x: number; z: number; r: number }[] = [];
-    const step = Math.max(2, Math.min(b[2] - b[0], b[3] - b[1]) / 12);
-    for (let x = b[0] + step / 2; x < b[2]; x += step)
-      for (let z = b[1] + step / 2; z < b[3]; z += step)
-        if (inPoly(x, z, poly))
-          spots.push({ x, z, r: Math.min(...poly.map((rg) => distToRing(x, z, rg))) });
-    spots.sort((p, q) => q.r - p.r || p.x - q.x || p.z - q.z);
-    const taken: P[] = [];
-    const take = (minR: number, gap: number): { x: number; z: number } | null => {
-      for (const s of spots) {
-        if (s.r < minR) break;
-        if (taken.every((t) => Math.hypot(t[0] - s.x, t[1] - s.z) >= gap)) {
-          taken.push([s.x, s.z]);
-          return s;
-        }
-      }
-      return null;
-    };
-    const place = (key: string, tag: string, minR: number, gap: number, rank: number) => {
-      const s = take(minR, gap);
-      if (s)
-        push("construction", key, `${tag}${ci}`, s.x, s.z, undefined, {
-          ribbon: false,
-          building: false,
-          rank,
-          sd,
-        });
-    };
-    if (area > CRANE_MIN_M2) place("construction/tower_crane", "tc", 0, 0, 2);
-    place("construction/site_cabin", "sc", 2, 8, 0);
-    place("construction/material_stack", "ms0_", 2, 6, 4);
-    place("construction/material_stack", "ms1_", 2, 6, 4);
-    if (area > EXCAVATOR_MIN_M2) place("construction/excavator", "ex", 3, 8, 3);
-  }
-
   // Caps. Trees are stratified by source (TREE_SHARES) after the spacing rule, so one dense patch
   // cannot starve the rest; construction ranks by per-site quota; everything else is nearest-first.
   const cmp = (a: Cand, b: Cand) =>
@@ -966,6 +887,13 @@ export function planProps(input: PropsInput): PropsPlan {
   emitTrees();
   emit("lamps", cands.lamps);
   emit("furniture", cands.furniture);
-  emit("construction", cands.construction);
+  // Construction sites come from `construction.ts` (the P3 set: hoardings, a cabin, two stacks,
+  // an excavator, a crane); the by-area dressing is `planConstruction`'s, used by the streamer.
+  const cap = capOf("construction");
+  if (cap > 0) {
+    const built = planConstructionSites(constructionPolys, box, cap, m, false);
+    for (const [k, l] of built.kits) plan.kits.set(k, l);
+    plan.stats.construction = built.count;
+  } else plan.stats.construction = 0;
   return plan;
 }
