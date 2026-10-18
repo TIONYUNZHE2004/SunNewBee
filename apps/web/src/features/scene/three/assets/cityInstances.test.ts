@@ -169,6 +169,32 @@ describe("createCityInstances kits", () => {
   });
 });
 
+describe("kit LOD distance scale", () => {
+  const kitsOf = (a: string) => new Map([[`${a}/v`, [pl(a, 0)]]]);
+  const lodAt = (a: string, scale: number | undefined, d: number) => {
+    const c = createCityInstances(lib(), plan("none"), manifest(), createRoleUniforms(), {
+      kits: kitsOf(a),
+      kitLodScale: scale,
+    });
+    c.update(new THREE.Vector3(d, 0, 0));
+    return meshesOf(c).findIndex((m) => m.visible);
+  };
+  it("shortens kit LOD distances and leaves archetypes alone", () => {
+    // unit lods are 300 / 1500 / unbounded; at 200 m a 0.5 scale puts a kit in LOD1
+    expect(lodAt("k", 1, 200)).toBe(0);
+    expect(lodAt("k", 0.5, 200)).toBe(1);
+    expect(lodAt("k", 0.5, 800)).toBe(2);
+    const arch = (scale: number) => {
+      const c = createCityInstances(lib(), plan("a"), manifest(), createRoleUniforms(), {
+        kitLodScale: scale,
+      });
+      c.update(new THREE.Vector3(200, 0, 0));
+      return meshesOf(c).findIndex((m) => m.visible);
+    };
+    expect(arch(0.5)).toBe(arch(1));
+  });
+});
+
 describe("createCityInstances", () => {
   it("buckets by distance and rebuilds only on change", () => {
     const c = createCityInstances(lib(), plan("a"), manifest(), createRoleUniforms());
@@ -225,13 +251,13 @@ describe("createCityInstances", () => {
     expect(am.castShadow && am.receiveShadow).toBe(true);
   });
 
-  it("shadows: kits cast at LOD0 only, archetypes at LOD0 and LOD1, never at LOD2; landmarks cast", () => {
+  it("shadows: kits and archetypes cast at LOD0 only; landmarks cast", () => {
     const cast = (asset: string) =>
       meshesOf(createCityInstances(lib(), plan(asset), manifest(), createRoleUniforms())).map(
         (m) => m.castShadow,
       );
     expect(cast("k")).toEqual([true, false, false]);
-    expect(cast("a")).toEqual([true, true, false]);
+    expect(cast("a")).toEqual([true, false, false]);
     const c = createCityInstances(
       lib(),
       plan("a", [pl("lm", 0)]),

@@ -105,7 +105,12 @@ export function createCityInstances(
   plan: CityPlan,
   m: Manifest,
   uniforms: RoleUniforms,
-  extra?: { kits?: Map<string, Placement[]>; motion?: MotionUniforms },
+  extra?: {
+    kits?: Map<string, Placement[]>;
+    motion?: MotionUniforms;
+    /** Multiplies every kit LOD distance (maxM); archetypes are untouched. Default 1. */
+    kitLodScale?: number;
+  },
 ): CityInstances {
   const group = new THREE.Group();
   group.name = "city-instances";
@@ -134,9 +139,13 @@ export function createCityInstances(
     const spec = m.assets[asset];
     const vspec = spec?.variants[variant];
     if (!spec || !vspec || list.length === 0) continue;
+    const lodScale = spec.group === "kit" ? (extra?.kitLodScale ?? 1) : 1;
     const key: Key = {
       list,
-      lods: vspec.lods,
+      lods:
+        lodScale === 1
+          ? vspec.lods
+          : vspec.lods.map((l) => ({ ...l, maxM: l.maxM == null ? null : l.maxM * lodScale })),
       cur: new Int8Array(list.length).fill(UNSET),
       raw: new Int8Array(list.length).fill(UNSET),
       resolve: [],
@@ -163,11 +172,9 @@ export function createCityInstances(
       mesh.visible = false;
       mesh.name = `${asset}__${variant}__LOD${lod}`;
       const archetype = spec.group === "archetype";
-      // Shadows: LOD0 always; archetype LOD1 too (300 m-1.5 km houses sit inside the fitted shadow
-      // frustum at hero-mid, and dropping them would pop shadows at the 300 m boundary); LOD2
-      // (> 1.5 km blocks) never: their shadow texels are sub-pixel there and they are the most
-      // numerous instances (I3).
-      mesh.castShadow = lod === 0 || (archetype && lod === 1);
+      // Shadows: LOD0 only (archetype and kit alike). Beyond 300 m the texels are tiny at hero-mid and
+      // the shadow pass re-draws every caster, so LOD1 and LOD2 never cast (budget lever, Task 6).
+      mesh.castShadow = lod === 0;
       mesh.userData.lod = lod;
       mesh.receiveShadow = true;
       mesh.userData.ids = [] as string[];

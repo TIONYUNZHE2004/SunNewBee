@@ -57,6 +57,7 @@ import {
   moodSource,
   moodWeights,
 } from "./mood";
+import { KIT_LOD_SCALE } from "./props/caps";
 import { planProps } from "./props/propsPlan";
 import { lineToLocal } from "./routeLine";
 
@@ -409,7 +410,10 @@ export default function ThreeScene({
       const plan = showroom
         ? showroomPlan(m, frame.toLocal(HERO_CENTRE[0], HERO_CENTRE[1]))
         : planCity(buildings, frame, manifest, lib.has);
-      const inst = createCityInstances(lib, plan, m, roleUniforms, { kits: propsKits.current });
+      const inst = createCityInstances(lib, plan, m, roleUniforms, {
+        kits: propsKits.current,
+        kitLodScale: showroom ? 1 : KIT_LOD_SCALE[initialTier.current],
+      });
       cityPlanRef.current = plan;
       const g = buildCityGeometry(buildings, frame, {
         only: plan.extrude,
@@ -453,6 +457,7 @@ export default function ThreeScene({
         roleUniforms,
         {
           kits: propsPlan.kits,
+          kitLodScale: KIT_LOD_SCALE[initialTier.current],
         },
       );
       engine.setAssets(inst);
