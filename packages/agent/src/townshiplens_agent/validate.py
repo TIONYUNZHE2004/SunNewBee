@@ -4,7 +4,14 @@ from townshiplens_spatial.attributes import ATTRIBUTE_TYPES
 
 from .answer import FinalAnswer
 from .facts import _matches as _fact_matches
-from .facts import extract_facts, merge, tool_values, unsupported, unsupported_features
+from .facts import (
+    category_words,
+    extract_facts,
+    merge,
+    tool_values,
+    unsupported,
+    unsupported_features,
+)
 from .labels import (
     CLOSURE_WORDS,
     DEMO_CONFIRMED,
@@ -303,6 +310,13 @@ def _strip_names(text: str, names: set[str]) -> str:
     return text
 
 
+def _names_to_categories(text: str, names: set[str]) -> str:
+    """Replace each tool-returned place name by its category words (facts.category_words)."""
+    for n in sorted((n for n in names if n), key=len, reverse=True):
+        text = re.sub(re.escape(n), category_words(n), text, flags=re.IGNORECASE)
+    return text
+
+
 def payload_numbers(payload) -> set[float]:
     """Every number a tool result shows, whatever it measures (facts.tool_values)."""
     return set().union(*tool_values(payload).values())
@@ -344,7 +358,9 @@ def measurement_errors(ans: FinalAnswer, rec: TurnRecord) -> list[str]:
     evidence that records it."""
     parts = [ans.summary, *(_STEP_NUMBER.sub("", s) for s in ans.steps), *ans.caveats]
     parts += [c.text for c in ans.claims]
-    text = _strip_names(" ".join(parts), rec.place_names)
+    # Names go (they may hold numbers), but what they are stays: "Urban Park toilet is 440.6 m
+    # from Elmina Lakeside Mall" is checked as "toilet is 440.6 m from mall".
+    text = _names_to_categories(" ".join(parts), rec.place_names)
     errs: list[str] = []
     # Rehearsal clock durations ("over 2 hours", "313 min") are checked by day_errors and
     # my_trip_errors, not here.

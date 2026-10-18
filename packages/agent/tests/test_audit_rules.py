@@ -2,6 +2,7 @@
 
 import pytest
 from townshiplens_agent.answer import Claim, FinalAnswer
+from townshiplens_agent.facts import extract_facts, tool_values, unsupported
 from townshiplens_agent.record import TurnRecord
 from townshiplens_agent.validate import (
     measurement_errors,
@@ -159,3 +160,34 @@ def test_nearest_whole_minute_needs_about():
     assert measurement_errors(ans("Route status: confirmed. Under 2 minutes."), r) == []
     assert measurement_errors(ans("Route status: confirmed. Over 2 minutes."), r)
     assert measurement_errors(ans("Route status: confirmed. About 1 km."), r)  # 0.12 km
+
+
+# T-001 subject binding (facts.py "Subjects").
+def test_zh_segment_counts_are_not_step_counts():
+    assert extract_facts("两段无名人行道的台阶未核实。") == []
+    assert [(f.kind, f.value) for f in extract_facts("路线有99级台阶。")] == [("steps", 99.0)]
+    assert [(f.noun, f.value) for f in extract_facts("有两个厕所。")] == [("toilet", 2.0)]
+    assert [(f.noun, f.value) for f in extract_facts("There is one bench.")] == [("bench", 1.0)]
+
+
+def test_counts_are_of_distinct_things_and_tagged_by_subject():
+    unknowns = [
+        {"element_id": "seg-1", "attribute": a, "element_label": "an unnamed ramp"}
+        for a in ("step_count", "incline_pct", "width_m")
+    ]
+    v = tool_values({"unknowns": unknowns, "crossings": [{"id": "x"}, {"id": "y"}]})
+    assert v["count:ramp"] == {1.0}  # three unchecked facts on one ramp
+    assert v["count:crossing"] == {2.0}
+    route = {"from_place": "a", "to_place": "b", "distance_m": 440.6, "est_minutes": 6.3}
+    tagged = tool_values(route, resolve=lambda pid: {"a": {"parking"}, "b": {"playground"}}[pid])
+    assert tagged["length:parking"] == tagged["length:playground"] == {440.6}
+    assert "length:toilet" not in tagged
+    rows = tool_values({"data": [{"name": "x", "walk_m": 58.5}]}, subject={"toilet"})
+    assert rows["count:toilet"] == {1.0} and rows["length:toilet"] == {58.5}
+
+
+def test_subject_rule_needs_every_named_category():
+    values = {"length": {440.6}, "length:parking": {440.6}, "length:playground": {440.6}}
+    assert unsupported("From the car park to the playground: 440.6 m.", values) == []
+    assert unsupported("The toilet is 440.6 m from the car park.", values) == ["440.6 m"]
+    assert unsupported("It is 440.6 m.", values) == []  # no subject named: plain kind rule

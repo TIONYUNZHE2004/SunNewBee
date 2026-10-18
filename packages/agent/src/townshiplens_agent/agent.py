@@ -32,7 +32,7 @@ from .events import (
     ToolResultEvent,
     VerificationRequested,
 )
-from .facts import tool_values
+from .facts import categories, tool_values
 from .labels import crossing_note, enrich_unknowns
 from .mock import mock_model
 from .record import TurnRecord
@@ -442,9 +442,26 @@ async def call_tool(deps: Deps, name: str, **kwargs: Any) -> dict:
         rec.scenarios_used.add(ui_scenario(deps))
     await _emit(deps, ToolResultEvent(id=call_id, name=name, summary=_summarise(name, res)))
     out = _for_model(name, _without_closure_notes(res.model_dump(mode="json")))
-    for unit, vals in tool_values(out).items():
+    world = deps.ctx.world
+    subject = None
+    if name == "nearby_amenities":  # each row is that amenity, measured from the origin
+        subject = categories(str(kwargs.get("amenity", ""))) | place_categories(
+            world, str(kwargs.get("origin_id", ""))
+        )
+    measures = tool_values(out, resolve=lambda pid: place_categories(world, pid), subject=subject)
+    for unit, vals in measures.items():
         rec.tool_measures.setdefault(unit, set()).update(vals)
     return out
+
+
+def place_categories(world, place_id: str) -> set[str]:
+    """What a place or centre is (facts.categories of its type and name), so a route's length
+    is bound to its two ends ("the toilet is 440.6 m from the mall" needs a toilet end)."""
+    if place_id.startswith("__centre__"):
+        c = world.centres.get(place_id.removeprefix("__centre__"))
+        return {"centre"} | categories(c.name if c else "")
+    p = world.places.get(place_id)
+    return categories(f"{p.type} {p.name} {' '.join(p.aliases)}") if p else set()
 
 
 # Id lists the model never needs: on the Elmina seed affected_places at +5 m lists 2,468 edge ids
