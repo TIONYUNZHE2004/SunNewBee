@@ -4,6 +4,7 @@ import {
   emptyAssistant,
   isRefusal,
   isTemplateFallback,
+  lineCoords,
   reduceChatEvent,
   reduceIntent,
 } from "./chatReducer";
@@ -19,13 +20,38 @@ describe("reduceChatEvent", () => {
   });
   it("tracks tool calls and marks them done by id", () => {
     let m = emptyAssistant("a1");
-    m = reduceChatEvent(m, ev({ type: "tool.call", id: "t1", name: "plan_route", args: {} }));
-    expect(m.tools).toEqual([{ id: "t1", name: "plan_route", done: false }]);
+    m = reduceChatEvent(
+      m,
+      ev({ type: "tool.call", id: "t1", name: "plan_route", args: { from_id: "a", to_id: "b" } }),
+    );
+    expect(m.tools).toEqual([
+      { id: "t1", name: "plan_route", done: false, args: { from_id: "a", to_id: "b" } },
+    ]);
     m = reduceChatEvent(
       m,
       ev({ type: "tool.result", id: "t1", name: "plan_route", summary: "ok" }),
     );
     expect(m.tools[0]?.done).toBe(true);
+  });
+  it("keeps the route line from route.highlight for the sketch, and nothing for a bad geometry", () => {
+    const line = {
+      type: "LineString",
+      coordinates: [
+        [101.5, 3.1],
+        [101.51, 3.11],
+      ],
+    };
+    const m = reduceIntent(emptyAssistant("a1"), {
+      kind: "route.highlight",
+      route_id: "r1",
+      geojson: line,
+    } as never);
+    expect(m.route?.coords).toEqual([
+      [101.5, 3.1],
+      [101.51, 3.11],
+    ]);
+    expect(lineCoords({ type: "Point", coordinates: [1, 2] })).toBeUndefined();
+    expect(lineCoords({ type: "LineString", coordinates: [[1, 2]] })).toBeUndefined();
   });
   it("collects citations, uncertainty, disclaimer and verification requests", () => {
     let m = emptyAssistant("a1");

@@ -4,8 +4,10 @@ import { Icon } from "../../ui/icons";
 import { StatusChip } from "../../ui/StatusChip";
 import type { StatusKey } from "../../ui/status";
 import type { AssistantMessage } from "../chat/chatReducer";
+import { useElementNames } from "../chat/useElementNames";
 import { useScene } from "../scene/sceneStore";
 import { useEffectiveView } from "../scene/useMapStyle";
+import { RouteSketch } from "./RouteSketch";
 
 /** Route status -> chip. OSM-derived "confirmed" is never called Verified (honesty rule). */
 export const ROUTE_CHIP: Record<string, { status: StatusKey; label: string }> = {
@@ -30,12 +32,25 @@ export function RouteSummary({ m }: { m: AssistantMessage }) {
   // and only in the 3D view (List and Mapbox ignore focusRouteRequest).
   const isCurrent = useScene((s) => s.route?.id) === r?.id;
   const in3d = useEffectiveView() === "cesium";
+  const names = useElementNames();
   if (!chip && !flood && !demo) return null;
+  // From/to names come from the plan_route call's ids, looked up in the map layers.
+  const plan = [...m.tools].reverse().find((t) => t.name === "plan_route");
+  const nameOf = (v: unknown) => (typeof v === "string" ? names.get(v) : undefined);
+  const canShow = Boolean(chip && r && isCurrent && in3d);
   const meters = chip && typeof r?.distanceM === "number" ? Math.round(r.distanceM) : null;
   const minutes =
     chip && typeof r?.minutes === "number" ? Math.max(1, Math.round(r.minutes)) : null;
   return (
     <div className="space-y-3 rounded-2xl border border-edge bg-raised p-3.5">
+      {chip && r?.coords && (
+        <RouteSketch
+          coords={r.coords}
+          from={nameOf(plan?.args?.from_id)}
+          to={nameOf(plan?.args?.to_id)}
+          onShow={canShow && r ? () => useScene.getState().requestRouteFocus(r.id) : undefined}
+        />
+      )}
       <div className="flex flex-wrap items-center gap-1.5">
         {chip && <StatusChip status={chip.status} label={chip.label} />}
         {demo && <StatusChip status="demo" />}
@@ -48,7 +63,7 @@ export function RouteSummary({ m }: { m: AssistantMessage }) {
               <dt className="font-mono text-[0.68rem] uppercase tracking-[0.12em] text-fg-soft">
                 Distance
               </dt>
-              <dd className="m-0 text-2xl font-semibold tracking-tight text-fg tabular-nums">
+              <dd className="m-0 text-2xl font-semibold tracking-tight text-fg tabular-nums motion-safe:animate-[rise_420ms_cubic-bezier(.2,.7,.2,1)_both]">
                 {meters.toLocaleString("en-US")} m
               </dd>
             </div>
@@ -58,14 +73,14 @@ export function RouteSummary({ m }: { m: AssistantMessage }) {
               <dt className="font-mono text-[0.68rem] uppercase tracking-[0.12em] text-fg-soft">
                 Walk
               </dt>
-              <dd className="m-0 text-2xl font-semibold tracking-tight text-fg tabular-nums">
+              <dd className="m-0 text-2xl font-semibold tracking-tight text-fg tabular-nums motion-safe:animate-[rise_420ms_120ms_cubic-bezier(.2,.7,.2,1)_both]">
                 {minutes} min
               </dd>
             </div>
           )}
         </dl>
       )}
-      {chip && r && isCurrent && in3d && (
+      {canShow && r && (
         <button
           type="button"
           onClick={() => useScene.getState().requestRouteFocus(r.id)}

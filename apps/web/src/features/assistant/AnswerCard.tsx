@@ -7,6 +7,7 @@ import { describeUncertainty } from "../chat/uncertainty";
 import { useElementNames } from "../chat/useElementNames";
 import { TripStrip } from "../day/TripStrip";
 import { RouteSummary } from "./RouteSummary";
+import { toolStep } from "./toolSteps";
 
 export function AnswerCard({ m, onRetry }: { m: AssistantMessage; onRetry: () => void }) {
   const names = useElementNames();
@@ -51,7 +52,7 @@ export function AnswerCard({ m, onRetry }: { m: AssistantMessage; onRetry: () =>
               className="absolute -left-[1.3rem] inline-block size-3.5 rounded-full border-2 border-fg-soft border-t-transparent bg-surface motion-safe:animate-spin"
             />
           )}
-          {t.name.replace(/_/g, " ")}
+          <span className={t.done ? "" : "text-fg"}>{toolStep(t, names)}</span>
           <span className="sr-only">{t.done ? " done" : " running"}</span>
         </li>
       ))}
