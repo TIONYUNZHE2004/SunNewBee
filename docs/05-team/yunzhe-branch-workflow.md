@@ -60,6 +60,32 @@ Each local agent works in its own git worktree, so agents never edit the same fo
 - Local agents do not run e2e (fixed ports 5273/8100 would clash); GitHub CI runs it on their PRs.
 - Live OpenRouter budget per day: AI engineer up to US$2, backend engineer up to US$0.50. Rounds of at most 10 live questions; log model, turns and cost per round on the board.
 
+## How the two local engineers work together
+
+The AI engineer (local Claude) and the backend engineer (local Codex) refine one product together. The engine computes the facts; the assistant only phrases them. Most real problems sit on the line between the two.
+
+**What each may decide alone**
+
+| Engineer | Decides alone |
+|---|---|
+| Backend | How the data, evaluation, routing and API work inside `packages/spatial`, `apps/api`, `data/`, `config/profiles` (within the AGENTS.md data rules) |
+| AI | How the assistant uses the tools, words answers and checks them inside `packages/agent`, `evals/` |
+| Both, together | Any change to what a tool returns (a new field, a renamed field, a changed meaning), and which of the two fixes a problem that crosses the line |
+| Yunzhe | Scope changes, anything that weakens an honesty rule in AGENTS.md, changes in `apps/web` (shaoxian04's lane), going over the live budget, sending anything to `main` |
+
+**Talking to each other: the board**
+
+They work in different tools, so the board branch is their shared channel. Every message is a signed, timed entry in a task log.
+
+- **Contract note (before merging):** the backend engineer writes one entry in its task log for every change to tool output: field name, meaning, unit, example value, and which answers should use it. The AI engineer replies in the same log ("seen, will use in T-0xx") before control merges the backend PR.
+- **Hand-off:** when a problem's cause is in the other lane, the finder writes a hand-off entry in the other engineer's audit task (T-016 or T-017) with the reproduction. The receiver accepts or argues in the same log within one working session.
+- **Cross-check:** each engineer reads the other's PR description and adds one log entry: "checked from the <AI|backend> side: OK" or the problem it found. This is a read, not a code review of every line.
+- **Disagreement:** each writes its case in two or three lines in the task log; Yunzhe decides.
+
+**Order of merges.** When AI work depends on a backend change, the backend PR goes into control first; the AI engineer then merges control into its branch and builds on it. Control merges only PRs with green CI.
+
+**Yunzhe's test site.** Yunzhe's own folder (`~/hackathon/SunNewBee`) stays on the control branch and runs `pnpm dev` on the default ports. After control merges a PR: `git pull`, restart `pnpm dev`, test in the browser, and write what looks wrong on the board (any task log, signed "Yunzhe").
+
 ## My scope (who owns what)
 
 Team lanes as agreed (17 Oct 2026; paths from [dev-setup.md](dev-setup.md)): **Jun Quan = Backend**, **shaoxian04 = Frontend**, **Yunzhe = AI + docs/pitch/research**. Jun Quan also works in the AI lane, so AI changes can clash with his.
