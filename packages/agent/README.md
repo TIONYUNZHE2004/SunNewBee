@@ -163,6 +163,13 @@ model is dropped, because the label line already says it.
 - **Shared wording:** `template.my_trip_answer`; prompt rule 19.
 - **Scene intent:** `day.trip` (day, leave minute, stage, and geojson with meta for the departure strip).
 
+### Journey playback (`journey.play`, spec 2026-10-19 §6.2)
+
+- The model (D-T3: also the mock and template) writes `{kind: "journey.play", route_id, start_time}` with a `route_id` from this turn's `plan_route` and a local `HH:MM` start time.
+- `run.py` attaches `journey`: `build_journey(world, route, route.profile, start_time)` from the route recorded in `TurnRecord.routes`, the same way `route.highlight` gets its geometry. A model-written `journey` is discarded.
+- The intent is dropped when the route was not returned this turn, when `start_time` is missing, or when the plan cannot be built (`JourneyEvidenceError`). Every drop is logged. The turn continues. The validator does not reject these yet (D-T3, AC-D5).
+- The plan equals `POST /journeys` for the same endpoints, profile, scenario and start time (AC-D4, `apps/api/tests/test_journeys_api.py`).
+
 **Fix-it search and MCP (Cycle 4):**
 - **`find_fixes`:** beam search over imagined fixes on the world model (`townshiplens_spatial.fixit`).
   - The best set is recorded as a what-if, so every what-if validator rule applies.
@@ -193,7 +200,7 @@ model is dropped, because the label line already says it.
 | Flooded endpoints | Routing may start or end inside a flooded place (you evacuate from where you are). When a scenario is active (plan_route's `scenario_id`, else the UI scenario) and the origin or destination is `likely_flooded`/`possible` in `world.flood.place_classes`, `call_tool` adds evidence `ev-scn-<scenario>.<place_id>`, a warning and `data.endpoint_flood`; the mock and template state it as the first caveat |
 | `template.py` | Deterministic fallback answer that always validates |
 | `mock.py` | Scripted `FunctionModel` for CI and keyless development |
-| `events.py` | SSE event models (`ChatEvent` union), `SceneIntent`, `ChatRequest`. `Citation` carries `source_type` and `photo_url` (the newest staff-uploaded photo on the cited claim, if any) |
+| `events.py` | SSE event models (`ChatEvent` union), `SceneIntent`, `ChatRequest`. `Citation` carries `source_type` and `photo_url` (the newest staff-uploaded photo on the cited claim, if any). `FinalAnswer.scene_intents` uses `AnswerSceneIntent` (what the model may write); `SceneIntent` adds the server-attached `journey` so the `JourneyPlan` schema never enters the model's output schema |
 | `demo.py` | `DEMO_MODE=true` replay of recorded turns from `data/demo/*.jsonl` (only when `meta.world` equals the loaded world) |
 | `prompts/system.md` | System prompt |
 

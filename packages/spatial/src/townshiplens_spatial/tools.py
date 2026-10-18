@@ -31,16 +31,7 @@ class Ctx:
 
 
 def _place_ev(p) -> Evidence:
-    existence = p.claims.get("existence")
-    return Evidence(
-        id=f"ev-place-{p.id}",
-        element_id=p.id,
-        attribute="name",
-        value=p.name,
-        status=existence.status if existence else "reported",
-        source_type=existence.evidence_type if existence else "world_model",
-        verified_at=existence.verified_at if existence else None,
-    )
+    return routing.place_evidence(p)
 
 
 def _place_provenance(p) -> dict:
