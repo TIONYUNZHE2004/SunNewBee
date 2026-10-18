@@ -88,7 +88,7 @@ apps/api POST /chat (SSE) ──► apps/web: parseSse → useChatStream → cha
   - Verification requests, the audit log and sim runs live in SQLite at `.data/<site id>.db`, one file per world unless `DATABASE_URL` is set.
   - Evidence photos live in `.data/evidence/`.
   - `DEMO_MODE=true` replays recorded turns from `data/demo/*.jsonl`. A replay only matches when `meta.world` equals the loaded world.
-- **World data contract:** see `packages/spatial/README.md` (`site.json`, `base/walk.geojson`, `base/places.geojson`, `access/overlay.geojson`, `flood/*`, `waste/points.geojson`). Tests use the tiny fixture in `packages/spatial/tests/fixtures/tiny`. The API falls back to it when the seed is missing; e2e and golden always use it.
+- **World data contract:** see `packages/spatial/README.md` (`site.json`, `base/walk.geojson`, `base/places.geojson`, `access/overlay.geojson`, `flood/*`, `waste/points.geojson`). Tests use the tiny fixture in `packages/spatial/tests/fixtures/tiny`. The API falls back to it when the seed is missing; e2e always uses it, and golden uses it except cases marked `world: elmina`.
 
 ## Honesty invariants (enforced in code; keep them true)
 

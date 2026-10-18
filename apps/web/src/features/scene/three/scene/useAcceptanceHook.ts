@@ -79,6 +79,37 @@ export interface AcceptanceApi {
    * frame is then forced so the frame loop runs).
    */
   measure(seconds: number, orbitDegPerSec: number): Promise<Measurement>;
+  /**
+   * Uncapped frame time (headroom): `frames` frames rendered back to back with `renderNow` and a
+   * `gl.finish()` each (CPU + GPU time, no vsync wait), turning `orbitDegPerFrame` per frame. Blocks
+   * the main thread. The pose is restored afterwards, as it is after `measure`.
+   */
+  measureUncapped(frames: number, orbitDegPerFrame: number): UncappedMeasurement;
+  /** Vertices in the visible road-surface meshes: the streamed road layer has arrived when > 0. */
+  roadVertices(): number;
+  /** The unmasked WebGL vendor and renderer (WEBGL_debug_renderer_info), else the masked ones. */
+  gpu(): { vendor: string; renderer: string };
+}
+
+export interface UncappedMeasurement {
+  frames: number;
+  medianFrameMs: number;
+  p95FrameMs: number;
+  /** 1000 / median frame ms: what the frame could reach without vsync. */
+  fps: number;
+}
+
+/** Median and p95 of uncapped frame times (ms); zeros when empty. */
+export function uncappedSummary(ms: readonly number[]): UncappedMeasurement {
+  const d = [...ms].sort((a, b) => a - b);
+  if (d.length === 0) return { frames: 0, medianFrameMs: 0, p95FrameMs: 0, fps: 0 };
+  const mid = d.length / 2;
+  const median =
+    d.length % 2
+      ? (d[Math.floor(mid)] as number)
+      : ((d[mid - 1] as number) + (d[mid] as number)) / 2;
+  const p95 = d[Math.min(d.length - 1, Math.ceil(d.length * 0.95) - 1)] as number;
+  return { frames: d.length, medianFrameMs: median, p95FrameMs: p95, fps: 1000 / median };
 }
 
 const _ray = new THREE.Raycaster();
@@ -154,7 +185,40 @@ export function createAcceptanceApi(engine: Engine, frame: LocalFrame): Acceptan
         }
       return { step, cols, rows, codes };
     },
+    roadVertices() {
+      let n = 0;
+      for (const m of roadMeshes(engine.pickView().roots))
+        n += m.geometry.getAttribute("position")?.count ?? 0;
+      return n;
+    },
+    gpu() {
+      const gl = engine.gl();
+      const ext = gl.getExtension("WEBGL_debug_renderer_info");
+      return {
+        vendor: String(gl.getParameter(ext ? ext.UNMASKED_VENDOR_WEBGL : gl.VENDOR)),
+        renderer: String(gl.getParameter(ext ? ext.UNMASKED_RENDERER_WEBGL : gl.RENDERER)),
+      };
+    },
+    measureUncapped(frames, orbitDegPerFrame) {
+      const render = engine.renderNow;
+      if (!render) throw new Error("engine.renderNow is missing");
+      const gl = engine.gl();
+      const start = engine.rig.get();
+      const ms: number[] = [];
+      for (let i = 0; i < frames; i++) {
+        const p = engine.rig.get();
+        engine.rig.set({ ...p, headingDeg: p.headingDeg + orbitDegPerFrame });
+        const t0 = performance.now();
+        render.call(engine);
+        gl.finish();
+        ms.push(performance.now() - t0);
+      }
+      engine.rig.set(start);
+      engine.requestRender();
+      return uncappedSummary(ms);
+    },
     measure(seconds, orbitDegPerSec) {
+      const startPose = engine.rig.get();
       return new Promise((resolve) => {
         const dts: number[] = [];
         let perf: Partial<PerfSample> | null = null;
@@ -181,6 +245,8 @@ export function createAcceptanceApi(engine: Engine, frame: LocalFrame): Acceptan
           cancelAnimationFrame(raf);
           off();
           stats.dispose();
+          engine.rig.set(startPose);
+          engine.requestRender();
           resolve({ ...frameSummary(dts), perf });
         };
         raf = requestAnimationFrame(tick);

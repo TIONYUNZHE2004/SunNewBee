@@ -100,6 +100,11 @@ export interface Engine {
   resize(w: number, h: number): void;
   rig: CameraRig;
   requestRender(): void;
+  /**
+   * Renders one frame now, synchronously (cancels a pending frame). Test-only: the acceptance
+   * harness times uncapped frames with it (`scene/useAcceptanceHook.ts`); the app never calls it.
+   */
+  renderNow?(): void;
   onFrame(cb: (dtMs: number, info: FrameInfo) => void): () => void;
   /**
    * Runs `cb` on the instanced-LOD schedule (at most every 250 ms while the camera moves, plus once
@@ -736,6 +741,13 @@ function build(
     rig,
     motion,
     requestRender,
+    renderNow() {
+      if (disposed) return;
+      cancelAnimationFrame(raf);
+      raf = 0;
+      dirty = true;
+      tick();
+    },
     setDecor(slot, d) {
       if (disposed) {
         d?.dispose();

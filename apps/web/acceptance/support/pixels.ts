@@ -23,10 +23,26 @@ export interface Point {
   y: number;
 }
 
-/** Restrict a measure to a box, or to sample points (points win when both are given). */
+/**
+ * Restrict a measure to a box, to sample points (points win), and/or to a per-pixel mask
+ * (`width * height` bytes, non-zero = included; e.g. the map area without UI chrome).
+ */
 export interface Selection {
   box?: Box;
   points?: readonly Point[];
+  mask?: Uint8Array;
+}
+
+/** Pixels a mask includes. */
+export function maskCount(mask: Uint8Array): number {
+  let n = 0;
+  for (const v of mask) if (v) n++;
+  return n;
+}
+
+function checkMask(img: RGBAImage, mask: Uint8Array | undefined): void {
+  if (mask && mask.length !== img.width * img.height)
+    throw new Error(`mask has ${mask.length} entries, image ${img.width}x${img.height}`);
 }
 
 /** `#rrggbb` or `rrggbb` to [r, g, b] bytes. */
@@ -65,18 +81,25 @@ function clipBox(img: RGBAImage, box: Box | undefined): Box {
 
 /** Calls `f` with the byte offset of every selected pixel inside the image. */
 function eachPixel(img: RGBAImage, sel: Selection, f: (o: number) => void): void {
+  checkMask(img, sel.mask);
+  const m = sel.mask;
   if (sel.points) {
     for (const p of sel.points) {
       const x = Math.floor(p.x);
       const y = Math.floor(p.y);
       if (x < 0 || y < 0 || x >= img.width || y >= img.height) continue;
+      if (m && !m[y * img.width + x]) continue;
       f((y * img.width + x) * 4);
     }
     return;
   }
   const b = clipBox(img, sel.box);
   for (let y = b.y; y < b.y + b.h; y++)
-    for (let x = b.x; x < b.x + b.w; x++) f((y * img.width + x) * 4);
+    for (let x = b.x; x < b.x + b.w; x++) {
+      const i = y * img.width + x;
+      if (m && !m[i]) continue;
+      f(i * 4);
+    }
 }
 
 export interface LumaHistogram {
@@ -136,10 +159,11 @@ export function countColour(img: RGBAImage, hex: string, tol: number, sel: Selec
 
 /**
  * Variance of the 4-neighbour Laplacian of grey (0..255, Rec. 601 luma of the sRGB bytes) over the
- * interior of `box` (default the whole image): a sharpness / detail measure. NaN when the box has
- * no interior pixel (under 3×3).
+ * interior of `box` (default the whole image), skipping pixels `mask` leaves out: a sharpness /
+ * detail measure. NaN when no interior pixel is left (a box under 3×3, or all masked out).
  */
-export function laplacianVariance(img: RGBAImage, box?: Box): number {
+export function laplacianVariance(img: RGBAImage, box?: Box, mask?: Uint8Array): number {
+  checkMask(img, mask);
   const b = clipBox(img, box);
   if (b.w < 3 || b.h < 3) return Number.NaN;
   const d = img.data;
@@ -153,11 +177,46 @@ export function laplacianVariance(img: RGBAImage, box?: Box): number {
   let sum2 = 0;
   for (let y = b.y + 1; y < b.y + b.h - 1; y++)
     for (let x = b.x + 1; x < b.x + b.w - 1; x++) {
+      if (mask && !mask[y * w + x]) continue;
       const v = grey(x - 1, y) + grey(x + 1, y) + grey(x, y - 1) + grey(x, y + 1) - 4 * grey(x, y);
       n++;
       sum += v;
       sum2 += v * v;
     }
+  if (n === 0) return Number.NaN;
   const mean = sum / n;
   return Math.max(0, sum2 / n - mean * mean);
+}
+
+/** HSV saturation 0..1 of an sRGB byte triple (0 for black and greys). */
+export function saturation(r: number, g: number, b: number): number {
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  return max === 0 ? 0 : (max - min) / max;
+}
+
+/**
+ * Share (0..1) of the selected pixels whose saturation is at most `maxSat`: e.g. how much of a
+ * road mask shows grey asphalt rather than green canopy drawn over it (decorative trees are not
+ * pickable, so the pick mask alone cannot see them). `maxLuma` (relative luminance) also excludes
+ * pale greys, e.g. bare ground showing where a road has not streamed in yet. 0 for an empty
+ * selection.
+ */
+export function greyShare(
+  img: RGBAImage,
+  maxSat: number,
+  sel: Selection = {},
+  maxLuma = 1,
+): number {
+  const d = img.data;
+  let n = 0;
+  let grey = 0;
+  eachPixel(img, sel, (o) => {
+    n++;
+    const r = d[o] as number;
+    const g = d[o + 1] as number;
+    const b = d[o + 2] as number;
+    if (saturation(r, g, b) <= maxSat && luminance(r, g, b) <= maxLuma) grey++;
+  });
+  return n > 0 ? grey / n : 0;
 }

@@ -2,11 +2,14 @@ import { describe, expect, it } from "vitest";
 import {
   countColour,
   fractionBelow,
+  greyShare,
   laplacianVariance,
   lumaHistogram,
   luminance,
+  maskCount,
   parseHex,
   type RGBAImage,
+  saturation,
 } from "./pixels";
 
 /** A w×h image filled by `f(x, y)` -> [r, g, b]. */
@@ -137,5 +140,64 @@ describe("laplacianVariance", () => {
         ),
       ),
     ).toBe(true);
+  });
+});
+
+describe("mask selection (map area without UI chrome)", () => {
+  const im = img(4, 2, (x) => (x < 2 ? [0, 0, 0] : [255, 255, 255]));
+  const mask = Uint8Array.from([1, 1, 0, 0, 1, 1, 0, 0]);
+  it("lumaHistogram and countColour only count masked-in pixels", () => {
+    expect(lumaHistogram(im, { mask }).count).toBe(4);
+    expect(lumaHistogram(im, { mask }).mean).toBe(0);
+    expect(countColour(im, "#ffffff", 0, { mask })).toBe(0);
+    expect(countColour(im, "#000000", 0, { mask })).toBe(4);
+  });
+  it("mask and box combine", () => {
+    expect(countColour(im, "#000000", 0, { mask, box: { x: 0, y: 0, w: 4, h: 1 } })).toBe(2);
+  });
+  it("maskCount counts the included pixels", () => {
+    expect(maskCount(mask)).toBe(4);
+  });
+  it("laplacianVariance skips masked-out interior pixels", () => {
+    const spot = img(7, 7, (x, y) => (x === 3 && y === 3 ? [255, 255, 255] : [0, 0, 0]));
+    const all = new Uint8Array(49).fill(1);
+    const none = new Uint8Array(49);
+    expect(laplacianVariance(spot, undefined, all)).toBeGreaterThan(0);
+    expect(Number.isNaN(laplacianVariance(spot, undefined, none))).toBe(true);
+  });
+  it("a mask of the wrong size is an error", () => {
+    expect(() => lumaHistogram(im, { mask: new Uint8Array(3) })).toThrow();
+  });
+});
+
+describe("saturation and greyShare (is the road surface visible, or covered by canopies?)", () => {
+  it("saturation is 0 for greys and 1 for pure colours (HSV)", () => {
+    expect(saturation(120, 120, 120)).toBe(0);
+    expect(saturation(0, 200, 0)).toBe(1);
+    expect(saturation(0, 0, 0)).toBe(0);
+    expect(saturation(200, 100, 100)).toBeCloseTo(0.5, 6);
+  });
+  it("greyShare: share of selected pixels with saturation at or under a limit", () => {
+    const im = img(4, 1, (x) => (x < 3 ? [110, 112, 118] : [40, 120, 30]));
+    expect(greyShare(im, 0.15)).toBeCloseTo(0.75, 6);
+    expect(greyShare(im, 0.15, { points: [{ x: 3, y: 0 }] })).toBe(0);
+    expect(greyShare(im, 0.15, { points: [] })).toBe(0);
+  });
+});
+
+describe("greyShare with a luminance ceiling (asphalt, not pale bare ground)", () => {
+  it("counts only grey pixels at or under maxLuma", () => {
+    const im = img(
+      3,
+      1,
+      (x) =>
+        [
+          [60, 62, 66],
+          [200, 198, 190],
+          [40, 120, 30],
+        ][x] as [number, number, number],
+    );
+    expect(greyShare(im, 0.18)).toBeCloseTo(2 / 3, 6);
+    expect(greyShare(im, 0.18, {}, 0.35)).toBeCloseTo(1 / 3, 6);
   });
 });
