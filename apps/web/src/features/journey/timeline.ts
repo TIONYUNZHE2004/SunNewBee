@@ -4,10 +4,11 @@
  * Pure maths: a `JourneyPlan` from the backend becomes screen-time phases (dive, walks, one hold
  * per plan event, pull-back) and `stateAt` gives the HUD values at any screen time. The renderer
  * only plays this; it never invents events, distances or times. Ported from the prototype's
- * `phases` / `stateAt` (docs/03-product/prototypes/resident-journey/index.html) with two changes:
- * holds never move the hero along the route (so the HUD at each event start equals the plan:
- * distance = `at_m`, clock = start + at_m / pace + earlier holds), and the covered stretch comes
- * from the plan's span under the covered event rather than a hard-coded 8 m.
+ * `phases` / `stateAt` (docs/03-product/prototypes/resident-journey/index.html). Coordinator rulings
+ * (D-T4 review): during verified / gap / covered holds she keeps walking at her pace (capped at
+ * the next event and the route end), unknown / rest / arrive holds stand still; arrive adds no
+ * simulated time; minutes outdoors pause only under a covered span whose claim is verified, taken
+ * from the plan span under that event (not the prototype's hard-coded 8 m).
  */
 import type { components } from "@tl/api-client";
 
@@ -30,6 +31,12 @@ export const HOLD_SCREEN_S: Readonly<Record<JourneyEventKind, number>> = {
   covered: 3.0,
   arrive: 3.2,
 };
+
+/** Holds during which the hero keeps walking at her pace (§6.4 "keeps walking slowly" / "walks"). */
+export const HOLD_MOVES: ReadonlySet<JourneyEventKind> = new Set(["verified", "gap", "covered"]);
+
+/** Simulated seconds a hold adds: the plan's `hold_s`, except arrive, which stops the clock (§6.4 "—"). */
+export const holdSimSeconds = (e: JourneyEvent): number => (e.kind === "arrive" ? 0 : e.hold_s);
 
 export type PhaseKind = "dive" | "walk" | "event" | "pull";
 
@@ -58,7 +65,7 @@ export interface Timeline {
   phases: Phase[];
   /** Screen seconds: the sum of the phases. */
   total: number;
-  /** Route intervals [from_m, to_m) under a covered event (minutes outdoors pause there). */
+  /** Route intervals [from_m, to_m) under a verified covered event (minutes outdoors pause there). */
   covered: [number, number][];
 }
 
@@ -88,11 +95,12 @@ export function clockAt(startTime: string, simSeconds: number): string {
   return `${String(Math.floor(mins / 60)).padStart(2, "0")}:${String(mins % 60).padStart(2, "0")}`;
 }
 
-/** The plan span starting where each covered event starts: the stretch under that roof. */
-function coveredIntervals(plan: JourneyPlan): [number, number][] {
+/** The plan span starting where each covered event starts: the stretch under that roof. Only a
+ * verified roof counts: a reported, stale or contested one is not a checked fact (honesty). */
+export function coveredIntervals(plan: JourneyPlan): [number, number][] {
   const out: [number, number][] = [];
   for (const e of plan.events) {
-    if (e.kind !== "covered") continue;
+    if (e.kind !== "covered" || e.status !== "verified") continue;
     const span = plan.spans.find(([a, b]) => Math.abs(a - e.at_m) < 0.05 && b > a);
     if (span) out.push([span[0], span[1]]);
   }
@@ -111,9 +119,13 @@ function coveredLength(cov: [number, number][], a: number, b: number): number {
 /** Simulated outdoor seconds gained over part of a phase, from its start to progress u. */
 function outdoorsIn(p: Phase, u: number, cov: [number, number][], pace: number): number {
   const sim = (p.sim1 - p.sim0) * u;
-  if (p.kind === "walk") {
+  if (p.m1 > p.m0) {
+    // moving at pace: walks, and walking holds (a capped hold walks slower, so share by metres)
     const m = p.m0 + (p.m1 - p.m0) * u;
-    return sim - coveredLength(cov, p.m0, m) / pace;
+    const under = coveredLength(cov, p.m0, m);
+    return p.kind === "walk"
+      ? sim - under / pace
+      : sim - (p.sim1 - p.sim0) * (under / (p.m1 - p.m0));
   }
   return isCovered(cov, p.m0) ? 0 : sim;
 }
@@ -143,17 +155,23 @@ export function buildTimeline(plan: JourneyPlan): Timeline {
     push({ kind: "walk", sim0: sim, sim1: sim + dSim, m0: m, m1: to }, dSim / COMPRESS);
   };
 
+  const end = plan.spans.at(-1)?.[1] ?? plan.events.at(-1)?.at_m ?? 0;
   push({ kind: "dive", sim0: 0, sim1: 0, m0: 0, m1: 0 }, DIVE_S);
   plan.events.forEach((event, eventIndex) => {
     walkTo(event.at_m);
     const at = Math.max(m, event.at_m);
+    const hold = holdSimSeconds(event);
+    // a walking hold never passes the next event or the route end
+    const next = plan.events[eventIndex + 1]?.at_m ?? end;
+    const moved = HOLD_MOVES.has(event.kind)
+      ? Math.max(0, Math.min(pace * hold, next - at, end - at))
+      : 0;
     push(
-      { kind: "event", sim0: sim, sim1: sim + event.hold_s, m0: at, m1: at, event, eventIndex },
+      { kind: "event", sim0: sim, sim1: sim + hold, m0: at, m1: at + moved, event, eventIndex },
       HOLD_SCREEN_S[event.kind],
     );
     if (event.kind === "rest") rests += 1;
   });
-  const end = plan.spans.at(-1)?.[1] ?? m;
   if (!plan.events.some((e) => e.kind === "arrive")) walkTo(end);
   push({ kind: "pull", sim0: sim, sim1: sim, m0: m, m1: m }, PULL_S);
   return { plan, phases, total: t, covered };

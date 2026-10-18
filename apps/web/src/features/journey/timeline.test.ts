@@ -5,6 +5,7 @@ import {
   COMPRESS,
   clockAt,
   DIVE_S,
+  HOLD_MOVES,
   HOLD_SCREEN_S,
   type JourneyEvent,
   type JourneyPlan,
@@ -56,7 +57,9 @@ function tiny(events: JourneyEvent[], extra: Partial<JourneyPlan> = {}): Journey
 function planHud(p: JourneyPlan, i: number) {
   const e = p.events[i] as JourneyEvent;
   const before = p.events.slice(0, i);
-  const sim = e.at_m / p.pace_m_per_s + before.reduce((a, x) => a + x.hold_s, 0);
+  // stationary holds add their time; walking holds walk it (uncapped here); arrive adds none
+  const stops = before.filter((x) => x.kind === "unknown" || x.kind === "rest");
+  const sim = e.at_m / p.pace_m_per_s + stops.reduce((a, x) => a + x.hold_s, 0);
   const [h, m] = p.start_time.split(":").map(Number) as [number, number];
   const mins = (h * 60 + m + Math.floor(sim / 60)) % (24 * 60);
   const clock = `${String(Math.floor(mins / 60)).padStart(2, "0")}:${String(mins % 60).padStart(2, "0")}`;
@@ -125,16 +128,19 @@ describe("buildTimeline on the §2 demo plan (AC-D7)", () => {
     }
   });
 
-  it("one hold per plan event, in plan order, with §6.4 screen time and the plan's hold_s", () => {
+  it("one hold per plan event, in plan order, with §6.4 screen time and simulated time", () => {
     const holds = tl.phases.filter((p) => p.kind === "event");
     expect(holds.map((h) => h.event)).toEqual(plan.events);
     expect(holds.map((h) => h.eventIndex)).toEqual(plan.events.map((_, i) => i));
     for (const h of holds) {
       const e = h.event as JourneyEvent;
       expect(h.t1 - h.t0).toBeCloseTo(HOLD_SCREEN_S[e.kind], 9);
-      expect(h.sim1 - h.sim0).toBeCloseTo(e.hold_s, 9);
+      // arrive stops the clock (§6.4 "—"); the others add the plan's hold_s
+      expect(h.sim1 - h.sim0).toBeCloseTo(e.kind === "arrive" ? 0 : e.hold_s, 9);
       expect(h.m0).toBe(e.at_m);
-      expect(h.m1).toBe(e.at_m);
+      // verified / gap / covered: she keeps walking at her pace; unknown / rest / arrive: stands
+      const moved = HOLD_MOVES.has(e.kind) ? e.hold_s * plan.pace_m_per_s : 0;
+      expect(h.m1 - h.m0).toBeCloseTo(moved, 9);
     }
   });
 
@@ -158,29 +164,31 @@ describe("buildTimeline on the §2 demo plan (AC-D7)", () => {
   });
 
   it("totals about 86 s for the demo route (spec §6.4) and inside the 80-100 s take (AC-D18)", () => {
-    const walkSim = (plan.events.at(-1) as JourneyEvent).at_m / plan.pace_m_per_s;
+    const walked = plan.events.filter((e) => HOLD_MOVES.has(e.kind)).length * 3; // sim s in holds
+    const walkSim = (plan.events.at(-1) as JourneyEvent).at_m / plan.pace_m_per_s - walked;
     const holdScreen = plan.events.reduce((a, e) => a + HOLD_SCREEN_S[e.kind], 0);
     expect(tl.total).toBeCloseTo(4 + 5 + walkSim / 20 + holdScreen, 6);
     expect(tl.total).toBeGreaterThan(80);
     expect(tl.total).toBeLessThan(100);
   });
 
-  it("ends at the destination with every rest taken and the arrive hold on the clock", () => {
+  it("ends at the destination with every rest taken and the clock stopped at arrival", () => {
     const end = stateAt(tl, tl.total);
     expect(end.phase.kind).toBe("pull");
     expect(end.distance_m).toBeCloseTo(963.5, 1);
     expect(end.restsTaken).toBe(3);
-    const sim = 963.5 / plan.pace_m_per_s + plan.events.reduce((a, e) => a + e.hold_s, 0);
+    const stops = plan.events.filter((e) => e.kind === "unknown" || e.kind === "rest");
+    const sim = 963.5 / plan.pace_m_per_s + stops.reduce((a, e) => a + e.hold_s, 0);
     expect(end.simSeconds).toBeCloseTo(sim, 6);
     expect(end.clock).toBe(clockAt("09:00", sim));
   });
 
-  it("pauses minutes outdoors under the covered walkway only", () => {
-    // covered event at 0 m on the span [0, 7.8]: its 3 s hold and 7.8 m of walking are under a roof
-    const covered = 3 + 7.8 / plan.pace_m_per_s;
+  it("does not pause minutes outdoors under the demo's reported (unchecked) roof", () => {
+    expect(plan.events[0]).toMatchObject({ kind: "covered", status: "reported" });
+    expect(tl.covered).toEqual([]);
     const end = stateAt(tl, tl.total);
-    expect(end.outdoorsSeconds).toBeCloseTo(end.simSeconds - covered, 6);
-    expect(end.minutesOutdoors).toBe(Math.floor((end.simSeconds - covered) / 60));
+    expect(end.outdoorsSeconds).toBeCloseTo(end.simSeconds, 9);
+    expect(end.minutesOutdoors).toBe(Math.floor(end.simSeconds / 60));
   });
 });
 
@@ -270,13 +278,68 @@ describe("buildTimeline on small plans", () => {
     expect(stateAt(tl, hold.t0).restsTaken).toBe(1);
   });
 
-  it("minutes outdoors pause under a covered span, whatever kind of phase is on it", () => {
-    // covered at 20 m on span [20, 100): 0-20 m (20 s) and the arrive hold at 100 m are outdoors
-    const p = tiny([ev("covered", 20, 3), ev("rest", 60, 60), ev("arrive", 100, 3)]);
-    const tl = buildTimeline(p);
+  const roofed = (status: JourneyEvent["status"]) =>
+    tiny([{ ...ev("covered", 20, 3), status }, ev("rest", 60, 60), ev("arrive", 100, 3)]);
+
+  it("minutes outdoors pause under a verified covered span, on walks and holds alike", () => {
+    // covered at 20 m on span [20, 100): only 0-20 m (20 s) is outdoors; the walking hold, the
+    // rest at 60 m and the walks after it are under the roof; arrive adds no time
+    const tl = buildTimeline(roofed("verified"));
     expect(tl.covered).toEqual([[20, 100]]);
     const end = stateAt(tl, tl.total);
-    expect(end.outdoorsSeconds).toBeCloseTo(23, 9);
-    expect(end.simSeconds).toBeCloseTo(100 + 66, 9);
+    expect(end.simSeconds).toBeCloseTo(100 + 60, 9);
+    expect(end.outdoorsSeconds).toBeCloseTo(20, 9);
+  });
+
+  it("a reported, stale or contested roof is not a checked fact: the counter keeps running", () => {
+    for (const status of ["reported", "stale", "contested", "unknown"] as const) {
+      const tl = buildTimeline(roofed(status));
+      expect(tl.covered).toEqual([]);
+      const end = stateAt(tl, tl.total);
+      expect(end.outdoorsSeconds).toBeCloseTo(end.simSeconds, 9);
+    }
+  });
+
+  it("a walking hold walks at her pace but never past the next event", () => {
+    // pace 1 m/s: the verified hold would walk 3 m, the unknown is 1 m further on
+    const p = tiny([
+      ev("verified", 10, 3),
+      ev("unknown", 11, 8),
+      ev("gap", 50, 3),
+      ev("arrive", 100, 3),
+    ]);
+    const tl = buildTimeline(p);
+    const holds = tl.phases.filter((x) => x.kind === "event");
+    expect(holds.map((h) => [h.m0, h.m1])).toEqual([
+      [10, 11],
+      [11, 11],
+      [50, 53],
+      [100, 100],
+    ]);
+    expect(tl.phases.map((x) => x.kind)).toEqual([
+      "dive",
+      "walk",
+      "event",
+      "event",
+      "walk",
+      "event",
+      "walk",
+      "event",
+      "pull",
+    ]);
+    const unknown = holds[1];
+    if (!unknown) throw new Error("no unknown");
+    expect(stateAt(tl, unknown.t0).distance_m).toBe(11);
+    // the walk after the gap hold starts where she got to
+    expect(tl.phases[6]).toMatchObject({ kind: "walk", m0: 53, m1: 100 });
+  });
+
+  it("arrive stops the clock whatever the plan's hold_s", () => {
+    const tl = buildTimeline(tiny([ev("arrive", 100, 3)]));
+    const arrive = tl.phases.find((x) => x.event?.kind === "arrive");
+    if (!arrive) throw new Error("no arrive");
+    expect(arrive.sim1).toBe(arrive.sim0);
+    expect(arrive.t1 - arrive.t0).toBeCloseTo(3.2, 9);
+    expect(stateAt(tl, tl.total).simSeconds).toBeCloseTo(100, 9);
   });
 });
