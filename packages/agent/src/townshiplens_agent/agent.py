@@ -33,7 +33,7 @@ from .events import (
     VerificationRequested,
 )
 from .facts import categories, merge, tool_values
-from .labels import crossing_note, enrich_unknowns
+from .labels import crossing_note, enrich_unknowns, road_note
 from .mock import mock_model
 from .record import TurnRecord
 from .scope import ACCESS_FLOOD_TOOLS, scoped_instructions
@@ -267,10 +267,12 @@ async def call_tool(deps: Deps, name: str, **kwargs: Any) -> dict:
     for e in res.evidence:
         rec.evidence[e.id] = e
     if name == "plan_route" and isinstance(res.data, dict):
-        for r in res.data.get("routes", []):
+        for i, r in enumerate(res.data.get("routes", [])):
             enrich_unknowns(deps.ctx.world, r)  # readable element labels and notes
             if note := crossing_note(r):
                 r["crossing_note"] = note  # the model copies it word for word (prompt 5h)
+            if i == 0 and (note := road_note(res.warnings)):
+                r["road_note"] = note  # about the first route only (prompt 5j, T-019)
             rec.routes[r["id"]] = r
             rec.route_status[r["id"]] = r["status"]
         for c in res.data.get("closures") or []:

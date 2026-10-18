@@ -357,6 +357,8 @@ def tool_values(payload, resolve=None, subject: set[str] | None = None) -> dict[
             for k in ("from_place", "to_place"):
                 if isinstance(x.get(k), str):
                     cats |= resolve(x[k])
+        if x.get("crossings") and "from_place" in x:
+            cats.add("crossing")  # "about 932 m on sidewalks, with 9 crossings" is the route
         return cats
 
     def walk(x, key: str = "", extra: frozenset[str] = frozenset()) -> None:
@@ -367,6 +369,9 @@ def tool_values(payload, resolve=None, subject: set[str] | None = None) -> dict[
         if isinstance(x, int | float):
             add(kind_of_key(key), x)
         elif isinstance(x, str):
+            if key == "crossing_note":  # "uses 8 road crossings: 5 unmarked, 3 with no ..."
+                for n in re.findall(r"(?:: |, )(\d+) ", x):
+                    add("count:crossing", float(n))
             if not _ID_VALUE.match(x):
                 named = categories(x)
                 for f in extract_facts(x):

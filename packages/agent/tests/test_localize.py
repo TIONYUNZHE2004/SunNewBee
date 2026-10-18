@@ -112,3 +112,82 @@ def test_answer_frame_translates_fixed_caveats_only():
     assert "Asked the township" not in text and "Jalan ini sibuk." in text
     english = answer_text(ans, None, None, "en")
     assert "Asked the township team to check 6 of the 6 unchecked items." in english
+
+
+# T-019: road_note and crossing_note are required, but a translated note is not a missing one.
+ROAD = (
+    "About 352 m follows road centre lines without a mapped sidewalk; sidewalk access is not "
+    "verified"
+)
+CROSS = (
+    "This route uses 8 road crossings: 5 unmarked (map data, not checked), 3 with no recorded "
+    "crossing type."
+)
+
+
+def _road_rec():
+    from townshiplens_agent.record import TurnRecord
+    from townshiplens_spatial.models import Evidence
+
+    rec = TurnRecord(tool_calls=["plan_route"])
+    rec.evidence["ev-1"] = Evidence(
+        id="ev-1", element_id="seg-a", attribute="access_point", value="n", status="reported"
+    )
+    rec.routes["rt-1"] = {
+        "id": "rt-1",
+        "status": "confirmed",
+        "distance_m": 363.8,
+        "road_without_mapped_sidewalk_m": 352.0,
+        "road_note": ROAD,
+        "crossing_note": CROSS,
+        "crossings": [{}] * 8,
+    }
+    rec.route_status["rt-1"] = "confirmed"
+    return rec
+
+
+def _route_answer(*caveats):
+    from townshiplens_agent.answer import Claim
+
+    return FinalAnswer(
+        answer_status="answered",
+        summary="Route status: confirmed. About 364 m.",
+        route_id="rt-1",
+        caveats=list(caveats),
+        claims=[Claim(text="Route", status="unverified", evidence_ids=["ev-1"])],
+    )
+
+
+@pytest.mark.parametrize(
+    "caveats, missing",
+    [
+        ((CROSS,), "road centre lines"),  # road note left out (live T-019 r10)
+        ((ROAD,), "road crossing"),
+        ((ROAD, CROSS), None),
+        ((localize(ROAD, "ms"), localize(CROSS, "zh")), None),  # the app's own lines
+        (
+            (
+                "Sekitar 352 m laluan mengikut tengah jalan raya tanpa kaki lima yang dipetakan.",
+                "此路线经过8处过街：5处为无标线过街，3处没有记录过街类型。",
+            ),
+            None,  # the model's own translations, same numbers (live r02, r10)
+        ),
+        (("Sekitar 300 m mengikut jalan raya.", CROSS), "road centre lines"),  # wrong number
+    ],
+)
+def test_road_and_crossing_notes(caveats, missing):
+    from townshiplens_agent.validate import validate_answer
+
+    errs = [e for e in validate_answer(_route_answer(*caveats), _road_rec()) if "plan_route" in e]
+    if missing is None:
+        assert errs == []
+    else:
+        assert errs and missing in " ".join(errs)
+
+
+def test_crossing_sub_counts_are_crossing_counts():
+    from townshiplens_agent.facts import tool_values, unsupported
+
+    v = tool_values({"routes": [{"crossing_note": CROSS, "crossings": [{}] * 8}]})
+    assert unsupported("此路线经过8处过街：5处为无标线过街，3处没有记录过街类型。", v) == []
+    assert unsupported("There are 4 unmarked crossings.", v) == ["4 unmarked crossings"]

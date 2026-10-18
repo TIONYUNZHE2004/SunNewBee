@@ -244,6 +244,19 @@ def crossing_note(route: dict) -> str | None:
     return f"This route uses {n} {CROSSING_WORDS}{'s' if n != 1 else ''}: {', '.join(parts)}."
 
 
+# plan_route's warning for the first route when part of it follows road centre lines with no
+# mapped sidewalk (T-014). call_tool copies it onto the route as `road_note` (T-019).
+ROAD_NOTE = re.compile(r"^About (\d+) m follows road centre lines without a mapped sidewalk")
+ROAD_WORDS = re.compile(
+    r"\broad|\bjalan|道路|马路|车道|centre line|garis tengah|中线", re.IGNORECASE
+)
+
+
+def road_note(warnings: list[str]) -> str | None:
+    """The road-without-sidewalk warning among plan_route warnings, else None."""
+    return next((w for w in warnings if ROAD_NOTE.match(w)), None)
+
+
 REST_GAP_WORDS = "without a rest point"  # every rest-gap caveat contains this (validator)
 
 
