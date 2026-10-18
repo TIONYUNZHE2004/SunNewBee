@@ -80,6 +80,10 @@ Agents work in **rounds**. A timer starts each round; a round can be cut off by 
 - A full answer-key live run happens only when Yunzhe asks.
 - Append every live round to `SPEND.md`. At the hard stop in `SPEND.md`, stop live calls.
 
+## Changes to tool output
+
+A Backend change that alters what a tool or route returns also breaks or changes assistant answers. Before logging "ready for PR", the backend engineer also runs `uv run pytest packages/agent apps/api -q`, and the AI engineer acknowledges the contract note and adapts answers and tests. Control merges only PRs with green CI.
+
 ## Merge conflicts
 
 Two agents that append to the same log at once conflict at the end of the file during `pull --rebase`. Keep both entries, in time order, then `git rebase --continue`.
