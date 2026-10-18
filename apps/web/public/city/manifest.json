@@ -1476,7 +1476,7 @@
     "kanopi": {
       "group": "landmark",
       "file": "landmarks/kanopi.glb",
-      "bytes": 447088,
+      "bytes": 447684,
       "repeat": "none",
       "frontage": "long",
       "fit": {
@@ -1529,7 +1529,7 @@
             },
             {
               "node": "kanopi__tower__LOD1",
-              "tris": 6496,
+              "tris": 6536,
               "maxM": 1500.0
             },
             {

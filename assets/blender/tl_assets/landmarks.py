@@ -437,7 +437,8 @@ def _podium_deck(w: float, d: float, tw: float, bd: float, zt: float, lod: int) 
     round the slab (decorative). A raised pool on each end ledge whose water plane (role glass,
     aux specs.WATER_AUX, never lit) is POOL_Y above the podium roof, a timber (accent) pergola
     on a timber strip over the middle of the front ledge, small shrubs and planters. LOD1: the
-    pools and planter strips. The web dresses the larger OSM podium roof around it (Task 8b)."""
+    pools, the end-ledge planters and the long planter strips. The web dresses the larger OSM
+    podium roof around it (Task 8b)."""
     ex, ez = w / 2 - PARAPET_T - 0.05, d / 2 - PARAPET_T - 0.05  # inside the parapet
     zf = zt + bd / 2
     ix = tw / 2 + 0.05  # off the slab's end faces
@@ -452,9 +453,8 @@ def _podium_deck(w: float, d: float, tw: float, bd: float, zt: float, lod: int) 
         for k in range(n):
             za, zb2 = -pool_half + 2 * pool_half * k / n, -pool_half + 2 * pool_half * (k + 1) / n
             water.face([(x0, yw, za), (x1, yw, za), (x1, yw, zb2), (x0, yw, zb2)], (0, 1, 0))
-        if lod == 0:
-            for z0 in (pool_half + 0.5, -pool_half - 3.5):
-                plant.box(x0, x1, y0, y0 + 0.7, z0, z0 + 3.0)
+        for z0 in (pool_half + 0.5, -pool_half - 3.5):  # both LODs keep the end-ledge planters
+            plant.box(x0, x1, y0, y0 + 0.7, z0, z0 + 3.0)
     pg = (-20.0, 20.0)  # the pergola's stretch of the front ledge
     if lod > 0:
         for sz in (1.0, -1.0):
