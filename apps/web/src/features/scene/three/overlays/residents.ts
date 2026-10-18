@@ -8,6 +8,7 @@ import {
   type ResidentKind,
   routeAt,
 } from "../../../whatif/rolloutModel";
+import { VFOV_DEG } from "../cameraRig";
 import type { LocalFrame } from "../frame";
 import { displayScale } from "../motion/agents";
 
@@ -21,7 +22,11 @@ export const RESIDENT_ORDER = 14;
 /** Seconds for one walk along a rollout route (display only, not a travel time). */
 export const LOOP_S = 12;
 
-const OUTLINE_SCALE = 1.18;
+/** Legibility floor at range: a resident is never drawn shorter than this many pixels. */
+export const MIN_HEIGHT_PX = 6;
+/** The dark outline is this many pixels thick, whatever the distance. */
+export const OUTLINE_PX = 1;
+const DEFAULT_VIEWPORT_PX = 900;
 const FIRST_CAPACITY = 256;
 
 export interface RolloutPoint {
@@ -42,6 +47,8 @@ export interface Residents {
   setRollout(points: RolloutPoint[]): void;
   /** Camera position (legibility scale) and clock (rollout walkers); the overlay layer calls it each frame. */
   setView(cam: { x: number; y: number; z: number }, nowMs?: number): void;
+  /** Viewport height (px) and vertical fov (degrees) for the pixel floor; defaults 900 px / engine fov. */
+  setViewport(heightPx: number, fovDeg: number): void;
   /** True while any rollout walker is moving along a route (needs frames to play). */
   walking(): boolean;
   dispose(): void;
@@ -144,6 +151,10 @@ export function createResidents(frame: LocalFrame): Residents {
   const pos = new THREE.Vector3();
   const quat = new THREE.Quaternion();
   const sc = new THREE.Vector3();
+  let viewH = DEFAULT_VIEWPORT_PX;
+  let viewTan = Math.tan((VFOV_DEG * Math.PI) / 360);
+  /** Metres covered by one pixel at `d` metres from the camera. */
+  const metresPerPx = (d: number) => (2 * Math.max(d, 1) * viewTan) / Math.max(1, viewH);
   const distance = (it: Item) => (cam ? Math.hypot(cam.x - it.x, cam.y, cam.z - it.z) : 0);
 
   const apply = (rebuildIds = true) => {
@@ -164,12 +175,16 @@ export function createResidents(frame: LocalFrame): Residents {
     if (rebuildIds) f.userData.ids = items.map((i) => i.id);
     let focus: Item | null = null;
     items.forEach((it, i) => {
-      const s = displayScale(distance(it)) * (it.focused ? FOCUS_SCALE : 1);
+      const d = distance(it);
+      const mpp = metresPerPx(d);
+      // displayScale first, then enough to reach the pixel floor when far away.
+      const base = Math.max(displayScale(d), (MIN_HEIGHT_PX * mpp) / RESIDENT_HEIGHT_M);
+      const s = base * (it.focused ? FOCUS_SCALE : 1);
       pos.set(it.x, 0, it.z);
       m4.compose(pos, quat, sc.setScalar(s));
       f.setMatrixAt(i, m4);
       f.setColorAt(i, it.colour);
-      m4.compose(pos, quat, sc.setScalar(s * OUTLINE_SCALE));
+      m4.compose(pos, quat, sc.setScalar(s + (OUTLINE_PX * mpp) / (RESIDENT_WIDTH_M / 2)));
       o.setMatrixAt(i, m4);
       if (it.focused) focus = it;
     });
@@ -182,7 +197,9 @@ export function createResidents(frame: LocalFrame): Residents {
     ring.visible = !!fi;
     if (fi) {
       ring.position.set(fi.x, 0.05, fi.z);
-      ring.scale.setScalar(displayScale(distance(fi)) * FOCUS_SCALE * RESIDENT_WIDTH_M);
+      const fd = distance(fi);
+      const fb = Math.max(displayScale(fd), (MIN_HEIGHT_PX * metresPerPx(fd)) / RESIDENT_HEIGHT_M);
+      ring.scale.setScalar(fb * FOCUS_SCALE * RESIDENT_WIDTH_M);
     }
   };
 
@@ -245,6 +262,12 @@ export function createResidents(frame: LocalFrame): Residents {
       cam = { x: c.x, y: c.y, z: c.z };
       for (const r of rollout) if (r.walk) [r.x, r.z] = walkerXZ(r.walk, nowMs);
       apply(false);
+    },
+    setViewport(heightPx, fovDeg) {
+      if (heightPx === viewH && Math.tan((fovDeg * Math.PI) / 360) === viewTan) return;
+      viewH = heightPx;
+      viewTan = Math.tan((fovDeg * Math.PI) / 360);
+      if (cam) apply(false);
     },
     walking() {
       return rollout.some((r) => r.walk?.moving);
