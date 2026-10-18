@@ -3,14 +3,15 @@ import { useEffect } from "react";
 import { useCesium } from "resium";
 import { diffLines } from "../../whatif/whatifModel";
 import { useScene } from "../sceneStore";
+import { DEFAULT_PITCH_DEG } from "./home";
 
 export const prefersReducedMotion = () =>
   typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-function go(viewer: Cesium.Viewer, sphere: Cesium.BoundingSphere, rangeM?: number, pitchDeg = -45) {
+function go(viewer: Cesium.Viewer, sphere: Cesium.BoundingSphere, rangeM?: number) {
   const offset = new Cesium.HeadingPitchRange(
     0,
-    Cesium.Math.toRadians(pitchDeg),
+    Cesium.Math.toRadians(DEFAULT_PITCH_DEG),
     rangeM ?? Math.max(sphere.radius * 2.5, 300),
   );
   // Reduced motion: jump (viewBoundingSphere is the setView equivalent) instead of flying.
@@ -24,8 +25,6 @@ export function useCameraIntents(
   focusPoint: (id: string) => [number, number] | null,
   /** Called when an intent moved the camera, so the home re-frame rule leaves it alone. */
   onMoved?: () => void,
-  /** Camera pitch for fly-tos: shallower for the stylised city. */
-  pitchDeg = -45,
 ) {
   const { viewer } = useCesium();
   useEffect(() => {
@@ -41,8 +40,7 @@ export function useCameraIntents(
         const pts = s.route.geojson.coordinates.map((c) =>
           Cesium.Cartesian3.fromDegrees(c[0] as number, c[1] as number),
         );
-        if (pts.length)
-          move((v) => go(v, Cesium.BoundingSphere.fromPoints(pts), undefined, pitchDeg));
+        if (pts.length) move((v) => go(v, Cesium.BoundingSphere.fromPoints(pts)));
       } else if (
         s.focusRouteRequest &&
         s.focusRouteRequest !== prev.focusRouteRequest &&
@@ -51,26 +49,19 @@ export function useCameraIntents(
         const pts = s.route.geojson.coordinates.map((c) =>
           Cesium.Cartesian3.fromDegrees(c[0] as number, c[1] as number),
         );
-        if (pts.length)
-          move((v) => go(v, Cesium.BoundingSphere.fromPoints(pts), undefined, pitchDeg));
+        if (pts.length) move((v) => go(v, Cesium.BoundingSphere.fromPoints(pts)));
       } else if (s.whatIf && s.whatIf !== prev.whatIf) {
         // Frame the imagined diff (changed journeys and imagined changes) when it arrives.
         const lines = diffLines(s.whatIf.geojson as never);
         const pts = [...lines.after, ...lines.before, ...lines.touched]
           .flat()
           .map((c) => Cesium.Cartesian3.fromDegrees(c[0] as number, c[1] as number));
-        if (pts.length)
-          move((v) => go(v, Cesium.BoundingSphere.fromPoints(pts), undefined, pitchDeg));
+        if (pts.length) move((v) => go(v, Cesium.BoundingSphere.fromPoints(pts)));
       } else if (s.focusPlaceId && s.focusPlaceId !== prev.focusPlaceId) {
         const c = focusPoint(s.focusPlaceId);
         if (c)
           move((v) =>
-            go(
-              v,
-              new Cesium.BoundingSphere(Cesium.Cartesian3.fromDegrees(c[0], c[1]), 1),
-              400,
-              pitchDeg,
-            ),
+            go(v, new Cesium.BoundingSphere(Cesium.Cartesian3.fromDegrees(c[0], c[1]), 1), 400),
           );
       } else if (s.camera && s.camera !== prev.camera) {
         const cam = s.camera;
@@ -82,10 +73,9 @@ export function useCameraIntents(
               1,
             ),
             cam.rangeM,
-            pitchDeg,
           ),
         );
       }
     });
-  }, [viewer, focusPoint, onMoved, pitchDeg]);
+  }, [viewer, focusPoint, onMoved]);
 }

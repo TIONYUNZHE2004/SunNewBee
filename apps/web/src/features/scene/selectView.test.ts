@@ -26,9 +26,9 @@ describe("selectView", () => {
   });
 });
 
-describe("selectView with stylised buildings", () => {
+describe("selectView with buildings (keyless Stylised, Three.js)", () => {
   const none = { googleKey: "", cesiumToken: "", mapboxToken: "" };
-  it("cesium is available keyless when the world has buildings", () => {
+  it("the 3D view (id cesium) is available keyless when the world has buildings", () => {
     expect(selectView(none, true, undefined, true)).toBe("cesium");
     expect(availableViews(none, true, true)).toEqual(["cesium", "list"]);
   });

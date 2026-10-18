@@ -19,22 +19,10 @@ import { type CameraOps, createCameraOps, frameNow } from "./controls/cameraOps"
 import { configureControls } from "./controls/configureControls";
 import { movedInputs } from "./controls/movedInputs";
 import { patchCameraPickRay, patchFrustumClone } from "./frustumClone";
-import {
-  DEFAULT_FOV_DEG,
-  DEFAULT_PITCH_DEG,
-  fovForVertical,
-  framingFor,
-  homeView,
-  STYLISED_FOV_DEG,
-  STYLISED_PITCH_DEG,
-  shouldReframe,
-} from "./home";
+import { DEFAULT_FOV_DEG, framingFor, homeView, shouldReframe } from "./home";
 import { AccessLayer, FloodLayer, WasteLayer } from "./layers";
 import { PerfOverlay, SlowBanner } from "./PerfOverlay";
 import { setupRealistic } from "./realistic";
-import { paletteFor } from "./stylised/palette";
-import { skyCss } from "./stylised/postfx";
-import { StylisedCity } from "./stylised/StylisedCity";
 import { applyCesiumTime, cesiumTimeStyle, type TimeOps } from "./timeOfDay";
 
 const TIME_OPS: TimeOps = {
@@ -85,8 +73,9 @@ function SceneSetup({
     if (!Cesium.GroundPolylinePrimitive.isSupported(viewer.scene)) onNoDraping();
   }, [viewer, onNoDraping]);
 
-  // Realistic photos only. The stylised city creates no tileset and no Ion imagery (no billable
-  // calls); wait until the buildings request settles so the default style is known first.
+  // Realistic photos. MapStage sends only Realistic here (Three.js draws Stylised); the style guard
+  // keeps any other style from creating a billable tileset. Wait until the buildings request
+  // settles so the default style is known first.
   useEffect(() => {
     if (!viewer || viewer.isDestroyed() || !settled || style !== "realistic") return;
     const stop = setupRealistic(Cesium, viewer, ENV, {
@@ -104,7 +93,7 @@ function SceneSetup({
   }, [viewer, settled, style, onTilesFailed]);
 
   // Day/night lighting (display-only). Re-applies on theme change; the tiles effect applies it on
-  // load. The stylised city re-skins itself (palette, sky, light), so skip it there.
+  // load.
   useEffect(() => {
     if (style !== "realistic") return;
     applyCesiumTime(viewer, tilesRef.current, cesiumTimeStyle(theme), TIME_OPS);
@@ -112,7 +101,7 @@ function SceneSetup({
 
   // Frame the home view (separate from the tiles effect: no tileset reload). Frame at once with
   // the constants so a slow/failed /site never leaves the whole-globe view, then re-frame to the
-  // site's home (closer for the stylised city) until the user touches the camera.
+  // site's home until the user touches the camera.
   const siteData = useSite().data;
   const framing = useRef({ moved: false, reframed: false });
   useEffect(() => {
@@ -129,11 +118,11 @@ function SceneSetup({
   }, [viewer]);
   useEffect(() => {
     if (!viewer || viewer.isDestroyed() || !shouldReframe(framing.current)) return;
-    frameNow(Cesium, viewer, framingFor(style, homeView(siteData)));
-    // Locked once the real inputs are in (site data + the settled default style). After that a
-    // style switch keeps whatever the camera shows, e.g. a fly-to the assistant just made.
+    frameNow(Cesium, viewer, framingFor(homeView(siteData)));
+    // Locked once the real inputs are in (site data + the settled buildings request). After that
+    // the camera keeps whatever it shows, e.g. a fly-to the assistant just made.
     if (siteData && settled) framing.current.reframed = true;
-  }, [viewer, siteData, style, settled]);
+  }, [viewer, siteData, settled]);
 
   // Click a place marker (entity id = place id) to open its card, or a flood path (instance id) for "Why this path?".
   useEffect(() => {
@@ -164,34 +153,20 @@ function SceneSetup({
   const onIntentMoved = useCallback(() => {
     framing.current.moved = true;
   }, []);
-  useCameraIntents(
-    focusPoint,
-    onIntentMoved,
-    style === "stylised" ? STYLISED_PITCH_DEG : DEFAULT_PITCH_DEG,
-  );
+  useCameraIntents(focusPoint, onIntentMoved);
 
-  // Vertical field of view per style (Cesium's fov is the horizontal angle on landscape canvases).
+  // Field of view (Cesium's fov is the horizontal angle on landscape canvases).
   useEffect(() => {
     if (!viewer || viewer.isDestroyed()) return;
-    const apply = () => {
-      const f = viewer.camera.frustum;
-      if (!(f instanceof Cesium.PerspectiveFrustum)) return;
-      f.fov =
-        style !== "stylised"
-          ? Cesium.Math.toRadians(DEFAULT_FOV_DEG)
-          : fovForVertical(STYLISED_FOV_DEG, viewer.canvas.clientWidth, viewer.canvas.clientHeight);
-      viewer.scene.requestRender();
-    };
-    apply();
-    const ro = new ResizeObserver(apply);
-    ro.observe(viewer.canvas);
-    return () => ro.disconnect();
-  }, [viewer, style]);
+    const f = viewer.camera.frustum;
+    if (!(f instanceof Cesium.PerspectiveFrustum)) return;
+    f.fov = Cesium.Math.toRadians(DEFAULT_FOV_DEG);
+    viewer.scene.requestRender();
+  }, [viewer]);
 
   // Shift the projection so the look point sits in the middle of the map area left of the panel.
-  // Runs after the fov effect above (same `style` dependency), so `f.fov` is current.
+  // Runs after the fov effect above (declared first), so `f.fov` is current.
   const panelOpen = usePanel((s) => s.open);
-  // biome-ignore lint/correctness/useExhaustiveDependencies: `style` re-runs this after the fov effect changes f.fov
   useEffect(() => {
     if (!viewer || viewer.isDestroyed()) return;
     const apply = () => {
@@ -208,7 +183,7 @@ function SceneSetup({
     const ro = new ResizeObserver(apply);
     ro.observe(viewer.canvas);
     return () => ro.disconnect();
-  }, [viewer, panelOpen, style]);
+  }, [viewer, panelOpen]);
 
   // The compass follows the heading through its own store, so camera moves never re-render the
   // Viewer subtree (only the compass subscribes).
@@ -220,8 +195,8 @@ function SceneSetup({
   // Camera actions (buttons, keyboard, double-click) and the mouse/touch mapping with limits.
   const onOpsRef = useRef(onOps);
   onOpsRef.current = onOps;
-  const framingRef = useRef(framingFor(style, homeView(siteData)));
-  framingRef.current = framingFor(style, homeView(siteData));
+  const framingRef = useRef(framingFor(homeView(siteData)));
+  framingRef.current = framingFor(homeView(siteData));
   const bboxRef = useRef<[number, number, number, number]>([101.46, 3.15, 101.53, 3.24]);
   if (siteData?.bbox?.length === 4)
     bboxRef.current = siteData.bbox as [number, number, number, number];
@@ -253,7 +228,6 @@ export default function CesiumScene({ onOps }: { onOps?: (ops: CameraOps | null)
   const onTilesFailed = useCallback(() => setTilesFailed(true), []);
   const onNoDraping = useCallback(() => setNoDraping(true), []);
   const { style } = useMapStyle();
-  const theme = useTheme((s) => s.theme);
   const [ops, setOpsState] = useState<CameraOps | null>(null);
   const onOpsRef = useRef(onOps);
   onOpsRef.current = onOps;
@@ -264,7 +238,6 @@ export default function CesiumScene({ onOps }: { onOps?: (ops: CameraOps | null)
   return (
     <section
       className="relative h-full w-full"
-      style={style === "stylised" ? { background: skyCss(paletteFor(theme)) } : undefined}
       // biome-ignore lint/a11y/noNoninteractiveTabindex: the 3D map takes keyboard focus for WASD/QE/RF
       tabIndex={0}
       aria-label="3D map. Arrow keys or WASD move, Q and E rotate, R and F tilt, plus and minus zoom, N faces north."
@@ -296,8 +269,7 @@ export default function CesiumScene({ onOps }: { onOps?: (ops: CameraOps | null)
           if (v && !v.isDestroyed()) v.scene.requestRender();
         }}
         baseLayerPicker={false}
-        // No Ion imagery by default: the stylised city needs none (no billable request), and the
-        // realistic setup adds the world imagery itself.
+        // No Ion imagery by default: the realistic setup adds the world imagery itself.
         baseLayer={false}
         timeline={false}
         animation={false}
@@ -310,7 +282,6 @@ export default function CesiumScene({ onOps }: { onOps?: (ops: CameraOps | null)
         fullscreenButton={false}
       >
         <SceneSetup onNoDraping={onNoDraping} onTilesFailed={onTilesFailed} onOps={setOps} />
-        {style === "stylised" && <StylisedCity />}
         <AccessLayer />
         <FloodLayer />
         <WasteLayer />
