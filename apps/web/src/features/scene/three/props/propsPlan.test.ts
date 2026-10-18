@@ -5,7 +5,7 @@ import { createFrame } from "../frame";
 import { type Box, boxAround, seedFor } from "../stream/area";
 import { tileAt } from "../stream/tiles";
 import { capFor, PROP_CAPS } from "./caps";
-import { planProps } from "./propsPlan";
+import { planProps, TREE_SCALE } from "./propsPlan";
 
 const manifest = parseManifest(
   JSON.parse(
@@ -454,5 +454,121 @@ describe("planProps per tile box", () => {
         if (Math.abs(q.x) < 1e-6) onEdge++;
       }
     expect(onEdge).toBeGreaterThan(5);
+  });
+});
+
+describe("tree scale and footway clearance", () => {
+  const footScene: Partial<In> = {
+    walk: fc(
+      line(
+        "street",
+        [
+          [-240, 0],
+          [240, 0],
+        ],
+        "s1",
+      ),
+      line(
+        "footway",
+        [
+          [-240, 6],
+          [240, 6],
+        ],
+        "f1",
+      ),
+      line(
+        "crossing",
+        [
+          [40, -30],
+          [40, 30],
+        ],
+        "c1",
+      ),
+      line(
+        "path",
+        [
+          [-100, -200],
+          [100, 200],
+        ],
+        "p1",
+      ),
+    ),
+    landcover: fc(poly({ class: "grass" }, 60, 60, 120, 120)),
+    parks: fc(poly({ id: "p1" }, 60, 60, 120, 120)),
+    trees: fc(point({ id: "t1" }, 10, 8), point({ id: "t2" }, 150, -150)),
+  };
+  const run = () => plan({ ...footScene, caps: BIG, area: { box: U, seed: "t" } });
+  const sizeOf = (variant: string) => manifest.assets.trees!.variants[variant]!.size[0];
+
+  it("TREE_SCALE bands follow the owner override", () => {
+    expect(TREE_SCALE.street.rain_tree).toEqual([0.55, 0.7]);
+    expect(TREE_SCALE.verge.rain_tree).toEqual([0.55, 0.7]);
+    expect(TREE_SCALE.street.flame_tree).toEqual([0.8, 1]);
+    expect(TREE_SCALE.verge.royal_palm).toEqual([0.8, 1]);
+    expect(TREE_SCALE.park.rain_tree).toEqual([0.8, 1.1]);
+    expect(TREE_SCALE.forest.coconut_palm).toEqual([0.8, 1.1]);
+  });
+
+  it("street rain trees are scaled 0.55-0.7", () => {
+    const rain = run()
+      .kits.get("trees/rain_tree")!
+      .filter((t) => t.id.startsWith("st:"));
+    expect(rain.length).toBeGreaterThan(5);
+    for (const t of rain) {
+      expect(t.sx).toBeGreaterThanOrEqual(0.55 - 1e-9);
+      expect(t.sx).toBeLessThanOrEqual(0.7 + 1e-9);
+    }
+  });
+
+  it("park trees are scaled 0.8-1.1", () => {
+    const nonRoad = ofAsset(run(), "trees").filter((t) => !/^(st|ot|mt):/.test(t.id));
+    expect(nonRoad.length).toBeGreaterThan(5);
+    for (const t of nonRoad) {
+      expect(t.sx).toBeGreaterThanOrEqual(0.8 - 1e-9);
+      expect(t.sx).toBeLessThanOrEqual(1.1 + 1e-9);
+    }
+  });
+
+  it("no street or verge canopy reaches more than 1 m over a footway centreline", () => {
+    const trees = ofAsset(run(), "trees").filter(
+      (t) => t.id.startsWith("st:") || t.id.startsWith("ot:"),
+    );
+    expect(trees.length).toBeGreaterThan(5);
+    const centrelines = [
+      [
+        [-240, 6],
+        [240, 6],
+      ],
+      [
+        [40, -30],
+        [40, 30],
+      ],
+      [
+        [-100, -200],
+        [100, 200],
+      ],
+    ] as const;
+    const dist = (px: number, pz: number, a: readonly number[], b: readonly number[]) => {
+      const dx = b[0]! - a[0]!;
+      const dz = b[1]! - a[1]!;
+      const t = Math.max(
+        0,
+        Math.min(1, ((px - a[0]!) * dx + (pz - a[1]!) * dz) / (dx * dx + dz * dz)),
+      );
+      return Math.hypot(px - a[0]! - t * dx, pz - a[1]! - t * dz);
+    };
+    for (const t of trees) {
+      const r = (sizeOf(t.variant) * t.sx) / 2;
+      for (const [a, b] of centrelines)
+        expect(r - dist(t.x, t.z, a, b)).toBeLessThanOrEqual(1 + 1e-9);
+    }
+  });
+
+  it("clearance does not depend on the planned box", () => {
+    const whole = placements(run());
+    const quads = Q.flatMap((box) =>
+      placements(plan({ ...footScene, caps: BIG, area: { box, seed: "t" } })),
+    );
+    expect(byId(quads)).toEqual(whole);
   });
 });
