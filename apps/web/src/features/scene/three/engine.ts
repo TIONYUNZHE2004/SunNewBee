@@ -6,6 +6,7 @@ import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 import type { Pass } from "three/addons/postprocessing/Pass.js";
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
+import { reducedMotion } from "../cesium/controls/cameraOps";
 import type { Tier } from "../shared/quality";
 import { CityGTAOPass } from "./aoPass";
 import type { CityInstances } from "./assets/cityInstances";
@@ -35,6 +36,7 @@ import type { OverlayLayer } from "./overlays/accessLayers";
 import { THREE_TIERS } from "./quality";
 import { createSky } from "./sky";
 import { measure, UPLOAD_MEASURE } from "./stream/streamer";
+import { attachWheelZoom, dispatchOwnWheel } from "./zoom";
 
 /** Local xz box the camera target may not leave (by more than LIMITS.maxCentreOffsetM). */
 export interface Bounds {
@@ -516,12 +518,23 @@ function build(
   const controls = new MapControls(camera, canvas);
   controls.enableDamping = true;
   controls.zoomToCursor = true;
-  // 0.95^(speed x |deltaY| / 100) per wheel event: about 26% per 200-unit notch (default: 10%).
-  controls.zoomSpeed = 3;
+  // Wheel zoom is proportional and smoothed by ./zoom (AC-A7); OrbitControls only applies each
+  // frame's share through synthetic wheel events (zoom to cursor, clamping): scale 0.95^(|dy|/100).
+  controls.zoomSpeed = 1;
   controls.minDistance = LIMITS.minRangeM;
   controls.maxDistance = LIMITS.maxRangeM;
   controls.minPolarAngle = (90 + LIMITS.minPitchDeg) * RAD;
   controls.maxPolarAngle = (90 + LIMITS.maxPitchDeg) * RAD;
+  undo.push(
+    attachWheelZoom({
+      canvas,
+      range: () => camera.position.distanceTo(controls.target),
+      apply: (factor, x, y) => dispatchOwnWheel(canvas, factor, x, y),
+      reducedMotion,
+      minM: LIMITS.minRangeM,
+      maxM: LIMITS.maxRangeM,
+    }),
+  );
   controls.addEventListener("change", moved);
   undo.push(() => {
     controls.removeEventListener("change", moved);
