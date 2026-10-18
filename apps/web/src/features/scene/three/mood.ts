@@ -94,15 +94,19 @@ export function glowFor(w: MoodWeights): {
   };
 }
 
-/** Fog scales with camera range so the township view is never fogged out. */
+/**
+ * Fog scales with camera range (the preset's `nearK` / `farK` multiples, floored by its metres) so
+ * the township view is only fogged where the ground is far: at the overview the farthest ground
+ * (about 1.5x the range away, past the 1.2x fog end) reaches the fog colour, the centre of the view is barely touched.
+ */
 export function fogFor(
   p: LightPreset,
   rangeM: number,
 ): { color: string; near: number; far: number } {
   return {
     color: p.fog.color,
-    near: Math.max(p.fog.near, 0.6 * rangeM),
-    far: Math.max(p.fog.far, 2.2 * rangeM),
+    near: Math.max(p.fog.near, p.fog.nearK * rangeM),
+    far: Math.max(p.fog.far, p.fog.farK * rangeM),
   };
 }
 

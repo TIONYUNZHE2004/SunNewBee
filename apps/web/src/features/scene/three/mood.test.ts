@@ -1,5 +1,8 @@
 import * as THREE from "three";
 import { describe, expect, it } from "vitest";
+import { BASE_WATER_COLOUR } from "./cityMesh";
+import { readsAsWater } from "./colourHue";
+import { ROOF_TINTS } from "./facade/roofPlan";
 import { blendPresets, LIGHT_PRESETS } from "./lighting";
 import {
   applyFog,
@@ -11,6 +14,7 @@ import {
   moodSource,
   moodWeights,
 } from "./mood";
+import { createSky } from "./sky";
 
 const NOW = new Date("2026-03-20T05:00:00Z"); // 13:00 KL
 const at = (t: number) => moodWeights({ kind: "day", t });
@@ -74,7 +78,7 @@ describe("moodPreset, glowFor, fogFor", () => {
     });
   });
   it("fog scales with the camera range", () => {
-    expect(fogFor(LIGHT_PRESETS.day, 7000).far).toBeGreaterThanOrEqual(15400);
+    expect(fogFor(LIGHT_PRESETS.day, 7000).far).toBeGreaterThanOrEqual(8400);
     expect(fogFor(LIGHT_PRESETS.day, 100)).toMatchObject({ near: 600, far: 3500 });
   });
   it("blendPresets ends are the inputs", () => {
@@ -88,7 +92,7 @@ describe("moodPreset, glowFor, fogFor", () => {
     const f = scene.fog;
     applyFog(scene, LIGHT_PRESETS.night, 7000);
     expect(scene.fog).toBe(f);
-    expect((scene.fog as THREE.Fog).far).toBeGreaterThanOrEqual(15400);
+    expect((scene.fog as THREE.Fog).far).toBeGreaterThanOrEqual(8000);
   });
   it("lightDate maps the day clock onto today's KL date", () => {
     const d = lightDate({ kind: "day", t: 21 * 60 }, NOW);
@@ -117,3 +121,62 @@ describe("moodKeyDir", () => {
   });
 });
 const BOUND_DEG_PER_MIN = 10;
+
+describe("AC-A13: sky gradient and fog (A-T11)", () => {
+  it("fog is on for every mood, and it is the scene's one Fog after applyFog", () => {
+    for (const p of Object.values(LIGHT_PRESETS)) {
+      expect(p.fog.far).toBeGreaterThan(p.fog.near);
+      expect(p.fog.nearK).toBeGreaterThan(0);
+      expect(p.fog.farK).toBeGreaterThan(p.fog.nearK);
+      const scene = new THREE.Scene();
+      applyFog(scene, p, 7000);
+      expect(scene.fog).toBeInstanceOf(THREE.Fog);
+    }
+  });
+  it("the sky is a gradient (zenith and horizon differ) for every mood, horizon = fog colour", () => {
+    for (const [theme, p] of Object.entries(LIGHT_PRESETS)) {
+      const sky = createSky();
+      sky.setPreset(p);
+      const c = sky.colours();
+      expect(c.top, theme).not.toBe(c.horizon);
+      expect(c.horizon, theme).toBe(p.fog.color);
+      expect(new Set([c.top, c.horizon]).size).toBeGreaterThanOrEqual(2);
+      sky.dispose();
+    }
+  });
+  it("fog at the overview range reaches full strength at about 1.2x the range, not at the centre", () => {
+    const f = fogFor(LIGHT_PRESETS.day, 7000);
+    const at = (d: number) => Math.min(1, Math.max(0, (d - f.near) / (f.far - f.near)));
+    expect(at(7000)).toBeLessThan(0.25); // the target of the view stays clear
+    expect(at(10000)).toBeGreaterThan(0.85); // the far ground blends into the fog
+  });
+  it("fog stays moderate at mid range (hero-mid, 800 m): the floors apply, near ground clear", () => {
+    for (const p of Object.values(LIGHT_PRESETS)) {
+      const f = fogFor(p, 800);
+      expect(f.near).toBeGreaterThanOrEqual(400);
+      expect(f.far).toBeGreaterThanOrEqual(2500);
+    }
+  });
+  it("no fog colour reads as water, and fog over a roof tint does not make it read as water", () => {
+    for (const [theme, p] of Object.entries(LIGHT_PRESETS))
+      expect(readsAsWater(p.fog.color, BASE_WATER_COLOUR), theme).toBe(false);
+    for (const p of Object.values(LIGHT_PRESETS))
+      for (const roof of ROOF_TINTS) {
+        const mixed = `#${new THREE.Color(roof).lerp(new THREE.Color(p.fog.color), 0.5).getHexString()}`;
+        expect(readsAsWater(mixed, BASE_WATER_COLOUR), `${roof} + ${p.fog.color}`).toBe(false);
+      }
+  });
+});
+
+describe("AC-A14: night grade (A-T11)", () => {
+  it("ground and road albedo multiplier: 1 by day, lower at dusk, lowest at night, blended between", () => {
+    const { day, dusk, night } = LIGHT_PRESETS;
+    expect(day.groundGrade).toBe(1);
+    expect(dusk.groundGrade).toBeLessThan(day.groundGrade);
+    expect(night.groundGrade).toBeLessThan(dusk.groundGrade);
+    expect(night.groundGrade).toBeLessThanOrEqual(0.8);
+    const mid = moodPreset(at(7 * 60));
+    expect(mid.groundGrade).toBeGreaterThan(night.groundGrade);
+    expect(mid.groundGrade).toBeLessThan(day.groundGrade);
+  });
+});

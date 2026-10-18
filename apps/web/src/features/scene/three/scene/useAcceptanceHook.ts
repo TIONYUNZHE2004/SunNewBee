@@ -87,6 +87,10 @@ export interface AcceptanceApi {
   measureUncapped(frames: number, orbitDegPerFrame: number): UncappedMeasurement;
   /** Vertices in the visible road-surface meshes: the streamed road layer has arrived when > 0. */
   roadVertices(): number;
+  /** The scene's live fog (colour as #rrggbb sRGB, distances in metres) and background colour; null when fog is off. */
+  fog(): { color: string; near: number; far: number; background: string } | null;
+  /** Lamp-pool centres on screen (page-independent canvas CSS pixels), those inside the canvas only. */
+  lampPoints(): { x: number; y: number }[];
   /** The unmasked WebGL vendor and renderer (WEBGL_debug_renderer_info), else the masked ones. */
   gpu(): { vendor: string; renderer: string };
 }
@@ -190,6 +194,44 @@ export function createAcceptanceApi(engine: Engine, frame: LocalFrame): Acceptan
       for (const m of roadMeshes(engine.pickView().roots))
         n += m.geometry.getAttribute("position")?.count ?? 0;
       return n;
+    },
+    fog() {
+      const root = engine.pickView().roots.find((r) => (r as THREE.Scene).fog) as
+        | THREE.Scene
+        | undefined;
+      const f = root?.fog;
+      const bg = root?.background;
+      if (!(f instanceof THREE.Fog)) return null;
+      return {
+        color: `#${f.color.getHexString()}`,
+        near: f.near,
+        far: f.far,
+        background: bg instanceof THREE.Color ? `#${bg.getHexString()}` : "",
+      };
+    },
+    lampPoints() {
+      const v = engine.pickView();
+      const [w, h] = v.size;
+      let pools: THREE.InstancedMesh | null = null;
+      const visit = (o: THREE.Object3D) => {
+        if (!o.visible || pools) return;
+        if ((o as THREE.InstancedMesh).isInstancedMesh && o.name === "lamp-pools")
+          pools = o as THREE.InstancedMesh;
+        for (const c of o.children) visit(c);
+      };
+      for (const r of v.roots) visit(r);
+      const mesh = pools as THREE.InstancedMesh | null;
+      if (!mesh) return [];
+      const m = new THREE.Matrix4();
+      const p = new THREE.Vector3();
+      const out: { x: number; y: number }[] = [];
+      for (let i = 0; i < mesh.count; i++) {
+        mesh.getMatrixAt(i, m);
+        p.setFromMatrixPosition(m).applyMatrix4(mesh.matrixWorld).project(v.camera);
+        if (p.z < -1 || p.z > 1 || Math.abs(p.x) > 1 || Math.abs(p.y) > 1) continue;
+        out.push({ x: ((p.x + 1) / 2) * w, y: ((1 - p.y) / 2) * h });
+      }
+      return out;
     },
     gpu() {
       const gl = engine.gl();
