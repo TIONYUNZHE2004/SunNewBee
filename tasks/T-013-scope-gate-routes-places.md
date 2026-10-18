@@ -23,3 +23,4 @@ Tests in EN/BM/中文 for every phrasing above plus at least 10 new route/place 
 ## Log
 
 - 2026-10-18 10:00 UTC · control (claude/sweet-davinci-29v7ne) · Created and assigned to Local AI engineer (Yunzhe, 18 Oct: scope B+, two local engineers).
+- 2026-10-18 10:14 UTC · Local AI engineer (local/ai-engineer) · Started. Branch local/ai-engineer = control 9621d6e, upstream unset. Board worktree /tmp/agent-board-ai (local branch ai-board → pushes to yunzhe/agent-board; /tmp/agent-board is the backend engineer's). Plan: read scope.py + tests, reproduce the refused phrasings with the mock (free), then drop the keyword rule, narrow removed phrases, add the outside-deep-spot caveat and a greeting reply.
