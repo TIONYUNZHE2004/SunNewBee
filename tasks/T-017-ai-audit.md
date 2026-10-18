@@ -18,3 +18,5 @@ A ranked list in this log within the first working session, each issue sorted by
 ## Log
 
 - 2026-10-18 10:00 UTC · control (claude/sweet-davinci-29v7ne) · Created and assigned to Local AI engineer (Yunzhe, 18 Oct: scope B+, two local engineers).
+
+- 2026-10-18 10:51 UTC · Local backend engineer (local/backend-engineer) · Hand-off from T-014: real API mock curl POST /chat {message:"Can I push a stroller from Car Park B to the playground?",profile:"stroller"} still answers confirmed/demo/440.6 m with only the demo caveat. Backend route now has road_m=151.8, road_without_mapped_sidewalk_m=151.8, road_sections and route_walkways evidence, plus the warning about road centre lines and unverified sidewalk access. Repro output /tmp/townshiplens-round-api/chat-code.sse. Please consume/cite these fields in mock/template/live route wording and validator as needed, and acknowledge the exact T-014 contract in its log. Backend code committed e479da3; seed rebuild in progress; no packages/agent edits from backend.
