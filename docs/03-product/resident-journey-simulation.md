@@ -103,20 +103,83 @@ External sources checked on 18 Oct 2026:
 | GTFS-Realtime | `api.data.gov.my/gtfs-realtime/vehicle-position/prasarana?category=rapid-bus-mrtfeeder` | Works. Feeder buses run 2–5 km from Elmina |
 | JPS river levels | publicinfobanjir.water.gov.my | No public API found |
 
-## Feasibility
+## What exists today
 
-| Part | Exists today | New work | Difficulty | Rough effort |
-|---|---|---|---|---|
-| Follow camera | `tweenPose` in `cameraRig.ts` | Per-frame follow, three beats, keep clear of buildings | Low–medium | 1–2 days |
-| Walk along route | `poseAt`, smoothed yaw, route geometry | Slow-downs, pauses, rest stops | Low | 1–2 days |
-| `journey.play` intent | Intent pipeline | API, agent, mock, validator, `pnpm gen` | Medium (wide, familiar) | 2 days |
-| Haze and rain | Three.js fog | Tint, particles, darker sky | Low | 1–1.5 days |
-| Conditions layer | Endpoints verified | Ingest, `get_conditions`, validator rule | Medium | 2–3 days |
-| Hero person model | Low-poly people (`older_adult`, `parent_stroller`, …), shader limb swing, sized for 80–300 m | Rigged model with a real walk cycle, plus a walker variant | **Medium–high** | 2–3 days |
-| Street-level look | P4 facades, ground and verges (tuned for aerial views) | Kerbs, footpaths, benches and shelters that hold up at 3–5 m | **High, open-ended** | 3–5 days for one route |
-| Route data | Seed has only 6 seating places, 3 benches and 1 covered segment | Pick a route; add facts (demo values, labelled) or survey them | Medium | 0.5–1 day |
+| Part | Exists today | New work |
+|---|---|---|
+| Follow camera | `tweenPose` in `cameraRig.ts` | Per-frame follow, three beats, keep clear of buildings |
+| Walk along route | `poseAt`, smoothed yaw, route geometry | Slow-downs, pauses, rest stops |
+| `journey.play` intent | Intent pipeline | API, agent, mock, validator, `pnpm gen` |
+| Haze and rain | Three.js fog | Tint, particles, darker sky |
+| Conditions layer | Endpoints verified | Ingest, `get_conditions`, validator rule |
+| Hero person model | Low-poly people (`older_adult`, `parent_stroller`, …), shader limb swing, sized for 80–300 m | Rigged model with a real walk cycle, plus a walker variant |
+| Street-level look | P4 facades, ground and verges (tuned for aerial views) | Kerbs, footpaths, benches and shelters that hold up at 3–5 m |
+| Route data | Seed has only 6 seating places, 3 benches and 1 covered segment | Pick a route; add facts (demo values, labelled) or survey them |
 
-Total for the full version: about 2–3 weeks.
+## Visual style: cartoon (proposed)
+
+The proposal is for the simulation, and the Stylised map it plays on, to move to a cartoon look:
+- It looks better, and it matches the reference diorama.
+- Viewers no longer judge it against photographs, so the work can go into the simulation and the data.
+
+**The rendering becomes cartoon; the facts do not.** These stay true:
+- building positions, footprints and heights;
+- the walk network;
+- every world-model fact.
+
+It is still a digital twin of Elmina, drawn in a friendly style. Flood and haze stay sober: no cartoon water, and no depth implied.
+
+### Which cartoon
+
+| Style | Examples | Fit |
+|---|---|---|
+| **Toy / miniature diorama** (recommended) | Townscaper, Mini Motorways, the reference image | Soft shadows, saturated colours, rounded forms, tilt-shift. Suits a top-down city |
+| Cel-shaded with outlines | Breath of the Wild, Borderlands | Use only as an accent: thin outlines on people so they read |
+| Flat low-poly | Many mobile games | Too bare up close |
+
+Buildings don't need new models for this. The work is:
+- a material change: banded toon light, soft AO and a colour grade in `roleMaterial` and the facade and roof layers;
+- a tilt-shift post pass;
+- outlines on people.
+
+### Problem 1: people are too small
+
+At true scale a 1.7 m person is tiny next to the city. That follows the overhaul spec's true-scale rule, which the owner set. Cartoon style gives three remedies:
+- **Chibi proportions:** a big head and a short body (about 1:3) read as a person even at a few pixels.
+- **Moderate enlargement:** people at 1.3–1.5× true scale, with buildings and roads kept true. `displayScale` in `motion/agents.ts` already scales people by distance.
+- **The follow camera:** it keeps the hero large in frame anyway. The size problem is mostly the background crowd, and bright colours plus thin outlines make them visible.
+
+Enlarging people needs the owner to override the true-scale rule **for people only**. People are decorative, so enlarging them changes no fact.
+
+### Problem 2: too much empty space
+
+Elmina really does have a lot of open land. It is a township still being built, with development plots, wide roads, large car parks and large parks. **No invented buildings fill it.** Instead:
+- **Dress the land by its real class:**
+  - grass gets tone variation and flower clumps;
+  - wooded land gets massed trees (from ESA WorldCover classes);
+  - development land gets construction dressing (P4);
+  - car parks get stalls and cars (P4).
+
+  Cartoon style helps here: the same grass that reads as empty in a realistic style reads as a park once it has flowers, rocks and patterns.
+- **A diorama base:** the township sits on a floating slab whose edges show a cut soil section, so the map ends on a finished edge instead of endless flat ground.
+- **Framing:** the follow camera has a narrow view, and the example route can run through a denser area.
+- **Tilt-shift and distance haze:** these soften far-away open land.
+- **Decorative life:** birds, kites and butterflies, all labelled illustrative.
+
+### Problem 3: people need new models
+
+Cartoon people are much easier to make than realistic ones: no realistic faces, no cloth folds.
+- **Base characters from free packs:**
+  - Quaternius and Kenney publish cartoon character packs, released as CC0, so they are allowed for this project.
+  - Some come rigged with walk animations.
+  - Record them in `CREDITS.md`.
+- **Localised in Blender:**
+  - dress: tudung, baju kurung, songkok, school uniforms;
+  - props: walker, stroller, wheelchair.
+- **Variety by combination:** body types × heads × outfits × props give dozens of looks, so no two neighbours match (ADR 0013).
+- **Two tiers:**
+  - **Hero:** more detail and a full skeletal walk, for the follow camera close-up.
+  - **Crowd:** the walk baked into a vertex animation texture, so thousands can walk without a performance cost. Today's crowd swings limbs in the shader, which is the same idea.
 
 ## Open questions
 
@@ -124,3 +187,5 @@ Total for the full version: about 2–3 weeks.
 - What threshold makes a condition worth mentioning, per profile (for example API 101+ for children, older adults and people with asthma).
 - Whether to ask DOE for permission before using the APIMS endpoint, or only replay recorded readings.
 - Whether the walk needs a skip or scrub control for real users, or only playback for the demo.
+- Whether the owner overrides the true-scale rule for people only (chibi proportions, 1.3–1.5×).
+- Which cartoon variant to use (plain toy, toy with outlines, or more saturated).
