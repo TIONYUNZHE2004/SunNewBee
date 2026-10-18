@@ -1,8 +1,11 @@
+import { readFileSync } from "node:fs";
 import * as THREE from "three";
 import { describe, expect, it } from "vitest";
+import { poseToCamera } from "./cameraRig";
 import { BASE_WATER_COLOUR } from "./cityMesh";
 import { readsAsWater } from "./colourHue";
 import { ROOF_TINTS } from "./facade/roofPlan";
+import { createFrame } from "./frame";
 import { blendPresets, LIGHT_PRESETS } from "./lighting";
 import {
   applyFog,
@@ -144,11 +147,11 @@ describe("AC-A13: sky gradient and fog (A-T11)", () => {
       sky.dispose();
     }
   });
-  it("fog at the overview range reaches full strength at about 1.2x the range, not at the centre", () => {
+  it("fog at the overview range reaches full strength at about 1.45x the range, not at the centre", () => {
     const f = fogFor(LIGHT_PRESETS.day, 7000);
     const at = (d: number) => Math.min(1, Math.max(0, (d - f.near) / (f.far - f.near)));
-    expect(at(7000)).toBeLessThan(0.25); // the target of the view stays clear
-    expect(at(10000)).toBeGreaterThan(0.85); // the far ground blends into the fog
+    expect(at(7000)).toBeLessThan(0.45); // the target of the view is only lightly hazed
+    expect(at(10000)).toBeGreaterThan(0.9); // the far ground blends into the fog
   });
   it("fog stays moderate at mid range (hero-mid, 800 m): the floors apply, near ground clear", () => {
     for (const p of Object.values(LIGHT_PRESETS)) {
@@ -178,5 +181,39 @@ describe("AC-A14: night grade (A-T11)", () => {
     const mid = moodPreset(at(7 * 60));
     expect(mid.groundGrade).toBeGreaterThan(night.groundGrade);
     expect(mid.groundGrade).toBeLessThan(day.groundGrade);
+  });
+});
+
+describe("overview fog keeps the diorama slab edge in sight (A-T11 fix round 1)", () => {
+  const seed = (p: string) =>
+    JSON.parse(
+      readFileSync(new URL(`../../../../../../data/seed/elmina/${p}`, import.meta.url), "utf8"),
+    );
+  it("at the overview pose the farthest boundary vertex is below full fog, the top of the frame is above 70%", () => {
+    const frame = createFrame(seed("site.json").center);
+    const ring: [number, number][] =
+      seed("base/boundary.geojson").features[0].geometry.coordinates[0];
+    // The `overview` acceptance bookmark: centre [101.5099, 3.1813], range 7000, pitch -55, heading 0.
+    const rangeM = 7000;
+    const cam = poseToCamera({
+      target: frame.toLocal(101.5099, 3.1813),
+      rangeM,
+      pitchDeg: -55,
+      headingDeg: 0,
+    }).position;
+    const dist = (lon: number, lat: number) => {
+      const [x, z] = frame.toLocal(lon, lat);
+      return Math.hypot(x - cam[0], cam[1], z - cam[2]);
+    };
+    const farthest = Math.max(...ring.map(([lon, lat]) => dist(lon, lat)));
+    expect(farthest).toBeGreaterThan(9000); // the extent really is that far
+    for (const theme of ["day", "dusk", "night"] as const) {
+      const f = fogFor(LIGHT_PRESETS[theme], rangeM);
+      const factor = (d: number) => Math.min(1, Math.max(0, (d - f.near) / (f.far - f.near)));
+      expect(factor(farthest), theme).toBeLessThan(0.95);
+      // Top-centre ray: 55 - VFOV/2 = 40 degrees below the horizon.
+      const top = (rangeM * Math.sin((55 * Math.PI) / 180)) / Math.sin((40 * Math.PI) / 180);
+      expect(factor(top), theme).toBeGreaterThan(0.7);
+    }
   });
 });

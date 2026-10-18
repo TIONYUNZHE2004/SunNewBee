@@ -91,6 +91,11 @@ export interface AcceptanceApi {
   fog(): { color: string; near: number; far: number; background: string } | null;
   /** Lamp-pool centres on screen (page-independent canvas CSS pixels), those inside the canvas only. */
   lampPoints(): { x: number; y: number }[];
+  /**
+   * Shows or hides the data-overlay scene (access lines, flood tint: `pickView().roots[0]`) so a capture
+   * can measure the surface under them. Display only; the lines' own fade is A-T2's.
+   */
+  setOverlaysVisible(visible: boolean): void;
   /** The unmasked WebGL vendor and renderer (WEBGL_debug_renderer_info), else the masked ones. */
   gpu(): { vendor: string; renderer: string };
 }
@@ -194,6 +199,11 @@ export function createAcceptanceApi(engine: Engine, frame: LocalFrame): Acceptan
       for (const m of roadMeshes(engine.pickView().roots))
         n += m.geometry.getAttribute("position")?.count ?? 0;
       return n;
+    },
+    setOverlaysVisible(visible) {
+      const root = engine.pickView().roots[0];
+      if (root) root.visible = visible;
+      engine.requestRender();
     },
     fog() {
       const root = engine.pickView().roots.find((r) => (r as THREE.Scene).fog) as

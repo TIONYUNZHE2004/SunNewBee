@@ -15,12 +15,17 @@ export interface LightPreset {
   skyTop: string;
   /**
    * Fog distances in metres (floors for close cameras) and as multiples of the camera range
-   * (`nearK`, `farK`): the township view fades out only where the ground is far, never near the
-   * target. Mood-driven: night closes in slightly. Fog colour is never a saturated blue, so it
+   * (`nearK`, `farK`). At the 7 km overview the farthest Elmina boundary vertex is 1.39x the range
+   * away (9.73 km, `mood.test.ts` derives it from boundary.geojson); `farK` 1.45 keeps it below full
+   * fog (about 90%) so the diorama slab edge (A-T4) is not swallowed, while the top of the frame
+   * (about 1.28x) is at about 76%. Mood-driven: night closes in slightly. Fog colour is never a saturated blue, so it
    * cannot tint roofs into the water hue band (mood.test.ts).
    */
   fog: { color: string; near: number; far: number; nearK: number; farK: number };
-  /** Albedo multiplier on ground and road materials: 1 by day, lower at night (not on base water). */
+  /**
+   * Albedo multiplier on ground and road materials: 1 by day, lower at night. Land-cover water is
+   * darkened with the rest of the ground (hue-preserving); only the separate base `water` band is exempt.
+   */
   groundGrade: number;
   /** 0 by day, > 0 at dusk and night. */
   windowEmissive: number;
@@ -51,7 +56,7 @@ export const LIGHT_PRESETS: Record<Theme, LightPreset> = {
     exposure: 1,
     background: "#dfe5e7",
     skyTop: "#5f9fe0",
-    fog: { color: "#dfe5e7", near: 600, far: 3500, nearK: 1, farK: 1.2 },
+    fog: { color: "#dfe5e7", near: 600, far: 3500, nearK: 0.7, farK: 1.45 },
     groundGrade: 1,
     windowEmissive: 0,
     bloom: 0,
@@ -66,7 +71,7 @@ export const LIGHT_PRESETS: Record<Theme, LightPreset> = {
     exposure: 1,
     background: "#e8a589",
     skyTop: "#5a4f8c",
-    fog: { color: "#e8a589", near: 500, far: 3000, nearK: 0.95, farK: 1.2 },
+    fog: { color: "#e8a589", near: 500, far: 3000, nearK: 0.7, farK: 1.45 },
     groundGrade: 0.9,
     windowEmissive: 0.8,
     bloom: 0.6,
@@ -81,7 +86,7 @@ export const LIGHT_PRESETS: Record<Theme, LightPreset> = {
     exposure: 1.1,
     background: "#1a1640",
     skyTop: "#06050f",
-    fog: { color: "#1a1640", near: 400, far: 2500, nearK: 0.9, farK: 1.15 },
+    fog: { color: "#1a1640", near: 400, far: 2500, nearK: 0.7, farK: 1.45 },
     groundGrade: 0.72,
     windowEmissive: 1.6,
     bloom: 0.6,
