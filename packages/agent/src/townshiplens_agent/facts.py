@@ -119,7 +119,8 @@ _COUNT_NOUN = (
 )
 _COUNTED = re.compile(
     rf"(?<![A-Za-z0-9_.,/])({_NUM}|{_WORD_ALT}|{_ZH_NUM})\s?(?:个|间|张|处|级|座|条|部)?"
-    rf"(?:\s?[^\d\s.,;:!?。，；]{{1,14}}){{0,2}}?\s?({_STEP_NOUN}|{_COUNT_NOUN})(?![A-Za-z])",
+    rf"(?:\s?[^\d\s.,;:!?。，；？！：、（）()]{{1,14}}){{0,2}}?\s?({_STEP_NOUN}|{_COUNT_NOUN})"
+    r"(?![A-Za-z])",
     re.IGNORECASE,
 )
 
@@ -191,6 +192,9 @@ _APPROX = re.compile(
     r"|\blebih (?:daripada|dari)|约|大约|大概|将近|差不多|不到|超过|接近)\W{0,3}$",
     re.IGNORECASE,
 )
+_LIMIT = re.compile(
+    r"(?:\blimit|\bhad|\bmaximum|\bmax\.?|\bat most|上限|最大|限制|限值)\W{0,3}$", re.IGNORECASE
+)
 _APPROX_AFTER = re.compile(r"^\s?(?:左右|多|or so|ish)", re.IGNORECASE)
 _DOWN = re.compile(
     r"(?:under|less than|below|up to|just under|kurang|不到|接近)\W{0,3}$", re.IGNORECASE
@@ -213,6 +217,7 @@ class Fact:
     exact: bool = False
     direction: str = ""  # "down" (under), "up" (over) or ""
     noun: str = ""  # counts: the category counted ("toilet"), "" for an uncategorised noun
+    limit: bool = False  # a profile limit ("limit 8.3%", "had 100 m"), not a recorded value
     subjects: frozenset[str] = frozenset()  # lengths/times: categories named in the clause
 
 
@@ -264,6 +269,7 @@ def extract_facts(text: str) -> list[Fact]:
                 exact,
                 direction,
                 subjects=subjects,
+                limit=bool(_LIMIT.search(text[max(0, m.start() - 14) : m.start()])),
             )
         )
         taken.append(m.span())
@@ -276,6 +282,9 @@ def extract_facts(text: str) -> list[Fact]:
     for m in _COUNTED.finditer(text):
         if any(a <= m.start(1) < b for a, b in taken):
             continue  # "6 minutes" is a time, not a count
+        filler = m.group(0)[len(m.group(1)) : m.start(2) - m.start(0)]
+        if len(_CJK.findall(filler)) > 5:
+            continue  # "一个游乐场的路线、台阶": too far apart to be "1 step" (live T-017 q10)
         nxt = text[m.end(1) : m.end(1) + 1]
         if (
             _CJK.match(nxt)

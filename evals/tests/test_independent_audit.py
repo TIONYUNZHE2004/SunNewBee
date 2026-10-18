@@ -153,7 +153,11 @@ def toilets():
     ctx = tools.Ctx(world=load_world(SEED), vrs=VerificationStore(":memory:"))
     rec = TurnRecord()
     deps = A.Deps(ctx=ctx, rec=rec, request=ChatRequest(message="x"))
-    asyncio.run(A.call_tool(deps, "nearby_amenities", origin_id="playground", amenity="toilet"))
+    asyncio.run(
+        A.call_tool(
+            deps, "nearby_amenities", origin_id="playground", amenity="toilet", max_walk_m=300
+        )
+    )
     return rec
 
 
@@ -178,6 +182,9 @@ def toilet_errors(rec, text):
         ("There are two toilets near the playground.", False),
         ("The toilet is 58.5 m from the mall.", False),
         ("There is one bench near the playground.", False),
+        ("There is one toilet within 300 m of the playground.", True),  # the radius asked
+        ("The toilet is 300 m from the playground.", True),  # radius is a tool length (limit)
+        ("There are 300 toilets near the playground.", False),
     ],
 )
 def test_amenity_counts_and_distances_bind_to_the_amenity(toilets, text, ok):

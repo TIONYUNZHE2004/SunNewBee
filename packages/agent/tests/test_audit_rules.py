@@ -191,3 +191,36 @@ def test_subject_rule_needs_every_named_category():
     assert unsupported("From the car park to the playground: 440.6 m.", values) == []
     assert unsupported("The toilet is 440.6 m from the car park.", values) == ["440.6 m"]
     assert unsupported("It is 440.6 m.", values) == []  # no subject named: plain kind rule
+
+
+# T-017 round 1 validator false positives (live answers, evals/audits/2026-10-18-t017).
+def test_zh_clarifying_question_is_not_a_step_count():
+    q10 = "请告诉我您指的是哪一个游乐场？确定后我再查从B停车场到该游乐场的路线、台阶和设施。"
+    assert extract_facts(q10) == []
+    assert [(f.noun, f.value) for f in extract_facts("有两个无障碍厕所。")] == [("toilet", 2.0)]
+
+
+def test_a_profile_limit_in_a_claim_is_not_a_recorded_slope():
+    r = rec()
+    ok = FinalAnswer(
+        answer_status="partial",
+        summary="Route status: confirmed.",
+        route_id="rt-1",
+        claims=[
+            Claim(
+                text="Incline (%) on an unnamed ramp is not checked yet (limit 8.3%).",
+                status="unverified",
+                evidence_ids=["ev-1"],
+            )
+        ],
+    )
+    r.tool_measures["slope"] = {8.3}  # the unknown note's "(limit 8.3%)"
+    assert not [e for e in measurement_errors(ok, r) if "8.3" in e]
+    bad = ok.model_copy(
+        update={
+            "claims": [
+                Claim(text="The ramp is 8.3% steep.", status="unverified", evidence_ids=["ev-1"])
+            ]
+        }
+    )
+    assert [e for e in measurement_errors(bad, r) if "8.3" in e]

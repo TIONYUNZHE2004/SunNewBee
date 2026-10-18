@@ -380,6 +380,7 @@ def measurement_errors(ans: FinalAnswer, rec: TurnRecord) -> list[str]:
             f.raw
             for f in extract_facts(_strip_names(c.text, rec.place_names))
             if f.kind in ("steps", "width", "slope")
+            and not f.limit  # "(limit 8.3%)" is the profile's limit, not a recorded value
             and not any(_fact_matches(f, x) for x in own.get(f.kind, ()))
         ]
         if wrong:

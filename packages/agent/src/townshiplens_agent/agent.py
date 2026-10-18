@@ -32,7 +32,7 @@ from .events import (
     ToolResultEvent,
     VerificationRequested,
 )
-from .facts import categories, tool_values
+from .facts import categories, merge, tool_values
 from .labels import crossing_note, enrich_unknowns
 from .mock import mock_model
 from .record import TurnRecord
@@ -449,6 +449,11 @@ async def call_tool(deps: Deps, name: str, **kwargs: Any) -> dict:
             world, str(kwargs.get("origin_id", ""))
         )
     measures = tool_values(out, resolve=lambda pid: place_categories(world, pid), subject=subject)
+    # The search radius the model chose ("no toilet within 300 m") is a length it may repeat,
+    # tagged like the rows it bounded (live T-017 q05).
+    args = {k: v for k, v in kwargs.items() if k == "max_walk_m"}
+    if args:
+        measures = merge(measures, tool_values({"data": [args]}, subject=subject))
     for unit, vals in measures.items():
         rec.tool_measures.setdefault(unit, set()).update(vals)
     return out
