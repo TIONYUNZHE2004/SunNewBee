@@ -21,9 +21,10 @@ import { type LonLat, pointFeatures } from "../geo";
 import { useSceneSettings } from "../sceneSettingsStore";
 import { useScene } from "../sceneStore";
 import { createCityInstances } from "./assets/cityInstances";
+import type { Placement } from "./assets/fit";
 import { type AssetLibrary, loadAssetLibrary } from "./assets/library";
 import { MANIFEST_URL, type Manifest, parseManifest } from "./assets/manifest";
-import { planCity } from "./assets/plan";
+import { type CityPlan, planCity } from "./assets/plan";
 import { createRoleUniforms } from "./assets/roleMaterial";
 import { showroomBounds, showroomManifest, showroomPlan } from "./assets/showroom";
 import {
@@ -56,6 +57,7 @@ import {
   moodSource,
   moodWeights,
 } from "./mood";
+import { planProps } from "./props/propsPlan";
 import { lineToLocal } from "./routeLine";
 
 const EMPTY_FC = { type: "FeatureCollection", features: [] };
@@ -268,6 +270,33 @@ export default function ThreeScene({
 
   // The initial tier: the user's choice, else Medium until the GPU is known.
   const initialTier = useRef<Tier>(quality === "auto" ? "medium" : quality);
+
+  // Seeded static props (trees, lamps, furniture, construction) for the hero district. Planned once
+  // the buildings, land cover and walk are all in, from data that does not depend on profile or
+  // scenario. Decorative only. The tier is read once, like the ground layer's.
+  const propsPlan = useMemo(
+    () =>
+      frame && detailsOn && walk && buildings && loaded && !showroom
+        ? planProps({
+            walk,
+            landcover: buildings.landcover,
+            buildings: buildings.buildings,
+            parks: buildings.parks,
+            trees: buildings.trees,
+            places: walk,
+            frame,
+            centre: HERO_CENTRE,
+            radiusM: HERO_RADIUS_M,
+            tier: initialTier.current,
+            m: loaded.manifest,
+          })
+        : null,
+    [frame, detailsOn, walk, buildings, loaded, showroom],
+  );
+  const propsKits = useRef<Map<string, Placement[]> | undefined>(undefined);
+  propsKits.current = propsPlan?.kits;
+  /** The plan behind the instances now in the engine, so props can be added without a city rebuild. */
+  const cityPlanRef = useRef<CityPlan | null>(null);
   // A fresh canvas per engine: dispose() forces its context lost, so a remount (StrictMode, HMR)
   // must never reuse it. Construction and runtime failures (context lost, shader errors) go to the
   // error boundary through `failure`.
@@ -380,7 +409,8 @@ export default function ThreeScene({
       const plan = showroom
         ? showroomPlan(m, frame.toLocal(HERO_CENTRE[0], HERO_CENTRE[1]))
         : planCity(buildings, frame, manifest, lib.has);
-      const inst = createCityInstances(lib, plan, m, roleUniforms);
+      const inst = createCityInstances(lib, plan, m, roleUniforms, { kits: propsKits.current });
+      cityPlanRef.current = plan;
       const g = buildCityGeometry(buildings, frame, {
         only: plan.extrude,
         colours: showroom ? undefined : fallbackColourFn(buildings.buildings, m),
@@ -411,6 +441,25 @@ export default function ThreeScene({
       setAssetsState("failed");
     }
   }, [engine, frame, buildings, loaded, showroom, roleUniforms]);
+
+  // Props arrive after the city's first frame: rebuild only the instances (the city mesh is kept).
+  useEffect(() => {
+    if (!engine || !loaded || !propsPlan || !handedOff.current || !cityPlanRef.current) return;
+    try {
+      const inst = createCityInstances(
+        loaded.lib,
+        cityPlanRef.current,
+        loaded.manifest,
+        roleUniforms,
+        {
+          kits: propsPlan.kits,
+        },
+      );
+      engine.setAssets(inst);
+    } catch (err) {
+      console.warn(`${ASSET_WARN}: props: ${String(err)}`);
+    }
+  }, [engine, loaded, propsPlan, roleUniforms]);
 
   // First frame after the city is set: the ground details may now load.
   useEffect(() => {
