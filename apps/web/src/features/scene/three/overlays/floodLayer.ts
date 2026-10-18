@@ -9,12 +9,17 @@ import { createLineBatch, statusLineStyle } from "./lines";
 /** Metres the scenario water floats above the ground: the flood overlay's one and only height. */
 export const FLOOD_LIFT_M = 0.3;
 /**
- * Overlay pass orders. The fill sits above the ground bands (1-7) and under every line (>= 10), so
- * a flooded path stays readable on top of the tint. Flood edges share the what-if order (12).
+ * The fill is MAIN-scene ground, drawn after the ground bands (1-5), lamp pools (6) and cloud
+ * shadows (7), so it tints roads and parks but buildings occlude it (depth tested). Its polygon
+ * offset is more negative than every band (-1..-5) and the lamp pools (-6), so the 0.30 m lift
+ * wins over the ground without z-fighting at township range. The flood EDGES are status lines in
+ * the overlay pass (order 12, the what-if order).
  */
-export const FLOOD_ORDER = { fill: 9, edges: 12 } as const;
+export const FLOOD_ORDER = { fill: 8, edges: 12 } as const;
+export const FLOOD_POLYGON_OFFSET = -8;
 export const FLOOD_ALPHA = 0.55;
-/** Hatch: 45 degree lines, 4 px wide on a 12 px pitch. One texture repeat covers HATCH_REPEAT_M. */
+/** Hatch: 45 degree lines, 4 px wide on a 12 px pitch. One texture repeat covers HATCH_REPEAT_M
+ * metres (world-scaled by design: the hatch grows and shrinks with the zoom, like the ground). */
 const HATCH_PX = 12;
 const HATCH_LINE_PX = 4;
 const HATCH_REPEAT_M = 6;
@@ -67,7 +72,7 @@ function fillGeometry(water: unknown, frame: LocalFrame): THREE.BufferGeometry |
 }
 
 /**
- * Draped scenario water: flat triangulated polygons at y = 0.30 m, #1e6fb8 at alpha 0.55 with a
+ * Draped scenario water (the fill is `ground`, the edges `group`): flat triangulated polygons at y = 0.30 m, #1e6fb8 at alpha 0.55 with a
  * hatch. No vertical faces, no height, no depth, no animation: it is an indicative class, not a
  * water surface. Flood edges (flooded_likely, flooded_possible) use the flood status styles, 2 px
  * wider as in Cesium. Base and land-cover water (#7fb6c9) never comes through here.
@@ -76,9 +81,13 @@ export function createFloodLayer(
   water: unknown,
   floodEdges: unknown,
   frame: LocalFrame,
-): { group: THREE.Group; dispose(): void } {
+): { group: THREE.Group; ground: THREE.Group; dispose(): void } {
+  /** Flood edges (overlay scene). */
   const group = new THREE.Group();
   group.name = "flood";
+  /** The tinted fill (main scene, depth tested). */
+  const ground = new THREE.Group();
+  ground.name = "flood-ground";
   let texture: THREE.DataTexture | null = null;
 
   const geo = water ? fillGeometry(water, frame) : null;
@@ -89,8 +98,11 @@ export function createFloodLayer(
       map: texture,
       transparent: true,
       opacity: FLOOD_ALPHA,
-      depthTest: false,
+      depthTest: true,
       depthWrite: false,
+      polygonOffset: true,
+      polygonOffsetFactor: FLOOD_POLYGON_OFFSET,
+      polygonOffsetUnits: FLOOD_POLYGON_OFFSET,
       side: THREE.DoubleSide,
       toneMapped: false,
     });
@@ -98,7 +110,7 @@ export function createFloodLayer(
     mesh.name = "flood-fill";
     mesh.renderOrder = FLOOD_ORDER.fill;
     mesh.frustumCulled = false;
-    group.add(mesh);
+    ground.add(mesh);
   }
 
   if (floodEdges)
@@ -115,12 +127,13 @@ export function createFloodLayer(
 
   return {
     group,
+    ground,
     dispose() {
-      for (const o of [...group.children]) {
+      for (const o of [...group.children, ...ground.children]) {
         const m = o as THREE.Mesh;
         m.geometry?.dispose();
         (m.material as THREE.Material | undefined)?.dispose();
-        group.remove(o);
+        o.removeFromParent();
       }
       texture?.dispose();
       texture = null;

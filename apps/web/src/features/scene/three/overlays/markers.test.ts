@@ -2,7 +2,7 @@ import * as THREE from "three";
 import { describe, expect, it } from "vitest";
 import { centreMapMarker } from "../../../../lib/routeStatus";
 import { createFrame } from "../frame";
-import { createMarkers, LABEL_RANGE_M, markerIdAt } from "./markers";
+import { createMarkers, deviceFillPx, LABEL_RANGE_M, markerIdAt } from "./markers";
 
 const frame = createFrame([101.5, 3.0]);
 const at = (dx: number) => [101.5 + dx * 1e-5, 3.0] as [number, number]; // ~1.1 m per unit
@@ -166,5 +166,40 @@ describe("markers", () => {
 
   it("empty input gives an empty group", () => {
     expect(make({ places: [], waste: [], evac: [] }).group.children).toHaveLength(0);
+  });
+
+  it("sizes follow the pixel ratio: at pr 2 a 9 px marker is 18 device px", () => {
+    const m = make();
+    const [pl] = byKind(m.group, "place");
+    const [e] = byKind(m.group, "evac");
+    expect(deviceFillPx(pl!)).toBe(9); // pr 1 by default
+    m.setPixelRatio(2);
+    expect(deviceFillPx(pl!)).toBe(18);
+    expect(deviceFillPx(e!)).toBe(24);
+    m.setFocus("p1");
+    const focus = points(m.group).find((p) => size(p) === 16);
+    expect(deviceFillPx(focus!)).toBe(32); // a focus point built later inherits it
+    expect((pl!.material as THREE.ShaderMaterial).fragmentShader).toContain("uPixelRatio");
+    expect((pl!.material as THREE.ShaderMaterial).vertexShader).toContain("uPixelRatio");
+  });
+
+  it("two kinds sharing an id each keep their own label", () => {
+    const m = createMarkers(
+      {
+        places: [],
+        waste: [{ id: "dup", name: "Bin", coord: at(0) }],
+        evac: [
+          {
+            centre: { id: "dup", name: "Hall", coord: at(5) },
+            reachable: true,
+            route_status: "confirmed",
+          },
+        ],
+      },
+      frame,
+      fakeCanvas,
+    );
+    cam(m);
+    expect(sprites(m.group).filter((s) => s.visible)).toHaveLength(2);
   });
 });

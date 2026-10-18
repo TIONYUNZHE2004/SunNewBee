@@ -54,17 +54,28 @@ const meshOf = (g: THREE.Group) => g.children.find((o) => o instanceof THREE.Mes
 describe("flood layer", () => {
   it("is flat: every vertex sits at y = 0.30 m (no depth, no surface)", () => {
     const layer = createFloodLayer(water, edges, frame);
-    const pos = meshOf(layer.group).geometry.getAttribute("position");
+    const pos = meshOf(layer.ground).geometry.getAttribute("position");
     expect(pos.count).toBeGreaterThan(6);
     for (let i = 0; i < pos.count; i++) expect(Math.abs(pos.getY(i) - 0.3)).toBeLessThan(1e-6);
     expect(FLOOD_LIFT_M).toBe(0.3);
-    // surface_height_m is a display value of the scenario, never geometry.
-    expect(pos.array.every((v) => Math.abs(v) < 1e4)).toBe(true);
+    // surface_height_m (7.5 / 9) is a display value of the scenario, never geometry: the fill's
+    // x/z bounds are exactly the input polygons' local bbox.
+    const corners = [101.5, 101.51].flatMap((x0) => [3.0, 3.01].map((y0) => [x0, y0] as const));
+    const locals = corners.flatMap(([x0, y0]) => [
+      frame.toLocal(x0, y0),
+      frame.toLocal(x0 + 1e-3, y0 + 1e-3),
+    ]);
+    const box = new THREE.Box3().setFromBufferAttribute(pos as THREE.BufferAttribute);
+    expect(box.min.x).toBeCloseTo(Math.min(...locals.map((l) => l[0])), 3);
+    expect(box.max.x).toBeCloseTo(Math.max(...locals.map((l) => l[0])), 3);
+    expect(box.min.z).toBeCloseTo(Math.min(...locals.map((l) => l[1])), 3);
+    expect(box.max.z).toBeCloseTo(Math.max(...locals.map((l) => l[1])), 3);
+    expect(box.max.y - box.min.y).toBeLessThan(1e-6);
   });
 
-  it("skips the hole of the first polygon", () => {
+  it("triangulates the first polygon around its hole (area = outer - hole + the multipolygon)", () => {
     const layer = createFloodLayer(water, null, frame);
-    const pos = meshOf(layer.group).geometry.getAttribute("position");
+    const pos = meshOf(layer.ground).geometry.getAttribute("position");
     // a 1e-3 deg square minus a 2e-4 one, plus the MultiPolygon square
     const area = (g: THREE.BufferGeometry) => {
       const p = g.getAttribute("position");
@@ -77,7 +88,7 @@ describe("flood layer", () => {
           ) / 2;
       return a;
     };
-    const full = area(meshOf(createFloodLayer(water, null, frame).group).geometry);
+    const full = area(meshOf(createFloodLayer(water, null, frame).ground).geometry);
     const sq = (s: number) => {
       const [x0, z0] = frame.toLocal(101.5, 3.0);
       const [x1, z1] = frame.toLocal(101.5 + s, 3.0 + s);
@@ -88,7 +99,7 @@ describe("flood layer", () => {
   });
 
   it("is #1e6fb8 at alpha 0.55 with a hatch texture, drawn below the status lines", () => {
-    const m = meshOf(createFloodLayer(water, null, frame).group);
+    const m = meshOf(createFloodLayer(water, null, frame).ground);
     const mat = m.material as THREE.MeshBasicMaterial;
     expect(mat.color.getHexString()).toBe(new THREE.Color(WATER_COLOR).getHexString());
     expect(WATER_COLOR).toBe("#1e6fb8");
@@ -104,7 +115,7 @@ describe("flood layer", () => {
 
   it("hatch: 45 degree lines, 4 px wide on a 12 px pitch", () => {
     const tex = (
-      meshOf(createFloodLayer(water, null, frame).group).material as THREE.MeshBasicMaterial
+      meshOf(createFloodLayer(water, null, frame).ground).material as THREE.MeshBasicMaterial
     ).map as THREE.DataTexture;
     const { width, height, data } = tex.image as {
       width: number;
@@ -121,19 +132,43 @@ describe("flood layer", () => {
     expect(dark(3, 0)).toBe(dark(2, 1));
   });
 
-  it("never uses the base-water colour", () => {
-    const layer = createFloodLayer(water, edges, frame);
+  it("never uses the base-water colour in any material or uniform of the flood group", () => {
     const base = new THREE.Color("#7fb6c9").getHex();
-    layer.group.traverse((o) => {
-      const mat = (o as THREE.Mesh).material as { color?: THREE.Color } | undefined;
-      if (mat?.color) expect(mat.color.getHex()).not.toBe(base);
-    });
+    const seen: number[] = [];
+    for (const part of ["group", "ground"] as const) {
+      createFloodLayer(water, edges, frame)[part].traverse((o) => {
+        const mat = (o as THREE.Mesh).material as
+          | (THREE.Material & {
+              color?: THREE.Color;
+              uniforms?: Record<string, { value: unknown }>;
+            })
+          | undefined;
+        if (!mat) return;
+        if (mat.color) seen.push(mat.color.getHex());
+        for (const u of Object.values(mat.uniforms ?? {}))
+          if (u.value instanceof THREE.Color) seen.push(u.value.getHex());
+      });
+    }
+    expect(seen.length).toBeGreaterThanOrEqual(3); // fill + two edge batches
+    expect(seen).not.toContain(base);
+  });
+
+  it("the fill is main-scene ground, depth tested, never in the overlay group", () => {
+    const layer = createFloodLayer(water, edges, frame);
+    expect(layer.group.children.some((o) => o.name === "flood-fill")).toBe(false);
+    const m = meshOf(layer.ground);
+    const mat = m.material as THREE.MeshBasicMaterial;
+    // Buildings must occlude it: a draped ground tint, never paint over a roof.
+    expect(mat.depthTest).toBe(true);
+    expect(mat.depthWrite).toBe(false);
+    expect(mat.polygonOffset).toBe(true);
+    expect(mat.polygonOffsetFactor).toBeLessThan(-6); // beats every ground band (-1..-5) and lamp pools (-6)
+    expect(m.renderOrder).toBeGreaterThan(7);
   });
 
   it("draws only flooded edges, in the flood styles, 2 px wider, at order 12", () => {
     const layer = createFloodLayer(water, edges, frame);
-    const fill = meshOf(layer.group);
-    const lines = layer.group.children.filter((o) => o !== fill);
+    const lines = layer.group.children;
     const mats = lines.map((o) => (o as THREE.Mesh).material as LineMaterial);
     expect(mats).toHaveLength(2);
     const byColour = new Map(mats.map((m) => [m.dashed, m]));

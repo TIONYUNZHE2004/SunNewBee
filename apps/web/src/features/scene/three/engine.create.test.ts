@@ -281,4 +281,34 @@ describe("engine motion clock", () => {
       teardown(e);
     }
   });
+
+  it("setOverlays: lines in the overlay scene, ground tint in the main scene, pixel ratio pushed", async () => {
+    const { e } = await setup({ on: false });
+    try {
+      const THREE = await import("three");
+      const layer = {
+        group: new THREE.Group(),
+        groundGroup: new THREE.Group(),
+        update: vi.fn(),
+        setMetresPerPixel: vi.fn(),
+        hasVisible: () => false,
+        setResolution: vi.fn(),
+        setPixelRatio: vi.fn(),
+        setView: vi.fn(),
+        dispose: vi.fn(),
+      };
+      e.setOverlays(layer);
+      const scenes = spy.scenes as import("three").Scene[];
+      const main = scenes.find((sc) => sc.children.includes(layer.groundGroup));
+      expect(main).toBeTruthy();
+      expect(main?.children.includes(layer.group)).toBe(false);
+      expect(scenes.some((sc) => sc.children.includes(layer.group))).toBe(true);
+      expect(layer.setPixelRatio).toHaveBeenCalled();
+      e.setOverlays(null);
+      expect(layer.groundGroup.parent).toBeNull();
+      expect(layer.dispose).toHaveBeenCalledTimes(1);
+    } finally {
+      teardown(e);
+    }
+  });
 });

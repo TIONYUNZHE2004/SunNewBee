@@ -49,6 +49,8 @@ export interface Markers {
   setFocus(id: string | null): void;
   /** Camera position, vertical fov (degrees) and viewport height (px): picks and sizes the labels. */
   setView(cam: MarkerView, fovDeg: number, heightPx: number): void;
+  /** The renderer's pixel ratio: gl_PointSize is in device pixels, markers are specified in CSS px. */
+  setPixelRatio(pr: number): void;
   dispose(): void;
 }
 
@@ -58,30 +60,39 @@ export function markerIdAt(obj: THREE.Object3D, index: number): string | null {
   return ids?.[index] ?? null;
 }
 
+/** Device pixels of the marker's fill disc (CSS px size times the pixel ratio). */
+export function deviceFillPx(p: THREE.Points): number {
+  const u = (p.material as THREE.ShaderMaterial).uniforms;
+  return (u.uSize?.value as number) * (u.uPixelRatio?.value as number);
+}
+
 const OUT = (OUTLINE_PX * 2).toFixed(1);
 const VERT = /* glsl */ `
 uniform float uSize;
+uniform float uPixelRatio;
 void main() {
-  gl_PointSize = uSize + ${OUT};
+  gl_PointSize = (uSize + ${OUT}) * uPixelRatio;
   gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
 }`;
 /** A disc of `uSize` px with a 2 px white outline, antialiased; the size never changes with depth. */
 const FRAG = /* glsl */ `
 uniform float uSize;
+uniform float uPixelRatio;
 uniform vec3 uColor;
 void main() {
-  float total = uSize + ${OUT};
+  float total = (uSize + ${OUT}) * uPixelRatio;
   float r = length(gl_PointCoord - 0.5) * total;
-  float a = 1.0 - smoothstep(total * 0.5 - 1.0, total * 0.5, r);
+  float a = 1.0 - smoothstep(total * 0.5 - uPixelRatio, total * 0.5, r);
   if (a <= 0.0) discard;
-  vec3 c = mix(uColor, vec3(1.0), smoothstep(uSize * 0.5 - 1.0, uSize * 0.5, r));
+  float fill = uSize * uPixelRatio * 0.5;
+  vec3 c = mix(uColor, vec3(1.0), smoothstep(fill - uPixelRatio, fill, r));
   gl_FragColor = vec4(c, a);
   #include <colorspace_fragment>
 }`;
 
 type Item = { id: string; x: number; z: number };
 
-function pointsOf(kind: Kind, items: Item[], px: number, color: string): THREE.Points {
+function pointsOf(kind: Kind, items: Item[], px: number, color: string, pr: number): THREE.Points {
   const pos = new Float32Array(items.length * 3);
   items.forEach((it, i) => {
     pos.set([it.x, LIFT_M, it.z], i * 3);
@@ -89,7 +100,11 @@ function pointsOf(kind: Kind, items: Item[], px: number, color: string): THREE.P
   const g = new THREE.BufferGeometry();
   g.setAttribute("position", new THREE.BufferAttribute(pos, 3));
   const mat = new THREE.ShaderMaterial({
-    uniforms: { uSize: { value: px }, uColor: { value: new THREE.Color(color) } },
+    uniforms: {
+      uSize: { value: px },
+      uPixelRatio: { value: pr },
+      uColor: { value: new THREE.Color(color) },
+    },
     vertexShader: VERT,
     fragmentShader: FRAG,
     transparent: true,
@@ -107,6 +122,8 @@ function pointsOf(kind: Kind, items: Item[], px: number, color: string): THREE.P
 }
 
 interface Label {
+  /** `${kind}:${id}`: two kinds may share an id. */
+  key: string;
   id: string;
   kind: Kind;
   text: string;
@@ -138,18 +155,25 @@ export function createMarkers(
   const labels: Label[] = [];
   const placeItems = input.places.map(item);
   if (placeItems.length)
-    group.add(pointsOf("place", placeItems, MARKER_STYLE.place.px, MARKER_STYLE.place.color));
+    group.add(pointsOf("place", placeItems, MARKER_STYLE.place.px, MARKER_STYLE.place.color, 1));
   input.places.forEach((p, i) => {
     const it = placeItems[i] as Item;
-    labels.push({ id: p.id, kind: "place", text: p.name, x: it.x, z: it.z });
+    labels.push({ key: `place:${p.id}`, id: p.id, kind: "place", text: p.name, x: it.x, z: it.z });
   });
 
   const wasteItems = input.waste.map(item);
   if (wasteItems.length)
-    group.add(pointsOf("waste", wasteItems, MARKER_STYLE.waste.px, MARKER_STYLE.waste.color));
+    group.add(pointsOf("waste", wasteItems, MARKER_STYLE.waste.px, MARKER_STYLE.waste.color, 1));
   input.waste.forEach((p, i) => {
     const it = wasteItems[i] as Item;
-    labels.push({ id: p.id, kind: "waste", text: `Waste point: ${p.name}`, x: it.x, z: it.z });
+    labels.push({
+      key: `waste:${p.id}`,
+      id: p.id,
+      kind: "waste",
+      text: `Waste point: ${p.name}`,
+      x: it.x,
+      z: it.z,
+    });
   });
 
   const byColour = new Map<string, Item[]>();
@@ -158,6 +182,7 @@ export function createMarkers(
     const it = item({ id: r.centre.id, coord: r.centre.coord });
     byColour.set(mk.color, [...(byColour.get(mk.color) ?? []), it]);
     labels.push({
+      key: `evac:${r.centre.id}`,
       id: r.centre.id,
       kind: "evac",
       text: `${r.centre.name}: ${mk.text}`,
@@ -166,8 +191,9 @@ export function createMarkers(
     });
   }
   for (const [color, items] of byColour)
-    group.add(pointsOf("evac", items, MARKER_STYLE.evac.px, color));
+    group.add(pointsOf("evac", items, MARKER_STYLE.evac.px, color, 1));
 
+  let pixelRatio = 1;
   let focusId: string | null = null;
   let focusPoint: THREE.Points | null = null;
   let view: { cam: MarkerView; fov: number; h: number } | null = null;
@@ -227,12 +253,12 @@ export function createMarkers(
       .filter((c) => c.focused || (c.l.kind !== "place" && c.d <= LABEL_RANGE_M))
       .sort((a, b) => Number(b.focused) - Number(a.focused) || a.d - b.d)
       .slice(0, MAX_LABELS);
-    const show = new Set(wanted.map((c) => c.l.id));
+    const show = new Set(wanted.map((c) => c.l.key));
     for (const { l } of wanted) {
-      let s = sprites.get(l.id);
+      let s = sprites.get(l.key);
       if (!s) {
         s = labelSprite(l);
-        sprites.set(l.id, s);
+        sprites.set(l.key, s);
       }
       s.visible = true;
       s.scale.set(heightScale * (s.userData.aspect as number), heightScale, 1);
@@ -250,7 +276,13 @@ export function createMarkers(
     }
     const p = id ? placeItems.find((i) => i.id === id) : undefined;
     if (p) {
-      focusPoint = pointsOf("place", [p], MARKER_STYLE.place.focusPx, MARKER_STYLE.place.color);
+      focusPoint = pointsOf(
+        "place",
+        [p],
+        MARKER_STYLE.place.focusPx,
+        MARKER_STYLE.place.color,
+        pixelRatio,
+      );
       group.add(focusPoint);
     }
     relabel();
@@ -259,6 +291,18 @@ export function createMarkers(
   return {
     group,
     setFocus,
+    setPixelRatio(pr) {
+      if (!(pr > 0) || !Number.isFinite(pr)) return;
+      pixelRatio = pr;
+      group.traverse((o) => {
+        if ((o as THREE.Points).isPoints)
+          (
+            ((o as THREE.Points).material as THREE.ShaderMaterial).uniforms.uPixelRatio as {
+              value: number;
+            }
+          ).value = pr;
+      });
+    },
     setView(cam, fovDeg, heightPx) {
       view = { cam, fov: fovDeg, h: heightPx };
       relabel();

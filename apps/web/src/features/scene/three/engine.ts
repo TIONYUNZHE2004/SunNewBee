@@ -280,6 +280,7 @@ function build(
   const overlayScene = new THREE.Scene();
   let overlays: OverlayLayer | null = null;
   let overlayPass: RenderPass | null = null;
+  let pixelRatio = 1;
   let lastMpp = 0;
   /** Metres per screen pixel at the camera target; dashes follow it (re-set on a > 5 % change). */
   const syncDashes = (force = false) => {
@@ -293,6 +294,7 @@ function build(
   const dropOverlays = () => {
     if (!overlays) return;
     overlayScene.remove(overlays.group);
+    scene.remove(overlays.groundGroup);
     overlays.dispose();
     overlays = null;
   };
@@ -433,6 +435,8 @@ function build(
     const spec = THREE_TIERS[t];
     const pr = Math.min(globalThis.devicePixelRatio || 1, spec.maxPixelRatio);
     renderer.setPixelRatio(pr);
+    pixelRatio = pr;
+    overlays?.setPixelRatio(pr);
     renderer.shadowMap.enabled = spec.shadows;
     sun.castShadow = spec.shadows;
     if (spec.shadows) {
@@ -459,6 +463,8 @@ function build(
           aoSkip.length = 0;
           if (assets) for (const o of assets.aoExcluded()) aoSkip.push(o);
           if (motionLayer) aoSkip.push(motionLayer.group);
+          // The flood tint is data on the ground: AO must not darken it.
+          if (overlays) aoSkip.push(overlays.groundGroup);
           return aoSkip;
         }),
       );
@@ -679,8 +685,10 @@ function build(
       if (o) {
         overlays = o;
         o.setResolution(size[0], size[1]);
+        o.setPixelRatio(pixelRatio);
         syncDashes(true);
         overlayScene.add(o.group);
+        scene.add(o.groundGroup);
       }
       requestRender();
     },

@@ -281,7 +281,7 @@ describe("createOverlayLayer", () => {
       l.update({ ...base, accessVisible: false, water, floodEdges, floodOn: false });
       expect(l.hasVisible()).toBe(false);
       l.update({ ...base, accessVisible: false, water, floodEdges, floodOn: true });
-      expect(names(l)).toContain("flood-fill");
+      expect(l.groundGroup.getObjectByName("flood-fill")).toBeTruthy();
       expect(l.hasVisible()).toBe(true);
       expect(visibleBatches(l.group)).toHaveLength(1);
       expect(visibleBatches(l.group)[0]?.renderOrder).toBe(12);
@@ -337,6 +337,34 @@ describe("createOverlayLayer", () => {
           sizes.push(((o as THREE.Points).material as THREE.ShaderMaterial).uniforms.uSize?.value);
       });
       expect(sizes.sort((a, b) => a - b)).toEqual([9, 16]);
+    });
+
+    it("the flood fill is main-scene ground, the lines and markers are overlay", () => {
+      const l = createOverlayLayer(frame);
+      l.update({ ...base, accessVisible: false, water, floodEdges, floodOn: true });
+      expect(l.groundGroup.getObjectByName("flood-fill")).toBeTruthy();
+      expect(l.group.getObjectByName("flood-fill")).toBeUndefined();
+      // The overlay pass has no depth: the fill alone must not switch it on.
+      l.update({ ...base, accessVisible: false, water, floodOn: true });
+      expect(l.hasVisible()).toBe(false);
+      l.update({ ...base, accessVisible: false, water, floodOn: false });
+      expect(l.groundGroup.visible).toBe(false);
+    });
+
+    it("setPixelRatio reaches existing and later markers", () => {
+      const l = createOverlayLayer(frame);
+      l.update({ ...base, access: withPlaces });
+      l.setPixelRatio(2);
+      l.update({ ...base, access: withPlaces, waste: wasteData, wasteOn: true });
+      const prs: number[] = [];
+      l.group.traverse((o) => {
+        if ((o as THREE.Points).isPoints)
+          prs.push(
+            ((o as THREE.Points).material as THREE.ShaderMaterial).uniforms.uPixelRatio?.value,
+          );
+      });
+      expect(prs.length).toBe(2);
+      expect(prs.every((v) => v === 2)).toBe(true);
     });
 
     it("dispose leaves nothing behind", () => {

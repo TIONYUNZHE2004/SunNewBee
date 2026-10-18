@@ -39,7 +39,10 @@ export interface OverlayState {
 }
 
 export interface OverlayLayer {
+  /** Overlay scene: lines and markers (no depth, drawn on top). */
   group: THREE.Group;
+  /** MAIN scene: the flood tint, depth tested so buildings occlude it. The engine adds and AO-skips it. */
+  groundGroup: THREE.Group;
   update(state: OverlayState): void;
   /** Dashes are screen-constant: the engine passes the metres per pixel at the camera target. */
   setMetresPerPixel(mpp: number): void;
@@ -47,6 +50,8 @@ export interface OverlayLayer {
   hasVisible(): boolean;
   /** Line2 widths are in pixels: the engine passes the viewport on every resize. */
   setResolution(w: number, h: number): void;
+  /** The renderer's pixel ratio (point markers are sized in device pixels). */
+  setPixelRatio(pr: number): void;
   /** Camera position and vertical fov (degrees): marker labels show near the camera only. */
   setView(cam: { x: number; y: number; z: number }, fovDeg: number): void;
   dispose(): void;
@@ -69,6 +74,9 @@ export function createOverlayLayer(frame: LocalFrame): OverlayLayer {
   const whatIfGroup = new THREE.Group();
   const routeGroup = new THREE.Group();
   const floodGroup = new THREE.Group();
+  const groundGroup = new THREE.Group();
+  groundGroup.name = "flood-ground-slot";
+  let pixelRatio = 1;
   const markerGroup = new THREE.Group();
   group.add(floodGroup, status, gapsGroup, whatIfGroup, routeGroup, markerGroup);
   let flood: { dispose(): void } | null = null;
@@ -108,6 +116,7 @@ export function createOverlayLayer(frame: LocalFrame): OverlayLayer {
       flood?.dispose();
       flood = null;
       floodGroup.clear();
+      groundGroup.clear();
       if (s.water || s.floodEdges) {
         const f = createFloodLayer(s.water, s.floodEdges, frame);
         flood = f;
@@ -116,9 +125,11 @@ export function createOverlayLayer(frame: LocalFrame): OverlayLayer {
           setDashScale(o, mpp);
         });
         floodGroup.add(f.group);
+        groundGroup.add(f.ground);
       }
     }
     floodGroup.visible = !!s.floodOn;
+    groundGroup.visible = !!s.floodOn;
   }
 
   /** Place, waste and evacuation markers: one rebuild when their inputs or lenses change. */
@@ -142,6 +153,7 @@ export function createOverlayLayer(frame: LocalFrame): OverlayLayer {
           frame,
         );
         markerGroup.add(markers.group);
+        markers.setPixelRatio(pixelRatio);
         if (cam) markers.setView(cam, fov, res[1]);
       }
     }
@@ -150,6 +162,7 @@ export function createOverlayLayer(frame: LocalFrame): OverlayLayer {
 
   return {
     group,
+    groundGroup,
     update,
     setMetresPerPixel(m) {
       if (!(m > 0) || !Number.isFinite(m)) return;
@@ -167,6 +180,10 @@ export function createOverlayLayer(frame: LocalFrame): OverlayLayer {
         if (m?.resolution) m.resolution.set(w, h);
       });
     },
+    setPixelRatio(pr) {
+      pixelRatio = pr;
+      markers?.setPixelRatio(pr);
+    },
     setView(c, fovDeg) {
       // The engine calls this every frame: relabel only when the camera moved.
       if (cam && cam.x === c.x && cam.y === c.y && cam.z === c.z && fov === fovDeg) return;
@@ -179,6 +196,8 @@ export function createOverlayLayer(frame: LocalFrame): OverlayLayer {
       markers?.dispose();
       flood = markers = null;
       floodGroup.clear();
+      groundGroup.clear();
+      groundGroup.removeFromParent();
       markerGroup.clear();
       for (const g of [status, gapsGroup, whatIfGroup, routeGroup]) drop(g);
       group.removeFromParent();
