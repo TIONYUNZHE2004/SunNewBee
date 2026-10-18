@@ -1,12 +1,15 @@
 import * as THREE from "three";
 import { describe, expect, it } from "vitest";
 import type { Pose } from "../cameraRig";
+import { createClearance } from "../clearance";
 import type { Engine } from "../engine";
 import type { LocalFrame } from "../frame";
 import {
   acceptanceEnabled,
   createAcceptanceApi,
+  emptyCameraLog,
   frameSummary,
+  logCameraFrame,
   maskCode,
   uncappedSummary,
 } from "./useAcceptanceHook";
@@ -124,5 +127,63 @@ describe("roadVertices (settle waits on the streamed road layer)", () => {
     land.userData.groundBand = "landcover";
     f.roots[0]?.add(road, hidden, land);
     expect(f.api.roadVertices()).toBe(3);
+  });
+});
+
+describe("camera log and footprint lookup (AC-A8)", () => {
+  it("logCameraFrame counts frames over roofs and violations below roof + clearance", () => {
+    const log = emptyCameraLog();
+    logCameraFrame(log, [0, 50, 0], 0, 2);
+    logCameraFrame(log, [0, 33, 0], 30, 2);
+    logCameraFrame(log, [0, 31, 0], 30, 2);
+    expect(log.frames).toBe(3);
+    expect(log.overRoof).toBe(2);
+    expect(log.violations).toBe(1);
+    expect(log.worstDeficitM).toBeCloseTo(1);
+    expect(log.minMarginM).toBeCloseTo(-1);
+    expect(log.samples).toEqual([[0, 31, 0, 30]]);
+    expect([log.minY, log.maxY]).toEqual([31, 50]);
+  });
+
+  it("footprintTop reads the engine's clearance grid; the log runs on rendered frames", () => {
+    const c = createClearance([
+      {
+        id: "a",
+        ring: [
+          [-5, -5],
+          [5, -5],
+          [5, 5],
+          [-5, 5],
+        ],
+        topM: 20,
+      },
+    ]);
+    const cbs = new Set<() => void>();
+    const camera = new THREE.PerspectiveCamera();
+    const engine = {
+      clearance: () => c,
+      onFrame: (cb: () => void) => {
+        cbs.add(cb);
+        return () => cbs.delete(cb);
+      },
+      pickView: () => ({ camera, roots: [], size: [100, 100] }),
+    } as unknown as Engine;
+    const frame = { toLocal: () => [0, 0], toLonLat: () => [0, 0] } as unknown as LocalFrame;
+    const api = createAcceptanceApi(engine, frame);
+    expect(api.footprintTop(0, 0)).toBe(20);
+    expect(api.footprintTop(50, 0)).toBe(0);
+    expect(api.clearance()).toEqual({ count: 1, clearanceM: 2, maxTopM: 20 });
+    api.startCameraLog();
+    camera.position.set(0, 25, 0);
+    for (const cb of cbs) cb();
+    camera.position.set(1, 10, 1);
+    for (const cb of cbs) cb();
+    const log = api.stopCameraLog();
+    expect(cbs.size).toBe(0);
+    expect(log.frames).toBe(2);
+    expect(log.violations).toBe(1);
+    const none = createAcceptanceApi({} as unknown as Engine, frame);
+    expect(none.footprintTop(0, 0)).toBeNull();
+    expect(none.clearance()).toBeNull();
   });
 });

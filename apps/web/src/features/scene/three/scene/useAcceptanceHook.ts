@@ -89,7 +89,67 @@ export interface AcceptanceApi {
   roadVertices(): number;
   /** The unmasked WebGL vendor and renderer (WEBGL_debug_renderer_info), else the masked ones. */
   gpu(): { vendor: string; renderer: string };
+  /** The building-clearance grid in use (A-T7), or null before the city arrives. Read-only. */
+  clearance(): { count: number; clearanceM: number; maxTopM: number } | null;
+  /** Top of the tallest drawn footprint containing local (x, z), 0 when none, null without a grid. */
+  footprintTop(x: number, z: number): number | null;
+  /** The camera position in the local frame (x east, y up, z = -north). */
+  cameraLocal(): [number, number, number];
+  /** Starts logging the camera against the footprint lookup on every rendered frame (AC-A8). */
+  startCameraLog(): void;
+  /** Stops the log and returns its summary (zeros when no log was running). */
+  stopCameraLog(): CameraLog;
 }
+
+/** Every rendered frame's camera checked against the footprint lookup (AC-A8). */
+export interface CameraLog {
+  frames: number;
+  /** Frames whose camera was over a footprint (top > 0). */
+  overRoof: number;
+  /** Frames inside a footprint below roof + clearance. */
+  violations: number;
+  /** Largest shortfall below roof + clearance (m); 0 without violations. */
+  worstDeficitM: number;
+  /** Smallest height above roof + clearance over the frames over a roof (m); null when none. */
+  minMarginM: number | null;
+  minY: number;
+  maxY: number;
+  /** Up to 20 violating frames: [x, y, z, top]. */
+  samples: [number, number, number, number][];
+}
+
+/** Folds one frame into a camera log (pure; `top` is the footprint lookup at the camera). */
+export function logCameraFrame(
+  log: CameraLog,
+  pos: readonly [number, number, number],
+  top: number,
+  clearanceM: number,
+): void {
+  log.frames++;
+  log.minY = Math.min(log.minY, pos[1]);
+  log.maxY = Math.max(log.maxY, pos[1]);
+  if (top <= 0) return;
+  log.overRoof++;
+  const margin = pos[1] - (top + clearanceM);
+  log.minMarginM = log.minMarginM === null ? margin : Math.min(log.minMarginM, margin);
+  // A float hair under the floor (lookAt round-off) is not a violation.
+  if (margin < -1e-6) {
+    log.violations++;
+    log.worstDeficitM = Math.max(log.worstDeficitM, -margin);
+    if (log.samples.length < 20) log.samples.push([pos[0], pos[1], pos[2], top]);
+  }
+}
+
+export const emptyCameraLog = (): CameraLog => ({
+  frames: 0,
+  overRoof: 0,
+  violations: 0,
+  worstDeficitM: 0,
+  minMarginM: null,
+  minY: Number.POSITIVE_INFINITY,
+  maxY: Number.NEGATIVE_INFINITY,
+  samples: [],
+});
 
 export interface UncappedMeasurement {
   frames: number;
@@ -148,7 +208,38 @@ function classify(
 }
 
 export function createAcceptanceApi(engine: Engine, frame: LocalFrame): AcceptanceApi {
+  let camLog: { log: CameraLog; off: () => void } | null = null;
+  const camPos = (): [number, number, number] => {
+    const p = engine.pickView().camera.position;
+    return [p.x, p.y, p.z];
+  };
   return {
+    clearance() {
+      const c = engine.clearance?.() ?? null;
+      return c ? { count: c.count, clearanceM: c.clearanceM, maxTopM: c.maxTopM } : null;
+    },
+    footprintTop(x, z) {
+      const c = engine.clearance?.() ?? null;
+      return c ? c.topAt(x, z) : null;
+    },
+    cameraLocal: camPos,
+    startCameraLog() {
+      camLog?.off();
+      const log = emptyCameraLog();
+      const off = engine.onFrame(() => {
+        const c = engine.clearance?.() ?? null;
+        const pos = camPos();
+        logCameraFrame(log, pos, c ? c.topAt(pos[0], pos[2]) : 0, c?.clearanceM ?? 0);
+      });
+      camLog = { log, off };
+    },
+    stopCameraLog() {
+      if (!camLog) return emptyCameraLog();
+      camLog.off();
+      const { log } = camLog;
+      camLog = null;
+      return log;
+    },
     setPose(p) {
       engine.rig.set({
         target: frame.toLocal(p.lon, p.lat),

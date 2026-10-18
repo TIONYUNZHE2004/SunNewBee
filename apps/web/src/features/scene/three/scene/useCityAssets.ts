@@ -13,6 +13,7 @@ import { showroomBounds, showroomManifest, showroomPlan } from "../assets/showro
 import { HERO_CENTRE } from "../bookmarks";
 import { useCityInfo } from "../cityInfo";
 import { buildCityGeometry, type CityGeometry } from "../cityMesh";
+import { createClearance, obstaclesFromCity } from "../clearance";
 import type { Engine } from "../engine";
 import type { FacadeBuilding } from "../facade/facadeLayer";
 import { largeRoofTint } from "../facade/roofPlan";
@@ -209,6 +210,8 @@ export function useCityAssets({
     const full = () => {
       const g = buildCityGeometry(buildings, frame);
       engine.setCity(g);
+      // Building clearance (A-T7): every drawn footprint at its display height.
+      engine.setClearance?.(createClearance(obstaclesFromCity(buildings, frame)));
       useCityInfo.setState({ manifest: null, extruded: null });
       setPlan(null);
       setInstances(0);
@@ -244,6 +247,11 @@ export function useCityAssets({
       });
       engine.setCity(g);
       engine.setAssets(inst);
+      // Building clearance (A-T7): the footprints plus every placed archetype and landmark box (the
+      // showroom draws no OSM buildings, only its laid-out assets).
+      engine.setClearance?.(
+        createClearance(obstaclesFromCity(showroom ? null : buildings, frame, plan, m)),
+      );
       handedOff.current = true;
       instRef.current = inst;
       applied.current = { kits, scale };

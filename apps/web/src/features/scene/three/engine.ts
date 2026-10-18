@@ -6,6 +6,7 @@ import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 import type { Pass } from "three/addons/postprocessing/Pass.js";
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
+import { reducedMotion } from "../cesium/controls/cameraOps";
 import type { Tier } from "../shared/quality";
 import { CityGTAOPass } from "./aoPass";
 import type { CityInstances } from "./assets/cityInstances";
@@ -21,6 +22,7 @@ import {
   viewOffsetFor,
 } from "./cameraRig";
 import type { CityGeometry } from "./cityMesh";
+import { type Clearance, stepClearance } from "./clearance";
 import { cullFrustum, shadowPadM } from "./cull";
 import { groundMaterial } from "./ground/bands";
 import { cityGroundMeshes } from "./ground/cityGround";
@@ -86,6 +88,13 @@ export interface Engine {
   setMotion(l: MotionLayer | null, running: () => boolean): void;
   /** Camera bounds before the city arrives (the site extent); setCity replaces them. */
   setBounds(b: Bounds): void;
+  /**
+   * Building clearance (A-T7, `clearance.ts`): applied to the camera every frame after every input
+   * (wheel, drag, rotate, set, flyTo) and before the render. Null turns it off.
+   */
+  setClearance?(c: Clearance | null): void;
+  /** The clearance grid in use, or null (read-only; the acceptance hook's footprint lookup). */
+  clearance?(): Clearance | null;
   /**
    * Access / gaps / route / what-if lines. They live in their own scene, drawn by a pass after the
    * AO pass, so ambient occlusion never darkens them and they sit above every prop. Replaces and
@@ -616,6 +625,25 @@ function build(
     c.updateProjectionMatrix();
   };
 
+  // Building clearance (A-T7): the floor applies at once, the segment lift eases. True while easing.
+  let clearance: Clearance | null = null;
+  let clearT = 0;
+  const clearCamera = (now: number): boolean => {
+    const dt = clearT ? now - clearT : 0;
+    clearT = now;
+    if (!clearance) return false;
+    const p = camera.position;
+    const t = controls.target;
+    const r = stepClearance(clearance, [p.x, p.y, p.z], [t.x, t.y, t.z], dt, reducedMotion());
+    if (r.y !== p.y) {
+      p.y = r.y;
+      camera.lookAt(t);
+      lastMove = now;
+      lod.moved();
+    }
+    return !r.settled;
+  };
+
   function tick() {
     raf = 0;
     if (disposed) return;
@@ -626,6 +654,7 @@ function build(
       lod.moved();
     }
     const damping = controls.update();
+    const lifting = clearCamera(now);
     clearTimeout(motionTimer);
     motionTimer = undefined;
     const live = motionMode !== null && !!motionLayer && motionRunning();
@@ -635,7 +664,7 @@ function build(
     // display: every live frame is a motion tick; 30 fps: a (re)start at once, then one per
     // MOTION_FRAME_MS with a few ms of slack for vsync jitter.
     const due = clock.frame(motionNow(now), live);
-    if (live && !due && !dirty && !flying && !damping) {
+    if (live && !due && !dirty && !flying && !damping && !lifting) {
       // 30 fps only: woken by the motion timer too early. Render nothing, wait for the due time.
       wakeMotion(now, live);
       return;
@@ -694,7 +723,7 @@ function build(
       moving: now - lastMove < MOVING_MS,
     };
     for (const cb of listeners) cb(dt, info);
-    if (flying || damping || dirty) schedule();
+    if (flying || damping || dirty || lifting) schedule();
     // Motion-only frames stay "idle" (dt 0 to onFrame listeners, ruling P4-T).
     if (!raf) idle = true;
     // The motion clock: the next rAF (display rate) or the 30 fps timer; nothing while stopped.
@@ -881,6 +910,12 @@ function build(
       if (disposed) return;
       bounds = b;
     },
+    setClearance(c) {
+      if (disposed) return;
+      clearance = c;
+      requestRender();
+    },
+    clearance: () => clearance,
     setOverlays(o) {
       if (disposed) return;
       if (o === overlays) return;
