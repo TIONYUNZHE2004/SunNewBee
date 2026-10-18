@@ -2,37 +2,46 @@
 
 > Only the control session edits this file. Workers report in their task's `## Log`. Rules: [README.md](README.md).
 
-Last updated: 2026-10-17 13:51 UTC by control (claude/sweet-davinci-29v7ne)
+Last updated: 2026-10-18 10:00 UTC by control (claude/sweet-davinci-29v7ne)
 
-## Scope B (Yunzhe, 17 Oct 2026)
+## Scope B+ (Yunzhe, 17-18 Oct 2026)
 
-Small field, highest accuracy. The resident assistant covers **access** (step-free routes, place facts, amenities, closures, tickets for gaps) and **flood evacuation** (indicative river stages, affected places, evacuation centres) in the **deep spot: Elmina Urban Park + Elmina Lakeside Mall frontage**. Everything else is refused politely (T-011). Accuracy is measured on a human-checked answer key (T-012). Our agents may change Backend files when a task needs it; they list them in the PR for Jun Quan.
+The resident assistant covers **access** (routes, places, amenities, closures, tickets for gaps) and **flood evacuation**. It does not refuse a question for its wording: routes and places anywhere in Elmina are answered, with a caveat outside the **deep spot (Elmina Urban Park + Lakeside Mall frontage)**, which stays the accuracy target. Only clearly removed topics (waste, what-if, tipping point, rollout, fix-it, verify-next, Elmina Day) are refused. Our agents may change Backend files when a task needs it and list them in the PR for Jun Quan.
 
-| Task | Title | Status | Priority | Lane | Owner |
-|---|---|---|---|---|---|
-| [T-001](tasks/T-001-validator-fact-binding.md) | Bind every stated fact to a tool field (audit A2) | in-progress | P1 | AI | Claude worker |
-| [T-002](tasks/T-002-withhold-unchecked-drafts.md) | Never show a rejected answer as a draft (audit A3) | done | P1 | AI (+ Frontend boundary: `AnswerCard.tsx`) | Claude worker |
-| [T-003](tasks/T-003-certainty-filter-negation.md) | Fix negation and paraphrase gaps in the promise filter (audit A4) | done | P1 | AI | Claude worker |
-| [T-004](tasks/T-004-redaction-coverage.md) | Redact phone numbers with brackets and spaced MyKad numbers (audit A5) | parked | P2 | AI | unassigned |
-| [T-005](tasks/T-005-resident-voice-outcome.md) | Resident diaries must not contradict the trip outcome (audit A6) | parked | P3 | AI (+ Backend: `day/spotlight.py`) | unassigned |
-| [T-006](tasks/T-006-honest-eval-reporting.md) | Report evaluation results without overclaiming (audit A8) | parked | P3 | AI / evaluation + pitch | unassigned |
-| [T-007](tasks/T-007-live-smoke-after-fixes.md) | Live OpenRouter smoke test after T-001 to T-003 | blocked | P1 | AI | Control session |
-| [T-008](tasks/T-008-amenity-provenance.md) | Invented toilet returned as ordinary evidence (audit A1, Cannon F1) | done | P1 | Backend / data: Jun Quan | Codex worker |
-| [T-009](tasks/T-009-chat-admission-limit.md) | Rate and cost limit for public chat (audit A7) | parked | P2 | Backend / deployment: Jun Quan | unassigned |
-| [T-010](tasks/T-010-crossings-seed-rebuild.md) | Rebuild the Elmina seed so crossings get real types | blocked | P3 | Backend / data: Jun Quan | Control session |
-| [T-011](tasks/T-011-assistant-scope-b.md) | Limit the assistant to scope B (access + flood evacuation) | done | P1 | AI (+ MCP server) | Codex worker |
-| [T-012](tasks/T-012-answer-key-deep-spot.md) | Human-checked answer key for scope B (about 30 questions) | review | P1 | AI / evaluation | Codex worker |
+| Task | Title | Status | Priority | Owner |
+|---|---|---|---|---|
+| [T-001](tasks/T-001-validator-fact-binding.md) | Bind every stated fact to a tool field (audit A2) | in-progress | P1 | Claude worker |
+| [T-002](tasks/T-002-withhold-unchecked-drafts.md) | Never show a rejected answer as a draft (audit A3) | done | P1 | Claude worker |
+| [T-003](tasks/T-003-certainty-filter-negation.md) | Fix negation and paraphrase gaps in the promise filter (audit A4) | done | P1 | Claude worker |
+| [T-004](tasks/T-004-redaction-coverage.md) | Redact phone numbers with brackets and spaced MyKad numbers (audit A5) | parked | P2 | unassigned |
+| [T-005](tasks/T-005-resident-voice-outcome.md) | Resident diaries must not contradict the trip outcome (audit A6) | parked | P3 | unassigned |
+| [T-006](tasks/T-006-honest-eval-reporting.md) | Report evaluation results without overclaiming (audit A8) | parked | P3 | unassigned |
+| [T-007](tasks/T-007-live-smoke-after-fixes.md) | Live OpenRouter smoke test after T-001 to T-003 | blocked | P1 | Control session |
+| [T-008](tasks/T-008-amenity-provenance.md) | Invented toilet returned as ordinary evidence (audit A1, Cannon F1) | done | P1 | Codex worker |
+| [T-009](tasks/T-009-chat-admission-limit.md) | Rate and cost limit for public chat (audit A7) | parked | P2 | unassigned |
+| [T-010](tasks/T-010-crossings-seed-rebuild.md) | Rebuild the Elmina seed so crossings get real types | assigned | P3 | Local backend engineer |
+| [T-011](tasks/T-011-assistant-scope-b.md) | Limit the assistant to scope B (access + flood evacuation) | done | P1 | Codex worker |
+| [T-012](tasks/T-012-answer-key-deep-spot.md) | Human-checked answer key for scope B (about 30 questions) | review | P1 | Codex worker |
+| [T-013](tasks/T-013-scope-gate-routes-places.md) | Stop keyword blocking; answer routes and places anywhere in Elmina | assigned | P1 | Local AI engineer |
+| [T-014](tasks/T-014-sidewalk-vs-road.md) | Tell sidewalks from roads in data, routing and answers | assigned | P1 | Local backend engineer |
+| [T-015](tasks/T-015-answer-key-refresh.md) | Refresh the answer key for the new seed and fix scorer false positives | assigned | P1 | Codex worker (cloud) |
+| [T-016](tasks/T-016-backend-audit.md) | Backend engineer: ranked audit of routing, places, flood and data | assigned | P1 | Local backend engineer |
+| [T-017](tasks/T-017-ai-audit.md) | AI engineer: ranked audit of answers with a small live budget | assigned | P1 | Local AI engineer |
 
-## Order
+## Who does what
 
-- **Claude worker** (`claude/kind-cannon-mormhi`): T-001 → T-003 → T-002. Owns `validate.py` and `draft.py`.
-- **Codex worker** (`codex/yunzhe-workflow`): T-012 → T-008 → T-011, and checks Claude's fixes with the audit probes whenever Claude logs a PR.
-- **Control**: T-010 after T-008 is merged; T-007 on Yunzhe's instruction after T-001 to T-003 and T-011 are merged.
-- **People**: field survey of the hero routes and amenities (`docs/03-product/field-verification-guide.md`).
+| Agent | Where | Tasks |
+|---|---|---|
+| Local AI engineer (Claude, Yunzhe's computer) | `local/ai-engineer` worktree | T-013 → T-017 |
+| Local backend engineer (Codex, Yunzhe's computer) | `local/backend-engineer` worktree | T-016 → T-014 (with T-010) |
+| Cloud Claude worker | `claude/kind-cannon-mormhi` | Finish T-001, then stop |
+| Cloud Codex worker | `codex/yunzhe-workflow` | T-015; checks other agents' PRs with its probes; no product code |
+| Control | `claude/sweet-davinci-29v7ne` | Merge green PRs, keep this board, T-007 on Yunzhe's instruction |
 
-Priorities: P1 before an open demo or the 23 Oct proposal, P2 before collecting resident questions, P3 before claiming whole-system validation.
+Priorities: P1 before the 23 Oct proposal, P2 before collecting resident questions, P3 before claiming whole-system validation.
 
 ## Done
+
 
 | Task | Title | Merged |
 |---|---|---|
