@@ -301,12 +301,13 @@ def test_seed_no_strict_walking_profile_passes_a_major_road_without_verified_sid
             assert evaluate_edge(e, elmina.profiles[pid])[0] != "PASS", (e.id, pid)
 
 
-def test_seed_hero_route_still_confirmed_without_major_roads(elmina):
+def test_seed_hero_route_keeps_missing_sidewalk_uncertainty_without_major_roads(elmina):
     from townshiplens_spatial.routing import plan_route
 
     rr = plan_route(elmina, "park-b", "playground", "stroller")
-    assert rr.status == "confirmed"
-    assert rr.routes[0].distance_m == pytest.approx(440.6, abs=5)
+    assert rr.status == "partly_unverified"
+    assert rr.routes[0].distance_m == pytest.approx(416.4, abs=0.5)
+    assert rr.routes[0].access_metres["unknown"] > 0
     assert not [s for s in rr.routes[0].segments if elmina.edges[s.edge_id].type == "major_road"]
 
 

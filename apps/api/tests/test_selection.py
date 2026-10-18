@@ -54,7 +54,7 @@ def test_layer_coverage_is_a_gap_and_never_fabricates_a_flood_class():
         assert "flood_class" not in props
     fc = c.get("/layers/access", params={"scenario_id": "baseline"}).json()
     props = next(f["properties"] for f in fc["features"] if f["properties"]["id"] == "seg-ab")
-    assert props["status_for_profile"] == "ok" and "flood_coverage" not in props
+    assert props["status_for_profile"] == "unknown" and "flood_coverage" not in props
 
 
 def test_flooded_destination_route_is_blocked_with_reason():

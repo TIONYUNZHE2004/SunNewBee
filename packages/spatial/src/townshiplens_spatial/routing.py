@@ -9,6 +9,7 @@ from typing import Any
 
 import networkx as nx
 
+from .access import LEVELS, assess_access, urban_context
 from .evaluate import SIDEWALK_PRESENT, _is_stale, evaluate_edge, evaluate_flood, rest_point_state
 from .geo import haversine_m
 from .models import Evidence, RoadSection, Route, RouteResult, RouteSegment, photo_url
@@ -293,14 +294,51 @@ def _edge_cost(world, profile, scenario_id, allow_unknown, key, evals=None) -> f
     res, why = _evaluate(world, profile, scenario_id, key)
     if evals is not None:
         evals[key] = (res, why)
-    if res == "FAIL" or (res == "UNKNOWN" and not allow_unknown):
+    assessment = _assessment(world, profile, scenario_id, key, (res, why))
+    unknown = assessment.level == "unknown" and (res == "UNKNOWN" or bool(e.osm_tags))
+    if res == "FAIL" or (unknown and not allow_unknown):
         return None
-    w = e.length_m * (UNKNOWN_WEIGHT if res == "UNKNOWN" else 1.0)
+    w = e.length_m * (
+        UNKNOWN_WEIGHT if unknown else 1.4 if assessment.level == "likely_ok" else 1.0
+    )
     if e.type == "steps":
         w *= profile.soft.get("steps_multiplier", 1.0)
     if profile.allowed_types is None and e.type in ROAD_TYPES:
         w *= WALK_ROAD_MULTIPLIER
     return w
+
+
+def _assessment(world, profile, scenario_id, key, factual=None):
+    edge = world.edges[key]
+    memo = _EVAL_MEMO.get()
+    cache_key = ("access", id(edge), profile.id, scenario_id)
+    if memo is not None and cache_key in memo:
+        return memo[cache_key]
+    value = assess_access(
+        edge,
+        profile,
+        _flood_class(world, scenario_id, key),
+        flood_coverage=world.flood.coverage_for(scenario_id, key),
+        urban=urban_context(world, edge),
+        factual=factual or _evaluate(world, profile, scenario_id, key),
+    )
+    if memo is not None:
+        memo[cache_key] = value
+    return value
+
+
+def path_status(world, nodes, profile, scenario_id):
+    """Status of a strict Dijkstra path, including estimates for non-materialised centres."""
+    estimated = False
+    for u, v in zip(nodes, nodes[1:], strict=False):
+        candidates = [
+            (cost, key)
+            for key in world.graph[u][v]
+            if (cost := _edge_cost(world, profile, scenario_id, False, key)) is not None
+        ]
+        key = min(candidates)[1]
+        estimated |= _assessment(world, profile, scenario_id, key).level == "likely_ok"
+    return "likely_ok" if estimated else _caveat(profile, "confirmed")
 
 
 def make_weight(world, profile, scenario_id, allow_unknown, evals=None, chosen=None):
@@ -456,11 +494,24 @@ def _rest_search(world, sources, targets, profile, scenario_id, allow_unknown, l
 
 def _route_from_nodes(world, nodes, keys, from_id, to_id, profile, scenario_id, evals) -> Route:
     segs, coords, unknowns, dist = [], [], [], 0.0
+    metres = dict.fromkeys(LEVELS, 0.0)
+    estimated, uncovered = False, False
     for u, k in zip(nodes, keys, strict=False):
         e = world.edges[k]
         res, why = evals[k]
+        access = _assessment(world, profile, scenario_id, k, (res, why))
+        estimated |= access.level == "likely_ok"
+        uncovered |= access.level == "unknown" and (res == "UNKNOWN" or bool(e.osm_tags))
+        metres[access.level] += e.length_m
         segs.append(
-            RouteSegment(edge_id=k, eval=res, flood_class=_flood_class(world, scenario_id, k))
+            RouteSegment(
+                edge_id=k,
+                eval=res,
+                flood_class=_flood_class(world, scenario_id, k),
+                access_level=access.level,
+                rule_id=access.rule_id,
+                tags_used=access.tags_used,
+            )
         )
         pts = e.coords if e.from_node == u else list(reversed(e.coords))
         coords.extend(pts if not coords else pts[1:])
@@ -469,7 +520,13 @@ def _route_from_nodes(world, nodes, keys, from_id, to_id, profile, scenario_id, 
             unknowns.extend(why)
     # A detour out and back along a spur repeats edges: list each unknown once (review M-1).
     unknowns = list({(u["element_id"], u["attribute"]): u for u in unknowns}.values())
-    status = _caveat(profile, "confirmed" if not unknowns else "partly_unverified")
+    status = (
+        "partly_unverified"
+        if uncovered
+        else "likely_ok"
+        if estimated
+        else _caveat(profile, "confirmed" if not unknowns else "partly_unverified")
+    )
     rid = (
         "rt-"
         + hashlib.sha1(
@@ -494,6 +551,7 @@ def _route_from_nodes(world, nodes, keys, from_id, to_id, profile, scenario_id, 
         distance_m=round(dist, 1),
         est_minutes=round(dist / _pace_m_per_min(profile), 1),
         segments=segs,
+        access_metres={level: round(length, 1) for level, length in metres.items()},
         unknowns=unknowns,
         rest_points=rest,
         geometry={"type": "LineString", "coordinates": coords},
@@ -528,7 +586,7 @@ def _route_from_nodes(world, nodes, keys, from_id, to_id, profile, scenario_id, 
             route.rest_points_unverified = [
                 r["place_id"] for r in rest if r["status"] == "unverified"
             ]
-        if route.status == "confirmed" and (
+        if route.status in ("confirmed", "likely_ok") and (
             not route.rest_limit_met or route.rest_points_unverified
         ):
             route.status = "partly_unverified"
@@ -603,6 +661,24 @@ def evidence_for_route(world: World, route: Route) -> list[Evidence]:
             source_type="mapped walk graph (not a sidewalk survey)",
         )
     )
+    estimated = [s for s in route.segments if s.access_level == "likely_ok"]
+    if estimated:
+        out.append(
+            Evidence(
+                id=f"ev-{route.id}.access_estimate",
+                element_id=route.id,
+                attribute="route_access_estimate",
+                status="reported",
+                source_type="map-derived estimate (not checked on site)",
+                value={
+                    "access_metres": route.access_metres,
+                    "segments": [
+                        {"edge_id": s.edge_id, "rule_id": s.rule_id, "tags_used": s.tags_used}
+                        for s in estimated
+                    ],
+                },
+            )
+        )
     return out
 
 
@@ -631,6 +707,10 @@ def plan_route(
     if result.routes:
         result.status = result.routes[0].status
         route = result.routes[0]
+        if route.access_metres.get("likely_ok", 0):
+            result.warnings.append(
+                "Likely OK sections are estimated from map data, not checked on site"
+            )
         if profile.allowed_types is None and route.road_without_mapped_sidewalk_m:
             result.warnings.append(
                 f"About {route.road_without_mapped_sidewalk_m:.0f} m follows road centre lines "

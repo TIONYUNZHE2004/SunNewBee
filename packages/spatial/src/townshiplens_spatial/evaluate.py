@@ -34,6 +34,19 @@ SIDEWALK_TYPES = {"major_road"}
 SIDEWALK_PRESENT = {"both", "one_side", "separate"}
 
 
+def mode_access(edge: Edge, profile: Profile) -> tuple[str | None, str | None]:
+    """Most specific OSM mode permission wins; foot=yes can override generic access=no."""
+    keys = (
+        ("motorcar", "motor_vehicle", "vehicle", "access")
+        if profile.id == "drive"
+        else ("foot", "access")
+    )
+    for key in keys:
+        if key in edge.osm_tags:
+            return key, edge.osm_tags[key]
+    return None, None
+
+
 def _sidewalk_check(edge: Edge, profile: Profile, today: date) -> tuple[EvalResult, dict] | None:
     """Walking profiles on a major road: None when the sidewalk claim supports it, else
     FAIL/UNKNOWN with the reason. Vehicle profiles (allowed_types set) are not affected.
@@ -151,6 +164,26 @@ def evaluate_edge(
                 "attribute": "type",
                 "reason": "unknown",
                 "why": f"{edge.type} edges are not usable for {profile.id}",
+            }
+        ]
+    permission_key, permission = mode_access(edge, profile)
+    wheelchair = edge.claims.get("wheelchair")
+    wheelchair_denied = profile.id == "wheelchair" and (
+        edge.osm_tags.get("wheelchair") == "no"
+        or (
+            wheelchair is not None
+            and wheelchair.status in ("verified", "reported")
+            and wheelchair.value == "no"
+        )
+    )
+    if permission == "no" or wheelchair_denied:
+        attr = "wheelchair" if wheelchair_denied else permission_key
+        return "FAIL", [
+            {
+                "element_id": edge.id,
+                "attribute": attr,
+                "reason": "unknown",
+                "why": f"{attr}=no; not usable for {profile.id}",
             }
         ]
     flood_result, flood_why = evaluate_flood(edge.id, profile, flood_class, flood_coverage)

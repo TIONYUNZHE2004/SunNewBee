@@ -44,3 +44,14 @@ describe("CESIUM_DASH", () => {
     expect(statusStyle("blocked").label).toBe("Not passable");
   });
 });
+
+describe("estimated access", () => {
+  it("keeps estimates thin, dashed and explicit, and nonroads grey", () => {
+    expect(statusStyle("likely_ok").label).toBe("Likely OK (estimated)");
+    expect(statusStyle("likely_ok").dashed).toBe(true);
+    expect(statusStyle("likely_ok").width).toBeLessThan(statusStyle("unknown").width);
+    expect(CESIUM_DASH.likely_ok).toBeDefined();
+    expect(statusStyle("not_a_road").label).toBe("Not a road");
+    expect(statusStyle("not_a_road").color).not.toBe(statusStyle("blocked").color);
+  });
+});

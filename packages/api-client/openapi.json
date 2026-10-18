@@ -535,6 +535,7 @@
               {
                 "enum": [
                   "confirmed",
+                  "likely_ok",
                   "partly_unverified",
                   "blocked",
                   "no_data"
@@ -2794,6 +2795,22 @@
       },
       "Route": {
         "properties": {
+          "access_metres": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "propertyNames": {
+              "enum": [
+                "verified",
+                "likely_ok",
+                "unknown",
+                "barrier",
+                "not_a_road"
+              ]
+            },
+            "title": "Access Metres",
+            "type": "object"
+          },
           "crossings": {
             "items": {
               "additionalProperties": true,
@@ -2937,6 +2954,7 @@
           "status": {
             "enum": [
               "confirmed",
+              "likely_ok",
               "partly_unverified",
               "blocked",
               "no_data"
@@ -3074,6 +3092,7 @@
           "status": {
             "enum": [
               "confirmed",
+              "likely_ok",
               "partly_unverified",
               "blocked",
               "no_data"
@@ -3098,6 +3117,18 @@
       },
       "RouteSegment": {
         "properties": {
+          "access_level": {
+            "default": "unknown",
+            "enum": [
+              "verified",
+              "likely_ok",
+              "unknown",
+              "barrier",
+              "not_a_road"
+            ],
+            "title": "Access Level",
+            "type": "string"
+          },
           "edge_id": {
             "title": "Edge Id",
             "type": "string"
@@ -3126,6 +3157,18 @@
               }
             ],
             "title": "Flood Class"
+          },
+          "rule_id": {
+            "default": "no_basis_v1",
+            "title": "Rule Id",
+            "type": "string"
+          },
+          "tags_used": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Tags Used",
+            "type": "object"
           }
         },
         "required": [

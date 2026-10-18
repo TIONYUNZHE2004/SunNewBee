@@ -24,6 +24,7 @@ from .routing import (
     endpoint_flood,
     make_weight,
     origin_flood,
+    path_status,
     plan_route,
 )
 from .scenario_meta import selection_error
@@ -184,7 +185,7 @@ def centres_reachability(
     if not sources:
         return no_data
     origin_state = origin_flood(world, near_place, profile, scenario_id)[0]
-    strict = nx.multi_source_dijkstra_path_length(
+    strict, strict_paths = nx.multi_source_dijkstra(
         world.graph, sources, weight=make_weight(world, profile, scenario_id, False)
     )
     lenient = nx.multi_source_dijkstra_path_length(
@@ -227,7 +228,7 @@ def centres_reachability(
                             profile,
                             "partly_unverified"
                             if "UNKNOWN" in (origin_state, centre_state)
-                            else "confirmed",
+                            else path_status(world, strict_paths[n], profile, scenario_id),
                         ),
                     ),
                 )

@@ -6,6 +6,7 @@ export function routeStatusLabel(status: string): string {
   if (status === "closed") return CLOSED_LABEL;
   if (status === "no_data") return NO_DATA_LABEL;
   if (status === "blocked") return "Not passable";
+  if (status === "likely_ok") return "Likely OK (estimated)";
   return status.replaceAll("_", " ");
 }
 
@@ -18,6 +19,7 @@ export function centreReachLabel(c: { reachable: boolean; route_status: string }
   if (c.route_status === "no_data" || c.route_status === "blocked")
     return routeStatusLabel(c.route_status);
   if (!c.reachable) return routeStatusLabel(c.route_status);
+  if (c.route_status === "likely_ok") return "Reachable, estimated from map data";
   return c.route_status === "partly_unverified" ? PARTLY_LABEL : "Reachable";
 }
 
@@ -29,6 +31,8 @@ export function centreMapMarker(c: { reachable: boolean; route_status: string })
 } {
   if (c.route_status === "closed") return { text: CLOSED_LABEL, color: "#6B7280" };
   if (c.route_status === "no_data") return { text: "No mapped connection", color: "#6B7280" };
+  if (c.reachable && c.route_status === "likely_ok")
+    return { text: "Reachable, estimated from map data", color: "#319795" };
   if (c.reachable && c.route_status === "partly_unverified")
     return { text: PARTLY_LABEL, color: "#B7791F" };
   if (c.reachable) return { text: "Reachable", color: "#1B873F" };

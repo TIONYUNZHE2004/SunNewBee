@@ -65,12 +65,14 @@ describe("SettingsPopover", () => {
       "max-h-[min(70%,calc(100%-var(--sheet-h,0px)-var(--attr-h,0px)-6rem))]",
     );
   });
-  it("lists the legend with all six statuses incl. Suggested route", async () => {
+  it("lists the legend with all access levels incl. Suggested route", async () => {
     renderWithClient(<SettingsPopover />, seeded());
     await userEvent.click(screen.getByRole("button", { name: "Map settings" }));
     const legend = screen.getByRole("list", { name: "Path status legend" });
     for (const t of [
-      "No known barrier",
+      "Verified",
+      "Likely OK (estimated)",
+      "Not a road",
       "Not checked yet",
       "Not passable",
       "Likely flooded (indicative)",
