@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { localRing, triangulate } from "../cityMesh";
 import type { LocalFrame } from "../frame";
+import { LANDCOVER_MAX_Y } from "./bands";
 
 /**
  * Decorative land-cover tints (ESA WorldCover / OSM). Fill only: no outline, no hatch, no meaning.
@@ -38,8 +39,8 @@ export const LANDCOVER_ORDER = [
   "water",
 ] as const;
 
-/** Lifts span 0.00 to 0.06 m (road surfaces sit at 0.08 m). */
-const MAX_LIFT_M = 0.06;
+/** Lifts span 0.00 to 0.04 m: parks (0.05) and base water (0.06) sit above, roads at 0.08 m. */
+const MAX_LIFT_M = LANDCOVER_MAX_Y;
 const lift = (cls: string) => {
   const i = (LANDCOVER_ORDER as readonly string[]).indexOf(cls);
   return i < 0 ? 0 : (MAX_LIFT_M * i) / (LANDCOVER_ORDER.length - 1);

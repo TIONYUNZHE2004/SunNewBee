@@ -65,14 +65,14 @@ describe("landcover", () => {
     expect(c.getZ(0)).toBeCloseTo(want.b, 4);
   });
 
-  it("lifts follow the draw order between 0 and 0.06", () => {
+  it("lifts follow the draw order between 0 and 0.04", () => {
     const yOf = (cls: string) =>
       landcoverMesh(fc(sq(cls)), frame)
         .getAttribute("position")
         .getY(0);
     const ys = LANDCOVER_ORDER.map(yOf);
     expect(ys[0]).toBeCloseTo(0, 5);
-    expect(ys.at(-1)).toBeCloseTo(0.06, 5);
+    expect(ys.at(-1)).toBeCloseTo(0.04, 5);
     for (let i = 1; i < ys.length; i++) expect(ys[i]!).toBeGreaterThan(ys[i - 1]!);
   });
 

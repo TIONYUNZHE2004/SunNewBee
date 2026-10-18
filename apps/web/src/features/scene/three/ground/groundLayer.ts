@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import type { Tier } from "../../cesium/stylised/quality";
+import { GROUND_BANDS, type GroundBand, groundMaterial } from "./bands";
 import type { Ribbon } from "./ribbons";
 
 export interface GroundLayer {
@@ -67,17 +68,10 @@ export function createGroundLayer(
   group.name = "ground-layer";
   const geometries: THREE.BufferGeometry[] = [];
   const materials: THREE.Material[] = [];
-  const add = (geo: THREE.BufferGeometry, order: number, offset: number) => {
-    // Lifts of centimetres z-fight at township range; a polygon offset keeps the stack ordered.
-    const mat = new THREE.MeshStandardMaterial({
-      vertexColors: true,
-      roughness: 1,
-      polygonOffset: true,
-      polygonOffsetFactor: offset,
-      polygonOffsetUnits: offset,
-    });
+  const add = (geo: THREE.BufferGeometry, band: GroundBand) => {
+    const mat = groundMaterial(band);
     const mesh = new THREE.Mesh(geo, mat);
-    mesh.renderOrder = order;
+    mesh.renderOrder = GROUND_BANDS[band].order;
     mesh.receiveShadow = true;
     mesh.castShadow = false;
     mesh.userData.decorative = true;
@@ -87,13 +81,13 @@ export function createGroundLayer(
     materials.push(mat);
   };
 
-  if (landcover.getAttribute("position")?.count) add(landcover, 1, 0);
+  if (landcover.getAttribute("position")?.count) add(landcover, "landcover");
   else landcover.dispose();
   const surface = merge(
     roads.filter((r) => !r.marking),
     (r) => new THREE.Color(ROAD_COLOUR[r.kind]),
   );
-  if (surface) add(surface, 2, -1);
+  if (surface) add(surface, "roads");
   const marks =
     tier === "low"
       ? null
@@ -101,7 +95,7 @@ export function createGroundLayer(
           roads.filter((r) => r.marking),
           () => new THREE.Color(MARK_COLOUR),
         );
-  if (marks) add(marks, 3, -2);
+  if (marks) add(marks, "markings");
 
   return {
     group,

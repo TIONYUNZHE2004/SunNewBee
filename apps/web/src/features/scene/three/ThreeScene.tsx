@@ -58,6 +58,7 @@ import {
 } from "./mood";
 import { lineToLocal } from "./routeLine";
 
+const EMPTY_FC = { type: "FeatureCollection", features: [] };
 const INTENT_PITCH_DEG = -45;
 const WHOLE_PITCH_DEG = -50;
 const FLY_MS = 1800;
@@ -240,11 +241,16 @@ export default function ThreeScene({
   const profile = useScene((s) => s.profile);
   const scenarioId = useScene((s) => s.scenarioId);
   const access = useLayer("access", profile, scenarioId);
-  // The walk network (~5 MB) is fetched only after the first frame with the buildings (or at once
-  // when the world has none), so it never delays the city's first frame. Same sequencing as Cesium.
+  // Roads are built only after the first frame with the buildings (or at once when the world has
+  // none), so their build never delays the city's first frame. The ribbons need only the walk
+  // LineStrings and their `type`, which do not depend on profile or scenario: reuse this query's
+  // data (latched once, so a profile switch does not rebuild the ground) instead of a second
+  // fetch of the ~5 MB layer under the default key.
   const [cityShown, setCityShown] = useState(false);
   const detailsOn = cityShown || buildingsQ.isError || (buildingsQ.isSuccess && !buildings);
-  const walk = useLayer("access", "default", null, detailsOn).data;
+  const walkRef = useRef<typeof access.data>(undefined);
+  if (!walkRef.current && access.data) walkRef.current = access.data;
+  const walk = walkRef.current;
 
   const center = site?.center;
   const frame = useMemo(
@@ -419,8 +425,11 @@ export default function ThreeScene({
   // Land cover covers the whole township; roads are clipped to the hero radius (display only).
   const landcover = useMemo(
     () =>
-      frame && buildings?.landcover
-        ? landcoverMesh(buildings.landcover as unknown as GeoJSON.FeatureCollection, frame)
+      frame
+        ? landcoverMesh(
+            (buildings?.landcover ?? EMPTY_FC) as unknown as GeoJSON.FeatureCollection,
+            frame,
+          )
         : null,
     [frame, buildings],
   );

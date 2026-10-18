@@ -24,6 +24,7 @@ import {
   viewOffsetFor,
 } from "./cameraRig";
 import type { CityGeometry } from "./cityMesh";
+import { GROUND_BANDS, groundMaterial } from "./ground/bands";
 import type { GroundLayer } from "./ground/groundLayer";
 import { fitShadowCamera, type LightPreset } from "./lighting";
 import { createLodSchedule } from "./lodSchedule";
@@ -234,7 +235,8 @@ function build(
   let fogRange = 0;
 
   const buildingMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85 });
-  const flatMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95 });
+  const parksMat = groundMaterial("parks", 0.95);
+  const waterMat = groundMaterial("water", 0.95);
   const groundMat = new THREE.MeshStandardMaterial({
     color: GROUND_COLOUR,
     roughness: 1,
@@ -265,7 +267,7 @@ function build(
   scene.add(route);
   undo.push(() => {
     route.geometry.dispose();
-    for (const m of [buildingMat, flatMat, groundMat, lineMat]) m.dispose();
+    for (const m of [buildingMat, parksMat, waterMat, groundMat, lineMat]) m.dispose();
     sun.shadow.map?.dispose();
   });
 
@@ -359,7 +361,7 @@ function build(
       sun.shadow.map?.dispose();
       sun.shadow.map = null;
     }
-    for (const m of [buildingMat, flatMat, groundMat]) m.needsUpdate = true;
+    for (const m of [buildingMat, parksMat, waterMat, groundMat]) m.needsUpdate = true;
     assets?.group.traverse((o) => {
       const mat = (o as THREE.Mesh).material as THREE.Material | undefined;
       if (mat) mat.needsUpdate = true;
@@ -467,8 +469,10 @@ function build(
       const buildings = new THREE.Mesh(g.buildings, buildingMat);
       buildings.castShadow = true;
       buildings.receiveShadow = true;
-      const parks = new THREE.Mesh(g.parks, flatMat);
-      const water = new THREE.Mesh(g.water, flatMat);
+      const parks = new THREE.Mesh(g.parks, parksMat);
+      parks.renderOrder = GROUND_BANDS.parks.order;
+      const water = new THREE.Mesh(g.water, waterMat);
+      water.renderOrder = GROUND_BANDS.water.order;
       const plane = new THREE.PlaneGeometry(g.ground.size[0], g.ground.size[1]);
       plane.rotateX(-Math.PI / 2);
       const ground = new THREE.Mesh(plane, groundMat);

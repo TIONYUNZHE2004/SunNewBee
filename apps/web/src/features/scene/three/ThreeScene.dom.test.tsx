@@ -71,10 +71,13 @@ vi.mock("./assets/roleMaterial", async (orig) => {
     },
   };
 });
+const accessLayer = vi.hoisted(() => ({
+  data: { type: "FeatureCollection", features: [] } as unknown,
+}));
 vi.mock("../../../lib/api", async (orig) => ({
   ...(await orig<typeof import("../../../lib/api")>()),
   useSite: () => ok(SITE),
-  useLayer: () => ok({ type: "FeatureCollection", features: [] }),
+  useLayer: () => ok(accessLayer.data),
 }));
 const ring = [
   [0, 0],
@@ -234,6 +237,36 @@ describe("ThreeScene", () => {
       "href",
       "/?bookmark=hero-near&engine=cesium#x",
     );
+  });
+
+  it("draws the roads after the first frame even when the world has no land cover", async () => {
+    const home = frame.toLonLat(0, 0);
+    const east = frame.toLonLat(80, 0);
+    accessLayer.data = {
+      type: "FeatureCollection",
+      features: [
+        {
+          type: "Feature",
+          properties: { type: "street" },
+          geometry: { type: "LineString", coordinates: [home, east] },
+        },
+      ],
+    };
+    try {
+      const { engine } = mount();
+      await waitFor(() => expect(engine.setCity).toHaveBeenCalled());
+      act(() => engine.tick());
+      await waitFor(() => {
+        const last = engine.setGround.mock.calls.at(-1)?.[0] as
+          | { group: { children: { geometry: { getAttribute(n: string): { count: number } } }[] } }
+          | null
+          | undefined;
+        expect(last?.group.children.length).toBeGreaterThanOrEqual(1);
+        expect(last?.group.children[0]?.geometry.getAttribute("position").count).toBeGreaterThan(0);
+      });
+    } finally {
+      accessLayer.data = { type: "FeatureCollection", features: [] };
+    }
   });
 
   it("calls setCity once buildings data arrives", async () => {

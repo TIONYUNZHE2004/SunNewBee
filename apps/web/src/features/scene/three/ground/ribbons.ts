@@ -6,10 +6,9 @@ import {
 } from "../../cesium/stylised/ground";
 import type { LonLat } from "../../geo";
 import type { LocalFrame } from "../frame";
+import { MARKING_Y, ROAD_Y } from "./bands";
 
 /** Road surface lift above the ground plane (metres): above land cover (<= 0.06), below markings. */
-export const ROAD_Y = 0.08;
-export const MARKING_Y = 0.1;
 const MARK_WIDTH_M = 0.25;
 const MARK_DASH_M = 3;
 const MARK_GAP_M = 6;

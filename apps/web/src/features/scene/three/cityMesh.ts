@@ -4,9 +4,9 @@ import { type HeightOf, toBuildings } from "../cesium/stylised/model";
 import { type LonLat, waterPolygons } from "../geo";
 import type { FallbackColours } from "./fallbackStyle";
 import type { LocalFrame } from "./frame";
+import { PARK_Y, WATER_Y } from "./ground/bands";
 
-export const PARK_Y = 0.05;
-export const WATER_Y = 0.08;
+export { PARK_Y, WATER_Y };
 /** Height of the trim (parapet) band at the top of a styled fallback building. */
 export const PARAPET_M = 0.6;
 const GROUND_MARGIN_M = 500;
