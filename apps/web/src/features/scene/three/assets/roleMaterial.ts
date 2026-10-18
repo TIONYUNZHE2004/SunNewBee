@@ -13,7 +13,7 @@ export interface RoleUniforms {
 export const FIXED_ROLE_COLOURS: Record<"glass" | "dark" | "metal" | "foliage" | "light", string> =
   {
     glass: "#6f8aa0",
-    dark: "#54575d",
+    dark: "#5a5d63",
     metal: "#9aa1a8",
     foliage: "#5f8f4e",
     light: "#fff1c9",
@@ -27,8 +27,15 @@ export const FIXED_ROLE_COLOURS: Record<"glass" | "dark" | "metal" | "foliage" |
  */
 export const AO_FLOOR = 0.4;
 
-/** Daylight sky reflection on glass: a share of its own colour added as emissive (fades out as windows light up). */
-export const GLASS_SKY = 0.12;
+/**
+ * Per-role AO floor (A-T8, display only). Index = role (0 primary, 1 secondary, 2 accent, 3 glass,
+ * 4 dark, 5 metal, 6 foliage, 7 light). Measured at the link-house bookmark: recessed glass, brick
+ * panels and the dark screen backing fell under 0.03 luminance only because the baked AO multiplied
+ * in; walls, roofs and the ground keep the full AO (contact shadows). Roofs do not get a higher
+ * floor: with AO off they are as dark (their share is ambient-only shade). Every entry is
+ * >= `AO_FLOOR`, the build clamp.
+ */
+export const AO_FLOOR_BY_ROLE: readonly number[] = [0.4, 0.4, 0.7, 0.85, 0.7, 0.4, 0.4, 0.4];
 
 /** Shared by every kit material; driven by the motion clock (Task 8). */
 export interface MotionUniforms {
@@ -59,6 +66,16 @@ export function createRoleUniforms(): RoleUniforms {
     uAoStrength: { value: 1 },
     uFlicker: { value: 0 },
   };
+}
+
+/** GLSL that sets `float tlAoFloor` from `tlRole` (roles >= 7 share the last entry). */
+export function aoFloorGlsl(): string {
+  const f = (i: number) => (AO_FLOOR_BY_ROLE[i] ?? AO_FLOOR).toFixed(2);
+  const lines = [`float tlAoFloor = ${f(0)};`];
+  for (let i = 1; i < 7; i++)
+    lines.push(`${i === 1 ? "" : "else "}if (tlRole == ${i}) tlAoFloor = ${f(i)};`);
+  lines.push(`else if (tlRole >= 7) tlAoFloor = ${f(7)};`);
+  return lines.join(String.fromCharCode(10));
 }
 
 const vec3Of = (hex: string) => {
@@ -149,8 +166,9 @@ void main() {`,
     );
     fs = fs.replace(
       "#include <color_fragment>",
-      `float tlAo = mix(1.0, max(vColor.r, ${AO_FLOOR.toFixed(2)}), uAoStrength);
-int tlRole = int(floor(vColor.g * 7.0 + 0.5));
+      `int tlRole = int(floor(vColor.g * 7.0 + 0.5));
+${aoFloorGlsl()}
+float tlAo = mix(1.0, max(vColor.r, tlAoFloor), uAoStrength);
 vec3 tlBase = ${p(0)};
 if (tlRole == 1) tlBase = ${p(1)};
 else if (tlRole == 2) tlBase = ${p(2)};
@@ -164,7 +182,6 @@ diffuseColor.rgb = tlBase * tlAo;`,
     fs = fs.replace(
       "#include <emissivemap_fragment>",
       `#include <emissivemap_fragment>
-if (tlRole == 3) totalEmissiveRadiance += tlBase * ${GLASS_SKY.toFixed(2)} * (1.0 - clamp(uWindowGlow, 0.0, 1.0));
 if (tlRole == 3 && vColor.b < uLitShare) totalEmissiveRadiance += vec3(1.0, 0.78, 0.45) * uWindowGlow${glassGlow === 1 ? "" : ` * ${glassGlow.toFixed(2)}`}${
         flicker
           ? " * mix(1.0, 0.9 + 0.1 * step(0.97, fract(sin(vColor.b * 9301.0 + floor(uTime * 0.5)) * 43758.0)), uFlicker)"
