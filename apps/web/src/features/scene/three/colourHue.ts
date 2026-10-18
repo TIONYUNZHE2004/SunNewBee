@@ -1,5 +1,8 @@
-/** Hue and water-hue helpers for palette guard tests (A-T9; reuse for the Phase B clay token table). Pure. */
-/** [hue 0-360, saturation 0-1] of a #rrggbb colour (HSL). Reusable by the Phase B clay token guard. */
+/**
+ * [hue 0-360, saturation 0-1] of a #rrggbb colour (HSL). Pure. Hue helpers for palette guard tests
+ * (A-T9). The Phase B clay token guard must run `readsAsWater` over EVERY roof colour table (manifest
+ * palettes, ROOF_TINTS, KIND_COLOUR, NEUTRAL_COLOURS, the clay table), not just one.
+ */
 export function hueSat(hex: string): [number, number] {
   const n = Number.parseInt(hex.slice(1), 16);
   const [r, g, b] = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map((v) => v / 255) as [

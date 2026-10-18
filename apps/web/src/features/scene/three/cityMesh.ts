@@ -14,7 +14,7 @@ const GROUND_MARGIN_M = 500;
 /** Display-only tints per OSM building kind. Illustrative, not facts about the buildings. */
 export const KIND_COLOUR: Record<string, string> = {
   residential: "#d9b99b",
-  commercial: "#a9b8c9",
+  commercial: "#c9b9a3",
   industrial: "#a3a39b",
   civic: "#c9a0a0",
   other: "#c4bfb5",

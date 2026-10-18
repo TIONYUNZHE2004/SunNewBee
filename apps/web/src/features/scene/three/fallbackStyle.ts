@@ -15,7 +15,7 @@ export const NEUTRAL_COLOURS: FallbackColours = {
 };
 
 /** The archetype whose palette stands in for a building of this OSM kind. Display only. */
-const KIND_ARCHETYPE: Record<string, string> = {
+export const KIND_ARCHETYPE: Record<string, string> = {
   residential: "semi_d",
   commercial: "shop_office",
   office: "shop_office",

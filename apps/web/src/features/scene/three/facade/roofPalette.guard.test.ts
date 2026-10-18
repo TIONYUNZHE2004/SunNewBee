@@ -3,9 +3,9 @@ import { describe, expect, it } from "vitest";
 import type { BuildingsLayer } from "../../../../lib/api";
 import { facadeInputs, roofInputs } from "../assets/plan";
 import { HERO_CENTRE, HERO_RADIUS_M } from "../bookmarks";
-import { BASE_WATER_COLOUR, buildCityGeometry } from "../cityMesh";
+import { BASE_WATER_COLOUR, buildCityGeometry, KIND_COLOUR } from "../cityMesh";
 import { readsAsWater } from "../colourHue";
-import { propsByBuildingId } from "../fallbackStyle";
+import { KIND_ARCHETYPE, NEUTRAL_COLOURS, propsByBuildingId } from "../fallbackStyle";
 import { createFrame } from "../frame";
 import { ROOF_TINTS, roofDressing } from "./roofPlan";
 
@@ -25,6 +25,13 @@ describe("AC-A11: no roof colour reads as water", () => {
     for (const c of ROOF_TINTS) expect(readsAsWater(c, BASE_WATER_COLOUR), c).toBe(false);
   });
 
+  it("the no-manifest colours (KIND_COLOUR, NEUTRAL_COLOURS) avoid the water hue", () => {
+    for (const c of [...Object.values(KIND_COLOUR), NEUTRAL_COLOURS.wall, NEUTRAL_COLOURS.roof])
+      expect(readsAsWater(c, BASE_WATER_COLOUR), c).toBe(false);
+  });
+
+  // The Kanopi podium-deck pool (roofLayer DECK_POOL_COLOUR, ruling P4-M) is intentionally base-water
+  // coloured: it is a decorative pool plane, not a roof colour, so it is not checked here.
   it("every archetype roof colour in the manifest avoids the water hue", () => {
     const bad: string[] = [];
     for (const [k, spec] of Object.entries(
@@ -73,26 +80,26 @@ describe("AC-A10: hero district facade and roof variety", () => {
       "bungalow",
       "townhouse",
     ]);
-    const blocks = feet.filter((f) => !HOUSES.has(String(props.get(f.id)?.archetype)));
+    // The archetype the colour logic resolves (fallbackColours): own archetype, else by OSM kind.
+    const resolved = (f: { id: string; kind: string }) => {
+      const a = props.get(f.id)?.archetype;
+      return typeof a === "string" && manifest.assets[a]
+        ? a
+        : (KIND_ARCHETYPE[f.kind] ?? "generic");
+    };
+    const blocks = feet.filter((f) => !HOUSES.has(resolved(f)));
     const facades = facadeInputs(blocks, layer, manifest);
     const walls = new Set(facades.map((f) => f.spec.palette.wall));
     const styles = new Set(facades.map((f) => f.spec.windowStyle));
     const kinds = new Set<string>();
-    let dressed = 0;
     for (const { b, palette } of roofInputs(blocks, layer, manifest, frame)) {
       const d = roofDressing(b, palette);
-      if (d.band.length === 0) continue;
-      dressed++;
       if (d.units.length) kinds.add("units");
       if (d.skylights.length) kinds.add("skylights");
-      kinds.add("band");
     }
-    process.stderr.write(
-      `${JSON.stringify({ hero: feet.length, blocks: blocks.length, walls: [...walls], styles: [...styles], kinds: [...kinds], dressed })}
-`,
-    );
     expect(walls.size).toBeGreaterThanOrEqual(5);
     expect(styles.size).toBeGreaterThanOrEqual(3);
+    // Real roof-detail kinds only (the edge band is on every dressed roof, so it does not count).
     expect(kinds.size).toBeGreaterThanOrEqual(2);
   }, 120_000);
 });
