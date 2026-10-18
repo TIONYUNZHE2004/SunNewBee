@@ -1,0 +1,414 @@
+import type * as THREE from "three";
+import type { LineMaterial } from "three/addons/lines/LineMaterial.js";
+import type { LineSegments2 } from "three/addons/lines/LineSegments2.js";
+import { describe, expect, it } from "vitest";
+import { GAP_BANDS } from "../../../gaps/gapModel";
+import { WHATIF_STYLE } from "../../../whatif/whatifModel";
+import { ROUTE_STYLE, statusStyle } from "../../styles";
+import { createFrame } from "../frame";
+import { createOverlayLayer, type OverlayState } from "./accessLayers";
+
+const attr = (b: unknown, n: string) =>
+  (b as LineSegments2).geometry.getAttribute(n) as THREE.BufferAttribute;
+
+const frame = createFrame([101.5, 3.0]);
+const seg = (id: string, a: number, props: Record<string, unknown> = {}) => ({
+  type: "Feature",
+  geometry: {
+    type: "LineString",
+    coordinates: [
+      [101.5 + a * 1e-4, 3.0],
+      [101.5 + a * 1e-4 + 1e-4, 3.0],
+      [101.5 + a * 1e-4 + 2e-4, 3.0001],
+    ],
+  },
+  properties: { id, ...props },
+});
+const access = {
+  type: "FeatureCollection",
+  features: [
+    seg("a", 0, { status: "blocked" }),
+    seg("b", 1, { status: "blocked" }),
+    seg("c", 2, { status: "unknown" }),
+    seg("d", 3, { status: "ok" }),
+  ],
+};
+const gaps = {
+  type: "FeatureCollection",
+  features: [
+    seg("a", 0, { unknown_count: 0, relevant_count: 2 }),
+    seg("b", 1, { unknown_count: 2, relevant_count: 2 }),
+    seg("c", 2, { unknown_count: 1, relevant_count: 3 }),
+  ],
+};
+const whatIf = {
+  geojson: {
+    type: "FeatureCollection",
+    features: [
+      { ...seg("x", 0), properties: { whatif: true, side: "before" } },
+      { ...seg("y", 1), properties: { whatif: true, side: "after" } },
+      { ...seg("z", 2), properties: { whatif: true, side: "touched" } },
+    ],
+  },
+} as never;
+const route = {
+  type: "LineString",
+  coordinates: [
+    [101.5, 3.0],
+    [101.501, 3.001],
+  ],
+} as never;
+
+const base: OverlayState = {
+  access: null,
+  accessVisible: true,
+  gaps: null,
+  gapsOn: false,
+  route: null,
+  whatIf: null,
+};
+const batches = (g: THREE.Object3D) => {
+  const out: LineSegments2[] = [];
+  g.traverse((o) => {
+    if ((o as LineSegments2).isLineSegments2) out.push(o as LineSegments2);
+  });
+  return out;
+};
+const visibleBatches = (g: THREE.Object3D) =>
+  batches(g).filter((b) => {
+    for (let o: THREE.Object3D | null = b; o; o = o.parent) if (!o.visible) return false;
+    return true;
+  });
+const mat = (b: LineSegments2) => b.material as LineMaterial;
+const colour = (b: LineSegments2) => `#${mat(b).color.getHexString()}`;
+const lower = (s: string) => s.toLowerCase();
+
+describe("createOverlayLayer", () => {
+  it("makes one batch per status in the statusStyle colour, order 10, lift 0.4", () => {
+    const l = createOverlayLayer(frame);
+    l.update({ ...base, access });
+    const bs = visibleBatches(l.group);
+    expect(bs.length).toBe(3);
+    expect(bs.map(colour).sort()).toEqual(
+      [statusStyle("blocked"), statusStyle("unknown"), statusStyle("ok")]
+        .map((s) => lower(s.color))
+        .sort(),
+    );
+    for (const b of bs) {
+      expect(b.renderOrder).toBe(10);
+      expect(attr(b, "instanceStart").getY(0)).toBeCloseTo(0.4, 6);
+    }
+    const blocked = bs.find((b) => colour(b) === lower(statusStyle("blocked").color));
+    expect(attr(blocked, "instanceStart").count).toBe(4); // two edges x two segments
+    expect(mat(blocked as LineSegments2).dashed).toBe(true);
+  });
+
+  it("the no-known-barrier network is translucent", () => {
+    const l = createOverlayLayer(frame);
+    l.update({ ...base, access });
+    const ok = batches(l.group).find((b) => colour(b) === lower(statusStyle("ok").color));
+    expect(mat(ok as LineSegments2).opacity).toBe(0.6);
+  });
+
+  it("gapsOn hides the status batches and shows the gap batches", () => {
+    const l = createOverlayLayer(frame);
+    l.update({ ...base, access, gaps, gapsOn: true });
+    const bs = visibleBatches(l.group);
+    expect(bs.length).toBe(3);
+    expect(bs.map(colour).sort()).toEqual(
+      Object.values(GAP_BANDS)
+        .map((b) => lower(b.color))
+        .sort(),
+    );
+    for (const b of bs) expect(b.renderOrder).toBe(11);
+    l.update({ ...base, access, gaps, gapsOn: false });
+    const after = visibleBatches(l.group);
+    expect(after.length).toBe(3);
+    expect(after.every((b) => b.renderOrder === 10)).toBe(true);
+  });
+
+  it("hides the access lines when the access lens is off", () => {
+    const l = createOverlayLayer(frame);
+    l.update({ ...base, access, gaps, gapsOn: true, accessVisible: false });
+    expect(visibleBatches(l.group).length).toBe(0);
+  });
+
+  it("route is #2B6CB0 at 8 px, order 13, lift 0.6", () => {
+    const l = createOverlayLayer(frame);
+    l.update({ ...base, route });
+    const bs = visibleBatches(l.group);
+    expect(bs.length).toBe(1);
+    const b = bs[0] as LineSegments2;
+    expect(colour(b)).toBe("#2b6cb0");
+    expect(ROUTE_STYLE.color).toBe("#2B6CB0");
+    expect(mat(b).linewidth).toBe(8);
+    expect(b.renderOrder).toBe(13);
+    expect(attr(b, "instanceStart").getY(0)).toBeCloseTo(0.6, 6);
+    l.update({ ...base, route: null });
+    expect(visibleBatches(l.group).length).toBe(0);
+  });
+
+  it("what-if sides follow WHATIF_STYLE, order 12; before is dashed", () => {
+    const l = createOverlayLayer(frame);
+    l.update({ ...base, whatIf });
+    const bs = visibleBatches(l.group);
+    expect(bs.length).toBe(3);
+    const by = (side: keyof typeof WHATIF_STYLE) =>
+      bs.find((b) => colour(b) === lower(WHATIF_STYLE[side].color)) as LineSegments2;
+    for (const side of ["before", "after", "touched"] as const) {
+      expect(mat(by(side)).linewidth).toBe(WHATIF_STYLE[side].width);
+      expect(by(side).renderOrder).toBe(12);
+    }
+    expect(mat(by("before")).dashed).toBe(true);
+    expect(mat(by("after")).dashed).toBe(false);
+  });
+
+  it("Review Focus 1: every overlay draws on top (depthTest false, renderOrder > 0)", () => {
+    const l = createOverlayLayer(frame);
+    const all = { access, accessVisible: true, gaps, route, whatIf };
+    l.update({ ...all, gapsOn: true });
+    l.update({ ...all, gapsOn: false });
+    const bs = batches(l.group);
+    expect(bs.length).toBeGreaterThan(6);
+    for (const b of bs) {
+      expect(mat(b).depthTest).toBe(false);
+      expect(b.renderOrder).toBeGreaterThanOrEqual(10);
+    }
+  });
+
+  it("leaves raycast alone (picking is Task 14) and is not decorative", () => {
+    const l = createOverlayLayer(frame);
+    l.update({ ...base, access, route });
+    for (const b of batches(l.group)) {
+      expect(Object.hasOwn(b, "raycast")).toBe(false);
+      expect(b.userData.decorative).toBeUndefined();
+    }
+  });
+
+  it("setResolution reaches current and later batches; dispose frees them", () => {
+    const l = createOverlayLayer(frame);
+    l.update({ ...base, route });
+    l.setResolution(800, 600);
+    l.update({ ...base, route, access });
+    for (const b of batches(l.group)) {
+      const r = mat(b).resolution;
+      expect([r.x, r.y]).toEqual([800, 600]);
+    }
+    let disposed = 0;
+    for (const b of batches(l.group)) b.geometry.addEventListener("dispose", () => disposed++);
+    l.dispose();
+    expect(disposed).toBeGreaterThan(0);
+    expect(batches(l.group).length).toBe(0);
+  });
+
+  it("an unchanged state rebuilds nothing", () => {
+    const l = createOverlayLayer(frame);
+    l.update({ ...base, route });
+    const before = batches(l.group)[0];
+    l.update({ ...base, route });
+    expect(batches(l.group)[0]).toBe(before);
+  });
+
+  it("setMetresPerPixel rescales dashed batches now and for batches built later", () => {
+    const l = createOverlayLayer(frame);
+    l.update({ ...base, access });
+    const blocked = () =>
+      batches(l.group).find(
+        (b) => colour(b) === lower(statusStyle("blocked").color),
+      ) as LineSegments2;
+    const at1 = mat(blocked()).dashSize;
+    l.setMetresPerPixel(4);
+    expect(mat(blocked()).dashSize).toBeCloseTo(4 * at1, 6);
+    l.update({ ...base, access: { ...access }, route });
+    expect(mat(blocked()).dashSize).toBeCloseTo(4 * at1, 6);
+  });
+
+  it("hasVisible is false with nothing to draw", () => {
+    const l = createOverlayLayer(frame);
+    expect(l.hasVisible()).toBe(false);
+    l.update({ ...base, route });
+    expect(l.hasVisible()).toBe(true);
+    l.update({ ...base, access, accessVisible: false });
+    expect(l.hasVisible()).toBe(false);
+  });
+
+  describe("flood, waste, places and evacuation centres", () => {
+    const sq = (x: number) => [
+      [x, 3.0],
+      [x + 1e-3, 3.0],
+      [x + 1e-3, 3.001],
+      [x, 3.0],
+    ];
+    const water = {
+      type: "FeatureCollection",
+      features: [
+        {
+          type: "Feature",
+          properties: {},
+          geometry: { type: "Polygon", coordinates: [sq(101.5)] },
+        },
+      ],
+    };
+    const floodEdges = {
+      type: "FeatureCollection",
+      features: [seg("f", 0, { status: "flooded_likely" })],
+    };
+    const pt = (id: string, dx: number) => ({
+      type: "Feature",
+      geometry: { type: "Point", coordinates: [101.5 + dx * 1e-5, 3.0] },
+      properties: { id, name: id, type: "park" },
+    });
+    const withPlaces = { ...access, features: [...access.features, pt("p1", 0), pt("p2", 9)] };
+    const wasteData = { type: "FeatureCollection", features: [pt("w1", 5)] };
+    const evac = [
+      {
+        centre: { id: "e1", name: "Hall", coord: [101.5, 3.0] },
+        reachable: true,
+        route_status: "confirmed",
+      },
+    ];
+    const names = (l: ReturnType<typeof createOverlayLayer>) => {
+      const out: string[] = [];
+      l.group.traverse((o) => {
+        for (let p: THREE.Object3D | null = o; p; p = p.parent) if (!p.visible) return;
+        if (o.name) out.push(o.name);
+      });
+      return out;
+    };
+
+    it("draws the flood fill and edges only while the flood lens is on", () => {
+      const l = createOverlayLayer(frame);
+      l.update({ ...base, accessVisible: false, water, floodEdges, floodOn: false });
+      expect(l.hasVisible()).toBe(false);
+      l.update({ ...base, accessVisible: false, water, floodEdges, floodOn: true });
+      expect(l.groundGroup.getObjectByName("flood-fill")).toBeTruthy();
+      expect(l.hasVisible()).toBe(true);
+      expect(visibleBatches(l.group)).toHaveLength(1);
+      expect(visibleBatches(l.group)[0]?.renderOrder).toBe(12);
+    });
+
+    it("flood does not rebuild when unrelated state changes", () => {
+      const l = createOverlayLayer(frame);
+      l.update({ ...base, water, floodEdges, floodOn: true });
+      const fill = names(l).length;
+      const before = l.group.getObjectByName("flood-fill");
+      l.update({ ...base, water, floodEdges, floodOn: true, route });
+      expect(l.group.getObjectByName("flood-fill")).toBe(before);
+      expect(fill).toBeGreaterThan(0);
+    });
+
+    it("place markers follow the access lens; waste and evacuation centres their own lenses", () => {
+      const l = createOverlayLayer(frame);
+      l.update({ ...base, access: withPlaces, accessVisible: true });
+      expect(names(l)).toContain("markers-place");
+      expect(names(l)).not.toContain("markers-waste");
+      expect(names(l)).not.toContain("markers-evac");
+      l.update({ ...base, access: withPlaces, accessVisible: false });
+      expect(names(l)).not.toContain("markers-place");
+      l.update({
+        ...base,
+        accessVisible: false,
+        waste: wasteData,
+        wasteOn: true,
+        evac,
+        floodOn: true,
+      });
+      expect(names(l)).toEqual(expect.arrayContaining(["markers-waste", "markers-evac"]));
+      l.update({
+        ...base,
+        accessVisible: false,
+        waste: wasteData,
+        wasteOn: false,
+        evac,
+        floodOn: false,
+      });
+      expect(l.hasVisible()).toBe(false);
+    });
+
+    it("focus grows a place marker without rebuilding the markers", () => {
+      const l = createOverlayLayer(frame);
+      l.update({ ...base, access: withPlaces });
+      const before = l.group.getObjectByName("markers-place");
+      l.update({ ...base, access: withPlaces, focusPlaceId: "p2" });
+      expect(l.group.getObjectByName("markers-place")).toBe(before);
+      const sizes: number[] = [];
+      l.group.traverse((o) => {
+        if ((o as THREE.Points).isPoints)
+          sizes.push(((o as THREE.Points).material as THREE.ShaderMaterial).uniforms.uSize?.value);
+      });
+      expect(sizes.sort((a, b) => a - b)).toEqual([9, 16]);
+    });
+
+    it("the flood fill is main-scene ground, the lines and markers are overlay", () => {
+      const l = createOverlayLayer(frame);
+      l.update({ ...base, accessVisible: false, water, floodEdges, floodOn: true });
+      expect(l.groundGroup.getObjectByName("flood-fill")).toBeTruthy();
+      expect(l.group.getObjectByName("flood-fill")).toBeUndefined();
+      // The overlay pass has no depth: the fill alone must not switch it on.
+      l.update({ ...base, accessVisible: false, water, floodOn: true });
+      expect(l.hasVisible()).toBe(false);
+      l.update({ ...base, accessVisible: false, water, floodOn: false });
+      expect(l.groundGroup.visible).toBe(false);
+    });
+
+    it("setPixelRatio reaches existing and later markers", () => {
+      const l = createOverlayLayer(frame);
+      l.update({ ...base, access: withPlaces });
+      l.setPixelRatio(2);
+      l.update({ ...base, access: withPlaces, waste: wasteData, wasteOn: true });
+      const prs: number[] = [];
+      l.group.traverse((o) => {
+        if ((o as THREE.Points).isPoints)
+          prs.push(
+            ((o as THREE.Points).material as THREE.ShaderMaterial).uniforms.uPixelRatio?.value,
+          );
+      });
+      expect(prs.length).toBe(2);
+      expect(prs.every((v) => v === 2)).toBe(true);
+    });
+
+    it("dispose leaves nothing behind", () => {
+      const l = createOverlayLayer(frame);
+      l.update({
+        ...base,
+        access: withPlaces,
+        water,
+        floodEdges,
+        floodOn: true,
+        waste: wasteData,
+        wasteOn: true,
+      });
+      l.dispose();
+      expect(l.group.children.every((c) => c.children.length === 0)).toBe(true);
+    });
+  });
+});
+
+describe("attach", () => {
+  it("adds a child batch, counts it in hasVisible, feeds it the view and disposes it", async () => {
+    const T = await import("three");
+    const layer = createOverlayLayer(frame);
+    const g = new T.Group();
+    const mesh = new T.Mesh(new T.BoxGeometry(), new T.MeshBasicMaterial());
+    g.add(mesh);
+    const views: number[] = [];
+    let disposed = 0;
+    expect(layer.hasVisible()).toBe(false);
+    const detach = layer.attach({
+      group: g,
+      setView: (c) => views.push(c.x),
+      dispose: () => disposed++,
+    });
+    expect(layer.group.children).toContain(g);
+    expect(layer.hasVisible()).toBe(true);
+    layer.setView({ x: 1, y: 2, z: 3 }, 40);
+    layer.setView({ x: 1, y: 2, z: 3 }, 40);
+    expect(views).toEqual([1, 1]); // every frame, even when the camera has not moved
+    detach();
+    expect(disposed).toBe(1);
+    expect(layer.group.children).not.toContain(g);
+    layer.attach({ group: new T.Group(), dispose: () => disposed++ });
+    layer.dispose();
+    expect(disposed).toBe(2);
+  });
+});

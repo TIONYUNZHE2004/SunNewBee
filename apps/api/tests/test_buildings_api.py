@@ -41,18 +41,39 @@ def _line():
     }
 
 
-def _world(tmp_path, monkeypatch, *, buildings=True, corrupt=False, hydrology=False):
+def _world(
+    tmp_path,
+    monkeypatch,
+    *,
+    buildings=True,
+    corrupt=False,
+    hydrology=False,
+    landcover=None,
+    signage=None,
+    landmarks=None,
+    building_props=None,
+):
     d = tmp_path / "world"
     shutil.copytree(TINY, d)
     if buildings:
         base = d / "base"
-        text = "{not json" if corrupt else json.dumps(_fc([_poly(0), _poly(1)]))
+        polys = [_poly(0), _poly(1)]
+        if building_props:
+            polys[0]["properties"].update(building_props)
+        text = "{not json" if corrupt else json.dumps(_fc(polys))
         (base / "buildings.geojson").write_text(text, encoding="utf-8")
         (base / "trees.geojson").write_text(json.dumps(_fc([_tree(0), _tree(1)])), encoding="utf-8")
         if hydrology:
             (base / "hydrology.geojson").write_text(
                 json.dumps(_fc([_poly(5), _line()])), encoding="utf-8"
             )
+        for name, feats in (
+            ("landcover", landcover),
+            ("signage", signage),
+            ("landmarks", landmarks),
+        ):
+            if feats is not None:
+                (base / f"{name}.geojson").write_text(json.dumps(_fc(feats)), encoding="utf-8")
         site = json.loads((d / "site.json").read_text(encoding="utf-8"))
         site["buildings"] = {"as_of": "2026-10-16"}
         (d / "site.json").write_text(json.dumps(site), encoding="utf-8")
@@ -161,3 +182,107 @@ def test_buildings_layer_has_empty_parks_when_absent(tmp_path, monkeypatch):
     r = TestClient(app).get("/layers/buildings")
     assert r.status_code == 200
     assert r.json()["parks"] == {"type": "FeatureCollection", "features": []}
+
+
+def _sign(i, **over):
+    props = {
+        "id": f"s{i}",
+        "text": f"Shop {i}",
+        "source_url": "https://www.openstreetmap.org/node/1",
+        "as_of": "2026-10-17",
+    }
+    props.update(over)
+    return {
+        "type": "Feature",
+        "properties": props,
+        "geometry": {"type": "Point", "coordinates": [101.51, 3.181]},
+    }
+
+
+EMPTY = {"type": "FeatureCollection", "features": []}
+
+
+def test_new_layers_default_empty(tmp_path, monkeypatch):
+    _world(tmp_path, monkeypatch)
+    r = TestClient(app).get("/layers/buildings")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["landcover"] == EMPTY
+    assert body["signage"] == EMPTY
+    assert body["landmarks"] == EMPTY
+
+
+def test_serves_landcover_signage_landmarks(tmp_path, monkeypatch):
+    lc = {
+        "type": "Feature",
+        "properties": {"class": "grass", "source": "worldcover"},
+        "geometry": _poly(3)["geometry"],
+    }
+    lm = {
+        "type": "Feature",
+        "properties": {"id": "mall", "name": "Mall", "model": "mall"},
+        "geometry": {"type": "Point", "coordinates": [101.51, 3.181]},
+    }
+    _world(tmp_path, monkeypatch, landcover=[lc], signage=[_sign(0)], landmarks=[lm])
+    body = TestClient(app).get("/layers/buildings").json()
+    assert body["landcover"]["features"][0]["properties"]["class"] == "grass"
+    assert body["signage"]["features"][0]["properties"]["text"] == "Shop 0"
+    assert body["landmarks"]["features"][0]["properties"]["id"] == "mall"
+
+
+def test_signage_without_source_is_dropped(tmp_path, monkeypatch):
+    signs = [
+        _sign(0),
+        _sign(1, source_url=""),
+        _sign(2, text="  "),
+        _sign(3, as_of=None),
+    ]
+    del signs[1]["properties"]["source_url"]
+    _world(tmp_path, monkeypatch, signage=signs)
+    body = TestClient(app).get("/layers/buildings").json()
+    assert [f["properties"]["id"] for f in body["signage"]["features"]] == ["s0"]
+
+
+def test_signage_with_mapper_note_text_is_dropped(tmp_path, monkeypatch):
+    texts = [
+        "Kedai Ali",
+        "Only seen in Google Maps. Not OSV.",
+        "Clinic (unnamed)",
+        "FIXME name",
+        "todo",
+        "Shop?",
+        "--",
+        "Todoroki Ramen",  # "todo" only as a whole word
+    ]
+    signs = [_sign(i, text=t) for i, t in enumerate(texts)]
+    _world(tmp_path, monkeypatch, signage=signs)
+    body = TestClient(app).get("/layers/buildings").json()
+    kept = [f["properties"]["text"] for f in body["signage"]["features"]]
+    assert kept == ["Kedai Ali", "Todoroki Ramen"]
+
+
+def test_editing_signage_invalidates_cache(tmp_path, monkeypatch):
+    d = _world(tmp_path, monkeypatch, signage=[_sign(0)])
+    c = TestClient(app)
+    r1 = c.get("/layers/buildings")
+    assert len(r1.json()["signage"]["features"]) == 1
+    s = d / "base" / "signage.geojson"
+    s.write_text(json.dumps(_fc([_sign(0), _sign(1)])), encoding="utf-8")
+    _bump(s)
+    r2 = c.get("/layers/buildings")
+    assert len(r2.json()["signage"]["features"]) == 2
+    assert r2.headers["etag"] != r1.headers["etag"]
+
+
+def test_building_archetype_props_pass_through(tmp_path, monkeypatch):
+    props = {
+        "archetype": "shophouse",
+        "archetype_method": "osm_tag",
+        "height_source": "google_3d",
+        "precinct": "lakeside",
+        "osm": "way/1",
+    }
+    _world(tmp_path, monkeypatch, building_props=props)
+    body = TestClient(app).get("/layers/buildings").json()
+    got = body["buildings"]["features"][0]["properties"]
+    assert {k: got[k] for k in props} == props

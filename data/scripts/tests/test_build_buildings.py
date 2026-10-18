@@ -104,7 +104,9 @@ def test_main_dry_run_makes_no_request_and_writes_nothing(tmp_path, monkeypatch)
 def test_size_guard(tmp_path, monkeypatch):
     monkeypatch.setattr(bb, "OUT", tmp_path)
     monkeypatch.setattr(bb, "MAX_BYTES", 10)
-    monkeypatch.setattr(bb, "fetch_all", lambda *a, **k: [way(1, SQ, building="yes")])
+    monkeypatch.setattr(
+        bb, "fetch_all", lambda *a, **k: ([way(1, SQ, building="yes")], "2026-10-01")
+    )
     (tmp_path / "site.json").write_text(
         json.dumps({"scene": {"home": {"lon": 101.5099, "lat": 3.1813}}})
     )
@@ -115,13 +117,16 @@ def test_size_guard(tmp_path, monkeypatch):
 
 def test_main_writes_files_and_site_key(tmp_path, monkeypatch):
     monkeypatch.setattr(bb, "OUT", tmp_path)
-    monkeypatch.setattr(bb, "fetch_all", lambda *a, **k: [way(1, SQ, building="yes")])
+    monkeypatch.setattr(
+        bb, "fetch_all", lambda *a, **k: ([way(1, SQ, building="yes")], "2026-10-01")
+    )
     (tmp_path / "site.json").write_text(
         json.dumps({"scene": {"home": {"lon": 101.5099, "lat": 3.1813}}})
     )
     bb.main([])
     site = json.loads((tmp_path / "site.json").read_text())
     assert site["buildings"]["count"] == 1 and site["buildings"]["file"] == "base/buildings.geojson"
+    assert site["buildings"]["as_of"] == "2026-10-01"  # the OSM data date, not today
     assert (tmp_path / "base" / "trees.geojson").exists()
 
 
@@ -164,7 +169,9 @@ def test_size_guard_applies_to_trees_too(tmp_path, monkeypatch):
         {"type": "node", "id": i, "lat": 3.181, "lon": 101.501, "tags": {"natural": "tree"}}
         for i in range(30)
     ]
-    monkeypatch.setattr(bb, "fetch_all", lambda *a, **k: [way(1, SQ, building="yes"), *trees])
+    monkeypatch.setattr(
+        bb, "fetch_all", lambda *a, **k: ([way(1, SQ, building="yes"), *trees], "2026-10-01")
+    )
     (tmp_path / "site.json").write_text(
         json.dumps({"scene": {"home": {"lon": 101.5099, "lat": 3.1813}}})
     )
@@ -203,3 +210,50 @@ def test_build_parks_dedupes_ways_repeated_across_tiles():
     ]
     feats = bb.build_parks(els)
     assert [f["properties"]["id"] for f in feats] == ["way/1", "way/2"]
+
+
+def test_build_features_keeps_the_osm_tag_subset_only():
+    els = [
+        way(
+            1,
+            SQ,
+            building="yes",
+            amenity="place_of_worship",
+            religion="muslim",
+            shop="",
+            **{"building:levels": "2", "addr:street": "Jalan X", "height": "9"},
+            name="Masjid",
+        ),
+        way(2, SQ, building="house"),
+    ]
+    b, _, _ = bb.build_features(els)
+    assert b[0]["properties"]["osm"] == {
+        "building": "yes",
+        "amenity": "place_of_worship",
+        "religion": "muslim",
+        "building:levels": "2",
+    }
+    assert b[1]["properties"]["osm"] == {"building": "house"}
+
+
+def test_building_ids_are_stable_across_reruns_and_tile_order():
+    sq2 = [(x + 0.001, y) for x, y in SQ]
+    els = [way(11, SQ, building="yes"), way(12, sq2, building="house"), way(11, SQ, building="yes")]
+    first, _, _ = bb.build_features(els)
+    again, _, _ = bb.build_features(list(reversed(els)))
+    ids = {f["properties"]["id"] for f in first}
+    assert ids == {"w11", "w12"}  # derived from the OSM way id only
+    assert ids == {f["properties"]["id"] for f in again}
+    assert first == bb.build_features(els)[0]
+
+
+def test_main_without_an_osm_data_date_writes_nothing(tmp_path, monkeypatch):
+    monkeypatch.setattr(bb, "OUT", tmp_path)
+    monkeypatch.setattr(bb, "fetch_all", lambda *a, **k: ([way(1, SQ, building="yes")], None))
+    (tmp_path / "site.json").write_text(
+        json.dumps({"scene": {"home": {"lon": 101.5099, "lat": 3.1813}}})
+    )
+    with pytest.raises(SystemExit) as e:
+        bb.main([])
+    assert e.value.code == 3
+    assert not (tmp_path / "base" / "buildings.geojson").exists()

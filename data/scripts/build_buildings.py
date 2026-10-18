@@ -2,6 +2,8 @@
 
 Writes data/seed/elmina/base/buildings.geojson and trees.geojson and records them in site.json.
 Display data only: heights are OSM tags or deterministic defaults, never derived from Google tiles.
+Each building keeps a small `osm` tag subset for build_archetypes.py. Ids are `w<OSM way id>`, so
+they stay stable across re-runs (signs and landmarks attach to them).
 Overpass goes through data/scripts/overpass.py (cache, backoff, request cap).
 """
 
@@ -11,7 +13,6 @@ import json
 import math
 import re
 import sys
-from datetime import date
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -116,16 +117,15 @@ def query_for(tile: tuple[float, float, float, float]) -> str:
     )
 
 
-def fetch_all(bbox, step: float, max_requests: int | None) -> list[dict]:
-    """Concatenated Overpass elements for every tile (sequential, cached, request-capped)."""
+def fetch_all(bbox, step: float, max_requests: int | None) -> tuple[list[dict], str | None]:
+    """Concatenated Overpass elements for every tile (sequential, cached, request-capped) and
+    the latest OSM data date across the answers."""
     overpass.MAX_REQUESTS = max_requests
-    elements: list[dict] = []
-    for tile in tiles(bbox, step):
-        elements.extend(overpass.query(query_for(tile)).get("elements", []))
-    return elements
+    return overpass.fetch_elements(query_for(t) for t in tiles(bbox, step))
 
 
 MAX_HEIGHT_M = 300.0
+OSM_KEYS = ("building", "amenity", "religion", "shop", "building:levels")
 
 
 def _number(text) -> float | None:
@@ -158,6 +158,13 @@ def kind_of(tags: dict) -> str:
     return "other"
 
 
+def default_height(kind: str, id: str) -> float:  # noqa: A002
+    """Deterministic default height for a kind: a point in its range picked by hashing the id."""
+    lo, hi = _HEIGHT_RANGE[kind]
+    frac = int(hashlib.sha1(id.encode()).hexdigest()[:8], 16) / 0xFFFFFFFF
+    return lo + frac * (hi - lo)
+
+
 def infer_height(tags: dict, id: str) -> tuple[float, str, float]:  # noqa: A002
     """(height_m, source, min_height_m). Deterministic: defaults hash the OSM id."""
     h = _number(tags.get("height"))
@@ -168,9 +175,7 @@ def infer_height(tags: dict, id: str) -> tuple[float, str, float]:  # noqa: A002
         if levels is not None and 0 < levels * LEVEL_M <= MAX_HEIGHT_M:
             height, source = levels * LEVEL_M, "osm_levels"
         else:
-            lo, hi = _HEIGHT_RANGE[kind_of(tags)]
-            frac = int(hashlib.sha1(id.encode()).hexdigest()[:8], 16) / 0xFFFFFFFF
-            height, source = lo + frac * (hi - lo), "default"
+            height, source = default_height(kind_of(tags), id), "default"
     height = round(height, 2)
     mn = _number(tags.get("min_height"))
     mn = 0.0 if mn is None or mn < 0 else mn
@@ -256,6 +261,7 @@ def build_features(elements: list[dict]) -> tuple[list[dict], list[dict], dict]:
                 "min_height_m": mn,
                 "kind": kind_of(tags),
                 "height_source": source,
+                "osm": {k: tags[k] for k in OSM_KEYS if tags.get(k)},
             }
             if tags.get("name"):
                 props["name"] = tags["name"]
@@ -337,9 +343,7 @@ def main(argv: list[str] | None = None) -> None:
     if args.parks:
         overpass.MAX_REQUESTS = args.max_requests
         try:
-            els: list[dict] = []
-            for tile in tiles(bbox, args.step):
-                els.extend(overpass.query(parks_query_for(tile)).get("elements", []))
+            els, _ = overpass.fetch_elements(parks_query_for(t) for t in tiles(bbox, args.step))
         except overpass.OverpassError as exc:
             print(f"BLOCKED: {exc}; overpass HTTP requests this run: {overpass.REQUESTS_MADE}")
             raise SystemExit(2) from None
@@ -351,10 +355,13 @@ def main(argv: list[str] | None = None) -> None:
         print(f"overpass HTTP requests this run: {overpass.REQUESTS_MADE}")
         return
     try:
-        elements = fetch_all(bbox, args.step, args.max_requests)
+        elements, as_of = fetch_all(bbox, args.step, args.max_requests)
     except overpass.OverpassError as exc:
         print(f"BLOCKED: {exc}; overpass HTTP requests this run: {overpass.REQUESTS_MADE}")
         raise SystemExit(2) from None
+    if as_of is None:
+        print("no OSM data date in the Overpass answers; nothing written")
+        raise SystemExit(3)
     buildings, trees, stats = build_features(elements)
     b_text, t_text = _dump(buildings), _dump(trees)
     size = len(b_text.encode("utf-8"))
@@ -372,7 +379,7 @@ def main(argv: list[str] | None = None) -> None:
         "trees": "base/trees.geojson",
         "radius_m": args.radius_m,
         "count": len(buildings),
-        "as_of": date.today().isoformat(),
+        "as_of": as_of,
     }
     site_path.write_text(
         json.dumps(site, ensure_ascii=False, indent=2) + "\n", encoding="utf-8", newline="\n"

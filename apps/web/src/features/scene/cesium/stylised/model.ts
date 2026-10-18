@@ -87,7 +87,14 @@ function ringPerimeterM(ring: [number, number][]): number {
   return sum;
 }
 
-export function toBuildings(fc: unknown): { buildings: Building[]; skipped: number } {
+/** Which height property a renderer draws. Cesium keeps the default: `height_m` (never Google). */
+export type HeightOf = (props: Record<string, unknown>) => unknown;
+const tagHeight: HeightOf = (p) => p.height_m;
+
+export function toBuildings(
+  fc: unknown,
+  heightOf: HeightOf = tagHeight,
+): { buildings: Building[]; skipped: number } {
   const buildings: Building[] = [];
   let skipped = 0;
   const features = isRec(fc) && Array.isArray(fc.features) ? fc.features : [];
@@ -99,7 +106,7 @@ export function toBuildings(fc: unknown): { buildings: Building[]; skipped: numb
     }
     const props = isRec(feat.properties) ? feat.properties : {};
     const id = String(props.id ?? feat.id ?? `b${i}`);
-    const h = props.height_m;
+    const h = heightOf(props);
     const height = typeof h === "number" && Number.isFinite(h) && h > 0 ? h : 9;
     const mh = props.min_height_m;
     const minHeight =

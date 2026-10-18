@@ -50,7 +50,8 @@
   "attribution": [
     "© OpenStreetMap contributors (ODbL)",
     "Copernicus DEM GLO-30 © DLR/Airbus, provided under COPERNICUS by the EU and ESA",
-    "Flood scenarios: relative elevation above mapped OSM drainage (indicative)"
+    "Flood scenarios: relative elevation above mapped OSM drainage (indicative)",
+    "ESA WorldCover 10 m 2021 v200 © ESA WorldCover project, CC-BY 4.0"
   ],
   "data_as_of": "2026-10-15",
   "buildings": {
@@ -58,6 +59,7 @@
     "trees": "base/trees.geojson",
     "radius_m": 3500,
     "count": 7803,
-    "as_of": "2026-10-16"
+    "as_of": "2026-10-16",
+    "archetypes_as_of": "2026-10-17"
   }
 }

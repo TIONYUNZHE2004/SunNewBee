@@ -244,6 +244,127 @@ the settings popover.
   Cesium's horizontal `fov` for the canvas aspect); Realistic keeps -45 degrees and 60. Switching
   style keeps the current camera.
 
+### Three.js Stylised engine (opt-in)
+
+A spike renderer for the Stylised style, in `features/scene/three/`. Realistic stays on Cesium;
+Mapbox lite and List are unchanged.
+
+- **Turning it on:** `?engine=three` (persisted as `tl.engine` in `localStorage`; `?engine=cesium`
+  switches back). It only replaces the Stylised style on the 3D view. If it crashes (no WebGL2,
+  chunk error), the renderer boundary falls back to Mapbox, else List.
+- **`?bookmark=hero-near|hero-mid|township`:** the start view for the gate screenshots
+  (`bookmarks.ts`); without it the camera opens on `hero-mid`.
+- **`?perf=1`:** the fps / frame time / draw calls / tier readout (`PerfOverlay`).
+- **Split:** `engine.ts` owns all WebGL (renderer with Neutral tone mapping, PCF shadows, room IBL,
+  composer with GTAO and bloom per tier, `MapControls`, render on demand); `ThreeScene.tsx` is the
+  React side (site frame, buildings, intents, lighting per theme, quality tier, panel offset, camera
+  ops). DOM tests inject a fake engine through `createEngineFn`.
+- **DOM contract:** `<section data-testid="three-scene" data-frames data-route="on|off">`, with
+  the same aria-label and keyboard handling as `CesiumScene`. `data-frames` updates at most every
+  500 ms.
+- **Display only:** the same rules as the Cesium Stylised city. Kind tints, default heights, parks
+  and base water are illustrative; base water is never a flood scenario.
+
+#### City assets
+
+`ThreeScene` fetches `/city/manifest.json` (`assets/manifest.ts`), loads the meshopt glbs into an
+`AssetLibrary` (aborted on unmount, which also frees its geometry), fits archetypes to footprints
+with `planCity`, extrudes only `plan.extrude` (`buildCityGeometry(layer, frame, { only })`) and hands
+the instanced archetypes to `engine.setAssets` (`assets/cityInstances.ts`, one draw call per asset,
+variant and LOD). The engine re-buckets LODs at most every 250 ms while the camera moves, and once
+after it stops.
+
+- **Never holes:** the full extruded city is drawn until the assets are ready, and stays drawn when
+  they fail (manifest 404, malformed or non-JSON manifest, every glb missing, a build error), with
+  `data-assets="failed"`. If at least one asset loads, the state is `ready` and buildings of failed
+  assets stay extruded. Each load logs at most one console warning, naming every failed glb and
+  dropped manifest entry (the library collects failures in `failed`; it never warns). Footprints an
+  archetype cannot fit, and archetypes with no asset, stay extruded.
+- **`?assets=0`:** skip the assets (no manifest fetch); the extruded city only.
+- **`?showroom=1`:** replace the plan with `assets/showroom.ts`: every asset variant once at LOD0,
+  one row per asset (landmarks on the outer rows). Each row spaces its variants max(30 m, widest
+  + 5 m) apart and rows sit max(30 m, half their depths + 5 m) apart, so nothing overlaps and one big
+  landmark never stretches the small rows. The middle row sits on `HERO_CENTRE`. There are no
+  extruded buildings, and the camera frames the whole grid once the assets are ready. For owner
+  review of the models.
+- **DOM contract additions:** `data-assets="off|loading|ready|failed"` and `data-instances` (placed
+  units plus landmarks).
+- **`?perf=1` fields:** draw calls and triangles per frame, both summed over every pass
+  (`renderer.info` with `autoReset` off), and an estimate (shown as "≈ MB") of geometry plus
+  instance buffers, from CPU array sizes (extruded city, library and instance attributes). Budgets at `hero-mid` on Medium: 150 draw calls, 2.5 M
+  triangles, 150 MB.
+- The glbs and manifest live in `public/city/` (lane `blender`); `vite build` copies them to
+  `dist/city/`.
+
+#### Motion (Three.js)
+
+Decorative traffic and pedestrians (`motion/`), plus the birds, cloud shadows, tree sway, water
+shimmer and window flicker, all move on one motion clock in `engine.ts`. It runs on real time at
+30 fps at most. It runs only while Motion is on, `prefers-reduced-motion` is off, the tab is visible
+and the map is on screen (`IntersectionObserver`). Otherwise no frame is scheduled: the engine idles
+at render on demand and holds a still pose.
+
+- **Agents:** `planAgents` puts seeded vehicles on `street`/`major_road` edges and people on
+  `footway`/`path`/`pedestrian` edges in the hero district, weighted ×3 near schools, malls and parks.
+  The count is `PROP_CAPS` × mood density (day 1.0, dusk 1.15, night 0.45). Agents loop along the
+  edges with no routing or collision, so cars can pass through each other.
+- **Drawing:** `motionLayer` uses one InstancedMesh per kit, variant and LOD. Matrices are rewritten
+  each tick, but only for agents in view (with a 50 m margin). Agents beyond their last LOD's `maxM`
+  are hidden. Agents cast no shadows and are left out of the AO pass.
+- **Scale-up:** agents are drawn 1× within 150 m of the camera, rising to 3× at 800 m, for
+  legibility. This is display only; the models are unchanged.
+- **Day/Rollout fade:** people and vehicles fade out over 1 s while Elmina Day or Rollout playback
+  is on, and fade back in when both are off.
+- **Honesty:** decorative only (`userData.decorative`, no-op raycast), never picked or described.
+
+#### Decorative content, tiers, picking and honesty (Three.js)
+
+**What is decorative** (`userData.decorative = true`, a no-op `raycast`, skipped by `pickAt`; never
+described by the assistant or the cards): the ground layer (land-cover tints, road surfaces,
+markings, water shimmer), the prop kits (trees, lamps, street furniture, construction), lamp light
+pools, people and vehicles (motion layer), birds and cloud shadows (ambient), window flicker, and any
+landmark the manifest marks `decorative`. The stylised fallback building is *not* decorative: it is a
+real, pickable OSM building, and only its colours are display styling (derived from the manifest
+palette; its card says "(shown as a simple block)"). While any decorative layer is drawn the map shows
+the note **"Decorative details are illustrative."** (`DecorativeChip`, `notes` slot).
+`honesty.test.ts` guards the spec section 5 list: decorative tags and no-op raycasts, signs only with a
+source, the 1 s Day/Rollout fade, flat matte flood water at 0.30 m, and no land-cover or base-water
+colour (`#7fb6c9`) equal to a flood colour (`#C53030`, `#DD6B20`, `#1e6fb8`).
+
+**Query params:**
+
+| Param | Effect |
+|---|---|
+| `?engine=three` | Use this engine (`?engine=cesium` switches back). |
+| `?perf=1` | Show the perf line. |
+| `?bookmark=hero-near\|hero-mid\|township` | Start view (default `hero-mid`). |
+| `?assets=0` | Extruded city only, no manifest fetch. |
+| `?showroom=1` | Model showroom grid instead of the city. |
+
+**Perf fields** (`?perf=1`): `fps`, frame ms, draw calls, triangles, `≈ MB` (geometry estimate), the
+tier, and `fb nf/gf/na/ns` when buildings fall back to a block: `nf` no_fit, `gf` generic_fill, `na`
+no_archetype, `ns` no_asset (the same counts as `data-fallback`).
+
+**Tiers** (Auto picks from the GPU and drops one tier when frames run slow; or choose one in Map
+settings):
+
+- `PROP_CAPS[tier]` (`props/caps.ts`) caps each kit: High 6000 trees / 1500 lamps / 600 furniture /
+  300 construction / 400 people / 250 vehicles; Medium 3500 / 900 / 350 / 200 / 220 / 140.
+- `KIT_LOD_SCALE` multiplies kit LOD distances at run time (High 0.75, Medium 0.5, Low 1); archetypes
+  are not scaled.
+- **Low draws no props and no agents** (no lamps, people, vehicles, birds or clouds), and no signs.
+
+**Picking priority** (one shared `pickAt`, first match wins): place, evac, waste, sign, landmark,
+resident, flood edge (within 8 px), then building. Markers, residents and flood edges live in the
+overlay pass, so a building never hides them; a sign or landmark behind a nearer building is
+occluded. Batched meshes resolve to ids through lookup tables (`markerIdAt`, `signIdAt`,
+`residentIdAt`).
+
+**Sources:** a shop sign is drawn only with text, `source_url` and `as_of` (the buildings layer's
+`signage`; anything else is dropped and never shown), and its card links the source. A landmark is
+its OSM building drawn with a model; the card names the match method, and a traced outline or design
+height names its own source from the manifest.
+
 ### Theme: Auto, Day, Dusk, Night
 
 The theme menu offers **Auto** (follows the Elmina clock, Asia/Kuala_Lumpur: Day 07:00-18:00, Dusk

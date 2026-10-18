@@ -13,8 +13,16 @@ townshiplens-api = { workspace = true }
 
 [dependency-groups]
 dev = ["pytest==9.1.1", "pytest-asyncio>=1.0", "hypothesis==6.169.1", "ruff==0.17.0", "httpx==0.28.1", "tzdata==2026.5 ; sys_platform == 'win32'"]
-data = ["rasterio==1.5.2", "scipy==1.18.1", "requests==2.34.2", "numpy>=2"]
+data = [
+    "rasterio==1.5.2",
+    "scipy==1.18.1",
+    "requests==2.34.2",
+    "numpy>=2",
+    "dracopy==2.2.0",
+    "pygltflib==1.16.5",
+]
 
 [tool.pytest.ini_options]
-testpaths = ["packages/spatial/tests", "packages/agent/tests", "apps/api/tests", "data/scripts/tests", "evals/tests"]
+testpaths = ["packages/spatial/tests", "packages/agent/tests", "apps/api/tests", "data/scripts/tests", "evals/tests", "assets/blender/tests"]
+markers = ["blender: runs headless Blender (TL_BLENDER_TESTS=1)"]
 asyncio_mode = "auto"

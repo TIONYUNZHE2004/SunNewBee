@@ -1,0 +1,919 @@
+{
+ "as_of": "2026-10-17",
+ "total": {
+  "count": 7803,
+  "archetypes": {
+   "bungalow": 478,
+   "factory": 417,
+   "generic": 4928,
+   "highrise": 3,
+   "link_intermediate": 1754,
+   "link_long": 104,
+   "mall": 5,
+   "mosque": 8,
+   "school": 9,
+   "semi_d": 36,
+   "shop_office": 61
+  },
+  "generic_share": 0.632,
+  "methods": {
+   "generic": 4928,
+   "height": 3,
+   "landuse": 233,
+   "osm_tag": 679,
+   "osm_tag+size": 5,
+   "shape": 1955
+  }
+ },
+ "precincts": [
+  {
+   "precinct": "Aman",
+   "count": 114,
+   "archetypes": {
+    "generic": 14,
+    "link_intermediate": 99,
+    "semi_d": 1
+   },
+   "generic_share": 0.123,
+   "methods": {
+    "generic": 14,
+    "shape": 100
+   }
+  },
+  {
+   "precinct": "Ariza Elmina Gardens",
+   "count": 13,
+   "archetypes": {
+    "generic": 11,
+    "link_intermediate": 1,
+    "link_long": 1
+   },
+   "generic_share": 0.846,
+   "methods": {
+    "generic": 11,
+    "shape": 2
+   }
+  },
+  {
+   "precinct": "Astellia Residences",
+   "count": 46,
+   "archetypes": {
+    "bungalow": 46
+   },
+   "generic_share": 0.0,
+   "methods": {
+    "osm_tag": 46
+   }
+  },
+  {
+   "precinct": "Bandar Saujana Utama",
+   "count": 41,
+   "archetypes": {
+    "generic": 40,
+    "shop_office": 1
+   },
+   "generic_share": 0.976,
+   "methods": {
+    "generic": 40,
+    "shape": 1
+   }
+  },
+  {
+   "precinct": "Bayu",
+   "count": 196,
+   "archetypes": {
+    "generic": 14,
+    "link_intermediate": 181,
+    "mosque": 1
+   },
+   "generic_share": 0.071,
+   "methods": {
+    "generic": 14,
+    "osm_tag": 1,
+    "shape": 181
+   }
+  },
+  {
+   "precinct": "Bukit Saujana",
+   "count": 20,
+   "archetypes": {
+    "generic": 19,
+    "semi_d": 1
+   },
+   "generic_share": 0.95,
+   "methods": {
+    "generic": 19,
+    "shape": 1
+   }
+  },
+  {
+   "precinct": "Clusia Elmina Gardens",
+   "count": 26,
+   "archetypes": {
+    "generic": 26
+   },
+   "generic_share": 1.0,
+   "methods": {
+    "generic": 26
+   }
+  },
+  {
+   "precinct": "DK Impian Damansara West",
+   "count": 3,
+   "archetypes": {
+    "generic": 3
+   },
+   "generic_share": 1.0,
+   "methods": {
+    "generic": 3
+   }
+  },
+  {
+   "precinct": "Elmina",
+   "count": 269,
+   "archetypes": {
+    "factory": 41,
+    "generic": 153,
+    "link_intermediate": 27,
+    "link_long": 35,
+    "mall": 2,
+    "school": 1,
+    "semi_d": 2,
+    "shop_office": 8
+   },
+   "generic_share": 0.569,
+   "methods": {
+    "generic": 153,
+    "landuse": 19,
+    "osm_tag": 23,
+    "osm_tag+size": 2,
+    "shape": 72
+   }
+  },
+  {
+   "precinct": "Elmina Gardens",
+   "count": 164,
+   "archetypes": {
+    "generic": 122,
+    "link_intermediate": 20,
+    "link_long": 22
+   },
+   "generic_share": 0.744,
+   "methods": {
+    "generic": 122,
+    "shape": 42
+   }
+  },
+  {
+   "precinct": "Elmina Green",
+   "count": 55,
+   "archetypes": {
+    "factory": 3,
+    "generic": 52
+   },
+   "generic_share": 0.945,
+   "methods": {
+    "generic": 52,
+    "landuse": 2,
+    "osm_tag": 1
+   }
+  },
+  {
+   "precinct": "Elmina Green 1",
+   "count": 52,
+   "archetypes": {
+    "generic": 31,
+    "link_intermediate": 21
+   },
+   "generic_share": 0.596,
+   "methods": {
+    "generic": 31,
+    "shape": 21
+   }
+  },
+  {
+   "precinct": "Elmina Valley 1",
+   "count": 332,
+   "archetypes": {
+    "generic": 2,
+    "link_intermediate": 330
+   },
+   "generic_share": 0.006,
+   "methods": {
+    "generic": 2,
+    "shape": 330
+   }
+  },
+  {
+   "precinct": "Elmina Valley 2",
+   "count": 310,
+   "archetypes": {
+    "generic": 1,
+    "link_intermediate": 309
+   },
+   "generic_share": 0.003,
+   "methods": {
+    "generic": 1,
+    "shape": 309
+   }
+  },
+  {
+   "precinct": "Elmina Valley 3",
+   "count": 55,
+   "archetypes": {
+    "generic": 55
+   },
+   "generic_share": 1.0,
+   "methods": {
+    "generic": 55
+   }
+  },
+  {
+   "precinct": "Ferrea Denai Alam",
+   "count": 53,
+   "archetypes": {
+    "generic": 3,
+    "link_intermediate": 42,
+    "link_long": 8
+   },
+   "generic_share": 0.057,
+   "methods": {
+    "generic": 3,
+    "shape": 50
+   }
+  },
+  {
+   "precinct": "Habitus",
+   "count": 1,
+   "archetypes": {
+    "generic": 1
+   },
+   "generic_share": 1.0,
+   "methods": {
+    "generic": 1
+   }
+  },
+  {
+   "precinct": "Iris Apartment",
+   "count": 8,
+   "archetypes": {
+    "generic": 8
+   },
+   "generic_share": 1.0,
+   "methods": {
+    "generic": 8
+   }
+  },
+  {
+   "precinct": "Kampung Baru Sungai Pelong",
+   "count": 7,
+   "archetypes": {
+    "generic": 6,
+    "semi_d": 1
+   },
+   "generic_share": 0.857,
+   "methods": {
+    "generic": 6,
+    "shape": 1
+   }
+  },
+  {
+   "precinct": "Kampung Kubu Gajah",
+   "count": 157,
+   "archetypes": {
+    "bungalow": 29,
+    "generic": 120,
+    "link_intermediate": 5,
+    "mosque": 1,
+    "semi_d": 2
+   },
+   "generic_share": 0.764,
+   "methods": {
+    "generic": 120,
+    "osm_tag": 30,
+    "shape": 7
+   }
+  },
+  {
+   "precinct": "Kampung Melayu Subang",
+   "count": 655,
+   "archetypes": {
+    "bungalow": 265,
+    "factory": 29,
+    "generic": 330,
+    "link_intermediate": 16,
+    "link_long": 1,
+    "semi_d": 14
+   },
+   "generic_share": 0.504,
+   "methods": {
+    "generic": 330,
+    "landuse": 7,
+    "osm_tag": 287,
+    "shape": 31
+   }
+  },
+  {
+   "precinct": "Kampung Melayu Subang Tambahan",
+   "count": 201,
+   "archetypes": {
+    "generic": 181,
+    "link_intermediate": 6,
+    "semi_d": 14
+   },
+   "generic_share": 0.9,
+   "methods": {
+    "generic": 181,
+    "shape": 20
+   }
+  },
+  {
+   "precinct": "Kampung Merbau Sempak",
+   "count": 15,
+   "archetypes": {
+    "bungalow": 10,
+    "generic": 5
+   },
+   "generic_share": 0.333,
+   "methods": {
+    "generic": 5,
+    "osm_tag": 10
+   }
+  },
+  {
+   "precinct": "Kenanga Gardens",
+   "count": 192,
+   "archetypes": {
+    "generic": 188,
+    "mosque": 1,
+    "shop_office": 3
+   },
+   "generic_share": 0.979,
+   "methods": {
+    "generic": 188,
+    "osm_tag": 1,
+    "shape": 3
+   }
+  },
+  {
+   "precinct": "Laman Permai",
+   "count": 75,
+   "archetypes": {
+    "bungalow": 42,
+    "generic": 33
+   },
+   "generic_share": 0.44,
+   "methods": {
+    "generic": 33,
+    "osm_tag": 42
+   }
+  },
+  {
+   "precinct": "Liana Elmina Gardens",
+   "count": 12,
+   "archetypes": {
+    "generic": 12
+   },
+   "generic_share": 1.0,
+   "methods": {
+    "generic": 12
+   }
+  },
+  {
+   "precinct": "Mutiara Subang",
+   "count": 293,
+   "archetypes": {
+    "generic": 1,
+    "link_intermediate": 292
+   },
+   "generic_share": 0.003,
+   "methods": {
+    "generic": 1,
+    "shape": 292
+   }
+  },
+  {
+   "precinct": "Pangsapuri Cendana",
+   "count": 10,
+   "archetypes": {
+    "generic": 10
+   },
+   "generic_share": 1.0,
+   "methods": {
+    "generic": 10
+   }
+  },
+  {
+   "precinct": "Pangsapuri Harmoni Elmina",
+   "count": 4,
+   "archetypes": {
+    "generic": 3,
+    "mall": 1
+   },
+   "generic_share": 0.75,
+   "methods": {
+    "generic": 3,
+    "osm_tag+size": 1
+   }
+  },
+  {
+   "precinct": "Pangsapuri Jasmin",
+   "count": 74,
+   "archetypes": {
+    "generic": 70,
+    "shop_office": 4
+   },
+   "generic_share": 0.946,
+   "methods": {
+    "generic": 70,
+    "shape": 4
+   }
+  },
+  {
+   "precinct": "Pangsapuri Kiambang",
+   "count": 17,
+   "archetypes": {
+    "generic": 16,
+    "link_intermediate": 1
+   },
+   "generic_share": 0.941,
+   "methods": {
+    "generic": 16,
+    "shape": 1
+   }
+  },
+  {
+   "precinct": "Pangsapuri Lili",
+   "count": 7,
+   "archetypes": {
+    "generic": 7
+   },
+   "generic_share": 1.0,
+   "methods": {
+    "generic": 7
+   }
+  },
+  {
+   "precinct": "Pangsapuri Melati",
+   "count": 9,
+   "archetypes": {
+    "generic": 9
+   },
+   "generic_share": 1.0,
+   "methods": {
+    "generic": 9
+   }
+  },
+  {
+   "precinct": "Pangsapuri Melor",
+   "count": 9,
+   "archetypes": {
+    "generic": 9
+   },
+   "generic_share": 1.0,
+   "methods": {
+    "generic": 9
+   }
+  },
+  {
+   "precinct": "Pangsapuri Mentari",
+   "count": 5,
+   "archetypes": {
+    "generic": 2,
+    "highrise": 3
+   },
+   "generic_share": 0.4,
+   "methods": {
+    "generic": 2,
+    "height": 3
+   }
+  },
+  {
+   "precinct": "Pangsapuri Mutiara Subang",
+   "count": 27,
+   "archetypes": {
+    "generic": 23,
+    "link_intermediate": 1,
+    "link_long": 1,
+    "mosque": 1,
+    "school": 1
+   },
+   "generic_share": 0.852,
+   "methods": {
+    "generic": 23,
+    "osm_tag": 2,
+    "shape": 2
+   }
+  },
+  {
+   "precinct": "Pangsapuri Orkid",
+   "count": 268,
+   "archetypes": {
+    "generic": 268
+   },
+   "generic_share": 1.0,
+   "methods": {
+    "generic": 268
+   }
+  },
+  {
+   "precinct": "Pangsapuri Ruby",
+   "count": 5,
+   "archetypes": {
+    "generic": 5
+   },
+   "generic_share": 1.0,
+   "methods": {
+    "generic": 5
+   }
+  },
+  {
+   "precinct": "Pangsapuri Seri Atria",
+   "count": 2,
+   "archetypes": {
+    "generic": 2
+   },
+   "generic_share": 1.0,
+   "methods": {
+    "generic": 2
+   }
+  },
+  {
+   "precinct": "Pangsapuri Seri Bintang",
+   "count": 21,
+   "archetypes": {
+    "generic": 21
+   },
+   "generic_share": 1.0,
+   "methods": {
+    "generic": 21
+   }
+  },
+  {
+   "precinct": "Pangsapuri Seri Purnama",
+   "count": 4,
+   "archetypes": {
+    "generic": 4
+   },
+   "generic_share": 1.0,
+   "methods": {
+    "generic": 4
+   }
+  },
+  {
+   "precinct": "Pangsapuri Sri Kejora",
+   "count": 6,
+   "archetypes": {
+    "generic": 6
+   },
+   "generic_share": 1.0,
+   "methods": {
+    "generic": 6
+   }
+  },
+  {
+   "precinct": "Pangsapuri Sri Pelangi",
+   "count": 1,
+   "archetypes": {
+    "generic": 1
+   },
+   "generic_share": 1.0,
+   "methods": {
+    "generic": 1
+   }
+  },
+  {
+   "precinct": "Pangsapuri Subang Suria",
+   "count": 20,
+   "archetypes": {
+    "generic": 17,
+    "link_intermediate": 3
+   },
+   "generic_share": 0.85,
+   "methods": {
+    "generic": 17,
+    "shape": 3
+   }
+  },
+  {
+   "precinct": "Pangsapuri Teratai",
+   "count": 14,
+   "archetypes": {
+    "generic": 14
+   },
+   "generic_share": 1.0,
+   "methods": {
+    "generic": 14
+   }
+  },
+  {
+   "precinct": "Pangsapuri Utarid Subang",
+   "count": 12,
+   "archetypes": {
+    "generic": 9,
+    "link_long": 3
+   },
+   "generic_share": 0.75,
+   "methods": {
+    "generic": 9,
+    "shape": 3
+   }
+  },
+  {
+   "precinct": "Rose Apartment",
+   "count": 5,
+   "archetypes": {
+    "generic": 5
+   },
+   "generic_share": 1.0,
+   "methods": {
+    "generic": 5
+   }
+  },
+  {
+   "precinct": "Rumah Pangsa Sri Murni",
+   "count": 1,
+   "archetypes": {
+    "generic": 1
+   },
+   "generic_share": 1.0,
+   "methods": {
+    "generic": 1
+   }
+  },
+  {
+   "precinct": "SU1",
+   "count": 209,
+   "archetypes": {
+    "generic": 134,
+    "link_intermediate": 61,
+    "link_long": 1,
+    "mosque": 1,
+    "school": 5,
+    "shop_office": 7
+   },
+   "generic_share": 0.641,
+   "methods": {
+    "generic": 134,
+    "osm_tag": 6,
+    "shape": 69
+   }
+  },
+  {
+   "precinct": "SU3",
+   "count": 243,
+   "archetypes": {
+    "bungalow": 55,
+    "generic": 161,
+    "link_intermediate": 3,
+    "mall": 2,
+    "shop_office": 22
+   },
+   "generic_share": 0.663,
+   "methods": {
+    "generic": 161,
+    "osm_tag": 55,
+    "osm_tag+size": 2,
+    "shape": 25
+   }
+  },
+  {
+   "precinct": "Seksyen U16",
+   "count": 694,
+   "archetypes": {
+    "bungalow": 26,
+    "generic": 660,
+    "mosque": 1,
+    "school": 1,
+    "shop_office": 6
+   },
+   "generic_share": 0.951,
+   "methods": {
+    "generic": 660,
+    "osm_tag": 28,
+    "shape": 6
+   }
+  },
+  {
+   "precinct": "Seksyen U17",
+   "count": 2,
+   "archetypes": {
+    "generic": 2
+   },
+   "generic_share": 1.0,
+   "methods": {
+    "generic": 2
+   }
+  },
+  {
+   "precinct": "Seksyen U18",
+   "count": 344,
+   "archetypes": {
+    "bungalow": 1,
+    "factory": 2,
+    "generic": 337,
+    "link_long": 3,
+    "mosque": 1
+   },
+   "generic_share": 0.98,
+   "methods": {
+    "generic": 337,
+    "landuse": 1,
+    "osm_tag": 3,
+    "shape": 3
+   }
+  },
+  {
+   "precinct": "Seksyen U3",
+   "count": 2,
+   "archetypes": {
+    "generic": 2
+   },
+   "generic_share": 1.0,
+   "methods": {
+    "generic": 2
+   }
+  },
+  {
+   "precinct": "Seksyen U5",
+   "count": 471,
+   "archetypes": {
+    "factory": 215,
+    "generic": 251,
+    "shop_office": 5
+   },
+   "generic_share": 0.533,
+   "methods": {
+    "generic": 251,
+    "landuse": 156,
+    "osm_tag": 59,
+    "shape": 5
+   }
+  },
+  {
+   "precinct": "Semanea Hills",
+   "count": 142,
+   "archetypes": {
+    "generic": 35,
+    "link_intermediate": 107
+   },
+   "generic_share": 0.246,
+   "methods": {
+    "generic": 35,
+    "shape": 107
+   }
+  },
+  {
+   "precinct": "Subang",
+   "count": 52,
+   "archetypes": {
+    "generic": 52
+   },
+   "generic_share": 1.0,
+   "methods": {
+    "generic": 52
+   }
+  },
+  {
+   "precinct": "Subang Bestari",
+   "count": 197,
+   "archetypes": {
+    "bungalow": 4,
+    "generic": 40,
+    "link_intermediate": 153
+   },
+   "generic_share": 0.203,
+   "methods": {
+    "generic": 40,
+    "osm_tag": 4,
+    "shape": 153
+   }
+  },
+  {
+   "precinct": "Subang Galaksi",
+   "count": 1066,
+   "archetypes": {
+    "factory": 125,
+    "generic": 940,
+    "shop_office": 1
+   },
+   "generic_share": 0.882,
+   "methods": {
+    "generic": 940,
+    "landuse": 48,
+    "osm_tag": 77,
+    "shape": 1
+   }
+  },
+  {
+   "precinct": "Sungai Buloh Country Resort",
+   "count": 105,
+   "archetypes": {
+    "generic": 99,
+    "link_intermediate": 4,
+    "semi_d": 1,
+    "shop_office": 1
+   },
+   "generic_share": 0.943,
+   "methods": {
+    "generic": 99,
+    "shape": 6
+   }
+  },
+  {
+   "precinct": "Taman Bukit Subang",
+   "count": 126,
+   "archetypes": {
+    "generic": 73,
+    "link_intermediate": 35,
+    "link_long": 15,
+    "school": 1,
+    "shop_office": 2
+   },
+   "generic_share": 0.579,
+   "methods": {
+    "generic": 73,
+    "osm_tag": 1,
+    "shape": 52
+   }
+  },
+  {
+   "precinct": "Taman Paya Jaras Permai",
+   "count": 4,
+   "archetypes": {
+    "generic": 1,
+    "link_intermediate": 3
+   },
+   "generic_share": 0.25,
+   "methods": {
+    "generic": 1,
+    "shape": 3
+   }
+  },
+  {
+   "precinct": "Taman Setia Warisan",
+   "count": 25,
+   "archetypes": {
+    "generic": 24,
+    "link_intermediate": 1
+   },
+   "generic_share": 0.96,
+   "methods": {
+    "generic": 24,
+    "shape": 1
+   }
+  },
+  {
+   "precinct": "Taman Subang Baru",
+   "count": 59,
+   "archetypes": {
+    "generic": 10,
+    "link_intermediate": 33,
+    "link_long": 14,
+    "mosque": 1,
+    "shop_office": 1
+   },
+   "generic_share": 0.169,
+   "methods": {
+    "generic": 10,
+    "osm_tag": 1,
+    "shape": 48
+   }
+  },
+  {
+   "precinct": "Tulip Residence",
+   "count": 1,
+   "archetypes": {
+    "generic": 1
+   },
+   "generic_share": 1.0,
+   "methods": {
+    "generic": 1
+   }
+  },
+  {
+   "precinct": "Viana Elmina Gardens",
+   "count": 8,
+   "archetypes": {
+    "generic": 8
+   },
+   "generic_share": 1.0,
+   "methods": {
+    "generic": 8
+   }
+  },
+  {
+   "precinct": null,
+   "count": 167,
+   "archetypes": {
+    "factory": 2,
+    "generic": 165
+   },
+   "generic_share": 0.988,
+   "methods": {
+    "generic": 165,
+    "osm_tag": 2
+   }
+  }
+ ]
+}

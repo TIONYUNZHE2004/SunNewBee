@@ -1,4 +1,3 @@
-// @ts-expect-error web tsconfig has no @types/node; vitest runs in node so the module exists
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 

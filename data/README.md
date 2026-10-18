@@ -306,7 +306,62 @@ Near the mall, the flagged segments are the Urban Park / Central Park lake-edge 
 - **`height_source`:** `osm_height` (an OSM `height` tag), `osm_levels` (from `building:levels`, 3.2 m per level) or `default` (a deterministic default by building kind).
 - **Skipped:** multipolygon relations are not imported (7 skipped), plus 2 invalid ways; 116 duplicates were dropped.
 - **Current seed (2026-10-16):** 7803 buildings (7330 default, 460 osm_levels, 13 osm_height; heights 3.2 to 35.2 m) and 491 trees.
+- **`osm`:** each building keeps the tags `building`, `amenity`, `religion`, `shop` and `building:levels` (only those present) for the archetype step. Ids are `w<OSM way id>`, so they stay stable across re-runs.
+
+### Archetypes, precincts and final heights (display only)
+
+`uv run python data/scripts/build_archetypes.py --max-requests 10` runs after `build_landcover.py` (step 4 of `pnpm data:city`). It makes one Overpass query for precincts (named `place=suburb|neighbourhood|quarter` nodes and named `landuse=residential` ways) and writes `base/precincts.geojson`, `base/archetype_coverage.json` (per precinct: counts by archetype and method, and the generic share) and the enriched `base/buildings.geojson`. It also records `site.json` `buildings.archetypes_as_of`. `--dry-run` computes and prints the coverage and writes nothing.
+
+- **Per building:** `precinct` (when any), `archetype`, `archetype_method` (`override`, `osm_tag`, `landuse`, `height`, `osm_tag+size`, `shape`, `shape+precinct` or `generic`) the final `height_m` / `height_source`, and `display_height_m` / `display_height_source`. `sampled_height_m` is added only when a valid Google sample exists.
+- **Rules:** OSM tags, footprint shape (minimum rotated rectangle), OSM land use from `landcover.geojson` and the precinct name, first match wins. A footprint that matches no rule is `generic`, because a wrong guess is worse than no guess. Surau and unnamed Muslim places of worship stay generic. Link-house bands use the built footprint (13–23 m intermediate, 23–26.5 m long), not plot depth; `building=apartments`, or an OSM tag height or valid Google sample over 3× the matched archetype's storey height, keeps a residential shape match generic. `building=house` tries the residential shapes before falling back to bungalow.
+- **`height_m` precedence (never Google):** `osm_height` > `osm_levels` > `archetype_storeys` > `default`. The default Cesium Stylised view reads `height_m`, and `AGENTS.md` keeps Google heights out of it.
+- **`display_height_m`** (read by the Three.js renderer only, as `display_height_m ?? height_m`): a valid sample from `base/height_samples.json` (`display_height_source` `google_3dtiles`), else the same value and source as `height_m`. A sample is valid when its height is numeric and within 2.5–200 m and its coverage is ≥ 0.5 (`_valid_sample`, the one gate used for heights and archetypes). A valid sample over 3× the storey height of a low-rise archetype is an outlier and is not used as the display height; `sampled_height_m` still records it. A valid sample ≥ 30 m may make a building `highrise`. Google samples never feed routing, evaluation, flood or answers.
+- **Corrections:** `base/archetype_overrides.json` maps a building id to an archetype (`{"w123": {"archetype": "mosque", "note": "…"}}`); it starts as `{}`.
 
 ### Parks (display only)
 
 `uv run python data/scripts/build_buildings.py --parks --max-requests 40` fetches OSM `leisure=park|garden|playground` and `landuse=grass|recreation_ground` closed ways (one query per tile, through `overpass.py`) into `base/parks.geojson`. It is not part of `pnpm data:build`, and parks are never used for routing, evaluation, flood or answers. The API serves an empty collection when the file is absent.
+
+### Land cover, signage and landmarks (display only)
+
+`GET /layers/buildings` also serves `landcover`, `signage` and `landmarks` (each an empty FeatureCollection when its file is absent). Nothing in routing, evaluation, flood, the agent, answers or evidence reads them.
+
+- **`base/landcover.geojson`** (`build_landcover.py`): OSM land-use areas first; ESA WorldCover fills only land they leave empty. Properties `class`, `source`, `osm`. WorldCover class 50 (built-up) is never drawn, no building is ever invented, and parks stay in `parks.geojson`.
+- **`base/signage.geojson`** (`build_signage.py`): text-only signs from real OSM `name` / `brand` tags, no logos. Properties `id`, `text`, `building_id`, `osm`, `source_url`, `source_label`, `as_of`. **No source, no sign:** the API drops any sign without a non-empty `text`, `source_url` and `as_of` (ADR 0013), whatever the file says.
+- **`base/landmarks.geojson`** (`build_landmarks.py`): named landmarks matched to a building (`id`, `name`, `model`, `building_id`, `osm`, `source_url`, `info_url`, `as_of`, `match`). Geometry is a Polygon: the matched building footprint. The API enforces the source gate for signage only, not for landmarks. It currently holds Elmina Lakeside Mall (OSM `building_name`) and Kanopi Residences (`traced_outline`).
+- **Traced landmark outlines** (`sources/landmark_outlines.geojson`, hand-curated, read by `build_landmarks.py`): a landmark with no usable OSM footprint can be traced by hand from a georeferenced public site plan. Each outline is a Polygon with `model`, `name`, `source_url`, `source_label`, `traced_by`, `traced_on`, `method` ("traced from a georeferenced public site plan"), the `control_points` (OSM node lon/lat and image pixel, role `fit` or `check`), `residuals_m`, `residual_rms_m` and the traced pixel ring (`traced_px`). A traced outline wins over an OSM match for its model: the landmark gets `match: "traced_outline"`, `osm: null`, the outline's `source_url` / `source_label` / `traced_by` / `traced_on` / `method`, `as_of` = `traced_on`, and `building_id` = the OSM building with the largest overlap, else null. The test (`tests/test_landmark_outlines.py`) requires the source fields, at least 3 fit control points, a valid polygon of 400 to 6,000 m², and that every outline is placed after a build. Display only, like every landmark.
+  - **Kanopi Residences** (traced 2026-10-18, owner approval pending at the P3 gate): the tower floor plate (units 01–16, core, corridor; 2,251 m², about 89 × 28 m) traced from the Level 7 facility plan on the Sime Darby Property project page (`https://www.simedarbyproperty.com/city-of-elmina/elmina-city-centre/kanopi-residences/`, image `https://imagedelivery.net/TdjZsXzzZt_je48pBzV3SA/b66d3b49-c666-4188-709e-8823aa93c200/1920`). The image `42483da1-…/1200` first suggested as the site plan is only the Level 1 legend. Georeferenced by a 6-point affine fit to the corners of the OSM construction plot (way 1314193194): residual RMS 2.9 m, max 4.7 m; two check points under the drawn tree canopy are 9.8 and 9.9 m off. The plan is marketing material (© Sime Darby Property): only the traced outline, a fact, is committed; the image is never stored or redistributed. `building_id` is `w1545153991` (OSM `building=construction`, the development's podium outline, 1,122 m² overlap).
+  - **Masjid Denai Alam:** deferred to P4 (ruling, 2026-10-18): no public site plan or official drawing exists, and it lies outside the hero radius. It has no outline; its OSM way 1030434016 is the religious land parcel, not a building, so it stays unplaced and its model stays `deferred`.
+- **`as_of`:** the OSM data date of the Overpass answers used, never the day of the build run. It is the date part of each answer's `osm3s.timestamp_osm_base` (the latest across the tiles), or, for a cached answer without one, the fetch time in its `data/cache/<sha>.meta.json` (`overpass.fetch_elements` / `data_date`). A script that finds neither writes nothing (exit 3). So a rebuild from the cache is byte-identical on any day. This applies to signage and landmarks `as_of`, `site.json` `buildings.as_of` (`build_buildings.py`) and `buildings.archetypes_as_of` plus `archetype_coverage.json` `as_of` (`build_archetypes.py`, from the precinct query). It is when the OSM snapshot was taken, not when a mapper last checked the data. Landcover has no per-feature `as_of`. The layer's own `as_of` is `site.json` `buildings.as_of`.
+- **Attributions** (in `site.json` `attribution`): OpenStreetMap contributors (ODbL) for buildings, trees, parks, land use, signage and landmarks; "ESA WorldCover 10 m 2021 v200 © ESA WorldCover project, CC-BY 4.0" for the land-cover fill.
+- **Cache:** the layer's ETag changes when any of these files (or buildings, trees, hydrology, parks, `site.json`) changes on disk.
+
+### Building frontage (`build_frontage.py`)
+
+`uv run python data/scripts/build_frontage.py` (step 5 of `pnpm data:city`, no network) adds `front_deg` and `front_source` (`street`) to buildings with a non-generic archetype in `base/buildings.geojson`. `front_deg` is the outward normal, in degrees clockwise from north, of the minimum-rotated-rectangle side whose midpoint is nearest a mapped street (`walk.geojson` type `street`, `major_road` or `pedestrian`; footways are excluded) within 40 m, ties to the longer side. A building with no street within 40 m gets neither field and the Three.js loader treats the front as unknown; it never guesses. Display only. Rerunning gives a byte-identical file. `--dry-run` prints the share per precinct. Precincts outside the mapped walk network (for example Bayu, Mutiara Subang, Subang Bestari) have no frontage.
+
+### Pipeline order: `pnpm data:city`
+
+```bash
+pnpm data:city   # runs, in order:
+#  1. build_buildings.py --max-requests 40            buildings.geojson, trees.geojson
+#  2. build_buildings.py --parks --max-requests 40    parks.geojson
+#  3. build_landcover.py --max-requests 40            landcover.geojson (needs the parks)
+#  4. build_archetypes.py --max-requests 10           precincts, archetype + final heights (needs landcover)
+#  5. build_frontage.py                               front_deg / front_source on buildings (needs archetypes + walk)
+#  6. build_signage.py --max-requests 40              signage.geojson (needs buildings)
+#  7. build_landmarks.py --max-requests 5             landmarks.geojson (needs buildings)
+```
+
+All Overpass traffic goes through `overpass.py` (cache, backoff, request cap). Each builder takes `--dry-run`.
+
+### Height sampling (`sample_heights.py`, billable, not in `data:city`)
+
+`data/scripts/sample_heights.py` samples per-footprint building heights from Google Photorealistic 3D Tiles into `base/height_samples.json`, which `build_archetypes.py` reads (precedence in the archetypes section). It is **not** part of `pnpm data:city` because it costs money: Google bills per root tileset request / session (sessions last about 3 hours); individual tile requests are not billed separately, but the key must still be treated as metered.
+
+- **Scoped Google exemption (spec section 2.3):** Google 3D Tiles are used only as a display-only source of building heights for the stylised-city overhaul's Three.js renderer (`display_height_m`, `sampled_height_m`), never for `height_m`, which the Cesium Stylised view reads. They never feed routing, evaluation, flood, the agent, answers or evidence. The ban in `AGENTS.md` otherwise stands.
+- **Plan first, spend second:**
+  - `uv run python data/scripts/sample_heights.py --bbox hero --plan --max-requests 60` fetches tileset JSON only and prints the request counts.
+  - Add `--count-leaves` to stop one level early: leaf tilesets at `--max-error` are counted, not fetched, and the requests a full run needs are estimated.
+  - Then run once with an approved cap: `... --bbox hero --max-requests <approved>` (`--bbox hero|township|w,s,e,n`).
+- The key is read from `GOOGLE_MAPS_API_KEY` (environment or repo-root `.env`) and is never printed; HTTP 401/403 exits 2 with `BLOCKED: ...`.
