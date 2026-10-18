@@ -1,10 +1,8 @@
-import { useScene } from "../scene/sceneStore";
 import { useJourney } from "./journeyStore";
+import type { JourneyPlan } from "./timeline";
 
-/** "Watch the trip" in the assistant answer: loads the answer's journey (if needed) and plays it from the start. */
-export function WatchTripButton() {
-  const plan = useScene((s) => s.journey);
-  if (!plan) return null;
+/** "Watch the trip" in an answer: loads that answer's own plan (if the player has another) and plays it from the start. */
+export function WatchTripButton({ plan }: { plan: JourneyPlan }) {
   return (
     <button
       type="button"

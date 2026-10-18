@@ -7,34 +7,44 @@ const MAX_DT_S = 0.25;
 let owners = 0;
 let stop: (() => void) | null = null;
 
-/** One requestAnimationFrame loop advancing the journey by real dt while it plays. Paused while the tab is hidden. */
+/** One requestAnimationFrame loop advancing the journey by real dt. It runs only while playing and the tab is visible. */
 function startLoop(): () => void {
   let raf = 0;
   let last: number | null = null;
-  const frame = (now: number) => {
+  const halt = () => {
+    if (raf) cancelAnimationFrame(raf);
     raf = 0;
+    last = null;
+  };
+  const frame = (now: number) => {
+    // raf stays non-zero while advancing, so the store subscription below does not schedule a second frame
     if (last !== null) {
       const dt = Math.min(MAX_DT_S, Math.max(0, (now - last) / 1000));
       useJourney.getState().advance(dt);
     }
-    last = now;
-    raf = requestAnimationFrame(frame);
-  };
-  const onVisibility = () => {
-    if (document.hidden) {
-      if (raf) cancelAnimationFrame(raf);
+    if (useJourney.getState().playing && !document.hidden) {
+      last = now;
+      raf = requestAnimationFrame(frame);
+    } else {
       raf = 0;
       last = null;
-    } else if (!raf) {
-      last = null;
-      raf = requestAnimationFrame(frame);
     }
   };
-  document.addEventListener("visibilitychange", onVisibility);
-  if (!document.hidden) raf = requestAnimationFrame(frame);
+  const sync = () => {
+    if (useJourney.getState().playing && !document.hidden) {
+      if (!raf) {
+        last = null;
+        raf = requestAnimationFrame(frame);
+      }
+    } else halt();
+  };
+  document.addEventListener("visibilitychange", sync);
+  const unsub = useJourney.subscribe(sync);
+  sync();
   return () => {
-    document.removeEventListener("visibilitychange", onVisibility);
-    if (raf) cancelAnimationFrame(raf);
+    document.removeEventListener("visibilitychange", sync);
+    unsub();
+    halt();
   };
 }
 

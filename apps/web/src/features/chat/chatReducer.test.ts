@@ -219,7 +219,8 @@ describe("journey.play", () => {
     } as never);
     m = reduceIntent(m, play);
     expect(m.route).toMatchObject({ id: "r1", distanceM: 963.5 });
-    expect(m.journey).toEqual({ routeId: "r1", startTime: "09:00" });
+    expect(m.journey).toMatchObject({ routeId: "r1", startTime: "09:00" });
+    expect(m.journey?.plan.route_id).toBe("r1");
   });
 
   it("a journey.play without a plan notes nothing", () => {

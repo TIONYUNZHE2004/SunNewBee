@@ -1,10 +1,11 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { useScene } from "../scene/sceneStore";
 import demo from "./fixtures/demoPlan.json";
 import { JourneyControls } from "./JourneyControls";
 import { useJourney } from "./journeyStore";
+import { OwnJourneyControls } from "./OwnJourneyControls";
 import type { JourneyPlan } from "./timeline";
 import { WatchTripButton } from "./WatchTripButton";
 
@@ -64,16 +65,65 @@ describe("JourneyControls", () => {
     );
   });
 
-  it("Watch the trip loads the scene's plan and plays from the start", () => {
-    useScene.setState({ journey: plan });
-    render(<WatchTripButton />);
+  it("Watch the trip loads its own plan and plays from the start", () => {
+    render(<WatchTripButton plan={plan} />);
     fireEvent.click(screen.getByRole("button", { name: "Watch the trip" }));
     expect(j().plan).toBe(plan);
     expect(j()).toMatchObject({ t: 0, playing: true });
   });
 
-  it("Watch the trip is absent without a journey", () => {
-    render(<WatchTripButton />);
-    expect(screen.queryByRole("button", { name: "Watch the trip" })).toBeNull();
+  it("two journey answers: each Watch plays its own trip; controls only on the loaded one", () => {
+    const other = { ...plan, route_id: "other" } as JourneyPlan;
+    const view = (
+      <>
+        <div data-testid="a">
+          <WatchTripButton plan={plan} />
+          <OwnJourneyControls plan={plan} />
+        </div>
+        <div data-testid="b">
+          <WatchTripButton plan={other} />
+          <OwnJourneyControls plan={other} />
+        </div>
+      </>
+    );
+    render(view);
+    expect(screen.queryAllByTestId("journey-controls")).toHaveLength(0);
+    const a = within(screen.getByTestId("a"));
+    const b = within(screen.getByTestId("b"));
+    fireEvent.click(b.getByRole("button", { name: "Watch the trip" }));
+    expect(j().plan).toBe(other);
+    expect(screen.getAllByTestId("journey-controls")).toHaveLength(1);
+    expect(b.getByTestId("journey-controls")).toBeTruthy();
+    expect(a.queryByTestId("journey-controls")).toBeNull();
+    fireEvent.click(a.getByRole("button", { name: "Watch the trip" }));
+    expect(j().plan).toBe(plan);
+    expect(a.getByTestId("journey-controls")).toBeTruthy();
+    expect(b.queryByTestId("journey-controls")).toBeNull();
+    act(() => j().clear());
+    expect(screen.queryAllByTestId("journey-controls")).toHaveLength(0);
+  });
+
+  it("datalist ids are unique across instances", () => {
+    j().load(plan);
+    const { container } = render(
+      <>
+        <JourneyControls />
+        <JourneyControls />
+      </>,
+    );
+    const ids = [...container.querySelectorAll("datalist")].map((d) => d.id);
+    expect(new Set(ids).size).toBe(2);
+  });
+
+  it("the slider announces the clock and event, and arrow keys step one second", () => {
+    j().load(plan);
+    render(<JourneyControls />);
+    const slider = screen.getByRole("slider", { name: "Trip position" });
+    expect(slider.getAttribute("aria-valuetext")).toMatch(/^09:00 /);
+    fireEvent.keyDown(slider, { key: "ArrowRight" });
+    expect(j().t).toBe(1);
+    fireEvent.keyDown(slider, { key: "ArrowLeft" });
+    fireEvent.keyDown(slider, { key: "ArrowLeft" });
+    expect(j().t).toBe(0);
   });
 });
