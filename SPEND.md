@@ -17,3 +17,4 @@
 | Time (UTC) | Agent | Task | Model | Live questions | Cost (US$) | Running total (US$) |
 |---|---|---|---|---|---|---|
 | 2026-10-18 09:51 | Cloud Codex worker | T-012 diagnostic | anthropic/claude-haiku-5.5 | 2 | 0.0084 | 0.0084 |
+| 2026-10-18 10:58 | Local AI engineer | T-017 round 1 (audit, 10 EN/BM/中文 questions; logs evals/audits/2026-10-18-t017/round1-openrouter.json) | anthropic/claude-haiku-5.5 | 10 | 0.0331 | 0.0704 (key usage per OpenRouter /key; ledger rows above sum to 0.0084, the other 0.0289 was unlogged usage before 10:54) |
