@@ -33,11 +33,21 @@ const features = (fc: unknown): unknown[] =>
 const str = (v: unknown): string | null => (typeof v === "string" && v.trim() ? v.trim() : null);
 
 /** The link's host, when the feature names no source label (never a guessed publisher). */
-function hostOf(url: string): string {
+export function hostOf(url: string): string {
   try {
     return new URL(url).hostname;
   } catch {
     return url;
+  }
+}
+
+/** The URL itself when it is http(s); null for anything else (javascript:, data:, unparsable). */
+export function httpUrl(url: string): string | null {
+  try {
+    const { protocol } = new URL(url);
+    return protocol === "http:" || protocol === "https:" ? url : null;
+  } catch {
+    return null;
   }
 }
 
@@ -86,8 +96,16 @@ export function planSigns(
   buildings: unknown,
   walk: unknown,
   frame: LocalFrame,
-): { signs: SignPlacement[]; dropped: Record<"no_source" | "no_building", number> } {
+  /** Only signs whose point lies within `radiusM` of `centre` (lon/lat) are planned; the rest are counted in `outside`. */
+  within?: { centre: [number, number]; radiusM: number },
+): {
+  signs: SignPlacement[];
+  dropped: Record<"no_source" | "no_building", number>;
+  outside: number;
+} {
   const dropped = { no_source: 0, no_building: 0 };
+  let outside = 0;
+  const hero = within ? frame.toLocal(within.centre[0], within.centre[1]) : null;
   const byId = new Map(toBuildings(buildings, displayHeight).buildings.map((b) => [b.id, b]));
   const lines = streets(walk, frame);
   const out: SignPlacement[] = [];
@@ -95,11 +113,22 @@ export function planSigns(
   for (const f of features(signs)) {
     const p = isRec(f) && isRec(f.properties) ? f.properties : {};
     const text = str(p.text);
-    const url = str(p.source_url);
+    const rawUrl = str(p.source_url);
+    const url = rawUrl ? httpUrl(rawUrl) : null;
     const asOf = str(p.as_of);
     if (!text || !url || !asOf) {
       dropped.no_source++;
       continue;
+    }
+    if (hero && within) {
+      const c = isRec(f) && isRec(f.geometry) ? f.geometry.coordinates : null;
+      if (Array.isArray(c) && Number.isFinite(c[0]) && Number.isFinite(c[1])) {
+        const [x, z] = frame.toLocal(c[0] as number, c[1] as number);
+        if (Math.hypot(x - hero[0], z - hero[1]) > within.radiusM) {
+          outside++;
+          continue;
+        }
+      }
     }
     const id = str(p.id);
     const b = str(p.building_id) ? byId.get(str(p.building_id)!) : undefined;
@@ -170,5 +199,5 @@ export function planSigns(
       source: { url, label: str(p.source_label) ?? hostOf(url), asOf },
     });
   }
-  return { signs: out, dropped };
+  return { signs: out, dropped, outside };
 }

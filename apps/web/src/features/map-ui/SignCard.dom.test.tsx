@@ -48,6 +48,18 @@ describe("SignCard", () => {
     expect(link).toHaveAttribute("target", "_blank");
   });
 
+  it("draws no link for a non-http(s) source_url, but keeps the text and source line", () => {
+    const qc = newQueryClient();
+    const bad = structuredClone(layer);
+    bad.signage.features[0]!.properties.source_url = "javascript:alert(1)";
+    qc.setQueryData(["buildings"], bad);
+    useScene.getState().selectSign("sign-1");
+    renderWithClient(<SignCard />, qc);
+    expect(screen.getByRole("heading", { name: "Central Mart" })).toBeInTheDocument();
+    expect(screen.getByText(/^Source: OpenStreetMap/)).toBeInTheDocument();
+    expect(screen.queryByRole("link")).toBeNull();
+  });
+
   it("renders nothing when no sign is selected or the sign is unknown", () => {
     const qc = newQueryClient();
     qc.setQueryData(["buildings"], layer);

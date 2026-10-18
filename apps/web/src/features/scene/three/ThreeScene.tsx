@@ -513,20 +513,27 @@ export default function ThreeScene({
   }, [engine, propsPlan, roleUniforms]);
 
   // Sourced, text-only shop signs: a sign without text, source_url and as_of never reaches the
-  // client (the API filters) and is dropped again in the plan. Planned once the walk is in.
+  // client (the API filters) and is dropped again in the plan. Planned once the walk is in, for the hero district only and none at Low.
   const signPlan = useMemo(
     () =>
-      frame && detailsOn && walk && buildings && !showroom
-        ? planSigns(buildings.signage, buildings.buildings, walk, frame)
+      frame && detailsOn && walk && buildings && !showroom && tier !== "low"
+        ? planSigns(buildings.signage, buildings.buildings, walk, frame, {
+            centre: HERO_CENTRE,
+            radiusM: HERO_RADIUS_M,
+          })
         : null,
-    [frame, detailsOn, walk, buildings, showroom],
+    [frame, detailsOn, walk, buildings, showroom, tier],
   );
   useEffect(() => {
     if (!engine || !signPlan || signPlan.signs.length === 0) return;
     const layer = createSignLayer(signPlan.signs, roleUniforms);
     engine.setDecor("signs", layer);
     engine.requestRender();
-    return () => engine.setDecor("signs", null);
+    return () => {
+      engine.setDecor("signs", null);
+      // A card must not outlive its signs.
+      useScene.getState().selectSign(null);
+    };
   }, [engine, signPlan, roleUniforms]);
 
   // Birds and cloud shadows. The motion clock ticks them; while it is stopped the driver re-ticks

@@ -1,6 +1,7 @@
 import { useMemo, useRef } from "react";
 import { useBuildings } from "../../lib/api";
 import { useScene } from "../scene/sceneStore";
+import { hostOf, httpUrl } from "../scene/three/signs/signPlan";
 import { InSlot } from "./mapSlots";
 import { OVERLAY_CLASS, useOverlayA11y } from "./overlayA11y";
 
@@ -8,7 +9,8 @@ interface SignFacts {
   text: string;
   label: string;
   asOf: string;
-  url: string;
+  /** http(s) only; null when the feature's link is anything else (then no link is drawn). */
+  url: string | null;
 }
 
 /** The selected sign's facts from the (already source-filtered) signage layer, or null. */
@@ -23,11 +25,7 @@ function findSign(signage: unknown, id: string): SignFacts | null {
     const url = typeof p.source_url === "string" ? p.source_url.trim() : "";
     if (!text || !asOf || !url) return null;
     const label = typeof p.source_label === "string" && p.source_label.trim();
-    let host = url;
-    try {
-      host = new URL(url).hostname;
-    } catch {}
-    return { text, asOf, url, label: label || host };
+    return { text, asOf, url: httpUrl(url), label: label || hostOf(url) };
   }
   return null;
 }
@@ -69,15 +67,17 @@ function SignCardInner({ id }: { id: string }) {
         <p className="mt-3 text-sm text-fg-soft">
           Source: {sign.label}, as of {sign.asOf}
         </p>
-        <a
-          href={sign.url}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="mt-2 inline-flex min-h-11 items-center text-sm font-medium text-accent underline focus-visible:outline-2 focus-visible:outline-accent"
-        >
-          Open source
-          <span className="sr-only"> (opens in a new tab)</span>
-        </a>
+        {sign.url && (
+          <a
+            href={sign.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-2 inline-flex min-h-11 items-center text-sm font-medium text-accent underline focus-visible:outline-2 focus-visible:outline-accent"
+          >
+            Open source
+            <span className="sr-only"> (opens in a new tab)</span>
+          </a>
+        )}
       </div>
     </InSlot>
   );

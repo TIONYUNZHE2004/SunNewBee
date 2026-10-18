@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createFrame } from "../frame";
-import { planSigns } from "./signPlan";
+import { httpUrl, planSigns } from "./signPlan";
 
 const O: [number, number] = [101.5, 3.18];
 const frame = createFrame(O);
@@ -93,5 +93,32 @@ describe("planSigns", () => {
   it("still places the sign on a facade when there is no street", () => {
     const { signs } = planSigns(fc(sign()), fc(building()), fc(), frame);
     expect(signs).toHaveLength(1);
+  });
+
+  it("drops a sign whose source is not an http(s) link (honesty: no usable source)", () => {
+    const { signs, dropped } = run([
+      sign({ source_url: "javascript:alert(1)" }),
+      sign({ source_url: "data:text/html,x" }),
+      sign({ source_url: "not a url" }),
+      sign({ id: "ok" }),
+    ]);
+    expect(signs.map((s) => s.id)).toEqual(["ok"]);
+    expect(dropped.no_source).toBe(3);
+  });
+
+  it("plans only signs inside the hero radius and counts the rest", () => {
+    const far = { ...sign({ id: "far" }), geometry: { type: "Point", coordinates: ll(5000, 0) } };
+    const r = planSigns(fc(sign(), far), fc(building()), fc(lineAt(30)), frame, {
+      centre: O,
+      radiusM: 1200,
+    });
+    expect(r.signs.map((s) => s.id)).toEqual(["sign-1"]);
+    expect(r.outside).toBe(1);
+  });
+
+  it("httpUrl accepts http(s) only", () => {
+    expect(httpUrl("https://a.org/x")).toBe("https://a.org/x");
+    expect(httpUrl("javascript:alert(1)")).toBeNull();
+    expect(httpUrl("")).toBeNull();
   });
 });
