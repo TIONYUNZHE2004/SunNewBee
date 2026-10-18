@@ -1,4 +1,4 @@
-import { type RefObject, useCallback, useEffect, useReducer, useState } from "react";
+import { type RefObject, useCallback, useEffect, useState } from "react";
 import { useScene } from "../scene/sceneStore";
 import type { Engine } from "../scene/three/engine";
 import type { LocalFrame } from "../scene/three/frame";
@@ -6,29 +6,16 @@ import { JourneyOverlay } from "./JourneyOverlay";
 import { journeyStateOf, useJourney } from "./journeyStore";
 import { createJourneyLayer, type JourneyLayer } from "./three/journeyLayer";
 import { projectToScreen } from "./three/project";
-
-/** Longest frame step the player takes (a hidden tab or a stall must not skip events). */
-const MAX_STEP_S = 0.1;
-
-/** CSS px of an inherited custom property at `el` (e.g. `--panel-w: 360px`); 0 when unset. */
-function cssPx(el: Element | null | undefined, name: string): number {
-  if (!el) return 0;
-  const v = Number.parseFloat(getComputedStyle(el).getPropertyValue(name));
-  return Number.isFinite(v) ? v : 0;
-}
-
-/** Bottom of the map's top stack (label, HUD, route tag) below the top of `el`, CSS px; 0 without one. */
-function topStackBottom(el: Element | null | undefined): number {
-  const stack = el?.ownerDocument.querySelector('[data-testid="top-stack"]');
-  if (!el || !stack) return 0;
-  return Math.max(0, stack.getBoundingClientRect().bottom - el.getBoundingClientRect().top);
-}
+import { useJourneyDriver } from "./useJourneyDriver";
+import { useMapInsets } from "./useMapInsets";
 
 /**
  * Minimal journey mount for the Three.js map (D-T7): while the scene store holds a journey it adds
  * the ribbon and the event markers to the engine and shows the DOM overlay (label, HUD, mini-map,
- * event card). It never starts playback (D-T8 adds the controls, D-T10 the demo auto-play); while
- * the store is playing it advances the timeline once per animation frame.
+ * event card). It never starts playback (D-T8's controls and hook do; D-T10 the demo auto-play).
+ * The timeline is advanced only by D-T8's shared, ref-counted `useJourneyDriver` loop (mounted here
+ * too, so the trip runs with the assistant panel closed); a change of `t` asks the engine for a
+ * frame. Per-frame work happens only in the shown event card (see `EventCard` `track`).
  */
 export function JourneyMount({
   engine,
@@ -65,25 +52,14 @@ export function JourneyMount({
     engine?.requestRender();
   }, [layer, activeEvent, engine]);
 
-  // Player clock: advance while playing (no auto-play here).
-  const playing = useJourney((s) => s.playing);
+  // The single journey driver (ref-counted with the controls); render a frame when t moves.
+  useJourneyDriver();
   useEffect(() => {
-    if (!playing || !plan) return;
-    let raf = 0;
-    let last: number | null = null;
-    const step = (now: number) => {
-      if (last !== null) useJourney.getState().advance(Math.min(MAX_STEP_S, (now - last) / 1000));
-      last = now;
-      engine?.requestRender();
-      raf = requestAnimationFrame(step);
-    };
-    raf = requestAnimationFrame(step);
-    return () => cancelAnimationFrame(raf);
-  }, [playing, plan, engine]);
-
-  // Re-place the card on every rendered frame (the camera may have moved).
-  const [, bump] = useReducer((n: number) => n + 1, 0);
-  useEffect(() => (engine && plan ? engine.onFrame(() => bump()) : undefined), [engine, plan]);
+    if (!engine || !plan) return;
+    return useJourney.subscribe((s, prev) => {
+      if (s.t !== prev.t) engine.requestRender();
+    });
+  }, [engine, plan]);
 
   const project = useCallback(
     (i: number) => {
@@ -95,14 +71,14 @@ export function JourneyMount({
     [layer, engine],
   );
 
+  const subscribeFrame = useCallback(
+    (cb: () => void) => (engine ? engine.onFrame(() => cb()) : () => {}),
+    [engine],
+  );
+  const viewport = useMapInsets(hostRef, !!plan && !!engine, () =>
+    engine ? engine.pickView().size : [1, 1],
+  );
+
   if (!plan || !engine) return null;
-  const size = engine.pickView().size;
-  // The card stays clear of the side panel and the phone sheet that cover the map.
-  const host = hostRef?.current;
-  const viewport = {
-    w: Math.max(1, size[0] - cssPx(host, "--panel-w")),
-    h: Math.max(1, size[1] - cssPx(host, "--sheet-h") - cssPx(host, "--attr-h")),
-    top: topStackBottom(host),
-  };
-  return <JourneyOverlay project={project} viewport={viewport} />;
+  return <JourneyOverlay project={project} viewport={viewport} subscribeFrame={subscribeFrame} />;
 }

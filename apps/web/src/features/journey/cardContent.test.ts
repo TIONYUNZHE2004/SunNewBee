@@ -2,9 +2,12 @@ import { describe, expect, it } from "vitest";
 import { honestyViolations } from "../../test/honesty";
 import {
   DEMO_CHIP,
+  DEMO_CHIP_TEXT,
   journeyCardContent,
   NOT_CHECKED,
+  SIMULATION_LABEL,
   VR_FILED,
+  vrFiledFor,
   withVerificationRequest,
 } from "./cardContent";
 import demoPlan from "./fixtures/demoPlan.json";
@@ -41,6 +44,27 @@ const texts = (c: ReturnType<typeof journeyCardContent>) => [
   c.source,
   c.statusLabel,
 ];
+
+describe("shared names and VR matching", () => {
+  it("fe4 aliases are the same strings", () => {
+    expect(DEMO_CHIP_TEXT).toBe(DEMO_CHIP);
+    expect(SIMULATION_LABEL).toBe("Simulation · indicative times, not a prediction");
+  });
+
+  it("a VR counts only for the event's element AND one of its attributes", () => {
+    const e = ev({
+      kind: "unknown",
+      status: "unknown",
+      element_id: "seg-9",
+      attributes: ["incline_pct"],
+    });
+    expect(vrFiledFor(e, [])).toBe(false);
+    expect(vrFiledFor(e, [{ element_id: "seg-9", attribute: "step_count" }])).toBe(false);
+    expect(vrFiledFor(e, [{ element_id: "seg-8", attribute: "incline_pct" }])).toBe(false);
+    expect(vrFiledFor(e, [{ element_id: "seg-9", attribute: "incline_pct" }])).toBe(true);
+    expect(vrFiledFor(ev({ element_id: null }), [{ element_id: "", attribute: "x" }])).toBe(false);
+  });
+});
 
 describe("journeyCardContent", () => {
   it("title and body come from the plan verbatim", () => {

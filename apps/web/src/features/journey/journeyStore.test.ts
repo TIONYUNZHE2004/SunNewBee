@@ -105,14 +105,20 @@ describe("journeyStore", () => {
     j().advance(1);
     expect(j()).toMatchObject({ t: 0, playing: false });
   });
-  it("noteVr remembers each element once, for the session (clear and load keep it)", () => {
-    useJourney.setState({ vrElements: [] });
-    j().noteVr("seg-1");
-    j().noteVr("seg-1");
-    j().noteVr("seg-2");
-    expect(j().vrElements).toEqual(["seg-1", "seg-2"]);
+  it("noteVr remembers each (element, attribute) once, for the session (clear and load keep it)", () => {
+    useJourney.setState({ vrs: [] });
+    j().noteVr("seg-1", "incline_pct");
+    j().noteVr("seg-1", "incline_pct");
+    j().noteVr("seg-1", "step_count");
+    j().noteVr("seg-2", "incline_pct");
+    const want = [
+      { element_id: "seg-1", attribute: "incline_pct" },
+      { element_id: "seg-1", attribute: "step_count" },
+      { element_id: "seg-2", attribute: "incline_pct" },
+    ];
+    expect(j().vrs).toEqual(want);
     j().load(plan);
     j().clear();
-    expect(j().vrElements).toEqual(["seg-1", "seg-2"]);
+    expect(j().vrs).toEqual(want);
   });
 });

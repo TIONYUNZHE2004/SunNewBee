@@ -1,5 +1,5 @@
 import { type CamMode, journeyStateOf, useJourney } from "./journeyStore";
-import type { JourneyState, Phase } from "./timeline";
+import type { JourneyPlan, JourneyState, Phase } from "./timeline";
 
 /** The prototype's test and recording hook (`window.__journey`), plus a read-only `state()`. */
 export interface JourneyHook {
@@ -9,6 +9,14 @@ export interface JourneyHook {
   setCam: (mode: CamMode) => void;
   readonly phases: Phase[];
   readonly total: number;
+  /** The loaded plan (read only), null without one. */
+  readonly plan: JourneyPlan | null;
+  /**
+   * The hero's position along the route in plan metres (AC-D12 mini-map check), null without a
+   * plan. Until D-T6 renders a hero this is the timeline's `distance_m` at t; D-T6 replaces it with
+   * the rendered hero's position (the metre `routePath` places her at, `layer.path.pointAt`).
+   */
+  hero: () => { distance_m: number } | null;
   state: () => (JourneyState & { t: number; playing: boolean; camMode: CamMode }) | null;
 }
 
@@ -29,6 +37,13 @@ export function createJourneyHook(): JourneyHook {
     },
     get total() {
       return s().timeline?.total ?? 0;
+    },
+    get plan() {
+      return s().plan;
+    },
+    hero: () => {
+      const st = journeyStateOf(s());
+      return st ? { distance_m: st.distance_m } : null;
     },
     state: () => {
       const st = journeyStateOf(s());

@@ -93,7 +93,7 @@ export function useChatStream() {
             if (ev.type === "verification.requested") {
               void queryClient.invalidateQueries({ queryKey: ["tickets"] });
               // journey cards say "verification request filed" only for these elements
-              useJourney.getState().noteVr(ev.element_id);
+              useJourney.getState().noteVr(ev.element_id, ev.attribute);
             }
             patch(aid, (m) => reduceChatEvent(m, ev));
           }

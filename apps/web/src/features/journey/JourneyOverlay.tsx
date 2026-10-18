@@ -1,4 +1,7 @@
+import { useMemo } from "react";
 import { InSlot } from "../map-ui/mapSlots";
+import { vrFiledFor } from "./cardContent";
+import type { CardViewport } from "./cardPlacement";
 import { EventCard } from "./EventCard";
 import { JourneyHud } from "./JourneyHud";
 import { JourneyMiniMap } from "./JourneyMiniMap";
@@ -11,24 +14,34 @@ import { stateAt } from "./timeline";
  * - the Simulation label and the HUD in the map's "sim" slot (always visible while loaded);
  * - the mini-map at the top right of the map;
  * - one event card during each event hold, none during dive / walk / pull (AC-D11).
- * `project(eventIndex)` gives the event anchor in `viewport` CSS px (null when behind the camera);
- * the caller re-renders this component on every rendered 3D frame so the card follows the camera.
+ * `project(eventIndex)` gives the event anchor in `viewport` CSS px (null when behind the camera).
+ * With `subscribeFrame` (the engine's rendered frames) the shown card follows the camera itself,
+ * subscribed only during its hold; this component re-renders only when the store changes.
  */
 export function JourneyOverlay({
   project,
   viewport,
+  subscribeFrame,
 }: {
   project: (eventIndex: number) => { x: number; y: number } | null;
-  /** The map area cards may use, CSS px; `top` is a band kept clear (label, HUD, route tag). */
-  viewport: { w: number; h: number; top?: number };
+  /** The map area cards may use, CSS px: `top` is a band kept clear, `avoid` the mini-map. */
+  viewport: CardViewport;
+  subscribeFrame?: (cb: () => void) => () => void;
 }) {
   const timeline = useJourney((s) => s.timeline);
   const t = useJourney((s) => s.t);
-  const vrElements = useJourney((s) => s.vrElements);
-  if (!timeline) return null;
-  const st = stateAt(timeline, t);
-  const ev = st.phase.kind === "event" ? st.event : undefined;
-  const idx = st.eventIndex ?? -1;
+  const vrs = useJourney((s) => s.vrs);
+  const st = timeline ? stateAt(timeline, t) : null;
+  const ev = st?.phase.kind === "event" ? st.event : undefined;
+  const idx = ev ? (st?.eventIndex ?? -1) : -1;
+  const track = useMemo(
+    () =>
+      subscribeFrame && idx >= 0
+        ? { project: () => project(idx), subscribe: subscribeFrame }
+        : undefined,
+    [subscribeFrame, project, idx],
+  );
+  if (!timeline || !st) return null;
   return (
     <>
       <InSlot name="sim">
@@ -47,7 +60,8 @@ export function JourneyOverlay({
           eventIndex={idx}
           anchor={project(idx)}
           viewport={viewport}
-          vrFiled={!!ev.element_id && vrElements.includes(ev.element_id)}
+          vrFiled={vrFiledFor(ev, vrs)}
+          track={track}
         />
       )}
     </>

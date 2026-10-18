@@ -293,7 +293,11 @@ export const useScene = create<SceneState>((set) => ({
     set({ focusRouteRequest: null });
     set({ focusRouteRequest: id });
   },
-  clearRoute: () => set({ route: null }),
+  // The journey's ribbon is the route on the map: clearing the route clears the trip too.
+  clearRoute: () => {
+    if (useScene.getState().journey) useJourney.getState().clear();
+    set({ route: null, journey: null });
+  },
   clearWhatIf: () => set({ whatIf: null }),
   setRollout: (r) => set((s) => ({ rollout: { ...s.rollout, ...r } })),
   setDay: (d) => set((s) => ({ day: { ...s.day, ...d } })),

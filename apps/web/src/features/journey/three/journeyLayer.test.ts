@@ -9,6 +9,7 @@ import {
   createJourneyLayer,
   MARKER_LIFT_M,
   MARKER_STACK_M,
+  RIBBON_CASING_SCALE,
   RIBBON_GHOST_OPACITY,
   RIBBON_LIFT_M,
   RIBBON_WIDTH_M,
@@ -21,6 +22,7 @@ const frame = createFrame([101.5135, 3.18]);
 const mat = (o: THREE.Object3D) => (o as THREE.Mesh).material as LineMaterial;
 const solid = (g: THREE.Object3D) => g.children.filter((o) => o.userData.ribbon === "solid");
 const ghost = (g: THREE.Object3D) => g.children.filter((o) => o.userData.ribbon === "ghost");
+const casing = (g: THREE.Object3D) => g.children.filter((o) => o.userData.ribbon === "casing");
 
 describe("journey ribbon", () => {
   const layer = createJourneyLayer(plan, frame);
@@ -33,6 +35,23 @@ describe("journey ribbon", () => {
       "PASS",
     ]);
     expect(ghost(layer.ribbon)).toHaveLength(4);
+  });
+
+  it("a white, wider, solid casing under every run sets the ribbon apart from status lines", () => {
+    const cs = casing(layer.ribbon);
+    expect(cs.map((o) => o.userData.eval)).toEqual(["UNKNOWN", "PASS", "UNKNOWN", "PASS"]);
+    layer.setMetresPerPixel(0.3);
+    const s0 = solid(layer.ribbon)[0] as THREE.Object3D;
+    for (const o of cs) {
+      const m = mat(o);
+      expect(`#${m.color.getHexString()}`).toBe("#ffffff");
+      expect(m.dashed).toBe(false);
+      expect(m.worldUnits).toBe(true);
+      expect(m.depthTest).toBe(true);
+      expect(m.linewidth).toBeCloseTo(mat(s0).linewidth * RIBBON_CASING_SCALE, 6);
+      expect(o.renderOrder).toBeLessThan(s0.renderOrder);
+    }
+    expect(RIBBON_CASING_SCALE).toBeGreaterThan(1.3);
   });
 
   it("PASS is solid green, UNKNOWN amber dashes (styles.ts colours)", () => {
@@ -83,13 +102,13 @@ describe("journey ribbon", () => {
 
   it("world-unit lines (depth-correct); width ~RIBBON_WIDTH_PX on screen, clamped in metres", () => {
     for (const o of layer.ribbon.children) expect(mat(o).worldUnits).toBe(true);
+    const lines = [...solid(layer.ribbon), ...ghost(layer.ribbon)];
     layer.setMetresPerPixel(0.3);
-    for (const o of layer.ribbon.children)
-      expect(mat(o).linewidth).toBeCloseTo(0.3 * RIBBON_WIDTH_PX, 6);
+    for (const o of lines) expect(mat(o).linewidth).toBeCloseTo(0.3 * RIBBON_WIDTH_PX, 6);
     layer.setMetresPerPixel(0.001); // close to the hero: a painted strip, not a thread
-    for (const o of layer.ribbon.children) expect(mat(o).linewidth).toBe(RIBBON_WIDTH_M.min);
+    for (const o of lines) expect(mat(o).linewidth).toBe(RIBBON_WIDTH_M.min);
     layer.setMetresPerPixel(50); // far overview: capped
-    for (const o of layer.ribbon.children) expect(mat(o).linewidth).toBe(RIBBON_WIDTH_M.max);
+    for (const o of lines) expect(mat(o).linewidth).toBe(RIBBON_WIDTH_M.max);
   });
 
   it("setResolution reaches every line material", () => {

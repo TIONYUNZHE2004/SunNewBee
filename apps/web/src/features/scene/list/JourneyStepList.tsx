@@ -1,9 +1,18 @@
-import { DEMO_CHIP_TEXT, journeyCardContent, SIMULATION_LABEL } from "../../journey/cardContent";
+import { CardSourceRow } from "../../journey/CardSourceRow";
+import {
+  journeyCardContent,
+  SIMULATION_LABEL,
+  vrFiledFor,
+  withVerificationRequest,
+} from "../../journey/cardContent";
+import { useJourney } from "../../journey/journeyStore";
 import type { JourneyPlan } from "../../journey/timeline";
 
 /** The resident journey as a numbered step list (spec §6.5): the same events and card content as
- * the Three.js player, no animation. Used by the List view and Mapbox lite. */
+ * the Three.js player (`journeyCardContent` + `CardSourceRow`, AC-D14), no animation. Used by the
+ * List view and Mapbox lite. */
 export function JourneyStepList({ plan, className }: { plan: JourneyPlan; className?: string }) {
+  const vrs = useJourney((s) => s.vrs);
   if (!plan.events.length) return null;
   return (
     <section
@@ -19,7 +28,7 @@ export function JourneyStepList({ plan, className }: { plan: JourneyPlan; classN
       </p>
       <ol className="mt-3 space-y-2">
         {plan.events.map((e, i) => {
-          const c = journeyCardContent(e);
+          const c = withVerificationRequest(journeyCardContent(e), e, vrFiledFor(e, vrs));
           return (
             <li
               // biome-ignore lint/suspicious/noArrayIndexKey: fixed event order; index + kind + at_m is stable
@@ -29,17 +38,10 @@ export function JourneyStepList({ plan, className }: { plan: JourneyPlan; classN
               <p className="font-semibold">
                 <span className="mr-2">{i + 1}.</span>
                 {c.title}
+                <span className="ml-2 text-xs font-medium text-ink-soft">{c.statusLabel}</span>
               </p>
               <p className="mt-1 text-sm">{c.body}</p>
-              <p className="mt-1 flex flex-wrap items-center gap-2 text-sm text-ink-soft">
-                {c.demoChip && (
-                  <span className="rounded border border-line px-1.5 py-0.5 font-medium text-ink">
-                    {DEMO_CHIP_TEXT}
-                  </span>
-                )}
-                {!c.demoChip && <span className="font-medium text-ink">{c.statusLabel}</span>}
-                {c.source && <span>Source: {c.source}</span>}
-              </p>
+              <CardSourceRow content={c} elementId={e.element_id} className="mt-1" />
             </li>
           );
         })}

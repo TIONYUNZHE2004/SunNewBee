@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import type { FiledVr } from "./cardContent";
 import {
   buildTimeline,
   type JourneyPlan,
@@ -29,12 +30,12 @@ export interface JourneyStore {
   /** Frame tick from the player: moves t by dt screen seconds while playing; stops at the end. */
   advance: (dt: number) => void;
   /**
-   * Element ids with a verification request filed this session (`verification.requested` chat
-   * events). A card says "verification request filed" only for these. Kept across load / clear:
-   * a filed request stays filed.
+   * Verification requests filed this session (`verification.requested` chat events), by element
+   * and attribute. A card says "verification request filed" only for a match (`vrFiledFor`). Kept
+   * across load / clear: a filed request stays filed.
    */
-  vrElements: string[];
-  noteVr: (elementId: string) => void;
+  vrs: FiledVr[];
+  noteVr: (elementId: string, attribute: string) => void;
 }
 
 const empty = { plan: null, timeline: null, t: 0, playing: false };
@@ -42,9 +43,13 @@ const empty = { plan: null, timeline: null, t: 0, playing: false };
 export const useJourney = create<JourneyStore>((set) => ({
   ...empty,
   camMode: "follow",
-  vrElements: [],
-  noteVr: (id) =>
-    set((s) => (!id || s.vrElements.includes(id) ? {} : { vrElements: [...s.vrElements, id] })),
+  vrs: [],
+  noteVr: (element_id, attribute) =>
+    set((s) =>
+      !element_id || s.vrs.some((v) => v.element_id === element_id && v.attribute === attribute)
+        ? {}
+        : { vrs: [...s.vrs, { element_id, attribute }] },
+    ),
   load: (plan) => set({ plan, timeline: buildTimeline(plan), t: 0, playing: false }),
   clear: () => set({ ...empty, camMode: "follow" }),
   play: () =>

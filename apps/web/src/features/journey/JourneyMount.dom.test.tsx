@@ -37,6 +37,7 @@ function fakeEngine() {
   return {
     engine: engine as unknown as Engine,
     spy: engine,
+    frameSubs: () => frames.size,
     fireFrame: () => {
       for (const f of frames) f();
     },
@@ -124,7 +125,31 @@ describe("JourneyMount", () => {
     expect(screen.getByTestId("journey-card").style.left).not.toBe(before);
   });
 
-  it("while playing, frames advance the timeline and ask the engine to render", () => {
+  it("follows the camera only while a card is shown (no per-frame work during walks)", () => {
+    const f = fakeEngine();
+    render(<JourneyMount engine={f.engine} frame={frame} />);
+    act(() => playIntent());
+    const tl = buildTimeline(plan);
+    const walk = tl.phases.find((p) => p.kind === "walk") as (typeof tl.phases)[0];
+    const hold = tl.phases.find((p) => p.kind === "event") as (typeof tl.phases)[0];
+    act(() => useJourney.getState().seek((walk.t0 + walk.t1) / 2));
+    expect(f.frameSubs()).toBe(0);
+    act(() => useJourney.getState().seek((hold.t0 + hold.t1) / 2));
+    expect(f.frameSubs()).toBe(1);
+    act(() => useJourney.getState().seek((walk.t0 + walk.t1) / 2));
+    expect(f.frameSubs()).toBe(0);
+  });
+
+  it("a change of t asks the engine for a frame (the store drives, the engine renders on demand)", () => {
+    const f = fakeEngine();
+    render(<JourneyMount engine={f.engine} frame={frame} />);
+    act(() => playIntent());
+    f.spy.requestRender.mockClear();
+    act(() => useJourney.getState().seek(10));
+    expect(f.spy.requestRender).toHaveBeenCalled();
+  });
+
+  it("while playing, the shared journey driver advances the timeline", () => {
     const queue: FrameRequestCallback[] = [];
     vi.stubGlobal("requestAnimationFrame", (cb: FrameRequestCallback) => queue.push(cb));
     vi.stubGlobal("cancelAnimationFrame", () => {});

@@ -1,15 +1,36 @@
-import { useLayoutEffect, useRef, useState } from "react";
-import { DEMO_CHIP, journeyCardContent, withVerificationRequest } from "./cardContent";
-import { placeCard } from "./cardPlacement";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { CardSourceRow } from "./CardSourceRow";
+import { journeyCardContent, withVerificationRequest } from "./cardContent";
+import { type CardPlacement, type CardViewport, placeCard } from "./cardPlacement";
 import { KIND_COLOUR } from "./kindStyle";
 import type { JourneyEvent } from "./timeline";
 
 /** Fallback size before the card is measured (and in jsdom, which has no layout). */
 const DEFAULT_SIZE = { w: 290, h: 180 };
 
+type Anchor = { x: number; y: number } | null;
+
+/** Writes a placement onto the card element (no React commit). */
+function applyPlacement(el: HTMLElement, p: CardPlacement, anchor: Anchor) {
+  el.style.left = `${p.left}px`;
+  el.style.top = `${p.top}px`;
+  el.dataset.side = p.side;
+  if (anchor && p.anchored) {
+    el.dataset.anchorX = anchor.x.toFixed(1);
+    el.dataset.anchorY = anchor.y.toFixed(1);
+  } else {
+    delete el.dataset.anchorX;
+    delete el.dataset.anchorY;
+  }
+}
+
 /**
  * One event card (spec §6.4), anchored to the event's projected 3D point and clamped fully inside
  * `viewport` (AC-D11). All wording comes from `journeyCardContent`.
+ *
+ * With `track`, the card follows the camera: it subscribes to rendered frames only while it is
+ * mounted (one hold) and re-places itself by writing its own style, so a moving camera costs no
+ * React commit (AC-D15).
  */
 export function EventCard({
   event,
@@ -17,13 +38,15 @@ export function EventCard({
   anchor,
   viewport,
   vrFiled = false,
+  track,
 }: {
   event: JourneyEvent;
   eventIndex?: number;
   /** Projected anchor in viewport CSS px; null when it is behind the camera. */
-  anchor: { x: number; y: number } | null;
-  viewport: { w: number; h: number; top?: number };
+  anchor: Anchor;
+  viewport: CardViewport;
   vrFiled?: boolean;
+  track?: { project: () => Anchor; subscribe: (cb: () => void) => () => void };
 }) {
   const ref = useRef<HTMLElement>(null);
   const [size, setSize] = useState(DEFAULT_SIZE);
@@ -34,6 +57,21 @@ export function EventCard({
     if (r && r.width > 0 && r.height > 0)
       setSize((s) => (s.w === r.width && s.h === r.height ? s : { w: r.width, h: r.height }));
   }, [event, vrFiled, viewport.w]);
+
+  const latest = useRef({ size, viewport, track });
+  latest.current = { size, viewport, track };
+  const subscribe = track?.subscribe;
+  useEffect(() => {
+    if (!subscribe) return;
+    return subscribe(() => {
+      const el = ref.current;
+      const l = latest.current;
+      if (!el || !l.track) return;
+      const a = l.track.project();
+      applyPlacement(el, placeCard(a, l.size, l.viewport), a);
+    });
+  }, [subscribe]);
+
   const c = withVerificationRequest(journeyCardContent(event), event, vrFiled);
   const p = placeCard(anchor, size, viewport);
   return (
@@ -56,19 +94,11 @@ export function EventCard({
       </span>
       <h3 className="mb-1 mt-2 text-lg font-bold leading-snug">{c.title}</h3>
       <p className="m-0 text-sm leading-snug text-fg-soft">{c.body}</p>
-      <div className="mt-2.5 flex flex-wrap items-center gap-1.5 border-t-2 border-dashed border-edge pt-2 text-xs text-fg-soft">
-        <span data-testid="card-source">{c.source}</span>
-        {c.demoChip && (
-          <span className="rounded-md bg-[#fff0c9] px-1.5 py-px font-bold text-[#7a5a00]">
-            {DEMO_CHIP}
-          </span>
-        )}
-        {event.element_id && (
-          <code data-testid="card-element" className="font-mono text-[11px]">
-            {event.element_id}
-          </code>
-        )}
-      </div>
+      <CardSourceRow
+        content={c}
+        elementId={event.element_id}
+        className="mt-2.5 border-t-2 border-dashed border-edge pt-2"
+      />
     </article>
   );
 }

@@ -21,18 +21,11 @@ const SPAN: Record<SpanEval, { color: string; dash?: string }> = {
  */
 export function JourneyMiniMap({ plan, distanceM }: { plan: JourneyPlan; distanceM: number }) {
   const mm = useMemo(() => miniMapLayout(plan, MINIMAP_W, PAD), [plan]);
-  const [hx, hy] = mm.heroAt(distanceM);
-  return (
-    <figure
-      data-testid="journey-minimap"
-      className="glass m-0 w-[min(220px,40vw)] rounded-2xl p-2 text-fg"
-    >
-      <svg
-        viewBox={`0 0 ${mm.width} ${mm.height.toFixed(2)}`}
-        role="img"
-        aria-label="Route overview"
-        className="block h-auto w-full"
-      >
+  // The route, event dots and frame never change for a plan: built once, so a moving hero only
+  // updates the dot (the overlay re-renders as t moves).
+  const base = useMemo(
+    () => (
+      <>
         <rect width={mm.width} height={mm.height} rx="12" className="fill-raised" />
         {mm.spans.map((s, i) => (
           <polyline
@@ -60,6 +53,23 @@ export function JourneyMiniMap({ plan, distanceM }: { plan: JourneyPlan; distanc
             strokeWidth="2"
           />
         ))}
+      </>
+    ),
+    [mm],
+  );
+  const [hx, hy] = mm.heroAt(distanceM);
+  return (
+    <figure
+      data-testid="journey-minimap"
+      className="glass m-0 w-[min(220px,40vw)] rounded-2xl p-2 text-fg"
+    >
+      <svg
+        viewBox={`0 0 ${mm.width} ${mm.height.toFixed(2)}`}
+        role="img"
+        aria-label="Route overview"
+        className="block h-auto w-full"
+      >
+        {base}
         <circle
           data-testid="journey-minimap-hero"
           data-m={distanceM.toFixed(2)}

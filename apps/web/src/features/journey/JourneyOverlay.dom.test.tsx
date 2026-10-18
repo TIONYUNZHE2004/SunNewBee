@@ -18,7 +18,7 @@ const VIEW = { w: 1200, h: 800 };
 
 beforeEach(() => {
   useJourney.getState().clear();
-  useJourney.setState({ vrElements: [] });
+  useJourney.setState({ vrs: [] });
 });
 afterEach(() => useJourney.getState().clear());
 
@@ -167,11 +167,17 @@ describe("JourneyOverlay", () => {
     expect(seen).toEqual(plan.events.map((_, i) => String(i)));
   });
 
-  it("marks the ramp card VR-filed after a verification.requested for its element", () => {
+  it("marks the ramp card VR-filed only after a verification.requested for its element and attribute", () => {
     act(() => {
       useJourney.getState().load(plan);
-      useJourney.getState().noteVr("seg-1306543755-2");
+      useJourney.getState().noteVr("seg-1306543755-2", "step_count"); // not the ramp's attribute
     });
+    const r0 = tl.phases.find((p) => p.event?.title === "Ramp") as (typeof tl.phases)[0];
+    const { unmount } = render(<JourneyOverlay project={project} viewport={VIEW} />);
+    act(() => useJourney.getState().seek(r0.t0 + 0.5));
+    expect(screen.getByTestId("card-source")).not.toHaveTextContent("verification request");
+    unmount();
+    act(() => useJourney.getState().noteVr("seg-1306543755-2", "incline_pct"));
     render(<JourneyOverlay project={project} viewport={VIEW} />);
     const ramp = tl.phases.find((p) => p.event?.title === "Ramp") as (typeof tl.phases)[0];
     act(() => useJourney.getState().seek(ramp.t0 + 0.5));

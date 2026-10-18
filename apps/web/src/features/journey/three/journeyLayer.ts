@@ -23,7 +23,17 @@ export const RIBBON_WIDTH_PX = 7;
  * about RIBBON_WIDTH_PX at any range, clamped: a painted strip next to the hero, capped in overview.
  */
 export const RIBBON_WIDTH_M = { min: 0.8, max: 6 } as const;
-/** Opacity of the ribbon where a building hides it (drawn with depthFunc Greater). */
+/**
+ * A white casing under the ribbon, this many times its width: the trip ribbon reads as a cased
+ * band, distinct from the thin status lines drawn over it when Path status is on.
+ */
+export const RIBBON_CASING_SCALE = 1.6;
+const CASING_COLOUR = "#ffffff";
+/**
+ * Opacity of the ribbon where something hides it (drawn with depthFunc Greater). Any occluder
+ * counts (buildings, trees, the hero): restricting it to buildings would need every building
+ * material to write a stencil bit, which is not worth it for a 35 % hint.
+ */
 export const RIBBON_GHOST_OPACITY = 0.35;
 /** Marker height above the event's route point (prototype: 5 m), and the stack step per same-metre event. */
 export const MARKER_LIFT_M = 5;
@@ -105,6 +115,19 @@ export function createJourneyLayer(plan: JourneyPlan, frame: LocalFrame): Journe
   ribbon.name = "journey-ribbon";
   for (const run of path.spanLines()) {
     const style = RIBBON_STYLE[run.eval];
+    // Casing first (lower render order): a wider white solid line under the coloured one.
+    const casing = createLineBatch(
+      [run.points],
+      { color: CASING_COLOUR, widthPx: RIBBON_WIDTH_PX * RIBBON_CASING_SCALE },
+      RIBBON_LIFT_M,
+      RIBBON_ORDER - 1,
+    );
+    const cm = (casing as THREE.Mesh).material as LineMaterial;
+    cm.worldUnits = true;
+    cm.depthTest = true;
+    cm.depthWrite = false;
+    casing.userData = { ...casing.userData, ribbon: "casing", eval: run.eval };
+    ribbon.add(casing);
     // Where visible: depth-tested, so buildings and the hero cover it like any ground paint.
     const solid = createLineBatch([run.points], style, RIBBON_LIFT_M, RIBBON_ORDER);
     const sm = (solid as THREE.Mesh).material as LineMaterial;
@@ -177,7 +200,8 @@ export function createJourneyLayer(plan: JourneyPlan, frame: LocalFrame): Journe
       const w = Math.min(RIBBON_WIDTH_M.max, Math.max(RIBBON_WIDTH_M.min, mpp * RIBBON_WIDTH_PX));
       for (const o of ribbon.children) {
         setDashScale(o, mpp);
-        ((o as THREE.Mesh).material as LineMaterial).linewidth = w;
+        ((o as THREE.Mesh).material as LineMaterial).linewidth =
+          o.userData.ribbon === "casing" ? w * RIBBON_CASING_SCALE : w;
       }
     },
     dispose() {

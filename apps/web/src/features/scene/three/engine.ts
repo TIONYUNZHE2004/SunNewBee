@@ -616,7 +616,7 @@ function build(
           if (motionLayer) aoSkip.push(motionLayer.group);
           // The flood tint is data on the ground: AO must not darken it.
           if (overlays) aoSkip.push(overlays.groundGroup);
-          // The journey ribbon is screen-space lines: not a surface for AO.
+          // The journey ribbon is Line2 quads (paint over the ground), not a surface for AO.
           if (journey) aoSkip.push(journey.ribbon);
           return aoSkip;
         }),

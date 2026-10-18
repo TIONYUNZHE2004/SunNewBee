@@ -79,7 +79,7 @@ describe("AC-D6 journey UI wording", () => {
   it("the rendered overlay at every hold of the demo plan is honest", () => {
     act(() => {
       useJourney.getState().load(plan);
-      useJourney.getState().noteVr("seg-1306543755-2");
+      useJourney.getState().noteVr("seg-1306543755-2", "incline_pct");
     });
     const { container } = render(
       <JourneyOverlay project={() => ({ x: 400, y: 300 })} viewport={{ w: 1200, h: 800 }} />,

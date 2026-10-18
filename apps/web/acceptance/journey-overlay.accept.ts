@@ -12,10 +12,10 @@ import { decodePng } from "./support/scene";
  * Elmina seed, Stylised map, mock LLM. Run with a dev server on the seed:
  * `ACCEPTANCE_BASE_URL=http://localhost:5183 pnpm --filter @tl/web acceptance -g "AC-D11|AC-D12"`.
  *
- * Needs the player hook `window.__journey` (D-T8): `seek`, `play`, `pause`, `setCam`, `total`,
- * `phases` (timeline phases, event phases carry `event` and `eventIndex`), plus `plan` (the loaded
- * JourneyPlan) and, for the hero check, `hero()` -> `{ distance_m }` read from the hero rig (D-T6).
- * Until those land the tests skip with that reason (D-T7 report: deferred to D-T8).
+ * Uses the player hook `window.__journey` (D-T8; installed in dev builds and the demo preset):
+ * `seek`, `play`, `pause`, `setCam`, `total`, `phases` (event phases carry `event` and
+ * `eventIndex`), `plan` and `hero()` -> `{ distance_m }` (the timeline distance until D-T6 reads it
+ * from the rendered hero). Skips only where the hook is not installed (a production build).
  */
 
 interface HookPhase {
@@ -51,7 +51,7 @@ test.describe("journey overlay (D-T7)", () => {
     await askDemoJourney(page);
     test.skip(
       !(await hasJourneyHook(page)),
-      "window.__journey lands with D-T8 (controls); deferred to D-T8",
+      "window.__journey is installed in dev builds and the demo preset only",
     );
   });
 
@@ -64,6 +64,7 @@ test.describe("journey overlay (D-T7)", () => {
     const vp = page.viewportSize() as { width: number; height: number };
     const holds = (phases as HookPhase[]).filter((p) => p.kind === "event" && p.event);
     expect(holds.length).toBeGreaterThan(0);
+    console.log(`AC-D11: ${holds.length} holds checked`);
     for (const p of holds) {
       await journey.seek(page, (p.t0 + p.t1) / 2);
       await frames(page);
@@ -96,37 +97,48 @@ test.describe("journey overlay (D-T7)", () => {
     }
   });
 
-  test("AC-D12: the Simulation label in 100% of frames; mini-map dot within 3 px of the hero", async ({
+  test("AC-D12: the Simulation label is visible in 100% of sampled frames of a full playback", async ({
     page,
   }) => {
     const { total } = await journey.info(page);
-    const plan = await hook<JourneyPlan>(page, "plan");
-    test.skip(!plan, "window.__journey.plan lands with D-T8");
-    const hasHero = await page.evaluate(
-      () =>
-        typeof (window as unknown as { __journey?: { hero?: unknown } }).__journey?.hero ===
-        "function",
-    );
-    test.skip(!hasHero, "window.__journey.hero() lands with D-T6/D-T8");
-    const mm = miniMapLayout(plan as JourneyPlan, 220, 10);
     await journey.seek(page, 0);
     await journey.play(page);
     const t0 = Date.now();
     let samples = 0;
     let labelled = 0;
-    let worst = 0;
     while (Date.now() - t0 < (total + 1) * 1000) {
       samples++;
       if (await page.getByTestId("journey-sim-label").isVisible()) labelled++;
+      await page.waitForTimeout(100);
+    }
+    console.log(`AC-D12 label: ${labelled}/${samples} samples over ${total.toFixed(1)} s`);
+    expect(samples).toBeGreaterThan(total * 5);
+    expect(labelled).toBe(samples);
+  });
+
+  test("AC-D12: the mini-map hero dot tracks hero() within 3 px over a full playback", async ({
+    page,
+  }) => {
+    const { total } = await journey.info(page);
+    const plan = await hook<JourneyPlan>(page, "plan");
+    expect(plan, "window.__journey.plan").toBeTruthy();
+    const mm = miniMapLayout(plan as JourneyPlan, 220, 10);
+    await journey.seek(page, 0);
+    await journey.play(page);
+    const t0 = Date.now();
+    let samples = 0;
+    let worst = 0;
+    while (Date.now() - t0 < (total + 1) * 1000) {
+      // dot and hero read in one evaluate (one task), so both describe the same instant
       const r = await page.evaluate(() => {
         const dot = document.querySelector(
           '[data-testid="journey-minimap-hero"]',
         ) as SVGCircleElement | null;
         const svg = dot?.ownerSVGElement;
         const hero = (
-          window as unknown as { __journey: { hero(): { distance_m: number } } }
+          window as unknown as { __journey: { hero(): { distance_m: number } | null } }
         ).__journey.hero();
-        if (!dot || !svg) return null;
+        if (!dot || !svg || !hero) return null;
         const m = svg.getScreenCTM() as DOMMatrix;
         const b = dot.getBoundingClientRect();
         return {
@@ -137,6 +149,7 @@ test.describe("journey overlay (D-T7)", () => {
         };
       });
       if (r) {
+        samples++;
         const [x, y] = mm.heroAt(r.d);
         const [a, b, c, d, e, f] = r.m as [number, number, number, number, number, number];
         const px = a * x + c * y + e;
@@ -145,8 +158,8 @@ test.describe("journey overlay (D-T7)", () => {
       }
       await page.waitForTimeout(100);
     }
+    console.log(`AC-D12 mini-map dot: worst ${worst.toFixed(2)} px over ${samples} samples`);
     expect(samples).toBeGreaterThan(total * 5);
-    expect(labelled).toBe(samples);
     expect(worst).toBeLessThanOrEqual(3);
   });
 });

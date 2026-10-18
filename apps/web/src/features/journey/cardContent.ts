@@ -93,6 +93,20 @@ export function journeyCardContent(event: JourneyEvent): JourneyCardContent {
   };
 }
 
+/** A verification request filed this session (from a `verification.requested` event). */
+export interface FiledVr {
+  element_id: string;
+  attribute: string;
+}
+
+/** True when a request was filed for this event's element and one of its attributes. */
+export function vrFiledFor(event: JourneyEvent, vrs: readonly FiledVr[]): boolean {
+  const id = event.element_id;
+  if (!id) return false;
+  const attrs = event.attributes ?? [];
+  return vrs.some((v) => v.element_id === id && attrs.includes(v.attribute));
+}
+
 /** True when the card is about a fact nobody has checked yet (a VR would ask for exactly that). */
 const unchecked = (e: JourneyEvent) =>
   e.kind === "unknown" || (e.kind === "covered" && e.status !== "verified");

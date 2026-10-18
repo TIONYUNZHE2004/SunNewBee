@@ -20,11 +20,27 @@ describe("window.__journey", () => {
   it("has the prototype API shape", () => {
     const h = createJourneyHook();
     expect(Object.keys(h).sort()).toEqual(
-      ["pause", "phases", "play", "seek", "setCam", "state", "total"].sort(),
+      ["hero", "pause", "phases", "plan", "play", "seek", "setCam", "state", "total"].sort(),
     );
     expect(h.phases.length).toBeGreaterThan(10);
     expect(h.total).toBeGreaterThan(80);
     expect(h.total).toBeLessThan(100);
+  });
+
+  it("plan is the loaded plan (read only); hero() is the distance along the route at t", () => {
+    const h = createJourneyHook();
+    expect(h.plan).toBe(plan);
+    expect(() => {
+      (h as { plan: unknown }).plan = null;
+    }).toThrow();
+    h.seek(0);
+    expect(h.hero()).toEqual({ distance_m: 0 });
+    const walk = h.phases.find((p) => p.kind === "walk" && p.m1 > p.m0) as (typeof h.phases)[0];
+    h.seek((walk.t0 + walk.t1) / 2);
+    expect(h.hero()?.distance_m).toBeCloseTo((walk.m0 + walk.m1) / 2, 6);
+    useJourney.getState().clear();
+    expect(h.plan).toBeNull();
+    expect(h.hero()).toBeNull();
   });
 
   it("drives the store and reports state", () => {

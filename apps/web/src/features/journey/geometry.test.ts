@@ -161,6 +161,29 @@ describe("placeCard", () => {
     expect(p.top + card.h).toBeLessThanOrEqual(300);
   });
 
+  it("moves off the mini-map rectangle when it would cover it, staying inside the viewport", () => {
+    const mm = { x: 1200, y: 16, w: 224, h: 170 };
+    for (const a of [
+      { x: 1300, y: 300 },
+      { x: 1350, y: 120 },
+      { x: 1100, y: 250 },
+    ]) {
+      const p = placeCard(a, card, { ...vp, avoid: [mm] }, 8);
+      const overlaps =
+        p.left < mm.x + mm.w &&
+        p.left + card.w > mm.x &&
+        p.top < mm.y + mm.h &&
+        p.top + card.h > mm.y;
+      expect(overlaps).toBe(false);
+      expect(p.left).toBeGreaterThanOrEqual(8);
+      expect(p.top + card.h).toBeLessThanOrEqual(vp.h - 8);
+    }
+    // a card far from the rectangle is not moved
+    expect(placeCard({ x: 400, y: 500 }, card, { ...vp, avoid: [mm] })).toEqual(
+      placeCard({ x: 400, y: 500 }, card, vp),
+    );
+  });
+
   it("non-finite anchors count as missing", () => {
     const p = placeCard({ x: Number.NaN, y: 3 }, card, vp);
     expect(p.anchored).toBe(false);
