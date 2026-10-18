@@ -1,14 +1,14 @@
-{"meta": {"message": "What happens to residents in the storm rehearsal?", "profile": "default", "scenario_id": null, "world": "elmina", "model": "mock-scripted", "recorded_at": "2026-10-17T20:13:13+00:00"}}
+{"meta": {"message": "What happens to residents in the storm rehearsal?", "profile": "default", "scenario_id": null, "world": "elmina", "model": "mock-scripted", "recorded_at": "2026-10-18T11:06:18+00:00"}}
 {"type": "tool.call", "id": "day_rehearsal-0", "name": "day_rehearsal", "args": {"day": "storm"}}
 {"type": "tool.result", "id": "day_rehearsal-0", "name": "day_rehearsal", "summary": "ok"}
 {"type": "answer.check", "attempt": 1, "ok": true, "issues": [], "repairs": 0}
 {"type": "text.delta", "delta": "In this rehearsal of 5,000 synthetic res"}
 {"type": "text.delta", "delta": "idents (Storm at the school run, with th"}
 {"type": "text.delta", "delta": "e river rising to +3 m), 6,710 trips: 5,"}
-{"type": "text.delta", "delta": "086 on time, 55 late, 1,355 couldn't go "}
+{"type": "text.delta", "delta": "088 on time, 53 late, 1,355 couldn't go "}
 {"type": "text.delta", "delta": "and 63 turned back; 151 had no mapped co"}
 {"type": "text.delta", "delta": "nnection (data gap). It is a rehearsal, "}
-{"type": "text.delta", "delta": "not a forecast.\n1. School: 538 of 818 pu"}
+{"type": "text.delta", "delta": "not a forecast.\n1. School: 539 of 818 pu"}
 {"type": "text.delta", "delta": "pils on time, 188 couldn't get there, 61"}
 {"type": "text.delta", "delta": " turned back, 20 had no mapped connectio"}
 {"type": "text.delta", "delta": "n (data gap).\n2. Teenagers: 160 of 362 h"}
@@ -18,9 +18,9 @@
 {"type": "text.delta", "delta": "without a car: 134 of 442 had a trip the"}
 {"type": "text.delta", "delta": "y couldn't make, 5 late.\n5. Children (un"}
 {"type": "text.delta", "delta": "der 13): 114 of 1,014 had a trip they co"}
-{"type": "text.delta", "delta": "uldn't make, 5 late.\n6. Older residents "}
+{"type": "text.delta", "delta": "uldn't make, 4 late.\n6. Older residents "}
 {"type": "text.delta", "delta": "(65+): 45 of 464 had a trip they couldn'"}
-{"type": "text.delta", "delta": "t make, 16 late.\nWorth knowing:\n• Reside"}
+{"type": "text.delta", "delta": "t make, 15 late.\nWorth knowing:\n• Reside"}
 {"type": "text.delta", "delta": "nts are synthetic: a rehearsal on the to"}
 {"type": "text.delta", "delta": "wnship model, not a forecast and not rea"}
 {"type": "text.delta", "delta": "l people.\n• This is an indicative scenar"}
