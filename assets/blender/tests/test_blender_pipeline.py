@@ -231,7 +231,8 @@ P3_LOD0_BOUNDS = {
     ("masjid_denai_alam", "main"): ((-20.060, 0.001, -20.061), (20.060, 31.099, 20.001)),
 }
 BOUNDS_TOL = 0.02
-# LOD2 is unchanged by the detail pass (P3 triangle counts)
+# LOD2 geometry is unchanged by the detail pass (P3 triangle counts pinned); its roof role may
+# change to match LOD0 (ruling P4-AC)
 P3_LOD2_TRIS = {
     "link_intermediate": 14,
     "link_long": 14,
@@ -579,6 +580,17 @@ def _check_warm_roof(colors, normals, pos, h: float) -> None:
     assert share < 0.25, share
 
 
+def _check_far_roof(raw: Path, asset_id: str, vid: str) -> None:
+    """Ruling P4-AC: the LOD2 roof (its up-facing faces) carries no grey role either, so the
+    roof does not change colour at the LOD2 switch (LOD2 tris stay pinned in P3_LOD2_TRIS)."""
+    name = f"{asset_id}__{vid}__LOD2"
+    colors = read_attribute(raw, name, "COLOR_0")
+    normals = read_attribute(raw, name, "NORMAL")
+    grey = {specs.ROLES.index(r) for r in GREY_ROLES}
+    roof = [round(c[1] * 7) for c, n in zip(colors, normals, strict=True) if n[1] > 0.5]
+    assert roof and not set(roof) & grey, (name, set(roof))
+
+
 def _widths(items: list[tuple[float, float]]) -> list[float]:
     """Feature widths from (along, y) vertices of applied quads: at one height a quad has its
     two edge coordinates, so the sorted coordinates pair up as (left, right)."""
@@ -680,6 +692,7 @@ def test_non_residential(non_residential_built, asset_id):
             assert specs.ROLES.index("metal") in _roles(colors), "metal-clad walls"
         if asset_id in WARM_ROOF_IDS:
             _check_warm_roof(colors, normals, pos, v.size[1])
+            _check_far_roof(raw, asset_id, v.id)
 
 
 # --- landmarks (Task 5) -----------------------------------------------------------------
@@ -718,6 +731,7 @@ def test_landmarks(landmarks_built, asset_id):
     # light decks split into cells (metal; the mall's primary membrane): mean AO well above 0.5
     assert len(deck) > 12 and statistics.fmean(deck) > 0.5, statistics.fmean(deck)
     if asset_id in WARM_ROOF_IDS:
+        _check_far_roof(raw, asset_id, v.id)
         _check_warm_roof(
             colors0,
             normals0,
@@ -753,6 +767,17 @@ def test_landmarks(landmarks_built, asset_id):
             assert specs.ROLES.index(role) in roles, role
         colors = read_attribute(raw, f"{asset_id}__{v.id}__LOD0", "COLOR_0")
         assert specs.ROLES.index("foliage") in _roles(colors), "planted balconies"
+        # ruling P4-AB: the slab keeps the traced depth (the OBB less a 1 m podium ledge each
+        # side), measured on its primary walls facing +-z above the podium
+        pos = read_attribute(raw, f"{asset_id}__{v.id}__LOD0", "POSITION")
+        nrm = read_attribute(raw, f"{asset_id}__{v.id}__LOD0", "NORMAL")
+        walls = [
+            p[2]
+            for c, p, n in zip(colors, pos, nrm, strict=True)
+            if c[1] < 0.05 and p[1] > 20.0 and abs(n[2]) > 0.9
+        ]
+        traced = specs.KANOPI_OBB[1] - 2.0
+        assert max(walls) - min(walls) == pytest.approx(traced, rel=0.02), (min(walls), max(walls))
     if asset_id == "masjid_denai_alam":
         assert 16.0 < hi[1] < 34.0
         colors = read_attribute(raw, f"{asset_id}__{v.id}__LOD0", "COLOR_0")

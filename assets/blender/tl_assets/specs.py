@@ -278,9 +278,8 @@ _LANDMARK_SPECS = (
     # Placed on its traced tower outline (landmarks.geojson match "traced_outline", from
     # data/seed/elmina/sources/landmark_outlines.geojson).
     # A residential slab on a podium; its footprint is the OBB of the traced outline
-    # (KANOPI_OBB, 88.88 x 27.79 m), so the web fit lands at sx, sz ~ 1. The slab stands 1 m in
-    # from the podium's back and ends and 6 m behind its front, leaving the level-7 facilities
-    # deck (owner gate P4 round 1). The 36 storeys are the
+    # (KANOPI_OBB, 88.88 x 27.79 m), so the web fit lands at sx, sz ~ 1. The slab keeps the
+    # traced depth (ruling P4-AB): it stands 1 m in from every podium edge. The 36 storeys are the
     # developer's design height, not a survey: 36 x 3.2 m = 115.2 m of tower on an 8.7 m podium
     # (OSM way 1545153991, 8.71 m), plus a thin crown, 130 m in all.
     _landmark(

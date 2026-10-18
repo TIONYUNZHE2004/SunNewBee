@@ -160,7 +160,7 @@ def _mall(variant: Variant, lod: int) -> list:
         walls = _Mesh()
         for a, b, n, _ in edges:
             _strip(walls, a, b, n, 0.0, WALL_H, 0.0)
-        return _keep(walls.obj("walls", "primary"), _deck(pts, WALL_H, 30.0).obj("roof", "metal"))
+        return _keep(walls.obj("walls", "primary"), _deck(pts, WALL_H, 30.0).obj("roof", "primary"))
 
     walls, parapet = _Mesh(), _Mesh()
     canopy, accent, sign, plant = _Mesh(), _Mesh(), _Mesh(), _Mesh()
@@ -255,8 +255,7 @@ def _mall(variant: Variant, lod: int) -> list:
 POD_H = 8.7  # the podium: OSM way 1545153991 is 8.71 m
 FLOORS = 36  # design storeys of the tower (developer figure, not surveyed)
 FLOOR_H = 3.2
-INSET = 1.0  # the tower stands this far inside the podium's back and end edges
-FRONT_DECK = 6.0  # ... and this far behind its front edge: the level-7 facilities deck
+INSET = 1.0  # the tower stands this far inside the podium footprint, leaving a roof ledge
 RECESS_D = 1.4  # depth of the dark balcony strips
 STRIPS = (-32.0, -16.0, 0.0, 16.0, 32.0)  # strip centres on the front and back faces
 STRIP_W = 3.6
@@ -280,10 +279,10 @@ def _kanopi(variant: Variant, lod: int) -> list:
     on a low podium of the full traced footprint with a planted roof ledge, and a crown of plant
     room, lift overrun, tank and mast. 88.9 m long and 27.8 m deep, like the traced outline."""
     w, h, d = variant.size
-    # the tower plate: owner gate round 1 asked for a landscaped facilities deck that reads, so
-    # the slab stands back from the podium front (the traced outline stays the podium footprint)
-    tw, bd = w - 2 * INSET, d - INSET - FRONT_DECK
-    zt = -d / 2 + INSET + bd / 2
+    # the tower plate keeps the traced depth (ruling P4-AB): the glb's deck is the ledge round
+    # it; the web dresses the larger OSM podium roof (Task 8b)
+    tw, bd = w - 2 * INSET, d - 2 * INSET
+    zt = 0.0
     zf, zb = zt + bd / 2, zt - bd / 2
     fh = FLOOR_H
     tower_h = FLOORS * fh
@@ -434,61 +433,61 @@ PARAPET_T = 0.2  # flat_roof parapet thickness
 
 
 def _podium_deck(w: float, d: float, tw: float, bd: float, zt: float, lod: int) -> list:
-    """The level-7 facilities deck on the podium roof (decorative). The front deck (FRONT_DECK
-    deep) has a raised pool whose water plane (role glass, aux specs.WATER_AUX, never lit) is
-    POOL_Y above the podium roof, a timber (accent) pergola on a timber deck, small trees and
-    planters along the parapet; the 1 m end and back ledges get low planters. LOD1: the pool,
-    the timber deck and one planter strip. Everything stays inside the traced footprint."""
+    """The level-7 facilities deck where the traced shapes leave podium roof: the ~0.7 m ledge
+    round the slab (decorative). A raised pool on each end ledge whose water plane (role glass,
+    aux specs.WATER_AUX, never lit) is POOL_Y above the podium roof, a timber (accent) pergola
+    on a timber strip over the middle of the front ledge, small shrubs and planters. LOD1: the
+    pools and planter strips. The web dresses the larger OSM podium roof around it (Task 8b)."""
     ex, ez = w / 2 - PARAPET_T - 0.05, d / 2 - PARAPET_T - 0.05  # inside the parapet
-    zf, zb = zt + bd / 2, zt - bd / 2
+    zf = zt + bd / 2
+    ix = tw / 2 + 0.05  # off the slab's end faces
     y0, yw = POD_H, POD_H + POOL_Y
     basin, water, paving, plant = _Mesh(), _Mesh(), _Mesh(), _Mesh()
     pergola, slats = _Mesh(), _Mesh()
-    px0, px1, pz0, pz1 = -26.0, -8.0, zf + 1.0, zf + 4.0  # the pool
-    basin.box(px0, px1, y0, yw, pz0, pz1, skip=("bottom", "top"))
-    cell = 1.5 if lod == 0 else None
-    nx = max(1, round((px1 - px0) / cell)) if cell else 1
-    nz = max(1, round((pz1 - pz0) / cell)) if cell else 1
-    for i in range(nx):
-        for j in range(nz):
-            xa, xb = px0 + (px1 - px0) * i / nx, px0 + (px1 - px0) * (i + 1) / nx
-            za, zb2 = pz0 + (pz1 - pz0) * j / nz, pz0 + (pz1 - pz0) * (j + 1) / nz
-            water.face([(xa, yw, za), (xb, yw, za), (xb, yw, zb2), (xa, yw, zb2)], (0, 1, 0))
-    gx0, gx1, gz0, gz1 = 4.0, 26.0, zf + 0.5, zf + 4.8  # the timber deck under the pergola
-    paving.box(gx0, gx1, y0, y0 + 0.08, gz0, gz1)
+    pool_half = 9.0
+    for s in (1.0, -1.0):  # the end ledges: a raised pool flanked by planters
+        x0, x1 = sorted((s * ix, s * ex))
+        basin.box(x0, x1, y0, yw, -pool_half, pool_half, skip=("bottom", "top"))
+        n = round(2 * pool_half) if lod == 0 else 1
+        for k in range(n):
+            za, zb2 = -pool_half + 2 * pool_half * k / n, -pool_half + 2 * pool_half * (k + 1) / n
+            water.face([(x0, yw, za), (x1, yw, za), (x1, yw, zb2), (x0, yw, zb2)], (0, 1, 0))
+        if lod == 0:
+            for z0 in (pool_half + 0.5, -pool_half - 3.5):
+                plant.box(x0, x1, y0, y0 + 0.7, z0, z0 + 3.0)
+    pg = (-20.0, 20.0)  # the pergola's stretch of the front ledge
     if lod > 0:
-        plant.box(-w / 2 + 1.0, w / 2 - 1.0, y0, y0 + 0.7, ez - 0.8, ez)
+        for sz in (1.0, -1.0):
+            z0, z1 = sorted((sz * (bd / 2 + 0.05), sz * ez))
+            plant.box(-ex, ex, y0, y0 + 0.6, z0, z1)
         return _keep(
             basin.obj("deck_pool_basin", "primary"),
             water.obj("deck_pool_water", "glass", WATER_AUX),
-            paving.obj("deck_timber", "accent"),
             plant.obj("deck_planter", "foliage"),
         )
-    xs = [6.0 + 3.6 * k for k in range(6)]  # pergola posts, two rows, beams and slats
-    for zp in (zf + 0.8, zf + 4.4):
-        for x in xs:
-            pergola.box(x - 0.08, x + 0.08, y0 + 0.08, y0 + 2.6, zp - 0.08, zp + 0.08)
-        pergola.box(xs[0] - 0.3, xs[-1] + 0.3, y0 + 2.6, y0 + 2.8, zp - 0.1, zp + 0.1, skip=())
-    m = round((xs[-1] - xs[0]) / 0.8)
+    for sz in (1.0, -1.0):  # the long ledges: planters every 6 m (not under the pergola)
+        z0, z1 = sorted((sz * (bd / 2 + 0.05), sz * ez))
+        x = -w / 2 + 3.0
+        while x + 3.0 < w / 2 - 2.0:
+            if not (sz > 0 and pg[0] - 3.0 < x < pg[1]):
+                plant.box(x, x + 3.0, y0, y0 + 0.7, z0, z1)
+            x += 6.0
+    paving.box(pg[0], pg[1], y0, y0 + 0.06, zf + 0.05, ez)
+    zp = ez - 0.1  # pergola posts near the parapet, a beam, slats over to the slab face
+    n = round((pg[1] - pg[0]) / 4.0)
+    for k in range(n + 1):
+        x = pg[0] + (pg[1] - pg[0]) * k / n
+        pergola.box(x - 0.08, x + 0.08, y0 + 0.06, y0 + 2.45, zp - 0.08, zp + 0.08)
+    pergola.box(pg[0] - 0.1, pg[1] + 0.1, y0 + 2.45, y0 + 2.6, zp - 0.1, zp + 0.1, skip=())
+    m = round((pg[1] - pg[0]) / 0.8)
     for k in range(m + 1):
-        x = xs[0] + (xs[-1] - xs[0]) * k / m
-        slats.box(x - 0.05, x + 0.05, y0 + 2.8, y0 + 2.92, zf + 0.5, zf + 4.7, skip=())
-    x = -w / 2 + 1.5  # planters along the front parapet
-    while x + 3.5 < w / 2 - 1.0:
-        plant.box(x, x + 3.5, y0, y0 + 0.8, ez - 0.8, ez)
-        x += 5.0
-    for s in (1.0, -1.0):  # the end ledges
-        x0, x1 = sorted((s * (tw / 2 + 0.1), s * ex))
-        plant.box(x0, x1, y0, y0 + 0.6, zb + 1.0, zf - 1.0)
-    x = -w / 2 + 3.0  # the back ledge
-    while x + 3.0 < w / 2 - 2.0:
-        plant.box(x, x + 3.0, y0, y0 + 0.6, -ez, zb - 0.1)
-        x += 6.0
-    trees: list = []
-    for x in (-40.0, -34.0, -3.0, 30.0, 35.5, 41.0):  # small trees on the front deck
-        zc = zf + 2.6
-        trees += kit.prism(x, zc, 0.15, y0, y0 + 2.2, 6, "accent", name="deck_tree_trunk")
-        trees += kit.dome(x, zc, 1.4, y0 + 2.0, "foliage", segs=8, rings=3, name="deck_tree")
+        x = pg[0] + (pg[1] - pg[0]) * k / m
+        slats.box(x - 0.04, x + 0.04, y0 + 2.6, y0 + 2.72, zf, ez, skip=("s0",))
+    shrubs: list = []
+    for x in (-38.0, -26.0, 26.0, 38.0):  # small shrubs on the front ledge
+        zc = (zf + ez) / 2
+        shrubs += kit.prism(x, zc, 0.06, y0, y0 + 0.9, 6, "accent", name="deck_tree_trunk")
+        shrubs += kit.dome(x, zc, 0.33, y0 + 0.8, "foliage", segs=8, rings=3, name="deck_tree")
     return (
         _keep(
             basin.obj("deck_pool_basin", "primary"),
@@ -498,7 +497,7 @@ def _podium_deck(w: float, d: float, tw: float, bd: float, zt: float, lod: int) 
             pergola.obj("deck_pergola", "accent"),
             slats.obj("deck_pergola_slats", "accent"),
         )
-        + trees
+        + shrubs
     )
 
 

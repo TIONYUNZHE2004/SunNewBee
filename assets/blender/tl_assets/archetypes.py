@@ -833,7 +833,9 @@ def _school(variant: Variant, lod: int) -> list:
     w, h, d = variant.size
     pitch = 14.9
     if lod >= 2:
-        return kit.far_block((w, h, d), "gable", pitch_deg=pitch, ridge_axis="x")
+        return kit.far_block(
+            (w, h, d), "gable", pitch_deg=pitch, ridge_axis="x", roof_role="accent"
+        )
     storey, corridor, core_w = 3.0, 2.4, 3.0
     eave = h - d / 2 * math.tan(math.radians(pitch))
     bw = w - 2 * core_w  # body between the cores
@@ -991,7 +993,7 @@ def _factory(variant: Variant, lod: int) -> list:
     w, h, d = variant.size
     pitch = 10.0
     if lod >= 2:
-        return kit.far_block((w, h, d), "gable", pitch_deg=pitch)
+        return kit.far_block((w, h, d), "gable", pitch_deg=pitch, roof_role="primary")
     eave_o = 1.6  # the block's roof eave, so it stays within the size
     bw = 19.8  # block width; the block sits 1.2 m in from the shed's -x end
     bx = -w / 2 + 1.2 + bw / 2
@@ -1148,7 +1150,7 @@ def _mall(variant: Variant, lod: int) -> list:
     (primary) membrane roofs. Everything stays in the 60 x 60 m footprint box, 9.4 m high."""
     w, h, d = variant.size
     if lod >= 2:
-        return kit.far_block((w, h, d), "flat")
+        return kit.far_block((w, h, d), "flat", roof_role="primary")
     objs: list = []
     # big boxes: two units behind the strip, z from the back edge to MALL_BACK
     bdep = MALL_BACK + d / 2

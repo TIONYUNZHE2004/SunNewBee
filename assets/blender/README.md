@@ -113,9 +113,10 @@ pavilion with a tall blank sign band, two big-box units behind with their own fa
 plant, and a landscaped forecourt edge; the shop office has three-tone facade banding, fabric
 awnings and an arcade of deep columns with a beam and arch haunches; mall, factory, school and
 Lakeside Mall roofs are a light membrane (primary) or terracotta (accent), never grey. Kanopi:
-planter boxes up the tower and a 6 m level-7 facilities deck in front of the slab (raised pool
-1.2 m above the podium roof, timber pergola and deck, small trees, planters); the slab stands
-1 m in from the podium's back and ends and 6 m behind its front. LOD1 keeps the highrise balconies and crown, and the factory and mall roof units, as
+planter boxes up the tower and a level-7 deck on the 1 m podium ledge round the slab, which
+keeps its traced depth (raised end-ledge pools 1.2 m above the podium roof, a front-ledge
+pergola on a timber strip, shrubs, planters); the web dresses the larger OSM podium roof. LOD2
+roofs take the same role as LOD0 (`far_block(roof_role=...)`). LOD1 keeps the highrise balconies and crown, and the factory and mall roof units, as
 boxes; LOD2 is unchanged. Every LOD0 stays within 2 % of its P3 bounds (pinned in the tests).
 
 ## Kits and LODs

@@ -1261,9 +1261,16 @@ def fence_posts(
 
 
 def far_block(
-    size: tuple[float, float, float], roof: str, *, pitch_deg: float = 30.0, ridge_axis: str = "z"
+    size: tuple[float, float, float],
+    roof: str,
+    *,
+    pitch_deg: float = 30.0,
+    ridge_axis: str = "z",
+    roof_role: str = "secondary",
 ) -> list:
-    """LOD2: a wall box (primary) plus the true roof form (secondary), at most 16 triangles.
+    """LOD2: a wall box (primary) plus the true roof form (`roof_role`, default secondary; the
+    same role as the LOD0 roof so nothing changes colour at the LOD switch), at most 16
+    triangles.
 
     `roof`: gable (ridge along `ridge_axis`), hip, flat or mono (high side at the back). The
     roof top is at the size's h.
@@ -1308,4 +1315,4 @@ def far_block(
         body.face([(x0, eave, z0), (x1, eave, z0), (x1, h, z0), (x0, h, z0)], (0.0, 0.0, -1.0))
         for s, x in ((-1.0, x0), (1.0, x1)):
             body.face([(x, eave, z0), (x, eave, z1), (x, h, z0)], (s, 0.0, 0.0))
-    return _keep(body.obj("far_walls", "primary"), top.obj("far_roof", "secondary"))
+    return _keep(body.obj("far_walls", "primary"), top.obj("far_roof", roof_role))
