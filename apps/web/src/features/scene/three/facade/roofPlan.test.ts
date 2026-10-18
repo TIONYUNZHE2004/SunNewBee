@@ -210,16 +210,18 @@ describe("roof units are seated on the rendered roof (P5 Task 6, whole Elmina se
         for (let k = 0; k < 3; k++) y = Math.max(y, pos.getY(vert(t, k)));
       top.set(id, y);
     });
-    const feet = g.footprints.map((f) => ({
-      id: f.id,
-      ring: f.ring as Array<[number, number]>,
-      bb: [
-        Math.min(...f.ring.map((p) => p[0])),
-        Math.min(...f.ring.map((p) => p[1])),
-        Math.max(...f.ring.map((p) => p[0])),
-        Math.max(...f.ring.map((p) => p[1])),
-      ],
-    }));
+    const feet = g.footprints.map((f) => {
+      const xs = f.ring.map((p) => p[0]);
+      const zs = f.ring.map((p) => p[1]);
+      return {
+        id: f.id,
+        ring: f.ring as Array<[number, number]>,
+        x0: Math.min(...xs),
+        z0: Math.min(...zs),
+        x1: Math.max(...xs),
+        z1: Math.max(...zs),
+      };
+    });
     let n = 0;
     for (const { b, palette } of roofInputs(g.footprints, layer, null, frame)) {
       const d = roofDressing(b, palette);
@@ -230,10 +232,10 @@ describe("roof units are seated on the rendered roof (P5 Task 6, whole Elmina se
         const over = feet.filter(
           (f) =>
             f.id !== b.id &&
-            x >= f.bb[0] &&
-            x <= f.bb[2] &&
-            z >= f.bb[1] &&
-            z <= f.bb[3] &&
+            x >= f.x0 &&
+            x <= f.x1 &&
+            z >= f.z0 &&
+            z <= f.z1 &&
             inside(f.ring, x, z),
         );
         expect(over.map((f) => f.id)).toEqual([]);
