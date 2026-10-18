@@ -18,10 +18,43 @@
 - Out: moving Realistic to Three.js (ADR 0012 keeps it deferred), new data sources, the flood + route clutter, Masjid Denai Alam's own model (no public drawing exists).
 
 **Session handoff: the state at the start of P5**
-- `feat/stylised-threejs-p4` holds all of P4. The final head is `bae9f96` or later, local and not pushed. The owner passed the P4 gate and the Task 7 round-1 previews.
+- `feat/stylised-threejs-p4` holds all of P4. The final head is `fb4d1f4` or later (that commit holds this plan), local and not pushed. The owner passed the P4 gate and the Task 7 round-1 previews.
 - P4's ledger, with every ruling and deferred minor, is in `.superpowers/sdd/2026-10-18-stylised-threejs-phase-4-township/progress.md`. Read its rulings P4-A to P4-AG and the deferred-minor lines before dispatching.
 - `origin/main` has a commit after `eb750e0` ("resident trip card behind the assistant scope flag", CI run 39115746595). Task 9 merges it in.
 - **Branch:** create `feat/stylised-threejs-p5` from `feat/stylised-threejs-p4`. Reset the lane worktrees (`fe`, `fe-b`, `blender`, `data`) to it with `checkout -B lane/<x>`, after checking each is clean.
+
+**Setup steps for the coordinator in a new session (do these first, in order)**
+1. `git checkout -b feat/stylised-threejs-p5 feat/stylised-threejs-p4` in the main repo (`C:/Users/shaoxian04/Documents/SunNewBee`).
+2. For each lane worktree `../SunNiuBi-wt/{fe,fe-b,blender,data}`:
+   - check that `git -C <wt> status --short` is empty;
+   - run `git -C <wt> checkout -B lane/<x> feat/stylised-threejs-p5` (`fe` → `lane/fe`, `fe-b` → `lane/fe-b`, and so on);
+   - run `pnpm install --frozen-lockfile && uv sync --all-packages --all-groups` in each one.
+3. Run the SDD skill's `sdd-workspace` on this plan file and create `progress.md` with the plan's rulings.
+4. Copy `working-rules.md`, `reviewer-rules.md`, `rereview-rules.md` and `global-constraints.md` from `.superpowers/sdd/2026-10-18-stylised-threejs-phase-4-township/`.
+   - In `working-rules.md`, keep the lane table, the "kill only your PIDs" rule and the keys-blanked vitest prefix.
+   - Append this plan's Global Constraints to `global-constraints.md` as "Part III — P5 changes".
+   - The trailer is `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>` with no session line.
+
+**Where P4 evidence and tools live** (all gitignored, on this machine only)
+- `.superpowers/sdd/2026-10-18-stylised-threejs-phase-4-township/` holds:
+  - `progress.md` (rulings P4-A to P4-AG; deferred minors);
+  - the `task-*-report.md` files (exact interfaces each task built);
+  - `refs/T15/` (gate screenshots and `t15-measure.mjs`, the budget and fly-test script that drives `camera.fly_to` intents and reads the `tl:stream-plan|merge|facades` measures);
+  - `refs/T15b/` (the re-check after T7);
+  - `t15-budgets-report.md`.
+- `apps/web/scripts/measure-probes.mjs` (committed) measures the probe views.
+
+**Lessons from P4 that change how to run this plan**
+- **Machine:**
+  - 8 GB RAM. Claude Code reaps background shells under memory pressure; P4's dev server was killed once. Run CI steps one at a time.
+  - Several vitest files (`StylisedCity.dom`, a `CesiumScene` test, seed-backed `honesty.test.ts`) time out only under full-suite load and pass alone. Re-run any timeout alone before calling it a failure. The Cesium ones disappear with Task 3.
+  - `uv run pytest` has one known Windows-only failure: `packages/agent/tests/test_mcp_server.py::test_vr_store_is_the_real_one_only_when_allowed`, a path separator. It is not a P5 regression.
+- **Browser measurements:**
+  - SwiftShader takes 4–7 s a frame. Use headless Chromium on the GPU (the RTX 2050), as `t15-measure.mjs` does.
+  - A Vite server may already be on :5173 from an earlier session. Reuse it, start only what is missing, and never kill a PID you didn't start.
+  - Never open the Cesium Realistic style without the owner's consent (billable Google tiles).
+- **Merging lanes:** two lanes editing the same planner file (`stream/tilePlan.ts`, `stream/caps.ts`) conflicted in P4. Hand the merge to a subagent with a brief rather than resolving it in the coordinator's context.
+- **Budget accounting:** every new per-tile kind must be priced in `stream/caps.ts` `TRIS_PER` and pass the `tiles.test.ts` stream-sum test. Medium was left with only about 8k tris of headroom (491,586 of the 500k slice).
 
 **Facts measured at the end of P4** (headless Chromium on an RTX 2050, indicative):
 - **Budgets:** worst Medium is hero-near: 117 draws (Night), 2.26 M tris (Day).
@@ -53,8 +86,8 @@ Everything in the P4 plan's Global Constraints still binds. Changes and addition
 
 | Lane | Tasks | Paths |
 |---|---|---|
-| `fe-a` (`../SunNiuBi-wt/fe`, `lane/fe`) | 1, 2, 3, 5 | `apps/web/**` |
-| `fe-b` (`../SunNiuBi-wt/fe-b`, `lane/fe-b`) | 6, 8 | `apps/web/**` |
+| `fe-a` (`../SunNiuBi-wt/fe`, `lane/fe`) | 1, 2, 3 | `apps/web/**` |
+| `fe-b` (`../SunNiuBi-wt/fe-b`, `lane/fe-b`) | 6, 8, 5 | `apps/web/**` |
 | `blender` | 7 | `assets/blender/**`, `apps/web/public/city/**` |
 | `data` | — (the mosque check needs no data change; see Task 8) | — |
 | coordinator | 4, 9 | docs, merges |
@@ -74,14 +107,17 @@ Everything in the P4 plan's Global Constraints still binds. Changes and addition
 |---|---|---|---|---|
 | 1 | **T1** shared modules | **T6** look polish (web half) | **T7** Kanopi LOD1 planting + parked-car light role | — |
 | 2 | **T2** default flip | **T8** cleanup + mosque guard | T7 if still running | wave 1 merged |
-| 3 | **T3** retire Cesium Stylised | — | — | T2 merged |
-| 4 | **T5** planning Worker + merge slicing | — | — | T3 merged |
-| 5 | coordinator: **T4** docs, **T9** merge main, CI, budgets, owner gate, merge to `main` | | | all |
+| 3 | **T3** retire Cesium Stylised | **T5** planning Worker + merge slicing | — | wave 2 merged |
+| 4 | coordinator: **T4** docs, **T9** merge main, CI, budgets, owner gate, merge to `main` | | | all |
 
 **Conflict notes**
 - T6 and T8 both touch `assets/roleMaterial.ts` (T6 parked lights) and `scene/useFacades.ts`/`useRoofs.ts` (T8 tier deps). They run in the same lane in waves 1 and 2, so they are sequential.
 - T1 moves files that T6 and T8 import. Each moved file leaves a re-export stub in its old path until T3 deletes the folder, so T6 and T8 compile either way.
-- T5 touches `stream/streamer.ts`, `scene/useStream.ts` and `stream/tilePlan.ts`. It runs alone in wave 4.
+- **T3 and T5 share no files.**
+  - T3 touches `cesium/**`, `routes.tsx`, `map-ui/MapStage*`, `scene/sceneStore*`, `scene/selectView*` and `shared/imports.test.ts`.
+  - T5 touches `stream/*`, `scene/useStream.ts`, `scene/idle.ts` and the merge paths in the `scene/use*.ts` layer hooks.
+  - So they run in parallel. If T5 needs a `scene/use*.ts` file that T2 changed, it starts from the wave-2 merge, which includes T2.
+- At most 2 vitest runs at once. In wave 1 Blender counts as one, so T7's implementer runs Blender builds only while one fe lane is idle, or both fe lanes use `--maxWorkers=2`, as in P4.
 
 ## Review Focus
 
