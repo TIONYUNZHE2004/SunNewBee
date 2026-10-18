@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import * as THREE from "three";
 import { useBuildings, useLayer, useSite } from "../../../lib/api";
 import { useTheme } from "../../../ui/theme";
 import { usePanel } from "../../main/panelStore";
@@ -20,6 +21,7 @@ import {
 import { type LonLat, pointFeatures } from "../geo";
 import { useSceneSettings } from "../sceneSettingsStore";
 import { useScene } from "../sceneStore";
+import { createAmbient } from "./ambient/ambient";
 import { createCityInstances } from "./assets/cityInstances";
 import type { Placement } from "./assets/fit";
 import { type AssetLibrary, loadAssetLibrary } from "./assets/library";
@@ -58,6 +60,7 @@ import {
   moodWeights,
 } from "./mood";
 import { KIT_LOD_SCALE } from "./props/caps";
+import { createLampPools } from "./props/lampPools";
 import { planProps } from "./props/propsPlan";
 import { lineToLocal } from "./routeLine";
 
@@ -412,6 +415,7 @@ export default function ThreeScene({
         : planCity(buildings, frame, manifest, lib.has);
       const inst = createCityInstances(lib, plan, m, roleUniforms, {
         kits: propsKits.current,
+        motion: engine.motion,
         kitLodScale: showroom ? 1 : KIT_LOD_SCALE[initialTier.current],
       });
       cityPlanRef.current = plan;
@@ -457,6 +461,7 @@ export default function ThreeScene({
         roleUniforms,
         {
           kits: propsPlan.kits,
+          motion: engine.motion,
           kitLodScale: KIT_LOD_SCALE[initialTier.current],
         },
       );
@@ -465,6 +470,39 @@ export default function ThreeScene({
       console.warn(`${ASSET_WARN}: props: ${String(err)}`);
     }
   }, [engine, loaded, propsPlan, roleUniforms]);
+
+  // Lamp light pools (one instanced draw, from the planned lamps). Decorative; the engine slot
+  // disposes them when the props are re-planned or the scene goes away.
+  useEffect(() => {
+    if (!engine || !propsPlan) return;
+    const lamps = [
+      ...(propsPlan.kits.get("furniture/lamp_single") ?? []),
+      ...(propsPlan.kits.get("furniture/lamp_double") ?? []),
+    ];
+    if (lamps.length === 0) return;
+    const pools = createLampPools(lamps, roleUniforms);
+    const group = new THREE.Group();
+    group.name = "lamp-pools";
+    group.add(pools.mesh);
+    engine.setDecor("lamp-pools", { group, dispose: pools.dispose });
+    return () => engine.setDecor("lamp-pools", null);
+  }, [engine, propsPlan, roleUniforms]);
+
+  // Birds and cloud shadows. Static until the motion clock (Task 8) ticks them; the mood loop
+  // ticks them on each mood change so their day/night visibility is right.
+  const ambientRef = useRef<ReturnType<typeof createAmbient> | null>(null);
+  const moodRef = useRef<MoodWeights>({ day: 1, dusk: 0, night: 0 });
+  useEffect(() => {
+    if (!engine || !frame || showroom) return;
+    const ambient = createAmbient(initialTier.current, frame, HERO_CENTRE, "ambient");
+    ambient.tick(performance.now(), moodRef.current);
+    ambientRef.current = ambient;
+    engine.setDecor("ambient", ambient);
+    return () => {
+      ambientRef.current = null;
+      engine.setDecor("ambient", null);
+    };
+  }, [engine, frame, showroom]);
 
   // First frame after the city is set: the ground details may now load.
   useEffect(() => {
@@ -500,7 +538,9 @@ export default function ThreeScene({
   useEffect(() => {
     if (!engine || !landcover) return;
     // The layer owns (and disposes) its land-cover geometry, so each layer gets a clone.
-    engine.setGround(createGroundLayer(roads, landcover.clone(), initialTier.current));
+    engine.setGround(
+      createGroundLayer(roads, landcover.clone(), initialTier.current, engine.motion.uTime),
+    );
     return () => engine.setGround(null);
   }, [engine, landcover, roads]);
   useEffect(() => () => landcover?.dispose(), [landcover]);
@@ -555,6 +595,8 @@ export default function ThreeScene({
     };
     const apply = (w: MoodWeights, src: MoodSource) => {
       shown = w;
+      moodRef.current = w;
+      ambientRef.current?.tick(performance.now(), w);
       const g = glowFor(w);
       roleUniforms.uWindowGlow.value = g.uWindowGlow;
       roleUniforms.uLitShare.value = g.uLitShare;

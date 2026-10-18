@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import type { Tier } from "../../cesium/stylised/quality";
 import { GROUND_BANDS, type GroundBand, groundMaterial } from "./bands";
+import { shimmerMaterial } from "./landcover";
 import type { Ribbon } from "./ribbons";
 
 export interface GroundLayer {
@@ -63,6 +64,7 @@ export function createGroundLayer(
   roads: Ribbon[],
   landcover: THREE.BufferGeometry,
   tier: Tier,
+  uTime?: { value: number },
 ): GroundLayer {
   const group = new THREE.Group();
   group.name = "ground-layer";
@@ -70,6 +72,7 @@ export function createGroundLayer(
   const materials: THREE.Material[] = [];
   const add = (geo: THREE.BufferGeometry, band: GroundBand) => {
     const mat = groundMaterial(band);
+    if (uTime && band === "landcover") shimmerMaterial(mat, uTime, "water-only");
     const mesh = new THREE.Mesh(geo, mat);
     mesh.renderOrder = GROUND_BANDS[band].order;
     mesh.receiveShadow = true;

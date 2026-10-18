@@ -1,0 +1,112 @@
+import * as THREE from "three";
+import { describe, expect, it } from "vitest";
+import { TIERS, type Tier } from "../../cesium/stylised/quality";
+import { createFrame } from "../frame";
+import { createAmbient } from "./ambient";
+
+const frame = createFrame([101.5, 3.18]);
+const DAY = { day: 1, dusk: 0, night: 0 };
+const NIGHT = { day: 0, dusk: 0, night: 1 };
+const make = (tier: Tier, seed = "s") => createAmbient(tier, frame, [101.5095, 3.1805], seed);
+const parts = (a: ReturnType<typeof make>) => {
+  const meshes = a.group.children.filter(
+    (c): c is THREE.InstancedMesh => c instanceof THREE.InstancedMesh,
+  );
+  return {
+    birds: meshes.find((m) => m.name === "ambient-birds"),
+    clouds: meshes.find((m) => m.name === "ambient-cloud-shadows"),
+  };
+};
+const positions = (m: THREE.InstancedMesh) => {
+  const out: number[] = [];
+  const mat = new THREE.Matrix4();
+  for (let i = 0; i < m.count; i++) {
+    m.getMatrixAt(i, mat);
+    out.push(...new THREE.Vector3().setFromMatrixPosition(mat).toArray());
+  }
+  return out;
+};
+
+describe("createAmbient", () => {
+  it("bird and cloud counts follow TIERS; Low has no clouds", () => {
+    for (const tier of ["high", "medium", "low"] as const) {
+      const { birds, clouds } = parts(make(tier));
+      expect(birds?.count ?? 0).toBe(TIERS[tier].birds);
+      expect(clouds?.count ?? 0).toBe(TIERS[tier].clouds);
+    }
+    expect(parts(make("low")).clouds).toBeUndefined();
+  });
+
+  it("birds fly at 40-90 m, clouds lie at y = 0.11", () => {
+    const a = make("high");
+    a.tick(1000, DAY);
+    const { birds, clouds } = parts(a);
+    const b = positions(birds as THREE.InstancedMesh);
+    for (let i = 1; i < b.length; i += 3) {
+      expect(b[i]).toBeGreaterThanOrEqual(40);
+      expect(b[i]).toBeLessThanOrEqual(90);
+    }
+    const c = positions(clouds as THREE.InstancedMesh);
+    for (let i = 1; i < c.length; i += 3) expect(c[i]).toBeCloseTo(0.11, 6);
+  });
+
+  it("birds hide above night 0.5; clouds hide when day is below 0.5", () => {
+    const a = make("high");
+    const { birds, clouds } = parts(a);
+    a.tick(0, DAY);
+    expect([birds?.visible, clouds?.visible]).toEqual([true, true]);
+    a.tick(0, NIGHT);
+    expect([birds?.visible, clouds?.visible]).toEqual([false, false]);
+    a.tick(0, { day: 0.4, dusk: 0.6, night: 0 });
+    expect([birds?.visible, clouds?.visible]).toEqual([true, false]);
+    a.tick(0, { day: 0.2, dusk: 0.2, night: 0.6 });
+    expect(birds?.visible).toBe(false);
+  });
+
+  it("is deterministic per seed and differs between seeds", () => {
+    const at = (seed: string) => {
+      const a = make("high", seed);
+      a.tick(5000, DAY);
+      const { birds, clouds } = parts(a);
+      return [positions(birds as THREE.InstancedMesh), positions(clouds as THREE.InstancedMesh)];
+    };
+    expect(at("x")).toEqual(at("x"));
+    expect(at("x")).not.toEqual(at("y"));
+  });
+
+  it("clouds drift 3 m/s", () => {
+    const a = make("high");
+    const { clouds } = parts(a);
+    a.tick(0, DAY);
+    const p0 = positions(clouds as THREE.InstancedMesh);
+    a.tick(10_000, DAY);
+    const p1 = positions(clouds as THREE.InstancedMesh);
+    expect(Math.hypot(p1[0]! - p0[0]!, p1[2]! - p0[2]!)).toBeCloseTo(30, 3);
+  });
+
+  it("everything is decorative, unpickable, casts no shadow", () => {
+    const a = make("high");
+    expect(a.group.userData.decorative).toBe(true);
+    const ray = new THREE.Raycaster(new THREE.Vector3(0, 100, 0), new THREE.Vector3(0, -1, 0));
+    a.group.traverse((o) => {
+      if (!(o instanceof THREE.Mesh)) return;
+      expect(o.userData.decorative).toBe(true);
+      expect(o.castShadow).toBe(false);
+      const hits: THREE.Intersection[] = [];
+      o.raycast(ray, hits);
+      expect(hits).toEqual([]);
+    });
+  });
+
+  it("dispose frees geometries and materials", () => {
+    const a = make("high");
+    let n = 0;
+    a.group.traverse((o) => {
+      if (!(o instanceof THREE.Mesh)) return;
+      o.geometry.addEventListener("dispose", () => n++);
+      (o.material as THREE.Material).addEventListener("dispose", () => n++);
+    });
+    a.dispose();
+    expect(n).toBeGreaterThanOrEqual(4);
+  });
+});

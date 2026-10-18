@@ -1,7 +1,58 @@
 import * as THREE from "three";
 import { describe, expect, it } from "vitest";
 import { createFrame } from "../frame";
-import { LANDCOVER_COLOURS, LANDCOVER_ORDER, landcoverMesh } from "./landcover";
+import {
+  LANDCOVER_COLOURS,
+  LANDCOVER_ORDER,
+  landcoverMesh,
+  SHIMMER_AMPLITUDE,
+  shimmerFactor,
+  shimmerMaterial,
+} from "./landcover";
+
+describe("water shimmer", () => {
+  it("the factor stays within 4 % of the base colour for any time and place", () => {
+    expect(SHIMMER_AMPLITUDE).toBe(0.04);
+    let lo = 2;
+    let hi = 0;
+    for (let t = 0; t < 60; t += 0.37)
+      for (const x of [-900, -3, 0, 41, 700])
+        for (const z of [-500, 0, 12, 333]) {
+          const f = shimmerFactor(t, x, z);
+          lo = Math.min(lo, f);
+          hi = Math.max(hi, f);
+        }
+    expect(lo).toBeGreaterThanOrEqual(0.96 - 1e-9);
+    expect(hi).toBeLessThanOrEqual(1.04 + 1e-9);
+    expect(hi - lo).toBeGreaterThan(0.02);
+  });
+
+  it("modulates brightness only, so the hue stays base water and never the flood blue", () => {
+    const base = new THREE.Color(LANDCOVER_COLOURS.water);
+    const hsl = (c: THREE.Color) => c.getHSL({ h: 0, s: 0, l: 0 });
+    for (const f of [0.96, 1, 1.04]) {
+      const c = base.clone().multiplyScalar(f);
+      expect(hsl(c).h).toBeCloseTo(hsl(base).h, 5);
+    }
+    expect(hsl(base).h).not.toBeCloseTo(hsl(new THREE.Color("#1e6fb8")).h, 1);
+  });
+
+  it("shimmerMaterial binds the shared uTime and keeps a distinct program key", () => {
+    const uTime = { value: 0 };
+    const mat = new THREE.MeshStandardMaterial({ vertexColors: true });
+    shimmerMaterial(mat, uTime, "water-only");
+    const shader = {
+      vertexShader: THREE.ShaderLib.standard.vertexShader,
+      fragmentShader: THREE.ShaderLib.standard.fragmentShader,
+      uniforms: {} as Record<string, { value: unknown }>,
+    };
+    // biome-ignore lint/suspicious/noExplicitAny: shader stub
+    (mat.onBeforeCompile as any)(shader, null);
+    expect(shader.uniforms.uTime).toBe(uTime);
+    expect(shader.fragmentShader).toContain("0.04");
+    expect(mat.customProgramCacheKey()).toContain("shimmer");
+  });
+});
 
 const frame = createFrame([101.5, 3.18]);
 const sq = (cls: string, e0 = 0): GeoJSON.Feature => {

@@ -106,3 +106,46 @@ export function landcoverMesh(
   );
   return g;
 }
+
+/** Brightness modulation of base water, +-4 %. Hue never moves, so it cannot read as flood blue. */
+export const SHIMMER_AMPLITUDE = 0.04;
+
+/** CPU mirror of the shader factor: 1 +- 0.04, a sum of two travelling waves. */
+export function shimmerFactor(t: number, x: number, z: number): number {
+  const w = 0.5 * Math.sin(t * 0.8 + x * 0.045 + z * 0.031) + 0.5 * Math.sin(t * 1.3 - z * 0.057);
+  return 1 + SHIMMER_AMPLITUDE * w;
+}
+
+/**
+ * Adds the water shimmer to a vertex-coloured ground material, driven by the shared `uTime`
+ * (Task 8's motion clock; static while it is 0). `"water-only"` limits it to pixels whose vertex
+ * colour is the base water colour (land cover); `"all"` is for the base-water mesh.
+ */
+export function shimmerMaterial(
+  mat: THREE.Material,
+  uTime: { value: number },
+  scope: "water-only" | "all",
+): void {
+  const w = new THREE.Color(LANDCOVER_COLOURS.water);
+  const prevKey = mat.customProgramCacheKey.bind(mat);
+  mat.customProgramCacheKey = () => `${prevKey()}_shimmer_${scope}`;
+  const prev = mat.onBeforeCompile;
+  mat.onBeforeCompile = (shader, renderer) => {
+    prev?.call(mat, shader, renderer);
+    shader.uniforms.uTime = uTime;
+    shader.vertexShader = shader.vertexShader
+      .replace("void main() {", "varying vec2 vShimXZ;\nvoid main() {")
+      .replace("#include <begin_vertex>", "#include <begin_vertex>\nvShimXZ = position.xz;");
+    const gate =
+      scope === "all"
+        ? ""
+        : `if (abs(vColor.r - ${w.r.toFixed(5)}) + abs(vColor.g - ${w.g.toFixed(5)}) + abs(vColor.b - ${w.b.toFixed(5)}) < 0.02) `;
+    shader.fragmentShader = shader.fragmentShader
+      .replace("void main() {", "uniform float uTime;\nvarying vec2 vShimXZ;\nvoid main() {")
+      .replace(
+        "#include <color_fragment>",
+        `#include <color_fragment>
+${gate}diffuseColor.rgb *= 1.0 + 0.04 * (0.5 * sin(uTime * 0.8 + vShimXZ.x * 0.045 + vShimXZ.y * 0.031) + 0.5 * sin(uTime * 1.3 - vShimXZ.y * 0.057));`,
+      );
+  };
+}

@@ -9,7 +9,11 @@ import {
 
 function compile(
   instanced: boolean,
-  extra: { kind?: "tree" | "person" | "vehicle" | "static"; motion?: MotionUniforms } = {},
+  extra: {
+    kind?: "tree" | "person" | "vehicle" | "static";
+    motion?: MotionUniforms;
+    flicker?: boolean;
+  } = {},
 ) {
   const uniforms = createRoleUniforms();
   const mat = createRoleMaterial({ instanced, uniforms, ...extra });
@@ -112,5 +116,29 @@ describe("createRoleMaterial motion and kit kinds", () => {
     }
     expect(base.shader.vertexShader).not.toContain("uSway");
     expect(base.shader.uniforms.uTime).toBeUndefined();
+  });
+});
+
+describe("createRoleMaterial window flicker", () => {
+  it("uFlicker defaults to 0", () => {
+    expect(createRoleUniforms().uFlicker.value).toBe(0);
+  });
+
+  it("without the flicker option the shader never mentions uFlicker", () => {
+    const { shader } = compile(true);
+    expect(shader.fragmentShader).not.toContain("uFlicker");
+    expect(shader.uniforms.uFlicker).toBeUndefined();
+  });
+
+  it("with the option the lit-window term is gated by uFlicker and uses the spec factor", () => {
+    const motion = createMotionUniforms();
+    const { mat, shader, uniforms } = compile(true, { flicker: true, motion });
+    expect(shader.uniforms.uFlicker).toBe(uniforms.uFlicker);
+    expect(shader.uniforms.uTime).toBe(motion.uTime);
+    expect(shader.fragmentShader).toContain("uniform float uFlicker");
+    expect(shader.fragmentShader).toContain(
+      "mix(1.0, 0.9 + 0.1 * step(0.97, fract(sin(vColor.b * 9301.0 + floor(uTime * 0.5)) * 43758.0)), uFlicker)",
+    );
+    expect(mat.customProgramCacheKey()).not.toBe(compile(true).mat.customProgramCacheKey());
   });
 });

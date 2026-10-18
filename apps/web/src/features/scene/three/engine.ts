@@ -13,6 +13,7 @@ import type { Tier } from "../cesium/stylised/quality";
 import { ROUTE_STYLE } from "../styles";
 import { CityGTAOPass } from "./aoPass";
 import type { CityInstances } from "./assets/cityInstances";
+import { createMotionUniforms, type MotionUniforms } from "./assets/roleMaterial";
 import {
   type CameraRig,
   clampPose,
@@ -26,6 +27,7 @@ import {
 import type { CityGeometry } from "./cityMesh";
 import { GROUND_BANDS, groundMaterial } from "./ground/bands";
 import type { GroundLayer } from "./ground/groundLayer";
+import { shimmerMaterial } from "./ground/landcover";
 import { fitShadowCamera, type LightPreset } from "./lighting";
 import { createLodSchedule } from "./lodSchedule";
 import { applyFog } from "./mood";
@@ -52,6 +54,13 @@ export interface Engine {
   setAssets(a: CityInstances | null): void;
   /** Land cover, roads and markings; replaces and disposes the previous layer; null removes it. */
   setGround(g: GroundLayer | null): void;
+  /**
+   * Decorative extras (lamp pools, birds, cloud shadows) by slot name: replaces and disposes the
+   * slot's previous content; null clears it. The group is added to the scene as is.
+   */
+  setDecor(slot: string, d: { group: THREE.Object3D; dispose(): void } | null): void;
+  /** Shared motion clock uniforms (uTime ...): the base water shimmer reads them; Task 8 drives them. */
+  readonly motion: MotionUniforms;
   /** Camera bounds before the city arrives (the site extent); setCity replaces them. */
   setBounds(b: Bounds): void;
   setRoute(positions: Float32Array | null): void;
@@ -237,6 +246,8 @@ function build(
   const buildingMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85 });
   const parksMat = groundMaterial("parks", 0.95);
   const waterMat = groundMaterial("water", 0.95);
+  const motion = createMotionUniforms();
+  shimmerMaterial(waterMat, motion.uTime, "all");
   const groundMat = new THREE.MeshStandardMaterial({
     color: GROUND_COLOUR,
     roughness: 1,
@@ -290,6 +301,18 @@ function build(
     groundLayer = null;
   };
   undo.push(dropGround);
+
+  const decor = new Map<string, { group: THREE.Object3D; dispose(): void }>();
+  const dropDecor = (slot: string) => {
+    const d = decor.get(slot);
+    if (!d) return;
+    scene.remove(d.group);
+    d.dispose();
+    decor.delete(slot);
+  };
+  undo.push(() => {
+    for (const slot of [...decor.keys()]) dropDecor(slot);
+  });
 
   let raf = 0;
   let dirty = true;
@@ -462,7 +485,21 @@ function build(
       return frames;
     },
     rig,
+    motion,
     requestRender,
+    setDecor(slot, d) {
+      if (disposed) {
+        d?.dispose();
+        return;
+      }
+      if (d && decor.get(slot) === d) return;
+      dropDecor(slot);
+      if (d) {
+        decor.set(slot, d);
+        scene.add(d.group);
+      }
+      requestRender();
+    },
     setCity(g) {
       if (disposed) return;
       disposeCity();

@@ -13,6 +13,7 @@ import { usePerfStats } from "../cesium/PerfOverlay";
 import { useScene } from "../sceneStore";
 import type { CityInstances } from "./assets/cityInstances";
 import type { Manifest } from "./assets/manifest";
+import { createMotionUniforms } from "./assets/roleMaterial";
 import { BOOKMARKS, type BookmarkId, DEFAULT_BOOKMARK, HERO_CENTRE } from "./bookmarks";
 import type { Pose } from "./cameraRig";
 import type { Engine } from "./engine";
@@ -110,6 +111,8 @@ function fakeEngine() {
     setCity: vi.fn(),
     setAssets: vi.fn(),
     setGround: vi.fn(),
+    setDecor: vi.fn(),
+    motion: createMotionUniforms(),
     setBounds: vi.fn(),
     setRoute: vi.fn(),
     setLighting: vi.fn(),

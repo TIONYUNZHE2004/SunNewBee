@@ -114,8 +114,13 @@ export function createCityInstances(
 ): CityInstances {
   const group = new THREE.Group();
   group.name = "city-instances";
-  const material = createRoleMaterial({ instanced: true, uniforms });
   const motion = extra?.motion ?? createMotionUniforms();
+  // Lit-window flicker is opt-in: only when the caller owns the motion clock (Task 8 drives uFlicker).
+  const material = createRoleMaterial({
+    instanced: true,
+    uniforms,
+    ...(extra?.motion ? { motion, flicker: true } : {}),
+  });
   const kitMaterials = new Map<RoleKind, THREE.MeshStandardMaterial>();
   const kitMaterial = (asset: string) => {
     const kind = KIT_KIND[asset] ?? "static";

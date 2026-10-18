@@ -5,6 +5,8 @@ export interface RoleUniforms {
   uLitShare: { value: number };
   uLightGlow: { value: number };
   uAoStrength: { value: number };
+  /** 1 = lit windows flicker (night and motion running); 0 = steady. Task 8 drives it. */
+  uFlicker: { value: number };
 }
 
 /** sRGB hex; THREE.Color converts to linear working space on construction. */
@@ -39,6 +41,7 @@ export function createRoleUniforms(): RoleUniforms {
     uLitShare: { value: 0.6 },
     uLightGlow: { value: 0 },
     uAoStrength: { value: 1 },
+    uFlicker: { value: 0 },
   };
 }
 
@@ -61,23 +64,31 @@ export function createRoleMaterial(opts: {
   motion?: MotionUniforms;
   kind?: RoleKind;
   palette?: [string, string, string];
+  /** Opt in to lit-window flicker (needs `motion.uTime`, gated at run time by `uniforms.uFlicker`). */
+  flicker?: boolean;
 }): THREE.MeshStandardMaterial {
   const { instanced, uniforms } = opts;
   const palette = opts.palette ?? DEFAULT_PALETTE;
   const kind = opts.kind;
   // Only tree, person and vehicle change the program; "static" or no kind is the Phase 2 shader.
   const moving = kind === "tree" || kind === "person" || kind === "vehicle";
-  const motion = moving ? (opts.motion ?? createMotionUniforms()) : undefined;
+  const flicker = opts.flicker === true;
+  const motion = moving || flicker ? (opts.motion ?? createMotionUniforms()) : undefined;
   const mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85, metalness: 0 });
   mat.name = "tl_role";
   const baseKey = instanced ? "tl_role_i" : "tl_role_s";
-  mat.customProgramCacheKey = () => (moving ? `${baseKey}_${kind}` : baseKey);
+  mat.customProgramCacheKey = () =>
+    `${moving ? `${baseKey}_${kind}` : baseKey}${flicker ? "_fl" : ""}`;
 
   mat.onBeforeCompile = (shader) => {
     shader.uniforms.uWindowGlow = uniforms.uWindowGlow;
     shader.uniforms.uLitShare = uniforms.uLitShare;
     shader.uniforms.uLightGlow = uniforms.uLightGlow;
     shader.uniforms.uAoStrength = uniforms.uAoStrength;
+    if (flicker && motion) {
+      shader.uniforms.uFlicker = uniforms.uFlicker;
+      shader.uniforms.uTime = motion.uTime;
+    }
 
     let vs = shader.vertexShader;
     let palDecl: string;
@@ -108,7 +119,7 @@ vPal0 = iPal0; vPal1 = iPal1; vPal2 = iPal2;`,
     let fs = shader.fragmentShader;
     fs = fs.replace(
       "void main() {",
-      `uniform float uWindowGlow;
+      `${flicker ? "uniform float uTime;\nuniform float uFlicker;\n" : ""}uniform float uWindowGlow;
 uniform float uLitShare;
 uniform float uLightGlow;
 uniform float uAoStrength;
@@ -132,7 +143,11 @@ diffuseColor.rgb = tlBase * tlAo;`,
     fs = fs.replace(
       "#include <emissivemap_fragment>",
       `#include <emissivemap_fragment>
-if (tlRole == 3 && vColor.b < uLitShare) totalEmissiveRadiance += vec3(1.0, 0.78, 0.45) * uWindowGlow;
+if (tlRole == 3 && vColor.b < uLitShare) totalEmissiveRadiance += vec3(1.0, 0.78, 0.45) * uWindowGlow${
+        flicker
+          ? " * mix(1.0, 0.9 + 0.1 * step(0.97, fract(sin(vColor.b * 9301.0 + floor(uTime * 0.5)) * 43758.0)), uFlicker)"
+          : ""
+      };
 if (tlRole >= 7) totalEmissiveRadiance += ${vec3Of(FIXED_ROLE_COLOURS.light)} * uLightGlow;`,
     );
     shader.vertexShader = vs;
