@@ -68,5 +68,18 @@
     "method": "No OSM boundary relation named City of Elmina. Union of Elmina-named precinct polygons + Urban Park / Lakeside Mall / Harmoni area + 100 m around deep-spot centres, smoothed (200 m close+open), buffered 60 m, simplified ~20 m. Display only.",
     "area_km2": 13.43,
     "as_of": "2026-10-18"
+  },
+  "street_furniture": {
+    "file": "base/street_furniture.geojson",
+    "count": 20,
+    "counts": {
+      "traffic_signals": 0,
+      "bus_stop": 2,
+      "shelter": 13,
+      "bench": 5,
+      "picnic_table": 0
+    },
+    "as_of": "2026-10-18",
+    "source": "OpenStreetMap contributors (ODbL)"
   }
 }
