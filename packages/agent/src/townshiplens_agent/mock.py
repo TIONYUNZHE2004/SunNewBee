@@ -21,6 +21,7 @@ from .template import (
     day_answer,
     day_change_answer,
     fixit_answer,
+    greeting_answer,
     my_trip_answer,
     plan_answer,
     rollout_answer,
@@ -551,11 +552,13 @@ def _day_change(q: str, rets, info: AgentInfo) -> ModelResponse:
 
 def _script(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
     q = _prompt(messages).lower()
-    from .scope import outside_scope
+    from .scope import is_greeting, outside_scope
     from .settings import AgentSettings
 
     scope = _ui(info, "assistant_scope") or AgentSettings().assistant_scope
-    if scope == "access_flood" and outside_scope(q, has_history=len(messages) > 1):
+    if scope == "access_flood" and is_greeting(q):
+        return _final(**greeting_answer(q).model_dump())
+    if scope == "access_flood" and outside_scope(q):
         return _final(**scope_answer(q).model_dump())
     rets = _returns(messages)
     n = len(rets)
