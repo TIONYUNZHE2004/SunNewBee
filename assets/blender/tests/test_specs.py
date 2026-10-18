@@ -1,5 +1,6 @@
 import json
 import logging
+import math
 import re
 from pathlib import Path
 
@@ -138,6 +139,61 @@ def test_landmark_placements():
     # the masjid has no public drawing and stays deferred until P4.
     assert specs.ASSETS["kanopi"].placement == "obb"
     assert specs.ASSETS["masjid_denai_alam"].placement == "deferred"
+
+
+def test_kanopi_is_a_slab_on_its_traced_outline_obb():
+    """88.88 x 27.79 m is the OBB of the traced polygon (landmark_outlines.geojson, kanopi); the
+    web fit scales the model by obb / size, so the spec size must sit within 5 % of it."""
+    spec = specs.ASSETS["kanopi"]
+    v = spec.variants[0]
+    assert spec.frontage == "long", "the 89 m side is the frontage, so sx = 88.9 / w"
+    assert spec.placement == "obb"
+    assert v.size[0] == pytest.approx(specs.KANOPI_OBB[0], rel=0.05)
+    assert v.size[2] == pytest.approx(specs.KANOPI_OBB[1], rel=0.05)
+    assert v.size[0] / v.size[2] > 3.0  # a slab, not the old 40 x 30 block
+    for rng, ref in ((v.x_range, specs.KANOPI_OBB[0]), (v.z_range, specs.KANOPI_OBB[1])):
+        assert rng is not None and rng[0] >= ref * 0.95 and rng[1] <= ref * 1.05
+        assert rng[0] <= ref <= rng[1]
+    # 36 storeys x 3.2 m = 115.2 m of tower on an 8.7 m podium, plus a thin crown
+    assert spec.design_storeys == 36
+    assert "36 storeys" in spec.height_basis and "Sime Darby Property" in spec.height_basis
+    assert v.y_range is not None and v.y_range[0] > 8.7 + 36 * 3.2 and v.y_range[1] < 135.0
+    assert v.tris[0] >= 40000 and v.tris[1] < v.tris[0] and v.tris[2] <= 600
+
+
+def test_kanopi_manifest_records_the_design_height():
+    m = build_manifest({"kanopi": _info("kanopi")}, "2026-10-18", {})
+    k = m["assets"]["kanopi"]
+    assert k["frontage"] == "long"
+    assert k["designStoreys"] == 36
+    assert "design height" in k["heightBasis"]
+    m2 = build_manifest({"lakeside_mall": _info("lakeside_mall")}, "2026-10-18", {})
+    assert "designStoreys" not in m2["assets"]["lakeside_mall"]
+
+
+def test_kanopi_obb_matches_the_traced_outline_when_the_data_is_present():
+    from tl_assets.geo import outline_local, outline_ring
+
+    ring = outline_ring(_seed(), "kanopi")
+    if ring is None:
+        pytest.skip("landmarks.geojson has no traced kanopi yet (lane/data not merged)")
+    pts = outline_local(ring)
+    best = min(
+        (
+            (max(u) - min(u)) * (max(w) - min(w)),
+            max(u) - min(u),
+            max(w) - min(w),
+        )
+        for a in (math.radians(k / 10) for k in range(1800))
+        for u, w in (
+            (
+                [p[0] * math.cos(a) + p[1] * math.sin(a) for p in pts],
+                [-p[0] * math.sin(a) + p[1] * math.cos(a) for p in pts],
+            ),
+        )
+    )
+    assert best[1] == pytest.approx(specs.KANOPI_OBB[0], abs=0.1)
+    assert best[2] == pytest.approx(specs.KANOPI_OBB[1], abs=0.1)
 
 
 def test_test_assets_are_separate():

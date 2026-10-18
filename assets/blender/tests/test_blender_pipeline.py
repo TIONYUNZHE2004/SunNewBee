@@ -451,7 +451,17 @@ def test_landmarks(landmarks_built, asset_id):
         light = specs.ROLES.index("light")
         assert light in _roles(colors), "a blank sign band"
     if asset_id == "kanopi":
-        assert 118.0 < hi[1] < 132.0
+        # the traced outline's OBB, 88.88 x 27.79 m, within 5 %; 36 x 3.2 m on an 8.7 m podium
+        assert (hi[0] - lo[0]) == pytest.approx(specs.KANOPI_OBB[0], rel=0.05)
+        assert (hi[2] - lo[2]) == pytest.approx(specs.KANOPI_OBB[1], rel=0.05)
+        assert 8.7 + 36 * 3.2 < hi[1] < 132.0
+        for lod in range(len(v.tris)):  # all three LODs present
+            assert f"{asset_id}__{v.id}__LOD{lod}" in info.nodes
+        t = [info.nodes[f"{asset_id}__{v.id}__LOD{n}"].tris for n in range(3)]
+        assert t[0] > t[1] > t[2] and all(a <= c for a, c in zip(t, v.tris, strict=True)), t
+        roles = _roles(read_attribute(raw, f"{asset_id}__{v.id}__LOD0", "COLOR_0"))
+        for role in ("primary", "glass", "dark", "metal", "foliage", "accent"):
+            assert specs.ROLES.index(role) in roles, role
         colors = read_attribute(raw, f"{asset_id}__{v.id}__LOD0", "COLOR_0")
         assert specs.ROLES.index("foliage") in _roles(colors), "planted balconies"
     if asset_id == "masjid_denai_alam":
