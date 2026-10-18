@@ -155,7 +155,7 @@ describe("engine motion clock", () => {
     expect(queue).toHaveLength(0);
   };
 
-  async function setup(running: { on: boolean }) {
+  async function setup(running: { on: boolean }, tier: "low" | "medium" = "low") {
     spy.pmremFails = false;
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "performance", "Date"] });
     queue = [];
@@ -171,7 +171,7 @@ describe("engine motion clock", () => {
     });
     const THREE = await import("three");
     const { createEngine } = await import("./engine");
-    const e = createEngine(document.createElement("canvas"), "low");
+    const e = createEngine(document.createElement("canvas"), tier);
     e.rig.set({ target: [0, 0], rangeM: 800, pitchDeg: -45, headingDeg: 0 });
     const ticks: number[] = [];
     const layer = {
@@ -346,5 +346,103 @@ describe("engine motion clock", () => {
     } finally {
       teardown(e);
     }
+  });
+  describe("LOD ticks (Task 4)", () => {
+    it("onLodTick fires on the next frame with the orbit target and range; 'more' keeps ticking 250 ms apart, then stops", async () => {
+      const { e } = await setup({ on: false });
+      try {
+        settle();
+        const ticks: { x: number; z: number; rangeM: number; at: number }[] = [];
+        let more = 3;
+        e.onLodTick((t) => {
+          ticks.push({ x: t.target.x, z: t.target.z, rangeM: t.rangeM, at: t.nowMs });
+          return more-- > 0;
+        });
+        for (let i = 0; i < 200; i++) {
+          vi.advanceTimersByTime(16);
+          pump();
+        }
+        expect(ticks).toHaveLength(4);
+        expect(ticks[0]!.x).toBeCloseTo(0);
+        expect(ticks[0]!.z).toBeCloseTo(0);
+        expect(ticks[0]!.rangeM).toBeCloseTo(800, 0);
+        for (let i = 1; i < ticks.length; i++)
+          expect(ticks[i]!.at - ticks[i - 1]!.at).toBeGreaterThanOrEqual(250);
+        // Idle again: no frame, no timer.
+        expect(queue).toHaveLength(0);
+        expect(vi.getTimerCount()).toBe(0);
+        // requestLodTick asks for one more.
+        e.requestLodTick();
+        settle();
+        expect(ticks).toHaveLength(5);
+      } finally {
+        teardown(e);
+      }
+    });
+
+    it("flying the rig across 10 tiles never plans more than one tile per frame (real streamer)", async () => {
+      const { createStreamer } = await import("./stream/streamer");
+      const { e } = await setup({ on: false });
+      try {
+        settle();
+        let planned = 0;
+        const s = createStreamer(() => {
+          planned++;
+          return { kits: new Map(), lamps: [], agents: [], signs: [], ribbons: [] };
+        });
+        e.onLodTick((t) => s.update(t.target, t.rangeM, t.nowMs).pending);
+        const perFrame: number[] = [];
+        e.onFrame(() => {
+          perFrame.push(planned);
+        });
+        e.rig.flyTo({ target: [2500, 0], rangeM: 800, pitchDeg: -45, headingDeg: 0 }, 3000);
+        for (let i = 0; i < 400; i++) {
+          vi.advanceTimersByTime(16);
+          pump();
+        }
+        const deltas = perFrame.map((n, i) => n - (i > 0 ? (perFrame[i - 1] as number) : 0));
+        expect(Math.max(...deltas)).toBeLessThanOrEqual(1);
+        expect(planned).toBeGreaterThan(10);
+      } finally {
+        teardown(e);
+      }
+    });
+
+    it("assets.update gets the view frustum, padded for shadow casters at Medium", async () => {
+      const { e } = await setup({ on: false }, "medium");
+      try {
+        const THREE = await import("three");
+        const update = vi.fn();
+        e.setAssets({
+          group: new THREE.Group(),
+          update,
+          aoExcluded: () => [],
+          stats: () => ({
+            instances: 0,
+            meshes: 0,
+            visibleMeshes: 0,
+            gpuBytes: 0,
+            visitedPerTick: 0,
+          }),
+          setKits: vi.fn(),
+          dispose: vi.fn(),
+        });
+        settle();
+        expect(update).toHaveBeenCalled();
+        const [cam, f] = update.mock.calls.at(-1) as [
+          import("three").Vector3,
+          import("three").Frustum,
+        ];
+        expect(cam).toBeInstanceOf(THREE.Vector3);
+        expect(f).toBeInstanceOf(THREE.Frustum);
+        // 1.5 km behind the camera is outside the view but inside the shadow pad (800 m x 1.2 x
+        // sqrt 2 + 250 m = 1.6 km); 5 km behind is culled.
+        const back = cam.clone().normalize();
+        expect(f.containsPoint(cam.clone().add(back.clone().multiplyScalar(500)))).toBe(true);
+        expect(f.containsPoint(cam.clone().add(back.clone().multiplyScalar(5000)))).toBe(false);
+      } finally {
+        teardown(e);
+      }
+    });
   });
 });
