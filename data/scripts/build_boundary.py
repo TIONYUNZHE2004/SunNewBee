@@ -9,8 +9,9 @@ Source order:
    "Elmina" (one cached Overpass query through data/scripts/overpass.py).
 2. Fallback (used when OSM has none, as in the 19 Oct 2026 run): the union of the precinct
    polygons whose name contains "Elmina", the Urban Park / Lakeside Mall / Harmoni area, and a
-   250 m disc around each deep-spot centre (so the flood corridor centre sits inside), buffered
-   60 m, interior holes dropped, simplified to about 5 m.
+   100 m disc around each deep-spot centre (so the flood corridor centre sits inside), smoothed
+   with a 200 m morphological close then open, buffered 60 m, interior holes dropped, simplified
+   to about 20 m.
 """
 
 import argparse
@@ -31,8 +32,10 @@ from data.scripts import overpass  # noqa: E402
 
 OUT = ROOT / "data" / "seed" / "elmina"
 BUFFER_M = 60.0
-SIMPLIFY_M = 5.0
-DISC_M = 250.0
+SIMPLIFY_M = 20.0
+SMOOTH_M = 200.0  # morphological close then open radius (removes notches, slivers, feet)
+DISC_M = 100.0  # small disc at each deep-spot centre; smoothing blends it into the edge
+HARMONI_1 = "osm-way-909868201"  # demo route start (shared with test_boundary.py)
 LAT0 = 3.18
 KX = 111320.0 * math.cos(math.radians(LAT0))  # metres per degree of longitude at LAT0
 KY = 110574.0  # metres per degree of latitude
@@ -74,14 +77,24 @@ def outline(
     precinct_geoms: list,
     focus_geoms: list,
     centres: list[tuple[float, float]],
+    stats: dict | None = None,
 ) -> Polygon:
-    """Union of the parts, buffered and simplified in metres, as one hole-free polygon."""
+    """Union of the parts, closed, opened, buffered and simplified in metres; one hole-free polygon.
+
+    Closing (+r, -r) fills notches; opening (-r, +r) removes slivers and thin feet. `stats`, when
+    given, receives the discarded MultiPolygon part count and hole count.
+    """
     parts = [to_m(g) for g in precinct_geoms + focus_geoms]
     parts += [to_m(Point(c)).buffer(DISC_M) for c in centres]
-    u = unary_union(parts).buffer(BUFFER_M).simplify(SIMPLIFY_M)
-    if u.geom_type == "MultiPolygon":
-        u = max(u.geoms, key=lambda p: p.area)
-    return to_deg(Polygon(u.exterior))
+    r = SMOOTH_M
+    u = unary_union(parts).buffer(r).buffer(-2 * r).buffer(r)
+    u = u.buffer(BUFFER_M).simplify(SIMPLIFY_M)
+    polys = list(u.geoms) if u.geom_type == "MultiPolygon" else [u]
+    main = max(polys, key=lambda p: p.area)
+    if stats is not None:
+        stats["parts_discarded"] = len(polys) - 1
+        stats["holes_discarded"] = len(main.interiors)
+    return to_deg(Polygon(main.exterior))
 
 
 def _features(path: Path) -> list[dict]:
@@ -102,7 +115,7 @@ def fallback_parts(site: dict) -> tuple[list, list, list[tuple[float, float]]]:
         if "Lakeside Mall" in str(f["properties"].get("name")):
             focus.append(shape(f["geometry"]))
     for f in _features(OUT / "base" / "places.geojson"):
-        if f["properties"].get("id") == "osm-way-909868201" or f["properties"].get("name") in (
+        if f["properties"].get("id") == HARMONI_1 or f["properties"].get("name") in (
             "Elmina Urban Park",
         ):
             focus.append(shape(f["geometry"]))
@@ -130,7 +143,12 @@ def main(argv: list[str] | None = None) -> None:
         raise SystemExit(
             f"OSM boundary relation(s) found: {[e['id'] for e in found]}; extend the script"
         )
-    geom = outline(*fallback_parts(site))
+    stats: dict = {}
+    geom = outline(*fallback_parts(site), stats=stats)
+    print(
+        f"discarded: {stats['parts_discarded']} MultiPolygon part(s), "
+        f"{stats['holes_discarded']} hole(s)"
+    )
     km2 = area_km2(geom)
     feature = {
         "type": "Feature",
@@ -152,8 +170,8 @@ def main(argv: list[str] | None = None) -> None:
         "source": "fallback_union",
         "method": (
             "No OSM boundary relation named City of Elmina. Union of Elmina-named precinct "
-            "polygons + Urban Park / Lakeside Mall / Harmoni area + 250 m around deep-spot "
-            "centres, buffered 60 m, simplified ~5 m. Display only."
+            "polygons + Urban Park / Lakeside Mall / Harmoni area + 100 m around deep-spot "
+            "centres, smoothed (200 m close+open), buffered 60 m, simplified ~20 m. Display only."
         ),
         "area_km2": round(km2, 2),
         "as_of": site.get("data_as_of"),

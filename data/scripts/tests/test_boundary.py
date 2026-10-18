@@ -8,13 +8,14 @@ import pytest
 from shapely.geometry import Point, shape
 from shapely.validation import explain_validity
 
+from data.scripts.build_boundary import HARMONI_1
+
 ROOT = Path(__file__).resolve().parents[3]
 SEED = ROOT / "data" / "seed" / "elmina"
 BOUNDARY = SEED / "base" / "boundary.geojson"
 
 pytestmark = pytest.mark.skipif(not (SEED / "site.json").exists(), reason="Elmina seed missing")
 
-HARMONI_1 = "osm-way-909868201"
 CAR_PARK_B = "park-b"
 
 
