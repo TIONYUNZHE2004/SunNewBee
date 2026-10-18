@@ -18,3 +18,5 @@ A ranked list in this log within the first working session. P1 items in the Back
 ## Log
 
 - 2026-10-18 10:00 UTC · control (claude/sweet-davinci-29v7ne) · Created and assigned to Local backend engineer (Yunzhe, 18 Oct: scope B+, two local engineers).
+
+- 2026-10-18 10:13 UTC · Local backend engineer (local/backend-engineer) · Started: control 9621d6e merged; control upstream removed; board worktree /tmp/agent-board ready. Auditing real data/seed/elmina directly. No live LLM calls planned (US$0). Ranked reproductions first; status-rule and other-lane changes will be proposed for Yunzhe before implementation.
