@@ -1,9 +1,11 @@
 import type { BuildingsLayer } from "../../../../lib/api";
 import { toBuildings } from "../../cesium/stylised/model";
-import { displayHeight, type Footprint } from "../cityMesh";
+import { displayHeight, type Footprint, localRing } from "../cityMesh";
 import type { FacadeBuilding } from "../facade/facadeLayer";
 import { facadeFor } from "../facade/facadePlan";
-import { propsByBuildingId } from "../fallbackStyle";
+import { type PodiumDeck, podiumDeck } from "../facade/podiumDeck";
+import { area, cleanRing, MIN_ROOF_AREA_M2, type RoofBuilding } from "../facade/roofPlan";
+import { type FallbackColours, fallbackColours, propsByBuildingId } from "../fallbackStyle";
 import type { LocalFrame } from "../frame";
 import type { Placement } from "./fit";
 import { fitArchetype, footprintObb, paletteFor, precinctGroupOf, variantFor } from "./fit";
@@ -228,4 +230,78 @@ export function facadeInputs(
       ),
     };
   });
+}
+
+/** One roof the roof layer may dress (P4 Task 8): its building, palette and any podium deck. */
+export interface RoofInput {
+  b: RoofBuilding;
+  palette: FallbackColours;
+  /**
+   * The decorative podium deck of a roof with a landmark's traced tower outline standing on it
+   * (Kanopi, ruling P4-M), planned around the tower here, once per city plan (it is the costliest
+   * roof to plan, so no streamed tick pays it).
+   */
+  deck?: PodiumDeck;
+}
+
+/**
+ * The roof layer's input: every drawn extrusion of MIN_ROOF_AREA_M2 or more (the same local ring
+ * and display height the extrusion uses), plus every podium under a traced landmark outline,
+ * extruded or not. A building named by a landmark feature with a `model` is `isLandmark` (no
+ * rooftop units: it is modelled, or its roof is a podium deck). Pure; decorative only.
+ */
+export function roofInputs(
+  footprints: readonly Footprint[],
+  layer: BuildingsLayer | null | undefined,
+  m: Manifest | null,
+  frame: LocalFrame,
+): RoofInput[] {
+  const props = propsByBuildingId(layer?.buildings);
+  const str = (v: unknown) => (typeof v === "string" && v ? v : undefined);
+  const landmarkIds = new Set<string>();
+  const plates = new Map<string, Array<Array<[number, number]>>>();
+  for (const f of features(layer?.landmarks)) {
+    if (!isRec(f) || !isRec(f.properties)) continue;
+    const bid = str(f.properties.building_id);
+    if (!bid || !str(f.properties.model)) continue;
+    landmarkIds.add(bid);
+    if (f.properties.match !== "traced_outline") continue;
+    const ring = ringOf(f.geometry)?.map(([lon, lat]) => frame.toLocal(lon, lat));
+    if (ring) plates.set(bid, [...(plates.get(bid) ?? []), ring]);
+  }
+  const input = (
+    id: string,
+    kind: string,
+    ring: Array<[number, number]>,
+    heightM: number,
+  ): RoofInput => {
+    const p = props.get(id);
+    const archetype = str(p?.archetype);
+    const palette = fallbackColours(
+      { id, kind, archetype, precinct: str(p?.precinct) },
+      m,
+      m?.precinctGroups ?? [],
+    );
+    const b: RoofBuilding = { id, ring, heightM, kind, archetype, isLandmark: landmarkIds.has(id) };
+    const on = plates.get(id);
+    const deck = on ? podiumDeck(b, on) : null;
+    return deck ? { b, palette, deck } : { b, palette };
+  };
+  const out: RoofInput[] = [];
+  const done = new Set<string>();
+  for (const f of footprints) {
+    const pts = cleanRing(f.ring);
+    if (!plates.has(f.id) && !(pts && Math.abs(area(pts)) >= MIN_ROOF_AREA_M2)) continue;
+    out.push(input(f.id, f.kind, f.ring, f.heightM));
+    done.add(f.id);
+  }
+  // A podium drawn as an instanced archetype still gets its deck (on its display height).
+  if ([...plates.keys()].some((id) => !done.has(id))) {
+    for (const b of toBuildings(layer?.buildings, displayHeight).buildings) {
+      if (!plates.has(b.id) || done.has(b.id)) continue;
+      const ring = localRing(b.ring, frame);
+      if (ring && ring.length >= 3) out.push(input(b.id, b.kind, ring, b.height));
+    }
+  }
+  return out;
 }

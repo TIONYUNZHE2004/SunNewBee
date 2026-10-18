@@ -211,7 +211,8 @@ function buildFlat(
  * v = (y − base) / STOREY_M, so one UV unit is one 3.2 m storey; the roof cap's UVs are 0.
  * `footprints` lists every drawn building (local ring, display height, base) for the facade layer.
  * `only`: extrude just these building ids (the rest are drawn as instanced archetypes).
- * `colours`: styled fallback (walls, roof cap, a PARAPET_M trim band). Each ring edge then adds
+ * `colours`: styled fallback (walls, roof cap, a PARAPET_M trim band); `roofTint` may recolour
+ * the roof cap of a styled building (large flat roofs). Each ring edge then adds
  * one wall quad, so a building has 6 + 12 * edges vertices (30 + 6 * edges without it). Without
  * `colours` the display-only KIND_COLOUR tan stays (no manifest).
  */
@@ -221,9 +222,14 @@ export function buildCityGeometry(
   opts: {
     only?: ReadonlySet<string>;
     colours?: (b: { id: string; kind: string }) => FallbackColours;
+    /**
+     * Styled roofs only: a roof cap colour from the local ring and the palette roof, or null to
+     * keep the palette roof (`largeRoofTint`: large flat roofs are not flat grey).
+     */
+    roofTint?: (id: string, ring: Pt[], paletteRoof: string) => string | null;
   } = {},
 ): CityGeometry {
-  const { only, colours } = opts;
+  const { only, colours, roofTint } = opts;
   const { buildings, skipped: dropped } = toBuildings(layer?.buildings, displayHeight);
   let skipped = dropped;
   const mesh = new Mesh(true);
@@ -244,7 +250,7 @@ export function buildCityGeometry(
     footprints.push({ id: b.id, kind: b.kind, ring, heightM: b.height, minHeightM: b.minHeight });
     const styled = colours?.(b);
     const rgb = rgbOf(styled?.wall ?? KIND_COLOUR[b.kind] ?? KIND_COLOUR.building!);
-    const roofRgb = styled ? rgbOf(styled.roof) : rgb;
+    const roofRgb = styled ? rgbOf(roofTint?.(b.id, ring, styled.roof) ?? styled.roof) : rgb;
     const trimRgb = styled ? rgbOf(styled.trim) : rgb;
     const y0 = b.minHeight;
     const y1 = b.height;

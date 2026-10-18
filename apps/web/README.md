@@ -312,6 +312,12 @@ hero district.
 - **Merging:** `useDecor` (kits via `setKits`, lamp pools, signs), `useMotion` (agents), `useRoads`
   (the `roads` decor slot) and `useFacades` (facades for ring ≤ 1 tiles only, no shadows) rebuild
   only when the active tiles change. The scene's `data-tiles` attribute is the active tile count.
+- **Roofs (decorative):** `useRoofs` (the `roofs` decor slot) draws rooftop units, skylights and an
+  edge band on the extruded roofs of 600 m² or more in ring ≤ 1 tiles (`facade/roofPlan.ts`,
+  `facade/roofLayer.ts`; no shadows, none at Low). Landmark buildings get none. The OSM podium
+  under the Kanopi tower gets a podium deck instead (planters, a pool in base-water `#7fb6c9`, a
+  pergola; `facade/podiumDeck.ts`) and stays pickable. Large extruded roofs whose palette roof is
+  grey take one of four `ROOF_TINTS` (warm concrete, terracotta, sand, cool membrane) at every tier.
 - **Culling:** `CityInstances.update` gets the view frustum padded by the shadow extent (`cull.ts`),
   so an off-screen shadow caster is never left stale.
 - **Probe views:** `scripts/measure-probes.mjs` records draws, tris and MB at the six probe views

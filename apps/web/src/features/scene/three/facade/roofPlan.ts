@@ -47,7 +47,7 @@ export interface RoofDressing {
   skylights: Float32Array;
   /** mat4 per roof-edge band segment (0.4 m wide, just inside the edge). */
   band: Float32Array;
-  /** Roof colour: the palette's roof colour instead of flat grey. */
+  /** Roof colour: the large-roof tint (`largeRoofTint`) for a dressed roof, else the palette roof. */
   tint: string;
   /** Band colour: the palette trim. */
   edge: string;
@@ -55,7 +55,45 @@ export interface RoofDressing {
 
 type Pt = [number, number];
 
-function cleanRing(ring: ReadonlyArray<readonly [number, number]>): Pt[] | null {
+/**
+ * Large-roof tints (owner's P3 note: big flat roofs read as flat grey). The palette roof colours of
+ * the big-building archetypes (generic, factory, mall, school, shop_office, highrise) are dark
+ * greys, so a roof of MIN_ROOF_AREA_M2 or more takes one of these instead, picked by
+ * hash01(id, "roof:tint"): warm concrete, terracotta, sand membrane, cool membrane. Display only;
+ * none is the base-water or a flood colour.
+ */
+export const ROOF_TINTS = ["#c2a385", "#b8735a", "#cdb98f", "#8fa7b4"] as const;
+/** A palette roof below this HSL saturation counts as grey (and is replaced on a large roof). */
+const GREY_SATURATION = 0.12;
+
+function saturation(hex: string): number {
+  const n = Number.parseInt(hex.replace("#", ""), 16);
+  if (!Number.isFinite(n)) return 0;
+  const c = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map((v) => v / 255);
+  const hi = Math.max(...c);
+  const lo = Math.min(...c);
+  const d = hi - lo;
+  return d === 0 ? 0 : d / (1 - Math.abs(hi + lo - 1));
+}
+
+/**
+ * The roof colour of a large flat roof: a ROOF_TINTS entry (deterministic per id) for a roof of
+ * 600 m2 or more whose palette roof (`current`, when given) is grey; null otherwise (small roofs
+ * and coloured palette roofs keep their colour).
+ */
+export function largeRoofTint(
+  id: string,
+  ring: ReadonlyArray<readonly [number, number]>,
+  current?: string,
+): string | null {
+  if (current !== undefined && saturation(current) >= GREY_SATURATION) return null;
+  const pts = cleanRing(ring);
+  if (!pts || !(Math.abs(area(pts)) >= MIN_ROOF_AREA_M2)) return null;
+  const i = Math.floor(hash01(id, "roof:tint") * ROOF_TINTS.length);
+  return ROOF_TINTS[Math.min(ROOF_TINTS.length - 1, i)]!;
+}
+
+export function cleanRing(ring: ReadonlyArray<readonly [number, number]>): Pt[] | null {
   const out: Pt[] = [];
   for (const p of ring) {
     if (!Array.isArray(p) || !Number.isFinite(p[0]) || !Number.isFinite(p[1])) return null;
@@ -68,14 +106,14 @@ function cleanRing(ring: ReadonlyArray<readonly [number, number]>): Pt[] | null 
   return out.length >= 3 ? out : null;
 }
 
-function area(pts: Pt[]): number {
+export function area(pts: Pt[]): number {
   let a = 0;
   for (let i = 0, j = pts.length - 1; i < pts.length; j = i++)
     a += pts[j]![0] * pts[i]![1] - pts[i]![0] * pts[j]![1];
   return a / 2;
 }
 
-function inside(pts: Pt[], x: number, z: number): boolean {
+export function inside(pts: Pt[], x: number, z: number): boolean {
   let c = false;
   for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
     const [xi, zi] = pts[i]!;
@@ -85,7 +123,7 @@ function inside(pts: Pt[], x: number, z: number): boolean {
   return c;
 }
 
-function distToEdges(pts: Pt[], x: number, z: number): number {
+export function distToEdges(pts: Pt[], x: number, z: number): number {
   let best = Number.POSITIVE_INFINITY;
   for (let i = 0; i < pts.length; i++) {
     const [ax, az] = pts[i]!;
@@ -104,7 +142,7 @@ const clear = (pts: Pt[], x: number, z: number, r: number) =>
   inside(pts, x, z) && distToEdges(pts, x, z) >= r;
 
 /** Column-major mat4: unit box scaled (sl, sh, sw) along (u, up, perp), centred at (cx, y, cz). */
-function writeBox(
+export function writeBox(
   out: number[],
   cx: number,
   y: number,
@@ -121,7 +159,7 @@ function writeBox(
 /**
  * Dressing for one large roof: 1 rooftop unit per 250 m2 (2 x 1.2 x 1 m), skylight strips every
  * 12 m along the long axis for factories and malls (1.5 m wide), a 0.4 m band just inside the roof
- * edge, and the palette roof colour as the tint. Units and skylights sit at y = heightM, with their
+ * edge, and the large-roof tint (`largeRoofTint`, else the palette roof) as the tint. Units and skylights sit at y = heightM, with their
  * whole footprint at least 1.0 m inside the roof. Seeded per building id. Below 600 m2 and for
  * landmarks there is no dressing. Pure.
  */
@@ -242,7 +280,7 @@ export function roofDressing(b: RoofBuilding, palette: FallbackColours): RoofDre
     units: new Float32Array(units),
     skylights: new Float32Array(skylights),
     band: new Float32Array(band),
-    tint: palette.roof,
+    tint: largeRoofTint(b.id, pts, palette.roof) ?? palette.roof,
     edge: palette.trim,
   };
 }
