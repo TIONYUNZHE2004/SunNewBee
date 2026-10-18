@@ -18,7 +18,7 @@ from .closure_store import ClosureStore
 from .evaluate import evaluate_edge
 from .geo import haversine_m
 from .models import Claim, Closure, Evidence, ToolResult, photo_url
-from .scenario_meta import scenario_source
+from .scenario_meta import scenario_source, selection_error
 from .vr_store import VerificationStore
 from .world import World
 
@@ -282,6 +282,8 @@ def get_place_details(
     profile: str = "default",
     near: str | None = None,
 ) -> ToolResult:
+    if error := selection_error(ctx.world, profile, scenario_id):
+        return ToolResult(ok=False, warnings=[error])
     p = ctx.world.places.get(place_id)
     if p is None:
         r = _centre_details(ctx, place_id, scenario_id, profile, near) or _waste_details(
@@ -432,8 +434,14 @@ def plan_route(
 ) -> ToolResult:
     """`file_vrs=False` plans without writing: the anonymous REST route must not inflate the
     staff queue (final review Minor 2)."""
+    if error := selection_error(ctx.world, profile, scenario_id):
+        return ToolResult(ok=False, warnings=[error])
     rr = routing.plan_route(ctx.world, from_id, to_id, profile, scenario_id)
-    evidence: list[Evidence] = []
+    evidence = [
+        ev
+        for pid in dict.fromkeys((from_id, to_id))
+        for ev in routing.flood_evidence(ctx.world, pid, scenario_id)
+    ]
     # Transport provenance only: preserve the engine's status, paths and distances.
     endpoint_ids = [from_id, to_id]
     place_ids = set(endpoint_ids)
@@ -466,7 +474,7 @@ def plan_route(
         for u in r.unknowns:
             if (
                 not file_vrs
-                or u["attribute"] == "flood"
+                or u["attribute"] in ("flood", "flood_coverage")
                 or (u["element_id"], u["attribute"]) in filed
             ):
                 continue
@@ -740,6 +748,8 @@ def list_evacuation_centres(
     profile: str = "default",
     near_place: str | None = None,
 ) -> ToolResult:
+    if error := selection_error(ctx.world, profile, scenario_id):
+        return ToolResult(ok=False, warnings=[error])
     res = _flood.centres_reachability(ctx.world, scenario_id, profile, near_place)
     warnings = []
     prof = ctx.world.profiles.get(profile)
@@ -776,6 +786,13 @@ def list_evacuation_centres(
         for r in res
     ]
     data = [r.model_dump(mode="json") for r in res]
+    for pid in [
+        *([near_place] if near_place else []),
+        *(f"{routing.CENTRE_PREFIX}{r.centre.id}" for r in res),
+    ]:
+        ev += routing.flood_evidence(ctx.world, pid, scenario_id)
+        _, reasons = routing.endpoint_flood(ctx.world, pid, prof, scenario_id)
+        warnings.extend(reason["why"] for reason in reasons)
     n_inferred = 0
     for r, d in zip(res, data, strict=True):
         note = _centre_entrance_note(ctx.world, r.centre) if r.reachable else None

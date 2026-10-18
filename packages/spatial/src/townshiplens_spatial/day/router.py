@@ -74,7 +74,13 @@ class Router:
         for i, e0 in enumerate(g.edges):
             e = world.edges.get(e0.id, e0)
             # Staff closures are evaluated at the rehearsal's own moment, not the wall clock.
-            res, _ = evaluate_edge(e, prof, _flood_class(world, stage, e.id), now=now)
+            res, _ = evaluate_edge(
+                e,
+                prof,
+                _flood_class(world, stage, e.id),
+                now=now,
+                flood_coverage=world.flood.coverage_for(stage, e.id),
+            )
             if res == "FAIL":
                 continue
             c = e.length_m * (UNKNOWN_WEIGHT if res == "UNKNOWN" else 1.0)

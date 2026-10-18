@@ -197,6 +197,11 @@ class FloodBundle(BaseModel):
     place_classes: dict[str, dict[str, FloodClass]] = Field(
         default_factory=dict
     )  # scenario -> place -> class
+    # Explicit gaps from flood/coverage.json; absence of a flood class is not proof of coverage.
+    coverage: dict[str, Literal["uncovered", "partial"]] = Field(default_factory=dict)
+
+    def coverage_for(self, scenario_id: str | None, element_id: str) -> str | None:
+        return self.coverage.get(element_id) if scenario_id not in (None, "", "baseline") else None
 
 
 class EvacCentre(BaseModel):

@@ -14,6 +14,7 @@ from townshiplens_spatial import tools
 from townshiplens_spatial.models import RouteResult, Site, ToolResult
 
 from .. import geojson, state
+from ..selection import require_selection
 from .sim import _store as _sim_store
 
 router = APIRouter()
@@ -160,6 +161,7 @@ def gaps_layer(request: Request, response: Response, profile: str = "default"):
     are stale or only reported, open verification demand and simulated journey impact. Declared
     before /layers/{lens} so it wins."""
     ctx = state.get_ctx()
+    require_selection(ctx.world, profile)
     demand = _open_demand(ctx)
     run_id, impact = _journey_impact(profile)
     # Demand and the latest sim run change without a world.version bump: both are validators.
@@ -333,6 +335,7 @@ def layers(
     if lens not in geojson.LENSES:
         raise HTTPException(404, f"unknown lens {lens}")
     world = state.get_ctx().world
+    require_selection(world, profile, scenario_id)
     etag = _etag(world, lens, profile, scenario_id)
     headers = {"ETag": etag, "Cache-Control": CACHE_CONTROL}
     if _matches(request.headers.get("if-none-match"), etag):
@@ -343,7 +346,9 @@ def layers(
 
 @router.get("/graph")
 def graph(profile: str = "default", scenario_id: str | None = None) -> dict:
-    return geojson.layer(state.get_ctx().world, "access", profile, scenario_id)
+    world = state.get_ctx().world
+    require_selection(world, profile, scenario_id)
+    return geojson.layer(world, "access", profile, scenario_id)
 
 
 @router.get("/places", response_model=ToolResult)
@@ -360,10 +365,7 @@ def place(
 ) -> ToolResult:
     ctx = state.get_ctx()
     # A bad parameter is an error, not a "data gap" row on the card (same as /briefings/flood).
-    if scenario_id is not None and scenario_id not in {s.id for s in ctx.world.flood.scenarios}:
-        raise HTTPException(404, f"unknown scenario {scenario_id}")
-    if profile not in ctx.world.profiles:
-        raise HTTPException(422, f"unknown profile {profile}")
+    require_selection(ctx.world, profile, scenario_id)
     r = tools.get_place_details(ctx, place_id, scenario_id, profile, near)
     if not r.ok:
         raise HTTPException(404, f"unknown place {place_id}")
@@ -373,9 +375,9 @@ def place(
 @router.post("/routes", response_model=RouteResult)
 def routes(req: RouteRequest) -> RouteResult:
     """Plan only: this anonymous endpoint never files verification requests (the chat does)."""
-    r = tools.plan_route(
-        state.get_ctx(), req.from_, req.to, req.profile, req.scenario_id, file_vrs=False
-    )
+    ctx = state.get_ctx()
+    require_selection(ctx.world, req.profile, req.scenario_id)
+    r = tools.plan_route(ctx, req.from_, req.to, req.profile, req.scenario_id, file_vrs=False)
     data = copy.copy(r.data)
     data.pop("verification_requests", None)
     data.setdefault("warnings", [])
