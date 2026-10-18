@@ -13,11 +13,29 @@ export interface RoleUniforms {
 export const FIXED_ROLE_COLOURS: Record<"glass" | "dark" | "metal" | "foliage" | "light", string> =
   {
     glass: "#6f8aa0",
-    dark: "#2b2d31",
+    dark: "#5a5d63",
     metal: "#9aa1a8",
     foliage: "#5f8f4e",
     light: "#fff1c9",
   };
+
+/**
+ * Floor for the baked AO (COLOR_0.r), A-T8. The per-vertex bake leaves exact zeros at corners whose
+ * smoothed normal points into the ground or the body, and a zero multiplies the role colour to pure
+ * black. The build clamps to this value (`AO_FLOOR` in assets/blender/tl_assets/core.py; a test
+ * checks they match); the shader applies it too as a safety net for older glbs.
+ */
+export const AO_FLOOR = 0.4;
+
+/**
+ * Per-role AO floor (A-T8, display only). Index = role (0 primary, 1 secondary, 2 accent, 3 glass,
+ * 4 dark, 5 metal, 6 foliage, 7 light). Measured at the link-house bookmark: recessed glass, brick
+ * panels and the dark screen backing fell under 0.03 luminance only because the baked AO multiplied
+ * in; walls, roofs and the ground keep the full AO (contact shadows). Roofs do not get a higher
+ * floor: with AO off they are as dark (their share is ambient-only shade). Every entry is
+ * >= `AO_FLOOR`, the build clamp.
+ */
+export const AO_FLOOR_BY_ROLE: readonly number[] = [0.4, 0.4, 0.7, 0.85, 0.7, 0.4, 0.4, 0.4];
 
 /** Shared by every kit material; driven by the motion clock (Task 8). */
 export interface MotionUniforms {
@@ -48,6 +66,16 @@ export function createRoleUniforms(): RoleUniforms {
     uAoStrength: { value: 1 },
     uFlicker: { value: 0 },
   };
+}
+
+/** GLSL that sets `float tlAoFloor` from `tlRole` (roles >= 7 share the last entry). */
+export function aoFloorGlsl(): string {
+  const f = (i: number) => (AO_FLOOR_BY_ROLE[i] ?? AO_FLOOR).toFixed(2);
+  const lines = [`float tlAoFloor = ${f(0)};`];
+  for (let i = 1; i < 7; i++)
+    lines.push(`${i === 1 ? "" : "else "}if (tlRole == ${i}) tlAoFloor = ${f(i)};`);
+  lines.push(`else if (tlRole >= 7) tlAoFloor = ${f(7)};`);
+  return lines.join(String.fromCharCode(10));
 }
 
 const vec3Of = (hex: string) => {
@@ -138,8 +166,9 @@ void main() {`,
     );
     fs = fs.replace(
       "#include <color_fragment>",
-      `float tlAo = mix(1.0, vColor.r, uAoStrength);
-int tlRole = int(floor(vColor.g * 7.0 + 0.5));
+      `int tlRole = int(floor(vColor.g * 7.0 + 0.5));
+${aoFloorGlsl()}
+float tlAo = mix(1.0, max(vColor.r, tlAoFloor), uAoStrength);
 vec3 tlBase = ${p(0)};
 if (tlRole == 1) tlBase = ${p(1)};
 else if (tlRole == 2) tlBase = ${p(2)};
