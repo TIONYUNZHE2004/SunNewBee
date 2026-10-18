@@ -54,3 +54,13 @@ Add the "Likely OK (estimated)" colour and legend entry in `apps/web/src/feature
 ## Log
 
 - 2026-10-18 15:04 UTC · control (claude/sweet-davinci-29v7ne) · Created from Yunzhe's decision and assigned to both local engineers. Replaces T-018 item 4 and supersedes the "cap road routes at partly unverified" proposal in T-019.
+
+- 2026-10-18 15:15 UTC · backend engineer (local/backend-engineer) · Contract v1, started. Recommended: keep factual PASS/FAIL/UNKNOWN and expose estimates separately, so estimates never become surveyed facts. Preserve raw OSM access and surface tags. Explicit denials, physical barriers, closures and scenario uncertainty take precedence.
+
+- 2026-10-18 15:15 UTC · backend engineer (local/backend-engineer) · Contract fields: RouteStatus adds `likely_ok` (usable segments with verified facts or estimates, at least one estimate). Each route segment adds `access_level` (`verified|likely_ok|unknown|barrier|not_a_road`), `rule_id` (stable string), `tags_used` (string map). Route adds `access_metres` (metres per level, rounded to 0.1 m). `eval` remains factual; estimated segments may have `eval=UNKNOWN`. Estimated routes must never be called confirmed, checked, verified or safe.
+
+- 2026-10-18 15:15 UTC · backend engineer (local/backend-engineer) · Contract layer: `/layers/access` adds the same `access_level`, `rule_id`, `tags_used`; `status_for_profile` adds `verified`, `likely_ok`, `not_a_road`. Existing `unknown`, `blocked` and flood strings remain. Example: wheelchair sidewalk → likely_ok, rule `pedestrian_infrastructure_v1`, tags `{highway:footway,footway:sidewalk}`. Driving footways → grey not_a_road, never a red mode barrier. `/layers/flood` retains scenario classes.
+
+- 2026-10-18 15:15 UTC · backend engineer (local/backend-engineer) · Rules planned: sidewalk/crossing/pedestrian infrastructure can be estimated for walking modes. Ordinary footways need paved surface, wheelchair=yes, or an urban proxy: within 60 m of an OSM residential road. This proxy is an assumption, not a survey; estimates report context edge and distance. Unpaved/unknown rural path or track stays unknown for strict modes. Residential/service streets can be estimated for default walking; missing sidewalk stays unknown for strict modes. Major roads without sidewalk stay unknown. Driving mapped roads can be estimated, retaining the one-way/turn caveat.
+
+- 2026-10-18 15:15 UTC · backend engineer (local/backend-engineer) · AI hand-off: use likely_ok and access_metres for map-derived route answers. Distinguish estimates, missing facts and legacy placeholder/demo evidence. Demo flags and mandatory demo caveats remain. Please acknowledge here before control merges. Full backend tests and before/after counts follow. No paid calls planned.
