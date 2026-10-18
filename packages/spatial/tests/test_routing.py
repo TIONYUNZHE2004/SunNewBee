@@ -614,7 +614,10 @@ def test_elmina_seed_pins_the_task_31_major_road_outcomes():  # task 31 M-6
     # OSM gives no width or surface for major roads here, so none may carry such a claim
     assert not [e.id for e in roads if {"width_m", "surface"} & set(e.claims)]
     hero = plan_route(w, "park-b", "playground", "stroller")
-    assert hero.status == "confirmed" and hero.routes[0].distance_m == pytest.approx(440.6, abs=1)
+    # T-020: the demo width/slope values do not establish a mapped sidewalk on roads.
+    assert hero.status == "partly_unverified"
+    assert hero.routes[0].distance_m == pytest.approx(416.4, abs=1)
+    assert hero.routes[0].road_without_mapped_sidewalk_m > 0
     # a confirmed route never crosses a major road (no verified sidewalk anywhere on the seed)
     major = {e.id for e in roads}
     for prof in ("stroller", "wheelchair", "older_adult_rest"):

@@ -230,6 +230,38 @@ def split_ways(ways: list[dict]) -> list[dict]:
                     "length_m": round(length, 2),
                     "coords": [[round(p["lon"], 6), round(p["lat"], 6)] for p in pts],
                     "claims": json.loads(json.dumps(claims)),
+                    # Preserve decision inputs, not inferred physical facts. Restrictions must
+                    # survive import so mode rules cannot turn access=no into a usable edge.
+                    "osm_tags": {
+                        key: str(value)
+                        for key, value in tags.items()
+                        if key
+                        in {
+                            "highway",
+                            "footway",
+                            "service",
+                            "access",
+                            "foot",
+                            "vehicle",
+                            "motor_vehicle",
+                            "motorcar",
+                            "wheelchair",
+                            "surface",
+                            "smoothness",
+                            "incline",
+                            "width",
+                            "step_count",
+                            "sidewalk",
+                            "sidewalk:both",
+                            "sidewalk:left",
+                            "sidewalk:right",
+                            "lit",
+                            "oneway",
+                            "bridge",
+                            "tunnel",
+                            "layer",
+                        }
+                    },
                 }
                 if tags.get("name"):
                     seg["name"] = tags["name"]

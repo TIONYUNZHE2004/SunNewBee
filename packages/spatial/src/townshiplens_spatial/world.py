@@ -73,6 +73,7 @@ def _edge(f: dict) -> Edge:
         coords=f["geometry"]["coordinates"],
         length_m=p["length_m"],
         name=p.get("name"),
+        osm_tags=p.get("osm_tags") or {},
         claims=p.get("claims") or {},
     )
 

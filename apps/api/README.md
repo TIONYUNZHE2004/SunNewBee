@@ -21,7 +21,7 @@ With no seed data present the API falls back to the tiny test fixture.
 | GET | `/healthz` | liveness, plus `world_model`: the background warm-up's state (`warming` / `warm`), timings and world version |
 | GET | `/site` | site config |
 | GET | `/profiles` | read-only profile parameters (hard/soft limits, allowed types, speed, `stub`) for the "Assumptions" view |
-| GET | `/layers/{lens}` | `access`, `flood`, `waste`; `?profile=&scenario_id=`; LineStrings carry `status_for_profile` (ok, unknown, blocked, flooded_likely, flooded_possible); 404 unknown lens. Sends `ETag` and `Cache-Control: private, max-age=0, must-revalidate`; a matching `If-None-Match` gets 304. The ETag changes when a claim changes (`world.version`) and on API restart |
+| GET | `/layers/{lens}` | `access`, `flood`, `waste`; `?profile=&scenario_id=`; LineStrings carry `status_for_profile` (verified, likely_ok, unknown, blocked, not_a_road, flooded_likely, flooded_possible), plus access_level, rule_id and tags_used; 404 unknown lens. Sends `ETag` and `Cache-Control: private, max-age=0, must-revalidate`; a matching `If-None-Match` gets 304. The ETag changes when a claim changes (`world.version`) and on API restart |
 | GET | `/layers/gaps` | Gap map (Task 42): walk edges and places with `unknown_count`, `stale_count`, `relevant_count`, `unknown_attributes` and open-VR `demand`; `?profile=`. Edge facts are `evaluate.relevant_attributes`; places count the claims they carry. Counts only, no status or verdict. ETag also changes when VR demand changes |
 | GET | `/graph` | alias of `/layers/access` (no ETag) |
 | GET | `/places?q=` | find_place |
@@ -97,3 +97,7 @@ strict/lenient search; returned distance/time remain based on physical length.
 
 It warms again whenever `world.version` changes (it polls every 10 s). It takes the same two solver slots as requests, and a failing job is logged and skipped. `/verify-next` now goes through the cached `tools.plan_verifications`, so a busy solver returns 503.
 
+
+Access estimates use the spatial rules documented in `packages/spatial/README.md`.
+Routes add `likely_ok`, per-segment rule metadata, and `access_metres` in metres.
+These estimates are never checked facts. Driving non-roads are grey `not_a_road` lines.

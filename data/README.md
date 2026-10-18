@@ -400,3 +400,16 @@ All Overpass traffic goes through `overpass.py` (cache, backoff, request cap). E
   - Add `--count-leaves` to stop one level early: leaf tilesets at `--max-error` are counted, not fetched, and the requests a full run needs are estimated.
   - Then run once with an approved cap: `... --bbox hero --max-requests <approved>` (`--bbox hero|township|w,s,e,n`).
 - The key is read from `GOOGLE_MAPS_API_KEY` (environment or repo-root `.env`) and is never printed; HTTP 401/403 exits 2 with `BLOCKED: ...`.
+
+## Path and access audits (18 Oct 2026)
+
+`audits/2026-10-18-t018-path-map.json` records source/graph/display findings at control
+8d20778. It is not a field survey. The ranked findings are in T-018 on the agent board.
+`import_osm.py` now retains access, mode, surface, sidewalk and geometry-context OSM tags
+on every split edge. It does not invent claims from missing tags. Rebuilding the ordered
+pipeline preserves these tags through the demo overlay.
+
+`uv run python data/scripts/audit_access.py --output data/audits/2026-10-18-t020-access.json`
+compares legacy factual counts against the new map-derived levels. It uses no network or
+model calls. The stored report compares identical geometry and claims, removing raw tags
+only for the legacy evaluator. See `packages/spatial/README.md` for the rule contract.

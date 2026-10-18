@@ -615,3 +615,8 @@ run: `pnpm --filter @tl/web exec playwright install chromium`.
 With `DEMO_MODE=true` the API replays recorded answers for questions it has seen (see
 `data/demo/README.md`); the web app needs no change. The earlier `/?demo=hero` control bar and
 the `/manage` console were removed with the redesign.
+
+T-020 access colours: Verified uses solid green; Likely OK (estimated) uses thin teal
+short dashes; Not checked uses yellow dashes; barriers use red; driving non-roads use
+grey. `styles.ts` and `mapStatus` carry the same statuses across all renderers. The
+legend exposes the estimate label. Legacy `ok` remains “No known barrier”.

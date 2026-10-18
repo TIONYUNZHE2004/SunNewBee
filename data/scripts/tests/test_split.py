@@ -18,6 +18,7 @@ def test_sidewalk_subtag_survives_splitting_with_osm_sidewalk_claims_on_streets(
     ]
     sidewalk, street = split_ways(ways)
     assert sidewalk["type"] == "sidewalk"
+    assert sidewalk["osm_tags"] == {"highway": "footway", "footway": "sidewalk"}
     assert street["type"] == "street"
     claim = street["claims"]["sidewalk"]
     assert claim["value"] == "both" and claim["status"] == "reported"
@@ -45,3 +46,26 @@ def test_split_at_shared_nodes():
     steps = next(s for s in segs if s["to"] == "n-20")
     assert steps["type"] == "steps" and steps["claims"]["step_count"]["value"] == 4
     assert steps["claims"]["step_count"]["status"] == "reported"
+
+
+def test_split_retains_mode_restrictions_and_surface_inputs():
+    tags = {
+        "highway": "service",
+        "service": "driveway",
+        "access": "no",
+        "foot": "yes",
+        "motor_vehicle": "no",
+        "surface": "unpaved",
+        "name": "Test",
+    }
+    segments = split_ways(
+        [
+            {
+                "id": 1,
+                "nodes": [1, 2],
+                "tags": tags,
+                "geometry": [{"lon": 0, "lat": 0}, {"lon": 0.001, "lat": 0}],
+            }
+        ]
+    )
+    assert segments[0]["osm_tags"] == {k: v for k, v in tags.items() if k != "name"}

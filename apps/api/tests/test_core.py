@@ -23,7 +23,8 @@ def test_routes_confirmed():
 def test_layers_access_has_status():
     fc = c.get("/layers/access", params={"profile": "stroller"}).json()
     st = {f["properties"]["id"]: f["properties"].get("status_for_profile") for f in fc["features"]}
-    assert st["seg-cf"] == "unknown" and st["seg-be"] == "blocked" and st["seg-ab"] == "ok"
+    # Demo placeholders do not establish a staff survey or an OSM estimate.
+    assert st["seg-cf"] == "unknown" and st["seg-be"] == "blocked" and st["seg-ab"] == "unknown"
     assert all(
         f["properties"]["status_for_profile"] in {"ok", "unknown", "blocked"}
         for f in fc["features"]

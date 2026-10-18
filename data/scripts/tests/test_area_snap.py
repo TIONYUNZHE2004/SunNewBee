@@ -183,7 +183,7 @@ def test_seed_elmina_urban_park_has_inferred_node_and_warned_route(tmp_path):
     assert park.claims["access_point"].status == "reported"
     ctx = tools.Ctx(world=w, vrs=VerificationStore(str(tmp_path / "vr.db")))
     r = tools.plan_route(ctx, "park-b", URBAN_PARK, "default")
-    assert r.data["status"] in ("confirmed", "partly_unverified") and r.data["routes"]
+    assert r.data["status"] == "likely_ok" and r.data["routes"]
     assert (
         "Route ends at the nearest mapped path to Elmina Urban Park; its entrance is not mapped."
         in r.warnings

@@ -1102,7 +1102,7 @@ export interface components {
             /** Route Id */
             route_id?: string | null;
             /** Route Status */
-            route_status: ("confirmed" | "partly_unverified" | "blocked" | "no_data") | "closed";
+            route_status: ("confirmed" | "likely_ok" | "partly_unverified" | "blocked" | "no_data") | "closed";
         };
         /**
          * ChatEventDoc
@@ -1947,6 +1947,10 @@ export interface components {
         };
         /** Route */
         Route: {
+            /** Access Metres */
+            access_metres?: {
+                [key: string]: number;
+            };
             /** Crossings */
             crossings?: {
                 [key: string]: unknown;
@@ -2012,7 +2016,7 @@ export interface components {
              * Status
              * @enum {string}
              */
-            status: "confirmed" | "partly_unverified" | "blocked" | "no_data";
+            status: "confirmed" | "likely_ok" | "partly_unverified" | "blocked" | "no_data";
             /** Target Node */
             target_node: string;
             /** To Place */
@@ -2066,12 +2070,18 @@ export interface components {
              * Status
              * @enum {string}
              */
-            status: "confirmed" | "partly_unverified" | "blocked" | "no_data";
+            status: "confirmed" | "likely_ok" | "partly_unverified" | "blocked" | "no_data";
             /** Warnings */
             warnings?: string[];
         };
         /** RouteSegment */
         RouteSegment: {
+            /**
+             * Access Level
+             * @default unknown
+             * @enum {string}
+             */
+            access_level: "verified" | "likely_ok" | "unknown" | "barrier" | "not_a_road";
             /** Edge Id */
             edge_id: string;
             /**
@@ -2081,6 +2091,15 @@ export interface components {
             eval: "PASS" | "FAIL" | "UNKNOWN";
             /** Flood Class */
             flood_class?: ("likely_flooded" | "possible" | "unlikely") | null;
+            /**
+             * Rule Id
+             * @default no_basis_v1
+             */
+            rule_id: string;
+            /** Tags Used */
+            tags_used?: {
+                [key: string]: string;
+            };
         };
         /** Scenario */
         Scenario: {

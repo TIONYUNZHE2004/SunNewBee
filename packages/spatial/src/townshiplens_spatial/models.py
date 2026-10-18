@@ -11,7 +11,8 @@ from pydantic import BaseModel, Field, field_validator
 
 ClaimStatus = Literal["unknown", "reported", "verified", "stale", "contested"]
 EvalResult = Literal["PASS", "FAIL", "UNKNOWN"]
-RouteStatus = Literal["confirmed", "partly_unverified", "blocked", "no_data"]
+RouteStatus = Literal["confirmed", "likely_ok", "partly_unverified", "blocked", "no_data"]
+AccessLevel = Literal["verified", "likely_ok", "unknown", "barrier", "not_a_road"]
 FloodClass = Literal["likely_flooded", "possible", "unlikely"]
 ProfileId = Literal["default", "stroller", "wheelchair", "older_adult_rest", "drive"]
 Lens = Literal["access", "flood", "waste"]
@@ -123,6 +124,7 @@ class Edge(BaseModel):
     coords: list[LonLat]
     length_m: float
     name: str | None = None
+    osm_tags: dict[str, str] = Field(default_factory=dict)
     claims: dict[str, Claim] = Field(default_factory=dict)
     # Staff-reported closures (not yet expired); evaluate_edge ignores any outside its window.
     closures: list[Closure] = Field(default_factory=list)
@@ -235,6 +237,9 @@ class RouteSegment(BaseModel):
     edge_id: str
     eval: EvalResult
     flood_class: FloodClass | None = None
+    access_level: AccessLevel = "unknown"
+    rule_id: str = "no_basis_v1"
+    tags_used: dict[str, str] = Field(default_factory=dict)
 
 
 class RoadSection(BaseModel):
@@ -256,6 +261,7 @@ class Route(BaseModel):
     distance_m: float
     est_minutes: float
     segments: list[RouteSegment]
+    access_metres: dict[AccessLevel, float] = Field(default_factory=dict)
     unknowns: list[dict[str, str]] = Field(default_factory=list)  # {element_id, attribute, why}
     # {place_id, node_id, name, status: verified|unverified}; rest points recorded absent are
     # left out.

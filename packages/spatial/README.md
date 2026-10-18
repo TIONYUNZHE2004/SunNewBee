@@ -125,11 +125,58 @@ pruning, bounded by `MAX_REST_LABELS` (deterministic, not wall-clock).
   equals no scenario) are critical violations. `sim.snapshot_world` gives a run one consistent
   view (claims and closures copied, closure time frozen, closure-set hash).
 
+## Access estimates (T-020)
+
+`access.assess_access` adds a map-derived level without rewriting factual
+`evaluate_edge` PASS/FAIL/UNKNOWN. `Edge.osm_tags` retains the importer inputs.
+All levels carry a stable `rule_id` and `tags_used`; urban estimates add context metadata.
+
+| Mode / basis | Level and rule |
+| --- | --- |
+| Current staff survey, all relevant facts verified, `verified_by` present, no demo/OSM/what-if source | `verified`, `staff_verified_v1` |
+| Sidewalk, crossing, pedestrian infrastructure | `likely_ok`, `pedestrian_infrastructure_v1` |
+| Strict walking: paved path / OSM wheelchair=yes | `likely_ok`, `paved_path_v1` / `osm_wheelchair_yes_v1` |
+| Strict walking: footway/ramp, every vertex within 60 m of OSM residential centreline | `likely_ok`, `urban_footway_v1` |
+| Default walking: mapped path, footway, ramp or steps | `likely_ok`, `mapped_path_walking_v1` / `mapped_steps_walking_v1` |
+| Default walking: local street | `likely_ok`, `local_road_walking_v1` |
+| Road with mapped sidewalk | `likely_ok`, `mapped_road_sidewalk_v1` |
+| Driving: street/major road, or paved track | `likely_ok`, `mapped_road_driving_v1` |
+| Driving: footway, sidewalk, crossing, path and other non-roads | `not_a_road`, `driving_nonroad_v1` |
+
+Strict modes are wheelchair, stroller and older-adult-rest. Rough/unknown rural paths,
+unpaved tracks, missing road sidewalks, ambiguous incline/width tags, stale/contested
+relevant claims and restricted permissions do not support an estimate. Explicit OSM mode
+`no`, known physical barriers, active closures and flood FAIL always block routing.
+A specific permission overrides generic access (for example `foot=yes` over `access=no`).
+Possible flood and raster gaps cap an estimate at unknown; driving treats possible flood
+as a barrier. Non-road driving map lines stay grey, including under a flood overlay.
+
+The 60 m urban rule is a **proxy assumption**, using local metre projection and source
+vertices. It does not establish a built-up boundary, sidewalk, width, slope or surveyed
+passability. Decorative buildings and renderer geometry are never inputs.
+
+Route segments expose `access_level`, `rule_id`, `tags_used` and the unchanged factual
+`eval`. `Route.access_metres` totals traversal metres for all five levels, rounded to 0.1 m.
+An estimated segment can have `eval=UNKNOWN`; those missing facts remain in `unknowns`.
+A route covered by verified facts/estimates is `likely_ok` when any segment is estimated.
+Uncovered unknowns, endpoint scenario uncertainty or unmet rest constraints make it
+`partly_unverified`. Search penalises estimates 1.4× and uncovered unknowns 5×.
+`route_access_estimate` evidence is **reported**, with source
+`map-derived estimate (not checked on site)`; it contains rules and per-level metres.
+Never describe estimates as checked, verified, safe or confirmed.
+
+Legacy worlds without raw OSM provenance retain factual routing and explicit demo flags;
+they receive no map estimate and no Verified layer label. Existing confirmed demo routes
+still require the mandatory demo-value caveat. This preserves tiny-fixture semantics.
+
+Reproduce seed counts with `uv run python data/scripts/audit_access.py`.
+The before/after report is `data/audits/2026-10-18-t020-access.json`.
+
 ## Route status
 
 | Status | Meaning |
 | --- | --- |
-| `confirmed` / `partly_unverified` | A route exists; `partly_unverified` crosses UNKNOWN edges |
+| `confirmed` / `likely_ok` / `partly_unverified` | A route exists; `likely_ok` uses map estimates; `partly_unverified` has uncovered unknowns |
 | `blocked` | The endpoints are connected in the unfiltered graph, but every path is cut by a known FAIL |
 | `no_data` | The endpoints are in different graph components (for `drive`: no connecting road, or a place with no mapped road within the snap distance), or a place or profile is unknown. A data gap, never "not reachable" |
 
