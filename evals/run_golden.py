@@ -121,6 +121,15 @@ async def main() -> int:
                 update={"assistant_scope": case.get("assistant_scope", "access_flood")}
             )
             wname = case.get("world", "tiny")
+            if wname not in WORLDS:  # a typo in hero.yaml fails the case, never silently skips
+                why = f"unknown world {wname!r} (known: {', '.join(WORLDS)})"
+                rows.append((case["id"], "FAIL", "-", "-", "-", why))
+                failed += 1
+                report.append(
+                    {"id": case["id"], "pass": False, "failures": [why], "fallback": False}
+                    | {"rejected_attempts": 0}
+                )
+                continue
             if not (WORLDS[wname] / "site.json").exists():
                 rows.append((case["id"], "SKIP", "-", "-", "-", f"{wname} world not built"))
                 continue

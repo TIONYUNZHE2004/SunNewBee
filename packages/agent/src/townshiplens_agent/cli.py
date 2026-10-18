@@ -9,6 +9,8 @@ Uses the seed data when it has been built, else the tiny test fixture. The model
 import argparse
 import asyncio
 import sys
+import tempfile
+from pathlib import Path
 
 import pydantic_ai
 from townshiplens_spatial import tools
@@ -40,7 +42,11 @@ async def main(
     data = ROOT / "data/seed/elmina"
     if not (data / "site.json").exists():
         data = ROOT / "packages/spatial/tests/fixtures/tiny"
-    ctx = tools.Ctx(world=load_world(data), vrs=VerificationStore(str(ROOT / ".data/cli.db")))
+    # A recording files its verification requests in a fresh store, so every re-record writes
+    # the same created/demand values (byte-stable); a plain run keeps the local CLI store.
+    tmp = tempfile.TemporaryDirectory(ignore_cleanup_errors=True) if record else None
+    store = str(Path(tmp.name) / "vr.db") if tmp else str(ROOT / ".data/cli.db")
+    ctx = tools.Ctx(world=load_world(data), vrs=VerificationStore(store))
     if record and (data / "site.json").parent.name == "elmina":
         print("warning: recording on the seed world", file=sys.stderr)
     req = ChatRequest(message=q, profile=profile, scenario_id=scenario)

@@ -221,6 +221,13 @@ async def test_journey_play_without_a_plan_is_rejected(tiny, tmp_path):
         ("There are 5 unchecked places on this route.", False),
         ("Not checked yet: Incline (%) on Ramp; and 25 more unchecked items.", True),  # items
         ("The route runs past 2 places to eat.", True),  # not about rest or checks
+        # Only the number tied to the unchecked / rest phrase counts (fix round 1, minor 1).
+        ("Of the 10 places on the way, 3 are not checked yet.", True),
+        ("3 places on the way are not checked yet, about 2 places near the park.", True),
+        ("3 rest stops, but the first 2 benches are close together.", True),
+        ("Of the 10 places on the way, 4 are not checked yet.", False),
+        ("3 rest stops, but she passes 2 benches in all.", False),
+        ("Rest stops mapped on this route: 3.", True),
     ],
 )
 async def test_counts_must_match_the_plan(seed, tmp_path, line, ok):
@@ -258,6 +265,47 @@ async def test_demo_plan_needs_the_demo_phrase_and_no_verified_word(seed, tmp_pa
         caveats=["Demo values, not yet surveyed."],
     )
     assert any("verified" in e.lower() for e in journey_errors(verified, rec))
+    # Honest negations are allowed (fix round 1); affirmative "verified" stays rejected.
+    for line in (
+        "The rest stops have not been verified.",
+        "None of it has been verified.",
+        "Nothing here is verified by staff yet.",
+        "The ramp hasn't been verified yet.",
+        "None of the rest stops have been verified by staff.",
+    ):
+        ok = _ans(rid, play, steps=[line], caveats=["Demo values, not yet surveyed."])
+        assert journey_errors(ok, rec) == [], line
+    for line in (
+        "The path is verified.",
+        "There is no step and the path is verified.",
+        "Nothing to worry, the ramp was verified.",
+        "None of the benches are missing and the path has been verified.",
+    ):
+        bad = _ans(rid, play, steps=[line], caveats=["Demo values, not yet surveyed."])
+        assert any("verified" in e.lower() for e in journey_errors(bad, rec)), line
+
+
+@needs_seed
+async def test_route_rest_points_count_only_in_the_mapped_form(seed, tmp_path):
+    """The route's rest_points count may differ from the plan's rest events (a rest point at
+    the start, thinning); it is accepted only as "Rest stops mapped on this route: N"."""
+    rec, route = await _planned(seed, tmp_path, HARMONI_1, CAR_PARK_B, "older_adult_rest")
+    rid = route["id"]
+    rp = rec.routes[rid]["rest_points"]
+    rec.routes[rid]["rest_points"] = [*rp, dict(rp[0], place_id="start-bench", name="Start")]
+    assert (
+        sum(e.kind == "rest" for e in rec.journeys[rid].events)
+        == 3
+        != len(rec.routes[rid]["rest_points"])
+    )
+
+    def errs(line):
+        return journey_errors(_ans(rid, summary="Route partly unverified.", steps=[line]), rec)
+
+    assert errs("Rest stops mapped on this route: 4.") == []
+    assert errs("Rest stops mapped on this route: 3.")  # the mapped form is the route's count
+    assert errs("There are 4 rest stops on the way.")  # the walk shows 3
+    assert errs("There are 3 rest stops on the way.") == []
 
 
 # ------------------------------------------------------------------ wording scan (AC-D6)
