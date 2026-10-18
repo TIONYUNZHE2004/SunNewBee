@@ -34,6 +34,14 @@ MAX_EVENTS = 12  # AC-D3: a route of up to 2 km stays readable
 MAX_RAMP_EVENTS = 2
 # Tie-break for events at the same distance: the order the rules are listed in the spec.
 _RULE_ORDER = ("covered", "major_road", "gap", "street", "verified", "ramp", "rest", "arrive")
+# Covered-claim wording by status (not verified, not placeholder).
+_COVERED_BY_STATUS = {
+    "reported": "Someone reported a roof here.",
+    "stale": "A roof was recorded here, but the record is out of date.",
+    "contested": "Reports disagree about a roof here.",
+}
+# Below this, "about N m further on" would read "about 0 m": the clause is dropped.
+_MIN_AHEAD_M = 10.0
 _ATTR_WORDS = {
     "incline_pct": "slope",
     "width_m": "width",
@@ -47,6 +55,18 @@ _ATTR_WORDS = {
 # WGS84 (same constants as the web scene frame).
 _A = 6378137.0
 _E2 = 0.00669437999014
+
+
+class JourneyEvidenceError(RuntimeError):
+    """An event would cite evidence the route did not return: a data or rule bug, never shown
+    to a resident as a fact. Carries the event kind and its element (or route-level source)."""
+
+    def __init__(self, kind: str, element_id: str | None, evidence_id: str):
+        self.kind, self.element_id, self.evidence_id = kind, element_id, evidence_id
+        super().__init__(
+            f"journey {kind} event for {element_id or 'the route'} cites {evidence_id!r}, "
+            "which is not in the route's evidence"
+        )
 
 
 class _Seg:
@@ -75,19 +95,18 @@ def build_journey(
     evidence = {ev.id: ev for ev in routing.evidence_for_route(world, route)}
     total = segs[-1].end if segs else 0.0
 
-    found: list[tuple[str, JourneyEvent]] = []
-    rule_events = (
-        _covered(world, segs, evidence),
-        _major_road(world, route, segs, evidence),
-        _gap(world, route, segs, node_at, evidence),
-        _street_run(world, route, segs, evidence),
-        _verified(segs, evidence),
-        _ramps(route, segs, evidence),
-        _rests(world, route, prof, node_at, evidence),
+    rules: tuple[tuple[str, list[JourneyEvent]], ...] = (
+        ("covered", _covered(world, segs, evidence)),
+        ("major_road", _major_road(world, route, segs, evidence)),
+        ("gap", _gap(world, route, segs, node_at, evidence)),
+        ("street", _street_run(world, route, segs, evidence)),
+        ("verified", _verified(segs, evidence)),
+        ("ramp", _ramps(route, segs, evidence)),
+        ("rest", _rests(world, route, prof, node_at, evidence)),
+        ("arrive", [_arrive(world, route, total, evidence)]),
     )
-    for rule, events in zip(_RULE_ORDER, rule_events, strict=False):
-        found += [(rule, e) for e in events]
-    found.append(("arrive", _arrive(world, route, total, evidence)))
+    assert tuple(name for name, _ in rules) == _RULE_ORDER
+    found = [(rule, e) for rule, events in rules for e in events]
     found = _thin_rests(found)
     found.sort(key=lambda re: (re[1].at_m, _RULE_ORDER.index(re[0])))
     return JourneyPlan(
@@ -177,7 +196,9 @@ def _start_node(world: World, route: Route, edges) -> str:
 
 
 def _event(kind, at, evidence: dict[str, Evidence], evidence_id: str, **kw) -> JourneyEvent:
-    ev = evidence[evidence_id]  # KeyError = an event without route evidence, which is a bug
+    ev = evidence.get(evidence_id)
+    if ev is None:  # an event without route evidence is a bug: name it, never guess
+        raise JourneyEvidenceError(kind, kw.get("element_id") or kw.get("source"), evidence_id)
     return JourneyEvent(
         kind=kind,
         at_m=round(at, 1),
@@ -219,7 +240,8 @@ def _covered(world, segs, evidence):
         elif c.status == "verified":
             body = "A roof over this stretch, verified."
         else:
-            body = "Someone reported a roof here. Not checked yet."
+            said = _COVERED_BY_STATUS.get(c.status, _COVERED_BY_STATUS["reported"])
+            body = f"{said} Not checked yet."
         return [
             _event(
                 "covered",
@@ -291,11 +313,16 @@ def _gap(world, route, segs, node_at, evidence):
     at = min(begin + limit, end)
     ahead = max(0.0, end - at)
     to_rest = segs[i1 - 1].v in rest_nodes
-    first = (
-        f"The next mapped rest stop is about {_round10(ahead)} m further on."
-        if to_rest
-        else f"No mapped rest stop before the destination, about {_round10(ahead)} m on."
-    )
+    if ahead < _MIN_AHEAD_M:
+        first = (
+            "The next mapped rest stop is just ahead."
+            if to_rest
+            else "No mapped rest stop before the destination."
+        )
+    elif to_rest:
+        first = f"The next mapped rest stop is about {_round10(ahead)} m further on."
+    else:
+        first = f"No mapped rest stop before the destination, about {_round10(ahead)} m on."
     return [
         _event(
             "gap",
@@ -435,9 +462,9 @@ def _rests(world, route, prof, node_at, evidence):
                 status="verified" if verified else "unverified",
                 title=r["name"],
                 body=(
-                    "Rest stop. She sits for a minute."
+                    "Rest stop: a minute's pause here."
                     if verified
-                    else "Mapped rest stop, not checked yet. She sits for a minute."
+                    else "Rest stop: mapped, not checked yet. A minute's pause here."
                 ),
             )
         )
@@ -468,10 +495,13 @@ def _arrive(world, route, total, evidence):
 
 
 def _thin_rests(found):
-    """Keep at most MAX_EVENTS events by keeping evenly spread rest points."""
+    """Keep at most MAX_EVENTS events by keeping rest points spread evenly along the route."""
     if len(found) <= MAX_EVENTS:
         return found
-    rests = [i for i, (rule, _) in enumerate(found) if rule == "rest"]
+    rests = sorted(
+        (i for i, (rule, _) in enumerate(found) if rule == "rest"),
+        key=lambda i: (found[i][1].at_m, i),
+    )
     room = MAX_EVENTS - (len(found) - len(rests))
     keep = {rests[math.floor((k + 0.5) * len(rests) / room)] for k in range(room)}
     return [x for i, x in enumerate(found) if found[i][0] != "rest" or i in keep]

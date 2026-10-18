@@ -13,10 +13,17 @@ import pytest
 from hypothesis import HealthCheck, assume, given, settings
 from hypothesis import strategies as st
 from rest_support import add_rest, detour_spur
+from townshiplens_spatial import journey as journey_mod
 from townshiplens_spatial import routing
 from townshiplens_spatial.geo import haversine_m
-from townshiplens_spatial.journey import HOLD_S, MAX_EVENTS, build_journey
-from townshiplens_spatial.models import Claim, Edge, JourneyPlan, Place
+from townshiplens_spatial.journey import (
+    HOLD_S,
+    MAX_EVENTS,
+    JourneyEvidenceError,
+    _thin_rests,
+    build_journey,
+)
+from townshiplens_spatial.models import Claim, Edge, JourneyEvent, JourneyPlan, Place
 from townshiplens_spatial.routing import plan_route
 from townshiplens_spatial.world import load_world
 
@@ -256,6 +263,69 @@ def test_journey_is_deterministic(world):
     assert a == b
 
 
+@pytest.mark.parametrize(
+    ("status", "words"),
+    [("stale", "out of date"), ("contested", "disagree"), ("reported", "reported a roof")],
+)
+def test_covered_body_is_worded_by_claim_status(world, status, words):  # review minor #4
+    street_spur(world)
+    world.edges["st-1"].claims["covered"].status = status
+    _, plan = _plan(world, "park-b", "shop", "stroller")
+    covered = next(e for e in plan.events if e.kind == "covered")
+    assert covered.status == status
+    assert words in covered.body and "Not checked yet" in covered.body
+    if status != "reported":
+        assert "reported a roof" not in covered.body
+
+
+def test_gap_body_drops_the_distance_when_the_rest_stop_is_right_ahead(world):  # minor #5
+    route = plan_route(world, "park-b", "kiosk", "older_adult_rest").routes[0]
+    near = route.model_copy(update={"rest_limit_m": route.max_gap_between_rest_m - 3})
+    plan = build_journey(world, near, "older_adult_rest", "15:20")
+    gap = next(e for e in plan.events if e.kind == "gap")
+    assert not re.search(r"about \d+ m", gap.body), gap.body
+    assert "destination" in gap.body
+
+
+def test_rests_are_thinned_by_distance_not_list_order():  # review minor #6
+    def ev(kind, at):
+        return JourneyEvent(
+            kind=kind,
+            at_m=at,
+            element_id=f"p{at}",
+            status="verified",
+            evidence_id="e",
+            title="t",
+            body="b",
+            hold_s=HOLD_S[kind],
+        )
+
+    ats = [70.0, 10.0, 120.0, 30.0, 0.5, 90.0, 50.0, 130.0, 20.0, 110.0, 60.0, 80.0, 40.0, 100.0]
+    found = [("rest", ev("rest", a)) for a in ats] + [("arrive", ev("arrive", 140.0))]
+    kept = [e.at_m for rule, e in _thin_rests(found) if rule == "rest"]
+    room = MAX_EVENTS - 1
+    in_order = sorted(ats)
+    want = {in_order[math.floor((k + 0.5) * len(ats) / room)] for k in range(room)}
+    assert sorted(kept) == sorted(want)
+
+
+def test_missing_route_evidence_raises_a_named_error(world, monkeypatch):  # review minor #7
+    route = plan_route(world, "park-b", "kiosk", "stroller").routes[0]
+    monkeypatch.setattr(journey_mod.routing, "evidence_for_route", lambda w, r: [])
+    with pytest.raises(JourneyEvidenceError) as err:
+        build_journey(world, route, "stroller", "15:20")
+    # With no route evidence nothing is cited as verified; the ramp is the first event built.
+    assert err.value.kind == "unknown" and err.value.element_id == "seg-cf"
+    assert "unknown" in str(err.value) and "seg-cf" in str(err.value)
+
+
+def test_rest_body_is_neutral(world):  # review minor #8
+    _, plan = _plan(world, "park-b", "kiosk", "older_adult_rest")
+    rest = next(e for e in plan.events if e.kind == "rest")
+    assert rest.body.startswith("Rest stop")
+    assert not re.search(r"\b(she|he|her|his)\b", rest.body, re.I), rest.body
+
+
 # ---------------------------------------------------------------- shared property checks
 
 
@@ -284,6 +354,14 @@ def check_plan(world, route: "routing.Route", plan: JourneyPlan):
             assert ev.status == "verified" and not e.demo, e
         if e.demo and e.kind in ("verified", "covered"):
             assert "Demo value · not surveyed" in e.body, e
+        if e.kind in ("verified", "covered"):
+            # Grounded in the world, not in the cited evidence (review minor #2): when any claim
+            # the event rests on is a placeholder, the event is demo, and only then.
+            edge = world.edges[e.element_id]
+            placeholder = any(
+                edge.claims[a].evidence_type == routing.PLACEHOLDER_SOURCE for a in e.attributes
+            )
+            assert e.demo is placeholder, e
         assert 0 <= e.at_m <= plan.spans[-1][1] + 1e-6 if plan.spans else e.at_m == 0
 
 
