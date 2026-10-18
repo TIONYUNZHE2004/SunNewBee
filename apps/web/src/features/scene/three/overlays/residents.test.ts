@@ -230,3 +230,39 @@ describe("rolloutPoints", () => {
     expect(pts[2]?.coords).toEqual([]);
   });
 });
+
+describe("review fixes", () => {
+  const line2: [number, number][] = [
+    [101.5, 3.0],
+    [101.5 + 100 * 1e-5, 3.0],
+  ];
+  it("walking() is true only for walkers with a route of two or more points", () => {
+    const r = createResidents(frame);
+    r.setRollout([
+      { id: "x", kind: "reach", coords: [line2[0] as [number, number]], moving: true, offset: 0 },
+    ]);
+    expect(r.walking()).toBe(false);
+    r.setRollout([{ id: "x", kind: "reach", coords: line2, moving: true, offset: 0 }]);
+    expect(r.walking()).toBe(true);
+    r.setRollout([]);
+    expect(r.walking()).toBe(false);
+  });
+
+  it("an unknown Day state falls back to a neutral colour", () => {
+    const r = createResidents(frame);
+    r.setDay([{ r: "a", lon: 101.5, lat: 3, state: "bogus" as never }], null);
+    expect(colourAt(fill(r.group), 0)).toBe(new THREE.Color(RESIDENT_STYLE.noData.color).getHex());
+  });
+
+  it("builds no meshes while there is nothing to draw, and keeps ids across camera frames", () => {
+    const r = createResidents(frame);
+    r.setDay([], null);
+    expect(fills(r.group)).toHaveLength(0);
+    r.setDay([dot("a", "walk"), dot("b", "walk", 3)], null);
+    const m = fill(r.group);
+    const ids = m.userData.ids;
+    r.setView({ x: 5, y: 50, z: 5 });
+    r.setView({ x: 9, y: 50, z: 5 });
+    expect(m.userData.ids).toBe(ids);
+  });
+});

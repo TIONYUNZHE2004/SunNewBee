@@ -42,6 +42,8 @@ export interface Residents {
   setRollout(points: RolloutPoint[]): void;
   /** Camera position (legibility scale) and clock (rollout walkers); the overlay layer calls it each frame. */
   setView(cam: { x: number; y: number; z: number }, nowMs?: number): void;
+  /** True while any rollout walker is moving along a route (needs frames to play). */
+  walking(): boolean;
   dispose(): void;
 }
 
@@ -143,12 +145,22 @@ export function createResidents(frame: LocalFrame): Residents {
   const sc = new THREE.Vector3();
   const distance = (it: Item) => (cam ? Math.hypot(cam.x - it.x, cam.y, cam.z - it.z) : 0);
 
-  const apply = () => {
+  const apply = (rebuildIds = true) => {
     const items = [...day, ...rollout];
-    if (!fill || !outline || items.length > capacity) build(items.length);
+    if (items.length === 0) {
+      // Nothing to draw: build no meshes for it.
+      if (fill && outline) fill.count = outline.count = 0;
+      group.visible = false;
+      ring.visible = false;
+      return;
+    }
+    if (!fill || !outline || items.length > capacity) {
+      build(items.length);
+      rebuildIds = true;
+    }
     const f = fill as THREE.InstancedMesh;
     const o = outline as THREE.InstancedMesh;
-    f.userData.ids = items.map((i) => i.id);
+    if (rebuildIds) f.userData.ids = items.map((i) => i.id);
     let focus: Item | null = null;
     items.forEach((it, i) => {
       const s = displayScale(distance(it)) * (it.focused ? FOCUS_SCALE : 1);
@@ -173,10 +185,11 @@ export function createResidents(frame: LocalFrame): Residents {
     }
   };
 
-  const dayColours = Object.fromEntries(
+  const NEUTRAL = new THREE.Color(RESIDENT_STYLE.noData.color);
+  const dayColours: Record<string, THREE.Color> = Object.fromEntries(
     Object.entries(DAY_STYLE).map(([k, v]) => [k, new THREE.Color(v.color)]),
   );
-  const rolloutColours = Object.fromEntries(
+  const rolloutColours: Record<string, THREE.Color> = Object.fromEntries(
     Object.entries(RESIDENT_STYLE).map(([k, v]) => [k, new THREE.Color(v.color)]),
   );
 
@@ -195,7 +208,7 @@ export function createResidents(frame: LocalFrame): Residents {
           id: d.r,
           x,
           z,
-          colour: dayColours[d.state] as THREE.Color,
+          colour: dayColours[d.state] ?? NEUTRAL,
           focused: d.r === focus,
         };
       });
@@ -205,13 +218,17 @@ export function createResidents(frame: LocalFrame): Residents {
       rollout = points
         .filter((p) => p.coords.length > 0)
         .map((p) => {
-          const walk = { coords: p.coords, moving: p.moving, offset: p.offset };
+          const walk = {
+            coords: p.coords,
+            moving: p.moving && p.coords.length >= 2,
+            offset: p.offset,
+          };
           const [x, z] = walkerXZ(walk, 0);
           return {
             id: p.id,
             x,
             z,
-            colour: rolloutColours[p.kind] as THREE.Color,
+            colour: rolloutColours[p.kind] ?? NEUTRAL,
             focused: false,
             walk,
           };
@@ -224,7 +241,10 @@ export function createResidents(frame: LocalFrame): Residents {
       if (!moved && !walking) return;
       cam = { x: c.x, y: c.y, z: c.z };
       for (const r of rollout) if (r.walk) [r.x, r.z] = walkerXZ(r.walk, nowMs);
-      apply();
+      apply(false);
+    },
+    walking() {
+      return rollout.some((r) => r.walk?.moving);
     },
     dispose() {
       for (const m of [fill, outline]) m?.dispose();
