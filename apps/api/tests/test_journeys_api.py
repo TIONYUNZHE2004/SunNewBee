@@ -96,24 +96,6 @@ def test_a_journey_evidence_bug_is_a_named_500(monkeypatch):
 # ---------------------------------------------------------------- AC-D4: same plan everywhere
 
 
-def _play_after_highlight(monkeypatch, start="15:20"):
-    """Make the mock emit journey.play after route.highlight (D-T3 does this for real)."""
-    from townshiplens_agent import mock
-
-    real = mock._final
-
-    def final(**ans):
-        for it in list(ans.get("scene_intents") or []):
-            if it.get("kind") == "route.highlight":
-                ans["scene_intents"] = [
-                    *ans["scene_intents"],
-                    {"kind": "journey.play", "route_id": it["route_id"], "start_time": start},
-                ]
-        return real(**ans)
-
-    monkeypatch.setattr(mock, "_final", final)
-
-
 def _sse(client, msg, profile, scenario_id=None):
     data = []
     body = {"message": msg, "profile": profile, "scenario_id": scenario_id}
@@ -124,27 +106,33 @@ def _sse(client, msg, profile, scenario_id=None):
 
 
 @pytest.mark.parametrize("scenario_id", [None, "stage_p3m"])
-def test_sse_journey_equals_post_journeys_tiny(monkeypatch, scenario_id):  # AC-D4
-    _play_after_highlight(monkeypatch)
+def test_sse_journey_equals_post_journeys_tiny(scenario_id):  # AC-D4
+    # The real mock emits journey.play after route.highlight (D-T3), at the demo start time.
+    from townshiplens_agent.journeys import JOURNEY_START
+
     c = TestClient(app)
     data = _sse(c, KIOSK, "stroller", scenario_id)
     call = next(d for d in data if d["type"] == "tool.call" and d["name"] == "plan_route")
     intents = [d["intent"] for d in data if d["type"] == "scene.intent"]
     play = next(i for i in intents if i["kind"] == "journey.play")
     hl = next(i for i in intents if i["kind"] == "route.highlight")
-    assert play["route_id"] == hl["route_id"] and play["start_time"] == "15:20"
+    assert play["route_id"] == hl["route_id"] and play["start_time"] == JOURNEY_START
     assert play["journey"]["route_id"] == play["route_id"]
     a = call["args"]
     assert a["scenario_id"] == scenario_id  # a UI scenario is injected into plan_route
     rest = c.post(
         "/journeys",
-        json=_body(a["from_id"], a["to_id"], a["profile"], "15:20", scenario_id=a["scenario_id"]),
+        json=_body(
+            a["from_id"], a["to_id"], a["profile"], JOURNEY_START, scenario_id=a["scenario_id"]
+        ),
     )
     assert rest.status_code == 200, rest.text
     assert play["journey"] == rest.json()
     assert [e["kind"] for e in rest.json()["events"]] == ["verified", "unknown", "arrive"]
     if scenario_id:  # the scenario's own route, not the baseline one
-        base = c.post("/journeys", json=_body(a["from_id"], a["to_id"], a["profile"], "15:20"))
+        base = c.post(
+            "/journeys", json=_body(a["from_id"], a["to_id"], a["profile"], JOURNEY_START)
+        )
         assert base.json()["route_id"] != rest.json()["route_id"]
 
 

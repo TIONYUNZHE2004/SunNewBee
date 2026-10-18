@@ -37,7 +37,11 @@ one, on the 18 Oct seed with the T-015 scorer, is `results/2026-10-18-answer-key
 The answer-key runner takes `ASSISTANT_SCOPE` from the key's `scope` (`access_flood`), so an
 environment configured for legacy tests cannot silently widen the accuracy target. The
 general golden suite tags removed-feature cases with `assistant_scope: all`; in-scope golden
-cases run with the default restricted registry.
+cases run with the default restricted registry. Golden cases run on the tiny fixture unless
+they set `world: elmina` (the committed seed; the journey demo question `journey-demo-walker`
+needs Harmoni 1 and Lakeside Mall Car Park B, which only the seed has). Such a case is reported
+as SKIP when the seed is absent. `intents_include` lists scene intent kinds that must appear,
+in that order (e.g. `route.highlight` then `journey.play`).
 
 `correct`, `honestly_unverified`, `refused_correctly` and `wrong` partition the tested turns.
 `unsupported_claims` counts turns with a detected unsupported assertion and overlaps `wrong`.
