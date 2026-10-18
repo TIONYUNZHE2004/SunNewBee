@@ -1204,7 +1204,7 @@
     "factory": {
       "group": "archetype",
       "file": "archetypes/factory.glb",
-      "bytes": 48532,
+      "bytes": 48528,
       "repeat": "none",
       "frontage": "short",
       "fit": {
@@ -1272,7 +1272,7 @@
     "mall": {
       "group": "archetype",
       "file": "archetypes/mall.glb",
-      "bytes": 74480,
+      "bytes": 74472,
       "repeat": "none",
       "frontage": "short",
       "fit": {
@@ -1408,7 +1408,7 @@
     "lakeside_mall": {
       "group": "landmark",
       "file": "landmarks/lakeside_mall.glb",
-      "bytes": 87268,
+      "bytes": 87264,
       "repeat": "none",
       "frontage": "short",
       "fit": {
@@ -1476,7 +1476,7 @@
     "kanopi": {
       "group": "landmark",
       "file": "landmarks/kanopi.glb",
-      "bytes": 446300,
+      "bytes": 447088,
       "repeat": "none",
       "frontage": "long",
       "fit": {
@@ -1524,12 +1524,12 @@
           "lods": [
             {
               "node": "kanopi__tower__LOD0",
-              "tris": 43452,
+              "tris": 44052,
               "maxM": 300.0
             },
             {
               "node": "kanopi__tower__LOD1",
-              "tris": 6370,
+              "tris": 6496,
               "maxM": 1500.0
             },
             {
