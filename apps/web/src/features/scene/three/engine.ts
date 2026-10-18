@@ -428,6 +428,12 @@ function build(
    * program set is small and fixed by the material cache keys (about 32 programs), so keeping them
    * costs little; the renderer's dispose releases them.
    */
+  let compileWarned = false;
+  const warnCompileOnce = (err: unknown) => {
+    if (compileWarned) return;
+    compileWarned = true;
+    console.warn("Three.js: compileAsync failed; layers compile on first render.", err);
+  };
   const pinned = new Set<object>();
   const pinPrograms = () => {
     const programs = renderer.info.programs as Array<{ usedTimes: number }> | null;
@@ -775,6 +781,11 @@ function build(
       let compiled: Promise<unknown>;
       try {
         compiled = renderer.compileAsync(d.group, camera, scene);
+      } catch (err) {
+        // A synchronous throw must not leave the slot blank: show the layer, which then compiles
+        // on its first render as before.
+        warnCompileOnce(err);
+        compiled = Promise.resolve();
       } finally {
         renderer.setRenderTarget(prev);
       }
