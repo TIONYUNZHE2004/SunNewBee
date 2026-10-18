@@ -61,6 +61,19 @@ Each local agent works in its own git worktree, so agents never edit the same fo
 - Live OpenRouter budget: **US$15 for about 4 days**, tracked in `SPEND.md` on the board branch (AI engineer up to US$3 a day and US$10 in total, backend engineer up to US$0.50 a day and US$1.50 in total, US$1.50 reserved for control, US$2 for Yunzhe's own testing). At a running total of US$13, live calls stop. Rounds of at most 10 live questions.
 - Agents work in **resumable rounds** (board README, "Rounds"): each round ends by logging the exact next step and pushing, so a usage limit pauses work without losing it. A timer on Yunzhe's computer starts the next round.
 
+## How to talk to Yunzhe (every agent)
+
+Yunzhe reads replies in a chat or terminal. Every agent follows these rules in every reply and board entry:
+
+1. **Lead with the answer** in the first line. Most replies stay under 15 lines.
+2. **Write about 70% ASD-STE100:** sentences of 20 words or fewer, active voice, no filler.
+3. **Always recommend one option** and say why in one or two lines. Mark it "Recommended". List the other options briefly. Ask only when a wrong guess is costly or cannot be undone.
+4. **Answer the real question.** If Yunzhe asks "will route questions still be refused?", show what the app does now, not a list of finished tasks.
+5. **Label what you did not verify** as *inference* or *assumption*. Never claim done without evidence (time, commit, test result).
+6. **Steps:** number them, say where to run each one and what output to expect, and stop at the first step that depends on a result.
+7. **Format by shape:** a comparison is a table, a flow is a diagram, long detail goes in a file or on the board with its path.
+8. **Simplest correct solution.** No side notes unless they change a decision.
+
 ## How the two local engineers work together
 
 The AI engineer (local Claude) and the backend engineer (local Codex) refine one product together. The engine computes the facts; the assistant only phrases them. Most real problems sit on the line between the two.
