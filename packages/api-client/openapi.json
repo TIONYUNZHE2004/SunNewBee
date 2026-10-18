@@ -324,6 +324,40 @@
         "title": "BeliefTable",
         "type": "object"
       },
+      "BoundaryRef": {
+        "description": "Display-only Elmina outline (base/boundary.geojson); routing and answers never read it.",
+        "properties": {
+          "area_km2": {
+            "title": "Area Km2",
+            "type": "number"
+          },
+          "as_of": {
+            "title": "As Of",
+            "type": "string"
+          },
+          "file": {
+            "title": "File",
+            "type": "string"
+          },
+          "method": {
+            "title": "Method",
+            "type": "string"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          }
+        },
+        "required": [
+          "file",
+          "source",
+          "method",
+          "area_km2",
+          "as_of"
+        ],
+        "title": "BoundaryRef",
+        "type": "object"
+      },
       "BuildRamp": {
         "description": "Imagine a capital work: the path rebuilt step-free (steps become a ramp).",
         "properties": {
@@ -3937,6 +3971,16 @@
             },
             "title": "Bbox",
             "type": "array"
+          },
+          "boundary": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BoundaryRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "center": {
             "items": {
