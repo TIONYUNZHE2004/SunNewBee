@@ -23,7 +23,8 @@ import {
 /**
  * Smoothed yaw per agent id, with the motion time (ms) it was last updated. Keyed by id (not by
  * slot) so a layer rebuilt from a different union of tiles keeps every surviving agent turning
- * smoothly: pass the same map to each rebuild. Bounded by the deterministic agent ids of the world.
+ * smoothly: pass the same map to each rebuild. Each rebuild prunes the ids that are not in its agent
+ * set, so streaming never grows the map beyond the latest set.
  */
 export type YawMemory = Map<string, { yaw: number; at: number }>;
 
@@ -96,6 +97,10 @@ export function createMotionLayer(
   opts: { yaw?: YawMemory } = {},
 ): MotionLayer & { setDensity(w: MoodMix): void } {
   const yawMemory: YawMemory = opts.yaw ?? new Map();
+  if (opts.yaw) {
+    const ids = new Set(agents.map((a) => a.id));
+    for (const id of yawMemory.keys()) if (!ids.has(id)) yawMemory.delete(id);
+  }
   const group = new THREE.Group();
   group.name = "motion-agents";
   group.userData.decorative = true;

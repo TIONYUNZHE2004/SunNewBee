@@ -289,4 +289,21 @@ describe("createMotionLayer", () => {
     expect(after.yaw).toBeCloseTo(smoothYaw(kept.yaw, raw, 0.0167), 6);
     expect(memory.get("new")).toBeDefined();
   });
+
+  it("a rebuild prunes YawMemory to the latest agent set (streaming never grows it)", () => {
+    const memory: YawMemory = new Map();
+    const first = make([agent("a", "person", 0, 0), agent("b", "person", 0, 5)], lib(), memory);
+    first.tick(0, cam(0, 30, 0));
+    expect([...memory.keys()].sort()).toEqual(["a", "b"]);
+    // Tile of "a" leaves, "c" arrives: "a" is dropped at once, "b" keeps its entry.
+    const kept = memory.get("b");
+    make([agent("b", "person", 0, 5), agent("c", "vehicle", 0, 10)], lib(), memory);
+    expect([...memory.keys()]).toEqual(["b"]);
+    expect(memory.get("b")).toBe(kept);
+    for (let i = 0; i < 50; i++) {
+      const l = make([agent(`s${i}`, "person", 0, 0)], lib(), memory);
+      l.tick(i * 16.7, cam(0, 30, 0));
+    }
+    expect(memory.size).toBe(1);
+  });
 });

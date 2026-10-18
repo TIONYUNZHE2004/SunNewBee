@@ -498,7 +498,14 @@ export function planAgents(input: AgentsInput): Agent[] {
               ? SPEED.cyclist
               : lerp(SPEED.walk, hash01(id, "speed"));
       }
-      const lane = offsetLeft(pts, lateral);
+      // Vehicles (ruling P4-O): a closed out-and-back loop, each leg in its own left lane, joined
+      // by lane-change U-turns and closed on the first point, so poseAt loops it and the return
+      // leg never drives on the right. People keep the single pavement line and ping-pong.
+      const lane =
+        kind === "vehicle"
+          ? [...offsetLeft(pts, lateral), ...offsetLeft([...pts].reverse(), lateral)]
+          : offsetLeft(pts, lateral);
+      if (kind === "vehicle") lane.push(lane[0] as P);
       const length = polyLength(lane);
       out.push({
         id,

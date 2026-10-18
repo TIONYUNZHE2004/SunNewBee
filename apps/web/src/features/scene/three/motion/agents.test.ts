@@ -235,7 +235,10 @@ describe("planAgents", () => {
     expect(agents.length).toBeGreaterThan(5);
     const m = AGENT_CHUNK_M / 2 + 3; // half a chunk past the box, plus the lane offset
     for (const a of agents) {
-      expect(a.length).toBeLessThanOrEqual(AGENT_CHUNK_M + 1);
+      // A vehicle drives its chunk out and back (ruling P4-O): two legs plus two lane-change
+      // U-turns of at most 2 x 2.5 m each (major road, quarter of 10 m either side).
+      if (a.kind === "vehicle") expect(a.length).toBeLessThanOrEqual(2 * (AGENT_CHUNK_M + 1) + 10);
+      else expect(a.length).toBeLessThanOrEqual(AGENT_CHUNK_M + 1);
       for (let i = 0; i < a.path.length; i += 2) {
         expect(a.path[i]! >= box.x0 - m && a.path[i]! <= box.x1 + m).toBe(true);
         expect(a.path[i + 1]! >= box.z0 - m && a.path[i + 1]! <= box.z1 + m).toBe(true);
@@ -292,6 +295,67 @@ describe("planAgents per tile box", () => {
     plan({ walk: cross, area: { box: Q[0]!, seed: "x" } });
     expect(plan({ walk: cross, area, caps: { vehicles: 3, people: 3 } })).toEqual(first);
     expect(first.length).toBeGreaterThan(0);
+  });
+});
+
+describe("planAgents vehicles loop out and back on their own lane (ruling P4-O)", () => {
+  it("every vehicle path is closed (first point within CLOSED_LOOP_M of the last); people stay open", () => {
+    const agents = plan({ caps: { vehicles: 1e6, people: 1e6 } });
+    const cars = ofKind(agents, "vehicle");
+    expect(cars.length).toBeGreaterThan(5);
+    for (const a of cars) {
+      const n = a.path.length;
+      const gap = Math.hypot(a.path[n - 2]! - a.path[0]!, a.path[n - 1]! - a.path[1]!);
+      expect(gap).toBeLessThanOrEqual(CLOSED_LOOP_M);
+    }
+    for (const a of ofKind(agents, "person")) {
+      const n = a.path.length;
+      expect(Math.hypot(a.path[n - 2]! - a.path[0]!, a.path[n - 1]! - a.path[1]!)).toBeGreaterThan(
+        CLOSED_LOOP_M,
+      );
+    }
+  });
+
+  it("a car keeps left of its direction of travel on both halves, relative to the source edge", () => {
+    // One straight 100 m street along x (a single chunk), centre line z = 0.
+    const street = fc(
+      line(
+        "street",
+        [
+          [-50, 0],
+          [50, 0],
+        ],
+        "s",
+      ),
+    );
+    const cars = ofKind(
+      plan({
+        walk: street,
+        area: { box: boxAround(0, 0, 200), seed: "t" },
+        caps: { vehicles: 1e6, people: 0 },
+      }),
+      "vehicle",
+    );
+    expect(cars.length).toBeGreaterThan(0);
+    let east = 0;
+    let west = 0;
+    for (const a of cars) {
+      const lap = a.length / a.speed;
+      for (let i = 0; i < 400; i++) {
+        const p = poseAt(a, (i / 400) * lap * 1.3);
+        if (Math.abs(p.x) > 40) continue; // away from the lane-change U-turns at the ends
+        const dx = Math.sin(p.yaw);
+        const dz = Math.cos(p.yaw);
+        if (Math.abs(dx) < 0.99) continue; // mid U-turn
+        // Left of travel with y up is (dz, -dx); the offset from the centre line is (0, p.z).
+        const left = p.z * -dx;
+        expect(left).toBeGreaterThan(1); // a quarter of the 6 m street = 1.5 m
+        if (dx > 0) east++;
+        else west++;
+      }
+    }
+    expect(east).toBeGreaterThan(10);
+    expect(west).toBeGreaterThan(10); // the return half was sampled
   });
 });
 
