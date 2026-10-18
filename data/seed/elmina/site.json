@@ -65,8 +65,8 @@
   "boundary": {
     "file": "base/boundary.geojson",
     "source": "fallback_union",
-    "method": "No OSM boundary relation named City of Elmina. Union of Elmina-named precinct polygons + Urban Park / Lakeside Mall / Harmoni area + 250 m around deep-spot centres, buffered 60 m, simplified ~5 m. Display only.",
-    "area_km2": 13.72,
+    "method": "No OSM boundary relation named City of Elmina. Union of Elmina-named precinct polygons + Urban Park / Lakeside Mall / Harmoni area + 100 m around deep-spot centres, smoothed (200 m close+open), buffered 60 m, simplified ~20 m. Display only.",
+    "area_km2": 13.43,
     "as_of": "2026-10-18"
   }
 }
