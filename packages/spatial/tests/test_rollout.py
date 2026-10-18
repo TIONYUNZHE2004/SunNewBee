@@ -47,9 +47,9 @@ def test_rollout_is_deterministic_and_does_not_touch_the_world(world):
 def test_tipping_point_for_one_journey(world):
     t = rollout.tipping_point(world, "park-b", "default", to_id="playground")
     assert (t.stages[0].stage, t.stages[0].status) == ("baseline", "confirmed")
-    # the path still exists at +3 m, but the playground itself is likely flooded there
+    # at +3 m the playground itself is likely flooded: a flooded destination is blocked (T-016)
     p3 = t.stages[2]
-    assert (p3.stage, p3.status, p3.end_flood) == ("stage_p3m", "confirmed", "likely_flooded")
+    assert (p3.stage, p3.status, p3.end_flood) == ("stage_p3m", "blocked", "likely_flooded")
     assert t.reached_at_normal and t.breaks_at == "stage_p3m"
     assert t.labels["stage_p3m"] == "River +3 m"
     assert t.stages[0].demo_evidence  # the confirmed route rests on demo values (review C2)
