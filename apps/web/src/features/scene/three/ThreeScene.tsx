@@ -278,9 +278,27 @@ export default function ThreeScene({
   // The initial tier: the user's choice, else Medium until the GPU is known.
   const initialTier = useRef<Tier>(quality === "auto" ? "medium" : quality);
 
+  // Quality tier: the user's choice, or the GPU-picked tier lowered by the frame monitor.
+  const detected = useMemo<Tier>(
+    () =>
+      engine
+        ? pickTier(
+            gpuName(engine.gl()),
+            (navigator as Navigator & { deviceMemory?: number }).deviceMemory,
+          )
+        : "medium",
+    [engine],
+  );
+  const [dropped, setDropped] = useState<Tier | null>(null);
+  const tier: Tier = quality === "auto" ? (dropped ?? detected) : quality;
+  /** The live tier for code that must not re-run on a tier change (the city mesh build). */
+  const tierRef = useRef(tier);
+  tierRef.current = tier;
+
   // Seeded static props (trees, lamps, furniture, construction) for the hero district. Planned once
   // the buildings, land cover and walk are all in, from data that does not depend on profile or
-  // scenario. Decorative only. The tier is read once, like the ground layer's.
+  // scenario, and re-planned when the quality tier changes (PROP_CAPS[tier]; none at Low).
+  // Decorative only.
   const propsPlan = useMemo(
     () =>
       frame && detailsOn && walk && buildings && loaded && !showroom
@@ -294,11 +312,11 @@ export default function ThreeScene({
             frame,
             centre: HERO_CENTRE,
             radiusM: HERO_RADIUS_M,
-            tier: initialTier.current,
+            tier,
             m: loaded.manifest,
           })
         : null,
-    [frame, detailsOn, walk, buildings, loaded, showroom],
+    [frame, detailsOn, walk, buildings, loaded, showroom, tier],
   );
   const propsKits = useRef<Map<string, Placement[]> | undefined>(undefined);
   propsKits.current = propsPlan?.kits;
@@ -419,7 +437,7 @@ export default function ThreeScene({
       const inst = createCityInstances(lib, plan, m, roleUniforms, {
         kits: propsKits.current,
         motion: engine.motion,
-        kitLodScale: showroom ? 1 : KIT_LOD_SCALE[initialTier.current],
+        kitLodScale: showroom ? 1 : KIT_LOD_SCALE[tierRef.current],
       });
       cityPlanRef.current = plan;
       const g = buildCityGeometry(buildings, frame, {
@@ -453,7 +471,8 @@ export default function ThreeScene({
     }
   }, [engine, frame, buildings, loaded, showroom, roleUniforms]);
 
-  // Props arrive after the city's first frame: rebuild only the instances (the city mesh is kept).
+  // Props arrive after the city's first frame, and are re-planned on a tier change: rebuild only the
+  // instances (the city mesh is kept).
   useEffect(() => {
     if (!engine || !loaded || !propsPlan || !handedOff.current || !cityPlanRef.current) return;
     try {
@@ -465,14 +484,14 @@ export default function ThreeScene({
         {
           kits: propsPlan.kits,
           motion: engine.motion,
-          kitLodScale: KIT_LOD_SCALE[initialTier.current],
+          kitLodScale: KIT_LOD_SCALE[tier],
         },
       );
       engine.setAssets(inst);
     } catch (err) {
       console.warn(`${ASSET_WARN}: props: ${String(err)}`);
     }
-  }, [engine, loaded, propsPlan, roleUniforms]);
+  }, [engine, loaded, propsPlan, roleUniforms, tier]);
 
   // Lamp light pools (one instanced draw, from the planned lamps). Decorative; the engine slot
   // disposes them when the props are re-planned or the scene goes away.
@@ -497,8 +516,9 @@ export default function ThreeScene({
   const driverRef = useRef<MotionDriver | null>(null);
   const moodRef = useRef<MoodWeights>({ day: 1, dusk: 0, night: 0 });
   useEffect(() => {
-    if (!engine || !frame || showroom) return;
-    const ambient = createAmbient(initialTier.current, frame, HERO_CENTRE, "ambient");
+    // None at Low (Review Focus 5); counts follow the tier.
+    if (!engine || !frame || showroom || tier === "low") return;
+    const ambient = createAmbient(tier, frame, HERO_CENTRE, "ambient");
     ambient.tick(performance.now(), moodRef.current);
     ambientRef.current = ambient;
     engine.setDecor("ambient", ambient);
@@ -506,7 +526,7 @@ export default function ThreeScene({
       ambientRef.current = null;
       engine.setDecor("ambient", null);
     };
-  }, [engine, frame, showroom]);
+  }, [engine, frame, showroom, tier]);
 
   // The motion clock (decorative traffic, pedestrians, birds, sway, shimmer, flicker). Runs only while
   // Motion is on, reduced motion is off, the tab is visible and the map is on screen; otherwise the
@@ -588,12 +608,12 @@ export default function ThreeScene({
             frame,
             centre: HERO_CENTRE,
             radiusM: HERO_RADIUS_M,
-            tier: initialTier.current,
+            tier,
             m: loaded.manifest,
             seed: "motion",
           })
         : null,
-    [frame, detailsOn, walk, loaded, showroom],
+    [frame, detailsOn, walk, loaded, showroom, tier],
   );
   useEffect(() => {
     if (!engine || !driver || !loaded || !agents || agents.length === 0) return;
@@ -638,11 +658,9 @@ export default function ThreeScene({
   useEffect(() => {
     if (!engine || !landcover) return;
     // The layer owns (and disposes) its land-cover geometry, so each layer gets a clone.
-    engine.setGround(
-      createGroundLayer(roads, landcover.clone(), initialTier.current, engine.motion.uTime),
-    );
+    engine.setGround(createGroundLayer(roads, landcover.clone(), tier, engine.motion.uTime));
     return () => engine.setGround(null);
-  }, [engine, landcover, roads]);
+  }, [engine, landcover, roads, tier]);
   useEffect(() => () => landcover?.dispose(), [landcover]);
 
   // Frame the start view once per engine, as soon as the local frame exists.
@@ -770,19 +788,6 @@ export default function ThreeScene({
     engine.setViewOffset(panel);
   }, [engine, panelOpen]);
 
-  // Quality tier: the user's choice, or the GPU-picked tier lowered by the frame monitor.
-  const detected = useMemo<Tier>(
-    () =>
-      engine
-        ? pickTier(
-            gpuName(engine.gl()),
-            (navigator as Navigator & { deviceMemory?: number }).deviceMemory,
-          )
-        : "medium",
-    [engine],
-  );
-  const [dropped, setDropped] = useState<Tier | null>(null);
-  const tier: Tier = quality === "auto" ? (dropped ?? detected) : quality;
   useEffect(() => {
     engine?.setTier(tier);
   }, [engine, tier]);
@@ -790,8 +795,6 @@ export default function ThreeScene({
   // `data-frames` (first frames at once, then at most every 500 ms) and the compass heading follow
   // every engine frame; separate from the tier listener below so a tier change never drops a count.
   const [frames, setFrames] = useState(0);
-  const tierRef = useRef(tier);
-  tierRef.current = tier;
   useEffect(() => {
     if (!engine) return;
     const stats = createFrameStats({

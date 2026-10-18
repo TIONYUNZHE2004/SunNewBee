@@ -43,6 +43,7 @@ vi.mock("./assets/cityInstances", async (orig) => {
     ...mod,
     createCityInstances: (...a: Parameters<typeof mod.createCityInstances>) => {
       if (instancesFault.on) throw new Error("instance build failed");
+      tierFakes.kits.push(a[4]?.kits);
       return mod.createCityInstances(...a);
     },
   };
@@ -70,6 +71,93 @@ vi.mock("./assets/roleMaterial", async (orig) => {
     createRoleUniforms: () => {
       uniformSpy.last = mod.createRoleUniforms();
       return uniformSpy.last;
+    },
+  };
+});
+// Task 8b: a test can swap in tier-aware fakes for the props and agent planners, and record the
+// kits handed to createCityInstances and the tier handed to the ground layer.
+const tierFakes = vi.hoisted(() => ({
+  on: false,
+  kits: [] as (Map<string, unknown[]> | undefined)[],
+  groundTiers: [] as string[],
+  layers: [] as { disposed: number }[],
+}));
+vi.mock("./props/propsPlan", async (orig) => {
+  const mod = await orig<typeof import("./props/propsPlan")>();
+  return {
+    ...mod,
+    planProps: (input: Parameters<typeof mod.planProps>[0]) => {
+      if (!tierFakes.on) return mod.planProps(input);
+      const lamp = {
+        id: "lamp1",
+        asset: "furniture",
+        variant: "lamp_single",
+        x: 0,
+        z: 0,
+        yaw: 0,
+        sx: 1,
+        sy: 1,
+        sz: 1,
+        palette: ["#111111", "#222222", "#333333"],
+      };
+      return {
+        kits: input.tier === "low" ? new Map() : new Map([["furniture/lamp_single", [lamp]]]),
+        stats: {},
+      };
+    },
+  };
+});
+vi.mock("./motion/agents", async (orig) => {
+  const mod = await orig<typeof import("./motion/agents")>();
+  return {
+    ...mod,
+    planAgents: (input: Parameters<typeof mod.planAgents>[0]) => {
+      if (!tierFakes.on) return mod.planAgents(input);
+      return input.tier === "low"
+        ? []
+        : [
+            {
+              id: "a",
+              kind: "person" as const,
+              variant: "v",
+              path: new Float32Array([0, 0, 10, 0]),
+              length: 10,
+              speed: 1,
+              offset: 0,
+            },
+          ];
+    },
+  };
+});
+vi.mock("./motion/motionLayer", async (orig) => {
+  const mod = await orig<typeof import("./motion/motionLayer")>();
+  const T = await import("three");
+  return {
+    ...mod,
+    createMotionLayer: (...a: Parameters<typeof mod.createMotionLayer>) => {
+      if (!tierFakes.on) return mod.createMotionLayer(...a);
+      const layer = {
+        group: new T.Group(),
+        tick: () => {},
+        setOpacity: () => {},
+        setDensity: () => {},
+        disposed: 0,
+        dispose() {
+          layer.disposed++;
+        },
+      };
+      tierFakes.layers.push(layer);
+      return layer;
+    },
+  };
+});
+vi.mock("./ground/groundLayer", async (orig) => {
+  const mod = await orig<typeof import("./ground/groundLayer")>();
+  return {
+    ...mod,
+    createGroundLayer: (...a: Parameters<typeof mod.createGroundLayer>) => {
+      tierFakes.groundTiers.push(a[2]);
+      return mod.createGroundLayer(...a);
     },
   };
 });
@@ -709,6 +797,56 @@ describe("ThreeScene", () => {
     type Geo = { buildings: THREE.BufferGeometry };
     const vertsOf = (engine: Fake, call: number) =>
       (engine.setCity.mock.calls.at(call)![0] as Geo).buildings.getAttribute("position").count;
+
+    it("a runtime switch to Low drops kits, lamp pools, agents, birds and markings; Medium restores them", async () => {
+      tierFakes.on = true;
+      tierFakes.kits.length = 0;
+      tierFakes.groundTiers.length = 0;
+      tierFakes.layers.length = 0;
+      act(() => useSceneSettings.setState({ quality: "medium" }));
+      try {
+        serve({});
+        const { engine } = mount();
+        const s = screen.getByTestId("three-scene");
+        await waitFor(() => expect(s).toHaveAttribute("data-assets", "ready"));
+        act(() => engine.tick());
+        const lastDecor = (slot: string) =>
+          engine.setDecor.mock.calls.filter((c) => c[0] === slot).at(-1)?.[1];
+        const driver = () =>
+          engine.setMotion.mock.calls.at(-1)?.[0] as { group: THREE.Group } | null;
+        const kitCount = () => {
+          const k = tierFakes.kits.at(-1);
+          return k ? [...k.values()].reduce((n, l) => n + l.length, 0) : 0;
+        };
+        await waitFor(() => expect(lastDecor("lamp-pools")).toBeTruthy());
+        expect(kitCount()).toBe(1);
+        expect(lastDecor("ambient")).toBeTruthy();
+        expect(driver()?.group.children).toHaveLength(1);
+        expect(tierFakes.groundTiers.at(-1)).toBe("medium");
+        const cityCalls = engine.setCity.mock.calls.length;
+
+        act(() => useSceneSettings.setState({ quality: "low" }));
+        await waitFor(() => expect(lastDecor("lamp-pools")).toBeNull());
+        expect(kitCount()).toBe(0);
+        expect(lastDecor("ambient")).toBeNull();
+        expect(driver()?.group.children).toHaveLength(0);
+        expect(tierFakes.layers[0]?.disposed).toBe(1);
+        expect(tierFakes.groundTiers.at(-1)).toBe("low");
+        // The city mesh is never rebuilt for a tier change.
+        expect(engine.setCity.mock.calls.length).toBe(cityCalls);
+
+        act(() => useSceneSettings.setState({ quality: "medium" }));
+        await waitFor(() => expect(lastDecor("lamp-pools")).toBeTruthy());
+        expect(kitCount()).toBe(1);
+        expect(lastDecor("ambient")).toBeTruthy();
+        expect(driver()?.group.children).toHaveLength(1);
+        expect(tierFakes.groundTiers.at(-1)).toBe("medium");
+        expect(engine.setCity.mock.calls.length).toBe(cityCalls);
+      } finally {
+        tierFakes.on = false;
+        act(() => useSceneSettings.setState({ quality: "auto" }));
+      }
+    });
 
     it('assets load: setCity with only plan.extrude, setAssets once, data-assets="ready"', async () => {
       // Hold the glb until the buildings are drawn, so the order is deterministic.
