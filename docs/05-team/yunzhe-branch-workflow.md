@@ -58,7 +58,7 @@ Each local agent works in its own git worktree, so agents never edit the same fo
 - Each worktree has its own `.env` copy, `pnpm install` and `uv sync --all-packages --all-groups`.
 - The worktree branches were created tracking control. Before the first push, run `git branch --unset-upstream`, then always push with `git push -u origin <own branch>`.
 - Local agents do not run e2e (fixed ports 5273/8100 would clash); GitHub CI runs it on their PRs.
-- Live OpenRouter budget: **US$4 in total**, tracked in `SPEND.md` on the board branch (AI engineer up to US$1 a day and US$2.50 in total, backend engineer up to US$0.25 a day and US$0.50 in total, US$0.50 reserved for control's final live test). At a running total of US$3.50, live calls stop. Rounds of at most 10 live questions.
+- Live OpenRouter budget: **US$15 for about 4 days**, tracked in `SPEND.md` on the board branch (AI engineer up to US$3 a day and US$10 in total, backend engineer up to US$0.50 a day and US$1.50 in total, US$1.50 reserved for control, US$2 for Yunzhe's own testing). At a running total of US$13, live calls stop. Rounds of at most 10 live questions.
 - Agents work in **resumable rounds** (board README, "Rounds"): each round ends by logging the exact next step and pushing, so a usage limit pauses work without losing it. A timer on Yunzhe's computer starts the next round.
 
 ## How the two local engineers work together
