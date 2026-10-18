@@ -133,23 +133,6 @@ pruning, bounded by `MAX_REST_LABELS` (deterministic, not wall-clock).
 | `blocked` | The endpoints are connected in the unfiltered graph, but every path is cut by a known FAIL |
 | `no_data` | The endpoints are in different graph components (for `drive`: no connecting road, or a place with no mapped road within the snap distance), or a place or profile is unknown. A data gap, never "not reachable" |
 
-Flood-scenario routing checks the start and destination as well as paths. A likely flooded
-endpoint blocks a connected journey; a possible endpoint makes a walking route at most
-`partly_unverified` (it blocks driving). Disconnected endpoints remain `no_data`. These checks
-also apply to every evacuation-centre row, including zero-distance journeys and centres
-outside the nearest three route previews.
-
-`load_world()` reads explicit `uncovered_edges`, `partial_edges` and `uncovered_places` from
-`flood/coverage.json` into `world.flood.coverage`. Under a river-stage scenario, those elements
-are UNKNOWN unless another rule already makes them FAIL. Baseline is unchanged. Coverage
-evidence uses `attribute: flood_coverage`, `value: uncovered|partial`, and `status: unknown`;
-it never invents a flood class or files a survey ticket. Route `unknowns` can refer to endpoint
-places as well as segments. Known endpoint flood classes have their own scenario evidence.
-
-Unknown scenario/profile selections are rejected by the resident tools (`ok: false`, no data,
-evidence or ticket writes). Direct `routing.plan_route` returns `no_data` with an explicit
-selection error and no route. A nonexistent scenario is never treated as baseline.
-
 A route whose facts include `team_survey_placeholder` evidence carries `demo_evidence: true`
 (also on `RouteResult` for `routes[0]`). The status is not downgraded: `confirmed` stays
 `confirmed`, and the UI and agent say "confirmed on demo values, not yet surveyed".

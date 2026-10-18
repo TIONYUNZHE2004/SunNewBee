@@ -116,17 +116,6 @@ def load_world(data_dir: Path, config_dir: Path | None = None) -> World:
         if flood_path.exists()
         else FloodBundle(scenarios=[])
     )
-    coverage_path = data_dir / "flood/coverage.json"
-    if coverage_path.exists():
-        coverage = json.loads(coverage_path.read_text(encoding="utf-8"))
-        flood.coverage.update({eid: "partial" for eid in coverage.get("partial_edges", [])})
-        flood.coverage.update(
-            {
-                eid: "uncovered"
-                for key in ("uncovered_edges", "uncovered_places")
-                for eid in coverage.get(key, [])
-            }
-        )
     water = {
         s.id: json.loads(p.read_text(encoding="utf-8"))
         for s in flood.scenarios

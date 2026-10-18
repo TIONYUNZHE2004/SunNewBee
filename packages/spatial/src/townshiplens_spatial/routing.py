@@ -8,10 +8,10 @@ from typing import Any
 
 import networkx as nx
 
-from .evaluate import evaluate_edge, evaluate_flood, rest_point_state
+from .evaluate import evaluate_edge, rest_point_state
 from .geo import haversine_m
 from .models import Evidence, Route, RouteResult, RouteSegment, photo_url
-from .scenario_meta import scenario_source, selection_error
+from .scenario_meta import scenario_source
 from .world import World
 
 CENTRE_PREFIX = "__centre__"
@@ -161,58 +161,6 @@ def _flood_class(world: World, scenario_id: str | None, edge_id: str):
     return world.flood.edge_classes.get(scenario_id or "", {}).get(edge_id) if scenario_id else None
 
 
-def endpoint_id(world: World, place_id: str) -> str:
-    """Resolve a transient centre target to the place assessed by the flood builder."""
-    if place_id.startswith(CENTRE_PREFIX):
-        c = world.centres.get(place_id[len(CENTRE_PREFIX) :])
-        if c is not None:
-            return c.place_id or c.id
-    return place_id
-
-
-def endpoint_flood(world: World, place_id: str, profile, scenario_id: str | None):
-    eid = endpoint_id(world, place_id)
-    return evaluate_flood(
-        eid,
-        profile,
-        world.flood.place_classes.get(scenario_id or "", {}).get(eid),
-        world.flood.coverage_for(scenario_id, eid),
-    )
-
-
-def flood_evidence(world: World, element_id: str, scenario_id: str | None) -> list[Evidence]:
-    """Keep coverage evidence distinct from a modelled flood class."""
-    if scenario_id is None:
-        return []
-    eid = endpoint_id(world, element_id)
-    cls = world.flood.edge_classes.get(scenario_id, {}).get(eid)
-    cls = cls or world.flood.place_classes.get(scenario_id, {}).get(eid)
-    out = []
-    if cls:
-        out.append(
-            Evidence(
-                id=f"ev-scn-{scenario_id}.{eid}",
-                element_id=eid,
-                attribute="flood",
-                value=cls,
-                status="indicative",
-                source_type=scenario_source(world, scenario_id),
-            )
-        )
-    if coverage := world.flood.coverage_for(scenario_id, eid):
-        out.append(
-            Evidence(
-                id=f"ev-scn-{scenario_id}.{eid}.coverage",
-                element_id=eid,
-                attribute="flood_coverage",
-                value=coverage,
-                status="unknown",
-                source_type="flood raster coverage",
-            )
-        )
-    return out
-
-
 # Batch memo of edge evaluations (twm rollouts route hundreds of journeys over one state).
 # Keyed by the Edge object itself: an imagined world (twm.apply) copies only the edges its
 # actions touch, so every untouched edge is the same object in the real and the imagined world
@@ -239,12 +187,7 @@ def _evaluate(world, profile, scenario_id, key):
     edge = world.edges[key]
     memo = _EVAL_MEMO.get()
     if memo is None:
-        return evaluate_edge(
-            edge,
-            profile,
-            _flood_class(world, scenario_id, key),
-            flood_coverage=world.flood.coverage_for(scenario_id, key),
-        )
+        return evaluate_edge(edge, profile, _flood_class(world, scenario_id, key))
     # The memo holds the edge, so its id() cannot be reused by another object meanwhile. The key
     # leaves out the world: imagined worlds (twm.apply) share the real world's flood classes
     # and profiles, and a scenario's flood class is part of the key through `scenario_id`.
@@ -252,15 +195,7 @@ def _evaluate(world, profile, scenario_id, key):
     k = (id(edge), profile.id, scenario_id)
     hit = memo.get(k)
     if hit is None:
-        hit = memo[k] = (
-            edge,
-            evaluate_edge(
-                edge,
-                profile,
-                _flood_class(world, scenario_id, key),
-                flood_coverage=world.flood.coverage_for(scenario_id, key),
-            ),
-        )
+        hit = memo[k] = (edge, evaluate_edge(edge, profile, _flood_class(world, scenario_id, key)))
     return hit[1]
 
 
@@ -506,11 +441,7 @@ def _max_rest_gap(world, nodes, keys, rest_nodes) -> float:
 
 
 def evidence_for_route(world: World, route: Route) -> list[Evidence]:
-    out = [
-        ev
-        for pid in dict.fromkeys((route.from_place, route.to_place))
-        for ev in flood_evidence(world, pid, route.scenario_id)
-    ]
+    out = []
     for s in route.segments:
         e = world.edges[s.edge_id]
         for attr, c in e.claims.items():
@@ -526,31 +457,27 @@ def evidence_for_route(world: World, route: Route) -> list[Evidence]:
                     photo_url=photo_url(c),
                 )
             )
-        out.extend(flood_evidence(world, e.id, route.scenario_id))
+        if s.flood_class:
+            out.append(
+                Evidence(
+                    id=f"ev-scn-{route.scenario_id}.{e.id}",
+                    element_id=e.id,
+                    attribute="flood",
+                    value=s.flood_class,
+                    status="indicative",
+                    source_type=scenario_source(world, route.scenario_id),
+                )
+            )
     return out
 
 
 def plan_route(
     world: World, from_id: str, to_id: str, profile_id: str, scenario_id: str | None = None
 ) -> RouteResult:
-    if error := selection_error(world, profile_id, scenario_id):
-        return RouteResult(status="no_data", routes=[], warnings=[error])
-    profile = world.profiles[profile_id]
+    profile = world.profiles.get(profile_id)
+    if profile is None:
+        return RouteResult(status="no_data", routes=[], warnings=[f"unknown profile {profile_id}"])
     result = _plan(world, from_id, to_id, profile, scenario_id)
-    endpoint_unknowns = [
-        why
-        for pid in dict.fromkeys((from_id, to_id))
-        for state, reasons in [endpoint_flood(world, pid, profile, scenario_id)]
-        if state == "UNKNOWN"
-        for why in reasons
-    ]
-    for route in result.routes:
-        if endpoint_unknowns:
-            route.unknowns.extend(endpoint_unknowns)
-            route.status = "partly_unverified"
-    if result.routes:
-        result.status = result.routes[0].status
-        result.warnings.extend(dict.fromkeys(u["why"] for u in endpoint_unknowns))
     if profile.allowed_types is not None and result.routes:
         for pid in (from_id, to_id):
             if note := _snap_warning(world, pid, profile):
@@ -575,15 +502,6 @@ def _plan(world, from_id, to_id, profile, scenario_id) -> RouteResult:
                     )
                 )
         return RouteResult(status="no_data", routes=[], warnings=warnings)
-    endpoint_failures = [
-        why
-        for pid in dict.fromkeys((from_id, to_id))
-        for state, reasons in [endpoint_flood(world, pid, profile, scenario_id)]
-        if state == "FAIL"
-        for why in reasons
-    ]
-    if endpoint_failures and not _disconnected(world, profile, sources, targets):
-        return RouteResult(status="blocked", routes=[], blocked_reasons=endpoint_failures)
     limit = profile.max_rest_free_run_m
     truncated = False
     if limit is not None:

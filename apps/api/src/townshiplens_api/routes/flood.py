@@ -5,7 +5,6 @@ from townshiplens_spatial import flood, tools
 from townshiplens_spatial.models import AffectedResult, CentreReachability, Scenario, WastePoint
 
 from .. import state
-from ..selection import require_selection
 
 router = APIRouter()
 
@@ -34,7 +33,6 @@ def scenario_water(scenario_id: str) -> dict:
 @router.get("/scenarios/{scenario_id}/affected", response_model=AffectedResult)
 def affected(scenario_id: str, profile: str = "default") -> AffectedResult:
     world = state.get_ctx().world
-    require_selection(world, profile, scenario_id)
     if flood.scenario(world, scenario_id) is None:
         raise HTTPException(404, f"unknown scenario {scenario_id}")
     return flood.affected(world, scenario_id, profile)
@@ -42,9 +40,7 @@ def affected(scenario_id: str, profile: str = "default") -> AffectedResult:
 
 @router.get("/evacuation-centres", response_model=list[CentreReachability])
 def evac(scenario_id: str | None = None, profile: str = "default", near: str | None = None):
-    ctx = state.get_ctx()
-    require_selection(ctx.world, profile, scenario_id)
-    r = tools.list_evacuation_centres(ctx, scenario_id, profile, near)
+    r = tools.list_evacuation_centres(state.get_ctx(), scenario_id, profile, near)
     return [CentreReachability.model_validate(d) for d in r.data]
 
 
@@ -57,7 +53,6 @@ def waste(type: str | None = None, near: str | None = None) -> list[WastePoint]:
 @router.get("/briefings/flood")
 def briefing(scenario_id: str, profile: str = "default") -> dict:
     ctx = state.get_ctx()
-    require_selection(ctx.world, profile, scenario_id)
     sc = flood.scenario(ctx.world, scenario_id)
     if sc is None:
         raise HTTPException(404, f"unknown scenario {scenario_id}")
