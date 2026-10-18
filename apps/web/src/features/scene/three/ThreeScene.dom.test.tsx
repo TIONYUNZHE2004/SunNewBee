@@ -10,6 +10,7 @@ import { useTheme } from "../../../ui/theme";
 import { usePanel } from "../../main/panelStore";
 import { PANEL_INSET_PX, panelWidthPx } from "../../main/viewport";
 import { usePerfStats } from "../cesium/PerfOverlay";
+import { useSceneSettings } from "../sceneSettingsStore";
 import { useScene } from "../sceneStore";
 import type { CityInstances } from "./assets/cityInstances";
 import type { Manifest } from "./assets/manifest";
@@ -112,6 +113,7 @@ function fakeEngine() {
     setAssets: vi.fn(),
     setGround: vi.fn(),
     setDecor: vi.fn(),
+    setMotion: vi.fn(),
     motion: createMotionUniforms(),
     setBounds: vi.fn(),
     setRoute: vi.fn(),
@@ -413,6 +415,112 @@ describe("ThreeScene", () => {
     });
     expect(engine.setLighting.mock.calls.at(-1)?.[0]).toBe(LIGHT_PRESETS.night);
     vi.useRealTimers();
+  });
+
+  describe("motion", () => {
+    type Driver = import("./motion/motionClock").MotionDriver;
+    const driverOf = (e: Fake) => e.setMotion.mock.calls.at(-1)?.[0] as Driver | null;
+    const runningOf = (e: Fake) => e.setMotion.mock.calls.at(-1)?.[1] as () => boolean;
+    const cam = new THREE.Vector3();
+    afterEach(() => {
+      act(() => {
+        useScene.setState({ day: { ...useScene.getState().day, on: false } });
+        useScene.setState({ rollout: { ...useScene.getState().rollout, on: false } });
+        useSceneSettings.setState({ motion: true });
+      });
+    });
+
+    it("hands the engine one motion driver, gated by Motion, and clears it on unmount", async () => {
+      act(() => useSceneSettings.setState({ motion: true }));
+      const { engine, unmount } = mount();
+      await waitFor(() => expect(driverOf(engine)).toBeTruthy());
+      expect(runningOf(engine)()).toBe(true);
+      const renders = engine.requestRender.mock.calls.length;
+      act(() => useSceneSettings.setState({ motion: false }));
+      expect(runningOf(engine)()).toBe(false);
+      // One final frame at the static pose.
+      expect(engine.requestRender.mock.calls.length).toBeGreaterThan(renders);
+      unmount();
+      expect(engine.setMotion).toHaveBeenLastCalledWith(null, expect.any(Function));
+    });
+
+    it("reduced motion stops the clock", async () => {
+      vi.stubGlobal("matchMedia", reducedMq);
+      const { engine } = mount();
+      await waitFor(() => expect(driverOf(engine)).toBeTruthy());
+      expect(runningOf(engine)()).toBe(false);
+    });
+
+    it("day.on fades people and vehicles toward 0 over 1 s, and back once it ends", async () => {
+      const { engine } = mount();
+      await waitFor(() => expect(driverOf(engine)).toBeTruthy());
+      const d = driverOf(engine) as Driver;
+      d.tick(0, cam);
+      expect(d.opacity).toBe(1);
+      act(() => useScene.setState({ day: { ...useScene.getState().day, on: true } }));
+      expect(d.target).toBe(0);
+      d.tick(500, cam);
+      expect(d.opacity).toBeGreaterThan(0);
+      expect(d.opacity).toBeLessThan(1);
+      d.tick(1100, cam);
+      expect(d.opacity).toBe(0);
+      act(() => useScene.setState({ day: { ...useScene.getState().day, on: false } }));
+      expect(d.target).toBe(1);
+    });
+
+    it("rollout.on does the same, and the fade holds until both playbacks end", async () => {
+      const { engine } = mount();
+      await waitFor(() => expect(driverOf(engine)).toBeTruthy());
+      const d = driverOf(engine) as Driver;
+      act(() => useScene.setState({ rollout: { ...useScene.getState().rollout, on: true } }));
+      expect(d.target).toBe(0);
+      act(() => useScene.setState({ day: { ...useScene.getState().day, on: true } }));
+      act(() => useScene.setState({ rollout: { ...useScene.getState().rollout, on: false } }));
+      expect(d.target).toBe(0);
+      act(() => useScene.setState({ day: { ...useScene.getState().day, on: false } }));
+      expect(d.target).toBe(1);
+    });
+
+    it("a hidden tab pauses the clock", async () => {
+      const { engine } = mount();
+      await waitFor(() => expect(driverOf(engine)).toBeTruthy());
+      expect(runningOf(engine)()).toBe(true);
+      const vis = vi.spyOn(document, "visibilityState", "get").mockReturnValue("hidden");
+      act(() => {
+        document.dispatchEvent(new Event("visibilitychange"));
+      });
+      expect(runningOf(engine)()).toBe(false);
+      vis.mockReturnValue("visible");
+      act(() => {
+        document.dispatchEvent(new Event("visibilitychange"));
+      });
+      expect(runningOf(engine)()).toBe(true);
+    });
+
+    it("the map off screen pauses the clock (IntersectionObserver)", async () => {
+      const observers: ((e: { isIntersecting: boolean }[]) => void)[] = [];
+      vi.stubGlobal(
+        "IntersectionObserver",
+        class {
+          constructor(cb: (e: { isIntersecting: boolean }[]) => void) {
+            observers.push(cb);
+          }
+          observe() {}
+          disconnect() {}
+        },
+      );
+      const { engine } = mount();
+      await waitFor(() => expect(driverOf(engine)).toBeTruthy());
+      expect(observers.length).toBeGreaterThan(0);
+      act(() => {
+        for (const cb of observers) cb([{ isIntersecting: false }]);
+      });
+      expect(runningOf(engine)()).toBe(false);
+      act(() => {
+        for (const cb of observers) cb([{ isIntersecting: true }]);
+      });
+      expect(runningOf(engine)()).toBe(true);
+    });
   });
 
   it("unmount calls dispose exactly once", async () => {

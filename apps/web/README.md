@@ -296,6 +296,27 @@ after it stops.
 - The glbs and manifest live in `public/city/` (lane `blender`); `vite build` copies them to
   `dist/city/`.
 
+#### Motion (Three.js)
+
+Decorative traffic and pedestrians (`motion/`), plus the birds, cloud shadows, tree sway, water
+shimmer and window flicker, all move on one motion clock in `engine.ts`. It runs on real time at
+30 fps at most. It runs only while Motion is on, `prefers-reduced-motion` is off, the tab is visible
+and the map is on screen (`IntersectionObserver`). Otherwise no frame is scheduled: the engine idles
+at render on demand and holds a still pose.
+
+- **Agents:** `planAgents` puts seeded vehicles on `street`/`major_road` edges and people on
+  `footway`/`path`/`pedestrian` edges in the hero district, weighted ×3 near schools, malls and parks.
+  The count is `PROP_CAPS` × mood density (day 1.0, dusk 1.15, night 0.45). Agents loop along the
+  edges with no routing or collision, so cars can pass through each other.
+- **Drawing:** `motionLayer` uses one InstancedMesh per kit, variant and LOD. Matrices are rewritten
+  each tick, but only for agents in view (with a 50 m margin). Agents beyond their last LOD's `maxM`
+  are hidden. Agents cast no shadows and are left out of the AO pass.
+- **Scale-up:** agents are drawn 1× within 150 m of the camera, rising to 3× at 800 m, for
+  legibility. This is display only; the models are unchanged.
+- **Day/Rollout fade:** people and vehicles fade out over 1 s while Elmina Day or Rollout playback
+  is on, and fade back in when both are off.
+- **Honesty:** decorative only (`userData.decorative`, no-op raycast), never picked or described.
+
 ### Theme: Auto, Day, Dusk, Night
 
 The theme menu offers **Auto** (follows the Elmina clock, Asia/Kuala_Lumpur: Day 07:00-18:00, Dusk

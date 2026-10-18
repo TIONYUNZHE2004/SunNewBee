@@ -15,7 +15,7 @@ vi.mock("three", async (orig) => {
     toneMapping = 0;
     outputColorSpace = "";
     shadowMap = { type: 0, enabled: false };
-    info = { autoReset: true };
+    info = { autoReset: true, reset: vi.fn(), render: { calls: 0, triangles: 0 } };
     debug: { onShaderError: unknown } = { onShaderError: null };
     toneMappingExposure = 1;
     setPixelRatio = vi.fn();
@@ -93,6 +93,157 @@ describe("createEngine", () => {
       e.dispose();
     } finally {
       spy.pmremFails = true;
+    }
+  });
+});
+
+// Review Focus 3: no rAF loop survives while motion is not running; while it runs, the motion clock
+// renders at most 30 frames a second. Fake timers and a hand-pumped rAF queue.
+describe("engine motion clock", () => {
+  type Frame = { id: number; cb: FrameRequestCallback };
+  let queue: Frame[] = [];
+  let requested = 0;
+  let nextId = 1;
+  const pump = () => {
+    const due = queue;
+    queue = [];
+    for (const f of due) f.cb(performance.now());
+  };
+  /** Runs frames until the camera's damping has settled and nothing is queued. */
+  const settle = () => {
+    for (let i = 0; i < 100 && queue.length > 0; i++) {
+      vi.advanceTimersByTime(16);
+      pump();
+    }
+    expect(queue).toHaveLength(0);
+  };
+
+  async function setup(running: { on: boolean }) {
+    spy.pmremFails = false;
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "performance", "Date"] });
+    queue = [];
+    requested = 0;
+    vi.stubGlobal("requestAnimationFrame", (cb: FrameRequestCallback) => {
+      requested++;
+      const id = nextId++;
+      queue.push({ id, cb });
+      return id;
+    });
+    vi.stubGlobal("cancelAnimationFrame", (id: number) => {
+      queue = queue.filter((f) => f.id !== id);
+    });
+    const THREE = await import("three");
+    const { createEngine } = await import("./engine");
+    const e = createEngine(document.createElement("canvas"), "low");
+    e.rig.set({ target: [0, 0], rangeM: 800, pitchDeg: -45, headingDeg: 0 });
+    const ticks: number[] = [];
+    const layer = {
+      group: new THREE.Group(),
+      tick: vi.fn((now: number) => ticks.push(now)),
+      setOpacity: vi.fn(),
+      dispose: vi.fn(),
+    };
+    e.setMotion(layer, () => running.on);
+    return { e, layer, ticks };
+  }
+  const teardown = (e: { dispose(): void }) => {
+    e.dispose();
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+    spy.pmremFails = true;
+  };
+
+  it("running() false: after the initial frame no rAF and no timer is scheduled", async () => {
+    const { e, layer } = await setup({ on: false });
+    try {
+      settle(); // the initial frame(s): the camera pose settles
+      const frames = e.frames;
+      expect(frames).toBeGreaterThan(0);
+      const after = requested;
+      for (let i = 0; i < 20; i++) {
+        vi.advanceTimersByTime(100);
+        pump();
+      }
+      expect(requested).toBe(after);
+      expect(queue).toHaveLength(0);
+      expect(vi.getTimerCount()).toBe(0);
+      expect(e.frames).toBe(frames);
+      // At rest: static pose; the frames that did render ticked the layer at the frozen clock.
+      expect(e.motion.uSway.value).toBe(0);
+      expect(e.motion.uLimb.value).toBe(0);
+      expect(layer.tick).toHaveBeenCalledTimes(frames);
+      expect(new Set(layer.tick.mock.calls.map((c) => c[0])).size).toBe(1);
+    } finally {
+      teardown(e);
+    }
+  });
+
+  it("running() true: motion frames are at least 33 ms apart, uTime is the clock in seconds", async () => {
+    const running = { on: false };
+    const { e, ticks } = await setup(running);
+    try {
+      settle();
+      running.on = true;
+      e.requestRender();
+      const frameTimes: number[] = [];
+      e.onFrame(() => frameTimes.push(performance.now()));
+      for (let i = 0; i < 200; i++) {
+        pump();
+        vi.advanceTimersByTime(4);
+      }
+      expect(frameTimes.length).toBeGreaterThan(15);
+      for (let i = 1; i < frameTimes.length; i++)
+        expect((frameTimes[i] as number) - (frameTimes[i - 1] as number)).toBeGreaterThanOrEqual(
+          33,
+        );
+      expect(new Set(ticks).size).toBeGreaterThan(15);
+      expect(e.motion.uTime.value).toBeCloseTo((ticks.at(-1) as number) / 1000, 5);
+      expect(e.motion.uSway.value).toBe(1);
+      expect(e.motion.uLimb.value).toBe(1);
+
+      // Stop: one more frame at most, then the loop idles.
+      running.on = false;
+      for (let i = 0; i < 20; i++) {
+        pump();
+        vi.advanceTimersByTime(40);
+      }
+      const n = e.frames;
+      for (let i = 0; i < 20; i++) {
+        pump();
+        vi.advanceTimersByTime(40);
+      }
+      expect(e.frames).toBe(n);
+      expect(queue).toHaveLength(0);
+      expect(e.motion.uSway.value).toBe(0);
+
+      // Start again: the caller asks for a frame and the clock resumes.
+      running.on = true;
+      e.requestRender();
+      for (let i = 0; i < 50; i++) {
+        pump();
+        vi.advanceTimersByTime(4);
+      }
+      expect(e.frames).toBeGreaterThan(n + 3);
+    } finally {
+      teardown(e);
+    }
+  });
+
+  it("setMotion(null) stops the clock and disposes the layer", async () => {
+    const { e, layer } = await setup({ on: true });
+    try {
+      settle();
+      e.setMotion(null, () => true);
+      expect(layer.dispose).toHaveBeenCalledTimes(1);
+      pump();
+      for (let i = 0; i < 10; i++) {
+        vi.advanceTimersByTime(40);
+        pump();
+      }
+      expect(queue).toHaveLength(0);
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      teardown(e);
     }
   });
 });

@@ -1,0 +1,200 @@
+import * as THREE from "three";
+import { describe, expect, it } from "vitest";
+import type { AssetLibrary } from "../assets/library";
+import type { Manifest } from "../assets/manifest";
+import { createMotionUniforms, createRoleUniforms } from "../assets/roleMaterial";
+import type { Agent } from "./agents";
+import { createMotionLayer } from "./motionLayer";
+
+const kit = (lods: { node: string; tris: number; maxM: number | null }[]) => ({
+  group: "kit" as const,
+  file: "x.glb",
+  bytes: 1,
+  repeat: "none" as const,
+  frontage: "long" as const,
+  fit: { xz: [0.5, 2], y: [0.5, 2] } as { xz: [number, number]; y: [number, number] },
+  decorative: true,
+  placement: null,
+  jitter: {},
+  variantByGroup: {},
+  palettes: { default: [["#112233", "#445566", "#778899"]] as [string, string, string][] },
+  variants: {
+    v: {
+      size: [1, 1.74, 1] as [number, number, number],
+      lods,
+    },
+  },
+});
+const manifest = (): Manifest => ({
+  version: 1,
+  as_of: "",
+  precinctGroups: [],
+  assets: {
+    people: kit([
+      { node: "p0", tris: 12, maxM: 80 },
+      { node: "p1", tris: 12, maxM: 300 },
+    ]),
+    vehicles: kit([
+      { node: "c0", tris: 12, maxM: 150 },
+      { node: "c1", tris: 12, maxM: 1500 },
+    ]),
+  },
+  landmarks: {},
+});
+/** 1.74 m tall boxes standing on the ground. */
+const lib = (): AssetLibrary & { geos: THREE.BufferGeometry[] } => {
+  const geos = new Map<string, THREE.BufferGeometry>();
+  const all: THREE.BufferGeometry[] = [];
+  return {
+    geos: all,
+    geometry(a, v, l) {
+      const k = `${a}/${v}/${l}`;
+      if (!geos.has(k)) {
+        const g = new THREE.BoxGeometry(1, 1.74, 1);
+        g.translate(0, 0.87, 0);
+        geos.set(k, g);
+        all.push(g);
+      }
+      return geos.get(k) ?? null;
+    },
+    has: () => true,
+    gpuBytes: () => 0,
+    failed: [],
+    dispose() {},
+  };
+};
+const agent = (id: string, kind: Agent["kind"], x0: number, z0: number): Agent => ({
+  id,
+  kind,
+  variant: "v",
+  path: new Float32Array([x0, z0, x0 + 100, z0]),
+  length: 100,
+  speed: kind === "vehicle" ? 10 : 1.3,
+  offset: 0,
+});
+const meshes = (g: THREE.Object3D) => {
+  const out: THREE.InstancedMesh[] = [];
+  g.traverse((o) => {
+    if ((o as THREE.InstancedMesh).isInstancedMesh) out.push(o as THREE.InstancedMesh);
+  });
+  return out;
+};
+const drawn = (g: THREE.Object3D) =>
+  meshes(g)
+    .filter((m) => m.visible)
+    .reduce((n, m) => n + m.count, 0);
+const translationOf = (m: THREE.InstancedMesh, i: number) => {
+  const mat = new THREE.Matrix4();
+  m.getMatrixAt(i, mat);
+  return new THREE.Vector3().setFromMatrixPosition(mat);
+};
+const make = (agents: Agent[], l = lib()) =>
+  createMotionLayer(agents, l, manifest(), createRoleUniforms(), createMotionUniforms());
+const cam = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z);
+
+describe("createMotionLayer", () => {
+  it("tick moves instances along their paths (real time, not frames)", () => {
+    const layer = make([agent("a", "person", 0, 0)]);
+    layer.tick(0, cam(0, 30, 0));
+    const m = meshes(layer.group).find((x) => x.visible)!;
+    const p0 = translationOf(m, 0);
+    layer.tick(2000, cam(0, 30, 0));
+    const p1 = translationOf(m, 0);
+    expect(p1.x - p0.x).toBeCloseTo(2.6, 3);
+    // The same time gives the same pose, however many ticks ran in between.
+    layer.tick(2000, cam(0, 30, 0));
+    expect(translationOf(m, 0).x).toBeCloseTo(p1.x, 5);
+  });
+
+  it("setOpacity(0) hides people and vehicles; setOpacity fades their materials", () => {
+    const layer = make([agent("a", "person", 0, 0), agent("b", "vehicle", 0, 5)]);
+    layer.tick(0, cam(0, 30, 0));
+    expect(drawn(layer.group)).toBe(2);
+    layer.setOpacity(0.5);
+    for (const m of meshes(layer.group))
+      expect((m.material as THREE.Material).opacity).toBeCloseTo(0.5);
+    layer.setOpacity(0);
+    expect(layer.group.visible).toBe(false);
+    layer.setOpacity(1);
+    expect(layer.group.visible).toBe(true);
+  });
+
+  it("meshes are decorative with a no-op raycast and cast no shadow", () => {
+    const layer = make([agent("a", "person", 0, 0), agent("b", "vehicle", 0, 5)]);
+    layer.tick(0, cam(0, 30, 0));
+    expect(layer.group.userData.decorative).toBe(true);
+    const ms = meshes(layer.group);
+    expect(ms.length).toBe(4);
+    for (const m of ms) {
+      expect(m.userData.decorative).toBe(true);
+      expect(m.castShadow).toBe(false);
+      const hits: THREE.Intersection[] = [];
+      m.raycast(new THREE.Raycaster(cam(0, 30, 0), new THREE.Vector3(0, -1, 0)), hits);
+      expect(hits).toHaveLength(0);
+    }
+  });
+
+  it("distance scale-up: a 1.74 m agent 800 m away draws 5.22 m tall; the geometry is unchanged", () => {
+    const l = lib();
+    const layer = make([agent("a", "vehicle", 0, 0)], l);
+    layer.tick(0, cam(0, 800, 0));
+    const m = meshes(layer.group).find((x) => x.visible)!;
+    const mat = new THREE.Matrix4();
+    m.getMatrixAt(0, mat);
+    const s = new THREE.Vector3();
+    mat.decompose(new THREE.Vector3(), new THREE.Quaternion(), s);
+    m.geometry.computeBoundingBox();
+    const h = m.geometry.boundingBox!.max.y - m.geometry.boundingBox!.min.y;
+    expect(h).toBeCloseTo(1.74);
+    expect(h * s.y).toBeCloseTo(5.22, 2);
+    for (const g of l.geos) {
+      g.computeBoundingBox();
+      expect(g.boundingBox!.max.y).toBeCloseTo(1.74);
+    }
+  });
+
+  it("LOD by camera distance; beyond the last LOD's maxM an agent is hidden", () => {
+    const layer = make([agent("a", "person", 0, 0)]);
+    layer.tick(0, cam(0, 30, 0));
+    const lodOf = () => meshes(layer.group).find((m) => m.visible && m.count > 0)?.userData.lod;
+    expect(lodOf()).toBe(0);
+    layer.tick(0, cam(0, 200, 0));
+    expect(lodOf()).toBe(1);
+    layer.tick(0, cam(0, 600, 0));
+    expect(drawn(layer.group)).toBe(0);
+  });
+
+  it("frustum: only agents within the view (plus a 50 m margin) get matrices", () => {
+    const camera = new THREE.PerspectiveCamera(30, 1, 1, 5000);
+    camera.position.set(0, 50, 0);
+    camera.lookAt(0, 0, 0);
+    camera.updateMatrixWorld();
+    const frustum = new THREE.Frustum().setFromProjectionMatrix(
+      new THREE.Matrix4().multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse),
+    );
+    const layer = make([agent("in", "vehicle", -50, 0), agent("out", "vehicle", 600, 600)]);
+    layer.tick(0, camera.position, frustum);
+    expect(drawn(layer.group)).toBe(1);
+    layer.tick(0, camera.position);
+    expect(drawn(layer.group)).toBe(2);
+  });
+
+  it("setDensity thins each kind to its share of the peak (night 0.45 / 1.15)", () => {
+    const people = Array.from({ length: 100 }, (_, i) => agent(`p${i}`, "person", 0, i * 0.1));
+    const layer = make(people);
+    layer.setDensity({ day: 0, dusk: 0, night: 1 });
+    layer.tick(0, cam(0, 30, 0));
+    expect(drawn(layer.group)).toBe(Math.round((100 * 0.45) / 1.15));
+    layer.setDensity({ day: 0, dusk: 1, night: 0 });
+    layer.tick(0, cam(0, 30, 0));
+    expect(drawn(layer.group)).toBe(100);
+  });
+
+  it("dispose leaves the library geometry intact", () => {
+    const l = lib();
+    const layer = make([agent("a", "person", 0, 0)], l);
+    layer.tick(0, cam(0, 30, 0));
+    layer.dispose();
+    for (const g of l.geos) expect(g.getAttribute("position")).toBeTruthy();
+  });
+});

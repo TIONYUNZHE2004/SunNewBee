@@ -19,7 +19,7 @@ import {
   type Tier,
 } from "../cesium/stylised/quality";
 import { type LonLat, pointFeatures } from "../geo";
-import { useSceneSettings } from "../sceneSettingsStore";
+import { prefersReducedMotion, useSceneSettings } from "../sceneSettingsStore";
 import { useScene } from "../sceneStore";
 import { createAmbient } from "./ambient/ambient";
 import { createCityInstances } from "./assets/cityInstances";
@@ -59,6 +59,9 @@ import {
   moodSource,
   moodWeights,
 } from "./mood";
+import { planAgents } from "./motion/agents";
+import { createMotionDriver, type MotionDriver, motionRunning } from "./motion/motionClock";
+import { createMotionLayer } from "./motion/motionLayer";
 import { KIT_LOD_SCALE } from "./props/caps";
 import { createLampPools } from "./props/lampPools";
 import { planProps } from "./props/propsPlan";
@@ -488,9 +491,10 @@ export default function ThreeScene({
     return () => engine.setDecor("lamp-pools", null);
   }, [engine, propsPlan, roleUniforms]);
 
-  // Birds and cloud shadows. Static until the motion clock (Task 8) ticks them; the mood loop
-  // ticks them on each mood change so their day/night visibility is right.
+  // Birds and cloud shadows. The motion clock ticks them; while it is stopped the driver re-ticks
+  // them at the frozen time on each mood change, so their day/night visibility stays right.
   const ambientRef = useRef<ReturnType<typeof createAmbient> | null>(null);
+  const driverRef = useRef<MotionDriver | null>(null);
   const moodRef = useRef<MoodWeights>({ day: 1, dusk: 0, night: 0 });
   useEffect(() => {
     if (!engine || !frame || showroom) return;
@@ -503,6 +507,102 @@ export default function ThreeScene({
       engine.setDecor("ambient", null);
     };
   }, [engine, frame, showroom]);
+
+  // The motion clock (decorative traffic, pedestrians, birds, sway, shimmer, flicker). Runs only while
+  // Motion is on, reduced motion is off, the tab is visible and the map is on screen; otherwise the
+  // engine idles at render on demand (Review Focus 3).
+  const motionOn = useSceneSettings((s) => s.motion);
+  const [reduced, setReduced] = useState(prefersReducedMotion);
+  const [tabVisible, setTabVisible] = useState(() => document.visibilityState === "visible");
+  const [onScreen, setOnScreen] = useState(true);
+  useEffect(() => {
+    const onVis = () => setTabVisible(document.visibilityState === "visible");
+    document.addEventListener("visibilitychange", onVis);
+    const mq =
+      typeof matchMedia === "function" ? matchMedia("(prefers-reduced-motion: reduce)") : null;
+    const onMq = () => setReduced(prefersReducedMotion());
+    mq?.addEventListener?.("change", onMq);
+    return () => {
+      document.removeEventListener("visibilitychange", onVis);
+      mq?.removeEventListener?.("change", onMq);
+    };
+  }, []);
+  useEffect(() => {
+    const el = sectionRef.current;
+    if (!el || typeof IntersectionObserver !== "function") return;
+    const io = new IntersectionObserver((entries) => {
+      const last = entries[entries.length - 1];
+      if (last) setOnScreen(last.isIntersecting);
+    });
+    io.observe(el);
+    return () => io.disconnect();
+  }, []);
+  const running = motionRunning({ enabled: motionOn, reduced, visible: tabVisible, onScreen });
+  const runningRef = useRef(running);
+  runningRef.current = running;
+  const [driver, setDriver] = useState<MotionDriver | null>(null);
+  useEffect(() => {
+    if (!engine) return;
+    const d = createMotionDriver({
+      role: roleUniforms,
+      ambient: () => ambientRef.current,
+      running: () => runningRef.current,
+    });
+    d.setWeights(moodRef.current);
+    const scene = useScene.getState();
+    d.setTarget(scene.day.on || scene.rollout.on ? 0 : 1);
+    engine.setMotion(d, () => runningRef.current);
+    setDriver(d);
+    driverRef.current = d;
+    return () => {
+      driverRef.current = null;
+      setDriver(null);
+      engine.setMotion(null, () => false);
+    };
+  }, [engine, roleUniforms]);
+  // Start: one frame starts the clock. Stop: static pose, then one final frame.
+  useEffect(() => {
+    if (!engine || !driver) return;
+    if (!running) driver.rest();
+    engine.requestRender();
+  }, [engine, driver, running]);
+  // Decorative people and vehicles fade out over 1 s while Elmina Day or Rollout playback is on.
+  useEffect(() => {
+    if (!engine || !driver) return;
+    let target: 0 | 1 = driver.target;
+    return useScene.subscribe((s) => {
+      const next = s.day.on || s.rollout.on ? 0 : 1;
+      if (next === target) return;
+      target = next;
+      driver.setTarget(next);
+      engine.requestRender();
+    });
+  }, [engine, driver]);
+  // Seeded agents on the hero district's walk edges (decorative, like the props).
+  const agents = useMemo(
+    () =>
+      frame && detailsOn && walk && loaded && !showroom
+        ? planAgents({
+            walk,
+            places: walk,
+            frame,
+            centre: HERO_CENTRE,
+            radiusM: HERO_RADIUS_M,
+            tier: initialTier.current,
+            m: loaded.manifest,
+            seed: "motion",
+          })
+        : null,
+    [frame, detailsOn, walk, loaded, showroom],
+  );
+  useEffect(() => {
+    if (!engine || !driver || !loaded || !agents || agents.length === 0) return;
+    driver.setAgents(
+      createMotionLayer(agents, loaded.lib, loaded.manifest, roleUniforms, engine.motion),
+    );
+    engine.requestRender();
+    return () => driver.setAgents(null);
+  }, [engine, driver, loaded, agents, roleUniforms]);
 
   // First frame after the city is set: the ground details may now load.
   useEffect(() => {
@@ -596,7 +696,7 @@ export default function ThreeScene({
     const apply = (w: MoodWeights, src: MoodSource) => {
       shown = w;
       moodRef.current = w;
-      ambientRef.current?.tick(performance.now(), w);
+      driverRef.current?.setWeights(w);
       const g = glowFor(w);
       roleUniforms.uWindowGlow.value = g.uWindowGlow;
       roleUniforms.uLitShare.value = g.uLitShare;

@@ -31,6 +31,8 @@ import { shimmerMaterial } from "./ground/landcover";
 import { fitShadowCamera, type LightPreset } from "./lighting";
 import { createLodSchedule } from "./lodSchedule";
 import { applyFog } from "./mood";
+import { MOTION_FRAME_MS } from "./motion/motionClock";
+import type { MotionLayer } from "./motion/motionLayer";
 import { THREE_TIERS } from "./quality";
 
 /** Local xz box the camera target may not leave (by more than LIMITS.maxCentreOffsetM). */
@@ -59,8 +61,15 @@ export interface Engine {
    * slot's previous content; null clears it. The group is added to the scene as is.
    */
   setDecor(slot: string, d: { group: THREE.Object3D; dispose(): void } | null): void;
-  /** Shared motion clock uniforms (uTime ...): the base water shimmer reads them; Task 8 drives them. */
+  /** Shared motion clock uniforms: uTime (clock seconds), uSway and uLimb (1 running, 0 at rest). */
   readonly motion: MotionUniforms;
+  /**
+   * The motion layer and its gate. While running() the loop schedules frames at <= 30 fps and calls
+   * l.tick on each; otherwise no frame is scheduled for motion (render on demand), and the frames
+   * that do render tick it at the frozen clock so its culling follows the camera. Replaces and
+   * disposes the previous layer; null removes it. The caller requests a render when running() flips.
+   */
+  setMotion(l: MotionLayer | null, running: () => boolean): void;
   /** Camera bounds before the city arrives (the site extent); setCity replaces them. */
   setBounds(b: Bounds): void;
   setRoute(positions: Float32Array | null): void;
@@ -282,6 +291,27 @@ function build(
     sun.shadow.map?.dispose();
   });
 
+  let motionLayer: MotionLayer | null = null;
+  let motionRunning: () => boolean = () => false;
+  /** performance.now() of the last motion frame; the layer's frozen clock while stopped. */
+  let motionAt = 0;
+  let motionTimer: ReturnType<typeof setTimeout> | undefined;
+  let wasLive = false;
+  const frustum = new THREE.Frustum();
+  const viewProj = new THREE.Matrix4();
+  const rest = () => {
+    motion.uSway.value = 0;
+    motion.uLimb.value = 0;
+  };
+  rest();
+  const dropMotion = () => {
+    if (!motionLayer) return;
+    scene.remove(motionLayer.group);
+    motionLayer.dispose();
+    motionLayer = null;
+  };
+  undo.push(dropMotion);
+
   let assets: CityInstances | null = null;
   const lod = createLodSchedule(LOD_INTERVAL_MS);
   let lodTimer: ReturnType<typeof setTimeout> | undefined;
@@ -329,6 +359,7 @@ function build(
     cancelAnimationFrame(raf);
     raf = 0;
     clearTimeout(lodTimer);
+    clearTimeout(motionTimer);
   });
 
   const visible = () => document.visibilityState === "visible";
@@ -397,7 +428,13 @@ function build(
     passes = [new RenderPass(scene, camera)];
     // AO normal/depth pass without the far LOD2 blocks (I3).
     if (spec.ao)
-      passes.push(new CityGTAOPass(scene, camera, w, h, () => assets?.aoExcluded() ?? []));
+      // Agents too: small and moving, their AO is invisible and their draws would double.
+      passes.push(
+        new CityGTAOPass(scene, camera, w, h, () => [
+          ...(assets?.aoExcluded() ?? []),
+          ...(motionLayer ? [motionLayer.group] : []),
+        ]),
+      );
     if (spec.bloom)
       passes.push(
         new UnrealBloomPass(new THREE.Vector2(w, h), BLOOM.strength, BLOOM.radius, BLOOM.threshold),
@@ -435,6 +472,24 @@ function build(
     }
     const damping = controls.update();
     if (assets && lod.due(now)) assets.update(camera.position);
+    clearTimeout(motionTimer);
+    motionTimer = undefined;
+    const live = !!motionLayer && motionRunning();
+    if (motionLayer) {
+      // A (re)start is due at once; then one motion frame per MOTION_FRAME_MS at most.
+      if (live && (!wasLive || now - motionAt >= MOTION_FRAME_MS)) {
+        motionAt = now;
+        motion.uTime.value = now / 1000;
+        motion.uSway.value = 1;
+        motion.uLimb.value = 1;
+      } else if (!live) rest();
+      camera.updateMatrixWorld();
+      frustum.setFromProjectionMatrix(
+        viewProj.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse),
+      );
+      motionLayer.tick(motionAt, camera.position, frustum);
+    }
+    wasLive = live;
     placeLight();
     renderer.info.reset();
     composer.render();
@@ -456,6 +511,12 @@ function build(
     const wait = assets && !raf ? lod.trailingMs(now) : null;
     clearTimeout(lodTimer);
     lodTimer = wait === null ? undefined : setTimeout(requestRender, wait);
+    // The motion clock: the next frame no sooner than MOTION_FRAME_MS after this one (<= 30 fps).
+    if (live && !raf)
+      motionTimer = setTimeout(
+        requestRender,
+        Math.max(0, motionAt + MOTION_FRAME_MS - performance.now()),
+      );
   }
 
   const onVisibility = () => {
@@ -465,6 +526,8 @@ function build(
     }
     cancelAnimationFrame(raf);
     raf = 0;
+    clearTimeout(motionTimer);
+    motionTimer = undefined;
     idle = true;
   };
   document.addEventListener("visibilitychange", onVisibility);
@@ -497,6 +560,26 @@ function build(
       if (d) {
         decor.set(slot, d);
         scene.add(d.group);
+      }
+      requestRender();
+    },
+    setMotion(l, running) {
+      if (disposed) {
+        l?.dispose();
+        return;
+      }
+      motionRunning = running;
+      if (l !== motionLayer) {
+        dropMotion();
+        if (l) {
+          motionLayer = l;
+          motionAt = performance.now();
+          scene.add(l.group);
+        } else {
+          clearTimeout(motionTimer);
+          motionTimer = undefined;
+          rest();
+        }
       }
       requestRender();
     },
