@@ -1,0 +1,258 @@
+{
+  "generated": "2026-10-17",
+  "summary_rows": [
+    {
+      "what": "Ages 0-14",
+      "synthetic": "23.3%",
+      "official": "19.1%",
+      "source": "DOSM population_district, Petaling 2025"
+    },
+    {
+      "what": "Ages 15-64",
+      "synthetic": "67.4%",
+      "official": "71.8%",
+      "source": "DOSM population_district, Petaling 2025"
+    },
+    {
+      "what": "Ages 65+",
+      "synthetic": "9.2%",
+      "official": "9.0%",
+      "source": "DOSM population_district, Petaling 2025"
+    },
+    {
+      "what": "Children aged 7-12 per 1,000 residents",
+      "synthetic": "92.0",
+      "official": "about 82.8 (from 5-year age bands)",
+      "source": "DOSM population_district, Petaling 2025"
+    },
+    {
+      "what": "Teenagers aged 13-17 per 1,000 residents",
+      "synthetic": "72.4",
+      "official": "about 66.2 (from 5-year age bands)",
+      "source": "DOSM population_district, Petaling 2025"
+    },
+    {
+      "what": "Pupils per 1,000 residents (primary / secondary)",
+      "synthetic": "92.0 / 72.4 (every school-age resident goes to a mapped school, government or private)",
+      "official": "62.4 / 42.8 in government schools only",
+      "source": "MOE EMIS enrolment, Petaling Perdana + Petaling Utama, 30 Jun 2025"
+    }
+  ],
+  "area": "Petaling district, Selangor (City of Elmina lies in it)",
+  "year": 2025,
+  "sources": [
+    {
+      "url": "https://storage.dosm.gov.my/population/population_district.parquet",
+      "title": "DOSM, Population by district, sex, age group and ethnicity (population_district)",
+      "licence": "CC BY 4.0",
+      "bytes": 264746
+    },
+    {
+      "url": "https://api.data.gov.my/data-catalogue?id=enrolment_school_district&ifilter=selangor@state&limit=5000",
+      "title": "MOE (EMIS) via data.gov.my, Enrolment in government schools by district",
+      "licence": "CC BY 4.0",
+      "bytes": 103456
+    },
+    {
+      "url": "https://api.data.gov.my/data-catalogue?id=schools_district&ifilter=selangor@state&limit=5000",
+      "title": "data.gov.my, Number of government schools by district",
+      "licence": "CC BY 4.0",
+      "bytes": 36693
+    }
+  ],
+  "petaling": {
+    "population": 2370700,
+    "government_school_pupils": {
+      "primary": 147974,
+      "secondary": 101560,
+      "post_secondary": 2581
+    },
+    "government_schools": {
+      "primary": 150,
+      "secondary": 77,
+      "tertiary": 2
+    },
+    "pupils_per_school": {
+      "primary": 986,
+      "secondary": 1319
+    }
+  },
+  "synthetic": {
+    "residents": 5000,
+    "bands": {
+      "40-44": 442,
+      "5-9": 379,
+      "25-29": 649,
+      "75-79": 91,
+      "45-49": 455,
+      "30-34": 419,
+      "0-4": 394,
+      "50-54": 177,
+      "85+": 67,
+      "10-14": 392,
+      "80-84": 101,
+      "15-19": 330,
+      "65-69": 109,
+      "35-39": 425,
+      "20-24": 388,
+      "70-74": 96,
+      "55-59": 47,
+      "60-64": 39
+    },
+    "primary_age": 460,
+    "secondary_age": 362,
+    "household_size": 3.77,
+    "car_share": 0.915,
+    "mapped_primary_schools": 19,
+    "mapped_secondary_schools": 11
+  },
+  "age_bands": [
+    {
+      "band": "0-4",
+      "petaling_pct": 5.3,
+      "synthetic_pct": 7.9,
+      "gap_points": 2.6
+    },
+    {
+      "band": "5-9",
+      "petaling_pct": 7.0,
+      "synthetic_pct": 7.6,
+      "gap_points": 0.6
+    },
+    {
+      "band": "10-14",
+      "petaling_pct": 6.8,
+      "synthetic_pct": 7.8,
+      "gap_points": 1.0
+    },
+    {
+      "band": "15-19",
+      "petaling_pct": 6.5,
+      "synthetic_pct": 6.6,
+      "gap_points": 0.1
+    },
+    {
+      "band": "20-24",
+      "petaling_pct": 8.3,
+      "synthetic_pct": 7.8,
+      "gap_points": -0.5
+    },
+    {
+      "band": "25-29",
+      "petaling_pct": 8.2,
+      "synthetic_pct": 13.0,
+      "gap_points": 4.8
+    },
+    {
+      "band": "30-34",
+      "petaling_pct": 8.2,
+      "synthetic_pct": 8.4,
+      "gap_points": 0.2
+    },
+    {
+      "band": "35-39",
+      "petaling_pct": 9.7,
+      "synthetic_pct": 8.5,
+      "gap_points": -1.2
+    },
+    {
+      "band": "40-44",
+      "petaling_pct": 9.1,
+      "synthetic_pct": 8.8,
+      "gap_points": -0.3
+    },
+    {
+      "band": "45-49",
+      "petaling_pct": 6.9,
+      "synthetic_pct": 9.1,
+      "gap_points": 2.2
+    },
+    {
+      "band": "50-54",
+      "petaling_pct": 5.9,
+      "synthetic_pct": 3.5,
+      "gap_points": -2.4
+    },
+    {
+      "band": "55-59",
+      "petaling_pct": 4.9,
+      "synthetic_pct": 0.9,
+      "gap_points": -4.0
+    },
+    {
+      "band": "60-64",
+      "petaling_pct": 4.1,
+      "synthetic_pct": 0.8,
+      "gap_points": -3.3
+    },
+    {
+      "band": "65-69",
+      "petaling_pct": 3.3,
+      "synthetic_pct": 2.2,
+      "gap_points": -1.1
+    },
+    {
+      "band": "70-74",
+      "petaling_pct": 2.6,
+      "synthetic_pct": 1.9,
+      "gap_points": -0.7
+    },
+    {
+      "band": "75-79",
+      "petaling_pct": 1.8,
+      "synthetic_pct": 1.8,
+      "gap_points": 0.0
+    },
+    {
+      "band": "80-84",
+      "petaling_pct": 0.8,
+      "synthetic_pct": 2.0,
+      "gap_points": 1.2
+    },
+    {
+      "band": "85+",
+      "petaling_pct": 0.5,
+      "synthetic_pct": 1.3,
+      "gap_points": 0.8
+    }
+  ],
+  "age_broad": {
+    "0-14": {
+      "petaling_pct": 19.1,
+      "synthetic_pct": 23.3
+    },
+    "15-64": {
+      "petaling_pct": 71.8,
+      "synthetic_pct": 67.4
+    },
+    "65+": {
+      "petaling_pct": 9.0,
+      "synthetic_pct": 9.2
+    }
+  },
+  "max_band_gap_points": 4.8,
+  "school_age_per_1000": {
+    "primary": {
+      "petaling_government_school_pupils_per_1000": 62.4,
+      "synthetic_primary_age_per_1000": 92.0,
+      "petaling_age_7_12_per_1000_estimated": 82.8
+    },
+    "secondary": {
+      "petaling_government_school_pupils_per_1000": 42.8,
+      "synthetic_secondary_age_per_1000": 72.4,
+      "petaling_age_13_17_per_1000_estimated": 66.2
+    }
+  },
+  "band_gaps": {
+    "ages_50_64_points": -9.7,
+    "ages_80_plus_points": 2.0
+  },
+  "notes": [
+    "The synthetic town has fewer people aged 50-64 (-9.7 points) and more aged 80+ (+2.0 points) than Petaling: its household generator makes parents 26-50 and adds older grandparents, so there are few older commuters.",
+    "Enrolment counts government schools only (MOE EMIS). Dividing it by the age-band estimate gives roughly 75% (7-12) and 65% (13-17) in government schools; the rest may be in private, international or religious schools, schooled in another district, or non-citizens. These are rough ratios, not facts about children.",
+    "Petaling is a proxy: it is the wider urban district (Petaling Jaya, Subang Jaya, Shah Alam), and Elmina is one new township in it, which may be younger.",
+    "The generator's inputs (Malaysia-wide age shares, household size, car ownership) are DOSM figures, so they are not checks; only the Petaling comparison is.",
+    "Years: the district comparison uses 2025, the latest year with enrolment data.",
+    "Nothing is fitted to these figures: they measure the gap, and the gap is reported."
+  ]
+}

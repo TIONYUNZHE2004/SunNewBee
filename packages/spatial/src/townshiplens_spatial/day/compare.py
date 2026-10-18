@@ -52,12 +52,12 @@ def _edge_use(res: DayResult) -> Counter:
     return use
 
 
-def candidates(res: DayResult, k: int = 3) -> list[dict]:
+def _candidates(res: DayResult, k: int = 3) -> list[dict]:
     """Changes worth testing on this day: the most-walked footways (what if they close for
     works?) and steps on walked routes (what if they were a ramp?). From the day's own trips."""
     w = res.day.world
     use = _edge_use(res)
-    out = flood_stretches(res)  # on a day with a river rise, the flood works come first
+    out = _flood_stretches(res)  # on a day with a river rise, the flood works come first
     paths = [(e, n) for e, n in use.most_common() if w.edges[e].type in WALK_TYPES - {"steps"}]
     nodes_used: set[str] = set()
     shown: set[tuple[str, str]] = set()  # two offers that read the same are one offer
@@ -98,7 +98,7 @@ def stretch_label(world, ids: list[str]) -> str:
     )
 
 
-def flood_stretches(
+def _flood_stretches(
     res: DayResult, k: int = 3, max_edges: int = 40, max_m: float = 900.0
 ) -> list[dict]:
     """Flooded stretches the most residents relied on. For every trip the water cut (cancelled,
@@ -387,3 +387,15 @@ def touched_geojson(world, actions: list) -> dict:
 
 
 __all__ = ["DISCLAIMER", "candidates", "compare", "hhmm", "reaction"]
+
+
+def candidates(res: DayResult, k: int = 3) -> list[dict]:
+    """Changes worth testing on this day (see `_candidates`), routed under the day's lock: the
+    cached day's routers are shared with residents' own rehearsed trips (review C19)."""
+    with res.day.lock:
+        return _candidates(res, k)
+
+
+def flood_stretches(res: DayResult, k: int = 3, max_edges: int = 40, max_m: float = 900.0):
+    with res.day.lock:
+        return _flood_stretches(res, k, max_edges, max_m)

@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import difflib
+import hashlib
 import json
 import re
 import threading
+import uuid
 from collections import OrderedDict
 from dataclasses import dataclass, replace
 
@@ -888,6 +890,17 @@ def wm_idle() -> bool:
         _WM_SLOTS.release()
 
 
+def _world_token(world: World) -> str:
+    """A cache identity for a loaded world. Not id(world): ids are reused after an object is
+    garbage-collected, so a newly loaded world could be served another world's cached results
+    (seen as a flaky test when many worlds are loaded in one run)."""
+    tok = getattr(world, "_wm_token", None)
+    if tok is None:
+        tok = uuid.uuid4().hex
+        world._wm_token = tok  # type: ignore[attr-defined]
+    return tok
+
+
 def _wm_cached(
     world: World,
     kind: str,
@@ -897,7 +910,7 @@ def _wm_cached(
     cache_max: int = _WM_CACHE_MAX,
     wait_s: float = _WM_WAIT_S,
 ) -> ToolResult:
-    key = json.dumps([kind, id(world), world.version, args], sort_keys=True, default=str)
+    key = json.dumps([kind, _world_token(world), world.version, args], sort_keys=True, default=str)
     with _WM_CACHE_LOCK:  # request threads and the warm-up thread share the caches
         hit = cache.get(key)
         if hit is not None:
@@ -1322,6 +1335,32 @@ def ticket_impact(ctx: Ctx, vr_id: str):
     )
 
 
+def ticket_reach(ctx: Ctx, vr_id: str, day: str = "weekday") -> ToolResult:
+    """Who a ticket's path or place matters to (Cycle 23): synthetic residents whose trips in a
+    rehearsed day cross it, by purpose and age group. Staff planning; counts only."""
+    from .day import reach
+
+    vr = ctx.vrs.get(vr_id)
+    if vr is None:
+        return ToolResult(ok=False, warnings=[f"unknown verification request {vr_id}"])
+    w = ctx.world
+    if not any(s["id"] == day for s in day_scenarios(ctx)):
+        return ToolResult(ok=False, warnings=[f"unknown day scenario {day}"])
+    if vr.element_id not in w.edges and vr.element_id not in w.places:
+        return ToolResult(ok=True, data={"kind": "other", "residents": 0, "trips": 0})
+
+    def run() -> ToolResult:
+        sc, _, _, res = _day_result(w, day)
+        if sc is None:
+            return ToolResult(ok=False, warnings=[f"unknown day scenario {day}"])
+        out = reach.reach(res, vr.element_id)
+        out["day"] = {"id": sc.id, "label": sc.label}
+        return ToolResult(ok=True, data=out, warnings=[engine_disclaimer()])
+
+    key = {"e": vr.element_id, "d": day, "on": _today()}
+    return _wm_cached(w, "reach", key, run, cache=_IMPACT_CACHE, cache_max=_IMPACT_CACHE_MAX)
+
+
 # ---- Elmina Day (Cycle 10): synthetic residents living a day on the world model -------------
 DAY_RESIDENTS = 5000
 _DAY_CACHE: OrderedDict[str, ToolResult] = OrderedDict()
@@ -1390,7 +1429,7 @@ def _day_parts(w: World, scenario_id: str):
     return sc, pop, spot.choose(pop)
 
 
-_DAY_RESULTS: OrderedDict[str, object] = OrderedDict()  # finished rule-based days (2 kept)
+_DAY_RESULTS: OrderedDict[str, object] = OrderedDict()  # finished rule-based days (4 kept)
 
 
 def _day_result(w: World, scenario_id: str):
@@ -1401,14 +1440,14 @@ def _day_result(w: World, scenario_id: str):
     sc, pop, cast = _day_parts(w, scenario_id)
     if sc is None:
         return None, None, None, None
-    key = json.dumps([id(w), w.version, scenario_id, _today()])
+    key = json.dumps([_world_token(w), w.version, scenario_id, _today()])
     with _WM_CACHE_LOCK:
         hit = _DAY_RESULTS.get(key)
     if hit is None:
         hit = engine.Day(w, sc, pop=pop).run()
         with _WM_CACHE_LOCK:
             _DAY_RESULTS[key] = hit
-            while len(_DAY_RESULTS) > 2:
+            while len(_DAY_RESULTS) > 4:  # the four built-in days (review C23)
                 _DAY_RESULTS.popitem(last=False)
     return sc, hit.day.pop, cast, hit
 
@@ -1621,3 +1660,121 @@ def day_test_change(ctx: Ctx, day: str = "storm", option: int = 1) -> ToolResult
 
 
 TOOLS["day_test_change"] = day_test_change
+
+_MYTRIP_CACHE: OrderedDict[str, ToolResult] = OrderedDict()
+
+
+def rehearse_my_trip(
+    ctx: Ctx,
+    from_id: str | None = None,
+    to_id: str | None = None,
+    profile: str = "default",
+    leave_at: str = "07:30",
+    day: str = "storm",
+    from_point: str | None = None,
+    to_point: str | None = None,
+) -> ToolResult:
+    """For a resident: their own trip through an Elmina Day rehearsal (Cycle 19). The trip runs
+    on the same rehearsed day as the synthetic residents (river stage minute by minute, staff
+    closures, re-planning on the way), at the asked time and every 10 minutes around it: when it
+    got through, when it was cut, which flooded street cut it, and when the way came back. Ends
+    are place ids (from find_place) or, from the map, a tapped point "lon,lat" snapped to the
+    nearest mapped path (never written to disk, logs or tickets). A rehearsal, not a forecast;
+    unchecked paths may be used and are counted."""
+    from .day import myday
+
+    w = ctx.world
+    scenario_id = str(day).strip().lower()
+    mode = "drive" if profile in ("drive", "car") else profile
+    if mode not in myday.MODES:
+        return ToolResult(ok=False, warnings=[f"unknown profile {profile}"])
+    t = myday.minutes(leave_at)
+    if t is None:
+        return ToolResult(ok=False, warnings=["leave_at must be a time like 07:30 (05:00-22:30)"])
+
+    def end(pid: str | None, point: str | None, which: str):
+        """(label dict, node id or None, point or None) for one end, or an error string."""
+        if point:
+            try:
+                lon, lat = (float(x) for x in point.split(","))
+            except ValueError:
+                return f"{which}_point must be 'lon,lat'"
+            lo, la, hi_lo, hi_la = w.site.bbox
+            if not (lo <= lon <= hi_lo and la <= lat <= hi_la):
+                return f"the {which} point is outside the mapped area"
+            return ({"id": None, "name": "the point you chose on the map"}, None, (lon, lat))
+        p = w.places.get(pid or "")
+        if p is None:
+            return "unknown place id: use find_place first"
+        return ({"id": p.id, "name": p.name}, p.node_id, None)
+
+    if (from_id and from_point) or (to_id and to_point):
+        return ToolResult(ok=False, warnings=["give each end as a place id or a point, not both"])
+    a, b = end(from_id, from_point, "from"), end(to_id, to_point, "to")
+    for x in (a, b):
+        if isinstance(x, str):
+            return ToolResult(ok=False, warnings=[x])
+    if (from_id and from_id == to_id) or (from_point and from_point == to_point):
+        return ToolResult(ok=False, warnings=["the start and the destination are the same place"])
+
+    def run() -> ToolResult:
+        sc, _, _, res = _day_result(w, scenario_id)
+        if sc is None:
+            return ToolResult(ok=False, warnings=[f"unknown day scenario {scenario_id}"])
+        nodes, snapped = [], {}
+        for which, (_label, node, pt) in (("from", a), ("to", b)):
+            if pt is not None:
+                with res.day.lock:
+                    hit = myday.nearest_node(res.day, pt[0], pt[1], mode)
+                if hit is None:
+                    snapped[which] = None
+                    node = None
+                else:
+                    node, snapped[which] = hit[0], round(hit[1])
+            nodes.append(node)
+        if nodes[0] and nodes[0] == nodes[1]:
+            return ToolResult(
+                ok=False, warnings=["the start and the destination are the same place"]
+            )
+        out = myday.rehearse(res.day, nodes[0], nodes[1], mode, t)
+        if any(v is None for v in snapped.values()):
+            out["reason"] = f"no mapped path within {myday.SNAP_M:.0f} m of the point you chose"
+        out.update(
+            {
+                "scenario": {"id": sc.id, "label": sc.label},
+                "from": {**a[0], "snapped_m": snapped.get("from")},
+                "to": {**b[0], "snapped_m": snapped.get("to")},
+                "profile": mode,
+            }
+        )
+        ev = Evidence(
+            id=f"ev-mytrip-{scenario_id}",
+            element_id="my-trip",
+            attribute=f"{scenario_id} trip",
+            value={"leave": out.get("leave"), "outcome": (out.get("asked") or {}).get("outcome")},
+            status="indicative",
+            source_type="rehearsal",
+        )
+        return ToolResult(ok=True, data=out, evidence=[ev], warnings=[engine_disclaimer()])
+
+    def k(pid, point):  # a tapped point is never kept as text, even in the in-memory cache key
+        return pid or "pt:" + hashlib.sha256(str(point).encode()).hexdigest()[:16]
+
+    key = {
+        "s": scenario_id,
+        "f": k(from_id, from_point),
+        "t": k(to_id, to_point),
+        "m": mode,
+        "at": t,
+        "on": _today(),
+    }
+    return _wm_cached(w, "my_trip", key, run, cache=_MYTRIP_CACHE, cache_max=64)
+
+
+def engine_disclaimer() -> str:
+    from .day.engine import DISCLAIMER
+
+    return DISCLAIMER
+
+
+TOOLS["rehearse_my_trip"] = rehearse_my_trip

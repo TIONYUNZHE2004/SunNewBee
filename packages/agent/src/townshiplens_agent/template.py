@@ -429,6 +429,100 @@ def day_change_answer(c: dict, evidence_ids: list[str]) -> dict:
     }
 
 
+MY_TRIP_CAVEAT = (
+    "A rehearsal on the township model, not a forecast. On a real storm day, follow official "
+    "MBSA / JPS / NADMA guidance."
+)
+_HOW = {
+    "default": "on foot",
+    "stroller": "with a stroller",
+    "wheelchair": "in a wheelchair",
+    "older_adult_rest": "on foot with rests",
+    "drive": "by car",
+}
+# What happened to the trip at the asked time, in words the validator also accepts.
+MY_TRIP_WORDS = {
+    "clear": "got there",
+    "longer": "got there by a longer way round",
+    "very_long": "found only a very long way round",
+    "rerouted": "had to re-plan on the way and got there",
+    "turned_back": "turned back",
+    "stranded": "was stuck on the way",
+    "no_way": "found no way through",
+}
+
+
+def _river(sid: str | None) -> str:
+    return f"the river at {_stage_words(sid)[6:]}" if _stage_words(sid) else "the water"
+
+
+def my_trip_answer(d: dict, evidence_ids: list[str]) -> dict:
+    """FinalAnswer fields for a resident's own rehearsed trip (shared by the mock and the
+    template). Facts from the rehearsal only: never "leave by", "safe" or "will"."""
+    sc = d.get("scenario") or {}
+    a, b = (d.get("from") or {}).get("name"), (d.get("to") or {}).get("name")
+    how = _HOW.get(d.get("profile") or "default", "on foot")
+    claim = [
+        {"text": "Your trip in a rehearsal", "status": "indicative", "evidence_ids": evidence_ids}
+    ]
+    if d.get("status") != "rehearsed":
+        return {
+            "answer_status": "partial",
+            "summary": (
+                f"In the {sc.get('label', 'simulated day')} rehearsal, there is no mapped "
+                f"connection for a trip from {a} to {b} {how}: a data gap, not a closed road."
+            ),
+            "steps": [],
+            "claims": claim,
+            "caveats": [MY_TRIP_CAVEAT],
+        }
+    q = d.get("asked") or {}
+    out = q.get("outcome", "no_way")
+    what = MY_TRIP_WORDS.get(out, "found no way through")
+    if out in ("clear", "longer", "rerouted") and q.get("arrive"):
+        detail = (
+            f" at {q['arrive']} ({q.get('minutes')} min; "
+            f"{d.get('normal_minutes')} min on a normal day)"
+        )
+    elif out == "very_long":
+        detail = f" ({q.get('minutes')} min instead of {d.get('normal_minutes')})"
+    else:
+        detail = ""
+    cut = d.get("cut_by") or []
+    because = (
+        f": {_river(d.get('stage_at_leave'))} cut {', '.join(cut)}"
+        if cut and out not in ("clear", "longer")
+        else ""
+    )
+    summary = (
+        f"In the {sc.get('label', 'simulated day')} rehearsal, a trip from {a} to {b} {how} "
+        f"leaving at {d.get('leave')} {what}{detail}{because}. A rehearsal, not a forecast."
+    )
+    steps = []
+    if d.get("last_ok_leave_before"):
+        steps.append(
+            f"Trips leaving at {d['last_ok_leave_before']} or earlier got there."
+            if d.get("all_earlier_ok")
+            else f"A trip leaving at {d['last_ok_leave_before']} got there."
+        )
+    if d.get("next_clear_leave"):
+        steps.append(f"The way came back for trips leaving from {d['next_clear_leave']}.")
+    if q.get("unchecked"):
+        steps.append(
+            f"The rehearsal lets unchecked paths be used: this trip crossed {q['unchecked']} "
+            "unchecked stretches. For a checked step-free route, ask for the route itself."
+        )
+    caveats = [MY_TRIP_CAVEAT]
+    return {
+        "answer_status": "answered",
+        "summary": summary,
+        "steps": steps,
+        "claims": claim,
+        "scenario_id": d.get("stage_at_leave"),
+        "caveats": caveats,
+    }
+
+
 def _top_stage(stages: list[str]) -> str | None:
     import re
 
@@ -452,6 +546,11 @@ def template_answer(rec: TurnRecord, question: str) -> FinalAnswer:
     )
     closed = [*rec.route_closures, *rec.asked_closures]
     last_fixit = bool(rec.what_ifs and rec.what_ifs[-1].get("fixit"))
+    if rec.my_trips and not rec.routes:
+        ev = [i for i in rec.evidence if i.startswith("ev-mytrip-")][-1:]
+        fields = my_trip_answer(rec.my_trips[-1], ev)
+        fields["caveats"] = [*fields["caveats"], "Answer generated from data without AI wording."]
+        return FinalAnswer(**fields)
     if rec.day_changes and rec.days and not rec.routes:
         # a turn that also ran the rehearsal names its data gap too (review C17)
         ev = [i for i in rec.evidence if i.startswith("ev-daychange-")][-1:]

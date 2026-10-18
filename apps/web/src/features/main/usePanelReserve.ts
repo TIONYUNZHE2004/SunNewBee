@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { SHEET_HEIGHTS } from "./BottomSheet";
 import { usePanel } from "./panelStore";
-import { PANEL_INSET_PX, panelWidthPx } from "./viewport";
+import { FRAME_GAP_PX, mapPanelOverlapPx, panelWidthPx } from "./viewport";
 
 const Q = "(min-width: 1024px)";
 
@@ -39,7 +39,8 @@ export function useSheetPeekOnNarrow() {
   }, [setSheet]);
 }
 
-/** Width of the floating assistant panel and the map width it covers (0 when closed or narrow). */
+/** Width of the assistant panel, the map width it covers (0: it docks beside the map card) and the
+ * width it takes from the frame beside the map (`docked`, 0 when closed or narrow). */
 export function usePanelReserve() {
   const open = usePanel((s) => s.open);
   const sheet = usePanel((s) => s.sheet);
@@ -54,7 +55,8 @@ export function usePanelReserve() {
   return {
     wide,
     panelW,
-    reserved: wide && open ? panelW + PANEL_INSET_PX * 2 : 0,
+    reserved: mapPanelOverlapPx(open, wide, vw),
+    docked: wide && open ? panelW + FRAME_GAP_PX : 0,
     /** Height the phone bottom sheet covers (CSS length); "0px" on wide screens. */
     sheetH: wide ? "0px" : SHEET_HEIGHTS[sheet],
   };

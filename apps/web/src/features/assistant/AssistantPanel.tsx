@@ -1,14 +1,17 @@
 import { type FormEvent, useEffect, useRef } from "react";
 import { useMode } from "../../app/modeStore";
+import { showsResidentTrip, useAssistantScope } from "../../lib/api";
 import { Icon } from "../../ui/icons";
 import { useChatDraft } from "../chat/chatDraftStore";
 import { useChatStream } from "../chat/useChatStream";
 import { DayPanel } from "../day/DayPanel";
+import { TripChip, TripPlanner } from "../day/TripPlanner";
 import { type Profile, useScene } from "../scene/sceneStore";
 import { RisingRiverPanel } from "../whatif/RisingRiverPanel";
 import { WhatIfLab } from "../whatif/WhatIfLab";
 import { AnswerCard } from "./AnswerCard";
 import { ChipRow } from "./ChipRow";
+import { CoverageCard } from "./CoverageCard";
 import { copyFor, STARTERS, type Starter } from "./starters";
 import { TravelChip } from "./TravelChip";
 
@@ -24,6 +27,7 @@ export function AssistantPanel({
   flat?: boolean;
 }) {
   const mode = useMode((s) => s.mode);
+  const residentTrip = showsResidentTrip(useAssistantScope().data);
   const copy = copyFor(mode);
   const starters = STARTERS[mode];
   const { messages, send, retry, streaming } = useChatStream();
@@ -69,12 +73,21 @@ export function AssistantPanel({
   return (
     <aside
       aria-label="Assistant"
-      className={`flex min-h-0 flex-1 flex-col overflow-hidden ${flat ? "" : "glass rounded-2xl"}`}
+      className={`flex min-h-0 flex-1 flex-col overflow-hidden ${
+        flat ? "" : "rounded-3xl border border-edge bg-surface shadow-[var(--c-shadow)]"
+      }`}
     >
-      <header className={`border-b border-edge px-4 py-3 ${compact ? "hidden" : ""}`}>
-        <h1 className="text-lg font-semibold text-fg">{copy.title}</h1>
-        <p className="mt-1 text-sm text-fg-soft">{copy.sub}</p>
+      <header className={`px-5 pt-5 pb-4 pr-14 ${compact ? "hidden" : ""}`}>
+        <h1 className="m-0 text-xl font-semibold tracking-tight text-fg">{copy.title}</h1>
+        <p className="mt-1 mb-0 text-sm text-fg-soft">{copy.sub}</p>
       </header>
+      {/* the peeking phone sheet keeps only the composer: the trip card waits for more room.
+          Scope B (T-011): the trip card shows only when the assistant covers everything. */}
+      {mode === "resident" && residentTrip && (
+        <div className={compact ? "hidden" : ""}>
+          <TripPlanner />
+        </div>
+      )}
       {mode === "management" && (
         <>
           <DayPanel />
@@ -86,36 +99,39 @@ export function AssistantPanel({
         role="log"
         aria-live="polite"
         aria-label="Conversation"
-        className={`min-h-0 flex-1 overflow-y-auto p-3 ${compact ? "hidden" : ""}`}
+        className={`min-h-0 flex-1 overflow-y-auto border-t border-edge px-4 py-4 ${compact ? "hidden" : ""}`}
       >
         <div className="flex flex-col gap-3">
           {messages.length === 0 && (
-            <div>
-              <p className="mb-2 text-xs font-semibold tracking-wider text-fg-soft">TRY ASKING</p>
-              <ul className="grid grid-cols-2 gap-2">
+            <div className="space-y-4">
+              <p className="m-0 font-mono text-[0.68rem] uppercase tracking-[0.14em] text-fg-soft">
+                Try asking
+              </p>
+              <ul className="m-0 grid list-none grid-cols-2 gap-2 p-0">
                 {starters.map((s) => (
                   <li key={s.text}>
                     <button
                       type="button"
                       disabled={streaming}
                       onClick={() => pick(s)}
-                      className="flex h-full min-h-24 w-full flex-col items-start gap-2 rounded-xl border border-edge bg-raised p-3 text-left text-sm text-fg hover:border-accent motion-safe:transition motion-safe:hover:-translate-y-px disabled:opacity-60"
+                      className="group flex h-full min-h-28 w-full flex-col items-start gap-3 rounded-2xl border border-edge bg-raised p-3.5 text-left text-sm leading-snug text-fg transition-[border-color,box-shadow,transform] hover:border-fg/25 hover:shadow-[var(--c-shadow)] motion-safe:hover:-translate-y-px disabled:opacity-60"
                     >
-                      <span className="grid size-9 place-items-center rounded-lg bg-brand-tint text-accent">
-                        <Icon name={s.icon} />
+                      <span className="grid size-8 place-items-center rounded-full border border-edge bg-surface text-fg-soft transition-colors group-hover:text-fg">
+                        <Icon name={s.icon} className="size-4" />
                       </span>
                       {s.text}
                     </button>
                   </li>
                 ))}
               </ul>
+              {mode === "resident" && <CoverageCard />}
             </div>
           )}
           {messages.map((m) =>
             m.role === "user" ? (
               <p
                 key={m.id}
-                className="ml-10 self-end rounded-2xl rounded-br-md bg-accent px-3 py-2 text-sm text-on-accent"
+                className="ml-10 self-end rounded-2xl rounded-br-md bg-accent px-3.5 py-2 text-sm text-on-accent"
               >
                 <span className="sr-only">You: </span>
                 {m.text}
@@ -127,7 +143,7 @@ export function AssistantPanel({
           <div ref={endRef} />
         </div>
       </div>
-      <footer className="border-t border-edge p-3">
+      <footer className="border-t border-edge p-4">
         {messages.length > 0 && (
           <ChipRow className={compact ? "hidden" : ""}>
             {starters.map((s) => (
@@ -136,7 +152,7 @@ export function AssistantPanel({
                 type="button"
                 disabled={streaming}
                 onClick={() => pick(s)}
-                className="min-h-11 shrink-0 rounded-full border border-edge bg-raised px-3 text-xs text-fg hover:border-accent disabled:opacity-60"
+                className="min-h-9 shrink-0 rounded-full border border-edge bg-raised px-3 text-xs text-fg transition-colors hover:border-fg/25 disabled:opacity-60"
               >
                 {s.text}
               </button>
@@ -144,13 +160,14 @@ export function AssistantPanel({
           </ChipRow>
         )}
         {mode === "resident" && (
-          <div className={`mb-2 ${compact ? "hidden" : ""}`}>
+          <div className={`mb-2 flex flex-wrap gap-2 ${compact ? "hidden" : ""}`}>
             <TravelChip />
+            {residentTrip && <TripChip />}
           </div>
         )}
         <form
           onSubmit={submit}
-          className="flex items-center gap-2 rounded-full border border-edge bg-raised p-1 pl-4 focus-within:border-accent"
+          className="flex items-center gap-2 rounded-2xl border border-edge bg-raised p-1.5 pl-4 transition-colors focus-within:border-fg/40 focus-within:bg-surface"
         >
           <label htmlFor="chat-input" className="sr-only">
             Your question
@@ -167,7 +184,7 @@ export function AssistantPanel({
             type="submit"
             aria-label="Ask"
             disabled={streaming || !text.trim()}
-            className="grid size-11 shrink-0 place-items-center rounded-full bg-accent text-on-accent transition hover:brightness-105 disabled:opacity-50"
+            className="grid size-10 shrink-0 place-items-center rounded-xl bg-accent text-on-accent transition hover:opacity-90 disabled:opacity-40"
           >
             <Icon name="send" />
           </button>

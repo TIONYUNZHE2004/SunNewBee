@@ -84,3 +84,46 @@ export function impactLines(d: ImpactLike): {
     belief,
   };
 }
+
+/** Whose rehearsed trips use a ticket's path or place (Cycle 23): synthetic residents, on
+ * foot or by car, and what for. Null when nobody's trips use it. */
+export function reachLine(d: unknown): { title: string; text: string; who: string | null } | null {
+  const r = d as {
+    kind?: string;
+    residents?: number;
+    on_foot?: number;
+    by_car?: number;
+    trips?: number;
+    day?: { label?: string };
+    by_purpose?: { purpose: string; words: string; trips: number }[];
+    by_group?: Record<string, number>;
+  } | null;
+  if (!r || !r.residents || r.kind === "other") return null;
+  const n = (x: number | undefined) => (x ?? 0).toLocaleString();
+  const purposes = r.by_purpose ?? [];
+  const what = purposes.filter((p) => p.purpose !== "home").map((p) => `${n(p.trips)} ${p.words}`);
+  const home = purposes.find((p) => p.purpose === "home");
+  if (home) what.push(`${n(home.trips)} trips home`);
+  const how =
+    r.kind === "place"
+      ? ""
+      : ` (${[
+          r.on_foot ? `${n(r.on_foot)} on foot` : null,
+          r.by_car ? `${n(r.by_car)} by car` : null,
+        ]
+          .filter(Boolean)
+          .join(", ")})`;
+  const verb = r.kind === "place" ? "went to this place and got there" : "use this path or road";
+  const g = r.by_group ?? {};
+  const young = [
+    g.child ? `${n(g.child)} children` : null,
+    g.teen ? `${n(g.teen)} teenagers` : null,
+  ].filter(Boolean);
+  return {
+    title: `Whose rehearsed trips use this · ${r.day?.label ?? "a rehearsed day"}`,
+    text: `${n(r.residents)} synthetic residents' trips ${verb}${how}: ${n(r.trips)} trips${
+      what.length ? `, of which ${what.join(", ")}` : ""
+    }.`,
+    who: young.length ? `Among them ${young.join(" and ")}.` : null,
+  };
+}

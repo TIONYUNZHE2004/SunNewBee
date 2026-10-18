@@ -18,6 +18,7 @@ data = [
     "scipy==1.18.1",
     "requests==2.34.2",
     "numpy>=2",
+    "pyarrow==26.0.0",
     "dracopy==2.2.0",
     "pygltflib==1.16.5",
 ]

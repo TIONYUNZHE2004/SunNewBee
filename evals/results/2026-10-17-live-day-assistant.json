@@ -77,5 +77,37 @@
     ],
     "text": "In the storm rehearsal, the top suggestion is an imagined change that raises the flooded stretch on Jalan Sungai Buloh (about 931 m) so it never floods. Only 1 of 8 suggested changes was tested, so this is the top suggestion, which is the change the most residents relied on. In the rehearsal, 823 residents would be better off and 0 would be worse off. Of these, 2 of 12 wheelchair users and 80 of 442 households without a car would be better off. This is a what-if simulation on synthetic residents, not a plan and not a forecast.\nWorth knowing:\n• Imagined change on a rehearsal of synthetic residents: not a plan, not a promise and not a forecast; the real township is unchanged.",
     "note": "attempts 1-2 were honest negations ('not the best option') rejected by the first best-claim rule; negation is now read"
+  },
+  {
+    "q": "In the storm rehearsal, what happens to my trip from Car Park B to SK Denai Alam by car leaving at 7:30?",
+    "cycle": "19-21 my trip",
+    "model": "anthropic/claude-haiku-5.5",
+    "text": "In the storm rehearsal, a 7:30 drive from Lakeside Mall Car Park B to SK Denai Alam found no way through. The flooded streets cut it were an unnamed street and the street on Persiaran Alstonia. The same drive takes about 8 minutes normally. This is a rehearsal of synthetic residents, not a forecast.\n1. In the rehearsal, leaving at 06:30 or 06:40 got through in about 8 minutes.\n2. Leaving between 06:50 and 12:20 had no way through, including 07:30.\n3. Leaving from 12:30 got through again in about 8 minutes.\nWorth knowing:\n• Indicative scenario, not a forecast: the river rises to River +3 m at 07:25 in the rehearsal, falls back to River +2 m at 10:00 and River +1 m at 11:00, and is clear by 12:30.\n• Rehearsal of synthetic residents, not real people; follow official MBSA / JPS / NADMA guidance.",
+    "drafts": {
+      "1": "In the storm rehearsal, a 7:30 drive from Lakeside Mall Car Park B to SK Denai Alam found no way through. The flooded streets cut it were an unnamed street and the street on Persiaran Alstonia. The same drive takes about 8 minutes normally. This is a rehearsal of synthetic residents, not a forecast."
+    },
+    "validator_errors": []
+  },
+  {
+    "q": "Dalam latihan ribut, apa berlaku kepada perjalanan saya dengan kereta sorong dari Car Park B ke SK Denai Alam jika bertolak pukul 7:00?",
+    "cycle": "19-21 my trip",
+    "model": "anthropic/claude-haiku-5.5+template",
+    "text": "In the Storm at the school run rehearsal, a trip from Lakeside Mall Car Park B to SK Denai Alam with a stroller leaving at 07:00 found only a very long way round (313 min instead of 64): the river at +1 m cut an unnamed footway, the street on Persiaran Alstonia. A rehearsal, not a forecast.\n1. Trips leaving at 06:40 or earlier got there.\n2. The way came back for trips leaving from 12:30.\n3. The rehearsal lets unchecked paths be used: this trip crossed 176 unchecked stretches. For a checked step-free route, ask for the route itself.\nWorth knowing:\n• A rehearsal on the township model, not a forecast. On a real storm day, follow official MBSA / JPS / NADMA guidance.\n• Answer generated from data without AI wording.",
+    "drafts": {
+      "1": "Dalam latihan ribut, perjalanan kereta sorong dari Lakeside Mall Car Park B ke SK Denai Alam pada 07:00 menjadi laluan yang sangat panjang. Dalam latihan, anda tiba pada 12:13, kira-kira 313 minit, berbanding 64 minit pada hari biasa. Tiada menunggu, tetapi laluan jauh lebih panjang.",
+      "2": "Dalam latihan ribut, perjalanan kereta sorong dari Lakeside Mall Car Park B ke SK Denai Alam yang bertolak pada 07:00 ialah laluan yang sangat panjang (very long). Dalam latihan, anda tiba pada 12:13, kira-kira 313 minit, berbanding 64 minit pada hari biasa, tanpa menunggu.",
+      "3": "Pada 07:00 dalam latihan ribut, perjalanan kereta sorong dari Lakeside Mall Car Park B ke SK Denai Alam menjadi very long (sangat panjang). Anda tiba pada 12:13, kira-kira 313 minit, berbanding 64 minit pada hari biasa, tanpa menunggu."
+    },
+    "validator_errors": [
+      [
+        "Say what happened to the trip at 07:00 in the rehearsal (it very long), in the sentence about that time."
+      ],
+      [
+        "Say what happened to the trip at 07:00 in the rehearsal (it very long), in the sentence about that time."
+      ],
+      [
+        "Say what happened to the trip at 07:00 in the rehearsal (it very long), in the sentence about that time."
+      ]
+    ]
   }
 ]

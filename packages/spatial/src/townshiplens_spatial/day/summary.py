@@ -74,12 +74,19 @@ def groups(res: DayResult) -> list[dict]:
 
 
 def school(res: DayResult) -> dict:
-    """Children's and teenagers' morning trips to school."""
+    """Children's and teenagers' morning trips to school, counting pupils only (ages 7-12 on a
+    school run; younger siblings riding along are not pupils)."""
+    from .schedule import PRIMARY_AGE
+
+    age = {r.id: r.age for r in res.day.pop.residents}
     kids = Counter()
     for t in res.trips:
         if t.purpose != "school" or t.direction != "out" or t.planned > 9 * 60:
             continue
-        n = len(t.companions) if t.label == "school run" else 1  # pupils on this trip
+        if t.label == "school run":
+            n = sum(1 for c in t.companions if PRIMARY_AGE[0] <= age.get(c, 0) <= PRIMARY_AGE[1])
+        else:
+            n = 1  # a teenager going to secondary school
         kids[t.status] += n
     return {"pupils": sum(kids.values()), **{k: kids.get(k, 0) for k in SEVERITY}}
 
@@ -302,7 +309,12 @@ def report(res: DayResult, keep: set[str] | None = None, sample: int = 1500) -> 
                 for a in sc.actions
             ],
         },
-        "population": {**pop_summary(d.pop), "sources": d.pop.sources, "seed": d.pop.seed},
+        "population": {
+            **pop_summary(d.pop),
+            "sources": d.pop.sources,
+            "seed": d.pop.seed,
+            "calibration": calibration(d.base_world),
+        },
         "assumptions": ASSUMPTIONS
         + [
             "Routes may use unchecked paths, as residents do; known barriers and likely-flooded "
@@ -319,4 +331,28 @@ def report(res: DayResult, keep: set[str] | None = None, sample: int = 1500) -> 
         "tracks": tracks(res, sample, keep),
         "disclaimer": DISCLAIMER,
         "world_version": d.base_world.version,
+    }
+
+
+def calibration(world) -> dict | None:
+    """The synthetic town checked against official open data for its district (Cycle 21,
+    data/scripts/calibrate_day.py): rows to show, sources and notes. None when not built."""
+    import json
+    from pathlib import Path
+
+    if world.data_dir is None:
+        return None
+    base = Path(world.data_dir).resolve()
+    p = base.parent.parent / "sim" / base.name / "calibration.json"
+    if not p.exists():
+        return None
+    c = json.loads(p.read_text(encoding="utf-8"))
+    return {
+        "area": c.get("area"),
+        "year": c.get("year"),
+        "rows": c.get("summary_rows", []),
+        "notes": c.get("notes", []),
+        "sources": [
+            {k: s.get(k) for k in ("title", "url", "licence")} for s in c.get("sources", [])
+        ],
     }

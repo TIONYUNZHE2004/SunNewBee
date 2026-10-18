@@ -448,3 +448,46 @@ def test_compare_counts_residents_one_way_and_ignores_client_labels(storm, seed_
         "value": 2,
     }
     assert not tools.day_compare(ctx, "storm", [fact]).ok
+
+
+def test_only_households_with_a_primary_age_child_do_a_school_run(storm, seed_world):
+    """Calibration (Cycle 21): before, every under-13 (toddlers included) went on a school run
+    and was counted as a pupil."""
+    from townshiplens_spatial.day.schedule import PRIMARY_AGE
+    from townshiplens_spatial.day.summary import school
+
+    age = {r.id: r.age for r in storm.day.pop.residents}
+    runs = [t for t in storm.trips if t.label == "school run" and t.direction == "out"]
+    assert runs
+    for t in runs:
+        assert any(PRIMARY_AGE[0] <= age[c] <= PRIMARY_AGE[1] for c in t.companions), t.id
+    pupils = sum(
+        sum(1 for c in t.companions if PRIMARY_AGE[0] <= age[c] <= PRIMARY_AGE[1])
+        for t in runs
+        if t.planned <= 9 * 60
+    ) + sum(
+        1
+        for t in storm.trips
+        if t.purpose == "school"
+        and t.direction == "out"
+        and t.label != "school run"
+        and t.planned <= 9 * 60
+    )
+    assert school(storm)["pupils"] == pupils
+
+
+def test_a_school_run_parent_has_a_child_aged_7_to_12(storm):
+    """Review C21: the cast called parents of toddlers 'doing the school run'."""
+    from townshiplens_spatial.day import spotlight
+    from townshiplens_spatial.day.schedule import PRIMARY_AGE
+
+    pop = storm.day.pop
+    by_house: dict[str, list] = {}
+    for r in pop.residents:
+        by_house.setdefault(r.household, []).append(r)
+    cast = spotlight.choose(pop)
+    runners = [c for c in cast if c.role == "parent doing the school run"]
+    assert runners
+    for c in runners:
+        ages = [r.age for r in by_house[c.household]]
+        assert any(PRIMARY_AGE[0] <= a <= PRIMARY_AGE[1] for a in ages), (c.id, ages)

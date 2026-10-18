@@ -8,6 +8,8 @@ import { InSlot } from "./mapSlots";
 export function DayTag() {
   const on = useScene((s) => s.day.on);
   const t = useScene((s) => s.day.t);
+  const playing = useScene((s) => s.day.playing);
+  const setDay = useScene((s) => s.setDay);
   const scenario = useScene((s) => s.day.scenario);
   const q = useDay(scenario, on);
   const tr = (q.data as { tracks?: { shown?: number; of?: number } } | undefined)?.tracks;
@@ -19,6 +21,15 @@ export function DayTag() {
         className="flex max-w-full flex-wrap items-center gap-x-3 gap-y-1 rounded-full border border-dashed border-lilac bg-surface/95 px-3 py-1 text-sm text-fg shadow-md"
       >
         <strong className="font-mono text-lilac">{hhmm(t)}</strong>
+        <button
+          type="button"
+          aria-label={playing ? "Pause the rehearsal" : "Play the rehearsal"}
+          aria-pressed={playing}
+          onClick={() => setDay({ playing: !playing })}
+          className="grid size-8 place-items-center rounded-full text-fg hover:bg-raised"
+        >
+          <span aria-hidden="true">{playing ? "❚❚" : "▶"}</span>
+        </button>
         <span className="text-xs">{DAY_LEGEND}</span>
         {tr?.shown ? (
           <span className="text-xs text-fg-soft">
@@ -33,6 +44,14 @@ export function DayTag() {
             {DAY_STYLE[k].label}
           </span>
         ))}
+        <button
+          type="button"
+          aria-label="Stop the rehearsal"
+          onClick={() => setDay({ on: false, playing: false })}
+          className="grid size-8 place-items-center rounded-full text-fg-soft hover:bg-raised"
+        >
+          <span aria-hidden="true">×</span>
+        </button>
       </div>
     </InSlot>
   );

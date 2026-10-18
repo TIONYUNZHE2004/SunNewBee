@@ -103,3 +103,8 @@
   message: "Which change should we test in the weekday rehearsal?"
   profile: default
   expect: { tools_include: [day_test_change], events_include: [scene.intent, citation, disclaimer], text_includes: ["imagined", "synthetic", "not a forecast"], text_excludes: ["will be built", " safe", "%"] }
+- id: day-my-trip
+  message: "In the rehearsal of a normal weekday, what happens to my trip from Car Park B to the playground leaving at 7:30?"
+  profile: stroller
+  assistant_scope: all  # explicit opt-in for legacy-feature regression coverage
+  expect: { tools_include: [rehearse_my_trip], events_include: [scene.intent, citation], text_includes: ["rehearsal", "not a forecast"], text_excludes: [" safe", "you should", "leave by", "will get"], mock_only: { text_includes: ["leaving at 07:30 got there"] } }

@@ -3,6 +3,7 @@ import type { Schemas } from "@tl/api-client";
 import { useState } from "react";
 import { api } from "../../lib/api";
 import { Button } from "../../ui/Button";
+import { LaunchRow } from "../../ui/LaunchRow";
 import { type Profile, useScene } from "../scene/sceneStore";
 import { actionKey, pct, summaryBars, WHATIF_LEGEND } from "./whatifModel";
 
@@ -70,11 +71,13 @@ export function WhatIfLab() {
 
   if (!open)
     return (
-      <div className="border-b border-edge px-4 py-2">
-        <Button variant="outline" onClick={() => setOpen(true)}>
-          Open What-if Lab
-        </Button>
-        <span className="ml-2 text-xs text-fg-soft">Imagine changes on a copy of the township</span>
+      <div className="px-3 py-1">
+        <LaunchRow
+          icon="route"
+          title="Open What-if Lab"
+          subtitle="Imagine changes on a copy of the township"
+          onClick={() => setOpen(true)}
+        />
       </div>
     );
 

@@ -5,13 +5,16 @@ import type { Ticket } from "./ticketModel";
 
 export function TicketDetail({ ticket }: { ticket: Ticket }) {
   return (
-    <article aria-label="Ticket detail" className="glass rounded-2xl p-5">
-      <p className="text-xs font-semibold uppercase tracking-wide text-fg-soft">
+    <article
+      aria-label="Ticket detail"
+      className="rounded-3xl border border-edge bg-surface p-6 shadow-[var(--c-shadow)]"
+    >
+      <p className="font-mono text-[0.68rem] uppercase tracking-[0.14em] text-fg-soft">
         {ticket.reasonLabel}
       </p>
-      <h2 className="mt-1 text-xl font-semibold text-fg">{ticket.fact}</h2>
+      <h2 className="mt-1 text-2xl font-semibold tracking-tight text-fg">{ticket.fact}</h2>
       <p className="text-sm text-fg-soft">{ticket.place}</p>
-      <dl className="mt-4 grid gap-2 text-sm">
+      <dl className="mt-5 grid gap-3 rounded-2xl border border-edge bg-raised p-4 text-sm sm:grid-cols-3">
         <div>
           <dt className="text-fg-soft">Came from a question like</dt>
           <dd className="text-fg">{ticket.kind}</dd>
