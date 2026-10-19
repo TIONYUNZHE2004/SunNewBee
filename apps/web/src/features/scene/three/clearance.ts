@@ -619,11 +619,6 @@ export function rasterTops(
   return out;
 }
 
-/**
- * The box of a placed model as a ring, at its drawn height. With `boxOf` the box is the loaded
- * geometry's own bounds (a glb may rise above or sit off its manifest `size`: review A-T7 r1 found
- * a landmark drawn 2.5 m above its size); otherwise the manifest size centred on the origin.
- */
 /** A model-space rectangle of a placement as a world ring (scale, then yaw, then position). */
 function placedRing(p: Placement, b: ModelBox): Pt[] {
   const c = Math.cos(p.yaw);
@@ -636,6 +631,11 @@ function placedRing(p: Placement, b: ModelBox): Pt[] {
   return [at(b.minX, b.minZ), at(b.maxX, b.minZ), at(b.maxX, b.maxZ), at(b.minX, b.maxZ)];
 }
 
+/**
+ * The box of a placed model as a ring, at its drawn height. With `boxOf` the box is the loaded
+ * geometry's own bounds (a glb may rise above or sit off its manifest `size`: review A-T7 r1 found
+ * a landmark drawn 2.5 m above its size); otherwise the manifest size centred on the origin.
+ */
 function placementObstacle(p: Placement, m: Manifest, boxOf?: ModelBoxOf): Obstacle | null {
   const size = m.assets[p.asset]?.variants[p.variant]?.size;
   const own = boxOf?.(p.asset, p.variant) ?? null;
@@ -651,24 +651,25 @@ function placementObstacle(p: Placement, m: Manifest, boxOf?: ModelBoxOf): Obsta
         }
       : null;
   if (!box || !(box.maxY > 0)) return null;
-  const c = Math.cos(p.yaw);
-  const s = Math.sin(p.yaw);
-  // Scale, then rotation about +y by yaw: local (lx, lz) -> (lx cos + lz sin, -lx sin + lz cos).
-  const at = (lx: number, lz: number): Pt => {
-    const x = lx * p.sx;
-    const z = lz * p.sz;
-    return [p.x + x * c + z * s, p.z - x * s + z * c];
-  };
-  return {
-    id: p.id,
-    ring: [
-      at(box.minX, box.minZ),
-      at(box.maxX, box.minZ),
-      at(box.maxX, box.maxZ),
-      at(box.minX, box.maxZ),
-    ],
-    topM: box.maxY * p.sy,
-  };
+  return { id: p.id, ring: placedRing(p, box), topM: box.maxY * p.sy };
+}
+
+/**
+ * What a placed model draws, seen from above, as obstacles: a landmark's drawn mass (`cellsOf`,
+ * `rasterTops`) when known, else its box (`boxOf`, else the manifest size). The clearance and the
+ * plan's walk-cover check (9.1 F1) read the same rings. Pure.
+ */
+export function drawnObstacles(
+  p: Placement,
+  m: Manifest,
+  landmark: boolean,
+  boxOf?: ModelBoxOf,
+  cellsOf?: ModelCellsOf,
+): Obstacle[] {
+  const cells = landmark ? cellsOf?.(p.asset, p.variant) : null;
+  if (cells) return cells.map((b) => ({ id: p.id, ring: placedRing(p, b), topM: b.maxY * p.sy }));
+  const o = placementObstacle(p, m, boxOf);
+  return o ? [o] : [];
 }
 
 /**
@@ -698,19 +699,8 @@ export function obstaclesFromCity(
   }
   if (plan && manifest) {
     for (const list of plan.placements.values())
-      for (const p of list) {
-        const o = placementObstacle(p, manifest, boxOf);
-        if (o) out.push(o);
-      }
-    for (const p of plan.landmarks) {
-      const cells = cellsOf?.(p.asset, p.variant);
-      if (cells) {
-        for (const b of cells) out.push({ id: p.id, ring: placedRing(p, b), topM: b.maxY * p.sy });
-        continue;
-      }
-      const o = placementObstacle(p, manifest, boxOf);
-      if (o) out.push(o);
-    }
+      for (const p of list) out.push(...drawnObstacles(p, manifest, false, boxOf));
+    for (const p of plan.landmarks) out.push(...drawnObstacles(p, manifest, true, boxOf, cellsOf));
   }
   return out;
 }
