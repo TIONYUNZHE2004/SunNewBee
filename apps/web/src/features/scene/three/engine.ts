@@ -22,7 +22,7 @@ import {
   viewOffsetFor,
 } from "./cameraRig";
 import type { CityGeometry } from "./cityMesh";
-import { type Clearance, stepClearance } from "./clearance";
+import { type Clearance, createLift } from "./clearance";
 import { cullFrustum, shadowPadM } from "./cull";
 import { groundMaterial } from "./ground/bands";
 import { cityGroundMeshes } from "./ground/cityGround";
@@ -95,6 +95,8 @@ export interface Engine {
   setClearance?(c: Clearance | null): void;
   /** The clearance grid in use, or null (read-only; the acceptance hook's footprint lookup). */
   clearance?(): Clearance | null;
+  /** Metres the clearance currently lifts the camera above its base pose (0: none). Read-only. */
+  clearanceLiftM?(): number;
   /**
    * Access / gaps / route / what-if lines. They live in their own scene, drawn by a pass after the
    * AO pass, so ambient occlusion never darkens them and they sit above every prop. Replaces and
@@ -147,6 +149,8 @@ export interface RigView {
   changed(): void;
   /** Canvas size in CSS pixels. */
   size(): [number, number];
+  /** Metres the building clearance lifts the camera now: get() reports the pose without it. */
+  liftM?(): number;
 }
 
 export interface EngineRig extends CameraRig {
@@ -170,6 +174,7 @@ export function createRig(view: RigView, bounds: () => Bounds): EngineRig {
   };
   const get = (): Pose => {
     const off = view.camera.position.clone().sub(view.target);
+    off.y -= view.liftM?.() ?? 0;
     const r = off.length() || 1;
     const heading = Math.atan2(-off.x, off.z) / RAD;
     return {
@@ -532,7 +537,13 @@ function build(
   });
 
   const rig = createRig(
-    { camera, target: controls.target, changed: moved, size: () => size },
+    {
+      camera,
+      target: controls.target,
+      changed: moved,
+      size: () => size,
+      liftM: () => liftNow(),
+    },
     () => bounds,
   );
 
@@ -625,22 +636,35 @@ function build(
     c.updateProjectionMatrix();
   };
 
-  // Building clearance (A-T7): the floor applies at once, the segment lift eases. True while easing.
+  // Building clearance (A-T7). The lift is display state: each tick first puts the camera back on
+  // its base pose (unless something moved it since: rig.set, a resize), so MapControls and rig
+  // flights never read the lift and never ratchet it up; after the inputs the lift is re-applied
+  // (floor at once, segment lift eased up and back down, state kept across flight frames).
   let clearance: Clearance | null = null;
+  const lift = createLift();
   let clearT = 0;
+  let liftM = 0;
+  const lifted = new THREE.Vector3(Number.NaN, 0, 0);
+  const liftNow = () => (liftM !== 0 && camera.position.equals(lifted) ? liftM : 0);
+  const unlift = () => {
+    if (liftM !== 0 && camera.position.equals(lifted)) camera.position.y -= liftM;
+    liftM = 0;
+  };
   const clearCamera = (now: number): boolean => {
     const dt = clearT ? now - clearT : 0;
     clearT = now;
     if (!clearance) return false;
     const p = camera.position;
     const t = controls.target;
-    const r = stepClearance(clearance, [p.x, p.y, p.z], [t.x, t.y, t.z], dt, reducedMotion());
-    if (r.y !== p.y) {
+    const r = lift.step(clearance, [p.x, p.y, p.z], [t.x, t.y, t.z], dt, reducedMotion());
+    if (r.liftM !== 0) {
       p.y = r.y;
       camera.lookAt(t);
       lastMove = now;
       lod.moved();
     }
+    liftM = r.liftM;
+    lifted.copy(p);
     return !r.settled;
   };
 
@@ -648,6 +672,7 @@ function build(
     raf = 0;
     if (disposed) return;
     const now = performance.now();
+    unlift();
     const flying = rig.step(now);
     if (flying) {
       lastMove = now;
@@ -913,9 +938,11 @@ function build(
     setClearance(c) {
       if (disposed) return;
       clearance = c;
+      lift.reset();
       requestRender();
     },
     clearance: () => clearance,
+    clearanceLiftM: () => liftNow(),
     setOverlays(o) {
       if (disposed) return;
       if (o === overlays) return;

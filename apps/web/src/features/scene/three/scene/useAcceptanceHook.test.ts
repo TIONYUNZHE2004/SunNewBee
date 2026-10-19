@@ -10,7 +10,9 @@ import {
   emptyCameraLog,
   frameSummary,
   logCameraFrame,
+  logRoofRay,
   maskCode,
+  roofHit,
   uncappedSummary,
 } from "./useAcceptanceHook";
 
@@ -185,5 +187,59 @@ describe("camera log and footprint lookup (AC-A8)", () => {
     const none = createAcceptanceApi({} as unknown as Engine, frame);
     expect(none.footprintTop(0, 0)).toBeNull();
     expect(none.clearance()).toBeNull();
+  });
+});
+
+describe("independent checks (A-T7 review r1)", () => {
+  it("logCameraFrame tracks per-frame dy and lift steps", () => {
+    const log = emptyCameraLog();
+    logCameraFrame(log, [0, 10, 0], 0, 2, 0);
+    logCameraFrame(log, [0, 13, 0], 0, 2, 3);
+    logCameraFrame(log, [0, 12, 0], 0, 2, 2);
+    expect(log.maxDyM).toBe(3);
+    expect(log.maxLiftStepM).toBe(3);
+    expect(log.liftedFrames).toBe(2);
+  });
+
+  it("logRoofRay counts hits, violations and drawn surfaces above the grid", () => {
+    const log = emptyCameraLog();
+    logRoofRay(log, [0, 50, 0], 0, 0, 2);
+    logRoofRay(log, [0, 50, 0], 30, 30, 2);
+    logRoofRay(log, [0, 31, 0], 30, 29, 2);
+    expect(log.ray.checked).toBe(3);
+    expect(log.ray.hits).toBe(2);
+    expect(log.ray.violations).toBe(1);
+    expect(log.ray.gridBelowMesh).toBe(1);
+    expect(log.ray.worstGridBelowM).toBeCloseTo(1);
+  });
+
+  it("roofHit finds the top of plain and instanced building meshes, decorative ones included", () => {
+    const root = new THREE.Group();
+    const box = new THREE.BoxGeometry(10, 20, 10);
+    box.translate(0, 10, 0);
+    const plain = new THREE.Mesh(box, new THREE.MeshBasicMaterial());
+    plain.userData.pick = { kind: "building" };
+    plain.raycast = () => {}; // decorative: opted out of picking
+    const inst = new THREE.InstancedMesh(box, new THREE.MeshBasicMaterial(), 2);
+    inst.userData.pick = { kind: "landmark" };
+    inst.setMatrixAt(0, new THREE.Matrix4().makeTranslation(100, 0, 0));
+    inst.setMatrixAt(
+      1,
+      new THREE.Matrix4().compose(
+        new THREE.Vector3(200, 0, 0),
+        new THREE.Quaternion(),
+        new THREE.Vector3(1, 3, 1),
+      ),
+    );
+    const tree = new THREE.Mesh(box, new THREE.MeshBasicMaterial());
+    tree.position.set(300, 0, 0);
+    root.add(plain, inst, tree);
+    root.updateMatrixWorld(true);
+    expect(roofHit([root], 0, 0)).toBeCloseTo(20);
+    expect(roofHit([root], 100, 0)).toBeCloseTo(20);
+    expect(roofHit([root], 200, 0)).toBeCloseTo(60);
+    // Not a building: ignored.
+    expect(roofHit([root], 300, 0)).toBe(0);
+    expect(roofHit([root], 50, 50)).toBe(0);
   });
 });

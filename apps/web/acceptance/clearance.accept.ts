@@ -25,6 +25,8 @@ function defaultOut(): string {
 const OUT = process.env.ACCEPTANCE_OUT ?? defaultOut();
 const SEED = Number(process.env.ACCEPTANCE_SEED ?? 20261019);
 const OPS = Number(process.env.ACCEPTANCE_OPS ?? 300);
+/** Extra operations with `prefers-reduced-motion: reduce` (the lift applies at once). */
+const REDUCED_OPS = Number(process.env.ACCEPTANCE_REDUCED_OPS ?? 60);
 /** Elmina City Centre / Urban Park (`three/bookmarks.ts` HERO_CENTRE). */
 const HERO: [number, number] = [101.5095, 3.1805];
 /** The hero district for this test: the target stays within this distance of HERO (else re-centred). */
@@ -68,6 +70,12 @@ const metresFromHero = (p: GeoPose) => {
   return Math.hypot((p.lon - HERO[0]) * kx, (p.lat - HERO[1]) * 110_574);
 };
 
+const consoleErrors: string[] = [];
+test.afterEach(({ browserName: _b }, info) => {
+  if (info.status !== info.expectedStatus)
+    console.log(`AC-A8 console (last 15): ${consoleErrors.slice(-15).join(" | ")}`);
+});
+
 const frames2 = (page: Page) =>
   page.evaluate(
     () => new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r()))),
@@ -76,12 +84,15 @@ const frames2 = (page: Page) =>
 test("AC-A8: 300 random wheel / drag / rotate operations never put the camera inside a building", async ({
   page,
 }) => {
-  test.setTimeout(10 * 60_000);
+  test.setTimeout(25 * 60_000);
   mkdirSync(OUT, { recursive: true });
-  const consoleErrors: string[] = [];
+  consoleErrors.length = 0;
   page.on("console", (m) => {
-    if (m.type() === "error") consoleErrors.push(m.text());
+    if (m.type() === "error" || m.type() === "warning") consoleErrors.push(m.text());
   });
+  page.on("pageerror", (e) => consoleErrors.push(`pageerror: ${e.message}`));
+  // On a failure, afterEach prints the console (e.g. why the renderer fell back to the List view).
+
   const gpu = await openScene(page, "day");
   const scene = page.locator('[data-testid="three-scene"]');
   // The clearance grid takes the placed archetypes once the city assets are in.
@@ -159,38 +170,74 @@ test("AC-A8: 300 random wheel / drag / rotate operations never put the camera in
   };
 
   const counts = { wheel: 0, drag: 0, rotate: 0, recentred: 0 };
-  await call(page, "startCameraLog");
-  const t0 = Date.now();
-  for (let op = 0; op < OPS; op++) {
-    const pose = await call<GeoPose>(page, "getPose");
-    if (metresFromHero(pose) > HERO_KEEP_M || pose.rangeM > MAX_RANGE_M) {
-      await call(page, "setPose", heroPose());
-      counts.recentred++;
-    }
-    const r = rand();
-    if (r < 0.45) {
-      // Wheel: mostly zooming in (towards roofs), 1-4 notches at the cursor.
-      counts.wheel++;
-      const p = await point();
-      await page.mouse.move(p.x, p.y);
-      const n = 1 + Math.floor(rand() * 4);
-      const sign = rand() < 0.7 ? -1 : 1;
-      for (let i = 0; i < n; i++) {
-        await page.mouse.wheel(0, sign * pick(100, 400));
-        await page.waitForTimeout(16);
+  const randomOps = async (n: number) => {
+    for (let op = 0; op < n; op++) {
+      const pose = await call<GeoPose>(page, "getPose");
+      if (metresFromHero(pose) > HERO_KEEP_M || pose.rangeM > MAX_RANGE_M) {
+        await call(page, "setPose", heroPose());
+        counts.recentred++;
       }
-    } else if (r < 0.7) {
-      counts.drag++;
-      await drag("left", pick(-260, 260), pick(-200, 200));
-    } else {
-      counts.rotate++;
-      await drag("right", pick(-320, 320), pick(-160, 160));
+      const r = rand();
+      if (r < 0.45) {
+        // Wheel: mostly zooming in (towards roofs), 1-4 notches at the cursor.
+        counts.wheel++;
+        const p = await point();
+        await page.mouse.move(p.x, p.y);
+        const k = 1 + Math.floor(rand() * 4);
+        const sign = rand() < 0.7 ? -1 : 1;
+        for (let i = 0; i < k; i++) {
+          await page.mouse.wheel(0, sign * pick(100, 400));
+          await page.waitForTimeout(16);
+        }
+      } else if (r < 0.7) {
+        counts.drag++;
+        await drag("left", pick(-260, 260), pick(-200, 200));
+      } else {
+        counts.rotate++;
+        await drag("right", pick(-320, 320), pick(-160, 160));
+      }
+      await page.waitForTimeout(pick(20, 120));
     }
-    await page.waitForTimeout(pick(20, 120));
-  }
-  // Let damping and any eased lift finish inside the log.
-  await page.waitForTimeout(1500);
-  const log = await call<{
+  };
+
+  // The tallest footprint near the hero (a 1.2 km box at 10 m steps), for the flights.
+  const heroLocal = await call<[number, number]>(page, "toLocal", HERO[0], HERO[1]);
+  const tower = await page.evaluate(
+    ({ h, c }) => {
+      const api = (
+        window as unknown as Record<string, Record<string, (...a: number[]) => unknown>>
+      )[h];
+      let best = { x: c[0], z: c[1], top: 0 };
+      for (let x = c[0] - 600; x <= c[0] + 600; x += 10)
+        for (let z = c[1] - 600; z <= c[1] + 600; z += 10) {
+          const top = (api?.footprintTop?.(x, z) as number | null) ?? 0;
+          if (top > best.top) best = { x, z, top };
+        }
+      return best;
+    },
+    { h: HOOK, c: heroLocal },
+  );
+  const towerLonLat = await call<[number, number]>(page, "toLonLat", tower.x, tower.z);
+  /** Low flights straight across the tower (east-west), the camera path through it. */
+  const flights = async (n: number) => {
+    const dLon = 250 / (111_320 * Math.cos((HERO[1] * Math.PI) / 180));
+    for (let i = 0; i < n; i++) {
+      const dir = i % 2 === 0 ? 1 : -1;
+      const at = (side: number): GeoPose => ({
+        lon: towerLonLat[0] + side * dLon,
+        lat: towerLonLat[1],
+        rangeM: 80,
+        pitchDeg: -12,
+        headingDeg: dir > 0 ? 90 : 270,
+      });
+      await call(page, "setPose", at(-dir));
+      await frames2(page);
+      await call(page, "flyTo", at(dir), 4000);
+      await page.waitForTimeout(4600);
+    }
+  };
+
+  type Log = {
     frames: number;
     overRoof: number;
     violations: number;
@@ -199,36 +246,127 @@ test("AC-A8: 300 random wheel / drag / rotate operations never put the camera in
     minY: number;
     maxY: number;
     samples: number[][];
-  }>(page, "stopCameraLog");
-  const seconds = (Date.now() - t0) / 1000;
-
-  const metrics = {
-    criterion: "AC-A8",
-    when: new Date().toISOString(),
-    seed: SEED,
-    operations: OPS,
-    counts,
-    seconds: Math.round(seconds * 10) / 10,
-    gpu,
-    grid,
+    maxDyM: number;
+    maxLiftStepM: number;
+    liftedFrames: number;
+    ray: {
+      checked: number;
+      hits: number;
+      violations: number;
+      gridBelowMesh: number;
+      worstGridBelowM: number;
+      samples: number[][];
+    };
+  };
+  const summary = (log: Log) => ({
     frames: log.frames,
     framesOverRoof: log.overRoof,
     violations: log.violations,
     worstDeficitM: log.worstDeficitM,
     minMarginOverRoofM: log.minMarginM,
     cameraYRangeM: [log.minY, log.maxY],
+    maxDyPerFrameM: log.maxDyM,
+    maxLiftStepPerFrameM: log.maxLiftStepM,
+    liftedFrames: log.liftedFrames,
+    meshRay: log.ray,
     violationSamples: log.samples,
+  });
+
+  // Independent check (b): drawn archetype / landmark instances against the grid, at hero-mid.
+  await call(page, "setPose", {
+    lon: HERO[0],
+    lat: HERO[1],
+    rangeM: 800,
+    pitchDeg: -45,
+    headingDeg: 0,
+  });
+  await page.waitForTimeout(3000);
+  const audit = await call<{
+    meshes: number;
+    checked: number;
+    fails: number;
+    worstM: number;
+    samples: unknown[];
+  }>(page, "instanceAudit", 4000);
+  await call(page, "setPose", heroPose());
+  await frames2(page);
+
+  await call(page, "startCameraLog");
+  const t0 = Date.now();
+  await randomOps(OPS);
+  // Let damping and any eased lift finish inside the log.
+  await page.waitForTimeout(1500);
+  const log = await call<Log>(page, "stopCameraLog");
+  const seconds = (Date.now() - t0) / 1000;
+
+  // Flights straight through the tallest tower (programmatic flyTo), logged apart: a low flight
+  // through a 130 m tower must climb about 115 m somewhere, so its lift steps are not the ops'.
+  await call(page, "startCameraLog");
+  await flights(2);
+  await page.waitForTimeout(1000);
+  const flown = await call<Log>(page, "stopCameraLog");
+
+  // Reduced motion: the lift applies at once; same invariant.
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await call(page, "setPose", heroPose());
+  await call(page, "startCameraLog");
+  await randomOps(REDUCED_OPS);
+  await flights(1);
+  await page.waitForTimeout(1000);
+  const reduced = await call<Log>(page, "stopCameraLog");
+  await page.emulateMedia({ reducedMotion: "no-preference" });
+
+  const pass =
+    log.violations === 0 &&
+    flown.violations === 0 &&
+    flown.ray.violations === 0 &&
+    reduced.violations === 0 &&
+    log.ray.violations === 0 &&
+    reduced.ray.violations === 0 &&
+    log.frames >= 1500 &&
+    log.overRoof > 0 &&
+    audit.fails === 0 &&
+    audit.checked > 0;
+  const metrics = {
+    criterion: "AC-A8",
+    when: new Date().toISOString(),
+    seed: SEED,
+    operations: OPS,
+    reducedMotionOperations: REDUCED_OPS,
+    flights: { acrossTower: tower, main: 2, reducedMotion: 1, durationMs: 4000 },
+    counts,
+    seconds: Math.round(seconds * 10) / 10,
+    gpu,
+    grid,
+    ...summary(log),
+    flightsLog: summary(flown),
+    reducedMotion: summary(reduced),
+    instanceAudit: audit,
     bookmarks,
     consoleErrors: consoleErrors.slice(0, 20),
-    pass: log.violations === 0 && log.frames >= 1500 && log.overRoof > 0,
+    pass,
   };
   writeFileSync(join(OUT, "metrics.json"), `${JSON.stringify(metrics, null, 2)}\n`);
   console.log(
-    `AC-A8: ${log.frames} frames (${log.overRoof} over a roof), ${log.violations} violations, ` +
-      `min margin ${log.minMarginM?.toFixed(2)} m, ${OPS} ops in ${seconds.toFixed(1)} s -> ${OUT}`,
+    `AC-A8: flights ${flown.frames} frames ${flown.violations} violations, max lift step ` +
+      `${flown.maxLiftStepM.toFixed(2)} m; ` +
+      `ops ${log.frames} frames (${log.overRoof} over a roof), ${log.violations} violations, ` +
+      `ray ${log.ray.hits}/${log.ray.checked} hits ${log.ray.violations} violations ` +
+      `${log.ray.gridBelowMesh} grid-below-mesh; reduced ${reduced.frames} frames ` +
+      `${reduced.violations} violations; audit ${audit.checked} checked ${audit.fails} fails ` +
+      `(worst ${audit.worstM.toFixed(3)} m); max dy ${log.maxDyM.toFixed(2)} m, max lift step ` +
+      `${log.maxLiftStepM.toFixed(2)} m; ${seconds.toFixed(1)} s -> ${OUT}`,
   );
 
   expect(log.frames, "about 2,000 sampled frames").toBeGreaterThanOrEqual(1500);
   expect(log.overRoof, "the run passed over roofs").toBeGreaterThan(0);
   expect(log.violations, JSON.stringify(log.samples)).toBe(0);
+  expect(flown.violations, JSON.stringify(flown.samples)).toBe(0);
+  expect(flown.ray.violations, JSON.stringify(flown.ray.samples)).toBe(0);
+  expect(reduced.violations, JSON.stringify(reduced.samples)).toBe(0);
+  expect(log.ray.hits, "mesh rays hit roofs").toBeGreaterThan(0);
+  expect(log.ray.violations, JSON.stringify(log.ray.samples)).toBe(0);
+  expect(reduced.ray.violations, JSON.stringify(reduced.ray.samples)).toBe(0);
+  expect(audit.checked).toBeGreaterThan(0);
+  expect(audit.fails, JSON.stringify(audit.samples)).toBe(0);
 });

@@ -6,13 +6,15 @@ import type { Manifest } from "./assets/manifest";
 import type { CityPlan } from "./assets/plan";
 import { HERO_CENTRE } from "./bookmarks";
 import { poseToCamera } from "./cameraRig";
+import { buildCityGeometry } from "./cityMesh";
 import {
   CLEARANCE_M,
   createClearance,
+  createLift,
+  MAX_SKIRT_M,
   type Obstacle,
   obstaclesFromCity,
-  RAMP_SLOPE,
-  stepClearance,
+  PAD_M,
   type Vec3,
 } from "./clearance";
 import { createFrame } from "./frame";
@@ -69,13 +71,33 @@ describe("clearance grid lookups", () => {
     expect(c.maxRoofNear(0, 0, 0)).toBe(30);
   });
 
-  it("floorAt is roof + clearance inside and ramps down outside", () => {
+  it("floorAt is roof + clearance inside a footprint and its pad, 0 beyond (no long ramp)", () => {
     const c = city();
     expect(c.floorAt(0, 0)).toBeCloseTo(30 + CLEARANCE_M);
-    expect(c.floorAt(14, 0)).toBeCloseTo(30 + CLEARANCE_M - RAMP_SLOPE * 4);
+    expect(c.floorAt(10 + PAD_M * 0.9, 0)).toBeCloseTo(30 + CLEARANCE_M);
+    expect(c.floorAt(10 + PAD_M + 0.1, 0)).toBe(0);
     expect(c.floorAt(50, 200)).toBe(0);
-    // Continuous across the wall: no pop when panning over the edge.
-    expect(Math.abs(c.floorAt(10.01, 0) - c.floorAt(9.99, 0))).toBeLessThan(0.05);
+  });
+
+  it("a 3 m street camera 6 m from a 30 m wall is not lifted (review A-T7 r1)", () => {
+    const c = city();
+    // Tower a's east wall is at x = 10; the camera stands at x = 16, looking north along the wall.
+    const r = c.clearCameraPose([16, 3, 0], [16, 0, -60]);
+    expect(r.lifted).toBe(false);
+    expect(r.position[1]).toBe(3);
+    // Looking away from the wall too.
+    expect(c.clearCameraPose([16, 3, 0], [76, 0, 0]).lifted).toBe(false);
+  });
+
+  it("an optional short skirt ramps beyond the pad, capped at MAX_SKIRT_M, and can be dropped per call", () => {
+    const c = createClearance([square("a", 0, 0, 10, 30)], { skirtM: 8 });
+    const peak = 30 + CLEARANCE_M;
+    expect(c.floorAt(10 + PAD_M + 4, 0)).toBeCloseTo(peak / 2);
+    expect(c.floorAt(10 + PAD_M + 8.1, 0)).toBe(0);
+    expect(c.floorAt(10 + PAD_M + 4, 0, 0)).toBe(0);
+    expect(c.clearCameraPose([10 + PAD_M + 4, 3, 0], [60, 0, 0], { skirtM: 0 }).lifted).toBe(false);
+    const big = createClearance([square("a", 0, 0, 10, 30)], { skirtM: 100 });
+    expect(big.floorAt(10 + PAD_M + MAX_SKIRT_M + 0.1, 0)).toBe(0);
   });
 
   it("an empty grid never lifts", () => {
@@ -157,46 +179,79 @@ describe("segment tests", () => {
   });
 });
 
-describe("stepClearance (rig easing)", () => {
-  it("applies the floor at once and eases the segment lift", () => {
+describe("createLift (eased lift state)", () => {
+  it("applies the floor at once and eases the segment lift up", () => {
     const c = city();
-    // Inside tower a below its roof: hard floor in one step.
-    const a = stepClearance(c, [0, 5, 0], [60, 0, 0], 16, false);
-    expect(a.y).toBeGreaterThanOrEqual(32);
+    // Inside tower a below its roof: hard floor on an eased step.
+    const l0 = createLift();
+    l0.step(c, [-200, 300, 0], [-150, 0, 0], 16, false);
+    expect(l0.step(c, [0, 5, 0], [60, 0, 0], 16, false).y).toBeGreaterThanOrEqual(32);
     // Segment lift only (camera outside, low): eased, not settled after one frame.
+    const l = createLift();
+    l.step(c, [-60, 5, 200], [60, 0, 200], 16, false); // history: nothing in the way
     const cam: Vec3 = [-60, 5, 0];
     const goal = c.clearCameraPose(cam, [60, 0, 0]).position[1];
-    const s1 = stepClearance(c, cam, [60, 0, 0], 16, false);
+    const s1 = l.step(c, cam, [60, 0, 0], 16, false);
     expect(s1.settled).toBe(false);
     expect(s1.y).toBeGreaterThan(5);
     expect(s1.y).toBeLessThan(goal);
-    // Converges.
-    let y = s1.y;
-    for (let i = 0; i < 200; i++) {
-      const s = stepClearance(c, [-60, y, 0], [60, 0, 0], 16, false);
-      y = s.y;
-      if (s.settled) break;
-    }
-    expect(y).toBeCloseTo(goal, 1);
+    let last = s1;
+    for (let i = 0; i < 200 && !last.settled; i++) last = l.step(c, cam, [60, 0, 0], 16, false);
+    expect(last.y).toBe(goal);
     // Reduced motion: at once.
-    const r = stepClearance(c, cam, [60, 0, 0], 16, true);
-    expect(r).toEqual({ y: goal, settled: true });
+    const r = createLift();
+    r.step(c, [-60, 5, 200], [60, 0, 200], 16, true);
+    expect(r.step(c, cam, [60, 0, 0], 16, true)).toEqual({
+      y: goal,
+      liftM: goal - 5,
+      settled: true,
+    });
   });
 
-  it("random poses around towers never end inside a footprint below roof + clearance", () => {
+  it("keeps the eased lift across frames that re-apply the base pose (rig flights)", () => {
     const c = city();
+    const l = createLift();
+    l.step(c, [-60, 5, 200], [60, 0, 200], 16, false);
+    const goal = c.clearCameraPose([-60, 5, 0], [60, 0, 0]).position[1];
+    // A flight re-applies the same unlifted tween pose every frame: the lift still converges.
+    let s = l.step(c, [-60, 5, 0], [60, 0, 0], 16, false);
+    for (let i = 0; i < 120; i++) s = l.step(c, [-60, 5, 0], [60, 0, 0], 16, false);
+    expect(s.y).toBeCloseTo(goal, 1);
+  });
+
+  it("eases back down when the obstacle is gone, and never ratchets the base", () => {
+    const c = city();
+    const l = createLift();
+    l.step(c, [-60, 5, 0], [60, 0, 0], 16, true); // lifted at once
+    const down1 = l.step(c, [-60, 5, 200], [60, 0, 200], 16, false);
+    expect(down1.y).toBeGreaterThan(5);
+    expect(down1.settled).toBe(false);
+    let s = down1;
+    for (let i = 0; i < 200 && !s.settled; i++)
+      s = l.step(c, [-60, 5, 200], [60, 0, 200], 16, false);
+    expect(s.y).toBe(5);
+    expect(s.liftM).toBe(0);
+  });
+
+  it("random poses around towers never end inside a footprint below roof + clearance, never over-lift", () => {
+    const c = city();
+    const l = createLift();
     let seed = 7;
     const rnd = () => {
       seed = (seed * 1664525 + 1013904223) >>> 0;
       return seed / 2 ** 32;
     };
+    let prevLift = 0;
     for (let i = 0; i < 2000; i++) {
       const cam: Vec3 = [rnd() * 260 - 130, rnd() * 80, rnd() * 260 - 130];
       const tgt: Vec3 = [rnd() * 260 - 130, 0, rnd() * 260 - 130];
-      const { y } = stepClearance(c, cam, tgt, 16, false);
+      const goal = c.clearCameraPose(cam, tgt).position[1];
+      const { y, liftM } = l.step(c, cam, tgt, 16, false);
       const top = c.topAt(cam[0], cam[2]);
       if (top > 0) expect(y).toBeGreaterThanOrEqual(top + CLEARANCE_M - 1e-9);
-      expect(y).toBeGreaterThanOrEqual(cam[1]);
+      // Never above both the goal and the previous (decaying) lift.
+      expect(y).toBeLessThanOrEqual(Math.max(goal, cam[1] + prevLift) + 1e-9);
+      prevLift = liftM;
     }
   });
 });
@@ -262,6 +317,38 @@ describe("obstaclesFromCity", () => {
     expect(c.topAt(114, 0)).toBe(60);
     expect(c.topAt(100, 8)).toBe(0);
   });
+
+  it("uses the drawn geometry bounds (boxOf) over the manifest size: off-centre and taller", () => {
+    const unit: Placement = {
+      id: "m",
+      asset: "mall",
+      variant: "osm",
+      x: 0,
+      z: 0,
+      yaw: 0,
+      sx: 2,
+      sy: 1,
+      sz: 1,
+      palette: ["#000", "#000", "#000"],
+    };
+    const manifest = {
+      assets: { mall: { variants: { osm: { size: [10, 9, 10], lods: [] } } } },
+    } as unknown as Manifest;
+    const plan = {
+      placements: new Map(),
+      extrude: new Set(),
+      landmarks: [unit],
+      stats: { placed: 0, units: 0, fallback: {} },
+    } as unknown as CityPlan;
+    const boxOf = () => ({ minX: 0, maxX: 10, minZ: -5, maxZ: 5, maxY: 11.5 });
+    const c = createClearance(obstaclesFromCity(null, frame, plan, manifest, boxOf));
+    // x from 0 to 20 (scale 2), top 11.5 (not the manifest's 9).
+    expect(c.topAt(15, 0)).toBe(11.5);
+    expect(c.topAt(-3, 0)).toBe(0);
+    // Without boxOf: the manifest size centred on the origin.
+    const m = createClearance(obstaclesFromCity(null, frame, plan, manifest));
+    expect(m.topAt(-3, 0)).toBe(9);
+  });
 });
 
 // The Elmina seed (skipped when the seed is not checked out).
@@ -271,6 +358,30 @@ describe.skipIf(!existsSync(SEED))("seed footprints", () => {
   const frame = createFrame(HERO_CENTRE);
   const obs = obstaclesFromCity(layer, frame);
   const c = createClearance(obs);
+
+  it("independent check: every extruded vertex of buildCityGeometry is under the grid's roof", () => {
+    const g = buildCityGeometry(layer, frame);
+    const pos = g.buildings.getAttribute("position");
+    const { starts } = g.faces;
+    let checked = 0;
+    let worst = Number.NEGATIVE_INFINITY;
+    g.footprints.forEach((fp, i) => {
+      const t0 = starts[i] as number;
+      const t1 = (starts[i + 1] as number | undefined) ?? pos.count / 3;
+      let maxY = Number.NEGATIVE_INFINITY;
+      for (let v = t0 * 3; v < t1 * 3; v++) maxY = Math.max(maxY, pos.getY(v));
+      // An interior sample: the ring centroid, when it falls inside the drawn ring.
+      const n = fp.ring.length;
+      const cx = fp.ring.reduce((a, p) => a + p[0], 0) / n;
+      const cz = fp.ring.reduce((a, p) => a + p[1], 0) / n;
+      if (createClearance([{ id: fp.id, ring: fp.ring, topM: 1 }]).topAt(cx, cz) === 0) return;
+      checked++;
+      worst = Math.max(worst, maxY - c.topAt(cx, cz));
+    });
+    expect(checked).toBeGreaterThan(5000);
+    // The drawn mesh never rises above the grid's roof at that point (float tolerance).
+    expect(worst).toBeLessThanOrEqual(1e-3);
+  });
 
   it("indexes the seed buildings and finds each footprint's own roof at its centroid", () => {
     expect(c.count).toBeGreaterThan(1000);
