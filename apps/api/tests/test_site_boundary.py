@@ -22,7 +22,7 @@ def _client(monkeypatch, data: Path) -> TestClient:
 def test_site_has_the_boundary_geometry_on_the_seed(monkeypatch):
     b = _client(monkeypatch, SEED).get("/site").json()["boundary"]
     assert b["file"] == "base/boundary.geojson"
-    assert b["source"] == "fallback_union"
+    assert b["source"] == "owner_master_plan"
     geom = b["geometry"]
     assert geom["type"] in ("Polygon", "MultiPolygon")
     raw = json.loads((SEED / "base/boundary.geojson").read_text(encoding="utf-8"))
