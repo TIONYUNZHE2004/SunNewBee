@@ -173,7 +173,9 @@ export const CLAY_PALETTE = {
     metal: "#cfd6de",
     grip: "#5a6b7d",
     benchWood: "#c98b55",
-    benchIron: "#4b5563",
+    // GATE fix (AC-B6 beats 14/16): was #4b5563 (luminance 0.09); its shade-side legs filled ~0.8%
+    // of a rest framing with near-black. Clay slate at CLAY_MIN_LUMINANCE or over.
+    benchIron: "#6f7a8a",
   },
 } as const;
 

@@ -141,6 +141,7 @@ export async function mapArea(
       // B-T4: with the journey UI up (SVG mini-map, route paths, cards) probing all ~81k points
       // hit-tested those overlays at every point and blocked the page for over 10 minutes.
       const boxes: { l: number; t: number; r: number; b: number }[] = [];
+      const inert: { l: number; t: number; r: number; b: number }[] = [];
       for (const el of Array.from(document.querySelectorAll("body *"))) {
         if (el === canvas || el.contains(canvas)) continue;
         const b = el.getBoundingClientRect();
@@ -153,12 +154,34 @@ export async function mapArea(
         )
           continue;
         const cs = getComputedStyle(el);
-        if (cs.pointerEvents === "none" || cs.visibility === "hidden" || cs.display === "none")
+        if (cs.visibility === "hidden" || cs.display === "none" || Number(cs.opacity) === 0)
           continue;
-        boxes.push({ l: b.left, t: b.top, r: b.right, b: b.bottom });
+        const box = { l: b.left, t: b.top, r: b.right, b: b.bottom };
+        if (cs.pointerEvents === "none") {
+          // Not hit-testable (elementFromPoint looks through it), but it still paints over the
+          // map: the journey event card and mini-map (GATE fix: they counted as map pixels).
+          // Only elements that paint something themselves, so transparent wrappers stay map.
+          const paints =
+            !/rgba\([^)]*,\s*0\)|transparent/.test(cs.backgroundColor) ||
+            cs.backgroundImage !== "none" ||
+            (cs.backdropFilter ?? "none") !== "none" ||
+            cs.boxShadow !== "none" ||
+            el instanceof SVGSVGElement ||
+            el instanceof HTMLImageElement ||
+            Array.from(el.childNodes).some(
+              (n) => n.nodeType === Node.TEXT_NODE && (n.textContent ?? "").trim() !== "",
+            );
+          if (paints) inert.push(box);
+          continue;
+        }
+        boxes.push(box);
       }
       const covered = (x: number, y: number) => {
         for (const b of boxes) if (x >= b.l && x < b.r && y >= b.t && y < b.b) return true;
+        return false;
+      };
+      const underInert = (x: number, y: number) => {
+        for (const b of inert) if (x >= b.l && x < b.r && y >= b.t && y < b.b) return true;
         return false;
       };
       const cols = Math.ceil(width / step);
@@ -170,7 +193,11 @@ export async function mapArea(
           const y = Math.min(height - 1, row * step + step / 2);
           const inside = x >= rect.left && x < rect.right && y >= rect.top && y < rect.bottom;
           bits +=
-            inside && (!covered(x, y) || document.elementFromPoint(x, y) === canvas) ? "1" : "0";
+            inside &&
+            !underInert(x, y) &&
+            (!covered(x, y) || document.elementFromPoint(x, y) === canvas)
+              ? "1"
+              : "0";
         }
       return {
         cols,

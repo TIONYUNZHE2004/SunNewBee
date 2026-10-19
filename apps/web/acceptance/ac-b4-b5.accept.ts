@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { expect, type Page, test } from "@playwright/test";
 import { gotoBookmark, HOOK, openScene, settle } from "./support/bookmarks";
 import { askDemoJourney, hasJourneyHook, journey } from "./support/journey";
-import { type Box, laplacianVariance } from "./support/pixels";
+import { type Box, erodeMask, laplacianVariance } from "./support/pixels";
 import { decodePng, mapArea } from "./support/scene";
 
 /**
@@ -24,6 +24,15 @@ import { decodePng, mapArea } from "./support/scene";
 const OUT =
   process.env.ACCEPTANCE_OUT ??
   "C:/Users/shaoxian04/Documents/SunNewBee/.superpowers/sdd/journey-sim/acceptance/B-T5";
+
+/**
+ * The map-area mask shrunk by this many px for the sharpness metric. `mapArea` probes on an 8 px
+ * grid, so up to a step of each DOM panel's border, text and box shadow leaked into the top band:
+ * at the final gate the top band of every follow beat read 400-900 from the panels' crisp edges
+ * while the 3D scene there read 10-50 (re-measured by hand on the beat captures). AC-B4 compares the
+ * hero with the far field of the scene, not with the UI chrome.
+ */
+const CHROME_MARGIN_PX = 12;
 
 const effects = (page: Page) =>
   page.evaluate(
@@ -100,11 +109,12 @@ test("AC-B4: tilt-shift keeps the hero sharp vs the far field at every follow be
   const ovPng = await page.screenshot({ path: join(OUT, "overview.png") });
   const ov = await decodePng(page, ovPng);
   const ovArea = await mapArea(page, ov.width, ov.height, 8);
+  const ovMask = erodeMask(ovArea.mask, ov.width, ov.height, CHROME_MARGIN_PX);
   const c = ovArea.canvas;
   const stripes: number[] = [];
   for (let i = 0; i < 8; i++) {
     const box: Box = { x: c.x, y: c.y + (c.h * i) / 8, w: c.w, h: c.h / 8 };
-    stripes.push(laplacianVariance(ov, box, ovArea.mask));
+    stripes.push(laplacianVariance(ov, box, ovMask));
   }
   const finite = stripes.map((v) => (Number.isFinite(v) ? v : 0));
   const sharpest = finite.indexOf(Math.max(...finite));
@@ -129,8 +139,12 @@ test("AC-B4: tilt-shift keeps the hero sharp vs the far field at every follow be
   for (const [i, p] of beats.entries()) {
     await journey.seek(page, (p.t0 + p.t1) / 2);
     await settle(page, 1500, 20_000);
-    const img = await decodePng(page, await page.screenshot());
+    // ACCEPTANCE_BEAT_PNG=1 keeps each beat's capture (diagnosis).
+    const shot =
+      process.env.ACCEPTANCE_BEAT_PNG === "1" ? { path: join(OUT, `ac-b4-beat-${i}.png`) } : {};
+    const img = await decodePng(page, await page.screenshot(shot));
     const area = await mapArea(page, img.width, img.height, 8);
+    const mask = erodeMask(area.mask, img.width, img.height, CHROME_MARGIN_PX);
     const f = await page.evaluate(
       (h) =>
         (window as unknown as Record<string, { focusScreen(): { x: number; y: number } | null }>)[
@@ -143,9 +157,9 @@ test("AC-B4: tilt-shift keeps the hero sharp vs the far field at every follow be
     const hero = laplacianVariance(
       img,
       { x: r.x + f.x - 50, y: r.y + f.y - 50, w: 100, h: 100 },
-      area.mask,
+      mask,
     );
-    const top = laplacianVariance(img, { x: r.x, y: r.y, w: r.w, h: r.h * 0.12 }, area.mask);
+    const top = laplacianVariance(img, { x: r.x, y: r.y, w: r.w, h: r.h * 0.12 }, mask);
     rows.push({ beat: `${i}-${p.kind}`, hero, top, ratio: top > 0 ? hero / top : Infinity });
   }
   writeFileSync(

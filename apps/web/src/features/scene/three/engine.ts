@@ -925,7 +925,7 @@ function build(
   const aimBokeh = () => {
     if (!bokehPass) return;
     focusNow(focusTmp);
-    bokehPass.aim(focusDepth(camera, focusTmp), camera.position.distanceTo(focusTmp));
+    bokehPass.aim(focusDepth(camera, focusTmp), camera.position.distanceTo(focusTmp), focusSet);
   };
   /** Strength from the mood preset; the pass is skipped while it is 0 (day). */
   const syncBloom = () => {

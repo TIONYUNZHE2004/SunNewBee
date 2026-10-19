@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   countColour,
   deltaE,
+  erodeMask,
   extremeShares,
   fractionBelow,
   greyShare,
@@ -111,6 +112,22 @@ describe("countColour", () => {
   it("clips a box that runs off the image", () => {
     const im = img(4, 4, () => [10, 20, 30]);
     expect(countColour(im, "#0a141e", 0, { box: { x: 3, y: 3, w: 10, h: 10 } })).toBe(1);
+  });
+});
+
+describe("erodeMask", () => {
+  it("drops every pixel within r of the mask edge or the image edge", () => {
+    const w = 12;
+    const h = 10;
+    const m = new Uint8Array(w * h).fill(1);
+    m[5 * w + 6] = 0; // a hole
+    const e = erodeMask(m, w, h, 2);
+    for (let y = 0; y < h; y++)
+      for (let x = 0; x < w; x++) {
+        const nearHole = Math.abs(x - 6) <= 2 && Math.abs(y - 5) <= 2;
+        const nearEdge = x < 2 || y < 2 || x >= w - 2 || y >= h - 2;
+        expect(e[y * w + x], `${x},${y}`).toBe(nearHole || nearEdge ? 0 : 1);
+      }
   });
 });
 

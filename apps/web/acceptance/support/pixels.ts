@@ -233,6 +233,40 @@ export function countColour(img: RGBAImage, hex: string, tol: number, sel: Selec
  * interior of `box` (default the whole image), skipping pixels `mask` leaves out: a sharpness /
  * detail measure. NaN when no interior pixel is left (a box under 3×3, or all masked out).
  */
+/**
+ * The mask shrunk by `r` px (Chebyshev): a pixel stays only when every pixel within `r` of it is in
+ * the mask. `mapArea` probes on a step grid, so the edges of DOM panels (border, text, box shadow)
+ * leak up to a step (plus the shadow) into the map area; a sharpness metric must not read them.
+ */
+export function erodeMask(mask: Uint8Array, width: number, height: number, r: number): Uint8Array {
+  if (mask.length !== width * height) throw new Error("mask size");
+  // Separable min filter: rows, then columns (out of the image counts as outside the mask).
+  const rows = new Uint8Array(mask.length);
+  for (let y = 0; y < height; y++) {
+    let run = 0;
+    const o = y * width;
+    // run = consecutive in-mask pixels ending at x; kept when the window [x-r, x+r] is all in.
+    const runs = new Int32Array(width);
+    for (let x = 0; x < width; x++) {
+      run = mask[o + x] ? run + 1 : 0;
+      runs[x] = run;
+    }
+    for (let x = r; x < width - r; x++) if ((runs[x + r] as number) >= 2 * r + 1) rows[o + x] = 1;
+  }
+  const out = new Uint8Array(mask.length);
+  for (let x = 0; x < width; x++) {
+    let run = 0;
+    const runs = new Int32Array(height);
+    for (let y = 0; y < height; y++) {
+      run = rows[y * width + x] ? run + 1 : 0;
+      runs[y] = run;
+    }
+    for (let y = r; y < height - r; y++)
+      if ((runs[y + r] as number) >= 2 * r + 1) out[y * width + x] = 1;
+  }
+  return out;
+}
+
 export function laplacianVariance(img: RGBAImage, box?: Box, mask?: Uint8Array): number {
   checkMask(img, mask);
   const b = clipBox(img, box);
