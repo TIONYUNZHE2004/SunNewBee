@@ -21,7 +21,7 @@ from .evaluate import (
 )
 from .geo import haversine_m
 from .maneuvers import build_maneuvers
-from .models import Evidence, RoadSection, Route, RouteResult, RouteSegment, photo_url
+from .models import Evidence, Place, RoadSection, Route, RouteResult, RouteSegment, photo_url
 from .scenario_meta import scenario_source, selection_error
 from .world import World
 
@@ -51,20 +51,26 @@ def _caveat(profile, status):
 SNAP_CAP_M = 150.0
 
 
+def _entrance_pts(world: World, place: Place | None) -> list[tuple[str, list[float]]]:
+    return [
+        (entrance.node_id, entrance.coord)
+        for eid in (place.entrance_ids if place else [])
+        if (entrance := world.places.get(eid)) and entrance.node_id
+    ]
+
+
 def _target_pts(world: World, place_id: str) -> list[tuple[str, list[float]]]:
     """(graph node, coordinate) for each mapped way into a place or transient centre target."""
     p = world.places.get(place_id)
     if p is None and place_id.startswith(CENTRE_PREFIX):
         # Transient evacuation-centre target: resolved from world.centres, never stored in places.
         c = world.centres.get(place_id[len(CENTRE_PREFIX) :])
+        if c and (ents := _entrance_pts(world, world.places.get(c.place_id))):
+            return ents
         return [(c.node_id, c.coord)] if c and c.node_id and c.node_id in world.graph else []
     if p is None:
         return []
-    ents = [
-        (world.places[e].node_id, world.places[e].coord)
-        for e in p.entrance_ids
-        if e in world.places and world.places[e].node_id
-    ]
+    ents = _entrance_pts(world, p)
     return ents or ([(p.node_id, p.coord)] if p.node_id and p.node_id in world.graph else [])
 
 
@@ -130,7 +136,8 @@ def _road_disconnected(comps: dict[str, int], sources, targets) -> bool:
 
 
 def _targets(world: World, place_id: str, profile=None) -> list[str]:
-    pts = _target_pts(world, place_id)
+    # A broken explicit entrance is a data gap, not permission to use the older area snap.
+    pts = [(n, xy) for n, xy in _target_pts(world, place_id) if n in world.graph]
     if profile is None or profile.allowed_types is None:
         return [n for n, _ in pts]
     roads = _road_nodes(world, profile)
