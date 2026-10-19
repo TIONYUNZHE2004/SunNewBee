@@ -84,23 +84,36 @@ def test_long_routes_keep_eight_lines_and_say_how_many_are_not_listed():
     assert steps[-1] == "Reach the end of the mapped route."  # never a claimed arrival
 
 
+# T-021 review: the model never writes a turn or heading (the app renders the steps), so no
+# turn can be bound to the wrong street, stretch or occurrence.
 @pytest.mark.parametrize(
     "text, problem",
     [
-        ("Turn right onto Persiaran Elmina.", "turns right"),
+        ("Turn right onto Persiaran Elmina.", "Do not write turns"),
+        ("Turn left onto Persiaran Elmina.", "Do not write turns"),  # true, but the app's job
+        ("Turn right onto persiaran elmina.", "Do not write turns"),
+        ("Turn right onto the footway.", "Do not write turns"),
+        ("Bear right onto Persiaran Elmina.", "Do not write turns"),
+        ("Belok kanan ke Persiaran Elmina.", "Do not write turns"),
+        ("在Persiaran Elmina右转。", "Do not write turns"),
+        ("Head north along the footway.", "Do not write turns"),
         ("Walk along Jalan Hopea.", "Jalan Hopea"),
-        ("Belok kanan ke Persiaran Elmina.", "turns right"),
-        ("在Persiaran Elmina右转。", "turns right"),
+        ("Follow persiaran elmina for 11.8 m.", "11.8 m"),
     ],
 )
-def test_invented_turns_and_streets_are_rejected(text, problem):
+def test_model_written_directions_are_rejected(text, problem):
     assert problem in " ".join(maneuver_errors(text, ROUTE))
 
 
 @pytest.mark.parametrize(
-    "text", ["Turn left onto Persiaran Elmina.", "Follow the footway, then Persiaran Elmina."]
+    "text",
+    [
+        "Follow the footway, then Persiaran Elmina.",
+        "It runs along Persiaran Elmina for about 120 m.",
+        "The route is about 172 m.",
+    ],
 )
-def test_turns_and_streets_from_the_maneuvers_pass(text):
+def test_descriptions_from_the_maneuvers_pass(text):
     assert maneuver_errors(text, ROUTE) == []
 
 
@@ -128,7 +141,7 @@ def _ans(summary, **kw):
 @pytest.mark.parametrize(
     "summary",
     [
-        "The route is about 172 m. Turn right onto Persiaran Elmina.",
+        "The route is about 172 m. Turn left onto Persiaran Elmina.",
         "The route is about 172 m and step-free along Persiaran Elmina.",
         "The route is about 172 m along Jalan Hopea.",
     ],

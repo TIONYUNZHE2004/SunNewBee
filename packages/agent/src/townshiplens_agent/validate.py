@@ -541,8 +541,10 @@ def estimate_wording_errors(ans: FinalAnswer, rec: TurnRecord) -> list[str]:
 def status_wording_errors(ans: FinalAnswer, rec: TurnRecord) -> list[str]:
     """How the text names route status and crossings. Shared with `draft_errors`."""
     errs: list[str] = estimate_claim_errors(ans, rec)
-    errs += maneuver_errors(
-        _strip_names(" ".join([ans.summary, *ans.steps, *ans.caveats]), rec.place_names),
+    errs += maneuver_errors(  # model-written text only: the app renders the steps (run.py)
+        _strip_names(
+            " ".join([ans.summary, *ans.caveats, *(c.text for c in ans.claims)]), rec.place_names
+        ),
         _selected_route(ans, rec),
         {
             str(c.get("element_name") or "")
