@@ -59,6 +59,9 @@ def test_split_retains_mode_restrictions_and_surface_inputs():
         "motor_vehicle": "no",
         "surface": "unpaved",
         "name": "Test",
+        "oneway": "yes",
+        "oneway:motorcar": "no",
+        "junction": "roundabout",
     }
     segments = split_ways(
         [

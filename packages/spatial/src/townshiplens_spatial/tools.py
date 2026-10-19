@@ -520,6 +520,12 @@ def plan_route(
                 )
                 vrs.append({**vr.model_dump(mode="json"), "created": created})
     evidence += _closure_notes(ctx.world, rr, from_id, to_id, profile, scenario_id)
+    if profile == "drive":
+        evidence += routing.direction_evidence(
+            ctx.world,
+            [s.edge_id for r in rr.routes for s in r.segments]
+            + [r["element_id"] for r in rr.blocked_reasons if r["attribute"] == "oneway"],
+        )
     if rr.routes or rr.status == "blocked":  # a blocked answer still rests on the snapped endpoint
         evidence += _inferred_endpoints(ctx.world, from_id, to_id, rr.warnings)
     if scenario_id:

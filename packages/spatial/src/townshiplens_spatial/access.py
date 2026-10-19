@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING
 from shapely.geometry import LineString, Point
 from shapely.strtree import STRtree
 
+from .direction import direction_unknown
 from .evaluate import (
     SIDEWALK_PRESENT,
     _needs_verification,
@@ -101,6 +102,8 @@ def assess_access(
     _, permission = mode_access(edge, profile)
     if permission is not None and permission not in {"yes", "designated", "permissive", "official"}:
         return result("unknown", "restricted_access_v1")
+    if profile.id == "drive" and direction_unknown(edge):
+        return result("unknown", "driving_direction_unknown_v1")
     attrs = relevant_attributes(edge, profile)
     # An unconstrained profile's vacuous PASS does not establish a staff survey.
     survey_attrs = attrs or ["step_count", "incline_pct", "width_m"]

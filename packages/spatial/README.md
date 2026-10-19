@@ -85,7 +85,14 @@ Speed: rollouts run inside `routing.eval_memo()`, which evaluates each (state, p
 `config/profiles/`: `default`, `stroller`, `wheelchair`, `older_adult_rest` and `drive`.
 `drive` only uses edges whose `type` is `street`, `track` or `major_road` (`allowed_types`), assumes 30 km/h,
 treats a possibly flooded road as FAIL (walking profiles treat it as UNKNOWN), and always adds
-its standing warning (one-way and turn restrictions are not modelled; indicative only).
+its standing warning (mapped one-way tags applied; legal turn restrictions and changing
+directions remain unmodelled; indicative only). Direction is relative to the original OSM
+edge orientation: `yes/1/true` is forward, `-1` is reverse, and `no/0/false` allows both.
+Motorcar/motor-vehicle/vehicle overrides take priority; a mapped roundabout implies forward
+unless overridden. These vehicle rules do not restrict pedestrian profiles. Search choices
+are keyed by ordered nodes, so opposite parallel carriageways cannot exchange segment IDs.
+Unsupported or conditional directions remain unknown estimates with a warning.
+See [the OSM direction contract](https://wiki.openstreetmap.org/wiki/Key:oneway).
 
 `older_adult_rest` has `max_rest_free_run_m: 100`. Routing first runs a resource-constrained
 search over (node, metres since the last rest point). It is label-setting with dominance

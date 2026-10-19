@@ -43,7 +43,7 @@ def test_drive_routes_on_roads_only(world):
     ids = [s.edge_id for s in r.segments]
     assert ids == ["rd-1", "rd-2"]
     assert not {world.edges[i].type for i in ids} & {"footway", "steps", "path", "ramp"}
-    # never confirmed: one-way and turn restrictions are not modelled
+    # Never confirmed: legal turn restrictions remain unmodelled.
     assert r.status == "partly_unverified" and rr.status == "partly_unverified"
     assert any("one-way" in w for w in rr.warnings)
     # 165 m at the drive speed, not at walking speed
@@ -650,7 +650,7 @@ def _nx_reference_search(world, sources, targets, profile, scenario_id, allow_un
     except nx.NetworkXNoPath:
         return None, [], evals
     nodes = path[1:-1]
-    return nodes, [chosen[frozenset((u, v))] for u, v in zip(nodes, nodes[1:], strict=False)], evals
+    return nodes, [chosen[(u, v)] for u, v in zip(nodes, nodes[1:], strict=False)], evals
 
 
 def test_search_matches_the_networkx_reference_without_copying_the_graph(world):

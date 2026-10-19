@@ -10,6 +10,7 @@ from typing import Any
 import networkx as nx
 
 from .access import LEVELS, assess_access, urban_context
+from .direction import CONDITIONAL_KEYS, allows_direction, direction_rule, direction_unknown
 from .evaluate import SIDEWALK_PRESENT, _is_stale, evaluate_edge, evaluate_flood, rest_point_state
 from .geo import haversine_m
 from .maneuvers import build_maneuvers
@@ -336,6 +337,7 @@ def path_status(world, nodes, profile, scenario_id):
         candidates = [
             (cost, key)
             for key in world.graph[u][v]
+            if allows_direction(world.edges[key], profile.id, u)
             if (cost := _edge_cost(world, profile, scenario_id, False, key)) is not None
         ]
         key = min(candidates)[1]
@@ -358,13 +360,26 @@ def make_weight(world, profile, scenario_id, allow_unknown, evals=None, chosen=N
     def weight(u, v, data):
         best = None
         for key in data:  # MultiGraph: data = {edge_id: attrs}
+            if not allows_direction(world.edges[key], profile.id, u):
+                if evals is not None:
+                    evals[("direction", u, v, key)] = (
+                        "FAIL",
+                        [
+                            {
+                                "element_id": key,
+                                "attribute": "oneway",
+                                "why": "mapped one-way direction forbids this traversal",
+                            }
+                        ],
+                    )
+                continue
             w = _edge_cost(world, profile, scenario_id, allow_unknown, key, evals)
             if w is None:
                 continue
             if best is None or w < best:
                 best = w
                 if chosen is not None:
-                    chosen[frozenset((u, v))] = key
+                    chosen[(u, v)] = key
         return best
 
     return weight
@@ -377,7 +392,7 @@ def _search(world, sources, targets, profile, scenario_id, allow_unknown):
     costs resolve by insertion order, the first source/target reached wins), without copying the
     whole graph for those two nodes on every call (about half of a seed route's time)."""
     evals: dict[str, tuple] = {}
-    chosen: dict[frozenset, str] = {}  # node pair -> edge key the search actually costed
+    chosen: dict[tuple[str, str], str] = {}  # ordered node pair -> chosen edge key
     weight = make_weight(world, profile, scenario_id, allow_unknown, evals, chosen)
     g, goal = world.graph, set(targets)
     seen: dict[str, float] = {}
@@ -398,7 +413,7 @@ def _search(world, sources, targets, profile, scenario_id, allow_unknown):
             while nodes[-1] in pred:
                 nodes.append(pred[nodes[-1]])
             nodes.reverse()
-            keys = [chosen[frozenset((u, w))] for u, w in zip(nodes, nodes[1:], strict=False)]
+            keys = [chosen[(u, w)] for u, w in zip(nodes, nodes[1:], strict=False)]
             return nodes, keys, evals
         for u, data in g[v].items():
             cost = weight(v, u, data)
@@ -482,6 +497,8 @@ def _rest_search(world, sources, targets, profile, scenario_id, allow_unknown, l
             return nodes[::-1], keys[::-1], evals, False
         for nbr, data in g[node].items():
             for key in data:
+                if not allows_direction(world.edges[key], profile.id, node):
+                    continue
                 if key not in costs:
                     costs[key] = _edge_cost(world, profile, scenario_id, allow_unknown, key, evals)
                 w = costs[key]
@@ -690,6 +707,30 @@ def evidence_for_route(world: World, route: Route) -> list[Evidence]:
     return out
 
 
+def direction_evidence(world: World, edge_ids) -> list[Evidence]:
+    out = []
+    for key in dict.fromkeys(edge_ids):
+        edge = world.edges.get(key)
+        if edge is None:
+            continue
+        _, tag, value = direction_rule(edge)
+        if tag is None:
+            tag = next((k for k in CONDITIONAL_KEYS if k in edge.osm_tags), None)
+            value = edge.osm_tags.get(tag) if tag else None
+        if tag is not None:
+            out.append(
+                Evidence(
+                    id=f"ev-{edge.id}.oneway",
+                    element_id=edge.id,
+                    attribute="oneway",
+                    value={"tag": tag, "value": value},
+                    status="reported",
+                    source_type="osm_import",
+                )
+            )
+    return out
+
+
 def plan_route(
     world: World, from_id: str, to_id: str, profile_id: str, scenario_id: str | None = None
 ) -> RouteResult:
@@ -723,6 +764,13 @@ def plan_route(
             result.warnings.append(
                 f"About {route.road_without_mapped_sidewalk_m:.0f} m follows road centre lines "
                 "without a mapped sidewalk; sidewalk access is not verified"
+            )
+        if profile.id == "drive" and any(
+            direction_unknown(world.edges[s.edge_id]) for s in route.segments
+        ):
+            result.warnings.append(
+                "This route includes conditional or changing one-way directions "
+                "that are not interpreted"
             )
     result.warnings.extend(
         note
