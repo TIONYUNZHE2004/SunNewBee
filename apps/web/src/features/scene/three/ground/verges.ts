@@ -1,6 +1,7 @@
 import { ROAD_WIDTH_UNKNOWN, WIDTH_BY_TYPE } from "../../shared/roads";
 import { hash01, type Placement } from "../assets/fit";
 import type { LocalFrame } from "../frame";
+import { CLAY_PALETTE } from "../shared/clayTokens";
 import { inBox, perLayer, touchesBox } from "../stream/area";
 import type { Tile } from "../stream/tiles";
 import { VERGE_Y } from "./bands";
@@ -36,7 +37,7 @@ const RIBBON_CLEAR_M = 0.3;
 const HEDGE_SHARE = 0.3;
 const VERGE_TYPES = new Set(["street", "residential", "service"]);
 /** The kit's own default palette (manifest `trees.palettes.default`); 9b may repaint per precinct. */
-const SHRUB_PALETTE: [string, string, string] = ["#d8d6d0", "#3d4147", "#8a8f96"];
+const SHRUB_PALETTE: [string, string, string] = [...CLAY_PALETTE.treesKit];
 /** Spatial grid cell (m) for the ribbon and footprint lookups (each query reads one cell). */
 const GRID_M = 16;
 /** The widest ribbon query margin (`RIBBON_CLEAR_M`) and footprint query distance (`DRIVEWAY_GAP_M`). */

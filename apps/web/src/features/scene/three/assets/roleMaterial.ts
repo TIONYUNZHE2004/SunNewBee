@@ -1,4 +1,12 @@
 import * as THREE from "three";
+import type { Tier } from "../../shared/quality";
+import {
+  CLAY,
+  CLAY_PALETTE,
+  type ClayRole,
+  clayMaterial,
+  EFFECT_COLOURS,
+} from "../shared/clayTokens";
 
 export interface RoleUniforms {
   uWindowGlow: { value: number };
@@ -9,15 +17,49 @@ export interface RoleUniforms {
   uFlicker: { value: number };
 }
 
-/** sRGB hex; THREE.Color converts to linear working space on construction. */
+/** sRGB hex (clay token table); THREE.Color converts to linear working space on construction. */
 export const FIXED_ROLE_COLOURS: Record<"glass" | "dark" | "metal" | "foliage" | "light", string> =
-  {
-    glass: "#6f8aa0",
-    dark: "#5a5d63",
-    metal: "#9aa1a8",
-    foliage: "#5f8f4e",
-    light: "#fff1c9",
-  };
+  { ...CLAY_PALETTE.fixedRole };
+
+/**
+ * Clay role per archetype role index (0 primary, 1 secondary, 2 accent, 3 glass, 4 dark, 5 metal,
+ * 6 foliage, 7 light): the fragment shader takes each role's roughness and metalness from its token
+ * (B-T1). Only role 5 (metal: railings, poles, gates) has metalness.
+ */
+export const ROLE_CLAY: readonly ClayRole[] = [
+  "wall",
+  "roof",
+  "wall",
+  "glass",
+  "dark",
+  "metal",
+  "foliage",
+  "light",
+];
+
+/**
+ * GLSL (after `metalnessmap_fragment`) that sets `roughnessFactor` / `metalnessFactor` per role from
+ * the clay tokens, and `tlSheenK` / `tlSheenR`: the role's sheen relative to the material's (`base`
+ * token, which sets the sheenColor uniform) and its sheen roughness. `roleSheenGlsl` applies them.
+ */
+export function roleResponseGlsl(base: ClayRole = "wall"): string {
+  const ref = CLAY[base].sheen;
+  const lines: string[] = ["float tlSheenK = 1.0;", "float tlSheenR = 0.8;"];
+  ROLE_CLAY.forEach((role, i) => {
+    const tok = CLAY[role];
+    const cond = i === 7 ? "tlRole >= 7" : `tlRole == ${i}`;
+    lines.push(
+      `${i === 0 ? "" : "else "}if (${cond}) { roughnessFactor = ${tok.roughness.toFixed(2)}; metalnessFactor = ${tok.metalness.toFixed(2)}; tlSheenK = ${(tok.sheen / ref).toFixed(4)}; tlSheenR = ${tok.sheenRoughness.toFixed(2)}; }`,
+    );
+  });
+  return lines.join(String.fromCharCode(10));
+}
+
+/** GLSL (after `lights_physical_fragment`): per-role sheen; a no-op without USE_SHEEN (Medium / Low). */
+export const ROLE_SHEEN_GLSL = `#ifdef USE_SHEEN
+material.sheenColor *= tlSheenK;
+material.sheenRoughness = clamp(tlSheenR, 0.0001, 1.0);
+#endif`;
 
 /**
  * Floor for the baked AO (COLOR_0.r), A-T8. The per-vertex bake leaves exact zeros at corners whose
@@ -55,8 +97,8 @@ export function createMotionUniforms(): MotionUniforms {
  */
 export type RoleKind = "tree" | "person" | "vehicle" | "parked" | "static";
 
-const HEADLIGHT = "#fff4d6";
-const TAILLIGHT = "#ff3b30";
+const HEADLIGHT = EFFECT_COLOURS.headlight;
+const TAILLIGHT = EFFECT_COLOURS.taillight;
 
 export function createRoleUniforms(): RoleUniforms {
   return {
@@ -83,7 +125,7 @@ const vec3Of = (hex: string) => {
   return `vec3(${c.r.toFixed(5)}, ${c.g.toFixed(5)}, ${c.b.toFixed(5)})`;
 };
 
-const DEFAULT_PALETTE: [string, string, string] = ["#c9c2b4", "#9a8f80", "#b5654a"];
+const DEFAULT_PALETTE: [string, string, string] = [...CLAY_PALETTE.roleDefault];
 
 /**
  * Base colour = role palette (COLOR_0.g, decoded floor(g*7+0.5)) x baked AO (COLOR_0.r).
@@ -101,6 +143,8 @@ export function createRoleMaterial(opts: {
   flicker?: boolean;
   /** Scales the lit-glass night glow (default 1; roof skylights use 0.6, softer than the windows). */
   glassGlow?: number;
+  /** Quality tier for the clay factory (High: physical + sheen; below: standard). Default: `clayTier()`. */
+  tier?: Tier;
 }): THREE.MeshStandardMaterial {
   const { instanced, uniforms } = opts;
   const palette = opts.palette ?? DEFAULT_PALETTE;
@@ -112,7 +156,9 @@ export function createRoleMaterial(opts: {
   const flicker = opts.flicker === true;
   const glassGlow = opts.glassGlow ?? 1;
   const motion = moving || flicker ? (opts.motion ?? createMotionUniforms()) : undefined;
-  const mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85, metalness: 0 });
+  const clayRole: ClayRole =
+    kind === "person" ? "person" : kind === "vehicle" || kind === "parked" ? "vehicle" : "wall";
+  const mat = clayMaterial(clayRole, { vertexColors: true, tier: opts.tier });
   mat.name = "tl_role";
   const baseKey = instanced ? "tl_role_i" : "tl_role_s";
   mat.customProgramCacheKey = () =>
@@ -173,11 +219,21 @@ vec3 tlBase = ${p(0)};
 if (tlRole == 1) tlBase = ${p(1)};
 else if (tlRole == 2) tlBase = ${p(2)};
 else if (tlRole == 3) tlBase = ${vec3Of(FIXED_ROLE_COLOURS.glass)};
-else if (tlRole == 4) tlBase = ${vec3Of(FIXED_ROLE_COLOURS.dark)};
+else if (tlRole == 4) tlBase = ${vec3Of(kind === "tree" ? CLAY_PALETTE.trunk : FIXED_ROLE_COLOURS.dark)};
 else if (tlRole == 5) tlBase = ${vec3Of(FIXED_ROLE_COLOURS.metal)};
 else if (tlRole == 6) tlBase = ${vec3Of(FIXED_ROLE_COLOURS.foliage)};
 else if (tlRole >= 7) tlBase = ${parked ? p(0) : vec3Of(FIXED_ROLE_COLOURS.light)};
 diffuseColor.rgb = tlBase * tlAo;`,
+    );
+    fs = fs.replace(
+      "#include <metalnessmap_fragment>",
+      `#include <metalnessmap_fragment>
+${roleResponseGlsl(clayRole)}`,
+    );
+    fs = fs.replace(
+      "#include <lights_physical_fragment>",
+      `#include <lights_physical_fragment>
+${ROLE_SHEEN_GLSL}`,
     );
     fs = fs.replace(
       "#include <emissivemap_fragment>",

@@ -1,4 +1,5 @@
 import { hashUnit } from "../../shared/model";
+import { CLAY_PALETTE } from "../shared/clayTokens";
 import type { AssetSpec } from "./manifest";
 
 /** Min-area rectangle of a footprint in local xz. w <= l; angle is the direction of the l axis
@@ -166,7 +167,7 @@ export function variantFor(spec: AssetSpec, group: string, heightM: number): str
   return names[0]!;
 }
 
-const FALLBACK_PALETTE: [string, string, string] = ["#c8c2b6", "#8a8478", "#5a5650"];
+const FALLBACK_PALETTE: [string, string, string] = [...CLAY_PALETTE.archetypeFallback];
 
 export function paletteFor(spec: AssetSpec, group: string, id: string): [string, string, string] {
   const own = spec.palettes[group];

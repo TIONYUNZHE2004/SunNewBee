@@ -7,6 +7,7 @@ import {
   TRACK_STRIDE,
   TRACK_WIDTH_M,
 } from "../props/construction";
+import { CLAY_PALETTE } from "../shared/clayTokens";
 import { CONSTRUCTION_Y } from "./bands";
 import { STALL_D_M, STALL_LIFT_Y, STALL_LINE_M, STALL_STRIDE, STALL_W_M } from "./parking";
 
@@ -22,7 +23,7 @@ import { STALL_D_M, STALL_LIFT_Y, STALL_LINE_M, STALL_STRIDE, STALL_W_M } from "
  * DECORATIVE: the meshes they land in are never picked (no-op raycast) and never cited.
  */
 
-export const STALL_COLOUR = "#f2f1ec";
+export const STALL_COLOUR: string = CLAY_PALETTE.stall;
 
 class Builder {
   pos: number[] = [];

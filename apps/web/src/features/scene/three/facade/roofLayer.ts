@@ -2,6 +2,7 @@ import * as THREE from "three";
 import type { Tier } from "../../shared/quality";
 import { hash01 } from "../assets/fit";
 import { createRoleMaterial, type RoleUniforms } from "../assets/roleMaterial";
+import { CLAY_PALETTE, clayMaterial } from "../shared/clayTokens";
 import { DECK_POOL_COLOUR, type PodiumDeck } from "./podiumDeck";
 import type { RoofDressing } from "./roofPlan";
 
@@ -10,7 +11,7 @@ const NOOP = () => {};
 const GLASS_G = 3 / 7;
 /** Skylight night glow relative to a lit window (`uWindowGlow` x 0.6): the owner saw them too bright. */
 const SKYLIGHT_GLOW = 0.6;
-const UNIT_GREY = "#8d9297";
+const UNIT_GREY = CLAY_PALETTE.roofUnit;
 
 export interface RoofItem {
   /** Building id: seeds the colour jitter of its units and the lit seed of its skylights. */
@@ -34,7 +35,7 @@ function baseBox(): THREE.BufferGeometry {
 /**
  * Roof layer: at most 3 InstancedMesh draws (rooftop units, skylight strips, roof-edge band), plus
  * a `roof_deck` group of 2 draws (deck boxes, pool plane) when `decks` are given (the Kanopi
- * podium deck, ruling P4-M; the pool is base water #7fb6c9, never the flood blue).
+ * podium deck, ruling P4-M; the pool is base water, never the flood blue).
  * Decorative only (never picked, never cited, no shadows). Skylights use the shared role material
  * on the glass role so they glow at night with the windows. At Low, or with nothing to draw, the
  * layer is empty and the buildings keep the P3 palette roofs.
@@ -99,7 +100,7 @@ export function createRoofLayer(
       return [grey.r * j, grey.g * j, grey.b * j];
     },
     baseBox(),
-    new THREE.MeshStandardMaterial({ roughness: 0.9, metalness: 0 }),
+    clayMaterial("roof", { tinted: true }),
     (it) => it.dressing.units,
   );
 
@@ -137,7 +138,7 @@ export function createRoofLayer(
       return [c.r, c.g, c.b];
     },
     baseBox(),
-    new THREE.MeshStandardMaterial({ roughness: 0.9, metalness: 0 }),
+    clayMaterial("roof", { tinted: true }),
     (it) => it.dressing.band,
   );
 
@@ -160,7 +161,7 @@ export function createRoofLayer(
     const nBoxes = decks.reduce((n, d) => n + d.boxes.length / 16, 0);
     if (nBoxes > 0) {
       const geo = baseBox();
-      const mat = new THREE.MeshStandardMaterial({ roughness: 0.85, metalness: 0 });
+      const mat = clayMaterial("deck", { tinted: true });
       const mesh = new THREE.InstancedMesh(geo, mat, nBoxes);
       const col = new Float32Array(nBoxes * 3);
       let n = 0;
@@ -175,11 +176,7 @@ export function createRoofLayer(
     }
     const plane = new THREE.PlaneGeometry(1, 1);
     plane.rotateX(-Math.PI / 2);
-    const water = new THREE.MeshStandardMaterial({
-      color: DECK_POOL_COLOUR,
-      roughness: 0.25,
-      metalness: 0,
-    });
+    const water = clayMaterial("water", { color: DECK_POOL_COLOUR });
     const pool = new THREE.InstancedMesh(plane, water, decks.length);
     decks.forEach((d, i) => {
       pool.instanceMatrix.array.set(d.pool, i * 16);
