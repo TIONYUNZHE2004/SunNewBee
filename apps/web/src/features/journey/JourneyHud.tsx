@@ -1,3 +1,5 @@
+import { TRAVEL_LABELS } from "../map-ui/TravelLabels";
+import type { Profile } from "../scene/sceneStore";
 import { DEMO_CHIP } from "./cardContent";
 import type { CoveredSpan, JourneyState } from "./timeline";
 
@@ -20,9 +22,12 @@ function Cell({ id, value, label }: { id: string; value: string; label: string }
 export function JourneyHud({
   state,
   covered,
+  profile,
 }: {
   state: JourneyState;
   covered: readonly CoveredSpan[];
+  /** The persona the trip was planned for (the plan's own, never the selector's). */
+  profile?: Profile;
 }) {
   const demoRoof = covered.some((c) => c.demo);
   return (
@@ -33,6 +38,11 @@ export function JourneyHud({
         <Cell id="hud-outdoors" value={`${state.minutesOutdoors} min`} label="Outdoors" />
         <Cell id="hud-rests" value={String(state.restsTaken)} label="Rests" />
       </div>
+      {profile && (
+        <p data-testid="hud-planned-for" className="mt-1 px-2 text-[11px] text-fg-soft">
+          Planned for: {TRAVEL_LABELS[profile]}
+        </p>
+      )}
       {demoRoof && (
         <p className="mt-1 px-2 text-[11px] text-fg-soft">
           Outdoor time pauses under a roof: {DEMO_CHIP}

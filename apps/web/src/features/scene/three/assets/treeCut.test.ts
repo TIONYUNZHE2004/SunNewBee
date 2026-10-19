@@ -5,6 +5,10 @@ import { createRoleMaterial, createRoleUniforms } from "./roleMaterial";
 import {
   injectTreeCut,
   inTreeCut,
+  NEAR_CUT_M,
+  NEAR_FADE_M,
+  NEAR_INSTANCE_M,
+  nearRadius,
   patchDecorCut,
   setTreeCut,
   TREE_CUT_RADIUS_M,
@@ -128,5 +132,51 @@ describe("decorative cut, 9.1 F2: the event's element line, props, dressing and 
     expect(facts).toBeGreaterThan(0);
     expect(decor).toBeGreaterThan(0);
     layer.dispose();
+  });
+});
+
+describe("decorative cut, ITER2: near the camera (foreground canopies, giant heads)", () => {
+  afterEach(() => setTreeCut(null));
+
+  it("a decorative fragment within NEAR_CUT_M of the camera is cut, beyond the fade band it is drawn", () => {
+    // the camera at (0, 4.2, -10), her chest at the origin; a canopy off to the side of the line
+    expect(inTreeCut([4, 4, -8])).toBe(false); // off
+    setTreeCut({ a: [0, 4.2, -10], b: [0, 1.4, 0] });
+    expect(inTreeCut([4, 4, -8])).toBe(true); // 4.5 m from the camera, 4 m off the line of sight
+    expect(inTreeCut([NEAR_CUT_M + NEAR_FADE_M + 0.5, 4.2, -10])).toBe(false);
+    // a whole instanced tree whose trunk stands within NEAR_INSTANCE_M of the camera (its canopy
+    // reaching beyond NEAR_CUT_M is cut too, never a hollow half)
+    expect(inTreeCut([9, 6, -10], [5, 0, -12])).toBe(true);
+    expect(inTreeCut([9, 6, -10], [9, 0, -12])).toBe(false);
+  });
+
+  it("a farther hold camera cuts half the way to her; a close one never reaches her", () => {
+    // the crossing hold: the camera ~22 m from her, a foreground canopy 9 m from the camera
+    setTreeCut({ a: [0, 10, -20], b: [0, 1.4, 0] });
+    expect(inTreeCut([5, 6, -13])).toBe(true);
+    expect(inTreeCut([5, 2, -3])).toBe(false); // by her
+    expect(treeCutUniforms.uTlNearR.value).toBeCloseTo(nearRadius(Math.hypot(8.6, 20)), 5);
+    // a close camera (4 m): the cut stays well short of her
+    expect(nearRadius(4)).toBeLessThan(3);
+    expect(nearRadius(10.5)).toBe(NEAR_CUT_M);
+  });
+
+  it("the shader carries the near-camera cut, the screen-door band and the instance-origin test", () => {
+    const shader = {
+      vertexShader: THREE.ShaderLib.physical.vertexShader,
+      fragmentShader: THREE.ShaderLib.physical.fragmentShader,
+      uniforms: {} as Record<string, unknown>,
+    };
+    injectTreeCut(shader);
+    expect(shader.vertexShader).toContain("vTlCutOrigin = ( modelMatrix * tlCutO ).xyz;");
+    expect(shader.fragmentShader).toContain("if ( tlNear < uTlNearR ) discard;");
+    expect(shader.fragmentShader).toContain("gl_FragCoord.xy");
+    expect(shader.fragmentShader).toContain(
+      "distance( vTlCutOrigin.xz, uTlTreeCutA.xz ) < uTlNearInst",
+    );
+    expect(shader.uniforms.uTlNearR).toBe(treeCutUniforms.uTlNearR);
+    setTreeCut({ a: [0, 4.2, -10], b: [0, 1.4, 0] });
+    expect(treeCutUniforms.uTlNearR.value).toBe(NEAR_CUT_M);
+    expect(treeCutUniforms.uTlNearInst.value).toBe(NEAR_INSTANCE_M);
   });
 });

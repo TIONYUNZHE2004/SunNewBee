@@ -281,3 +281,15 @@ describe("sceneStore journey.play", () => {
     }
   });
 });
+
+describe("journey.play persona", () => {
+  it("moves the selector to the persona the trip was planned for, keeping the trip", () => {
+    useScene.setState({ profile: "default", journey: null });
+    useScene.getState().applyIntent({
+      kind: "journey.play",
+      journey: { ...demoPlan, profile: "older_adult_rest", route_id: "r1" },
+    } as never);
+    expect(useScene.getState().profile).toBe("older_adult_rest");
+    expect(useScene.getState().journey?.route_id).toBe("r1");
+  });
+});
