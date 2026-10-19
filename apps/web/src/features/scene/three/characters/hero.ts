@@ -27,6 +27,12 @@ export interface HeroContact {
   x: number;
   y: number;
   z: number;
+  /**
+   * Authored off the ground in this pose (the rigged hero's dangling feet on the bench in the sit
+   * clips): not a ground contact right now, so ground checks skip it. Never set while standing or
+   * walking.
+   */
+  airborne?: boolean;
 }
 
 /**

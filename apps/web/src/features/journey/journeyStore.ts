@@ -34,6 +34,8 @@ export interface HeroPose {
 export interface HeroProbe {
   contacts: (HeroContact & { groundY: number; band: string | null; onFootway: boolean })[];
   benches: { eventIndex: number; corners: [number, number][] }[];
+  /** Which hero model is drawn: "glb" (C-T4), "placeholder" (loading or fallback) or "custom". */
+  model?: string;
   /** Per-pose cost of the hero (driver + planting + model), ms, and the ground table rebuilds. */
   cost?: {
     poses: number;

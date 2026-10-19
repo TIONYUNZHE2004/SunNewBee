@@ -136,6 +136,24 @@ export const CLAY_PALETTE = {
     heroCloth: "#7c5cbf",
     heroHijab: "#c9a8e8",
   },
+  // ---- Lane additions (one block per lane) ----
+  /**
+   * lane/fe (D-T6 / C-T4): the journey hero's placeholder chibi (prototype colours: purple baju,
+   * lilac tudung, face, shoes, walker) and its rest bench. The rigged GLB hero carries its own
+   * vertex colours and draws with the `hero` role.
+   */
+  hero: {
+    cloth: "#7c5cbf",
+    tudung: "#c9a8e8",
+    skin: "#d9a77c",
+    eye: "#2b2622",
+    blush: "#f29b9b",
+    shoe: "#4a3f5c",
+    metal: "#cfd6de",
+    grip: "#5a6b7d",
+    benchWood: "#c98b55",
+    benchIron: "#4b5563",
+  },
 } as const;
 
 /**
@@ -152,6 +170,9 @@ export const EFFECT_COLOURS = {
   signInk: "#ffffff",
   headlight: "#fff4d6",
   taillight: "#ff3b30",
+  /** The journey hero's ground highlight (lane/fe): yellow ring and pale disc (unlit markers). */
+  heroRing: "#ffd34d",
+  heroDisc: "#fff3c2",
 } as const;
 
 export type ClayRole =
@@ -174,7 +195,9 @@ export type ClayRole =
   | "propMetal"
   | "person"
   | "vehicle"
-  | "sign";
+  | "sign"
+  // lane/fe additions
+  | "hero";
 
 export interface ClayToken {
   /** The role's palette (first entry is the default colour). */
@@ -300,6 +323,8 @@ export const CLAY: Readonly<Record<ClayRole, ClayToken>> = {
   vehicle: t(P.vehicle, 0.6, 0.3),
   sign: t([EFFECT_COLOURS.signBand], 0.7, 0.1),
   // ---- Lane additions (one block per lane; see "Extending the table") ----
+  // lane/fe (D-T6 / C-T4): the journey hero (placeholder chibi, its bench, the rigged GLB body).
+  hero: t(Object.values(CLAY_PALETTE.hero), 0.7, 0.4),
 };
 
 /** Gate switch: draw `role` with the standard material on every tier (true), or by tier (false). */

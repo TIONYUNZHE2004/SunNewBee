@@ -34,6 +34,8 @@ interface Contact {
   groundY: number;
   band: string | null;
   onFootway: boolean;
+  /** The GLB hero's feet dangling on the bench in a sit clip (C-T4): not a ground contact then. */
+  airborne?: boolean;
 }
 interface HeroReport {
   distance_m: number;
@@ -81,6 +83,8 @@ interface Sample {
     triangles: number;
   };
   groundKnown?: boolean;
+  /** Which hero model is drawn ("glb" after C-T4). */
+  model?: string;
 }
 
 type Ring = [number, number][];
@@ -123,6 +127,7 @@ async function sample(
         contacts: h.contacts,
         benches: (h as unknown as { benches?: Sample["benches"] }).benches,
         groundKnown: (h as unknown as { groundKnown?: boolean }).groundKnown,
+        model: (h as unknown as { model?: string }).model,
         cost: (h as unknown as { cost?: Sample["cost"] }).cost,
       };
     },
@@ -255,7 +260,9 @@ test.describe("journey hero (D-T6)", () => {
       if (wait > 0) await page.waitForTimeout(wait);
     }
     const wrong = samples.filter((s) => !(ALLOWED[s.phase] ?? []).includes(s.clip));
-    const playErr = (c: Contact) => Math.abs(c.y - c.groundY);
+    // C-T4: seated on the bench the rigged hero's feet dangle (authored); those contacts carry
+    // `airborne` and are not judged against the ground. Airborne is only allowed in sit clips.
+    const playErr = (c: Contact) => (c.airborne ? 0 : Math.abs(c.y - c.groundY));
     const playContacts = samples.flatMap((s) =>
       (s.contacts ?? []).map((c) => ({ t: s.t, phase: s.phase, clip: s.clip, c })),
     );
@@ -361,7 +368,13 @@ test.describe("journey hero (D-T6)", () => {
     // Every contact is judged, on whatever drawn ground band lies under it; a contact with no band
     // under it (ground not streamed in, or bare base plane) is a failure, never silently dropped.
     const all = ground.flatMap((g) => g.contacts.map((c) => ({ ...g, c })));
-    const err = (c: Contact) => Math.abs(c.y - c.groundY);
+    const err = (c: Contact) => (c.airborne ? 0 : Math.abs(c.y - c.groundY));
+    const SIT = ["sit_down", "sit_idle", "stand_up"];
+    const airborneRows = [...all, ...playContacts].filter((r) => r.c.airborne);
+    const airborneOutsideSit = airborneRows
+      .filter((r) => !SIT.includes(r.clip) || !r.c.name.startsWith("foot"))
+      .map((r) => ({ t: r.t, clip: r.clip, name: r.c.name }));
+    const models = [...new Set(samples.map((s) => s.model ?? "none"))];
     const worst = all.reduce((w, r) => Math.max(w, err(r.c)), 0);
     const worstRow = all.reduce<(typeof all)[number] | null>(
       (w, r) => (!w || err(r.c) > err(w.c) ? r : w),
@@ -440,6 +453,8 @@ test.describe("journey hero (D-T6)", () => {
         worstContact: playWorst,
       },
       heroCost,
+      heroModels: models,
+      airborne: { contacts: airborneRows.length, outsideSitClips: airborneOutsideSit },
       shots,
     };
     writeFileSync(join(OUT, "ac-d10.json"), `${JSON.stringify(result, null, 2)}\n`);
@@ -476,5 +491,8 @@ test.describe("journey hero (D-T6)", () => {
     // and during playback at 10 Hz: every sample carries all six contacts, all within 3 cm
     expect(playContacts.length).toBe(samples.length * 6);
     expect(playOver).toBe(0);
+    // C-T4: the rigged GLB hero is drawn, and only seated feet are ever off the ground
+    expect(models).toEqual(["glb"]);
+    expect(airborneOutsideSit).toEqual([]);
   });
 });

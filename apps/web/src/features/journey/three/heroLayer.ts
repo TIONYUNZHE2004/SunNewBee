@@ -1,11 +1,9 @@
 import * as THREE from "three";
 import type { LonLat } from "../../scene/geo";
 import { HERO_BENCH } from "../../scene/three/characters/benchGeometry";
+import { createGlbHero } from "../../scene/three/characters/glbHero";
 import { HERO_DISPLAY_SCALE, type Hero } from "../../scene/three/characters/hero";
-import {
-  createPlaceholderHero,
-  createRestBench,
-} from "../../scene/three/characters/placeholderHero";
+import { createRestBench } from "../../scene/three/characters/placeholderHero";
 import type { LocalFrame } from "../../scene/three/frame";
 import {
   type HeroPathHelpers,
@@ -43,7 +41,7 @@ export interface HeroCost {
 }
 
 /**
- * The journey hero in the 3D scene: the hero model (placeholder until C-T4) plus a bench at each
+ * The journey hero in the 3D scene: the hero model (the rigged GLB, C-T4) plus a bench at each
  * rest stop of the plan. `pose(tl, t)` puts her where `heroStateAt` says, on the drawn ground from a
  * precomputed corridor height table, and returns what was drawn.
  */
@@ -210,7 +208,18 @@ export function createHeroLayer(
     onPose?: (p: HeroPose) => void;
   } = {},
 ): HeroLayer {
-  const hero = (opts.createHero ?? createPlaceholderHero)();
+  // The rigged GLB hero for the plan's profile (C-T4); the placeholder shows until it loads and
+  // stays if it cannot. When the GLB swaps in, the last pose is drawn again (onPose -> a frame).
+  const hero = (
+    opts.createHero ??
+    (() =>
+      createGlbHero({
+        profile: plan.profile,
+        onReady: () => {
+          if (last) place(last.tl, last.t);
+        },
+      }))
+  )();
   const group = new THREE.Group();
   group.name = "journey-hero-layer";
   group.userData.journeyHero = true;
@@ -337,7 +346,8 @@ export function createHeroLayer(
       );
       return { eventIndex, corners };
     });
-    return { contacts, benches: benchCornersLonLat, cost: cost() };
+    const kind = (hero as { kind?: () => string }).kind?.();
+    return { contacts, benches: benchCornersLonLat, cost: cost(), model: kind ?? "custom" };
   };
 
   const cost = (): HeroCost => {

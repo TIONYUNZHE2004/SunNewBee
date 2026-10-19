@@ -50,7 +50,9 @@ describe("placeholder hero", () => {
       if (c.userData.heroPart === "ring") ring = c as THREE.Mesh;
     });
     expect(ring).not.toBeNull();
-    const col = ((ring as unknown as THREE.Mesh).material as THREE.MeshBasicMaterial).color;
+    // the ring's first vertex colour (ring and disc are one vertex-coloured mesh, the ring first)
+    const ca = (ring as unknown as THREE.Mesh).geometry.getAttribute("color");
+    const col = { r: ca.getX(0), g: ca.getY(0), b: ca.getZ(0) };
     expect(col.r).toBeGreaterThan(0.9);
     expect(col.g).toBeGreaterThan(0.6);
     expect(col.b).toBeLessThan(0.4);

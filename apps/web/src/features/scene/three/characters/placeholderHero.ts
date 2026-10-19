@@ -1,7 +1,9 @@
 import * as THREE from "three";
 import type { HeroFade } from "../journey/heroDriver";
+import { CLAY_PALETTE, clayMaterial } from "../shared/clayTokens";
 import { HERO_BENCH, HERO_CLIP_S } from "./benchGeometry";
 import { HERO_DISPLAY_SCALE, type Hero, type HeroClip, type HeroContact } from "./hero";
+import { createHeroRing } from "./heroRing";
 
 /**
  * Placeholder hero (D-T6) until the rigged chibi GLB (C-T3/C-T4) lands: the prototype's primitive
@@ -16,16 +18,8 @@ import { HERO_DISPLAY_SCALE, type Hero, type HeroClip, type HeroContact } from "
  * so she stands about 2.4 m. Every mesh ignores picking.
  */
 
-const CLOTH = "#7c5cbf";
-const TUDUNG = "#c9a8e8";
-const SKIN = "#d9a77c";
-const EYE = "#2b2622";
-const BLUSH = "#f29b9b";
-const SHOE = "#4a3f5c";
-const METAL = "#cfd6de";
-const GRIP = "#5a6b7d";
-const RING = "#ffd34d";
-const DISC = "#fff3c2";
+// Colours from the clay token table (B-T1, AC-B1): the lane/fe `hero` palette block.
+const H = CLAY_PALETTE.hero;
 
 /** Walk cycle length (s) at rate 1 (the driver's clip time is already rate-scaled). */
 const WALK_CYCLE_S = HERO_CLIP_S.walk;
@@ -49,8 +43,8 @@ const ease = (u: number) => {
   return c * c * (3 - 2 * c);
 };
 
-function clay(hex: string, extra: Partial<THREE.MeshStandardMaterialParameters> = {}) {
-  return new THREE.MeshStandardMaterial({ color: hex, roughness: 0.85, metalness: 0, ...extra });
+function clay(hex: string) {
+  return clayMaterial("hero", { color: hex });
 }
 
 /** The placeholder's pose as numbers, so two clips can be crossfaded by lerping them. */
@@ -131,14 +125,14 @@ export function createPlaceholderHero(): Hero {
   const sphere = (r: number, seg = 20) =>
     g(new THREE.SphereGeometry(r, seg, Math.round(seg * 0.7)));
 
-  const cloth = m(clay(CLOTH));
-  const tudung = m(clay(TUDUNG));
-  const skin = m(clay(SKIN));
-  const eye = m(clay(EYE, { roughness: 0.3 }));
-  const blush = m(clay(BLUSH));
-  const shoe = m(clay(SHOE));
-  const metal = m(clay(METAL, { roughness: 0.3, metalness: 0.6 }));
-  const grip = m(clay(GRIP));
+  const cloth = m(clay(H.cloth));
+  const tudung = m(clay(H.tudung));
+  const skin = m(clay(H.skin));
+  const eye = m(clay(H.eye));
+  const blush = m(clay(H.blush));
+  const shoe = m(clay(H.shoe));
+  const metal = m(clay(H.metal));
+  const grip = m(clay(H.grip));
 
   const root = new THREE.Group();
   root.name = "journey-hero";
@@ -150,34 +144,8 @@ export function createPlaceholderHero(): Hero {
   root.add(rig);
 
   // Ground highlight (prototype): a yellow ring and a pale disc, flat on the ground.
-  const ring = mesh(
-    g(new THREE.TorusGeometry(0.85, 0.06, 12, 48)),
-    m(new THREE.MeshBasicMaterial({ color: RING })),
-    0,
-    0.03,
-    0,
-  );
-  ring.rotation.x = Math.PI / 2;
-  ring.castShadow = false;
-  ring.userData.heroPart = "ring";
-  const disc = mesh(
-    g(new THREE.CircleGeometry(0.82, 40)),
-    m(
-      new THREE.MeshBasicMaterial({
-        color: DISC,
-        transparent: true,
-        opacity: 0.7,
-        depthWrite: false,
-      }),
-    ),
-    0,
-    0.02,
-    0,
-  );
-  disc.rotation.x = -Math.PI / 2;
-  disc.castShadow = false;
-  disc.userData.heroPart = "disc";
-  rig.add(ring, disc);
+  const ring = createHeroRing();
+  root.add(ring.group);
 
   // Upper body: baju kurung (a cone to the ankle), arms, head with tudung.
   const upper = new THREE.Group();
@@ -351,6 +319,7 @@ export function createPlaceholderHero(): Hero {
       disposed = true;
       for (const x of geos) x.dispose();
       for (const x of mats) x.dispose();
+      ring.dispose();
       root.clear();
     },
   };
@@ -363,8 +332,8 @@ export function createPlaceholderHero(): Hero {
  */
 export function createRestBench(): { object3d: THREE.Object3D; dispose(): void } {
   const geos: THREE.BufferGeometry[] = [];
-  const wood = clay("#c98b55");
-  const iron = clay("#4b5563");
+  const wood = clay(H.benchWood);
+  const iron = clay(H.benchIron);
   const group = new THREE.Group();
   group.name = "journey-bench";
   group.userData.journeyHero = true;
