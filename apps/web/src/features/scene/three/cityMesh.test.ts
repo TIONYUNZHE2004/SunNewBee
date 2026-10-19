@@ -3,8 +3,10 @@ import { describe, expect, it } from "vitest";
 import type { BuildingsLayer } from "../../../lib/api";
 import { WATER_COLOR } from "../styles";
 import {
+  BEVEL_BY_TIER,
   BUILDING_BEVEL,
   bevelBody,
+  bevelForTier,
   buildCityGeometry as buildBevelled,
   faceBuildingId,
   KIND_COLOUR,
@@ -485,6 +487,60 @@ describe("bevelled extrusion (B-T2, AC-B3 buildings)", () => {
       expect(end[0]).toBeCloseTo(start[0], 9);
       expect(end[1]).toBeCloseTo(start[1], 9);
     }
+  });
+
+  it("styled: walls in the wall colour, the trim band and every bevel face in trim, the flat cap in the (tinted) roof", () => {
+    const colours = { wall: "#ff0000", roof: "#00ff00", trim: "#0000ff" };
+    const tint = "#ffaa00";
+    const g = buildBevelled(
+      layer({ buildings: fc([feat(poly(square(0, 0)), { id: "a", height_m: 9 })]) }),
+      frame,
+      { colours: () => colours, roofTint: () => tint },
+    );
+    const p = pos(g.buildings);
+    const col = g.buildings.getAttribute("color");
+    const hex = (i: number) =>
+      `#${new THREE.Color().fromBufferAttribute(col as THREE.BufferAttribute, i).getHexString()}`;
+    const seen = { cap: 0, band: 0, trimWall: 0, wall: 0 };
+    for (let t = 0; t < p.count; t += 3) {
+      const [a, b, c] = [0, 1, 2].map((k) => new THREE.Vector3().fromBufferAttribute(p, t + k));
+      const ny = new THREE.Triangle(a, b, c).getNormal(new THREE.Vector3()).y;
+      const lo = Math.min(a!.y, b!.y, c!.y);
+      const h = hex(t);
+      for (const k of [1, 2]) expect(hex(t + k)).toBe(h); // one colour per triangle
+      if (ny > 0.999) {
+        expect(h).toBe(tint);
+        seen.cap++;
+      } else if (ny > 0.05) {
+        expect(h).toBe(colours.trim);
+        seen.band++;
+      } else if (lo >= 9 - 0.6 - 1e-6) {
+        expect(h).toBe(colours.trim);
+        seen.trimWall++;
+      } else {
+        expect(h).toBe(colours.wall);
+        seen.wall++;
+      }
+    }
+    expect(Object.values(seen).every((n) => n > 0)).toBe(true);
+  });
+
+  it("follows the quality tier: Low plain box, Medium one segment, High two", () => {
+    expect(BEVEL_BY_TIER).toEqual({ low: false, medium: { segments: 1 }, high: { segments: 2 } });
+    const tris = (tier: "low" | "medium" | "high") =>
+      pos(
+        buildBevelled(
+          layer({ buildings: fc([feat(poly(square(0, 0)), { id: "a", height_m: 9 })]) }),
+          frame,
+          { bevel: bevelForTier(tier) },
+        ).buildings,
+      ).count / 3;
+    // Low: the plain box (10 triangles); a chamfered square has 8 wall edges, each with 2 wall
+    // triangles plus 2 per bevel segment, and a 6-triangle cap.
+    expect(tris("low")).toBe(10);
+    expect(tris("medium")).toBe(6 + 8 * (2 + 2 * 1));
+    expect(tris("high")).toBe(6 + 8 * (2 + 2 * 2));
+    expect(bevelForTier("high")).toEqual({ segments: BUILDING_BEVEL.segments });
   });
 
   it("bevel: false keeps the plain box", () => {

@@ -2,6 +2,7 @@ import * as THREE from "three";
 import type { BuildingsLayer } from "../../../lib/api";
 import { type LonLat, waterPolygons } from "../geo";
 import { type HeightOf, toBuildings } from "../shared/model";
+import type { Tier } from "../shared/quality";
 import type { FallbackColours } from "./fallbackStyle";
 import type { LocalFrame } from "./frame";
 import { PARK_Y, WATER_Y } from "./ground/bands";
@@ -225,12 +226,29 @@ export interface BevelOptions {
   minTurnDeg: number;
 }
 
+/**
+ * `chamferM` must stay under 0.15 m: the corner cut is the only drawn change to the OSM outline,
+ * and AC-B2 allows every OSM vertex at most 0.15 m from a drawn vertex (`cityMesh.fidelity.test.ts`).
+ */
 export const BUILDING_BEVEL: BevelOptions = {
   radiusM: 0.5,
   segments: 2,
   chamferM: 0.14,
   minTurnDeg: 30,
 };
+
+/**
+ * The bevel per quality tier (B-T2 fix round 1): Low draws the plain box (its triangle budget is the
+ * tightest), Medium a single 45° segment, High the full two-segment quarter-round.
+ */
+export const BEVEL_BY_TIER: Record<Tier, false | Partial<BevelOptions>> = {
+  low: false,
+  medium: { segments: 1 },
+  high: { segments: 2 },
+};
+
+/** The `bevel` option of `buildCityGeometry` for a tier. */
+export const bevelForTier = (tier: Tier): false | Partial<BevelOptions> => BEVEL_BY_TIER[tier];
 
 /** The smallest radius still drawn as a bevel; below it the building stays a box. */
 const MIN_BEVEL_M = 0.05;

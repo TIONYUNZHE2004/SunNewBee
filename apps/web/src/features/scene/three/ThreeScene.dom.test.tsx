@@ -19,6 +19,7 @@ import { createMotionUniforms } from "./assets/roleMaterial";
 import { BOOKMARKS, type BookmarkId, DEFAULT_BOOKMARK, HERO_CENTRE } from "./bookmarks";
 import type { Pose } from "./cameraRig";
 import { useCityInfo } from "./cityInfo";
+import { KIND_COLOUR } from "./cityMesh";
 import type { Engine, LodTick } from "./engine";
 import { createFrame } from "./frame";
 import { STALL_COLOUR } from "./ground/lotLayer";
@@ -1024,6 +1025,32 @@ describe("ThreeScene", () => {
     type Geo = { faces: { ids: string[] } };
     const builtOf = (engine: Fake, call: number) =>
       (engine.setCity.mock.calls.at(call)![0] as Geo).faces.ids.length;
+    const geoOf = (engine: Fake, call: number) =>
+      (engine.setCity.mock.calls.at(call)![0] as unknown as { buildings: THREE.BufferGeometry })
+        .buildings;
+    /** Distinct vertex colours (hex) of a setCity call's buildings. */
+    const coloursOf = (engine: Fake, call: number) => {
+      const c = geoOf(engine, call).getAttribute("color");
+      const out = new Set<string>();
+      for (let i = 0; i < c.count; i++)
+        out.add(
+          new THREE.Color().fromBufferAttribute(c as THREE.BufferAttribute, i).getHexString(),
+        );
+      return out;
+    };
+    /** Whether a setCity call's buildings have bevel faces (tilted between wall and roof). */
+    const bevelledOf = (engine: Fake, call: number) => {
+      const p = geoOf(engine, call).getAttribute("position");
+      const [a, b, c] = [new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()];
+      for (let t = 0; t < p.count; t += 3) {
+        a.fromBufferAttribute(p, t);
+        b.fromBufferAttribute(p, t + 1);
+        c.fromBufferAttribute(p, t + 2);
+        const y = new THREE.Triangle(a, b, c).getNormal(new THREE.Vector3()).y;
+        if (Math.abs(y) > 0.05 && Math.abs(y) < 0.95) return true;
+      }
+      return false;
+    };
 
     it("a runtime switch to Low drops kits, lamp pools, agents, birds and markings; Medium restores them", async () => {
       tierFakes.on = true;
@@ -1061,8 +1088,11 @@ describe("ThreeScene", () => {
         expect(driver()).toBeNull();
         expect(tierFakes.layers[0]?.disposed).toBe(1);
         expect(tierFakes.groundTiers.at(-1)).toBe("low");
-        // The city mesh is never rebuilt for a tier change.
-        expect(engine.setCity.mock.calls.length).toBe(cityCalls);
+        // B-T2: the extrusion mesh alone is rebuilt for the tier's bevel; Low draws plain boxes.
+        expect(bevelledOf(engine, cityCalls - 1)).toBe(true);
+        expect(engine.setCity.mock.calls.length).toBe(cityCalls + 1);
+        expect(bevelledOf(engine, -1)).toBe(false);
+        expect(builtOf(engine, -1)).toBe(builtOf(engine, cityCalls - 1));
 
         act(() => useSceneSettings.setState({ quality: "medium" }));
         await waitFor(() => expect(lastDecor("lamp-pools")).toBeTruthy());
@@ -1070,7 +1100,8 @@ describe("ThreeScene", () => {
         expect(lastDecor("ambient")).toBeTruthy();
         expect(driver()?.group.children).toHaveLength(1);
         expect(tierFakes.groundTiers.at(-1)).toBe("medium");
-        expect(engine.setCity.mock.calls.length).toBe(cityCalls);
+        expect(engine.setCity.mock.calls.length).toBe(cityCalls + 2);
+        expect(bevelledOf(engine, -1)).toBe(true);
         // Every rebuilt motion layer shares one YawMemory, so a rebuild never resets agents' yaw.
         expect(tierFakes.yaws.length).toBeGreaterThanOrEqual(2);
         expect(tierFakes.yaws[0]).toBeInstanceOf(Map);
@@ -1126,8 +1157,16 @@ describe("ThreeScene", () => {
       expect(engine.setAssets).toHaveBeenCalledTimes(1);
       // The full city first (no holes while loading), then only the plain building (one box).
       expect(builtOf(engine, 0)).toBe(3);
-      // 30 plus the styled fallback's trim band (6 per ring edge).
       expect(builtOf(engine, -1)).toBe(1);
+      // The full city is unstyled (KIND_COLOUR tan only); the extruded fallback is styled (wall,
+      // roof and trim from the manifest palette).
+      const kind = new Set(
+        Object.values(KIND_COLOUR).map((h) => new THREE.Color(h).getHexString()),
+      );
+      expect([...coloursOf(engine, 0)].every((h) => kind.has(h))).toBe(true);
+      const styled = coloursOf(engine, -1);
+      expect(styled.size).toBeGreaterThanOrEqual(3);
+      expect([...styled].some((h) => !kind.has(h))).toBe(true);
       const inst = engine.setAssets.mock.calls[0]?.[0] as CityInstances;
       expect(inst.group).toBeInstanceOf(THREE.Group);
       expect(console.warn).not.toHaveBeenCalled();

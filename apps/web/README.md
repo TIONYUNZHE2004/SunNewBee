@@ -336,6 +336,14 @@ after it stops.
   ≤ 0.15 m, top ±0.1 m). Archetype and landmark glbs round in the role shader only
   (`BUILDING_SHADER_BEVEL`, a per-model box uniform, so one material per asset, variant and LOD):
   no extra triangles, nothing moves.
+  The bevel follows the quality tier (`BEVEL_BY_TIER`): Low draws plain boxes, Medium one segment,
+  High two; a tier change re-extrudes only the merged extrusion mesh.
+- **Fact fidelity ruling (B-T2 fix round 1):** archetype models are display stand-ins fitted to the
+  footprint OBB (ADR 0012), so their footprint is not a fact. Footprint fidelity (area, outline) is
+  guaranteed on the extrusion path, which can draw every building. Heights match on every path: an
+  extrusion tops out at `display_height_m`, and an archetype or landmark is scaled by its glb's drawn
+  LOD0 top (manifest `top`), so its top lands there too (`assets/planHeights.test.ts`; a traced
+  landmark tower such as Kanopi is drawn at its documented design height, `heightBasis`).
 - **`?showroom=1`:** replace the plan with `assets/showroom.ts`: every asset variant once at LOD0,
   one row per asset (landmarks on the outer rows). Each row spaces its variants max(30 m, widest
   + 5 m) apart and rows sit max(30 m, half their depths + 5 m) apart, so nothing overlaps and one big

@@ -131,10 +131,13 @@ describe.skipIf(!HAVE)("AC-B2: bevelled extrusions keep every seed building's fa
     expect(ids.length).toBeGreaterThan(1000);
     // Rounded: almost every building carries bevel bands (tiny or very thin ones may stay square).
     expect(bevelled / ids.length).toBeGreaterThan(0.95);
-    console.info(
-      `AC-B2 seed: ${ids.length} buildings, ${bevelled} bevelled, ${pos.count / 3} triangles; worst area ${(worstArea * 100).toFixed(3)} %, outside ${worstOut.toFixed(3)} m, OSM vertex ${worstCover.toFixed(3)} m, top ${worstTop.toFixed(3)} m`,
-    );
     expect(fails.slice(0, 10)).toEqual([]);
+    // Measured worst values (round 0): area 0.445 %, outside 0.000 m, OSM vertex 0.140 m, top 0 m.
+    expect(worstArea).toBeLessThan(0.02);
+    expect(worstOut).toBeLessThanOrEqual(0.15);
+    expect(worstCover).toBeLessThanOrEqual(BUILDING_BEVEL.chamferM + 1e-3);
+    expect(worstTop).toBeLessThanOrEqual(0.1);
+    expect(pos.count / 3).toBeLessThan(160_000);
   });
 
   it("most buildings get the full 0.5 m radius (the rounding reads at the street bookmark)", () => {
@@ -145,25 +148,25 @@ describe.skipIf(!HAVE)("AC-B2: bevelled extrusions keep every seed building's fa
     });
     const full = radii.filter((r) => r >= 0.499).length / radii.length;
     const some = radii.filter((r) => r >= 0.2).length / radii.length;
-    console.info(
-      `AC-B2 radius: ${(full * 100).toFixed(1)} % at 0.5 m, ${(some * 100).toFixed(1)} % >= 0.2 m`,
-    );
     expect(full).toBeGreaterThan(0.8);
+    expect(some).toBeGreaterThan(0.95);
   });
 
   // Measured on the seed (2,421 buildings in the boundary, all extruded: the keyless upper bound;
   // with assets most become instanced archetypes): flat 26,973, bevelled 139,883 (2 segments; 1
   // segment would be 98,533). A merged static mesh of 140 k triangles is far below one archetype
   // LOD0 tile, so the bevel segments are not LODed by distance.
-  it("triangle budget: the whole bevelled seed stays under 160 k triangles", () => {
+  it("triangle budget: the whole bevelled seed stays under 160 k triangles (Medium: one segment, fewer)", () => {
     const flat =
       buildCityGeometry(layer, frame, { bevel: false }).buildings.getAttribute("position").count /
       3;
     const round = buildCityGeometry(layer, frame).buildings.getAttribute("position").count / 3;
-    console.info(
-      `AC-B2 triangles: flat ${flat}, bevelled ${round} (x${(round / flat).toFixed(2)})`,
-    );
     expect(round).toBeLessThan(160_000);
     expect(round / flat).toBeLessThan(5.5);
+    const medium =
+      buildCityGeometry(layer, frame, { bevel: { segments: 1 } }).buildings.getAttribute("position")
+        .count / 3;
+    expect(medium).toBeLessThan(round);
+    expect(medium).toBeLessThan(110_000);
   });
 });

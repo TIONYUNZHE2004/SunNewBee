@@ -18,6 +18,12 @@ export interface LodSpec {
 }
 export interface VariantSpec {
   size: [number, number, number];
+  /**
+   * The drawn LOD0 top (glb world max y, written by the pack). The fit scales height by it, so a
+   * model rising above its nominal `size` (a dome, a minaret, a parapet) still tops out at the
+   * building's display height (B-T2 fix round 1). Absent in older manifests: `size[1]`.
+   */
+  top?: number;
   lods: LodSpec[];
 }
 export interface AssetSpec {
@@ -88,6 +94,7 @@ function parseAsset(a: unknown, id = ""): AssetSpec {
   need(entries.length > 0, "no variants");
   for (const [v, spec] of entries) {
     need(isObj(spec) && isNumTuple(spec.size, 3), `variant ${v} size`);
+    need(spec.top === undefined || (isNum(spec.top) && spec.top > 0), `variant ${v} top`);
     need(Array.isArray(spec.lods) && spec.lods.length > 0, `variant ${v} lods`);
     for (const l of spec.lods as unknown[])
       need(
