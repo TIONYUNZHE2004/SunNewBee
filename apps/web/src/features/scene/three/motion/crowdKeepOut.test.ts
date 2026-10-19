@@ -6,7 +6,7 @@ import { type Agent, smoothYaw } from "./agents";
 import type { CrowdKit } from "./crowdBake";
 import { corridor, HAVE_SEED, routeTiles } from "./crowdCorridor.fixture";
 import { loadCrowdKit } from "./crowdKit";
-import { type HeroXZ, KEEP_OUT_M, keepOutDistance } from "./crowdRules";
+import { type HeroXZ, KEEP_OUT_M, polylineDistance } from "./crowdRules";
 import { createMotionLayer } from "./motionLayer";
 
 /**
@@ -73,6 +73,7 @@ describe.skipIf(!HAVE_SEED)("P8: crowd keep-out over the full demo playback", ()
     let minZone = Infinity;
     let maxJump = 0;
     let quick = 0;
+    let intoObstacle = 0;
     let nearby = 0;
     let yaw = c.at(0).yaw;
     const steps = Math.ceil(total / DEMO_PACE / dt);
@@ -80,7 +81,16 @@ describe.skipIf(!HAVE_SEED)("P8: crowd keep-out over the full demo playback", ()
       const t = k * dt;
       const p = c.at(t * DEMO_PACE);
       yaw = k === 0 ? p.yaw : smoothYaw(yaw, p.yaw, dt);
-      hero = { x: p.x, z: p.z, yaw };
+      const m = t * DEMO_PACE;
+      // As heroLayer publishes it: her next 10 m of route every 0.25 m (position data only).
+      const ahead: [number, number][] = [];
+      for (let j = 1; j <= 40; j++) {
+        const q = c.at(m + j * 0.25);
+        ahead.push([q.x, q.z]);
+      }
+      hero = { x: p.x, z: p.z, yaw, ahead };
+      // Scored against the real route s..s+10 m (vertices included), not the sampled copy.
+      const zone = c.slice(m, m + 10);
       layer.tick(t * 1000, new THREE.Vector3(p.x, 30, p.z));
       for (let i = 0; i < crowd.slots; i++) {
         const mesh = crowd.meshes.find((m) => m.getVisibleAt(i));
@@ -93,7 +103,8 @@ describe.skipIf(!HAVE_SEED)("P8: crowd keep-out over the full demo playback", ()
         const dh = Math.hypot(pos.x - hero.x, pos.z - hero.z);
         if (dh < 15) nearby++;
         minHero = Math.min(minHero, dh);
-        minZone = Math.min(minZone, keepOutDistance(pos.x, pos.z, hero));
+        minZone = Math.min(minZone, polylineDistance(pos.x, pos.z, zone));
+        if (c.inObstacle(pos.x, pos.z)) intoObstacle++;
         const prev = last.get(i);
         if (prev) {
           const j = Math.hypot(pos.x - prev.x, pos.z - prev.z);
@@ -108,10 +119,11 @@ describe.skipIf(!HAVE_SEED)("P8: crowd keep-out over the full demo playback", ()
     expect(nearby).toBeGreaterThan(100);
     expect(minHero).toBeGreaterThanOrEqual(KEEP_OUT_M);
     expect(minZone).toBeGreaterThanOrEqual(KEEP_OUT_M);
-    // Walking <= 1.5 m/s plus stepping aside. Where her heading swings at a route corner, the far
-    // end of the zone (10 m ahead) sweeps sideways and slides the people it holds quickly for a
-    // frame or two: a handful of > 0.5 m steps per 0.1 s over the whole walk, none of 1.5 m.
-    expect(maxJump).toBeLessThan(1.5);
-    expect(quick).toBeLessThanOrEqual(12);
+    // Nobody is pushed into a footprint or water.
+    expect(intoObstacle).toBe(0);
+    // Walking <= 1.5 m/s plus stepping aside. The zone follows her real path ahead, so a corner no
+    // longer sweeps it sideways: at most a few > 0.5 m steps per 0.1 s over the walk, none of 1 m.
+    expect(maxJump).toBeLessThan(1);
+    expect(quick).toBeLessThanOrEqual(4);
   }, 120_000);
 });

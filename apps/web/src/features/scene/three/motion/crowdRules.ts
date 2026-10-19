@@ -246,23 +246,30 @@ export function lookSpeed(agent: Agent, look: CrowdLook, stride: number): number
 // ---------------------------------------------------------------------------------------------
 // P8: keep-out around the hero.
 
-/** The hero as the crowd sees her: local metres and heading (yaw = atan2(dx, dz)), nothing else. */
+/**
+ * The hero as the crowd sees her: local metres, heading (yaw = atan2(dx, dz)) and, when the hero side
+ * publishes it, `ahead`: points of her path over her next KEEP_OUT_AHEAD_M (position data only, never
+ * an event; ruling C-T8 fix 1). Without `ahead` the next 10 m are taken along her heading.
+ */
 export interface HeroXZ {
   x: number;
   z: number;
   yaw: number;
+  ahead?: readonly (readonly [number, number])[];
 }
 /** No crowd person within this distance (m) of the hero or of her next KEEP_OUT_AHEAD_M (P8). */
 export const KEEP_OUT_M = 2;
-/** The stretch ahead of her that is kept clear (m), along her heading. */
+/** The stretch ahead of her that is kept clear (m). */
 export const KEEP_OUT_AHEAD_M = 10;
-/** People are moved out to KEEP_OUT_M plus this margin. */
-const KEEP_OUT_PAD_M = 0.15;
+/** People are moved out to KEEP_OUT_M plus this margin (covers the 0.25 m sampling of `ahead`). */
+const KEEP_OUT_PAD_M = 0.25;
 /**
- * The zone's ends are half-ellipses this long (m) along her heading (they contain the 2 m round
- * caps), so a person near her line is eased aside over a few metres instead of swept round a 2 m cap.
+ * The zone's two ends (behind her, and the tip of her next 10 m) are half-ellipses this long (m), so
+ * a person near her line is eased aside over a few metres instead of swept round a 2 m cap.
  */
 export const KEEP_OUT_CAP_M = 6;
+/** Pushes per frame against the zone's segments (a bend can push a person into its neighbour). */
+const KEEP_OUT_ITER = 4;
 
 export interface KeepOutResult {
   x: number;
@@ -275,15 +282,55 @@ export interface KeepOutMemory {
   side?: 1 | -1;
 }
 
+type XZ = readonly [number, number];
+/** The zone's spine: her position, then her path ahead (or 10 m along her heading). */
+export function keepOutSpine(hero: HeroXZ): XZ[] {
+  const out: XZ[] = [[hero.x, hero.z]];
+  if (hero.ahead && hero.ahead.length > 0) {
+    for (const p of hero.ahead) {
+      const l = out[out.length - 1] as XZ;
+      if (Math.hypot(p[0] - l[0], p[1] - l[1]) > 1e-6) out.push(p);
+    }
+    if (out.length > 1) return out;
+  }
+  out.push([
+    hero.x + Math.sin(hero.yaw) * KEEP_OUT_AHEAD_M,
+    hero.z + Math.cos(hero.yaw) * KEEP_OUT_AHEAD_M,
+  ]);
+  return out;
+}
+
 /**
- * Moves a crowd person out of the keep-out zone around the hero: the band within KEEP_OUT_M (+0.15 m)
- * of the segment from her to KEEP_OUT_AHEAD_M ahead along her heading, closed by half-ellipses
- * KEEP_OUT_CAP_M long at both ends (so the zone contains every point within 2 m of the segment). A
- * person inside is moved sideways (across her heading) to the zone's edge, on the side it entered
- * (remembered in `mem` while inside), so it steps aside as she passes; positions stay continuous in
- * time. A person whose own path crosses to the other side while inside is hidden until it is clear
- * (never drawn through her). Outside the zone nothing changes. The crowd never stops the hero: she
- * never reads this (P8).
+ * Inside test for segment `i` of the spine: (along, across, need) in the segment's frame, where the
+ * person is inside when |across| < need. The first segment's start and the last segment's end are
+ * half-ellipses KEEP_OUT_CAP_M long; joints between segments are round (radius R).
+ */
+function segZone(spine: XZ[], i: number, x: number, z: number, R: number) {
+  const a0 = spine[i] as XZ;
+  const b0 = spine[i + 1] as XZ;
+  const L = Math.hypot(b0[0] - a0[0], b0[1] - a0[1]);
+  const fx = (b0[0] - a0[0]) / L;
+  const fz = (b0[1] - a0[1]) / L;
+  const rx = x - a0[0];
+  const rz = z - a0[1];
+  const a = rx * fx + rz * fz;
+  const s = rx * fz - rz * fx;
+  const da = a - Math.max(0, Math.min(L, a));
+  const cap = da < 0 ? (i === 0 ? KEEP_OUT_CAP_M : R) : i === spine.length - 2 ? KEEP_OUT_CAP_M : R;
+  const e = da / cap;
+  const need = Math.abs(e) >= 1 ? 0 : R * Math.sqrt(1 - e * e);
+  return { a, s, need, fx, fz, ox: a0[0], oz: a0[1] };
+}
+
+/**
+ * Moves a crowd person out of the keep-out zone around the hero: everything within KEEP_OUT_M
+ * (+0.25 m) of her and of her path over the next KEEP_OUT_AHEAD_M (`hero.ahead`, else her heading),
+ * with half-ellipse ends KEEP_OUT_CAP_M long. A person inside is moved across the nearest zone
+ * segment to its edge, on the side it entered (remembered in `mem` while inside), so it steps aside
+ * as she passes; positions stay continuous in time. A person on the other side of her path from its
+ * remembered side (it crossed her line inside the zone), or one a bend cannot push clear, is hidden
+ * until it is clear (never drawn through her). Outside the zone nothing changes. The crowd never
+ * stops the hero: she never reads this (P8).
  */
 export function keepOut(
   x: number,
@@ -299,41 +346,75 @@ export function keepOut(
     mem.side = undefined;
     return out;
   }
-  const fx = Math.sin(hero.yaw);
-  const fz = Math.cos(hero.yaw);
-  const rx = x - hero.x;
-  const rz = z - hero.z;
-  // Along her heading, and across it (left of travel positive: (fz, -fx) with y up).
-  const a = rx * fx + rz * fz;
-  const s = rx * fz - rz * fx;
-  const da = a - Math.max(0, Math.min(KEEP_OUT_AHEAD_M, a));
   const R = KEEP_OUT_M + KEEP_OUT_PAD_M;
-  const e = da / KEEP_OUT_CAP_M;
-  const need = Math.abs(e) >= 1 ? 0 : R * Math.sqrt(1 - e * e);
-  if (Math.abs(s) >= need) {
+  // Far from her: nothing to do (the spine is at most ~10 m long, the caps 6 m).
+  if (Math.hypot(x - hero.x, z - hero.z) > KEEP_OUT_AHEAD_M + KEEP_OUT_CAP_M + R + 1) {
     mem.side = undefined;
     return out;
   }
-  const sign: 1 | -1 = s > 0 ? 1 : s < 0 ? -1 : 1;
-  if (mem.side === undefined) mem.side = sign;
-  if (sign !== mem.side && Math.abs(s) > 1e-6) {
-    out.hidden = true;
-    return out;
+  const spine = keepOutSpine(hero);
+  let px = x;
+  let pz = z;
+  let touched = false;
+  for (let it = 0; it < KEEP_OUT_ITER; it++) {
+    // The segment whose zone the person is deepest in (largest need - |across|).
+    let best: ReturnType<typeof segZone> | null = null;
+    let depth = 0;
+    for (let i = 0; i < spine.length - 1; i++) {
+      const zn = segZone(spine, i, px, pz, R);
+      const d = zn.need - Math.abs(zn.s);
+      if (d > depth) {
+        depth = d;
+        best = zn;
+      }
+    }
+    if (!best) {
+      if (!touched) mem.side = undefined;
+      out.x = px;
+      out.z = pz;
+      return out;
+    }
+    touched = true;
+    const sign: 1 | -1 = best.s > 0 ? 1 : best.s < 0 ? -1 : (mem.side ?? 1);
+    if (mem.side === undefined) mem.side = sign;
+    if (sign !== mem.side && Math.abs(best.s) > 1e-6) {
+      out.hidden = true;
+      return out;
+    }
+    const ns = mem.side * best.need;
+    px = best.ox + best.fx * best.a + best.fz * ns;
+    pz = best.oz + best.fz * best.a - best.fx * ns;
   }
-  const ns = mem.side * need;
-  out.x = hero.x + fx * a + fz * ns;
-  out.z = hero.z + fz * a - fx * ns;
+  // Still inside after the pushes (the inside of a sharp bend): not drawn this frame.
+  for (let i = 0; i < spine.length - 1; i++) {
+    const zn = segZone(spine, i, px, pz, R);
+    if (Math.abs(zn.s) < zn.need - 1e-9) {
+      out.hidden = true;
+      return out;
+    }
+  }
+  out.x = px;
+  out.z = pz;
   return out;
 }
 
-/** Distance (m) from a point to the keep-out segment (hero to KEEP_OUT_AHEAD_M ahead). */
+/** Distance (m) from a point to a polyline. */
+export function polylineDistance(x: number, z: number, pts: readonly XZ[]): number {
+  let best = Number.POSITIVE_INFINITY;
+  for (let i = 0; i < pts.length - 1; i++) {
+    const a = pts[i] as XZ;
+    const b = pts[i + 1] as XZ;
+    const dx = b[0] - a[0];
+    const dz = b[1] - a[1];
+    const l2 = dx * dx + dz * dz;
+    const t = l2 === 0 ? 0 : Math.max(0, Math.min(1, ((x - a[0]) * dx + (z - a[1]) * dz) / l2));
+    best = Math.min(best, Math.hypot(x - a[0] - dx * t, z - a[1] - dz * t));
+  }
+  if (pts.length === 1) best = Math.hypot(x - (pts[0] as XZ)[0], z - (pts[0] as XZ)[1]);
+  return best;
+}
+
+/** Distance (m) from a point to the keep-out spine (her and her next 10 m). */
 export function keepOutDistance(x: number, z: number, hero: HeroXZ): number {
-  const fx = Math.sin(hero.yaw);
-  const fz = Math.cos(hero.yaw);
-  const rx = x - hero.x;
-  const rz = z - hero.z;
-  const a = rx * fx + rz * fz;
-  const s = rx * fz - rz * fx;
-  const ac = Math.max(0, Math.min(KEEP_OUT_AHEAD_M, a));
-  return Math.hypot(a - ac, s);
+  return polylineDistance(x, z, keepOutSpine(hero));
 }

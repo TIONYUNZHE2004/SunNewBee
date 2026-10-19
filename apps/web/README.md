@@ -483,7 +483,8 @@ where they stopped instead of jumping. Every rebuilt agent layer shares one smoo
   tile, weighted ×3 near schools, malls and parks. A person's path that enters a building footprint or
   base water moves to the other side of its line, else is not planned (P7). The count is the tile's
   cap × mood density (day 1.0, dusk 1.15, night 0.45); in the detail bubble (rings 0–1) people are
-  raised to a floor of one per 40 m of street at day density. No cyclists (they would render as people
+  raised to a floor of one per 40 m of street at day density (`PAVEMENT_FLOOR_MAX_RING`, the
+  perf-gate knob). No cyclists (they would render as people
   walking at 4.5 m/s). Agents loop along the edges with no routing or collision, so cars can pass
   through each other.
 - **Drawing:** `motionLayer` uses one InstancedMesh per kit, variant and LOD for vehicles. Matrices are rewritten
@@ -502,9 +503,11 @@ where they stopped instead of jumping. Every rebuilt agent layer shares one smoo
   seeded and kept across tile streaming (`LookMemory`); joggers take young or adult looks without a
   prop. Each look walks at its own pace (`lookSpeed`: walker 0.6, older 0.75, wheelchair 0.8,
   stroller 0.9, child 0.85 of the planned speed, capped at 1.5 walk cycles/s at 1.55×). The keep-out
-  (`keepOut`, P8) moves people sideways out of a zone 2 m around the hero and her next 10 m (her
-  heading), reading only her position and heading (`useMotion` `heroXZ` from `journeyHero`); a person
-  crossing her line inside the zone is hidden until clear. The crowd never imports journey code
+  (`keepOut`, P8) moves people sideways out of a zone 2 m around the hero and her path over the next
+  10 m (`HeroPose.ahead`, published by `heroLayer` every 0.25 m; her heading when absent), reading
+  only these positions (`useMotion` `heroXZ` from `journeyHero`); a person crossing her line inside
+  the zone is hidden until clear. Pavement paths are cut back where they meet another street or major
+  road (half width + 1.2 m from its centre line), so pavement walkers turn at the kerb. The crowd never imports journey code
   (`crowdBoundary.test.ts`, P9). While the kit loads no people are drawn; if it fails the legacy
   `people` kit (shader limb swing) is the fallback.
 - **Scale-up:** people (R-J3, R-J7: `peopleScale`) are drawn 1.55× within 300 m of the camera (the

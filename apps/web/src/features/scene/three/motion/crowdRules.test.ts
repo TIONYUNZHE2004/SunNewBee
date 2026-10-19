@@ -30,6 +30,7 @@ import {
   type LookMemory,
   lookSpeed,
   pathGap,
+  polylineDistance,
 } from "./crowdRules";
 
 const pub = (p: string) => new URL(`../../../../../public${p}`, import.meta.url);
@@ -262,6 +263,32 @@ describe("P8: keep-out around the hero", () => {
       if (last) expect(Math.hypot(r.x - last.x, r.z - last.z)).toBeLessThan(0.1);
       last = r;
     }
+  });
+
+  it("with her published path ahead (a right-angle bend), people keep >= 2 m from the bend too", () => {
+    // She walks +z, the path turns to +x after 4 m.
+    const ahead: [number, number][] = [];
+    for (let k = 1; k <= 40; k++) {
+      const m = k * 0.25;
+      ahead.push(m <= 4 ? [0, m] : [m - 4, 4]);
+    }
+    const h = { x: 0, z: 0, yaw: 0, ahead };
+    const spine: [number, number][] = [
+      [0, 0],
+      [0, 4],
+      [6, 4],
+    ];
+    let checked = 0;
+    for (let x = -3; x <= 9; x += 0.37)
+      for (let z = -3; z <= 7; z += 0.41) {
+        const r = keepOut(x, z, h, {});
+        if (r.hidden) continue;
+        checked++;
+        expect(polylineDistance(r.x, r.z, spine), `${x},${z}`).toBeGreaterThanOrEqual(KEEP_OUT_M);
+      }
+    expect(checked).toBeGreaterThan(500);
+    // Without `ahead` the zone is 10 m along her heading instead.
+    expect(keepOutDistance(0, 9, { x: 0, z: 0, yaw: 0 })).toBe(0);
   });
 
   it("a person crossing her path inside the zone is hidden, never drawn through her", () => {

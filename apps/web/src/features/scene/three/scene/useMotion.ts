@@ -16,12 +16,13 @@ import { unionById } from "./union";
 import type { LoadedAssets } from "./useCityAssets";
 
 /**
- * The rendered hero's position and heading for the crowd keep-out (C-T8, P8): only these numbers from
- * the journey store's `journeyHero` holder, never the plan or its events (P9). null without a journey.
+ * The rendered hero's position, heading and next 10 m of path (`ahead`) for the crowd keep-out (C-T8,
+ * P8): only these positions from the journey store's `journeyHero` holder, never the plan or its
+ * events (P9). null without a journey.
  */
 export function heroXZ(): HeroXZ | null {
   const h = journeyHero.current;
-  return h ? { x: h.x, z: h.z, yaw: h.yaw } : null;
+  return h ? { x: h.x, z: h.z, yaw: h.yaw, ...(h.ahead ? { ahead: h.ahead } : {}) } : null;
 }
 
 /**

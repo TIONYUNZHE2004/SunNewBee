@@ -21,6 +21,9 @@ import { buildGroundIndex, corridorCells, type GroundIndex, groundBandMeshes } f
 
 /** Her root height where no drawn ground is known yet: the agents' footway height (0.08 m). */
 export const HERO_GROUND_Y = AGENT_LIFT_M;
+/** `HeroPose.ahead`: her next 10 m of route, sampled every 0.25 m (crowd keep-out, C-T8). */
+const AHEAD_STEP_M = 0.25;
+const AHEAD_STEPS = 40;
 /** Footprints this far (m) from a rest point are considered for its seat side. */
 const FOOTPRINT_RANGE_M = 40;
 const CLEARANCE_CAP_M = 50;
@@ -310,7 +313,10 @@ export function createHeroLayer(
     hero.setGround?.(index ? index.heightAt : null);
     hero.play(s.clip, s.clipTime, s.walkRate, s.fade);
     const [lon, lat] = frame.toLonLat(s.x, s.z);
-    const pose: HeroPose = { ...s, y, lon, lat, groundKnown: groundY !== null, probe };
+    const ahead: [number, number][] = [];
+    for (let k = 1; k <= AHEAD_STEPS; k++)
+      ahead.push(path.pointAt(s.distance_m + k * AHEAD_STEP_M));
+    const pose: HeroPose = { ...s, y, lon, lat, groundKnown: groundY !== null, probe, ahead };
     times.push(performance.now() - t0);
     if (times.length > 2000) times.shift();
     opts.onPose?.(pose);

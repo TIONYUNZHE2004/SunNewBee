@@ -73,18 +73,28 @@ describe.skipIf(!HAVE_SEED)("crowd on the demo corridor (seed)", () => {
     expect(pairs).toBeGreaterThan(1000);
   });
 
-  it("P7: >= 95% of sampled positions over 60 s within 1.5 m of a walk edge; none in a footprint or water", () => {
+  it("P7: >= 95% of sampled positions over 60 s within 1.5 m of a walk edge; none in a footprint, water or (pavements) a carriageway", () => {
     const pose = { x: 0, z: 0, yaw: 0 };
     let n = 0;
     let onWalk = 0;
     const inside: string[] = [];
-    for (const { agent } of local)
+    const inRoad: string[] = [];
+    let pavement = 0;
+    for (const { agent } of local) {
+      const pave = c.isPavement(agent);
+      if (pave) pavement++;
       for (let t = 0; t <= 60; t += 1) {
         poseAt(agent, t, pose);
         n++;
         if (c.ribbonGap(pose.x, pose.z) <= 1.5) onWalk++;
         if (c.inObstacle(pose.x, pose.z)) inside.push(`${agent.id}@${t}`);
+        // Fix round 1: pavement walkers never step into a street / major_road carriageway (their
+        // own or a cross street at a junction); footway crossings are not pavement paths.
+        if (pave && c.inCarriageway(pose.x, pose.z)) inRoad.push(`${agent.id}@${t}`);
       }
+    }
+    expect(pavement).toBeGreaterThan(100);
+    expect(inRoad).toEqual([]);
     expect(n).toBeGreaterThan(5000);
     expect(onWalk / n).toBeGreaterThanOrEqual(0.95);
     expect(inside).toEqual([]);

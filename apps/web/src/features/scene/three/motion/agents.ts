@@ -275,6 +275,13 @@ export const PAVEMENT_FLOOR_M = 40;
 const PEOPLE_EXCLUDED = new Set(["cyclist"]);
 /** A person's path is checked against building footprints and water every this many metres. */
 const OBSTACLE_STEP_M = 1;
+/**
+ * A pavement path is cut back where it meets another street / major_road: it keeps at least that
+ * road's half width + this far from its centre line (C-T8 fix 1), and half width + OWN_ROAD_CLEAR_M
+ * from its own road (the inside of a bend).
+ */
+const PAVEMENT_CLEAR_M = 1.2;
+const OWN_ROAD_CLEAR_M = 0.3;
 const BUSY_PLACES = new Set(["school", "mall", "park"]);
 const BUSY_RANGE_M = 150;
 const BUSY_WEIGHT = 3;
@@ -299,6 +306,8 @@ interface Edge {
   weight: number;
   /** People on a street or major_road: a pavement path beside the carriageway. */
   pavement: boolean;
+  /** The walk feature id (pavement trimming skips its own road). */
+  fid: string;
 }
 
 const isRec = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null;
@@ -492,6 +501,96 @@ function pathBlocked(grids: Map<number, Obstacle[]>[], pts: P[]): boolean {
   return false;
 }
 
+/** Carriageway segments (street / major_road centre lines with half their drawn width), gridded. */
+interface Carriage {
+  ax: number;
+  az: number;
+  bx: number;
+  bz: number;
+  half: number;
+  fid: string;
+}
+const CARRIAGE_CELL_M = 16;
+const carriageCache = new WeakMap<object, WeakMap<object, Map<number, Carriage[]>>>();
+const carriagesOf = (walk: unknown, frame: LocalFrame): Map<number, Carriage[]> =>
+  perLayer(carriageCache, walk, frame, () => {
+    const g = new Map<number, Carriage[]>();
+    for (const r of runsOf(walk, frame)) {
+      if (!PAVEMENT_TYPES.has(r.type)) continue;
+      const half = (WIDTH_BY_TYPE[r.type] ?? 6) / 2;
+      const pad = half + PAVEMENT_CLEAR_M + 1;
+      for (let i = 0; i < r.pts.length - 1; i++) {
+        const [ax, az] = r.pts[i] as P;
+        const [bx, bz] = r.pts[i + 1] as P;
+        const c = { ax, az, bx, bz, half, fid: r.fid };
+        const c0 = (v: number) => Math.floor(v / CARRIAGE_CELL_M);
+        for (let ci = c0(Math.min(ax, bx) - pad); ci <= c0(Math.max(ax, bx) + pad); ci++)
+          for (let cj = c0(Math.min(az, bz) - pad); cj <= c0(Math.max(az, bz) + pad); cj++) {
+            const k = obstKey(ci, cj);
+            const l = g.get(k);
+            if (l) l.push(c);
+            else g.set(k, [c]);
+          }
+      }
+    }
+    return g;
+  });
+const segDist = (x: number, z: number, c: Carriage) => {
+  const dx = c.bx - c.ax;
+  const dz = c.bz - c.az;
+  const l2 = dx * dx + dz * dz;
+  const t = l2 === 0 ? 0 : Math.max(0, Math.min(1, ((x - c.ax) * dx + (z - c.az) * dz) / l2));
+  return Math.hypot(x - c.ax - dx * t, z - c.az - dz * t);
+};
+/**
+ * Whether a pavement point keeps clear of the carriageways: at least half width + PAVEMENT_CLEAR_M
+ * from every other street / major_road centre line, and out of its own road (half width + 0.3 m).
+ */
+function pavementClear(g: Map<number, Carriage[]>, fid: string, x: number, z: number): boolean {
+  const k = obstKey(Math.floor(x / CARRIAGE_CELL_M), Math.floor(z / CARRIAGE_CELL_M));
+  for (const c of g.get(k) ?? []) {
+    const need = c.half + (c.fid === fid ? OWN_ROAD_CLEAR_M : PAVEMENT_CLEAR_M);
+    if (segDist(x, z, c) < need) return false;
+  }
+  return true;
+}
+/**
+ * The longest stretch of a pavement line that keeps clear of every carriageway (C-T8 fix 1): the
+ * line is sampled every OBSTACLE_STEP_M (its vertices kept) and cut where it meets a cross street,
+ * so a pavement walker turns round at the kerb instead of walking into the junction.
+ */
+function trimPavement(g: Map<number, Carriage[]>, fid: string, pts: P[]): P[] {
+  const samples: P[] = [];
+  for (let i = 0; i < pts.length - 1; i++) {
+    const a = pts[i] as P;
+    const b = pts[i + 1] as P;
+    const l = Math.hypot(b[0] - a[0], b[1] - a[1]);
+    const n = Math.max(1, Math.ceil(l / OBSTACLE_STEP_M));
+    for (let k = 0; k < n; k++)
+      samples.push([a[0] + ((b[0] - a[0]) * k) / n, a[1] + ((b[1] - a[1]) * k) / n]);
+  }
+  samples.push(pts[pts.length - 1] as P);
+  let best: P[] = [];
+  let bestLen = 0;
+  let cur: P[] = [];
+  let curLen = 0;
+  for (const q of samples) {
+    if (pavementClear(g, fid, q[0], q[1])) {
+      const last = cur[cur.length - 1];
+      if (last) curLen += Math.hypot(q[0] - last[0], q[1] - last[1]);
+      cur.push(q);
+      if (curLen > bestLen) {
+        best = cur;
+        bestLen = curLen;
+      }
+    } else {
+      cur = [];
+      curLen = 0;
+    }
+  }
+  return bestLen >= MIN_EDGE_M ? best : [];
+}
+
 /** Points of the places that triple the spawn weight (school, mall, park). */
 const busyOf = (places: unknown, frame: LocalFrame): P[] =>
   perLayer(busyCache, places, frame, () => {
@@ -598,6 +697,7 @@ export function planAgents(input: AgentsInput): Agent[] {
           type,
           weight,
           pavement: k === "person" && kind === "vehicle",
+          fid,
         };
         const cnt = Math.floor(weight / SPAWN_SPACING_M + hash01(chunk, `spawn:${k}`));
         for (let j = 0; j < cnt; j++) {
@@ -608,6 +708,8 @@ export function planAgents(input: AgentsInput): Agent[] {
     }
   }
 
+  // Built once per walk layer (eagerly, so warmPlanners pays for it before the first real tile).
+  const carriages = carriagesOf(input.walk, frame);
   const out: Agent[] = [];
   const inside = (lane: P[]) => {
     const b = input.boundary;
@@ -647,8 +749,9 @@ export function planAgents(input: AgentsInput): Agent[] {
           ? (WIDTH_BY_TYPE[e.type] ?? 6) / 2 + lerp(PAVEMENT_KERB_M, hash01(id, "lateral"))
           : lerp(PAVEMENT_OFFSET_M, hash01(id, "lateral"));
         for (const s of [side, -side]) {
-          const l = offsetLeft(pts, s * off);
-          if (inside(l) && !pathBlocked(grids, l)) {
+          const raw = offsetLeft(pts, s * off);
+          const l = e.pavement ? trimPavement(carriages, e.fid, raw) : raw;
+          if (l.length >= 2 && inside(l) && !pathBlocked(grids, l)) {
             lane = l;
             break;
           }

@@ -47,6 +47,12 @@ export interface Corridor {
   /** Distance (m) from a point to the nearest drawn walk ribbon (centre-line distance - half width). */
   ribbonGap(x: number, z: number): number;
   inObstacle(x: number, z: number): boolean;
+  /** Whether a point lies inside a street / major_road carriageway (within half its drawn width). */
+  inCarriageway(x: number, z: number): boolean;
+  /** Whether an agent walks a pavement path (planned beside a street / major_road). */
+  isPavement(a: Agent): boolean;
+  /** The route polyline between route metres m0 and m1 (vertices included). */
+  slice(m0: number, m1: number): [number, number][];
   /** Point and tangent yaw (atan2(dx, dz)) at route metre m. */
   at(m: number): { x: number; z: number; yaw: number };
 }
@@ -111,7 +117,8 @@ export function corridor(): Corridor {
       }
   }
   // Walk ribbons gridded by bounds padded by half width + 2 m (queries up to 1.5 m out).
-  type Seg = { ax: number; az: number; bx: number; bz: number; half: number };
+  type Seg = { ax: number; az: number; bx: number; bz: number; half: number; road: boolean };
+  const roadIds = new Set<string>();
   const segGrid = new Map<string, Seg[]>();
   for (const f of walk.features as {
     properties: { type?: string };
@@ -119,11 +126,13 @@ export function corridor(): Corridor {
   }[]) {
     if (f.geometry?.type !== "LineString") continue;
     const half = (WIDTH_BY_TYPE[f.properties.type ?? ""] ?? ROAD_WIDTH_UNKNOWN) / 2;
+    const road = f.properties.type === "street" || f.properties.type === "major_road";
+    if (road) roadIds.add(String((f.properties as { id?: string }).id));
     const pts = f.geometry.coordinates.map(([lon, lat]) => frame.toLocal(lon, lat));
     for (let i = 0; i < pts.length - 1; i++) {
       const [ax, az] = pts[i]!;
       const [bx, bz] = pts[i + 1]!;
-      const s = { ax, az, bx, bz, half };
+      const s = { ax, az, bx, bz, half, road };
       const r = half + 2;
       for (
         let ci = Math.floor((Math.min(ax, bx) - r) / CELL);
@@ -154,6 +163,23 @@ export function corridor(): Corridor {
     for (const s of segGrid.get(key(Math.floor(x / CELL), Math.floor(z / CELL))) ?? [])
       best = Math.min(best, Math.max(0, segDist(x, z, s) - s.half));
     return best;
+  };
+  const inCarriageway = (x: number, z: number) =>
+    (segGrid.get(key(Math.floor(x / CELL), Math.floor(z / CELL))) ?? []).some(
+      (s) => s.road && segDist(x, z, s) < s.half,
+    );
+  const isPavement = (a: Agent) => a.kind === "person" && roadIds.has(a.id.split(":")[1] ?? "");
+  const slice = (m0: number, m1: number) => {
+    const out: [number, number][] = [];
+    const p0 = at(m0);
+    out.push([p0.x, p0.z]);
+    for (let i = 0; i < route.length; i++) {
+      const m = cum[i] as number;
+      if (m > m0 && m < m1) out.push(route[i] as [number, number]);
+    }
+    const p1 = at(m1);
+    out.push([p1.x, p1.z]);
+    return out;
   };
   const inObstacle = (x: number, z: number) =>
     (polyGrid.get(key(Math.floor(x / CELL), Math.floor(z / CELL))) ?? []).some((p) =>
@@ -231,6 +257,9 @@ export function corridor(): Corridor {
     dress,
     ribbonGap,
     inObstacle,
+    inCarriageway,
+    isPavement,
+    slice,
     at,
   };
   return cached;

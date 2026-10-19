@@ -60,6 +60,11 @@ export function fromWire(w: WireInputs): TileInputs {
 
 /** Per-planner seed salt: the seed is `hash01(tileKey, salt)` (`seedFor`), never visit order. */
 const SALT = { props: "props", motion: "motion", signs: "signs", roads: "roads" } as const;
+/**
+ * The people spawn floor (1 per 40 m of street) applies to rings 0..this (C-T8). Perf-gate knob (P10):
+ * 0 keeps the floor on the camera's own tile only (the bubble can straddle into ring 1, though).
+ */
+export const PAVEMENT_FLOOR_MAX_RING: 0 | 1 = 1;
 const LAMP_KITS = ["furniture/lamp_single", "furniture/lamp_double"];
 const NO_KITS: Map<string, Placement[]> = new Map();
 /** One shared empty list: a re-plan of a tile without facades keeps its identity (no facade rebuild). */
@@ -153,7 +158,7 @@ export function planTile(inp: TileInputs, tile: Tile, ring: Ring, tier: Tier): T
           // C-T8: people keep out of footprints and water (P7); the detail bubble (rings 0-1)
           // keeps at least one person per 40 m of street (A-T12 hand-off).
           obstacles: buildings ? { buildings: buildings.buildings, water: buildings.water } : null,
-          floorPerM: ring <= 1 ? 1 / PAVEMENT_FLOOR_M : 0,
+          floorPerM: ring <= PAVEMENT_FLOOR_MAX_RING ? 1 / PAVEMENT_FLOOR_M : 0,
         })
       : [];
   const signs =
