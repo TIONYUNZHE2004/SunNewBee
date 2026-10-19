@@ -37,6 +37,19 @@ def test_zero_length_route_geometry_preserves_its_mapped_point():
     assert route["distance_m"] == 0 and route["segments"] == []
 
 
+def test_shared_inferred_node_is_unverified_without_creating_anonymous_tickets():
+    ctx = state.get_ctx()
+    place = ctx.world.places["kiosk"]
+    place.node_id = ctx.world.places["park-b"].node_id
+    place.node_inferred = True
+    response = c.post(
+        "/routes", json={"from": "park-b", "to": "kiosk", "profile": "stroller"}
+    ).json()
+    assert response["status"] == "partly_unverified"
+    assert response["routes"][0]["unknowns"][0]["attribute"] == "access_point"
+    assert ctx.vrs.list("all") == []
+
+
 def test_layers_access_has_status():
     fc = c.get("/layers/access", params={"profile": "stroller"}).json()
     st = {f["properties"]["id"]: f["properties"].get("status_for_profile") for f in fc["features"]}

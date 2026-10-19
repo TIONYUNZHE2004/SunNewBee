@@ -21,6 +21,7 @@ from .routing import (
     _disconnected,
     _evaluate,
     _targets,
+    _zero_edge_entrance_gaps,
     endpoint_flood,
     make_weight,
     origin_flood,
@@ -228,6 +229,12 @@ def centres_reachability(
                             profile,
                             "partly_unverified"
                             if "UNKNOWN" in (origin_state, centre_state)
+                            or (
+                                len(strict_paths[n]) == 1
+                                and _zero_edge_entrance_gaps(
+                                    world, near_place, f"{CENTRE_PREFIX}{c.id}"
+                                )
+                            )
                             else path_status(world, strict_paths[n], profile, scenario_id),
                         ),
                     ),

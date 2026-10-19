@@ -11,7 +11,14 @@ import networkx as nx
 
 from .access import LEVELS, assess_access, urban_context
 from .direction import CONDITIONAL_KEYS, allows_direction, direction_rule, direction_unknown
-from .evaluate import SIDEWALK_PRESENT, _is_stale, evaluate_edge, evaluate_flood, rest_point_state
+from .evaluate import (
+    SIDEWALK_PRESENT,
+    _is_stale,
+    _needs_verification,
+    evaluate_edge,
+    evaluate_flood,
+    rest_point_state,
+)
 from .geo import haversine_m
 from .maneuvers import build_maneuvers
 from .models import Evidence, RoadSection, Route, RouteResult, RouteSegment, photo_url
@@ -516,6 +523,38 @@ def _rest_search(world, sources, targets, profile, scenario_id, allow_unknown, l
     return None, [], evals, False
 
 
+def _zero_edge_entrance_gaps(world: World, from_id: str, to_id: str) -> list[dict[str, str]]:
+    """A shared graph node cannot verify an inferred connection between different places."""
+    from_id, to_id = endpoint_id(world, from_id), endpoint_id(world, to_id)
+    if from_id == to_id:
+        return []
+    gaps = []
+    for pid in dict.fromkeys((from_id, to_id)):
+        p = world.places.get(pid)
+        if p is None or not p.node_inferred:
+            continue
+        if any(
+            world.places.get(e) and world.places[e].node_id in world.graph for e in p.entrance_ids
+        ):
+            continue
+        claim = p.claims.get("access_point")
+        if (
+            not _needs_verification(claim, "access_point", date.today())
+            and claim.value == p.node_id
+            and claim.evidence_type not in {None, "team_survey_placeholder", "osm_import", "whatif"}
+            and claim.verified_by
+        ):
+            continue
+        gaps.append(
+            {
+                "element_id": pid,
+                "attribute": "access_point",
+                "why": "entrance connection is inferred; a shared graph point does not verify it",
+            }
+        )
+    return gaps
+
+
 def _route_from_nodes(world, nodes, keys, from_id, to_id, profile, scenario_id, evals) -> Route:
     segs, coords, unknowns, dist = [], [], [], 0.0
     metres = dict.fromkeys(LEVELS, 0.0)
@@ -546,6 +585,7 @@ def _route_from_nodes(world, nodes, keys, from_id, to_id, profile, scenario_id, 
         # Keep the LineString contract without inventing any off-graph connection.
         point = world.node_coords[nodes[-1]]
         coords = [list(point), list(point)]
+        unknowns.extend(_zero_edge_entrance_gaps(world, from_id, to_id))
     # A detour out and back along a spur repeats edges: list each unknown once (review M-1).
     unknowns = list({(u["element_id"], u["attribute"]): u for u in unknowns}.values())
     status = (
@@ -760,6 +800,11 @@ def plan_route(
     if result.routes:
         result.status = result.routes[0].status
         route = result.routes[0]
+        if not route.segments and any(u["attribute"] == "access_point" for u in route.unknowns):
+            result.warnings.append(
+                "Zero mapped metres describe a shared graph point, "
+                "not a checked entrance connection between these places"
+            )
         if route.access_metres.get("likely_ok", 0):
             result.warnings.append(
                 "Likely OK sections are estimated from map data, not checked on site"
