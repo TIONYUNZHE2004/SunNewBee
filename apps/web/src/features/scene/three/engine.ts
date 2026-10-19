@@ -178,6 +178,13 @@ export interface Engine {
    * `compileAsync`). Default root: the whole scene.
    */
   prewarm?(root?: THREE.Object3D): Promise<void>;
+  /**
+   * Draws `obj` for a couple of frames without colour (every material's colour writes off, a few
+   * metres under the ground at the view's centre), then takes it out again: the driver builds the
+   * draw-time shader variants (ANGLE on D3D11 compiles some only at the first draw, e.g. the skinned
+   * shadow-map variant) at an idle moment instead of when it first really shows. Resolves when done.
+   */
+  warmDraw?(obj: THREE.Object3D, frames?: number): Promise<void>;
   /** Camera bounds before the city arrives (the site extent); setCity replaces them. */
   setBounds(b: Bounds): void;
   /**
@@ -1539,7 +1546,16 @@ function build(
         sun.castShadow = cast;
       }
     }
-  void compileRoot(lineProgramStandIns(), composer.readBuffer, false, overlayScene);
+  // the overlay scene (no lights) with and without the mood's fog
+  for (const fogOn of [true, false]) {
+    const fog = overlayScene.fog;
+    overlayScene.fog = fogOn ? (fog ?? new THREE.Fog(new THREE.Color(), 1, 2)) : null;
+    try {
+      void compileRoot(lineProgramStandIns(), composer.readBuffer, false, overlayScene);
+    } finally {
+      overlayScene.fog = fog;
+    }
+  }
 
   return {
     get groundGeneration() {
@@ -1831,6 +1847,35 @@ function build(
       return () => {
         materialPatches.delete(patch);
       };
+    },
+    warmDraw(obj, frames = 2) {
+      if (disposed) return Promise.resolve();
+      const mats: [THREE.Material, boolean][] = [];
+      obj.traverse((o) => {
+        const m = (o as THREE.Mesh).material as THREE.Material | THREE.Material[] | undefined;
+        for (const x of Array.isArray(m) ? m : m ? [m] : []) {
+          mats.push([x, x.colorWrite]);
+          x.colorWrite = false;
+        }
+        o.frustumCulled = false;
+      });
+      obj.position.set(controls.target.x, -3, controls.target.z);
+      obj.updateMatrixWorld(true);
+      scene.add(obj);
+      return new Promise<void>((done) => {
+        let n = 0;
+        const off = this.onFrame(() => {
+          if (++n < frames) {
+            requestRender();
+            return;
+          }
+          off();
+          scene.remove(obj);
+          for (const [x, cw] of mats) x.colorWrite = cw;
+          done();
+        });
+        requestRender();
+      });
     },
     prewarm(root) {
       if (disposed) return Promise.resolve();

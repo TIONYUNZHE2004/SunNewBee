@@ -1,7 +1,9 @@
 import { type RefObject, useCallback, useEffect, useRef, useState } from "react";
 import * as THREE from "three";
+import { loadProfile } from "../../lib/profileStore";
 import type { LonLat } from "../scene/geo";
 import { setTreeCut } from "../scene/three/assets/treeCut";
+import { preloadHeroModel } from "../scene/three/characters/glbHero";
 import type { Clearance } from "../scene/three/clearance";
 import type { Engine } from "../scene/three/engine";
 import type { LocalFrame } from "../scene/three/frame";
@@ -141,28 +143,68 @@ export function JourneyMount({
     });
     engine.setDecor(HERO_SLOT, { group: h.group, dispose: h.dispose });
     heroRef.current = h;
+    // Her ground table (a ~30 ms index of the drawn ground meshes) is built at the first idle
+    // moment, not in the frame the answer lands (gate AC-D18); the dive starts from the overview,
+    // where she is a speck, and she is posed on the default ground until then.
+    let groundReady = false;
     const apply = () => {
       const s = useJourney.getState();
-      h.refreshGround();
+      if (groundReady) h.refreshGround();
       if (s.timeline && s.plan === plan) h.pose(s.timeline, s.t);
     };
     apply();
+    const ric = globalThis as {
+      requestIdleCallback?: (cb: () => void, o?: { timeout: number }) => number;
+      cancelIdleCallback?: (id: number) => void;
+    };
+    const readyNow = () => {
+      groundReady = true;
+      apply();
+    };
+    const idleId = ric.requestIdleCallback
+      ? ric.requestIdleCallback(readyNow, { timeout: 1200 })
+      : (setTimeout(readyNow, 300) as unknown as number);
     const unsub = useJourney.subscribe((s, prev) => {
       if (s.t !== prev.t || s.timeline !== prev.timeline) apply();
     });
     // Ground tiles streaming in while paused: re-pose on the new height table. A slow timer, not a
     // frame listener (no per-frame work outside event cards); playback re-checks on every pose.
     const timer = setInterval(() => {
-      if (h.refreshGround()) apply();
+      if (groundReady && h.refreshGround()) apply();
     }, 500);
     return () => {
       unsub();
       clearInterval(timer);
+      if (ric.requestIdleCallback && ric.cancelIdleCallback) ric.cancelIdleCallback(idleId);
+      else clearTimeout(idleId as unknown as ReturnType<typeof setTimeout>);
       engine.setDecor(HERO_SLOT, null);
       journeyHero.current = null;
       if (heroRef.current === h) heroRef.current = null;
     };
   }, [engine, frame, plan, layer, places, footprints, grid, factBenches]);
+
+  // The hero model of the current profile is loaded, parsed and drawn once off-screen at an idle
+  // moment after the map loads: her skinned shadow variant was otherwise built by the driver on her
+  // first real draw, in the second after the answer landed (gate AC-D18). Kept for the session.
+  useEffect(() => {
+    if (!engine?.warmDraw || import.meta.env.MODE === "test") return;
+    let live = true;
+    const ric = (globalThis as { requestIdleCallback?: (cb: () => void) => number })
+      .requestIdleCallback;
+    const go = () => {
+      void preloadHeroModel(loadProfile()).then((m) => {
+        if (!live || !m) return;
+        void engine.prepare?.(m.object3d).then(() => {
+          if (live) void engine.warmDraw?.(m.object3d, 3);
+        });
+      });
+    };
+    const id = ric ? ric(go) : setTimeout(go, 3000);
+    return () => {
+      live = false;
+      if (!ric) clearTimeout(id as ReturnType<typeof setTimeout>);
+    };
+  }, [engine]);
 
   // The pin drawings (canvas text) are made at an idle moment, not when the answer lands.
   useEffect(() => {

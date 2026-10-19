@@ -68,6 +68,24 @@ export function createDressingLayer(opts: { tier?: Tier } = {}): DressingLayer {
   const buckets = new Map<string, Bucket>();
   for (const [key, geom] of buildDressingModels())
     buckets.set(key, { key, geom, tris: trianglesOf(geom), mesh: null, cap: 0, drawn: 0 });
+  // Bucket meshes are made as items come into the bubble (mid-dive): two empty instanced meshes,
+  // one per material, so the layer's compile before it shows covers both programs and the shadow
+  // variant (the decorative material's program was linked on its first draw, gate AC-D18).
+  const firstGeom = buckets.values().next().value?.geom;
+  if (firstGeom)
+    for (const mat of [material, decorMaterial]) {
+      const warm = new THREE.InstancedMesh(firstGeom, mat, 1);
+      warm.count = 0;
+      warm.name = "dressing__prewarm";
+      warm.castShadow = true;
+      warm.receiveShadow = true;
+      warm.frustumCulled = false;
+      warm.raycast = NOOP;
+      warm.userData.decorative = mat === decorMaterial;
+      warm.userData.fact = mat === material;
+      warm.userData.sourceIds = [];
+      group.add(warm);
+    }
   let items: readonly DressItem[] = [];
   const m = new THREE.Matrix4();
   const q = new THREE.Quaternion();

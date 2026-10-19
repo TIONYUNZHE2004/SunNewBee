@@ -45,7 +45,14 @@ describe("the hero is never see-through (gate: ribbon ghost and cut patches)", (
     building.userData.pick = { kind: "building" };
     root.add(building);
     expect(applyCutaway([root])).toBe(1);
-    for (const m of [...materialsOf(hero.object3d), ...materialsOf(dressing.group)]) {
+    // fact props only: decorative dressing carries the decorative occluder cut by design (9.1 F2)
+    const facts: THREE.Object3D[] = [];
+    dressing.group.traverse((o) => {
+      if (o.userData.fact) facts.push(o);
+    });
+    const factMats = facts.flatMap((o) => materialsOf(o));
+    expect(factMats.length).toBeGreaterThan(0);
+    for (const m of [...materialsOf(hero.object3d), ...factMats]) {
       const s = compiled(m);
       expect(s.fragmentShader, m.name).not.toContain("uTlCutOn");
       expect(s.fragmentShader, m.name).not.toContain("uTlTreeCutOn");
