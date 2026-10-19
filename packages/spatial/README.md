@@ -36,6 +36,13 @@ changing the engine's status, selection or distance. MCP receives the same evide
 Node IDs (`n-...`) are implicit: an edge's `from`/`to` plus the first/last coordinate of its
 LineString define a node and its position. Coordinates are WGS84 `[lon, lat]`.
 
+The loader rejects duplicate IDs within one source file, overlapping edge/place IDs,
+unusable positions or line geometry, and incident edges that assign different positions
+to the same node ID. An overlay may intentionally replace a base record by ID, but the
+resulting graph must remain consistent. Equal coordinates with distinct IDs do not create
+a junction. This catches malformed input; it does not establish original OSM identity for
+the legacy seed.
+
 ## Modules
 
 `world` (loader), `models` (pydantic), `profiles` (loads `config/profiles/*.yaml`), `evaluate`

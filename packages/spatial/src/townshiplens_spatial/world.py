@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import math
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
@@ -11,8 +12,35 @@ from .models import Claim, Closure, Edge, EvacCentre, FloodBundle, Place, Profil
 from .profiles import load_profiles
 
 
+class WorldDataError(ValueError):
+    """Ambiguous or malformed input must not become a routable world."""
+
+
 def _fc(path: Path) -> list[dict]:
     return json.loads(path.read_text(encoding="utf-8"))["features"] if path.exists() else []
+
+
+def _unique_features(path: Path) -> list[dict]:
+    features = _fc(path)
+    seen: set[str] = set()
+    for feature in features:
+        eid = feature["properties"]["id"]
+        if not isinstance(eid, str) or not eid.strip():
+            raise WorldDataError(f"{path}: feature needs a nonempty string id")
+        if eid in seen:
+            raise WorldDataError(f"{path}: duplicate feature id {eid}")
+        seen.add(eid)
+    return features
+
+
+def _position(point: list[float], element: str) -> None:
+    if (
+        len(point) < 2
+        or not all(math.isfinite(value) for value in point)
+        or not -180 <= point[0] <= 180
+        or not -90 <= point[1] <= 90
+    ):
+        raise WorldDataError(f"{element}: finite WGS84 longitude/latitude position required")
 
 
 @dataclass
@@ -65,7 +93,9 @@ class World:
 
 def _edge(f: dict) -> Edge:
     p = f["properties"]
-    return Edge(
+    if f["geometry"]["type"] != "LineString":
+        raise WorldDataError(f"{p['id']}: edge geometry must be a LineString")
+    edge = Edge(
         id=p["id"],
         type=p.get("type", "footway"),
         from_node=p["from"],
@@ -76,11 +106,20 @@ def _edge(f: dict) -> Edge:
         osm_tags=p.get("osm_tags") or {},
         claims=p.get("claims") or {},
     )
+    if not edge.from_node.strip() or not edge.to_node.strip():
+        raise WorldDataError(f"{edge.id}: edge endpoints need nonempty node ids")
+    if len(edge.coords) < 2:
+        raise WorldDataError(f"{edge.id}: edge LineString needs at least two positions")
+    for point in edge.coords:
+        _position(point, edge.id)
+    return edge
 
 
 def _place(f: dict) -> Place:
     p = f["properties"]
-    return Place(
+    if f["geometry"].get("type", "Point") != "Point":
+        raise WorldDataError(f"{p['id']}: place geometry must be a Point")
+    place = Place(
         id=p["id"],
         kind=p.get("kind", "place"),
         type=p["type"],
@@ -92,24 +131,30 @@ def _place(f: dict) -> Place:
         entrance_ids=p.get("entrance_ids", []),
         claims=p.get("claims") or {},
     )
+    _position(place.coord, place.id)
+    return place
 
 
 def load_world(data_dir: Path, config_dir: Path | None = None) -> World:
     site = Site.model_validate_json((data_dir / "site.json").read_text(encoding="utf-8"))
-    edges = {e.id: e for e in map(_edge, _fc(data_dir / "base/walk.geojson"))}
-    places = {p.id: p for p in map(_place, _fc(data_dir / "base/places.geojson"))}
-    for f in _fc(data_dir / "access/overlay.geojson"):
+    edges = {e.id: e for e in map(_edge, _unique_features(data_dir / "base/walk.geojson"))}
+    places = {p.id: p for p in map(_place, _unique_features(data_dir / "base/places.geojson"))}
+    for f in _unique_features(data_dir / "access/overlay.geojson"):
         if f["geometry"]["type"] == "LineString":
             e = _edge(f)
             edges[e.id] = e
         else:
             p = _place(f)
             places[p.id] = p
+    if collisions := edges.keys() & places.keys():
+        raise WorldDataError(f"edge/place ids overlap: {', '.join(sorted(collisions))}")
     g = nx.MultiGraph()
     coords: dict[str, list[float]] = {}
     for e in edges.values():
-        coords[e.from_node] = e.coords[0]
-        coords[e.to_node] = e.coords[-1]
+        for node, point in ((e.from_node, e.coords[0]), (e.to_node, e.coords[-1])):
+            if node in coords and coords[node][:2] != point[:2]:
+                raise WorldDataError(f"node {node}: inconsistent endpoint position on edge {e.id}")
+            coords[node] = point
         g.add_edge(e.from_node, e.to_node, key=e.id, edge_id=e.id)
     flood_path = data_dir / "flood/scenarios.json"
     flood = (
@@ -134,11 +179,11 @@ def load_world(data_dir: Path, config_dir: Path | None = None) -> World:
         if (p := data_dir / f"flood/{s.id}.geojson").exists()
     }
     centres = {}
-    for f in _fc(data_dir / "flood/evac_centres.geojson"):
+    for f in _unique_features(data_dir / "flood/evac_centres.geojson"):
         props = f["properties"]
         centres[props["id"]] = EvacCentre(coord=f["geometry"]["coordinates"], **props)
     waste = {}
-    for f in _fc(data_dir / "waste/points.geojson"):
+    for f in _unique_features(data_dir / "waste/points.geojson"):
         props = f["properties"]
         waste[props["id"]] = WastePoint(coord=f["geometry"]["coordinates"], **props)
     by_node: dict[str, list[str]] = {}
