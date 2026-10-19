@@ -1,18 +1,24 @@
+import * as THREE from "three";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { LIMITS, type Pose } from "../scene/three/cameraRig";
+import { LIMITS, type Pose, VFOV_DEG } from "../scene/three/cameraRig";
 import type { Engine } from "../scene/three/engine";
 import { createFrame } from "../scene/three/frame";
 import { type FollowScene, journeyCameraAt } from "../scene/three/journey/followRig";
+import { insideSafe } from "../scene/three/journey/safeFrame";
 import demoPlan from "./fixtures/demoPlan.json";
 import {
   createFollowController,
   MODE_BLEND_MS,
   orbitPoseAround,
   overviewFor,
+  PIN_TOP_M,
   routeOverview,
+  routeOverviewFit,
 } from "./followCamera";
 import { useJourney } from "./journeyStore";
 import { createRoutePath } from "./routePath";
+import { MARKER_LIFT_M, MARKER_STACK_M } from "./three/journeyLayer";
+import { createViewFit, safeRectOf } from "./three/viewFit";
 import type { JourneyPlan } from "./timeline";
 
 const plan = demoPlan as unknown as JourneyPlan;
@@ -188,4 +194,42 @@ describe("follow controller (engine camera driver)", () => {
     const bp = back?.position ?? [0, 0, 0];
     for (let i = 0; i < 3; i++) expect(bp[i]).toBeCloseTo(here.position[i] as number, 9);
   });
+});
+
+describe("route overview fit (pull-back end, iteration 2)", () => {
+  // the owner's window: a short, wide map area with the top stack ending at 150 px
+  for (const [w, h, top] of [
+    [960, 560, 150],
+    [920, 860, 235],
+  ] as const) {
+    it(`the whole route and every marker with its pin sit in the UI-safe area (${w} x ${h})`, () => {
+      const cam = new THREE.PerspectiveCamera(VFOV_DEG, w / h, 0.5, 30000);
+      cam.updateProjectionMatrix();
+      const view = createViewFit(cam, [w, h], safeRectOf({ w, h, top }));
+      const markers = plan.events.map((e, i) => {
+        const [x, z] = path.pointAt(e.at_m);
+        const stacked = plan.events.filter((f, j) => j < i && Math.abs(f.at_m - e.at_m) < 3).length;
+        return [x, MARKER_LIFT_M + stacked * MARKER_STACK_M, z] as const;
+      });
+      const pose = routeOverviewFit(path.pointAt, path.planLength, view, markers);
+      const subjects = [
+        ...markers.map((m) => ({ p: [m[0], m[1], m[2]] as [number, number, number], padPx: 36 })),
+        ...markers.map((m) => ({
+          p: [m[0], m[1] + PIN_TOP_M, m[2]] as [number, number, number],
+          padPx: 8,
+        })),
+      ];
+      expect(insideSafe(pose, subjects, view)).toBe(true);
+      // still a look-down overview of the route (same heading and pitch as the plain one)
+      const plain = routeOverview(path.pointAt, path.planLength);
+      const dirOf = (p: { pos: readonly number[]; look: readonly number[] }) => {
+        const v = [0, 1, 2].map((i) => (p.look[i] as number) - (p.pos[i] as number));
+        const l = Math.hypot(v[0] as number, v[1] as number, v[2] as number);
+        return v.map((c) => c / l);
+      };
+      const a = dirOf(pose);
+      const b = dirOf(plain);
+      for (let i = 0; i < 3; i++) expect(a[i]).toBeCloseTo(b[i] as number, 6);
+    });
+  }
 });
