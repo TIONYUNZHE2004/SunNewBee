@@ -66,6 +66,41 @@ const frames = (page: Page, n = 3) =>
     n,
   );
 
+/**
+ * Waits until the camera holds still (position within 1 mm for 500 ms, at most 8 s). A beat is a
+ * paused time on the timeline; the journey camera (D-T5 follow rig) is a function of that time,
+ * but any eased transition the scene still runs (e.g. the orbit rig's fly-to after
+ * route.highlight, which runs on the wall clock) must finish before the pose is compared, or
+ * the check measures how far a tween got, not the beat.
+ */
+async function cameraStill(page: Page): Promise<void> {
+  await page.evaluate(
+    (h) =>
+      new Promise<void>((done) => {
+        const api = (
+          window as unknown as Record<
+            string,
+            { cameraLocal(): [number, number, number] } | undefined
+          >
+        )[h];
+        if (!api) return done();
+        const t0 = performance.now();
+        let last = api.cameraLocal();
+        let since = t0;
+        const tick = () => {
+          const now = performance.now();
+          const c = api.cameraLocal();
+          if (Math.hypot(c[0] - last[0], c[1] - last[1], c[2] - last[2]) > 0.001) since = now;
+          last = c;
+          if (now - since >= 500 || now - t0 > 8000) return done();
+          requestAnimationFrame(tick);
+        };
+        requestAnimationFrame(tick);
+      }),
+    HOOK,
+  );
+}
+
 /** One run of the demo preset: load, ask, auto-play, then the beats. */
 async function demoRun(page: Page): Promise<{ plan: JourneyPlan; beats: Beat[] }> {
   await page.addInitScript((p: string) => {
@@ -115,6 +150,7 @@ async function demoRun(page: Page): Promise<{ plan: JourneyPlan; beats: Beat[] }
   for (const b of beats) {
     await journey.seek(page, b.t);
     await frames(page);
+    await cameraStill(page);
     const pose = await page.evaluate((h) => {
       const api = (
         window as unknown as Record<
