@@ -10,7 +10,7 @@ import { createFrame, type LocalFrame } from "../frame";
 import type { Boundary } from "../ground/boundary";
 import { ribbonsFromWalk } from "../ground/ribbons";
 import { planVerges } from "../ground/verges";
-import { planAgents } from "../motion/agents";
+import { PAVEMENT_FLOOR_M, planAgents } from "../motion/agents";
 import { planProps } from "../props/propsPlan";
 import { CLAY_PALETTE } from "../shared/clayTokens";
 import { planSigns } from "../signs/signPlan";
@@ -150,6 +150,10 @@ export function planTile(inp: TileInputs, tile: Tile, ring: Ring, tier: Tier): T
           caps: { vehicles, people },
           m: manifest,
           boundary: inp.boundary,
+          // C-T8: people keep out of footprints and water (P7); the detail bubble (rings 0-1)
+          // keeps at least one person per 40 m of street (A-T12 hand-off).
+          obstacles: buildings ? { buildings: buildings.buildings, water: buildings.water } : null,
+          floorPerM: ring <= 1 ? 1 / PAVEMENT_FLOOR_M : 0,
         })
       : [];
   const signs =

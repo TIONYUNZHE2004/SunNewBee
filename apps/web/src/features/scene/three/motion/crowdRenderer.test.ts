@@ -2,11 +2,12 @@ import { readFileSync } from "node:fs";
 import * as THREE from "three";
 import { beforeAll, describe, expect, it } from "vitest";
 import { createMotionUniforms, createRoleUniforms } from "../assets/roleMaterial";
-import { type Agent, displayScale, easedDistance } from "./agents";
+import { type Agent, easedDistance, PEOPLE_VISIBLE_M, peopleScale } from "./agents";
 import type { CrowdKit } from "./crowdBake";
 import { framePair, gaitStartPhase, seedPhase } from "./crowdGait";
 import { loadCrowdKit } from "./crowdKit";
-import { patchCrowdShader } from "./crowdRenderer";
+import { crowdLodBands, patchCrowdShader } from "./crowdRenderer";
+import { lookSpeed } from "./crowdRules";
 import { createMotionLayer, crowdLookIndex } from "./motionLayer";
 
 /** C-T7 (P4, P5): the crowd renderer through the motion layer, on the committed crowd glbs. */
@@ -81,12 +82,17 @@ describe("crowd renderer", () => {
       return out;
     };
     expect(run()).toEqual(run());
-    const a = person("same", 0, 0);
-    const look = kit.manifest.looks[crowdLookIndex(kit, a)];
+    const layer = make([person("same", 0, 0)]);
+    const look = kit.manifest.looks[layer.crowd!.lookOf(0)];
+    layer.dispose();
     const clip = look ? kit.clips[look.body][look.clips.walk] : undefined;
-    if (!clip) throw new Error("no walk clip");
+    if (!look || !clip) throw new Error("no walk clip");
+    // The layer walks the person at its look's speed (C-T8).
+    const stride = kit.manifest.bodies[look.body].clips[look.clips.walk]!.stride;
+    const p = person("same", 0, 0);
+    const a = { ...p, speed: lookSpeed(p, look, stride) };
     const f = framePair(
-      gaitStartPhase(a.id, easedDistance(a, 7.3), clip, displayScale(30)),
+      gaitStartPhase(a.id, easedDistance(a, 7.3), clip, peopleScale(30)),
       clip.frames,
     );
     expect(run()[0]).toBe(clip.row + f.f0);
@@ -129,7 +135,8 @@ describe("crowd renderer", () => {
     }
   });
 
-  it("P4: hidden beyond 300 m; LOD1 between 60 and 300 m", () => {
+  it("R-J7 (supersedes P4's 300 m): LOD0 to 60 m, LOD1 to 800 m, hidden beyond 800 m", () => {
+    expect(crowdLodBands(kit.manifest.lods)).toEqual([{ maxM: 60 }, { maxM: PEOPLE_VISIBLE_M }]);
     const layer = make([person("a", 0, 0)]);
     const at = (h: number) => {
       layer.tick(0, cam(0, h, 0));
@@ -137,7 +144,10 @@ describe("crowd renderer", () => {
     };
     expect(at(30)).toEqual([1, 0]);
     expect(at(200)).toEqual([0, 1]);
-    expect(at(400)).toEqual([0, 0]);
+    expect(at(400)).toEqual([0, 1]);
+    expect(at(790)).toEqual([0, 1]);
+    // Hidden beyond 800 m outright (no LOD hysteresis past the cut).
+    expect(at(820)).toEqual([0, 0]);
     expect(layer.crowd!.drawCalls()).toBe(0);
     expect(layer.crowd!.meshes.every((m) => !m.visible)).toBe(true);
   });

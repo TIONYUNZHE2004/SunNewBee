@@ -13,7 +13,7 @@ import {
   heroStateAt,
   seatFor,
 } from "../../scene/three/journey/heroDriver";
-import { AGENT_LIFT_M } from "../../scene/three/motion/motionLayer";
+import { AGENT_LIFT_M } from "../../scene/three/motion/agents";
 import type { HeroPose, HeroProbe } from "../journeyStore";
 import type { RoutePath } from "../routePath";
 import type { JourneyPlan, Timeline } from "../timeline";
