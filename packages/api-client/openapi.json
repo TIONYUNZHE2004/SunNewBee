@@ -3411,6 +3411,7 @@
               {
                 "enum": [
                   "confirmed",
+                  "likely_ok",
                   "partly_unverified",
                   "blocked",
                   "no_data"
