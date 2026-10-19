@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, Field
+from townshiplens_spatial.models import HHMM_PATTERN, JourneyPlan
 
 IntentKind = Literal[
     "camera.fly_to",
@@ -16,10 +17,15 @@ IntentKind = Literal[
     "river.rollout",  # open and play the rising-river rollout (the client fetches /river-rollout)
     "day.show",  # open an Elmina Day rehearsal on the map, paused at `t_min` (server-added)
     "day.trip",  # a resident's own rehearsed trip: day.show plus the trip (geojson, server-built)
+    "journey.play",  # play a planned route as a journey (JourneyPlan attached by the server)
 ]
 
 
-class SceneIntent(BaseModel):
+# A scene intent as the model writes it in `final_answer` (no docstring: it would become part of
+# the model's output schema). The server-built journey plan is not part of it, so the model never
+# writes one and its large schema stays out of the model's prompt. run.py turns each one into a
+# `SceneIntent`, the wire model.
+class AnswerSceneIntent(BaseModel):
     kind: IntentKind
     place_id: str | None = None
     route_id: str | None = None
@@ -36,6 +42,16 @@ class SceneIntent(BaseModel):
     est_minutes: float | None = None
     day: str | None = None  # day.show: weekday | storm | event | friday
     t_min: int | None = None  # day.show: the rehearsal clock, minutes after midnight
+    # journey.play: the local time the walk starts ("HH:MM"), with route_id from plan_route.
+    start_time: str | None = Field(default=None, pattern=HHMM_PATTERN)
+
+
+class SceneIntent(AnswerSceneIntent):
+    """A scene intent on the wire (SSE `scene.intent`)."""
+
+    # Attached by the server for journey.play from the route plan_route returned this turn
+    # (townshiplens_spatial.journey.build_journey); never set by the model.
+    journey: JourneyPlan | None = None
 
 
 class TextDelta(BaseModel):

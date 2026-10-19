@@ -1,6 +1,9 @@
 import * as THREE from "three";
 import { describe, expect, it } from "vitest";
 import {
+  AO_FLOOR,
+  AO_FLOOR_BY_ROLE,
+  aoFloorGlsl,
   createMotionUniforms,
   createRoleMaterial,
   createRoleUniforms,
@@ -38,6 +41,30 @@ describe("createRoleMaterial", () => {
     expect(shader.uniforms.uLightGlow).toBe(uniforms.uLightGlow);
     expect(shader.uniforms.uAoStrength).toBe(uniforms.uAoStrength);
     expect(mat.vertexColors).toBe(true);
+  });
+
+  it("floors the baked AO so a zero corner never multiplies the role colour to black (A-T8)", () => {
+    const { shader } = compile(true);
+    expect(shader.fragmentShader).toContain("max(vColor.r, tlAoFloor)");
+    expect(shader.fragmentShader).toContain(aoFloorGlsl());
+  });
+
+  it("per-role AO floors: glass is (nearly) exempt, walls and roofs keep contact shadows", () => {
+    expect(AO_FLOOR_BY_ROLE).toHaveLength(8);
+    for (const f of AO_FLOOR_BY_ROLE) {
+      expect(f).toBeGreaterThanOrEqual(AO_FLOOR);
+      expect(f).toBeLessThanOrEqual(1);
+    }
+    expect(AO_FLOOR_BY_ROLE[3]).toBeGreaterThanOrEqual(0.85);
+    expect(AO_FLOOR_BY_ROLE[0]).toBe(AO_FLOOR);
+    expect(AO_FLOOR_BY_ROLE[1]).toBe(AO_FLOOR);
+    expect(aoFloorGlsl()).toContain("if (tlRole == 3) tlAoFloor = 0.85;");
+  });
+
+  it("no fake glass reflection: glass has no daylight emissive term", () => {
+    const { shader } = compile(true);
+    expect(shader.fragmentShader).not.toContain("GLASS_SKY");
+    expect(shader.fragmentShader).toContain("if (tlRole == 3 && vColor.b < uLitShare)");
   });
 
   it("single mesh: uniform palette, no instanced attributes", () => {

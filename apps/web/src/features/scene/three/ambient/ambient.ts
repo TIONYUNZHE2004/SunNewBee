@@ -2,6 +2,7 @@ import * as THREE from "three";
 import { hashUnit } from "../../shared/model";
 import { TIERS, type Tier } from "../../shared/quality";
 import type { LocalFrame } from "../frame";
+import { type Boundary, clearance, insideBoundary } from "../ground/boundary";
 
 export const CLOUD_SHADOW_Y = 0.11;
 /** After the ground bands (1 to 5) and the lamp pools (6), before overlays (10 and up). */
@@ -102,11 +103,22 @@ export function createAmbient(
   frame: LocalFrame,
   centre: [number, number],
   seed: string,
+  /**
+   * The Elmina outline (A-T4): a bird outside it, or a cloud shadow not wholly inside it (its square
+   * decal's corners reach size / sqrt 2 from its centre; it would darken the void past the slab), is hidden for that tick. Positions are world xz (the group's
+   * position plus the local one).
+   */
+  boundary: Boundary | null = null,
 ): {
   group: THREE.Group;
   tick(nowMs: number, weights: { day: number; dusk: number; night: number }): void;
   /** Each bird's orbit centre (local xz), for tests. */
   readonly birdOrbits: readonly [number, number][];
+  /**
+   * Re-runs the last tick (same time and weights): after the group moves, so the outline test
+   * (which reads the group position) is redone even while the motion clock is stopped.
+   */
+  refresh(): void;
   dispose(): void;
 } {
   const spec = TIERS[tier];
@@ -132,6 +144,8 @@ export function createAmbient(
   const bq = new THREE.Quaternion();
   const bp = new THREE.Vector3();
   const bs = new THREE.Vector3(1, 1, 1);
+  /** A hidden instance (outside the outline): zero scale. */
+  const zero = new THREE.Vector3(0, 0, 0);
   const up = new THREE.Vector3(0, 1, 0);
   const fwd = new THREE.Vector3(1, 0, 0);
   const roll = new THREE.Quaternion();
@@ -209,6 +223,7 @@ export function createAmbient(
     finish(clouds, "ambient-cloud-shadows", CLOUD_RENDER_ORDER);
   }
 
+  let last: { nowMs: number; w: { day: number; dusk: number; night: number } } | null = null;
   const wrap = (v: number) => {
     const span = CLOUD_RANGE_M * 2;
     return ((((v + CLOUD_RANGE_M) % span) + span) % span) - CLOUD_RANGE_M;
@@ -217,7 +232,11 @@ export function createAmbient(
   return {
     group,
     birdOrbits: bird.map((b) => [b.ox, b.oz] as [number, number]),
+    refresh() {
+      if (last) this.tick(last.nowMs, last.w);
+    },
     tick(nowMs, w) {
+      last = { nowMs, w: { ...w } };
       const t = nowMs / 1000;
       flapTime.value = t;
       if (birds) {
@@ -233,7 +252,10 @@ export function createAmbient(
             bq.setFromAxisAngle(up, Math.atan2(-tz, tx)).multiply(
               roll.setFromAxisAngle(fwd, b.bank),
             );
-            birds.setMatrixAt(i, bm.compose(bp, bq, bs));
+            const out =
+              boundary !== null &&
+              !insideBoundary(boundary, bp.x + group.position.x, bp.z + group.position.z);
+            birds.setMatrixAt(i, bm.compose(bp, bq, out ? zero : bs));
           });
           birds.instanceMatrix.needsUpdate = true;
         }
@@ -244,7 +266,11 @@ export function createAmbient(
         if (clouds.visible) {
           cloud.forEach((c, i) => {
             bp.set(cx + wrap(c.x + CLOUD_DRIFT_MPS * t), CLOUD_SHADOW_Y, cz + c.z);
-            bm.compose(bp, bq.identity(), bs.set(c.size, 1, c.size));
+            const out =
+              boundary !== null &&
+              clearance(boundary, bp.x + group.position.x, bp.z + group.position.z) <
+                c.size * Math.SQRT1_2;
+            bm.compose(bp, bq.identity(), out ? zero : bs.set(c.size, 1, c.size));
             clouds.setMatrixAt(i, bm);
             bs.set(1, 1, 1);
           });

@@ -1,12 +1,13 @@
 # Golden hero questions. Run: `pnpm golden` (mock) or `GOLDEN_REAL=1 pnpm golden` (OpenRouter).
 # expect keys: tools_include, events_include, done_status_in, text_includes / text_excludes
-# (case-insensitive substrings of the joined text.delta); text_includes_any = at least one of; first_line = required
+# (case-insensitive substrings of the joined text.delta); intents_include = scene intent kinds, in this order; text_includes_any = at least one of; first_line = required
 # prefix of the first text line; first_line_excludes = substring the first line must not contain;
 # mock_only = expectations on the mock's exact wording, skipped with GOLDEN_REAL=1.
+# world: elmina runs the case on the committed Elmina seed instead of the tiny fixture.
 - id: access-confirmed
   message: "Can I push a stroller from Car Park B to the playground without stairs?"
   profile: stroller
-  expect: { tools_include: [find_place, plan_route], done_status_in: [answered, partial], events_include: [scene.intent, citation] }
+  expect: { tools_include: [find_place, plan_route], done_status_in: [answered, partial], events_include: [scene.intent, citation], mock_only: { intents_include: [route.highlight, journey.play] } }
 - id: access-unverified
   message: "Can I push a stroller from Car Park B to the kiosk without stairs?"
   profile: stroller
@@ -108,3 +109,8 @@
   profile: stroller
   assistant_scope: all  # explicit opt-in for legacy-feature regression coverage
   expect: { tools_include: [rehearse_my_trip], events_include: [scene.intent, citation], text_includes: ["rehearsal", "not a forecast"], text_excludes: [" safe", "you should", "leave by", "will get"], mock_only: { text_includes: ["leaving at 07:30 got there"] } }
+- id: journey-demo-walker
+  world: elmina  # Harmoni 1 and Lakeside Mall Car Park B exist only in the seed (spec 2026-10-19 §2)
+  message: "My mum uses a walker. Can she walk from Harmoni 1 to Lakeside Mall Car Park B?"
+  profile: older_adult_rest
+  expect: { tools_include: [find_place, plan_route], events_include: [scene.intent, citation, verification.requested], intents_include: [route.highlight, journey.play], done_status_in: [partial], first_line: "Route status: partly unverified", text_includes: ["demo values, not yet surveyed", "without a rest point"], text_excludes: [" safe", "selamat", " deep"], mock_only: { text_includes: ["about 966 m", "3 rest stops on the way", "not checked yet: 3 places on the way", "persiaran elmina crossing", "no known barrier"] } }

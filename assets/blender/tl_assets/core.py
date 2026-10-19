@@ -19,6 +19,11 @@ import mathutils
 from .specs import ROLES
 
 COLOR_ATTR = "COLOR_0"
+# Baked AO never goes below this (A-T8). The per-vertex bake uses smoothed vertex normals, so wall
+# corners and base vertices whose averaged normal points into the ground or the body bake to exactly
+# 0, and a 0 multiplies the role colour to pure black (the black strips beside link houses). Keep in
+# sync with AO_FLOOR in apps/web/src/features/scene/three/assets/roleMaterial.ts.
+AO_FLOOR = 0.4
 AO_TMP_ATTR = "tl_ao_tmp"
 MATERIAL = "tl_role"
 GROUND_SIZE_M = 40.0
@@ -242,7 +247,7 @@ def bake_ao(obj, samples: int = 64, distance: float = 4.0) -> None:
         col = [0.0] * n
         tmp.data.foreach_get("color", ao)
         mesh.color_attributes[COLOR_ATTR].data.foreach_get("color", col)
-        col[0::4] = [min(max(v, 0.0), 1.0) for v in ao[0::4]]
+        col[0::4] = [min(max(v, AO_FLOOR), 1.0) for v in ao[0::4]]
         mesh.color_attributes[COLOR_ATTR].data.foreach_set("color", col)
     finally:
         if mesh.color_attributes.get(AO_TMP_ATTR) is not None:

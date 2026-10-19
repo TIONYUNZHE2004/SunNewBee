@@ -13,7 +13,7 @@ export interface Pose {
 export const VFOV_DEG = 30;
 export const LIMITS = {
   minRangeM: 30,
-  maxRangeM: 9000,
+  maxRangeM: 7900,
   minPitchDeg: -89,
   maxPitchDeg: -5,
   maxCentreOffsetM: 5000,

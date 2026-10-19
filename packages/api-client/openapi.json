@@ -324,40 +324,6 @@
         "title": "BeliefTable",
         "type": "object"
       },
-      "BoundaryRef": {
-        "description": "Display-only Elmina outline (base/boundary.geojson); routing and answers never read it.",
-        "properties": {
-          "area_km2": {
-            "title": "Area Km2",
-            "type": "number"
-          },
-          "as_of": {
-            "title": "As Of",
-            "type": "string"
-          },
-          "file": {
-            "title": "File",
-            "type": "string"
-          },
-          "method": {
-            "title": "Method",
-            "type": "string"
-          },
-          "source": {
-            "title": "Source",
-            "type": "string"
-          }
-        },
-        "required": [
-          "file",
-          "source",
-          "method",
-          "area_km2",
-          "as_of"
-        ],
-        "title": "BoundaryRef",
-        "type": "object"
-      },
       "BuildRamp": {
         "description": "Imagine a capital work: the path rebuilt step-free (steps become a ramp).",
         "properties": {
@@ -2343,6 +2309,237 @@
         "title": "HTTPValidationError",
         "type": "object"
       },
+      "JourneyEvent": {
+        "description": "One stop of a journey (spec \u00a76.1), derived by journey.build_journey from world data only.",
+        "properties": {
+          "at_m": {
+            "title": "At M",
+            "type": "number"
+          },
+          "attributes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Attributes",
+            "type": "array"
+          },
+          "body": {
+            "title": "Body",
+            "type": "string"
+          },
+          "demo": {
+            "default": false,
+            "title": "Demo",
+            "type": "boolean"
+          },
+          "element_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Element Id"
+          },
+          "evidence_id": {
+            "title": "Evidence Id",
+            "type": "string"
+          },
+          "hold_s": {
+            "title": "Hold S",
+            "type": "number"
+          },
+          "kind": {
+            "enum": [
+              "covered",
+              "unknown",
+              "gap",
+              "verified",
+              "rest",
+              "arrive"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "source": {
+            "anyOf": [
+              {
+                "enum": [
+                  "route.max_gap_between_rest_m",
+                  "route.to_place"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source"
+          },
+          "status": {
+            "enum": [
+              "unknown",
+              "reported",
+              "verified",
+              "stale",
+              "contested",
+              "unverified",
+              "route"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "at_m",
+          "status",
+          "evidence_id",
+          "title",
+          "body",
+          "hold_s"
+        ],
+        "title": "JourneyEvent",
+        "type": "object"
+      },
+      "JourneyPlan": {
+        "description": "A planned route turned into a deterministic trip the 3D player animates (spec \u00a76.1).",
+        "properties": {
+          "conditions": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Conditions",
+            "type": "array"
+          },
+          "events": {
+            "items": {
+              "$ref": "#/components/schemas/JourneyEvent"
+            },
+            "title": "Events",
+            "type": "array"
+          },
+          "pace_m_per_s": {
+            "title": "Pace M Per S",
+            "type": "number"
+          },
+          "polyline": {
+            "items": {
+              "items": {
+                "type": "number"
+              },
+              "type": "array"
+            },
+            "title": "Polyline",
+            "type": "array"
+          },
+          "profile": {
+            "enum": [
+              "default",
+              "stroller",
+              "wheelchair",
+              "older_adult_rest",
+              "drive"
+            ],
+            "title": "Profile",
+            "type": "string"
+          },
+          "route_id": {
+            "title": "Route Id",
+            "type": "string"
+          },
+          "spans": {
+            "items": {
+              "maxItems": 3,
+              "minItems": 3,
+              "prefixItems": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                },
+                {
+                  "enum": [
+                    "PASS",
+                    "FAIL",
+                    "UNKNOWN"
+                  ],
+                  "type": "string"
+                }
+              ],
+              "type": "array"
+            },
+            "title": "Spans",
+            "type": "array"
+          },
+          "start_time": {
+            "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+            "title": "Start Time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "route_id",
+          "profile",
+          "start_time",
+          "pace_m_per_s",
+          "polyline",
+          "spans",
+          "events"
+        ],
+        "title": "JourneyPlan",
+        "type": "object"
+      },
+      "JourneyRequest": {
+        "properties": {
+          "from_id": {
+            "maxLength": 200,
+            "title": "From Id",
+            "type": "string"
+          },
+          "profile": {
+            "title": "Profile",
+            "type": "string"
+          },
+          "scenario_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scenario Id"
+          },
+          "start_time": {
+            "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+            "title": "Start Time",
+            "type": "string"
+          },
+          "to_id": {
+            "maxLength": 200,
+            "title": "To Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "from_id",
+          "to_id",
+          "profile",
+          "start_time"
+        ],
+        "title": "JourneyRequest",
+        "type": "object"
+      },
       "Kpis": {
         "properties": {
           "journeys_confirmed_pct": {
@@ -2376,6 +2573,36 @@
           "open_vrs"
         ],
         "title": "Kpis",
+        "type": "object"
+      },
+      "NoJourney": {
+        "description": "Why there is no journey to play: the route status and a plain message.",
+        "properties": {
+          "message": {
+            "title": "Message",
+            "type": "string"
+          },
+          "route_status": {
+            "enum": [
+              "blocked",
+              "no_data"
+            ],
+            "title": "Route Status",
+            "type": "string"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Warnings",
+            "type": "array"
+          }
+        },
+        "required": [
+          "route_status",
+          "message"
+        ],
+        "title": "NoJourney",
         "type": "object"
       },
       "OwnJourney": {
@@ -3273,6 +3500,7 @@
         "type": "object"
       },
       "SceneIntent": {
+        "description": "A scene intent on the wire (SSE `scene.intent`).",
         "properties": {
           "center": {
             "anyOf": [
@@ -3333,6 +3561,16 @@
             ],
             "title": "Geojson"
           },
+          "journey": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/JourneyPlan"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "kind": {
             "enum": [
               "camera.fly_to",
@@ -3343,7 +3581,8 @@
               "whatif.diff",
               "river.rollout",
               "day.show",
-              "day.trip"
+              "day.trip",
+              "journey.play"
             ],
             "title": "Kind",
             "type": "string"
@@ -3424,6 +3663,18 @@
               }
             ],
             "title": "Scenario Id"
+          },
+          "start_time": {
+            "anyOf": [
+              {
+                "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start Time"
           },
           "t_min": {
             "anyOf": [
@@ -3956,7 +4207,53 @@
         "title": "SimViolation",
         "type": "object"
       },
-      "Site": {
+      "SiteBoundary": {
+        "description": "The display-only Elmina outline with its geometry, for the stylised renderer's clip and\ndiorama slab. Routing, evaluation and answers never read it. `geometry` is null when the file\nis missing, unreadable or not one Polygon / MultiPolygon.",
+        "properties": {
+          "area_km2": {
+            "title": "Area Km2",
+            "type": "number"
+          },
+          "as_of": {
+            "title": "As Of",
+            "type": "string"
+          },
+          "file": {
+            "title": "File",
+            "type": "string"
+          },
+          "geometry": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Geometry"
+          },
+          "method": {
+            "title": "Method",
+            "type": "string"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          }
+        },
+        "required": [
+          "file",
+          "source",
+          "method",
+          "area_km2",
+          "as_of"
+        ],
+        "title": "SiteBoundary",
+        "type": "object"
+      },
+      "SiteInfo": {
         "properties": {
           "attribution": {
             "items": {
@@ -3975,7 +4272,7 @@
           "boundary": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/BoundaryRef"
+                "$ref": "#/components/schemas/SiteBoundary"
               },
               {
                 "type": "null"
@@ -4061,7 +4358,7 @@
           "center",
           "bbox"
         ],
-        "title": "Site",
+        "title": "SiteInfo",
         "type": "object"
       },
       "Stage": {
@@ -5877,6 +6174,54 @@
         "summary": "Healthz"
       }
     },
+    "/journeys": {
+      "post": {
+        "description": "The journey for the recommended route between two places (spec 2026-10-19 \u00a76.2).\n\nPlanned per request, like POST /routes (no route store, no verification requests filed).\nThe chat attaches the same plan to `journey.play` for the same endpoints, profile, scenario\nand start time.",
+        "operationId": "journeys_journeys_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JourneyRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JourneyPlan"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "description": "unknown place or scenario"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NoJourney"
+                }
+              }
+            },
+            "description": "no route to play (route status and why)"
+          },
+          "422": {
+            "description": "unknown profile or bad start time"
+          },
+          "500": {
+            "description": "a journey event without route evidence (a data or rule bug)"
+          }
+        },
+        "summary": "Journeys"
+      }
+    },
     "/kpis": {
       "get": {
         "operationId": "kpis_kpis_get",
@@ -6634,7 +6979,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Site"
+                  "$ref": "#/components/schemas/SiteInfo"
                 }
               }
             },

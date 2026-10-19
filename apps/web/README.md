@@ -21,6 +21,7 @@ The TownshipLens browser app: a Vite + React 19 SPA with two screens and a time-
 pnpm dev                     # from the repo root: API on :8000 + web on :5173 (/api is proxied)
 pnpm --filter @tl/web test   # vitest
 pnpm --filter @tl/web e2e    # Playwright smoke on ports 5273/8100 (see below)
+pnpm --filter @tl/web acceptance -g baseline  # visual/perf harness against a running server (see below)
 pnpm --filter @tl/web build  # tsc + vite build + Cesium asset check
 ```
 
@@ -265,6 +266,16 @@ the settings popover.
   intent standing in `sceneStore` (route, then what-if, then focused place, then the last
   `camera.fly_to`; Realistic also frames a rehearsed trip), else to its start view (Three.js: the
   `hero-mid` bookmark; Cesium: the site home). Ruling P5-14: no camera-pose hand-off.
+- **Building clearance (Three.js, A-T7):** `three/clearance.ts` keeps the camera at least 2 m above
+  any roof it is over (or within 1 m of), and lifts it, eased, when the camera-to-target line
+  crosses a building; the lift eases back down when no longer needed. The lift is display state: the
+  engine removes it before every `controls.update()` (the tick's and those MapControls runs inside
+  its pointer, wheel, key and touch handlers) and re-applies it after the inputs, before the render.
+  Rig flights and `rig.get()` see the base pose. `engine.clearance.test.ts` (pointer-drag pan and
+  wheel while lifted) and the AC-A8 drift check guard against the base creeping up; a camera moved
+  by any other code path between frames is taken as a new base. The hard floor can raise the camera
+  by up to the tallest roof + 2 m in one frame (about 132 m on the seed). The journey follow camera
+  reuses it.
 
 ### Stylised (Three.js)
 
@@ -321,6 +332,29 @@ after it stops.
   triangles, 150 MB.
 - The glbs and manifest live in `public/city/` (lane `blender`); `vite build` copies them to
   `dist/city/`.
+
+#### Elmina outline and diorama slab (Three.js, A-T4)
+
+When `/site` serves `boundary.geometry` (the display-only Elmina outline, `base/boundary.geojson`),
+the stylised city is clipped to it and sits on a diorama slab. Display only: routing, evaluation,
+the API data and the data overlays (access lines, markers, flood tint) are never clipped.
+
+- `ground/boundary.ts`: the outline in the local frame and the pure helpers (`insideBoundary`,
+  `outsideBy`, `clipToBoundary`, `clipLine`); `ground/clipPolygon.ts` cuts polygons with
+  `polygon-clipping` (main thread only: the tile-plan worker never bundles it). Cut walk runs and
+  polygon pieces after the first take a `~k` id.
+- `ground/clipLayer.ts`: applied once in `ThreeScene` to the `/layers/buildings` payload and the
+  latched walk copy the planners read. Buildings and landmark outlines are kept only when every
+  footprint vertex lies within 5 m of the inside (never cut; on the seed 1283 of 7803 are kept);
+  land cover, parks and base water are cut geometrically; trees and signs are kept inside; walk
+  lines are cut to their inside runs.
+- `stream/clipTile.ts`: every planned tile's vertex guard (props, lamps, signs, shrubs, cars and
+  stalls inside; road and verge triangles and tracks within 5 m); `planAgents` drops agents whose
+  path leaves the outline; ambient birds and cloud shadows outside it are hidden.
+- `ground/slab.ts` (`engine.setSlab`, `useSlab`): the slab top is the outline (it replaces the
+  rectangular base plane) and its cut edge is a cream crust over three soil bands that step down
+  and out at about 20 degrees, so the section faces the camera on every side at the overview. The
+  edge material takes 0.55 of the scene fog. A world without an outline keeps the base plane.
 
 #### Streaming (Three.js)
 
@@ -560,6 +594,7 @@ POST /chat (SSE) -> parseSse -> useChatStream -> chatReducer   (messages, tool c
                                                               river.rollout    -> rollout {on, stage, playing}
                                                               day.show         -> day {on, scenario, t} paused (+ its river stage)
                                                               day.trip         -> day at the leave time (any mode) + myTrip (+ its river stage)
+                                                              journey.play     -> journey (the JourneyPlan) + useJourney.load (paused at t = 0)
 sceneStore --> Cesium / Mapbox / List renderers (one adapter each) + map overlays + legend
 ```
 
@@ -589,6 +624,16 @@ flooded_possible`) via `scene/status.ts`, and unknown is drawn dashed and amber,
 
   `map-ui/RolloutTag` (top right) always says "simulation, not a forecast".
 - **Pure helpers** are in `whatif/rolloutModel`.
+
+**Resident journey (D-T4, spec 2026-10-19 §6.2 and §6.4):**
+- **Contract.** `journey.play` carries the backend's `JourneyPlan` (`intent.journey`). `sceneStore.applyIntent` stores it as `journey` and loads `features/journey/journeyStore` paused at the start; `chatReducer` notes `journey: {routeId, startTime}` on the answer. Changing the profile or scenario, or `reset`, drops the journey.
+- **Timeline.** `features/journey/timeline.ts` is pure: `buildTimeline(plan)` gives phases (`dive` 4 s, `walk` at 20x, one `event` hold per plan event with the screen time from `HOLD_SCREEN_S` and the plan's `hold_s` as simulated time (arrive adds none), `pull` 5 s); `stateAt(timeline, t)` gives distance, simulated seconds, the "HH:MM" clock, rests taken and minutes outdoors. During verified / gap / covered holds she keeps walking at her pace (capped at the next event); unknown / rest / arrive holds stand still. Minutes outdoors pause only on the span of a *verified* covered event (a reported roof is not a checked fact). The HUD at each event start equals the plan.
+- **Store.** `journeyStore` (zustand): `plan`, `timeline`, `t`, `playing`, `camMode` (`follow|overview|free`); `load`, `play`, `pause`, `seek`, `restart`, `setCam`, `advance(dt)` (the player's frame tick), `clear`. `journeyStateOf(store)` reads the HUD state. No rendering yet; auto-play is not here.
+- **Fixture.** `features/journey/fixtures/demoPlan.json` is the real `POST /journeys` plan for the §2 demo route (09:00). Regenerate with `uv run python apps/web/scripts/build-journey-fixture.py` (needs the Elmina seed; excluded from Biome as generated data).
+- **Overlay (D-T7).** `JourneyMount` (mounted by `ThreeScene`) shows the overlay while `sceneStore.journey` is set; it never starts playback. The timeline is advanced only by D-T8's shared, ref-counted `useJourneyDriver` (mounted by the controls and by the mount); a change of `t` asks the engine for a frame. Per-frame work is limited to the shown event card, which subscribes to engine frames during its hold and re-places itself without a React commit; the card area (side panel, phone sheet, top stack, mini-map) is measured by `useMapInsets` (ResizeObserver). The "Simulation · indicative times, not a prediction" label and the HUD go in the map's `sim` slot; the mini-map (spans by status, hero dot from `routePath.ts`, the same maths as the 3D hero) sits top right; one `EventCard` shows during each hold and none during dive / walk / pull, anchored to the projected marker and clamped inside the map (clear of the side panel, phone sheet, top stack and mini-map: `cardPlacement.ts`).
+- **Card wording.** `cardContent.ts` `journeyCardContent(event)` is the one source of card text, and `CardSourceRow` the one provenance row, for the 3D card and the List / Mapbox step list (AC-D14): the "Demo value · not surveyed" chip exactly when `demo`; "Verified" only for a verified, non-demo claim; UNKNOWN says "Not checked yet", plus "verification request filed" (`withVerificationRequest`) only when a `verification.requested` event this session matches the event's element and one of its attributes (`vrFiledFor`, `journeyStore.vrs`, fed by `useChatStream`); the rest gap is a "Data gap". `uiStrings.dom.test.tsx` scans every journey UI string (AC-D6).
+- **Ribbon and markers.** `journey/three/journeyLayer.ts`, handed to `Engine.setJourney`, not part of the status-line overlay: the ribbon (PASS solid green, UNKNOWN amber dashes, on a wider white casing so it reads apart from status lines) is a world-unit Line2 in the main scene, depth-tested so buildings and the hero cover it, with a 35 % ghost (`depthFunc` Greater) where a building hides it, left out of the AO G-buffer; it shows with Path status off. While a journey is loaded the blue route overlay line steps aside, the route tag shows the ribbon legend, and "Clear route from map" also clears the journey. Event markers are sprites in their own scene, rendered straight to the canvas after the composer (never through post-processing: the prototype's black-quad bug).
+- **Acceptance.** `acceptance/journey-overlay.accept.ts` (AC-D11, AC-D12) drives `window.__journey` (dev builds and `?demo=1`): `seek`, `play`, `pause`, `setCam`, `phases`, `total`, `state()`, plus `plan` and `hero()` (`{distance_m}`; the timeline distance until D-T6 reads the rendered hero).
 
 ## File map
 
@@ -634,6 +679,44 @@ tiles around it stream).
 Playwright uses its own ports (web 5273, API 8100) and waits for `/api/site`, so a dev server on
 :5173/:8000 is never reused (a leftover e2e server on :5273 is reused locally, never in CI). First
 run: `pnpm --filter @tl/web exec playwright install chromium`.
+
+## Acceptance harness (resident journey)
+
+`acceptance/` holds the visual and performance checks of the resident-journey work (spec
+`docs/superpowers/specs/2026-10-19-resident-journey-simulation-design.md` §3, §9). It is not part of
+CI: it needs a real GPU and the Elmina seed.
+
+- Start a server yourself (`LLM_PROVIDER=mock pnpm dev`, Stylised map), then run
+  `ACCEPTANCE_BASE_URL=http://localhost:5173 pnpm --filter @tl/web acceptance -g baseline`.
+  No webServer; 1440x900 at DPR 1; ANGLE D3D11 on the high-performance GPU with vsync and the frame
+  limit off (the renderer string is recorded; a software renderer fails the run).
+- Specs are `*.accept.ts`, so neither `e2e` nor vitest picks them up. The pure helpers' unit tests
+  (`acceptance/support/*.test.ts`) do run in vitest.
+- `support/bookmarks.ts`: the five evaluation bookmarks (`overview`, `hero-mid`, `street`,
+  `link-low`, `night-mid`) and `gotoBookmark(page, name)`, which forces `tl.quality=high` and the
+  bookmark's `tl.theme`, closes the assistant panel and the camera tips (map notes stay), sets the
+  pose and waits for streaming (tiles, assets, road layer) to settle.
+- `support/scene.ts`: `pickGrid` / `pickMask(page, kind)` (building, ground, road, sky; cells under UI
+  chrome are left out) and `decodePng`. `support/pixels.ts`: `lumaHistogram`, `fractionBelow`,
+  `countColour(img, hex, tol)`, `laplacianVariance(img, box)`, `greyShare`; all take a box, points or
+  a per-pixel mask (`mapArea`: the canvas less UI chrome). `support/frames.ts`:
+  `captureFrameStats(page, seconds)`: display-paced orbit fps plus uncapped frame time
+  (`engine.renderNow` + `gl.finish`) for headroom. `support/journey.ts`: `journey.seek/play/pause`
+  over `window.__journey` (Phase D; throws "not available" until then).
+- `clearance.accept.ts` (AC-A8): 300 seeded random wheel, drag and rotate operations over the hero
+  district; every rendered frame's camera is checked against `footprintTop`. Writes
+  `acceptance/A-T7/metrics.json` in the ledger.
+- `baseline.accept.ts` writes five PNGs and `metrics.json` to `ACCEPTANCE_OUT` (default: the
+  journey-sim ledger folder `.superpowers/sdd/journey-sim/acceptance/baseline`).
+- The app side is `window.__tlAcceptance` (`three/scene/useAcceptanceHook.ts`): `setPose`, `getPose`,
+  `size`, `frames`, `pickGrid(step)`, `measure(seconds, orbitDegPerSec)`,
+  `measureUncapped(frames, degPerFrame)`, `roadVertices`, `gpu`, `slabOutline`, `displayAudit`
+  (A-T4; with a slab, `pickGrid` codes the plane beyond the outline as sky), and for AC-A8
+  `clearance`, `footprintTop(x, z)`, `cameraLocal`, `startCameraLog` / `stopCameraLog`, `flyTo`,
+  `liftM`, `toLocal` / `toLonLat`, `roofHitAt` and `instanceAudit` (mesh-based checks independent
+  of the grid). It is installed only in
+  dev builds (`import.meta.env.DEV`) or when the page is loaded with `?acceptance=1`; it moves the
+  camera and reads the scene, never data or settings.
 
 ## What to build next
 
