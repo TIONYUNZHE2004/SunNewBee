@@ -1493,3 +1493,16 @@ The user asked to pull, merge and push. `origin/main` had 50 new commits. They i
 
 - Merged `origin/main` (148 commits: shaoxian04's three.js stylised city, phases 0–3, opt-in `?engine=three`). Conflicts in `pyproject.toml` (kept `pyarrow` and the team's `dracopy`/`pygltflib`), `data/README.md` (kept both sections) and `uv.lock` (taken from main, then `uv lock`). After the merge: lint PASS, typecheck PASS, pytest PASS (1846 passed, 32 skipped, mock). Vitest, golden and e2e NOT RUN on the merge (stopped by the user).
 - **Ruling: the resident "Rehearse my trip" chip and card sit behind the scope flag** (what: shown only when `GET /assistant/scope` says `all`, i.e. `ASSISTANT_SCOPE=all`; default scope B hides them — why: the user chose Yunzhe's scope B first, and the resident screen should not offer what the resident assistant refuses; one switch turns the whole world-model resident experience on — cost if wrong: a demo run under the default scope shows no trip card; set `ASSISTANT_SCOPE=all` for the 2:25 beat). Staff screens (Day panel, Test a change, ticket reach) are unchanged. e2e already runs with `ASSISTANT_SCOPE=all`.
+
+## 2026-10-19 · Resident journey simulation: people scale rulings
+
+Owner rulings from `docs/superpowers/specs/2026-10-19-resident-journey-simulation-design.md` section 10.
+
+- **R-J3: people scale.**
+  - **What:** people may use chibi proportions and are drawn at 1.4-1.55x true scale; true scale stays for buildings, roads and every fact.
+  - **Why:** legibility; people are decorative, so enlarging them changes no fact.
+  - **Cost if wrong:** mixed scale may look odd next to cars; tune it in the Phase B screenshots.
+- **R-J7: people scale with distance.**
+  - **What:** people are 1.4-1.55x within 300 m and scale up smoothly with distance, to at most 2.5x at 800 m. This supersedes the old `displayScale` curve that reached 3x. The hero always uses 1.55x.
+  - **Why:** far crowds must stay visible without looking oversized.
+  - **Cost if wrong:** far people may look large next to buildings; tune the cap with the Phase C screenshots.

@@ -72,9 +72,9 @@ describe("slabGeometry (Elmina seed)", () => {
       0,
     );
     expect(area).toBeCloseTo(want, -2);
-    // site.json records 13.43 km2 for the outline.
-    expect(area / 1e6).toBeGreaterThan(12.5);
-    expect(area / 1e6).toBeLessThan(14.5);
+    // site.json records 21.12 km2 for the outline (owner master plan, A-T3b).
+    expect(area / 1e6).toBeGreaterThan(20);
+    expect(area / 1e6).toBeLessThan(22.5);
   });
 
   it("has >= 3 soil layers below the crust, each a band stepping down and out", () => {
