@@ -44,6 +44,13 @@ The backend engineer already fixed all six P1 findings, both lanes, at `26d90b4`
 
 Control opens one PR from `local/backend-engineer` in the morning, not overnight (each push would re-run CI).
 
+## PR #15 to main (control, 2026-10-19 23:21 UTC)
+
+https://github.com/TIONYUNZHE2004/SunNewBee/pull/15 holds `main` + both engineer branches. **Hold merge** until this is fixed:
+
+- **Backend (Codex), next item:** for rest profiles (`older_adult_rest`), when no route meets the rest limit, the fallback must prefer the route with the smallest longest-stretch-without-rest, not only the lowest weight. Repro: Harmoni 1 (`osm-way-909868201`) → `park-b`, older_adult_rest: main gives 966 m via bench-urban-3/2/1 (gap 640 m); with T-020 weights it gives 1,503 m (gap 1,312 m). Tests: `packages/spatial/tests/test_journey.py::test_demo_route_yields_the_spec_table` and golden `journey-demo-walker`. Work on `claude/sweet-davinci-29v7ne` merged into your branch.
+- **Ruling (Yunzhe, 20 Oct): closed destination (AUD-012) = option A.** Show the route, but the first line says "Closed now" (with the closure label) and the route is never `confirmed`. Backend sets the status cap and warning; AI keeps the line first.
+
 ## Who does what
 
 | Agent | Where | Tasks |
