@@ -93,6 +93,11 @@ export const CLAY_PALETTE = {
     water: "#7fb6c9",
   },
   landcoverUnknown: "#dbd1bd",
+  /**
+   * Land dressing tones (A-T10, groundDetail / groundDecor): the second grass tone, the farmland
+   * row stripes and the dirt mound. Decorative; the flower clumps reuse `prop.flowers`.
+   */
+  dress: { grassAlt: "#b4d68f", farmRow: "#c2bd84", farmRowAlt: "#e3dfb4", mound: "#c4a27c" },
   /** Road ribbons per kind (groundLayer). Illustrative: a road's colour says nothing about access. The
    * prototype road (#717786) a touch darker, so lit asphalt stays under the street check's 0.35 luminance. */
   road: { major: "#686d7a", residential: "#757a88", footway: "#f2dbb2", other: "#8e919b" },
@@ -259,6 +264,7 @@ export const CLAY: Readonly<Record<ClayRole, ClayToken>> = {
       P.landcoverUnknown,
       P.construction.track,
       P.construction.gravel,
+      ...Object.values(P.dress),
     ],
     0.8,
     0.15,

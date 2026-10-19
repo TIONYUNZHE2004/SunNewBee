@@ -1,10 +1,12 @@
 import * as THREE from "three";
 import { describe, expect, it } from "vitest";
+import { CLAY_PALETTE } from "../shared/clayTokens";
 import {
   applyGroundDetail,
   DETAIL_AMPLITUDE,
   detailBrightness,
   detailColour,
+  grassAltShare,
   valueNoise,
 } from "./groundDetail";
 import { LANDCOVER_COLOURS } from "./landcover";
@@ -27,8 +29,11 @@ describe("ground detail brightness", () => {
   it("detail colours stay within +-6 % of the base for every class", () => {
     expect(DETAIL_AMPLITUDE).toBe(0.06);
     for (const [cls, hex] of Object.entries(LANDCOVER_COLOURS)) {
-      const base = new THREE.Color(hex);
       for (const [x, z] of pts) {
+        // Grass mixes its second tone first (A-T10): the +-6 % is around that mix.
+        const base = new THREE.Color(hex);
+        if (cls === "grass")
+          base.lerp(new THREE.Color(CLAY_PALETTE.dress.grassAlt), grassAltShare(x, z));
         const c = detailColour(cls, hex, x, z);
         for (const k of ["r", "g", "b"] as const) {
           const ratio = c[k] / base[k];
