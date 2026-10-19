@@ -6,7 +6,7 @@ import {
   isDemoPreset,
   type JourneyHook,
 } from "./journeyHook";
-import { useJourney } from "./journeyStore";
+import { journeyHero, useJourney } from "./journeyStore";
 import type { JourneyPlan } from "./timeline";
 
 const plan = demo as unknown as JourneyPlan;
@@ -27,18 +27,45 @@ describe("window.__journey", () => {
     expect(h.total).toBeLessThan(100);
   });
 
-  it("plan is the loaded plan (read only); hero() is the distance along the route at t", () => {
+  it("plan is the loaded plan (read only); hero() is the rendered hero, null when none is drawn", () => {
     const h = createJourneyHook();
     expect(h.plan).toBe(plan);
     expect(() => {
       (h as { plan: unknown }).plan = null;
     }).toThrow();
-    h.seek(0);
-    expect(h.hero()).toEqual({ distance_m: 0 });
-    const walk = h.phases.find((p) => p.kind === "walk" && p.m1 > p.m0) as (typeof h.phases)[0];
-    h.seek((walk.t0 + walk.t1) / 2);
-    expect(h.hero()?.distance_m).toBeCloseTo((walk.m0 + walk.m1) / 2, 6);
+    h.seek(10);
+    // no 3D mount has posed her (list view, Mapbox): no rendered hero
+    expect(h.hero()).toBeNull();
+    const pose = {
+      distance_m: 43.9,
+      x: 1,
+      y: 0.08,
+      z: -2,
+      lon: 101.5,
+      lat: 3.18,
+      yaw: 0.5,
+      clip: "look" as const,
+      clipTime: 1.2,
+      walkRate: 0,
+      groundKnown: true,
+      probe: () => ({
+        contacts: [
+          { name: "foot_l", x: 1, y: 0.08, z: -2, groundY: 0.08, band: "roads", onFootway: true },
+        ],
+        benches: [],
+      }),
+    };
+    journeyHero.current = pose;
+    const { probe: _p, ...plain } = pose;
+    expect(h.hero()).toEqual(plain);
+    expect(h.hero({ contacts: true })?.contacts).toEqual(pose.probe().contacts);
+    expect(h.hero({ contacts: true })?.benches).toEqual([]);
+    // a new plan drops the old hero until the mount poses her again
+    useJourney.getState().load(plan);
+    expect(h.hero()).toBeNull();
+    journeyHero.current = pose;
     useJourney.getState().clear();
+    expect(journeyHero.current).toBeNull();
     expect(h.plan).toBeNull();
     expect(h.hero()).toBeNull();
   });

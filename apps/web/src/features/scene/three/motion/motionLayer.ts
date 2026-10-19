@@ -39,7 +39,7 @@ export interface MotionLayer {
 /** Agents just outside the view still get matrices, so nothing pops in at the edge while panning. */
 const FRUSTUM_MARGIN_M = 50;
 /** On the road ribbons (0.08 m) rather than in them. */
-const AGENT_LIFT_M = 0.08;
+export const AGENT_LIFT_M = 0.08;
 const NOOP = () => {};
 /**
  * Agents stay visible (on their last LOD, scaled up by displayScale) out to this distance, or the

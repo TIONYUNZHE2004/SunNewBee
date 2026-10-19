@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import type { HeroClip, HeroContact } from "../scene/three/characters/hero";
 import type { FiledVr } from "./cardContent";
 import {
   buildTimeline,
@@ -7,6 +8,52 @@ import {
   stateAt,
   type Timeline,
 } from "./timeline";
+
+/**
+ * The hero as rendered (D-T6), see `journeyHero`.
+ */
+export interface HeroPose {
+  /** The route metre she belongs to (the mini-map dot); at a rest she sits beside this point. */
+  distance_m: number;
+  /** Local scene metres (x east, z = -north); y is the ground height under her. */
+  x: number;
+  y: number;
+  z: number;
+  lon: number;
+  lat: number;
+  yaw: number;
+  clip: HeroClip;
+  clipTime: number;
+  walkRate: number;
+  /** False while a rest's ground is not sampled yet (its streamed ground band was not in yet). */
+  groundKnown: boolean;
+  /** Test probe (AC-D10): contacts with the drawn ground under each, and the rest benches' seat corners. */
+  probe?: () => HeroProbe;
+}
+
+export interface HeroProbe {
+  contacts: (HeroContact & { groundY: number; band: string | null; onFootway: boolean })[];
+  benches: { eventIndex: number; corners: [number, number][] }[];
+  /** Per-pose cost of the hero (driver + planting + model), ms, and the ground table rebuilds. */
+  cost?: {
+    poses: number;
+    meanMs: number;
+    p95Ms: number;
+    maxMs: number;
+    rebuilds: number;
+    lastRebuildMs: number;
+    meanRebuildMs: number;
+    maxRebuildMs: number;
+    triangles: number;
+  };
+}
+
+/**
+ * The rendered hero, written by the 3D mount every time it poses her (each frame while playing).
+ * A plain holder, not zustand state, so posing her adds no second store update per frame. The crowd
+ * keep-out (C-T8) reads `journeyHero.current?.x / z` per frame and never the journey events.
+ */
+export const journeyHero: { current: HeroPose | null } = { current: null };
 
 /** Camera modes of the journey player (spec §6.4, R-J4). */
 export type CamMode = "follow" | "overview" | "free";
@@ -50,8 +97,14 @@ export const useJourney = create<JourneyStore>((set) => ({
         ? {}
         : { vrs: [...s.vrs, { element_id, attribute }] },
     ),
-  load: (plan) => set({ plan, timeline: buildTimeline(plan), t: 0, playing: false }),
-  clear: () => set({ ...empty, camMode: "follow" }),
+  load: (plan) => {
+    journeyHero.current = null;
+    set({ plan, timeline: buildTimeline(plan), t: 0, playing: false });
+  },
+  clear: () => {
+    journeyHero.current = null;
+    set({ ...empty, camMode: "follow" });
+  },
   play: () =>
     set((s) =>
       s.timeline ? { playing: true, t: s.t >= s.timeline.total ? 0 : s.t } : { playing: false },
