@@ -69,102 +69,183 @@ function segSeg2(a: Seg, b: Seg): number {
   );
 }
 
+/**
+ * A path's segments and, per proximity-grid cell its segments reach (each segment's box grown by
+ * LOOK_TWIN_M / 2), the indices of those segments. Built once per path array and cached (GATE
+ * AC-D18: the look search re-cut every path on every motion-layer rebuild). Two segments closer
+ * than LOOK_TWIN_M always share a cell (the midpoint of their closest points is in both grown
+ * boxes), so testing only the segments that share a cell finds exactly the same neighbours.
+ */
+interface PathCells {
+  segs: Seg[];
+  cells: Map<number, number[]>;
+  /** nearGap2 results by the other path (many people share a path: copies, pavements). */
+  gaps: WeakMap<PathCells, number>;
+}
+const cellKey = (i: number, j: number) => (i + 0x8000) * 0x10000 + (j + 0x8000);
+const pathCellsCache = new WeakMap<Float32Array, PathCells>();
+function pathCellsOf(a: Agent): PathCells {
+  const hit = pathCellsCache.get(a.path);
+  if (hit) return hit;
+  const segs = segsOf(a);
+  const cells = new Map<number, number[]>();
+  const r = LOOK_TWIN_M;
+  const cell = (v: number) => Math.floor(v / TWIN_CELL_M);
+  segs.forEach((s, k) => {
+    for (let i = cell(Math.min(s[0], s[2]) - r / 2); i <= cell(Math.max(s[0], s[2]) + r / 2); i++)
+      for (
+        let j = cell(Math.min(s[1], s[3]) - r / 2);
+        j <= cell(Math.max(s[1], s[3]) + r / 2);
+        j++
+      ) {
+        const key = cellKey(i, j);
+        const l = cells.get(key);
+        if (l) l.push(k);
+        else cells.set(key, [k]);
+      }
+  });
+  const out: PathCells = { segs, cells, gaps: new WeakMap() };
+  pathCellsCache.set(a.path, out);
+  return out;
+}
+
+/**
+ * The smallest squared distance between segments of two paths that share a grid cell (infinity when
+ * none do), cached per pair of paths. When it is under LOOK_TWIN_M^2 it is the paths' true closest
+ * approach squared (the closest pair shares a cell), so it serves both the neighbour test and the
+ * fallback's gap.
+ */
+function nearGap2(a: PathCells, b: PathCells): number {
+  if (a === b) return 0;
+  const hit = a.gaps.get(b);
+  if (hit !== undefined) return hit;
+  const small = a.cells.size <= b.cells.size ? a : b;
+  const big = small === a ? b : a;
+  let best = Number.POSITIVE_INFINITY;
+  for (const [c, ks] of small.cells) {
+    const os = big.cells.get(c);
+    if (!os) continue;
+    for (const k of ks)
+      for (const o of os) best = Math.min(best, segSeg2(small.segs[k] as Seg, big.segs[o] as Seg));
+  }
+  a.gaps.set(b, best);
+  b.gaps.set(a, best);
+  return best;
+}
+
+/** Whether two paths come within LOOK_TWIN_M (only the segments sharing a grid cell are tested). */
+function pathsNear(a: PathCells, b: PathCells): boolean {
+  return nearGap2(a, b) < LOOK_TWIN_M * LOOK_TWIN_M;
+}
+
 /** Closest approach (m) of two agents' paths: an upper bound on how close they can ever be. */
 export function pathGap(a: Agent, b: Agent): number {
   let best = Number.POSITIVE_INFINITY;
-  for (const s of segsOf(a)) for (const t of segsOf(b)) best = Math.min(best, segSeg2(s, t));
+  const sa = pathCellsOf(a).segs;
+  const sb = pathCellsOf(b).segs;
+  for (const s of sa) for (const t of sb) best = Math.min(best, segSeg2(s, t));
   return Math.sqrt(best);
 }
 
-/** For each agent index, the indices of agents whose paths come within `r` metres of its path. */
-export function pathNeighbours(agents: readonly Agent[], r = LOOK_TWIN_M): number[][] {
-  const cell = (v: number) => Math.floor(v / TWIN_CELL_M);
-  const key = (i: number, j: number) => (i + 0x8000) * 0x10000 + (j + 0x8000);
-  const grid = new Map<number, number[]>();
-  const segs = agents.map(segsOf);
-  const cellsOf = (k: number) => {
-    const set = new Set<number>();
-    for (const s of segs[k] as Seg[])
-      for (let i = cell(Math.min(s[0], s[2]) - r / 2); i <= cell(Math.max(s[0], s[2]) + r / 2); i++)
-        for (
-          let j = cell(Math.min(s[1], s[3]) - r / 2);
-          j <= cell(Math.max(s[1], s[3]) + r / 2);
-          j++
-        )
-          set.add(key(i, j));
-    return set;
-  };
-  const cells = agents.map((_a, k) => cellsOf(k));
-  cells.forEach((set, k) => {
-    for (const c of set) {
+/**
+ * The proximity index of one agent set: its distinct paths by grid cell, and the people on each path
+ * (copies and pavement walkers often share one), so neighbours are found path to path.
+ */
+interface ProxIndex {
+  grid: Map<number, PathCells[]>;
+  people: Map<PathCells, number[]>;
+  near: Map<PathCells, PathCells[]>;
+}
+function proxIndexOf(agents: readonly Agent[]): ProxIndex {
+  const grid = new Map<number, PathCells[]>();
+  const people = new Map<PathCells, number[]>();
+  agents.forEach((a, k) => {
+    const pc = pathCellsOf(a);
+    const on = people.get(pc);
+    if (on) {
+      on.push(k);
+      return;
+    }
+    people.set(pc, [k]);
+    for (const c of pc.cells.keys()) {
       const l = grid.get(c);
-      if (l) l.push(k);
-      else grid.set(c, [k]);
+      if (l) l.push(pc);
+      else grid.set(c, [pc]);
     }
   });
-  const r2 = r * r;
-  return agents.map((_a, k) => {
-    const seen = new Set<number>();
-    const out: number[] = [];
-    for (const c of cells[k] as Set<number>)
-      for (const o of grid.get(c) ?? []) {
-        if (o === k || seen.has(o)) continue;
+  return { grid, people, near: new Map() };
+}
+
+/** Indices of the agents (other than `k`) whose paths come within LOOK_TWIN_M of agent k's path. */
+function neighboursOf(agents: readonly Agent[], ix: ProxIndex, k: number): number[] {
+  const mine = pathCellsOf(agents[k] as Agent);
+  let near = ix.near.get(mine);
+  if (!near) {
+    const seen = new Set<PathCells>();
+    near = [];
+    for (const c of mine.cells.keys())
+      for (const o of ix.grid.get(c) ?? []) {
+        if (seen.has(o)) continue;
         seen.add(o);
-        let near = false;
-        for (const s of segs[k] as Seg[]) {
-          for (const t of segs[o] as Seg[])
-            if (segSeg2(s, t) < r2) {
-              near = true;
-              break;
-            }
-          if (near) break;
-        }
-        if (near) out.push(o);
+        if (pathsNear(mine, o)) near.push(o);
       }
-    return out;
-  });
+    ix.near.set(mine, near);
+  }
+  const out: number[] = [];
+  for (const pc of near) for (const o of ix.people.get(pc) ?? []) if (o !== k) out.push(o);
+  return out;
+}
+
+/** For each agent index, the indices of agents whose paths come within LOOK_TWIN_M of its path. */
+export function pathNeighbours(agents: readonly Agent[]): number[][] {
+  const ix = proxIndexOf(agents);
+  return agents.map((_a, k) => neighboursOf(agents, ix, k));
 }
 
 /** Look index by agent id, kept across motion layer rebuilds (pruned to each rebuild's agents). */
 export type LookMemory = Map<string, number>;
 
 /**
- * Seeded, deterministic look per person (P3): no two people whose paths come within LOOK_TWIN_M of
- * each other share a look, so no follow-camera frame shows twins within 10 m. Graph colouring over
- * path proximity: agents in a seeded order (hash of the id), each takes the first free allowed look
- * starting at a seeded index. Agents in `memory` keep their look (a streamed tile arriving never
- * re-dresses the people already on screen); the new ones avoid them. When every allowed look is
- * taken nearby (a dense junction), the look whose nearest same-look path is farthest wins.
- * Returns look index by agent id (person agents only) and updates `memory` when given.
+ * An incremental look assignment (assignLooks in slices). `step(budgetMs)` works until the budget is
+ * spent and returns true when done; `result()` is then the same map assignLooks returns for the same
+ * inputs, and `memory` (when given) is updated once, at the end. Only people who are not in memory
+ * are searched for neighbours (survivors keep their look and cost nothing), and the paths' grid
+ * cells are cached per path, so a streamed tile arriving costs work for its own people only.
+ * Slicing changes when the work happens, never the result (GATE AC-D18).
  */
-export function assignLooks(
+export interface LookJob {
+  /** Works for about `budgetMs` (at least one unit of work); true when done. */
+  step(budgetMs: number, now?: () => number): boolean;
+  readonly done: boolean;
+  result(): Map<string, number>;
+  /** Neighbour searches run so far (tests: survivors cost none). */
+  readonly searched: number;
+}
+
+export function lookJob(
   agents: readonly Agent[],
   looks: readonly CrowdLook[],
   memory?: LookMemory,
-): Map<string, number> {
+): LookJob {
   const people = agents.filter((a) => a.kind === "person");
   const out = new Map<string, number>();
-  if (looks.length === 0) return out;
-  const nb = pathNeighbours(people);
   const lookOf = new Int32Array(people.length).fill(-1);
   const L = (k: number): number => lookOf[k] ?? -1;
-  const order = people
-    .map((a, i) => ({ i, h: hash01(a.id, "look-order"), id: a.id }))
-    .sort((a, b) => a.h - b.h || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
-    .map((o) => o.i);
-  // Survivors first, in the same seeded order.
-  for (const i of order) {
+  const n = looks.length;
+  // Phases: 0 order + survivors, 1 path cells (cached per path), 2 grid, 3 new people, 4 done.
+  let phase = 0;
+  let order: number[] = [];
+  let cursor = 0;
+  let grid: ProxIndex = { grid: new Map(), people: new Map(), near: new Map() };
+  let searched = 0;
+
+  const assignOne = (i: number) => {
     const a = people[i] as Agent;
-    const kept = memory?.get(a.id);
-    if (kept !== undefined && looks[kept] && lookAllowed(a, looks[kept] as CrowdLook))
-      lookOf[i] = kept;
-  }
-  for (const i of order) {
-    if (L(i) >= 0) continue;
-    const a = people[i] as Agent;
+    const nb = neighboursOf(people, grid, i);
+    const mine = pathCellsOf(a);
+    searched++;
     const taken = new Set<number>();
-    for (const o of nb[i] as number[]) if (L(o) >= 0) taken.add(L(o));
-    const n = looks.length;
+    for (const o of nb) if (L(o) >= 0) taken.add(L(o));
     const start = Math.floor(hash01(a.id, "look") * n) % n;
     let pick = -1;
     let fallback = -1;
@@ -177,23 +258,113 @@ export function assignLooks(
         break;
       }
       let gap = Number.POSITIVE_INFINITY;
-      for (const o of nb[i] as number[])
-        if (L(o) === l) gap = Math.min(gap, pathGap(a, people[o] as Agent));
+      // Neighbours are within LOOK_TWIN_M, so the cached shared-cell gap is their exact pathGap.
+      for (const o of nb)
+        if (L(o) === l)
+          gap = Math.min(gap, Math.sqrt(nearGap2(mine, pathCellsOf(people[o] as Agent))));
       if (gap > fallbackGap) {
         fallbackGap = gap;
         fallback = l;
       }
     }
     lookOf[i] = pick >= 0 ? pick : fallback >= 0 ? fallback : start;
-  }
-  people.forEach((a, i) => {
-    out.set(a.id, L(i));
-  });
-  if (memory) {
-    memory.clear();
-    for (const [id, l] of out) memory.set(id, l);
-  }
-  return out;
+  };
+
+  const finish = () => {
+    if (n > 0)
+      people.forEach((a, i) => {
+        out.set(a.id, L(i));
+      });
+    if (memory && n > 0) {
+      memory.clear();
+      for (const [id, l] of out) memory.set(id, l);
+    }
+    phase = 4;
+  };
+
+  /** One unit of work; false when there is none left. */
+  const unit = (): boolean => {
+    if (phase === 0) {
+      if (n === 0) {
+        finish();
+        return false;
+      }
+      order = people
+        .map((a, i) => ({ i, h: hash01(a.id, "look-order"), id: a.id }))
+        .sort((a, b) => a.h - b.h || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
+        .map((o) => o.i);
+      // Survivors first, in the same seeded order.
+      for (const i of order) {
+        const a = people[i] as Agent;
+        const kept = memory?.get(a.id);
+        if (kept !== undefined && looks[kept] && lookAllowed(a, looks[kept] as CrowdLook))
+          lookOf[i] = kept;
+      }
+      phase = 1;
+      cursor = 0;
+      return true;
+    }
+    if (phase === 1) {
+      if (cursor < people.length) {
+        pathCellsOf(people[cursor] as Agent);
+        cursor++;
+        return true;
+      }
+      grid = proxIndexOf(people);
+      phase = 3;
+      cursor = 0;
+      return true;
+    }
+    if (phase === 3) {
+      while (cursor < order.length && L(order[cursor] as number) >= 0) cursor++;
+      if (cursor < order.length) {
+        assignOne(order[cursor] as number);
+        cursor++;
+        return true;
+      }
+      finish();
+      return false;
+    }
+    return false;
+  };
+
+  return {
+    get done() {
+      return phase === 4;
+    },
+    get searched() {
+      return searched;
+    },
+    result() {
+      if (phase !== 4) throw new Error("lookJob: not done");
+      return out;
+    },
+    step(budgetMs, now = () => performance.now()) {
+      const t0 = now();
+      while (unit()) if (now() - t0 >= budgetMs) return phase === 4;
+      return true;
+    },
+  };
+}
+
+/**
+ * Seeded, deterministic look per person (P3): no two people whose paths come within LOOK_TWIN_M of
+ * each other share a look, so no follow-camera frame shows twins within 10 m. Graph colouring over
+ * path proximity: agents in a seeded order (hash of the id), each takes the first free allowed look
+ * starting at a seeded index. Agents in `memory` keep their look (a streamed tile arriving never
+ * re-dresses the people already on screen); the new ones avoid them. When every allowed look is
+ * taken nearby (a dense junction), the look whose nearest same-look path is farthest wins.
+ * Returns look index by agent id (person agents only) and updates `memory` when given. This is the
+ * whole `lookJob` at once; the scene runs the job in slices instead (useMotion).
+ */
+export function assignLooks(
+  agents: readonly Agent[],
+  looks: readonly CrowdLook[],
+  memory?: LookMemory,
+): Map<string, number> {
+  const job = lookJob(agents, looks, memory);
+  while (!job.step(Number.POSITIVE_INFINITY));
+  return job.result();
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -301,25 +472,87 @@ export function keepOutSpine(hero: HeroXZ): XZ[] {
 }
 
 /**
- * Inside test for segment `i` of the spine: (along, across, need) in the segment's frame, where the
- * person is inside when |across| < need. The first segment's start and the last segment's end are
- * half-ellipses KEEP_OUT_CAP_M long; joints between segments are round (radius R).
+ * The spine as plain numbers, reused by every keepOut call (GATE C-T8 review minor: no per-person,
+ * per-frame allocations). Filled by `fillSpine`; `spineN` points are valid.
  */
-function segZone(spine: XZ[], i: number, x: number, z: number, R: number) {
-  const a0 = spine[i] as XZ;
-  const b0 = spine[i + 1] as XZ;
-  const L = Math.hypot(b0[0] - a0[0], b0[1] - a0[1]);
-  const fx = (b0[0] - a0[0]) / L;
-  const fz = (b0[1] - a0[1]) / L;
-  const rx = x - a0[0];
-  const rz = z - a0[1];
+let spineX = new Float64Array(64);
+let spineZ = new Float64Array(64);
+let spineN = 0;
+function pushSpine(x: number, z: number): void {
+  if (spineN === spineX.length) {
+    const nx = new Float64Array(spineN * 2);
+    const nz = new Float64Array(spineN * 2);
+    nx.set(spineX);
+    nz.set(spineZ);
+    spineX = nx;
+    spineZ = nz;
+  }
+  spineX[spineN] = x;
+  spineZ[spineN] = z;
+  spineN++;
+}
+/** keepOutSpine(hero) into the shared buffers, without allocating. */
+function fillSpine(hero: HeroXZ): void {
+  spineN = 0;
+  pushSpine(hero.x, hero.z);
+  const ahead = hero.ahead;
+  if (ahead && ahead.length > 0) {
+    for (const p of ahead) {
+      const lx = spineX[spineN - 1] as number;
+      const lz = spineZ[spineN - 1] as number;
+      if (Math.hypot(p[0] - lx, p[1] - lz) > 1e-6) pushSpine(p[0], p[1]);
+    }
+    if (spineN > 1) return;
+  }
+  pushSpine(
+    hero.x + Math.sin(hero.yaw) * KEEP_OUT_AHEAD_M,
+    hero.z + Math.cos(hero.yaw) * KEEP_OUT_AHEAD_M,
+  );
+}
+
+/** One segment's zone test, written in place (see segZone). */
+interface Zone {
+  a: number;
+  s: number;
+  need: number;
+  fx: number;
+  fz: number;
+  ox: number;
+  oz: number;
+}
+const newZone = (): Zone => ({ a: 0, s: 0, need: 0, fx: 0, fz: 0, ox: 0, oz: 0 });
+const _zone = newZone();
+const _best = newZone();
+
+/**
+ * Inside test for segment `i` of the spine (the shared buffers): (along, across, need) in the
+ * segment's frame, written into `out`, where the person is inside when |across| < need. The first
+ * segment's start and the last segment's end are half-ellipses KEEP_OUT_CAP_M long; joints between
+ * segments are round (radius R).
+ */
+function segZone(i: number, x: number, z: number, R: number, out: Zone): Zone {
+  const ax = spineX[i] as number;
+  const az = spineZ[i] as number;
+  const bx = spineX[i + 1] as number;
+  const bz = spineZ[i + 1] as number;
+  const L = Math.hypot(bx - ax, bz - az);
+  const fx = (bx - ax) / L;
+  const fz = (bz - az) / L;
+  const rx = x - ax;
+  const rz = z - az;
   const a = rx * fx + rz * fz;
   const s = rx * fz - rz * fx;
   const da = a - Math.max(0, Math.min(L, a));
-  const cap = da < 0 ? (i === 0 ? KEEP_OUT_CAP_M : R) : i === spine.length - 2 ? KEEP_OUT_CAP_M : R;
+  const cap = da < 0 ? (i === 0 ? KEEP_OUT_CAP_M : R) : i === spineN - 2 ? KEEP_OUT_CAP_M : R;
   const e = da / cap;
-  const need = Math.abs(e) >= 1 ? 0 : R * Math.sqrt(1 - e * e);
-  return { a, s, need, fx, fz, ox: a0[0], oz: a0[1] };
+  out.a = a;
+  out.s = s;
+  out.need = Math.abs(e) >= 1 ? 0 : R * Math.sqrt(1 - e * e);
+  out.fx = fx;
+  out.fz = fz;
+  out.ox = ax;
+  out.oz = az;
+  return out;
 }
 
 /**
@@ -330,7 +563,8 @@ function segZone(spine: XZ[], i: number, x: number, z: number, R: number) {
  * as she passes; positions stay continuous in time. A person on the other side of her path from its
  * remembered side (it crossed her line inside the zone), or one a bend cannot push clear, is hidden
  * until it is clear (never drawn through her). Outside the zone nothing changes. The crowd never
- * stops the hero: she never reads this (P8).
+ * stops the hero: she never reads this (P8). Allocation-free (shared spine and zone buffers): the
+ * motion layer calls it for every person on every frame.
  */
 export function keepOut(
   x: number,
@@ -352,29 +586,31 @@ export function keepOut(
     mem.side = undefined;
     return out;
   }
-  const spine = keepOutSpine(hero);
+  fillSpine(hero);
   let px = x;
   let pz = z;
   let touched = false;
   for (let it = 0; it < KEEP_OUT_ITER; it++) {
     // The segment whose zone the person is deepest in (largest need - |across|).
-    let best: ReturnType<typeof segZone> | null = null;
+    let found = false;
     let depth = 0;
-    for (let i = 0; i < spine.length - 1; i++) {
-      const zn = segZone(spine, i, px, pz, R);
+    for (let i = 0; i < spineN - 1; i++) {
+      const zn = segZone(i, px, pz, R, _zone);
       const d = zn.need - Math.abs(zn.s);
       if (d > depth) {
         depth = d;
-        best = zn;
+        Object.assign(_best, zn);
+        found = true;
       }
     }
-    if (!best) {
+    if (!found) {
       if (!touched) mem.side = undefined;
       out.x = px;
       out.z = pz;
       return out;
     }
     touched = true;
+    const best = _best;
     const sign: 1 | -1 = best.s > 0 ? 1 : best.s < 0 ? -1 : (mem.side ?? 1);
     if (mem.side === undefined) mem.side = sign;
     if (sign !== mem.side && Math.abs(best.s) > 1e-6) {
@@ -386,8 +622,8 @@ export function keepOut(
     pz = best.oz + best.fz * best.a - best.fx * ns;
   }
   // Still inside after the pushes (the inside of a sharp bend): not drawn this frame.
-  for (let i = 0; i < spine.length - 1; i++) {
-    const zn = segZone(spine, i, px, pz, R);
+  for (let i = 0; i < spineN - 1; i++) {
+    const zn = segZone(i, px, pz, R, _zone);
     if (Math.abs(zn.s) < zn.need - 1e-9) {
       out.hidden = true;
       return out;

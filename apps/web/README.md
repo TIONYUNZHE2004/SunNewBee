@@ -539,7 +539,14 @@ where they stopped instead of jumping. Every rebuilt agent layer shares one smoo
   An agent's optional `look` id picks its look; else `motion/crowdRules.ts` `assignLooks` (C-T8, P3):
   graph colouring over path proximity, so no two people whose paths come within 10 m share a look,
   seeded and kept across tile streaming (`LookMemory`); joggers take young or adult looks without a
-  prop. Each look walks at its own pace (`lookSpeed`: walker 0.6, older 0.75, wheelchair 0.8,
+  prop. The search runs off the critical path (GATE AC-D18): `lookJob` only searches people not in
+  `LookMemory`, caches each path's grid cells and path-pair gaps, and `motion/looksQueue.ts` runs it in
+  slices of at most 4 ms per frame, strictly in order, so the looks equal one search per set at once;
+  `useMotion` then builds the layer, compiles it with `engine.prepare` (compileAsync) and swaps it in
+  while the old layer stays drawn (`tl:crowd-looks`, `tl:motion-build` User Timing). Poses use a binary
+  search over cached cumulative path lengths (`alongPath`). Acceptance only (P10):
+  `?acceptance=1&crowd=N` (`motion/crowdOverride.ts`) copies each ring 0-1 tile's people onto their own
+  paths until about N stand in a 150 m bubble. Each look walks at its own pace (`lookSpeed`: walker 0.6, older 0.75, wheelchair 0.8,
   stroller 0.9, child 0.85 of the planned speed, capped at 1.5 walk cycles/s at 1.55×). The keep-out
   (`keepOut`, P8) moves people sideways out of a zone 2 m around the hero and her path over the next
   10 m (`HeroPose.ahead`, published by `heroLayer` every 0.25 m; her heading when absent), reading
