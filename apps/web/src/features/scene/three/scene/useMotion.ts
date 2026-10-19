@@ -4,6 +4,8 @@ import { useScene } from "../../sceneStore";
 import type { Tier } from "../../shared/quality";
 import type { RoleUniforms } from "../assets/roleMaterial";
 import type { Engine } from "../engine";
+import type { CrowdKit } from "../motion/crowdBake";
+import { CROWD_LOAD_TIMEOUT_MS, loadCrowdKit } from "../motion/crowdKit";
 import { createMotionDriver, type MotionDriver, motionRunning } from "../motion/motionClock";
 import { createMotionLayer, type YawMemory } from "../motion/motionLayer";
 import type { ActiveTile } from "../stream/streamer";
@@ -124,14 +126,52 @@ export function useMotion({
   // One smoothed-yaw memory for the scene's lifetime, shared by every rebuilt layer: streamed agents
   // arriving or leaving never reset the others' yaw (each rebuild prunes it to the new agent set).
   const [yaw] = useState<YawMemory>(() => new Map());
+  // The crowd kit (C-T7): loaded and baked once, body by body in idle slices, the first time there
+  // are agents. null while loading (no people drawn yet); undefined if it failed or timed out (the
+  // legacy people kit then draws them). A kit that resolves after unmount is disposed.
+  const [crowd, setCrowd] = useState<CrowdKit | null | undefined>(null);
+  const crowdRef = useRef<{ failed: boolean; kit: CrowdKit | null }>({
+    failed: false,
+    kit: null,
+  });
+  const wantCrowd = agents.length > 0;
+  useEffect(() => {
+    const ref = crowdRef.current;
+    if (!wantCrowd || ref.kit || ref.failed) return;
+    const ac = new AbortController();
+    let live = true;
+    loadCrowdKit({ signal: ac.signal, timeoutMs: CROWD_LOAD_TIMEOUT_MS }).then(
+      (k) => {
+        if (!live) {
+          k.dispose();
+          return;
+        }
+        ref.kit = k;
+        setCrowd(k);
+      },
+      () => {
+        if (!live) return;
+        ref.failed = true;
+        setCrowd(undefined);
+      },
+    );
+    return () => {
+      live = false;
+      ac.abort();
+    };
+  }, [wantCrowd]);
+  useEffect(() => () => crowdRef.current.kit?.dispose(), []);
   useEffect(() => {
     if (!engine || !driver || !loaded || !agents || agents.length === 0) return;
     driver.setAgents(
-      createMotionLayer(agents, loaded.lib, loaded.manifest, roleUniforms, engine.motion, { yaw }),
+      createMotionLayer(agents, loaded.lib, loaded.manifest, roleUniforms, engine.motion, {
+        yaw,
+        crowd,
+      }),
     );
     engine.requestRender();
     return () => driver.setAgents(null);
-  }, [engine, driver, loaded, agents, roleUniforms, yaw]);
+  }, [engine, driver, loaded, agents, roleUniforms, yaw, crowd]);
 
   return { running, onScreen, agents };
 }
