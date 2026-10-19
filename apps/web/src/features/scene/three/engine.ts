@@ -1471,21 +1471,11 @@ function build(
       requestRender();
     },
     prepare(obj) {
-      if (disposed || typeof renderer.compileAsync !== "function") return Promise.resolve();
+      if (disposed) return Promise.resolve();
       // compile() gathers materials with traverse(), not traverseVisible(): hidden LOD buckets and
-      // crowd meshes (visible = false until an agent is drawn on them) are compiled too.
-      const prev = renderer.getRenderTarget();
-      renderer.setRenderTarget(composer.readBuffer);
-      let compiled: Promise<unknown>;
-      try {
-        compiled = renderer.compileAsync(obj, camera, scene);
-      } catch (err) {
-        warnCompileOnce(err);
-        compiled = Promise.resolve();
-      } finally {
-        renderer.setRenderTarget(prev);
-      }
-      return compiled.then(
+      // crowd meshes (visible = false until an agent is drawn on them) are compiled too, with the
+      // AO / depth-of-field override variants of their meshes (compileRoot).
+      return compileRoot(obj, composer.readBuffer).then(
         () => {},
         (err) => warnCompileOnce(err),
       );
