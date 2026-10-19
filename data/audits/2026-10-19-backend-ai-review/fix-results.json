@@ -10,7 +10,8 @@
     "AUD-006": "Layer cache and ETag expire across the day boundary.",
     "AUD-007": "Unpreviewed evacuation-centre rows respect older-adult rest gaps.",
     "AUD-010": "Undated staff edge claims cannot establish a checked pass.",
-    "Rest availability": "87a11ae: active closures and FAIL flood assessments cannot establish a rest interval; possible/unassessed scenario stops remain unverified across route search, materialization and unpreviewed centre rows."
+    "Rest availability": "87a11ae: active closures and FAIL flood assessments cannot establish a rest interval; possible/unassessed scenario stops remain unverified across route search, materialization and unpreviewed centre rows.",
+    "Invalid route metrics": "fc8c284: negative/non-finite edge lengths are rejected by the loader before they can supply routing costs, distances, durations or maneuver lengths; valid nonnegative measurements retain their values."
   },
   "remaining_ranked": [
     {
@@ -22,7 +23,7 @@
     {
       "rank": 2,
       "issue": "AUD-011",
-      "status": "partial: importer identity guard c0d4adc and loader integrity guard f1fea67 complete; coherent source-backed seed rebuild still blocked",
+      "status": "partial: importer identity c0d4adc, loader topology f1fea67 and metric guard fc8c284 complete; coherent source-backed seed rebuild still blocked",
       "critical_point": "The committed seed retains legacy coordinate-derived node IDs. New imports require original OSM identities, and the loader rejects ambiguous records/geometry. Neither guard proves existing seed junction identities; a coherent source-backed rebuild and comparison remain required."
     },
     {
@@ -237,5 +238,24 @@
     "metadata_commits": ["6feb312", "6a82222"],
     "contract_acknowledgement": "pending new rest availability note; earlier notes acknowledged",
     "app": "Stopped; own ports 8021/5191 verified closed"
+  },
+  "followup_round6_2026_10_20": {
+    "backend_commit": "fc8c284",
+    "finding": "Crafted tiny world with seg-ab length -100 produced a confirmed -100 m / -1.4 minute route. Not present in the real seed.",
+    "rule": "WorldDataError for negative or non-finite lengths, including overlay replacements; no fabricated replacement and no healthy field/schema change.",
+    "checks": {
+      "targeted_world_api_floodbuild": "67 PASS",
+      "lint": "PASS",
+      "current_mock_cache_bodies": "23 PASS in 104.47 s",
+      "broader_agent_api_golden": "Prior 1188/35/23 checkpoints predate this input-only guard; not repeated as current full-suite validation.",
+      "replay_signatures": "86b9951: 22/22 Elmina replay loads verified; event bodies byte-preserved; three Tiny files untouched"
+    },
+    "seed": "0 invalid / 16120 edge lengths; walk/stroller 416.4 m, drive 113.3 m; 16352 access features; mock HTTP chat no error and done.",
+    "evidence": "../2026-10-20-route-metrics/README.md",
+    "live_questions": 0,
+    "spend_usd": 0,
+    "source_calls": 0,
+    "e2e": "NOT RUN as instructed",
+    "app": "Stopped; ports 8021/5191 verified closed"
   }
 }
