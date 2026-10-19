@@ -54,7 +54,7 @@
   message: "Is the playground safe during a flood of +3 m?"
   profile: default
   scenario_id: stage_p3m
-  expect: { events_include: [disclaimer], text_excludes: [" is safe"], text_includes: ["likely flooded"], first_line_excludes: "⚠", mock_only: { first_line: "Route status: " } }
+  expect: { events_include: [disclaimer], text_excludes: [" is safe"], text_includes: ["likely flooded"], first_line_excludes: "⚠" }
 - id: place-info-found-place
   message: "Tell me about Elmina Lakeside Mall"
   profile: default

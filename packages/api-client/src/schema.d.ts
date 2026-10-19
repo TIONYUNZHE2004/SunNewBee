@@ -341,30 +341,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/journeys": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Journeys
-         * @description The journey for the recommended route between two places (spec 2026-10-19 §6.2).
-         *
-         *     Planned per request, like POST /routes (no route store, no verification requests filed).
-         *     The chat attaches the same plan to `journey.play` for the same endpoints, profile, scenario
-         *     and start time.
-         */
-        post: operations["journeys_journeys_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/kpis": {
         parameters: {
             query?: never;
@@ -417,27 +393,6 @@ export interface paths {
          *     before /layers/{lens} so it wins.
          */
         get: operations["gaps_layer_layers_gaps_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/layers/street_furniture": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Street Furniture Layer
-         * @description Street furniture points (display only). Declared before /layers/{lens} so it wins. 404 when
-         *     the world has no base/street_furniture.geojson (the client then draws no fact props).
-         */
-        get: operations["street_furniture_layer_layers_street_furniture_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1147,7 +1102,7 @@ export interface components {
             /** Route Id */
             route_id?: string | null;
             /** Route Status */
-            route_status: ("confirmed" | "partly_unverified" | "blocked" | "no_data") | "closed";
+            route_status: ("confirmed" | "likely_ok" | "partly_unverified" | "blocked" | "no_data") | "closed";
         };
         /**
          * ChatEventDoc
@@ -1802,87 +1757,6 @@ export interface components {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
         };
-        /**
-         * JourneyEvent
-         * @description One stop of a journey (spec §6.1), derived by journey.build_journey from world data only.
-         */
-        JourneyEvent: {
-            /** At M */
-            at_m: number;
-            /** Attributes */
-            attributes?: string[];
-            /** Body */
-            body: string;
-            /**
-             * Demo
-             * @default false
-             */
-            demo: boolean;
-            /** Element Id */
-            element_id?: string | null;
-            /** Evidence Id */
-            evidence_id: string;
-            /** Hold S */
-            hold_s: number;
-            /**
-             * Kind
-             * @enum {string}
-             */
-            kind: "covered" | "unknown" | "gap" | "verified" | "rest" | "arrive";
-            /** Source */
-            source?: ("route.max_gap_between_rest_m" | "route.to_place") | null;
-            /**
-             * Status
-             * @enum {string}
-             */
-            status: "unknown" | "reported" | "verified" | "stale" | "contested" | "unverified" | "route";
-            /** Title */
-            title: string;
-        };
-        /**
-         * JourneyPlan
-         * @description A planned route turned into a deterministic trip the 3D player animates (spec §6.1).
-         */
-        JourneyPlan: {
-            /** Conditions */
-            conditions?: {
-                [key: string]: unknown;
-            }[];
-            /** Events */
-            events: components["schemas"]["JourneyEvent"][];
-            /** Pace M Per S */
-            pace_m_per_s: number;
-            /** Polyline */
-            polyline: number[][];
-            /**
-             * Profile
-             * @enum {string}
-             */
-            profile: "default" | "stroller" | "wheelchair" | "older_adult_rest" | "drive";
-            /** Route Id */
-            route_id: string;
-            /** Spans */
-            spans: [
-                number,
-                number,
-                "PASS" | "FAIL" | "UNKNOWN"
-            ][];
-            /** Start Time */
-            start_time: string;
-        };
-        /** JourneyRequest */
-        JourneyRequest: {
-            /** From Id */
-            from_id: string;
-            /** Profile */
-            profile: string;
-            /** Scenario Id */
-            scenario_id?: string | null;
-            /** Start Time */
-            start_time: string;
-            /** To Id */
-            to_id: string;
-        };
         /** Kpis */
         Kpis: {
             /** Journeys Confirmed Pct */
@@ -1892,20 +1766,34 @@ export interface components {
             /** Open Vrs */
             open_vrs: number;
         };
-        /**
-         * NoJourney
-         * @description Why there is no journey to play: the route status and a plain message.
-         */
-        NoJourney: {
-            /** Message */
-            message: string;
+        /** Maneuver */
+        Maneuver: {
             /**
-             * Route Status
+             * Access Level
              * @enum {string}
              */
-            route_status: "blocked" | "no_data";
-            /** Warnings */
-            warnings?: string[];
+            access_level: "verified" | "likely_ok" | "unknown" | "barrier" | "not_a_road";
+            /**
+             * Action
+             * @enum {string}
+             */
+            action: "depart" | "continue" | "turn_left" | "turn_right" | "slight_left" | "slight_right" | "u_turn" | "cross" | "arrive";
+            /** Bearing Deg */
+            bearing_deg: number | null;
+            /** Distance M */
+            distance_m: number;
+            /** Edge Type */
+            edge_type: string | null;
+            /** Index */
+            index: number;
+            /** Point */
+            point: number[];
+            /** Rule Id */
+            rule_id: string;
+            /** Segment Ids */
+            segment_ids: string[];
+            /** Street Name */
+            street_name: string | null;
         };
         /** OwnJourney */
         OwnJourney: {
@@ -2088,6 +1976,10 @@ export interface components {
         };
         /** Route */
         Route: {
+            /** Access Metres */
+            access_metres?: {
+                [key: string]: number;
+            };
             /** Crossings */
             crossings?: {
                 [key: string]: unknown;
@@ -2111,6 +2003,8 @@ export interface components {
             };
             /** Id */
             id: string;
+            /** Maneuvers */
+            maneuvers?: components["schemas"]["Maneuver"][];
             /** Max Gap Between Rest M */
             max_gap_between_rest_m?: number | null;
             /**
@@ -2153,7 +2047,7 @@ export interface components {
              * Status
              * @enum {string}
              */
-            status: "confirmed" | "partly_unverified" | "blocked" | "no_data";
+            status: "confirmed" | "likely_ok" | "partly_unverified" | "blocked" | "no_data";
             /** Target Node */
             target_node: string;
             /** To Place */
@@ -2207,12 +2101,18 @@ export interface components {
              * Status
              * @enum {string}
              */
-            status: "confirmed" | "partly_unverified" | "blocked" | "no_data";
+            status: "confirmed" | "likely_ok" | "partly_unverified" | "blocked" | "no_data";
             /** Warnings */
             warnings?: string[];
         };
         /** RouteSegment */
         RouteSegment: {
+            /**
+             * Access Level
+             * @default unknown
+             * @enum {string}
+             */
+            access_level: "verified" | "likely_ok" | "unknown" | "barrier" | "not_a_road";
             /** Edge Id */
             edge_id: string;
             /**
@@ -2222,6 +2122,15 @@ export interface components {
             eval: "PASS" | "FAIL" | "UNKNOWN";
             /** Flood Class */
             flood_class?: ("likely_flooded" | "possible" | "unlikely") | null;
+            /**
+             * Rule Id
+             * @default no_basis_v1
+             */
+            rule_id: string;
+            /** Tags Used */
+            tags_used?: {
+                [key: string]: string;
+            };
         };
         /** Scenario */
         Scenario: {
@@ -2279,10 +2188,7 @@ export interface components {
              */
             lite: string;
         };
-        /**
-         * SceneIntent
-         * @description A scene intent on the wire (SSE `scene.intent`).
-         */
+        /** SceneIntent */
         SceneIntent: {
             /** Center */
             center?: number[] | null;
@@ -2296,12 +2202,11 @@ export interface components {
             geojson?: {
                 [key: string]: unknown;
             } | null;
-            journey?: components["schemas"]["JourneyPlan"] | null;
             /**
              * Kind
              * @enum {string}
              */
-            kind: "camera.fly_to" | "place.focus" | "route.highlight" | "flood.set_level" | "layer.toggle" | "whatif.diff" | "river.rollout" | "day.show" | "day.trip" | "journey.play";
+            kind: "camera.fly_to" | "place.focus" | "route.highlight" | "flood.set_level" | "layer.toggle" | "whatif.diff" | "river.rollout" | "day.show" | "day.trip";
             /** Lens */
             lens?: ("access" | "flood" | "waste") | null;
             /** Place Id */
@@ -2311,11 +2216,9 @@ export interface components {
             /** Route Id */
             route_id?: string | null;
             /** Route Status */
-            route_status?: ("confirmed" | "partly_unverified" | "blocked" | "no_data") | null;
+            route_status?: ("confirmed" | "likely_ok" | "partly_unverified" | "blocked" | "no_data") | null;
             /** Scenario Id */
             scenario_id?: string | null;
-            /** Start Time */
-            start_time?: string | null;
             /** T Min */
             t_min?: number | null;
             /** Visible */
@@ -2511,35 +2414,12 @@ export interface components {
             /** Task Id */
             task_id: string;
         };
-        /**
-         * SiteBoundary
-         * @description The display-only Elmina outline with its geometry, for the stylised renderer's clip and
-         *     diorama slab. Routing, evaluation and answers never read it. `geometry` is null when the file
-         *     is missing, unreadable or not one Polygon / MultiPolygon.
-         */
-        SiteBoundary: {
-            /** Area Km2 */
-            area_km2: number;
-            /** As Of */
-            as_of: string;
-            /** File */
-            file: string;
-            /** Geometry */
-            geometry?: {
-                [key: string]: unknown;
-            } | null;
-            /** Method */
-            method: string;
-            /** Source */
-            source: string;
-        };
-        /** SiteInfo */
-        SiteInfo: {
+        /** Site */
+        Site: {
             /** Attribution */
             attribution?: string[];
             /** Bbox */
             bbox: number[];
-            boundary?: components["schemas"]["SiteBoundary"] | null;
             /** Center */
             center: number[];
             /** Data As Of */
@@ -2569,26 +2449,6 @@ export interface components {
             id: string;
             /** Label */
             label: string;
-        };
-        /**
-         * StreetFurnitureLayer
-         * @description Fact-bearing street furniture for the stylised 3D city (display only, B-T6/B-T7): one Point
-         *     per OSM traffic signal, bus stop, shelter, bench or picnic table inside the outline, plus seed
-         *     seating / shelter places that coincide with none of them (`source: seed_place`). Each feature
-         *     carries its source `id` and `kind`. Routing, evaluation and answers never read it.
-         */
-        StreetFurnitureLayer: {
-            /** As Of */
-            as_of?: string | null;
-            /**
-             * Attribution
-             * @default []
-             */
-            attribution: string[];
-            /** Furniture */
-            furniture: {
-                [key: string]: unknown;
-            };
         };
         /** Suggestions */
         Suggestions: {
@@ -3578,60 +3438,6 @@ export interface operations {
             };
         };
     };
-    journeys_journeys_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["JourneyRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["JourneyPlan"];
-                };
-            };
-            /** @description unknown place or scenario */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description no route to play (route status and why) */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["NoJourney"];
-                };
-            };
-            /** @description unknown profile or bad start time */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description a journey event without route evidence (a data or rule bug) */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
     kpis_kpis_get: {
         parameters: {
             query?: never;
@@ -3728,47 +3534,6 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
                 };
-            };
-        };
-    };
-    street_furniture_layer_layers_street_furniture_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["StreetFurnitureLayer"];
-                };
-            };
-            /** @description Not modified */
-            304: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description no street furniture seed for this world */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description the street furniture seed is unreadable */
-            502: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
             };
         };
     };
@@ -4240,7 +4005,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["SiteInfo"];
+                    "application/json": components["schemas"]["Site"];
                 };
             };
         };

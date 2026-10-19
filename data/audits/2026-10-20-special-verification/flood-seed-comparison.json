@@ -1,0 +1,2222 @@
+{
+  "scope": "Real committed Elmina seed; graph components under ruling R5, not individual route guarantees. Timings are single runs with other checks running, not a benchmark.",
+  "before": [
+    {
+      "profile": "default",
+      "scenario": "baseline",
+      "isolated_total": 0,
+      "isolated_components": [],
+      "likely_total": 0,
+      "possible_total": 0,
+      "seconds": 0.129
+    },
+    {
+      "profile": "default",
+      "scenario": "stage_p3m",
+      "isolated_total": 20,
+      "isolated_components": [
+        {
+          "id": "island-0",
+          "node_count": 1,
+          "place_count": 2,
+          "sample_node_ids": ["n-31789031_1015128887"],
+          "sample_place_ids": ["osm-node-12001752608", "osm-node-12001769039"]
+        },
+        {
+          "id": "island-1",
+          "node_count": 1,
+          "place_count": 2,
+          "sample_node_ids": ["n-31790154_1015128167"],
+          "sample_place_ids": ["osm-way-1286251723", "osm-way-1286251724"]
+        },
+        {
+          "id": "island-2",
+          "node_count": 1,
+          "place_count": 2,
+          "sample_node_ids": ["n-31797955_1015159032"],
+          "sample_place_ids": ["osm-node-12001746507", "osm-node-12001761367"]
+        },
+        {
+          "id": "island-3",
+          "node_count": 1,
+          "place_count": 2,
+          "sample_node_ids": ["n-31805474_1015098542"],
+          "sample_place_ids": ["bench-urban-3", "osm-way-1309457596"]
+        },
+        {
+          "id": "island-4",
+          "node_count": 48,
+          "place_count": 1,
+          "sample_node_ids": [
+            "n-32344245_1014783139",
+            "n-32344872_1014774482",
+            "n-32344930_1014773159",
+            "n-32345002_1014791857",
+            "n-32346400_1014774350"
+          ],
+          "sample_place_ids": ["osm-way-1079069776"]
+        },
+        {
+          "id": "island-5",
+          "node_count": 12,
+          "place_count": 1,
+          "sample_node_ids": [
+            "n-31797460_1015069128",
+            "n-31798344_1015073472",
+            "n-31798542_1015068253",
+            "n-31799298_1015058428",
+            "n-31799645_1015067380"
+          ],
+          "sample_place_ids": ["osm-way-1493709517"]
+        },
+        {
+          "id": "island-6",
+          "node_count": 6,
+          "place_count": 1,
+          "sample_node_ids": [
+            "n-31710434_1015002709",
+            "n-31710657_1015004674",
+            "n-31711771_1015003342",
+            "n-31714405_1015005324",
+            "n-31715357_1015006096"
+          ],
+          "sample_place_ids": ["osm-way-910312454"]
+        },
+        {
+          "id": "island-7",
+          "node_count": 4,
+          "place_count": 1,
+          "sample_node_ids": [
+            "n-32129597_1015052771",
+            "n-32131134_1015052625",
+            "n-32134444_1015049470",
+            "n-32134699_1015052162"
+          ],
+          "sample_place_ids": ["osm-way-1383528912"]
+        },
+        {
+          "id": "island-8",
+          "node_count": 1,
+          "place_count": 1,
+          "sample_node_ids": ["n-31723400_1015023280"],
+          "sample_place_ids": ["osm-way-866518930"]
+        },
+        {
+          "id": "island-9",
+          "node_count": 1,
+          "place_count": 1,
+          "sample_node_ids": ["n-31780220_1015132836"],
+          "sample_place_ids": ["osm-way-1286251730"]
+        }
+      ],
+      "likely_total": 1383,
+      "possible_total": 470,
+      "seconds": 0.131
+    },
+    {
+      "profile": "default",
+      "scenario": "stage_p5m",
+      "isolated_total": 29,
+      "isolated_components": [
+        {
+          "id": "island-0",
+          "node_count": 1,
+          "place_count": 4,
+          "sample_node_ids": ["n-31795673_1015167504"],
+          "sample_place_ids": [
+            "osm-node-12001705555",
+            "osm-node-12001736409",
+            "osm-node-12001757574",
+            "osm-node-12001767621"
+          ]
+        },
+        {
+          "id": "island-1",
+          "node_count": 2,
+          "place_count": 2,
+          "sample_node_ids": ["n-31791121_1015176197", "n-31792007_1015174852"],
+          "sample_place_ids": ["osm-node-12001743124", "osm-node-12001746252"]
+        },
+        {
+          "id": "island-2",
+          "node_count": 1,
+          "place_count": 2,
+          "sample_node_ids": ["n-31789031_1015128887"],
+          "sample_place_ids": ["osm-node-12001752608", "osm-node-12001769039"]
+        },
+        {
+          "id": "island-3",
+          "node_count": 1,
+          "place_count": 2,
+          "sample_node_ids": ["n-31790154_1015128167"],
+          "sample_place_ids": ["osm-way-1286251723", "osm-way-1286251724"]
+        },
+        {
+          "id": "island-4",
+          "node_count": 1,
+          "place_count": 2,
+          "sample_node_ids": ["n-31797955_1015159032"],
+          "sample_place_ids": ["osm-node-12001746507", "osm-node-12001761367"]
+        },
+        {
+          "id": "island-5",
+          "node_count": 1,
+          "place_count": 2,
+          "sample_node_ids": ["n-31805474_1015098542"],
+          "sample_place_ids": ["bench-urban-3", "osm-way-1309457596"]
+        },
+        {
+          "id": "island-6",
+          "node_count": 1,
+          "place_count": 2,
+          "sample_node_ids": ["n-32306892_1014899974"],
+          "sample_place_ids": ["osm-node-4953152424", "osm-way-1177292042"]
+        },
+        {
+          "id": "island-7",
+          "node_count": 44,
+          "place_count": 1,
+          "sample_node_ids": [
+            "n-32344245_1014783139",
+            "n-32344872_1014774482",
+            "n-32344930_1014773159",
+            "n-32345002_1014791857",
+            "n-32346400_1014774350"
+          ],
+          "sample_place_ids": ["osm-way-1079069776"]
+        },
+        {
+          "id": "island-8",
+          "node_count": 19,
+          "place_count": 1,
+          "sample_node_ids": [
+            "n-31753576_1015123874",
+            "n-31753611_1015132087",
+            "n-31753627_1015133861",
+            "n-31756654_1015132070",
+            "n-31756675_1015123912"
+          ],
+          "sample_place_ids": ["osm-way-1286251731"]
+        },
+        {
+          "id": "island-9",
+          "node_count": 15,
+          "place_count": 1,
+          "sample_node_ids": [
+            "n-31906354_1015253250",
+            "n-31906426_1015249469",
+            "n-31906470_1015246441",
+            "n-31906495_1015244598",
+            "n-31909838_1015249510"
+          ],
+          "sample_place_ids": ["osm-way-875071779"]
+        }
+      ],
+      "likely_total": 2577,
+      "possible_total": 577,
+      "seconds": 0.244
+    },
+    {
+      "profile": "stroller",
+      "scenario": "baseline",
+      "isolated_total": 0,
+      "isolated_components": [],
+      "likely_total": 0,
+      "possible_total": 0,
+      "seconds": 0.204
+    },
+    {
+      "profile": "stroller",
+      "scenario": "stage_p3m",
+      "isolated_total": 20,
+      "isolated_components": [
+        {
+          "id": "island-0",
+          "node_count": 1,
+          "place_count": 2,
+          "sample_node_ids": ["n-31789031_1015128887"],
+          "sample_place_ids": ["osm-node-12001752608", "osm-node-12001769039"]
+        },
+        {
+          "id": "island-1",
+          "node_count": 1,
+          "place_count": 2,
+          "sample_node_ids": ["n-31790154_1015128167"],
+          "sample_place_ids": ["osm-way-1286251723", "osm-way-1286251724"]
+        },
+        {
+          "id": "island-2",
+          "node_count": 1,
+          "place_count": 2,
+          "sample_node_ids": ["n-31797955_1015159032"],
+          "sample_place_ids": ["osm-node-12001746507", "osm-node-12001761367"]
+        },
+        {
+          "id": "island-3",
+          "node_count": 1,
+          "place_count": 2,
+          "sample_node_ids": ["n-31805474_1015098542"],
+          "sample_place_ids": ["bench-urban-3", "osm-way-1309457596"]
+        },
+        {
+          "id": "island-4",
+          "node_count": 48,
+          "place_count": 1,
+          "sample_node_ids": [
+            "n-32344245_1014783139",
+            "n-32344872_1014774482",
+            "n-32344930_1014773159",
+            "n-32345002_1014791857",
+            "n-32346400_1014774350"
+          ],
+          "sample_place_ids": ["osm-way-1079069776"]
+        },
+        {
+          "id": "island-5",
+          "node_count": 12,
+          "place_count": 1,
+          "sample_node_ids": [
+            "n-31797460_1015069128",
+            "n-31798344_1015073472",
+            "n-31798542_1015068253",
+            "n-31799298_1015058428",
+            "n-31799645_1015067380"
+          ],
+          "sample_place_ids": ["osm-way-1493709517"]
+        },
+        {
+          "id": "island-6",
+          "node_count": 6,
+          "place_count": 1,
+          "sample_node_ids": [
+            "n-31710434_1015002709",
+            "n-31710657_1015004674",
+            "n-31711771_1015003342",
+            "n-31714405_1015005324",
+            "n-31715357_1015006096"
+          ],
+          "sample_place_ids": ["osm-way-910312454"]
+        },
+        {
+          "id": "island-7",
+          "node_count": 4,
+          "place_count": 1,
+          "sample_node_ids": [
+            "n-32129597_1015052771",
+            "n-32131134_1015052625",
+            "n-32134444_1015049470",
+            "n-32134699_1015052162"
+          ],
+          "sample_place_ids": ["osm-way-1383528912"]
+        },
+        {
+          "id": "island-8",
+          "node_count": 1,
+          "place_count": 1,
+          "sample_node_ids": ["n-31723400_1015023280"],
+          "sample_place_ids": ["osm-way-866518930"]
+        },
+        {
+          "id": "island-9",
+          "node_count": 1,
+          "place_count": 1,
+          "sample_node_ids": ["n-31780220_1015132836"],
+          "sample_place_ids": ["osm-way-1286251730"]
+        }
+      ],
+      "likely_total": 1383,
+      "possible_total": 470,
+      "seconds": 0.204
+    },
+    {
+      "profile": "stroller",
+      "scenario": "stage_p5m",
+      "isolated_total": 29,
+      "isolated_components": [
+        {
+          "id": "island-0",
+          "node_count": 1,
+          "place_count": 4,
+          "sample_node_ids": ["n-31795673_1015167504"],
+          "sample_place_ids": [
+            "osm-node-12001705555",
+            "osm-node-12001736409",
+            "osm-node-12001757574",
+            "osm-node-12001767621"
+          ]
+        },
+        {
+          "id": "island-1",
+          "node_count": 2,
+          "place_count": 2,
+          "sample_node_ids": ["n-31791121_1015176197", "n-31792007_1015174852"],
+          "sample_place_ids": ["osm-node-12001743124", "osm-node-12001746252"]
+        },
+        {
+          "id": "island-2",
+          "node_count": 1,
+          "place_count": 2,
+          "sample_node_ids": ["n-31789031_1015128887"],
+          "sample_place_ids": ["osm-node-12001752608", "osm-node-12001769039"]
+        },
+        {
+          "id": "island-3",
+          "node_count": 1,
+          "place_count": 2,
+          "sample_node_ids": ["n-31790154_1015128167"],
+          "sample_place_ids": ["osm-way-1286251723", "osm-way-1286251724"]
+        },
+        {
+          "id": "island-4",
+          "node_count": 1,
+          "place_count": 2,
+          "sample_node_ids": ["n-31797955_1015159032"],
+          "sample_place_ids": ["osm-node-12001746507", "osm-node-12001761367"]
+        },
+        {
+          "id": "island-5",
+          "node_count": 1,
+          "place_count": 2,
+          "sample_node_ids": ["n-31805474_1015098542"],
+          "sample_place_ids": ["bench-urban-3", "osm-way-1309457596"]
+        },
+        {
+          "id": "island-6",
+          "node_count": 1,
+          "place_count": 2,
+          "sample_node_ids": ["n-32306892_1014899974"],
+          "sample_place_ids": ["osm-node-4953152424", "osm-way-1177292042"]
+        },
+        {
+          "id": "island-7",
+          "node_count": 44,
+          "place_count": 1,
+          "sample_node_ids": [
+            "n-32344245_1014783139",
+            "n-32344872_1014774482",
+            "n-32344930_1014773159",
+            "n-32345002_1014791857",
+            "n-32346400_1014774350"
+          ],
+          "sample_place_ids": ["osm-way-1079069776"]
+        },
+        {
+          "id": "island-8",
+          "node_count": 19,
+          "place_count": 1,
+          "sample_node_ids": [
+            "n-31753576_1015123874",
+            "n-31753611_1015132087",
+            "n-31753627_1015133861",
+            "n-31756654_1015132070",
+            "n-31756675_1015123912"
+          ],
+          "sample_place_ids": ["osm-way-1286251731"]
+        },
+        {
+          "id": "island-9",
+          "node_count": 15,
+          "place_count": 1,
+          "sample_node_ids": [
+            "n-31906354_1015253250",
+            "n-31906426_1015249469",
+            "n-31906470_1015246441",
+            "n-31906495_1015244598",
+            "n-31909838_1015249510"
+          ],
+          "sample_place_ids": ["osm-way-875071779"]
+        }
+      ],
+      "likely_total": 2577,
+      "possible_total": 577,
+      "seconds": 0.228
+    },
+    {
+      "profile": "wheelchair",
+      "scenario": "baseline",
+      "isolated_total": 0,
+      "isolated_components": [],
+      "likely_total": 0,
+      "possible_total": 0,
+      "seconds": 0.226
+    },
+    {
+      "profile": "wheelchair",
+      "scenario": "stage_p3m",
+      "isolated_total": 20,
+      "isolated_components": [
+        {
+          "id": "island-0",
+          "node_count": 1,
+          "place_count": 2,
+          "sample_node_ids": ["n-31789031_1015128887"],
+          "sample_place_ids": ["osm-node-12001752608", "osm-node-12001769039"]
+        },
+        {
+          "id": "island-1",
+          "node_count": 1,
+          "place_count": 2,
+          "sample_node_ids": ["n-31790154_1015128167"],
+          "sample_place_ids": ["osm-way-1286251723", "osm-way-1286251724"]
+        },
+        {
+          "id": "island-2",
+          "node_count": 1,
+          "place_count": 2,
+          "sample_node_ids": ["n-31797955_1015159032"],
+          "sample_place_ids": ["osm-node-12001746507", "osm-node-12001761367"]
+        },
+        {
+          "id": "island-3",
+          "node_count": 1,
+          "place_count": 2,
+          "sample_node_ids": ["n-31805474_1015098542"],
+          "sample_place_ids": ["bench-urban-3", "osm-way-1309457596"]
+        },
+        {
+          "id": "island-4",
+          "node_count": 48,
+          "place_count": 1,
+          "sample_node_ids": [
+            "n-32344245_1014783139",
+            "n-32344872_1014774482",
+            "n-32344930_1014773159",
+            "n-32345002_1014791857",
+            "n-32346400_1014774350"
+          ],
+          "sample_place_ids": ["osm-way-1079069776"]
+        },
+        {
+          "id": "island-5",
+          "node_count": 12,
+          "place_count": 1,
+          "sample_node_ids": [
+            "n-31797460_1015069128",
+            "n-31798344_1015073472",
+            "n-31798542_1015068253",
+            "n-31799298_1015058428",
+            "n-31799645_1015067380"
+          ],
+          "sample_place_ids": ["osm-way-1493709517"]
+        },
+        {
+          "id": "island-6",
+          "node_count": 6,
+          "place_count": 1,
+          "sample_node_ids": [
+            "n-31710434_1015002709",
+            "n-31710657_1015004674",
+            "n-31711771_1015003342",
+            "n-31714405_1015005324",
+            "n-31715357_1015006096"
+          ],
+          "sample_place_ids": ["osm-way-910312454"]
+        },
+        {
+          "id": "island-7",
+          "node_count": 4,
+          "place_count": 1,
+          "sample_node_ids": [
+            "n-32129597_1015052771",
+            "n-32131134_1015052625",
+            "n-32134444_1015049470",
+            "n-32134699_1015052162"
+          ],
+          "sample_place_ids": ["osm-way-1383528912"]
+        },
+        {
+          "id": "island-8",
+          "node_count": 1,
+          "place_count": 1,
+          "sample_node_ids": ["n-31723400_1015023280"],
+          "sample_place_ids": ["osm-way-866518930"]
+        },
+        {
+          "id": "island-9",
+          "node_count": 1,
+          "place_count": 1,
+          "sample_node_ids": ["n-31780220_1015132836"],
+          "sample_place_ids": ["osm-way-1286251730"]
+        }
+      ],
+      "likely_total": 1383,
+      "possible_total": 470,
+      "seconds": 0.298
+    },
+    {
+      "profile": "wheelchair",
+      "scenario": "stage_p5m",
+      "isolated_total": 29,
+      "isolated_components": [
+        {
+          "id": "island-0",
+          "node_count": 1,
+          "place_count": 4,
+          "sample_node_ids": ["n-31795673_1015167504"],
+          "sample_place_ids": [
+            "osm-node-12001705555",
+            "osm-node-12001736409",
+            "osm-node-12001757574",
+            "osm-node-12001767621"
+          ]
+        },
+        {
+          "id": "island-1",
+          "node_count": 2,
+          "place_count": 2,
+          "sample_node_ids": ["n-31791121_1015176197", "n-31792007_1015174852"],
+          "sample_place_ids": ["osm-node-12001743124", "osm-node-12001746252"]
+        },
+        {
+          "id": "island-2",
+          "node_count": 1,
+          "place_count": 2,
+          "sample_node_ids": ["n-31789031_1015128887"],
+          "sample_place_ids": ["osm-node-12001752608", "osm-node-12001769039"]
+        },
+        {
+          "id": "island-3",
+          "node_count": 1,
+          "place_count": 2,
+          "sample_node_ids": ["n-31790154_1015128167"],
+          "sample_place_ids": ["osm-way-1286251723", "osm-way-1286251724"]
+        },
+        {
+          "id": "island-4",
+          "node_count": 1,
+          "place_count": 2,
+          "sample_node_ids": ["n-31797955_1015159032"],
+          "sample_place_ids": ["osm-node-12001746507", "osm-node-12001761367"]
+        },
+        {
+          "id": "island-5",
+          "node_count": 1,
+          "place_count": 2,
+          "sample_node_ids": ["n-31805474_1015098542"],
+          "sample_place_ids": ["bench-urban-3", "osm-way-1309457596"]
+        },
+        {
+          "id": "island-6",
+          "node_count": 1,
+          "place_count": 2,
+          "sample_node_ids": ["n-32306892_1014899974"],
+          "sample_place_ids": ["osm-node-4953152424", "osm-way-1177292042"]
+        },
+        {
+          "id": "island-7",
+          "node_count": 44,
+          "place_count": 1,
+          "sample_node_ids": [
+            "n-32344245_1014783139",
+            "n-32344872_1014774482",
+            "n-32344930_1014773159",
+            "n-32345002_1014791857",
+            "n-32346400_1014774350"
+          ],
+          "sample_place_ids": ["osm-way-1079069776"]
+        },
+        {
+          "id": "island-8",
+          "node_count": 19,
+          "place_count": 1,
+          "sample_node_ids": [
+            "n-31753576_1015123874",
+            "n-31753611_1015132087",
+            "n-31753627_1015133861",
+            "n-31756654_1015132070",
+            "n-31756675_1015123912"
+          ],
+          "sample_place_ids": ["osm-way-1286251731"]
+        },
+        {
+          "id": "island-9",
+          "node_count": 15,
+          "place_count": 1,
+          "sample_node_ids": [
+            "n-31906354_1015253250",
+            "n-31906426_1015249469",
+            "n-31906470_1015246441",
+            "n-31906495_1015244598",
+            "n-31909838_1015249510"
+          ],
+          "sample_place_ids": ["osm-way-875071779"]
+        }
+      ],
+      "likely_total": 2577,
+      "possible_total": 577,
+      "seconds": 0.215
+    },
+    {
+      "profile": "older_adult_rest",
+      "scenario": "baseline",
+      "isolated_total": 0,
+      "isolated_components": [],
+      "likely_total": 0,
+      "possible_total": 0,
+      "seconds": 0.202
+    },
+    {
+      "profile": "older_adult_rest",
+      "scenario": "stage_p3m",
+      "isolated_total": 20,
+      "isolated_components": [
+        {
+          "id": "island-0",
+          "node_count": 1,
+          "place_count": 2,
+          "sample_node_ids": ["n-31789031_1015128887"],
+          "sample_place_ids": ["osm-node-12001752608", "osm-node-12001769039"]
+        },
+        {
+          "id": "island-1",
+          "node_count": 1,
+          "place_count": 2,
+          "sample_node_ids": ["n-31790154_1015128167"],
+          "sample_place_ids": ["osm-way-1286251723", "osm-way-1286251724"]
+        },
+        {
+          "id": "island-2",
+          "node_count": 1,
+          "place_count": 2,
+          "sample_node_ids": ["n-31797955_1015159032"],
+          "sample_place_ids": ["osm-node-12001746507", "osm-node-12001761367"]
+        },
+        {
+          "id": "island-3",
+          "node_count": 1,
+          "place_count": 2,
+          "sample_node_ids": ["n-31805474_1015098542"],
+          "sample_place_ids": ["bench-urban-3", "osm-way-1309457596"]
+        },
+        {
+          "id": "island-4",
+          "node_count": 48,
+          "place_count": 1,
+          "sample_node_ids": [
+            "n-32344245_1014783139",
+            "n-32344872_1014774482",
+            "n-32344930_1014773159",
+            "n-32345002_1014791857",
+            "n-32346400_1014774350"
+          ],
+          "sample_place_ids": ["osm-way-1079069776"]
+        },
+        {
+          "id": "island-5",
+          "node_count": 12,
+          "place_count": 1,
+          "sample_node_ids": [
+            "n-31797460_1015069128",
+            "n-31798344_1015073472",
+            "n-31798542_1015068253",
+            "n-31799298_1015058428",
+            "n-31799645_1015067380"
+          ],
+          "sample_place_ids": ["osm-way-1493709517"]
+        },
+        {
+          "id": "island-6",
+          "node_count": 6,
+          "place_count": 1,
+          "sample_node_ids": [
+            "n-31710434_1015002709",
+            "n-31710657_1015004674",
+            "n-31711771_1015003342",
+            "n-31714405_1015005324",
+            "n-31715357_1015006096"
+          ],
+          "sample_place_ids": ["osm-way-910312454"]
+        },
+        {
+          "id": "island-7",
+          "node_count": 4,
+          "place_count": 1,
+          "sample_node_ids": [
+            "n-32129597_1015052771",
+            "n-32131134_1015052625",
+            "n-32134444_1015049470",
+            "n-32134699_1015052162"
+          ],
+          "sample_place_ids": ["osm-way-1383528912"]
+        },
+        {
+          "id": "island-8",
+          "node_count": 1,
+          "place_count": 1,
+          "sample_node_ids": ["n-31723400_1015023280"],
+          "sample_place_ids": ["osm-way-866518930"]
+        },
+        {
+          "id": "island-9",
+          "node_count": 1,
+          "place_count": 1,
+          "sample_node_ids": ["n-31780220_1015132836"],
+          "sample_place_ids": ["osm-way-1286251730"]
+        }
+      ],
+      "likely_total": 1383,
+      "possible_total": 470,
+      "seconds": 0.185
+    },
+    {
+      "profile": "older_adult_rest",
+      "scenario": "stage_p5m",
+      "isolated_total": 29,
+      "isolated_components": [
+        {
+          "id": "island-0",
+          "node_count": 1,
+          "place_count": 4,
+          "sample_node_ids": ["n-31795673_1015167504"],
+          "sample_place_ids": [
+            "osm-node-12001705555",
+            "osm-node-12001736409",
+            "osm-node-12001757574",
+            "osm-node-12001767621"
+          ]
+        },
+        {
+          "id": "island-1",
+          "node_count": 2,
+          "place_count": 2,
+          "sample_node_ids": ["n-31791121_1015176197", "n-31792007_1015174852"],
+          "sample_place_ids": ["osm-node-12001743124", "osm-node-12001746252"]
+        },
+        {
+          "id": "island-2",
+          "node_count": 1,
+          "place_count": 2,
+          "sample_node_ids": ["n-31789031_1015128887"],
+          "sample_place_ids": ["osm-node-12001752608", "osm-node-12001769039"]
+        },
+        {
+          "id": "island-3",
+          "node_count": 1,
+          "place_count": 2,
+          "sample_node_ids": ["n-31790154_1015128167"],
+          "sample_place_ids": ["osm-way-1286251723", "osm-way-1286251724"]
+        },
+        {
+          "id": "island-4",
+          "node_count": 1,
+          "place_count": 2,
+          "sample_node_ids": ["n-31797955_1015159032"],
+          "sample_place_ids": ["osm-node-12001746507", "osm-node-12001761367"]
+        },
+        {
+          "id": "island-5",
+          "node_count": 1,
+          "place_count": 2,
+          "sample_node_ids": ["n-31805474_1015098542"],
+          "sample_place_ids": ["bench-urban-3", "osm-way-1309457596"]
+        },
+        {
+          "id": "island-6",
+          "node_count": 1,
+          "place_count": 2,
+          "sample_node_ids": ["n-32306892_1014899974"],
+          "sample_place_ids": ["osm-node-4953152424", "osm-way-1177292042"]
+        },
+        {
+          "id": "island-7",
+          "node_count": 44,
+          "place_count": 1,
+          "sample_node_ids": [
+            "n-32344245_1014783139",
+            "n-32344872_1014774482",
+            "n-32344930_1014773159",
+            "n-32345002_1014791857",
+            "n-32346400_1014774350"
+          ],
+          "sample_place_ids": ["osm-way-1079069776"]
+        },
+        {
+          "id": "island-8",
+          "node_count": 19,
+          "place_count": 1,
+          "sample_node_ids": [
+            "n-31753576_1015123874",
+            "n-31753611_1015132087",
+            "n-31753627_1015133861",
+            "n-31756654_1015132070",
+            "n-31756675_1015123912"
+          ],
+          "sample_place_ids": ["osm-way-1286251731"]
+        },
+        {
+          "id": "island-9",
+          "node_count": 15,
+          "place_count": 1,
+          "sample_node_ids": [
+            "n-31906354_1015253250",
+            "n-31906426_1015249469",
+            "n-31906470_1015246441",
+            "n-31906495_1015244598",
+            "n-31909838_1015249510"
+          ],
+          "sample_place_ids": ["osm-way-875071779"]
+        }
+      ],
+      "likely_total": 2577,
+      "possible_total": 577,
+      "seconds": 0.276
+    },
+    {
+      "profile": "drive",
+      "scenario": "baseline",
+      "isolated_total": 0,
+      "isolated_components": [],
+      "likely_total": 0,
+      "possible_total": 0,
+      "seconds": 0.124
+    },
+    {
+      "profile": "drive",
+      "scenario": "stage_p3m",
+      "isolated_total": 12,
+      "isolated_components": [
+        {
+          "id": "island-0",
+          "node_count": 80,
+          "place_count": 1,
+          "sample_node_ids": [
+            "n-31590717_1015276368",
+            "n-31590905_1015273029",
+            "n-31591091_1015268954",
+            "n-31598899_1015292046",
+            "n-31599368_1015276583"
+          ],
+          "sample_place_ids": ["osm-way-1283431301"]
+        },
+        {
+          "id": "island-1",
+          "node_count": 44,
+          "place_count": 1,
+          "sample_node_ids": [
+            "n-32344245_1014783139",
+            "n-32344872_1014774482",
+            "n-32344930_1014773159",
+            "n-32345002_1014791857",
+            "n-32346400_1014774350"
+          ],
+          "sample_place_ids": ["osm-way-1079069776"]
+        },
+        {
+          "id": "island-2",
+          "node_count": 9,
+          "place_count": 1,
+          "sample_node_ids": [
+            "n-31797460_1015069128",
+            "n-31798542_1015068253",
+            "n-31799298_1015058428",
+            "n-31799645_1015067380",
+            "n-31799817_1015058016"
+          ],
+          "sample_place_ids": ["osm-way-1493709517"]
+        },
+        {
+          "id": "island-3",
+          "node_count": 6,
+          "place_count": 1,
+          "sample_node_ids": [
+            "n-31710434_1015002709",
+            "n-31710657_1015004674",
+            "n-31711771_1015003342",
+            "n-31714405_1015005324",
+            "n-31715357_1015006096"
+          ],
+          "sample_place_ids": ["osm-way-910312454"]
+        },
+        {
+          "id": "island-4",
+          "node_count": 3,
+          "place_count": 1,
+          "sample_node_ids": [
+            "n-31756139_1015106459",
+            "n-31762262_1015105818",
+            "n-31767839_1015105715"
+          ],
+          "sample_place_ids": ["osm-way-1286251750"]
+        },
+        {
+          "id": "island-5",
+          "node_count": 3,
+          "place_count": 1,
+          "sample_node_ids": [
+            "n-32129597_1015052771",
+            "n-32131134_1015052625",
+            "n-32134699_1015052162"
+          ],
+          "sample_place_ids": ["osm-way-1383528912"]
+        },
+        {
+          "id": "island-6",
+          "node_count": 1,
+          "place_count": 1,
+          "sample_node_ids": ["n-31801700_1015079482"],
+          "sample_place_ids": ["osm-way-1308938138"]
+        },
+        {
+          "id": "island-7",
+          "node_count": 1,
+          "place_count": 1,
+          "sample_node_ids": ["n-31803994_1015134202"],
+          "sample_place_ids": ["osm-way-909868201"]
+        },
+        {
+          "id": "island-8",
+          "node_count": 1,
+          "place_count": 1,
+          "sample_node_ids": ["n-31804933_1015085014"],
+          "sample_place_ids": ["bench-urban-2"]
+        },
+        {
+          "id": "island-9",
+          "node_count": 1,
+          "place_count": 1,
+          "sample_node_ids": ["n-31971716_1015282718"],
+          "sample_place_ids": ["osm-way-1372398081"]
+        }
+      ],
+      "likely_total": 1383,
+      "possible_total": 470,
+      "seconds": 0.135
+    },
+    {
+      "profile": "drive",
+      "scenario": "stage_p5m",
+      "isolated_total": 25,
+      "isolated_components": [
+        {
+          "id": "island-0",
+          "node_count": 1,
+          "place_count": 4,
+          "sample_node_ids": ["n-31876988_1015220464"],
+          "sample_place_ids": [
+            "osm-way-1302974732",
+            "osm-way-1302974733",
+            "osm-way-1302974734",
+            "osm-way-866543392"
+          ]
+        },
+        {
+          "id": "island-1",
+          "node_count": 22,
+          "place_count": 2,
+          "sample_node_ids": [
+            "n-32336260_1014911990",
+            "n-32338988_1014911347",
+            "n-32340513_1014898841",
+            "n-32341986_1014908847",
+            "n-32344549_1014903960"
+          ],
+          "sample_place_ids": ["osm-node-13626217385", "osm-way-886413850"]
+        },
+        {
+          "id": "island-2",
+          "node_count": 1,
+          "place_count": 2,
+          "sample_node_ids": ["n-31872692_1015251627"],
+          "sample_place_ids": ["osm-node-12001692100", "osm-node-12001743462"]
+        },
+        {
+          "id": "island-3",
+          "node_count": 1,
+          "place_count": 2,
+          "sample_node_ids": ["n-32306892_1014899974"],
+          "sample_place_ids": ["osm-node-4953152424", "osm-way-1177292042"]
+        },
+        {
+          "id": "island-4",
+          "node_count": 953,
+          "place_count": 1,
+          "sample_node_ids": [
+            "n-32119705_1014843304",
+            "n-32147304_1014850871",
+            "n-32147699_1014835169",
+            "n-32152835_1014837003",
+            "n-32157791_1014838931"
+          ],
+          "sample_place_ids": ["osm-way-1192087011"]
+        },
+        {
+          "id": "island-5",
+          "node_count": 42,
+          "place_count": 1,
+          "sample_node_ids": [
+            "n-32344872_1014774482",
+            "n-32344930_1014773159",
+            "n-32345002_1014791857",
+            "n-32346400_1014774350",
+            "n-32346431_1014791867"
+          ],
+          "sample_place_ids": ["osm-way-1079069776"]
+        },
+        {
+          "id": "island-6",
+          "node_count": 13,
+          "place_count": 1,
+          "sample_node_ids": [
+            "n-31906354_1015253250",
+            "n-31906426_1015249469",
+            "n-31909838_1015249510",
+            "n-31909856_1015255259",
+            "n-31909860_1015244622"
+          ],
+          "sample_place_ids": ["osm-way-875071779"]
+        },
+        {
+          "id": "island-7",
+          "node_count": 9,
+          "place_count": 1,
+          "sample_node_ids": [
+            "n-31797460_1015069128",
+            "n-31798542_1015068253",
+            "n-31799298_1015058428",
+            "n-31799645_1015067380",
+            "n-31799817_1015058016"
+          ],
+          "sample_place_ids": ["osm-way-1493709517"]
+        },
+        {
+          "id": "island-8",
+          "node_count": 4,
+          "place_count": 1,
+          "sample_node_ids": [
+            "n-31710434_1015002709",
+            "n-31710657_1015004674",
+            "n-31711771_1015003342",
+            "n-31714405_1015005324"
+          ],
+          "sample_place_ids": ["osm-way-910312454"]
+        },
+        {
+          "id": "island-9",
+          "node_count": 3,
+          "place_count": 1,
+          "sample_node_ids": [
+            "n-31756139_1015106459",
+            "n-31762262_1015105818",
+            "n-31767839_1015105715"
+          ],
+          "sample_place_ids": ["osm-way-1286251750"]
+        }
+      ],
+      "likely_total": 2577,
+      "possible_total": 577,
+      "seconds": 0.139
+    }
+  ],
+  "after": [
+    {
+      "profile": "default",
+      "scenario": "baseline",
+      "isolated_total": 0,
+      "isolated_components": [],
+      "likely_total": 0,
+      "possible_total": 0,
+      "seconds": 0.144
+    },
+    {
+      "profile": "default",
+      "scenario": "stage_p3m",
+      "isolated_total": 20,
+      "isolated_components": [
+        {
+          "id": "island-0",
+          "node_count": 1,
+          "place_count": 2,
+          "sample_node_ids": ["n-31789031_1015128887"],
+          "sample_place_ids": ["osm-node-12001752608", "osm-node-12001769039"]
+        },
+        {
+          "id": "island-1",
+          "node_count": 1,
+          "place_count": 2,
+          "sample_node_ids": ["n-31790154_1015128167"],
+          "sample_place_ids": ["osm-way-1286251723", "osm-way-1286251724"]
+        },
+        {
+          "id": "island-2",
+          "node_count": 1,
+          "place_count": 2,
+          "sample_node_ids": ["n-31797955_1015159032"],
+          "sample_place_ids": ["osm-node-12001746507", "osm-node-12001761367"]
+        },
+        {
+          "id": "island-3",
+          "node_count": 1,
+          "place_count": 2,
+          "sample_node_ids": ["n-31805474_1015098542"],
+          "sample_place_ids": ["bench-urban-3", "osm-way-1309457596"]
+        },
+        {
+          "id": "island-4",
+          "node_count": 48,
+          "place_count": 1,
+          "sample_node_ids": [
+            "n-32344245_1014783139",
+            "n-32344872_1014774482",
+            "n-32344930_1014773159",
+            "n-32345002_1014791857",
+            "n-32346400_1014774350"
+          ],
+          "sample_place_ids": ["osm-way-1079069776"]
+        },
+        {
+          "id": "island-5",
+          "node_count": 12,
+          "place_count": 1,
+          "sample_node_ids": [
+            "n-31797460_1015069128",
+            "n-31798344_1015073472",
+            "n-31798542_1015068253",
+            "n-31799298_1015058428",
+            "n-31799645_1015067380"
+          ],
+          "sample_place_ids": ["osm-way-1493709517"]
+        },
+        {
+          "id": "island-6",
+          "node_count": 6,
+          "place_count": 1,
+          "sample_node_ids": [
+            "n-31710434_1015002709",
+            "n-31710657_1015004674",
+            "n-31711771_1015003342",
+            "n-31714405_1015005324",
+            "n-31715357_1015006096"
+          ],
+          "sample_place_ids": ["osm-way-910312454"]
+        },
+        {
+          "id": "island-7",
+          "node_count": 4,
+          "place_count": 1,
+          "sample_node_ids": [
+            "n-32129597_1015052771",
+            "n-32131134_1015052625",
+            "n-32134444_1015049470",
+            "n-32134699_1015052162"
+          ],
+          "sample_place_ids": ["osm-way-1383528912"]
+        },
+        {
+          "id": "island-8",
+          "node_count": 1,
+          "place_count": 1,
+          "sample_node_ids": ["n-31723400_1015023280"],
+          "sample_place_ids": ["osm-way-866518930"]
+        },
+        {
+          "id": "island-9",
+          "node_count": 1,
+          "place_count": 1,
+          "sample_node_ids": ["n-31780220_1015132836"],
+          "sample_place_ids": ["osm-way-1286251730"]
+        }
+      ],
+      "likely_total": 1383,
+      "possible_total": 470,
+      "seconds": 0.193
+    },
+    {
+      "profile": "default",
+      "scenario": "stage_p5m",
+      "isolated_total": 29,
+      "isolated_components": [
+        {
+          "id": "island-0",
+          "node_count": 1,
+          "place_count": 4,
+          "sample_node_ids": ["n-31795673_1015167504"],
+          "sample_place_ids": [
+            "osm-node-12001705555",
+            "osm-node-12001736409",
+            "osm-node-12001757574",
+            "osm-node-12001767621"
+          ]
+        },
+        {
+          "id": "island-1",
+          "node_count": 2,
+          "place_count": 2,
+          "sample_node_ids": ["n-31791121_1015176197", "n-31792007_1015174852"],
+          "sample_place_ids": ["osm-node-12001743124", "osm-node-12001746252"]
+        },
+        {
+          "id": "island-2",
+          "node_count": 1,
+          "place_count": 2,
+          "sample_node_ids": ["n-31789031_1015128887"],
+          "sample_place_ids": ["osm-node-12001752608", "osm-node-12001769039"]
+        },
+        {
+          "id": "island-3",
+          "node_count": 1,
+          "place_count": 2,
+          "sample_node_ids": ["n-31790154_1015128167"],
+          "sample_place_ids": ["osm-way-1286251723", "osm-way-1286251724"]
+        },
+        {
+          "id": "island-4",
+          "node_count": 1,
+          "place_count": 2,
+          "sample_node_ids": ["n-31797955_1015159032"],
+          "sample_place_ids": ["osm-node-12001746507", "osm-node-12001761367"]
+        },
+        {
+          "id": "island-5",
+          "node_count": 1,
+          "place_count": 2,
+          "sample_node_ids": ["n-31805474_1015098542"],
+          "sample_place_ids": ["bench-urban-3", "osm-way-1309457596"]
+        },
+        {
+          "id": "island-6",
+          "node_count": 1,
+          "place_count": 2,
+          "sample_node_ids": ["n-32306892_1014899974"],
+          "sample_place_ids": ["osm-node-4953152424", "osm-way-1177292042"]
+        },
+        {
+          "id": "island-7",
+          "node_count": 44,
+          "place_count": 1,
+          "sample_node_ids": [
+            "n-32344245_1014783139",
+            "n-32344872_1014774482",
+            "n-32344930_1014773159",
+            "n-32345002_1014791857",
+            "n-32346400_1014774350"
+          ],
+          "sample_place_ids": ["osm-way-1079069776"]
+        },
+        {
+          "id": "island-8",
+          "node_count": 19,
+          "place_count": 1,
+          "sample_node_ids": [
+            "n-31753576_1015123874",
+            "n-31753611_1015132087",
+            "n-31753627_1015133861",
+            "n-31756654_1015132070",
+            "n-31756675_1015123912"
+          ],
+          "sample_place_ids": ["osm-way-1286251731"]
+        },
+        {
+          "id": "island-9",
+          "node_count": 15,
+          "place_count": 1,
+          "sample_node_ids": [
+            "n-31906354_1015253250",
+            "n-31906426_1015249469",
+            "n-31906470_1015246441",
+            "n-31906495_1015244598",
+            "n-31909838_1015249510"
+          ],
+          "sample_place_ids": ["osm-way-875071779"]
+        }
+      ],
+      "likely_total": 2577,
+      "possible_total": 577,
+      "seconds": 0.21
+    },
+    {
+      "profile": "stroller",
+      "scenario": "baseline",
+      "isolated_total": 0,
+      "isolated_components": [],
+      "likely_total": 0,
+      "possible_total": 0,
+      "seconds": 0.218
+    },
+    {
+      "profile": "stroller",
+      "scenario": "stage_p3m",
+      "isolated_total": 20,
+      "isolated_components": [
+        {
+          "id": "island-0",
+          "node_count": 1,
+          "place_count": 2,
+          "sample_node_ids": ["n-31789031_1015128887"],
+          "sample_place_ids": ["osm-node-12001752608", "osm-node-12001769039"]
+        },
+        {
+          "id": "island-1",
+          "node_count": 1,
+          "place_count": 2,
+          "sample_node_ids": ["n-31790154_1015128167"],
+          "sample_place_ids": ["osm-way-1286251723", "osm-way-1286251724"]
+        },
+        {
+          "id": "island-2",
+          "node_count": 1,
+          "place_count": 2,
+          "sample_node_ids": ["n-31797955_1015159032"],
+          "sample_place_ids": ["osm-node-12001746507", "osm-node-12001761367"]
+        },
+        {
+          "id": "island-3",
+          "node_count": 1,
+          "place_count": 2,
+          "sample_node_ids": ["n-31805474_1015098542"],
+          "sample_place_ids": ["bench-urban-3", "osm-way-1309457596"]
+        },
+        {
+          "id": "island-4",
+          "node_count": 48,
+          "place_count": 1,
+          "sample_node_ids": [
+            "n-32344245_1014783139",
+            "n-32344872_1014774482",
+            "n-32344930_1014773159",
+            "n-32345002_1014791857",
+            "n-32346400_1014774350"
+          ],
+          "sample_place_ids": ["osm-way-1079069776"]
+        },
+        {
+          "id": "island-5",
+          "node_count": 12,
+          "place_count": 1,
+          "sample_node_ids": [
+            "n-31797460_1015069128",
+            "n-31798344_1015073472",
+            "n-31798542_1015068253",
+            "n-31799298_1015058428",
+            "n-31799645_1015067380"
+          ],
+          "sample_place_ids": ["osm-way-1493709517"]
+        },
+        {
+          "id": "island-6",
+          "node_count": 6,
+          "place_count": 1,
+          "sample_node_ids": [
+            "n-31710434_1015002709",
+            "n-31710657_1015004674",
+            "n-31711771_1015003342",
+            "n-31714405_1015005324",
+            "n-31715357_1015006096"
+          ],
+          "sample_place_ids": ["osm-way-910312454"]
+        },
+        {
+          "id": "island-7",
+          "node_count": 4,
+          "place_count": 1,
+          "sample_node_ids": [
+            "n-32129597_1015052771",
+            "n-32131134_1015052625",
+            "n-32134444_1015049470",
+            "n-32134699_1015052162"
+          ],
+          "sample_place_ids": ["osm-way-1383528912"]
+        },
+        {
+          "id": "island-8",
+          "node_count": 1,
+          "place_count": 1,
+          "sample_node_ids": ["n-31723400_1015023280"],
+          "sample_place_ids": ["osm-way-866518930"]
+        },
+        {
+          "id": "island-9",
+          "node_count": 1,
+          "place_count": 1,
+          "sample_node_ids": ["n-31780220_1015132836"],
+          "sample_place_ids": ["osm-way-1286251730"]
+        }
+      ],
+      "likely_total": 1383,
+      "possible_total": 470,
+      "seconds": 0.27
+    },
+    {
+      "profile": "stroller",
+      "scenario": "stage_p5m",
+      "isolated_total": 29,
+      "isolated_components": [
+        {
+          "id": "island-0",
+          "node_count": 1,
+          "place_count": 4,
+          "sample_node_ids": ["n-31795673_1015167504"],
+          "sample_place_ids": [
+            "osm-node-12001705555",
+            "osm-node-12001736409",
+            "osm-node-12001757574",
+            "osm-node-12001767621"
+          ]
+        },
+        {
+          "id": "island-1",
+          "node_count": 2,
+          "place_count": 2,
+          "sample_node_ids": ["n-31791121_1015176197", "n-31792007_1015174852"],
+          "sample_place_ids": ["osm-node-12001743124", "osm-node-12001746252"]
+        },
+        {
+          "id": "island-2",
+          "node_count": 1,
+          "place_count": 2,
+          "sample_node_ids": ["n-31789031_1015128887"],
+          "sample_place_ids": ["osm-node-12001752608", "osm-node-12001769039"]
+        },
+        {
+          "id": "island-3",
+          "node_count": 1,
+          "place_count": 2,
+          "sample_node_ids": ["n-31790154_1015128167"],
+          "sample_place_ids": ["osm-way-1286251723", "osm-way-1286251724"]
+        },
+        {
+          "id": "island-4",
+          "node_count": 1,
+          "place_count": 2,
+          "sample_node_ids": ["n-31797955_1015159032"],
+          "sample_place_ids": ["osm-node-12001746507", "osm-node-12001761367"]
+        },
+        {
+          "id": "island-5",
+          "node_count": 1,
+          "place_count": 2,
+          "sample_node_ids": ["n-31805474_1015098542"],
+          "sample_place_ids": ["bench-urban-3", "osm-way-1309457596"]
+        },
+        {
+          "id": "island-6",
+          "node_count": 1,
+          "place_count": 2,
+          "sample_node_ids": ["n-32306892_1014899974"],
+          "sample_place_ids": ["osm-node-4953152424", "osm-way-1177292042"]
+        },
+        {
+          "id": "island-7",
+          "node_count": 44,
+          "place_count": 1,
+          "sample_node_ids": [
+            "n-32344245_1014783139",
+            "n-32344872_1014774482",
+            "n-32344930_1014773159",
+            "n-32345002_1014791857",
+            "n-32346400_1014774350"
+          ],
+          "sample_place_ids": ["osm-way-1079069776"]
+        },
+        {
+          "id": "island-8",
+          "node_count": 19,
+          "place_count": 1,
+          "sample_node_ids": [
+            "n-31753576_1015123874",
+            "n-31753611_1015132087",
+            "n-31753627_1015133861",
+            "n-31756654_1015132070",
+            "n-31756675_1015123912"
+          ],
+          "sample_place_ids": ["osm-way-1286251731"]
+        },
+        {
+          "id": "island-9",
+          "node_count": 15,
+          "place_count": 1,
+          "sample_node_ids": [
+            "n-31906354_1015253250",
+            "n-31906426_1015249469",
+            "n-31906470_1015246441",
+            "n-31906495_1015244598",
+            "n-31909838_1015249510"
+          ],
+          "sample_place_ids": ["osm-way-875071779"]
+        }
+      ],
+      "likely_total": 2577,
+      "possible_total": 577,
+      "seconds": 0.217
+    },
+    {
+      "profile": "wheelchair",
+      "scenario": "baseline",
+      "isolated_total": 0,
+      "isolated_components": [],
+      "likely_total": 0,
+      "possible_total": 0,
+      "seconds": 0.206
+    },
+    {
+      "profile": "wheelchair",
+      "scenario": "stage_p3m",
+      "isolated_total": 20,
+      "isolated_components": [
+        {
+          "id": "island-0",
+          "node_count": 1,
+          "place_count": 2,
+          "sample_node_ids": ["n-31789031_1015128887"],
+          "sample_place_ids": ["osm-node-12001752608", "osm-node-12001769039"]
+        },
+        {
+          "id": "island-1",
+          "node_count": 1,
+          "place_count": 2,
+          "sample_node_ids": ["n-31790154_1015128167"],
+          "sample_place_ids": ["osm-way-1286251723", "osm-way-1286251724"]
+        },
+        {
+          "id": "island-2",
+          "node_count": 1,
+          "place_count": 2,
+          "sample_node_ids": ["n-31797955_1015159032"],
+          "sample_place_ids": ["osm-node-12001746507", "osm-node-12001761367"]
+        },
+        {
+          "id": "island-3",
+          "node_count": 1,
+          "place_count": 2,
+          "sample_node_ids": ["n-31805474_1015098542"],
+          "sample_place_ids": ["bench-urban-3", "osm-way-1309457596"]
+        },
+        {
+          "id": "island-4",
+          "node_count": 48,
+          "place_count": 1,
+          "sample_node_ids": [
+            "n-32344245_1014783139",
+            "n-32344872_1014774482",
+            "n-32344930_1014773159",
+            "n-32345002_1014791857",
+            "n-32346400_1014774350"
+          ],
+          "sample_place_ids": ["osm-way-1079069776"]
+        },
+        {
+          "id": "island-5",
+          "node_count": 12,
+          "place_count": 1,
+          "sample_node_ids": [
+            "n-31797460_1015069128",
+            "n-31798344_1015073472",
+            "n-31798542_1015068253",
+            "n-31799298_1015058428",
+            "n-31799645_1015067380"
+          ],
+          "sample_place_ids": ["osm-way-1493709517"]
+        },
+        {
+          "id": "island-6",
+          "node_count": 6,
+          "place_count": 1,
+          "sample_node_ids": [
+            "n-31710434_1015002709",
+            "n-31710657_1015004674",
+            "n-31711771_1015003342",
+            "n-31714405_1015005324",
+            "n-31715357_1015006096"
+          ],
+          "sample_place_ids": ["osm-way-910312454"]
+        },
+        {
+          "id": "island-7",
+          "node_count": 4,
+          "place_count": 1,
+          "sample_node_ids": [
+            "n-32129597_1015052771",
+            "n-32131134_1015052625",
+            "n-32134444_1015049470",
+            "n-32134699_1015052162"
+          ],
+          "sample_place_ids": ["osm-way-1383528912"]
+        },
+        {
+          "id": "island-8",
+          "node_count": 1,
+          "place_count": 1,
+          "sample_node_ids": ["n-31723400_1015023280"],
+          "sample_place_ids": ["osm-way-866518930"]
+        },
+        {
+          "id": "island-9",
+          "node_count": 1,
+          "place_count": 1,
+          "sample_node_ids": ["n-31780220_1015132836"],
+          "sample_place_ids": ["osm-way-1286251730"]
+        }
+      ],
+      "likely_total": 1383,
+      "possible_total": 470,
+      "seconds": 0.334
+    },
+    {
+      "profile": "wheelchair",
+      "scenario": "stage_p5m",
+      "isolated_total": 29,
+      "isolated_components": [
+        {
+          "id": "island-0",
+          "node_count": 1,
+          "place_count": 4,
+          "sample_node_ids": ["n-31795673_1015167504"],
+          "sample_place_ids": [
+            "osm-node-12001705555",
+            "osm-node-12001736409",
+            "osm-node-12001757574",
+            "osm-node-12001767621"
+          ]
+        },
+        {
+          "id": "island-1",
+          "node_count": 2,
+          "place_count": 2,
+          "sample_node_ids": ["n-31791121_1015176197", "n-31792007_1015174852"],
+          "sample_place_ids": ["osm-node-12001743124", "osm-node-12001746252"]
+        },
+        {
+          "id": "island-2",
+          "node_count": 1,
+          "place_count": 2,
+          "sample_node_ids": ["n-31789031_1015128887"],
+          "sample_place_ids": ["osm-node-12001752608", "osm-node-12001769039"]
+        },
+        {
+          "id": "island-3",
+          "node_count": 1,
+          "place_count": 2,
+          "sample_node_ids": ["n-31790154_1015128167"],
+          "sample_place_ids": ["osm-way-1286251723", "osm-way-1286251724"]
+        },
+        {
+          "id": "island-4",
+          "node_count": 1,
+          "place_count": 2,
+          "sample_node_ids": ["n-31797955_1015159032"],
+          "sample_place_ids": ["osm-node-12001746507", "osm-node-12001761367"]
+        },
+        {
+          "id": "island-5",
+          "node_count": 1,
+          "place_count": 2,
+          "sample_node_ids": ["n-31805474_1015098542"],
+          "sample_place_ids": ["bench-urban-3", "osm-way-1309457596"]
+        },
+        {
+          "id": "island-6",
+          "node_count": 1,
+          "place_count": 2,
+          "sample_node_ids": ["n-32306892_1014899974"],
+          "sample_place_ids": ["osm-node-4953152424", "osm-way-1177292042"]
+        },
+        {
+          "id": "island-7",
+          "node_count": 44,
+          "place_count": 1,
+          "sample_node_ids": [
+            "n-32344245_1014783139",
+            "n-32344872_1014774482",
+            "n-32344930_1014773159",
+            "n-32345002_1014791857",
+            "n-32346400_1014774350"
+          ],
+          "sample_place_ids": ["osm-way-1079069776"]
+        },
+        {
+          "id": "island-8",
+          "node_count": 19,
+          "place_count": 1,
+          "sample_node_ids": [
+            "n-31753576_1015123874",
+            "n-31753611_1015132087",
+            "n-31753627_1015133861",
+            "n-31756654_1015132070",
+            "n-31756675_1015123912"
+          ],
+          "sample_place_ids": ["osm-way-1286251731"]
+        },
+        {
+          "id": "island-9",
+          "node_count": 15,
+          "place_count": 1,
+          "sample_node_ids": [
+            "n-31906354_1015253250",
+            "n-31906426_1015249469",
+            "n-31906470_1015246441",
+            "n-31906495_1015244598",
+            "n-31909838_1015249510"
+          ],
+          "sample_place_ids": ["osm-way-875071779"]
+        }
+      ],
+      "likely_total": 2577,
+      "possible_total": 577,
+      "seconds": 0.194
+    },
+    {
+      "profile": "older_adult_rest",
+      "scenario": "baseline",
+      "isolated_total": 0,
+      "isolated_components": [],
+      "likely_total": 0,
+      "possible_total": 0,
+      "seconds": 0.19
+    },
+    {
+      "profile": "older_adult_rest",
+      "scenario": "stage_p3m",
+      "isolated_total": 20,
+      "isolated_components": [
+        {
+          "id": "island-0",
+          "node_count": 1,
+          "place_count": 2,
+          "sample_node_ids": ["n-31789031_1015128887"],
+          "sample_place_ids": ["osm-node-12001752608", "osm-node-12001769039"]
+        },
+        {
+          "id": "island-1",
+          "node_count": 1,
+          "place_count": 2,
+          "sample_node_ids": ["n-31790154_1015128167"],
+          "sample_place_ids": ["osm-way-1286251723", "osm-way-1286251724"]
+        },
+        {
+          "id": "island-2",
+          "node_count": 1,
+          "place_count": 2,
+          "sample_node_ids": ["n-31797955_1015159032"],
+          "sample_place_ids": ["osm-node-12001746507", "osm-node-12001761367"]
+        },
+        {
+          "id": "island-3",
+          "node_count": 1,
+          "place_count": 2,
+          "sample_node_ids": ["n-31805474_1015098542"],
+          "sample_place_ids": ["bench-urban-3", "osm-way-1309457596"]
+        },
+        {
+          "id": "island-4",
+          "node_count": 48,
+          "place_count": 1,
+          "sample_node_ids": [
+            "n-32344245_1014783139",
+            "n-32344872_1014774482",
+            "n-32344930_1014773159",
+            "n-32345002_1014791857",
+            "n-32346400_1014774350"
+          ],
+          "sample_place_ids": ["osm-way-1079069776"]
+        },
+        {
+          "id": "island-5",
+          "node_count": 12,
+          "place_count": 1,
+          "sample_node_ids": [
+            "n-31797460_1015069128",
+            "n-31798344_1015073472",
+            "n-31798542_1015068253",
+            "n-31799298_1015058428",
+            "n-31799645_1015067380"
+          ],
+          "sample_place_ids": ["osm-way-1493709517"]
+        },
+        {
+          "id": "island-6",
+          "node_count": 6,
+          "place_count": 1,
+          "sample_node_ids": [
+            "n-31710434_1015002709",
+            "n-31710657_1015004674",
+            "n-31711771_1015003342",
+            "n-31714405_1015005324",
+            "n-31715357_1015006096"
+          ],
+          "sample_place_ids": ["osm-way-910312454"]
+        },
+        {
+          "id": "island-7",
+          "node_count": 4,
+          "place_count": 1,
+          "sample_node_ids": [
+            "n-32129597_1015052771",
+            "n-32131134_1015052625",
+            "n-32134444_1015049470",
+            "n-32134699_1015052162"
+          ],
+          "sample_place_ids": ["osm-way-1383528912"]
+        },
+        {
+          "id": "island-8",
+          "node_count": 1,
+          "place_count": 1,
+          "sample_node_ids": ["n-31723400_1015023280"],
+          "sample_place_ids": ["osm-way-866518930"]
+        },
+        {
+          "id": "island-9",
+          "node_count": 1,
+          "place_count": 1,
+          "sample_node_ids": ["n-31780220_1015132836"],
+          "sample_place_ids": ["osm-way-1286251730"]
+        }
+      ],
+      "likely_total": 1383,
+      "possible_total": 470,
+      "seconds": 0.207
+    },
+    {
+      "profile": "older_adult_rest",
+      "scenario": "stage_p5m",
+      "isolated_total": 29,
+      "isolated_components": [
+        {
+          "id": "island-0",
+          "node_count": 1,
+          "place_count": 4,
+          "sample_node_ids": ["n-31795673_1015167504"],
+          "sample_place_ids": [
+            "osm-node-12001705555",
+            "osm-node-12001736409",
+            "osm-node-12001757574",
+            "osm-node-12001767621"
+          ]
+        },
+        {
+          "id": "island-1",
+          "node_count": 2,
+          "place_count": 2,
+          "sample_node_ids": ["n-31791121_1015176197", "n-31792007_1015174852"],
+          "sample_place_ids": ["osm-node-12001743124", "osm-node-12001746252"]
+        },
+        {
+          "id": "island-2",
+          "node_count": 1,
+          "place_count": 2,
+          "sample_node_ids": ["n-31789031_1015128887"],
+          "sample_place_ids": ["osm-node-12001752608", "osm-node-12001769039"]
+        },
+        {
+          "id": "island-3",
+          "node_count": 1,
+          "place_count": 2,
+          "sample_node_ids": ["n-31790154_1015128167"],
+          "sample_place_ids": ["osm-way-1286251723", "osm-way-1286251724"]
+        },
+        {
+          "id": "island-4",
+          "node_count": 1,
+          "place_count": 2,
+          "sample_node_ids": ["n-31797955_1015159032"],
+          "sample_place_ids": ["osm-node-12001746507", "osm-node-12001761367"]
+        },
+        {
+          "id": "island-5",
+          "node_count": 1,
+          "place_count": 2,
+          "sample_node_ids": ["n-31805474_1015098542"],
+          "sample_place_ids": ["bench-urban-3", "osm-way-1309457596"]
+        },
+        {
+          "id": "island-6",
+          "node_count": 1,
+          "place_count": 2,
+          "sample_node_ids": ["n-32306892_1014899974"],
+          "sample_place_ids": ["osm-node-4953152424", "osm-way-1177292042"]
+        },
+        {
+          "id": "island-7",
+          "node_count": 44,
+          "place_count": 1,
+          "sample_node_ids": [
+            "n-32344245_1014783139",
+            "n-32344872_1014774482",
+            "n-32344930_1014773159",
+            "n-32345002_1014791857",
+            "n-32346400_1014774350"
+          ],
+          "sample_place_ids": ["osm-way-1079069776"]
+        },
+        {
+          "id": "island-8",
+          "node_count": 19,
+          "place_count": 1,
+          "sample_node_ids": [
+            "n-31753576_1015123874",
+            "n-31753611_1015132087",
+            "n-31753627_1015133861",
+            "n-31756654_1015132070",
+            "n-31756675_1015123912"
+          ],
+          "sample_place_ids": ["osm-way-1286251731"]
+        },
+        {
+          "id": "island-9",
+          "node_count": 15,
+          "place_count": 1,
+          "sample_node_ids": [
+            "n-31906354_1015253250",
+            "n-31906426_1015249469",
+            "n-31906470_1015246441",
+            "n-31906495_1015244598",
+            "n-31909838_1015249510"
+          ],
+          "sample_place_ids": ["osm-way-875071779"]
+        }
+      ],
+      "likely_total": 2577,
+      "possible_total": 577,
+      "seconds": 0.26
+    },
+    {
+      "profile": "drive",
+      "scenario": "baseline",
+      "isolated_total": 0,
+      "isolated_components": [],
+      "likely_total": 0,
+      "possible_total": 0,
+      "seconds": 0.649,
+      "seconds_before_road_set_reuse": 2.008
+    },
+    {
+      "profile": "drive",
+      "scenario": "stage_p3m",
+      "isolated_total": 21,
+      "isolated_components": [
+        {
+          "id": "island-0",
+          "node_count": 1,
+          "place_count": 4,
+          "sample_node_ids": ["n-31783903_1015163165"],
+          "sample_place_ids": [
+            "osm-node-12001746507",
+            "osm-node-12001757574",
+            "osm-node-12001761367",
+            "osm-node-12001767621"
+          ]
+        },
+        {
+          "id": "island-1",
+          "node_count": 1,
+          "place_count": 4,
+          "sample_node_ids": ["n-31789724_1015178210"],
+          "sample_place_ids": [
+            "osm-node-12001705555",
+            "osm-node-12001736409",
+            "osm-node-12001743124",
+            "osm-node-12001746252"
+          ]
+        },
+        {
+          "id": "island-2",
+          "node_count": 1,
+          "place_count": 4,
+          "sample_node_ids": ["n-31794762_1015124553"],
+          "sample_place_ids": [
+            "osm-node-12001752608",
+            "osm-node-12001769039",
+            "osm-way-1286251723",
+            "osm-way-1286251724"
+          ]
+        },
+        {
+          "id": "island-3",
+          "node_count": 1,
+          "place_count": 2,
+          "sample_node_ids": ["n-31778894_1015135780"],
+          "sample_place_ids": ["osm-way-1286251729", "osm-way-1286251730"]
+        },
+        {
+          "id": "island-4",
+          "node_count": 1,
+          "place_count": 2,
+          "sample_node_ids": ["n-31783946_1015147194"],
+          "sample_place_ids": ["osm-way-1286251728", "osm-way-866543394"]
+        },
+        {
+          "id": "island-5",
+          "node_count": 80,
+          "place_count": 1,
+          "sample_node_ids": [
+            "n-31590717_1015276368",
+            "n-31590905_1015273029",
+            "n-31591091_1015268954",
+            "n-31598899_1015292046",
+            "n-31599368_1015276583"
+          ],
+          "sample_place_ids": ["osm-way-1283431301"]
+        },
+        {
+          "id": "island-6",
+          "node_count": 44,
+          "place_count": 1,
+          "sample_node_ids": [
+            "n-32344245_1014783139",
+            "n-32344872_1014774482",
+            "n-32344930_1014773159",
+            "n-32345002_1014791857",
+            "n-32346400_1014774350"
+          ],
+          "sample_place_ids": ["osm-way-1079069776"]
+        },
+        {
+          "id": "island-7",
+          "node_count": 16,
+          "place_count": 1,
+          "sample_node_ids": [
+            "n-31753576_1015123874",
+            "n-31753611_1015132087",
+            "n-31753627_1015133861",
+            "n-31756654_1015132070",
+            "n-31756675_1015123912"
+          ],
+          "sample_place_ids": ["osm-way-1286251731"]
+        },
+        {
+          "id": "island-8",
+          "node_count": 9,
+          "place_count": 1,
+          "sample_node_ids": [
+            "n-31797460_1015069128",
+            "n-31798542_1015068253",
+            "n-31799298_1015058428",
+            "n-31799645_1015067380",
+            "n-31799817_1015058016"
+          ],
+          "sample_place_ids": ["osm-way-1493709517"]
+        },
+        {
+          "id": "island-9",
+          "node_count": 6,
+          "place_count": 1,
+          "sample_node_ids": [
+            "n-31710434_1015002709",
+            "n-31710657_1015004674",
+            "n-31711771_1015003342",
+            "n-31714405_1015005324",
+            "n-31715357_1015006096"
+          ],
+          "sample_place_ids": ["osm-way-910312454"]
+        }
+      ],
+      "likely_total": 1383,
+      "possible_total": 470,
+      "seconds": 0.65,
+      "seconds_before_road_set_reuse": 2.005
+    },
+    {
+      "profile": "drive",
+      "scenario": "stage_p5m",
+      "isolated_total": 35,
+      "isolated_components": [
+        {
+          "id": "island-0",
+          "node_count": 1,
+          "place_count": 4,
+          "sample_node_ids": ["n-31783903_1015163165"],
+          "sample_place_ids": [
+            "osm-node-12001746507",
+            "osm-node-12001757574",
+            "osm-node-12001761367",
+            "osm-node-12001767621"
+          ]
+        },
+        {
+          "id": "island-1",
+          "node_count": 1,
+          "place_count": 4,
+          "sample_node_ids": ["n-31789724_1015178210"],
+          "sample_place_ids": [
+            "osm-node-12001705555",
+            "osm-node-12001736409",
+            "osm-node-12001743124",
+            "osm-node-12001746252"
+          ]
+        },
+        {
+          "id": "island-2",
+          "node_count": 1,
+          "place_count": 4,
+          "sample_node_ids": ["n-31794762_1015124553"],
+          "sample_place_ids": [
+            "osm-node-12001752608",
+            "osm-node-12001769039",
+            "osm-way-1286251723",
+            "osm-way-1286251724"
+          ]
+        },
+        {
+          "id": "island-3",
+          "node_count": 1,
+          "place_count": 4,
+          "sample_node_ids": ["n-31876988_1015220464"],
+          "sample_place_ids": [
+            "osm-way-1302974732",
+            "osm-way-1302974733",
+            "osm-way-1302974734",
+            "osm-way-866543392"
+          ]
+        },
+        {
+          "id": "island-4",
+          "node_count": 953,
+          "place_count": 3,
+          "sample_node_ids": [
+            "n-32119705_1014843304",
+            "n-32147304_1014850871",
+            "n-32147699_1014835169",
+            "n-32152835_1014837003",
+            "n-32157791_1014838931"
+          ],
+          "sample_place_ids": ["osm-way-1192087011", "osm-way-1192560884", "osm-way-1300873483"]
+        },
+        {
+          "id": "island-5",
+          "node_count": 22,
+          "place_count": 2,
+          "sample_node_ids": [
+            "n-32336260_1014911990",
+            "n-32338988_1014911347",
+            "n-32340513_1014898841",
+            "n-32341986_1014908847",
+            "n-32344549_1014903960"
+          ],
+          "sample_place_ids": ["osm-node-13626217385", "osm-way-886413850"]
+        },
+        {
+          "id": "island-6",
+          "node_count": 1,
+          "place_count": 2,
+          "sample_node_ids": ["n-31778894_1015135780"],
+          "sample_place_ids": ["osm-way-1286251729", "osm-way-1286251730"]
+        },
+        {
+          "id": "island-7",
+          "node_count": 1,
+          "place_count": 2,
+          "sample_node_ids": ["n-31783946_1015147194"],
+          "sample_place_ids": ["osm-way-1286251728", "osm-way-866543394"]
+        },
+        {
+          "id": "island-8",
+          "node_count": 1,
+          "place_count": 2,
+          "sample_node_ids": ["n-31872692_1015251627"],
+          "sample_place_ids": ["osm-node-12001692100", "osm-node-12001743462"]
+        },
+        {
+          "id": "island-9",
+          "node_count": 1,
+          "place_count": 2,
+          "sample_node_ids": ["n-32306892_1014899974"],
+          "sample_place_ids": ["osm-node-4953152424", "osm-way-1177292042"]
+        }
+      ],
+      "likely_total": 2577,
+      "possible_total": 577,
+      "seconds": 0.732,
+      "seconds_before_road_set_reuse": 1.847
+    }
+  ],
+  "cost_usd": 0
+}

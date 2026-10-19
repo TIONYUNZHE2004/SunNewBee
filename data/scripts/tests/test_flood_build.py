@@ -174,15 +174,16 @@ def _write_base(d: Path, hall_name="Dewan Bunga Matahari"):
     y = lambda row: 3.20 - (row + 0.5) * 0.001  # noqa: E731
     walk = [
         _line("seg-river", "n-a", "n-b", [[x(10), y(5)], [x(10), y(6)]]),  # on the river column
-        _line("seg-bank", "n-b", "n-c", [[x(11), y(6)], [x(11), y(7)]]),  # HAND 1.6
-        _line("seg-high", "n-c", "n-d", [[x(3), y(10)], [x(4), y(10)]]),  # HAND 9
-        _line("seg-out", "n-d", "n-e", [[102.9, 4.9], [102.91, 4.9]]),  # outside the raster
+        # These raster samples are independent lines, not junctions at different positions.
+        _line("seg-bank", "n-bank-start", "n-c", [[x(11), y(6)], [x(11), y(7)]]),  # HAND 1.6
+        _line("seg-high", "n-high-start", "n-d", [[x(3), y(10)], [x(4), y(10)]]),  # HAND 9
+        _line("seg-out", "n-out-start", "n-e", [[102.9, 4.9], [102.91, 4.9]]),  # outside the raster
     ]
     places = [
         _place("osm-node-1", "community_centre", hall_name, [x(4), y(10)], "n-d"),
         _place("osm-node-2", "school", "SK Test", [x(11), y(7)], "n-c"),
         _place("osm-node-3", "playground", "Riverside playground", [x(10), y(6)], "n-b"),
-        _place("osm-node-4", "recycling", "Recycling bins", [x(3), y(10)], "n-c"),
+        _place("osm-node-4", "recycling", "Recycling bins", [x(3), y(10)], "n-high-start"),
         _place("osm-node-5", "waste_basket", "Waste Basket", [x(4), y(11)], None),
         _place("osm-node-6", "park", "Elmina Central Park", [x(5), y(12)], None),
         _place("osm-node-7", "school", "Far school", [110.0, 1.0], None),

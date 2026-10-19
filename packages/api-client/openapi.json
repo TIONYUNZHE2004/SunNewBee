@@ -535,6 +535,7 @@
               {
                 "enum": [
                   "confirmed",
+                  "likely_ok",
                   "partly_unverified",
                   "blocked",
                   "no_data"
@@ -2309,237 +2310,6 @@
         "title": "HTTPValidationError",
         "type": "object"
       },
-      "JourneyEvent": {
-        "description": "One stop of a journey (spec \u00a76.1), derived by journey.build_journey from world data only.",
-        "properties": {
-          "at_m": {
-            "title": "At M",
-            "type": "number"
-          },
-          "attributes": {
-            "items": {
-              "type": "string"
-            },
-            "title": "Attributes",
-            "type": "array"
-          },
-          "body": {
-            "title": "Body",
-            "type": "string"
-          },
-          "demo": {
-            "default": false,
-            "title": "Demo",
-            "type": "boolean"
-          },
-          "element_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Element Id"
-          },
-          "evidence_id": {
-            "title": "Evidence Id",
-            "type": "string"
-          },
-          "hold_s": {
-            "title": "Hold S",
-            "type": "number"
-          },
-          "kind": {
-            "enum": [
-              "covered",
-              "unknown",
-              "gap",
-              "verified",
-              "rest",
-              "arrive"
-            ],
-            "title": "Kind",
-            "type": "string"
-          },
-          "source": {
-            "anyOf": [
-              {
-                "enum": [
-                  "route.max_gap_between_rest_m",
-                  "route.to_place"
-                ],
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Source"
-          },
-          "status": {
-            "enum": [
-              "unknown",
-              "reported",
-              "verified",
-              "stale",
-              "contested",
-              "unverified",
-              "route"
-            ],
-            "title": "Status",
-            "type": "string"
-          },
-          "title": {
-            "title": "Title",
-            "type": "string"
-          }
-        },
-        "required": [
-          "kind",
-          "at_m",
-          "status",
-          "evidence_id",
-          "title",
-          "body",
-          "hold_s"
-        ],
-        "title": "JourneyEvent",
-        "type": "object"
-      },
-      "JourneyPlan": {
-        "description": "A planned route turned into a deterministic trip the 3D player animates (spec \u00a76.1).",
-        "properties": {
-          "conditions": {
-            "items": {
-              "additionalProperties": true,
-              "type": "object"
-            },
-            "title": "Conditions",
-            "type": "array"
-          },
-          "events": {
-            "items": {
-              "$ref": "#/components/schemas/JourneyEvent"
-            },
-            "title": "Events",
-            "type": "array"
-          },
-          "pace_m_per_s": {
-            "title": "Pace M Per S",
-            "type": "number"
-          },
-          "polyline": {
-            "items": {
-              "items": {
-                "type": "number"
-              },
-              "type": "array"
-            },
-            "title": "Polyline",
-            "type": "array"
-          },
-          "profile": {
-            "enum": [
-              "default",
-              "stroller",
-              "wheelchair",
-              "older_adult_rest",
-              "drive"
-            ],
-            "title": "Profile",
-            "type": "string"
-          },
-          "route_id": {
-            "title": "Route Id",
-            "type": "string"
-          },
-          "spans": {
-            "items": {
-              "maxItems": 3,
-              "minItems": 3,
-              "prefixItems": [
-                {
-                  "type": "number"
-                },
-                {
-                  "type": "number"
-                },
-                {
-                  "enum": [
-                    "PASS",
-                    "FAIL",
-                    "UNKNOWN"
-                  ],
-                  "type": "string"
-                }
-              ],
-              "type": "array"
-            },
-            "title": "Spans",
-            "type": "array"
-          },
-          "start_time": {
-            "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
-            "title": "Start Time",
-            "type": "string"
-          }
-        },
-        "required": [
-          "route_id",
-          "profile",
-          "start_time",
-          "pace_m_per_s",
-          "polyline",
-          "spans",
-          "events"
-        ],
-        "title": "JourneyPlan",
-        "type": "object"
-      },
-      "JourneyRequest": {
-        "properties": {
-          "from_id": {
-            "maxLength": 200,
-            "title": "From Id",
-            "type": "string"
-          },
-          "profile": {
-            "title": "Profile",
-            "type": "string"
-          },
-          "scenario_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Scenario Id"
-          },
-          "start_time": {
-            "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
-            "title": "Start Time",
-            "type": "string"
-          },
-          "to_id": {
-            "maxLength": 200,
-            "title": "To Id",
-            "type": "string"
-          }
-        },
-        "required": [
-          "from_id",
-          "to_id",
-          "profile",
-          "start_time"
-        ],
-        "title": "JourneyRequest",
-        "type": "object"
-      },
       "Kpis": {
         "properties": {
           "journeys_confirmed_pct": {
@@ -2575,34 +2345,107 @@
         "title": "Kpis",
         "type": "object"
       },
-      "NoJourney": {
-        "description": "Why there is no journey to play: the route status and a plain message.",
+      "Maneuver": {
         "properties": {
-          "message": {
-            "title": "Message",
-            "type": "string"
-          },
-          "route_status": {
+          "access_level": {
             "enum": [
-              "blocked",
-              "no_data"
+              "verified",
+              "likely_ok",
+              "unknown",
+              "barrier",
+              "not_a_road"
             ],
-            "title": "Route Status",
+            "title": "Access Level",
             "type": "string"
           },
-          "warnings": {
+          "action": {
+            "enum": [
+              "depart",
+              "continue",
+              "turn_left",
+              "turn_right",
+              "slight_left",
+              "slight_right",
+              "u_turn",
+              "cross",
+              "arrive"
+            ],
+            "title": "Action",
+            "type": "string"
+          },
+          "bearing_deg": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bearing Deg"
+          },
+          "distance_m": {
+            "title": "Distance M",
+            "type": "number"
+          },
+          "edge_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Edge Type"
+          },
+          "index": {
+            "title": "Index",
+            "type": "integer"
+          },
+          "point": {
+            "items": {
+              "type": "number"
+            },
+            "title": "Point",
+            "type": "array"
+          },
+          "rule_id": {
+            "title": "Rule Id",
+            "type": "string"
+          },
+          "segment_ids": {
             "items": {
               "type": "string"
             },
-            "title": "Warnings",
+            "title": "Segment Ids",
             "type": "array"
+          },
+          "street_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Street Name"
           }
         },
         "required": [
-          "route_status",
-          "message"
+          "index",
+          "action",
+          "distance_m",
+          "bearing_deg",
+          "street_name",
+          "edge_type",
+          "access_level",
+          "rule_id",
+          "segment_ids",
+          "point"
         ],
-        "title": "NoJourney",
+        "title": "Maneuver",
         "type": "object"
       },
       "OwnJourney": {
@@ -3055,6 +2898,22 @@
       },
       "Route": {
         "properties": {
+          "access_metres": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "propertyNames": {
+              "enum": [
+                "verified",
+                "likely_ok",
+                "unknown",
+                "barrier",
+                "not_a_road"
+              ]
+            },
+            "title": "Access Metres",
+            "type": "object"
+          },
           "crossings": {
             "items": {
               "additionalProperties": true,
@@ -3095,6 +2954,13 @@
           "id": {
             "title": "Id",
             "type": "string"
+          },
+          "maneuvers": {
+            "items": {
+              "$ref": "#/components/schemas/Maneuver"
+            },
+            "title": "Maneuvers",
+            "type": "array"
           },
           "max_gap_between_rest_m": {
             "anyOf": [
@@ -3198,6 +3064,7 @@
           "status": {
             "enum": [
               "confirmed",
+              "likely_ok",
               "partly_unverified",
               "blocked",
               "no_data"
@@ -3335,6 +3202,7 @@
           "status": {
             "enum": [
               "confirmed",
+              "likely_ok",
               "partly_unverified",
               "blocked",
               "no_data"
@@ -3359,6 +3227,18 @@
       },
       "RouteSegment": {
         "properties": {
+          "access_level": {
+            "default": "unknown",
+            "enum": [
+              "verified",
+              "likely_ok",
+              "unknown",
+              "barrier",
+              "not_a_road"
+            ],
+            "title": "Access Level",
+            "type": "string"
+          },
           "edge_id": {
             "title": "Edge Id",
             "type": "string"
@@ -3387,6 +3267,18 @@
               }
             ],
             "title": "Flood Class"
+          },
+          "rule_id": {
+            "default": "no_basis_v1",
+            "title": "Rule Id",
+            "type": "string"
+          },
+          "tags_used": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Tags Used",
+            "type": "object"
           }
         },
         "required": [
@@ -3500,7 +3392,6 @@
         "type": "object"
       },
       "SceneIntent": {
-        "description": "A scene intent on the wire (SSE `scene.intent`).",
         "properties": {
           "center": {
             "anyOf": [
@@ -3561,16 +3452,6 @@
             ],
             "title": "Geojson"
           },
-          "journey": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/JourneyPlan"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
           "kind": {
             "enum": [
               "camera.fly_to",
@@ -3581,8 +3462,7 @@
               "whatif.diff",
               "river.rollout",
               "day.show",
-              "day.trip",
-              "journey.play"
+              "day.trip"
             ],
             "title": "Kind",
             "type": "string"
@@ -3641,6 +3521,7 @@
               {
                 "enum": [
                   "confirmed",
+                  "likely_ok",
                   "partly_unverified",
                   "blocked",
                   "no_data"
@@ -3663,18 +3544,6 @@
               }
             ],
             "title": "Scenario Id"
-          },
-          "start_time": {
-            "anyOf": [
-              {
-                "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Start Time"
           },
           "t_min": {
             "anyOf": [
@@ -4207,53 +4076,7 @@
         "title": "SimViolation",
         "type": "object"
       },
-      "SiteBoundary": {
-        "description": "The display-only Elmina outline with its geometry, for the stylised renderer's clip and\ndiorama slab. Routing, evaluation and answers never read it. `geometry` is null when the file\nis missing, unreadable or not one Polygon / MultiPolygon.",
-        "properties": {
-          "area_km2": {
-            "title": "Area Km2",
-            "type": "number"
-          },
-          "as_of": {
-            "title": "As Of",
-            "type": "string"
-          },
-          "file": {
-            "title": "File",
-            "type": "string"
-          },
-          "geometry": {
-            "anyOf": [
-              {
-                "additionalProperties": true,
-                "type": "object"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Geometry"
-          },
-          "method": {
-            "title": "Method",
-            "type": "string"
-          },
-          "source": {
-            "title": "Source",
-            "type": "string"
-          }
-        },
-        "required": [
-          "file",
-          "source",
-          "method",
-          "area_km2",
-          "as_of"
-        ],
-        "title": "SiteBoundary",
-        "type": "object"
-      },
-      "SiteInfo": {
+      "Site": {
         "properties": {
           "attribution": {
             "items": {
@@ -4268,16 +4091,6 @@
             },
             "title": "Bbox",
             "type": "array"
-          },
-          "boundary": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/SiteBoundary"
-              },
-              {
-                "type": "null"
-              }
-            ]
           },
           "center": {
             "items": {
@@ -4358,7 +4171,7 @@
           "center",
           "bbox"
         ],
-        "title": "SiteInfo",
+        "title": "Site",
         "type": "object"
       },
       "Stage": {
@@ -4377,40 +4190,6 @@
           "label"
         ],
         "title": "Stage",
-        "type": "object"
-      },
-      "StreetFurnitureLayer": {
-        "description": "Fact-bearing street furniture for the stylised 3D city (display only, B-T6/B-T7): one Point\nper OSM traffic signal, bus stop, shelter, bench or picnic table inside the outline, plus seed\nseating / shelter places that coincide with none of them (`source: seed_place`). Each feature\ncarries its source `id` and `kind`. Routing, evaluation and answers never read it.",
-        "properties": {
-          "as_of": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "As Of"
-          },
-          "attribution": {
-            "default": [],
-            "items": {
-              "type": "string"
-            },
-            "title": "Attribution",
-            "type": "array"
-          },
-          "furniture": {
-            "additionalProperties": true,
-            "title": "Furniture",
-            "type": "object"
-          }
-        },
-        "required": [
-          "furniture"
-        ],
-        "title": "StreetFurnitureLayer",
         "type": "object"
       },
       "Suggestions": {
@@ -6208,54 +5987,6 @@
         "summary": "Healthz"
       }
     },
-    "/journeys": {
-      "post": {
-        "description": "The journey for the recommended route between two places (spec 2026-10-19 \u00a76.2).\n\nPlanned per request, like POST /routes (no route store, no verification requests filed).\nThe chat attaches the same plan to `journey.play` for the same endpoints, profile, scenario\nand start time.",
-        "operationId": "journeys_journeys_post",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/JourneyRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/JourneyPlan"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "404": {
-            "description": "unknown place or scenario"
-          },
-          "409": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/NoJourney"
-                }
-              }
-            },
-            "description": "no route to play (route status and why)"
-          },
-          "422": {
-            "description": "unknown profile or bad start time"
-          },
-          "500": {
-            "description": "a journey event without route evidence (a data or rule bug)"
-          }
-        },
-        "summary": "Journeys"
-      }
-    },
     "/kpis": {
       "get": {
         "operationId": "kpis_kpis_get",
@@ -6344,34 +6075,6 @@
           }
         },
         "summary": "Gaps Layer"
-      }
-    },
-    "/layers/street_furniture": {
-      "get": {
-        "description": "Street furniture points (display only). Declared before /layers/{lens} so it wins. 404 when\nthe world has no base/street_furniture.geojson (the client then draws no fact props).",
-        "operationId": "street_furniture_layer_layers_street_furniture_get",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/StreetFurnitureLayer"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "304": {
-            "description": "Not modified"
-          },
-          "404": {
-            "description": "no street furniture seed for this world"
-          },
-          "502": {
-            "description": "the street furniture seed is unreadable"
-          }
-        },
-        "summary": "Street Furniture Layer"
       }
     },
     "/layers/{lens}": {
@@ -7041,7 +6744,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/SiteInfo"
+                  "$ref": "#/components/schemas/Site"
                 }
               }
             },

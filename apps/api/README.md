@@ -11,6 +11,13 @@ pnpm gen   # regenerate packages/api-client (openapi.json + schema.d.ts)
 ```
 
 With no seed data present the API falls back to the tiny test fixture.
+An existing world with ambiguous IDs, invalid edge lengths or inconsistent routing geometry
+fails to load; it does not silently switch to the tiny fixture or return a route over malformed data.
+
+Road-section and access-layer `sidewalk_status` describe usable verification: undated or
+valueless verified claims become `unknown`, and expired claims become `stale`. Raw claims
+and evidence retain their audit status. An undated positive sidewalk cannot confirm a route;
+an undated rest stop can support only a `partly_unverified` journey that names the unchecked stop.
 
 ## Endpoints
 
@@ -21,7 +28,7 @@ With no seed data present the API falls back to the tiny test fixture.
 | GET | `/healthz` | liveness, plus `world_model`: the background warm-up's state (`warming` / `warm`), timings and world version |
 | GET | `/site` | site config |
 | GET | `/profiles` | read-only profile parameters (hard/soft limits, allowed types, speed, `stub`) for the "Assumptions" view |
-| GET | `/layers/{lens}` | `access`, `flood`, `waste`; `?profile=&scenario_id=`; LineStrings carry `status_for_profile` (ok, unknown, blocked, flooded_likely, flooded_possible); crossing edges also carry `crossing` / `crossing_status` (the marking claim, display only: zebra stripes are drawn only where it is `marked`); 404 unknown lens. Sends `ETag` and `Cache-Control: private, max-age=0, must-revalidate`; a matching `If-None-Match` gets 304. The ETag changes when a claim changes (`world.version`) and on API restart |
+| GET | `/layers/{lens}` | `access`, `flood`, `waste`; `?profile=&scenario_id=`; LineStrings carry `status_for_profile` (verified, likely_ok, unknown, blocked, not_a_road, flooded_likely, flooded_possible), plus access_level, rule_id and tags_used; crossing edges also carry `crossing` / `crossing_status` (the marking claim, display only: zebra stripes are drawn only where it is `marked`); 404 unknown lens. Sends `ETag` and `Cache-Control: private, max-age=0, must-revalidate`; a matching `If-None-Match` gets 304. The ETag changes when a claim changes (`world.version`) and on API restart |
 | GET | `/layers/gaps` | Gap map (Task 42): walk edges and places with `unknown_count`, `stale_count`, `relevant_count`, `unknown_attributes` and open-VR `demand`; `?profile=`. Edge facts are `evaluate.relevant_attributes`; places count the claims they carry. Counts only, no status or verdict. ETag also changes when VR demand changes |
 | GET | `/layers/street_furniture` | Display-only street furniture for the stylised city (B-T7): `{furniture, as_of, attribution}`, one Point per OSM traffic signal, bus stop, shelter, bench or picnic table inside the outline plus seed seating/shelter places that coincide with none (`source: seed_place`). Only features with a source `id`, a known `kind` and a finite Point are served. 404 when the world has no `base/street_furniture.geojson`, 502 when unreadable; ETag like `/layers/buildings`. Routing, evaluation and answers never read it |
 | GET | `/graph` | alias of `/layers/access` (no ETag) |
@@ -99,3 +106,24 @@ strict/lenient search; returned distance/time remain based on physical length.
 
 It warms again whenever `world.version` changes (it polls every 10 s). It takes the same two solver slots as requests, and a failing job is logged and skipped. `/verify-next` now goes through the cached `tools.plan_verifications`, so a busy solver returns 503.
 
+
+Access estimates use the spatial rules documented in `packages/spatial/README.md`.
+Routes add `likely_ok`, per-segment rule metadata, and `access_metres` in metres.
+These estimates are never checked facts. Driving non-roads are grey `not_a_road` lines.
+
+The access-layer cache and ETag include the current date, so expiry of a staff check cannot retain a previous day's Verified label or return 304 for expired data. The chat SSE `route_status` enum includes `likely_ok` for map-derived access estimates; generated API-client schemas must include this value.
+
+Driving routes respect mapped one-way directions, mode overrides and roundabout direction
+where source tags are present. A connected graph cut by forbidden traversal is `blocked`
+with a reported OSM `oneway` reason/evidence; a disconnected road graph remains `no_data`.
+Conditional/changing directions remain unknown with a warning. Legal turn restrictions and
+missing directional source coverage remain unmodelled, so driving remains indicative.
+
+Route `maneuvers` are deterministic directions along the selected graph path. Each step has a 1-based index, action, metres to the next step, initial true-north bearing (degrees, or null for directionless geometry), exact mapped street name (or null), mapped edge type, access level/rule, ordered segment IDs and a `[longitude, latitude]` point. Distances use physical edge lengths. Turns use oriented incoming/outgoing local tangents: under 20 degrees continues, 20 to under 60 is slight, 60 through 150 is a turn, above 150 is a U-turn. Continues merge only when name, type, access level and rule match. A straight entry into a mapped crossing uses `cross`; a turning entry retains its turn action and crossing type. No crossing control or destination side is inferred. `arrive` covers zero metres and no segments; a zero-edge route has only `arrive`. Results without a route have no steps. Every real turn is returned, including on long routes; answer summaries must disclose omitted steps. Driving remains indicative because legal turn restrictions are not modelled.
+
+Different places that share one graph node remain `partly_unverified` when a place entrance is explicitly inferred and lacks a mapped entrance or usable real staff access-point verification. Zero mapped metres do not prove that entrance connection. The gap appears in `unknowns` as `access_point`, with the normal evidence and verification-request behavior. Same-place queries, canonical centre/place aliases, explicit mapped entrances and fresh staff checks retain their existing behavior. Evacuation-centre rows use the same zero-edge rule.
+
+Rest-stop availability uses active place closures and the selected flood scenario, as well as
+seat/shelter claims. A closed or scenario-FAIL stop cannot satisfy the rest-distance limit.
+Possible flood or missing raster coverage keeps a stop unverified, with existing rest and flood
+warnings/evidence. The route and evacuation-centre responses share this rule.

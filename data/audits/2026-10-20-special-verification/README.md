@@ -1,0 +1,23 @@
+# Backend verification and flood follow-up
+
+All checks use the mock; model spend is US$0. Own API/web ports are 8021/5191. No e2e or PR was run by this worker.
+
+`26df8c7` closes a positive-verification gap in rest stops and sidewalks. A crafted undated seating claim previously made the older-adult detour `confirmed`, and an undated positive sidewalk passed the stroller check. Both now remain unverified through the common verification gate. Raw claims stay intact; derived sidewalk status becomes `unknown` when undated or valueless and `stale` after expiry. Negative barriers and the documented default-profile reported-sidewalk policy retain their behavior.
+
+`api-after.json` records HTTP route/layer/mock-chat responses from a separately labelled tiny world, with an undated rest stop and sidewalk. The answer names both required checks. This is not a finding in the Elmina seed: a scan of all 232 seed places and all edges found no undated verified claims. The real Elmina walking control remains `partly_unverified`, 416.4 m.
+
+`e2c53a1` makes flood-island centre membership and place samples use routing's explicit entrances and mode-specific road snaps. A place with any entrance in a centre-connected component is excluded from isolated samples. Baseline-disconnected entries remain data gaps. A road-node set is shared within the call, avoiding repeated whole-graph scans.
+
+`flood-api-after.json` records the crafted HTTP disagreement check: the centre route ends at mapped n-b, 55.6 m, so park-b/lakeside-mall/kiosk are not isolated even though the centre's older node is n-c. The old node's component remains isolated. This prevents fixing centre membership while still misclassifying the linked place through its old area node.
+
+`flood-seed-comparison.json` records 15 real-seed profile/scenario comparisons. Walking counts stay 20 (+3 m) / 29 (+5 m); driving changes 12→21 / 25→35 through consistent road snaps. Baseline stays zero and likely/possible totals are unchanged. Final driving runs took about 0.65–0.73 s versus about 2 s before road-set reuse; these are single observations during other checks, not a benchmark. **Island counts describe graph components under ruling R5, not legal, verified or rest-constrained routes.** Check individual journeys with routing or centre reachability.
+
+AI `c586d46` / recordings `6faef4d` are merged through `ab97315`. All 22 recording conflicts were headers; incoming AI event bodies were retained. The policy rejects model-written turns even when they are correct; the deterministic app renders directions. Saved probe controls were explicitly updated to that policy, with descriptive positive controls added. The original nine cases now pass, and the earlier lowercase/unnamed/repeated-street baits are rejected.
+
+**Historical round-three finding, fixed by AI c9da379:** four natural wrong-turn paraphrases passed the full validator: “Take a right…”, “Make a right turn…”, “Ambil simpang kanan…”, and “右拐…”. They are appended to `../2026-10-20-zero-route/probe_remaining_navigation.py` and `.json`; all older dishonest cases retain their rejection expectation. These are crafted offline validator proofs, not live model answers. Recommended correction: render the complete route answer from checked structured fields and engine warnings, instead of publishing arbitrary model route prose through a phrase blacklist. AI source is left to its owner.
+
+Passed checks so far: 209 affected verification/routing/access/flood/tool/API tests; 141 flood/entrance/direction checks plus one API consistency check; 53 AI direction/closure checks; lint; OpenAPI regeneration with no drift; golden 23/23 mock with no fallbacks or rejected attempts. Final integrated agent/API and recording signatures are recorded below after completion.
+
+Final integrated agent/API after all sources and AI c586d46: **1,163 PASS** in 197.21 s, including all 23 current cache-body checks. `fb271a6` refreshes 22/22 recording signatures with validated event bodies byte-preserved; every replay load succeeds. Own app is stopped and ports 8021/5191 are checked closed. The existing tests are green; those four paraphrases were still open at that checkpoint. AI later acknowledged all semantic notes. See the current checkpoint below.
+
+Current round-four checkpoint: AI `c9da379` closes all earlier saved 9+13 cases. Two new orientation reversals still pass full validation, so merge remains on hold. Full Python after loader and test-fixture fixes: **2,338 passed / 37 skipped**, with lint and golden green. All contract notes are acknowledged. See [world-integrity follow-up](../2026-10-20-world-integrity/README.md) for current evidence and handoff.

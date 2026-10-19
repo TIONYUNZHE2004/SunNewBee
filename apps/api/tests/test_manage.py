@@ -82,7 +82,7 @@ def test_layers_cache_invalidated_by_world_version():
 
     assert st() == "unknown"
     state.get_ctx().world.refresh_claim(
-        "seg-cf", "incline_pct", Claim(value=4.0, status="verified", verified_at="2026-10-15")
+        "seg-cf", "incline_pct", Claim(value=10.0, status="verified", verified_at="2026-10-15")
     )
     assert st() != "unknown"
 

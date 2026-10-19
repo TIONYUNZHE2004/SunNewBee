@@ -50,8 +50,16 @@ uv run --group data python data/scripts/build_flood.py --datum-offset -3.74 --os
 uv run --group data python data/scripts/build_waste.py
 ```
 
-Overpass responses are cached in `data/cache/` (gitignored); delete it to refetch. Node ids (`n-<lat*1e7>_<lon*1e7>`)
-are derived from coordinates because the cached `out geom` responses omit OSM node ids.
+Overpass responses are cached in `data/cache/` (gitignored). Routing queries now use
+`out body geom` to retain original OSM node members alongside geometry
+([Overpass output contract](https://wiki.openstreetmap.org/wiki/Overpass_API/Overpass_QL#out)).
+New imports use `n-<OSM node id>`; equal coordinates never establish a junction.
+Missing/synthetic IDs, incomplete geometry or conflicting coordinates for one source node
+stop the import before any seed file is written. Legacy `out geom tags` caches have different
+query keys and cannot supply topology: the first rebuild needs fresh, budgeted source queries.
+The committed seed still contains legacy coordinate-derived IDs; this importer guard alone
+does not prove or repair its topology. Rebuild import → overlay → flood → waste together,
+then audit changed components/routes and regenerate mock recordings before committing data.
 
 ## Import (2026-10-15)
 
@@ -419,3 +427,16 @@ All Overpass traffic goes through `overpass.py` (cache, backoff, request cap). E
   - Add `--count-leaves` to stop one level early: leaf tilesets at `--max-error` are counted, not fetched, and the requests a full run needs are estimated.
   - Then run once with an approved cap: `... --bbox hero --max-requests <approved>` (`--bbox hero|township|w,s,e,n`).
 - The key is read from `GOOGLE_MAPS_API_KEY` (environment or repo-root `.env`) and is never printed; HTTP 401/403 exits 2 with `BLOCKED: ...`.
+
+## Path and access audits (18 Oct 2026)
+
+`audits/2026-10-18-t018-path-map.json` records source/graph/display findings at control
+8d20778. It is not a field survey. The ranked findings are in T-018 on the agent board.
+`import_osm.py` now retains access, mode, surface, sidewalk and geometry-context OSM tags
+on every split edge. It does not invent claims from missing tags. Rebuilding the ordered
+pipeline preserves these tags through the demo overlay.
+
+`uv run python data/scripts/audit_access.py --output data/audits/2026-10-18-t020-access.json`
+compares legacy factual counts against the new map-derived levels. It uses no network or
+model calls. The stored report compares identical geometry and claims, removing raw tags
+only for the legacy evaluator. See `packages/spatial/README.md` for the rule contract.

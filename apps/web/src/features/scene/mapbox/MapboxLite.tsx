@@ -35,6 +35,12 @@ const COLOR = [
   ["get", "status_for_profile"],
   "ok",
   statusStyle("ok").color,
+  "verified",
+  statusStyle("verified").color,
+  "likely_ok",
+  statusStyle("likely_ok").color,
+  "not_a_road",
+  statusStyle("not_a_road").color,
   "unknown",
   statusStyle("unknown").color,
   "blocked",
@@ -52,6 +58,12 @@ const WIDTH = (extra: number) =>
     ["get", "status_for_profile"],
     "ok",
     statusStyle("ok").width + extra,
+    "verified",
+    statusStyle("verified").width + extra,
+    "likely_ok",
+    statusStyle("likely_ok").width + extra,
+    "not_a_road",
+    statusStyle("not_a_road").width + extra,
     "unknown",
     statusStyle("unknown").width + extra,
     "blocked",
@@ -70,7 +82,8 @@ const PATTERNS: {
   paint: Record<string, unknown>;
   layout?: Record<string, unknown>;
 }[] = [
-  { id: "solid", statuses: ["ok", "flooded_likely"], paint: {} },
+  { id: "solid", statuses: ["ok", "verified", "not_a_road", "flooded_likely"], paint: {} },
+  { id: "estimated", statuses: ["likely_ok"], paint: { "line-dasharray": [1, 1] } },
   { id: "dashed", statuses: ["unknown", "flooded_possible"], paint: { "line-dasharray": [2, 1] } },
   {
     id: "dotted",

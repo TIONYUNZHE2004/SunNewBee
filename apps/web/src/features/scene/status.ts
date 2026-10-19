@@ -1,6 +1,15 @@
 import type { EdgeStatus } from "./styles";
 
-const CANONICAL: EdgeStatus[] = ["ok", "unknown", "blocked", "flooded_likely", "flooded_possible"];
+const CANONICAL: EdgeStatus[] = [
+  "ok",
+  "verified",
+  "likely_ok",
+  "not_a_road",
+  "unknown",
+  "blocked",
+  "flooded_likely",
+  "flooded_possible",
+];
 
 /** Single source of truth for edge status across Cesium, Mapbox and the list. */
 export function mapStatus(props: Record<string, unknown> | null | undefined): EdgeStatus {

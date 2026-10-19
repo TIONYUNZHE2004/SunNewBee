@@ -1,0 +1,100 @@
+[
+  {
+    "id": "b01",
+    "question": "My mum is not in a wheelchair, she walks with a stick. How does she get from Surau Al Mahdi to Surau At Taqwa?",
+    "result": "OK",
+    "profile/scenario": ["default", null],
+    "expected": ["default", null]
+  },
+  {
+    "id": "b02",
+    "question": "Take me to Surau At Taqwa, starting at Surau Al Mahdi.",
+    "result": "OK",
+    "profile/scenario": ["default", null],
+    "expected": ["default", null]
+  },
+  {
+    "id": "b03",
+    "question": "My house is 2 m from the river. How do I walk from Surau Al Mahdi to Surau At Taqwa?",
+    "result": "OK",
+    "profile/scenario": ["default", null],
+    "expected": ["default", null]
+  },
+  {
+    "id": "b04",
+    "question": "Can my father in a wheelchair go from Surau Al Mahdi to Surau At Taqwa, and are there rest points?",
+    "result": "OK",
+    "profile/scenario": ["wheelchair", null],
+    "expected": ["wheelchair", null]
+  },
+  {
+    "id": "b05",
+    "question": "Boleh saya tolak kereta sorong dari Lakeside Mall Car Park B ke taman permainan?",
+    "result": "OK",
+    "profile/scenario": ["stroller", null],
+    "expected": ["stroller", null]
+  },
+  {
+    "id": "b06",
+    "question": "从B停车场推婴儿车去游乐场怎么走？",
+    "result": "OK",
+    "profile/scenario": ["stroller", null],
+    "expected": ["stroller", null]
+  },
+  {
+    "id": "b07",
+    "question": "How do I get to the playground from Car Park B?",
+    "result": "OK",
+    "profile/scenario": ["default", null],
+    "expected": ["default", null]
+  },
+  {
+    "id": "b08",
+    "question": "Surau Al Mahdi → Surau At Taqwa, walking",
+    "result": "OK",
+    "profile/scenario": ["default", null],
+    "expected": ["default", null]
+  },
+  {
+    "id": "b09",
+    "question": "I'm at Surau Al Mahdi. Is Surau At Taqwa reachable on foot?",
+    "result": "OK",
+    "profile/scenario": ["default", null],
+    "expected": ["default", null]
+  },
+  {
+    "id": "b10",
+    "question": "From Surau Al Mahdi to Surau At Taqwa, the 5 m wide path please",
+    "result": "OK",
+    "profile/scenario": ["default", null],
+    "expected": ["default", null]
+  },
+  {
+    "id": "b11",
+    "question": "If the river rises 3 m, can I walk from Surau Al Mahdi to Surau At Taqwa?",
+    "result": "OK",
+    "profile/scenario": ["default", "stage_p3m"],
+    "expected": ["default", "stage_p3m"]
+  },
+  {
+    "id": "b12",
+    "question": "Dari Surau Al Mahdi ke Surau At Taqwa, saya tidak guna kerusi roda.",
+    "result": "OK",
+    "profile/scenario": ["default", null],
+    "expected": ["default", null]
+  },
+  {
+    "id": "b13",
+    "question": "Walking from Elmina Lakeside Mall to Elmina Urban Park, then I need a toilet",
+    "result": "OK",
+    "profile/scenario": ["default", null],
+    "expected": ["default", null]
+  },
+  {
+    "id": "b14",
+    "question": "How far is Surau At Taqwa from Surau Al Mahdi?",
+    "result": "OK",
+    "profile/scenario": ["default", null],
+    "expected": ["default", null]
+  }
+]

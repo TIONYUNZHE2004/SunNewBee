@@ -11,7 +11,8 @@ from pydantic import BaseModel, Field, field_validator
 
 ClaimStatus = Literal["unknown", "reported", "verified", "stale", "contested"]
 EvalResult = Literal["PASS", "FAIL", "UNKNOWN"]
-RouteStatus = Literal["confirmed", "partly_unverified", "blocked", "no_data"]
+RouteStatus = Literal["confirmed", "likely_ok", "partly_unverified", "blocked", "no_data"]
+AccessLevel = Literal["verified", "likely_ok", "unknown", "barrier", "not_a_road"]
 FloodClass = Literal["likely_flooded", "possible", "unlikely"]
 ProfileId = Literal["default", "stroller", "wheelchair", "older_adult_rest", "drive"]
 Lens = Literal["access", "flood", "waste"]
@@ -123,6 +124,7 @@ class Edge(BaseModel):
     coords: list[LonLat]
     length_m: float
     name: str | None = None
+    osm_tags: dict[str, str] = Field(default_factory=dict)
     claims: dict[str, Claim] = Field(default_factory=dict)
     # Staff-reported closures (not yet expired); evaluate_edge ignores any outside its window.
     closures: list[Closure] = Field(default_factory=list)
@@ -246,6 +248,9 @@ class RouteSegment(BaseModel):
     edge_id: str
     eval: EvalResult
     flood_class: FloodClass | None = None
+    access_level: AccessLevel = "unknown"
+    rule_id: str = "no_basis_v1"
+    tags_used: dict[str, str] = Field(default_factory=dict)
 
 
 class RoadSection(BaseModel):
@@ -254,6 +259,32 @@ class RoadSection(BaseModel):
     length_m: float
     sidewalk: str | None = None
     sidewalk_status: ClaimStatus = "unknown"
+
+
+ManeuverAction = Literal[
+    "depart",
+    "continue",
+    "turn_left",
+    "turn_right",
+    "slight_left",
+    "slight_right",
+    "u_turn",
+    "cross",
+    "arrive",
+]
+
+
+class Maneuver(BaseModel):
+    index: int  # 1-based, in travel order
+    action: ManeuverAction
+    distance_m: float  # covered edge lengths to the next maneuver, rounded to 0.1 m
+    bearing_deg: float | None  # clockwise from true north; None for directionless geometry
+    street_name: str | None  # exact mapped name, never a generated label
+    edge_type: str | None
+    access_level: AccessLevel
+    rule_id: str
+    segment_ids: list[str]
+    point: LonLat  # routed graph point; never an inferred off-graph entrance
 
 
 class Route(BaseModel):
@@ -267,6 +298,8 @@ class Route(BaseModel):
     distance_m: float
     est_minutes: float
     segments: list[RouteSegment]
+    maneuvers: list[Maneuver] = Field(default_factory=list)
+    access_metres: dict[AccessLevel, float] = Field(default_factory=dict)
     unknowns: list[dict[str, str]] = Field(default_factory=list)  # {element_id, attribute, why}
     # {place_id, node_id, name, status: verified|unverified}; rest points recorded absent are
     # left out.

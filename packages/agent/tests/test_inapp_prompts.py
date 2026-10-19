@@ -21,35 +21,51 @@ MOCK = AgentSettings(_env_file=None, llm_provider="mock", assistant_scope="all")
 # (message, profile, scenario_id). The resident starters are copied from
 # apps/web/src/features/assistant/starters.ts; test_resident_starters_match_starters_ts: drift.
 ACCESS = [
-    ("Can I get to the lakeside mall with a stroller?", "stroller", None),
-    ("Can I get to the lakeside mall in a wheelchair?", "wheelchair", None),
+    ("Can I get from Car Park B to the lakeside mall with a stroller?", "stroller", None),
+    ("Can I get from Car Park B to the lakeside mall in a wheelchair?", "wheelchair", None),
     (
-        "Can I get to the lakeside mall if I am an older adult who needs to rest?",
+        "Can I get from Car Park B to the lakeside mall if I am an older adult who needs to rest?",
         "older_adult_rest",
         None,
     ),
     ("Is the walk from the urban park to the lakeside mall easy?", "default", None),
 ]
 FLOOD = [
-    ("Where is the nearest evacuation centre if the water rises 3 m?", "default", "stage_p3m"),
-    ("Where is the nearest evacuation centre if the water rises 3 m?", "wheelchair", "stage_p3m"),
+    (
+        "From Elmina Lakeside Mall, where is the nearest evacuation centre if the water rises 3 m?",
+        "default",
+        "stage_p3m",
+    ),
+    (
+        "From Elmina Lakeside Mall, where is the nearest evacuation centre if the water rises 3 m?",
+        "wheelchair",
+        "stage_p3m",
+    ),
     (
         "Which routes to the lakeside mall are cut off if the water rises 3 m?",
         "default",
         "stage_p3m",
     ),
-    ("Where is the nearest evacuation centre if the water rises 1 m?", "default", "stage_p1m"),
+    (
+        "From Elmina Lakeside Mall, where is the nearest evacuation centre if the water rises 1 m?",
+        "default",
+        "stage_p1m",
+    ),
 ]
 WASTE = [("Where can I drop off recycling nearby?", "default", None)]
 WHERE = [
-    ("Where can I go?", "default", "stage_p3m"),
-    ("Where can I go?", "wheelchair", "stage_p3m"),
+    ("From Elmina Lakeside Mall, where can I go?", "default", "stage_p3m"),
+    ("From Elmina Lakeside Mall, where can I go?", "wheelchair", "stage_p3m"),
 ]
 # Resident starters in the two-screen assistant (features/assistant/starters.ts).
 STARTERS = [
     ("Stroller route from Car Park B to the playground", "stroller", None),
-    ("Wheelchair route to the lakeside mall", "wheelchair", None),
-    ("Nearest evacuation centre if the water rises 3 m", "default", None),
+    ("Wheelchair route from Car Park B to the lakeside mall", "wheelchair", None),
+    (
+        "From Elmina Lakeside Mall, nearest evacuation centre if the water rises 3 m",
+        "default",
+        None,
+    ),
     (
         "At which river level does my route from the mall to an evacuation centre break?",
         "default",
@@ -91,13 +107,17 @@ async def test_inapp_prompt_is_answered_by_the_mock(world, tmp_path, msg, profil
     low = text.lower()
     words = re.findall(r"[a-z]+", low)
     assert "safe" not in words
-    assert not re.search(r"(?<!un)verified", low), "no verified wording on demo data"
+    assert not re.search(r"(?<!un)(?<!not )verified", low), "no verified wording on demo data"
     assert not re.search(r"\d+(?:\.\d+)?\s*(?:cm|centimet|metres? deep|m deep)", low)
     assert not re.search(r"\b(?:depth|deep)\b", low)
     if scenario:
         assert "indicative" in low and "not a forecast" in low
         n = scenario.removeprefix("stage_p").removesuffix("m")
-        if "cut off" in msg or "evacuation" in msg or msg == "Where can I go?":
+        if (
+            "cut off" in msg
+            or "evacuation" in msg
+            or msg == "From Elmina Lakeside Mall, where can I go?"
+        ):
             assert f"River +{n} m" in text
         assert any(
             e.type == "scene.intent"
@@ -108,7 +128,8 @@ async def test_inapp_prompt_is_answered_by_the_mock(world, tmp_path, msg, profil
     # a planned route is always named with its status
     if any(e.type == "tool.result" and e.name == "plan_route" for e in evs):
         assert re.search(
-            r"Route status: (confirmed|partly unverified|blocked|no mapped connection)|route "
+            r"Route status: (confirmed|likely OK|partly unverified|blocked|no mapped connection)"
+            r"|route "
             r"(confirmed|partly unverified)|No mapped connection|nearest reachable centre",
             text,
         ), text
@@ -131,7 +152,10 @@ async def test_urban_park_route_is_routable_with_entrance_caveat(world, tmp_path
     msg, profile, scenario = ACCESS[3]
     evs = await _turn(world, tmp_path, msg, profile, scenario)
     text = _text(evs)
-    assert "Elmina Urban Park to Elmina Lakeside Mall: route confirmed" in text
+    assert (
+        "Elmina Urban Park to Elmina Lakeside Mall: route likely OK "
+        "(estimated from map data, not checked)" in text
+    )
     assert (
         "Route starts at the nearest mapped path to Elmina Urban Park; "
         "its entrance is not mapped" in text
@@ -140,7 +164,9 @@ async def test_urban_park_route_is_routable_with_entrance_caveat(world, tmp_path
 
 
 async def test_wheelchair_where_can_i_go_is_short(world, tmp_path):
-    evs = await _turn(world, tmp_path, "Where can I go?", "wheelchair", "stage_p3m")
+    evs = await _turn(
+        world, tmp_path, "From Elmina Lakeside Mall, where can I go?", "wheelchair", "stage_p3m"
+    )
     text = _text(evs)
     assert len(text.encode()) < 2048, len(text)
     assert "staff have been asked" not in text
@@ -178,7 +204,10 @@ async def test_wheelchair_where_can_i_go_is_short(world, tmp_path):
 
 @pytest.mark.parametrize("level,sid", [("1 m", "stage_p1m"), ("3 m", "stage_p3m")])
 async def test_asked_river_level_selects_that_scenario(world, tmp_path, level, sid):
-    msg = f"Where is the nearest evacuation centre if the water rises {level}?"
+    msg = (
+        "From Elmina Lakeside Mall, where is the nearest evacuation centre "
+        f"if the water rises {level}?"
+    )
     evs = await _turn(world, tmp_path, msg, "default", None)
     calls = [e.args for e in evs if e.type == "tool.call" and e.name == "list_evacuation_centres"]
     assert calls and calls[0]["scenario_id"] == sid
@@ -187,7 +216,10 @@ async def test_asked_river_level_selects_that_scenario(world, tmp_path, level, s
 
 @pytest.mark.parametrize("level", ["10 m", "3.5 m", "0 m", "6 m"])
 async def test_unsupported_river_level_abstains(world, tmp_path, level):
-    msg = f"Where is the nearest evacuation centre if the water rises {level}?"
+    msg = (
+        "From Elmina Lakeside Mall, where is the nearest evacuation centre "
+        f"if the water rises {level}?"
+    )
     evs = await _turn(world, tmp_path, msg, "default", None)
     assert evs[-1].answer_status == "cannot_answer"
     assert "Scenarios exist for river levels +1 m to +5 m only." in _text(evs)
@@ -219,14 +251,18 @@ async def test_urban_park_to_mall_routes_between_both(world, tmp_path):
 
 @pytest.mark.parametrize("profile", ["default", "wheelchair"])
 async def test_where_can_i_go_names_the_demo_start(world, tmp_path, profile):
-    evs = await _turn(world, tmp_path, "Where can I go?", profile, "stage_p3m")
-    assert "from Elmina Lakeside Mall (demo start point)" in _text(evs)
+    evs = await _turn(
+        world, tmp_path, "From Elmina Lakeside Mall, where can I go?", profile, "stage_p3m"
+    )
+    assert "from Elmina Lakeside Mall" in _text(evs)
     finds = [e.args["query"] for e in evs if e.type == "tool.call" and e.name == "find_place"]
     assert finds == ["lakeside mall"]
 
 
 async def test_where_can_i_go_without_scenario_asks_for_a_river_level(world, tmp_path):
-    evs = await _turn(world, tmp_path, "Where can I go?", "default", None)
+    evs = await _turn(
+        world, tmp_path, "From Elmina Lakeside Mall, where can I go?", "default", None
+    )
     assert evs[-1].answer_status == "cannot_answer"
     assert "river level" in _text(evs)
 
@@ -337,3 +373,12 @@ async def test_weak_match_without_a_place_phrase_says_cannot_and_files_nothing(w
 def _legacy_scope(monkeypatch):
     # These existing engine/pipeline regressions explicitly retain all legacy features.
     monkeypatch.setenv("ASSISTANT_SCOPE", "all")
+
+
+@pytest.mark.parametrize("msg", ["Wheelchair route to the lakeside mall", "Where can I go?"])
+async def test_missing_origin_asks_instead_of_selecting_demo_route(world, tmp_path, msg):
+    evs = await _turn(world, tmp_path, msg, "wheelchair", "stage_p3m")
+    assert evs[-1].answer_status == "cannot_answer"
+    assert not _routes(evs)
+    assert not any(e.type == "scene.intent" and e.intent.kind == "route.highlight" for e in evs)
+    assert "start" in _text(evs).lower()

@@ -17,11 +17,22 @@ from .labels import (
     CLOSURE_WORDS,
     DEMO_CONFIRMED,
     REST_GAP_WORDS,
+    ROAD_WORDS,
     closure_name,
     closure_until,
     detect_language,
 )
+from .localize import localize
 from .record import TurnRecord
+from .route_binding import (
+    amenity_selection_errors,
+    amenity_text_errors,
+    bound_measurement_errors,
+    estimate_text_errors,
+    has_estimate_qualifier,
+    has_estimates,
+)
+from .steps import maneuver_errors
 
 FORBIDDEN = re.compile(r"(?<![\w-])safe(?:ly)?(?![\w-])|\bselamat\b|安全", re.IGNORECASE)
 DEPTH = re.compile(
@@ -247,6 +258,19 @@ def _names_closure(segments: list[str], row: dict) -> bool:
     )
 
 
+CROSSING_ANY = re.compile(r"crossings?|lintasan|过街|人行横道|斑马线", re.IGNORECASE)
+
+
+def _note_given(note: str, caveat: str, words: re.Pattern[str]) -> bool:
+    """A fixed plan_route note is in a caveat: word for word, as the app's own BM / 中文 line
+    (localize), or translated by the model with the same subject words and every number of the
+    note (T-019: a translated crossing or road note is not a missing one)."""
+    if any(_norm_note(localize(note, lang)) in _norm_note(caveat) for lang in ("en", "ms", "zh")):
+        return True
+    nums = re.findall(r"\d+", note)
+    return bool(words.search(caveat)) and all(re.search(rf"(?<!\d){n}(?!\d)", caveat) for n in nums)
+
+
 def _inferred_ok(note: str, caveat: str) -> bool:
     """The plan_route note "... nearest mapped path to <place>; its entrance is not mapped" is
     given word for word, or (in any language) as a caveat naming the place and saying its
@@ -374,7 +398,7 @@ def measurement_errors(ans: FinalAnswer, rec: TurnRecord) -> list[str]:
     # Names go (they may hold numbers), but what they are stays: "Urban Park toilet is 440.6 m
     # from Elmina Lakeside Mall" is checked as "toilet is 440.6 m from mall".
     text = _names_to_categories(" ".join(parts), rec.place_names)
-    errs: list[str] = []
+    errs: list[str] = bound_measurement_errors(ans, rec)
     # Rehearsal clock durations ("over 2 hours", "313 min") are checked by day_errors and
     # my_trip_errors, not here.
     skip = {"time"} if rec.days or rec.day_changes or rec.my_trips else set()
@@ -468,9 +492,79 @@ def _status_of(ans: FinalAnswer, rec: TurnRecord) -> str | None:
     return status
 
 
+# T-020: a likely_ok route rests on map-data estimates. Access claims about it must be hedged in
+# their own clause; the answer must say it is estimated.
+ACCESS_CLAIM = re.compile(
+    r"\b(?:step[- ]free|(?:wheelchair|stroller|pram)[- ](?:friendly|accessible)|accessible"
+    r"|barrier[- ]free|no (?:steps|stairs))\b"
+    r"|bebas (?:tangga|halangan)|tanpa anak tangga|mesra (?:oku|kerusi roda)|boleh diakses"
+    r"|无障碍|无台阶|没有台阶|适合轮椅|方便轮椅|轮椅可以通行",
+    re.IGNORECASE,
+)
+ESTIMATE_HEDGE = re.compile(
+    r"\b(?:likely|estimat\w*|may|might|not (?:yet )?(?:checked|verified|confirmed)|unverified"
+    r"|unchecked|recorded|on the map|map data|tagged)\b"
+    r"|\b(?:mungkin|kemungkinan|anggaran|dianggarkan|belum|direkodkan|data peta)\b"
+    r"|可能|估计|估算|未核实|尚未|记录|地图数据",
+    re.IGNORECASE,
+)
+ESTIMATE_WORDS = re.compile(r"\bestimat|\banggar|估计|估算|推估", re.IGNORECASE)
+_CLAUSE = re.compile(r"[.;:!?。；：！？\n,，]")
+
+
+def _selected_route(ans: FinalAnswer, rec: TurnRecord) -> dict:
+    return rec.routes.get(ans.route_id or "") or (
+        next(iter(rec.routes.values())) if len(rec.routes) == 1 else {}
+    )
+
+
+def estimate_claim_errors(ans: FinalAnswer, rec: TurnRecord) -> list[str]:
+    """For a likely_ok route, or a route whose maneuvers include estimated or unchecked
+    stretches (T-021): no unhedged access claim ("step-free", "无障碍") in any clause."""
+    levels = {m.get("access_level") for m in _selected_route(ans, rec).get("maneuvers") or []}
+    if _status_of(ans, rec) != "likely_ok" and not levels & {"likely_ok", "unknown"}:
+        return []
+    text = _strip_names(" ".join([ans.summary, *ans.steps, *ans.caveats]), rec.place_names)
+    bad = [
+        m.group(0)
+        for clause in _CLAUSE.split(text)
+        for m in ACCESS_CLAIM.finditer(clause)
+        if not ESTIMATE_HEDGE.search(clause)
+    ]
+    if not bad:
+        return []
+    return [
+        f"The route is only likely OK (estimated from map data, not checked): {sorted(set(bad))} "
+        "stated as fact. Say 'likely step-free (estimated from map data, not checked)' instead."
+    ]
+
+
+def estimate_wording_errors(ans: FinalAnswer, rec: TurnRecord) -> list[str]:
+    """A final answer about a likely_ok route says that it is an estimate."""
+    if ans.answer_status == "cannot_answer" or _status_of(ans, rec) != "likely_ok":
+        return []
+    if ESTIMATE_WORDS.search(" ".join([ans.summary, *ans.steps, *ans.caveats])):
+        return []
+    return [
+        "The route is likely OK only by estimate: say it is 'estimated from map data, not "
+        "checked' ('anggaran daripada data peta' / '根据地图数据估计')."
+    ]
+
+
 def status_wording_errors(ans: FinalAnswer, rec: TurnRecord) -> list[str]:
     """How the text names route status and crossings. Shared with `draft_errors`."""
-    errs: list[str] = []
+    errs: list[str] = estimate_claim_errors(ans, rec)
+    errs += maneuver_errors(  # model-written text only: the app renders the steps (run.py)
+        _strip_names(
+            " ".join([ans.summary, *ans.caveats, *(c.text for c in ans.claims)]), rec.place_names
+        ),
+        _selected_route(ans, rec),
+        {
+            str(c.get("element_name") or "")
+            for c in [*rec.route_closures, *rec.closures.values()]
+            if c.get("element_name")
+        },
+    )
     status = _status_of(ans, rec)
     if status:
         named = _named_statuses(ans.summary, ans.steps) - {status}
@@ -527,7 +621,40 @@ def draft_errors(text: str, rec: TurnRecord) -> list[str]:
 
 
 def validate_answer(ans: FinalAnswer, rec: TurnRecord) -> list[str]:
-    errs: list[str] = []
+    errs: list[str] = amenity_selection_errors(ans, rec)
+    if rec.selection_error and ans.answer_status != "cannot_answer":
+        errs.append(
+            "Route selection is unresolved: ask which exact places or travel mode "
+            "before showing a route."
+        )
+    if len(rec.routes) > 1 and not ans.route_id and ans.answer_status != "cannot_answer":
+        errs.append("Select the exact route_id being answered before showing a route.")
+    selected = ans.route_id or (next(iter(rec.routes)) if len(rec.routes) == 1 else None)
+    selected_route = rec.routes.get(selected, {})
+    if "scenario_id" in selected_route and (
+        (selected_route["scenario_id"] or "baseline") != (ans.scenario_id or "baseline")
+    ):
+        errs.append("The answer scenario must match the selected route's river scenario.")
+    allowed_scenarios = rec.scenarios_used | {
+        e.element_id for e in rec.evidence.values() if e.attribute == "scenario"
+    }
+    if ans.scenario_id and rec.scenarios_used and ans.scenario_id not in allowed_scenarios:
+        errs.append("The answer scenario was not checked by tools in this turn.")
+    for intent in ans.scene_intents:
+        if intent.kind == "flood.set_level" and (
+            intent.scenario_id != ans.scenario_id or intent.scenario_id not in allowed_scenarios
+        ):
+            errs.append("The map flood scenario must match the answer and checked tool scenario.")
+    if (
+        has_estimates(rec)
+        and ans.answer_status != "cannot_answer"
+        and not has_estimate_qualifier(" ".join([ans.summary, *ans.steps, *ans.caveats]))
+    ):
+        errs.append(
+            "State that Likely OK sections are estimated from map data, not checked on site."
+        )
+    if any(i.kind == "route.highlight" and i.route_id != selected for i in ans.scene_intents):
+        errs.append("The map route must match the selected answer route_id.")
     for c in ans.claims:
         if ans.answer_status != "cannot_answer" and not c.evidence_ids:
             errs.append(
@@ -555,6 +682,7 @@ def validate_answer(ans: FinalAnswer, rec: TurnRecord) -> list[str]:
     if status is None and len(rec.route_status) == 1:
         status = next(iter(rec.route_status.values()))  # unambiguous even without route_id
     errs += status_wording_errors(ans, rec)
+    errs += estimate_wording_errors(ans, rec)
     partly = status == "partly_unverified" or (
         ans.answer_status == "answered" and "partly_unverified" in rec.route_status.values()
     )
@@ -587,9 +715,19 @@ def validate_answer(ans: FinalAnswer, rec: TurnRecord) -> list[str]:
     if (
         ans.answer_status != "cannot_answer"
         and cnote
-        and not any(_norm_note(cnote) in _norm_note(c) for c in ans.caveats)
+        and not any(_note_given(cnote, c, CROSSING_ANY) for c in ans.caveats)
     ):
         errs.append(f"plan_route says: {cnote!r} Add that as a caveat (word for word).")
+    rnote = route.get("road_note")
+    if (
+        ans.answer_status != "cannot_answer"
+        and rnote
+        and not any(_note_given(rnote, c, ROAD_WORDS) for c in ans.caveats)
+    ):
+        errs.append(
+            f"plan_route warned: {rnote!r} Add that as a caveat (word for word); never call "
+            "that stretch a footpath or sidewalk."
+        )
     if ans.answer_status != "cannot_answer":
         for note in rec.inferred_notes:
             if not any(_inferred_ok(note, c) for c in ans.caveats):
@@ -657,7 +795,7 @@ def text_errors(text: str, rec: TurnRecord) -> list[str]:
     """Wording rules that depend only on the text and this turn's record. Shared by
     `validate_answer` and the draft guard (`draft.DraftStreamer`), so a draft is never allowed
     to show what the final check would reject."""
-    errs: list[str] = []
+    errs: list[str] = [*estimate_text_errors(text, rec), *amenity_text_errors(text, rec)]
     if _has_placeholder(rec) and (BANNED_PLACEHOLDER.search(text) or _claims_verified(text)):
         # Any placeholder evidence returned this turn (cited or not) forbids "verified" wording.
         errs.append(
@@ -1696,6 +1834,10 @@ _ISSUES = (
     ("placeholder data", "left out that values are demo values, not yet surveyed"),
     ("confirmed only on placeholder", "called a demo-value route plainly confirmed"),
     ("Route status contradiction", "named a different route status than the route check found"),
+    ("only likely OK", "called an estimated route step-free or accessible"),
+    ("not on this route's maneuvers", "named a street the route does not use"),
+    ("No maneuver on this route turns", "gave a turn the route does not make"),
+    ("likely OK only by estimate", "did not say the route is an estimate"),
     ("staff-reported closure", "did not name a staff-reported closure"),
     ("Write for residents", "used internal ids instead of readable names"),
     ("No tool was called", "answered without checking the township data"),

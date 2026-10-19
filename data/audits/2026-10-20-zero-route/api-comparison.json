@@ -1,0 +1,728 @@
+{
+  "before_inferred_connection": {
+    "status": "confirmed",
+    "routes": [
+      {
+        "id": "rt-79a1a12c",
+        "status": "confirmed",
+        "from_place": "osm-way-1309457596",
+        "to_place": "bench-urban-3",
+        "target_node": "n-31805474_1015098542",
+        "profile": "stroller",
+        "scenario_id": null,
+        "distance_m": 0.0,
+        "est_minutes": 0.0,
+        "segments": [],
+        "maneuvers": [
+          {
+            "index": 1,
+            "action": "arrive",
+            "distance_m": 0.0,
+            "bearing_deg": null,
+            "street_name": null,
+            "edge_type": null,
+            "access_level": "unknown",
+            "rule_id": "no_basis_v1",
+            "segment_ids": [],
+            "point": [101.509854, 3.180547]
+          }
+        ],
+        "access_metres": {
+          "verified": 0.0,
+          "likely_ok": 0.0,
+          "unknown": 0.0,
+          "barrier": 0.0,
+          "not_a_road": 0.0
+        },
+        "unknowns": [],
+        "rest_points": [
+          {
+            "place_id": "bench-urban-3",
+            "node_id": "n-31805474_1015098542",
+            "name": "Urban Park bench 3",
+            "status": "verified"
+          }
+        ],
+        "crossings": [],
+        "sidewalk_m": 0.0,
+        "road_m": 0.0,
+        "road_without_mapped_sidewalk_m": 0.0,
+        "road_sections": [],
+        "max_gap_between_rest_m": 0.0,
+        "rest_limit_m": null,
+        "rest_limit_met": null,
+        "rest_points_unverified": [],
+        "geometry": {
+          "type": "LineString",
+          "coordinates": []
+        },
+        "evidence_ids": ["ev-rt-79a1a12c.walkways", "ev-place-bench-urban-3"],
+        "demo_evidence": true
+      }
+    ],
+    "blocked_reasons": [],
+    "closures": [],
+    "warnings": [
+      "Demo value · not surveyed: Urban Park bench 3; place existence uses demo values, not yet surveyed.",
+      "Route starts at the nearest mapped path to Elmina Urban Park; its entrance is not mapped."
+    ],
+    "max_rest_gap_m": null,
+    "rest_limit_m": null,
+    "rest_search_truncated": false,
+    "demo_evidence": true
+  },
+  "after_geometry_fix": {
+    "status": "confirmed",
+    "routes": [
+      {
+        "id": "rt-79a1a12c",
+        "status": "confirmed",
+        "from_place": "osm-way-1309457596",
+        "to_place": "bench-urban-3",
+        "target_node": "n-31805474_1015098542",
+        "profile": "stroller",
+        "scenario_id": null,
+        "distance_m": 0.0,
+        "est_minutes": 0.0,
+        "segments": [],
+        "maneuvers": [
+          {
+            "index": 1,
+            "action": "arrive",
+            "distance_m": 0.0,
+            "bearing_deg": null,
+            "street_name": null,
+            "edge_type": null,
+            "access_level": "unknown",
+            "rule_id": "no_basis_v1",
+            "segment_ids": [],
+            "point": [101.509854, 3.180547]
+          }
+        ],
+        "access_metres": {
+          "verified": 0.0,
+          "likely_ok": 0.0,
+          "unknown": 0.0,
+          "barrier": 0.0,
+          "not_a_road": 0.0
+        },
+        "unknowns": [],
+        "rest_points": [
+          {
+            "place_id": "bench-urban-3",
+            "node_id": "n-31805474_1015098542",
+            "name": "Urban Park bench 3",
+            "status": "verified"
+          }
+        ],
+        "crossings": [],
+        "sidewalk_m": 0.0,
+        "road_m": 0.0,
+        "road_without_mapped_sidewalk_m": 0.0,
+        "road_sections": [],
+        "max_gap_between_rest_m": 0.0,
+        "rest_limit_m": null,
+        "rest_limit_met": null,
+        "rest_points_unverified": [],
+        "geometry": {
+          "type": "LineString",
+          "coordinates": [[101.509854, 3.180547], [101.509854, 3.180547]]
+        },
+        "evidence_ids": ["ev-rt-79a1a12c.walkways", "ev-place-bench-urban-3"],
+        "demo_evidence": true
+      }
+    ],
+    "blocked_reasons": [],
+    "closures": [],
+    "warnings": [
+      "Demo value · not surveyed: Urban Park bench 3; place existence uses demo values, not yet surveyed.",
+      "Route starts at the nearest mapped path to Elmina Urban Park; its entrance is not mapped."
+    ],
+    "max_rest_gap_m": null,
+    "rest_limit_m": null,
+    "rest_search_truncated": false,
+    "demo_evidence": true
+  },
+  "after_status_fix": {
+    "status": "partly_unverified",
+    "routes": [
+      {
+        "id": "rt-79a1a12c",
+        "status": "partly_unverified",
+        "from_place": "osm-way-1309457596",
+        "to_place": "bench-urban-3",
+        "target_node": "n-31805474_1015098542",
+        "profile": "stroller",
+        "scenario_id": null,
+        "distance_m": 0.0,
+        "est_minutes": 0.0,
+        "segments": [],
+        "maneuvers": [
+          {
+            "index": 1,
+            "action": "arrive",
+            "distance_m": 0.0,
+            "bearing_deg": null,
+            "street_name": null,
+            "edge_type": null,
+            "access_level": "unknown",
+            "rule_id": "no_basis_v1",
+            "segment_ids": [],
+            "point": [101.509854, 3.180547]
+          }
+        ],
+        "access_metres": {
+          "verified": 0.0,
+          "likely_ok": 0.0,
+          "unknown": 0.0,
+          "barrier": 0.0,
+          "not_a_road": 0.0
+        },
+        "unknowns": [
+          {
+            "element_id": "osm-way-1309457596",
+            "attribute": "access_point",
+            "why": "entrance connection is inferred; a shared graph point does not verify it"
+          }
+        ],
+        "rest_points": [
+          {
+            "place_id": "bench-urban-3",
+            "node_id": "n-31805474_1015098542",
+            "name": "Urban Park bench 3",
+            "status": "verified"
+          }
+        ],
+        "crossings": [],
+        "sidewalk_m": 0.0,
+        "road_m": 0.0,
+        "road_without_mapped_sidewalk_m": 0.0,
+        "road_sections": [],
+        "max_gap_between_rest_m": 0.0,
+        "rest_limit_m": null,
+        "rest_limit_met": null,
+        "rest_points_unverified": [],
+        "geometry": {
+          "type": "LineString",
+          "coordinates": [[101.509854, 3.180547], [101.509854, 3.180547]]
+        },
+        "evidence_ids": ["ev-rt-79a1a12c.walkways", "ev-place-bench-urban-3"],
+        "demo_evidence": true
+      }
+    ],
+    "blocked_reasons": [],
+    "closures": [],
+    "warnings": [
+      "Zero mapped metres describe a shared graph point, not a checked entrance connection between these places",
+      "Demo value · not surveyed: Urban Park bench 3; place existence uses demo values, not yet surveyed.",
+      "Route starts at the nearest mapped path to Elmina Urban Park; its entrance is not mapped."
+    ],
+    "max_rest_gap_m": null,
+    "rest_limit_m": null,
+    "rest_search_truncated": false,
+    "demo_evidence": true
+  },
+  "same_place_control": {
+    "status": "confirmed",
+    "routes": [
+      {
+        "id": "rt-e48c1178",
+        "status": "confirmed",
+        "from_place": "park-b",
+        "to_place": "park-b",
+        "target_node": "n-31813102_1015087565",
+        "profile": "stroller",
+        "scenario_id": null,
+        "distance_m": 0.0,
+        "est_minutes": 0.0,
+        "segments": [],
+        "maneuvers": [
+          {
+            "index": 1,
+            "action": "arrive",
+            "distance_m": 0.0,
+            "bearing_deg": null,
+            "street_name": null,
+            "edge_type": null,
+            "access_level": "unknown",
+            "rule_id": "no_basis_v1",
+            "segment_ids": [],
+            "point": [101.508757, 3.18131]
+          }
+        ],
+        "access_metres": {
+          "verified": 0.0,
+          "likely_ok": 0.0,
+          "unknown": 0.0,
+          "barrier": 0.0,
+          "not_a_road": 0.0
+        },
+        "unknowns": [],
+        "rest_points": [],
+        "crossings": [],
+        "sidewalk_m": 0.0,
+        "road_m": 0.0,
+        "road_without_mapped_sidewalk_m": 0.0,
+        "road_sections": [],
+        "max_gap_between_rest_m": 0.0,
+        "rest_limit_m": null,
+        "rest_limit_met": null,
+        "rest_points_unverified": [],
+        "geometry": {
+          "type": "LineString",
+          "coordinates": [[101.508757, 3.18131], [101.508757, 3.18131]]
+        },
+        "evidence_ids": ["ev-rt-e48c1178.walkways", "ev-place-park-b"],
+        "demo_evidence": true
+      }
+    ],
+    "blocked_reasons": [],
+    "closures": [],
+    "warnings": [
+      "Demo value · not surveyed: Lakeside Mall Car Park B; place existence uses demo values, not yet surveyed."
+    ],
+    "max_rest_gap_m": null,
+    "rest_limit_m": null,
+    "rest_search_truncated": false,
+    "demo_evidence": true
+  },
+  "ordinary_route_control": {
+    "status": "partly_unverified",
+    "routes": [
+      {
+        "id": "rt-c783865b",
+        "status": "partly_unverified",
+        "from_place": "park-b",
+        "to_place": "playground",
+        "target_node": "n-31807145_1015102486",
+        "profile": "stroller",
+        "scenario_id": null,
+        "distance_m": 416.4,
+        "est_minutes": 5.9,
+        "segments": [
+          {
+            "edge_id": "seg-1306543769-3",
+            "eval": "PASS",
+            "flood_class": null,
+            "access_level": "unknown",
+            "rule_id": "road_sidewalk_missing_v1",
+            "tags_used": {
+              "highway": "service"
+            }
+          },
+          {
+            "edge_id": "seg-1306543769-2",
+            "eval": "PASS",
+            "flood_class": null,
+            "access_level": "unknown",
+            "rule_id": "road_sidewalk_missing_v1",
+            "tags_used": {
+              "highway": "service"
+            }
+          },
+          {
+            "edge_id": "seg-1306543775-0",
+            "eval": "PASS",
+            "flood_class": null,
+            "access_level": "unknown",
+            "rule_id": "road_sidewalk_missing_v1",
+            "tags_used": {
+              "highway": "service",
+              "oneway": "yes",
+              "service": "parking_aisle"
+            }
+          },
+          {
+            "edge_id": "seg-1306543775-1",
+            "eval": "PASS",
+            "flood_class": null,
+            "access_level": "unknown",
+            "rule_id": "road_sidewalk_missing_v1",
+            "tags_used": {
+              "highway": "service",
+              "oneway": "yes",
+              "service": "parking_aisle"
+            }
+          },
+          {
+            "edge_id": "seg-1306543754-8",
+            "eval": "PASS",
+            "flood_class": null,
+            "access_level": "unknown",
+            "rule_id": "road_sidewalk_missing_v1",
+            "tags_used": {
+              "highway": "service"
+            }
+          },
+          {
+            "edge_id": "seg-1306543755-1",
+            "eval": "PASS",
+            "flood_class": null,
+            "access_level": "unknown",
+            "rule_id": "road_sidewalk_missing_v1",
+            "tags_used": {
+              "highway": "service",
+              "oneway": "yes"
+            }
+          },
+          {
+            "edge_id": "seg-1306543755-2",
+            "eval": "UNKNOWN",
+            "flood_class": null,
+            "access_level": "unknown",
+            "rule_id": "no_estimate_rule_v1",
+            "tags_used": {
+              "highway": "service",
+              "oneway": "yes"
+            }
+          },
+          {
+            "edge_id": "seg-1346147882-0",
+            "eval": "PASS",
+            "flood_class": null,
+            "access_level": "unknown",
+            "rule_id": "no_estimate_rule_v1",
+            "tags_used": {
+              "highway": "footway",
+              "tunnel": "building_passage"
+            }
+          },
+          {
+            "edge_id": "seg-1346147882-1",
+            "eval": "PASS",
+            "flood_class": null,
+            "access_level": "unknown",
+            "rule_id": "no_estimate_rule_v1",
+            "tags_used": {
+              "highway": "footway",
+              "tunnel": "building_passage"
+            }
+          },
+          {
+            "edge_id": "seg-1318133037-1",
+            "eval": "PASS",
+            "flood_class": null,
+            "access_level": "unknown",
+            "rule_id": "no_estimate_rule_v1",
+            "tags_used": {
+              "highway": "footway"
+            }
+          },
+          {
+            "edge_id": "seg-1318133037-2",
+            "eval": "PASS",
+            "flood_class": null,
+            "access_level": "unknown",
+            "rule_id": "no_estimate_rule_v1",
+            "tags_used": {
+              "highway": "footway"
+            }
+          },
+          {
+            "edge_id": "seg-1318133037-3",
+            "eval": "PASS",
+            "flood_class": null,
+            "access_level": "unknown",
+            "rule_id": "no_estimate_rule_v1",
+            "tags_used": {
+              "highway": "footway"
+            }
+          },
+          {
+            "edge_id": "seg-1318133035-2",
+            "eval": "PASS",
+            "flood_class": null,
+            "access_level": "unknown",
+            "rule_id": "no_estimate_rule_v1",
+            "tags_used": {
+              "highway": "footway"
+            }
+          }
+        ],
+        "maneuvers": [
+          {
+            "index": 1,
+            "action": "depart",
+            "distance_m": 38.2,
+            "bearing_deg": 234.2,
+            "street_name": null,
+            "edge_type": "street",
+            "access_level": "unknown",
+            "rule_id": "road_sidewalk_missing_v1",
+            "segment_ids": ["seg-1306543769-3", "seg-1306543769-2"],
+            "point": [101.508757, 3.18131]
+          },
+          {
+            "index": 2,
+            "action": "turn_left",
+            "distance_m": 46.0,
+            "bearing_deg": 145.0,
+            "street_name": null,
+            "edge_type": "street",
+            "access_level": "unknown",
+            "rule_id": "road_sidewalk_missing_v1",
+            "segment_ids": ["seg-1306543775-0", "seg-1306543775-1"],
+            "point": [101.508479, 3.181108]
+          },
+          {
+            "index": 3,
+            "action": "turn_right",
+            "distance_m": 27.1,
+            "bearing_deg": 234.8,
+            "street_name": null,
+            "edge_type": "street",
+            "access_level": "unknown",
+            "rule_id": "road_sidewalk_missing_v1",
+            "segment_ids": ["seg-1306543754-8"],
+            "point": [101.508715, 3.180769]
+          },
+          {
+            "index": 4,
+            "action": "turn_left",
+            "distance_m": 12.7,
+            "bearing_deg": 154.4,
+            "street_name": null,
+            "edge_type": "street",
+            "access_level": "unknown",
+            "rule_id": "road_sidewalk_missing_v1",
+            "segment_ids": ["seg-1306543755-1"],
+            "point": [101.508515, 3.180628]
+          },
+          {
+            "index": 5,
+            "action": "continue",
+            "distance_m": 3.6,
+            "bearing_deg": 217.5,
+            "street_name": null,
+            "edge_type": "ramp",
+            "access_level": "unknown",
+            "rule_id": "no_estimate_rule_v1",
+            "segment_ids": ["seg-1306543755-2"],
+            "point": [101.508521, 3.180519]
+          },
+          {
+            "index": 6,
+            "action": "turn_left",
+            "distance_m": 74.9,
+            "bearing_deg": 142.3,
+            "street_name": null,
+            "edge_type": "footway",
+            "access_level": "unknown",
+            "rule_id": "no_estimate_rule_v1",
+            "segment_ids": ["seg-1346147882-0", "seg-1346147882-1"],
+            "point": [101.508501, 3.180493]
+          },
+          {
+            "index": 7,
+            "action": "turn_left",
+            "distance_m": 188.3,
+            "bearing_deg": 61.3,
+            "street_name": null,
+            "edge_type": "footway",
+            "access_level": "unknown",
+            "rule_id": "no_estimate_rule_v1",
+            "segment_ids": ["seg-1318133037-1", "seg-1318133037-2", "seg-1318133037-3"],
+            "point": [101.508911, 3.179959]
+          },
+          {
+            "index": 8,
+            "action": "turn_right",
+            "distance_m": 25.7,
+            "bearing_deg": 187.5,
+            "street_name": null,
+            "edge_type": "footway",
+            "access_level": "unknown",
+            "rule_id": "no_estimate_rule_v1",
+            "segment_ids": ["seg-1318133035-2"],
+            "point": [101.510279, 3.180944]
+          },
+          {
+            "index": 9,
+            "action": "arrive",
+            "distance_m": 0.0,
+            "bearing_deg": 187.5,
+            "street_name": null,
+            "edge_type": "footway",
+            "access_level": "unknown",
+            "rule_id": "no_estimate_rule_v1",
+            "segment_ids": [],
+            "point": [101.510249, 3.180715]
+          }
+        ],
+        "access_metres": {
+          "verified": 0.0,
+          "likely_ok": 0.0,
+          "unknown": 416.4,
+          "barrier": 0.0,
+          "not_a_road": 0.0
+        },
+        "unknowns": [
+          {
+            "element_id": "seg-1306543755-2",
+            "attribute": "incline_pct",
+            "reason": "unknown",
+            "why": "stroller needs incline_pct ≤ 8.3; not verified"
+          }
+        ],
+        "rest_points": [
+          {
+            "place_id": "bench-urban-1",
+            "node_id": "n-31808343_1015086713",
+            "name": "Urban Park bench 1",
+            "status": "verified"
+          },
+          {
+            "place_id": "bench-urban-2",
+            "node_id": "n-31804933_1015085014",
+            "name": "Urban Park bench 2",
+            "status": "verified"
+          },
+          {
+            "place_id": "bench-urban-3",
+            "node_id": "n-31805474_1015098542",
+            "name": "Urban Park bench 3",
+            "status": "verified"
+          }
+        ],
+        "crossings": [],
+        "sidewalk_m": 0.0,
+        "road_m": 124.0,
+        "road_without_mapped_sidewalk_m": 124.0,
+        "road_sections": [
+          {
+            "element_id": "seg-1306543769-3",
+            "name": null,
+            "length_m": 20.12,
+            "sidewalk": null,
+            "sidewalk_status": "unknown"
+          },
+          {
+            "element_id": "seg-1306543769-2",
+            "name": null,
+            "length_m": 18.04,
+            "sidewalk": null,
+            "sidewalk_status": "unknown"
+          },
+          {
+            "element_id": "seg-1306543775-0",
+            "name": null,
+            "length_m": 37.23,
+            "sidewalk": null,
+            "sidewalk_status": "unknown"
+          },
+          {
+            "element_id": "seg-1306543775-1",
+            "name": null,
+            "length_m": 8.77,
+            "sidewalk": null,
+            "sidewalk_status": "unknown"
+          },
+          {
+            "element_id": "seg-1306543754-8",
+            "name": null,
+            "length_m": 27.14,
+            "sidewalk": null,
+            "sidewalk_status": "unknown"
+          },
+          {
+            "element_id": "seg-1306543755-1",
+            "name": null,
+            "length_m": 12.7,
+            "sidewalk": null,
+            "sidewalk_status": "unknown"
+          }
+        ],
+        "max_gap_between_rest_m": 198.5,
+        "rest_limit_m": null,
+        "rest_limit_met": null,
+        "rest_points_unverified": [],
+        "geometry": {
+          "type": "LineString",
+          "coordinates": [
+            [101.508757, 3.18131],
+            [101.50861, 3.181204],
+            [101.508479, 3.181108],
+            [101.508671, 3.180834],
+            [101.508715, 3.180769],
+            [101.508515, 3.180628],
+            [101.508527, 3.180603],
+            [101.508533, 3.180575],
+            [101.50853, 3.180546],
+            [101.508521, 3.180519],
+            [101.508501, 3.180493],
+            [101.508769, 3.180147],
+            [101.508911, 3.179959],
+            [101.50941, 3.180232],
+            [101.509854, 3.180547],
+            [101.509999, 3.180661],
+            [101.510071, 3.180734],
+            [101.510279, 3.180944],
+            [101.510249, 3.180715]
+          ]
+        },
+        "evidence_ids": [
+          "ev-seg-1306543769-3.step_count",
+          "ev-seg-1306543769-3.incline_pct",
+          "ev-seg-1306543769-3.width_m",
+          "ev-seg-1306543769-2.step_count",
+          "ev-seg-1306543769-2.incline_pct",
+          "ev-seg-1306543769-2.width_m",
+          "ev-seg-1306543775-0.step_count",
+          "ev-seg-1306543775-0.incline_pct",
+          "ev-seg-1306543775-0.width_m",
+          "ev-seg-1306543775-1.step_count",
+          "ev-seg-1306543775-1.incline_pct",
+          "ev-seg-1306543775-1.width_m",
+          "ev-seg-1306543754-8.step_count",
+          "ev-seg-1306543754-8.incline_pct",
+          "ev-seg-1306543754-8.width_m",
+          "ev-seg-1306543755-1.step_count",
+          "ev-seg-1306543755-1.incline_pct",
+          "ev-seg-1306543755-1.width_m",
+          "ev-seg-1306543755-2.step_count",
+          "ev-seg-1306543755-2.width_m",
+          "ev-seg-1306543755-2.incline_pct",
+          "ev-seg-1346147882-0.step_count",
+          "ev-seg-1346147882-0.incline_pct",
+          "ev-seg-1346147882-0.width_m",
+          "ev-seg-1346147882-1.step_count",
+          "ev-seg-1346147882-1.incline_pct",
+          "ev-seg-1346147882-1.width_m",
+          "ev-seg-1318133037-1.step_count",
+          "ev-seg-1318133037-1.incline_pct",
+          "ev-seg-1318133037-1.width_m",
+          "ev-seg-1318133037-2.step_count",
+          "ev-seg-1318133037-2.incline_pct",
+          "ev-seg-1318133037-2.width_m",
+          "ev-seg-1318133037-3.step_count",
+          "ev-seg-1318133037-3.incline_pct",
+          "ev-seg-1318133037-3.width_m",
+          "ev-seg-1318133035-2.step_count",
+          "ev-seg-1318133035-2.incline_pct",
+          "ev-seg-1318133035-2.width_m",
+          "ev-rt-c783865b.walkways",
+          "ev-place-bench-urban-1",
+          "ev-place-bench-urban-2",
+          "ev-place-bench-urban-3",
+          "ev-place-park-b",
+          "ev-place-playground"
+        ],
+        "demo_evidence": true
+      }
+    ],
+    "blocked_reasons": [],
+    "closures": [],
+    "warnings": [
+      "About 124 m follows road centre lines without a mapped sidewalk; sidewalk access is not verified",
+      "Demo value · not surveyed: Urban Park bench 1; place existence uses demo values, not yet surveyed.",
+      "Demo value · not surveyed: Urban Park bench 2; place existence uses demo values, not yet surveyed.",
+      "Demo value · not surveyed: Urban Park bench 3; place existence uses demo values, not yet surveyed.",
+      "Demo value · not surveyed: Lakeside Mall Car Park B; place existence uses demo values, not yet surveyed.",
+      "Demo value · not surveyed: Urban Park playground; place existence uses demo values, not yet surveyed."
+    ],
+    "max_rest_gap_m": null,
+    "rest_limit_m": null,
+    "rest_search_truncated": false,
+    "demo_evidence": true
+  }
+}

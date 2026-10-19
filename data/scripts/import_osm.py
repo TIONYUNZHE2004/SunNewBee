@@ -188,31 +188,44 @@ def _seg_type(tags: dict) -> str:
     return hw
 
 
-def _with_node_ids(w: dict) -> dict:
-    """Overpass `out geom` omits the node-id list; derive a stable id from the 1e-7 degree coordinate.
+class TopologyError(ValueError):
+    """Missing or inconsistent source identities cannot establish graph connections."""
 
-    OSM stores coordinates at 1e-7 degrees, so equal coordinates identify the same node for routing purposes.
-    """
-    if "nodes" in w:
-        return w
-    nodes = [
-        None if g is None else f"{round(g['lat'] * 1e7)}_{round(g['lon'] * 1e7)}"
-        for g in w["geometry"]
-    ]
-    return {**w, "nodes": nodes}
+
+def _require_node_ids(w: dict) -> None:
+    nodes, geometry = w.get("nodes"), w.get("geometry")
+    if (
+        not isinstance(nodes, list)
+        or len(nodes) < 2
+        or any(type(n) is not int or n <= 0 for n in nodes)
+        or not isinstance(geometry, list)
+        or len(geometry) != len(nodes)
+        or any(g is None for g in geometry)
+    ):
+        raise TopologyError(
+            f"way {w.get('id')}: original OSM node IDs and complete matching geometry required; "
+            "refetch with 'out body geom', never derive junction IDs from coordinates"
+        )
 
 
 def split_ways(ways: list[dict]) -> list[dict]:
     """Split ways at nodes shared with other ways (and at endpoints) into graph-edge segments."""
-    ways = [_with_node_ids(w) for w in ways]
+    positions: dict[int, tuple[int, int]] = {}
     usage: Counter = Counter()
     for w in ways:
+        _require_node_ids(w)
+        for node, point in zip(w["nodes"], w["geometry"], strict=True):
+            coord = (round(point["lon"] * 1e7), round(point["lat"] * 1e7))
+            if node in positions and positions[node] != coord:
+                raise TopologyError(
+                    f"OSM node {node} has conflicting coordinates across ways; "
+                    "refetch consistent source data before building the routing graph"
+                )
+            positions[node] = coord
         usage.update(w["nodes"])
     segs: list[dict] = []
     for w in ways:
         nodes, geom = w["nodes"], w["geometry"]
-        if len(nodes) < 2 or len(geom) != len(nodes) or any(g is None for g in geom):
-            continue
         tags = w.get("tags", {})
         stype = _seg_type(tags)
         claims = _claims(tags, stype)
@@ -230,6 +243,46 @@ def split_ways(ways: list[dict]) -> list[dict]:
                     "length_m": round(length, 2),
                     "coords": [[round(p["lon"], 6), round(p["lat"], 6)] for p in pts],
                     "claims": json.loads(json.dumps(claims)),
+                    # Preserve decision inputs, not inferred physical facts. Restrictions must
+                    # survive import so mode rules cannot turn access=no into a usable edge.
+                    "osm_tags": {
+                        key: str(value)
+                        for key, value in tags.items()
+                        if key
+                        in {
+                            "highway",
+                            "footway",
+                            "service",
+                            "access",
+                            "foot",
+                            "vehicle",
+                            "motor_vehicle",
+                            "motorcar",
+                            "wheelchair",
+                            "surface",
+                            "smoothness",
+                            "incline",
+                            "width",
+                            "step_count",
+                            "sidewalk",
+                            "sidewalk:both",
+                            "sidewalk:left",
+                            "sidewalk:right",
+                            "lit",
+                            "oneway",
+                            "oneway:vehicle",
+                            "oneway:motor_vehicle",
+                            "oneway:motorcar",
+                            "oneway:conditional",
+                            "oneway:vehicle:conditional",
+                            "oneway:motor_vehicle:conditional",
+                            "oneway:motorcar:conditional",
+                            "junction",
+                            "bridge",
+                            "tunnel",
+                            "layer",
+                        }
+                    },
                 }
                 if tags.get("name"):
                     seg["name"] = tags["name"]
@@ -241,7 +294,7 @@ def split_ways(ways: list[dict]) -> list[dict]:
 def _fetch_ways() -> list[dict]:
     seen: dict[int, dict] = {}
     for s, w, n, e in overpass.tiles(ENVELOPE, 3):
-        ql = f'[out:json][timeout:180];way[highway~"^({WALK_HIGHWAYS})$"]({s},{w},{n},{e});out geom tags;'
+        ql = f'[out:json][timeout:180];way[highway~"^({WALK_HIGHWAYS})$"]({s},{w},{n},{e});out body geom;'
         for el in overpass.query(ql).get("elements", []):
             if el["type"] == "way" and "geometry" in el:
                 seen[el["id"]] = el
@@ -264,7 +317,7 @@ def _fetch_major_ways(allow_missing: bool = False) -> tuple[list[dict], list[tup
     missing: list[tuple] = []
     hw = "|".join(MAJOR_HIGHWAYS)
     for s, w, n, e in major_tiles():
-        ql = f'[out:json][timeout:180];way[highway~"^({hw})$"]({s},{w},{n},{e});out geom tags;'
+        ql = f'[out:json][timeout:180];way[highway~"^({hw})$"]({s},{w},{n},{e});out body geom;'
         try:
             elements = overpass.query(ql).get("elements", [])
         except overpass.OverpassError:  # budget cap or Overpass failing every retry
@@ -678,7 +731,11 @@ def main(argv: list[str] | None = None) -> None:
     print(f"major-road ways fetched: {len(major_ways)}; skipped (foot=no): {foot_no}")
     for s, w, n, e in major_missing:
         print(f"WARNING: major roads NOT imported for tile s,w,n,e = {s}, {w}, {n}, {e}")
-    segs = split_ways(ways)
+    try:
+        segs = split_ways(ways)
+    except TopologyError as exc:
+        print(f"BLOCKED: {exc}; seed files were not written")
+        raise SystemExit(2) from None
     places = build_places(place_els, area_geoms)
     assign_nodes(places, segs)
     n_area = sum(1 for p in places if p.get("area"))

@@ -35,7 +35,7 @@ pytestmark = pytest.mark.skipif(not (SEED / "site.json").exists(), reason="Elmin
 
 @pytest.fixture(scope="module")
 def hero():
-    return plan_hero_route()  # Car Park B -> playground, stroller: 440.6 m, 6.3 min
+    return plan_hero_route()  # Car Park B -> playground, walking: likely_ok, 416.4 m, 5.9 min
 
 
 def errors(hero, text, **changes):
@@ -92,14 +92,14 @@ def test_a_refusal_licenses_no_positive_number(hero):
 @pytest.mark.parametrize(
     "text",
     [
-        "The route is 440.6 m.",  # the engine's number
-        "The route is about 440 m.",  # honest rounding
-        "The route is 441 m.",  # whole-metre rounding
-        "The route is 0.44 km.",  # correct unit conversion
+        "The route is 416.4 m.",  # the engine's number
+        "The route is about 420 m.",  # honest rounding
+        "The route is 416 m.",  # whole-metre rounding
+        "The route is 0.42 km.",  # correct unit conversion
         "Allow about 6 minutes.",
-        "Allow about 7 minutes.",  # 6.3 rounded up, with "about"
-        "Laluan ini kira-kira 440 m.",
-        "路线约440米。",
+        "Allow 5.9 minutes.",
+        "Laluan ini kira-kira 420 m.",
+        "路线约420米。",
         "No staff-reported closure is on record. That is not a guarantee.",
     ],
 )
@@ -114,13 +114,13 @@ def test_honest_controls_pass(hero, text):
     [
         "There are two toilets beside the playground.",  # no toilet was counted this turn
         "There is one toilet beside the playground.",
-        "The toilet is 440.6 m from the mall.",  # the route's length, given to a toilet
+        "The toilet is 416.4 m from the mall.",  # the route's length, given to a toilet
         "No steps, so the toilet has a baby changing room.",  # negation of another clause
-        "The toilet is open 6.3 minutes every day.",  # the route's time, given to a toilet
+        "The toilet is open 5.9 minutes every day.",  # the route's time, given to a toilet
         "Terdapat dua tandas di sebelah taman permainan.",
         "游乐场旁边有两个厕所。",
-        "Tandas itu 440.6 m dari mall.",
-        "厕所离商场440.6米。",
+        "Tandas itu 416.4 m dari mall.",
+        "厕所离商场416.4米。",
         "Tiada anak tangga, jadi tandas itu ada bilik menukar lampin.",
         "没有台阶，所以厕所有母婴室。",
         "No steps, and the mall has a lift.",
@@ -133,11 +133,11 @@ def test_facts_are_bound_to_their_subject(hero, text):
 @pytest.mark.parametrize(
     "text",
     [
-        "From Car Park B to the playground the route is about 440 m.",
-        "The playground is 440.6 m from Car Park B.",
+        "From Car Park B to the playground the route is about 420 m.",
+        "The playground is 416.4 m from Car Park B.",
         "From the mall's Car Park B it takes about 6 minutes.",
-        "Dari Car Park B ke taman permainan kira-kira 440 m.",
-        "从停车场到游乐场约440米。",
+        "Dari Car Park B ke taman permainan kira-kira 420 m.",
+        "从停车场到游乐场约420米。",
         "There may be a lift, but it is not recorded.",
         "No steps are recorded, and a lift is not recorded either.",
         "Ask staff whether the toilet has a baby changing room.",
@@ -220,7 +220,7 @@ def test_drafts_never_show_rejected_text(hero, text, banned):
 
 def test_drafts_show_checked_sentences(hero):
     rec, _, _ = hero
-    honest = PREFIX + "The route is about 440 m."
+    honest = PREFIX + "The route is about 420 m."
     assert asyncio.run(_draft_of(rec, honest)) == honest
 
 
@@ -255,3 +255,46 @@ def test_run_turn_never_shows_an_invented_count(hero, tmp_path):
     assert "99" not in shown
     assert any(e.type == "answer.check" and not e.ok for e in evs)
     assert evs[-1].type == "done"
+
+
+# T-020: the hero walking route is likely_ok (estimated from map data). Never confirmed, never
+# step-free or accessible as fact; the answer says it is an estimate.
+@pytest.mark.parametrize(
+    "summary",
+    [
+        "Route status: confirmed. The route is about 420 m.",
+        "The route is about 420 m and it is step-free.",
+        "The route is about 420 m and wheelchair-friendly.",
+        "It is an accessible route of about 420 m.",
+        "Laluan ini bebas tangga, kira-kira 420 m.",
+        "Laluan ini mesra kerusi roda, kira-kira 420 m.",
+        "这条路线无障碍，约420米。",
+        "路线没有台阶，约420米。",
+        "The route is about 420 m and it is safe.",
+    ],
+)
+def test_estimated_route_bait_is_rejected(hero, summary):
+    rec, rid, ev = hero
+    assert rec.route_status[rid] == "likely_ok"
+    ans = answer(PREFIX + summary, rid, ev)
+    assert validate_answer(ans, rec), summary
+
+
+@pytest.mark.parametrize(
+    "summary",
+    [
+        "The route is about 420 m and likely step-free (estimated from map data, not checked).",
+        "No steps are recorded on the map for this route of about 420 m.",
+        "Laluan ini kemungkinan bebas tangga (anggaran daripada data peta), kira-kira 420 m.",
+        "这条路线可能无障碍（根据地图数据估计，未核实），约420米。",
+    ],
+)
+def test_estimated_route_hedged_wording_passes(hero, summary):
+    rec, rid, ev = hero
+    assert validate_answer(answer(PREFIX + summary, rid, ev), rec) == [], summary
+
+
+def test_estimated_route_must_say_estimate(hero):
+    rec, rid, ev = hero
+    plain = answer("The route is about 420 m.", rid, ev)  # no PREFIX: no estimate words
+    assert any("estimate" in e for e in validate_answer(plain, rec))

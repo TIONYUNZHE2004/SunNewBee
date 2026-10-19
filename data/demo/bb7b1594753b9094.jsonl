@@ -1,5 +1,5 @@
-{"meta": {"message": "At which river level does my route from the mall to an evacuation centre break?", "profile": "default", "scenario_id": null, "world": "elmina", "model": "mock-scripted", "recorded_at": "2026-10-17T09:51:18+00:00"}}
-{"type": "tool.call", "id": "find_place-0", "name": "find_place", "args": {"query": "lakeside mall", "types": null, "limit": 5}}
+{"meta": {"message": "At which river level does my route from the mall to an evacuation centre break?", "profile": "default", "scenario_id": null, "world": "elmina", "world_fingerprint": "d2f503425c39d84b4391e392fc46dec36e82ee643790b055e41031fc175fef1c", "model": "mock-scripted", "recorded_at": "2026-10-19T22:48:20+00:00"}}
+{"type": "tool.call", "id": "find_place-0", "name": "find_place", "args": {"query": "lakeside mall", "types": null, "limit": 5, "near_place": null}}
 {"type": "tool.result", "id": "find_place-0", "name": "find_place", "summary": "2 result(s)"}
 {"type": "tool.call", "id": "river_tipping_point-1", "name": "river_tipping_point", "args": {"from_id": "lakeside-mall", "profile": "default", "to_id": null}}
 {"type": "tool.result", "id": "river_tipping_point-1", "name": "river_tipping_point", "summary": "ok"}
@@ -10,26 +10,29 @@
 {"type": "text.delta", "delta": "ple Bukit Subang keeps a mapped route at"}
 {"type": "text.delta", "delta": " every modelled river level; indicative "}
 {"type": "text.delta", "delta": "scenarios, not a forecast.\n1. Normal lev"}
-{"type": "text.delta", "delta": "el: confirmed (on demo values, not yet s"}
-{"type": "text.delta", "delta": "urveyed) (nearest centre: Sri Maha Maria"}
-{"type": "text.delta", "delta": "mman Temple Bukit Subang)\n2. River +1 m:"}
-{"type": "text.delta", "delta": " confirmed (nearest centre: SJK (C) Lada"}
-{"type": "text.delta", "delta": "ng Regent, Elmina)\n3. River +2 m: confir"}
-{"type": "text.delta", "delta": "med (nearest centre: SJK (C) Ladang Rege"}
-{"type": "text.delta", "delta": "nt, Elmina)\n4. River +3 m: confirmed (ne"}
-{"type": "text.delta", "delta": "arest centre: SJK (C) Ladang Regent, Elm"}
-{"type": "text.delta", "delta": "ina)\n5. River +4 m: confirmed (nearest c"}
+{"type": "text.delta", "delta": "el: likely OK (estimated from map data, "}
+{"type": "text.delta", "delta": "not checked) (nearest centre: Sri Maha M"}
+{"type": "text.delta", "delta": "ariamman Temple Bukit Subang)\n2. River +"}
+{"type": "text.delta", "delta": "1 m: likely OK (estimated from map data,"}
+{"type": "text.delta", "delta": " not checked) (nearest centre: SJK (C) L"}
+{"type": "text.delta", "delta": "adang Regent, Elmina)\n3. River +2 m: lik"}
+{"type": "text.delta", "delta": "ely OK (estimated from map data, not che"}
+{"type": "text.delta", "delta": "cked) (nearest centre: SJK (C) Ladang Re"}
+{"type": "text.delta", "delta": "gent, Elmina)\n4. River +3 m: likely OK ("}
+{"type": "text.delta", "delta": "estimated from map data, not checked) (n"}
+{"type": "text.delta", "delta": "earest centre: SJK (C) Ladang Regent, El"}
+{"type": "text.delta", "delta": "mina)\n5. River +4 m: likely OK (estimate"}
+{"type": "text.delta", "delta": "d from map data, not checked) (nearest c"}
 {"type": "text.delta", "delta": "entre: SJK (C) Ladang Regent, Elmina)\n6."}
-{"type": "text.delta", "delta": " River +5 m: confirmed (nearest centre: "}
-{"type": "text.delta", "delta": "SJK (C) Ladang Regent, Elmina)\nWorth kno"}
-{"type": "text.delta", "delta": "wing:\n• Indicative simulation with synth"}
-{"type": "text.delta", "delta": "etic residents, not a forecast; follow o"}
-{"type": "text.delta", "delta": "fficial MBSA / JPS / NADMA guidance.\n• T"}
-{"type": "text.delta", "delta": "he nearest reachable centre changes as t"}
-{"type": "text.delta", "delta": "he river rises (see each level).\n• Segme"}
-{"type": "text.delta", "delta": "nt facts are demo values, not yet survey"}
-{"type": "text.delta", "delta": "ed."}
+{"type": "text.delta", "delta": " River +5 m: likely OK (estimated from m"}
+{"type": "text.delta", "delta": "ap data, not checked) (nearest centre: S"}
+{"type": "text.delta", "delta": "JK (C) Ladang Regent, Elmina)\nWorth know"}
+{"type": "text.delta", "delta": "ing:\n• Indicative simulation with synthe"}
+{"type": "text.delta", "delta": "tic residents, not a forecast; follow of"}
+{"type": "text.delta", "delta": "ficial MBSA / JPS / NADMA guidance.\n• Th"}
+{"type": "text.delta", "delta": "e nearest reachable centre changes as th"}
+{"type": "text.delta", "delta": "e river rises (see each level)."}
 {"type": "citation", "ref": 1, "evidence_id": "ev-tip-40094293b6", "element_id": "lakeside-mall", "attribute": "tipping_point", "status": "indicative", "verified_at": null, "source_type": "REM scenario (indicative)", "photo_url": null}
-{"type": "uncertainty", "level": "partial", "items": [{"element_id": "route", "attribute": "demo_values", "note": "Some segment facts are demo values, not yet surveyed"}, {"element_id": "answer", "attribute": "caveat", "note": "Indicative simulation with synthetic residents, not a forecast; follow official MBSA / JPS / NADMA guidance"}, {"element_id": "answer", "attribute": "caveat", "note": "The nearest reachable centre changes as the river rises (see each level)"}]}
+{"type": "uncertainty", "level": "partial", "items": [{"element_id": "answer", "attribute": "caveat", "note": "Indicative simulation with synthetic residents, not a forecast; follow official MBSA / JPS / NADMA guidance"}, {"element_id": "answer", "attribute": "caveat", "note": "The nearest reachable centre changes as the river rises (see each level)"}]}
 {"type": "disclaimer", "lens": "flood", "text": "Indicative scenario from a 30 m elevation model (Copernicus GLO-30, height above mapped rivers and lakes), not a forecast. Follow official MBSA / JPS / NADMA guidance. Only the area 101.46–101.56 E, 3.15–3.24 N is assessed; paths outside it are not.", "links": [{"label": "Public InfoBanjir (JPS)", "url": "https://publicinfobanjir.water.gov.my"}, {"label": "MET Malaysia warnings", "url": "https://www.met.gov.my"}]}
 {"type": "done", "message_id": "demo", "answer_status": "partial", "model": "mock-scripted"}

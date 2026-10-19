@@ -1,0 +1,703 @@
+{
+  "control": "8d2077861acf57cb843d92bae7b81dc10c0b3a52",
+  "source": "committed Elmina seed and cached Overpass answers; no field survey",
+  "edges": 16120,
+  "places": 232,
+  "components": 72,
+  "largest_components": [11181, 172, 46, 43, 31, 30, 26, 22, 21, 15],
+  "unsnapped": [
+    {
+      "id": "osm-way-407859101",
+      "name": "Parking (unnamed, OSM)",
+      "coord": [101.465582, 3.151645]
+    },
+    {
+      "id": "osm-way-907988141",
+      "name": "Surau",
+      "coord": [101.519446, 3.17208]
+    },
+    {
+      "id": "osm-way-910713223",
+      "name": "Park (unnamed, OSM)",
+      "coord": [101.51225, 3.154483]
+    },
+    {
+      "id": "osm-way-910713224",
+      "name": "Park (unnamed, OSM)",
+      "coord": [101.511979, 3.156311]
+    },
+    {
+      "id": "osm-way-1286251726",
+      "name": "Shelter (unnamed, OSM)",
+      "coord": [101.514145, 3.179936]
+    },
+    {
+      "id": "osm-way-691513809",
+      "name": "Parking (unnamed, OSM)",
+      "coord": [101.479711, 3.240146]
+    },
+    {
+      "id": "osm-way-390964557",
+      "name": "Plaza Tol Elmina",
+      "coord": [101.50726, 3.203652]
+    }
+  ],
+  "small_component_places": [
+    {
+      "id": "osm-node-2478641046",
+      "name": "Surau",
+      "component_nodes": 13
+    },
+    {
+      "id": "osm-node-2478641047",
+      "name": "Toilet (unnamed, OSM)",
+      "component_nodes": 13
+    },
+    {
+      "id": "osm-node-2478646531",
+      "name": "Toilet (unnamed, OSM)",
+      "component_nodes": 46
+    },
+    {
+      "id": "osm-node-3668314800",
+      "name": "RSA Elmina S",
+      "component_nodes": 46
+    },
+    {
+      "id": "osm-node-13622243176",
+      "name": "Shelter (unnamed, OSM)",
+      "component_nodes": 2
+    },
+    {
+      "id": "osm-node-13622268567",
+      "name": "Shelter (unnamed, OSM)",
+      "component_nodes": 2
+    },
+    {
+      "id": "osm-node-9180790726",
+      "name": "Dewan Serbaguna Rentak Perdana",
+      "component_nodes": 172
+    },
+    {
+      "id": "osm-node-9180790727",
+      "name": "Surau Rentak Perdana",
+      "component_nodes": 172
+    },
+    {
+      "id": "osm-node-12880146160",
+      "name": "Shelter (unnamed, OSM)",
+      "component_nodes": 3
+    },
+    {
+      "id": "osm-node-12880146165",
+      "name": "Playground (unnamed, OSM)",
+      "component_nodes": 3
+    },
+    {
+      "id": "osm-way-993707039",
+      "name": "Park (unnamed, OSM)",
+      "component_nodes": 172
+    },
+    {
+      "id": "osm-way-1184185923",
+      "name": "Surau Rentak Perdana",
+      "component_nodes": 172
+    },
+    {
+      "id": "osm-way-1184185924",
+      "name": "Dewan Serbaguna Rentak Perdana",
+      "component_nodes": 172
+    },
+    {
+      "id": "osm-node-13622247083",
+      "name": "Shelter (unnamed, OSM)",
+      "component_nodes": 46
+    },
+    {
+      "id": "osm-node-13622249922",
+      "name": "Shelter (unnamed, OSM)",
+      "component_nodes": 31
+    }
+  ],
+  "explicit_restrictions_ignored": {
+    "foot_no": {
+      "count": 14,
+      "examples": [
+        {
+          "id": "seg-606246876-0",
+          "type": "street",
+          "baseline": "PASS",
+          "tags": {
+            "foot": "no",
+            "highway": "tertiary",
+            "name": "Jalan Metafasa U16/156"
+          }
+        },
+        {
+          "id": "seg-606246876-1",
+          "type": "street",
+          "baseline": "PASS",
+          "tags": {
+            "foot": "no",
+            "highway": "tertiary",
+            "name": "Jalan Metafasa U16/156"
+          }
+        },
+        {
+          "id": "seg-606246876-2",
+          "type": "street",
+          "baseline": "PASS",
+          "tags": {
+            "foot": "no",
+            "highway": "tertiary",
+            "name": "Jalan Metafasa U16/156"
+          }
+        },
+        {
+          "id": "seg-1223775971-0",
+          "type": "street",
+          "baseline": "PASS",
+          "tags": {
+            "foot": "no",
+            "highway": "unclassified",
+            "name": "Jalan Metafasa U16/156A"
+          }
+        },
+        {
+          "id": "seg-1223775971-1",
+          "type": "street",
+          "baseline": "PASS",
+          "tags": {
+            "foot": "no",
+            "highway": "unclassified",
+            "name": "Jalan Metafasa U16/156A"
+          }
+        },
+        {
+          "id": "seg-1286251751-0",
+          "type": "street",
+          "baseline": "PASS",
+          "tags": {
+            "foot": "no",
+            "highway": "tertiary",
+            "name": "Jalan Metafasa U16/156",
+            "oneway": "yes"
+          }
+        },
+        {
+          "id": "seg-939562423-0",
+          "type": "street",
+          "baseline": "PASS",
+          "tags": {
+            "foot": "no",
+            "highway": "unclassified",
+            "oneway": "yes"
+          }
+        },
+        {
+          "id": "seg-939562425-0",
+          "type": "street",
+          "baseline": "PASS",
+          "tags": {
+            "foot": "no",
+            "highway": "unclassified",
+            "oneway": "yes"
+          }
+        }
+      ]
+    },
+    "access_no": {
+      "count": 15,
+      "examples": [
+        {
+          "id": "seg-1079112114-0",
+          "type": "street",
+          "baseline": "PASS",
+          "tags": {
+            "access": "no",
+            "bicycle": "yes",
+            "cycleway": "lane",
+            "highway": "unclassified",
+            "oneway": "no"
+          }
+        },
+        {
+          "id": "seg-1079112114-1",
+          "type": "street",
+          "baseline": "PASS",
+          "tags": {
+            "access": "no",
+            "bicycle": "yes",
+            "cycleway": "lane",
+            "highway": "unclassified",
+            "oneway": "no"
+          }
+        },
+        {
+          "id": "seg-1316968440-0",
+          "type": "street",
+          "baseline": "PASS",
+          "tags": {
+            "access": "no",
+            "highway": "residential"
+          }
+        },
+        {
+          "id": "seg-1508434440-0",
+          "type": "street",
+          "baseline": "PASS",
+          "tags": {
+            "access": "no",
+            "highway": "service"
+          }
+        },
+        {
+          "id": "seg-831302640-0",
+          "type": "street",
+          "baseline": "PASS",
+          "tags": {
+            "access": "no",
+            "highway": "residential"
+          }
+        },
+        {
+          "id": "seg-240088961-0",
+          "type": "street",
+          "baseline": "PASS",
+          "tags": {
+            "access": "no",
+            "highway": "service",
+            "lanes": "1",
+            "oneway": "yes",
+            "surface": "asphalt"
+          }
+        },
+        {
+          "id": "seg-604802325-0",
+          "type": "street",
+          "baseline": "PASS",
+          "tags": {
+            "access": "no",
+            "highway": "service",
+            "lanes": "1",
+            "surface": "asphalt"
+          }
+        },
+        {
+          "id": "seg-604802326-0",
+          "type": "street",
+          "baseline": "PASS",
+          "tags": {
+            "access": "no",
+            "highway": "service",
+            "lanes": "1",
+            "surface": "asphalt"
+          }
+        }
+      ]
+    },
+    "motor_vehicle_no_on_roads": {
+      "count": 6,
+      "examples": [
+        {
+          "id": "seg-598776385-0",
+          "type": "street",
+          "baseline": "PASS",
+          "tags": {
+            "highway": "service",
+            "motor_vehicle": "no",
+            "oneway": "yes",
+            "service": "alley",
+            "smoothness": "good",
+            "surface": "concrete",
+            "vehicle": "no",
+            "wheelchair": "yes"
+          }
+        },
+        {
+          "id": "seg-598776385-1",
+          "type": "street",
+          "baseline": "PASS",
+          "tags": {
+            "highway": "service",
+            "motor_vehicle": "no",
+            "oneway": "yes",
+            "service": "alley",
+            "smoothness": "good",
+            "surface": "concrete",
+            "vehicle": "no",
+            "wheelchair": "yes"
+          }
+        },
+        {
+          "id": "seg-598776385-2",
+          "type": "street",
+          "baseline": "PASS",
+          "tags": {
+            "highway": "service",
+            "motor_vehicle": "no",
+            "oneway": "yes",
+            "service": "alley",
+            "smoothness": "good",
+            "surface": "concrete",
+            "vehicle": "no",
+            "wheelchair": "yes"
+          }
+        },
+        {
+          "id": "seg-598776385-3",
+          "type": "street",
+          "baseline": "PASS",
+          "tags": {
+            "highway": "service",
+            "motor_vehicle": "no",
+            "oneway": "yes",
+            "service": "alley",
+            "smoothness": "good",
+            "surface": "concrete",
+            "vehicle": "no",
+            "wheelchair": "yes"
+          }
+        },
+        {
+          "id": "seg-598776385-4",
+          "type": "street",
+          "baseline": "PASS",
+          "tags": {
+            "highway": "service",
+            "motor_vehicle": "no",
+            "oneway": "yes",
+            "service": "alley",
+            "smoothness": "good",
+            "surface": "concrete",
+            "vehicle": "no",
+            "wheelchair": "yes"
+          }
+        },
+        {
+          "id": "seg-604182992-0",
+          "type": "track",
+          "baseline": "PASS",
+          "tags": {
+            "highway": "track",
+            "motor_vehicle": "no"
+          }
+        }
+      ]
+    },
+    "motorcar_no_on_roads": {
+      "count": 2,
+      "examples": [
+        {
+          "id": "seg-417440410-0",
+          "type": "track",
+          "baseline": "PASS",
+          "tags": {
+            "bicycle": "yes",
+            "highway": "track",
+            "layer": "-1",
+            "motorcar": "no",
+            "motorcycle": "designated",
+            "note": "This is a designated motorcycle lane, using highway=path which is more appropriate",
+            "oneway": "yes",
+            "surface": "asphalt",
+            "tracktype": "grade1",
+            "tunnel": "yes"
+          }
+        },
+        {
+          "id": "seg-399831908-0",
+          "type": "track",
+          "baseline": "PASS",
+          "tags": {
+            "bicycle": "yes",
+            "highway": "track",
+            "lanes": "1",
+            "layer": "-1",
+            "motorcar": "no",
+            "motorcycle": "designated",
+            "note": "This is a designated motorcycle lane, using highway=path which is more appropriate",
+            "oneway": "yes",
+            "surface": "asphalt",
+            "tracktype": "grade1",
+            "tunnel": "yes"
+          }
+        }
+      ]
+    }
+  },
+  "service_subtype_counts": {
+    "alley": 431,
+    "driveway": 88,
+    "drive-through": 4,
+    "parking_aisle": 54
+  },
+  "baseline": {
+    "default": {
+      "PASS": 15220,
+      "UNKNOWN": 900
+    },
+    "drive": {
+      "PASS": 12473,
+      "FAIL": 3647
+    },
+    "older_adult_rest": {
+      "UNKNOWN": 16100,
+      "PASS": 17,
+      "FAIL": 3
+    },
+    "stroller": {
+      "UNKNOWN": 16100,
+      "PASS": 17,
+      "FAIL": 3
+    },
+    "wheelchair": {
+      "UNKNOWN": 16100,
+      "PASS": 17,
+      "FAIL": 3
+    }
+  },
+  "excluded_highway_types": {
+    "construction": {
+      "count": 94,
+      "examples": [405958051, 405961870, 866518964, 866518970, 866518971]
+    },
+    "motorway": {
+      "count": 88,
+      "examples": [133610647, 133610648, 133610650, 133610651, 133610654]
+    },
+    "motorway_link": {
+      "count": 59,
+      "examples": [23404591, 23404622, 23404632, 23575528, 23575529]
+    }
+  },
+  "outside_display_radius": 14753,
+  "edges_extending_past_query_bbox": 446,
+  "building_overlap_pairs": [
+    {
+      "edge": "seg-240136715-2",
+      "building": "w911054759",
+      "approx_overlap_m": 23.2
+    },
+    {
+      "edge": "seg-599124591-0",
+      "building": "w1155996370",
+      "approx_overlap_m": 14.7
+    },
+    {
+      "edge": "seg-599502605-0",
+      "building": "w1155996401",
+      "approx_overlap_m": 27.2
+    },
+    {
+      "edge": "seg-599502605-0",
+      "building": "w1155996402",
+      "approx_overlap_m": 8.7
+    },
+    {
+      "edge": "seg-599502605-0",
+      "building": "w1155996403",
+      "approx_overlap_m": 12.9
+    },
+    {
+      "edge": "seg-599502606-0",
+      "building": "w1155996392",
+      "approx_overlap_m": 12.1
+    },
+    {
+      "edge": "seg-599502606-0",
+      "building": "w1155996394",
+      "approx_overlap_m": 4.5
+    },
+    {
+      "edge": "seg-599502606-0",
+      "building": "w1155996391",
+      "approx_overlap_m": 9.2
+    },
+    {
+      "edge": "seg-599502606-0",
+      "building": "w1155996390",
+      "approx_overlap_m": 7.4
+    },
+    {
+      "edge": "seg-599502606-0",
+      "building": "w1155996389",
+      "approx_overlap_m": 9.8
+    },
+    {
+      "edge": "seg-599502609-0",
+      "building": "w1155996447",
+      "approx_overlap_m": 10.3
+    },
+    {
+      "edge": "seg-599502609-0",
+      "building": "w1155996444",
+      "approx_overlap_m": 10.0
+    },
+    {
+      "edge": "seg-599502609-0",
+      "building": "w1155996443",
+      "approx_overlap_m": 7.4
+    },
+    {
+      "edge": "seg-599513821-0",
+      "building": "w1155996562",
+      "approx_overlap_m": 14.3
+    },
+    {
+      "edge": "seg-605477554-0",
+      "building": "w1155996366",
+      "approx_overlap_m": 26.4
+    },
+    {
+      "edge": "seg-792713769-0",
+      "building": "w1155996441",
+      "approx_overlap_m": 11.7
+    },
+    {
+      "edge": "seg-927252053-0",
+      "building": "w909932260",
+      "approx_overlap_m": 9.1
+    },
+    {
+      "edge": "seg-604133076-0",
+      "building": "w1038285429",
+      "approx_overlap_m": 51.5
+    },
+    {
+      "edge": "seg-544622536-0",
+      "building": "w544622535",
+      "approx_overlap_m": 109.0
+    },
+    {
+      "edge": "seg-604133078-9",
+      "building": "w1059260952",
+      "approx_overlap_m": 12.1
+    },
+    {
+      "edge": "seg-1203032098-0",
+      "building": "w1059260954",
+      "approx_overlap_m": 26.3
+    },
+    {
+      "edge": "seg-404002721-5",
+      "building": "w911711515",
+      "approx_overlap_m": 10.4
+    },
+    {
+      "edge": "seg-604796952-1",
+      "building": "w911711524",
+      "approx_overlap_m": 27.0
+    },
+    {
+      "edge": "seg-604796953-0",
+      "building": "w911711522",
+      "approx_overlap_m": 5.1
+    },
+    {
+      "edge": "seg-604796954-0",
+      "building": "w911711520",
+      "approx_overlap_m": 59.2
+    },
+    {
+      "edge": "seg-604796955-0",
+      "building": "w911711516",
+      "approx_overlap_m": 58.0
+    },
+    {
+      "edge": "seg-604796956-0",
+      "building": "w911711518",
+      "approx_overlap_m": 58.1
+    },
+    {
+      "edge": "seg-604796957-1",
+      "building": "w911711507",
+      "approx_overlap_m": 23.3
+    },
+    {
+      "edge": "seg-604796960-0",
+      "building": "w911711513",
+      "approx_overlap_m": 16.1
+    },
+    {
+      "edge": "seg-604796960-1",
+      "building": "w911711510",
+      "approx_overlap_m": 22.1
+    },
+    {
+      "edge": "seg-604796961-0",
+      "building": "w911711514",
+      "approx_overlap_m": 23.3
+    },
+    {
+      "edge": "seg-1239035870-0",
+      "building": "w909868201",
+      "approx_overlap_m": 7.4
+    },
+    {
+      "edge": "seg-1299980141-0",
+      "building": "w911499102",
+      "approx_overlap_m": 6.8
+    },
+    {
+      "edge": "seg-1346154589-0",
+      "building": "w1308938137",
+      "approx_overlap_m": 5.3
+    },
+    {
+      "edge": "seg-1346154590-0",
+      "building": "w1308938137",
+      "approx_overlap_m": 19.7
+    },
+    {
+      "edge": "seg-1346154590-1",
+      "building": "w1308938137",
+      "approx_overlap_m": 67.6
+    },
+    {
+      "edge": "seg-1346154591-0",
+      "building": "w1308938137",
+      "approx_overlap_m": 152.8
+    },
+    {
+      "edge": "seg-1346154591-1",
+      "building": "w1308938137",
+      "approx_overlap_m": 36.5
+    },
+    {
+      "edge": "seg-1346154591-2",
+      "building": "w1308938137",
+      "approx_overlap_m": 23.1
+    },
+    {
+      "edge": "seg-1346154591-3",
+      "building": "w1308938137",
+      "approx_overlap_m": 88.8
+    },
+    {
+      "edge": "seg-1346154591-4",
+      "building": "w1308938137",
+      "approx_overlap_m": 58.2
+    },
+    {
+      "edge": "seg-1450679024-0",
+      "building": "w1308938137",
+      "approx_overlap_m": 39.3
+    },
+    {
+      "edge": "seg-1450679025-0",
+      "building": "w1308938137",
+      "approx_overlap_m": 30.4
+    },
+    {
+      "edge": "seg-1268119061-1",
+      "building": "w1265698802",
+      "approx_overlap_m": 9.1
+    }
+  ],
+  "draw_geometry_basis": {
+    "surface": "same walk LineString, default 6 m street/10 m major road/3 m unknown type widths",
+    "status_line": "same frame transform, 0.6 m route lift; widths in pixels",
+    "limits": "Screenshot coordinates and real road widths were not supplied. Building overlaps are source-map conflicts, not surveyed obstructions."
+  }
+}

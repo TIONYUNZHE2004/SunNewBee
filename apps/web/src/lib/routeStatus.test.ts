@@ -14,6 +14,15 @@ describe("route status labels", () => {
     expect(routeStatusLabel("partly_unverified")).toBe("partly unverified");
     expect(routeStatusLabel("confirmed")).toBe("confirmed");
   });
+  it("always labels map estimates, including centre markers", () => {
+    expect(routeStatusLabel("likely_ok")).toBe("Likely OK (estimated)");
+    const c = { reachable: true, route_status: "likely_ok" };
+    expect(centreReachLabel(c)).toBe("Reachable, estimated from map data");
+    expect(centreMapMarker(c)).toEqual({
+      text: "Reachable, estimated from map data",
+      color: "#319795",
+    });
+  });
   it("a closed centre reads 'Closed (staff report)', never reachable", () => {
     expect(routeStatusLabel("closed")).toBe("Closed (staff report)");
     expect(centreReachLabel({ reachable: false, route_status: "closed" })).toBe(

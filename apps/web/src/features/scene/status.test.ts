@@ -3,7 +3,16 @@ import { mapStatus } from "./status";
 
 describe("mapStatus", () => {
   it("passes canonical status_for_profile through", () => {
-    for (const s of ["ok", "unknown", "blocked", "flooded_likely", "flooded_possible"]) {
+    for (const s of [
+      "ok",
+      "verified",
+      "likely_ok",
+      "not_a_road",
+      "unknown",
+      "blocked",
+      "flooded_likely",
+      "flooded_possible",
+    ]) {
       expect(mapStatus({ status_for_profile: s })).toBe(s);
     }
   });

@@ -1,0 +1,884 @@
+{
+  "world": "crafted tiny rest-detour fixture, not real seed",
+  "transport": "curl against real FastAPI HTTP on own port 8021",
+  "cases": {
+    "open": {
+      "status": "confirmed",
+      "routes": [
+        {
+          "id": "rt-a6e0bf7a",
+          "status": "confirmed",
+          "from_place": "park-b",
+          "to_place": "playground",
+          "target_node": "n-d",
+          "profile": "older_adult_rest",
+          "scenario_id": null,
+          "distance_m": 226.2,
+          "est_minutes": 3.2,
+          "segments": [
+            {
+              "edge_id": "seg-ab",
+              "eval": "PASS",
+              "flood_class": null,
+              "access_level": "unknown",
+              "rule_id": "no_map_basis_v1",
+              "tags_used": {}
+            },
+            {
+              "edge_id": "seg-bc",
+              "eval": "PASS",
+              "flood_class": null,
+              "access_level": "unknown",
+              "rule_id": "no_map_basis_v1",
+              "tags_used": {}
+            },
+            {
+              "edge_id": "seg-cr",
+              "eval": "PASS",
+              "flood_class": null,
+              "access_level": "unknown",
+              "rule_id": "no_map_basis_v1",
+              "tags_used": {}
+            },
+            {
+              "edge_id": "seg-rd",
+              "eval": "PASS",
+              "flood_class": null,
+              "access_level": "unknown",
+              "rule_id": "no_map_basis_v1",
+              "tags_used": {}
+            }
+          ],
+          "maneuvers": [
+            {
+              "index": 1,
+              "action": "depart",
+              "distance_m": 226.2,
+              "bearing_deg": 90.0,
+              "street_name": null,
+              "edge_type": "footway",
+              "access_level": "unknown",
+              "rule_id": "no_map_basis_v1",
+              "segment_ids": ["seg-ab", "seg-bc", "seg-cr", "seg-rd"],
+              "point": [101.509, 3.181]
+            },
+            {
+              "index": 2,
+              "action": "arrive",
+              "distance_m": 0.0,
+              "bearing_deg": 90.0,
+              "street_name": null,
+              "edge_type": "footway",
+              "access_level": "unknown",
+              "rule_id": "no_map_basis_v1",
+              "segment_ids": [],
+              "point": [101.511, 3.181]
+            }
+          ],
+          "access_metres": {
+            "verified": 0.0,
+            "likely_ok": 0.0,
+            "unknown": 226.2,
+            "barrier": 0.0,
+            "not_a_road": 0.0
+          },
+          "unknowns": [],
+          "rest_points": [
+            {
+              "place_id": "bench-b",
+              "node_id": "n-b",
+              "name": "Rest bench-b",
+              "status": "verified"
+            },
+            {
+              "place_id": "bench-1",
+              "node_id": "n-c",
+              "name": "Bench by the path",
+              "status": "verified"
+            },
+            {
+              "place_id": "rest-r",
+              "node_id": "n-r",
+              "name": "Rest rest-r",
+              "status": "verified"
+            }
+          ],
+          "crossings": [],
+          "sidewalk_m": 0.0,
+          "road_m": 0.0,
+          "road_without_mapped_sidewalk_m": 0.0,
+          "road_sections": [],
+          "max_gap_between_rest_m": 60.0,
+          "rest_limit_m": 100.0,
+          "rest_limit_met": true,
+          "rest_points_unverified": [],
+          "geometry": {
+            "type": "LineString",
+            "coordinates": [
+              [101.509, 3.181],
+              [101.5095, 3.181],
+              [101.51, 3.181],
+              [101.51, 3.181],
+              [101.511, 3.181]
+            ]
+          },
+          "evidence_ids": [
+            "ev-seg-ab.step_count",
+            "ev-seg-ab.incline_pct",
+            "ev-seg-ab.width_m",
+            "ev-seg-bc.step_count",
+            "ev-seg-bc.incline_pct",
+            "ev-seg-bc.width_m",
+            "ev-seg-cr.step_count",
+            "ev-seg-cr.incline_pct",
+            "ev-seg-cr.width_m",
+            "ev-seg-rd.step_count",
+            "ev-seg-rd.incline_pct",
+            "ev-seg-rd.width_m",
+            "ev-rt-a6e0bf7a.walkways"
+          ],
+          "demo_evidence": true
+        }
+      ],
+      "blocked_reasons": [],
+      "closures": [],
+      "warnings": [],
+      "max_rest_gap_m": 60.0,
+      "rest_limit_m": 100.0,
+      "rest_search_truncated": false,
+      "demo_evidence": true
+    },
+    "likely_flooded": {
+      "status": "confirmed",
+      "routes": [
+        {
+          "id": "rt-e1addf4e",
+          "status": "confirmed",
+          "from_place": "park-b",
+          "to_place": "playground",
+          "target_node": "n-d",
+          "profile": "older_adult_rest",
+          "scenario_id": "stage_p1m",
+          "distance_m": 226.2,
+          "est_minutes": 3.2,
+          "segments": [
+            {
+              "edge_id": "seg-ab",
+              "eval": "PASS",
+              "flood_class": null,
+              "access_level": "unknown",
+              "rule_id": "no_map_basis_v1",
+              "tags_used": {}
+            },
+            {
+              "edge_id": "seg-bc",
+              "eval": "PASS",
+              "flood_class": null,
+              "access_level": "unknown",
+              "rule_id": "no_map_basis_v1",
+              "tags_used": {}
+            },
+            {
+              "edge_id": "seg-cr",
+              "eval": "PASS",
+              "flood_class": null,
+              "access_level": "unknown",
+              "rule_id": "no_map_basis_v1",
+              "tags_used": {}
+            },
+            {
+              "edge_id": "seg-rd",
+              "eval": "PASS",
+              "flood_class": null,
+              "access_level": "unknown",
+              "rule_id": "no_map_basis_v1",
+              "tags_used": {}
+            }
+          ],
+          "maneuvers": [
+            {
+              "index": 1,
+              "action": "depart",
+              "distance_m": 226.2,
+              "bearing_deg": 90.0,
+              "street_name": null,
+              "edge_type": "footway",
+              "access_level": "unknown",
+              "rule_id": "no_map_basis_v1",
+              "segment_ids": ["seg-ab", "seg-bc", "seg-cr", "seg-rd"],
+              "point": [101.509, 3.181]
+            },
+            {
+              "index": 2,
+              "action": "arrive",
+              "distance_m": 0.0,
+              "bearing_deg": 90.0,
+              "street_name": null,
+              "edge_type": "footway",
+              "access_level": "unknown",
+              "rule_id": "no_map_basis_v1",
+              "segment_ids": [],
+              "point": [101.511, 3.181]
+            }
+          ],
+          "access_metres": {
+            "verified": 0.0,
+            "likely_ok": 0.0,
+            "unknown": 226.2,
+            "barrier": 0.0,
+            "not_a_road": 0.0
+          },
+          "unknowns": [],
+          "rest_points": [
+            {
+              "place_id": "bench-b",
+              "node_id": "n-b",
+              "name": "Rest bench-b",
+              "status": "verified"
+            },
+            {
+              "place_id": "bench-1",
+              "node_id": "n-c",
+              "name": "Bench by the path",
+              "status": "verified"
+            },
+            {
+              "place_id": "rest-r",
+              "node_id": "n-r",
+              "name": "Rest rest-r",
+              "status": "verified"
+            }
+          ],
+          "crossings": [],
+          "sidewalk_m": 0.0,
+          "road_m": 0.0,
+          "road_without_mapped_sidewalk_m": 0.0,
+          "road_sections": [],
+          "max_gap_between_rest_m": 60.0,
+          "rest_limit_m": 100.0,
+          "rest_limit_met": true,
+          "rest_points_unverified": [],
+          "geometry": {
+            "type": "LineString",
+            "coordinates": [
+              [101.509, 3.181],
+              [101.5095, 3.181],
+              [101.51, 3.181],
+              [101.51, 3.181],
+              [101.511, 3.181]
+            ]
+          },
+          "evidence_ids": [
+            "ev-seg-ab.step_count",
+            "ev-seg-ab.incline_pct",
+            "ev-seg-ab.width_m",
+            "ev-seg-bc.step_count",
+            "ev-seg-bc.incline_pct",
+            "ev-seg-bc.width_m",
+            "ev-seg-cr.step_count",
+            "ev-seg-cr.incline_pct",
+            "ev-seg-cr.width_m",
+            "ev-seg-rd.step_count",
+            "ev-seg-rd.incline_pct",
+            "ev-seg-rd.width_m",
+            "ev-rt-e1addf4e.walkways"
+          ],
+          "demo_evidence": true
+        }
+      ],
+      "blocked_reasons": [],
+      "closures": [],
+      "warnings": [],
+      "max_rest_gap_m": 60.0,
+      "rest_limit_m": 100.0,
+      "rest_search_truncated": false,
+      "demo_evidence": true
+    },
+    "possible": {
+      "status": "confirmed",
+      "routes": [
+        {
+          "id": "rt-a3702d94",
+          "status": "confirmed",
+          "from_place": "park-b",
+          "to_place": "playground",
+          "target_node": "n-d",
+          "profile": "older_adult_rest",
+          "scenario_id": "stage_p3m",
+          "distance_m": 226.2,
+          "est_minutes": 3.2,
+          "segments": [
+            {
+              "edge_id": "seg-ab",
+              "eval": "PASS",
+              "flood_class": null,
+              "access_level": "unknown",
+              "rule_id": "no_map_basis_v1",
+              "tags_used": {}
+            },
+            {
+              "edge_id": "seg-bc",
+              "eval": "PASS",
+              "flood_class": null,
+              "access_level": "unknown",
+              "rule_id": "no_map_basis_v1",
+              "tags_used": {}
+            },
+            {
+              "edge_id": "seg-cr",
+              "eval": "PASS",
+              "flood_class": null,
+              "access_level": "unknown",
+              "rule_id": "no_map_basis_v1",
+              "tags_used": {}
+            },
+            {
+              "edge_id": "seg-rd",
+              "eval": "PASS",
+              "flood_class": null,
+              "access_level": "unknown",
+              "rule_id": "no_map_basis_v1",
+              "tags_used": {}
+            }
+          ],
+          "maneuvers": [
+            {
+              "index": 1,
+              "action": "depart",
+              "distance_m": 226.2,
+              "bearing_deg": 90.0,
+              "street_name": null,
+              "edge_type": "footway",
+              "access_level": "unknown",
+              "rule_id": "no_map_basis_v1",
+              "segment_ids": ["seg-ab", "seg-bc", "seg-cr", "seg-rd"],
+              "point": [101.509, 3.181]
+            },
+            {
+              "index": 2,
+              "action": "arrive",
+              "distance_m": 0.0,
+              "bearing_deg": 90.0,
+              "street_name": null,
+              "edge_type": "footway",
+              "access_level": "unknown",
+              "rule_id": "no_map_basis_v1",
+              "segment_ids": [],
+              "point": [101.511, 3.181]
+            }
+          ],
+          "access_metres": {
+            "verified": 0.0,
+            "likely_ok": 0.0,
+            "unknown": 226.2,
+            "barrier": 0.0,
+            "not_a_road": 0.0
+          },
+          "unknowns": [],
+          "rest_points": [
+            {
+              "place_id": "bench-b",
+              "node_id": "n-b",
+              "name": "Rest bench-b",
+              "status": "verified"
+            },
+            {
+              "place_id": "bench-1",
+              "node_id": "n-c",
+              "name": "Bench by the path",
+              "status": "verified"
+            },
+            {
+              "place_id": "rest-r",
+              "node_id": "n-r",
+              "name": "Rest rest-r",
+              "status": "verified"
+            }
+          ],
+          "crossings": [],
+          "sidewalk_m": 0.0,
+          "road_m": 0.0,
+          "road_without_mapped_sidewalk_m": 0.0,
+          "road_sections": [],
+          "max_gap_between_rest_m": 60.0,
+          "rest_limit_m": 100.0,
+          "rest_limit_met": true,
+          "rest_points_unverified": [],
+          "geometry": {
+            "type": "LineString",
+            "coordinates": [
+              [101.509, 3.181],
+              [101.5095, 3.181],
+              [101.51, 3.181],
+              [101.51, 3.181],
+              [101.511, 3.181]
+            ]
+          },
+          "evidence_ids": [
+            "ev-seg-ab.step_count",
+            "ev-seg-ab.incline_pct",
+            "ev-seg-ab.width_m",
+            "ev-seg-bc.step_count",
+            "ev-seg-bc.incline_pct",
+            "ev-seg-bc.width_m",
+            "ev-seg-cr.step_count",
+            "ev-seg-cr.incline_pct",
+            "ev-seg-cr.width_m",
+            "ev-seg-rd.step_count",
+            "ev-seg-rd.incline_pct",
+            "ev-seg-rd.width_m",
+            "ev-rt-a3702d94.walkways"
+          ],
+          "demo_evidence": true
+        }
+      ],
+      "blocked_reasons": [],
+      "closures": [],
+      "warnings": [],
+      "max_rest_gap_m": 60.0,
+      "rest_limit_m": 100.0,
+      "rest_search_truncated": false,
+      "demo_evidence": true
+    },
+    "partial_coverage": {
+      "status": "confirmed",
+      "routes": [
+        {
+          "id": "rt-cf446e56",
+          "status": "confirmed",
+          "from_place": "park-b",
+          "to_place": "playground",
+          "target_node": "n-d",
+          "profile": "older_adult_rest",
+          "scenario_id": "stage_p5m",
+          "distance_m": 226.2,
+          "est_minutes": 3.2,
+          "segments": [
+            {
+              "edge_id": "seg-ab",
+              "eval": "PASS",
+              "flood_class": null,
+              "access_level": "unknown",
+              "rule_id": "no_map_basis_v1",
+              "tags_used": {}
+            },
+            {
+              "edge_id": "seg-bc",
+              "eval": "PASS",
+              "flood_class": null,
+              "access_level": "unknown",
+              "rule_id": "no_map_basis_v1",
+              "tags_used": {}
+            },
+            {
+              "edge_id": "seg-cr",
+              "eval": "PASS",
+              "flood_class": null,
+              "access_level": "unknown",
+              "rule_id": "no_map_basis_v1",
+              "tags_used": {}
+            },
+            {
+              "edge_id": "seg-rd",
+              "eval": "PASS",
+              "flood_class": null,
+              "access_level": "unknown",
+              "rule_id": "no_map_basis_v1",
+              "tags_used": {}
+            }
+          ],
+          "maneuvers": [
+            {
+              "index": 1,
+              "action": "depart",
+              "distance_m": 226.2,
+              "bearing_deg": 90.0,
+              "street_name": null,
+              "edge_type": "footway",
+              "access_level": "unknown",
+              "rule_id": "no_map_basis_v1",
+              "segment_ids": ["seg-ab", "seg-bc", "seg-cr", "seg-rd"],
+              "point": [101.509, 3.181]
+            },
+            {
+              "index": 2,
+              "action": "arrive",
+              "distance_m": 0.0,
+              "bearing_deg": 90.0,
+              "street_name": null,
+              "edge_type": "footway",
+              "access_level": "unknown",
+              "rule_id": "no_map_basis_v1",
+              "segment_ids": [],
+              "point": [101.511, 3.181]
+            }
+          ],
+          "access_metres": {
+            "verified": 0.0,
+            "likely_ok": 0.0,
+            "unknown": 226.2,
+            "barrier": 0.0,
+            "not_a_road": 0.0
+          },
+          "unknowns": [],
+          "rest_points": [
+            {
+              "place_id": "bench-b",
+              "node_id": "n-b",
+              "name": "Rest bench-b",
+              "status": "verified"
+            },
+            {
+              "place_id": "bench-1",
+              "node_id": "n-c",
+              "name": "Bench by the path",
+              "status": "verified"
+            },
+            {
+              "place_id": "rest-r",
+              "node_id": "n-r",
+              "name": "Rest rest-r",
+              "status": "verified"
+            }
+          ],
+          "crossings": [],
+          "sidewalk_m": 0.0,
+          "road_m": 0.0,
+          "road_without_mapped_sidewalk_m": 0.0,
+          "road_sections": [],
+          "max_gap_between_rest_m": 60.0,
+          "rest_limit_m": 100.0,
+          "rest_limit_met": true,
+          "rest_points_unverified": [],
+          "geometry": {
+            "type": "LineString",
+            "coordinates": [
+              [101.509, 3.181],
+              [101.5095, 3.181],
+              [101.51, 3.181],
+              [101.51, 3.181],
+              [101.511, 3.181]
+            ]
+          },
+          "evidence_ids": [
+            "ev-seg-ab.step_count",
+            "ev-seg-ab.incline_pct",
+            "ev-seg-ab.width_m",
+            "ev-seg-bc.step_count",
+            "ev-seg-bc.incline_pct",
+            "ev-seg-bc.width_m",
+            "ev-seg-cr.step_count",
+            "ev-seg-cr.incline_pct",
+            "ev-seg-cr.width_m",
+            "ev-seg-rd.step_count",
+            "ev-seg-rd.incline_pct",
+            "ev-seg-rd.width_m",
+            "ev-rt-cf446e56.walkways"
+          ],
+          "demo_evidence": true
+        }
+      ],
+      "blocked_reasons": [],
+      "closures": [],
+      "warnings": [],
+      "max_rest_gap_m": 60.0,
+      "rest_limit_m": 100.0,
+      "rest_search_truncated": false,
+      "demo_evidence": true
+    },
+    "active_closure": {
+      "status": "confirmed",
+      "routes": [
+        {
+          "id": "rt-a6e0bf7a",
+          "status": "confirmed",
+          "from_place": "park-b",
+          "to_place": "playground",
+          "target_node": "n-d",
+          "profile": "older_adult_rest",
+          "scenario_id": null,
+          "distance_m": 226.2,
+          "est_minutes": 3.2,
+          "segments": [
+            {
+              "edge_id": "seg-ab",
+              "eval": "PASS",
+              "flood_class": null,
+              "access_level": "unknown",
+              "rule_id": "no_map_basis_v1",
+              "tags_used": {}
+            },
+            {
+              "edge_id": "seg-bc",
+              "eval": "PASS",
+              "flood_class": null,
+              "access_level": "unknown",
+              "rule_id": "no_map_basis_v1",
+              "tags_used": {}
+            },
+            {
+              "edge_id": "seg-cr",
+              "eval": "PASS",
+              "flood_class": null,
+              "access_level": "unknown",
+              "rule_id": "no_map_basis_v1",
+              "tags_used": {}
+            },
+            {
+              "edge_id": "seg-rd",
+              "eval": "PASS",
+              "flood_class": null,
+              "access_level": "unknown",
+              "rule_id": "no_map_basis_v1",
+              "tags_used": {}
+            }
+          ],
+          "maneuvers": [
+            {
+              "index": 1,
+              "action": "depart",
+              "distance_m": 226.2,
+              "bearing_deg": 90.0,
+              "street_name": null,
+              "edge_type": "footway",
+              "access_level": "unknown",
+              "rule_id": "no_map_basis_v1",
+              "segment_ids": ["seg-ab", "seg-bc", "seg-cr", "seg-rd"],
+              "point": [101.509, 3.181]
+            },
+            {
+              "index": 2,
+              "action": "arrive",
+              "distance_m": 0.0,
+              "bearing_deg": 90.0,
+              "street_name": null,
+              "edge_type": "footway",
+              "access_level": "unknown",
+              "rule_id": "no_map_basis_v1",
+              "segment_ids": [],
+              "point": [101.511, 3.181]
+            }
+          ],
+          "access_metres": {
+            "verified": 0.0,
+            "likely_ok": 0.0,
+            "unknown": 226.2,
+            "barrier": 0.0,
+            "not_a_road": 0.0
+          },
+          "unknowns": [],
+          "rest_points": [
+            {
+              "place_id": "bench-b",
+              "node_id": "n-b",
+              "name": "Rest bench-b",
+              "status": "verified"
+            },
+            {
+              "place_id": "bench-1",
+              "node_id": "n-c",
+              "name": "Bench by the path",
+              "status": "verified"
+            },
+            {
+              "place_id": "rest-r",
+              "node_id": "n-r",
+              "name": "Rest rest-r",
+              "status": "verified"
+            }
+          ],
+          "crossings": [],
+          "sidewalk_m": 0.0,
+          "road_m": 0.0,
+          "road_without_mapped_sidewalk_m": 0.0,
+          "road_sections": [],
+          "max_gap_between_rest_m": 60.0,
+          "rest_limit_m": 100.0,
+          "rest_limit_met": true,
+          "rest_points_unverified": [],
+          "geometry": {
+            "type": "LineString",
+            "coordinates": [
+              [101.509, 3.181],
+              [101.5095, 3.181],
+              [101.51, 3.181],
+              [101.51, 3.181],
+              [101.511, 3.181]
+            ]
+          },
+          "evidence_ids": [
+            "ev-seg-ab.step_count",
+            "ev-seg-ab.incline_pct",
+            "ev-seg-ab.width_m",
+            "ev-seg-bc.step_count",
+            "ev-seg-bc.incline_pct",
+            "ev-seg-bc.width_m",
+            "ev-seg-cr.step_count",
+            "ev-seg-cr.incline_pct",
+            "ev-seg-cr.width_m",
+            "ev-seg-rd.step_count",
+            "ev-seg-rd.incline_pct",
+            "ev-seg-rd.width_m",
+            "ev-rt-a6e0bf7a.walkways"
+          ],
+          "demo_evidence": true
+        }
+      ],
+      "blocked_reasons": [],
+      "closures": [],
+      "warnings": [],
+      "max_rest_gap_m": 60.0,
+      "rest_limit_m": 100.0,
+      "rest_search_truncated": false,
+      "demo_evidence": true
+    },
+    "ended_closure": {
+      "status": "confirmed",
+      "routes": [
+        {
+          "id": "rt-a6e0bf7a",
+          "status": "confirmed",
+          "from_place": "park-b",
+          "to_place": "playground",
+          "target_node": "n-d",
+          "profile": "older_adult_rest",
+          "scenario_id": null,
+          "distance_m": 226.2,
+          "est_minutes": 3.2,
+          "segments": [
+            {
+              "edge_id": "seg-ab",
+              "eval": "PASS",
+              "flood_class": null,
+              "access_level": "unknown",
+              "rule_id": "no_map_basis_v1",
+              "tags_used": {}
+            },
+            {
+              "edge_id": "seg-bc",
+              "eval": "PASS",
+              "flood_class": null,
+              "access_level": "unknown",
+              "rule_id": "no_map_basis_v1",
+              "tags_used": {}
+            },
+            {
+              "edge_id": "seg-cr",
+              "eval": "PASS",
+              "flood_class": null,
+              "access_level": "unknown",
+              "rule_id": "no_map_basis_v1",
+              "tags_used": {}
+            },
+            {
+              "edge_id": "seg-rd",
+              "eval": "PASS",
+              "flood_class": null,
+              "access_level": "unknown",
+              "rule_id": "no_map_basis_v1",
+              "tags_used": {}
+            }
+          ],
+          "maneuvers": [
+            {
+              "index": 1,
+              "action": "depart",
+              "distance_m": 226.2,
+              "bearing_deg": 90.0,
+              "street_name": null,
+              "edge_type": "footway",
+              "access_level": "unknown",
+              "rule_id": "no_map_basis_v1",
+              "segment_ids": ["seg-ab", "seg-bc", "seg-cr", "seg-rd"],
+              "point": [101.509, 3.181]
+            },
+            {
+              "index": 2,
+              "action": "arrive",
+              "distance_m": 0.0,
+              "bearing_deg": 90.0,
+              "street_name": null,
+              "edge_type": "footway",
+              "access_level": "unknown",
+              "rule_id": "no_map_basis_v1",
+              "segment_ids": [],
+              "point": [101.511, 3.181]
+            }
+          ],
+          "access_metres": {
+            "verified": 0.0,
+            "likely_ok": 0.0,
+            "unknown": 226.2,
+            "barrier": 0.0,
+            "not_a_road": 0.0
+          },
+          "unknowns": [],
+          "rest_points": [
+            {
+              "place_id": "bench-b",
+              "node_id": "n-b",
+              "name": "Rest bench-b",
+              "status": "verified"
+            },
+            {
+              "place_id": "bench-1",
+              "node_id": "n-c",
+              "name": "Bench by the path",
+              "status": "verified"
+            },
+            {
+              "place_id": "rest-r",
+              "node_id": "n-r",
+              "name": "Rest rest-r",
+              "status": "verified"
+            }
+          ],
+          "crossings": [],
+          "sidewalk_m": 0.0,
+          "road_m": 0.0,
+          "road_without_mapped_sidewalk_m": 0.0,
+          "road_sections": [],
+          "max_gap_between_rest_m": 60.0,
+          "rest_limit_m": 100.0,
+          "rest_limit_met": true,
+          "rest_points_unverified": [],
+          "geometry": {
+            "type": "LineString",
+            "coordinates": [
+              [101.509, 3.181],
+              [101.5095, 3.181],
+              [101.51, 3.181],
+              [101.51, 3.181],
+              [101.511, 3.181]
+            ]
+          },
+          "evidence_ids": [
+            "ev-seg-ab.step_count",
+            "ev-seg-ab.incline_pct",
+            "ev-seg-ab.width_m",
+            "ev-seg-bc.step_count",
+            "ev-seg-bc.incline_pct",
+            "ev-seg-bc.width_m",
+            "ev-seg-cr.step_count",
+            "ev-seg-cr.incline_pct",
+            "ev-seg-cr.width_m",
+            "ev-seg-rd.step_count",
+            "ev-seg-rd.incline_pct",
+            "ev-seg-rd.width_m",
+            "ev-rt-a6e0bf7a.walkways"
+          ],
+          "demo_evidence": true
+        }
+      ],
+      "blocked_reasons": [],
+      "closures": [],
+      "warnings": [],
+      "max_rest_gap_m": 60.0,
+      "rest_limit_m": 100.0,
+      "rest_search_truncated": false,
+      "demo_evidence": true
+    }
+  },
+  "live_questions": 0,
+  "spend_usd": 0
+}

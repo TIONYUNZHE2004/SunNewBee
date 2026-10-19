@@ -40,12 +40,14 @@ from .labels import (
     route_status_line,
     unknown_note,
 )
+from .localize import localize
 from .memory import DEFAULT as DEFAULT_MEMORY
 from .memory import SessionMemory
 from .record import TurnRecord
 from .redact import redact
 from .scope import is_greeting, outside_scope
 from .settings import AgentSettings
+from .steps import maneuver_steps
 from .template import _top_stage, greeting_answer, scope_answer, template_answer
 from .validate import PLACEHOLDER_CAVEAT
 
@@ -168,6 +170,7 @@ def outside_note(ans: FinalAnswer, rec: TurnRecord, world, lang: str = "en") -> 
     return OUTSIDE_NOTE.get(lang, OUTSIDE_NOTE["en"]).format(name=spots[0].name)
 
 
+MANDATORY_WARNING = re.compile(r"distance and time stop at the road|not modelled; indicative only")
 CAVEAT_HEAD = "Worth knowing:"
 URGENT_MARK = "⚠"
 
@@ -237,13 +240,16 @@ def answer_text(
             rest.append(c)
 
     def dot(c: str) -> str:
-        return c if c.endswith((".", "!", "?", "。", "！", "？")) else c + "."
+        c = localize(c, lang)  # fixed English lines in the answer's language (T-019)
+        if c.endswith((".", "!", "?", "。", "！", "？")):
+            return c
+        return c + ("。" if lang == "zh" and re.search(r"[\u3400-\u9fff）]$", c) else ".")
 
     parts = [label] if label else []
     parts += [f"{URGENT_MARK} {dot(c)}" for c in urgent]
-    parts.append(summary)
+    parts.append(localize(summary, lang))
     if ans.steps:
-        parts.append("\n".join(f"{i}. {s}" for i, s in enumerate(ans.steps, 1)))
+        parts.append("\n".join(f"{i}. {localize(s, lang)}" for i, s in enumerate(ans.steps, 1)))
     if rest:
         head = FRAME.get(lang, FRAME["en"])["worth"]
         parts.append(head + "\n" + "\n".join(f"• {dot(c)}" for c in rest))
@@ -258,6 +264,23 @@ def _answer_events(
     lang: str = "en",
 ) -> list[ChatEvent]:
     evs: list[ChatEvent] = []
+    # T-021: steps come from the answered route's maneuvers only (never model-written turns).
+    answered = rec.routes.get(ans.route_id or "") or (
+        next(iter(rec.routes.values())) if len(rec.routes) == 1 else {}
+    )
+    if (steps := maneuver_steps(answered, lang)) and ans.answer_status != "cannot_answer":
+        ans = ans.model_copy(update={"steps": steps})
+    # Engine warnings an answer may never drop: the route stops short of the place, and the
+    # driving limits (legal turns, changing directions). Added after the check if missing.
+    have = " ".join(_norm(c) for c in ans.caveats)
+    missing = [
+        w
+        for w in rec.route_warnings.get(answered.get("id", ""), [])
+        if MANDATORY_WARNING.search(w)
+        and not any(_norm(localize(w, lg)) in have for lg in ("en", "ms", "zh"))
+    ]
+    if missing:
+        ans = ans.model_copy(update={"caveats": [*ans.caveats, *missing]})
     if note := outside_note(ans, rec, ctx.world, lang):
         ans = ans.model_copy(update={"caveats": [*ans.caveats, note]})
     text = answer_text(ans, _route_status_line(ans, rec, lang), rec, lang)
@@ -322,7 +345,30 @@ def _answer_events(
         # Only what the model may write; every server-attached field is rebuilt below.
         intent = SceneIntent(**it.model_dump(include=set(AnswerSceneIntent.model_fields)))
         intent.route_status = intent.distance_m = intent.est_minutes = None
+        if intent.kind == "flood.set_level":
+            selected_route = rec.routes.get(ans.route_id or "") or (
+                next(iter(rec.routes.values())) if len(rec.routes) == 1 else {}
+            )
+            allowed = rec.scenarios_used | {
+                e.element_id for e in rec.evidence.values() if e.attribute == "scenario"
+            }
+            if (
+                intent.scenario_id != ans.scenario_id
+                or intent.scenario_id not in allowed
+                or (
+                    "scenario_id" in selected_route
+                    and (selected_route["scenario_id"] or "baseline") != intent.scenario_id
+                )
+            ):
+                continue
         if intent.kind == "route.highlight":
+            selected = ans.route_id or (next(iter(rec.routes)) if len(rec.routes) == 1 else None)
+            if (
+                ans.answer_status == "cannot_answer"
+                or rec.selection_error
+                or intent.route_id != selected
+            ):
+                continue
             route = rec.routes.get(intent.route_id or "")
             if route is None:
                 continue  # nothing to draw: the route was not returned this turn
@@ -574,12 +620,31 @@ async def run_turn(
         return
     # A recording cannot reflect a live closure (R33), so any active closure is a cache miss.
     if settings.demo_mode and not ctx.world.active_closures():
-        cached = demo.load(demo.key(req), settings.demo_dir, ctx.world.site.id)
+        cached = demo.load(
+            demo.key(req), settings.demo_dir, ctx.world.site.id, demo.world_fingerprint(ctx.world)
+        )
         if cached:
+            shown = []
+            route_calls = []
             async for ev in demo.replay(cached, ctx.vrs):
+                if ev.type == "text.delta":
+                    shown.append(ev.delta)
+                if ev.type == "tool.call" and ev.name == "plan_route":
+                    route_calls.append(ev.args)
                 yield ev
+            context = None
+            if len(route_calls) == 1:
+                args = route_calls[0]
+                context = {
+                    "from_place": args["from_id"],
+                    "to_place": args["to_id"],
+                    "profile": args.get("profile", req.profile),
+                }
+            memory.add_turn(req.session_id, question, "".join(shown), route=context)
             return
     rec = record or TurnRecord()
+    rec.strict_selection = True
+    rec.context_route = memory.route_context(req.session_id)
     # Stages the resident named, and the stages the world has scenarios for ("+1 m to +5 m").
     rec.asked_stages = {f.value for f in extract_facts(question) if f.kind == "stage"} | {
         float(s.stage_m) for s in ctx.world.flood.scenarios if s.stage_m is not None
@@ -691,11 +756,23 @@ async def run_turn(
         return
     # Follow-up context: the question and the answer as shown (template fallbacks included).
     shown = "".join(e.delta for e in events if isinstance(e, TextDelta))
+    selected = rec.routes.get(ans.route_id or "") or (
+        next(iter(rec.routes.values())) if len(rec.routes) == 1 else None
+    )
+    context_route = (
+        {k: selected[k] for k in ("from_place", "to_place", "profile")}
+        if selected
+        and all(k in selected for k in ("from_place", "to_place", "profile"))
+        and ans.answer_status != "cannot_answer"
+        and not rec.selection_error
+        else None
+    )
     memory.add_turn(
         req.session_id,
         question,
         shown,
         simulated=bool(rec.what_ifs or rec.plans or rec.days or rec.day_changes),
+        route=context_route,
     )
     for ev in events:
         yield ev

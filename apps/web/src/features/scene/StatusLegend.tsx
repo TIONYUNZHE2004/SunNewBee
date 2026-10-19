@@ -5,7 +5,7 @@ import { type EdgeStatus, ROUTE_STYLE, statusStyle } from "./styles";
 /** Dash pattern per border style, ; butt caps so gaps stay visible at the sample width. */
 const DASH = { solid: undefined, dashed: "6 4", dotted: "2 3" } as const;
 
-const ACCESS_ROWS: EdgeStatus[] = ["ok", "unknown", "blocked"];
+const ACCESS_ROWS: EdgeStatus[] = ["verified", "likely_ok", "unknown", "blocked", "not_a_road"];
 const FLOOD_ROWS: EdgeStatus[] = ["flooded_likely", "flooded_possible"];
 
 /** Which status rows the legend lists: access rows follow "Path status", flood rows follow the

@@ -1,0 +1,116 @@
+[
+  {
+    "id": "h1",
+    "summary": "Surau Al Mahdi to Surau At Taqwa: likely OK (estimated from map data, not checked), about 364 m.",
+    "should_reject": false,
+    "rejected": false,
+    "ok": true,
+    "errors": []
+  },
+  {
+    "id": "h2",
+    "summary": "The walk to Surau At Taqwa is about 364 m, roughly 5 minutes, estimated from map data.",
+    "should_reject": false,
+    "rejected": false,
+    "ok": true,
+    "errors": []
+  },
+  {
+    "id": "d1",
+    "summary": "Surau Al Mahdi is about 364 m from Anadia Clinic.",
+    "should_reject": true,
+    "rejected": true,
+    "ok": true,
+    "errors": [
+      "Route endpoint mismatch: this measurement was not returned for the exact named places. Re-run the correct route or remove the measurement.",
+      "Facts ['364 m'] do not match this turn's tool results: state distances, times, widths, slopes, step counts and other counts only as a tool returned them (round only with 'about'; never 'exactly' a rounded number)."
+    ]
+  },
+  {
+    "id": "d2",
+    "summary": "Surau At Taqwa is about 364 m from Elmina Lakeside Mall.",
+    "should_reject": true,
+    "rejected": true,
+    "ok": true,
+    "errors": [
+      "Route endpoint mismatch: this measurement was not returned for the exact named places. Re-run the correct route or remove the measurement.",
+      "Facts ['364 m'] do not match this turn's tool results: state distances, times, widths, slopes, step counts and other counts only as a tool returned them (round only with 'about'; never 'exactly' a rounded number)."
+    ]
+  },
+  {
+    "id": "d3",
+    "summary": "The route is confirmed and about 364 m.",
+    "should_reject": true,
+    "rejected": true,
+    "ok": true,
+    "errors": [
+      "Route status contradiction: the route is likely_ok but the summary/steps name ['confirmed']. Use the status the tool returned.",
+      "Map estimates are not checked facts: remove positive survey, confirmation or accessibility claims."
+    ]
+  },
+  {
+    "id": "d4",
+    "summary": "The route is about 364 m and step-free.",
+    "should_reject": true,
+    "rejected": true,
+    "ok": true,
+    "errors": [
+      "The route is only likely OK (estimated from map data, not checked): ['step-free'] stated as fact. Say 'likely step-free (estimated from map data, not checked)' instead.",
+      "Map estimates are not checked facts: remove positive survey, confirmation or accessibility claims."
+    ]
+  },
+  {
+    "id": "d5",
+    "summary": "The route is about 364 m; it is checked on site.",
+    "should_reject": true,
+    "rejected": true,
+    "ok": true,
+    "errors": [
+      "Map estimates are not checked facts: remove positive survey, confirmation or accessibility claims."
+    ]
+  },
+  {
+    "id": "d6",
+    "summary": "Anadia Clinic is about 5 minutes away.",
+    "should_reject": true,
+    "rejected": true,
+    "ok": true,
+    "errors": [
+      "Route endpoint mismatch: this measurement was not returned for the exact named places. Re-run the correct route or remove the measurement.",
+      "Facts ['5 minutes'] do not match this turn's tool results: state distances, times, widths, slopes, step counts and other counts only as a tool returned them (round only with 'about'; never 'exactly' a rounded number)."
+    ]
+  },
+  {
+    "id": "d7",
+    "summary": "Dari Surau Al Mahdi ke Anadia Clinic kira-kira 364 m.",
+    "should_reject": true,
+    "rejected": true,
+    "ok": true,
+    "errors": [
+      "Route endpoint mismatch: this measurement was not returned for the exact named places. Re-run the correct route or remove the measurement.",
+      "Facts ['364 m'] do not match this turn's tool results: state distances, times, widths, slopes, step counts and other counts only as a tool returned them (round only with 'about'; never 'exactly' a rounded number)."
+    ]
+  },
+  {
+    "id": "d8",
+    "summary": "从Surau Al Mahdi到Anadia Clinic约364米。",
+    "should_reject": true,
+    "rejected": true,
+    "ok": true,
+    "errors": [
+      "Route endpoint mismatch: this measurement was not returned for the exact named places. Re-run the correct route or remove the measurement.",
+      "Facts ['364米'] do not match this turn's tool results: state distances, times, widths, slopes, step counts and other counts only as a tool returned them (round only with 'about'; never 'exactly' a rounded number)."
+    ]
+  },
+  {
+    "id": "d9",
+    "summary": "The route is about 364 m. Elmina Lakeside Mall is 5 minutes from Surau At Taqwa.",
+    "should_reject": true,
+    "rejected": true,
+    "ok": true,
+    "errors": [
+      "Route endpoint mismatch: this measurement was not returned for the exact named places. Re-run the correct route or remove the measurement.",
+      "Facts ['5 minutes'] do not match this turn's tool results: state distances, times, widths, slopes, step counts and other counts only as a tool returned them (round only with 'about'; never 'exactly' a rounded number)."
+    ]
+  }
+]

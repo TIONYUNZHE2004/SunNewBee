@@ -148,7 +148,7 @@ def test_mock_malformed_ok_payload_raises_not_swallowed():
         ("Can I push a stroller from Car Park B to the kiosk without stairs?", "kiosk"),
         ("Stroller from Car Park B to the toilet, no stairs?", "toilet"),
         ("Can I push a stroller from Car Park B to the playground?", "playground"),
-        ("Can I push a stroller from Car Park B without stairs?", "playground"),
+        ("Can I push a stroller from Car Park B without stairs?", None),
     ],
 )
 def test_mock_access_destination_from_prompt(q, dest):
@@ -161,7 +161,7 @@ def test_mock_access_destination_from_prompt(q, dest):
         return {"ok": True, "data": [], "evidence": [], "warnings": []}
 
     res = agent.run_sync(q)
-    assert queries == ["car park b", dest]
+    assert queries == (["car park b", dest] if dest else [])
     assert res.output.answer_status == "cannot_answer"
 
 

@@ -87,14 +87,16 @@ describe("SettingsPopover", () => {
     expect(useSceneSettings.getState().pathStatus).toBe(false);
     expect(within(legend).queryByText("Not checked yet")).toBeNull();
   });
-  it("lists the legend with all six statuses incl. Suggested route", async () => {
+  it("lists the legend with all access levels incl. Suggested route", async () => {
     useSceneSettings.setState({ pathStatus: true });
     useScene.getState().setScenario("stage_p1m");
     renderWithClient(<SettingsPopover />, seeded());
     await userEvent.click(screen.getByRole("button", { name: "Map settings" }));
     const legend = screen.getByRole("list", { name: "Path status legend" });
     for (const t of [
-      "No known barrier",
+      "Verified",
+      "Likely OK (estimated)",
+      "Not a road",
       "Not checked yet",
       "Not passable",
       "Likely flooded (indicative)",

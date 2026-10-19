@@ -1,0 +1,85 @@
+{
+  "status": "confirmed",
+  "routes": [
+    {
+      "id": "rt-ca3d79f3",
+      "status": "confirmed",
+      "from_place": "park-b",
+      "to_place": "lakeside-mall",
+      "target_node": "n-b",
+      "profile": "stroller",
+      "scenario_id": null,
+      "distance_m": -100.0,
+      "est_minutes": -1.4,
+      "segments": [
+        {
+          "edge_id": "seg-ab",
+          "eval": "PASS",
+          "flood_class": null,
+          "access_level": "unknown",
+          "rule_id": "no_map_basis_v1",
+          "tags_used": {}
+        }
+      ],
+      "maneuvers": [
+        {
+          "index": 1,
+          "action": "depart",
+          "distance_m": -100.0,
+          "bearing_deg": 90.0,
+          "street_name": null,
+          "edge_type": "footway",
+          "access_level": "unknown",
+          "rule_id": "no_map_basis_v1",
+          "segment_ids": ["seg-ab"],
+          "point": [101.509, 3.181]
+        },
+        {
+          "index": 2,
+          "action": "arrive",
+          "distance_m": 0.0,
+          "bearing_deg": 90.0,
+          "street_name": null,
+          "edge_type": "footway",
+          "access_level": "unknown",
+          "rule_id": "no_map_basis_v1",
+          "segment_ids": [],
+          "point": [101.5095, 3.181]
+        }
+      ],
+      "access_metres": {
+        "verified": 0.0,
+        "likely_ok": 0.0,
+        "unknown": -100.0,
+        "barrier": 0.0,
+        "not_a_road": 0.0
+      },
+      "unknowns": [],
+      "rest_points": [],
+      "crossings": [],
+      "sidewalk_m": 0.0,
+      "road_m": 0.0,
+      "road_without_mapped_sidewalk_m": 0.0,
+      "road_sections": [],
+      "max_gap_between_rest_m": 0.0,
+      "rest_limit_m": null,
+      "rest_limit_met": null,
+      "rest_points_unverified": [],
+      "geometry": { "type": "LineString", "coordinates": [[101.509, 3.181], [101.5095, 3.181]] },
+      "evidence_ids": [
+        "ev-seg-ab.step_count",
+        "ev-seg-ab.incline_pct",
+        "ev-seg-ab.width_m",
+        "ev-rt-ca3d79f3.walkways"
+      ],
+      "demo_evidence": true
+    }
+  ],
+  "blocked_reasons": [],
+  "closures": [],
+  "warnings": [],
+  "max_rest_gap_m": null,
+  "rest_limit_m": null,
+  "rest_search_truncated": false,
+  "demo_evidence": true
+}

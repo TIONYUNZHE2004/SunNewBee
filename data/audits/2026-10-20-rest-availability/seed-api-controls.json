@@ -1,0 +1,1698 @@
+{
+  "world": "committed Elmina seed",
+  "provider": "mock",
+  "routes": {
+    "default": {
+      "status": "likely_ok",
+      "routes": [
+        {
+          "id": "rt-ba1d227e",
+          "status": "likely_ok",
+          "from_place": "park-b",
+          "to_place": "playground",
+          "target_node": "n-31807145_1015102486",
+          "profile": "default",
+          "scenario_id": null,
+          "distance_m": 416.4,
+          "est_minutes": 5.9,
+          "segments": [
+            {
+              "edge_id": "seg-1306543769-3",
+              "eval": "PASS",
+              "flood_class": null,
+              "access_level": "likely_ok",
+              "rule_id": "local_road_walking_v1",
+              "tags_used": {
+                "highway": "service"
+              }
+            },
+            {
+              "edge_id": "seg-1306543769-2",
+              "eval": "PASS",
+              "flood_class": null,
+              "access_level": "likely_ok",
+              "rule_id": "local_road_walking_v1",
+              "tags_used": {
+                "highway": "service"
+              }
+            },
+            {
+              "edge_id": "seg-1306543775-0",
+              "eval": "PASS",
+              "flood_class": null,
+              "access_level": "likely_ok",
+              "rule_id": "local_road_walking_v1",
+              "tags_used": {
+                "highway": "service",
+                "oneway": "yes",
+                "service": "parking_aisle"
+              }
+            },
+            {
+              "edge_id": "seg-1306543775-1",
+              "eval": "PASS",
+              "flood_class": null,
+              "access_level": "likely_ok",
+              "rule_id": "local_road_walking_v1",
+              "tags_used": {
+                "highway": "service",
+                "oneway": "yes",
+                "service": "parking_aisle"
+              }
+            },
+            {
+              "edge_id": "seg-1306543754-8",
+              "eval": "PASS",
+              "flood_class": null,
+              "access_level": "likely_ok",
+              "rule_id": "local_road_walking_v1",
+              "tags_used": {
+                "highway": "service"
+              }
+            },
+            {
+              "edge_id": "seg-1306543755-1",
+              "eval": "PASS",
+              "flood_class": null,
+              "access_level": "likely_ok",
+              "rule_id": "local_road_walking_v1",
+              "tags_used": {
+                "highway": "service",
+                "oneway": "yes"
+              }
+            },
+            {
+              "edge_id": "seg-1306543755-2",
+              "eval": "PASS",
+              "flood_class": null,
+              "access_level": "likely_ok",
+              "rule_id": "mapped_path_walking_v1",
+              "tags_used": {
+                "highway": "service",
+                "oneway": "yes"
+              }
+            },
+            {
+              "edge_id": "seg-1346147882-0",
+              "eval": "PASS",
+              "flood_class": null,
+              "access_level": "likely_ok",
+              "rule_id": "mapped_path_walking_v1",
+              "tags_used": {
+                "highway": "footway",
+                "tunnel": "building_passage"
+              }
+            },
+            {
+              "edge_id": "seg-1346147882-1",
+              "eval": "PASS",
+              "flood_class": null,
+              "access_level": "likely_ok",
+              "rule_id": "mapped_path_walking_v1",
+              "tags_used": {
+                "highway": "footway",
+                "tunnel": "building_passage"
+              }
+            },
+            {
+              "edge_id": "seg-1318133037-1",
+              "eval": "PASS",
+              "flood_class": null,
+              "access_level": "likely_ok",
+              "rule_id": "mapped_path_walking_v1",
+              "tags_used": {
+                "highway": "footway"
+              }
+            },
+            {
+              "edge_id": "seg-1318133037-2",
+              "eval": "PASS",
+              "flood_class": null,
+              "access_level": "likely_ok",
+              "rule_id": "mapped_path_walking_v1",
+              "tags_used": {
+                "highway": "footway"
+              }
+            },
+            {
+              "edge_id": "seg-1318133037-3",
+              "eval": "PASS",
+              "flood_class": null,
+              "access_level": "likely_ok",
+              "rule_id": "mapped_path_walking_v1",
+              "tags_used": {
+                "highway": "footway"
+              }
+            },
+            {
+              "edge_id": "seg-1318133035-2",
+              "eval": "PASS",
+              "flood_class": null,
+              "access_level": "likely_ok",
+              "rule_id": "mapped_path_walking_v1",
+              "tags_used": {
+                "highway": "footway"
+              }
+            }
+          ],
+          "maneuvers": [
+            {
+              "index": 1,
+              "action": "depart",
+              "distance_m": 38.2,
+              "bearing_deg": 234.2,
+              "street_name": null,
+              "edge_type": "street",
+              "access_level": "likely_ok",
+              "rule_id": "local_road_walking_v1",
+              "segment_ids": ["seg-1306543769-3", "seg-1306543769-2"],
+              "point": [101.508757, 3.18131]
+            },
+            {
+              "index": 2,
+              "action": "turn_left",
+              "distance_m": 46.0,
+              "bearing_deg": 145.0,
+              "street_name": null,
+              "edge_type": "street",
+              "access_level": "likely_ok",
+              "rule_id": "local_road_walking_v1",
+              "segment_ids": ["seg-1306543775-0", "seg-1306543775-1"],
+              "point": [101.508479, 3.181108]
+            },
+            {
+              "index": 3,
+              "action": "turn_right",
+              "distance_m": 27.1,
+              "bearing_deg": 234.8,
+              "street_name": null,
+              "edge_type": "street",
+              "access_level": "likely_ok",
+              "rule_id": "local_road_walking_v1",
+              "segment_ids": ["seg-1306543754-8"],
+              "point": [101.508715, 3.180769]
+            },
+            {
+              "index": 4,
+              "action": "turn_left",
+              "distance_m": 12.7,
+              "bearing_deg": 154.4,
+              "street_name": null,
+              "edge_type": "street",
+              "access_level": "likely_ok",
+              "rule_id": "local_road_walking_v1",
+              "segment_ids": ["seg-1306543755-1"],
+              "point": [101.508515, 3.180628]
+            },
+            {
+              "index": 5,
+              "action": "continue",
+              "distance_m": 3.6,
+              "bearing_deg": 217.5,
+              "street_name": null,
+              "edge_type": "ramp",
+              "access_level": "likely_ok",
+              "rule_id": "mapped_path_walking_v1",
+              "segment_ids": ["seg-1306543755-2"],
+              "point": [101.508521, 3.180519]
+            },
+            {
+              "index": 6,
+              "action": "turn_left",
+              "distance_m": 74.9,
+              "bearing_deg": 142.3,
+              "street_name": null,
+              "edge_type": "footway",
+              "access_level": "likely_ok",
+              "rule_id": "mapped_path_walking_v1",
+              "segment_ids": ["seg-1346147882-0", "seg-1346147882-1"],
+              "point": [101.508501, 3.180493]
+            },
+            {
+              "index": 7,
+              "action": "turn_left",
+              "distance_m": 188.3,
+              "bearing_deg": 61.3,
+              "street_name": null,
+              "edge_type": "footway",
+              "access_level": "likely_ok",
+              "rule_id": "mapped_path_walking_v1",
+              "segment_ids": ["seg-1318133037-1", "seg-1318133037-2", "seg-1318133037-3"],
+              "point": [101.508911, 3.179959]
+            },
+            {
+              "index": 8,
+              "action": "turn_right",
+              "distance_m": 25.7,
+              "bearing_deg": 187.5,
+              "street_name": null,
+              "edge_type": "footway",
+              "access_level": "likely_ok",
+              "rule_id": "mapped_path_walking_v1",
+              "segment_ids": ["seg-1318133035-2"],
+              "point": [101.510279, 3.180944]
+            },
+            {
+              "index": 9,
+              "action": "arrive",
+              "distance_m": 0.0,
+              "bearing_deg": 187.5,
+              "street_name": null,
+              "edge_type": "footway",
+              "access_level": "likely_ok",
+              "rule_id": "mapped_path_walking_v1",
+              "segment_ids": [],
+              "point": [101.510249, 3.180715]
+            }
+          ],
+          "access_metres": {
+            "verified": 0.0,
+            "likely_ok": 416.4,
+            "unknown": 0.0,
+            "barrier": 0.0,
+            "not_a_road": 0.0
+          },
+          "unknowns": [],
+          "rest_points": [
+            {
+              "place_id": "bench-urban-1",
+              "node_id": "n-31808343_1015086713",
+              "name": "Urban Park bench 1",
+              "status": "verified"
+            },
+            {
+              "place_id": "bench-urban-2",
+              "node_id": "n-31804933_1015085014",
+              "name": "Urban Park bench 2",
+              "status": "verified"
+            },
+            {
+              "place_id": "bench-urban-3",
+              "node_id": "n-31805474_1015098542",
+              "name": "Urban Park bench 3",
+              "status": "verified"
+            }
+          ],
+          "crossings": [],
+          "sidewalk_m": 0.0,
+          "road_m": 124.0,
+          "road_without_mapped_sidewalk_m": 124.0,
+          "road_sections": [
+            {
+              "element_id": "seg-1306543769-3",
+              "name": null,
+              "length_m": 20.12,
+              "sidewalk": null,
+              "sidewalk_status": "unknown"
+            },
+            {
+              "element_id": "seg-1306543769-2",
+              "name": null,
+              "length_m": 18.04,
+              "sidewalk": null,
+              "sidewalk_status": "unknown"
+            },
+            {
+              "element_id": "seg-1306543775-0",
+              "name": null,
+              "length_m": 37.23,
+              "sidewalk": null,
+              "sidewalk_status": "unknown"
+            },
+            {
+              "element_id": "seg-1306543775-1",
+              "name": null,
+              "length_m": 8.77,
+              "sidewalk": null,
+              "sidewalk_status": "unknown"
+            },
+            {
+              "element_id": "seg-1306543754-8",
+              "name": null,
+              "length_m": 27.14,
+              "sidewalk": null,
+              "sidewalk_status": "unknown"
+            },
+            {
+              "element_id": "seg-1306543755-1",
+              "name": null,
+              "length_m": 12.7,
+              "sidewalk": null,
+              "sidewalk_status": "unknown"
+            }
+          ],
+          "max_gap_between_rest_m": 198.5,
+          "rest_limit_m": null,
+          "rest_limit_met": null,
+          "rest_points_unverified": [],
+          "geometry": {
+            "type": "LineString",
+            "coordinates": [
+              [101.508757, 3.18131],
+              [101.50861, 3.181204],
+              [101.508479, 3.181108],
+              [101.508671, 3.180834],
+              [101.508715, 3.180769],
+              [101.508515, 3.180628],
+              [101.508527, 3.180603],
+              [101.508533, 3.180575],
+              [101.50853, 3.180546],
+              [101.508521, 3.180519],
+              [101.508501, 3.180493],
+              [101.508769, 3.180147],
+              [101.508911, 3.179959],
+              [101.50941, 3.180232],
+              [101.509854, 3.180547],
+              [101.509999, 3.180661],
+              [101.510071, 3.180734],
+              [101.510279, 3.180944],
+              [101.510249, 3.180715]
+            ]
+          },
+          "evidence_ids": [
+            "ev-seg-1306543769-3.step_count",
+            "ev-seg-1306543769-3.incline_pct",
+            "ev-seg-1306543769-3.width_m",
+            "ev-seg-1306543769-2.step_count",
+            "ev-seg-1306543769-2.incline_pct",
+            "ev-seg-1306543769-2.width_m",
+            "ev-seg-1306543775-0.step_count",
+            "ev-seg-1306543775-0.incline_pct",
+            "ev-seg-1306543775-0.width_m",
+            "ev-seg-1306543775-1.step_count",
+            "ev-seg-1306543775-1.incline_pct",
+            "ev-seg-1306543775-1.width_m",
+            "ev-seg-1306543754-8.step_count",
+            "ev-seg-1306543754-8.incline_pct",
+            "ev-seg-1306543754-8.width_m",
+            "ev-seg-1306543755-1.step_count",
+            "ev-seg-1306543755-1.incline_pct",
+            "ev-seg-1306543755-1.width_m",
+            "ev-seg-1306543755-2.step_count",
+            "ev-seg-1306543755-2.width_m",
+            "ev-seg-1306543755-2.incline_pct",
+            "ev-seg-1346147882-0.step_count",
+            "ev-seg-1346147882-0.incline_pct",
+            "ev-seg-1346147882-0.width_m",
+            "ev-seg-1346147882-1.step_count",
+            "ev-seg-1346147882-1.incline_pct",
+            "ev-seg-1346147882-1.width_m",
+            "ev-seg-1318133037-1.step_count",
+            "ev-seg-1318133037-1.incline_pct",
+            "ev-seg-1318133037-1.width_m",
+            "ev-seg-1318133037-2.step_count",
+            "ev-seg-1318133037-2.incline_pct",
+            "ev-seg-1318133037-2.width_m",
+            "ev-seg-1318133037-3.step_count",
+            "ev-seg-1318133037-3.incline_pct",
+            "ev-seg-1318133037-3.width_m",
+            "ev-seg-1318133035-2.step_count",
+            "ev-seg-1318133035-2.incline_pct",
+            "ev-seg-1318133035-2.width_m",
+            "ev-rt-ba1d227e.walkways",
+            "ev-rt-ba1d227e.access_estimate",
+            "ev-place-bench-urban-1",
+            "ev-place-bench-urban-2",
+            "ev-place-bench-urban-3",
+            "ev-place-park-b",
+            "ev-place-playground"
+          ],
+          "demo_evidence": true
+        }
+      ],
+      "blocked_reasons": [],
+      "closures": [],
+      "warnings": [
+        "Likely OK sections are estimated from map data, not checked on site",
+        "About 124 m follows road centre lines without a mapped sidewalk; sidewalk access is not verified",
+        "Demo value \u00b7 not surveyed: Urban Park bench 1; place existence uses demo values, not yet surveyed.",
+        "Demo value \u00b7 not surveyed: Urban Park bench 2; place existence uses demo values, not yet surveyed.",
+        "Demo value \u00b7 not surveyed: Urban Park bench 3; place existence uses demo values, not yet surveyed.",
+        "Demo value \u00b7 not surveyed: Lakeside Mall Car Park B; place existence uses demo values, not yet surveyed.",
+        "Demo value \u00b7 not surveyed: Urban Park playground; place existence uses demo values, not yet surveyed."
+      ],
+      "max_rest_gap_m": null,
+      "rest_limit_m": null,
+      "rest_search_truncated": false,
+      "demo_evidence": true
+    },
+    "older_adult_rest": {
+      "status": "partly_unverified",
+      "routes": [
+        {
+          "id": "rt-ad71efa4",
+          "status": "partly_unverified",
+          "from_place": "park-b",
+          "to_place": "playground",
+          "target_node": "n-31807145_1015102486",
+          "profile": "older_adult_rest",
+          "scenario_id": null,
+          "distance_m": 416.4,
+          "est_minutes": 5.9,
+          "segments": [
+            {
+              "edge_id": "seg-1306543769-3",
+              "eval": "PASS",
+              "flood_class": null,
+              "access_level": "unknown",
+              "rule_id": "road_sidewalk_missing_v1",
+              "tags_used": {
+                "highway": "service"
+              }
+            },
+            {
+              "edge_id": "seg-1306543769-2",
+              "eval": "PASS",
+              "flood_class": null,
+              "access_level": "unknown",
+              "rule_id": "road_sidewalk_missing_v1",
+              "tags_used": {
+                "highway": "service"
+              }
+            },
+            {
+              "edge_id": "seg-1306543775-0",
+              "eval": "PASS",
+              "flood_class": null,
+              "access_level": "unknown",
+              "rule_id": "road_sidewalk_missing_v1",
+              "tags_used": {
+                "highway": "service",
+                "oneway": "yes",
+                "service": "parking_aisle"
+              }
+            },
+            {
+              "edge_id": "seg-1306543775-1",
+              "eval": "PASS",
+              "flood_class": null,
+              "access_level": "unknown",
+              "rule_id": "road_sidewalk_missing_v1",
+              "tags_used": {
+                "highway": "service",
+                "oneway": "yes",
+                "service": "parking_aisle"
+              }
+            },
+            {
+              "edge_id": "seg-1306543754-8",
+              "eval": "PASS",
+              "flood_class": null,
+              "access_level": "unknown",
+              "rule_id": "road_sidewalk_missing_v1",
+              "tags_used": {
+                "highway": "service"
+              }
+            },
+            {
+              "edge_id": "seg-1306543755-1",
+              "eval": "PASS",
+              "flood_class": null,
+              "access_level": "unknown",
+              "rule_id": "road_sidewalk_missing_v1",
+              "tags_used": {
+                "highway": "service",
+                "oneway": "yes"
+              }
+            },
+            {
+              "edge_id": "seg-1306543755-2",
+              "eval": "UNKNOWN",
+              "flood_class": null,
+              "access_level": "unknown",
+              "rule_id": "no_estimate_rule_v1",
+              "tags_used": {
+                "highway": "service",
+                "oneway": "yes"
+              }
+            },
+            {
+              "edge_id": "seg-1346147882-0",
+              "eval": "PASS",
+              "flood_class": null,
+              "access_level": "unknown",
+              "rule_id": "no_estimate_rule_v1",
+              "tags_used": {
+                "highway": "footway",
+                "tunnel": "building_passage"
+              }
+            },
+            {
+              "edge_id": "seg-1346147882-1",
+              "eval": "PASS",
+              "flood_class": null,
+              "access_level": "unknown",
+              "rule_id": "no_estimate_rule_v1",
+              "tags_used": {
+                "highway": "footway",
+                "tunnel": "building_passage"
+              }
+            },
+            {
+              "edge_id": "seg-1318133037-1",
+              "eval": "PASS",
+              "flood_class": null,
+              "access_level": "unknown",
+              "rule_id": "no_estimate_rule_v1",
+              "tags_used": {
+                "highway": "footway"
+              }
+            },
+            {
+              "edge_id": "seg-1318133037-2",
+              "eval": "PASS",
+              "flood_class": null,
+              "access_level": "unknown",
+              "rule_id": "no_estimate_rule_v1",
+              "tags_used": {
+                "highway": "footway"
+              }
+            },
+            {
+              "edge_id": "seg-1318133037-3",
+              "eval": "PASS",
+              "flood_class": null,
+              "access_level": "unknown",
+              "rule_id": "no_estimate_rule_v1",
+              "tags_used": {
+                "highway": "footway"
+              }
+            },
+            {
+              "edge_id": "seg-1318133035-2",
+              "eval": "PASS",
+              "flood_class": null,
+              "access_level": "unknown",
+              "rule_id": "no_estimate_rule_v1",
+              "tags_used": {
+                "highway": "footway"
+              }
+            }
+          ],
+          "maneuvers": [
+            {
+              "index": 1,
+              "action": "depart",
+              "distance_m": 38.2,
+              "bearing_deg": 234.2,
+              "street_name": null,
+              "edge_type": "street",
+              "access_level": "unknown",
+              "rule_id": "road_sidewalk_missing_v1",
+              "segment_ids": ["seg-1306543769-3", "seg-1306543769-2"],
+              "point": [101.508757, 3.18131]
+            },
+            {
+              "index": 2,
+              "action": "turn_left",
+              "distance_m": 46.0,
+              "bearing_deg": 145.0,
+              "street_name": null,
+              "edge_type": "street",
+              "access_level": "unknown",
+              "rule_id": "road_sidewalk_missing_v1",
+              "segment_ids": ["seg-1306543775-0", "seg-1306543775-1"],
+              "point": [101.508479, 3.181108]
+            },
+            {
+              "index": 3,
+              "action": "turn_right",
+              "distance_m": 27.1,
+              "bearing_deg": 234.8,
+              "street_name": null,
+              "edge_type": "street",
+              "access_level": "unknown",
+              "rule_id": "road_sidewalk_missing_v1",
+              "segment_ids": ["seg-1306543754-8"],
+              "point": [101.508715, 3.180769]
+            },
+            {
+              "index": 4,
+              "action": "turn_left",
+              "distance_m": 12.7,
+              "bearing_deg": 154.4,
+              "street_name": null,
+              "edge_type": "street",
+              "access_level": "unknown",
+              "rule_id": "road_sidewalk_missing_v1",
+              "segment_ids": ["seg-1306543755-1"],
+              "point": [101.508515, 3.180628]
+            },
+            {
+              "index": 5,
+              "action": "continue",
+              "distance_m": 3.6,
+              "bearing_deg": 217.5,
+              "street_name": null,
+              "edge_type": "ramp",
+              "access_level": "unknown",
+              "rule_id": "no_estimate_rule_v1",
+              "segment_ids": ["seg-1306543755-2"],
+              "point": [101.508521, 3.180519]
+            },
+            {
+              "index": 6,
+              "action": "turn_left",
+              "distance_m": 74.9,
+              "bearing_deg": 142.3,
+              "street_name": null,
+              "edge_type": "footway",
+              "access_level": "unknown",
+              "rule_id": "no_estimate_rule_v1",
+              "segment_ids": ["seg-1346147882-0", "seg-1346147882-1"],
+              "point": [101.508501, 3.180493]
+            },
+            {
+              "index": 7,
+              "action": "turn_left",
+              "distance_m": 188.3,
+              "bearing_deg": 61.3,
+              "street_name": null,
+              "edge_type": "footway",
+              "access_level": "unknown",
+              "rule_id": "no_estimate_rule_v1",
+              "segment_ids": ["seg-1318133037-1", "seg-1318133037-2", "seg-1318133037-3"],
+              "point": [101.508911, 3.179959]
+            },
+            {
+              "index": 8,
+              "action": "turn_right",
+              "distance_m": 25.7,
+              "bearing_deg": 187.5,
+              "street_name": null,
+              "edge_type": "footway",
+              "access_level": "unknown",
+              "rule_id": "no_estimate_rule_v1",
+              "segment_ids": ["seg-1318133035-2"],
+              "point": [101.510279, 3.180944]
+            },
+            {
+              "index": 9,
+              "action": "arrive",
+              "distance_m": 0.0,
+              "bearing_deg": 187.5,
+              "street_name": null,
+              "edge_type": "footway",
+              "access_level": "unknown",
+              "rule_id": "no_estimate_rule_v1",
+              "segment_ids": [],
+              "point": [101.510249, 3.180715]
+            }
+          ],
+          "access_metres": {
+            "verified": 0.0,
+            "likely_ok": 0.0,
+            "unknown": 416.4,
+            "barrier": 0.0,
+            "not_a_road": 0.0
+          },
+          "unknowns": [
+            {
+              "element_id": "seg-1306543755-2",
+              "attribute": "incline_pct",
+              "reason": "unknown",
+              "why": "older_adult_rest needs incline_pct \u2264 8.3; not verified"
+            }
+          ],
+          "rest_points": [
+            {
+              "place_id": "bench-urban-1",
+              "node_id": "n-31808343_1015086713",
+              "name": "Urban Park bench 1",
+              "status": "verified"
+            },
+            {
+              "place_id": "bench-urban-2",
+              "node_id": "n-31804933_1015085014",
+              "name": "Urban Park bench 2",
+              "status": "verified"
+            },
+            {
+              "place_id": "bench-urban-3",
+              "node_id": "n-31805474_1015098542",
+              "name": "Urban Park bench 3",
+              "status": "verified"
+            }
+          ],
+          "crossings": [],
+          "sidewalk_m": 0.0,
+          "road_m": 124.0,
+          "road_without_mapped_sidewalk_m": 124.0,
+          "road_sections": [
+            {
+              "element_id": "seg-1306543769-3",
+              "name": null,
+              "length_m": 20.12,
+              "sidewalk": null,
+              "sidewalk_status": "unknown"
+            },
+            {
+              "element_id": "seg-1306543769-2",
+              "name": null,
+              "length_m": 18.04,
+              "sidewalk": null,
+              "sidewalk_status": "unknown"
+            },
+            {
+              "element_id": "seg-1306543775-0",
+              "name": null,
+              "length_m": 37.23,
+              "sidewalk": null,
+              "sidewalk_status": "unknown"
+            },
+            {
+              "element_id": "seg-1306543775-1",
+              "name": null,
+              "length_m": 8.77,
+              "sidewalk": null,
+              "sidewalk_status": "unknown"
+            },
+            {
+              "element_id": "seg-1306543754-8",
+              "name": null,
+              "length_m": 27.14,
+              "sidewalk": null,
+              "sidewalk_status": "unknown"
+            },
+            {
+              "element_id": "seg-1306543755-1",
+              "name": null,
+              "length_m": 12.7,
+              "sidewalk": null,
+              "sidewalk_status": "unknown"
+            }
+          ],
+          "max_gap_between_rest_m": 198.5,
+          "rest_limit_m": 100.0,
+          "rest_limit_met": false,
+          "rest_points_unverified": [],
+          "geometry": {
+            "type": "LineString",
+            "coordinates": [
+              [101.508757, 3.18131],
+              [101.50861, 3.181204],
+              [101.508479, 3.181108],
+              [101.508671, 3.180834],
+              [101.508715, 3.180769],
+              [101.508515, 3.180628],
+              [101.508527, 3.180603],
+              [101.508533, 3.180575],
+              [101.50853, 3.180546],
+              [101.508521, 3.180519],
+              [101.508501, 3.180493],
+              [101.508769, 3.180147],
+              [101.508911, 3.179959],
+              [101.50941, 3.180232],
+              [101.509854, 3.180547],
+              [101.509999, 3.180661],
+              [101.510071, 3.180734],
+              [101.510279, 3.180944],
+              [101.510249, 3.180715]
+            ]
+          },
+          "evidence_ids": [
+            "ev-seg-1306543769-3.step_count",
+            "ev-seg-1306543769-3.incline_pct",
+            "ev-seg-1306543769-3.width_m",
+            "ev-seg-1306543769-2.step_count",
+            "ev-seg-1306543769-2.incline_pct",
+            "ev-seg-1306543769-2.width_m",
+            "ev-seg-1306543775-0.step_count",
+            "ev-seg-1306543775-0.incline_pct",
+            "ev-seg-1306543775-0.width_m",
+            "ev-seg-1306543775-1.step_count",
+            "ev-seg-1306543775-1.incline_pct",
+            "ev-seg-1306543775-1.width_m",
+            "ev-seg-1306543754-8.step_count",
+            "ev-seg-1306543754-8.incline_pct",
+            "ev-seg-1306543754-8.width_m",
+            "ev-seg-1306543755-1.step_count",
+            "ev-seg-1306543755-1.incline_pct",
+            "ev-seg-1306543755-1.width_m",
+            "ev-seg-1306543755-2.step_count",
+            "ev-seg-1306543755-2.width_m",
+            "ev-seg-1306543755-2.incline_pct",
+            "ev-seg-1346147882-0.step_count",
+            "ev-seg-1346147882-0.incline_pct",
+            "ev-seg-1346147882-0.width_m",
+            "ev-seg-1346147882-1.step_count",
+            "ev-seg-1346147882-1.incline_pct",
+            "ev-seg-1346147882-1.width_m",
+            "ev-seg-1318133037-1.step_count",
+            "ev-seg-1318133037-1.incline_pct",
+            "ev-seg-1318133037-1.width_m",
+            "ev-seg-1318133037-2.step_count",
+            "ev-seg-1318133037-2.incline_pct",
+            "ev-seg-1318133037-2.width_m",
+            "ev-seg-1318133037-3.step_count",
+            "ev-seg-1318133037-3.incline_pct",
+            "ev-seg-1318133037-3.width_m",
+            "ev-seg-1318133035-2.step_count",
+            "ev-seg-1318133035-2.incline_pct",
+            "ev-seg-1318133035-2.width_m",
+            "ev-rt-ad71efa4.walkways",
+            "ev-place-bench-urban-1",
+            "ev-place-bench-urban-2",
+            "ev-place-bench-urban-3",
+            "ev-place-park-b",
+            "ev-place-playground"
+          ],
+          "demo_evidence": true
+        }
+      ],
+      "blocked_reasons": [],
+      "closures": [],
+      "warnings": [
+        "longest stretch without a rest point is about 200 m (limit 100 m)",
+        "About 124 m follows road centre lines without a mapped sidewalk; sidewalk access is not verified",
+        "Demo value \u00b7 not surveyed: Urban Park bench 1; place existence uses demo values, not yet surveyed.",
+        "Demo value \u00b7 not surveyed: Urban Park bench 2; place existence uses demo values, not yet surveyed.",
+        "Demo value \u00b7 not surveyed: Urban Park bench 3; place existence uses demo values, not yet surveyed.",
+        "Demo value \u00b7 not surveyed: Lakeside Mall Car Park B; place existence uses demo values, not yet surveyed.",
+        "Demo value \u00b7 not surveyed: Urban Park playground; place existence uses demo values, not yet surveyed."
+      ],
+      "max_rest_gap_m": 198.5,
+      "rest_limit_m": 100.0,
+      "rest_search_truncated": false,
+      "demo_evidence": true
+    },
+    "drive": {
+      "status": "likely_ok",
+      "routes": [
+        {
+          "id": "rt-accd6e02",
+          "status": "likely_ok",
+          "from_place": "park-b",
+          "to_place": "playground",
+          "target_node": "n-31809935_1015094421",
+          "profile": "drive",
+          "scenario_id": null,
+          "distance_m": 113.3,
+          "est_minutes": 0.2,
+          "segments": [
+            {
+              "edge_id": "seg-1306543769-4",
+              "eval": "PASS",
+              "flood_class": null,
+              "access_level": "likely_ok",
+              "rule_id": "mapped_road_driving_v1",
+              "tags_used": {
+                "highway": "service"
+              }
+            },
+            {
+              "edge_id": "seg-1306543769-5",
+              "eval": "PASS",
+              "flood_class": null,
+              "access_level": "likely_ok",
+              "rule_id": "mapped_road_driving_v1",
+              "tags_used": {
+                "highway": "service"
+              }
+            },
+            {
+              "edge_id": "seg-1306543772-0",
+              "eval": "PASS",
+              "flood_class": null,
+              "access_level": "likely_ok",
+              "rule_id": "mapped_road_driving_v1",
+              "tags_used": {
+                "highway": "service",
+                "oneway": "yes",
+                "service": "parking_aisle"
+              }
+            },
+            {
+              "edge_id": "seg-1306543754-3",
+              "eval": "PASS",
+              "flood_class": null,
+              "access_level": "likely_ok",
+              "rule_id": "mapped_road_driving_v1",
+              "tags_used": {
+                "highway": "service"
+              }
+            },
+            {
+              "edge_id": "seg-1306543781-0",
+              "eval": "PASS",
+              "flood_class": null,
+              "access_level": "likely_ok",
+              "rule_id": "mapped_road_driving_v1",
+              "tags_used": {
+                "highway": "service"
+              }
+            }
+          ],
+          "maneuvers": [
+            {
+              "index": 1,
+              "action": "depart",
+              "distance_m": 37.0,
+              "bearing_deg": 53.3,
+              "street_name": null,
+              "edge_type": "street",
+              "access_level": "likely_ok",
+              "rule_id": "mapped_road_driving_v1",
+              "segment_ids": ["seg-1306543769-4", "seg-1306543769-5"],
+              "point": [101.508757, 3.18131]
+            },
+            {
+              "index": 2,
+              "action": "turn_right",
+              "distance_m": 47.6,
+              "bearing_deg": 142.9,
+              "street_name": null,
+              "edge_type": "street",
+              "access_level": "likely_ok",
+              "rule_id": "mapped_road_driving_v1",
+              "segment_ids": ["seg-1306543772-0"],
+              "point": [101.509025, 3.181506]
+            },
+            {
+              "index": 3,
+              "action": "turn_left",
+              "distance_m": 3.1,
+              "bearing_deg": 56.8,
+              "street_name": null,
+              "edge_type": "street",
+              "access_level": "likely_ok",
+              "rule_id": "mapped_road_driving_v1",
+              "segment_ids": ["seg-1306543754-3"],
+              "point": [101.509283, 3.181165]
+            },
+            {
+              "index": 4,
+              "action": "turn_right",
+              "distance_m": 25.6,
+              "bearing_deg": 143.9,
+              "street_name": null,
+              "edge_type": "street",
+              "access_level": "likely_ok",
+              "rule_id": "mapped_road_driving_v1",
+              "segment_ids": ["seg-1306543781-0"],
+              "point": [101.509306, 3.18118]
+            },
+            {
+              "index": 5,
+              "action": "arrive",
+              "distance_m": 0.0,
+              "bearing_deg": 143.9,
+              "street_name": null,
+              "edge_type": "street",
+              "access_level": "likely_ok",
+              "rule_id": "mapped_road_driving_v1",
+              "segment_ids": [],
+              "point": [101.509442, 3.180994]
+            }
+          ],
+          "access_metres": {
+            "verified": 0.0,
+            "likely_ok": 113.3,
+            "unknown": 0.0,
+            "barrier": 0.0,
+            "not_a_road": 0.0
+          },
+          "unknowns": [],
+          "rest_points": [],
+          "crossings": [],
+          "sidewalk_m": 0.0,
+          "road_m": 113.3,
+          "road_without_mapped_sidewalk_m": 113.3,
+          "road_sections": [
+            {
+              "element_id": "seg-1306543769-4",
+              "name": null,
+              "length_m": 17.36,
+              "sidewalk": null,
+              "sidewalk_status": "unknown"
+            },
+            {
+              "element_id": "seg-1306543769-5",
+              "name": null,
+              "length_m": 19.61,
+              "sidewalk": null,
+              "sidewalk_status": "unknown"
+            },
+            {
+              "element_id": "seg-1306543772-0",
+              "name": null,
+              "length_m": 47.59,
+              "sidewalk": null,
+              "sidewalk_status": "unknown"
+            },
+            {
+              "element_id": "seg-1306543754-3",
+              "name": null,
+              "length_m": 3.07,
+              "sidewalk": null,
+              "sidewalk_status": "unknown"
+            },
+            {
+              "element_id": "seg-1306543781-0",
+              "name": null,
+              "length_m": 25.63,
+              "sidewalk": null,
+              "sidewalk_status": "unknown"
+            }
+          ],
+          "max_gap_between_rest_m": 113.3,
+          "rest_limit_m": null,
+          "rest_limit_met": null,
+          "rest_points_unverified": [],
+          "geometry": {
+            "type": "LineString",
+            "coordinates": [
+              [101.508757, 3.18131],
+              [101.508882, 3.181403],
+              [101.509025, 3.181506],
+              [101.509283, 3.181165],
+              [101.509306, 3.18118],
+              [101.509442, 3.180994]
+            ]
+          },
+          "evidence_ids": [
+            "ev-rt-accd6e02.walkways",
+            "ev-rt-accd6e02.access_estimate",
+            "ev-place-park-b",
+            "ev-place-playground"
+          ],
+          "demo_evidence": true
+        }
+      ],
+      "blocked_reasons": [],
+      "closures": [],
+      "warnings": [
+        "Likely OK sections are estimated from map data, not checked on site",
+        "Urban Park playground is about 120 m from the nearest mapped road; distance and time stop at the road",
+        "Drive routes: mapped one-way tags applied; legal turn restrictions and changing directions not modelled; indicative only, never confirmed.",
+        "Demo value \u00b7 not surveyed: Lakeside Mall Car Park B; place existence uses demo values, not yet surveyed.",
+        "Demo value \u00b7 not surveyed: Urban Park playground; place existence uses demo values, not yet surveyed."
+      ],
+      "max_rest_gap_m": null,
+      "rest_limit_m": null,
+      "rest_search_truncated": false,
+      "demo_evidence": true
+    }
+  },
+  "places": {
+    "ok": true,
+    "data": [
+      {
+        "id": "osm-way-1309457596",
+        "name": "Elmina Urban Park",
+        "type": "park",
+        "score": 1.0
+      },
+      {
+        "id": "playground",
+        "name": "Urban Park playground",
+        "type": "playground",
+        "score": 0.95,
+        "existence": {
+          "value": true,
+          "status": "unknown",
+          "evidence_type": "team_survey_placeholder",
+          "method": null,
+          "evidence_ids": [],
+          "verified_by": null,
+          "verified_at": null,
+          "ttl_days": null
+        },
+        "demo_place": true,
+        "source_label": "Demo value \u00b7 not surveyed"
+      },
+      {
+        "id": "osm-node-11280647693",
+        "name": "Elmina Green One Park",
+        "type": "park",
+        "score": 0.74
+      },
+      {
+        "id": "toilet-urban-park",
+        "name": "Urban Park toilet",
+        "type": "toilet",
+        "score": 0.73,
+        "existence": {
+          "value": true,
+          "status": "unknown",
+          "evidence_type": "team_survey_placeholder",
+          "method": null,
+          "evidence_ids": [],
+          "verified_by": null,
+          "verified_at": null,
+          "ttl_days": null
+        },
+        "demo_place": true,
+        "source_label": "Demo value \u00b7 not surveyed"
+      },
+      {
+        "id": "bench-urban-1",
+        "name": "Urban Park bench 1",
+        "type": "seating",
+        "score": 0.73,
+        "existence": {
+          "value": true,
+          "status": "unknown",
+          "evidence_type": "team_survey_placeholder",
+          "method": null,
+          "evidence_ids": [],
+          "verified_by": null,
+          "verified_at": null,
+          "ttl_days": null
+        },
+        "demo_place": true,
+        "source_label": "Demo value \u00b7 not surveyed"
+      }
+    ],
+    "evidence": [
+      {
+        "id": "ev-place-osm-way-1309457596",
+        "element_id": "osm-way-1309457596",
+        "attribute": "name",
+        "value": "Elmina Urban Park",
+        "status": "reported",
+        "verified_at": null,
+        "source_type": "world_model",
+        "source_url": null,
+        "photo_url": null
+      },
+      {
+        "id": "ev-place-playground",
+        "element_id": "playground",
+        "attribute": "name",
+        "value": "Urban Park playground",
+        "status": "unknown",
+        "verified_at": null,
+        "source_type": "team_survey_placeholder",
+        "source_url": null,
+        "photo_url": null
+      },
+      {
+        "id": "ev-place-osm-node-11280647693",
+        "element_id": "osm-node-11280647693",
+        "attribute": "name",
+        "value": "Elmina Green One Park",
+        "status": "reported",
+        "verified_at": null,
+        "source_type": "world_model",
+        "source_url": null,
+        "photo_url": null
+      },
+      {
+        "id": "ev-place-toilet-urban-park",
+        "element_id": "toilet-urban-park",
+        "attribute": "name",
+        "value": "Urban Park toilet",
+        "status": "unknown",
+        "verified_at": null,
+        "source_type": "team_survey_placeholder",
+        "source_url": null,
+        "photo_url": null
+      },
+      {
+        "id": "ev-place-bench-urban-1",
+        "element_id": "bench-urban-1",
+        "attribute": "name",
+        "value": "Urban Park bench 1",
+        "status": "unknown",
+        "verified_at": null,
+        "source_type": "team_survey_placeholder",
+        "source_url": null,
+        "photo_url": null
+      }
+    ],
+    "warnings": [
+      "Demo value \u00b7 not surveyed: Urban Park playground; place existence uses demo values, not yet surveyed.",
+      "Demo value \u00b7 not surveyed: Urban Park toilet; place existence uses demo values, not yet surveyed.",
+      "Demo value \u00b7 not surveyed: Urban Park bench 1; place existence uses demo values, not yet surveyed."
+    ]
+  },
+  "access_feature_count": 16352,
+  "chat": {
+    "request": {
+      "message": "Can I walk from Car Park B to the playground with rest stops?",
+      "profile": "older_adult_rest"
+    },
+    "text": "Route status: partly unverified\nLakeside Mall Car Park B to Urban Park playground: route partly unverified, 416.4 m.\n1. Start heading south-west along the street for about 38 m (not checked yet).\n2. Turn left onto the street. Continue about 46 m (not checked yet).\n3. Turn right onto the street. Continue about 27 m (not checked yet).\n4. Turn left onto the street. Continue about 13 m (not checked yet).\n5. Continue along the ramp for about 4 m (not checked yet).\n6. Turn left onto the footway. Continue about 75 m (not checked yet).\n7. \u2026 2 more steps are not listed here (shortened directions).\n8. Reach the end of the mapped route.\nWorth knowing:\n\u2022 Not checked yet: Incline (%) on an unnamed ramp.\n\u2022 Asked the township team to check this item.\n\u2022 Longest stretch without a rest point is about 200 m (limit 100 m).\n\u2022 About 124 m follows road centre lines without a mapped sidewalk; sidewalk access is not verified.\n\u2022 Segment facts are demo values, not yet surveyed.",
+    "checks": [
+      {
+        "type": "answer.check",
+        "attempt": 1,
+        "ok": true,
+        "issues": [],
+        "repairs": 0
+      }
+    ],
+    "errors": [],
+    "done": [
+      {
+        "type": "done",
+        "message_id": "e0304f856e47",
+        "answer_status": "partial",
+        "model": "mock-scripted"
+      }
+    ]
+  },
+  "previous_older_adult_rest": {
+    "status": "partly_unverified",
+    "routes": [
+      {
+        "id": "rt-ad71efa4",
+        "status": "partly_unverified",
+        "from_place": "park-b",
+        "to_place": "playground",
+        "target_node": "n-31807145_1015102486",
+        "profile": "older_adult_rest",
+        "scenario_id": null,
+        "distance_m": 416.4,
+        "est_minutes": 5.9,
+        "segments": [
+          {
+            "edge_id": "seg-1306543769-3",
+            "eval": "PASS",
+            "flood_class": null,
+            "access_level": "unknown",
+            "rule_id": "road_sidewalk_missing_v1",
+            "tags_used": {
+              "highway": "service"
+            }
+          },
+          {
+            "edge_id": "seg-1306543769-2",
+            "eval": "PASS",
+            "flood_class": null,
+            "access_level": "unknown",
+            "rule_id": "road_sidewalk_missing_v1",
+            "tags_used": {
+              "highway": "service"
+            }
+          },
+          {
+            "edge_id": "seg-1306543775-0",
+            "eval": "PASS",
+            "flood_class": null,
+            "access_level": "unknown",
+            "rule_id": "road_sidewalk_missing_v1",
+            "tags_used": {
+              "highway": "service",
+              "oneway": "yes",
+              "service": "parking_aisle"
+            }
+          },
+          {
+            "edge_id": "seg-1306543775-1",
+            "eval": "PASS",
+            "flood_class": null,
+            "access_level": "unknown",
+            "rule_id": "road_sidewalk_missing_v1",
+            "tags_used": {
+              "highway": "service",
+              "oneway": "yes",
+              "service": "parking_aisle"
+            }
+          },
+          {
+            "edge_id": "seg-1306543754-8",
+            "eval": "PASS",
+            "flood_class": null,
+            "access_level": "unknown",
+            "rule_id": "road_sidewalk_missing_v1",
+            "tags_used": {
+              "highway": "service"
+            }
+          },
+          {
+            "edge_id": "seg-1306543755-1",
+            "eval": "PASS",
+            "flood_class": null,
+            "access_level": "unknown",
+            "rule_id": "road_sidewalk_missing_v1",
+            "tags_used": {
+              "highway": "service",
+              "oneway": "yes"
+            }
+          },
+          {
+            "edge_id": "seg-1306543755-2",
+            "eval": "UNKNOWN",
+            "flood_class": null,
+            "access_level": "unknown",
+            "rule_id": "no_estimate_rule_v1",
+            "tags_used": {
+              "highway": "service",
+              "oneway": "yes"
+            }
+          },
+          {
+            "edge_id": "seg-1346147882-0",
+            "eval": "PASS",
+            "flood_class": null,
+            "access_level": "unknown",
+            "rule_id": "no_estimate_rule_v1",
+            "tags_used": {
+              "highway": "footway",
+              "tunnel": "building_passage"
+            }
+          },
+          {
+            "edge_id": "seg-1346147882-1",
+            "eval": "PASS",
+            "flood_class": null,
+            "access_level": "unknown",
+            "rule_id": "no_estimate_rule_v1",
+            "tags_used": {
+              "highway": "footway",
+              "tunnel": "building_passage"
+            }
+          },
+          {
+            "edge_id": "seg-1318133037-1",
+            "eval": "PASS",
+            "flood_class": null,
+            "access_level": "unknown",
+            "rule_id": "no_estimate_rule_v1",
+            "tags_used": {
+              "highway": "footway"
+            }
+          },
+          {
+            "edge_id": "seg-1318133037-2",
+            "eval": "PASS",
+            "flood_class": null,
+            "access_level": "unknown",
+            "rule_id": "no_estimate_rule_v1",
+            "tags_used": {
+              "highway": "footway"
+            }
+          },
+          {
+            "edge_id": "seg-1318133037-3",
+            "eval": "PASS",
+            "flood_class": null,
+            "access_level": "unknown",
+            "rule_id": "no_estimate_rule_v1",
+            "tags_used": {
+              "highway": "footway"
+            }
+          },
+          {
+            "edge_id": "seg-1318133035-2",
+            "eval": "PASS",
+            "flood_class": null,
+            "access_level": "unknown",
+            "rule_id": "no_estimate_rule_v1",
+            "tags_used": {
+              "highway": "footway"
+            }
+          }
+        ],
+        "maneuvers": [
+          {
+            "index": 1,
+            "action": "depart",
+            "distance_m": 38.2,
+            "bearing_deg": 234.2,
+            "street_name": null,
+            "edge_type": "street",
+            "access_level": "unknown",
+            "rule_id": "road_sidewalk_missing_v1",
+            "segment_ids": ["seg-1306543769-3", "seg-1306543769-2"],
+            "point": [101.508757, 3.18131]
+          },
+          {
+            "index": 2,
+            "action": "turn_left",
+            "distance_m": 46.0,
+            "bearing_deg": 145.0,
+            "street_name": null,
+            "edge_type": "street",
+            "access_level": "unknown",
+            "rule_id": "road_sidewalk_missing_v1",
+            "segment_ids": ["seg-1306543775-0", "seg-1306543775-1"],
+            "point": [101.508479, 3.181108]
+          },
+          {
+            "index": 3,
+            "action": "turn_right",
+            "distance_m": 27.1,
+            "bearing_deg": 234.8,
+            "street_name": null,
+            "edge_type": "street",
+            "access_level": "unknown",
+            "rule_id": "road_sidewalk_missing_v1",
+            "segment_ids": ["seg-1306543754-8"],
+            "point": [101.508715, 3.180769]
+          },
+          {
+            "index": 4,
+            "action": "turn_left",
+            "distance_m": 12.7,
+            "bearing_deg": 154.4,
+            "street_name": null,
+            "edge_type": "street",
+            "access_level": "unknown",
+            "rule_id": "road_sidewalk_missing_v1",
+            "segment_ids": ["seg-1306543755-1"],
+            "point": [101.508515, 3.180628]
+          },
+          {
+            "index": 5,
+            "action": "continue",
+            "distance_m": 3.6,
+            "bearing_deg": 217.5,
+            "street_name": null,
+            "edge_type": "ramp",
+            "access_level": "unknown",
+            "rule_id": "no_estimate_rule_v1",
+            "segment_ids": ["seg-1306543755-2"],
+            "point": [101.508521, 3.180519]
+          },
+          {
+            "index": 6,
+            "action": "turn_left",
+            "distance_m": 74.9,
+            "bearing_deg": 142.3,
+            "street_name": null,
+            "edge_type": "footway",
+            "access_level": "unknown",
+            "rule_id": "no_estimate_rule_v1",
+            "segment_ids": ["seg-1346147882-0", "seg-1346147882-1"],
+            "point": [101.508501, 3.180493]
+          },
+          {
+            "index": 7,
+            "action": "turn_left",
+            "distance_m": 188.3,
+            "bearing_deg": 61.3,
+            "street_name": null,
+            "edge_type": "footway",
+            "access_level": "unknown",
+            "rule_id": "no_estimate_rule_v1",
+            "segment_ids": ["seg-1318133037-1", "seg-1318133037-2", "seg-1318133037-3"],
+            "point": [101.508911, 3.179959]
+          },
+          {
+            "index": 8,
+            "action": "turn_right",
+            "distance_m": 25.7,
+            "bearing_deg": 187.5,
+            "street_name": null,
+            "edge_type": "footway",
+            "access_level": "unknown",
+            "rule_id": "no_estimate_rule_v1",
+            "segment_ids": ["seg-1318133035-2"],
+            "point": [101.510279, 3.180944]
+          },
+          {
+            "index": 9,
+            "action": "arrive",
+            "distance_m": 0.0,
+            "bearing_deg": 187.5,
+            "street_name": null,
+            "edge_type": "footway",
+            "access_level": "unknown",
+            "rule_id": "no_estimate_rule_v1",
+            "segment_ids": [],
+            "point": [101.510249, 3.180715]
+          }
+        ],
+        "access_metres": {
+          "verified": 0.0,
+          "likely_ok": 0.0,
+          "unknown": 416.4,
+          "barrier": 0.0,
+          "not_a_road": 0.0
+        },
+        "unknowns": [
+          {
+            "element_id": "seg-1306543755-2",
+            "attribute": "incline_pct",
+            "reason": "unknown",
+            "why": "older_adult_rest needs incline_pct \u2264 8.3; not verified"
+          }
+        ],
+        "rest_points": [
+          {
+            "place_id": "bench-urban-1",
+            "node_id": "n-31808343_1015086713",
+            "name": "Urban Park bench 1",
+            "status": "verified"
+          },
+          {
+            "place_id": "bench-urban-2",
+            "node_id": "n-31804933_1015085014",
+            "name": "Urban Park bench 2",
+            "status": "verified"
+          },
+          {
+            "place_id": "bench-urban-3",
+            "node_id": "n-31805474_1015098542",
+            "name": "Urban Park bench 3",
+            "status": "verified"
+          }
+        ],
+        "crossings": [],
+        "sidewalk_m": 0.0,
+        "road_m": 124.0,
+        "road_without_mapped_sidewalk_m": 124.0,
+        "road_sections": [
+          {
+            "element_id": "seg-1306543769-3",
+            "name": null,
+            "length_m": 20.12,
+            "sidewalk": null,
+            "sidewalk_status": "unknown"
+          },
+          {
+            "element_id": "seg-1306543769-2",
+            "name": null,
+            "length_m": 18.04,
+            "sidewalk": null,
+            "sidewalk_status": "unknown"
+          },
+          {
+            "element_id": "seg-1306543775-0",
+            "name": null,
+            "length_m": 37.23,
+            "sidewalk": null,
+            "sidewalk_status": "unknown"
+          },
+          {
+            "element_id": "seg-1306543775-1",
+            "name": null,
+            "length_m": 8.77,
+            "sidewalk": null,
+            "sidewalk_status": "unknown"
+          },
+          {
+            "element_id": "seg-1306543754-8",
+            "name": null,
+            "length_m": 27.14,
+            "sidewalk": null,
+            "sidewalk_status": "unknown"
+          },
+          {
+            "element_id": "seg-1306543755-1",
+            "name": null,
+            "length_m": 12.7,
+            "sidewalk": null,
+            "sidewalk_status": "unknown"
+          }
+        ],
+        "max_gap_between_rest_m": 198.5,
+        "rest_limit_m": 100.0,
+        "rest_limit_met": false,
+        "rest_points_unverified": [],
+        "geometry": {
+          "type": "LineString",
+          "coordinates": [
+            [101.508757, 3.18131],
+            [101.50861, 3.181204],
+            [101.508479, 3.181108],
+            [101.508671, 3.180834],
+            [101.508715, 3.180769],
+            [101.508515, 3.180628],
+            [101.508527, 3.180603],
+            [101.508533, 3.180575],
+            [101.50853, 3.180546],
+            [101.508521, 3.180519],
+            [101.508501, 3.180493],
+            [101.508769, 3.180147],
+            [101.508911, 3.179959],
+            [101.50941, 3.180232],
+            [101.509854, 3.180547],
+            [101.509999, 3.180661],
+            [101.510071, 3.180734],
+            [101.510279, 3.180944],
+            [101.510249, 3.180715]
+          ]
+        },
+        "evidence_ids": [
+          "ev-seg-1306543769-3.step_count",
+          "ev-seg-1306543769-3.incline_pct",
+          "ev-seg-1306543769-3.width_m",
+          "ev-seg-1306543769-2.step_count",
+          "ev-seg-1306543769-2.incline_pct",
+          "ev-seg-1306543769-2.width_m",
+          "ev-seg-1306543775-0.step_count",
+          "ev-seg-1306543775-0.incline_pct",
+          "ev-seg-1306543775-0.width_m",
+          "ev-seg-1306543775-1.step_count",
+          "ev-seg-1306543775-1.incline_pct",
+          "ev-seg-1306543775-1.width_m",
+          "ev-seg-1306543754-8.step_count",
+          "ev-seg-1306543754-8.incline_pct",
+          "ev-seg-1306543754-8.width_m",
+          "ev-seg-1306543755-1.step_count",
+          "ev-seg-1306543755-1.incline_pct",
+          "ev-seg-1306543755-1.width_m",
+          "ev-seg-1306543755-2.step_count",
+          "ev-seg-1306543755-2.width_m",
+          "ev-seg-1306543755-2.incline_pct",
+          "ev-seg-1346147882-0.step_count",
+          "ev-seg-1346147882-0.incline_pct",
+          "ev-seg-1346147882-0.width_m",
+          "ev-seg-1346147882-1.step_count",
+          "ev-seg-1346147882-1.incline_pct",
+          "ev-seg-1346147882-1.width_m",
+          "ev-seg-1318133037-1.step_count",
+          "ev-seg-1318133037-1.incline_pct",
+          "ev-seg-1318133037-1.width_m",
+          "ev-seg-1318133037-2.step_count",
+          "ev-seg-1318133037-2.incline_pct",
+          "ev-seg-1318133037-2.width_m",
+          "ev-seg-1318133037-3.step_count",
+          "ev-seg-1318133037-3.incline_pct",
+          "ev-seg-1318133037-3.width_m",
+          "ev-seg-1318133035-2.step_count",
+          "ev-seg-1318133035-2.incline_pct",
+          "ev-seg-1318133035-2.width_m",
+          "ev-rt-ad71efa4.walkways",
+          "ev-place-bench-urban-1",
+          "ev-place-bench-urban-2",
+          "ev-place-bench-urban-3",
+          "ev-place-park-b",
+          "ev-place-playground"
+        ],
+        "demo_evidence": true
+      }
+    ],
+    "blocked_reasons": [],
+    "closures": [],
+    "warnings": [
+      "longest stretch without a rest point is about 200 m (limit 100 m)",
+      "About 124 m follows road centre lines without a mapped sidewalk; sidewalk access is not verified",
+      "Demo value \u00b7 not surveyed: Urban Park bench 1; place existence uses demo values, not yet surveyed.",
+      "Demo value \u00b7 not surveyed: Urban Park bench 2; place existence uses demo values, not yet surveyed.",
+      "Demo value \u00b7 not surveyed: Urban Park bench 3; place existence uses demo values, not yet surveyed.",
+      "Demo value \u00b7 not surveyed: Lakeside Mall Car Park B; place existence uses demo values, not yet surveyed.",
+      "Demo value \u00b7 not surveyed: Urban Park playground; place existence uses demo values, not yet surveyed."
+    ],
+    "max_rest_gap_m": 198.5,
+    "rest_limit_m": 100.0,
+    "rest_search_truncated": false,
+    "demo_evidence": true
+  },
+  "spend_usd": 0,
+  "live_questions": 0
+}

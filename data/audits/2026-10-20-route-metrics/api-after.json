@@ -1,0 +1,30 @@
+{
+  "world": "crafted tiny world with negative seg-ab length_m=-100, not Elmina seed",
+  "requests": [
+    {
+      "path": "/site",
+      "status_code": 500,
+      "body": "Internal Server Error"
+    },
+    {
+      "path": "/routes",
+      "status_code": 500,
+      "body": "Internal Server Error"
+    },
+    {
+      "path": "/places?q=Car%20Park%20B",
+      "status_code": 500,
+      "body": "Internal Server Error"
+    },
+    {
+      "path": "/layers/access?profile=stroller",
+      "status_code": 500,
+      "body": "Internal Server Error"
+    },
+    {
+      "path": "/chat",
+      "status_code": 200,
+      "body": "event: error\ndata: {\"type\":\"error\",\"code\":\"internal\",\"message\":\"internal error\"}\n\nevent: done\ndata: {\"type\":\"done\",\"message_id\":\"none\",\"answer_status\":\"cannot_answer\",\"model\":\"none\"}\n\n"
+    }
+  ]
+}

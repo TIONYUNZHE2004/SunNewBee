@@ -1,0 +1,1082 @@
+{
+  "questions": 6,
+  "provider": "openrouter",
+  "rows": [
+    {
+      "id": "exact-en",
+      "language": "en",
+      "kind": "exact-route",
+      "question": "I am in Surau Al Mahdi, how can I walk to Surau At Taqwa?",
+      "profile": "default",
+      "model": "anthropic/claude-haiku-5.5",
+      "answer_status": "answered",
+      "seconds": 10.9,
+      "tools": ["find_place", "find_place", "plan_route"],
+      "checks": 1,
+      "validator_errors": [],
+      "repairs": [],
+      "input_tokens": 28753,
+      "output_tokens": 1591,
+      "requests": 3,
+      "text": "Route status: likely OK (estimated from map data, not checked)\nThere is a likely OK walking route from Surau Al Mahdi to Surau At Taqwa, about 364 m, roughly 5 minutes on foot. It runs mainly along Jalan Metafasa U16/3.\n1. Start at Surau Al Mahdi and head to the nearest mapped path to the surau.\n2. Follow Jalan Metafasa U16/3 for most of the route (about 364 m in total).\n3. Cross at the one mapped unmarked crossing near the end of the route.\n4. Arrive at Surau At Taqwa, using the nearest mapped path to the surau.\nWorth knowing:\n• Likely OK (estimated from map data, not checked).\n• About 352 m follows road centre lines without a mapped sidewalk; sidewalk access is not verified.\n• This route uses 1 road crossing: 1 unmarked (map data, not checked).\n• Route starts at the nearest mapped path to Surau Al Mahdi; its entrance is not mapped.\n• Route ends at the nearest mapped path to Surau At Taqwa; its entrance is not mapped.\n• Sidewalk status on Jalan Metafasa U16/3 is not checked yet.\n• Outside the detailed study area (Elmina Urban Park + Lakeside Mall frontage), path and place facts come from OpenStreetMap only.",
+      "events": [
+        {
+          "type": "tool.call",
+          "id": "find_place-0",
+          "name": "find_place",
+          "args": {
+            "query": "Surau Al Mahdi",
+            "types": null,
+            "limit": 5
+          }
+        },
+        {
+          "type": "tool.call",
+          "id": "find_place-1",
+          "name": "find_place",
+          "args": {
+            "query": "Surau At Taqwa",
+            "types": null,
+            "limit": 5
+          }
+        },
+        {
+          "type": "tool.result",
+          "id": "find_place-1",
+          "name": "find_place",
+          "summary": "5 result(s)"
+        },
+        {
+          "type": "tool.result",
+          "id": "find_place-0",
+          "name": "find_place",
+          "summary": "5 result(s)"
+        },
+        {
+          "type": "tool.call",
+          "id": "plan_route-2",
+          "name": "plan_route",
+          "args": {
+            "from_id": "osm-way-910405528",
+            "to_id": "osm-way-910378231",
+            "profile": "default",
+            "scenario_id": null
+          }
+        },
+        {
+          "type": "tool.result",
+          "id": "plan_route-2",
+          "name": "plan_route",
+          "summary": "route likely_ok"
+        },
+        {
+          "type": "answer.draft",
+          "attempt": 1,
+          "delta": "There is a likely OK walking route from Surau Al Mahdi to Surau At Taqwa, about 364 m, roughly 5 minutes on foot."
+        },
+        {
+          "type": "answer.draft",
+          "attempt": 1,
+          "delta": " It runs mainly along Jalan Metafasa U16/3."
+        },
+        {
+          "type": "answer.check",
+          "attempt": 1,
+          "ok": true,
+          "issues": [],
+          "repairs": 0
+        },
+        {
+          "type": "scene.intent",
+          "intent": {
+            "kind": "route.highlight",
+            "place_id": null,
+            "route_id": "rt-b3d5b88b",
+            "scenario_id": null,
+            "center": null,
+            "range_m": null,
+            "lens": null,
+            "visible": null,
+            "geojson": {
+              "type": "LineString",
+              "coordinates": [
+                [101.514733, 3.172338],
+                [101.514365, 3.172388],
+                [101.514179, 3.172417],
+                [101.514103, 3.172429],
+                [101.514048, 3.172438],
+                [101.513978, 3.172449],
+                [101.513714, 3.172534],
+                [101.513477, 3.172645],
+                [101.51345, 3.172657],
+                [101.513286, 3.172736],
+                [101.51314, 3.172808],
+                [101.512994, 3.172879],
+                [101.51288, 3.172936],
+                [101.512468, 3.173144],
+                [101.512189, 3.173265],
+                [101.512122, 3.173294],
+                [101.511969, 3.173315],
+                [101.511814, 3.173338],
+                [101.511818, 3.173392],
+                [101.511923, 3.173379]
+              ]
+            },
+            "route_status": "likely_ok",
+            "distance_m": 363.8,
+            "est_minutes": 5.2,
+            "day": null,
+            "t_min": null
+          }
+        },
+        {
+          "type": "scene.intent",
+          "intent": {
+            "kind": "place.focus",
+            "place_id": "osm-way-910378231",
+            "route_id": null,
+            "scenario_id": null,
+            "center": null,
+            "range_m": null,
+            "lens": null,
+            "visible": null,
+            "geojson": null,
+            "route_status": null,
+            "distance_m": null,
+            "est_minutes": null,
+            "day": null,
+            "t_min": null
+          }
+        },
+        {
+          "type": "citation",
+          "ref": 1,
+          "evidence_id": "ev-rt-b3d5b88b.access_estimate",
+          "element_id": "rt-b3d5b88b",
+          "attribute": "route_access_estimate",
+          "status": "reported",
+          "verified_at": null,
+          "source_type": "map-derived estimate (not checked on site)",
+          "photo_url": null
+        },
+        {
+          "type": "citation",
+          "ref": 2,
+          "evidence_id": "ev-place-osm-way-910405528",
+          "element_id": "osm-way-910405528",
+          "attribute": "name",
+          "status": "reported",
+          "verified_at": null,
+          "source_type": "world_model",
+          "photo_url": null
+        },
+        {
+          "type": "citation",
+          "ref": 3,
+          "evidence_id": "ev-place-osm-way-910378231",
+          "element_id": "osm-way-910378231",
+          "attribute": "name",
+          "status": "reported",
+          "verified_at": null,
+          "source_type": "world_model",
+          "photo_url": null
+        },
+        {
+          "type": "citation",
+          "ref": 4,
+          "evidence_id": "ev-rt-b3d5b88b.walkways",
+          "element_id": "rt-b3d5b88b",
+          "attribute": "route_walkways",
+          "status": "reported",
+          "verified_at": null,
+          "source_type": "mapped walk graph (not a sidewalk survey)",
+          "photo_url": null
+        },
+        {
+          "type": "citation",
+          "ref": 5,
+          "evidence_id": "ev-seg-1346147888-1.crossing",
+          "element_id": "seg-1346147888-1",
+          "attribute": "crossing",
+          "status": "reported",
+          "verified_at": null,
+          "source_type": "osm_import",
+          "photo_url": null
+        },
+        {
+          "type": "uncertainty",
+          "level": "partial",
+          "items": [
+            {
+              "element_id": "route",
+              "attribute": "entrance",
+              "note": "Route starts at the nearest mapped path to Surau Al Mahdi; its entrance is not mapped"
+            },
+            {
+              "element_id": "route",
+              "attribute": "entrance",
+              "note": "Route ends at the nearest mapped path to Surau At Taqwa; its entrance is not mapped"
+            },
+            {
+              "element_id": "answer",
+              "attribute": "caveat",
+              "note": "Likely OK (estimated from map data, not checked)"
+            },
+            {
+              "element_id": "answer",
+              "attribute": "caveat",
+              "note": "About 352 m follows road centre lines without a mapped sidewalk; sidewalk access is not verified"
+            },
+            {
+              "element_id": "answer",
+              "attribute": "caveat",
+              "note": "This route uses 1 road crossing: 1 unmarked (map data, not checked)"
+            },
+            {
+              "element_id": "answer",
+              "attribute": "caveat",
+              "note": "Sidewalk status on Jalan Metafasa U16/3 is not checked yet"
+            },
+            {
+              "element_id": "answer",
+              "attribute": "caveat",
+              "note": "Outside the detailed study area (Elmina Urban Park + Lakeside Mall frontage), path and place facts come from OpenStreetMap only"
+            }
+          ]
+        },
+        {
+          "type": "done",
+          "message_id": "516c13e9b194",
+          "answer_status": "answered",
+          "model": "anthropic/claude-haiku-5.5"
+        }
+      ]
+    },
+    {
+      "id": "local-ms",
+      "language": "ms",
+      "kind": "generic-local",
+      "question": "Boleh saya tolak kereta sorong dari Car Park B ke taman permainan?",
+      "profile": "stroller",
+      "model": "anthropic/claude-haiku-5.5",
+      "answer_status": "partial",
+      "seconds": 8.2,
+      "tools": ["find_place", "find_place"],
+      "checks": 1,
+      "validator_errors": [],
+      "repairs": [],
+      "input_tokens": 16437,
+      "output_tokens": 1339,
+      "requests": 2,
+      "text": "Saya boleh semak laluan kereta sorong dari Lakeside Mall Car Park B, tetapi saya perlu tahu taman permainan mana satu yang anda maksudkan. Carian menemui \"Urban Park playground\" dan empat taman permainan tanpa nama dalam OSM dengan padanan yang sama.\nPerlu diketahui:\n• Car Park B dan taman permainan ini masih nilai demo, belum ditinjau.\n• Tiada laluan dikira lagi, jadi saya belum boleh mengesahkan sama ada laluan kereta sorong boleh digunakan.",
+      "events": [
+        {
+          "type": "tool.call",
+          "id": "find_place-0",
+          "name": "find_place",
+          "args": {
+            "query": "Car Park B",
+            "types": null,
+            "limit": 5
+          }
+        },
+        {
+          "type": "tool.call",
+          "id": "find_place-1",
+          "name": "find_place",
+          "args": {
+            "query": "taman permainan",
+            "types": null,
+            "limit": 5
+          }
+        },
+        {
+          "type": "tool.result",
+          "id": "find_place-1",
+          "name": "find_place",
+          "summary": "5 result(s)"
+        },
+        {
+          "type": "tool.result",
+          "id": "find_place-0",
+          "name": "find_place",
+          "summary": "5 result(s)"
+        },
+        {
+          "type": "answer.draft",
+          "attempt": 1,
+          "delta": "Saya boleh semak laluan kereta sorong dari Lakeside Mall Car Park B, tetapi saya perlu tahu taman permainan mana satu yang anda maksudkan."
+        },
+        {
+          "type": "answer.draft",
+          "attempt": 1,
+          "delta": " Carian menemui \"Urban Park playground\" dan empat taman permainan tanpa nama dalam OSM dengan padanan yang sama."
+        },
+        {
+          "type": "answer.check",
+          "attempt": 1,
+          "ok": true,
+          "issues": [],
+          "repairs": 0
+        },
+        {
+          "type": "scene.intent",
+          "intent": {
+            "kind": "place.focus",
+            "place_id": "park-b",
+            "route_id": null,
+            "scenario_id": null,
+            "center": null,
+            "range_m": null,
+            "lens": null,
+            "visible": null,
+            "geojson": null,
+            "route_status": null,
+            "distance_m": null,
+            "est_minutes": null,
+            "day": null,
+            "t_min": null
+          }
+        },
+        {
+          "type": "citation",
+          "ref": 1,
+          "evidence_id": "ev-place-park-b",
+          "element_id": "park-b",
+          "attribute": "name",
+          "status": "unknown",
+          "verified_at": null,
+          "source_type": "team_survey_placeholder",
+          "photo_url": null
+        },
+        {
+          "type": "citation",
+          "ref": 2,
+          "evidence_id": "ev-place-playground",
+          "element_id": "playground",
+          "attribute": "name",
+          "status": "unknown",
+          "verified_at": null,
+          "source_type": "team_survey_placeholder",
+          "photo_url": null
+        },
+        {
+          "type": "uncertainty",
+          "level": "partial",
+          "items": [
+            {
+              "element_id": "answer",
+              "attribute": "caveat",
+              "note": "Car Park B dan taman permainan ini masih nilai demo, belum ditinjau"
+            },
+            {
+              "element_id": "answer",
+              "attribute": "caveat",
+              "note": "Tiada laluan dikira lagi, jadi saya belum boleh mengesahkan sama ada laluan kereta sorong boleh digunakan"
+            }
+          ]
+        },
+        {
+          "type": "done",
+          "message_id": "fd23dcbc76c0",
+          "answer_status": "partial",
+          "model": "anthropic/claude-haiku-5.5"
+        }
+      ]
+    },
+    {
+      "id": "features-zh",
+      "language": "zh",
+      "kind": "translated-endpoints",
+      "question": "从B停车场到游乐场有几级台阶？那里有电梯和母婴室吗？",
+      "profile": "stroller",
+      "model": "anthropic/claude-haiku-5.5",
+      "answer_status": "cannot_answer",
+      "seconds": 16.1,
+      "tools": ["find_place", "find_place"],
+      "checks": 2,
+      "validator_errors": [
+        [
+          "The answer states ['baby changing room', 'lift'], which no tool recorded this turn: describe only recorded facts, or say the feature is not recorded."
+        ]
+      ],
+      "repairs": [],
+      "input_tokens": 27950,
+      "output_tokens": 2935,
+      "requests": 3,
+      "text": "我找到了“Lakeside Mall Car Park B”（B停车场），但游乐场有几个匹配结果，我需要先确认您要去哪一个。请告诉我您要去的游乐场，我再查路线和台阶情况。\n注意事项：\n• Lakeside Mall Car Park B的信息是演示数据，尚未实地调查（demo values, not yet surveyed）。\n• 在确认游乐场之前，我无法给出台阶数量。\n• 重点研究区域（Elmina Urban Park + Lakeside Mall frontage）以外的路线和地点信息仅来自 OpenStreetMap.",
+      "events": [
+        {
+          "type": "tool.call",
+          "id": "find_place-0",
+          "name": "find_place",
+          "args": {
+            "query": "Car Park B",
+            "types": null,
+            "limit": 5
+          }
+        },
+        {
+          "type": "tool.call",
+          "id": "find_place-1",
+          "name": "find_place",
+          "args": {
+            "query": "playground",
+            "types": null,
+            "limit": 5
+          }
+        },
+        {
+          "type": "tool.result",
+          "id": "find_place-0",
+          "name": "find_place",
+          "summary": "5 result(s)"
+        },
+        {
+          "type": "tool.result",
+          "id": "find_place-1",
+          "name": "find_place",
+          "summary": "5 result(s)"
+        },
+        {
+          "type": "answer.draft",
+          "attempt": 1,
+          "delta": "我找到了“Lakeside Mall Car Park B”（B停车场），但游乐场有几个匹配结果，我需要先确认您要去哪一个。"
+        },
+        {
+          "type": "answer.check",
+          "attempt": 1,
+          "ok": false,
+          "issues": ["described a feature no check recorded"],
+          "repairs": 0
+        },
+        {
+          "type": "answer.draft",
+          "attempt": 2,
+          "delta": "我找到了“Lakeside Mall Car Park B”（B停车场），但游乐场有几个匹配结果，我需要先确认您要去哪一个。"
+        },
+        {
+          "type": "answer.draft",
+          "attempt": 2,
+          "delta": "请告诉我您要去的游乐场，我再查路线和台阶情况。"
+        },
+        {
+          "type": "answer.check",
+          "attempt": 2,
+          "ok": true,
+          "issues": [],
+          "repairs": 0
+        },
+        {
+          "type": "scene.intent",
+          "intent": {
+            "kind": "place.focus",
+            "place_id": "park-b",
+            "route_id": null,
+            "scenario_id": null,
+            "center": null,
+            "range_m": null,
+            "lens": null,
+            "visible": null,
+            "geojson": null,
+            "route_status": null,
+            "distance_m": null,
+            "est_minutes": null,
+            "day": null,
+            "t_min": null
+          }
+        },
+        {
+          "type": "citation",
+          "ref": 1,
+          "evidence_id": "ev-place-park-b",
+          "element_id": "park-b",
+          "attribute": "name",
+          "status": "unknown",
+          "verified_at": null,
+          "source_type": "team_survey_placeholder",
+          "photo_url": null
+        },
+        {
+          "type": "citation",
+          "ref": 2,
+          "evidence_id": "ev-place-playground",
+          "element_id": "playground",
+          "attribute": "name",
+          "status": "unknown",
+          "verified_at": null,
+          "source_type": "team_survey_placeholder",
+          "photo_url": null
+        },
+        {
+          "type": "citation",
+          "ref": 3,
+          "evidence_id": "ev-place-osm-node-10929425458",
+          "element_id": "osm-node-10929425458",
+          "attribute": "name",
+          "status": "reported",
+          "verified_at": null,
+          "source_type": "world_model",
+          "photo_url": null
+        },
+        {
+          "type": "citation",
+          "ref": 4,
+          "evidence_id": "ev-place-osm-node-12880146165",
+          "element_id": "osm-node-12880146165",
+          "attribute": "name",
+          "status": "reported",
+          "verified_at": null,
+          "source_type": "world_model",
+          "photo_url": null
+        },
+        {
+          "type": "citation",
+          "ref": 5,
+          "evidence_id": "ev-place-osm-node-4953152218",
+          "element_id": "osm-node-4953152218",
+          "attribute": "name",
+          "status": "reported",
+          "verified_at": null,
+          "source_type": "world_model",
+          "photo_url": null
+        },
+        {
+          "type": "citation",
+          "ref": 6,
+          "evidence_id": "ev-place-osm-node-4953152424",
+          "element_id": "osm-node-4953152424",
+          "attribute": "name",
+          "status": "reported",
+          "verified_at": null,
+          "source_type": "world_model",
+          "photo_url": null
+        },
+        {
+          "type": "uncertainty",
+          "level": "high",
+          "items": [
+            {
+              "element_id": "route",
+              "attribute": "demo_values",
+              "note": "Some segment facts are demo values, not yet surveyed"
+            },
+            {
+              "element_id": "answer",
+              "attribute": "caveat",
+              "note": "在确认游乐场之前，我无法给出台阶数量。"
+            },
+            {
+              "element_id": "answer",
+              "attribute": "caveat",
+              "note": "重点研究区域（Elmina Urban Park + Lakeside Mall frontage）以外的路线和地点信息仅来自 OpenStreetMap"
+            }
+          ]
+        },
+        {
+          "type": "done",
+          "message_id": "2af383cc4906",
+          "answer_status": "cannot_answer",
+          "model": "anthropic/claude-haiku-5.5"
+        }
+      ]
+    },
+    {
+      "id": "amenity-flood",
+      "language": "en",
+      "kind": "mode-and-scenario",
+      "question": "Find a toilet within 150 m of Car Park B. I use a wheelchair.",
+      "profile": "wheelchair",
+      "model": "anthropic/claude-haiku-5.5",
+      "answer_status": "answered",
+      "seconds": 14.3,
+      "tools": ["find_place", "nearby_amenities"],
+      "checks": 2,
+      "validator_errors": [
+        [
+          "Some evidence returned this turn is placeholder data (source_type team_survey_placeholder): add a caveat containing the exact phrase 'demo values, not yet surveyed'."
+        ]
+      ],
+      "repairs": [],
+      "input_tokens": 34632,
+      "output_tokens": 2324,
+      "requests": 4,
+      "text": "I found no toilet within 150 m of Lakeside Mall Car Park B on a wheelchair route in the current indicative flood scenario. The search returned no results, so please do not rely on a toilet in that radius.\n1. Check the Urban Park toilet, which is listed in the township data as a demo value, not yet surveyed. Ask staff before relying on it.\n2. Ask the township team or the Lakeside Mall management about toilets near Car Park B.\nWorth knowing:\n• This check used the indicative flood scenario stage_p3m, which is not a forecast. Follow official MBSA / JPS / NADMA guidance.\n• Lakeside Mall Car Park B: demo values, not yet surveyed.\n• Urban Park toilet: demo values, not yet surveyed, so its accessibility and distance are not confirmed.",
+      "events": [
+        {
+          "type": "tool.call",
+          "id": "find_place-0",
+          "name": "find_place",
+          "args": {
+            "query": "Car Park B",
+            "types": null,
+            "limit": 5
+          }
+        },
+        {
+          "type": "tool.result",
+          "id": "find_place-0",
+          "name": "find_place",
+          "summary": "5 result(s)"
+        },
+        {
+          "type": "tool.call",
+          "id": "nearby_amenities-1",
+          "name": "nearby_amenities",
+          "args": {
+            "origin_id": "park-b",
+            "amenity": "toilet",
+            "max_walk_m": 150.0,
+            "profile": "wheelchair",
+            "scenario_id": "stage_p3m"
+          }
+        },
+        {
+          "type": "tool.result",
+          "id": "nearby_amenities-1",
+          "name": "nearby_amenities",
+          "summary": "0 result(s)"
+        },
+        {
+          "type": "answer.draft",
+          "attempt": 1,
+          "delta": "I found no toilet within 150 m of Lakeside Mall Car Park B on a wheelchair route in the current indicative flood scenario."
+        },
+        {
+          "type": "answer.draft",
+          "attempt": 1,
+          "delta": " The search returned no results, so please do not rely on a toilet in that radius."
+        },
+        {
+          "type": "answer.check",
+          "attempt": 1,
+          "ok": false,
+          "issues": ["left out that values are demo values, not yet surveyed"],
+          "repairs": 0
+        },
+        {
+          "type": "answer.draft",
+          "attempt": 2,
+          "delta": "I found no toilet within 150 m of Lakeside Mall Car Park B on a wheelchair route in the current indicative flood scenario."
+        },
+        {
+          "type": "answer.draft",
+          "attempt": 2,
+          "delta": " The search returned no results, so please do not rely on a toilet in that radius."
+        },
+        {
+          "type": "answer.check",
+          "attempt": 2,
+          "ok": true,
+          "issues": [],
+          "repairs": 0
+        },
+        {
+          "type": "scene.intent",
+          "intent": {
+            "kind": "place.focus",
+            "place_id": "park-b",
+            "route_id": null,
+            "scenario_id": null,
+            "center": null,
+            "range_m": null,
+            "lens": null,
+            "visible": null,
+            "geojson": null,
+            "route_status": null,
+            "distance_m": null,
+            "est_minutes": null,
+            "day": null,
+            "t_min": null
+          }
+        },
+        {
+          "type": "citation",
+          "ref": 1,
+          "evidence_id": "ev-place-park-b",
+          "element_id": "park-b",
+          "attribute": "name",
+          "status": "unknown",
+          "verified_at": null,
+          "source_type": "team_survey_placeholder",
+          "photo_url": null
+        },
+        {
+          "type": "citation",
+          "ref": 2,
+          "evidence_id": "ev-place-toilet-urban-park",
+          "element_id": "toilet-urban-park",
+          "attribute": "name",
+          "status": "unknown",
+          "verified_at": null,
+          "source_type": "team_survey_placeholder",
+          "photo_url": null
+        },
+        {
+          "type": "uncertainty",
+          "level": "partial",
+          "items": [
+            {
+              "element_id": "route",
+              "attribute": "demo_values",
+              "note": "Some segment facts are demo values, not yet surveyed"
+            },
+            {
+              "element_id": "answer",
+              "attribute": "caveat",
+              "note": "This check used the indicative flood scenario stage_p3m, which is not a forecast. Follow official MBSA / JPS / NADMA guidance"
+            }
+          ]
+        },
+        {
+          "type": "disclaimer",
+          "lens": "flood",
+          "text": "Indicative scenario from a 30 m elevation model (Copernicus GLO-30, height above mapped rivers and lakes), not a forecast. Follow official MBSA / JPS / NADMA guidance. Only the area 101.46–101.56 E, 3.15–3.24 N is assessed; paths outside it are not.",
+          "links": [
+            {
+              "label": "Public InfoBanjir (JPS)",
+              "url": "https://publicinfobanjir.water.gov.my"
+            },
+            {
+              "label": "MET Malaysia warnings",
+              "url": "https://www.met.gov.my"
+            }
+          ]
+        },
+        {
+          "type": "done",
+          "message_id": "5e2e20c0802d",
+          "answer_status": "answered",
+          "model": "anthropic/claude-haiku-5.5"
+        }
+      ]
+    },
+    {
+      "id": "distance-bait",
+      "language": "en",
+      "kind": "wrong-origin-bait",
+      "question": "From Surau Rentak Perdana to Surau At Taqwa: is it a 363.8 m walk?",
+      "profile": "default",
+      "model": "anthropic/claude-haiku-5.5",
+      "answer_status": "cannot_answer",
+      "seconds": 10.6,
+      "tools": ["find_place", "find_place"],
+      "checks": 2,
+      "validator_errors": [
+        [
+          "Facts ['363.8 m'] do not match this turn's tool results: state distances, times, widths, slopes, step counts and other counts only as a tool returned them (round only with 'about'; never 'exactly' a rounded number)."
+        ]
+      ],
+      "repairs": [],
+      "input_tokens": 25875,
+      "output_tokens": 1730,
+      "requests": 3,
+      "text": "I can't confirm the distance yet, because no route has been planned. Two places named Surau Rentak Perdana are on record, and I need to know which one you mean.\nWorth knowing:\n• Distance is only quoted once a route has been planned, so the walking distance you have in mind has not been checked yet.\n• Outside the detailed study area (Elmina Urban Park + Lakeside Mall frontage), path and place facts come from OpenStreetMap only.",
+      "events": [
+        {
+          "type": "tool.call",
+          "id": "find_place-0",
+          "name": "find_place",
+          "args": {
+            "query": "Surau Rentak Perdana",
+            "types": null,
+            "limit": 5
+          }
+        },
+        {
+          "type": "tool.call",
+          "id": "find_place-1",
+          "name": "find_place",
+          "args": {
+            "query": "Surau At Taqwa",
+            "types": null,
+            "limit": 5
+          }
+        },
+        {
+          "type": "tool.result",
+          "id": "find_place-1",
+          "name": "find_place",
+          "summary": "5 result(s)"
+        },
+        {
+          "type": "tool.result",
+          "id": "find_place-0",
+          "name": "find_place",
+          "summary": "5 result(s)"
+        },
+        {
+          "type": "answer.check",
+          "attempt": 1,
+          "ok": false,
+          "issues": ["stated a number no check returned"],
+          "repairs": 0
+        },
+        {
+          "type": "answer.draft",
+          "attempt": 2,
+          "delta": "I can't confirm the distance yet, because no route has been planned."
+        },
+        {
+          "type": "answer.draft",
+          "attempt": 2,
+          "delta": " Two places named Surau Rentak Perdana are on record, and I need to know which one you mean."
+        },
+        {
+          "type": "answer.check",
+          "attempt": 2,
+          "ok": true,
+          "issues": [],
+          "repairs": 0
+        },
+        {
+          "type": "scene.intent",
+          "intent": {
+            "kind": "place.focus",
+            "place_id": "osm-way-910378231",
+            "route_id": null,
+            "scenario_id": null,
+            "center": null,
+            "range_m": null,
+            "lens": null,
+            "visible": null,
+            "geojson": null,
+            "route_status": null,
+            "distance_m": null,
+            "est_minutes": null,
+            "day": null,
+            "t_min": null
+          }
+        },
+        {
+          "type": "citation",
+          "ref": 1,
+          "evidence_id": "ev-place-osm-node-9180790727",
+          "element_id": "osm-node-9180790727",
+          "attribute": "name",
+          "status": "reported",
+          "verified_at": null,
+          "source_type": "world_model",
+          "photo_url": null
+        },
+        {
+          "type": "citation",
+          "ref": 2,
+          "evidence_id": "ev-place-osm-way-1184185923",
+          "element_id": "osm-way-1184185923",
+          "attribute": "name",
+          "status": "reported",
+          "verified_at": null,
+          "source_type": "world_model",
+          "photo_url": null
+        },
+        {
+          "type": "citation",
+          "ref": 3,
+          "evidence_id": "ev-place-osm-way-910378231",
+          "element_id": "osm-way-910378231",
+          "attribute": "name",
+          "status": "reported",
+          "verified_at": null,
+          "source_type": "world_model",
+          "photo_url": null
+        },
+        {
+          "type": "uncertainty",
+          "level": "high",
+          "items": [
+            {
+              "element_id": "answer",
+              "attribute": "caveat",
+              "note": "Distance is only quoted once a route has been planned, so the walking distance you have in mind has not been checked yet"
+            },
+            {
+              "element_id": "answer",
+              "attribute": "caveat",
+              "note": "Outside the detailed study area (Elmina Urban Park + Lakeside Mall frontage), path and place facts come from OpenStreetMap only"
+            }
+          ]
+        },
+        {
+          "type": "done",
+          "message_id": "b231c11167be",
+          "answer_status": "cannot_answer",
+          "model": "anthropic/claude-haiku-5.5"
+        }
+      ]
+    },
+    {
+      "id": "unknown-clinic",
+      "language": "en",
+      "kind": "unknown-place",
+      "question": "How can I walk from Car Park B to Everspring Clinic?",
+      "profile": "default",
+      "model": "anthropic/claude-haiku-5.5",
+      "answer_status": "cannot_answer",
+      "seconds": 7.6,
+      "tools": ["find_place", "find_place", "create_verification_request"],
+      "checks": 1,
+      "validator_errors": [],
+      "repairs": [],
+      "input_tokens": 16279,
+      "output_tokens": 1273,
+      "requests": 2,
+      "text": "I could not find a place called Everspring Clinic in the township data, so I can't plan a walk to it yet. Car Park B (Lakeside Mall Car Park B) is on record. Which clinic do you mean? Nearby clinic names in the data include Anadia Clinic and Skyhill Clinic HQ.\nWorth knowing:\n• Demo value · not surveyed: Lakeside Mall Car Park B; place existence uses demo values, not yet surveyed.\n• Asked the township team to check Everspring Clinic (missing place).\n• Outside the detailed study area (Elmina Urban Park + Lakeside Mall frontage), path and place facts come from OpenStreetMap only.",
+      "events": [
+        {
+          "type": "tool.call",
+          "id": "find_place-0",
+          "name": "find_place",
+          "args": {
+            "query": "Car Park B",
+            "types": null,
+            "limit": 5
+          }
+        },
+        {
+          "type": "tool.call",
+          "id": "find_place-1",
+          "name": "find_place",
+          "args": {
+            "query": "Everspring Clinic",
+            "types": null,
+            "limit": 5
+          }
+        },
+        {
+          "type": "tool.result",
+          "id": "find_place-1",
+          "name": "find_place",
+          "summary": "5 result(s)"
+        },
+        {
+          "type": "tool.result",
+          "id": "find_place-0",
+          "name": "find_place",
+          "summary": "5 result(s)"
+        },
+        {
+          "type": "answer.draft",
+          "attempt": 1,
+          "delta": "I could not find a place called Everspring Clinic in the township data, so I can't plan a walk to it yet."
+        },
+        {
+          "type": "answer.draft",
+          "attempt": 1,
+          "delta": " Car Park B (Lakeside Mall Car Park B) is on record."
+        },
+        {
+          "type": "answer.draft",
+          "attempt": 1,
+          "delta": " Which clinic do you mean?"
+        },
+        {
+          "type": "answer.draft",
+          "attempt": 1,
+          "delta": " Nearby clinic names in the data include Anadia Clinic and Skyhill Clinic HQ."
+        },
+        {
+          "type": "tool.call",
+          "id": "create_verification_request-2",
+          "name": "create_verification_request",
+          "args": {
+            "target_id": "unknown_place",
+            "attribute": "name",
+            "reason": "missing_place",
+            "question_summary": "chat: missing_place name on unknown_place"
+          }
+        },
+        {
+          "type": "verification.requested",
+          "request_id": "vr-0001",
+          "element_id": "unknown_place",
+          "attribute": "name",
+          "created": true,
+          "demand": 1,
+          "reason": "missing_place"
+        },
+        {
+          "type": "tool.result",
+          "id": "create_verification_request-2",
+          "name": "create_verification_request",
+          "summary": "ok"
+        },
+        {
+          "type": "answer.check",
+          "attempt": 1,
+          "ok": true,
+          "issues": [],
+          "repairs": 0
+        },
+        {
+          "type": "scene.intent",
+          "intent": {
+            "kind": "place.focus",
+            "place_id": "park-b",
+            "route_id": null,
+            "scenario_id": null,
+            "center": null,
+            "range_m": null,
+            "lens": null,
+            "visible": null,
+            "geojson": null,
+            "route_status": null,
+            "distance_m": null,
+            "est_minutes": null,
+            "day": null,
+            "t_min": null
+          }
+        },
+        {
+          "type": "citation",
+          "ref": 1,
+          "evidence_id": "ev-place-park-b",
+          "element_id": "park-b",
+          "attribute": "name",
+          "status": "unknown",
+          "verified_at": null,
+          "source_type": "team_survey_placeholder",
+          "photo_url": null
+        },
+        {
+          "type": "citation",
+          "ref": 2,
+          "evidence_id": "ev-place-osm-node-12001782849",
+          "element_id": "osm-node-12001782849",
+          "attribute": "name",
+          "status": "reported",
+          "verified_at": null,
+          "source_type": "world_model",
+          "photo_url": null
+        },
+        {
+          "type": "uncertainty",
+          "level": "high",
+          "items": [
+            {
+              "element_id": "route",
+              "attribute": "demo_values",
+              "note": "Some segment facts are demo values, not yet surveyed"
+            },
+            {
+              "element_id": "answer",
+              "attribute": "caveat",
+              "note": "Asked the township team to check Everspring Clinic (missing place)"
+            },
+            {
+              "element_id": "answer",
+              "attribute": "caveat",
+              "note": "Outside the detailed study area (Elmina Urban Park + Lakeside Mall frontage), path and place facts come from OpenStreetMap only"
+            }
+          ]
+        },
+        {
+          "type": "done",
+          "message_id": "86e22d3c0a04",
+          "answer_status": "cannot_answer",
+          "model": "anthropic/claude-haiku-5.5"
+        }
+      ]
+    }
+  ]
+}

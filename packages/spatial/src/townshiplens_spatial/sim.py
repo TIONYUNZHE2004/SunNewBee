@@ -30,6 +30,7 @@ MAX_RERUNS = 2000
 MAX_SECONDS = 60.0
 OUTCOME = {
     "confirmed": "success",
+    "likely_ok": "success_with_unknowns",
     "partly_unverified": "success_with_unknowns",
     "blocked": "blocked",
     "no_data": "no_data",
