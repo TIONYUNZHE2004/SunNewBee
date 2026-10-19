@@ -1,6 +1,10 @@
 import { isDemoPreset } from "../demo/preset";
-import { type CamMode, journeyStateOf, useJourney } from "./journeyStore";
+import { type CamMode, type HeroPose, journeyStateOf, useJourney } from "./journeyStore";
 import type { JourneyPlan, JourneyState, Phase } from "./timeline";
+
+export type HeroReport = Omit<HeroPose, "probe"> & {
+  contacts?: ReturnType<NonNullable<HeroPose["probe"]>>;
+};
 
 /** The prototype's test and recording hook (`window.__journey`), plus a read-only `state()`. */
 export interface JourneyHook {
@@ -13,11 +17,12 @@ export interface JourneyHook {
   /** The loaded plan (read only), null without one. */
   readonly plan: JourneyPlan | null;
   /**
-   * The hero's position along the route in plan metres (AC-D12 mini-map check), null without a
-   * plan. Until D-T6 renders a hero this is the timeline's `distance_m` at t; D-T6 replaces it with
-   * the rendered hero's position (the metre `routePath` places her at, `layer.path.pointAt`).
+   * The hero as rendered by the 3D mount (D-T6): her route metre (`distance_m`, what the mini-map
+   * dot shows), world position (local metres and lon/lat), yaw and current clip. Null when no hero
+   * is drawn (no plan, or a renderer without one). `{ contacts: true }` adds her ground-contact
+   * points (feet, walker leg tips) with the drawn ground height under each (AC-D10).
    */
-  hero: () => { distance_m: number } | null;
+  hero: (opts?: { contacts?: boolean }) => HeroReport | null;
   state: () => (JourneyState & { t: number; playing: boolean; camMode: CamMode }) | null;
 }
 
@@ -40,9 +45,11 @@ export function createJourneyHook(): JourneyHook {
     get plan() {
       return s().plan;
     },
-    hero: () => {
-      const st = journeyStateOf(s());
-      return st ? { distance_m: st.distance_m } : null;
+    hero: (opts) => {
+      const p = s().hero;
+      if (!p || !s().plan) return null;
+      const { probe, ...pose } = p;
+      return opts?.contacts && probe ? { ...pose, contacts: probe() } : pose;
     },
     state: () => {
       const st = journeyStateOf(s());

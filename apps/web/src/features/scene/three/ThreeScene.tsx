@@ -237,7 +237,7 @@ export default function ThreeScene({
       <SlowBanner />
       {decorativeShown && <DecorativeChip />}
       {/* Resident journey: ribbon, markers, label, HUD, mini-map and event cards (D-T7). */}
-      <JourneyMount engine={engine} frame={frame} hostRef={hostRef} />
+      <JourneyMount engine={engine} frame={frame} hostRef={hostRef} places={places} />
       {showroom && (assetsState === "loading" || assetsState === "ready") && <ShowroomChip />}
     </section>
   );
