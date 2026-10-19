@@ -1019,9 +1019,11 @@ describe("ThreeScene", () => {
         return json({}, 404);
       });
     }
-    type Geo = { buildings: THREE.BufferGeometry };
-    const vertsOf = (engine: Fake, call: number) =>
-      (engine.setCity.mock.calls.at(call)![0] as Geo).buildings.getAttribute("position").count;
+    // How many buildings a setCity call extruded (bevelled since B-T2, so counted by building, not
+    // by a fixed per-box vertex count).
+    type Geo = { faces: { ids: string[] } };
+    const builtOf = (engine: Fake, call: number) =>
+      (engine.setCity.mock.calls.at(call)![0] as Geo).faces.ids.length;
 
     it("a runtime switch to Low drops kits, lamp pools, agents, birds and markings; Medium restores them", async () => {
       tierFakes.on = true;
@@ -1123,9 +1125,9 @@ describe("ThreeScene", () => {
       await waitFor(() => expect(s).toHaveAttribute("data-assets", "ready"));
       expect(engine.setAssets).toHaveBeenCalledTimes(1);
       // The full city first (no holes while loading), then only the plain building (one box).
-      expect(vertsOf(engine, 0)).toBe(90);
+      expect(builtOf(engine, 0)).toBe(3);
       // 30 plus the styled fallback's trim band (6 per ring edge).
-      expect(vertsOf(engine, -1)).toBe(54);
+      expect(builtOf(engine, -1)).toBe(1);
       const inst = engine.setAssets.mock.calls[0]?.[0] as CityInstances;
       expect(inst.group).toBeInstanceOf(THREE.Group);
       expect(console.warn).not.toHaveBeenCalled();
@@ -1164,7 +1166,7 @@ describe("ThreeScene", () => {
         await waitFor(() => expect(s).toHaveAttribute("data-assets", "failed"));
         expect(engine.setCity).toHaveBeenCalled();
         for (let i = 0; i < engine.setCity.mock.calls.length; i++)
-          expect(vertsOf(engine, i)).toBe(90);
+          expect(builtOf(engine, i)).toBe(3);
         expect(engine.setAssets).not.toHaveBeenCalled();
         expect(console.warn).toHaveBeenCalledTimes(1);
         expect(s).toHaveAttribute("data-instances", "0");
@@ -1251,7 +1253,7 @@ describe("ThreeScene", () => {
       await waitFor(() => expect(engine.setCity).toHaveBeenCalled());
       expect(s).toHaveAttribute("data-assets", "off");
       expect(fetchFn.mock.calls.some(([u]) => String(u).includes("/city/"))).toBe(false);
-      expect(vertsOf(engine, -1)).toBe(90);
+      expect(builtOf(engine, -1)).toBe(3);
       expect(engine.setAssets).not.toHaveBeenCalled();
     });
 
@@ -1262,7 +1264,7 @@ describe("ThreeScene", () => {
       const s = screen.getByTestId("three-scene");
       await waitFor(() => expect(s).toHaveAttribute("data-assets", "ready"));
       expect(s).toHaveAttribute("data-instances", "1");
-      expect(vertsOf(engine, -1)).toBe(0);
+      expect(builtOf(engine, -1)).toBe(0);
     });
 
     it('?showroom=1 shows a "Model showroom — not the city" chip; without it, or when assets fail, none', async () => {
@@ -1422,7 +1424,7 @@ describe("ThreeScene", () => {
         await waitFor(() => expect(s).toHaveAttribute("data-assets", "failed"));
         await waitFor(() => expect(engine.setCity).toHaveBeenCalled());
         for (let i = 0; i < engine.setCity.mock.calls.length; i++)
-          expect(vertsOf(engine, i)).toBe(120);
+          expect(builtOf(engine, i)).toBe(4);
         expect(engine.setAssets).not.toHaveBeenCalled();
         expect(console.warn).toHaveBeenCalledTimes(1);
         const msg = String(vi.mocked(console.warn).mock.calls[0]?.[0]);
@@ -1436,7 +1438,7 @@ describe("ThreeScene", () => {
         const s = screen.getByTestId("three-scene");
         await waitFor(() => expect(s).toHaveAttribute("data-assets", "ready"));
         // plain + s1 stay extruded (two boxes, 54 vertices each with the trim band); l1 and l2 are instanced.
-        expect(vertsOf(engine, -1)).toBe(108);
+        expect(builtOf(engine, -1)).toBe(2);
         expect(s).toHaveAttribute("data-instances", "2");
         expect(engine.setAssets).toHaveBeenCalledTimes(1);
         expect(console.warn).toHaveBeenCalledTimes(1);
@@ -1458,7 +1460,7 @@ describe("ThreeScene", () => {
         const s = screen.getByTestId("three-scene");
         await waitFor(() => expect(s).toHaveAttribute("data-assets", "ready"));
         // plain + s1 extruded (two boxes, 54 vertices each), not a hole; l1 and l2 instanced.
-        expect(vertsOf(engine, -1)).toBe(108);
+        expect(builtOf(engine, -1)).toBe(2);
         expect(s).toHaveAttribute("data-instances", "2");
         const inst = engine.setAssets.mock.calls[0]?.[0] as CityInstances;
         const names: string[] = [];
@@ -1490,7 +1492,7 @@ describe("ThreeScene", () => {
       await waitFor(() => expect(engine.setCity).toHaveBeenCalledTimes(1));
       open();
       await waitFor(() => expect(s).toHaveAttribute("data-assets", "failed"));
-      await waitFor(() => expect(vertsOf(engine, -1)).toBe(90));
+      await waitFor(() => expect(builtOf(engine, -1)).toBe(3));
       expect(disposed).toHaveBeenCalled();
       // The full city before the assets, then once more for the fallback (not twice: M6).
       await act(async () => {
@@ -1502,7 +1504,7 @@ describe("ThreeScene", () => {
         await qc.invalidateQueries();
       });
       await waitFor(() => expect(engine.setCity.mock.calls.length).toBeGreaterThan(calls));
-      expect(vertsOf(engine, -1)).toBe(90);
+      expect(builtOf(engine, -1)).toBe(3);
       expect(s).toHaveAttribute("data-assets", "failed");
       expect(engine.setAssets).not.toHaveBeenCalled();
       expect(console.warn).toHaveBeenCalledTimes(1);

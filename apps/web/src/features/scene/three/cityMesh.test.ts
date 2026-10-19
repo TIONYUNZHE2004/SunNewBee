@@ -2,7 +2,15 @@ import * as THREE from "three";
 import { describe, expect, it } from "vitest";
 import type { BuildingsLayer } from "../../../lib/api";
 import { WATER_COLOR } from "../styles";
-import { buildCityGeometry, faceBuildingId, KIND_COLOUR, PARK_Y, WATER_Y } from "./cityMesh";
+import {
+  BUILDING_BEVEL,
+  bevelBody,
+  buildCityGeometry as buildBevelled,
+  faceBuildingId,
+  KIND_COLOUR,
+  PARK_Y,
+  WATER_Y,
+} from "./cityMesh";
 import { largeRoofTint } from "./facade/roofPlan";
 import { createFrame } from "./frame";
 
@@ -41,6 +49,10 @@ function layer(over: Partial<Record<"buildings" | "parks" | "water", unknown>> =
 }
 
 const pos = (g: THREE.BufferGeometry) => g.getAttribute("position");
+
+/** The plain-box contract (pre-B-T2 vertex counts, flat normals): every test below but the bevel ones. */
+const buildCityGeometry = (...[l, f, o = {}]: Parameters<typeof buildBevelled>) =>
+  buildBevelled(l, f, { bevel: false, ...o });
 
 describe("buildCityGeometry", () => {
   it("records which building owns each triangle, for picking", () => {
@@ -365,5 +377,122 @@ describe("buildCityGeometry", () => {
       expect(pos(buildCityGeometry(two(), frame).buildings).count).toBe(60);
       expect(pos(buildCityGeometry(two(), frame, {}).buildings).count).toBe(60);
     });
+  });
+});
+
+describe("bevelled extrusion (B-T2, AC-B3 buildings)", () => {
+  const one = (h = 9, size = 10) =>
+    buildBevelled(
+      layer({ buildings: fc([feat(poly(square(0, 0, size)), { id: "a", height_m: h })]) }),
+      frame,
+    );
+  const n = (g: THREE.BufferGeometry) => g.getAttribute("normal");
+
+  it("is on by default: radius 0.5 m in 2 segments, negative offset (walls on the outline, top at the height)", () => {
+    expect(BUILDING_BEVEL).toEqual({ radiusM: 0.5, segments: 2, chamferM: 0.14, minTurnDeg: 30 });
+    const g = one();
+    const p = pos(g.buildings);
+    let top = Number.NEGATIVE_INFINITY;
+    let minX = Number.POSITIVE_INFINITY;
+    let maxX = Number.NEGATIVE_INFINITY;
+    for (let i = 0; i < p.count; i++) {
+      top = Math.max(top, p.getY(i));
+      minX = Math.min(minX, p.getX(i));
+      maxX = Math.max(maxX, p.getX(i));
+    }
+    expect(top).toBeCloseTo(9, 6);
+    expect(minX).toBeCloseTo(0, 3);
+    expect(maxX).toBeCloseTo(10, 3);
+    // The flat cap is the outline inset by the radius.
+    for (let i = 0; i < p.count; i++)
+      if (Math.abs(p.getY(i) - 9) < 1e-6)
+        for (const v of [p.getX(i), p.getZ(i)]) {
+          expect(Math.abs(v)).toBeGreaterThan(0.499);
+          expect(Math.abs(v)).toBeLessThan(9.501);
+        }
+  });
+
+  it("bevel bands carry smooth normals: tilted between the wall and the roof, varying along the profile", () => {
+    const g = one();
+    const nm = n(g.buildings);
+    const ups = new Set<number>();
+    for (let i = 0; i < nm.count; i++) {
+      const y = nm.getY(i);
+      if (y > 0.01 && y < 0.999) ups.add(Math.round(y * 1000));
+    }
+    // 2 segments: the profile normals at 45° (sin = 0.707) and the ends (0 and 1) are shared, so
+    // the quarter-round shades continuously from wall to roof.
+    expect([...ups]).toContain(707);
+  });
+
+  it("convex corners are cut by 0.14 m with normals blending across the cut (no hard 90° corner)", () => {
+    const g = one();
+    const p = pos(g.buildings);
+    const nm = n(g.buildings);
+    let diagonal = 0;
+    for (let i = 0; i < p.count; i++) {
+      // no vertex sits on the OSM corner (0, 0) itself; the nearest is 0.14 m along an edge
+      expect(Math.hypot(p.getX(i), p.getZ(i))).toBeGreaterThan(0.139);
+      const nx = nm.getX(i);
+      const nz = nm.getZ(i);
+      if (Math.abs(nm.getY(i)) < 1e-6 && Math.abs(nx) > 0.1 && Math.abs(nz) > 0.1) diagonal++;
+    }
+    expect(diagonal).toBe(0); // the cut's own corners take the adjacent wall normals (smooth blend)
+    const body = bevelBody(
+      [
+        [0, 0],
+        [10, 0],
+        [10, -10],
+        [0, -10],
+      ],
+      9,
+      BUILDING_BEVEL,
+    )!;
+    expect(body.wall).toHaveLength(8);
+    expect(body.radius).toBeCloseTo(0.5);
+  });
+
+  it("a low or thin building gets a smaller radius, and the top still lands on the height", () => {
+    const low = one(1);
+    const p = pos(low.buildings);
+    let top = Number.NEGATIVE_INFINITY;
+    for (let i = 0; i < p.count; i++) top = Math.max(top, p.getY(i));
+    expect(top).toBeCloseTo(1, 6);
+    const thin = bevelBody(
+      [
+        [0, 0],
+        [20, 0],
+        [20, -0.6],
+        [0, -0.6],
+      ],
+      6,
+      BUILDING_BEVEL,
+    );
+    expect(thin === null || thin.radius < 0.3).toBe(true);
+  });
+
+  it("curved outlines (gentle turns) share an averaged normal, so they shade smooth", () => {
+    const ring: [number, number][] = [];
+    for (let k = 0; k < 24; k++) {
+      const a = (-2 * Math.PI * k) / 24;
+      ring.push([10 * Math.cos(a), 10 * Math.sin(a)]);
+    }
+    const body = bevelBody(ring, 12, BUILDING_BEVEL)!;
+    expect(body.wall).toHaveLength(24); // 15° turns: no cuts
+    for (let k = 0; k < 24; k++) {
+      const end = body.nEnd[k]!;
+      const start = body.nStart[(k + 1) % 24]!;
+      expect(end[0]).toBeCloseTo(start[0], 9);
+      expect(end[1]).toBeCloseTo(start[1], 9);
+    }
+  });
+
+  it("bevel: false keeps the plain box", () => {
+    const g = buildBevelled(
+      layer({ buildings: fc([feat(poly(square(0, 0)), { id: "a", height_m: 9 })]) }),
+      frame,
+      { bevel: false },
+    );
+    expect(pos(g.buildings).count).toBe(30);
   });
 });

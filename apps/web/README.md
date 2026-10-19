@@ -327,6 +327,13 @@ after it stops.
   dropped manifest entry (the library collects failures in `failed`; it never warns). Footprints an
   archetype cannot fit, and archetypes with no asset, stay extruded.
 - **`?assets=0`:** skip the assets (no manifest fetch); the extruded city only.
+- **Rounded buildings (B-T2):** extrusions are bevelled by default (`cityMesh.ts` `bevelBody`,
+  `BUILDING_BEVEL`: a 0.5 m quarter-round top edge cut into the body, 0.14 m cuts with smooth normals
+  on convex corners). Walls stay on the OSM outline and the top at `display_height_m`;
+  `cityMesh.fidelity.test.ts` checks every seed building in the boundary (area ±2 %, vertices
+  ≤ 0.15 m, top ±0.1 m). Archetype and landmark glbs round in the role shader only
+  (`BUILDING_SHADER_BEVEL`, a per-model box uniform, so one material per asset, variant and LOD):
+  no extra triangles, nothing moves.
 - **`?showroom=1`:** replace the plan with `assets/showroom.ts`: every asset variant once at LOD0,
   one row per asset (landmarks on the outer rows). Each row spaces its variants max(30 m, widest
   + 5 m) apart and rows sit max(30 m, half their depths + 5 m) apart, so nothing overlaps and one big

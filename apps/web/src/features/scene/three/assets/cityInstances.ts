@@ -5,6 +5,7 @@ import type { AssetLibrary } from "./library";
 import type { Manifest } from "./manifest";
 import type { CityPlan } from "./plan";
 import {
+  bevelBoxOf,
   createMotionUniforms,
   createRoleMaterial,
   type MotionUniforms,
@@ -208,11 +209,20 @@ export function createCityInstances(
   group.name = "city-instances";
   const motion = extra?.motion ?? createMotionUniforms();
   // Lit-window flicker is opt-in: only when the caller owns the motion clock (Task 8 drives uFlicker).
-  const material = createRoleMaterial({
-    instanced: true,
-    uniforms,
-    ...(extra?.motion ? { motion, flicker: true } : {}),
-  });
+  // Buildings (archetypes and landmarks) round their edges in the shader (B-T2): the bevel needs the
+  // model's own box, so each (asset, variant, LOD) gets its own material; they share one program.
+  const buildingMaterials: THREE.Material[] = [];
+  const buildingMaterial = (geo: THREE.BufferGeometry) => {
+    const box = bevelBoxOf(geo);
+    const mt = createRoleMaterial({
+      instanced: true,
+      uniforms,
+      ...(extra?.motion ? { motion, flicker: true } : {}),
+      ...(box ? { bevel: box } : {}),
+    });
+    buildingMaterials.push(mt);
+    return mt;
+  };
   const kitMaterials = new Map<RoleKind, THREE.MeshStandardMaterial>();
   const kitMaterial = (asset: string) => {
     const kind = KIT_KIND[asset] ?? "static";
@@ -263,7 +273,11 @@ export function createCityInstances(
       });
       for (const [i, a] of pal.entries()) geo.setAttribute(`iPal${i}`, a);
       const kit = spec.group === "kit";
-      const mesh = new THREE.InstancedMesh(geo, kit ? kitMaterial(asset) : material, list.length);
+      const mesh = new THREE.InstancedMesh(
+        geo,
+        kit ? kitMaterial(asset) : buildingMaterial(src),
+        list.length,
+      );
       mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
       mesh.count = 0;
       mesh.visible = false;
@@ -337,7 +351,13 @@ export function createCityInstances(
     const spec = m.assets[p.asset];
     const geo = lib.geometry(p.asset, p.variant, 0);
     if (!spec || !geo) continue;
-    const mat = createRoleMaterial({ instanced: false, uniforms, palette: p.palette });
+    const box = bevelBoxOf(geo);
+    const mat = createRoleMaterial({
+      instanced: false,
+      uniforms,
+      palette: p.palette,
+      ...(box ? { bevel: box } : {}),
+    });
     landmarkMaterials.push(mat);
     if (p.depthYield) {
       // Behind coplanar surfaces: the OSM podium roof (8.71 m) wins over the slab's own podium
@@ -528,7 +548,7 @@ export function createCityInstances(
     },
     dispose() {
       for (const key of [...keys, ...kitKeys]) for (const b of key.buckets) if (b) releaseBucket(b);
-      material.dispose();
+      for (const mt of buildingMaterials) mt.dispose();
       for (const mt of kitMaterials.values()) mt.dispose();
       for (const mt of landmarkMaterials) mt.dispose();
       group.clear();
