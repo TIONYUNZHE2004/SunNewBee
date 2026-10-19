@@ -19,7 +19,7 @@ MAX_ROUNDS=${MAX_ROUNDS:-40}
 LIMIT_WAIT=${LIMIT_WAIT:-1200}
 QUICK_FAIL=${QUICK_FAIL:-120}
 
-ROUND_PROMPT=${ROUND_PROMPT:-'Overnight round, no human is watching. Read the board README ("Rounds", "Overnight") and your task files on yunzhe/agent-board. Take the next open item on your list, in order: your part of the six P1 audit fixes (AUD-001 to AUD-006), then T-020, then T-021. Work in small steps. Commit and push your own branch after each step and log on your task file. Run the CI checks that match your change, except e2e. Live model calls only inside your SPEND.md limit, at most 10 questions per round, and log the cost. Never push to main or to another engineer branch. If you are blocked, log why and take the next item. When no item is left, print NOTHING LEFT as your last line.'}
+ROUND_PROMPT=${ROUND_PROMPT:-'Overnight round, no human is watching. Read the board README ("Rounds", "Overnight") and your task files on yunzhe/agent-board. Take the next open item for you in the "Audit P1 fixes" table on BOARD.md, then your other open tasks. Work in small steps. Commit and push your own branch after each step and log on your task file. Run the CI checks that match your change, except e2e. Live model calls only inside your SPEND.md limit, at most 10 questions per round, and log the cost. Never push to main or to another engineer branch. If you are blocked, log why and take the next item. When no item is left, print NOTHING LEFT as your last line.'}
 
 cd "$DIR" || exit 1
 LOG="$DIR/.overnight-$AGENT.log"
