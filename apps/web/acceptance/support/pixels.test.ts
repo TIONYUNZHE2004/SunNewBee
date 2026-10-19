@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   countColour,
   deltaE,
+  extremeShares,
   fractionBelow,
   greyShare,
   laplacianVariance,
@@ -9,6 +10,7 @@ import {
   luminance,
   maskCount,
   parseHex,
+  poolContrast,
   type RGBAImage,
   saturation,
 } from "./pixels";
@@ -209,5 +211,60 @@ describe("deltaE", () => {
     expect(deltaE([0, 0, 0], [255, 255, 255])).toBeCloseTo(100, 0);
     expect(deltaE([207, 230, 245], [205, 228, 243])).toBeLessThan(2);
     expect(deltaE([207, 230, 245], [26, 22, 64])).toBeGreaterThan(50);
+  });
+});
+
+describe("extremeShares (AC-B6)", () => {
+  it("counts near-black (luminance < 0.03) and clipped white (every channel >= 254)", () => {
+    // 4x1: black, sRGB 48 grey (luminance 0.0296, near-black), sRGB 49 grey (0.0307), white.
+    const greys = [0, 48, 49, 255];
+    const im = img(4, 1, (x) => {
+      const v = greys[x] as number;
+      return [v, v, v];
+    });
+    const s = extremeShares(im);
+    expect(s.count).toBe(4);
+    expect(s.dark).toBeCloseTo(0.5, 9);
+    expect(s.clipped).toBeCloseTo(0.25, 9);
+  });
+  it("does not call a saturated bright colour clipped, and respects the mask", () => {
+    const im = img(2, 1, (x) => (x === 0 ? [255, 255, 200] : [255, 255, 255]));
+    expect(extremeShares(im).clipped).toBeCloseTo(0.5, 9);
+    expect(extremeShares(im, { mask: Uint8Array.from([1, 0]) })).toEqual({
+      dark: 0,
+      clipped: 0,
+      count: 1,
+    });
+  });
+  it("is zero for an empty selection", () => {
+    const im = img(2, 2, () => [0, 0, 0]);
+    expect(extremeShares(im, { mask: new Uint8Array(4) })).toEqual({
+      dark: 0,
+      clipped: 0,
+      count: 0,
+    });
+  });
+});
+
+describe("poolContrast (AC-A14 lamp pools)", () => {
+  it("is the inner peak minus the ring median: a bright spot on dark ground reads, flat ground does not", () => {
+    const pool = img(41, 41, (x, y) =>
+      Math.abs(x - 20) <= 2 && Math.abs(y - 20) <= 2 ? [200, 200, 160] : [40, 40, 60],
+    );
+    const c = poolContrast(pool, 20, 20);
+    expect(c.peak).toBeGreaterThan(0.5);
+    expect(c.ring).toBeCloseTo(luminance(40, 40, 60), 9);
+    expect(c.contrast).toBeCloseTo(c.peak - c.ring, 9);
+    // Uniformly bright ground (a lifted night) has no pool, though every pixel is over 0.2.
+    const flat = img(41, 41, () => [150, 150, 150]);
+    expect(luminance(150, 150, 150)).toBeGreaterThan(0.2);
+    expect(poolContrast(flat, 20, 20).contrast).toBeCloseTo(0, 9);
+  });
+  it("skips pixels outside the image and outside the mask in the ring", () => {
+    const im = img(10, 10, (x) => (x < 5 ? [0, 0, 0] : [255, 255, 255]));
+    const mask = new Uint8Array(100);
+    const c = poolContrast(im, 0, 0, { inner: 0, ringIn: 2, ringOut: 4, mask });
+    expect(c.ring).toBe(0);
+    expect(c.peak).toBe(0);
   });
 });

@@ -2,6 +2,7 @@ import { applyTheme, useTheme } from "../../ui/theme";
 import { usePanel } from "../main/panelStore";
 import { useSceneSettings } from "../scene/sceneSettingsStore";
 import { useScene } from "../scene/sceneStore";
+import { PINNED_SUN_ISO, pinSunClock } from "../scene/three/sunClock";
 
 /** True when the URL carries the demo recording flag `?demo=1` (spec section 6.6). One helper for
  * everything that keys off it (this preset, the later `window.__journey` gating and auto-play). */
@@ -32,5 +33,7 @@ export function applyDemoPreset(search?: string): boolean {
   useTheme.setState({ choice: DEMO_PRESET.theme, theme: DEMO_PRESET.theme });
   if (typeof document !== "undefined") applyTheme(DEMO_PRESET.theme);
   usePanel.setState({ open: DEMO_PRESET.assistantOpen });
+  // The recording lights the scene at the pinned sun time (10:30 MYT, fixed date), not the clock.
+  pinSunClock(new Date(PINNED_SUN_ISO));
   return true;
 }

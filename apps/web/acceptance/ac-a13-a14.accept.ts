@@ -8,6 +8,7 @@ import {
   maskCount,
   type Point,
   parseHex,
+  poolContrast,
   type RGBAImage,
 } from "./support/pixels";
 import { decodePng, mapArea, maskOf, type PickGrid, pickGrid } from "./support/scene";
@@ -26,14 +27,17 @@ import { decodePng, mapArea, maskOf, type PickGrid, pickGrid } from "./support/s
  *
  * AC-A14: mean luminance of ground+road pixels (pick-masked, the samples both captures agree on)
  * at `night-mid` is <= 35% of the day value at the same pose (`hero-mid`); and lamp pools are
- * visible: of the lamps on screen (not under UI), >= 40% have a pixel of luminance >= 0.2 within
- * 5 px of the lamp, and there are at least 30 of them.
+ * visible: of the lamps on screen (not under UI), >= 40% have a pool, and there are at least 30
+ * of them. A pool is RELATIVE (B-T4 fix 1): the brightest pixel within 5 px of the lamp is at least
+ * POOL_DELTA luminance over the median of the 12-18 px ring around it (`poolContrast`), so a lifted
+ * night ground cannot pass the check without any pool.
  */
 const OUT =
   process.env.ACCEPTANCE_OUT ??
   "C:/Users/shaoxian04/Documents/SunNewBee/.superpowers/sdd/journey-sim/acceptance/A-T11";
 
-const LIT_LUMA = 0.2;
+/** Pool peak minus the surrounding ring median (relative luminance). */
+const POOL_DELTA = 0.08;
 
 const px = (img: RGBAImage, x: number, y: number): [number, number, number] => {
   const o = (y * img.width + x) * 4;
@@ -184,14 +188,12 @@ test("AC-A14: night ground and road are <= 35% of day, lamp pools visible", asyn
         p.y < nightImg.height - 5 &&
         area.mask[p.y * nightImg.width + p.x] === 1,
     );
-  const thr = LIT_LUMA;
-  const lampMax = onScreen.map((p) => {
-    let best = 0;
-    for (let dy = -5; dy <= 5; dy++)
-      for (let dx = -5; dx <= 5; dx++)
-        best = Math.max(best, luminance(...px(nightImg, p.x + dx, p.y + dy)));
-    return best;
-  });
+  const thr = POOL_DELTA;
+  const lampMax = onScreen.map(
+    (p) =>
+      poolContrast(nightImg, p.x, p.y, { inner: 5, ringIn: 12, ringOut: 18, mask: area.mask })
+        .contrast,
+  );
   const lit = onScreen.filter((_, i) => (lampMax[i] as number) >= thr);
   const sorted = [...lampMax].sort((a, b) => a - b);
   const pct = (f: number) => sorted[Math.min(sorted.length - 1, Math.floor(f * sorted.length))];
@@ -206,13 +208,13 @@ test("AC-A14: night ground and road are <= 35% of day, lamp pools visible", asyn
     nightMeanLuma: nightMean,
     ratio,
     limit: { ratio: 0.35, litShare: 0.4, minLamps: 30 },
-    lampMaxLuma: { p10: pct(0.1), p50: pct(0.5), p90: pct(0.9) },
+    lampPoolContrast: { p10: pct(0.1), p50: pct(0.5), p90: pct(0.9) },
     lamps: {
       total: lamps.length,
       onScreen: onScreen.length,
       lit: lit.length,
       litShare,
-      litThreshold: thr,
+      poolDelta: thr,
     },
     pass: ratio <= 0.35 && litShare >= 0.4 && onScreen.length >= 30,
   };

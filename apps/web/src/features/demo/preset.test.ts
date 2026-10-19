@@ -10,6 +10,7 @@ const boot = async () => {
     scene: (await import("../scene/sceneStore")).useScene,
     theme: (await import("../../ui/theme")).useTheme,
     panel: (await import("../main/panelStore")).usePanel,
+    sun: await import("../scene/three/sunClock"),
   };
 };
 
@@ -43,6 +44,17 @@ describe("demo preset", () => {
     expect(localStorage.getItem("tl.pathStatus")).toBe("true");
     expect(localStorage.getItem("tl.theme")).toBe("night");
     expect(localStorage.getItem("tl.panel.open")).toBe("false");
+  });
+
+  it("B-T4: ?demo=1 pins the sun clock to 10:30 MYT on the fixed date; a normal load keeps the real clock", async () => {
+    const a = await boot();
+    expect(a.preset.applyDemoPreset("")).toBe(false);
+    expect(a.sun.sunClockPinned()).toBe(false);
+    const real = new Date("2026-10-19T12:00:00Z");
+    expect(a.sun.sunNow(real)).toBe(real);
+    const b = await boot();
+    expect(b.preset.applyDemoPreset("?demo=1")).toBe(true);
+    expect(b.sun.sunNow(real).toISOString()).toBe(new Date(b.sun.PINNED_SUN_ISO).toISOString());
   });
 
   it("without the flag the user's choice is kept", async () => {

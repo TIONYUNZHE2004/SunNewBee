@@ -28,13 +28,20 @@ import {
 import type { CityGeometry } from "./cityMesh";
 import { type Clearance, createLift } from "./clearance";
 import { cullFrustum, shadowPadM } from "./cull";
-import { applyGroundGrade, GROUND_GRADE, groundMaterial } from "./ground/bands";
+import { applyGroundGrade, GROUND_GRADE, groundMaterial, ROAD_GRADE } from "./ground/bands";
 import type { Boundary } from "./ground/boundary";
 import { cityGroundMeshes } from "./ground/cityGround";
 import type { GroundLayer } from "./ground/groundLayer";
 import { shimmerMaterial } from "./ground/landcover";
 import { createSlab, type SlabLayerObject } from "./ground/slab";
-import { BLOOM, fitShadowCamera, type LightPreset } from "./lighting";
+import {
+  AO_PARAMS,
+  BLOOM,
+  fitShadowCamera,
+  type LightPreset,
+  SHADOW,
+  shadowFrame,
+} from "./lighting";
 import { createLodSchedule } from "./lodSchedule";
 import { applyFog } from "./mood";
 import { createMotionClock, type MotionMode, motionModeFor } from "./motion/motionClock";
@@ -415,7 +422,7 @@ function build(
   renderer.toneMapping = THREE.NeutralToneMapping;
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   // three r186 removed PCFSoftShadowMap: it warns once and uses PCFShadowMap. Ask for that directly
-  // so the console stays clean.
+  // so the console stays clean. r186 PCF honours `shadow.radius` (soft kernel, B-T4: SHADOW).
   renderer.shadowMap.type = THREE.PCFShadowMap;
   renderer.info.autoReset = false;
 
@@ -449,6 +456,9 @@ function build(
   const camera = new THREE.PerspectiveCamera(VFOV_DEG, 1, 2, 30000);
   const sun = new THREE.DirectionalLight();
   const hemi = new THREE.HemisphereLight();
+  // Soft PCF shadows (B-T4). normalBias follows the box size (placeLight).
+  sun.shadow.radius = SHADOW.radius;
+  sun.shadow.bias = SHADOW.bias;
   scene.add(sun, sun.target, hemi);
   let keyDir: [number, number, number] = [0, 1, 0];
   let lastPreset: LightPreset | null = null;
@@ -843,6 +853,8 @@ function build(
 
   let composer = new EffectComposer(renderer);
   let passes: Pass[] = [];
+  /** The live GTAO pass (null on Low or before the first tier), for the per-mood blend. */
+  let aoPass: CityGTAOPass | null = null;
   let bloomPass: UnrealBloomPass | null = null;
   /** Strength from the mood preset; the pass is skipped while it is 0 (day). */
   const syncBloom = () => {
@@ -883,11 +895,22 @@ function build(
     composer = new EffectComposer(renderer);
     composer.setPixelRatio(pr);
     passes = [new RenderPass(scene, camera)];
+    aoPass = null;
     // AO normal/depth pass without the far LOD2 blocks (I3).
-    if (spec.ao)
+    if (spec.ao) {
       // Agents too: small and moving, their AO is invisible and their draws would double.
-      passes.push(
-        new CityGTAOPass(scene, camera, w, h, () => {
+      // B-T4 tuning: clay contact shadows that shade but never blacken (lighting.ts AO_PARAMS),
+      // blended per mood (LightPreset.aoBlend, kept current in setLighting).
+      const params = {
+        ...AO_PARAMS,
+        blendIntensity: lastPreset?.aoBlend ?? AO_PARAMS.blendIntensity,
+      };
+      const ao = new CityGTAOPass(
+        scene,
+        camera,
+        w,
+        h,
+        () => {
           aoSkip.length = 0;
           if (assets) for (const o of assets.aoExcluded()) aoSkip.push(o);
           if (motionLayer) aoSkip.push(motionLayer.group);
@@ -896,8 +919,12 @@ function build(
           // The journey ribbon is Line2 quads (paint over the ground), not a surface for AO.
           if (journey) aoSkip.push(journey.ribbon);
           return aoSkip;
-        }),
+        },
+        params,
       );
+      aoPass = ao;
+      passes.push(ao);
+    }
     // Markers and residents after the AO pass and before bloom/tone mapping: no occlusion on them,
     // drawn on top. Overlay lines are not here: they draw in the main pass (lineGroup) to depth-test.
     overlayPass = new RenderPass(overlayScene, camera);
@@ -922,7 +949,13 @@ function build(
 
   const placeLight = () => {
     const t = controls.target;
-    const fit = fitShadowCamera([t.x, t.z], camera.position.distanceTo(t) * 1.2, keyDir);
+    // B-T4 shadow frame: the box follows the focus (>= 70 m), fades out at range.
+    const shadow = shadowFrame(camera.position.distanceTo(t), sun.shadow.mapSize.x);
+    sun.shadow.intensity = shadow.strength;
+    sun.shadow.normalBias = shadow.normalBias;
+    // Faded out (far camera): stop re-rendering the shadow map.
+    sun.shadow.autoUpdate = shadow.strength > 0;
+    const fit = fitShadowCamera([t.x, t.z], shadow.halfSize, keyDir);
     sun.position.set(...fit.position);
     sun.target.position.set(...fit.target);
     sun.target.updateMatrixWorld();
@@ -1005,12 +1038,19 @@ function build(
     }
     if (lodWanted() && lod.due(now)) {
       const rangeM = camera.position.distanceTo(controls.target);
-      // The shadow box half size is fitShadowCamera's radius (placeLight: range x 1.2).
-      if (assets)
+      // The shadow box half size is the shadow frame's (placeLight); no casters needed once faded.
+      if (assets) {
+        const sf = shadowFrame(rangeM, sun.shadow.mapSize.x);
         assets.update(
           camera.position,
-          cullFrustum(camera, shadowPadM(sun.castShadow, rangeM * 1.2), cull, viewProj),
+          cullFrustum(
+            camera,
+            shadowPadM(sun.castShadow && sf.strength > 0, sf.halfSize),
+            cull,
+            viewProj,
+          ),
         );
+      }
       lodTick.target.x = controls.target.x;
       lodTick.target.z = controls.target.z;
       lodTick.rangeM = rangeM;
@@ -1334,7 +1374,9 @@ function build(
       renderer.toneMappingExposure = p.exposure;
       (scene.background as THREE.Color).set(p.background);
       sky.setPreset(p);
+      if (aoPass) aoPass.blendIntensity = p.aoBlend;
       GROUND_GRADE.value = p.groundGrade;
+      ROAD_GRADE.value = p.roadGrade;
       lastPreset = p;
       syncBloom();
       applyFog(scene, p, fogRange, fogReachM(fit, fogRange));
