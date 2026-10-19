@@ -78,7 +78,11 @@ export interface SceneState {
   /** The river level follows the day's clock without clearing routes or what-ifs. */
   setDayStage: (scenarioId: string | null) => void;
   camera: { center: [number, number]; rangeM: number } | null;
-  /** The trip plan of the latest journey.play intent (spec §6.2); the journey store plays it. */
+  /**
+   * The trip plan of the latest journey.play intent (spec §6.2), loaded into the journey store.
+   * Not the plan being shown: every renderer reads `useJourney.plan` (Watch the trip can load an
+   * older answer's plan; Clear route empties it).
+   */
   journey: JourneyPlan | null;
   intents: SceneIntent[];
   applyIntent: (i: SceneIntent) => void;
@@ -293,7 +297,11 @@ export const useScene = create<SceneState>((set) => ({
     set({ focusRouteRequest: null });
     set({ focusRouteRequest: id });
   },
-  clearRoute: () => set({ route: null }),
+  // The journey's ribbon is the route on the map: clearing the route clears the trip too.
+  clearRoute: () => {
+    useJourney.getState().clear();
+    set({ route: null, journey: null });
+  },
   clearWhatIf: () => set({ whatIf: null }),
   setRollout: (r) => set((s) => ({ rollout: { ...s.rollout, ...r } })),
   setDay: (d) => set((s) => ({ day: { ...s.day, ...d } })),

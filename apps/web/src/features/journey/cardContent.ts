@@ -1,57 +1,126 @@
-/** Card content for one journey event (spec §6.4/§6.5/§7). One pure function shared by every
- * renderer (Three.js EventCard, List view, Mapbox lite) so they cannot disagree. Dependency-free. */
+import type { JourneyEvent } from "./timeline";
 
-export interface JourneyCardEvent {
-  kind: string;
+/**
+ * The one place journey card wording is decided (3D event cards, and the List / Mapbox step list).
+ * Dependency-free and pure. Honesty rules (AGENTS.md, spec §7):
+ * - the "Demo value · not surveyed" chip shows exactly when `event.demo` is true;
+ * - "Verified" only for a verified claim that is not a demo value;
+ * - UNKNOWN facts say "Not checked yet"; "verification request filed" only when one was filed
+ *   (`withVerificationRequest`), since the plan itself does not say so;
+ * - the rest gap is named as a data gap, never "blocked" or "unsafe".
+ * Title and body are the plan's own text (built from world data by `journey.build_journey`).
+ */
+export interface JourneyCardContent {
   title: string;
   body: string;
-  status: string;
-  demo: boolean;
-  element_id?: string | null;
-  source?: string | null;
-}
-
-export interface JourneyCard {
-  title: string;
-  body: string;
-  /** Element id, else the route-level source, else "". */
+  /** Where the fact comes from and how sure it is, e.g. "Not checked yet". */
   source: string;
-  /** True exactly when event.demo is true: show "Demo value · not surveyed". */
+  /** Show the "Demo value · not surveyed" chip. */
   demoChip: boolean;
-  /** Short status words. Never "Verified" for a demo event; unknown reads "Not checked yet". */
+  /** Short badge text for the card's kind, e.g. "Data gap". */
   statusLabel: string;
 }
 
-export const DEMO_CHIP_TEXT = "Demo value · not surveyed";
+export const DEMO_CHIP = "Demo value · not surveyed";
+/** Spec §6.4 / §7: the always-on label of every journey renderer. */
 export const SIMULATION_LABEL = "Simulation · indicative times, not a prediction";
+/** fe4 (D-T9) names, kept so every renderer imports one module. */
+export const DEMO_CHIP_TEXT = DEMO_CHIP;
+export type JourneyCard = JourneyCardContent;
+export const NOT_CHECKED = "Not checked yet";
+export const VR_FILED = "verification request filed";
 
-function statusLabel(e: JourneyCardEvent): string {
-  if (e.demo) return DEMO_CHIP_TEXT;
-  if (e.kind === "gap") return "No mapped rest stop ahead";
+/** How sure a claim is, in words; never "verified" for a demo value. */
+function certainty(e: JourneyEvent): string {
   switch (e.status) {
     case "verified":
-      return "Verified";
-    case "unknown":
-      return "Not checked yet";
+      return e.demo ? "demo value" : "verified";
     case "reported":
-      return "Reported, not checked";
+      return "reported, not checked yet";
     case "stale":
-      return "Out of date";
+      return "checked a while ago, needs a re-check";
     case "contested":
-      return "Disputed";
-    case "route":
-      return "From the route";
+      return "reports disagree";
     default:
-      return "Not checked yet";
+      return "not checked yet";
   }
 }
 
-export function journeyCardContent(e: JourneyCardEvent): JourneyCard {
+const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+
+function label(e: JourneyEvent): string {
+  switch (e.kind) {
+    case "unknown":
+      return NOT_CHECKED;
+    case "gap":
+      return "Data gap";
+    case "arrive":
+      return "Destination";
+    case "rest":
+      return e.status === "verified" && !e.demo ? "Rest stop · verified" : "Rest stop";
+    case "covered":
+      if (e.status === "reported") return "Reported roof";
+      return e.status === "verified" && !e.demo ? "Verified roof" : "Roof";
+    case "verified":
+      return e.status === "verified" && !e.demo ? "Verified" : cap(certainty(e));
+  }
+}
+
+function source(e: JourneyEvent): string {
+  switch (e.kind) {
+    case "unknown":
+      return NOT_CHECKED;
+    case "gap":
+      return "From the route check · rest rule for this profile";
+    case "arrive":
+      return "Destination";
+    case "rest":
+      return `Bench · ${certainty(e)}`;
+    case "covered":
+      return `Roof · ${certainty(e)}`;
+    case "verified":
+      return `Path survey · ${certainty(e)}`;
+  }
+}
+
+export function journeyCardContent(event: JourneyEvent): JourneyCardContent {
   return {
-    title: e.title,
-    body: e.body,
-    source: e.element_id || e.source || "",
-    demoChip: e.demo === true,
-    statusLabel: statusLabel(e),
+    title: event.title,
+    body: event.body,
+    source: source(event),
+    demoChip: event.demo === true,
+    statusLabel: label(event),
   };
+}
+
+/** A verification request filed this session (from a `verification.requested` event). */
+export interface FiledVr {
+  element_id: string;
+  attribute: string;
+}
+
+/** True when a request was filed for this event's element and one of its attributes. */
+export function vrFiledFor(event: JourneyEvent, vrs: readonly FiledVr[]): boolean {
+  const id = event.element_id;
+  if (!id) return false;
+  const attrs = event.attributes ?? [];
+  return vrs.some((v) => v.element_id === id && attrs.includes(v.attribute));
+}
+
+/** True when the card is about a fact nobody has checked yet (a VR would ask for exactly that). */
+const unchecked = (e: JourneyEvent) =>
+  e.kind === "unknown" || (e.kind === "covered" && e.status !== "verified");
+
+/**
+ * Adds "verification request filed" to an unchecked card when a request for its element was filed
+ * this session (a `verification.requested` event); otherwise returns the content unchanged.
+ */
+export function withVerificationRequest(
+  content: JourneyCardContent,
+  event: JourneyEvent,
+  filed: boolean,
+): JourneyCardContent {
+  if (!filed || !unchecked(event)) return content;
+  const base = event.kind === "unknown" ? NOT_CHECKED : content.source;
+  return { ...content, source: `${base} · ${VR_FILED}` };
 }

@@ -333,6 +333,29 @@ after it stops.
 - The glbs and manifest live in `public/city/` (lane `blender`); `vite build` copies them to
   `dist/city/`.
 
+#### Elmina outline and diorama slab (Three.js, A-T4)
+
+When `/site` serves `boundary.geometry` (the display-only Elmina outline, `base/boundary.geojson`),
+the stylised city is clipped to it and sits on a diorama slab. Display only: routing, evaluation,
+the API data and the data overlays (access lines, markers, flood tint) are never clipped.
+
+- `ground/boundary.ts`: the outline in the local frame and the pure helpers (`insideBoundary`,
+  `outsideBy`, `clipToBoundary`, `clipLine`); `ground/clipPolygon.ts` cuts polygons with
+  `polygon-clipping` (main thread only: the tile-plan worker never bundles it). Cut walk runs and
+  polygon pieces after the first take a `~k` id.
+- `ground/clipLayer.ts`: applied once in `ThreeScene` to the `/layers/buildings` payload and the
+  latched walk copy the planners read. Buildings and landmark outlines are kept only when every
+  footprint vertex lies within 5 m of the inside (never cut; on the seed 1283 of 7803 are kept);
+  land cover, parks and base water are cut geometrically; trees and signs are kept inside; walk
+  lines are cut to their inside runs.
+- `stream/clipTile.ts`: every planned tile's vertex guard (props, lamps, signs, shrubs, cars and
+  stalls inside; road and verge triangles and tracks within 5 m); `planAgents` drops agents whose
+  path leaves the outline; ambient birds and cloud shadows outside it are hidden.
+- `ground/slab.ts` (`engine.setSlab`, `useSlab`): the slab top is the outline (it replaces the
+  rectangular base plane) and its cut edge is a cream crust over three soil bands that step down
+  and out at about 20 degrees, so the section faces the camera on every side at the overview. The
+  edge material takes 0.55 of the scene fog. A world without an outline keeps the base plane.
+
 #### Streaming (Three.js)
 
 Decorative content is planned per 250 m tile around the camera target (`stream/`), not for a fixed
@@ -607,6 +630,10 @@ flooded_possible`) via `scene/status.ts`, and unknown is drawn dashed and amber,
 - **Timeline.** `features/journey/timeline.ts` is pure: `buildTimeline(plan)` gives phases (`dive` 4 s, `walk` at 20x, one `event` hold per plan event with the screen time from `HOLD_SCREEN_S` and the plan's `hold_s` as simulated time (arrive adds none), `pull` 5 s); `stateAt(timeline, t)` gives distance, simulated seconds, the "HH:MM" clock, rests taken and minutes outdoors. During verified / gap / covered holds she keeps walking at her pace (capped at the next event); unknown / rest / arrive holds stand still. Minutes outdoors pause only on the span of a *verified* covered event (a reported roof is not a checked fact). The HUD at each event start equals the plan.
 - **Store.** `journeyStore` (zustand): `plan`, `timeline`, `t`, `playing`, `camMode` (`follow|overview|free`); `load`, `play`, `pause`, `seek`, `restart`, `setCam`, `advance(dt)` (the player's frame tick), `clear`. `journeyStateOf(store)` reads the HUD state. No rendering yet; auto-play is not here.
 - **Fixture.** `features/journey/fixtures/demoPlan.json` is the real `POST /journeys` plan for the §2 demo route (09:00). Regenerate with `uv run python apps/web/scripts/build-journey-fixture.py` (needs the Elmina seed; excluded from Biome as generated data).
+- **Overlay (D-T7).** `JourneyMount` (mounted by `ThreeScene`) shows the overlay while `sceneStore.journey` is set; it never starts playback. The timeline is advanced only by D-T8's shared, ref-counted `useJourneyDriver` (mounted by the controls and by the mount); a change of `t` asks the engine for a frame. Per-frame work is limited to the shown event card, which subscribes to engine frames during its hold and re-places itself without a React commit; the card area (side panel, phone sheet, top stack, mini-map) is measured by `useMapInsets` (ResizeObserver). The "Simulation · indicative times, not a prediction" label and the HUD go in the map's `sim` slot; the mini-map (spans by status, hero dot from `routePath.ts`, the same maths as the 3D hero) sits top right; one `EventCard` shows during each hold and none during dive / walk / pull, anchored to the projected marker and clamped inside the map (clear of the side panel, phone sheet, top stack and mini-map: `cardPlacement.ts`).
+- **Card wording.** `cardContent.ts` `journeyCardContent(event)` is the one source of card text, and `CardSourceRow` the one provenance row, for the 3D card and the List / Mapbox step list (AC-D14): the "Demo value · not surveyed" chip exactly when `demo`; "Verified" only for a verified, non-demo claim; UNKNOWN says "Not checked yet", plus "verification request filed" (`withVerificationRequest`) only when a `verification.requested` event this session matches the event's element and one of its attributes (`vrFiledFor`, `journeyStore.vrs`, fed by `useChatStream`); the rest gap is a "Data gap". `uiStrings.dom.test.tsx` scans every journey UI string (AC-D6).
+- **Ribbon and markers.** `journey/three/journeyLayer.ts`, handed to `Engine.setJourney`, not part of the status-line overlay: the ribbon (PASS solid green, UNKNOWN amber dashes, on a wider white casing so it reads apart from status lines) is a world-unit Line2 in the main scene, depth-tested so buildings and the hero cover it, with a 35 % ghost (`depthFunc` Greater) where a building hides it, left out of the AO G-buffer; it shows with Path status off. While a journey is loaded the blue route overlay line steps aside, the route tag shows the ribbon legend, and "Clear route from map" also clears the journey. Event markers are sprites in their own scene, rendered straight to the canvas after the composer (never through post-processing: the prototype's black-quad bug).
+- **Acceptance.** `acceptance/journey-overlay.accept.ts` (AC-D11, AC-D12) drives `window.__journey` (dev builds and `?demo=1`): `seek`, `play`, `pause`, `setCam`, `phases`, `total`, `state()`, plus `plan` and `hero()` (`{distance_m}`; the timeline distance until D-T6 reads the rendered hero).
 
 ## File map
 
@@ -683,9 +710,11 @@ CI: it needs a real GPU and the Elmina seed.
   journey-sim ledger folder `.superpowers/sdd/journey-sim/acceptance/baseline`).
 - The app side is `window.__tlAcceptance` (`three/scene/useAcceptanceHook.ts`): `setPose`, `getPose`,
   `size`, `frames`, `pickGrid(step)`, `measure(seconds, orbitDegPerSec)`,
-  `measureUncapped(frames, degPerFrame)`, `roadVertices`, `gpu`, and for AC-A8 `clearance`,
-  `footprintTop(x, z)`, `cameraLocal`, `startCameraLog` / `stopCameraLog`, `flyTo`, `toLocal` /
-  `toLonLat`, `roofHitAt` and `instanceAudit` (mesh-based checks independent of the grid). It is installed only in
+  `measureUncapped(frames, degPerFrame)`, `roadVertices`, `gpu`, `slabOutline`, `displayAudit`
+  (A-T4; with a slab, `pickGrid` codes the plane beyond the outline as sky), and for AC-A8
+  `clearance`, `footprintTop(x, z)`, `cameraLocal`, `startCameraLog` / `stopCameraLog`, `flyTo`,
+  `liftM`, `toLocal` / `toLonLat`, `roofHitAt` and `instanceAudit` (mesh-based checks independent
+  of the grid). It is installed only in
   dev builds (`import.meta.env.DEV`) or when the page is loaded with `?acceptance=1`; it moves the
   camera and reads the scene, never data or settings.
 

@@ -1,5 +1,6 @@
+import { isDemoPreset } from "../demo/preset";
 import { type CamMode, journeyStateOf, useJourney } from "./journeyStore";
-import type { JourneyState, Phase } from "./timeline";
+import type { JourneyPlan, JourneyState, Phase } from "./timeline";
 
 /** The prototype's test and recording hook (`window.__journey`), plus a read-only `state()`. */
 export interface JourneyHook {
@@ -9,13 +10,19 @@ export interface JourneyHook {
   setCam: (mode: CamMode) => void;
   readonly phases: Phase[];
   readonly total: number;
+  /** The loaded plan (read only), null without one. */
+  readonly plan: JourneyPlan | null;
+  /**
+   * The hero's position along the route in plan metres (AC-D12 mini-map check), null without a
+   * plan. Until D-T6 renders a hero this is the timeline's `distance_m` at t; D-T6 replaces it with
+   * the rendered hero's position (the metre `routePath` places her at, `layer.path.pointAt`).
+   */
+  hero: () => { distance_m: number } | null;
   state: () => (JourneyState & { t: number; playing: boolean; camMode: CamMode }) | null;
 }
 
-/** The demo preset (?demo=1). The preset itself is A-T13; this reads the flag only. */
-export function isDemoPreset(search: string = globalThis.location?.search ?? ""): boolean {
-  return new URLSearchParams(search).get("demo") === "1";
-}
+// One parser for ?demo=1: the demo preset's (A-T13). Re-exported for existing importers.
+export { isDemoPreset };
 
 export function createJourneyHook(): JourneyHook {
   const s = () => useJourney.getState();
@@ -29,6 +36,13 @@ export function createJourneyHook(): JourneyHook {
     },
     get total() {
       return s().timeline?.total ?? 0;
+    },
+    get plan() {
+      return s().plan;
+    },
+    hero: () => {
+      const st = journeyStateOf(s());
+      return st ? { distance_m: st.distance_m } : null;
     },
     state: () => {
       const st = journeyStateOf(s());

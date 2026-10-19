@@ -1,4 +1,6 @@
 import { expect, type Locator, type Page, test } from "@playwright/test";
+import { journeyCardContent } from "../src/features/journey/cardContent";
+import type { JourneyEvent } from "../src/features/journey/timeline";
 
 const KIOSK = "Can I push a stroller from Car Park B to the kiosk without stairs?";
 
@@ -423,8 +425,7 @@ test("route answer lists every journey event as numbered steps in the list view 
   await ask(page, "Can I push a stroller from Car Park B to the playground without stairs?");
   const body = await (await chat).text();
   // The plan the page received: the scene.intent whose kind is journey.play.
-  type Ev = { title: string; element_id?: string | null; source?: string | null; demo: boolean };
-  let events: Ev[] = [];
+  let events: JourneyEvent[] = [];
   for (const line of body.split(/\r?\n/)) {
     if (!line.startsWith("data:") || !line.includes("journey.play")) continue;
     const j = JSON.parse(line.slice(5).trim());
@@ -442,9 +443,12 @@ test("route answer lists every journey event as numbered steps in the list view 
   for (const [i, e] of events.entries()) {
     const item = items.nth(i);
     await expect(item).toContainText(`${i + 1}.`);
-    await expect(item).toContainText(e.title);
-    const src = e.element_id || e.source;
-    if (src) await expect(item).toContainText(`Source: ${src}`);
+    // the same title, status and source line as the 3D event card (one shared function)
+    const c = journeyCardContent(e);
+    await expect(item).toContainText(c.title);
+    await expect(item).toContainText(c.statusLabel);
+    await expect(item.getByTestId("card-source")).toContainText(c.source);
+    if (e.element_id) await expect(item.getByTestId("card-element")).toHaveText(e.element_id);
     if (e.demo) await expect(item).toContainText("Demo value · not surveyed");
     else await expect(item).not.toContainText("Demo value · not surveyed");
   }

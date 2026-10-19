@@ -3,6 +3,7 @@ import * as THREE from "three";
 import type { Engine } from "../engine";
 import type { LocalFrame } from "../frame";
 import { createFrameStats, type PerfSample } from "../frameStats";
+import { type Boundary, insideBoundary, outsideBy, type P } from "../ground/boundary";
 import { pickAt } from "../pick";
 
 /**
@@ -87,6 +88,27 @@ export interface AcceptanceApi {
   measureUncapped(frames: number, orbitDegPerFrame: number): UncappedMeasurement;
   /** Vertices in the visible road-surface meshes: the streamed road layer has arrived when > 0. */
   roadVertices(): number;
+  /** The scene's live fog (colour as #rrggbb sRGB, distances in metres) and background colour; null when fog is off. */
+  fog(): { color: string; near: number; far: number; background: string } | null;
+  /** Lamp-pool centres on screen (page-independent canvas CSS pixels), those inside the canvas only. */
+  lampPoints(): { x: number; y: number }[];
+  /**
+   * Shows or hides the data-overlay scene (access lines, flood tint: `pickView().roots[0]`) so a capture
+   * can measure the surface under them. Display only; the lines' own fade is A-T2's.
+   */
+  setOverlaysVisible(visible: boolean): void;
+  /**
+   * Decorative agents that currently have instance matrices (inside the frustum plus the layer's
+   * 50 m margin): one row per instance with its kit, variant, LOD bucket, distance, display scale,
+   * projected head and feet (canvas CSS pixels) and whether a pickable surface (building, tree)
+   * lies between the camera and the head. `planned` counts the agents the layer was built with.
+   */
+  crowd(): CrowdReport;
+  /**
+   * Test-only: draws the line batches of `renderOrder` always on top (depthTest false) or restores
+   * depth testing. Returns the batches changed. For on-top vs depth-tested comparisons.
+   */
+  linesOnTop(renderOrder: number, on: boolean): number;
   /** The unmasked WebGL vendor and renderer (WEBGL_debug_renderer_info), else the masked ones. */
   gpu(): { vendor: string; renderer: string };
   /** The building-clearance grid in use (A-T7), or null before the city arrives. Read-only. */
@@ -118,6 +140,128 @@ export interface AcceptanceApi {
    * against the grid's roof at the AABB centre. A fail: grid roof < AABB top − 0.01 m.
    */
   instanceAudit(maxSamples: number): InstanceAudit;
+  /**
+   * The diorama slab's top outline (A-T4) projected to canvas CSS pixels, one array per ring, with
+   * the local position of each vertex; null when no slab is drawn. `inFront`: in front of the camera.
+   */
+  slabOutline():
+    | {
+        x: number;
+        y: number;
+        lx: number;
+        lz: number;
+        inFront: boolean;
+        /** The outer bottom corner of the soil section below this vertex, projected. */
+        foot: { x: number; y: number };
+      }[][]
+    | null;
+  /**
+   * AC-A5 live audit: how far outside the slab outline (m) the drawn display geometry of the main
+   * scene reaches. Every used vertex of each visible mesh (world xz) and every visible instance's
+   * origin is measured; the slab itself, the sky, the hidden base plane and the data overlays
+   * (overlay scene, flood ground slot) are left out. null when no slab is drawn.
+   */
+  displayAudit(): DisplayAudit | null;
+}
+
+export interface DisplayAudit {
+  meshes: number;
+  vertices: number;
+  instances: number;
+  /** Worst distance outside (m) over mesh vertices, and over instance origins. */
+  worstVertexM: number;
+  worstInstanceM: number;
+  /** The objects with anything more than 5 m outside: name and worst distance. */
+  over: { name: string; outsideM: number }[];
+}
+
+const AUDIT_SKIP = new Set(["slab", "sky", "base-plane", "flood-ground-slot"]);
+
+function displayAudit(engine: Engine): DisplayAudit | null {
+  const v = engine.pickView();
+  const slab = slabOf(v.roots);
+  const b = slab?.userData.boundary as Boundary | undefined;
+  if (!b) return null;
+  const main = v.roots[v.roots.length - 1]!;
+  main.updateMatrixWorld(true);
+  const out: DisplayAudit = {
+    meshes: 0,
+    vertices: 0,
+    instances: 0,
+    worstVertexM: 0,
+    worstInstanceM: 0,
+    over: [],
+  };
+  const p = new THREE.Vector3();
+  const m = new THREE.Matrix4();
+  const sc = new THREE.Vector3();
+  const q = new THREE.Quaternion();
+  const visit = (o: THREE.Object3D, path: string) => {
+    if (!o.visible || AUDIT_SKIP.has(o.name)) return;
+    const name = `${path}/${o.name || o.type}`;
+    let worst = 0;
+    const im = o as THREE.InstancedMesh;
+    const mesh = o as THREE.Mesh;
+    if (im.isInstancedMesh) {
+      for (let i = 0; i < im.count; i++) {
+        im.getMatrixAt(i, m);
+        // A hidden instance has a zero-scale matrix (decompose would report scale 1 for it).
+        const e = m.elements;
+        if (e[0] === 0 && e[1] === 0 && e[2] === 0 && e[5] === 0 && e[10] === 0) continue;
+        m.premultiply(im.matrixWorld).decompose(p, q, sc);
+        out.instances++;
+        worst = Math.max(worst, outsideBy(b, p.x, p.z));
+      }
+      out.worstInstanceM = Math.max(out.worstInstanceM, worst);
+    } else if (mesh.isMesh) {
+      const pos = mesh.geometry?.getAttribute("position") as THREE.BufferAttribute | undefined;
+      if (pos) {
+        out.meshes++;
+        const idx = mesh.geometry.getIndex();
+        const seen = idx ? new Uint8Array(pos.count) : null;
+        const n = idx ? idx.count : pos.count;
+        for (let k = 0; k < n; k++) {
+          const i = idx ? idx.getX(k) : k;
+          if (seen) {
+            if (seen[i]) continue;
+            seen[i] = 1;
+          }
+          p.fromBufferAttribute(pos, i).applyMatrix4(mesh.matrixWorld);
+          out.vertices++;
+          worst = Math.max(worst, outsideBy(b, p.x, p.z));
+        }
+        out.worstVertexM = Math.max(out.worstVertexM, worst);
+      }
+    }
+    if (worst > 5) out.over.push({ name, outsideM: worst });
+    for (const c of o.children) visit(c, name);
+  };
+  for (const c of main.children) visit(c, "");
+  out.over.sort((x, y) => y.outsideM - x.outsideM);
+  out.over = out.over.slice(0, 20);
+  return out;
+}
+
+export interface CrowdRow {
+  kind: "person" | "vehicle";
+  variant: string;
+  lod: number;
+  distM: number;
+  scale: number;
+  /** Model height (m) from the manifest times the display scale. */
+  heightM: number;
+  head: { x: number; y: number } | null;
+  feet: { x: number; y: number } | null;
+  /** Head to feet in canvas pixels; null when behind the camera. */
+  heightPx: number | null;
+  inCanvas: boolean;
+  /** A raycast camera -> head hits a non-decorative surface before the head. */
+  occluded: boolean;
+}
+
+export interface CrowdReport {
+  planned: { person: number; vehicle: number };
+  rows: CrowdRow[];
 }
 
 export interface InstanceAudit {
@@ -314,6 +458,87 @@ export function uncappedSummary(ms: readonly number[]): UncappedMeasurement {
 }
 
 const _ray = new THREE.Raycaster();
+const _cm = new THREE.Matrix4();
+const _cp = new THREE.Vector3();
+const _cs = new THREE.Vector3();
+const _cq = new THREE.Quaternion();
+const _ch = new THREE.Vector3();
+
+/** Kit model heights (m) by `kind/variant`, from the manifest-sized geometry bounding boxes. */
+function modelHeight(mesh: THREE.InstancedMesh): number {
+  const g = mesh.geometry;
+  if (!g.boundingBox) g.computeBoundingBox();
+  const bb = g.boundingBox;
+  return bb ? bb.max.y - bb.min.y : 0;
+}
+
+function crowdReport(engine: Engine): CrowdReport {
+  const v = engine.pickView();
+  const [w, h] = v.size;
+  const planned = { person: 0, vehicle: 0 };
+  const rows: CrowdRow[] = [];
+  const blockers: THREE.Object3D[] = [];
+  const visit = (o: THREE.Object3D) => {
+    if (o.userData.decorative) return;
+    // Fat lines (access / flood overlays) are not surfaces and their raycast needs a camera.
+    if (
+      (o as THREE.Mesh).isMesh &&
+      o.visible &&
+      !(o as { isLineSegments2?: boolean }).isLineSegments2
+    )
+      blockers.push(o);
+    for (const c of o.children) visit(c);
+  };
+  for (const r of v.roots) visit(r);
+  const seenVariant = new Set<string>();
+  const proj = (p: THREE.Vector3) => {
+    const q = _ch.copy(p).project(v.camera);
+    if (q.z < -1 || q.z > 1) return null;
+    return { x: ((q.x + 1) / 2) * w, y: ((1 - q.y) / 2) * h };
+  };
+  const walk = (o: THREE.Object3D) => {
+    const im = o as THREE.InstancedMesh;
+    if (im.isInstancedMesh && o.name.startsWith("motion__")) {
+      const [, asset, variant, lodTag] = o.name.split("__") as [string, string, string, string];
+      const kind = asset === "people" ? "person" : "vehicle";
+      const lod = Number(lodTag.replace("LOD", ""));
+      const key = `${kind}/${variant}`;
+      if (!seenVariant.has(key)) {
+        seenVariant.add(key);
+        planned[kind] += im.instanceMatrix.count;
+      }
+      const hM = modelHeight(im);
+      for (let i = 0; i < im.count; i++) {
+        im.getMatrixAt(i, _cm);
+        _cm.decompose(_cp, _cq, _cs);
+        const feet = proj(_cp);
+        const headW = _cp.clone().setY(_cp.y + hM * _cs.y);
+        const head = proj(headW);
+        const dist = v.camera.position.distanceTo(headW);
+        _ray.set(v.camera.position, headW.clone().sub(v.camera.position).normalize());
+        _ray.far = dist - 0.3;
+        _ray.camera = v.camera;
+        const occluded = _ray.intersectObjects(blockers, false).length > 0;
+        rows.push({
+          kind,
+          variant,
+          lod,
+          distM: dist,
+          scale: _cs.y,
+          heightM: hM * _cs.y,
+          head,
+          feet,
+          heightPx: head && feet ? Math.abs(feet.y - head.y) : null,
+          inCanvas: !!head && head.x >= 0 && head.x <= w && head.y >= 0 && head.y <= h,
+          occluded,
+        });
+      }
+    }
+    for (const c of o.children) walk(c);
+  };
+  for (const r of v.roots) walk(r);
+  return { planned, rows };
+}
 const _ndc = new THREE.Vector2();
 
 /** Road surface meshes (decorative, so the scene picker skips them). */
@@ -345,7 +570,21 @@ function classify(
   // The road meshes opt out of raycasting (`raycast` is a no-op): call the Mesh raycast directly.
   for (const m of roads) THREE.Mesh.prototype.raycast.call(m, _ray, hits);
   if (hits.length > 0) return "road";
-  return engine.rig.pick(screen) ? "ground" : "sky";
+  const g = engine.rig.pick(screen);
+  if (!g) return "sky";
+  // With the diorama slab (A-T4) the ground ends at the outline: the plane beyond it is void (the
+  // slab's soil edge or the background), not ground.
+  const b = slabOf(roots)?.userData.boundary as Boundary | undefined;
+  return b && !insideBoundary(b, g[0], g[1]) ? "sky" : "ground";
+}
+
+/** The visible slab group (`ground/slab.ts`), if any. */
+function slabOf(roots: THREE.Object3D[]): THREE.Object3D | null {
+  for (const r of roots) {
+    const s = r.getObjectByName("slab");
+    if (s?.visible) return s;
+  }
+  return null;
 }
 
 export function createAcceptanceApi(engine: Engine, frame: LocalFrame): AcceptanceApi {
@@ -500,6 +739,93 @@ export function createAcceptanceApi(engine: Engine, frame: LocalFrame): Acceptan
       for (const m of roadMeshes(engine.pickView().roots))
         n += m.geometry.getAttribute("position")?.count ?? 0;
       return n;
+    },
+    setOverlaysVisible(visible) {
+      const root = engine.pickView().roots[0];
+      if (root) root.visible = visible;
+      engine.requestRender();
+    },
+    fog() {
+      const root = engine.pickView().roots.find((r) => (r as THREE.Scene).fog) as
+        | THREE.Scene
+        | undefined;
+      const f = root?.fog;
+      const bg = root?.background;
+      if (!(f instanceof THREE.Fog)) return null;
+      return {
+        color: `#${f.color.getHexString()}`,
+        near: f.near,
+        far: f.far,
+        background: bg instanceof THREE.Color ? `#${bg.getHexString()}` : "",
+      };
+    },
+    lampPoints() {
+      const v = engine.pickView();
+      const [w, h] = v.size;
+      let pools: THREE.InstancedMesh | null = null;
+      const visit = (o: THREE.Object3D) => {
+        if (!o.visible || pools) return;
+        if ((o as THREE.InstancedMesh).isInstancedMesh && o.name === "lamp-pools")
+          pools = o as THREE.InstancedMesh;
+        for (const c of o.children) visit(c);
+      };
+      for (const r of v.roots) visit(r);
+      const mesh = pools as THREE.InstancedMesh | null;
+      if (!mesh) return [];
+      const m = new THREE.Matrix4();
+      const p = new THREE.Vector3();
+      const out: { x: number; y: number }[] = [];
+      for (let i = 0; i < mesh.count; i++) {
+        mesh.getMatrixAt(i, m);
+        p.setFromMatrixPosition(m).applyMatrix4(mesh.matrixWorld).project(v.camera);
+        if (p.z < -1 || p.z > 1 || Math.abs(p.x) > 1 || Math.abs(p.y) > 1) continue;
+        out.push({ x: ((p.x + 1) / 2) * w, y: ((1 - p.y) / 2) * h });
+      }
+      return out;
+    },
+    crowd() {
+      return crowdReport(engine);
+    },
+    linesOnTop(renderOrder, on) {
+      let n = 0;
+      const visit = (o: THREE.Object3D) => {
+        const m = (o as THREE.Mesh).material as THREE.Material | undefined;
+        if (
+          (o as { isLineSegments2?: boolean }).isLineSegments2 &&
+          o.renderOrder === renderOrder &&
+          m
+        ) {
+          m.depthTest = !on;
+          m.needsUpdate = true;
+          n++;
+        }
+        for (const c of o.children) visit(c);
+      };
+      for (const r of engine.pickView().roots) visit(r);
+      engine.requestRender();
+      return n;
+    },
+    displayAudit() {
+      return displayAudit(engine);
+    },
+    slabOutline() {
+      const v = engine.pickView();
+      const s = slabOf(v.roots);
+      const outline = s?.userData.outline as P[][] | undefined;
+      const foot = s?.userData.foot as [number, number, number][][] | undefined;
+      if (!outline || !foot) return null;
+      const [w, h] = v.size;
+      const q = new THREE.Vector3();
+      const px = () => ({ x: ((q.x + 1) / 2) * w, y: ((1 - q.y) / 2) * h });
+      return outline.map((ring, r) =>
+        ring.map(([lx, lz], i) => {
+          const f = foot[r]![i]!;
+          q.set(f[0], f[1], f[2]).project(v.camera);
+          const fp = px();
+          q.set(lx, 0, lz).project(v.camera);
+          return { ...px(), lx, lz, inFront: q.z >= -1 && q.z <= 1, foot: fp };
+        }),
+      );
     },
     gpu() {
       const gl = engine.gl();

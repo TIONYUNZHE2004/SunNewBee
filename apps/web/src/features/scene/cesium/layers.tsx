@@ -27,6 +27,7 @@ import {
   pointFeatures,
   waterPolygons,
 } from "../geo";
+import { useSceneSettings } from "../sceneSettingsStore";
 import { useScene } from "../sceneStore";
 import { CESIUM_DASH, type EdgeStatus, ROUTE_STYLE, statusStyle, WATER_COLOR } from "../styles";
 import { DayLayer } from "./DayLayer";
@@ -140,12 +141,13 @@ export function AccessLayer() {
   const scenarioId = useScene((s) => s.scenarioId);
   const visible = useScene((s) => s.lensVisible.access);
   const gapsOn = useScene((s) => gapsActive(s.gapsVisible, s.profile));
+  const pathStatus = useSceneSettings((s) => s.pathStatus);
   const focusPlaceId = useScene((s) => s.focusPlaceId);
   const q = useLayer("access", profile, scenarioId);
   // The gap bands replace the status lines while the Gaps layer is on (one meaning per line).
   const groups = useMemo(
-    () => (visible && !gapsOn ? groupEdgesByStatus(lineFeatures(q.data)) : new Map()),
-    [q.data, visible, gapsOn],
+    () => (visible && !gapsOn && pathStatus ? groupEdgesByStatus(lineFeatures(q.data)) : new Map()),
+    [q.data, visible, gapsOn, pathStatus],
   );
   const points = useMemo(() => pointFeatures(q.data), [q.data]);
   useRenderOn(q.data, visible, gapsOn, focusPlaceId);

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   countColour,
+  deltaE,
   fractionBelow,
   greyShare,
   laplacianVariance,
@@ -199,5 +200,14 @@ describe("greyShare with a luminance ceiling (asphalt, not pale bare ground)", (
     );
     expect(greyShare(im, 0.18)).toBeCloseTo(2 / 3, 6);
     expect(greyShare(im, 0.18, {}, 0.35)).toBeCloseTo(1 / 3, 6);
+  });
+});
+
+describe("deltaE", () => {
+  it("is 0 for equal colours, ~100 black to white, and small for close colours", () => {
+    expect(deltaE([10, 20, 30], [10, 20, 30])).toBe(0);
+    expect(deltaE([0, 0, 0], [255, 255, 255])).toBeCloseTo(100, 0);
+    expect(deltaE([207, 230, 245], [205, 228, 243])).toBeLessThan(2);
+    expect(deltaE([207, 230, 245], [26, 22, 64])).toBeGreaterThan(50);
   });
 });

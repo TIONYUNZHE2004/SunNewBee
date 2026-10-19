@@ -93,6 +93,21 @@ describe("redesign additions", () => {
     expect(useScene.getState().route).toBeNull();
     expect(useScene.getState().scenarioId).toBe("stage_p3m");
   });
+
+  it("clearRoute also drops the journey of that route (the ribbon is the route on the map)", () => {
+    useScene.getState().reset();
+    const plan = demo as unknown as JourneyPlan;
+    useScene.getState().applyIntent({
+      kind: "journey.play",
+      route_id: plan.route_id,
+      start_time: plan.start_time,
+      journey: plan,
+    } as never);
+    expect(useJourney.getState().plan).toBe(plan);
+    useScene.getState().clearRoute();
+    expect(useScene.getState().journey).toBeNull();
+    expect(useJourney.getState().plan).toBeNull();
+  });
 });
 
 describe("map style default", () => {
