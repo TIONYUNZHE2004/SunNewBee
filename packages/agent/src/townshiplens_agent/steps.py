@@ -182,6 +182,11 @@ SIDES = (
     ),
     ("u", re.compile(r"\bu[- ]?turn\b|\bturn (?:back|around)\b|\bpusing balik\b|掉头", re.I)),
 )
+HEADING = re.compile(
+    r"\bhead(?:ing|s)?\s+(?:north|south|east|west)|\bgo\s+(?:north|south|east|west)\b"
+    r"|\bke arah (?:utara|selatan|timur|barat)|向(?:北|南|东|西)(?:走|行|出发)?",
+    re.I,
+)
 _SENTENCES = re.compile(r"(?<!\d)[.;!?。；！？\n]+|[.;](?!\d)")
 _CONTINUE = re.compile(
     r"^\s*(?:then\s+|and\s+)?(?:continue|keep going|go on|walk|follow it|teruskan|terus|"
@@ -207,11 +212,12 @@ def _side(action: str | None) -> str | None:
 
 
 def maneuver_errors(text: str, route: dict, closed_names: set[str] | frozenset = frozenset()):
-    """Model text about a route with maneuvers, sentence by sentence: a street name equals a
-    maneuver's street_name (or a road section name); a turn or bear on a named street has that
-    street's maneuver side (else some maneuver's side); a distance in that sentence, or in the
-    next "continue …" sentence, is that street's stretch. A closure sentence may name the
-    closed street (staff report), which the route avoids."""
+    """Model-written text about a route with maneuvers (summary, caveats, claims; the steps are
+    rendered by the app): no turn or heading at all (T-021 review: the model cannot bind a turn
+    to the right occurrence); a capitalised street name equals a maneuver's street_name or a road
+    section name; a distance in a sentence naming a street (any case), or in the next
+    "continue …" sentence, is that street's stretch. A closure sentence may name the closed
+    street (staff report), which the route avoids."""
     from .facts import _matches, extract_facts
 
     ms = route.get("maneuvers") or []
@@ -227,8 +233,14 @@ def maneuver_errors(text: str, route: dict, closed_names: set[str] | frozenset =
             sections.setdefault(_norm(r["name"]), []).append(float(r.get("length_m") or 0))
     known = set(by_street) | set(sections)
     closed = {_norm(n) for n in closed_names}
-    all_sides = {_side(m.get("action")) for m in ms} - {None}
     errs: list[str] = []
+    # Directions are the app's (server-rendered steps); the model never writes a turn or a
+    # heading, so no turn can be bound to the wrong street, stretch or occurrence.
+    if any(p.search(text) for _, p in SIDES) or HEADING.search(text):
+        errs.append(
+            "Do not write turns or headings: the app lists the steps from the route's "
+            "maneuvers. Describe the route (distance, status, what is not checked) instead."
+        )
     context: str | None = None
     for sentence in _SENTENCES.split(text):
         if not sentence.strip():
@@ -243,18 +255,12 @@ def maneuver_errors(text: str, route: dict, closed_names: set[str] | frozenset =
                 f"Street names {sorted(set(bad))} are not on this route's maneuvers: name a street "
                 "exactly as plan_route gives it (an unnamed stretch is 'the footway')."
             )
-        said = [side for side, pattern in SIDES if pattern.search(sentence)]
-        street = next((n for n in names if n in by_street), None)
-        for side in said:
-            sides = (
-                {_side(m.get("action")) for m in by_street.get(street, [])} if street else all_sides
-            )
-            if side not in sides:
-                where = f"onto {found[street]}" if street else "on this route"
-                errs.append(
-                    f"No maneuver {where} turns {side}: give turns only as the route's "
-                    "maneuvers list them (the app writes the steps)."
-                )
+        # Known streets are found in any letter case ("persiaran elmina").
+        low = _norm(sentence)
+        names += [
+            k for k in known if k not in names and re.search(rf"(?<!\w){re.escape(k)}(?!\w)", low)
+        ]
+        street = next((n for n in names if n in by_street or n in sections), None)
         if street:
             context = street
         elif not _CONTINUE.search(sentence):

@@ -1,4 +1,4 @@
-{"meta": {"message": "Can I get to the lakeside mall with a stroller?", "profile": "default", "scenario_id": null, "world": "elmina", "world_fingerprint": "d5683347145c9acb6b669bcb661e25fb8d2daa4e63f0e89219b03374863ba2da", "model": "mock-scripted", "recorded_at": "2026-10-19T18:10:34+00:00"}}
+{"meta": {"message": "Can I get to the lakeside mall with a stroller?", "profile": "default", "scenario_id": null, "world": "elmina", "world_fingerprint": "e9a383dac47c4153522a82d8c15838f7ee1cf7aa3392b44ccac4a78a086391ec", "model": "mock-scripted", "recorded_at": "2026-10-19T18:19:31+00:00"}}
 {"type": "answer.draft", "attempt": 1, "delta": "Please name the exact start and destination before I select a route."}
 {"type": "answer.check", "attempt": 1, "ok": true, "issues": [], "repairs": 0}
 {"type": "text.delta", "delta": "Please name the exact start and destinat"}
