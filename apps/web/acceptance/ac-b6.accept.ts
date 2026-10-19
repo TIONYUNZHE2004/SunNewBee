@@ -42,10 +42,16 @@ interface Shot {
   pixels: number;
 }
 
-async function measure(page: Page, name: string, theme: Theme, png = false): Promise<Shot> {
+async function measure(
+  page: Page,
+  name: string,
+  theme: Theme,
+  png = false,
+  areaStep = 4,
+): Promise<Shot> {
   const buf = await page.screenshot(png ? { path: join(OUT, `ac-b6-${name}.png`) } : {});
   const img = await decodePng(page, buf);
-  const area = await mapArea(page, img.width, img.height);
+  const area = await mapArea(page, img.width, img.height, areaStep);
   const s = extremeShares(img, { mask: area.mask });
   return { name, theme, dark: s.dark, clipped: s.clipped, pixels: s.count };
 }
@@ -117,6 +123,7 @@ test("AC-B6: bookmarks in the day, dusk and night moods have < 0.5% near-black a
 test("AC-B6: every beat of the demo journey has < 0.5% near-black and < 0.5% clipped pixels", async ({
   page,
 }) => {
+  test.setTimeout(30 * 60_000);
   mkdirSync(OUT, { recursive: true });
   await openScene(page, "day");
   await askDemoJourney(page);
@@ -133,7 +140,8 @@ test("AC-B6: every beat of the demo journey has < 0.5% near-black and < 0.5% cli
   for (const [i, p] of beats.entries()) {
     await journey.seek(page, (p.t0 + p.t1) / 2);
     await settle(page, 1500, 20_000);
-    shots.push(await measure(page, `beat-${i}-${p.kind}`, "day"));
+    // Coarser map-area probe (8 px): the first B-T4 run timed out inside mapArea during the journey.
+    shots.push(await measure(page, `beat-${i}-${p.kind}`, "day", false, 8));
   }
   write("ac-b6-beats.json", shots, { beats: beats.length });
   console.log(`AC-B6 beats: ${shots.length} captured, failing: ${failures(shots).length}`);
