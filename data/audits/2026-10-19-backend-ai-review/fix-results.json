@@ -21,8 +21,8 @@
     {
       "rank": 2,
       "issue": "AUD-011",
-      "status": "partial: importer identity guard c0d4adc complete; source-backed seed rebuild blocked by Overpass timeouts",
-      "critical_point": "Importer uses coordinate-derived junction IDs when original OSM nodes are absent. Equal coordinates do not prove a legal junction, especially across levels. A new import must retain real node IDs and regenerate dependent seed layers."
+      "status": "partial: importer identity guard c0d4adc and loader integrity guard f1fea67 complete; coherent source-backed seed rebuild still blocked",
+      "critical_point": "The committed seed retains legacy coordinate-derived node IDs. New imports require original OSM identities, and the loader rejects ambiguous records/geometry. Neither guard proves existing seed junction identities; a coherent source-backed rebuild and comparison remain required."
     },
     {
       "rank": 3,
@@ -189,22 +189,28 @@
     "backend_commits": {
       "collection_module_name": "ccddf0c",
       "loader_integrity_and_usable_fixture": "f1fea67",
-      "orientation_probes": "46da575"
+      "orientation_probes": "46da575",
+      "distinct_flood_sample_nodes": "5b8af8a",
+      "demo_signatures": "23be90e"
     },
     "ai_integrated": "c9da379 via 460e743; no handwritten agent-source edits by backend",
     "checks": {
       "loader_walkway_api": "41 PASS",
       "ai_steps_closures": "72 PASS",
-      "full_python": "RUNNING; earlier interrupted partial runs are not PASS",
+      "full_python": "PASS: 2338 passed, 37 skipped in 315.51 s after all source and fixture changes. Earlier interrupted partial runs are not counted.",
       "lint": "PASS",
-      "golden": "23/23 mock PASS, zero fallbacks/rejected attempts"
+      "golden": "23/23 mock PASS, zero fallbacks/rejected attempts",
+      "flood_fixture_world_api": "56 PASS; independent flood raster samples now use distinct node IDs, with coordinates and assertions unchanged",
+      "first_full_python": "2337 passed, 37 skipped, 1 malformed synthetic flood-fixture failure; fixed in 5b8af8a before the final green rerun",
+      "demo_signatures": "22/22 final signature replay loads PASS; event bodies byte-preserved, metadata commit 23be90e; full Python includes all 23 cache-body checks"
     },
     "real_seed": "16120 edges / 232 places / 11736 nodes accepted; 0 shared-node coordinate conflicts. Walking 416.4 m, driving 113.3 m and mandatory chat caveats unchanged. This is not proof of original source node identity.",
     "probes": "Prior 9+13 PASS; expanded 15-case probe has 13 correct outcomes and two accepted orientation reversals.",
-    "source_rebuild": "Blocked as previously logged; no repeated network source call this round.",
+    "source_rebuild": "Blocked: one fresh read-only Kumi request after the interruption, connect 5 s / read 18 s / retries 1, timed out. OverpassFailed; requests 1; no seed writes. No further source retries this round.",
     "app": "Stopped; ports 8021/5191 checked closed",
     "live_questions": 0,
     "spend_usd": 0,
-    "e2e": "NOT RUN as instructed"
+    "e2e": "NOT RUN as instructed",
+    "contract_acknowledgements": "AI acknowledged rest/sidewalk/flood and earlier zero/centre/chosen-gap semantic notes in T-016/T-021."
   }
 }

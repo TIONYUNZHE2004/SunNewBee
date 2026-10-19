@@ -7,13 +7,13 @@ Validation:
 - New loader/walkway/API checks: 41 PASS. The AI-reported undated walkway fixture now has a dated positive control and explicit undated/expired controls.
 - Fixed the prior duplicate API/spatial flood test filename; repository-wide collection succeeds.
 - Latest AI direction/closure checks: 72 PASS. Original nine saved cases PASS; previous thirteen expanded cases PASS before the two new orientation proofs.
-- Full Python suite after all current sources is RUNNING because the loader is shared across packages. Interrupted partial runs are not counted as passes; the final result is appended before round end.
-- Lint PASS; golden 23/23 mock PASS, zero fallbacks or rejected attempts. API schemas and frontend source are unchanged this round; their earlier generation/type checks passed.
+- Final whole Python suite: **2,338 PASS / 37 skipped in 315.51 s**, including all agent/API and 23 demo-cache body checks. The first run found one malformed synthetic flood fixture; `5b8af8a` gives independent samples distinct nodes without changing coordinates or flood assertions. Final 56 focused flood-build/world/API checks also PASS. Interrupted partial runs are not counted.
+- Lint PASS; golden 23/23 mock PASS, zero fallbacks or rejected attempts. `23be90e` refreshes 22/22 replay signatures with validated event bodies byte-preserved. API schemas and frontend source are unchanged this round; their earlier generation/type checks passed.
 - Current real seed loads all 16,120 edges / 232 places / 11,736 consistent node positions. Real HTTP controls: walking 416.4 m, driving 113.3 m, expected place matches, 16,352 access features, drive chat with mapped-end and road-end/legal-turn caveats.
 - Previous backend checkpoints: 209 verification/routing/access/flood/tool/API checks and 141 flood/entrance/direction checks PASS; walking island totals 20/29 (+3/+5 m), drive 21/35 after consistent snaps; baseline zero and likely/possible totals unchanged.
 - No local e2e, live model calls, GitHub PR or CI run by this worker. Control opens the PR. Own app stopped; both ports checked closed.
 
-Limits: loader/source guards do not establish authentic junction identity for the legacy coordinate-derived seed. The coherent source-backed rebuild remains blocked by bounded service failures. Legal turn relations/changing directions remain unmodelled. Island counts are graph indicators, not individual checked evacuation routes. Visual map review and the ordinary-destination closure-policy ruling remain control/Yunzhe-owned.
+Limits: loader/source guards do not establish authentic junction identity for the legacy coordinate-derived seed. The coherent source-backed rebuild remains blocked by bounded service failures, including one fresh 18-second Kumi read timeout after the interruption. No seed writes or further retries followed. Legal turn relations/changing directions remain unmodelled. Island counts are graph indicators, not individual checked evacuation routes. Visual map review and the ordinary-destination closure-policy ruling remain control/Yunzhe-owned.
 
 The lists cover the whole comparison with control, including previously pushed P1 and T-020 work.
 
@@ -90,6 +90,7 @@ The lists cover the whole comparison with control, including previously pushed P
 - `data/scripts/audit_access.py`
 - `data/scripts/import_osm.py`
 - `data/scripts/tests/test_area_snap.py`
+- `data/scripts/tests/test_flood_build.py`
 - `data/scripts/tests/test_major_roads.py`
 - `data/scripts/tests/test_seed_regression.py`
 - `data/scripts/tests/test_split.py`
