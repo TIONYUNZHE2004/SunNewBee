@@ -7,7 +7,13 @@ import type { LonLat } from "../../geo";
 import { useScene } from "../../sceneStore";
 import { BOOKMARKS, bookmarkFromSearch, DEFAULT_BOOKMARK } from "../bookmarks";
 import { overviewPose } from "../cameraFit";
-import { createThreeCameraOps, type Pose, type ThreeCameraOps, VFOV_DEG } from "../cameraRig";
+import {
+  type CameraFit,
+  createThreeCameraOps,
+  type Pose,
+  type ThreeCameraOps,
+  VFOV_DEG,
+} from "../cameraRig";
 import type { Engine } from "../engine";
 import type { LocalFrame } from "../frame";
 import { boundsGoal, type CameraGoal, type IntentSlice, intentGoal } from "../intents";
@@ -34,13 +40,36 @@ const goalPose = (g: CameraGoal, frame: LocalFrame, pitchDeg: number): Pose => (
 });
 
 /**
- * The start view: `?bookmark=` when given, else the default gate bookmark. `township` is the
- * overview derived from the slab outline when the engine has its camera fit (A-T5).
+ * A camera placed on the overview's stand-in before the slab's camera fit landed (the static
+ * `township` start, or "Whole township" pressed early): the input serial at that moment.
  */
-function startPose(frame: LocalFrame, engine: Engine | null): Pose {
+export interface PendingOverview {
+  serial: number;
+}
+
+/**
+ * When the fit lands (A-T5 fix round 2): the overview to ease to, if the camera still stands on the
+ * stand-in (no user input and no other camera move since); else null (the engine then only eases
+ * the camera into the fit's rules where it is). Pure.
+ */
+export function overviewOnFit(
+  pending: PendingOverview | null,
+  serialNow: number,
+  fit: CameraFit,
+): Pose | null {
+  return pending && pending.serial === serialNow ? overviewPose(fit) : null;
+}
+
+/**
+ * The start view: `?bookmark=` when given, else the default gate bookmark. `township` is the
+ * overview derived from the slab outline when the engine has its camera fit (A-T5); before that,
+ * the static stand-in, and `onStandIn` is told (the fit-ready handler re-poses it).
+ */
+function startPose(frame: LocalFrame, engine: Engine | null, onStandIn?: () => void): Pose {
   const id = bookmarkFromSearch(location.search) ?? DEFAULT_BOOKMARK;
   const fit = engine?.cameraFit?.();
   if (id === "township" && fit) return overviewPose(fit);
+  if (id === "township") onStandIn?.();
   const b = BOOKMARKS[id];
   return {
     target: frame.toLocal(b.centre[0], b.centre[1]),
@@ -95,6 +124,12 @@ export function useCameraOps({
   placesRef.current = places;
   const focusPoint = useCallback((id: string) => placesRef.current.get(id) ?? null, []);
 
+  // The overview stand-in waiting for the slab's camera fit (A-T5 fix round 2).
+  const pending = useRef<PendingOverview | null>(null);
+  const standIn = useCallback(() => {
+    pending.current = { serial: engine?.inputSerial?.() ?? 0 };
+  }, [engine]);
+
   // Frame once per engine, as soon as the local frame exists: on the intent standing in the store
   // (e.g. a route drawn before a style switch), else the start view.
   const framed = useRef<Engine | null>(null);
@@ -102,10 +137,24 @@ export function useCameraOps({
     if (!engine || !frame || framed.current === engine) return;
     framed.current = engine;
     const standing = intentGoal(useScene.getState(), NO_INTENT, focusPoint);
+    pending.current = null;
     engine.rig.set(
-      standing ? goalPose(standing, frame, INTENT_PITCH_DEG) : startPose(frame, engine),
+      standing ? goalPose(standing, frame, INTENT_PITCH_DEG) : startPose(frame, engine, standIn),
     );
-  }, [engine, frame, focusPoint]);
+  }, [engine, frame, focusPoint, standIn]);
+
+  // When the slab's camera fit lands: a camera still on the overview stand-in eases to the derived
+  // overview; any other camera is eased into the fit's rules by the engine (no one-frame snap).
+  useEffect(() => {
+    if (!engine?.onFitReady) return;
+    return engine.onFitReady((fit) => {
+      const pose = overviewOnFit(pending.current, engine.inputSerial?.() ?? 0, fit);
+      pending.current = null;
+      if (!pose) return;
+      if (reducedMotion()) engine.rig.set(pose);
+      else engine.rig.flyTo(pose, FLY_MS);
+    });
+  }, [engine]);
 
   // Scene intents to camera moves (same precedence as cesium/camera.ts).
   useEffect(() => {
@@ -113,6 +162,7 @@ export function useCameraOps({
     return useScene.subscribe((s, prev) => {
       const goal = intentGoal(s, prev, focusPoint);
       if (!goal) return;
+      pending.current = null; // the camera is going somewhere else
       const pose = goalPose(goal, frame, INTENT_PITCH_DEG);
       if (reducedMotion()) engine.rig.set(pose);
       else engine.rig.flyTo(pose, FLY_MS);
@@ -135,11 +185,16 @@ export function useCameraOps({
   }));
   const wholeRef = useRef<() => Pose>(startRef.current);
   if (frame) {
-    startRef.current = () => startPose(frame, engine);
+    startRef.current = () => {
+      pending.current = null;
+      return startPose(frame, engine, standIn);
+    };
     wholeRef.current = () => {
-      // With a slab (A-T5): the whole slab at max range, derived from the outline.
+      // With a slab (A-T5): the whole slab at max range, derived from the outline. Before its fit
+      // lands, the bbox stand-in (re-posed when the fit lands, if nothing moved the camera since).
       const fit = engine?.cameraFit?.();
       if (fit) return overviewPose(fit);
+      standIn();
       const g = boundsGoal(bboxCorners(bbox)) ?? {
         centre: BOOKMARKS.township.centre,
         rangeM: BOOKMARKS.township.rangeM,
@@ -156,6 +211,8 @@ export function useCameraOps({
       engine.rig,
       () => startRef.current(),
       () => wholeRef.current(),
+      // Camera buttons and keys count as user input (cancels a pending overview re-pose).
+      () => engine.noteInput?.(),
     );
     setOps(o);
     onOpsRef.current?.(o);

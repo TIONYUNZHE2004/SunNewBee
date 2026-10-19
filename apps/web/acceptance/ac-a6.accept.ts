@@ -250,23 +250,43 @@ async function recordFlight(
 
 const wrap = (d: number) => ((((d + 180) % 360) + 360) % 360) - 180;
 
+/**
+ * Per-frame steps, and rates per second of frame time (dt floored at 1/60 s). The flights are
+ * time-based tweens, so a load hitch (a long frame while tiles stream in) makes a big per-frame
+ * step at a normal rate; a snap is a big step in a short frame, i.e. a huge rate. The rates are
+ * what is asserted; steps and the longest frame gap are reported.
+ */
 function flightSteps(f: FlyFrame[]) {
-  let target = 0;
-  let heading = 0;
-  let pitch = 0;
-  let range = 0;
-  let fov = 0;
+  const step = { target: 0, heading: 0, pitch: 0, rangeLog: 0, fov: 0 };
+  const rate = { target: 0, heading: 0, pitch: 0, rangeLog: 0, fov: 0 };
+  let maxGapMs = 0;
   for (let i = 1; i < f.length; i++) {
     const a = f[i - 1]!;
     const b = f[i]!;
-    target = Math.max(target, Math.hypot(b.x - a.x, b.z - a.z));
-    heading = Math.max(heading, Math.abs(wrap(b.headingDeg - a.headingDeg)));
-    pitch = Math.max(pitch, Math.abs(b.pitchDeg - a.pitchDeg));
-    range = Math.max(range, Math.abs(Math.log(b.rangeM / a.rangeM)));
-    fov = Math.max(fov, Math.abs(b.fov - a.fov));
+    const gap = b.t - a.t;
+    maxGapMs = Math.max(maxGapMs, gap);
+    const dt = Math.max(gap, 1000 / 60) / 1000;
+    const d = {
+      target: Math.hypot(b.x - a.x, b.z - a.z),
+      heading: Math.abs(wrap(b.headingDeg - a.headingDeg)),
+      pitch: Math.abs(b.pitchDeg - a.pitchDeg),
+      rangeLog: Math.abs(Math.log(b.rangeM / a.rangeM)),
+      fov: Math.abs(b.fov - a.fov),
+    };
+    for (const k of Object.keys(d) as (keyof typeof d)[]) {
+      step[k] = Math.max(step[k], d[k]);
+      rate[k] = Math.max(rate[k], d[k] / dt);
+    }
   }
-  return { frames: f.length, target, heading, pitch, rangeLog: range, fov };
+  return { frames: f.length, maxGapMs, step, ratePerS: rate };
 }
+
+/**
+ * Rate bounds (per second): the 3 s flights cover <= ~7 km, 180 deg and 1.4 log-range at an eased
+ * peak of 1.5x the mean; these leave >= 2x headroom over that. A one-frame snap of 300 m or 10 deg
+ * in a 16 ms frame is 18 km/s or 600 deg/s.
+ */
+const RATE_MAX = { target: 8000, heading: 200, pitch: 60, rangeLog: 3, fov: 30 };
 
 test("AC-A6: long-route fly_to stays inside the outline and moves smoothly", async ({ page }) => {
   mkdirSync(OUT, { recursive: true });
@@ -341,11 +361,112 @@ test("AC-A6: long-route fly_to stays inside the outline and moves smoothly", asy
   for (const [k, s] of Object.entries(summary)) {
     expect.soft(s.outside, `${k}: every frame's target inside the outline`).toBe(0);
     expect.soft(s.frames, `${k}: frames recorded`).toBeGreaterThan(60);
-    // Smooth: no frame jumps (a 3 s flight over <= 8 km moves well under 600 m a frame).
-    expect.soft(s.target, `${k}: target step per frame (m)`).toBeLessThan(600);
-    expect.soft(s.heading, `${k}: heading step per frame (deg)`).toBeLessThan(10);
-    expect.soft(s.pitch, `${k}: pitch step per frame (deg)`).toBeLessThan(5);
-    expect.soft(s.rangeLog, `${k}: range step per frame (log)`).toBeLessThan(0.2);
-    expect.soft(s.fov, `${k}: fov step per frame (deg)`).toBeLessThan(2);
+    // Smooth: no snap (rates per second of frame time; see flightSteps).
+    for (const m of Object.keys(RATE_MAX) as (keyof typeof RATE_MAX)[])
+      expect.soft(s.ratePerS[m], `${k}: ${m} rate per s`).toBeLessThan(RATE_MAX[m]);
   }
+});
+
+test("AC-A6: ?bookmark=township eases to the derived overview when the fit lands (no snap)", async ({
+  page,
+}) => {
+  mkdirSync(OUT, { recursive: true });
+  // Same storage as openScene (High, day, panel closed, tips dismissed), then a recorder that logs
+  // the base pose every animation frame from load until 3 s after the camera fit lands.
+  await page.addInitScript((h: string) => {
+    try {
+      localStorage.setItem("tl.quality", "high");
+      localStorage.setItem("tl.theme", "day");
+      localStorage.setItem("tl.panel.open", "false");
+      localStorage.setItem("tl.camera.hint", "dismissed");
+    } catch {
+      /* ignore */
+    }
+    type Rec = Record<string, number | boolean>;
+    const w = window as unknown as {
+      __rec: Rec[];
+      __recDone: boolean;
+      __fitAt: number | null;
+    } & Record<string, unknown>;
+    w.__rec = [];
+    w.__recDone = false;
+    w.__fitAt = null;
+    const tick = () => {
+      const api = w[h] as
+        | {
+            getPose(): Rec;
+            toLocal(lon: number, lat: number): [number, number];
+            fovDeg(): number;
+            overviewPose(): Rec | null;
+          }
+        | undefined;
+      if (api) {
+        const p = api.getPose();
+        const [x, z] = api.toLocal(p.lon as number, p.lat as number);
+        const ready = api.overviewPose() !== null;
+        if (ready && w.__fitAt === null) w.__fitAt = performance.now();
+        w.__rec.push({ ...p, x, z, fov: api.fovDeg(), ready, t: performance.now() });
+      }
+      if (w.__fitAt !== null && performance.now() - w.__fitAt > 3000) w.__recDone = true;
+      else requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  }, HOOK);
+  await page.goto("/?acceptance=1&bookmark=township");
+  await page.waitForFunction(() => (window as unknown as { __recDone: boolean }).__recDone, null, {
+    timeout: 90_000,
+  });
+  const { rec, overview } = await page.evaluate((h) => {
+    const w = window as unknown as { __rec: Record<string, number | boolean>[] } & Record<
+      string,
+      { overviewPose(): unknown }
+    >;
+    return { rec: w.__rec, overview: w[h]!.overviewPose() as Record<string, number> };
+  }, HOOK);
+  const frames = rec as unknown as {
+    x: number;
+    z: number;
+    rangeM: number;
+    pitchDeg: number;
+    headingDeg: number;
+    fov: number;
+    ready: boolean;
+    t: number;
+    lon: number;
+    lat: number;
+  }[];
+  // Steps around and after the landing (from the last pre-fit frame on).
+  const first = frames.findIndex((f) => f.ready);
+  const span = frames.slice(Math.max(0, first - 1));
+  const steps = flightSteps(span.map((f) => ({ ...f, inside: true })) as unknown as FlyFrame[]);
+  const end = frames[frames.length - 1]!;
+  const before = frames[Math.max(0, first - 1)]!;
+  writeFileSync(
+    join(OUT, "ac-a6-township-landing.json"),
+    `${JSON.stringify(
+      {
+        task: "A-T5 fix round 2: ?bookmark=township landing",
+        framesRecorded: frames.length,
+        framesAfterFit: span.length,
+        preFitPose: before,
+        overview,
+        end,
+        steps,
+      },
+      null,
+      2,
+    )}\n`,
+  );
+  expect(first, "the fit landed").toBeGreaterThan(0);
+  // Eased, not snapped: per-frame steps stay small across the landing.
+  for (const m of Object.keys(RATE_MAX) as (keyof typeof RATE_MAX)[])
+    expect.soft(steps.ratePerS[m], `landing ${m} rate per s`).toBeLessThan(RATE_MAX[m]);
+  // And it ends on the derived overview.
+  expect.soft(Math.abs(end.lon - overview.lon!) * 111_000, "end lon (m)").toBeLessThan(5);
+  expect.soft(Math.abs(end.lat - overview.lat!) * 111_000, "end lat (m)").toBeLessThan(5);
+  expect.soft(Math.abs(end.pitchDeg - overview.pitchDeg!), "end pitch").toBeLessThan(0.1);
+  expect
+    .soft(Math.abs(wrap(end.headingDeg - overview.headingDeg!)), "end heading")
+    .toBeLessThan(0.1);
+  expect.soft(Math.abs(end.rangeM - overview.rangeM!), "end range").toBeLessThan(1);
 });
