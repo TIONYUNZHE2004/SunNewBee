@@ -223,7 +223,8 @@ describe("createMotionLayer", () => {
     const layer = make(people);
     layer.setDensity({ day: 0, dusk: 0, night: 1 });
     layer.tick(0, cam(0, 30, 0));
-    expect(drawn(layer.group)).toBe(Math.round((100 * 0.45) / 1.15));
+    // each agent decides by a hash of its own id (ITER2 AC-D17), so the count is near the share
+    expect(Math.abs(drawn(layer.group) - (100 * 0.45) / 1.15)).toBeLessThan(10);
     layer.setDensity({ day: 0, dusk: 1, night: 0 });
     layer.tick(0, cam(0, 30, 0));
     expect(drawn(layer.group)).toBe(100);

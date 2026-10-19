@@ -11,10 +11,35 @@ import * as THREE from "three";
  * buildings (their own cutaway), the hero, picking, the clearance grid and route data are
  * unchanged. Built into those programs from the start, switched by a uniform, so it never compiles a
  * program mid-trip.
+ *
+ * ITER2 (owner video: huge canopies at the first crossing, a canopy at the 836 m rest, giant heads
+ * at the frame's edges): while the cut is on, decorative fragments near the camera itself are not
+ * drawn either: inside NEAR_CUT_M of the camera none, then a screen-door fade over NEAR_FADE_M; and a
+ * whole instanced item (a tree with its trunk, a car) whose origin stands within NEAR_INSTANCE_M of
+ * the camera on the ground is not drawn at all, so it never shows as a hollow half.
  */
 
 /** Capsule radius (m): her whole body (2.5 m tall, walker included) at her end. */
 export const TREE_CUT_RADIUS_M = 1.8;
+/**
+ * Near-camera cut (m): decorative fragments this close to the camera are not drawn. The follow
+ * camera stands ~10.5 m from her (followPose), so her own surroundings stay.
+ */
+export const NEAR_CUT_M = 6;
+/** Beyond NEAR_CUT_M, decorative fragments fade in (screen-door) over this many metres. */
+export const NEAR_FADE_M = 1.5;
+/** A whole instanced decorative item whose origin is this close to the camera (ground metres) is not drawn. */
+export const NEAR_INSTANCE_M = 6.5;
+
+/**
+ * The near-camera radius (m) for a camera `d` metres from her: NEAR_CUT_M at the follow distance;
+ * half the distance for a farther hold camera (the crossing hold stands ~20 m off, its foreground
+ * canopies beyond 6 m); never more than 0.7 d for a close one, so her own surroundings stay.
+ * Shared with the crowd and traffic clearance (whole agents, `crowdRules.ts`).
+ */
+export function nearRadius(d: number, base = NEAR_CUT_M, share = 0.5): number {
+  return Math.max(Math.min(base, 0.7 * d), share * d);
+}
 
 export const treeCutUniforms = {
   uTlTreeCutOn: { value: 0 },
@@ -24,12 +49,17 @@ export const treeCutUniforms = {
   uTlTreeCutC: { value: new THREE.Vector3() },
   uTlTreeCutC2: { value: 0 },
   uTlTreeCutR: { value: TREE_CUT_RADIUS_M },
+  uTlNearR: { value: NEAR_CUT_M },
+  uTlNearFade: { value: NEAR_FADE_M },
+  uTlNearInst: { value: NEAR_INSTANCE_M },
 };
 
 type V3 = readonly [number, number, number];
 
 /** The cut drawn now (null: off). */
-export const currentTreeCut: { value: { a: V3; b: V3; c: V3 | null; r: number } | null } = {
+export const currentTreeCut: {
+  value: { a: V3; b: V3; c: V3 | null; r: number; near: number; inst: number } | null;
+} = {
   value: null,
 };
 
@@ -38,12 +68,18 @@ export const currentTreeCut: { value: { a: V3; b: V3; c: V3 | null; r: number } 
  * event's element too), or off (null).
  */
 export function setTreeCut(cut: { a: V3; b: V3; c?: V3 | null } | null): void {
+  const d = cut ? Math.hypot(cut.a[0] - cut.b[0], cut.a[1] - cut.b[1], cut.a[2] - cut.b[2]) : 0;
+  const near = nearRadius(d);
+  const inst = nearRadius(d, NEAR_INSTANCE_M);
   currentTreeCut.value = cut
-    ? { a: cut.a, b: cut.b, c: cut.c ?? null, r: TREE_CUT_RADIUS_M }
+    ? { a: cut.a, b: cut.b, c: cut.c ?? null, r: TREE_CUT_RADIUS_M, near, inst }
     : null;
   treeCutUniforms.uTlTreeCutOn.value = cut ? 1 : 0;
   treeCutUniforms.uTlTreeCutC2.value = cut?.c ? 1 : 0;
   if (!cut) return;
+  treeCutUniforms.uTlNearR.value = near;
+  treeCutUniforms.uTlNearFade.value = Math.max(NEAR_FADE_M, 0.15 * d);
+  treeCutUniforms.uTlNearInst.value = inst;
   treeCutUniforms.uTlTreeCutA.value.set(cut.a[0], cut.a[1], cut.a[2]);
   treeCutUniforms.uTlTreeCutB.value.set(cut.b[0], cut.b[1], cut.b[2]);
   if (cut.c) treeCutUniforms.uTlTreeCutC.value.set(cut.c[0], cut.c[1], cut.c[2]);
@@ -58,26 +94,44 @@ function segDist(p: V3, a: V3, b: V3): number {
   return Math.hypot(ap[0] - ab[0] * t, ap[1] - ab[1] * t, ap[2] - ab[2] * t);
 }
 
-/** True when a decorative fragment at p is cut (the shader's test). */
-export function inTreeCut(p: V3): boolean {
+/**
+ * True when a decorative fragment at p is cut (the shader's test; the near-camera fade band counts
+ * as drawn). `origin`: the fragment's instance origin, for an instanced or batched item.
+ */
+export function inTreeCut(p: V3, origin?: V3): boolean {
   const c = currentTreeCut.value;
   if (!c) return false;
-  return segDist(p, c.a, c.b) < c.r || (!!c.c && segDist(p, c.a, c.c) < c.r);
+  if (segDist(p, c.a, c.b) < c.r || (!!c.c && segDist(p, c.a, c.c) < c.r)) return true;
+  if (Math.hypot(p[0] - c.a[0], p[1] - c.a[1], p[2] - c.a[2]) < c.near) return true;
+  return !!origin && Math.hypot(origin[0] - c.a[0], origin[2] - c.a[2]) < c.inst;
 }
 
 /** The vertex shader additions (exported for tests that compare programs without the cut). */
-export const TREE_CUT_VERT_DECL = "varying vec3 vTlTreeCut;\n";
+export const TREE_CUT_VERT_DECL =
+  "varying vec3 vTlTreeCut;\nvarying vec3 vTlCutOrigin;\nvarying float vTlCutInst;\n";
 export const TREE_CUT_VERT_BODY = `
   vec4 tlTreeWp = vec4( transformed, 1.0 );
+  vec4 tlCutO = vec4( 0.0, 0.0, 0.0, 1.0 );
+  vTlCutInst = 0.0;
   #ifdef USE_BATCHING
     tlTreeWp = batchingMatrix * tlTreeWp;
+    tlCutO = batchingMatrix * tlCutO;
+    vTlCutInst = 1.0;
   #endif
   #ifdef USE_INSTANCING
     tlTreeWp = instanceMatrix * tlTreeWp;
+    tlCutO = instanceMatrix * tlCutO;
+    vTlCutInst = 1.0;
   #endif
   vTlTreeCut = ( modelMatrix * tlTreeWp ).xyz;
+  vTlCutOrigin = ( modelMatrix * tlCutO ).xyz;
 `;
 const FRAG_DECL = `varying vec3 vTlTreeCut;
+varying vec3 vTlCutOrigin;
+varying float vTlCutInst;
+uniform float uTlNearR;
+uniform float uTlNearFade;
+uniform float uTlNearInst;
 uniform float uTlTreeCutOn;
 uniform vec3 uTlTreeCutA;
 uniform vec3 uTlTreeCutB;
@@ -94,6 +148,13 @@ const FRAG_BODY = `
   if ( uTlTreeCutOn > 0.5 ) {
     if ( tlTreeSeg( vTlTreeCut, uTlTreeCutA, uTlTreeCutB ) < uTlTreeCutR ) discard;
     if ( uTlTreeCutC2 > 0.5 && tlTreeSeg( vTlTreeCut, uTlTreeCutA, uTlTreeCutC ) < uTlTreeCutR ) discard;
+    if ( vTlCutInst > 0.5 && distance( vTlCutOrigin.xz, uTlTreeCutA.xz ) < uTlNearInst ) discard;
+    float tlNear = distance( vTlTreeCut, uTlTreeCutA );
+    if ( tlNear < uTlNearR ) discard;
+    if ( tlNear < uTlNearR + uTlNearFade ) {
+      float tlIgn = fract( 52.9829189 * fract( dot( gl_FragCoord.xy, vec2( 0.06711056, 0.00583715 ) ) ) );
+      if ( tlIgn > ( tlNear - uTlNearR ) / uTlNearFade ) discard;
+    }
   }
 `;
 
