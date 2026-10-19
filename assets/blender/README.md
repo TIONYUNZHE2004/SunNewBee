@@ -64,6 +64,10 @@ geometry (each builder seeds `random` from the asset id).
 | `tl_assets/archetypes.py` | Archetype builders (`BUILDERS`, merged into `build.py`): every archetype in `specs.ARCHETYPES` |
 | `tl_assets/landmarks.py` | Landmark builders (mall, mosque, school, ...) |
 | `tl_assets/props.py` | Kit builders `trees`, `furniture`, `people`, `vehicles`, `construction` (scripted), and the vendor intake `import_vendor` / `scale_to` |
+| `tl_assets/characters/geom.py` | Pure mesh generators (lathe, ellipsoid, swept tube, Catmull-Rom, orientation) for scripted characters |
+| `tl_assets/characters/proportions.py` | Hero height, H4 head ratio, display scale and clay palette (pure) |
+| `tl_assets/characters/hero.py` | The journey hero (C-T2): chibi older woman, baju kurung, tudung, scripted walker; `build_hero("tpose")` / `build_hero("walker")` |
+| `tl_assets/characters/sheet.py` | Renders the hero modelling sheet (EEVEE, 16 samples), stats json and `.blend` |
 
 ## Conventions
 
@@ -201,3 +205,17 @@ protocol"; it is not repeated here. Headless preview: `pnpm assets:build -- --as
 `maxM: null` means the last LOD is drawn to any distance; a numeric last `maxM` hides
 instances beyond it. `landmarks` holds anchors (the `landmarks.geojson` ring centroid) only for
 landmarks placed by `"anchor"`.
+
+## Hero modelling sheet (C-T2)
+
+Not part of `run.py`/`specs.ASSETS` yet (no glb until the C-T3 rig). Render the owner sheet with:
+
+```bash
+"C:/Program Files/Blender Foundation/Blender 5.2/blender.exe" -b --factory-startup --python-exit-code 1     -P assets/blender/tl_assets/characters/sheet.py -- --out <dir>
+```
+
+It writes `hero_sheet.png` (T-pose and walker pose: front, side, back, 3/4), `hero_cameras.png`
+(follow camera, behind, face close-up, 3/4), `hero_vs_prototype.png`, `tiles/`, `hero_stats.json`
+and `hero.blend` (about 30 s). The hero is modelled at true scale (1.55 m, facing -y); the web
+draws her at 1.5x (R-J3). Body parts are separate closed shells with vertex groups named for the
+rig (`head`, `face`, `tudung_cape`, `torso`, `kain`, `arm_L/R`, `hand_L/R`, `shoe_L/R`).
