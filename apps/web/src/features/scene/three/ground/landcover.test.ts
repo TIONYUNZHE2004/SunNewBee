@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { describe, expect, it } from "vitest";
 import { createFrame } from "../frame";
+import { CLAY_PALETTE } from "../shared/clayTokens";
 import {
   LANDCOVER_COLOURS,
   LANDCOVER_ORDER,
@@ -78,20 +79,25 @@ describe("landcover", () => {
   });
 
   it("has every class from the brief, in draw order", () => {
-    expect(LANDCOVER_COLOURS).toMatchObject({
-      forest: "#6f9a5b",
-      grass: "#9cc483",
-      scrub: "#8fae6e",
-      farmland: "#c9c98f",
-      oil_palm: "#7d9a55",
-      residential: "#e6e1d6",
-      commercial: "#e0dbe4",
-      industrial: "#d9d6cf",
-      parking: "#c7c4bd",
-      construction: "#c9b28d",
-      bare: "#d8ccb3",
-      water: "#7fb6c9",
-    });
+    // Colours come from the clay token table (B-T1); water stays the base water blue.
+    expect(LANDCOVER_COLOURS).toEqual({ ...CLAY_PALETTE.landcover });
+    expect(Object.keys(LANDCOVER_COLOURS).sort()).toEqual(
+      [
+        "forest",
+        "grass",
+        "scrub",
+        "farmland",
+        "oil_palm",
+        "residential",
+        "commercial",
+        "industrial",
+        "parking",
+        "construction",
+        "bare",
+        "water",
+      ].sort(),
+    );
+    expect(LANDCOVER_COLOURS.water).toBe("#7fb6c9");
     expect(LANDCOVER_ORDER).toEqual([
       "farmland",
       "oil_palm",
@@ -108,9 +114,9 @@ describe("landcover", () => {
     ]);
   });
 
-  it("an unknown class gets #d8d3c8", () => {
+  it("an unknown class gets the token table's unknown colour", () => {
     const c = landcoverMesh(fc(sq("lava")), frame).getAttribute("color");
-    const want = new THREE.Color("#d8d3c8");
+    const want = new THREE.Color(CLAY_PALETTE.landcoverUnknown);
     expect(c.getX(0)).toBeCloseTo(want.r, 4);
     expect(c.getY(0)).toBeCloseTo(want.g, 4);
     expect(c.getZ(0)).toBeCloseTo(want.b, 4);
@@ -167,7 +173,7 @@ describe("landcover", () => {
     for (let i = 1; i < ys.length; i++) expect(ys[i]!).toBeGreaterThanOrEqual(ys[i - 1]!);
     // The unknown class (lift 0) comes before farmland (also lift 0), then forest, residential, water.
     const c = g.getAttribute("color");
-    const lava = new THREE.Color("#d8d3c8");
+    const lava = new THREE.Color(CLAY_PALETTE.landcoverUnknown);
     expect(c.getX(0)).toBeCloseTo(lava.r, 4);
     const water = new THREE.Color(LANDCOVER_COLOURS.water!);
     expect(c.getX(p.count - 1)).toBeCloseTo(water.r, 4);

@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import type { LineMaterial } from "three/addons/lines/LineMaterial.js";
-import { CESIUM_DASH, statusStyle } from "../../scene/styles";
+import { CESIUM_DASH, JOURNEY_RIBBON_STYLE, statusStyle } from "../../scene/styles";
 import type { LocalFrame } from "../../scene/three/frame";
 import {
   createLineBatch,
@@ -28,7 +28,7 @@ export const RIBBON_WIDTH_M = { min: 0.8, max: 6 } as const;
  * band, distinct from the thin status lines drawn over it when Path status is on.
  */
 export const RIBBON_CASING_SCALE = 1.6;
-const CASING_COLOUR = "#ffffff";
+const CASING_COLOUR = JOURNEY_RIBBON_STYLE.casing;
 /**
  * Opacity of the ribbon where something hides it (drawn with depthFunc Greater). Any occluder
  * counts (buildings, trees, the hero): restricting it to buildings would need every building
@@ -94,7 +94,7 @@ function pinTexture(kind: JourneyEventKind): THREE.Texture | null {
   x.lineTo(64, 113);
   x.lineTo(86, 80);
   x.fill();
-  x.fillStyle = "#fff";
+  x.fillStyle = JOURNEY_RIBBON_STYLE.pinFace;
   x.beginPath();
   x.arc(64, 50, 33, 0, Math.PI * 2);
   x.fill();
@@ -165,7 +165,7 @@ export function createJourneyLayer(plan: JourneyPlan, frame: LocalFrame): Journe
     const sprite = new THREE.Sprite(
       new THREE.SpriteMaterial({
         map,
-        color: map ? 0xffffff : KIND_COLOUR[e.kind],
+        color: map ? JOURNEY_RIBBON_STYLE.pinFace : KIND_COLOUR[e.kind],
         transparent: true,
         depthTest: false,
         depthWrite: false,

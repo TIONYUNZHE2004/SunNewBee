@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import * as THREE from "three";
+import { fitCost, fitFor, overviewPose, rangeNeededM } from "../cameraFit";
 import type { Engine } from "../engine";
 import type { LocalFrame } from "../frame";
 import { createFrameStats, type PerfSample } from "../frameStats";
@@ -126,6 +127,16 @@ export interface AcceptanceApi {
   /** Local frame conversions (metres: x east, z = -north). */
   toLocal(lon: number, lat: number): [number, number];
   toLonLat(x: number, z: number): [number, number];
+  /** True when local (x, z) lies inside the slab outline (A-T5 camera bound); null without a slab. */
+  insideOutline(x: number, z: number): boolean | null;
+  /** The camera's current vertical field of view (deg): it widens towards max range (A-T5). */
+  fovDeg(): number;
+  /** The overview derived from the slab outline (`cameraFit.ts` overviewPose); null without a slab. */
+  overviewPose(): GeoPose | null;
+  /** The slab camera fit's reports (A-T5): fov the max-range window needs, range needed to fit. */
+  fitReport(): { axisHeadingDeg: number; costDeg: number; rangeNeededM: number } | null;
+  /** Test-only: the camera fit computed synchronously once (ms), for the long-task report; null without a slab. */
+  timeFitSyncMs(): number | null;
   /** A rig flight to a pose (as the app's fly-to intents do). */
   flyTo(p: GeoPose, durationMs: number): void;
   /**
@@ -633,6 +644,35 @@ export function createAcceptanceApi(engine: Engine, frame: LocalFrame): Acceptan
     },
     liftM: () => engine.clearanceLiftM?.() ?? 0,
     toLocal: (lon, lat) => frame.toLocal(lon, lat),
+    insideOutline: (x, z) => {
+      const fit = engine.cameraFit?.();
+      return fit ? insideBoundary(fit.boundary, x, z) : null;
+    },
+    fovDeg: () => (engine.pickView().camera as THREE.PerspectiveCamera).fov,
+    overviewPose: () => {
+      const fit = engine.cameraFit?.();
+      if (!fit) return null;
+      const p = overviewPose(fit);
+      const [lon, lat] = frame.toLonLat(p.target[0], p.target[1]);
+      return { lon, lat, rangeM: p.rangeM, pitchDeg: p.pitchDeg, headingDeg: p.headingDeg };
+    },
+    timeFitSyncMs: () => {
+      const fit = engine.cameraFit?.();
+      if (!fit) return null;
+      const t0 = performance.now();
+      fitFor(fit.boundary);
+      return performance.now() - t0;
+    },
+    fitReport: () => {
+      const fit = engine.cameraFit?.();
+      return fit
+        ? {
+            axisHeadingDeg: fit.axisHeadingDeg,
+            costDeg: fitCost(fit),
+            rangeNeededM: rangeNeededM(fit),
+          }
+        : null;
+    },
     toLonLat: (x, z) => {
       const [lon, lat] = frame.toLonLat(x, z);
       return [lon, lat];

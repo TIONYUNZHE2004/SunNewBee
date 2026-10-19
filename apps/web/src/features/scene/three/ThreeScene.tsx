@@ -215,6 +215,7 @@ export default function ThreeScene({
     accessData: access.data,
     onScreen,
     running,
+    boundary: showroom ? null : boundary,
   });
   const home = homeView(site);
   const { initialBackground } = useMood({ engine, roleUniforms, sectionRef, home, bus });

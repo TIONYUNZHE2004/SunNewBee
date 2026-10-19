@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import * as THREE from "three";
 import { describe, expect, it } from "vitest";
+import { fitFor, overviewPose } from "../cameraFit";
 import { poseToCamera } from "../cameraRig";
 import { createFrame } from "../frame";
 import { LIGHT_PRESETS } from "../lighting";
@@ -71,9 +72,9 @@ describe("slabGeometry (Elmina seed)", () => {
       0,
     );
     expect(area).toBeCloseTo(want, -2);
-    // site.json records 13.43 km2 for the outline.
-    expect(area / 1e6).toBeGreaterThan(12.5);
-    expect(area / 1e6).toBeLessThan(14.5);
+    // site.json records 21.12 km2 for the outline (owner master plan, A-T3b).
+    expect(area / 1e6).toBeGreaterThan(20);
+    expect(area / 1e6).toBeLessThan(22.5);
   });
 
   it("has >= 3 soil layers below the crust, each a band stepping down and out", () => {
@@ -145,14 +146,10 @@ describe("slab materials and meshes", () => {
 
 describe("slab edge vs the A-T11 fog at the overview bookmark", () => {
   it("the farthest soil (outer foot of the section) is hazed <= 70% in every mood", () => {
-    // The `overview` acceptance bookmark: centre [101.5099, 3.1813], range 7000, pitch -55, heading 0.
-    const rangeM = 7000;
-    const cam = poseToCamera({
-      target: frame.toLocal(101.5099, 3.1813),
-      rangeM,
-      pitchDeg: -55,
-      headingDeg: 0,
-    }).position;
+    // The overview (A-T5): the whole slab at max range, derived from the outline.
+    const pose = overviewPose(fitFor(B));
+    const rangeM = pose.rangeM;
+    const cam = poseToCamera(pose).position;
     const g = slabGeometry(B);
     let farthest = 0;
     for (const ring of g.foot)

@@ -6,6 +6,7 @@ import { GAP_BANDS } from "../../../gaps/gapModel";
 import { WHATIF_STYLE } from "../../../whatif/whatifModel";
 import { ROUTE_STYLE, statusStyle } from "../../styles";
 import { createFrame } from "../frame";
+import { boundaryOf } from "../ground/boundary";
 import { createOverlayLayer, type OverlayState } from "./accessLayers";
 
 const attr = (b: unknown, n: string) =>
@@ -466,5 +467,47 @@ describe("attach", () => {
     layer.attach({ group: new T.Group(), dispose: () => disposed++ });
     layer.dispose();
     expect(disposed).toBe(2);
+  });
+});
+
+describe("place markers vs the outline (A-T5 fix round 2)", () => {
+  // A 200 m square outline around the origin; p-in at the origin, p-out ~550 m east.
+  const ll = (x: number, z: number) => frame.toLonLat(x, z);
+  const ring = [
+    [-100, -100],
+    [100, -100],
+    [100, 100],
+    [-100, 100],
+    [-100, -100],
+  ].map(([x, z]) => ll(x as number, z as number));
+  const outline = boundaryOf({ type: "Polygon", coordinates: [ring] }, frame)!;
+  const pt = (id: string, x: number) => ({
+    type: "Feature",
+    id,
+    properties: { id, name: id },
+    geometry: { type: "Point", coordinates: ll(x, 0) },
+  });
+  const pts = { type: "FeatureCollection", features: [pt("p-in", 0), pt("p-out", 550)] };
+  const run = (s: Partial<OverlayState>) => {
+    const l = createOverlayLayer(frame);
+    l.update({
+      ...base,
+      access: pts as unknown as OverlayState["access"],
+      boundary: outline,
+      ...s,
+    });
+    const n = l.drawnPlaces();
+    l.dispose();
+    return n;
+  };
+  it("hides places off the slab and counts only drawn markers", () => {
+    expect(run({})).toBe(1);
+    expect(run({ boundary: null })).toBe(2);
+  });
+  it("keeps the focused place, a kept id (selected / VR target) and a route end", () => {
+    expect(run({ focusPlaceId: "p-out" })).toBe(2);
+    expect(run({ keepPlaceIds: ["p-out"] })).toBe(2);
+    expect(run({ keepNear: [ll(530, 0)] })).toBe(2);
+    expect(run({ keepNear: [ll(300, 0)] })).toBe(1);
   });
 });

@@ -3,6 +3,7 @@ import { hashUnit } from "../../shared/model";
 import { TIERS, type Tier } from "../../shared/quality";
 import type { LocalFrame } from "../frame";
 import { type Boundary, clearance, insideBoundary } from "../ground/boundary";
+import { EFFECT_COLOURS } from "../shared/clayTokens";
 
 export const CLOUD_SHADOW_Y = 0.11;
 /** After the ground bands (1 to 5) and the lamp pools (6), before overlays (10 and up). */
@@ -164,7 +165,7 @@ export function createAmbient(
   if (spec.birds > 0) {
     const geo = chevron();
     const mat = new THREE.MeshBasicMaterial({
-      color: "#2b2d31",
+      color: EFFECT_COLOURS.bird,
       side: THREE.DoubleSide,
       fog: false,
     });
@@ -198,7 +199,7 @@ export function createAmbient(
     geo.rotateX(-Math.PI / 2);
     const map = blobTexture();
     cloudMat = new THREE.MeshBasicMaterial({
-      color: "#000000",
+      color: EFFECT_COLOURS.cloudShadow,
       map,
       transparent: true,
       opacity: CLOUD_OPACITY,

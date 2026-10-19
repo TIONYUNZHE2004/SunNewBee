@@ -159,6 +159,26 @@ describe("legibility at range", () => {
     }
   });
 
+  it("keeps the pixel floor at the live (widened) field of view, A-T5", () => {
+    const wide = 45;
+    const cam = new THREE.PerspectiveCamera(wide, 1440 / 900, 2, 30000);
+    for (const d of [4000, 7900]) {
+      const r = createResidents(frame);
+      r.setDay([dot("a", "walk")], null);
+      r.setView({ x: 0, y: 0, z: d }, 0, wide);
+      cam.position.set(0, RESIDENT_HEIGHT_M / 2, d);
+      cam.lookAt(0, RESIDENT_HEIGHT_M / 2, 0);
+      cam.updateMatrixWorld(true);
+      cam.updateProjectionMatrix();
+      const mat = new THREE.Matrix4();
+      fill(r.group).getMatrixAt(0, mat);
+      const sy = new THREE.Vector3().setFromMatrixScale(mat).y;
+      const top = new THREE.Vector3(0, RESIDENT_HEIGHT_M * sy, 0).project(cam);
+      const bot = new THREE.Vector3(0, 0, 0).project(cam);
+      expect(((top.y - bot.y) / 2) * 900, `${d} m`).toBeGreaterThanOrEqual(MIN_HEIGHT_PX - 1e-6);
+    }
+  });
+
   it("keeps displayScale when it is already big enough (near)", () => {
     const r = place(10);
     expect(scaleAt(fill(r.group), 0)).toBeCloseTo(1, 5);
