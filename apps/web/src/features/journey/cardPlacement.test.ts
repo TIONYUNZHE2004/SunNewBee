@@ -118,7 +118,9 @@ describe("hero screen box", () => {
     const root = new THREE.Group();
     root.add(body, lod1);
     const b = heroBodyBox(root) as THREE.Box3;
-    expect(b.max.y - b.min.y).toBeCloseTo(2.2 + 2 * BONE_PAD_M, 6);
+    // hips at her root on the ground: the pad never reaches under the ground she stands on
+    expect(b.min.y).toBeCloseTo(0, 6);
+    expect(b.max.y - b.min.y).toBeCloseTo(2.2 + BONE_PAD_M, 6);
     expect(b.max.x - b.min.x).toBeCloseTo(2 * BONE_PAD_M, 6); // the 50 m hidden LOD is left out
   });
 

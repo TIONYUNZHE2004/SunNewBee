@@ -38,7 +38,10 @@ export function heroBodyBox(root: THREE.Object3D, out = new THREE.Box3()): THREE
     }
     _box.union(_mb);
   });
-  return _box.isEmpty() ? null : out.copy(_box);
+  if (_box.isEmpty()) return null;
+  // nothing of her is below the ground she stands on (the bone pad would reach under the soles)
+  _box.min.y = Math.max(_box.min.y, root.getWorldPosition(_v).y);
+  return out.copy(_box);
 }
 
 /**
