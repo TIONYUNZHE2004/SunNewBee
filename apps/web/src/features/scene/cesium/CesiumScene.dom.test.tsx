@@ -21,7 +21,8 @@ vi.mock("resium", () => ({
 // The real Cesium bundle takes 10-30 s to import cold under jsdom (more on a loaded machine), which
 // made this file the flakiest in the suite. Nothing here exercises Cesium itself: the patches
 // have their own real-Cesium tests (frustumClone.camera.test.ts), and this file only checks the
-// wiring and the Viewer prop identity. So a light stand-in carries the identities that matter.
+// wiring and the Viewer prop identity. NOTE: when CesiumScene.tsx (or a module it imports) uses a
+// new Cesium member at import or render time, add a stand-in for it below (the error names it). So a light stand-in carries the identities that matter.
 vi.mock("cesium", () => {
   class PerspectiveFrustum {}
   class Camera {}
