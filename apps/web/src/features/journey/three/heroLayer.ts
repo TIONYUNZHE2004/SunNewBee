@@ -6,6 +6,7 @@ import {
   createPlaceholderHero,
   createRestBench,
 } from "../../scene/three/characters/placeholderHero";
+import type { Clearance } from "../../scene/three/clearance";
 import type { LocalFrame } from "../../scene/three/frame";
 import {
   type HeroPathHelpers,
@@ -200,6 +201,11 @@ export function createHeroLayer(
     places?: ReadonlyMap<string, LonLat>;
     /** OSM building footprints (`/layers/buildings` `buildings`): the bench keeps clear of them. */
     footprints?: unknown;
+    /**
+     * The drawn buildings (the engine's clearance grid: OSM extrusions plus the archetype and
+     * landmark placement boxes, A-T7): seats and their approach keep out of them too (D-T5 ruling).
+     */
+    grid?: Pick<Clearance, "topAt"> | null;
     /** The scene roots holding the ground bands (the engine's `pickView().roots`). */
     roots?: () => readonly THREE.Object3D[];
     /**
@@ -219,13 +225,20 @@ export function createHeroLayer(
   group.add(hero.object3d);
 
   const restIdx = plan.events.flatMap((e, i) => (e.kind === "rest" ? [i] : []));
-  const clearance = opts.footprints
+  const osm = opts.footprints
     ? footprintClearance(
         opts.footprints,
         frame,
         restIdx.map((i) => path.pointAt((plan.events[i] as JourneyPlan["events"][number]).at_m)),
       )
     : undefined;
+  const grid = opts.grid ?? null;
+  // 0 inside any drawn building (grid) or OSM footprint, else metres to the nearest OSM edge
+  const clearance =
+    osm || grid
+      ? (x: number, z: number) =>
+          grid && grid.topAt(x, z) > 0 ? 0 : osm ? osm(x, z) : CLEARANCE_CAP_M
+      : undefined;
 
   // One seat (stand point) per rest event: a display approximation; the bench fact is the rest point.
   // The side keeps the whole bench box (seat and backrest behind her) clear of building footprints.

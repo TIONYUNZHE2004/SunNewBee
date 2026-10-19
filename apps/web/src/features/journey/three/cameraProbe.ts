@@ -2,6 +2,7 @@ import * as THREE from "three";
 import type { Clearance, Vec3 } from "../../scene/three/clearance";
 import { buildingMeshes, roofHit } from "../../scene/three/scene/useAcceptanceHook";
 import type { Rect } from "../cardPlacement";
+import { currentCut, inCut } from "./cutaway";
 import { boxOnScreen, heroBodyBox } from "./heroScreen";
 import { projectToScreen } from "./project";
 
@@ -45,7 +46,18 @@ const _inst = new THREE.Matrix4();
 const _dir = new THREE.Vector3();
 const _from = new THREE.Vector3();
 
-/** True when a drawn building or landmark mesh lies on the segment a -> b (per instance). */
+/** True when a hit is drawn (outside the hero cutaway, which discards those fragments); clears the rest. */
+function drawn(hits: THREE.Intersection[]): boolean {
+  const cut = currentCut.value;
+  const any = hits.some((h) => !inCut(cut, [h.point.x, h.point.y, h.point.z]));
+  hits.length = 0;
+  return any;
+}
+
+/**
+ * True when a drawn building or landmark mesh lies on the segment a -> b (per instance). Hits
+ * inside the hero cutaway (`cutaway.ts`) are not drawn and do not count.
+ */
 export function meshBlocks(roots: THREE.Object3D[], a: Vec3, b: Vec3): boolean {
   _from.set(...a);
   _dir.set(b[0] - a[0], b[1] - a[1], b[2] - a[2]);
@@ -60,7 +72,7 @@ export function meshBlocks(roots: THREE.Object3D[], a: Vec3, b: Vec3): boolean {
     if (!im.isInstancedMesh) {
       // decorative meshes opt out of raycasting (`raycast` no-op): call the Mesh raycast
       THREE.Mesh.prototype.raycast.call(m, _ray, hits);
-      if (hits.length) return true;
+      if (drawn(hits)) return true;
       continue;
     }
     _probe.geometry = im.geometry;
@@ -69,7 +81,7 @@ export function meshBlocks(roots: THREE.Object3D[], a: Vec3, b: Vec3): boolean {
       im.getMatrixAt(i, _inst);
       _probe.matrixWorld.multiplyMatrices(im.matrixWorld, _inst);
       THREE.Mesh.prototype.raycast.call(_probe, _ray, hits);
-      if (hits.length) return true;
+      if (drawn(hits)) return true;
     }
   }
   return false;

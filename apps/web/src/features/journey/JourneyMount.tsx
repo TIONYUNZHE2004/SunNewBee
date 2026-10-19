@@ -1,6 +1,7 @@
 import { type RefObject, useCallback, useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import type { LonLat } from "../scene/geo";
+import type { Clearance } from "../scene/three/clearance";
 import type { Engine } from "../scene/three/engine";
 import type { LocalFrame } from "../scene/three/frame";
 import { elementPoint, type FollowScene } from "../scene/three/journey/followRig";
@@ -9,6 +10,7 @@ import { createFollowController, overviewFor } from "./followCamera";
 import { JourneyOverlay } from "./JourneyOverlay";
 import { journeyCamera, journeyHero, journeyStateOf, useJourney } from "./journeyStore";
 import { probeCamera } from "./three/cameraProbe";
+import { applyCutaway, cutFor, NO_CUT, setCut } from "./three/cutaway";
 import { createHeroLayer, type HeroLayer } from "./three/heroLayer";
 import { heroScreenRect } from "./three/heroScreen";
 import { createJourneyLayer, type JourneyLayer } from "./three/journeyLayer";
@@ -60,6 +62,16 @@ export function JourneyMount({
     };
   }, [engine, frame, plan]);
 
+  // The drawn-building grid (A-T7), once the city is in: seats keep out of drawn boxes (D-T5 ruling).
+  const [grid, setGrid] = useState<Clearance | null>(null);
+  useEffect(() => {
+    if (!engine || !plan) return;
+    const poll = () => setGrid(engine.clearance?.() ?? null);
+    poll();
+    const id = setInterval(poll, 500);
+    return () => clearInterval(id);
+  }, [engine, plan]);
+
   // The hero (D-T6): posed by the pure driver at every t (play or seek alike); what is drawn goes
   // to `journeyHero` (__journey.hero() and the crowd keep-out seam), with no second store update.
   useEffect(() => {
@@ -67,6 +79,7 @@ export function JourneyMount({
     const h = createHeroLayer(plan, layer.path, frame, {
       places,
       footprints,
+      grid,
       roots: () => engine.pickView().roots,
       groundGeneration: () => engine.groundGeneration ?? 0,
       onPose: (p) => {
@@ -97,7 +110,7 @@ export function JourneyMount({
       journeyHero.current = null;
       if (heroRef.current === h) heroRef.current = null;
     };
-  }, [engine, frame, plan, layer, places, footprints]);
+  }, [engine, frame, plan, layer, places, footprints, grid]);
 
   const { viewport, miniMapRef } = useMapInsets(hostRef, !!plan && !!engine, () =>
     engine ? engine.pickView().size : [1, 1],
@@ -146,7 +159,23 @@ export function JourneyMount({
       hero: () => (journeyHero.current ? [journeyHero.current.x, journeyHero.current.z] : null),
       focus: (p) => engine.setFocusPoint?.(p ? new THREE.Vector3(...p) : null),
     });
-    engine.setCameraDriver(ctl.driver);
+    // Each frame: the journey camera, then the cutaway around her for the camera that will draw.
+    engine.setCameraDriver((now, current) => {
+      const p = ctl.driver(now, current);
+      const h = journeyHero.current;
+      setCut(
+        cutFor(
+          h ? [h.x, h.z] : null,
+          p ? p.position : current.position,
+          engine.clearance?.() ?? null,
+        ),
+      );
+      return p;
+    });
+    // Building materials get the (inactive) cutaway ahead of need: no shader compile mid-trip.
+    const patch = () => applyCutaway(engine.pickView().roots);
+    patch();
+    const patchTimer = setInterval(patch, 1000);
     const unsub = useJourney.subscribe((s, prev) => {
       if (s.plan !== plan) return;
       if ((s.playing && !prev.playing) || s.t !== prev.t || s.camMode !== prev.camMode)
@@ -177,6 +206,8 @@ export function JourneyMount({
     };
     return () => {
       unsub();
+      clearInterval(patchTimer);
+      setCut(NO_CUT);
       engine.setCameraDriver?.(null);
       engine.setFocusPoint?.(null);
       journeyCamera.current = null;

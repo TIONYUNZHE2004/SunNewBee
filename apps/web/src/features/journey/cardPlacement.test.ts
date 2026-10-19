@@ -49,6 +49,30 @@ describe("event cards keep clear of the hero (D-T5 ruling)", () => {
     }
   });
 
+  it("her box fills the view: a smaller card beside her, else the least overlap", () => {
+    // the measured case: 923 x 836 map area, her box 360 x 420 px in the middle
+    const v = { w: 923, h: 836, top: 96 };
+    const hero: Rect = { x: 270, y: 200, w: 363, h: 420 };
+    const p = placeCard({ x: 450, y: 180 }, { w: 290, h: 206 }, { ...v, keepClear: [hero] });
+    const s = p.scale ?? 1;
+    expect(s).toBeLessThan(1);
+    const w = 290 * s;
+    const h = 206 * s;
+    const over =
+      p.left < hero.x + hero.w &&
+      p.left + w > hero.x &&
+      p.top < hero.y + hero.h &&
+      p.top + h > hero.y;
+    expect(over).toBe(false);
+    expect(p.left + w).toBeLessThanOrEqual(v.w);
+    expect(p.top + h).toBeLessThanOrEqual(v.h);
+    // no free spot even small: the smallest card, covering as little of her as possible
+    const huge: Rect = { x: 20, y: 20, w: 880, h: 790 };
+    const q = placeCard({ x: 450, y: 300 }, { w: 290, h: 206 }, { ...v, keepClear: [huge] });
+    expect(q.scale).toBe(0.65);
+    expect(placeCard({ x: 450, y: 300 }, { w: 290, h: 206 }, v).scale).toBeUndefined();
+  });
+
   it("a card clear of her is not moved", () => {
     const hero: Rect = { x: 100, y: 600, w: 80, h: 150 };
     const a = { x: 700, y: 500 };

@@ -20,6 +20,8 @@ function applyPlacement(el: HTMLElement, p: CardPlacement, anchor: Anchor) {
   el.style.left = `${p.left}px`;
   el.style.top = `${p.top}px`;
   el.dataset.side = p.side;
+  // a smaller card only when no spot clear of the hero exists at full size
+  el.style.transform = p.scale && p.scale !== 1 ? `scale(${p.scale})` : "";
   if (anchor && p.anchored) {
     el.dataset.anchorX = anchor.x.toFixed(1);
     el.dataset.anchorY = anchor.y.toFixed(1);
@@ -92,7 +94,12 @@ export function EventCard({
       data-anchor-y={anchor && p.anchored ? anchor.y.toFixed(1) : undefined}
       aria-live="polite"
       className="glass pointer-events-none absolute z-30 w-[min(290px,calc(100vw-2rem))] rounded-2xl px-4 pb-3 pt-3 text-fg shadow-lg"
-      style={{ left: `${p.left}px`, top: `${p.top}px` }}
+      style={{
+        left: `${p.left}px`,
+        top: `${p.top}px`,
+        transformOrigin: "top left",
+        transform: p.scale && p.scale !== 1 ? `scale(${p.scale})` : undefined,
+      }}
     >
       <span
         className="inline-block rounded-full px-2.5 py-0.5 text-[11px] font-extrabold uppercase tracking-wide text-white"

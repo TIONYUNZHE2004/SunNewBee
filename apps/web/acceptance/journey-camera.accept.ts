@@ -16,9 +16,10 @@ import { askDemoJourney, hasJourneyHook, journey } from "./support/journey";
  *   a ray from the camera to her chest hits no building mesh (grid pre-check, then a raycast of the
  *   drawn buildings, landmarks and archetype instances) in >= 95 %. At every hold, from a quarter
  *   of the way in, the event's element (crossing, ramp, bench, path, destination) projects inside
- *   the frame. Hidden samples where she stands inside a footprint the planned route itself crosses
- *   (Harmoni 1 at the start, the Sales Gallery at ~831 m) are counted within the 5 % budget and
- *   reported (coordinator ruling: route data is not altered).
+ *   the frame. No exclusions: where she stands inside a drawn building the planned route crosses
+ *   (Harmoni 1 at the start, the Sales Gallery at ~831 m), the display-only cutaway
+ *   (`journey/three/cutaway.ts`) stops drawing the building fragments between the camera and her,
+ *   and the raycast ignores exactly those fragments (what is drawn is what is judged).
  * - AC-D9: in every sample (dive and pull-back included) the camera is >= 1.5 m from her body box
  *   and never inside a building (under a drawn roof inside a footprint).
  * Also recorded: event cards never cover her box (ruling), and scrub == play (seeking back to

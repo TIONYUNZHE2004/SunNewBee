@@ -1,7 +1,13 @@
 import * as THREE from "three";
 import { describe, expect, it } from "vitest";
+import { createClearance } from "../../scene/three/clearance";
 import { createFrame } from "../../scene/three/frame";
-import { restSchedule, SEAT_OFFSET_M, seatFor } from "../../scene/three/journey/heroDriver";
+import {
+  approachClear,
+  restSchedule,
+  SEAT_OFFSET_M,
+  seatFor,
+} from "../../scene/three/journey/heroDriver";
 import demo from "../fixtures/demoPlan.json";
 import { createRoutePath } from "../routePath";
 import { buildTimeline, type JourneyPlan, type Phase } from "../timeline";
@@ -181,5 +187,52 @@ describe("hero layer seat side", () => {
     expect(Math.hypot(seat.x - left.x, seat.z - left.z)).toBeCloseTo(2 * SEAT_OFFSET_M, 3);
     expect(clearance(seat.x, seat.z)).toBeGreaterThan(0);
     l.dispose();
+  });
+});
+
+describe("hero layer seats keep out of drawn buildings (D-T5 ruling)", () => {
+  const e = plan.events[rest.eventIndex as number] as JourneyPlan["events"][number];
+  const [px, pz] = path.pointAt(e.at_m);
+  const box = (cx: number, cz: number, half: number) =>
+    createClearance([
+      {
+        id: "landmark-box",
+        ring: [
+          [cx - half, cz - half],
+          [cx + half, cz - half],
+          [cx + half, cz + half],
+          [cx - half, cz + half],
+        ],
+        topM: 9,
+      },
+    ]);
+
+  it("a bench place inside a drawn (archetype / landmark) box: the seat moves out of it", () => {
+    // the bench place 3 m off the route (in the 1.2-6 m range) inside a 6 m box no OSM outline has
+    const place: [number, number] = [px + 3, pz];
+    const grid = box(place[0], place[1], 3.2);
+    const inside = seatFor(path.pointAt, e.at_m, place);
+    expect(inside).toEqual({ x: place[0], z: place[1] });
+    const ll = frame.toLonLat(place[0], place[1]);
+    const places = new Map([[e.element_id as string, ll as [number, number]]]);
+    const l = createHeroLayer(plan, path, frame, { places, grid });
+    const seat = l.seats.get(rest.eventIndex as number) as { x: number; z: number };
+    expect(grid.topAt(seat.x, seat.z)).toBe(0);
+    // the approach from the route point never enters the box
+    expect(approachClear((x, z) => (grid.topAt(x, z) > 0 ? 0 : 1), [px, pz], seat)).toBe(true);
+    l.dispose();
+  });
+
+  it("the route point inside a drawn box: she may walk out of it, never back in", () => {
+    const grid = box(px, pz, 2.5);
+    const clear = (x: number, z: number) => (grid.topAt(x, z) > 0 ? 0 : 1);
+    const seat = seatFor(path.pointAt, e.at_m, null, clear);
+    expect(grid.topAt(seat.x, seat.z)).toBe(0);
+    expect(Math.hypot(seat.x - px, seat.z - pz)).toBeGreaterThan(2.5);
+    expect(approachClear(clear, [px, pz], seat)).toBe(true);
+    // in, out, in again is not clear
+    const far = box(px + 5, pz, 1);
+    const both = (x: number, z: number) => (grid.topAt(x, z) > 0 || far.topAt(x, z) > 0 ? 0 : 1);
+    expect(approachClear(both, [px, pz], { x: px + 8, z: pz })).toBe(false);
   });
 });
