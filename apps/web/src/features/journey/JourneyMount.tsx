@@ -29,6 +29,7 @@ import { heroBodyBox, heroScreenRect } from "./three/heroScreen";
 import { createJourneyLayer, type JourneyLayer } from "./three/journeyLayer";
 import { projectToScreen } from "./three/project";
 import { createViewFit, safeRectOf } from "./three/viewFit";
+import type { JourneyPlan } from "./timeline";
 import { useJourneyDriver } from "./useJourneyDriver";
 import { useMapInsets } from "./useMapInsets";
 
@@ -65,14 +66,19 @@ export function JourneyMount({
   // The one "plan being shown": the player's loaded plan (an intent, Watch the trip, or nothing
   // after Clear route / a profile or scenario change), never sceneStore.journey.
   const plan = useJourney((s) => s.plan);
-  const [layer, setLayer] = useState<JourneyLayer | null>(null);
+  // The layer is kept with the plan it was built for: in the commit where the plan changes, the
+  // old (disposed) layer is not this plan's, so the hero and camera wait for the new one.
+  const [layerState, setLayerState] = useState<{ plan: JourneyPlan; layer: JourneyLayer } | null>(
+    null,
+  );
+  const layer = layerState && layerState.plan === plan ? layerState.layer : null;
   const heroRef = useRef<HeroLayer | null>(null);
 
   useEffect(() => {
     if (!engine || !frame || !plan) return;
     const l = createJourneyLayer(plan, frame);
     engine.setJourney(l);
-    setLayer(l);
+    setLayerState({ plan, layer: l });
     // heroColour false: her body drawn flat magenta (same geometry, order and depth, so shadows,
     // AO and the ribbon are untouched): the pixels that change are exactly her visible silhouette.
     const flat = new THREE.MeshBasicMaterial({
@@ -102,7 +108,7 @@ export function JourneyMount({
       flat.dispose();
       journeyShow.current = null;
       engine.setJourney(null); // disposes the layer
-      setLayer(null);
+      setLayerState(null);
     };
   }, [engine, frame, plan]);
 

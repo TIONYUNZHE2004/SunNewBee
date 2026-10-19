@@ -1,4 +1,4 @@
-import { isDemoPreset } from "../demo/preset";
+import { isDemoPreset } from "../demo/demoFlag";
 import {
   type CamMode,
   type HeroPose,
@@ -43,9 +43,6 @@ export interface JourneyHook {
   show: (part: JourneyPart, visible: boolean) => boolean;
   state: () => (JourneyState & { t: number; playing: boolean; camMode: CamMode }) | null;
 }
-
-// One parser for ?demo=1: the demo preset's (A-T13). Re-exported for existing importers.
-export { isDemoPreset };
 
 export function createJourneyHook(): JourneyHook {
   const s = () => useJourney.getState();

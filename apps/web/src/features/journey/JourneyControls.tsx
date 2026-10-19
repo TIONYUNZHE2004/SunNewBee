@@ -1,4 +1,5 @@
 import { useId } from "react";
+import { useEffectiveView } from "../scene/useMapStyle";
 import { type CamMode, journeyStateOf, useJourney } from "./journeyStore";
 import { useJourneyDriver } from "./useJourneyDriver";
 
@@ -11,7 +12,10 @@ const CAMS: { mode: CamMode; label: string }[] = [
 const btn =
   "inline-flex min-h-9 items-center rounded-full border border-line px-3 text-xs text-fg hover:bg-surface-2 focus-visible:outline-2";
 
-/** Player controls (spec §6.4, R-J4): play/pause, restart, scrub with phase ticks, camera mode. */
+/**
+ * Player controls (spec §6.4, R-J4): play/pause, restart, scrub with phase ticks, camera mode.
+ * Play/Pause and Restart only where the trip plays (the 3D view): the List view has no player.
+ */
 export function JourneyControls() {
   useJourneyDriver();
   const ticksId = useId();
@@ -19,6 +23,7 @@ export function JourneyControls() {
   const t = useJourney((s) => s.t);
   const playing = useJourney((s) => s.playing);
   const camMode = useJourney((s) => s.camMode);
+  const playable = useEffectiveView() !== "list";
   if (!timeline) return null;
   const { total, phases } = timeline;
   const hud = journeyStateOf({ timeline, t });
@@ -28,17 +33,21 @@ export function JourneyControls() {
   return (
     <section aria-label="Trip controls" data-testid="journey-controls" className="space-y-2">
       <div className="flex flex-wrap items-center gap-2">
-        <button
-          type="button"
-          className={btn}
-          aria-pressed={playing}
-          onClick={() => (playing ? st.pause() : st.play())}
-        >
-          {playing ? "Pause" : "Play"}
-        </button>
-        <button type="button" className={btn} onClick={() => st.restart()}>
-          Restart
-        </button>
+        {playable && (
+          <>
+            <button
+              type="button"
+              className={btn}
+              aria-pressed={playing}
+              onClick={() => (playing ? st.pause() : st.play())}
+            >
+              {playing ? "Pause" : "Play"}
+            </button>
+            <button type="button" className={btn} onClick={() => st.restart()}>
+              Restart
+            </button>
+          </>
+        )}
         <fieldset className="m-0 flex items-center gap-1 border-0 p-0">
           <legend className="sr-only">Camera</legend>
           {CAMS.map((c) => (

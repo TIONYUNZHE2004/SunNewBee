@@ -399,6 +399,7 @@ export function createHeroLayer(
     if (index) {
       rebuilds++;
       rebuildMs.push(index.buildMs);
+      if (rebuildMs.length > 2000) rebuildMs.shift();
     }
     for (const [i, b] of benches) {
       const s = seats.get(i) as HeroSeat;

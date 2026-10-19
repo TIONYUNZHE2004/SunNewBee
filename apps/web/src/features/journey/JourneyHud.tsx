@@ -14,8 +14,8 @@ function Cell({ id, value, label }: { id: string; value: string; label: string }
 
 /**
  * Journey HUD (spec §6.4): clock from the start time, distance walked, minutes outdoors (paused
- * under verified roofs only) and rests taken. All values come from `stateAt`; nothing is computed
- * here. A pause under a demo roof says so.
+ * under covered spans: verified roofs, and demo roofs too, which the HUD labels "Demo value · not
+ * surveyed") and rests taken. All values come from `stateAt`; nothing is computed here.
  */
 export function JourneyHud({
   state,

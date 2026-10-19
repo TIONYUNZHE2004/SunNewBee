@@ -187,10 +187,10 @@ test.describe("journey follow camera (D-T5)", () => {
   test.beforeEach(async ({ page }) => {
     await openScene(page, "day");
     await askDemoJourney(page);
-    test.skip(
-      !(await hasJourneyHook(page)),
-      "window.__journey is installed in dev builds and the demo preset only",
-    );
+    expect(
+      await hasJourneyHook(page),
+      "window.__journey (dev builds and the demo preset): a missing hook fails, never skips",
+    ).toBe(true);
   });
 
   test("AC-D8 + AC-D9: hero in frame and not hidden, element at every hold, no clipping", async ({
