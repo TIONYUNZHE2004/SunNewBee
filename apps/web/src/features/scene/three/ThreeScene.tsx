@@ -218,7 +218,7 @@ export default function ThreeScene({
     boundary,
     showroom,
   });
-  const { running, onScreen, agents } = useMotion({
+  const { running, onScreen, agents, crowdShown } = useMotion({
     engine,
     tier,
     active,
@@ -274,6 +274,7 @@ export default function ThreeScene({
       data-instances={city.instances}
       data-markers={markerCount}
       data-tiles={active.length}
+      data-crowd={`${agents.length}:${crowdShown ? 1 : 0}`}
       data-dressing-facts={dressing.facts}
       data-dressing-decor={dressing.decor}
       data-fallback={city.fallback.join(",")}

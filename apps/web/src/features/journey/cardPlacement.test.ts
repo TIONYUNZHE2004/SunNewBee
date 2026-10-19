@@ -156,3 +156,17 @@ describe("gate AC-D11: the card keeps clear of its marker as well as the hero", 
     expect(hit(card, hero)).toBe(false);
   });
 });
+
+describe("AC-D17: card placement is a pure function of anchor, size, viewport and keep-clear boxes", () => {
+  it("the same inputs give the same spot whatever was placed before", () => {
+    const vp = { w: 923, h: 836, top: 250 };
+    const a = { x: 488, y: 330 };
+    const hero = { x: 560, y: 540, w: 140, h: 200 };
+    const marker = { x: a.x - 34, y: a.y - 34, w: 68, h: 68 };
+    const size = { w: 290, h: 190 };
+    const first = placeCard(a, size, { ...vp, keepClear: [hero, marker] });
+    placeCard({ x: 700, y: 600 }, size, { ...vp, keepClear: [hero] });
+    placeCard(null, size, vp);
+    expect(placeCard(a, size, { ...vp, keepClear: [hero, marker] })).toEqual(first);
+  });
+});
