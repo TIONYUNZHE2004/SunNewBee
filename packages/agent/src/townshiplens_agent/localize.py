@@ -235,6 +235,30 @@ def _demo_only(m, lang):
     return "Nilai demo, belum ditinjau" if lang == "ms" else "演示数据，尚未实地调查"
 
 
+@rule(r"(.+?) is about (\d+) m from the nearest mapped road; distance and time stop at the road")
+def _road_gap(m, lang):
+    place, n = m.group(1), m.group(2)
+    if lang == "ms":
+        return (
+            f"{place} kira-kira {n} m dari jalan dipetakan terdekat; jarak dan masa berhenti "
+            "di jalan itu"
+        )
+    return f"{place}距离最近的已绘制道路约{n}米；距离和时间只算到该道路"
+
+
+@rule(
+    r"Drive routes: mapped one-way tags applied; legal turn restrictions and changing "
+    r"directions not modelled; indicative only, never confirmed\.?"
+)
+def _drive(m, lang):
+    if lang == "ms":
+        return (
+            "Laluan memandu: tanda sehala dalam peta digunakan; larangan membelok dan arah "
+            "yang berubah tidak dimodelkan; indikatif sahaja, tidak pernah disahkan."
+        )
+    return "驾车路线：已采用地图上的单行标记；未考虑转弯限制和方向变化；仅供参考，从不视为已确认。"
+
+
 def localize(text: str, lang: str) -> str:
     """`text` with every known fixed English sentence in `lang` ("ms" or "zh"); English and
     unknown languages pass through unchanged."""

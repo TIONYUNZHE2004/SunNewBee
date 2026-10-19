@@ -368,6 +368,8 @@ async def call_tool(deps: Deps, name: str, **kwargs: Any) -> dict:
                 r["crossing_note"] = note  # the model copies it word for word (prompt 5h)
             if i == 0 and (note := road_note(res.warnings)):
                 r["road_note"] = note  # about the first route only (prompt 5j, T-019)
+            if i == 0:
+                rec.route_warnings[r["id"]] = list(res.warnings)
             rec.routes[r["id"]] = r
             rec.route_status[r["id"]] = r["status"]
         for c in res.data.get("closures") or []:

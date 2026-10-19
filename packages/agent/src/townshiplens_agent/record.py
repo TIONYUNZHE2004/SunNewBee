@@ -48,6 +48,9 @@ class TurnRecord:
     asked_closures: list[dict] = field(default_factory=list)
     # Plan_route warnings about endpoints whose entrance is not mapped (Task 43).
     inferred_notes: list[str] = field(default_factory=list)
+    # plan_route warnings by the route they describe (the first route of each call); the
+    # answer always keeps the mandatory ones (run.MANDATORY_WARNING, T-021 review).
+    route_warnings: dict[str, list[str]] = field(default_factory=dict)
     # simulate_what_if results this turn (tool data, incl. diff_geojson and "imagined").
     what_ifs: list[dict] = field(default_factory=list)
     # An earlier turn of this session ran a simulation (from memory): its numbers may not be

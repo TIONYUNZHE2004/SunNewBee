@@ -1,8 +1,8 @@
-{"meta": {"message": "Where is the nearest evacuation centre if the water rises 3 m?", "profile": "default", "scenario_id": null, "world": "elmina", "world_fingerprint": "597cbd6542d24c3dfdc6b1b97807fd9f7d4b63f9adfb8518d468c31c15548540", "model": "mock-scripted", "recorded_at": "2026-10-19T17:33:30+00:00"}}
+{"meta": {"message": "Where is the nearest evacuation centre if the water rises 3 m?", "profile": "default", "scenario_id": null, "world": "elmina", "world_fingerprint": "8fcf9fafd9d032eaefcd102c9b099762d6f95c77ee5597e42b0270161ac18851", "model": "mock-scripted", "recorded_at": "2026-10-19T17:52:30+00:00"}}
 {"type": "answer.draft", "attempt": 1, "delta": "Please name your starting place before I select an evacuation route."}
 {"type": "answer.check", "attempt": 1, "ok": true, "issues": [], "repairs": 0}
 {"type": "text.delta", "delta": "Please name your starting place before I"}
 {"type": "text.delta", "delta": " select an evacuation route."}
 {"type": "uncertainty", "level": "high", "items": []}
 {"type": "disclaimer", "lens": "flood", "text": "Indicative scenario from a 30 m elevation model (Copernicus GLO-30, height above mapped rivers and lakes), not a forecast. Follow official MBSA / JPS / NADMA guidance. Only the area 101.46–101.56 E, 3.15–3.24 N is assessed; paths outside it are not.", "links": [{"label": "Public InfoBanjir (JPS)", "url": "https://publicinfobanjir.water.gov.my"}, {"label": "MET Malaysia warnings", "url": "https://www.met.gov.my"}]}
-{"type": "done", "message_id": "c2aa778cd1b1", "answer_status": "cannot_answer", "model": "mock-scripted"}
+{"type": "done", "message_id": "demo", "answer_status": "cannot_answer", "model": "mock-scripted"}

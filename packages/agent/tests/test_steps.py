@@ -76,12 +76,12 @@ def test_unnamed_stretch_is_named_by_type_and_no_side_or_control_is_invented():
     assert maneuver_steps({"maneuvers": []}) == [] and maneuver_steps({}) == []
 
 
-def test_long_routes_keep_eight_lines_and_say_how_many_are_on_the_map():
+def test_long_routes_keep_eight_lines_and_say_how_many_are_not_listed():
     many = {"maneuvers": [m(i, "continue", 10.0 + i) for i in range(1, 15)] + [m(15, "arrive", 0)]}
     steps = maneuver_steps(many)
     assert len(steps) == MAX_STEPS
-    assert steps[-2] == "… 8 more steps are shown on the map."
-    assert steps[-1] == "Arrive at your destination."
+    assert steps[-2] == "… 8 more steps are not listed here (shortened directions)."
+    assert steps[-1] == "Reach the end of the mapped route."  # never a claimed arrival
 
 
 @pytest.mark.parametrize(
@@ -144,3 +144,32 @@ def test_rendered_answer_uses_maneuver_steps_not_model_steps():
     assert "Fly." not in text
     assert "1. Start heading north along the footway" in text
     assert "2. Turn left onto Persiaran Elmina" in text
+
+
+# T-021 review (backend, data/audits/2026-10-20-t021/drive-arrival-chat.json): the real drive
+# answer keeps the road-end gap and driving-limit warnings, and never claims a physical arrival.
+from townshiplens_agent.events import ChatRequest  # noqa: E402
+from townshiplens_agent.memory import SessionMemory  # noqa: E402
+from townshiplens_agent.run import run_turn  # noqa: E402
+from townshiplens_agent.settings import ROOT, AgentSettings  # noqa: E402
+
+SEED = ROOT / "data/seed/elmina"
+
+
+@pytest.mark.skipif(not (SEED / "site.json").exists(), reason="Elmina seed not built")
+async def test_drive_answer_keeps_engine_warnings_and_mapped_end():
+    ctx = tools.Ctx(world=load_world(SEED), vrs=VerificationStore(":memory:"))
+    evs = [
+        e
+        async for e in run_turn(
+            ctx,
+            ChatRequest(message="Can I drive from Car Park B to the playground?", profile="drive"),
+            AgentSettings(_env_file=None, llm_provider="mock"),
+            memory=SessionMemory(),
+        )
+    ]
+    text = "".join(e.delta for e in evs if e.type == "text.delta")
+    assert "distance and time stop at the road" in text
+    assert "legal turn restrictions and changing directions not modelled" in text
+    assert "Arrive at your destination" not in text
+    assert "Reach the end of the mapped route." in text

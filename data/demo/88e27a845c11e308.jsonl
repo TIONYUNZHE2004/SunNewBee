@@ -1,4 +1,4 @@
-{"meta": {"message": "Is the walk from the urban park to the lakeside mall easy?", "profile": "default", "scenario_id": null, "world": "elmina", "world_fingerprint": "597cbd6542d24c3dfdc6b1b97807fd9f7d4b63f9adfb8518d468c31c15548540", "model": "mock-scripted", "recorded_at": "2026-10-19T17:33:30+00:00"}}
+{"meta": {"message": "Is the walk from the urban park to the lakeside mall easy?", "profile": "default", "scenario_id": null, "world": "elmina", "world_fingerprint": "8fcf9fafd9d032eaefcd102c9b099762d6f95c77ee5597e42b0270161ac18851", "model": "mock-scripted", "recorded_at": "2026-10-19T17:52:32+00:00"}}
 {"type": "tool.call", "id": "find_place-0", "name": "find_place", "args": {"query": "urban park", "types": null, "limit": 5, "near_place": null}}
 {"type": "tool.result", "id": "find_place-0", "name": "find_place", "summary": "5 result(s)"}
 {"type": "tool.call", "id": "find_place-1", "name": "find_place", "args": {"query": "lakeside mall", "types": null, "limit": 5, "near_place": null}}
@@ -18,14 +18,14 @@
 {"type": "text.delta", "delta": " (likely OK, estimated from map data).\n3"}
 {"type": "text.delta", "delta": ". Turn right onto the footway. Continue "}
 {"type": "text.delta", "delta": "about 37 m (likely OK, estimated from ma"}
-{"type": "text.delta", "delta": "p data).\n4. Arrive at your destination.\n"}
-{"type": "text.delta", "delta": "Worth knowing:\n• Estimated from map data"}
-{"type": "text.delta", "delta": " (OpenStreetMap path types and tags), no"}
-{"type": "text.delta", "delta": "t checked on site.\n• Route starts at the"}
-{"type": "text.delta", "delta": " nearest mapped path to Elmina Urban Par"}
-{"type": "text.delta", "delta": "k; its entrance is not mapped.\n• Segment"}
-{"type": "text.delta", "delta": " facts are demo values, not yet surveyed"}
-{"type": "text.delta", "delta": "."}
+{"type": "text.delta", "delta": "p data).\n4. Reach the end of the mapped "}
+{"type": "text.delta", "delta": "route.\nWorth knowing:\n• Estimated from m"}
+{"type": "text.delta", "delta": "ap data (OpenStreetMap path types and ta"}
+{"type": "text.delta", "delta": "gs), not checked on site.\n• Route starts"}
+{"type": "text.delta", "delta": " at the nearest mapped path to Elmina Ur"}
+{"type": "text.delta", "delta": "ban Park; its entrance is not mapped.\n• "}
+{"type": "text.delta", "delta": "Segment facts are demo values, not yet s"}
+{"type": "text.delta", "delta": "urveyed."}
 {"type": "scene.intent", "intent": {"kind": "route.highlight", "place_id": null, "route_id": "rt-279d8891", "scenario_id": null, "center": null, "range_m": null, "lens": null, "visible": null, "geojson": {"type": "LineString", "coordinates": [[101.509854, 3.180547], [101.509999, 3.180661], [101.510071, 3.180734], [101.50979, 3.181102], [101.510045, 3.18131]]}, "route_status": "likely_ok", "distance_m": 119.8, "est_minutes": 1.7, "day": null, "t_min": null}}
 {"type": "citation", "ref": 1, "evidence_id": "ev-place-osm-way-1309457596", "element_id": "osm-way-1309457596", "attribute": "name", "status": "reported", "verified_at": null, "source_type": "world_model", "photo_url": null}
 {"type": "citation", "ref": 2, "evidence_id": "ev-place-lakeside-mall", "element_id": "lakeside-mall", "attribute": "name", "status": "unknown", "verified_at": null, "source_type": "team_survey_placeholder", "photo_url": null}
@@ -37,4 +37,4 @@
 {"type": "citation", "ref": 8, "evidence_id": "ev-rt-279d8891.access_estimate", "element_id": "rt-279d8891", "attribute": "route_access_estimate", "status": "reported", "verified_at": null, "source_type": "map-derived estimate (not checked on site)", "photo_url": null}
 {"type": "citation", "ref": 9, "evidence_id": "ev-osm-way-1309457596.access_point", "element_id": "osm-way-1309457596", "attribute": "access_point", "status": "reported", "verified_at": null, "source_type": "osm_area_boundary_snap", "photo_url": null}
 {"type": "uncertainty", "level": "partial", "items": [{"element_id": "route", "attribute": "entrance", "note": "Route starts at the nearest mapped path to Elmina Urban Park; its entrance is not mapped"}, {"element_id": "route", "attribute": "demo_values", "note": "Some segment facts are demo values, not yet surveyed"}, {"element_id": "answer", "attribute": "caveat", "note": "Estimated from map data (OpenStreetMap path types and tags), not checked on site"}]}
-{"type": "done", "message_id": "cef14742ee09", "answer_status": "partial", "model": "mock-scripted"}
+{"type": "done", "message_id": "demo", "answer_status": "partial", "model": "mock-scripted"}

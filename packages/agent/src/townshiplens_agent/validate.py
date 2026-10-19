@@ -544,6 +544,11 @@ def status_wording_errors(ans: FinalAnswer, rec: TurnRecord) -> list[str]:
     errs += maneuver_errors(
         _strip_names(" ".join([ans.summary, *ans.steps, *ans.caveats]), rec.place_names),
         _selected_route(ans, rec),
+        {
+            str(c.get("element_name") or "")
+            for c in [*rec.route_closures, *rec.closures.values()]
+            if c.get("element_name")
+        },
     )
     status = _status_of(ans, rec)
     if status:

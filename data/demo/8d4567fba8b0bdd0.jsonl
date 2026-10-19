@@ -1,4 +1,4 @@
-{"meta": {"message": "What happens to residents in the storm rehearsal?", "profile": "default", "scenario_id": null, "world": "elmina", "world_fingerprint": "597cbd6542d24c3dfdc6b1b97807fd9f7d4b63f9adfb8518d468c31c15548540", "model": "mock-scripted", "recorded_at": "2026-10-19T17:33:30+00:00"}}
+{"meta": {"message": "What happens to residents in the storm rehearsal?", "profile": "default", "scenario_id": null, "world": "elmina", "world_fingerprint": "8fcf9fafd9d032eaefcd102c9b099762d6f95c77ee5597e42b0270161ac18851", "model": "mock-scripted", "recorded_at": "2026-10-19T17:52:39+00:00"}}
 {"type": "tool.call", "id": "day_rehearsal-0", "name": "day_rehearsal", "args": {"day": "storm"}}
 {"type": "tool.result", "id": "day_rehearsal-0", "name": "day_rehearsal", "summary": "ok"}
 {"type": "answer.check", "attempt": 1, "ok": true, "issues": [], "repairs": 0}
@@ -30,4 +30,4 @@
 {"type": "citation", "ref": 1, "evidence_id": "ev-day-storm", "element_id": "day", "attribute": "storm", "status": "indicative", "verified_at": null, "source_type": "rehearsal", "photo_url": null}
 {"type": "uncertainty", "level": "partial", "items": [{"element_id": "answer", "attribute": "caveat", "note": "Residents are synthetic: a rehearsal on the township model, not a forecast and not real people"}, {"element_id": "answer", "attribute": "caveat", "note": "This is an indicative scenario, not a forecast. Follow official MBSA / JPS / NADMA guidance"}]}
 {"type": "disclaimer", "lens": "flood", "text": "Indicative scenario from a 30 m elevation model (Copernicus GLO-30, height above mapped rivers and lakes), not a forecast. Follow official MBSA / JPS / NADMA guidance. Only the area 101.46–101.56 E, 3.15–3.24 N is assessed; paths outside it are not.", "links": [{"label": "Public InfoBanjir (JPS)", "url": "https://publicinfobanjir.water.gov.my"}, {"label": "MET Malaysia warnings", "url": "https://www.met.gov.my"}]}
-{"type": "done", "message_id": "2c154cf283c5", "answer_status": "answered", "model": "mock-scripted"}
+{"type": "done", "message_id": "demo", "answer_status": "answered", "model": "mock-scripted"}
