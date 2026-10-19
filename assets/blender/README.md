@@ -64,6 +64,16 @@ geometry (each builder seeds `random` from the asset id).
 | `tl_assets/archetypes.py` | Archetype builders (`BUILDERS`, merged into `build.py`): every archetype in `specs.ARCHETYPES` |
 | `tl_assets/landmarks.py` | Landmark builders (mall, mosque, school, ...) |
 | `tl_assets/props.py` | Kit builders `trees`, `furniture`, `people`, `vehicles`, `construction` (scripted), and the vendor intake `import_vendor` / `scale_to` |
+| `tl_assets/characters/geom.py` | Pure mesh generators (lathe, ellipsoid, swept tube, Catmull-Rom, orientation) for scripted characters |
+| `tl_assets/characters/proportions.py` | Hero height, H4 head ratio, display scale and clay palette (pure) |
+| `tl_assets/characters/parts.py` | The hero's parts as pure geometry (head, tudung drape, baju, kain, arms, walker, stoop pose) and `measure` (H3/H4 in pytest) |
+| `tl_assets/characters/hero.py` | The journey hero (C-T2): chibi older woman, baju kurung, tudung, scripted walker; `build_hero("tpose")` / `build_hero("walker")` |
+| `tl_assets/characters/sheet.py` | Renders the hero modelling sheet (EEVEE, 16 samples), stats json and `.blend` |
+| `tl_assets/characters/rig.py` | Hero rig (pure): 34 bones, skin weight fields, two-bone IK, the six clip poses, stride and bench constants |
+| `tl_assets/characters/props.py` | Scripted stroller and wheelchair (pure geometry) |
+| `tl_assets/characters/export_hero.py` | Blender entry: rig, bake clips, export `out/raw/characters/hero_<variant>.glb` + stats json; `--render` acceptance views |
+| `tl_assets/characters/turntable.py` | Acceptance renders: walk / sit_idle turntables, bench side view, follow and seam close-ups |
+| `tl_assets/characters/manifest.py` | `characters/manifest.json` builder (pure) |
 
 ## Conventions
 
@@ -201,3 +211,42 @@ protocol"; it is not repeated here. Headless preview: `pnpm assets:build -- --as
 `maxM: null` means the last LOD is drawn to any distance; a numeric last `maxM` hides
 instances beyond it. `landmarks` holds anchors (the `landmarks.geojson` ring centroid) only for
 landmarks placed by `"anchor"`.
+
+## Hero modelling sheet (C-T2)
+
+Not part of `run.py`/`specs.ASSETS` yet (no glb until the C-T3 rig). Render the owner sheet with:
+
+```bash
+"C:/Program Files/Blender Foundation/Blender 5.2/blender.exe" -b --factory-startup --python-exit-code 1     -P assets/blender/tl_assets/characters/sheet.py -- --out <dir>
+```
+
+It writes `hero_sheet.png` (T-pose and walker pose: front, side, back, 3/4), `hero_cameras.png`
+(follow, behind, side, 3/4 face, 3/4 front, 30 m and 80 m), `hero_vs_prototype.png`, `tiles/`, `hero_stats.json`
+and `hero.blend` (about 30 s). The hero is modelled at true scale (1.55 m, facing -y); the web
+draws her at 1.5x (R-J3). Body parts are separate closed shells with vertex groups named for the
+rig (`head`, `face`, `tudung_cape`, `torso`, `kain` plus soft `kain_L`/`kain_R`, `arm_L/R`,
+`hand_L/R`, `shoe_L/R`). H4 is measured on the T-pose; the script fails if it is out of range.
+
+## Hero rig and export (C-T3)
+
+```bash
+"C:/Program Files/Blender Foundation/Blender 5.2/blender.exe" -b --factory-startup --disable-autoexec     --python-exit-code 1 -P assets/blender/tl_assets/characters/export_hero.py -- [--variant walker] [--render <dir>]
+uv run python assets/blender/pack.py --heroes   # meshopt (same settings as the kits) -> apps/web/public/city/characters/
+```
+
+About 25 s for all four variants (walker, stroller, wheelchair, none) without renders. Each glb holds
+one skinned body per LOD (`hero__LOD0`, `hero__LOD1`), the prop meshes bone-parented to `prop` (and
+`wheels` for the wheelchair's rear wheels), and the clips `walk`, `idle`, `sit_down`, `sit_idle`,
+`stand_up`, `look`, baked at 30 fps from `rig.clip_pose` (FK plus analytic two-bone IK in mathutils;
+no constraints ship). The bind pose is the C-T2 T-pose; the hero is drawn at 1.55x (R-J3). Clips
+are in place and the root never moves: the runtime moves the object and sets the walk rate from
+`stride` and `walkDuration` in `characters/manifest.json` (`heroManifest.ts: walkRate`). Palms
+ride the `grip_L/R` bones (prop children) in `walk`, `idle` and `look`. In `sit_down` she parks the
+prop beside her right leg (hands on it) and moves her hips up and back onto the reference bench in
+the manifest (`bench.seat`/`bench.back` boxes: seat top 0.45 m true, front edge 0.21 m behind the
+root); the runtime places that bench relative to the root. `contact_FL/FR/RL/RR` (prop children)
+mark the prop's ground contacts. Do not call `skeleton.pose()` on the packed glbs (meshopt folds
+a scale into the inverse bind matrices). The manifest has no date, so a repack is byte-stable. The checks are
+`tests/test_hero_rig.py` (pure) and `apps/web/src/features/scene/three/assets/heroGlb.test.ts`
+(the shipped glbs: H1-H4, palm-to-grip, sit height, foot slide, loop seams). The rebuild is
+deterministic (same bytes).

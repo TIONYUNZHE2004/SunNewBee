@@ -11,6 +11,8 @@ import { useScene } from "../sceneStore";
 import { createRoleUniforms } from "./assets/roleMaterial";
 import { createEngine } from "./engine";
 import { createFrame } from "./frame";
+import { boundaryOf } from "./ground/boundary";
+import { clipLayer } from "./ground/clipLayer";
 import { useSceneBus } from "./scene/sceneBus";
 import { useAcceptanceHook } from "./scene/useAcceptanceHook";
 import { useCameraOps } from "./scene/useCameraOps";
@@ -25,6 +27,7 @@ import { useMotion } from "./scene/useMotion";
 import { useOverlays } from "./scene/useOverlays";
 import { usePicking } from "./scene/usePicking";
 import { useRoofs } from "./scene/useRoofs";
+import { useSlab } from "./scene/useSlab";
 import { useMergeMeasure, useStream } from "./scene/useStream";
 
 export const DECORATIVE_NOTE = "Decorative details are illustrative.";
@@ -87,8 +90,7 @@ export default function ThreeScene({
   }, []);
 
   const site = useSite().data;
-  const buildingsQ = useBuildings();
-  const buildings = buildingsQ.data;
+  const rawBuildingsQ = useBuildings();
   const profile = useScene((s) => s.profile);
   const scenarioId = useScene((s) => s.scenarioId);
   const access = useLayer("access", profile, scenarioId);
@@ -102,6 +104,25 @@ export default function ThreeScene({
     [center],
   );
   const bbox = site?.bbox;
+  // A-T4: the Elmina outline (display only). Every stylised layer is cut to it once here (and each
+  // streamed tile passes its vertex guard); routing, the API data and the data overlays are not.
+  const boundaryGeom = site?.boundary?.geometry;
+  const boundary = useMemo(
+    () => (frame && boundaryGeom ? boundaryOf(boundaryGeom, frame) : null),
+    [frame, boundaryGeom],
+  );
+  const rawBuildings = rawBuildingsQ.data;
+  const buildings = useMemo(
+    () =>
+      rawBuildings && boundary && frame
+        ? clipLayer(rawBuildings, boundary, frame).layer
+        : rawBuildings,
+    [rawBuildings, boundary, frame],
+  );
+  const buildingsQ = useMemo(
+    () => ({ data: buildings, isError: rawBuildingsQ.isError, isSuccess: rawBuildingsQ.isSuccess }),
+    [buildings, rawBuildingsQ.isError, rawBuildingsQ.isSuccess],
+  );
 
   // Same place lookup as CesiumScene: place ids to coordinates from the access layer.
   // Memoised on the data: Day playback re-renders this component at ~10 Hz.
@@ -125,14 +146,17 @@ export default function ThreeScene({
     assetsOn,
     showroom,
     roleUniforms,
+    boundary,
   });
   const { assetsState, loaded } = city;
+  useSlab({ engine, boundary: showroom ? null : boundary });
   const { detailsOn, walk, landcover } = useGround({
     engine,
     frame,
     buildingsQ,
     accessData: access.data,
     tier,
+    boundary,
   });
   // Township streaming: the 250 m tiles around the camera target feed every decorative layer.
   const { active, centre, mergeStart } = useStream({
@@ -146,6 +170,7 @@ export default function ThreeScene({
     showroom,
     facadeSrc: city.facadeSrc,
     roofSrc: city.roofSrc,
+    boundary,
   });
   const { roads, stalls } = useRoads({ engine, active, tier });
   // Verges and construction ground: one ground-decor mesh (stall lines ride the road markings).
@@ -169,6 +194,7 @@ export default function ThreeScene({
     setKits: city.setKits,
     kitJob: city.kitJob,
     bus,
+    boundary,
   });
   const { running, onScreen, agents } = useMotion({
     engine,

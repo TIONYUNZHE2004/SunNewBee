@@ -14,6 +14,7 @@ from townshiplens_spatial import tools
 from townshiplens_spatial.journey import JourneyEvidenceError, build_journey
 from townshiplens_spatial.models import (
     HHMM_PATTERN,
+    BoundaryRef,
     JourneyPlan,
     Route,
     RouteResult,
@@ -75,9 +76,53 @@ def healthz():
     return {"status": "ok", "world_model": warm.public_status()}
 
 
-@router.get("/site", response_model=Site)
-def site() -> Site:
-    return state.get_ctx().world.site
+class SiteBoundary(BoundaryRef):
+    """The display-only Elmina outline with its geometry, for the stylised renderer's clip and
+    diorama slab. Routing, evaluation and answers never read it. `geometry` is null when the file
+    is missing, unreadable or not one Polygon / MultiPolygon."""
+
+    geometry: dict[str, Any] | None = None
+
+
+class SiteInfo(Site):
+    boundary: SiteBoundary | None = None
+
+
+# (boundary path, mtime_ns) -> geometry
+_boundary_cache: dict[tuple[str, int], dict[str, Any] | None] = {}
+
+
+def _boundary_geometry(ref: BoundaryRef) -> dict[str, Any] | None:
+    data = state.data_dir().resolve()
+    path = (data / ref.file).resolve()
+    if not path.is_relative_to(data) or not path.is_file():
+        return None
+    key = (str(path), _mtime(path))
+    if key in _boundary_cache:
+        return _boundary_cache[key]
+    geom: dict[str, Any] | None = None
+    try:
+        fc = json.loads(path.read_text(encoding="utf-8"))
+        feats = fc.get("features") if isinstance(fc, dict) else None
+        g = feats[0].get("geometry") if isinstance(feats, list) and len(feats) == 1 else None
+        if isinstance(g, dict) and g.get("type") in ("Polygon", "MultiPolygon"):
+            geom = g
+    except (OSError, ValueError, AttributeError, TypeError) as e:
+        log.warning("boundary unreadable: %s", e)
+    _boundary_cache.clear()
+    _boundary_cache[key] = geom
+    return geom
+
+
+@router.get("/site", response_model=SiteInfo)
+def site() -> SiteInfo:
+    s = state.get_ctx().world.site
+    out = SiteInfo.model_validate(s.model_dump(exclude={"boundary"}))
+    if s.boundary is not None:
+        out.boundary = SiteBoundary(
+            **s.boundary.model_dump(), geometry=_boundary_geometry(s.boundary)
+        )
+    return out
 
 
 THRESHOLD_BASIS = "our engineering default (no published source)"

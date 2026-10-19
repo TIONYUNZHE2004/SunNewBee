@@ -4,6 +4,8 @@ import type { BuildingsLayer, useLayer } from "../../../../lib/api";
 import type { Tier } from "../../shared/quality";
 import type { Engine } from "../engine";
 import type { LocalFrame } from "../frame";
+import type { Boundary } from "../ground/boundary";
+import { clipWalk } from "../ground/clipLayer";
 import { createGroundLayer } from "../ground/groundLayer";
 import { landcoverMesh } from "../ground/landcover";
 import type { Ribbon } from "../ground/ribbons";
@@ -28,12 +30,16 @@ export function useGround({
   buildingsQ,
   accessData,
   tier,
+  boundary = null,
 }: {
   engine: Engine | null;
   frame: LocalFrame | null;
+  /** `data` already cut to the Elmina outline when the world has one (`ground/clipLayer.ts`). */
   buildingsQ: { data?: BuildingsLayer | null; isError: boolean; isSuccess: boolean };
   accessData: LayerData | undefined;
   tier: Tier;
+  /** The Elmina outline (A-T4): the walk the decorative planners read is cut to it. */
+  boundary?: Boundary | null;
 }) {
   const buildings = buildingsQ.data;
   // Roads are built only after the first frame with the buildings (or at once when the world has
@@ -45,7 +51,12 @@ export function useGround({
   const detailsOn = cityShown || buildingsQ.isError || (buildingsQ.isSuccess && !buildings);
   const walkRef = useRef<LayerData | undefined>(undefined);
   if (!walkRef.current && accessData) walkRef.current = accessData;
-  const walk = walkRef.current;
+  const latched = walkRef.current;
+  // The decorative copy only (roads, props, lots, verges, agents): overlays keep the full layer.
+  const walk = useMemo(
+    () => (latched && boundary && frame ? clipWalk(latched, boundary, frame) : latched),
+    [latched, boundary, frame],
+  );
 
   // First frame after the city is set: the ground details may now load.
   useEffect(() => {
