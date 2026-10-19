@@ -51,7 +51,16 @@ def plan_hero_route() -> tuple[TurnRecord, str, list[str]]:
     asyncio.run(
         A.call_tool(deps, "plan_route", from_id="park-b", to_id="playground", profile="stroller")
     )
-    return rec, next(iter(rec.routes)), list(rec.evidence)[:1]
+    rid = next(iter(rec.routes))
+    # The route's fixed notes (crossing_note, road_note) belong in every honest answer about it,
+    # so answer() adds them: the probes then differ from an honest answer only in their text.
+    ROUTE_NOTES[:] = [
+        n for n in (rec.routes[rid].get(k) for k in ("crossing_note", "road_note")) if n
+    ]
+    return rec, rid, list(rec.evidence)[:1]
+
+
+ROUTE_NOTES: list[str] = []
 
 
 def answer(summary: str, rid: str, ev: list[str]) -> FinalAnswer:
@@ -59,7 +68,7 @@ def answer(summary: str, rid: str, ev: list[str]) -> FinalAnswer:
         answer_status="answered",
         summary=summary,
         route_id=rid,
-        caveats=CAVEATS,
+        caveats=[*CAVEATS, *ROUTE_NOTES],
         claims=[Claim(text="No steps recorded", status="unverified", evidence_ids=ev)],
     )
 

@@ -106,9 +106,10 @@ def _unknown_caveats(routes: list, vrs: list[dict] | None = None) -> list[str]:
 
 
 def _crossing(route: dict | None) -> list[str]:
-    """plan_route's crossing note, word for word (validator: crossing_note)."""
-    note = (route or {}).get("crossing_note")
-    return [note] if note else []
+    """plan_route's crossing and road notes, word for word (validator: crossing_note,
+    road_note)."""
+    route = route or {}
+    return [n for n in (route.get("crossing_note"), route.get("road_note")) if n]
 
 
 def _inferred(ret: dict) -> list[str]:

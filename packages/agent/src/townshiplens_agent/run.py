@@ -37,6 +37,7 @@ from .labels import (
     route_status_line,
     unknown_note,
 )
+from .localize import localize
 from .memory import DEFAULT as DEFAULT_MEMORY
 from .memory import SessionMemory
 from .record import TurnRecord
@@ -234,13 +235,16 @@ def answer_text(
             rest.append(c)
 
     def dot(c: str) -> str:
-        return c if c.endswith((".", "!", "?", "。", "！", "？")) else c + "."
+        c = localize(c, lang)  # fixed English lines in the answer's language (T-019)
+        if c.endswith((".", "!", "?", "。", "！", "？")):
+            return c
+        return c + ("。" if lang == "zh" and re.search(r"[\u3400-\u9fff）]$", c) else ".")
 
     parts = [label] if label else []
     parts += [f"{URGENT_MARK} {dot(c)}" for c in urgent]
-    parts.append(summary)
+    parts.append(localize(summary, lang))
     if ans.steps:
-        parts.append("\n".join(f"{i}. {s}" for i, s in enumerate(ans.steps, 1)))
+        parts.append("\n".join(f"{i}. {localize(s, lang)}" for i, s in enumerate(ans.steps, 1)))
     if rest:
         head = FRAME.get(lang, FRAME["en"])["worth"]
         parts.append(head + "\n" + "\n".join(f"• {dot(c)}" for c in rest))

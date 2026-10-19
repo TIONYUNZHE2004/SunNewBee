@@ -16,10 +16,12 @@ from .labels import (
     CLOSURE_WORDS,
     DEMO_CONFIRMED,
     REST_GAP_WORDS,
+    ROAD_WORDS,
     closure_name,
     closure_until,
     detect_language,
 )
+from .localize import localize
 from .record import TurnRecord
 
 FORBIDDEN = re.compile(r"(?<![\w-])safe(?:ly)?(?![\w-])|\bselamat\b|安全", re.IGNORECASE)
@@ -232,6 +234,19 @@ def _names_closure(segments: list[str], row: dict) -> bool:
         CLOSURE_WORDS.lower() in low and name in low and until in low
         for low in (seg.lower() for seg in segments)
     )
+
+
+CROSSING_ANY = re.compile(r"crossings?|lintasan|过街|人行横道|斑马线", re.IGNORECASE)
+
+
+def _note_given(note: str, caveat: str, words: re.Pattern[str]) -> bool:
+    """A fixed plan_route note is in a caveat: word for word, as the app's own BM / 中文 line
+    (localize), or translated by the model with the same subject words and every number of the
+    note (T-019: a translated crossing or road note is not a missing one)."""
+    if any(_norm_note(localize(note, lang)) in _norm_note(caveat) for lang in ("en", "ms", "zh")):
+        return True
+    nums = re.findall(r"\d+", note)
+    return bool(words.search(caveat)) and all(re.search(rf"(?<!\d){n}(?!\d)", caveat) for n in nums)
 
 
 def _inferred_ok(note: str, caveat: str) -> bool:
@@ -573,9 +588,19 @@ def validate_answer(ans: FinalAnswer, rec: TurnRecord) -> list[str]:
     if (
         ans.answer_status != "cannot_answer"
         and cnote
-        and not any(_norm_note(cnote) in _norm_note(c) for c in ans.caveats)
+        and not any(_note_given(cnote, c, CROSSING_ANY) for c in ans.caveats)
     ):
         errs.append(f"plan_route says: {cnote!r} Add that as a caveat (word for word).")
+    rnote = route.get("road_note")
+    if (
+        ans.answer_status != "cannot_answer"
+        and rnote
+        and not any(_note_given(rnote, c, ROAD_WORDS) for c in ans.caveats)
+    ):
+        errs.append(
+            f"plan_route warned: {rnote!r} Add that as a caveat (word for word); never call "
+            "that stretch a footpath or sidewalk."
+        )
     if ans.answer_status != "cannot_answer":
         for note in rec.inferred_notes:
             if not any(_inferred_ok(note, c) for c in ans.caveats):

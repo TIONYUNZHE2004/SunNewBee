@@ -102,6 +102,91 @@ QUESTIONS = [
     ),
 ]
 
+# T-019: route answers against the path data (types, road metres, sidewalks, crossings).
+ROUTES_T019 = [
+    (
+        "r01",
+        "en",
+        "route-road",
+        "I am in Surau Al Mahdi, how can I walk to Surau At Taqwa?",
+        "default",
+        None,
+    ),
+    (
+        "r02",
+        "ms",
+        "route-road",
+        "Boleh nenek saya naik kerusi roda dari Surau Al Mahdi ke Surau At Taqwa?",
+        "wheelchair",
+        None,
+    ),
+    (
+        "r03",
+        "zh",
+        "route-hero",
+        "推婴儿车从Lakeside Mall Car Park B去Urban Park playground方便吗？",
+        "stroller",
+        None,
+    ),
+    (
+        "r04",
+        "en",
+        "route-deep",
+        "Can I get from Lakeside Mall Car Park B to Elmina Lakeside Mall in a wheelchair?",
+        "wheelchair",
+        None,
+    ),
+    (
+        "r05",
+        "ms",
+        "route-long",
+        "Macam mana nak jalan kaki dari Elmina Lakeside Mall ke Anadia Clinic?",
+        "default",
+        None,
+    ),
+    (
+        "r06",
+        "zh",
+        "route-outside",
+        "从Anadia Clinic走路去Skyhill Clinic HQ怎么走？",
+        "default",
+        None,
+    ),
+    (
+        "r07",
+        "en",
+        "route-rest",
+        "My father needs to rest often. Can he walk from Elmina Lakeside Mall to Elmina Urban Park?",
+        "older_adult_rest",
+        None,
+    ),
+    (
+        "r08",
+        "en",
+        "route-mixed",
+        "Stroller route from Elmina Lakeside Mall to Surau At Taqwa?",
+        "stroller",
+        None,
+    ),
+    (
+        "r09",
+        "ms",
+        "route-deep",
+        "Laluan kereta sorong dari Lakeside Mall Car Park B ke Urban Park toilet?",
+        "stroller",
+        None,
+    ),
+    (
+        "r10",
+        "zh",
+        "route-long",
+        "坐轮椅从Surau Al Mahdi去Elmina Lakeside Mall可以吗？",
+        "wheelchair",
+        None,
+    ),
+]
+SETS = {"t017": QUESTIONS, "t019": ROUTES_T019}
+
 
 async def run(qs, provider):
     settings = AgentSettings(llm_provider=provider, demo_mode=False)
@@ -156,15 +241,16 @@ def main():
     ap.add_argument("--round", type=int, required=True)
     ap.add_argument("--only", default="")
     ap.add_argument("--provider", choices=("openrouter", "mock"), default="openrouter")
+    ap.add_argument("--set", choices=sorted(SETS), default="t017")
     args = ap.parse_args()
-    qs = [q for q in QUESTIONS if not args.only or q[0] in args.only.split(",")]
+    qs = [q for q in SETS[args.set] if not args.only or q[0] in args.only.split(",")]
     if len(qs) > 10:
         sys.exit("at most 10 questions per live round")
     pydantic_ai.BANNER_ENABLED = False
     rows = asyncio.run(run(qs, args.provider))
-    out = HERE / f"round{args.round}-{args.provider}.json"
+    out = HERE / f"round{args.round}-{args.set}-{args.provider}.json"
     out.write_text(
-        json.dumps({"round": args.round, "rows": rows}, indent=1, ensure_ascii=False) + "\n"
+        json.dumps({"round": args.round, "rows": rows}, indent=2, ensure_ascii=False) + "\n"
     )
     print(f"saved {out}")
 

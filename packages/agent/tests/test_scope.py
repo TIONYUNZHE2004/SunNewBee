@@ -194,8 +194,7 @@ def _route_model(from_id: str, to_id: str, profile: str):
         data = rets[-1].content
         r = data["data"]["routes"][0]
         caveats = [w for w in data.get("warnings", []) if "entrance is not mapped" in w]
-        if r.get("crossing_note"):
-            caveats.append(r["crossing_note"])
+        caveats += [r[k] for k in ("crossing_note", "road_note") if r.get(k)]
         if r.get("demo_evidence"):
             caveats.append("Segment facts are demo values, not yet surveyed.")
         ans = {

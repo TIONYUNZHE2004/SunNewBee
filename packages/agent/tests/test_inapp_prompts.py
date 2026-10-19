@@ -91,7 +91,7 @@ async def test_inapp_prompt_is_answered_by_the_mock(world, tmp_path, msg, profil
     low = text.lower()
     words = re.findall(r"[a-z]+", low)
     assert "safe" not in words
-    assert not re.search(r"(?<!un)verified", low), "no verified wording on demo data"
+    assert not re.search(r"(?<!un)(?<!not )verified", low), "no verified wording on demo data"
     assert not re.search(r"\d+(?:\.\d+)?\s*(?:cm|centimet|metres? deep|m deep)", low)
     assert not re.search(r"\b(?:depth|deep)\b", low)
     if scenario:
