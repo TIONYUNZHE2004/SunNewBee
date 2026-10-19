@@ -108,8 +108,9 @@ async def test_inapp_prompt_is_answered_by_the_mock(world, tmp_path, msg, profil
     # a planned route is always named with its status
     if any(e.type == "tool.result" and e.name == "plan_route" for e in evs):
         assert re.search(
-            r"Route status: (confirmed|partly unverified|blocked|no mapped connection)|route "
-            r"(confirmed|partly unverified)|No mapped connection|nearest reachable centre",
+            r"Route status: (confirmed|likely OK|partly unverified|blocked|no mapped connection)"
+            r"|route (confirmed|likely OK|partly unverified)|No mapped connection"
+            r"|nearest reachable centre",
             text,
         ), text
     assert not re.search(r"\bseg-|\bosm-way|[a-z]+_[a-z]+", text), text  # no ids or raw keys
@@ -131,7 +132,8 @@ async def test_urban_park_route_is_routable_with_entrance_caveat(world, tmp_path
     msg, profile, scenario = ACCESS[3]
     evs = await _turn(world, tmp_path, msg, profile, scenario)
     text = _text(evs)
-    assert "Elmina Urban Park to Elmina Lakeside Mall: route confirmed" in text
+    # likely_ok since T-020: estimated from map data, never "confirmed"
+    assert "Elmina Urban Park to Elmina Lakeside Mall: route likely OK (estimated" in text
     assert (
         "Route starts at the nearest mapped path to Elmina Urban Park; "
         "its entrance is not mapped" in text

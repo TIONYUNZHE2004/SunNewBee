@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, Field
+from townshiplens_spatial.models import RouteStatus
 
 IntentKind = Literal[
     "camera.fly_to",
@@ -31,7 +32,7 @@ class SceneIntent(BaseModel):
     geojson: dict[str, Any] | None = None  # attached by the server for route.highlight
     # Attached by the server for route.highlight from the route plan_route returned this turn
     # (never set by the model): lets the UI show a summary without computing any fact.
-    route_status: Literal["confirmed", "partly_unverified", "blocked", "no_data"] | None = None
+    route_status: RouteStatus | None = None  # the engine's statuses, incl. likely_ok (T-020)
     distance_m: float | None = None
     est_minutes: float | None = None
     day: str | None = None  # day.show: weekday | storm | event | friday

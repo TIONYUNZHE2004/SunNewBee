@@ -8,6 +8,7 @@ from pydantic_ai.messages import ModelRequest, ToolReturnPart, UserPromptPart
 from pydantic_ai.models.function import AgentInfo, DeltaToolCall, FunctionModel
 
 from .labels import (
+    LIKELY_OK_CAVEAT,
     attribute_label,
     closure_caveats,
     closure_summary_tail,
@@ -130,6 +131,8 @@ def _blocked_by_closure(closed: list[dict]) -> bool:
 def _status_caveat(status: str, a: str, b: str) -> str:
     if status == "no_data":
         return f"No mapped connection between {a} and {b} (data gap)."
+    if status == "likely_ok":
+        return f"{LIKELY_OK_CAVEAT}."
     return f"Route status: {status_label(status)}; some segments are still unverified."
 
 
