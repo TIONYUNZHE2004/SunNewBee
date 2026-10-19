@@ -257,6 +257,13 @@ describe("fix round 1: manifest palettes load through the clay table", () => {
   });
 });
 
+describe("GATE fix: the hero's rest bench is clay, never charcoal (AC-B6 beats)", () => {
+  it("bench wood and iron are at least CLAY_MIN_LUMINANCE (shade-side legs stay over 0.03)", () => {
+    for (const c of [CLAY_PALETTE.hero.benchWood, CLAY_PALETTE.hero.benchIron])
+      expect(luminance(c), c).toBeGreaterThanOrEqual(CLAY_MIN_LUMINANCE);
+  });
+});
+
 describe("fix round 1: standard-only gate switch", () => {
   afterEach(() => setClayStandardOnly("ground", false));
   it("a standardOnly role is standard even on High; others keep sheen", () => {

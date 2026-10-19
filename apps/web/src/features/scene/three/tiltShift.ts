@@ -11,6 +11,7 @@ import { THREE_TIERS } from "./quality";
  * (`docs/03-product/prototypes/resident-journey`: <= 120 m aperture 0.00016 / maxblur 0.007,
  * farther 0.000022 / 0.006), blended over NEAR_M..FAR_M instead of the prototype's step, and
  * capped so the blur saturates no closer than `bandK` x the focus depth (a band at any range).
+ * In follow mode (a subject) the blur is stronger and tighter around her (`TILT_SHIFT.subject`).
  *
  * Display only. On High only (`THREE_TIERS.dof`), and off with the FX toggle off or under
  * prefers-reduced-motion (AC-B5). Markers and journey pins render after the composer, so they are
@@ -33,6 +34,17 @@ export const TILT_SHIFT = {
   overviewMaxblur: 0.003,
   overviewFromM: 1000,
   overviewToM: 4000,
+  /**
+   * Follow mode (a subject set: `Engine.setFocusPoint`, her chest; AC-B4). The prototype's near
+   * values (blur saturating ~44 m behind a ~10 m focus, at most ~4 px) left the far field and the
+   * near canopies in the top of a follow frame about as sharp as she is (gate: ratio 0.13-2.99).
+   * With a subject the blur saturates `bandK` x the focus distance from her (in front or behind)
+   * and reaches `maxblur` (~10 px at 1440 px); faded back to the plain values over fullM..fadeM of
+   * camera distance (log), so the dive from the overview and the pull-back have no pop. `slabM`: a
+   * depth slab around her (her, the walker, the bench) with no blur at all; the blur ramps from its
+   * faces. Without it the hero box lost ~2/3 of its sharpness to sub-pixel blur (GPU run 1).
+   */
+  subject: { maxblur: 0.018, bandK: 0.6, slabM: 2.5, fullM: 120, fadeM: 2000 },
 } as const;
 
 /** Whether depth of field runs: the tier has it, the FX toggle is on and motion is not reduced. */
@@ -41,7 +53,27 @@ export function dofActive(s: { tier: Tier; fx: boolean; reducedMotion: boolean }
 }
 
 /** Aperture and max blur for a camera `distM` from its focus (log-distance blend, monotone). */
-export function tiltShiftParams(distM: number): { aperture: number; maxblur: number } {
+export function tiltShiftParams(
+  distM: number,
+  subject = false,
+): { aperture: number; maxblur: number; slab: number } {
+  const base = { ...plainParams(distM), slab: 0 };
+  if (!subject) return base;
+  const { maxblur, bandK, slabM, fullM, fadeM } = TILT_SHIFT.subject;
+  const d = Math.max(1, distM);
+  const k = Math.min(1, Math.max(0, Math.log(d / fullM) / Math.log(fadeM / fullM)));
+  const w = 1 - k * k * (3 - 2 * k); // 1 close in, 0 at fadeM and beyond
+  if (w <= 0) return base;
+  const mb = base.maxblur + (Math.max(maxblur, base.maxblur) - base.maxblur) * w;
+  const ap = Math.max(base.aperture, mb / (bandK * d));
+  return {
+    aperture: Math.exp(Math.log(base.aperture) + (Math.log(ap) - Math.log(base.aperture)) * w),
+    maxblur: mb,
+    slab: slabM * w,
+  };
+}
+
+function plainParams(distM: number): { aperture: number; maxblur: number } {
   const { near, far, nearM, farM } = TILT_SHIFT;
   const d = Math.max(1, distM);
   const k = Math.min(1, Math.max(0, Math.log(d / nearM) / Math.log(farM / nearM)));
@@ -61,6 +93,19 @@ export function tiltShiftParams(distM: number): { aperture: number; maxblur: num
   const blend = near.maxblur + (far.maxblur - near.maxblur) * s;
   const maxblur = blend + (TILT_SHIFT.overviewMaxblur - blend) * s2;
   return { aperture: Math.min(aperture, maxblur / (TILT_SHIFT.bandK * d)), maxblur };
+}
+
+/** BokehShader blur distance with an in-focus slab of half depth `slab` (m) around the focus. */
+export const SLAB_FACTOR_GLSL =
+  "float factor = sign( focus + viewZ ) * max( 0.0, abs( focus + viewZ ) - slab );";
+
+/** The blur (UV) the patched shader gives a fragment at `depth` (pure; tests and docs). */
+export function blurAt(
+  p: { aperture: number; maxblur: number; slab: number },
+  focus: number,
+  depth: number,
+): number {
+  return Math.min(p.maxblur, Math.max(0, Math.abs(depth - focus) - p.slab) * p.aperture);
 }
 
 const tmp = new THREE.Vector3();
@@ -89,15 +134,28 @@ export class CityBokehPass extends BokehPass {
       aperture: TILT_SHIFT.far.aperture,
       maxblur: TILT_SHIFT.far.maxblur,
     });
+    // The in-focus slab (follow mode): 0 leaves the stock shader's blur unchanged.
+    const m = this.materialBokeh;
+    const from = "float factor = ( focus + viewZ );";
+    if (!m.fragmentShader.includes(from)) throw new Error("BokehShader changed: no focus factor");
+    m.fragmentShader = m.fragmentShader
+      .replace("uniform float focus;", "uniform float focus;\nuniform float slab;")
+      .replace(from, SLAB_FACTOR_GLSL);
+    m.uniforms.slab = { value: 0 };
+    m.needsUpdate = true;
   }
 
-  /** Focus at view depth `focusM` with the aperture for a camera `distM` from its focus. */
-  aim(focusM: number, distM: number): void {
-    const p = tiltShiftParams(distM);
+  /**
+   * Focus at view depth `focusM` with the aperture for a camera `distM` from its focus; `subject`
+   * when the focus is a followed subject (follow mode), not the camera target.
+   */
+  aim(focusM: number, distM: number, subject = false): void {
+    const p = tiltShiftParams(distM, subject);
     const u = this.uniforms as Record<string, { value: number }>;
     (u.focus as { value: number }).value = focusM;
     (u.aperture as { value: number }).value = p.aperture;
     (u.maxblur as { value: number }).value = p.maxblur;
+    (u.slab as { value: number }).value = p.slab;
   }
 
   override render(...args: Parameters<BokehPass["render"]>): void {

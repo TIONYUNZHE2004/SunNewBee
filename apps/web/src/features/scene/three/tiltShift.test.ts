@@ -2,7 +2,15 @@ import * as THREE from "three";
 import { BokehPass } from "three/addons/postprocessing/BokehPass.js";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { THREE_TIERS } from "./quality";
-import { CityBokehPass, dofActive, focusDepth, TILT_SHIFT, tiltShiftParams } from "./tiltShift";
+import {
+  CityBokehPass,
+  dofActive,
+  focusDepth,
+  SLAB_FACTOR_GLSL,
+  blurAt as slabBlur,
+  TILT_SHIFT,
+  tiltShiftParams,
+} from "./tiltShift";
 
 describe("tilt-shift presets (B-T5, AC-B5)", () => {
   it("depth of field is on High only; Low also has no AO", () => {
@@ -73,6 +81,41 @@ describe("tiltShiftParams at range (overview: a focus band, not a blurred map)",
   });
 });
 
+describe("tiltShiftParams in follow mode (a subject: her chest; AC-B4)", () => {
+  // BokehShader: the kernel's outer ring is at 0.4 x the blur (UV of the width).
+  const px = (blur: number) => blur * 0.4 * 1440;
+  const blurAt = (cam: number, focus: number, depth: number) =>
+    slabBlur(tiltShiftParams(cam, true), focus, depth);
+  it("blurs the far field (> 60 m) strongly at the follow distances and keeps her sharp", () => {
+    for (const d of [10, 14, 20, 30]) {
+      // The follow pose is ~10.5 m from her chest (8.5 back, 4.5 side, 4.2 up); holds frame wider.
+      // The far field (> 60 m) and canopies 2x her distance: at the max blur, >= 6 px.
+      expect(px(blurAt(d, d, 60 + d)), `${d} far`).toBeGreaterThanOrEqual(6);
+      expect(blurAt(d, d, 2 * d), `${d} canopy`).toBeCloseTo(tiltShiftParams(d, true).maxblur, 9);
+      // Her, the walker and the bench (+-2 m of the focus): inside the slab, not blurred at all.
+      expect(blurAt(d, d, d + 2), `${d} hero`).toBe(0);
+      expect(blurAt(d, d, d - 2), `${d} hero`).toBe(0);
+    }
+  });
+  it("is at least the plain blur and fades to it by fadeM (no pop on the dive or pull-back)", () => {
+    for (const d of [5, 50, 200, 800, 1500]) {
+      const s = tiltShiftParams(d, true);
+      const p = tiltShiftParams(d);
+      expect(s.maxblur).toBeGreaterThanOrEqual(p.maxblur);
+      expect(s.aperture).toBeGreaterThanOrEqual(p.aperture * 0.999);
+    }
+    for (const d of [TILT_SHIFT.subject.fadeM, 4000, 7000])
+      expect(tiltShiftParams(d, true)).toEqual(tiltShiftParams(d));
+    let last = tiltShiftParams(TILT_SHIFT.subject.fullM, true);
+    for (let d = TILT_SHIFT.subject.fullM; d <= TILT_SHIFT.subject.fadeM; d *= 1.02) {
+      const p = tiltShiftParams(d, true);
+      expect(Math.abs(p.maxblur - last.maxblur) / last.maxblur).toBeLessThan(0.03);
+      expect(Math.abs(p.aperture - last.aperture) / last.aperture).toBeLessThan(0.06);
+      last = p;
+    }
+  });
+});
+
 describe("focusDepth (BokehPass focus = depth along the view axis)", () => {
   it("is the focus point's distance along the look direction, never negative", () => {
     const cam = new THREE.PerspectiveCamera(40, 1, 1, 10000);
@@ -115,6 +158,21 @@ describe("CityBokehPass", () => {
     expect(u.focus?.value).toBe(250);
     expect(u.aperture?.value).toBeCloseTo(TILT_SHIFT.near.aperture, 9);
     expect(u.maxblur?.value).toBeCloseTo(TILT_SHIFT.near.maxblur, 9);
+    expect(u.slab?.value).toBe(0);
+    pass.aim(10, 10, true);
+    expect(u.aperture?.value).toBeCloseTo(tiltShiftParams(10, true).aperture, 9);
+    expect(u.maxblur?.value).toBeCloseTo(TILT_SHIFT.subject.maxblur, 9);
+    expect(u.slab?.value).toBeCloseTo(TILT_SHIFT.subject.slabM, 9);
+    pass.dispose();
+  });
+  it("patches the bokeh shader with the in-focus slab (0 = the stock blur)", () => {
+    const pass = new CityBokehPass(new THREE.Scene(), new THREE.PerspectiveCamera(), () => []);
+    const fs = pass.materialBokeh.fragmentShader;
+    expect(fs).toContain("uniform float slab;");
+    expect(fs).toContain(SLAB_FACTOR_GLSL);
+    expect(fs).not.toContain("float factor = ( focus + viewZ );");
+    // slab 0: sign(f) * max(0, |f|) = f, the stock factor.
+    expect(slabBlur({ aperture: 0.001, maxblur: 1, slab: 0 }, 10, 25)).toBeCloseTo(0.015, 9);
     pass.dispose();
   });
 });
