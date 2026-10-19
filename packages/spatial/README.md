@@ -321,3 +321,7 @@ with `__`.
 - Closures: `plan_route` does not say when a closure forced a detour on a route that still exists (it names closures only when they leave no route or close an endpoint place). A closed place does not block routing to or through it.
 - Staleness TTL configuration.
 - Performance caching keyed by `world.version`.
+
+Correctness audit follow-up: explicit OSM `smoothness=impassable` blocks wheeled modes before positive estimates ([OSM definition](https://wiki.openstreetmap.org/wiki/Key:smoothness)); it does not create a pedestrian prohibition. Adverse smoothness keeps strict-mode and driving estimates unknown. A staff claim without `verified_at` cannot support a checked PASS. Evacuation rows beyond the route-preview limit apply the older-adult rest-gap constraint. `nearby_amenities` accepts optional `scenario_id`; it evaluates scenario edges and destination flood classes, excludes flooded destinations, and warns about flooded origins. Its existing row shape stays unchanged.
+
+The optional `find_place(..., near_place=<place id>)` argument restricts name/type candidates to a straight-line 1 km context. An invalid origin returns `ok=false`. Proximity establishes identity context only; `plan_route` remains the authority for routes, distance, mode and river effects.

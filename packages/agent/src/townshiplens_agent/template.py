@@ -152,6 +152,7 @@ ROLLOUT_GUIDANCE = (
 )
 _STATUS_WORDS = {
     "confirmed": "confirmed",
+    "likely_ok": "likely OK (estimated from map data, not checked)",
     "partly_unverified": "partly unverified",
     "blocked": "cut off",
     "no_data": "no mapped connection",
@@ -540,6 +541,14 @@ def _top_stage(stages: list[str]) -> str | None:
 
 
 def template_answer(rec: TurnRecord, question: str) -> FinalAnswer:
+    if rec.selection_error:
+        return FinalAnswer(
+            answer_status="cannot_answer",
+            summary=(
+                "Please name the exact start and destination, and confirm how you are "
+                "travelling. I cannot select a route until those details agree."
+            ),
+        )
     scenario_id = next(iter(sorted(rec.scenarios_used)), None)
     flood_caveats = [
         f"{i['name']} is {'likely' if i['flood_class'] == 'likely_flooded' else 'possibly'} "
@@ -641,6 +650,8 @@ def template_answer(rec: TurnRecord, question: str) -> FinalAnswer:
     unknowns = unchecked_caveats(route_unknowns, rec.vrs)
     rest = rest_caveats(route)
     caveats: list[str] = list(flood_caveats)
+    if route.get("access_metres", {}).get("likely_ok", 0) or status == "likely_ok":
+        caveats.append("Likely OK sections are estimated from map data, not checked on site.")
     caveats += unknowns
     if status == "no_data":
         caveats.append("No mapped connection between these places (data gap).")

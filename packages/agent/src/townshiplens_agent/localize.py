@@ -240,6 +240,15 @@ def localize(text: str, lang: str) -> str:
     unknown languages pass through unchanged."""
     if lang not in _I or not text:
         return text
+    text = text.replace(
+        "Likely OK sections are estimated from map data, not checked on site.",
+        (
+            "Bahagian yang berkemungkinan boleh dilalui ialah anggaran daripada peta, "
+            "belum diperiksa di tapak."
+        )
+        if lang == "ms"
+        else "估计可通行的路段基于地图数据，尚未实地核实。",
+    )
     for pattern, fn in RULES:
         text = pattern.sub(lambda m, fn=fn: fn(m, lang), text)
     if lang == "zh":  # Chinese punctuation after Chinese text

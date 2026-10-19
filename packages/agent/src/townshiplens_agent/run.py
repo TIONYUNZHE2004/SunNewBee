@@ -323,6 +323,13 @@ def _answer_events(
         intent = it.model_copy()
         intent.route_status = intent.distance_m = intent.est_minutes = None
         if intent.kind == "route.highlight":
+            selected = ans.route_id or (next(iter(rec.routes)) if len(rec.routes) == 1 else None)
+            if (
+                ans.answer_status == "cannot_answer"
+                or rec.selection_error
+                or intent.route_id != selected
+            ):
+                continue
             route = rec.routes.get(intent.route_id or "")
             if route is None:
                 continue  # nothing to draw: the route was not returned this turn
@@ -552,12 +559,31 @@ async def run_turn(
         return
     # A recording cannot reflect a live closure (R33), so any active closure is a cache miss.
     if settings.demo_mode and not ctx.world.active_closures():
-        cached = demo.load(demo.key(req), settings.demo_dir, ctx.world.site.id)
+        cached = demo.load(
+            demo.key(req), settings.demo_dir, ctx.world.site.id, demo.world_fingerprint(ctx.world)
+        )
         if cached:
+            shown = []
+            route_calls = []
             async for ev in demo.replay(cached, ctx.vrs):
+                if ev.type == "text.delta":
+                    shown.append(ev.delta)
+                if ev.type == "tool.call" and ev.name == "plan_route":
+                    route_calls.append(ev.args)
                 yield ev
+            context = None
+            if len(route_calls) == 1:
+                args = route_calls[0]
+                context = {
+                    "from_place": args["from_id"],
+                    "to_place": args["to_id"],
+                    "profile": args.get("profile", req.profile),
+                }
+            memory.add_turn(req.session_id, question, "".join(shown), route=context)
             return
     rec = record or TurnRecord()
+    rec.strict_selection = True
+    rec.context_route = memory.route_context(req.session_id)
     # Stages the resident named, and the stages the world has scenarios for ("+1 m to +5 m").
     rec.asked_stages = {f.value for f in extract_facts(question) if f.kind == "stage"} | {
         float(s.stage_m) for s in ctx.world.flood.scenarios if s.stage_m is not None
@@ -669,11 +695,23 @@ async def run_turn(
         return
     # Follow-up context: the question and the answer as shown (template fallbacks included).
     shown = "".join(e.delta for e in events if isinstance(e, TextDelta))
+    selected = rec.routes.get(ans.route_id or "") or (
+        next(iter(rec.routes.values())) if len(rec.routes) == 1 else None
+    )
+    context_route = (
+        {k: selected[k] for k in ("from_place", "to_place", "profile")}
+        if selected
+        and all(k in selected for k in ("from_place", "to_place", "profile"))
+        and ans.answer_status != "cannot_answer"
+        and not rec.selection_error
+        else None
+    )
     memory.add_turn(
         req.session_id,
         question,
         shown,
         simulated=bool(rec.what_ifs or rec.plans or rec.days or rec.day_changes),
+        route=context_route,
     )
     for ev in events:
         yield ev

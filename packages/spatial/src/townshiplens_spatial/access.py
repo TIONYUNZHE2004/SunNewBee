@@ -124,6 +124,8 @@ def assess_access(
     ):
         return result("unknown", "unresolved_claim_v1")
     if profile.id == "drive":
+        if tags.get("smoothness") in {"bad", "very_bad", "horrible", "very_horrible", "impassable"}:
+            return result("unknown", "adverse_smoothness_v1")
         if edge.type == "track" and tags.get("surface") not in PAVED:
             return result("unknown", "driving_track_surface_unknown_v1")
         return result("likely_ok", "mapped_road_driving_v1")
@@ -135,6 +137,8 @@ def assess_access(
         else tags.get("surface")
     )
     if strict:
+        if tags.get("smoothness") in {"bad", "very_bad", "horrible", "very_horrible", "impassable"}:
+            return result("unknown", "adverse_smoothness_v1")
         if surface in ROUGH or (surface and surface not in PAVED):
             return result("unknown", "surface_not_suitable_for_estimate_v1")
         if tags.get("wheelchair") == "limited":

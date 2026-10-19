@@ -43,7 +43,7 @@ async def test_replay_matches_recording(ctx, tmp_path):
     live = await run(ctx, st)  # miss: runs normally
     assert live[-1].model == "mock-scripted"
     req = ChatRequest(message=Q, profile="stroller")
-    demo.save(demo.key(req), live, demo.make_meta(req, live, ctx.world.site.id), st.demo_dir)
+    demo.save(demo.key(req), live, demo.make_meta(req, live, ctx.world), st.demo_dir)
     replayed = await run(ctx, st)
     assert [e.type for e in replayed] == [e.type for e in live]
     assert replayed[-1].type == "done" and replayed[-1].model == "mock-scripted+demo-cache"
@@ -59,7 +59,7 @@ async def test_demo_off_ignores_cache(ctx, tmp_path):
     st = settings(tmp_path)
     live = await run(ctx, st)
     req = ChatRequest(message=Q, profile="stroller")
-    demo.save(demo.key(req), live, demo.make_meta(req, live, ctx.world.site.id), st.demo_dir)
+    demo.save(demo.key(req), live, demo.make_meta(req, live, ctx.world), st.demo_dir)
     evs = await run(ctx, settings(tmp_path, demo_mode=False))
     assert not evs[-1].model.endswith("+demo-cache")
 
@@ -83,7 +83,7 @@ async def test_replay_keeps_vr_queue_consistent(ctx, tmp_path):
     req = ChatRequest(message=kq, profile="stroller")
     live = await run(ctx, st, kq)
     rec_vr = next(e for e in live if e.type == "verification.requested")
-    meta = demo.make_meta(req, live, ctx.world.site.id)
+    meta = demo.make_meta(req, live, ctx.world)
     demo.save(demo.key(req), live, meta, st.demo_dir)
     # Fresh store, as on a demo laptop: replay must file the VR itself.
     fresh = tools.Ctx(world=ctx.world, vrs=VerificationStore(str(tmp_path / "fresh.db")))
@@ -150,7 +150,7 @@ async def test_active_closure_makes_replay_a_miss(ctx, tmp_path):
     st = settings(tmp_path)
     live = await run(ctx, st)
     req = ChatRequest(message=Q, profile="stroller")
-    demo.save(demo.key(req), live, demo.make_meta(req, live, ctx.world.site.id), st.demo_dir)
+    demo.save(demo.key(req), live, demo.make_meta(req, live, ctx.world), st.demo_dir)
     assert (await run(ctx, st))[-1].model.endswith("+demo-cache")  # no closure: replays
     now = datetime.now(UTC)
     ctx.world.set_closures(
@@ -167,3 +167,42 @@ async def test_active_closure_makes_replay_a_miss(ctx, tmp_path):
     assert ctx.world.active_closures()
     evs = await run(ctx, st)
     assert not evs[-1].model.endswith("+demo-cache")
+
+
+async def test_staff_fact_changes_invalidate_replay(ctx, tmp_path):
+    from datetime import date
+
+    from townshiplens_spatial.models import Claim
+
+    st = settings(tmp_path)
+    req = ChatRequest(message=Q, profile="stroller")
+    live = await run(ctx, st)
+    demo.save(demo.key(req), live, demo.make_meta(req, live, ctx.world), st.demo_dir)
+    for edge in ctx.world.edges.values():
+        ctx.world.refresh_claim(
+            edge.id,
+            "width_m",
+            Claim(value=0.1, status="verified", verified_at=date.today().isoformat()),
+        )
+    events = await run(ctx, st)
+    assert not events[-1].model.endswith("+demo-cache")
+    assert not any(
+        e.type == "scene.intent"
+        and e.intent.kind == "route.highlight"
+        and e.intent.route_status == "confirmed"
+        for e in events
+    )
+
+
+def test_world_signature_changes_with_expiry_day(ctx, monkeypatch):
+    from datetime import date
+
+    first = demo.world_fingerprint(ctx.world)
+
+    class Tomorrow(date):
+        @classmethod
+        def today(cls):
+            return cls(2100, 1, 1)
+
+    monkeypatch.setattr(demo, "date", Tomorrow)
+    assert demo.world_fingerprint(ctx.world) != first

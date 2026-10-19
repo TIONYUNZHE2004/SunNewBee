@@ -101,3 +101,5 @@ It warms again whenever `world.version` changes (it polls every 10 s). It takes 
 Access estimates use the spatial rules documented in `packages/spatial/README.md`.
 Routes add `likely_ok`, per-segment rule metadata, and `access_metres` in metres.
 These estimates are never checked facts. Driving non-roads are grey `not_a_road` lines.
+
+The access-layer cache and ETag include the current date, so expiry of a staff check cannot retain a previous day's Verified label or return 304 for expired data. The chat SSE `route_status` enum includes `likely_ok` for map-derived access estimates; generated API-client schemas must include this value.

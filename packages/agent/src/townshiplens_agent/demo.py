@@ -6,10 +6,12 @@ import json
 import logging
 import uuid
 from collections.abc import AsyncIterator
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
+from functools import lru_cache
 from pathlib import Path
 
 from pydantic import TypeAdapter
+from townshiplens_spatial.world import World
 
 from .events import ChatEvent, ChatRequest, Done, VerificationRequested
 from .redact import redact
@@ -19,6 +21,47 @@ log = logging.getLogger(__name__)
 _ADAPTER: TypeAdapter = TypeAdapter(ChatEvent)
 DELAY_S = 0.02
 SUFFIX = "+demo-cache"
+
+
+@lru_cache(maxsize=1)
+def _code_digest() -> str:
+    """A recording is valid for the engine, validator and wording that checked it."""
+    import townshiplens_spatial
+
+    digest = hashlib.sha256()
+    roots = (Path(__file__).parent, Path(townshiplens_spatial.__file__).parent)
+    for root in roots:
+        for path in sorted([*root.glob("*.py"), *root.glob("prompts/*.md")]):
+            digest.update(path.name.encode())
+            digest.update(path.read_bytes())
+    return digest.hexdigest()
+
+
+def world_fingerprint(world: World) -> str:
+    """Stable across restarts; invalidated by claims, data, profiles, rules and expiry day.
+
+    Only demo mode pays for hashing world facts. Mutation methods increment world.version.
+    The code hash prevents an old recording bypassing a repaired validator or route rule.
+    """
+    key = (world.version, date.today().isoformat(), _code_digest())
+    cached = getattr(world, "_demo_fingerprint", None)
+    if cached and cached[0] == key:
+        return cached[1]
+    payload = {
+        "code": key[2],
+        "day": key[1],
+        "site": world.site.model_dump(mode="json"),
+        "edges": {k: v.model_dump(mode="json") for k, v in world.edges.items()},
+        "places": {k: v.model_dump(mode="json") for k, v in world.places.items()},
+        "flood": world.flood.model_dump(mode="json"),
+        "profiles": {k: v.model_dump(mode="json") for k, v in world.profiles.items()},
+        "centres": {k: v.model_dump(mode="json") for k, v in world.centres.items()},
+    }
+    digest = hashlib.sha256(
+        json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()
+    world._demo_fingerprint = (key, digest)
+    return digest
 
 
 def key(req: ChatRequest) -> str:
@@ -31,7 +74,12 @@ def _dir(d: Path | None) -> Path:
     return d if d is not None else AgentSettings().demo_dir
 
 
-def load(k: str, demo_dir: Path | None = None, world: str | None = None) -> list[ChatEvent] | None:
+def load(
+    k: str,
+    demo_dir: Path | None = None,
+    world: str | None = None,
+    fingerprint: str | None = None,
+) -> list[ChatEvent] | None:
     path = _dir(demo_dir) / f"{k}.jsonl"
     if not path.exists():
         return None
@@ -54,6 +102,8 @@ def load(k: str, demo_dir: Path | None = None, world: str | None = None) -> list
             world,
         )
         return None
+    if fingerprint is not None and meta.get("world_fingerprint") != fingerprint:
+        return None  # missing signatures are legacy recordings, not checked current facts
     return events
 
 
@@ -66,13 +116,14 @@ def save(k: str, events: list[ChatEvent], meta: dict, demo_dir: Path | None = No
     return path
 
 
-def make_meta(req: ChatRequest, events: list[ChatEvent], world: str = "") -> dict:
+def make_meta(req: ChatRequest, events: list[ChatEvent], world: World | str = "") -> dict:
     done = events[-1]
     return {
         "message": redact(req.message),
         "profile": req.profile,
         "scenario_id": req.scenario_id,
-        "world": world,
+        "world": world.site.id if isinstance(world, World) else world,
+        "world_fingerprint": world_fingerprint(world) if isinstance(world, World) else None,
         "model": done.model if isinstance(done, Done) else "unknown",
         "recorded_at": datetime.now(UTC).isoformat(timespec="seconds"),
     }

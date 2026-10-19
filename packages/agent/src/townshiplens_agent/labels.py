@@ -13,6 +13,7 @@ from townshiplens_spatial.routing import rest_gap_text
 
 STATUS_LABELS = {
     "confirmed": "confirmed",
+    "likely_ok": "likely OK (estimated from map data, not checked)",
     "partly_unverified": "partly unverified",
     "blocked": "blocked",
     "no_data": "no mapped connection (data gap)",
@@ -361,6 +362,7 @@ FRAME = {
 STATUS_WORDS = {
     "ms": {
         "confirmed": "disahkan",
+        "likely_ok": "berkemungkinan boleh dilalui (anggaran daripada peta, belum diperiksa)",
         "partly_unverified": "sebahagian belum disahkan",
         "blocked": "tersekat",
         "no_data": "tiada sambungan dipetakan (jurang data)",
@@ -368,6 +370,7 @@ STATUS_WORDS = {
     },
     "zh": {
         "confirmed": "已确认",
+        "likely_ok": "估计可通行（基于地图数据，尚未核实）",
         "partly_unverified": "部分未核实",
         "blocked": "受阻",
         "no_data": "无已绘制的连接（数据缺口）",

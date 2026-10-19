@@ -23,6 +23,14 @@ from .labels import (
 )
 from .localize import localize
 from .record import TurnRecord
+from .route_binding import (
+    amenity_selection_errors,
+    amenity_text_errors,
+    bound_measurement_errors,
+    estimate_text_errors,
+    has_estimate_qualifier,
+    has_estimates,
+)
 
 FORBIDDEN = re.compile(r"(?<![\w-])safe(?:ly)?(?![\w-])|\bselamat\b|安全", re.IGNORECASE)
 DEPTH = re.compile(
@@ -376,7 +384,7 @@ def measurement_errors(ans: FinalAnswer, rec: TurnRecord) -> list[str]:
     # Names go (they may hold numbers), but what they are stays: "Urban Park toilet is 440.6 m
     # from Elmina Lakeside Mall" is checked as "toilet is 440.6 m from mall".
     text = _names_to_categories(" ".join(parts), rec.place_names)
-    errs: list[str] = []
+    errs: list[str] = bound_measurement_errors(ans, rec)
     # Rehearsal clock durations ("over 2 hours", "313 min") are checked by day_errors and
     # my_trip_errors, not here.
     skip = {"time"} if rec.days or rec.day_changes or rec.my_trips else set()
@@ -528,7 +536,25 @@ def draft_errors(text: str, rec: TurnRecord) -> list[str]:
 
 
 def validate_answer(ans: FinalAnswer, rec: TurnRecord) -> list[str]:
-    errs: list[str] = []
+    errs: list[str] = amenity_selection_errors(ans, rec)
+    if rec.selection_error and ans.answer_status != "cannot_answer":
+        errs.append(
+            "Route selection is unresolved: ask which exact places or travel mode "
+            "before showing a route."
+        )
+    if len(rec.routes) > 1 and not ans.route_id and ans.answer_status != "cannot_answer":
+        errs.append("Select the exact route_id being answered before showing a route.")
+    selected = ans.route_id or (next(iter(rec.routes)) if len(rec.routes) == 1 else None)
+    if (
+        has_estimates(rec)
+        and ans.answer_status != "cannot_answer"
+        and not has_estimate_qualifier(" ".join([ans.summary, *ans.steps, *ans.caveats]))
+    ):
+        errs.append(
+            "State that Likely OK sections are estimated from map data, not checked on site."
+        )
+    if any(i.kind == "route.highlight" and i.route_id != selected for i in ans.scene_intents):
+        errs.append("The map route must match the selected answer route_id.")
     for c in ans.claims:
         if ans.answer_status != "cannot_answer" and not c.evidence_ids:
             errs.append(
@@ -667,7 +693,7 @@ def text_errors(text: str, rec: TurnRecord) -> list[str]:
     """Wording rules that depend only on the text and this turn's record. Shared by
     `validate_answer` and the draft guard (`draft.DraftStreamer`), so a draft is never allowed
     to show what the final check would reject."""
-    errs: list[str] = []
+    errs: list[str] = [*estimate_text_errors(text, rec), *amenity_text_errors(text, rec)]
     if _has_placeholder(rec) and (BANNED_PLACEHOLDER.search(text) or _claims_verified(text)):
         # Any placeholder evidence returned this turn (cited or not) forbids "verified" wording.
         errs.append(

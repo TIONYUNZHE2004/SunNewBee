@@ -620,3 +620,5 @@ T-020 access colours: Verified uses solid green; Likely OK (estimated) uses thin
 short dashes; Not checked uses yellow dashes; barriers use red; driving non-roads use
 grey. `styles.ts` and `mapStatus` carry the same statuses across all renderers. The
 legend exposes the estimate label. Legacy `ok` remains “No known barrier”.
+
+Resident route starters state the starting place explicitly. Free-text route questions with a missing or ambiguous start ask for clarification; the assistant must not silently assume a demo starting point.

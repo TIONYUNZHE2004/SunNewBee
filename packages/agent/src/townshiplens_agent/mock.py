@@ -136,6 +136,13 @@ def _status_caveat(status: str, a: str, b: str) -> str:
 def _placeholder_caveat(rets, caveats: list[str]) -> list[str]:
     """Append the placeholder caveat when any evidence seen is team_survey_placeholder."""
     if any(
+        route.get("access_metres", {}).get("likely_ok", 0) or route.get("status") == "likely_ok"
+        for _, result in rets
+        if isinstance(result.get("data"), dict)
+        for route in result["data"].get("routes", [])
+    ):
+        caveats = [*caveats, "Likely OK sections are estimated from map data, not checked on site."]
+    if any(
         e.get("source_type") == "team_survey_placeholder"
         for _, r in rets
         for e in r.get("evidence", [])
@@ -192,13 +199,12 @@ def _place(text: str, default: str | None) -> str | None:
     return min(hits, key=lambda h: (h[0], -len(h[1])))[1] if hits else default
 
 
-def _route_ends(q: str) -> tuple[str, str]:
-    """Origin and destination words: "from X to Y", else "get to Y" with Car Park B as origin."""
+def _route_ends(q: str) -> tuple[str | None, str | None]:
+    """Both endpoints must be stated; no silent demo origin."""
     m = re.search(r"from (.+?) to (.+)", q)
     if m:
-        return _place(m.group(1), "car park b"), _place(m.group(2), "playground")
-    origin = _place(q.split("from ", 1)[1], "car park b") if "from " in q else "car park b"
-    return origin, _place(q.replace(origin, " ", 1), "playground")
+        return _place(m.group(1), None), _place(m.group(2), None)
+    return None, None
 
 
 def _ui(info: AgentInfo, key: str) -> str | None:
@@ -603,7 +609,9 @@ def _script(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
         if n == 0:
             return _call("list_flood_scenarios")
         if n == 1:
-            return _call("affected_places", scenario_id=sid, kind="all", profile="default")
+            return _call(
+                "affected_places", scenario_id=sid, kind="all", profile=_profile(q, info, "default")
+            )
         a = _data(rets[-1][1])
         if not isinstance(a, dict):
             return _cannot()
@@ -632,9 +640,28 @@ def _script(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
             scenario_id=sid,
             scene_intents=[{"kind": "flood.set_level", "scenario_id": sid}],
         )
+    if is_flood and re.search(r"is the playground|playground safe", q):
+        if n == 0:
+            return _call("affected_places", scenario_id=sid)
+        data = _data(rets[-1][1])
+        row = next((p for p in data.get("likely", []) if p.get("id") == "playground"), None)
+        if not row:
+            return _cannot("The scenario does not give a checked answer for that place.", **scn)
+        return _final(
+            answer_status="partial",
+            summary=f"{row['name']} is likely flooded in this indicative scenario. {_FLOOD_NOTE}",
+            claims=[{"text": row["name"], "status": "indicative", "evidence_ids": _ev_ids(rets)}],
+            scenario_id=sid,
+            scene_intents=[{"kind": "flood.set_level", "scenario_id": sid}],
+        )
     if is_flood or where_next:  # resident: where can I go
         if n == 0:
-            return _call("find_place", query=_first(q, ORIGINS, "lakeside mall"))
+            origin_word = _first(q, ORIGINS, None)
+            if not origin_word:
+                return _cannot(
+                    "Please name your starting place before I select an evacuation route.", **scn
+                )
+            return _call("find_place", query=origin_word)
         found = _data(rets[0][1]) or []
         origin = found[0]["id"] if found else None
         profile = _profile(q, info, "default")
@@ -691,11 +718,7 @@ def _script(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
             + inferred_caveats([n for n in [centres[0].get("entrance_note")] if n]),
         )
         confirmed = route and route.get("status") == "confirmed" and not likely and not closed
-        start = (
-            f" from {DEMO_ORIGIN[1]} (demo start point)"
-            if where_next and origin == DEMO_ORIGIN[0]
-            else ""
-        )
+        start = f" from {found[0]['name']}" if where_next and origin == DEMO_ORIGIN[0] else ""
         return _final(
             answer_status="answered" if confirmed else "partial",
             summary=(
@@ -805,6 +828,8 @@ def _script(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
         return _closure_answer(rets, place_q)
     if re.search(_ACCESS_Q, q):  # access hero
         origin_w, dest_w = _route_ends(q)
+        if not origin_w or not dest_w:
+            return _cannot("Please name the exact start and destination before I select a route.")
         if n == 0:
             return _call("find_place", query=origin_w)
         if n == 1:

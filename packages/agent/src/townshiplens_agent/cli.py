@@ -52,7 +52,7 @@ async def main(
         # Fixed id so a re-recording with the mock is byte-stable (replay mints a fresh one).
         events[-1] = events[-1].model_copy(update={"message_id": "demo"})
         path = demo.save(
-            demo.key(req), events, demo.make_meta(req, events, ctx.world.site.id), settings.demo_dir
+            demo.key(req), events, demo.make_meta(req, events, ctx.world), settings.demo_dir
         )
         model = events[-1].model if isinstance(events[-1], Done) else "?"
         print(f"recorded {path} (model {model})")

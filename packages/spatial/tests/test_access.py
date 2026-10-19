@@ -184,3 +184,43 @@ def test_centre_rows_without_route_previews_keep_estimated_status(world):
     ]
     assert estimated
     assert all(r.route_status == "likely_ok" for r in estimated)
+
+
+@pytest.mark.parametrize("mode", ["wheelchair", "stroller", "drive"])
+def test_impassable_tag_wins_over_estimate(world, mode):
+    edge = world.edges["seg-ab"].model_copy(deep=True)
+    edge.type = "street" if mode == "drive" else "sidewalk"
+    edge.osm_tags = {
+        "highway": "residential" if mode == "drive" else "footway",
+        "surface": "concrete",
+        "smoothness": "impassable",
+    }
+    assert assess_access(edge, world.profiles[mode]).level == "barrier"
+
+
+def test_undated_staff_claims_cannot_establish_current_verification(world):
+    edge = world.edges["seg-ab"].model_copy(deep=True)
+    for c in edge.claims.values():
+        c.evidence_type = "field_survey"
+        c.verified_by = "staff"
+        c.verified_at = None
+    assert assess_access(edge, world.profiles["wheelchair"]).level == "unknown"
+
+
+def test_unpreviewed_centres_still_respect_rest_limit(world):
+    from townshiplens_spatial.models import EvacCentre
+
+    for cid, node in [("origin", "n-a"), ("near", "n-b"), ("far", "n-d")]:
+        world.centres[cid] = EvacCentre(
+            id=cid, name=cid, coord=world.node_coords[node], node_id=node, source="osm_candidate"
+        )
+    rows = centres_reachability(world, None, "older_adult_rest", "park-b")
+    far = next(r for r in rows if r.centre.id == "far")
+    assert far.route_id is None
+    assert far.route_status == "partly_unverified"
+
+
+def test_impassable_smoothness_is_not_a_pedestrian_prohibition(world):
+    edge = world.edges["seg-ab"].model_copy(deep=True)
+    edge.osm_tags = {"highway": "footway", "smoothness": "impassable"}
+    assert assess_access(edge, world.profiles["default"]).level != "barrier"

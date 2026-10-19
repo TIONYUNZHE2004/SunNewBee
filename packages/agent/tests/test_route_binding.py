@@ -1,0 +1,293 @@
+import pytest
+from pydantic_ai import ModelRetry
+from tests_support import TINY
+from townshiplens_agent import agent, template
+from townshiplens_agent.answer import FinalAnswer
+from townshiplens_agent.events import ChatRequest, SceneIntent
+from townshiplens_agent.record import TurnRecord
+from townshiplens_agent.route_binding import (
+    RouteSelectionError,
+    bound_measurement_errors,
+    effective_profile,
+    effective_scenario,
+    guard_endpoints,
+    guard_origin,
+)
+from townshiplens_agent.run import _answer_events
+from townshiplens_agent.validate import validate_answer
+from townshiplens_spatial import tools
+from townshiplens_spatial.models import Place
+from townshiplens_spatial.vr_store import VerificationStore
+from townshiplens_spatial.world import load_world
+
+
+def context():
+    return tools.Ctx(load_world(TINY), VerificationStore(":memory:"))
+
+
+@pytest.mark.parametrize(
+    "question,mode",
+    [
+        ("Find a nearby toilet", "wheelchair"),
+        ("Can I push a stroller?", "stroller"),
+        ("Boleh saya guna kerusi roda?", "wheelchair"),
+        ("我用轮椅去游乐场", "wheelchair"),
+        ("Can I drive there?", "drive"),
+    ],
+)
+def test_profile_follows_request_and_explicit_mode(question, mode):
+    assert effective_profile(question, "wheelchair") == mode
+
+
+def test_silent_walking_downgrade_is_rejected():
+    with pytest.raises(RouteSelectionError, match="do not substitute"):
+        effective_profile("Find a toilet for my wheelchair", "wheelchair", "default")
+
+
+async def test_amenity_default_uses_wheelchair_not_stairs():
+    ctx = context()
+    deps = agent.Deps(
+        ctx, TurnRecord(), ChatRequest(message="Find a toilet within 150 m", profile="wheelchair")
+    )
+    result = await agent.call_tool(
+        deps, "nearby_amenities", origin_id="park-b", amenity="toilet", max_walk_m=150
+    )
+    assert result["data"] == []
+    assert not any("default profile" in w for w in result["warnings"])
+
+
+@pytest.mark.parametrize(
+    "question",
+    [
+        "From Car Park B to the playground",
+        "Dari Car Park B ke taman permainan",
+        "从Car Park B到游乐场",
+    ],
+)
+def test_generic_playground_cannot_be_a_distant_name_match(question):
+    world = context().world
+    world.places["far-playground"] = Place(
+        id="far-playground", type="playground", name="Taman Permainan", coord=[102, 4]
+    )
+    with pytest.raises(RouteSelectionError, match="local playground"):
+        guard_endpoints(world, question, {"from_id": "park-b", "to_id": "far-playground"})
+    guard_endpoints(world, question, {"from_id": "park-b", "to_id": "playground"})
+
+
+def test_ambiguous_generic_place_requires_clarification():
+    world = context().world
+    world.places["another"] = world.places["playground"].model_copy(
+        update={"id": "another", "name": "Another playground"}
+    )
+    with pytest.raises(RouteSelectionError, match="Which playground"):
+        guard_endpoints(
+            world, "From Car Park B to the playground", {"from_id": "park-b", "to_id": "playground"}
+        )
+
+
+async def test_wrong_named_route_never_calls_engine_or_files_tickets():
+    ctx = context()
+    deps = agent.Deps(
+        ctx, TurnRecord(), ChatRequest(message="From Car Park B to Park toilet", profile="stroller")
+    )
+    with pytest.raises(ModelRetry, match="exact place"):
+        await agent.call_tool(
+            deps, "plan_route", from_id="park-b", to_id="playground", profile="stroller"
+        )
+    assert not deps.rec.routes
+    assert ctx.vrs.list("all") == []
+    answer = template.template_answer(deps.rec, deps.request.message)
+    assert answer.answer_status == "cannot_answer"
+    assert not [e for e in _answer_events(answer, deps.rec, ctx) if e.type == "scene.intent"]
+
+
+async def test_exact_place_measurement_cannot_borrow_same_category_distance():
+    # Two distinct worship places and two routes with the same entity category.
+    rec = TurnRecord()
+    rec.place_entities = {
+        "a": {"name": "Surau Al Mahdi"},
+        "b": {"name": "Surau At Taqwa"},
+        "c": {"name": "Surau Rentak Perdana"},
+    }
+    rec.measurement_subjects = [
+        {"place_ids": ["a", "b"], "values": {"length": {363.8}, "time": {5.2}}}
+    ]
+    wrong = FinalAnswer(
+        answer_status="partial",
+        summary="From Surau Rentak Perdana to Surau At Taqwa, the route is 363.8 m.",
+    )
+    assert bound_measurement_errors(wrong, rec)
+    right = wrong.model_copy(
+        update={"summary": "From Surau Al Mahdi to Surau At Taqwa, the route is about 360 m."}
+    )
+    assert bound_measurement_errors(right, rec) == []
+    rec.measurement_subjects.append({"place_ids": ["c", "b"], "values": {"length": {800}}})
+    assert bound_measurement_errors(wrong, rec)  # correct identity, wrong value still fails
+
+
+def test_map_cannot_draw_a_different_returned_route():
+    ctx = context()
+    rec = TurnRecord(tool_calls=["plan_route"])
+    rec.routes = {
+        "a": {"id": "a", "geometry": {"type": "LineString", "coordinates": [[0, 0], [1, 1]]}},
+        "b": {"id": "b", "geometry": {"type": "LineString", "coordinates": [[1, 1], [2, 2]]}},
+    }
+    rec.route_status = {"a": "confirmed", "b": "confirmed"}
+    ans = FinalAnswer(
+        answer_status="partial",
+        summary="Route found",
+        route_id="a",
+        scene_intents=[SceneIntent(kind="route.highlight", route_id="b")],
+    )
+    assert any("map route" in e for e in validate_answer(ans, rec))
+    assert not [e for e in _answer_events(ans, rec, ctx) if e.type == "scene.intent"]
+
+
+def test_unknown_endpoint_cannot_fall_back_to_demo_place():
+    with pytest.raises(RouteSelectionError, match="exact name"):
+        guard_endpoints(
+            context().world, "From Car Park B to Mars", {"from_id": "park-b", "to_id": "playground"}
+        )
+
+
+def test_followup_keeps_exact_previous_route():
+    with pytest.raises(RouteSelectionError, match="previous route"):
+        guard_endpoints(
+            context().world,
+            "And if the river rises?",
+            {"from_id": "park-b", "to_id": "toilet-1"},
+            context={"from_place": "park-b", "to_place": "playground"},
+            strict=True,
+        )
+
+
+def test_unknown_named_clinic_cannot_be_treated_as_any_nearby_clinic():
+    with pytest.raises(RouteSelectionError, match="exact name"):
+        guard_endpoints(
+            context().world,
+            "From Car Park B to Everspring Clinic",
+            {"from_id": "park-b", "to_id": "playground"},
+        )
+
+
+def test_nearby_origin_cannot_be_silently_substituted():
+    with pytest.raises(RouteSelectionError, match="exact named starting"):
+        guard_origin(context().world, "Find a toilet near Car Park B", "lakeside-mall", strict=True)
+
+
+def test_active_flood_cannot_be_overridden_by_a_model_baseline():
+    world = context().world
+    assert (
+        effective_scenario("From Car Park B to the playground", world, "stage_p3m") == "stage_p3m"
+    )
+    with pytest.raises(RouteSelectionError, match="do not substitute baseline"):
+        effective_scenario("From Car Park B to the playground", world, "stage_p3m", "baseline")
+    assert (
+        effective_scenario(
+            "Without flooding, from Car Park B to the playground", world, "stage_p3m", "baseline"
+        )
+        == "baseline"
+    )
+    assert (
+        effective_scenario("If the river rises 5 m", world, "stage_p3m", "stage_p5m") == "stage_p5m"
+    )
+
+
+def test_negated_driving_does_not_override_selected_wheelchair_mode():
+    assert (
+        effective_profile("I am not driving. Find a route for my wheelchair", "wheelchair")
+        == "wheelchair"
+    )
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "This route is step-free.",
+        "Staff checked this route.",
+        "This route is wheelchair accessible.",
+        "这条路线已核实。",
+        "Laluan ini disahkan.",
+    ],
+)
+def test_estimates_reject_positive_physical_claims(text):
+    from townshiplens_agent.route_binding import estimate_text_errors
+
+    rec = TurnRecord(routes={"r": {"status": "likely_ok"}})
+    assert estimate_text_errors(text, rec)
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "Estimated from map data, not checked.",
+        "Anggaran daripada peta, belum diperiksa.",
+        "基于地图数据估计，尚未核实。",
+    ],
+)
+def test_estimate_qualifiers_keep_negation(text):
+    from townshiplens_agent.route_binding import estimate_text_errors, has_estimate_qualifier
+
+    rec = TurnRecord(routes={"r": {"status": "likely_ok"}})
+    assert estimate_text_errors(text, rec) == []
+    assert has_estimate_qualifier(text)
+
+
+async def test_amenity_radius_cannot_be_widened_by_the_model():
+    ctx = context()
+    deps = agent.Deps(
+        ctx,
+        TurnRecord(),
+        ChatRequest(message="Find a toilet within 150 m of Car Park B", profile="wheelchair"),
+    )
+    with pytest.raises(ModelRetry, match="do not widen"):
+        await agent.call_tool(
+            deps, "nearby_amenities", origin_id="park-b", amenity="toilet", max_walk_m=300
+        )
+
+
+def test_empty_amenity_search_cannot_recommend_a_find_place_candidate():
+    from townshiplens_agent.route_binding import amenity_selection_errors, entities
+
+    rec = TurnRecord(
+        place_entities=entities(context().world),
+        amenity_searches=[{"origin_id": "park-b", "amenity": "toilet", "ids": []}],
+    )
+    assert amenity_selection_errors(
+        FinalAnswer(answer_status="answered", summary="Check Park toilet instead."), rec
+    )
+    assert not amenity_selection_errors(
+        FinalAnswer(
+            answer_status="answered", summary="No matching toilet route was found from Car Park B."
+        ),
+        rec,
+    )
+
+
+def test_feature_amenity_search_does_not_reject_the_answered_route_endpoints():
+    from townshiplens_agent.route_binding import amenity_selection_errors, entities
+
+    rec = TurnRecord(
+        place_entities=entities(context().world),
+        amenity_searches=[{"origin_id": "park-b", "amenity": "elevator", "ids": []}],
+    )
+    assert not amenity_selection_errors(
+        FinalAnswer(
+            answer_status="partial",
+            summary="From Car Park B to Urban Park playground, there is a partly unverified route.",
+        ),
+        rec,
+    )
+
+
+@pytest.mark.parametrize(
+    "question,mode",
+    [
+        ("Saya naik kereta dari Car Park B ke mall", "drive"),
+        ("Saya jalan kaki dari Car Park B ke mall", "default"),
+        ("我坐车从Car Park B到mall", "drive"),
+        ("Can I walk from Car Park B to the mall?", "default"),
+    ],
+)
+def test_explicit_mode_overrides_previous_ui_choice(question, mode):
+    assert effective_profile(question, "wheelchair") == mode

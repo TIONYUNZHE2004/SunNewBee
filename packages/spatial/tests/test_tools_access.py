@@ -82,6 +82,19 @@ def test_nearby_wheelchair_respects_cutoff_when_only_detour(ctx):
     assert tools.nearby_amenities(ctx, "park-b", "toilet", 150, "wheelchair").data == []
 
 
+def test_nearby_excludes_flooded_destination_even_with_unflooded_connected_path(ctx):
+    assert tools.nearby_amenities(ctx, "park-b", "playground", 1000).data
+    result = tools.nearby_amenities(ctx, "park-b", "playground", 1000, scenario_id="stage_p3m")
+    assert result.ok and result.data == []
+    assert any("not a forecast" in warning for warning in result.warnings)
+
+
+def test_nearby_route_distance_changes_when_flood_cuts_shortcut(ctx):
+    ctx.world.flood.edge_classes["stage_p3m"]["seg-be"] = "likely_flooded"
+    assert tools.nearby_amenities(ctx, "park-b", "toilet", 150).data
+    assert not tools.nearby_amenities(ctx, "park-b", "toilet", 150, scenario_id="stage_p3m").data
+
+
 def test_missing_place_vr_only_for_mapped_place_without_node(ctx):
     r = tools.plan_route(ctx, "park-b", "moon-base", "stroller")
     assert [v["element_id"] for v in r.data["verification_requests"]] == ["moon-base"]
@@ -313,3 +326,14 @@ def test_blocked_route_still_carries_the_inferred_entrance_caveat(ctx):
         "Route ends at the nearest mapped path to Park kiosk; its entrance is not mapped."
         in r.warnings
     )
+
+
+def test_generic_place_search_uses_named_origin_context(ctx):
+    from townshiplens_spatial.models import Place
+
+    ctx.world.places["far"] = Place(id="far", type="playground", name="Playground", coord=[102, 4])
+    assert {
+        p["id"]
+        for p in tools.find_place(ctx, "playground", types=["playground"], near_place="park-b").data
+    } == {"playground"}
+    assert not tools.find_place(ctx, "playground", near_place="unknown").ok

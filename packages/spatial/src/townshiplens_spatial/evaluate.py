@@ -24,7 +24,13 @@ def _is_stale(c: Claim, attr: str, today: date) -> bool:
 def _needs_verification(c: Claim | None, attr: str, today: date) -> bool:
     """True when `c` cannot support a PASS: missing, valueless, not verified (reported, unknown,
     stale, contested) or past its TTL. `evaluate_edge` and the gap map both use this."""
-    return c is None or c.status != "verified" or c.value is None or _is_stale(c, attr, today)
+    return (
+        c is None
+        or c.status != "verified"
+        or c.value is None
+        or not c.verified_at
+        or _is_stale(c, attr, today)
+    )
 
 
 # Edge types people can only walk along on a sidewalk or verge (Task 31).
@@ -184,6 +190,21 @@ def evaluate_edge(
                 "attribute": attr,
                 "reason": "unknown",
                 "why": f"{attr}=no; not usable for {profile.id}",
+            }
+        ]
+    # OSM smoothness grades wheeled travel, not whether a pedestrian can walk here.
+    # https://wiki.openstreetmap.org/wiki/Key:smoothness
+    if edge.osm_tags.get("smoothness") == "impassable" and profile.id in {
+        "wheelchair",
+        "stroller",
+        "drive",
+    }:
+        return "FAIL", [
+            {
+                "element_id": edge.id,
+                "attribute": "smoothness",
+                "reason": "unknown",
+                "why": "OSM smoothness=impassable; no positive access estimate is permitted",
             }
         ]
     flood_result, flood_why = evaluate_flood(edge.id, profile, flood_class, flood_coverage)

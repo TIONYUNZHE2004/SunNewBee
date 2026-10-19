@@ -330,6 +330,7 @@ def _assessment(world, profile, scenario_id, key, factual=None):
 def path_status(world, nodes, profile, scenario_id):
     """Status of a strict Dijkstra path, including estimates for non-materialised centres."""
     estimated = False
+    keys = []
     for u, v in zip(nodes, nodes[1:], strict=False):
         candidates = [
             (cost, key)
@@ -337,7 +338,12 @@ def path_status(world, nodes, profile, scenario_id):
             if (cost := _edge_cost(world, profile, scenario_id, False, key)) is not None
         ]
         key = min(candidates)[1]
+        keys.append(key)
         estimated |= _assessment(world, profile, scenario_id, key).level == "likely_ok"
+    if profile.max_rest_free_run_m is not None:
+        rests = {n for n in nodes if _rest_node_state(world, n) == "PASS"}
+        if _max_rest_gap(world, nodes, keys, rests) > profile.max_rest_free_run_m:
+            return "partly_unverified"
     return "likely_ok" if estimated else _caveat(profile, "confirmed")
 
 

@@ -150,7 +150,7 @@ def layer(
     """Memoised on (world identity, world.version, lens, profile, scenario, live closures): a
     closure starts and expires on the clock without a version bump."""
     live = tuple(c.id for c in world.active_closures())
-    key = (id(world), world.version, lens, profile, scenario_id, live)
+    key = (id(world), world.version, date.today().isoformat(), lens, profile, scenario_id, live)
     hit = _cache.get(key)
     if hit is None:
         if len(_cache) > 64:
