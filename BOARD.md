@@ -33,14 +33,16 @@ The resident assistant covers **access** (routes, places, amenities, closures, t
 | [T-021](tasks/T-021-turn-by-turn-navigation.md) | Turn-by-turn route steps, like Waze (after the six P1 audit fixes) | assigned | P1 | Both local engineers |
 
 
-## Audit P1 split (control, 19 Oct)
+## Audit P1 fixes (control, 19 Oct 16:30 UTC)
 
-Source: `data/audits/2026-10-19-backend-ai-review/report.json` on `local/backend-engineer`. One editor per file, so the two engineers never edit the same file at once.
+The backend engineer already fixed all six P1 findings, both lanes, at `26d90b4` on `local/backend-engineer` (01:42 UTC). That branch also contains the AI engineer's T-019 and T-020 work. So nobody redoes them. Next:
 
-| Engineer | Fixes | Files |
-|---|---|---|
-| Backend (Codex) | AUD-005, AUD-006, AUD-003 tool side (default to the request profile), a world/claims version key for AUD-002 | `packages/spatial`, `apps/api` |
-| AI (Claude) | AUD-001 (bind each route distance to exact endpoint IDs), AUD-003 agent side, AUD-004 (T-020 wording), AUD-002 replay check on the version key | `packages/agent` |
+| Engineer | Next, in order |
+|---|---|
+| AI (Claude) | 1. Merge `origin/local/backend-engineer` into your branch. Cross-check its `packages/agent` changes (`route_binding.py`, `validate.py`, `run.py`, mock, template): run `uv run pytest -q`, try to break the route binding, log findings. 2. T-021 AI part, after the backend contract note. |
+| Backend (Codex) | 1. T-021 contract note, then the `maneuvers` step list. 2. The remaining list in `data/audits/2026-10-19-backend-ai-review/fix-results.json`. Do not edit `packages/agent` while the AI engineer cross-checks it. |
+
+Control opens one PR from `local/backend-engineer` in the morning, not overnight (each push would re-run CI).
 
 ## Who does what
 
