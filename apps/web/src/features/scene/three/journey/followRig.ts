@@ -587,10 +587,12 @@ export function holdSubjects(
   distanceM: number,
 ): Subject[] {
   const h = sc.heroAt?.(t) ?? sc.pointAt(distanceM);
-  const out: Subject[] = [
-    { p: [h[0], 0.1, h[1]], padPx: SAFE_FIT.heroPadPx },
-    { p: [h[0], 2.3, h[1]], padPx: SAFE_FIT.heroPadPx },
-  ];
+  // her body box (walker and ring radius around her, feet to head): the AC-D8 box
+  const out: Subject[] = [];
+  for (const y of [0.08, 2.5])
+    for (const dx of [-HERO_RADIUS_M, HERO_RADIUS_M])
+      for (const dz of [-HERO_RADIUS_M, HERO_RADIUS_M])
+        out.push({ p: [h[0] + dx, y, h[1] + dz], padPx: SAFE_FIT.heroPadPx });
   const el = elementPoint(sc, eventIndex, distanceM);
   if (el) out.push({ p: el, padPx: SAFE_FIT.elementPadPx });
   const mk = sc.markerOf?.(eventIndex);

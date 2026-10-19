@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { readFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { expect, type Page, test } from "@playwright/test";
 import type { JourneyPlan } from "../src/features/journey/timeline";
@@ -280,6 +280,12 @@ test.describe("demo recording (D-T10)", () => {
       }
       const share = changed / (i1.width * i1.height);
       worst = Math.max(worst, share);
+      // evidence: both runs' frames of a beat that differs (ACCEPTANCE_OUT set)
+      if (share >= 0.01 && process.env.ACCEPTANCE_OUT) {
+        const base = `${process.env.ACCEPTANCE_OUT}/d17-${p.name.replace(/\s+/g, "-")}`;
+        writeFileSync(`${base}-run1.png`, p.shot);
+        writeFileSync(`${base}-run2.png`, q.shot);
+      }
       console.log(
         `AC-D17 ${p.name} t=${p.t.toFixed(2)}: dPos ${(dPos * 100).toFixed(2)} cm, dHeading ${dHead.toFixed(3)}°, dPitch ${dPitch.toFixed(3)}°, pixels ${(share * 100).toFixed(3)}%`,
       );

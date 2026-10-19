@@ -39,7 +39,7 @@ export function createViewFit(
 }
 
 /** Margins (CSS px) of the UI-safe area inside the card viewport (sides, and above the controls). */
-export const SAFE_MARGIN = { side: 16, top: 16, bottom: 64 } as const;
+export const SAFE_MARGIN = { side: 16, top: 16, bottom: 64, frameShare: 0.1 } as const;
 
 /**
  * The UI-safe rectangle of the map: the card viewport (`measureMapArea`: left of the side panel,
@@ -47,7 +47,11 @@ export const SAFE_MARGIN = { side: 16, top: 16, bottom: 64 } as const;
  * HUD) and a band over the bottom controls.
  */
 export function safeRectOf(vp: { w: number; h: number; top?: number }): SafeRect {
-  const t = (vp.top ?? 0) + SAFE_MARGIN.top;
-  const b = Math.max(t + 1, vp.h - SAFE_MARGIN.bottom);
-  return { l: SAFE_MARGIN.side, t, r: Math.max(SAFE_MARGIN.side + 1, vp.w - SAFE_MARGIN.side), b };
+  // never wider than AC-D8's frame with its 10 % margin (her box must stay inside that too)
+  const m = SAFE_MARGIN.frameShare;
+  const t = Math.max((vp.top ?? 0) + SAFE_MARGIN.top, m * vp.h + 4);
+  const b = Math.max(t + 1, Math.min(vp.h - SAFE_MARGIN.bottom, (1 - m) * vp.h - 4));
+  const l = Math.max(SAFE_MARGIN.side, m * vp.w + 4);
+  const r = Math.max(l + 1, Math.min(vp.w - SAFE_MARGIN.side, (1 - m) * vp.w - 4));
+  return { l, t, r, b };
 }

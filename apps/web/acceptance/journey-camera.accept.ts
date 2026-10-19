@@ -156,7 +156,15 @@ async function heroOpaqueAt(page: Page, box: Rect, file?: string) {
     her++;
     if (diff(a.data, c.data, k) > PIXEL_TOL) through++;
   }
-  return { her, through, share: her > 0 ? through / her : 0 };
+  const share = her > 0 ? through / her : 0;
+  // evidence of a see-through beat: the three crops
+  if (share >= 0.03 && process.env.ACCEPTANCE_OUT) {
+    const base = `${process.env.ACCEPTANCE_OUT}/d8-seethrough-${Date.now()}`;
+    writeFileSync(`${base}-full.png`, full);
+    writeFileSync(`${base}-nohero.png`, noHero);
+    writeFileSync(`${base}-noribbon.png`, noRibbon);
+  }
+  return { her, through, share };
 }
 
 const overlap = (a: Rect, b: Rect) =>

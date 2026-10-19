@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+
 import { act, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -9,6 +10,7 @@ import { useTheme } from "../../ui/theme";
 import { usePanel } from "../main/panelStore";
 import { useSceneSettings } from "../scene/sceneSettingsStore";
 import { useScene } from "../scene/sceneStore";
+import { resetWebglProbe } from "../scene/selectView";
 import { SettingsPopover } from "./SettingsPopover";
 
 const scenarios = [
@@ -36,6 +38,7 @@ const savedEnv = { ...ENV };
 const savedGetContext = HTMLCanvasElement.prototype.getContext;
 afterEach(() => {
   HTMLCanvasElement.prototype.getContext = savedGetContext;
+  resetWebglProbe();
   Object.assign(ENV, savedEnv);
 });
 
@@ -159,6 +162,7 @@ describe("SettingsPopover", () => {
 
   it("orders the groups Theme, Map view, Map style, Motion, Quality, Camera controls, Travelling as, River level, Legend", async () => {
     HTMLCanvasElement.prototype.getContext = (() => ({})) as never;
+    resetWebglProbe();
     useScene.getState().setView("cesium");
     renderWithClient(<SettingsPopover />, seeded(BUILDINGS)); // keyless Cesium needs buildings
     await userEvent.click(screen.getByRole("button", { name: "Map settings" }));
@@ -181,6 +185,7 @@ describe("SettingsPopover", () => {
       ENV.googleKey = google;
       // Map styles are for the 3D renderer: a WebGL-capable device showing Cesium.
       HTMLCanvasElement.prototype.getContext = (() => ({})) as never;
+      resetWebglProbe();
       useScene.getState().setView("cesium");
       renderWithClient(<SettingsPopover />, seeded(buildings));
       await userEvent.click(screen.getByRole("button", { name: "Map settings" }));
@@ -230,6 +235,7 @@ describe("SettingsPopover", () => {
     beforeEach(() => {
       useSceneSettings.setState({ motion: true, quality: "auto" });
       HTMLCanvasElement.prototype.getContext = (() => ({})) as never;
+      resetWebglProbe();
       useScene.getState().setView("cesium");
     });
     it("offers Motion On/Off and Quality Auto/High/Medium/Low", async () => {
