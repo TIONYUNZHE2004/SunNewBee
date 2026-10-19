@@ -1384,6 +1384,8 @@ function build(
     },
     prepare(obj) {
       if (disposed || typeof renderer.compileAsync !== "function") return Promise.resolve();
+      // compile() gathers materials with traverse(), not traverseVisible(): hidden LOD buckets and
+      // crowd meshes (visible = false until an agent is drawn on them) are compiled too.
       const prev = renderer.getRenderTarget();
       renderer.setRenderTarget(composer.readBuffer);
       let compiled: Promise<unknown>;

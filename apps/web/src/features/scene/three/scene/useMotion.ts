@@ -237,11 +237,17 @@ export function useMotion({
       live = false;
     };
   }, [engine, driver, loaded, agents, roleUniforms, yaw, crowd, looks]);
-  // The layer goes with its driver (engine change, Low tier, unmount).
+  // The layer goes with its driver (engine change, Low tier, unmount) and with the asset library it
+  // shares geometry with: when `loaded` is dropped (library disposed, assets off, build failed) the
+  // layer is cleared at once, never drawn on disposed attributes. Agent-set changes keep the
+  // no-blank swap above.
   useEffect(() => {
-    if (!driver) return;
-    return () => driver.setAgents(null);
-  }, [driver]);
+    if (!driver || !loaded) return;
+    return () => {
+      driver.setAgents(null);
+      engine?.requestRender();
+    };
+  }, [driver, loaded, engine]);
 
   return { running, onScreen, agents };
 }
