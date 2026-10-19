@@ -14,7 +14,6 @@ import { createFrame } from "./frame";
 import { boundaryOf } from "./ground/boundary";
 import { clipLayer } from "./ground/clipLayer";
 import { useSceneBus } from "./scene/sceneBus";
-import { useAcceptanceHook } from "./scene/useAcceptanceHook";
 import { useCameraOps } from "./scene/useCameraOps";
 import { useCityAssets } from "./scene/useCityAssets";
 import { useDecor } from "./scene/useDecor";
@@ -24,6 +23,7 @@ import { useEngine } from "./scene/useEngine";
 import { useFacades } from "./scene/useFacades";
 import { useGround, useRoads } from "./scene/useGround";
 import { useGroundDecor } from "./scene/useGroundDecor";
+import { useLazyAcceptanceHook } from "./scene/useLazyAcceptanceHook";
 import { useMood } from "./scene/useMood";
 import { useMotion } from "./scene/useMotion";
 import { useOverlays } from "./scene/useOverlays";
@@ -238,7 +238,7 @@ export default function ThreeScene({
   const { initialBackground } = useMood({ engine, roleUniforms, sectionRef, home, bus });
   usePicking({ engine, hostRef, places });
   // Test-only camera / pick / frame-stats hook (dev builds or `?acceptance=1`).
-  useAcceptanceHook(engine, frame);
+  useLazyAcceptanceHook(engine, frame);
 
   // Any decorative layer in the scene: city assets (kits, decorative landmarks), facades, roofs, ground
   // decor (verges, construction ground), stall lines, props, dressing-kit decor (planters, lamp posts,

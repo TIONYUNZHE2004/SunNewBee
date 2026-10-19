@@ -131,6 +131,11 @@ const _q = new THREE.Quaternion();
 const _pq = new THREE.Quaternion();
 const _m = new THREE.Matrix4();
 const _m2 = new THREE.Matrix4();
+// Scratch for the per-frame planting and grip IK (no allocation per frame, final review).
+const _m3 = new THREE.Matrix4();
+const _pqInv = new THREE.Quaternion();
+const _goal = new THREE.Vector3();
+const _toGoal = new THREE.Vector3();
 
 function need(scene: THREE.Object3D, name: string): THREE.Object3D {
   const o = scene.getObjectByName(name);
@@ -275,6 +280,10 @@ export function buildHeroModel(
   const grips = bones.grip.map((n) => need(scene, n)) as [THREE.Object3D, THREE.Object3D];
   const feet = bones.foot.map((n) => need(scene, n)) as [THREE.Object3D, THREE.Object3D];
   const propContacts = bones.contacts.map((n) => need(scene, n));
+  // per-model scratch of the planting (one entry per prop contact)
+  const contactPts = propContacts.map(() => new THREE.Vector3());
+  const contactGap = propContacts.map(() => 0);
+  const holdingNow = [false, false];
   const arms = (["L", "R"] as const).map((s) => [
     need(scene, `forearm_${s}`),
     need(scene, `upper_arm_${s}`),
@@ -422,7 +431,7 @@ export function buildHeroModel(
   const rotateWorld = (bone: THREE.Object3D, q: THREE.Quaternion) => {
     save(bone);
     (bone.parent as THREE.Object3D).getWorldQuaternion(_pq);
-    const local = _pq.clone().invert().multiply(q).multiply(_pq);
+    const local = _pqInv.copy(_pq).invert().multiply(q).multiply(_pq);
     bone.quaternion.premultiply(local);
     bone.updateMatrixWorld(true);
   };
@@ -456,15 +465,21 @@ export function buildHeroModel(
     }
     if (!hasProp) return;
     // prop: best-fit plane under its four contacts (the wheelchair carries her with it)
-    const pts = propContacts.map((c) => c.getWorldPosition(new THREE.Vector3()));
-    const d = pts.map((p) => groundAt(p.x, p.z) - p.y);
-    if (Math.max(...d.map(Math.abs)) < 1e-4) return;
-    const holding = [0, 1].map(
-      (s) =>
+    const pts = contactPts;
+    const d = contactGap;
+    let worst = 0;
+    for (let i = 0; i < pts.length; i++) {
+      const p = (propContacts[i] as THREE.Object3D).getWorldPosition(pts[i] as THREE.Vector3);
+      d[i] = groundAt(p.x, p.z) - p.y;
+      worst = Math.max(worst, Math.abs(d[i] as number));
+    }
+    if (worst < 1e-4) return;
+    const holding = holdingNow;
+    for (const s of [0, 1])
+      holding[s] =
         (palms[s] as THREE.Object3D)
           .getWorldPosition(_a)
-          .distanceTo((grips[s] as THREE.Object3D).getWorldPosition(_b)) < HOLD_M,
-    );
+          .distanceTo((grips[s] as THREE.Object3D).getWorldPosition(_b)) < HOLD_M;
     const n = pts.length;
     const cx = pts.reduce((s, p) => s + p.x, 0) / n;
     const cy = pts.reduce((s, p) => s + p.y, 0) / n;
@@ -493,7 +508,7 @@ export function buildHeroModel(
     // M = T(P + a) R T(-P), applied in world space
     _m.makeTranslation(cx, cy + a0, cz)
       .multiply(_m2.makeRotationFromQuaternion(_q))
-      .multiply(new THREE.Matrix4().makeTranslation(-cx, -cy, -cz));
+      .multiply(_m3.makeTranslation(-cx, -cy, -cz));
     const world = _m.multiply(target.matrixWorld);
     save(target);
     const local = _m2
@@ -506,12 +521,12 @@ export function buildHeroModel(
     for (const s of [0, 1]) {
       if (!holding[s]) continue;
       const palm = palms[s] as THREE.Object3D;
-      const goal = (grips[s] as THREE.Object3D).getWorldPosition(new THREE.Vector3());
+      const goal = (grips[s] as THREE.Object3D).getWorldPosition(_goal);
       for (let k = 0; k < CCD_ITERATIONS; k++)
         for (const bone of arms[s] as THREE.Object3D[]) {
           bone.getWorldPosition(_b);
           const toPalm = palm.getWorldPosition(_a).sub(_b);
-          const toGoal = goal.clone().sub(_b);
+          const toGoal = _toGoal.copy(goal).sub(_b);
           if (toPalm.lengthSq() < 1e-12 || toGoal.lengthSq() < 1e-12) continue;
           _q.setFromUnitVectors(toPalm.normalize(), toGoal.normalize());
           rotateWorld(bone, _q);

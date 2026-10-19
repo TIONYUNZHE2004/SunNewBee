@@ -763,6 +763,10 @@ function build(
    * variant was linked on her first shadow draw, gate AC-D18) are built in parallel.
    */
   const shadowDepthBySide = new Map<THREE.Side, THREE.MeshDepthMaterial>();
+  undo.push(() => {
+    for (const d of shadowDepthBySide.values()) d.dispose();
+    shadowDepthBySide.clear();
+  });
   const shadowDepthFor = (mat: THREE.Material | THREE.Material[]): THREE.MeshDepthMaterial => {
     const m = Array.isArray(mat) ? mat[0] : mat;
     const flip: Record<number, THREE.Side> = {
@@ -1167,6 +1171,9 @@ function build(
         h,
         () => {
           aoSkip.length = 0;
+          // The sky dome is drawn at the far plane (xyww); with the override materials' standard
+          // projection it became a 1 m ball at the site origin (an AO ring, a wrong focus depth).
+          aoSkip.push(sky.mesh);
           if (assets) for (const o of assets.aoExcluded()) aoSkip.push(o);
           if (motionLayer) aoSkip.push(motionLayer.group);
           // The flood tint is data on the ground: AO must not darken it.
@@ -1186,6 +1193,7 @@ function build(
     if (spec.dof && dofWanted) {
       bokehPass = new CityBokehPass(scene, camera, () => {
         bokehSkip.length = 0;
+        bokehSkip.push(sky.mesh);
         if (overlays) bokehSkip.push(overlays.lineGroup);
         if (journey) bokehSkip.push(journey.ribbon);
         return bokehSkip;
@@ -1285,8 +1293,13 @@ function build(
   const driveCamera = (now: number): { driven: boolean; animating: boolean } => {
     let pose: DrivenCamera | null = null;
     if (driver) {
-      _cur.position = [camera.position.x, camera.position.y, camera.position.z];
-      _cur.look = [controls.target.x, controls.target.y, controls.target.z];
+      // filled in place: no arrays per frame (final review)
+      _cur.position[0] = camera.position.x;
+      _cur.position[1] = camera.position.y;
+      _cur.position[2] = camera.position.z;
+      _cur.look[0] = controls.target.x;
+      _cur.look[1] = controls.target.y;
+      _cur.look[2] = controls.target.z;
       pose = driver(now, _cur);
     }
     if (!pose) {
@@ -1707,7 +1720,13 @@ function build(
     cameraDriven: () => driving,
     setOverlays(o) {
       if (disposed) return;
-      if (o === overlays || (o && o === pendingOverlays)) return;
+      if (o && o === pendingOverlays) return;
+      if (o === overlays) {
+        // the shown layer again: a newer one still compiling is cancelled (disposed, never shown)
+        pendingOverlays?.dispose();
+        pendingOverlays = null;
+        return;
+      }
       pendingOverlays?.dispose();
       pendingOverlays = null;
       if (!o) {

@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { HERO_RENDER_ORDER } from "../../scene/three/characters/hero";
 import type { Clearance, Vec3 } from "../../scene/three/clearance";
-import { buildingMeshes, roofHit } from "../../scene/three/scene/useAcceptanceHook";
+import { buildingMeshes, roofHit } from "../../scene/three/scene/buildingMeshes";
 import type { Rect } from "../cardPlacement";
 import { currentCut, inCut } from "./cutaway";
 import { boxOnScreen, heroBodyBox } from "./heroScreen";
