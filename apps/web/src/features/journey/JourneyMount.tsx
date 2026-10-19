@@ -25,7 +25,7 @@ import {
 import { probeCamera } from "./three/cameraProbe";
 import { applyCutaway, cutFor, NO_CUT, setCut } from "./three/cutaway";
 import { createHeroLayer, type FactBench, type HeroLayer } from "./three/heroLayer";
-import { heroBodyBox, heroScreenRect } from "./three/heroScreen";
+import { heroScreenRect } from "./three/heroScreen";
 import { createJourneyLayer, type JourneyLayer, warmPinDrawings } from "./three/journeyLayer";
 import { projectToScreen } from "./three/project";
 import { createViewFit, safeRectOf } from "./three/viewFit";
@@ -229,11 +229,6 @@ export function JourneyMount({
       if (!vf || vf.key !== key) vf = { key, view: createViewFit(cam, v.size, safeRectOf(vp)) };
       return vf.view;
     };
-    let boxMemo: {
-      t: number;
-      hero: HeroLayer;
-      box: { min: [number, number, number]; max: [number, number, number] } | null;
-    } | null = null;
     const scene = (): FollowScene | null => {
       const s = useJourney.getState();
       const tl = s.timeline;
@@ -247,25 +242,6 @@ export function JourneyMount({
         clearance: engine.clearance?.() ?? null,
         overview: overview(),
         heroAt: h ? (t) => heroPositionAt(tl, t, h.helpers) : undefined,
-        heroBox: (t) => {
-          // her drawn box, only when she is posed at t (the store's t: the driver poses her on
-          // every change of t, before the frame's camera); one measure per t
-          if (!h || Math.abs(useJourney.getState().t - t) > 1e-9) return null;
-          if (boxMemo?.t !== t || boxMemo.hero !== h) {
-            const b = heroBodyBox(h.hero.object3d);
-            boxMemo = {
-              t,
-              hero: h,
-              box: b
-                ? {
-                    min: b.min.toArray() as [number, number, number],
-                    max: b.max.toArray() as [number, number, number],
-                  }
-                : null,
-            };
-          }
-          return boxMemo.box;
-        },
         markerOf: (i) => layer.anchorOf(i),
         view: viewFit(),
       };

@@ -394,6 +394,24 @@ export function buildHeroModel(
     }
     saved.clear();
   };
+  // The walker prop's transform, re-applied before each pose, so the walker a rest's sit clips park
+  // beside the bench never keeps that place in the next clip that does not key it.
+  // A pose is then a function of its clip and time only: a seek back past a rest drew the walker
+  // where the rest had left it (gate round 2, AC-D17 with the beats visited in reverse).
+  // The reference is the idle pose at time 0 (what every clip was authored against: the walker
+  // in her hands), not the glb's bind pose.
+  const rest: [THREE.Object3D, THREE.Vector3, THREE.Quaternion, THREE.Vector3][] = [];
+  {
+    const idle = actions.get("idle") as THREE.AnimationAction;
+    idle.play();
+    idle.time = 0;
+    idle.setEffectiveWeight(1);
+    mixer.update(0);
+    // the prop bone only (the walker): the mixer restores the bones its clips key, but the prop's
+    // "original" state is whatever it held when a clip first bound it (planting may have moved it)
+    rest.push([prop, prop.position.clone(), prop.quaternion.clone(), prop.scale.clone()]);
+    idle.stop();
+  }
   let weights = new Map<HeroClip, number>();
   let dominant: { clip: HeroClip; time: number } = { clip: "idle", time: 0 };
 
@@ -423,6 +441,11 @@ export function buildHeroModel(
         dominant = { clip: c, time: s.time };
       }
     restore();
+    for (const [o, p, q, sc] of rest) {
+      o.position.copy(p);
+      o.quaternion.copy(q);
+      o.scale.copy(sc);
+    }
     mixer.update(0);
     root.updateWorldMatrix(true, true);
   };
