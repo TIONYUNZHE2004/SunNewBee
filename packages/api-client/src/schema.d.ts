@@ -1022,22 +1022,6 @@ export interface components {
             };
         };
         /**
-         * BoundaryRef
-         * @description Display-only Elmina outline (base/boundary.geojson); routing and answers never read it.
-         */
-        BoundaryRef: {
-            /** Area Km2 */
-            area_km2: number;
-            /** As Of */
-            as_of: string;
-            /** File */
-            file: string;
-            /** Method */
-            method: string;
-            /** Source */
-            source: string;
-        };
-        /**
          * BuildRamp
          * @description Imagine a capital work: the path rebuilt step-free (steps become a ramp).
          */
@@ -2506,13 +2490,35 @@ export interface components {
             /** Task Id */
             task_id: string;
         };
-        /** Site */
-        Site: {
+        /**
+         * SiteBoundary
+         * @description The display-only Elmina outline with its geometry, for the stylised renderer's clip and
+         *     diorama slab. Routing, evaluation and answers never read it. `geometry` is null when the file
+         *     is missing, unreadable or not one Polygon / MultiPolygon.
+         */
+        SiteBoundary: {
+            /** Area Km2 */
+            area_km2: number;
+            /** As Of */
+            as_of: string;
+            /** File */
+            file: string;
+            /** Geometry */
+            geometry?: {
+                [key: string]: unknown;
+            } | null;
+            /** Method */
+            method: string;
+            /** Source */
+            source: string;
+        };
+        /** SiteInfo */
+        SiteInfo: {
             /** Attribution */
             attribution?: string[];
             /** Bbox */
             bbox: number[];
-            boundary?: components["schemas"]["BoundaryRef"] | null;
+            boundary?: components["schemas"]["SiteBoundary"] | null;
             /** Center */
             center: number[];
             /** Data As Of */
@@ -4152,7 +4158,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Site"];
+                    "application/json": components["schemas"]["SiteInfo"];
                 };
             };
         };

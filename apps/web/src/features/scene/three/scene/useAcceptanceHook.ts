@@ -3,6 +3,7 @@ import * as THREE from "three";
 import type { Engine } from "../engine";
 import type { LocalFrame } from "../frame";
 import { createFrameStats, type PerfSample } from "../frameStats";
+import { type Boundary, insideBoundary, outsideBy, type P } from "../ground/boundary";
 import { pickAt } from "../pick";
 
 /**
@@ -110,6 +111,106 @@ export interface AcceptanceApi {
   linesOnTop(renderOrder: number, on: boolean): number;
   /** The unmasked WebGL vendor and renderer (WEBGL_debug_renderer_info), else the masked ones. */
   gpu(): { vendor: string; renderer: string };
+  /**
+   * The diorama slab's top outline (A-T4) projected to canvas CSS pixels, one array per ring, with
+   * the local position of each vertex; null when no slab is drawn. `inFront`: in front of the camera.
+   */
+  slabOutline():
+    | {
+        x: number;
+        y: number;
+        lx: number;
+        lz: number;
+        inFront: boolean;
+        /** The outer bottom corner of the soil section below this vertex, projected. */
+        foot: { x: number; y: number };
+      }[][]
+    | null;
+  /**
+   * AC-A5 live audit: how far outside the slab outline (m) the drawn display geometry of the main
+   * scene reaches. Every used vertex of each visible mesh (world xz) and every visible instance's
+   * origin is measured; the slab itself, the sky, the hidden base plane and the data overlays
+   * (overlay scene, flood ground slot) are left out. null when no slab is drawn.
+   */
+  displayAudit(): DisplayAudit | null;
+}
+
+export interface DisplayAudit {
+  meshes: number;
+  vertices: number;
+  instances: number;
+  /** Worst distance outside (m) over mesh vertices, and over instance origins. */
+  worstVertexM: number;
+  worstInstanceM: number;
+  /** The objects with anything more than 5 m outside: name and worst distance. */
+  over: { name: string; outsideM: number }[];
+}
+
+const AUDIT_SKIP = new Set(["slab", "sky", "base-plane", "flood-ground-slot"]);
+
+function displayAudit(engine: Engine): DisplayAudit | null {
+  const v = engine.pickView();
+  const slab = slabOf(v.roots);
+  const b = slab?.userData.boundary as Boundary | undefined;
+  if (!b) return null;
+  const main = v.roots[v.roots.length - 1]!;
+  main.updateMatrixWorld(true);
+  const out: DisplayAudit = {
+    meshes: 0,
+    vertices: 0,
+    instances: 0,
+    worstVertexM: 0,
+    worstInstanceM: 0,
+    over: [],
+  };
+  const p = new THREE.Vector3();
+  const m = new THREE.Matrix4();
+  const sc = new THREE.Vector3();
+  const q = new THREE.Quaternion();
+  const visit = (o: THREE.Object3D, path: string) => {
+    if (!o.visible || AUDIT_SKIP.has(o.name)) return;
+    const name = `${path}/${o.name || o.type}`;
+    let worst = 0;
+    const im = o as THREE.InstancedMesh;
+    const mesh = o as THREE.Mesh;
+    if (im.isInstancedMesh) {
+      for (let i = 0; i < im.count; i++) {
+        im.getMatrixAt(i, m);
+        // A hidden instance has a zero-scale matrix (decompose would report scale 1 for it).
+        const e = m.elements;
+        if (e[0] === 0 && e[1] === 0 && e[2] === 0 && e[5] === 0 && e[10] === 0) continue;
+        m.premultiply(im.matrixWorld).decompose(p, q, sc);
+        out.instances++;
+        worst = Math.max(worst, outsideBy(b, p.x, p.z));
+      }
+      out.worstInstanceM = Math.max(out.worstInstanceM, worst);
+    } else if (mesh.isMesh) {
+      const pos = mesh.geometry?.getAttribute("position") as THREE.BufferAttribute | undefined;
+      if (pos) {
+        out.meshes++;
+        const idx = mesh.geometry.getIndex();
+        const seen = idx ? new Uint8Array(pos.count) : null;
+        const n = idx ? idx.count : pos.count;
+        for (let k = 0; k < n; k++) {
+          const i = idx ? idx.getX(k) : k;
+          if (seen) {
+            if (seen[i]) continue;
+            seen[i] = 1;
+          }
+          p.fromBufferAttribute(pos, i).applyMatrix4(mesh.matrixWorld);
+          out.vertices++;
+          worst = Math.max(worst, outsideBy(b, p.x, p.z));
+        }
+        out.worstVertexM = Math.max(out.worstVertexM, worst);
+      }
+    }
+    if (worst > 5) out.over.push({ name, outsideM: worst });
+    for (const c of o.children) visit(c, name);
+  };
+  for (const c of main.children) visit(c, "");
+  out.over.sort((x, y) => y.outsideM - x.outsideM);
+  out.over = out.over.slice(0, 20);
+  return out;
 }
 
 export interface CrowdRow {
@@ -268,7 +369,21 @@ function classify(
   // The road meshes opt out of raycasting (`raycast` is a no-op): call the Mesh raycast directly.
   for (const m of roads) THREE.Mesh.prototype.raycast.call(m, _ray, hits);
   if (hits.length > 0) return "road";
-  return engine.rig.pick(screen) ? "ground" : "sky";
+  const g = engine.rig.pick(screen);
+  if (!g) return "sky";
+  // With the diorama slab (A-T4) the ground ends at the outline: the plane beyond it is void (the
+  // slab's soil edge or the background), not ground.
+  const b = slabOf(roots)?.userData.boundary as Boundary | undefined;
+  return b && !insideBoundary(b, g[0], g[1]) ? "sky" : "ground";
+}
+
+/** The visible slab group (`ground/slab.ts`), if any. */
+function slabOf(roots: THREE.Object3D[]): THREE.Object3D | null {
+  for (const r of roots) {
+    const s = r.getObjectByName("slab");
+    if (s?.visible) return s;
+  }
+  return null;
 }
 
 export function createAcceptanceApi(engine: Engine, frame: LocalFrame): AcceptanceApi {
@@ -379,6 +494,28 @@ export function createAcceptanceApi(engine: Engine, frame: LocalFrame): Acceptan
       for (const r of engine.pickView().roots) visit(r);
       engine.requestRender();
       return n;
+    },
+    displayAudit() {
+      return displayAudit(engine);
+    },
+    slabOutline() {
+      const v = engine.pickView();
+      const s = slabOf(v.roots);
+      const outline = s?.userData.outline as P[][] | undefined;
+      const foot = s?.userData.foot as [number, number, number][][] | undefined;
+      if (!outline || !foot) return null;
+      const [w, h] = v.size;
+      const q = new THREE.Vector3();
+      const px = () => ({ x: ((q.x + 1) / 2) * w, y: ((1 - q.y) / 2) * h });
+      return outline.map((ring, r) =>
+        ring.map(([lx, lz], i) => {
+          const f = foot[r]![i]!;
+          q.set(f[0], f[1], f[2]).project(v.camera);
+          const fp = px();
+          q.set(lx, 0, lz).project(v.camera);
+          return { ...px(), lx, lz, inFront: q.z >= -1 && q.z <= 1, foot: fp };
+        }),
+      );
     },
     gpu() {
       const gl = engine.gl();
