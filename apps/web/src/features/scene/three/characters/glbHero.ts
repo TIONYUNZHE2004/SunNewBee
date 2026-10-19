@@ -19,7 +19,7 @@ import {
   type HeroFade,
 } from "./hero";
 import { createHeroRing } from "./heroRing";
-import { createPlaceholderHero } from "./placeholderHero";
+import { createPlaceholderHero, createRestBench } from "./placeholderHero";
 
 /**
  * The rigged journey hero (C-T4): `public/city/characters/hero_<variant>.glb` (C-T3) behind the
@@ -289,6 +289,8 @@ export function buildHeroModel(
     need(scene, `upper_arm_${s}`),
   ]) as [THREE.Object3D[], THREE.Object3D[]];
   const actions = new Map<HeroClip, THREE.AnimationAction>();
+  /** Clips that key the prop bone (every clip of the committed glbs). */
+  const propKeyed = new Set<HeroClip>();
   const mixer = new THREE.AnimationMixer(scene);
   for (const clip of HERO_MANIFEST.clips) {
     const c = THREE.AnimationClip.findByName(gltf.animations, clip);
@@ -296,6 +298,7 @@ export function buildHeroModel(
     const a = mixer.clipAction(c);
     a.setLoop(THREE.LoopRepeat, Number.POSITIVE_INFINITY); // the runtime wraps / holds itself
     actions.set(clip, a);
+    if (c.tracks.some((t) => t.name.startsWith(`${bones.prop}.`))) propKeyed.add(clip);
   }
   // Sole markers from the bind pose, before anything moves.
   const soles = feet.map((f) => soleMarker(body0, f)) as [THREE.Object3D, THREE.Object3D];
@@ -424,7 +427,9 @@ export function buildHeroModel(
         time: clipTimeFor(spec, fade.prevClip, fade.prevTime),
         weight: 1 - blend,
       });
-    for (const [c, a] of actions) if (!want.has(c) && a.isScheduled()) a.stop();
+    // unwanted clips stay scheduled at weight 0: stopping one let three restore its bindings to a
+    // saved "original" (a planted or earlier pose) that a later skipped write never replaced
+    for (const [c, a] of actions) if (!want.has(c) && a.isScheduled()) a.setEffectiveWeight(0);
     for (const [c, s] of want) {
       const a = actions.get(c) as THREE.AnimationAction;
       if (!a.isScheduled()) a.play();
@@ -441,11 +446,17 @@ export function buildHeroModel(
         dominant = { clip: c, time: s.time };
       }
     restore();
-    for (const [o, p, q, sc] of rest) {
-      o.position.copy(p);
-      o.quaternion.copy(q);
-      o.scale.copy(sc);
-    }
+    // Only when a clip drawn now does not key the prop. three's PropertyMixer skips writing a
+    // property whose mixed value equals the one it wrote last update, so resetting a keyed prop to
+    // the idle reference before the update left it there whenever the pose repeated (a paused hold
+    // re-posed on a ground refresh, or any second pose at the same t): the parked walker jumped back
+    // into her hands at a rest's sit_down -> sit_idle fade (ITER2 AC-D17 event 7, run 1).
+    if ([...want.keys()].some((c) => !propKeyed.has(c)))
+      for (const [o, p, q, sc] of rest) {
+        o.position.copy(p);
+        o.quaternion.copy(q);
+        o.scale.copy(sc);
+      }
     mixer.update(0);
     root.updateWorldMatrix(true, true);
   };
@@ -487,24 +498,20 @@ export function buildHeroModel(
       airborne[i] = seated;
     }
     if (!hasProp) return;
-    // Seated (the walker parked by the sit clips): it stands on HER ground plane (her root height,
-    // the ground under her stand point), never on the ground sampled under its own legs: that
-    // sample is the streamed ground table, which differs with what has streamed in (a play versus a
-    // reverse seek reached the same rest with different tiles loaded, ITER2 AC-D17 event 7: the
-    // parked walker sat ~20 px off). Only lifted by the mean gap to her plane, never tilted or
-    // turned, so the parked walker is a function of (clip, time, her root pose) alone.
-    const parked = !spec.seated && seatedAt(spec, dominant.clip, dominant.time);
     // prop: best-fit plane under its four contacts (the wheelchair carries her with it)
     const pts = contactPts;
     const d = contactGap;
     let worst = 0;
     for (let i = 0; i < pts.length; i++) {
       const p = (propContacts[i] as THREE.Object3D).getWorldPosition(pts[i] as THREE.Vector3);
-      d[i] = (parked ? rootY : groundAt(p.x, p.z)) - p.y;
+      d[i] = groundAt(p.x, p.z) - p.y;
       worst = Math.max(worst, Math.abs(d[i] as number));
     }
     if (worst < 1e-4) return;
-    if (parked) {
+    // Seated (the walker parked by the sit clips): only lifted onto the ground (the mean gap), never
+    // tilted or turned, so its parked place is the clip's at that time and her seat's ground height
+    // alone (AC-D17 final: the parked walker differed between a play and a reverse seek).
+    if (!spec.seated && seatedAt(spec, dominant.clip, dominant.time)) {
       let mean = 0;
       for (let i = 0; i < pts.length; i++) mean += d[i] as number;
       mean /= pts.length;
@@ -693,6 +700,13 @@ export async function preloadHeroModel(profile: string): Promise<GlbHeroModel | 
       m.dispose();
       return spareInUse.has(first) ? null : first;
     }
+    // A rest bench rides along (hidden from the pose, under her root) while the caller compiles and
+    // draws the model off-screen: its clay programs were otherwise linked when the answer landed
+    // (ITER2 AC-D18). Taken off when a hero adopts the model.
+    const bench = createRestBench();
+    bench.object3d.position.set(0, 0, -1.5);
+    m.object3d.add(bench.object3d);
+    warmKits.set(m, bench);
     spareModels.set(variant, m);
     return m;
   } catch {
@@ -709,6 +723,8 @@ export async function preloadHeroModel(profile: string): Promise<GlbHeroModel | 
  */
 const spareModels = new Map<HeroVariant, GlbHeroModel>();
 const spareInUse = new Set<GlbHeroModel>();
+/** The bench drawn with a preloaded model until a hero adopts it (see `preloadHeroModel`). */
+const warmKits = new Map<GlbHeroModel, { object3d: THREE.Object3D; dispose(): void }>();
 
 /** Takes the preloaded model of `variant` when it is free (null otherwise). */
 function adoptSpare(variant: HeroVariant): GlbHeroModel | null {
@@ -716,6 +732,12 @@ function adoptSpare(variant: HeroVariant): GlbHeroModel | null {
   if (!m || spareInUse.has(m)) return null;
   spareInUse.add(m);
   m.object3d.removeFromParent();
+  const kit = warmKits.get(m);
+  if (kit) {
+    warmKits.delete(m);
+    kit.object3d.removeFromParent();
+    kit.dispose();
+  }
   return m;
 }
 

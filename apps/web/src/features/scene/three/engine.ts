@@ -6,6 +6,7 @@ import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 import type { Pass } from "three/addons/postprocessing/Pass.js";
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
+import { journeyMarkerStandIn } from "../../journey/three/journeyLayer";
 import { reducedMotion } from "../cesium/controls/cameraOps";
 import type { Tier } from "../shared/quality";
 import { CityGTAOPass } from "./aoPass";
@@ -889,7 +890,44 @@ function build(
           for (const mat of copies) mat.dispose();
         }, STAND_IN_DISPOSE_MS),
       );
+    // Each compiled program gets its first use (three's onFirstUse: info-log and uniform queries, a
+    // synchronous round trip to the GPU process) at the next idle moment if nothing has drawn it by
+    // then: a route-line program compiled at load but first drawn when the answer landed waited
+    // 132-222 ms in that frame behind its uploads (ITER2 AC-D18 diagnosis). Programs drawn at once
+    // (a layer shown when ready) are used by their first draw before the idle moment: no change.
+    const mats: THREE.Material[] = [...copies];
+    root.traverse((o) => {
+      const m = (o as THREE.Mesh).material as THREE.Material | THREE.Material[] | undefined;
+      for (const x of Array.isArray(m) ? m : m ? [m] : []) if (!mats.includes(x)) mats.push(x);
+    });
+    void all.then(
+      () => {
+        const ric = (
+          globalThis as {
+            requestIdleCallback?: (cb: () => void, o?: { timeout: number }) => number;
+          }
+        ).requestIdleCallback;
+        const run = () => {
+          if (!disposed) touchPrograms(mats);
+        };
+        // without idle callbacks (Safari, node) the first draw does it, as before
+        if (ric) ric(run, { timeout: 2000 });
+      },
+      () => {},
+    );
     return all;
+  };
+  const touchPrograms = (mats: readonly THREE.Material[]) => {
+    for (const m of mats) {
+      const prog = (
+        renderer.properties.get(m) as { currentProgram?: { getUniforms?(): unknown } } | undefined
+      )?.currentProgram;
+      try {
+        prog?.getUniforms?.();
+      } catch {
+        /* a failed program reports through renderer.debug.onShaderError */
+      }
+    }
   };
   /** Material patches run on every layer before its first compile (`addMaterialPatch`). */
   const materialPatches = new Set<(root: THREE.Object3D) => number>();
@@ -1546,6 +1584,20 @@ function build(
         sun.castShadow = cast;
       }
     }
+  // The journey's event markers (their own scene, straight to the canvas), first drawn when the
+  // answer lands: compiled now (ITER2 AC-D18).
+  {
+    // kept for the engine's life (one sprite and a 1x1 texture): its program stays in use
+    const standIn = journeyMarkerStandIn();
+    void compileRoot(standIn, null, false, standIn);
+    undo.push(() =>
+      standIn.traverse((o) => {
+        const m = (o as THREE.Sprite).material as THREE.SpriteMaterial | undefined;
+        m?.map?.dispose();
+        m?.dispose();
+      }),
+    );
+  }
   // the overlay scene (no lights) with and without the mood's fog
   for (const fogOn of [true, false]) {
     const fog = overlayScene.fog;

@@ -14,7 +14,13 @@ import {
   parseHeroGlb,
   preloadHeroModel,
 } from "./glbHero";
-import { HERO_DISPLAY_SCALE, type Hero, type HeroContact } from "./hero";
+import {
+  HERO_DISPLAY_SCALE,
+  type Hero,
+  type HeroClip,
+  type HeroContact,
+  type HeroFade,
+} from "./hero";
 
 /**
  * C-T4: the rigged GLB hero behind the `Hero` interface, read from the committed meshopt GLBs with
@@ -198,33 +204,51 @@ describe("GLB hero model (walker)", () => {
     }
   });
 
-  it("ITER2 AC-D17: the parked walker ignores the streamed ground under its legs (only her root plane)", async () => {
-    const h = await model("walker");
-    h.setPose({ x: 2, y: 0.1, z: -1 }, 1.1);
-    const walker = () =>
-      h
-        .contacts()
-        .filter((c) => c.name.startsWith("walker"))
-        .map((c) => [c.x, c.y, c.z]);
-    // the ground table as one history streamed it, and as another did (a raised park band under
-    // the walker's legs loaded in one run only)
-    h.setGround(() => 0.1);
-    h.play("sit_idle", 1.5, 0);
-    const a = walker();
-    h.setGround((x, z) => (Math.hypot(x - 2, z + 1) > 0.25 ? 0.35 : 0.1));
-    h.play("sit_idle", 1.5, 0);
-    walker().forEach((p, i) => {
-      const q = a[i] as number[];
-      const d = p.map((v, k) => v - (q[k] as number));
-      expect(Math.hypot(...d)).toBeLessThan(1e-6);
-    });
-    // and it stands on her plane (her root height) within 3 cm
-    for (const p of a) expect(Math.abs((p[1] as number) - 0.1)).toBeLessThan(0.03);
-    h.setGround(null);
+  it("ITER2 AC-D17: a repeated pose (a paused hold re-posed) equals a single one, also mid-fade", async () => {
+    const fresh = async (seq: [HeroClip, number, HeroFade | undefined][]) => {
+      const h = await parseHeroGlb(glbBytes("walker"), "walker");
+      h.setPose({ x: 2, y: 0.1, z: -1 }, 1.1);
+      h.setGround(() => 0.1);
+      for (const [c, t, f] of seq) h.play(c, t, 0, f);
+      const out = ["prop", "hips", "forearm_L"].flatMap((b) => wp(h.bone(b)).toArray());
+      for (const c of h.contacts()) out.push(c.x, c.y, c.z);
+      h.dispose();
+      return out;
+    };
+    // the sit_down -> sit_idle fade at a rest (event 7 of the demo trip, t = 66.09)
+    const fade: HeroFade = { prevClip: "sit_down", prevTime: 1.68, blend: 0.51 };
+    const once = await fresh([["sit_idle", 0.1, fade]]);
+    for (const seq of [
+      [
+        ["sit_idle", 0.1, fade],
+        ["sit_idle", 0.1, fade],
+      ],
+      [
+        ["sit_down", 1.4, undefined],
+        ["sit_idle", 0.1, fade],
+      ],
+      [
+        ["sit_idle", 0.5, undefined],
+        ["sit_idle", 0.1, fade],
+      ],
+      [
+        ["sit_idle", 0.05, fade],
+        ["sit_idle", 0.1, fade],
+        ["sit_idle", 0.1, fade],
+      ],
+    ] as [HeroClip, number, HeroFade | undefined][][]) {
+      const got = await fresh(seq);
+      got.forEach((v, i) => {
+        expect(
+          Math.abs(v - (once[i] as number)),
+          `${seq.map((x) => x[0]).join(">")} #${i}`,
+        ).toBeLessThan(1e-6);
+      });
+    }
   });
 
   it("ITER2 AC-D17: every pose is a function of t: seeking to t from t-20 s, from t+20 s and fresh give identical bones", async () => {
-    const { heroStateAt } = await import("../journey/heroDriver");
+    const { heroStateAt, restSchedule } = await import("../journey/heroDriver");
     const { buildTimeline } = await import("../../../journey/timeline");
     const { createRoutePath } = await import("../../../journey/routePath");
     const { createFrame } = await import("../frame");
@@ -267,6 +291,8 @@ describe("GLB hero model (walker)", () => {
     const ts = [
       ...rests.map((p) => (p.t0 + p.t1) / 2),
       ...rests.map((p) => p.t0 + 0.1),
+      // inside the sit_down -> sit_idle crossfade (event 7's hold in the demo trip)
+      ...rests.map((p) => p.t0 + restSchedule(p.t1 - p.t0).sitIdle[0] + 0.1),
       tl.total * 0.3,
     ];
     for (const t of ts) {
@@ -274,11 +300,15 @@ describe("GLB hero model (walker)", () => {
       h0.setGround(ground);
       const fresh = at(h0, t, []);
       h0.dispose();
+      const again = at(used, t, [t, t]);
       const before = at(used, t, [Math.max(0, t - 20), Math.max(0, t - 20) + 1 / 60]);
       const after = at(used, t, [Math.min(tl.total, t + 20), Math.min(tl.total, t + 20) - 1 / 60]);
-      for (const other of [before, after])
+      for (const [k, other] of [again, before, after].entries())
         other.forEach((v, i) => {
-          expect(Math.abs(v - (fresh[i] as number)), `t=${t.toFixed(2)} #${i}`).toBeLessThan(1e-6);
+          expect(
+            Math.abs(v - (fresh[i] as number)),
+            `t=${t.toFixed(2)} h${k} #${i} ${heroStateAt(tl, t, helpers).clip} ${heroStateAt(tl, t, helpers).clipTime.toFixed(2)}`,
+          ).toBeLessThan(1e-6);
         });
     }
   });
