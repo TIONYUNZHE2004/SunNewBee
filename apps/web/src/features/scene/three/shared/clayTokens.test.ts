@@ -66,7 +66,7 @@ describe("AC-B1: clay token table ranges", () => {
     expect(CLAY.wall.roughness).toBe(0.7);
     expect(CLAY.wall.sheen).toBe(0.35);
     expect(CLAY_PALETTE.slab).toEqual(["#ddd6b6", "#a87a4f", "#8b5f3c", "#c69c6d"]);
-    expect(CLAY_PALETTE.road.major).toBe("#717786");
+    expect(CLAY_PALETTE.road.footway).toBe("#f2dbb2");
     expect(CLAY_PALETTE.park).toBe("#a3d273");
   });
 });

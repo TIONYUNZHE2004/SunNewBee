@@ -74,8 +74,9 @@ export const CLAY_PALETTE = {
     water: "#7fb6c9",
   },
   landcoverUnknown: "#e6e0d2",
-  /** Road ribbons per kind (groundLayer). Illustrative: a road's colour says nothing about access. */
-  road: { major: "#717786", residential: "#868b98", footway: "#f2dbb2", other: "#9b9ea8" },
+  /** Road ribbons per kind (groundLayer). Illustrative: a road's colour says nothing about access. The
+   * prototype road (#717786) a touch darker, so lit asphalt stays under the street check's 0.35 luminance. */
+  road: { major: "#686d7a", residential: "#757a88", footway: "#f2dbb2", other: "#8e919b" },
   /** Dashed road marks; parking-stall lines. */
   marking: "#fbfaf5",
   stall: "#f4f2ec",
