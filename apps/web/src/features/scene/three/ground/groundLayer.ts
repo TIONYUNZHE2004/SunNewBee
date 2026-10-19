@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import type { Tier } from "../../shared/quality";
+import { CLAY_PALETTE } from "../shared/clayTokens";
 import { GROUND_BANDS, type GroundBand, groundMaterial } from "./bands";
 import { applyGroundDetail } from "./groundDetail";
 import { shimmerMaterial } from "./landcover";
@@ -12,17 +13,16 @@ export interface GroundLayer {
 }
 
 /** Display-only tints per road kind (illustrative; a road's colour says nothing about access). */
-const ROAD_COLOUR: Record<Ribbon["kind"], string> = {
-  major: "#55595e",
-  residential: "#6e7176",
-  footway: "#b9b3a6",
-  other: "#8b8a86",
-};
-const MARK_COLOUR = "#ece6d2";
+const ROAD_COLOUR: Record<Ribbon["kind"], string> = CLAY_PALETTE.road;
+const MARK_COLOUR = CLAY_PALETTE.marking;
 
 const noRaycast = () => {};
 
-function merge(ribbons: Ribbon[], colour: (r: Ribbon) => THREE.Color): THREE.BufferGeometry | null {
+function merge(
+  ribbons: Ribbon[],
+  colour: (r: Ribbon) => THREE.Color,
+  smooth = false,
+): THREE.BufferGeometry | null {
   let verts = 0;
   let idx = 0;
   for (const r of ribbons) {
@@ -53,6 +53,9 @@ function merge(ribbons: Ribbon[], colour: (r: Ribbon) => THREE.Color): THREE.Buf
   g.setAttribute("color", new THREE.BufferAttribute(col, 3));
   g.setAttribute("normal", new THREE.BufferAttribute(nor, 3));
   g.setIndex(new THREE.BufferAttribute(index, 1));
+  // Smooth vertex normals: the bevelled kerb rim (B-T3) shades as a rounded edge, flat tops stay +y.
+  // Markings stay flat (+y): they are not bevelled.
+  if (smooth) g.computeVertexNormals();
   return g;
 }
 
@@ -122,6 +125,7 @@ export function createGroundLayer(
   const surface = merge(
     roads.filter((r) => !r.marking),
     (r) => new THREE.Color(ROAD_COLOUR[r.kind]),
+    true,
   );
   if (surface) add(surface, "roads");
   const marks = tier === "low" ? null : markings(roads, stalls);

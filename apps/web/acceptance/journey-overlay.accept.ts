@@ -14,8 +14,8 @@ import { decodePng } from "./support/scene";
  *
  * Uses the player hook `window.__journey` (D-T8; installed in dev builds and the demo preset):
  * `seek`, `play`, `pause`, `setCam`, `total`, `phases` (event phases carry `event` and
- * `eventIndex`), `plan` and `hero()` -> `{ distance_m }` (the timeline distance until D-T6 reads it
- * from the rendered hero). Skips only where the hook is not installed (a production build).
+ * `eventIndex`), `plan` and `hero()` -> the rendered hero (D-T6): `distance_m` is the route metre
+ * the 3D hero was posed at, so the dot check measures the drawn hero, not the timeline. Skips only where the hook is not installed (a production build).
  */
 
 interface HookPhase {

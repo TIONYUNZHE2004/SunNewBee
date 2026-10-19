@@ -41,6 +41,7 @@ import { createMotionClock, type MotionMode, motionModeFor } from "./motion/moti
 import type { MotionLayer } from "./motion/motionLayer";
 import type { OverlayLayer } from "./overlays/accessLayers";
 import { THREE_TIERS } from "./quality";
+import { applyClayTier, CLAY_PALETTE, clayMaterial, setClayTier } from "./shared/clayTokens";
 import { createSky } from "./sky";
 import { measure, UPLOAD_MEASURE } from "./stream/streamer";
 import { attachWheelZoom, dispatchOwnWheel } from "./zoom";
@@ -84,6 +85,12 @@ export interface JourneyOverlay {
 
 export interface Engine {
   readonly frames: number;
+  /**
+   * Bumped whenever a scene layer that can hold ground bands is swapped (city, ground layer, any
+   * decor slot such as the streamed `roads`): readers that index the drawn ground (the journey
+   * hero's foot planting) re-check their ground meshes when it changes, not every frame.
+   */
+  readonly groundGeneration: number;
   setCity(g: CityGeometry): void;
   /** Instanced archetypes; replaces and disposes the previous set; null removes it. */
   setAssets(a: CityInstances | null): void;
@@ -191,7 +198,6 @@ const MOVING_MS = 300;
 const LOD_INTERVAL_MS = 250;
 /** A bound on pinned shader programs (the scene uses about 32; see `pinPrograms`). */
 const MAX_PINNED_PROGRAMS = 96;
-const GROUND_COLOUR = "#d6d0c2";
 
 export interface RigView {
   camera: THREE.PerspectiveCamera;
@@ -402,6 +408,8 @@ function build(
   undo: (() => void)[],
   release: () => void,
 ): Engine {
+  // Clay materials made from here on follow this tier (B-T1; applyTier keeps it current).
+  setClayTier(tier);
   // Neutral, not AgX: AgX desaturated the stylised palette to grey (browser check, Task 7 fix 2);
   // Khronos PBR Neutral keeps base colours.
   renderer.toneMapping = THREE.NeutralToneMapping;
@@ -446,14 +454,14 @@ function build(
   let lastPreset: LightPreset | null = null;
   let fogRange = 0;
 
-  const buildingMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85 });
-  const parksMat = groundMaterial("parks", 0.95);
-  const waterMat = groundMaterial("water", 0.95);
+  const buildingMat = clayMaterial("wall", { vertexColors: true, tier });
+  const parksMat = groundMaterial("parks", tier);
+  const waterMat = groundMaterial("water", tier);
   const motion = createMotionUniforms();
   shimmerMaterial(waterMat, motion.uTime, "all");
-  const groundMat = new THREE.MeshStandardMaterial({
-    color: GROUND_COLOUR,
-    roughness: 1,
+  const groundMat = clayMaterial("ground", {
+    tier,
+    color: CLAY_PALETTE.ground,
     polygonOffset: true,
     polygonOffsetFactor: 1,
     polygonOffsetUnits: 1,
@@ -600,6 +608,7 @@ function build(
   undo.push(dropAssets);
 
   let groundLayer: GroundLayer | null = null;
+  let groundGeneration = 0;
   const dropGround = () => {
     if (!groundLayer) return;
     scene.remove(groundLayer.group);
@@ -654,6 +663,7 @@ function build(
     if (later) retired.push(() => d.dispose());
     else d.dispose();
     decor.delete(slot);
+    groundGeneration++;
   };
   undo.push(() => {
     for (const slot of [...decor.keys()]) dropDecor(slot);
@@ -846,6 +856,9 @@ function build(
   });
   const applyTier = (t: Tier) => {
     const spec = THREE_TIERS[t];
+    // Clay (B-T1): new materials follow the tier; live physical clay drops / regains its sheen.
+    setClayTier(t);
+    applyClayTier(scene, t);
     // Low: motion off. The next frame is not live, so it rests the pose and schedules nothing.
     motionMode = motionModeFor(t);
     const pr = Math.min(globalThis.devicePixelRatio || 1, spec.maxPixelRatio);
@@ -1093,6 +1106,9 @@ function build(
   applyTier(tier);
 
   return {
+    get groundGeneration() {
+      return groundGeneration;
+    },
     get frames() {
       return frames;
     },
@@ -1128,6 +1144,7 @@ function build(
         dropDecor(slot, true);
         decor.set(slot, d);
         scene.add(d.group);
+        groundGeneration++;
         swapped = true;
         requestRender();
       };
@@ -1190,6 +1207,7 @@ function build(
     setCity(g) {
       if (disposed) return;
       disposeCity();
+      groundGeneration++;
       const buildings = new THREE.Mesh(g.buildings, buildingMat);
       buildings.castShadow = true;
       buildings.receiveShadow = true;
@@ -1201,6 +1219,8 @@ function build(
       plane.rotateX(-Math.PI / 2);
       const ground = new THREE.Mesh(plane, groundMat);
       ground.position.set(g.ground.center[0], 0, g.ground.center[1]);
+      // the base plane is the drawn ground where no band lies (journey hero foot planting)
+      ground.userData.groundBand = "base";
       for (const m of [parks, water, ground]) m.receiveShadow = true;
       ground.name = "base-plane";
       ground.visible = !slab;
@@ -1232,6 +1252,7 @@ function build(
       }
       if (g === groundLayer) return;
       dropGround();
+      groundGeneration++;
       if (g) {
         groundLayer = g;
         scene.add(g.group);

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { createFrame } from "../frame";
 import { activeTiles, tileAt } from "../stream/tiles";
 import { VERGE_Y } from "./bands";
-import { planVerges, VERGE_INNER_M, VERGE_OUTER_M } from "./verges";
+import { planVerges, VERGE_INNER_M, VERGE_OUTER_M, VERGE_SHOULDER_DROP_M } from "./verges";
 
 const frame = createFrame([101.5, 3.18]);
 const ll = (e: number, n: number) => frame.toLonLat(e, -n); // n = north metres
@@ -204,5 +204,25 @@ describe("planVerges", () => {
       for (const x of k) seen.add(x);
     }
     expect(seen.size).toBe(total);
+  });
+});
+
+describe("rounded verge shoulder (AC-B3)", () => {
+  it("each kept piece has outer and inner shoulders that step outward/inward and down, facing up", () => {
+    const { strips, skirts } = planVerges(fc(street), none, tile, frame, 1000);
+    expect(skirts.length).toBe(strips.length * 2); // outer + inner shoulder: 2 triangles each per piece
+    for (let i = 0; i < skirts.length; i += 9) {
+      const ys = [skirts[i + 1]!, skirts[i + 4]!, skirts[i + 7]!];
+      expect(Math.max(...ys)).toBeCloseTo(VERGE_Y, 5);
+      expect(Math.min(...ys)).toBeCloseTo(VERGE_Y - VERGE_SHOULDER_DROP_M, 5);
+      const a = [0, 1, 2].map((k) => skirts[i + 3 + k]! - skirts[i + k]!);
+      const b = [0, 1, 2].map((k) => skirts[i + 6 + k]! - skirts[i + k]!);
+      const n = [
+        a[1]! * b[2]! - a[2]! * b[1]!,
+        a[2]! * b[0]! - a[0]! * b[2]!,
+        a[0]! * b[1]! - a[1]! * b[0]!,
+      ];
+      expect(n[1]! / Math.hypot(n[0]!, n[1]!, n[2]!)).toBeGreaterThan(Math.SQRT1_2);
+    }
   });
 });

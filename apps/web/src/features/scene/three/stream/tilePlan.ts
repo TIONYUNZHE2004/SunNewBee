@@ -12,6 +12,7 @@ import { ribbonsFromWalk } from "../ground/ribbons";
 import { planVerges } from "../ground/verges";
 import { planAgents } from "../motion/agents";
 import { planProps } from "../props/propsPlan";
+import { CLAY_PALETTE } from "../shared/clayTokens";
 import { planSigns } from "../signs/signPlan";
 import { type PlanArea, seedFor } from "./area";
 import { tileCap, VERGE_PIECES_PER_CAP, VERGE_SHRUBS_PER_CAP } from "./caps";
@@ -160,6 +161,8 @@ export function planTile(inp: TileInputs, tile: Tile, ring: Ring, tier: Tier): T
       : [];
   const ribbons = ribbonsFromWalk(walk as GeoJSON.FeatureCollection, frame, {
     area: areaOf(tile, SALT.roads),
+    // Rounded kerbs (B-T3) only where they can be seen: rings 0-1, above Low.
+    bevel: tier !== "low" && ring <= 1,
   });
   const content: TileContent = {
     kits,
@@ -241,7 +244,7 @@ const WARM_ROOF: RoofInput = {
     heightM: 10,
     kind: "industrial",
   },
-  palette: { wall: "#ffffff", roof: "#3d4147", trim: "#cccccc" },
+  palette: { ...CLAY_PALETTE.neutral },
 };
 
 /** Items grouped by the tile holding their footprint's bounding-box centre (half-open). */

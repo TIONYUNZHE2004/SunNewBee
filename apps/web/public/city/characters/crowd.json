@@ -1,0 +1,1659 @@
+{
+  "version": 1,
+  "decorative": true,
+  "note": "Decorative details are illustrative.",
+  "roles": [
+    "skin",
+    "hair",
+    "eye",
+    "blush",
+    "top",
+    "top_trim",
+    "bottom",
+    "outer",
+    "headwear",
+    "headwear_trim",
+    "accent",
+    "shoe",
+    "prop_metal",
+    "prop_grip",
+    "prop_wheel",
+    "prop_fabric",
+    "prop_canopy",
+    "glasses"
+  ],
+  "roleUv": "TEXCOORD_0.x = (role index + 0.5) / roles.length",
+  "bones": [
+    "root",
+    "hips",
+    "spine",
+    "chest",
+    "head",
+    "upper_arm_L",
+    "forearm_L",
+    "hand_L",
+    "thigh_L",
+    "shin_L",
+    "foot_L",
+    "upper_arm_R",
+    "forearm_R",
+    "hand_R",
+    "thigh_R",
+    "shin_R",
+    "foot_R",
+    "prop",
+    "wheels"
+  ],
+  "lods": [
+    {
+      "suffix": "__LOD0",
+      "maxTris": 1500,
+      "maxM": 60.0
+    },
+    {
+      "suffix": "__LOD1",
+      "maxTris": 400,
+      "maxM": 300.0
+    }
+  ],
+  "outfits": {
+    "baju_kurung": {
+      "label": "Baju kurung with tudung",
+      "category": "baju_kurung",
+      "headwear": "tudung"
+    },
+    "baju_melayu": {
+      "label": "Baju melayu with songkok and samping",
+      "category": "baju_melayu",
+      "headwear": "songkok"
+    },
+    "school_shirt": {
+      "label": "School uniform: white shirt, dark trousers",
+      "category": "school_shirt",
+      "headwear": null
+    },
+    "school_pinafore": {
+      "label": "School uniform: pinafore over white blouse, white tudung",
+      "category": "school_pinafore",
+      "headwear": "tudung"
+    },
+    "office_shirt": {
+      "label": "Office: shirt and tie",
+      "category": "office",
+      "headwear": null
+    },
+    "office_tudung": {
+      "label": "Office: blazer, trousers, tudung",
+      "category": "office",
+      "headwear": "tudung"
+    },
+    "office_batik": {
+      "label": "Office: long-sleeve batik shirt",
+      "category": "office",
+      "headwear": null
+    },
+    "casual_shorts": {
+      "label": "Casual: T-shirt and shorts",
+      "category": "casual",
+      "headwear": null
+    },
+    "casual_tee": {
+      "label": "Casual: T-shirt and trousers",
+      "category": "casual",
+      "headwear": null
+    },
+    "casual_bob": {
+      "label": "Casual: T-shirt, jeans, bob hair",
+      "category": "casual",
+      "headwear": null
+    },
+    "casual_tudung": {
+      "label": "Casual: long top, trousers, tudung",
+      "category": "casual",
+      "headwear": "tudung"
+    },
+    "casual_bun": {
+      "label": "Casual: blouse, trousers, hair bun",
+      "category": "casual",
+      "headwear": null
+    },
+    "casual_kopiah": {
+      "label": "Casual: polo, trousers, kopiah",
+      "category": "casual",
+      "headwear": "kopiah"
+    }
+  },
+  "bodies": {
+    "child": {
+      "file": "characters/crowd_child.glb",
+      "bytes": 70032,
+      "label": "Child (about 7)",
+      "height": 1.1,
+      "headRatio": 2.05,
+      "stoopDeg": 0.0,
+      "hipY": 0.297,
+      "outfits": [
+        "casual_shorts",
+        "baju_melayu",
+        "baju_kurung"
+      ],
+      "props": [],
+      "clips": {
+        "walk": {
+          "duration": 0.8,
+          "frames": 25,
+          "keys": 25,
+          "keyFps": 30,
+          "loop": true,
+          "stride": 0.318
+        },
+        "idle": {
+          "duration": 3.0,
+          "frames": 91,
+          "keys": 31,
+          "keyFps": 10,
+          "loop": true,
+          "stride": 0.0
+        }
+      }
+    },
+    "school_age": {
+      "file": "characters/crowd_school_age.glb",
+      "bytes": 69064,
+      "label": "School-age (about 12)",
+      "height": 1.35,
+      "headRatio": 2.3,
+      "stoopDeg": 0.0,
+      "hipY": 0.3915,
+      "outfits": [
+        "school_shirt",
+        "school_pinafore",
+        "casual_tee"
+      ],
+      "props": [],
+      "clips": {
+        "walk": {
+          "duration": 0.9,
+          "frames": 28,
+          "keys": 28,
+          "keyFps": 30,
+          "loop": true,
+          "stride": 0.441
+        },
+        "idle": {
+          "duration": 3.0,
+          "frames": 91,
+          "keys": 31,
+          "keyFps": 10,
+          "loop": true,
+          "stride": 0.0
+        }
+      }
+    },
+    "adult_man": {
+      "file": "characters/crowd_adult_man.glb",
+      "bytes": 116232,
+      "label": "Adult man",
+      "height": 1.72,
+      "headRatio": 2.7,
+      "stoopDeg": 0.0,
+      "hipY": 0.5332,
+      "outfits": [
+        "baju_melayu",
+        "office_shirt",
+        "casual_tee"
+      ],
+      "props": [
+        "stroller",
+        "wheelchair"
+      ],
+      "clips": {
+        "walk": {
+          "duration": 1.0,
+          "frames": 31,
+          "keys": 31,
+          "keyFps": 30,
+          "loop": true,
+          "stride": 0.6066
+        },
+        "idle": {
+          "duration": 3.0,
+          "frames": 91,
+          "keys": 31,
+          "keyFps": 10,
+          "loop": true,
+          "stride": 0.0
+        },
+        "walk_stroller": {
+          "duration": 1.1,
+          "frames": 34,
+          "keys": 34,
+          "keyFps": 30,
+          "loop": true,
+          "stride": 0.5366
+        },
+        "idle_stroller": {
+          "duration": 3.0,
+          "frames": 91,
+          "keys": 31,
+          "keyFps": 10,
+          "loop": true,
+          "stride": 0.0
+        },
+        "walk_wheelchair": {
+          "duration": 1.0,
+          "frames": 31,
+          "keys": 31,
+          "keyFps": 30,
+          "loop": true,
+          "stride": 0.416
+        },
+        "idle_wheelchair": {
+          "duration": 3.0,
+          "frames": 91,
+          "keys": 31,
+          "keyFps": 10,
+          "loop": true,
+          "stride": 0.0
+        }
+      }
+    },
+    "adult_woman": {
+      "file": "characters/crowd_adult_woman.glb",
+      "bytes": 121312,
+      "label": "Adult woman",
+      "height": 1.6,
+      "headRatio": 2.6,
+      "stoopDeg": 0.0,
+      "hipY": 0.48,
+      "outfits": [
+        "baju_kurung",
+        "office_tudung",
+        "casual_bob",
+        "casual_tudung"
+      ],
+      "props": [
+        "stroller",
+        "wheelchair"
+      ],
+      "clips": {
+        "walk": {
+          "duration": 1.0,
+          "frames": 31,
+          "keys": 31,
+          "keyFps": 30,
+          "loop": true,
+          "stride": 0.5226
+        },
+        "idle": {
+          "duration": 3.0,
+          "frames": 91,
+          "keys": 31,
+          "keyFps": 10,
+          "loop": true,
+          "stride": 0.0
+        },
+        "walk_stroller": {
+          "duration": 1.1,
+          "frames": 34,
+          "keys": 34,
+          "keyFps": 30,
+          "loop": true,
+          "stride": 0.4808
+        },
+        "idle_stroller": {
+          "duration": 3.0,
+          "frames": 91,
+          "keys": 31,
+          "keyFps": 10,
+          "loop": true,
+          "stride": 0.0
+        },
+        "walk_wheelchair": {
+          "duration": 1.0,
+          "frames": 31,
+          "keys": 31,
+          "keyFps": 30,
+          "loop": true,
+          "stride": 0.3774
+        },
+        "idle_wheelchair": {
+          "duration": 3.0,
+          "frames": 91,
+          "keys": 31,
+          "keyFps": 10,
+          "loop": true,
+          "stride": 0.0
+        }
+      }
+    },
+    "older_man": {
+      "file": "characters/crowd_older_man.glb",
+      "bytes": 118032,
+      "label": "Older man",
+      "height": 1.62,
+      "headRatio": 2.6,
+      "stoopDeg": 14.0,
+      "hipY": 0.486,
+      "outfits": [
+        "baju_melayu",
+        "office_batik",
+        "casual_kopiah"
+      ],
+      "props": [
+        "walker",
+        "wheelchair"
+      ],
+      "clips": {
+        "walk": {
+          "duration": 1.1,
+          "frames": 34,
+          "keys": 34,
+          "keyFps": 30,
+          "loop": true,
+          "stride": 0.4021
+        },
+        "idle": {
+          "duration": 3.0,
+          "frames": 91,
+          "keys": 31,
+          "keyFps": 10,
+          "loop": true,
+          "stride": 0.0
+        },
+        "walk_walker": {
+          "duration": 1.2,
+          "frames": 37,
+          "keys": 37,
+          "keyFps": 30,
+          "loop": true,
+          "stride": 0.3598
+        },
+        "idle_walker": {
+          "duration": 3.0,
+          "frames": 91,
+          "keys": 31,
+          "keyFps": 10,
+          "loop": true,
+          "stride": 0.0
+        },
+        "walk_wheelchair": {
+          "duration": 1.0,
+          "frames": 31,
+          "keys": 31,
+          "keyFps": 30,
+          "loop": true,
+          "stride": 0.3821
+        },
+        "idle_wheelchair": {
+          "duration": 3.0,
+          "frames": 91,
+          "keys": 31,
+          "keyFps": 10,
+          "loop": true,
+          "stride": 0.0
+        }
+      }
+    },
+    "older_woman": {
+      "file": "characters/crowd_older_woman.glb",
+      "bytes": 97324,
+      "label": "Older woman",
+      "height": 1.5,
+      "headRatio": 2.5,
+      "stoopDeg": 18.0,
+      "hipY": 0.435,
+      "outfits": [
+        "baju_kurung",
+        "casual_tudung",
+        "casual_bun"
+      ],
+      "props": [
+        "walker"
+      ],
+      "clips": {
+        "walk": {
+          "duration": 1.1,
+          "frames": 34,
+          "keys": 34,
+          "keyFps": 30,
+          "loop": true,
+          "stride": 0.3581
+        },
+        "idle": {
+          "duration": 3.0,
+          "frames": 91,
+          "keys": 31,
+          "keyFps": 10,
+          "loop": true,
+          "stride": 0.0
+        },
+        "walk_walker": {
+          "duration": 1.2,
+          "frames": 37,
+          "keys": 37,
+          "keyFps": 30,
+          "loop": true,
+          "stride": 0.3204
+        },
+        "idle_walker": {
+          "duration": 3.0,
+          "frames": 91,
+          "keys": 31,
+          "keyFps": 10,
+          "loop": true,
+          "stride": 0.0
+        }
+      }
+    }
+  },
+  "looks": [
+    {
+      "id": "child_casual_orange",
+      "body": "child",
+      "outfit": "casual_shorts",
+      "prop": null,
+      "mesh": "casual_shorts",
+      "propMeshes": [],
+      "clips": {
+        "walk": "walk",
+        "idle": "idle"
+      },
+      "tris": [
+        846,
+        214
+      ],
+      "palette": {
+        "eye": "#2b2330",
+        "blush": "#f2a0a0",
+        "shoe": "#ece8e0",
+        "hair": "#2f2a2e",
+        "headwear": "#1f1d22",
+        "headwear_trim": "#3a363c",
+        "accent": "#e2b85c",
+        "prop_metal": "#c9d2dc",
+        "prop_grip": "#566476",
+        "prop_wheel": "#3d434d",
+        "prop_fabric": "#9cc7b4",
+        "prop_canopy": "#78b09a",
+        "glasses": "#8a6a52",
+        "skin": "#dcae88",
+        "top": "#f2a65a",
+        "top_trim": "#f7ca9c",
+        "bottom": "#5b7fb8",
+        "outer": "#ac7b4c"
+      }
+    },
+    {
+      "id": "child_casual_mint",
+      "body": "child",
+      "outfit": "casual_shorts",
+      "prop": null,
+      "mesh": "casual_shorts",
+      "propMeshes": [],
+      "clips": {
+        "walk": "walk",
+        "idle": "idle"
+      },
+      "tris": [
+        846,
+        214
+      ],
+      "palette": {
+        "eye": "#2b2330",
+        "blush": "#f2a0a0",
+        "shoe": "#f2c14e",
+        "hair": "#4a3a33",
+        "headwear": "#1f1d22",
+        "headwear_trim": "#3a363c",
+        "accent": "#e2b85c",
+        "prop_metal": "#c9d2dc",
+        "prop_grip": "#566476",
+        "prop_wheel": "#3d434d",
+        "prop_fabric": "#9cc7b4",
+        "prop_canopy": "#78b09a",
+        "glasses": "#8a6a52",
+        "skin": "#ebc6a3",
+        "top": "#7fc8a9",
+        "top_trim": "#b2decb",
+        "bottom": "#3f4a6b",
+        "outer": "#619180"
+      }
+    },
+    {
+      "id": "child_baju_melayu_teal",
+      "body": "child",
+      "outfit": "baju_melayu",
+      "prop": null,
+      "mesh": "baju_melayu",
+      "propMeshes": [],
+      "clips": {
+        "walk": "walk",
+        "idle": "idle"
+      },
+      "tris": [
+        966,
+        274
+      ],
+      "palette": {
+        "eye": "#2b2330",
+        "blush": "#f2a0a0",
+        "shoe": "#5a4a44",
+        "hair": "#2f2a2e",
+        "headwear": "#1f1d22",
+        "headwear_trim": "#3d7f99",
+        "accent": "#d9b44a",
+        "prop_metal": "#c9d2dc",
+        "prop_grip": "#566476",
+        "prop_wheel": "#3d434d",
+        "prop_fabric": "#9cc7b4",
+        "prop_canopy": "#78b09a",
+        "glasses": "#8a6a52",
+        "skin": "#dcae88",
+        "top": "#5fb3c9",
+        "top_trim": "#9fd1df",
+        "bottom": "#5fb3c9",
+        "outer": "#4c8394"
+      }
+    },
+    {
+      "id": "child_baju_kurung_pink",
+      "body": "child",
+      "outfit": "baju_kurung",
+      "prop": null,
+      "mesh": "baju_kurung",
+      "propMeshes": [],
+      "clips": {
+        "walk": "walk",
+        "idle": "idle"
+      },
+      "tris": [
+        988,
+        250
+      ],
+      "palette": {
+        "eye": "#2b2330",
+        "blush": "#f2a0a0",
+        "shoe": "#5a4a44",
+        "hair": "#2f2a2e",
+        "headwear": "#fbe3ec",
+        "headwear_trim": "#d5c1c9",
+        "accent": "#e2b85c",
+        "prop_metal": "#c9d2dc",
+        "prop_grip": "#566476",
+        "prop_wheel": "#3d434d",
+        "prop_fabric": "#9cc7b4",
+        "prop_canopy": "#78b09a",
+        "glasses": "#8a6a52",
+        "skin": "#dcae88",
+        "top": "#f29bb8",
+        "top_trim": "#f7c3d4",
+        "bottom": "#e07fa3",
+        "outer": "#ac7389"
+      }
+    },
+    {
+      "id": "school_shirt_navy",
+      "body": "school_age",
+      "outfit": "school_shirt",
+      "prop": null,
+      "mesh": "school_shirt",
+      "propMeshes": [],
+      "clips": {
+        "walk": "walk",
+        "idle": "idle"
+      },
+      "tris": [
+        894,
+        222
+      ],
+      "palette": {
+        "eye": "#2b2330",
+        "blush": "#f2a0a0",
+        "shoe": "#2c2a2e",
+        "hair": "#2f2a2e",
+        "headwear": "#1f1d22",
+        "headwear_trim": "#3a363c",
+        "accent": "#e07a6a",
+        "prop_metal": "#c9d2dc",
+        "prop_grip": "#566476",
+        "prop_wheel": "#3d434d",
+        "prop_fabric": "#9cc7b4",
+        "prop_canopy": "#78b09a",
+        "glasses": "#8a6a52",
+        "skin": "#dcae88",
+        "top": "#f6f5f1",
+        "top_trim": "#faf9f7",
+        "bottom": "#1f2a44",
+        "outer": "#afaeae"
+      }
+    },
+    {
+      "id": "school_shirt_green",
+      "body": "school_age",
+      "outfit": "school_shirt",
+      "prop": null,
+      "mesh": "school_shirt",
+      "propMeshes": [],
+      "clips": {
+        "walk": "walk",
+        "idle": "idle"
+      },
+      "tris": [
+        894,
+        222
+      ],
+      "palette": {
+        "eye": "#2b2330",
+        "blush": "#f2a0a0",
+        "shoe": "#2c2a2e",
+        "hair": "#2f2a2e",
+        "headwear": "#1f1d22",
+        "headwear_trim": "#3a363c",
+        "accent": "#6a8fd1",
+        "prop_metal": "#c9d2dc",
+        "prop_grip": "#566476",
+        "prop_wheel": "#3d434d",
+        "prop_fabric": "#9cc7b4",
+        "prop_canopy": "#78b09a",
+        "glasses": "#8a6a52",
+        "skin": "#c08c64",
+        "top": "#f6f5f1",
+        "top_trim": "#faf9f7",
+        "bottom": "#1d3a2e",
+        "outer": "#afaeae"
+      }
+    },
+    {
+      "id": "school_pinafore_navy",
+      "body": "school_age",
+      "outfit": "school_pinafore",
+      "prop": null,
+      "mesh": "school_pinafore",
+      "propMeshes": [],
+      "clips": {
+        "walk": "walk",
+        "idle": "idle"
+      },
+      "tris": [
+        1016,
+        258
+      ],
+      "palette": {
+        "eye": "#2b2330",
+        "blush": "#f2a0a0",
+        "shoe": "#ece8e0",
+        "hair": "#2f2a2e",
+        "headwear": "#f6f5f1",
+        "headwear_trim": "#d1d0cd",
+        "accent": "#f2b5c7",
+        "prop_metal": "#c9d2dc",
+        "prop_grip": "#566476",
+        "prop_wheel": "#3d434d",
+        "prop_fabric": "#9cc7b4",
+        "prop_canopy": "#78b09a",
+        "glasses": "#8a6a52",
+        "skin": "#dcae88",
+        "top": "#f6f5f1",
+        "top_trim": "#faf9f7",
+        "bottom": "#f6f5f1",
+        "outer": "#2c3e70"
+      }
+    },
+    {
+      "id": "school_pinafore_teal",
+      "body": "school_age",
+      "outfit": "school_pinafore",
+      "prop": null,
+      "mesh": "school_pinafore",
+      "propMeshes": [],
+      "clips": {
+        "walk": "walk",
+        "idle": "idle"
+      },
+      "tris": [
+        1016,
+        258
+      ],
+      "palette": {
+        "eye": "#2b2330",
+        "blush": "#f2a0a0",
+        "shoe": "#ece8e0",
+        "hair": "#2f2a2e",
+        "headwear": "#f6f5f1",
+        "headwear_trim": "#d1d0cd",
+        "accent": "#9ad0e6",
+        "prop_metal": "#c9d2dc",
+        "prop_grip": "#566476",
+        "prop_wheel": "#3d434d",
+        "prop_fabric": "#9cc7b4",
+        "prop_canopy": "#78b09a",
+        "glasses": "#8a6a52",
+        "skin": "#c08c64",
+        "top": "#f6f5f1",
+        "top_trim": "#faf9f7",
+        "bottom": "#f6f5f1",
+        "outer": "#2f7f86"
+      }
+    },
+    {
+      "id": "school_casual_yellow",
+      "body": "school_age",
+      "outfit": "casual_tee",
+      "prop": null,
+      "mesh": "casual_tee",
+      "propMeshes": [],
+      "clips": {
+        "walk": "walk",
+        "idle": "idle"
+      },
+      "tris": [
+        846,
+        214
+      ],
+      "palette": {
+        "eye": "#2b2330",
+        "blush": "#f2a0a0",
+        "shoe": "#ece8e0",
+        "hair": "#2f2a2e",
+        "headwear": "#1f1d22",
+        "headwear_trim": "#3a363c",
+        "accent": "#e2b85c",
+        "prop_metal": "#c9d2dc",
+        "prop_grip": "#566476",
+        "prop_wheel": "#3d434d",
+        "prop_fabric": "#9cc7b4",
+        "prop_canopy": "#78b09a",
+        "glasses": "#8a6a52",
+        "skin": "#ebc6a3",
+        "top": "#f5d76e",
+        "top_trim": "#f9e7a8",
+        "bottom": "#4b5a7a",
+        "outer": "#ae9a59"
+      }
+    },
+    {
+      "id": "man_baju_melayu_teal",
+      "body": "adult_man",
+      "outfit": "baju_melayu",
+      "prop": null,
+      "mesh": "baju_melayu",
+      "propMeshes": [],
+      "clips": {
+        "walk": "walk",
+        "idle": "idle"
+      },
+      "tris": [
+        966,
+        274
+      ],
+      "palette": {
+        "eye": "#2b2330",
+        "blush": "#f2a0a0",
+        "shoe": "#5a4a44",
+        "hair": "#2f2a2e",
+        "headwear": "#1f1d22",
+        "headwear_trim": "#d9b44a",
+        "accent": "#2f3f63",
+        "prop_metal": "#c9d2dc",
+        "prop_grip": "#566476",
+        "prop_wheel": "#3d434d",
+        "prop_fabric": "#9cc7b4",
+        "prop_canopy": "#78b09a",
+        "glasses": "#8a6a52",
+        "skin": "#dcae88",
+        "top": "#4fa3a5",
+        "top_trim": "#95c8c9",
+        "bottom": "#4fa3a5",
+        "outer": "#42797d"
+      }
+    },
+    {
+      "id": "man_baju_melayu_maroon",
+      "body": "adult_man",
+      "outfit": "baju_melayu",
+      "prop": null,
+      "mesh": "baju_melayu",
+      "propMeshes": [],
+      "clips": {
+        "walk": "walk",
+        "idle": "idle"
+      },
+      "tris": [
+        966,
+        274
+      ],
+      "palette": {
+        "eye": "#2b2330",
+        "blush": "#f2a0a0",
+        "shoe": "#5a4a44",
+        "hair": "#2f2a2e",
+        "headwear": "#1f1d22",
+        "headwear_trim": "#7a3343",
+        "accent": "#d9b44a",
+        "prop_metal": "#c9d2dc",
+        "prop_grip": "#566476",
+        "prop_wheel": "#3d434d",
+        "prop_fabric": "#9cc7b4",
+        "prop_canopy": "#78b09a",
+        "glasses": "#8a6a52",
+        "skin": "#c08c64",
+        "top": "#a94f5f",
+        "top_trim": "#cb959f",
+        "bottom": "#a94f5f",
+        "outer": "#7d4250"
+      }
+    },
+    {
+      "id": "man_office_blue",
+      "body": "adult_man",
+      "outfit": "office_shirt",
+      "prop": null,
+      "mesh": "office_shirt",
+      "propMeshes": [],
+      "clips": {
+        "walk": "walk",
+        "idle": "idle"
+      },
+      "tris": [
+        870,
+        214
+      ],
+      "palette": {
+        "eye": "#2b2330",
+        "blush": "#f2a0a0",
+        "shoe": "#2c2a2e",
+        "hair": "#2f2a2e",
+        "headwear": "#1f1d22",
+        "headwear_trim": "#3a363c",
+        "accent": "#c0504d",
+        "prop_metal": "#c9d2dc",
+        "prop_grip": "#566476",
+        "prop_wheel": "#3d434d",
+        "prop_fabric": "#9cc7b4",
+        "prop_canopy": "#78b09a",
+        "glasses": "#8a6a52",
+        "skin": "#ebc6a3",
+        "top": "#cfe0f2",
+        "top_trim": "#e2ecf7",
+        "bottom": "#3a3f4b",
+        "outer": "#95a0af"
+      }
+    },
+    {
+      "id": "man_office_white",
+      "body": "adult_man",
+      "outfit": "office_shirt",
+      "prop": null,
+      "mesh": "office_shirt",
+      "propMeshes": [],
+      "clips": {
+        "walk": "walk",
+        "idle": "idle"
+      },
+      "tris": [
+        870,
+        214
+      ],
+      "palette": {
+        "eye": "#2b2330",
+        "blush": "#f2a0a0",
+        "shoe": "#2c2a2e",
+        "hair": "#2f2a2e",
+        "headwear": "#1f1d22",
+        "headwear_trim": "#3a363c",
+        "accent": "#3f6fb5",
+        "prop_metal": "#c9d2dc",
+        "prop_grip": "#566476",
+        "prop_wheel": "#3d434d",
+        "prop_fabric": "#9cc7b4",
+        "prop_canopy": "#78b09a",
+        "glasses": "#8a6a52",
+        "skin": "#94654a",
+        "top": "#f4f2ec",
+        "top_trim": "#f8f7f4",
+        "bottom": "#26324a",
+        "outer": "#adacab"
+      }
+    },
+    {
+      "id": "man_casual_sky",
+      "body": "adult_man",
+      "outfit": "casual_tee",
+      "prop": null,
+      "mesh": "casual_tee",
+      "propMeshes": [],
+      "clips": {
+        "walk": "walk",
+        "idle": "idle"
+      },
+      "tris": [
+        846,
+        214
+      ],
+      "palette": {
+        "eye": "#2b2330",
+        "blush": "#f2a0a0",
+        "shoe": "#ece8e0",
+        "hair": "#2f2a2e",
+        "headwear": "#1f1d22",
+        "headwear_trim": "#3a363c",
+        "accent": "#e2b85c",
+        "prop_metal": "#c9d2dc",
+        "prop_grip": "#566476",
+        "prop_wheel": "#3d434d",
+        "prop_fabric": "#9cc7b4",
+        "prop_canopy": "#78b09a",
+        "glasses": "#8a6a52",
+        "skin": "#dcae88",
+        "top": "#8fb8de",
+        "top_trim": "#bcd4eb",
+        "bottom": "#4a5f8a",
+        "outer": "#6c86a2"
+      }
+    },
+    {
+      "id": "man_casual_stroller",
+      "body": "adult_man",
+      "outfit": "casual_tee",
+      "prop": "stroller",
+      "mesh": "casual_tee",
+      "propMeshes": [
+        "prop_stroller"
+      ],
+      "clips": {
+        "walk": "walk_stroller",
+        "idle": "idle_stroller"
+      },
+      "tris": [
+        1166,
+        314
+      ],
+      "palette": {
+        "eye": "#2b2330",
+        "blush": "#f2a0a0",
+        "shoe": "#5a4a44",
+        "hair": "#2f2a2e",
+        "headwear": "#1f1d22",
+        "headwear_trim": "#3a363c",
+        "accent": "#e2b85c",
+        "prop_metal": "#c9d2dc",
+        "prop_grip": "#566476",
+        "prop_wheel": "#3d434d",
+        "prop_fabric": "#a9c6e8",
+        "prop_canopy": "#7ea6d6",
+        "glasses": "#8a6a52",
+        "skin": "#ebc6a3",
+        "top": "#e8a87c",
+        "top_trim": "#f1cbb0",
+        "bottom": "#6b6f5a",
+        "outer": "#a67c62"
+      }
+    },
+    {
+      "id": "man_casual_wheelchair",
+      "body": "adult_man",
+      "outfit": "casual_tee",
+      "prop": "wheelchair",
+      "mesh": "casual_tee",
+      "propMeshes": [
+        "prop_wheelchair",
+        "prop_wheelchair_wheels"
+      ],
+      "clips": {
+        "walk": "walk_wheelchair",
+        "idle": "idle_wheelchair"
+      },
+      "tris": [
+        1282,
+        362
+      ],
+      "palette": {
+        "eye": "#2b2330",
+        "blush": "#f2a0a0",
+        "shoe": "#5a4a44",
+        "hair": "#2f2a2e",
+        "headwear": "#1f1d22",
+        "headwear_trim": "#3a363c",
+        "accent": "#e2b85c",
+        "prop_metal": "#c9d2dc",
+        "prop_grip": "#566476",
+        "prop_wheel": "#3d434d",
+        "prop_fabric": "#9cc7b4",
+        "prop_canopy": "#78b09a",
+        "glasses": "#8a6a52",
+        "skin": "#94654a",
+        "top": "#9fd3b5",
+        "top_trim": "#c5e5d3",
+        "bottom": "#4a4f63",
+        "outer": "#769888"
+      }
+    },
+    {
+      "id": "woman_baju_kurung_purple",
+      "body": "adult_woman",
+      "outfit": "baju_kurung",
+      "prop": null,
+      "mesh": "baju_kurung",
+      "propMeshes": [],
+      "clips": {
+        "walk": "walk",
+        "idle": "idle"
+      },
+      "tris": [
+        988,
+        250
+      ],
+      "palette": {
+        "eye": "#2b2330",
+        "blush": "#f2a0a0",
+        "shoe": "#5a4a44",
+        "hair": "#2f2a2e",
+        "headwear": "#d8c6f2",
+        "headwear_trim": "#b8a8ce",
+        "accent": "#e2b85c",
+        "prop_metal": "#c9d2dc",
+        "prop_grip": "#566476",
+        "prop_wheel": "#3d434d",
+        "prop_fabric": "#9cc7b4",
+        "prop_canopy": "#78b09a",
+        "glasses": "#8a6a52",
+        "skin": "#dcae88",
+        "top": "#9b7fd4",
+        "top_trim": "#c3b2e5",
+        "bottom": "#7d62bd",
+        "outer": "#73619c"
+      }
+    },
+    {
+      "id": "woman_baju_kurung_green",
+      "body": "adult_woman",
+      "outfit": "baju_kurung",
+      "prop": null,
+      "mesh": "baju_kurung",
+      "propMeshes": [],
+      "clips": {
+        "walk": "walk",
+        "idle": "idle"
+      },
+      "tris": [
+        988,
+        250
+      ],
+      "palette": {
+        "eye": "#2b2330",
+        "blush": "#f2a0a0",
+        "shoe": "#5a4a44",
+        "hair": "#2f2a2e",
+        "headwear": "#f3e7c9",
+        "headwear_trim": "#cfc4ab",
+        "accent": "#e2b85c",
+        "prop_metal": "#c9d2dc",
+        "prop_grip": "#566476",
+        "prop_wheel": "#3d434d",
+        "prop_fabric": "#9cc7b4",
+        "prop_canopy": "#78b09a",
+        "glasses": "#8a6a52",
+        "skin": "#c08c64",
+        "top": "#7cc49a",
+        "top_trim": "#b0dcc2",
+        "bottom": "#5aa77c",
+        "outer": "#5f8e76"
+      }
+    },
+    {
+      "id": "woman_baju_kurung_stroller",
+      "body": "adult_woman",
+      "outfit": "baju_kurung",
+      "prop": "stroller",
+      "mesh": "baju_kurung",
+      "propMeshes": [
+        "prop_stroller"
+      ],
+      "clips": {
+        "walk": "walk_stroller",
+        "idle": "idle_stroller"
+      },
+      "tris": [
+        1308,
+        350
+      ],
+      "palette": {
+        "eye": "#2b2330",
+        "blush": "#f2a0a0",
+        "shoe": "#5a4a44",
+        "hair": "#2f2a2e",
+        "headwear": "#f7d8c4",
+        "headwear_trim": "#d2b8a7",
+        "accent": "#e2b85c",
+        "prop_metal": "#c9d2dc",
+        "prop_grip": "#566476",
+        "prop_wheel": "#3d434d",
+        "prop_fabric": "#f4c2d0",
+        "prop_canopy": "#e89ab2",
+        "glasses": "#8a6a52",
+        "skin": "#dcae88",
+        "top": "#f0a07a",
+        "top_trim": "#f6c6af",
+        "bottom": "#d9845f",
+        "outer": "#ab7761"
+      }
+    },
+    {
+      "id": "woman_office_navy",
+      "body": "adult_woman",
+      "outfit": "office_tudung",
+      "prop": null,
+      "mesh": "office_tudung",
+      "propMeshes": [],
+      "clips": {
+        "walk": "walk",
+        "idle": "idle"
+      },
+      "tris": [
+        988,
+        250
+      ],
+      "palette": {
+        "eye": "#2b2330",
+        "blush": "#f2a0a0",
+        "shoe": "#2c2a2e",
+        "hair": "#2f2a2e",
+        "headwear": "#c9a7a0",
+        "headwear_trim": "#ab8e88",
+        "accent": "#e2b85c",
+        "prop_metal": "#c9d2dc",
+        "prop_grip": "#566476",
+        "prop_wheel": "#3d434d",
+        "prop_fabric": "#9cc7b4",
+        "prop_canopy": "#78b09a",
+        "glasses": "#8a6a52",
+        "skin": "#dcae88",
+        "top": "#f3efe6",
+        "top_trim": "#f8f5f0",
+        "bottom": "#3a3f4b",
+        "outer": "#4b5d7a"
+      }
+    },
+    {
+      "id": "woman_office_wheelchair",
+      "body": "adult_woman",
+      "outfit": "office_tudung",
+      "prop": "wheelchair",
+      "mesh": "office_tudung",
+      "propMeshes": [
+        "prop_wheelchair",
+        "prop_wheelchair_wheels"
+      ],
+      "clips": {
+        "walk": "walk_wheelchair",
+        "idle": "idle_wheelchair"
+      },
+      "tris": [
+        1424,
+        398
+      ],
+      "palette": {
+        "eye": "#2b2330",
+        "blush": "#f2a0a0",
+        "shoe": "#5a4a44",
+        "hair": "#2f2a2e",
+        "headwear": "#9ec1d9",
+        "headwear_trim": "#86a4b8",
+        "accent": "#e2b85c",
+        "prop_metal": "#c9d2dc",
+        "prop_grip": "#566476",
+        "prop_wheel": "#3d434d",
+        "prop_fabric": "#9cc7b4",
+        "prop_canopy": "#78b09a",
+        "glasses": "#8a6a52",
+        "skin": "#c08c64",
+        "top": "#f3efe6",
+        "top_trim": "#f8f5f0",
+        "bottom": "#2f3540",
+        "outer": "#7a6a58"
+      }
+    },
+    {
+      "id": "woman_casual_bob",
+      "body": "adult_woman",
+      "outfit": "casual_bob",
+      "prop": null,
+      "mesh": "casual_bob",
+      "propMeshes": [],
+      "clips": {
+        "walk": "walk",
+        "idle": "idle"
+      },
+      "tris": [
+        866,
+        214
+      ],
+      "palette": {
+        "eye": "#2b2330",
+        "blush": "#f2a0a0",
+        "shoe": "#ece8e0",
+        "hair": "#2f2a2e",
+        "headwear": "#1f1d22",
+        "headwear_trim": "#3a363c",
+        "accent": "#e2b85c",
+        "prop_metal": "#c9d2dc",
+        "prop_grip": "#566476",
+        "prop_wheel": "#3d434d",
+        "prop_fabric": "#9cc7b4",
+        "prop_canopy": "#78b09a",
+        "glasses": "#8a6a52",
+        "skin": "#ebc6a3",
+        "top": "#f6c26b",
+        "top_trim": "#fadaa6",
+        "bottom": "#5a74a8",
+        "outer": "#af8d57"
+      }
+    },
+    {
+      "id": "woman_casual_tudung",
+      "body": "adult_woman",
+      "outfit": "casual_tudung",
+      "prop": null,
+      "mesh": "casual_tudung",
+      "propMeshes": [],
+      "clips": {
+        "walk": "walk",
+        "idle": "idle"
+      },
+      "tris": [
+        988,
+        250
+      ],
+      "palette": {
+        "eye": "#2b2330",
+        "blush": "#f2a0a0",
+        "shoe": "#ece8e0",
+        "hair": "#2f2a2e",
+        "headwear": "#6fa8b8",
+        "headwear_trim": "#5e8f9c",
+        "accent": "#e2b85c",
+        "prop_metal": "#c9d2dc",
+        "prop_grip": "#566476",
+        "prop_wheel": "#3d434d",
+        "prop_fabric": "#9cc7b4",
+        "prop_canopy": "#78b09a",
+        "glasses": "#8a6a52",
+        "skin": "#dcae88",
+        "top": "#e88fa0",
+        "top_trim": "#f1bcc6",
+        "bottom": "#40465a",
+        "outer": "#a66c7a"
+      }
+    },
+    {
+      "id": "oldman_baju_melayu_cream",
+      "body": "older_man",
+      "outfit": "baju_melayu",
+      "prop": null,
+      "mesh": "baju_melayu",
+      "propMeshes": [],
+      "clips": {
+        "walk": "walk",
+        "idle": "idle"
+      },
+      "tris": [
+        966,
+        274
+      ],
+      "palette": {
+        "eye": "#2b2330",
+        "blush": "#f2a0a0",
+        "shoe": "#5a4a44",
+        "hair": "#bdb8bc",
+        "headwear": "#1f1d22",
+        "headwear_trim": "#d9b44a",
+        "accent": "#5a3d6b",
+        "prop_metal": "#c9d2dc",
+        "prop_grip": "#566476",
+        "prop_wheel": "#3d434d",
+        "prop_fabric": "#9cc7b4",
+        "prop_canopy": "#78b09a",
+        "glasses": "#8a6a52",
+        "skin": "#dcae88",
+        "top": "#e9dcb5",
+        "top_trim": "#f2ead3",
+        "bottom": "#e9dcb5",
+        "outer": "#a69e88"
+      }
+    },
+    {
+      "id": "oldman_baju_melayu_walker",
+      "body": "older_man",
+      "outfit": "baju_melayu",
+      "prop": "walker",
+      "mesh": "baju_melayu",
+      "propMeshes": [
+        "prop_walker"
+      ],
+      "clips": {
+        "walk": "walk_walker",
+        "idle": "idle_walker"
+      },
+      "tris": [
+        1174,
+        386
+      ],
+      "palette": {
+        "eye": "#2b2330",
+        "blush": "#f2a0a0",
+        "shoe": "#5a4a44",
+        "hair": "#bdb8bc",
+        "headwear": "#1f1d22",
+        "headwear_trim": "#c9a24a",
+        "accent": "#2e3f5c",
+        "prop_metal": "#c9d2dc",
+        "prop_grip": "#566476",
+        "prop_wheel": "#3d434d",
+        "prop_fabric": "#9cc7b4",
+        "prop_canopy": "#78b09a",
+        "glasses": "#8a6a52",
+        "skin": "#c08c64",
+        "top": "#7aa6c9",
+        "top_trim": "#afcadf",
+        "bottom": "#7aa6c9",
+        "outer": "#5e7b94"
+      }
+    },
+    {
+      "id": "oldman_office_batik",
+      "body": "older_man",
+      "outfit": "office_batik",
+      "prop": null,
+      "mesh": "office_batik",
+      "propMeshes": [],
+      "clips": {
+        "walk": "walk",
+        "idle": "idle"
+      },
+      "tris": [
+        846,
+        214
+      ],
+      "palette": {
+        "eye": "#2b2330",
+        "blush": "#f2a0a0",
+        "shoe": "#2c2a2e",
+        "hair": "#bdb8bc",
+        "headwear": "#1f1d22",
+        "headwear_trim": "#3a363c",
+        "accent": "#2f5d62",
+        "prop_metal": "#c9d2dc",
+        "prop_grip": "#566476",
+        "prop_wheel": "#3d434d",
+        "prop_fabric": "#9cc7b4",
+        "prop_canopy": "#78b09a",
+        "glasses": "#8a6a52",
+        "skin": "#ebc6a3",
+        "top": "#c98a4b",
+        "top_trim": "#dfb993",
+        "bottom": "#3b3a3f",
+        "outer": "#916843"
+      }
+    },
+    {
+      "id": "oldman_casual_kopiah",
+      "body": "older_man",
+      "outfit": "casual_kopiah",
+      "prop": null,
+      "mesh": "casual_kopiah",
+      "propMeshes": [],
+      "clips": {
+        "walk": "walk",
+        "idle": "idle"
+      },
+      "tris": [
+        886,
+        226
+      ],
+      "palette": {
+        "eye": "#2b2330",
+        "blush": "#f2a0a0",
+        "shoe": "#5a4a44",
+        "hair": "#dcd8d6",
+        "headwear": "#f3f1ea",
+        "headwear_trim": "#d9d5c8",
+        "accent": "#e2b85c",
+        "prop_metal": "#c9d2dc",
+        "prop_grip": "#566476",
+        "prop_wheel": "#3d434d",
+        "prop_fabric": "#9cc7b4",
+        "prop_canopy": "#78b09a",
+        "glasses": "#8a6a52",
+        "skin": "#dcae88",
+        "top": "#a8c8a0",
+        "top_trim": "#cbdec6",
+        "bottom": "#5c5a52",
+        "outer": "#7c917a"
+      }
+    },
+    {
+      "id": "oldman_kopiah_wheelchair",
+      "body": "older_man",
+      "outfit": "casual_kopiah",
+      "prop": "wheelchair",
+      "mesh": "casual_kopiah",
+      "propMeshes": [
+        "prop_wheelchair",
+        "prop_wheelchair_wheels"
+      ],
+      "clips": {
+        "walk": "walk_wheelchair",
+        "idle": "idle_wheelchair"
+      },
+      "tris": [
+        1322,
+        374
+      ],
+      "palette": {
+        "eye": "#2b2330",
+        "blush": "#f2a0a0",
+        "shoe": "#5a4a44",
+        "hair": "#dcd8d6",
+        "headwear": "#f3f1ea",
+        "headwear_trim": "#d9d5c8",
+        "accent": "#e2b85c",
+        "prop_metal": "#c9d2dc",
+        "prop_grip": "#566476",
+        "prop_wheel": "#3d434d",
+        "prop_fabric": "#9cc7b4",
+        "prop_canopy": "#78b09a",
+        "glasses": "#8a6a52",
+        "skin": "#94654a",
+        "top": "#d3b4d9",
+        "top_trim": "#e5d2e8",
+        "bottom": "#45474f",
+        "outer": "#98849f"
+      }
+    },
+    {
+      "id": "oldwoman_baju_kurung_blue",
+      "body": "older_woman",
+      "outfit": "baju_kurung",
+      "prop": null,
+      "mesh": "baju_kurung",
+      "propMeshes": [],
+      "clips": {
+        "walk": "walk",
+        "idle": "idle"
+      },
+      "tris": [
+        1048,
+        250
+      ],
+      "palette": {
+        "eye": "#2b2330",
+        "blush": "#f2a0a0",
+        "shoe": "#5a4a44",
+        "hair": "#2f2a2e",
+        "headwear": "#c4cfde",
+        "headwear_trim": "#b0bed0",
+        "accent": "#e2b85c",
+        "prop_metal": "#c9d2dc",
+        "prop_grip": "#566476",
+        "prop_wheel": "#3d434d",
+        "prop_fabric": "#9cc7b4",
+        "prop_canopy": "#78b09a",
+        "glasses": "#8a6a52",
+        "skin": "#dcae88",
+        "top": "#7c9ec8",
+        "top_trim": "#a7bbd4",
+        "bottom": "#6486b5",
+        "outer": "#6a809c"
+      }
+    },
+    {
+      "id": "oldwoman_baju_kurung_walker",
+      "body": "older_woman",
+      "outfit": "baju_kurung",
+      "prop": "walker",
+      "mesh": "baju_kurung",
+      "propMeshes": [
+        "prop_walker"
+      ],
+      "clips": {
+        "walk": "walk_walker",
+        "idle": "idle_walker"
+      },
+      "tris": [
+        1256,
+        362
+      ],
+      "palette": {
+        "eye": "#2b2330",
+        "blush": "#f2a0a0",
+        "shoe": "#5a4a44",
+        "hair": "#2f2a2e",
+        "headwear": "#e0ceb9",
+        "headwear_trim": "#d0bea7",
+        "accent": "#e2b85c",
+        "prop_metal": "#c9d2dc",
+        "prop_grip": "#566476",
+        "prop_wheel": "#3d434d",
+        "prop_fabric": "#9cc7b4",
+        "prop_canopy": "#78b09a",
+        "glasses": "#8a6a52",
+        "skin": "#c08c64",
+        "top": "#d3a576",
+        "top_trim": "#dbc0a2",
+        "bottom": "#bf8f63",
+        "outer": "#a28467"
+      }
+    },
+    {
+      "id": "oldwoman_casual_tudung",
+      "body": "older_woman",
+      "outfit": "casual_tudung",
+      "prop": null,
+      "mesh": "casual_tudung",
+      "propMeshes": [],
+      "clips": {
+        "walk": "walk",
+        "idle": "idle"
+      },
+      "tris": [
+        1048,
+        250
+      ],
+      "palette": {
+        "eye": "#2b2330",
+        "blush": "#f2a0a0",
+        "shoe": "#5a4a44",
+        "hair": "#2f2a2e",
+        "headwear": "#d6bcc5",
+        "headwear_trim": "#c5a9b4",
+        "accent": "#e2b85c",
+        "prop_metal": "#c9d2dc",
+        "prop_grip": "#566476",
+        "prop_wheel": "#3d434d",
+        "prop_fabric": "#9cc7b4",
+        "prop_canopy": "#78b09a",
+        "glasses": "#8a6a52",
+        "skin": "#dcae88",
+        "top": "#9e90b0",
+        "top_trim": "#bcb2c5",
+        "bottom": "#615b68",
+        "outer": "#80768c"
+      }
+    },
+    {
+      "id": "oldwoman_casual_bun",
+      "body": "older_woman",
+      "outfit": "casual_bun",
+      "prop": null,
+      "mesh": "casual_bun",
+      "propMeshes": [],
+      "clips": {
+        "walk": "walk",
+        "idle": "idle"
+      },
+      "tris": [
+        938,
+        222
+      ],
+      "palette": {
+        "eye": "#2b2330",
+        "blush": "#f2a0a0",
+        "shoe": "#ece8e0",
+        "hair": "#bdb8bc",
+        "headwear": "#403d3f",
+        "headwear_trim": "#545053",
+        "accent": "#e2b85c",
+        "prop_metal": "#c9d2dc",
+        "prop_grip": "#566476",
+        "prop_wheel": "#3d434d",
+        "prop_fabric": "#9cc7b4",
+        "prop_canopy": "#78b09a",
+        "glasses": "#8a6a52",
+        "skin": "#ebc6a3",
+        "top": "#d5b0b8",
+        "top_trim": "#dcc6ca",
+        "bottom": "#62646e",
+        "outer": "#a48c92"
+      }
+    },
+    {
+      "id": "oldwoman_bun_walker",
+      "body": "older_woman",
+      "outfit": "casual_bun",
+      "prop": "walker",
+      "mesh": "casual_bun",
+      "propMeshes": [
+        "prop_walker"
+      ],
+      "clips": {
+        "walk": "walk_walker",
+        "idle": "idle_walker"
+      },
+      "tris": [
+        1146,
+        334
+      ],
+      "palette": {
+        "eye": "#2b2330",
+        "blush": "#f2a0a0",
+        "shoe": "#5a4a44",
+        "hair": "#dcd8d6",
+        "headwear": "#403d3f",
+        "headwear_trim": "#545053",
+        "accent": "#e2b85c",
+        "prop_metal": "#c9d2dc",
+        "prop_grip": "#566476",
+        "prop_wheel": "#3d434d",
+        "prop_fabric": "#9cc7b4",
+        "prop_canopy": "#78b09a",
+        "glasses": "#8a6a52",
+        "skin": "#ebc6a3",
+        "top": "#a6c0b5",
+        "top_trim": "#c0cfc8",
+        "bottom": "#6d6b72",
+        "outer": "#859690"
+      }
+    }
+  ]
+}

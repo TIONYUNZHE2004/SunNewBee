@@ -50,7 +50,7 @@ const content = (o: { strips?: Float32Array; x?: number; site?: Site } = {}): Ti
   agents: [],
   signs: [],
   ribbons: [],
-  verges: o.strips ? { strips: o.strips, shrubs: [] } : undefined,
+  verges: o.strips ? { strips: o.strips, skirts: new Float32Array(0), shrubs: [] } : undefined,
   ...(o.site && o.x !== undefined
     ? {
         parking: { stalls: new Float32Array([o.x + 5, 10, 0]), cars: [] },

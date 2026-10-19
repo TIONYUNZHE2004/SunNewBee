@@ -19,17 +19,20 @@ interface Parts extends GroundDecorParts {
 export function groundDecorPartsOf(active: ActiveTile[], tier: Tier): Parts | null {
   if (tier === "low") return null;
   const strips: Float32Array[] = [];
+  const skirts: Float32Array[] = [];
   const tracks: Float32Array[] = [];
   const gravel = new Map<string, Site>();
   for (const a of active) {
     const c = a.content;
     const s = c.verges?.strips;
     if (s && s.length > 0) strips.push(s);
+    const k = c.verges?.skirts;
+    if (k && k.length > 0) skirts.push(k);
     if (c.tracks && c.tracks.length > 0) tracks.push(c.tracks);
     for (const g of c.gravel ?? []) if (!gravel.has(g.id)) gravel.set(g.id, g);
   }
   if (strips.length + tracks.length + gravel.size === 0) return null;
-  return { strips, tracks, gravel: [...gravel.values()] };
+  return { strips, skirts, tracks, gravel: [...gravel.values()] };
 }
 
 const sameList = <T>(a: readonly T[], b: readonly T[]) =>
@@ -39,6 +42,7 @@ const sameParts = (a: Parts | null, b: Parts | null) =>
   (!!a &&
     !!b &&
     sameList(a.strips, b.strips) &&
+    sameList(a.skirts ?? [], b.skirts ?? []) &&
     sameList(a.tracks, b.tracks) &&
     sameList(a.gravel, b.gravel));
 

@@ -1,3 +1,5 @@
+import { clayPalette } from "../shared/clayTokens";
+
 export const ROLES = [
   "primary",
   "secondary",
@@ -60,7 +62,7 @@ const isNumTuple = (v: unknown, n: number): boolean =>
   Array.isArray(v) && v.length === n && v.every(isNum);
 const oneOf = (v: unknown, opts: readonly string[]): boolean => isStr(v) && opts.includes(v);
 
-function parseAsset(a: unknown): AssetSpec {
+function parseAsset(a: unknown, id = ""): AssetSpec {
   need(isObj(a), "not an object");
   need(oneOf(a.group, ["archetype", "landmark", "kit"]), "group");
   need(isStr(a.file) && a.file.length > 0, "file");
@@ -102,7 +104,12 @@ function parseAsset(a: unknown): AssetSpec {
     a.heightBasis === undefined || (isStr(a.heightBasis) && a.heightBasis.trim() !== ""),
     "heightBasis",
   );
-  return a as unknown as AssetSpec;
+  // B-T1: every loaded palette goes through the clay token table (luminance floor, pastel
+  // lightness, water guard, clay trunk); the raw manifest stays the source file.
+  const palettes: Record<string, [string, string, string][]> = {};
+  for (const [g, list] of Object.entries(a.palettes as Record<string, [string, string, string][]>))
+    palettes[g] = list.map((t) => clayPalette(t, id));
+  return { ...a, palettes } as unknown as AssetSpec;
 }
 
 /** Validates shape and version; drops (and reports) malformed assets instead of throwing on one bad entry. */
@@ -129,7 +136,7 @@ export function parseManifest(json: unknown): { manifest: Manifest | null; probl
   const assets: Record<string, AssetSpec> = {};
   for (const [id, raw] of Object.entries(json.assets)) {
     try {
-      assets[id] = parseAsset(raw);
+      assets[id] = parseAsset(raw, id);
     } catch (e) {
       if (!(e instanceof Bad)) throw e;
       problems.push(`asset ${id}: ${e.message}`);
