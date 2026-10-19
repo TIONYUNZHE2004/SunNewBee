@@ -69,11 +69,11 @@ export function JourneyMount({
     engine.setDecor(HERO_SLOT, { group: h.group, dispose: h.dispose });
     const apply = () => {
       const s = useJourney.getState();
-      if (s.timeline && s.plan === plan) h.pose(s.timeline, s.t);
+      if (s.timeline && s.plan === plan) h.pose(s.timeline, s.t, s.playing);
     };
     apply();
     const unsub = useJourney.subscribe((s, prev) => {
-      if (s.t !== prev.t || s.timeline !== prev.timeline) apply();
+      if (s.t !== prev.t || s.timeline !== prev.timeline || s.playing !== prev.playing) apply();
     });
     return () => {
       unsub();

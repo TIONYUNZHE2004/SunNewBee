@@ -1,6 +1,6 @@
 import * as THREE from "three";
-import { type HeroFade, REST_TIMING } from "../journey/heroDriver";
-import { HERO_BENCH } from "./benchGeometry";
+import type { HeroFade } from "../journey/heroDriver";
+import { HERO_BENCH, HERO_CLIP_S } from "./benchGeometry";
 import { HERO_DISPLAY_SCALE, type Hero, type HeroClip, type HeroContact } from "./hero";
 
 /**
@@ -28,7 +28,7 @@ const RING = "#ffd34d";
 const DISC = "#fff3c2";
 
 /** Walk cycle length (s) at rate 1 (the driver's clip time is already rate-scaled). */
-const WALK_CYCLE_S = 1;
+const WALK_CYCLE_S = HERO_CLIP_S.walk;
 /** Foot stride half-amplitude and lift, model units (lift x 1.55 stays under 2.5 cm). */
 const STRIDE = 0.09;
 const LIFT = 0.015;
@@ -68,7 +68,7 @@ interface PoseParams {
   headYaw: number;
 }
 
-/** The pose of `clip` at `time` (the driver's time base: REST_TIMING for sit_down / stand_up). */
+/** The pose of `clip` at `time` in the clip's own time base (the manifest durations, as the GLB). */
 export function poseParams(clip: HeroClip, time: number): PoseParams {
   const tt = Number.isFinite(time) ? Math.max(0, time) : 0;
   const q: PoseParams = {
@@ -101,10 +101,10 @@ export function poseParams(clip: HeroClip, time: number): PoseParams {
       q.headYaw = LOOK_YAW * Math.sin((2 * Math.PI * tt) / LOOK_CYCLE_S);
       break;
     case "sit_down":
-      q.seat = ease(tt / REST_TIMING.sitDownS);
+      q.seat = ease(tt / HERO_CLIP_S.sit_down);
       break;
     case "stand_up":
-      q.seat = 1 - ease(tt / REST_TIMING.standUpS);
+      q.seat = 1 - ease(tt / HERO_CLIP_S.stand_up);
       break;
   }
   return q;
@@ -294,7 +294,7 @@ export function createPlaceholderHero(): Hero {
    * up or down so its contact meets the drawn ground under it (a footway kerb, a lawn by a bench).
    * Without one, everything stands on the root's ground height.
    */
-  let ground: ((x: number, z: number) => number) | null = null;
+  let ground: ((x: number, z: number) => number | null) | null = null;
   const _w = new THREE.Vector3();
   const plant = () => {
     for (const leg of legs) leg.position.y = 0;
@@ -302,8 +302,9 @@ export function createPlaceholderHero(): Hero {
     root.updateMatrixWorld(true);
     const lift = (o: THREE.Object3D, c: THREE.Object3D) => {
       c.getWorldPosition(_w);
-      const dy = (ground as (x: number, z: number) => number)(_w.x, _w.z) - root.position.y;
-      o.position.y += dy / HERO_DISPLAY_SCALE;
+      const gy = (ground as (x: number, z: number) => number | null)(_w.x, _w.z);
+      if (gy === null) return;
+      o.position.y += (gy - root.position.y) / HERO_DISPLAY_SCALE;
     };
     feet.forEach((f, i) => {
       lift(f, contacts[i] as THREE.Object3D);
@@ -356,9 +357,9 @@ export function createPlaceholderHero(): Hero {
 }
 
 /**
- * A rest-stop bench in the hero's frame (`HERO_BENCH`, x the hero scale): placed at her stand
- * point with her seated yaw, its front edge HERO_BENCH.frontEdgeZ behind her root, the back behind
- * the seat (-z). Display of the plan's rest event only (the bench position is approximate).
+ * A rest-stop bench in the hero's frame: the asset manifest's seat and backrest boxes exactly
+ * (`HERO_BENCH`, x the display scale), placed at her stand point with her seated yaw (her back to
+ * the bench, which lies behind her root, -z). Display of the plan's rest event only (the bench position is approximate).
  */
 export function createRestBench(): { object3d: THREE.Object3D; dispose(): void } {
   const geos: THREE.BufferGeometry[] = [];
@@ -389,23 +390,41 @@ export function createRestBench(): { object3d: THREE.Object3D; dispose(): void }
     inner.add(o);
     return o;
   };
-  const T = 0.08;
-  const B = HERO_BENCH;
-  const midZ = B.frontEdgeZ - B.depthM / 2;
-  const seatMesh = box(B.widthM, T, B.depthM, wood, 0, B.seatHeightM - T / 2, midZ);
+  // The manifest's boxes exactly (her frame, true metres; the group is scaled by the display scale).
+  const boxOf = (b: { min: number[]; max: number[] }, mat: THREE.Material) => {
+    const [x0, y0, z0] = b.min as [number, number, number];
+    const [x1, y1, z1] = b.max as [number, number, number];
+    return box(x1 - x0, y1 - y0, z1 - z0, mat, (x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2);
+  };
+  const seatMesh = boxOf(HERO_BENCH.seat, wood);
   seatMesh.userData.benchPart = "seat";
-  const back = box(
-    B.widthM,
-    0.42,
-    0.08,
-    wood,
-    0,
-    B.seatHeightM + 0.32,
-    B.frontEdgeZ - B.depthM - 0.04,
-  );
+  const back = boxOf(HERO_BENCH.back, wood);
   back.userData.benchPart = "back";
-  for (const k of [-0.8, 0.8])
-    box(0.08, B.seatHeightM - T, B.depthM - 0.05, iron, k, (B.seatHeightM - T) / 2, midZ);
+  // legs and back posts (display only): under the seat box and up to the backrest
+  const s0 = HERO_BENCH.seat;
+  const b0 = HERO_BENCH.back;
+  const legH = s0.min[1] as number;
+  for (const x of [(s0.min[0] as number) + 0.06, (s0.max[0] as number) - 0.06]) {
+    box(
+      0.06,
+      legH,
+      (s0.max[2] as number) - (s0.min[2] as number) - 0.04,
+      iron,
+      x,
+      legH / 2,
+      ((s0.min[2] as number) + (s0.max[2] as number)) / 2,
+    );
+    const postH = (b0.max[1] as number) - legH;
+    box(
+      0.05,
+      postH,
+      0.05,
+      iron,
+      x,
+      legH + postH / 2,
+      ((b0.min[2] as number) + (b0.max[2] as number)) / 2,
+    );
+  }
   return {
     object3d: group,
     dispose() {

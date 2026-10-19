@@ -1,5 +1,6 @@
 import type * as THREE from "three";
 import type { HeroClip, HeroFade } from "../journey/heroDriver";
+import { HERO_MANIFEST } from "./benchGeometry";
 
 export type { HeroClip, HeroFade };
 
@@ -17,7 +18,7 @@ export const HERO_CLIPS: readonly HeroClip[] = [
  * R-J3: people are drawn at 1.4-1.55x true scale; the hero always uses 1.55x. Her true standing
  * height is 1.55 m, so she is displayed at about 2.4 m (H4 window 2.2-2.5 m).
  */
-export const HERO_DISPLAY_SCALE = 1.55;
+export const HERO_DISPLAY_SCALE = HERO_MANIFEST.displayScale;
 export const HERO_TRUE_HEIGHT_M = 1.55;
 
 /** A world-space point that must touch the ground (a foot sole, a walker leg tip). */
@@ -44,15 +45,16 @@ export interface HeroContact {
  *     `fade.prevTime` and mix the two with weight `fade.blend` on the new clip (a GLB: both actions
  *     enabled, `setEffectiveWeight(1 - blend)` / `(blend)`). Pure inputs, so a seek mid-fade shows
  *     the same frame as play.
- * - **Time base of `sit_down` / `stand_up` is the driver's `REST_TIMING` (0.9 s each, spec cap
- *   1.5 s), not the GLB clip length.** `time` runs 0..REST_TIMING.sitDownS (or standUpS); a GLB whose
- *   clip is `d` seconds long plays `time × d / REST_TIMING.sitDownS`. Past the end, hold the last frame.
- * - **Seat geometry (`benchGeometry.ts` `HERO_BENCH`, the asset manifest's `bench`).** Through
- *   `sit_down` / `sit_idle` / `stand_up` the driver keeps her root fixed at the bench-front stand
- *   point, already facing away from the bench (she steps round before `sit_down`). In her frame
- *   the seat's front edge is at z = frontEdgeZ (-0.21 m), the seat top at seatHeightM (0.45 m),
- *   depth depthM; the clip itself carries the hips hipTravelM (0.28 m) back onto the seat and parks
- *   the walker beside her. All true metres, displayed x HERO_DISPLAY_SCALE (1.55, R-J3).
+ * - **Time base:** `time` is in the clip's own seconds (the manifest durations). The driver plays
+ *   `sit_down` / `stand_up` (1.5 s clips) over a 0.85 s screen beat (REST_TIMING), so `time` runs
+ *   0..1.5 at 1.76x; a GLB just sets `action.time = time`. Past the end, hold the last frame.
+ * - **Seat geometry (`benchGeometry.ts` `HERO_BENCH`, read from the asset manifest's `bench`).**
+ *   Through every clip the root stays put; through `sit_down` / `sit_idle` / `stand_up` it is the
+ *   bench-front stand point, and she already faces +z with her back to the bench (she steps round
+ *   before `sit_down`). Seat box [-0.65, 0.39, -0.57]..[0.65, 0.45, -0.21], backrest
+ *   [-0.65, 0.57, -0.62]..[0.65, 0.87, -0.55]; the clip carries the hips to `sitHips`
+ *   (0, 0.48, -0.28) and parks the walker beside her right knee (prop bone). True metres,
+ *   displayed x HERO_DISPLAY_SCALE (manifest `displayScale`, 1.55, R-J3).
  * - `contacts()` returns the world-space ground-contact points (`foot_l`, `foot_r`,
  *   `walker_{b|f}{l|r}`) for the AC-D10 ground check; a GLB returns its foot bones and walker-leg nodes.
  * - `dispose()` frees geometry, materials and textures it owns.
@@ -62,11 +64,12 @@ export interface Hero {
   setPose(pos: { x: number; y: number; z: number }, yaw: number): void;
   play(clip: HeroClip, time: number, rate: number, fade?: HeroFade): void;
   /**
-   * Optional ground for foot planting: with a sampler set (the drawn ground height at x, z; the
-   * player sets one during rest holds, where she leaves the footway), `play` puts each contact on
-   * the ground under it (a GLB: foot / walker-leg IK or a per-leg offset); null: flat at pos.y.
+   * Optional ground for foot planting: with a sampler set (the drawn ground height at x, z, or null
+   * where unknown), `play` puts each contact on the ground under it (a GLB: foot / walker-leg IK or
+   * a per-leg offset); null sampler or null height: flat at pos.y. The player sets one whenever she
+   * is not in a compressed walk while playing.
    */
-  setGround?(sample: ((x: number, z: number) => number) | null): void;
+  setGround?(sample: ((x: number, z: number) => number | null) | null): void;
   contacts(): HeroContact[];
   dispose(): void;
 }

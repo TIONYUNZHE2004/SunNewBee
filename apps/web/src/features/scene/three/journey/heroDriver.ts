@@ -23,6 +23,7 @@
  */
 
 import type { Phase, Timeline } from "../../../journey/timeline";
+import { HERO_CLIP_S, heroWalkRate } from "../characters/benchGeometry";
 import { slerpAngle, smoothYaw } from "../motion/agents";
 
 export type HeroClip = "walk" | "idle" | "sit_down" | "sit_idle" | "stand_up" | "look";
@@ -56,22 +57,32 @@ export interface HeroState {
   z: number;
   yaw: number;
   clip: HeroClip;
-  /** Seconds into the clip (loops: unbounded, the player wraps them). Already scaled by `walkRate`. */
+  /**
+   * Seconds into the clip in the clip's own time base (the asset manifest's durations; loops are
+   * unbounded, the player wraps them): walk time integrates `walkRate`; sit_down / stand_up run
+   * 0..HERO_CLIP_S (1.5 s) over their REST_TIMING screen beat (0.85 s).
+   */
   clipTime: number;
-  /** Walk-cycle speed factor (1 = the clip's natural cadence at the reference pace); 0 when not walking. */
+  /**
+   * Walk clip seconds per screen second (`heroManifest.walkRate`: speed / (stride x 1.55) x 0.9,
+   * the no-slide rate for her on-screen speed; x WALK_PHASE_RATE in compressed walks); 0 when not walking.
+   */
   walkRate: number;
   /** Set during the first HERO_FADE_S of a beat whose clip differs from the previous beat's. */
   fade?: HeroFade;
+  /** A compressed (20x) walk phase: she moves about 23 m/s on screen. */
+  fast?: boolean;
   /** During a rest hold: the plan event index and how far she is from the route toward the seat (0..1). */
   rest?: { eventIndex: number; offRoute: number };
 }
 
-/** The pace the walk clip's natural cadence matches (the demo's older_adult_rest pace, 1.1667 m/s). */
+/** The demo's older_adult_rest pace (1.1667 m/s): the stepping-round cadence uses it. */
 export const HERO_REF_PACE_MPS = 7 / 6;
 /**
- * Walk phases run 20x compressed (§6.4), so on screen she covers about 23 m/s. A cycle at 20x would
- * be a blur; the cycle runs at the pace's rate times this factor instead (a brisk, readable step).
- * Foot slide in compressed walks is inherent to the time compression; H5 is measured at the demo pace.
+ * Walk phases run 20x compressed (§6.4), so on screen she covers about 23 m/s. A no-slide cycle at
+ * 20x would be a blur; the cycle runs at the no-slide rate for her pace times this factor instead
+ * (a brisk, readable step). Foot slide in compressed walks is inherent to the time compression;
+ * slow holds and rest walks use the exact no-slide rate for their on-screen speed.
  */
 export const WALK_PHASE_RATE = 1.6;
 /** Seat distance from the route point when the bench place is unknown or not usable (m). */
@@ -201,7 +212,10 @@ interface RestGeom {
 }
 
 /** Walk-cycle rate while stepping round in place before sitting. */
-const TURN_RATE = 1;
+const TURN_RATE = heroWalkRate(HERO_REF_PACE_MPS);
+/** sit_down / stand_up clip seconds per screen second (the clip's 1.5 s over its screen beat). */
+const sitRate = (beat: [number, number], clip: "sit_down" | "stand_up") =>
+  beat[1] > beat[0] ? HERO_CLIP_S[clip] / (beat[1] - beat[0]) : 0;
 
 function restGeom(p: Phase, helpers: HeroPathHelpers): RestGeom {
   const sch = restSchedule(p.t1 - p.t0);
@@ -216,8 +230,7 @@ function restGeom(p: Phase, helpers: HeroPathHelpers): RestGeom {
   const fdx = route.x - seat.x;
   const fdz = route.z - seat.z;
   const walkLen = Math.hypot(fdx, fdz);
-  const rate = (r: [number, number]) =>
-    r[1] > r[0] ? walkLen / (r[1] - r[0]) / HERO_REF_PACE_MPS : 0;
+  const rate = (r: [number, number]) => (r[1] > r[0] ? heroWalkRate(walkLen / (r[1] - r[0])) : 0);
   return {
     sch,
     route,
@@ -244,9 +257,9 @@ const clocks = new WeakMap<HeroPathHelpers, WeakMap<Timeline, WalkClock>>();
 function phaseRate(p: Phase, pace: number): number {
   const dur = p.t1 - p.t0;
   if (!(dur > 0) || !(p.m1 > p.m0)) return 0;
-  if (p.kind === "walk") return (pace / HERO_REF_PACE_MPS) * WALK_PHASE_RATE;
+  if (p.kind === "walk") return heroWalkRate(pace) * WALK_PHASE_RATE;
   // a moving hold (verified / covered / gap): her on-screen speed against the reference pace
-  return (p.m1 - p.m0) / dur / HERO_REF_PACE_MPS;
+  return heroWalkRate((p.m1 - p.m0) / dur);
 }
 
 function walkClock(tl: Timeline, helpers: HeroPathHelpers): WalkClock {
@@ -301,6 +314,8 @@ interface Raw extends HeroState {
   beat0: number;
   /** The yaw is an explicit eased turn or a held facing (turn and sit beats): not smoothed again. */
   yawExact?: boolean;
+  /** Clip seconds per screen second of this beat (for a crossfade's outgoing clip). */
+  clipRate: number;
 }
 
 function restRaw(p: Phase, local: number, g: RestGeom, base: number): Raw {
@@ -315,8 +330,10 @@ function restRaw(p: Phase, local: number, g: RestGeom, base: number): Raw {
     beat: [number, number],
     walkRate = 0,
     yawExact = false,
+    clipRate = walkRate || 1,
   ): Raw => ({
     yawExact,
+    clipRate,
     distance_m: p.m0,
     x: pos.x,
     z: pos.z,
@@ -342,12 +359,16 @@ function restRaw(p: Phase, local: number, g: RestGeom, base: number): Raw {
     return out(g.seat, yaw, "walk", clip, sch.turn, TURN_RATE, true);
   }
   // sit_down / sit_idle / stand_up: the root stays at the stand point (the clips move the hips)
-  if (local < sch.sitDown[1])
-    return out(g.seat, g.face, "sit_down", local - sch.sitDown[0], sch.sitDown, 0, true);
+  if (local < sch.sitDown[1]) {
+    const r = sitRate(sch.sitDown, "sit_down");
+    return out(g.seat, g.face, "sit_down", (local - sch.sitDown[0]) * r, sch.sitDown, 0, true, r);
+  }
   if (local < sch.sitIdle[1])
     return out(g.seat, g.face, "sit_idle", local - sch.sitIdle[0], sch.sitIdle, 0, true);
-  if (local < sch.standUp[1])
-    return out(g.seat, g.face, "stand_up", local - sch.standUp[0], sch.standUp, 0, true);
+  if (local < sch.standUp[1]) {
+    const r = sitRate(sch.standUp, "stand_up");
+    return out(g.seat, g.face, "stand_up", (local - sch.standUp[0]) * r, sch.standUp, 0, true, r);
+  }
   const back0 = turn0 + TURN_RATE * (sch.turn[1] - sch.turn[0]);
   const pos = lerp2(g.seat, g.route, ease(seg(sch.back)));
   return out(pos, g.face, "walk", back0 + g.rateOut * (local - sch.back[0]), sch.back, g.rateOut);
@@ -370,6 +391,8 @@ function rawAt(tl: Timeline, t: number, helpers: HeroPathHelpers): Raw {
   const yaw = tangentYaw(helpers.pointAt, m);
   const rate = wc.rate[i] ?? 0;
   const at = (clip: HeroClip, clipTime: number, walkRate = 0): Raw => ({
+    clipRate: walkRate || 1,
+    fast: p.kind === "walk",
     distance_m: m,
     x,
     z,
@@ -392,7 +415,7 @@ function rawAt(tl: Timeline, t: number, helpers: HeroPathHelpers): Raw {
  */
 export function heroStateAt(tl: Timeline, t: number, helpers: HeroPathHelpers): HeroState {
   const tc = Math.max(0, Math.min(tl.total, Number.isFinite(t) ? t : 0));
-  const { beat0, yawExact, ...now } = rawAt(tl, tc, helpers);
+  const { beat0, yawExact, clipRate: _r, ...now } = rawAt(tl, tc, helpers);
   let yaw = now.yaw;
   if (!yawExact) {
     // turn and sit beats carry their own eased facing (she must face away from the bench before
@@ -408,7 +431,7 @@ export function heroStateAt(tl: Timeline, t: number, helpers: HeroPathHelpers): 
   if (beat0 > 0 && since < HERO_FADE_S) {
     const prev = rawAt(tl, beat0 - 1e-6, helpers);
     if (prev.clip !== now.clip) {
-      const prevRate = prev.clip === "walk" ? prev.walkRate : 1;
+      const prevRate = prev.clipRate;
       out.fade = {
         prevClip: prev.clip,
         prevTime: prev.clipTime + since * prevRate,

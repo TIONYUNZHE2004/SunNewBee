@@ -330,6 +330,22 @@ test.describe("journey hero (D-T6)", () => {
     const all = ground.flatMap((g) => g.contacts.map((c) => ({ ...g, c })));
     const err = (c: Contact) => Math.abs(c.y - c.groundY);
     const worst = all.reduce((w, r) => Math.max(w, err(r.c)), 0);
+    const worstRow = all.reduce<(typeof all)[number] | null>(
+      (w, r) => (!w || err(r.c) > err(w.c) ? r : w),
+      null,
+    );
+    const worstContact = worstRow
+      ? {
+          t: worstRow.t,
+          phase: worstRow.phase,
+          clip: worstRow.clip,
+          name: worstRow.c.name,
+          y: worstRow.c.y,
+          ground: worstRow.c.groundY,
+          band: worstRow.c.band,
+          errM: err(worstRow.c),
+        }
+      : null;
     const bad = all
       .filter((r) => err(r.c) > TOL_M)
       .map((r) => ({
@@ -380,6 +396,7 @@ test.describe("journey hero (D-T6)", () => {
         contacts: all.length,
         byBand: bands,
         worstM: worst,
+        worstContact,
         overTolerance: bad,
         noBand,
       },
@@ -388,7 +405,7 @@ test.describe("journey hero (D-T6)", () => {
     writeFileSync(join(OUT, "ac-d10.json"), `${JSON.stringify(result, null, 2)}\n`);
     console.log(
       `AC-D10: ${samples.length} samples; wrong clips ${wrong.length}; rest beats ${JSON.stringify(restBeats.map((r) => r.clips))}; ` +
-        `in buildings: driver ${driverIntrusions.length}, route geometry ${routeIntrusions.length}; contacts ${all.length} ${JSON.stringify(bands)} worst ${(worst * 100).toFixed(1)} cm; benches in buildings ${benchIntrusions.length}`,
+        `in buildings: driver ${driverIntrusions.length}, route geometry ${routeIntrusions.length}; contacts ${all.length} ${JSON.stringify(bands)} worst ${(worst * 100).toFixed(1)} cm ${JSON.stringify(worstContact)}; benches in buildings ${benchIntrusions.length}`,
     );
 
     expect(samples.length).toBeGreaterThan(total * 5);
@@ -403,7 +420,9 @@ test.describe("journey hero (D-T6)", () => {
         expect(r.clips, `rest ${r.phaseIndex}`).toContain(c);
     expect(clipsSeen.arrive?.idle).toBeGreaterThan(0);
     // The driver never takes her into a building (rest walks, benches). Route-geometry intrusions
-    // (the planned polyline itself crosses a footprint) are recorded in the evidence, not judged here.
+    // (the planned polyline itself crosses a footprint: Harmoni 1 start, Sales Gallery ~831 m) are
+    // excluded by coordinator ruling (route data is not altered; D-T5's camera keeps her visible)
+    // and recorded in the evidence.
     expect(driverIntrusions).toEqual([]);
     expect(benches?.length).toBe(3);
     expect(benchIntrusions).toEqual([]);

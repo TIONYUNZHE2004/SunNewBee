@@ -85,6 +85,51 @@ describe("hero layer ground", () => {
   });
 });
 
+describe("hero layer foot planting on the route", () => {
+  it("plants feet and walker on the drawn ground everywhere, except compressed walks while playing", () => {
+    const roots = [bandPlane(0.04, "landcover")]; // the route here is lawn-level, 4 cm below the root
+    const l = createHeroLayer(plan, path, frame, { roots: () => roots, now: () => 0 });
+    const walk = tl.phases.find((p) => p.kind === "walk") as Phase;
+    const hold = tl.phases.find((p) => p.event?.kind === "verified") as Phase;
+    const contactsAt = (t: number, playing: boolean) => {
+      l.pose(tl, t, playing);
+      return l.hero.contacts();
+    };
+    // paused (scrub, acceptance beats): every contact on the ground under it
+    for (const c of contactsAt((walk.t0 + walk.t1) / 2, false))
+      expect(Math.abs(c.y - 0.04), c.name).toBeLessThanOrEqual(0.03);
+    // playing a slow hold: planted too
+    for (const c of contactsAt((hold.t0 + hold.t1) / 2, true))
+      expect(Math.abs(c.y - 0.04), c.name).toBeLessThanOrEqual(0.03);
+    // playing a compressed walk: no raycasts, the contacts stay at the root height
+    const fast = contactsAt((walk.t0 + walk.t1) / 2 + 0.01, true);
+    expect(fast.some((c) => Math.abs(c.y - HERO_GROUND_Y) < 0.02)).toBe(true);
+    l.dispose();
+  });
+});
+
+describe("hero layer planting cache", () => {
+  it("forgets park-only answers once the footway band streams in", () => {
+    const scene = new THREE.Scene();
+    scene.add(bandPlane(0.05, "parks"));
+    scene.updateMatrixWorld(true);
+    const l = createHeroLayer(plan, path, frame, { roots: () => [scene], now: () => 0 });
+    const walk = tl.phases.find((p) => p.kind === "walk") as Phase;
+    const p = l.pose(tl, (walk.t0 + walk.t1) / 2);
+    // planted on the park (the swing foot lifts at most 2.3 cm)
+    for (const c of l.hero.contacts()) expect(Math.abs(c.y - 0.05)).toBeLessThanOrEqual(0.025);
+    scene.add(bandPlane(0.08, "roads")); // the footway tile arrives
+    scene.updateMatrixWorld(true);
+    const probe = p.probe?.();
+    for (const c of probe?.contacts ?? []) {
+      expect(c.band).toBe("roads");
+      expect(Math.abs(c.y - c.groundY)).toBeLessThanOrEqual(0.025);
+      expect(c.y).toBeGreaterThanOrEqual(0.08 - 1e-6);
+    }
+    l.dispose();
+  });
+});
+
 describe("hero layer seat side", () => {
   it("keeps the seat clear of a building footprint beside the rest point", () => {
     const e = plan.events[rest.eventIndex as number] as JourneyPlan["events"][number];

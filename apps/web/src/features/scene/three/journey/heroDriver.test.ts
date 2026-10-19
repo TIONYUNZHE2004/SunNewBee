@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import demo from "../../../journey/fixtures/demoPlan.json";
 import { createRoutePath } from "../../../journey/routePath";
 import { buildTimeline, type JourneyPlan, type Phase } from "../../../journey/timeline";
+import { HERO_CLIP_S, HERO_MANIFEST, HERO_SPEC, heroWalkRate } from "../characters/benchGeometry";
 import { createFrame } from "../frame";
 import {
   HERO_FADE_S,
@@ -336,6 +337,29 @@ describe("crossfade at beat boundaries", () => {
   });
 });
 
+describe("clip time bases follow the asset manifest", () => {
+  it("sit_down and stand_up run the 1.5 s clips over their screen beats", () => {
+    expect(HERO_CLIP_S.sit_down).toBe(1.5);
+    expect(HERO_CLIP_S.stand_up).toBe(1.5);
+    const r = holds("rest")[0] as Phase;
+    const sch = restSchedule(r.t1 - r.t0);
+    const at = (u: number) => heroStateAt(tl, r.t0 + u, helpers);
+    expect(at(sch.sitDown[0] + 1e-6).clipTime).toBeCloseTo(0, 4);
+    expect(at(sch.sitDown[1] - 1e-6).clipTime).toBeCloseTo(1.5, 4);
+    expect(at((sch.standUp[0] + sch.standUp[1]) / 2).clipTime).toBeCloseTo(0.75, 4);
+  });
+
+  it("slow holds walk at the manifest's no-slide rate for her on-screen speed", () => {
+    const v = holds("verified")[0] as Phase;
+    const speed = (v.m1 - v.m0) / (v.t1 - v.t0);
+    const s = heroStateAt(tl, (v.t0 + v.t1) / 2, helpers);
+    expect(s.walkRate).toBeCloseTo(
+      (speed / (HERO_SPEC.stride * HERO_MANIFEST.displayScale)) * HERO_SPEC.walkDuration,
+      9,
+    );
+  });
+});
+
 describe("walk rate is tied to the pace", () => {
   const scaled = (k: number) => {
     const p = { ...plan, pace_m_per_s: plan.pace_m_per_s * k } as JourneyPlan;
@@ -346,10 +370,7 @@ describe("walk rate is tied to the pace", () => {
       const t2 = scaled(k);
       const p = t2.phases.find((q) => q.kind === "walk") as Phase;
       const s = heroStateAt(t2, mid(p), helpers);
-      expect(s.walkRate).toBeCloseTo(
-        ((plan.pace_m_per_s * k) / HERO_REF_PACE_MPS) * WALK_PHASE_RATE,
-        6,
-      );
+      expect(s.walkRate).toBeCloseTo(heroWalkRate(plan.pace_m_per_s * k) * WALK_PHASE_RATE, 6);
     }
   });
   it("slow holds: rate = the on-screen speed / reference pace (proportional to the pace)", () => {

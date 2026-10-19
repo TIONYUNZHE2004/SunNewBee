@@ -37,7 +37,8 @@ export interface HeroLayer {
   group: THREE.Group;
   hero: Hero;
   seats: Map<number, HeroSeat>;
-  pose(tl: Timeline, t: number): HeroPose;
+  /** `playing`: the timeline is running (planting is then budgeted, and off in compressed walks). */
+  pose(tl: Timeline, t: number, playing?: boolean): HeroPose;
   dispose(): void;
 }
 
@@ -150,12 +151,66 @@ export function footprintClearance(
 interface RestGround {
   /** Drawn ground heights at offRoute 0, 1/N .. 1 (route point -> seat). */
   profile: number[];
-  /** Ground at any point near this rest, cached on a 0.1 m grid (for foot planting). */
-  at: (x: number, z: number) => number;
 }
 
-/** Ground cache cell (m): a contact samples the band once per cell it enters. */
-const GROUND_CELL_M = 0.1;
+/** Ground cache cell (m): a contact samples the band once per cell it enters (2 cm: a band edge is never misread by more than that). */
+const GROUND_CELL_M = 0.02;
+/** The ground-band mesh list is gathered again after this long (ms): tiles stream in and out. */
+const GROUND_MESHES_MS = 1000;
+/** New ground samples (raycasts) allowed per pose while playing; a paused pose plants fully. */
+const PLANT_BUDGET = 12;
+
+/**
+ * Foot-planting ground: the drawn ground band at (x, z), cached per 2 cm cell while the set of
+ * ground meshes stays the same (re-gathered every second; a tile streaming in or out clears the
+ * cache, so a park-only answer never outlives the footway arriving). `make(budget)` returns a
+ * sampler allowed `budget` new raycasts; past it, unknown cells return null (the contact then
+ * stays at the root's height). A cell with no band under it is asked again.
+ */
+function plantingGround(roots: (() => readonly THREE.Object3D[]) | undefined, now: () => number) {
+  const cache = new Map<number, number>();
+  let sample: ((x: number, z: number) => { y: number; band: string | null }) | null = null;
+  let meshKey = "";
+  let gathered = -Infinity;
+  /** Re-gathers the ground meshes; a changed set (a tile streamed in or out) drops the cache. */
+  const refresh = (force: boolean) => {
+    if (!roots || (!force && sample && now() - gathered <= GROUND_MESHES_MS)) return;
+    const meshes: string[] = [];
+    for (const r of roots())
+      r.traverseVisible((o) => {
+        if (
+          (o as THREE.Mesh).isMesh &&
+          o.userData.groundBand &&
+          o.userData.groundBand !== "markings"
+        )
+          meshes.push(o.uuid);
+      });
+    const key = meshes.join(",");
+    if (key !== meshKey) cache.clear();
+    meshKey = key;
+    sample = groundSampler(roots());
+    gathered = now();
+  };
+  const make = (budget: number) => {
+    let left = budget;
+    return (x: number, z: number): number | null => {
+      const cx = Math.round(x / GROUND_CELL_M);
+      const cz = Math.round(z / GROUND_CELL_M);
+      const key = cx * 1e7 + cz;
+      const hit = cache.get(key);
+      if (hit !== undefined) return hit;
+      if (!roots || left <= 0) return null;
+      left--;
+      refresh(false);
+      const g = (sample as NonNullable<typeof sample>)(x, z);
+      if (g.band === null) return null;
+      const y = Math.max(0, g.y);
+      cache.set(key, y);
+      return y;
+    };
+  };
+  return { make, refresh };
+}
 
 export function createHeroLayer(
   plan: JourneyPlan,
@@ -232,19 +287,7 @@ export function createHeroLayer(
       if (g.band === null) return; // not streamed in yet: keep the default height, retry later
       profile.push(Math.max(0, g.y));
     }
-    const cache = new Map<number, number>();
-    const at = (x: number, z: number) => {
-      const cx = Math.round(x / GROUND_CELL_M);
-      const cz = Math.round(z / GROUND_CELL_M);
-      const key = cx * 1e6 + cz;
-      let y = cache.get(key);
-      if (y === undefined) {
-        y = Math.max(0, sample(cx * GROUND_CELL_M, cz * GROUND_CELL_M).y);
-        cache.set(key, y);
-      }
-      return y;
-    };
-    ground.set(i, { profile, at });
+    ground.set(i, { profile });
     const b = benches.get(i);
     if (b) b.object3d.position.y = profile[REST_PROFILE_N] as number;
   };
@@ -258,8 +301,9 @@ export function createHeroLayer(
     return a + (b - a) * (f - k);
   };
 
+  const planting = plantingGround(opts.roots, now);
   let last: { tl: Timeline; t: number } | null = null;
-  const place = (tl: Timeline, t: number): HeroPose => {
+  const place = (tl: Timeline, t: number, playing = false): HeroPose => {
     last = { tl, t };
     const s = heroStateAt(tl, t, helpers);
     // sample a rest's ground just before she gets there
@@ -271,8 +315,11 @@ export function createHeroLayer(
     const ry = s.rest ? restY(s.rest.eventIndex, s.rest.offRoute) : null;
     const y = ry ?? HERO_GROUND_Y;
     hero.setPose({ x: s.x, y, z: s.z }, s.yaw);
-    // off the footway (a rest) each foot and walker leg is planted on the ground under it
-    hero.setGround?.(s.rest ? (ground.get(s.rest.eventIndex)?.at ?? null) : null);
+    // Each foot and walker leg is planted on the drawn ground under it (a footway / park edge, the
+    // lawn by a bench). Compressed walks while playing (~23 m/s on screen) skip it: a new cell per
+    // contact every frame would cost a raycast each, for a 3 cm step nobody can see at that speed.
+    const budget = playing && s.fast ? 0 : playing ? PLANT_BUDGET : Number.POSITIVE_INFINITY;
+    hero.setGround?.(budget > 0 ? planting.make(budget) : null);
     hero.play(s.clip, s.clipTime, s.walkRate, s.fade);
     const [lon, lat] = frame.toLonLat(s.x, s.z);
     const pose: HeroPose = { ...s, y, lon, lat, groundKnown: !s.rest || ry !== null, probe };
@@ -284,6 +331,7 @@ export function createHeroLayer(
     // a paused test probe: sample any rest ground that has streamed in since, and re-pose
     if (last) {
       for (const i of restIdx) tryGround(i, true);
+      planting.refresh(true);
       place(last.tl, last.t);
     }
     const sample = groundSampler(opts.roots?.() ?? []);

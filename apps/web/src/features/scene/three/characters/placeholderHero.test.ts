@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { describe, expect, it } from "vitest";
 import { REST_TIMING } from "../journey/heroDriver";
-import { HERO_BENCH } from "./benchGeometry";
+import { HERO_BENCH, HERO_CLIP_S } from "./benchGeometry";
 import { HERO_CLIPS, HERO_DISPLAY_SCALE } from "./hero";
 import { BENCH_SEAT_TRUE_M, createPlaceholderHero, createRestBench } from "./placeholderHero";
 
@@ -242,6 +242,36 @@ describe("rest bench", () => {
     b.dispose();
   });
 
+  it("matches the asset manifest's seat and backrest boxes exactly (x the display scale)", () => {
+    const b = createRestBench();
+    b.object3d.updateMatrixWorld(true);
+    for (const part of ["seat", "back"] as const) {
+      let m: THREE.Mesh | null = null;
+      b.object3d.traverse((c) => {
+        if (c.userData.benchPart === part) m = c as THREE.Mesh;
+      });
+      const mesh = m as unknown as THREE.Mesh;
+      mesh.geometry.computeBoundingBox();
+      const box = (mesh.geometry.boundingBox as THREE.Box3).clone().applyMatrix4(mesh.matrixWorld);
+      const want = HERO_BENCH[part];
+      for (let i = 0; i < 3; i++) {
+        expect(box.min.getComponent(i)).toBeCloseTo(
+          (want.min[i] as number) * HERO_DISPLAY_SCALE,
+          6,
+        );
+        expect(box.max.getComponent(i)).toBeCloseTo(
+          (want.max[i] as number) * HERO_DISPLAY_SCALE,
+          6,
+        );
+      }
+    }
+    expect(HERO_BENCH.seat).toEqual({ min: [-0.65, 0.39, -0.57], max: [0.65, 0.45, -0.21] });
+    expect(HERO_BENCH.back).toEqual({ min: [-0.65, 0.57, -0.62], max: [0.65, 0.87, -0.55] });
+    expect(HERO_BENCH.hipTravelM).toBeCloseTo(0.28, 9);
+    expect(HERO_DISPLAY_SCALE).toBe(1.55);
+    b.dispose();
+  });
+
   it("seated, the hips travel HERO_BENCH.hipTravelM back onto the seat while the root stays put", () => {
     const h = createPlaceholderHero();
     h.setPose({ x: 0, y: 0, z: 0 }, 0);
@@ -259,7 +289,7 @@ describe("rest bench", () => {
     );
     expect(h.object3d.position.z).toBe(0);
     // halfway through sit_down she is halfway back
-    h.play("sit_down", REST_TIMING.sitDownS / 2, 0);
+    h.play("sit_down", HERO_CLIP_S.sit_down / 2, 0);
     expect(u.position.z).toBeCloseTo(-HERO_BENCH.hipTravelM / 2, 6);
     h.dispose();
   });
