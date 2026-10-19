@@ -1,4 +1,4 @@
-{"meta": {"message": "Wheelchair route from Car Park B to the lakeside mall", "profile": "wheelchair", "scenario_id": null, "world": "elmina", "world_fingerprint": "f38b64029bf931371b1aee3bf5975795d8aa08a8ae0dfbcbd37e299247ea1264", "model": "mock-scripted", "recorded_at": "2026-10-19T22:24:44+00:00"}}
+{"meta": {"message": "Wheelchair route from Car Park B to the lakeside mall", "profile": "wheelchair", "scenario_id": null, "world": "elmina", "world_fingerprint": "6e84361f9eccff3bbda760c94933ab0bb225db613e1582299dd001f65e23facb", "model": "mock-scripted", "recorded_at": "2026-10-19T22:59:34+00:00"}}
 {"type": "tool.call", "id": "find_place-0", "name": "find_place", "args": {"query": "car park b", "types": null, "limit": 5, "near_place": null}}
 {"type": "tool.result", "id": "find_place-0", "name": "find_place", "summary": "5 result(s)"}
 {"type": "tool.call", "id": "find_place-1", "name": "find_place", "args": {"query": "lakeside mall", "types": null, "limit": 5, "near_place": null}}
@@ -37,11 +37,12 @@
 {"type": "text.delta", "delta": "named footway.\n• Not checked yet: Width "}
 {"type": "text.delta", "delta": "(m) on an unnamed footway; and 2 more un"}
 {"type": "text.delta", "delta": "checked items.\n• Asked the township team"}
-{"type": "text.delta", "delta": " to check all 7 unchecked items.\n• About"}
-{"type": "text.delta", "delta": " 124 m follows road centre lines without"}
-{"type": "text.delta", "delta": " a mapped sidewalk; sidewalk access is n"}
-{"type": "text.delta", "delta": "ot verified.\n• Segment facts are demo va"}
-{"type": "text.delta", "delta": "lues, not yet surveyed."}
+{"type": "text.delta", "delta": " to check all 7 unchecked items.\n• Some "}
+{"type": "text.delta", "delta": "segments are still unverified.\n• About 1"}
+{"type": "text.delta", "delta": "24 m follows road centre lines without a"}
+{"type": "text.delta", "delta": " mapped sidewalk; sidewalk access is not"}
+{"type": "text.delta", "delta": " verified.\n• Some segment facts are demo"}
+{"type": "text.delta", "delta": " values, not yet surveyed."}
 {"type": "scene.intent", "intent": {"kind": "route.highlight", "place_id": null, "route_id": "rt-77f120aa", "scenario_id": null, "center": null, "range_m": null, "lens": null, "visible": null, "geojson": {"type": "LineString", "coordinates": [[101.508757, 3.18131], [101.50861, 3.181204], [101.508479, 3.181108], [101.508671, 3.180834], [101.508715, 3.180769], [101.508515, 3.180628], [101.508527, 3.180603], [101.508533, 3.180575], [101.50853, 3.180546], [101.508521, 3.180519], [101.508501, 3.180493], [101.508769, 3.180147], [101.509644, 3.180769], [101.509602, 3.180947], [101.50979, 3.181102], [101.510045, 3.18131]]}, "route_status": "partly_unverified", "distance_m": 379.6, "est_minutes": 5.4, "day": null, "t_min": null}}
 {"type": "citation", "ref": 1, "evidence_id": "ev-place-park-b", "element_id": "park-b", "attribute": "name", "status": "unknown", "verified_at": null, "source_type": "team_survey_placeholder", "photo_url": null}
 {"type": "citation", "ref": 2, "evidence_id": "ev-place-lakeside-mall", "element_id": "lakeside-mall", "attribute": "name", "status": "unknown", "verified_at": null, "source_type": "team_survey_placeholder", "photo_url": null}

@@ -1,4 +1,4 @@
-{"meta": {"message": "Where can I go?", "profile": "wheelchair", "scenario_id": "stage_p3m", "world": "elmina", "world_fingerprint": "f38b64029bf931371b1aee3bf5975795d8aa08a8ae0dfbcbd37e299247ea1264", "model": "mock-scripted", "recorded_at": "2026-10-19T22:24:44+00:00"}}
+{"meta": {"message": "Where can I go?", "profile": "wheelchair", "scenario_id": "stage_p3m", "world": "elmina", "world_fingerprint": "6e84361f9eccff3bbda760c94933ab0bb225db613e1582299dd001f65e23facb", "model": "mock-scripted", "recorded_at": "2026-10-19T22:58:21+00:00"}}
 {"type": "answer.draft", "attempt": 1, "delta": "Please name your starting place before I select an evacuation route."}
 {"type": "answer.check", "attempt": 1, "ok": true, "issues": [], "repairs": 0}
 {"type": "text.delta", "delta": "Please name your starting place before I"}
