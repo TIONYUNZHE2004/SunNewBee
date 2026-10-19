@@ -135,12 +135,12 @@ def _road_disconnected(comps: dict[str, int], sources, targets) -> bool:
     return not {comps.get(s) for s in sources} & {comps.get(t) for t in targets}
 
 
-def _targets(world: World, place_id: str, profile=None) -> list[str]:
+def _targets(world: World, place_id: str, profile=None, *, road_nodes=None) -> list[str]:
     # A broken explicit entrance is a data gap, not permission to use the older area snap.
     pts = [(n, xy) for n, xy in _target_pts(world, place_id) if n in world.graph]
     if profile is None or profile.allowed_types is None:
         return [n for n, _ in pts]
-    roads = _road_nodes(world, profile)
+    roads = road_nodes if road_nodes is not None else _road_nodes(world, profile)
     snapped = (_snap_to_road(world, roads, n, xy) for n, xy in pts)
     return sorted({n for n in snapped if n})
 

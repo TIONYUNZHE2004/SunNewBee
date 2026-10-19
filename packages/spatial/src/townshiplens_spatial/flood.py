@@ -20,6 +20,7 @@ from .routing import (
     _caveat,
     _disconnected,
     _evaluate,
+    _road_nodes,
     _targets,
     _zero_edge_entrance_gaps,
     endpoint_flood,
@@ -100,22 +101,33 @@ def affected(
     pp, pe = ids("possible")
 
     prof = world.profiles[profile_id]
-    base_centres = {c.node_id for c in world.centres.values() if c.node_id}
-    centre_nodes = {
-        c.node_id
+    roads = _road_nodes(world, prof) if prof.allowed_types is not None else None
+    centre_targets = {
+        c.id: set(_targets(world, f"{CENTRE_PREFIX}{c.id}", prof, road_nodes=roads))
         for c in world.centres.values()
-        if c.node_id
-        and endpoint_flood(world, f"{CENTRE_PREFIX}{c.id}", prof, scenario_id)[0] != "FAIL"
+    }
+    base_centres = {node for targets in centre_targets.values() for node in targets}
+    centre_nodes = {
+        node
+        for c in world.centres.values()
+        if endpoint_flood(world, f"{CENTRE_PREFIX}{c.id}", prof, scenario_id)[0] != "FAIL"
+        for node in centre_targets[c.id]
     }
     g = _passable_graph(world, scenario_id, profile_id)
     base_ok = _centre_connected(_passable_graph(world, "", profile_id), base_centres)
+    connected = _centre_connected(g, centre_nodes)
+    stranded_places = {
+        p.id: targets
+        for p in world.places.values()
+        if not p.id.startswith("__")
+        and (targets := set(_targets(world, p.id, prof, road_nodes=roads)))
+        and not targets & connected
+    }
     cands = []
     for comp in nx.connected_components(g):
         if comp & centre_nodes or not (comp & base_ok):
             continue  # holds a centre, or never had centre access: not a flood island
-        place_ids = sorted(
-            p.id for n in comp for p in world.places_at(n) if not p.id.startswith("__")
-        )
+        place_ids = sorted(pid for pid, targets in stranded_places.items() if targets & comp)
         if place_ids:
             cands.append((len(place_ids), len(comp), sorted(comp), place_ids))
     cands.sort(key=lambda t: (-t[0], -t[1], t[2][0]))

@@ -28,7 +28,8 @@ def test_undated_rest_point_can_only_support_a_lenient_journey(world, typ, attr,
     assert any("Rest rest-r" in w and "not checked yet" in w for w in result.warnings)
 
 
-def test_unpreviewed_centre_row_cannot_trust_an_undated_rest_stop(world):
+def test_unpreviewed_centre_row_cannot_trust_an_undated_rest_stop(world, monkeypatch):
+    monkeypatch.setattr("townshiplens_spatial.flood.TOP_ROUTES", 0)
     rest_detour(world, claims={"seating": Claim(value=True, status="verified")})
     world.centres["evc-hall"] = world.centres["evc-hall"].model_copy(
         update={"node_id": "n-d", "place_id": "playground", "coord": world.node_coords["n-d"]}
