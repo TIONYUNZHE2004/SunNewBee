@@ -26,20 +26,50 @@ export interface SlabLayer {
   depthM: number;
   /** How far the band steps out from its top to its bottom edge (m). */
   runM: number;
+  /**
+   * Rounded profile (B-T9): this many segments along a quarter ellipse (run x depth), horizontal
+   * at the top edge and steep at the bottom, with shared rows so the normals are smooth. Omitted: one
+   * straight band.
+   */
+  round?: number;
 }
 
 /**
- * Top to bottom: the cream crust, then three soil layers (prototype colours). The soil bands slope
+ * Top to bottom: the cream crust, a rounded rim (B-T9: the toy slab's soft edge, 6 segments over
+ * the same 4 m x 3 m as the A-T4 straight crust, so the section foot and the camera fit are
+ * unchanged), then three soil layers (prototype colours). The soil bands slope
  * at about 20 degrees (depth 26 m over a 70 m run): the overview sees the far edge at about 36
  * degrees below the horizon, so a band shallower than that faces the camera on every side. 70 m of
  * run is about 3.5 px per band at the far edge (9.7 km, 5.8 m/px).
  */
 export const SLAB_LAYERS: readonly SlabLayer[] = [
-  { colour: CLAY_PALETTE.slab[0], depthM: 4, runM: 3 },
+  { colour: CLAY_PALETTE.slab[0], depthM: 4, runM: 3, round: 6 },
   { colour: CLAY_PALETTE.slab[1], depthM: 26, runM: 70 },
   { colour: CLAY_PALETTE.slab[2], depthM: 26, runM: 70 },
   { colour: CLAY_PALETTE.slab[3], depthM: 26, runM: 70 },
 ];
+
+/**
+ * A layer's profile as (outward offset, drop) rows from its top edge, [0, 0] first and
+ * [runM, -depthM] last: two rows for a straight band, `round + 1` along a quarter ellipse otherwise.
+ */
+export function rimProfile(layer: SlabLayer): [number, number][] {
+  const k = layer.round ?? 0;
+  if (k < 2)
+    return [
+      [0, 0],
+      [layer.runM, -layer.depthM],
+    ];
+  const rows: [number, number][] = [];
+  for (let i = 0; i <= k; i++) {
+    const t = ((i / k) * Math.PI) / 2;
+    rows.push([
+      i === k ? layer.runM : layer.runM * Math.sin(t),
+      i === k ? -layer.depthM : i === 0 ? 0 : -layer.depthM * (1 - Math.cos(t)),
+    ]);
+  }
+  return rows;
+}
 
 /** The soil colours (the crust is not soil): what the acceptance screenshot looks for. */
 export const SOIL_COLOURS = SLAB_LAYERS.slice(1).map((l) => l.colour);
@@ -164,24 +194,28 @@ export function slabGeometry(
     let y = 0;
     for (const layer of layers) {
       colour.set(layer.colour);
+      // Rows of this layer (shared between its segments: a rounded rim gets smooth normals).
+      const prof = rimProfile(layer);
+      const rows = prof.length;
       const base = pos.length / 3;
-      const off1 = off + layer.runM;
-      const y1 = y - layer.depthM;
       for (let i = 0; i < n; i++) {
         const [x, z] = ring[i]!;
         const [mx, mz] = mitres[i]!;
-        pos.push(x + mx * off, y, z + mz * off, x + mx * off1, y1, z + mz * off1);
-        col.push(colour.r, colour.g, colour.b, colour.r, colour.g, colour.b);
+        for (const [o, d] of prof) {
+          pos.push(x + mx * (off + o), y + d, z + mz * (off + o));
+          col.push(colour.r, colour.g, colour.b);
+        }
       }
-      for (let i = 0; i < n; i++) {
-        const t0 = base + i * 2;
-        const b0 = t0 + 1;
-        const t1 = base + ((i + 1) % n) * 2;
-        const b1 = t1 + 1;
-        idx.push(t0, b0, t1, b0, b1, t1);
-      }
-      off = off1;
-      y = y1;
+      for (let i = 0; i < n; i++)
+        for (let r = 0; r + 1 < rows; r++) {
+          const t0 = base + i * rows + r;
+          const b0 = t0 + 1;
+          const t1 = base + ((i + 1) % n) * rows + r;
+          const b1 = t1 + 1;
+          idx.push(t0, b0, t1, b0, b1, t1);
+        }
+      off += layer.runM;
+      y -= layer.depthM;
     }
     foot.push(ring.map(([x, z], i) => [x + mitres[i]![0] * off, y, z + mitres[i]![1] * off]));
   }
