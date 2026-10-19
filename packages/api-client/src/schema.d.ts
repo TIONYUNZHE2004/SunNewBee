@@ -425,6 +425,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/layers/street_furniture": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Street Furniture Layer
+         * @description Street furniture points (display only). Declared before /layers/{lens} so it wins. 404 when
+         *     the world has no base/street_furniture.geojson (the client then draws no fact props).
+         */
+        get: operations["street_furniture_layer_layers_street_furniture_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/layers/{lens}": {
         parameters: {
             query?: never;
@@ -2549,6 +2570,26 @@ export interface components {
             /** Label */
             label: string;
         };
+        /**
+         * StreetFurnitureLayer
+         * @description Fact-bearing street furniture for the stylised 3D city (display only, B-T6/B-T7): one Point
+         *     per OSM traffic signal, bus stop, shelter, bench or picnic table inside the outline, plus seed
+         *     seating / shelter places that coincide with none of them (`source: seed_place`). Each feature
+         *     carries its source `id` and `kind`. Routing, evaluation and answers never read it.
+         */
+        StreetFurnitureLayer: {
+            /** As Of */
+            as_of?: string | null;
+            /**
+             * Attribution
+             * @default []
+             */
+            attribution: string[];
+            /** Furniture */
+            furniture: {
+                [key: string]: unknown;
+            };
+        };
         /** Suggestions */
         Suggestions: {
             /** Candidates */
@@ -3687,6 +3728,47 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
                 };
+            };
+        };
+    };
+    street_furniture_layer_layers_street_furniture_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StreetFurnitureLayer"];
+                };
+            };
+            /** @description Not modified */
+            304: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description no street furniture seed for this world */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description the street furniture seed is unreadable */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };
