@@ -1,11 +1,9 @@
 import * as THREE from "three";
 import type { LonLat } from "../../scene/geo";
 import { HERO_BENCH } from "../../scene/three/characters/benchGeometry";
+import { createGlbHero } from "../../scene/three/characters/glbHero";
 import { HERO_DISPLAY_SCALE, type Hero } from "../../scene/three/characters/hero";
-import {
-  createPlaceholderHero,
-  createRestBench,
-} from "../../scene/three/characters/placeholderHero";
+import { createRestBench } from "../../scene/three/characters/placeholderHero";
 import type { LocalFrame } from "../../scene/three/frame";
 import {
   type HeroPathHelpers,
@@ -29,6 +27,48 @@ const CORRIDOR_M = 2.5;
 /** Corridor sampling step along the route (m). */
 const CORRIDOR_STEP_M = 0.5;
 
+/** A bench the street dressing draws for a mapped seating place (see `createHeroLayer` opts). */
+export interface FactBench {
+  id?: string;
+  x: number;
+  z: number;
+  yaw: number;
+}
+/** A fact bench this close (m) to a rest's seat or bench place is the rest's bench. */
+export const FACT_BENCH_RANGE_M = 3;
+/**
+ * Her stand point in front of a bench's footprint centre: the manifest seat box centre lies
+ * (min z + max z) / 2 behind her root (true m), x the display scale.
+ */
+export const FACT_BENCH_STAND_M =
+  (-((HERO_BENCH.seat.min[2] as number) + (HERO_BENCH.seat.max[2] as number)) / 2) *
+  HERO_DISPLAY_SCALE;
+
+/** The fact bench a rest uses: same source id, else the nearest within FACT_BENCH_RANGE_M. */
+export function factBenchFor(
+  benches: readonly FactBench[] | undefined,
+  id: string | null | undefined,
+  near: readonly ([number, number] | null)[],
+): FactBench | null {
+  if (!benches?.length) return null;
+  if (id) {
+    const same = benches.find((b) => b.id === id);
+    if (same) return same;
+  }
+  let best: FactBench | null = null;
+  let bestD = FACT_BENCH_RANGE_M;
+  for (const b of benches)
+    for (const p of near) {
+      if (!p) continue;
+      const d = Math.hypot(b.x - p[0], b.z - p[1]);
+      if (d <= bestD) {
+        bestD = d;
+        best = b;
+      }
+    }
+  return best;
+}
+
 /** Per-pose cost of the hero (driver + planting + model update), for the frame budget. */
 export interface HeroCost {
   poses: number;
@@ -43,7 +83,7 @@ export interface HeroCost {
 }
 
 /**
- * The journey hero in the 3D scene: the hero model (placeholder until C-T4) plus a bench at each
+ * The journey hero in the 3D scene: the hero model (the rigged GLB, C-T4) plus a bench at each
  * rest stop of the plan. `pose(tl, t)` puts her where `heroStateAt` says, on the drawn ground from a
  * precomputed corridor height table, and returns what was drawn.
  */
@@ -206,11 +246,30 @@ export function createHeroLayer(
      */
     groundGeneration?: () => number;
     createHero?: () => Hero;
+    /**
+     * Fact benches drawn by the street dressing (B-T7: mapped seating places), local metres:
+     * `x, z` the bench footprint centre, `yaw` the facing of someone sitting on it (atan2(dx, dz)),
+     * `id` the source id (the place id a rest event names). A rest uses the fact bench whose id is
+     * the event's element, else one within FACT_BENCH_RANGE_M of its seat or bench place: she sits
+     * on it (stand point and facing from the manifest bench contract) and no rest bench is drawn.
+     */
+    factBenches?: readonly FactBench[];
     /** Called with every pose drawn. */
     onPose?: (p: HeroPose) => void;
   } = {},
 ): HeroLayer {
-  const hero = (opts.createHero ?? createPlaceholderHero)();
+  // The rigged GLB hero for the plan's profile (C-T4); the placeholder shows until it loads and
+  // stays if it cannot. When the GLB swaps in, the last pose is drawn again (onPose -> a frame).
+  const hero = (
+    opts.createHero ??
+    (() =>
+      createGlbHero({
+        profile: plan.profile,
+        onReady: () => {
+          if (last) place(last.tl, last.t);
+        },
+      }))
+  )();
   const group = new THREE.Group();
   group.name = "journey-hero-layer";
   group.userData.journeyHero = true;
@@ -228,6 +287,8 @@ export function createHeroLayer(
   // One seat (stand point) per rest event: a display approximation; the bench fact is the rest point.
   // The side keeps the whole bench box (seat and backrest behind her) clear of building footprints.
   const seats = new Map<number, HeroSeat>();
+  /** Rests seated on a street-dressing fact bench (no own bench drawn). */
+  const factSeats = new Set<number>();
   const benches = new Map<number, ReturnType<typeof createRestBench>>();
   for (const i of restIdx) {
     const e = plan.events[i] as JourneyPlan["events"][number];
@@ -241,7 +302,21 @@ export function createHeroLayer(
             ...benchCorners(x, z, Math.atan2(rx - x, rz - z)).map(([cx, cz]) => clearance(cx, cz)),
           )
       : undefined;
-    const seat = seatFor(path.pointAt, e.at_m, place, benchClear);
+    const own = seatFor(path.pointAt, e.at_m, place, benchClear);
+    const fact = factBenchFor(opts.factBenches, e.element_id, [place, [own.x, own.z]]);
+    if (fact) {
+      // the street dressing's fact bench is the rest's bench: she stands in front of it, facing as
+      // it faces, and no rest bench of our own is drawn (one bench per fact)
+      const seat: HeroSeat = {
+        x: fact.x + Math.sin(fact.yaw) * FACT_BENCH_STAND_M,
+        z: fact.z + Math.cos(fact.yaw) * FACT_BENCH_STAND_M,
+        yaw: fact.yaw,
+      };
+      seats.set(i, seat);
+      factSeats.add(i);
+      continue;
+    }
+    const seat = own;
     seats.set(i, seat);
     const b = createRestBench();
     b.object3d.position.set(seat.x, HERO_GROUND_Y, seat.z);
@@ -267,7 +342,8 @@ export function createHeroLayer(
     const s = seats.get(i) as HeroSeat;
     for (let k = 0; k <= 8; k++)
       corridorPts.push([rx + ((s.x - rx) * k) / 8, rz + ((s.z - rz) * k) / 8]);
-    for (const c of benchCorners(s.x, s.z, Math.atan2(rx - s.x, rz - s.z))) corridorPts.push(c);
+    for (const c of benchCorners(s.x, s.z, s.yaw ?? Math.atan2(rx - s.x, rz - s.z)))
+      corridorPts.push(c);
   }
   const corridor = corridorCells(corridorPts, CORRIDOR_M);
 
@@ -330,14 +406,17 @@ export function createHeroLayer(
         onFootway: g.band === "roads",
       };
     });
-    const benchCornersLonLat = [...benches].map(([eventIndex, b]) => {
-      const s = seats.get(eventIndex) as HeroSeat;
-      const corners = benchCorners(s.x, s.z, b.object3d.rotation.y).map(
+    // every rest's bench: our own, or the street dressing's fact bench she sits on
+    const benchCornersLonLat = [...seats].map(([eventIndex, s]) => {
+      const b = benches.get(eventIndex);
+      const yaw = b ? b.object3d.rotation.y : (s.yaw as number);
+      const corners = benchCorners(s.x, s.z, yaw).map(
         ([x, z]) => frame.toLonLat(x, z) as [number, number],
       );
-      return { eventIndex, corners };
+      return { eventIndex, corners, fact: factSeats.has(eventIndex) };
     });
-    return { contacts, benches: benchCornersLonLat, cost: cost() };
+    const kind = (hero as { kind?: () => string }).kind?.();
+    return { contacts, benches: benchCornersLonLat, cost: cost(), model: kind ?? "custom" };
   };
 
   const cost = (): HeroCost => {

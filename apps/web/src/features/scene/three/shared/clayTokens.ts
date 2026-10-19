@@ -36,6 +36,10 @@ import { readsAsWater } from "../colourHue";
  *    (`roleMaterial.ts` roleResponseGlsl).
  */
 
+/** The demo hero's baju kurung and tudung (one source for `person` and the lane/fe `hero` block). */
+const HERO_CLOTH = "#7c5cbf";
+const HERO_HIJAB = "#c9a8e8";
+
 /** Pastel clay palette, sRGB hex. Grouped by what draws it. */
 export const CLAY_PALETTE = {
   /** No-manifest building walls per OSM kind (cityMesh KIND_COLOUR). */
@@ -150,8 +154,26 @@ export const CLAY_PALETTE = {
     pants: ["#3d4a63", "#5b4636", "#2e3a4f", "#7a6a58"],
     hair: ["#3b2a20", "#20201f", "#6b4a2f"],
     /** The demo hero: purple baju kurung, lilac tudung. */
-    heroCloth: "#7c5cbf",
-    heroHijab: "#c9a8e8",
+    heroCloth: HERO_CLOTH,
+    heroHijab: HERO_HIJAB,
+  },
+  // ---- Lane additions (one block per lane) ----
+  /**
+   * lane/fe (D-T6 / C-T4): the journey hero's placeholder chibi (prototype colours: purple baju,
+   * lilac tudung, face, shoes, walker) and its rest bench. The rigged GLB hero carries its own
+   * vertex colours and draws with the `hero` role.
+   */
+  hero: {
+    cloth: HERO_CLOTH,
+    tudung: HERO_HIJAB,
+    skin: "#d9a77c",
+    eye: "#2b2622",
+    blush: "#f29b9b",
+    shoe: "#4a3f5c",
+    metal: "#cfd6de",
+    grip: "#5a6b7d",
+    benchWood: "#c98b55",
+    benchIron: "#4b5563",
   },
 } as const;
 
@@ -169,6 +191,9 @@ export const EFFECT_COLOURS = {
   signInk: "#ffffff",
   headlight: "#fff4d6",
   taillight: "#ff3b30",
+  /** The journey hero's ground highlight (lane/fe): yellow ring and pale disc (unlit markers). */
+  heroRing: "#ffd34d",
+  heroDisc: "#fff3c2",
 } as const;
 
 export type ClayRole =
@@ -192,7 +217,9 @@ export type ClayRole =
   | "person"
   | "vehicle"
   | "sign"
-  | "dressing";
+  | "dressing"
+  // lane/fe additions
+  | "hero";
 
 export interface ClayToken {
   /** The role's palette (first entry is the default colour). */
@@ -336,6 +363,10 @@ export const CLAY: Readonly<Record<ClayRole, ClayToken>> = {
     0.35,
     { prop: true },
   ),
+  // lane/fe (D-T6 / C-T4): the journey hero (placeholder chibi, its bench, the rigged GLB body).
+  // Standard material on every tier: the rigged hero is double-sided (open tudung back, hem and
+  // lap shells), and the sheen program on both faces put her over the H11 1 ms budget.
+  hero: t(Object.values(CLAY_PALETTE.hero), 0.7, 0.4, { standardOnly: true }),
 };
 
 /** Gate switch: draw `role` with the standard material on every tier (true), or by tier (false). */
