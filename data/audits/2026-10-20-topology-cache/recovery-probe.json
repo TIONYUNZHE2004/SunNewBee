@@ -1,0 +1,17 @@
+{
+  "time_utc": "2026-10-19T22:52:36.318132+00:00",
+  "query": "[out:json][timeout:180];way[highway~\"^(footway|path|pedestrian|steps|crossing|living_street|residential|service|unclassified|tertiary|secondary_link|tertiary_link|track)$\"](3.18,101.46,3.21,101.48333333333333);out body geom;",
+  "cache_file": "cefd5bcc773b8e364cf283fe6abe14d7cd75c9d9.json",
+  "endpoint": "https://overpass-api.de/api/interpreter",
+  "max_requests": 1,
+  "connect_timeout_s": 5,
+  "read_timeout_s": 18,
+  "seed_writes": false,
+  "result": "blocked",
+  "error_type": "OverpassFailed",
+  "error": "Overpass failed after 1 attempts",
+  "requests_made": 1,
+  "elapsed_s": 18.43,
+  "live_questions": 0,
+  "spend_usd": 0
+}

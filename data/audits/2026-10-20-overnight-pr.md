@@ -16,7 +16,7 @@ Validation:
 - Previous backend checkpoints: 209 verification/routing/access/flood/tool/API checks and 141 flood/entrance/direction checks PASS; walking island totals 20/29 (+3/+5 m), drive 21/35 after consistent snaps; baseline zero and likely/possible totals unchanged.
 - No local e2e, live model calls, GitHub PR or CI run by this worker. Control opens the PR. Own app stopped; both ports checked closed.
 
-Limits: loader/source guards do not establish authentic junction identity for the legacy coordinate-derived seed. The coherent source-backed rebuild remains blocked by bounded service failures, including one fresh 18-second Kumi read timeout after the interruption. No seed writes or further retries followed. Legal turn relations/changing directions remain unmodelled. Island counts are graph indicators, not individual checked evacuation routes. Visual map review and the ordinary-destination closure-policy ruling remain control/Yunzhe-owned.
+Limits: loader/source guards do not establish authentic junction identity for the legacy coordinate-derived seed. The coherent source-backed rebuild remains blocked: exact cache readiness is 3/15 required road-query answers, with twelve missing. The latest one-request primary-mirror recovery probe timed out after 18.43 s; data/audits/2026-10-20-topology-cache/README.md records the evidence. Earlier bounded service failures remain documented. No seed writes or further retries followed. Legal turn relations/changing directions remain unmodelled. Island counts are graph indicators, not individual checked evacuation routes. Visual map review and the ordinary-destination closure-policy ruling remain control/Yunzhe-owned.
 
 The lists cover the whole comparison with control, including previously pushed P1 and T-020 work.
 
@@ -58,6 +58,9 @@ The lists cover the whole comparison with control, including previously pushed P
 - `data/audits/2026-10-20-route-metrics/api-before.json`
 - `data/audits/2026-10-20-route-metrics/api-after.json`
 - `data/audits/2026-10-20-route-metrics/seed-api-controls.json`
+- `data/audits/2026-10-20-topology-cache/README.md`
+- `data/audits/2026-10-20-topology-cache/readiness.json`
+- `data/audits/2026-10-20-topology-cache/recovery-probe.json`
 - `data/audits/2026-10-20-overnight-pr.md`
 - `data/audits/2026-10-20-special-verification/README.md`
 - `data/audits/2026-10-20-special-verification/api-after.json`

@@ -257,5 +257,34 @@
     "source_calls": 0,
     "e2e": "NOT RUN as instructed",
     "app": "Stopped; ports 8021/5191 verified closed"
+  },
+  "followup_round7_2026_10_20": {
+    "scope": "Source cache-readiness audit only; no runtime, seed or recording changes",
+    "readiness": {
+      "required_road_queries": 15,
+      "cached_walk_queries": 3,
+      "required_walk_queries": 9,
+      "cached_major_queries": 0,
+      "required_major_queries": 6,
+      "missing_queries": 12,
+      "cached_subset_ways": 1754,
+      "cached_subset_segments": 3566,
+      "subset_identity_geometry_check": "PASS within available subset only; not proof of legacy seed topology"
+    },
+    "recovery_probe": {
+      "time_utc": "2026-10-19T22:52:36Z",
+      "endpoint": "https://overpass-api.de/api/interpreter",
+      "requests": 1,
+      "connect_timeout_s": 5,
+      "read_timeout_s": 18,
+      "elapsed_s": 18.43,
+      "result": "Read timeout / OverpassFailed; no cache or seed write; no retry loop"
+    },
+    "checks": "Audit JSON formatting and git diff --check; CI not rerun for docs-only changes under board workflow",
+    "evidence": "../2026-10-20-topology-cache/README.md",
+    "live_questions": 0,
+    "spend_usd": 0,
+    "app": "Remains stopped",
+    "next": "Wait for source recovery, then fetch missing road-query answers with a bounded request budget, validate complete node IDs/geometry, check other inputs, rebuild the full pipeline and compare routes/flood before refreshing recordings."
   }
 }
