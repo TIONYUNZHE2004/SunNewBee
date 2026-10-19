@@ -4,6 +4,8 @@ import { describe, expect, it } from "vitest";
 import type { BuildingsLayer } from "../../../../lib/api";
 import demoPlan from "../../../journey/fixtures/demoPlan.json";
 import { createRoutePath } from "../../../journey/routePath";
+import { MARKER_LIFT_M, MARKER_STACK_M } from "../../../journey/three/journeyLayer";
+import { createViewFit, safeRectOf } from "../../../journey/three/viewFit";
 import {
   buildTimeline,
   DIVE_S,
@@ -24,11 +26,13 @@ import {
   followPoseAt,
   framingFor,
   HERO_CHEST_Y,
+  holdSubjects,
   journeyCameraAt,
   MIN_HERO_DIST_M,
   rawFrameAt,
 } from "./followRig";
 import { heroPositionAt, heroStateAt } from "./heroDriver";
+import { insideSafe } from "./safeFrame";
 
 const plan = demoPlan as unknown as JourneyPlan;
 const frame = createFrame(HERO_CENTRE);
@@ -389,5 +393,58 @@ describe.skipIf(!existsSync(SEED))("seed buildings: clearance interplay", () => 
       const s = heroStateAt(tl, t, helpers);
       expect(heroPositionAt(tl, t, helpers)).toEqual([s.x, s.z]);
     }
+  });
+});
+
+describe("UI-safe hold framing (final gate AC-D11)", () => {
+  // the acceptance map area with the top stack (header, status, label, HUD) ending at 235 px
+  const size: [number, number] = [920, 875];
+  const vp = { w: 920, h: 860, top: 235 };
+  const cam = new THREE.PerspectiveCamera(30, size[0] / size[1], 0.5, 30000);
+  cam.updateProjectionMatrix();
+  const view = createViewFit(cam, size, safeRectOf(vp));
+  // the journey layer's marker anchors: 5 m over the event's route point, stacked 1.6 m per event
+  const markerOf = (i: number): [number, number, number] | null => {
+    const e = plan.events[i];
+    if (!e) return null;
+    const [x, z] = path.pointAt(e.at_m);
+    const stacked = plan.events.filter((f, j) => j < i && Math.abs(f.at_m - e.at_m) < 3).length;
+    return [x, MARKER_LIFT_M + stacked * MARKER_STACK_M, z];
+  };
+
+  it("mid-hold, her body, the element and the marker are inside the safe area", () => {
+    const sc = scene({ view, markerOf });
+    const holds = tl.phases.filter((p) => p.kind === "event" && p.eventIndex !== undefined);
+    expect(holds.length).toBeGreaterThan(5);
+    for (const p of holds) {
+      const t = (p.t0 + p.t1) / 2;
+      const pose = journeyCameraAt(sc, t, "follow") as CamPose;
+      const st = stateAt(tl, t);
+      const subjects = holdSubjects(sc, t, p.eventIndex as number, st.distance_m);
+      expect(insideSafe(pose, subjects, view), `hold ${p.eventIndex}`).toBe(true);
+    }
+  });
+
+  it("without a view the poses are the plain follow poses; with one, walks are unchanged", () => {
+    const plain = scene();
+    const fitted = scene({ view, markerOf });
+    for (const p of tl.phases.filter((q) => q.kind === "walk")) {
+      const t = (p.t0 + p.t1) / 2;
+      expect(journeyCameraAt(fitted, t, "follow")).toEqual(journeyCameraAt(plain, t, "follow"));
+    }
+  });
+
+  it("the fitted camera is as smooth at 10 Hz as the plain one (no jump at a hold's ends)", () => {
+    const worstStep = (sc: FollowScene) => {
+      let prev = journeyCameraAt(sc, DIVE_S, "follow") as CamPose;
+      let worst = 0;
+      for (let t = DIVE_S + 0.1; t < tl.total - PULL_S; t += 0.1) {
+        const p = journeyCameraAt(sc, t, "follow") as CamPose;
+        worst = Math.max(worst, dist(p.look, prev.look), dist(p.pos, prev.pos));
+        prev = p;
+      }
+      return worst;
+    };
+    expect(worstStep(scene({ view, markerOf }))).toBeLessThanOrEqual(worstStep(scene()) + 0.5);
   });
 });

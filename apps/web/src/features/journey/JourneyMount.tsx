@@ -1,11 +1,13 @@
 import { type RefObject, useCallback, useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import type { LonLat } from "../scene/geo";
+import { setTreeCut } from "../scene/three/assets/treeCut";
 import type { Clearance } from "../scene/three/clearance";
 import type { Engine } from "../scene/three/engine";
 import type { LocalFrame } from "../scene/three/frame";
-import { elementPoint, type FollowScene } from "../scene/three/journey/followRig";
+import { elementPoint, type FollowScene, HERO_CHEST_Y } from "../scene/three/journey/followRig";
 import { heroPositionAt } from "../scene/three/journey/heroDriver";
+import type { ViewFit } from "../scene/three/journey/safeFrame";
 import { createFollowController, overviewFor } from "./followCamera";
 import { JourneyOverlay } from "./JourneyOverlay";
 import { journeyCamera, journeyHero, journeyStateOf, useJourney } from "./journeyStore";
@@ -15,6 +17,7 @@ import { createHeroLayer, type FactBench, type HeroLayer } from "./three/heroLay
 import { heroScreenRect } from "./three/heroScreen";
 import { createJourneyLayer, type JourneyLayer } from "./three/journeyLayer";
 import { projectToScreen } from "./three/project";
+import { createViewFit, safeRectOf } from "./three/viewFit";
 import { useJourneyDriver } from "./useJourneyDriver";
 import { useMapInsets } from "./useMapInsets";
 
@@ -116,6 +119,25 @@ export function JourneyMount({
     };
   }, [engine, frame, plan, layer, places, footprints, grid, factBenches]);
 
+  // Building materials carry the (inactive) cutaway from their first compile (engine patch hook,
+  // page load onwards): patching them when a trip loads, or as LOD buckets appear, recompiled
+  // their programs on the main thread (gate AC-D18: 798 ms at answer landing).
+  useEffect(() => {
+    if (!engine?.addMaterialPatch) return;
+    return engine.addMaterialPatch((root) => applyCutaway([root]));
+  }, [engine]);
+
+  // Decorative shader motion (tree sway, shimmer) runs on the trip clock while a trip is loaded:
+  // a paused beat renders the same at any wall time (AC-D17).
+  useEffect(() => {
+    if (!engine?.setDecorClock || !plan) return;
+    engine.setDecorClock(() => {
+      const s = useJourney.getState();
+      return s.plan === plan && s.timeline ? s.t : null;
+    });
+    return () => engine.setDecorClock?.(null);
+  }, [engine, plan]);
+
   const { viewport, miniMapRef } = useMapInsets(hostRef, !!plan && !!engine, () =>
     engine ? engine.pickView().size : [1, 1],
   );
@@ -137,6 +159,18 @@ export function JourneyMount({
         ov = { fit, pose: overviewFor(engine, layer.path.pointAt, layer.path.planLength) };
       return ov.pose;
     };
+    // The UI-safe hold fit's view (final gate, AC-D11): the engine camera's projection and the map
+    // area no UI covers. Rebuilt only when the projection, canvas or card viewport changes.
+    let vf: { key: string; view: ViewFit } | null = null;
+    const viewFit = (): ViewFit | null => {
+      const v = engine.pickView();
+      const cam = v.camera as THREE.PerspectiveCamera;
+      if (!cam.isPerspectiveCamera) return null;
+      const vp = viewportRef.current;
+      const key = `${cam.projectionMatrix.elements.join(",")}|${v.size.join(",")}|${vp.w},${vp.h},${vp.top ?? 0}`;
+      if (!vf || vf.key !== key) vf = { key, view: createViewFit(cam, v.size, safeRectOf(vp)) };
+      return vf.view;
+    };
     const scene = (): FollowScene | null => {
       const s = useJourney.getState();
       const tl = s.timeline;
@@ -150,6 +184,8 @@ export function JourneyMount({
         clearance: engine.clearance?.() ?? null,
         overview: overview(),
         heroAt: h ? (t) => heroPositionAt(tl, t, h.helpers) : undefined,
+        markerOf: (i) => layer.anchorOf(i),
+        view: viewFit(),
       };
     };
     const ctl = createFollowController({
@@ -158,7 +194,8 @@ export function JourneyMount({
       hero: () => (journeyHero.current ? [journeyHero.current.x, journeyHero.current.z] : null),
       focus: (p) => engine.setFocusPoint?.(p ? new THREE.Vector3(...p) : null),
     });
-    // Each frame: the journey camera, then the cutaway around her for the camera that will draw.
+    // Each frame: the journey camera, then the cutaway around her for the camera that will draw,
+    // and (following her) the decorative tree cut between the camera and her chest.
     engine.setCameraDriver((now, current) => {
       const p = ctl.driver(now, current);
       const h = journeyHero.current;
@@ -169,12 +206,15 @@ export function JourneyMount({
           engine.clearance?.() ?? null,
         ),
       );
+      const following = !!p && !!h && useJourney.getState().camMode === "follow";
+      setTreeCut(following && p && h ? { a: p.position, b: [h.x, HERO_CHEST_Y, h.z] } : null);
       return p;
     });
-    // Building materials get the (inactive) cutaway ahead of need: no shader compile mid-trip.
+    // Without the engine's material patch hook (tests), building materials get the (inactive)
+    // cutaway here, ahead of need.
     const patch = () => applyCutaway(engine.pickView().roots);
-    patch();
-    const patchTimer = setInterval(patch, 1000);
+    const patchTimer = engine.addMaterialPatch ? undefined : setInterval(patch, 1000);
+    if (patchTimer !== undefined) patch();
     const unsub = useJourney.subscribe((s, prev) => {
       if (s.plan !== plan) return;
       if ((s.playing && !prev.playing) || s.t !== prev.t || s.camMode !== prev.camMode)
@@ -207,6 +247,7 @@ export function JourneyMount({
       unsub();
       clearInterval(patchTimer);
       setCut(NO_CUT);
+      setTreeCut(null);
       engine.setCameraDriver?.(null);
       engine.setFocusPoint?.(null);
       journeyCamera.current = null;

@@ -7,6 +7,7 @@ import {
   clayMaterial,
   EFFECT_COLOURS,
 } from "../shared/clayTokens";
+import { injectTreeCut } from "./treeCut";
 
 export interface RoleUniforms {
   uWindowGlow: { value: number };
@@ -404,6 +405,8 @@ transformed.x += tlSw;
 transformed.z += tlSw;
 }`,
     );
+    // The journey's decorative tree cut (off unless the follow camera turns it on; treeCut.ts).
+    injectTreeCut(shader);
   } else if (kind === "person") {
     shader.uniforms.uTime = motion.uTime;
     shader.uniforms.uLimb = motion.uLimb;

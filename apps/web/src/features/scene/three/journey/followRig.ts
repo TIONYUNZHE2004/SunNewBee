@@ -30,6 +30,14 @@
 import type { JourneyEventKind, Timeline } from "../../../journey/timeline";
 import { HOLD_MOVES, stateAt } from "../../../journey/timeline";
 import type { Clearance, Vec3 } from "../clearance";
+import {
+  fitSafe,
+  holdFitWeight,
+  lerpPose,
+  SAFE_FIT,
+  type Subject,
+  type ViewFit,
+} from "./safeFrame";
 
 /**
  * The prototype's follow pose (spec §6.4): 8.5 m back, 4.5 m side, 4.2 m up, looking 4 m ahead.
@@ -140,6 +148,13 @@ export interface FollowScene {
   overview: CamPose;
   /** Her drawn ground position [x, z] at t (`heroStateAt`, pure); default: her route point. */
   heroAt?(t: number): [number, number];
+  /** The marker position of plan event `i` (the journey layer's `anchorOf`), or null. */
+  markerOf?(eventIndex: number): Vec3 | null;
+  /**
+   * The view for the UI-safe hold fit (`safeFrame.ts`): at an event hold her body, the element and
+   * the marker are kept inside the part of the map no UI covers. Absent: no screen-space fit.
+   */
+  view?: ViewFit | null;
 }
 
 /** The framing rule of an event kind (spec §6.4); verified, covered and gap holds follow her. */
@@ -551,7 +566,10 @@ export function journeyCameraAt(sc: FollowScene, t: number, mode: JourneyCamMode
   const tc = clamp(Number.isFinite(t) ? t : 0, 0, tl.total);
   const st = stateAt(tl, tc);
   const kind = st.phase.kind;
-  if (kind !== "dive" && kind !== "pull") return followPoseAt(sc, tc);
+  if (kind !== "dive" && kind !== "pull") {
+    const p = followPoseAt(sc, tc);
+    return kind === "event" && st.eventIndex !== undefined ? fitHold(sc, tc, st, p) : p;
+  }
   const p = blendPose(
     kind === "dive" ? sc.overview : followPoseAt(sc, tc),
     kind === "dive" ? followPoseAt(sc, tc) : sc.overview,
@@ -559,4 +577,35 @@ export function journeyCameraAt(sc: FollowScene, t: number, mode: JourneyCamMode
   );
   applyFloor(sc.clearance, p.pos);
   return p;
+}
+
+/** The subjects a hold keeps inside the UI-safe area: her body, the element and the marker. */
+export function holdSubjects(
+  sc: FollowScene,
+  t: number,
+  eventIndex: number,
+  distanceM: number,
+): Subject[] {
+  const h = sc.heroAt?.(t) ?? sc.pointAt(distanceM);
+  const out: Subject[] = [
+    { p: [h[0], 0.1, h[1]], padPx: SAFE_FIT.heroPadPx },
+    { p: [h[0], 2.3, h[1]], padPx: SAFE_FIT.heroPadPx },
+  ];
+  const el = elementPoint(sc, eventIndex, distanceM);
+  if (el) out.push({ p: el, padPx: SAFE_FIT.elementPadPx });
+  const mk = sc.markerOf?.(eventIndex);
+  if (mk) out.push({ p: [mk[0], mk[1], mk[2]], padPx: SAFE_FIT.markerPadPx });
+  return out;
+}
+
+/** An event hold's pose fitted into the UI-safe area (eased in and out over the hold). */
+function fitHold(sc: FollowScene, t: number, st: ReturnType<typeof stateAt>, p: CamPose): CamPose {
+  const view = sc.view;
+  if (!view || st.eventIndex === undefined) return p;
+  const w = holdFitWeight(t, st.phase.t0, st.phase.t1);
+  if (w <= 0) return p;
+  const fit = fitSafe(p, holdSubjects(sc, t, st.eventIndex, st.distance_m), view);
+  const out = lerpPose(p, fit, w) as CamPose;
+  applyFloor(sc.clearance, out.pos);
+  return out;
 }
