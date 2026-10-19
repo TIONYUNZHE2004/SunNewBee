@@ -64,22 +64,22 @@
   },
   "boundary": {
     "file": "base/boundary.geojson",
-    "source": "fallback_union",
-    "method": "No OSM boundary relation named City of Elmina. Union of Elmina-named precinct polygons + Urban Park / Lakeside Mall / Harmoni area + 100 m around deep-spot centres, smoothed (200 m close+open), buffered 60 m, simplified ~20 m. Display only.",
-    "area_km2": 13.43,
+    "source": "owner_master_plan",
+    "method": "Owner, City of Elmina master plan (docs/03-product/elmina-masterplan.png), georeferenced with an affine fit to 10 lakes matched in OSM (RMS 24 m); township edge traced from the image, smoothed (40 m close+open), simplified ~20 m. Display only.",
+    "area_km2": 21.12,
     "as_of": "2026-10-18"
   },
   "street_furniture": {
     "file": "base/street_furniture.geojson",
-    "count": 20,
+    "count": 51,
     "counts": {
-      "traffic_signals": 0,
-      "bus_stop": 2,
-      "shelter": 13,
-      "bench": 5,
+      "traffic_signals": 5,
+      "bus_stop": 24,
+      "shelter": 16,
+      "bench": 6,
       "picnic_table": 0
     },
-    "as_of": "2026-10-18",
+    "as_of": "2026-10-19",
     "source": "OpenStreetMap contributors (ODbL)"
   }
 }
