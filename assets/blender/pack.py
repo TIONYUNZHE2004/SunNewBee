@@ -74,7 +74,7 @@ def pack_heroes(out: Path) -> int:
             lod["tris"] = sum(i.tris for name, i in nodes.items() if name.endswith(f"__{n}"))
         sizes[v] = dest.stat().st_size
         print(f"packed hero {v}: {sizes[v]} bytes -> {dest}")
-    m = hero_manifest.build(stats, sizes, dt.date.today().isoformat())
+    m = hero_manifest.build(stats, sizes)  # no date: a repack is byte-stable
     path = out / "characters" / "manifest.json"
     path.write_text(json.dumps(m, indent=2) + "\n", encoding="utf-8", newline="\n")
     print(f"wrote {path}")

@@ -1,8 +1,8 @@
 """The hero's proportions and palette (pure; shared by the Blender builder and the tests).
 
 The hero is modelled at true scale (1.55 m standing, Blender z-up, facing -y = glTF +z).
-The web view draws people at 1.4-1.55x (R-J3), so the displayed height is 2.17-2.40 m; the
-build uses `DISPLAY_SCALE` = 1.5 (2.33 m).
+The web view draws people at 1.4-1.55x (R-J3); the hero is always drawn at `DISPLAY_SCALE`
+= 1.55 (2.40 m standing; coordinator ruling R1, C-T3 fix round 1).
 
 H4: head height (crown to chin, tudung included) is 1/2.4-1/2.8 of the standing height.
 """
@@ -11,7 +11,7 @@ HEIGHT = 1.55  # crown of the tudung, true metres
 HEAD_TOP = HEIGHT
 CHIN_Z = 0.962  # lowest point of the face (chin)
 H4_RANGE = (2.4, 2.8)
-DISPLAY_SCALE = 1.5
+DISPLAY_SCALE = 1.55  # R-J3: the hero is always drawn at 1.55x (coordinator ruling R1)
 DISPLAY_SCALE_RANGE = (1.42, 1.55)  # keeps the displayed height inside 2.2-2.5 m
 
 # Clay pastel palette (sRGB hex). Purple baju kurung, a slightly deeper kain, lilac tudung.

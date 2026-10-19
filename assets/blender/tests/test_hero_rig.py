@@ -3,7 +3,7 @@
 import math
 
 import pytest
-from tl_assets.characters import manifest, parts, props, rig
+from tl_assets.characters import manifest, parts, proportions, props, rig
 
 
 def test_bone_budget_and_hierarchy():
@@ -117,7 +117,7 @@ def test_legs_reach_their_targets():
 def test_sit_pose_rests_on_the_bench():
     p = rig.sit_pose("walker")
     hip_z = rig.HIP_Z + p.hips[2]
-    assert abs(hip_z - rig.SEAT_Z) * 1.5 <= 0.05  # H7, displayed
+    assert abs(hip_z - rig.SEAT_Z) * proportions.DISPLAY_SCALE <= 0.05  # H7, displayed
     assert p.hips[1] > rig.SEAT_EDGE_Y  # over the seat, behind its front edge
     assert p.leg_L.ankle[1] < rig.SEAT_EDGE_Y  # feet hang in front of the seat
 
@@ -151,8 +151,46 @@ def test_manifest_build():
         }
         for v in rig.VARIANTS
     }
-    m = manifest.build(stats, dict.fromkeys(rig.VARIANTS, 1000), "2026-10-19")
+    m = manifest.build(stats, dict.fromkeys(rig.VARIANTS, 1000))
     assert m["clips"] == list(rig.CLIPS)
     assert m["variants"]["walker"]["profile"] == "older_adult_rest"
     assert m["variants"]["walker"]["sitHips"] == [0.0, 0.48, -0.28]
-    assert m["bench"] == {"seatY": rig.SEAT_Z, "frontEdgeZ": -rig.SEAT_EDGE_Y}
+    assert "as_of" not in m  # repacks are byte-stable
+    assert m["displayScale"] == 1.55  # R-J3 / ruling R1
+    b = m["bench"]
+    assert b["seatY"] == rig.SEAT_Z and b["frontEdgeZ"] == -rig.SEAT_EDGE_Y
+    assert b["seat"]["max"][1] == rig.SEAT_Z and b["seat"]["max"][2] == -rig.SEAT_EDGE_Y
+    assert b["seat"]["min"][2] == pytest.approx(-(rig.SEAT_EDGE_Y + rig.BENCH_DEPTH))
+    assert m["bones"]["contacts"] == list(rig.CONTACTS)
+
+
+def test_prop_parks_beside_her_not_in_front():
+    """R2: in sit_idle the prop is wholly to her right (clear of the hips) and level with her
+    knees, not in front of them; it is clear of the bench front edge."""
+    hip_half = 0.24
+    for v, fn in (("walker", parts.walker_parts), ("stroller", props.stroller_parts)):
+        p = rig.sit_pose(v)
+        xs = [x + p.prop[0] for _g, _r, (pv, _f) in fn() for x, _y, _z in pv]
+        ys = [y + p.prop[1] for _g, _r, (pv, _f) in fn() for _x, y, _z in pv]
+        assert max(xs) < -hip_half, v
+        knee_y = p.hips[1] - rig.THIGH
+        assert min(ys) <= knee_y <= max(ys), v
+        assert max(ys) < rig.SEAT_EDGE_Y, v
+
+
+def test_sit_down_keeps_hips_in_front_of_the_seat_until_above_it():
+    """Fix 1: the hips never travel back over the seat edge below the seat top."""
+    for v in ("walker", "stroller", "none"):
+        d = rig.durations(v)["sit_down"]
+        for i in range(151):
+            p = rig.clip_pose(v, "sit_down", d * i / 150)
+            hip_z = rig.HIP_Z + p.hips[2]
+            if p.hips[1] + 0.19 > rig.SEAT_EDGE_Y:  # the body's back is over the seat
+                assert hip_z >= rig.SEAT_Z + 0.025, (v, i)
+
+
+def test_contacts_on_the_ground():
+    for v in rig.VARIANTS:
+        pts = rig.contact_points(v)
+        assert set(pts) == set(rig.CONTACTS)
+        assert all(c[2] == 0.0 for c in pts.values())

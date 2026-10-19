@@ -35,17 +35,12 @@ def _box(name: str, lo, hi, colour: str):
 
 
 def bench() -> list:
-    """The prototype bench at the H7 seat height, in the hero's frame (true metres): seat top
-    `rig.SEAT_Z`, front edge `rig.SEAT_EDGE_Y` behind the root, prototype depth / scale."""
-    depth = 0.55 / P.DISPLAY_SCALE
+    """The reference bench of the sit clips (`rig.BENCH_SEAT`, `rig.BENCH_BACK`; the manifest's
+    `bench`), in the hero's frame (true metres), plus two legs."""
+    depth = rig.BENCH_DEPTH
     y0, z = rig.SEAT_EDGE_Y, rig.SEAT_Z
-    seat = _box("bench_seat", (-0.65, y0, z - 0.06), (0.65, y0 + depth, z), "#c98b55")
-    back = _box(
-        "bench_back",
-        (-0.65, y0 + depth - 0.02, z + 0.12),
-        (0.65, y0 + depth + 0.05, z + 0.42),
-        "#c98b55",
-    )
+    seat = _box("bench_seat", *rig.BENCH_SEAT, "#c98b55")
+    back = _box("bench_back", *rig.BENCH_BACK, "#c98b55")
     legs = [
         _box(
             f"bench_leg{i}",

@@ -41,6 +41,7 @@ LOD1_DROP_ROLES = {"eye_hi", "brow", "glasses", "blush"}
 LOD_MAX_M = (40.0, None)  # LOD1 beyond 40 m (H3)
 HEM_LEVEL = 0.55  # share of the shin swing the lower kain lobe does not follow
 HEM_FOLLOW = 0.6  # share of the ankle offset the lobe is shifted by
+HEM_R, HEM_DROP, HEM_CLEAR = 0.24, 0.035, 0.004  # hem ring radius, depth below the ankle, clearance
 
 
 # --- scene -------------------------------------------------------------------------------
@@ -219,6 +220,14 @@ class Solver:
         rest_vec = self.rest[f"foot_{side}"].translation - self.rest[n].translation
         lobe_end = knee + q.to_matrix() @ self.rest[n].to_3x3().inverted() @ rest_vec
         head = knee + (ankle - lobe_end) * HEM_FOLLOW
+        # keep the hem off the ground: lowest point of the tilted hem ring (radius HEM_R,
+        # HEM_DROP below the ankle along the lobe) at least HEM_CLEAR above z = 0
+        axis = lobe_end - knee
+        a = axis.normalized()
+        centre = head + axis * ((rig.SHIN + HEM_DROP) / rig.SHIN)
+        low = centre.z - HEM_R * math.sqrt(max(0.0, 1.0 - a.z * a.z))
+        if low < HEM_CLEAR:
+            head.z += HEM_CLEAR - low
         p = self.parent[n]
         carry = pose[p] @ self.rest_inv[p] @ self.rest[n]
         want = Matrix.LocRotScale(head, q.to_matrix(), None)
@@ -306,6 +315,10 @@ class Solver:
         err = {}
         for side, a in (("L", pose.arm_L), ("R", pose.arm_R)):
             gpos, gf, gp = self.grip_frame(pose_m, side, pose.prop_yaw)
+            if a.cross > 0:  # a hand-over: the target slides to the other side's grip
+                other = "R" if side == "L" else "L"
+                opos = pose_m[f"grip_{other}"].translation
+                gpos = gpos * (1 - a.cross) + opos * a.cross
             g = a.grip
             target = gpos * g + Vector(a.pos) * (1 - g)
             fingers = gf * g + Vector(a.fingers) * (1 - g)

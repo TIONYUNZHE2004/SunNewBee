@@ -116,7 +116,28 @@ def bones(variant: str = "walker") -> list[Bone]:
         out.append(Bone(f"grip_{s}", g, (g[0], g[1] - 0.05, g[2]), "prop", False))
     ax = WHEEL_AXLE
     out.append(Bone("wheels", ax, (ax[0] + 0.1, ax[1], ax[2]), "prop", False))
+    for name, c in contact_points(variant).items():  # prop ground contacts (rest frame)
+        out.append(Bone(name, c, (c[0], c[1] - 0.05, c[2]), "prop", False))
     return out
+
+
+CONTACTS = ("contact_FL", "contact_FR", "contact_RL", "contact_RR")
+
+
+def contact_points(variant: str) -> dict[str, Vec]:
+    """Where the prop touches the ground (front/rear, her left/right), rest frame, z = 0."""
+    if variant == "stroller":
+        front, rear = (0.18, -0.92), (0.215, -0.50)
+    elif variant == "wheelchair":
+        front, rear = (0.23, -0.24), (0.30, WHEEL_AXLE[1])
+    else:  # walker (also kept on `none`): front wheels and rear rubber feet
+        front, rear = (H.WALKER_X, -0.585), (H.WALKER_X, -0.20)
+    return {
+        "contact_FL": (front[0], front[1], 0.0),
+        "contact_FR": (-front[0], front[1], 0.0),
+        "contact_RL": (rear[0], rear[1], 0.0),
+        "contact_RR": (-rear[0], rear[1], 0.0),
+    }
 
 
 BONE_NAMES = tuple(b.name for b in bones())
@@ -286,6 +307,7 @@ class Arm:
     pos: Vec = (0.0, 0.0, 0.0)
     fingers: Vec = (0.0, -1.0, 0.0)
     palm: Vec = (0.0, 0.0, -1.0)
+    cross: float = 0.0  # share of the grip target on the other side's grip (a hand-over)
 
 
 @dataclass(frozen=True)
@@ -320,6 +342,7 @@ def _mix_arm(a: Arm, b: Arm, t: float) -> Arm:
         _lerp(a.pos, b.pos, t),
         _norm(_lerp(a.fingers, b.fingers, t)),
         _norm(_lerp(a.palm, b.palm, t)),
+        _lerp(a.cross, b.cross, t),
     )
 
 
@@ -355,7 +378,9 @@ def _add_rot(p: Pose, extra: dict) -> Pose:
 
 def _arms(left: Arm) -> tuple[Arm, Arm]:
     """A left arm target and its mirror for the right arm."""
-    return left, Arm(left.grip, _mx(left.pos, -1), _mx(left.fingers, -1), _mx(left.palm, -1))
+    return left, Arm(
+        left.grip, _mx(left.pos, -1), _mx(left.fingers, -1), _mx(left.palm, -1), left.cross
+    )
 
 
 # Age cues (C-T2 carry-overs): a deeper stoop spread over hips, spine and chest, the neck well
@@ -382,10 +407,18 @@ TRUNK_FREE = {  # no walker: a milder stoop
     "head": (-24.0, 0.0, 0.0),
 }
 
-STAND_HIPS = (0.0, 0.01, -0.025)
+STAND_HIPS = (0.0, 0.01, -0.012)  # a slight knee bend; keeps the stooped H4 ratio >= 2.4
 WALK_HIPS_Z = -0.035
 SEAT_Z = 0.45  # bench seat top (true m; H7: 0.45 m true x display scale)
 SEAT_EDGE_Y = 0.21  # bench seat front edge, behind the root (her back is +y)
+# The bench the sit clips are authored for (true metres, her frame; the manifest's reference):
+# seat slab and backrest as boxes ((x0, y0, z0), (x1, y1, z1)).
+BENCH_DEPTH = 0.36
+BENCH_SEAT = ((-0.65, SEAT_EDGE_Y, SEAT_Z - 0.06), (0.65, SEAT_EDGE_Y + BENCH_DEPTH, SEAT_Z))
+BENCH_BACK = (
+    (-0.65, SEAT_EDGE_Y + BENCH_DEPTH - 0.02, SEAT_Z + 0.12),
+    (0.65, SEAT_EDGE_Y + BENCH_DEPTH + 0.05, SEAT_Z + 0.42),
+)
 SIT_HIPS = (0.0, SEAT_EDGE_Y + 0.07, 0.48 - HIP_Z)
 SIT_ANKLE = (LEG_X, SEAT_EDGE_Y + 0.07 - THIGH - 0.015, 0.30)
 CHAIR_SEAT_Z = 0.43
@@ -414,7 +447,7 @@ def stand_pose(variant: str) -> Pose:
 
 def sit_pose(variant: str) -> Pose:
     la, ra = _arms(_lap(SIT_HIPS))
-    park = PARK.get(variant, ((0.0, 0.0, 0.0), 0.0))
+    park = PARK[variant]["end"] if variant in PARK else (0.0, 0.0, 0.0)
     return Pose(
         hips=SIT_HIPS,
         rot=dict(TRUNK_SIT),
@@ -423,8 +456,7 @@ def sit_pose(variant: str) -> Pose:
         leg_L=Leg(SIT_ANKLE, 25.0),
         leg_R=Leg(_mx(SIT_ANKLE, -1), 25.0),
         skirt=1.0,
-        prop=park[0],
-        prop_yaw=park[1],
+        prop=park,
     )
 
 
@@ -445,8 +477,15 @@ def chair_pose(hands: str = "rim") -> Pose:
     )
 
 
-# Where the prop waits while she sits: a nudge to her front-right, still within reach.
-PARK = {"walker": ((-0.12, -0.06, 0.0), -15.0), "stroller": ((-0.12, -0.06, 0.0), -15.0)}
+# Parking the prop beside her (R2), within her 0.38 m chibi reach at every step: the left
+# hand pushes it right until its left grip is in front of her (the hand-over x offset), the
+# right hand takes that grip and pushes it on to her right side, then pulls it back level
+# with her legs (clear of the bench front edge). It ends upright, facing forward, wholly to
+# her right, beside her knees when she sits, ready to take when she stands.
+PARK = {
+    "walker": {"handover": -0.30, "end": (-0.60, 0.32, 0.0)},
+    "stroller": {"handover": -0.15, "end": (-0.50, 0.47, 0.0)},
+}
 
 # --- clips ---------------------------------------------------------------------------------
 
@@ -462,9 +501,9 @@ def durations(variant: str) -> dict[str, float]:
     return {
         "walk": WALK_DURATION[variant],
         "idle": 3.0,
-        "sit_down": 1.0 if chair else 1.4,
+        "sit_down": 1.0 if chair else 1.5,
         "sit_idle": 4.0,
-        "stand_up": 1.0 if chair else 1.4,
+        "stand_up": 1.0 if chair else 1.5,
         "look": 3.6,
     }
 
@@ -582,13 +621,13 @@ LOOK_KEYS = [
 def look_pose(variant: str, t: float) -> Pose:
     """Pause and look around (UNKNOWN events): head left, hold, right, hold, back."""
     yaw = _keys(LOOK_KEYS, t)
-    peer = 3.0 * _keys([(0.0, 0.0), (0.8, 1.0), (2.9, 1.0), (3.4, 0.0)], t)
+    peer = 1.5 * _keys([(0.0, 0.0), (0.8, 1.0), (2.9, 1.0), (3.4, 0.0)], t)
     return _add_rot(
         stand_pose(variant),
         {
             "chest": (peer, 0.0, 0.25 * yaw),
             "neck": (0.0, 0.0, 0.3 * yaw),
-            "head": (0.0, -0.06 * yaw, 0.45 * yaw),
+            "head": (0.0, 0.0, 0.45 * yaw),
         },
     )
 
@@ -607,38 +646,54 @@ def sit_idle_pose(variant: str, t: float) -> Pose:
 
 
 def sit_down_pose(variant: str, t: float) -> Pose:
+    """Park the prop beside her (a hand on it the whole way), then up and back onto the seat.
+    The hips stay in front of the seat edge until they are above the seat, so the body never
+    cuts through the bench (the root stays fixed; the bench is `BENCH_*`)."""
     if variant == "wheelchair":  # already seated: hands from the rims to the lap
         return mix(chair_pose("rim"), chair_pose("lap"), _ss(0.1, 0.9, t))
     stand, sit = stand_pose(variant), sit_pose(variant)
-    has_prop = variant in PARK
-    # 0-0.4 s: nudge the prop to its park spot (hands on); 0.3-0.7 s: hands to the lap
-    park = _ss(0.0, 0.4, t) if has_prop else 0.0
-    hands = _ss(0.3, 0.7, t) if has_prop else _ss(0.2, 0.9, t)
-    # 0.15-0.75 s: two small steps back towards the bench; 0.7-1.3 s: up onto the seat
-    back = 0.08
-    yl = back * _ss(0.15, 0.45, t)
-    yr = back * _ss(0.45, 0.75, t)
-    lift_l = STEP_LIFT * math.sin(math.pi * _ss(0.15, 0.45, t))
-    lift_r = STEP_LIFT * math.sin(math.pi * _ss(0.45, 0.75, t))
-    body = _ss(0.7, 1.3, t)
-    hips_back = _lerp(stand.hips, (stand.hips[0], back, stand.hips[2] - 0.01), _ss(0.15, 0.75, t))
-    pre = replace(
-        stand,
-        hips=hips_back,
-        leg_L=Leg((LEG_X, yl, ANKLE_Z + lift_l)),
-        leg_R=Leg((-LEG_X, yr, ANKLE_Z + lift_r)),
-    )
-    pre = _add_rot(pre, {"spine": (6.0 * park * (1 - body), 0.0, 0.0)})
-    p = mix(pre, sit, body)
-    arm_l = _mix_arm(stand.arm_L, sit.arm_L, hands)
-    arm_r = _mix_arm(stand.arm_R, sit.arm_R, hands)
-    pk = PARK.get(variant, ((0.0, 0.0, 0.0), 0.0))
+    side_l, side_r = _arms(SIDE_HAND)
+    if variant in PARK:
+        pk = PARK[variant]
+        hx, (ex, ey, _ez) = pk["handover"], pk["end"]
+        x = _lerp(0.0, hx, _ss(0.10, 0.45, t))
+        x = _lerp(x, ex, _ss(0.55, 0.85, t))
+        prop = (x, ey * _ss(0.80, 1.00, t), 0.0)
+        # right hand lets go (0-0.2 s), takes the LEFT grip (0.40-0.55 s) and keeps it until
+        # the prop is parked; the left hand pushes until the hand-over (0.50-0.65 s)
+        right_on = Arm(1.0, side_r.pos, side_r.fingers, side_r.palm, cross=1.0)
+        arm_r = _mix_arm(GRIP, replace(side_r, cross=1.0), _ss(0.0, 0.2, t))
+        arm_r = _mix_arm(arm_r, right_on, _ss(0.40, 0.55, t))
+        arm_l = _mix_arm(GRIP, side_l, _ss(0.50, 0.65, t))
+        free = 1.0
+    else:
+        prop = (0.0, 0.0, 0.0)
+        arm_l, arm_r = side_l, side_r
+        free = 0.9
+    up = _ss(free, free + 0.25, t)  # hips up above the seat, still in front of its edge
+    back = _ss(free + 0.2, 1.45, t)  # then back onto it
+    hips_up = (0.0, 0.015, 0.04)
+    hips = _lerp(_lerp(stand.hips, hips_up, up), sit.hips, back)
+    rel = _sub(SIT_ANKLE, (LEG_X, sit.hips[1], HIP_Z + sit.hips[2]))  # seated ankle vs hip
+    legs = _ss(free + 0.05, free + 0.3, t)
+
+    def leg(k: int) -> Leg:
+        seated = (LEG_X * k, hips[1] + rel[1], HIP_Z + hips[2] + rel[2])
+        return Leg(_lerp((LEG_X * k, 0.0, ANKLE_Z), seated, legs), 25.0 * legs)
+
+    p = mix(stand, sit, up)
+    lap_l, lap_r = _arms(_lap(hips))
+    hands = _ss(free, free + 0.25, t)
     return replace(
         p,
-        arm_L=arm_l,
-        arm_R=arm_r,
-        prop=_lerp((0.0, 0.0, 0.0), pk[0], park),
-        prop_yaw=pk[1] * park,
+        hips=hips,
+        leg_L=leg(1),
+        leg_R=leg(-1),
+        skirt=up,
+        arm_L=_mix_arm(arm_l, lap_l, hands),
+        arm_R=_mix_arm(arm_r, lap_r, hands),
+        prop=prop,
+        prop_yaw=0.0,
     )
 
 
@@ -657,7 +712,19 @@ POSES = {
 }
 
 
+def _reachable(p: Pose) -> Pose:
+    """Lift an ankle target that is out of the leg's reach (a straight leg, never a pop)."""
+    out = {}
+    for name, leg, k in (("leg_L", p.leg_L, 1), ("leg_R", p.leg_R, -1)):
+        hip = (LEG_X * k + p.hips[0], p.hips[1], HIP_Z + p.hips[2])
+        d = math.dist(hip, leg.ankle)
+        reach = THIGH + SHIN - 0.003
+        if d > reach:
+            out[name] = replace(leg, ankle=_addv(hip, _sub(leg.ankle, hip), reach / d))
+    return replace(p, **out) if out else p
+
+
 def clip_pose(variant: str, clip: str, t: float) -> Pose:
     if variant not in VARIANTS:
         raise ValueError(f"unknown variant {variant!r}")
-    return POSES[clip](variant, t)
+    return _reachable(POSES[clip](variant, t))

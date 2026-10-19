@@ -22,7 +22,14 @@ def to_gltf(v) -> list[float]:
     return [round(x, 4), round(z, 4), round(-y, 4) + 0.0]
 
 
-def build(stats: dict[str, dict], sizes: dict[str, int], as_of: str) -> dict:
+def _box(b) -> dict:
+    """A Blender-frame box -> glTF {min, max}."""
+    (x0, y0, z0), (x1, y1, z1) = b
+    lo, hi = to_gltf((x0, y1, z0)), to_gltf((x1, y0, z1))
+    return {"min": lo, "max": hi}
+
+
+def build(stats: dict[str, dict], sizes: dict[str, int]) -> dict:
     variants = {}
     for v in rig.VARIANTS:
         if v not in stats:
@@ -44,7 +51,6 @@ def build(stats: dict[str, dict], sizes: dict[str, int], as_of: str) -> dict:
         }
     return {
         "version": 1,
-        "as_of": as_of,
         "displayScale": P.DISPLAY_SCALE,
         "clips": list(rig.CLIPS),
         "bones": {
@@ -56,10 +62,13 @@ def build(stats: dict[str, dict], sizes: dict[str, int], as_of: str) -> dict:
             "head": "head",
             "prop": "prop",
             "wheels": "wheels",
+            "contacts": list(rig.CONTACTS),
         },
         "bench": {
             "seatY": rig.SEAT_Z,
             "frontEdgeZ": to_gltf((0.0, rig.SEAT_EDGE_Y, 0.0))[2],
+            "seat": _box(rig.BENCH_SEAT),
+            "back": _box(rig.BENCH_BACK),
         },
         "variants": variants,
     }
