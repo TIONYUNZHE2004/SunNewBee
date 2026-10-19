@@ -22,11 +22,14 @@ import {
   viewOffsetFor,
 } from "./cameraRig";
 import type { CityGeometry } from "./cityMesh";
+import { type Clearance, createLift } from "./clearance";
 import { cullFrustum, shadowPadM } from "./cull";
 import { applyGroundGrade, GROUND_GRADE, groundMaterial } from "./ground/bands";
+import type { Boundary } from "./ground/boundary";
 import { cityGroundMeshes } from "./ground/cityGround";
 import type { GroundLayer } from "./ground/groundLayer";
 import { shimmerMaterial } from "./ground/landcover";
+import { createSlab, type SlabLayerObject } from "./ground/slab";
 import { BLOOM, fitShadowCamera, type LightPreset } from "./lighting";
 import { createLodSchedule } from "./lodSchedule";
 import { applyFog } from "./mood";
@@ -81,6 +84,11 @@ export interface Engine {
   /** Land cover, roads and markings; replaces and disposes the previous layer; null removes it. */
   setGround(g: GroundLayer | null): void;
   /**
+   * The diorama slab (A-T4): its top (the Elmina outline) replaces the rectangular base plane and
+   * its layered soil edge closes the map. null removes it and shows the base plane again.
+   */
+  setSlab(b: Boundary | null): void;
+  /**
    * Decorative extras (lamp pools, birds, cloud shadows) by slot name: replaces and disposes the
    * slot's previous content; null clears it. The group is added to the scene as is.
    */
@@ -103,6 +111,15 @@ export interface Engine {
   setMotion(l: MotionLayer | null, running: () => boolean): void;
   /** Camera bounds before the city arrives (the site extent); setCity replaces them. */
   setBounds(b: Bounds): void;
+  /**
+   * Building clearance (A-T7, `clearance.ts`): applied to the camera every frame after every input
+   * (wheel, drag, rotate, set, flyTo) and before the render. Null turns it off.
+   */
+  setClearance?(c: Clearance | null): void;
+  /** The clearance grid in use, or null (read-only; the acceptance hook's footprint lookup). */
+  clearance?(): Clearance | null;
+  /** Metres the clearance currently lifts the camera above its base pose (0: none). Read-only. */
+  clearanceLiftM?(): number;
   /**
    * Access / gaps / route / what-if lines. They live in their own scene, drawn by a pass after the
    * AO pass, so ambient occlusion never darkens them and they sit above every prop. Replaces and
@@ -161,6 +178,14 @@ export interface RigView {
   changed(): void;
   /** Canvas size in CSS pixels. */
   size(): [number, number];
+  /** Metres the building clearance lifts the camera now: get() reports the pose without it. */
+  liftM?(): number;
+  /**
+   * An explicit teleport: set(), or flyTo() with no duration (a bookmark jump, a keyboard step).
+   * The clearance restarts its eased lift there instead of easing from the old place. Never called
+   * for flight frames or controls input, however fast they move.
+   */
+  teleported?(): void;
 }
 
 export interface EngineRig extends CameraRig {
@@ -184,6 +209,7 @@ export function createRig(view: RigView, bounds: () => Bounds): EngineRig {
   };
   const get = (): Pose => {
     const off = view.camera.position.clone().sub(view.target);
+    off.y -= view.liftM?.() ?? 0;
     const r = off.length() || 1;
     const heading = Math.atan2(-off.x, off.z) / RAD;
     return {
@@ -199,12 +225,14 @@ export function createRig(view: RigView, bounds: () => Bounds): EngineRig {
     set(p) {
       flight = null;
       apply(clampPose(p, bounds()));
+      view.teleported?.();
     },
     flyTo(p, durationMs) {
       const to = clampPose(p, bounds());
       if (durationMs <= 0) {
         flight = null;
         apply(to);
+        view.teleported?.();
         return;
       }
       flight = { from: get(), to, t0: performance.now(), ms: durationMs };
@@ -329,6 +357,16 @@ function build(
   applyGroundGrade(groundMat);
   const city = new THREE.Group();
   scene.add(city);
+  /** The rectangular base plane of the last setCity (hidden while a slab is set). */
+  let basePlane: THREE.Mesh | null = null;
+  let slab: SlabLayerObject | null = null;
+  const dropSlab = () => {
+    if (!slab) return;
+    scene.remove(slab.group);
+    slab.dispose();
+    slab = null;
+    if (basePlane) basePlane.visible = true;
+  };
   const disposeCity = () => {
     for (const o of [...city.children]) {
       if (o instanceof THREE.Mesh) o.geometry.dispose();
@@ -336,6 +374,7 @@ function build(
     }
   };
   undo.push(disposeCity);
+  undo.push(dropSlab);
 
   /** Overlay lines (data, not decoration): a scene of their own, see setOverlays. */
   const overlayScene = new THREE.Scene();
@@ -568,7 +607,8 @@ function build(
   undo.push(
     attachWheelZoom({
       canvas,
-      range: () => camera.position.distanceTo(controls.target),
+      // The base (unlifted) range: the clearance lift is display state, never zoomed.
+      range: () => rig.get().rangeM,
       apply: (factor, x, y) => dispatchOwnWheel(canvas, factor, x, y),
       reducedMotion,
       minM: LIMITS.minRangeM,
@@ -576,13 +616,42 @@ function build(
     }),
   );
   controls.addEventListener("change", moved);
+  // MapControls computes zoom-to-cursor rays and pan start points from the camera inside its
+  // pointerdown / wheel handlers, before it calls update(): put the camera on its base pose first,
+  // in the capture phase on the document (ahead of every canvas listener). A render is requested,
+  // so the next tick re-applies the lift before anything is drawn.
+  const doc = canvas.ownerDocument;
+  const unliftFirst = (e: Event) => {
+    if (e.target !== canvas || liftNow() === 0) return;
+    unlift();
+    requestRender();
+  };
+  for (const type of ["pointerdown", "wheel"] as const)
+    doc.addEventListener(type, unliftFirst, { capture: true, passive: true });
+  undo.push(() => {
+    for (const type of ["pointerdown", "wheel"] as const)
+      doc.removeEventListener(type, unliftFirst, { capture: true });
+  });
+  // Every update (the tick's and the handlers' own) starts from the base pose, never the lift.
+  const controlsUpdate = controls.update.bind(controls);
+  controls.update = (deltaTime?: number | null) => {
+    unlift();
+    return controlsUpdate(deltaTime);
+  };
   undo.push(() => {
     controls.removeEventListener("change", moved);
     controls.dispose();
   });
 
   const rig = createRig(
-    { camera, target: controls.target, changed: moved, size: () => size },
+    {
+      camera,
+      target: controls.target,
+      changed: moved,
+      size: () => size,
+      liftM: () => liftNow(),
+      teleported: () => lift.reset(),
+    },
     () => bounds,
   );
 
@@ -678,16 +747,56 @@ function build(
     c.updateProjectionMatrix();
   };
 
+  // Building clearance (A-T7). The lift is display state: the camera is put back on its base pose
+  // before anything reads it to move: at the start of each tick, and inside every controls.update()
+  // (MapControls also calls update() from its pointer, wheel, key and touch handlers between ticks:
+  // review A-T7 r2). A camera moved by something else since (rig.set) is the new base. So neither
+  // MapControls nor rig flights read the lift; after the inputs the tick re-applies it (floor at
+  // once, segment lift eased up and back down, state kept across flight frames).
+  let clearance: Clearance | null = null;
+  const lift = createLift();
+  let clearT = 0;
+  let liftM = 0;
+  const lifted = new THREE.Vector3(Number.NaN, 0, 0);
+  const liftNow = () => (liftM !== 0 && camera.position.equals(lifted) ? liftM : 0);
+  const unlift = () => {
+    if (liftM !== 0 && camera.position.equals(lifted)) {
+      camera.position.y -= liftM;
+      camera.lookAt(controls.target);
+      camera.updateMatrixWorld();
+    }
+    liftM = 0;
+  };
+  const clearCamera = (now: number): boolean => {
+    const dt = clearT ? now - clearT : 0;
+    clearT = now;
+    if (!clearance) return false;
+    const p = camera.position;
+    const t = controls.target;
+    const r = lift.step(clearance, [p.x, p.y, p.z], [t.x, t.y, t.z], dt, reducedMotion());
+    if (r.liftM !== 0) {
+      p.y = r.y;
+      camera.lookAt(t);
+      lastMove = now;
+      lod.moved();
+    }
+    liftM = r.liftM;
+    lifted.copy(p);
+    return !r.settled;
+  };
+
   function tick() {
     raf = 0;
     if (disposed) return;
     const now = performance.now();
+    unlift();
     const flying = rig.step(now);
     if (flying) {
       lastMove = now;
       lod.moved();
     }
     const damping = controls.update();
+    const lifting = clearCamera(now);
     clearTimeout(motionTimer);
     motionTimer = undefined;
     const live = motionMode !== null && !!motionLayer && motionRunning();
@@ -697,7 +806,7 @@ function build(
     // display: every live frame is a motion tick; 30 fps: a (re)start at once, then one per
     // MOTION_FRAME_MS with a few ms of slack for vsync jitter.
     const due = clock.frame(motionNow(now), live);
-    if (live && !due && !dirty && !flying && !damping) {
+    if (live && !due && !dirty && !flying && !damping && !lifting) {
       // 30 fps only: woken by the motion timer too early. Render nothing, wait for the due time.
       wakeMotion(now, live);
       return;
@@ -763,7 +872,7 @@ function build(
       moving: now - lastMove < MOVING_MS,
     };
     for (const cb of listeners) cb(dt, info);
-    if (flying || damping || dirty) schedule();
+    if (flying || damping || dirty || lifting) schedule();
     // Motion-only frames stay "idle" (dt 0 to onFrame listeners, ruling P4-T).
     if (!raf) idle = true;
     // The motion clock: the next rAF (display rate) or the 30 fps timer; nothing while stopped.
@@ -913,6 +1022,9 @@ function build(
       const ground = new THREE.Mesh(plane, groundMat);
       ground.position.set(g.ground.center[0], 0, g.ground.center[1]);
       for (const m of [parks, water, ground]) m.receiveShadow = true;
+      ground.name = "base-plane";
+      ground.visible = !slab;
+      basePlane = ground;
       city.add(ground, parks, water, buildings);
       if (!g.bounds.isEmpty())
         bounds = { min: [g.bounds.min.x, g.bounds.min.z], max: [g.bounds.max.x, g.bounds.max.z] };
@@ -946,10 +1058,28 @@ function build(
       }
       requestRender();
     },
+    setSlab(b) {
+      if (disposed) return;
+      dropSlab();
+      if (b) {
+        slab = createSlab(b, groundMat);
+        scene.add(slab.group);
+        if (basePlane) basePlane.visible = false;
+      }
+      requestRender();
+    },
     setBounds(b) {
       if (disposed) return;
       bounds = b;
     },
+    setClearance(c) {
+      if (disposed) return;
+      clearance = c;
+      lift.reset();
+      requestRender();
+    },
+    clearance: () => clearance,
+    clearanceLiftM: () => liftNow(),
     setOverlays(o) {
       if (disposed) return;
       if (o === overlays) return;

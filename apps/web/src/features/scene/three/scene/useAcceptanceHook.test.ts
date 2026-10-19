@@ -1,13 +1,18 @@
 import * as THREE from "three";
 import { describe, expect, it } from "vitest";
 import type { Pose } from "../cameraRig";
+import { createClearance } from "../clearance";
 import type { Engine } from "../engine";
 import type { LocalFrame } from "../frame";
 import {
   acceptanceEnabled,
   createAcceptanceApi,
+  emptyCameraLog,
   frameSummary,
+  logCameraFrame,
+  logRoofRay,
   maskCode,
+  roofHit,
   uncappedSummary,
 } from "./useAcceptanceHook";
 
@@ -124,5 +129,117 @@ describe("roadVertices (settle waits on the streamed road layer)", () => {
     land.userData.groundBand = "landcover";
     f.roots[0]?.add(road, hidden, land);
     expect(f.api.roadVertices()).toBe(3);
+  });
+});
+
+describe("camera log and footprint lookup (AC-A8)", () => {
+  it("logCameraFrame counts frames over roofs and violations below roof + clearance", () => {
+    const log = emptyCameraLog();
+    logCameraFrame(log, [0, 50, 0], 0, 2);
+    logCameraFrame(log, [0, 33, 0], 30, 2);
+    logCameraFrame(log, [0, 31, 0], 30, 2);
+    expect(log.frames).toBe(3);
+    expect(log.overRoof).toBe(2);
+    expect(log.violations).toBe(1);
+    expect(log.worstDeficitM).toBeCloseTo(1);
+    expect(log.minMarginM).toBeCloseTo(-1);
+    expect(log.samples).toEqual([[0, 31, 0, 30]]);
+    expect([log.minY, log.maxY]).toEqual([31, 50]);
+  });
+
+  it("footprintTop reads the engine's clearance grid; the log runs on rendered frames", () => {
+    const c = createClearance([
+      {
+        id: "a",
+        ring: [
+          [-5, -5],
+          [5, -5],
+          [5, 5],
+          [-5, 5],
+        ],
+        topM: 20,
+      },
+    ]);
+    const cbs = new Set<() => void>();
+    const camera = new THREE.PerspectiveCamera();
+    const engine = {
+      clearance: () => c,
+      onFrame: (cb: () => void) => {
+        cbs.add(cb);
+        return () => cbs.delete(cb);
+      },
+      pickView: () => ({ camera, roots: [], size: [100, 100] }),
+    } as unknown as Engine;
+    const frame = { toLocal: () => [0, 0], toLonLat: () => [0, 0] } as unknown as LocalFrame;
+    const api = createAcceptanceApi(engine, frame);
+    expect(api.footprintTop(0, 0)).toBe(20);
+    expect(api.footprintTop(50, 0)).toBe(0);
+    expect(api.clearance()).toEqual({ count: 1, clearanceM: 2, maxTopM: 20 });
+    api.startCameraLog();
+    camera.position.set(0, 25, 0);
+    for (const cb of cbs) cb();
+    camera.position.set(1, 10, 1);
+    for (const cb of cbs) cb();
+    const log = api.stopCameraLog();
+    expect(cbs.size).toBe(0);
+    expect(log.frames).toBe(2);
+    expect(log.violations).toBe(1);
+    const none = createAcceptanceApi({} as unknown as Engine, frame);
+    expect(none.footprintTop(0, 0)).toBeNull();
+    expect(none.clearance()).toBeNull();
+  });
+});
+
+describe("independent checks (A-T7 review r1)", () => {
+  it("logCameraFrame tracks per-frame dy and lift steps", () => {
+    const log = emptyCameraLog();
+    logCameraFrame(log, [0, 10, 0], 0, 2, 0);
+    logCameraFrame(log, [0, 13, 0], 0, 2, 3);
+    logCameraFrame(log, [0, 12, 0], 0, 2, 2);
+    expect(log.maxDyM).toBe(3);
+    expect(log.maxLiftStepM).toBe(3);
+    expect(log.liftedFrames).toBe(2);
+  });
+
+  it("logRoofRay counts hits, violations and drawn surfaces above the grid", () => {
+    const log = emptyCameraLog();
+    logRoofRay(log, [0, 50, 0], 0, 0, 2);
+    logRoofRay(log, [0, 50, 0], 30, 30, 2);
+    logRoofRay(log, [0, 31, 0], 30, 29, 2);
+    expect(log.ray.checked).toBe(3);
+    expect(log.ray.hits).toBe(2);
+    expect(log.ray.violations).toBe(1);
+    expect(log.ray.gridBelowMesh).toBe(1);
+    expect(log.ray.worstGridBelowM).toBeCloseTo(1);
+  });
+
+  it("roofHit finds the top of plain and instanced building meshes, decorative ones included", () => {
+    const root = new THREE.Group();
+    const box = new THREE.BoxGeometry(10, 20, 10);
+    box.translate(0, 10, 0);
+    const plain = new THREE.Mesh(box, new THREE.MeshBasicMaterial());
+    plain.userData.pick = { kind: "building" };
+    plain.raycast = () => {}; // decorative: opted out of picking
+    const inst = new THREE.InstancedMesh(box, new THREE.MeshBasicMaterial(), 2);
+    inst.userData.pick = { kind: "landmark" };
+    inst.setMatrixAt(0, new THREE.Matrix4().makeTranslation(100, 0, 0));
+    inst.setMatrixAt(
+      1,
+      new THREE.Matrix4().compose(
+        new THREE.Vector3(200, 0, 0),
+        new THREE.Quaternion(),
+        new THREE.Vector3(1, 3, 1),
+      ),
+    );
+    const tree = new THREE.Mesh(box, new THREE.MeshBasicMaterial());
+    tree.position.set(300, 0, 0);
+    root.add(plain, inst, tree);
+    root.updateMatrixWorld(true);
+    expect(roofHit([root], 0, 0)).toBeCloseTo(20);
+    expect(roofHit([root], 100, 0)).toBeCloseTo(20);
+    expect(roofHit([root], 200, 0)).toBeCloseTo(60);
+    // Not a building: ignored.
+    expect(roofHit([root], 300, 0)).toBe(0);
+    expect(roofHit([root], 50, 50)).toBe(0);
   });
 });

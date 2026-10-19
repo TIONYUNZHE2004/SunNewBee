@@ -3,6 +3,7 @@ import { WIDTH_BY_TYPE } from "../../shared/roads";
 import { hash01 } from "../assets/fit";
 import type { Manifest } from "../assets/manifest";
 import type { LocalFrame } from "../frame";
+import { type Boundary, insideBoundary } from "../ground/boundary";
 import { growBox, inBox, type PlanArea, perLayer, touchesBox } from "../stream/area";
 
 /**
@@ -307,6 +308,8 @@ export interface AgentsInput {
   caps: { vehicles: number; people: number };
   m: Manifest;
   weights?: MoodMix;
+  /** The Elmina outline (A-T4): an agent whose path leaves it is not planned. Display only. */
+  boundary?: Boundary | null;
 }
 
 interface Cand {
@@ -506,6 +509,8 @@ export function planAgents(input: AgentsInput): Agent[] {
           ? [...offsetLeft(pts, lateral), ...offsetLeft([...pts].reverse(), lateral)]
           : offsetLeft(pts, lateral);
       if (kind === "vehicle") lane.push(lane[0] as P);
+      const b = input.boundary;
+      if (b && !lane.every(([x, z]) => insideBoundary(b, x, z))) continue;
       const length = polyLength(lane);
       out.push({
         id,

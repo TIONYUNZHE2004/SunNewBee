@@ -5,6 +5,7 @@ import type { RoofInput } from "../assets/plan";
 import type { Engine } from "../engine";
 import type { FacadeBuilding } from "../facade/facadeLayer";
 import type { LocalFrame } from "../frame";
+import type { Boundary } from "../ground/boundary";
 import { warmSignFont } from "../signs/signLayer";
 import { createPlanClient, type PlanClient } from "../stream/planClient";
 import {
@@ -86,6 +87,7 @@ export function useStream({
   facadeSrc,
   roofSrc = null,
   planWorker,
+  boundary = null,
 }: {
   engine: Engine | null;
   frame: LocalFrame | null;
@@ -103,6 +105,8 @@ export function useStream({
    * without `Worker` (and no factory) tiles are planned synchronously on the main thread (P4 path).
    */
   planWorker?: () => Worker | null;
+  /** The Elmina outline (A-T4): every planned tile passes its vertex guard. `walk` and `buildings` are already cut to it. */
+  boundary?: Boundary | null;
 }) {
   const facades = useMemo(() => (facadeSrc ? bucketFacades(facadeSrc) : null), [facadeSrc]);
   const roofs = useMemo(() => (roofSrc ? bucketRoofs(roofSrc) : null), [roofSrc]);
@@ -110,9 +114,9 @@ export function useStream({
   const inputs = useMemo<TileInputs | null>(
     () =>
       frame && detailsOn && walk && !showroom
-        ? { frame, walk, buildings, manifest, facades, roofs }
+        ? { frame, walk, buildings, manifest, facades, roofs, boundary }
         : null,
-    [frame, detailsOn, walk, showroom, buildings, manifest, facades, roofs],
+    [frame, detailsOn, walk, showroom, buildings, manifest, facades, roofs, boundary],
   );
   const inputsRef = useRef(inputs);
   inputsRef.current = inputs;
