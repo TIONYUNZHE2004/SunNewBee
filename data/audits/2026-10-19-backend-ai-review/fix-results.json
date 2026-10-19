@@ -1,6 +1,6 @@
 {
   "scope": "Backend and AI route correctness fixes; published AI 2aaa214 integrated after live probes.",
-  "recommendation": "Hold merge for three reproduced AI navigation binding holes (lowercase, unnamed stretch and same-street occurrence cross-product) and green CI. Earlier closure/physical-arrival/dropped-drive-warning regressions are fixed by integrated AI c8f276d. Source-backed topology rebuild, legal turn restrictions and destination-closure ruling remain open.",
+  "recommendation": "Hold merge for four reproduced wrong-turn paraphrases accepted by the complete validator after AI c586d46 (take a right / make a right turn / Malay simpang / Chinese right-turn variant). Earlier binding probes are rejected by its no-model-navigation policy. Backend usable rest/sidewalk verification and shared flood entrance membership fixes are pushed. New semantic acknowledgements, green CI, source-backed topology rebuild and destination-closure ruling remain open.",
   "fixed": {
     "AUD-001": "Exact place IDs bind route selection, measurements, follow-ups and map highlight.",
     "AUD-002": "Replay rejects stale world, claim, profile, code and expiry-day fingerprints.",
@@ -15,8 +15,8 @@
     {
       "rank": 1,
       "issue": "T-021 AI navigation binding",
-      "status": "open: three complete-validator reproductions accepted after AI c8f276d; AI-owned hand-off pushed on T-017/T-021",
-      "critical_point": "Wrong street/turn/distance combinations can survive validation through lowercase names, unnamed stretches, or multiple occurrences of the same street. Bind one maneuver occurrence or prevent free-text navigation. Saved fixture probes, not live model failures."
+      "status": "open: four natural wrong-turn paraphrases accepted after AI c586d46; older nine cases now meet the new rejection/description policy",
+      "critical_point": "Arbitrary model route prose still permits wrong steering through a phrase blacklist. Render the route summary, directions and caveats from checked structured facts instead of relying on lexical exclusions. Saved fixture proofs in EN/BM/\u4e2d\u6587, not live model responses."
     },
     {
       "rank": 2,
@@ -152,5 +152,37 @@
     "spend_usd": 0,
     "live_questions": 0,
     "app": "Stopped; own API8021/web5191 sockets verified closed"
+  },
+  "followup_round3_2026_10_20": {
+    "backend_commits": {
+      "usable_rest_sidewalk_verification": "26df8c7",
+      "shared_flood_entrances_and_mode_snaps": "e2c53a1",
+      "api_and_ai_probe_contract_tests": "90d1b53"
+    },
+    "ai_integrated": "c586d46 / 6faef4d via ab97315; incoming AI re-recorded bodies retained for 22 metadata-only recording conflicts",
+    "checks": {
+      "changed_verification": "209 PASS, including 22 focused rest/sidewalk/API tests",
+      "flood": "141 affected PASS plus 1 API route-vs-island check PASS",
+      "ai_steps_closures": "53 PASS",
+      "compatibility_before_latest_ai": "1155 PASS after first backend fix",
+      "final_agent_api": "PASS 1163 tests in 197.21 s after all source changes and AI c586d46, including all 23 current cache-body checks",
+      "golden": "23/23 mock PASS, no fallbacks or rejected attempts",
+      "lint": "PASS",
+      "api_client": "PASS regeneration and zero client drift",
+      "demo_signatures": "22/22 final world/code/day signatures and replay loads verified, event bodies byte-preserved; fb271a6"
+    },
+    "seed_before_after": {
+      "walking_islands_p3_p5": [20, 29],
+      "drive_islands_before_p3_p5": [12, 25],
+      "drive_islands_after_p3_p5": [21, 35],
+      "baseline_islands": 0,
+      "likely_possible_totals": "unchanged",
+      "limitation": "Graph-component indicators, not proof of legal/verified/rest-constrained evacuation routes."
+    },
+    "probes": "Original 9 PASS with explicit policy-updated correct-turn expectations and two descriptive controls. Expanded probe: 9 expected results PASS, 4 wrong-turn paraphrases still accepted.",
+    "live_questions": 0,
+    "spend_usd": 0,
+    "e2e": "NOT RUN as instructed",
+    "app": "Stopped; ports 8021/5191 checked closed"
   }
 }

@@ -1,0 +1,169 @@
+{
+  "scope": "Crafted tiny HTTP fixture only, not a seeded entrance repair. The before engine marked park-b/lakeside-mall isolated despite its 55.6 m centre route to mapped n-b.",
+  "route": {
+    "status": "partly_unverified",
+    "routes": [
+      {
+        "id": "rt-928c9d49",
+        "status": "partly_unverified",
+        "from_place": "park-b",
+        "to_place": "__centre__evc-hall",
+        "target_node": "n-b",
+        "profile": "stroller",
+        "scenario_id": "stage_p5m",
+        "distance_m": 55.6,
+        "est_minutes": 0.8,
+        "segments": [
+          {
+            "edge_id": "seg-ab",
+            "eval": "UNKNOWN",
+            "flood_class": "possible",
+            "access_level": "unknown",
+            "rule_id": "scenario_uncertainty_v1",
+            "tags_used": {
+              "scenario:class": "possible"
+            }
+          }
+        ],
+        "maneuvers": [
+          {
+            "index": 1,
+            "action": "depart",
+            "distance_m": 55.6,
+            "bearing_deg": 90.0,
+            "street_name": null,
+            "edge_type": "major_road",
+            "access_level": "unknown",
+            "rule_id": "scenario_uncertainty_v1",
+            "segment_ids": ["seg-ab"],
+            "point": [101.509, 3.181]
+          },
+          {
+            "index": 2,
+            "action": "arrive",
+            "distance_m": 0.0,
+            "bearing_deg": 90.0,
+            "street_name": null,
+            "edge_type": "major_road",
+            "access_level": "unknown",
+            "rule_id": "scenario_uncertainty_v1",
+            "segment_ids": [],
+            "point": [101.5095, 3.181]
+          }
+        ],
+        "access_metres": {
+          "verified": 0.0,
+          "likely_ok": 0.0,
+          "unknown": 55.6,
+          "barrier": 0.0,
+          "not_a_road": 0.0
+        },
+        "unknowns": [
+          {
+            "element_id": "seg-ab",
+            "attribute": "sidewalk",
+            "reason": "unknown",
+            "why": "major road; sidewalk verification is undated"
+          },
+          {
+            "element_id": "seg-ab",
+            "attribute": "flood",
+            "why": "possibly flooded in this scenario"
+          }
+        ],
+        "rest_points": [
+          {
+            "place_id": "bench-b",
+            "node_id": "n-b",
+            "name": "Rest bench-b",
+            "status": "verified"
+          }
+        ],
+        "crossings": [],
+        "sidewalk_m": 0.0,
+        "road_m": 55.6,
+        "road_without_mapped_sidewalk_m": 55.6,
+        "road_sections": [
+          {
+            "element_id": "seg-ab",
+            "name": null,
+            "length_m": 55.6,
+            "sidewalk": "both",
+            "sidewalk_status": "unknown"
+          }
+        ],
+        "max_gap_between_rest_m": 55.6,
+        "rest_limit_m": null,
+        "rest_limit_met": null,
+        "rest_points_unverified": [],
+        "geometry": {
+          "type": "LineString",
+          "coordinates": [[101.509, 3.181], [101.5095, 3.181]]
+        },
+        "evidence_ids": [
+          "ev-seg-ab.step_count",
+          "ev-seg-ab.incline_pct",
+          "ev-seg-ab.width_m",
+          "ev-seg-ab.sidewalk",
+          "ev-scn-stage_p5m.seg-ab",
+          "ev-rt-928c9d49.walkways"
+        ],
+        "demo_evidence": true
+      }
+    ],
+    "blocked_reasons": [],
+    "closures": [],
+    "warnings": [
+      "About 56 m follows road centre lines without a mapped sidewalk; sidewalk access is not verified"
+    ],
+    "max_rest_gap_m": null,
+    "rest_limit_m": null,
+    "rest_search_truncated": false,
+    "demo_evidence": true
+  },
+  "affected": {
+    "scenario_id": "stage_p5m",
+    "likely": [
+      {
+        "id": "playground",
+        "name": "Urban Park playground",
+        "kind": "place"
+      },
+      {
+        "kind": "path",
+        "name": "Unnamed paths",
+        "count": 2
+      }
+    ],
+    "possible": [
+      {
+        "kind": "path",
+        "name": "Unnamed paths",
+        "count": 1
+      }
+    ],
+    "isolated_components": [
+      {
+        "id": "island-0",
+        "node_count": 5,
+        "place_count": 4,
+        "sample_node_ids": ["n-c", "n-d", "n-e", "n-f", "n-r"],
+        "sample_place_ids": ["bench-1", "playground", "rest-r", "toilet-1"]
+      }
+    ],
+    "disclaimer": "Indicative scenario, not a forecast. Follow official MBSA / JPS / NADMA guidance.",
+    "likely_total": 3,
+    "possible_total": 1,
+    "isolated_total": 1,
+    "likely_place_count": 1,
+    "likely_path_count": 2,
+    "possible_place_count": 0,
+    "possible_path_count": 1,
+    "likely_place_ids": ["playground"],
+    "possible_place_ids": [],
+    "likely_edge_ids": ["seg-bc", "seg-cd"],
+    "possible_edge_ids": ["seg-ab"],
+    "warnings": []
+  },
+  "cost_usd": 0
+}

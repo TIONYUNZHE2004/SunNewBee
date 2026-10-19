@@ -1,17 +1,18 @@
-Route answers can select the wrong endpoints or hide important data gaps. This branch binds facts and highlights to the selected journey, adds deterministic route maneuvers, applies mapped vehicle one-way tags, and keeps zero-edge inferred entrance connections unverified. Linked evacuation centres use their place's explicit entrances; driving gap warnings use the selected route endpoints. The importer rejects topology without original OSM node identities, and ticket impact excludes unusable staff checks.
+Route answers can select the wrong endpoints or hide important gaps. This branch binds facts and highlights to the selected journey, renders deterministic maneuvers, applies mapped vehicle one-way tags, and keeps inferred zero-edge entrance connections unverified. Linked centres and flood-island membership use mapped entrances and mode-specific road snaps. Undated rest/sidewalk verifications cannot establish checked access. The importer rejects topology without original OSM node identities, and ticket impact excludes unusable staff checks.
 
-**Merge status: HOLD.** Backend is ready for review. AI c8f276d fixes the original turn/street probes, legitimate closure wording, physical-arrival claim and missing driving caveats. Three additional complete-validator navigation baits still pass: lowercase street names, unnamed stretches, and a distance borrowed from another occurrence of the same street. Reproduction: `data/audits/2026-10-20-zero-route/probe_remaining_navigation.py`. Control should require an AI correction and green CI before merging.
+**Merge status: HOLD.** AI c586d46 rejects the older wrong-turn cases through its no-model-directions policy, with deterministic app steps. Four ordinary wrong-turn paraphrases still pass the complete validator in English, Malay and Chinese. Reproduction: `data/audits/2026-10-20-zero-route/probe_remaining_navigation.py` (four accepted dishonest cases; nine expected controls/results pass). Require a correction that keeps arbitrary model navigation prose out of the published route answer, the new contract acknowledgements, and green CI before merging.
 
 Validation:
 
-- 181 affected routing/flood/tool/API checks PASS; final selected-entrance warning change: 74 routing checks PASS.
-- Final integrated agent/API: 1,152 passed in 237.88 s after the final source change, including all 23 current demo-cache body checks. All 22 recording signatures and replay loads verified; event bodies byte-preserved.
-- `pnpm lint`, workspace typecheck and generated API client with zero drift: PASS.
-- Golden: 23/23 mock, zero fallbacks or rejected attempts.
-- Real curl: place search/details, 16,352 access features, zero-route status/geometry, 416.4 m walking control, 113.3 m drive chat with mandatory caveats and mapped-end wording. Saved under `data/audits/2026-10-20-zero-route/`.
-- No local e2e, paid calls, GitHub PR or CI run by this worker. Control opens the PR.
+- Latest backend: 209 affected rest/sidewalk/routing/access/flood/tool/API checks PASS; 141 flood/entrance/direction checks PASS plus one route-vs-island API test.
+- Latest AI integration: 53 direction/closure checks PASS; original nine saved probes PASS after explicit policy-aligned control updates and descriptive controls.
+- Final integrated agent/API after all backend source changes and AI c586d46: 1,163 PASS in 197.21 s, including all 23 cache-body checks. All 22 final recording signatures/replay loads verified, with validated bodies preserved (fb271a6).
+- Lint PASS; OpenAPI generation and zero client drift PASS; golden 23/23 mock PASS, no fallbacks or rejected attempts. Frontend source is unchanged this round; previous workspace typecheck passed.
+- Real seed controls: walking remains 416.4 m; drive chat 113.3 m retains road-end/legal-turn caveats and mapped-end wording. Walking flood-island totals stay 20/29 (+3/+5 m); driving changes 12→21 / 25→35 through consistent road snaps. Baseline zero; likely/possible totals unchanged. Saved in `data/audits/2026-10-20-special-verification/`.
+- Crafted HTTP cases verify undated rest/sidewalk handling and shared centre-entrance routing/island results; they are not claims of repaired seed entrances. The seed has no undated verified claims or explicit entrance lists.
+- No local e2e, live model calls, GitHub PR or CI run by this worker. Control opens the PR.
 
-Limits: seed topology still uses legacy coordinate-derived IDs; both Overpass services failed bounded probes. A single original-OSM-way diagnostic is not a whole-seed verification. Legal turn restrictions and changing directions remain unmodelled. The current seed has no explicit entrance lists, so centre/selected-entrance fixes are crafted fixture regressions, not claims of repaired real entrances. Control owns visual map review. Ordinary-destination closure policy still needs Yunzhe's ruling.
+Limits: seed topology still uses legacy coordinate-derived IDs; bounded source-service calls failed without seed writes. Legal turn relations/changing directions remain unmodelled. Island counts describe graph components, not individual legal, verified or rest-constrained journeys. Visual map review remains control-owned. Ordinary-destination closure policy still needs Yunzhe's ruling.
 
 The lists cover the whole comparison with control, including previously pushed P1 and T-020 work.
 
@@ -22,8 +23,10 @@ The lists cover the whole comparison with control, including previously pushed P
 - `apps/api/src/townshiplens_api/routes/core.py`
 - `apps/api/tests/test_access_estimates.py`
 - `apps/api/tests/test_core.py`
+- `apps/api/tests/test_flood_entrances.py`
 - `apps/api/tests/test_manage.py`
 - `apps/api/tests/test_selection.py`
+- `apps/api/tests/test_sidewalk_verification.py`
 - `apps/api/tests/test_verification_expiry.py`
 - `config/profiles/drive.yaml`
 - `data/README.md`
@@ -40,6 +43,11 @@ The lists cover the whole comparison with control, including previously pushed P
 - `data/audits/2026-10-20-driving/README.md`
 - `data/audits/2026-10-20-driving/route-comparison.json`
 - `data/audits/2026-10-20-overnight-pr.md`
+- `data/audits/2026-10-20-special-verification/README.md`
+- `data/audits/2026-10-20-special-verification/api-after.json`
+- `data/audits/2026-10-20-special-verification/flood-api-after.json`
+- `data/audits/2026-10-20-special-verification/flood-seed-comparison.json`
+- `data/audits/2026-10-20-special-verification/real-seed-controls.json`
 - `data/audits/2026-10-20-t021/README.md`
 - `data/audits/2026-10-20-t021/api-routes.json`
 - `data/audits/2026-10-20-t021/drive-arrival-chat.json`
@@ -100,9 +108,11 @@ The lists cover the whole comparison with control, including previously pushed P
 - `packages/spatial/tests/test_access.py`
 - `packages/spatial/tests/test_centre_entrances.py`
 - `packages/spatial/tests/test_direction.py`
+- `packages/spatial/tests/test_flood_entrances.py`
 - `packages/spatial/tests/test_impact.py`
 - `packages/spatial/tests/test_maneuvers.py`
 - `packages/spatial/tests/test_routing.py`
+- `packages/spatial/tests/test_special_verification.py`
 - `packages/spatial/tests/test_tools_access.py`
 - `packages/spatial/tests/test_zero_route.py`
 

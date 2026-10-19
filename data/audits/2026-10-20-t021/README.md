@@ -14,3 +14,5 @@ Checks passed:
 - Real curl `/places`, `/layers/access`, `/routes`, mock `/chat`: no chat error, route highlight emitted, 16,352 access features.
 
 No paid model calls. No local e2e, as instructed. AI wording/validator changes are on the AI engineer branch and were not included in these checks. Full CI and visual review remain required before control merges.
+
+Latest checkpoint: see [the verification/flood follow-up](../2026-10-20-special-verification/README.md). AI c586d46 is integrated; the original probe now has nine policy-aligned cases, all passing. Model-authored turns are rejected even when correct, with descriptive controls retained. Four natural wrong-turn paraphrases still pass the complete validator, so the merge hold remains despite 1,163 passing agent/API tests.

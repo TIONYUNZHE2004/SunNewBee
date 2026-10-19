@@ -1,0 +1,199 @@
+{
+  "scope": "Crafted tiny world, not the Elmina seed. Before engine: rest PASS / route confirmed; sidewalk PASS. After fix through HTTP API below.",
+  "route": {
+    "status": "partly_unverified",
+    "routes": [
+      {
+        "id": "rt-a6e0bf7a",
+        "status": "partly_unverified",
+        "from_place": "park-b",
+        "to_place": "playground",
+        "target_node": "n-d",
+        "profile": "older_adult_rest",
+        "scenario_id": null,
+        "distance_m": 226.2,
+        "est_minutes": 3.2,
+        "segments": [
+          {
+            "edge_id": "seg-ab",
+            "eval": "UNKNOWN",
+            "flood_class": null,
+            "access_level": "unknown",
+            "rule_id": "no_map_basis_v1",
+            "tags_used": {}
+          },
+          {
+            "edge_id": "seg-bc",
+            "eval": "PASS",
+            "flood_class": null,
+            "access_level": "unknown",
+            "rule_id": "no_map_basis_v1",
+            "tags_used": {}
+          },
+          {
+            "edge_id": "seg-cr",
+            "eval": "PASS",
+            "flood_class": null,
+            "access_level": "unknown",
+            "rule_id": "no_map_basis_v1",
+            "tags_used": {}
+          },
+          {
+            "edge_id": "seg-rd",
+            "eval": "PASS",
+            "flood_class": null,
+            "access_level": "unknown",
+            "rule_id": "no_map_basis_v1",
+            "tags_used": {}
+          }
+        ],
+        "maneuvers": [
+          {
+            "index": 1,
+            "action": "depart",
+            "distance_m": 55.6,
+            "bearing_deg": 90.0,
+            "street_name": null,
+            "edge_type": "major_road",
+            "access_level": "unknown",
+            "rule_id": "no_map_basis_v1",
+            "segment_ids": ["seg-ab"],
+            "point": [101.509, 3.181]
+          },
+          {
+            "index": 2,
+            "action": "continue",
+            "distance_m": 170.6,
+            "bearing_deg": 90.0,
+            "street_name": null,
+            "edge_type": "footway",
+            "access_level": "unknown",
+            "rule_id": "no_map_basis_v1",
+            "segment_ids": ["seg-bc", "seg-cr", "seg-rd"],
+            "point": [101.5095, 3.181]
+          },
+          {
+            "index": 3,
+            "action": "arrive",
+            "distance_m": 0.0,
+            "bearing_deg": 90.0,
+            "street_name": null,
+            "edge_type": "footway",
+            "access_level": "unknown",
+            "rule_id": "no_map_basis_v1",
+            "segment_ids": [],
+            "point": [101.511, 3.181]
+          }
+        ],
+        "access_metres": {
+          "verified": 0.0,
+          "likely_ok": 0.0,
+          "unknown": 226.2,
+          "barrier": 0.0,
+          "not_a_road": 0.0
+        },
+        "unknowns": [
+          {
+            "element_id": "seg-ab",
+            "attribute": "sidewalk",
+            "reason": "unknown",
+            "why": "major road; sidewalk verification is undated"
+          }
+        ],
+        "rest_points": [
+          {
+            "place_id": "bench-b",
+            "node_id": "n-b",
+            "name": "Rest bench-b",
+            "status": "verified"
+          },
+          {
+            "place_id": "bench-1",
+            "node_id": "n-c",
+            "name": "Bench by the path",
+            "status": "verified"
+          },
+          {
+            "place_id": "rest-r",
+            "node_id": "n-r",
+            "name": "Rest rest-r",
+            "status": "unverified"
+          }
+        ],
+        "crossings": [],
+        "sidewalk_m": 0.0,
+        "road_m": 55.6,
+        "road_without_mapped_sidewalk_m": 55.6,
+        "road_sections": [
+          {
+            "element_id": "seg-ab",
+            "name": null,
+            "length_m": 55.6,
+            "sidewalk": "both",
+            "sidewalk_status": "unknown"
+          }
+        ],
+        "max_gap_between_rest_m": 60.0,
+        "rest_limit_m": 100.0,
+        "rest_limit_met": true,
+        "rest_points_unverified": ["rest-r"],
+        "geometry": {
+          "type": "LineString",
+          "coordinates": [
+            [101.509, 3.181],
+            [101.5095, 3.181],
+            [101.51, 3.181],
+            [101.51, 3.181],
+            [101.511, 3.181]
+          ]
+        },
+        "evidence_ids": [
+          "ev-seg-ab.step_count",
+          "ev-seg-ab.incline_pct",
+          "ev-seg-ab.width_m",
+          "ev-seg-ab.sidewalk",
+          "ev-seg-bc.step_count",
+          "ev-seg-bc.incline_pct",
+          "ev-seg-bc.width_m",
+          "ev-seg-cr.step_count",
+          "ev-seg-cr.incline_pct",
+          "ev-seg-cr.width_m",
+          "ev-seg-rd.step_count",
+          "ev-seg-rd.incline_pct",
+          "ev-seg-rd.width_m",
+          "ev-rt-a6e0bf7a.walkways"
+        ],
+        "demo_evidence": true
+      }
+    ],
+    "blocked_reasons": [],
+    "closures": [],
+    "warnings": [
+      "rest point not checked yet: Rest rest-r; this route needs it to keep every stretch within 100 m",
+      "About 56 m follows road centre lines without a mapped sidewalk; sidewalk access is not verified"
+    ],
+    "max_rest_gap_m": 60.0,
+    "rest_limit_m": 100.0,
+    "rest_search_truncated": false,
+    "demo_evidence": true
+  },
+  "layer_segment": {
+    "id": "seg-ab",
+    "type": "major_road",
+    "name": null,
+    "status_for_profile": "unknown",
+    "access_level": "unknown",
+    "rule_id": "no_map_basis_v1",
+    "tags_used": {},
+    "sidewalk": "both",
+    "sidewalk_status": "unknown"
+  },
+  "chat_text": "Route status: partly unverified\nCar Park B to Urban Park playground: route partly unverified, 226.2 m.\n1. Start heading east along the main road for about 56 m (not checked yet).\n2. Continue along the footway for about 171 m (not checked yet).\n3. Reach the end of the mapped route.\nWorth knowing:\n\u2022 Not checked yet: Sidewalk on an unnamed major road.\n\u2022 Asked the township team to check this item.\n\u2022 Rest point not checked yet: Rest rest-r; this route needs it to keep every stretch within 100 m.\n\u2022 About 56 m follows road centre lines without a mapped sidewalk; sidewalk access is not verified.\n\u2022 Segment facts are demo values, not yet surveyed.",
+  "chat_done": {
+    "type": "done",
+    "message_id": "7b96fae7b992",
+    "answer_status": "partial",
+    "model": "mock-scripted"
+  },
+  "cost_usd": 0
+}
