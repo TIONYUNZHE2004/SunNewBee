@@ -748,6 +748,8 @@ export const TRACK = {
   anchorStepS: 0.02,
   azSigmaS: 1.0,
   sigmaS: 0.7,
+  /** The dive lands this far (s) into the track (`landingTime`). */
+  landingS: 0.6,
   /** The steepest look-down (deg) of a follow or hold camera: a 3/4 view, never overhead. */
   maxPitchDeg: 45,
   /** A high camera (from highFromM to highFullM up, low-passed over highLevelSigmaS) pans slower. */
@@ -838,6 +840,17 @@ function memoOf(sc: FollowScene): TrackMemo {
     ownMemo.set(sc, memo);
   }
   return memo;
+}
+
+/**
+ * The grid indices of the follow span. Every kernel of the track sums over these only (weights
+ * renormalised), so at the span's ends a kernel is one-sided: padding with copies of the end sample
+ * pulled the track's first pose towards it (iteration 2: she steps into Harmoni 1 just after the
+ * dive, the end sample is not yet over the roof, and the camera dived to 20 m, then rose to 32 m).
+ */
+function gridSpan(sc: FollowScene): [number, number] {
+  const [a, b] = followSpan(sc.timeline);
+  return [Math.ceil(a / TRACK.stepS - 1e-9), Math.floor(b / TRACK.stepS + 1e-9)];
 }
 
 /** The follow span of the trip: from the end of the dive to the start of the pull-back. */
@@ -940,8 +953,9 @@ function basePoseAt(sc: FollowScene, memo: TrackMemo, tc: number): CamPose {
   const h = TRACK.stepS;
   const azSigma = azSigmaAt(sc, memo, tc);
   const reach = 3 * Math.max(azSigma, TRACK.sigmaS);
-  const i0 = Math.ceil((tc - reach) / h);
-  const i1 = Math.floor((tc + reach) / h);
+  const [g0, g1] = gridSpan(sc);
+  const i0 = Math.max(g0, Math.ceil((tc - reach) / h));
+  const i1 = Math.min(g1, Math.floor((tc + reach) / h));
   let wz = 0;
   let ws = 0;
   let th = 0;
@@ -995,8 +1009,9 @@ function basePoseAt(sc: FollowScene, memo: TrackMemo, tc: number): CamPose {
 function azSigmaAt(sc: FollowScene, memo: TrackMemo, tc: number): number {
   const h = TRACK.stepS;
   const sg = TRACK.highLevelSigmaS;
-  const i0 = Math.ceil((tc - 3 * sg) / h);
-  const i1 = Math.floor((tc + 3 * sg) / h);
+  const [g0, g1] = gridSpan(sc);
+  const i0 = Math.max(g0, Math.ceil((tc - 3 * sg) / h));
+  const i1 = Math.min(g1, Math.floor((tc + 3 * sg) / h));
   let w = 0;
   let y = 0;
   for (let i = i0; i <= i1; i++) {
@@ -1122,7 +1137,8 @@ function dilatedTurnAt(sc: FollowScene, memo: TrackMemo, i: number): number {
   if (hit !== undefined) return hit;
   const n = Math.ceil(TRACK.turnReachS / TRACK.stepS);
   let v = 0;
-  for (let j = i - n; j <= i + n; j++) {
+  const [g0, g1] = gridSpan(sc);
+  for (let j = Math.max(g0, i - n); j <= Math.min(g1, i + n); j++) {
     const w = clearTurnAt(sc, memo, j) * turnTaper((j - i) * TRACK.stepS);
     if (Math.abs(w) > Math.abs(v)) v = w;
   }
@@ -1136,8 +1152,9 @@ function clearPoseAt(sc: FollowScene, memo: TrackMemo, tc: number): CamPose {
   if (!sc.clearance) return p;
   const h = TRACK.stepS;
   const sg = TRACK.clearSigmaS;
-  const i0 = Math.ceil((tc - 3 * sg) / h);
-  const i1 = Math.floor((tc + 3 * sg) / h);
+  const [g0, g1] = gridSpan(sc);
+  const i0 = Math.max(g0, Math.ceil((tc - 3 * sg) / h));
+  const i1 = Math.min(g1, Math.floor((tc + 3 * sg) / h));
   let w = 0;
   let v = 0;
   for (let i = i0; i <= i1; i++) {
@@ -1197,7 +1214,8 @@ function dilatedNeedAt(sc: FollowScene, memo: TrackMemo, i: number): number {
   if (hit !== undefined) return hit;
   const n = Math.ceil(TRACK.liftReachS / TRACK.stepS);
   let v = 0;
-  for (let j = i - n; j <= i + n; j++) {
+  const [g0, g1] = gridSpan(sc);
+  for (let j = Math.max(g0, i - n); j <= Math.min(g1, i + n); j++) {
     const need = needAt(sc, memo, j);
     if (need > v) v = Math.max(v, need * envelopeTaper((j - i) * TRACK.stepS));
   }
@@ -1214,8 +1232,9 @@ function liftEnvelope(sc: FollowScene, memo: TrackMemo, tc: number): number {
   if (!sc.clearance) return 0;
   const h = TRACK.stepS;
   const sg = TRACK.liftSigmaS;
-  const i0 = Math.ceil((tc - 3 * sg) / h);
-  const i1 = Math.floor((tc + 3 * sg) / h);
+  const [g0, g1] = gridSpan(sc);
+  const i0 = Math.max(g0, Math.ceil((tc - 3 * sg) / h));
+  const i1 = Math.min(g1, Math.floor((tc + 3 * sg) / h));
   let w = 0;
   let v = 0;
   for (let i = i0; i <= i1; i++) {
@@ -1290,6 +1309,22 @@ function softFloor(c: Clearance | null | undefined, pos: Vec3) {
 }
 
 /**
+ * The track time the camera shows at trip time t: t itself, except over the dive's landing (the
+ * first 2 x TRACK.landingS of the follow span), where it runs ahead by up to TRACK.landingS and
+ * eases back (continuous rate, never backwards). The dive lands on the track a moment into the
+ * first hold, not on its first sample (iteration 2: at the dive's end she steps into Harmoni 1,
+ * the camera dived to 40 m from her, then backed out to 44 m as the roof lift came in).
+ */
+export function landingTime(tl: Timeline, t: number): number {
+  const [a, b] = followSpan(tl);
+  const l = Math.min(TRACK.landingS, (b - a) / 4);
+  const u = (t - a) / (2 * l);
+  if (l <= 0 || u >= 1) return t;
+  const k = clamp(u, 0, 1);
+  return t + l * (1 - k * k * (3 - 2 * k));
+}
+
+/**
  * The journey camera at screen time t for a mode (pure): `overview` is the overview pose, `follow`
  * the dive (overview -> the track's first pose), the follow track (per-event framing included),
  * then the pull-back (the track's last pose -> `pullBackTo`, else the overview); `free` is null
@@ -1302,11 +1337,11 @@ export function journeyCameraAt(sc: FollowScene, t: number, mode: JourneyCamMode
   const tc = clamp(Number.isFinite(t) ? t : 0, 0, tl.total);
   const st = stateAt(tl, tc);
   const kind = st.phase.kind;
-  if (kind !== "dive" && kind !== "pull") return followTrackAt(sc, tc);
+  if (kind !== "dive" && kind !== "pull") return followTrackAt(sc, landingTime(tl, tc));
   const [a, b] = followSpan(tl);
   const p = blendPose(
     kind === "dive" ? sc.overview : followTrackAt(sc, b),
-    kind === "dive" ? followTrackAt(sc, a) : (sc.pullBackTo ?? sc.overview),
+    kind === "dive" ? followTrackAt(sc, landingTime(tl, a)) : (sc.pullBackTo ?? sc.overview),
     ease(st.u),
   );
   applyFloor(sc.clearance, p.pos);

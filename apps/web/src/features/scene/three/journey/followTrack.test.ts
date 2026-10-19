@@ -6,7 +6,7 @@ import demoPlan from "../../../journey/fixtures/demoPlan.json";
 import { createRoutePath } from "../../../journey/routePath";
 import { MARKER_LIFT_M, MARKER_STACK_M } from "../../../journey/three/journeyLayer";
 import { createViewFit, safeRectOf } from "../../../journey/three/viewFit";
-import { buildTimeline, type JourneyPlan, stateAt } from "../../../journey/timeline";
+import { buildTimeline, DIVE_S, type JourneyPlan, stateAt } from "../../../journey/timeline";
 import { HERO_CENTRE } from "../bookmarks";
 import { createClearance, obstaclesFromCity } from "../clearance";
 import { createFrame } from "../frame";
@@ -29,6 +29,8 @@ const SEED = new URL(
   import.meta.url,
 );
 const RAD = 180 / Math.PI;
+/** The dive's landing: the first second of the follow camera. */
+const LANDING_S = 1;
 const HZ = 60;
 
 /** Smoothness limits (per second, per s², per s³) on the follow camera at 60 Hz. */
@@ -86,11 +88,13 @@ function trace(sc: FollowScene) {
     yaw: number;
     pitch: number;
     d: number;
+    hd: number;
     pos: CamPose["pos"];
   }[] = [];
   for (let i = 0; i <= n; i++) {
     const t = i / HZ;
     const p = journeyCameraAt(sc, t, "follow") as CamPose;
+    const h = heroPositionAt(tl, t, helpers);
     const v = [p.look[0] - p.pos[0], p.look[1] - p.pos[1], p.look[2] - p.pos[2]] as const;
     const d = Math.hypot(v[0], v[1], v[2]);
     out.push({
@@ -99,6 +103,7 @@ function trace(sc: FollowScene) {
       yaw: Math.atan2(v[0], -v[2]) * RAD,
       pitch: -Math.asin(v[1] / d) * RAD,
       d,
+      hd: Math.hypot(p.pos[0] - h[0], p.pos[1] - 1.4, p.pos[2] - h[1]),
       pos: p.pos,
     });
   }
@@ -122,6 +127,7 @@ export function smoothnessOf(sc: FollowScene) {
   for (let i = 1; i < tr.length; i++) {
     const a = tr[i - 1] as (typeof tr)[number];
     const b = tr[i] as (typeof tr)[number];
+    // the dive: the camera only closes in on her (no see-saw)
     if (a.kind === "dive" && b.kind === "dive") {
       const dd = Math.sign(Math.round((b.d - a.d) * 1e6));
       if (dd !== 0) {
@@ -168,9 +174,14 @@ export function smoothnessOf(sc: FollowScene) {
       }
     }
   }
+  // its landing: over the first second after it the camera backs away from her by at most 5 %
+  // (she walks on; the owner's dive closed in, then backed out 10 % as the roof lift came in)
+  const land = tr.filter((q) => q.t >= DIVE_S && q.t <= DIVE_S + LANDING_S);
+  const landing = Math.max(...land.map((q) => q.hd)) / (land[0] as (typeof tr)[number]).hd - 1;
   const r = (v: number) => Math.round(v * 10) / 10;
   return {
     diveReversals,
+    landing: Math.round(landing * 1000) / 1000,
     angVel: r(angVel),
     angVelAt: r(angVelAt),
     angAcc: r(angAcc),
@@ -191,6 +202,7 @@ describe.skipIf(!existsSync(SEED))("journey camera smoothness at 60 Hz (iteratio
   });
   it("the dive zooms in only (no see-saw)", () => {
     expect(m.diveReversals).toBe(0);
+    expect(m.landing).toBeLessThanOrEqual(0.05);
   });
   it("heading and pitch turn at most ~60 deg/s, with bounded angular acceleration", () => {
     expect(m.angVel, `at t=${m.angVelAt}`).toBeLessThanOrEqual(SMOOTH_LIMITS.angVelDeg);

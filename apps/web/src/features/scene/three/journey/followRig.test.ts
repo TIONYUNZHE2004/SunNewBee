@@ -28,6 +28,7 @@ import {
   HERO_CHEST_Y,
   holdSubjects,
   journeyCameraAt,
+  landingTime,
   MIN_HERO_DIST_M,
   rawFrameAt,
   TRACK,
@@ -160,8 +161,8 @@ describe("damping, dive and pull-back", () => {
     const a = journeyCameraAt(sc, 0, "follow") as CamPose;
     expect(dist(a.pos, OVERVIEW.pos)).toBeLessThan(1e-6);
     const b = journeyCameraAt(sc, DIVE_S, "follow") as CamPose;
-    // the dive lands on the camera track's first pose (iteration 2)
-    const f = followTrackAt(sc, DIVE_S);
+    // the dive lands on the camera track, a moment into it (iteration 2)
+    const f = followTrackAt(sc, landingTime(tl, DIVE_S));
     expect(dist(b.pos, f.pos)).toBeLessThan(1e-6);
     // the distance to the look point only shrinks during the dive
     let last = Number.POSITIVE_INFINITY;
