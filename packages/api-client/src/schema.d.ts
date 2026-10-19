@@ -1766,6 +1766,35 @@ export interface components {
             /** Open Vrs */
             open_vrs: number;
         };
+        /** Maneuver */
+        Maneuver: {
+            /**
+             * Access Level
+             * @enum {string}
+             */
+            access_level: "verified" | "likely_ok" | "unknown" | "barrier" | "not_a_road";
+            /**
+             * Action
+             * @enum {string}
+             */
+            action: "depart" | "continue" | "turn_left" | "turn_right" | "slight_left" | "slight_right" | "u_turn" | "cross" | "arrive";
+            /** Bearing Deg */
+            bearing_deg: number | null;
+            /** Distance M */
+            distance_m: number;
+            /** Edge Type */
+            edge_type: string | null;
+            /** Index */
+            index: number;
+            /** Point */
+            point: number[];
+            /** Rule Id */
+            rule_id: string;
+            /** Segment Ids */
+            segment_ids: string[];
+            /** Street Name */
+            street_name: string | null;
+        };
         /** OwnJourney */
         OwnJourney: {
             /**
@@ -1974,6 +2003,8 @@ export interface components {
             };
             /** Id */
             id: string;
+            /** Maneuvers */
+            maneuvers?: components["schemas"]["Maneuver"][];
             /** Max Gap Between Rest M */
             max_gap_between_rest_m?: number | null;
             /**

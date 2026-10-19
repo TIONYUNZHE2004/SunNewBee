@@ -250,6 +250,32 @@ class RoadSection(BaseModel):
     sidewalk_status: ClaimStatus = "unknown"
 
 
+ManeuverAction = Literal[
+    "depart",
+    "continue",
+    "turn_left",
+    "turn_right",
+    "slight_left",
+    "slight_right",
+    "u_turn",
+    "cross",
+    "arrive",
+]
+
+
+class Maneuver(BaseModel):
+    index: int  # 1-based, in travel order
+    action: ManeuverAction
+    distance_m: float  # covered edge lengths to the next maneuver, rounded to 0.1 m
+    bearing_deg: float | None  # clockwise from true north; None for directionless geometry
+    street_name: str | None  # exact mapped name, never a generated label
+    edge_type: str | None
+    access_level: AccessLevel
+    rule_id: str
+    segment_ids: list[str]
+    point: LonLat  # routed graph point; never an inferred off-graph entrance
+
+
 class Route(BaseModel):
     id: str  # "rt-<hash>"
     status: RouteStatus
@@ -261,6 +287,7 @@ class Route(BaseModel):
     distance_m: float
     est_minutes: float
     segments: list[RouteSegment]
+    maneuvers: list[Maneuver] = Field(default_factory=list)
     access_metres: dict[AccessLevel, float] = Field(default_factory=dict)
     unknowns: list[dict[str, str]] = Field(default_factory=list)  # {element_id, attribute, why}
     # {place_id, node_id, name, status: verified|unverified}; rest points recorded absent are

@@ -18,6 +18,13 @@ def test_routes_confirmed():
     assert r["status"] == "confirmed"
     # confirmed over team_survey_placeholder evidence: status unchanged, flagged as demo values
     assert r["demo_evidence"] is True and r["routes"][0]["demo_evidence"] is True
+    steps = r["routes"][0]["maneuvers"]
+    assert steps[0]["action"] == "depart" and steps[-1]["action"] == "arrive"
+    assert [eid for step in steps for eid in step["segment_ids"]] == [
+        s["edge_id"] for s in r["routes"][0]["segments"]
+    ]
+    assert steps[0]["point"] == r["routes"][0]["geometry"]["coordinates"][0]
+    assert steps[-1]["point"] == r["routes"][0]["geometry"]["coordinates"][-1]
 
 
 def test_layers_access_has_status():

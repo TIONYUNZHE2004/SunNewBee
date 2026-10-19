@@ -12,6 +12,7 @@ import networkx as nx
 from .access import LEVELS, assess_access, urban_context
 from .evaluate import SIDEWALK_PRESENT, _is_stale, evaluate_edge, evaluate_flood, rest_point_state
 from .geo import haversine_m
+from .maneuvers import build_maneuvers
 from .models import Evidence, RoadSection, Route, RouteResult, RouteSegment, photo_url
 from .scenario_meta import scenario_source, selection_error
 from .world import World
@@ -557,6 +558,7 @@ def _route_from_nodes(world, nodes, keys, from_id, to_id, profile, scenario_id, 
         distance_m=round(dist, 1),
         est_minutes=round(dist / _pace_m_per_min(profile), 1),
         segments=segs,
+        maneuvers=build_maneuvers(world, nodes, segs),
         access_metres={level: round(length, 1) for level, length in metres.items()},
         unknowns=unknowns,
         rest_points=rest,
