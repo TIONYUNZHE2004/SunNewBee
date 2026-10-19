@@ -161,6 +161,8 @@ export function planTile(inp: TileInputs, tile: Tile, ring: Ring, tier: Tier): T
       : [];
   const ribbons = ribbonsFromWalk(walk as GeoJSON.FeatureCollection, frame, {
     area: areaOf(tile, SALT.roads),
+    // Rounded kerbs (B-T3) only where they can be seen: rings 0-1, above Low.
+    bevel: tier !== "low" && ring <= 1,
   });
   const content: TileContent = {
     kits,

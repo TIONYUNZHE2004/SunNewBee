@@ -23,15 +23,30 @@ export interface Ribbon {
 
 type P = [number, number];
 
+/**
+ * Rounded kerb profile (B-T3, AC-B3). Each side of a road or footway ribbon rolls off over
+ * `inset` metres (at most 30% of the half width) and sinks `drop` metres at the outer edge, so no
+ * ribbon ends in a hard 90-degree kerb. The outline (centre line +- half width) is unchanged;
+ * only the rim is pulled in at the road lift. Markings stay flat. Display only.
+ */
+export const RIBBON_BEVEL = { insetM: 0.3, dropM: 0.12, maxHalfShare: 0.3 } as const;
+/** Cross-section columns per ribbon vertex row: outer-left, rim-left, rim-right, outer-right. */
+export const RIBBON_COLUMNS = 4;
+
 class Builder {
   pos: number[] = [];
   idx: number[] = [];
-  constructor(private readonly y: number) {}
+  constructor(
+    private readonly y: number,
+    private readonly bevel = true,
+  ) {}
 
   /** A strip around `pts` (>= 2 distinct), `half` metres each side, mitred, wound to face +y. */
   strip(pts: P[], half: number) {
     const n = pts.length;
     const base = this.pos.length / 3;
+    const cols = this.bevel ? RIBBON_COLUMNS : 2;
+    const inset = Math.min(RIBBON_BEVEL.insetM, half * RIBBON_BEVEL.maxHalfShare);
     const seg = (i: number): P => {
       const dx = pts[i + 1]![0] - pts[i]![0];
       const dz = pts[i + 1]![1] - pts[i]![1];
@@ -61,14 +76,35 @@ class Builder {
         [nx, nz] = (la ?? lb)!;
       }
       const [x, z] = pts[i]!;
-      this.pos.push(x + nx * half, this.y, z + nz * half, x - nx * half, this.y, z - nz * half);
+      if (this.bevel) {
+        const rim = half - inset;
+        const low = this.y - RIBBON_BEVEL.dropM;
+        this.pos.push(
+          x + nx * half,
+          low,
+          z + nz * half,
+          x + nx * rim,
+          this.y,
+          z + nz * rim,
+          x - nx * rim,
+          this.y,
+          z - nz * rim,
+          x - nx * half,
+          low,
+          z - nz * half,
+        );
+      } else {
+        this.pos.push(x + nx * half, this.y, z + nz * half, x - nx * half, this.y, z - nz * half);
+      }
     }
     for (let i = 0; i < n - 1; i++) {
-      const l0 = base + i * 2;
-      const r0 = l0 + 1;
-      const l1 = l0 + 2;
-      const r1 = l0 + 3;
-      this.idx.push(l0, r0, l1, r0, r1, l1);
+      for (let c = 0; c < cols - 1; c++) {
+        const a0 = base + i * cols + c;
+        const b0 = a0 + 1;
+        const a1 = a0 + cols;
+        const b1 = b0 + cols;
+        this.idx.push(a0, b0, a1, b0, b1, a1);
+      }
     }
   }
 
@@ -207,25 +243,27 @@ function dashes(pts: P[]): P[][] {
  * Triangle-strip ribbons around the walk network's LineStrings (width by segment `type`, shared
  * with the Cesium stylised ground), mitred with the offset capped at 2 half-widths, merged per
  * kind, at the road lift. Major roads also get dashed centre marks (a separate ribbon, one lift
- * higher). With an `area`, only the pieces whose midpoint is in its box are kept (see
+ * higher). `bevel` (default on) gives the surfaces the rounded rim (RIBBON_BEVEL); the streamer turns it
+ * off for the far ring and Low (2 columns, 2 triangles per segment instead of 6). With an `area`, only the pieces whose midpoint is in its box are kept (see
  * RIBBON_MARGIN_M), and only the dashes whose midpoint is: the dash phase runs along the whole
  * line, so adjacent boxes agree. Pure.
  */
 export function ribbonsFromWalk(
   fc: GeoJSON.FeatureCollection | null | undefined,
   frame: LocalFrame,
-  opts: { area?: PlanArea } = {},
+  opts: { area?: PlanArea; bevel?: boolean } = {},
 ): Ribbon[] {
   const box = opts.area?.box ?? null;
+  const bevel = opts.bevel ?? true;
   const kinds = new Map<RoadKind, Builder>();
-  const marks = new Builder(MARKING_Y);
+  const marks = new Builder(MARKING_Y, false);
   for (const { pts, type, bb } of linesOf(fc, frame)) {
     if (box && !touchesBox(box, bb[0], bb[1], bb[2], bb[3])) continue;
     const kind = KIND_BY_TYPE[type] ?? "other";
     const half = (WIDTH_BY_TYPE[type] ?? ROAD_WIDTH_UNKNOWN) / 2;
     let b = kinds.get(kind);
     if (!b) {
-      b = new Builder(ROAD_Y);
+      b = new Builder(ROAD_Y, bevel);
       kinds.set(kind, b);
     }
     for (const run of clipRuns(pts, box)) b.strip(run, half);

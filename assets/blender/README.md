@@ -74,6 +74,10 @@ geometry (each builder seeds `random` from the asset id).
 | `tl_assets/characters/export_hero.py` | Blender entry: rig, bake clips, export `out/raw/characters/hero_<variant>.glb` + stats json; `--render` acceptance views |
 | `tl_assets/characters/turntable.py` | Acceptance renders: walk / sit_idle turntables, bench side view, follow and seam close-ups |
 | `tl_assets/characters/manifest.py` | `characters/manifest.json` builder (pure) |
+| `tl_assets/characters/crowd.py` | Crowd (C-T6, pure): 6 bodies, 13 outfits, role-coloured parts per LOD, crowd-sized walker/stroller/wheelchair |
+| `tl_assets/characters/crowd_rig.py` | Crowd rig (pure): 19 bones, skin weights, `walk`/`idle` (+ per prop) poses, reference skinning |
+| `tl_assets/characters/crowd_looks.py` | The 33 looks (body + outfit + prop + palette) and the `characters/crowd.json` builder |
+| `tl_assets/characters/export_crowd.py` | Blender entry: `crowd_<body>.glb` + stats; `--sheet <png>` renders the contact sheet of all looks |
 
 ## Conventions
 
@@ -252,3 +256,27 @@ a scale into the inverse bind matrices). The manifest has no date, so a repack i
 `tests/test_hero_rig.py` (pure) and `apps/web/src/features/scene/three/assets/heroGlb.test.ts`
 (the shipped glbs: H1-H4, palm-to-grip, sit height, foot slide, loop seams). The rebuild is
 deterministic (same bytes).
+
+### Crowd kit (C-T6)
+
+```bash
+"C:/Program Files/Blender Foundation/Blender 5.2/blender.exe" -b --factory-startup --disable-autoexec --python-exit-code 1   -P assets/blender/tl_assets/characters/export_crowd.py -- [--body adult_man] [--sheet <contact-sheet.png>]
+uv run python assets/blender/pack.py --crowd   # -> apps/web/public/city/characters/crowd_<body>.glb + crowd.json
+```
+
+- Built by the same scripted chibi pipeline as the hero (`geom.py`), simplified to the crowd budget
+  (P4: LOD0 <= 1,500 and LOD1 <= 400 triangles per person including the prop). The Kenney Mini
+  Characters were only a proportion reference; no vendor geometry ships, so `CREDITS.md` is unchanged.
+- Six bodies (child, school_age, adult_man, adult_woman, older_man, older_woman: height, head ratio,
+  stoop), 3-4 local outfits each (baju kurung + tudung, baju melayu + songkok + samping, school shirt
+  and trousers, pinafore + white tudung, office, casual), 33 looks with stroller/walker/wheelchair.
+- One glb per body: a 19-bone skeleton (same names everywhere), `<outfit>__LOD0/1` skinned meshes,
+  `prop_<prop>__LOD0/1` on the `prop` bone (`prop_wheelchair_wheels__*` on `wheels`), clips `walk`,
+  `idle`, `walk_<prop>`, `idle_<prop>` (in place; walks keyed at 30 fps, idles at 10 fps).
+- Colour: every face has a palette role; TEXCOORD_0.x = (role index + 0.5) / roles. A look is
+  body + outfit (+ prop) + palette (`crowd.json` `looks[].palette`, role -> clay pastel hex), so C-T7
+  can recolour instances from a palette texture and B-T1 can map role names to clay tokens. COLOR_0
+  holds the first look's colours for plain viewers.
+- Checks: `tests/test_crowd.py` (pure: P1/P2 coverage, tudung and sleeve coverage, budgets, rig,
+  loops, IK reach, stance foot rate) and `apps/web/.../crowdManifest.test.ts`, `crowdGlb.test.ts`
+  (the shipped glbs). A repack is byte-stable.

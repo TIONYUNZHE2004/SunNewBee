@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import * as THREE from "three";
 import { describe, expect, it } from "vitest";
-import { fitFor, overviewPose } from "./cameraFit";
+import { fitFor, fogReachM, overviewPose } from "./cameraFit";
 import { poseToCamera, vfovFor } from "./cameraRig";
 import { BASE_WATER_COLOUR } from "./cityMesh";
 import { readsAsWater } from "./colourHue";
@@ -11,6 +11,7 @@ import { boundaryOf } from "./ground/boundary";
 import { blendPresets, LIGHT_PRESETS } from "./lighting";
 import {
   applyFog,
+  FOG_REACH_SHARE,
   fogFor,
   glowFor,
   lightDate,
@@ -208,7 +209,7 @@ describe("overview fog keeps the diorama slab edge in sight (A-T11 fix round 1)"
     const farthest = Math.max(...ring.map(([lon, lat]) => dist(lon, lat)));
     expect(farthest).toBeGreaterThan(9000); // the extent really is that far
     for (const theme of ["day", "dusk", "night"] as const) {
-      const f = fogFor(LIGHT_PRESETS[theme], rangeM);
+      const f = fogFor(LIGHT_PRESETS[theme], rangeM, fogReachM(fit, rangeM));
       const factor = (d: number) => Math.min(1, Math.max(0, (d - f.near) / (f.far - f.near)));
       expect(factor(farthest), theme).toBeLessThan(0.95);
       // Top-centre ray: -pitch - vfov / 2 below the horizon, at the widest (panel-open) and the
@@ -220,5 +221,16 @@ describe("overview fog keeps the diorama slab edge in sight (A-T11 fix round 1)"
         expect(factor(top), `${theme} ${aspect}`).toBeGreaterThan(0.7);
       }
     }
+  });
+});
+
+describe("fog reach from the slab (A-T5, new outline)", () => {
+  it("without a reach the fog is unchanged; with one the reach sits at FOG_REACH_SHARE of the ramp", () => {
+    const p = LIGHT_PRESETS.day;
+    expect(fogFor(p, 7900, 0)).toEqual(fogFor(p, 7900));
+    const f = fogFor(p, 7900, 14000);
+    expect((14000 - f.near) / (f.far - f.near)).toBeCloseTo(FOG_REACH_SHARE, 9);
+    // A reach inside the range-based fog never shortens it.
+    expect(fogFor(p, 7900, 6000)).toEqual(fogFor(p, 7900));
   });
 });

@@ -34,15 +34,33 @@ def test_manifest_has_no_test_assets():
     assert set(m["assets"]) <= set(specs.ASSETS)
 
 
+def _city_kit_files() -> list[Path]:
+    """The city kits: archetypes/, kits/, landmarks/ and manifest.json (not characters/)."""
+    out = [p for f in FOLDERS for p in (CITY / f).rglob("*") if p.is_file()]
+    return out + [MANIFEST] if MANIFEST.exists() else out
+
+
 def test_folder_total_is_within_budget():
     if _manifest() is None:
         pytest.skip("no manifest committed yet")
-    total = sum(p.stat().st_size for p in CITY.rglob("*") if p.is_file())
+    total = sum(p.stat().st_size for p in _city_kit_files())
     assert total <= specs.MAX_TOTAL_BYTES
     assert total <= P4_TOTAL_BYTES, total
 
 
-P4_TOTAL_BYTES = 4_000_000  # P4 Task 7: the detail pass keeps the whole city folder under 4 MB
+def test_characters_total_is_within_budget():
+    """Coordinator ruling (C-T6 fix round 1): hero + crowd meshes and clips in characters/
+    have their own budget, separate from the city kits. Crowd animation textures (spec P4,
+    <= 4 MB) are C-T7's and are checked there."""
+    files = [p for p in (CITY / "characters").rglob("*") if p.is_file()]
+    if not files:
+        pytest.skip("no characters committed yet")
+    total = sum(p.stat().st_size for p in files)
+    assert total <= CHARACTERS_TOTAL_BYTES, total
+
+
+P4_TOTAL_BYTES = 4_000_000  # P4 Task 7: the city kits (archetypes, kits, landmarks) under 4 MB
+CHARACTERS_TOTAL_BYTES = 2_000_000  # hero + crowd glbs and manifests (C-T6 ruling)
 
 
 def _committed_assets() -> list[str]:
