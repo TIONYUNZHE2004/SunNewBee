@@ -652,6 +652,26 @@ function fetchGlb(url: string): Promise<ArrayBuffer> {
   return p;
 }
 
+/**
+ * Loads and parses the hero model of a profile ahead of any answer (an idle moment after the map
+ * loads), so the bytes are cached and the caller can draw it once off-screen (`Engine.warmDraw`):
+ * the model's first real draw then links nothing. Null when the variant has no glb or it fails.
+ */
+export async function preloadHeroModel(profile: string): Promise<GlbHeroModel | null> {
+  const variant = heroVariantFor(profile);
+  const url = heroUrl(HERO_MANIFEST, variant);
+  const spec = HERO_MANIFEST.variants[variant];
+  if (!url || !spec) return null;
+  try {
+    const m = await parseHeroGlb(await fetchGlb(`${url}?v=${spec.bytes}`), variant);
+    drawHeroLast(m.object3d);
+    m.play("walk", 0, 1, undefined);
+    return m;
+  } catch {
+    return null;
+  }
+}
+
 export interface GlbHero extends Hero {
   /** True once the GLB replaced the placeholder; false when it failed (the placeholder stays). */
   readonly ready: Promise<boolean>;

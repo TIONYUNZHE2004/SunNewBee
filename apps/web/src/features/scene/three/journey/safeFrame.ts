@@ -45,7 +45,9 @@ export const SAFE_FIT = {
   /** Largest pull-back along the view line (factor on the camera-to-look distance). */
   maxPull: 2.0,
   pullStep: 1.12,
-  iterations: 16,
+  iterations: 24,
+  /** Most the fit raises the camera over its look point before it tilts up (m). */
+  maxRaiseM: 6,
   /** A residual under this many px is done. */
   tolPx: 0.5,
   /** The camera never looks above this downward slope (dir.y / |dir|): it stays a look-down shot. */
@@ -164,6 +166,7 @@ export function fitSafe(
   if (subjects.length === 0) return pose;
   let p: CamPoseLike = { pos: [...pose.pos], look: [...pose.look] };
   let pulled = 1;
+  let raised = 0;
   const s = view.safe;
   const f = Math.max(1, view.focalPx);
   for (let i = 0; i < SAFE_FIT.iterations; i++) {
@@ -186,6 +189,18 @@ export function fitSafe(
     const dx = shiftInto(b.x0, b.x1, s.l, s.r);
     const dy = shiftInto(b.y0, b.y1, s.t, s.b);
     if (Math.abs(dx) < SAFE_FIT.tolPx && Math.abs(dy) < SAFE_FIT.tolPx) break;
+    // Subjects too high (the marker under the top stack): first raise the camera over its look
+    // point (a steeper look-down), only then tilt up. Tilting up brought the mid-distance facades
+    // into the top of the frame, inside the depth-of-field band (AC-B4 beat 16, rest at 888 m).
+    if (dy > SAFE_FIT.tolPx && raised < SAFE_FIT.maxRaiseM) {
+      const dist = Math.hypot(p.pos[0] - p.look[0], p.pos[1] - p.look[1], p.pos[2] - p.look[2]);
+      const up = Math.min(SAFE_FIT.maxRaiseM - raised, Math.max(0.25, (dist * dy) / f));
+      p = { pos: [p.pos[0], p.pos[1] + up, p.pos[2]], look: [...p.look] };
+      raised += up;
+      constrain?.(p);
+      if (Math.abs(dx) >= SAFE_FIT.tolPx) p = turnCamera(p, Math.atan(dx / f), 0);
+      continue;
+    }
     p = turnCamera(p, Math.atan(dx / f), Math.atan(dy / f));
   }
   return p;
