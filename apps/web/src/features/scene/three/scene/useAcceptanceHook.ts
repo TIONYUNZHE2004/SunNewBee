@@ -508,6 +508,41 @@ function crowdReport(engine: Engine): CrowdReport {
     return { x: ((q.x + 1) / 2) * w, y: ((1 - q.y) / 2) * h };
   };
   const walk = (o: THREE.Object3D) => {
+    const bm = o as THREE.BatchedMesh;
+    if (bm.isBatchedMesh && o.userData.crowd) {
+      // The crowd renderer (C-T7): slot i is instance i on both LOD meshes.
+      const lod = Number(o.userData.lod);
+      const ids = o.userData.lookIds as string[];
+      const heights = o.userData.heights as number[];
+      if (lod === 0) planned.person += ids.length;
+      for (let i = 0; i < ids.length; i++) {
+        if (!o.visible || !bm.getVisibleAt(i)) continue;
+        bm.getMatrixAt(i, _cm);
+        _cm.decompose(_cp, _cq, _cs);
+        const hM = heights[i] ?? 0;
+        const feet = proj(_cp);
+        const headW = _cp.clone().setY(_cp.y + hM * _cs.y);
+        const head = proj(headW);
+        const dist = v.camera.position.distanceTo(headW);
+        _ray.set(v.camera.position, headW.clone().sub(v.camera.position).normalize());
+        _ray.far = dist - 0.3;
+        _ray.camera = v.camera;
+        rows.push({
+          kind: "person",
+          variant: ids[i] ?? "",
+          lod,
+          distM: dist,
+          scale: _cs.y,
+          heightM: hM * _cs.y,
+          head,
+          feet,
+          heightPx: head && feet ? Math.abs(feet.y - head.y) : null,
+          inCanvas: !!head && head.x >= 0 && head.x <= w && head.y >= 0 && head.y <= h,
+          occluded: _ray.intersectObjects(blockers, false).length > 0,
+        });
+      }
+      return;
+    }
     const im = o as THREE.InstancedMesh;
     if (im.isInstancedMesh && o.name.startsWith("motion__")) {
       const [, asset, variant, lodTag] = o.name.split("__") as [string, string, string, string];

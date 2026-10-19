@@ -23,6 +23,8 @@ export interface Agent {
   speed: number;
   /** Start distance along the path (m). */
   offset: number;
+  /** People only: a crowd look id (crowd.json `looks[].id`); unset, the crowd renderer picks one by seed. */
+  look?: string;
 }
 
 export interface MoodMix {

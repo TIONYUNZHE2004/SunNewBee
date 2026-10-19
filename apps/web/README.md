@@ -464,9 +464,19 @@ where they stopped instead of jumping. Every rebuilt agent layer shares one smoo
   `footway`/`path`/`pedestrian` edges of each streamed tile, weighted ×3 near schools, malls and
   parks. The count is the tile's cap × mood density (day 1.0, dusk 1.15, night 0.45). Agents loop along the
   edges with no routing or collision, so cars can pass through each other.
-- **Drawing:** `motionLayer` uses one InstancedMesh per kit, variant and LOD. Matrices are rewritten
+- **Drawing:** `motionLayer` uses one InstancedMesh per kit, variant and LOD for vehicles. Matrices are rewritten
   each tick, but only for agents in view (with a 50 m margin). Agents beyond their last LOD's `maxM`
   are hidden. Agents cast no shadows and are left out of the AO pass.
+- **Crowd people (C-T7):** `useMotion` loads the crowd kit once (`motion/crowdKit.ts`: the six
+  `characters/crowd_<body>.glb`, one body per idle slice) and bakes every clip at runtime into a
+  bone-matrix texture (`motion/crowdBake.ts`: per frame and bone the 3×4 `boneWorld(t) × boneWorld(rest)⁻¹`
+  as RGBA half floats, 821 rows × 57 texels = 0.37 MB, 0 bytes on disk; props are one-bone skinned).
+  `motion/crowdRenderer.ts` draws all people as two BatchedMeshes (LOD0 ≤ 60 m, LOD1 ≤ 300 m, hidden
+  beyond: 2 draw calls), skinning in the vertex shader from (row0, row1, blend, look) per instance
+  and recolouring from a palette texture (role × look). The gait phase integrates the distance walked
+  over `stride × display scale` (`motion/crowdGait.ts`, P5: no skating) from a seeded start phase.
+  An agent's optional `look` id picks its look (C-T8 assigns them); else a seeded pick. While the
+  kit loads no people are drawn; if it fails the legacy `people` kit (shader limb swing) is the fallback.
 - **Scale-up:** agents are drawn 1× within 150 m of the camera, rising to 3× at 800 m, for
   legibility. This is display only; the models are unchanged.
 - **Day/Rollout fade:** people and vehicles fade out over 1 s while Elmina Day or Rollout playback
