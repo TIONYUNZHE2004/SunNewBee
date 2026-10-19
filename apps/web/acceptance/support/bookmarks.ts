@@ -24,13 +24,15 @@ const HERO: [number, number] = [101.5095, 3.1805];
 
 export const ACCEPTANCE_BOOKMARKS: Record<BookmarkName, AcceptanceBookmark> = {
   overview: {
-    // `three/bookmarks.ts` "township": the whole site extent.
+    // A-T5: with a slab, `gotoBookmark` asks the app for the overview derived from the outline at
+    // runtime (hook `overviewPose()`: the whole slab at max range) and uses this entry only as the
+    // fallback without an outline (`three/bookmarks.ts` "township", the site extent).
     centre: [101.5099, 3.1813],
     rangeM: 7000,
     pitchDeg: -55,
     headingDeg: 0,
     theme: "day",
-    note: "Full-city overview (the `township` gate bookmark).",
+    note: "Whole-slab overview (derived from the outline at runtime; fallback: the site extent).",
   },
   "hero-mid": {
     centre: HERO,
@@ -144,15 +146,46 @@ export async function openScene(page: Page, theme: Theme): Promise<Gpu> {
   return gpu;
 }
 
+interface GeoPoseJson {
+  lon: number;
+  lat: number;
+  rangeM: number;
+  pitchDeg: number;
+  headingDeg: number;
+}
+
 /** The theme each page was loaded with. */
 const loaded = new WeakMap<Page, Theme>();
 
 /** Moves the camera to a bookmark (reloading when its theme differs) and waits for the scene to settle. */
 export async function gotoBookmark(page: Page, name: BookmarkName): Promise<AcceptanceBookmark> {
-  const b = ACCEPTANCE_BOOKMARKS[name];
+  let b = ACCEPTANCE_BOOKMARKS[name];
   if (loaded.get(page) !== b.theme || !(await page.evaluate((h) => h in window, HOOK))) {
     await openScene(page, b.theme);
     loaded.set(page, b.theme);
+  }
+  if (name === "overview") {
+    // The overview is derived from the outline at runtime (A-T5); wait for the slab's camera fit.
+    const derived = await page
+      .waitForFunction(
+        (h) =>
+          (window as unknown as Record<string, { overviewPose?(): unknown } | undefined>)[
+            h
+          ]?.overviewPose?.() ?? null,
+        HOOK,
+        { timeout: 30_000 },
+      )
+      .then((j) => j.jsonValue() as Promise<GeoPoseJson>)
+      .catch(() => null);
+    if (derived)
+      b = {
+        ...b,
+        centre: [derived.lon, derived.lat],
+        rangeM: derived.rangeM,
+        pitchDeg: derived.pitchDeg,
+        headingDeg: derived.headingDeg,
+        note: `${b.note} Derived: overviewPose(fit).`,
+      };
   }
   await page.evaluate(
     ({ h, p }) => {

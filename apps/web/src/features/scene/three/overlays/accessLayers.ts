@@ -5,10 +5,11 @@ import { diffLines, WHATIF_STYLE } from "../../../whatif/whatifModel";
 import { groupEdgesByStatus, type LonLat, lineFeatures, pointFeatures } from "../../geo";
 import { ROUTE_STYLE } from "../../styles";
 import type { LocalFrame } from "../frame";
+import { type Boundary, insideBoundary } from "../ground/boundary";
 import { lineToLocal, ROUTE_LIFT_M } from "../routeLine";
 import { createFloodLayer } from "./floodLayer";
 import { createLineBatch, dashFromCesium, setDashScale, statusLineStyle } from "./lines";
-import { createMarkers, type EvacMarkerRow, type Markers } from "./markers";
+import { createMarkers, type EvacMarkerRow, type Markers, placeShown } from "./markers";
 
 /** GET /layers/access payload (a GeoJSON FeatureCollection), as the query returns it. */
 export type AccessData = unknown;
@@ -38,6 +39,12 @@ export interface OverlayState {
   wasteOn?: boolean;
   evac?: readonly EvacMarkerRow[] | null;
   focusPlaceId?: string | null;
+  /** The Elmina outline (display only): place markers outside it are not drawn (A-T5), except: */
+  boundary?: Boundary | null;
+  /** Place ids never hidden: selected place and verification-request targets (focus is added here). */
+  keepPlaceIds?: readonly string[];
+  /** [lon, lat] points (route and journey ends): places within ENDPOINT_KEEP_M are never hidden. */
+  keepNear?: readonly (readonly number[])[];
 }
 
 export interface OverlayLayer {
@@ -55,6 +62,8 @@ export interface OverlayLayer {
   update(state: OverlayState): void;
   /** Dashes are screen-constant: the engine passes the metres per pixel at the camera target. */
   setMetresPerPixel(mpp: number): void;
+  /** Place markers drawn now (after the outline rule; 0 with the access lens off). */
+  drawnPlaces(): number;
   /** True when a marker or attached batch would draw (the engine skips the overlay pass otherwise). */
   hasVisible(): boolean;
   /** Line2 widths are in pixels: the engine passes the viewport on every resize. */
@@ -74,7 +83,8 @@ export interface OverlayLayer {
 /** A batch the overlay layer draws and feeds the per-frame view. */
 export interface OverlayChild {
   group: THREE.Group;
-  setView?(cam: { x: number; y: number; z: number }, nowMs: number): void;
+  /** Camera position, clock, and the camera's live vertical fov (deg; it widens at long range, A-T5). */
+  setView?(cam: { x: number; y: number; z: number }, nowMs: number, fovDeg?: number): void;
   /** Canvas size in the same (CSS) pixels as the layer's `setResolution`. */
   setResolution?(w: number, h: number): void;
   dispose(): void;
@@ -166,7 +176,19 @@ export function createOverlayLayer(frame: LocalFrame): OverlayLayer {
     const places = s.accessVisible ? s.access : null;
     const waste = s.wasteOn ? s.waste : null;
     const evac = s.floodOn ? (s.evac ?? null) : null;
-    const key = [places, waste, evac];
+    const b = s.boundary ?? null;
+    const keepIds = new Set([
+      ...(s.keepPlaceIds ?? []),
+      ...(s.focusPlaceId ? [s.focusPlaceId] : []),
+    ]);
+    const keepNear = (s.keepNear ?? []).map(
+      (c) => frame.toLocal(c[0] as number, c[1] as number) as [number, number],
+    );
+    // The rule's inputs as one value, so a focus or route change rebuilds only when they change.
+    const rule = b
+      ? `${[...keepIds].sort().join(",")}|${keepNear.flat().map(Math.round).join(",")}`
+      : "";
+    const key = [places, waste, evac, b, rule];
     if (!markerKey || key.some((k, i) => k !== markerKey?.[i])) {
       markerKey = key;
       markers?.dispose();
@@ -178,6 +200,11 @@ export function createOverlayLayer(frame: LocalFrame): OverlayLayer {
             places: places ? pointFeatures(places) : [],
             waste: waste ? pointFeatures(waste) : [],
             evac: evac ?? [],
+            placeShown: placeShown({
+              inside: b ? (x, z) => insideBoundary(b, x, z) : null,
+              keepIds,
+              keepNear,
+            }),
           },
           frame,
         );
@@ -199,6 +226,7 @@ export function createOverlayLayer(frame: LocalFrame): OverlayLayer {
       mpp = m;
       for (const g of [group, lineGroup]) g.traverse((o) => setDashScale(o, m));
     },
+    drawnPlaces: () => markers?.placeCount ?? 0,
     hasVisible() {
       // Lines draw in the main pass (lineGroup): only markers and attached batches need the overlay pass.
       const own = [markerGroup];
@@ -223,7 +251,7 @@ export function createOverlayLayer(frame: LocalFrame): OverlayLayer {
       children.add(child);
       group.add(child.group);
       if (resSet) child.setResolution?.(res[0], res[1]);
-      if (cam) child.setView?.(cam, performance.now());
+      if (cam) child.setView?.(cam, performance.now(), fov);
       return () => {
         if (!children.delete(child)) return;
         child.group.removeFromParent();
@@ -232,7 +260,7 @@ export function createOverlayLayer(frame: LocalFrame): OverlayLayer {
     },
     setView(c, fovDeg) {
       // Attached batches also follow the clock, so they are fed before the camera-moved early return.
-      for (const ch of children) ch.setView?.(c, performance.now());
+      for (const ch of children) ch.setView?.(c, performance.now(), fovDeg);
       // The engine calls this every frame: relabel only when the camera moved.
       if (cam && cam.x === c.x && cam.y === c.y && cam.z === c.z && fov === fovDeg) return;
       cam = { x: c.x, y: c.y, z: c.z };

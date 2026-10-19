@@ -1,7 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { paletteFor } from "./assets/fit";
 import type { Manifest } from "./assets/manifest";
-import { BLOCK_WALLS, fallbackColourFn, fallbackColours, propsByBuildingId } from "./fallbackStyle";
+import {
+  BLOCK_WALLS,
+  fallbackColourFn,
+  fallbackColours,
+  NEUTRAL_COLOURS,
+  propsByBuildingId,
+} from "./fallbackStyle";
+import { CLAY_PALETTE } from "./shared/clayTokens";
 
 const spec = (palettes: Record<string, [string, string, string][]>) =>
   ({ palettes, variants: {}, variantByGroup: {}, jitter: {} }) as never;
@@ -71,11 +78,8 @@ describe("fallbackColours", () => {
   });
 
   it("returns the neutral colours without a manifest", () => {
-    expect(fallbackColours({ id: "x" }, null, [])).toEqual({
-      wall: "#ece8df",
-      roof: "#62666c",
-      trim: "#d8d3c8",
-    });
+    expect(fallbackColours({ id: "x" }, null, [])).toEqual({ ...CLAY_PALETTE.neutral });
+    expect(NEUTRAL_COLOURS).toEqual({ ...CLAY_PALETTE.neutral });
   });
 });
 

@@ -45,8 +45,11 @@ export interface Residents {
   setDay(dots: Dot[], focus: string | null): void;
   /** Rising-river residents at the current stage. */
   setRollout(points: RolloutPoint[]): void;
-  /** Camera position (legibility scale) and clock (rollout walkers); the overlay layer calls it each frame. */
-  setView(cam: { x: number; y: number; z: number }, nowMs?: number): void;
+  /**
+   * Camera position (legibility scale), clock (rollout walkers) and the live vertical fov (deg,
+   * default VFOV_DEG; the pixel floor follows it); the overlay layer calls it each frame.
+   */
+  setView(cam: { x: number; y: number; z: number }, nowMs?: number, fovDeg?: number): void;
   /** Canvas size in the engine's units (CSS px, as `setResolution` receives it); the pixel floor tracks its height. Defaults to 900 px. */
   setResolution(widthPx: number, heightPx: number): void;
   /** True while any rollout walker is moving along a route (needs frames to play). */
@@ -152,7 +155,8 @@ export function createResidents(frame: LocalFrame): Residents {
   const quat = new THREE.Quaternion();
   const sc = new THREE.Vector3();
   let viewH = DEFAULT_VIEWPORT_PX;
-  const viewTan = Math.tan((VFOV_DEG * Math.PI) / 360);
+  /** tan(vfov / 2) of the live camera (A-T5: the fov widens towards max range). */
+  let viewTan = Math.tan((VFOV_DEG * Math.PI) / 360);
   /** Metres covered by one pixel at `d` metres from the camera. */
   const metresPerPx = (d: number) => (2 * Math.max(d, 1) * viewTan) / Math.max(1, viewH);
   /** Scale before focus: displayScale, raised to the pixel floor when far away. */
@@ -262,8 +266,11 @@ export function createResidents(frame: LocalFrame): Residents {
         });
       apply();
     },
-    setView(c, nowMs = performance.now()) {
-      const moved = !cam || cam.x !== c.x || cam.y !== c.y || cam.z !== c.z;
+    setView(c, nowMs = performance.now(), fovDeg = VFOV_DEG) {
+      const tan = Math.tan((fovDeg * Math.PI) / 360);
+      const fovChanged = tan !== viewTan;
+      viewTan = tan;
+      const moved = fovChanged || !cam || cam.x !== c.x || cam.y !== c.y || cam.z !== c.z;
       const walking = rollout.some((r) => r.walk?.moving);
       if (!moved && !walking) return;
       cam = { x: c.x, y: c.y, z: c.z };

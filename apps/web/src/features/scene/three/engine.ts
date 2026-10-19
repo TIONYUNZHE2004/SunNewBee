@@ -11,7 +11,9 @@ import type { Tier } from "../shared/quality";
 import { CityGTAOPass } from "./aoPass";
 import type { CityInstances } from "./assets/cityInstances";
 import { createMotionUniforms, type MotionUniforms } from "./assets/roleMaterial";
+import { fitSteps } from "./cameraFit";
 import {
+  type CameraFit,
   type CameraRig,
   clampPose,
   LIMITS,
@@ -19,7 +21,9 @@ import {
   poseToCamera,
   tweenPose,
   VFOV_DEG,
+  vfovFor,
   viewOffsetFor,
+  wrap180,
 } from "./cameraRig";
 import type { CityGeometry } from "./cityMesh";
 import { type Clearance, createLift } from "./clearance";
@@ -37,6 +41,7 @@ import { createMotionClock, type MotionMode, motionModeFor } from "./motion/moti
 import type { MotionLayer } from "./motion/motionLayer";
 import type { OverlayLayer } from "./overlays/accessLayers";
 import { THREE_TIERS } from "./quality";
+import { applyClayTier, CLAY_PALETTE, clayMaterial, setClayTier } from "./shared/clayTokens";
 import { createSky } from "./sky";
 import { measure, UPLOAD_MEASURE } from "./stream/streamer";
 import { attachWheelZoom, dispatchOwnWheel } from "./zoom";
@@ -85,9 +90,23 @@ export interface Engine {
   setGround(g: GroundLayer | null): void;
   /**
    * The diorama slab (A-T4): its top (the Elmina outline) replaces the rectangular base plane and
-   * its layered soil edge closes the map. null removes it and shows the base plane again.
+   * its layered soil edge closes the map. null removes it and shows the base plane again. The
+   * camera is bound to it (A-T5, `cameraFit.ts`): the target stays inside the outline and the
+   * whole slab is in view at max range.
    */
   setSlab(b: Boundary | null): void;
+  /** The camera fit of the slab in use, or null (read-only; tests and the acceptance hook). */
+  cameraFit?(): CameraFit | null;
+  /**
+   * Called once each time a slab's camera fit lands (it is computed in idle slices after setSlab).
+   * The engine then eases the camera into the fit's rules unless a listener started a flight
+   * (A-T5 fix round 2). Returns the unsubscribe.
+   */
+  onFitReady?(cb: (fit: CameraFit) => void): () => void;
+  /** Bumped on every user camera input (pointer down or wheel on the map, camera buttons and keys). */
+  inputSerial?(): number;
+  /** Counts a user camera input made outside MapControls (camera buttons, keyboard). */
+  noteInput?(): void;
   /**
    * Decorative extras (lamp pools, birds, cloud shadows) by slot name: replaces and disposes the
    * slot's previous content; null clears it. The group is added to the scene as is.
@@ -169,7 +188,6 @@ const MOVING_MS = 300;
 const LOD_INTERVAL_MS = 250;
 /** A bound on pinned shader programs (the scene uses about 32; see `pinPrograms`). */
 const MAX_PINNED_PROGRAMS = 96;
-const GROUND_COLOUR = "#d6d0c2";
 
 export interface RigView {
   camera: THREE.PerspectiveCamera;
@@ -191,11 +209,59 @@ export interface RigView {
 export interface EngineRig extends CameraRig {
   /** Advances a flight to `now` (performance.now() clock); true while it is still running. */
   step(now: number): boolean;
+  /**
+   * Re-applies clampPose to the camera as it stands (after MapControls input or a flight frame):
+   * keeps a dragged target inside the outline and the long-range rules (A-T5). Not a teleport.
+   * True when the camera was moved.
+   */
+  constrain(): boolean;
+  /** True while a flight is running. */
+  flying(): boolean;
+  /**
+   * The slab's camera fit has just landed (A-T5 fix round 2): eases the camera from where it stands
+   * to its clamped pose over `ms` (no one-frame snap); 0 applies it at once. constrain() holds off
+   * until the landing ends.
+   */
+  landFit(ms: number): void;
+  /**
+   * The fit landed while a flight is running (e.g. one started for it): constrain() holds off until
+   * that flight ends, so its frames are not snapped by the new rules.
+   */
+  holdConstrain(): void;
+  /** 0 -> 1 across a landing (the eased flight progress), 1 otherwise: blends the field of view. */
+  landingWeight(now: number): number;
 }
 
-/** Camera rig over a camera and orbit target. set() and flyTo() always apply clampPose. */
-export function createRig(view: RigView, bounds: () => Bounds): EngineRig {
+const POSE_EPS = 1e-3;
+/** How long the camera eases into the slab fit's rules when the fit lands (ms). */
+export const FIT_LAND_MS = 900;
+/** The camera-fit search yields to the frame loop after this many ms of a slice. */
+const FIT_SLICE_MS = 8;
+
+/** True when two poses differ by more than POSE_EPS (metres or degrees; heading on the circle). */
+function poseMoved(a: Pose, b: Pose): boolean {
+  const dh = Math.abs(wrap180(a.headingDeg - b.headingDeg));
+  return (
+    Math.abs(a.target[0] - b.target[0]) > POSE_EPS ||
+    Math.abs(a.target[1] - b.target[1]) > POSE_EPS ||
+    Math.abs(a.rangeM - b.rangeM) > POSE_EPS ||
+    Math.abs(a.pitchDeg - b.pitchDeg) > POSE_EPS ||
+    dh > POSE_EPS
+  );
+}
+
+/**
+ * Camera rig over a camera and orbit target. set(), flyTo() and constrain() apply clampPose, with
+ * the slab fit when there is one (`fit`, A-T5).
+ */
+export function createRig(
+  view: RigView,
+  bounds: () => Bounds,
+  fit: () => CameraFit | null = () => null,
+): EngineRig {
   let flight: { from: Pose; to: Pose; t0: number; ms: number } | null = null;
+  /** A fit landing is running (landFit / holdConstrain): constrain() waits for its flight. */
+  let landing = false;
   const ray = new THREE.Raycaster();
   const ground = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
   const hit = new THREE.Vector3();
@@ -224,11 +290,13 @@ export function createRig(view: RigView, bounds: () => Bounds): EngineRig {
     get,
     set(p) {
       flight = null;
-      apply(clampPose(p, bounds()));
+      landing = false;
+      apply(clampPose(p, bounds(), fit()));
       view.teleported?.();
     },
     flyTo(p, durationMs) {
-      const to = clampPose(p, bounds());
+      landing = false;
+      const to = clampPose(p, bounds(), fit());
       if (durationMs <= 0) {
         flight = null;
         apply(to);
@@ -244,7 +312,39 @@ export function createRig(view: RigView, bounds: () => Bounds): EngineRig {
       apply(tweenPose(flight.from, flight.to, t));
       if (t < 1) return true;
       flight = null;
+      landing = false;
       return false;
+    },
+    constrain() {
+      if (landing) return false;
+      const p = get();
+      const c = clampPose(p, bounds(), fit());
+      if (!poseMoved(p, c)) return false;
+      apply(c);
+      return true;
+    },
+    flying: () => flight !== null,
+    landFit(ms) {
+      const from = get();
+      const to = clampPose(from, bounds(), fit());
+      if (!poseMoved(from, to)) return;
+      if (ms <= 0) {
+        flight = null;
+        landing = false;
+        apply(to);
+        return;
+      }
+      flight = { from, to, t0: performance.now(), ms };
+      landing = true;
+      view.changed();
+    },
+    holdConstrain() {
+      if (flight) landing = true;
+    },
+    landingWeight(now) {
+      if (!landing || !flight) return 1;
+      const t = Math.min(1, Math.max(0, (now - flight.t0) / flight.ms));
+      return t * t * (3 - 2 * t);
     },
     pick(screen) {
       const [w, h] = view.size();
@@ -298,6 +398,8 @@ function build(
   undo: (() => void)[],
   release: () => void,
 ): Engine {
+  // Clay materials made from here on follow this tier (B-T1; applyTier keeps it current).
+  setClayTier(tier);
   // Neutral, not AgX: AgX desaturated the stylised palette to grey (browser check, Task 7 fix 2);
   // Khronos PBR Neutral keeps base colours.
   renderer.toneMapping = THREE.NeutralToneMapping;
@@ -342,14 +444,14 @@ function build(
   let lastPreset: LightPreset | null = null;
   let fogRange = 0;
 
-  const buildingMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85 });
-  const parksMat = groundMaterial("parks", 0.95);
-  const waterMat = groundMaterial("water", 0.95);
+  const buildingMat = clayMaterial("wall", { vertexColors: true, tier });
+  const parksMat = groundMaterial("parks", tier);
+  const waterMat = groundMaterial("water", tier);
   const motion = createMotionUniforms();
   shimmerMaterial(waterMat, motion.uTime, "all");
-  const groundMat = new THREE.MeshStandardMaterial({
-    color: GROUND_COLOUR,
-    roughness: 1,
+  const groundMat = clayMaterial("ground", {
+    tier,
+    color: CLAY_PALETTE.ground,
     polygonOffset: true,
     polygonOffsetFactor: 1,
     polygonOffsetUnits: 1,
@@ -569,6 +671,55 @@ function build(
   let size: [number, number] = [1, 1];
   let panelPx = 0;
   let bounds: Bounds = { min: [0, 0], max: [0, 0] };
+  /** The slab's camera fit (A-T5): set with the slab, null without one (the tiny fixture). */
+  let fit: CameraFit | null = null;
+  let fitJob = 0;
+  const fitListeners = new Set<(f: CameraFit) => void>();
+  let inputSerial = 0;
+  /**
+   * Computes the slab's camera fit in idle slices of at most FIT_SLICE_MS (fix round 1: the search
+   * took about 130 ms, a long task at load). Until it lands the camera keeps the plain clamp. The
+   * whole computation is measured as `tl:camera-fit` (wall time, slices included).
+   */
+  const startFit = (b: Boundary | null) => {
+    const job = ++fitJob;
+    fit = null;
+    if (!b) return;
+    const steps = fitSteps(b);
+    const t0 = performance.now();
+    let slices = 0;
+    const idle = (cb: () => void) => {
+      const ric = (globalThis as { requestIdleCallback?: (f: () => void, o?: object) => number })
+        .requestIdleCallback;
+      if (ric) ric(cb, { timeout: 500 });
+      else setTimeout(cb, 0);
+    };
+    const run = () => {
+      if (disposed || job !== fitJob) return;
+      slices++;
+      const s0 = performance.now();
+      for (;;) {
+        const r = steps.next();
+        if (r.done) {
+          fit = r.value;
+          for (const cb of [...fitListeners]) cb(r.value);
+          // No one-frame snap into the new rules: ease there, or let a listener's flight do it.
+          if (rig.flying()) rig.holdConstrain();
+          else rig.landFit(reducedMotion() ? 0 : FIT_LAND_MS);
+          try {
+            performance.measure("tl:camera-fit", { start: t0, detail: { slices } });
+          } catch {
+            /* measure unsupported: ignore */
+          }
+          requestRender();
+          return;
+        }
+        if (performance.now() - s0 >= FIT_SLICE_MS) break;
+      }
+      idle(run);
+    };
+    idle(run);
+  };
   const listeners = new Set<(dtMs: number, info: FrameInfo) => void>();
   undo.push(() => {
     disposed = true;
@@ -616,6 +767,11 @@ function build(
     }),
   );
   controls.addEventListener("change", moved);
+  const onInput = () => {
+    inputSerial++;
+  };
+  controls.addEventListener("start", onInput);
+  undo.push(() => controls.removeEventListener("start", onInput));
   // MapControls computes zoom-to-cursor rays and pan start points from the camera inside its
   // pointerdown / wheel handlers, before it calls update(): put the camera on its base pose first,
   // in the capture phase on the document (ahead of every canvas listener). A render is requested,
@@ -653,7 +809,22 @@ function build(
       teleported: () => lift.reset(),
     },
     () => bounds,
+    () => fit,
   );
+  /**
+   * The field of view follows the base pose (A-T5): VFOV_DEG up to FIT.startRangeM, widening
+   * towards max range to what the whole slab needs (`vfovFor`).
+   */
+  const syncFov = (now = performance.now()) => {
+    const pose = rig.get();
+    const aspect = size[0] / Math.max(1, size[1]);
+    const k = rig.landingWeight(now);
+    const want =
+      k >= 1 ? vfovFor(pose, fit, aspect) : VFOV_DEG + (vfovFor(pose, fit, aspect) - VFOV_DEG) * k;
+    if (Math.abs(camera.fov - want) <= 1e-4) return;
+    camera.fov = want;
+    camera.updateProjectionMatrix();
+  };
 
   let composer = new EffectComposer(renderer);
   let passes: Pass[] = [];
@@ -670,6 +841,9 @@ function build(
   });
   const applyTier = (t: Tier) => {
     const spec = THREE_TIERS[t];
+    // Clay (B-T1): new materials follow the tier; live physical clay drops / regains its sheen.
+    setClayTier(t);
+    applyClayTier(scene, t);
     // Low: motion off. The next frame is not live, so it rests the pose and schedules nothing.
     motionMode = motionModeFor(t);
     const pr = Math.min(globalThis.devicePixelRatio || 1, spec.maxPixelRatio);
@@ -796,6 +970,9 @@ function build(
       lod.moved();
     }
     const damping = controls.update();
+    // Drags, wheel zoom and flight frames stay bound to the slab (A-T5); the lift comes after.
+    rig.constrain();
+    syncFov(now);
     const lifting = clearCamera(now);
     clearTimeout(motionTimer);
     motionTimer = undefined;
@@ -1061,6 +1238,7 @@ function build(
     setSlab(b) {
       if (disposed) return;
       dropSlab();
+      startFit(b);
       if (b) {
         slab = createSlab(b, groundMat);
         scene.add(slab.group);
@@ -1071,6 +1249,15 @@ function build(
     setBounds(b) {
       if (disposed) return;
       bounds = b;
+    },
+    cameraFit: () => fit,
+    onFitReady(cb) {
+      fitListeners.add(cb);
+      return () => fitListeners.delete(cb);
+    },
+    inputSerial: () => inputSerial,
+    noteInput() {
+      inputSerial++;
     },
     setClearance(c) {
       if (disposed) return;

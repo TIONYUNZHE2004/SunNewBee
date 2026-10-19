@@ -108,8 +108,15 @@ export function insideBoundary(b: Boundary, x: number, z: number): boolean {
 
 /** Distance (m) from a point to the nearest outline edge. Pure. */
 export function edgeDistance(b: Boundary, x: number, z: number): number {
+  const [px, pz] = nearestEdgePoint(b, x, z);
+  return Math.hypot(x - px, z - pz);
+}
+
+/** The point on the outline (any ring edge) nearest to (x, z), local metres. Pure. */
+export function nearestEdgePoint(b: Boundary, x: number, z: number): P {
   const e = b.edges;
   let best = Infinity;
+  let out: P = [x, z];
   for (let i = 0; i < e.length; i += 4) {
     const x0 = e[i]!;
     const z0 = e[i + 1]!;
@@ -117,10 +124,15 @@ export function edgeDistance(b: Boundary, x: number, z: number): number {
     const dz = e[i + 3]! - z0;
     const l2 = dx * dx + dz * dz;
     const t = l2 > 0 ? Math.max(0, Math.min(1, ((x - x0) * dx + (z - z0) * dz) / l2)) : 0;
-    const d = (x - x0 - t * dx) ** 2 + (z - z0 - t * dz) ** 2;
-    if (d < best) best = d;
+    const px = x0 + t * dx;
+    const pz = z0 + t * dz;
+    const d = (x - px) ** 2 + (z - pz) ** 2;
+    if (d < best) {
+      best = d;
+      out = [px, pz];
+    }
   }
-  return Math.sqrt(best);
+  return out;
 }
 
 /** Signed clearance (m): + distance to the edge inside the outline, - distance outside. Pure. */
