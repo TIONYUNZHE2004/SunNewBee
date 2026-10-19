@@ -122,7 +122,9 @@ strip (a blank sign band per unit) under a continuous canopy walkway, a taller g
 pavilion with a tall blank sign band, two big-box units behind with their own facades and roof
 plant, and a landscaped forecourt edge; the shop office has three-tone facade banding, fabric
 awnings and an arcade of deep columns with a beam and arch haunches; mall, factory, school and
-Lakeside Mall roofs are a light membrane (primary) or terracotta (accent), never grey. Kanopi:
+Lakeside Mall roofs are a light membrane (primary) or terracotta (accent), never grey. The
+Lakeside Mall tops out at its 9.0 m manifest size (walls 8.2 m + 0.8 m parapet; roof plant below
+the parapet top), the seed's `display_height_m` (B-T2; it used to reach 11.5 m). Kanopi:
 planter boxes up the tower and a level-7 deck on the 1 m podium ledge round the slab, which
 keeps its traced depth (raised end-ledge pools 1.2 m above the podium roof, a front-ledge
 pergola on a timber strip, shrubs, planters); the web dresses the larger OSM podium roof. LOD2
