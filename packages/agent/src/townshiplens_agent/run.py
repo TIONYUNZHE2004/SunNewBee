@@ -15,6 +15,7 @@ from townshiplens_spatial.models import Route
 from . import agent as agent_mod
 from . import demo
 from .answer import FinalAnswer
+from .canonical import canonical_route_answer
 from .draft import DraftStreamer
 from .events import (
     AnswerSceneIntent,
@@ -49,7 +50,7 @@ from .scope import is_greeting, outside_scope
 from .settings import AgentSettings
 from .steps import maneuver_steps
 from .template import _top_stage, greeting_answer, scope_answer, template_answer
-from .validate import PLACEHOLDER_CAVEAT
+from .validate import PLACEHOLDER_CAVEAT, validate_answer
 
 log = logging.getLogger(__name__)
 
@@ -746,6 +747,15 @@ async def run_turn(
             if used.endswith("+template")
             else detect_language(" ".join([ans.summary, *ans.caveats]), rec.place_names)
         )
+        # T-021 review: a route with maneuvers is published from its checked fields, not from
+        # model prose (no direction, reversal or dropped warning can pass through wording). The
+        # canonical answer must pass the same check; else the deterministic template is used.
+        if (canon := canonical_route_answer(ans, rec, ctx.world, lang)) is not None:
+            if not validate_answer(canon, rec):
+                ans = canon
+            elif not validate_answer(fallback := template_answer(rec, question), rec):
+                log.warning("canonical route answer failed its check; template used")
+                ans, lang, used = fallback, "en", model_name + "+template"
         events = _answer_events(ans, rec, ctx, req.scenario_id, lang)
     except Exception as exc:  # last resort: never leave the client without done
         log.warning("answer rendering failed: %s", type(exc).__name__)
