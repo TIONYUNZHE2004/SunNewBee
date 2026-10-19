@@ -7,7 +7,7 @@ import type { Engine, JourneyOverlay } from "../scene/three/engine";
 import { createFrame } from "../scene/three/frame";
 import demoPlan from "./fixtures/demoPlan.json";
 import { HERO_SLOT, JourneyMount } from "./JourneyMount";
-import { useJourney } from "./journeyStore";
+import { journeyHero, useJourney } from "./journeyStore";
 import { SIM_LABEL } from "./SimulationLabel";
 import type { JourneyLayer } from "./three/journeyLayer";
 import { buildTimeline, type JourneyPlan, stateAt } from "./timeline";
@@ -248,7 +248,7 @@ describe("JourneyMount: the hero (D-T6)", () => {
     const f = fakeEngine();
     render(<JourneyMount engine={f.engine} frame={frame} />);
     expect(f.heroGroup()).toBeNull();
-    expect(useJourney.getState().hero).toBeNull();
+    expect(journeyHero.current).toBeNull();
     act(() => playIntent());
     const g = f.heroGroup();
     expect(heroOf(g)).not.toBeNull();
@@ -257,11 +257,11 @@ describe("JourneyMount: the hero (D-T6)", () => {
       if (o.name === "journey-bench") benches.push(o);
     });
     expect(benches).toHaveLength(plan.events.filter((e) => e.kind === "rest").length);
-    expect(useJourney.getState().hero?.clip).toBe("idle");
+    expect(journeyHero.current?.clip).toBe("idle");
     act(() => useScene.getState().clearRoute());
     expect(f.heroGroup()).toBeNull();
     expect(f.spy.setDecor).toHaveBeenLastCalledWith(HERO_SLOT, null);
-    expect(useJourney.getState().hero).toBeNull();
+    expect(journeyHero.current).toBeNull();
   });
 
   it("poses the rendered hero at t and writes it to the store (the crowd keep-out seam)", () => {
@@ -278,7 +278,7 @@ describe("JourneyMount: the hero (D-T6)", () => {
       if (!p) throw new Error("phase missing");
       const t = (p.t0 + p.t1) / 2;
       act(() => useJourney.getState().seek(t));
-      const h = useJourney.getState().hero;
+      const h = journeyHero.current;
       expect(h?.clip).toBe(clip);
       expect(h?.distance_m).toBeCloseTo(stateAt(tl, t).distance_m, 6);
       const o = heroOf(f.heroGroup()) as THREE.Object3D;
@@ -315,7 +315,7 @@ describe("JourneyMount: the hero (D-T6)", () => {
       tl.phases.find((p) => p.event?.element_id === rest.element_id);
     if (!hold) throw new Error("rest hold missing");
     act(() => useJourney.getState().seek(hold.t0 + (hold.t1 - hold.t0) / 2));
-    const h = useJourney.getState().hero;
+    const h = journeyHero.current;
     expect(h?.clip).toBe("sit_idle");
     expect(Math.hypot((h?.x as number) - (px + 3), (h?.z as number) - pz)).toBeLessThan(0.01);
   });

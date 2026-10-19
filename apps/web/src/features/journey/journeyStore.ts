@@ -10,8 +10,7 @@ import {
 } from "./timeline";
 
 /**
- * The hero as rendered (D-T6): written by the 3D mount each time it poses her, null when no hero is
- * drawn. The crowd keep-out (C-T8) reads `x`/`z` here and never the journey events.
+ * The hero as rendered (D-T6), see `journeyHero`.
  */
 export interface HeroPose {
   /** The route metre she belongs to (the mini-map dot); at a rest she sits beside this point. */
@@ -26,9 +25,23 @@ export interface HeroPose {
   clip: HeroClip;
   clipTime: number;
   walkRate: number;
-  /** Test probe: her ground-contact points with the drawn ground height under each (AC-D10). */
-  probe?: () => (HeroContact & { groundY: number; onFootway: boolean })[];
+  /** False while a rest's ground is not sampled yet (its streamed ground band was not in yet). */
+  groundKnown: boolean;
+  /** Test probe (AC-D10): contacts with the drawn ground under each, and the rest benches' seat corners. */
+  probe?: () => HeroProbe;
 }
+
+export interface HeroProbe {
+  contacts: (HeroContact & { groundY: number; band: string | null; onFootway: boolean })[];
+  benches: { eventIndex: number; corners: [number, number][] }[];
+}
+
+/**
+ * The rendered hero, written by the 3D mount every time it poses her (each frame while playing).
+ * A plain holder, not zustand state, so posing her adds no second store update per frame. The crowd
+ * keep-out (C-T8) reads `journeyHero.current?.x / z` per frame and never the journey events.
+ */
+export const journeyHero: { current: HeroPose | null } = { current: null };
 
 /** Camera modes of the journey player (spec §6.4, R-J4). */
 export type CamMode = "follow" | "overview" | "free";
@@ -58,26 +71,28 @@ export interface JourneyStore {
    */
   vrs: FiledVr[];
   noteVr: (elementId: string, attribute: string) => void;
-  /** The rendered hero (see `HeroPose`); null without one. */
-  hero: HeroPose | null;
-  setHero: (p: HeroPose | null) => void;
 }
 
-const empty = { plan: null, timeline: null, t: 0, playing: false, hero: null };
+const empty = { plan: null, timeline: null, t: 0, playing: false };
 
 export const useJourney = create<JourneyStore>((set) => ({
   ...empty,
   camMode: "follow",
   vrs: [],
-  setHero: (hero) => set({ hero }),
   noteVr: (element_id, attribute) =>
     set((s) =>
       !element_id || s.vrs.some((v) => v.element_id === element_id && v.attribute === attribute)
         ? {}
         : { vrs: [...s.vrs, { element_id, attribute }] },
     ),
-  load: (plan) => set({ plan, timeline: buildTimeline(plan), t: 0, playing: false, hero: null }),
-  clear: () => set({ ...empty, camMode: "follow" }),
+  load: (plan) => {
+    journeyHero.current = null;
+    set({ plan, timeline: buildTimeline(plan), t: 0, playing: false });
+  },
+  clear: () => {
+    journeyHero.current = null;
+    set({ ...empty, camMode: "follow" });
+  },
   play: () =>
     set((s) =>
       s.timeline ? { playing: true, t: s.t >= s.timeline.total ? 0 : s.t } : { playing: false },

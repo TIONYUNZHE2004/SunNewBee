@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { describe, expect, it } from "vitest";
 import { REST_TIMING } from "../journey/heroDriver";
+import { HERO_BENCH } from "./benchGeometry";
 import { HERO_CLIPS, HERO_DISPLAY_SCALE } from "./hero";
 import { BENCH_SEAT_TRUE_M, createPlaceholderHero, createRestBench } from "./placeholderHero";
 
@@ -159,6 +160,68 @@ describe("placeholder hero", () => {
   });
 });
 
+describe("placeholder hero: crossfade and flags", () => {
+  const headYaw = (h: ReturnType<typeof createPlaceholderHero>) => {
+    let y = 0;
+    h.object3d.traverse((c) => {
+      if (c.userData.heroPart === "head") y = c.rotation.y;
+    });
+    return y;
+  };
+  it("blends the outgoing clip into the new one by `blend`", () => {
+    const h = createPlaceholderHero();
+    h.play("look", 0.75, 0); // head fully turned (sin = 1)
+    const full = headYaw(h);
+    expect(full).toBeGreaterThan(0.7);
+    h.play("look", 0.75, 0, { prevClip: "walk", prevTime: 0.3, blend: 0.25 });
+    expect(headYaw(h)).toBeCloseTo(full * 0.25, 6);
+    h.play("look", 0.75, 0, { prevClip: "walk", prevTime: 0.3, blend: 1 });
+    expect(headYaw(h)).toBeCloseTo(full, 9);
+    h.dispose();
+  });
+
+  it("keeps every contact on the ground through fades between any two clips", () => {
+    const h = createPlaceholderHero();
+    h.setPose({ x: 0, y: GROUND, z: 0 }, 0.4);
+    for (const a of HERO_CLIPS)
+      for (const b of HERO_CLIPS)
+        for (const blend of [0, 0.3, 0.7]) {
+          h.play(b, 0.4, 1, { prevClip: a, prevTime: 0.6, blend });
+          for (const c of h.contacts())
+            expect(Math.abs(c.y - GROUND), `${a}->${b} ${blend} ${c.name}`).toBeLessThanOrEqual(
+              0.03,
+            );
+        }
+    h.dispose();
+  });
+
+  it("plants every foot and walker leg on uneven ground when a ground sampler is set", () => {
+    const h = createPlaceholderHero();
+    // a kerb: footway 0.08 m for x < 0.5, lawn 0.018 m beyond (the AC-D10 bench case)
+    const step = (x: number) => (x < 0.5 ? 0.08 : 0.018);
+    h.setPose({ x: 0, y: 0.08, z: 0 }, Math.PI / 2); // facing +x: the walker crosses the kerb
+    h.setGround?.((x) => step(x));
+    for (const clip of HERO_CLIPS)
+      for (const t of [0, 0.3, 0.6]) {
+        h.play(clip, t, 1);
+        for (const c of h.contacts())
+          expect(Math.abs(c.y - step(c.x)), `${clip} ${c.name}`).toBeLessThanOrEqual(0.03);
+      }
+    // without a sampler everything stands at the root's height again
+    h.setGround?.(null);
+    h.play("idle", 0, 0);
+    for (const c of h.contacts()) expect(Math.abs(c.y - 0.08)).toBeLessThan(1e-6);
+    h.dispose();
+  });
+
+  it("is not flagged decorative (it is the simulation subject); picks pass through by raycast", () => {
+    const h = createPlaceholderHero();
+    h.object3d.traverse((c) => expect(c.userData.decorative).toBeUndefined());
+    expect(h.object3d.userData.journeyHero).toBe(true);
+    h.dispose();
+  });
+});
+
 describe("rest bench", () => {
   it("has its seat at 0.45 m true x the hero scale", () => {
     const b = createRestBench();
@@ -173,6 +236,31 @@ describe("rest bench", () => {
     const top = (s.geometry.boundingBox as THREE.Box3).clone().applyMatrix4(s.matrixWorld).max.y;
     expect(BENCH_SEAT_TRUE_M).toBe(0.45);
     expect(top).toBeCloseTo(0.45 * HERO_DISPLAY_SCALE, 2);
+    // the seat's front edge sits HERO_BENCH.frontEdgeZ behind her root (the asset manifest's bench)
+    const front = (s.geometry.boundingBox as THREE.Box3).clone().applyMatrix4(s.matrixWorld).max.z;
+    expect(front).toBeCloseTo(HERO_BENCH.frontEdgeZ * HERO_DISPLAY_SCALE, 6);
     b.dispose();
+  });
+
+  it("seated, the hips travel HERO_BENCH.hipTravelM back onto the seat while the root stays put", () => {
+    const h = createPlaceholderHero();
+    h.setPose({ x: 0, y: 0, z: 0 }, 0);
+    let upper: THREE.Object3D | null = null;
+    h.object3d.traverse((c) => {
+      if (c.userData.heroPart === "upper") upper = c;
+    });
+    const u = upper as unknown as THREE.Object3D;
+    h.play("idle", 0, 0);
+    expect(u.position.z).toBeCloseTo(0, 9);
+    h.play("sit_idle", 0.3, 0);
+    expect(u.position.z * HERO_DISPLAY_SCALE).toBeCloseTo(
+      -HERO_BENCH.hipTravelM * HERO_DISPLAY_SCALE,
+      9,
+    );
+    expect(h.object3d.position.z).toBe(0);
+    // halfway through sit_down she is halfway back
+    h.play("sit_down", REST_TIMING.sitDownS / 2, 0);
+    expect(u.position.z).toBeCloseTo(-HERO_BENCH.hipTravelM / 2, 6);
+    h.dispose();
   });
 });

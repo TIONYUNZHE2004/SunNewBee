@@ -1,10 +1,15 @@
 import { isDemoPreset } from "../demo/preset";
-import { type CamMode, type HeroPose, journeyStateOf, useJourney } from "./journeyStore";
+import {
+  type CamMode,
+  type HeroPose,
+  type HeroProbe,
+  journeyHero,
+  journeyStateOf,
+  useJourney,
+} from "./journeyStore";
 import type { JourneyPlan, JourneyState, Phase } from "./timeline";
 
-export type HeroReport = Omit<HeroPose, "probe"> & {
-  contacts?: ReturnType<NonNullable<HeroPose["probe"]>>;
-};
+export type HeroReport = Omit<HeroPose, "probe"> & Partial<HeroProbe>;
 
 /** The prototype's test and recording hook (`window.__journey`), plus a read-only `state()`. */
 export interface JourneyHook {
@@ -20,7 +25,8 @@ export interface JourneyHook {
    * The hero as rendered by the 3D mount (D-T6): her route metre (`distance_m`, what the mini-map
    * dot shows), world position (local metres and lon/lat), yaw and current clip. Null when no hero
    * is drawn (no plan, or a renderer without one). `{ contacts: true }` adds her ground-contact
-   * points (feet, walker leg tips) with the drawn ground height under each (AC-D10).
+   * points (feet, walker leg tips) with the drawn ground height and band under each, and the rest
+   * benches' seat corners (AC-D10).
    */
   hero: (opts?: { contacts?: boolean }) => HeroReport | null;
   state: () => (JourneyState & { t: number; playing: boolean; camMode: CamMode }) | null;
@@ -46,10 +52,10 @@ export function createJourneyHook(): JourneyHook {
       return s().plan;
     },
     hero: (opts) => {
-      const p = s().hero;
+      const p = journeyHero.current;
       if (!p || !s().plan) return null;
       const { probe, ...pose } = p;
-      return opts?.contacts && probe ? { ...pose, contacts: probe() } : pose;
+      return opts?.contacts && probe ? { ...pose, ...probe() } : pose;
     },
     state: () => {
       const st = journeyStateOf(s());

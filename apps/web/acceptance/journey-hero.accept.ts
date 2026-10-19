@@ -15,9 +15,10 @@ import { askDemoJourney, hasJourneyHook, journey } from "./support/journey";
  *    inside an OSM building footprint (`/api/layers/buildings`). The camera is kept on her with the
  *    acceptance hook (the follow camera is D-T5), so the streamed ground is under her.
  * 2. Ground contact, paused at each beat (every phase midpoint plus each rest beat), once the
- *    streamed ground around her has settled: every foot and walker-leg tip that stands on the drawn
- *    footway (the `roads` ground band) is within 3 cm of it. Contacts on other ground (lawn by a
- *    bench) are reported, not judged: the criterion is "on the footway".
+ *    streamed ground around her has settled: every foot and walker-leg tip (all six, every beat) is
+ *    within 3 cm of the drawn ground band under it (footway, lawn, park), a ground sample exists for
+ *    every beat and every contact has a band under it (nothing dropped silently), and no rest
+ *    bench's seat corners lie inside a building footprint.
  * Evidence: ACCEPTANCE_OUT (default: the journey-sim ledger folder `acceptance/D-T6`).
  */
 const OUT =
@@ -31,6 +32,7 @@ interface Contact {
   y: number;
   z: number;
   groundY: number;
+  band: string | null;
   onFootway: boolean;
 }
 interface HeroReport {
@@ -68,6 +70,8 @@ interface Sample {
   lon: number;
   lat: number;
   contacts?: Contact[];
+  benches?: { eventIndex: number; corners: [number, number][] }[];
+  groundKnown?: boolean;
 }
 
 type Ring = [number, number][];
@@ -108,6 +112,8 @@ async function sample(
         lon: h.lon,
         lat: h.lat,
         contacts: h.contacts,
+        benches: (h as unknown as { benches?: Sample["benches"] }).benches,
+        groundKnown: (h as unknown as { groundKnown?: boolean }).groundKnown,
       };
     },
     { c: contacts, follow, hook: HOOK },
@@ -281,15 +287,35 @@ test.describe("journey hero (D-T6)", () => {
       else beats.push((p.t0 + p.t1) / 2);
     }
     await journey.pause(page);
-    const ground: { t: number; phase: string; clip: string; contacts: Contact[] }[] = [];
+    const ground: {
+      t: number;
+      phase: string;
+      clip: string;
+      groundKnown: boolean;
+      contacts: Contact[];
+    }[] = [];
+    const missing: number[] = [];
+    let benches: Sample["benches"] = [];
     for (const t of beats) {
       await journey.seek(page, t);
       const s0 = await sample(page, false);
-      if (!s0) continue;
+      if (!s0) {
+        missing.push(t);
+        continue;
+      }
       await lookAt(page, s0.lon, s0.lat, 35);
       await settle(page, 1200, 20_000);
       const s = await sample(page, true);
-      if (s?.contacts) ground.push({ t, phase: s.phase, clip: s.clip, contacts: s.contacts });
+      if (s?.contacts)
+        ground.push({
+          t,
+          phase: s.phase,
+          clip: s.clip,
+          groundKnown: s.groundKnown !== false,
+          contacts: s.contacts,
+        });
+      else missing.push(t);
+      if (s?.benches?.length) benches = s.benches;
       // evidence shots after the start (the first metres run inside the Harmoni 1 footprint)
       if (s && !shots[s.clip] && t > 10) {
         await lookAt(page, s0.lon, s0.lat, 18);
@@ -299,15 +325,12 @@ test.describe("journey hero (D-T6)", () => {
         shots[s.clip] = f;
       }
     }
-    const onFoot = ground.flatMap((g) =>
-      g.contacts.filter((c) => c.onFootway).map((c) => ({ ...g, c })),
-    );
-    const off = ground.flatMap((g) =>
-      g.contacts.filter((c) => !c.onFootway).map((c) => ({ ...g, c })),
-    );
+    // Every contact is judged, on whatever drawn ground band lies under it; a contact with no band
+    // under it (ground not streamed in, or bare base plane) is a failure, never silently dropped.
+    const all = ground.flatMap((g) => g.contacts.map((c) => ({ ...g, c })));
     const err = (c: Contact) => Math.abs(c.y - c.groundY);
-    const worstOn = onFoot.reduce((w, r) => Math.max(w, err(r.c)), 0);
-    const badOn = onFoot
+    const worst = all.reduce((w, r) => Math.max(w, err(r.c)), 0);
+    const bad = all
       .filter((r) => err(r.c) > TOL_M)
       .map((r) => ({
         t: r.t,
@@ -316,8 +339,24 @@ test.describe("journey hero (D-T6)", () => {
         name: r.c.name,
         y: r.c.y,
         ground: r.c.groundY,
+        band: r.c.band,
       }));
-    const offStats = off.map((r) => err(r.c));
+    const noBand = all
+      .filter((r) => r.c.band === null)
+      .map((r) => ({ t: r.t, phase: r.phase, name: r.c.name }));
+    const bands: Record<string, number> = {};
+    for (const r of all) bands[r.c.band ?? "none"] = (bands[r.c.band ?? "none"] ?? 0) + 1;
+    const unknownGround = ground.filter((g) => !g.groundKnown).map((g) => g.t);
+    const benchIntrusions = (benches ?? []).flatMap((b) =>
+      b.corners
+        .map(([lon, lat]) => ({
+          eventIndex: b.eventIndex,
+          lon,
+          lat,
+          building: insideBuilding(lon, lat),
+        }))
+        .filter((c) => c.building !== null),
+    );
 
     const routeIntrusions = inBuildings.filter((r) => r.phase !== "rest");
     const driverIntrusions = inBuildings.filter((r) => r.phase === "rest");
@@ -332,20 +371,24 @@ test.describe("journey hero (D-T6)", () => {
         route: routeIntrusions,
         routeBuildings: [...new Set(routeIntrusions.map((r) => r.building))],
       },
+      benches: { checked: benches?.length ?? 0, cornersInBuildings: benchIntrusions },
       ground: {
-        beats: ground.length,
-        contactsOnFootway: onFoot.length,
-        worstOnFootwayM: worstOn,
-        overTolerance: badOn,
-        contactsOffFootway: off.length,
-        worstOffFootwayM: offStats.length ? Math.max(...offStats) : null,
+        beats: beats.length,
+        sampled: ground.length,
+        missingBeats: missing,
+        restGroundUnknownAt: unknownGround,
+        contacts: all.length,
+        byBand: bands,
+        worstM: worst,
+        overTolerance: bad,
+        noBand,
       },
       shots,
     };
     writeFileSync(join(OUT, "ac-d10.json"), `${JSON.stringify(result, null, 2)}\n`);
     console.log(
       `AC-D10: ${samples.length} samples; wrong clips ${wrong.length}; rest beats ${JSON.stringify(restBeats.map((r) => r.clips))}; ` +
-        `in buildings: driver ${driverIntrusions.length}, route geometry ${routeIntrusions.length}; footway contacts ${onFoot.length} worst ${(worstOn * 100).toFixed(1)} cm; off-footway ${off.length}`,
+        `in buildings: driver ${driverIntrusions.length}, route geometry ${routeIntrusions.length}; contacts ${all.length} ${JSON.stringify(bands)} worst ${(worst * 100).toFixed(1)} cm; benches in buildings ${benchIntrusions.length}`,
     );
 
     expect(samples.length).toBeGreaterThan(total * 5);
@@ -362,7 +405,14 @@ test.describe("journey hero (D-T6)", () => {
     // The driver never takes her into a building (rest walks, benches). Route-geometry intrusions
     // (the planned polyline itself crosses a footprint) are recorded in the evidence, not judged here.
     expect(driverIntrusions).toEqual([]);
-    expect(onFoot.length).toBeGreaterThan(20);
-    expect(worstOn).toBeLessThanOrEqual(TOL_M);
+    expect(benches?.length).toBe(3);
+    expect(benchIntrusions).toEqual([]);
+    // ground: a sample at every beat, every contact over a drawn band, all within 3 cm
+    expect(missing).toEqual([]);
+    expect(ground.length).toBe(beats.length);
+    expect(unknownGround).toEqual([]);
+    expect(noBand).toEqual([]);
+    expect(all.length).toBe(beats.length * 6);
+    expect(worst).toBeLessThanOrEqual(TOL_M);
   });
 });

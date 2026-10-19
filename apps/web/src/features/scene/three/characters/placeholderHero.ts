@@ -1,5 +1,6 @@
 import * as THREE from "three";
-import { REST_TIMING } from "../journey/heroDriver";
+import { type HeroFade, REST_TIMING } from "../journey/heroDriver";
+import { HERO_BENCH } from "./benchGeometry";
 import { HERO_DISPLAY_SCALE, type Hero, type HeroClip, type HeroContact } from "./hero";
 
 /**
@@ -34,11 +35,12 @@ const LIFT = 0.015;
 /** Look: one slow left-then-right sweep per this many seconds. */
 const LOOK_CYCLE_S = 3;
 const LOOK_YAW = 0.75;
-/** Seat height (true metres, H7); scaled with the hero so she sits on it. */
-export const BENCH_SEAT_TRUE_M = 0.45;
-/** Seated pose, model units. */
+/** Seat height (true metres, H7; `HERO_BENCH`); scaled with the hero so she sits on it. */
+export const BENCH_SEAT_TRUE_M = HERO_BENCH.seatHeightM;
+/** Seated pose, model units (= true metres before the 1.55x rig scale). */
 const SEAT_Y = BENCH_SEAT_TRUE_M;
-const SEATED_FEET_Z = 0.3;
+/** Seated, her shoes rest just in front of the seat's front edge, by the root. */
+const SEATED_FEET_Z = 0.02;
 const WALKER_PARK: readonly [number, number] = [0.2, 0.25];
 
 const noRaycast = () => {};
@@ -49,6 +51,63 @@ const ease = (u: number) => {
 
 function clay(hex: string, extra: Partial<THREE.MeshStandardMaterialParameters> = {}) {
   return new THREE.MeshStandardMaterial({ color: hex, roughness: 0.85, metalness: 0, ...extra });
+}
+
+/** The placeholder's pose as numbers, so two clips can be crossfaded by lerping them. */
+interface PoseParams {
+  /** 0 standing .. 1 seated (dress, shins, feet forward, walker parked, arms to lap). */
+  seat: number;
+  /** Left foot forward offset (the right foot mirrors it) and each foot's lift (model units). */
+  stepL: number;
+  liftL: number;
+  liftR: number;
+  bob: number;
+  breathe: number;
+  /** Walker roll forward (model units). */
+  push: number;
+  headYaw: number;
+}
+
+/** The pose of `clip` at `time` (the driver's time base: REST_TIMING for sit_down / stand_up). */
+export function poseParams(clip: HeroClip, time: number): PoseParams {
+  const tt = Number.isFinite(time) ? Math.max(0, time) : 0;
+  const q: PoseParams = {
+    seat: 0,
+    stepL: 0,
+    liftL: 0,
+    liftR: 0,
+    bob: 0,
+    breathe: 1,
+    push: 0,
+    headYaw: 0,
+  };
+  switch (clip) {
+    case "walk": {
+      const ph = (2 * Math.PI * tt) / WALK_CYCLE_S;
+      const s = Math.sin(ph);
+      q.stepL = STRIDE * s;
+      q.liftL = LIFT * Math.max(0, Math.cos(ph));
+      q.liftR = LIFT * Math.max(0, -Math.cos(ph));
+      q.bob = 0.015 * Math.abs(s);
+      q.push = 0.04 * (0.5 + 0.5 * s);
+      break;
+    }
+    case "idle":
+    case "sit_idle":
+      if (clip === "sit_idle") q.seat = 1;
+      q.breathe = 1 + 0.01 * Math.sin((2 * Math.PI * tt) / 3);
+      break;
+    case "look":
+      q.headYaw = LOOK_YAW * Math.sin((2 * Math.PI * tt) / LOOK_CYCLE_S);
+      break;
+    case "sit_down":
+      q.seat = ease(tt / REST_TIMING.sitDownS);
+      break;
+    case "stand_up":
+      q.seat = 1 - ease(tt / REST_TIMING.standUpS);
+      break;
+  }
+  return q;
 }
 
 export function createPlaceholderHero(): Hero {
@@ -83,7 +142,9 @@ export function createPlaceholderHero(): Hero {
 
   const root = new THREE.Group();
   root.name = "journey-hero";
-  root.userData.decorative = true;
+  // The simulation subject, not decoration: no `decorative` flag (the picker skips it through the
+  // no-op raycast on every mesh). `journeyHero` names it for tests and the acceptance hook.
+  root.userData.journeyHero = true;
   const rig = new THREE.Group();
   rig.scale.setScalar(HERO_DISPLAY_SCALE);
   root.add(rig);
@@ -120,6 +181,7 @@ export function createPlaceholderHero(): Hero {
 
   // Upper body: baju kurung (a cone to the ankle), arms, head with tudung.
   const upper = new THREE.Group();
+  upper.userData.heroPart = "upper";
   rig.add(upper);
   const dressGeo = g(new THREE.ConeGeometry(0.36, 1, 24));
   dressGeo.translate(0, -0.5, 0); // apex at the origin, hem at y = -1
@@ -160,7 +222,7 @@ export function createPlaceholderHero(): Hero {
       cloth,
       s,
       0.27,
-      SEATED_FEET_Z,
+      (HERO_BENCH.frontEdgeZ + SEATED_FEET_Z) / 2,
     );
     shin.visible = false;
     rig.add(shin);
@@ -181,15 +243,20 @@ export function createPlaceholderHero(): Hero {
   // Walker (rollator): four legs on the ground, grips at hand height, held in front of her.
   const walker = new THREE.Group();
   rig.add(walker);
+  // Each leg is its own group so ground planting can stretch it onto uneven ground.
+  const legs: THREE.Group[] = [];
   for (const wz of [0.45, 0.88]) {
     for (const wx of [-0.3, 0.3]) {
-      walker.add(mesh(g(new THREE.CylinderGeometry(0.022, 0.022, 0.8, 10)), metal, wx, 0.45, wz));
-      walker.add(mesh(sphere(0.05, 10), grip, wx, 0.05, wz)); // wheel / tip
+      const leg = new THREE.Group();
+      leg.add(mesh(g(new THREE.CylinderGeometry(0.022, 0.022, 0.8, 10)), metal, wx, 0.45, wz));
+      leg.add(mesh(sphere(0.05, 10), grip, wx, 0.05, wz)); // wheel / tip
       const c = new THREE.Object3D();
       c.name = `walker_${wz < 0.5 ? "b" : "f"}${wx < 0 ? "l" : "r"}`;
       c.position.set(wx, 0, wz);
-      walker.add(c);
+      leg.add(c);
       contacts.push(c);
+      walker.add(leg);
+      legs.push(leg);
     }
   }
   for (const wx of [-0.3, 0.3]) {
@@ -202,23 +269,49 @@ export function createPlaceholderHero(): Hero {
   walker.add(bar);
 
   /** 0 standing, 1 seated. */
-  const seat = (k: number) => {
+  /** Applies a pose: seat share k (0 standing, 1 seated) plus the clip's own offsets. */
+  const apply = (q: PoseParams) => {
+    const k = q.seat;
     // the hem rises to the seat: the dress shortens from the shoulders down
     dress.scale.y = DRESS_LEN - (SEAT_Y - 0.1) * k;
     for (const s of shins) s.visible = k > 0.5;
-    for (const f of feet) f.position.z = SEATED_FEET_Z * k;
-    upper.position.y = -0.04 * k;
-    walker.position.set(WALKER_PARK[0] * k, 0, WALKER_PARK[1] * k);
+    const [l, r] = feet as [THREE.Group, THREE.Group];
+    l.position.set(-0.11, q.liftL, SEATED_FEET_Z * k + q.stepL);
+    r.position.set(0.11, q.liftR, SEATED_FEET_Z * k - q.stepL);
+    upper.position.y = -0.04 * k + q.bob;
+    // the root stays at the stand point; the hips travel back onto the seat (as the rigged clips do)
+    upper.position.z = -HERO_BENCH.hipTravelM * k;
+    upper.scale.set(1, q.breathe, 1);
+    walker.position.set(WALKER_PARK[0] * k, 0, WALKER_PARK[1] * k + q.push);
     walker.rotation.y = (Math.PI / 2) * k;
     // arms: reaching forward to the grips (walking) -> resting on the lap (seated)
     for (const a of arms) a.rotation.x = -Math.PI / 2 + (Math.PI / 2 - 0.5) * k;
+    head.rotation.set(0, q.headYaw, 0);
   };
 
-  const reset = () => {
-    seat(0);
-    head.rotation.set(0, 0, 0);
-    upper.scale.set(1, 1, 1);
-    for (const f of feet) f.position.y = 0;
+  /**
+   * Ground planting (cheap foot IK): with a ground sampler set, each shoe and each walker leg moves
+   * up or down so its contact meets the drawn ground under it (a footway kerb, a lawn by a bench).
+   * Without one, everything stands on the root's ground height.
+   */
+  let ground: ((x: number, z: number) => number) | null = null;
+  const _w = new THREE.Vector3();
+  const plant = () => {
+    for (const leg of legs) leg.position.y = 0;
+    if (!ground) return;
+    root.updateMatrixWorld(true);
+    const lift = (o: THREE.Object3D, c: THREE.Object3D) => {
+      c.getWorldPosition(_w);
+      const dy = (ground as (x: number, z: number) => number)(_w.x, _w.z) - root.position.y;
+      o.position.y += dy / HERO_DISPLAY_SCALE;
+    };
+    feet.forEach((f, i) => {
+      lift(f, contacts[i] as THREE.Object3D);
+    });
+    legs.forEach((l, i) => {
+      lift(l, contacts[2 + i] as THREE.Object3D);
+    });
+    root.updateMatrixWorld(true);
   };
 
   let disposed = false;
@@ -228,38 +321,21 @@ export function createPlaceholderHero(): Hero {
       root.position.set(pos.x, pos.y, pos.z);
       root.rotation.set(0, yaw, 0);
     },
-    play(clip: HeroClip, time: number, _rate: number) {
-      const tt = Number.isFinite(time) ? Math.max(0, time) : 0;
-      reset();
-      switch (clip) {
-        case "walk": {
-          const ph = (2 * Math.PI * tt) / WALK_CYCLE_S;
-          const s = Math.sin(ph);
-          const [l, r] = feet as [THREE.Group, THREE.Group];
-          l.position.z = STRIDE * s;
-          r.position.z = -STRIDE * s;
-          l.position.y = LIFT * Math.max(0, Math.cos(ph));
-          r.position.y = LIFT * Math.max(0, -Math.cos(ph));
-          upper.position.y = 0.015 * Math.abs(s);
-          walker.position.z = 0.04 * (0.5 + 0.5 * s);
-          break;
-        }
-        case "idle":
-        case "sit_idle": {
-          if (clip === "sit_idle") seat(1);
-          upper.scale.y = 1 + 0.01 * Math.sin((2 * Math.PI * tt) / 3);
-          break;
-        }
-        case "look":
-          head.rotation.y = LOOK_YAW * Math.sin((2 * Math.PI * tt) / LOOK_CYCLE_S);
-          break;
-        case "sit_down":
-          seat(ease(tt / REST_TIMING.sitDownS));
-          break;
-        case "stand_up":
-          seat(1 - ease(tt / REST_TIMING.standUpS));
-          break;
+    setGround(sample) {
+      ground = sample;
+    },
+    play(clip: HeroClip, time: number, _rate: number, fade?: HeroFade) {
+      const now = poseParams(clip, time);
+      if (!fade || !(fade.blend < 1)) apply(now);
+      else {
+        const prev = poseParams(fade.prevClip, fade.prevTime);
+        const w = Math.max(0, Math.min(1, fade.blend));
+        const mix = {} as PoseParams;
+        for (const key of Object.keys(now) as (keyof PoseParams)[])
+          mix[key] = prev[key] + (now[key] - prev[key]) * w;
+        apply(mix);
       }
+      plant();
     },
     contacts(): HeroContact[] {
       root.updateMatrixWorld(true);
@@ -280,9 +356,9 @@ export function createPlaceholderHero(): Hero {
 }
 
 /**
- * A prototype-sized bench for a rest stop (seat 0.45 m true x the hero scale, so she sits on it).
- * Placed at the hero's seat point with the seat's yaw: her local origin is on the seat's front
- * half, the back is behind her (-z). Display of the plan's rest event only.
+ * A rest-stop bench in the hero's frame (`HERO_BENCH`, x the hero scale): placed at her stand
+ * point with her seated yaw, its front edge HERO_BENCH.frontEdgeZ behind her root, the back behind
+ * the seat (-z). Display of the plan's rest event only (the bench position is approximate).
  */
 export function createRestBench(): { object3d: THREE.Object3D; dispose(): void } {
   const geos: THREE.BufferGeometry[] = [];
@@ -290,7 +366,7 @@ export function createRestBench(): { object3d: THREE.Object3D; dispose(): void }
   const iron = clay("#4b5563");
   const group = new THREE.Group();
   group.name = "journey-bench";
-  group.userData.decorative = true;
+  group.userData.journeyHero = true;
   const inner = new THREE.Group();
   inner.scale.setScalar(HERO_DISPLAY_SCALE);
   group.add(inner);
@@ -314,11 +390,22 @@ export function createRestBench(): { object3d: THREE.Object3D; dispose(): void }
     return o;
   };
   const T = 0.08;
-  const seatMesh = box(1.9, T, 0.55, wood, 0, BENCH_SEAT_TRUE_M - T / 2, -0.08);
+  const B = HERO_BENCH;
+  const midZ = B.frontEdgeZ - B.depthM / 2;
+  const seatMesh = box(B.widthM, T, B.depthM, wood, 0, B.seatHeightM - T / 2, midZ);
   seatMesh.userData.benchPart = "seat";
-  box(1.9, 0.42, 0.08, wood, 0, BENCH_SEAT_TRUE_M + 0.32, -0.38);
+  const back = box(
+    B.widthM,
+    0.42,
+    0.08,
+    wood,
+    0,
+    B.seatHeightM + 0.32,
+    B.frontEdgeZ - B.depthM - 0.04,
+  );
+  back.userData.benchPart = "back";
   for (const k of [-0.8, 0.8])
-    box(0.08, BENCH_SEAT_TRUE_M - T, 0.5, iron, k, (BENCH_SEAT_TRUE_M - T) / 2, -0.08);
+    box(0.08, B.seatHeightM - T, B.depthM - 0.05, iron, k, (B.seatHeightM - T) / 2, midZ);
   return {
     object3d: group,
     dispose() {

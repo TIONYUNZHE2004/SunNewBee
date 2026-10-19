@@ -3,7 +3,7 @@ import type { LonLat } from "../scene/geo";
 import type { Engine } from "../scene/three/engine";
 import type { LocalFrame } from "../scene/three/frame";
 import { JourneyOverlay } from "./JourneyOverlay";
-import { journeyStateOf, useJourney } from "./journeyStore";
+import { journeyHero, journeyStateOf, useJourney } from "./journeyStore";
 import { createHeroLayer } from "./three/heroLayer";
 import { createJourneyLayer, type JourneyLayer } from "./three/journeyLayer";
 import { projectToScreen } from "./three/project";
@@ -26,6 +26,7 @@ export function JourneyMount({
   frame,
   hostRef,
   places,
+  footprints,
 }: {
   engine: Engine | null;
   frame: LocalFrame | null;
@@ -33,6 +34,8 @@ export function JourneyMount({
   hostRef?: RefObject<HTMLElement | null>;
   /** Place ids to coordinates (the access layer): a rest's bench place, when it has one. */
   places?: ReadonlyMap<string, LonLat>;
+  /** OSM building footprints (`/layers/buildings` `buildings`): bench seats keep clear of them. */
+  footprints?: unknown;
 }) {
   // The one "plan being shown": the player's loaded plan (an intent, Watch the trip, or nothing
   // after Clear route / a profile or scenario change), never sceneStore.journey.
@@ -51,19 +54,22 @@ export function JourneyMount({
   }, [engine, frame, plan]);
 
   // The hero (D-T6): posed by the pure driver at every t (play or seek alike); what is drawn goes
-  // to the store (`hero`: __journey.hero() and the crowd keep-out seam).
+  // to `journeyHero` (__journey.hero() and the crowd keep-out seam), with no second store update.
   useEffect(() => {
     if (!engine || !frame || !plan || !layer) return;
     const h = createHeroLayer(plan, layer.path, frame, {
       places,
+      footprints,
       roots: () => engine.pickView().roots,
+      onPose: (p) => {
+        journeyHero.current = p;
+        engine.requestRender();
+      },
     });
     engine.setDecor(HERO_SLOT, { group: h.group, dispose: h.dispose });
     const apply = () => {
       const s = useJourney.getState();
-      if (!s.timeline || s.plan !== plan) return;
-      s.setHero(h.pose(s.timeline, s.t));
-      engine.requestRender();
+      if (s.timeline && s.plan === plan) h.pose(s.timeline, s.t);
     };
     apply();
     const unsub = useJourney.subscribe((s, prev) => {
@@ -72,9 +78,9 @@ export function JourneyMount({
     return () => {
       unsub();
       engine.setDecor(HERO_SLOT, null);
-      useJourney.getState().setHero(null);
+      journeyHero.current = null;
     };
-  }, [engine, frame, plan, layer, places]);
+  }, [engine, frame, plan, layer, places, footprints]);
 
   // The hold event marker grows.
   const activeEvent = useJourney((s) => {

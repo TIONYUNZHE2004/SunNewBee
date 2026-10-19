@@ -4,12 +4,14 @@ import { createRoutePath } from "../../../journey/routePath";
 import { buildTimeline, type JourneyPlan, type Phase } from "../../../journey/timeline";
 import { createFrame } from "../frame";
 import {
+  HERO_FADE_S,
   HERO_REF_PACE_MPS,
   type HeroPathHelpers,
   heroStateAt,
   REST_TIMING,
   restSchedule,
   SEAT_OFFSET_M,
+  SEAT_SIDE_MIN_M,
   seatFor,
   WALK_PHASE_RATE,
 } from "./heroDriver";
@@ -108,6 +110,7 @@ describe("heroStateAt: rest choreography", () => {
       const at = (u: number) => heroStateAt(tl, p.t0 + u, helpers);
       const seq = [
         [(sch.approach[0] + sch.approach[1]) / 2, "walk"],
+        [(sch.turn[0] + sch.turn[1]) / 2, "walk"],
         [(sch.sitDown[0] + sch.sitDown[1]) / 2, "sit_down"],
         [(sch.sitIdle[0] + sch.sitIdle[1]) / 2, "sit_idle"],
         [(sch.standUp[0] + sch.standUp[1]) / 2, "stand_up"],
@@ -142,6 +145,30 @@ describe("heroStateAt: rest choreography", () => {
     }
   });
 
+  it("faces away from the bench before sit_down and keeps the root fixed through the sit beats (C-T3 ruling)", () => {
+    for (const p of rests) {
+      const sch = restSchedule(p.t1 - p.t0);
+      const seat = helpers.seatOf?.(p.eventIndex as number) as { x: number; z: number };
+      const route = path.pointAt(p.m0);
+      const face = Math.atan2(route[0] - seat.x, route[1] - seat.z);
+      const off = (y: number) => Math.abs(Math.atan2(Math.sin(y - face), Math.cos(y - face)));
+      // halfway through the turn she is still turning; at sit_down she already faces the route
+      expect(
+        off(heroStateAt(tl, p.t0 + (sch.turn[0] + sch.turn[1]) / 2, helpers).yaw),
+      ).toBeGreaterThan(0.3);
+      for (const u of [
+        sch.sitDown[0],
+        (sch.sitDown[0] + sch.sitDown[1]) / 2,
+        sch.sitIdle[0] + 0.1,
+        sch.standUp[1] - 0.01,
+      ]) {
+        const s = heroStateAt(tl, p.t0 + u + 1e-6, helpers);
+        expect(off(s.yaw), `${p.event?.title} +${u}`).toBeLessThan(1e-6);
+        expect(dist(s, seat), `${p.event?.title} +${u}`).toBeLessThan(1e-9);
+      }
+    }
+  });
+
   it("uses the bench place when it is a sensible distance off the route, else a side offset", () => {
     const p = path.pointAt(638);
     const off = seatFor(path.pointAt, 638, [p[0] + 3, p[1]]);
@@ -152,12 +179,38 @@ describe("heroStateAt: rest choreography", () => {
     const side = seatFor(path.pointAt, 638, null);
     const mirrored = { x: 2 * p[0] - side.x, z: 2 * p[1] - side.z };
     const toward = seatFor(path.pointAt, 638, [
-      p[0] + (mirrored.x - p[0]) * 0.1,
-      p[1] + (mirrored.z - p[1]) * 0.1,
-    ]);
+      p[0] + (mirrored.x - p[0]) * 0.4,
+      p[1] + (mirrored.z - p[1]) * 0.4,
+    ]); // 0.76 m off the route: its side counts
     expect(dist(toward, mirrored)).toBeLessThan(1e-6);
     const far = seatFor(path.pointAt, 638, [p[0] + 200, p[1]]);
     expect(dist(far, p)).toBeCloseTo(SEAT_OFFSET_M, 6);
+  });
+
+  it("a bench place under 0.5 m from the route gives no side: the side with more clearance wins", () => {
+    const p = path.pointAt(638);
+    const left = seatFor(path.pointAt, 638, null);
+    const right = { x: 2 * p[0] - left.x, z: 2 * p[1] - left.z };
+    const noise: [number, number] = [
+      p[0] + (right.x - p[0]) * 0.02,
+      p[1] + (right.z - p[1]) * 0.02,
+    ];
+    expect(SEAT_SIDE_MIN_M).toBe(0.5);
+    // the 4 cm noise toward the right is ignored: no clearance -> the left
+    expect(dist(seatFor(path.pointAt, 638, noise), left)).toBeLessThan(1e-6);
+    // a building on the left: the right side has more clearance
+    const clearance = (x: number, z: number) => Math.hypot(x - (left.x + 1), z - left.z);
+    expect(dist(seatFor(path.pointAt, 638, noise, clearance), right)).toBeLessThan(1e-6);
+    // a building on the right: the left
+    const clearanceR = (x: number, z: number) => Math.hypot(x - right.x, z - right.z);
+    expect(dist(seatFor(path.pointAt, 638, null, clearanceR), left)).toBeLessThan(1e-6);
+    // a tie: the left
+    expect(
+      dist(
+        seatFor(path.pointAt, 638, null, () => 5),
+        left,
+      ),
+    ).toBeLessThan(1e-6);
   });
 
   it("a rest without a seat helper still sits at the side offset", () => {
@@ -228,6 +281,58 @@ describe("heroStateAt: scrub determinism and continuity", () => {
     expect(a.clip).toBe("walk");
     expect(b.clip).toBe("walk");
     expect(Math.abs(b.clipTime - a.clipTime)).toBeLessThan(0.01);
+  });
+
+  it("the walk clip time runs on into and out of every rest (no foot snap)", () => {
+    for (const r of holds("rest")) {
+      for (const at of [r.t0, r.t1]) {
+        const a = heroStateAt(tl, at - 1e-4, helpers);
+        const b = heroStateAt(tl, at + 1e-4, helpers);
+        if (a.clip !== "walk" || b.clip !== "walk") continue; // a rest next to a look hold
+        expect(Math.abs(b.clipTime - a.clipTime), `${r.event?.title} @${at}`).toBeLessThan(0.01);
+      }
+    }
+    // the last rest (bench 1) is walked into and out of
+    const last = holds("rest").at(-1) as Phase;
+    expect(heroStateAt(tl, last.t1 + 1e-4, helpers).clip).toBe("walk");
+    expect(heroStateAt(tl, last.t0 - 1e-4, helpers).clip).toBe("walk");
+  });
+});
+
+describe("crossfade at beat boundaries", () => {
+  it("fades from the old clip over HERO_FADE_S where the clip changes", () => {
+    const u = holds("unknown")[0] as Phase;
+    const a = heroStateAt(tl, u.t0 + 0.05, helpers);
+    expect(a.clip).toBe("look");
+    expect(a.fade?.prevClip).toBe("walk");
+    expect(a.fade?.blend).toBeCloseTo(0.05 / HERO_FADE_S, 6);
+    // the outgoing walk keeps running at its rate
+    const before = heroStateAt(tl, u.t0 - 1e-6, helpers);
+    expect(a.fade?.prevTime).toBeCloseTo(before.clipTime + 0.05 * before.walkRate, 4);
+    expect(heroStateAt(tl, u.t0 + HERO_FADE_S + 0.01, helpers).fade).toBeUndefined();
+    // rest beats fade too
+    const r = holds("rest")[0] as Phase;
+    const sch = restSchedule(r.t1 - r.t0);
+    const sd = heroStateAt(tl, r.t0 + sch.sitDown[0] + 0.1, helpers);
+    expect(sd.clip).toBe("sit_down");
+    expect(sd.fade?.prevClip).toBe("walk");
+    const si = heroStateAt(tl, r.t0 + sch.sitIdle[0] + 0.1, helpers);
+    expect(si.fade?.prevClip).toBe("sit_down");
+    expect(si.fade?.blend).toBeCloseTo(0.5, 6);
+  });
+
+  it("no fade where the clip stays the same (walk phase -> slow-walk hold) or at t = 0", () => {
+    const v = holds("verified")[0] as Phase;
+    expect(heroStateAt(tl, v.t0 + 0.05, helpers).fade).toBeUndefined();
+    expect(heroStateAt(tl, 0, helpers).fade).toBeUndefined();
+  });
+
+  it("is deterministic: the same fade by play or by seek", () => {
+    const u = holds("unknown")[1] as Phase;
+    const t = u.t0 + 0.07;
+    const direct = heroStateAt(tl, t, helpers);
+    for (let k = 0; k < 50; k++) heroStateAt(tl, (k * tl.total) / 50, helpers);
+    expect(heroStateAt(tl, t, helpers)).toEqual(direct);
   });
 });
 

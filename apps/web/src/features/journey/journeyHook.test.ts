@@ -6,7 +6,7 @@ import {
   isDemoPreset,
   type JourneyHook,
 } from "./journeyHook";
-import { useJourney } from "./journeyStore";
+import { journeyHero, useJourney } from "./journeyStore";
 import type { JourneyPlan } from "./timeline";
 
 const plan = demo as unknown as JourneyPlan;
@@ -47,13 +47,25 @@ describe("window.__journey", () => {
       clip: "look" as const,
       clipTime: 1.2,
       walkRate: 0,
-      probe: () => [{ name: "foot_l", x: 1, y: 0.08, z: -2, groundY: 0.08, onFootway: true }],
+      groundKnown: true,
+      probe: () => ({
+        contacts: [
+          { name: "foot_l", x: 1, y: 0.08, z: -2, groundY: 0.08, band: "roads", onFootway: true },
+        ],
+        benches: [],
+      }),
     };
-    useJourney.getState().setHero(pose);
+    journeyHero.current = pose;
     const { probe: _p, ...plain } = pose;
     expect(h.hero()).toEqual(plain);
-    expect(h.hero({ contacts: true })?.contacts).toEqual(pose.probe());
+    expect(h.hero({ contacts: true })?.contacts).toEqual(pose.probe().contacts);
+    expect(h.hero({ contacts: true })?.benches).toEqual([]);
+    // a new plan drops the old hero until the mount poses her again
+    useJourney.getState().load(plan);
+    expect(h.hero()).toBeNull();
+    journeyHero.current = pose;
     useJourney.getState().clear();
+    expect(journeyHero.current).toBeNull();
     expect(h.plan).toBeNull();
     expect(h.hero()).toBeNull();
   });
