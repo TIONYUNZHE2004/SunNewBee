@@ -29,7 +29,7 @@ type P = [number, number];
  * ribbon ends in a hard 90-degree kerb. The outline (centre line +- half width) is unchanged;
  * only the rim is pulled in at the road lift. Markings stay flat. Display only.
  */
-export const RIBBON_BEVEL = { insetM: 0.25, dropM: 0.05, maxHalfShare: 0.3 } as const;
+export const RIBBON_BEVEL = { insetM: 0.3, dropM: 0.12, maxHalfShare: 0.3 } as const;
 /** Cross-section columns per ribbon vertex row: outer-left, rim-left, rim-right, outer-right. */
 export const RIBBON_COLUMNS = 4;
 
@@ -243,16 +243,18 @@ function dashes(pts: P[]): P[][] {
  * Triangle-strip ribbons around the walk network's LineStrings (width by segment `type`, shared
  * with the Cesium stylised ground), mitred with the offset capped at 2 half-widths, merged per
  * kind, at the road lift. Major roads also get dashed centre marks (a separate ribbon, one lift
- * higher). With an `area`, only the pieces whose midpoint is in its box are kept (see
+ * higher). `bevel` (default on) gives the surfaces the rounded rim (RIBBON_BEVEL); the streamer turns it
+ * off for the far ring and Low (2 columns, 2 triangles per segment instead of 6). With an `area`, only the pieces whose midpoint is in its box are kept (see
  * RIBBON_MARGIN_M), and only the dashes whose midpoint is: the dash phase runs along the whole
  * line, so adjacent boxes agree. Pure.
  */
 export function ribbonsFromWalk(
   fc: GeoJSON.FeatureCollection | null | undefined,
   frame: LocalFrame,
-  opts: { area?: PlanArea } = {},
+  opts: { area?: PlanArea; bevel?: boolean } = {},
 ): Ribbon[] {
   const box = opts.area?.box ?? null;
+  const bevel = opts.bevel ?? true;
   const kinds = new Map<RoadKind, Builder>();
   const marks = new Builder(MARKING_Y, false);
   for (const { pts, type, bb } of linesOf(fc, frame)) {
@@ -261,7 +263,7 @@ export function ribbonsFromWalk(
     const half = (WIDTH_BY_TYPE[type] ?? ROAD_WIDTH_UNKNOWN) / 2;
     let b = kinds.get(kind);
     if (!b) {
-      b = new Builder(ROAD_Y);
+      b = new Builder(ROAD_Y, bevel);
       kinds.set(kind, b);
     }
     for (const run of clipRuns(pts, box)) b.strip(run, half);

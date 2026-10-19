@@ -1,8 +1,8 @@
 import * as THREE from "three";
 import { MeshoptDecoder } from "three/addons/libs/meshopt_decoder.module.js";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+import { roundCanopies } from "./clayCanopy";
 import type { Manifest } from "./manifest";
-import { smoothFoliageNormals } from "./smoothFoliage";
 
 export interface AssetLibrary {
   /** World-baked geometry of one LOD node (one primitive), shared, do not dispose. null when absent. */
@@ -100,9 +100,16 @@ export async function loadAssetLibrary(m: Manifest, opts: Opts = {}): Promise<As
         const found = new Map<string, THREE.BufferGeometry>();
         gltf.scene.traverse((o) => {
           if (!(o as THREE.Mesh).isMesh) return;
-          const g = bakeNode(o as THREE.Mesh);
+          let g = bakeNode(o as THREE.Mesh);
           if (g) {
-            if (id === "trees") smoothFoliageNormals(g); // B-T3: smooth clay canopies
+            if (id === "trees") {
+              // B-T3: faceted canopy lobes become clustered smooth clay spheres.
+              const r = roundCanopies(g);
+              if (r.geometry !== g) {
+                g.dispose();
+                g = r.geometry;
+              }
+            }
             found.set(o.name, g);
             all.push(g);
           }

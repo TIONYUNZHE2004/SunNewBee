@@ -661,4 +661,26 @@ describe("trunk keep-out from the walk network (B-T3)", () => {
             TRUNK_KEEPOUT_M,
           );
   });
+
+  it("park, forest and OSM canopies do not hang more than 1 m over any walk line; drops are counted", () => {
+    const p = plan({
+      walk,
+      parks: fc(poly({ id: "pk" }, -100, 10, 200, 100)),
+      landcover: fc(poly({ class: "forest" }, -100, -100, 200, 90)),
+      trees: fc(point({ id: "o1" }, 10, 8), point({ id: "o2" }, 60, 20)),
+    });
+    const radius = (t: { variant: string; sx: number }) =>
+      (manifest.assets.trees!.variants[t.variant]?.size[0] ?? 20) * t.sx * 0.5;
+    const trees = ofAsset(p, "trees");
+    for (const t of trees) {
+      if (t.id.startsWith("st:") || t.id.startsWith("mt:")) continue; // roadside trees skip their own road
+      for (const l of lines)
+        for (let i = 0; i < l.pts.length - 1; i++)
+          expect(distSeg(t.x, t.z, l.pts[i]!, l.pts[i + 1]!) - radius(t)).toBeGreaterThanOrEqual(
+            -1 - 1e-6,
+          );
+    }
+    expect(p.stats["trees.droppedTrunk"]).toBeGreaterThanOrEqual(0);
+    expect(p.stats["trees.droppedCanopy"]).toBeGreaterThan(0);
+  });
 });

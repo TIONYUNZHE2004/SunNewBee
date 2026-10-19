@@ -20,7 +20,7 @@ export interface TileContent {
   agents: Agent[];
   signs: SignPlacement[];
   ribbons: Ribbon[];
-  verges?: { strips: Float32Array; skirts?: Float32Array; shrubs: Placement[] }; // Task 9
+  verges?: { strips: Float32Array; skirts: Float32Array; shrubs: Placement[] }; // Task 9
   parking?: { stalls: Float32Array; cars: Placement[] }; // Task 10
   tracks?: Float32Array; // Task 10 construction tracks
   /** Task 10: the construction sites touching this tile, tinted gravel whole (deduplicated by id). */

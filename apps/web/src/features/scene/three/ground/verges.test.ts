@@ -208,9 +208,9 @@ describe("planVerges", () => {
 });
 
 describe("rounded verge shoulder (AC-B3)", () => {
-  it("each kept piece has an outer shoulder that steps outward and down, facing up", () => {
+  it("each kept piece has outer and inner shoulders that step outward/inward and down, facing up", () => {
     const { strips, skirts } = planVerges(fc(street), none, tile, frame, 1000);
-    expect(skirts.length).toBe(strips.length); // 2 triangles per piece, like the strip
+    expect(skirts.length).toBe(strips.length * 2); // outer + inner shoulder: 2 triangles each per piece
     for (let i = 0; i < skirts.length; i += 9) {
       const ys = [skirts[i + 1]!, skirts[i + 4]!, skirts[i + 7]!];
       expect(Math.max(...ys)).toBeCloseTo(VERGE_Y, 5);
