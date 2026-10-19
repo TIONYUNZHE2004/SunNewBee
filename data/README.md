@@ -347,6 +347,17 @@ Near the mall, the flagged segments are the Urban Park / Central Park lake-edge 
 
 `uv run python data/scripts/build_buildings.py --parks --max-requests 40` fetches OSM `leisure=park|garden|playground` and `landuse=grass|recreation_ground` closed ways (one query per tile, through `overpass.py`) into `base/parks.geojson`. It is not part of `pnpm data:build`, and parks are never used for routing, evaluation, flood or answers. The API serves an empty collection when the file is absent.
 
+## Elmina boundary (display only: `data/scripts/build_boundary.py`)
+
+`base/boundary.geojson` is one Polygon (City of Elmina outline) that the stylised map is clipped to; `site.json` `boundary` records `file`, `source`, `method`, `area_km2` and `as_of`. Routing, evaluation, flood, the agent and answers never read it.
+
+- **Source (`owner_master_plan`, A-T3b):** the owner's City of Elmina master-plan map, committed as `docs/03-product/elmina-masterplan.png` (source: owner, City of Elmina master plan; 661 x 1012 px, north up). OSM has no `City of Elmina` administrative or place relation, and the earlier `fallback_union` outline (13.4 km2) missed Denai Alam, Bukit Subang, the west (Elmina Hills, Wellness Centre, Ridge, Peak) and most of the east-of-expressway lobe. The coordinator ruling of 19 Oct 2026 makes the owner's map the authority, superseding the spec's AC-A4 Subang exclusion and 6-15 km2 range.
+- **Method:** (1) georeference: 10 lakes drawn on the plan (blue-blob centroids, pixels) are paired with the same lakes in OSM (`base/hydrology.geojson` polygon centroids) in `CONTROL_POINTS`, and a least-squares affine maps pixels to lon/lat (RMS 24 m, max 56 m at the Wellness Centre lake, about 7.4 m/px; the script prints every residual). (2) trace: `TRACE_PX` is the township edge (outer edge of the coloured, green-bordered plan area) traced by hand on the image in pixels. (3) the ring is smoothed with a 40 m close then open, simplified to about 20 m. (4) the script fails unless every inside anchor (OSM features plus the plan's own area labels, georeferenced) is inside and every outside anchor (Kampung Melayu Subang, Taman Subang Baru, Kampung Kubu Gajah, Kampung Merbau Sempak, Kenanga Gardens, Subang Bestari, plus the plan's outside labels) is outside. Area is about 21.1 km2. No network: the OSM positions were read once through `overpass.py` (`GEOREF_QUERY`, cached) and are recorded in the script as data.
+- **Known gaps:** the outline's south edge (3.1482) is about 190 m south of `site.json` `bbox` (3.15), which is left unchanged because routing tools read it (work exits, point checks). Building, landcover, parks and signage layers were fetched for a 3.5 km square around home, which covers 97.3% of the outline; the uncovered 0.58 km2 are a 90 m sliver above Elmina Green and the strip along the bottom road / DASH south of Denai Alam. `site.json` `deep_spots` `subang-corridor` keeps its bbox; its arithmetic centre (101.5275, 3.19) is about 190 m east of the plan's edge at Elmina Gardens, so the test only requires the corridor to overlap the outline.
+- **Tests:** `data/scripts/tests/test_boundary.py`: valid single polygon; area 15 to 30 km2; contains Harmoni 1, Lakeside Mall, Car Park B, Elmina Urban Park, every node of the Harmoni 1 to Car Park B `older_adult_rest` route, the Urban Park deep-spot centre, the named areas and plan labels (Elmina Green, Hills, City Center, Wellness Centre, Valley, Bukit Subang, Ridge, Peak, Denai Alam, Gardens, City Square, Crescent, Enterprise Park); excludes Kampung Melayu Subang, Taman Subang Baru and other precincts clearly beyond the edge; georeference RMS < 40 m with at least 6 control points. Skipped when the seed is missing.
+- **Owner sign-off:** the outline was approved by the owner on 19 Oct 2026 ("All agree", checkpoint A4).
+- Run: `uv run python data/scripts/build_boundary.py` (no network). After a boundary change, rerun `build_street_furniture.py --max-requests 6` (it keeps only points inside the outline).
+
 ## Calibration of Elmina Day (Cycle 21: `data/scripts/calibrate_day.py`)
 
 Compares the 5,000 synthetic residents with Petaling district (where City of Elmina lies) using
@@ -389,6 +400,14 @@ pnpm data:city   # runs, in order:
 ```
 
 All Overpass traffic goes through `overpass.py` (cache, backoff, request cap). Each builder takes `--dry-run`.
+
+### Street furniture (`build_street_furniture.py`, not in `data:city`)
+
+`uv run python data/scripts/build_street_furniture.py --max-requests 6` makes one Overpass query (nodes and ways, `out center`, over the bounding box of `base/boundary.geojson`) through `overpass.py` and writes `base/street_furniture.geojson`, recorded under `street_furniture` in `site.json` (`file`, `count`, `counts`, `as_of`). Needs `base/boundary.geojson` (`build_boundary.py`).
+
+- **Kinds:** `traffic_signals` (`highway=traffic_signals`), `bus_stop` (`highway=bus_stop` or `public_transport=platform`), `shelter` (`amenity=shelter`), `bench` (`amenity=bench`), `picnic_table` (`leisure=picnic_table`).
+- **Features:** one Point each, only inside the boundary, sorted by id. Properties: `id` (`osm-node-<id>`, or `osm-way-<id>` for a way, reduced to its centre point), `kind`, optional `name`, and `osm_tags` (a fixed subset of tags). Crossings are not here; they come from `walk.geojson` `crossing` edges.
+- **Display only.** Routing, evaluation, flood and answers never read it, and the spatial World does not load it. The stylised view draws one prop per feature (AC-B7). `union_dedup()` gives the list to draw, and the script writes it: OSM features plus the seed places of type `shelter` / `seating` inside the outline that coincide with none of them (same id, or within 10 m of an OSM feature of a compatible kind), marked `source: seed_place`. Seed places outside the outline are dropped (B-T7). On the current seed every seed place inside the outline coincides with an OSM feature, so the file is OSM-only. The web reads it through the display-only `GET /layers/street_furniture` (404 when absent).
 
 ### Height sampling (`sample_heights.py`, billable, not in `data:city`)
 

@@ -64,6 +64,20 @@ geometry (each builder seeds `random` from the asset id).
 | `tl_assets/archetypes.py` | Archetype builders (`BUILDERS`, merged into `build.py`): every archetype in `specs.ARCHETYPES` |
 | `tl_assets/landmarks.py` | Landmark builders (mall, mosque, school, ...) |
 | `tl_assets/props.py` | Kit builders `trees`, `furniture`, `people`, `vehicles`, `construction` (scripted), and the vendor intake `import_vendor` / `scale_to` |
+| `tl_assets/characters/geom.py` | Pure mesh generators (lathe, ellipsoid, swept tube, Catmull-Rom, orientation) for scripted characters |
+| `tl_assets/characters/proportions.py` | Hero height, H4 head ratio, display scale and clay palette (pure) |
+| `tl_assets/characters/parts.py` | The hero's parts as pure geometry (head, tudung drape, baju, kain, arms, walker, stoop pose) and `measure` (H3/H4 in pytest) |
+| `tl_assets/characters/hero.py` | The journey hero (C-T2): chibi older woman, baju kurung, tudung, scripted walker; `build_hero("tpose")` / `build_hero("walker")` |
+| `tl_assets/characters/sheet.py` | Renders the hero modelling sheet (EEVEE, 16 samples), stats json and `.blend` |
+| `tl_assets/characters/rig.py` | Hero rig (pure): 34 bones, skin weight fields, two-bone IK, the six clip poses, stride and bench constants |
+| `tl_assets/characters/props.py` | Scripted stroller and wheelchair (pure geometry) |
+| `tl_assets/characters/export_hero.py` | Blender entry: rig, bake clips, export `out/raw/characters/hero_<variant>.glb` + stats json; `--render` acceptance views |
+| `tl_assets/characters/turntable.py` | Acceptance renders: walk / sit_idle turntables, bench side view, follow and seam close-ups |
+| `tl_assets/characters/manifest.py` | `characters/manifest.json` builder (pure) |
+| `tl_assets/characters/crowd.py` | Crowd (C-T6, pure): 6 bodies, 13 outfits, role-coloured parts per LOD, crowd-sized walker/stroller/wheelchair |
+| `tl_assets/characters/crowd_rig.py` | Crowd rig (pure): 19 bones, skin weights, `walk`/`idle` (+ per prop) poses, reference skinning |
+| `tl_assets/characters/crowd_looks.py` | The 33 looks (body + outfit + prop + palette) and the `characters/crowd.json` builder |
+| `tl_assets/characters/export_crowd.py` | Blender entry: `crowd_<body>.glb` + stats; `--sheet <png>` renders the contact sheet of all looks |
 
 ## Conventions
 
@@ -112,7 +126,9 @@ strip (a blank sign band per unit) under a continuous canopy walkway, a taller g
 pavilion with a tall blank sign band, two big-box units behind with their own facades and roof
 plant, and a landscaped forecourt edge; the shop office has three-tone facade banding, fabric
 awnings and an arcade of deep columns with a beam and arch haunches; mall, factory, school and
-Lakeside Mall roofs are a light membrane (primary) or terracotta (accent), never grey. Kanopi:
+Lakeside Mall roofs are a light membrane (primary) or terracotta (accent), never grey. The
+Lakeside Mall tops out at its 9.0 m manifest size (walls 8.2 m + 0.8 m parapet; roof plant below
+the parapet top), the seed's `display_height_m` (B-T2; it used to reach 11.5 m). Kanopi:
 planter boxes up the tower and a level-7 deck on the 1 m podium ledge round the slab, which
 keeps its traced depth (raised end-ledge pools 1.2 m above the podium roof, a front-ledge
 pergola on a timber strip, shrubs, planters); the web dresses the larger OSM podium roof. LOD2
@@ -154,7 +170,7 @@ and the committed glbs; `tests/test_blender_pipeline.py` builds and packs for re
 ## Third-party models (vendor intake)
 
 A scripted variant can be replaced by a downloaded model, only after owner approval at the
-asset's gate. Nothing is vendored yet (`vendor/vendor.json` is `[]`).
+asset's gate. Only the Kenney Mini Characters (CC0) are vendored, as proportion and rig references for the journey people (`vendor/vendor.json`, `CREDITS.md`); no vendor geometry ships.
 
 1. Put the **`.glb` source only** (never `.blend`) in `assets/blender/vendor/<kind>/<slug>/`
    (`<kind>`: trees, furniture, people, vehicles or construction) and record it in
@@ -201,3 +217,66 @@ protocol"; it is not repeated here. Headless preview: `pnpm assets:build -- --as
 `maxM: null` means the last LOD is drawn to any distance; a numeric last `maxM` hides
 instances beyond it. `landmarks` holds anchors (the `landmarks.geojson` ring centroid) only for
 landmarks placed by `"anchor"`.
+
+## Hero modelling sheet (C-T2)
+
+Not part of `run.py`/`specs.ASSETS` yet (no glb until the C-T3 rig). Render the owner sheet with:
+
+```bash
+"C:/Program Files/Blender Foundation/Blender 5.2/blender.exe" -b --factory-startup --python-exit-code 1     -P assets/blender/tl_assets/characters/sheet.py -- --out <dir>
+```
+
+It writes `hero_sheet.png` (T-pose and walker pose: front, side, back, 3/4), `hero_cameras.png`
+(follow, behind, side, 3/4 face, 3/4 front, 30 m and 80 m), `hero_vs_prototype.png`, `tiles/`, `hero_stats.json`
+and `hero.blend` (about 30 s). The hero is modelled at true scale (1.55 m, facing -y); the web
+draws her at 1.5x (R-J3). Body parts are separate closed shells with vertex groups named for the
+rig (`head`, `face`, `tudung_cape`, `torso`, `kain` plus soft `kain_L`/`kain_R`, `arm_L/R`,
+`hand_L/R`, `shoe_L/R`). H4 is measured on the T-pose; the script fails if it is out of range.
+
+## Hero rig and export (C-T3)
+
+```bash
+"C:/Program Files/Blender Foundation/Blender 5.2/blender.exe" -b --factory-startup --disable-autoexec     --python-exit-code 1 -P assets/blender/tl_assets/characters/export_hero.py -- [--variant walker] [--render <dir>]
+uv run python assets/blender/pack.py --heroes   # meshopt (same settings as the kits) -> apps/web/public/city/characters/
+```
+
+About 25 s for all four variants (walker, stroller, wheelchair, none) without renders. Each glb holds
+one skinned body per LOD (`hero__LOD0`, `hero__LOD1`), the prop meshes bone-parented to `prop` (and
+`wheels` for the wheelchair's rear wheels), and the clips `walk`, `idle`, `sit_down`, `sit_idle`,
+`stand_up`, `look`, baked at 30 fps from `rig.clip_pose` (FK plus analytic two-bone IK in mathutils;
+no constraints ship). The bind pose is the C-T2 T-pose; the hero is drawn at 1.55x (R-J3). Clips
+are in place and the root never moves: the runtime moves the object and sets the walk rate from
+`stride` and `walkDuration` in `characters/manifest.json` (`heroManifest.ts: walkRate`). Palms
+ride the `grip_L/R` bones (prop children) in `walk`, `idle` and `look`. In `sit_down` she parks the
+prop beside her right leg (hands on it) and moves her hips up and back onto the reference bench in
+the manifest (`bench.seat`/`bench.back` boxes: seat top 0.45 m true, front edge 0.21 m behind the
+root); the runtime places that bench relative to the root. `contact_FL/FR/RL/RR` (prop children)
+mark the prop's ground contacts. Do not call `skeleton.pose()` on the packed glbs (meshopt folds
+a scale into the inverse bind matrices). The manifest has no date, so a repack is byte-stable. The checks are
+`tests/test_hero_rig.py` (pure) and `apps/web/src/features/scene/three/assets/heroGlb.test.ts`
+(the shipped glbs: H1-H4, palm-to-grip, sit height, foot slide, loop seams). The rebuild is
+deterministic (same bytes).
+
+### Crowd kit (C-T6)
+
+```bash
+"C:/Program Files/Blender Foundation/Blender 5.2/blender.exe" -b --factory-startup --disable-autoexec --python-exit-code 1   -P assets/blender/tl_assets/characters/export_crowd.py -- [--body adult_man] [--sheet <contact-sheet.png>]
+uv run python assets/blender/pack.py --crowd   # -> apps/web/public/city/characters/crowd_<body>.glb + crowd.json
+```
+
+- Built by the same scripted chibi pipeline as the hero (`geom.py`), simplified to the crowd budget
+  (P4: LOD0 <= 1,500 and LOD1 <= 400 triangles per person including the prop). The Kenney Mini
+  Characters were only a proportion reference; no vendor geometry ships, so `CREDITS.md` is unchanged.
+- Six bodies (child, school_age, adult_man, adult_woman, older_man, older_woman: height, head ratio,
+  stoop), 3-4 local outfits each (baju kurung + tudung, baju melayu + songkok + samping, school shirt
+  and trousers, pinafore + white tudung, office, casual), 33 looks with stroller/walker/wheelchair.
+- One glb per body: a 19-bone skeleton (same names everywhere), `<outfit>__LOD0/1` skinned meshes,
+  `prop_<prop>__LOD0/1` on the `prop` bone (`prop_wheelchair_wheels__*` on `wheels`), clips `walk`,
+  `idle`, `walk_<prop>`, `idle_<prop>` (in place; walks keyed at 30 fps, idles at 10 fps).
+- Colour: every face has a palette role; TEXCOORD_0.x = (role index + 0.5) / roles. A look is
+  body + outfit (+ prop) + palette (`crowd.json` `looks[].palette`, role -> clay pastel hex), so C-T7
+  can recolour instances from a palette texture and B-T1 can map role names to clay tokens. COLOR_0
+  holds the first look's colours for plain viewers.
+- Checks: `tests/test_crowd.py` (pure: P1/P2 coverage, tudung and sleeve coverage, budgets, rig,
+  loops, IK reach, stance foot rate) and `apps/web/.../crowdManifest.test.ts`, `crowdGlb.test.ts`
+  (the shipped glbs). A repack is byte-stable.

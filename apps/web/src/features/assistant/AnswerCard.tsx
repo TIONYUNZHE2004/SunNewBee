@@ -3,9 +3,11 @@ import { Button } from "../../ui/Button";
 import { Icon } from "../../ui/icons";
 import { CitationList } from "../chat/CitationList";
 import { type AssistantMessage, isRefusal, isTemplateFallback } from "../chat/chatReducer";
-import { describeUncertainty } from "../chat/uncertainty";
+import { describeUncertainty, groupUncertainty } from "../chat/uncertainty";
 import { useElementNames } from "../chat/useElementNames";
 import { TripStrip } from "../day/TripStrip";
+import { OwnJourneyControls } from "../journey/OwnJourneyControls";
+import { WatchTripButton } from "../journey/WatchTripButton";
 import { RouteSummary } from "./RouteSummary";
 import { toolStep } from "./toolSteps";
 
@@ -23,7 +25,7 @@ export function AnswerCard({ m, onRetry }: { m: AssistantMessage; onRetry: () =>
       : "border-edge bg-surface";
   const uncertain =
     m.uncertainty && m.uncertainty.level !== "none"
-      ? describeUncertainty(m.uncertainty.items as Record<string, string>[])
+      ? groupUncertainty(describeUncertainty(m.uncertainty.items as Record<string, string>[]))
       : [];
   const links = (m.disclaimer?.links ?? [])
     .map((l) => ({ href: l.url ?? l.href, label: l.label ?? l.title ?? l.name }))
@@ -99,6 +101,12 @@ export function AnswerCard({ m, onRetry }: { m: AssistantMessage; onRetry: () =>
         </p>
       )}
       {m.text && <RouteSummary m={m} />}
+      {m.text && m.journey && (
+        <div className="space-y-2">
+          <WatchTripButton plan={m.journey.plan} />
+          <OwnJourneyControls plan={m.journey.plan} />
+        </div>
+      )}
       {m.text && m.trip && <TripStrip meta={m.trip} />}
       {m.tools.length > 0 &&
         (checksRunning ? (

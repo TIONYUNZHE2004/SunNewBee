@@ -163,6 +163,18 @@ model is dropped, because the label line already says it.
 - **Shared wording:** `template.my_trip_answer`; prompt rule 19.
 - **Scene intent:** `day.trip` (day, leave minute, stage, and geojson with meta for the departure strip).
 
+### Journey playback (`journey.play`, spec 2026-10-19 §6.2)
+
+- The model, the mock and the template write `{kind: "journey.play", route_id, start_time}` after `route.highlight`, with a `route_id` from this turn's `plan_route` and a local `HH:MM` start time. The mock and template use the time in the question, else `journeys.JOURNEY_START` (`"09:00"`, the fixed demo value). They play confirmed and partly unverified routes of route questions only (not evacuation routes, not routes with a reported closure).
+- `call_tool` (`agent.py`) builds a plan for every `plan_route` route (`journeys.plan_for`, the same `build_journey`) into `TurnRecord.journeys`, and adds `route["journey"]` for the model: `rest_stops`, `unchecked_places`, `unchecked_place_names`, `checked_stretch`, demo flags (`journeys.journey_facts`). Events do not depend on the start time.
+- **Requests for the walk's unchecked places (D-T10).** `plan_route` files at most `MAX_ROUTE_VRS` (10) requests in route order, which can leave out a place the walk stops at. `call_tool` (`_file_journey_vrs`) then files one request for each `unknown` event of the first route's plan that has none yet (`journeys.journey_vr_targets`), sanitised with `safe_vr_args` and plan_route's name-only summary (PDPA), and appends them to the tool's `verification_requests`, so the SSE events, the answer's request count and the journey cards' "verification request filed" line agree. Only playable routes without a reported closure; the anonymous `POST /journeys` files nothing.
+- **Evacuation turns (ruling).** Journey requests are also filed on evacuation turns: real route unknowns on the presented route, at most one per event, deduplicated by an upvote on an existing request (a few extra staff tickets). Demo values stay "demo values, not yet surveyed" in the answer.
+- `run.py` attaches `journey`: `build_journey(world, route, route.profile, start_time)` from the route recorded in `TurnRecord.routes`, the same way `route.highlight` gets its geometry. A model-written `journey` is discarded.
+- The intent is dropped when the route was not returned this turn, when `start_time` is missing, or when the plan cannot be built (`JourneyEvidenceError`). Every drop is logged. The turn continues.
+- **Validator** (`validate.journey_errors`, AC-D5): rejects a `journey.play` whose route was not returned this turn, has no plan, or has no `start_time`; rejects rest-stop or unchecked-place counts that differ from the plan (extraction rules in the comment above `journey_errors`); with a played demo plan, requires "demo values, not yet surveyed"; when nothing on the plan is staff-verified, rejects "verified".
+- **Answer lines** (`journeys.journey_steps`, shared by the mock and template, after the prototype chat bubble): "No known barrier on the step-free path, with 3 rest stops on the way (demo values, not yet surveyed)." and "Not checked yet: 3 places on the way, including the Persiaran Elmina crossing, Persiaran Tamarind and a ramp."
+- The plan equals `POST /journeys` for the same endpoints, profile, scenario and start time (AC-D4, `apps/api/tests/test_journeys_api.py`). Tests: `tests/test_journey_intent.py`, `tests/test_journey_answer.py` (AC-D5, AC-D6 wording scan); golden case `journey-demo-walker` (`world: elmina`).
+
 **Fix-it search and MCP (Cycle 4):**
 - **`find_fixes`:** beam search over imagined fixes on the world model (`townshiplens_spatial.fixit`).
   - The best set is recorded as a what-if, so every what-if validator rule applies.
@@ -193,7 +205,7 @@ model is dropped, because the label line already says it.
 | Flooded endpoints | Routing may start or end inside a flooded place (you evacuate from where you are). When a scenario is active (plan_route's `scenario_id`, else the UI scenario) and the origin or destination is `likely_flooded`/`possible` in `world.flood.place_classes`, `call_tool` adds evidence `ev-scn-<scenario>.<place_id>`, a warning and `data.endpoint_flood`; the mock and template state it as the first caveat |
 | `template.py` | Deterministic fallback answer that always validates |
 | `mock.py` | Scripted `FunctionModel` for CI and keyless development |
-| `events.py` | SSE event models (`ChatEvent` union), `SceneIntent`, `ChatRequest`. `Citation` carries `source_type` and `photo_url` (the newest staff-uploaded photo on the cited claim, if any) |
+| `events.py` | SSE event models (`ChatEvent` union), `SceneIntent`, `ChatRequest`. `Citation` carries `source_type` and `photo_url` (the newest staff-uploaded photo on the cited claim, if any). `FinalAnswer.scene_intents` uses `AnswerSceneIntent` (what the model may write); `SceneIntent` adds the server-attached `journey` so the `JourneyPlan` schema never enters the model's output schema |
 | `demo.py` | `DEMO_MODE=true` replay of recorded turns from `data/demo/*.jsonl` (only when `meta.world` equals the loaded world) |
 | `prompts/system.md` | System prompt |
 

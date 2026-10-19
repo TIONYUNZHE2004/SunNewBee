@@ -33,6 +33,7 @@ from .events import (
     VerificationRequested,
 )
 from .facts import categories, merge, tool_values
+from .journeys import PLAYABLE, journey_facts, journey_vr_targets, plan_for
 from .labels import crossing_note, enrich_unknowns
 from .mock import mock_model
 from .record import TurnRecord
@@ -240,6 +241,41 @@ def route_summary(world, profile: str | None, from_id: str | None, to_id: str | 
     return f"{profile} route {label(from_id)} -> {label(to_id)}"
 
 
+async def _file_journey_vrs(deps: Deps, data: dict, summary: str) -> None:
+    """D-T10: every unchecked place the played walk stops at gets a verification request, so its
+    card can honestly say "verification request filed". Only the first route (the one
+    journey.play plays, mock and template alike) and only when it is playable and has no reported
+    closure. That includes evacuation routes (list_evacuation_centres -> plan_route), where no walk
+    is played: call_tool cannot know whether the answer will play one, and these are real route
+    unknowns (journey_vr_targets, at most MAX_JOURNEY_VRS). Sanitised like any
+    chat VR (safe_vr_args) with plan_route's own name-only summary (PDPA). Appended to the tool's
+    verification_requests, so the answer's request count and the SSE events include them.
+
+    Every pair asked here is a non-flood route unknown plan_route did not file, i.e. one it
+    counted in verification_requests_truncated: that count drops by one per pair filed here, so
+    "N more checks pending" never overstates what is left unfiled."""
+    routes = data.get("routes") or []
+    r0 = routes[0] if routes else None
+    plan = deps.rec.journeys.get(r0["id"]) if r0 else None
+    if plan is None or r0.get("status") not in PLAYABLE or data.get("closures"):
+        return
+    vrs = data.setdefault("verification_requests", [])
+    filed = {(v["element_id"], v["attribute"]) for v in vrs}
+    world = deps.ctx.world
+    for element_id, attribute, reason in journey_vr_targets(plan, r0, filed):
+        args = safe_vr_args(
+            world, {"target_id": element_id, "attribute": attribute, "reason": reason}
+        )
+        if args["target_id"] != element_id:  # not a known element: nothing to ask about
+            continue
+        vr, created = await asyncio.to_thread(
+            deps.ctx.vrs.request, args["target_id"], args["attribute"], args["reason"], summary
+        )
+        vrs.append({**vr.model_dump(mode="json"), "created": created})
+        if data.get("verification_requests_truncated"):
+            data["verification_requests_truncated"] -= 1
+
+
 async def call_tool(deps: Deps, name: str, **kwargs: Any) -> dict:
     """Run one spatial tool, record what it returned and stream its events."""
     rec = deps.rec
@@ -271,6 +307,9 @@ async def call_tool(deps: Deps, name: str, **kwargs: Any) -> dict:
             enrich_unknowns(deps.ctx.world, r)  # readable element labels and notes
             if note := crossing_note(r):
                 r["crossing_note"] = note  # the model copies it word for word (prompt 5h)
+            if (plan := plan_for(deps.ctx.world, r)) is not None:
+                rec.journeys[r["id"]] = plan
+                r["journey"] = journey_facts(plan)  # counts the answer may state (prompt 9a)
             rec.routes[r["id"]] = r
             rec.route_status[r["id"]] = r["status"]
         for c in res.data.get("closures") or []:
@@ -283,6 +322,8 @@ async def call_tool(deps: Deps, name: str, **kwargs: Any) -> dict:
             and "entrance is not mapped" in w
             and w not in rec.inferred_notes
         ]
+        if kwargs.get("file_vrs", True):
+            await _file_journey_vrs(deps, res.data, kwargs["question_summary"])
         for vr in res.data.get("verification_requests", []):
             rec.vrs.append(vr)
             await _emit(deps, _vr_event(vr))

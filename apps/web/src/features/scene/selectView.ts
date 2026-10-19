@@ -1,9 +1,27 @@
-export const webglSupported = () => {
+let webglCached: true | undefined;
+
+/**
+ * WebGL 2 available. A success is cached for the page: each probe creates a throwaway WebGL
+ * context (~100 ms on the reference laptop), and components that mount when an answer lands asked
+ * again (gate AC-D18 hitch). The probe context is released at once. A failure is not cached (a
+ * lost or busy GPU may recover; a probe that fails is cheap).
+ */
+export const webglSupported = (): boolean => {
+  if (webglCached) return true;
   try {
-    return !!document.createElement("canvas").getContext("webgl2");
+    const gl = document.createElement("canvas").getContext("webgl2");
+    if (gl && typeof gl.getExtension === "function")
+      gl.getExtension("WEBGL_lose_context")?.loseContext();
+    if (gl) webglCached = true;
+    return !!gl;
   } catch {
     return false;
   }
+};
+
+/** Tests only: forget the cached probe. */
+export const resetWebglProbe = () => {
+  webglCached = undefined;
 };
 
 export type View = "cesium" | "mapbox" | "list";

@@ -3,6 +3,8 @@ import { WIDTH_BY_TYPE } from "../../shared/roads";
 import { hash01 } from "../assets/fit";
 import type { Manifest } from "../assets/manifest";
 import type { LocalFrame } from "../frame";
+import { type Boundary, insideBoundary } from "../ground/boundary";
+import { type BBox, bboxOf, inPoly, type Poly, polygonsOf } from "../props/polyGeom";
 import { growBox, inBox, type PlanArea, perLayer, touchesBox } from "../stream/area";
 
 /**
@@ -22,7 +24,15 @@ export interface Agent {
   speed: number;
   /** Start distance along the path (m). */
   offset: number;
+  /** People only: a crowd look id (crowd.json `looks[].id`); unset, the crowd renderer picks one by seed. */
+  look?: string;
 }
+
+/**
+ * Agents (and the journey hero, which imports it from here so the hero never loads the crowd
+ * modules) stand on the road ribbons (0.08 m) rather than in them.
+ */
+export const AGENT_LIFT_M = 0.08;
 
 export interface MoodMix {
   day: number;
@@ -44,11 +54,35 @@ export function densityFor(w: MoodMix): number {
 const SCALE_NEAR_M = 150;
 const SCALE_FAR_M = 800;
 const SCALE_MAX = 3;
-/** Display scale-up for legibility (owner ruling P2): 1 within 150 m of the camera, rising linearly to 3 at 800 m, capped at 3. Decorative only. */
+/**
+ * VEHICLES ONLY (owner ruling P2): 1 within 150 m of the camera, rising linearly to 3 at 800 m,
+ * capped at 3. People use `peopleScale` (R-J7 superseded this curve for people). Decorative only.
+ */
 export function displayScale(distanceM: number): number {
   if (distanceM <= SCALE_NEAR_M) return 1;
   if (distanceM >= SCALE_FAR_M) return SCALE_MAX;
   return 1 + ((SCALE_MAX - 1) * (distanceM - SCALE_NEAR_M)) / (SCALE_FAR_M - SCALE_NEAR_M);
+}
+
+/** People's displayed size within PEOPLE_SCALE_NEAR_M of the camera: the hero's 1.55x (R-J3). */
+export const PEOPLE_SCALE_NEAR = 1.55;
+/** The cap reached at PEOPLE_VISIBLE_M and held beyond (R-J7). */
+export const PEOPLE_SCALE_MAX = 2.5;
+export const PEOPLE_SCALE_NEAR_M = 300;
+/** People (crowd LOD1 and the legacy people kit) are drawn out to this distance, hidden beyond (R-J7). */
+export const PEOPLE_VISIBLE_M = 800;
+
+/**
+ * People's display scale by camera distance (R-J3, R-J7; spec P6): 1.55x true height within 300 m
+ * (the hero's scale), then a smoothstep up to 2.5x at 800 m, held at 2.5x beyond. Continuous with a
+ * continuous slope (no step at either end) and monotonic. Replaces `displayScale` (1x to 3x) for
+ * people; decorative only, it changes no fact.
+ */
+export function peopleScale(distanceM: number): number {
+  if (!(distanceM > PEOPLE_SCALE_NEAR_M)) return PEOPLE_SCALE_NEAR;
+  if (distanceM >= PEOPLE_VISIBLE_M) return PEOPLE_SCALE_MAX;
+  const u = (distanceM - PEOPLE_SCALE_NEAR_M) / (PEOPLE_VISIBLE_M - PEOPLE_SCALE_NEAR_M);
+  return PEOPLE_SCALE_NEAR + (PEOPLE_SCALE_MAX - PEOPLE_SCALE_NEAR) * u * u * (3 - 2 * u);
 }
 
 export interface Pose2 {
@@ -81,6 +115,22 @@ const wrapPi = (v: number) => v - TAU * Math.floor((v + Math.PI) / TAU);
 /** `from` turned toward `to` by share `t` the short way round (result in [-pi, pi)). */
 export function slerpAngle(from: number, to: number, t: number): number {
   return wrapPi(from + wrapPi(to - from) * t);
+}
+
+/**
+ * Facing at `tSec` as a pure function of time (no history): along the chord from where the agent
+ * was YAW_TAU_S earlier to where it is now, which turns through a corner over that look-back like
+ * the smoothed facing does; the tangent when it has not moved. Used while a journey's trip clock
+ * drives the crowd (scrub equals play, AC-D17).
+ */
+export function yawAt(a: Agent, tSec: number, now: Pose2, back: Pose2): number {
+  poseAt(a, tSec, now);
+  poseAt(a, tSec - YAW_TAU_S, back);
+  const dx = now.x - back.x;
+  const dz = now.z - back.z;
+  if (Math.hypot(dx, dz) < 1e-3) return now.yaw;
+  // the same convention as the tangent yaw of poseAt
+  return Math.atan2(dx, dz);
 }
 
 /** One smoothing step: `yaw = slerpAngle(prev, tangent, 1 - exp(-dt / 0.25 s))`. */
@@ -144,30 +194,80 @@ export function easedDistance(a: Agent, tSec: number): number {
   return a.speed * (tSec + (EASE_AMP / k.w) * (k.cos0 - Math.cos(k.w * tSec + k.phase)));
 }
 
-/** Point and tangent yaw at arc length s along the polyline (zero-length segments skipped). */
-function along(p: Float32Array, s: number, out: Pose2): Pose2 {
-  const n = p.length / 2;
-  let lastYaw = 0;
-  let lx = p[0] as number;
-  let lz = p[1] as number;
-  for (let i = 0; i < n - 1; i++) {
-    const ax = p[2 * i] as number;
-    const az = p[2 * i + 1] as number;
-    const dx = (p[2 * i + 2] as number) - ax;
-    const dz = (p[2 * i + 3] as number) - az;
-    const l = Math.hypot(dx, dz);
-    if (l === 0) continue;
-    lastYaw = Math.atan2(dx, dz);
-    lx = ax + dx;
-    lz = az + dz;
-    if (s <= l) {
-      const t = Math.max(0, s / l);
-      return setPose(out, ax + dx * t, az + dz * t, lastYaw);
-    }
-    s -= l;
-  }
-  return setPose(out, lx, lz, lastYaw);
+/**
+ * Per path: the arc length at every vertex (`cum`), the index of the first and last non-degenerate
+ * segments (-1 when every segment has zero length) and the end of the last one. Built once per path
+ * array (agents copied for a per-look speed share the path, so they share this too).
+ */
+interface PathTable {
+  cum: Float64Array;
+  first: number;
+  last: number;
 }
+const pathTables = new WeakMap<Float32Array, PathTable>();
+function pathTable(p: Float32Array): PathTable {
+  const hit = pathTables.get(p);
+  if (hit) return hit;
+  const n = p.length / 2;
+  const cum = new Float64Array(Math.max(1, n));
+  let first = -1;
+  let last = -1;
+  for (let i = 0; i < n - 1; i++) {
+    const l = Math.hypot(
+      (p[2 * i + 2] as number) - (p[2 * i] as number),
+      (p[2 * i + 3] as number) - (p[2 * i + 1] as number),
+    );
+    cum[i + 1] = (cum[i] as number) + l;
+    if (l > 0) {
+      if (first < 0) first = i;
+      last = i;
+    }
+  }
+  const t: PathTable = { cum, first, last };
+  pathTables.set(p, t);
+  return t;
+}
+
+const segYaw = (p: Float32Array, i: number) =>
+  Math.atan2(
+    (p[2 * i + 2] as number) - (p[2 * i] as number),
+    (p[2 * i + 3] as number) - (p[2 * i + 1] as number),
+  );
+
+/**
+ * Point and tangent yaw at arc length s along the polyline (zero-length segments skipped): a binary
+ * search over the path's cumulative lengths (built once per path), so a pose costs O(log n) instead
+ * of a walk over every vertex each frame (GATE AC-D18 profile: the linear walk was a steady main-
+ * thread cost). Same result as walking the segments: s <= 0 sits at the start of the first real
+ * segment, s past the end at the end of the last one, both with that segment's tangent.
+ */
+export function alongPath(p: Float32Array, s: number, out: Pose2): Pose2 {
+  const { cum, first, last } = pathTable(p);
+  if (first < 0) return setPose(out, p[0] as number, p[1] as number, 0);
+  if (!(s > 0))
+    return setPose(out, p[2 * first] as number, p[2 * first + 1] as number, segYaw(p, first));
+  const n = p.length / 2;
+  if (s > (cum[n - 1] as number)) {
+    return setPose(out, p[2 * last + 2] as number, p[2 * last + 3] as number, segYaw(p, last));
+  }
+  // The first vertex j with cum[j] >= s; segment j - 1 is then non-degenerate (cum[j - 1] < s).
+  let lo = 1;
+  let hi = n - 1;
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    if ((cum[mid] as number) >= s) hi = mid;
+    else lo = mid + 1;
+  }
+  const i = lo - 1;
+  const ax = p[2 * i] as number;
+  const az = p[2 * i + 1] as number;
+  const dx = (p[2 * i + 2] as number) - ax;
+  const dz = (p[2 * i + 3] as number) - az;
+  const l = (cum[i + 1] as number) - (cum[i] as number);
+  const t = Math.min(1, Math.max(0, (s - (cum[i] as number)) / l));
+  return setPose(out, ax + dx * t, az + dz * t, Math.atan2(dx, dz));
+}
+const along = alongPath;
 
 /** Tangent yaw of the first non-degenerate segment (the heading when leaving the start). */
 function startYaw(p: Float32Array): number {
@@ -224,7 +324,30 @@ export function poseAt(a: Agent, tSec: number, out: Pose2 = { x: 0, z: 0, yaw: 0
 }
 
 const VEHICLE_TYPES = new Set(["street", "major_road"]);
-const PEOPLE_TYPES = new Set(["footway", "path", "pedestrian"]);
+const PEOPLE_TYPES = new Set(["footway", "path", "pedestrian", "sidewalk", "crossing"]);
+/**
+ * Roads that also carry people, on pavement paths beside the carriageway (A-T12 hand-off): offset
+ * WIDTH_BY_TYPE[type] / 2 + PAVEMENT_KERB_M from the centre line, so on the verge, never in the road.
+ */
+const PAVEMENT_TYPES = new Set(["street", "major_road"]);
+/** Pavement walkers keep this far beyond the kerb (m), picked per agent (A-T12 hand-off). */
+export const PAVEMENT_KERB_M: readonly [number, number] = [0.6, 1.2];
+/**
+ * Spawn floor (A-T12 hand-off): at day density at least one person per this many metres of street
+ * (street + major_road) in a tile of the detail bubble (`floorPerM` = 1 / 40 for rings 0 and 1).
+ */
+export const PAVEMENT_FLOOR_M = 40;
+/** People variants never planned: a cyclist would render as a person walking at 4.5 m/s (C-T7 ruling). */
+const PEOPLE_EXCLUDED = new Set(["cyclist"]);
+/** A person's path is checked against building footprints and water every this many metres. */
+const OBSTACLE_STEP_M = 1;
+/**
+ * A pavement path is cut back where it meets another street / major_road: it keeps at least that
+ * road's half width + this far from its centre line (C-T8 fix 1), and half width + OWN_ROAD_CLEAR_M
+ * from its own road (the inside of a bend).
+ */
+const PAVEMENT_CLEAR_M = 1.2;
+const OWN_ROAD_CLEAR_M = 0.3;
 const BUSY_PLACES = new Set(["school", "mall", "park"]);
 const BUSY_RANGE_M = 150;
 const BUSY_WEIGHT = 3;
@@ -239,7 +362,6 @@ const SPEED = {
   major: [12, 16],
   walk: [1.2, 1.5],
   jogger: 2.5,
-  cyclist: 4.5,
 } as const;
 
 type P = [number, number];
@@ -248,6 +370,10 @@ interface Edge {
   length: number;
   type: string;
   weight: number;
+  /** People on a street or major_road: a pavement path beside the carriageway. */
+  pavement: boolean;
+  /** The walk feature id (pavement trimming skips its own road). */
+  fid: string;
 }
 
 const isRec = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null;
@@ -307,6 +433,19 @@ export interface AgentsInput {
   caps: { vehicles: number; people: number };
   m: Manifest;
   weights?: MoodMix;
+  /** The Elmina outline (A-T4): an agent whose path leaves it is not planned. Display only. */
+  boundary?: Boundary | null;
+  /**
+   * Building footprints and water polygons (FeatureCollections): a person's path that enters one is
+   * moved to the other side of its line, else not planned (spec P7). Display only.
+   */
+  obstacles?: { buildings?: unknown; water?: unknown } | null;
+  /**
+   * Spawn floor, people per metre of street (street + major_road) owned by the box, at day density
+   * (A-T12 hand-off: 1 / PAVEMENT_FLOOR_M in the detail bubble). Raises the people count above
+   * `caps.people` when the streets need more. 0 or absent: no floor.
+   */
+  floorPerM?: number;
 }
 
 interface Cand {
@@ -319,6 +458,7 @@ interface Cand {
 interface Run {
   fid: string;
   ri: number;
+  /** Vehicle runs on streets and major roads also carry pavement people. */
   kind: Agent["kind"];
   type: string;
   pts: P[];
@@ -373,6 +513,149 @@ const runsOf = (walk: unknown, frame: LocalFrame): Run[] =>
     });
     return out;
   });
+
+/** Obstacle polygons (footprints, water) by 32 m grid cell; a polygon sits in every cell its bounds touch. */
+interface Obstacle {
+  poly: Poly;
+  bb: BBox;
+}
+const OBST_CELL_M = 32;
+const obstCache = new WeakMap<object, WeakMap<object, Map<number, Obstacle[]>>>();
+const obstKey = (i: number, j: number) => (i + 0x8000) * 0x10000 + (j + 0x8000);
+const obstaclesOf = (fc: unknown, frame: LocalFrame): Map<number, Obstacle[]> =>
+  perLayer(obstCache, fc, frame, () => {
+    const g = new Map<number, Obstacle[]>();
+    for (const f of featuresOf(fc))
+      for (const poly of polygonsOf(f.geometry, frame)) {
+        const bb = bboxOf(poly[0] as P[]);
+        const o = { poly, bb };
+        for (let i = Math.floor(bb[0] / OBST_CELL_M); i <= Math.floor(bb[2] / OBST_CELL_M); i++)
+          for (let j = Math.floor(bb[1] / OBST_CELL_M); j <= Math.floor(bb[3] / OBST_CELL_M); j++) {
+            const k = obstKey(i, j);
+            const l = g.get(k);
+            if (l) l.push(o);
+            else g.set(k, [o]);
+          }
+      }
+    return g;
+  });
+const insideObstacle = (grids: Map<number, Obstacle[]>[], x: number, z: number): boolean => {
+  const k = obstKey(Math.floor(x / OBST_CELL_M), Math.floor(z / OBST_CELL_M));
+  for (const g of grids)
+    for (const o of g.get(k) ?? []) {
+      const b = o.bb;
+      if (x < b[0] || x > b[2] || z < b[1] || z > b[3]) continue;
+      if (inPoly(x, z, o.poly)) return true;
+    }
+  return false;
+};
+/** Whether any point of the polyline (vertices, and every OBSTACLE_STEP_M along it) is inside an obstacle. */
+function pathBlocked(grids: Map<number, Obstacle[]>[], pts: P[]): boolean {
+  if (grids.length === 0) return false;
+  for (let i = 0; i < pts.length; i++) {
+    const a = pts[i]!;
+    if (insideObstacle(grids, a[0], a[1])) return true;
+    const b = pts[i + 1];
+    if (!b) break;
+    const l = Math.hypot(b[0] - a[0], b[1] - a[1]);
+    const n = Math.floor(l / OBSTACLE_STEP_M);
+    for (let k = 1; k <= n; k++) {
+      const t = (k * OBSTACLE_STEP_M) / l;
+      if (insideObstacle(grids, a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t)) return true;
+    }
+  }
+  return false;
+}
+
+/** Carriageway segments (street / major_road centre lines with half their drawn width), gridded. */
+interface Carriage {
+  ax: number;
+  az: number;
+  bx: number;
+  bz: number;
+  half: number;
+  fid: string;
+}
+const CARRIAGE_CELL_M = 16;
+const carriageCache = new WeakMap<object, WeakMap<object, Map<number, Carriage[]>>>();
+const carriagesOf = (walk: unknown, frame: LocalFrame): Map<number, Carriage[]> =>
+  perLayer(carriageCache, walk, frame, () => {
+    const g = new Map<number, Carriage[]>();
+    for (const r of runsOf(walk, frame)) {
+      if (!PAVEMENT_TYPES.has(r.type)) continue;
+      const half = (WIDTH_BY_TYPE[r.type] ?? 6) / 2;
+      const pad = half + PAVEMENT_CLEAR_M + 1;
+      for (let i = 0; i < r.pts.length - 1; i++) {
+        const [ax, az] = r.pts[i] as P;
+        const [bx, bz] = r.pts[i + 1] as P;
+        const c = { ax, az, bx, bz, half, fid: r.fid };
+        const c0 = (v: number) => Math.floor(v / CARRIAGE_CELL_M);
+        for (let ci = c0(Math.min(ax, bx) - pad); ci <= c0(Math.max(ax, bx) + pad); ci++)
+          for (let cj = c0(Math.min(az, bz) - pad); cj <= c0(Math.max(az, bz) + pad); cj++) {
+            const k = obstKey(ci, cj);
+            const l = g.get(k);
+            if (l) l.push(c);
+            else g.set(k, [c]);
+          }
+      }
+    }
+    return g;
+  });
+const segDist = (x: number, z: number, c: Carriage) => {
+  const dx = c.bx - c.ax;
+  const dz = c.bz - c.az;
+  const l2 = dx * dx + dz * dz;
+  const t = l2 === 0 ? 0 : Math.max(0, Math.min(1, ((x - c.ax) * dx + (z - c.az) * dz) / l2));
+  return Math.hypot(x - c.ax - dx * t, z - c.az - dz * t);
+};
+/**
+ * Whether a pavement point keeps clear of the carriageways: at least half width + PAVEMENT_CLEAR_M
+ * from every other street / major_road centre line, and out of its own road (half width + 0.3 m).
+ */
+function pavementClear(g: Map<number, Carriage[]>, fid: string, x: number, z: number): boolean {
+  const k = obstKey(Math.floor(x / CARRIAGE_CELL_M), Math.floor(z / CARRIAGE_CELL_M));
+  for (const c of g.get(k) ?? []) {
+    const need = c.half + (c.fid === fid ? OWN_ROAD_CLEAR_M : PAVEMENT_CLEAR_M);
+    if (segDist(x, z, c) < need) return false;
+  }
+  return true;
+}
+/**
+ * The longest stretch of a pavement line that keeps clear of every carriageway (C-T8 fix 1): the
+ * line is sampled every OBSTACLE_STEP_M (its vertices kept) and cut where it meets a cross street,
+ * so a pavement walker turns round at the kerb instead of walking into the junction.
+ */
+function trimPavement(g: Map<number, Carriage[]>, fid: string, pts: P[]): P[] {
+  const samples: P[] = [];
+  for (let i = 0; i < pts.length - 1; i++) {
+    const a = pts[i] as P;
+    const b = pts[i + 1] as P;
+    const l = Math.hypot(b[0] - a[0], b[1] - a[1]);
+    const n = Math.max(1, Math.ceil(l / OBSTACLE_STEP_M));
+    for (let k = 0; k < n; k++)
+      samples.push([a[0] + ((b[0] - a[0]) * k) / n, a[1] + ((b[1] - a[1]) * k) / n]);
+  }
+  samples.push(pts[pts.length - 1] as P);
+  let best: P[] = [];
+  let bestLen = 0;
+  let cur: P[] = [];
+  let curLen = 0;
+  for (const q of samples) {
+    if (pavementClear(g, fid, q[0], q[1])) {
+      const last = cur[cur.length - 1];
+      if (last) curLen += Math.hypot(q[0] - last[0], q[1] - last[1]);
+      cur.push(q);
+      if (curLen > bestLen) {
+        best = cur;
+        bestLen = curLen;
+      }
+    } else {
+      cur = [];
+      curLen = 0;
+    }
+  }
+  return bestLen >= MIN_EDGE_M ? best : [];
+}
 
 /** Points of the places that triple the spawn weight (school, mall, park). */
 const busyOf = (places: unknown, frame: LocalFrame): P[] =>
@@ -430,13 +713,18 @@ function pointAt(pts: P[], s: number): P {
 }
 
 /**
- * Vehicles on street/major_road edges (speed 8–11 m/s, major 12–16), people on footway/path/pedestrian
- * (1.2–1.5 m/s, jogger 2.5, cyclist 4.5); spawn weight ×3 within 150 m of places of type
- * school|mall|park. Every walk line is cut into chunks of at most AGENT_CHUNK_M; a chunk belongs to
- * the box holding its arc midpoint and seeds about one candidate per 25 m of spawn weight, keyed by
- * the chunk (never by the box). Count = cap × densityFor(weights), picked from the candidates in
- * the order of a hash salted with the tile seed; without weights, the peak (dusk) density, so a
- * layer can thin the plan by mood without replanning (the plan is in pick order).
+ * Vehicles on street/major_road edges (speed 8–11 m/s, major 12–16). People on
+ * footway/path/pedestrian/sidewalk/crossing lines (0.3–0.8 m either side of the line) and on pavement
+ * paths beside street/major_road edges (WIDTH_BY_TYPE / 2 + 0.6–1.2 m either side; A-T12 hand-off),
+ * walking 1.2–1.5 m/s (jogger 2.5; no cyclists: they would render as walking people). Spawn weight ×3
+ * within 150 m of places of type school|mall|park. Every walk line is cut into chunks of at most
+ * AGENT_CHUNK_M; a chunk belongs to the box holding its arc midpoint and seeds about one candidate
+ * per 25 m of spawn weight and kind, keyed by the chunk (never by the box). Count = cap ×
+ * densityFor(weights), raised for people to the spawn floor (`floorPerM` × street metres owned by the
+ * box × density / day density); picked from the candidates in the order of a hash salted with the
+ * tile seed, skipping candidates whose path leaves the boundary or (people) enters a footprint or
+ * water on both sides of its line. Without weights, the peak (dusk) density, so a layer can thin the
+ * plan by mood without replanning (the plan is in pick order).
  */
 export function planAgents(input: AgentsInput): Agent[] {
   const { frame, m, area } = input;
@@ -448,11 +736,17 @@ export function planAgents(input: AgentsInput): Agent[] {
   const busy = busyOf(input.places, frame);
   const nearBusy = (pts: P[]) =>
     pts.some((p) => busy.some((b) => Math.hypot(p[0] - b[0], p[1] - b[1]) <= BUSY_RANGE_M));
+  const obst = input.obstacles;
+  const grids = [obst?.buildings, obst?.water]
+    .filter((fc) => isRec(fc))
+    .map((fc) => obstaclesOf(fc, frame));
 
   const cands: Record<Agent["kind"], Cand[]> = { vehicle: [], person: [] };
+  let streetM = 0;
   for (const { fid, ri, kind, type, pts: run, length, bb } of runsOf(input.walk, frame)) {
     if (!touchesBox(reach, bb[0], bb[1], bb[2], bb[3])) continue;
     if (length < MIN_EDGE_M) continue;
+    const kinds: Agent["kind"][] = PAVEMENT_TYPES.has(type) ? [kind, "person"] : [kind];
     const n = Math.ceil(length / AGENT_CHUNK_M);
     const cl = length / n;
     for (let c = 0; c < n; c++) {
@@ -461,51 +755,76 @@ export function planAgents(input: AgentsInput): Agent[] {
       const pts = slice(run, c * cl, (c + 1) * cl);
       const chunk = `${fid}:${ri}:${c}`;
       const weight = cl * (nearBusy(pts) ? BUSY_WEIGHT : 1);
-      const edge: Edge = { pts, length: cl, type, weight };
-      const k = Math.floor(weight / SPAWN_SPACING_M + hash01(chunk, `spawn:${kind}`));
-      for (let j = 0; j < k; j++) {
-        const id = `${kind}:${chunk}:${j}`;
-        cands[kind].push({ id, edge, prio: hash01(id, area.seed) });
+      if (PAVEMENT_TYPES.has(type)) streetM += cl;
+      for (const k of kinds) {
+        const edge: Edge = {
+          pts,
+          length: cl,
+          type,
+          weight,
+          pavement: k === "person" && kind === "vehicle",
+          fid,
+        };
+        const cnt = Math.floor(weight / SPAWN_SPACING_M + hash01(chunk, `spawn:${k}`));
+        for (let j = 0; j < cnt; j++) {
+          const id = `${k}:${chunk}:${j}`;
+          cands[k].push({ id, edge, prio: hash01(id, area.seed) });
+        }
       }
     }
   }
 
+  // Built once per walk layer (eagerly, so warmPlanners pays for it before the first real tile).
+  const carriages = carriagesOf(input.walk, frame);
   const out: Agent[] = [];
-  const plan = (kind: Agent["kind"], list: Cand[], cap: number, asset: string) => {
-    const variants = Object.keys(m.assets[asset]?.variants ?? {});
-    const n = Math.floor(Math.max(0, cap) * density);
+  const inside = (lane: P[]) => {
+    const b = input.boundary;
+    return !b || lane.every(([x, z]) => insideBoundary(b, x, z));
+  };
+  const plan = (kind: Agent["kind"], list: Cand[], n: number, asset: string) => {
+    const variants = Object.keys(m.assets[asset]?.variants ?? {}).filter(
+      (v) => kind === "vehicle" || !PEOPLE_EXCLUDED.has(v),
+    );
     if (n <= 0 || list.length === 0 || variants.length === 0) return;
     list.sort((a, b) => a.prio - b.prio || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
     const light = variants.filter((v) => !MAJOR_ONLY.has(v));
-    for (const { id, edge: e } of list.slice(0, n)) {
+    let placed = 0;
+    for (const { id, edge: e } of list) {
+      if (placed >= n) break;
       const major = e.type === "major_road";
       const pool = kind === "vehicle" && !major && light.length > 0 ? light : variants;
       const variant = pool[Math.floor(hash01(id, "variant") * pool.length)] as string;
       const reverse = hash01(id, "dir") < 0.5;
       const pts = reverse ? [...e.pts].reverse() : e.pts;
-      let lateral: number;
+      let lane: P[] | null = null;
       let speed: number;
       if (kind === "vehicle") {
-        lateral = (WIDTH_BY_TYPE[e.type] ?? 6) * LANE_SHARE;
+        const lateral = (WIDTH_BY_TYPE[e.type] ?? 6) * LANE_SHARE;
         speed = lerp(major ? SPEED.major : SPEED.street, hash01(id, "speed"));
+        // Vehicles (ruling P4-O): a closed out-and-back loop, each leg in its own left lane, joined
+        // by lane-change U-turns and closed on the first point, so poseAt loops it and the return
+        // leg never drives on the right.
+        const loop = [...offsetLeft(pts, lateral), ...offsetLeft([...pts].reverse(), lateral)];
+        loop.push(loop[0] as P);
+        if (inside(loop)) lane = loop;
       } else {
+        // People keep a single pavement line and ping-pong. The hashed side first; if that line
+        // enters a footprint or water (P7) or leaves the boundary, the other side; else none.
         const side = hash01(id, "side") < 0.5 ? -1 : 1;
-        lateral = side * lerp(PAVEMENT_OFFSET_M, hash01(id, "lateral"));
-        speed =
-          variant === "jogger"
-            ? SPEED.jogger
-            : variant === "cyclist"
-              ? SPEED.cyclist
-              : lerp(SPEED.walk, hash01(id, "speed"));
+        const off = e.pavement
+          ? (WIDTH_BY_TYPE[e.type] ?? 6) / 2 + lerp(PAVEMENT_KERB_M, hash01(id, "lateral"))
+          : lerp(PAVEMENT_OFFSET_M, hash01(id, "lateral"));
+        for (const s of [side, -side]) {
+          const raw = offsetLeft(pts, s * off);
+          const l = e.pavement ? trimPavement(carriages, e.fid, raw) : raw;
+          if (l.length >= 2 && inside(l) && !pathBlocked(grids, l)) {
+            lane = l;
+            break;
+          }
+        }
+        speed = variant === "jogger" ? SPEED.jogger : lerp(SPEED.walk, hash01(id, "speed"));
       }
-      // Vehicles (ruling P4-O): a closed out-and-back loop, each leg in its own left lane, joined
-      // by lane-change U-turns and closed on the first point, so poseAt loops it and the return
-      // leg never drives on the right. People keep the single pavement line and ping-pong.
-      const lane =
-        kind === "vehicle"
-          ? [...offsetLeft(pts, lateral), ...offsetLeft([...pts].reverse(), lateral)]
-          : offsetLeft(pts, lateral);
-      if (kind === "vehicle") lane.push(lane[0] as P);
+      if (!lane) continue;
       const length = polyLength(lane);
       out.push({
         id,
@@ -516,9 +835,15 @@ export function planAgents(input: AgentsInput): Agent[] {
         speed,
         offset: hash01(id, "offset") * length,
       });
+      placed++;
     }
   };
-  plan("vehicle", cands.vehicle, input.caps.vehicles, "vehicles");
-  plan("person", cands.person, input.caps.people, "people");
+  const count = (cap: number) => Math.floor(Math.max(0, cap) * density);
+  const floor =
+    input.floorPerM && input.floorPerM > 0
+      ? Math.ceil((streetM * input.floorPerM * density) / DENSITY.day - 1e-9)
+      : 0;
+  plan("vehicle", cands.vehicle, count(input.caps.vehicles), "vehicles");
+  plan("person", cands.person, Math.max(count(input.caps.people), floor), "people");
   return out;
 }

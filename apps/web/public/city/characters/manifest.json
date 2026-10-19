@@ -1,0 +1,274 @@
+{
+  "version": 1,
+  "displayScale": 1.55,
+  "clips": [
+    "walk",
+    "idle",
+    "sit_down",
+    "sit_idle",
+    "stand_up",
+    "look"
+  ],
+  "bones": {
+    "palm": [
+      "palm_L",
+      "palm_R"
+    ],
+    "grip": [
+      "grip_L",
+      "grip_R"
+    ],
+    "hand": [
+      "hand_L",
+      "hand_R"
+    ],
+    "foot": [
+      "foot_L",
+      "foot_R"
+    ],
+    "hips": "hips",
+    "head": "head",
+    "prop": "prop",
+    "wheels": "wheels",
+    "contacts": [
+      "contact_FL",
+      "contact_FR",
+      "contact_RL",
+      "contact_RR"
+    ]
+  },
+  "bench": {
+    "seatY": 0.45,
+    "frontEdgeZ": -0.21,
+    "seat": {
+      "min": [
+        -0.65,
+        0.39,
+        -0.57
+      ],
+      "max": [
+        0.65,
+        0.45,
+        -0.21
+      ]
+    },
+    "back": {
+      "min": [
+        -0.65,
+        0.57,
+        -0.62
+      ],
+      "max": [
+        0.65,
+        0.87,
+        -0.55
+      ]
+    }
+  },
+  "variants": {
+    "walker": {
+      "file": "characters/hero_walker.glb",
+      "bytes": 273436,
+      "profile": "older_adult_rest",
+      "lods": [
+        {
+          "node": "hero__LOD0",
+          "tris": 13432,
+          "maxM": 40.0
+        },
+        {
+          "node": "hero__LOD1",
+          "tris": 1979,
+          "maxM": null
+        }
+      ],
+      "clips": {
+        "walk": {
+          "duration": 0.9,
+          "loop": true
+        },
+        "idle": {
+          "duration": 3.0,
+          "loop": true
+        },
+        "sit_down": {
+          "duration": 1.5,
+          "loop": false
+        },
+        "sit_idle": {
+          "duration": 4.0,
+          "loop": true
+        },
+        "stand_up": {
+          "duration": 1.5,
+          "loop": false
+        },
+        "look": {
+          "duration": 3.6,
+          "loop": false
+        }
+      },
+      "stride": 0.56,
+      "walkDuration": 0.9,
+      "sitHips": [
+        0.0,
+        0.48,
+        -0.28
+      ],
+      "seated": false
+    },
+    "stroller": {
+      "file": "characters/hero_stroller.glb",
+      "bytes": 272116,
+      "profile": "stroller",
+      "lods": [
+        {
+          "node": "hero__LOD0",
+          "tris": 13052,
+          "maxM": 40.0
+        },
+        {
+          "node": "hero__LOD1",
+          "tris": 1979,
+          "maxM": null
+        }
+      ],
+      "clips": {
+        "walk": {
+          "duration": 0.9,
+          "loop": true
+        },
+        "idle": {
+          "duration": 3.0,
+          "loop": true
+        },
+        "sit_down": {
+          "duration": 1.5,
+          "loop": false
+        },
+        "sit_idle": {
+          "duration": 4.0,
+          "loop": true
+        },
+        "stand_up": {
+          "duration": 1.5,
+          "loop": false
+        },
+        "look": {
+          "duration": 3.6,
+          "loop": false
+        }
+      },
+      "stride": 0.56,
+      "walkDuration": 0.9,
+      "sitHips": [
+        0.0,
+        0.48,
+        -0.28
+      ],
+      "seated": false
+    },
+    "wheelchair": {
+      "file": "characters/hero_wheelchair.glb",
+      "bytes": 258632,
+      "profile": "wheelchair",
+      "lods": [
+        {
+          "node": "hero__LOD0",
+          "tris": 14880,
+          "maxM": 40.0
+        },
+        {
+          "node": "hero__LOD1",
+          "tris": 1967,
+          "maxM": null
+        }
+      ],
+      "clips": {
+        "walk": {
+          "duration": 1.2,
+          "loop": true
+        },
+        "idle": {
+          "duration": 3.0,
+          "loop": true
+        },
+        "sit_down": {
+          "duration": 1.0,
+          "loop": false
+        },
+        "sit_idle": {
+          "duration": 4.0,
+          "loop": true
+        },
+        "stand_up": {
+          "duration": 1.0,
+          "loop": false
+        },
+        "look": {
+          "duration": 3.6,
+          "loop": false
+        }
+      },
+      "stride": 0.9425,
+      "walkDuration": 1.2,
+      "sitHips": [
+        0.0,
+        0.46,
+        -0.03
+      ],
+      "seated": true
+    },
+    "none": {
+      "file": "characters/hero_none.glb",
+      "bytes": 251052,
+      "profile": "walking",
+      "lods": [
+        {
+          "node": "hero__LOD0",
+          "tris": 10928,
+          "maxM": 40.0
+        },
+        {
+          "node": "hero__LOD1",
+          "tris": 1980,
+          "maxM": null
+        }
+      ],
+      "clips": {
+        "walk": {
+          "duration": 0.9,
+          "loop": true
+        },
+        "idle": {
+          "duration": 3.0,
+          "loop": true
+        },
+        "sit_down": {
+          "duration": 1.5,
+          "loop": false
+        },
+        "sit_idle": {
+          "duration": 4.0,
+          "loop": true
+        },
+        "stand_up": {
+          "duration": 1.5,
+          "loop": false
+        },
+        "look": {
+          "duration": 3.6,
+          "loop": false
+        }
+      },
+      "stride": 0.56,
+      "walkDuration": 0.9,
+      "sitHips": [
+        0.0,
+        0.48,
+        -0.28
+      ],
+      "seated": false
+    }
+  }
+}

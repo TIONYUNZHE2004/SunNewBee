@@ -167,3 +167,20 @@ async def test_active_closure_makes_replay_a_miss(ctx, tmp_path):
     assert ctx.world.active_closures()
     evs = await run(ctx, st)
     assert not evs[-1].model.endswith("+demo-cache")
+
+
+async def test_cli_record_uses_a_fresh_vr_store(tmp_path, monkeypatch, capsys):
+    """A recording files its verification requests in a fresh store, so every re-record writes
+    created: true and demand 1 (byte-stable), whatever earlier CLI runs left in .data/cli.db."""
+    import json
+
+    from townshiplens_agent import cli
+
+    st = AgentSettings(_env_file=None, llm_provider="mock", demo_dir=tmp_path)
+    q = "Can I get to the lakeside mall with a stroller?"  # files requests on seed and tiny
+    for _ in range(2):
+        await cli.main(q, "stroller", record=True, settings=st)
+        (path,) = tmp_path.glob("*.jsonl")
+        rows = [json.loads(ln) for ln in path.read_text(encoding="utf-8").splitlines() if ln]
+        vrs = [r for r in rows[1:] if r.get("type") == "verification.requested"]
+        assert vrs and all(r["created"] and r["demand"] == 1 for r in vrs)

@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { CLAY_PALETTE } from "../shared/clayTokens";
 import { LANDCOVER_COLOURS } from "./landcover";
 
 /**
@@ -14,6 +15,29 @@ const OCTAVE_WEIGHTS = [0.65, 0.35] as const;
 const SPECKLE_CELL_M = 0.75;
 const SPECKLE_SHARE = 0.035;
 const SPECKLE_CLASSES = new Set(["grass", "bare"]);
+
+/**
+ * Grass shows two tones (A-T10): the class tint and `CLAY_PALETTE.dress.grassAlt`, mixed by a
+ * 14 m value noise through a smoothstep, so the lawns read as patches, not one flat green.
+ */
+export const GRASS_TONE_SCALE_M = 14;
+const GRASS_TONE_OFFSET = [5.3, -2.1] as const;
+const GRASS_EDGE = [0.42, 0.58] as const;
+const sstep = (a: number, b: number, x: number) => {
+  const t = Math.min(1, Math.max(0, (x - a) / (b - a)));
+  return t * t * (3 - 2 * t);
+};
+/** Share of the second grass tone at local (x, z), 0 to 1 (the CPU mirror of the fragment mix). */
+export function grassAltShare(x: number, z: number): number {
+  return sstep(
+    GRASS_EDGE[0],
+    GRASS_EDGE[1],
+    valueNoise(
+      x / GRASS_TONE_SCALE_M + GRASS_TONE_OFFSET[0],
+      z / GRASS_TONE_SCALE_M + GRASS_TONE_OFFSET[1],
+    ),
+  );
+}
 
 /** The classic GLSL one-liner hash in [0, 1); the shader uses the same formula. */
 const hash2 = (x: number, z: number): number => {
@@ -53,12 +77,19 @@ export function detailBrightness(cls: string, x: number, z: number): number {
 
 /** The class colour after detail, as a THREE.Color (the CPU mirror of the fragment patch). */
 export function detailColour(cls: string, hex: string, x: number, z: number): THREE.Color {
-  return new THREE.Color(hex).multiplyScalar(detailBrightness(cls, x, z));
+  const base = new THREE.Color(hex);
+  if (cls === "grass") base.lerp(new THREE.Color(CLAY_PALETTE.dress.grassAlt), grassAltShare(x, z));
+  return base.multiplyScalar(detailBrightness(cls, x, z));
 }
 
 const near = (hex: string | undefined, t = 0.02): string => {
   const c = new THREE.Color(hex);
   return `(abs(vColor.r - ${c.r.toFixed(5)}) + abs(vColor.g - ${c.g.toFixed(5)}) + abs(vColor.b - ${c.b.toFixed(5)}) < ${t})`;
+};
+
+const glslColour = (hex: string): string => {
+  const c = new THREE.Color(hex);
+  return `vec3(${c.r.toFixed(5)}, ${c.g.toFixed(5)}, ${c.b.toFixed(5)})`;
 };
 
 const GLSL = `
@@ -98,6 +129,7 @@ export function applyGroundDetail(
         "#include <color_fragment>",
         `#include <color_fragment>
 if (!${near(LANDCOVER_COLOURS.water)}) {
+  if (${near(LANDCOVER_COLOURS.grass)}) diffuseColor.rgb = mix(diffuseColor.rgb, ${glslColour(CLAY_PALETTE.dress.grassAlt)}, smoothstep(${GRASS_EDGE[0]}, ${GRASS_EDGE[1]}, tlVNoise(vDetXZ / ${GRASS_TONE_SCALE_M.toFixed(1)} + vec2(${GRASS_TONE_OFFSET[0]}, ${GRASS_TONE_OFFSET[1]}))));
   float tlN = ${w0.toFixed(2)} * tlVNoise(vDetXZ / ${o0.toFixed(1)}) + ${w1.toFixed(2)} * tlVNoise(vDetXZ / ${o1.toFixed(1)});
   float tlF = 1.0 + ${DETAIL_AMPLITUDE} * (2.0 * tlN - 1.0);
   if (${speckleGate} && tlHash(floor(vDetXZ / ${SPECKLE_CELL_M}) + vec2(17.0, -29.0)) > ${(1 - SPECKLE_SHARE).toFixed(3)}) tlF = ${1 - DETAIL_AMPLITUDE};

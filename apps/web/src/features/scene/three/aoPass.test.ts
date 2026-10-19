@@ -2,6 +2,7 @@ import * as THREE from "three";
 import { GTAOPass } from "three/addons/postprocessing/GTAOPass.js";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { CityGTAOPass } from "./aoPass";
+import { AO_PARAMS } from "./lighting";
 
 afterEach(() => vi.restoreAllMocks());
 
@@ -37,6 +38,33 @@ describe("CityGTAOPass", () => {
     const t = {} as THREE.WebGLRenderTarget;
     expect(() => pass.render({} as THREE.WebGLRenderer, t, t, 0, false)).toThrow("gl");
     expect(far.visible).toBe(true);
+    pass.dispose();
+  });
+  it("applies the B-T4 AO parameters to the GTAO material and the blend", () => {
+    const pass = new CityGTAOPass(new THREE.Scene(), new THREE.PerspectiveCamera(), 4, 4, () => []);
+    pass.applyParams(AO_PARAMS);
+    const u = pass.gtaoMaterial.uniforms;
+    expect(u.radius?.value).toBe(AO_PARAMS.radius);
+    expect(u.distanceExponent?.value).toBe(AO_PARAMS.distanceExponent);
+    expect(u.thickness?.value).toBe(AO_PARAMS.thickness);
+    expect(u.scale?.value).toBe(AO_PARAMS.scale);
+    expect(pass.blendIntensity).toBe(AO_PARAMS.blendIntensity);
+    pass.dispose();
+  });
+  it("applies params given to the constructor (the engine passes AO_PARAMS with the mood blend)", () => {
+    const pass = new CityGTAOPass(
+      new THREE.Scene(),
+      new THREE.PerspectiveCamera(),
+      4,
+      4,
+      () => [],
+      {
+        ...AO_PARAMS,
+        blendIntensity: 0.45,
+      },
+    );
+    expect(pass.gtaoMaterial.uniforms.radius?.value).toBe(AO_PARAMS.radius);
+    expect(pass.blendIntensity).toBe(0.45);
     pass.dispose();
   });
 });

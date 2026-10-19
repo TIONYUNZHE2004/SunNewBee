@@ -42,11 +42,13 @@ def test_manifest_lists_only_built_assets_and_never_calib():
     assert link["repeat"] == "frontage"
     assert link["fit"] == {"xz": [0.75, 1.35], "y": [0.6, 1.6]}
     assert link["variantByGroup"]["default"] == "gable"
-    assert link["palettes"]["valley"][0] == ["#e6e7e8", "#50545a", "#a0563f"]
+    assert link["palettes"]["valley"][0] == ["#e6e7e8", "#74787e", "#c06a50"]
     lods = link["variants"]["gable"]["lods"]
     assert lods[0] == {"node": "link_intermediate__gable__LOD0", "tris": 5999, "maxM": 300.0}
     assert lods[2]["maxM"] is None
     assert link["variants"]["gable"]["size"] == [6.4, 8.5, 15.5]
+    # the drawn LOD0 top, from the glb bounds (the web fit scales height by it)
+    assert link["variants"]["gable"]["top"] == 1.0
 
 
 def test_anchor_is_the_ring_centroid_for_anchor_landmarks_only():

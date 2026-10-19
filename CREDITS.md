@@ -24,7 +24,16 @@ Direct dependencies (pinned in `pyproject.toml` and `package.json` files) carry 
 
 | Asset | Source URL | Author | Licence | Files | Lives in |
 |---|---|---|---|---|---|
-| *(none yet)* | | | | | |
+| Kenney Mini Characters 1.0, `character-female-a` (rigged chibi body with walk, idle, sit clips; base for the resident-journey hero and crowd) | https://kenney.nl/assets/mini-characters (downloaded 2026-10-19) | Kenney (www.kenney.nl) | CC0-1.0 | `Models/GLB format/character-female-a.glb` | `assets/blender/vendor/people/mini-female-a/source.glb` |
+| Kenney Mini Characters 1.0, `character-female-b` (rigged chibi body with walk, idle, sit clips; base for the resident-journey hero and crowd) | https://kenney.nl/assets/mini-characters (downloaded 2026-10-19) | Kenney (www.kenney.nl) | CC0-1.0 | `Models/GLB format/character-female-b.glb` | `assets/blender/vendor/people/mini-female-b/source.glb` |
+| Kenney Mini Characters 1.0, `character-female-c` (rigged chibi body with walk, idle, sit clips; base for the resident-journey hero and crowd) | https://kenney.nl/assets/mini-characters (downloaded 2026-10-19) | Kenney (www.kenney.nl) | CC0-1.0 | `Models/GLB format/character-female-c.glb` | `assets/blender/vendor/people/mini-female-c/source.glb` |
+| Kenney Mini Characters 1.0, `character-male-a` (rigged chibi body with walk, idle, sit clips; base for the resident-journey hero and crowd) | https://kenney.nl/assets/mini-characters (downloaded 2026-10-19) | Kenney (www.kenney.nl) | CC0-1.0 | `Models/GLB format/character-male-a.glb` | `assets/blender/vendor/people/mini-male-a/source.glb` |
+| Kenney Mini Characters 1.0, `character-male-b` (rigged chibi body with walk, idle, sit clips; base for the resident-journey hero and crowd) | https://kenney.nl/assets/mini-characters (downloaded 2026-10-19) | Kenney (www.kenney.nl) | CC0-1.0 | `Models/GLB format/character-male-b.glb` | `assets/blender/vendor/people/mini-male-b/source.glb` |
+| Kenney Mini Characters 1.0, `character-male-c` (rigged chibi body with walk, idle, sit clips; base for the resident-journey hero and crowd) | https://kenney.nl/assets/mini-characters (downloaded 2026-10-19) | Kenney (www.kenney.nl) | CC0-1.0 | `Models/GLB format/character-male-c.glb` | `assets/blender/vendor/people/mini-male-c/source.glb` |
+| Kenney Mini Characters 1.0, `wheelchair` (downloaded; not used in the shipped meshes, the wheelchair prop is scripted) | https://kenney.nl/assets/mini-characters (downloaded 2026-10-19) | Kenney (www.kenney.nl) | CC0-1.0 | `Models/GLB format/wheelchair.glb` | `assets/blender/vendor/people/mini-wheelchair/source.glb` |
+| Hero, crowd bodies, walker (rollator), stroller and wheelchair props | none: modelled by Blender script from scratch (the Kenney bodies were only a proportion and rig reference; no vendor geometry ships) | | | | `assets/blender/tl_assets/characters/` (source), `apps/web/public/city/characters/` (packed `.glb`) |
+
+Resident journey (Oct 2026): no texture or other asset was downloaded beyond the Kenney Mini Characters above. The clay look, tilt-shift and other Three.js code come from our own clay prototype (`docs/03-product/prototypes/resident-journey`); the Three.js addons used (`BokehPass`, `GTAOPass`, `EffectComposer`, `GLTFLoader`, meshopt decoder, `MapControls`) ship with the pinned `three` dependency (MIT).
 
 ## Designs that inspired our code (no code copied)
 

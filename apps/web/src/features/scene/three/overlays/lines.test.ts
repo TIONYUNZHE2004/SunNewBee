@@ -2,7 +2,15 @@ import type * as THREE from "three";
 import type { LineMaterial } from "three/addons/lines/LineMaterial.js";
 import type { LineSegments2 } from "three/addons/lines/LineSegments2.js";
 import { describe, expect, it } from "vitest";
-import { createLineBatch, dashFromCesium, setDashScale } from "./lines";
+import {
+  createLineBatch,
+  dashFromCesium,
+  distanceFade,
+  FADE_FAR_M,
+  FADE_NEAR_M,
+  LINE_DEPTH_BIAS,
+  setDashScale,
+} from "./lines";
 
 const attr = (b: unknown, n: string) =>
   (b as LineSegments2).geometry.getAttribute(n) as THREE.BufferAttribute;
@@ -11,13 +19,21 @@ const line = new Float32Array([0, 0, 0, 10, 0, 0, 10, 0, 10]);
 const mat = (o: unknown) => (o as LineSegments2).material as LineMaterial;
 
 describe("createLineBatch", () => {
-  it("draws in the overlay pass: depthTest false and renderOrder >= 10", () => {
+  it("depth-tests (AC-A2): depthTest true, no depth write, polygon offset, renderOrder >= 10", () => {
     const b = createLineBatch([line], { color: "#C53030", widthPx: 5 }, 0.4, 10);
-    expect(mat(b).depthTest).toBe(false);
+    expect(mat(b).depthTest).toBe(true);
+    expect(mat(b).polygonOffset).toBe(true);
     expect(mat(b).depthWrite).toBe(false);
     expect(b.renderOrder).toBeGreaterThanOrEqual(10);
     expect(mat(b).worldUnits).toBe(false);
     expect(mat(b).linewidth).toBe(5);
+  });
+
+  it("uses scene fog (lines are in the main scene)", () => {
+    expect(mat(createLineBatch([line], { color: "#fff", widthPx: 3 }, 0.4, 10)).fog).toBe(true);
+    expect(
+      mat(createLineBatch([line], { color: "#fff", widthPx: 3 }, 0.4, 10, undefined, true)).fog,
+    ).toBe(true);
   });
 
   it("lifts every vertex to liftM", () => {
@@ -75,5 +91,43 @@ describe("createLineBatch", () => {
     expect(mat(b).dashSize).toBeCloseTo(4 * on1, 6);
     expect(mat(b).gapSize).toBeCloseTo(4 * gap1, 6);
     expect(mat(b).dashSize + mat(b).gapSize).toBeCloseTo(12 * 4, 6);
+  });
+});
+
+describe("distanceFade (AC-A3)", () => {
+  it("is 1 below 900 m and 0 from 1,500 m", () => {
+    expect([FADE_NEAR_M, FADE_FAR_M]).toEqual([900, 1500]);
+    expect(distanceFade(0)).toBe(1);
+    expect(distanceFade(899)).toBe(1);
+    expect(distanceFade(900)).toBe(1);
+    expect(distanceFade(1500)).toBe(0);
+    expect(distanceFade(7000)).toBe(0);
+  });
+  it("falls smoothly and monotonically in between", () => {
+    expect(distanceFade(1200)).toBeCloseTo(0.5, 6);
+    let prev = 1;
+    for (let d = 900; d <= 1500; d += 20) {
+      const f = distanceFade(d);
+      expect(f).toBeLessThanOrEqual(prev);
+      prev = f;
+    }
+  });
+});
+
+describe("fade batches", () => {
+  it("every batch pulls toward the camera by a fraction of its distance", () => {
+    const m = mat(createLineBatch([line], { color: "#fff", widthPx: 3 }, 0.4, 10));
+    expect(m.vertexShader).toContain("uDepthBias");
+    expect(m.uniforms.uDepthBias?.value).toBe(LINE_DEPTH_BIAS);
+  });
+
+  it("a faded batch carries the shader fade; a plain one does not", () => {
+    const st = { color: "#fff", widthPx: 3 };
+    const faded = mat(createLineBatch([line], st, 0.4, 10, undefined, true));
+    expect(faded.fragmentShader).toContain("uFadeFar");
+    expect(faded.vertexShader).toContain("vFadeDist = length( mvPosition.xyz )");
+    expect(faded.uniforms.uFadeNear?.value).toBe(900);
+    expect(faded.uniforms.uFadeFar?.value).toBe(1500);
+    expect(mat(createLineBatch([line], st, 0.4, 10)).fragmentShader).not.toContain("uFadeFar");
   });
 });

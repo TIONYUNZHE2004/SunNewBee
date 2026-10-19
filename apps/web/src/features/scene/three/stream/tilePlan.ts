@@ -7,13 +7,17 @@ import type { FacadeBuilding } from "../facade/facadeLayer";
 import type { RoofItem, TileRoofs } from "../facade/roofLayer";
 import { roofDressing } from "../facade/roofPlan";
 import { createFrame, type LocalFrame } from "../frame";
+import type { Boundary } from "../ground/boundary";
+import { planDressing } from "../ground/dressingPlan";
 import { ribbonsFromWalk } from "../ground/ribbons";
 import { planVerges } from "../ground/verges";
-import { planAgents } from "../motion/agents";
+import { PAVEMENT_FLOOR_M, planAgents } from "../motion/agents";
 import { planProps } from "../props/propsPlan";
+import { CLAY_PALETTE } from "../shared/clayTokens";
 import { planSigns } from "../signs/signPlan";
 import { type PlanArea, seedFor } from "./area";
 import { tileCap, VERGE_PIECES_PER_CAP, VERGE_SHRUBS_PER_CAP } from "./caps";
+import { guardTile } from "./clipTile";
 import { lotKits, planTileLots, warmLots } from "./lotsPlan";
 import type { Ring, TileContent } from "./streamer";
 import { type Tile, type TileKey, tileAt, tileOf } from "./tiles";
@@ -30,6 +34,12 @@ export interface TileInputs {
   facades: Map<TileKey, FacadeBuilding[]> | null;
   /** Roof inputs by tile (`bucketRoofs`); absent or null: no roof dressing. */
   roofs?: Map<TileKey, RoofInput[]> | null;
+  /**
+   * The Elmina outline (A-T4). `walk` and `buildings` are already cut to it (`ground/clipLayer.ts`);
+   * with it every planned tile also passes the vertex guard (`clipTile.ts`) and agents keep to
+   * paths inside. Absent or null (a world without an outline): nothing is clipped.
+   */
+  boundary?: Boundary | null;
 }
 
 /**
@@ -51,6 +61,11 @@ export function fromWire(w: WireInputs): TileInputs {
 
 /** Per-planner seed salt: the seed is `hash01(tileKey, salt)` (`seedFor`), never visit order. */
 const SALT = { props: "props", motion: "motion", signs: "signs", roads: "roads" } as const;
+/**
+ * The people spawn floor (1 per 40 m of street) applies to rings 0..this (C-T8). Perf-gate knob (P10):
+ * 0 keeps the floor on the camera's own tile only (the bubble can straddle into ring 1, though).
+ */
+export const PAVEMENT_FLOOR_MAX_RING: 0 | 1 = 1;
 const LAMP_KITS = ["furniture/lamp_single", "furniture/lamp_double"];
 const NO_KITS: Map<string, Placement[]> = new Map();
 /** One shared empty list: a re-plan of a tile without facades keeps its identity (no facade rebuild). */
@@ -140,6 +155,11 @@ export function planTile(inp: TileInputs, tile: Tile, ring: Ring, tier: Tier): T
           tier,
           caps: { vehicles, people },
           m: manifest,
+          boundary: inp.boundary,
+          // C-T8: people keep out of footprints and water (P7); the detail bubble (rings 0-1)
+          // keeps at least one person per 40 m of street (A-T12 hand-off).
+          obstacles: buildings ? { buildings: buildings.buildings, water: buildings.water } : null,
+          floorPerM: ring <= PAVEMENT_FLOOR_MAX_RING ? 1 / PAVEMENT_FLOOR_M : 0,
         })
       : [];
   const signs =
@@ -151,8 +171,10 @@ export function planTile(inp: TileInputs, tile: Tile, ring: Ring, tier: Tier): T
       : [];
   const ribbons = ribbonsFromWalk(walk as GeoJSON.FeatureCollection, frame, {
     area: areaOf(tile, SALT.roads),
+    // Rounded kerbs (B-T3) only where they can be seen: rings 0-1, above Low.
+    bevel: tier !== "low" && ring <= 1,
   });
-  return {
+  const content: TileContent = {
     kits,
     lamps: LAMP_KITS.flatMap((k) => kits.get(k) ?? []),
     agents,
@@ -162,7 +184,10 @@ export function planTile(inp: TileInputs, tile: Tile, ring: Ring, tier: Tier): T
     roofs: rich && ring <= 1 && inp.roofs ? planRoofs(inp.roofs.get(tile.key)) : undefined,
     verges: planTileVerges(inp, tile, ring, tier),
     ...lots.content, // Task 10: parking, tracks, gravel
+    dressing: planTileDressing(inp, tile, ring, tier),
   };
+  // A-T4: nothing drawn outside the Elmina outline (display only).
+  return guardTile(content, inp.boundary);
 }
 
 // --- Task 9: grass verges and shrub rows (self-contained) ---------------------------------------
@@ -191,6 +216,24 @@ export function planTileVerges(
     cap * VERGE_PIECES_PER_CAP,
     { parks: inp.buildings?.parks, water: inp.buildings?.water },
   );
+}
+/** A-T10: the tile's land dressing (flowers, crop rows, cones, mounds); undefined when empty. */
+export function planTileDressing(
+  inp: TileInputs,
+  tile: Tile,
+  ring: Ring,
+  tier: Tier,
+): TileContent["dressing"] {
+  if (tier === "low" || !inp.buildings) return undefined;
+  const d = planDressing({
+    landcover: inp.buildings.landcover,
+    walk: inp.walk,
+    frame: inp.frame,
+    box: tile.box,
+    ring,
+    tier,
+  });
+  return d.tris.length > 0 ? d : undefined;
 }
 // --- end Task 9 ------------------------------------------------------------------------------------
 
@@ -230,7 +273,7 @@ const WARM_ROOF: RoofInput = {
     heightM: 10,
     kind: "industrial",
   },
-  palette: { wall: "#ffffff", roof: "#3d4147", trim: "#cccccc" },
+  palette: { ...CLAY_PALETTE.neutral },
 };
 
 /** Items grouped by the tile holding their footprint's bounding-box centre (half-open). */

@@ -32,6 +32,12 @@ const S: Record<EdgeStatus, StatusStyle> = {
 export const statusStyle = (s: EdgeStatus): StatusStyle => S[s];
 export const ROUTE_STYLE = { color: "#2B6CB0", width: 8, label: "Suggested route" };
 export const WATER_COLOR = "#1e6fb8";
+/**
+ * Journey trip ribbon (route data): the white casing under the ribbon and the event pin face. An
+ * off-white, not #ffffff: drawn unlit in the canvas, pure white was clipped white on ~1% of the
+ * frame in the follow camera (AC-B6, B-T4 fix round 1); every channel stays under 254.
+ */
+export const JOURNEY_RIBBON_STYLE = { casing: "#f2efe8", pinFace: "#f2efe8" } as const;
 
 /** Cesium PolylineDash params per patterned status (16-bit on/off mask over dashLength px). */
 export const CESIUM_DASH: Partial<Record<EdgeStatus, { dashLength: number; dashPattern: number }>> =

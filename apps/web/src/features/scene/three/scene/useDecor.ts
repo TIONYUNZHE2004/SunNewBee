@@ -7,6 +7,7 @@ import type { Placement } from "../assets/fit";
 import type { RoleUniforms } from "../assets/roleMaterial";
 import type { Engine } from "../engine";
 import type { LocalFrame } from "../frame";
+import type { Boundary } from "../ground/boundary";
 import { createLampPools } from "../props/lampPools";
 import { createSignLayer, signLayerSteps } from "../signs/signLayer";
 import type { SignPlacement } from "../signs/signPlan";
@@ -32,6 +33,7 @@ export function useDecor({
   setKits,
   kitJob,
   bus,
+  boundary = null,
 }: {
   engine: Engine | null;
   frame: LocalFrame | null;
@@ -45,6 +47,8 @@ export function useDecor({
   /** `setKits` as a time-sliced job (one step per kit key); absent: sliced rebuilds use `setKits` whole. */
   kitJob?: (kits: Map<string, Placement[]> | null) => SliceJob | null;
   bus: SceneBus;
+  /** The Elmina outline (A-T4): birds and cloud shadows outside it are hidden. */
+  boundary?: Boundary | null;
 }) {
   const rich = tier !== "low";
   // Stale content can outlive a switch to Low for a few ticks (until its re-plan): gate it here.
@@ -155,7 +159,7 @@ export function useDecor({
   useEffect(() => {
     // None at Low (Review Focus 5); counts follow the tier.
     if (!engine || !frame || showroom || tier === "low") return;
-    const ambient = createAmbient(tier, frame, frame.toLonLat(0, 0), "ambient");
+    const ambient = createAmbient(tier, frame, frame.toLonLat(0, 0), "ambient", boundary);
     const c = centreRef.current;
     if (c) ambient.group.position.set(c[0], 0, c[1]);
     ambient.tick(performance.now(), bus.getState().mood);
@@ -167,11 +171,12 @@ export function useDecor({
       bus.setState({ ambient: null });
       engine.setDecor("ambient", null);
     };
-  }, [engine, frame, showroom, tier, bus]);
+  }, [engine, frame, showroom, tier, bus, boundary]);
   useEffect(() => {
     const ambient = ambientRef.current;
     if (!engine || !ambient || !centre) return;
     ambient.group.position.set(centre[0], 0, centre[1]);
+    ambient.refresh();
     engine.requestRender();
   }, [engine, centre]);
 

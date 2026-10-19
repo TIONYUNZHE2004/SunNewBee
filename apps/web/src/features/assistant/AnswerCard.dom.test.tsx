@@ -59,6 +59,33 @@ describe("AnswerCard", () => {
     stubFetch(() => json([]));
   });
 
+  it("Not verified: identical caveats collapse with a count, every distinct one is still shown", () => {
+    const same = "Older adult: incline not checked yet (limit 8.3%) on an unnamed footway";
+    const items = [
+      ...Array.from({ length: 12 }, (_, i) => ({
+        element_id: `seg-${i}`,
+        attribute: "incline",
+        note: same,
+      })),
+      {
+        element_id: "seg-a",
+        attribute: "width",
+        note: "Older adult: width not checked yet on Jalan A",
+      },
+      {
+        element_id: "seg-b",
+        attribute: "incline",
+        note: "Older adult: incline not checked yet (limit 8.3%) on Jalan B",
+      },
+    ];
+    show(msg({ uncertainty: { type: "uncertainty", level: "partial", items } as never }));
+    const note = screen.getByText(/^Not verified/).closest('[role="note"]') as HTMLElement;
+    expect(note.textContent?.split(same).length).toBe(2); // shown once
+    expect(note).toHaveTextContent(`${same} (x12)`);
+    expect(note).toHaveTextContent("width not checked yet on Jalan A");
+    expect(note).toHaveTextContent("(limit 8.3%) on Jalan B");
+  });
+
   it("summary strip shows status with its label, distance, time and Show on map", () => {
     useScene.setState({ route: { id: "r1", geojson: { type: "LineString", coordinates: [] } } });
     show(msg());

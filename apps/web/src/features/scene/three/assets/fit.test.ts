@@ -96,6 +96,12 @@ describe("fitArchetype", () => {
     expect(r[0]!.sy).toBeCloseTo(1, 6);
     expect(r[0]!.sz).toBeCloseTo(1, 2);
   });
+  it("scales height by the model's drawn top (manifest `top`), so the top lands on the building height", () => {
+    const s = spec();
+    s.variants.gable = { ...s.variants.gable!, top: 9.4 };
+    const r = fitArchetype(obbOf(6.4, 15.5, 20), s, "gable", 9, null, "t")!;
+    expect(r[0]!.sy * 9.4).toBeCloseTo(9, 6);
+  });
   it("splits a 64 m row into 10 units at 6.4 m steps", () => {
     const o = footprintObb(rect(15.5, 64, 0, 100, 50))!;
     const r = fitArchetype(o, spec(), "gable", 8.5, null, "row")!;

@@ -210,7 +210,7 @@ export function createMotionDriver(opts: {
     get target() {
       return target;
     },
-    tick(nowMs, camera, frustum) {
+    tick(nowMs, camera, frustum, pure) {
       const dt = last === null ? 0 : nowMs - last;
       last = nowMs;
       // Stopped frames carry a frozen clock (dt 0): a fade caught mid-way applies at once instead
@@ -218,7 +218,8 @@ export function createMotionDriver(opts: {
       if (!opts.running()) {
         if (opacity !== target) show(target);
       } else if (opacity !== target) show(decorativeOpacity(opacity, target, dt));
-      agents?.tick(nowMs, camera, frustum);
+      if (pure) agents?.tick(nowMs, camera, frustum, true);
+      else agents?.tick(nowMs, camera, frustum);
       opts.ambient()?.tick(nowMs, weights);
       flicker();
     },

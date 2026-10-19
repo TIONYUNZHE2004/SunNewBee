@@ -9,7 +9,14 @@ from typing import Any
 
 import networkx as nx
 
-from .evaluate import SIDEWALK_PRESENT, _is_stale, evaluate_edge, evaluate_flood, rest_point_state
+from .evaluate import (
+    REST_ATTRS,
+    SIDEWALK_PRESENT,
+    _is_stale,
+    evaluate_edge,
+    evaluate_flood,
+    rest_point_state,
+)
 from .geo import haversine_m
 from .models import Evidence, RoadSection, Route, RouteResult, RouteSegment, photo_url
 from .scenario_meta import scenario_source, selection_error
@@ -514,9 +521,6 @@ def _route_from_nodes(world, nodes, keys, from_id, to_id, profile, scenario_id, 
         ),
         1,
     )
-    ev_list = evidence_for_route(world, route)
-    route.evidence_ids = list(dict.fromkeys(ev.id for ev in ev_list))
-    route.demo_evidence = any(ev.source_type == PLACEHOLDER_SOURCE for ev in ev_list)
     limit = profile.max_rest_free_run_m
     if limit is not None:
         verified = {r["node_id"] for r in rest if r["status"] == "verified"}
@@ -532,6 +536,10 @@ def _route_from_nodes(world, nodes, keys, from_id, to_id, profile, scenario_id, 
             not route.rest_limit_met or route.rest_points_unverified
         ):
             route.status = "partly_unverified"
+    # After the rest limit is set: profiles with one also cite their rest points and gap.
+    ev_list = evidence_for_route(world, route)
+    route.evidence_ids = list(dict.fromkeys(ev.id for ev in ev_list))
+    route.demo_evidence = any(ev.source_type == PLACEHOLDER_SOURCE for ev in ev_list)
     return route
 
 
@@ -601,6 +609,69 @@ def evidence_for_route(world: World, route: Route) -> list[Evidence]:
             },
             status="reported",
             source_type="mapped walk graph (not a sidewalk survey)",
+        )
+    )
+    if (dest := world.places.get(route.to_place)) is not None:
+        out.append(place_evidence(dest))  # the journey's arrive event cites it
+    if route.rest_limit_m is not None:
+        out.extend(_rest_evidence(world, route))
+    return out
+
+
+def place_evidence(p) -> Evidence:
+    """`ev-place-<id>`: the place itself, with its existence claim's provenance when it has one."""
+    existence = p.claims.get("existence")
+    return Evidence(
+        id=f"ev-place-{p.id}",
+        element_id=p.id,
+        attribute="name",
+        value=p.name,
+        status=existence.status if existence else "reported",
+        source_type=existence.evidence_type if existence else "world_model",
+        verified_at=existence.verified_at if existence else None,
+    )
+
+
+def rest_claim_evidence(world: World, place_id: str) -> list[Evidence]:
+    """A rest point's own rest claims (`ev-<place>.<attr>`), else the place itself."""
+    p = world.places[place_id]
+    out = [
+        Evidence(
+            id=f"ev-{p.id}.{attr}",
+            element_id=p.id,
+            attribute=attr,
+            value=c.value,
+            status=c.status,
+            verified_at=c.verified_at,
+            source_type=c.evidence_type,
+            photo_url=photo_url(c),
+        )
+        for attr in REST_ATTRS.get(p.type, ())
+        if (c := p.claims.get(attr)) is not None
+    ]
+    return out or [place_evidence(p)]
+
+
+def _rest_evidence(world: World, route: Route) -> list[Evidence]:
+    """Profiles with a rest rule rest on their rest points and the longest gap between them."""
+    out = [
+        ev
+        for r in route.rest_points
+        if r["place_id"] in world.places
+        for ev in rest_claim_evidence(world, r["place_id"])
+    ]
+    out.append(
+        Evidence(
+            id=f"ev-{route.id}.rest_gap",
+            element_id=route.id,
+            attribute="max_gap_between_rest_m",
+            value={
+                "max_gap_between_rest_m": route.max_gap_between_rest_m,
+                "rest_limit_m": route.rest_limit_m,
+                "rest_points": [r["place_id"] for r in route.rest_points],
+            },
+            status="reported",
+            source_type="mapped walk graph and rest points (not a survey)",
         )
     )
     return out

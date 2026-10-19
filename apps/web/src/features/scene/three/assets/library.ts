@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { MeshoptDecoder } from "three/addons/libs/meshopt_decoder.module.js";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+import { roundCanopies } from "./clayCanopy";
 import type { Manifest } from "./manifest";
 
 export interface AssetLibrary {
@@ -99,8 +100,16 @@ export async function loadAssetLibrary(m: Manifest, opts: Opts = {}): Promise<As
         const found = new Map<string, THREE.BufferGeometry>();
         gltf.scene.traverse((o) => {
           if (!(o as THREE.Mesh).isMesh) return;
-          const g = bakeNode(o as THREE.Mesh);
+          let g = bakeNode(o as THREE.Mesh);
           if (g) {
+            if (id === "trees") {
+              // B-T3: faceted canopy lobes become clustered smooth clay spheres.
+              const r = roundCanopies(g);
+              if (r.geometry !== g) {
+                g.dispose();
+                g = r.geometry;
+              }
+            }
             found.set(o.name, g);
             all.push(g);
           }

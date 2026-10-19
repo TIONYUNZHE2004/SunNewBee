@@ -1,5 +1,6 @@
 import { useMemo, useRef } from "react";
 import { useBuildings, useLayer, useSite } from "../../../lib/api";
+import { JourneyMount } from "../../journey/JourneyMount";
 import { InSlot } from "../../map-ui/mapSlots";
 import { CameraControls, handleMapKey } from "../cesium/controls/CameraControls";
 import type { CameraOps } from "../cesium/controls/cameraOps";
@@ -10,19 +11,25 @@ import { useScene } from "../sceneStore";
 import { createRoleUniforms } from "./assets/roleMaterial";
 import { createEngine } from "./engine";
 import { createFrame } from "./frame";
+import { boundaryOf } from "./ground/boundary";
+import { clipLayer } from "./ground/clipLayer";
 import { useSceneBus } from "./scene/sceneBus";
 import { useCameraOps } from "./scene/useCameraOps";
 import { useCityAssets } from "./scene/useCityAssets";
 import { useDecor } from "./scene/useDecor";
+import { useDetailBubble } from "./scene/useDetailBubble";
+import { useDressing } from "./scene/useDressing";
 import { useEngine } from "./scene/useEngine";
 import { useFacades } from "./scene/useFacades";
 import { useGround, useRoads } from "./scene/useGround";
 import { useGroundDecor } from "./scene/useGroundDecor";
+import { useLazyAcceptanceHook } from "./scene/useLazyAcceptanceHook";
 import { useMood } from "./scene/useMood";
 import { useMotion } from "./scene/useMotion";
 import { useOverlays } from "./scene/useOverlays";
 import { usePicking } from "./scene/usePicking";
 import { useRoofs } from "./scene/useRoofs";
+import { useSlab } from "./scene/useSlab";
 import { useMergeMeasure, useStream } from "./scene/useStream";
 
 export const DECORATIVE_NOTE = "Decorative details are illustrative.";
@@ -85,8 +92,7 @@ export default function ThreeScene({
   }, []);
 
   const site = useSite().data;
-  const buildingsQ = useBuildings();
-  const buildings = buildingsQ.data;
+  const rawBuildingsQ = useBuildings();
   const profile = useScene((s) => s.profile);
   const scenarioId = useScene((s) => s.scenarioId);
   const access = useLayer("access", profile, scenarioId);
@@ -100,6 +106,25 @@ export default function ThreeScene({
     [center],
   );
   const bbox = site?.bbox;
+  // A-T4: the Elmina outline (display only). Every stylised layer is cut to it once here (and each
+  // streamed tile passes its vertex guard); routing, the API data and the data overlays are not.
+  const boundaryGeom = site?.boundary?.geometry;
+  const boundary = useMemo(
+    () => (frame && boundaryGeom ? boundaryOf(boundaryGeom, frame) : null),
+    [frame, boundaryGeom],
+  );
+  const rawBuildings = rawBuildingsQ.data;
+  const buildings = useMemo(
+    () =>
+      rawBuildings && boundary && frame
+        ? clipLayer(rawBuildings, boundary, frame).layer
+        : rawBuildings,
+    [rawBuildings, boundary, frame],
+  );
+  const buildingsQ = useMemo(
+    () => ({ data: buildings, isError: rawBuildingsQ.isError, isSuccess: rawBuildingsQ.isSuccess }),
+    [buildings, rawBuildingsQ.isError, rawBuildingsQ.isSuccess],
+  );
 
   // Same place lookup as CesiumScene: place ids to coordinates from the access layer.
   // Memoised on the data: Day playback re-renders this component at ~10 Hz.
@@ -115,6 +140,10 @@ export default function ThreeScene({
     frame,
     bbox,
   });
+  // The walk the stand-ins are checked against (9.1 F1), latched once like the ground's copy, so a
+  // profile or scenario switch never re-plans the city.
+  const walkLatch = useRef<unknown>(null);
+  if (!walkLatch.current && access.data) walkLatch.current = access.data;
   const city = useCityAssets({
     engine,
     frame,
@@ -123,14 +152,18 @@ export default function ThreeScene({
     assetsOn,
     showroom,
     roleUniforms,
+    boundary,
+    walk: walkLatch.current,
   });
   const { assetsState, loaded } = city;
+  useSlab({ engine, boundary: showroom ? null : boundary });
   const { detailsOn, walk, landcover } = useGround({
     engine,
     frame,
     buildingsQ,
     accessData: access.data,
     tier,
+    boundary,
   });
   // Township streaming: the 250 m tiles around the camera target feed every decorative layer.
   const { active, centre, mergeStart } = useStream({
@@ -144,6 +177,7 @@ export default function ThreeScene({
     showroom,
     facadeSrc: city.facadeSrc,
     roofSrc: city.roofSrc,
+    boundary,
   });
   const { roads, stalls } = useRoads({ engine, active, tier });
   // Verges and construction ground: one ground-decor mesh (stall lines ride the road markings).
@@ -167,8 +201,24 @@ export default function ThreeScene({
     setKits: city.setKits,
     kitJob: city.kitJob,
     bus,
+    boundary,
   });
-  const { running, onScreen, agents } = useMotion({
+  // Street dressing kit (B-T7): fact props (crossings, signals, bus stops, shelters, benches; one
+  // per data feature) and decorative props near the camera target.
+  // B-T8: street-level detail (dressing, LOD0 trees, the crowd's LOD0) inside the detail bubble
+  // around the hero (follow mode) or the camera target.
+  useDetailBubble({ engine, bus, setDetailBubble: city.setDetailBubble, showroom });
+  const dressing = useDressing({
+    engine,
+    frame,
+    tier,
+    walk,
+    buildings,
+    bubble: bus.getState().bubble,
+    boundary,
+    showroom,
+  });
+  const { running, onScreen, agents, crowdShown } = useMotion({
     engine,
     tier,
     active,
@@ -187,13 +237,17 @@ export default function ThreeScene({
     accessData: access.data,
     onScreen,
     running,
+    boundary: showroom ? null : boundary,
   });
   const home = homeView(site);
   const { initialBackground } = useMood({ engine, roleUniforms, sectionRef, home, bus });
   usePicking({ engine, hostRef, places });
+  // Test-only camera / pick / frame-stats hook (dev builds or `?acceptance=1`).
+  useLazyAcceptanceHook(engine, frame);
 
   // Any decorative layer in the scene: city assets (kits, decorative landmarks), facades, roofs, ground
-  // decor (verges, construction ground), stall lines, props, agents, the ground layer (land-cover
+  // decor (verges, construction ground), stall lines, props, dressing-kit decor (planters, lamp posts,
+  // kerb edging, flowers, grass tufts), agents, the ground layer (land-cover
   // tints, road surfaces) or the ambient birds and clouds.
   const decorativeShown =
     city.decorAssets ||
@@ -202,6 +256,7 @@ export default function ThreeScene({
     decorOn ||
     (!!engine && stalls.length > 0) ||
     kits.size > 0 ||
+    dressing.decor > 0 ||
     agents.length > 0 ||
     (!!engine && (roads.length > 0 || !!landcover?.getAttribute("position")?.count)) ||
     (!!engine && !!frame && !showroom && tier !== "low");
@@ -213,11 +268,15 @@ export default function ThreeScene({
       ref={sectionRef}
       data-testid="three-scene"
       data-frames={frames}
+      data-tier={tier}
       data-route={routeOn ? "on" : "off"}
       data-assets={assetsState}
       data-instances={city.instances}
       data-markers={markerCount}
       data-tiles={active.length}
+      data-crowd={`${agents.length}:${crowdShown ? 1 : 0}`}
+      data-dressing-facts={dressing.facts}
+      data-dressing-decor={dressing.decor}
       data-fallback={city.fallback.join(",")}
       className="relative h-full w-full"
       style={{ background: initialBackground }}
@@ -231,6 +290,15 @@ export default function ThreeScene({
       <PerfOverlay />
       <SlowBanner />
       {decorativeShown && <DecorativeChip />}
+      {/* Resident journey: ribbon, markers, label, HUD, mini-map and event cards (D-T7). */}
+      <JourneyMount
+        engine={engine}
+        frame={frame}
+        hostRef={hostRef}
+        places={places}
+        footprints={buildings?.buildings}
+        factBenches={dressing.benches}
+      />
       {showroom && (assetsState === "loading" || assetsState === "ready") && <ShowroomChip />}
     </section>
   );

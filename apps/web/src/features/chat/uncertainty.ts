@@ -13,6 +13,16 @@ export function describeUncertainty(items: Record<string, string>[] | undefined)
   return out;
 }
 
+/**
+ * Exact duplicate lines collapsed into one with a count ("… on an unnamed footway (x12)"), in
+ * first-seen order (gate §9.1 F6). Every distinct line is kept: nothing is hidden, only repeats.
+ */
+export function groupUncertainty(lines: readonly string[]): string[] {
+  const counts = new Map<string, number>();
+  for (const l of lines) counts.set(l, (counts.get(l) ?? 0) + 1);
+  return [...counts].map(([l, n]) => (n > 1 ? `${l} (x${n})` : l));
+}
+
 /** Items that are things to know (closures, rest gaps, demo values…), not unchecked facts. */
 const NOTE_ATTRIBUTES = new Set([
   "closure",

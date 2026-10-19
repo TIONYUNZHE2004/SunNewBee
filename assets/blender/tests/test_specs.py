@@ -309,4 +309,6 @@ def test_lakeside_mall_ranges_are_pinned_to_the_seed_outline():
     # canopy overhang 1.5 m per side: extent within [bbox - 0.1, bbox + 3.0 + 0.1]
     assert v.x_range == pytest.approx((bw - 0.1, bw + 3.1), abs=0.05)
     assert v.z_range == pytest.approx((bd - 0.1, bd + 3.1), abs=0.05)
-    assert v.y_range == (8.0, 12.0)
+    # the model's top is its manifest height, the seed's display_height_m (B-T2 fidelity)
+    assert v.y_range == (8.95, 9.05)
+    assert v.y_range[0] <= v.size[1] <= v.y_range[1]

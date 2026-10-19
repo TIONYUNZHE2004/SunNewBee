@@ -122,6 +122,28 @@ export const useBuildings = () =>
     queryFn: () => fetchBuildings(),
   });
 
+export type StreetFurnitureLayer = Schemas["StreetFurnitureLayer"];
+
+/** Plain fetch, like `fetchBuildings`: a 404 (no street furniture seed) is data (null), not an error. */
+export async function fetchStreetFurniture(
+  fetchFn: typeof fetch = (...a) => fetch(...a),
+): Promise<StreetFurnitureLayer | null> {
+  const r = await fetchFn("/api/layers/street_furniture");
+  if (r.status === 404) return null;
+  if (!r.ok) throw new Error(`street furniture request failed (${r.status})`);
+  return (await r.json()) as StreetFurnitureLayer;
+}
+
+/** Fact-bearing street furniture for the stylised city (B-T7, display only); null when absent. */
+export const useStreetFurniture = (enabled = true) =>
+  useQuery({
+    queryKey: ["street-furniture"],
+    enabled,
+    staleTime: Number.POSITIVE_INFINITY,
+    retry: false,
+    queryFn: () => fetchStreetFurniture(),
+  });
+
 /** Rising-river rollout (synthetic residents per persona at every river stage). Deterministic per
  * world version and cached by the API; the first call on the seed takes about 15 s. */
 export const useRiverRollout = (enabled: boolean) =>
