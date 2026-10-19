@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import type { LonLat } from "../../scene/geo";
-import type { Hero } from "../../scene/three/characters/hero";
+import { HERO_BENCH } from "../../scene/three/characters/benchGeometry";
+import { HERO_DISPLAY_SCALE, type Hero } from "../../scene/three/characters/hero";
 import {
   createPlaceholderHero,
   createRestBench,
@@ -16,29 +17,47 @@ import { AGENT_LIFT_M } from "../../scene/three/motion/motionLayer";
 import type { HeroPose, HeroProbe } from "../journeyStore";
 import type { RoutePath } from "../routePath";
 import type { JourneyPlan, Timeline } from "../timeline";
+import { buildGroundIndex, corridorCells, type GroundIndex, groundBandMeshes } from "./groundIndex";
 
-/** On the route she stands where the decorative agents do: on the footway ribbons (0.08 m). */
+/** Her root height where no drawn ground is known yet: the agents' footway height (0.08 m). */
 export const HERO_GROUND_Y = AGENT_LIFT_M;
-/** Samples of the drawn ground along route point -> seat (offRoute 0..1) for a rest's heights. */
-const REST_PROFILE_N = 8;
-/** Retry a rest's ground sampling at most this often (ms) while its band has not streamed in. */
-const GROUND_RETRY_MS = 300;
-/** Start sampling a rest's ground this many route metres before it. */
-const GROUND_LOOKAHEAD_M = 40;
 /** Footprints this far (m) from a rest point are considered for its seat side. */
 const FOOTPRINT_RANGE_M = 40;
 const CLEARANCE_CAP_M = 50;
+/** Ground corridor: this far (m) either side of the route and the rest paths (walker reach + margin). */
+const CORRIDOR_M = 2.5;
+/** Corridor sampling step along the route (m). */
+const CORRIDOR_STEP_M = 0.5;
+
+/** Per-pose cost of the hero (driver + planting + model update), for the frame budget. */
+export interface HeroCost {
+  poses: number;
+  meanMs: number;
+  p95Ms: number;
+  maxMs: number;
+  rebuilds: number;
+  lastRebuildMs: number;
+  meanRebuildMs: number;
+  maxRebuildMs: number;
+  triangles: number;
+}
 
 /**
  * The journey hero in the 3D scene: the hero model (placeholder until C-T4) plus a bench at each
- * rest stop of the plan. `pose(tl, t)` puts her where `heroStateAt` says and returns what was drawn.
+ * rest stop of the plan. `pose(tl, t)` puts her where `heroStateAt` says, on the drawn ground from a
+ * precomputed corridor height table, and returns what was drawn.
  */
 export interface HeroLayer {
   group: THREE.Group;
   hero: Hero;
   seats: Map<number, HeroSeat>;
-  /** `playing`: the timeline is running (planting is then budgeted, and off in compressed walks). */
-  pose(tl: Timeline, t: number, playing?: boolean): HeroPose;
+  pose(tl: Timeline, t: number): HeroPose;
+  /**
+   * Re-checks the ground meshes when the engine's ground generation moved (a tile streamed in or
+   * out) and rebuilds the height table if the set changed; true when it did (re-pose then).
+   */
+  refreshGround(): boolean;
+  cost(): HeroCost;
   dispose(): void;
 }
 
@@ -148,68 +167,27 @@ export function footprintClearance(
   };
 }
 
-interface RestGround {
-  /** Drawn ground heights at offRoute 0, 1/N .. 1 (route point -> seat). */
-  profile: number[];
-}
-
-/** Ground cache cell (m): a contact samples the band once per cell it enters (2 cm: a band edge is never misread by more than that). */
-const GROUND_CELL_M = 0.02;
-/** The ground-band mesh list is gathered again after this long (ms): tiles stream in and out. */
-const GROUND_MESHES_MS = 1000;
-/** New ground samples (raycasts) allowed per pose while playing; a paused pose plants fully. */
-const PLANT_BUDGET = 12;
-
-/**
- * Foot-planting ground: the drawn ground band at (x, z), cached per 2 cm cell while the set of
- * ground meshes stays the same (re-gathered every second; a tile streaming in or out clears the
- * cache, so a park-only answer never outlives the footway arriving). `make(budget)` returns a
- * sampler allowed `budget` new raycasts; past it, unknown cells return null (the contact then
- * stays at the root's height). A cell with no band under it is asked again.
- */
-function plantingGround(roots: (() => readonly THREE.Object3D[]) | undefined, now: () => number) {
-  const cache = new Map<number, number>();
-  let sample: ((x: number, z: number) => { y: number; band: string | null }) | null = null;
-  let meshKey = "";
-  let gathered = -Infinity;
-  /** Re-gathers the ground meshes; a changed set (a tile streamed in or out) drops the cache. */
-  const refresh = (force: boolean) => {
-    if (!roots || (!force && sample && now() - gathered <= GROUND_MESHES_MS)) return;
-    const meshes: string[] = [];
-    for (const r of roots())
-      r.traverseVisible((o) => {
-        if (
-          (o as THREE.Mesh).isMesh &&
-          o.userData.groundBand &&
-          o.userData.groundBand !== "markings"
-        )
-          meshes.push(o.uuid);
-      });
-    const key = meshes.join(",");
-    if (key !== meshKey) cache.clear();
-    meshKey = key;
-    sample = groundSampler(roots());
-    gathered = now();
-  };
-  const make = (budget: number) => {
-    let left = budget;
-    return (x: number, z: number): number | null => {
-      const cx = Math.round(x / GROUND_CELL_M);
-      const cz = Math.round(z / GROUND_CELL_M);
-      const key = cx * 1e7 + cz;
-      const hit = cache.get(key);
-      if (hit !== undefined) return hit;
-      if (!roots || left <= 0) return null;
-      left--;
-      refresh(false);
-      const g = (sample as NonNullable<typeof sample>)(x, z);
-      if (g.band === null) return null;
-      const y = Math.max(0, g.y);
-      cache.set(key, y);
-      return y;
-    };
-  };
-  return { make, refresh };
+/** The bench's seat + backrest footprint corners (local xz) for a stand point facing `yaw`. */
+function benchCorners(x: number, z: number, yaw: number): [number, number][] {
+  const s = HERO_BENCH.seat;
+  const b = HERO_BENCH.back;
+  const k = HERO_DISPLAY_SCALE;
+  const x0 = Math.min(s.min[0] as number, b.min[0] as number) * k;
+  const x1 = Math.max(s.max[0] as number, b.max[0] as number) * k;
+  const z0 = Math.min(s.min[2] as number, b.min[2] as number) * k;
+  const z1 = Math.max(s.max[2] as number, b.max[2] as number) * k;
+  const c = Math.cos(yaw);
+  const n = Math.sin(yaw);
+  // rotation.y = yaw maps local (lx, lz) to (lx cos + lz sin, -lx sin + lz cos)
+  return [
+    [x0, z0],
+    [x1, z0],
+    [x1, z1],
+    [x0, z1],
+  ].map(([lx, lz]) => [
+    x + (lx as number) * c + (lz as number) * n,
+    z - (lx as number) * n + (lz as number) * c,
+  ]);
 }
 
 export function createHeroLayer(
@@ -218,17 +196,20 @@ export function createHeroLayer(
   frame: LocalFrame,
   opts: {
     places?: ReadonlyMap<string, LonLat>;
-    /** OSM building footprints (`/layers/buildings` `buildings`): the seat side keeps clear of them. */
+    /** OSM building footprints (`/layers/buildings` `buildings`): the bench keeps clear of them. */
     footprints?: unknown;
-    /** The scene roots for ground sampling (the engine's `pickView().roots`). */
+    /** The scene roots holding the ground bands (the engine's `pickView().roots`). */
     roots?: () => readonly THREE.Object3D[];
+    /**
+     * The engine's ground generation (`Engine.groundGeneration`): the height table is re-checked
+     * only when it moves. Without it the ground meshes are re-checked on every `refreshGround`.
+     */
+    groundGeneration?: () => number;
     createHero?: () => Hero;
-    now?: () => number;
-    /** Called with every pose drawn (also a probe's re-pose). */
+    /** Called with every pose drawn. */
     onPose?: (p: HeroPose) => void;
   } = {},
 ): HeroLayer {
-  const now = opts.now ?? (() => performance.now());
   const hero = (opts.createHero ?? createPlaceholderHero)();
   const group = new THREE.Group();
   group.name = "journey-hero-layer";
@@ -244,19 +225,27 @@ export function createHeroLayer(
       )
     : undefined;
 
-  // One seat per rest event (a display approximation; the bench fact is the rest point).
+  // One seat (stand point) per rest event: a display approximation; the bench fact is the rest point.
+  // The side keeps the whole bench box (seat and backrest behind her) clear of building footprints.
   const seats = new Map<number, HeroSeat>();
   const benches = new Map<number, ReturnType<typeof createRestBench>>();
   for (const i of restIdx) {
     const e = plan.events[i] as JourneyPlan["events"][number];
     const ll = e.element_id ? opts.places?.get(e.element_id) : undefined;
     const place = ll ? frame.toLocal(ll[0], ll[1]) : null;
-    const seat = seatFor(path.pointAt, e.at_m, place, clearance);
-    seats.set(i, seat);
     const [rx, rz] = path.pointAt(e.at_m);
+    const benchClear = clearance
+      ? (x: number, z: number) =>
+          Math.min(
+            clearance(x, z),
+            ...benchCorners(x, z, Math.atan2(rx - x, rz - z)).map(([cx, cz]) => clearance(cx, cz)),
+          )
+      : undefined;
+    const seat = seatFor(path.pointAt, e.at_m, place, benchClear);
+    seats.set(i, seat);
     const b = createRestBench();
     b.object3d.position.set(seat.x, HERO_GROUND_Y, seat.z);
-    // the bench faces the route, as she does when seated (model front +z)
+    // her back to the bench, facing the route (model front +z)
     b.object3d.rotation.y = Math.atan2(rx - seat.x, rz - seat.z);
     group.add(b.object3d);
     benches.set(i, b);
@@ -267,73 +256,70 @@ export function createHeroLayer(
     seatOf: (i) => seats.get(i) ?? null,
   };
 
-  // Ground under each rest (route point -> seat), sampled once its ground band has streamed in.
-  const ground = new Map<number, RestGround>();
-  const tried = new Map<number, number>();
-  const tryGround = (i: number, force = false) => {
-    if (ground.has(i) || !opts.roots) return;
-    const stamp = now();
-    if (!force && stamp - (tried.get(i) ?? -Infinity) < GROUND_RETRY_MS) return;
-    tried.set(i, stamp);
-    const seat = seats.get(i);
-    const e = plan.events[i];
-    if (!seat || !e) return;
+  // The ground corridor: the route polyline and each rest's route point -> stand point path.
+  const corridorPts: [number, number][] = [];
+  for (let m = 0; m <= path.planLength + 1e-9; m += CORRIDOR_STEP_M)
+    corridorPts.push(path.pointAt(m));
+  corridorPts.push(path.pointAt(path.planLength));
+  for (const i of restIdx) {
+    const e = plan.events[i] as JourneyPlan["events"][number];
     const [rx, rz] = path.pointAt(e.at_m);
-    const sample = groundSampler(opts.roots());
-    const profile: number[] = [];
-    for (let k = 0; k <= REST_PROFILE_N; k++) {
-      const u = k / REST_PROFILE_N;
-      const g = sample(rx + (seat.x - rx) * u, rz + (seat.z - rz) * u);
-      if (g.band === null) return; // not streamed in yet: keep the default height, retry later
-      profile.push(Math.max(0, g.y));
+    const s = seats.get(i) as HeroSeat;
+    for (let k = 0; k <= 8; k++)
+      corridorPts.push([rx + ((s.x - rx) * k) / 8, rz + ((s.z - rz) * k) / 8]);
+    for (const c of benchCorners(s.x, s.z, Math.atan2(rx - s.x, rz - s.z))) corridorPts.push(c);
+  }
+  const corridor = corridorCells(corridorPts, CORRIDOR_M);
+
+  let index: GroundIndex | null = null;
+  let meshKey: string | null = null;
+  let checkedGen = Number.NaN;
+  let rebuilds = 0;
+  const rebuildMs: number[] = [];
+  const refreshGround = (): boolean => {
+    if (!opts.roots) return false;
+    const gen = opts.groundGeneration?.();
+    if (gen !== undefined && gen === checkedGen) return false;
+    checkedGen = gen ?? Number.NaN;
+    const meshes = groundBandMeshes(opts.roots());
+    const key = meshes.map((m) => m.uuid).join(",");
+    if (key === meshKey) return false;
+    meshKey = key;
+    index = meshes.length ? buildGroundIndex(meshes, corridor) : null;
+    if (index) {
+      rebuilds++;
+      rebuildMs.push(index.buildMs);
     }
-    ground.set(i, { profile });
-    const b = benches.get(i);
-    if (b) b.object3d.position.y = profile[REST_PROFILE_N] as number;
-  };
-  const restY = (i: number, off: number): number | null => {
-    const g = ground.get(i);
-    if (!g) return null;
-    const f = Math.max(0, Math.min(1, off)) * REST_PROFILE_N;
-    const k = Math.min(REST_PROFILE_N - 1, Math.floor(f));
-    const a = g.profile[k] as number;
-    const b = g.profile[k + 1] as number;
-    return a + (b - a) * (f - k);
+    for (const [i, b] of benches) {
+      const s = seats.get(i) as HeroSeat;
+      b.object3d.position.y = index?.heightAt(s.x, s.z) ?? HERO_GROUND_Y;
+    }
+    return true;
   };
 
-  const planting = plantingGround(opts.roots, now);
+  const times: number[] = [];
   let last: { tl: Timeline; t: number } | null = null;
-  const place = (tl: Timeline, t: number, playing = false): HeroPose => {
+  const place = (tl: Timeline, t: number): HeroPose => {
+    const t0 = performance.now();
     last = { tl, t };
     const s = heroStateAt(tl, t, helpers);
-    // sample a rest's ground just before she gets there
-    for (const i of restIdx) {
-      const e = plan.events[i] as JourneyPlan["events"][number];
-      if (s.rest?.eventIndex === i || Math.abs(s.distance_m - e.at_m) < GROUND_LOOKAHEAD_M)
-        tryGround(i);
-    }
-    const ry = s.rest ? restY(s.rest.eventIndex, s.rest.offRoute) : null;
-    const y = ry ?? HERO_GROUND_Y;
+    const groundY = index?.heightAt(s.x, s.z) ?? null;
+    const y = groundY ?? HERO_GROUND_Y;
     hero.setPose({ x: s.x, y, z: s.z }, s.yaw);
-    // Each foot and walker leg is planted on the drawn ground under it (a footway / park edge, the
-    // lawn by a bench). Compressed walks while playing (~23 m/s on screen) skip it: a new cell per
-    // contact every frame would cost a raycast each, for a 3 cm step nobody can see at that speed.
-    const budget = playing && s.fast ? 0 : playing ? PLANT_BUDGET : Number.POSITIVE_INFINITY;
-    hero.setGround?.(budget > 0 ? planting.make(budget) : null);
+    // every foot and walker leg on the drawn ground under it: a table lookup, the same in play and seek
+    hero.setGround?.(index ? index.heightAt : null);
     hero.play(s.clip, s.clipTime, s.walkRate, s.fade);
     const [lon, lat] = frame.toLonLat(s.x, s.z);
-    const pose: HeroPose = { ...s, y, lon, lat, groundKnown: !s.rest || ry !== null, probe };
+    const pose: HeroPose = { ...s, y, lon, lat, groundKnown: groundY !== null, probe };
+    times.push(performance.now() - t0);
+    if (times.length > 2000) times.shift();
     opts.onPose?.(pose);
     return pose;
   };
 
   const probe = (): HeroProbe => {
-    // a paused test probe: sample any rest ground that has streamed in since, and re-pose
-    if (last) {
-      for (const i of restIdx) tryGround(i, true);
-      planting.refresh(true);
-      place(last.tl, last.t);
-    }
+    // a probe measures what is drawn; it only catches up with ground that streamed in since
+    if (refreshGround() && last) place(last.tl, last.t);
     const sample = groundSampler(opts.roots?.() ?? []);
     const contacts = hero.contacts().map((c) => {
       const g = sample(c.x, c.z);
@@ -344,18 +330,30 @@ export function createHeroLayer(
         onFootway: g.band === "roads",
       };
     });
-    const benchCorners = [...benches].map(([eventIndex, b]) => {
-      b.object3d.updateMatrixWorld(true);
-      const box = new THREE.Box3().setFromObject(b.object3d);
-      const corners: [number, number][] = [
-        [box.min.x, box.min.z],
-        [box.max.x, box.min.z],
-        [box.max.x, box.max.z],
-        [box.min.x, box.max.z],
-      ].map(([x, z]) => frame.toLonLat(x as number, z as number) as [number, number]);
+    const benchCornersLonLat = [...benches].map(([eventIndex, b]) => {
+      const s = seats.get(eventIndex) as HeroSeat;
+      const corners = benchCorners(s.x, s.z, b.object3d.rotation.y).map(
+        ([x, z]) => frame.toLonLat(x, z) as [number, number],
+      );
       return { eventIndex, corners };
     });
-    return { contacts, benches: benchCorners };
+    return { contacts, benches: benchCornersLonLat, cost: cost() };
+  };
+
+  const cost = (): HeroCost => {
+    const sorted = [...times].sort((a, b) => a - b);
+    const n = sorted.length;
+    return {
+      poses: n,
+      meanMs: n ? sorted.reduce((a, b) => a + b, 0) / n : 0,
+      p95Ms: n ? (sorted[Math.min(n - 1, Math.ceil(n * 0.95) - 1)] as number) : 0,
+      maxMs: n ? (sorted[n - 1] as number) : 0,
+      rebuilds,
+      lastRebuildMs: index?.buildMs ?? 0,
+      meanRebuildMs: rebuildMs.length ? rebuildMs.reduce((a, b) => a + b, 0) / rebuildMs.length : 0,
+      maxRebuildMs: rebuildMs.length ? Math.max(...rebuildMs) : 0,
+      triangles: index?.triangles ?? 0,
+    };
   };
 
   return {
@@ -363,6 +361,8 @@ export function createHeroLayer(
     hero,
     seats,
     pose: place,
+    refreshGround,
+    cost,
     dispose() {
       hero.dispose();
       for (const b of benches.values()) b.dispose();

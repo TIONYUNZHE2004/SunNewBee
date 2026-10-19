@@ -61,6 +61,7 @@ export function JourneyMount({
       places,
       footprints,
       roots: () => engine.pickView().roots,
+      groundGeneration: () => engine.groundGeneration ?? 0,
       onPose: (p) => {
         journeyHero.current = p;
         engine.requestRender();
@@ -69,14 +70,21 @@ export function JourneyMount({
     engine.setDecor(HERO_SLOT, { group: h.group, dispose: h.dispose });
     const apply = () => {
       const s = useJourney.getState();
-      if (s.timeline && s.plan === plan) h.pose(s.timeline, s.t, s.playing);
+      h.refreshGround();
+      if (s.timeline && s.plan === plan) h.pose(s.timeline, s.t);
     };
     apply();
     const unsub = useJourney.subscribe((s, prev) => {
-      if (s.t !== prev.t || s.timeline !== prev.timeline || s.playing !== prev.playing) apply();
+      if (s.t !== prev.t || s.timeline !== prev.timeline) apply();
     });
+    // Ground tiles streaming in while paused: re-pose on the new height table. A slow timer, not a
+    // frame listener (no per-frame work outside event cards); playback re-checks on every pose.
+    const timer = setInterval(() => {
+      if (h.refreshGround()) apply();
+    }, 500);
     return () => {
       unsub();
+      clearInterval(timer);
       engine.setDecor(HERO_SLOT, null);
       journeyHero.current = null;
     };

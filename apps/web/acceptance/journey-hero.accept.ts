@@ -71,6 +71,15 @@ interface Sample {
   lat: number;
   contacts?: Contact[];
   benches?: { eventIndex: number; corners: [number, number][] }[];
+  cost?: {
+    poses: number;
+    meanMs: number;
+    p95Ms: number;
+    maxMs: number;
+    rebuilds: number;
+    lastRebuildMs: number;
+    triangles: number;
+  };
   groundKnown?: boolean;
 }
 
@@ -114,6 +123,7 @@ async function sample(
         contacts: h.contacts,
         benches: (h as unknown as { benches?: Sample["benches"] }).benches,
         groundKnown: (h as unknown as { groundKnown?: boolean }).groundKnown,
+        cost: (h as unknown as { cost?: Sample["cost"] }).cost,
       };
     },
     { c: contacts, follow, hook: HOOK },
@@ -236,7 +246,8 @@ test.describe("journey hero (D-T6)", () => {
     const t0 = Date.now();
     // 10 Hz on the wall clock: each tick is one evaluate (state, hero and the camera move)
     for (let k = 0; Date.now() - t0 < (total + 1) * 1000; k++) {
-      const s = await sample(page, false, true);
+      // contacts during playback too (all six, against a downward raycast of the drawn ground)
+      const s = await sample(page, true, true);
       if (s) samples.push(s);
       if (s && !s.playing && samples.length > 10) break;
       const next = t0 + (k + 1) * 100;
@@ -244,6 +255,28 @@ test.describe("journey hero (D-T6)", () => {
       if (wait > 0) await page.waitForTimeout(wait);
     }
     const wrong = samples.filter((s) => !(ALLOWED[s.phase] ?? []).includes(s.clip));
+    const playErr = (c: Contact) => Math.abs(c.y - c.groundY);
+    const playContacts = samples.flatMap((s) =>
+      (s.contacts ?? []).map((c) => ({ t: s.t, phase: s.phase, clip: s.clip, c })),
+    );
+    const playWorstRow = playContacts.reduce<(typeof playContacts)[number] | null>(
+      (w, r) => (!w || playErr(r.c) > playErr(w.c) ? r : w),
+      null,
+    );
+    const playWorst = playWorstRow
+      ? {
+          t: playWorstRow.t,
+          phase: playWorstRow.phase,
+          clip: playWorstRow.clip,
+          name: playWorstRow.c.name,
+          y: playWorstRow.c.y,
+          ground: playWorstRow.c.groundY,
+          band: playWorstRow.c.band,
+          errM: playErr(playWorstRow.c),
+        }
+      : null;
+    const playOver = playContacts.filter((r) => playErr(r.c) > TOL_M).length;
+    const heroCost = [...samples].reverse().find((s) => s.cost)?.cost ?? null;
     // A moving hold capped to 0 m would idle; none on the demo. The very end of a phase can read the
     // next phase's clip within one sample of the boundary (store t and pose are one update).
     const clipsSeen: Record<string, Record<string, number>> = {};
@@ -400,12 +433,19 @@ test.describe("journey hero (D-T6)", () => {
         overTolerance: bad,
         noBand,
       },
+      playbackGround: {
+        samples: samples.filter((s) => s.contacts).length,
+        contacts: playContacts.length,
+        overTolerance: playOver,
+        worstContact: playWorst,
+      },
+      heroCost,
       shots,
     };
     writeFileSync(join(OUT, "ac-d10.json"), `${JSON.stringify(result, null, 2)}\n`);
     console.log(
       `AC-D10: ${samples.length} samples; wrong clips ${wrong.length}; rest beats ${JSON.stringify(restBeats.map((r) => r.clips))}; ` +
-        `in buildings: driver ${driverIntrusions.length}, route geometry ${routeIntrusions.length}; contacts ${all.length} ${JSON.stringify(bands)} worst ${(worst * 100).toFixed(1)} cm ${JSON.stringify(worstContact)}; benches in buildings ${benchIntrusions.length}`,
+        `in buildings: driver ${driverIntrusions.length}, route geometry ${routeIntrusions.length}; contacts ${all.length} ${JSON.stringify(bands)} worst ${(worst * 100).toFixed(1)} cm ${JSON.stringify(worstContact)}; benches in buildings ${benchIntrusions.length}; playback contacts ${playContacts.length} over ${playOver} worst ${JSON.stringify(playWorst)}; hero cost ${JSON.stringify(heroCost)}`,
     );
 
     expect(samples.length).toBeGreaterThan(total * 5);
@@ -433,5 +473,8 @@ test.describe("journey hero (D-T6)", () => {
     expect(noBand).toEqual([]);
     expect(all.length).toBe(beats.length * 6);
     expect(worst).toBeLessThanOrEqual(TOL_M);
+    // and during playback at 10 Hz: every sample carries all six contacts, all within 3 cm
+    expect(playContacts.length).toBe(samples.length * 6);
+    expect(playOver).toBe(0);
   });
 });

@@ -78,6 +78,12 @@ export interface JourneyOverlay {
 
 export interface Engine {
   readonly frames: number;
+  /**
+   * Bumped whenever a scene layer that can hold ground bands is swapped (city, ground layer, any
+   * decor slot such as the streamed `roads`): readers that index the drawn ground (the journey
+   * hero's foot planting) re-check their ground meshes when it changes, not every frame.
+   */
+  readonly groundGeneration: number;
   setCity(g: CityGeometry): void;
   /** Instanced archetypes; replaces and disposes the previous set; null removes it. */
   setAssets(a: CityInstances | null): void;
@@ -496,6 +502,7 @@ function build(
   undo.push(dropAssets);
 
   let groundLayer: GroundLayer | null = null;
+  let groundGeneration = 0;
   const dropGround = () => {
     if (!groundLayer) return;
     scene.remove(groundLayer.group);
@@ -550,6 +557,7 @@ function build(
     if (later) retired.push(() => d.dispose());
     else d.dispose();
     decor.delete(slot);
+    groundGeneration++;
   };
   undo.push(() => {
     for (const slot of [...decor.keys()]) dropDecor(slot);
@@ -913,6 +921,9 @@ function build(
   applyTier(tier);
 
   return {
+    get groundGeneration() {
+      return groundGeneration;
+    },
     get frames() {
       return frames;
     },
@@ -948,6 +959,7 @@ function build(
         dropDecor(slot, true);
         decor.set(slot, d);
         scene.add(d.group);
+        groundGeneration++;
         swapped = true;
         requestRender();
       };
@@ -1010,6 +1022,7 @@ function build(
     setCity(g) {
       if (disposed) return;
       disposeCity();
+      groundGeneration++;
       const buildings = new THREE.Mesh(g.buildings, buildingMat);
       buildings.castShadow = true;
       buildings.receiveShadow = true;
@@ -1021,6 +1034,8 @@ function build(
       plane.rotateX(-Math.PI / 2);
       const ground = new THREE.Mesh(plane, groundMat);
       ground.position.set(g.ground.center[0], 0, g.ground.center[1]);
+      // the base plane is the drawn ground where no band lies (journey hero foot planting)
+      ground.userData.groundBand = "base";
       for (const m of [parks, water, ground]) m.receiveShadow = true;
       ground.name = "base-plane";
       ground.visible = !slab;
@@ -1052,6 +1067,7 @@ function build(
       }
       if (g === groundLayer) return;
       dropGround();
+      groundGeneration++;
       if (g) {
         groundLayer = g;
         scene.add(g.group);

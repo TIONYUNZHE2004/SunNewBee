@@ -5,6 +5,7 @@ import { restSchedule, SEAT_OFFSET_M, seatFor } from "../../scene/three/journey/
 import demo from "../fixtures/demoPlan.json";
 import { createRoutePath } from "../routePath";
 import { buildTimeline, type JourneyPlan, type Phase } from "../timeline";
+import { buildGroundIndex, corridorCells, groundBandMeshes } from "./groundIndex";
 import { createHeroLayer, footprintClearance, groundAt, HERO_GROUND_Y } from "./heroLayer";
 
 const plan = demo as unknown as JourneyPlan;
@@ -29,6 +30,23 @@ function bandPlane(y: number, band: string): THREE.Object3D {
   return scene;
 }
 
+/** Ground with edges: a land-cover plane at 0.02 m and 1.5 m wide footway strips (0.08 m) every 3 m. */
+function stripedGround(): THREE.Scene {
+  const scene = new THREE.Scene();
+  scene.add(bandPlane(0.02, "landcover"));
+  for (let x = -600; x <= 600; x += 3) {
+    const g = new THREE.PlaneGeometry(1.5, 2000);
+    g.rotateX(-Math.PI / 2);
+    const m = new THREE.Mesh(g, new THREE.MeshBasicMaterial());
+    m.position.set(x, 0.08, 0);
+    m.userData.groundBand = "roads";
+    m.raycast = () => {};
+    scene.add(m);
+  }
+  scene.updateMatrixWorld(true);
+  return scene;
+}
+
 describe("hero layer ground", () => {
   it("samples the drawn ground band (highest wins, markings and untagged meshes ignored)", () => {
     const s = new THREE.Scene();
@@ -40,92 +58,104 @@ describe("hero layer ground", () => {
     expect(groundAt([new THREE.Scene()], 0, 0)).toEqual({ y: 0, band: null });
   });
 
-  it("seats her and the bench on the rest's sampled ground once its band has streamed in", () => {
+  it("the corridor height table equals a downward raycast on the route, and knows nothing far off it", () => {
+    const scene = stripedGround();
+    const idx = buildGroundIndex(
+      groundBandMeshes([scene]),
+      corridorCells(
+        Array.from({ length: 200 }, (_, i) => path.pointAt((i * path.planLength) / 199)),
+        2.5,
+      ),
+    );
+    for (let i = 0; i < 400; i++) {
+      const [x, z] = path.pointAt((i * path.planLength) / 399);
+      const px = x + Math.sin(i) * 1.2;
+      const pz = z + Math.cos(i * 1.7) * 1.2;
+      const ray = groundAt([scene], px, pz);
+      expect(idx.heightAt(px, pz)).toBeCloseTo(ray.y, 6);
+      expect(idx.bandAt(px, pz)).toBe(ray.band);
+    }
+    expect(idx.heightAt(5000, 5000)).toBeNull();
+  });
+
+  it("stands her and the bench on the drawn ground once its tiles are in", () => {
     let roots: THREE.Object3D[] = [];
-    let clock = 0;
-    const l = createHeroLayer(plan, path, frame, { roots: () => roots, now: () => clock });
+    let gen = 0;
+    const l = createHeroLayer(plan, path, frame, {
+      roots: () => roots,
+      groundGeneration: () => gen,
+    });
+    l.refreshGround();
     const before = l.pose(tl, sitT);
     expect(before.clip).toBe("sit_idle");
     expect(before.groundKnown).toBe(false);
     expect(before.y).toBeCloseTo(HERO_GROUND_Y, 9);
     roots = [bandPlane(0.05, "parks")];
-    clock += 1000; // past the retry interval
+    expect(l.refreshGround()).toBe(false); // the generation has not moved: no re-check
+    gen++;
+    expect(l.refreshGround()).toBe(true);
     const after = l.pose(tl, sitT);
     expect(after.groundKnown).toBe(true);
     expect(after.y).toBeCloseTo(0.05, 6);
     const bench = l.group.children.find((c) => c.name === "journey-bench") as THREE.Object3D;
     expect(bench.position.y).toBeCloseTo(0.05, 6);
-    // every contact (feet and the parked walker) sits on that ground
-    for (const c of after.probe?.().contacts ?? []) {
-      expect(c.band).toBe("parks");
-      expect(Math.abs(c.y - c.groundY)).toBeLessThanOrEqual(0.03);
-    }
-    // on the route (a walk phase) she keeps the footway height
-    const walk = tl.phases.find((p) => p.kind === "walk") as Phase;
-    expect(l.pose(tl, (walk.t0 + walk.t1) / 2).y).toBeCloseTo(HERO_GROUND_Y, 9);
+    expect(l.cost().rebuilds).toBe(1);
     l.dispose();
   });
+});
 
-  it("a probe re-tries the ground at once (paused acceptance beats) and re-poses", () => {
-    let roots: THREE.Object3D[] = [];
-    const seen: number[] = [];
+describe("hero layer foot planting (play and seek alike)", () => {
+  it("keeps all six contacts within 3 cm of the drawn ground over a whole trip with kerbs every 3 m", () => {
+    const scene = stripedGround();
     const l = createHeroLayer(plan, path, frame, {
-      roots: () => roots,
-      now: () => 0,
-      onPose: (p) => seen.push(p.y),
+      roots: () => [scene],
+      groundGeneration: () => 1,
     });
-    const p = l.pose(tl, sitT);
-    roots = [bandPlane(0.03, "landcover")];
-    const probe = p.probe?.();
-    expect(seen.at(-1)).toBeCloseTo(0.03, 6);
-    expect(probe?.contacts.every((c) => c.band === "landcover")).toBe(true);
-    expect(probe?.benches).toHaveLength(3);
-    for (const b of probe?.benches ?? []) expect(b.corners).toHaveLength(4);
-    l.dispose();
-  });
-});
-
-describe("hero layer foot planting on the route", () => {
-  it("plants feet and walker on the drawn ground everywhere, except compressed walks while playing", () => {
-    const roots = [bandPlane(0.04, "landcover")]; // the route here is lawn-level, 4 cm below the root
-    const l = createHeroLayer(plan, path, frame, { roots: () => roots, now: () => 0 });
-    const walk = tl.phases.find((p) => p.kind === "walk") as Phase;
-    const hold = tl.phases.find((p) => p.event?.kind === "verified") as Phase;
-    const contactsAt = (t: number, playing: boolean) => {
-      l.pose(tl, t, playing);
-      return l.hero.contacts();
-    };
-    // paused (scrub, acceptance beats): every contact on the ground under it
-    for (const c of contactsAt((walk.t0 + walk.t1) / 2, false))
-      expect(Math.abs(c.y - 0.04), c.name).toBeLessThanOrEqual(0.03);
-    // playing a slow hold: planted too
-    for (const c of contactsAt((hold.t0 + hold.t1) / 2, true))
-      expect(Math.abs(c.y - 0.04), c.name).toBeLessThanOrEqual(0.03);
-    // playing a compressed walk: no raycasts, the contacts stay at the root height
-    const fast = contactsAt((walk.t0 + walk.t1) / 2 + 0.01, true);
-    expect(fast.some((c) => Math.abs(c.y - HERO_GROUND_Y) < 0.02)).toBe(true);
-    l.dispose();
-  });
-});
-
-describe("hero layer planting cache", () => {
-  it("forgets park-only answers once the footway band streams in", () => {
-    const scene = new THREE.Scene();
-    scene.add(bandPlane(0.05, "parks"));
-    scene.updateMatrixWorld(true);
-    const l = createHeroLayer(plan, path, frame, { roots: () => [scene], now: () => 0 });
-    const walk = tl.phases.find((p) => p.kind === "walk") as Phase;
-    const p = l.pose(tl, (walk.t0 + walk.t1) / 2);
-    // planted on the park (the swing foot lifts at most 2.3 cm)
-    for (const c of l.hero.contacts()) expect(Math.abs(c.y - 0.05)).toBeLessThanOrEqual(0.025);
-    scene.add(bandPlane(0.08, "roads")); // the footway tile arrives
-    scene.updateMatrixWorld(true);
-    const probe = p.probe?.();
-    for (const c of probe?.contacts ?? []) {
-      expect(c.band).toBe("roads");
-      expect(Math.abs(c.y - c.groundY)).toBeLessThanOrEqual(0.025);
-      expect(c.y).toBeGreaterThanOrEqual(0.08 - 1e-6);
+    l.refreshGround();
+    let worst = 0;
+    let n = 0;
+    for (let t = 0; t <= tl.total; t += 0.25) {
+      l.pose(tl, t);
+      for (const c of l.hero.contacts()) {
+        const g = groundAt([scene], c.x, c.z);
+        worst = Math.max(worst, Math.abs(c.y - g.y));
+        n++;
+      }
     }
+    expect(n).toBeGreaterThan(300 * 6);
+    expect(worst).toBeLessThanOrEqual(0.03);
+    l.dispose();
+  });
+
+  it("a pose is the same whether reached by playing through or by seeking", () => {
+    const scene = stripedGround();
+    const mk = () =>
+      createHeroLayer(plan, path, frame, { roots: () => [scene], groundGeneration: () => 1 });
+    const a = mk();
+    const b = mk();
+    a.refreshGround();
+    b.refreshGround();
+    const t = sitT - 1.3;
+    for (let u = 0; u < t; u += 1 / 60) a.pose(tl, u);
+    a.pose(tl, t);
+    b.pose(tl, t);
+    expect(a.hero.contacts()).toEqual(b.hero.contacts());
+    a.dispose();
+    b.dispose();
+  });
+
+  it("reports its per-pose cost", () => {
+    const scene = stripedGround();
+    const l = createHeroLayer(plan, path, frame, {
+      roots: () => [scene],
+      groundGeneration: () => 1,
+    });
+    l.refreshGround();
+    for (let t = 0; t < 20; t += 0.1) l.pose(tl, t);
+    const c = l.cost();
+    expect(c.poses).toBe(200);
+    expect(c.meanMs).toBeGreaterThan(0);
+    expect(c.triangles).toBeGreaterThan(0);
     l.dispose();
   });
 });

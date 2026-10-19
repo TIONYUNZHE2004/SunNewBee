@@ -34,6 +34,18 @@ export interface HeroPose {
 export interface HeroProbe {
   contacts: (HeroContact & { groundY: number; band: string | null; onFootway: boolean })[];
   benches: { eventIndex: number; corners: [number, number][] }[];
+  /** Per-pose cost of the hero (driver + planting + model), ms, and the ground table rebuilds. */
+  cost?: {
+    poses: number;
+    meanMs: number;
+    p95Ms: number;
+    maxMs: number;
+    rebuilds: number;
+    lastRebuildMs: number;
+    meanRebuildMs: number;
+    maxRebuildMs: number;
+    triangles: number;
+  };
 }
 
 /**
