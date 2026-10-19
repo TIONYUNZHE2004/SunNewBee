@@ -296,6 +296,9 @@ export interface CrowdRow {
   inCanvas: boolean;
   /** A raycast camera -> head hits a non-decorative surface before the head. */
   occluded: boolean;
+  /** Feet position (local metres; crowd people only): P10's bubble census around the hero. */
+  x?: number;
+  z?: number;
 }
 
 export interface CrowdReport {
@@ -567,6 +570,8 @@ function crowdReport(engine: Engine): CrowdReport {
           heightPx: head && feet ? Math.abs(feet.y - head.y) : null,
           inCanvas: !!head && head.x >= 0 && head.x <= w && head.y >= 0 && head.y <= h,
           occluded: _ray.intersectObjects(blockers, false).length > 0,
+          x: _cp.x,
+          z: _cp.z,
         });
       }
       return;

@@ -102,6 +102,16 @@ export function crowdLookIndex(kit: CrowdKit, a: Agent, assigned?: Map<string, n
   return Math.min(n - 1, Math.floor(hash01(a.id, "look") * n));
 }
 
+/**
+ * The people the crowd assigns looks to (C-T8): no cyclists (they would walk at 4.5 m/s) and no one
+ * with a fixed `look`. The same list `lookJob` runs on before a build (useMotion).
+ */
+export function crowdPeopleOf(agents: readonly Agent[]): Agent[] {
+  return agents.filter(
+    (a) => a.kind === "person" && a.variant !== "cyclist" && a.look === undefined,
+  );
+}
+
 interface CrowdSlot {
   agent: Agent;
   rank: number;
@@ -161,6 +171,11 @@ export function createMotionLayer(
      * 2 m of her or of her next 10 m. Only these numbers; never the journey plan or its events (P9).
      */
     hero?: () => HeroXZ | null;
+    /**
+     * Crowd looks already assigned for these agents (useMotion runs `lookJob` in slices before the
+     * build; GATE AC-D18). Omitted, the layer runs `assignLooks` itself (same result, all at once).
+     */
+    assigned?: Map<string, number>;
   } = {},
 ): MotionLayer & { setDensity(w: MoodMix): void; crowd: CrowdRenderer | null } {
   const yawMemory: YawMemory = opts.yaw ?? new Map();
@@ -251,10 +266,10 @@ export function createMotionLayer(
   const crowdLooks: number[] = [];
   const crowdLods = kit ? crowdLodBands(kit.manifest.lods) : [];
   // C-T8: no cyclists in the people crowd (they would walk at 4.5 m/s); looks with no twins nearby.
-  const crowdPeople = kit
-    ? agents.filter((a) => a.kind === "person" && a.variant !== "cyclist" && a.look === undefined)
-    : [];
-  const assigned = kit ? assignLooks(crowdPeople, kit.manifest.looks, opts.looks) : undefined;
+  const crowdPeople = kit ? crowdPeopleOf(agents) : [];
+  const assigned = kit
+    ? (opts.assigned ?? assignLooks(crowdPeople, kit.manifest.looks, opts.looks))
+    : undefined;
   for (const a of agents) {
     if (a.kind === "person" && crowdMode) {
       if (!kit || a.variant === "cyclist") continue;

@@ -135,6 +135,14 @@ export interface Engine {
    * which uploads its buffers, is timed as `tl:stream-upload` (as after every `setDecor` swap).
    */
   markSwap(): void;
+  /**
+   * Compiles the shader programs `obj` needs, for the render target the scene pass draws into, in
+   * parallel (KHR_parallel_shader_compile) before it is shown, as `setDecor` does for its layers
+   * (GATE AC-D18: the motion layer's crowd and vehicle materials were compiled on first draw).
+   * Resolves when ready, and also on failure (the first render then compiles as before). Optional
+   * so test doubles need not provide it.
+   */
+  prepare?(obj: THREE.Object3D): Promise<void>;
   /** Shared motion clock uniforms: uTime (clock seconds), uSway and uLimb (1 running, 0 at rest). */
   readonly motion: MotionUniforms;
   /**
@@ -1373,6 +1381,24 @@ function build(
       if (disposed) return;
       swapped = true;
       requestRender();
+    },
+    prepare(obj) {
+      if (disposed || typeof renderer.compileAsync !== "function") return Promise.resolve();
+      const prev = renderer.getRenderTarget();
+      renderer.setRenderTarget(composer.readBuffer);
+      let compiled: Promise<unknown>;
+      try {
+        compiled = renderer.compileAsync(obj, camera, scene);
+      } catch (err) {
+        warnCompileOnce(err);
+        compiled = Promise.resolve();
+      } finally {
+        renderer.setRenderTarget(prev);
+      }
+      return compiled.then(
+        () => {},
+        (err) => warnCompileOnce(err),
+      );
     },
     setMotion(l, running) {
       if (disposed) {
