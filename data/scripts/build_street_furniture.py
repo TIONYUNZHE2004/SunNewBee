@@ -1,11 +1,13 @@
 """Fact-bearing street furniture for the stylised city (display only).
 
 Writes data/seed/elmina/base/street_furniture.geojson: one Point per OSM traffic signal, bus stop /
-platform, shelter, bench and picnic table inside the Elmina outline (base/boundary.geojson), and
-records it in site.json under `street_furniture`. A way is reduced to its centre point. The id is
-the stable source id `osm-node-<id>` / `osm-way-<id>`; features are sorted by id. Crossings are not
-here (they come from walk.geojson `crossing` edges). Routing, evaluation, flood and answers never
-read this file. One Overpass query through data/scripts/overpass.py (cache, backoff, request cap).
+platform, shelter, bench and picnic table inside the Elmina outline (base/boundary.geojson), plus
+the seed seating / shelter places inside it that coincide with no OSM feature (`source:
+seed_place`, `union_dedup`), and records it in site.json under `street_furniture`. A way is
+reduced to its centre point. The id is the stable source id `osm-node-<id>` / `osm-way-<id>`;
+features are sorted by id. Crossings are not here (they come from walk.geojson `crossing` edges).
+Routing, evaluation, flood and answers never read this file. One Overpass query through
+data/scripts/overpass.py (cache, backoff, request cap).
 """
 
 import argparse
@@ -150,9 +152,18 @@ def coincident(place: dict, furniture: list[dict], dist_m: float = DEDUP_M) -> b
     )
 
 
-def union_dedup(furniture: list[dict], places: list[dict], dist_m: float = DEDUP_M) -> list[dict]:
-    """OSM street furniture plus the seed places that coincide with none of it, sorted by id."""
-    extra = [p for p in seed_places(places) if not coincident(p, furniture, dist_m)]
+def union_dedup(
+    furniture: list[dict], places: list[dict], dist_m: float = DEDUP_M, *, boundary=None
+) -> list[dict]:
+    """OSM street furniture plus the seed places that coincide with none of it, sorted by id.
+    With `boundary` (shapely polygon, lon/lat), seed places outside it are dropped: the file only
+    holds features inside the outline (several seed shelters lie outside it)."""
+    extra = [
+        p
+        for p in seed_places(places)
+        if (boundary is None or boundary.covers(Point(p["geometry"]["coordinates"])))
+        and not coincident(p, furniture, dist_m)
+    ]
     return sorted(furniture + extra, key=lambda f: f["properties"]["id"])
 
 
@@ -175,7 +186,11 @@ def main(argv: list[str] | None = None) -> None:
     if as_of is None:
         print("no OSM data date in the Overpass answer; nothing written")
         raise SystemExit(3)
-    feats, stats = build_features(elements, boundary)
+    osm, stats = build_features(elements, boundary)
+    # Fact props (B-T7 ruling): OSM furniture U seed seating / shelter places inside the outline.
+    places = json.loads((OUT / "base" / "places.geojson").read_text(encoding="utf-8"))["features"]
+    feats = union_dedup(osm, places, boundary=boundary)
+    stats["seed_places_added"] = len(feats) - len(osm)
     counts = {k: sum(1 for f in feats if f["properties"]["kind"] == k) for k in KINDS}
     (OUT / "base" / "street_furniture.geojson").write_text(
         _dump(feats), encoding="utf-8", newline="\n"
