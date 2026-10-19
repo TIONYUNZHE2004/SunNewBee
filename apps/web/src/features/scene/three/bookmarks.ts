@@ -40,8 +40,10 @@ export const BOOKMARKS: Record<
   // from hero, 670 m north-west of the old centroid. `bookmarks.test.ts` checks every centre against
   // the seed outline.
   "probe-a": { centre: [101.50413, 3.17067], rangeM: 800, pitchDeg: -45, headingDeg: 0 },
-  // probe-b: Elmina Green, 55 buildings, ~3.4 km.
-  "probe-b": { centre: [101.49473, 3.20748], rangeM: 800, pitchDeg: -45, headingDeg: 0 },
+  // probe-b: Elmina Green, 55 buildings, ~3.4 km. Moved 100 m east (from 101.49473) for the A-T3b
+  // outline (owner master plan), whose west edge lies 231 m from the old centre: now 331 m inside.
+  // At runtime every bookmark centre goes through `anchorInside` (>= 300 m inside the outline).
+  "probe-b": { centre: [101.49563, 3.20748], rangeM: 800, pitchDeg: -45, headingDeg: 0 },
   // probe-c / probe-d (re-posed in A-T5): the A-T4 clip drops everything outside the Elmina
   // outline, and the old picks (Subang Galaksi 101.53193, 3.1725; Seksyen U16 101.5108, 3.15784)
   // lay outside it. Now the two densest 100 m grid points inside it, >= 500 m from the outline and

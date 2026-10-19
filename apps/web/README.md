@@ -270,8 +270,10 @@ the settings popover.
   derives a camera fit from the boundary at runtime (slab corners, a view axis, a max-range target).
   `clampPose` keeps the target inside the outline (nearest outline point when outside) and, from
   `FIT.startRangeM` (2.5 km) to `LIMITS.maxRangeM` (7,900 m, unchanged), narrows pitch to
-  [-60, -45], heading to ±15° of the axis, pulls the target to the fit target and widens the field
+  [-50, -45] (A-T3b outline: steeper bands need a wider field of view), heading to ±15° of the axis, pulls the target to the fit target and widens the field
   of view (`vfovFor`, capped at 50°) so the whole slab sits clear of the map chrome at max range.
+  At long range the fog's far end also follows the slab (`fogReachM`: the farthest outline vertex
+  sits at 90% of the fog ramp), and bookmark centres go through `anchorInside` (>= 300 m inside).
   Below 2.5 km nothing changes. The engine re-applies the clamp after every MapControls update
   (`rig.constrain()`). "Whole township", `?bookmark=township` and the acceptance `overview` use
   `overviewPose(fit)`; the static `township` bookmark is only the fallback for worlds without an outline.
@@ -327,6 +329,21 @@ after it stops.
   dropped manifest entry (the library collects failures in `failed`; it never warns). Footprints an
   archetype cannot fit, and archetypes with no asset, stay extruded.
 - **`?assets=0`:** skip the assets (no manifest fetch); the extruded city only.
+- **Rounded buildings (B-T2):** extrusions are bevelled by default (`cityMesh.ts` `bevelBody`,
+  `BUILDING_BEVEL`: a 0.5 m quarter-round top edge cut into the body, 0.14 m cuts with smooth normals
+  on convex corners). Walls stay on the OSM outline and the top at `display_height_m`;
+  `cityMesh.fidelity.test.ts` checks every seed building in the boundary (area ±2 %, vertices
+  ≤ 0.15 m, top ±0.1 m). Archetype and landmark glbs round in the role shader only
+  (`BUILDING_SHADER_BEVEL`, a per-model box uniform, so one material per asset, variant and LOD):
+  no extra triangles, nothing moves.
+  The bevel follows the quality tier (`BEVEL_BY_TIER`): Low draws plain boxes, Medium one segment,
+  High two; a tier change re-extrudes only the merged extrusion mesh.
+- **Fact fidelity ruling (B-T2 fix round 1):** archetype models are display stand-ins fitted to the
+  footprint OBB (ADR 0012), so their footprint is not a fact. Footprint fidelity (area, outline) is
+  guaranteed on the extrusion path, which can draw every building. Heights match on every path: an
+  extrusion tops out at `display_height_m`, and an archetype or landmark is scaled by its glb's drawn
+  LOD0 top (manifest `top`), so its top lands there too (`assets/planHeights.test.ts`; a traced
+  landmark tower such as Kanopi is drawn at its documented design height, `heightBasis`).
 - **`?showroom=1`:** replace the plan with `assets/showroom.ts`: every asset variant once at LOD0,
   one row per asset (landmarks on the outer rows). Each row spaces its variants max(30 m, widest
   + 5 m) apart and rows sit max(30 m, half their depths + 5 m) apart, so nothing overlaps and one big
@@ -502,9 +519,19 @@ where they stopped instead of jumping. Every rebuilt agent layer shares one smoo
   `footway`/`path`/`pedestrian` edges of each streamed tile, weighted ×3 near schools, malls and
   parks. The count is the tile's cap × mood density (day 1.0, dusk 1.15, night 0.45). Agents loop along the
   edges with no routing or collision, so cars can pass through each other.
-- **Drawing:** `motionLayer` uses one InstancedMesh per kit, variant and LOD. Matrices are rewritten
+- **Drawing:** `motionLayer` uses one InstancedMesh per kit, variant and LOD for vehicles. Matrices are rewritten
   each tick, but only for agents in view (with a 50 m margin). Agents beyond their last LOD's `maxM`
   are hidden. Agents cast no shadows and are left out of the AO pass.
+- **Crowd people (C-T7):** `useMotion` loads the crowd kit once (`motion/crowdKit.ts`: the six
+  `characters/crowd_<body>.glb`, one body per idle slice) and bakes every clip at runtime into a
+  bone-matrix texture (`motion/crowdBake.ts`: per frame and bone the 3×4 `boneWorld(t) × boneWorld(rest)⁻¹`
+  as RGBA half floats, 821 rows × 57 texels = 0.37 MB, 0 bytes on disk; props are one-bone skinned).
+  `motion/crowdRenderer.ts` draws all people as two BatchedMeshes (LOD0 ≤ 60 m, LOD1 ≤ 300 m, hidden
+  beyond: 2 draw calls), skinning in the vertex shader from (row0, row1, blend, look) per instance
+  and recolouring from a palette texture (role × look). The gait phase integrates the distance walked
+  over `stride × display scale` (`motion/crowdGait.ts`, P5: no skating) from a seeded start phase.
+  An agent's optional `look` id picks its look (C-T8 assigns them); else a seeded pick. While the
+  kit loads no people are drawn; if it fails the legacy `people` kit (shader limb swing) is the fallback.
 - **Scale-up:** agents are drawn 1× within 150 m of the camera, rising to 3× at 800 m, for
   legibility. This is display only; the models are unchanged.
 - **Day/Rollout fade:** people and vehicles fade out over 1 s while Elmina Day or Rollout playback

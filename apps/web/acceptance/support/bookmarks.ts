@@ -7,7 +7,8 @@ import type { Page } from "@playwright/test";
  */
 export const BOOKMARK_NAMES = ["overview", "hero-mid", "street", "link-low", "night-mid"] as const;
 export type BookmarkName = (typeof BOOKMARK_NAMES)[number];
-export type Theme = "day" | "night";
+/** Map mood a capture loads with (`tl.theme`); dusk is used by AC-B6 (B-T4). */
+export type Theme = "day" | "dusk" | "night";
 
 export interface AcceptanceBookmark {
   /** Camera target [lon, lat]. */
@@ -81,8 +82,12 @@ export const ACCEPTANCE_BOOKMARKS: Record<BookmarkName, AcceptanceBookmark> = {
  */
 export const STREET_CHECK = { minRoadShare: 0.2, minAsphalt: 0.6, maxSat: 0.18, maxLuma: 0.35 };
 
-/** The page URL: `?acceptance=1` exposes the test hook even in a production build. */
-export const bookmarkUrl = (): string => "/?acceptance=1";
+/**
+ * The page URL: `?acceptance=1` exposes the test hook even in a production build; `sun=pinned`
+ * lights the scene at the pinned sun time (10:30 MYT, fixed date: `three/sunClock.ts`), so day
+ * shadows do not depend on the hour of the run (B-T4 fix round 1 ruling).
+ */
+export const bookmarkUrl = (): string => "/?acceptance=1&sun=pinned";
 
 /** The window hook the app installs (`src/features/scene/three/scene/useAcceptanceHook.ts`). */
 export const HOOK = "__tlAcceptance";

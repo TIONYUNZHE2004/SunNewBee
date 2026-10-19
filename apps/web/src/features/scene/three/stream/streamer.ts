@@ -2,6 +2,7 @@ import type { Tier } from "../../shared/quality";
 import type { Placement } from "../assets/fit";
 import type { FacadeBuilding } from "../facade/facadeLayer";
 import type { TileRoofs } from "../facade/roofLayer";
+import type { DressingCounts } from "../ground/dressingPlan";
 import type { Ribbon } from "../ground/ribbons";
 import type { Agent } from "../motion/agents";
 import type { Site } from "../props/construction";
@@ -25,6 +26,8 @@ export interface TileContent {
   tracks?: Float32Array; // Task 10 construction tracks
   /** Task 10: the construction sites touching this tile, tinted gravel whole (deduplicated by id). */
   gravel?: Site[];
+  /** A-T10 land dressing (flowers, crop rows, cones, mounds): x y z r g b triangles, DRESS_STRIDE floats each. */
+  dressing?: { tris: Float32Array; counts: DressingCounts };
   /** Procedural facade inputs of the extrusions in this tile; planned for rings 0-1 only (P4-H). */
   facades?: FacadeBuilding[];
   /** Dressed roofs and podium decks of the large roofs in this tile; rings 0-1 only (Task 8). */

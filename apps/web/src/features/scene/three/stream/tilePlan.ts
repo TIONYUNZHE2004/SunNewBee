@@ -8,6 +8,7 @@ import type { RoofItem, TileRoofs } from "../facade/roofLayer";
 import { roofDressing } from "../facade/roofPlan";
 import { createFrame, type LocalFrame } from "../frame";
 import type { Boundary } from "../ground/boundary";
+import { planDressing } from "../ground/dressingPlan";
 import { ribbonsFromWalk } from "../ground/ribbons";
 import { planVerges } from "../ground/verges";
 import { planAgents } from "../motion/agents";
@@ -174,6 +175,7 @@ export function planTile(inp: TileInputs, tile: Tile, ring: Ring, tier: Tier): T
     roofs: rich && ring <= 1 && inp.roofs ? planRoofs(inp.roofs.get(tile.key)) : undefined,
     verges: planTileVerges(inp, tile, ring, tier),
     ...lots.content, // Task 10: parking, tracks, gravel
+    dressing: planTileDressing(inp, tile, ring, tier),
   };
   // A-T4: nothing drawn outside the Elmina outline (display only).
   return guardTile(content, inp.boundary);
@@ -205,6 +207,24 @@ export function planTileVerges(
     cap * VERGE_PIECES_PER_CAP,
     { parks: inp.buildings?.parks, water: inp.buildings?.water },
   );
+}
+/** A-T10: the tile's land dressing (flowers, crop rows, cones, mounds); undefined when empty. */
+export function planTileDressing(
+  inp: TileInputs,
+  tile: Tile,
+  ring: Ring,
+  tier: Tier,
+): TileContent["dressing"] {
+  if (tier === "low" || !inp.buildings) return undefined;
+  const d = planDressing({
+    landcover: inp.buildings.landcover,
+    walk: inp.walk,
+    frame: inp.frame,
+    box: tile.box,
+    ring,
+    tier,
+  });
+  return d.tris.length > 0 ? d : undefined;
 }
 // --- end Task 9 ------------------------------------------------------------------------------------
 

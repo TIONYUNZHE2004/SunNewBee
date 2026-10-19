@@ -1,5 +1,6 @@
 import type { Placement } from "../assets/fit";
 import { type Boundary, CLIP_TOLERANCE_M, insideBoundary, outsideBy } from "../ground/boundary";
+import { DRESS_STRIDE } from "../ground/dressingPlan";
 import type { Ribbon } from "../ground/ribbons";
 import type { TileContent } from "./streamer";
 
@@ -110,6 +111,17 @@ export function guardTile(c: TileContent, b: Boundary | null | undefined): TileC
       ),
       cars: keepPlacements(c.parking.cars, b),
     };
+  if (c.dressing) {
+    const d = c.dressing.tris;
+    const tris = keepRecords(d, DRESS_STRIDE, (o) => {
+      for (let v = 0; v < 3; v++) if (!inside(b, d[o + v * 6]!, d[o + v * 6 + 2]!)) return false;
+      return true;
+    });
+    out.dressing =
+      tris === d
+        ? c.dressing
+        : { tris, counts: { ...c.dressing.counts, triangles: tris.length / DRESS_STRIDE } };
+  }
   if (c.tracks) {
     const t = c.tracks;
     const tol = CLIP_TOLERANCE_M - TRACK_HALF_M;

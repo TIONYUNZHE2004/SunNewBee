@@ -721,3 +721,48 @@ describe("detail bubble (B-T8): trees inside it are drawn at LOD0", () => {
     expect(counts(c, "k")[0]).toBe(0);
   });
 });
+
+describe("rounded buildings (B-T2, AC-B3 archetypes and landmarks)", () => {
+  it("every archetype LOD and every landmark carries the shader bevel with its own model box; kits do not", () => {
+    const c = createCityInstances(
+      lib(),
+      plan("a", [pl("lm", 0)]),
+      manifest(),
+      createRoleUniforms(),
+      {
+        kits: new Map([[`k/v`, [pl("k", 0)]]]),
+      },
+    );
+    const all = c.group.children as THREE.Mesh[];
+    const buildings = all.filter((m) => m.name.startsWith("a__") || m.name.startsWith("lm__"));
+    // 3 archetype LODs + 1 landmark
+    expect(buildings).toHaveLength(4);
+    for (const m of buildings) {
+      const mat = m.material as THREE.Material;
+      expect(mat.customProgramCacheKey()).toMatch(/_bv$/);
+      expect(mat.userData.bevel.box).toEqual({ min: [-2, 0, -2], max: [2, 4, 2] });
+      expect(mat.userData.bevel.radiusM).toBeGreaterThan(0.3);
+    }
+    // the bevel is shading only: the drawn placements keep the fitted transforms
+    const lm = all.find((m) => m.name.startsWith("lm__"))!;
+    expect(lm.scale.toArray()).toEqual([1, 1, 1]);
+    expect(lm.position.y).toBe(0);
+    const kitsMeshes = all.filter((m) => m.name.startsWith("k__"));
+    expect(kitsMeshes.length).toBeGreaterThan(0);
+    for (const m of kitsMeshes)
+      expect((m.material as THREE.Material).userData.bevel).toBeUndefined();
+  });
+
+  it("dispose frees every building material", () => {
+    const c = createCityInstances(
+      lib(),
+      plan("a", [pl("lm", 0)]),
+      manifest(),
+      createRoleUniforms(),
+    );
+    const mats = (c.group.children as THREE.Mesh[]).map((m) => m.material as THREE.Material);
+    const spies = mats.map((m) => vi.spyOn(m, "dispose"));
+    c.dispose();
+    for (const s of spies) expect(s).toHaveBeenCalled();
+  });
+});
