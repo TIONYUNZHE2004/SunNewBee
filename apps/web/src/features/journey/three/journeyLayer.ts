@@ -77,6 +77,37 @@ export interface JourneyLayer {
 }
 
 /** Pin drawings per kind, drawn once per page (canvas text was ~16 ms when an answer landed). */
+/** An event marker's material (one per sprite): drawn in the markers scene, straight to the canvas. */
+export function journeyMarkerMaterial(
+  map: THREE.Texture | null,
+  color: THREE.ColorRepresentation,
+): THREE.SpriteMaterial {
+  return new THREE.SpriteMaterial({
+    map,
+    color,
+    transparent: true,
+    depthTest: false,
+    depthWrite: false,
+    toneMapped: false,
+    sizeAttenuation: false,
+  });
+}
+
+/**
+ * A markers scene holding one textured marker, for compiling the marker program at load (the
+ * engine draws `markers` to the canvas in their own scene): first drawn when the answer landed, it
+ * was compiled and linked then (ITER2 AC-D18, 120-175 ms). Dispose its material and map after.
+ */
+export function journeyMarkerStandIn(): THREE.Scene {
+  const tex = new THREE.DataTexture(new Uint8Array([255, 255, 255, 255]), 1, 1);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.needsUpdate = true;
+  const s = new THREE.Scene();
+  s.name = "journey-markers-stand-in";
+  s.add(new THREE.Sprite(journeyMarkerMaterial(tex, JOURNEY_RIBBON_STYLE.pinFace)));
+  return s;
+}
+
 const pinCanvases = new Map<JourneyEventKind, HTMLCanvasElement>();
 
 /**
@@ -188,15 +219,7 @@ export function createJourneyLayer(plan: JourneyPlan, frame: LocalFrame): Journe
       if (map) textures.push(map);
     }
     const sprite = new THREE.Sprite(
-      new THREE.SpriteMaterial({
-        map,
-        color: map ? JOURNEY_RIBBON_STYLE.pinFace : KIND_COLOUR[e.kind],
-        transparent: true,
-        depthTest: false,
-        depthWrite: false,
-        toneMapped: false,
-        sizeAttenuation: false,
-      }),
+      journeyMarkerMaterial(map, map ? JOURNEY_RIBBON_STYLE.pinFace : KIND_COLOUR[e.kind]),
     );
     sprite.position.set(x, y, z);
     sprite.scale.setScalar(MARKER_SCALE.rest);

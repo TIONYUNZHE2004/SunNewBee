@@ -19,7 +19,7 @@ import {
   type HeroFade,
 } from "./hero";
 import { createHeroRing } from "./heroRing";
-import { createPlaceholderHero } from "./placeholderHero";
+import { createPlaceholderHero, createRestBench } from "./placeholderHero";
 
 /**
  * The rigged journey hero (C-T4): `public/city/characters/hero_<variant>.glb` (C-T3) behind the
@@ -289,6 +289,8 @@ export function buildHeroModel(
     need(scene, `upper_arm_${s}`),
   ]) as [THREE.Object3D[], THREE.Object3D[]];
   const actions = new Map<HeroClip, THREE.AnimationAction>();
+  /** Clips that key the prop bone (every clip of the committed glbs). */
+  const propKeyed = new Set<HeroClip>();
   const mixer = new THREE.AnimationMixer(scene);
   for (const clip of HERO_MANIFEST.clips) {
     const c = THREE.AnimationClip.findByName(gltf.animations, clip);
@@ -296,6 +298,7 @@ export function buildHeroModel(
     const a = mixer.clipAction(c);
     a.setLoop(THREE.LoopRepeat, Number.POSITIVE_INFINITY); // the runtime wraps / holds itself
     actions.set(clip, a);
+    if (c.tracks.some((t) => t.name.startsWith(`${bones.prop}.`))) propKeyed.add(clip);
   }
   // Sole markers from the bind pose, before anything moves.
   const soles = feet.map((f) => soleMarker(body0, f)) as [THREE.Object3D, THREE.Object3D];
@@ -424,7 +427,9 @@ export function buildHeroModel(
         time: clipTimeFor(spec, fade.prevClip, fade.prevTime),
         weight: 1 - blend,
       });
-    for (const [c, a] of actions) if (!want.has(c) && a.isScheduled()) a.stop();
+    // unwanted clips stay scheduled at weight 0: stopping one let three restore its bindings to a
+    // saved "original" (a planted or earlier pose) that a later skipped write never replaced
+    for (const [c, a] of actions) if (!want.has(c) && a.isScheduled()) a.setEffectiveWeight(0);
     for (const [c, s] of want) {
       const a = actions.get(c) as THREE.AnimationAction;
       if (!a.isScheduled()) a.play();
@@ -441,11 +446,17 @@ export function buildHeroModel(
         dominant = { clip: c, time: s.time };
       }
     restore();
-    for (const [o, p, q, sc] of rest) {
-      o.position.copy(p);
-      o.quaternion.copy(q);
-      o.scale.copy(sc);
-    }
+    // Only when a clip drawn now does not key the prop. three's PropertyMixer skips writing a
+    // property whose mixed value equals the one it wrote last update, so resetting a keyed prop to
+    // the idle reference before the update left it there whenever the pose repeated (a paused hold
+    // re-posed on a ground refresh, or any second pose at the same t): the parked walker jumped back
+    // into her hands at a rest's sit_down -> sit_idle fade (ITER2 AC-D17 event 7, run 1).
+    if ([...want.keys()].some((c) => !propKeyed.has(c)))
+      for (const [o, p, q, sc] of rest) {
+        o.position.copy(p);
+        o.quaternion.copy(q);
+        o.scale.copy(sc);
+      }
     mixer.update(0);
     root.updateWorldMatrix(true, true);
   };
@@ -676,14 +687,65 @@ export async function preloadHeroModel(profile: string): Promise<GlbHeroModel | 
   const url = heroUrl(HERO_MANIFEST, variant);
   const spec = HERO_MANIFEST.variants[variant];
   if (!url || !spec) return null;
+  const have = spareModels.get(variant);
+  // a hero is drawing it: the caller must not move it off-screen to warm it (null: nothing to warm)
+  if (have) return spareInUse.has(have) ? null : have;
   try {
     const m = await parseHeroGlb(await fetchGlb(`${url}?v=${spec.bytes}`), variant);
     drawHeroLast(m.object3d);
     m.play("walk", 0, 1, undefined);
+    // a later preload of the same variant may have won the race: keep the first
+    const first = spareModels.get(variant);
+    if (first) {
+      m.dispose();
+      return spareInUse.has(first) ? null : first;
+    }
+    // A rest bench rides along (hidden from the pose, under her root) while the caller compiles and
+    // draws the model off-screen: its clay programs were otherwise linked when the answer landed
+    // (ITER2 AC-D18). Taken off when a hero adopts the model.
+    const bench = createRestBench();
+    bench.object3d.position.set(0, 0, -1.5);
+    m.object3d.add(bench.object3d);
+    warmKits.set(m, bench);
+    spareModels.set(variant, m);
     return m;
   } catch {
     return null;
   }
+}
+
+/**
+ * The preloaded model per variant (parsed, built, its programs compiled and drawn once off-screen by
+ * the caller of `preloadHeroModel`), kept for the session: the journey hero adopts it at once
+ * instead of fetching, parsing and building a new one in the second the answer lands (ITER2 AC-D18:
+ * a 105 ms frame at Ask+0.83 s was that build plus its first GPU upload). Returned to the pool when
+ * that hero is disposed; never disposed itself (a session holds one per variant, ~1 MB).
+ */
+const spareModels = new Map<HeroVariant, GlbHeroModel>();
+const spareInUse = new Set<GlbHeroModel>();
+/** The bench drawn with a preloaded model until a hero adopts it (see `preloadHeroModel`). */
+const warmKits = new Map<GlbHeroModel, { object3d: THREE.Object3D; dispose(): void }>();
+
+/** Takes the preloaded model of `variant` when it is free (null otherwise). */
+function adoptSpare(variant: HeroVariant): GlbHeroModel | null {
+  const m = spareModels.get(variant);
+  if (!m || spareInUse.has(m)) return null;
+  spareInUse.add(m);
+  m.object3d.removeFromParent();
+  const kit = warmKits.get(m);
+  if (kit) {
+    warmKits.delete(m);
+    kit.object3d.removeFromParent();
+    kit.dispose();
+  }
+  return m;
+}
+
+/** Gives an adopted model back to the pool (detached, no ground). */
+function releaseSpare(m: GlbHeroModel): void {
+  m.setGround(null);
+  m.object3d.removeFromParent();
+  spareInUse.delete(m);
 }
 
 export interface GlbHero extends Hero {
@@ -720,21 +782,26 @@ export function createGlbHero(
   const root = new THREE.Group();
   root.name = "journey-hero-slot";
   root.userData.journeyHero = true;
-  let current: Hero = (opts.fallback ?? createPlaceholderHero)();
-  drawHeroLast(current.object3d);
+  // The preloaded, already drawn model of this variant when it is free (the default loader only):
+  // no placeholder, no fetch, parse, build or upload now.
+  const adopted = opts.loadGlb ? null : adoptSpare(variant);
+  let current: Hero = adopted ?? (opts.fallback ?? createPlaceholderHero)();
+  if (!adopted) drawHeroLast(current.object3d);
   root.add(current.object3d);
-  let glb: GlbHeroModel | null = null;
+  let glb: GlbHeroModel | null = adopted;
   let disposed = false;
   let lastPose: [{ x: number; y: number; z: number }, number] | null = null;
   let lastPlay: [HeroClip, number, number, HeroFade | undefined] | null = null;
   let ground: ((x: number, z: number) => number | null) | null = null;
+  if (adopted) adopted.setGround(null);
 
   const url = heroUrl(HERO_MANIFEST, variant);
   const spec = HERO_MANIFEST.variants[variant];
   const load =
     opts.loadGlb ?? (import.meta.env.MODE === "test" ? null : (u: string) => fetchGlb(u));
-  const ready: Promise<boolean> =
-    !url || !spec || !load
+  const ready: Promise<boolean> = adopted
+    ? Promise.resolve(true)
+    : !url || !spec || !load
       ? Promise.resolve(false)
       : load(`${url}?v=${spec.bytes}`)
           .then((buf) => (disposed ? null : parseHeroGlb(buf, variant)))
@@ -791,7 +858,8 @@ export function createGlbHero(
     dispose() {
       if (disposed) return;
       disposed = true;
-      current.dispose();
+      if (adopted && current === adopted) releaseSpare(adopted);
+      else current.dispose();
       root.clear();
     },
   };
