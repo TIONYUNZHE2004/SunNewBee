@@ -54,6 +54,17 @@ export default defineConfig(({ mode }) => {
       environment: "node",
       setupFiles: ["./src/test/setup.ts"],
       exclude: ["e2e/**", "node_modules/**"],
+      // Flake fix (see .superpowers/sdd/journey-sim/reports/FLAKE-report.md). The default is one
+      // fork per core minus one (15 here), each paying ~6 s of jsdom/three startup. On a busy
+      // machine that oversubscribes CPU and memory: forks failed to spawn (vitest gives up after
+      // a fixed 90 s: "Failed to start forks worker", the files then vanish from the run, which is
+      // how a run can report 175/182 files with no test failure line) and CPU-bound tests blew the
+      // 5 s default. A small cap keeps every worker responsive; wall time barely changes.
+      maxWorkers: 6,
+      // Several files do real CPU work inside one test (city planning on the Elmina seed, a
+      // recursive scan of src/), which is 1-2 s alone and several times that under load.
+      testTimeout: 20_000,
+      hookTimeout: 30_000,
     },
   };
 });
