@@ -11,6 +11,7 @@ import type { Tier } from "../shared/quality";
 import { CityGTAOPass } from "./aoPass";
 import type { CityInstances } from "./assets/cityInstances";
 import { createMotionUniforms, type MotionUniforms } from "./assets/roleMaterial";
+import { currentTreeCut } from "./assets/treeCut";
 import { fitSteps, fogReachM } from "./cameraFit";
 import {
   type CameraFit,
@@ -890,6 +891,25 @@ function build(
     for (const patch of materialPatches) n += patch(root);
     return n;
   };
+  /**
+   * Meshes whose material carries the decorative occluder cut (trees, cars, props kit, decorative
+   * dressing, crowd): rebuilt when the scene's layers change (`groundGeneration`, assets, motion)
+   * and at most once a second (layers add instanced buckets as they stream).
+   */
+  let decorList: THREE.Object3D[] = [];
+  let decorKey = "";
+  const decorCuttable = (): THREE.Object3D[] => {
+    const key = `${groundGeneration}|${assets ? assets.group.id : 0}|${motionLayer ? motionLayer.group.id : 0}|${scene.children.length}|${Math.floor(performance.now() / 1000)}`;
+    if (key === decorKey) return decorList;
+    decorKey = key;
+    decorList = [];
+    scene.traverse((o) => {
+      const m = (o as THREE.Mesh).material as THREE.Material | THREE.Material[] | undefined;
+      const mat = Array.isArray(m) ? m[0] : m;
+      if (mat?.userData.tlDecorCut) decorList.push(o);
+    });
+    return decorList;
+  };
   /** The decorative shader clock (`setDecorClock`); null: the motion clock drives uTime. */
   let decorClock: (() => number | null) | null = null;
   const pinned = new Set<object>();
@@ -1174,6 +1194,9 @@ function build(
           // The sky dome is drawn at the far plane (xyww); with the override materials' standard
           // projection it became a 1 m ball at the site origin (an AO ring, a wrong focus depth).
           aoSkip.push(sky.mesh);
+          // Decorative things the journey cut hides must not draw into the post passes either,
+          // or their depth stays in front of her (DoF blurred her through a hidden canopy, 9.1 F3).
+          if (currentTreeCut.value) for (const o of decorCuttable()) aoSkip.push(o);
           if (assets) for (const o of assets.aoExcluded()) aoSkip.push(o);
           if (motionLayer) aoSkip.push(motionLayer.group);
           // The flood tint is data on the ground: AO must not darken it.
@@ -1194,6 +1217,7 @@ function build(
       bokehPass = new CityBokehPass(scene, camera, () => {
         bokehSkip.length = 0;
         bokehSkip.push(sky.mesh);
+        if (currentTreeCut.value) for (const o of decorCuttable()) bokehSkip.push(o);
         if (overlays) bokehSkip.push(overlays.lineGroup);
         if (journey) bokehSkip.push(journey.ribbon);
         return bokehSkip;

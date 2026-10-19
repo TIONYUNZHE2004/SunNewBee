@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import type { Tier } from "../../shared/quality";
+import { patchDecorCut } from "../assets/treeCut";
 import { clayMaterial } from "../shared/clayTokens";
 import { PEOPLE_VISIBLE_M } from "./agents";
 import type { CrowdKit } from "./crowdBake";
@@ -158,6 +159,8 @@ export function createCrowdRenderer(
     tlCrowdPalSize: { value: new THREE.Vector2(m.roles.length, m.looks.length) },
   };
   material.onBeforeCompile = (shader) => patchCrowdShader(shader, uniforms);
+  // Decorative people: the journey's decorative occluder cut (never the hero).
+  patchDecorCut(material);
 
   // Distinct geometries the slots need (looks sharing body, outfit and props share one).
   const used = [...new Set(looks.map((l) => kit.lookGeometry[l] as number))];

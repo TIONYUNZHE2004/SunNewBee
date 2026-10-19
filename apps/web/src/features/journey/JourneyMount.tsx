@@ -289,7 +289,14 @@ export function JourneyMount({
         ),
       );
       const following = !!p && !!h && useJourney.getState().camMode === "follow";
-      setTreeCut(following && p && h ? { a: p.position, b: [h.x, HERO_CHEST_Y, h.z] } : null);
+      // at an event hold, also the line to the event's element (the ramp, the crossing, the bench)
+      const st = following ? journeyStateOf(useJourney.getState()) : null;
+      const sc = st?.phase.kind === "event" && st.eventIndex !== undefined ? scene() : null;
+      const el =
+        sc && st?.eventIndex !== undefined ? elementPoint(sc, st.eventIndex, st.distance_m) : null;
+      setTreeCut(
+        following && p && h ? { a: p.position, b: [h.x, HERO_CHEST_Y, h.z], c: el } : null,
+      );
       return p;
     });
     // Without the engine's material patch hook (tests), building materials get the (inactive)
