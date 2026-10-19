@@ -11,7 +11,7 @@ import type { Tier } from "../shared/quality";
 import { CityGTAOPass } from "./aoPass";
 import type { CityInstances } from "./assets/cityInstances";
 import { createMotionUniforms, type MotionUniforms } from "./assets/roleMaterial";
-import { fitSteps } from "./cameraFit";
+import { fitSteps, fogReachM } from "./cameraFit";
 import {
   type CameraFit,
   type CameraRig,
@@ -52,6 +52,8 @@ export interface Bounds {
 }
 
 export interface FrameInfo {
+  /** The frame's clock (performance.now() at the tick start): the time its camera pose is for. */
+  at?: number;
   /** Draw calls this frame, over all passes. */
   calls: number;
   /** Triangles this frame, over all passes. */
@@ -96,6 +98,8 @@ export interface Engine {
   setSlab(b: Boundary | null): void;
   /** The camera fit of the slab in use, or null (read-only; tests and the acceptance hook). */
   cameraFit?(): CameraFit | null;
+  /** The slab's outline as set (before its camera fit lands), or null. */
+  slabBoundary?(): Boundary | null;
   /**
    * Called once each time a slab's camera fit lands (it is computed in idle slices after setSlab).
    * The engine then eases the camera into the fit's rules unless a listener started a flight
@@ -672,6 +676,7 @@ function build(
   /** The slab's camera fit (A-T5): set with the slab, null without one (the tiny fixture). */
   let fit: CameraFit | null = null;
   let fitJob = 0;
+  let slabBoundary: Boundary | null = null;
   const fitListeners = new Set<(f: CameraFit) => void>();
   let inputSerial = 0;
   /**
@@ -700,6 +705,8 @@ function build(
         const r = steps.next();
         if (r.done) {
           fit = r.value;
+          // The fog's far end follows the slab from now on (fogReachM).
+          if (lastPreset) applyFog(scene, lastPreset, fogRange, fogReachM(fit, fogRange));
           for (const cb of [...fitListeners]) cb(r.value);
           // No one-frame snap into the new rules: ease there, or let a listener's flight do it.
           if (rig.flying()) rig.holdConstrain();
@@ -1039,6 +1046,7 @@ function build(
     idle = false;
     // autoReset is off, so calls and triangles add up over every pass of this frame.
     const info = {
+      at: now,
       calls: renderer.info.render.calls,
       tris: renderer.info.render.triangles,
       moving: now - lastMove < MOVING_MS,
@@ -1233,6 +1241,7 @@ function build(
     setSlab(b) {
       if (disposed) return;
       dropSlab();
+      slabBoundary = b;
       startFit(b);
       if (b) {
         slab = createSlab(b, groundMat);
@@ -1246,6 +1255,7 @@ function build(
       bounds = b;
     },
     cameraFit: () => fit,
+    slabBoundary: () => slabBoundary,
     onFitReady(cb) {
       fitListeners.add(cb);
       return () => fitListeners.delete(cb);
@@ -1306,14 +1316,14 @@ function build(
       GROUND_GRADE.value = p.groundGrade;
       lastPreset = p;
       syncBloom();
-      applyFog(scene, p, fogRange);
+      applyFog(scene, p, fogRange, fogReachM(fit, fogRange));
       requestRender();
     },
     setFogRange(rangeM) {
       if (disposed) return;
       fogRange = rangeM;
       if (lastPreset) {
-        applyFog(scene, lastPreset, rangeM);
+        applyFog(scene, lastPreset, rangeM, fogReachM(fit, rangeM));
         requestRender();
       }
     },

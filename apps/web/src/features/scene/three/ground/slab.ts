@@ -44,10 +44,12 @@ export const SLAB_LAYERS: readonly SlabLayer[] = [
 export const SOIL_COLOURS = SLAB_LAYERS.slice(1).map((l) => l.colour);
 
 /**
- * Fog multiplier of the slab's edge material: at the overview the farthest boundary vertex is at
- * about 87.5% of the scene fog (A-T11), so the soil there is hazed to about 48%.
+ * Fog multiplier of the slab's edge material. At the overview the farthest outline vertex sits at
+ * 90% of the fog ramp (`fogReachM`, about 97% after the shader's smoothstep); 0.35 hazes the soil
+ * there to about 34%. Was 0.55 (A-T4): with the A-T3b outline seen along its 7 km length, the far
+ * north band is a 3 px strip and 0.55 washed it to saturation 0.10-0.14 (AC-A5 soil test >= 0.15).
  */
-export const SLAB_FOG_SCALE = 0.55;
+export const SLAB_FOG_SCALE = 0.35;
 
 /** A mitre never pushes an offset vertex further than this many offsets. */
 const MITRE_LIMIT = 2;
