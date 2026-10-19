@@ -2,6 +2,7 @@ import * as THREE from "three";
 import { MeshoptDecoder } from "three/addons/libs/meshopt_decoder.module.js";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import type { Manifest } from "./manifest";
+import { smoothFoliageNormals } from "./smoothFoliage";
 
 export interface AssetLibrary {
   /** World-baked geometry of one LOD node (one primitive), shared, do not dispose. null when absent. */
@@ -101,6 +102,7 @@ export async function loadAssetLibrary(m: Manifest, opts: Opts = {}): Promise<As
           if (!(o as THREE.Mesh).isMesh) return;
           const g = bakeNode(o as THREE.Mesh);
           if (g) {
+            if (id === "trees") smoothFoliageNormals(g); // B-T3: smooth clay canopies
             found.set(o.name, g);
             all.push(g);
           }

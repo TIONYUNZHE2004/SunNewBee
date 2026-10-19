@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { createFrame } from "../frame";
 import { type Box, boxAround } from "../stream/area";
-import { RIBBON_MARGIN_M, ribbonsFromWalk } from "./ribbons";
+import { ROAD_Y as RIBBON_Y } from "./bands";
+import { RIBBON_BEVEL, RIBBON_COLUMNS, RIBBON_MARGIN_M, ribbonsFromWalk } from "./ribbons";
 
 const frame = createFrame([101.5, 3.18]);
 const lonAt = (eastM: number) => frame.toLonLat(eastM, 0)[0];
@@ -47,7 +48,8 @@ describe("ribbonsFromWalk", () => {
     expect(r[0]!.kind).toBe("residential");
     expect(extent(r[0]!.positions, 2)).toBeCloseTo(6, 2);
     expect(extent(r[0]!.positions, 0)).toBeCloseTo(100, 1);
-    expect([...ys(r[0]!.positions)]).toEqual([0.08]);
+    // Rounded rim (B-T3): the flat top is at the road lift, the outer edge sinks.
+    expect([...ys(r[0]!.positions)]).toEqual([RIBBON_Y - RIBBON_BEVEL.dropM, RIBBON_Y]);
   });
 
   it("a major road is 10 m wide and has dashed markings at y 0.10", () => {
@@ -265,5 +267,55 @@ describe("ribbonsFromWalk", () => {
       [0, 0],
     ]);
     expect(ribbonsFromWalk(fc(bad, same), frame)).toEqual([]);
+  });
+});
+
+describe("rounded kerbs and footways (AC-B3)", () => {
+  const kinds = ["street", "footway", "major_road", "path"];
+  const rs = ribbonsFromWalk(
+    fc(
+      ...kinds.map((t, i) =>
+        line(t, [
+          [0, i * 30],
+          [60, i * 30],
+        ]),
+      ),
+    ),
+    frame,
+  );
+
+  it("every road and footway ribbon has a bevelled rim: four columns, outer edge below the top", () => {
+    const surface = rs.filter((r) => !r.marking);
+    expect(surface.length).toBeGreaterThanOrEqual(3);
+    for (const r of surface) {
+      expect(RIBBON_COLUMNS).toBe(4);
+      expect((r.positions.length / 3) % RIBBON_COLUMNS).toBe(0);
+      const y = [...ys(r.positions)].sort((a, b) => a - b);
+      expect(y).toEqual([RIBBON_Y - RIBBON_BEVEL.dropM, RIBBON_Y]);
+    }
+  });
+
+  it("no hard 90-degree kerb: no triangle is steeper than 45 degrees, none faces down", () => {
+    for (const r of rs.filter((q) => !q.marking)) {
+      const p = r.positions;
+      for (let t = 0; t < r.indices.length; t += 3) {
+        const v = [0, 1, 2].map((k) => r.indices[t + k]! * 3);
+        const a = [0, 1, 2].map((k) => p[v[1]! + k]! - p[v[0]! + k]!);
+        const b = [0, 1, 2].map((k) => p[v[2]! + k]! - p[v[0]! + k]!);
+        const n = [
+          a[1]! * b[2]! - a[2]! * b[1]!,
+          a[2]! * b[0]! - a[0]! * b[2]!,
+          a[0]! * b[1]! - a[1]! * b[0]!,
+        ];
+        const ny = n[1]! / Math.hypot(n[0]!, n[1]!, n[2]!);
+        expect(ny).toBeGreaterThan(Math.SQRT1_2);
+      }
+    }
+  });
+
+  it("the outline keeps its width and the markings stay flat", () => {
+    const street = rs.find((r) => r.kind === "residential")!;
+    expect(extent(street.positions, 2)).toBeCloseTo(6, 2);
+    for (const m of rs.filter((r) => r.marking)) expect([...ys(m.positions)]).toEqual([0.1]);
   });
 });

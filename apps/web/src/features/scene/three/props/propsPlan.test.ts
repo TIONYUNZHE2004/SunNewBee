@@ -5,7 +5,7 @@ import { createFrame } from "../frame";
 import { type Box, boxAround, seedFor } from "../stream/area";
 import { TILE_CAPS } from "../stream/caps";
 import { tileAt } from "../stream/tiles";
-import { planProps, TREE_SCALE } from "./propsPlan";
+import { planProps, TREE_SCALE, TRUNK_KEEPOUT_M } from "./propsPlan";
 
 /** Cap-agnostic tests: generous caps (the old whole-scene High numbers) so a per-tile cap never bites. */
 const UNCAPPED = { trees: 6000, lamps: 1500, furniture: 600, construction: 300 };
@@ -143,7 +143,7 @@ describe("planProps", () => {
       expect(t.x > 18.5 && t.x < 61.5 && t.z > -9.5 && t.z < 7.5).toBe(false);
       // the street ribbon at z=0 is 6 m wide and the cross road at x=0 is 10 m wide;
       // median palms sit on the major road by design
-      const median = t.variant === "royal_palm" && Math.abs(t.x) < 0.01;
+      const median = t.variant === "royal_palm" && Math.abs(t.x) < 1.7;
       if (!median) {
         expect(Math.abs(t.z) > 3 || Math.abs(t.x) > 300).toBe(true);
         expect(Math.abs(t.x) > 5 || Math.abs(t.z) > 300).toBe(true);
@@ -598,5 +598,67 @@ describe("tree scale and footway clearance", () => {
       placements(plan({ ...footScene, caps: BIG, area: { box, seed: "t" } })),
     );
     expect(byId(quads)).toEqual(whole);
+  });
+});
+
+describe("trunk keep-out from the walk network (B-T3)", () => {
+  const distSeg = (x: number, z: number, a: [number, number], b: [number, number]) => {
+    const dx = b[0] - a[0];
+    const dz = b[1] - a[1];
+    const t = Math.max(0, Math.min(1, ((x - a[0]) * dx + (z - a[1]) * dz) / (dx * dx + dz * dz)));
+    return Math.hypot(x - (a[0] + t * dx), z - (a[1] + t * dz));
+  };
+  const lines: { type: string; pts: [number, number][] }[] = [
+    {
+      type: "major_road",
+      pts: [
+        [-200, 0],
+        [200, 0],
+      ],
+    },
+    {
+      type: "crossing",
+      pts: [
+        [40, -30],
+        [40, 30],
+      ],
+    },
+    {
+      type: "footway",
+      pts: [
+        [-120, 40],
+        [120, 40],
+      ],
+    },
+    {
+      type: "street",
+      pts: [
+        [-150, 80],
+        [150, 80],
+      ],
+    },
+  ];
+  const walk = fc(...lines.map((l, i) => line(l.type, l.pts, `w${i}`)));
+
+  it("no decorative tree trunk stands within 1 m of any walk line, median palms included", () => {
+    const p = plan({
+      walk,
+      parks: fc(poly({ id: "pk" }, -100, 10, 200, 100)),
+      landcover: fc(poly({ class: "forest" }, -100, -100, 200, 90)),
+      trees: fc(
+        point({ id: "o1" }, 10, 0.4),
+        point({ id: "o2" }, 40.3, 12),
+        point({ id: "o3" }, 0, 40.5),
+      ),
+    });
+    const trees = ofAsset(p, "trees").filter((t) => !t.variant.startsWith("shrub"));
+    expect(trees.length).toBeGreaterThan(20);
+    expect(trees.some((t) => t.variant === "royal_palm")).toBe(true);
+    for (const t of trees)
+      for (const l of lines)
+        for (let i = 0; i < l.pts.length - 1; i++)
+          expect(distSeg(t.x, t.z, l.pts[i]!, l.pts[i + 1]!)).toBeGreaterThanOrEqual(
+            TRUNK_KEEPOUT_M,
+          );
   });
 });

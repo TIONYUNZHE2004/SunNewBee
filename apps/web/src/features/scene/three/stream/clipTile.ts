@@ -100,6 +100,7 @@ export function guardTile(c: TileContent, b: Boundary | null | undefined): TileC
   if (c.verges)
     out.verges = {
       strips: guardTriangles(c.verges.strips, b),
+      ...(c.verges.skirts ? { skirts: guardTriangles(c.verges.skirts, b) } : {}),
       shrubs: keepPlacements(c.verges.shrubs, b),
     };
   if (c.parking)
