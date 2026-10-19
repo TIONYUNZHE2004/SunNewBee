@@ -30,6 +30,7 @@ import {
 import type { CityGeometry } from "./cityMesh";
 import { type Clearance, createLift } from "./clearance";
 import { cullFrustum, shadowPadM } from "./cull";
+import { createGpuPacer } from "./gpuPacer";
 import { applyGroundGrade, GROUND_GRADE, groundMaterial, ROAD_GRADE } from "./ground/bands";
 import type { Boundary } from "./ground/boundary";
 import { cityGroundMeshes } from "./ground/cityGround";
@@ -56,6 +57,7 @@ import { applyClayTier, CLAY_PALETTE, clayMaterial, setClayTier } from "./shared
 import { createSky } from "./sky";
 import { measure, UPLOAD_MEASURE } from "./stream/streamer";
 import { CityBokehPass, focusDepth } from "./tiltShift";
+import { buildWarmDraws, releaseWarmDraws } from "./warmDraw";
 import { attachWheelZoom, dispatchOwnWheel } from "./zoom";
 
 /** Local xz box the camera target may not leave (by more than LIMITS.maxCentreOffsetM). */
@@ -908,7 +910,17 @@ function build(
           }
         ).requestIdleCallback;
         const run = () => {
-          if (!disposed) touchPrograms(mats);
+          if (disposed) return;
+          touchPrograms(mats);
+          // and one real draw of each mesh (ITER2 AC-D18: ANGLE builds the D3D executable at a
+          // program's first draw; see warmDraw.ts), for one frame, if the layer is still shown
+          if (root.parent) warmDraw(root, into);
+          // a stand-in (never in a scene: the line, marker and journey marker programs) is drawn
+          // once into its own target, clipped to one pixel, inside the next frame
+          else if (!overrides) {
+            standWarm.push({ root, target, into });
+            requestRender();
+          }
         };
         // without idle callbacks (Safari, node) the first draw does it, as before
         if (ric) ric(run, { timeout: 2000 });
@@ -916,6 +928,58 @@ function build(
       () => {},
     );
     return all;
+  };
+  /** Warm-up draw groups (warmDraw.ts) in their scenes until the next rendered frame. */
+  let warming: THREE.Group[] = [];
+  let standWarm: {
+    root: THREE.Object3D;
+    target: THREE.WebGLRenderTarget | null;
+    into: THREE.Scene;
+  }[] = [];
+  /**
+   * Draws the queued stand-ins for real (ITER2 AC-D18: the journey ribbon's line programs and its
+   * marker sprite were compiled at load but first DRAWN at Ask+0.8 s, where ANGLE built their D3D
+   * executables and the GPU process fell ~300 ms behind). Each is drawn in the scene it was compiled
+   * for, into the target it draws in, with the scissor on one pixel: that pixel of the scene target is
+   * cleared by the next frame's scene pass, and on the canvas it is only touched where a stand-in
+   * covers it. Shadows are not re-rendered for it.
+   */
+  const drawStandWarm = () => {
+    const list = standWarm;
+    standWarm = [];
+    const prevTarget = renderer.getRenderTarget();
+    const autoShadow = renderer.shadowMap.autoUpdate;
+    const autoClear = renderer.autoClear;
+    renderer.shadowMap.autoUpdate = false;
+    renderer.autoClear = false;
+    try {
+      for (const { root, target, into } of list) {
+        const own = root !== into && !root.parent;
+        if (own) into.add(root);
+        try {
+          renderer.setRenderTarget(target);
+          renderer.setScissorTest(true);
+          renderer.setScissor(0, 0, 1, 1);
+          renderer.render(into, camera);
+        } finally {
+          renderer.setScissorTest(false);
+          if (own) into.remove(root);
+        }
+      }
+    } catch (err) {
+      warnCompileOnce(err);
+    } finally {
+      renderer.shadowMap.autoUpdate = autoShadow;
+      renderer.autoClear = autoClear;
+      renderer.setRenderTarget(prevTarget);
+    }
+  };
+  const warmDraw = (root: THREE.Object3D, into: THREE.Scene) => {
+    const g = buildWarmDraws(root);
+    if (!g) return;
+    into.add(g);
+    warming.push(g);
+    requestRender();
   };
   const touchPrograms = (mats: readonly THREE.Material[]) => {
     for (const m of mats) {
@@ -1159,6 +1223,12 @@ function build(
     camera.updateProjectionMatrix();
   };
 
+  /** Materials inside a `warmDraw` (colorWrite off): their own colorWrite and the open warm-ups. */
+  const warmColor = new WeakMap<THREE.Material, { n: number; cw: boolean }>();
+  /** renderNow: this tick renders whatever the GPU pacing says. */
+  let forced = false;
+  const pacer = createGpuPacer(renderer.getContext() as WebGL2RenderingContext);
+  undo.push(() => pacer.dispose());
   let composer = new EffectComposer(renderer);
   let passes: Pass[] = [];
   /** The live GTAO pass (null on Low or before the first tier), for the per-mood blend. */
@@ -1411,6 +1481,11 @@ function build(
     raf = 0;
     if (disposed) return;
     const now = performance.now();
+    // GPU pacing (gpuPacer.ts): at most two frames ahead of the GPU; otherwise try again next frame
+    if (!forced && !pacer.ready(now)) {
+      raf = requestAnimationFrame(tick);
+      return;
+    }
     unlift();
     const drive = driveCamera(now);
     const flying = drive.driven ? false : rig.step(now);
@@ -1503,8 +1578,26 @@ function build(
     }
     aimBokeh();
     const tRender = performance.now();
+    // The scene pass always draws into the same target (ITER2 AC-D18). The composer ping-pongs its
+    // two targets once per swapping pass, so when a pass turns on or off (the depth of field once
+    // the journey sets its subject) the scene pass moved to the other target, where none of the
+    // city's programs had drawn yet: ANGLE / D3D11 built their executables there at the dive
+    // (~66 first draws, one 160-360 ms frame at Ask+1.3-1.6 s). Nothing reads the scene target
+    // across frames (the scene pass clears it), so pinning it changes no pixel.
+    if (
+      composer.renderTarget1 &&
+      composer.readBuffer !== composer.renderTarget1 &&
+      typeof composer.swapBuffers === "function"
+    )
+      composer.swapBuffers();
     composer.render();
     renderJourneyMarkers();
+    if (warming.length > 0) {
+      for (const g of warming) releaseWarmDraws(g);
+      warming = [];
+    }
+    if (standWarm.length > 0) drawStandWarm();
+    pacer.submitted(now);
     if (swapped) {
       swapped = false;
       measure(UPLOAD_MEASURE, tRender);
@@ -1628,7 +1721,13 @@ function build(
       cancelAnimationFrame(raf);
       raf = 0;
       dirty = true;
-      tick();
+      // synchronous (acceptance measurements, captures): never deferred by the GPU pacing
+      forced = true;
+      try {
+        tick();
+      } finally {
+        forced = false;
+      }
     },
     setDecor(slot, d) {
       if (disposed) {
@@ -1902,11 +2001,17 @@ function build(
     },
     warmDraw(obj, frames = 2) {
       if (disposed) return Promise.resolve();
-      const mats: [THREE.Material, boolean][] = [];
+      const mats: THREE.Material[] = [];
       obj.traverse((o) => {
         const m = (o as THREE.Mesh).material as THREE.Material | THREE.Material[] | undefined;
         for (const x of Array.isArray(m) ? m : m ? [m] : []) {
-          mats.push([x, x.colorWrite]);
+          // overlapping warm draws of one model (a second preload before the first ended) must
+          // restore the material's own colorWrite, never the first warm-up's false (ITER2: the
+          // hero stayed invisible once the frame pacing changed the timing)
+          const w = warmColor.get(x);
+          if (w) w.n++;
+          else warmColor.set(x, { n: 1, cw: x.colorWrite });
+          mats.push(x);
           x.colorWrite = false;
         }
         o.frustumCulled = false;
@@ -1923,7 +2028,13 @@ function build(
           }
           off();
           scene.remove(obj);
-          for (const [x, cw] of mats) x.colorWrite = cw;
+          for (const x of mats) {
+            const w = warmColor.get(x);
+            if (!w) continue;
+            if (--w.n > 0) continue;
+            x.colorWrite = w.cw;
+            warmColor.delete(x);
+          }
           done();
         });
         requestRender();

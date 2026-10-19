@@ -14,6 +14,7 @@ import {
   type RoleUniforms,
 } from "./roleMaterial";
 import { patchDecorCut } from "./treeCut";
+import { markUsed } from "./uploadRange";
 
 /**
  * Kit asset name -> shader kind; other kits are static. The `vehicles` kit here only carries parked
@@ -419,8 +420,9 @@ export function createCityInstances(
     }
     b.mesh.count = n;
     b.mesh.visible = n > 0;
-    b.mesh.instanceMatrix.needsUpdate = true;
-    for (const a of b.pal) a.needsUpdate = true;
+    // only the drawn front of the buffers (ITER2 AC-D18: whole 128 KB uploads stalled the dive)
+    markUsed(b.mesh.instanceMatrix, n);
+    for (const a of b.pal) markUsed(a, n);
     // Raycast and frustum culling must see the new members.
     b.mesh.boundingSphere = null;
     b.mesh.boundingBox = null;
