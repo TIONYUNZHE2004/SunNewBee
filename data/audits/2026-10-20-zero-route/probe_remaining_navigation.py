@@ -86,6 +86,13 @@ def probe():
         ("make_a_right_turn_paraphrase", "Make a right turn onto Persiaran Elmina.", True, False),
         ("malay_simpang_paraphrase", "Ambil simpang kanan ke Persiaran Elmina.", True, False),
         ("chinese_right_turn_paraphrase", "右拐进入Persiaran Elmina。", True, False),
+        ("clockwise_wrong_turn", "Rotate clockwise onto Persiaran Elmina.", True, False),
+        (
+            "reverse_the_selected_direction",
+            "Follow Persiaran Elmina in the opposite direction.",
+            True,
+            False,
+        ),
     ]
     rows = []
     for name, text, reject, same_street in cases:
