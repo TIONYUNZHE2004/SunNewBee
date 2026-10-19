@@ -249,7 +249,11 @@ async def _file_journey_vrs(deps: Deps, data: dict, summary: str) -> None:
     is played: call_tool cannot know whether the answer will play one, and these are real route
     unknowns (journey_vr_targets, at most MAX_JOURNEY_VRS). Sanitised like any
     chat VR (safe_vr_args) with plan_route's own name-only summary (PDPA). Appended to the tool's
-    verification_requests, so the answer's request count and the SSE events include them."""
+    verification_requests, so the answer's request count and the SSE events include them.
+
+    Every pair asked here is a non-flood route unknown plan_route did not file, i.e. one it
+    counted in verification_requests_truncated: that count drops by one per pair filed here, so
+    "N more checks pending" never overstates what is left unfiled."""
     routes = data.get("routes") or []
     r0 = routes[0] if routes else None
     plan = deps.rec.journeys.get(r0["id"]) if r0 else None
@@ -268,6 +272,8 @@ async def _file_journey_vrs(deps: Deps, data: dict, summary: str) -> None:
             deps.ctx.vrs.request, args["target_id"], args["attribute"], args["reason"], summary
         )
         vrs.append({**vr.model_dump(mode="json"), "created": created})
+        if data.get("verification_requests_truncated"):
+            data["verification_requests_truncated"] -= 1
 
 
 async def call_tool(deps: Deps, name: str, **kwargs: Any) -> dict:

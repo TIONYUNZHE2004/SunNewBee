@@ -8,10 +8,12 @@ import {
   bevelBoxOf,
   createMotionUniforms,
   createRoleMaterial,
+  DECOR_CUT_KINDS,
   type MotionUniforms,
   type RoleKind,
   type RoleUniforms,
 } from "./roleMaterial";
+import { patchDecorCut } from "./treeCut";
 
 /**
  * Kit asset name -> shader kind; other kits are static. The `vehicles` kit here only carries parked
@@ -243,6 +245,9 @@ export function createCityInstances(
     let mt = kitMaterials.get(kind);
     if (!mt) {
       mt = createRoleMaterial({ instanced: true, uniforms, motion, kind });
+      // Kit props are decorative (lamp posts, furniture): the journey's decorative occluder cut
+      // (trees and parked cars carry it in their own programs already).
+      if (!DECOR_CUT_KINDS.has(kind)) patchDecorCut(mt);
       kitMaterials.set(kind, mt);
     }
     return mt;

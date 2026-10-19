@@ -223,6 +223,30 @@ def _route_ends(q: str) -> tuple[str, str]:
     return origin, _place(q.replace(origin, " ", 1), "playground")
 
 
+def _route_places(rets, ends: list[tuple[str, str]]):
+    """Walk the find_place results for each (query, default) route end, in call order.
+
+    A searched-by-name phrase ("harmoni 1") that find_place matches only weakly (top score below
+    PLACE_MIN_SCORE) or not at all is not taken as the place: the end falls back to its default
+    (Car Park B / the playground), as before names were searched. Pinned words are taken as found.
+    Returns (query still to search or None, [hit or None per end], results used)."""
+    hits: list[dict | None] = []
+    i = 0
+    for query, default in ends:
+        if i >= len(rets):
+            return query, [None, None], i
+        found = _data(rets[i][1]) or []
+        i += 1
+        top = found[0].get("score", 1.0) if found else 0.0
+        if query not in PLACE_WORDS and top < PLACE_MIN_SCORE:
+            if i >= len(rets):
+                return default, [None, None], i
+            found = _data(rets[i][1]) or []
+            i += 1
+        hits.append(found[0] if found else None)
+    return None, hits, i
+
+
 def _ui(info: AgentInfo, key: str) -> str | None:
     m = re.search(rf"{key}=(\w+)", info.instructions or "")
     return m.group(1) if m else None
@@ -827,23 +851,20 @@ def _script(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
         return _closure_answer(rets, place_q)
     if re.search(_ACCESS_Q, q):  # access hero
         origin_w, dest_w = _route_ends(q)
-        if n == 0:
-            return _call("find_place", query=origin_w)
-        if n == 1:
-            return _call("find_place", query=dest_w)
+        need, (a, b), used = _route_places(rets, [(origin_w, "car park b"), (dest_w, "playground")])
+        if need:
+            return _call("find_place", query=need)
         plan_profile = _profile(q, info, _ui(info, "profile") or "stroller")
-        if n == 2:
-            a, b = _data(rets[0][1]), _data(rets[1][1])
+        if n == used:
             if not a or not b:
                 return _cannot("I couldn't find one of those places yet.")
-            return _call("plan_route", from_id=a[0]["id"], to_id=b[0]["id"], profile=plan_profile)
+            return _call("plan_route", from_id=a["id"], to_id=b["id"], profile=plan_profile)
         rr = _data(rets[-1][1])
         if not isinstance(rr, dict):
             return _cannot()
         routes = rr.get("routes") or []
         r0 = routes[0] if routes else None
         status = rr.get("status") or "no_data"
-        a, b = _data(rets[0][1])[0], _data(rets[1][1])[0]
         seen = set(_ev_ids(rets))
         # Cite the two chosen places (not every find_place candidate) and the route's segments.
         ev = [i for i in (f"ev-place-{a['id']}", f"ev-place-{b['id']}") if i in seen]

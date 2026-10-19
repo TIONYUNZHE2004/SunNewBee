@@ -145,10 +145,10 @@ test.describe("journey overlay (D-T7)", () => {
   test.beforeEach(async ({ page }) => {
     await openScene(page, "day");
     await askDemoJourney(page);
-    test.skip(
-      !(await hasJourneyHook(page)),
-      "window.__journey is installed in dev builds and the demo preset only",
-    );
+    expect(
+      await hasJourneyHook(page),
+      "window.__journey (dev builds and the demo preset): a missing hook fails, never skips",
+    ).toBe(true);
   });
 
   test("AC-D11: one card per hold, fully inside the viewport, plan text, demo chip, no opaque markers", async ({

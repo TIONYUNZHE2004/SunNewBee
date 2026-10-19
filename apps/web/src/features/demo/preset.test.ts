@@ -18,11 +18,11 @@ describe("demo preset", () => {
   beforeEach(() => localStorage.clear());
 
   it("parses only demo=1", async () => {
-    const { preset } = await boot();
-    expect(preset.isDemoPreset("?demo=1")).toBe(true);
-    expect(preset.isDemoPreset("?a=b&demo=1")).toBe(true);
+    const { isDemoPreset } = await import("./demoFlag");
+    expect(isDemoPreset("?demo=1")).toBe(true);
+    expect(isDemoPreset("?a=b&demo=1")).toBe(true);
     for (const s of ["", "?demo=0", "?demo=true", "?demo=", "?acceptance=1"])
-      expect(preset.isDemoPreset(s)).toBe(false);
+      expect(isDemoPreset(s)).toBe(false);
   });
 
   it("AC-A16: with tl.quality=low stored, ?demo=1 gives High and storage still says low", async () => {

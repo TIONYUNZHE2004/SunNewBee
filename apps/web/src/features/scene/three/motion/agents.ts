@@ -117,6 +117,22 @@ export function slerpAngle(from: number, to: number, t: number): number {
   return wrapPi(from + wrapPi(to - from) * t);
 }
 
+/**
+ * Facing at `tSec` as a pure function of time (no history): along the chord from where the agent
+ * was YAW_TAU_S earlier to where it is now, which turns through a corner over that look-back like
+ * the smoothed facing does; the tangent when it has not moved. Used while a journey's trip clock
+ * drives the crowd (scrub equals play, AC-D17).
+ */
+export function yawAt(a: Agent, tSec: number, now: Pose2, back: Pose2): number {
+  poseAt(a, tSec, now);
+  poseAt(a, tSec - YAW_TAU_S, back);
+  const dx = now.x - back.x;
+  const dz = now.z - back.z;
+  if (Math.hypot(dx, dz) < 1e-3) return now.yaw;
+  // the same convention as the tangent yaw of poseAt
+  return Math.atan2(dx, dz);
+}
+
 /** One smoothing step: `yaw = slerpAngle(prev, tangent, 1 - exp(-dt / 0.25 s))`. */
 export function smoothYaw(prev: number, tangent: number, dtSec: number): number {
   if (!(dtSec > 0)) return prev;

@@ -11,6 +11,7 @@ import type { Tier } from "../shared/quality";
 import { CityGTAOPass } from "./aoPass";
 import type { CityInstances } from "./assets/cityInstances";
 import { createMotionUniforms, type MotionUniforms } from "./assets/roleMaterial";
+import { currentTreeCut } from "./assets/treeCut";
 import { fitSteps, fogReachM } from "./cameraFit";
 import {
   type CameraFit,
@@ -47,6 +48,7 @@ import { applyFog } from "./mood";
 import { createMotionClock, type MotionMode, motionModeFor } from "./motion/motionClock";
 import type { MotionLayer } from "./motion/motionLayer";
 import type { OverlayLayer } from "./overlays/accessLayers";
+import { lineProgramStandIns } from "./overlays/lines";
 import { markerProgramStandIn } from "./overlays/markers";
 import { THREE_TIERS } from "./quality";
 import { applyClayTier, CLAY_PALETTE, clayMaterial, setClayTier } from "./shared/clayTokens";
@@ -176,6 +178,13 @@ export interface Engine {
    * `compileAsync`). Default root: the whole scene.
    */
   prewarm?(root?: THREE.Object3D): Promise<void>;
+  /**
+   * Draws `obj` for a couple of frames without colour (every material's colour writes off, a few
+   * metres under the ground at the view's centre), then takes it out again: the driver builds the
+   * draw-time shader variants (ANGLE on D3D11 compiles some only at the first draw, e.g. the skinned
+   * shadow-map variant) at an idle moment instead of when it first really shows. Resolves when done.
+   */
+  warmDraw?(obj: THREE.Object3D, frames?: number): Promise<void>;
   /** Camera bounds before the city arrives (the site extent); setCity replaces them. */
   setBounds(b: Bounds): void;
   /**
@@ -289,6 +298,8 @@ const LOD_INTERVAL_MS = 250;
  * was replaced and linked again on the next answer (gate AC-D18). Programs are small.
  */
 const MAX_PINNED_PROGRAMS = 256;
+/** Stand-in material copies are disposed this long after their compile (their programs pinned). */
+const STAND_IN_DISPOSE_MS = 2000;
 /**
  * Motion time (ms) at trip time 0 while a journey drives the decorative clock (`setDecorClock`):
  * a fixed epoch, so the seeded crowd and traffic stand where they would after a minute of motion.
@@ -482,6 +493,7 @@ export function createEngine(canvas: HTMLCanvasElement, tier: Tier): Engine {
     antialias: true,
     powerPreference: "high-performance",
   });
+
   /** Releases in reverse creation order; filled as things are created. */
   const undo: (() => void)[] = [];
   const release = () => {
@@ -753,22 +765,46 @@ function build(
     console.warn("Three.js: compileAsync failed; layers compile on first render.", err);
   };
   /**
+   * The sun's shadow map draws each caster with three's shared basic-packed depth material, its
+   * side from the caster's `shadowSide` (else the flipped side), in an empty scene (no fog). One
+   * stand-in material per side, compiled the same way, so the programs it needs (the hero's skinned
+   * variant was linked on her first shadow draw, gate AC-D18) are built in parallel.
+   */
+  const shadowDepthBySide = new Map<THREE.Side, THREE.MeshDepthMaterial>();
+  undo.push(() => {
+    for (const d of shadowDepthBySide.values()) d.dispose();
+    shadowDepthBySide.clear();
+  });
+  const shadowDepthFor = (mat: THREE.Material | THREE.Material[]): THREE.MeshDepthMaterial => {
+    const m = Array.isArray(mat) ? mat[0] : mat;
+    const flip: Record<number, THREE.Side> = {
+      [THREE.FrontSide]: THREE.BackSide,
+      [THREE.BackSide]: THREE.FrontSide,
+      [THREE.DoubleSide]: THREE.DoubleSide,
+    };
+    const side = m?.shadowSide ?? flip[m?.side ?? THREE.FrontSide] ?? THREE.BackSide;
+    let d = shadowDepthBySide.get(side);
+    if (!d) {
+      d = new THREE.MeshDepthMaterial({ depthPacking: THREE.BasicDepthPacking, side });
+      shadowDepthBySide.set(side, d);
+    }
+    return d;
+  };
+  /**
    * The post passes draw the scene again with an override material (GTAO normals, depth of field
    * depth): one program per object variant (skinned, instanced, morphed). One stand-in mesh per
-   * variant found under `root`, wearing each override, so `compileAsync` builds those programs too
-   * (the hero's skinned variants were compiled mid-trip, gate AC-D18).
+   * variant found under `root`, wearing each override (`shadow`: the shadow-map depth material of
+   * each caster instead), so `compileAsync` builds those programs too.
    */
-  const shadowDepthStandIn = new THREE.MeshDepthMaterial({ depthPacking: THREE.BasicDepthPacking });
-  const overrideStandIns = (root: THREE.Object3D): THREE.Group | null => {
+  const overrideStandIns = (root: THREE.Object3D, shadow = false): THREE.Group | null => {
     const overrides: THREE.Material[] = [];
-    if (aoPass) overrides.push(aoPass.normalMaterial);
-    const depth = (bokehPass as unknown as { _materialDepth?: THREE.Material } | null)
-      ?._materialDepth;
-    if (depth) overrides.push(depth);
-    // the sun's shadow map draws casters with a basic-packed depth material (the hero's skinned
-    // variant was linked on her first shadow draw, gate AC-D18)
-    const shadow = sun.castShadow && renderer.shadowMap.enabled ? shadowDepthStandIn : null;
-    if (overrides.length === 0 && !shadow) return null;
+    if (!shadow) {
+      if (aoPass) overrides.push(aoPass.normalMaterial);
+      const depth = (bokehPass as unknown as { _materialDepth?: THREE.Material } | null)
+        ?._materialDepth;
+      if (depth) overrides.push(depth);
+      if (overrides.length === 0) return null;
+    } else if (!(sun.castShadow && renderer.shadowMap.enabled)) return null;
     const group = new THREE.Group();
     const seen = new Set<string>();
     root.traverse((o) => {
@@ -778,16 +814,19 @@ function build(
         isBatchedMesh?: boolean;
         instanceColor?: unknown;
       };
-      if (!m.isMesh || m.isBatchedMesh) return;
+      if (!m.isMesh || m.isBatchedMesh || (shadow && !m.castShadow)) return;
+      const wear = shadow ? [shadowDepthFor(m.material)] : overrides;
       const morph = Object.keys(m.geometry?.morphAttributes ?? {}).length;
-      const key = `${!!m.isSkinnedMesh}|${!!m.isInstancedMesh}|${!!m.instanceColor}|${morph}`;
+      const key = `${!!m.isSkinnedMesh}|${!!m.isInstancedMesh}|${!!m.instanceColor}|${morph}|${wear[0]?.side}`;
       if (seen.has(key)) return;
       seen.add(key);
-      const wear = shadow && m.castShadow ? [...overrides, shadow] : overrides;
       for (const ov of wear) {
         // a shallow stand-in: same geometry (and skeleton / instance buffers), the override material
+        // Its own copy of the override: compileAsync waits on each material's current program,
+        // and a shared override's is only the last variant prepared (the skinned shadow variant
+        // was then still linking when first drawn: a 190 ms wait). Same cache key, same program.
         const c = m.clone(false) as THREE.Mesh;
-        c.material = ov;
+        c.material = ov.clone();
         c.visible = true;
         group.add(c);
       }
@@ -810,16 +849,47 @@ function build(
     const prev = renderer.getRenderTarget();
     renderer.setRenderTarget(target);
     const jobs: Promise<unknown>[] = [];
+    const standIns: THREE.Object3D[] = [];
     try {
       jobs.push(renderer.compileAsync(root, camera, into));
       const stand = overrides ? overrideStandIns(root) : null;
-      if (stand) jobs.push(renderer.compileAsync(stand, camera, into));
+      if (stand) {
+        standIns.push(stand);
+        jobs.push(renderer.compileAsync(stand, camera, into));
+      }
+      const casters = overrides ? overrideStandIns(root, true) : null;
+      if (casters) {
+        standIns.push(casters);
+        // as the shadow pass draws them: into the shadow map, in an empty scene (no fog)
+        const fog = scene.fog;
+        scene.fog = null;
+        try {
+          if (sun.shadow.map) renderer.setRenderTarget(sun.shadow.map as THREE.WebGLRenderTarget);
+          jobs.push(renderer.compileAsync(casters, sun.shadow.camera, scene));
+        } finally {
+          scene.fog = fog;
+        }
+      }
     } catch (err) {
       warnCompileOnce(err);
     } finally {
       renderer.setRenderTarget(prev);
     }
-    return Promise.all(jobs);
+    const all = Promise.all(jobs);
+    // the stand-ins' material copies go once their programs are pinned (a few frames later)
+    const copies: THREE.Material[] = [];
+    for (const g of standIns)
+      g.traverse((o) => {
+        const mat = (o as THREE.Mesh).material as THREE.Material | undefined;
+        if (mat && !copies.includes(mat)) copies.push(mat);
+      });
+    if (copies.length)
+      void all.then(() =>
+        setTimeout(() => {
+          for (const mat of copies) mat.dispose();
+        }, STAND_IN_DISPOSE_MS),
+      );
+    return all;
   };
   /** Material patches run on every layer before its first compile (`addMaterialPatch`). */
   const materialPatches = new Set<(root: THREE.Object3D) => number>();
@@ -827,6 +897,25 @@ function build(
     let n = 0;
     for (const patch of materialPatches) n += patch(root);
     return n;
+  };
+  /**
+   * Meshes whose material carries the decorative occluder cut (trees, cars, props kit, decorative
+   * dressing, crowd): rebuilt when the scene's layers change (`groundGeneration`, assets, motion)
+   * and at most once a second (layers add instanced buckets as they stream).
+   */
+  let decorList: THREE.Object3D[] = [];
+  let decorKey = "";
+  const decorCuttable = (): THREE.Object3D[] => {
+    const key = `${groundGeneration}|${assets ? assets.group.id : 0}|${motionLayer ? motionLayer.group.id : 0}|${scene.children.length}|${Math.floor(performance.now() / 1000)}`;
+    if (key === decorKey) return decorList;
+    decorKey = key;
+    decorList = [];
+    scene.traverse((o) => {
+      const m = (o as THREE.Mesh).material as THREE.Material | THREE.Material[] | undefined;
+      const mat = Array.isArray(m) ? m[0] : m;
+      if (mat?.userData.tlDecorCut) decorList.push(o);
+    });
+    return decorList;
   };
   /** The decorative shader clock (`setDecorClock`); null: the motion clock drives uTime. */
   let decorClock: (() => number | null) | null = null;
@@ -1109,6 +1198,12 @@ function build(
         h,
         () => {
           aoSkip.length = 0;
+          // The sky dome is drawn at the far plane (xyww); with the override materials' standard
+          // projection it became a 1 m ball at the site origin (an AO ring, a wrong focus depth).
+          aoSkip.push(sky.mesh);
+          // Decorative things the journey cut hides must not draw into the post passes either,
+          // or their depth stays in front of her (DoF blurred her through a hidden canopy, 9.1 F3).
+          if (currentTreeCut.value) for (const o of decorCuttable()) aoSkip.push(o);
           if (assets) for (const o of assets.aoExcluded()) aoSkip.push(o);
           if (motionLayer) aoSkip.push(motionLayer.group);
           // The flood tint is data on the ground: AO must not darken it.
@@ -1128,6 +1223,8 @@ function build(
     if (spec.dof && dofWanted) {
       bokehPass = new CityBokehPass(scene, camera, () => {
         bokehSkip.length = 0;
+        bokehSkip.push(sky.mesh);
+        if (currentTreeCut.value) for (const o of decorCuttable()) bokehSkip.push(o);
         if (overlays) bokehSkip.push(overlays.lineGroup);
         if (journey) bokehSkip.push(journey.ribbon);
         return bokehSkip;
@@ -1227,8 +1324,13 @@ function build(
   const driveCamera = (now: number): { driven: boolean; animating: boolean } => {
     let pose: DrivenCamera | null = null;
     if (driver) {
-      _cur.position = [camera.position.x, camera.position.y, camera.position.z];
-      _cur.look = [controls.target.x, controls.target.y, controls.target.z];
+      // filled in place: no arrays per frame (final review)
+      _cur.position[0] = camera.position.x;
+      _cur.position[1] = camera.position.y;
+      _cur.position[2] = camera.position.z;
+      _cur.look[0] = controls.target.x;
+      _cur.look[1] = controls.target.y;
+      _cur.look[2] = controls.target.z;
       pose = driver(now, _cur);
     }
     if (!pose) {
@@ -1347,7 +1449,7 @@ function build(
       frustum.setFromProjectionMatrix(
         viewProj.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse),
       );
-      motionLayer.tick(tripMs ?? clock.at, camera.position, frustum);
+      motionLayer.tick(tripMs ?? clock.at, camera.position, frustum, tripMs !== null);
     }
     if (tripMs !== null) motion.uTime.value = tripMs / 1000;
     placeLight();
@@ -1426,6 +1528,34 @@ function build(
   // The place / waste / centre markers' program (the overlay layers rebuild their markers when an
   // answer lands): compiled now, in the background, and pinned once it renders.
   void compileRoot(markerProgramStandIn(), composer.readBuffer, false, overlayScene);
+  // The overlay lines and the journey ribbon variants (the route line of an answer was linked on
+  // its first draw), for both scenes they can draw in.
+  // Every fog / shadow combination they are drawn with (a no-shadow, fogged variant was still
+  // linked on first draw): the scene state is switched only around the synchronous compile.
+  for (const fogOn of [true, false])
+    for (const shadowOn of [true, false]) {
+      const fog = scene.fog;
+      const cast = sun.castShadow;
+      // the mood sets linear fog later; only its presence and kind pick the variant
+      scene.fog = fogOn ? (fog ?? new THREE.Fog(new THREE.Color(), 1, 2)) : null;
+      sun.castShadow = cast && shadowOn;
+      try {
+        void compileRoot(lineProgramStandIns(), composer.readBuffer, false);
+      } finally {
+        scene.fog = fog;
+        sun.castShadow = cast;
+      }
+    }
+  // the overlay scene (no lights) with and without the mood's fog
+  for (const fogOn of [true, false]) {
+    const fog = overlayScene.fog;
+    overlayScene.fog = fogOn ? (fog ?? new THREE.Fog(new THREE.Color(), 1, 2)) : null;
+    try {
+      void compileRoot(lineProgramStandIns(), composer.readBuffer, false, overlayScene);
+    } finally {
+      overlayScene.fog = fog;
+    }
+  }
 
   return {
     get groundGeneration() {
@@ -1630,7 +1760,13 @@ function build(
     cameraDriven: () => driving,
     setOverlays(o) {
       if (disposed) return;
-      if (o === overlays || (o && o === pendingOverlays)) return;
+      if (o && o === pendingOverlays) return;
+      if (o === overlays) {
+        // the shown layer again: a newer one still compiling is cancelled (disposed, never shown)
+        pendingOverlays?.dispose();
+        pendingOverlays = null;
+        return;
+      }
       pendingOverlays?.dispose();
       pendingOverlays = null;
       if (!o) {
@@ -1711,6 +1847,35 @@ function build(
       return () => {
         materialPatches.delete(patch);
       };
+    },
+    warmDraw(obj, frames = 2) {
+      if (disposed) return Promise.resolve();
+      const mats: [THREE.Material, boolean][] = [];
+      obj.traverse((o) => {
+        const m = (o as THREE.Mesh).material as THREE.Material | THREE.Material[] | undefined;
+        for (const x of Array.isArray(m) ? m : m ? [m] : []) {
+          mats.push([x, x.colorWrite]);
+          x.colorWrite = false;
+        }
+        o.frustumCulled = false;
+      });
+      obj.position.set(controls.target.x, -3, controls.target.z);
+      obj.updateMatrixWorld(true);
+      scene.add(obj);
+      return new Promise<void>((done) => {
+        let n = 0;
+        const off = this.onFrame(() => {
+          if (++n < frames) {
+            requestRender();
+            return;
+          }
+          off();
+          scene.remove(obj);
+          for (const [x, cw] of mats) x.colorWrite = cw;
+          done();
+        });
+        requestRender();
+      });
     },
     prewarm(root) {
       if (disposed) return Promise.resolve();

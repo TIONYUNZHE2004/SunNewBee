@@ -14,7 +14,6 @@ import { createFrame } from "./frame";
 import { boundaryOf } from "./ground/boundary";
 import { clipLayer } from "./ground/clipLayer";
 import { useSceneBus } from "./scene/sceneBus";
-import { useAcceptanceHook } from "./scene/useAcceptanceHook";
 import { useCameraOps } from "./scene/useCameraOps";
 import { useCityAssets } from "./scene/useCityAssets";
 import { useDecor } from "./scene/useDecor";
@@ -24,6 +23,7 @@ import { useEngine } from "./scene/useEngine";
 import { useFacades } from "./scene/useFacades";
 import { useGround, useRoads } from "./scene/useGround";
 import { useGroundDecor } from "./scene/useGroundDecor";
+import { useLazyAcceptanceHook } from "./scene/useLazyAcceptanceHook";
 import { useMood } from "./scene/useMood";
 import { useMotion } from "./scene/useMotion";
 import { useOverlays } from "./scene/useOverlays";
@@ -140,6 +140,10 @@ export default function ThreeScene({
     frame,
     bbox,
   });
+  // The walk the stand-ins are checked against (9.1 F1), latched once like the ground's copy, so a
+  // profile or scenario switch never re-plans the city.
+  const walkLatch = useRef<unknown>(null);
+  if (!walkLatch.current && access.data) walkLatch.current = access.data;
   const city = useCityAssets({
     engine,
     frame,
@@ -149,6 +153,7 @@ export default function ThreeScene({
     showroom,
     roleUniforms,
     boundary,
+    walk: walkLatch.current,
   });
   const { assetsState, loaded } = city;
   useSlab({ engine, boundary: showroom ? null : boundary });
@@ -213,7 +218,7 @@ export default function ThreeScene({
     boundary,
     showroom,
   });
-  const { running, onScreen, agents } = useMotion({
+  const { running, onScreen, agents, crowdShown } = useMotion({
     engine,
     tier,
     active,
@@ -238,7 +243,7 @@ export default function ThreeScene({
   const { initialBackground } = useMood({ engine, roleUniforms, sectionRef, home, bus });
   usePicking({ engine, hostRef, places });
   // Test-only camera / pick / frame-stats hook (dev builds or `?acceptance=1`).
-  useAcceptanceHook(engine, frame);
+  useLazyAcceptanceHook(engine, frame);
 
   // Any decorative layer in the scene: city assets (kits, decorative landmarks), facades, roofs, ground
   // decor (verges, construction ground), stall lines, props, dressing-kit decor (planters, lamp posts,
@@ -269,6 +274,7 @@ export default function ThreeScene({
       data-instances={city.instances}
       data-markers={markerCount}
       data-tiles={active.length}
+      data-crowd={`${agents.length}:${crowdShown ? 1 : 0}`}
       data-dressing-facts={dressing.facts}
       data-dressing-decor={dressing.decor}
       data-fallback={city.fallback.join(",")}

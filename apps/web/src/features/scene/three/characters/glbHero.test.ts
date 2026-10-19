@@ -150,6 +150,53 @@ describe("GLB hero model (walker)", () => {
     });
   });
 
+  it("a walk after a rest draws the walker as a walk straight away does (seek back past a rest)", async () => {
+    const h = await model("walker");
+    h.setPose({ x: 0, y: 0.08, z: 0 }, 0.4);
+    h.play("walk", 0.31, 1.2);
+    const direct = h.contacts().map((c) => [c.x, c.y, c.z]);
+    h.play("sit_down", 1.2, 0);
+    h.play("sit_idle", 1, 0);
+    h.play("stand_up", 0.3, 0);
+    h.play("walk", 0.31, 1.2);
+    h.contacts().forEach((c, i) => {
+      const d = direct[i] as number[];
+      expect(
+        Math.hypot(c.x - (d[0] as number), c.y - (d[1] as number), c.z - (d[2] as number)),
+        c.name,
+      ).toBeLessThan(1e-4);
+    });
+  });
+
+  it("seated, the parked walker is a function of (clip, time) and the ground only: any earlier clips or seeks", async () => {
+    const h = await model("walker");
+    h.setPose({ x: 2, y: 0.1, z: -1 }, 1.1);
+    // uneven ground under the parked walker (a kerb on one side)
+    h.setGround((x) => (x > 2.3 ? 0.25 : 0.1));
+    const walker = () =>
+      h
+        .contacts()
+        .filter((c) => c.name.startsWith("walker"))
+        .map((c) => [c.x, c.y, c.z]);
+    h.play("sit_idle", 1.5, 0);
+    const fresh = walker();
+    for (const path of [
+      ["walk", "sit_down"],
+      ["sit_idle", "stand_up", "walk"],
+      ["look", "idle"],
+    ] as const) {
+      for (const c of path) h.play(c, 0.7, 1.2);
+      h.play("sit_idle", 1.5, 0);
+      walker().forEach((p, i) => {
+        const q = fresh[i] as number[];
+        expect(
+          Math.hypot(p[0]! - q[0]!, p[1]! - q[1]!, p[2]! - q[2]!),
+          path.join(">"),
+        ).toBeLessThan(1e-4);
+      });
+    }
+  });
+
   it("crossfade: blend 0 shows the outgoing clip, 1 the incoming, 0.5 in between", async () => {
     const h = await model("walker");
     h.setPose({ x: 0, y: 0, z: 0 }, 0);

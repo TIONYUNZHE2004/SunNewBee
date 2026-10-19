@@ -198,9 +198,13 @@ export function useMotion({
   // A new agent set builds its layer off the critical path: looks searched in slices, then the
   // layer built and its programs compiled in parallel (engine.prepare), then swapped in. The
   // previous layer stays drawn meanwhile, so streaming never blanks or hitches the crowd.
+  // The agent set whose layer is drawn now (acceptance: a beat is judged once the crowd of its
+  // streamed tiles is in, `data-crowd` on the scene element).
+  const [shownAgents, setShownAgents] = useState<readonly unknown[] | null>(null);
   useEffect(() => {
     if (!engine || !driver || !loaded) return;
     if (agents.length === 0) {
+      setShownAgents(agents);
       driver.setAgents(null);
       engine.requestRender();
       return;
@@ -224,6 +228,7 @@ export function useMotion({
           return;
         }
         driver.setAgents(layer);
+        setShownAgents(agents);
         engine.requestRender();
       };
       if (engine.prepare) engine.prepare(layer.group).then(show);
@@ -249,5 +254,5 @@ export function useMotion({
     };
   }, [driver, loaded, engine]);
 
-  return { running, onScreen, agents };
+  return { running, onScreen, agents, crowdShown: shownAgents === agents };
 }

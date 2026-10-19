@@ -12,6 +12,7 @@ from .facts import (
     unsupported,
     unsupported_features,
 )
+from .journeys import PLAYABLE
 from .labels import (
     CLOSURE_WORDS,
     DEMO_CONFIRMED,
@@ -1486,7 +1487,8 @@ def rollout_errors(ans: FinalAnswer, rec: TurnRecord) -> list[str]:
 # - rest count: a number (digits or one..twelve) before "rest stop(s) / rest point(s) / bench(es)
 #   / places to rest" (BM "tempat rehat", "bangku"; zh "长椅", "休息点"), or after "rest stops
 #   ...:" ("Rest stops: 3"). Allowed: the plan's rest events only. A number that picks some out
-#   ("the first 2 benches", "of these 2") is skipped.
+#   ("the first 2 benches", "of these 2") is skipped. Checked only when the answer plays this
+#   route's walk and the route has a rest rule (rest_limit_m): other plans have no rest events.
 # - the route's own rest_points count is accepted only in the caveat form "Rest stops mapped on
 #   this route: N" (the plan leaves out a rest point at the start and thins rests past 12 events,
 #   so the two counts can differ); N must equal len(route.rest_points).
@@ -1552,6 +1554,20 @@ def journey_errors(ans: FinalAnswer, rec: TurnRecord) -> list[str]:
             )
         elif it.route_id not in rec.journeys:
             errs.append(f"No journey can be built for route {it.route_id}: leave journey.play out.")
+        elif (status := rec.route_status.get(it.route_id)) not in PLAYABLE:
+            errs.append(
+                f"journey.play cannot walk route {it.route_id}: its status is {status!r}, and "
+                "only confirmed or partly_unverified routes are played. Leave journey.play out."
+            )
+        # The same holds as in the mock and template: no walk past a staff-reported closure,
+        # and none on an evacuation turn (the walk is an everyday-trip view, not an escape plan).
+        if rec.route_closures:
+            errs.append(
+                "journey.play on a route with a staff-reported closure: leave journey.play out "
+                "and name the closure."
+            )
+        if "list_evacuation_centres" in rec.tool_calls:
+            errs.append("journey.play is not used on an evacuation route: leave journey.play out.")
         if not it.start_time:
             errs.append('journey.play needs start_time ("HH:MM", e.g. "09:00").')
     rid, plan = _answer_plan(ans, rec)
@@ -1562,17 +1578,23 @@ def journey_errors(ans: FinalAnswer, rec: TurnRecord) -> list[str]:
     parts += [c.text for c in ans.claims]
     text = _strip_names("\n".join(parts), names)
     rests = sum(e.kind == "rest" for e in plan.events)
+    # The walk's rest count is checked only for the walk the answer plays, on a profile with a
+    # rest rule (older_adult_rest): other plans have no rest events at all (ruling D-T1), so
+    # "2 benches near the playground" on a stroller route is not a count about the walk.
+    played = any(i.route_id == rid for i in plays)
+    check_rests = played and rec.routes.get(rid or "", {}).get("rest_limit_m") is not None
     mapped = len(rec.routes.get(rid or "", {}).get("rest_points") or [])
     unknown = sum(e.kind == "unknown" for e in plan.events)
     said_rests, said_mapped, said_unknown = set(), set(), set()
     for sent in _JSENT.split(text):
         said_mapped |= {_count(m.groups()) for m in REST_MAPPED.finditer(sent)}
         sent = REST_MAPPED.sub(" ", sent)
-        said_rests |= {
-            _count(m.groups())
-            for m in REST_COUNT.finditer(sent)
-            if not _NOT_A_TOTAL.search(sent[: m.start()])
-        }
+        if check_rests:
+            said_rests |= {
+                _count(m.groups())
+                for m in REST_COUNT.finditer(sent)
+                if not _NOT_A_TOTAL.search(sent[: m.start()])
+            }
         for clause in _JCLAUSE.split(sent):
             if UNCHECKED_WORDS.search(clause):
                 said_unknown |= {
@@ -1595,7 +1617,7 @@ def journey_errors(ans: FinalAnswer, rec: TurnRecord) -> list[str]:
             f"The answer says {bad} unchecked places, but the walk for this route shows "
             f"{unknown}: use the route's journey.unchecked_places."
         )
-    if any(i.route_id == rid for i in plays):
+    if played:
         all_text = " ".join(parts)
         if any(e.demo for e in plan.events) and not has_demo_phrase(all_text):
             errs.append(
@@ -1655,6 +1677,9 @@ _ISSUES = (
     # journey answers first: their messages also mention "route_id" and "caveat"
     ("journey.play names route", "played a walk for a route that was not checked"),
     ("No journey can be built", "played a walk the township data cannot show"),
+    ("journey.play cannot walk route", "played a walk on a route that cannot be walked"),
+    ("journey.play on a route with a staff-reported closure", "played a walk past a closure"),
+    ("journey.play is not used on an evacuation", "played a walk on an evacuation route"),
     ("journey.play needs start_time", "played a walk without a start time"),
     ("rest stops, but the walk", "gave a rest-stop count the walk does not show"),
     ("rest stops are mapped on this route", "gave a rest-stop count the route does not have"),

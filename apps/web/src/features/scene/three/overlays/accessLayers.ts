@@ -45,6 +45,8 @@ export interface OverlayState {
   keepPlaceIds?: readonly string[];
   /** [lon, lat] points (route and journey ends): places within ENDPOINT_KEEP_M are never hidden. */
   keepNear?: readonly (readonly number[])[];
+  /** A trip is loaded: only the kept places are drawn (gate §9.1 F5); the rest return when it clears. */
+  tripOnly?: boolean;
 }
 
 export interface OverlayLayer {
@@ -185,9 +187,11 @@ export function createOverlayLayer(frame: LocalFrame): OverlayLayer {
       (c) => frame.toLocal(c[0] as number, c[1] as number) as [number, number],
     );
     // The rule's inputs as one value, so a focus or route change rebuilds only when they change.
-    const rule = b
-      ? `${[...keepIds].sort().join(",")}|${keepNear.flat().map(Math.round).join(",")}`
-      : "";
+    const tripOnly = !!s.tripOnly;
+    const rule =
+      b || tripOnly
+        ? `${tripOnly}|${[...keepIds].sort().join(",")}|${keepNear.flat().map(Math.round).join(",")}`
+        : "";
     const key = [places, waste, evac, b, rule];
     if (!markerKey || key.some((k, i) => k !== markerKey?.[i])) {
       markerKey = key;
@@ -204,6 +208,7 @@ export function createOverlayLayer(frame: LocalFrame): OverlayLayer {
               inside: b ? (x, z) => insideBoundary(b, x, z) : null,
               keepIds,
               keepNear,
+              tripOnly,
             }),
           },
           frame,

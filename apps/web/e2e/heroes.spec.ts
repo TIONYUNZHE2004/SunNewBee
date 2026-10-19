@@ -474,15 +474,14 @@ test("route answer offers Watch the trip and working player controls (AC-D13)", 
     await page.evaluate(() => (window as unknown as { __journey: Hook }).__journey.total),
   ).toBeGreaterThan(0);
   expect(await state()).toMatchObject({ t: 0, playing: false });
+  // e2e runs in the List view, which has no player: Watch loads the trip paused at the start and
+  // the controls offer no Play/Pause or Restart (they play in 3D only; JourneyControls.dom.test).
   await watch.click();
-  expect((await state())?.playing).toBe(true);
+  expect(await state()).toMatchObject({ t: 0, playing: false });
   const controls = page.getByTestId("journey-controls");
-  await controls.getByRole("button", { name: "Pause" }).click();
-  expect((await state())?.playing).toBe(false);
+  await expect(controls.getByRole("button", { name: /^(Play|Pause|Restart)$/ })).toHaveCount(0);
   await controls.getByRole("button", { name: "Overview" }).click();
   expect((await state())?.camMode).toBe("overview");
   await controls.getByRole("slider", { name: "Trip position" }).fill("10");
   expect((await state())?.t).toBe(10);
-  await controls.getByRole("button", { name: "Restart" }).click();
-  expect((await state())?.playing).toBe(true);
 });

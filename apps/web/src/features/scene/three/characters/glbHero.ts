@@ -131,6 +131,11 @@ const _q = new THREE.Quaternion();
 const _pq = new THREE.Quaternion();
 const _m = new THREE.Matrix4();
 const _m2 = new THREE.Matrix4();
+// Scratch for the per-frame planting and grip IK (no allocation per frame, final review).
+const _m3 = new THREE.Matrix4();
+const _pqInv = new THREE.Quaternion();
+const _goal = new THREE.Vector3();
+const _toGoal = new THREE.Vector3();
 
 function need(scene: THREE.Object3D, name: string): THREE.Object3D {
   const o = scene.getObjectByName(name);
@@ -275,6 +280,10 @@ export function buildHeroModel(
   const grips = bones.grip.map((n) => need(scene, n)) as [THREE.Object3D, THREE.Object3D];
   const feet = bones.foot.map((n) => need(scene, n)) as [THREE.Object3D, THREE.Object3D];
   const propContacts = bones.contacts.map((n) => need(scene, n));
+  // per-model scratch of the planting (one entry per prop contact)
+  const contactPts = propContacts.map(() => new THREE.Vector3());
+  const contactGap = propContacts.map(() => 0);
+  const holdingNow = [false, false];
   const arms = (["L", "R"] as const).map((s) => [
     need(scene, `forearm_${s}`),
     need(scene, `upper_arm_${s}`),
@@ -385,6 +394,24 @@ export function buildHeroModel(
     }
     saved.clear();
   };
+  // The walker prop's transform, re-applied before each pose, so the walker a rest's sit clips park
+  // beside the bench never keeps that place in the next clip that does not key it.
+  // A pose is then a function of its clip and time only: a seek back past a rest drew the walker
+  // where the rest had left it (gate round 2, AC-D17 with the beats visited in reverse).
+  // The reference is the idle pose at time 0 (what every clip was authored against: the walker
+  // in her hands), not the glb's bind pose.
+  const rest: [THREE.Object3D, THREE.Vector3, THREE.Quaternion, THREE.Vector3][] = [];
+  {
+    const idle = actions.get("idle") as THREE.AnimationAction;
+    idle.play();
+    idle.time = 0;
+    idle.setEffectiveWeight(1);
+    mixer.update(0);
+    // the prop bone only (the walker): the mixer restores the bones its clips key, but the prop's
+    // "original" state is whatever it held when a clip first bound it (planting may have moved it)
+    rest.push([prop, prop.position.clone(), prop.quaternion.clone(), prop.scale.clone()]);
+    idle.stop();
+  }
   let weights = new Map<HeroClip, number>();
   let dominant: { clip: HeroClip; time: number } = { clip: "idle", time: 0 };
 
@@ -414,6 +441,11 @@ export function buildHeroModel(
         dominant = { clip: c, time: s.time };
       }
     restore();
+    for (const [o, p, q, sc] of rest) {
+      o.position.copy(p);
+      o.quaternion.copy(q);
+      o.scale.copy(sc);
+    }
     mixer.update(0);
     root.updateWorldMatrix(true, true);
   };
@@ -422,7 +454,7 @@ export function buildHeroModel(
   const rotateWorld = (bone: THREE.Object3D, q: THREE.Quaternion) => {
     save(bone);
     (bone.parent as THREE.Object3D).getWorldQuaternion(_pq);
-    const local = _pq.clone().invert().multiply(q).multiply(_pq);
+    const local = _pqInv.copy(_pq).invert().multiply(q).multiply(_pq);
     bone.quaternion.premultiply(local);
     bone.updateMatrixWorld(true);
   };
@@ -456,15 +488,35 @@ export function buildHeroModel(
     }
     if (!hasProp) return;
     // prop: best-fit plane under its four contacts (the wheelchair carries her with it)
-    const pts = propContacts.map((c) => c.getWorldPosition(new THREE.Vector3()));
-    const d = pts.map((p) => groundAt(p.x, p.z) - p.y);
-    if (Math.max(...d.map(Math.abs)) < 1e-4) return;
-    const holding = [0, 1].map(
-      (s) =>
+    const pts = contactPts;
+    const d = contactGap;
+    let worst = 0;
+    for (let i = 0; i < pts.length; i++) {
+      const p = (propContacts[i] as THREE.Object3D).getWorldPosition(pts[i] as THREE.Vector3);
+      d[i] = groundAt(p.x, p.z) - p.y;
+      worst = Math.max(worst, Math.abs(d[i] as number));
+    }
+    if (worst < 1e-4) return;
+    // Seated (the walker parked by the sit clips): only lifted onto the ground (the mean gap), never
+    // tilted or turned, so its parked place is the clip's at that time and her seat's ground height
+    // alone (AC-D17 final: the parked walker differed between a play and a reverse seek).
+    if (!spec.seated && seatedAt(spec, dominant.clip, dominant.time)) {
+      let mean = 0;
+      for (let i = 0; i < pts.length; i++) mean += d[i] as number;
+      mean /= pts.length;
+      save(prop);
+      prop.getWorldPosition(_a);
+      _a.y += mean;
+      prop.position.copy((prop.parent as THREE.Object3D).worldToLocal(_a));
+      prop.updateMatrixWorld(true);
+      return;
+    }
+    const holding = holdingNow;
+    for (const s of [0, 1])
+      holding[s] =
         (palms[s] as THREE.Object3D)
           .getWorldPosition(_a)
-          .distanceTo((grips[s] as THREE.Object3D).getWorldPosition(_b)) < HOLD_M,
-    );
+          .distanceTo((grips[s] as THREE.Object3D).getWorldPosition(_b)) < HOLD_M;
     const n = pts.length;
     const cx = pts.reduce((s, p) => s + p.x, 0) / n;
     const cy = pts.reduce((s, p) => s + p.y, 0) / n;
@@ -493,7 +545,7 @@ export function buildHeroModel(
     // M = T(P + a) R T(-P), applied in world space
     _m.makeTranslation(cx, cy + a0, cz)
       .multiply(_m2.makeRotationFromQuaternion(_q))
-      .multiply(new THREE.Matrix4().makeTranslation(-cx, -cy, -cz));
+      .multiply(_m3.makeTranslation(-cx, -cy, -cz));
     const world = _m.multiply(target.matrixWorld);
     save(target);
     const local = _m2
@@ -506,12 +558,12 @@ export function buildHeroModel(
     for (const s of [0, 1]) {
       if (!holding[s]) continue;
       const palm = palms[s] as THREE.Object3D;
-      const goal = (grips[s] as THREE.Object3D).getWorldPosition(new THREE.Vector3());
+      const goal = (grips[s] as THREE.Object3D).getWorldPosition(_goal);
       for (let k = 0; k < CCD_ITERATIONS; k++)
         for (const bone of arms[s] as THREE.Object3D[]) {
           bone.getWorldPosition(_b);
           const toPalm = palm.getWorldPosition(_a).sub(_b);
-          const toGoal = goal.clone().sub(_b);
+          const toGoal = _toGoal.copy(goal).sub(_b);
           if (toPalm.lengthSq() < 1e-12 || toGoal.lengthSq() < 1e-12) continue;
           _q.setFromUnitVectors(toPalm.normalize(), toGoal.normalize());
           rotateWorld(bone, _q);
@@ -612,6 +664,26 @@ function fetchGlb(url: string): Promise<ArrayBuffer> {
     bytesCache.set(url, p);
   }
   return p;
+}
+
+/**
+ * Loads and parses the hero model of a profile ahead of any answer (an idle moment after the map
+ * loads), so the bytes are cached and the caller can draw it once off-screen (`Engine.warmDraw`):
+ * the model's first real draw then links nothing. Null when the variant has no glb or it fails.
+ */
+export async function preloadHeroModel(profile: string): Promise<GlbHeroModel | null> {
+  const variant = heroVariantFor(profile);
+  const url = heroUrl(HERO_MANIFEST, variant);
+  const spec = HERO_MANIFEST.variants[variant];
+  if (!url || !spec) return null;
+  try {
+    const m = await parseHeroGlb(await fetchGlb(`${url}?v=${spec.bytes}`), variant);
+    drawHeroLast(m.object3d);
+    m.play("walk", 0, 1, undefined);
+    return m;
+  } catch {
+    return null;
+  }
 }
 
 export interface GlbHero extends Hero {

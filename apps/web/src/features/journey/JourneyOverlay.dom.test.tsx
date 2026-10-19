@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { act, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { DEMO_CHIP, journeyCardContent } from "./cardContent";
+import { DEMO_CHIP, journeyCardContent, SIMULATION_LABEL } from "./cardContent";
 import { EventCard } from "./EventCard";
 import demoPlan from "./fixtures/demoPlan.json";
 import { JourneyHud } from "./JourneyHud";
@@ -9,7 +9,7 @@ import { JourneyMiniMap } from "./JourneyMiniMap";
 import { JourneyOverlay } from "./JourneyOverlay";
 import { useJourney } from "./journeyStore";
 import { miniMapLayout } from "./miniMap";
-import { SIM_LABEL, SimulationLabel } from "./SimulationLabel";
+import { SimulationLabel } from "./SimulationLabel";
 import { buildTimeline, type JourneyEvent, type JourneyPlan, stateAt } from "./timeline";
 
 const plan = demoPlan as unknown as JourneyPlan;
@@ -25,8 +25,8 @@ afterEach(() => useJourney.getState().clear());
 describe("SimulationLabel", () => {
   it("says exactly the spec wording", () => {
     render(<SimulationLabel />);
-    expect(SIM_LABEL).toBe("Simulation · indicative times, not a prediction");
-    expect(screen.getByRole("note", { name: SIM_LABEL })).toHaveTextContent(
+    expect(SIMULATION_LABEL).toBe("Simulation · indicative times, not a prediction");
+    expect(screen.getByRole("note", { name: SIMULATION_LABEL })).toHaveTextContent(
       "Simulation · indicative times, not a prediction",
     );
   });
@@ -188,7 +188,7 @@ describe("JourneyOverlay", () => {
     for (const t of times) {
       act(() => useJourney.getState().seek(t));
       const label = container.querySelector('[data-testid="journey-sim-label"]');
-      expect(label?.getAttribute("aria-label")).toBe(SIM_LABEL);
+      expect(label?.getAttribute("aria-label")).toBe(SIMULATION_LABEL);
       const st = stateAt(tl, t);
       const cards = container.querySelectorAll('[data-testid="journey-card"]');
       if (st.phase.kind === "event") {

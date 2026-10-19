@@ -233,9 +233,65 @@ async def test_journey_play_without_a_plan_is_rejected(tiny, tmp_path):
 async def test_counts_must_match_the_plan(seed, tmp_path, line, ok):
     rec, route = await _planned(seed, tmp_path, HARMONI_1, CAR_PARK_B, "older_adult_rest")
     summary = "Harmoni 1 to Car Park B: route partly unverified."
-    ans = _ans(route["id"], summary=summary, steps=[line])
+    play = {"kind": "journey.play", "route_id": route["id"], "start_time": "09:00"}
+    caveats = ["Demo values, not yet surveyed."]
+    ans = _ans(route["id"], play, summary=summary, steps=[line], caveats=caveats)
     errs = journey_errors(ans, rec)
     assert (errs == []) is ok, errs
+
+
+async def test_bench_counts_on_a_profile_without_a_rest_rule_are_not_walk_counts(tiny, tmp_path):
+    """Final review (important 1): stroller / wheelchair / default plans have no rest events
+    (ruling D-T1), so benches the answer mentions are not a count about the walk."""
+    rec, route = await _planned(tiny, tmp_path, "park-b", "kiosk", "stroller")
+    rid = route["id"]
+    play = {"kind": "journey.play", "route_id": rid, "start_time": "09:00"}
+    for intents in ((play,), ()):
+        ans = _ans(
+            rid,
+            *intents,
+            steps=["There are 2 benches near the playground."],
+            caveats=["Segment facts are demo values, not yet surveyed."],
+        )
+        assert journey_errors(ans, rec) == []
+
+
+@needs_seed
+async def test_a_wrong_rest_count_about_the_played_older_adult_walk_fails(seed, tmp_path):
+    rec, route = await _planned(seed, tmp_path, HARMONI_1, CAR_PARK_B, "older_adult_rest")
+    rid = route["id"]
+    play = {"kind": "journey.play", "route_id": rid, "start_time": "09:00"}
+    ans = _ans(
+        rid, play, steps=["She passes 2 benches."], caveats=["Demo values, not yet surveyed."]
+    )
+    assert any("rest stops, but the walk" in e for e in journey_errors(ans, rec))
+
+
+async def test_journey_play_is_rejected_where_the_mock_and_template_hold_it_back(tiny, tmp_path):
+    """Final review (2): a live model must not play a walk on an unplayable route, past a
+    reported closure, or on an evacuation turn (mirrors mock.py / template.py)."""
+    caveats = ["Segment facts are demo values, not yet surveyed."]
+
+    async def fresh():
+        rec, route = await _planned(tiny, tmp_path, "park-b", "kiosk", "stroller")
+        rid = route["id"]
+        play = {"kind": "journey.play", "route_id": rid, "start_time": "09:00"}
+        return rec, rid, _ans(rid, play, caveats=caveats)
+
+    rec, rid, ans = await fresh()
+    assert journey_errors(ans, rec) == []
+    rec.route_status[rid] = "blocked"
+    errs = journey_errors(ans, rec)
+    assert any("cannot walk route" in e for e in errs), errs
+    assert any("journey.play" in e for e in validate_answer(ans, rec))
+
+    rec, rid, ans = await fresh()
+    rec.route_closures.append({"id": "cl-1", "element_name": "Kiosk path", "impact": "closed"})
+    assert any("staff-reported closure" in e for e in journey_errors(ans, rec))
+
+    rec, rid, ans = await fresh()
+    rec.tool_calls.append("list_evacuation_centres")
+    assert any("evacuation route" in e for e in journey_errors(ans, rec))
 
 
 @needs_seed
@@ -299,8 +355,12 @@ async def test_route_rest_points_count_only_in_the_mapped_form(seed, tmp_path):
         != len(rec.routes[rid]["rest_points"])
     )
 
+    play = {"kind": "journey.play", "route_id": rid, "start_time": "09:00"}
+    demo = ["Demo values, not yet surveyed."]
+
     def errs(line):
-        return journey_errors(_ans(rid, summary="Route partly unverified.", steps=[line]), rec)
+        ans = _ans(rid, play, summary="Route partly unverified.", steps=[line], caveats=demo)
+        return journey_errors(ans, rec)
 
     assert errs("Rest stops mapped on this route: 4.") == []
     assert errs("Rest stops mapped on this route: 3.")  # the mapped form is the route's count
@@ -367,3 +427,16 @@ async def test_wording_scan_over_tiny_plans_and_template(tiny, tmp_path, a, b, p
     assert validate_answer(tmpl, rec) == []
     demo = any(e.source_type == "team_survey_placeholder" for e in rec.evidence.values())
     assert _scan_answer(answer_text(tmpl, None, rec), demo) == []
+
+
+@pytest.mark.parametrize("phrase,query", [("lakesid", "lakesid"), ("my house", "house")])
+async def test_a_weak_name_match_is_not_taken_as_the_origin(tiny, tmp_path, phrase, query):
+    """Final review (3): a phrase find_place matches only weakly ("lakesid" scores 0.84 for
+    Elmina Lakeside Mall) or not at all falls back to Car Park B, as before names were searched."""
+    q = f"Can I push a stroller from {phrase} to the kiosk?"
+    evs, rec, _ = await _turn(tiny, tmp_path, q, "stroller")
+    calls = [e for e in evs if e.type == "tool.call"]
+    assert [c.name for c in calls] == ["find_place", "find_place", "find_place", "plan_route"]
+    assert [c.args.get("query") for c in calls[:3]] == [query, "car park b", "kiosk"]
+    assert calls[3].args["from_id"] == "park-b" and calls[3].args["to_id"] == "kiosk"
+    assert rec.validator_errors == []

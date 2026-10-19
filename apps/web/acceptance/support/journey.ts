@@ -1,10 +1,10 @@
 import type { Page } from "@playwright/test";
 
 /**
- * Journey player helpers (used from Phase D). They drive `window.__journey`, the player's test and
- * recording hook, with the prototype's API (docs/03-product/prototypes/resident-journey/index.html):
- * `{ total, phases, seek(s), play(), pause(), setCam(mode) }`. Until the Phase D player installs it,
- * every call throws a clear "not available" error.
+ * Journey player helpers. They drive `window.__journey`, the player's test and recording hook, with
+ * the prototype's API (docs/03-product/prototypes/resident-journey/index.html):
+ * `{ total, phases, seek(s), play(), pause(), setCam(mode) }`. It is installed in dev builds and with
+ * the ?demo=1 preset only; without it every call throws a clear "not available" error.
  */
 export const JOURNEY_HOOK = "__journey";
 export type JourneyCam = "follow" | "overview" | "free";
@@ -28,7 +28,7 @@ async function call(page: Page, method: string, arg?: unknown): Promise<unknown>
   );
   if ("missing" in r)
     throw new Error(
-      `window.${JOURNEY_HOOK}${"method" in r ? `.${method}` : ""} is not available: the journey player lands in Phase D`,
+      `window.${JOURNEY_HOOK}${"method" in r ? `.${method}` : ""} is not available: it is installed in dev builds and with the ?demo=1 preset only (is this a production build, or did the journey answer land?)`,
     );
   return r.value;
 }
@@ -46,7 +46,7 @@ export const journey = {
     }, JOURNEY_HOOK);
     if (!r || typeof r.total !== "number")
       throw new Error(
-        `window.${JOURNEY_HOOK} is not available: the journey player lands in Phase D`,
+        `window.${JOURNEY_HOOK} is not available: it is installed in dev builds and with the ?demo=1 preset only (is this a production build, or did the journey answer land?)`,
       );
     return { total: r.total, phases: Array.isArray(r.phases) ? r.phases : [] };
   },
@@ -77,7 +77,7 @@ export async function askDemoJourney(page: Page): Promise<void> {
   await page.getByTestId("journey-sim-label").waitFor({ state: "visible", timeout: 60_000 });
 }
 
-/** True once the Phase D player hook is installed (D-T8). */
+/** True once the journey player hook is installed (D-T8). */
 export async function hasJourneyHook(page: Page): Promise<boolean> {
   return page.evaluate((h) => h in window, JOURNEY_HOOK);
 }

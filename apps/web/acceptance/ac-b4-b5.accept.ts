@@ -127,10 +127,10 @@ test("AC-B4: tilt-shift keeps the hero sharp vs the far field at every follow be
 
   // Follow beats.
   await askDemoJourney(page);
-  test.skip(
-    !(await hasJourneyHook(page)),
-    "window.__journey is installed in dev builds and the demo preset only",
-  );
+  expect(
+    await hasJourneyHook(page),
+    "window.__journey (dev builds and the demo preset): a missing hook fails, never skips",
+  ).toBe(true);
   const { phases } = await journey.info(page);
   const beats = (phases as { kind: string; t0: number; t1: number }[]).filter((p) => p.t1 > p.t0);
   await journey.pause(page);

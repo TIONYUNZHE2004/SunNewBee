@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import type { Tier } from "../../shared/quality";
+import { patchDecorCut } from "../assets/treeCut";
 import { ROAD_Y, VERGE_Y } from "../ground/bands";
 import { clayMaterial } from "../shared/clayTokens";
 import { bucketOf, buildDressingModels, trianglesOf } from "./dressingModels";
@@ -60,9 +61,31 @@ export function createDressingLayer(opts: { tier?: Tier } = {}): DressingLayer {
   const group = new THREE.Group();
   group.name = "dressing";
   const material = clayMaterial("dressing", { vertexColors: true, tier: opts.tier });
+  // Decorative models (planters, lamp posts, flowers...) get the journey's decorative occluder cut;
+  // fact props (mapped benches, bins) keep the plain material and are never cut.
+  const decorMaterial = clayMaterial("dressing", { vertexColors: true, tier: opts.tier });
+  patchDecorCut(decorMaterial);
   const buckets = new Map<string, Bucket>();
   for (const [key, geom] of buildDressingModels())
     buckets.set(key, { key, geom, tris: trianglesOf(geom), mesh: null, cap: 0, drawn: 0 });
+  // Bucket meshes are made as items come into the bubble (mid-dive): two empty instanced meshes,
+  // one per material, so the layer's compile before it shows covers both programs and the shadow
+  // variant (the decorative material's program was linked on its first draw, gate AC-D18).
+  const firstGeom = buckets.values().next().value?.geom;
+  if (firstGeom)
+    for (const mat of [material, decorMaterial]) {
+      const warm = new THREE.InstancedMesh(firstGeom, mat, 1);
+      warm.count = 0;
+      warm.name = "dressing__prewarm";
+      warm.castShadow = true;
+      warm.receiveShadow = true;
+      warm.frustumCulled = false;
+      warm.raycast = NOOP;
+      warm.userData.decorative = mat === decorMaterial;
+      warm.userData.fact = mat === material;
+      warm.userData.sourceIds = [];
+      group.add(warm);
+    }
   let items: readonly DressItem[] = [];
   const m = new THREE.Matrix4();
   const q = new THREE.Quaternion();
@@ -78,7 +101,12 @@ export function createDressingLayer(opts: { tier?: Tier } = {}): DressingLayer {
       b.mesh.dispose();
     }
     b.cap = Math.max(16, 2 ** Math.ceil(Math.log2(Math.max(1, n))));
-    const mesh = new THREE.InstancedMesh(b.geom, material, b.cap);
+    const model0 = b.key.split(":")[0]!;
+    const mesh = new THREE.InstancedMesh(
+      b.geom,
+      DECOR.has(model0) ? decorMaterial : material,
+      b.cap,
+    );
     mesh.name = `dressing__${b.key}`;
     mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     mesh.castShadow = !NO_SHADOW.has(b.key.split(":")[0]!);
@@ -156,6 +184,7 @@ export function createDressingLayer(opts: { tier?: Tier } = {}): DressingLayer {
       }
       buckets.clear();
       material.dispose();
+      decorMaterial.dispose();
       group.clear();
     },
   };

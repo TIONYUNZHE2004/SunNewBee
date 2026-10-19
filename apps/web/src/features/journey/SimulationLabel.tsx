@@ -1,13 +1,11 @@
 import { SIMULATION_LABEL } from "./cardContent";
 
 /** Spec §6.4 / §7: always on screen while a journey is loaded. */
-export const SIM_LABEL = SIMULATION_LABEL;
-
 export function SimulationLabel() {
   return (
     <p
       role="note"
-      aria-label={SIM_LABEL}
+      aria-label={SIMULATION_LABEL}
       data-testid="journey-sim-label"
       className="glass inline-flex items-center gap-2 rounded-full px-3 py-1 text-sm font-semibold text-fg"
     >

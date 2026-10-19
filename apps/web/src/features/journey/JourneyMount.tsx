@@ -1,7 +1,9 @@
 import { type RefObject, useCallback, useEffect, useRef, useState } from "react";
 import * as THREE from "three";
+import { loadProfile } from "../../lib/profileStore";
 import type { LonLat } from "../scene/geo";
 import { setTreeCut } from "../scene/three/assets/treeCut";
+import { preloadHeroModel } from "../scene/three/characters/glbHero";
 import type { Clearance } from "../scene/three/clearance";
 import type { Engine } from "../scene/three/engine";
 import type { LocalFrame } from "../scene/three/frame";
@@ -13,7 +15,7 @@ import {
 } from "../scene/three/journey/followRig";
 import { heroPositionAt } from "../scene/three/journey/heroDriver";
 import type { ViewFit } from "../scene/three/journey/safeFrame";
-import { createFollowController, overviewFor } from "./followCamera";
+import { createFollowController, overviewFor, routeOverview } from "./followCamera";
 import { JourneyOverlay } from "./JourneyOverlay";
 import {
   journeyCamera,
@@ -25,10 +27,11 @@ import {
 import { probeCamera } from "./three/cameraProbe";
 import { applyCutaway, cutFor, NO_CUT, setCut } from "./three/cutaway";
 import { createHeroLayer, type FactBench, type HeroLayer } from "./three/heroLayer";
-import { heroBodyBox, heroScreenRect } from "./three/heroScreen";
-import { createJourneyLayer, type JourneyLayer } from "./three/journeyLayer";
+import { heroScreenRect } from "./three/heroScreen";
+import { createJourneyLayer, type JourneyLayer, warmPinDrawings } from "./three/journeyLayer";
 import { projectToScreen } from "./three/project";
 import { createViewFit, safeRectOf } from "./three/viewFit";
+import type { JourneyPlan } from "./timeline";
 import { useJourneyDriver } from "./useJourneyDriver";
 import { useMapInsets } from "./useMapInsets";
 
@@ -65,14 +68,19 @@ export function JourneyMount({
   // The one "plan being shown": the player's loaded plan (an intent, Watch the trip, or nothing
   // after Clear route / a profile or scenario change), never sceneStore.journey.
   const plan = useJourney((s) => s.plan);
-  const [layer, setLayer] = useState<JourneyLayer | null>(null);
+  // The layer is kept with the plan it was built for: in the commit where the plan changes, the
+  // old (disposed) layer is not this plan's, so the hero and camera wait for the new one.
+  const [layerState, setLayerState] = useState<{ plan: JourneyPlan; layer: JourneyLayer } | null>(
+    null,
+  );
+  const layer = layerState && layerState.plan === plan ? layerState.layer : null;
   const heroRef = useRef<HeroLayer | null>(null);
 
   useEffect(() => {
     if (!engine || !frame || !plan) return;
     const l = createJourneyLayer(plan, frame);
     engine.setJourney(l);
-    setLayer(l);
+    setLayerState({ plan, layer: l });
     // heroColour false: her body drawn flat magenta (same geometry, order and depth, so shadows,
     // AO and the ribbon are untouched): the pixels that change are exactly her visible silhouette.
     const flat = new THREE.MeshBasicMaterial({
@@ -102,7 +110,7 @@ export function JourneyMount({
       flat.dispose();
       journeyShow.current = null;
       engine.setJourney(null); // disposes the layer
-      setLayer(null);
+      setLayerState(null);
     };
   }, [engine, frame, plan]);
 
@@ -135,28 +143,81 @@ export function JourneyMount({
     });
     engine.setDecor(HERO_SLOT, { group: h.group, dispose: h.dispose });
     heroRef.current = h;
+    // Her ground table (a ~30 ms index of the drawn ground meshes) is built at the first idle
+    // moment, not in the frame the answer lands (gate AC-D18); the dive starts from the overview,
+    // where she is a speck, and she is posed on the default ground until then.
+    let groundReady = false;
     const apply = () => {
       const s = useJourney.getState();
-      h.refreshGround();
+      if (groundReady) h.refreshGround();
       if (s.timeline && s.plan === plan) h.pose(s.timeline, s.t);
     };
     apply();
+    const ric = globalThis as {
+      requestIdleCallback?: (cb: () => void, o?: { timeout: number }) => number;
+      cancelIdleCallback?: (id: number) => void;
+    };
+    const readyNow = () => {
+      groundReady = true;
+      apply();
+    };
+    const idleId = ric.requestIdleCallback
+      ? ric.requestIdleCallback(readyNow, { timeout: 1200 })
+      : (setTimeout(readyNow, 300) as unknown as number);
     const unsub = useJourney.subscribe((s, prev) => {
       if (s.t !== prev.t || s.timeline !== prev.timeline) apply();
     });
     // Ground tiles streaming in while paused: re-pose on the new height table. A slow timer, not a
     // frame listener (no per-frame work outside event cards); playback re-checks on every pose.
     const timer = setInterval(() => {
-      if (h.refreshGround()) apply();
+      if (groundReady && h.refreshGround()) apply();
     }, 500);
     return () => {
       unsub();
       clearInterval(timer);
+      if (ric.requestIdleCallback && ric.cancelIdleCallback) ric.cancelIdleCallback(idleId);
+      else clearTimeout(idleId as unknown as ReturnType<typeof setTimeout>);
       engine.setDecor(HERO_SLOT, null);
       journeyHero.current = null;
       if (heroRef.current === h) heroRef.current = null;
     };
   }, [engine, frame, plan, layer, places, footprints, grid, factBenches]);
+
+  // The hero model of the current profile is loaded, parsed and drawn once off-screen at an idle
+  // moment after the map loads: her skinned shadow variant was otherwise built by the driver on her
+  // first real draw, in the second after the answer landed (gate AC-D18). Kept for the session.
+  useEffect(() => {
+    if (!engine?.warmDraw || import.meta.env.MODE === "test") return;
+    let live = true;
+    const ric = (globalThis as { requestIdleCallback?: (cb: () => void) => number })
+      .requestIdleCallback;
+    const go = () => {
+      void preloadHeroModel(loadProfile()).then((m) => {
+        if (!live || !m) return;
+        void engine.prepare?.(m.object3d).then(() => {
+          if (live) void engine.warmDraw?.(m.object3d, 3);
+        });
+      });
+    };
+    const id = ric ? ric(go) : setTimeout(go, 3000);
+    return () => {
+      live = false;
+      if (!ric) clearTimeout(id as ReturnType<typeof setTimeout>);
+    };
+  }, [engine]);
+
+  // The pin drawings (canvas text) are made at an idle moment, not when the answer lands.
+  useEffect(() => {
+    if (!engine) return;
+    const ric = (globalThis as { requestIdleCallback?: (cb: () => void) => number })
+      .requestIdleCallback;
+    const id = ric ? ric(warmPinDrawings) : setTimeout(warmPinDrawings, 2000);
+    return () => {
+      const cic = (globalThis as { cancelIdleCallback?: (id: number) => void }).cancelIdleCallback;
+      if (ric && cic) cic(id as number);
+      else clearTimeout(id as ReturnType<typeof setTimeout>);
+    };
+  }, [engine]);
 
   // Building materials carry the (inactive) cutaway from their first compile (engine patch hook,
   // page load onwards): patching them when a trip loads, or as LOD buckets appear, recompiled
@@ -168,11 +229,17 @@ export function JourneyMount({
 
   // Decorative shader motion (tree sway, shimmer) runs on the trip clock while a trip is loaded:
   // a paused beat renders the same at any wall time (AC-D17).
+  // The trip clock takes over once the trip has played (until then the motion clock runs on), so
+  // loading a plan never makes the crowd and traffic jump; the take-over happens with the dive,
+  // from the overview, where people and cars are specks.
   useEffect(() => {
     if (!engine?.setDecorClock || !plan) return;
+    let started = false;
     engine.setDecorClock(() => {
       const s = useJourney.getState();
-      return s.plan === plan && s.timeline ? s.t : null;
+      if (s.plan !== plan || !s.timeline) return null;
+      if (!started && (s.playing || s.t > 0)) started = true;
+      return started ? s.t : null;
     });
     return () => engine.setDecorClock?.(null);
   }, [engine, plan]);
@@ -192,6 +259,8 @@ export function JourneyMount({
     const destLl = arrive?.element_id ? places?.get(arrive.element_id) : undefined;
     const destination = destLl ? frame.toLocal(destLl[0], destLl[1]) : null;
     let ov: { fit: unknown; pose: FollowScene["overview"] } | null = null;
+    // The pull-back ends on the route's own overview, not the township's (gate §9.1 F4).
+    const endPose = routeOverview(layer.path.pointAt, layer.path.planLength);
     const overview = () => {
       const fit = engine.cameraFit?.() ?? null;
       if (!ov || ov.fit !== fit)
@@ -210,11 +279,6 @@ export function JourneyMount({
       if (!vf || vf.key !== key) vf = { key, view: createViewFit(cam, v.size, safeRectOf(vp)) };
       return vf.view;
     };
-    let boxMemo: {
-      t: number;
-      hero: HeroLayer;
-      box: { min: [number, number, number]; max: [number, number, number] } | null;
-    } | null = null;
     const scene = (): FollowScene | null => {
       const s = useJourney.getState();
       const tl = s.timeline;
@@ -227,26 +291,8 @@ export function JourneyMount({
         destination,
         clearance: engine.clearance?.() ?? null,
         overview: overview(),
+        pullBackTo: endPose,
         heroAt: h ? (t) => heroPositionAt(tl, t, h.helpers) : undefined,
-        heroBox: (t) => {
-          // her drawn box, only when she is posed at t (the store's t: the driver poses her on
-          // every change of t, before the frame's camera); one measure per t
-          if (!h || Math.abs(useJourney.getState().t - t) > 1e-9) return null;
-          if (boxMemo?.t !== t || boxMemo.hero !== h) {
-            const b = heroBodyBox(h.hero.object3d);
-            boxMemo = {
-              t,
-              hero: h,
-              box: b
-                ? {
-                    min: b.min.toArray() as [number, number, number],
-                    max: b.max.toArray() as [number, number, number],
-                  }
-                : null,
-            };
-          }
-          return boxMemo.box;
-        },
         markerOf: (i) => layer.anchorOf(i),
         view: viewFit(),
       };
@@ -270,7 +316,14 @@ export function JourneyMount({
         ),
       );
       const following = !!p && !!h && useJourney.getState().camMode === "follow";
-      setTreeCut(following && p && h ? { a: p.position, b: [h.x, HERO_CHEST_Y, h.z] } : null);
+      // at an event hold, also the line to the event's element (the ramp, the crossing, the bench)
+      const st = following ? journeyStateOf(useJourney.getState()) : null;
+      const sc = st?.phase.kind === "event" && st.eventIndex !== undefined ? scene() : null;
+      const el =
+        sc && st?.eventIndex !== undefined ? elementPoint(sc, st.eventIndex, st.distance_m) : null;
+      setTreeCut(
+        following && p && h ? { a: p.position, b: [h.x, HERO_CHEST_Y, h.z], c: el } : null,
+      );
       return p;
     });
     // Without the engine's material patch hook (tests), building materials get the (inactive)

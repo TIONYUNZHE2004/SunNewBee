@@ -56,6 +56,27 @@ export function gaitStartPhase(id: string, dist: number, walk: GaitClip, scale: 
 }
 
 /**
+ * The gait at time `tSec` as a pure function of it (no history): the phase of `gaitStartPhase` at
+ * the distance walked by then, or, for an agent standing (speed below IDLE_BELOW_MPS), the idle
+ * clip at its own rate from a seeded phase. Used while a journey's trip clock drives the crowd, so
+ * a seek to t and a play to t draw the same step (AC-D17).
+ */
+export function gaitAt(
+  id: string,
+  dist: number,
+  speed: number,
+  tSec: number,
+  scale: number,
+  walk: GaitClip,
+  idle: GaitClip,
+): GaitState {
+  if (Math.abs(speed) >= IDLE_BELOW_MPS && walk.stride > 0 && scale > 0)
+    return { phase: gaitStartPhase(id, dist, walk, scale), dist, idle: false };
+  const phase = idle.duration > 0 ? wrap01(seedPhase(id) + tSec / idle.duration) : seedPhase(id);
+  return { phase, dist, idle: true };
+}
+
+/**
  * One update: `dist` is the agent's distance travelled now (m), `dtSec` the real time since the last
  * update, `scale` its display scale. Moving: the phase advances by distance / (stride x scale). Standing
  * (speed below IDLE_BELOW_MPS): the idle clip plays at its own rate. Mutates and returns `st`.

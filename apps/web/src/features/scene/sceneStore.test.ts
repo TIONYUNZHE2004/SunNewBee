@@ -238,6 +238,35 @@ describe("sceneStore journey.play", () => {
     expect(useJourney.getState().plan).toBe(demoPlan);
   });
 
+  const line = {
+    type: "LineString",
+    coordinates: [
+      [101.5, 3.18],
+      [101.51, 3.18],
+    ],
+  };
+
+  it("a newer route answer drops the trip of another route (no journey.play for it)", () => {
+    useScene.getState().applyIntent({ ...intent, journey: demoPlan } as never);
+    useScene
+      .getState()
+      .applyIntent({ kind: "route.highlight", route_id: "rt-newer", geojson: line } as never);
+    expect(useScene.getState().route?.id).toBe("rt-newer");
+    expect(useScene.getState().journey).toBeNull();
+    expect(useJourney.getState().plan).toBeNull();
+  });
+
+  it("the trip's own route.highlight keeps the trip, in either order", () => {
+    useScene.getState().applyIntent({ ...intent, journey: demoPlan } as never);
+    useScene.getState().applyIntent({
+      kind: "route.highlight",
+      route_id: demoPlan.route_id,
+      geojson: line,
+    } as never);
+    expect(useScene.getState().journey).toBe(demoPlan);
+    expect(useJourney.getState().plan).toBe(demoPlan);
+  });
+
   it("drops the journey when the profile or scenario changes, and on reset", () => {
     useScene.getState().setProfile("older_adult_rest");
     for (const change of [

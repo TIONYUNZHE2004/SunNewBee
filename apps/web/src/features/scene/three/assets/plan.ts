@@ -1,6 +1,7 @@
 import type { BuildingsLayer } from "../../../../lib/api";
 import { toBuildings } from "../../shared/model";
 import { displayHeight, type Footprint, localRing } from "../cityMesh";
+import { drawnObstacles, type ModelBoxOf, type ModelCellsOf } from "../clearance";
 import type { FacadeBuilding } from "../facade/facadeLayer";
 import { facadeFor } from "../facade/facadePlan";
 import { type PodiumDeck, podiumDeck } from "../facade/podiumDeck";
@@ -11,6 +12,7 @@ import { type Boundary, insideBoundary } from "../ground/boundary";
 import type { Placement } from "./fit";
 import { fitArchetype, footprintObb, hash01, paletteFor, precinctGroupOf, variantFor } from "./fit";
 import type { AssetSpec, Manifest } from "./manifest";
+import { type WalkIndex, walkCoverPoint, walkIndexOf } from "./walkCover";
 
 export interface CityPlan {
   /** Key `${asset}/${variant}`. */
@@ -21,7 +23,38 @@ export interface CityPlan {
    */
   extrude: Set<string>;
   landmarks: Placement[];
-  stats: { placed: number; units: number; fallback: Record<string, number> };
+  stats: {
+    placed: number;
+    units: number;
+    fallback: Record<string, number>;
+    /**
+     * 9.1 F1: buildings (and landmark ids) whose stand-in would cover a walk edge their OSM outline
+     * does not; they are drawn as their extruded footprint instead (`walk_cover` in `fallback`).
+     */
+    walkCover?: string[];
+  };
+}
+
+/**
+ * The walk network and the drawn model bounds `planCity` checks stand-ins against (9.1 F1). The
+ * bounds are the ones the clearance uses (`drawnObstacles`): a landmark's rasterised mass, an
+ * archetype's loaded box, else the manifest size.
+ */
+export interface PlanCover {
+  walk: WalkIndex;
+  boxOf?: ModelBoxOf;
+  cellsOf?: ModelCellsOf;
+}
+
+/** The cover check's input for a walk layer (null without one: no check). */
+export function coverOf(
+  walk: unknown,
+  frame: LocalFrame,
+  boxOf?: ModelBoxOf,
+  cellsOf?: ModelCellsOf,
+): PlanCover | null {
+  const idx = walk ? walkIndexOf(walk, frame) : null;
+  return idx && idx.segs.length > 0 ? { walk: idx, boxOf, cellsOf } : null;
 }
 
 const GENERIC = "generic";
@@ -58,7 +91,7 @@ function emptyPlan(): CityPlan {
     placements: new Map(),
     extrude: new Set(),
     landmarks: [],
-    stats: { placed: 0, units: 0, fallback: {} },
+    stats: { placed: 0, units: 0, fallback: {}, walkCover: [] },
   };
 }
 
@@ -94,11 +127,20 @@ export function planCity(
   m: Manifest,
   has: (asset: string) => boolean,
   boundary?: Boundary | null,
+  cover?: PlanCover | null,
 ): CityPlan {
   const plan = emptyPlan();
   if (!layer) return plan;
   const fb = (reason: string) => {
     plan.stats.fallback[reason] = (plan.stats.fallback[reason] ?? 0) + 1;
+  };
+  /** True when the placements' drawn mass covers a walk edge outside the fact outline(s). */
+  const coversWalk = (ps: Placement[], fact: [number, number][][], landmark: boolean) => {
+    if (!cover) return false;
+    const drawn = ps.flatMap((p) =>
+      drawnObstacles(p, m, landmark, cover.boxOf, cover.cellsOf).map((o) => o.ring),
+    );
+    return walkCoverPoint(drawn, fact, cover.walk) !== null;
   };
 
   const { buildings } = toBuildings(layer.buildings, displayHeight);
@@ -109,6 +151,11 @@ export function planCity(
     propsById.set(String(props.id ?? f.id ?? `b${i}`), props);
   });
   const heightById = new Map(buildings.map((b) => [b.id, b.height]));
+  const ringById = new Map(buildings.map((b) => [b.id, b.ring]));
+  const localOf = (id: string | null) => {
+    const r = id ? ringById.get(id) : undefined;
+    return r ? [r.map(([lon, lat]) => frame.toLocal(lon, lat))] : [];
+  };
 
   // Landmarks: only where the data has a feature with that model. Never invent a footprint.
   const taken = new Set<string>();
@@ -165,6 +212,14 @@ export function planCity(
       }
     }
     if (!placed) continue;
+    // 9.1 F1: the model must not stand over a walk edge that neither its own outline nor its OSM
+    // building covers; then the building is planned below like any other (its fact footprint).
+    const own = ringOf(f.geometry)?.map(([lon, lat]) => frame.toLocal(lon, lat));
+    if (coversWalk([placed], [...localOf(bid), ...(own ? [own] : [])], true)) {
+      fb("landmark_walk_cover");
+      plan.stats.walkCover?.push(id);
+      continue;
+    }
     plan.landmarks.push(placed);
     if (bid && !traced) taken.add(bid);
   }
@@ -217,6 +272,18 @@ export function planCity(
     if (asset === GENERIC && units.some((u) => !unstretched(u.sx) || !unstretched(u.sz))) {
       plan.extrude.add(b.id);
       fb("generic_stretch");
+      continue;
+    }
+    if (
+      coversWalk(
+        units.map((u) => ({ ...u, asset })),
+        [ring],
+        false,
+      )
+    ) {
+      plan.extrude.add(b.id);
+      fb("walk_cover");
+      plan.stats.walkCover?.push(b.id);
       continue;
     }
     const key = `${asset}/${variant}`;

@@ -9,6 +9,7 @@ const spy = vi.hoisted(() => ({
   scenes: [] as unknown[],
   passScenes: [] as unknown[],
   aoSkips: [] as (() => readonly unknown[])[],
+  bokehSkips: [] as (() => readonly unknown[])[],
   renderer: null as null | { autoClear: boolean },
 }));
 vi.mock("three", async (orig) => {
@@ -98,11 +99,29 @@ vi.mock("./aoPass", () => ({
   },
 }));
 
+vi.mock("./tiltShift", async (orig) => {
+  const t = await orig<typeof import("./tiltShift")>();
+  return {
+    ...t,
+    CityBokehPass: class {
+      enabled = true;
+      dispose = vi.fn();
+      setSize = vi.fn();
+      aim = vi.fn();
+      uniforms = {};
+      constructor(_s: unknown, _c: unknown, skip: () => readonly unknown[]) {
+        spy.bokehSkips.push(skip);
+      }
+    },
+  };
+});
+
 async function setup() {
   spy.log.length = 0;
   spy.scenes.length = 0;
   spy.passScenes.length = 0;
   spy.aoSkips.length = 0;
+  spy.bokehSkips.length = 0;
   vi.stubGlobal("requestAnimationFrame", () => 1);
   vi.stubGlobal("cancelAnimationFrame", () => {});
   const THREE = await import("three");
@@ -125,6 +144,23 @@ async function setup() {
 }
 
 afterEach(() => vi.unstubAllGlobals());
+
+describe("post passes leave the sky dome out (final review)", () => {
+  it("the AO and depth-of-field skip lists hold the sky mesh", async () => {
+    const { e } = await setup();
+    try {
+      e.setDof(true);
+      const main = spy.scenes[0] as import("three").Scene;
+      const sky = main.children.find((o) => o.name === "sky") ?? main.children[0];
+      expect(spy.aoSkips.length).toBeGreaterThan(0);
+      expect(spy.bokehSkips.length).toBeGreaterThan(0);
+      expect(spy.aoSkips.at(-1)?.()).toContain(sky);
+      expect(spy.bokehSkips.at(-1)?.()).toContain(sky);
+    } finally {
+      e.dispose();
+    }
+  });
+});
 
 describe("Engine.setJourney", () => {
   it("the ribbon joins the main scene and is left out of the AO G-buffer", async () => {

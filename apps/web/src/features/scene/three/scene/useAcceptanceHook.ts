@@ -17,9 +17,9 @@ import { pickAt } from "../pick";
  */
 export const ACCEPTANCE_GLOBAL = "__tlAcceptance";
 
-export function acceptanceEnabled(dev: boolean, search: string): boolean {
-  return dev || new URLSearchParams(search).get("acceptance") === "1";
-}
+export { acceptanceEnabled } from "./acceptanceFlag";
+
+import { acceptanceEnabled } from "./acceptanceFlag";
 
 /** What a screen pixel shows, for pick masks. `other`: a sign or decorative pick (resident). */
 export type MaskKind = "sky" | "ground" | "road" | "building" | "other";
@@ -437,49 +437,10 @@ export const emptyCameraLog = (): CameraLog => ({
   lastLiftM: null,
 });
 
-const BUILDING_KINDS = new Set(["building", "landmark"]);
+// Shared with the journey probe (production code): they live in buildingMeshes.ts.
+export { buildingMeshes, roofHit } from "./buildingMeshes";
 
-/** Visible building and landmark meshes (extruded city, archetype instances, landmarks). */
-export function buildingMeshes(roots: THREE.Object3D[]): THREE.Mesh[] {
-  const out: THREE.Mesh[] = [];
-  const visit = (o: THREE.Object3D) => {
-    if (!o.visible) return;
-    const kind = (o.userData.pick as { kind?: string } | undefined)?.kind;
-    if ((o as THREE.Mesh).isMesh && kind && BUILDING_KINDS.has(kind)) out.push(o as THREE.Mesh);
-    for (const c of o.children) visit(c);
-  };
-  for (const r of roots) visit(r);
-  return out;
-}
-
-const _down = new THREE.Raycaster();
-const _probe = new THREE.Mesh();
-const _inst = new THREE.Matrix4();
-
-/** Highest building surface hit by a vertical ray at (x, z); per instance, no scene state touched. */
-export function roofHit(roots: THREE.Object3D[], x: number, z: number): number {
-  _down.set(new THREE.Vector3(x, 10_000, z), new THREE.Vector3(0, -1, 0));
-  _down.far = 20_000;
-  const hits: THREE.Intersection[] = [];
-  for (const m of buildingMeshes(roots)) {
-    const im = m as THREE.InstancedMesh;
-    if (!im.isInstancedMesh) {
-      // Decorative meshes opt out of raycasting (`raycast` is a no-op): call the Mesh raycast.
-      THREE.Mesh.prototype.raycast.call(m, _down, hits);
-      continue;
-    }
-    _probe.geometry = im.geometry;
-    _probe.material = im.material;
-    for (let i = 0; i < im.count; i++) {
-      im.getMatrixAt(i, _inst);
-      _probe.matrixWorld.multiplyMatrices(im.matrixWorld, _inst);
-      THREE.Mesh.prototype.raycast.call(_probe, _down, hits);
-    }
-  }
-  let top = 0;
-  for (const h of hits) if (h.point.y > top) top = h.point.y;
-  return top;
-}
+import { buildingMeshes, roofHit } from "./buildingMeshes";
 
 export interface UncappedMeasurement {
   frames: number;
@@ -503,6 +464,7 @@ export function uncappedSummary(ms: readonly number[]): UncappedMeasurement {
 }
 
 const _ray = new THREE.Raycaster();
+const _inst = new THREE.Matrix4();
 const _cm = new THREE.Matrix4();
 const _cp = new THREE.Vector3();
 const _cs = new THREE.Vector3();
@@ -1045,16 +1007,21 @@ export function createAcceptanceApi(engine: Engine, frame: LocalFrame): Acceptan
   };
 }
 
+/** Sets `window.__tlAcceptance` for the engine and frame; returns its remover. */
+export function installAcceptanceHook(engine: Engine, frame: LocalFrame): () => void {
+  const w = window as unknown as Record<string, unknown>;
+  const api = createAcceptanceApi(engine, frame);
+  w[ACCEPTANCE_GLOBAL] = api;
+  return () => {
+    if (w[ACCEPTANCE_GLOBAL] === api) delete w[ACCEPTANCE_GLOBAL];
+  };
+}
+
 /** Installs `window.__tlAcceptance` while the engine and frame exist (dev or `?acceptance=1`). */
 export function useAcceptanceHook(engine: Engine | null, frame: LocalFrame | null): void {
   useEffect(() => {
     if (!engine || !frame) return;
     if (!acceptanceEnabled(import.meta.env.DEV, location.search)) return;
-    const w = window as unknown as Record<string, unknown>;
-    const api = createAcceptanceApi(engine, frame);
-    w[ACCEPTANCE_GLOBAL] = api;
-    return () => {
-      if (w[ACCEPTANCE_GLOBAL] === api) delete w[ACCEPTANCE_GLOBAL];
-    };
+    return installAcceptanceHook(engine, frame);
   }, [engine, frame]);
 }

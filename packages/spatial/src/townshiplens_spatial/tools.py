@@ -30,10 +30,6 @@ class Ctx:
     closures: ClosureStore | None = None  # API-owned; tools read closures from the world
 
 
-def _place_ev(p) -> Evidence:
-    return routing.place_evidence(p)
-
-
 def _place_provenance(p) -> dict:
     claim = p.claims.get("existence")
     if claim is None:
@@ -117,7 +113,7 @@ def find_place(ctx: Ctx, query: str, types: list[str] | None = None, limit: int 
             }
             for s, p in scored[:limit]
         ],
-        evidence=[_place_ev(p) for p in top],
+        evidence=[routing.place_evidence(p) for p in top],
         warnings=_demo_place_warnings(top),
     )
 
@@ -283,7 +279,7 @@ def get_place_details(
         if r is not None:
             return r
         return ToolResult(ok=False, warnings=[f"unknown place {place_id}"])
-    ev = [_place_ev(p)] + [
+    ev = [routing.place_evidence(p)] + [
         Evidence(
             id=f"ev-{p.id}.{a}",
             element_id=p.id,
@@ -455,7 +451,7 @@ def plan_route(
     rr.demo_evidence = bool(rr.routes and rr.routes[0].demo_evidence)
     places = [ctx.world.places[pid] for pid in sorted(place_ids) if pid in ctx.world.places]
     provenance_places = [p for p in places if p.claims.get("existence")]
-    evidence += [_place_ev(p) for p in provenance_places]
+    evidence += [routing.place_evidence(p) for p in provenance_places]
     rr.warnings += _demo_place_warnings(provenance_places)
     vrs = []
     filed: set[tuple[str, str]] = set()  # one VR per element/attribute per call (alt routes repeat)
@@ -587,7 +583,7 @@ def nearby_amenities(
             }
             for d, p, unv in hits
         ],
-        evidence=[_place_ev(p) for _, p, _ in hits]
+        evidence=[routing.place_evidence(p) for _, p, _ in hits]
         + [_closure_ev(ctx.world, c) for _, closures in closed_hits for c in closures],
         warnings=warnings + _demo_place_warnings([p for _, p, _ in hits]),
     )

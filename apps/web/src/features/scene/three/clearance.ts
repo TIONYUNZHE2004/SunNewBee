@@ -516,6 +516,121 @@ export interface ModelBox {
 /** The model's drawn bounds (all LODs), or null: `obstaclesFromCity` then uses the manifest size. */
 export type ModelBoxOf = (asset: string, variant: string) => ModelBox | null;
 
+/** A model-space rectangle of a landmark's drawn mass (`rasterTops`), x/z extent and top y. */
+export type ModelCell = ModelBox;
+/** A landmark's drawn mass as model-space rectangles, or null (then its box is used). */
+export type ModelCellsOf = (asset: string, variant: string) => readonly ModelCell[] | null;
+
+/** Grid of `rasterTops` (m), and the lowest top that counts as mass (a plaza or paving does not). */
+export const RASTER_CELL_M = 2;
+export const RASTER_MIN_TOP_M = 2.5;
+
+/**
+ * A model's drawn mass seen from above (9.1 F1: a landmark's bounding box spanned open plazas and
+ * the park path beside the mall, so the follow camera was floored on a roof that is not there).
+ * Every triangle's xz projection is rasterised into a `cellM` grid keeping the highest y; cells
+ * whose top is at least `minTopM` become rectangles, merged along rows. Model space, pure.
+ */
+export function rasterTops(
+  pos: ArrayLike<number>,
+  index: ArrayLike<number> | null,
+  cellM = RASTER_CELL_M,
+  minTopM = RASTER_MIN_TOP_M,
+): ModelCell[] {
+  const n = index ? index.length : pos.length / 3;
+  if (n < 3) return [];
+  let x0 = Number.POSITIVE_INFINITY;
+  let z0 = Number.POSITIVE_INFINITY;
+  let x1 = Number.NEGATIVE_INFINITY;
+  let z1 = Number.NEGATIVE_INFINITY;
+  for (let i = 0; i < pos.length; i += 3) {
+    x0 = Math.min(x0, pos[i] as number);
+    x1 = Math.max(x1, pos[i] as number);
+    z0 = Math.min(z0, pos[i + 2] as number);
+    z1 = Math.max(z1, pos[i + 2] as number);
+  }
+  const nx = Math.max(1, Math.ceil((x1 - x0) / cellM));
+  const nz = Math.max(1, Math.ceil((z1 - z0) / cellM));
+  const top = new Float32Array(nx * nz).fill(Number.NEGATIVE_INFINITY);
+  const v = (k: number) => (index ? (index[k] as number) : k) * 3;
+  const cross = (ax: number, az: number, bx: number, bz: number, px: number, pz: number) =>
+    (bx - ax) * (pz - az) - (bz - az) * (px - ax);
+  for (let t = 0; t + 2 < n; t += 3) {
+    const a = v(t);
+    const b = v(t + 1);
+    const c = v(t + 2);
+    const ax = pos[a] as number;
+    const az = pos[a + 2] as number;
+    const bx = pos[b] as number;
+    const bz = pos[b + 2] as number;
+    const cx = pos[c] as number;
+    const cz = pos[c + 2] as number;
+    const ty = Math.max(pos[a + 1] as number, pos[b + 1] as number, pos[c + 1] as number);
+    if (ty < minTopM) continue;
+    const i0 = Math.max(0, Math.floor((Math.min(ax, bx, cx) - x0) / cellM));
+    const i1 = Math.min(nx - 1, Math.floor((Math.max(ax, bx, cx) - x0) / cellM));
+    const j0 = Math.max(0, Math.floor((Math.min(az, bz, cz) - z0) / cellM));
+    const j1 = Math.min(nz - 1, Math.floor((Math.max(az, bz, cz) - z0) / cellM));
+    const area = cross(ax, az, bx, bz, cx, cz);
+    for (let j = j0; j <= j1; j++)
+      for (let i = i0; i <= i1; i++) {
+        const k = j * nx + i;
+        if ((top[k] as number) >= ty) continue;
+        // the cell's centre inside the triangle, or a vertical (edge-on) triangle through the cell
+        const px = x0 + (i + 0.5) * cellM;
+        const pz = z0 + (j + 0.5) * cellM;
+        let inside: boolean;
+        if (Math.abs(area) < 1e-9) inside = true;
+        else {
+          const s = Math.sign(area);
+          inside =
+            s * cross(ax, az, bx, bz, px, pz) >= 0 &&
+            s * cross(bx, bz, cx, cz, px, pz) >= 0 &&
+            s * cross(cx, cz, ax, az, px, pz) >= 0;
+        }
+        if (inside) top[k] = ty;
+      }
+  }
+  const out: ModelCell[] = [];
+  for (let j = 0; j < nz; j++) {
+    let i = 0;
+    while (i < nx) {
+      const t0 = top[j * nx + i] as number;
+      if (!(t0 >= minTopM)) {
+        i++;
+        continue;
+      }
+      let e = i;
+      let hi = t0;
+      while (e + 1 < nx && (top[j * nx + e + 1] as number) >= minTopM) {
+        e++;
+        hi = Math.max(hi, top[j * nx + e] as number);
+      }
+      out.push({
+        minX: x0 + i * cellM,
+        maxX: x0 + (e + 1) * cellM,
+        minZ: z0 + j * cellM,
+        maxZ: z0 + (j + 1) * cellM,
+        maxY: hi,
+      });
+      i = e + 1;
+    }
+  }
+  return out;
+}
+
+/** A model-space rectangle of a placement as a world ring (scale, then yaw, then position). */
+function placedRing(p: Placement, b: ModelBox): Pt[] {
+  const c = Math.cos(p.yaw);
+  const s = Math.sin(p.yaw);
+  const at = (lx: number, lz: number): Pt => {
+    const x = lx * p.sx;
+    const z = lz * p.sz;
+    return [p.x + x * c + z * s, p.z - x * s + z * c];
+  };
+  return [at(b.minX, b.minZ), at(b.maxX, b.minZ), at(b.maxX, b.maxZ), at(b.minX, b.maxZ)];
+}
+
 /**
  * The box of a placed model as a ring, at its drawn height. With `boxOf` the box is the loaded
  * geometry's own bounds (a glb may rise above or sit off its manifest `size`: review A-T7 r1 found
@@ -536,24 +651,25 @@ function placementObstacle(p: Placement, m: Manifest, boxOf?: ModelBoxOf): Obsta
         }
       : null;
   if (!box || !(box.maxY > 0)) return null;
-  const c = Math.cos(p.yaw);
-  const s = Math.sin(p.yaw);
-  // Scale, then rotation about +y by yaw: local (lx, lz) -> (lx cos + lz sin, -lx sin + lz cos).
-  const at = (lx: number, lz: number): Pt => {
-    const x = lx * p.sx;
-    const z = lz * p.sz;
-    return [p.x + x * c + z * s, p.z - x * s + z * c];
-  };
-  return {
-    id: p.id,
-    ring: [
-      at(box.minX, box.minZ),
-      at(box.maxX, box.minZ),
-      at(box.maxX, box.maxZ),
-      at(box.minX, box.maxZ),
-    ],
-    topM: box.maxY * p.sy,
-  };
+  return { id: p.id, ring: placedRing(p, box), topM: box.maxY * p.sy };
+}
+
+/**
+ * What a placed model draws, seen from above, as obstacles: a landmark's drawn mass (`cellsOf`,
+ * `rasterTops`) when known, else its box (`boxOf`, else the manifest size). The clearance and the
+ * plan's walk-cover check (9.1 F1) read the same rings. Pure.
+ */
+export function drawnObstacles(
+  p: Placement,
+  m: Manifest,
+  landmark: boolean,
+  boxOf?: ModelBoxOf,
+  cellsOf?: ModelCellsOf,
+): Obstacle[] {
+  const cells = landmark ? cellsOf?.(p.asset, p.variant) : null;
+  if (cells) return cells.map((b) => ({ id: p.id, ring: placedRing(p, b), topM: b.maxY * p.sy }));
+  const o = placementObstacle(p, m, boxOf);
+  return o ? [o] : [];
 }
 
 /**
@@ -568,22 +684,23 @@ export function obstaclesFromCity(
   plan?: CityPlan | null,
   manifest?: Manifest | null,
   boxOf?: ModelBoxOf,
+  /** Landmarks' drawn mass (`rasterTops`): their obstacles follow it instead of their box. */
+  cellsOf?: ModelCellsOf,
 ): Obstacle[] {
   const out: Obstacle[] = [];
   for (const b of toBuildings(layer?.buildings, displayHeight).buildings) {
+    // With a plan, only the outlines that are drawn as extrusions: a building drawn as archetype
+    // units or a landmark is an obstacle by its drawn boxes below, and one drawn not at all is no
+    // obstacle (9.1 F1: an undrawn 9 m outline in the park lifted the follow camera to a roof
+    // floor over open ground). Without a plan (no assets) every outline is extruded.
+    if (plan && !plan.extrude.has(b.id)) continue;
     const ring = localRing(b.ring, frame);
     if (ring && ring.length >= 3) out.push({ id: b.id, ring, topM: b.height });
   }
   if (plan && manifest) {
     for (const list of plan.placements.values())
-      for (const p of list) {
-        const o = placementObstacle(p, manifest, boxOf);
-        if (o) out.push(o);
-      }
-    for (const p of plan.landmarks) {
-      const o = placementObstacle(p, manifest, boxOf);
-      if (o) out.push(o);
-    }
+      for (const p of list) out.push(...drawnObstacles(p, manifest, false, boxOf));
+    for (const p of plan.landmarks) out.push(...drawnObstacles(p, manifest, true, boxOf, cellsOf));
   }
   return out;
 }
