@@ -1,6 +1,8 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { createClearance } from "./clearance";
+import type { Pose } from "./cameraRig";
+import { poseToCamera } from "./cameraRig";
+import { createClearance, type Obstacle } from "./clearance";
 
 // Building clearance at engine level (A-T7 review r2): MapControls calls update() inside its
 // pointer handlers, between engine ticks. The lift must never leak into the base pose there.
@@ -70,7 +72,21 @@ function pointer(type: string, x: number, y: number) {
   return e;
 }
 
-async function setup() {
+/** One 100 m slab over everything a drag can reach: the camera is always over a roof. */
+const SLAB: Obstacle = {
+  id: "slab",
+  ring: [
+    [-2000, -2000],
+    [2000, -2000],
+    [2000, 2000],
+    [-2000, 2000],
+  ],
+  topM: 100,
+};
+// Base camera height 60 * sin(20 deg) = 20.5 m, under the slab's 102 m floor.
+const LOW: Pose = { target: [0, 0], rangeM: 60, pitchDeg: -20, headingDeg: 0 };
+
+async function setup(obstacles: Obstacle[] = [SLAB], pose: Pose = LOW) {
   vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "performance", "Date"] });
   queue = [];
   vi.stubGlobal("requestAnimationFrame", (cb: FrameRequestCallback) => {
@@ -103,30 +119,17 @@ async function setup() {
   });
   const e = createEngine(canvas, "low");
   e.resize(800, 600);
-  // One 100 m slab over everything the drag can reach: the camera is always over a roof.
-  const c = createClearance([
-    {
-      id: "slab",
-      ring: [
-        [-2000, -2000],
-        [2000, -2000],
-        [2000, 2000],
-        [-2000, 2000],
-      ],
-      topM: 100,
-    },
-  ]);
+  const c = createClearance(obstacles);
   e.setClearance?.(c);
   // The real renderer updates the camera's world matrix every render; the fake one does not.
   e.onFrame(() => e.pickView().camera.updateMatrixWorld());
-  // Base camera height: 60 * sin(20 deg) = 20.5 m, under the 102 m floor.
-  e.rig.set({ target: [0, 0], rangeM: 60, pitchDeg: -20, headingDeg: 0 });
+  e.rig.set(pose);
   e.pickView().camera.updateMatrixWorld();
   const frame = () => {
     vi.advanceTimersByTime(16);
     pump();
   };
-  return { e, canvas, frame };
+  return { e, c, canvas, frame };
 }
 
 describe("engine building clearance", () => {
@@ -180,5 +183,104 @@ describe("engine building clearance", () => {
     expect(p.rangeM).toBeGreaterThan(r0);
     expect(p.pitchDeg).toBeCloseTo(-20, 0);
     e.dispose();
+  });
+
+  it("pointerdown while lifted puts the camera on its base pose before MapControls reads it", async () => {
+    const { e, canvas, frame } = await setup();
+    frame();
+    const cam = e.pickView().camera;
+    expect(cam.position.y).toBeCloseTo(102, 3);
+    canvas.dispatchEvent(pointer("pointerdown", 400, 300));
+    // Capture-phase unlift: the pan start ray comes from the base camera (20.5 m), re-aimed.
+    expect(cam.position.y).toBeCloseTo(60 * Math.sin((20 * Math.PI) / 180), 3);
+    document.dispatchEvent(pointer("pointerup", 400, 300));
+    frame();
+    expect(cam.position.y).toBeCloseTo(102, 3);
+    e.dispose();
+  });
+
+  // A 400 m tower half-way between a 2 km camera and its target: an active segment lift.
+  const TOWER: Obstacle = {
+    id: "tower",
+    ring: [
+      [-50, 800],
+      [50, 800],
+      [50, 1000],
+      [-50, 1000],
+    ],
+    topM: 400,
+  };
+  const FAR: Pose = { target: [0, 0], rangeM: 2000, pitchDeg: -5, headingDeg: 0 };
+
+  it("a fast wheel zoom at 2 km never resets the eased segment lift; rig.set does", async () => {
+    const { e, c, canvas, frame } = await setup([TOWER], FAR);
+    const cam = e.pickView().camera;
+    /** The lift the clearance asks for at the current base pose, and the rendered height. */
+    const sample = () => {
+      const base = poseToCamera(e.rig.get());
+      return { goal: c.clearCameraPose(base.position, base.target).position[1], y: cam.position.y };
+    };
+    // rig.set is an explicit teleport: the full lift on the very first frame.
+    frame();
+    const first = sample();
+    expect(first.goal).toBeGreaterThan(300);
+    expect(first.y).toBeCloseTo(first.goal, 3);
+    for (let i = 0; i < 60; i++) frame();
+    // Fast zoom: four notches. Sampled at render time (onFrame): how far the base camera moved since
+    // the last rendered frame, and how far the rendered height is from the lift's goal there. (A-T6's
+    // zoom pump runs after the tick in the same rAF batch, so between frames the camera is on its
+    // base pose; only rendered frames count.)
+    const rows: { moveM: number; lagM: number }[] = [];
+    let prev = poseToCamera(e.rig.get()).position;
+    const off = e.onFrame(() => {
+      const now = poseToCamera(e.rig.get()).position;
+      const s1 = sample();
+      rows.push({
+        moveM: Math.hypot(now[0] - prev[0], now[2] - prev[2]),
+        lagM: Math.abs(s1.y - s1.goal),
+      });
+      prev = now;
+    });
+    for (let n = 0; n < 4; n++) {
+      canvas.dispatchEvent(new WheelEvent("wheel", { deltaY: -400, clientX: 400, clientY: 300 }));
+      for (let i = 0; i < 6; i++) frame();
+    }
+    off();
+    const fast = rows.filter((r) => r.moveM > 50);
+    expect(fast.length).toBeGreaterThan(0);
+    // Eased, not reset: on frames that moved more than 50 m the rendered height still lags the goal.
+    expect(Math.max(...fast.map((r) => r.lagM))).toBeGreaterThan(1);
+    // An explicit teleport resets: the new pose's lift on its first frame.
+    e.rig.set({ ...FAR, rangeM: 1800, headingDeg: 10 });
+    frame();
+    const jump = sample();
+    expect(jump.y).toBeCloseTo(jump.goal, 3);
+    e.dispose();
+  });
+});
+
+describe("createRig teleport signal", () => {
+  it("set() and a zero-duration flyTo() signal a teleport; flights and their steps do not", async () => {
+    const THREE = await import("three");
+    const { createRig } = await import("./engine");
+    const teleported = vi.fn();
+    const camera = new THREE.PerspectiveCamera();
+    const rig = createRig(
+      {
+        camera,
+        target: new THREE.Vector3(),
+        changed: () => {},
+        size: () => [100, 100],
+        teleported,
+      },
+      () => ({ min: [-1000, -1000], max: [1000, 1000] }),
+    );
+    rig.set(LOW);
+    expect(teleported).toHaveBeenCalledTimes(1);
+    rig.flyTo({ ...LOW, rangeM: 200 }, 0);
+    expect(teleported).toHaveBeenCalledTimes(2);
+    rig.flyTo({ ...LOW, rangeM: 900 }, 1000);
+    for (let t = 0; t <= 1200; t += 16) rig.step(performance.now() + t);
+    expect(teleported).toHaveBeenCalledTimes(2);
   });
 });

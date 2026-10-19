@@ -170,8 +170,6 @@ const LOD_INTERVAL_MS = 250;
 /** A bound on pinned shader programs (the scene uses about 32; see `pinPrograms`). */
 const MAX_PINNED_PROGRAMS = 96;
 const GROUND_COLOUR = "#d6d0c2";
-/** A base move larger than this between frames is a teleport: the clearance lift restarts. */
-const TELEPORT_M = 50;
 
 export interface RigView {
   camera: THREE.PerspectiveCamera;
@@ -182,6 +180,12 @@ export interface RigView {
   size(): [number, number];
   /** Metres the building clearance lifts the camera now: get() reports the pose without it. */
   liftM?(): number;
+  /**
+   * An explicit teleport: set(), or flyTo() with no duration (a bookmark jump, a keyboard step).
+   * The clearance restarts its eased lift there instead of easing from the old place. Never called
+   * for flight frames or controls input, however fast they move.
+   */
+  teleported?(): void;
 }
 
 export interface EngineRig extends CameraRig {
@@ -221,12 +225,14 @@ export function createRig(view: RigView, bounds: () => Bounds): EngineRig {
     set(p) {
       flight = null;
       apply(clampPose(p, bounds()));
+      view.teleported?.();
     },
     flyTo(p, durationMs) {
       const to = clampPose(p, bounds());
       if (durationMs <= 0) {
         flight = null;
         apply(to);
+        view.teleported?.();
         return;
       }
       flight = { from: get(), to, t0: performance.now(), ms: durationMs };
@@ -601,7 +607,8 @@ function build(
   undo.push(
     attachWheelZoom({
       canvas,
-      range: () => camera.position.distanceTo(controls.target),
+      // The base (unlifted) range: the clearance lift is display state, never zoomed.
+      range: () => rig.get().rangeM,
       apply: (factor, x, y) => dispatchOwnWheel(canvas, factor, x, y),
       reducedMotion,
       minM: LIMITS.minRangeM,
@@ -609,6 +616,22 @@ function build(
     }),
   );
   controls.addEventListener("change", moved);
+  // MapControls computes zoom-to-cursor rays and pan start points from the camera inside its
+  // pointerdown / wheel handlers, before it calls update(): put the camera on its base pose first,
+  // in the capture phase on the document (ahead of every canvas listener). A render is requested,
+  // so the next tick re-applies the lift before anything is drawn.
+  const doc = canvas.ownerDocument;
+  const unliftFirst = (e: Event) => {
+    if (e.target !== canvas || liftNow() === 0) return;
+    unlift();
+    requestRender();
+  };
+  for (const type of ["pointerdown", "wheel"] as const)
+    doc.addEventListener(type, unliftFirst, { capture: true, passive: true });
+  undo.push(() => {
+    for (const type of ["pointerdown", "wheel"] as const)
+      doc.removeEventListener(type, unliftFirst, { capture: true });
+  });
   // Every update (the tick's and the handlers' own) starts from the base pose, never the lift.
   const controlsUpdate = controls.update.bind(controls);
   controls.update = (deltaTime?: number | null) => {
@@ -627,6 +650,7 @@ function build(
       changed: moved,
       size: () => size,
       liftM: () => liftNow(),
+      teleported: () => lift.reset(),
     },
     () => bounds,
   );
@@ -736,20 +760,19 @@ function build(
   const lifted = new THREE.Vector3(Number.NaN, 0, 0);
   const liftNow = () => (liftM !== 0 && camera.position.equals(lifted) ? liftM : 0);
   const unlift = () => {
-    if (liftM !== 0 && camera.position.equals(lifted)) camera.position.y -= liftM;
+    if (liftM !== 0 && camera.position.equals(lifted)) {
+      camera.position.y -= liftM;
+      camera.lookAt(controls.target);
+      camera.updateMatrixWorld();
+    }
     liftM = 0;
   };
-  /** The base position at the last lift: a base jump beyond TELEPORT_M restarts the easing. */
-  const liftBase = new THREE.Vector3(Number.NaN, 0, 0);
   const clearCamera = (now: number): boolean => {
     const dt = clearT ? now - clearT : 0;
     clearT = now;
     if (!clearance) return false;
     const p = camera.position;
     const t = controls.target;
-    // A teleport (rig.set to a bookmark, a fly-to with no duration): no easing from the old place.
-    if (!(Math.hypot(p.x - liftBase.x, p.z - liftBase.z) <= TELEPORT_M)) lift.reset();
-    liftBase.copy(p);
     const r = lift.step(clearance, [p.x, p.y, p.z], [t.x, t.y, t.z], dt, reducedMotion());
     if (r.liftM !== 0) {
       p.y = r.y;
