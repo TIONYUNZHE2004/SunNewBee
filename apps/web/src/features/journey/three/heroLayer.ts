@@ -51,6 +51,8 @@ export interface HeroLayer {
   group: THREE.Group;
   hero: Hero;
   seats: Map<number, HeroSeat>;
+  /** The driver's path helpers (route points and seats): `heroStateAt(tl, t, helpers)` is where she stands. */
+  helpers: HeroPathHelpers;
   pose(tl: Timeline, t: number): HeroPose;
   /**
    * Re-checks the ground meshes when the engine's ground generation moved (a tile streamed in or
@@ -360,6 +362,7 @@ export function createHeroLayer(
     group,
     hero,
     seats,
+    helpers,
     pose: place,
     refreshGround,
     cost,

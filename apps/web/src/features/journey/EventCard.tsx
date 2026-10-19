@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { CardSourceRow } from "./CardSourceRow";
 import { journeyCardContent, withVerificationRequest } from "./cardContent";
-import { type CardPlacement, type CardViewport, placeCard } from "./cardPlacement";
+import { type CardPlacement, type CardViewport, placeCard, type Rect } from "./cardPlacement";
 import { KIND_COLOUR } from "./kindStyle";
 import type { JourneyEvent } from "./timeline";
 
@@ -9,6 +9,11 @@ import type { JourneyEvent } from "./timeline";
 const DEFAULT_SIZE = { w: 290, h: 180 };
 
 type Anchor = { x: number; y: number } | null;
+
+/** The viewport with the hero's screen box (if any) as a rectangle the card keeps clear of. */
+function withHero(viewport: CardViewport, hero: Rect | null | undefined): CardViewport {
+  return hero ? { ...viewport, keepClear: [...(viewport.keepClear ?? []), hero] } : viewport;
+}
 
 /** Writes a placement onto the card element (no React commit). */
 function applyPlacement(el: HTMLElement, p: CardPlacement, anchor: Anchor) {
@@ -39,6 +44,7 @@ export function EventCard({
   viewport,
   vrFiled = false,
   track,
+  keepClear,
 }: {
   event: JourneyEvent;
   eventIndex?: number;
@@ -47,6 +53,8 @@ export function EventCard({
   viewport: CardViewport;
   vrFiled?: boolean;
   track?: { project: () => Anchor; subscribe: (cb: () => void) => () => void };
+  /** The hero's body on screen (viewport CSS px), which the card never covers when it can avoid it. */
+  keepClear?: () => Rect | null;
 }) {
   const ref = useRef<HTMLElement>(null);
   const [size, setSize] = useState(DEFAULT_SIZE);
@@ -58,8 +66,8 @@ export function EventCard({
       setSize((s) => (s.w === r.width && s.h === r.height ? s : { w: r.width, h: r.height }));
   }, [event, vrFiled, viewport.w]);
 
-  const latest = useRef({ size, viewport, track });
-  latest.current = { size, viewport, track };
+  const latest = useRef({ size, viewport, track, keepClear });
+  latest.current = { size, viewport, track, keepClear };
   const subscribe = track?.subscribe;
   useEffect(() => {
     if (!subscribe) return;
@@ -68,12 +76,12 @@ export function EventCard({
       const l = latest.current;
       if (!el || !l.track) return;
       const a = l.track.project();
-      applyPlacement(el, placeCard(a, l.size, l.viewport), a);
+      applyPlacement(el, placeCard(a, l.size, withHero(l.viewport, l.keepClear?.())), a);
     });
   }, [subscribe]);
 
   const c = withVerificationRequest(journeyCardContent(event), event, vrFiled);
-  const p = placeCard(anchor, size, viewport);
+  const p = placeCard(anchor, size, withHero(viewport, keepClear?.()));
   return (
     <article
       ref={ref}

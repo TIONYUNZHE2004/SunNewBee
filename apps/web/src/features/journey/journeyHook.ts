@@ -3,10 +3,12 @@ import {
   type CamMode,
   type HeroPose,
   type HeroProbe,
+  journeyCamera,
   journeyHero,
   journeyStateOf,
   useJourney,
 } from "./journeyStore";
+import type { CameraProbe } from "./three/cameraProbe";
 import type { JourneyPlan, JourneyState, Phase } from "./timeline";
 
 export type HeroReport = Omit<HeroPose, "probe"> & Partial<HeroProbe>;
@@ -29,6 +31,12 @@ export interface JourneyHook {
    * benches' seat corners (AC-D10).
    */
   hero: (opts?: { contacts?: boolean }) => HeroReport | null;
+  /**
+   * The journey camera now (D-T5, AC-D8 / AC-D9): driven or not, the hero's body box on screen and
+   * in the 10 % margin frame, her distance, building lines of sight to her, the camera inside a
+   * building, and the current hold's element on screen. Null without a 3D player.
+   */
+  camera: () => CameraProbe | null;
   state: () => (JourneyState & { t: number; playing: boolean; camMode: CamMode }) | null;
 }
 
@@ -57,6 +65,7 @@ export function createJourneyHook(): JourneyHook {
       const { probe, ...pose } = p;
       return opts?.contacts && probe ? { ...pose, ...probe() } : pose;
     },
+    camera: () => (s().plan ? (journeyCamera.current?.() ?? null) : null),
     state: () => {
       const st = journeyStateOf(s());
       return st ? { ...st, t: s().t, playing: s().playing, camMode: s().camMode } : null;

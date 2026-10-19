@@ -16,7 +16,16 @@ export interface CardViewport {
   top?: number;
   /** Rectangles the card moves off (left of or below them), when it can stay inside the viewport. */
   avoid?: readonly Rect[];
+  /**
+   * Rectangles the card must never cover when it can avoid them (the hero's body on screen, D-T5
+   * ruling): the card moves to the nearest free spot beside, above or below them, still inside
+   * the viewport and off every `avoid` rectangle.
+   */
+  keepClear?: readonly Rect[];
 }
+
+/** Gap kept between the card and a `keepClear` rectangle (CSS px). */
+export const KEEP_CLEAR_GAP_PX = 8;
 
 export interface CardPlacement {
   left: number;
@@ -47,13 +56,17 @@ export function placeCard(
   const maxTop = Math.max(0, viewport.h - card.h - my);
   // The top band only counts when the card still fits under it.
   const minTop = Math.min(maxTop, Math.max(my, (viewport.top ?? 0) + my));
-  if (!anchor || !Number.isFinite(anchor.x) || !Number.isFinite(anchor.y))
-    return {
-      left: clamp((viewport.w - card.w) / 2, mx, maxLeft),
-      top: maxTop,
-      side: "above",
-      anchored: false,
-    };
+  const bounds = { mx, my, minTop, maxLeft, maxTop };
+  if (!anchor || !Number.isFinite(anchor.x) || !Number.isFinite(anchor.y)) {
+    const [l, t] = keepClearOf(
+      clamp((viewport.w - card.w) / 2, mx, maxLeft),
+      maxTop,
+      card,
+      viewport,
+      bounds,
+    );
+    return { left: l, top: t, side: "above", anchored: false };
+  }
   const above = anchor.y - CARD_GAP_PX - card.h;
   const side = above >= minTop ? "above" : "below";
   let left = clamp(anchor.x - card.w / 2, mx, maxLeft);
@@ -73,5 +86,43 @@ export function placeCard(
       top = best.top;
     }
   }
+  [left, top] = keepClearOf(left, top, card, viewport, bounds);
   return { left, top, side, anchored: true };
+}
+
+/**
+ * Moves a card at (left, top) off every `keepClear` rectangle (and still off every `avoid` one):
+ * to the nearest free spot beside, above or below a blocker inside the viewport; under the top band
+ * when possible. Unchanged when it covers none, or when no free spot exists.
+ */
+function keepClearOf(
+  left: number,
+  top: number,
+  card: { w: number; h: number },
+  viewport: CardViewport,
+  b: { mx: number; my: number; minTop: number; maxLeft: number; maxTop: number },
+): [number, number] {
+  const clear = viewport.keepClear ?? [];
+  if (!clear.length) return [left, top];
+  const blockers = [...clear, ...(viewport.avoid ?? [])];
+  const free = (l: number, t: number) =>
+    !blockers.some((r) => l < r.x + r.w && l + card.w > r.x && t < r.y + r.h && t + card.h > r.y);
+  if (free(left, top)) return [left, top];
+  const g = KEEP_CLEAR_GAP_PX;
+  const xs = [left, ...blockers.flatMap((r) => [r.x - card.w - g, r.x + r.w + g])];
+  const ys = [top, ...blockers.flatMap((r) => [r.y - card.h - g, r.y + r.h + g])];
+  for (const minTop of [b.minTop, b.my]) {
+    let best: { l: number; t: number; d: number } | null = null;
+    for (const x of xs)
+      for (const y of ys) {
+        if (x < b.mx - 1e-6 || x > b.maxLeft + 1e-6 || y < minTop - 1e-6 || y > b.maxTop + 1e-6)
+          continue;
+        if (!free(x, y)) continue;
+        const d = Math.hypot(x - left, y - top);
+        if (!best || d < best.d) best = { l: x, t: y, d };
+      }
+    // the top band is given up only when no spot under it is free
+    if (best) return [best.l, best.t];
+  }
+  return [left, top];
 }

@@ -284,3 +284,56 @@ describe("createRig teleport signal", () => {
     expect(teleported).toHaveBeenCalledTimes(2);
   });
 });
+
+describe("camera driver (D-T5 follow camera)", () => {
+  it("puts the camera exactly at the driven pose (no rig lift, no clamp), with MapControls and flights off", async () => {
+    const { e, canvas, frame } = await setup();
+    // under the slab's 102 m floor and nearer than the rig's 30 m minimum range: the driver
+    // clears buildings itself, so the engine applies neither
+    let pose: { position: [number, number, number]; look: [number, number, number] } | null = {
+      position: [10, 50, 30],
+      look: [0, 1, 0],
+    };
+    e.setCameraDriver?.(() => pose);
+    frame();
+    const cam = e.pickView().camera;
+    expect(cam.position.toArray()).toEqual([10, 50, 30]);
+    expect(e.cameraDriven?.()).toBe(true);
+    expect(e.clearanceLiftM?.()).toBe(0);
+    // a drag and a rig flight change nothing while it drives
+    canvas.dispatchEvent(pointer("pointerdown", 400, 300));
+    for (let i = 1; i <= 10; i++) {
+      document.dispatchEvent(pointer("pointermove", 400 + i * 8, 300 + i * 3));
+      frame();
+    }
+    document.dispatchEvent(pointer("pointerup", 480, 330));
+    e.rig.flyTo({ ...LOW, rangeM: 900 }, 300);
+    for (let i = 0; i < 30; i++) frame();
+    expect(cam.position.toArray()).toEqual([10, 50, 30]);
+    // the camera looks at the driven point
+    const dir = cam.getWorldDirection(cam.position.clone());
+    const l = Math.hypot(10, 49, 30);
+    expect(dir.x).toBeCloseTo(-10 / l, 6);
+    expect(dir.y).toBeCloseTo(-49 / l, 6);
+    // null hands the camera back where it stands: the rig and the clearance own it again
+    pose = null;
+    e.requestRender();
+    for (let i = 0; i < 60; i++) frame();
+    expect(e.cameraDriven?.()).toBe(false);
+    expect(cam.position.y).toBeGreaterThanOrEqual(102 - 1e-6);
+    e.setCameraDriver?.(null);
+    e.dispose();
+  });
+
+  it("renders another frame while the driver animates", async () => {
+    const { e, frame } = await setup();
+    let calls = 0;
+    e.setCameraDriver?.(() => {
+      calls++;
+      return { position: [0, 200, 100 + calls], look: [0, 0, 0], animating: calls < 5 };
+    });
+    for (let i = 0; i < 20; i++) frame();
+    expect(calls).toBe(5);
+    e.dispose();
+  });
+});
