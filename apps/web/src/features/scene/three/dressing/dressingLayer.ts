@@ -37,6 +37,8 @@ export interface DressingStats {
   facts: number;
   decor: number;
   triangles: number;
+  /** Largest drawn decorative weight in [0, 1] (the visible fade level; 0 when none is drawn). */
+  decorMaxW: number;
 }
 
 const DECOR = new Set<string>(DECOR_MODELS);
@@ -67,7 +69,7 @@ export function createDressingLayer(opts: { tier?: Tier } = {}): DressingLayer {
   const pos = new THREE.Vector3();
   const scl = new THREE.Vector3();
   const up = new THREE.Vector3(0, 1, 0);
-  let last: DressingStats = { instances: {}, facts: 0, decor: 0, triangles: 0 };
+  let last: DressingStats = { instances: {}, facts: 0, decor: 0, triangles: 0, decorMaxW: 0 };
 
   function meshFor(b: Bucket, n: number): THREE.InstancedMesh {
     if (b.mesh && b.cap >= n) return b.mesh;
@@ -111,7 +113,7 @@ export function createDressingLayer(opts: { tier?: Tier } = {}): DressingLayer {
         if (list) list.push({ item: it, w: Math.min(1, w) });
         else per.set(key, [{ item: it, w: Math.min(1, w) }]);
       }
-    const stats: DressingStats = { instances: {}, facts: 0, decor: 0, triangles: 0 };
+    const stats: DressingStats = { instances: {}, facts: 0, decor: 0, triangles: 0, decorMaxW: 0 };
     for (const b of buckets.values()) {
       const list = per.get(b.key) ?? [];
       if (list.length === 0 && !b.mesh) continue;
@@ -131,8 +133,10 @@ export function createDressingLayer(opts: { tier?: Tier } = {}): DressingLayer {
       b.drawn = list.length;
       if (list.length > 0) stats.instances[b.key] = list.length;
       stats.triangles += list.length * b.tris;
-      if (DECOR.has(b.key.split(":")[0]!)) stats.decor += list.length;
-      else stats.facts += list.length;
+      if (DECOR.has(b.key.split(":")[0]!)) {
+        stats.decor += list.length;
+        for (const e of list) stats.decorMaxW = Math.max(stats.decorMaxW, e.w);
+      } else stats.facts += list.length;
     }
     last = stats;
     return stats;
