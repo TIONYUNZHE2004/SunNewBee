@@ -1,11 +1,13 @@
 import { readFileSync } from "node:fs";
 import * as THREE from "three";
 import { describe, expect, it } from "vitest";
-import { poseToCamera } from "./cameraRig";
+import { fitFor, overviewPose } from "./cameraFit";
+import { poseToCamera, vfovFor } from "./cameraRig";
 import { BASE_WATER_COLOUR } from "./cityMesh";
 import { readsAsWater } from "./colourHue";
 import { ROOF_TINTS } from "./facade/roofPlan";
 import { createFrame } from "./frame";
+import { boundaryOf } from "./ground/boundary";
 import { blendPresets, LIGHT_PRESETS } from "./lighting";
 import {
   applyFog,
@@ -193,14 +195,12 @@ describe("overview fog keeps the diorama slab edge in sight (A-T11 fix round 1)"
     const frame = createFrame(seed("site.json").center);
     const ring: [number, number][] =
       seed("base/boundary.geojson").features[0].geometry.coordinates[0];
-    // The `overview` acceptance bookmark: centre [101.5099, 3.1813], range 7000, pitch -55, heading 0.
-    const rangeM = 7000;
-    const cam = poseToCamera({
-      target: frame.toLocal(101.5099, 3.1813),
-      rangeM,
-      pitchDeg: -55,
-      headingDeg: 0,
-    }).position;
+    // The overview (A-T5): the whole slab at max range, derived from the outline.
+    const geom = seed("base/boundary.geojson").features[0].geometry;
+    const fit = fitFor(boundaryOf(geom, frame)!);
+    const pose = overviewPose(fit);
+    const rangeM = pose.rangeM;
+    const cam = poseToCamera(pose).position;
     const dist = (lon: number, lat: number) => {
       const [x, z] = frame.toLocal(lon, lat);
       return Math.hypot(x - cam[0], cam[1], z - cam[2]);
@@ -211,9 +211,14 @@ describe("overview fog keeps the diorama slab edge in sight (A-T11 fix round 1)"
       const f = fogFor(LIGHT_PRESETS[theme], rangeM);
       const factor = (d: number) => Math.min(1, Math.max(0, (d - f.near) / (f.far - f.near)));
       expect(factor(farthest), theme).toBeLessThan(0.95);
-      // Top-centre ray: 55 - VFOV/2 = 40 degrees below the horizon.
-      const top = (rangeM * Math.sin((55 * Math.PI) / 180)) / Math.sin((40 * Math.PI) / 180);
-      expect(factor(top), theme).toBeGreaterThan(0.7);
+      // Top-centre ray: -pitch - vfov / 2 below the horizon, at the widest (panel-open) and the
+      // full-canvas field of view.
+      for (const aspect of [1.05, 1.6]) {
+        const down = -pose.pitchDeg - vfovFor(pose, fit, aspect) / 2;
+        const top =
+          (rangeM * Math.sin((-pose.pitchDeg * Math.PI) / 180)) / Math.sin((down * Math.PI) / 180);
+        expect(factor(top), `${theme} ${aspect}`).toBeGreaterThan(0.7);
+      }
     }
   });
 });

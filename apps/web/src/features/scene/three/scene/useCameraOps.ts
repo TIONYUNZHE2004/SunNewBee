@@ -6,6 +6,7 @@ import { type CameraOps, reducedMotion } from "../../cesium/controls/cameraOps";
 import type { LonLat } from "../../geo";
 import { useScene } from "../../sceneStore";
 import { BOOKMARKS, bookmarkFromSearch, DEFAULT_BOOKMARK } from "../bookmarks";
+import { overviewPose } from "../cameraFit";
 import { createThreeCameraOps, type Pose, type ThreeCameraOps, VFOV_DEG } from "../cameraRig";
 import type { Engine } from "../engine";
 import type { LocalFrame } from "../frame";
@@ -32,9 +33,15 @@ const goalPose = (g: CameraGoal, frame: LocalFrame, pitchDeg: number): Pose => (
   headingDeg: 0,
 });
 
-/** The start view: `?bookmark=` when given, else the default gate bookmark. */
-function startPose(frame: LocalFrame): Pose {
-  const b = BOOKMARKS[bookmarkFromSearch(location.search) ?? DEFAULT_BOOKMARK];
+/**
+ * The start view: `?bookmark=` when given, else the default gate bookmark. `township` is the
+ * overview derived from the slab outline when the engine has its camera fit (A-T5).
+ */
+function startPose(frame: LocalFrame, engine: Engine | null): Pose {
+  const id = bookmarkFromSearch(location.search) ?? DEFAULT_BOOKMARK;
+  const fit = engine?.cameraFit?.();
+  if (id === "township" && fit) return overviewPose(fit);
+  const b = BOOKMARKS[id];
   return {
     target: frame.toLocal(b.centre[0], b.centre[1]),
     rangeM: b.rangeM,
@@ -95,7 +102,9 @@ export function useCameraOps({
     if (!engine || !frame || framed.current === engine) return;
     framed.current = engine;
     const standing = intentGoal(useScene.getState(), NO_INTENT, focusPoint);
-    engine.rig.set(standing ? goalPose(standing, frame, INTENT_PITCH_DEG) : startPose(frame));
+    engine.rig.set(
+      standing ? goalPose(standing, frame, INTENT_PITCH_DEG) : startPose(frame, engine),
+    );
   }, [engine, frame, focusPoint]);
 
   // Scene intents to camera moves (same precedence as cesium/camera.ts).
@@ -126,8 +135,11 @@ export function useCameraOps({
   }));
   const wholeRef = useRef<() => Pose>(startRef.current);
   if (frame) {
-    startRef.current = () => startPose(frame);
+    startRef.current = () => startPose(frame, engine);
     wholeRef.current = () => {
+      // With a slab (A-T5): the whole slab at max range, derived from the outline.
+      const fit = engine?.cameraFit?.();
+      if (fit) return overviewPose(fit);
       const g = boundsGoal(bboxCorners(bbox)) ?? {
         centre: BOOKMARKS.township.centre,
         rangeM: BOOKMARKS.township.rangeM,

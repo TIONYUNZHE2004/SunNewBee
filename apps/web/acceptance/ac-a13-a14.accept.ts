@@ -97,7 +97,7 @@ async function fogOf(page: Page) {
 
 test("AC-A13: the far ground of the overview blends to the fog colour", async ({ page }) => {
   mkdirSync(OUT, { recursive: true });
-  await gotoBookmark(page, "overview");
+  const bm = await gotoBookmark(page, "overview");
   await waitStable(page, false);
   // The access lines and flood tint are data overlays (unfogged by design; their fade is A-T2's):
   // measure the ground surface under them.
@@ -123,7 +123,7 @@ test("AC-A13: the far ground of the overview blends to the fog colour", async ({
   const m = {
     task: "A-T11 AC-A13",
     capturedAt: new Date().toISOString(),
-    bookmark: ACCEPTANCE_BOOKMARKS.overview,
+    bookmark: bm,
     fog,
     groundSamples: pts.length,
     topSamples: top.length,

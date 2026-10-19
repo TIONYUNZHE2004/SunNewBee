@@ -11,7 +11,9 @@ import type { Tier } from "../shared/quality";
 import { CityGTAOPass } from "./aoPass";
 import type { CityInstances } from "./assets/cityInstances";
 import { createMotionUniforms, type MotionUniforms } from "./assets/roleMaterial";
+import { fitFor } from "./cameraFit";
 import {
+  type CameraFit,
   type CameraRig,
   clampPose,
   LIMITS,
@@ -19,6 +21,7 @@ import {
   poseToCamera,
   tweenPose,
   VFOV_DEG,
+  vfovFor,
   viewOffsetFor,
 } from "./cameraRig";
 import type { CityGeometry } from "./cityMesh";
@@ -85,9 +88,13 @@ export interface Engine {
   setGround(g: GroundLayer | null): void;
   /**
    * The diorama slab (A-T4): its top (the Elmina outline) replaces the rectangular base plane and
-   * its layered soil edge closes the map. null removes it and shows the base plane again.
+   * its layered soil edge closes the map. null removes it and shows the base plane again. The
+   * camera is bound to it (A-T5, `cameraFit.ts`): the target stays inside the outline and the
+   * whole slab is in view at max range.
    */
   setSlab(b: Boundary | null): void;
+  /** The camera fit of the slab in use, or null (read-only; tests and the acceptance hook). */
+  cameraFit?(): CameraFit | null;
   /**
    * Decorative extras (lamp pools, birds, cloud shadows) by slot name: replaces and disposes the
    * slot's previous content; null clears it. The group is added to the scene as is.
@@ -191,10 +198,37 @@ export interface RigView {
 export interface EngineRig extends CameraRig {
   /** Advances a flight to `now` (performance.now() clock); true while it is still running. */
   step(now: number): boolean;
+  /**
+   * Re-applies clampPose to the camera as it stands (after MapControls input or a flight frame):
+   * keeps a dragged target inside the outline and the long-range rules (A-T5). Not a teleport.
+   * True when the camera was moved.
+   */
+  constrain(): boolean;
 }
 
-/** Camera rig over a camera and orbit target. set() and flyTo() always apply clampPose. */
-export function createRig(view: RigView, bounds: () => Bounds): EngineRig {
+const POSE_EPS = 1e-3;
+
+/** True when two poses differ by more than POSE_EPS (metres or degrees; heading on the circle). */
+function poseMoved(a: Pose, b: Pose): boolean {
+  const dh = Math.abs(((((a.headingDeg - b.headingDeg) % 360) + 540) % 360) - 180);
+  return (
+    Math.abs(a.target[0] - b.target[0]) > POSE_EPS ||
+    Math.abs(a.target[1] - b.target[1]) > POSE_EPS ||
+    Math.abs(a.rangeM - b.rangeM) > POSE_EPS ||
+    Math.abs(a.pitchDeg - b.pitchDeg) > POSE_EPS ||
+    dh > POSE_EPS
+  );
+}
+
+/**
+ * Camera rig over a camera and orbit target. set(), flyTo() and constrain() apply clampPose, with
+ * the slab fit when there is one (`fit`, A-T5).
+ */
+export function createRig(
+  view: RigView,
+  bounds: () => Bounds,
+  fit: () => CameraFit | null = () => null,
+): EngineRig {
   let flight: { from: Pose; to: Pose; t0: number; ms: number } | null = null;
   const ray = new THREE.Raycaster();
   const ground = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
@@ -224,11 +258,11 @@ export function createRig(view: RigView, bounds: () => Bounds): EngineRig {
     get,
     set(p) {
       flight = null;
-      apply(clampPose(p, bounds()));
+      apply(clampPose(p, bounds(), fit()));
       view.teleported?.();
     },
     flyTo(p, durationMs) {
-      const to = clampPose(p, bounds());
+      const to = clampPose(p, bounds(), fit());
       if (durationMs <= 0) {
         flight = null;
         apply(to);
@@ -245,6 +279,13 @@ export function createRig(view: RigView, bounds: () => Bounds): EngineRig {
       if (t < 1) return true;
       flight = null;
       return false;
+    },
+    constrain() {
+      const p = get();
+      const c = clampPose(p, bounds(), fit());
+      if (!poseMoved(p, c)) return false;
+      apply(c);
+      return true;
     },
     pick(screen) {
       const [w, h] = view.size();
@@ -569,6 +610,8 @@ function build(
   let size: [number, number] = [1, 1];
   let panelPx = 0;
   let bounds: Bounds = { min: [0, 0], max: [0, 0] };
+  /** The slab's camera fit (A-T5): set with the slab, null without one (the tiny fixture). */
+  let fit: CameraFit | null = null;
   const listeners = new Set<(dtMs: number, info: FrameInfo) => void>();
   undo.push(() => {
     disposed = true;
@@ -653,7 +696,18 @@ function build(
       teleported: () => lift.reset(),
     },
     () => bounds,
+    () => fit,
   );
+  /**
+   * The field of view follows the base pose (A-T5): VFOV_DEG up to FIT.startRangeM, widening
+   * towards max range to what the whole slab needs (`vfovFor`).
+   */
+  const syncFov = () => {
+    const want = vfovFor(rig.get(), fit, size[0] / Math.max(1, size[1]));
+    if (Math.abs(camera.fov - want) <= 1e-4) return;
+    camera.fov = want;
+    camera.updateProjectionMatrix();
+  };
 
   let composer = new EffectComposer(renderer);
   let passes: Pass[] = [];
@@ -796,6 +850,9 @@ function build(
       lod.moved();
     }
     const damping = controls.update();
+    // Drags, wheel zoom and flight frames stay bound to the slab (A-T5); the lift comes after.
+    rig.constrain();
+    syncFov();
     const lifting = clearCamera(now);
     clearTimeout(motionTimer);
     motionTimer = undefined;
@@ -1061,6 +1118,7 @@ function build(
     setSlab(b) {
       if (disposed) return;
       dropSlab();
+      fit = b ? fitFor(b) : null;
       if (b) {
         slab = createSlab(b, groundMat);
         scene.add(slab.group);
@@ -1072,6 +1130,7 @@ function build(
       if (disposed) return;
       bounds = b;
     },
+    cameraFit: () => fit,
     setClearance(c) {
       if (disposed) return;
       clearance = c;

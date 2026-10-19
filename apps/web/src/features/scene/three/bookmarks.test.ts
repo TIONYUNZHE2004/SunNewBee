@@ -26,8 +26,9 @@ describe("bookmarks", () => {
   it("pins the P4-F probe precincts and centres", () => {
     expect(BOOKMARKS["probe-a"].centre).toEqual([101.50863, 3.1666]); // Elmina Valley 3
     expect(BOOKMARKS["probe-b"].centre).toEqual([101.49473, 3.20748]); // Elmina Green
-    expect(BOOKMARKS["probe-c"].centre).toEqual([101.53193, 3.1725]); // Subang Galaksi
-    expect(BOOKMARKS["probe-d"].centre).toEqual([101.5108, 3.15784]); // Seksyen U16
+    // A-T5: re-posed inside the Elmina outline (Subang Galaksi / Seksyen U16 lie outside it).
+    expect(BOOKMARKS["probe-c"].centre).toEqual([101.5171, 3.19034]);
+    expect(BOOKMARKS["probe-d"].centre).toEqual([101.5234, 3.16683]);
   });
   it("has four non-hero probe views at mid range", () => {
     for (const id of ["probe-a", "probe-b", "probe-c", "probe-d"] as const) {
