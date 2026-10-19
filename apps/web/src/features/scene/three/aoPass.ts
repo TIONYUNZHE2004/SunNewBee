@@ -18,6 +18,26 @@ export class CityGTAOPass extends GTAOPass {
     super(scene, camera, width, height);
   }
 
+  /**
+   * Sets the GTAO material parameters (radius in metres, distance exponent, thickness, scale) and
+   * the blend intensity (0 = no AO, 1 = full); B-T4 values are `AO_PARAMS` in lighting.ts.
+   */
+  applyParams(p: {
+    radius: number;
+    distanceExponent: number;
+    thickness: number;
+    scale: number;
+    blendIntensity: number;
+  }): void {
+    this.updateGtaoMaterial({
+      radius: p.radius,
+      distanceExponent: p.distanceExponent,
+      thickness: p.thickness,
+      scale: p.scale,
+    });
+    this.blendIntensity = p.blendIntensity;
+  }
+
   override render(...args: Parameters<GTAOPass["render"]>): void {
     const hidden = this.skip().filter((o) => o.visible);
     for (const o of hidden) o.visible = false;

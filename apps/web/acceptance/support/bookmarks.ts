@@ -7,7 +7,8 @@ import type { Page } from "@playwright/test";
  */
 export const BOOKMARK_NAMES = ["overview", "hero-mid", "street", "link-low", "night-mid"] as const;
 export type BookmarkName = (typeof BOOKMARK_NAMES)[number];
-export type Theme = "day" | "night";
+/** Map mood a capture loads with (`tl.theme`); dusk is used by AC-B6 (B-T4). */
+export type Theme = "day" | "dusk" | "night";
 
 export interface AcceptanceBookmark {
   /** Camera target [lon, lat]. */

@@ -9,6 +9,7 @@ import {
   LANDCOVER_MAX_Y,
   MARKING_Y,
   PARK_Y,
+  ROAD_GRADE,
   ROAD_Y,
   VERGE_Y,
   WATER_Y,
@@ -117,7 +118,13 @@ describe("night grade (A-T11)", () => {
         continue;
       }
       expect(sh.fragmentShader).toContain("diffuseColor.rgb *= uGroundGrade;");
-      expect(sh.uniforms.uGroundGrade).toBe(GROUND_GRADE);
+      const road = band === "roads" || band === "markings";
+      expect(sh.uniforms.uGroundGrade).toBe(road ? ROAD_GRADE : GROUND_GRADE);
     }
+  });
+  it("roads and markings read the road grade (B-T4) under their own program key", () => {
+    expect(ROAD_GRADE).not.toBe(GROUND_GRADE);
+    expect(groundMaterial("roads").customProgramCacheKey()).toContain("_roadGrade");
+    expect(groundMaterial("landcover").customProgramCacheKey()).toContain("_groundGrade");
   });
 });

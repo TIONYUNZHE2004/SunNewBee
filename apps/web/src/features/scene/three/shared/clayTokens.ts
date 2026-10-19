@@ -60,10 +60,10 @@ export const CLAY_PALETTE = {
   archetypeFallback: ["#ece6da", "#a8a196", "#7d7870"],
   /** Single-mesh role material default palette (roleMaterial). [primary, secondary, accent]. */
   roleDefault: ["#ece4d6", "#b5a898", "#d98a74"],
-  /** Fixed archetype roles (COLOR_0.g roles 3-7). Each >= 0.08 luminance (AC-A9). */
+  /** Fixed archetype roles (COLOR_0.g roles 3-7). Each >= CLAY_MIN_LUMINANCE (AC-A9, B-T4). */
   fixedRole: {
     glass: "#7f9bb0",
-    dark: "#6b6878",
+    dark: "#726f80",
     metal: "#d0d2d6",
     foliage: "#72c25b",
     light: "#fff1c9",
@@ -387,8 +387,13 @@ export function wallAndRoofColours(): string[] {
 
 /** Lightness floor (HSL, sRGB) for loaded palette colours: pastel, never murky. */
 export const CLAY_MIN_LIGHTNESS = 0.42;
-/** Relative-luminance floor (linear) for loaded palette colours: above AC-A9's 0.08 with margin. */
-export const CLAY_MIN_LUMINANCE = 0.1;
+/**
+ * Relative-luminance floor (linear) for loaded palette colours and the fixed `dark` role. B-T4 raised
+ * it from 0.1: at 0.1 a roof slope or trim in shade, after baked AO and GTAO, rendered under 0.03
+ * (AC-A9 / AC-B6); `LIGHT_LIMITS.darkAlbedo` in lighting.ts is this value and is tested against
+ * every mood's shade-side light. Clay pastels, never charcoal.
+ */
+export const CLAY_MIN_LUMINANCE = 0.15;
 /** Saturation range a coloured palette entry is lifted or capped into. */
 export const CLAY_SATURATION: readonly [number, number] = [0.2, 0.6];
 /** At or below this saturation a palette ROOF is grey and stays grey (roofPlan's large-roof tint). */

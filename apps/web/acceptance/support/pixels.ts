@@ -141,6 +141,35 @@ export function fractionBelow(h: LumaHistogram, t: number): number {
   return below / h.count;
 }
 
+/** AC-B6 thresholds: near-black is relative luminance < 0.03; clipped white is every channel >= 254. */
+export const NEAR_BLACK = 0.03;
+export const CLIPPED_BYTE = 254;
+
+/**
+ * Shares (0..1) of the selection that are near-black (luminance < NEAR_BLACK) and clipped white
+ * (every channel >= CLIPPED_BYTE), at full precision (no histogram bins). AC-B6 (B-T4).
+ */
+export function extremeShares(
+  img: RGBAImage,
+  sel: Selection = {},
+): { dark: number; clipped: number; count: number } {
+  const d = img.data;
+  let dark = 0;
+  let clipped = 0;
+  let count = 0;
+  eachPixel(img, sel, (o) => {
+    const r = d[o] as number;
+    const g = d[o + 1] as number;
+    const b = d[o + 2] as number;
+    count++;
+    if (luminance(r, g, b) < NEAR_BLACK) dark++;
+    if (r >= CLIPPED_BYTE && g >= CLIPPED_BYTE && b >= CLIPPED_BYTE) clipped++;
+  });
+  return count > 0
+    ? { dark: dark / count, clipped: clipped / count, count }
+    : { dark: 0, clipped: 0, count };
+}
+
 /** Pixels within `tol` (0..255, every channel) of `hex` in the selection. */
 export function countColour(img: RGBAImage, hex: string, tol: number, sel: Selection = {}): number {
   const [r, g, b] = parseHex(hex);

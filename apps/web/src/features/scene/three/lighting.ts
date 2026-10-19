@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import type { Theme } from "../../../ui/theme";
+import { CLAY_MIN_LUMINANCE, CLAY_PALETTE } from "./shared/clayTokens";
 import { sunPosition, sunVector } from "./sun";
 
 export interface LightPreset {
@@ -23,10 +24,18 @@ export interface LightPreset {
    */
   fog: { color: string; near: number; far: number; nearK: number; farK: number };
   /**
-   * Albedo multiplier on ground and road materials: 1 by day, lower at night. Land-cover water is
-   * darkened with the rest of the ground (hue-preserving); only the separate base `water` band is exempt.
+   * Albedo multiplier on ground materials (land cover, parks, the base plane, the slab): 1 by day,
+   * lower at night. Land-cover water is darkened with the rest of the ground (hue-preserving); only
+   * the separate base `water` band is exempt.
    */
   groundGrade: number;
+  /**
+   * Albedo multiplier on road ribbons and markings (B-T4). Separate from `groundGrade` because
+   * asphalt is the darkest large surface (luminance ~0.15): the night fill lifts the scene so nothing
+   * reads near-black (AC-B6) while the light land cover is graded down harder, keeping the night
+   * ground at <= 35% of the day ground (AC-A14).
+   */
+  roadGrade: number;
   /** 0 by day, > 0 at dusk and night. */
   windowEmissive: number;
   /** Bloom strength; 0 turns the pass off. Off by day: see BLOOM. */
@@ -41,23 +50,37 @@ export interface LightPreset {
 export const BLOOM = { radius: 0.4, threshold: 0.85 };
 
 /**
- * Starting colours from the reference image; the owner tunes them in Phase 3. Ambient (hemi + room
- * IBL) stays low: at hemi 0.9 + IBL 1 every lit surface passed the bloom threshold and the day
- * scene bloomed into a white blur (Task 7 browser check).
+ * Mood keyframes (B-T4 light and grade; A-T11 fog and sky; the owner tunes them).
+ *
+ * Toy-diorama light after the prototype (hemisphere fill 1.35, sun 2.4): a warm key light with soft
+ * PCF shadows and a strong, warm-bounce hemisphere fill, so a shade-side face gets about half the
+ * light of a sunlit one instead of a quarter. The Phase A presets (hemi 0.5 + room IBL 0.35, sun 3)
+ * left roof slopes facing away from the sun lit by ambient only (~0.25), so any albedo under ~0.12
+ * fell below 0.03 luminance (AC-A9, A-T8 report). The fill goes up and the sun down by about the
+ * same amount on a lit face, so sunlit faces stay near where they were (no cream wash) while shade
+ * lifts. Day bloom stays off (a sunlit pale face is over the bloom threshold at noon: BLOOM).
+ *
+ * Night is a moonlit blue hour: a periwinkle hemisphere sky lifts buildings and roads off black
+ * (AC-B6) while the moon stays dim; land cover is graded down hard (`groundGrade`) so the night
+ * ground stays <= 35% of the day ground (AC-A14) and lamp pools still read; roads keep their albedo
+ * (`roadGrade`). Fog and background are lifted off near-black for the same reason.
+ *
+ * lighting.test.ts checks the light arithmetic (`shadeLight` / `litLight` against LIGHT_LIMITS).
  */
 export const LIGHT_PRESETS: Record<Theme, LightPreset> = {
   day: {
     sunColor: "#fff1d6",
-    sunIntensity: 3,
-    hemiSky: "#bfe0ff",
-    hemiGround: "#8a7a5a",
-    hemiIntensity: 0.5,
-    envIntensity: 0.35,
+    sunIntensity: 2.4,
+    hemiSky: "#e6f4ff",
+    hemiGround: "#e8d8b6",
+    hemiIntensity: 1.1,
+    envIntensity: 0.55,
     exposure: 1,
     background: "#dfe5e7",
     skyTop: "#5f9fe0",
     fog: { color: "#dfe5e7", near: 600, far: 3500, nearK: 0.7, farK: 1.45 },
     groundGrade: 1,
+    roadGrade: 1,
     windowEmissive: 0,
     bloom: 0,
   },
@@ -66,32 +89,132 @@ export const LIGHT_PRESETS: Record<Theme, LightPreset> = {
     sunIntensity: 1.6,
     hemiSky: "#ffb48a",
     hemiGround: "#5a4060",
-    hemiIntensity: 0.4,
-    envIntensity: 0.3,
+    hemiIntensity: 0.8,
+    envIntensity: 0.45,
     exposure: 1,
     background: "#e8a589",
     skyTop: "#5a4f8c",
     fog: { color: "#e8a589", near: 500, far: 3000, nearK: 0.7, farK: 1.45 },
     groundGrade: 0.9,
+    roadGrade: 0.95,
     windowEmissive: 0.8,
     bloom: 0.6,
   },
   night: {
     sunColor: "#9fb4ff",
-    sunIntensity: 0.5,
-    hemiSky: "#2a2350",
-    hemiGround: "#14122c",
-    hemiIntensity: 0.35,
-    envIntensity: 0.15,
+    sunIntensity: 0.4,
+    hemiSky: "#7d86c8",
+    hemiGround: "#3c3a78",
+    hemiIntensity: 1.8,
+    envIntensity: 0.45,
     exposure: 1.1,
-    background: "#1a1640",
+    background: "#2e2b62",
     skyTop: "#06050f",
-    fog: { color: "#1a1640", near: 400, far: 2500, nearK: 0.7, farK: 1.45 },
-    groundGrade: 0.72,
+    fog: { color: "#2e2b62", near: 400, far: 2500, nearK: 0.7, farK: 1.45 },
+    groundGrade: 0.24,
+    roadGrade: 0.8,
     windowEmissive: 1.6,
     bloom: 0.6,
   },
 };
+
+/** Relative luminance (linear, Rec. 709) of an sRGB hex colour. */
+export function hexLuminance(hex: string): number {
+  const c = new THREE.Color(hex);
+  return 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b;
+}
+
+/**
+ * Light model of the presets in three.js units (physically based lights): a Lambert surface of
+ * albedo `a` renders about `a * light`, where the key light adds
+ * `sunIntensity * lum(sunColor) * cos / pi`, the hemisphere `hemiIntensity * lum(mix) / pi` and the
+ * room IBL about `ENV_IRRADIANCE * envIntensity`. ENV_IRRADIANCE is calibrated from the A-T8
+ * measurement (north walls ~0.22 linear at albedo 0.86 under hemi 0.5 + IBL 0.35).
+ */
+export const ENV_IRRADIANCE = 0.52;
+
+/** Light on a face the key light does not reach; `skyWeight` 1 faces up, 0.5 is a vertical wall. */
+export function shadeLight(p: LightPreset, skyWeight = 0.5): number {
+  const g = hexLuminance(p.hemiGround);
+  const hemi = g + (hexLuminance(p.hemiSky) - g) * skyWeight;
+  return (p.hemiIntensity * hemi) / Math.PI + ENV_IRRADIANCE * p.envIntensity;
+}
+
+/** Light on a face turned to a key light at `elevationRad` (`skyWeight` as in `shadeLight`). */
+export function litLight(p: LightPreset, elevationRad: number, skyWeight = 1): number {
+  const key = p.sunIntensity * hexLuminance(p.sunColor) * Math.max(0, Math.sin(elevationRad));
+  return key / Math.PI + shadeLight(p, skyWeight);
+}
+
+/**
+ * What the presets are tested against (lighting.test.ts, AC-A9 / AC-B6 by arithmetic; the GPU check
+ * is `acceptance -g "AC-A9|AC-B6"`):
+ * - the darkest building albedo (`darkAlbedo` = CLAY_MIN_LUMINANCE) on a shade-side wall, at the AO
+ *   a shade face typically keeps (`aoKeep`: baked AO x GTAO), renders >= `minLuma` in every mood;
+ * - major-road asphalt (`roadAlbedo`) in shade, graded by `roadGrade`, likewise;
+ * - by day a white face lit from the zenith stays under `maxDayWhite` before tone mapping: Neutral
+ *   maps 1.4 to about 0.94, short of clipped white, and the scene does not wash to cream.
+ */
+export const LIGHT_LIMITS = {
+  minLuma: 0.035,
+  darkAlbedo: CLAY_MIN_LUMINANCE,
+  roadAlbedo: hexLuminance(CLAY_PALETTE.road.major),
+  aoKeep: 0.8,
+  maxDayWhite: 1.4,
+} as const;
+
+/**
+ * Shadow frame (B-T4, after the prototype's `aimSun`): the shadow box follows the camera focus with
+ * a half size of camera range x `rangeK`, never under `minHalfM` (about 70 m at street level, a few
+ * cm per texel). Far out, the whole ~21 km2 slab cannot fit one sharp map, so shadows fade out
+ * between `fadeStartM` and `fadeEndM` of camera range (strength 1 to 0, the shadow's `intensity`);
+ * at strength 0 the engine stops updating the map. PCF soft shadows: kernel `radius` in texels;
+ * `normalBias` scales with the texel size so acne does not come back as the box grows.
+ */
+export const SHADOW = {
+  minHalfM: 70,
+  rangeK: 1.2,
+  fadeStartM: 2200,
+  fadeEndM: 4000,
+  radius: 3,
+  bias: -0.0004,
+  normalBiasTexels: 1.5,
+} as const;
+
+export interface ShadowFrame {
+  /** Half size of the orthographic shadow box (m). */
+  halfSize: number;
+  /** Shadow strength 0..1 (fades out at range). */
+  strength: number;
+  /** Normal bias (m) for this box and map size. */
+  normalBias: number;
+}
+
+/** The shadow box for a camera `rangeM` from its focus and a `mapSize`-texel shadow map. */
+export function shadowFrame(rangeM: number, mapSize: number): ShadowFrame {
+  const halfSize = Math.max(SHADOW.minHalfM, rangeM * SHADOW.rangeK);
+  const x = Math.min(
+    1,
+    Math.max(0, (rangeM - SHADOW.fadeStartM) / (SHADOW.fadeEndM - SHADOW.fadeStartM)),
+  );
+  const strength = 1 - x * x * (3 - 2 * x);
+  const texel = (2 * halfSize) / Math.max(1, mapSize);
+  return { halfSize, strength, normalBias: texel * SHADOW.normalBiasTexels };
+}
+
+/**
+ * GTAO (screen-space AO) parameters, B-T4. three's defaults (radius 0.25 m, full blend) only caught
+ * creases but darkened them fully; at the link-house bookmark GTAO added ~0.6 points of near-black
+ * building pixels (3.66% with, 3.08% without). A wider radius gives the clay contact shadows under
+ * eaves and at wall feet; the blend is capped so AO shades but never blackens.
+ */
+export const AO_PARAMS = {
+  radius: 0.6,
+  distanceExponent: 1.2,
+  thickness: 1.5,
+  scale: 1,
+  blendIntensity: 0.6,
+} as const;
 
 const MIN_SUN_ELEVATION = 10 * (Math.PI / 180);
 const deg = Math.PI / 180;
@@ -165,6 +288,7 @@ export function blendPresets(a: LightPreset, b: LightPreset, k: number): LightPr
       farK: mix(a.fog.farK, b.fog.farK, k),
     },
     groundGrade: mix(a.groundGrade, b.groundGrade, k),
+    roadGrade: mix(a.roadGrade, b.roadGrade, k),
     windowEmissive: mix(a.windowEmissive, b.windowEmissive, k),
     bloom: mix(a.bloom, b.bloom, k),
   };
