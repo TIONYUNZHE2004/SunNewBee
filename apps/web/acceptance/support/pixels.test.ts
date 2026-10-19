@@ -10,6 +10,7 @@ import {
   luminance,
   maskCount,
   parseHex,
+  poolContrast,
   type RGBAImage,
   saturation,
 } from "./pixels";
@@ -242,5 +243,28 @@ describe("extremeShares (AC-B6)", () => {
       clipped: 0,
       count: 0,
     });
+  });
+});
+
+describe("poolContrast (AC-A14 lamp pools)", () => {
+  it("is the inner peak minus the ring median: a bright spot on dark ground reads, flat ground does not", () => {
+    const pool = img(41, 41, (x, y) =>
+      Math.abs(x - 20) <= 2 && Math.abs(y - 20) <= 2 ? [200, 200, 160] : [40, 40, 60],
+    );
+    const c = poolContrast(pool, 20, 20);
+    expect(c.peak).toBeGreaterThan(0.5);
+    expect(c.ring).toBeCloseTo(luminance(40, 40, 60), 9);
+    expect(c.contrast).toBeCloseTo(c.peak - c.ring, 9);
+    // Uniformly bright ground (a lifted night) has no pool, though every pixel is over 0.2.
+    const flat = img(41, 41, () => [150, 150, 150]);
+    expect(luminance(150, 150, 150)).toBeGreaterThan(0.2);
+    expect(poolContrast(flat, 20, 20).contrast).toBeCloseTo(0, 9);
+  });
+  it("skips pixels outside the image and outside the mask in the ring", () => {
+    const im = img(10, 10, (x) => (x < 5 ? [0, 0, 0] : [255, 255, 255]));
+    const mask = new Uint8Array(100);
+    const c = poolContrast(im, 0, 0, { inner: 0, ringIn: 2, ringOut: 4, mask });
+    expect(c.ring).toBe(0);
+    expect(c.peak).toBe(0);
   });
 });

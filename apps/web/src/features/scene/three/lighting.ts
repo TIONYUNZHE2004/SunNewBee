@@ -40,6 +40,11 @@ export interface LightPreset {
   windowEmissive: number;
   /** Bloom strength; 0 turns the pass off. Off by day: see BLOOM. */
   bloom: number;
+  /**
+   * GTAO blend (0 = no AO, 1 = full), B-T4. Night is lit almost only by ambient, so the same AO
+   * darkens a larger share of the light: the night blend is lower so contact shade never blackens.
+   */
+  aoBlend: number;
 }
 
 /**
@@ -60,10 +65,12 @@ export const BLOOM = { radius: 0.4, threshold: 0.85 };
  * same amount on a lit face, so sunlit faces stay near where they were (no cream wash) while shade
  * lifts. Day bloom stays off (a sunlit pale face is over the bloom threshold at noon: BLOOM).
  *
- * Night is a moonlit blue hour: a periwinkle hemisphere sky lifts buildings and roads off black
- * (AC-B6) while the moon stays dim; land cover is graded down hard (`groundGrade`) so the night
- * ground stays <= 35% of the day ground (AC-A14) and lamp pools still read; roads keep their albedo
- * (`roadGrade`). Fog and background are lifted off near-black for the same reason.
+ * Night stays dark (fix round 1: the first B-T4 night, hemisphere 1.8 x a periwinkle sky, washed
+ * the buildings out to ~68% of day). The hemisphere is a dim indigo (sky luminance ~0.1 x 0.8), the
+ * moon gives shape, and the lifts are targeted: roads keep their albedo (`roadGrade` 1, the darkest
+ * large surface), land cover is graded (`groundGrade`) so the night ground stays <= 35% of the day
+ * ground (AC-A14), the GTAO blend is lower (`aoBlend`), and fog, horizon and zenith are lifted to
+ * >= 0.03 luminance so sky pixels never read near-black (AC-B6).
  *
  * lighting.test.ts checks the light arithmetic (`shadeLight` / `litLight` against LIGHT_LIMITS).
  */
@@ -83,6 +90,7 @@ export const LIGHT_PRESETS: Record<Theme, LightPreset> = {
     roadGrade: 1,
     windowEmissive: 0,
     bloom: 0,
+    aoBlend: 0.6,
   },
   dusk: {
     sunColor: "#ff9a6a",
@@ -99,22 +107,24 @@ export const LIGHT_PRESETS: Record<Theme, LightPreset> = {
     roadGrade: 0.95,
     windowEmissive: 0.8,
     bloom: 0.6,
+    aoBlend: 0.6,
   },
   night: {
     sunColor: "#9fb4ff",
-    sunIntensity: 0.4,
-    hemiSky: "#7d86c8",
-    hemiGround: "#3c3a78",
-    hemiIntensity: 1.8,
-    envIntensity: 0.45,
+    sunIntensity: 0.6,
+    hemiSky: "#4d5592",
+    hemiGround: "#2a2350",
+    hemiIntensity: 0.8,
+    envIntensity: 0.4,
     exposure: 1.1,
     background: "#2e2b62",
-    skyTop: "#06050f",
+    skyTop: "#2c2b6e",
     fog: { color: "#2e2b62", near: 400, far: 2500, nearK: 0.7, farK: 1.45 },
-    groundGrade: 0.24,
-    roadGrade: 0.8,
+    groundGrade: 0.36,
+    roadGrade: 1,
     windowEmissive: 1.6,
     bloom: 0.6,
+    aoBlend: 0.45,
   },
 };
 
@@ -169,7 +179,8 @@ export const LIGHT_LIMITS = {
  * cm per texel). Far out, the whole ~21 km2 slab cannot fit one sharp map, so shadows fade out
  * between `fadeStartM` and `fadeEndM` of camera range (strength 1 to 0, the shadow's `intensity`);
  * at strength 0 the engine stops updating the map. PCF soft shadows: kernel `radius` in texels;
- * `normalBias` scales with the texel size so acne does not come back as the box grows.
+ * `normalBias` scales with the texel size so acne does not come back as the box grows, capped at
+ * `maxNormalBiasM`.
  */
 export const SHADOW = {
   minHalfM: 70,
@@ -179,6 +190,8 @@ export const SHADOW = {
   radius: 3,
   bias: -0.0004,
   normalBiasTexels: 1.5,
+  /** Cap (m): past it a large box (Medium map, far camera) would detach shadows from their casters. */
+  maxNormalBiasM: 0.5,
 } as const;
 
 export interface ShadowFrame {
@@ -199,7 +212,8 @@ export function shadowFrame(rangeM: number, mapSize: number): ShadowFrame {
   );
   const strength = 1 - x * x * (3 - 2 * x);
   const texel = (2 * halfSize) / Math.max(1, mapSize);
-  return { halfSize, strength, normalBias: texel * SHADOW.normalBiasTexels };
+  const normalBias = Math.min(SHADOW.maxNormalBiasM, texel * SHADOW.normalBiasTexels);
+  return { halfSize, strength, normalBias };
 }
 
 /**
@@ -213,6 +227,7 @@ export const AO_PARAMS = {
   distanceExponent: 1.2,
   thickness: 1.5,
   scale: 1,
+  /** Day blend; each mood sets its own (`LightPreset.aoBlend`). */
   blendIntensity: 0.6,
 } as const;
 
@@ -291,5 +306,6 @@ export function blendPresets(a: LightPreset, b: LightPreset, k: number): LightPr
     roadGrade: mix(a.roadGrade, b.roadGrade, k),
     windowEmissive: mix(a.windowEmissive, b.windowEmissive, k),
     bloom: mix(a.bloom, b.bloom, k),
+    aoBlend: mix(a.aoBlend, b.aoBlend, k),
   };
 }

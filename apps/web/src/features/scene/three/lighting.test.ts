@@ -101,9 +101,9 @@ describe("B-T4 light model (AC-A9 / AC-B6 arithmetic; the GPU check is acceptanc
     expect(LIGHT_LIMITS.roadAlbedo).toBeCloseTo(hexLuminance(CLAY_PALETTE.road.major), 6);
     expect(CLAY_MIN_LUMINANCE).toBeGreaterThanOrEqual(0.15);
   });
-  it("keeps the darkest albedo off near-black on a shade-side wall and roof in every mood", () => {
+  it("keeps the darkest albedo off near-black on a shade-side wall and roof by day and dusk", () => {
     const { darkAlbedo, aoKeep, minLuma } = LIGHT_LIMITS;
-    for (const theme of THEMES) {
+    for (const theme of ["day", "dusk"] as const) {
       const p = LIGHT_PRESETS[theme];
       for (const skyWeight of [0.5, 0.85])
         expect(
@@ -111,6 +111,33 @@ describe("B-T4 light model (AC-A9 / AC-B6 arithmetic; the GPU check is acceptanc
           `${theme} ${skyWeight}`,
         ).toBeGreaterThanOrEqual(minLuma);
     }
+  });
+  it("at night keeps the darkest albedo off near-black on a moonlit roof; shaded trims may dip to 0.025", () => {
+    // Night stays dark (fix round 1): small dark trims in full shade can sit just under 0.03; the
+    // share of such pixels is AC-B6's GPU measure, the large surfaces are tested here.
+    const { darkAlbedo, aoKeep, minLuma } = LIGHT_LIMITS;
+    const p = LIGHT_PRESETS.night;
+    expect(p.exposure * darkAlbedo * aoKeep * litLight(p, rad(40), 0.85)).toBeGreaterThanOrEqual(
+      minLuma,
+    );
+    expect(p.exposure * darkAlbedo * aoKeep * shadeLight(p, 0.5)).toBeGreaterThanOrEqual(0.025);
+  });
+  it("keeps the night dark: hemisphere sky ~0.1 luminance at <= 0.8, pale roofs under 35% of day", () => {
+    const night = LIGHT_PRESETS.night;
+    const day = LIGHT_PRESETS.day;
+    expect(hexLuminance(night.hemiSky)).toBeLessThan(0.12);
+    expect(night.hemiIntensity).toBeLessThanOrEqual(0.8);
+    const roof = (q: LightPreset, el: number) => q.exposure * litLight(q, rad(el), 0.85);
+    expect(roof(night, 40) / roof(day, 60)).toBeLessThan(0.35);
+    // Shade light at most ~3x the Phase A night (hemi 0.35 x #2a2350, IBL 0.15).
+    const phaseA: LightPreset = {
+      ...night,
+      hemiSky: "#2a2350",
+      hemiGround: "#14122c",
+      hemiIntensity: 0.35,
+      envIntensity: 0.15,
+    };
+    expect(shadeLight(night, 0.5) / shadeLight(phaseA, 0.5)).toBeLessThan(3);
   });
   it("keeps graded asphalt in shade off near-black in every mood", () => {
     const { roadAlbedo, minLuma } = LIGHT_LIMITS;
@@ -149,17 +176,32 @@ describe("B-T4 light model (AC-A9 / AC-B6 arithmetic; the GPU check is acceptanc
     expect(litLight(p, rad(60)) / litLight(phaseA, rad(60))).toBeLessThan(1.25);
     expect(shadeLight(p, 0.5) / shadeLight(phaseA, 0.5)).toBeGreaterThan(1.8);
   });
-  it("keeps the night ground well under 35% of the day ground (AC-A14)", () => {
-    const ground = (p: LightPreset, el: number) =>
-      p.exposure * p.groundGrade * litLight(p, rad(el));
-    // A low morning sun is the hardest day case for the ratio.
-    expect(ground(LIGHT_PRESETS.night, 40) / ground(LIGHT_PRESETS.day, 30)).toBeLessThan(0.3);
+  it("keeps the night ground and roads under 35% of the day (AC-A14), roads with roadGrade", () => {
+    const night = LIGHT_PRESETS.night;
+    const day = LIGHT_PRESETS.day;
+    const land = hexLuminance(CLAY_PALETTE.landcover.residential);
+    const road = LIGHT_LIMITS.roadAlbedo;
+    // A low morning sun (30 degrees) is the hardest day case; night moonlit at 40.
+    const lum = (p: LightPreset, el: number, albedo: number, grade: number) =>
+      p.exposure * albedo * grade * litLight(p, rad(el));
+    const landRatio = lum(night, 40, land, night.groundGrade) / lum(day, 30, land, day.groundGrade);
+    const roadRatio = lum(night, 40, road, night.roadGrade) / lum(day, 30, road, day.roadGrade);
+    expect(landRatio).toBeLessThan(0.3);
+    expect(roadRatio).toBeLessThanOrEqual(0.35);
+    // The AC-A14 mean over ground + road samples (about a quarter road at hero-mid).
+    const mean = (p: LightPreset, el: number) =>
+      0.75 * lum(p, el, land, p.groundGrade) + 0.25 * lum(p, el, road, p.roadGrade);
+    expect(mean(night, 40) / mean(day, 30)).toBeLessThan(0.3);
   });
-  it("lifts the night fog and horizon off near-black, still a dark violet", () => {
-    for (const c of [LIGHT_PRESETS.night.fog.color, LIGHT_PRESETS.night.background]) {
-      expect(hexLuminance(c)).toBeGreaterThanOrEqual(0.03);
-      expect(hexLuminance(c)).toBeLessThan(0.06);
+  it("lifts the night fog, horizon and zenith off near-black, still a dark violet", () => {
+    const n = LIGHT_PRESETS.night;
+    for (const c of [n.fog.color, n.background, n.skyTop]) {
+      expect(hexLuminance(c), c).toBeGreaterThanOrEqual(0.03);
+      expect(hexLuminance(c), c).toBeLessThan(0.06);
     }
+    // No mood has a near-black sky (low-angle views show the zenith: AC-B6).
+    for (const t of THEMES)
+      expect(hexLuminance(LIGHT_PRESETS[t].skyTop), t).toBeGreaterThanOrEqual(0.03);
   });
   it("grades roads less than land cover at night and not at all by day", () => {
     expect(LIGHT_PRESETS.day.roadGrade).toBe(1);
@@ -190,13 +232,19 @@ describe("shadowFrame (B-T4, after the prototype aimSun)", () => {
       last = s;
     }
   });
-  it("keeps texels sharp where shadows show and scales the normal bias with the texel", () => {
+  it("keeps texels sharp where shadows show; normal bias follows the texel, capped at 0.5 m", () => {
     const near = shadowFrame(30, 4096);
-    const mid = shadowFrame(800, 4096);
+    const mid = shadowFrame(200, 4096);
     expect((2 * near.halfSize) / 4096).toBeLessThan(0.05);
-    expect((2 * mid.halfSize) / 4096).toBeLessThan(0.5);
+    expect((2 * shadowFrame(800, 4096).halfSize) / 4096).toBeLessThan(0.5);
     expect(mid.normalBias / near.normalBias).toBeCloseTo(mid.halfSize / near.halfSize, 6);
-    expect(shadowFrame(800, 2048).normalBias).toBeCloseTo(2 * mid.normalBias, 6);
+    expect(shadowFrame(200, 2048).normalBias).toBeCloseTo(2 * mid.normalBias, 6);
+    expect(SHADOW.maxNormalBiasM).toBeLessThanOrEqual(0.5);
+    // Medium (2048) far out, before the fade ends: capped, never metres off the casters.
+    for (const r of [800, 2200, 3500]) {
+      expect(shadowFrame(r, 2048).normalBias).toBeLessThanOrEqual(SHADOW.maxNormalBiasM);
+      expect(shadowFrame(r, 4096).normalBias).toBeLessThanOrEqual(SHADOW.maxNormalBiasM);
+    }
     expect(SHADOW.radius).toBeGreaterThan(1);
   });
   it("places the light along the key direction over the focus with the frame half size", () => {
@@ -208,9 +256,27 @@ describe("shadowFrame (B-T4, after the prototype aimSun)", () => {
 });
 
 describe("AO_PARAMS (B-T4 GTAO tuning)", () => {
-  it("widens the radius past the 0.25 m default and blends below full so AO never blackens", () => {
+  it("widens the radius past three's 0.25 m default", () => {
     expect(AO_PARAMS.radius).toBeGreaterThan(0.25);
-    expect(AO_PARAMS.blendIntensity).toBeGreaterThan(0);
-    expect(AO_PARAMS.blendIntensity).toBeLessThan(1);
+    expect(AO_PARAMS.blendIntensity).toBe(LIGHT_PRESETS.day.aoBlend);
+  });
+  it("never blackens: a fully occluded pixel (GTAO 0, blend mix(1, ao, b)) keeps 1 - b of its light", () => {
+    // GTAO multiplies the beauty image by mix(1, ao, blend): at ao = 0 that is 1 - blend.
+    for (const t of THEMES) {
+      const p = LIGHT_PRESETS[t];
+      expect(p.aoBlend, t).toBeGreaterThan(0);
+      expect(p.aoBlend, t).toBeLessThanOrEqual(0.6);
+      // A mid albedo (0.5) in full shade and full occlusion stays off near-black in every mood.
+      expect(p.exposure * 0.5 * shadeLight(p, 0.5) * (1 - p.aoBlend), t).toBeGreaterThanOrEqual(
+        LIGHT_LIMITS.minLuma,
+      );
+    }
+    // By day even the darkest albedo does.
+    const d = LIGHT_PRESETS.day;
+    expect(
+      d.exposure * LIGHT_LIMITS.darkAlbedo * shadeLight(d, 0.5) * (1 - d.aoBlend),
+    ).toBeGreaterThanOrEqual(0.03);
+    // Night blends less (ambient-only light): the same AO darkens a larger share of it.
+    expect(LIGHT_PRESETS.night.aoBlend).toBeLessThan(LIGHT_PRESETS.day.aoBlend);
   });
 });

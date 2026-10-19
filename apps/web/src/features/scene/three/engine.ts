@@ -838,6 +838,8 @@ function build(
 
   let composer = new EffectComposer(renderer);
   let passes: Pass[] = [];
+  /** The live GTAO pass (null on Low or before the first tier), for the per-mood blend. */
+  let aoPass: CityGTAOPass | null = null;
   let bloomPass: UnrealBloomPass | null = null;
   /** Strength from the mood preset; the pass is skipped while it is 0 (day). */
   const syncBloom = () => {
@@ -878,21 +880,34 @@ function build(
     composer = new EffectComposer(renderer);
     composer.setPixelRatio(pr);
     passes = [new RenderPass(scene, camera)];
+    aoPass = null;
     // AO normal/depth pass without the far LOD2 blocks (I3).
     if (spec.ao) {
       // Agents too: small and moving, their AO is invisible and their draws would double.
-      const ao = new CityGTAOPass(scene, camera, w, h, () => {
-        aoSkip.length = 0;
-        if (assets) for (const o of assets.aoExcluded()) aoSkip.push(o);
-        if (motionLayer) aoSkip.push(motionLayer.group);
-        // The flood tint is data on the ground: AO must not darken it.
-        if (overlays) aoSkip.push(overlays.groundGroup, overlays.lineGroup);
-        // The journey ribbon is Line2 quads (paint over the ground), not a surface for AO.
-        if (journey) aoSkip.push(journey.ribbon);
-        return aoSkip;
-      });
-      // B-T4 tuning: clay contact shadows that shade but never blacken (lighting.ts AO_PARAMS).
-      ao.applyParams(AO_PARAMS);
+      // B-T4 tuning: clay contact shadows that shade but never blacken (lighting.ts AO_PARAMS),
+      // blended per mood (LightPreset.aoBlend, kept current in setLighting).
+      const params = {
+        ...AO_PARAMS,
+        blendIntensity: lastPreset?.aoBlend ?? AO_PARAMS.blendIntensity,
+      };
+      const ao = new CityGTAOPass(
+        scene,
+        camera,
+        w,
+        h,
+        () => {
+          aoSkip.length = 0;
+          if (assets) for (const o of assets.aoExcluded()) aoSkip.push(o);
+          if (motionLayer) aoSkip.push(motionLayer.group);
+          // The flood tint is data on the ground: AO must not darken it.
+          if (overlays) aoSkip.push(overlays.groundGroup, overlays.lineGroup);
+          // The journey ribbon is Line2 quads (paint over the ground), not a surface for AO.
+          if (journey) aoSkip.push(journey.ribbon);
+          return aoSkip;
+        },
+        params,
+      );
+      aoPass = ao;
       passes.push(ao);
     }
     // Markers and residents after the AO pass and before bloom/tone mapping: no occlusion on them,
@@ -1009,8 +1024,8 @@ function build(
     if (lodWanted() && lod.due(now)) {
       const rangeM = camera.position.distanceTo(controls.target);
       // The shadow box half size is the shadow frame's (placeLight); no casters needed once faded.
-      const sf = shadowFrame(rangeM, sun.shadow.mapSize.x);
-      if (assets)
+      if (assets) {
+        const sf = shadowFrame(rangeM, sun.shadow.mapSize.x);
         assets.update(
           camera.position,
           cullFrustum(
@@ -1020,6 +1035,7 @@ function build(
             viewProj,
           ),
         );
+      }
       lodTick.target.x = controls.target.x;
       lodTick.target.z = controls.target.z;
       lodTick.rangeM = rangeM;
@@ -1332,6 +1348,7 @@ function build(
       renderer.toneMappingExposure = p.exposure;
       (scene.background as THREE.Color).set(p.background);
       sky.setPreset(p);
+      if (aoPass) aoPass.blendIntensity = p.aoBlend;
       GROUND_GRADE.value = p.groundGrade;
       ROAD_GRADE.value = p.roadGrade;
       lastPreset = p;

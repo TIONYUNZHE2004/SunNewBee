@@ -134,6 +134,33 @@ export async function mapArea(
       const canvas = document.querySelector('[data-testid="three-scene"] canvas');
       if (!canvas) throw new Error("no three.js canvas");
       const rect = canvas.getBoundingClientRect();
+      // Only an element whose box contains a point can be returned by elementFromPoint there.
+      // Candidates: visible, hit-testable (pointer-events not none) boxes over the canvas, other
+      // than the canvas and its ancestors (the canvas paints over its ancestors). Points outside
+      // every candidate box are canvas without a probe; only the rest pay for elementFromPoint.
+      // B-T4: with the journey UI up (SVG mini-map, route paths, cards) probing all ~81k points
+      // hit-tested those overlays at every point and blocked the page for over 10 minutes.
+      const boxes: { l: number; t: number; r: number; b: number }[] = [];
+      for (const el of Array.from(document.querySelectorAll("body *"))) {
+        if (el === canvas || el.contains(canvas)) continue;
+        const b = el.getBoundingClientRect();
+        if (b.width <= 0 || b.height <= 0) continue;
+        if (
+          b.right <= rect.left ||
+          b.left >= rect.right ||
+          b.bottom <= rect.top ||
+          b.top >= rect.bottom
+        )
+          continue;
+        const cs = getComputedStyle(el);
+        if (cs.pointerEvents === "none" || cs.visibility === "hidden" || cs.display === "none")
+          continue;
+        boxes.push({ l: b.left, t: b.top, r: b.right, b: b.bottom });
+      }
+      const covered = (x: number, y: number) => {
+        for (const b of boxes) if (x >= b.l && x < b.r && y >= b.t && y < b.b) return true;
+        return false;
+      };
       const cols = Math.ceil(width / step);
       const rows = Math.ceil(height / step);
       let bits = "";
@@ -142,7 +169,8 @@ export async function mapArea(
           const x = Math.min(width - 1, col * step + step / 2);
           const y = Math.min(height - 1, row * step + step / 2);
           const inside = x >= rect.left && x < rect.right && y >= rect.top && y < rect.bottom;
-          bits += inside && document.elementFromPoint(x, y) === canvas ? "1" : "0";
+          bits +=
+            inside && (!covered(x, y) || document.elementFromPoint(x, y) === canvas) ? "1" : "0";
         }
       return {
         cols,

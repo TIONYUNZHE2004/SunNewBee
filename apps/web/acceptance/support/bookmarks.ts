@@ -82,8 +82,12 @@ export const ACCEPTANCE_BOOKMARKS: Record<BookmarkName, AcceptanceBookmark> = {
  */
 export const STREET_CHECK = { minRoadShare: 0.2, minAsphalt: 0.6, maxSat: 0.18, maxLuma: 0.35 };
 
-/** The page URL: `?acceptance=1` exposes the test hook even in a production build. */
-export const bookmarkUrl = (): string => "/?acceptance=1";
+/**
+ * The page URL: `?acceptance=1` exposes the test hook even in a production build; `sun=pinned`
+ * lights the scene at the pinned sun time (10:30 MYT, fixed date: `three/sunClock.ts`), so day
+ * shadows do not depend on the hour of the run (B-T4 fix round 1 ruling).
+ */
+export const bookmarkUrl = (): string => "/?acceptance=1&sun=pinned";
 
 /** The window hook the app installs (`src/features/scene/three/scene/useAcceptanceHook.ts`). */
 export const HOOK = "__tlAcceptance";

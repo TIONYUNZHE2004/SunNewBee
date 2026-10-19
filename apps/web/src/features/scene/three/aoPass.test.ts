@@ -51,4 +51,20 @@ describe("CityGTAOPass", () => {
     expect(pass.blendIntensity).toBe(AO_PARAMS.blendIntensity);
     pass.dispose();
   });
+  it("applies params given to the constructor (the engine passes AO_PARAMS with the mood blend)", () => {
+    const pass = new CityGTAOPass(
+      new THREE.Scene(),
+      new THREE.PerspectiveCamera(),
+      4,
+      4,
+      () => [],
+      {
+        ...AO_PARAMS,
+        blendIntensity: 0.45,
+      },
+    );
+    expect(pass.gtaoMaterial.uniforms.radius?.value).toBe(AO_PARAMS.radius);
+    expect(pass.blendIntensity).toBe(0.45);
+    pass.dispose();
+  });
 });

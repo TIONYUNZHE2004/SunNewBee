@@ -170,6 +170,48 @@ export function extremeShares(
     : { dark: 0, clipped: 0, count };
 }
 
+/**
+ * Lamp-pool contrast at (x, y): the brightest luminance within `inner` px (square) minus the median
+ * luminance of the ring between `ringIn` and `ringOut` px (Chebyshev distance), so a pool counts
+ * only when it is brighter than the ground around it, whatever the absolute night level. Pixels
+ * outside the image are skipped; `mask` (width x height, non-zero = include) restricts the ring.
+ */
+export function poolContrast(
+  img: RGBAImage,
+  x: number,
+  y: number,
+  {
+    inner = 5,
+    ringIn = 12,
+    ringOut = 18,
+    mask,
+  }: { inner?: number; ringIn?: number; ringOut?: number; mask?: Uint8Array } = {},
+): { peak: number; ring: number; contrast: number } {
+  const d = img.data;
+  const at = (xx: number, yy: number) => {
+    const o = (yy * img.width + xx) * 4;
+    return luminance(d[o] as number, d[o + 1] as number, d[o + 2] as number);
+  };
+  const inside = (xx: number, yy: number) =>
+    xx >= 0 && yy >= 0 && xx < img.width && yy < img.height;
+  let peak = 0;
+  for (let dy = -inner; dy <= inner; dy++)
+    for (let dx = -inner; dx <= inner; dx++)
+      if (inside(x + dx, y + dy)) peak = Math.max(peak, at(x + dx, y + dy));
+  const ring: number[] = [];
+  for (let dy = -ringOut; dy <= ringOut; dy++)
+    for (let dx = -ringOut; dx <= ringOut; dx++) {
+      if (Math.max(Math.abs(dx), Math.abs(dy)) < ringIn) continue;
+      const xx = x + dx;
+      const yy = y + dy;
+      if (!inside(xx, yy) || (mask && !mask[yy * img.width + xx])) continue;
+      ring.push(at(xx, yy));
+    }
+  ring.sort((a, b) => a - b);
+  const med = ring.length ? (ring[Math.floor(ring.length / 2)] as number) : 0;
+  return { peak, ring: med, contrast: peak - med };
+}
+
 /** Pixels within `tol` (0..255, every channel) of `hex` in the selection. */
 export function countColour(img: RGBAImage, hex: string, tol: number, sel: Selection = {}): number {
   const [r, g, b] = parseHex(hex);

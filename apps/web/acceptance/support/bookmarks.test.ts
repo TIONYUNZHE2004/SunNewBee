@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { sunPinRequested } from "../../src/features/scene/three/sunClock";
 import {
   ACCEPTANCE_BOOKMARKS,
   BOOKMARK_NAMES,
@@ -33,8 +34,9 @@ describe("acceptance bookmarks (spec §3: the five evaluation bookmarks)", () =>
       expect(lat).toBeLessThan(3.24);
     }
   });
-  it("the load URL carries the explicit acceptance flag", () => {
-    expect(bookmarkUrl()).toBe("/?acceptance=1");
+  it("the load URL carries the explicit acceptance flag and pins the sun (B-T4 ruling)", () => {
+    expect(bookmarkUrl()).toBe("/?acceptance=1&sun=pinned");
+    expect(sunPinRequested(bookmarkUrl().slice(1))).toBe(true);
   });
   it("the street pose is at street level (eye height under 5 m) and has a road check", () => {
     const s = ACCEPTANCE_BOOKMARKS.street;

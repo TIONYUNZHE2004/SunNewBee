@@ -31,7 +31,6 @@ vi.mock("three", async (orig) => {
     toneMappingExposure = 1;
     setPixelRatio = vi.fn();
     setSize = vi.fn();
-    applyParams = vi.fn();
     getContext = vi.fn(() => ({}));
     dispose = spy.rendererDispose;
     forceContextLoss = spy.contextLoss;
@@ -61,7 +60,6 @@ vi.mock("three/addons/postprocessing/EffectComposer.js", () => ({
     setPixelRatio = vi.fn();
     addPass = vi.fn();
     setSize = vi.fn();
-    applyParams = vi.fn();
     render = spy.composerRender;
     dispose = vi.fn();
   },
@@ -70,7 +68,6 @@ const stubPass = () =>
   class {
     dispose = vi.fn();
     setSize = vi.fn();
-    applyParams = vi.fn();
   };
 vi.mock("three/addons/postprocessing/RenderPass.js", () => ({ RenderPass: stubPass() }));
 vi.mock("three/addons/postprocessing/OutputPass.js", () => ({ OutputPass: stubPass() }));
@@ -79,7 +76,6 @@ vi.mock("three/addons/postprocessing/UnrealBloomPass.js", () => ({
     enabled = true;
     dispose = vi.fn();
     setSize = vi.fn();
-    applyParams = vi.fn();
     constructor(
       _res: unknown,
       public strength: number,
@@ -92,7 +88,6 @@ vi.mock("./aoPass", () => ({
   CityGTAOPass: class {
     dispose = vi.fn();
     setSize = vi.fn();
-    applyParams = vi.fn();
     constructor(_s: unknown, _c: unknown, _w: number, _h: number, skip: () => readonly unknown[]) {
       spy.aoSkips.push(skip);
     }

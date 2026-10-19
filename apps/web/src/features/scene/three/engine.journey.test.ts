@@ -92,7 +92,6 @@ vi.mock("./aoPass", () => ({
   CityGTAOPass: class {
     dispose = vi.fn();
     setSize = vi.fn();
-    applyParams = vi.fn();
     constructor(_s: unknown, _c: unknown, _w: number, _h: number, skip: () => readonly unknown[]) {
       spy.aoSkips.push(skip);
     }
