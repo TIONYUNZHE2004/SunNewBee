@@ -102,6 +102,22 @@ describe("clipWalk", () => {
     };
     expect(out.features.map((f) => f.properties.id)).toEqual(["a", "b", "p-in"]);
     expect(out.features[0]).toBe(walk.features[0]);
+    // A line leaving and re-entering: two runs, the second with a `~1` id.
+    const uturn = clipWalk(
+      fc([
+        {
+          type: "Feature",
+          properties: { id: "u", type: "street" },
+          geometry: {
+            type: "LineString",
+            coordinates: [ll(50, -50), ll(150, -50), ll(150, 50), ll(50, 50)],
+          },
+        },
+      ]),
+      B,
+      frame,
+    ) as unknown as { features: { properties: { id: string } }[] };
+    expect(uturn.features.map((f) => f.properties.id)).toEqual(["u", "u~1"]);
     const end = out.features[1]!.geometry.coordinates[1]!;
     expect(frame.toLocal(end[0], end[1])[0]).toBeCloseTo(100, 3);
   });

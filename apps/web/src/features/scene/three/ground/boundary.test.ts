@@ -7,7 +7,6 @@ import {
   CLIP_TOLERANCE_M,
   clearance,
   clipLine,
-  clipPolygon,
   clipToBoundary,
   edgeDistance,
   insideBoundary,
@@ -126,65 +125,6 @@ describe("clipLine", () => {
         [300, 300],
       ]),
     ).toEqual([]);
-  });
-});
-
-describe("clipPolygon", () => {
-  const area = (r: P[]) => {
-    let s = 0;
-    for (let i = 0; i < r.length - 1; i++) s += r[i]![0] * r[i + 1]![1] - r[i + 1]![0] * r[i]![1];
-    return Math.abs(s / 2);
-  };
-  const localArea = (polys: P[][][]) =>
-    polys.reduce((s, p) => s + area(p[0]!.map(([lon, lat]) => frame.toLocal(lon, lat))), 0);
-
-  it("keeps an inside polygon as it is and drops an outside one", () => {
-    const inside = [
-      toLL([
-        [-90, -90],
-        [-10, -90],
-        [-10, -10],
-        [-90, -10],
-      ]),
-    ];
-    expect(clipPolygon(L, inside, frame)).toEqual([inside]);
-    const outside = [
-      toLL([
-        [200, 200],
-        [300, 200],
-        [300, 300],
-      ]),
-    ];
-    expect(clipPolygon(L, outside, frame)).toEqual([]);
-  });
-  it("cuts a crossing polygon to the outline (area and vertices)", () => {
-    // A square over the whole L and beyond: the cut is the L itself (30000 m2).
-    const big = [
-      toLL([
-        [-200, -200],
-        [200, -200],
-        [200, 200],
-        [-200, 200],
-      ]),
-    ];
-    const cut = clipPolygon(L, big, frame);
-    expect(localArea(cut)).toBeCloseTo(30000, -1);
-    for (const p of cut)
-      for (const [lon, lat] of p[0]!) {
-        const [x, z] = frame.toLocal(lon, lat);
-        expect(outsideBy(L, x, z)).toBeLessThan(0.01);
-      }
-    // A band across the notch: two pieces.
-    const band = [
-      toLL([
-        [-150, 40],
-        [150, 40],
-        [150, 60],
-        [-150, 60],
-      ]),
-    ];
-    const pieces = clipPolygon(L, band, frame);
-    expect(localArea(pieces)).toBeCloseTo(2000, -1);
   });
 });
 

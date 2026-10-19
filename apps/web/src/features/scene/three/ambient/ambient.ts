@@ -104,8 +104,8 @@ export function createAmbient(
   centre: [number, number],
   seed: string,
   /**
-   * The Elmina outline (A-T4): a bird outside it, or a cloud shadow not wholly inside it (it would
-   * darken the void past the slab), is hidden for that tick. Positions are world xz (the group's
+   * The Elmina outline (A-T4): a bird outside it, or a cloud shadow not wholly inside it (its square
+   * decal's corners reach size / sqrt 2 from its centre; it would darken the void past the slab), is hidden for that tick. Positions are world xz (the group's
    * position plus the local one).
    */
   boundary: Boundary | null = null,
@@ -268,7 +268,8 @@ export function createAmbient(
             bp.set(cx + wrap(c.x + CLOUD_DRIFT_MPS * t), CLOUD_SHADOW_Y, cz + c.z);
             const out =
               boundary !== null &&
-              clearance(boundary, bp.x + group.position.x, bp.z + group.position.z) < c.size / 2;
+              clearance(boundary, bp.x + group.position.x, bp.z + group.position.z) <
+                c.size * Math.SQRT1_2;
             bm.compose(bp, bq.identity(), out ? zero : bs.set(c.size, 1, c.size));
             clouds.setMatrixAt(i, bm);
             bs.set(1, 1, 1);

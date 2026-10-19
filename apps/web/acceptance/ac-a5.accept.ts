@@ -27,8 +27,11 @@ import { decodePng, mapArea } from "./support/scene";
  * 2. Slab edge on every side at the overview bookmark: for each outline vertex the hook projects
  *    the top outline point and the outer bottom corner of its soil section; the pixels sampled along
  *    that segment (the band just outside the projected outline) must show soil colour. Vertices are
- *    grouped by the compass side their section faces (N/E/S/W); a side passes when it has vertices
- *    on screen and at least half of those show soil. Vertices off screen are counted, not judged.
+ *    grouped by the compass side their section faces (N/E/S/W). A side passes only when its extreme
+ *    vertex (N: most northerly, S: most southerly, E: most easterly, W: most westerly; the
+ *    township's outer edge, not a notch) is on screen and shows soil, and >= 80% of the side's
+ *    vertices are on screen (fix round 1). Expected to fail at the A-T0 overview pose until A-T5
+ *    re-poses it within LIMITS.maxRangeM.
  *    The run continues past a failing side so every number is written before the assertions.
  * Routing parity and the golden questions are pytest / `pnpm golden` (not here).
  */
@@ -190,17 +193,22 @@ test("AC-A5: the overview shows the slab soil edge on every side; live display a
     W: { vertices: 0, onScreen: 0, soil: 0 },
   };
   const marks: { x: number; y: number; soil: boolean }[] = [];
+  /** Every outline vertex: its side, local position, on screen, shows soil. */
+  const verts: { side: Side; lx: number; lz: number; onScreen: boolean; soil: boolean }[] = [];
   let maxBands = 0;
   for (const ring of outline ?? [])
     for (const v of ring) {
       const side = sideOf(v, ring);
       sides[side].vertices++;
+      const row = { side, lx: v.lx, lz: v.lz, onScreen: false, soil: false };
+      verts.push(row);
       const tx = rect.x + v.x;
       const ty = rect.y + v.y;
       const bx = rect.x + v.foot.x;
       const by = rect.y + v.foot.y;
       if (!v.inFront || !onMap(tx, ty) || !onMap(bx, by)) continue;
       sides[side].onScreen++;
+      row.onScreen = true;
       // Samples along the band below the outline (skip the first 2 px: the outline itself).
       const len = Math.hypot(bx - tx, by - ty);
       let soil = 0;
@@ -219,6 +227,7 @@ test("AC-A5: the overview shows the slab soil edge on every side; live display a
       }
       const shows = n > 0 && soil >= Math.min(2, n);
       if (shows) sides[side].soil++;
+      row.soil = shows;
       marks.push({ x: tx, y: ty, soil: shows });
       maxBands = Math.max(maxBands, bandsOf(lumas));
     }
@@ -245,7 +254,21 @@ test("AC-A5: the overview shows the slab soil edge on every side; live display a
   await page.screenshot({ path: join(OUT, "edge-east.png") });
   const liveEdge = await audit(page);
 
-  const sideOk = (s: Side) => sides[s].onScreen > 0 && sides[s].soil / sides[s].onScreen >= 0.5;
+  // Fix round 1 (coordinator): a side passes only when its EXTREME vertex (the township's outer
+  // edge on that side: N = most northerly, i.e. min lz; S = max lz; E = max lx; W = min lx; not a
+  // notch) is on screen and shows soil, AND >= 80% of that side's vertices are on screen.
+  const pick = (better: (a: (typeof verts)[number], b: (typeof verts)[number]) => boolean) =>
+    verts.reduce<(typeof verts)[number] | null>((m, v) => (!m || better(v, m) ? v : m), null);
+  const extreme: Record<Side, (typeof verts)[number] | null> = {
+    N: pick((a, b) => a.lz < b.lz),
+    S: pick((a, b) => a.lz > b.lz),
+    E: pick((a, b) => a.lx > b.lx),
+    W: pick((a, b) => a.lx < b.lx),
+  };
+  const MIN_ON_SCREEN = 0.8;
+  const onShare = (s: Side) => (sides[s].vertices ? sides[s].onScreen / sides[s].vertices : 0);
+  const sideOk = (s: Side) =>
+    !!extreme[s]?.onScreen && !!extreme[s]?.soil && onShare(s) >= MIN_ON_SCREEN;
   const m = {
     task: "A-T4 AC-A5",
     capturedAt: new Date().toISOString(),
@@ -256,6 +279,8 @@ test("AC-A5: the overview shows the slab soil edge on every side; live display a
         {
           ...sides[s],
           soilShare: sides[s].onScreen ? sides[s].soil / sides[s].onScreen : null,
+          onScreenShare: onShare(s),
+          extreme: extreme[s],
           pass: sideOk(s),
         },
       ]),
@@ -278,10 +303,15 @@ test("AC-A5: the overview shows the slab soil edge on every side; live display a
   expect(live?.worstInstanceM ?? 99, "overview: instances <= 5 m outside").toBeLessThanOrEqual(5);
   expect(liveEdge?.worstVertexM ?? 99, "edge pose: mesh vertices").toBeLessThanOrEqual(5);
   expect(liveEdge?.worstInstanceM ?? 99, "edge pose: instances").toBeLessThanOrEqual(5);
-  for (const s of Object.keys(sides) as Side[])
-    expect(sides[s].onScreen, `side ${s}: outline vertices on screen`).toBeGreaterThan(0);
-  for (const s of Object.keys(sides) as Side[])
-    expect(sideOk(s), `side ${s}: soil shows at >= 50% of on-screen vertices`).toBe(true);
+  // Soft: every side is judged and reported, then the test fails if any side failed. At the A-T0
+  // overview pose (7 km) the N and S extremes are off screen; A-T5 re-poses the overview.
+  for (const s of Object.keys(sides) as Side[]) {
+    expect.soft(extreme[s]?.onScreen, `side ${s}: extreme vertex on screen`).toBe(true);
+    expect.soft(extreme[s]?.soil, `side ${s}: extreme vertex shows soil`).toBe(true);
+    expect
+      .soft(onShare(s), `side ${s}: >= 80% of its vertices on screen`)
+      .toBeGreaterThanOrEqual(MIN_ON_SCREEN);
+  }
 });
 
 /** The compass side an outline vertex's section faces, from the outline's local positions. */

@@ -5,10 +5,10 @@ import {
   type Boundary,
   CLIP_TOLERANCE_M,
   clipLine,
-  clipPolygon,
   insideBoundary,
   type P,
 } from "./boundary";
+import { clipPolygon } from "./clipPolygon";
 
 /**
  * The stylised city's inputs cut to the Elmina outline (display only, A-T4). Applied once where the
@@ -229,11 +229,20 @@ export function clipWalk<T>(walk: T, b: Boundary, frame: LocalFrame): T {
         continue;
       }
     }
-    for (const run of clipLine(b, pts))
+    // Each cut run after the first takes a `~k` id (as cut polygons do): the planners seed by
+    // feature id (agents: `${id}:${run}:${chunk}`), so two runs of one line must not share it.
+    const props = isRec(f.properties) ? f.properties : {};
+    clipLine(b, pts).forEach((run, k) => {
+      const id = props.id;
       out.push({
         ...f,
+        properties:
+          k > 0 && (typeof id === "string" || typeof id === "number")
+            ? { ...props, id: `${id}~${k}` }
+            : f.properties,
         geometry: { type: "LineString", coordinates: run.map(([x, z]) => frame.toLonLat(x, z)) },
       });
+    });
   }
   return { ...walk, features: out } as T;
 }

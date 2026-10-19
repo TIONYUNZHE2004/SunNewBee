@@ -330,7 +330,9 @@ the stylised city is clipped to it and sits on a diorama slab. Display only: rou
 the API data and the data overlays (access lines, markers, flood tint) are never clipped.
 
 - `ground/boundary.ts`: the outline in the local frame and the pure helpers (`insideBoundary`,
-  `outsideBy`, `clipToBoundary`, `clipLine`, `clipPolygon` via `polygon-clipping`).
+  `outsideBy`, `clipToBoundary`, `clipLine`); `ground/clipPolygon.ts` cuts polygons with
+  `polygon-clipping` (main thread only: the tile-plan worker never bundles it). Cut walk runs and
+  polygon pieces after the first take a `~k` id.
 - `ground/clipLayer.ts`: applied once in `ThreeScene` to the `/layers/buildings` payload and the
   latched walk copy the planners read. Buildings and landmark outlines are kept only when every
   footprint vertex lies within 5 m of the inside (never cut; on the seed 1283 of 7803 are kept);
