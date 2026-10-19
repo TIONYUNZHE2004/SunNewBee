@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import { honestyViolations } from "../../test/honesty";
 import {
   DEMO_CHIP,
-  DEMO_CHIP_TEXT,
   journeyCardContent,
   NOT_CHECKED,
   SIMULATION_LABEL,
@@ -46,8 +45,7 @@ const texts = (c: ReturnType<typeof journeyCardContent>) => [
 ];
 
 describe("shared names and VR matching", () => {
-  it("fe4 aliases are the same strings", () => {
-    expect(DEMO_CHIP_TEXT).toBe(DEMO_CHIP);
+  it("the simulation label string", () => {
     expect(SIMULATION_LABEL).toBe("Simulation · indicative times, not a prediction");
   });
 

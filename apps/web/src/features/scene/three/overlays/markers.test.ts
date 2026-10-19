@@ -252,6 +252,26 @@ describe("place markers outside the Elmina outline (A-T5, display only)", () => 
     expect(drawnIds(far)).toEqual(["p1"]);
     far.dispose();
   });
+  it("while a trip is loaded only kept places are drawn (its ends, event places), with or without an outline", () => {
+    const [x2, z2] = frame.toLocal(...(places[1]!.coord as [number, number]));
+    const trip = build({ tripOnly: true, keepNear: [[x2, z2]] });
+    expect(drawnIds(trip)).toEqual(["p2"]); // p1 is inside the outline but not the trip's
+    expect(trip.placeCount).toBe(1);
+    expect(points(trip.group).some((p) => p.name.includes("waste"))).toBe(true);
+    trip.dispose();
+    const rule = placeShown({
+      inside: null,
+      keepIds: new Set(["p1"]),
+      keepNear: [],
+      tripOnly: true,
+    });
+    expect(rule?.("p1", 0, 0)).toBe(true);
+    expect(rule?.("p2", 0, 0)).toBe(false);
+    // trip cleared: the general markers come back
+    const after = build({});
+    expect(drawnIds(after)).toEqual(["p1"]);
+    after.dispose();
+  });
   it("shows every place without an outline", () => {
     expect(placeShown({ inside: null, keepIds: new Set(), keepNear: [] })).toBeUndefined();
     const m = make();

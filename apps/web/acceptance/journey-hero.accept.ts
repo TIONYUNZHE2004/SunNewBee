@@ -215,10 +215,10 @@ test.describe("journey hero (D-T6)", () => {
   test.beforeEach(async ({ page }) => {
     await openScene(page, "day");
     await askDemoJourney(page);
-    test.skip(
-      !(await hasJourneyHook(page)),
-      "window.__journey is installed in dev builds and the demo preset only",
-    );
+    expect(
+      await hasJourneyHook(page),
+      "window.__journey (dev builds and the demo preset): a missing hook fails, never skips",
+    ).toBe(true);
     // Free camera: this spec moves the camera itself (the acceptance hook) to settle the ground
     // under her at each beat; the follow camera (D-T5) would own the camera once the trip is used.
     await journey.setCam(page, "free");

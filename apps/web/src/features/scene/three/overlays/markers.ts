@@ -72,22 +72,28 @@ export interface PlaceShowRule {
   keepIds: ReadonlySet<string>;
   /** Never hidden near these points (local x, z): the current route's and journey's ends. */
   keepNear: readonly (readonly [number, number])[];
+  /**
+   * A trip is loaded (gate §9.1 F5): only kept places are drawn (its ends, its event places, the
+   * selected / focused place, VR targets); the general place dots step aside until it clears.
+   */
+  tripOnly?: boolean;
 }
 
 /**
  * The place-marker display rule (A-T5 fix round 2): a marker floating over the void past the slab
  * is hidden, but never one the user is being shown (focused or selected place, a route or journey
- * end, a verification-request target). Undefined (show all) without an outline. Pure.
+ * end, a verification-request target). Undefined (show all) without an outline. While a trip is
+ * loaded (`tripOnly`) only those kept places are drawn. Pure.
  */
 export function placeShown(
   rule: PlaceShowRule,
 ): ((id: string, x: number, z: number) => boolean) | undefined {
-  const { inside, keepIds, keepNear } = rule;
+  const { inside, keepIds, keepNear, tripOnly } = rule;
+  const kept = (id: string, x: number, z: number) =>
+    keepIds.has(id) || keepNear.some(([px, pz]) => Math.hypot(px - x, pz - z) <= ENDPOINT_KEEP_M);
+  if (tripOnly) return kept;
   if (!inside) return undefined;
-  return (id, x, z) =>
-    inside(x, z) ||
-    keepIds.has(id) ||
-    keepNear.some(([px, pz]) => Math.hypot(px - x, pz - z) <= ENDPOINT_KEEP_M);
+  return (id, x, z) => inside(x, z) || kept(id, x, z);
 }
 
 /** The id of the marker at `index` in a batched Points (the pick's `hit.index`), else null. */
@@ -127,6 +133,14 @@ void main() {
 }`;
 
 type Item = { id: string; x: number; z: number };
+
+/**
+ * One marker point with the markers' shader, for precompiling its program (`Engine` compiles it at
+ * start-up, so the first markers of an answer never link on the main thread). Never drawn.
+ */
+export function markerProgramStandIn(): THREE.Points {
+  return pointsOf("place" as Kind, [{ id: "", x: 0, z: 0 }], 9, "#0f5c63", 1);
+}
 
 function pointsOf(kind: Kind, items: Item[], px: number, color: string, pr: number): THREE.Points {
   const pos = new Float32Array(items.length * 3);

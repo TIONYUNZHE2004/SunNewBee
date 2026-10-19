@@ -10,9 +10,28 @@ const DEFAULT_SIZE = { w: 290, h: 180 };
 
 type Anchor = { x: number; y: number } | null;
 
-/** The viewport with the hero's screen box (if any) as a rectangle the card keeps clear of. */
-function withHero(viewport: CardViewport, hero: Rect | null | undefined): CardViewport {
-  return hero ? { ...viewport, keepClear: [...(viewport.keepClear ?? []), hero] } : viewport;
+/** Half the active marker sprite's box (CSS px, ~65 px tall at 900 px) the card keeps clear of. */
+export const MARKER_KEEP_CLEAR_PX = 34;
+
+/**
+ * The viewport with the hero's screen box and the event marker (around its anchor) as rectangles
+ * the card keeps clear of: the card never covers the marker it explains (gate AC-D11: moved off
+ * her body, the card had landed on the marker).
+ */
+function withHero(
+  viewport: CardViewport,
+  hero: Rect | null | undefined,
+  anchor: Anchor = null,
+): CardViewport {
+  const extra: Rect[] = [];
+  if (hero) extra.push(hero);
+  if (anchor) {
+    const r = MARKER_KEEP_CLEAR_PX;
+    extra.push({ x: anchor.x - r, y: anchor.y - r, w: 2 * r, h: 2 * r });
+  }
+  return extra.length
+    ? { ...viewport, keepClear: [...(viewport.keepClear ?? []), ...extra] }
+    : viewport;
 }
 
 /** Writes a placement onto the card element (no React commit). */
@@ -81,12 +100,12 @@ export function EventCard({
       const l = latest.current;
       if (!el || !l.track) return;
       const a = l.track.project();
-      applyPlacement(el, placeCard(a, l.size, withHero(l.viewport, l.keepClear?.())), a);
+      applyPlacement(el, placeCard(a, l.size, withHero(l.viewport, l.keepClear?.(), a)), a);
     });
   }, [subscribe]);
 
   const c = withVerificationRequest(journeyCardContent(event), event, vrFiled);
-  const p = placeCard(anchor, size, withHero(viewport, keepClear?.()));
+  const p = placeCard(anchor, size, withHero(viewport, keepClear?.(), anchor));
   return (
     <article
       ref={ref}

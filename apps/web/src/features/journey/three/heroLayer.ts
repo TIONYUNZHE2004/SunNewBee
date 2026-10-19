@@ -268,6 +268,8 @@ export function createHeroLayer(
     factBenches?: readonly FactBench[];
     /** Called with every pose drawn. */
     onPose?: (p: HeroPose) => void;
+    /** Compiles the rigged model's programs before it swaps in (the engine's `prewarm`). */
+    prepare?: (o: THREE.Object3D) => Promise<unknown>;
   } = {},
 ): HeroLayer {
   // The rigged GLB hero for the plan's profile (C-T4); the placeholder shows until it loads and
@@ -277,6 +279,7 @@ export function createHeroLayer(
     (() =>
       createGlbHero({
         profile: plan.profile,
+        ...(opts.prepare ? { prepare: opts.prepare } : {}),
         onReady: () => {
           if (last) place(last.tl, last.t);
         },
@@ -396,6 +399,7 @@ export function createHeroLayer(
     if (index) {
       rebuilds++;
       rebuildMs.push(index.buildMs);
+      if (rebuildMs.length > 2000) rebuildMs.shift();
     }
     for (const [i, b] of benches) {
       const s = seats.get(i) as HeroSeat;

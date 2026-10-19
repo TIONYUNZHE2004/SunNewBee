@@ -24,9 +24,6 @@ export interface JourneyCardContent {
 export const DEMO_CHIP = "Demo value · not surveyed";
 /** Spec §6.4 / §7: the always-on label of every journey renderer. */
 export const SIMULATION_LABEL = "Simulation · indicative times, not a prediction";
-/** fe4 (D-T9) names, kept so every renderer imports one module. */
-export const DEMO_CHIP_TEXT = DEMO_CHIP;
-export type JourneyCard = JourneyCardContent;
 export const NOT_CHECKED = "Not checked yet";
 export const VR_FILED = "verification request filed";
 

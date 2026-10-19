@@ -137,3 +137,22 @@ describe("hero screen box", () => {
     expect(boxOnScreen(heroBodyBox(hero.object3d) as THREE.Box3, cam, [1200, 1000])).toBeNull();
   });
 });
+
+describe("gate AC-D11: the card keeps clear of its marker as well as the hero", () => {
+  it("moved off her body, the card does not land on the marker", () => {
+    const anchor = { x: 796, y: 612 };
+    const hero = { x: 560, y: 520, w: 220, h: 240 };
+    const marker = { x: anchor.x - 34, y: anchor.y - 34, w: 68, h: 68 };
+    const p = placeCard(
+      anchor,
+      { w: 290, h: 200 },
+      { w: 923, h: 836, top: 250, keepClear: [hero, marker] },
+    );
+    const s = p.scale ?? 1;
+    const card = { x: p.left, y: p.top, w: 290 * s, h: 200 * s };
+    const hit = (a: typeof card, b: typeof card) =>
+      a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+    expect(hit(card, marker)).toBe(false);
+    expect(hit(card, hero)).toBe(false);
+  });
+});

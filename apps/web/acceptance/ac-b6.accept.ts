@@ -127,10 +127,10 @@ test("AC-B6: every beat of the demo journey has < 0.5% near-black and < 0.5% cli
   mkdirSync(OUT, { recursive: true });
   await openScene(page, "day");
   await askDemoJourney(page);
-  test.skip(
-    !(await hasJourneyHook(page)),
-    "window.__journey is installed in dev builds and the demo preset only",
-  );
+  expect(
+    await hasJourneyHook(page),
+    "window.__journey (dev builds and the demo preset): a missing hook fails, never skips",
+  ).toBe(true);
   const { phases } = await journey.info(page);
   const beats = (phases as { kind: string; t0: number; t1: number }[]).filter((p) => p.t1 > p.t0);
   expect(beats.length).toBeGreaterThan(0);

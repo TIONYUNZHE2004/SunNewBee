@@ -172,9 +172,20 @@ function only(s: SceneState, key: Selection, id: string | null): Partial<SceneSt
   return out;
 }
 
+/** True when the journey player holds a trip of a route other than `routeId`. */
+function staleTrip(routeId: string): boolean {
+  const plan = useJourney.getState().plan;
+  return !!plan && plan.route_id !== routeId;
+}
+
 export const useScene = create<SceneState>((set) => ({
   ...initial,
   applyIntent: (i) => {
+    // a trip of another route is never shown beside this one (journey.play is not sent for
+    // every route answer, so the newer route alone has to drop the older trip)
+    const dropTrip =
+      i.kind === "route.highlight" && !!i.route_id && !!i.geojson && staleTrip(i.route_id);
+    if (dropTrip) useJourney.getState().clear();
     set((s) => {
       const next: Partial<SceneState> = { intents: [...s.intents, i] };
       switch (i.kind) {
@@ -182,6 +193,7 @@ export const useScene = create<SceneState>((set) => ({
           if (i.route_id && i.geojson) {
             next.route = { id: i.route_id, geojson: i.geojson as unknown as GeoJSON.LineString };
             next.whatIf = null; // a real route is never drawn under an older imagined diff
+            if (dropTrip) next.journey = null;
           }
           break;
         case "whatif.diff":

@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { expect, type Page, test } from "@playwright/test";
 import { openScene, settle } from "./support/bookmarks";
 import { askDemoJourney, hasJourneyHook, journey } from "./support/journey";
+import { decodePng } from "./support/scene";
 
 /**
  * AC-D8 (hero in frame) and AC-D9 (no clipping), D-T5 follow camera, on the §2 demo route: Elmina
@@ -50,6 +51,7 @@ interface Probe {
   gridRoofM: number;
   meshRoofM: number | null;
   element: { index: number; kind: string; x: number; y: number; inFrame: boolean } | null;
+  heroOpaque?: { meshes: number; faults: string[] };
 }
 interface Sample {
   t: number;
@@ -95,6 +97,89 @@ async function sample(page: Page): Promise<Sample | null> {
   });
 }
 
+/** Per-channel difference (0-255) that counts a pixel as changed (encoder / AA noise below it). */
+const PIXEL_TOL = 24;
+
+async function show(page: Page, part: "ribbon" | "heroColour", visible: boolean) {
+  const ok = await page.evaluate(
+    ([p, v]) =>
+      (window as unknown as { __journey: { show(p: string, v: boolean): boolean } }).__journey.show(
+        p as string,
+        v as boolean,
+      ),
+    [part, visible] as const,
+  );
+  expect(ok, "__journey.show").toBe(true);
+  await page.waitForTimeout(250);
+}
+
+/**
+ * Her silhouette is opaque at a paused beat: her silhouette is the pixels that change when her
+ * body is drawn flat magenta (geometry, depth and shadow kept); inside it, hiding the journey ribbon must
+ * change (almost) nothing. The gate's see-through band was the ribbon's ghost painted over her.
+ */
+async function heroOpaqueAt(page: Page, box: Rect, file?: string) {
+  const host = (await page.evaluate(() => {
+    const r = document.querySelector("canvas")?.getBoundingClientRect();
+    return r ? { x: r.left, y: r.top } : { x: 0, y: 0 };
+  })) as { x: number; y: number };
+  const vp = page.viewportSize() as { width: number; height: number };
+  const x = Math.max(0, Math.floor(host.x + box.x));
+  const y = Math.max(0, Math.floor(host.y + box.y));
+  const clip = {
+    x,
+    y,
+    width: Math.max(1, Math.min(vp.width - x, Math.ceil(box.w))),
+    height: Math.max(1, Math.min(vp.height - y, Math.ceil(box.h))),
+  };
+  const full = await page.screenshot({ clip });
+  if (file) await page.screenshot({ path: file });
+  await show(page, "heroColour", false);
+  const noHero = await page.screenshot({ clip });
+  await show(page, "heroColour", true);
+  await show(page, "ribbon", false);
+  const noRibbon = await page.screenshot({ clip });
+  await show(page, "ribbon", true);
+  const a = await decodePng(page, full);
+  const b = await decodePng(page, noHero);
+  const c = await decodePng(page, noRibbon);
+  const diff = (u: Uint8ClampedArray | number[], v: Uint8ClampedArray | number[], k: number) =>
+    Math.max(
+      Math.abs((u[k] as number) - (v[k] as number)),
+      Math.abs((u[k + 1] as number) - (v[k + 1] as number)),
+      Math.abs((u[k + 2] as number) - (v[k + 2] as number)),
+    );
+  let her = 0;
+  let through = 0;
+  // her silhouette: flat magenta in the flat frame and not magenta in the normal one (moving
+  // decorative people or cars between the shots are never magenta, so they never count)
+  const magenta = (d: Uint8ClampedArray | number[], k: number) =>
+    (d[k] as number) > 180 && (d[k + 1] as number) < 90 && (d[k + 2] as number) > 180;
+  // her interior only: a 2 px band at the silhouette's edge is left out, where the depth of
+  // field blur legitimately mixes the ground behind her into her outline
+  const W = b.width;
+  const H = b.height;
+  const inSil = (x: number, y: number) =>
+    x >= 0 && y >= 0 && x < W && y < H && magenta(b.data, (y * W + x) * 4);
+  for (let y = 0; y < H; y++)
+    for (let x = 0; x < W; x++) {
+      const k = (y * W + x) * 4;
+      if (!inSil(x, y) || magenta(a.data, k) || diff(a.data, b.data, k) <= PIXEL_TOL) continue;
+      if (!(inSil(x - 2, y) && inSil(x + 2, y) && inSil(x, y - 2) && inSil(x, y + 2))) continue;
+      her++;
+      if (diff(a.data, c.data, k) > PIXEL_TOL) through++;
+    }
+  const share = her > 0 ? through / her : 0;
+  // evidence of a see-through beat: the three crops
+  if (share >= 0.03 && process.env.ACCEPTANCE_OUT) {
+    const base = `${process.env.ACCEPTANCE_OUT}/d8-seethrough-${Date.now()}`;
+    writeFileSync(`${base}-full.png`, full);
+    writeFileSync(`${base}-nohero.png`, noHero);
+    writeFileSync(`${base}-noribbon.png`, noRibbon);
+  }
+  return { her, through, share };
+}
+
 const overlap = (a: Rect, b: Rect) =>
   a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
 
@@ -102,10 +187,10 @@ test.describe("journey follow camera (D-T5)", () => {
   test.beforeEach(async ({ page }) => {
     await openScene(page, "day");
     await askDemoJourney(page);
-    test.skip(
-      !(await hasJourneyHook(page)),
-      "window.__journey is installed in dev builds and the demo preset only",
-    );
+    expect(
+      await hasJourneyHook(page),
+      "window.__journey (dev builds and the demo preset): a missing hook fails, never skips",
+    ).toBe(true);
   });
 
   test("AC-D8 + AC-D9: hero in frame and not hidden, element at every hold, no clipping", async ({
@@ -179,6 +264,36 @@ test.describe("journey follow camera (D-T5)", () => {
       await page.screenshot({ path: join(OUT, f) });
       shots[kind] = f;
     }
+    // Her silhouette is opaque (gate: see-through hero): at every hold and walk mid-point, the
+    // ribbon never shows through her. Evidence frames at the 608 m walk and the 836 m rest.
+    const opaque: { phaseIndex: number; kind: string; m: number; her: number; share: number }[] =
+      [];
+    for (const [i, p] of holds.entries()) {
+      if (p.kind !== "event" && p.kind !== "walk") continue;
+      await journey.seek(page, (p.t0 + p.t1) / 2);
+      await settle(page, 600, 15_000);
+      const s = await sample(page);
+      const st = (await page.evaluate(() =>
+        (window as unknown as { __journey: { state(): { distance_m: number } } }).__journey.state(),
+      )) as { distance_m: number };
+      if (!s?.probe.heroBox) continue;
+      const m = st.distance_m;
+      const kind = p.event?.kind ?? p.kind;
+      const file =
+        (p.kind === "walk" && Math.abs(m - 608) < 60) || (kind === "rest" && Math.abs(m - 836) < 5)
+          ? join(OUT, `d8-opaque-${kind}-${Math.round(m)}m.png`)
+          : undefined;
+      if (file) shots[`opaque-${kind}-${Math.round(m)}m`] = file;
+      const r = await heroOpaqueAt(page, s.probe.heroBox, file);
+      opaque.push({ phaseIndex: i, kind, m, her: r.her, share: r.share });
+      console.log(
+        `AC-D8 opaque: phase ${i} ${kind} at ${m.toFixed(0)} m: ${r.her} hero px, ${(r.share * 100).toFixed(2)}% changed by the ribbon`,
+      );
+    }
+    const materialFaults = samples.flatMap((s) =>
+      (s.probe.heroOpaque?.faults ?? []).map((f) => `${s.t.toFixed(1)}: ${f}`),
+    );
+
     const scrub: { t: number; dM: number }[] = [];
     // the drawn camera's own t (the store may be a frame ahead of the last render)
     const picks = follow
@@ -239,6 +354,7 @@ test.describe("journey follow camera (D-T5)", () => {
         hero: s.probe.heroBox,
       })),
       scrubEqualsPlay: { checked: scrub.length, worstM: scrubWorst },
+      heroOpaque: { materialFaults: materialFaults.slice(0, 20), beats: opaque },
       shots,
     };
     writeFileSync(join(OUT, "ac-d8-d9.json"), JSON.stringify(result, null, 2));
@@ -255,5 +371,12 @@ test.describe("journey follow camera (D-T5)", () => {
     expect(result.cardsCoverHero).toEqual([]);
     expect(scrub.length).toBeGreaterThan(5);
     expect(scrubWorst).toBeLessThanOrEqual(0.01);
+    // her silhouette is opaque: material state at every sample, pixels at every beat she shows
+    expect(samples.every((s) => (s.probe.heroOpaque?.meshes ?? 0) > 0)).toBe(true);
+    expect(materialFaults).toEqual([]);
+    const seen = opaque.filter((o) => o.her >= 200);
+    expect(seen.length).toBeGreaterThan(10);
+    for (const o of seen)
+      expect(o.share, `phase ${o.phaseIndex} ${o.kind} see-through share`).toBeLessThan(0.03);
   });
 });

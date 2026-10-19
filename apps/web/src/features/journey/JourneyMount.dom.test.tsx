@@ -5,14 +5,27 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useScene } from "../scene/sceneStore";
 import type { CameraDriver, Engine, JourneyOverlay } from "../scene/three/engine";
 import { createFrame } from "../scene/three/frame";
+import { SIMULATION_LABEL } from "./cardContent";
 import demoPlan from "./fixtures/demoPlan.json";
 import { HERO_SLOT, JourneyMount } from "./JourneyMount";
 import { createJourneyHook } from "./journeyHook";
 import { journeyHero, useJourney } from "./journeyStore";
-import { SIM_LABEL } from "./SimulationLabel";
+import { createHeroLayer } from "./three/heroLayer";
 import type { JourneyLayer } from "./three/journeyLayer";
 import { buildTimeline, type JourneyPlan, stateAt } from "./timeline";
 import { WatchTripButton } from "./WatchTripButton";
+
+// The 3D view (the player) unless a test switches to the List view.
+const eff = vi.hoisted(() => ({ view: "cesium" }));
+vi.mock("../scene/useMapStyle", async (orig) => ({
+  ...(await orig<typeof import("../scene/useMapStyle")>()),
+  useEffectiveView: () => eff.view,
+}));
+
+vi.mock("./three/heroLayer", async (orig) => {
+  const m = await orig<typeof import("./three/heroLayer")>();
+  return { ...m, createHeroLayer: vi.fn(m.createHeroLayer) };
+});
 
 const plan = demoPlan as unknown as JourneyPlan;
 const frame = createFrame([101.5135, 3.18]);
@@ -84,6 +97,19 @@ afterEach(() => {
 });
 
 describe("JourneyMount", () => {
+  it("builds the hero once per plan, on that plan's own path (never on the old layer)", () => {
+    const f = fakeEngine();
+    render(<JourneyMount engine={f.engine} frame={frame} />);
+    const made = vi.mocked(createHeroLayer);
+    made.mockClear();
+    act(() => playIntent(older));
+    act(() => playIntent(plan));
+    const calls = made.mock.calls;
+    expect(calls.map((c) => c[0])).toEqual([older, plan]);
+    expect(calls[1]?.[1]).toBe(f.layer()?.path);
+    expect(calls[1]?.[1].planLength).toBe(f.layer()?.path.planLength);
+  });
+
   it("shows nothing and adds no layer until the scene store holds a journey", () => {
     const f = fakeEngine();
     const { container } = render(<JourneyMount engine={f.engine} frame={frame} />);
@@ -95,7 +121,7 @@ describe("JourneyMount", () => {
     const f = fakeEngine();
     render(<JourneyMount engine={f.engine} frame={frame} />);
     act(() => playIntent());
-    expect(screen.getByRole("note", { name: SIM_LABEL })).toBeInTheDocument();
+    expect(screen.getByRole("note", { name: SIMULATION_LABEL })).toBeInTheDocument();
     expect(screen.getByTestId("journey-hud")).toHaveTextContent("09:00");
     expect(f.layer()?.ribbon.children.length).toBeGreaterThan(0);
     expect(f.layer()?.markers.children).toHaveLength(plan.events.length);
@@ -112,11 +138,11 @@ describe("JourneyMount", () => {
     );
     act(() => playIntent());
     act(() => useScene.getState().clearRoute());
-    expect(screen.queryByRole("note", { name: SIM_LABEL })).toBeNull();
+    expect(screen.queryByRole("note", { name: SIMULATION_LABEL })).toBeNull();
     expect(f.layer()).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Watch the trip" }));
     expect(useJourney.getState().playing).toBe(true);
-    expect(screen.getByRole("note", { name: SIM_LABEL })).toBeInTheDocument();
+    expect(screen.getByRole("note", { name: SIMULATION_LABEL })).toBeInTheDocument();
     expect(screen.getByTestId("journey-hud")).toBeInTheDocument();
     expect(f.layer()?.markers.children).toHaveLength(plan.events.length);
     expect(f.layer()?.ribbon.children.length).toBeGreaterThan(0);
@@ -170,7 +196,7 @@ describe("JourneyMount", () => {
     render(<JourneyMount engine={f.engine} frame={frame} />);
     act(() => playIntent());
     act(() => useScene.getState().setScenario("stage_p1m"));
-    expect(screen.queryByRole("note", { name: SIM_LABEL })).toBeNull();
+    expect(screen.queryByRole("note", { name: SIMULATION_LABEL })).toBeNull();
     expect(f.spy.setJourney).toHaveBeenLastCalledWith(null);
   });
 

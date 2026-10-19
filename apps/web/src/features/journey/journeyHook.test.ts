@@ -1,11 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
+import { isDemoPreset } from "../demo/demoFlag";
 import demo from "./fixtures/demoPlan.json";
-import {
-  createJourneyHook,
-  installJourneyHook,
-  isDemoPreset,
-  type JourneyHook,
-} from "./journeyHook";
+import { createJourneyHook, installJourneyHook, type JourneyHook } from "./journeyHook";
 import { journeyHero, useJourney } from "./journeyStore";
 import type { JourneyPlan } from "./timeline";
 
@@ -29,6 +25,7 @@ describe("window.__journey", () => {
         "play",
         "seek",
         "setCam",
+        "show",
         "state",
         "total",
       ].sort(),

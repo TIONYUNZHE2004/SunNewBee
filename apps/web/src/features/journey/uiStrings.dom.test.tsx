@@ -9,13 +9,13 @@ import {
   DEMO_CHIP,
   journeyCardContent,
   NOT_CHECKED,
+  SIMULATION_LABEL,
   VR_FILED,
   withVerificationRequest,
 } from "./cardContent";
 import demoPlan from "./fixtures/demoPlan.json";
 import { JourneyOverlay } from "./JourneyOverlay";
 import { useJourney } from "./journeyStore";
-import { SIM_LABEL } from "./SimulationLabel";
 import { buildTimeline, type JourneyEvent, type JourneyPlan } from "./timeline";
 
 /**
@@ -31,7 +31,7 @@ afterEach(() => useJourney.getState().clear());
 
 describe("AC-D6 journey UI wording", () => {
   it("fixed strings are honest", () => {
-    for (const s of [SIM_LABEL, DEMO_CHIP, NOT_CHECKED, VR_FILED])
+    for (const s of [SIMULATION_LABEL, DEMO_CHIP, NOT_CHECKED, VR_FILED])
       expect(honestyViolations(s)).toEqual([]);
   });
 
@@ -88,7 +88,7 @@ describe("AC-D6 journey UI wording", () => {
       act(() => useJourney.getState().seek((p.t0 + p.t1) / 2));
       const text = container.textContent ?? "";
       expect(honestyViolations(text)).toEqual([]);
-      expect(text).toContain(SIM_LABEL);
+      expect(text).toContain(SIMULATION_LABEL);
       if (p.event) {
         const card = screen.getByTestId("journey-card").textContent ?? "";
         if (p.event.demo || p.event.status !== "verified") expect(card).not.toMatch(VERIFIED);

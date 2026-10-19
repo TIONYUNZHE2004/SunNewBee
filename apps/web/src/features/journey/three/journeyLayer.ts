@@ -40,7 +40,8 @@ export const MARKER_LIFT_M = 5;
 export const MARKER_STACK_M = 1.6;
 /** Marker size as a fraction of the view (sizeAttenuation off: the same pixel size at any range). */
 export const MARKER_SCALE = { rest: 0.045, active: 0.06 } as const;
-const RIBBON_ORDER = 20;
+/** Render order of the solid ribbon (its casing is one below, its ghost one above). */
+export const RIBBON_ORDER = 20;
 
 const RIBBON_STYLE: Record<SpanEval, LineStyle> = {
   PASS: { color: statusStyle("ok").color, widthPx: RIBBON_WIDTH_PX },

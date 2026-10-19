@@ -45,14 +45,110 @@ const frames = (page: Page, n = 2) =>
     n,
   );
 
+/** The UI elements over the map (page rects) intersecting `box`: anything drawn over the canvas. */
+async function uiOver(page: Page, box: { x: number; y: number; w: number; h: number }) {
+  return page.evaluate((b) => {
+    const canvas = document.querySelector('[data-testid="three-scene"] canvas');
+    const cr = canvas?.getBoundingClientRect();
+    const area = cr ? cr.width * cr.height : Number.POSITIVE_INFINITY;
+    const out: { x: number; y: number; w: number; h: number; what: string }[] = [];
+    for (const el of Array.from(document.querySelectorAll("body *"))) {
+      if (el === canvas || el.contains(canvas)) continue; // the canvas and its wrappers
+      const r = el.getBoundingClientRect();
+      if (r.width < 1 || r.height < 1) continue;
+      if (r.width * r.height > area * 0.6) continue; // full-map overlay roots, not chrome
+      if (r.right <= b.x || r.left >= b.x + b.w || r.bottom <= b.y || r.top >= b.y + b.h) continue;
+      const cs = getComputedStyle(el);
+      if (cs.visibility === "hidden" || cs.display === "none" || Number(cs.opacity) === 0) continue;
+      const id = el.getAttribute("data-testid") ?? el.getAttribute("aria-label") ?? el.tagName;
+      out.push({ x: r.left, y: r.top, w: r.width, h: r.height, what: id });
+    }
+    return out;
+  }, box);
+}
+
+/** The 48 px crop around a marker anchor (canvas CSS px), in page px, with the UI-covered mask. */
+async function markerCrop(page: Page, ax: number, ay: number) {
+  const cr = (await page.evaluate(() => {
+    const r = document.querySelector('[data-testid="three-scene"] canvas')?.getBoundingClientRect();
+    return r ? { x: r.left, y: r.top, w: r.width, h: r.height } : null;
+  })) as { x: number; y: number; w: number; h: number };
+  const px = cr.x + ax;
+  const py = cr.y + ay;
+  const onCanvas = ax >= 0 && ay >= 0 && ax <= cr.w && ay <= cr.h;
+  const vp = page.viewportSize() as { width: number; height: number };
+  const x0 = Math.max(0, Math.min(vp.width - 48, Math.round(px - 24)));
+  const y0 = Math.max(0, Math.min(vp.height - 48, Math.round(py - 24)));
+  const clip = { x: x0, y: y0, width: 48, height: 48 };
+  const ui = await uiOver(page, { x: x0, y: y0, w: 48, h: 48 });
+  const covers = (x: number, y: number) =>
+    ui.find((r) => x >= r.x && x < r.x + r.w && y >= r.y && y < r.y + r.h);
+  const mask = new Uint8Array(48 * 48);
+  let clear = 0;
+  for (let j = 0; j < 48; j++)
+    for (let i = 0; i < 48; i++) {
+      const x = x0 + i + 0.5;
+      const y = y0 + j + 0.5;
+      const inCanvas = x >= cr.x && y >= cr.y && x <= cr.x + cr.w && y <= cr.y + cr.h;
+      if (inCanvas && !covers(x, y)) {
+        mask[j * 48 + i] = 1;
+        clear++;
+      }
+    }
+  const hit = covers(px, py);
+  return {
+    px,
+    py,
+    onCanvas,
+    clip,
+    mask,
+    clearShare: clear / (48 * 48),
+    anchorCovered: !!hit,
+    coverBy: hit?.what ?? "",
+  };
+}
+
+/** Waits until the journey camera is driven and still (1 mm for 400 ms; at most 5 s). */
+async function cameraSettled(page: Page): Promise<void> {
+  await page.evaluate(
+    () =>
+      new Promise<void>((done) => {
+        const j = (
+          window as unknown as {
+            __journey: { camera(): { driven: boolean; camera: [number, number, number] } | null };
+          }
+        ).__journey;
+        const t0 = performance.now();
+        let last: [number, number, number] | null = null;
+        let since = t0;
+        const tick = () => {
+          const now = performance.now();
+          const c = j.camera();
+          const p = c?.camera ?? null;
+          if (
+            !c?.driven ||
+            !p ||
+            !last ||
+            Math.hypot(p[0] - last[0], p[1] - last[1], p[2] - last[2]) > 0.001
+          )
+            since = now;
+          last = p;
+          if (now - since >= 400 || now - t0 > 5000) return done();
+          requestAnimationFrame(tick);
+        };
+        requestAnimationFrame(tick);
+      }),
+  );
+}
+
 test.describe("journey overlay (D-T7)", () => {
   test.beforeEach(async ({ page }) => {
     await openScene(page, "day");
     await askDemoJourney(page);
-    test.skip(
-      !(await hasJourneyHook(page)),
-      "window.__journey is installed in dev builds and the demo preset only",
-    );
+    expect(
+      await hasJourneyHook(page),
+      "window.__journey (dev builds and the demo preset): a missing hook fails, never skips",
+    ).toBe(true);
   });
 
   test("AC-D11: one card per hold, fully inside the viewport, plan text, demo chip, no opaque markers", async ({
@@ -68,6 +164,9 @@ test.describe("journey overlay (D-T7)", () => {
     for (const p of holds) {
       await journey.seek(page, (p.t0 + p.t1) / 2);
       await frames(page);
+      // the journey camera eases into its pose over 1 s of wall clock after the player takes it:
+      // judge the hold's framing, not a frame of that hand-over
+      await cameraSettled(page);
       const cards = page.getByTestId("journey-card");
       await expect(cards).toHaveCount(1);
       const box = await cards.boundingBox();
@@ -84,16 +183,29 @@ test.describe("journey overlay (D-T7)", () => {
       await expect(cards.getByTestId("card-source")).toContainText(c.source);
       await expect(cards.getByText(DEMO_CHIP, { exact: true })).toHaveCount(ev.demo ? 1 : 0);
       if (ev.demo) await expect(cards).not.toContainText(/\bverified\b/i);
-      // Marker: the 48 x 48 px around its anchor must not be a dark quad (prototype bug).
+      // Marker: the 48 x 48 px around its anchor must not be a dark quad (prototype bug). The
+      // anchor is in the map canvas's CSS px (not the page's), and only the marker's own pixels
+      // count: pixels any UI element covers (header, status, HUD, card, mini-map, controls) are
+      // masked out. The marker must be visible: its anchor inside the canvas and not under UI
+      // (gate: the hold-6 marker sat under the header, so the old crop sampled the toggle pill).
       const ax = Number(await cards.getAttribute("data-anchor-x"));
       const ay = Number(await cards.getAttribute("data-anchor-y"));
-      if (Number.isFinite(ax) && Number.isFinite(ay) && ax > 24 && ay > 24) {
-        const png = await page.screenshot({
-          clip: { x: ax - 24, y: ay - 24, width: 48, height: 48 },
-        });
-        const img = await decodePng(page, png);
-        expect(fractionBelow(lumaHistogram(img), 0.04)).toBeLessThan(0.25);
-      }
+      expect(Number.isFinite(ax) && Number.isFinite(ay), `hold ${p.eventIndex} anchored`).toBe(
+        true,
+      );
+      const m = await markerCrop(page, ax, ay);
+      console.log(
+        `AC-D11 hold ${p.eventIndex} (${ev.kind}): anchor canvas (${ax.toFixed(0)}, ${ay.toFixed(0)}) page (${m.px.toFixed(0)}, ${m.py.toFixed(0)}), ${m.onCanvas ? "on canvas" : "OFF canvas"}, ${m.anchorCovered ? `under UI (${m.coverBy})` : "clear of UI"}, ${(m.clearShare * 100).toFixed(0)}% of the crop clear`,
+      );
+      expect(m.onCanvas, `hold ${p.eventIndex} marker on the map`).toBe(true);
+      expect(m.anchorCovered, `hold ${p.eventIndex} marker under UI: ${m.coverBy}`).toBe(false);
+      expect(m.clearShare, `hold ${p.eventIndex} marker crop clear of UI`).toBeGreaterThanOrEqual(
+        0.5,
+      );
+      const png = await page.screenshot({ clip: m.clip });
+      const img = await decodePng(page, png);
+      const dark = fractionBelow(lumaHistogram(img, { mask: m.mask }), 0.04);
+      expect(dark, `hold ${p.eventIndex} marker dark share`).toBeLessThan(0.25);
     }
   });
 
