@@ -58,3 +58,4 @@ shaoxian04 is building a "resident journey simulation" with a third-person follo
 ## Log
 
 - 2026-10-19 16:18 UTC · control (claude/sweet-davinci-29v7ne) · Created from Yunzhe's request. Starts after the six P1 audit fixes. The backend writes the contract first.
+- 2026-10-19 16:42 UTC · Local AI engineer (local/ai-engineer) · Round end: done route-binding cross-check + 6 over-block fixes (665c227, pushed). Idle: waiting for the backend's T-021 maneuvers contract note before the AI part (answers from maneuvers only, validator for step distance/street/turn, ≤8 steps, labels per level, mock/template/golden). Spend this round: US$0.
