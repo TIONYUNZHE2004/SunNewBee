@@ -1,20 +1,23 @@
-{"meta": {"message": "Is the walk from the urban park to the lakeside mall easy?", "profile": "default", "scenario_id": null, "world": "elmina", "model": "mock-scripted", "recorded_at": "2026-10-18T15:29:56+00:00"}}
+{"meta": {"message": "Is the walk from the urban park to the lakeside mall easy?", "profile": "default", "scenario_id": null, "world": "elmina", "model": "mock-scripted", "recorded_at": "2026-10-19T01:01:56+00:00"}}
 {"type": "tool.call", "id": "find_place-0", "name": "find_place", "args": {"query": "urban park", "types": null, "limit": 5}}
 {"type": "tool.result", "id": "find_place-0", "name": "find_place", "summary": "5 result(s)"}
 {"type": "tool.call", "id": "find_place-1", "name": "find_place", "args": {"query": "lakeside mall", "types": null, "limit": 5}}
 {"type": "tool.result", "id": "find_place-1", "name": "find_place", "summary": "2 result(s)"}
 {"type": "tool.call", "id": "plan_route-2", "name": "plan_route", "args": {"from_id": "osm-way-1309457596", "to_id": "lakeside-mall", "profile": "default", "scenario_id": null}}
 {"type": "tool.result", "id": "plan_route-2", "name": "plan_route", "summary": "route likely_ok"}
-{"type": "answer.draft", "attempt": 1, "delta": "Elmina Urban Park to Elmina Lakeside Mall: route likely ok, 119.8 m."}
+{"type": "answer.draft", "attempt": 1, "delta": "Elmina Urban Park to Elmina Lakeside Mall: route likely OK (estimated from map data, not checked), 119.8 m."}
 {"type": "answer.check", "attempt": 1, "ok": true, "issues": [], "repairs": 0}
-{"type": "text.delta", "delta": "Route status: likely ok\nElmina Urban Par"}
-{"type": "text.delta", "delta": "k to Elmina Lakeside Mall: route likely "}
-{"type": "text.delta", "delta": "ok, 119.8 m.\nWorth knowing:\n• Some segme"}
-{"type": "text.delta", "delta": "nts are still unverified.\n• Route starts"}
-{"type": "text.delta", "delta": " at the nearest mapped path to Elmina Ur"}
-{"type": "text.delta", "delta": "ban Park; its entrance is not mapped.\n• "}
-{"type": "text.delta", "delta": "Segment facts are demo values, not yet s"}
-{"type": "text.delta", "delta": "urveyed."}
+{"type": "text.delta", "delta": "Route status: likely OK (estimated from "}
+{"type": "text.delta", "delta": "map data, not checked)\nElmina Urban Park"}
+{"type": "text.delta", "delta": " to Elmina Lakeside Mall: route likely O"}
+{"type": "text.delta", "delta": "K (estimated from map data, not checked)"}
+{"type": "text.delta", "delta": ", 119.8 m.\nWorth knowing:\n• Estimated fr"}
+{"type": "text.delta", "delta": "om map data (OpenStreetMap path types an"}
+{"type": "text.delta", "delta": "d tags), not checked on site.\n• Route st"}
+{"type": "text.delta", "delta": "arts at the nearest mapped path to Elmin"}
+{"type": "text.delta", "delta": "a Urban Park; its entrance is not mapped"}
+{"type": "text.delta", "delta": ".\n• Segment facts are demo values, not y"}
+{"type": "text.delta", "delta": "et surveyed."}
 {"type": "scene.intent", "intent": {"kind": "route.highlight", "place_id": null, "route_id": "rt-279d8891", "scenario_id": null, "center": null, "range_m": null, "lens": null, "visible": null, "geojson": {"type": "LineString", "coordinates": [[101.509854, 3.180547], [101.509999, 3.180661], [101.510071, 3.180734], [101.50979, 3.181102], [101.510045, 3.18131]]}, "route_status": "likely_ok", "distance_m": 119.8, "est_minutes": 1.7, "day": null, "t_min": null}}
 {"type": "citation", "ref": 1, "evidence_id": "ev-place-osm-way-1309457596", "element_id": "osm-way-1309457596", "attribute": "name", "status": "reported", "verified_at": null, "source_type": "world_model", "photo_url": null}
 {"type": "citation", "ref": 2, "evidence_id": "ev-place-lakeside-mall", "element_id": "lakeside-mall", "attribute": "name", "status": "unknown", "verified_at": null, "source_type": "team_survey_placeholder", "photo_url": null}
@@ -25,5 +28,5 @@
 {"type": "citation", "ref": 7, "evidence_id": "ev-rt-279d8891.walkways", "element_id": "rt-279d8891", "attribute": "route_walkways", "status": "reported", "verified_at": null, "source_type": "mapped walk graph (not a sidewalk survey)", "photo_url": null}
 {"type": "citation", "ref": 8, "evidence_id": "ev-rt-279d8891.access_estimate", "element_id": "rt-279d8891", "attribute": "route_access_estimate", "status": "reported", "verified_at": null, "source_type": "map-derived estimate (not checked on site)", "photo_url": null}
 {"type": "citation", "ref": 9, "evidence_id": "ev-osm-way-1309457596.access_point", "element_id": "osm-way-1309457596", "attribute": "access_point", "status": "reported", "verified_at": null, "source_type": "osm_area_boundary_snap", "photo_url": null}
-{"type": "uncertainty", "level": "partial", "items": [{"element_id": "route", "attribute": "entrance", "note": "Route starts at the nearest mapped path to Elmina Urban Park; its entrance is not mapped"}, {"element_id": "route", "attribute": "demo_values", "note": "Some segment facts are demo values, not yet surveyed"}, {"element_id": "answer", "attribute": "caveat", "note": "Route status: likely ok; some segments are still unverified"}]}
+{"type": "uncertainty", "level": "partial", "items": [{"element_id": "route", "attribute": "entrance", "note": "Route starts at the nearest mapped path to Elmina Urban Park; its entrance is not mapped"}, {"element_id": "route", "attribute": "demo_values", "note": "Some segment facts are demo values, not yet surveyed"}, {"element_id": "answer", "attribute": "caveat", "note": "Estimated from map data (OpenStreetMap path types and tags), not checked on site"}]}
 {"type": "done", "message_id": "demo", "answer_status": "partial", "model": "mock-scripted"}

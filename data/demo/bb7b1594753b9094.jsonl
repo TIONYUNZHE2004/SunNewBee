@@ -1,4 +1,4 @@
-{"meta": {"message": "At which river level does my route from the mall to an evacuation centre break?", "profile": "default", "scenario_id": null, "world": "elmina", "model": "mock-scripted", "recorded_at": "2026-10-18T15:30:40+00:00"}}
+{"meta": {"message": "At which river level does my route from the mall to an evacuation centre break?", "profile": "default", "scenario_id": null, "world": "elmina", "model": "mock-scripted", "recorded_at": "2026-10-19T01:01:59+00:00"}}
 {"type": "tool.call", "id": "find_place-0", "name": "find_place", "args": {"query": "lakeside mall", "types": null, "limit": 5}}
 {"type": "tool.result", "id": "find_place-0", "name": "find_place", "summary": "2 result(s)"}
 {"type": "tool.call", "id": "river_tipping_point-1", "name": "river_tipping_point", "args": {"from_id": "lakeside-mall", "profile": "default", "to_id": null}}
@@ -10,22 +10,28 @@
 {"type": "text.delta", "delta": "ple Bukit Subang keeps a mapped route at"}
 {"type": "text.delta", "delta": " every modelled river level; indicative "}
 {"type": "text.delta", "delta": "scenarios, not a forecast.\n1. Normal lev"}
-{"type": "text.delta", "delta": "el: likely_ok (nearest centre: Sri Maha "}
-{"type": "text.delta", "delta": "Mariamman Temple Bukit Subang)\n2. River "}
-{"type": "text.delta", "delta": "+1 m: likely_ok (nearest centre: SJK (C)"}
-{"type": "text.delta", "delta": " Ladang Regent, Elmina)\n3. River +2 m: l"}
-{"type": "text.delta", "delta": "ikely_ok (nearest centre: SJK (C) Ladang"}
-{"type": "text.delta", "delta": " Regent, Elmina)\n4. River +3 m: likely_o"}
-{"type": "text.delta", "delta": "k (nearest centre: SJK (C) Ladang Regent"}
-{"type": "text.delta", "delta": ", Elmina)\n5. River +4 m: likely_ok (near"}
-{"type": "text.delta", "delta": "est centre: SJK (C) Ladang Regent, Elmin"}
-{"type": "text.delta", "delta": "a)\n6. River +5 m: likely_ok (nearest cen"}
-{"type": "text.delta", "delta": "tre: SJK (C) Ladang Regent, Elmina)\nWort"}
-{"type": "text.delta", "delta": "h knowing:\n• Indicative simulation with "}
-{"type": "text.delta", "delta": "synthetic residents, not a forecast; fol"}
-{"type": "text.delta", "delta": "low official MBSA / JPS / NADMA guidance"}
-{"type": "text.delta", "delta": ".\n• The nearest reachable centre changes"}
-{"type": "text.delta", "delta": " as the river rises (see each level)."}
+{"type": "text.delta", "delta": "el: likely OK (estimated from map data, "}
+{"type": "text.delta", "delta": "not checked) (nearest centre: Sri Maha M"}
+{"type": "text.delta", "delta": "ariamman Temple Bukit Subang)\n2. River +"}
+{"type": "text.delta", "delta": "1 m: likely OK (estimated from map data,"}
+{"type": "text.delta", "delta": " not checked) (nearest centre: SJK (C) L"}
+{"type": "text.delta", "delta": "adang Regent, Elmina)\n3. River +2 m: lik"}
+{"type": "text.delta", "delta": "ely OK (estimated from map data, not che"}
+{"type": "text.delta", "delta": "cked) (nearest centre: SJK (C) Ladang Re"}
+{"type": "text.delta", "delta": "gent, Elmina)\n4. River +3 m: likely OK ("}
+{"type": "text.delta", "delta": "estimated from map data, not checked) (n"}
+{"type": "text.delta", "delta": "earest centre: SJK (C) Ladang Regent, El"}
+{"type": "text.delta", "delta": "mina)\n5. River +4 m: likely OK (estimate"}
+{"type": "text.delta", "delta": "d from map data, not checked) (nearest c"}
+{"type": "text.delta", "delta": "entre: SJK (C) Ladang Regent, Elmina)\n6."}
+{"type": "text.delta", "delta": " River +5 m: likely OK (estimated from m"}
+{"type": "text.delta", "delta": "ap data, not checked) (nearest centre: S"}
+{"type": "text.delta", "delta": "JK (C) Ladang Regent, Elmina)\nWorth know"}
+{"type": "text.delta", "delta": "ing:\n• Indicative simulation with synthe"}
+{"type": "text.delta", "delta": "tic residents, not a forecast; follow of"}
+{"type": "text.delta", "delta": "ficial MBSA / JPS / NADMA guidance.\n• Th"}
+{"type": "text.delta", "delta": "e nearest reachable centre changes as th"}
+{"type": "text.delta", "delta": "e river rises (see each level)."}
 {"type": "citation", "ref": 1, "evidence_id": "ev-tip-40094293b6", "element_id": "lakeside-mall", "attribute": "tipping_point", "status": "indicative", "verified_at": null, "source_type": "REM scenario (indicative)", "photo_url": null}
 {"type": "uncertainty", "level": "partial", "items": [{"element_id": "answer", "attribute": "caveat", "note": "Indicative simulation with synthetic residents, not a forecast; follow official MBSA / JPS / NADMA guidance"}, {"element_id": "answer", "attribute": "caveat", "note": "The nearest reachable centre changes as the river rises (see each level)"}]}
 {"type": "disclaimer", "lens": "flood", "text": "Indicative scenario from a 30 m elevation model (Copernicus GLO-30, height above mapped rivers and lakes), not a forecast. Follow official MBSA / JPS / NADMA guidance. Only the area 101.46–101.56 E, 3.15–3.24 N is assessed; paths outside it are not.", "links": [{"label": "Public InfoBanjir (JPS)", "url": "https://publicinfobanjir.water.gov.my"}, {"label": "MET Malaysia warnings", "url": "https://www.met.gov.my"}]}
