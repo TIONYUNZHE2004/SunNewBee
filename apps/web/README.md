@@ -266,6 +266,15 @@ the settings popover.
   intent standing in `sceneStore` (route, then what-if, then focused place, then the last
   `camera.fly_to`; Realistic also frames a rehearsed trip), else to its start view (Three.js: the
   `hero-mid` bookmark; Cesium: the site home). Ruling P5-14: no camera-pose hand-off.
+- **Camera bound to the slab (Three.js, A-T5):** with an outline, `three/cameraFit.ts` `fitFor`
+  derives a camera fit from the boundary at runtime (slab corners, a view axis, a max-range target).
+  `clampPose` keeps the target inside the outline (nearest outline point when outside) and, from
+  `FIT.startRangeM` (2.5 km) to `LIMITS.maxRangeM` (7,900 m, unchanged), narrows pitch to
+  [-60, -45], heading to ±15° of the axis, pulls the target to the fit target and widens the field
+  of view (`vfovFor`, capped at 50°) so the whole slab sits clear of the map chrome at max range.
+  Below 2.5 km nothing changes. The engine re-applies the clamp after every MapControls update
+  (`rig.constrain()`). "Whole township", `?bookmark=township` and the acceptance `overview` use
+  `overviewPose(fit)`; the static `township` bookmark is only the fallback for worlds without an outline.
 - **Building clearance (Three.js, A-T7):** `three/clearance.ts` keeps the camera at least 2 m above
   any roof it is over (or within 1 m of), and lifts it, eased, when the camera-to-target line
   crosses a building; the lift eases back down when no longer needed. The lift is display state: the

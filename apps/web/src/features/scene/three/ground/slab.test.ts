@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import * as THREE from "three";
 import { describe, expect, it } from "vitest";
+import { fitFor, overviewPose } from "../cameraFit";
 import { poseToCamera } from "../cameraRig";
 import { createFrame } from "../frame";
 import { LIGHT_PRESETS } from "../lighting";
@@ -145,14 +146,10 @@ describe("slab materials and meshes", () => {
 
 describe("slab edge vs the A-T11 fog at the overview bookmark", () => {
   it("the farthest soil (outer foot of the section) is hazed <= 70% in every mood", () => {
-    // The `overview` acceptance bookmark: centre [101.5099, 3.1813], range 7000, pitch -55, heading 0.
-    const rangeM = 7000;
-    const cam = poseToCamera({
-      target: frame.toLocal(101.5099, 3.1813),
-      rangeM,
-      pitchDeg: -55,
-      headingDeg: 0,
-    }).position;
+    // The overview (A-T5): the whole slab at max range, derived from the outline.
+    const pose = overviewPose(fitFor(B));
+    const rangeM = pose.rangeM;
+    const cam = poseToCamera(pose).position;
     const g = slabGeometry(B);
     let farthest = 0;
     for (const ring of g.foot)
