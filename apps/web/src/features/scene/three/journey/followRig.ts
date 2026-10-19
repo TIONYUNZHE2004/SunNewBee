@@ -144,8 +144,13 @@ export interface FollowScene {
   destination?: [number, number] | null;
   /** The building grid (A-T7), or null before the city arrives (no lift, no floor). */
   clearance?: Clearance | null;
-  /** The overview the dive starts from and the pull-back ends at. */
+  /** The overview the dive starts from (and the pull-back ends at, without `pullBackTo`). */
   overview: CamPose;
+  /**
+   * Where the pull-back ends: the route's own overview (gate §9.1 F4: ending on the whole
+   * township left her under a pixel and the route a hairline). Default: `overview`.
+   */
+  pullBackTo?: CamPose;
   /** Her drawn ground position [x, z] at t (`heroStateAt`, pure); default: her route point. */
   heroAt?(t: number): [number, number];
   /**
@@ -562,7 +567,7 @@ export type JourneyCamMode = "follow" | "overview" | "free";
 /**
  * The journey camera at screen time t for a mode (pure): `overview` is the overview pose, `follow`
  * the dive (overview -> follow), the follow pose with per-event framing, then the pull-back
- * (follow -> overview); `free` is null (the orbit rig has the camera).
+ * (follow -> `pullBackTo`, else the overview); `free` is null (the orbit rig has the camera).
  */
 export function journeyCameraAt(sc: FollowScene, t: number, mode: JourneyCamMode): CamPose | null {
   if (mode === "free") return null;
@@ -577,7 +582,7 @@ export function journeyCameraAt(sc: FollowScene, t: number, mode: JourneyCamMode
   }
   const p = blendPose(
     kind === "dive" ? sc.overview : followPoseAt(sc, tc),
-    kind === "dive" ? followPoseAt(sc, tc) : sc.overview,
+    kind === "dive" ? followPoseAt(sc, tc) : (sc.pullBackTo ?? sc.overview),
     ease(st.u),
   );
   applyFloor(sc.clearance, p.pos);

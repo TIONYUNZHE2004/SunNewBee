@@ -13,7 +13,7 @@ import {
 } from "../scene/three/journey/followRig";
 import { heroPositionAt } from "../scene/three/journey/heroDriver";
 import type { ViewFit } from "../scene/three/journey/safeFrame";
-import { createFollowController, overviewFor } from "./followCamera";
+import { createFollowController, overviewFor, routeOverview } from "./followCamera";
 import { JourneyOverlay } from "./JourneyOverlay";
 import {
   journeyCamera,
@@ -198,6 +198,8 @@ export function JourneyMount({
     const destLl = arrive?.element_id ? places?.get(arrive.element_id) : undefined;
     const destination = destLl ? frame.toLocal(destLl[0], destLl[1]) : null;
     let ov: { fit: unknown; pose: FollowScene["overview"] } | null = null;
+    // The pull-back ends on the route's own overview, not the township's (gate §9.1 F4).
+    const endPose = routeOverview(layer.path.pointAt, layer.path.planLength);
     const overview = () => {
       const fit = engine.cameraFit?.() ?? null;
       if (!ov || ov.fit !== fit)
@@ -233,6 +235,7 @@ export function JourneyMount({
         destination,
         clearance: engine.clearance?.() ?? null,
         overview: overview(),
+        pullBackTo: endPose,
         heroAt: h ? (t) => heroPositionAt(tl, t, h.helpers) : undefined,
         heroBox: (t) => {
           // her drawn box, only when she is posed at t (the store's t: the driver poses her on

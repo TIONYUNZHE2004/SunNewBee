@@ -175,6 +175,20 @@ describe("damping, dive and pull-back", () => {
     expect(journeyCameraAt(sc, 30, "free")).toBeNull();
   });
 
+  it("with pullBackTo the pull-back ends there (the route overview), the dive still starts at the overview", () => {
+    const route: CamPose = { pos: [10, 400, 300], look: [10, 0, 0] };
+    const sc = { ...scene(), pullBackTo: route };
+    expect(dist((journeyCameraAt(sc, 0, "follow") as CamPose).pos, OVERVIEW.pos)).toBeLessThan(
+      1e-6,
+    );
+    const end = journeyCameraAt(sc, tl.total, "follow") as CamPose;
+    expect(dist(end.pos, route.pos) + dist(end.look, route.look)).toBeLessThan(1e-6);
+    // a pure function of trip time (AC-D17): same t, same pose
+    expect(journeyCameraAt(sc, tl.total - 0.5, "follow")).toEqual(
+      journeyCameraAt(sc, tl.total - 0.5, "follow"),
+    );
+  });
+
   it("blendPose hits both ends and interpolates the distance in log space", () => {
     const a: CamPose = { pos: [0, 1000, 0], look: [0, 0, 0] };
     const b: CamPose = { pos: [0, 10, 0], look: [50, 0, 0] };

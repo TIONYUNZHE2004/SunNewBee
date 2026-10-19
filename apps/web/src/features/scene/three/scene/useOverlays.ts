@@ -52,12 +52,18 @@ export function useOverlays({
   const selectedPlaceId = useScene((s) => s.selectedPlaceId);
   const vrs = useJourney((s) => s.vrs);
   const journeyLine = useJourney((s) => s.plan?.polyline ?? null);
+  const journeyEvents = useJourney((s) => s.plan?.events ?? null);
   // Never hide what the user is being shown (A-T5 fix round 2): the selected place, places a
   // verification request targets (the focused place is added by the layer), and the ends of the
   // current route and journey.
+  // While a trip is loaded only these are drawn (gate §9.1 F5), so its event places are kept too.
   const keepPlaceIds = useMemo(
-    () => [...(selectedPlaceId ? [selectedPlaceId] : []), ...vrs.map((v) => v.element_id)],
-    [selectedPlaceId, vrs],
+    () => [
+      ...(selectedPlaceId ? [selectedPlaceId] : []),
+      ...vrs.map((v) => v.element_id),
+      ...(journeyEvents ?? []).flatMap((e) => (e.element_id ? [e.element_id] : [])),
+    ],
+    [selectedPlaceId, vrs, journeyEvents],
   );
   const keepNear = useMemo(() => {
     const ends: number[][] = [];
@@ -115,6 +121,7 @@ export function useOverlays({
       boundary,
       keepPlaceIds,
       keepNear,
+      tripOnly: journeyOn,
     });
     setMarkerCount(accessVisible ? overlay.drawnPlaces() : 0);
     engine.requestRender();
