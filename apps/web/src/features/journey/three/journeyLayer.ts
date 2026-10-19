@@ -76,10 +76,22 @@ export interface JourneyLayer {
   dispose(): void;
 }
 
-/** A pin texture (prototype `markerTexture`) where a 2D canvas exists; null in tests (colour only). */
+/** Pin drawings per kind, drawn once per page (canvas text was ~16 ms when an answer landed). */
+const pinCanvases = new Map<JourneyEventKind, HTMLCanvasElement>();
+
+/**
+ * A pin texture (prototype `markerTexture`) where a 2D canvas exists; null in tests (colour only).
+ * The drawing is cached per kind; the caller shares one texture per kind within a layer.
+ */
 function pinTexture(kind: JourneyEventKind): THREE.Texture | null {
   if (typeof document === "undefined" || /jsdom/i.test(globalThis.navigator?.userAgent ?? ""))
     return null;
+  const cached = pinCanvases.get(kind);
+  if (cached) {
+    const t = new THREE.CanvasTexture(cached);
+    t.colorSpace = THREE.SRGBColorSpace;
+    return t;
+  }
   const c = document.createElement("canvas");
   c.width = 128;
   c.height = 128;
@@ -104,9 +116,15 @@ function pinTexture(kind: JourneyEventKind): THREE.Texture | null {
   x.textAlign = "center";
   x.textBaseline = "middle";
   x.fillText(KIND_GLYPH[kind], 64, 53);
+  pinCanvases.set(kind, c);
   const t = new THREE.CanvasTexture(c);
   t.colorSpace = THREE.SRGBColorSpace;
   return t;
+}
+
+/** Draws every kind's pin ahead of need (an idle moment before any answer); textures are not made. */
+export function warmPinDrawings(): void {
+  for (const k of Object.keys(KIND_COLOUR) as JourneyEventKind[]) pinTexture(k)?.dispose();
 }
 
 export function createJourneyLayer(plan: JourneyPlan, frame: LocalFrame): JourneyLayer {
@@ -156,13 +174,19 @@ export function createJourneyLayer(plan: JourneyPlan, frame: LocalFrame): Journe
   markers.name = "journey-markers";
   const anchors: [number, number, number][] = [];
   const textures: THREE.Texture[] = [];
+  // one texture per kind in this layer (uploaded once), shared by its markers
+  const byKind = new Map<JourneyEventKind, THREE.Texture | null>();
   plan.events.forEach((e, i) => {
     const [x, z] = path.pointAt(e.at_m);
     const stacked = plan.events.filter((f, j) => j < i && Math.abs(f.at_m - e.at_m) < 3).length;
     const y = MARKER_LIFT_M + stacked * MARKER_STACK_M;
     anchors.push([x, y, z]);
-    const map = pinTexture(e.kind);
-    if (map) textures.push(map);
+    let map = byKind.get(e.kind);
+    if (map === undefined) {
+      map = pinTexture(e.kind);
+      byKind.set(e.kind, map);
+      if (map) textures.push(map);
+    }
     const sprite = new THREE.Sprite(
       new THREE.SpriteMaterial({
         map,

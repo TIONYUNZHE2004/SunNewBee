@@ -47,6 +47,7 @@ import { applyFog } from "./mood";
 import { createMotionClock, type MotionMode, motionModeFor } from "./motion/motionClock";
 import type { MotionLayer } from "./motion/motionLayer";
 import type { OverlayLayer } from "./overlays/accessLayers";
+import { lineProgramStandIns } from "./overlays/lines";
 import { markerProgramStandIn } from "./overlays/markers";
 import { THREE_TIERS } from "./quality";
 import { applyClayTier, CLAY_PALETTE, clayMaterial, setClayTier } from "./shared/clayTokens";
@@ -289,6 +290,8 @@ const LOD_INTERVAL_MS = 250;
  * was replaced and linked again on the next answer (gate AC-D18). Programs are small.
  */
 const MAX_PINNED_PROGRAMS = 256;
+/** Stand-in material copies are disposed this long after their compile (their programs pinned). */
+const STAND_IN_DISPOSE_MS = 2000;
 /**
  * Motion time (ms) at trip time 0 while a journey drives the decorative clock (`setDecorClock`):
  * a fixed epoch, so the seeded crowd and traffic stand where they would after a minute of motion.
@@ -482,6 +485,7 @@ export function createEngine(canvas: HTMLCanvasElement, tier: Tier): Engine {
     antialias: true,
     powerPreference: "high-performance",
   });
+
   /** Releases in reverse creation order; filled as things are created. */
   const undo: (() => void)[] = [];
   const release = () => {
@@ -753,22 +757,42 @@ function build(
     console.warn("Three.js: compileAsync failed; layers compile on first render.", err);
   };
   /**
+   * The sun's shadow map draws each caster with three's shared basic-packed depth material, its
+   * side from the caster's `shadowSide` (else the flipped side), in an empty scene (no fog). One
+   * stand-in material per side, compiled the same way, so the programs it needs (the hero's skinned
+   * variant was linked on her first shadow draw, gate AC-D18) are built in parallel.
+   */
+  const shadowDepthBySide = new Map<THREE.Side, THREE.MeshDepthMaterial>();
+  const shadowDepthFor = (mat: THREE.Material | THREE.Material[]): THREE.MeshDepthMaterial => {
+    const m = Array.isArray(mat) ? mat[0] : mat;
+    const flip: Record<number, THREE.Side> = {
+      [THREE.FrontSide]: THREE.BackSide,
+      [THREE.BackSide]: THREE.FrontSide,
+      [THREE.DoubleSide]: THREE.DoubleSide,
+    };
+    const side = m?.shadowSide ?? flip[m?.side ?? THREE.FrontSide] ?? THREE.BackSide;
+    let d = shadowDepthBySide.get(side);
+    if (!d) {
+      d = new THREE.MeshDepthMaterial({ depthPacking: THREE.BasicDepthPacking, side });
+      shadowDepthBySide.set(side, d);
+    }
+    return d;
+  };
+  /**
    * The post passes draw the scene again with an override material (GTAO normals, depth of field
    * depth): one program per object variant (skinned, instanced, morphed). One stand-in mesh per
-   * variant found under `root`, wearing each override, so `compileAsync` builds those programs too
-   * (the hero's skinned variants were compiled mid-trip, gate AC-D18).
+   * variant found under `root`, wearing each override (`shadow`: the shadow-map depth material of
+   * each caster instead), so `compileAsync` builds those programs too.
    */
-  const shadowDepthStandIn = new THREE.MeshDepthMaterial({ depthPacking: THREE.BasicDepthPacking });
-  const overrideStandIns = (root: THREE.Object3D): THREE.Group | null => {
+  const overrideStandIns = (root: THREE.Object3D, shadow = false): THREE.Group | null => {
     const overrides: THREE.Material[] = [];
-    if (aoPass) overrides.push(aoPass.normalMaterial);
-    const depth = (bokehPass as unknown as { _materialDepth?: THREE.Material } | null)
-      ?._materialDepth;
-    if (depth) overrides.push(depth);
-    // the sun's shadow map draws casters with a basic-packed depth material (the hero's skinned
-    // variant was linked on her first shadow draw, gate AC-D18)
-    const shadow = sun.castShadow && renderer.shadowMap.enabled ? shadowDepthStandIn : null;
-    if (overrides.length === 0 && !shadow) return null;
+    if (!shadow) {
+      if (aoPass) overrides.push(aoPass.normalMaterial);
+      const depth = (bokehPass as unknown as { _materialDepth?: THREE.Material } | null)
+        ?._materialDepth;
+      if (depth) overrides.push(depth);
+      if (overrides.length === 0) return null;
+    } else if (!(sun.castShadow && renderer.shadowMap.enabled)) return null;
     const group = new THREE.Group();
     const seen = new Set<string>();
     root.traverse((o) => {
@@ -778,16 +802,19 @@ function build(
         isBatchedMesh?: boolean;
         instanceColor?: unknown;
       };
-      if (!m.isMesh || m.isBatchedMesh) return;
+      if (!m.isMesh || m.isBatchedMesh || (shadow && !m.castShadow)) return;
+      const wear = shadow ? [shadowDepthFor(m.material)] : overrides;
       const morph = Object.keys(m.geometry?.morphAttributes ?? {}).length;
-      const key = `${!!m.isSkinnedMesh}|${!!m.isInstancedMesh}|${!!m.instanceColor}|${morph}`;
+      const key = `${!!m.isSkinnedMesh}|${!!m.isInstancedMesh}|${!!m.instanceColor}|${morph}|${wear[0]?.side}`;
       if (seen.has(key)) return;
       seen.add(key);
-      const wear = shadow && m.castShadow ? [...overrides, shadow] : overrides;
       for (const ov of wear) {
         // a shallow stand-in: same geometry (and skeleton / instance buffers), the override material
+        // Its own copy of the override: compileAsync waits on each material's current program,
+        // and a shared override's is only the last variant prepared (the skinned shadow variant
+        // was then still linking when first drawn: a 190 ms wait). Same cache key, same program.
         const c = m.clone(false) as THREE.Mesh;
-        c.material = ov;
+        c.material = ov.clone();
         c.visible = true;
         group.add(c);
       }
@@ -810,16 +837,47 @@ function build(
     const prev = renderer.getRenderTarget();
     renderer.setRenderTarget(target);
     const jobs: Promise<unknown>[] = [];
+    const standIns: THREE.Object3D[] = [];
     try {
       jobs.push(renderer.compileAsync(root, camera, into));
       const stand = overrides ? overrideStandIns(root) : null;
-      if (stand) jobs.push(renderer.compileAsync(stand, camera, into));
+      if (stand) {
+        standIns.push(stand);
+        jobs.push(renderer.compileAsync(stand, camera, into));
+      }
+      const casters = overrides ? overrideStandIns(root, true) : null;
+      if (casters) {
+        standIns.push(casters);
+        // as the shadow pass draws them: into the shadow map, in an empty scene (no fog)
+        const fog = scene.fog;
+        scene.fog = null;
+        try {
+          if (sun.shadow.map) renderer.setRenderTarget(sun.shadow.map as THREE.WebGLRenderTarget);
+          jobs.push(renderer.compileAsync(casters, sun.shadow.camera, scene));
+        } finally {
+          scene.fog = fog;
+        }
+      }
     } catch (err) {
       warnCompileOnce(err);
     } finally {
       renderer.setRenderTarget(prev);
     }
-    return Promise.all(jobs);
+    const all = Promise.all(jobs);
+    // the stand-ins' material copies go once their programs are pinned (a few frames later)
+    const copies: THREE.Material[] = [];
+    for (const g of standIns)
+      g.traverse((o) => {
+        const mat = (o as THREE.Mesh).material as THREE.Material | undefined;
+        if (mat && !copies.includes(mat)) copies.push(mat);
+      });
+    if (copies.length)
+      void all.then(() =>
+        setTimeout(() => {
+          for (const mat of copies) mat.dispose();
+        }, STAND_IN_DISPOSE_MS),
+      );
+    return all;
   };
   /** Material patches run on every layer before its first compile (`addMaterialPatch`). */
   const materialPatches = new Set<(root: THREE.Object3D) => number>();
@@ -1347,7 +1405,7 @@ function build(
       frustum.setFromProjectionMatrix(
         viewProj.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse),
       );
-      motionLayer.tick(tripMs ?? clock.at, camera.position, frustum);
+      motionLayer.tick(tripMs ?? clock.at, camera.position, frustum, tripMs !== null);
     }
     if (tripMs !== null) motion.uTime.value = tripMs / 1000;
     placeLight();
@@ -1426,6 +1484,25 @@ function build(
   // The place / waste / centre markers' program (the overlay layers rebuild their markers when an
   // answer lands): compiled now, in the background, and pinned once it renders.
   void compileRoot(markerProgramStandIn(), composer.readBuffer, false, overlayScene);
+  // The overlay lines and the journey ribbon variants (the route line of an answer was linked on
+  // its first draw), for both scenes they can draw in.
+  // Every fog / shadow combination they are drawn with (a no-shadow, fogged variant was still
+  // linked on first draw): the scene state is switched only around the synchronous compile.
+  for (const fogOn of [true, false])
+    for (const shadowOn of [true, false]) {
+      const fog = scene.fog;
+      const cast = sun.castShadow;
+      // the mood sets linear fog later; only its presence and kind pick the variant
+      scene.fog = fogOn ? (fog ?? new THREE.Fog(new THREE.Color(), 1, 2)) : null;
+      sun.castShadow = cast && shadowOn;
+      try {
+        void compileRoot(lineProgramStandIns(), composer.readBuffer, false);
+      } finally {
+        scene.fog = fog;
+        sun.castShadow = cast;
+      }
+    }
+  void compileRoot(lineProgramStandIns(), composer.readBuffer, false, overlayScene);
 
   return {
     get groundGeneration() {

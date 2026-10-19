@@ -22,9 +22,10 @@ import {
   peopleScale,
   poseAt,
   smoothYaw,
+  yawAt,
 } from "./agents";
 import type { BakedClip, CrowdKit } from "./crowdBake";
-import { advanceGait, framePair, type GaitState, gaitStartPhase } from "./crowdGait";
+import { advanceGait, framePair, type GaitState, gaitAt, gaitStartPhase } from "./crowdGait";
 import { type CrowdRenderer, createCrowdRenderer, crowdLodBands } from "./crowdRenderer";
 import {
   assignLooks,
@@ -54,8 +55,12 @@ export type YawMemory = Map<string, YawEntry>;
 
 export interface MotionLayer {
   group: THREE.Group;
-  /** `frustum`: when given, only agents inside it (plus a 50 m margin) get matrices this tick. */
-  tick(nowMs: number, camera: THREE.Vector3, frustum?: THREE.Frustum): void;
+  /**
+   * `frustum`: when given, only agents inside it (plus a 50 m margin) get matrices this tick.
+   * `pure`: `nowMs` is a journey's trip clock, which can seek back and forth: facing and gait are
+   * then pure functions of it (no smoothing memory), so a seek and a play to t agree (AC-D17).
+   */
+  tick(nowMs: number, camera: THREE.Vector3, frustum?: THREE.Frustum, pure?: boolean): void;
   setOpacity(o: number): void;
   dispose(): void;
 }
@@ -323,6 +328,9 @@ export function createMotionLayer(
   );
   const active: Record<Agent["kind"], number> = { ...total };
   const pose: Pose2 = { x: 0, z: 0, yaw: 0 };
+  /** The poses of the pure facing (`yawAt`): now and the look-back. */
+  const cur: Pose2 = { x: 0, z: 0, yaw: 0 };
+  const back: Pose2 = { x: 0, z: 0, yaw: 0 };
   const kept: KeepOutResult = { x: 0, z: 0, hidden: false };
   const heroOf = opts.hero ?? (() => null);
   /**
@@ -374,9 +382,24 @@ export function createMotionLayer(
       active.person = Math.round(total.person * share);
       active.vehicle = Math.round(total.vehicle * share);
     },
-    tick(nowMs, camera, frustum) {
+    tick(nowMs, camera, frustum, pure = false) {
       const t = nowMs / 1000;
       const hero = heroOf();
+      // Pure (trip clock): facing from the look-back chord at t; the smoothing memory follows it,
+      // so the hand-back to the motion clock starts from the drawn facing.
+      const facing = (a: Agent) => {
+        if (!pure) return smoothed(a.id, nowMs);
+        // its own poses (the keep-out may have moved `pose` aside)
+        const yaw = yawAt(a, t, cur, back);
+        let mem = yawMemory.get(a.id);
+        if (!mem) {
+          mem = { yaw, at: nowMs };
+          yawMemory.set(a.id, mem);
+        }
+        mem.yaw = yaw;
+        mem.at = nowMs;
+        return { yaw, dt: 0, mem };
+      };
       for (const b of allBuckets) b.n = 0;
       for (const s of slots) {
         if (s.rank >= active[s.agent.kind]) continue;
@@ -391,7 +414,7 @@ export function createMotionLayer(
         _p.set(pose.x, AGENT_LIFT_M, pose.z);
         // Smooth the tangent yaw before the frustum test, so an agent panning into view has
         // already turned. A long gap (hidden, out of range) settles at once (k -> 1).
-        const { yaw } = smoothed(s.agent.id, nowMs);
+        const { yaw } = facing(s.agent);
         if (frustum && !frustum.intersectsSphere(_sphere.set(_p, FRUSTUM_MARGIN_M))) continue;
         const k = scaleFor(s.agent.kind, d);
         _q.setFromAxisAngle(_y, yaw);
@@ -422,10 +445,11 @@ export function createMotionLayer(
           continue;
         }
         _p.set(pose.x, AGENT_LIFT_M, pose.z);
-        const { yaw, dt, mem } = smoothed(s.agent.id, nowMs);
+        const { yaw, dt, mem } = facing(s.agent);
         const k = peopleScale(d);
         const dist = easedDistance(s.agent, t);
-        if (!mem.gait)
+        if (pure) mem.gait = gaitAt(s.agent.id, dist, s.agent.speed, t, k, s.walk, s.idle);
+        else if (!mem.gait)
           mem.gait = { phase: gaitStartPhase(s.agent.id, dist, s.walk, k), dist, idle: false };
         else advanceGait(mem.gait, dist, dt, k, s.walk, s.idle);
         if (frustum && !frustum.intersectsSphere(_sphere.set(_p, FRUSTUM_MARGIN_M))) {

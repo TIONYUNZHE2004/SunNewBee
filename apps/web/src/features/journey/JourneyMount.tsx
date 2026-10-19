@@ -26,7 +26,7 @@ import { probeCamera } from "./three/cameraProbe";
 import { applyCutaway, cutFor, NO_CUT, setCut } from "./three/cutaway";
 import { createHeroLayer, type FactBench, type HeroLayer } from "./three/heroLayer";
 import { heroBodyBox, heroScreenRect } from "./three/heroScreen";
-import { createJourneyLayer, type JourneyLayer } from "./three/journeyLayer";
+import { createJourneyLayer, type JourneyLayer, warmPinDrawings } from "./three/journeyLayer";
 import { projectToScreen } from "./three/project";
 import { createViewFit, safeRectOf } from "./three/viewFit";
 import { useJourneyDriver } from "./useJourneyDriver";
@@ -158,6 +158,19 @@ export function JourneyMount({
     };
   }, [engine, frame, plan, layer, places, footprints, grid, factBenches]);
 
+  // The pin drawings (canvas text) are made at an idle moment, not when the answer lands.
+  useEffect(() => {
+    if (!engine) return;
+    const ric = (globalThis as { requestIdleCallback?: (cb: () => void) => number })
+      .requestIdleCallback;
+    const id = ric ? ric(warmPinDrawings) : setTimeout(warmPinDrawings, 2000);
+    return () => {
+      const cic = (globalThis as { cancelIdleCallback?: (id: number) => void }).cancelIdleCallback;
+      if (ric && cic) cic(id as number);
+      else clearTimeout(id as ReturnType<typeof setTimeout>);
+    };
+  }, [engine]);
+
   // Building materials carry the (inactive) cutaway from their first compile (engine patch hook,
   // page load onwards): patching them when a trip loads, or as LOD buckets appear, recompiled
   // their programs on the main thread (gate AC-D18: 798 ms at answer landing).
@@ -168,11 +181,17 @@ export function JourneyMount({
 
   // Decorative shader motion (tree sway, shimmer) runs on the trip clock while a trip is loaded:
   // a paused beat renders the same at any wall time (AC-D17).
+  // The trip clock takes over once the trip has played (until then the motion clock runs on), so
+  // loading a plan never makes the crowd and traffic jump; the take-over happens with the dive,
+  // from the overview, where people and cars are specks.
   useEffect(() => {
     if (!engine?.setDecorClock || !plan) return;
+    let started = false;
     engine.setDecorClock(() => {
       const s = useJourney.getState();
-      return s.plan === plan && s.timeline ? s.t : null;
+      if (s.plan !== plan || !s.timeline) return null;
+      if (!started && (s.playing || s.t > 0)) started = true;
+      return started ? s.t : null;
     });
     return () => engine.setDecorClock?.(null);
   }, [engine, plan]);
