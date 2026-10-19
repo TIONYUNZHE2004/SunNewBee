@@ -1,4 +1,4 @@
-{"meta": {"message": "Can I push a stroller from Car Park B to the kiosk without stairs?", "profile": "stroller", "scenario_id": null, "world": "tiny", "model": "mock-scripted", "recorded_at": "2026-10-16T13:10:11+00:00"}}
+{"meta": {"message": "Can I push a stroller from Car Park B to the kiosk without stairs?", "profile": "stroller", "scenario_id": null, "world": "elmina", "world_fingerprint": "2b3b953af249c9465da6e0bfe389bf3ef4ebef66abbcc129c9d639ef3a70ca94", "model": "mock-scripted", "recorded_at": "2026-10-19T22:39:45+00:00"}}
 {"type": "tool.call", "id": "find_place-0", "name": "find_place", "args": {"query": "car park b", "types": null, "limit": 5}}
 {"type": "tool.result", "id": "find_place-0", "name": "find_place", "summary": "4 result(s)"}
 {"type": "tool.call", "id": "find_place-1", "name": "find_place", "args": {"query": "kiosk", "types": null, "limit": 5}}
