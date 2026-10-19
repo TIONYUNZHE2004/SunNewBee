@@ -23,7 +23,7 @@ The lists cover the whole comparison with control, including previously pushed P
 - `apps/api/src/townshiplens_api/routes/core.py`
 - `apps/api/tests/test_access_estimates.py`
 - `apps/api/tests/test_core.py`
-- `apps/api/tests/test_flood_entrances.py`
+- `apps/api/tests/test_api_flood_entrances.py`
 - `apps/api/tests/test_manage.py`
 - `apps/api/tests/test_selection.py`
 - `apps/api/tests/test_sidewalk_verification.py`
