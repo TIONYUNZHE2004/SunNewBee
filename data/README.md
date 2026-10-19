@@ -50,8 +50,16 @@ uv run --group data python data/scripts/build_flood.py --datum-offset -3.74 --os
 uv run --group data python data/scripts/build_waste.py
 ```
 
-Overpass responses are cached in `data/cache/` (gitignored); delete it to refetch. Node ids (`n-<lat*1e7>_<lon*1e7>`)
-are derived from coordinates because the cached `out geom` responses omit OSM node ids.
+Overpass responses are cached in `data/cache/` (gitignored). Routing queries now use
+`out body geom` to retain original OSM node members alongside geometry
+([Overpass output contract](https://wiki.openstreetmap.org/wiki/Overpass_API/Overpass_QL#out)).
+New imports use `n-<OSM node id>`; equal coordinates never establish a junction.
+Missing/synthetic IDs, incomplete geometry or conflicting coordinates for one source node
+stop the import before any seed file is written. Legacy `out geom tags` caches have different
+query keys and cannot supply topology: the first rebuild needs fresh, budgeted source queries.
+The committed seed still contains legacy coordinate-derived IDs; this importer guard alone
+does not prove or repair its topology. Rebuild import → overlay → flood → waste together,
+then audit changed components/routes and regenerate mock recordings before committing data.
 
 ## Import (2026-10-15)
 

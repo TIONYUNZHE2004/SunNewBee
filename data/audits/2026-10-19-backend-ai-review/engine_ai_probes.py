@@ -24,7 +24,7 @@ from townshiplens_spatial.models import Claim, Closure, EvacCentre
 from townshiplens_spatial.vr_store import VerificationStore
 from townshiplens_spatial.world import load_world
 
-from data.scripts.import_osm import split_ways
+from data.scripts.import_osm import TopologyError, split_ways
 
 TINY = ROOT / "packages/spatial/tests/fixtures/tiny"
 SEED = ROOT / "data/seed/elmina"
@@ -185,10 +185,15 @@ async def main():
             ],
         },
     ]
-    segs = split_ways(ways)
+    identity_error = None
+    try:
+        segs = split_ways(ways)
+    except TopologyError as exc:
+        segs = []
+        identity_error = str(exc)
     ends = [{s["from"], s["to"]} for s in segs]
-    junction = set.intersection(*ends)
-    with_ids = [{**way, "nodes": [10 * i + j for j in range(3)]} for i, way in enumerate(ways)]
+    junction = set.intersection(*ends) if ends else set()
+    with_ids = [{**way, "nodes": [10 * i + j + 1 for j in range(3)]} for i, way in enumerate(ways)]
     source_segments = split_ways(with_ids)
     source_junctions = set.intersection(*[{s["from"], s["to"]} for s in source_segments])
     report(
@@ -196,6 +201,7 @@ async def main():
         junctions=sorted(junction),
         source_junctions=sorted(source_junctions),
         segments=len(segs),
+        rejected_missing_identity=identity_error,
     )
     # Wrong profile in a model tool call is not bound to request.profile.
     ctx = context()

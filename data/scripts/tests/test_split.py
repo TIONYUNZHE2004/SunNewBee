@@ -1,4 +1,6 @@
-from data.scripts.import_osm import split_ways
+import pytest
+
+from data.scripts.import_osm import TopologyError, split_ways
 
 
 def test_sidewalk_subtag_survives_splitting_with_osm_sidewalk_claims_on_streets():
@@ -69,3 +71,88 @@ def test_split_retains_mode_restrictions_and_surface_inputs():
         ]
     )
     assert segments[0]["osm_tags"] == {k: v for k, v in tags.items() if k != "name"}
+
+
+def _crossing_ways():
+    return [
+        {
+            "id": 1,
+            "nodes": [10, 11, 12],
+            "geometry": [{"lon": 0, "lat": 0}, {"lon": 1, "lat": 1}, {"lon": 2, "lat": 2}],
+            "tags": {"highway": "footway", "bridge": "yes", "layer": "1"},
+        },
+        {
+            "id": 2,
+            "nodes": [20, 21, 22],
+            "geometry": [{"lon": 0, "lat": 2}, {"lon": 1, "lat": 1}, {"lon": 2, "lat": 0}],
+            "tags": {"highway": "residential", "layer": "0"},
+        },
+    ]
+
+
+def test_equal_coordinates_with_different_osm_ids_never_create_a_junction():
+    segments = split_ways(_crossing_ways())
+    assert len(segments) == 2  # no invented split/junction at the coincident midpoints
+    assert {segments[0]["from"], segments[0]["to"]}.isdisjoint(
+        {segments[1]["from"], segments[1]["to"]}
+    )
+
+
+@pytest.mark.parametrize("nodes", [None, [], [10, 11], [10, None, 12], ["0_0", "1_1", "2_2"]])
+def test_missing_or_synthetic_identity_is_rejected_instead_of_guessing(nodes):
+    ways = _crossing_ways()
+    ways[0]["nodes"] = nodes
+    with pytest.raises(TopologyError, match="original OSM node IDs"):
+        split_ways(ways)
+
+
+def test_incomplete_geometry_is_rejected_instead_of_silently_losing_a_road():
+    ways = _crossing_ways()
+    ways[0]["geometry"][1] = None
+    with pytest.raises(TopologyError, match="complete matching geometry"):
+        split_ways(ways)
+
+
+def test_conflicting_source_positions_cannot_create_a_teleporting_junction():
+    ways = _crossing_ways()
+    ways[1]["nodes"][1] = 11
+    ways[1]["geometry"][1] = {"lon": 1.001, "lat": 1}
+    with pytest.raises(TopologyError, match="conflicting coordinates"):
+        split_ways(ways)
+
+
+def test_fetch_queries_request_node_members_and_geometry(monkeypatch):
+    from data.scripts import import_osm
+
+    queries = []
+
+    def query(ql):
+        queries.append(ql)
+        return {"elements": []}
+
+    monkeypatch.setattr(import_osm.overpass, "query", query)
+    import_osm._fetch_ways()
+    import_osm._fetch_major_ways()
+    assert len(queries) == 15
+    assert all(q.endswith("out body geom;") for q in queries)
+
+
+def test_import_stops_before_writing_when_source_topology_is_unusable(monkeypatch, tmp_path):
+    from data.scripts import import_osm
+
+    bad = _crossing_ways()[0]
+    del bad["nodes"]
+    monkeypatch.setattr(import_osm, "OUT", tmp_path)
+    monkeypatch.setattr(import_osm, "_fetch_ways", lambda: [bad])
+    monkeypatch.setattr(import_osm, "_fetch_major_ways", lambda _: ([], []))
+    monkeypatch.setattr(import_osm, "_place_tile_results", lambda: [])
+    monkeypatch.setattr(import_osm, "_fetch_places", lambda _: [])
+    monkeypatch.setattr(import_osm, "fetch_area_geometry", lambda _: {})
+    monkeypatch.setattr(import_osm, "_fetch_hydrology", lambda: [])
+    original = tmp_path / "walk.geojson"
+    original.write_text("unchanged")
+    with pytest.raises(SystemExit) as error:
+        import_osm.main(["--max-requests", "0"])
+    assert error.value.code == 2
+    assert original.read_text() == "unchanged"
+    assert sorted(p.name for p in tmp_path.iterdir()) == ["walk.geojson"]
