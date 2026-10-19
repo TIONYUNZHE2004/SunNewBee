@@ -368,22 +368,62 @@ function followRef(sc: FollowScene, m: number): { at: [number, number]; az: numb
   return { at, az: Math.atan2(p.pos[2] - at[1], p.pos[0] - at[0]) };
 }
 
+/** Metres of lift a half turn of the follow side round her is worth (`sideAt`). */
+export const SIDE_TURN_M = 3;
 /** Route metres either side of a metre that the follow side choice looks at (`sideAt`). */
 export const SIDE_REACH_M: readonly number[] = [-20, -10, 0, 10, 20];
 
 /**
  * The follow framing's side at route metre m: -1 for the default, else an `ORBIT_ALTERNATIVES`
  * index. The mean lift each candidate needs over the stretch m + SIDE_REACH_M decides; each step
- * away from the default costs SWAP_GAIN_M, so the default wins near-ties. Per whole metre and
- * memoised with the track: a pure function of m.
+ * away from the default costs SWAP_GAIN_M, so the default wins near-ties; and a change of side
+ * from the metre before (or from the framing of a hold at the metre before: the camera leaves a
+ * hold from where it framed it) costs up to SIDE_TURN_M per half turn round her. Per whole metre,
+ * computed in route order and memoised with the track: a pure function of m.
  */
 export function sideAt(sc: FollowScene, m: number): number {
   const c = sc.clearance;
   if (!c) return -1;
   const memo = memoOf(sc);
-  const key = Math.round(m);
+  const key = Math.max(0, Math.round(m));
   const hit = memo.sides.get(key);
   if (hit !== undefined) return hit;
+  let k = key;
+  while (k > 0 && !memo.sides.has(k - 1)) k--;
+  for (; k <= key; k++) memo.sides.set(k, sideChoice(sc, c, memo, k));
+  return memo.sides.get(key) as number;
+}
+
+/** The azimuth round her route point at metre k of the follow pose with side choice `alt`. */
+function sideAz(sc: FollowScene, k: number, alt: number): number {
+  const a = sc.pointAt(k);
+  const f = tangentAt(sc.pointAt, k);
+  const [side, deg] = alt >= 0 ? (ORBIT_ALTERNATIVES[alt] as readonly [number, number]) : [1, 0];
+  const p = turnPose(followPose(a, f, side), a, (deg * Math.PI) / 180);
+  return Math.atan2(p.pos[2] - a[1], p.pos[0] - a[0]);
+}
+
+/** The azimuth the camera leaves metre k - 1 with: a hold's framing there, else its side. */
+function previousAz(sc: FollowScene, memo: TrackMemo, k: number): number | null {
+  if (k <= 0) return null;
+  const tl = sc.timeline;
+  let hold: (typeof tl.phases)[number] | undefined;
+  for (const p of tl.phases)
+    if (
+      p.kind === "event" &&
+      p.event &&
+      framingFor(p.event.kind) !== "follow" &&
+      Math.round(p.event.at_m) === k - 1
+    )
+      hold = p;
+  if (hold) {
+    const r = rawFrameAt(sc, (hold.t0 + hold.t1) / 2);
+    return Math.atan2(r.off[2], r.off[0]);
+  }
+  return sideAz(sc, k - 1, memo.sides.get(k - 1) ?? -1);
+}
+
+function sideChoice(sc: FollowScene, c: Clearance, memo: TrackMemo, key: number): number {
   const cost = new Array<number>(ORBIT_ALTERNATIVES.length + 1).fill(0);
   for (const dm of SIDE_REACH_M) {
     const mm = key + dm;
@@ -397,17 +437,19 @@ export function sideAt(sc: FollowScene, m: number): number {
     });
   }
   const n = SIDE_REACH_M.length;
+  const prev = previousAz(sc, memo, key);
+  const turn = (alt: number) =>
+    prev === null ? 0 : (SIDE_TURN_M * Math.abs(wrapPi(sideAz(sc, key, alt) - prev))) / Math.PI;
   let best = -1;
-  let bestCost = (cost[0] as number) / n;
-  if (bestCost > SWAP_GAIN_M)
+  let bestCost = (cost[0] as number) / n + turn(-1);
+  if ((cost[0] as number) / n > SWAP_GAIN_M || prev !== null)
     for (let i = 0; i < ORBIT_ALTERNATIVES.length; i++) {
-      const ci = (cost[i + 1] as number) / n + SWAP_GAIN_M * (i + 1);
+      const ci = (cost[i + 1] as number) / n + SWAP_GAIN_M * (i + 1) + turn(i);
       if (ci < bestCost) {
         bestCost = ci;
         best = i;
       }
     }
-  memo.sides.set(key, best);
   return best;
 }
 
@@ -719,6 +761,13 @@ export const TRACK = {
   liftReachS: 1.2,
   liftSigmaS: 0.3,
   liftMarginM: 1.5,
+  /** A side change larger than this (rad) picks its way round her (`turnAt`); metres per rad. */
+  sweepCheckRad: 2,
+  sweepPerRadM: 2,
+  /** Clear turns: hidden beyond this (m of lift over the cap), step (deg), low-pass width (s). */
+  clearTolM: 0.5,
+  clearStepDeg: 5,
+  clearSigmaS: 0.5,
   /** The width (m) of the smooth maximum that joins the camera height and the floor ramp. */
   floorSoftM: 1,
   /** The width (m) of the smooth maximum of the pitch limit's stand-back. */
@@ -748,6 +797,9 @@ export interface TrackMemo {
   /** The lift the kernel pass needs per grid time (`needAt`), and dilated (`dilatedNeedAt`). */
   needs: Map<number, number>;
   dilated: Map<number, number>;
+  /** The azimuth step into each grid sample (`turnAt`), and its clear turn (`clearTurnAt`). */
+  turns: Map<number, number>;
+  clearTurns: Map<number, number>;
   /** `warmTrack`'s cursors: the next grid sample and the next grid need to compute. */
   warm?: { sample: number; need: number };
 }
@@ -759,14 +811,18 @@ export interface TrackMemo {
 export function trackMemoFor(prev: TrackMemo | null, deps: readonly unknown[]): TrackMemo {
   if (prev && prev.deps.length === deps.length && prev.deps.every((d, i) => d === deps[i]))
     return prev;
-  return {
-    deps: [...deps],
-    samples: new Map(),
-    sides: new Map(),
-    needs: new Map(),
-    dilated: new Map(),
-  };
+  return newMemo(deps);
 }
+
+const newMemo = (deps: readonly unknown[]): TrackMemo => ({
+  deps: [...deps],
+  samples: new Map(),
+  sides: new Map(),
+  needs: new Map(),
+  dilated: new Map(),
+  turns: new Map(),
+  clearTurns: new Map(),
+});
 
 const ownMemo = new WeakMap<FollowScene, TrackMemo>();
 
@@ -774,7 +830,7 @@ const ownMemo = new WeakMap<FollowScene, TrackMemo>();
 function memoOf(sc: FollowScene): TrackMemo {
   let memo = sc.track ?? ownMemo.get(sc);
   if (!memo) {
-    memo = { deps: [], samples: new Map(), sides: new Map(), needs: new Map(), dilated: new Map() };
+    memo = newMemo([]);
     ownMemo.set(sc, memo);
   }
   return memo;
@@ -899,7 +955,7 @@ function basePoseAt(sc: FollowScene, memo: TrackMemo, tc: number): CamPose {
     if (Number.isNaN(prevTh)) {
       unwrapped = q.th;
       th0 = q.th;
-    } else unwrapped += wrapPi(q.th - prevTh);
+    } else unwrapped += turnAt(sc, memo, i);
     prevTh = q.th;
     const dt = i * h - tc;
     const w2 = gauss(dt, azSigma);
@@ -972,6 +1028,97 @@ function anchorAt(sc: FollowScene, tc: number): [number, number] {
   return [x / w, z / w];
 }
 
+/**
+ * The azimuth step from grid sample i - 1 to i (memoised). A small step is the short way round. A
+ * large one (a framing change of side) goes the way round her with the clearer view: the lift the
+ * camera would need at a quarter, half and three quarters of each sweep, plus a little per radian
+ * for the longer way (iteration 2: the short way round from the 836 m rest swept the camera
+ * behind a building for a second).
+ */
+function turnAt(sc: FollowScene, memo: TrackMemo, i: number): number {
+  const hit = memo.turns.get(i);
+  if (hit !== undefined) return hit;
+  const a = sampleAt(sc, memo, i - 1);
+  const b = sampleAt(sc, memo, i);
+  const d = wrapPi(b.th - a.th);
+  let out = d;
+  const c = sc.clearance;
+  if (c && Math.abs(d) > TRACK.sweepCheckRad) {
+    const other = d - Math.sign(d) * 2 * Math.PI;
+    const subject: Vec3 = [b.ax, HERO_CHEST_Y, b.az];
+    const cost = (dd: number) => {
+      let v = TRACK.sweepPerRadM * Math.abs(dd);
+      for (const k of [0.25, 0.5, 0.75]) {
+        const th = a.th + dd * k;
+        const r = a.r + (b.r - a.r) * k;
+        const y = a.y + (b.y - a.y) * k;
+        v += liftNeed(c, [b.ax + Math.cos(th) * r, y, b.az + Math.sin(th) * r], subject);
+      }
+      return v;
+    };
+    if (cost(other) < cost(d)) out = other;
+  }
+  memo.turns.set(i, out);
+  return out;
+}
+
+/**
+ * The turn round her (rad) that gives the kernel pass at grid time i a view of her within the
+ * pitch limit, memoised: 0 when it has one, else the smallest turn (5 deg steps, up to 90 deg
+ * either way) that does. The kernel's azimuth is an average, and between two clear sides (a hold's
+ * framing and the follow side) it can land behind a building (iteration 2: the walk from the
+ * 836 m rest to the 888 m rest).
+ */
+function clearTurnAt(sc: FollowScene, memo: TrackMemo, i: number): number {
+  const hit = memo.clearTurns.get(i);
+  if (hit !== undefined) return hit;
+  const c = sc.clearance;
+  let out = 0;
+  if (c) {
+    const t = i * TRACK.stepS;
+    const p = basePoseAt(sc, memo, t);
+    const subject = trackSubject(sc, t);
+    const hidden = (pos: Vec3) => {
+      const need = liftNeed(c, pos, subject);
+      return need - capLift(c, pos, subject, need) > TRACK.clearTolM;
+    };
+    if (hidden(p.pos)) {
+      const step = (TRACK.clearStepDeg * Math.PI) / 180;
+      const n = Math.round(90 / TRACK.clearStepDeg);
+      search: for (let k = 1; k <= n; k++)
+        for (const sgn of [1, -1]) {
+          const q = turnPose(p, [subject[0], subject[2]], sgn * k * step);
+          if (!hidden(q.pos)) {
+            out = sgn * k * step;
+            break search;
+          }
+        }
+    }
+  }
+  memo.clearTurns.set(i, out);
+  return out;
+}
+
+/** The kernel pass turned round her by the low-passed clear turns (`clearTurnAt`): smooth in t. */
+function clearPoseAt(sc: FollowScene, memo: TrackMemo, tc: number): CamPose {
+  const p = basePoseAt(sc, memo, tc);
+  if (!sc.clearance) return p;
+  const h = TRACK.stepS;
+  const sg = TRACK.clearSigmaS;
+  const i0 = Math.ceil((tc - 3 * sg) / h);
+  const i1 = Math.floor((tc + 3 * sg) / h);
+  let w = 0;
+  let v = 0;
+  for (let i = i0; i <= i1; i++) {
+    const g = gauss(i * h - tc, sg);
+    w += g;
+    v += g * clearTurnAt(sc, memo, i);
+  }
+  const turn = w > 0 ? v / w : 0;
+  if (Math.abs(turn) < 1e-9) return p;
+  return turnPose(p, anchorAt(sc, tc), turn);
+}
+
 /** Her chest at trip time t, clamped into the follow span. */
 function trackSubject(sc: FollowScene, t: number): Vec3 {
   const [a, b] = followSpan(sc.timeline);
@@ -991,7 +1138,7 @@ function needAt(sc: FollowScene, memo: TrackMemo, i: number): number {
   let need = 0;
   if (c) {
     const t = i * TRACK.stepS;
-    const p = basePoseAt(sc, memo, t);
+    const p = clearPoseAt(sc, memo, t);
     const subject = trackSubject(sc, t);
     // the view's lift is capped at the pitch limit; the floor ramp is not (the camera keeps clear
     // of roofs whatever the pitch, and the envelope then carries it over smoothly)
@@ -1078,7 +1225,7 @@ export function warmTrack(sc: FollowScene, budgetMs: number): boolean {
 export function followTrackAt(sc: FollowScene, t: number): CamPose {
   const memo = memoOf(sc);
   const tc = Number.isFinite(t) ? t : 0;
-  const { pos, look } = basePoseAt(sc, memo, tc);
+  const { pos, look } = clearPoseAt(sc, memo, tc);
   const subject = trackSubject(sc, tc);
   const up = liftEnvelope(sc, memo, tc);
   pos[1] += up;

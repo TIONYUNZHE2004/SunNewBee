@@ -371,15 +371,16 @@ describe.skipIf(!existsSync(SEED))("seed buildings: clearance interplay", () => 
     if (r.inFrame < 0.98 || seen < 0.95) throw new Error(JSON.stringify(r));
     expect(r.inFrame).toBeGreaterThanOrEqual(0.98);
     expect(seen).toBeGreaterThanOrEqual(0.95);
+    expect(r.clear).toBeGreaterThanOrEqual(0.95);
     expect(r.minDist).toBeGreaterThanOrEqual(MIN_HERO_DIST_M);
     expect(r.inside).toBe(0);
     // hidden samples are her inside a footprint the planned route crosses (Harmoni 1 at the start,
     // the Sales Gallery at ~831 m; coordinator ruling; the cutaway shows her there), except the
-    // smooth camera's sweep between the two rests at 836 m and 888 m (iteration 2 ruling: a
-    // 160 deg change of side in a 2.2 s walk, at most ~60 deg/s): at most 2 % of follow samples
+    // smooth camera's sweep in the 2.2 s walk between the rests at 836 m and 888 m (iteration 2
+    // ruling: a change of side at most ~60 deg/s; 2 samples at 10 Hz): at most 0.5 % of samples
     const byCamera = Math.round((1 - r.clear) * r.follow) - r.routeCrossed;
     expect(byCamera).toBeGreaterThanOrEqual(0);
-    expect(byCamera / r.follow).toBeLessThanOrEqual(0.02);
+    expect(byCamera / r.follow).toBeLessThanOrEqual(0.005);
   });
 
   it("clearance only raises the camera where it keeps its side of her (never dives in)", () => {
