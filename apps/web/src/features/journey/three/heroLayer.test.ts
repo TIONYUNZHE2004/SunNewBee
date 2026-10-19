@@ -271,8 +271,9 @@ describe("fact benches (B-T7 ruling: one bench per fact)", () => {
     const own = plain.seats.get(restIdx) as { x: number; z: number };
     expect(benchCount(plain.group)).toBe(rests);
     plain.dispose();
-    // a fact bench 2 m from where our own bench would stand, facing +x
-    const fact = { x: own.x + 2, z: own.z, yaw: Math.PI / 2 };
+    // a fact bench 2 m from the rest point (the match is within 3 m of the rest point), facing +x
+    const [rpx, rpz] = path.pointAt((plan.events[restIdx] as JourneyPlan["events"][number]).at_m);
+    const fact = { x: rpx + 2, z: rpz, yaw: Math.PI / 2 };
     const layer = createHeroLayer(plan, path, frame, { factBenches: [fact] });
     expect(benchCount(layer.group)).toBe(rests - 1);
     const seat = layer.seats.get(restIdx) as { x: number; z: number; yaw?: number };
@@ -318,6 +319,21 @@ describe("fact benches at rests (D-T5 extra scope: ~3 m of the rest point; drawn
     const seat = l.seats.get(restIdx) as { x: number; z: number; yaw?: number };
     expect(seat.yaw).toBe(fact.yaw);
     expect(Math.hypot(seat.x - fact.x, seat.z - fact.z)).toBeCloseTo(FACT_BENCH_STAND_M, 9);
+    l.dispose();
+  });
+
+  it("a fact bench near our own seat but over 3 m from the rest point is not the rest's bench", () => {
+    const own = createHeroLayer(plan, path, frame);
+    const seat0 = own.seats.get(restIdx) as { x: number; z: number };
+    own.dispose();
+    // 2 m beyond our seat, away from the route: within 3 m of the seat, > 3 m from the rest point
+    const ux = (seat0.x - px) / Math.hypot(seat0.x - px, seat0.z - pz);
+    const uz = (seat0.z - pz) / Math.hypot(seat0.x - px, seat0.z - pz);
+    const fact = { x: seat0.x + ux * 2, z: seat0.z + uz * 2, yaw: 0 };
+    expect(Math.hypot(fact.x - px, fact.z - pz)).toBeGreaterThan(3);
+    const l = createHeroLayer(plan, path, frame, { factBenches: [fact] });
+    expect(benchCount(l.group)).toBe(rests);
+    expect((l.seats.get(restIdx) as { yaw?: number }).yaw).toBeUndefined();
     l.dispose();
   });
 

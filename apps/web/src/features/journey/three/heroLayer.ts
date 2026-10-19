@@ -322,8 +322,10 @@ export function createHeroLayer(
           )
       : undefined;
     const own = seatFor(path.pointAt, e.at_m, place, benchClear);
-    // the fact bench within ~3 m of the rest point (or its place / our seat; same id first)
-    const fact = factBenchFor(opts.factBenches, e.element_id, [[rx, rz], place, [own.x, own.z]]);
+    // the fact bench of this rest (same id first, else the nearest) only when it lies within
+    // FACT_BENCH_RANGE_M of the rest point itself (ruling): never matched through our own seat
+    const cand = factBenchFor(opts.factBenches, e.element_id, [[rx, rz]]);
+    const fact = cand && Math.hypot(cand.x - rx, cand.z - rz) <= FACT_BENCH_RANGE_M ? cand : null;
     const factSeat: HeroSeat | null = fact
       ? {
           x: fact.x + Math.sin(fact.yaw) * FACT_BENCH_STAND_M,

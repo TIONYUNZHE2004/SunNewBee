@@ -6,8 +6,9 @@ import { buildingMeshes } from "../../scene/three/scene/useAcceptanceHook";
 /**
  * Building cutaway around the hero (D-T5 ruling). Display only: when she stands inside a drawn
  * building (the planned route crosses Harmoni 1 at the start and the Sales Gallery at ~831 m),
- * building fragments inside a capsule from the camera to her chest are not drawn, so the camera
- * sees her. Route data, footprints, heights and positions are untouched; geometry, picking and
+ * fragments of THAT building (inside its footprint box, up to its top) that also lie in a capsule
+ * from the camera to her chest are not drawn, so the camera sees her. Every other building is
+ * drawn as is. Route data, footprints, heights and positions are untouched; geometry, picking and
  * the clearance grid are unchanged (the camera still never enters a building).
  */
 
@@ -20,18 +21,48 @@ export interface Cut {
   a: Vec3;
   b: Vec3;
   r: number;
+  /** The building she stands in: its footprint box (padded), ground to top; only it is cut. */
+  min: Vec3;
+  max: Vec3;
 }
 
-export const NO_CUT: Cut = { on: false, a: [0, 0, 0], b: [0, 0, 0], r: 0 };
+/** Padding (m) of the cut building's box, so its wall faces (on the footprint edge) are inside. */
+export const CUT_BOX_PAD_M = 0.3;
 
-/** The cut for a frame: on only while she stands inside a drawn building (the grid). Pure. */
+export const NO_CUT: Cut = {
+  on: false,
+  a: [0, 0, 0],
+  b: [0, 0, 0],
+  r: 0,
+  min: [0, 0, 0],
+  max: [0, 0, 0],
+};
+
+/**
+ * The cut for a frame: on only while she stands inside a drawn building (the grid), limited to
+ * that building's box (the union of the footprints containing her: an OSM extrusion and the
+ * archetype box fitted to it). Pure.
+ */
 export function cutFor(
   hero: readonly [number, number] | null,
   camera: Vec3,
-  grid: Pick<Clearance, "topAt"> | null,
+  grid: Pick<Clearance, "footprintsAt"> | null,
 ): Cut {
-  if (!hero || !grid || !(grid.topAt(hero[0], hero[1]) > 0)) return NO_CUT;
-  return { on: true, a: [...camera], b: [hero[0], HERO_CHEST_Y, hero[1]], r: CUT_RADIUS_M };
+  const fps = hero && grid ? grid.footprintsAt(hero[0], hero[1]) : [];
+  if (!hero || fps.length === 0) return NO_CUT;
+  const p = CUT_BOX_PAD_M;
+  return {
+    on: true,
+    a: [...camera],
+    b: [hero[0], HERO_CHEST_Y, hero[1]],
+    r: CUT_RADIUS_M,
+    min: [Math.min(...fps.map((f) => f.minX)) - p, -p, Math.min(...fps.map((f) => f.minZ)) - p],
+    max: [
+      Math.max(...fps.map((f) => f.maxX)) + p,
+      Math.max(...fps.map((f) => f.topM)) + p,
+      Math.max(...fps.map((f) => f.maxZ)) + p,
+    ],
+  };
 }
 
 /** Distance from p to the segment a-b. */
@@ -61,7 +92,14 @@ export function segmentDistance(p: Vec3, a: Vec3, b: Vec3): number {
 
 /** True when a building fragment at p is cut away (not drawn). Same test as the shader. */
 export const inCut = (cut: Cut, p: Vec3): boolean =>
-  cut.on && segmentDistance(p, cut.a, cut.b) < cut.r;
+  cut.on &&
+  p[0] >= cut.min[0] &&
+  p[0] <= cut.max[0] &&
+  p[1] >= cut.min[1] &&
+  p[1] <= cut.max[1] &&
+  p[2] >= cut.min[2] &&
+  p[2] <= cut.max[2] &&
+  segmentDistance(p, cut.a, cut.b) < cut.r;
 
 /** Shared uniforms of every patched building material. */
 export const cutUniforms = {
@@ -69,6 +107,8 @@ export const cutUniforms = {
   uTlCutA: { value: new THREE.Vector3() },
   uTlCutB: { value: new THREE.Vector3() },
   uTlCutR: { value: 0 },
+  uTlCutMin: { value: new THREE.Vector3() },
+  uTlCutMax: { value: new THREE.Vector3() },
 };
 
 /** The cut drawn now (the acceptance probe ignores building hits inside it). */
@@ -80,6 +120,8 @@ export function setCut(cut: Cut): void {
   cutUniforms.uTlCutA.value.set(...cut.a);
   cutUniforms.uTlCutB.value.set(...cut.b);
   cutUniforms.uTlCutR.value = cut.r;
+  cutUniforms.uTlCutMin.value.set(...cut.min);
+  cutUniforms.uTlCutMax.value.set(...cut.max);
 }
 
 const VERT_DECL = "varying vec3 vTlCut;\n";
@@ -98,9 +140,11 @@ uniform float uTlCutOn;
 uniform vec3 uTlCutA;
 uniform vec3 uTlCutB;
 uniform float uTlCutR;
+uniform vec3 uTlCutMin;
+uniform vec3 uTlCutMax;
 `;
 const FRAG_BODY = `
-  if ( uTlCutOn > 0.5 ) {
+  if ( uTlCutOn > 0.5 && all( greaterThanEqual( vTlCut, uTlCutMin ) ) && all( lessThanEqual( vTlCut, uTlCutMax ) ) ) {
     vec3 tlAb = uTlCutB - uTlCutA;
     float tlT = clamp( dot( vTlCut - uTlCutA, tlAb ) / max( dot( tlAb, tlAb ), 1e-6 ), 0.0, 1.0 );
     if ( distance( vTlCut, uTlCutA + tlAb * tlT ) < uTlCutR ) discard;

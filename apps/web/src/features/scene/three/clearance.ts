@@ -108,6 +108,11 @@ export interface Clearance {
   /** Top of the tallest footprint within `radius` metres of (x, z) (0: inside only), or 0. */
   maxRoofNear(x: number, z: number, radius: number): number;
   /**
+   * Every footprint containing (x, z), or within `radius` m of it: its id, bounding box and top
+   * (the building a point stands in; the journey cutaway cuts only that one).
+   */
+  footprintsAt(x: number, z: number, radius?: number): FootprintBox[];
+  /**
    * Minimum camera height at (x, z): roof + clearance inside a footprint or within `padM` of it;
    * with a skirt, falling linearly to 0 over `skirtM` beyond the pad; else 0.
    */
@@ -125,6 +130,16 @@ export interface Clearance {
   segmentLiftM(camera: Vec3, target: Vec3): number;
   /** The camera raised to max(floor, segment lift); x and z are kept. */
   clearCameraPose(camera: Vec3, target: Vec3, opts?: ClearOptions): ClearedPose;
+}
+
+/** A footprint's horizontal bounding box and top (local metres). */
+export interface FootprintBox {
+  id: string;
+  minX: number;
+  minZ: number;
+  maxX: number;
+  maxZ: number;
+  topM: number;
 }
 
 interface Entry {
@@ -390,6 +405,24 @@ export function createClearance(
     clearanceM,
     topAt: (x, z) => maxRoofNear(x, z, 0),
     maxRoofNear,
+    footprintsAt(x, z, radius = 0) {
+      const r = Math.max(0, radius);
+      const out: FootprintBox[] = [];
+      inBox(x - r, z - r, x + r, z + r, (e) => {
+        if (boxDist(e, x, z) > r) return;
+        if (!(r === 0 ? pointIn(e, x, z) : distTo(e, x, z) <= r)) return;
+        if (out.some((o) => o.id === e.id)) return;
+        out.push({
+          id: e.id,
+          minX: e.minX,
+          minZ: e.minZ,
+          maxX: e.maxX,
+          maxZ: e.maxZ,
+          topM: e.topM,
+        });
+      });
+      return out;
+    },
     floorAt,
     segmentHitsBuilding(a, b, marginM = 0) {
       let hit: SegmentHit | null = null;

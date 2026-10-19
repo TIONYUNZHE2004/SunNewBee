@@ -1,8 +1,12 @@
 import * as THREE from "three";
+import { HERO_DISPLAY_SCALE } from "../../scene/three/characters/hero";
 import type { Rect } from "../cardPlacement";
 
 /** Ground highlights under her (the yellow ring and the pale disc): a marker, not her body. */
 const GROUND_PARTS = new Set(["ring", "disc"]);
+
+/** Flesh and prop around the skeleton: 0.25 m at true scale, times the hero's display scale. */
+export const BONE_PAD_M = 0.25 * HERO_DISPLAY_SCALE;
 
 const _box = new THREE.Box3();
 const _mb = new THREE.Box3();
@@ -20,11 +24,12 @@ export function heroBodyBox(root: THREE.Object3D, out = new THREE.Box3()): THREE
     const m = o as THREE.Mesh;
     if (!m.isMesh || GROUND_PARTS.has(o.userData.heroPart as string)) return;
     const sk = m as THREE.SkinnedMesh;
-    if (sk.isSkinnedMesh) {
-      // the posed (bone-transformed) bounds, not the bind-pose geometry's
-      sk.computeBoundingBox();
-      if (!sk.boundingBox) return;
-      _mb.copy(sk.boundingBox).applyMatrix4(m.matrixWorld);
+    if (sk.isSkinnedMesh && sk.skeleton?.bones.length) {
+      // the posed bounds from the bones' world positions, padded for the flesh and the prop
+      // around them (re-skinning ~15k vertices per frame for a card would cost too much)
+      _mb.makeEmpty();
+      for (const b of sk.skeleton.bones) _mb.expandByPoint(b.getWorldPosition(_v));
+      _mb.expandByScalar(BONE_PAD_M);
     } else {
       const g = m.geometry;
       if (!g.boundingBox) g.computeBoundingBox();

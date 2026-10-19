@@ -5,7 +5,7 @@ import type { Clearance } from "../scene/three/clearance";
 import type { Engine } from "../scene/three/engine";
 import type { LocalFrame } from "../scene/three/frame";
 import { elementPoint, type FollowScene } from "../scene/three/journey/followRig";
-import { heroStateAt } from "../scene/three/journey/heroDriver";
+import { heroPositionAt } from "../scene/three/journey/heroDriver";
 import { createFollowController, overviewFor } from "./followCamera";
 import { JourneyOverlay } from "./JourneyOverlay";
 import { journeyCamera, journeyHero, journeyStateOf, useJourney } from "./journeyStore";
@@ -149,12 +149,7 @@ export function JourneyMount({
         destination,
         clearance: engine.clearance?.() ?? null,
         overview: overview(),
-        heroAt: h
-          ? (t) => {
-              const st = heroStateAt(tl, t, h.helpers);
-              return [st.x, st.z];
-            }
-          : undefined,
+        heroAt: h ? (t) => heroPositionAt(tl, t, h.helpers) : undefined,
       };
     };
     const ctl = createFollowController({

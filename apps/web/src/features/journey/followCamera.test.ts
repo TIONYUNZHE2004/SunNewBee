@@ -156,4 +156,36 @@ describe("follow controller (engine camera driver)", () => {
     ctl.driver(50, here);
     expect(focus).toHaveBeenLastCalledWith(null);
   });
+
+  it("without a scene it stops driving, and blends in again when the scene is back", () => {
+    let on = true;
+    const rig = { set: vi.fn(), flyTo: vi.fn() };
+    const overview = routeOverview(path.pointAt, path.planLength);
+    const ctl = createFollowController({
+      engine: { rig, cameraFit: () => null } as unknown as Pick<Engine, "rig" | "cameraFit">,
+      scene: () => {
+        const tl = useJourney.getState().timeline;
+        return on && tl ? { timeline: tl, pointAt: path.pointAt, overview } : null;
+      },
+      hero: () => null,
+      reduced: () => false,
+    });
+    const here = {
+      position: [1, 2, 3] as [number, number, number],
+      look: [0, 0, 0] as [number, number, number],
+    };
+    useJourney.getState().seek(20);
+    ctl.engage();
+    ctl.driver(0, here);
+    ctl.driver(MODE_BLEND_MS + 1, here);
+    on = false;
+    expect(ctl.driver(5000, here)).toBeNull();
+    expect(ctl.drivenT).toBeNull();
+    on = true;
+    // driven again: a fresh blend from where the camera stands, not a snap
+    const back = ctl.driver(6000, here);
+    expect(back?.animating).toBe(true);
+    const bp = back?.position ?? [0, 0, 0];
+    for (let i = 0; i < 3; i++) expect(bp[i]).toBeCloseTo(here.position[i] as number, 9);
+  });
 });

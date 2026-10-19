@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { act, render, screen, within } from "@testing-library/react";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DEMO_CHIP, journeyCardContent } from "./cardContent";
 import { EventCard } from "./EventCard";
 import demoPlan from "./fixtures/demoPlan.json";
@@ -87,6 +87,48 @@ describe("EventCard", () => {
     expect(card).toHaveTextContent(step.body);
     expect(within(card).getByTestId("card-source")).toHaveTextContent(c.source);
     expect(within(card).getByTestId("card-element")).toHaveTextContent("seg-1318133037-3");
+  });
+
+  it("measures its layout size, not the scaled box: a card shrunk to keep clear of her stays shrunk", () => {
+    // layout 290 x 206; on screen the transform makes it smaller (what getBoundingClientRect says)
+    const ow = vi.spyOn(HTMLElement.prototype, "offsetWidth", "get").mockReturnValue(290);
+    const oh = vi.spyOn(HTMLElement.prototype, "offsetHeight", "get").mockReturnValue(206);
+    const rect = vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue({
+      x: 0,
+      y: 0,
+      left: 0,
+      top: 0,
+      width: 188,
+      height: 134,
+      right: 188,
+      bottom: 134,
+      toJSON: () => ({}),
+    } as DOMRect);
+    try {
+      // her box fills the middle of a 923 x 836 map: no free spot for a full-size card
+      const v = { w: 923, h: 836, top: 96 };
+      const hero = { x: 270, y: 200, w: 363, h: 420 };
+      const { rerender } = render(
+        <EventCard event={step} anchor={{ x: 450, y: 180 }} viewport={v} keepClear={() => hero} />,
+      );
+      const card = screen.getByTestId("journey-card");
+      const scaled = card.style.transform;
+      expect(scaled).toMatch(/scale\(0\.\d+\)/);
+      // a re-measure (new viewport width) keeps the layout size, so the card stays shrunk
+      rerender(
+        <EventCard
+          event={step}
+          anchor={{ x: 450, y: 180 }}
+          viewport={{ ...v, w: 924 }}
+          keepClear={() => hero}
+        />,
+      );
+      expect(screen.getByTestId("journey-card").style.transform).toBe(scaled);
+    } finally {
+      ow.mockRestore();
+      oh.mockRestore();
+      rect.mockRestore();
+    }
   });
 
   it("demo chip exactly when demo; never 'Verified' on a demo event", () => {

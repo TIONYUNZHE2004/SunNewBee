@@ -63,9 +63,12 @@ export function EventCard({
   // Re-measure when the content changes (a new event); the size drives the clamp.
   // biome-ignore lint/correctness/useExhaustiveDependencies: measure per event, not per frame
   useLayoutEffect(() => {
-    const r = ref.current?.getBoundingClientRect();
-    if (r && r.width > 0 && r.height > 0)
-      setSize((s) => (s.w === r.width && s.h === r.height ? s : { w: r.width, h: r.height }));
+    // the layout size (offset*), not the box on screen: a card shrunk by the hero keep-clear
+    // (CSS scale) must not become the new full size
+    const el = ref.current;
+    const w = el?.offsetWidth ?? 0;
+    const h = el?.offsetHeight ?? 0;
+    if (w > 0 && h > 0) setSize((s) => (s.w === w && s.h === h ? s : { w, h }));
   }, [event, vrFiled, viewport.w]);
 
   const latest = useRef({ size, viewport, track, keepClear });

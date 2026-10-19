@@ -2,7 +2,7 @@ import * as THREE from "three";
 import { describe, expect, it } from "vitest";
 import { createPlaceholderHero } from "../scene/three/characters/placeholderHero";
 import { placeCard, type Rect } from "./cardPlacement";
-import { boxOnScreen, heroBodyBox, heroScreenRect } from "./three/heroScreen";
+import { BONE_PAD_M, boxOnScreen, heroBodyBox, heroScreenRect } from "./three/heroScreen";
 
 const card = { w: 290, h: 180 };
 const vp = { w: 1040, h: 830, top: 96 };
@@ -94,7 +94,7 @@ describe("hero screen box", () => {
     expect(b.max.x - b.min.x).toBeLessThan(1.8);
   });
 
-  it("GLB hero: the posed skinned bounds, hidden LODs left out", () => {
+  it("GLB hero: bounds from the posed bones (padded), hidden LODs left out", () => {
     const g = new THREE.BoxGeometry(1, 1, 1);
     const n = g.getAttribute("position").count;
     g.setAttribute("skinIndex", new THREE.Uint16BufferAttribute(new Array(n * 4).fill(0), 4));
@@ -105,18 +105,21 @@ describe("hero screen box", () => {
         4,
       ),
     );
-    const bone = new THREE.Bone();
+    const hips = new THREE.Bone();
+    const head = new THREE.Bone();
+    hips.add(head);
     const body = new THREE.SkinnedMesh(g, new THREE.MeshBasicMaterial());
-    body.add(bone);
-    body.bind(new THREE.Skeleton([bone]));
-    bone.scale.setScalar(2); // the pose doubles her: the bind-pose box would say 1 m
+    body.add(hips);
+    body.bind(new THREE.Skeleton([hips, head]));
+    head.position.y = 2.2; // posed: the head bone 2.2 m up (the bind-pose geometry is 1 m)
     const lod1 = new THREE.Group();
     lod1.visible = false;
     lod1.add(new THREE.Mesh(new THREE.BoxGeometry(50, 50, 50)));
     const root = new THREE.Group();
     root.add(body, lod1);
     const b = heroBodyBox(root) as THREE.Box3;
-    expect(b.max.x - b.min.x).toBeCloseTo(2, 6);
+    expect(b.max.y - b.min.y).toBeCloseTo(2.2 + 2 * BONE_PAD_M, 6);
+    expect(b.max.x - b.min.x).toBeCloseTo(2 * BONE_PAD_M, 6); // the 50 m hidden LOD is left out
   });
 
   it("projects to a screen rectangle, null when she is behind the camera", () => {

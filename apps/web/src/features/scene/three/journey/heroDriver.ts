@@ -451,6 +451,19 @@ function rawAt(tl: Timeline, t: number, helpers: HeroPathHelpers): Raw {
  * In the first HERO_FADE_S of a beat whose clip differs from the beat before, `fade` names the
  * outgoing clip, its time (run on from the boundary) and the incoming clip's weight.
  */
+/**
+ * Where she stands at t ([x, z], local metres): the position `heroStateAt` returns, without the yaw
+ * smoothing and clip bookkeeping (one raw lookup). The follow camera calls it ~40 times a frame.
+ */
+export function heroPositionAt(
+  tl: Timeline,
+  t: number,
+  helpers: HeroPathHelpers,
+): [number, number] {
+  const r = rawAt(tl, t, helpers);
+  return [r.x, r.z];
+}
+
 export function heroStateAt(tl: Timeline, t: number, helpers: HeroPathHelpers): HeroState {
   const tc = Math.max(0, Math.min(tl.total, Number.isFinite(t) ? t : 0));
   const { beat0, yawExact, clipRate: _r, ...now } = rawAt(tl, tc, helpers);

@@ -155,9 +155,17 @@ export function createFollowController(deps: {
       return null;
     }
     const sc = deps.scene();
-    if (!sc) return null;
+    // nothing to drive (no route yet): the rig has the camera; a later pose blends in again
+    const idle = () => {
+      driven = false;
+      blend = null;
+      lastMode = null;
+      setFocus(null);
+      return null;
+    };
+    if (!sc) return idle();
     const target = journeyCameraAt(sc, s.t, s.camMode);
-    if (!target) return null;
+    if (!target) return idle();
     if (!driven || s.camMode !== lastMode) {
       blend = reduced() ? null : { from: { pos: current.position, look: current.look }, t0: now };
       lastMode = s.camMode;

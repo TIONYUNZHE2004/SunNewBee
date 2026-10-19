@@ -53,7 +53,8 @@ describe("building cutaway around the hero (D-T5 ruling, display only)", () => {
 
   it("cuts a capsule from the camera to her chest", () => {
     const c = cutFor([0, 0], [30, 40, 0], grid);
-    expect(inCut(c, [15, 20.7, 0])).toBe(true); // on the line
+    expect(inCut(c, [8, 11.69, 0])).toBe(true); // on the line, inside her building
+    expect(inCut(c, [15, 20.7, 0])).toBe(false); // on the line, outside her building
     expect(inCut(c, [0, 1.4 + CUT_RADIUS_M - 0.1, 0])).toBe(true); // around her
     expect(inCut(c, [-9, 5, 9])).toBe(false); // the far walls stay
     expect(inCut(NO_CUT, [15, 20.7, 0])).toBe(false);
@@ -68,6 +69,48 @@ describe("building cutaway around the hero (D-T5 ruling, display only)", () => {
     expect(meshBlocks(roots, cam, chest)).toBe(false);
     // a ray elsewhere through the box is still blocked (only the capsule is cut)
     expect(meshBlocks(roots, [25, 12, 5], [-25, 12, 5])).toBe(true);
+  });
+
+  it("cuts only the building she stands in: a second building on the line stays drawn", () => {
+    // her building (harmoni-1, -10..10) and a neighbour (x 14..18) between it and the camera
+    const two = createClearance([
+      {
+        id: "harmoni-1",
+        ring: [
+          [-10, -10],
+          [10, -10],
+          [10, 10],
+          [-10, 10],
+        ],
+        topM: 30,
+      },
+      {
+        id: "neighbour",
+        ring: [
+          [14, -4],
+          [18, -4],
+          [18, 4],
+          [14, 4],
+        ],
+        topM: 20,
+      },
+    ]);
+    const cam: [number, number, number] = [30, 6, 0];
+    const c = cutFor([0, 0], cam, two);
+    expect(c.max[0]).toBeCloseTo(10 + 0.3); // her building's box only
+    expect(inCut(c, [10, 4.5, 0])).toBe(true); // her building's wall on the line
+    expect(inCut(c, [16, 5, 0])).toBe(false); // the neighbour's wall on the same line
+    const nb = new THREE.Mesh(
+      new THREE.BoxGeometry(4, 20, 8).translate(16, 10, 0),
+      new THREE.MeshStandardMaterial({ side: THREE.DoubleSide }),
+    );
+    nb.userData.pick = { kind: "building" };
+    const roots = [building()];
+    roots[0]?.add(nb);
+    roots[0]?.updateMatrixWorld(true);
+    setCut(c);
+    expect(meshBlocks(roots, cam, [0, 1.4, 0])).toBe(true); // the neighbour still hides her
+    expect(cutUniforms.uTlCutMax.value.y).toBeCloseTo(30.3);
   });
 
   it("sets the shared shader uniforms", () => {

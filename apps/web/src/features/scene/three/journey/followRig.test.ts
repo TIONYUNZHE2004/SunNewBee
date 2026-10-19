@@ -28,7 +28,7 @@ import {
   MIN_HERO_DIST_M,
   rawFrameAt,
 } from "./followRig";
-import { heroStateAt } from "./heroDriver";
+import { heroPositionAt, heroStateAt } from "./heroDriver";
 
 const plan = demoPlan as unknown as JourneyPlan;
 const frame = createFrame(HERO_CENTRE);
@@ -85,10 +85,7 @@ const scene = (over: Partial<FollowScene> = {}): FollowScene => ({
   timeline: tl,
   pointAt: path.pointAt,
   overview: OVERVIEW,
-  heroAt: (t) => {
-    const s = heroStateAt(tl, t, helpers);
-    return [s.x, s.z];
-  },
+  heroAt: (t) => heroPositionAt(tl, t, helpers),
   ...over,
 });
 const dist = (a: readonly number[], b: readonly number[]) =>
@@ -374,10 +371,23 @@ describe.skipIf(!existsSync(SEED))("seed buildings: clearance interplay", () => 
     expect(raised).toBeGreaterThan(0);
   });
 
-  it("costs little per frame", () => {
-    const t0 = performance.now();
-    let n = 0;
-    for (let t = DIVE_S; t < tl.total - PULL_S; t += 0.5, n++) journeyCameraAt(sc, t, "follow");
-    expect((performance.now() - t0) / n).toBeLessThan(8);
+  it("costs under 1 ms per pose on the seed (median of the trip at 10 Hz)", () => {
+    for (let t = DIVE_S; t < DIVE_S + 5; t += 0.1) journeyCameraAt(sc, t, "follow"); // warm-up
+    const ms: number[] = [];
+    for (let t = DIVE_S; t < tl.total - PULL_S; t += 0.1) {
+      const t0 = performance.now();
+      journeyCameraAt(sc, t, "follow");
+      ms.push(performance.now() - t0);
+    }
+    ms.sort((a, b) => a - b);
+    const median = ms[Math.floor(ms.length / 2)] as number;
+    expect(median).toBeLessThan(1);
+  });
+
+  it("the hero lookup the camera uses is where the driver puts her", () => {
+    for (let t = 0; t < tl.total; t += 0.37) {
+      const s = heroStateAt(tl, t, helpers);
+      expect(heroPositionAt(tl, t, helpers)).toEqual([s.x, s.z]);
+    }
   });
 });
