@@ -11,7 +11,17 @@ from fastapi import APIRouter, HTTPException, Query, Request, Response
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field
 from townshiplens_spatial import tools
-from townshiplens_spatial.models import RouteResult, Site, ToolResult
+from townshiplens_spatial.journey import JourneyEvidenceError, build_journey
+from townshiplens_spatial.models import (
+    HHMM_PATTERN,
+    BoundaryRef,
+    JourneyPlan,
+    Route,
+    RouteResult,
+    Site,
+    ToolResult,
+)
+from townshiplens_spatial.routing import CENTRE_PREFIX
 
 from .. import geojson, state
 from ..selection import require_selection
@@ -29,6 +39,29 @@ class RouteRequest(BaseModel):
     scenario_id: str | None = None
 
 
+class JourneyRequest(BaseModel):
+    from_id: str = Field(max_length=200)
+    to_id: str = Field(max_length=200)
+    profile: str
+    start_time: str = Field(pattern=HHMM_PATTERN)  # local "HH:MM"
+    scenario_id: str | None = None
+
+
+class NoJourney(BaseModel):
+    """Why there is no journey to play: the route status and a plain message."""
+
+    route_status: Literal["blocked", "no_data"]
+    message: str
+    warnings: list[str] = Field(default_factory=list)
+
+
+# no_data is a data gap, never "blocked" or "not reachable" (AGENTS.md honesty invariants).
+_NO_JOURNEY = {
+    "no_data": "No mapped connection (data gap)",
+    "blocked": "Every mapped path is cut by a known barrier",
+}
+
+
 @router.get("/healthz", responses={503: {"description": "the world did not load"}})
 def healthz():
     """Liveness that includes the world: a corrupt seed fails here, not only on every request."""
@@ -43,9 +76,53 @@ def healthz():
     return {"status": "ok", "world_model": warm.public_status()}
 
 
-@router.get("/site", response_model=Site)
-def site() -> Site:
-    return state.get_ctx().world.site
+class SiteBoundary(BoundaryRef):
+    """The display-only Elmina outline with its geometry, for the stylised renderer's clip and
+    diorama slab. Routing, evaluation and answers never read it. `geometry` is null when the file
+    is missing, unreadable or not one Polygon / MultiPolygon."""
+
+    geometry: dict[str, Any] | None = None
+
+
+class SiteInfo(Site):
+    boundary: SiteBoundary | None = None
+
+
+# (boundary path, mtime_ns) -> geometry
+_boundary_cache: dict[tuple[str, int], dict[str, Any] | None] = {}
+
+
+def _boundary_geometry(ref: BoundaryRef) -> dict[str, Any] | None:
+    data = state.data_dir().resolve()
+    path = (data / ref.file).resolve()
+    if not path.is_relative_to(data) or not path.is_file():
+        return None
+    key = (str(path), _mtime(path))
+    if key in _boundary_cache:
+        return _boundary_cache[key]
+    geom: dict[str, Any] | None = None
+    try:
+        fc = json.loads(path.read_text(encoding="utf-8"))
+        feats = fc.get("features") if isinstance(fc, dict) else None
+        g = feats[0].get("geometry") if isinstance(feats, list) and len(feats) == 1 else None
+        if isinstance(g, dict) and g.get("type") in ("Polygon", "MultiPolygon"):
+            geom = g
+    except (OSError, ValueError, AttributeError, TypeError) as e:
+        log.warning("boundary unreadable: %s", e)
+    _boundary_cache.clear()
+    _boundary_cache[key] = geom
+    return geom
+
+
+@router.get("/site", response_model=SiteInfo)
+def site() -> SiteInfo:
+    s = state.get_ctx().world.site
+    out = SiteInfo.model_validate(s.model_dump(exclude={"boundary"}))
+    if s.boundary is not None:
+        out.boundary = SiteBoundary(
+            **s.boundary.model_dump(), geometry=_boundary_geometry(s.boundary)
+        )
+    return out
 
 
 THRESHOLD_BASIS = "our engineering default (no published source)"
@@ -200,6 +277,7 @@ _buildings_cache: dict[tuple, tuple[BuildingsLayer, str]] = {}
 
 def clear_buildings_cache() -> None:
     _buildings_cache.clear()
+    _furniture_cache.clear()
 
 
 def _mtime(path) -> int:
@@ -320,6 +398,95 @@ def buildings_layer(request: Request, response: Response):
     return payload
 
 
+class StreetFurnitureLayer(BaseModel):
+    """Fact-bearing street furniture for the stylised 3D city (display only, B-T6/B-T7): one Point
+    per OSM traffic signal, bus stop, shelter, bench or picnic table inside the outline, plus seed
+    seating / shelter places that coincide with none of them (`source: seed_place`). Each feature
+    carries its source `id` and `kind`. Routing, evaluation and answers never read it."""
+
+    furniture: dict[str, Any]  # GeoJSON FeatureCollection of Points
+    as_of: str | None = None
+    attribution: list[str] = []
+
+
+FURNITURE_KINDS = frozenset({"traffic_signals", "bus_stop", "shelter", "bench", "picnic_table"})
+# (data dir, mtime_ns of street_furniture, site) -> (payload, etag)
+_furniture_cache: dict[tuple, tuple[StreetFurnitureLayer, str]] = {}
+
+
+def _finite(v: Any) -> bool:
+    return (
+        isinstance(v, int | float) and not isinstance(v, bool) and v == v and abs(v) != float("inf")
+    )
+
+
+def _sourced_points_only(fc: dict[str, Any]) -> dict[str, Any]:
+    """Honesty gate (AC-B7): a prop is drawn only for a feature with a source id, a known kind and
+    a finite Point, so the client never draws one without its source."""
+
+    def ok(f: Any) -> bool:
+        if not isinstance(f, dict):
+            return False
+        props, geom = f.get("properties"), f.get("geometry")
+        if not isinstance(props, dict) or not isinstance(geom, dict):
+            return False
+        pid = props.get("id")
+        if not isinstance(pid, str) or not pid.strip() or props.get("kind") not in FURNITURE_KINDS:
+            return False
+        c = geom.get("coordinates")
+        return (
+            geom.get("type") == "Point"
+            and isinstance(c, list)
+            and len(c) >= 2
+            and _finite(c[0])
+            and _finite(c[1])
+        )
+
+    return {"type": "FeatureCollection", "features": [f for f in fc["features"] if ok(f)]}
+
+
+@router.get(
+    "/layers/street_furniture",
+    response_model=StreetFurnitureLayer,
+    responses={
+        304: {"description": "Not modified"},
+        404: {"description": "no street furniture seed for this world"},
+        502: {"description": "the street furniture seed is unreadable"},
+    },
+)
+def street_furniture_layer(request: Request, response: Response):
+    """Street furniture points (display only). Declared before /layers/{lens} so it wins. 404 when
+    the world has no base/street_furniture.geojson (the client then draws no fact props)."""
+    data = state.data_dir()
+    f_path, site_path = data / "base" / "street_furniture.geojson", data / "site.json"
+    if not f_path.exists():
+        raise HTTPException(404, "no street furniture data for this world")
+    key = (str(data), _mtime(f_path), _mtime(site_path))
+    hit = _furniture_cache.get(key)
+    if hit is None:
+        try:
+            site = json.loads(site_path.read_text(encoding="utf-8"))
+            if not isinstance(site, dict):
+                raise ValueError("site.json is not an object")
+            payload = StreetFurnitureLayer(
+                furniture=_sourced_points_only(_read_collection(f_path)),
+                as_of=(site.get("street_furniture") or {}).get("as_of"),
+                attribution=list(site.get("attribution") or []),
+            )
+        except (OSError, ValueError, TypeError, AttributeError, RecursionError) as e:
+            log.warning("street furniture seed unreadable: %s", e)
+            raise HTTPException(502, "street furniture data is unreadable") from e
+        etag = f'"{hashlib.sha1(repr(key).encode()).hexdigest()[:20]}"'
+        _furniture_cache.clear()
+        hit = _furniture_cache[key] = (payload, etag)
+    payload, etag = hit
+    headers = {"ETag": etag, "Cache-Control": CACHE_CONTROL}
+    if _matches(request.headers.get("if-none-match"), etag):
+        return Response(status_code=304, headers=headers)
+    response.headers.update(headers)
+    return payload
+
+
 @router.get(
     "/layers/{lens}",
     response_model=dict[str, Any],
@@ -383,3 +550,49 @@ def routes(req: RouteRequest) -> RouteResult:
     data.setdefault("warnings", [])
     data["warnings"] = list(data["warnings"]) + [w for w in r.warnings if w not in data["warnings"]]
     return RouteResult.model_validate(data)
+
+
+def _known_place(world, pid: str) -> bool:
+    """A place id, or an evacuation-centre target (`__centre__<id>`) as plan_route takes it."""
+    if pid in world.places:
+        return True
+    return pid.startswith(CENTRE_PREFIX) and pid[len(CENTRE_PREFIX) :] in world.centres
+
+
+@router.post(
+    "/journeys",
+    response_model=JourneyPlan,
+    responses={
+        404: {"description": "unknown place or scenario"},
+        409: {"model": NoJourney, "description": "no route to play (route status and why)"},
+        422: {"description": "unknown profile or bad start time"},
+        500: {"description": "a journey event without route evidence (a data or rule bug)"},
+    },
+)
+def journeys(req: JourneyRequest) -> JourneyPlan | JSONResponse:
+    """The journey for the recommended route between two places (spec 2026-10-19 §6.2).
+
+    Planned per request, like POST /routes (no route store, no verification requests filed).
+    The chat attaches the same plan to `journey.play` for the same endpoints, profile, scenario
+    and start time."""
+    ctx = state.get_ctx()
+    require_selection(ctx.world, req.profile, req.scenario_id)
+    for pid in (req.from_id, req.to_id):
+        if not _known_place(ctx.world, pid):
+            raise HTTPException(404, f"unknown place {pid}")
+    r = tools.plan_route(ctx, req.from_id, req.to_id, req.profile, req.scenario_id, file_vrs=False)
+    data = r.data if isinstance(r.data, dict) else {}
+    warnings = list(dict.fromkeys([*data.get("warnings", []), *r.warnings]))
+    routes = data.get("routes") or []
+    if not routes:
+        status = data.get("status", "no_data")
+        status = status if status in _NO_JOURNEY else "no_data"
+        body = NoJourney(route_status=status, message=_NO_JOURNEY[status], warnings=warnings)
+        # The body is NoJourney itself (as the OpenAPI 409 declares), not {"detail": ...}.
+        return JSONResponse(body.model_dump(), status_code=409)
+    route = Route.model_validate(routes[0])
+    try:
+        return build_journey(ctx.world, route, req.profile, req.start_time)
+    except JourneyEvidenceError as e:
+        log.error("journey for %s failed: %s", route.id, e)
+        raise HTTPException(500, f"Journey could not be built: {e}") from e

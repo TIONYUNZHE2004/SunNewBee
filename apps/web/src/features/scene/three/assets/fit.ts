@@ -1,4 +1,5 @@
 import { hashUnit } from "../../shared/model";
+import { CLAY_PALETTE } from "../shared/clayTokens";
 import type { AssetSpec } from "./manifest";
 
 /** Min-area rectangle of a footprint in local xz. w <= l; angle is the direction of the l axis
@@ -166,7 +167,7 @@ export function variantFor(spec: AssetSpec, group: string, heightM: number): str
   return names[0]!;
 }
 
-const FALLBACK_PALETTE: [string, string, string] = ["#c8c2b6", "#8a8478", "#5a5650"];
+const FALLBACK_PALETTE: [string, string, string] = [...CLAY_PALETTE.archetypeFallback];
 
 export function paletteFor(spec: AssetSpec, group: string, id: string): [string, string, string] {
   const own = spec.palettes[group];
@@ -210,7 +211,10 @@ export function fitArchetype(
   if (obb.fill < (opts.minFill ?? 0.75)) return null;
   const v = spec.variants[variant];
   if (!v) return null;
-  const [sw, sh, sd] = v.size;
+  const [sw, size_h, sd] = v.size;
+  // Height scales by the model's drawn top, not its nominal size: the placed top is the building's
+  // display height (a fact) even for models with a dome or parapet above `size` (B-T2 fix round 1).
+  const sh = v.top ?? size_h;
   if (!(sw > 0 && sh > 0 && sd > 0)) return null;
   const fit = opts.fit ?? spec.fit;
 

@@ -2,6 +2,7 @@ import * as THREE from "three";
 import { describe, expect, it } from "vitest";
 import { TIERS, type Tier } from "../../shared/quality";
 import { createFrame } from "../frame";
+import { boundaryOf, insideBoundary } from "../ground/boundary";
 import { BIRD_FLAP_HZ, BIRD_MAX_BANK, birdBank, createAmbient } from "./ambient";
 
 const frame = createFrame([101.5, 3.18]);
@@ -177,3 +178,66 @@ function birdOrbitCentre(a: ReturnType<typeof make>, i: number): [number, number
   if (!c) throw new Error("no orbit");
   return c;
 }
+
+describe("createAmbient with the Elmina outline (A-T4)", () => {
+  // A 2.4 km square outline rotated 30 degrees about the frame origin (not axis-aligned): clouds
+  // spread over +-1.5 km, so some decals are wholly inside and some cross it.
+  const ll = (x: number, z: number) => frame.toLonLat(x, z);
+  const rot = ([x, z]: [number, number]): [number, number] => {
+    const c = Math.cos(Math.PI / 6);
+    const s = Math.sin(Math.PI / 6);
+    return [x * c - z * s, x * s + z * c];
+  };
+  const corners: [number, number][] = [
+    [-1200, -1200],
+    [1200, -1200],
+    [1200, 1200],
+    [-1200, 1200],
+  ];
+  const ring = corners.map(rot);
+  const b = boundaryOf(
+    { type: "Polygon", coordinates: [[...ring, ring[0]!].map(([x, z]) => ll(x, z))] },
+    frame,
+  )!;
+  const rows = (m: THREE.InstancedMesh) => {
+    const mat = new THREE.Matrix4();
+    const out: { x: number; z: number; s: number }[] = [];
+    for (let i = 0; i < m.count; i++) {
+      m.getMatrixAt(i, mat);
+      const e = mat.elements;
+      // Column length, not decompose's scale (three resets a singular matrix's scale to 1).
+      out.push({ x: e[12]!, z: e[14]!, s: Math.hypot(e[0]!, e[1]!, e[2]!) });
+    }
+    return out;
+  };
+
+  it("hides birds outside and cloud decals with a corner outside; refresh redoes it after a move", () => {
+    const a = createAmbient("high", frame, frame.toLonLat(0, 0), "s", b);
+    a.tick(1000, DAY);
+    const { birds, clouds } = parts(a);
+    for (const r of rows(birds as THREE.InstancedMesh))
+      expect(r.s === 0, JSON.stringify(r)).toBe(!insideBoundary(b, r.x, r.z));
+    let shown = 0;
+    for (const r of rows(clouds as THREE.InstancedMesh)) {
+      if (r.s === 0) continue;
+      shown++;
+      // Every corner of the (axis-aligned, size x size) decal lies inside the rotated outline.
+      for (const [dx, dz] of [
+        [-1, -1],
+        [1, -1],
+        [1, 1],
+        [-1, 1],
+      ] as const)
+        expect(insideBoundary(b, r.x + (dx * r.s) / 2, r.z + (dz * r.s) / 2)).toBe(true);
+    }
+    expect(shown, "some cloud decals stay shown").toBeGreaterThan(0);
+    expect(shown, "some cloud decals are hidden").toBeLessThan(TIERS.high.clouds);
+    expect(shown + rows(clouds as THREE.InstancedMesh).filter((r) => r.s === 0).length).toBe(
+      TIERS.high.clouds,
+    );
+    a.group.position.set(10000, 0, 0);
+    a.refresh();
+    for (const r of rows(birds as THREE.InstancedMesh)) expect(r.s).toBe(0);
+    for (const r of rows(clouds as THREE.InstancedMesh)) expect(r.s).toBe(0);
+  });
+});

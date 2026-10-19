@@ -109,23 +109,23 @@ Palette = tuple[tuple[str, str, str], ...]  # [(primary, secondary, accent)]
 
 _RESIDENTIAL: dict[str, Palette] = {
     "default": (
-        ("#f2efe8", "#3d4147", "#8a8f96"),
-        ("#e9e4da", "#4a4e55", "#a07a55"),
-        ("#dfe2e4", "#33373d", "#6d737a"),
+        ("#f2efe8", "#6e7278", "#8a8f96"),
+        ("#e9e4da", "#7b6b5d", "#a07a55"),
+        ("#dfe2e4", "#656a70", "#6d737a"),
     ),
     "green": (
-        ("#f4f0e6", "#3a3d42", "#9b7350"),
-        ("#ece6d8", "#45484e", "#b08a62"),
-        ("#f7f5ef", "#2f3236", "#7d6a58"),
+        ("#f4f0e6", "#6a6d72", "#b08760"),
+        ("#ece6d8", "#7d6b5a", "#b08a62"),
+        ("#f7f5ef", "#6e7378", "#957f69"),
     ),
     "valley": (
-        ("#e6e7e8", "#50545a", "#a0563f"),
-        ("#f1f1ef", "#3e4247", "#8c4a36"),
-        ("#d9dbdd", "#2e3135", "#b06a4f"),
+        ("#e6e7e8", "#74787e", "#c06a50"),
+        ("#f1f1ef", "#686c72", "#b8624a"),
+        ("#d9dbdd", "#6e7378", "#c98265"),
     ),
     "ridge": (
-        ("#f5f5f3", "#2b2e33", "#3f444b"),
-        ("#e4e6e3", "#383c41", "#6b7b6e"),
+        ("#f5f5f3", "#6b7075", "#6d737a"),
+        ("#e4e6e3", "#6b6f74", "#6b7b6e"),
     ),
     "denai_alam": (
         ("#efe6d2", "#8a4b35", "#b9a27f"),
@@ -135,19 +135,21 @@ _RESIDENTIAL: dict[str, Palette] = {
 }
 _COMMERCIAL: dict[str, Palette] = {  # owner gate P4 round 1: warm primaries and accents
     "default": (  # (primary walls and membrane roofs, secondary, accent terracotta or timber)
-        ("#ece6da", "#4a4e55", "#b8704f"),
-        ("#e2dacb", "#3a3e44", "#b49a6e"),
+        ("#ece6da", "#6a6e75", "#b8704f"),
+        ("#e2dacb", "#62666c", "#b49a6e"),
         ("#f1ebe1", "#5a5f66", "#c4855e"),
     ),
 }
 _KIT_DEFAULT: dict[str, Palette] = {  # [?] starting values
-    "default": (("#d8d6d0", "#3d4147", "#8a8f96"),),
+    "default": (("#d8d6d0", "#62666c", "#8a8f96"),),
 }
 
 RESIDENTIAL_ARCHETYPES = frozenset(
     {"link_intermediate", "link_long", "superlink", "semi_d", "bungalow", "townhouse"}
 )
 
+# Secondary = roofs: lifted in A-T8 so no palette colour has relative luminance below 0.08
+# (charcoal #2b2e33..#4a4e55 roofs rendered under 0.03 in shade). Guarded by roleColours.test.ts.
 # asset id, or "residential" / "commercial" -> precinct group -> [(primary, secondary, accent)]
 PALETTES: dict[str, dict[str, Palette]] = {
     "residential": _RESIDENTIAL,
@@ -269,7 +271,7 @@ _LANDMARK_SPECS = (
             "osm",
             (MALL_BBOX[0], 9.0, MALL_BBOX[1]),
             (80000, 10000, 1500),
-            y_range=(8.0, 12.0),
+            y_range=(8.95, 9.05),  # the parapet top is the 9.0 m size (B-T2)
             x_range=(MALL_BBOX[0] - 0.1, MALL_BBOX[0] + 3.1),
             z_range=(MALL_BBOX[1] - 0.1, MALL_BBOX[1] + 3.1),
         ),

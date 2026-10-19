@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+
 import { act, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -9,6 +10,7 @@ import { useTheme } from "../../ui/theme";
 import { usePanel } from "../main/panelStore";
 import { useSceneSettings } from "../scene/sceneSettingsStore";
 import { useScene } from "../scene/sceneStore";
+import { resetWebglProbe } from "../scene/selectView";
 import { SettingsPopover } from "./SettingsPopover";
 
 const scenarios = [
@@ -36,12 +38,14 @@ const savedEnv = { ...ENV };
 const savedGetContext = HTMLCanvasElement.prototype.getContext;
 afterEach(() => {
   HTMLCanvasElement.prototype.getContext = savedGetContext;
+  resetWebglProbe();
   Object.assign(ENV, savedEnv);
 });
 
 beforeEach(() => {
   Object.assign(ENV, { googleKey: "", cesiumToken: "", mapboxToken: "" });
   useScene.getState().reset();
+  useSceneSettings.setState({ pathStatus: false });
   useMode.setState({ mode: "resident" });
 });
 
@@ -65,7 +69,27 @@ describe("SettingsPopover", () => {
       "max-h-[min(70%,calc(100%-var(--sheet-h,0px)-var(--attr-h,0px)-6rem))]",
     );
   });
+  it("AC-A1: Path status is off by default, legend hides status rows, toggling shows them", async () => {
+    renderWithClient(<SettingsPopover />, seeded());
+    await userEvent.click(screen.getByRole("button", { name: "Map settings" }));
+    const group = screen.getByRole("radiogroup", { name: "Path status" });
+    expect(within(group).getByRole("radio", { name: "Path status off" })).toHaveAttribute(
+      "aria-checked",
+      "true",
+    );
+    const legend = screen.getByRole("list", { name: "Path status legend" });
+    expect(within(legend).queryByText("Not checked yet")).toBeNull();
+    expect(within(legend).getByText("Suggested route")).toBeInTheDocument();
+    await userEvent.click(within(group).getByRole("radio", { name: "Path status on" }));
+    expect(useSceneSettings.getState().pathStatus).toBe(true);
+    expect(within(legend).getByText("Not checked yet")).toBeInTheDocument();
+    await userEvent.click(within(group).getByRole("radio", { name: "Path status off" }));
+    expect(useSceneSettings.getState().pathStatus).toBe(false);
+    expect(within(legend).queryByText("Not checked yet")).toBeNull();
+  });
   it("lists the legend with all six statuses incl. Suggested route", async () => {
+    useSceneSettings.setState({ pathStatus: true });
+    useScene.getState().setScenario("stage_p1m");
     renderWithClient(<SettingsPopover />, seeded());
     await userEvent.click(screen.getByRole("button", { name: "Map settings" }));
     const legend = screen.getByRole("list", { name: "Path status legend" });
@@ -138,6 +162,7 @@ describe("SettingsPopover", () => {
 
   it("orders the groups Theme, Map view, Map style, Motion, Quality, Camera controls, Travelling as, River level, Legend", async () => {
     HTMLCanvasElement.prototype.getContext = (() => ({})) as never;
+    resetWebglProbe();
     useScene.getState().setView("cesium");
     renderWithClient(<SettingsPopover />, seeded(BUILDINGS)); // keyless Cesium needs buildings
     await userEvent.click(screen.getByRole("button", { name: "Map settings" }));
@@ -160,6 +185,7 @@ describe("SettingsPopover", () => {
       ENV.googleKey = google;
       // Map styles are for the 3D renderer: a WebGL-capable device showing Cesium.
       HTMLCanvasElement.prototype.getContext = (() => ({})) as never;
+      resetWebglProbe();
       useScene.getState().setView("cesium");
       renderWithClient(<SettingsPopover />, seeded(buildings));
       await userEvent.click(screen.getByRole("button", { name: "Map settings" }));
@@ -209,6 +235,7 @@ describe("SettingsPopover", () => {
     beforeEach(() => {
       useSceneSettings.setState({ motion: true, quality: "auto" });
       HTMLCanvasElement.prototype.getContext = (() => ({})) as never;
+      resetWebglProbe();
       useScene.getState().setView("cesium");
     });
     it("offers Motion On/Off and Quality Auto/High/Medium/Low", async () => {
@@ -221,6 +248,16 @@ describe("SettingsPopover", () => {
       for (const name of ["Auto", "High", "Medium", "Low"]) {
         expect(within(quality).getByRole("radio", { name })).toBeInTheDocument();
       }
+    });
+    it("B-T5: offers a Tilt-shift blur On/Off toggle (FX) that sets fx", async () => {
+      useSceneSettings.setState({ fx: true });
+      renderWithClient(<SettingsPopover />, seeded(BUILDINGS));
+      await userEvent.click(screen.getByRole("button", { name: "Map settings" }));
+      const fx = screen.getByRole("radiogroup", { name: "Tilt-shift blur" });
+      expect(within(fx).getByRole("radio", { name: "On" })).toBeChecked();
+      await userEvent.click(within(fx).getByRole("radio", { name: "Off" }));
+      expect(useSceneSettings.getState().fx).toBe(false);
+      expect(localStorage.getItem("tl.fx")).toBe("false");
     });
     it("Off sets motion to false", async () => {
       renderWithClient(<SettingsPopover />, seeded(BUILDINGS));

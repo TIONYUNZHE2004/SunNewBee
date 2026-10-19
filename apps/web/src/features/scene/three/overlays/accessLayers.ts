@@ -5,10 +5,11 @@ import { diffLines, WHATIF_STYLE } from "../../../whatif/whatifModel";
 import { groupEdgesByStatus, type LonLat, lineFeatures, pointFeatures } from "../../geo";
 import { ROUTE_STYLE } from "../../styles";
 import type { LocalFrame } from "../frame";
+import { type Boundary, insideBoundary } from "../ground/boundary";
 import { lineToLocal, ROUTE_LIFT_M } from "../routeLine";
 import { createFloodLayer } from "./floodLayer";
 import { createLineBatch, dashFromCesium, setDashScale, statusLineStyle } from "./lines";
-import { createMarkers, type EvacMarkerRow, type Markers } from "./markers";
+import { createMarkers, type EvacMarkerRow, type Markers, placeShown } from "./markers";
 
 /** GET /layers/access payload (a GeoJSON FeatureCollection), as the query returns it. */
 export type AccessData = unknown;
@@ -20,6 +21,8 @@ export interface OverlayState {
   access: AccessData | null;
   /** The Access lens. Also gates the gap bands, which replace the status lines. */
   accessVisible: boolean;
+  /** The "Path status" setting: the per-edge status lines exist only while true. */
+  pathStatus: boolean;
   gaps: GapsData | null;
   /** `gapsActive(...)`: the gap bands replace the status lines while true. */
   gapsOn: boolean;
@@ -36,17 +39,34 @@ export interface OverlayState {
   wasteOn?: boolean;
   evac?: readonly EvacMarkerRow[] | null;
   focusPlaceId?: string | null;
+  /** The Elmina outline (display only): place markers outside it are not drawn (A-T5), except: */
+  boundary?: Boundary | null;
+  /** Place ids never hidden: selected place and verification-request targets (focus is added here). */
+  keepPlaceIds?: readonly string[];
+  /** [lon, lat] points (route and journey ends): places within ENDPOINT_KEEP_M are never hidden. */
+  keepNear?: readonly (readonly number[])[];
+  /** A trip is loaded: only the kept places are drawn (gate §9.1 F5); the rest return when it clears. */
+  tripOnly?: boolean;
 }
 
 export interface OverlayLayer {
-  /** Overlay scene: lines and markers (no depth, drawn on top). */
+  /** Overlay scene: markers, residents and attached batches (no depth, drawn on top). */
   group: THREE.Group;
+  /**
+   * MAIN scene: every line batch (status, gaps, what-if, route, flood edges). They must depth-test
+   * against buildings (AC-A2), and the overlay pass renders into a buffer without the scene's
+   * depth, so the lines draw in the main pass at renderOrder >= 10 (after the ground bands).
+   * The engine adds and AO-skips it.
+   */
+  lineGroup: THREE.Group;
   /** MAIN scene: the flood tint, depth tested so buildings occlude it. The engine adds and AO-skips it. */
   groundGroup: THREE.Group;
   update(state: OverlayState): void;
   /** Dashes are screen-constant: the engine passes the metres per pixel at the camera target. */
   setMetresPerPixel(mpp: number): void;
-  /** True when any batch would draw (the engine skips the overlay pass otherwise). */
+  /** Place markers drawn now (after the outline rule; 0 with the access lens off). */
+  drawnPlaces(): number;
+  /** True when a marker or attached batch would draw (the engine skips the overlay pass otherwise). */
   hasVisible(): boolean;
   /** Line2 widths are in pixels: the engine passes the viewport on every resize. */
   setResolution(w: number, h: number): void;
@@ -65,7 +85,8 @@ export interface OverlayLayer {
 /** A batch the overlay layer draws and feeds the per-frame view. */
 export interface OverlayChild {
   group: THREE.Group;
-  setView?(cam: { x: number; y: number; z: number }, nowMs: number): void;
+  /** Camera position, clock, and the camera's live vertical fov (deg; it widens at long range, A-T5). */
+  setView?(cam: { x: number; y: number; z: number }, nowMs: number, fovDeg?: number): void;
   /** Canvas size in the same (CSS) pixels as the layer's `setResolution`. */
   setResolution?(w: number, h: number): void;
   dispose(): void;
@@ -92,7 +113,10 @@ export function createOverlayLayer(frame: LocalFrame): OverlayLayer {
   groundGroup.name = "flood-ground-slot";
   let pixelRatio = 1;
   const markerGroup = new THREE.Group();
-  group.add(floodGroup, status, gapsGroup, whatIfGroup, routeGroup, markerGroup);
+  const lineGroup = new THREE.Group();
+  lineGroup.name = "overlay-lines";
+  lineGroup.add(floodGroup, status, gapsGroup, whatIfGroup, routeGroup);
+  group.add(markerGroup);
   let flood: { dispose(): void } | null = null;
   let markers: Markers | null = null;
   let markerKey: unknown[] | null = null;
@@ -114,8 +138,9 @@ export function createOverlayLayer(frame: LocalFrame): OverlayLayer {
   };
 
   function update(s: OverlayState) {
-    const accessChanged = s.access !== last.access;
-    if (accessChanged) fill(status, s.access ? statusBatches(s.access, frame) : []);
+    const statusSrc = s.pathStatus ? s.access : null;
+    if (statusSrc !== (last.pathStatus ? last.access : null))
+      fill(status, statusSrc ? statusBatches(statusSrc, frame) : []);
     if (s.gaps !== last.gaps) fill(gapsGroup, s.gaps ? gapBatches(s.gaps, frame) : []);
     if (s.whatIf !== last.whatIf) fill(whatIfGroup, s.whatIf ? whatIfBatches(s.whatIf, frame) : []);
     if (s.route !== last.route) fill(routeGroup, s.route ? routeBatches(s.route, frame) : []);
@@ -153,7 +178,21 @@ export function createOverlayLayer(frame: LocalFrame): OverlayLayer {
     const places = s.accessVisible ? s.access : null;
     const waste = s.wasteOn ? s.waste : null;
     const evac = s.floodOn ? (s.evac ?? null) : null;
-    const key = [places, waste, evac];
+    const b = s.boundary ?? null;
+    const keepIds = new Set([
+      ...(s.keepPlaceIds ?? []),
+      ...(s.focusPlaceId ? [s.focusPlaceId] : []),
+    ]);
+    const keepNear = (s.keepNear ?? []).map(
+      (c) => frame.toLocal(c[0] as number, c[1] as number) as [number, number],
+    );
+    // The rule's inputs as one value, so a focus or route change rebuilds only when they change.
+    const tripOnly = !!s.tripOnly;
+    const rule =
+      b || tripOnly
+        ? `${tripOnly}|${[...keepIds].sort().join(",")}|${keepNear.flat().map(Math.round).join(",")}`
+        : "";
+    const key = [places, waste, evac, b, rule];
     if (!markerKey || key.some((k, i) => k !== markerKey?.[i])) {
       markerKey = key;
       markers?.dispose();
@@ -165,6 +204,12 @@ export function createOverlayLayer(frame: LocalFrame): OverlayLayer {
             places: places ? pointFeatures(places) : [],
             waste: waste ? pointFeatures(waste) : [],
             evac: evac ?? [],
+            placeShown: placeShown({
+              inside: b ? (x, z) => insideBoundary(b, x, z) : null,
+              keepIds,
+              keepNear,
+              tripOnly,
+            }),
           },
           frame,
         );
@@ -178,15 +223,18 @@ export function createOverlayLayer(frame: LocalFrame): OverlayLayer {
 
   return {
     group,
+    lineGroup,
     groundGroup,
     update,
     setMetresPerPixel(m) {
       if (!(m > 0) || !Number.isFinite(m)) return;
       mpp = m;
-      group.traverse((o) => setDashScale(o, m));
+      for (const g of [group, lineGroup]) g.traverse((o) => setDashScale(o, m));
     },
+    drawnPlaces: () => markers?.placeCount ?? 0,
     hasVisible() {
-      const own = [status, gapsGroup, whatIfGroup, routeGroup, floodGroup, markerGroup];
+      // Lines draw in the main pass (lineGroup): only markers and attached batches need the overlay pass.
+      const own = [markerGroup];
       return [...own, ...[...children].map((c) => c.group)].some(drawable);
     },
     setResolution(w, h) {
@@ -194,10 +242,11 @@ export function createOverlayLayer(frame: LocalFrame): OverlayLayer {
       resSet = true;
       for (const ch of children) ch.setResolution?.(w, h);
       if (cam) markers?.setView(cam, fov, h);
-      group.traverse((o) => {
-        const m = (o as THREE.Mesh).material as LineMaterial | undefined;
-        if (m?.resolution) m.resolution.set(w, h);
-      });
+      for (const g of [group, lineGroup])
+        g.traverse((o) => {
+          const m = (o as THREE.Mesh).material as LineMaterial | undefined;
+          if (m?.resolution) m.resolution.set(w, h);
+        });
     },
     setPixelRatio(pr) {
       pixelRatio = pr;
@@ -207,7 +256,7 @@ export function createOverlayLayer(frame: LocalFrame): OverlayLayer {
       children.add(child);
       group.add(child.group);
       if (resSet) child.setResolution?.(res[0], res[1]);
-      if (cam) child.setView?.(cam, performance.now());
+      if (cam) child.setView?.(cam, performance.now(), fov);
       return () => {
         if (!children.delete(child)) return;
         child.group.removeFromParent();
@@ -216,7 +265,7 @@ export function createOverlayLayer(frame: LocalFrame): OverlayLayer {
     },
     setView(c, fovDeg) {
       // Attached batches also follow the clock, so they are fed before the camera-moved early return.
-      for (const ch of children) ch.setView?.(c, performance.now());
+      for (const ch of children) ch.setView?.(c, performance.now(), fovDeg);
       // The engine calls this every frame: relabel only when the camera moved.
       if (cam && cam.x === c.x && cam.y === c.y && cam.z === c.z && fov === fovDeg) return;
       cam = { x: c.x, y: c.y, z: c.z };
@@ -235,6 +284,7 @@ export function createOverlayLayer(frame: LocalFrame): OverlayLayer {
       markerGroup.clear();
       for (const g of [status, gapsGroup, whatIfGroup, routeGroup]) drop(g);
       group.removeFromParent();
+      lineGroup.removeFromParent();
     },
   };
 }
@@ -265,6 +315,8 @@ function statusBatches(access: AccessData, f: LocalFrame): THREE.Object3D[] {
         statusLineStyle(st),
         LIFT.status,
         ORDER.status,
+        undefined,
+        true,
       ),
     );
   return out;

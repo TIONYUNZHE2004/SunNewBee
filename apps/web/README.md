@@ -21,6 +21,7 @@ The TownshipLens browser app: a Vite + React 19 SPA with two screens and a time-
 pnpm dev                     # from the repo root: API on :8000 + web on :5173 (/api is proxied)
 pnpm --filter @tl/web test   # vitest
 pnpm --filter @tl/web e2e    # Playwright smoke on ports 5273/8100 (see below)
+pnpm --filter @tl/web acceptance -g baseline  # visual/perf harness against a running server (see below)
 pnpm --filter @tl/web build  # tsc + vite build + Cesium asset check
 ```
 
@@ -265,6 +266,27 @@ the settings popover.
   intent standing in `sceneStore` (route, then what-if, then focused place, then the last
   `camera.fly_to`; Realistic also frames a rehearsed trip), else to its start view (Three.js: the
   `hero-mid` bookmark; Cesium: the site home). Ruling P5-14: no camera-pose hand-off.
+- **Camera bound to the slab (Three.js, A-T5):** with an outline, `three/cameraFit.ts` `fitFor`
+  derives a camera fit from the boundary at runtime (slab corners, a view axis, a max-range target).
+  `clampPose` keeps the target inside the outline (nearest outline point when outside) and, from
+  `FIT.startRangeM` (2.5 km) to `LIMITS.maxRangeM` (7,900 m, unchanged), narrows pitch to
+  [-50, -45] (A-T3b outline: steeper bands need a wider field of view), heading to ±15° of the axis, pulls the target to the fit target and widens the field
+  of view (`vfovFor`, capped at 50°) so the whole slab sits clear of the map chrome at max range.
+  At long range the fog's far end also follows the slab (`fogReachM`: the farthest outline vertex
+  sits at 90% of the fog ramp), and bookmark centres go through `anchorInside` (>= 300 m inside).
+  Below 2.5 km nothing changes. The engine re-applies the clamp after every MapControls update
+  (`rig.constrain()`). "Whole township", `?bookmark=township` and the acceptance `overview` use
+  `overviewPose(fit)`; the static `township` bookmark is only the fallback for worlds without an outline.
+- **Building clearance (Three.js, A-T7):** `three/clearance.ts` keeps the camera at least 2 m above
+  any roof it is over (or within 1 m of), and lifts it, eased, when the camera-to-target line
+  crosses a building; the lift eases back down when no longer needed. The lift is display state: the
+  engine removes it before every `controls.update()` (the tick's and those MapControls runs inside
+  its pointer, wheel, key and touch handlers) and re-applies it after the inputs, before the render.
+  Rig flights and `rig.get()` see the base pose. `engine.clearance.test.ts` (pointer-drag pan and
+  wheel while lifted) and the AC-A8 drift check guard against the base creeping up; a camera moved
+  by any other code path between frames is taken as a new base. The hard floor can raise the camera
+  by up to the tallest roof + 2 m in one frame (about 132 m on the seed). The journey follow camera
+  reuses it.
 
 ### Stylised (Three.js)
 
@@ -307,6 +329,21 @@ after it stops.
   dropped manifest entry (the library collects failures in `failed`; it never warns). Footprints an
   archetype cannot fit, and archetypes with no asset, stay extruded.
 - **`?assets=0`:** skip the assets (no manifest fetch); the extruded city only.
+- **Rounded buildings (B-T2):** extrusions are bevelled by default (`cityMesh.ts` `bevelBody`,
+  `BUILDING_BEVEL`: a 0.5 m quarter-round top edge cut into the body, 0.14 m cuts with smooth normals
+  on convex corners). Walls stay on the OSM outline and the top at `display_height_m`;
+  `cityMesh.fidelity.test.ts` checks every seed building in the boundary (area ±2 %, vertices
+  ≤ 0.15 m, top ±0.1 m). Archetype and landmark glbs round in the role shader only
+  (`BUILDING_SHADER_BEVEL`, a per-model box uniform, so one material per asset, variant and LOD):
+  no extra triangles, nothing moves.
+  The bevel follows the quality tier (`BEVEL_BY_TIER`): Low draws plain boxes, Medium one segment,
+  High two; a tier change re-extrudes only the merged extrusion mesh.
+- **Fact fidelity ruling (B-T2 fix round 1):** archetype models are display stand-ins fitted to the
+  footprint OBB (ADR 0012), so their footprint is not a fact. Footprint fidelity (area, outline) is
+  guaranteed on the extrusion path, which can draw every building. Heights match on every path: an
+  extrusion tops out at `display_height_m`, and an archetype or landmark is scaled by its glb's drawn
+  LOD0 top (manifest `top`), so its top lands there too (`assets/planHeights.test.ts`; a traced
+  landmark tower such as Kanopi is drawn at its documented design height, `heightBasis`).
 - **`?showroom=1`:** replace the plan with `assets/showroom.ts`: every asset variant once at LOD0,
   one row per asset (landmarks on the outer rows). Each row spaces its variants max(30 m, widest
   + 5 m) apart and rows sit max(30 m, half their depths + 5 m) apart, so nothing overlaps and one big
@@ -321,6 +358,67 @@ after it stops.
   triangles, 150 MB.
 - The glbs and manifest live in `public/city/` (lane `blender`); `vite build` copies them to
   `dist/city/`.
+
+#### Street dressing kit (Three.js, B-T7)
+
+`dressing/` draws the street dressing in one instanced layer (`scene/useDressing.ts`, decor slot
+`dressing`). Models are built in code (`dressingModels.ts`: bevelled boxes, low cylinders and
+spheres, clay role `dressing`, colours from `CLAY_PALETTE.prop` / `.dressing`).
+
+- **Fact props** (`planFactProps`, every tier): one zebra crossing per walk `crossing` edge whose
+  crossing claim is `marked` / `zebra` (reported or verified; the access layer's `crossing` /
+  `crossing_status`), never on an unmarked or unknown crossing or an edge without its own id, and one
+  traffic signal / bus stop / shelter / bench per `GET /layers/street_furniture` point inside the
+  outline, each instance carrying its `sourceId` (`userData.sourceIds` on the mesh). A prop whose
+  point lies on a drawn ribbon is set just past the ribbon edge. Nothing else draws these models:
+  the decorative props planner no longer places benches or bus shelters. AC-B7 is
+  `dressingPlan.test.ts` on the seed.
+- **Decorative props** (`planDecorProps`, High and Medium): kerb edging, planters and verge tufts
+  along roads, lamp posts beside park paths, flowers and tufts in parks. Seeded, never within 1 m
+  (from the footprint) of any walk line, never in a footprint or outside the outline. They keep
+  "Decorative details are illustrative." on screen (`data-dressing-decor`). Journey modules never
+  import `dressing/` (`importBoundary.test.ts`, AC-B8).
+- Drawn only inside the detail bubble (below); decorative props are re-planned when its focus
+  moves 25 m.
+
+#### Detail bubble (Three.js, B-T8)
+
+`detailBubble.ts` + `scene/useDetailBubble.ts`: street-level detail within 150 m of the focus
+point, which is the rendered hero in follow mode while a journey is loaded (`journeyHero`, the
+D-T6 seam), else the camera's orbit target; no bubble beyond a 1.5 km camera range. One bubble per
+view, on the scene bus (`bus.getState().bubble`); layers `register` with it and hear each move of
+1 m or more.
+
+- Dressing (`useDressing`): each instance fades in / out over 0.5 s at the edge (instance scale by
+  `createBubbleFader` weight; a frame advances a fade by at most 0.1 s, so a long frame gap never
+  pops; frames are requested while a fade runs).
+- Trees: the `trees` kit inside the bubble is drawn at LOD0 whatever the camera distance
+  (`CityInstances.setDetailBubble`, via `useCityAssets().setDetailBubble`). This is a plain LOD
+  swap, with no crossfade.
+- Crowd (C-T7): register with `bus.getState().bubble` to mount LOD0 inside it.
+
+#### Elmina outline and diorama slab (Three.js, A-T4)
+
+When `/site` serves `boundary.geometry` (the display-only Elmina outline, `base/boundary.geojson`),
+the stylised city is clipped to it and sits on a diorama slab. Display only: routing, evaluation,
+the API data and the data overlays (access lines, markers, flood tint) are never clipped.
+
+- `ground/boundary.ts`: the outline in the local frame and the pure helpers (`insideBoundary`,
+  `outsideBy`, `clipToBoundary`, `clipLine`); `ground/clipPolygon.ts` cuts polygons with
+  `polygon-clipping` (main thread only: the tile-plan worker never bundles it). Cut walk runs and
+  polygon pieces after the first take a `~k` id.
+- `ground/clipLayer.ts`: applied once in `ThreeScene` to the `/layers/buildings` payload and the
+  latched walk copy the planners read. Buildings and landmark outlines are kept only when every
+  footprint vertex lies within 5 m of the inside (never cut; on the seed 1283 of 7803 are kept);
+  land cover, parks and base water are cut geometrically; trees and signs are kept inside; walk
+  lines are cut to their inside runs.
+- `stream/clipTile.ts`: every planned tile's vertex guard (props, lamps, signs, shrubs, cars and
+  stalls inside; road and verge triangles and tracks within 5 m); `planAgents` drops agents whose
+  path leaves the outline; ambient birds and cloud shadows outside it are hidden.
+- `ground/slab.ts` (`engine.setSlab`, `useSlab`): the slab top is the outline (it replaces the
+  rectangular base plane) and its cut edge is a cream crust over three soil bands that step down
+  and out at about 20 degrees, so the section faces the camera on every side at the overview. The
+  edge material takes 0.55 of the scene fog. A world without an outline keeps the base plane.
 
 #### Streaming (Three.js)
 
@@ -418,14 +516,49 @@ at render on demand and holds a still pose. Motion time excludes stopped spans, 
 where they stopped instead of jumping. Every rebuilt agent layer shares one smoothed-yaw memory.
 
 - **Agents:** `planAgents` puts seeded vehicles on `street`/`major_road` edges and people on
-  `footway`/`path`/`pedestrian` edges of each streamed tile, weighted ×3 near schools, malls and
-  parks. The count is the tile's cap × mood density (day 1.0, dusk 1.15, night 0.45). Agents loop along the
-  edges with no routing or collision, so cars can pass through each other.
-- **Drawing:** `motionLayer` uses one InstancedMesh per kit, variant and LOD. Matrices are rewritten
+  `footway`/`path`/`pedestrian`/`sidewalk`/`crossing` edges and on pavement paths beside every
+  `street`/`major_road` (`WIDTH_BY_TYPE / 2 + 0.6–1.2 m` from the centre line, C-T8) of each streamed
+  tile, weighted ×3 near schools, malls and parks. A person's path that enters a building footprint or
+  base water moves to the other side of its line, else is not planned (P7). The count is the tile's
+  cap × mood density (day 1.0, dusk 1.15, night 0.45); in the detail bubble (rings 0–1) people are
+  raised to a floor of one per 40 m of street at day density (`PAVEMENT_FLOOR_MAX_RING`, the
+  perf-gate knob). No cyclists (they would render as people
+  walking at 4.5 m/s). Agents loop along the edges with no routing or collision, so cars can pass
+  through each other.
+- **Drawing:** `motionLayer` uses one InstancedMesh per kit, variant and LOD for vehicles. Matrices are rewritten
   each tick, but only for agents in view (with a 50 m margin). Agents beyond their last LOD's `maxM`
   are hidden. Agents cast no shadows and are left out of the AO pass.
-- **Scale-up:** agents are drawn 1× within 150 m of the camera, rising to 3× at 800 m, for
-  legibility. This is display only; the models are unchanged.
+- **Crowd people (C-T7):** `useMotion` loads the crowd kit once (`motion/crowdKit.ts`: the six
+  `characters/crowd_<body>.glb`, one body per idle slice) and bakes every clip at runtime into a
+  bone-matrix texture (`motion/crowdBake.ts`: per frame and bone the 3×4 `boneWorld(t) × boneWorld(rest)⁻¹`
+  as RGBA half floats, 821 rows × 57 texels = 0.37 MB, 0 bytes on disk; props are one-bone skinned).
+  `motion/crowdRenderer.ts` draws all people as two BatchedMeshes (LOD0 ≤ 60 m, LOD1 ≤ 800 m per R-J7,
+  hidden beyond: 2 draw calls), skinning in the vertex shader from (row0, row1, blend, look) per instance
+  and recolouring from a palette texture (role × look). The gait phase integrates the distance walked
+  over `stride × display scale` (`motion/crowdGait.ts`, P5: no skating) from a seeded start phase.
+  An agent's optional `look` id picks its look; else `motion/crowdRules.ts` `assignLooks` (C-T8, P3):
+  graph colouring over path proximity, so no two people whose paths come within 10 m share a look,
+  seeded and kept across tile streaming (`LookMemory`); joggers take young or adult looks without a
+  prop. The search runs off the critical path (GATE AC-D18): `lookJob` only searches people not in
+  `LookMemory`, caches each path's grid cells and path-pair gaps, and `motion/looksQueue.ts` runs it in
+  slices of at most 4 ms per frame, strictly in order, so the looks equal one search per set at once;
+  `useMotion` then builds the layer, compiles it with `engine.prepare` (compileAsync) and swaps it in
+  while the old layer stays drawn (`tl:crowd-looks`, `tl:motion-build` User Timing). Poses use a binary
+  search over cached cumulative path lengths (`alongPath`). Acceptance only (P10):
+  `?acceptance=1&crowd=N` (`motion/crowdOverride.ts`) copies each ring 0-1 tile's people onto their own
+  paths until about N stand in a 150 m bubble. Each look walks at its own pace (`lookSpeed`: walker 0.6, older 0.75, wheelchair 0.8,
+  stroller 0.9, child 0.85 of the planned speed, capped at 1.5 walk cycles/s at 1.55×). The keep-out
+  (`keepOut`, P8) moves people sideways out of a zone 2 m around the hero and her path over the next
+  10 m (`HeroPose.ahead`, published by `heroLayer` every 0.25 m; her heading when absent), reading
+  only these positions (`useMotion` `heroXZ` from `journeyHero`); a person crossing her line inside
+  the zone is hidden until clear. Pavement paths are cut back where they meet another street or major
+  road (half width + 1.2 m from its centre line), so pavement walkers turn at the kerb. The crowd never imports journey code
+  (`crowdBoundary.test.ts`, P9). While the kit loads no people are drawn; if it fails the legacy
+  `people` kit (shader limb swing) is the fallback.
+- **Scale-up:** people (R-J3, R-J7: `peopleScale`) are drawn 1.55× within 300 m of the camera (the
+  hero's scale), easing up to 2.5× at 800 m and hidden beyond 800 m. Vehicles keep ruling P2
+  (`displayScale`: 1× within 150 m, rising to 3× at 800 m, visible to 900 m). Display only; the
+  models are unchanged.
 - **Day/Rollout fade:** people and vehicles fade out over 1 s while Elmina Day or Rollout playback
   is on, and fade back in when both are off.
 - **Honesty:** decorative only (`userData.decorative`, no-op raycast), never picked or described.
@@ -560,6 +693,7 @@ POST /chat (SSE) -> parseSse -> useChatStream -> chatReducer   (messages, tool c
                                                               river.rollout    -> rollout {on, stage, playing}
                                                               day.show         -> day {on, scenario, t} paused (+ its river stage)
                                                               day.trip         -> day at the leave time (any mode) + myTrip (+ its river stage)
+                                                              journey.play     -> journey (the JourneyPlan) + useJourney.load (paused at t = 0)
 sceneStore --> Cesium / Mapbox / List renderers (one adapter each) + map overlays + legend
 ```
 
@@ -589,6 +723,26 @@ flooded_possible`) via `scene/status.ts`, and unknown is drawn dashed and amber,
 
   `map-ui/RolloutTag` (top right) always says "simulation, not a forecast".
 - **Pure helpers** are in `whatif/rolloutModel`.
+
+**Clay look and tilt-shift (journey Phase B, display only):**
+- **Clay tokens.** `scene/three/shared/clayTokens.ts` (`CLAY_PALETTE`, `CLAY`) is the one table of surface colours, roughness and sheen; layer code imports colours only from it (AC-B1). Fact geometry keeps OSM footprints and `display_height_m`; rounding is cosmetic.
+- **Tilt-shift.** `scene/three/tiltShift.ts` (`TILT_SHIFT`) drives a `BokehPass` focused on the follow target (`Engine.setFocusPoint`), else the camera target. High quality only; off with the FX toggle off or under `prefers-reduced-motion`.
+- **Pinned sun.** `?sun=pinned` (acceptance, `sunClock.ts`) and `?demo=1` light the scene at 10:30 MYT on a fixed date so evidence is reproducible; normal users keep the real clock. A pinned Day/Dusk/Night theme still wins for the mood.
+- Decorative details (street dressing, crowd, cars) stay labelled "Decorative details are illustrative." and never cause a journey event.
+
+**Resident journey (D-T4, spec 2026-10-19 §6.2 and §6.4):**
+- **Contract.** `journey.play` carries the backend's `JourneyPlan` (`intent.journey`). `sceneStore.applyIntent` stores it as `journey` and loads `features/journey/journeyStore` paused at the start; `chatReducer` notes `journey: {routeId, startTime}` on the answer. Changing the profile or scenario, or `reset`, drops the journey.
+- **Timeline.** `features/journey/timeline.ts` is pure: `buildTimeline(plan)` gives phases (`dive` 4 s, `walk` at 20x, one `event` hold per plan event with the screen time from `HOLD_SCREEN_S` and the plan's `hold_s` as simulated time (arrive adds none), `pull` 5 s); `stateAt(timeline, t)` gives distance, simulated seconds, the "HH:MM" clock, rests taken and minutes outdoors. During verified / gap / covered holds she keeps walking at her pace (capped at the next event); unknown / rest / arrive holds stand still. Minutes outdoors pause only on the span of a *verified* covered event (a reported roof is not a checked fact). The HUD at each event start equals the plan.
+- **Store.** `journeyStore` (zustand): `plan`, `timeline`, `t`, `playing`, `camMode` (`follow|overview|free`); `load`, `play`, `pause`, `seek`, `restart`, `setCam`, `advance(dt)` (the player's frame tick), `clear`. `journeyStateOf(store)` reads the HUD state. No rendering yet; auto-play is not here.
+- **Fixture.** `features/journey/fixtures/demoPlan.json` is the real `POST /journeys` plan for the §2 demo route (09:00). Regenerate with `uv run python apps/web/scripts/build-journey-fixture.py` (needs the Elmina seed; excluded from Biome as generated data).
+- **Overlay (D-T7).** `JourneyMount` (mounted by `ThreeScene`) shows the overlay while `sceneStore.journey` is set; it never starts playback. The timeline is advanced only by D-T8's shared, ref-counted `useJourneyDriver` (mounted by the controls and by the mount); a change of `t` asks the engine for a frame. Per-frame work is limited to the shown event card, which subscribes to engine frames during its hold and re-places itself without a React commit; the card area (side panel, phone sheet, top stack, mini-map) is measured by `useMapInsets` (ResizeObserver). The "Simulation · indicative times, not a prediction" label and the HUD go in the map's `sim` slot; the mini-map (spans by status, hero dot from `routePath.ts`, the same maths as the 3D hero) sits top right; one `EventCard` shows during each hold and none during dive / walk / pull, anchored to the projected marker and clamped inside the map (clear of the side panel, phone sheet, top stack and mini-map: `cardPlacement.ts`).
+- **Card wording.** `cardContent.ts` `journeyCardContent(event)` is the one source of card text, and `CardSourceRow` the one provenance row, for the 3D card and the List / Mapbox step list (AC-D14): the "Demo value · not surveyed" chip exactly when `demo`; "Verified" only for a verified, non-demo claim; UNKNOWN says "Not checked yet", plus "verification request filed" (`withVerificationRequest`) only when a `verification.requested` event this session matches the event's element and one of its attributes (`vrFiledFor`, `journeyStore.vrs`, fed by `useChatStream`); the rest gap is a "Data gap". `uiStrings.dom.test.tsx` scans every journey UI string (AC-D6).
+- **Ribbon and markers.** `journey/three/journeyLayer.ts`, handed to `Engine.setJourney`, not part of the status-line overlay: the ribbon (PASS solid green, UNKNOWN amber dashes, on a wider white casing so it reads apart from status lines) is a world-unit Line2 in the main scene, depth-tested so buildings and the hero cover it, with a 35 % ghost (`depthFunc` Greater) where a building hides it, left out of the AO G-buffer; it shows with Path status off. While a journey is loaded the blue route overlay line steps aside, the route tag shows the ribbon legend, and "Clear route from map" also clears the journey. Event markers are sprites in their own scene, rendered straight to the canvas after the composer (never through post-processing: the prototype's black-quad bug).
+- **Demo preset auto-play (D-T10).** With `?demo=1` (`features/demo/demoFlag.ts` `isDemoPreset`) the trip plays from the start as soon as its `journey.play` intent arrives (`sceneStore.applyIntent`); a normal load only loads it paused and the answer's "Watch the trip" button plays it. `acceptance/ac-d16-d17.accept.ts` checks the recorded demo turn (AC-D16, replay needs `DEMO_MODE=true` on the server) and runs the preset twice: same `JourneyPlan` JSON (also `POST /journeys` twice), camera within 1 cm / 0.1° and < 1% changed pixels at every beat (dive end, each event hold, pull-back end) (AC-D17).
+- **Acceptance.** `acceptance/journey-overlay.accept.ts` (AC-D11, AC-D12) drives `window.__journey` (dev builds and `?demo=1`): `seek`, `play`, `pause`, `setCam`, `phases`, `total`, `state()`, plus `plan` and `hero()` (the rendered hero, below). `acceptance/journey-hero.accept.ts` (AC-D10) samples a full playback at 10 Hz (clip per phase, never inside a building) and checks ground contact at every beat.
+- **Hero (D-T6).** `scene/three/journey/heroDriver.ts` is a pure state machine, `heroStateAt(timeline, t, {pointAt, seatOf})` → position (on the route via `routePath.pointAt`), yaw (`smoothYaw` folded over a fixed 1 s window, so it is deterministic), clip (`walk|idle|sit_down|sit_idle|stand_up|look`), clip time, walk rate and, in the first 0.2 s of a beat whose clip changed, a crossfade (`fade: {prevClip, prevTime, blend}`): walk phases walk (rate = pace / 7/6 m/s × 1.6), verified / covered / gap holds are a slow walk, unknown stops and looks, rest walks to the bench-front stand point, steps round to face away from the bench (0.6 s), sits down (0.85 s), sits, stands up (0.85 s) with the root fixed (the clip carries the hips back onto the seat; C-T3 ruling) and walks back, arrive / dive / pull-back idle. Same output by play or seek. Models implement `scene/three/characters/hero.ts` `Hero` (`object3d`, `setPose`, `play(clip, time, rate, fade?)`, `contacts`, `dispose`; the sit / stand time base and the seat geometry contract are documented there); `placeholderHero.ts` is the primitive clay chibi with walker and yellow ring at 1.55× (about 2.4 m) until the rigged GLB (C-T4). `journey/three/heroLayer.ts` adds her and a bench per rest to the engine decor slot `journey-hero`. **The bench position is display-approximate: the bench fact is the rest point.** The stand point (her root while seated; the bench stands behind it per `characters/benchGeometry.ts` `HERO_BENCH`, read from the asset manifest `public/city/characters/manifest.json` through `heroManifest.ts`, as are the display scale, clip lengths and walk stride; sit_down / stand_up clip time runs 0..1.5 s over their 0.85 s screen beat, and walk rate is the manifest's no-slide `walkRate`) is the access layer's bench place when it is 1.2–6 m off the route, else 1.9 m to the side: the place's side when it is at least 0.5 m off the route, else the side with more clearance from OSM building footprints. During a rest she and the bench stand on the drawn ground sampled along route → seat (the ground bands, once streamed in), on the route her root stands at the footway height (0.08 m); each foot and walker leg is planted on the drawn ground under it (`Hero.setGround`) from a precomputed height table of the route corridor (`journey/three/groundIndex.ts`: ground-band triangles within 2.5 m of the route and the rest paths, bucketed on a 2 m grid; exact barycentric heights, no raycasts per frame, identical in play and seek). The table is rebuilt only when `Engine.groundGeneration` moves and the set of ground meshes actually changed (per-mesh triangle scans are cached). `JourneyMount` poses her on every `t` change and writes what it drew to `journeyHero.current` in `journeyStore.ts` (a plain holder, no store update per frame): `__journey.hero()` reads it, and so will the crowd keep-out (C-T8), which never reads journey events. The hero is the simulation subject, not decoration: no `userData.decorative` (picks pass through her no-op raycast).
+- **Follow camera (D-T5).** `scene/three/journey/followRig.ts` is pure pose maths: `journeyCameraAt(scene, t, mode)` → `{pos, look}` for `follow` (dive from the derived overview `cameraFit.ts` `overviewPose` over 4 s, the follow pose, the pull-back over 5 s), `overview` (that pose) or `free` (null). Follow pose: 8.5 m back along the route tangent, 4.5 m to the right, 4.2 m up, looking 4 m ahead (nudged 0.3 m up and 1.5 m to the far side of her line so her whole box sits ≥ 14 % inside the frame). Per-event framing: rest = side view across the route-to-seat line (both in frame), unknown = the element from the side with the clearer view, arrive = from behind her towards the destination place; verified / covered / gap follow. Damping is a Gaussian over ±0.75 s of timeline time on the offsets from her, in polar form (a change of side swings round her), so it is a pure function of t (scrub == play). Building clearance (`clearance.ts`): the camera is lifted (x, z kept) by the windowed max of the line-of-sight lift (`segmentLiftM` to her chest, plus the floor with a 6 m skirt), tapered over ±1 s so it rises before a building arrives; when the default side needs > 3 m of lift it takes the same shot mirrored or turned about her (she walks out of Harmoni 1 with the camera in front of her, not 150 m above); a lifted camera tilts down onto her; the hard floor (roof + 2 m) is applied last and never eased. `journey/followCamera.ts` makes it an engine camera driver (`Engine.setCameraDriver`: the camera is put exactly at the driven pose, MapControls off, rig flights dropped, no rig lift): the player takes the camera only once used (play, seek, a mode chosen), a mode change eases in over 1 s (wall clock; snaps under reduced motion), Free and the end of the trip hand it back to the orbit rig (Free: a 0.6 s flight to an orbit around her). Event cards keep clear of her body box on screen (`cardPlacement.ts` `keepClear`, ruling). `__journey.camera()` is the acceptance probe (`journey/three/cameraProbe.ts`); `acceptance/journey-camera.accept.ts` checks AC-D8 / AC-D9. **Seats avoid drawn buildings (D-T5 ruling):** `seatFor` takes the first candidate (the bench place, 1.9 m on its side, the other side, then 3 / 4.5 / 6 m) that is outside every building, OSM outlines and the drawn archetype / landmark boxes from the clearance grid (`heroLayer` `grid`, from `engine.clearance()`), and whose walk from the route leaves buildings and never enters one (`approachClear`). **Fact benches:** a rest sits on the street dressing's fact bench (`useDressing` → `dressingPlan.ts` `factBenches`, kind `bench` from `/layers/street_furniture`) when one (same source id first, else the nearest) lies within 3 m of the rest point itself, and then draws no bench of its own; a fact bench inside or reached through a drawn box is not used. **Cutaway (display only):** while she stands inside a drawn building (the route crosses Harmoni 1 at the start and the Sales Gallery at ~831 m), fragments of that building only (its footprint box up to its top: `Clearance.footprintsAt`) that lie in a 2.6 m capsule from the camera to her chest are discarded (`journey/three/cutaway.ts`: shared uniforms, building materials patched ahead of need); route data, geometry, picking and the grid are unchanged, and the probe's raycast ignores exactly those fragments. Cards shrink (0.8, 0.65) or take the least overlap when no spot clear of her exists; their size is measured from the layout (`offsetWidth/Height`), not the scaled box. The hero's screen box comes from the posed bones (padded 0.25 m × the display scale) for the GLB hero, visible LODs only.
+- **GLB hero (C-T4).** `scene/three/characters/glbHero.ts` `createGlbHero({profile})` is the default hero: it shows the placeholder at once, loads `public/city/characters/hero_<variant>.glb` (older_adult_rest → walker, stroller → stroller, wheelchair → wheelchair, else none; meshopt GLTFLoader, bytes cached per session) and swaps it in, keeping the placeholder if the load fails (and in unit tests, which have no loader). Each `play` sets the actions' times from the driver and updates the mixer by 0 (scrub-safe; loops wrap, `sit_down` / `stand_up` hold their last frame), crossfades by weighting two actions, and then plants: each foot moves vertically onto `setGround`'s height (the walk's swing lift softly capped at 2.5 cm so H5's 3 cm holds at 1.55×), the prop takes the best-fit plane under its `contact_*` bones, and a hand that held a grip is brought back with a two-bone CCD. Seated, her dangling feet are reported `airborne` (not ground contacts). LOD1 beyond 40 m (switched from the ring's `onBeforeRender`). For frame cost (H11) the prop is folded into the skinned body of each LOD and the ring and disc are one opaque mesh, so she is two draws per pass. Never call `skeleton.pose()` on these glbs. Acceptance: `acceptance/hero-runtime.accept.ts` (H5–H7, H11 and the C-T5 H8–H10 captures) on `__tlAcceptance.heroLab()`, a footway strip and bench at the camera target; `Engine.setCameraOverride` (test only) pins close camera poses below the rig's 30 m minimum.
 
 ## File map
 
@@ -634,6 +788,44 @@ tiles around it stream).
 Playwright uses its own ports (web 5273, API 8100) and waits for `/api/site`, so a dev server on
 :5173/:8000 is never reused (a leftover e2e server on :5273 is reused locally, never in CI). First
 run: `pnpm --filter @tl/web exec playwright install chromium`.
+
+## Acceptance harness (resident journey)
+
+`acceptance/` holds the visual and performance checks of the resident-journey work (spec
+`docs/superpowers/specs/2026-10-19-resident-journey-simulation-design.md` §3, §9). It is not part of
+CI: it needs a real GPU and the Elmina seed.
+
+- Start a server yourself (`LLM_PROVIDER=mock pnpm dev`, Stylised map), then run
+  `ACCEPTANCE_BASE_URL=http://localhost:5173 pnpm --filter @tl/web acceptance -g baseline`.
+  No webServer; 1440x900 at DPR 1; ANGLE D3D11 on the high-performance GPU with vsync and the frame
+  limit off (the renderer string is recorded; a software renderer fails the run).
+- Specs are `*.accept.ts`, so neither `e2e` nor vitest picks them up. The pure helpers' unit tests
+  (`acceptance/support/*.test.ts`) do run in vitest.
+- `support/bookmarks.ts`: the five evaluation bookmarks (`overview`, `hero-mid`, `street`,
+  `link-low`, `night-mid`) and `gotoBookmark(page, name)`, which forces `tl.quality=high` and the
+  bookmark's `tl.theme`, closes the assistant panel and the camera tips (map notes stay), sets the
+  pose and waits for streaming (tiles, assets, road layer) to settle.
+- `support/scene.ts`: `pickGrid` / `pickMask(page, kind)` (building, ground, road, sky; cells under UI
+  chrome are left out) and `decodePng`. `support/pixels.ts`: `lumaHistogram`, `fractionBelow`,
+  `countColour(img, hex, tol)`, `laplacianVariance(img, box)`, `greyShare`; all take a box, points or
+  a per-pixel mask (`mapArea`: the canvas less UI chrome). `support/frames.ts`:
+  `captureFrameStats(page, seconds)`: display-paced orbit fps plus uncapped frame time
+  (`engine.renderNow` + `gl.finish`) for headroom. `support/journey.ts`: `journey.seek/play/pause`
+  over `window.__journey` (Phase D; throws "not available" until then).
+- `clearance.accept.ts` (AC-A8): 300 seeded random wheel, drag and rotate operations over the hero
+  district; every rendered frame's camera is checked against `footprintTop`. Writes
+  `acceptance/A-T7/metrics.json` in the ledger.
+- `baseline.accept.ts` writes five PNGs and `metrics.json` to `ACCEPTANCE_OUT` (default: the
+  journey-sim ledger folder `.superpowers/sdd/journey-sim/acceptance/baseline`).
+- The app side is `window.__tlAcceptance` (`three/scene/useAcceptanceHook.ts`): `setPose`, `getPose`,
+  `size`, `frames`, `pickGrid(step)`, `measure(seconds, orbitDegPerSec)`,
+  `measureUncapped(frames, degPerFrame)`, `roadVertices`, `gpu`, `slabOutline`, `displayAudit`
+  (A-T4; with a slab, `pickGrid` codes the plane beyond the outline as sky), and for AC-A8
+  `clearance`, `footprintTop(x, z)`, `cameraLocal`, `startCameraLog` / `stopCameraLog`, `flyTo`,
+  `liftM`, `toLocal` / `toLonLat`, `roofHitAt` and `instanceAudit` (mesh-based checks independent
+  of the grid). It is installed only in
+  dev builds (`import.meta.env.DEV`) or when the page is loaded with `?acceptance=1`; it moves the
+  camera and reads the scene, never data or settings.
 
 ## What to build next
 

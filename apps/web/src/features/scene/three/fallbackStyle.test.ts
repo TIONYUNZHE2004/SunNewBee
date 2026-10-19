@@ -1,7 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { paletteFor } from "./assets/fit";
 import type { Manifest } from "./assets/manifest";
-import { fallbackColourFn, fallbackColours, propsByBuildingId } from "./fallbackStyle";
+import {
+  BLOCK_WALLS,
+  fallbackColourFn,
+  fallbackColours,
+  NEUTRAL_COLOURS,
+  propsByBuildingId,
+} from "./fallbackStyle";
+import { CLAY_PALETTE } from "./shared/clayTokens";
 
 const spec = (palettes: Record<string, [string, string, string][]>) =>
   ({ palettes, variants: {}, variantByGroup: {}, jitter: {} }) as never;
@@ -43,8 +50,23 @@ describe("fallbackColours", () => {
 
   it("gives a generic commercial building the commercial palette", () => {
     const c = fallbackColours({ id: "c1", kind: "commercial" }, M, groups);
-    expect(c.wall).toBe("#aabbcc");
+    expect(["#aabbcc", ...BLOCK_WALLS]).toContain(c.wall);
     expect(c.roof).toBe("#445566");
+  });
+
+  it("varies block walls per id (A-T9) but leaves house walls on the palette", () => {
+    const walls = new Set<string>();
+    for (let i = 0; i < 60; i++) {
+      const p = { id: `blk${i}`, kind: "commercial" };
+      const c = fallbackColours(p, M, groups);
+      expect(fallbackColours(p, M, groups)).toEqual(c);
+      walls.add(c.wall);
+    }
+    expect(walls.size).toBeGreaterThan(2);
+    for (let i = 0; i < 20; i++)
+      expect(BLOCK_WALLS).not.toContain(
+        fallbackColours({ id: `h${i}`, archetype: "link_intermediate" }, M, groups).wall,
+      );
   });
 
   it("is deterministic for the same id and has a trim darker than the wall", () => {
@@ -56,11 +78,8 @@ describe("fallbackColours", () => {
   });
 
   it("returns the neutral colours without a manifest", () => {
-    expect(fallbackColours({ id: "x" }, null, [])).toEqual({
-      wall: "#ece8df",
-      roof: "#3d4147",
-      trim: "#d8d3c8",
-    });
+    expect(fallbackColours({ id: "x" }, null, [])).toEqual({ ...CLAY_PALETTE.neutral });
+    expect(NEUTRAL_COLOURS).toEqual({ ...CLAY_PALETTE.neutral });
   });
 });
 

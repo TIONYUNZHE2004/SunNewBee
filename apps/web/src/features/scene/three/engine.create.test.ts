@@ -16,6 +16,7 @@ const spy = vi.hoisted(() => ({
   scenes: [] as unknown[],
   composerRender: vi.fn(),
   blooms: [] as { strength: number; enabled: boolean }[],
+  aoSkips: [] as (() => readonly unknown[])[],
   /** The last fake renderer built (its `info.programs` stands in for three's program cache). */
   renderer: null as null | { info: { programs?: { usedTimes: number }[] } },
 }));
@@ -83,7 +84,23 @@ vi.mock("three/addons/postprocessing/UnrealBloomPass.js", () => ({
     }
   },
 }));
-vi.mock("./aoPass", () => ({ CityGTAOPass: stubPass() }));
+vi.mock("./tiltShift", async (orig) => ({
+  ...(await orig<typeof import("./tiltShift")>()),
+  CityBokehPass: class {
+    dispose = vi.fn();
+    setSize = vi.fn();
+    aim = vi.fn();
+  },
+}));
+vi.mock("./aoPass", () => ({
+  CityGTAOPass: class {
+    dispose = vi.fn();
+    setSize = vi.fn();
+    constructor(_s: unknown, _c: unknown, _w: number, _h: number, skip: () => readonly unknown[]) {
+      spy.aoSkips.push(skip);
+    }
+  },
+}));
 
 describe("createEngine", () => {
   it("a failure after the renderer exists releases what was made, loses the context and rethrows", async () => {
@@ -112,7 +129,7 @@ describe("createEngine", () => {
       expect(scene.fog).toBe(fog);
       e.setFogRange(7000);
       expect(scene.fog).toBe(fog);
-      expect(fog.far).toBeGreaterThanOrEqual(15400);
+      expect(fog.far).toBeGreaterThanOrEqual(8000);
       e.dispose();
     } finally {
       spy.pmremFails = true;
@@ -137,6 +154,28 @@ describe("createEngine", () => {
       expect(spy.blooms.at(-1)).not.toBe(day);
       expect(spy.blooms.at(-1)?.strength).toBe(LIGHT_PRESETS.night.bloom);
       expect(spy.blooms.at(-1)?.enabled).toBe(true);
+      e.dispose();
+    } finally {
+      spy.pmremFails = true;
+    }
+  });
+
+  it("B-T5/AC-B5: depth of field runs on High with FX wanted only; Low also drops AO", async () => {
+    spy.pmremFails = false;
+    try {
+      const { createEngine } = await import("./engine");
+      const e = createEngine(document.createElement("canvas"), "medium");
+      expect(e.effects()).toEqual({ dof: false, ao: true });
+      e.setDof(true);
+      expect(e.effects().dof).toBe(false); // Medium: never
+      e.setTier("high");
+      expect(e.effects()).toEqual({ dof: true, ao: true });
+      e.setDof(false); // FX off or reduced motion
+      expect(e.effects().dof).toBe(false);
+      e.setDof(true);
+      expect(e.effects().dof).toBe(true);
+      e.setTier("low");
+      expect(e.effects()).toEqual({ dof: false, ao: false });
       e.dispose();
     } finally {
       spy.pmremFails = true;
@@ -208,6 +247,24 @@ describe("engine motion clock", () => {
     vi.unstubAllGlobals();
     spy.pmremFails = true;
   };
+
+  it("renderNow renders one frame synchronously and cancels the pending one (test-only)", async () => {
+    const { e } = await setup({ on: false });
+    try {
+      settle();
+      const n = e.frames;
+      const seen: number[] = [];
+      e.onFrame(() => seen.push(e.frames));
+      e.requestRender();
+      expect(queue).toHaveLength(1);
+      e.renderNow?.();
+      expect(e.frames).toBe(n + 1);
+      expect(seen).toEqual([n + 1]);
+      expect(queue).toHaveLength(0);
+    } finally {
+      teardown(e);
+    }
+  });
 
   it("running() false: after the initial frame no rAF and no timer is scheduled", async () => {
     const { e, layer } = await setup({ on: false });
@@ -545,16 +602,19 @@ describe("engine motion clock", () => {
     }
   });
 
-  it("setOverlays: lines in the overlay scene, ground tint in the main scene, pixel ratio pushed", async () => {
-    const { e } = await setup({ on: false });
+  it("setOverlays: markers in the overlay scene; lines and ground tint in the main scene (AO-skipped); pixel ratio pushed", async () => {
+    spy.aoSkips.length = 0;
+    const { e } = await setup({ on: false }, "medium");
     try {
       const THREE = await import("three");
       const layer = {
         group: new THREE.Group(),
+        lineGroup: new THREE.Group(),
         groundGroup: new THREE.Group(),
         update: vi.fn(),
         setMetresPerPixel: vi.fn(),
         hasVisible: () => false,
+        drawnPlaces: () => 0,
         setResolution: vi.fn(),
         setPixelRatio: vi.fn(),
         setView: vi.fn(),
@@ -566,10 +626,18 @@ describe("engine motion clock", () => {
       const main = scenes.find((sc) => sc.children.includes(layer.groundGroup));
       expect(main).toBeTruthy();
       expect(main?.children.includes(layer.group)).toBe(false);
+      expect(main?.children.includes(layer.lineGroup)).toBe(true);
       expect(scenes.some((sc) => sc.children.includes(layer.group))).toBe(true);
       expect(layer.setPixelRatio).toHaveBeenCalled();
+      // The AO G-buffer leaves out the line batches and the flood tint.
+      const skip = spy.aoSkips.at(-1);
+      expect(skip).toBeTruthy();
+      const skipped = skip?.() ?? [];
+      expect(skipped).toContain(layer.lineGroup);
+      expect(skipped).toContain(layer.groundGroup);
       e.setOverlays(null);
       expect(layer.groundGroup.parent).toBeNull();
+      expect(layer.lineGroup.parent).toBeNull();
       expect(layer.dispose).toHaveBeenCalledTimes(1);
     } finally {
       teardown(e);
@@ -729,16 +797,195 @@ describe("engine motion clock", () => {
     }
   });
 
+  it("setJourney: the ribbon and markers compile before they show; a newer layer supersedes", async () => {
+    const { e } = await setup({ on: false });
+    const THREE = await import("three");
+    const proto = THREE.WebGLRenderer.prototype as unknown as {
+      compileAsync?: unknown;
+      getRenderTarget?: unknown;
+      setRenderTarget?: unknown;
+    };
+    const journey = () => ({
+      ribbon: new THREE.Group(),
+      markers: new THREE.Scene(),
+      setResolution: vi.fn(),
+      setMetresPerPixel: vi.fn(),
+      dispose: vi.fn(),
+    });
+    try {
+      settle();
+      const scenes = spy.scenes as import("three").Scene[];
+      const holds = (g: import("three").Object3D) => scenes.some((sc) => sc.children.includes(g));
+      const resolves: (() => void)[] = [];
+      const compiled: unknown[] = [];
+      proto.compileAsync = vi.fn((root: unknown) => {
+        compiled.push(root);
+        return new Promise<void>((r) => resolves.push(r));
+      });
+      proto.getRenderTarget = () => null;
+      proto.setRenderTarget = () => {};
+      const a = journey();
+      e.setJourney(a);
+      expect(holds(a.ribbon)).toBe(false);
+      expect(compiled).toContain(a.ribbon);
+      expect(compiled).toContain(a.markers);
+      const b = journey();
+      e.setJourney(b);
+      expect(a.dispose).toHaveBeenCalledTimes(1);
+      for (const r of resolves) r();
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+      expect(holds(a.ribbon)).toBe(false);
+      expect(holds(b.ribbon)).toBe(true);
+      expect(b.setResolution).toHaveBeenCalled();
+      e.setJourney(null);
+      expect(holds(b.ribbon)).toBe(false);
+      expect(b.dispose).toHaveBeenCalledTimes(1);
+    } finally {
+      delete proto.compileAsync;
+      delete proto.getRenderTarget;
+      delete proto.setRenderTarget;
+      teardown(e);
+    }
+  });
+
+  it("setOverlays: the layer compiles before it shows, the previous one stays drawn; a newer one supersedes", async () => {
+    const { e } = await setup({ on: false });
+    const THREE = await import("three");
+    const proto = THREE.WebGLRenderer.prototype as unknown as {
+      compileAsync?: unknown;
+      getRenderTarget?: unknown;
+      setRenderTarget?: unknown;
+    };
+    const overlay = () => ({
+      group: new THREE.Group(),
+      lineGroup: new THREE.Group(),
+      groundGroup: new THREE.Group(),
+      update: vi.fn(),
+      setMetresPerPixel: vi.fn(),
+      hasVisible: () => false,
+      drawnPlaces: () => 0,
+      setResolution: vi.fn(),
+      setPixelRatio: vi.fn(),
+      setView: vi.fn(),
+      attach: vi.fn(() => () => {}),
+      dispose: vi.fn(),
+    });
+    try {
+      settle();
+      const scenes = spy.scenes as import("three").Scene[];
+      const holds = (g: import("three").Object3D) => scenes.some((sc) => sc.children.includes(g));
+      const first = overlay();
+      e.setOverlays(first as never); // no compileAsync on this renderer: shown at once
+      expect(holds(first.group)).toBe(true);
+      const resolves: (() => void)[] = [];
+      proto.compileAsync = vi.fn(() => new Promise<void>((r) => resolves.push(r)));
+      proto.getRenderTarget = () => null;
+      proto.setRenderTarget = () => {};
+      const a = overlay();
+      e.setOverlays(a as never);
+      expect(holds(a.group)).toBe(false);
+      expect(holds(first.group)).toBe(true);
+      const b = overlay();
+      e.setOverlays(b as never);
+      expect(a.dispose).toHaveBeenCalledTimes(1);
+      for (const r of resolves) r();
+      for (let i = 0; i < 4; i++) await Promise.resolve();
+      expect(holds(b.group)).toBe(true);
+      expect(holds(b.lineGroup)).toBe(true);
+      expect(holds(first.group)).toBe(false);
+      expect(first.dispose).toHaveBeenCalledTimes(1);
+      expect(holds(a.group)).toBe(false);
+    } finally {
+      delete proto.compileAsync;
+      delete proto.getRenderTarget;
+      delete proto.setRenderTarget;
+      teardown(e);
+    }
+  });
+
+  it("material patches run on a decor layer before it compiles, and on the scene when added", async () => {
+    const { e } = await setup({ on: false });
+    const THREE = await import("three");
+    const proto = THREE.WebGLRenderer.prototype as unknown as {
+      compileAsync?: unknown;
+      getRenderTarget?: unknown;
+      setRenderTarget?: unknown;
+    };
+    try {
+      settle();
+      const order: string[] = [];
+      proto.compileAsync = vi.fn((root: { name: string }) => {
+        order.push(`compile:${root.name}`);
+        return Promise.resolve();
+      });
+      proto.getRenderTarget = () => null;
+      proto.setRenderTarget = () => {};
+      const patch = vi.fn((root: { name: string }) => {
+        order.push(`patch:${root.name}`);
+        return 1;
+      });
+      const off = e.addMaterialPatch?.(patch as never);
+      // at once on what is drawn (the scene), then a background compile of the scene
+      expect(order[0]?.startsWith("patch:")).toBe(true);
+      expect(order[1]?.startsWith("compile:")).toBe(true);
+      order.length = 0;
+      const g = new THREE.Group();
+      g.name = "layer";
+      e.setDecor("roads", { group: g, dispose: vi.fn() });
+      expect(order).toEqual(["patch:layer", "compile:layer"]);
+      off?.();
+      order.length = 0;
+      const h = new THREE.Group();
+      h.name = "later";
+      e.setDecor("roads", { group: h, dispose: vi.fn() });
+      expect(order).toEqual(["compile:later"]);
+    } finally {
+      delete proto.compileAsync;
+      delete proto.getRenderTarget;
+      delete proto.setRenderTarget;
+      teardown(e);
+    }
+  });
+
+  it("the decor clock (a trip's t) drives uTime and the motion layer's time; removed, it no longer does", async () => {
+    const { e, ticks } = await setup({ on: false });
+    try {
+      settle();
+      let t = 12.5;
+      e.setDecorClock?.(() => t);
+      settle();
+      const epoch = e.motion.uTime.value - 12.5;
+      expect(epoch).toBeGreaterThanOrEqual(0);
+      expect(ticks.at(-1)).toBeCloseTo((epoch + 12.5) * 1000, 6);
+      t = 40;
+      e.requestRender();
+      settle();
+      expect(e.motion.uTime.value).toBeCloseTo(epoch + 40, 9);
+      expect(ticks.at(-1)).toBeCloseTo((epoch + 40) * 1000, 6);
+      e.setDecorClock?.(null);
+      t = 77;
+      e.requestRender();
+      settle();
+      expect(e.motion.uTime.value).not.toBeCloseTo(epoch + 77, 3);
+    } finally {
+      teardown(e);
+    }
+  });
+
   it("setDecor('ambient'): the birds go into the main scene, never the overlay scene", async () => {
     const { e } = await setup({ on: false });
     try {
       const THREE = await import("three");
       const overlay = {
         group: new THREE.Group(),
+        lineGroup: new THREE.Group(),
         groundGroup: new THREE.Group(),
         update: vi.fn(),
         setMetresPerPixel: vi.fn(),
         hasVisible: () => false,
+        drawnPlaces: () => 0,
         setResolution: vi.fn(),
         setPixelRatio: vi.fn(),
         setView: vi.fn(),

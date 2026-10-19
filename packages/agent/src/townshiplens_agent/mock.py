@@ -7,6 +7,7 @@ from pydantic_ai import ModelMessage, ModelResponse, ToolCallPart
 from pydantic_ai.messages import ModelRequest, ToolReturnPart, UserPromptPart
 from pydantic_ai.models.function import AgentInfo, DeltaToolCall, FunctionModel
 
+from .journeys import PLAYABLE, journey_steps, start_time_for
 from .labels import (
     attribute_label,
     closure_caveats,
@@ -165,7 +166,16 @@ DESTINATIONS = [
 ]  # access hero; default "playground"
 ORIGINS = ["lakeside mall", "playground", "car park b", "kiosk"]  # flood resident; default mall
 # Access routing places, matched by position. Longest phrases first so "lakeside mall" beats "mall".
-PLACE_WORDS = ["lakeside mall", "urban park", "car park b", "playground", "kiosk", "toilet", "mall"]
+PLACE_WORDS = [
+    "lakeside mall car park b",  # the journey demo's destination (spec 2026-10-19 §2)
+    "lakeside mall",
+    "urban park",
+    "car park b",
+    "playground",
+    "kiosk",
+    "toilet",
+    "mall",
+]
 DEMO_ORIGIN = ("lakeside-mall", "Elmina Lakeside Mall")  # same start point the web uses
 _WHERE_NEXT = r"where (?:can|should|do) (?:i|we) go|where (?:to|should i) (?:go|evacuate)"
 _ACCESS_Q = (
@@ -175,7 +185,7 @@ _ACCESS_Q = (
 _PROFILE_WORDS = [
     ("wheelchair", r"wheelchair|kerusi roda"),
     ("stroller", r"stroller|pram|kereta sorong"),
-    ("older_adult_rest", r"older adult|elderly|needs? to rest|warga emas"),
+    ("older_adult_rest", r"older adult|elderly|needs? to rest|warga emas|\bwalker\b|walking frame"),
 ]
 _FLOOD_NOTE = "This is not a forecast; follow official MBSA / JPS / NADMA guidance."
 
@@ -191,13 +201,50 @@ def _place(text: str, default: str | None) -> str | None:
     return min(hits, key=lambda h: (h[0], -len(h[1])))[1] if hits else default
 
 
+def _named(phrase: str) -> str | None:
+    """A place phrase the pinned words don't know ("harmoni 1"): find_place resolves it by name
+    from the world. None when nothing is left after articles and punctuation."""
+    words = re.sub(r"[?.!,]+", " ", phrase).split()
+    words = words[1:] if words[:1] in (["the"], ["a"], ["my"]) else words
+    return " ".join(words[:6]) or None
+
+
 def _route_ends(q: str) -> tuple[str, str]:
-    """Origin and destination words: "from X to Y", else "get to Y" with Car Park B as origin."""
+    """Origin and destination words: "from X to Y", else "get to Y" with Car Park B as origin.
+    A phrase with no pinned place word is searched by its own words (find_place by name)."""
     m = re.search(r"from (.+?) to (.+)", q)
     if m:
-        return _place(m.group(1), "car park b"), _place(m.group(2), "playground")
+        a, b = m.group(1), m.group(2)
+        return (
+            _place(a, None) or _named(a) or "car park b",
+            _place(b, None) or _named(b) or "playground",
+        )
     origin = _place(q.split("from ", 1)[1], "car park b") if "from " in q else "car park b"
     return origin, _place(q.replace(origin, " ", 1), "playground")
+
+
+def _route_places(rets, ends: list[tuple[str, str]]):
+    """Walk the find_place results for each (query, default) route end, in call order.
+
+    A searched-by-name phrase ("harmoni 1") that find_place matches only weakly (top score below
+    PLACE_MIN_SCORE) or not at all is not taken as the place: the end falls back to its default
+    (Car Park B / the playground), as before names were searched. Pinned words are taken as found.
+    Returns (query still to search or None, [hit or None per end], results used)."""
+    hits: list[dict | None] = []
+    i = 0
+    for query, default in ends:
+        if i >= len(rets):
+            return query, [None, None], i
+        found = _data(rets[i][1]) or []
+        i += 1
+        top = found[0].get("score", 1.0) if found else 0.0
+        if query not in PLACE_WORDS and top < PLACE_MIN_SCORE:
+            if i >= len(rets):
+                return default, [None, None], i
+            found = _data(rets[i][1]) or []
+            i += 1
+        hits.append(found[0] if found else None)
+    return None, hits, i
 
 
 def _ui(info: AgentInfo, key: str) -> str | None:
@@ -804,23 +851,20 @@ def _script(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
         return _closure_answer(rets, place_q)
     if re.search(_ACCESS_Q, q):  # access hero
         origin_w, dest_w = _route_ends(q)
-        if n == 0:
-            return _call("find_place", query=origin_w)
-        if n == 1:
-            return _call("find_place", query=dest_w)
+        need, (a, b), used = _route_places(rets, [(origin_w, "car park b"), (dest_w, "playground")])
+        if need:
+            return _call("find_place", query=need)
         plan_profile = _profile(q, info, _ui(info, "profile") or "stroller")
-        if n == 2:
-            a, b = _data(rets[0][1]), _data(rets[1][1])
+        if n == used:
             if not a or not b:
                 return _cannot("I couldn't find one of those places yet.")
-            return _call("plan_route", from_id=a[0]["id"], to_id=b[0]["id"], profile=plan_profile)
+            return _call("plan_route", from_id=a["id"], to_id=b["id"], profile=plan_profile)
         rr = _data(rets[-1][1])
         if not isinstance(rr, dict):
             return _cannot()
         routes = rr.get("routes") or []
         r0 = routes[0] if routes else None
         status = rr.get("status") or "no_data"
-        a, b = _data(rets[0][1])[0], _data(rets[1][1])[0]
         seen = set(_ev_ids(rets))
         # Cite the two chosen places (not every find_place candidate) and the route's segments.
         ev = [i for i in (f"ev-place-{a['id']}", f"ev-place-{b['id']}") if i in seen]
@@ -856,19 +900,38 @@ def _script(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
             )
         dist = r0.get("distance_m") if r0 else None
         flagged = rr.get("endpoint_flood") or []
+        # The walk (spec 2026-10-19 §6.3): played after the highlight, and told in the answer
+        # with the counts and names plan_route's journey facts give (never computed here).
+        facts = (r0 or {}).get("journey")
+        walk = bool(facts) and status in PLAYABLE and not closed
+        intents = [{"kind": "route.highlight", "route_id": r0["id"]}] if r0 else []
+        if walk:
+            intents.append(
+                {"kind": "journey.play", "route_id": r0["id"], "start_time": start_time_for(q)}
+            )
+        summary = (
+            f"No mapped connection between {a.get('name', a['id'])} and "
+            f"{b.get('name', b['id'])} (data gap)."
+            if status == "no_data"
+            else f"{a.get('name', a['id'])} to {b.get('name', b['id'])}: "
+            f"route {closure_summary_tail(closed, status, r0) or route_status_text(status, r0)}"
+            + (f", {dist} m." if dist is not None else ".")
+        )
+        if walk and dist is not None:
+            est = r0["est_minutes"]
+            mins = round(est) if est >= 10 else round(est, 1)  # "about 1 min" for 0.8 is not
+            summary = (
+                f"{a.get('name', a['id'])} to {b.get('name', b['id'])}: route "
+                f"{route_status_text(status, r0)}. There is a mapped walking route of about "
+                f"{round(dist)} m, about {mins:g} min at this pace plus rests."
+            )
         return _final(
             answer_status="answered"
             if status == "confirmed" and not likely and not closed
             else "partial",
             scenario_id=flagged[0]["scenario_id"] if flagged else ui_sid,
-            summary=(
-                f"No mapped connection between {a.get('name', a['id'])} and "
-                f"{b.get('name', b['id'])} (data gap)."
-                if status == "no_data"
-                else f"{a.get('name', a['id'])} to {b.get('name', b['id'])}: "
-                f"route {closure_summary_tail(closed, status, r0) or route_status_text(status, r0)}"
-                + (f", {dist} m." if dist is not None else ".")
-            ),
+            summary=summary,
+            steps=journey_steps(facts) if walk else [],
             claims=[
                 {
                     "text": "Places and segments on this route",
@@ -878,7 +941,7 @@ def _script(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
             ],
             route_id=r0["id"] if r0 else None,
             caveats=caveats,
-            scene_intents=[{"kind": "route.highlight", "route_id": r0["id"]}] if r0 else [],
+            scene_intents=intents,
         )
     # unknown: try to resolve, else cannot answer + missing_place VR
     place_q = _place_question(q)

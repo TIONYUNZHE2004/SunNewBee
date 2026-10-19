@@ -1,23 +1,34 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import * as THREE from "three";
 import type { BuildingsLayer } from "../../../../lib/api";
 import { usePerfStats } from "../../cesium/PerfOverlay";
 import { useScene } from "../../sceneStore";
 import type { Tier } from "../../shared/quality";
 import { type CityInstances, createCityInstances } from "../assets/cityInstances";
+import { modelBoxesOf, modelCellsOf } from "../assets/drawnBounds";
 import type { Placement } from "../assets/fit";
 import { type AssetLibrary, loadAssetLibrary } from "../assets/library";
 import { MANIFEST_URL, type Manifest, parseManifest } from "../assets/manifest";
-import { type CityPlan, facadeInputs, planCity, type RoofInput, roofInputs } from "../assets/plan";
+import {
+  type CityPlan,
+  coverOf,
+  facadeInputs,
+  planCity,
+  type RoofInput,
+  roofInputs,
+} from "../assets/plan";
 import type { RoleUniforms } from "../assets/roleMaterial";
 import { showroomBounds, showroomManifest, showroomPlan } from "../assets/showroom";
 import { HERO_CENTRE } from "../bookmarks";
 import { useCityInfo } from "../cityInfo";
-import { buildCityGeometry, type CityGeometry } from "../cityMesh";
+import { bevelForTier, buildCityGeometry, type CityGeometry } from "../cityMesh";
+import { createClearance, obstaclesFromCity } from "../clearance";
 import type { Engine } from "../engine";
 import type { FacadeBuilding } from "../facade/facadeLayer";
 import { largeRoofTint } from "../facade/roofPlan";
 import { fallbackColourFn } from "../fallbackStyle";
 import type { LocalFrame } from "../frame";
+import type { Boundary } from "../ground/boundary";
 import { KIT_LOD_SCALE } from "../props/caps";
 import type { SliceJob } from "./idle";
 import { fitPose } from "./useCameraOps";
@@ -70,10 +81,11 @@ const NO_FALLBACK: FallbackCounts = [0, 0, 0, 0];
 /**
  * no_fit, generic_fill, no_archetype, no_asset (the order of `data-fallback` and `fb` on the perf
  * line). A `generic_stretch` (a generic box that would be stretched, extruded with a facade) counts
- * as no_fit: the asset cannot fit without stretching.
+ * as no_fit: the asset cannot fit without stretching; so does a `walk_cover` (a stand-in that would
+ * cover a walk edge its outline does not, 9.1 F1).
  */
 const fallbackCounts = (f: Record<string, number>): FallbackCounts => [
-  (f.no_fit ?? 0) + (f.generic_stretch ?? 0),
+  (f.no_fit ?? 0) + (f.generic_stretch ?? 0) + (f.walk_cover ?? 0),
   f.generic_fill ?? 0,
   f.no_archetype ?? 0,
   f.no_asset ?? 0,
@@ -112,9 +124,12 @@ export function useCityAssets({
   assetsOn,
   showroom,
   roleUniforms,
+  boundary = null,
+  walk = null,
 }: {
   engine: Engine | null;
   frame: LocalFrame | null;
+  /** Already cut to the Elmina outline when the world has one (`ground/clipLayer.ts`). */
   buildings: BuildingsLayer | null | undefined;
   tier: Tier;
   /** False with `?assets=0`: the extruded city only. */
@@ -122,6 +137,13 @@ export function useCityAssets({
   /** `?showroom=1`: every asset laid out for owner review. */
   showroom: boolean;
   roleUniforms: RoleUniforms;
+  /** The Elmina outline (A-T4): anchor-placed landmarks outside it are skipped. */
+  boundary?: Boundary | null;
+  /**
+   * The access layer (walk LineStrings), latched by the caller: no archetype or landmark stand-in
+   * is drawn over a walk edge its OSM outline does not cover (9.1 F1). Display only.
+   */
+  walk?: unknown;
 }) {
   const [assetsState, setAssetsState] = useState<AssetsState>(assetsOn ? "loading" : "off");
   const [loaded, setLoaded] = useState<LoadedAssets | null>(null);
@@ -140,6 +162,8 @@ export function useCityAssets({
   const handedOff = useRef(false);
   /** The instances now in the engine (null while it holds none). */
   const instRef = useRef<CityInstances | null>(null);
+  /** The detail bubble's LOD0-trees area (B-T8), re-applied to new instances. */
+  const bubbleRef = useRef<{ x: number; z: number; r: number } | null>(null);
   /** The latest kits (props) handed to setKits, and what the instances were last given. */
   const kitsRef = useRef<Kits>(null);
   const applied = useRef<{ kits: Kits; scale: number } | null>(null);
@@ -151,6 +175,12 @@ export function useCityAssets({
   const tierRef = useRef(tier);
   tierRef.current = tier;
   const kitLodScale = () => (showroom ? 1 : KIT_LOD_SCALE[tierRef.current]);
+  /** The last city mesh build's inputs: a tier change re-extrudes with that tier's bevel (B-T2). */
+  const cityArgs = useRef<{
+    buildings: BuildingsLayer;
+    frame: LocalFrame;
+    opts: Parameters<typeof buildCityGeometry>[2] & {};
+  } | null>(null);
 
   const dropInstances = () => {
     if (handedOff.current) engine?.setAssets(null);
@@ -207,8 +237,12 @@ export function useCityAssets({
   useEffect(() => {
     if (!engine || !frame || !buildings) return;
     const full = () => {
-      const g = buildCityGeometry(buildings, frame);
+      const args = { bevel: bevelForTier(tierRef.current) };
+      const g = buildCityGeometry(buildings, frame, args);
+      cityArgs.current = { buildings, frame, opts: args };
       engine.setCity(g);
+      // Building clearance (A-T7): every drawn footprint at its display height.
+      engine.setClearance?.(createClearance(obstaclesFromCity(buildings, frame)));
       useCityInfo.setState({ manifest: null, extruded: null });
       setPlan(null);
       setInstances(0);
@@ -224,12 +258,21 @@ export function useCityAssets({
       return;
     }
     const { manifest, lib } = loaded;
+    const boxOf = modelBoxesOf(lib, manifest);
+    const cellsOf = modelCellsOf(lib);
     let built: { g: CityGeometry; m: Manifest } | null = null;
     try {
       const m = showroom ? showroomManifest(manifest) : manifest;
       const plan = showroom
         ? showroomPlan(m, frame.toLocal(HERO_CENTRE[0], HERO_CENTRE[1]))
-        : planCity(buildings, frame, manifest, lib.has);
+        : planCity(
+            buildings,
+            frame,
+            manifest,
+            lib.has,
+            boundary,
+            coverOf(walk, frame, boxOf, cellsOf),
+          );
       const kits = kitsRef.current;
       const scale = kitLodScale();
       const inst = createCityInstances(lib, plan, m, roleUniforms, {
@@ -237,15 +280,26 @@ export function useCityAssets({
         motion: engine.motion,
         kitLodScale: scale,
       });
-      const g = buildCityGeometry(buildings, frame, {
+      const opts = {
         only: plan.extrude,
         colours: showroom ? undefined : fallbackColourFn(buildings.buildings, m),
         roofTint: showroom ? undefined : largeRoofTint,
-      });
+        bevel: bevelForTier(tierRef.current),
+      };
+      const g = buildCityGeometry(buildings, frame, opts);
+      cityArgs.current = { buildings, frame, opts };
       engine.setCity(g);
       engine.setAssets(inst);
+      // Building clearance (A-T7): the footprints plus every placed archetype and landmark box (the
+      // showroom draws no OSM buildings, only its laid-out assets).
+      engine.setClearance?.(
+        createClearance(
+          obstaclesFromCity(showroom ? null : buildings, frame, plan, m, boxOf, cellsOf),
+        ),
+      );
       handedOff.current = true;
       instRef.current = inst;
+      inst.setDetailBubble?.(bubbleRef.current);
       applied.current = { kits, scale };
       setPlan(plan);
       useCityInfo.setState({ manifest: m, extruded: plan.extrude });
@@ -299,7 +353,7 @@ export function useCityAssets({
     const { g, m } = built;
     setFacadeSrc(decor("facades", () => facadeInputs(g.footprints, buildings, m)));
     setRoofSrc(decor("roofs", () => roofInputs(g.footprints, buildings, m, frame)));
-  }, [engine, frame, buildings, loaded, showroom, roleUniforms]);
+  }, [engine, frame, buildings, loaded, showroom, roleUniforms, boundary, walk]);
 
   /** Hands the latest kits to the instances in the engine, unless they already hold them. */
   // biome-ignore lint/correctness/useExhaustiveDependencies: kitLodScale reads the live tier and `showroom`, a dependency
@@ -362,6 +416,17 @@ export function useCityAssets({
     [engine, showroom],
   );
 
+  // A tier change re-extrudes the city mesh with that tier's bevel (Low: plain boxes, Medium: one
+  // segment, High: two). Only the merged extrusion mesh is rebuilt; plan and instances stay.
+  useEffect(() => {
+    const a = cityArgs.current;
+    if (!engine || !a) return;
+    const bevel = bevelForTier(tier);
+    if (JSON.stringify(a.opts.bevel) === JSON.stringify(bevel)) return;
+    a.opts = { ...a.opts, bevel };
+    engine.setCity(buildCityGeometry(a.buildings, a.frame, a.opts));
+  }, [engine, tier]);
+
   // A tier change rescales the kit LOD distances. Deferred to a microtask so a props re-plan for the
   // same tier change (setKits from useDecor, later in this commit) is applied once, not twice.
   // biome-ignore lint/correctness/useExhaustiveDependencies: `tier` is the trigger; applyKits reads it live
@@ -384,9 +449,16 @@ export function useCityAssets({
     [],
   );
 
+  /** B-T8: trees inside the detail bubble are drawn at LOD0 (applied on the next LOD update). */
+  const setDetailBubble = useCallback((b: { x: number; z: number; r: number } | null) => {
+    bubbleRef.current = b;
+    instRef.current?.setDetailBubble?.(b);
+  }, []);
+
   return {
     assetsState,
     loaded,
+    setDetailBubble,
     plan,
     setKits,
     kitJob,

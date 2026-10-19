@@ -1,27 +1,16 @@
 import * as THREE from "three";
 import { localRing, triangulate } from "../cityMesh";
 import type { LocalFrame } from "../frame";
+import { CLAY_PALETTE } from "../shared/clayTokens";
 import { LANDCOVER_MAX_Y } from "./bands";
 
 /**
  * Decorative land-cover tints (ESA WorldCover / OSM). Fill only: no outline, no hatch, no meaning.
- * Water is the BASE water blue, never the flood scenario blue (#1e6fb8).
+ * Water is the BASE water blue, never the flood scenario blue. Colours: the clay token table.
  */
-export const LANDCOVER_COLOURS: Record<string, string> = {
-  forest: "#6f9a5b",
-  grass: "#9cc483",
-  scrub: "#8fae6e",
-  farmland: "#c9c98f",
-  oil_palm: "#7d9a55",
-  residential: "#e6e1d6",
-  commercial: "#e0dbe4",
-  industrial: "#d9d6cf",
-  parking: "#c7c4bd",
-  construction: "#c9b28d",
-  bare: "#d8ccb3",
-  water: "#7fb6c9",
-};
-const UNKNOWN_COLOUR = "#d8d3c8";
+export const LANDCOVER_COLOURS: Record<string, string> = { ...CLAY_PALETTE.landcover };
+export const UNKNOWN_LANDCOVER_COLOUR: string = CLAY_PALETTE.landcoverUnknown;
+const UNKNOWN_COLOUR = UNKNOWN_LANDCOVER_COLOUR;
 
 /** Draw order, lowest first. */
 export const LANDCOVER_ORDER = [
@@ -38,6 +27,55 @@ export const LANDCOVER_ORDER = [
   "construction",
   "water",
 ] as const;
+
+/** The grass tones (A-T10): the base class tint and the second, lighter tone the detail mixes in. */
+export const GRASS_TONES: readonly [string, string] = [
+  CLAY_PALETTE.landcover.grass,
+  CLAY_PALETTE.dress.grassAlt,
+];
+
+/** What dresses a land-cover class (all of it decorative: "Decorative details are illustrative."). */
+export interface LandcoverDressing {
+  /** The ground tint tones (clay tokens); more than one means the detail mixes them. */
+  tones: readonly string[];
+  /** Massed canopy trees from the B-T3 clay tree kit (props planner; keep-out from walk lines). */
+  trees?: "forest" | "scrub" | "oil_palm";
+  /** Small flower clumps on the ground (groundDecor). */
+  flowers?: boolean;
+  /** Crop-row stripes on the ground (groundDecor). */
+  rows?: boolean;
+  /** Fences, cones and dirt mounds, never buildings (groundDecor, with the construction kit props). */
+  constructionKit?: boolean;
+  /** Parked cars and stall lines (the parking planner). */
+  parkedCars?: boolean;
+  /** Why the class has no props: its buildings come from the OSM footprints, never from here. */
+  plain?: string;
+}
+
+const T = CLAY_PALETTE.landcover;
+/**
+ * The dressing rule of EVERY class in `base/landcover.geojson` (AC-A12). The table is complete:
+ * `dressingFor` has no grey fallback for a seeded class (a class missing here fails the table test).
+ */
+export const LANDCOVER_DRESSING: Record<string, LandcoverDressing> = {
+  forest: { tones: [T.forest], trees: "forest" },
+  grass: { tones: GRASS_TONES, flowers: true },
+  residential: { tones: [T.residential], plain: "buildings are the OSM footprints" },
+  construction: { tones: [T.construction], constructionKit: true },
+  water: { tones: [T.water], plain: "base water, never a flood scenario" },
+  commercial: { tones: [T.commercial], plain: "buildings are the OSM footprints" },
+  bare: { tones: [T.bare], plain: "bare earth" },
+  parking: { tones: [T.parking], parkedCars: true },
+  industrial: { tones: [T.industrial], plain: "buildings are the OSM footprints" },
+  scrub: { tones: [T.scrub], trees: "scrub" },
+  farmland: { tones: [T.farmland, CLAY_PALETTE.dress.farmRow], rows: true },
+  oil_palm: { tones: [T.oil_palm], trees: "oil_palm" },
+};
+
+/** The dressing of a class; an unlisted class gets the unknown tint and no props (never a guess). */
+export function dressingFor(cls: string): LandcoverDressing {
+  return LANDCOVER_DRESSING[cls] ?? { tones: [UNKNOWN_COLOUR], plain: "unknown class" };
+}
 
 /** Lifts span 0.00 to 0.04 m: parks (0.05) and base water (0.06) sit above, roads at 0.08 m. */
 const MAX_LIFT_M = LANDCOVER_MAX_Y;

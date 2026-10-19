@@ -1,6 +1,11 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { useMode } from "../../app/modeStore";
+import demo from "../journey/fixtures/demoPlan.json";
+import { useJourney } from "../journey/journeyStore";
+import type { JourneyPlan } from "../journey/timeline";
 import { defaultMapStyle, resolveMapStyle, useScene } from "./sceneStore";
+
+const demoPlan = demo as unknown as JourneyPlan;
 
 describe("sceneStore.applyIntent", () => {
   beforeEach(() => useScene.getState().reset());
@@ -87,6 +92,21 @@ describe("redesign additions", () => {
     useScene.getState().clearRoute();
     expect(useScene.getState().route).toBeNull();
     expect(useScene.getState().scenarioId).toBe("stage_p3m");
+  });
+
+  it("clearRoute also drops the journey of that route (the ribbon is the route on the map)", () => {
+    useScene.getState().reset();
+    const plan = demo as unknown as JourneyPlan;
+    useScene.getState().applyIntent({
+      kind: "journey.play",
+      route_id: plan.route_id,
+      start_time: plan.start_time,
+      journey: plan,
+    } as never);
+    expect(useJourney.getState().plan).toBe(plan);
+    useScene.getState().clearRoute();
+    expect(useScene.getState().journey).toBeNull();
+    expect(useJourney.getState().plan).toBeNull();
   });
 });
 
@@ -188,5 +208,76 @@ describe("what-if diff is never left under newer state", () => {
     useScene.getState().applyIntent({ kind: "whatif.diff", geojson: fc } as never);
     useScene.getState().setScenario("stage_p3m");
     expect(useScene.getState().whatIf).toBeNull();
+  });
+});
+
+describe("sceneStore journey.play", () => {
+  beforeEach(() => {
+    useScene.getState().reset();
+    useJourney.getState().clear();
+  });
+  const intent = { kind: "journey.play", route_id: demoPlan.route_id, start_time: "09:00" };
+
+  it("stores the plan and loads the journey player, paused at the start", () => {
+    useScene.getState().applyIntent({ ...intent, journey: demoPlan } as never);
+    expect(useScene.getState().journey).toBe(demoPlan);
+    expect(useJourney.getState()).toMatchObject({ plan: demoPlan, t: 0, playing: false });
+  });
+
+  it("ignores a journey.play without a plan", () => {
+    useScene.getState().applyIntent({ ...intent, journey: null } as never);
+    expect(useScene.getState().journey).toBeNull();
+    expect(useJourney.getState().plan).toBeNull();
+  });
+
+  it("keeps the journey when the same profile is picked again", () => {
+    useScene.getState().setProfile("older_adult_rest");
+    useScene.getState().applyIntent({ ...intent, journey: demoPlan } as never);
+    useScene.getState().setProfile("older_adult_rest");
+    expect(useScene.getState().journey).toBe(demoPlan);
+    expect(useJourney.getState().plan).toBe(demoPlan);
+  });
+
+  const line = {
+    type: "LineString",
+    coordinates: [
+      [101.5, 3.18],
+      [101.51, 3.18],
+    ],
+  };
+
+  it("a newer route answer drops the trip of another route (no journey.play for it)", () => {
+    useScene.getState().applyIntent({ ...intent, journey: demoPlan } as never);
+    useScene
+      .getState()
+      .applyIntent({ kind: "route.highlight", route_id: "rt-newer", geojson: line } as never);
+    expect(useScene.getState().route?.id).toBe("rt-newer");
+    expect(useScene.getState().journey).toBeNull();
+    expect(useJourney.getState().plan).toBeNull();
+  });
+
+  it("the trip's own route.highlight keeps the trip, in either order", () => {
+    useScene.getState().applyIntent({ ...intent, journey: demoPlan } as never);
+    useScene.getState().applyIntent({
+      kind: "route.highlight",
+      route_id: demoPlan.route_id,
+      geojson: line,
+    } as never);
+    expect(useScene.getState().journey).toBe(demoPlan);
+    expect(useJourney.getState().plan).toBe(demoPlan);
+  });
+
+  it("drops the journey when the profile or scenario changes, and on reset", () => {
+    useScene.getState().setProfile("older_adult_rest");
+    for (const change of [
+      () => useScene.getState().setProfile("wheelchair"),
+      () => useScene.getState().setScenario("stage_p3m"),
+      () => useScene.getState().reset(),
+    ]) {
+      useScene.getState().applyIntent({ ...intent, journey: demoPlan } as never);
+      change();
+      expect(useScene.getState().journey).toBeNull();
+      expect(useJourney.getState().plan).toBeNull();
+    }
   });
 });

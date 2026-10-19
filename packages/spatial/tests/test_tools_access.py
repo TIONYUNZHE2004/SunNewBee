@@ -36,6 +36,16 @@ def test_plan_route_evidence_ids_match(ctx):
     assert set(r.data["routes"][0]["evidence_ids"]) <= ids
 
 
+@pytest.mark.parametrize("profile", ["stroller", "older_adult_rest"])
+def test_plan_route_evidence_has_no_repeats(ctx, profile):
+    """The destination's ev-place-<id> comes from both the place provenance and the route's own
+    evidence (the journey's arrive event cites it): listed once, first-seen order (final review)."""
+    r = tools.plan_route(ctx, "park-b", "kiosk", profile)
+    ids = [e.id for e in r.evidence]
+    assert "ev-place-kiosk" in ids
+    assert len(ids) == len(set(ids))
+
+
 def test_place_details_and_nearby(ctx):
     d = tools.get_place_details(ctx, "toilet-1")
     assert d.ok and d.data["claims"]["wheelchair"]["status"] == "unknown"

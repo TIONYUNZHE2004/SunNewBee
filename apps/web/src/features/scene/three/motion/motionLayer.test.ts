@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { AssetLibrary } from "../assets/library";
 import type { Manifest } from "../assets/manifest";
 import { createMotionUniforms, createRoleUniforms } from "../assets/roleMaterial";
-import { type Agent, easedDistance, poseAt, smoothYaw } from "./agents";
+import { type Agent, easedDistance, PEOPLE_VISIBLE_M, poseAt, smoothYaw } from "./agents";
 import { AGENT_VISIBLE_M, agentLods, createMotionLayer, type YawMemory } from "./motionLayer";
 
 const kit = (lods: { node: string; tris: number; maxM: number | null }[]) => ({
@@ -171,19 +171,29 @@ describe("createMotionLayer", () => {
     expect(drawn(layer.group)).toBe(0);
   });
 
-  it("a person 800 m away is visible at 3x; at 950 m hidden", () => {
+  it("R-J7: a person 800 m away is visible at 2.5x and hidden beyond 800 m; a vehicle keeps displayScale (3x)", () => {
     expect(AGENT_VISIBLE_M).toBe(900);
-    const near = make([agent("a", "person", 0, 0)]);
-    near.tick(0, cam(0, 800, 0));
-    const m = meshes(near.group).find((x) => x.visible && x.count > 0)!;
-    expect(m.userData.lod).toBe(1);
-    const mat = new THREE.Matrix4();
-    m.getMatrixAt(0, mat);
-    const s = new THREE.Vector3();
-    mat.decompose(new THREE.Vector3(), new THREE.Quaternion(), s);
-    expect(s.y).toBeCloseTo(3, 2);
-    const far = make([agent("b", "person", 0, 0)]);
-    far.tick(0, cam(0, 950, 0));
+    expect(PEOPLE_VISIBLE_M).toBe(800);
+    const scaleAt = (kind: Agent["kind"], h: number) => {
+      const layer = make([agent("a", kind, 0, 0)]);
+      layer.tick(0, cam(0, h, 0));
+      const m = meshes(layer.group).find((x) => x.visible && x.count > 0);
+      if (!m) return null;
+      expect(m.userData.lod).toBe(h > 300 ? 1 : 0);
+      const mat = new THREE.Matrix4();
+      m.getMatrixAt(0, mat);
+      const s = new THREE.Vector3();
+      mat.decompose(new THREE.Vector3(), new THREE.Quaternion(), s);
+      return s.y;
+    };
+    expect(scaleAt("person", 800)).toBeCloseTo(2.5, 5);
+    expect(scaleAt("person", 30)).toBeCloseTo(1.55, 5);
+    expect(scaleAt("person", 850)).toBeNull();
+    expect(scaleAt("vehicle", 800)).toBeCloseTo(3, 2);
+    expect(scaleAt("vehicle", 880)).toBeCloseTo(3, 2);
+    // This test kit's vehicle LOD1 reaches 1,500 m (agentLods never shortens a band).
+    const far = make([agent("b", "vehicle", 0, 0)]);
+    far.tick(0, cam(0, 1700, 0));
     expect(drawn(far.group)).toBe(0);
   });
 

@@ -4,10 +4,12 @@ import { createFrame } from "../frame";
 import {
   CONSTRUCTION_Y,
   GROUND_BANDS,
+  GROUND_GRADE,
   groundMaterial,
   LANDCOVER_MAX_Y,
   MARKING_Y,
   PARK_Y,
+  ROAD_GRADE,
   ROAD_Y,
   VERGE_Y,
   WATER_Y,
@@ -95,5 +97,34 @@ describe("ground bands", () => {
       [GROUND_BANDS.roads.order, GROUND_BANDS.roads.offset],
       [GROUND_BANDS.markings.order, GROUND_BANDS.markings.offset],
     ]);
+  });
+});
+
+describe("night grade (A-T11)", () => {
+  const compile = (m: THREE.Material) => {
+    const shader = {
+      uniforms: {} as Record<string, unknown>,
+      vertexShader: "",
+      fragmentShader: "void main() {\n#include <color_fragment>\n}",
+    };
+    m.onBeforeCompile(shader as never, {} as never);
+    return shader;
+  };
+  it("every band but base water multiplies its diffuse colour by the shared grade uniform", () => {
+    for (const band of ORDER) {
+      const sh = compile(groundMaterial(band));
+      if (band === "water") {
+        expect(sh.fragmentShader).not.toContain("uGroundGrade");
+        continue;
+      }
+      expect(sh.fragmentShader).toContain("diffuseColor.rgb *= uGroundGrade;");
+      const road = band === "roads" || band === "markings";
+      expect(sh.uniforms.uGroundGrade).toBe(road ? ROAD_GRADE : GROUND_GRADE);
+    }
+  });
+  it("roads and markings read the road grade (B-T4) under their own program key", () => {
+    expect(ROAD_GRADE).not.toBe(GROUND_GRADE);
+    expect(groundMaterial("roads").customProgramCacheKey()).toContain("_roadGrade");
+    expect(groundMaterial("landcover").customProgramCacheKey()).toContain("_groundGrade");
   });
 });

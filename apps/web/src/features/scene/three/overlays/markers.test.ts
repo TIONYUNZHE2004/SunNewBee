@@ -2,7 +2,15 @@ import * as THREE from "three";
 import { describe, expect, it } from "vitest";
 import { centreMapMarker } from "../../../../lib/routeStatus";
 import { createFrame } from "../frame";
-import { createMarkers, deviceFillPx, LABEL_RANGE_M, markerIdAt } from "./markers";
+import {
+  createMarkers,
+  deviceFillPx,
+  ENDPOINT_KEEP_M,
+  LABEL_RANGE_M,
+  markerIdAt,
+  type PlaceShowRule,
+  placeShown,
+} from "./markers";
 
 const frame = createFrame([101.5, 3.0]);
 const at = (dx: number) => [101.5 + dx * 1e-5, 3.0] as [number, number]; // ~1.1 m per unit
@@ -201,5 +209,74 @@ describe("markers", () => {
     );
     cam(m);
     expect(sprites(m.group).filter((s) => s.visible)).toHaveLength(2);
+  });
+});
+
+describe("place markers outside the Elmina outline (A-T5, display only)", () => {
+  // Inside: x < 50 m (p1 at 0 m); outside: p2 at ~110 m east.
+  const inside = (x: number) => x < 50;
+  const drawnIds = (m: ReturnType<typeof make>) =>
+    points(m.group).find((p) => p.name.includes("place"))?.userData.ids as string[] | undefined;
+  const build = (rule: Partial<PlaceShowRule>) =>
+    createMarkers(
+      {
+        places,
+        waste,
+        evac,
+        placeShown: placeShown({ inside, keepIds: new Set(), keepNear: [], ...rule }),
+      },
+      frame,
+      fakeCanvas,
+    );
+
+  it("draws only the places inside; waste and evacuation markers are kept; placeCount = drawn", () => {
+    const m = build({});
+    expect(drawnIds(m)).toEqual(["p1"]);
+    expect(m.placeCount).toBe(1);
+    expect(points(m.group).some((p) => p.name.includes("waste"))).toBe(true);
+    expect(points(m.group).filter((p) => p.name.includes("evac")).length).toBeGreaterThan(0);
+    m.dispose();
+  });
+  it("never hides a kept id: the focused or selected place, or a verification-request target", () => {
+    const m = build({ keepIds: new Set(["p2"]) });
+    expect(drawnIds(m)).toEqual(["p1", "p2"]);
+    expect(m.placeCount).toBe(2);
+    m.dispose();
+  });
+  it("never hides a place at a shown route's or journey's end (within ENDPOINT_KEEP_M)", () => {
+    const [x2, z2] = frame.toLocal(...(places[1]!.coord as [number, number]));
+    const near = build({ keepNear: [[x2 + ENDPOINT_KEEP_M - 5, z2]] });
+    expect(drawnIds(near)).toEqual(["p1", "p2"]);
+    near.dispose();
+    const far = build({ keepNear: [[x2 + ENDPOINT_KEEP_M + 20, z2]] });
+    expect(drawnIds(far)).toEqual(["p1"]);
+    far.dispose();
+  });
+  it("while a trip is loaded only kept places are drawn (its ends, event places), with or without an outline", () => {
+    const [x2, z2] = frame.toLocal(...(places[1]!.coord as [number, number]));
+    const trip = build({ tripOnly: true, keepNear: [[x2, z2]] });
+    expect(drawnIds(trip)).toEqual(["p2"]); // p1 is inside the outline but not the trip's
+    expect(trip.placeCount).toBe(1);
+    expect(points(trip.group).some((p) => p.name.includes("waste"))).toBe(true);
+    trip.dispose();
+    const rule = placeShown({
+      inside: null,
+      keepIds: new Set(["p1"]),
+      keepNear: [],
+      tripOnly: true,
+    });
+    expect(rule?.("p1", 0, 0)).toBe(true);
+    expect(rule?.("p2", 0, 0)).toBe(false);
+    // trip cleared: the general markers come back
+    const after = build({});
+    expect(drawnIds(after)).toEqual(["p1"]);
+    after.dispose();
+  });
+  it("shows every place without an outline", () => {
+    expect(placeShown({ inside: null, keepIds: new Set(), keepNear: [] })).toBeUndefined();
+    const m = make();
+    expect(drawnIds(m)).toEqual(["p1", "p2"]);
+    expect(m.placeCount).toBe(2);
+    m.dispose();
   });
 });

@@ -35,6 +35,12 @@ export interface EvacMarkerRow {
 export interface MarkerInput {
   /** Place markers (the access layer's points). */
   places: readonly MarkerPoint[];
+  /**
+   * Display only (A-T5): when given, a place marker is drawn only if this returns true for its id
+   * and point (local x, z); see `placeShown`. Hidden places stay in the data, the list view and
+   * the answers.
+   */
+  placeShown?: (id: string, x: number, z: number) => boolean;
   waste: readonly MarkerPoint[];
   evac: readonly EvacMarkerRow[];
 }
@@ -45,6 +51,8 @@ export interface MarkerView {
 }
 export interface Markers {
   group: THREE.Group;
+  /** Place markers drawn (after the outline rule): what `data-markers` reports. */
+  readonly placeCount: number;
   /** Focus a marker: a place grows to 16 px; any focused marker shows its label. */
   setFocus(id: string | null): void;
   /** Camera position, vertical fov (degrees) and viewport height (px): picks and sizes the labels. */
@@ -52,6 +60,40 @@ export interface Markers {
   /** The renderer's pixel ratio: gl_PointSize is in device pixels, markers are specified in CSS px. */
   setPixelRatio(pr: number): void;
   dispose(): void;
+}
+
+/** Place markers within this distance (m) of a shown route's or journey's end are never hidden. */
+export const ENDPOINT_KEEP_M = 60;
+
+export interface PlaceShowRule {
+  /** Place markers outside it are hidden (display only), unless kept below. Null: show all. */
+  inside: ((x: number, z: number) => boolean) | null;
+  /** Never hidden: the focused and selected place, and places a verification request targets. */
+  keepIds: ReadonlySet<string>;
+  /** Never hidden near these points (local x, z): the current route's and journey's ends. */
+  keepNear: readonly (readonly [number, number])[];
+  /**
+   * A trip is loaded (gate §9.1 F5): only kept places are drawn (its ends, its event places, the
+   * selected / focused place, VR targets); the general place dots step aside until it clears.
+   */
+  tripOnly?: boolean;
+}
+
+/**
+ * The place-marker display rule (A-T5 fix round 2): a marker floating over the void past the slab
+ * is hidden, but never one the user is being shown (focused or selected place, a route or journey
+ * end, a verification-request target). Undefined (show all) without an outline. While a trip is
+ * loaded (`tripOnly`) only those kept places are drawn. Pure.
+ */
+export function placeShown(
+  rule: PlaceShowRule,
+): ((id: string, x: number, z: number) => boolean) | undefined {
+  const { inside, keepIds, keepNear, tripOnly } = rule;
+  const kept = (id: string, x: number, z: number) =>
+    keepIds.has(id) || keepNear.some(([px, pz]) => Math.hypot(px - x, pz - z) <= ENDPOINT_KEEP_M);
+  if (tripOnly) return kept;
+  if (!inside) return undefined;
+  return (id, x, z) => inside(x, z) || kept(id, x, z);
 }
 
 /** The id of the marker at `index` in a batched Points (the pick's `hit.index`), else null. */
@@ -91,6 +133,14 @@ void main() {
 }`;
 
 type Item = { id: string; x: number; z: number };
+
+/**
+ * One marker point with the markers' shader, for precompiling its program (`Engine` compiles it at
+ * start-up, so the first markers of an answer never link on the main thread). Never drawn.
+ */
+export function markerProgramStandIn(): THREE.Points {
+  return pointsOf("place" as Kind, [{ id: "", x: 0, z: 0 }], 9, "#0f5c63", 1);
+}
 
 function pointsOf(kind: Kind, items: Item[], px: number, color: string, pr: number): THREE.Points {
   const pos = new Float32Array(items.length * 3);
@@ -153,10 +203,14 @@ export function createMarkers(
   };
 
   const labels: Label[] = [];
-  const placeItems = input.places.map(item);
+  const shown = input.placeShown;
+  const shownPlaces = input.places
+    .map((p) => ({ p, it: item(p) }))
+    .filter(({ p, it }) => !shown || shown(p.id, it.x, it.z));
+  const placeItems = shownPlaces.map(({ it }) => it);
   if (placeItems.length)
     group.add(pointsOf("place", placeItems, MARKER_STYLE.place.px, MARKER_STYLE.place.color, 1));
-  input.places.forEach((p, i) => {
+  shownPlaces.forEach(({ p }, i) => {
     const it = placeItems[i] as Item;
     labels.push({ key: `place:${p.id}`, id: p.id, kind: "place", text: p.name, x: it.x, z: it.z });
   });
@@ -290,6 +344,7 @@ export function createMarkers(
 
   return {
     group,
+    placeCount: placeItems.length,
     setFocus,
     setPixelRatio(pr) {
       if (!(pr > 0) || !Number.isFinite(pr)) return;

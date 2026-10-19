@@ -15,8 +15,11 @@
       "!**/*.geojson",
       "!packages/api-client/openapi.json",
       "!packages/spatial/tests/fixtures",
+      "!apps/web/src/features/journey/fixtures",
       "!apps/web/public/city",
-      "!.superpowers"
+      "!assets/blender/out",
+      "!.superpowers",
+      "!docs/03-product/prototypes"
     ]
   },
   "css": { "parser": { "tailwindDirectives": true } },

@@ -1,4 +1,6 @@
-import * as THREE from "three";
+import type * as THREE from "three";
+import type { Tier } from "../../shared/quality";
+import { type ClayMaterial, type ClayRole, clayMaterial } from "../shared/clayTokens";
 
 /**
  * The ground stack above the base plane, lowest first. Each band has a polygonOffset and a
@@ -43,14 +45,72 @@ export const GROUND_BANDS = {
 } as const;
 export type GroundBand = keyof typeof GROUND_BANDS;
 
-/** Vertex-coloured material for one band, with its polygon offset. */
-export function groundMaterial(band: GroundBand, roughness = 1): THREE.MeshStandardMaterial {
+/**
+ * Night grade (A-T11): one albedo multiplier shared by every ground and road material, driven by
+ * the mood (`LightPreset.groundGrade`: 1 by day, lower at night). Module-level so materials made
+ * anywhere (streamed bands, the engine's base plane) read the same uniform.
+ */
+export const GROUND_GRADE = { value: 1 };
+
+/**
+ * Road grade (B-T4, `LightPreset.roadGrade`): the albedo multiplier for the `roads` and `markings`
+ * bands. Asphalt is the darkest large surface, so at night it is graded less than the land cover.
+ */
+export const ROAD_GRADE = { value: 1 };
+
+/** The grade uniform a band reads: roads and markings take ROAD_GRADE, the rest GROUND_GRADE. */
+export function gradeFor(band: GroundBand): { value: number } {
+  return band === "roads" || band === "markings" ? ROAD_GRADE : GROUND_GRADE;
+}
+
+/**
+ * Multiplies the diffuse colour by a grade uniform (default `GROUND_GRADE`; chains any earlier
+ * `onBeforeCompile`).
+ */
+export function applyGroundGrade(
+  material: THREE.Material,
+  grade: { value: number } = GROUND_GRADE,
+): void {
+  const prevKey = material.customProgramCacheKey.bind(material);
+  const key = grade === ROAD_GRADE ? "_roadGrade" : "_groundGrade";
+  material.customProgramCacheKey = () => `${prevKey()}${key}`;
+  const prev = material.onBeforeCompile;
+  material.onBeforeCompile = (shader, renderer) => {
+    prev?.call(material, shader, renderer);
+    shader.uniforms.uGroundGrade = grade;
+    shader.fragmentShader = shader.fragmentShader
+      .replace("void main() {", "uniform float uGroundGrade;\nvoid main() {")
+      .replace(
+        "#include <color_fragment>",
+        "#include <color_fragment>\ndiffuseColor.rgb *= uGroundGrade;",
+      );
+  };
+}
+
+/** The clay token each ground band draws with (B-T1). */
+export const BAND_CLAY: Record<GroundBand, ClayRole> = {
+  landcover: "ground",
+  decor: "ground",
+  parks: "park",
+  water: "water",
+  roads: "road",
+  markings: "marking",
+};
+
+/**
+ * Vertex-coloured clay material for one band (token `BAND_CLAY[band]`), with its polygon offset.
+ * Every band except `water` takes the night grade (roads and markings: ROAD_GRADE). B-T1: the former `roughness` argument is gone;
+ * roughness comes from the band's clay token (0.6-0.8). `tier` defaults to `clayTier()`.
+ */
+export function groundMaterial(band: GroundBand, tier?: Tier): ClayMaterial {
   const { offset } = GROUND_BANDS[band];
-  return new THREE.MeshStandardMaterial({
+  const m = clayMaterial(BAND_CLAY[band], {
+    tier,
     vertexColors: true,
-    roughness,
     polygonOffset: true,
     polygonOffsetFactor: offset,
     polygonOffsetUnits: offset,
   });
+  if (band !== "water") applyGroundGrade(m, gradeFor(band));
+  return m;
 }

@@ -1,0 +1,491 @@
+{
+ "route_id": "rt-c57e3d08",
+ "profile": "older_adult_rest",
+ "start_time": "09:00",
+ "pace_m_per_s": 1.1666666666666667,
+ "polyline": [
+  [
+   101.51342,
+   3.180399
+  ],
+  [
+   101.513365,
+   3.180355
+  ],
+  [
+   101.513323,
+   3.180325
+  ],
+  [
+   101.513306,
+   3.180303
+  ],
+  [
+   101.513303,
+   3.180293
+  ],
+  [
+   101.513305,
+   3.180284
+  ],
+  [
+   101.513317,
+   3.180259
+  ],
+  [
+   101.513338,
+   3.180224
+  ],
+  [
+   101.513379,
+   3.180208
+  ],
+  [
+   101.513477,
+   3.18015
+  ],
+  [
+   101.513268,
+   3.180012
+  ],
+  [
+   101.513012,
+   3.180394
+  ],
+  [
+   101.512978,
+   3.180445
+  ],
+  [
+   101.513015,
+   3.18056
+  ],
+  [
+   101.513043,
+   3.180746
+  ],
+  [
+   101.512995,
+   3.180878
+  ],
+  [
+   101.512903,
+   3.180963
+  ],
+  [
+   101.512831,
+   3.181036
+  ],
+  [
+   101.512298,
+   3.181508
+  ],
+  [
+   101.512096,
+   3.181635
+  ],
+  [
+   101.51188,
+   3.181727
+  ],
+  [
+   101.511534,
+   3.18187
+  ],
+  [
+   101.511475,
+   3.181847
+  ],
+  [
+   101.511345,
+   3.181829
+  ],
+  [
+   101.511254,
+   3.181824
+  ],
+  [
+   101.511168,
+   3.181844
+  ],
+  [
+   101.511148,
+   3.181861
+  ],
+  [
+   101.511133,
+   3.181891
+  ],
+  [
+   101.510976,
+   3.181889
+  ],
+  [
+   101.510719,
+   3.181532
+  ],
+  [
+   101.51062,
+   3.181357
+  ],
+  [
+   101.510494,
+   3.181204
+  ],
+  [
+   101.510279,
+   3.180944
+  ],
+  [
+   101.510071,
+   3.180734
+  ],
+  [
+   101.509999,
+   3.180661
+  ],
+  [
+   101.509854,
+   3.180547
+  ],
+  [
+   101.50941,
+   3.180232
+  ],
+  [
+   101.508911,
+   3.179959
+  ],
+  [
+   101.508769,
+   3.180147
+  ],
+  [
+   101.508501,
+   3.180493
+  ],
+  [
+   101.508521,
+   3.180519
+  ],
+  [
+   101.50853,
+   3.180546
+  ],
+  [
+   101.508533,
+   3.180575
+  ],
+  [
+   101.508527,
+   3.180603
+  ],
+  [
+   101.508515,
+   3.180628
+  ],
+  [
+   101.508715,
+   3.180769
+  ],
+  [
+   101.508671,
+   3.180834
+  ],
+  [
+   101.508479,
+   3.181108
+  ],
+  [
+   101.50861,
+   3.181204
+  ],
+  [
+   101.508757,
+   3.18131
+  ]
+ ],
+ "spans": [
+  [
+   0.0,
+   7.8,
+   "UNKNOWN"
+  ],
+  [
+   7.8,
+   17.8,
+   "UNKNOWN"
+  ],
+  [
+   17.8,
+   43.9,
+   "UNKNOWN"
+  ],
+  [
+   43.9,
+   71.7,
+   "UNKNOWN"
+  ],
+  [
+   71.7,
+   122.6,
+   "UNKNOWN"
+  ],
+  [
+   122.6,
+   129.4,
+   "UNKNOWN"
+  ],
+  [
+   129.4,
+   193.0,
+   "UNKNOWN"
+  ],
+  [
+   193.0,
+   377.5,
+   "UNKNOWN"
+  ],
+  [
+   377.5,
+   425.7,
+   "UNKNOWN"
+  ],
+  [
+   425.7,
+   443.1,
+   "UNKNOWN"
+  ],
+  [
+   443.1,
+   514.1,
+   "UNKNOWN"
+  ],
+  [
+   514.1,
+   536.1,
+   "UNKNOWN"
+  ],
+  [
+   536.1,
+   573.5,
+   "UNKNOWN"
+  ],
+  [
+   573.5,
+   606.2,
+   "PASS"
+  ],
+  [
+   606.2,
+   638.0,
+   "PASS"
+  ],
+  [
+   638.0,
+   761.6,
+   "PASS"
+  ],
+  [
+   761.6,
+   787.7,
+   "PASS"
+  ],
+  [
+   787.7,
+   836.2,
+   "PASS"
+  ],
+  [
+   836.2,
+   839.8,
+   "UNKNOWN"
+  ],
+  [
+   839.8,
+   852.4,
+   "PASS"
+  ],
+  [
+   852.4,
+   879.6,
+   "PASS"
+  ],
+  [
+   879.6,
+   888.3,
+   "PASS"
+  ],
+  [
+   888.3,
+   925.3,
+   "PASS"
+  ],
+  [
+   925.3,
+   943.4,
+   "PASS"
+  ],
+  [
+   943.4,
+   963.5,
+   "PASS"
+  ]
+ ],
+ "events": [
+  {
+   "kind": "covered",
+   "at_m": 0.0,
+   "element_id": "seg-1239035870-0",
+   "source": null,
+   "attributes": [
+    "covered"
+   ],
+   "status": "reported",
+   "demo": false,
+   "evidence_id": "ev-seg-1239035870-0.covered",
+   "title": "Covered walkway",
+   "body": "Someone reported a roof here. Not checked yet.",
+   "hold_s": 3.0
+  },
+  {
+   "kind": "unknown",
+   "at_m": 43.9,
+   "element_id": "seg-909861395-3",
+   "source": null,
+   "attributes": [
+    "sidewalk",
+    "step_count",
+    "incline_pct"
+   ],
+   "status": "unknown",
+   "demo": false,
+   "evidence_id": "ev-rt-c57e3d08.walkways",
+   "title": "Crossing Persiaran Elmina",
+   "body": "No mapped crossing or sidewalk here. Not checked yet.",
+   "hold_s": 8.0
+  },
+  {
+   "kind": "gap",
+   "at_m": 100.0,
+   "element_id": null,
+   "source": "route.max_gap_between_rest_m",
+   "attributes": [
+    "max_gap_between_rest_m"
+   ],
+   "status": "route",
+   "demo": false,
+   "evidence_id": "ev-rt-c57e3d08.rest_gap",
+   "title": "No mapped rest stop ahead",
+   "body": "The next mapped rest stop is about 540 m further on. The rest rule for this profile is every 100 m.",
+   "hold_s": 3.0
+  },
+  {
+   "kind": "unknown",
+   "at_m": 193.0,
+   "element_id": "seg-1306543739-0",
+   "source": null,
+   "attributes": [
+    "step_count",
+    "incline_pct"
+   ],
+   "status": "unknown",
+   "demo": false,
+   "evidence_id": "ev-rt-c57e3d08.walkways",
+   "title": "Persiaran Tamarind",
+   "body": "About 230 m along the road with no mapped sidewalk. Not checked yet.",
+   "hold_s": 8.0
+  },
+  {
+   "kind": "verified",
+   "at_m": 573.5,
+   "element_id": "seg-1318133037-3",
+   "source": null,
+   "attributes": [
+    "step_count",
+    "incline_pct",
+    "width_m"
+   ],
+   "status": "verified",
+   "demo": true,
+   "evidence_id": "ev-seg-1318133037-3.step_count",
+   "title": "Step-free path",
+   "body": "No steps, slope 3%, 1.5 m wide. Demo value · not surveyed.",
+   "hold_s": 3.0
+  },
+  {
+   "kind": "rest",
+   "at_m": 638.0,
+   "element_id": "bench-urban-3",
+   "source": null,
+   "attributes": [
+    "seating"
+   ],
+   "status": "verified",
+   "demo": true,
+   "evidence_id": "ev-bench-urban-3.seating",
+   "title": "Urban Park bench 3",
+   "body": "Rest stop: a minute's pause here.",
+   "hold_s": 60.0
+  },
+  {
+   "kind": "unknown",
+   "at_m": 836.2,
+   "element_id": "seg-1306543755-2",
+   "source": null,
+   "attributes": [
+    "incline_pct"
+   ],
+   "status": "unknown",
+   "demo": true,
+   "evidence_id": "ev-seg-1306543755-2.incline_pct",
+   "title": "Ramp",
+   "body": "This ramp's slope is not on record. Not checked yet.",
+   "hold_s": 8.0
+  },
+  {
+   "kind": "rest",
+   "at_m": 836.2,
+   "element_id": "bench-urban-2",
+   "source": null,
+   "attributes": [
+    "seating"
+   ],
+   "status": "verified",
+   "demo": true,
+   "evidence_id": "ev-bench-urban-2.seating",
+   "title": "Urban Park bench 2",
+   "body": "Rest stop: a minute's pause here.",
+   "hold_s": 60.0
+  },
+  {
+   "kind": "rest",
+   "at_m": 888.3,
+   "element_id": "bench-urban-1",
+   "source": null,
+   "attributes": [
+    "seating"
+   ],
+   "status": "verified",
+   "demo": true,
+   "evidence_id": "ev-bench-urban-1.seating",
+   "title": "Urban Park bench 1",
+   "body": "Rest stop: a minute's pause here.",
+   "hold_s": 60.0
+  },
+  {
+   "kind": "arrive",
+   "at_m": 963.5,
+   "element_id": "park-b",
+   "source": "route.to_place",
+   "attributes": [],
+   "status": "route",
+   "demo": true,
+   "evidence_id": "ev-place-park-b",
+   "title": "Lakeside Mall Car Park B",
+   "body": "About 970 m. Est. 14 min at this pace, plus rests.",
+   "hold_s": 3.0
+  }
+ ],
+ "conditions": []
+}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { bannerParts, describeUncertainty } from "./uncertainty";
+import { bannerParts, describeUncertainty, groupUncertainty } from "./uncertainty";
 
 describe("describeUncertainty", () => {
   it("prefers note text", () => {
@@ -43,5 +43,13 @@ describe("bannerParts", () => {
     const p = bannerParts([]);
     expect(p.heading).toBe("Please note");
     expect(p.notes).toEqual(["Some details are unconfirmed."]);
+  });
+});
+
+describe("groupUncertainty", () => {
+  it("collapses only exact duplicates, with a count, in first-seen order", () => {
+    expect(groupUncertainty(["a", "b", "a", "c", "a", "b"])).toEqual(["a (x3)", "b (x2)", "c"]);
+    expect(groupUncertainty(["a", "a "])).toEqual(["a", "a "]);
+    expect(groupUncertainty([])).toEqual([]);
   });
 });
