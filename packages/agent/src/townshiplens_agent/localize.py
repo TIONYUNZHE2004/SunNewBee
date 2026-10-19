@@ -241,6 +241,12 @@ def localize(text: str, lang: str) -> str:
     if lang not in _I or not text:
         return text
     text = text.replace(
+        "Estimated from map data (OpenStreetMap path types and tags), not checked on site",
+        "Anggaran daripada data peta (jenis laluan dan tag OpenStreetMap), belum disemak di tapak"
+        if lang == "ms"
+        else "根据地图数据（OpenStreetMap路径类型和标签）估计，尚未实地核实",
+    )
+    text = text.replace(
         "Likely OK sections are estimated from map data, not checked on site.",
         (
             "Bahagian yang berkemungkinan boleh dilalui ialah anggaran daripada peta, "

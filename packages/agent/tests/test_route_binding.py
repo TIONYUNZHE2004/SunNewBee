@@ -286,8 +286,26 @@ def test_feature_amenity_search_does_not_reject_the_answered_route_endpoints():
         ("Saya naik kereta dari Car Park B ke mall", "drive"),
         ("Saya jalan kaki dari Car Park B ke mall", "default"),
         ("我坐车从Car Park B到mall", "drive"),
-        ("Can I walk from Car Park B to the mall?", "default"),
+        ("I am walking from Car Park B to the mall.", "default"),
     ],
 )
 def test_explicit_mode_overrides_previous_ui_choice(question, mode):
     assert effective_profile(question, "wheelchair") == mode
+
+
+def test_generic_walking_word_does_not_remove_older_adult_rest_constraint():
+    assert (
+        effective_profile(
+            "My father needs to rest often. Can he walk to the mall?", "older_adult_rest"
+        )
+        == "older_adult_rest"
+    )
+
+
+@pytest.mark.parametrize(
+    "text", ["Find a toilet within 0.15 km", "Find a toilet within 150 metres", "找150米以内的厕所"]
+)
+def test_search_radius_uses_the_shared_measurement_units(text):
+    from townshiplens_agent.route_binding import requested_radius
+
+    assert requested_radius(text) == 150

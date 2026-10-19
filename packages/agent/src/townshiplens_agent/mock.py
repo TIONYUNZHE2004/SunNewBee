@@ -143,9 +143,8 @@ def _placeholder_caveat(rets, caveats: list[str]) -> list[str]:
         for _, result in rets
         if isinstance(result.get("data"), dict)
         for route in result["data"].get("routes", [])
-    ):
-        if not any("estimated from map data" in c.lower() for c in caveats):
-            caveats = [*caveats, f"{LIKELY_OK_CAVEAT}."]
+    ) and not any("estimated from map data" in c.lower() for c in caveats):
+        caveats = [*caveats, f"{LIKELY_OK_CAVEAT}."]
     if any(
         e.get("source_type") == "team_survey_placeholder"
         for _, r in rets

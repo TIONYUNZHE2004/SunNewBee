@@ -120,6 +120,16 @@ def effective_profile(question, ui_profile, supplied=None):
     # A wheelchair/stroller question can also contain the ordinary word "walking".
     if explicit & {"wheelchair", "stroller", "older_adult_rest"}:
         explicit.discard("default")
+    if (
+        explicit == {"default"}
+        and ui_profile in {"wheelchair", "stroller", "older_adult_rest"}
+        and not re.search(
+            r"\b(?:I am|I'm) walking\b|\bon foot\b|\b(?:ber)?jalan kaki\b|我(?:是)?步行",
+            question,
+            re.I,
+        )
+    ):
+        explicit.clear()  # "can he walk?" does not remove a selected mobility constraint
     if len(explicit) > 1 and not re.search(
         r"\bcompare\b|\bversus\b|\bvs\b|\bor\b|\batau\b|比较|还是", question, re.I
     ):
@@ -330,16 +340,21 @@ def bound_measurement_errors(answer, record):
 
 
 def requested_radius(question):
-    match = re.search(
-        r"(?:within|up to|under|at most|dalam jarak|kurang daripada)\s*(\d+(?:\.\d+)?)\s*(km|m)\b"
-        r"|(\d+(?:\.\d+)?)\s*(公里|米)(?:以内|内)",
-        question,
-        re.I,
-    )
-    if not match:
-        return None
-    value, unit = match.group(1, 2) if match.group(1) else match.group(3, 4)
-    return float(value) * (1000 if unit.casefold() in {"km", "公里"} else 1)
+    limits = []
+    for fact in extract_facts(question):
+        if fact.kind != "length":
+            continue
+        offset = question.casefold().find(fact.raw.casefold())
+        if offset < 0:
+            continue
+        before, after = question[:offset], question[offset + len(fact.raw) :]
+        if re.search(
+            r"(?:within|up to|under|at most|no more than|dalam jarak|kurang daripada)\s*$",
+            before,
+            re.I,
+        ) or re.match(r"\s*(?:以内|内)", after):
+            limits.append(fact.value)  # the common fact parser already converts units to metres
+    return min(limits) if limits else None
 
 
 def amenity_selection_errors(answer, record):
@@ -394,7 +409,8 @@ def estimate_text_errors(text, record):
                 re.I,
             )
             if physical and re.search(
-                r"\blikely\b|\bestimat|\banggar|\bmungkin\b|\bkemungkinan\b|可能|估计|估算",
+                r"\blikely\b|\bestimat|\brecorded\b|\bmapped\b|\btagged\b"
+                r"|\banggar|\bmungkin\b|\bkemungkinan\b|可能|估计|估算|记录|direkodkan",
                 clause,
                 re.I,
             ):
