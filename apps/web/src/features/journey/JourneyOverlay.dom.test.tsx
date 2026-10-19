@@ -229,3 +229,12 @@ describe("JourneyOverlay", () => {
     expect(screen.getByTestId("card-source")).not.toHaveTextContent("verification request");
   });
 });
+
+describe("planned-for persona (iteration 2)", () => {
+  it("the HUD names the persona the trip was planned for", () => {
+    render(<JourneyHud state={stateAt(tl, 0)} covered={tl.covered} profile={plan.profile} />);
+    expect(screen.getByTestId("hud-planned-for")).toHaveTextContent(
+      "Planned for: Older adult (rest stops)",
+    );
+  });
+});

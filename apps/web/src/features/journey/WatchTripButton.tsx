@@ -1,4 +1,5 @@
 import { useId } from "react";
+import { TRAVEL_LABELS } from "../map-ui/TravelLabels";
 import { useScene } from "../scene/sceneStore";
 import { useEffectiveView } from "../scene/useMapStyle";
 import { useJourney } from "./journeyStore";
@@ -17,12 +18,17 @@ export function WatchTripButton({ plan }: { plan: JourneyPlan }) {
   const current = useScene((s) => !s.route || s.route.id === plan.route_id);
   return (
     <div className="flex flex-wrap items-center gap-2">
+      <span data-testid="planned-for" className="w-full text-xs text-fg-soft">
+        Planned for: {TRAVEL_LABELS[plan.profile]}
+      </span>
       <button
         type="button"
         className="inline-flex min-h-9 items-center rounded-full border border-line px-3 text-xs text-fg hover:bg-surface-2 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent"
         disabled={!current}
         aria-describedby={current ? undefined : noteId}
         onClick={() => {
+          // the trip's persona wins: the chip must never say another one while it plays
+          useScene.getState().adoptProfile(plan.profile);
           const j = useJourney.getState();
           if (j.plan !== plan) j.load(plan);
           if (playable) useJourney.getState().restart();
