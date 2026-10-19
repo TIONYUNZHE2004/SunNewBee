@@ -167,7 +167,10 @@ export function createFollowController(deps: {
     const target = journeyCameraAt(sc, s.t, s.camMode);
     if (!target) return idle();
     if (!driven || s.camMode !== lastMode) {
-      blend = reduced() ? null : { from: { pos: current.position, look: current.look }, t0: now };
+      // copies: the engine refills `current` in place every frame
+      blend = reduced()
+        ? null
+        : { from: { pos: [...current.position], look: [...current.look] }, t0: now };
       lastMode = s.camMode;
     }
     driven = true;

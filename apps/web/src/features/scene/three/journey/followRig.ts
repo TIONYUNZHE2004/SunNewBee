@@ -154,8 +154,8 @@ export interface FollowScene {
   /** Her drawn ground position [x, z] at t (`heroStateAt`, pure); default: her route point. */
   heroAt?(t: number): [number, number];
   /**
-   * Her drawn body box (world, posed) when the drawn hero is at screen time t, else null: the hold
-   * fit then frames what is drawn (seated, the walker and her lean reach past her root estimate).
+   * Her body box (world) at screen time t, else null: the hold fit frames it. Must be a pure
+   * function of t (the drawn skinned pose is not: it follows the animation mixer's state).
    */
   heroBox?(t: number): { min: Vec3; max: Vec3 } | null;
   /** The marker position of plan event `i` (the journey layer's `anchorOf`), or null. */

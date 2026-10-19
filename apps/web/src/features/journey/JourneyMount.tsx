@@ -25,8 +25,8 @@ import {
 import { probeCamera } from "./three/cameraProbe";
 import { applyCutaway, cutFor, NO_CUT, setCut } from "./three/cutaway";
 import { createHeroLayer, type FactBench, type HeroLayer } from "./three/heroLayer";
-import { heroBodyBox, heroScreenRect } from "./three/heroScreen";
-import { createJourneyLayer, type JourneyLayer } from "./three/journeyLayer";
+import { heroScreenRect } from "./three/heroScreen";
+import { createJourneyLayer, type JourneyLayer, warmPinDrawings } from "./three/journeyLayer";
 import { projectToScreen } from "./three/project";
 import { createViewFit, safeRectOf } from "./three/viewFit";
 import type { JourneyPlan } from "./timeline";
@@ -164,6 +164,19 @@ export function JourneyMount({
     };
   }, [engine, frame, plan, layer, places, footprints, grid, factBenches]);
 
+  // The pin drawings (canvas text) are made at an idle moment, not when the answer lands.
+  useEffect(() => {
+    if (!engine) return;
+    const ric = (globalThis as { requestIdleCallback?: (cb: () => void) => number })
+      .requestIdleCallback;
+    const id = ric ? ric(warmPinDrawings) : setTimeout(warmPinDrawings, 2000);
+    return () => {
+      const cic = (globalThis as { cancelIdleCallback?: (id: number) => void }).cancelIdleCallback;
+      if (ric && cic) cic(id as number);
+      else clearTimeout(id as ReturnType<typeof setTimeout>);
+    };
+  }, [engine]);
+
   // Building materials carry the (inactive) cutaway from their first compile (engine patch hook,
   // page load onwards): patching them when a trip loads, or as LOD buckets appear, recompiled
   // their programs on the main thread (gate AC-D18: 798 ms at answer landing).
@@ -174,11 +187,17 @@ export function JourneyMount({
 
   // Decorative shader motion (tree sway, shimmer) runs on the trip clock while a trip is loaded:
   // a paused beat renders the same at any wall time (AC-D17).
+  // The trip clock takes over once the trip has played (until then the motion clock runs on), so
+  // loading a plan never makes the crowd and traffic jump; the take-over happens with the dive,
+  // from the overview, where people and cars are specks.
   useEffect(() => {
     if (!engine?.setDecorClock || !plan) return;
+    let started = false;
     engine.setDecorClock(() => {
       const s = useJourney.getState();
-      return s.plan === plan && s.timeline ? s.t : null;
+      if (s.plan !== plan || !s.timeline) return null;
+      if (!started && (s.playing || s.t > 0)) started = true;
+      return started ? s.t : null;
     });
     return () => engine.setDecorClock?.(null);
   }, [engine, plan]);
@@ -218,11 +237,6 @@ export function JourneyMount({
       if (!vf || vf.key !== key) vf = { key, view: createViewFit(cam, v.size, safeRectOf(vp)) };
       return vf.view;
     };
-    let boxMemo: {
-      t: number;
-      hero: HeroLayer;
-      box: { min: [number, number, number]; max: [number, number, number] } | null;
-    } | null = null;
     const scene = (): FollowScene | null => {
       const s = useJourney.getState();
       const tl = s.timeline;
@@ -237,25 +251,6 @@ export function JourneyMount({
         overview: overview(),
         pullBackTo: endPose,
         heroAt: h ? (t) => heroPositionAt(tl, t, h.helpers) : undefined,
-        heroBox: (t) => {
-          // her drawn box, only when she is posed at t (the store's t: the driver poses her on
-          // every change of t, before the frame's camera); one measure per t
-          if (!h || Math.abs(useJourney.getState().t - t) > 1e-9) return null;
-          if (boxMemo?.t !== t || boxMemo.hero !== h) {
-            const b = heroBodyBox(h.hero.object3d);
-            boxMemo = {
-              t,
-              hero: h,
-              box: b
-                ? {
-                    min: b.min.toArray() as [number, number, number],
-                    max: b.max.toArray() as [number, number, number],
-                  }
-                : null,
-            };
-          }
-          return boxMemo.box;
-        },
         markerOf: (i) => layer.anchorOf(i),
         view: viewFit(),
       };
@@ -279,7 +274,14 @@ export function JourneyMount({
         ),
       );
       const following = !!p && !!h && useJourney.getState().camMode === "follow";
-      setTreeCut(following && p && h ? { a: p.position, b: [h.x, HERO_CHEST_Y, h.z] } : null);
+      // at an event hold, also the line to the event's element (the ramp, the crossing, the bench)
+      const st = following ? journeyStateOf(useJourney.getState()) : null;
+      const sc = st?.phase.kind === "event" && st.eventIndex !== undefined ? scene() : null;
+      const el =
+        sc && st?.eventIndex !== undefined ? elementPoint(sc, st.eventIndex, st.distance_m) : null;
+      setTreeCut(
+        following && p && h ? { a: p.position, b: [h.x, HERO_CHEST_Y, h.z], c: el } : null,
+      );
       return p;
     });
     // Without the engine's material patch hook (tests), building materials get the (inactive)

@@ -1,4 +1,5 @@
 import { existsSync, readFileSync } from "node:fs";
+import * as THREE from "three";
 import { describe, expect, it } from "vitest";
 import type { BuildingsLayer } from "../../../lib/api";
 import type { Placement } from "./assets/fit";
@@ -15,6 +16,7 @@ import {
   type Obstacle,
   obstaclesFromCity,
   PAD_M,
+  rasterTops,
   type Vec3,
 } from "./clearance";
 import { createFrame } from "./frame";
@@ -329,6 +331,48 @@ describe("obstaclesFromCity", () => {
     expect(c.topAt(100, 8)).toBe(0);
   });
 
+  it("with a plan, an outline drawn neither as an extrusion nor by a box is no obstacle (9.1 F1)", () => {
+    const layer = {
+      buildings: {
+        type: "FeatureCollection",
+        features: [
+          poly(
+            "drawn",
+            [
+              [0, 0],
+              [10, 0],
+              [10, 10],
+              [0, 10],
+            ],
+            { height_m: 6 },
+          ),
+          poly(
+            "undrawn",
+            [
+              [50, 50],
+              [90, 50],
+              [90, 90],
+              [50, 90],
+            ],
+            { height_m: 9 },
+          ),
+        ],
+      },
+    } as unknown as BuildingsLayer;
+    const plan = {
+      placements: new Map(),
+      extrude: new Set(["drawn"]),
+      landmarks: [],
+      stats: { placed: 0, units: 0, fallback: {} },
+    } as unknown as CityPlan;
+    const c = createClearance(obstaclesFromCity(layer, frame, plan, {} as Manifest));
+    expect(c.topAt(5, 5)).toBeGreaterThan(0);
+    expect(c.topAt(70, 70)).toBe(0);
+    expect(c.floorAt(70, 70)).toBe(0);
+    // without a plan (no assets) every outline is an obstacle
+    expect(createClearance(obstaclesFromCity(layer, frame)).topAt(70, 70)).toBeGreaterThan(0);
+  });
+
   it("uses the drawn geometry bounds (boxOf) over the manifest size: off-centre and taller", () => {
     const unit: Placement = {
       id: "m",
@@ -437,5 +481,36 @@ describe.skipIf(!existsSync(SEED))("seed footprints", () => {
     expect(lifted).toBeGreaterThan(0);
     // Fast enough for every frame (generous for CI machines).
     expect(msPer).toBeLessThan(2);
+  });
+});
+
+describe("rasterTops (9.1 F1: a landmark's mass, not its bounding box)", () => {
+  const box = (w: number, h: number, d: number, x: number, z: number) =>
+    new THREE.BoxGeometry(w, h, d).translate(x, h / 2, z).toNonIndexed();
+  it("an L-shaped mass leaves its open corner and its low plaza free", () => {
+    const parts = [
+      box(40, 12, 10, 0, 0), // wing along x
+      box(10, 12, 40, -15, 15), // wing along z: an L
+      box(30, 0.4, 30, 10, 20), // a plaza in the corner, 0.4 m high
+    ];
+    const pos: number[] = [];
+    for (const g of parts) pos.push(...(g.getAttribute("position").array as Float32Array));
+    const cells = rasterTops(pos, null);
+    expect(cells.length).toBeGreaterThan(0);
+    const c = createClearance(
+      cells.map((b, i) => ({
+        id: `m${i}`,
+        ring: [
+          [b.minX, b.minZ],
+          [b.maxX, b.minZ],
+          [b.maxX, b.maxZ],
+          [b.minX, b.maxZ],
+        ] as [number, number][],
+        topM: b.maxY,
+      })),
+    );
+    expect(c.topAt(0, 0)).toBeCloseTo(12, 5); // on a wing
+    expect(c.topAt(-15, 25)).toBeCloseTo(12, 5); // on the other wing
+    expect(c.topAt(12, 22)).toBe(0); // the open corner (plaza): no roof
   });
 });

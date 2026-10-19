@@ -55,10 +55,10 @@ export const SAFE_FIT = {
   /** Screen pads: the active marker sprite (~65 px tall at 900 px), the element, her body. */
   markerPadPx: 36,
   /** Her box for the fit (m): half-width around her and top; seated, the walker stands out. */
-  heroBoxRadiusM: 1.25,
+  heroBoxRadiusM: 1.4,
   heroBoxTopM: 2.6,
   elementPadPx: 12,
-  heroPadPx: 8,
+  heroPadPx: 16,
 } as const;
 
 const add = (a: Vec3, b: Vec3): Vec3 => [a[0] + b[0], a[1] + b[1], a[2] + b[2]];

@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { HERO_RENDER_ORDER } from "../../scene/three/characters/hero";
 import type { Clearance, Vec3 } from "../../scene/three/clearance";
-import { buildingMeshes, roofHit } from "../../scene/three/scene/useAcceptanceHook";
+import { buildingMeshes, roofHit } from "../../scene/three/scene/buildingMeshes";
 import type { Rect } from "../cardPlacement";
 import { currentCut, inCut } from "./cutaway";
 import { boxOnScreen, heroBodyBox } from "./heroScreen";
@@ -33,6 +33,10 @@ export interface CameraProbe {
    * crosses one (Harmoni 1 at the start, the Sales Gallery at ~831 m; coordinator ruling).
    */
   heroInFootprint: boolean;
+  /** The clearance-grid obstacles she stands in (ids; diagnostics). */
+  heroFootprintIds?: string[];
+  /** The highest drawn building surface straight above or below her (mesh raycast; diagnostics). */
+  heroDrawnRoofM?: number;
   /** The camera inside a building: under the grid's roof where a drawn roof is above it. */
   insideBuilding: boolean;
   gridRoofM: number;
@@ -164,12 +168,17 @@ export function probeCamera(opts: {
     heroBox.y + heroBox.h <= 0.9 * h;
   let blocked = { chest: false, head: false, low: false };
   let heroInFootprint = false;
+  let heroFootprintIds: string[] = [];
+  let heroDrawnRoofM: number | undefined;
   if (box) {
     const cx = (box.min.x + box.max.x) / 2;
     const cz = (box.min.z + box.max.z) / 2;
     const at = (k: number): Vec3 => [cx, box.min.y + (box.max.y - box.min.y) * k, cz];
     const root = opts.hero?.getWorldPosition(new THREE.Vector3());
     heroInFootprint = !!root && (opts.clearance?.maxRoofNear(root.x, root.z, 0.5) ?? 0) > 0;
+    if (root && opts.clearance)
+      heroFootprintIds = opts.clearance.footprintsAt(root.x, root.z).map((f) => f.id);
+    if (root && heroFootprintIds.length > 0) heroDrawnRoofM = roofHit(opts.roots, root.x, root.z);
     blocked = {
       chest: sightBlocked(opts.clearance, opts.roots, p, at(0.6)),
       head: sightBlocked(opts.clearance, opts.roots, p, at(0.95)),
@@ -202,6 +211,8 @@ export function probeCamera(opts: {
     heroDistM: box ? box.distanceToPoint(cam.position) : null,
     blocked,
     heroInFootprint,
+    heroFootprintIds,
+    heroDrawnRoofM,
     insideBuilding,
     gridRoofM,
     meshRoofM,

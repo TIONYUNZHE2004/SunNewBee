@@ -1,9 +1,11 @@
 import * as THREE from "three";
 import { afterEach, describe, expect, it } from "vitest";
+import { createDressingLayer } from "../dressing/dressingLayer";
 import { createRoleMaterial, createRoleUniforms } from "./roleMaterial";
 import {
   injectTreeCut,
   inTreeCut,
+  patchDecorCut,
   setTreeCut,
   TREE_CUT_RADIUS_M,
   treeCutUniforms,
@@ -69,5 +71,62 @@ describe("decorative tree cut (gate AC-D17: no canopy over the hero)", () => {
       const other = compileShader(createRoleMaterial({ instanced: true, uniforms, kind }));
       expect(other.fragmentShader).not.toContain("uTlTreeCutOn");
     }
+  });
+});
+
+describe("decorative cut, 9.1 F2: the event's element line, props, dressing and crowd", () => {
+  afterEach(() => setTreeCut(null));
+
+  it("a second capsule runs from the camera to the event's element", () => {
+    setTreeCut({ a: [0, 10, 20], b: [0, 1.4, 0], c: [20, 0.3, 0] });
+    expect(treeCutUniforms.uTlTreeCutC2.value).toBe(1);
+    expect(inTreeCut([10, 5.15, 10])).toBe(true); // on the camera-to-element line
+    expect(inTreeCut([0, 5.7, 10])).toBe(true); // still on the camera-to-hero line
+    setTreeCut({ a: [0, 10, 20], b: [0, 1.4, 0] });
+    expect(treeCutUniforms.uTlTreeCutC2.value).toBe(0);
+    expect(inTreeCut([10, 5.15, 10])).toBe(false);
+  });
+
+  it("patchDecorCut adds the cut once, keeps earlier hooks and gives its own program key", () => {
+    const m = new THREE.MeshStandardMaterial();
+    let earlier = 0;
+    m.onBeforeCompile = () => {
+      earlier++;
+    };
+    const key0 = m.customProgramCacheKey();
+    patchDecorCut(m);
+    patchDecorCut(m);
+    const s = compileShader(m);
+    expect(earlier).toBe(1);
+    expect(s.fragmentShader.match(/uTlTreeCutOn > 0\.5/g)?.length).toBe(1);
+    expect(m.customProgramCacheKey()).not.toBe(key0);
+  });
+
+  it("decorative dressing is cut, fact props never", () => {
+    const layer = createDressingLayer();
+    layer.setItems([
+      { key: "f", model: "bench", x: 0, z: 0, yaw: 0, s: 1, sourceId: "osm-node-1" },
+      { key: "d", model: "planter", x: 2, z: 0, yaw: 0, s: 1 },
+    ]);
+    layer.update([0, 0], 150);
+    let facts = 0;
+    let decor = 0;
+    layer.group.traverse((o) => {
+      const mesh = o as THREE.Mesh;
+      if (!mesh.isMesh) return;
+      const cut = compileShader(mesh.material as THREE.Material).fragmentShader.includes(
+        "uTlTreeCutOn",
+      );
+      if (mesh.userData.fact) {
+        facts++;
+        expect(cut, mesh.name).toBe(false);
+      } else {
+        decor++;
+        expect(cut, mesh.name).toBe(true);
+      }
+    });
+    expect(facts).toBeGreaterThan(0);
+    expect(decor).toBeGreaterThan(0);
+    layer.dispose();
   });
 });

@@ -14,7 +14,14 @@ import { showroomBounds, showroomManifest, showroomPlan } from "../assets/showro
 import { HERO_CENTRE } from "../bookmarks";
 import { useCityInfo } from "../cityInfo";
 import { bevelForTier, buildCityGeometry, type CityGeometry } from "../cityMesh";
-import { createClearance, type ModelBox, obstaclesFromCity } from "../clearance";
+import {
+  createClearance,
+  type ModelBox,
+  type ModelCell,
+  type ModelCellsOf,
+  obstaclesFromCity,
+  rasterTops,
+} from "../clearance";
 import type { Engine } from "../engine";
 import type { FacadeBuilding } from "../facade/facadeLayer";
 import { largeRoofTint } from "../facade/roofPlan";
@@ -92,6 +99,27 @@ function modelBoxes(
       : { minX: box.min.x, maxX: box.max.x, minZ: box.min.z, maxZ: box.max.z, maxY: box.max.y };
     memo.set(key, out);
     return out;
+  };
+}
+
+/** Landmarks' drawn mass from their LOD0 geometry (`rasterTops`), memoised per model. */
+function modelCells(lib: AssetLibrary): ModelCellsOf {
+  const memo = new Map<string, ModelCell[] | null>();
+  return (asset, variant) => {
+    const key = `${asset}/${variant}`;
+    const hit = memo.get(key);
+    if (hit !== undefined) return hit;
+    const g = lib.geometry(asset, variant, 0);
+    const pos = g?.getAttribute("position");
+    const out = pos
+      ? rasterTops(
+          pos.array as ArrayLike<number>,
+          g?.index ? (g.index.array as ArrayLike<number>) : null,
+        )
+      : null;
+    const cells = out && out.length > 0 ? out : null;
+    memo.set(key, cells);
+    return cells;
   };
 }
 
@@ -297,7 +325,14 @@ export function useCityAssets({
       // showroom draws no OSM buildings, only its laid-out assets).
       engine.setClearance?.(
         createClearance(
-          obstaclesFromCity(showroom ? null : buildings, frame, plan, m, modelBoxes(lib, m)),
+          obstaclesFromCity(
+            showroom ? null : buildings,
+            frame,
+            plan,
+            m,
+            modelBoxes(lib, m),
+            modelCells(lib),
+          ),
         ),
       );
       handedOff.current = true;

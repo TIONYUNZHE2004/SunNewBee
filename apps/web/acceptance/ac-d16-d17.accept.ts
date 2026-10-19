@@ -103,8 +103,12 @@ async function cameraStill(page: Page, beat: string): Promise<void> {
   if (!still) console.log(`AC-D17 ${beat}: camera still moving after 8 s (compared anyway)`);
 }
 
-/** One run of the demo preset: load, ask, auto-play, then the beats. */
-async function demoRun(page: Page): Promise<{ plan: JourneyPlan; beats: Beat[] }> {
+/**
+ * One run of the demo preset: load, ask, auto-play, then the beats, in timeline order or reversed
+ * (`reverse`: the second run seeks backwards, so the check is scrub equals play, not "the same
+ * seek path twice").
+ */
+async function demoRun(page: Page, reverse = false): Promise<{ plan: JourneyPlan; beats: Beat[] }> {
   await page.addInitScript((p: string) => {
     try {
       localStorage.setItem("tl.profile", p);
@@ -149,6 +153,7 @@ async function demoRun(page: Page): Promise<{ plan: JourneyPlan; beats: Beat[] }
   const pull = ph.find((p) => p.kind === "pull");
   if (pull) beats.push({ name: "pull end", t: pull.t1 - 0.05 });
   const out: Beat[] = [];
+  if (reverse) beats.reverse();
   for (const b of beats) {
     await journey.seek(page, b.t);
     await frames(page);
@@ -247,7 +252,7 @@ test.describe("demo recording (D-T10)", () => {
         deviceScaleFactor: 1,
       });
       const page = await ctx.newPage();
-      runs.push(await demoRun(page));
+      runs.push(await demoRun(page, i === 1));
       await ctx.close();
     }
     const [r1, r2] = runs as [
@@ -256,6 +261,8 @@ test.describe("demo recording (D-T10)", () => {
     ];
     expect(JSON.stringify(r2.plan)).toBe(JSON.stringify(r1.plan));
     expect(JSON.stringify(r1.plan)).toBe(JSON.stringify(a));
+    // run 2 visited the beats in reverse: compare beat by beat in timeline order
+    r2.beats.reverse();
     expect(r2.beats.map((x) => x.name)).toEqual(r1.beats.map((x) => x.name));
     expect(r1.beats.length).toBeGreaterThan(2);
 

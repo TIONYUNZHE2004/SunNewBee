@@ -259,6 +259,9 @@ export function createRoleMaterial(opts: {
   mat.customProgramCacheKey = () =>
     `${moving || parked ? `${baseKey}_${kind}` : baseKey}${flicker ? "_fl" : ""}${glassGlow === 1 ? "" : `_g${glassGlow}`}${bevel ? "_bv" : ""}`;
   if (bevel) mat.userData.bevel = { box: bevel, ...BUILDING_SHADER_BEVEL };
+  // carries the journey's decorative occluder cut (the engine also keeps it out of the post passes'
+  // depth while the cut is on)
+  if (kind && DECOR_CUT_KINDS.has(kind)) mat.userData.tlDecorCut = true;
 
   mat.onBeforeCompile = (shader) => {
     shader.uniforms.uWindowGlow = uniforms.uWindowGlow;

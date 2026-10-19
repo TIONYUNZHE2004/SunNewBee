@@ -43,13 +43,19 @@ export class CityGTAOPass extends GTAOPass {
     this.blendIntensity = p.blendIntensity;
   }
 
+  private readonly hidden: THREE.Object3D[] = [];
+
   override render(...args: Parameters<GTAOPass["render"]>): void {
-    const hidden = this.skip().filter((o) => o.visible);
+    // reused every frame (no array per render, final review)
+    const hidden = this.hidden;
+    hidden.length = 0;
+    for (const o of this.skip()) if (o.visible) hidden.push(o);
     for (const o of hidden) o.visible = false;
     try {
       super.render(...args);
     } finally {
       for (const o of hidden) o.visible = true;
+      hidden.length = 0;
     }
   }
 }

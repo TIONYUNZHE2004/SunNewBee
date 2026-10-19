@@ -179,6 +179,36 @@ export function createLineBatch(
 }
 
 /** Dash sizes in metres for `mpp` metres per screen pixel, so a dash keeps its length in pixels. */
+/**
+ * One tiny line batch per program variant the overlays and the journey ribbon draw (solid or
+ * dashed, screen-px or world-unit width, with or without the distance fade), for precompiling
+ * their programs at start-up (`Engine`): the answer's route line was linked on its first draw
+ * (gate AC-D18). Never drawn.
+ */
+export function lineProgramStandIns(): THREE.Group {
+  const g = new THREE.Group();
+  const pts = new Float32Array([0, 0, 0, 1, 0, 0, 2, 0, 1]);
+  for (const dash of [false, true])
+    for (const fade of [false, true])
+      for (const world of [false, true]) {
+        const b = createLineBatch(
+          [pts],
+          {
+            color: `#${new THREE.Color().getHexString()}`, // never drawn: any colour
+            widthPx: 4,
+            ...(dash ? { dash: { pattern: 0xff00, sizePx: 16 } } : {}),
+          },
+          0.3,
+          0,
+          undefined,
+          fade,
+        );
+        ((b as THREE.Mesh).material as LineMaterial).worldUnits = world;
+        g.add(b);
+      }
+  return g;
+}
+
 export function setDashScale(batch: THREE.Object3D, mpp: number): void {
   const m = (batch as LineSegments2).material as LineMaterial | undefined;
   const d = m?.userData.dashPx as { on: number; cycle: number } | undefined;
