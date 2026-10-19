@@ -22,37 +22,53 @@
       "case": "wrong_street_turn_binding",
       "text": "Turn right onto Persiaran Elmina.",
       "expected_rejected": true,
-      "rejected": false,
-      "pass": false,
-      "validator_errors": [],
-      "maneuver_errors": []
+      "rejected": true,
+      "pass": true,
+      "validator_errors": [
+        "No maneuver onto Persiaran Elmina turns right: give turns only as the route's maneuvers list them (the app writes the steps)."
+      ],
+      "maneuver_errors": [
+        "No maneuver onto Persiaran Elmina turns right: give turns only as the route's maneuvers list them (the app writes the steps)."
+      ]
     },
     {
       "case": "invented_name_suffix",
       "text": "Turn left onto Persiaran Elmina Secretshortcut.",
       "expected_rejected": true,
-      "rejected": false,
-      "pass": false,
-      "validator_errors": [],
-      "maneuver_errors": []
+      "rejected": true,
+      "pass": true,
+      "validator_errors": [
+        "Street names ['Persiaran Elmina Secretshortcut'] are not on this route's maneuvers: name a street exactly as plan_route gives it (an unnamed stretch is 'the footway')."
+      ],
+      "maneuver_errors": [
+        "Street names ['Persiaran Elmina Secretshortcut'] are not on this route's maneuvers: name a street exactly as plan_route gives it (an unnamed stretch is 'the footway')."
+      ]
     },
     {
       "case": "unhandled_slight_turn",
       "text": "Bear right onto Persiaran Elmina.",
       "expected_rejected": true,
-      "rejected": false,
-      "pass": false,
-      "validator_errors": [],
-      "maneuver_errors": []
+      "rejected": true,
+      "pass": true,
+      "validator_errors": [
+        "No maneuver onto Persiaran Elmina turns right: give turns only as the route's maneuvers list them (the app writes the steps)."
+      ],
+      "maneuver_errors": [
+        "No maneuver onto Persiaran Elmina turns right: give turns only as the route's maneuvers list them (the app writes the steps)."
+      ]
     },
     {
       "case": "borrowed_step_distance",
       "text": "Turn left onto Persiaran Elmina. Continue 11.8 metres.",
       "expected_rejected": true,
-      "rejected": false,
-      "pass": false,
-      "validator_errors": [],
-      "maneuver_errors": []
+      "rejected": true,
+      "pass": true,
+      "validator_errors": [
+        "The distance '11.8 metres' is not the persiaran elmina stretch in this route's maneuvers: give each stretch its own distance (the app writes the steps)."
+      ],
+      "maneuver_errors": [
+        "The distance '11.8 metres' is not the persiaran elmina stretch in this route's maneuvers: give each stretch its own distance (the app writes the steps)."
+      ]
     },
     {
       "case": "invented_distance_control",
@@ -61,12 +77,15 @@
       "rejected": true,
       "pass": true,
       "validator_errors": [
+        "The distance '999 metres' is not the persiaran elmina stretch in this route's maneuvers: give each stretch its own distance (the app writes the steps).",
         "Facts ['999 metres'] do not match this turn's tool results: state distances, times, widths, slopes, step counts and other counts only as a tool returned them (round only with 'about'; never 'exactly' a rounded number)."
       ],
-      "maneuver_errors": []
+      "maneuver_errors": [
+        "The distance '999 metres' is not the persiaran elmina stretch in this route's maneuvers: give each stretch its own distance (the app writes the steps)."
+      ]
     }
   ],
-  "long_route_notice": "\u2026 3 more steps are shown on the map.",
+  "long_route_notice": "\u2026 3 more steps are not listed here (shortened directions).",
   "long_route_limit": "No maneuver list/map-step UI has been implemented in the frontend lane; do not claim hidden steps are shown there.",
   "live_questions": 0,
   "cost_usd": 0
