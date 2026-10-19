@@ -21,7 +21,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 
 from . import geom
-from .parts import _mirror
+from .parts import _mirror, smoothstep
 
 Role = "str | Callable[[geom.Vec], str]"
 Part = tuple[str, Role, geom.Mesh]
@@ -44,6 +44,7 @@ ROLES = (
     "prop_wheel",
     "prop_fabric",
     "prop_canopy",
+    "glasses",
 )
 PROPS = ("walker", "stroller", "wheelchair")
 LOD_MAX_TRIS = (1500, 400)  # P4, per person including the prop
@@ -367,6 +368,8 @@ def person_parts(body_id: str, outfit_id: str, lod: int) -> list[Part]:
         for sd in (-1, 1):
             parts.append(stuck(sd * 0.33, -0.02, (0.075 * rz, 0.1 * rz, 0.05 * rz), "eye"))
             parts.append(stuck(sd * 0.62, -0.24, (0.13 * rz, 0.08 * rz, 0.03 * rz), "blush"))
+        if b.id == "older_woman":  # age cue, as on the hero: round glasses
+            parts += _glasses(lay)
 
     hc, (hx, hy, hz) = lay.head_c, lay.head_r
     if o.headwear == "tudung":
@@ -380,8 +383,12 @@ def person_parts(body_id: str, outfit_id: str, lod: int) -> list[Part]:
             seg + 2 if lod == 0 else seg,
             rings - 1 if lod == 0 else 2,
         )
+        hood = (
+            [_shape_hood(v, centre, (hx * 1.13, hy * 1.16, hz * 1.12)) for v in hood[0]],
+            hood[1],
+        )
         parts.append(("hood", "headwear", hood))
-        parts.append(("cape", _tudung_role, _cape(lay, seg, lod)))
+        parts.append(("cape", "headwear", _cape(lay, seg, lod)))
     else:
         if o.hair in ("short", "bun"):
             hair = _cap(
@@ -417,15 +424,21 @@ def person_parts(body_id: str, outfit_id: str, lod: int) -> list[Part]:
                 )
             )
         if o.headwear == "songkok":
-            # a black oval cap: from the upper forehead to well above the crown
-            base = hc[2] + hz * 0.30
-            top = hc[2] + hz + 0.06 * s
-            r = hx * 1.0
-            prof = [(0.0, top), (r * 0.96, top), (r, base), (0.0, base)]
+            # a short black oval cap on the upper forehead, a little above the crown, with a
+            # lighter edge band so it separates from black hair from behind
+            base = hc[2] + hz * 0.56
+            top = hc[2] + hz + 0.036 * s
+            band = base + 0.022 * s
+            r = hx * 0.99
+            prof = [(0.0, top), (r * 0.95, top), (r * 0.99, band), (r * 1.03, base), (0.0, base)]
+
+            def songkok_role(c, band=band):
+                return "headwear_trim" if c[2] < band else "headwear"
+
             parts.append(
                 (
                     "headwear",
-                    "headwear",
+                    songkok_role,
                     geom.lathe(prof, seg, sy=0.86, center=(0, hc[1] + 0.01 * s, 0)),
                 )
             )
@@ -561,19 +574,56 @@ def person_parts(body_id: str, outfit_id: str, lod: int) -> list[Part]:
 
         for side, mir in (("L", False), ("R", True)):
             parts.append((f"leg_{side}", leg_role, _mirror(leg) if mir else leg))
-    shoe = geom.ellipsoid(
-        (lay.leg_x, -0.03 * s, 0.035 * s),
-        (0.047 * s, 0.078 * s, 0.035 * s),
+    # a flat sole: the lower cap of the shoe is pressed onto the ground plane (contact, not a
+    # single touching pole that reads as floating)
+    sv, sf = geom.ellipsoid(
+        (lay.leg_x, -0.03 * s, 0.028 * s),
+        (0.047 * s, 0.078 * s, 0.038 * s),
         limb + 1,
         4 if lod == 0 else 2,
     )
+    shoe = ([(x, y, max(0.0, z)) for x, y, z in sv], sf)
     parts.append(("shoe_L", "shoe", shoe))
     parts.append(("shoe_R", "shoe", _mirror(shoe)))
     return parts
 
 
-def _tudung_role(c: geom.Vec) -> str:
-    return "headwear"
+def _shape_hood(v: geom.Vec, c: geom.Vec, r: geom.Vec) -> geom.Vec:
+    """Pull the back of the hood in towards the head (narrower, flatter) and tuck the nape,
+    as on the hero, so the tudung does not read as a ball from behind."""
+    x, y, z = v
+    dy, dz = y - c[1], z - c[2]
+    back = smoothstep(0.0, r[1], dy)
+    x = c[0] + (x - c[0]) * (1 - 0.10 * back)
+    dy *= 1 - 0.09 * back
+    nape = back * smoothstep(0.0, -r[2], dz)
+    dy *= 1 - 0.10 * nape
+    x = c[0] + (x - c[0]) * (1 - 0.06 * nape)
+    return (x, c[1] + dy, z)
+
+
+def _glasses(lay: Layout) -> list[Part]:
+    """Two round lens rims and a bridge on the face (about 60 triangles)."""
+    rz = lay.head_r[2]
+    out: list[Part] = []
+    rims = []
+    for sd in (-1, 1):
+        p, n = geom.ellipsoid_point(lay.head_c, lay.head_r, sd * 0.33, -0.02)
+        u = geom._norm(geom._cross((0.0, 0.0, 1.0), n))
+        w = geom._cross(n, u)
+        c = tuple(p[j] + n[j] * 0.03 * rz for j in range(3))
+        k = 4
+        ring = [
+            tuple(c[j] + (u[j] * math.cos(a) + w[j] * math.sin(a)) * 0.15 * rz for j in range(3))
+            for a in (math.pi / 4 + i * math.tau / k for i in range(k))
+        ]
+        out.append(("face", "glasses", geom.tube(ring, [0.018 * rz] * k, 3, closed=True)))
+        rims.append(c)
+    mid = tuple((rims[0][j] + rims[1][j]) / 2 for j in range(3))
+    a = tuple(rims[0][j] + (mid[j] - rims[0][j]) * 0.55 for j in range(3))
+    b = tuple(rims[1][j] + (mid[j] - rims[1][j]) * 0.55 for j in range(3))
+    out.append(("face", "glasses", geom.tube([a, b], [0.016 * rz] * 2, 3, cap_rings=0)))
+    return out
 
 
 def _cape(lay: Layout, seg: int, lod: int) -> geom.Mesh:
@@ -595,7 +645,8 @@ def _cape(lay: Layout, seg: int, lod: int) -> geom.Mesh:
         w = 1.0 if k >= n - 3 else 0.0
         front = max(0.0, -math.sin(theta)) ** 3
         back = max(0.0, math.sin(theta)) ** 1.6
-        return -w * (0.07 * s * front + 0.12 * s * back)
+        point = max(0.0, math.sin(theta)) ** 10 if lod == 0 else 0.0
+        return -w * (0.07 * s * front + 0.11 * s * back + 0.06 * s * point)
 
     return geom.lathe(prof, seg, sy=0.86, dz=dz)
 

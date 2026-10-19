@@ -361,6 +361,7 @@ class Trunk:
     yaw_head: float = 0.0
 
 
+IDLE_EXTRA_STOOP = 8.0  # degrees
 LEAN = {"free": 0.0, "walker": 12.0, "stroller": 7.0, "wheelchair": 4.0}
 
 
@@ -368,7 +369,10 @@ def _trunk_pose(body_id: str, mode: str, kind: str, ph: float, *, neutral: bool 
     b = crowd.BODIES[body_id]
     lay = crowd.layout(b)
     s = lay.s
-    st = b.stoop
+    # older bodies stand more bent while idle than when they walk (age cue)
+    st = b.stoop + (
+        IDLE_EXTRA_STOOP if kind == "idle" and b.stoop and mode != "wheelchair" else 0.0
+    )
     lean = LEAN[mode] + (3.0 if kind == "walk" and mode == "free" else 0.0)
     bend = st + lean
     pitch_h = math.radians(0.15 * st + 0.3 * lean)

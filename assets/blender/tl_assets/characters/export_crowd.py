@@ -71,10 +71,13 @@ def make_mesh(name: str, parts, palette: dict[str, str], material, body_id: str 
         base = len(verts)
         verts += pv
         vgroup += [group] * len(pv)
-        for f in pf:
+        for k, f in enumerate(pf):
+            faces.append(tuple(i + base for i in f))
+            if isinstance(role, list):  # per-face roles fixed in the bind pose
+                roles.append(role[k])
+                continue
             c = tuple(sum(pv[i][j] for i in f) / len(f) for j in range(3))
             roles.append(crowd.role_at(role, c))
-            faces.append(tuple(i + base for i in f))
     me = bpy.data.meshes.new(name)
     me.from_pydata(verts, [], faces)
     me.update()
@@ -106,6 +109,19 @@ def make_mesh(name: str, parts, palette: dict[str, str], material, body_id: str 
             for bone, w in crowd_rig.vertex_weights(body_id, g, v).items():
                 vg[bone].add([i], w, "REPLACE")
     return obj
+
+
+def posed(body_id: str, parts, clip: str, t: float):
+    """Skin bind-pose parts to a clip time, keeping the roles of the bind pose (role functions
+    are defined on bind-pose positions, as in the exported glbs)."""
+    fixed = []
+    for g, role, (pv, pf) in parts:
+        roles = [
+            crowd.role_at(role, tuple(sum(pv[i][j] for i in f) / len(f) for j in range(3)))
+            for f in pf
+        ]
+        fixed.append((g, roles, (pv, pf)))
+    return crowd_rig.skin_parts(body_id, fixed, clip, t)
 
 
 def tri_count(obj) -> int:
@@ -309,7 +325,7 @@ def export_body(body_id: str, out: Path) -> dict:
 
 # --- contact sheet -----------------------------------------------------------------------------
 
-TILE = (260, 400)
+TILE = (300, 450)  # the hero sheet's lighting and exposure (sheet.setup_scene), smaller tiles
 COLS = 11
 
 
@@ -320,7 +336,7 @@ def render_sheet(path: Path) -> None:
     scene, cam = sheet.setup_scene()
     scene.render.resolution_x, scene.render.resolution_y = TILE
     cam.data.type = "ORTHO"
-    cam.data.ortho_scale = 2.35
+    cam.data.ortho_scale = 2.15
     body_mat = hero.clay_material("crowd_body")
     prop_mat = hero.clay_material("crowd_prop", 0.4, 0.35, 0.0)
     label_mat = bpy.data.materials.new("label")
@@ -331,10 +347,10 @@ def render_sheet(path: Path) -> None:
     front, back = [], []
     for lk in crowd_looks.LOOKS:
         clip = crowd_rig.clip_names(lk.prop or "free")[1]
-        parts = crowd_rig.skin_parts(lk.body, crowd.person_parts(lk.body, lk.outfit, 0), clip, 0.0)
+        parts = posed(lk.body, crowd.person_parts(lk.body, lk.outfit, 0), clip, 0.0)
         objs = [make_mesh(f"look_{lk.id}", parts, lk.palette, body_mat)]
         if lk.prop:
-            pp = crowd_rig.skin_parts(lk.body, crowd.prop_parts(lk.body, lk.prop, 0), clip, 0.0)
+            pp = posed(lk.body, crowd.prop_parts(lk.body, lk.prop, 0), clip, 0.0)
             objs.append(make_mesh(f"prop_{lk.id}", pp, lk.palette, prop_mat))
         cu = bpy.data.curves.new(f"label_{lk.id}", "FONT")
         cu.body = lk.id
@@ -362,6 +378,9 @@ def render_sheet(path: Path) -> None:
         rows.append(front[i : i + COLS])
         rows.append(back[i : i + COLS])
     sheet.compose(rows, path)
+    import shutil
+
+    shutil.rmtree(tiles, ignore_errors=True)  # keep only the sheet (disk)
     print(f"wrote {path} ({len(front)} looks)")
 
 

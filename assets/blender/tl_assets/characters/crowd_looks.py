@@ -29,6 +29,7 @@ BASE = {
     "prop_wheel": "#3d434d",
     "prop_fabric": "#9cc7b4",
     "prop_canopy": "#78b09a",
+    "glasses": "#8a6a52",
 }
 
 
@@ -62,12 +63,16 @@ def _look(id_: str, body: str, outfit: str, prop: str | None = None, **c: str) -
         outer=c.get("outer", _mix(top, "#2a2a33", 0.35)),
     )
     pal.update(c)
+    if body == "older_woman":  # slightly muted clothes: an age cue next to the adult woman
+        for r in ("top", "top_trim", "bottom", "outer", "headwear", "headwear_trim"):
+            pal[r] = _mix(pal[r], MUTE, 0.25)
     if "headwear_trim" not in c and "headwear" in c:
         pal["headwear_trim"] = _mix(c["headwear"], "#000000", 0.15)
     assert set(pal) == set(crowd.ROLES), sorted(set(crowd.ROLES) ^ set(pal))
     return Look(id_, body, outfit, prop, pal)
 
 
+MUTE = "#a29d97"
 WHITE = "#f6f5f1"
 BLACK_SHOE = "#2c2a2e"
 SNEAKER = "#ece8e0"
@@ -436,7 +441,13 @@ def build_manifest(stats: dict[str, dict], sizes: dict[str, int]) -> dict:
             "clips": {
                 c: {
                     "duration": round(st["clips"][c]["duration"], 4),
+                    # timeline frames at 30 fps (duration x 30 + 1); `keys` of them are keyed
+                    # (walks: every frame; idles: every 3rd, linear between) - sample through
+                    # a mixer at any rate, never read raw tracks per frame
                     "frames": st["clips"][c]["frames"],
+                    "keys": len(crowd_rig.key_frames(c, crowd_rig.duration(bid, c))),
+                    "keyFps": crowd_rig.FPS
+                    // (crowd_rig.IDLE_KEY_STEP if c.startswith("idle") else 1),
                     "loop": True,
                     "stride": round(crowd_rig.stride(bid, c), 4),
                 }
@@ -445,11 +456,14 @@ def build_manifest(stats: dict[str, dict], sizes: dict[str, int]) -> dict:
         }
     looks = []
     for lk in LOOKS:
-        meshes = stats[lk.body].get("meshes", {})
+        meshes = stats[lk.body]["meshes"]
         mode = lk.prop or "free"
         walk, idle = crowd_rig.clip_names(mode)
         nodes = [lk.outfit, *prop_meshes(lk.prop)]
-        tris = [sum(meshes.get(f"{n}__LOD{i}", 0) for n in nodes) for i in (0, 1)]
+        missing = [f"{n}__LOD{i}" for n in nodes for i in (0, 1) if f"{n}__LOD{i}" not in meshes]
+        if missing:  # never a silent 0-triangle look
+            raise KeyError(f"{lk.id}: no mesh {missing} in crowd_{lk.body}.glb")
+        tris = [sum(meshes[f"{n}__LOD{i}"] for n in nodes) for i in (0, 1)]
         looks.append(
             {
                 "id": lk.id,

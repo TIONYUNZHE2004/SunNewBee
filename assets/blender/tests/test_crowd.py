@@ -278,21 +278,108 @@ def test_feet_stay_on_or_above_ground_while_walking():
                 assert lo >= -0.012, (body, clip, k, lo)
 
 
-def test_manifest_shape():
-    stats = {
-        b: {
+def _stats(meshes: bool = True) -> dict:
+    out = {}
+    for b in BODY_IDS:
+        nodes = list(crowd.BODY_OUTFITS[b])
+        for lk in crowd_looks.LOOKS:
+            if lk.body == b:
+                nodes += crowd_looks.prop_meshes(lk.prop)
+        out[b] = {
             "bones": 19,
             "clips": {
                 c: {"duration": crowd_rig.duration(b, c), "frames": 31} for c in _clips_for(b)
             },
-            "meshes": {},
+            "meshes": {f"{n}__LOD{i}": 100 for n in nodes for i in (0, 1)} if meshes else {},
         }
-        for b in BODY_IDS
-    }
-    m = crowd_looks.build_manifest(stats, {b: 1000 for b in BODY_IDS})
+    return out
+
+
+def test_manifest_shape():
+    m = crowd_looks.build_manifest(_stats(), {b: 1000 for b in BODY_IDS})
     assert m["roles"] == list(crowd.ROLES)
     assert set(m["bodies"]) == set(BODY_IDS)
     assert len(m["looks"]) == len(crowd_looks.LOOKS)
     for lk in m["looks"]:
         assert lk["clips"]["walk"] in m["bodies"][lk["body"]]["clips"]
         assert lk["clips"]["idle"] in m["bodies"][lk["body"]]["clips"]
+        assert lk["tris"][0] > 0
+    clips = m["bodies"]["adult_man"]["clips"]
+    assert clips["idle"]["keyFps"] == 10 and clips["idle"]["keys"] == 31
+    assert clips["walk"]["keyFps"] == 30 and clips["walk"]["keys"] == 31
+
+
+def test_manifest_builder_raises_on_a_missing_mesh():
+    with pytest.raises(KeyError):
+        crowd_looks.build_manifest(_stats(meshes=False), {b: 1000 for b in BODY_IDS})
+
+
+# --- fix round 1 -------------------------------------------------------------------------------
+
+
+def _shoes_low(body, clip, t):
+    parts = [
+        p
+        for p in crowd.person_parts(body, crowd.BODY_OUTFITS[body][0], 0)
+        if p[0].startswith("shoe")
+    ]
+    out = {}
+    for g, _r, (pv, _f) in crowd_rig.skin_parts(body, parts, clip, t):
+        zs = sorted(v[2] for v in pv)
+        out[g] = (zs[0], sum(1 for z in zs if z <= 0.01))
+    return out
+
+
+@pytest.mark.parametrize("body", BODY_IDS)
+def test_feet_touch_the_ground_in_idle_and_stance(body):
+    """A flat sole on the ground (<= 1 cm), not a floating pole, in idle and in walk stance."""
+    for clip in [c for c in _clips_for(body) if "wheelchair" not in c]:
+        d = crowd_rig.duration(body, clip)
+        if clip.startswith("idle"):
+            for k in range(4):
+                for g, (lo, n) in _shoes_low(body, clip, d * k / 4).items():
+                    assert -0.012 <= lo <= 0.01 and n >= 3, (clip, k, g, lo, n)
+        else:  # left foot in stance at 25% of the cycle, right foot at 75%
+            for g, ph in (("shoe_L", 0.25), ("shoe_R", 0.75)):
+                lo, n = _shoes_low(body, clip, d * ph)[g]
+                assert -0.012 <= lo <= 0.01 and n >= 3, (clip, g, lo, n)
+
+
+def test_songkok_is_a_short_cap_with_an_edge_band():
+    for body in ("child", "adult_man", "older_man"):
+        lay = crowd.layout(crowd.BODIES[body])
+        parts = crowd.person_parts(body, "baju_melayu", 0)
+        cap = [p for p in parts if p[0] == "headwear"]
+        top = max(v[2] for _g, _r, (pv, _f) in cap for v in pv)
+        crown = lay.head_c[2] + lay.head_r[2]
+        assert 0.0 < top - crown <= 0.04 * lay.s, body
+        assert {"headwear", "headwear_trim"} <= _roles(cap), body
+
+
+def test_older_women_read_apart_from_adult_women():
+    ow = crowd.person_parts("older_woman", "baju_kurung", 0)
+    assert "glasses" in _roles(ow)
+    assert 30 <= _tris([p for p in ow if crowd.role_at(p[1], (0, 0, 0)) == "glasses"]) <= 80
+    assert "glasses" not in _roles(crowd.person_parts("adult_woman", "baju_kurung", 0))
+    # stronger stoop while idle than walking
+    idle = crowd_rig.pose("older_woman", "idle", 0.0)["head"][1]
+    walk = crowd_rig.pose("older_woman", "walk", 0.0)["head"][1]
+    assert idle[1] < walk[1] - 0.015  # neck further forward (-y)
+
+    def chroma(h):
+        c = [int(h[i : i + 2], 16) for i in (1, 3, 5)]
+        return max(c) - min(c)
+
+    old = [lk for lk in crowd_looks.LOOKS if lk.body == "older_woman"]
+    young = [lk for lk in crowd_looks.LOOKS if lk.body == "adult_woman"]
+    mean = lambda ls: sum(chroma(lk.palette["top"]) for lk in ls) / len(ls)  # noqa: E731
+    assert mean(old) < mean(young)
+
+
+def test_tudung_back_is_pulled_in():
+    lay = crowd.layout(crowd.BODIES["adult_woman"])
+    hood = [p for p in crowd.person_parts("adult_woman", "baju_kurung", 0) if p[0] == "hood"][0]
+    pv = hood[2][0]
+    back = max(v[1] for v in pv) - lay.head_c[1]
+    side = max(v[0] for v in pv)
+    assert back < side  # flatter at the back than wide
