@@ -178,30 +178,80 @@ export function easedDistance(a: Agent, tSec: number): number {
   return a.speed * (tSec + (EASE_AMP / k.w) * (k.cos0 - Math.cos(k.w * tSec + k.phase)));
 }
 
-/** Point and tangent yaw at arc length s along the polyline (zero-length segments skipped). */
-function along(p: Float32Array, s: number, out: Pose2): Pose2 {
-  const n = p.length / 2;
-  let lastYaw = 0;
-  let lx = p[0] as number;
-  let lz = p[1] as number;
-  for (let i = 0; i < n - 1; i++) {
-    const ax = p[2 * i] as number;
-    const az = p[2 * i + 1] as number;
-    const dx = (p[2 * i + 2] as number) - ax;
-    const dz = (p[2 * i + 3] as number) - az;
-    const l = Math.hypot(dx, dz);
-    if (l === 0) continue;
-    lastYaw = Math.atan2(dx, dz);
-    lx = ax + dx;
-    lz = az + dz;
-    if (s <= l) {
-      const t = Math.max(0, s / l);
-      return setPose(out, ax + dx * t, az + dz * t, lastYaw);
-    }
-    s -= l;
-  }
-  return setPose(out, lx, lz, lastYaw);
+/**
+ * Per path: the arc length at every vertex (`cum`), the index of the first and last non-degenerate
+ * segments (-1 when every segment has zero length) and the end of the last one. Built once per path
+ * array (agents copied for a per-look speed share the path, so they share this too).
+ */
+interface PathTable {
+  cum: Float64Array;
+  first: number;
+  last: number;
 }
+const pathTables = new WeakMap<Float32Array, PathTable>();
+function pathTable(p: Float32Array): PathTable {
+  const hit = pathTables.get(p);
+  if (hit) return hit;
+  const n = p.length / 2;
+  const cum = new Float64Array(Math.max(1, n));
+  let first = -1;
+  let last = -1;
+  for (let i = 0; i < n - 1; i++) {
+    const l = Math.hypot(
+      (p[2 * i + 2] as number) - (p[2 * i] as number),
+      (p[2 * i + 3] as number) - (p[2 * i + 1] as number),
+    );
+    cum[i + 1] = (cum[i] as number) + l;
+    if (l > 0) {
+      if (first < 0) first = i;
+      last = i;
+    }
+  }
+  const t: PathTable = { cum, first, last };
+  pathTables.set(p, t);
+  return t;
+}
+
+const segYaw = (p: Float32Array, i: number) =>
+  Math.atan2(
+    (p[2 * i + 2] as number) - (p[2 * i] as number),
+    (p[2 * i + 3] as number) - (p[2 * i + 1] as number),
+  );
+
+/**
+ * Point and tangent yaw at arc length s along the polyline (zero-length segments skipped): a binary
+ * search over the path's cumulative lengths (built once per path), so a pose costs O(log n) instead
+ * of a walk over every vertex each frame (GATE AC-D18 profile: the linear walk was a steady main-
+ * thread cost). Same result as walking the segments: s <= 0 sits at the start of the first real
+ * segment, s past the end at the end of the last one, both with that segment's tangent.
+ */
+export function alongPath(p: Float32Array, s: number, out: Pose2): Pose2 {
+  const { cum, first, last } = pathTable(p);
+  if (first < 0) return setPose(out, p[0] as number, p[1] as number, 0);
+  if (!(s > 0))
+    return setPose(out, p[2 * first] as number, p[2 * first + 1] as number, segYaw(p, first));
+  const n = p.length / 2;
+  if (s > (cum[n - 1] as number)) {
+    return setPose(out, p[2 * last + 2] as number, p[2 * last + 3] as number, segYaw(p, last));
+  }
+  // The first vertex j with cum[j] >= s; segment j - 1 is then non-degenerate (cum[j - 1] < s).
+  let lo = 1;
+  let hi = n - 1;
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    if ((cum[mid] as number) >= s) hi = mid;
+    else lo = mid + 1;
+  }
+  const i = lo - 1;
+  const ax = p[2 * i] as number;
+  const az = p[2 * i + 1] as number;
+  const dx = (p[2 * i + 2] as number) - ax;
+  const dz = (p[2 * i + 3] as number) - az;
+  const l = (cum[i + 1] as number) - (cum[i] as number);
+  const t = Math.min(1, Math.max(0, (s - (cum[i] as number)) / l));
+  return setPose(out, ax + dx * t, az + dz * t, Math.atan2(dx, dz));
+}
+const along = alongPath;
 
 /** Tangent yaw of the first non-degenerate segment (the heading when leaving the start). */
 function startYaw(p: Float32Array): number {
