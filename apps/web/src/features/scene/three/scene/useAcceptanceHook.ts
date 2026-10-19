@@ -99,6 +99,8 @@ export interface AcceptanceApi {
   startCameraLog(): void;
   /** Stops the log and returns its summary (zeros when no log was running). */
   stopCameraLog(): CameraLog;
+  /** Metres the building clearance lifts the camera above its base pose now (0: none). */
+  liftM(): number;
   /** Local frame conversions (metres: x east, z = -north). */
   toLocal(lon: number, lat: number): [number, number];
   toLonLat(x: number, z: number): [number, number];
@@ -390,6 +392,7 @@ export function createAcceptanceApi(engine: Engine, frame: LocalFrame): Acceptan
       );
       engine.requestRender();
     },
+    liftM: () => engine.clearanceLiftM?.() ?? 0,
     toLocal: (lon, lat) => frame.toLocal(lon, lat),
     toLonLat: (x, z) => {
       const [lon, lat] = frame.toLonLat(x, z);

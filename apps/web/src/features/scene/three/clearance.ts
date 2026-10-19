@@ -18,6 +18,15 @@ import type { LocalFrame } from "./frame";
  *
  * Coordinates are the local frame (`frame.ts`): x east, y up, z = -north, metres. Pure and
  * allocation-light; no Three.js dependency, so the follow camera and tests use it as is.
+ *
+ * Bounds a caller must plan for:
+ * - The hard floor is never eased, so it can raise the camera in one frame by up to
+ *   `maxTopM + CLEARANCE_M` minus the base height (about 132 m on the Elmina seed, whose tallest
+ *   drawn building is 130 m). This happens when a low camera enters a footprint the segment lift did
+ *   not anticipate, e.g. when the target is inside that building (the subject is never an obstacle).
+ * - The segment lift asks for at most `MAX_SEGMENT_LIFT_M` (600 m) of camera height; the review
+ *   measured 408 m on the seed (a low camera looking past a tower at a near target). It is eased.
+ * - The last (1 - NEAR_TARGET_SHARE) = 20 % of the camera-to-target segment never lifts.
  */
 
 export type Pt = [x: number, z: number];

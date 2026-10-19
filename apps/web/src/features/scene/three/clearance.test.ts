@@ -219,6 +219,17 @@ describe("createLift (eased lift state)", () => {
     expect(s.y).toBeCloseTo(goal, 1);
   });
 
+  it("reset() (a teleport) applies the new lift at once instead of easing from the old place", () => {
+    const c = city();
+    const l = createLift();
+    l.step(c, [-60, 5, 200], [60, 0, 200], 16, false); // nothing in the way: lift 0
+    const goal = c.clearCameraPose([-60, 5, 0], [60, 0, 0]).position[1];
+    expect(l.step(c, [-60, 5, 0], [60, 0, 0], 16, false).y).toBeLessThan(goal); // eased
+    l.step(c, [-60, 5, 200], [60, 0, 200], 16, true); // back to lift 0
+    l.reset();
+    expect(l.step(c, [-60, 5, 0], [60, 0, 0], 16, false).y).toBe(goal); // at once
+  });
+
   it("eases back down when the obstacle is gone, and never ratchets the base", () => {
     const c = city();
     const l = createLift();

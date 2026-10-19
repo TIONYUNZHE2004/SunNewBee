@@ -268,9 +268,14 @@ the settings popover.
   `hero-mid` bookmark; Cesium: the site home). Ruling P5-14: no camera-pose hand-off.
 - **Building clearance (Three.js, A-T7):** `three/clearance.ts` keeps the camera at least 2 m above
   any roof it is over (or within 1 m of), and lifts it, eased, when the camera-to-target line
-  crosses a building; the lift eases back down when no longer needed. The lift is display state:
-  the engine re-applies it every frame after every input, before the render, and neither
-  MapControls nor rig flights ever read it (no ratchet). The journey follow camera reuses it.
+  crosses a building; the lift eases back down when no longer needed. The lift is display state: the
+  engine removes it before every `controls.update()` (the tick's and those MapControls runs inside
+  its pointer, wheel, key and touch handlers) and re-applies it after the inputs, before the render.
+  Rig flights and `rig.get()` see the base pose. `engine.clearance.test.ts` (pointer-drag pan and
+  wheel while lifted) and the AC-A8 drift check guard against the base creeping up; a camera moved
+  by any other code path between frames is taken as a new base. The hard floor can raise the camera
+  by up to the tallest roof + 2 m in one frame (about 132 m on the seed). The journey follow camera
+  reuses it.
 
 ### Stylised (Three.js)
 

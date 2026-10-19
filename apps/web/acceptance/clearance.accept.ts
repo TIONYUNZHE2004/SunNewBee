@@ -27,6 +27,8 @@ const SEED = Number(process.env.ACCEPTANCE_SEED ?? 20261019);
 const OPS = Number(process.env.ACCEPTANCE_OPS ?? 300);
 /** Extra operations with `prefers-reduced-motion: reduce` (the lift applies at once). */
 const REDUCED_OPS = Number(process.env.ACCEPTANCE_REDUCED_OPS ?? 60);
+/** The base height may not rise more than this over the long drag sequence (AC-A8 drift check). */
+const DRIFT_TOL_M = 0.5;
 /** Elmina City Centre / Urban Park (`three/bookmarks.ts` HERO_CENTRE). */
 const HERO: [number, number] = [101.5095, 3.1805];
 /** The hero district for this test: the target stays within this distance of HERO (else re-centred). */
@@ -306,6 +308,55 @@ test("AC-A8: 300 random wheel / drag / rotate operations never put the camera in
   await page.waitForTimeout(1000);
   const flown = await call<Log>(page, "stopCameraLog");
 
+  // Drift check (review A-T7 r2): a long left-drag (pan) sequence while the camera is lifted over the
+  // tower. MapControls runs update() inside its pointer handlers; the lift must never leak into the
+  // base pose, so the base height (getPose: range x sin(-pitch); a ground-plane pan keeps it) must
+  // not creep up.
+  const baseY = (p: GeoPose) => p.rangeM * Math.sin((-p.pitchDeg * Math.PI) / 180);
+  let drift: {
+    startBaseYM: number;
+    endBaseYM: number;
+    driftM: number;
+    drags: number;
+    liftedSamples: number;
+    maxLiftM: number;
+  } | null = null;
+  for (const heading of [0, 90, 180, 270]) {
+    await call(page, "setPose", {
+      lon: towerLonLat[0],
+      lat: towerLonLat[1],
+      rangeM: 50,
+      pitchDeg: -70,
+      headingDeg: heading,
+    });
+    await frames2(page);
+    await page.waitForTimeout(300);
+    if ((await call<number>(page, "liftM")) < 1) continue;
+    const start = baseY(await call<GeoPose>(page, "getPose"));
+    let liftedSamples = 0;
+    let maxLiftM = 0;
+    const DRAGS = 40;
+    for (let i = 0; i < DRAGS; i++) {
+      // Small pans back and forth: the camera stays around the tower.
+      const dir = i % 2 === 0 ? 1 : -1;
+      await drag("left", dir * pick(10, 40), dir * pick(-20, 20));
+      const l = await call<number>(page, "liftM");
+      if (l > 0) liftedSamples++;
+      maxLiftM = Math.max(maxLiftM, l);
+    }
+    await page.waitForTimeout(1000);
+    const end = baseY(await call<GeoPose>(page, "getPose"));
+    drift = {
+      startBaseYM: start,
+      endBaseYM: end,
+      driftM: end - start,
+      drags: DRAGS,
+      liftedSamples,
+      maxLiftM,
+    };
+    break;
+  }
+
   // Reduced motion: the lift applies at once; same invariant.
   await page.emulateMedia({ reducedMotion: "reduce" });
   await call(page, "setPose", heroPose());
@@ -326,7 +377,9 @@ test("AC-A8: 300 random wheel / drag / rotate operations never put the camera in
     log.frames >= 1500 &&
     log.overRoof > 0 &&
     audit.fails === 0 &&
-    audit.checked > 0;
+    audit.checked > 0 &&
+    drift !== null &&
+    drift.driftM <= DRIFT_TOL_M;
   const metrics = {
     criterion: "AC-A8",
     when: new Date().toISOString(),
@@ -342,6 +395,7 @@ test("AC-A8: 300 random wheel / drag / rotate operations never put the camera in
     flightsLog: summary(flown),
     reducedMotion: summary(reduced),
     instanceAudit: audit,
+    dragDrift: drift,
     bookmarks,
     consoleErrors: consoleErrors.slice(0, 20),
     pass,
@@ -368,5 +422,10 @@ test("AC-A8: 300 random wheel / drag / rotate operations never put the camera in
   expect(log.ray.violations, JSON.stringify(log.ray.samples)).toBe(0);
   expect(reduced.ray.violations, JSON.stringify(reduced.ray.samples)).toBe(0);
   expect(audit.checked).toBeGreaterThan(0);
+  expect(drift, "a lifted pose over the tower for the drift check").not.toBeNull();
+  expect(drift?.liftedSamples ?? 0, "the drags ran while lifted").toBeGreaterThan(0);
+  expect(drift?.driftM ?? Number.POSITIVE_INFINITY, JSON.stringify(drift)).toBeLessThanOrEqual(
+    DRIFT_TOL_M,
+  );
   expect(audit.fails, JSON.stringify(audit.samples)).toBe(0);
 });

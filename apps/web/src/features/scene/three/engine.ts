@@ -141,6 +141,8 @@ const LOD_INTERVAL_MS = 250;
 /** A bound on pinned shader programs (the scene uses about 32; see `pinPrograms`). */
 const MAX_PINNED_PROGRAMS = 96;
 const GROUND_COLOUR = "#d6d0c2";
+/** A base move larger than this between frames is a teleport: the clearance lift restarts. */
+const TELEPORT_M = 50;
 
 export interface RigView {
   camera: THREE.PerspectiveCamera;
@@ -531,6 +533,12 @@ function build(
   controls.minPolarAngle = (90 + LIMITS.minPitchDeg) * RAD;
   controls.maxPolarAngle = (90 + LIMITS.maxPitchDeg) * RAD;
   controls.addEventListener("change", moved);
+  // Every update (the tick's and the handlers' own) starts from the base pose, never the lift.
+  const controlsUpdate = controls.update.bind(controls);
+  controls.update = (deltaTime?: number | null) => {
+    unlift();
+    return controlsUpdate(deltaTime);
+  };
   undo.push(() => {
     controls.removeEventListener("change", moved);
     controls.dispose();
@@ -636,10 +644,12 @@ function build(
     c.updateProjectionMatrix();
   };
 
-  // Building clearance (A-T7). The lift is display state: each tick first puts the camera back on
-  // its base pose (unless something moved it since: rig.set, a resize), so MapControls and rig
-  // flights never read the lift and never ratchet it up; after the inputs the lift is re-applied
-  // (floor at once, segment lift eased up and back down, state kept across flight frames).
+  // Building clearance (A-T7). The lift is display state: the camera is put back on its base pose
+  // before anything reads it to move: at the start of each tick, and inside every controls.update()
+  // (MapControls also calls update() from its pointer, wheel, key and touch handlers between ticks:
+  // review A-T7 r2). A camera moved by something else since (rig.set) is the new base. So neither
+  // MapControls nor rig flights read the lift; after the inputs the tick re-applies it (floor at
+  // once, segment lift eased up and back down, state kept across flight frames).
   let clearance: Clearance | null = null;
   const lift = createLift();
   let clearT = 0;
@@ -650,12 +660,17 @@ function build(
     if (liftM !== 0 && camera.position.equals(lifted)) camera.position.y -= liftM;
     liftM = 0;
   };
+  /** The base position at the last lift: a base jump beyond TELEPORT_M restarts the easing. */
+  const liftBase = new THREE.Vector3(Number.NaN, 0, 0);
   const clearCamera = (now: number): boolean => {
     const dt = clearT ? now - clearT : 0;
     clearT = now;
     if (!clearance) return false;
     const p = camera.position;
     const t = controls.target;
+    // A teleport (rig.set to a bookmark, a fly-to with no duration): no easing from the old place.
+    if (!(Math.hypot(p.x - liftBase.x, p.z - liftBase.z) <= TELEPORT_M)) lift.reset();
+    liftBase.copy(p);
     const r = lift.step(clearance, [p.x, p.y, p.z], [t.x, t.y, t.z], dt, reducedMotion());
     if (r.liftM !== 0) {
       p.y = r.y;
