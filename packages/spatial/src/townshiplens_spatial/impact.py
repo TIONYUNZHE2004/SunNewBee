@@ -16,12 +16,13 @@ Counts only; nothing is stored or shown to residents.
 from __future__ import annotations
 
 import re
+from datetime import date
 
 from pydantic import BaseModel
 
 from . import belief as _belief
 from . import twm
-from .evaluate import _CHECKS
+from .evaluate import _CHECKS, _needs_verification
 from .routing import CENTRE_PREFIX, eval_memo
 from .world import World
 
@@ -133,7 +134,7 @@ def fact_impact(
     claim = edge.claims.get(attribute)
     verified = bool(
         claim
-        and claim.status == "verified"
+        and not _needs_verification(claim, attribute, date.today())
         and (claim.evidence_type or "") not in _belief.EXCLUDED_EVIDENCE
     )
     if ticket_status == "resolved" and not verified:
