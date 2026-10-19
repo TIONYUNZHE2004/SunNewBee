@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { InSlot } from "../map-ui/mapSlots";
 import { vrFiledFor } from "./cardContent";
-import type { CardViewport } from "./cardPlacement";
+import type { CardViewport, Rect } from "./cardPlacement";
 import { EventCard } from "./EventCard";
 import { JourneyHud } from "./JourneyHud";
 import { JourneyMiniMap } from "./JourneyMiniMap";
@@ -23,6 +23,7 @@ export function JourneyOverlay({
   viewport,
   subscribeFrame,
   miniMapRef,
+  heroRect,
 }: {
   project: (eventIndex: number) => { x: number; y: number } | null;
   /** The map area cards may use, CSS px: `top` is a band kept clear, `avoid` the mini-map. */
@@ -30,6 +31,8 @@ export function JourneyOverlay({
   subscribeFrame?: (cb: () => void) => () => void;
   /** Called with the mini-map element when it mounts (the card area measures it). */
   miniMapRef?: (el: HTMLElement | null) => void;
+  /** The hero's body on screen (viewport CSS px), or null: the event card keeps clear of it (D-T5). */
+  heroRect?: () => Rect | null;
 }) {
   const timeline = useJourney((s) => s.timeline);
   const t = useJourney((s) => s.t);
@@ -65,6 +68,7 @@ export function JourneyOverlay({
           viewport={viewport}
           vrFiled={vrFiledFor(ev, vrs)}
           track={track}
+          keepClear={heroRect}
         />
       )}
     </>

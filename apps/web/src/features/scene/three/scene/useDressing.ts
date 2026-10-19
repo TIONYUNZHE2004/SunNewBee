@@ -5,6 +5,7 @@ import { createBubbleFader, type DetailBubble } from "../detailBubble";
 import { createDressingLayer } from "../dressing/dressingLayer";
 import {
   type DressItem,
+  factBenches,
   factItems,
   planDecorProps,
   planFactProps,
@@ -25,6 +26,9 @@ export interface DressingCounts {
   decor: number;
   triangles: number;
 }
+
+/** The fact benches the dressing draws (journey rests sit on them, D-T5 / C-T4 ruling). */
+export type DressingBench = { id: string; x: number; z: number; yaw: number };
 
 /**
  * The street dressing kit (B-T7) inside the detail bubble (B-T8): fact props from
@@ -52,24 +56,24 @@ export function useDressing({
   bubble: DetailBubble;
   boundary?: Boundary | null;
   showroom?: boolean;
-}): DressingCounts {
+}): DressingCounts & { benches: DressingBench[] } {
   const furniture = useStreetFurniture(!showroom).data;
   const lines = useMemo(() => (walk && frame ? walkLines(walk, frame) : null), [walk, frame]);
-  const facts = useMemo<DressItem[]>(
+  const factPlan = useMemo(
     () =>
       lines && frame
-        ? factItems(
-            planFactProps({
-              furniture: furniture?.furniture ?? null,
-              walk: null,
-              lines,
-              frame,
-              boundary,
-            }),
-          )
-        : [],
+        ? planFactProps({
+            furniture: furniture?.furniture ?? null,
+            walk: null,
+            lines,
+            frame,
+            boundary,
+          })
+        : null,
     [lines, frame, furniture, boundary],
   );
+  const facts = useMemo<DressItem[]>(() => (factPlan ? factItems(factPlan) : []), [factPlan]);
+  const benches = useMemo(() => (factPlan ? factBenches(factPlan) : []), [factPlan]);
   const rich = tier !== "low";
   const [counts, setCounts] = useState<DressingCounts>({ facts: 0, decor: 0, triangles: 0 });
 
@@ -126,5 +130,5 @@ export function useDressing({
     };
   }, [engine, frame, lines, facts, buildings, boundary, tier, rich, showroom, bubble]);
 
-  return counts;
+  return useMemo(() => ({ ...counts, benches }), [counts, benches]);
 }

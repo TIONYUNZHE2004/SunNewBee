@@ -1,7 +1,13 @@
 import * as THREE from "three";
 import { describe, expect, it } from "vitest";
+import { createClearance } from "../../scene/three/clearance";
 import { createFrame } from "../../scene/three/frame";
-import { restSchedule, SEAT_OFFSET_M, seatFor } from "../../scene/three/journey/heroDriver";
+import {
+  approachClear,
+  restSchedule,
+  SEAT_OFFSET_M,
+  seatFor,
+} from "../../scene/three/journey/heroDriver";
 import demo from "../fixtures/demoPlan.json";
 import { createRoutePath } from "../routePath";
 import { buildTimeline, type JourneyPlan, type Phase } from "../timeline";
@@ -191,6 +197,53 @@ describe("hero layer seat side", () => {
   });
 });
 
+describe("hero layer seats keep out of drawn buildings (D-T5 ruling)", () => {
+  const e = plan.events[rest.eventIndex as number] as JourneyPlan["events"][number];
+  const [px, pz] = path.pointAt(e.at_m);
+  const box = (cx: number, cz: number, half: number) =>
+    createClearance([
+      {
+        id: "landmark-box",
+        ring: [
+          [cx - half, cz - half],
+          [cx + half, cz - half],
+          [cx + half, cz + half],
+          [cx - half, cz + half],
+        ],
+        topM: 9,
+      },
+    ]);
+
+  it("a bench place inside a drawn (archetype / landmark) box: the seat moves out of it", () => {
+    // the bench place 3 m off the route (in the 1.2-6 m range) inside a 6 m box no OSM outline has
+    const place: [number, number] = [px + 3, pz];
+    const grid = box(place[0], place[1], 3.2);
+    const inside = seatFor(path.pointAt, e.at_m, place);
+    expect(inside).toEqual({ x: place[0], z: place[1] });
+    const ll = frame.toLonLat(place[0], place[1]);
+    const places = new Map([[e.element_id as string, ll as [number, number]]]);
+    const l = createHeroLayer(plan, path, frame, { places, grid });
+    const seat = l.seats.get(rest.eventIndex as number) as { x: number; z: number };
+    expect(grid.topAt(seat.x, seat.z)).toBe(0);
+    // the approach from the route point never enters the box
+    expect(approachClear((x, z) => (grid.topAt(x, z) > 0 ? 0 : 1), [px, pz], seat)).toBe(true);
+    l.dispose();
+  });
+
+  it("the route point inside a drawn box: she may walk out of it, never back in", () => {
+    const grid = box(px, pz, 2.5);
+    const clear = (x: number, z: number) => (grid.topAt(x, z) > 0 ? 0 : 1);
+    const seat = seatFor(path.pointAt, e.at_m, null, clear);
+    expect(grid.topAt(seat.x, seat.z)).toBe(0);
+    expect(Math.hypot(seat.x - px, seat.z - pz)).toBeGreaterThan(2.5);
+    expect(approachClear(clear, [px, pz], seat)).toBe(true);
+    // in, out, in again is not clear
+    const far = box(px + 5, pz, 1);
+    const both = (x: number, z: number) => (grid.topAt(x, z) > 0 || far.topAt(x, z) > 0 ? 0 : 1);
+    expect(approachClear(both, [px, pz], { x: px + 8, z: pz })).toBe(false);
+  });
+});
+
 describe("fact benches (B-T7 ruling: one bench per fact)", () => {
   const restIdx = plan.events.findIndex((e) => e.kind === "rest");
   const benchCount = (g: THREE.Object3D) => {
@@ -218,8 +271,9 @@ describe("fact benches (B-T7 ruling: one bench per fact)", () => {
     const own = plain.seats.get(restIdx) as { x: number; z: number };
     expect(benchCount(plain.group)).toBe(rests);
     plain.dispose();
-    // a fact bench 2 m from where our own bench would stand, facing +x
-    const fact = { x: own.x + 2, z: own.z, yaw: Math.PI / 2 };
+    // a fact bench 2 m from the rest point (the match is within 3 m of the rest point), facing +x
+    const [rpx, rpz] = path.pointAt((plan.events[restIdx] as JourneyPlan["events"][number]).at_m);
+    const fact = { x: rpx + 2, z: rpz, yaw: Math.PI / 2 };
     const layer = createHeroLayer(plan, path, frame, { factBenches: [fact] });
     expect(benchCount(layer.group)).toBe(rests - 1);
     const seat = layer.seats.get(restIdx) as { x: number; z: number; yaw?: number };
@@ -242,5 +296,66 @@ describe("fact benches (B-T7 ruling: one bench per fact)", () => {
     });
     expect(benchCount(layer.group)).toBe(rests);
     layer.dispose();
+  });
+});
+
+describe("fact benches at rests (D-T5 extra scope: ~3 m of the rest point; drawn boxes avoided)", () => {
+  const restIdx = plan.events.findIndex((e) => e.kind === "rest");
+  const e = plan.events[restIdx] as JourneyPlan["events"][number];
+  const [px, pz] = path.pointAt(e.at_m);
+  const benchCount = (g: THREE.Object3D) => {
+    let n = 0;
+    g.traverse((o) => {
+      if (o.name === "journey-bench") n++;
+    });
+    return n;
+  };
+  const rests = plan.events.filter((ev) => ev.kind === "rest").length;
+
+  it("a fact bench 2.5 m from the rest point is the rest's bench (no second hero bench)", () => {
+    const fact = { id: "osm-node-9", x: px + 2.5, z: pz, yaw: -Math.PI / 2 };
+    const l = createHeroLayer(plan, path, frame, { factBenches: [fact] });
+    expect(benchCount(l.group)).toBe(rests - 1);
+    const seat = l.seats.get(restIdx) as { x: number; z: number; yaw?: number };
+    expect(seat.yaw).toBe(fact.yaw);
+    expect(Math.hypot(seat.x - fact.x, seat.z - fact.z)).toBeCloseTo(FACT_BENCH_STAND_M, 9);
+    l.dispose();
+  });
+
+  it("a fact bench near our own seat but over 3 m from the rest point is not the rest's bench", () => {
+    const own = createHeroLayer(plan, path, frame);
+    const seat0 = own.seats.get(restIdx) as { x: number; z: number };
+    own.dispose();
+    // 2 m beyond our seat, away from the route: within 3 m of the seat, > 3 m from the rest point
+    const ux = (seat0.x - px) / Math.hypot(seat0.x - px, seat0.z - pz);
+    const uz = (seat0.z - pz) / Math.hypot(seat0.x - px, seat0.z - pz);
+    const fact = { x: seat0.x + ux * 2, z: seat0.z + uz * 2, yaw: 0 };
+    expect(Math.hypot(fact.x - px, fact.z - pz)).toBeGreaterThan(3);
+    const l = createHeroLayer(plan, path, frame, { factBenches: [fact] });
+    expect(benchCount(l.group)).toBe(rests);
+    expect((l.seats.get(restIdx) as { yaw?: number }).yaw).toBeUndefined();
+    l.dispose();
+  });
+
+  it("a fact bench inside a drawn building box is not used: our own seat, outside the box", () => {
+    const fact = { id: "osm-node-9", x: px + 2.5, z: pz, yaw: -Math.PI / 2 };
+    const grid = createClearance([
+      {
+        id: "landmark-box",
+        ring: [
+          [fact.x - 1.5, fact.z - 1.5],
+          [fact.x + 1.5, fact.z - 1.5],
+          [fact.x + 1.5, fact.z + 1.5],
+          [fact.x - 1.5, fact.z + 1.5],
+        ],
+        topM: 9,
+      },
+    ]);
+    const l = createHeroLayer(plan, path, frame, { factBenches: [fact], grid });
+    expect(benchCount(l.group)).toBe(rests);
+    const seat = l.seats.get(restIdx) as { x: number; z: number; yaw?: number };
+    expect(seat.yaw).toBeUndefined();
+    expect(grid.topAt(seat.x, seat.z)).toBe(0);
+    l.dispose();
   });
 });

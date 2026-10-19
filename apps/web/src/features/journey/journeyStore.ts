@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import type { HeroClip, HeroContact } from "../scene/three/characters/hero";
 import type { FiledVr } from "./cardContent";
+import type { CameraProbe } from "./three/cameraProbe";
 import {
   buildTimeline,
   type JourneyPlan,
@@ -62,6 +63,13 @@ export interface HeroProbe {
  * keep-out (C-T8) reads `journeyHero.current?.x / z` per frame and never the journey events.
  */
 export const journeyHero: { current: HeroPose | null } = { current: null };
+
+/**
+ * The journey camera probe (D-T5, AC-D8 / AC-D9), registered by the 3D mount while a plan is shown:
+ * what the camera shows now (hero box on screen, line of sight, distance, the hold's element).
+ * Test-only (`__journey.camera()`); computed when called, never per frame.
+ */
+export const journeyCamera: { current: (() => CameraProbe) | null } = { current: null };
 
 /** Camera modes of the journey player (spec §6.4, R-J4). */
 export type CamMode = "follow" | "overview" | "free";

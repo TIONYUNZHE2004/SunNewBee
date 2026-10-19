@@ -434,7 +434,7 @@ export const emptyCameraLog = (): CameraLog => ({
 const BUILDING_KINDS = new Set(["building", "landmark"]);
 
 /** Visible building and landmark meshes (extruded city, archetype instances, landmarks). */
-function buildingMeshes(roots: THREE.Object3D[]): THREE.Mesh[] {
+export function buildingMeshes(roots: THREE.Object3D[]): THREE.Mesh[] {
   const out: THREE.Mesh[] = [];
   const visit = (o: THREE.Object3D) => {
     if (!o.visible) return;

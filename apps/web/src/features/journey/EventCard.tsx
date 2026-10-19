@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { CardSourceRow } from "./CardSourceRow";
 import { journeyCardContent, withVerificationRequest } from "./cardContent";
-import { type CardPlacement, type CardViewport, placeCard } from "./cardPlacement";
+import { type CardPlacement, type CardViewport, placeCard, type Rect } from "./cardPlacement";
 import { KIND_COLOUR } from "./kindStyle";
 import type { JourneyEvent } from "./timeline";
 
@@ -10,11 +10,18 @@ const DEFAULT_SIZE = { w: 290, h: 180 };
 
 type Anchor = { x: number; y: number } | null;
 
+/** The viewport with the hero's screen box (if any) as a rectangle the card keeps clear of. */
+function withHero(viewport: CardViewport, hero: Rect | null | undefined): CardViewport {
+  return hero ? { ...viewport, keepClear: [...(viewport.keepClear ?? []), hero] } : viewport;
+}
+
 /** Writes a placement onto the card element (no React commit). */
 function applyPlacement(el: HTMLElement, p: CardPlacement, anchor: Anchor) {
   el.style.left = `${p.left}px`;
   el.style.top = `${p.top}px`;
   el.dataset.side = p.side;
+  // a smaller card only when no spot clear of the hero exists at full size
+  el.style.transform = p.scale && p.scale !== 1 ? `scale(${p.scale})` : "";
   if (anchor && p.anchored) {
     el.dataset.anchorX = anchor.x.toFixed(1);
     el.dataset.anchorY = anchor.y.toFixed(1);
@@ -39,6 +46,7 @@ export function EventCard({
   viewport,
   vrFiled = false,
   track,
+  keepClear,
 }: {
   event: JourneyEvent;
   eventIndex?: number;
@@ -47,19 +55,24 @@ export function EventCard({
   viewport: CardViewport;
   vrFiled?: boolean;
   track?: { project: () => Anchor; subscribe: (cb: () => void) => () => void };
+  /** The hero's body on screen (viewport CSS px), which the card never covers when it can avoid it. */
+  keepClear?: () => Rect | null;
 }) {
   const ref = useRef<HTMLElement>(null);
   const [size, setSize] = useState(DEFAULT_SIZE);
   // Re-measure when the content changes (a new event); the size drives the clamp.
   // biome-ignore lint/correctness/useExhaustiveDependencies: measure per event, not per frame
   useLayoutEffect(() => {
-    const r = ref.current?.getBoundingClientRect();
-    if (r && r.width > 0 && r.height > 0)
-      setSize((s) => (s.w === r.width && s.h === r.height ? s : { w: r.width, h: r.height }));
+    // the layout size (offset*), not the box on screen: a card shrunk by the hero keep-clear
+    // (CSS scale) must not become the new full size
+    const el = ref.current;
+    const w = el?.offsetWidth ?? 0;
+    const h = el?.offsetHeight ?? 0;
+    if (w > 0 && h > 0) setSize((s) => (s.w === w && s.h === h ? s : { w, h }));
   }, [event, vrFiled, viewport.w]);
 
-  const latest = useRef({ size, viewport, track });
-  latest.current = { size, viewport, track };
+  const latest = useRef({ size, viewport, track, keepClear });
+  latest.current = { size, viewport, track, keepClear };
   const subscribe = track?.subscribe;
   useEffect(() => {
     if (!subscribe) return;
@@ -68,12 +81,12 @@ export function EventCard({
       const l = latest.current;
       if (!el || !l.track) return;
       const a = l.track.project();
-      applyPlacement(el, placeCard(a, l.size, l.viewport), a);
+      applyPlacement(el, placeCard(a, l.size, withHero(l.viewport, l.keepClear?.())), a);
     });
   }, [subscribe]);
 
   const c = withVerificationRequest(journeyCardContent(event), event, vrFiled);
-  const p = placeCard(anchor, size, viewport);
+  const p = placeCard(anchor, size, withHero(viewport, keepClear?.()));
   return (
     <article
       ref={ref}
@@ -84,7 +97,12 @@ export function EventCard({
       data-anchor-y={anchor && p.anchored ? anchor.y.toFixed(1) : undefined}
       aria-live="polite"
       className="glass pointer-events-none absolute z-30 w-[min(290px,calc(100vw-2rem))] rounded-2xl px-4 pb-3 pt-3 text-fg shadow-lg"
-      style={{ left: `${p.left}px`, top: `${p.top}px` }}
+      style={{
+        left: `${p.left}px`,
+        top: `${p.top}px`,
+        transformOrigin: "top left",
+        transform: p.scale && p.scale !== 1 ? `scale(${p.scale})` : undefined,
+      }}
     >
       <span
         className="inline-block rounded-full px-2.5 py-0.5 text-[11px] font-extrabold uppercase tracking-wide text-white"

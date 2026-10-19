@@ -158,6 +158,17 @@ export interface Engine {
   /** Metres the clearance currently lifts the camera above its base pose (0: none). Read-only. */
   clearanceLiftM?(): number;
   /**
+   * A camera driven from outside the orbit rig (the journey follow camera, D-T5): called at the
+   * start of every frame; while it returns a pose the camera is put exactly there (position and
+   * look point, no clamp, no rig lift: the driver clears buildings itself), MapControls are off
+   * and rig flights are dropped. Returning null hands the camera back to the rig and MapControls
+   * where it stands. null removes the driver. The driver asks for frames itself (`requestRender`),
+   * or returns `animating` to get the next one.
+   */
+  setCameraDriver?(d: CameraDriver | null): void;
+  /** True while the last frame's camera came from the driver. */
+  cameraDriven?(): boolean;
+  /**
    * Access / gaps / route / what-if lines. They live in their own scene, drawn by a pass after the
    * AO pass, so ambient occlusion never darkens them and they sit above every prop. Replaces and
    * disposes the previous layer; null removes it.
@@ -226,6 +237,18 @@ export interface Engine {
   dispose(): void;
 }
 
+/** A pose from a camera driver (`Engine.setCameraDriver`), local metres. */
+export interface DrivenCamera {
+  position: [number, number, number];
+  look: [number, number, number];
+  /** True while the driver animates on its own (e.g. a mode change blend): render another frame. */
+  animating?: boolean;
+}
+export type CameraDriver = (
+  now: number,
+  current: { position: [number, number, number]; look: [number, number, number] },
+) => DrivenCamera | null;
+
 const RAD = Math.PI / 180;
 const MOVING_MS = 300;
 /** LOD re-bucketing while the camera moves: at most this often, plus once after it stops. */
@@ -261,6 +284,8 @@ export interface EngineRig extends CameraRig {
   constrain(): boolean;
   /** True while a flight is running. */
   flying(): boolean;
+  /** Drops a running flight or fit landing where it stands (a camera driver took the camera). */
+  halt(): void;
   /**
    * The slab's camera fit has just landed (A-T5 fix round 2): eases the camera from where it stands
    * to its clamped pose over `ms` (no one-frame snap); 0 applies it at once. constrain() holds off
@@ -368,6 +393,10 @@ export function createRig(
       return true;
     },
     flying: () => flight !== null,
+    halt() {
+      flight = null;
+      landing = false;
+    },
     landFit(ms) {
       const from = get();
       const to = clampPose(from, bounds(), fit());
@@ -1063,6 +1092,51 @@ function build(
     return !r.settled;
   };
 
+  // A camera driver (the journey follow camera): it owns the camera while it returns a pose.
+  let driver: CameraDriver | null = null;
+  let driving = false;
+  const _cur = {
+    position: [0, 0, 0] as [number, number, number],
+    look: [0, 0, 0] as [number, number, number],
+  };
+  const driveCamera = (now: number): { driven: boolean; animating: boolean } => {
+    let pose: DrivenCamera | null = null;
+    if (driver) {
+      _cur.position = [camera.position.x, camera.position.y, camera.position.z];
+      _cur.look = [controls.target.x, controls.target.y, controls.target.z];
+      pose = driver(now, _cur);
+    }
+    if (!pose) {
+      if (driving) {
+        driving = false;
+        controls.enabled = true;
+      }
+      return { driven: false, animating: false };
+    }
+    if (!driving) {
+      driving = true;
+      controls.enabled = false;
+      lift.reset();
+    }
+    // flights and fit landings asked for meanwhile are dropped: the driver has the camera
+    rig.halt();
+    const [x, y, z] = pose.position;
+    const [lx, ly, lz] = pose.look;
+    const p = camera.position;
+    const t = controls.target;
+    if (p.x !== x || p.y !== y || p.z !== z || t.x !== lx || t.y !== ly || t.z !== lz) {
+      lastMove = now;
+      lod.moved();
+    }
+    p.set(x, y, z);
+    t.set(lx, ly, lz);
+    camera.lookAt(t);
+    camera.updateMatrixWorld();
+    liftM = 0;
+    lifted.set(Number.NaN, 0, 0);
+    return { driven: true, animating: !!pose.animating };
+  };
+
   let cameraOverride: {
     position: [number, number, number];
     target: [number, number, number];
@@ -1073,16 +1147,17 @@ function build(
     if (disposed) return;
     const now = performance.now();
     unlift();
-    const flying = rig.step(now);
+    const drive = driveCamera(now);
+    const flying = drive.driven ? false : rig.step(now);
     if (flying) {
       lastMove = now;
       lod.moved();
     }
-    const damping = controls.update();
+    const damping = drive.driven ? false : controls.update();
     // Drags, wheel zoom and flight frames stay bound to the slab (A-T5); the lift comes after.
-    rig.constrain();
+    if (!drive.driven) rig.constrain();
     syncFov(now);
-    const lifting = clearCamera(now);
+    const lifting = drive.driven ? false : clearCamera(now);
     if (cameraOverride) {
       camera.position.set(...cameraOverride.position);
       camera.lookAt(...cameraOverride.target);
@@ -1177,7 +1252,7 @@ function build(
       moving: now - lastMove < MOVING_MS,
     };
     for (const cb of listeners) cb(dt, info);
-    if (flying || damping || dirty || lifting) schedule();
+    if (flying || damping || dirty || lifting || drive.animating) schedule();
     // Motion-only frames stay "idle" (dt 0 to onFrame listeners, ruling P4-T).
     if (!raf) idle = true;
     // The motion clock: the next rAF (display rate) or the 30 fps timer; nothing while stopped.
@@ -1409,6 +1484,12 @@ function build(
     },
     clearance: () => clearance,
     clearanceLiftM: () => liftNow(),
+    setCameraDriver(d) {
+      if (disposed) return;
+      driver = d;
+      requestRender();
+    },
+    cameraDriven: () => driving,
     setOverlays(o) {
       if (disposed) return;
       if (o === overlays) return;

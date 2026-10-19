@@ -9,6 +9,7 @@ import {
   type DressItem,
   FACT_MODELS,
   type FactKind,
+  factBenches,
   factItems,
   MODEL_RADIUS_M,
   planDecorProps,
@@ -94,6 +95,14 @@ describe("fact props (AC-B7): one per data feature, each with its source id", ()
         expect(it.sourceId).toBe(p.sourceId);
         expect(FACT_MODELS).toContain(it.model);
       }
+  });
+
+  it("factBenches: the drawn benches (not picnic tables) as journey seats, facing the path", () => {
+    const plan = planFactProps({ furniture, walk, frame });
+    const b = factBenches(plan);
+    expect(b).toHaveLength(1);
+    const item = plan.props.find((p) => p.kind === "bench")?.items[0];
+    expect(b[0]).toEqual({ id: "osm-node-1", x: item?.x, z: item?.z, yaw: item?.yaw });
   });
 
   it("fix round 1: stripes only where the claim says marked; unmarked / unknown / no id get none", () => {

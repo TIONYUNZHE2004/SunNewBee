@@ -4,8 +4,10 @@ import { HERO_BENCH } from "../../scene/three/characters/benchGeometry";
 import { createGlbHero } from "../../scene/three/characters/glbHero";
 import { HERO_DISPLAY_SCALE, type Hero } from "../../scene/three/characters/hero";
 import { createRestBench } from "../../scene/three/characters/placeholderHero";
+import type { Clearance } from "../../scene/three/clearance";
 import type { LocalFrame } from "../../scene/three/frame";
 import {
+  approachClear,
   type HeroPathHelpers,
   type HeroSeat,
   heroStateAt,
@@ -94,6 +96,8 @@ export interface HeroLayer {
   group: THREE.Group;
   hero: Hero;
   seats: Map<number, HeroSeat>;
+  /** The driver's path helpers (route points and seats): `heroStateAt(tl, t, helpers)` is where she stands. */
+  helpers: HeroPathHelpers;
   pose(tl: Timeline, t: number): HeroPose;
   /**
    * Re-checks the ground meshes when the engine's ground generation moved (a tile streamed in or
@@ -241,6 +245,11 @@ export function createHeroLayer(
     places?: ReadonlyMap<string, LonLat>;
     /** OSM building footprints (`/layers/buildings` `buildings`): the bench keeps clear of them. */
     footprints?: unknown;
+    /**
+     * The drawn buildings (the engine's clearance grid: OSM extrusions plus the archetype and
+     * landmark placement boxes, A-T7): seats and their approach keep out of them too (D-T5 ruling).
+     */
+    grid?: Pick<Clearance, "topAt"> | null;
     /** The scene roots holding the ground bands (the engine's `pickView().roots`). */
     roots?: () => readonly THREE.Object3D[];
     /**
@@ -279,13 +288,20 @@ export function createHeroLayer(
   group.add(hero.object3d);
 
   const restIdx = plan.events.flatMap((e, i) => (e.kind === "rest" ? [i] : []));
-  const clearance = opts.footprints
+  const osm = opts.footprints
     ? footprintClearance(
         opts.footprints,
         frame,
         restIdx.map((i) => path.pointAt((plan.events[i] as JourneyPlan["events"][number]).at_m)),
       )
     : undefined;
+  const grid = opts.grid ?? null;
+  // 0 inside any drawn building (grid) or OSM footprint, else metres to the nearest OSM edge
+  const clearance =
+    osm || grid
+      ? (x: number, z: number) =>
+          grid && grid.topAt(x, z) > 0 ? 0 : osm ? osm(x, z) : CLEARANCE_CAP_M
+      : undefined;
 
   // One seat (stand point) per rest event: a display approximation; the bench fact is the rest point.
   // The side keeps the whole bench box (seat and backrest behind her) clear of building footprints.
@@ -306,15 +322,27 @@ export function createHeroLayer(
           )
       : undefined;
     const own = seatFor(path.pointAt, e.at_m, place, benchClear);
-    const fact = factBenchFor(opts.factBenches, e.element_id, [place, [own.x, own.z]]);
-    if (fact) {
+    // the fact bench of this rest (same id first, else the nearest) only when it lies within
+    // FACT_BENCH_RANGE_M of the rest point itself (ruling): never matched through our own seat
+    const cand = factBenchFor(opts.factBenches, e.element_id, [[rx, rz]]);
+    const fact = cand && Math.hypot(cand.x - rx, cand.z - rz) <= FACT_BENCH_RANGE_M ? cand : null;
+    const factSeat: HeroSeat | null = fact
+      ? {
+          x: fact.x + Math.sin(fact.yaw) * FACT_BENCH_STAND_M,
+          z: fact.z + Math.cos(fact.yaw) * FACT_BENCH_STAND_M,
+          yaw: fact.yaw,
+        }
+      : null;
+    // a fact bench whose stand point is inside a drawn building, or reached only through one, is
+    // not used (she would be hidden; D-T5 ruling): our own seat, which avoids them, instead
+    const usable =
+      factSeat &&
+      (!clearance ||
+        (clearance(factSeat.x, factSeat.z) > 0 && approachClear(clearance, [rx, rz], factSeat)));
+    if (fact && factSeat && usable) {
       // the street dressing's fact bench is the rest's bench: she stands in front of it, facing as
       // it faces, and no rest bench of our own is drawn (one bench per fact)
-      const seat: HeroSeat = {
-        x: fact.x + Math.sin(fact.yaw) * FACT_BENCH_STAND_M,
-        z: fact.z + Math.cos(fact.yaw) * FACT_BENCH_STAND_M,
-        yaw: fact.yaw,
-      };
+      const seat = factSeat;
       seats.set(i, seat);
       factSeats.add(i);
       continue;
@@ -445,6 +473,7 @@ export function createHeroLayer(
     group,
     hero,
     seats,
+    helpers,
     pose: place,
     refreshGround,
     cost,

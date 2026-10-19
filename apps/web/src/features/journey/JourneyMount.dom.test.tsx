@@ -3,10 +3,11 @@ import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import * as THREE from "three";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useScene } from "../scene/sceneStore";
-import type { Engine, JourneyOverlay } from "../scene/three/engine";
+import type { CameraDriver, Engine, JourneyOverlay } from "../scene/three/engine";
 import { createFrame } from "../scene/three/frame";
 import demoPlan from "./fixtures/demoPlan.json";
 import { HERO_SLOT, JourneyMount } from "./JourneyMount";
+import { createJourneyHook } from "./journeyHook";
 import { journeyHero, useJourney } from "./journeyStore";
 import { SIM_LABEL } from "./SimulationLabel";
 import type { JourneyLayer } from "./three/journeyLayer";
@@ -318,5 +319,54 @@ describe("JourneyMount: the hero (D-T6)", () => {
     const h = journeyHero.current;
     expect(h?.clip).toBe("sit_idle");
     expect(Math.hypot((h?.x as number) - (px + 3), (h?.z as number) - pz)).toBeLessThan(0.01);
+  });
+});
+
+describe("JourneyMount: the follow camera (D-T5)", () => {
+  function withDriver() {
+    const f = fakeEngine();
+    let driver: CameraDriver | null = null;
+    Object.assign(f.engine, {
+      setCameraDriver: vi.fn((d: CameraDriver | null) => {
+        driver = d;
+      }),
+      cameraDriven: () => driver !== null,
+      cameraFit: () => null,
+      clearance: () => null,
+      rig: { set: vi.fn(), flyTo: vi.fn() },
+    });
+    return { ...f, driver: () => driver };
+  }
+  const here = {
+    position: [0, 400, 400] as [number, number, number],
+    look: [0, 0, 0] as [number, number, number],
+  };
+
+  it("installs a camera driver with the trip, takes the camera only once the player is used, drops it with the trip", () => {
+    const f = withDriver();
+    render(<JourneyMount engine={f.engine} frame={frame} />);
+    act(() => playIntent());
+    expect(f.driver()).not.toBeNull();
+    // loaded and paused at 0: the camera stays with the rig (the answer's own framing)
+    expect(f.driver()?.(0, here)).toBeNull();
+    act(() => useJourney.getState().seek(20));
+    const p = f.driver()?.(0, here);
+    expect(p).not.toBeNull();
+    act(() => useScene.getState().clearRoute());
+    expect(f.driver()).toBeNull();
+  });
+
+  it("__journey.camera() reports the hero box, the hold's element and the line of sight", () => {
+    const f = withDriver();
+    render(<JourneyMount engine={f.engine} frame={frame} />);
+    act(() => playIntent());
+    const hold = useJourney.getState().timeline?.phases.find((ph) => ph.kind === "event");
+    act(() => useJourney.getState().seek(((hold?.t0 as number) + (hold?.t1 as number)) / 2));
+    const probe = createJourneyHook().camera();
+    expect(probe).not.toBeNull();
+    expect(probe?.element?.index).toBe(hold?.eventIndex);
+    expect(probe?.heroDistM).toBeGreaterThan(0);
+    expect(probe?.blocked).toEqual({ chest: false, head: false, low: false });
+    expect(probe?.insideBuilding).toBe(false);
   });
 });

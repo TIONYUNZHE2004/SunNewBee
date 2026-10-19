@@ -20,7 +20,18 @@ describe("window.__journey", () => {
   it("has the prototype API shape", () => {
     const h = createJourneyHook();
     expect(Object.keys(h).sort()).toEqual(
-      ["hero", "pause", "phases", "plan", "play", "seek", "setCam", "state", "total"].sort(),
+      [
+        "camera",
+        "hero",
+        "pause",
+        "phases",
+        "plan",
+        "play",
+        "seek",
+        "setCam",
+        "state",
+        "total",
+      ].sort(),
     );
     expect(h.phases.length).toBeGreaterThan(10);
     expect(h.total).toBeGreaterThan(80);
@@ -34,8 +45,9 @@ describe("window.__journey", () => {
       (h as { plan: unknown }).plan = null;
     }).toThrow();
     h.seek(10);
-    // no 3D mount has posed her (list view, Mapbox): no rendered hero
+    // no 3D mount has posed her (list view, Mapbox): no rendered hero, no camera probe
     expect(h.hero()).toBeNull();
+    expect(h.camera()).toBeNull();
     const pose = {
       distance_m: 43.9,
       x: 1,

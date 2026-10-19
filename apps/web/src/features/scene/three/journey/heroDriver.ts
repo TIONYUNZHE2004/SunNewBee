@@ -167,14 +167,42 @@ export function tangentYaw(pointAt: HeroPathHelpers["pointAt"], m: number): numb
   return 0;
 }
 
+/** Further stand-point offsets (m) tried when SEAT_OFFSET_M on both sides is inside a building. */
+export const SEAT_FALLBACK_OFFSETS_M: readonly number[] = [3, 4.5, 6];
+
+/**
+ * True when the straight walk from the route point to the seat leaves buildings and never enters
+ * one: every sample outside (clearance > 0), or, when the route point itself lies inside a building
+ * the route crosses, inside only on a first stretch, then outside to the seat.
+ */
+export function approachClear(
+  clearance: (x: number, z: number) => number,
+  from: [number, number],
+  to: { x: number; z: number },
+  samples = 12,
+): boolean {
+  let outside = false;
+  for (let k = 0; k <= samples; k++) {
+    const x = from[0] + ((to.x - from[0]) * k) / samples;
+    const z = from[1] + ((to.z - from[1]) * k) / samples;
+    const out = clearance(x, z) > 0;
+    if (out) outside = true;
+    else if (outside || k === samples) return false;
+  }
+  return true;
+}
+
 /**
  * The seat for a rest at plan metre `at_m`. The bench fact is the rest point; the seat is a display
- * approximation of where the bench stands:
+ * approximation of where the bench stands. Candidates, in order:
  * - the bench place itself when it lies 1.2-6 m from the route point;
- * - else SEAT_OFFSET_M off the route on the bench place's side, when the place is at least
- *   SEAT_SIDE_MIN_M off the route (nearer, its side is coordinate noise);
- * - else on the side with more `clearance` (e.g. metres to the nearest building footprint); the
- *   left on a tie or without a clearance function.
+ * - SEAT_OFFSET_M off the route on the bench place's side (when the place is at least
+ *   SEAT_SIDE_MIN_M off the route; nearer, its side is coordinate noise), then the other side;
+ *   without a usable place, the side with more `clearance` first (the left on a tie);
+ * - with `clearance`, the SEAT_FALLBACK_OFFSETS_M on the same sides.
+ * With `clearance` (0 inside a building: OSM outlines and the drawn archetype / landmark boxes,
+ * D-T5 ruling), the first candidate outside every building whose approach from the route is
+ * clear (`approachClear`) wins; when none is, the first candidate. Without it, the first.
  */
 export function seatFor(
   pointAt: HeroPathHelpers["pointAt"],
@@ -184,15 +212,13 @@ export function seatFor(
 ): HeroSeat {
   const [px, pz] = pointAt(at_m);
   const d = place ? Math.hypot(place[0] - px, place[1] - pz) : 0;
-  if (place && d >= (SEAT_PLACE_RANGE_M[0] as number) && d <= (SEAT_PLACE_RANGE_M[1] as number))
-    return { x: place[0], z: place[1] };
   const y = tangentYaw(pointAt, at_m);
   // tangent (sin y, cos y); left normal (cos y, -sin y)
   const nx = Math.cos(y);
   const nz = -Math.sin(y);
-  const at = (side: number) => ({
-    x: px + side * nx * SEAT_OFFSET_M,
-    z: pz + side * nz * SEAT_OFFSET_M,
+  const at = (side: number, off = SEAT_OFFSET_M): HeroSeat => ({
+    x: px + side * nx * off,
+    z: pz + side * nz * off,
   });
   let side = 1;
   if (place && d >= SEAT_SIDE_MIN_M) {
@@ -202,7 +228,14 @@ export function seatFor(
     const r = at(-1);
     if (clearance(r.x, r.z) > clearance(l.x, l.z) + 1e-6) side = -1;
   }
-  return at(side);
+  const cands: HeroSeat[] = [];
+  if (place && d >= (SEAT_PLACE_RANGE_M[0] as number) && d <= (SEAT_PLACE_RANGE_M[1] as number))
+    cands.push({ x: place[0], z: place[1] });
+  cands.push(at(side), at(-side));
+  if (!clearance) return cands[0] as HeroSeat;
+  for (const off of SEAT_FALLBACK_OFFSETS_M) cands.push(at(side, off), at(-side, off));
+  const ok = cands.find((c) => clearance(c.x, c.z) > 0 && approachClear(clearance, [px, pz], c));
+  return ok ?? (cands[0] as HeroSeat);
 }
 
 /** Rest choreography geometry for one rest hold. */
@@ -418,6 +451,19 @@ function rawAt(tl: Timeline, t: number, helpers: HeroPathHelpers): Raw {
  * In the first HERO_FADE_S of a beat whose clip differs from the beat before, `fade` names the
  * outgoing clip, its time (run on from the boundary) and the incoming clip's weight.
  */
+/**
+ * Where she stands at t ([x, z], local metres): the position `heroStateAt` returns, without the yaw
+ * smoothing and clip bookkeeping (one raw lookup). The follow camera calls it ~40 times a frame.
+ */
+export function heroPositionAt(
+  tl: Timeline,
+  t: number,
+  helpers: HeroPathHelpers,
+): [number, number] {
+  const r = rawAt(tl, t, helpers);
+  return [r.x, r.z];
+}
+
 export function heroStateAt(tl: Timeline, t: number, helpers: HeroPathHelpers): HeroState {
   const tc = Math.max(0, Math.min(tl.total, Number.isFinite(t) ? t : 0));
   const { beat0, yawExact, clipRate: _r, ...now } = rawAt(tl, tc, helpers);

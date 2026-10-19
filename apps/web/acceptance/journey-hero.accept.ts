@@ -13,7 +13,8 @@ import { askDemoJourney, hasJourneyHook, journey } from "./support/journey";
  *    verified / covered / gap holds walk; unknown looks; rest walks to the bench, sits down, sits,
  *    stands up and walks back; arrive, dive and pull-back are idle), and her position is never
  *    inside an OSM building footprint (`/api/layers/buildings`). The camera is kept on her with the
- *    acceptance hook (the follow camera is D-T5), so the streamed ground is under her.
+ *    acceptance hook in Free mode (the D-T5 follow camera is checked by AC-D8 / AC-D9), so the
+ *    streamed ground is under her.
  * 2. Ground contact, paused at each beat (every phase midpoint plus each rest beat), once the
  *    streamed ground around her has settled: every foot and walker-leg tip (all six, every beat) is
  *    within 3 cm of the drawn ground band under it (footway, lawn, park), a ground sample exists for
@@ -218,6 +219,9 @@ test.describe("journey hero (D-T6)", () => {
       !(await hasJourneyHook(page)),
       "window.__journey is installed in dev builds and the demo preset only",
     );
+    // Free camera: this spec moves the camera itself (the acceptance hook) to settle the ground
+    // under her at each beat; the follow camera (D-T5) would own the camera once the trip is used.
+    await journey.setCam(page, "free");
   });
 
   test("AC-D10: clip per phase, feet and walker on the footway, never inside a building", async ({
