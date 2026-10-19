@@ -148,6 +148,11 @@ export interface FollowScene {
   overview: CamPose;
   /** Her drawn ground position [x, z] at t (`heroStateAt`, pure); default: her route point. */
   heroAt?(t: number): [number, number];
+  /**
+   * Her drawn body box (world, posed) when the drawn hero is at screen time t, else null: the hold
+   * fit then frames what is drawn (seated, the walker and her lean reach past her root estimate).
+   */
+  heroBox?(t: number): { min: Vec3; max: Vec3 } | null;
   /** The marker position of plan event `i` (the journey layer's `anchorOf`), or null. */
   markerOf?(eventIndex: number): Vec3 | null;
   /**
@@ -590,11 +595,19 @@ export function holdSubjects(
   // her body box (feet to head, walker around her; seated she leans and the walker stands out
   // further, so a wider box than her standing radius): the AC-D8 box with room to spare
   const out: Subject[] = [];
-  const r = SAFE_FIT.heroBoxRadiusM;
-  for (const y of [0, SAFE_FIT.heroBoxTopM])
-    for (const dx of [-r, r])
-      for (const dz of [-r, r])
-        out.push({ p: [h[0] + dx, y, h[1] + dz], padPx: SAFE_FIT.heroPadPx });
+  const box = sc.heroBox?.(t);
+  if (box) {
+    for (const x of [box.min[0], box.max[0]])
+      for (const y of [box.min[1], box.max[1]])
+        for (const z of [box.min[2], box.max[2]])
+          out.push({ p: [x, y, z], padPx: SAFE_FIT.heroPadPx });
+  }
+  const r = box ? -1 : SAFE_FIT.heroBoxRadiusM;
+  if (r > 0)
+    for (const y of [0, SAFE_FIT.heroBoxTopM])
+      for (const dx of [-r, r])
+        for (const dz of [-r, r])
+          out.push({ p: [h[0] + dx, y, h[1] + dz], padPx: SAFE_FIT.heroPadPx });
   const el = elementPoint(sc, eventIndex, distanceM);
   if (el) out.push({ p: el, padPx: SAFE_FIT.elementPadPx });
   const mk = sc.markerOf?.(eventIndex);

@@ -5,7 +5,12 @@ import { setTreeCut } from "../scene/three/assets/treeCut";
 import type { Clearance } from "../scene/three/clearance";
 import type { Engine } from "../scene/three/engine";
 import type { LocalFrame } from "../scene/three/frame";
-import { elementPoint, type FollowScene, HERO_CHEST_Y } from "../scene/three/journey/followRig";
+import {
+  elementPoint,
+  type FollowScene,
+  HERO_CHEST_Y,
+  holdSubjects,
+} from "../scene/three/journey/followRig";
 import { heroPositionAt } from "../scene/three/journey/heroDriver";
 import type { ViewFit } from "../scene/three/journey/safeFrame";
 import { createFollowController, overviewFor } from "./followCamera";
@@ -20,7 +25,7 @@ import {
 import { probeCamera } from "./three/cameraProbe";
 import { applyCutaway, cutFor, NO_CUT, setCut } from "./three/cutaway";
 import { createHeroLayer, type FactBench, type HeroLayer } from "./three/heroLayer";
-import { heroScreenRect } from "./three/heroScreen";
+import { heroBodyBox, heroScreenRect } from "./three/heroScreen";
 import { createJourneyLayer, type JourneyLayer } from "./three/journeyLayer";
 import { projectToScreen } from "./three/project";
 import { createViewFit, safeRectOf } from "./three/viewFit";
@@ -205,6 +210,11 @@ export function JourneyMount({
       if (!vf || vf.key !== key) vf = { key, view: createViewFit(cam, v.size, safeRectOf(vp)) };
       return vf.view;
     };
+    let boxMemo: {
+      t: number;
+      hero: HeroLayer;
+      box: { min: [number, number, number]; max: [number, number, number] } | null;
+    } | null = null;
     const scene = (): FollowScene | null => {
       const s = useJourney.getState();
       const tl = s.timeline;
@@ -218,6 +228,25 @@ export function JourneyMount({
         clearance: engine.clearance?.() ?? null,
         overview: overview(),
         heroAt: h ? (t) => heroPositionAt(tl, t, h.helpers) : undefined,
+        heroBox: (t) => {
+          // her drawn box, only when she is posed at t (the store's t: the driver poses her on
+          // every change of t, before the frame's camera); one measure per t
+          if (!h || Math.abs(useJourney.getState().t - t) > 1e-9) return null;
+          if (boxMemo?.t !== t || boxMemo.hero !== h) {
+            const b = heroBodyBox(h.hero.object3d);
+            boxMemo = {
+              t,
+              hero: h,
+              box: b
+                ? {
+                    min: b.min.toArray() as [number, number, number],
+                    max: b.max.toArray() as [number, number, number],
+                  }
+                : null,
+            };
+          }
+          return boxMemo.box;
+        },
         markerOf: (i) => layer.anchorOf(i),
         view: viewFit(),
       };
@@ -262,7 +291,28 @@ export function JourneyMount({
       const idx = st?.phase.kind === "event" ? st.eventIndex : undefined;
       const el = sc && idx !== undefined ? elementPoint(sc, idx, st?.distance_m) : null;
       const vp = viewportRef.current;
-      return probeCamera({
+      // the UI-safe hold fit as the rig sees it now: its safe area and her / the element / the
+      // marker projected from the drawn camera (acceptance diagnostics)
+      const cam = v.camera as THREE.PerspectiveCamera;
+      const pose = {
+        pos: cam.position.toArray() as [number, number, number],
+        look: cam.position.clone().add(cam.getWorldDirection(new THREE.Vector3())).toArray() as [
+          number,
+          number,
+          number,
+        ],
+      };
+      const safeFit =
+        sc?.view && idx !== undefined && st
+          ? {
+              safe: sc.view.safe,
+              subjects: holdSubjects(sc, useJourney.getState().t, idx, st.distance_m).map((q) =>
+                sc.view?.project(pose, q.p),
+              ),
+              canvas: v.size,
+            }
+          : null;
+      const probe = probeCamera({
         camera: v.camera as THREE.PerspectiveCamera,
         driven: engine.cameraDriven?.() ?? false,
         cameraT: ctl.drivenT,
@@ -276,6 +326,7 @@ export function JourneyMount({
             ? { index: idx, kind: plan.events[idx]?.kind ?? "", point: el }
             : null,
       });
+      return { ...probe, safeFit };
     };
     return () => {
       unsub();

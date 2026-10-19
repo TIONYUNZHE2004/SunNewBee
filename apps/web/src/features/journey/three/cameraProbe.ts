@@ -45,6 +45,12 @@ export interface CameraProbe {
    * `faults` names each mesh that breaks it.
    */
   heroOpaque: { meshes: number; faults: string[] };
+  /** The UI-safe hold fit seen from the drawn camera (diagnostics; set by the mount at holds). */
+  safeFit?: {
+    safe: { l: number; t: number; r: number; b: number };
+    subjects: ([number, number] | null | undefined)[];
+    canvas: [number, number];
+  } | null;
 }
 
 /** The hero body's material state (see `CameraProbe.heroOpaque`). */

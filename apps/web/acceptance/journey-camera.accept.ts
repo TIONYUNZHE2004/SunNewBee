@@ -155,11 +155,20 @@ async function heroOpaqueAt(page: Page, box: Rect, file?: string) {
   // decorative people or cars between the shots are never magenta, so they never count)
   const magenta = (d: Uint8ClampedArray | number[], k: number) =>
     (d[k] as number) > 180 && (d[k + 1] as number) < 90 && (d[k + 2] as number) > 180;
-  for (let k = 0; k < a.data.length; k += 4) {
-    if (!magenta(b.data, k) || magenta(a.data, k) || diff(a.data, b.data, k) <= PIXEL_TOL) continue;
-    her++;
-    if (diff(a.data, c.data, k) > PIXEL_TOL) through++;
-  }
+  // her interior only: a 2 px band at the silhouette's edge is left out, where the depth of
+  // field blur legitimately mixes the ground behind her into her outline
+  const W = b.width;
+  const H = b.height;
+  const inSil = (x: number, y: number) =>
+    x >= 0 && y >= 0 && x < W && y < H && magenta(b.data, (y * W + x) * 4);
+  for (let y = 0; y < H; y++)
+    for (let x = 0; x < W; x++) {
+      const k = (y * W + x) * 4;
+      if (!inSil(x, y) || magenta(a.data, k) || diff(a.data, b.data, k) <= PIXEL_TOL) continue;
+      if (!(inSil(x - 2, y) && inSil(x + 2, y) && inSil(x, y - 2) && inSil(x, y + 2))) continue;
+      her++;
+      if (diff(a.data, c.data, k) > PIXEL_TOL) through++;
+    }
   const share = her > 0 ? through / her : 0;
   // evidence of a see-through beat: the three crops
   if (share >= 0.03 && process.env.ACCEPTANCE_OUT) {

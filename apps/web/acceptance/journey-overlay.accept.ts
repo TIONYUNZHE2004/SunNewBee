@@ -108,6 +108,39 @@ async function markerCrop(page: Page, ax: number, ay: number) {
   };
 }
 
+/** Waits until the journey camera is driven and still (1 mm for 400 ms; at most 5 s). */
+async function cameraSettled(page: Page): Promise<void> {
+  await page.evaluate(
+    () =>
+      new Promise<void>((done) => {
+        const j = (
+          window as unknown as {
+            __journey: { camera(): { driven: boolean; camera: [number, number, number] } | null };
+          }
+        ).__journey;
+        const t0 = performance.now();
+        let last: [number, number, number] | null = null;
+        let since = t0;
+        const tick = () => {
+          const now = performance.now();
+          const c = j.camera();
+          const p = c?.camera ?? null;
+          if (
+            !c?.driven ||
+            !p ||
+            !last ||
+            Math.hypot(p[0] - last[0], p[1] - last[1], p[2] - last[2]) > 0.001
+          )
+            since = now;
+          last = p;
+          if (now - since >= 400 || now - t0 > 5000) return done();
+          requestAnimationFrame(tick);
+        };
+        requestAnimationFrame(tick);
+      }),
+  );
+}
+
 test.describe("journey overlay (D-T7)", () => {
   test.beforeEach(async ({ page }) => {
     await openScene(page, "day");
@@ -131,6 +164,9 @@ test.describe("journey overlay (D-T7)", () => {
     for (const p of holds) {
       await journey.seek(page, (p.t0 + p.t1) / 2);
       await frames(page);
+      // the journey camera eases into its pose over 1 s of wall clock after the player takes it:
+      // judge the hold's framing, not a frame of that hand-over
+      await cameraSettled(page);
       const cards = page.getByTestId("journey-card");
       await expect(cards).toHaveCount(1);
       const box = await cards.boundingBox();
