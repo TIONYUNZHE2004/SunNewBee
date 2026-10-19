@@ -342,6 +342,26 @@ after it stops.
 - The glbs and manifest live in `public/city/` (lane `blender`); `vite build` copies them to
   `dist/city/`.
 
+#### Street dressing kit (Three.js, B-T7)
+
+`dressing/` draws the street dressing in one instanced layer (`scene/useDressing.ts`, decor slot
+`dressing`). Models are built in code (`dressingModels.ts`: bevelled boxes, low cylinders and
+spheres, clay role `dressing`, colours from `CLAY_PALETTE.prop` / `.dressing`).
+
+- **Fact props** (`planFactProps`, every tier): one zebra crossing per walk `crossing` edge and one
+  traffic signal / bus stop / shelter / bench per `GET /layers/street_furniture` point inside the
+  outline, each instance carrying its `sourceId` (`userData.sourceIds` on the mesh). A prop whose
+  point lies on a drawn ribbon is set just past the ribbon edge. Nothing else draws these models:
+  the decorative props planner no longer places benches or bus shelters. AC-B7 is
+  `dressingPlan.test.ts` on the seed.
+- **Decorative props** (`planDecorProps`, High and Medium): kerb edging, planters and verge tufts
+  along roads, lamp posts beside park paths, flowers and tufts in parks. Seeded, never within 1 m
+  (from the footprint) of any walk line, never in a footprint or outside the outline. They keep
+  "Decorative details are illustrative." on screen (`data-dressing-decor`). Journey modules never
+  import `dressing/` (`importBoundary.test.ts`, AC-B8).
+- Drawn only within 150 m of the camera target (`DRESS_GATE_M`; none beyond a 1.5 km range);
+  decorative props are re-planned when the target moves 25 m.
+
 #### Elmina outline and diorama slab (Three.js, A-T4)
 
 When `/site` serves `boundary.geometry` (the display-only Elmina outline, `base/boundary.geojson`),

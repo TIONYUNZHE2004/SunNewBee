@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { fetchBuildings } from "./api";
+import { fetchBuildings, fetchStreetFurniture } from "./api";
 
 const res = (status: number, body: unknown = {}) =>
   (async () =>
@@ -25,5 +25,14 @@ describe("fetchBuildings", () => {
 
   it("throws on other failures", async () => {
     await expect(fetchBuildings(res(502))).rejects.toThrow(/502/);
+  });
+});
+
+describe("fetchStreetFurniture (B-T7)", () => {
+  it("returns the payload on 200, null on 404, throws otherwise", async () => {
+    const payload = { furniture: { type: "FeatureCollection", features: [] }, as_of: "2026-10-19" };
+    expect(await fetchStreetFurniture(res(200, payload))).toEqual(payload);
+    expect(await fetchStreetFurniture(res(404, { detail: "no" }))).toBeNull();
+    await expect(fetchStreetFurniture(res(502))).rejects.toThrow(/502/);
   });
 });

@@ -457,6 +457,69 @@ describe("ThreeScene", () => {
     }
   });
 
+  it("B-T7: the dressing kit draws one zebra per crossing and the bench from street furniture", async () => {
+    accessLayer.data = {
+      type: "FeatureCollection",
+      features: [
+        {
+          type: "Feature",
+          properties: { id: "s1", type: "street" },
+          geometry: {
+            type: "LineString",
+            coordinates: [frame.toLonLat(-100, 30), frame.toLonLat(100, 30)],
+          },
+        },
+        {
+          type: "Feature",
+          properties: { id: "x1", type: "crossing" },
+          geometry: {
+            type: "LineString",
+            coordinates: [frame.toLonLat(10, 25), frame.toLonLat(10, 35)],
+          },
+        },
+      ],
+    };
+    try {
+      stubFetch((url) => {
+        if (url.includes("/layers/buildings")) return json(BUILDINGS);
+        if (url.includes("/layers/street_furniture"))
+          return json({
+            furniture: {
+              type: "FeatureCollection",
+              features: [
+                {
+                  type: "Feature",
+                  properties: { id: "osm-node-7", kind: "bench" },
+                  geometry: { type: "Point", coordinates: frame.toLonLat(-20, 40) },
+                },
+              ],
+            },
+          });
+        return json({}, 404);
+      });
+      const { engine } = mount();
+      await waitFor(() => expect(engine.setCity).toHaveBeenCalled());
+      act(() => engine.tick());
+      const s = screen.getByTestId("three-scene");
+      await waitFor(() => expect(Number(s.getAttribute("data-dressing-facts"))).toBe(11));
+      const layer = engine.setDecor.mock.calls.filter((c) => c[0] === "dressing").at(-1)?.[1] as {
+        group: THREE.Group;
+      };
+      const bench = layer.group.getObjectByName("dressing__bench") as THREE.InstancedMesh;
+      expect(bench.count).toBe(1);
+      expect(bench.userData.sourceIds).toEqual(["osm-node-7"]);
+      const zebra = layer.group.getObjectByName("dressing__zebra") as THREE.InstancedMesh;
+      expect(new Set(zebra.userData.sourceIds)).toEqual(new Set(["x1"]));
+      // Decorative kerb edging along the street: the note is on screen.
+      expect(Number(s.getAttribute("data-dressing-decor"))).toBeGreaterThan(0);
+      expect(
+        screen.getByRole("note", { name: "Decorative details are illustrative." }),
+      ).toBeVisible();
+    } finally {
+      accessLayer.data = { type: "FeatureCollection", features: [] };
+    }
+  });
+
   it("data-tiles is the streamer's active tile count (25 at the 800 m default view)", async () => {
     const { engine } = mount();
     const s = screen.getByTestId("three-scene");
@@ -1624,7 +1687,11 @@ describe("ThreeScene", () => {
           if (!d) continue;
           for (const o of drawn(d.group)) {
             names.add(o.name);
-            expect(o.userData.decorative, `${slot}/${o.name}`).toBe(true);
+            // Decorative, or (street dressing kit, B-T7) a data-placed fact prop: never an overlay.
+            expect(
+              o.userData.decorative === true || (slot === "dressing" && o.userData.fact === true),
+              `${slot}/${o.name}`,
+            ).toBe(true);
             expect(PROTO.has(o.raycast), `${slot}/${o.name} raycast`).toBe(false);
             expect(o.userData.pick, `${slot}/${o.name}`).toBeUndefined();
             // The ambient birds sit at 12 in the MAIN scene; the overlay pass is drawn after it.

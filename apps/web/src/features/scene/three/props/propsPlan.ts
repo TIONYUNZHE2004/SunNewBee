@@ -841,15 +841,11 @@ export function planProps(input: PropsInput): PropsPlan {
     (id, x, z) => tree(id, x, z, "oil_palm", "oil"),
   );
 
-  // Park edge and place furniture: bench and bin pairs, bus shelters, entrance bollards.
+  // Park edge and place furniture: bins and entrance bollards. No decorative bench or bus shelter
+  // (B-T7, AC-B7): those are FACT props, drawn one per data feature by the street dressing kit
+  // (`dressing/`), so a decorative copy would imitate a fact.
   const pair = (id: string, x: number, z: number, yaw: number, building = true) => {
-    const tx = Math.cos(yaw);
-    const tz = -Math.sin(yaw);
-    push("furniture", "furniture/bench", `${id}:bench`, x, z, yaw, { building, ribbon: false });
-    push("furniture", "furniture/bin", `${id}:bin`, x + tx * 1.6, z + tz * 1.6, yaw, {
-      building,
-      ribbon: false,
-    });
+    push("furniture", "furniture/bin", `${id}:bin`, x, z, yaw, { building, ribbon: false });
   };
   for (const { poly, id: pid } of parkPolys) {
     const ring = poly[0]!;
@@ -872,10 +868,6 @@ export function planProps(input: PropsInput): PropsPlan {
       const r = 4 + hash01(pl.id, "furnr") * (PLACE_FURNITURE_RANGE - 6);
       pair(`pf:${pl.id}`, pl.x + Math.cos(a) * r, pl.z + Math.sin(a) * r, a + Math.PI);
     }
-    if (pl.type === "shelter")
-      push("furniture", "furniture/bus_shelter", `bs:${pl.id}`, pl.x, pl.z, undefined, {
-        ribbon: false,
-      });
     if ((pl.type === "school" || pl.type === "mall") && pl.entrances.length > 0)
       pl.entrances.forEach((eid, ei) => {
         const a = (ei + hash01(`${pl.id}:${eid}`, "ent")) * 1.9;
