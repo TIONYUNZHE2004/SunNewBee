@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { createStore, type StoreApi } from "zustand/vanilla";
 import type { createAmbient } from "../ambient/ambient";
+import { createDetailBubble, type DetailBubble } from "../detailBubble";
 import type { MoodWeights } from "../mood";
 import type { MotionDriver } from "../motion/motionClock";
 
@@ -16,6 +17,12 @@ export interface SceneBusState {
   ambient: ReturnType<typeof createAmbient> | null;
   /** The motion driver, while the engine holds one (useMotion). */
   driver: MotionDriver | null;
+  /**
+   * The detail bubble (B-T8): street-level detail within 150 m of the hero (follow mode) or the
+   * camera target. Layers that mount detail inside it (dressing, LOD0 trees, the crowd's LOD0)
+   * `register` with it.
+   */
+  bubble: DetailBubble;
 }
 export type SceneBus = StoreApi<SceneBusState>;
 
@@ -24,6 +31,7 @@ export const createSceneBus = (): SceneBus =>
     mood: { day: 1, dusk: 0, night: 0 },
     ambient: null,
     driver: null,
+    bubble: createDetailBubble(),
   }));
 
 /** One bus per mounted three.js view (a remount or a second view never shares one). */

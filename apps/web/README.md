@@ -359,8 +359,24 @@ spheres, clay role `dressing`, colours from `CLAY_PALETTE.prop` / `.dressing`).
   (from the footprint) of any walk line, never in a footprint or outside the outline. They keep
   "Decorative details are illustrative." on screen (`data-dressing-decor`). Journey modules never
   import `dressing/` (`importBoundary.test.ts`, AC-B8).
-- Drawn only within 150 m of the camera target (`DRESS_GATE_M`; none beyond a 1.5 km range);
-  decorative props are re-planned when the target moves 25 m.
+- Drawn only inside the detail bubble (below); decorative props are re-planned when its focus
+  moves 25 m.
+
+#### Detail bubble (Three.js, B-T8)
+
+`detailBubble.ts` + `scene/useDetailBubble.ts`: street-level detail within 150 m of the focus
+point, which is the rendered hero in follow mode while a journey is loaded (`journeyHero`, the
+D-T6 seam), else the camera's orbit target; no bubble beyond a 1.5 km camera range. One bubble per
+view, on the scene bus (`bus.getState().bubble`); layers `register` with it and hear each move of
+1 m or more.
+
+- Dressing (`useDressing`): each instance fades in / out over 0.5 s at the edge (instance scale by
+  `createBubbleFader` weight; a frame advances a fade by at most 0.1 s, so a long frame gap never
+  pops; frames are requested while a fade runs).
+- Trees: the `trees` kit inside the bubble is drawn at LOD0 whatever the camera distance
+  (`CityInstances.setDetailBubble`, via `useCityAssets().setDetailBubble`). This is a plain LOD
+  swap, with no crossfade.
+- Crowd (C-T7): register with `bus.getState().bubble` to mount LOD0 inside it.
 
 #### Elmina outline and diorama slab (Three.js, A-T4)
 

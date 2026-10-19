@@ -174,3 +174,31 @@ describe("budget on the Elmina seed (150 m around Harmoni 1)", () => {
     layer.dispose();
   });
 });
+
+describe("B-T8: the dressing fades at the bubble edge (layer + fader)", () => {
+  it("leaving the bubble shrinks instances over >= 0.5 s instead of dropping them", async () => {
+    const { createBubbleFader, BUBBLE_FADE_S } = await import("../detailBubble");
+    const layer = createDressingLayer({ tier: "medium" });
+    layer.setItems([item("a", "planter", 0, 0), item("b", "bench", 10, 0, "osm-node-1")]);
+    const fader = createBubbleFader();
+    const pass = (focus: [number, number] | null, t: number) => {
+      fader.begin();
+      return layer.update(focus, 150, (it, d) => fader.weight(it.key, d <= 150, t));
+    };
+    let t = 0;
+    expect(pass([0, 0], t).facts + pass([0, 0], t).decor).toBe(0); // first sight: weight 0
+    for (; fader.fading() || t === 0; t += 16) pass([0, 0], t + 16);
+    expect(pass([0, 0], t).instances).toEqual({ planter: 1, bench: 1 });
+    // focus jumps 1 km away: still drawn on the next frame, gone only after the fade
+    const t0 = t;
+    t += 16;
+    let s = pass([1000, 0], t);
+    expect(s.instances).toEqual({ planter: 1, bench: 1 });
+    while (s.facts + s.decor > 0) {
+      t += 16;
+      s = pass([1000, 0], t);
+    }
+    expect(t - t0).toBeGreaterThanOrEqual(BUBBLE_FADE_S * 1000);
+    layer.dispose();
+  });
+});

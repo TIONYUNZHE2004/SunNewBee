@@ -675,3 +675,49 @@ describe("setKits failure", () => {
     expect(disposed).toBe(oldKits.length);
   });
 });
+
+describe("detail bubble (B-T8): trees inside it are drawn at LOD0", () => {
+  const trees = () => new Map([["trees/v", Array.from({ length: 10 }, (_, i) => pl("trees", i))]]);
+  const empty = (): CityPlan => ({
+    placements: new Map(),
+    extrude: new Set(),
+    landmarks: [],
+    stats: { placed: 0, units: 0, fallback: {} },
+  });
+  const counts = (c: ReturnType<typeof createCityInstances>, asset: string) =>
+    meshesOf(c)
+      .filter((m) => m.name.startsWith(`${asset}__`))
+      .map((m) => m.count);
+
+  it("forces LOD0 within the radius and restores camera LODs when it moves away", () => {
+    // trees at x = 0, 200, ..., 1800; camera far at x = 5000 -> all LOD2 / LOD1
+    const c = createCityInstances(lib(), empty(), manifest(), createRoleUniforms(), {
+      kits: trees(),
+      motion: createMotionUniforms(),
+    });
+    const cam = new THREE.Vector3(2400, 50, 0);
+    c.update(cam);
+    expect(counts(c, "trees")[0]).toBe(0);
+    c.setDetailBubble?.({ x: 400, z: 0, r: 150 });
+    c.update(cam);
+    // x = 400 only (200 and 600 are 200 m away)
+    expect(counts(c, "trees")[0]).toBe(1);
+    c.setDetailBubble?.({ x: 0, z: 0, r: 250 });
+    c.update(cam);
+    // x = 0 and 200; the tree at 400 left the bubble and is back on its camera LOD
+    expect(counts(c, "trees")[0]).toBe(2);
+    c.setDetailBubble?.(null);
+    c.update(cam);
+    expect(counts(c, "trees")[0]).toBe(0);
+  });
+
+  it("other kits keep their camera LODs inside the bubble", () => {
+    const c = createCityInstances(lib(), empty(), manifest(), createRoleUniforms(), {
+      kits: new Map([["k/v", [pl("k", 0)]]]),
+      motion: createMotionUniforms(),
+    });
+    c.setDetailBubble?.({ x: 0, z: 0, r: 150 });
+    c.update(new THREE.Vector3(2400, 50, 0));
+    expect(counts(c, "k")[0]).toBe(0);
+  });
+});

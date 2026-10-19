@@ -174,6 +174,8 @@ export function useCityAssets({
   const handedOff = useRef(false);
   /** The instances now in the engine (null while it holds none). */
   const instRef = useRef<CityInstances | null>(null);
+  /** The detail bubble's LOD0-trees area (B-T8), re-applied to new instances. */
+  const bubbleRef = useRef<{ x: number; z: number; r: number } | null>(null);
   /** The latest kits (props) handed to setKits, and what the instances were last given. */
   const kitsRef = useRef<Kits>(null);
   const applied = useRef<{ kits: Kits; scale: number } | null>(null);
@@ -289,6 +291,7 @@ export function useCityAssets({
       );
       handedOff.current = true;
       instRef.current = inst;
+      inst.setDetailBubble?.(bubbleRef.current);
       applied.current = { kits, scale };
       setPlan(plan);
       useCityInfo.setState({ manifest: m, extruded: plan.extrude });
@@ -427,9 +430,16 @@ export function useCityAssets({
     [],
   );
 
+  /** B-T8: trees inside the detail bubble are drawn at LOD0 (applied on the next LOD update). */
+  const setDetailBubble = useCallback((b: { x: number; z: number; r: number } | null) => {
+    bubbleRef.current = b;
+    instRef.current?.setDetailBubble?.(b);
+  }, []);
+
   return {
     assetsState,
     loaded,
+    setDetailBubble,
     plan,
     setKits,
     kitJob,

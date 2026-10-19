@@ -18,8 +18,9 @@ export interface DressingLayer {
   group: THREE.Group;
   setItems(items: readonly DressItem[]): void;
   /**
-   * Draws the items with a weight > 0 at their weight's scale. `weight(item)` defaults to the
-   * plain gate: 1 within `radiusM` of `focus`, else 0; a null focus hides everything.
+   * Draws the items with a weight > 0 at their weight's scale. `weight(item, d)` defaults to the
+   * plain gate: 1 within `radiusM` of `focus`, else 0; a null focus hides everything (with a
+   * weight, every item is still asked, at d = Infinity).
    */
   update(
     focus: readonly [number, number] | null,
@@ -98,9 +99,11 @@ export function createDressingLayer(opts: { tier?: Tier } = {}): DressingLayer {
     weight?: (item: DressItem, d: number) => number,
   ): DressingStats {
     const per = new Map<string, { item: DressItem; w: number }[]>();
-    if (focus)
+    // With a weight (the bubble fade), every item is asked even without a focus (d = Infinity), so
+    // a cleared focus fades the dressing out instead of dropping it in one frame.
+    if (focus || weight)
       for (const it of items) {
-        const d = Math.hypot(it.x - focus[0], it.z - focus[1]);
+        const d = focus ? Math.hypot(it.x - focus[0], it.z - focus[1]) : Number.POSITIVE_INFINITY;
         const w = weight ? weight(it, d) : d <= radiusM ? 1 : 0;
         if (w <= 0) continue;
         const key = bucketOf(it.model, it.tint);

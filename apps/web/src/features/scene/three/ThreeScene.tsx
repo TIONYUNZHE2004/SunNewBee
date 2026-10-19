@@ -18,6 +18,7 @@ import { useAcceptanceHook } from "./scene/useAcceptanceHook";
 import { useCameraOps } from "./scene/useCameraOps";
 import { useCityAssets } from "./scene/useCityAssets";
 import { useDecor } from "./scene/useDecor";
+import { useDetailBubble } from "./scene/useDetailBubble";
 import { useDressing } from "./scene/useDressing";
 import { useEngine } from "./scene/useEngine";
 import { useFacades } from "./scene/useFacades";
@@ -199,7 +200,19 @@ export default function ThreeScene({
   });
   // Street dressing kit (B-T7): fact props (crossings, signals, bus stops, shelters, benches; one
   // per data feature) and decorative props near the camera target.
-  const dressing = useDressing({ engine, frame, tier, walk, buildings, boundary, showroom });
+  // B-T8: street-level detail (dressing, LOD0 trees, the crowd's LOD0) inside the detail bubble
+  // around the hero (follow mode) or the camera target.
+  useDetailBubble({ engine, bus, setDetailBubble: city.setDetailBubble, showroom });
+  const dressing = useDressing({
+    engine,
+    frame,
+    tier,
+    walk,
+    buildings,
+    bubble: bus.getState().bubble,
+    boundary,
+    showroom,
+  });
   const { running, onScreen, agents } = useMotion({
     engine,
     tier,
