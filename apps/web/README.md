@@ -348,7 +348,9 @@ after it stops.
 `dressing`). Models are built in code (`dressingModels.ts`: bevelled boxes, low cylinders and
 spheres, clay role `dressing`, colours from `CLAY_PALETTE.prop` / `.dressing`).
 
-- **Fact props** (`planFactProps`, every tier): one zebra crossing per walk `crossing` edge and one
+- **Fact props** (`planFactProps`, every tier): one zebra crossing per walk `crossing` edge whose
+  crossing claim is `marked` / `zebra` (reported or verified; the access layer's `crossing` /
+  `crossing_status`), never on an unmarked or unknown crossing or an edge without its own id, and one
   traffic signal / bus stop / shelter / bench per `GET /layers/street_furniture` point inside the
   outline, each instance carrying its `sourceId` (`userData.sourceIds` on the mesh). A prop whose
   point lies on a drawn ribbon is set just past the ribbon edge. Nothing else draws these models:

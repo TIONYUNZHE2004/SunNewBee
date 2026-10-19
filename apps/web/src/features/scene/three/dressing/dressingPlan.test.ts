@@ -18,15 +18,19 @@ import {
 
 const frame = createFrame([101.5, 3.18]);
 const ll = (x: number, z: number) => frame.toLonLat(x, z);
-const line = (id: string, type: string, pts: [number, number][]) => ({
+const line = (id: string, type: string, pts: [number, number][], extra = {}) => ({
   type: "Feature",
-  properties: { id, type },
+  properties: { id, type, ...extra },
   geometry: { type: "LineString", coordinates: pts.map(([x, z]) => ll(x, z)) },
 });
 const point = (id: string, kind: string, x: number, z: number, extra = {}) => ({
   type: "Feature",
   properties: { id, kind, ...extra },
   geometry: { type: "Point", coordinates: ll(x, z) },
+});
+/** A crossing claim as in walk.geojson (`claims.crossing`). */
+const marked = (value: string, status = "reported") => ({
+  claims: { crossing: { value, status, evidence_type: "osm_import" } },
 });
 const fc = (features: unknown[]) => ({ type: "FeatureCollection", features });
 const square = (x0: number, z0: number, x1: number, z1: number) => ({
@@ -44,14 +48,25 @@ describe("fact props (AC-B7): one per data feature, each with its source id", ()
       [-100, 0],
       [100, 0],
     ]),
-    line("seg-x", "crossing", [
-      [10, -5],
-      [10, 5],
-    ]),
-    line("seg-x2", "crossing", [
-      [40, -5.5],
-      [40, 5.5],
-    ]),
+    line(
+      "seg-x",
+      "crossing",
+      [
+        [10, -5],
+        [10, 5],
+      ],
+      marked("marked"),
+    ),
+    // access-layer shape: flat crossing / crossing_status
+    line(
+      "seg-x2",
+      "crossing",
+      [
+        [40, -5.5],
+        [40, 5.5],
+      ],
+      { crossing: "marked", crossing_status: "verified" },
+    ),
   ]);
   const furniture = fc([
     point("osm-node-1", "bench", 0, 8),
@@ -79,6 +94,37 @@ describe("fact props (AC-B7): one per data feature, each with its source id", ()
         expect(it.sourceId).toBe(p.sourceId);
         expect(FACT_MODELS).toContain(it.model);
       }
+  });
+
+  it("fix round 1: stripes only where the claim says marked; unmarked / unknown / no id get none", () => {
+    const pts: [number, number][] = [
+      [60, -5],
+      [60, 5],
+    ];
+    const w = fc([
+      line("x-marked", "crossing", pts, marked("marked")),
+      line("x-zebra", "crossing", pts, { crossing: "zebra", crossing_status: "reported" }),
+      line("x-unmarked", "crossing", pts, marked("unmarked")),
+      line("x-signals", "crossing", pts, marked("traffic_signals")),
+      line("x-no", "crossing", pts, marked("no")),
+      line("x-unknown", "crossing", pts),
+      line("x-contested", "crossing", pts, marked("marked", "contested")),
+      line("x-stale", "crossing", pts, marked("marked", "stale")),
+      line("", "crossing", pts, marked("marked")),
+      {
+        ...line("x", "crossing", pts, marked("marked")),
+        properties: { type: "crossing", ...marked("marked") },
+      },
+    ]);
+    const plan = planFactProps({ furniture: fc([]), walk: w, frame });
+    expect(plan.props.map((p) => p.sourceId).sort()).toEqual(["x-marked", "x-zebra"]);
+    expect(plan.stats.unmarked).toBe(6);
+    expect(plan.stats.invalid).toBe(2);
+    for (const it of factItems(plan)) expect(it.sourceId).not.toMatch(/^walk#/);
+    // a line without an id keeps a planning key but never a source id
+    const ls = walkLines(w, frame);
+    expect(ls.at(-1)!.sourceId).toBeNull();
+    expect(ls.at(-1)!.id).toMatch(/^walk#/);
   });
 
   it("zebra bars run across the crossing at the bar pitch", () => {
@@ -204,16 +250,48 @@ describe("AC-B7 on the Elmina seed: drawn fact props match the data inside the b
     for (const k of ["traffic_signals", "bus_stop", "shelter", "bench", "picnic_table"] as const)
       expect(drawn(k), k).toBe(counts[k]);
     expect(plan.stats.invalid).toBe(0);
-    // only crossing edges of the whole walk network lie outside; every furniture point is inside
-    const crossings = walkLines(walk, f).filter((l) => l.type === "crossing").length;
-    expect(plan.stats.outside).toBe(crossings - drawn("crossing"));
   });
 
-  it("one zebra per crossing edge inside the boundary", () => {
-    const lines = walkLines(walk, f).filter((l) => l.type === "crossing");
-    const inside = lines.filter((l) => l.pts.every(([x, z]) => insideBoundary(boundary, x, z)));
+  it("fix round 1: one zebra per crossing edge inside the boundary whose claim says marked", () => {
+    type Raw = {
+      properties: {
+        id: string;
+        type: string;
+        claims?: { crossing?: { value: string; status: string } };
+      };
+      geometry: { coordinates: [number, number][] };
+    };
+    const raw = (walk.features as Raw[]).filter((x) => x.properties.type === "crossing");
+    const inside = raw.filter((x) =>
+      x.geometry.coordinates.every(([lon, lat]) =>
+        insideBoundary(boundary, ...f.toLocal(lon, lat)),
+      ),
+    );
     expect(inside.length).toBeGreaterThan(50);
-    expect(drawn("crossing")).toBe(inside.length);
+    const isMarked = (x: Raw) => {
+      const c = x.properties.claims?.crossing;
+      return (
+        !!c && ["marked", "zebra"].includes(c.value) && ["reported", "verified"].includes(c.status)
+      );
+    };
+    const want = inside
+      .filter(isMarked)
+      .map((x) => x.properties.id)
+      .sort();
+    const got = plan.props
+      .filter((p) => p.kind === "crossing")
+      .map((p) => p.sourceId)
+      .sort();
+    expect(got).toEqual(want);
+    // every other crossing inside (unmarked or no claim) gets no stripes
+    expect(plan.stats.unmarked).toBe(inside.length - want.length);
+    const striped = new Set(
+      factItems(plan)
+        .filter((i) => i.model === "zebra")
+        .map((i) => i.sourceId),
+    );
+    for (const x of inside.filter((y) => !isMarked(y)))
+      expect(striped.has(x.properties.id)).toBe(false);
   });
 
   it("every instance carries its source id; ids are unique per prop", () => {
@@ -225,7 +303,7 @@ describe("AC-B7 on the Elmina seed: drawn fact props match the data inside the b
       ...furniture.features.map((x: { properties: { id: string } }) => x.properties.id),
       ...walkLines(walk, f)
         .filter((l) => l.type === "crossing")
-        .map((l) => l.id),
+        .map((l) => l.sourceId),
     ]);
     for (const id of ids) expect(want.has(id), id).toBe(true);
     // a moved prop stays near its data point (at most the widest half road + 1.4 m)

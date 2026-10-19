@@ -20,7 +20,7 @@ import {
  *
  * Two families, never mixed:
  *  - **Fact props** (`planFactProps`): ONE per data feature, each carrying its `sourceId`:
- *    a zebra crossing per walk `crossing` edge, a traffic signal / bus stop / shelter / bench per
+ *    a zebra crossing per walk `crossing` edge whose claim says marked, a traffic signal / bus stop / shelter / bench per
  *    `/layers/street_furniture` point. Nothing else draws these models (AC-B7). A prop whose point
  *    lies on a drawn ribbon is set just past the ribbon's edge (`anchor` keeps the data point).
  *  - **Decorative props** (`planDecorProps`): planters and grass tufts along kerbs, kerb edging,
@@ -80,7 +80,11 @@ export interface FactProp {
 
 export interface FactPlan {
   props: FactProp[];
-  stats: { outside: number; invalid: number };
+  /**
+   * outside: features outside the boundary; invalid: no source id / kind / geometry; unmarked:
+   * crossings inside without a usable marked claim (drawn as the plain crossing ribbon only).
+   */
+  stats: { outside: number; invalid: number; unmarked: number };
 }
 
 /** A decorative prop keeps this far (m, from its footprint edge) from every walk line. */
@@ -122,10 +126,34 @@ const isPt = (c: unknown): c is [number, number] =>
   Array.isArray(c) && Number.isFinite(c[0]) && Number.isFinite(c[1]);
 
 export interface WalkLine {
+  /** Planning key: the feature id, or `walk#<index>` when it has none (never a source id). */
   id: string;
+  /** The feature's own id, or null: only this may become a fact prop's `sourceId`. */
+  sourceId: string | null;
   type: string;
   pts: P[];
   half: number;
+  /**
+   * The crossing marking claim value (`claims.crossing` in walk.geojson, or the access layer's
+   * flat `crossing` / `crossing_status`) when its status is reported or verified; else null.
+   */
+  crossing: string | null;
+}
+
+/** Crossing claim values that mean painted zebra stripes. `unmarked`, `no`, `traffic_signals`
+ * (signals say nothing about paint) and a missing claim draw no stripes. */
+export const ZEBRA_VALUES: ReadonlySet<string> = new Set(["marked", "zebra"]);
+const USABLE_STATUS = new Set(["reported", "verified"]);
+
+/** The crossing marking value of a walk feature's properties, if its claim is usable. */
+export function crossingMarking(p: Record<string, unknown>): string | null {
+  const claims = isRec(p.claims) ? p.claims : null;
+  const c = claims && isRec(claims.crossing) ? claims.crossing : null;
+  const value = c ? c.value : p.crossing;
+  const status = c ? c.status : p.crossing_status;
+  return typeof value === "string" && typeof status === "string" && USABLE_STATUS.has(status)
+    ? value
+    : null;
 }
 
 /** Walk LineStrings (the access layer or walk.geojson) in local metres. */
@@ -139,8 +167,15 @@ export function walkLines(walk: unknown, frame: LocalFrame): WalkLine[] {
     if (pts.length < 2) return;
     const p = propsOf(f);
     const type = typeof p.type === "string" ? p.type : "";
-    const id = typeof p.id === "string" && p.id ? p.id : `walk#${i}`;
-    out.push({ id, type, pts, half: (WIDTH_BY_TYPE[type] ?? ROAD_WIDTH_UNKNOWN) / 2 });
+    const sourceId = typeof p.id === "string" && p.id.trim() ? p.id.trim() : null;
+    out.push({
+      id: sourceId ?? `walk#${i}`,
+      sourceId,
+      type,
+      pts,
+      half: (WIDTH_BY_TYPE[type] ?? ROAD_WIDTH_UNKNOWN) / 2,
+      crossing: type === "crossing" ? crossingMarking(p) : null,
+    });
   });
   return out;
 }
@@ -267,12 +302,18 @@ export function planFactProps(input: {
   const lines = input.lines ?? walkLines(input.walk, frame);
   const index = new SegIndex(lines);
   const props: FactProp[] = [];
-  const stats = { outside: 0, invalid: 0 };
+  const stats = { outside: 0, invalid: 0, unmarked: 0 };
   const inside = (x: number, z: number) => !boundary || insideBoundary(boundary, x, z);
 
-  // Zebra crossings: one per walk `crossing` edge, bars across the walking direction.
+  // Zebra crossings: one per walk `crossing` edge whose claim says it is marked (fix round 1: the
+  // stripes are a fact; an unmarked or unknown crossing keeps the plain ribbon), bars across the
+  // walking direction. An edge without its own id is never drawn (no synthetic source ids).
   for (const line of lines) {
     if (line.type !== "crossing") continue;
+    if (!line.sourceId) {
+      stats.invalid++;
+      continue;
+    }
     const len = lengthOf(line.pts);
     const mid = along(line.pts, len, len / 2)[0] ?? {
       x: line.pts[0]![0],
@@ -282,24 +323,29 @@ export function planFactProps(input: {
       stats.outside++;
       continue;
     }
+    if (!line.crossing || !ZEBRA_VALUES.has(line.crossing)) {
+      stats.unmarked++;
+      continue;
+    }
+    const sourceId = line.sourceId;
     const n = Math.max(2, Math.floor(len / ZEBRA_PITCH_M));
     const start = (len - (n - 1) * ZEBRA_PITCH_M) / 2;
     const items = along(line.pts, ZEBRA_PITCH_M, Math.max(0, start))
       .slice(0, n)
       .map((p, k) => ({
-        key: `zebra:${line.id}:${k}`,
+        key: `zebra:${sourceId}:${k}`,
         model: "zebra" as const,
         x: p.x,
         z: p.z,
         yaw: yawToward(p.tx, p.tz),
         s: 1,
-        sourceId: line.id,
+        sourceId,
       }));
     if (items.length === 0) {
       stats.invalid++;
       continue;
     }
-    props.push({ sourceId: line.id, kind: "crossing", anchor: [mid.x, mid.z], items });
+    props.push({ sourceId, kind: "crossing", anchor: [mid.x, mid.z], items });
   }
 
   // Street furniture points.

@@ -457,7 +457,7 @@ describe("ThreeScene", () => {
     }
   });
 
-  it("B-T7: the dressing kit draws one zebra per crossing and the bench from street furniture", async () => {
+  it("B-T7: the dressing kit draws one zebra per marked crossing and the bench from street furniture", async () => {
     accessLayer.data = {
       type: "FeatureCollection",
       features: [
@@ -471,10 +471,29 @@ describe("ThreeScene", () => {
         },
         {
           type: "Feature",
-          properties: { id: "x1", type: "crossing" },
+          properties: {
+            id: "x1",
+            type: "crossing",
+            crossing: "marked",
+            crossing_status: "reported",
+          },
           geometry: {
             type: "LineString",
             coordinates: [frame.toLonLat(10, 25), frame.toLonLat(10, 35)],
+          },
+        },
+        // unmarked: the plain crossing ribbon only, no stripes (fix round 1)
+        {
+          type: "Feature",
+          properties: {
+            id: "x2",
+            type: "crossing",
+            crossing: "unmarked",
+            crossing_status: "reported",
+          },
+          geometry: {
+            type: "LineString",
+            coordinates: [frame.toLonLat(50, 25), frame.toLonLat(50, 35)],
           },
         },
       ],
