@@ -3,6 +3,7 @@ import * as THREE from "three";
 import { fitCost, fitFor, overviewPose, rangeNeededM } from "../cameraFit";
 import { createHeroLab, type HeroLab } from "../characters/heroLab";
 import type { Engine } from "../engine";
+import { dressingFadeProbe } from "../fadeProbe";
 import type { LocalFrame } from "../frame";
 import { createFrameStats, type PerfSample } from "../frameStats";
 import { type Boundary, insideBoundary, outsideBy, type P } from "../ground/boundary";
@@ -110,6 +111,8 @@ export interface AcceptanceApi {
   fog(): { color: string; near: number; far: number; background: string } | null;
   /** Lamp-pool centres on screen (page-independent canvas CSS pixels), those inside the canvas only. */
   lampPoints(): { x: number; y: number }[];
+  /** AC-B9: the decorative dressing's current fade level (largest drawn weight, 0..1) and drawn count. */
+  dressingFade(): { maxW: number; decor: number };
   /**
    * Shows or hides the data-overlay scene (access lines, flood tint: `pickView().roots[0]`) so a capture
    * can measure the surface under them. Display only; the lines' own fade is A-T2's.
@@ -296,6 +299,9 @@ export interface CrowdRow {
   inCanvas: boolean;
   /** A raycast camera -> head hits a non-decorative surface before the head. */
   occluded: boolean;
+  /** Feet position (local metres; crowd people only): P10's bubble census around the hero. */
+  x?: number;
+  z?: number;
 }
 
 export interface CrowdReport {
@@ -567,6 +573,8 @@ function crowdReport(engine: Engine): CrowdReport {
           heightPx: head && feet ? Math.abs(feet.y - head.y) : null,
           inCanvas: !!head && head.x >= 0 && head.x <= w && head.y >= 0 && head.y <= h,
           occluded: _ray.intersectObjects(blockers, false).length > 0,
+          x: _cp.x,
+          z: _cp.z,
         });
       }
       return;
@@ -894,6 +902,7 @@ export function createAcceptanceApi(engine: Engine, frame: LocalFrame): Acceptan
         background: bg instanceof THREE.Color ? `#${bg.getHexString()}` : "",
       };
     },
+    dressingFade: () => ({ maxW: dressingFadeProbe.maxW, decor: dressingFadeProbe.decor }),
     lampPoints() {
       const v = engine.pickView();
       const [w, h] = v.size;
