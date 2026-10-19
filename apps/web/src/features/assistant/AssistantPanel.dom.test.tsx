@@ -63,12 +63,15 @@ describe("AssistantPanel", () => {
     );
     renderWithClient(<AssistantPanel />);
     fireEvent.click(
-      screen.getByRole("button", { name: /Nearest evacuation centre if the water rises 3 m/ }),
+      screen.getByRole("button", { name: /nearest evacuation centre if the water rises 3 m/ }),
     );
     expect(
-      await screen.findByText("Nearest evacuation centre if the water rises 3 m", {
-        selector: "p",
-      }),
+      await screen.findByText(
+        "From Elmina Lakeside Mall, nearest evacuation centre if the water rises 3 m",
+        {
+          selector: "p",
+        },
+      ),
     ).toBeVisible();
     expect(fetchFn.mock.calls.some(([u]) => String(u).includes("/chat"))).toBe(true);
   });
@@ -80,11 +83,14 @@ describe("AssistantPanel", () => {
     );
     renderWithClient(<AssistantPanel />);
     fireEvent.click(
-      screen.getByRole("button", { name: /Nearest evacuation centre if the water rises 3 m/ }),
+      screen.getByRole("button", { name: /nearest evacuation centre if the water rises 3 m/ }),
     );
-    await screen.findByText("Nearest evacuation centre if the water rises 3 m", { selector: "p" });
+    await screen.findByText(
+      "From Elmina Lakeside Mall, nearest evacuation centre if the water rises 3 m",
+      { selector: "p" },
+    );
     const chip = screen
-      .getAllByRole("button", { name: /Nearest evacuation centre if the water rises 3 m/ })
+      .getAllByRole("button", { name: /nearest evacuation centre if the water rises 3 m/ })
       .find((b) => b.className.includes("rounded-full")) as HTMLElement;
     const row = chip.parentElement as HTMLElement;
     expect(row.className.split(/\s+/)).toEqual(

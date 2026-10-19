@@ -235,7 +235,8 @@ def _route_places(rets, ends: list[tuple[str, str | None]]):
 
     A searched-by-name phrase ("harmoni 1") that find_place matches only weakly (top score below
     PLACE_MIN_SCORE) or not at all is not taken as the place: the end falls back to its default,
-    or to no place when the default is None (no silent demo endpoint). Pinned words are taken as found.
+    or to no place when the default is None (no silent demo endpoint). Pinned words are taken as
+    found.
     Returns (query still to search or None, [hit or None per end], results used)."""
     hits: list[dict | None] = []
     i = 0
