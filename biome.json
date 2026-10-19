@@ -17,6 +17,7 @@
       "!packages/spatial/tests/fixtures",
       "!apps/web/src/features/journey/fixtures",
       "!apps/web/public/city",
+      "!assets/blender/out",
       "!.superpowers",
       "!docs/03-product/prototypes"
     ]

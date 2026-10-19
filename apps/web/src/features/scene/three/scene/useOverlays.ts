@@ -3,6 +3,7 @@ import { useEvacCentres, useGaps, useLayer, useScenarioWater } from "../../../..
 import { gapsActive } from "../../../gaps/gapModel";
 import { useJourney } from "../../../journey/journeyStore";
 import { type LonLat, pointFeatures } from "../../geo";
+import { useSceneSettings } from "../../sceneSettingsStore";
 import { useScene } from "../../sceneStore";
 import type { Engine } from "../engine";
 import type { LocalFrame } from "../frame";
@@ -36,6 +37,7 @@ export function useOverlays({
   const profile = useScene((s) => s.profile);
   const scenarioId = useScene((s) => s.scenarioId);
   const accessVisible = useScene((s) => s.lensVisible.access);
+  const pathStatus = useSceneSettings((s) => s.pathStatus);
   const gapsOn = useScene((s) => gapsActive(s.gapsVisible, s.profile));
   const whatIf = useScene((s) => s.whatIf);
   const gapsQ = useGaps(profile, gapsOn && accessVisible);
@@ -74,6 +76,7 @@ export function useOverlays({
     overlay.update({
       access: accessData ?? null,
       accessVisible,
+      pathStatus,
       gaps: gapsQ.data ?? null,
       gapsOn,
       route: routeOn && !journeyOn ? (route?.geojson ?? null) : null,
@@ -93,6 +96,7 @@ export function useOverlays({
     overlay,
     accessData,
     accessVisible,
+    pathStatus,
     gapsQ.data,
     gapsOn,
     routeOn,

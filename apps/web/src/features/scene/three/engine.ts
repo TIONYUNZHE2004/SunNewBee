@@ -6,6 +6,7 @@ import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 import type { Pass } from "three/addons/postprocessing/Pass.js";
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
+import { reducedMotion } from "../cesium/controls/cameraOps";
 import type { Tier } from "../shared/quality";
 import { CityGTAOPass } from "./aoPass";
 import type { CityInstances } from "./assets/cityInstances";
@@ -22,7 +23,7 @@ import {
 } from "./cameraRig";
 import type { CityGeometry } from "./cityMesh";
 import { cullFrustum, shadowPadM } from "./cull";
-import { groundMaterial } from "./ground/bands";
+import { applyGroundGrade, GROUND_GRADE, groundMaterial } from "./ground/bands";
 import { cityGroundMeshes } from "./ground/cityGround";
 import type { GroundLayer } from "./ground/groundLayer";
 import { shimmerMaterial } from "./ground/landcover";
@@ -33,7 +34,9 @@ import { createMotionClock, type MotionMode, motionModeFor } from "./motion/moti
 import type { MotionLayer } from "./motion/motionLayer";
 import type { OverlayLayer } from "./overlays/accessLayers";
 import { THREE_TIERS } from "./quality";
+import { createSky } from "./sky";
 import { measure, UPLOAD_MEASURE } from "./stream/streamer";
+import { attachWheelZoom, dispatchOwnWheel } from "./zoom";
 
 /** Local xz box the camera target may not leave (by more than LIMITS.maxCentreOffsetM). */
 export interface Bounds {
@@ -292,6 +295,9 @@ function build(
 
   const scene = new THREE.Scene();
   scene.background = new THREE.Color();
+  const sky = createSky();
+  scene.add(sky.mesh);
+  undo.push(() => sky.dispose());
   const pmrem = new THREE.PMREMGenerator(renderer);
   undo.push(() => pmrem.dispose());
   const room = new RoomEnvironment();
@@ -320,6 +326,7 @@ function build(
     polygonOffsetFactor: 1,
     polygonOffsetUnits: 1,
   });
+  applyGroundGrade(groundMat);
   const city = new THREE.Group();
   scene.add(city);
   const disposeCity = () => {
@@ -349,6 +356,7 @@ function build(
     if (!overlays) return;
     overlayScene.remove(overlays.group);
     scene.remove(overlays.groundGroup);
+    scene.remove(overlays.lineGroup);
     overlays.dispose();
     overlays = null;
   };
@@ -550,12 +558,23 @@ function build(
   const controls = new MapControls(camera, canvas);
   controls.enableDamping = true;
   controls.zoomToCursor = true;
-  // 0.95^(speed x |deltaY| / 100) per wheel event: about 26% per 200-unit notch (default: 10%).
-  controls.zoomSpeed = 3;
+  // Wheel zoom is proportional and smoothed by ./zoom (AC-A7); OrbitControls only applies each
+  // frame's share through synthetic wheel events (zoom to cursor, clamping): scale 0.95^(|dy|/100).
+  controls.zoomSpeed = 1;
   controls.minDistance = LIMITS.minRangeM;
   controls.maxDistance = LIMITS.maxRangeM;
   controls.minPolarAngle = (90 + LIMITS.minPitchDeg) * RAD;
   controls.maxPolarAngle = (90 + LIMITS.maxPitchDeg) * RAD;
+  undo.push(
+    attachWheelZoom({
+      canvas,
+      range: () => camera.position.distanceTo(controls.target),
+      apply: (factor, x, y) => dispatchOwnWheel(canvas, factor, x, y),
+      reducedMotion,
+      minM: LIMITS.minRangeM,
+      maxM: LIMITS.maxRangeM,
+    }),
+  );
   controls.addEventListener("change", moved);
   undo.push(() => {
     controls.removeEventListener("change", moved);
@@ -615,13 +634,14 @@ function build(
           if (assets) for (const o of assets.aoExcluded()) aoSkip.push(o);
           if (motionLayer) aoSkip.push(motionLayer.group);
           // The flood tint is data on the ground: AO must not darken it.
-          if (overlays) aoSkip.push(overlays.groundGroup);
+          if (overlays) aoSkip.push(overlays.groundGroup, overlays.lineGroup);
           // The journey ribbon is Line2 quads (paint over the ground), not a surface for AO.
           if (journey) aoSkip.push(journey.ribbon);
           return aoSkip;
         }),
       );
-    // Overlays after the AO pass and before bloom/tone mapping: no occlusion on them, drawn on top.
+    // Markers and residents after the AO pass and before bloom/tone mapping: no occlusion on them,
+    // drawn on top. Overlay lines are not here: they draw in the main pass (lineGroup) to depth-test.
     overlayPass = new RenderPass(overlayScene, camera);
     overlayPass.clear = false;
     passes.push(overlayPass);
@@ -941,6 +961,7 @@ function build(
         syncDashes(true);
         overlayScene.add(o.group);
         scene.add(o.groundGroup);
+        scene.add(o.lineGroup);
       }
       requestRender();
     },
@@ -969,6 +990,8 @@ function build(
       scene.environmentIntensity = p.envIntensity;
       renderer.toneMappingExposure = p.exposure;
       (scene.background as THREE.Color).set(p.background);
+      sky.setPreset(p);
+      GROUND_GRADE.value = p.groundGrade;
       lastPreset = p;
       syncBloom();
       applyFog(scene, p, fogRange);

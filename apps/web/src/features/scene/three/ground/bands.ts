@@ -43,14 +43,43 @@ export const GROUND_BANDS = {
 } as const;
 export type GroundBand = keyof typeof GROUND_BANDS;
 
-/** Vertex-coloured material for one band, with its polygon offset. */
+/**
+ * Night grade (A-T11): one albedo multiplier shared by every ground and road material, driven by
+ * the mood (`LightPreset.groundGrade`: 1 by day, lower at night). Module-level so materials made
+ * anywhere (streamed bands, the engine's base plane) read the same uniform.
+ */
+export const GROUND_GRADE = { value: 1 };
+
+/** Multiplies the diffuse colour by `GROUND_GRADE` (chains any earlier `onBeforeCompile`). */
+export function applyGroundGrade(material: THREE.Material): void {
+  const prevKey = material.customProgramCacheKey.bind(material);
+  material.customProgramCacheKey = () => `${prevKey()}_groundGrade`;
+  const prev = material.onBeforeCompile;
+  material.onBeforeCompile = (shader, renderer) => {
+    prev?.call(material, shader, renderer);
+    shader.uniforms.uGroundGrade = GROUND_GRADE;
+    shader.fragmentShader = shader.fragmentShader
+      .replace("void main() {", "uniform float uGroundGrade;\nvoid main() {")
+      .replace(
+        "#include <color_fragment>",
+        "#include <color_fragment>\ndiffuseColor.rgb *= uGroundGrade;",
+      );
+  };
+}
+
+/**
+ * Vertex-coloured material for one band, with its polygon offset. Every band except `water`
+ * takes the night grade.
+ */
 export function groundMaterial(band: GroundBand, roughness = 1): THREE.MeshStandardMaterial {
   const { offset } = GROUND_BANDS[band];
-  return new THREE.MeshStandardMaterial({
+  const m = new THREE.MeshStandardMaterial({
     vertexColors: true,
     roughness,
     polygonOffset: true,
     polygonOffsetFactor: offset,
     polygonOffsetUnits: offset,
   });
+  if (band !== "water") applyGroundGrade(m);
+  return m;
 }

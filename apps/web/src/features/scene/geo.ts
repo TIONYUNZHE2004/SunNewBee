@@ -126,3 +126,14 @@ export function clickedPlaceId(
   const f = features?.find((x) => x.layer?.id && layerIds.includes(x.layer.id) && x.properties?.id);
   return f ? String(f.properties?.id) : null;
 }
+
+const pointsOnly = (fc: GeoJSON.FeatureCollection) =>
+  fc.features.filter((f) => f.geometry.type === "Point");
+
+/** Mapbox access source: status lines only while Path status is on and the gap bands are not; place dots always. */
+export const accessLineData = (
+  fc: GeoJSON.FeatureCollection,
+  gapsOn: boolean,
+  pathStatus: boolean,
+): GeoJSON.FeatureCollection =>
+  gapsOn || !pathStatus ? { type: "FeatureCollection", features: pointsOnly(fc) } : fc;

@@ -1,3 +1,4 @@
+import { isDemoPreset } from "../demo/preset";
 import { type CamMode, journeyStateOf, useJourney } from "./journeyStore";
 import type { JourneyPlan, JourneyState, Phase } from "./timeline";
 
@@ -20,10 +21,8 @@ export interface JourneyHook {
   state: () => (JourneyState & { t: number; playing: boolean; camMode: CamMode }) | null;
 }
 
-/** The demo preset (?demo=1). The preset itself is A-T13; this reads the flag only. */
-export function isDemoPreset(search: string = globalThis.location?.search ?? ""): boolean {
-  return new URLSearchParams(search).get("demo") === "1";
-}
+// One parser for ?demo=1: the demo preset's (A-T13). Re-exported for existing importers.
+export { isDemoPreset };
 
 export function createJourneyHook(): JourneyHook {
   const s = () => useJourney.getState();
