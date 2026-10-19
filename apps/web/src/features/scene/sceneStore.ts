@@ -94,6 +94,8 @@ export interface SceneState {
   selectBuilding: (id: string | null) => void;
   setView: (v: View) => void;
   setProfile: (p: Profile) => void;
+  /** Set the persona to the one an answer's trip was planned for, keeping that route and trip. */
+  adoptProfile: (p: Profile) => void;
   setScenario: (s: string | null) => void;
   toggleLens: (l: Lens) => void;
   setGaps: (on: boolean) => void;
@@ -258,7 +260,14 @@ export const useScene = create<SceneState>((set) => ({
             next.lensVisible = { ...s.lensVisible, [i.lens]: i.visible ?? !s.lensVisible[i.lens] };
           break;
         case "journey.play":
-          if (i.journey) next.journey = i.journey;
+          if (i.journey) {
+            next.journey = i.journey;
+            // the answer used this persona (e.g. named in the question): the chip follows it
+            if (i.journey.profile !== s.profile) {
+              next.profile = i.journey.profile;
+              saveProfile(i.journey.profile);
+            }
+          }
           break;
       }
       return next;
@@ -285,6 +294,11 @@ export const useScene = create<SceneState>((set) => ({
       useJourney.getState().clear(); // the trip was planned for the previous persona
       return { profile, route: null, whatIf: null, journey: null };
     });
+  },
+  adoptProfile: (profile) => {
+    if (useScene.getState().profile === profile) return;
+    saveProfile(profile);
+    set({ profile });
   },
   setScenario: (scenarioId) => {
     useJourney.getState().clear(); // its trip was planned under the previous scenario
