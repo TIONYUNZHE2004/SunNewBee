@@ -199,6 +199,11 @@ async def test_drive_answer_keeps_engine_warnings_and_mapped_end():
         "Go straight on along the footway.",
         "The playground is on your left.",
         "向北走约40米。",
+        "Take the second exit at the roundabout.",  # no side word (own break attempt)
+        "Ambil simpang kedua.",
+        "在第二个路口拐弯。",
+        "Take the next turning onto Persiaran Elmina.",
+        "Keep going past two junctions, then you are there.",
     ],
 )
 def test_any_direction_word_in_model_text_is_rejected(text):
@@ -212,6 +217,9 @@ def test_any_direction_word_in_model_text_is_rejected(text):
         "All right: the route is about 172 m.",
         "步行约5分钟左右。",
         "It runs along Persiaran Elmina for about 120 m.",
+        "This route uses 1 road crossing: 1 unmarked (map data, not checked).",
+        "Laluan ini menggunakan 1 lintasan jalan.",
+        "Belum ditinjau: Steps pada sebuah persimpangan tanpa nama.",  # live T-019 r02 caveat
     ],
 )
 def test_ordinary_words_are_not_directions(text):

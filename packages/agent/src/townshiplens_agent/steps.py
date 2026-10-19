@@ -188,15 +188,20 @@ HEADING = re.compile(
     re.I,
 )
 # Whole-class gate (T-021 review, round 3): any direction word at all in model-written text —
-# a side (left/right, kiri/kanan, 左/右 except 左右 "about"), straight on, a compass heading or a
-# U-turn — since no turn can be phrased without one; the app writes the real steps.
+# a side (left/right, kiri/kanan, 左/右 except 左右 "about"), straight on, a compass heading, a
+# U-turn, or a turn/junction word ("the second exit", "simpang", "路口") — since no direction can
+# be phrased without one; the app writes the real steps.
 DIRECTION = re.compile(
     r"\b(?:left|(?<!all )right(?!\s+(?:now|away))|lefts|rights|straight|north|south|east|west"
     r"|north-?east|north-?west"
     r"|south-?east|south-?west|u-?turn)\b"
     r"|\b(?:kiri|kanan|lurus|utara|selatan|timur|barat|timur laut|barat daya|tenggara"
     r"|barat laut|pusing balik)\b"
-    r"|(?<!左)右(?!边?的?人)|左(?!右)|直走|直行|掉头|(?:向|往|朝)(?:北|南|东|西)",
+    r"|(?<!左)右(?!边?的?人)|左(?!右)|直走|直行|掉头|(?:向|往|朝)(?:北|南|东|西)"
+    # turns and junctions without a side ("the second exit", "simpang kedua", "第二个路口")
+    r"|\b(?:exit|exits|junction|junctions|turning|turnings|roundabout|roundabouts|intersection"
+    r"|intersections)\b|\bturn(?:s|ing)?\s+(?:onto|into|off)\b"
+    r"|\b(?:simpang|belok|membelok|bulatan)\b|路口|出口|环岛|转盘|拐|转弯|转入",
     re.I,
 )
 
