@@ -276,6 +276,10 @@ function fakeEngine() {
     setLighting: vi.fn(),
     setFogRange: vi.fn(),
     setTier: vi.fn(),
+    setDof: vi.fn(),
+    setFocusPoint: vi.fn(),
+    effects: vi.fn(() => ({ dof: false, ao: false })),
+    focusScreen: vi.fn(() => null),
     setViewOffset: vi.fn(),
     resize: vi.fn(),
     rig: {

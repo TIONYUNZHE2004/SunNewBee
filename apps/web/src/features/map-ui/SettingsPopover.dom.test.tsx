@@ -243,6 +243,16 @@ describe("SettingsPopover", () => {
         expect(within(quality).getByRole("radio", { name })).toBeInTheDocument();
       }
     });
+    it("B-T5: offers a Tilt-shift blur On/Off toggle (FX) that sets fx", async () => {
+      useSceneSettings.setState({ fx: true });
+      renderWithClient(<SettingsPopover />, seeded(BUILDINGS));
+      await userEvent.click(screen.getByRole("button", { name: "Map settings" }));
+      const fx = screen.getByRole("radiogroup", { name: "Tilt-shift blur" });
+      expect(within(fx).getByRole("radio", { name: "On" })).toBeChecked();
+      await userEvent.click(within(fx).getByRole("radio", { name: "Off" }));
+      expect(useSceneSettings.getState().fx).toBe(false);
+      expect(localStorage.getItem("tl.fx")).toBe("false");
+    });
     it("Off sets motion to false", async () => {
       renderWithClient(<SettingsPopover />, seeded(BUILDINGS));
       await userEvent.click(screen.getByRole("button", { name: "Map settings" }));

@@ -1,7 +1,7 @@
 import { type RefObject, useEffect, useMemo, useRef, useState } from "react";
 import { useCameraHeading } from "../../cesium/controls/cameraHeadingStore";
 import { usePerfStats } from "../../cesium/PerfOverlay";
-import { useSceneSettings } from "../../sceneSettingsStore";
+import { prefersReducedMotion, useSceneSettings } from "../../sceneSettingsStore";
 import { createFrameMonitor, gpuName, lowerTier, pickTier, type Tier } from "../../shared/quality";
 import { createEngine, type Engine } from "../engine";
 import type { LocalFrame } from "../frame";
@@ -105,6 +105,21 @@ export function useEngine({
   useEffect(() => {
     engine?.setTier(tier);
   }, [engine, tier]);
+
+  // Tilt-shift (B-T5, AC-B5): wanted when the FX toggle is on and motion is not reduced; the
+  // engine runs it only on a tier with depth of field (High).
+  const fx = useSceneSettings((s) => s.fx);
+  const [reduced, setReduced] = useState(prefersReducedMotion);
+  useEffect(() => {
+    const mq =
+      typeof matchMedia === "function" ? matchMedia("(prefers-reduced-motion: reduce)") : null;
+    const on = () => setReduced(prefersReducedMotion());
+    mq?.addEventListener?.("change", on);
+    return () => mq?.removeEventListener?.("change", on);
+  }, []);
+  useEffect(() => {
+    engine?.setDof(fx && !reduced);
+  }, [engine, fx, reduced]);
 
   // `data-frames` (first frames at once, then at most every 500 ms) and the compass heading follow
   // every engine frame; separate from the tier listener below so a tier change never drops a count.
