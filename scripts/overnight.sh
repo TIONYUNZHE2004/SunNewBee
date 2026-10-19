@@ -7,7 +7,7 @@
 #
 # Each round resumes the engineer's latest session in its worktree with ROUND_PROMPT.
 # A round that fails within 2 minutes is treated as "usage limit reached": wait 20 minutes, try again.
-# A failed try costs nothing. Stops at the end time, when the agent prints NOTHING LEFT,
+# A failed try costs nothing. A round with no new commit on the branch waits 30 minutes (idle or blocked). Stops at the end time, when the agent prints NOTHING LEFT,
 # after MAX_ROUNDS rounds, or when the file <worktree>/.overnight-stop exists.
 # Log: <worktree>/.overnight-<agent>.log (add .overnight-* to .git/info/exclude).
 set -u
@@ -18,6 +18,7 @@ UNTIL=${3:-08:00}
 MAX_ROUNDS=${MAX_ROUNDS:-40}
 LIMIT_WAIT=${LIMIT_WAIT:-1200}
 QUICK_FAIL=${QUICK_FAIL:-120}
+IDLE_WAIT=${IDLE_WAIT:-1800}
 
 ROUND_PROMPT=${ROUND_PROMPT:-'Overnight round, no human is watching. Read the board README ("Rounds", "Overnight") and your task files on yunzhe/agent-board. Take the next open item for you in the "Audit P1 fixes" table on BOARD.md, then your other open tasks. Work in small steps. Commit and push your own branch after each step and log on your task file. Run the CI checks that match your change, except e2e. Live model calls only inside your SPEND.md limit, at most 10 questions per round, and log the cost. Never push to main or to another engineer branch. If you are blocked, log why and take the next item. When no item is left, print NOTHING LEFT as your last line.'}
 
@@ -35,6 +36,7 @@ while [ "$(now)" -lt "$end" ] && [ ! -f "$DIR/.overnight-stop" ] && [ "$round" -
   round=$((round + 1))
   last=$(mktemp)
   start=$(now)
+  head0=$(git -C "$DIR" rev-parse HEAD 2>/dev/null)
   echo "$(stamp) round $round start" >>"$LOG"
   case "$AGENT" in
     codex)
@@ -62,6 +64,9 @@ while [ "$(now)" -lt "$end" ] && [ ! -f "$DIR/.overnight-stop" ] && [ "$round" -
   if [ "$rc" -ne 0 ] && [ "$took" -lt "$QUICK_FAIL" ]; then
     echo "$(stamp) quick failure, assuming usage limit; next try in ${LIMIT_WAIT}s" >>"$LOG"
     sleep "$LIMIT_WAIT"
+  elif [ "$(git -C "$DIR" rev-parse HEAD 2>/dev/null)" = "$head0" ]; then
+    echo "$(stamp) no new commit on the branch (idle or blocked); next try in ${IDLE_WAIT}s" >>"$LOG"
+    sleep "$IDLE_WAIT"
   else
     sleep 30
   fi
