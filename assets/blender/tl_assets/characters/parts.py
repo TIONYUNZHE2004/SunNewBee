@@ -71,8 +71,8 @@ def shape_hood(v: geom.Vec) -> geom.Vec:
     cx, cy, cz = HOOD_C
     dy, dz = y - cy, z - cz
     back = smoothstep(0.0, HOOD_R, dy)
-    x = cx + (x - cx) * (1 - 0.05 * back)
-    dy *= 1 - 0.12 * back
+    x = cx + (x - cx) * (1 - 0.08 * back)
+    dy *= 1 - 0.17 * back
     if dz > 0:  # stretch the crown, but not the face opening (front)
         dz *= 1 + (HOOD_UP - 1) * smoothstep(-0.2, 0.0, dy)
     return (x, cy + dy, cz + dz)
@@ -191,7 +191,11 @@ def _tudung_shade(v: geom.Vec) -> tuple[float, float, float]:
     """Crown light, the drape a step deeper as it falls (value contrast from behind)."""
     t = smoothstep(0.97, 0.68, v[2])
     a, b = P.hex_rgb(P.PALETTE["tudung"]), P.hex_rgb(P.PALETTE["tudung_deep"])
-    return tuple(a[j] + (b[j] - a[j]) * t for j in range(3))  # type: ignore[return-value]
+    # fold troughs of the back drape a step darker, so the folds read at follow distance
+    theta = math.atan2(v[1] / 0.88, v[0])
+    trough = 0.16 * smoothstep(0.5, -0.2, math.cos(12 * theta)) * _back(theta, 3)
+    shade = 1.0 - trough * smoothstep(0.95, 0.80, v[2])
+    return tuple((a[j] + (b[j] - a[j]) * t) * shade for j in range(3))  # type: ignore[return-value]
 
 
 def _kain_band(c: geom.Vec) -> str:
@@ -233,7 +237,7 @@ def body_parts() -> list[Part]:
 
     def cape_dr(theta, k):
         w = lower(k)
-        ridges = 0.024 * max(0.0, math.cos(12 * theta)) ** 2 * _back(theta, 3)  # outward only
+        ridges = 0.036 * max(0.0, math.cos(12 * theta)) ** 2 * _back(theta, 3)  # outward only
         return w * (ridges - 0.012 * _back(theta))
 
     parts.append(

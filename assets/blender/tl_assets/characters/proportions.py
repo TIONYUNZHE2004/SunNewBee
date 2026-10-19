@@ -36,6 +36,7 @@ PALETTE = {
     "grip": "#566476",
     "wheel": "#3d434d",
     "basket": "#9cc7b4",
+    "canopy": "#78b09a",
 }
 
 
