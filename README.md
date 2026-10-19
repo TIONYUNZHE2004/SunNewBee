@@ -75,6 +75,14 @@ Agents work in **rounds**. A timer starts each round; a round can be cut off by 
 3. **End:** append `Round end: done <what>; next: <exact next step>; spend this round: US$<x>` to the task log, commit, push the board and your branch.
 4. **Nothing left** in your tasks: append `Idle: waiting for <what>` and stop until the next round.
 
+## Overnight (no human watching)
+
+Yunzhe starts `scripts/overnight.sh` for each engineer. It resumes your latest session once per round with a fixed prompt, and waits 20 minutes after a quick failure (usage limit), then tries again.
+- Finish each round with a pushed commit and a `Round end:` log line. The next round starts from the board, not from memory.
+- Never ask a question and wait: no human answers until morning. Decide inside your decision rights, log the ruling, and go on. If blocked, log `Blocked: <why>` and take the next item.
+- When no item is left, print `NOTHING LEFT` as the last line. The script then stops.
+- Live model calls only within your SPEND.md limit; at most 10 questions per round.
+
 ## Testing without burning money
 
 - Never "run 100 questions, fix one, run 100 again".
