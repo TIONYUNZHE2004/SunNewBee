@@ -63,6 +63,13 @@ test.describe("journey shake (iteration 2)", () => {
     await journey.seek(page, 0.01);
     await settle(page, 1500, 45_000);
     const clip = await mapClip(page);
+    // the drawn-building grid, for offline checks of the camera against what is drawn
+    mkdirSync(OUT, { recursive: true });
+    const grid = await page.evaluate(() =>
+      (window as unknown as { __journey: { grid(): unknown } }).__journey.grid(),
+    );
+    writeFileSync(join(OUT, "grid.json"), JSON.stringify(grid));
+    if (process.env.SHAKE_GRID_ONLY === "1") return;
     const restAt = (m: number) =>
       ph.find((p) => p.kind === "event" && p.event?.kind === "rest" && Math.abs(p.m0 - m) < 6);
     const r888 = restAt(888);

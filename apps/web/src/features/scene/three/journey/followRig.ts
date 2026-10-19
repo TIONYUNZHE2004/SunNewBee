@@ -767,7 +767,9 @@ export const TRACK = {
   /** Clear turns: hidden beyond this (m of lift over the cap), step (deg), low-pass width (s). */
   clearTolM: 0.5,
   clearStepDeg: 5,
-  clearSigmaS: 0.5,
+  clearSigmaS: 0.65,
+  turnHoldS: 0.2,
+  turnReachS: 0.8,
   /** The width (m) of the smooth maximum that joins the camera height and the floor ramp. */
   floorSoftM: 1,
   /** The width (m) of the smooth maximum of the pitch limit's stand-back. */
@@ -800,6 +802,7 @@ export interface TrackMemo {
   /** The azimuth step into each grid sample (`turnAt`), and its clear turn (`clearTurnAt`). */
   turns: Map<number, number>;
   clearTurns: Map<number, number>;
+  dilatedTurns: Map<number, number>;
   /** `warmTrack`'s cursors: the next grid sample and the next grid need to compute. */
   warm?: { sample: number; need: number };
 }
@@ -822,6 +825,7 @@ const newMemo = (deps: readonly unknown[]): TrackMemo => ({
   dilated: new Map(),
   turns: new Map(),
   clearTurns: new Map(),
+  dilatedTurns: new Map(),
 });
 
 const ownMemo = new WeakMap<FollowScene, TrackMemo>();
@@ -1099,6 +1103,33 @@ function clearTurnAt(sc: FollowScene, memo: TrackMemo, i: number): number {
   return out;
 }
 
+/** The clear turns' dilation taper: flat for `turnHoldS`, cos² down to 0 at `turnReachS`. */
+function turnTaper(dtS: number): number {
+  const u = (Math.abs(dtS) - TRACK.turnHoldS) / (TRACK.turnReachS - TRACK.turnHoldS);
+  if (u <= 0) return 1;
+  if (u >= 1) return 0;
+  const c = Math.cos((Math.PI / 2) * u);
+  return c * c;
+}
+
+/**
+ * The clear turns dilated in time (the largest within the envelope taper, sign kept), memoised: a
+ * turn a moment ahead is taken early and held, as a lift is (a lone sample's turn was averaged
+ * away and left her hidden for 0.2 s).
+ */
+function dilatedTurnAt(sc: FollowScene, memo: TrackMemo, i: number): number {
+  const hit = memo.dilatedTurns.get(i);
+  if (hit !== undefined) return hit;
+  const n = Math.ceil(TRACK.turnReachS / TRACK.stepS);
+  let v = 0;
+  for (let j = i - n; j <= i + n; j++) {
+    const w = clearTurnAt(sc, memo, j) * turnTaper((j - i) * TRACK.stepS);
+    if (Math.abs(w) > Math.abs(v)) v = w;
+  }
+  memo.dilatedTurns.set(i, v);
+  return v;
+}
+
 /** The kernel pass turned round her by the low-passed clear turns (`clearTurnAt`): smooth in t. */
 function clearPoseAt(sc: FollowScene, memo: TrackMemo, tc: number): CamPose {
   const p = basePoseAt(sc, memo, tc);
@@ -1112,7 +1143,7 @@ function clearPoseAt(sc: FollowScene, memo: TrackMemo, tc: number): CamPose {
   for (let i = i0; i <= i1; i++) {
     const g = gauss(i * h - tc, sg);
     w += g;
-    v += g * clearTurnAt(sc, memo, i);
+    v += g * dilatedTurnAt(sc, memo, i);
   }
   const turn = w > 0 ? v / w : 0;
   if (Math.abs(turn) < 1e-9) return p;

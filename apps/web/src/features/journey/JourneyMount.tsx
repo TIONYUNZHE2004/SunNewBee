@@ -23,6 +23,7 @@ import { createFollowController, overviewFor, routeOverviewFit } from "./followC
 import { JourneyOverlay } from "./JourneyOverlay";
 import {
   journeyCamera,
+  journeyGrid,
   journeyHero,
   journeyShow,
   journeyStateOf,
@@ -392,6 +393,7 @@ export function JourneyMount({
         ctl.engage();
       if (s.camMode !== prev.camMode || s.playing !== prev.playing) engine.requestRender();
     });
+    journeyGrid.current = () => engine.clearance?.()?.obstacles ?? null;
     journeyCamera.current = () => {
       const v = engine.pickView();
       const st = journeyStateOf(useJourney.getState());
@@ -449,6 +451,7 @@ export function JourneyMount({
       engine.setCameraDriver?.(null);
       engine.setFocusPoint?.(null);
       journeyCamera.current = null;
+      journeyGrid.current = null;
     };
   }, [engine, frame, plan, layer, places]);
 
