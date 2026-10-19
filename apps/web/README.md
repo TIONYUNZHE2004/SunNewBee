@@ -270,8 +270,10 @@ the settings popover.
   derives a camera fit from the boundary at runtime (slab corners, a view axis, a max-range target).
   `clampPose` keeps the target inside the outline (nearest outline point when outside) and, from
   `FIT.startRangeM` (2.5 km) to `LIMITS.maxRangeM` (7,900 m, unchanged), narrows pitch to
-  [-60, -45], heading to ±15° of the axis, pulls the target to the fit target and widens the field
+  [-50, -45] (A-T3b outline: steeper bands need a wider field of view), heading to ±15° of the axis, pulls the target to the fit target and widens the field
   of view (`vfovFor`, capped at 50°) so the whole slab sits clear of the map chrome at max range.
+  At long range the fog's far end also follows the slab (`fogReachM`: the farthest outline vertex
+  sits at 90% of the fog ramp), and bookmark centres go through `anchorInside` (>= 300 m inside).
   Below 2.5 km nothing changes. The engine re-applies the clamp after every MapControls update
   (`rig.constrain()`). "Whole township", `?bookmark=township` and the acceptance `overview` use
   `overviewPose(fit)`; the static `township` bookmark is only the fallback for worlds without an outline.

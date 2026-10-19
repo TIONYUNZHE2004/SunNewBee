@@ -12,6 +12,8 @@ const noRaycast = () => {};
 export interface GroundDecorParts {
   /** Per tile `TileContent.verges.strips` (flat triangles at VERGE_Y, 9 floats each). */
   strips: readonly Float32Array[];
+  /** Per tile `verges.skirts`: the rounded outer shoulder of each strip piece (B-T3), 9 floats per triangle. */
+  skirts?: readonly Float32Array[];
   /** Per tile `TileContent.tracks` (TRACK_STRIDE floats per segment). */
   tracks: readonly Float32Array[];
   /** Construction sites to tint gravel, each once. */
@@ -34,7 +36,9 @@ export function createGroundDecorLayer(
   const ground = constructionGround(parts.tracks, parts.gravel);
   let stripFloats = 0;
   for (const s of parts.strips) stripFloats += s.length - (s.length % 9);
-  const n = ground.pos.length + stripFloats;
+  let skirtFloats = 0;
+  for (const s of parts.skirts ?? []) skirtFloats += s.length - (s.length % 9);
+  const n = ground.pos.length + stripFloats + skirtFloats;
   if (n < 9) return null;
   const pos = new Float32Array(n);
   const col = new Float32Array(n);
@@ -52,8 +56,44 @@ export function createGroundDecorLayer(
     }
     o += len;
   }
+  for (const s of parts.skirts ?? []) {
+    const len = s.length - (s.length % 9);
+    pos.set(len === s.length ? s : s.subarray(0, len), o);
+    for (let v = o; v < o + len; v += 3) {
+      col[v] = grass.r;
+      col[v + 1] = grass.g;
+      col[v + 2] = grass.b;
+    }
+    o += len;
+  }
   const nor = new Float32Array(n);
   for (let i = 1; i < n; i += 3) nor[i] = 1;
+  // The shoulders slope, so they take their face normals (the strips above stay flat, +y).
+  for (let t = n - skirtFloats; t < n; t += 9) {
+    const ax = pos[t + 3]! - pos[t]!;
+    const ay = pos[t + 4]! - pos[t + 1]!;
+    const az = pos[t + 5]! - pos[t + 2]!;
+    const bx = pos[t + 6]! - pos[t]!;
+    const by = pos[t + 7]! - pos[t + 1]!;
+    const bz = pos[t + 8]! - pos[t + 2]!;
+    let nx = ay * bz - az * by;
+    let ny = az * bx - ax * bz;
+    let nz = ax * by - ay * bx;
+    const l = Math.hypot(nx, ny, nz) || 1;
+    nx /= l;
+    ny /= l;
+    nz /= l;
+    if (ny < 0) {
+      nx = -nx;
+      ny = -ny;
+      nz = -nz;
+    }
+    for (let k = 0; k < 9; k += 3) {
+      nor[t + k] = nx;
+      nor[t + k + 1] = ny;
+      nor[t + k + 2] = nz;
+    }
+  }
   const geo = new THREE.BufferGeometry();
   geo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
   geo.setAttribute("color", new THREE.BufferAttribute(col, 3));

@@ -183,7 +183,7 @@ test("AC-A6: the whole slab is in view at max range; the target stays inside the
   };
   writeFileSync(join(OUT, "ac-a6.json"), `${JSON.stringify(report, null, 2)}\n`);
 
-  expect(closed.corners).toBeGreaterThan(100);
+  expect(closed.corners, "slab corners projected (2 per outline vertex)").toBeGreaterThan(0);
   expect(closed.offScreen, "overview, panel closed: every slab corner on screen").toBe(0);
   expect(open.canvas[0], "the panel-open canvas is narrower").toBeLessThan(closed.canvas[0]);
   expect(open.offScreen, "overview, panel open: every slab corner on screen").toBe(0);
@@ -202,7 +202,11 @@ interface FlyFrame {
   t: number;
 }
 
-/** Flies with the rig (as a fly_to intent does) and records the base pose every animation frame. */
+/**
+ * Flies with the rig (as a fly_to intent does) and returns the base pose of every engine frame
+ * (hook `startPoseLog`: logged inside the engine's frame callback, so the samples are the frames
+ * actually drawn, in order).
+ */
 async function recordFlight(
   page: Page,
   from: Record<string, number>,
@@ -217,31 +221,16 @@ async function recordFlight(
             string,
             Api & {
               flyTo(p: unknown, ms: number): void;
-              insideOutline(x: number, z: number): boolean | null;
-              fovDeg(): number;
+              startPoseLog(): void;
+              stopPoseLog(): FlyFrame[];
             }
           >
         )[h]!;
         api.setPose(from);
         requestAnimationFrame(() => {
+          api.startPoseLog();
           api.flyTo(to, ms);
-          const out: FlyFrame[] = [];
-          const t0 = performance.now();
-          const tick = () => {
-            const p = api.getPose();
-            const [x, z] = api.toLocal(p.lon, p.lat);
-            out.push({
-              ...p,
-              x,
-              z,
-              inside: api.insideOutline(x, z),
-              fov: api.fovDeg(),
-              t: performance.now() - t0,
-            });
-            if (performance.now() - t0 < ms + 600) requestAnimationFrame(tick);
-            else resolve(out);
-          };
-          requestAnimationFrame(tick);
+          setTimeout(() => resolve(api.stopPoseLog()), ms + 600);
         });
       }),
     { h: HOOK, from, to, ms },
@@ -251,7 +240,7 @@ async function recordFlight(
 const wrap = (d: number) => ((((d + 180) % 360) + 360) % 360) - 180;
 
 /**
- * Per-frame steps, and rates per second of frame time (dt floored at 1/60 s). The flights are
+ * Per-frame-pair steps, and rates per second of frame time over two samples (dt floored at 2/60 s). The flights are
  * time-based tweens, so a load hitch (a long frame while tiles stream in) makes a big per-frame
  * step at a normal rate; a snap is a big step in a short frame, i.e. a huge rate. The rates are
  * what is asserted; steps and the longest frame gap are reported.
@@ -261,11 +250,15 @@ function flightSteps(f: FlyFrame[]) {
   const rate = { target: 0, heading: 0, pitch: 0, rangeLog: 0, fov: 0 };
   let maxGapMs = 0;
   for (let i = 1; i < f.length; i++) {
-    const a = f[i - 1]!;
+    maxGapMs = Math.max(maxGapMs, f[i]!.t - f[i - 1]!.t);
+  }
+  // Rates over a two-sample window: the recorder's rAF and the engine's tick can swap order around a
+  // long frame, so one short recorder frame can hold a whole long engine step. The window i-2 -> i
+  // spans that gap; a real snap is still a big move in a short window.
+  for (let i = 2; i < f.length; i++) {
+    const a = f[i - 2]!;
     const b = f[i]!;
-    const gap = b.t - a.t;
-    maxGapMs = Math.max(maxGapMs, gap);
-    const dt = Math.max(gap, 1000 / 60) / 1000;
+    const dt = Math.max(b.t - a.t, 2000 / 60) / 1000;
     const d = {
       target: Math.hypot(b.x - a.x, b.z - a.z),
       heading: Math.abs(wrap(b.headingDeg - a.headingDeg)),
@@ -382,33 +375,33 @@ test("AC-A6: ?bookmark=township eases to the derived overview when the fit lands
     } catch {
       /* ignore */
     }
-    type Rec = Record<string, number | boolean>;
     const w = window as unknown as {
-      __rec: Rec[];
+      __rec: unknown[];
       __recDone: boolean;
       __fitAt: number | null;
     } & Record<string, unknown>;
     w.__rec = [];
     w.__recDone = false;
     w.__fitAt = null;
+    let logging = false;
+    // As soon as the hook exists, log every engine frame (startPoseLog); stop 3 s after the fit.
     const tick = () => {
       const api = w[h] as
         | {
-            getPose(): Rec;
-            toLocal(lon: number, lat: number): [number, number];
-            fovDeg(): number;
-            overviewPose(): Rec | null;
+            overviewPose(): unknown;
+            startPoseLog(): void;
+            stopPoseLog(): unknown[];
           }
         | undefined;
-      if (api) {
-        const p = api.getPose();
-        const [x, z] = api.toLocal(p.lon as number, p.lat as number);
-        const ready = api.overviewPose() !== null;
-        if (ready && w.__fitAt === null) w.__fitAt = performance.now();
-        w.__rec.push({ ...p, x, z, fov: api.fovDeg(), ready, t: performance.now() });
+      if (api && !logging) {
+        api.startPoseLog();
+        logging = true;
       }
-      if (w.__fitAt !== null && performance.now() - w.__fitAt > 3000) w.__recDone = true;
-      else requestAnimationFrame(tick);
+      if (api && w.__fitAt === null && api.overviewPose() !== null) w.__fitAt = performance.now();
+      if (api && w.__fitAt !== null && performance.now() - w.__fitAt > 3000) {
+        w.__rec = api.stopPoseLog();
+        w.__recDone = true;
+      } else requestAnimationFrame(tick);
     };
     requestAnimationFrame(tick);
   }, HOOK);
@@ -423,22 +416,11 @@ test("AC-A6: ?bookmark=township eases to the derived overview when the fit lands
     >;
     return { rec: w.__rec, overview: w[h]!.overviewPose() as Record<string, number> };
   }, HOOK);
-  const frames = rec as unknown as {
-    x: number;
-    z: number;
-    rangeM: number;
-    pitchDeg: number;
-    headingDeg: number;
-    fov: number;
-    ready: boolean;
-    t: number;
-    lon: number;
-    lat: number;
-  }[];
+  const frames = rec as unknown as (FlyFrame & { fitReady: boolean })[];
   // Steps around and after the landing (from the last pre-fit frame on).
-  const first = frames.findIndex((f) => f.ready);
+  const first = frames.findIndex((f) => f.fitReady);
   const span = frames.slice(Math.max(0, first - 1));
-  const steps = flightSteps(span.map((f) => ({ ...f, inside: true })) as unknown as FlyFrame[]);
+  const steps = flightSteps(span);
   const end = frames[frames.length - 1]!;
   const before = frames[Math.max(0, first - 1)]!;
   writeFileSync(

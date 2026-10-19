@@ -16,6 +16,7 @@ import {
 } from "../cameraRig";
 import type { Engine } from "../engine";
 import type { LocalFrame } from "../frame";
+import { anchorInside } from "../ground/boundary";
 import { boundsGoal, type CameraGoal, type IntentSlice, intentGoal } from "../intents";
 
 const INTENT_PITCH_DEG = -45;
@@ -71,8 +72,11 @@ function startPose(frame: LocalFrame, engine: Engine | null, onStandIn?: () => v
   if (id === "township" && fit) return overviewPose(fit);
   if (id === "township") onStandIn?.();
   const b = BOOKMARKS[id];
+  // Kept >= 300 m inside the outline whatever it is (A-T5: survives outline edits).
+  const local = frame.toLocal(b.centre[0], b.centre[1]);
+  const outline = engine?.slabBoundary?.();
   return {
-    target: frame.toLocal(b.centre[0], b.centre[1]),
+    target: (outline ? anchorInside(outline, local[0], local[1]) : null) ?? local,
     rangeM: b.rangeM,
     pitchDeg: b.pitchDeg,
     headingDeg: b.headingDeg,

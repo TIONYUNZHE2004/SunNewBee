@@ -229,3 +229,36 @@ export function clipLine(b: Boundary, pts: readonly P[]): P[][] {
   close();
   return runs;
 }
+
+/** How far inside the outline (m) a bookmark's centre must lie (A-T5: probes and hero). */
+export const ANCHOR_CLEARANCE_M = 300;
+
+/**
+ * A bookmark centre kept at least `minClearM` inside the outline: unchanged when it already is,
+ * else the nearest point that is (rings every 50 m out to 5 km, 48 directions each). Lets fixed
+ * camera bookmarks survive outline edits (A-T5). Null when no such point lies within 5 km. Pure.
+ */
+export function anchorInside(
+  b: Boundary,
+  x: number,
+  z: number,
+  minClearM = ANCHOR_CLEARANCE_M,
+): P | null {
+  if (clearance(b, x, z) >= minClearM) return [x, z];
+  for (let r = 50; r <= 5000; r += 50) {
+    let best: P | null = null;
+    let bestC = -Infinity;
+    for (let k = 0; k < 48; k++) {
+      const a = (k / 48) * 2 * Math.PI;
+      const px = x + Math.cos(a) * r;
+      const pz = z + Math.sin(a) * r;
+      const c = clearance(b, px, pz);
+      if (c >= minClearM && c > bestC) {
+        bestC = c;
+        best = [px, pz];
+      }
+    }
+    if (best) return best;
+  }
+  return null;
+}
