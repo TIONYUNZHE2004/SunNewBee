@@ -4,7 +4,7 @@ import math
 import re
 
 import pytest
-from tl_assets.characters import geom, proportions
+from tl_assets.characters import geom, parts, proportions
 
 HEX = re.compile(r"^#[0-9a-f]{6}$")
 
@@ -98,3 +98,46 @@ def test_palette_hex_and_roles():
         assert role in pal
     r, g, b = proportions.hex_rgb(pal["baju"])
     assert b > g and r > g  # purple
+
+
+def test_lathe_dr_moves_radius():
+    profile = [(0.0, 1.0), (0.5, 0.5), (0.0, 0.0)]
+    v0, _ = geom.lathe(profile, 8)
+    v1, _ = geom.lathe(profile, 8, dr=lambda theta, k: 0.1)
+    r0 = max(math.hypot(x, y) for x, y, _z in v0)
+    r1 = max(math.hypot(x, y) for x, y, _z in v1)
+    assert r1 == pytest.approx(r0 + 0.1)
+
+
+def test_h4_measured_on_built_tpose():
+    """H4 on the actual T-pose geometry (the bind pose), not on the layout constants."""
+    m = parts.measure(parts.hero_parts("tpose"))
+    assert m["height"] == pytest.approx(proportions.HEIGHT, abs=0.01)
+    assert m["chin"] == pytest.approx(proportions.CHIN_Z, abs=0.002)
+    assert proportions.h4_ok(m["head_ratio"])
+    lo, hi = proportions.DISPLAY_SCALE_RANGE
+    assert m["height"] * lo >= 2.2 and m["height"] * hi <= 2.5
+
+
+def test_lod0_triangle_budget():
+    """H3: LOD0 (body plus walker) 6k-15k triangles in both poses."""
+    walker = sum(geom.tri_count(f) for _g, _r, (_v, f) in parts.walker_parts())
+    for pose in ("tpose", "walker"):
+        total = parts.measure(parts.hero_parts(pose))["tris"] + walker
+        assert 6000 <= total <= 15000, (pose, total)
+
+
+def test_roles_resolve_to_palette():
+    for _g, role, (pv, pf) in parts.hero_parts("walker") + parts.walker_parts():
+        for f in pf[:: max(1, len(pf) // 20)]:
+            c = tuple(sum(pv[i][j] for i in f) / len(f) for j in range(3))
+            key = parts.role_of(role, c)
+            if key is None:  # a per-vertex gradient: sRGB floats in range
+                assert all(0.0 <= ch <= 1.0 for ch in role(pv[f[0]]))
+            else:
+                assert key in proportions.PALETTE
+
+
+def test_unknown_pose_rejected():
+    with pytest.raises(ValueError):
+        parts.hero_parts("sit")

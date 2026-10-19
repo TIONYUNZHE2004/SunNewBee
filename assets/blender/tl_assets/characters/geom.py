@@ -55,12 +55,13 @@ def lathe(
     sy: float = 1.0,
     center: Vec = (0.0, 0.0, 0.0),
     dz: Callable[[float, int], float] | None = None,
+    dr: Callable[[float, int], float] | None = None,
 ) -> Mesh:
     """Revolve a `(radius, z)` profile around the z axis.
 
     A profile point with radius 0 becomes a single pole vertex. `sx`/`sy` squash the rings into
     ellipses; `dz(theta, k)` shifts ring `k` vertically per angle (theta 0 = +x, -pi/2 = -y, the
-    character's front), which shapes hems.
+    character's front), which shapes hems; `dr(theta, k)` adds to the radius (folds, a hump).
     """
     verts: list[Vec] = []
     rings: list[list[int] | int] = []
@@ -74,8 +75,9 @@ def lathe(
         for s in range(segments):
             theta = s * math.tau / segments - math.pi / 2  # vertex 0 faces the front (-y)
             off = dz(theta, k) if dz else 0.0
+            rr = max(1e-4, r + (dr(theta, k) if dr else 0.0))
             verts.append(
-                (cx + r * sx * math.cos(theta), cy + r * sy * math.sin(theta), cz + z + off)
+                (cx + rr * sx * math.cos(theta), cy + rr * sy * math.sin(theta), cz + z + off)
             )
             ring.append(len(verts) - 1)
         rings.append(ring)

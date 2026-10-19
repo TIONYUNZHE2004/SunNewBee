@@ -9,7 +9,7 @@ H4: head height (crown to chin, tudung included) is 1/2.4-1/2.8 of the standing 
 
 HEIGHT = 1.55  # crown of the tudung, true metres
 HEAD_TOP = HEIGHT
-CHIN_Z = 0.98  # lowest point of the face (chin)
+CHIN_Z = 0.962  # lowest point of the face (chin)
 H4_RANGE = (2.4, 2.8)
 DISPLAY_SCALE = 1.5
 DISPLAY_SCALE_RANGE = (1.42, 1.55)  # keeps the displayed height inside 2.2-2.5 m
@@ -21,7 +21,10 @@ PALETTE = {
     "kain": "#7352b8",
     "baju_trim": "#b99ae6",
     "tudung": "#cdb0ee",
-    "tudung_trim": "#b996e3",
+    "tudung_mid": "#c3a3ea",
+    "tudung_deep": "#a986da",
+    "tudung_trim": "#a382d8",
+    "batik": "#e2b85c",
     "shoe": "#7a5444",
     "eye": "#2b2330",
     "eye_hi": "#ffffff",

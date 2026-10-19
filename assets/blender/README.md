@@ -66,6 +66,7 @@ geometry (each builder seeds `random` from the asset id).
 | `tl_assets/props.py` | Kit builders `trees`, `furniture`, `people`, `vehicles`, `construction` (scripted), and the vendor intake `import_vendor` / `scale_to` |
 | `tl_assets/characters/geom.py` | Pure mesh generators (lathe, ellipsoid, swept tube, Catmull-Rom, orientation) for scripted characters |
 | `tl_assets/characters/proportions.py` | Hero height, H4 head ratio, display scale and clay palette (pure) |
+| `tl_assets/characters/parts.py` | The hero's parts as pure geometry (head, tudung drape, baju, kain, arms, walker, stoop pose) and `measure` (H3/H4 in pytest) |
 | `tl_assets/characters/hero.py` | The journey hero (C-T2): chibi older woman, baju kurung, tudung, scripted walker; `build_hero("tpose")` / `build_hero("walker")` |
 | `tl_assets/characters/sheet.py` | Renders the hero modelling sheet (EEVEE, 16 samples), stats json and `.blend` |
 
@@ -215,7 +216,8 @@ Not part of `run.py`/`specs.ASSETS` yet (no glb until the C-T3 rig). Render the 
 ```
 
 It writes `hero_sheet.png` (T-pose and walker pose: front, side, back, 3/4), `hero_cameras.png`
-(follow camera, behind, face close-up, 3/4), `hero_vs_prototype.png`, `tiles/`, `hero_stats.json`
+(follow, behind, side, 3/4 face, 3/4 front, 30 m and 80 m), `hero_vs_prototype.png`, `tiles/`, `hero_stats.json`
 and `hero.blend` (about 30 s). The hero is modelled at true scale (1.55 m, facing -y); the web
 draws her at 1.5x (R-J3). Body parts are separate closed shells with vertex groups named for the
-rig (`head`, `face`, `tudung_cape`, `torso`, `kain`, `arm_L/R`, `hand_L/R`, `shoe_L/R`).
+rig (`head`, `face`, `tudung_cape`, `torso`, `kain` plus soft `kain_L`/`kain_R`, `arm_L/R`,
+`hand_L/R`, `shoe_L/R`). H4 is measured on the T-pose; the script fails if it is out of range.

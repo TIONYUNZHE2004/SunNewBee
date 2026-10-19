@@ -5,9 +5,13 @@
 
 Writes to <dir>: one 768x1024 EEVEE tile per view (`tiles/*.png`), the composed sheets
 `hero_sheet.png` (row 1 T-pose, row 2 walker pose: front, side, back, 3/4) and
-`hero_cameras.png` (follow camera, straight behind, 3/4 face close-up, side-on walker),
+`hero_cameras.png` (row 1: follow camera, straight behind, side, 3/4 face; row 2: 3/4 front,
+the follow direction at 30 m and 80 m displayed distance),
 `hero_vs_prototype.png` (the prototype's primitive hero beside this one, same
 displayed scale), `hero_stats.json` (triangles, materials, measured head ratio) and `hero.blend`.
+
+H4 is measured on the upright T-pose (the bind pose). The script exits non-zero when the
+measured head ratio is outside 1/2.4-1/2.8.
 """
 
 import argparse
@@ -25,6 +29,7 @@ import mathutils  # noqa: E402
 import numpy as np  # noqa: E402
 
 from tl_assets.characters import geom, hero  # noqa: E402
+from tl_assets.characters import parts as H  # noqa: E402
 from tl_assets.characters import proportions as P  # noqa: E402
 
 TILE = (768, 1024)
@@ -73,7 +78,7 @@ def setup_scene():
     scene.collection.objects.link(fill)
 
     me = bpy.data.meshes.new("ground")
-    r = 30.0
+    r = 150.0
     me.from_pydata([(-r, -r, 0), (r, -r, 0), (r, r, 0), (-r, r, 0)], [], [(0, 1, 2, 3)])
     mat = bpy.data.materials.new("ground")
     mat.use_nodes = True
@@ -260,8 +265,7 @@ def main(argv: list[str]) -> None:
         for name, deg in views:
             rig.rotation_euler = (0.0, 0.0, math.radians(deg))
             aim(cam, (0.0, -8.0, 0.86), (0.0, 0.0, 0.86))
-            if pose == "walker":
-                rig.location = (0.0, 0.0, 0.0)
+            if pose == "walker":  # centre the hero-plus-walker footprint in the tile
                 rig.location = mathutils.Matrix.Rotation(
                     math.radians(deg), 3, "Z"
                 ) @ mathutils.Vector((0.0, 0.2, 0.0))
@@ -278,20 +282,25 @@ def main(argv: list[str]) -> None:
     rig.location = (0.0, 0.0, 0.0)
     cam.data.type = "PERSP"
     k = 1.0 / P.DISPLAY_SCALE
+    follow = mathutils.Vector((4.5, 8.5, 4.2))
+    unit = follow.normalized()
     shots = [
-        ("follow", (4.5 * k, 8.5 * k, 4.2 * k), (0.0, -0.2, 0.75), 40.0),
+        ("follow", tuple(follow * k), (0.0, -0.2, 0.75), 40.0),
         ("behind", (0.0, 3.2, 1.6), (0.0, -0.2, 0.8), 50.0),
-        ("face34", (0.75, -1.25, 1.3), (0.0, -0.05, 1.15), 70.0),
+        ("side", (3.2, -0.25, 1.1), (0.0, -0.25, 0.75), 50.0),
+        ("face34", (1.15, -1.95, 1.35), (0.0, -0.12, 1.08), 50.0),
         ("front34", (2.0, -2.6, 1.2), (0.0, -0.2, 0.75), 55.0),
+        ("far30", tuple(unit * 30.0 * k), (0.0, -0.2, 0.75), 40.0),
+        ("far80", tuple(unit * 80.0 * k), (0.0, -0.2, 0.75), 40.0),
     ]
-    row = []
+    paths = []
     for name, loc, target, lens in shots:
         cam.data.lens = lens
         aim(cam, loc, target)
         p = tiles / f"cam_{name}.png"
         render(scene, p)
-        row.append(p)
-    compose([row], out / "hero_cameras.png")
+        paths.append(p)
+    compose([paths[:4], paths[4:]], out / "hero_cameras.png")
 
     # beside the prototype's primitive hero, both at their displayed scale
     proto = prototype_hero()
@@ -325,10 +334,14 @@ def main(argv: list[str]) -> None:
         "materials": sorted({m.name for o in (body, walker) for m in o.data.materials}),
         "vertex_groups": [g.name for g in body.vertex_groups],
         **measure(tpose),
+        "h4_pose": "tpose",
+        "walker_pose_head_ratio": round(H.measure(H.hero_parts("walker"))["head_ratio"], 3),
     }
     (out / "hero_stats.json").write_text(json.dumps(stats, indent=2) + "\n", newline="\n")
     print(json.dumps(stats, indent=2))
     bpy.ops.wm.save_as_mainfile(filepath=str(out / "hero.blend"))
+    if not stats["h4_ok"]:
+        raise RuntimeError(f"H4 failed: head ratio {stats['head_ratio_chin']} outside {P.H4_RANGE}")
 
 
 if __name__ == "__main__":
