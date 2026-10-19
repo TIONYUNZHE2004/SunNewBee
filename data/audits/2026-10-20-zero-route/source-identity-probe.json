@@ -1,0 +1,17 @@
+{
+  "source_url": "https://api.openstreetmap.org/api/0.6/way/1306543778/full.json",
+  "scope": "One source identity diagnostic only, not a seed rebuild or a field verification",
+  "way_id": 1306543778,
+  "way_version": 1,
+  "way_timestamp": "2024-08-09T10:13:04Z",
+  "node_ids": [12100402376, 12100402375],
+  "coordinates_rounded_6dp": [[101.509133, 3.181063], [101.508882, 3.181403]],
+  "tags": {
+    "highway": "service",
+    "oneway": "yes",
+    "service": "parking_aisle"
+  },
+  "legacy_segment_id": "seg-1306543778-0",
+  "matches_current_seed_geometry": true,
+  "limitation": "This validates one way only. It cannot establish junction identity with neighboring ways or verify whole-seed topology. Use the read-only service for a coherent full source refresh."
+}

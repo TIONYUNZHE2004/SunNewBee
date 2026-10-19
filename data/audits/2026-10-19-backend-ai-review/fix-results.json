@@ -1,6 +1,6 @@
 {
   "scope": "Backend and AI route correctness fixes; published AI 2aaa214 integrated after live probes.",
-  "recommendation": "Hold the combined merge until the T-021 AI maneuver binding, closure and arrival wording fixes land and CI passes. Backend maneuver output and mapped one-way traversal are implemented. Original-node seed rebuild and legal turn restrictions remain open.",
+  "recommendation": "Hold merge for three reproduced AI navigation binding holes (lowercase, unnamed stretch and same-street occurrence cross-product) and green CI. Earlier closure/physical-arrival/dropped-drive-warning regressions are fixed by integrated AI c8f276d. Source-backed topology rebuild, legal turn restrictions and destination-closure ruling remain open.",
   "fixed": {
     "AUD-001": "Exact place IDs bind route selection, measurements, follow-ups and map highlight.",
     "AUD-002": "Replay rejects stale world, claim, profile, code and expiry-day fingerprints.",
@@ -14,30 +14,36 @@
   "remaining_ranked": [
     {
       "rank": 1,
+      "issue": "T-021 AI navigation binding",
+      "status": "open: three complete-validator reproductions accepted after AI c8f276d; AI-owned hand-off pushed on T-017/T-021",
+      "critical_point": "Wrong street/turn/distance combinations can survive validation through lowercase names, unnamed stretches, or multiple occurrences of the same street. Bind one maneuver occurrence or prevent free-text navigation. Saved fixture probes, not live model failures."
+    },
+    {
+      "rank": 2,
       "issue": "AUD-011",
       "status": "partial: importer identity guard c0d4adc complete; source-backed seed rebuild blocked by Overpass timeouts",
       "critical_point": "Importer uses coordinate-derived junction IDs when original OSM nodes are absent. Equal coordinates do not prove a legal junction, especially across levels. A new import must retain real node IDs and regenerate dependent seed layers."
     },
     {
-      "rank": 2,
+      "rank": 3,
       "issue": "Driving restrictions",
       "status": "partial: mapped one-way enforcement 752c2a1 complete; legal turn relations/changing directions remain unmodelled",
-      "critical_point": "No one-way or turn-restriction model. Driving output is indicative, never confirmed navigation."
+      "critical_point": "Mapped one-way tags are now enforced; legal turn relations and changing directions remain unmodelled. Driving remains indicative, never confirmed navigation."
     },
     {
-      "rank": 3,
+      "rank": 4,
       "issue": "AUD-008",
       "status": "open",
       "critical_point": "Keyword scope gate can refuse real route requests containing removed-topic words."
     },
     {
-      "rank": 4,
+      "rank": 5,
       "issue": "AUD-009",
       "status": "open",
       "critical_point": "PDPA redaction still misses some parenthesized phone and spaced identity formats."
     },
     {
-      "rank": 5,
+      "rank": 6,
       "issue": "AUD-012",
       "status": "policy decision required",
       "critical_point": "Closed ordinary destinations warn, while closed evacuation centres are excluded. Yunzhe must choose consistent destination closure policy."
@@ -119,5 +125,32 @@
     "live_model_questions": 0,
     "spend_usd": 0,
     "merge_status": "BLOCKED pending AI correction and green CI"
+  },
+  "followup_round2_2026_10_20": {
+    "backend_commits": {
+      "zero_edge_geometry": "aab8d18",
+      "inferred_zero_edge_connection": "f9b459d",
+      "linked_centre_entrances": "8a885f9",
+      "chosen_drive_entrance_warning": "58734d7"
+    },
+    "ai_integrated": "c8f276d / 1622461 via 19a0f09; no handwritten agent edits by backend",
+    "fixed_ai": "Original seven maneuver probes PASS; closure regression PASS; real drive chat retains road-end/legal-turn caveats and mapped-end wording.",
+    "remaining_ai": "Three full-validator wrong-direction cases accepted; four controls correct. See ../2026-10-20-zero-route/probe_remaining_navigation.py and .json, pushed 54ae483. Merge hold remains.",
+    "checks": {
+      "zero_route_and_centres": "181 affected checks PASS before selected-gap follow-up; final 74 routing checks PASS after that change",
+      "integration_before_last_small_fix": "1152 agent/API tests PASS, including 23 cache-body tests",
+      "final_integration": "PASS 1152 agent/API tests in 237.88 s, including all 23 current demo-cache body checks, after final source change",
+      "lint": "PASS",
+      "golden": "23/23 mock PASS; zero fallbacks or rejected attempts",
+      "types": "PASS",
+      "api_client": "PASS regeneration and zero drift",
+      "e2e": "NOT RUN as instructed; control owns CI and visual review",
+      "demo_signatures": "22/22 refreshed metadata signatures and replay loads verified; validated event bodies byte-preserved"
+    },
+    "real_api": "places query/details, 16352 access features, zero-route status/geometry, 416.4 m walking control and 113.3 m drive chat verified. Extra zero-route mock chat abstains; it does not establish AI zero-route wording.",
+    "source": "One official OSM way/node identity diagnostic matches seed geometry; not a seed rebuild. Overpass de HTTP406, Kumi bounded timeout. No more retries or seed writes.",
+    "spend_usd": 0,
+    "live_questions": 0,
+    "app": "Stopped; own API8021/web5191 sockets verified closed"
   }
 }

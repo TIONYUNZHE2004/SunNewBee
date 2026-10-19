@@ -1,20 +1,19 @@
-Route answers can select the wrong endpoints or omit important data gaps. This branch binds route facts and map highlights to the selected journey, adds deterministic route maneuvers, and prevents the reproduced wrong-way drive from Car Park B to the playground. It also rejects imported graph topology without original OSM node identities and keeps unusable staff checks out of ticket-impact counts.
+Route answers can select the wrong endpoints or hide important data gaps. This branch binds facts and highlights to the selected journey, adds deterministic route maneuvers, applies mapped vehicle one-way tags, and keeps zero-edge inferred entrance connections unverified. Linked evacuation centres use their place's explicit entrances; driving gap warnings use the selected route endpoints. The importer rejects topology without original OSM node identities, and ticket impact excludes unusable staff checks.
 
-**Merge status: BLOCKED.** Backend implementation is ready for review. The integrated AI maneuver changes still accept four dishonest navigation statements and cause one closure-warning regression. The real mock drive chat also omits the engine’s road-end/legal-turn warnings and claims arrival 123.3 m short of the destination. The AI hand-off is on board tasks T-021 and T-017. Require those fixes and green CI before merging.
+**Merge status: HOLD.** Backend is ready for review. AI c8f276d fixes the original turn/street probes, legitimate closure wording, physical-arrival claim and missing driving caveats. Three additional complete-validator navigation baits still pass: lowercase street names, unnamed stretches, and a distance borrowed from another occurrence of the same street. Reproduction: `data/audits/2026-10-20-zero-route/probe_remaining_navigation.py`. Control should require an AI correction and green CI before merging.
 
 Validation:
 
-- Required agent/API check before the AI integration: 1,120 passed.
-- Latest integration: 1,125 passed, one failed (`test_detour_closure_is_named`); 23 demo-cache tests separately passed.
-- Affected spatial/routing/tool/import checks: 186 passed; final direction/access/import checks: 72 passed; flood-tool/core API checks: 40 passed.
-- `pnpm lint`, workspace typecheck, generated API client with zero drift: PASS.
-- Golden: 23/23 mock, zero fallbacks or rejected attempts. All 22 Elmina recordings refreshed and current signatures checked.
-- Real curl checks: places, access layer, chat, six walking routes and four driving controls. Saved under `data/audits/2026-10-20-{t021,driving}/`.
-- No local e2e, no paid model calls, no GitHub PR or CI run by this overnight worker.
+- 181 affected routing/flood/tool/API checks PASS; final selected-entrance warning change: 74 routing checks PASS.
+- Final integrated agent/API: 1,152 passed in 237.88 s after the final source change, including all 23 current demo-cache body checks. All 22 recording signatures and replay loads verified; event bodies byte-preserved.
+- `pnpm lint`, workspace typecheck and generated API client with zero drift: PASS.
+- Golden: 23/23 mock, zero fallbacks or rejected attempts.
+- Real curl: place search/details, 16,352 access features, zero-route status/geometry, 416.4 m walking control, 113.3 m drive chat with mandatory caveats and mapped-end wording. Saved under `data/audits/2026-10-20-zero-route/`.
+- No local e2e, paid calls, GitHub PR or CI run by this worker. Control opens the PR.
 
-Limits: committed seed topology still uses legacy coordinate-derived IDs. Both bounded Overpass mirror attempts timed out, with no seed writes. Legal turn restrictions and changing directions remain unmodelled. Five deep-spot routes have 3–8 maneuvers; the longer hero route retains nine rather than deleting a real turn or uncertainty boundary. Control still owns visual map review.
+Limits: seed topology still uses legacy coordinate-derived IDs; both Overpass services failed bounded probes. A single original-OSM-way diagnostic is not a whole-seed verification. Legal turn restrictions and changing directions remain unmodelled. The current seed has no explicit entrance lists, so centre/selected-entrance fixes are crafted fixture regressions, not claims of repaired real entrances. Control owns visual map review. Ordinary-destination closure policy still needs Yunzhe's ruling.
 
-The file lists below cover the whole comparison with control, including previously pushed P1 and T-020 work.
+The lists cover the whole comparison with control, including previously pushed P1 and T-020 work.
 
 ## Touches Backend
 
@@ -40,11 +39,20 @@ The file lists below cover the whole comparison with control, including previous
 - `data/audits/2026-10-19-backend-ai-review/report.json`
 - `data/audits/2026-10-20-driving/README.md`
 - `data/audits/2026-10-20-driving/route-comparison.json`
+- `data/audits/2026-10-20-overnight-pr.md`
 - `data/audits/2026-10-20-t021/README.md`
 - `data/audits/2026-10-20-t021/api-routes.json`
 - `data/audits/2026-10-20-t021/drive-arrival-chat.json`
 - `data/audits/2026-10-20-t021/probe_ai_steps.json`
 - `data/audits/2026-10-20-t021/probe_ai_steps.py`
+- `data/audits/2026-10-20-zero-route/README.md`
+- `data/audits/2026-10-20-zero-route/api-comparison.json`
+- `data/audits/2026-10-20-zero-route/drive-chat-after-ai.json`
+- `data/audits/2026-10-20-zero-route/final-api-controls.json`
+- `data/audits/2026-10-20-zero-route/probe_remaining_navigation.json`
+- `data/audits/2026-10-20-zero-route/probe_remaining_navigation.py`
+- `data/audits/2026-10-20-zero-route/source-identity-probe.json`
+- `data/audits/2026-10-20-zero-route/zero-chat.json`
 - `data/demo/0af26933f0c732d8.jsonl`
 - `data/demo/0bab7dac777c26c1.jsonl`
 - `data/demo/31e807dbfc287101.jsonl`
@@ -90,11 +98,13 @@ The file lists below cover the whole comparison with control, including previous
 - `packages/spatial/src/townshiplens_spatial/twm.py`
 - `packages/spatial/src/townshiplens_spatial/world.py`
 - `packages/spatial/tests/test_access.py`
+- `packages/spatial/tests/test_centre_entrances.py`
 - `packages/spatial/tests/test_direction.py`
 - `packages/spatial/tests/test_impact.py`
 - `packages/spatial/tests/test_maneuvers.py`
 - `packages/spatial/tests/test_routing.py`
 - `packages/spatial/tests/test_tools_access.py`
+- `packages/spatial/tests/test_zero_route.py`
 
 ## Touches AI
 
@@ -155,7 +165,7 @@ The file lists below cover the whole comparison with control, including previous
 - `apps/web/src/lib/routeStatus.test.ts`
 - `apps/web/src/lib/routeStatus.ts`
 
-## Generated client
+## Touches Generated
 
 - `packages/api-client/openapi.json`
 - `packages/api-client/src/schema.d.ts`

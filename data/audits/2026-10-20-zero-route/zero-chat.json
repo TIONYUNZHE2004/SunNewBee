@@ -1,0 +1,38 @@
+{
+  "request": {
+    "message": "Can I push a stroller from Elmina Urban Park to Urban Park bench 3?",
+    "profile": "stroller"
+  },
+  "checked_text": "Please name the exact start and destination, and confirm how you are travelling. I cannot select a route until those details agree.",
+  "done": {
+    "type": "done",
+    "message_id": "7a1d279a57e3",
+    "answer_status": "cannot_answer",
+    "model": "mock-scripted+template"
+  },
+  "tool_calls": [
+    {
+      "type": "tool.call",
+      "id": "find_place-0",
+      "name": "find_place",
+      "args": {
+        "query": "urban park",
+        "types": null,
+        "limit": 5,
+        "near_place": null
+      }
+    },
+    {
+      "type": "tool.call",
+      "id": "find_place-1",
+      "name": "find_place",
+      "args": {
+        "query": "urban park",
+        "types": null,
+        "limit": 5,
+        "near_place": null
+      }
+    }
+  ],
+  "cost_usd": 0
+}
