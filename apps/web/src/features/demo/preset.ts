@@ -3,14 +3,9 @@ import { usePanel } from "../main/panelStore";
 import { useSceneSettings } from "../scene/sceneSettingsStore";
 import { useScene } from "../scene/sceneStore";
 import { PINNED_SUN_ISO, pinSunClock } from "../scene/three/sunClock";
+import { isDemoPreset } from "./demoFlag";
 
-/** True when the URL carries the demo recording flag `?demo=1` (spec section 6.6). One helper for
- * everything that keys off it (this preset, the later `window.__journey` gating and auto-play). */
-export function isDemoPreset(
-  search: string = typeof location === "undefined" ? "" : location.search,
-): boolean {
-  return new URLSearchParams(search).get("demo") === "1";
-}
+export { isDemoPreset };
 
 /** The values the preset forces for this page load. */
 export const DEMO_PRESET = {

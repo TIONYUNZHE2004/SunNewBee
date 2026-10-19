@@ -2,6 +2,7 @@ import type { SceneIntent } from "@tl/api-client";
 import { create } from "zustand";
 import { useMode } from "../../app/modeStore";
 import { loadProfile, saveProfile } from "../../lib/profileStore";
+import { isDemoPreset } from "../demo/demoFlag";
 import { useJourney } from "../journey/journeyStore";
 import type { JourneyPlan } from "../journey/timeline";
 import type { View } from "./selectView";
@@ -250,8 +251,12 @@ export const useScene = create<SceneState>((set) => ({
       }
       return next;
     });
-    // loaded paused: auto-play is the caller's choice (demo preset; "Watch the trip" button)
-    if (i.kind === "journey.play" && i.journey) useJourney.getState().load(i.journey);
+    // Loaded paused; the demo preset (?demo=1, spec §6.6) plays it from the start as soon as it
+    // arrives, a normal load waits for the answer's "Watch the trip" button.
+    if (i.kind === "journey.play" && i.journey) {
+      useJourney.getState().load(i.journey);
+      if (isDemoPreset()) useJourney.getState().play();
+    }
   },
   // One detail panel at a time: opening any of the four closes the others.
   selectPlace: (selectedPlaceId) => set((s) => only(s, "selectedPlaceId", selectedPlaceId)),
