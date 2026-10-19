@@ -7,10 +7,12 @@ event of the played plan that has none yet, sanitised like every chat VR (safe_v
 is built from place names, never the resident's words: PDPA).
 """
 
+import asyncio
 import json
 
 import pytest
 from townshiplens_agent import demo
+from townshiplens_agent.agent import Deps, call_tool
 from townshiplens_agent.events import ChatRequest
 from townshiplens_agent.journeys import MAX_JOURNEY_VRS, journey_vr_targets
 from townshiplens_agent.record import TurnRecord
@@ -24,6 +26,7 @@ from townshiplens_spatial.world import load_world
 SEED = ROOT / "data/seed/elmina"
 DEMO_Q = "My mum uses a walker. Can she walk from Harmoni 1 to Lakeside Mall Car Park B?"
 PROFILE = "older_adult_rest"
+HARMONI_1, CAR_PARK_B = "osm-way-909868201", "park-b"
 MOCK = AgentSettings(_env_file=None, llm_provider="mock")
 needs_seed = pytest.mark.skipif(not (SEED / "site.json").exists(), reason="Elmina seed not built")
 
@@ -129,6 +132,24 @@ async def test_demo_turn_files_a_request_for_every_unchecked_place(seed, tmp_pat
     # facts plan_route did not ask about.
     assert rec.validator_errors == []
     assert evs[-1].type == "done" and evs[-1].answer_status == "partial"
+
+
+@needs_seed
+async def test_journey_requests_reduce_the_truncated_count(seed, tmp_path):
+    """Final review (4): each pair the walk files was one plan_route left unfiled and counted in
+    verification_requests_truncated, so "N more checks pending" must not count it again."""
+    ctx = tools.Ctx(world=seed, vrs=VerificationStore(str(tmp_path / "plain.db")))
+    plain = tools.plan_route(ctx, HARMONI_1, CAR_PARK_B, PROFILE).data
+    ctx = tools.Ctx(world=seed, vrs=VerificationStore(str(tmp_path / "vr.db")))
+    deps = Deps(ctx=ctx, rec=TurnRecord(queue=asyncio.Queue()), request=ChatRequest(message="x"))
+    out = (
+        await call_tool(deps, "plan_route", from_id=HARMONI_1, to_id=CAR_PARK_B, profile=PROFILE)
+    )["data"]
+    walk_filed = len(out["verification_requests"]) - len(plain["verification_requests"])
+    assert walk_filed > 0 and plain["verification_requests_truncated"] >= walk_filed
+    assert out["verification_requests_truncated"] == (
+        plain["verification_requests_truncated"] - walk_filed
+    )
 
 
 @needs_seed
